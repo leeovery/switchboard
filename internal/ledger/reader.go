@@ -129,17 +129,18 @@ func (r *Reader) Lines(from time.Time) iter.Seq[Held] {
 	return func(yield func(Held) bool) {
 		now := r.now()
 		within := func(h Held) bool { return !h.At.Before(from) && !h.At.After(now) }
-		r.days.lines(dayfile.Dates(r.days.start(from, now), now), within, yield)
+		r.days.lines(dayfile.Dates(r.days.start(from, now), now), heldIn, within, yield)
 	}
 }
 
 // lines hands take each line of the files of the local days with the given
-// dates, given oldest first, that within reports true of, oldest first, by
-// when each arrived, whichever day's file it's in, as dayfile.Read hands
-// them, until take reports false; and warns of how many of them couldn't be
-// read, args, attributes before the count, saying of what.
-func (d days) lines(dates []string, within, take func(Held) bool, args ...any) {
-	if unread := dayfile.Read(d.files, dates, heldIn, arrived, within, take, nil); unread > 0 {
+// dates, given oldest first, as decode reads it, that within reports true
+// of, oldest first, by when each arrived, whichever day's file it's in, as
+// dayfile.Read hands them, until take reports false; and warns of how many
+// of them couldn't be read, args, attributes before the count, saying of
+// what.
+func (d days) lines(dates []string, decode func([]byte) (Held, bool), within, take func(Held) bool, args ...any) {
+	if unread := dayfile.Read(d.files, dates, decode, arrived, within, take, nil); unread > 0 {
 		d.logger.Warn("request ledger lines unread", slices.Concat(args, []any{"lines", unread})...)
 	}
 }

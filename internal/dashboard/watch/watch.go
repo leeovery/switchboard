@@ -322,9 +322,12 @@ type Model struct {
 	// it's built of, and the reads of them, which Accounts shares.
 	past historyTab
 	// sessionsTab is what the watch holds of Sessions: what it shows, its
-	// Switchboard and its List as the last look built them, and the List
-	// held, fed by the ledger's tail.
+	// Switchboard and its List as the last look built them, and whether the
+	// List is held. held are the sessions its readers want, the store
+	// views.HeldSessions holds, fed once a read of the ledger's tail: none
+	// till the List's first read lands.
 	sessionsTab sessionsTab
+	held        views.HeldSessions
 	// runwayTab is what the watch holds of Runway: what it shows, its lanes
 	// as the last look built them, and the readings history's tail they're
 	// judged by; and pool what it holds of the pool's charts GRAPHS draws
@@ -881,7 +884,7 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 		View: m.view,
 		Lost: m.lostShown(), Failed: m.failure(), Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), StateChanged: m.changes.wordFaded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails, PoolRooms: m.pool.rooms,
 		Brightened: m.numbers.brightened(now), Sections: m.sections, By: m.by, Burn: m.burn, Traces: m.traces, TraceScale: m.cfg.TraceScale, Layout: m.layout,
-		Sessions: m.sessions, Unlisted: m.unlisted(), Stream: m.traffic.stream(now), HeldList: m.sessionsTab.list(), Traffic: m.traffic.at(now), Scroll: m.scroll, SessionsTab: m.sessionsTab.shown,
+		Sessions: m.sessions, Unlisted: m.unlisted(), Stream: m.traffic.stream(now), Held: m.held, Traffic: m.traffic.at(now), Scroll: m.scroll, SessionsTab: m.sessionsTab.shown,
 		Focus:      m.focus,
 		Policy:     m.cfg.Policy,
 		WindowName: m.cfg.WindowName,

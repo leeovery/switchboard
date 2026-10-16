@@ -203,8 +203,8 @@ func TestTheRecordsLedgerGivesTodaysLinesOldestFirstAndAfreshAsAFollowerDoes(t *
 		t.Errorf("Today() afresh = %t, want every one of today's lines given afresh from the zero Mark", afresh)
 	}
 	for i := range got {
-		if string(got[i].JSON) != string(want[i].JSON) {
-			t.Errorf("Today()'s line %s holds %s, want its JSON as written, %s", got[i].Request, got[i].JSON, want[i].JSON)
+		if got[i].JSON != nil || want[i].JSON != nil {
+			t.Errorf("Today()'s line %s holds %s, a Follower's %s, want neither holding its JSON", got[i].Request, got[i].JSON, want[i].JSON)
 		}
 	}
 	again, _, afresh := l.Today(mark)
@@ -226,8 +226,8 @@ func TestTheRecordsLedgerGivesADaysLinesOldestFirstAsAFollowerDoes(t *testing.T)
 			t.Errorf("Day(%s) gave %v, want %v, as a Follower gives them", date, requestsOf(got), requestsOf(want))
 		}
 		for i := range min(len(got), len(want)) {
-			if string(got[i].JSON) != string(want[i].JSON) {
-				t.Errorf("Day(%s)'s line %s holds %s, want its JSON as written, %s", date, got[i].Request, got[i].JSON, want[i].JSON)
+			if got[i].JSON != nil || want[i].JSON != nil {
+				t.Errorf("Day(%s)'s line %s holds %s, a Follower's %s, want neither holding its JSON", date, got[i].Request, got[i].JSON, want[i].JSON)
 			}
 		}
 	}

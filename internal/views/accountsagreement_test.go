@@ -149,7 +149,7 @@ func TestDetailsSessionsAreRunningOfsOnTheAccountAndROUTINGsCount(t *testing.T) 
 	for _, am := range viewstest.AccountsMoments() {
 		t.Run(am.Name, func(t *testing.T) {
 			m := am.Doc.At(am.Now, claude.Policy())
-			running := views.RunningOf(m, views.ListLive{Running: am.Sessions, Stream: am.Stream}, views.HeldList{})
+			running := views.RunningOf(m, views.ListLive{Running: am.Sessions, Stream: am.Stream}, views.HeldSessions{})
 			counts := views.RunningCounts(running)
 			var all []views.Running
 			for _, a := range m.Accounts {

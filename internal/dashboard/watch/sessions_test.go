@@ -388,7 +388,8 @@ func TestSessionsOpensAsKept(t *testing.T) {
 }
 
 // sessionsCounted is a request ledger followed as it grows, which notes the
-// ids each read of its sessions whole asked for.
+// ids each read of today's sessions whole asked for, and the ids of those
+// it read whole alone.
 type sessionsCounted struct {
 	followed
 	asked [][]string
@@ -401,7 +402,7 @@ func (l *sessionsCounted) Sessions(ids []string, take func(string, ledger.Line))
 }
 
 func (l *sessionsCounted) SessionsOf(ids []string, take func(string, ledger.Line)) map[string][]ledger.Line {
-	l.asked = append(l.asked, slices.Clone(ids))
+	l.alone = append(l.alone, ids...)
 	return l.Ledger.SessionsOf(ids, take)
 }
 
@@ -466,8 +467,8 @@ func TestTheListIsReadOnceAsSessionsFirstShowsThenFedByTheTail(t *testing.T) {
 	l.Ledger = ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, logs.For("watch"))
 	h.model.cfg.Ledger = l
 	h.start()
-	if len(l.asked) != 0 || h.model.sessionsTab.held != nil {
-		t.Fatalf("on the Overview, the List was read %d times, held %t; want it unread", len(l.asked), h.model.sessionsTab.held != nil)
+	if len(l.asked) != 0 || h.model.sessionsTab.listed {
+		t.Fatalf("on the Overview, the List was read %d times, held %t; want it unread", len(l.asked), h.model.sessionsTab.listed)
 	}
 	h.keys(toSessions...)
 	requests := func() int {
@@ -678,7 +679,7 @@ func sessionsOnTheLedger(t *testing.T, state string, now time.Time) (*harness, *
 	h.clock.now = now
 	h.start()
 	h.keys(toSessions...)
-	if h.model.sessionsTab.held == nil {
+	if !h.model.sessionsTab.listed {
 		t.Fatal("Sessions shown, the List isn't held")
 	}
 	return h, l
@@ -714,8 +715,8 @@ func TestTheListTakesInTheDayBeforeAsTheDayTurns(t *testing.T) {
 	h.hear(sent(router.StreamSent, arrival.Add(100*time.Millisecond)))
 	h.clock.now = night.Add(35 * time.Second)
 	h.read(routerDocument(three()...))
-	if held := *h.model.sessionsTab.held; !reflect.DeepEqual(held, held.Take(views.Today(h.clock.now).Date, nil)) {
-		t.Error("the first look past midnight left the List held at the day before, want it rolled on to the new day")
+	if day := h.model.held.Holding().Day; day != views.Today(h.clock.now).Date {
+		t.Errorf("the first look past midnight left the store held at %s, want it rolled on to the new day", day)
 	}
 
 	line := took(arrivedAt("0a000002", arrival), 22*time.Second)
@@ -788,7 +789,7 @@ func TestTheListReadsTheDaysTheTailMissedOnce(t *testing.T) {
 	if !slices.Equal(l.days, want) {
 		t.Errorf("the days %v were read whole, want %v, each missed once", l.days, want)
 	}
-	if held := *h.model.sessionsTab.held; !reflect.DeepEqual(held, held.Take(views.Today(h.clock.now).Date, nil)) {
-		t.Error("the List is held at a day missed, want it rolled on to today")
+	if day := h.model.held.Holding().Day; day != views.Today(h.clock.now).Date {
+		t.Errorf("the store is held at %s, a day missed, want it rolled on to today", day)
 	}
 }

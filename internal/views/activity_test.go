@@ -223,7 +223,7 @@ func TestWhatTheLastListingHadInFlightIsAsLastKnownWhileNoRouterListsTheSessions
 	for _, unlisted := range []bool{false, true} {
 		t.Run(fmt.Sprintf("unlisted %t", unlisted), func(t *testing.T) {
 			live := views.ListLive{Running: listing, Unlisted: unlisted, Now: now}
-			held := views.HoldList(views.ReadList(sessionsLedger(nil, now), listing), ledger.Pricing, now)
+			held := listHeld(sessionsLedger(nil, now), listing, now)
 			page, _ := views.SessionPageOf(asking, views.PageSources{
 				Routed: &routed, Unlisted: unlisted, Read: readOf(summarisedLedger(nil), &routed), Prices: ledger.Pricing, Now: now,
 			})

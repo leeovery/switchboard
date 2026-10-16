@@ -148,11 +148,11 @@ var (
 	builtInTheWatch = []string{
 		"views.CallsOf", "views.DaySessions", "views.EventsRead.Back", "views.EventsRead.Look", "views.EventsRead.Refiled",
 		"views.EventsRead.Skips", "views.EventsRead.Took", "views.EventsSince", "views.EventsTable.Details",
-		"views.FindSessions", "views.HeldList.Awaited", "views.HeldList.Found", "views.HeldList.List", "views.HeldList.Take",
-		"views.HeldList.Unfound", "views.HeldList.Unread", "views.HoldList", "views.Lanes.Look", "views.ListSessions",
-		"views.LogEvents", "views.LogFilter.KeptFrom", "views.LogRead.Grown", "views.LogRows", "views.LogSessions",
-		"views.Patch", "views.ReadEvents", "views.ReadList", "views.ReadLogHeld", "views.RunwayReadings", "views.StubsOf",
-		"views.Today", "views.TotalsOn",
+		"views.FindSessions", "views.HeldSessions.Awaited", "views.HeldSessions.Fed", "views.HeldSessions.Holding",
+		"views.HeldSessions.List", "views.HeldSessions.Unread", "views.HeldSessions.With", "views.HoldSessions", "views.Lanes.Look",
+		"views.ListSessions", "views.ListWanted", "views.LogEvents", "views.LogFilter.KeptFrom", "views.LogRead.Grown", "views.LogRows",
+		"views.LogSessions", "views.Patch", "views.ReadEvents", "views.ReadLogHeld", "views.RunwayReadings", "views.StubsOf",
+		"views.Today", "views.Took", "views.TotalsOn",
 	}
 )
 

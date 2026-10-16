@@ -39,13 +39,13 @@ type Running struct {
 // the sessions live gives the router listing, at m's Now, as the request
 // stream it gives has moved and seen them since, as placed has them, those
 // that run, as runningNow has them, each named as the List names it, its
-// lines as the List held, list, holds them: a row on each account their
+// lines as the store, held, holds them: a row on each account their
 // models go to that run there, as runningOn has it, the accounts in the
 // config's order, and on each, the session seen last first. What each is
 // doing is as last known where live says no router lists them, as known
 // has it.
-func RunningOf(m status.Moment, live ListLive, list HeldList) []Running {
-	return runningOf(m, newLister(live.Running, live.Unlisted, live.Stream, m.Now), list)
+func RunningOf(m status.Moment, live ListLive, held HeldSessions) []Running {
+	return runningOf(m, newLister(live.Running, live.Unlisted, live.Stream, m.Now), held)
 }
 
 // RunningCountsOf counts the sessions running on each account at the moment
@@ -53,17 +53,17 @@ func RunningOf(m status.Moment, live ListLive, list HeldList) []Running {
 // seen them since, as RunningCounts counts RunningOf's rows: which rows there
 // are doesn't hang on what names a session, so it reads no lines.
 func RunningCountsOf(m status.Moment, sessions []status.Session, s Stream) map[string]int {
-	return RunningCounts(RunningOf(m, ListLive{Running: sessions, Stream: s}, HeldList{}))
+	return RunningCounts(RunningOf(m, ListLive{Running: sessions, Stream: s}, HeldSessions{}))
 }
 
 // runningOf are the sessions running at the moment m, as RunningOf has
-// them, as by lists them, the List held, list, holding their lines.
-func runningOf(m status.Moment, by lister, list HeldList) []Running {
+// them, as by lists them, the store, held, holding their lines.
+func runningOf(m status.Moment, by lister, held HeldSessions) []Running {
 	var running []Running
 	for _, a := range m.Accounts {
 		var on []Running
 		for _, session := range by.running {
-			if r, ok := by.runningOn(m, session, a.ID, list.namingOf(session.ID)); ok {
+			if r, ok := by.runningOn(m, session, a.ID, held.namingOf(session.ID)); ok {
 				on = append(on, r)
 			}
 		}

@@ -26,64 +26,90 @@ func liveOf(look viewstest.SessionsLook) views.ListLive {
 }
 
 // walked is a look as the watch takes it, after the looks before it: its
-// moment; the List held, as its first look read it, fed since as the
-// ledger's tail grows; the sessions read whole at the look; its calls; and
-// the board kept.
+// moment; the store holding the List, as its first look read it, fed since
+// as the ledger's tail grows; the sessions read whole at the look; its
+// calls; and the board kept.
 type walked struct {
 	look  viewstest.SessionsLook
 	m     status.Moment
-	held  views.HeldList
+	held  views.HeldSessions
 	found []string
 	calls []views.Call
 	board views.Patched
 }
 
-// walk takes the moment's looks in turn, as the watch does: the List held as
-// its first look reads the ledger, then fed what the ledger gained by each
-// look, each day's lines taken at its date, today's last, as the tail gives
-// them, and the sessions it lists but hasn't read whole read so; the calls
-// built of the List held; and the board patched from the last look's.
+// walk takes the moment's looks in turn, as the watch does: the store
+// holding the List as its first look reads the ledger, then fed what the
+// ledger gained by each look, as tailed feeds it, reading whole the sessions
+// it wants that it doesn't hold; the calls built of what it holds; and the
+// board patched from the last look's.
 func walk(t *testing.T, sm viewstest.SessionsMoment) []walked {
 	t.Helper()
 	first := sm.Looks[0]
-	held := views.HoldList(views.ReadList(sessionsLedger(first.Lines, first.Now), first.Sessions), ledger.Pricing, first.Now)
+	read := &idsAsked{LedgerSessions: sessionsLedger(first.Lines, first.Now)}
+	held := listHeld(read, first.Sessions, first.Now)
 	var board views.Patched
 	var walks []walked
 	taken := first.Lines
-	for _, look := range sm.Looks {
+	for i, look := range sm.Looks {
 		if len(look.Lines) < len(taken) || !reflect.DeepEqual(look.Lines[:len(taken)], taken) {
 			t.Fatalf("a look's lines lose some of the last look's: the ledger only grows")
 		}
-		held = tailed(held, look.Lines[len(taken):], look.Now)
+		l := &idsAsked{LedgerSessions: sessionsLedger(look.Lines, look.Now)}
+		held = tailed(held, l, look, look.Lines[len(taken):])
 		taken = look.Lines
-		found := held.Unfound(liveOf(look))
-		if len(found) > 0 {
-			held = held.Found(views.ReadListOf(sessionsLedger(look.Lines, look.Now), found...))
-		}
 		m := look.Doc.At(look.Now, claude.Policy())
 		calls := views.CallsOf(m, views.ListLive{Running: look.Sessions, Unlisted: look.Unlisted, Stream: look.Stream}, held)
 		board = views.Patch(board, calls, views.StubsOf(m))
+		found := l.asked
+		if i == 0 {
+			found = append(read.asked, found...)
+		}
 		walks = append(walks, walked{look: look, m: m, held: held, found: found, calls: calls, board: board})
 	}
 	return walks
 }
 
-// tailed is held fed the lines gained, as a read of the ledger's tail at
-// now feeds it: those of each day before now's at its date, oldest first,
-// then today's, at today's, which rolls it on to today.
-func tailed(held views.HeldList, gained []ledger.Line, now time.Time) views.HeldList {
-	today := views.Today(now).Date
-	byDate := make(map[string][]ledger.Held)
-	for _, l := range gained {
-		date := dayfile.DateOf(l.At)
-		byDate[date] = append(byDate[date], ledger.Held{Line: l})
-	}
-	for _, date := range slices.Sorted(maps.Keys(byDate)) {
-		if date < today {
-			held = held.Take(date, byDate[date])
+// idsAsked is a ledger that notes the ids of the sessions each read of them
+// whole asks for, or, of one that reads today's too, gives.
+type idsAsked struct {
+	views.LedgerSessions
+	asked []string
+}
+
+func (l *idsAsked) Sessions(ids []string, take func(string, ledger.Line)) map[string][]ledger.Line {
+	read := l.LedgerSessions.Sessions(ids, take)
+	l.asked = slices.Compact(slices.Sorted(slices.Values(slices.Concat(l.asked, ids, slices.Collect(maps.Keys(read))))))
+	return read
+}
+
+func (l *idsAsked) SessionsOf(ids []string, take func(string, ledger.Line)) map[string][]ledger.Line {
+	l.asked = append(l.asked, ids...)
+	return l.LedgerSessions.SessionsOf(ids, take)
+}
+
+// tailed is held fed, through l, at the look, the lines gained since the
+// last, as a read of the ledger's tail at its now gives them: today's
+// gained, and each day before today's that gained lines read again whole,
+// as the tail reads a late day, as the List wants them.
+func tailed(held views.HeldSessions, l views.LedgerSessions, look viewstest.SessionsLook, gained []ledger.Line) views.HeldSessions {
+	today := views.Today(look.Now)
+	var gainedToday []ledger.Held
+	days := make(map[string][]ledger.Held)
+	for _, g := range gained {
+		if date := dayfile.DateOf(g.At); date < today.Date {
+			days[date] = nil
+		} else {
+			gainedToday = append(gainedToday, ledger.Held{Line: g})
 		}
 	}
-	return held.Take(today, byDate[today])
+	for _, line := range look.Lines {
+		if date := dayfile.DateOf(line.At); hasKey(days, date) {
+			days[date] = append(days[date], ledger.Held{Line: line})
+		}
+	}
+	held, _ = held.Fed(l, views.Took(gainedToday, days), views.ListWanted(look.Sessions, look.Stream), look.Now)
+	return held
 }
 
 // boardSaid says an account's line as SessionsLook's Board says it.
@@ -200,9 +226,10 @@ func TestTheListAtEachOfSessionsHardMoments(t *testing.T) {
 	})
 }
 
-// The List held, fed each look's gain as the tail gives it, is the List
-// sessions builds afresh of the same lines at every look: midnight, a
-// session started yesterday with no line today, and probing among them.
+// The List of the store, fed each look's gain as the tail gives it, is the
+// List of a store fed every line whole, as ListSessions builds it, at every
+// look: midnight, a session started yesterday with no line today, and
+// probing among them.
 func TestTheListHeldIsTheListBuiltAfreshOfTheSameLinesAtEveryLook(t *testing.T) {
 	eachLook(t, func(t *testing.T, w walked) {
 		got := w.held.List(liveOf(w.look))
@@ -382,19 +409,15 @@ func TestTheLogsSessionsAreTheListsOfToday(t *testing.T) {
 	})
 }
 
-// Each session is read whole once, as the List first lists it unread, its
-// start found then, and never again; and once read, none the List lists is
-// left unread.
+// Each session is read whole once, as the List first lists it, its start
+// found then, and never again, the lines of each look all placed.
 func TestEachSessionTheListHoldsIsReadWholeOnce(t *testing.T) {
 	for _, sm := range viewstest.SessionsMoments() {
 		t.Run(sm.Name, func(t *testing.T) {
 			read := make(map[string]int)
-			for i, w := range walk(t, sm) {
+			for _, w := range walk(t, sm) {
 				for _, id := range w.found {
 					read[id]++
-				}
-				if left := w.held.Unfound(liveOf(w.look)); len(left) > 0 {
-					t.Errorf("at look %d, %v are left unread once read", i+1, left)
 				}
 			}
 			for id, n := range read {

@@ -68,7 +68,7 @@ func (f Frame) running(doc status.Document, now time.Time) []views.Running {
 	if f.runs != nil && f.runs.at.Of(doc, now, f.Policy) {
 		return f.runs.list()
 	}
-	return views.RunningOf(f.Moment(doc, now), f.listLive(now), f.HeldList)
+	return views.RunningOf(f.Moment(doc, now), f.listLive(now), f.Held)
 }
 
 // listLive is what the views list the sessions running of at now: the

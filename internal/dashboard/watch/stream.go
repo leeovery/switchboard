@@ -299,7 +299,7 @@ func joined(events []router.StreamEvent) int {
 // and what each seat is doing, for the traffic, and the requests going
 // upstream, for the traces.
 func (m Model) took(events []router.StreamEvent, now time.Time) Model {
-	m.traffic = m.traffic.took(events, m.held(now), now)
+	m.traffic = m.traffic.took(events, m.limitHeld(now), now)
 	m.traces = m.traces.Told(m.traffic.sentOf(events), now)
 	return m
 }
@@ -361,10 +361,10 @@ func (m Model) answeredAgain(from router.Health) Model {
 	return m
 }
 
-// held reports whether the limit the router saw the account with the given id
-// reach holds it at now, as the moment of the document on screen then has it,
-// as moment says, asked for the first time it's asked.
-func (m Model) held(now time.Time) func(id string) bool {
+// limitHeld reports whether the limit the router saw the account with the
+// given id reach holds it at now, as the moment of the document on screen
+// then has it, as moment says, asked for the first time it's asked.
+func (m Model) limitHeld(now time.Time) func(id string) bool {
 	look := sync.OnceValue(func() status.Moment { return m.moment(now) })
 	return func(id string) bool {
 		a, ok := look().Account(id)

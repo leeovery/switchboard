@@ -467,7 +467,10 @@ type Mark struct {
 // Today returns the lines of the requests that arrived today, until now, read
 // since mark, oldest first, by when each arrived, then the date of the day's
 // file each is in, and its place there, as Reader.Lines orders them, and the
-// Mark they're read to. Where mark is the zero Mark, or one of today's lines
+// Mark they're read to. Each is the line it reads as alone, none of its JSON
+// held: the follower holds every one of today's for whoever reads them from
+// the zero Mark, and the dashboard that follows them never reads it. A verb
+// that writes lines as the ledger holds them reads them through a Reader. Where mark is the zero Mark, or one of today's lines
 // as they were before they were read afresh, as when the day turned since,
 // or one of the days' files was replaced, or shrunk, they're every one of
 // today's, as Reader.Lines gives them from today's start, and afresh reports
@@ -497,9 +500,10 @@ func (f *Follower) Today(mark Mark) (lines []Held, next Mark, afresh bool) {
 // of the day's file each is in, and its place there, as Today orders them:
 // read whole, at each call, from the day's files and those of the days either
 // side of it, as a change of time zone files a line under a date beside its
-// own, and a request that ends after midnight is its arrival day's. It gives
-// none of a date that isn't one, or of a day whose files hold none. How many
-// lines couldn't be read is warned of.
+// own, and a request that ends after midnight is its arrival day's. Each is
+// the line it reads as alone, none of its JSON held, as Today gives them. It
+// gives none of a date that isn't one, or of a day whose files hold none.
+// How many lines couldn't be read is warned of.
 func (f *Follower) Day(date string) []Held {
 	start, end, ok := dayfile.Day(date)
 	if !ok {
@@ -508,7 +512,7 @@ func (f *Follower) Day(date string) []Held {
 	now := f.now()
 	within := func(h Held) bool { return !h.At.Before(start) && h.At.Before(end) && !h.At.After(now) }
 	var lines []Held
-	f.days.lines(dayfile.Dates(start, start), within, func(h Held) bool {
+	f.days.lines(dayfile.Dates(start, start), lineHeldIn, within, func(h Held) bool {
 		lines = append(lines, h)
 		return true
 	}, "day", date)
@@ -561,7 +565,7 @@ func (t *todaysLines) read(d days, now time.Time) {
 	for _, date := range dayfile.Dates(t.start, now) {
 		file, ok := t.files[date]
 		if !ok {
-			file = &arrivals{Tail: dayfile.NewTail(d.files, date, heldIn), date: date}
+			file = &arrivals{Tail: dayfile.NewTail(d.files, date, lineHeldIn), date: date}
 			t.files[date] = file
 		}
 		read, afresh := file.read(d.logger, t.start)
@@ -595,6 +599,17 @@ func (t *todaysLines) turn(now time.Time) bool {
 	}
 	t.start, t.files = start, files
 	return true
+}
+
+// lineHeldIn returns the line a line of the ledger holds, as Today and Day
+// give it, none of its JSON held, reporting false for one that doesn't read
+// as a line.
+func lineHeldIn(data []byte) (Held, bool) {
+	line, ok := lineIn(data)
+	if !ok {
+		return Held{}, false
+	}
+	return Held{Line: line}, true
 }
 
 // read reads what the day's files gained, holding those that arrived from

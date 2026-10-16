@@ -58,12 +58,12 @@ func (m Model) awaiting() bool {
 	return false
 }
 
-// listAwaited reports whether the List held, which names the sessions
+// listAwaited reports whether the List, whose lines name the sessions
 // running, is awaited: the ledger read, and its first read yet to land,
 // whether or not it has begun, as it waits for a read of the tail to land
 // first.
 func (m Model) listAwaited() bool {
-	return m.cfg.Ledger != nil && m.sessionsTab.held == nil
+	return m.cfg.Ledger != nil && !m.sessionsTab.listed
 }
 
 // waited is m noting, at now, when the tab shown began to wait on a read,

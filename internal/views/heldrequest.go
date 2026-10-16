@@ -16,7 +16,7 @@ import (
 // out on that couldn't serve it; what it spent; how long its writes to the
 // cache last; and what it was worth at a day's prices. A story is told again
 // from it without decoding its line again, and it's a fraction of its line's
-// size, so the List holds it in place of the line.
+// size, so the store holds it in place of the line.
 type heldRequest struct {
 	flight
 	dir, model, account, reason, from, class, agentID, geo unique.Handle[string]
@@ -65,14 +65,20 @@ func pricedRequestsOf(lines []ledger.Line, prices ledger.Table, date string) []h
 }
 
 // pricedAt returns requests, each priced by prices at the local day with the
-// given date, afresh.
+// given date, as pricedOn has it, afresh.
 func pricedAt(requests []heldRequest, prices ledger.Table, date string) []heldRequest {
 	priced := slices.Clone(requests)
 	for i := range priced {
-		r := &priced[i]
-		r.worth, r.priced = prices.SummedSpend(r.model.Value(), r.geo.Value(), r.spend, date)
+		priced[i] = priced[i].pricedOn(prices, date)
 	}
 	return priced
+}
+
+// pricedOn is r priced by prices at the local day with the given date, as
+// ledger.Table.SummedSpend prices it.
+func (r heldRequest) pricedOn(prices ledger.Table, date string) heldRequest {
+	r.worth, r.priced = prices.SummedSpend(r.model.Value(), r.geo.Value(), r.spend, date)
+	return r
 }
 
 // withRequests returns held, a session's requests in order, as inOrder has

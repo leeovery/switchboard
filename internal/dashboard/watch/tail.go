@@ -39,13 +39,13 @@ type tailRead struct {
 // tailedMsg is what a read of the ledger's tail found: where it read
 // today's lines to; the lines it read; and each reader as the read grew it,
 // where it was read for one: the Log, as logGrown has it, a session's page,
-// as pageTaken has it, and Sessions' List, as listTaken has it.
+// as pageTaken has it, and the store, as views.HeldSessions holds it.
 type tailedMsg struct {
 	tailRead
 	lines tailLines
 	log   *logGrown
 	page  *pageTaken
-	list  *listTaken
+	held  *views.HeldSessions
 }
 
 // tailLines are what a read of the ledger's tail read: the lines today's
@@ -125,8 +125,8 @@ func (t ledgerTail) wholeLanded() ledgerTail {
 // the mark moves past what the read gives for every reader alike, its
 // Requests built first of what it holds now, as requestsBuilt builds them,
 // for what they await, the days before those its tables span left to it;
-// the session's page open, as pageFold has it; and Sessions' List, once
-// held, shown or not, as listFold has it.
+// the session's page open, as pageFold has it; and the store, once the
+// List is held, shown or not, as heldFold has it, fed once for them all.
 func (m Model) readTail(now time.Time) (Model, tea.Cmd) {
 	r, mark, today := m.logReaders(), m.tail.mark, views.Today(now)
 	var log *logFold
@@ -136,17 +136,14 @@ func (m Model) readTail(now time.Time) (Model, tea.Cmd) {
 		log, m.log.reading, m.log.awaited = &f, true, f.awaited
 	}
 	page := m.pageFold(now)
-	list := m.listFold(now)
-	m = m.pageAwaiting(page).listAwaiting(list)
-	late := lateDays(log, page, list)
+	held := m.heldFold(now)
+	m = m.pageAwaiting(page).heldAwaiting(held)
+	late := lateDays(log, page, held)
 	if log != nil {
 		log.late = m.log.spanned(late)
 	}
 	if page != nil {
 		page.late = late
-	}
-	if list != nil {
-		list.late = late
 	}
 	m.tail = m.tail.asking()
 	return m, func() tea.Msg {
@@ -158,8 +155,8 @@ func (m Model) readTail(now time.Time) (Model, tea.Cmd) {
 		if page != nil {
 			msg.page = page.taken(read, today)
 		}
-		if list != nil {
-			msg.list = list.taken(r.ledger, read, today)
+		if held != nil {
+			msg.held = held.fed(r.ledger, read, now)
 		}
 		return msg
 	}
@@ -175,7 +172,7 @@ func (m Model) followTail() (Model, tea.Cmd) {
 	if !m.tail.due || m.tail.busy() || m.cfg.Ledger == nil || m.log.reading || m.sessionsTab.reading || m.pending != "" {
 		return m, nil
 	}
-	if !m.log.opened && m.sessionsTab.held == nil && m.session == nil && !m.traffic.awaitsLines() {
+	if !m.log.opened && !m.sessionsTab.listed && m.session == nil && !m.traffic.awaitsLines() {
 		return m, nil
 	}
 	return m.readTail(m.now())
@@ -184,7 +181,7 @@ func (m Model) followTail() (Model, tea.Cmd) {
 // lateDays are the dates of the days before today the readers that fold a
 // read of the tail read again whole, each once, the oldest first: nil where
 // a reader doesn't fold it.
-func lateDays(log *logFold, page *pageFold, list *listFold) []string {
+func lateDays(log *logFold, page *pageFold, held *heldFold) []string {
 	var late []string
 	if log != nil {
 		late = append(late, log.late...)
@@ -192,8 +189,8 @@ func lateDays(log *logFold, page *pageFold, list *listFold) []string {
 	if page != nil {
 		late = append(late, page.late...)
 	}
-	if list != nil {
-		late = append(late, list.late...)
+	if held != nil {
+		late = append(late, held.late...)
 	}
 	return slices.Compact(slices.Sorted(slices.Values(late)))
 }
@@ -210,9 +207,10 @@ func readLines(l views.Ledger, mark ledger.Mark, late []string) (tailLines, ledg
 }
 
 // tailed takes in what a read of the ledger's tail found: the tail read to
-// its mark; each reader grown by it, where it was read for one, as
-// logGrown, pageTaken and listTaken have them; and the lines it read of the
-// requests the stream told of held, as lined has it, for letGo.
+// its mark; each reader grown by it, where it was read for one, as logGrown
+// and pageTaken have them, and the store as the read fed it; and the lines
+// it read of the requests the stream told of held, as lined has it, for
+// letGo.
 func (m Model) tailed(msg tailedMsg) Model {
 	m.tail = m.tail.read(msg.tailRead)
 	if msg.log != nil {
@@ -221,8 +219,8 @@ func (m Model) tailed(msg tailedMsg) Model {
 	if msg.page != nil {
 		m = m.pageTook(*msg.page)
 	}
-	if msg.list != nil {
-		m = m.listTook(*msg.list)
+	if msg.held != nil {
+		m.held = *msg.held
 	}
 	m.traffic = m.traffic.lined(msg.lines.all()...)
 	return m

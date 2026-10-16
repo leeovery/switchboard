@@ -105,7 +105,7 @@ func TestADaysLinesAreThoseThatArrivedOnIt(t *testing.T) {
 				for _, l := range tt.want[date] {
 					want = append(want, jsonOf(t, l))
 				}
-				if got := heldJSON(follower.Day(date)); !slices.Equal(got, want) {
+				if got := readAs(t, follower.Day(date)); !slices.Equal(got, want) {
 					t.Errorf("Day(%q) =\n%s\nwant\n%s", date, strings.Join(got, "\n"), strings.Join(want, "\n"))
 				}
 			}
