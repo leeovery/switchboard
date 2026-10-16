@@ -250,9 +250,7 @@ func TestARefusalRenewedWhileItHoldsJoinsItsEvent(t *testing.T) {
 
 // A limit lifting early, as a reading shows it, ends its event at the lift,
 // filed again as it then stands, whatever else holds the account back; one
-// that had ended, or another limit's lifting, changes nothing. News of the
-// limit reached heard after its lift, from before it, as a lifted limit's
-// identity is never reached again, leaves the event as the lift left it.
+// that had ended, or another limit's lifting, changes nothing.
 func TestALimitLiftedEarlyEndsItsEventThen(t *testing.T) {
 	until := start.Add(time.Hour)
 	tests := []struct {
@@ -276,14 +274,50 @@ func TestALimitLiftedEarlyEndsItsEventThen(t *testing.T) {
 			k.expect(status.Event{ID: 1, At: start, Kind: status.EventLimit, Account: "work", Windows: []string{"5h"}, Until: tt.want, Limit: 1})
 		})
 	}
-	t.Run("its reach heard after its lift", func(t *testing.T) {
+}
+
+// The news of a limit reached heard after its lift, as emits from different
+// goroutines aren't ordered, is from before it, as a lifted limit's identity
+// is never reached again: reached again, its windows join the event as of
+// the lift, its until not widened past it; reached first, its event is kept
+// lifted, ending as it begins, not before. A limit reached after the lift is
+// another, held as its news says.
+func TestALimitsNewsHeardAfterItsLiftKeepsItLifted(t *testing.T) {
+	until := start.Add(time.Hour)
+	reached := LimitReached{Account: "work", Windows: []string{"5h"}, Until: until, Limit: 1}
+	lifted := LimitLifted{Account: "work", Limit: 1}
+	t.Run("reached again", func(t *testing.T) {
 		k := newTelling(t)
-		k.hear(LimitReached{Account: "work", Windows: []string{"5h"}, Until: until, Limit: 1})
+		k.hear(reached)
 		k.after(10 * time.Minute)
-		k.hear(LimitLifted{Account: "work", Limit: 1})
+		k.hear(lifted)
 		k.after(time.Second)
 		k.hear(LimitReached{Account: "work", Windows: []string{"5h", "7d"}, Until: until, Limit: 1, Again: true})
-		k.expect(status.Event{ID: 1, At: start, Kind: status.EventLimit, Account: "work", Windows: []string{"5h"}, Until: start.Add(10 * time.Minute), Limit: 1})
+		liftedAt := start.Add(10 * time.Minute)
+		k.expect(status.Event{
+			ID: 1, At: start, Kind: status.EventLimit, Account: "work", Windows: []string{"5h", "7d"},
+			Joined: map[string]time.Time{"7d": liftedAt}, Until: liftedAt, Limit: 1,
+		})
+	})
+	t.Run("reached first", func(t *testing.T) {
+		k := newTelling(t)
+		k.hear(lifted)
+		k.after(time.Second)
+		k.hear(reached)
+		heard := start.Add(time.Second)
+		k.expect(status.Event{ID: 1, At: heard, Kind: status.EventLimit, Account: "work", Windows: []string{"5h"}, Until: heard, Limit: 1})
+	})
+	t.Run("another reached after", func(t *testing.T) {
+		k := newTelling(t)
+		k.hear(reached)
+		k.after(10 * time.Minute)
+		k.hear(lifted)
+		k.after(time.Minute)
+		k.hear(LimitReached{Account: "work", Windows: []string{"5h"}, Until: until, Limit: 2})
+		k.expect(
+			status.Event{ID: 2, At: start.Add(11 * time.Minute), Kind: status.EventLimit, Account: "work", Windows: []string{"5h"}, Until: until, Limit: 2},
+			status.Event{ID: 1, At: start, Kind: status.EventLimit, Account: "work", Windows: []string{"5h"}, Until: start.Add(10 * time.Minute), Limit: 1},
+		)
 	})
 }
 

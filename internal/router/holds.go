@@ -1,6 +1,7 @@
 package router
 
 import (
+	"maps"
 	"slices"
 	"time"
 
@@ -35,15 +36,19 @@ type awaiting struct {
 
 // reached keeps a limit an account reached at now, by the limit's identity,
 // whatever order its news comes in, as the news of a limit can come after
-// the news of it reached again: one whose event is kept, and can change,
-// joins it, but where the limit has lifted early, as the news of it reached
-// is then from before the lift; and one newer than every limit heard of the
-// account is news of its own, which counts the moves it forced that came
-// first. One heard of before, whose event is no longer kept, or can't
-// change, is dropped.
+// the news of it reached again, or of its lift: one whose event is kept, and
+// can change, joins it; and one newer than every limit heard of the account
+// is news of its own, which counts the moves it forced that came first. One
+// heard of before, whose event is no longer kept, or can't change, is
+// dropped. The news of a limit whose lift is heard of already is from before
+// it, as a lifted limit's identity is never reached again: it's kept lifted
+// then, its windows joining as of the lift, its until not widened past it.
 func (r *recent) reached(e LimitReached, now time.Time) {
+	lift, lifted := r.lifts[e.Limit]
 	if h, ok := r.limitEvent(e.Limit, now); ok {
-		if !h.lifted {
+		if lifted {
+			r.join(h, e.Windows, h.Until, h.Until)
+		} else {
 			r.join(h, e.Windows, e.Until, now)
 		}
 		return
@@ -53,6 +58,9 @@ func (r *recent) reached(e LimitReached, now time.Time) {
 	}
 	r.limits[e.Account] = e.Limit
 	h := r.keep(happening{Kind: status.EventLimit, Account: e.Account, Windows: slices.Clone(e.Windows), Until: e.Until, Limit: e.Limit}, now)
+	if lifted {
+		h.liftedAt(score.Later(lift, h.At))
+	}
 	r.countWaiting(h)
 }
 
@@ -74,12 +82,14 @@ func (r *recent) refused(e Refused, now time.Time) {
 }
 
 // limitLifted ends early, at now, the event of the limit a lifting tells
-// of, by its identity, while it's kept and can change, as liftedAt says,
-// and marks it lifted, so no news of the limit reached heard after holds it
-// on.
+// of, by its identity, while it's kept and can change, as liftedAt says; and
+// remembers the lift, so no news of the limit reached heard after it holds
+// the limit on, as reached says, forgetting each lift no event begun then
+// could change by now.
 func (r *recent) limitLifted(e LimitLifted, now time.Time) {
+	maps.DeleteFunc(r.lifts, func(_ int, at time.Time) bool { return !changesFrom(at, now) })
+	r.lifts[e.Limit] = now
 	if h, ok := r.limitEvent(e.Limit, now); ok {
-		h.lifted = true
 		h.liftedAt(now)
 	}
 }
