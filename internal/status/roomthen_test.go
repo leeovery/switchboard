@@ -23,7 +23,7 @@ func TestRoomThenAtNowIsTheRoomThePoolCountsAsTheMomentHasIt(t *testing.T) {
 					continue
 				}
 				for _, w := range a.Windows {
-					got, _ := m.RoomThen(a, readingsOf(hm.Doc.Accounts[i]), m.Told(a.ID), w.Key, m.Now)
+					got, _ := m.RoomThen(a, status.Index(readingsOf(hm.Doc.Accounts[i])), m.Told(a.ID), w.Key, m.Now)
 					if math.Abs(got-w.Room) > 1e-9 {
 						t.Errorf("RoomThen(%s, %s, Now) = %v, want %v, as the moment has the pool count it", a.ID, w.Key, got, w.Room)
 					}
@@ -86,7 +86,7 @@ func TestTheRoomAnAccountHadLeftInAWindowAtAMomentGone(t *testing.T) {
 	}
 	for _, tt := range tests {
 		a := tt.moment.Accounts[0]
-		got, known := tt.moment.RoomThen(a, tt.read, tt.told, tt.key, tt.t)
+		got, known := tt.moment.RoomThen(a, status.Index(tt.read), tt.told, tt.key, tt.t)
 		if math.Abs(got-tt.want) > 1e-9 || known != tt.known {
 			t.Errorf("%s: RoomThen(%s, %s) = %v, %v, want %v, %v", tt.name, tt.key, onDay(tt.t), got, known, tt.want, tt.known)
 		}

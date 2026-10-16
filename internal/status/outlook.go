@@ -373,12 +373,19 @@ func poolWindow(members []judgedAccount, key string) PoolWindow {
 			paces, running = paces+*w.pace, running+1
 		}
 	}
-	pw.Used = 1 - pw.Room/float64(len(members))
+	pw.Used = PoolUsed(pw.Room, len(members))
 	if running > 0 {
 		mean := paces / float64(running)
 		pw.Pace = &mean
 	}
 	return pw
+}
+
+// PoolUsed is what a pool's bar fills to, the room its accounts have left in
+// a window summed as given, in accounts' worth, of the pool's number of
+// accounts given: 1 − room ÷ accounts, the share of all of theirs used.
+func PoolUsed(room float64, accounts int) float64 {
+	return 1 - room/float64(accounts)
 }
 
 // poolRoom is the room account a has left in its window w at at, as the pool

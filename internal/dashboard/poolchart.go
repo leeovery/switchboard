@@ -36,12 +36,12 @@ func (f Frame) poolChartsOf(doc status.Document, m status.Moment) []poolChart {
 
 // draw draws the pool's chart in the bounds given, as a chart's is drawn:
 // its top row; its rows, a column a cell, its room's columns ending at the
-// last, each its room then, a share of all its accounts', its burn-up filled
-// to what's used of it, as fillColumn fills it, or its burn-down to what's
-// left, as level draws it, none where its room isn't known; and its axis. A
-// chart whose room is known at now alone says it has no history across its
-// middle row, over what it crosses; one of a window the pool hasn't, its top
-// row alone.
+// last, each the share of all its accounts' room used then, as the column
+// gives it, its burn-up filled to that, as fillColumn fills it, or its
+// burn-down to what's left, as level draws it, none where its room isn't
+// known; and its axis. A chart whose room is known at now alone says it has
+// no history across its middle row, over what it crosses; one of a window
+// the pool hasn't, its top row alone.
 func (pc poolChart) draw(c *canvas, look Look, at bounds) {
 	chartTop(c, at, pc.name)
 	h, room := at.rows-2, pc.room
@@ -54,11 +54,11 @@ func (pc poolChart) draw(c *canvas, look Look, at bounds) {
 			continue
 		}
 		known++
-		x, share := at.x+from+i, min(max(column.Room/float64(room.Of), 0), 1)
+		x, used := at.x+from+i, min(max(column.Used, 0), 1)
 		if pc.burn == BurnDown {
-			level(c, look, x, floor, h, share)
+			level(c, look, x, floor, h, 1-used)
 		} else {
-			fillColumn(c, look, x, floor, h, halfEven((1-share)*float64(8*h)))
+			fillColumn(c, look, x, floor, h, halfEven(used*float64(8*h)))
 		}
 	}
 	pc.axis(c, at.x, floor+1, at.width)

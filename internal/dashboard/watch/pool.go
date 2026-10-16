@@ -34,12 +34,12 @@ func (p poolTab) looking() func(views.PoolRoom, views.PoolRoomFrom) views.PoolRo
 }
 
 // poolBehind reports whether the past of any of the pool's charts is judged
-// at now through a moment after asked, when the live tail's last read was
-// asked, as views.PoolRoomThrough has it: so a read of it now could gain
-// that past something.
-func (m Model) poolBehind(asked, now time.Time) bool {
+// at now through a moment after through, when the read of what the live
+// tail holds was asked, as views.PoolRoomThrough has it: so its last column
+// waits for a read now.
+func (m Model) poolBehind(through, now time.Time) bool {
 	return slices.ContainsFunc(m.pool.charts, func(ch dashboard.PoolChart) bool {
-		return views.PoolRoomThrough(ch.Key, ch.Columns, now).After(asked)
+		return views.PoolRoomThrough(ch.Key, ch.Columns, now).After(through)
 	})
 }
 
@@ -58,7 +58,8 @@ func (m Model) poolLooked(msg tea.Msg) Model {
 // in each of their windows from the last look's, as the tab's looking builds
 // it: of the readings Runway's live lanes are judged by, the readings
 // history's live tail and those the watch read itself, as
-// views.RunwayReadings joins them.
+// views.RunwayReadings joins them, read through when the live tail's last
+// read was asked.
 func (m Model) poolBuilt() Model {
 	m.pool.charts = nil
 	if m.view != dashboard.Overview || m.session != nil {
@@ -75,7 +76,7 @@ func (m Model) poolBuilt() Model {
 	}
 	mo, read, look := m.moment(now), views.RunwayReadings(m.runwayTab.live.held, m.runwayTab.seen.readings()), m.pool.looking()
 	for _, ch := range charts {
-		rooms[ch.Key] = look(rooms[ch.Key], views.PoolRoomFrom{Moment: mo, Readings: read, Key: ch.Key, Columns: ch.Columns})
+		rooms[ch.Key] = look(rooms[ch.Key], views.PoolRoomFrom{Moment: mo, Readings: read, ReadThrough: m.runwayTab.live.through, Key: ch.Key, Columns: ch.Columns})
 	}
 	m.pool.charts, m.pool.rooms = charts, rooms
 	return m

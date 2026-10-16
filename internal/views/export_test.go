@@ -5,7 +5,6 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
-	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -62,7 +61,7 @@ func CountingPrices(r LogRead, priced map[string]int) LogRead {
 // CountingLanes are lanes not yet looked at that count in judged each time
 // a look judges how an account stood at a moment gone, as Then judges it.
 func CountingLanes(judged *int) Lanes {
-	return Lanes{then: func(m status.Moment, a status.AccountNow, read []readings.Reading, reach status.Reach, told []status.Span, t time.Time) status.Was {
+	return Lanes{then: func(m status.Moment, a status.AccountNow, read status.Readings, reach status.Reach, told []status.Span, t time.Time) status.Was {
 		*judged++
 		return m.Then(a, read, reach, told, t)
 	}}
@@ -72,7 +71,7 @@ func CountingLanes(judged *int) Lanes {
 // each time a look judges the room an account had left in a window at a
 // moment gone, as RoomThen judges it.
 func CountingPoolRoom(judged *int) PoolRoom {
-	return PoolRoom{then: func(m status.Moment, a status.AccountNow, read []readings.Reading, told []status.Span, key string, t time.Time) (float64, bool) {
+	return PoolRoom{then: func(m status.Moment, a status.AccountNow, read status.Readings, told []status.Span, key string, t time.Time) (float64, bool) {
 		*judged++
 		return m.RoomThen(a, read, told, key, t)
 	}}

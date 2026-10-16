@@ -47,12 +47,13 @@ type runwayTab struct {
 
 // readingsTail is a read of the readings history over a span, as
 // views.Readings' Tail reads it; what it read last, none before its first
-// read lands; and when that read was asked, zero before the first.
+// read lands; and when that read was asked, so it holds every reading by
+// then, zero before the first lands.
 type readingsTail struct {
-	span  readingsSpan
-	read  func() []readings.Reading
-	held  []readings.Reading
-	asked time.Time
+	span    readingsSpan
+	read    func() []readings.Reading
+	held    []readings.Reading
+	through time.Time
 }
 
 // heldSpan is what a read of the readings history over a span read.
@@ -73,12 +74,13 @@ func (s readingsSpan) is(o readingsSpan) bool {
 }
 
 // runwayReadMsg is what a read of the readings history over the span read
-// found; where it asked, the start of the first day the history holds, zero
-// where it holds none, or failed to say, and why; and where the ledger
-// began, where it asked that.
+// found, and when it was asked; where it asked, the start of the first day
+// the history holds, zero where it holds none, or failed to say, and why;
+// and where the ledger began, where it asked that.
 type runwayReadMsg struct {
 	span      readingsSpan
 	held      []readings.Reading
+	asked     time.Time
 	keptAsked bool
 	kept      time.Time
 	keptErr   error
@@ -349,19 +351,16 @@ func (m Model) readRunway() (Model, tea.Cmd) {
 	case !read.span.is(live):
 		read.tail = m.cfg.Readings.Tail(read.span.from, read.span.start, read.span.end)
 	case !live.is(t.live.span) || t.live.read == nil:
-		t.live = readingsTail{span: live, read: m.cfg.Readings.Tail(live.from, live.start, live.end), held: t.live.held}
+		t.live = readingsTail{span: live, read: m.cfg.Readings.Tail(live.from, live.start, live.end), held: t.live.held, through: t.live.through}
 		t.seen = t.seen.since(live.from)
 		read.tail, read.kept = t.live.read, m.cfg.Readings
-	case t.due && (runway || m.poolBehind(t.live.asked, now)):
+	case t.due && (runway || m.poolBehind(t.live.through, now)):
 		read.tail, t.due = t.live.read, false
 		if t.kept.IsZero() {
 			read.kept = m.cfg.Readings
 		}
 	default:
 		return m, nil
-	}
-	if read.span.is(live) {
-		t.live.asked = now
 	}
 	read.began = m.past.beganAsked(m.cfg.Ledger)
 	t.reading = true
@@ -382,7 +381,7 @@ type historyRead struct {
 // cmd is the read, at now, as a command.
 func (r historyRead) cmd(now time.Time) tea.Cmd {
 	return func() tea.Msg {
-		msg := runwayReadMsg{span: r.span, held: r.tail()}
+		msg := runwayReadMsg{span: r.span, held: r.tail(), asked: now}
 		if r.kept != nil {
 			msg.keptAsked = true
 			msg.kept, msg.keptErr = historyKept(r.kept)
@@ -408,15 +407,16 @@ func historyKept(history views.Readings) (time.Time, error) {
 }
 
 // runwayRead takes in what a read of the readings history found: the live
-// tail's, held in place of what it read last; or a span's stepped back to,
-// held for the run; the first day the history holds, where the read asked,
-// and where it couldn't be said, logged, the first time alone; and where
-// the ledger began, where it asked that, as History learns it.
+// tail's, held in place of what it read last, read through when it was
+// asked; or a span's stepped back to, held for the run; the first day the
+// history holds, where the read asked, and where it couldn't be said,
+// logged, the first time alone; and where the ledger began, where it asked
+// that, as History learns it.
 func (m Model) runwayRead(msg runwayReadMsg) Model {
 	t := m.runwayTab
 	t.reading = false
 	if msg.span.is(t.live.span) {
-		t.live.held = msg.held
+		t.live.held, t.live.through = msg.held, msg.asked
 	} else {
 		t.back = append(slices.Clip(t.back), heldSpan{span: msg.span, held: msg.held})
 	}

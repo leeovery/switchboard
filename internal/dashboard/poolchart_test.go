@@ -15,12 +15,17 @@ import (
 var poolNow = clockOn(14, 0)
 
 // poolRoomOf is the room of a pool of two accounts, a column each of the
-// rooms given, the last at now: a column whose room is below none isn't
+// rooms given, the last at now, each with the share of the pool it leaves
+// used, as status.PoolUsed has it: a column whose room is below none isn't
 // known.
 func poolRoomOf(rooms ...float64) views.PoolRoom {
 	room := views.PoolRoom{Of: 2}
 	for _, r := range rooms {
-		room.Columns = append(room.Columns, views.PoolRoomColumn{Room: max(r, 0), Known: r >= 0})
+		col := views.PoolRoomColumn{Room: max(r, 0), Known: r >= 0}
+		if col.Known {
+			col.Used = status.PoolUsed(r, room.Of)
+		}
+		room.Columns = append(room.Columns, col)
 	}
 	return room
 }
@@ -35,8 +40,9 @@ func poolChartIn(room views.PoolRoom, length time.Duration, burn Burn, look Look
 	return c
 }
 
-// The pool's room, of 2 accounts, 0.6, 0.85, 1.25, 2 and 1.25 at now, is the
-// shares 0.3, 0.425, 0.625, 1 and 0.625 of all of it.
+// The pool's room, of 2 accounts, 0.6, 0.85, 1.25, 2 and 1.25 at now, leaves
+// 0.7, 0.575, 0.375, none and 0.375 of all of it used: the burn-up fills
+// each column to that, the burn-down to what's left.
 func TestAPoolsChartFillsEachColumnToItsRoomAsItsBurnHasIt(t *testing.T) {
 	tests := []struct {
 		burn Burn

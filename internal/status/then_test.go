@@ -341,7 +341,7 @@ func TestHowAnAccountStoodThen(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.moment.Then(tt.moment.Accounts[0], tt.read, tt.reach, tt.told, tt.t); !sameWas(got, tt.want) {
+			if got := tt.moment.Then(tt.moment.Accounts[0], status.Index(tt.read), tt.reach, tt.told, tt.t); !sameWas(got, tt.want) {
 				t.Errorf("Then(work, %s) = %s, want %s", onDay(tt.t), wasString(got), wasString(tt.want))
 			}
 		})
@@ -360,7 +360,7 @@ func TestThenAtNowIsHowTheMomentHasEachAccountStand(t *testing.T) {
 			m := hm.Doc.At(hm.Now, policy)
 			for i, a := range m.Accounts {
 				read := hm.Doc.Accounts[i]
-				got, want := m.Then(a, readingsOf(read), status.Reach{}, m.Told(a.ID), m.Now), asTheMomentHasIt(a)
+				got, want := m.Then(a, status.Index(readingsOf(read)), status.Reach{}, m.Told(a.ID), m.Now), asTheMomentHasIt(a)
 				if got.Kind != want.Kind || !got.Until.Equal(want.Until) {
 					t.Errorf("Then(%s, Now) = %s, want %s, as the moment has it", a.ID, wasString(got), wasString(want))
 				}
@@ -396,7 +396,7 @@ func TestTheResetsAWindowsReadingsGiveIncludeThoseMadeByHand(t *testing.T) {
 		byHand,
 		readOf(at(1, 17, 20), "5h", 0.1, next),
 	}
-	got := status.ResetsRead(read, "5h")
+	got := status.Index(read).Resets("work", "5h")
 	slices.SortFunc(got, time.Time.Compare)
 	if got, want := slices.Compact(got), []time.Time{byHand.At, reset, next}; !slices.Equal(got, want) {
 		t.Errorf("the 5-hour's resets are %v, want %v", got, want)
@@ -688,13 +688,13 @@ func TestWhenAHoldBeganByItsEventAndByItsReadings(t *testing.T) {
 			doc := status.Document{GeneratedAt: stateNow.UTC(), Source: status.SourceRouter, Accounts: []status.Account{tt.account}, Events: tt.events}
 			m := doc.At(stateNow, policy)
 			a := m.Accounts[0]
-			was := m.Then(a, tt.read, status.Reach{}, m.Told(a.ID), m.Now)
+			was := m.Then(a, status.Index(tt.read), status.Reach{}, m.Told(a.ID), m.Now)
 			if was.Kind != tt.kind || !eventSince(a, tt.kind).Equal(tt.event) || !was.Since.Equal(tt.then) {
 				t.Errorf("Then(work, Now) = %s, its event telling it began at %s; want of kind %d, as its event tells at %s, as Then tells at %s",
 					wasString(was), onDay(eventSince(a, tt.kind)), tt.kind, onDay(tt.event), onDay(tt.then))
 			}
 			event := eventSince(a, tt.kind)
-			if read := m.Then(a, tt.read, status.Reach{}, nil, m.Now); read.Kind == tt.kind && !read.Since.IsZero() && !event.IsZero() && !read.Since.Equal(event) {
+			if read := m.Then(a, status.Index(tt.read), status.Reach{}, nil, m.Now); read.Kind == tt.kind && !read.Since.IsZero() && !event.IsZero() && !read.Since.Equal(event) {
 				t.Errorf("the readings alone tell the hold began at %s, its event at %s; want them to agree", onDay(read.Since), onDay(event))
 			}
 		})
@@ -799,10 +799,10 @@ func TestAHoldOfEveryRequestBeganAsItsUnbrokenRunAcrossWindowsDid(t *testing.T) 
 			if since := eventSince(a, tt.kind); !since.Equal(tt.want) {
 				t.Errorf("the moment has work held since %s; want %s", onDay(since), onDay(tt.want))
 			}
-			if was := m.Then(a, tt.read, tt.reach, m.Told(a.ID), m.Now); was.Kind != tt.kind || !was.Since.Equal(tt.want) {
+			if was := m.Then(a, status.Index(tt.read), tt.reach, m.Told(a.ID), m.Now); was.Kind != tt.kind || !was.Since.Equal(tt.want) {
 				t.Errorf("Then(work, Now), given the holds told, = %s; want of kind %d, since %s", wasString(was), tt.kind, onDay(tt.want))
 			}
-			if was := m.Then(a, tt.read, tt.reach, nil, m.Now); was.Kind != tt.kind || !was.Since.Equal(tt.ownRun) {
+			if was := m.Then(a, status.Index(tt.read), tt.reach, nil, m.Now); was.Kind != tt.kind || !was.Since.Equal(tt.ownRun) {
 				t.Errorf("Then(work, Now), of the readings alone, = %s; want of kind %d, since %s", wasString(was), tt.kind, onDay(tt.ownRun))
 			}
 		})

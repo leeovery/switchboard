@@ -1,6 +1,7 @@
 package watch
 
 import (
+	"math"
 	"slices"
 	"testing"
 	"time"
@@ -87,17 +88,19 @@ func TestThePoolsRoomIsBuiltAtALookAndKept(t *testing.T) {
 }
 
 // The pool's charts alone have the live tail read again only once their past
-// is judged through a moment after its last read was asked: a look before
-// the 5-hour chart's columns move a step on reads nothing, as what the tail
-// gained since is judged at none of them; the look as they move reads it,
-// and its columns judge what it gained.
+// is judged through a moment after the read of what it holds was asked: a
+// look before the 5-hour chart's columns move a step on reads nothing, as
+// what the tail gained since is judged at none of them; the look as they
+// move reads it, the column the step brings left not known till that read
+// lands, though what the tail held before has work read by then, and judged
+// of what the read gained once it has.
 func TestThePoolsChartsReadTheTailAgainOnlyAsTheirPastMovesOn(t *testing.T) {
-	r := runwayHarness(t, dashboard.Overview, byAccountWithGraphs)
+	r := runwayHarness(t, dashboard.Overview, byAccountWithGraphs, filedOn("work", "5h", start.Add(-2*time.Hour), 0.3))
 	next := views.PoolRoomThrough("5h", 25, start).Add(5 * time.Hour / 25)
 	if views.PoolRoomThrough("7d", 25, next).After(start) {
 		t.Fatalf("the week's chart moves on by %s, before the 5-hour's", next.Format("15:04"))
 	}
-	read := filedOn("work", "5h", next.Add(-time.Minute), 0.3)
+	read := filedOn("work", "5h", next.Add(-time.Minute), 0.6)
 	r.filed.held = append(r.filed.held, read)
 	tails := r.filed.tails
 	r.clock.now = next.Add(-time.Second)
@@ -106,11 +109,22 @@ func TestThePoolsChartsReadTheTailAgainOnlyAsTheirPastMovesOn(t *testing.T) {
 		t.Errorf("a look before the pool's charts moved on read the live tail %d times, want none", r.filed.tails-tails)
 	}
 	r.clock.now = next
-	r.deliver(r.press("R")...)
+	msgs := r.press("R")
+	i := slices.IndexFunc(msgs, isFetched)
+	if i < 0 {
+		t.Fatalf("R read nothing of the router: %#v", msgs)
+	}
+	landing := r.update(msgs[i])
+	if col := r.model.pool.rooms["5h"].Columns[23]; col.Known {
+		t.Errorf("before the tail's read landed, the 5-hour chart's last column before now's, at %s, holds %v; want it not known till the read lands", next.Format("15:04"), col.Room)
+	}
+	r.deliver(slices.Concat(msgs[:i], msgs[i+1:], landing)...)
 	if r.filed.tails != tails+1 {
 		t.Errorf("the look as the 5-hour chart moved on read the live tail %d times, want once", r.filed.tails-tails)
 	}
-	if col := r.model.pool.rooms["5h"].Columns[23]; !col.Known {
-		t.Errorf("the 5-hour chart's last column before now's, at %s, isn't known, want work's reading at %s judged", next.Format("15:04"), read.At.Format("15:04"))
+	columns := r.model.pool.rooms["5h"].Columns
+	if col, before := columns[23], columns[22]; !col.Known || math.Abs(before.Room-col.Room-0.3) > 1e-9 {
+		t.Errorf("once the read landed, the 5-hour chart's column at %s holds %v, known %t, the one before %v; want work's reading at %s judged, 0.3 less",
+			next.Format("15:04"), col.Room, col.Known, before.Room, read.At.Format("15:04"))
 	}
 }

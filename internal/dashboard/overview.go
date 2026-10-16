@@ -785,7 +785,8 @@ func (f Frame) overviewTargets(doc status.Document, now time.Time) []Target {
 
 // targetsOf are the click targets of the sections as they're laid out on the
 // page: each section's heading, which hides it, and the targets of the body
-// of each that doesn't fold; but none past the view's rows.
+// of each that doesn't fold; but none past the view's rows, nor an account's
+// row, which moves the focus, where the Overview has none, as Focuses says.
 func (f Frame) targetsOf(laid []planned) []Target {
 	var targets []Target
 	for _, p := range laid {
@@ -794,8 +795,8 @@ func (f Frame) targetsOf(laid []planned) []Target {
 			targets = append(targets, p.targets(p.body)...)
 		}
 	}
-	end := f.top() + f.viewRows()
-	return slices.DeleteFunc(targets, func(t Target) bool { return t.Y >= end })
+	end, focuses := f.top()+f.viewRows(), f.Focuses()
+	return slices.DeleteFunc(targets, func(t Target) bool { return t.Y >= end || t.On == OnAccount && !focuses })
 }
 
 // overviewScrolling is how far the Overview's USAGE of doc at now scrolls
