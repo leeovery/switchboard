@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"iter"
 	"maps"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -811,4 +812,103 @@ func TestASessionsKeyLineLeadsWithEscBack(t *testing.T) {
 			}
 		})
 	}
+}
+
+// pricedOtherwiseFrom is the price table with Claude Opus 5.5's writes to
+// the prompt cache costing twice as much from the day with the given date.
+func pricedOtherwiseFrom(date string) ledger.Table {
+	t := ledger.Pricing
+	t.Models = slices.Clone(t.Models)
+	for i, m := range t.Models {
+		if slices.Contains(m.IDs, opus) {
+			later := m.Prices[len(m.Prices)-1]
+			later.From, later.CacheWrite5m, later.CacheWrite1h = date, 2*later.CacheWrite5m, 2*later.CacheWrite1h
+			t.Models[i].Prices = append(slices.Clone(m.Prices), later)
+		}
+	}
+	return t
+}
+
+// wholePage opens d28c's page at at, running, over a ledger in state holding
+// lines, priced by prices, and returns the ledger.
+func wholePage(t *testing.T, state string, at time.Time, prices ledger.Table, lines ...ledger.Held) (*harness, *ledger.Follower) {
+	t.Helper()
+	h := routedHarness(t, routerDocument(three()...))
+	h.source.sessions, h.clock.now = []status.Session{sessionOn(idD28C, opus, "work", 0)}, at
+	writeLines(t, state, lines...)
+	l := ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, logs.For("watch"))
+	cfg := h.config(Size{Width: 160, Height: 37})
+	cfg.Ledger, cfg.Prices = l, prices
+	h.model = New(t.Context(), cfg)
+	h.start()
+	h.openPage(idD28C)
+	h.settle()
+	return h, l
+}
+
+// readWhole checks, of d28c's page, as the msgs given reach the model, its
+// store's feed to read the session whole yet to be read, that it showed the
+// page built last, was, till the read was asked, and asked it at once, the
+// once; and, the read landed, that it shows the page read whole, and asks
+// no read again.
+func readWhole(t *testing.T, h *harness, l *ledger.Follower, was views.SessionPage, msgs ...tea.Msg) views.SessionPage {
+	t.Helper()
+	h.model.tail.due = false
+	tailed := holdingBack[tailedMsg](h, msgs...)
+	if len(tailed) != 1 || !reflect.DeepEqual(h.shownPage().Page, was) {
+		t.Fatalf("the page to be read whole, the tail was read %d times, the page shown as last built %t; want it read at once, the last page shown",
+			len(tailed), reflect.DeepEqual(h.shownPage().Page, was))
+	}
+	resized := tea.WindowSizeMsg{Width: h.model.size.Width, Height: h.model.size.Height}
+	h.update(resized)
+	if h.model.tail.due || !reflect.DeepEqual(h.shownPage().Page, was) {
+		t.Errorf("a look on, the read under way, a read is asked again %t, the page shown as last built %t; want none asked, the last page shown",
+			h.model.tail.due, reflect.DeepEqual(h.shownPage().Page, was))
+	}
+	h.deliver(tailed...)
+	now := h.clock.now
+	live := h.model.pageLive(idD28C, now)
+	live.Stream = live.Stream.Of(idD28C)
+	want, _ := views.ReadPage(l, idD28C, live.Stream, h.model.cfg.Prices, h.model.cfg.LedgerKeep, now).Build(live)
+	if got := h.shownPage().Page; !reflect.DeepEqual(got, want.Page) {
+		t.Errorf("the read landed, the page is\n%+v\nwant it read whole\n%+v", got, want.Page)
+	}
+	if again := holdingBack[tailedMsg](h, h.update(resized)...); len(again) != 0 || h.model.tail.due {
+		t.Errorf("the page read whole, a look on read the tail %d times, asking it again %t; want neither", len(again), h.model.tail.due)
+	}
+	return want.Page
+}
+
+// A session's page looked at past midnight, before its store's feed rolls
+// it on, on a day a model its lines asked for costs otherwise, shows the
+// page as it was last built, not one priced at yesterday's prices; asks a
+// read of the ledger's tail at once, which reads its session whole; and
+// then shows the page read whole, priced at today's.
+func TestAPageRepricedPastMidnightShowsItsLastTillItsReadWhole(t *testing.T) {
+	night := onTheDay(23, 58, 0)
+	line := arrivedAt("0a000001", onTheDay(22, 30, 0))
+	line.Usage = json.RawMessage(hourUsage)
+	h, l := wholePage(t, t.TempDir(), night, pricedOtherwiseFrom(dayfile.DateOf(night.Add(time.Hour))), line)
+	was := h.shownPage().Page
+	h.clock.now = night.Add(3 * time.Minute)
+	got := readWhole(t, h, l, was, h.update(tea.WindowSizeMsg{Width: h.model.size.Width, Height: h.model.size.Height})...)
+	if got.Totals.Amount == nil || was.Totals.Amount == nil || *got.Totals.Amount == *was.Totals.Amount {
+		t.Errorf("read whole past midnight, the page is worth %v, as it was the day before; want it priced at today's prices", got.Totals.Amount)
+	}
+}
+
+// A session's page told by the stream of a request that went upstream
+// behind its horizon, as the stream joined late, shows the page as it was
+// last built, not one placing the request after those sealed; asks a read
+// of the ledger's tail at once, which reads its session whole; and then
+// shows the page read whole.
+func TestAPageAStreamRowJoinsLateShowsItsLastTillItsReadWhole(t *testing.T) {
+	now := onTheDay(12, 0, 0)
+	line := arrivedAt("0a000001", onTheDay(10, 0, 0))
+	line.Usage = json.RawMessage(hourUsage)
+	h, l := wholePage(t, t.TempDir(), now, ledger.Pricing, line)
+	was := h.shownPage().Page
+	stream := h.source.lastStream(t)
+	stream <- alter(told(router.StreamSent, "0a000002", "work", 0), func(e *router.StreamEvent) { e.At = now.Add(-90 * time.Minute).UTC() })
+	readWhole(t, h, l, was, h.waited()...)
 }

@@ -249,25 +249,32 @@ func (h HeldSessions) feeding(want SessionsWanted, now time.Time) *feed {
 	for id, s := range f.sessions {
 		if s.day().Date < f.day.Date {
 			f.change(id, s.on(f.day, f.prices))
-			f.whole[id] = f.whole[id] || s.page != nil && !s.page.pricedAlike(f.prices, s.day().Date, f.day.Date)
+			f.whole[id] = f.whole[id] || s.repricedOn(f.prices, f.day)
 		}
 	}
-	if s, held := f.sessions[want.Page]; held && f.joinsLate(want.Page, s.horizon) {
+	if s, held := f.sessions[want.Page]; held && joinedLate(f.now, want.Pins[want.Page], s.horizon) {
 		f.whole[want.Page] = true
 	}
 	return f
 }
 
-// joinsLate reports whether the stream tells of a request of the session
-// with the given id, a pin of it, that may have arrived behind the horizon
-// given, as its page takes its requests in by when they were sent, the
-// stream's among its lines: one heard first after the horizon passed it,
-// as the stream joined late, whose page is tallied again whole. One pinned
-// longer than pinnedFor ago may be lost, its line never coming, and is
-// taken in after the requests sealed.
-func (f *feed) joinsLate(id string, horizon instant) bool {
-	return slices.ContainsFunc(f.want.Pins[id], func(pin time.Time) bool {
-		return f.now.Sub(pin) <= pinnedFor && instantOf(pin.Add(-arrivesWithin)).compare(horizon) < 0
+// repricedOn reports whether what s's page tallies, priced at its day's
+// prices, is worth otherwise on the day given, as prices have it, a later
+// one than its own: its page is tallied again whole as it rolls on to it.
+func (s *heldSession) repricedOn(prices ledger.Table, day LedgerDay) bool {
+	return s.page != nil && s.day().Date < day.Date && !s.page.pricedAlike(prices, s.day().Date, day.Date)
+}
+
+// joinedLate reports whether the stream tells, at now, of a request of a
+// session, a pin of it among its pins, that may have arrived behind the
+// horizon given, as its page takes its requests in by when they were sent,
+// the stream's among its lines: one heard first after the horizon passed
+// it, as the stream joined late, whose page is tallied again whole. One
+// pinned longer than pinnedFor ago may be lost, its line never coming, and
+// is taken in after the requests sealed.
+func joinedLate(now time.Time, pins []time.Time, horizon instant) bool {
+	return slices.ContainsFunc(pins, func(pin time.Time) bool {
+		return now.Sub(pin) <= pinnedFor && instantOf(pin.Add(-arrivesWithin)).compare(horizon) < 0
 	})
 }
 

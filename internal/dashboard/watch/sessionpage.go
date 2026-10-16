@@ -32,8 +32,11 @@ type sessionShown struct {
 	card    turnCarding
 	turns   int
 	// turnWaited is set once the read of the lines of its turn open has
-	// been waited on LoadingAfter, as turnLoading has it.
+	// been waited on LoadingAfter, as turnLoading has it; and wholeAsked
+	// once a read of the ledger's tail was asked for at once, its session
+	// to be read whole, as relived has it, till a page is built again.
 	turnWaited bool
+	wholeAsked bool
 }
 
 // sessionReadMsg is a read of the ledger for a session's page, the asked'th
@@ -236,7 +239,10 @@ func (m Model) pageTook(t pageTaken, read tailLines) Model {
 // What streams on between, a row in flight and the answer it's
 // doing, is drawn as it stands at each frame. A page that can't be built, of
 // no request and listed by no router, stays as it was last built, and
-// doesn't open where it never was. One loading has nothing to build yet.
+// doesn't open where it never was; one whose session is to be read whole,
+// as views.BuiltPage's ReadsWhole has it, stays as it was last built too,
+// a read of the ledger's tail asked for at once, but once till a page is
+// built again. One loading has nothing to build yet.
 func (m Model) relived(msg tea.Msg, now time.Time) Model {
 	if _, frame := msg.(frameMsg); frame || m.session == nil || m.session.shown.Loading {
 		return m
@@ -246,6 +252,13 @@ func (m Model) relived(msg tea.Msg, now time.Time) Model {
 	live.Stream = live.Stream.Of(s.id)
 	if basis := m.pageBasis(live); !s.built.same(basis) || !now.Before(s.until) {
 		built, ok := s.held.Build(live)
+		if built.ReadsWhole {
+			m.tail.due = m.tail.due || !s.wholeAsked
+			s.wholeAsked = true
+			m.session = &s
+			return m
+		}
+		s.wholeAsked = false
 		if !ok && s.shown.Page.Session == "" {
 			m.session = nil
 			return m

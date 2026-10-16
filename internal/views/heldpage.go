@@ -424,6 +424,12 @@ type BuiltPage struct {
 	// RequestsLoading is set while the lines of the requests of its turn
 	// open are read, as ReadTurn reads them.
 	RequestsLoading bool
+	// ReadsWhole is set, and nothing else built, where its store's next feed
+	// reads its session whole, as no page built before it of what it holds
+	// stands: it holds what it tallied priced otherwise than on the day it's
+	// built on, or the stream tells of a request that joined late, behind
+	// its horizon, as readsWhole has it.
+	ReadsWhole bool
 	// Until is the first moment a page built of the same would be built
 	// otherwise, by the clock alone: the next minute, as its story steps on
 	// a minute at a time, and its words count whole minutes; or sooner, as a
@@ -441,8 +447,12 @@ type BuiltPage struct {
 // TurnRequests has them, all three of one working of what h holds and what
 // live gives, as worked has it, and until when it stands, as BuiltPage's
 // Until has it: reporting false where Page does, with until when that
-// stands.
+// stands. Where its session is to be read whole, it builds none of it, as
+// BuiltPage's ReadsWhole has it.
 func (h HeldPage) Build(live PageLive) (BuiltPage, bool) {
+	if h.readsWhole(live) {
+		return BuiltPage{ReadsWhole: true}, true
+	}
 	w := h.worked(live)
 	page, ok := w.page()
 	if !ok {
@@ -451,6 +461,14 @@ func (h HeldPage) Build(live PageLive) (BuiltPage, bool) {
 	open := w.open()
 	requests, loading := w.turnRequests(open)
 	return BuiltPage{Page: page, Story: w.story(page), Open: open, Requests: requests, RequestsLoading: loading, Until: w.until()}, true
+}
+
+// readsWhole reports whether the store's next feed reads h's session whole,
+// as live gives the page: its day rolling on to one its tally is priced
+// otherwise on, as repricedOn has it, or the stream telling of a request
+// that joined late, as joinedLate has it, as the feed checks both.
+func (h HeldPage) readsWhole(live PageLive) bool {
+	return h.record.repricedOn(h.prices, Today(live.Now)) || joinedLate(live.Now, pinsOf(live.Stream)[h.id], h.record.horizon)
 }
 
 // open is the number of the turn open of the page w is built of, as
