@@ -129,31 +129,15 @@ type filed struct {
 }
 
 // days reads the files of the local days with the given dates, as day reads
-// each, side by side, as many at once as Go runs goroutines at once, and
-// takes in what each read in the order given, as reading one after another
-// would, each day as soon as those before it are, and let go once taken in:
-// take handed each line, and held each line of a session that arrived by
-// now, every session's where keep is nil, else those of the sessions it
-// holds.
+// each, side by side, as readAhead reads them, as many ahead as Go runs
+// goroutines at once, more gaining nothing; and takes in what each read in
+// the order given, as reading one after another would, each day as soon as
+// those before it are, and let go once taken in: take handed each line, and
+// held each line of a session that arrived by now, every session's where
+// keep is nil, else those of the sessions it holds.
 func (r *sessionsRead) days(f *Follower, dates []string, keep map[string]bool) {
-	// running holds a place for each read under way, as many as Go runs at
-	// once, as more would gain nothing. It bounds the reads, not what's held:
-	// a day read waits in its channel, its lines held, till the days before
-	// it are taken in, so a slow day holds those read after it.
-	running := make(chan struct{}, runtime.GOMAXPROCS(0))
-	read := make([]chan []Line, len(dates))
-	var reads sync.WaitGroup
-	defer reads.Wait()
-	for i, date := range dates {
-		read[i] = make(chan []Line, 1)
-		reads.Go(func() {
-			running <- struct{}{}
-			defer func() { <-running }()
-			read[i] <- r.day(f, date, keep)
-		})
-	}
-	for i, date := range dates {
-		for _, l := range <-read[i] {
+	readAhead(dates, runtime.GOMAXPROCS(0), func(date string) []Line { return r.day(f, date, keep) }, func(date string, lines []Line) {
+		for _, l := range lines {
 			if r.take != nil {
 				r.take(date, l)
 			}
@@ -162,6 +146,32 @@ func (r *sessionsRead) days(f *Follower, dates []string, keep map[string]bool) {
 			}
 			r.read++
 		}
+	})
+}
+
+// readAhead reads the days with the given dates, as read reads each, side by
+// side, and hands take what each read in the order given, each as soon as
+// those before it are handed on: never more than ahead read ahead of the one
+// handed on, the next begun as one is taken, so a slow day holds no more
+// than ahead read after it, never a long keep's every day. ahead is one or
+// more.
+func readAhead(dates []string, ahead int, read func(date string) []Line, take func(date string, lines []Line)) {
+	got := make([]chan []Line, len(dates))
+	var reads sync.WaitGroup
+	defer reads.Wait()
+	begin := func(i int) {
+		if i < len(dates) {
+			got[i] = make(chan []Line, 1)
+			reads.Go(func() { got[i] <- read(dates[i]) })
+		}
+	}
+	for i := range ahead {
+		begin(i)
+	}
+	for i, date := range dates {
+		lines := <-got[i]
+		begin(i + ahead)
+		take(date, lines)
 	}
 }
 

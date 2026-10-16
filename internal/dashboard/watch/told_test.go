@@ -253,7 +253,8 @@ func keptNone(views.Told) bool {
 // ended, its seat seen as late as the stream last told of it, so its
 // session's idle counts from its end still: but not one in flight, nor one
 // whose id a line of another request has, as a router gives an id again
-// once its run has ended, nor one a reader keeps for its line. Where it
+// once its run has ended, nor one a reader keeps for its line, till seenFor
+// after the stream last told of it, as no ended one outlives. Where it
 // reads none of them, the traffic is as it was; where it does, its
 // requests are another map.
 func TestARequestGoesOnceAReadOfTheTailReadsItsLine(t *testing.T) {
@@ -273,8 +274,12 @@ func TestARequestGoesOnceAReadOfTheTailReadsItsLine(t *testing.T) {
 	if unread := tr.lined([]ledger.Held{arrived("other", "work", 0)}).letGo(keptNone); !sameMap(unread.requests, tr.requests) || unread.changes != tr.changes {
 		t.Error("a read of no line of a request told of changed the traffic, want it as it was")
 	}
-	if kept := tr.lined(read).letGo(func(views.Told) bool { return true }); !sameMap(kept.requests, tr.requests) {
+	kept := tr.lined(read).letGo(func(views.Told) bool { return true })
+	if !sameMap(kept.requests, tr.requests) {
 		t.Errorf("its line read, but kept for a reader, the requests kept are %q, want every one", ids(kept))
+	}
+	if got, want := ids(kept.tidied(past(4*time.Minute+seenFor))), []string{"flying"}; !slices.Equal(got, want) {
+		t.Errorf("kept for a reader, seenFor after the last ended, the requests kept are %q, want %q", got, want)
 	}
 	lined := tr.lined(read).letGo(keptNone)
 	if got, want := ids(lined), []string{"again", "flying"}; !slices.Equal(got, want) {

@@ -28,28 +28,28 @@ const (
 )
 
 // seenFor is how long the watch keeps a move the stream told of, a request
-// it told of no longer in flight whose line no read of the ledger's tail has
-// read, and when it last saw each seat whose requests have gone: the router
-// lists the sessions it has seen in the last IdleHour, so one it lists after
-// that it has seen since, as its own listing says.
+// it told of no longer in flight, at the most, its line read or not, and
+// when it last saw each seat whose requests have gone: the router lists the
+// sessions it has seen in the last IdleHour, so one it lists after that it
+// has seen since, as its own listing says.
 const seenFor = views.IdleHour
 
 // traffic is what the router's request stream has told of the routed
-// requests, as the watch keeps it for the frame: each request it told of,
-// as the views read it, by its id, till its line is read and taken in, as
-// letGo has it; the line a read of the ledger's tail has read of each it
-// still keeps, by its request's id, as lined holds it, in flight or not;
-// when it last told of each seat whose requests have gone so, for seenFor;
-// what each request is doing on each account it went out on, as the cords
-// draw it; the moves the stream told of, for seenFor; the account the
-// router's last listing of its sessions put each seat on, which shows each
-// move there done, so the views no longer read it; whether it's live, the
-// stream open and telling what's in flight, as the views trust it; and,
-// the stream opened again, the requests it told of in flight before, by
-// their ids, awaiting its first look, as join has it: nil while none does;
-// when tidy is next due to let go of something of its requests, seats
-// seen, calls and moves; how many
-// times its requests have changed, and how many of those changes changed a
+// requests, as the watch keeps it for the frame: each request it told of, as
+// the views read it, by its id, till its line is read and taken in, as letGo
+// has it, or seenFor after it ends at the most, as goes has it; the line a
+// read of the ledger's tail has read of each it still keeps, by its
+// request's id, as lined holds it, in flight or not; when it last told of
+// each seat whose requests have gone so, for seenFor; what each request is
+// doing on each account it went out on, as the cords draw it; the moves the
+// stream told of, for seenFor; the account the router's last listing of its
+// sessions put each seat on, which shows each move there done, so the views
+// no longer read it; whether it's live, the stream open and telling what's
+// in flight, as the views trust it; and, the stream opened again, the
+// requests it told of in flight before, by their ids, awaiting its first
+// look, as join has it: nil while none does; when tidy is next due to let go
+// of something of its requests, seats seen, calls and moves; how many times
+// its requests have changed, and how many of those changes changed a
 // request's row, as views.Told.SameRow compares it, so what's made of them
 // is made again only as they change; and what hears the views' stream of it
 // once as what it told changes, rather than at each frame, shared by every
@@ -443,13 +443,14 @@ func (t traffic) dues() dues {
 }
 
 // goes is when the request r is let go of by the clock, after the stream
-// last told of it: seenFor after, once it's no longer in flight, where no
-// read of the ledger's tail has read its line before then, as one cut off
-// may have no line, nor one whose router went before writing it; never
-// while it's in flight, nor once its line is read, zero, as letGo lets it
-// go once its readers have taken its line in.
+// last told of it: seenFor after, once it's no longer in flight, its line
+// read or not, as one cut off may have no line, nor one whose router went
+// before writing it, and a reader keeping one whose line is read for its
+// own may never take that line in, as the Log on another tab reads back to
+// no day; never while it's in flight, zero. letGo lets one go sooner, once
+// its line is read and its readers have taken it in.
 func (t traffic) goes(r views.Told) time.Time {
-	if _, read := t.lineOf(r); read || r.InFlight() {
+	if r.InFlight() {
 		return time.Time{}
 	}
 	return r.Heard.Add(seenFor)
@@ -498,7 +499,8 @@ func (t traffic) lined(lines ...[]ledger.Held) traffic {
 // in flight, whose line a read of the ledger's tail has read, as lined holds
 // it, so each view tells of it from its line, its seat seen as late as the
 // stream last told of it, as views.Stream's Seen keeps it: but for those
-// kept says a reader shows the row of without its line, which await it.
+// kept says a reader shows the row of without its line, which await it till
+// goes lets them go by the clock.
 // The line held of one gone, or of another told of since under its id, goes
 // too. It's t itself where nothing goes.
 func (t traffic) letGo(kept func(views.Told) bool) traffic {

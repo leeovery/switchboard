@@ -4204,15 +4204,17 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
   read finds, with no ledger to read or none written, an hour. The router writes a line moments
   after it tells the request's end, so a read can find the line before the stream's telling of the
   end reaches the dashboard: a request goes once both have come, in either order, or once its line
-  is read and it's lost. None goes till every reader that shows its row has taken its line in:
-  where the Log shows the row of one sent just after midnight, its line filed on the day before, a
-  day its tables don't span, it reads back to that day, and the request is kept till it has. While
-  it holds one whose line is to come, the tail is read at each look, whatever tab shows. Each
-  seat's last sight, its session on a model and an account, is kept apart for the hour, so letting
-  a request go never moves when its seat was last seen, as `idle` counts it (settled in the plan).
-  So what the stream holds is what's in flight and what awaits its line, never the hour's: a batch
-  the stream tells copies its requests whole, by choice, as they're tens, never thousands, and a
-  map changed in place, weighed against it, was left unbuilt (settled in the plan).
+  is read and it's lost. None goes till every reader that shows its row has taken its line in, or
+  the hour is out, as no ended one outlives it: where the Log shows the row of one sent just after
+  midnight, its line filed on the day before, a day its tables don't span, it reads back to that day
+  as it shows, and the request is kept till it has, or for the hour while another tab shows, as the
+  Log reads back to nothing there. While it holds one whose line is to come, the tail is read at
+  each look, whatever tab shows. Each seat's last sight, its session on a model and an account, is
+  kept apart for the hour, so letting a request go never moves when its seat was last seen, as
+  `idle` counts it (settled in the plan). So what the stream holds is what's in flight and what
+  awaits its line, never the hour's: a batch the stream tells copies its requests whole, by choice,
+  as they're tens, never thousands, and a map changed in place, weighed against it, was left unbuilt
+  (settled in the plan).
 - **Built as it changes:** each view's data is built again only as what it's made of changes,
   and what's built is drawn at each tick: a session's page as a look, a request or a full read
   changes what it shows, or as the clock turns what it says, as at the minute, a seat's lapse or a
@@ -4244,9 +4246,10 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
     afresh at a look (settled in the plan).
   - **A session's days** are those the summaries name it in, by their session ids (see The request
     ledger), so a session's page reads its own days' lines alone, newest first, as far back as the
-    page shows. The days of a read of sessions are read side by side, each taken in as one after
-    another would be; and a read of a few, as the Log's, reads the lines of others for their
-    session alone (settled in the plan).
+    page shows. The days of a read of sessions are read side by side, as many ahead of the one taken
+    in as Go runs at once and no more, so a slow day holds a few read after it, never a long keep's
+    every day, each taken in as one after another would be; and a read of a few, as the Log's, reads
+    the lines of others for their session alone (settled in the plan).
   - **The Log's first read** is today's lines, the events from today, and every line of the
     sessions today's lines are of, whatever day it's of: a row's story is told from its session's
     whole life, as whether it's the session's first request, and whether a move wrote its context

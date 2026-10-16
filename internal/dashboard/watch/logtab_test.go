@@ -476,6 +476,8 @@ func TestTheStreamKeepsARequestTillTheLogShowingItsRowHasItsLine(t *testing.T) {
 		t.Fatal("its end told, the Log read back to no day, want it reading back to the day its line is filed on")
 	}
 	a.h.model.traffic = a.h.model.traffic.lined([]ledger.Held{a.line})
+	dbg, _ := toldOf(a.h.model.traffic, "0a000001")
+	t.Logf("DEBUG lines %d told %+v line %+v", len(a.h.model.traffic.lines), dbg, a.line.Line)
 	a.h.deliver(frameMsg{gen: a.h.model.frames})
 	if _, ok := toldOf(a.h.model.traffic, "0a000001"); !ok {
 		t.Error("its line read, the Log yet to read back to it, the stream let 0a000001 go, want it kept")
@@ -486,6 +488,37 @@ func TestTheStreamKeepsARequestTillTheLogShowingItsRowHasItsLine(t *testing.T) {
 		t.Error("the Log read back to its line's day, the stream keeps 0a000001 still, want it let go")
 	}
 	a.shows(t, "the Log read back to its line's day")
+}
+
+// A request the Log shows the row of, its line filed on a day before those
+// the Log spans, read by a read of the tail, as the List's, while another
+// tab shows, goes seenFor after the stream last told of it all the same, as
+// the Log reads back to no day there: none outlives the hour.
+func TestARequestTheLogKeepsGoesByTheHourWhileAnotherTabShows(t *testing.T) {
+	a := openedAfterMidnight(t, false)
+	a.h.hear(a.sent)
+	a.shows(t, "sent just after midnight")
+	a.h.keys(tabKey)
+	if a.h.model.view != dashboard.Overview || !a.h.model.wantsStream() {
+		t.Fatalf("tab from the Log shows %s, wanting the stream %t; want the Overview, its ROUTING telling what the stream tells", a.h.model.view, a.h.model.wantsStream())
+	}
+	writeLines(t, a.state, a.line)
+	a.h.hear(a.done())
+	a.h.model.traffic = a.h.model.traffic.lined([]ledger.Held{a.line})
+	a.h.deliver(frameMsg{gen: a.h.model.frames})
+	r, kept := toldOf(a.h.model.traffic, "0a000001")
+	if _, read := a.h.model.traffic.lineOf(r); !kept || r.InFlight() || !read {
+		t.Fatalf("its end told and its line read, the Log showing its row without it, the stream keeps 0a000001 %t, in flight %t, its line held %t; want it kept, ended, its line held", kept, r.InFlight(), read)
+	}
+	tick := a.h.lastTick()
+	tick.due = a.done().At.Add(seenFor)
+	a.h.fire(tick)
+	if _, ok := toldOf(a.h.model.traffic, "0a000001"); ok {
+		t.Error("seenFor after its end, the Log on another tab, the stream keeps 0a000001 still, want it let go")
+	}
+	if a.h.model.traffic.holdsLines() {
+		t.Error("0a000001 let go, the stream holds its line still, want it let go too")
+	}
 }
 
 // The Log keeps up while another tab shows: ten minutes on History, the
