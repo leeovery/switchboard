@@ -68,6 +68,25 @@ worked on there till they're right.
   with a card open on the phone at 08:28 was taken for one that had frozen, its keys no longer
   reaching it over Mosh. To decide: whether the heading's clock stays live under a card.
 
+## Week first, and the model windows on a toggle
+
+The owner, 16 October: the week is "usually the one I'm most interested in. I very rarely hit a
+five-hour limit."
+
+- **The week first, then the 5-hour, then each model's week** (Fable), "the order of care":
+  - on the Overview by window, the week's block at the top, where the 5-hour's accounts and pool
+    sit now, so the one he watches isn't mid-screen;
+  - by account (`b`), each account's windows in the same order.
+- **Model windows on a toggle,** remembered: "most of the time, all I really care about is the week
+  limits and then the five-hour limit." Unused, Fable's window is noise; in use, he'd turn it on and
+  expect it to stay on. One category for every model's own window, so a new model with a limit of
+  its own falls under the same toggle, in every graph; separating them later stays simple. It may
+  apply in many places.
+- **One window's pool read 1% used while all four of its accounts read 0%** (the Overview by
+  window). Check whether the pool and its accounts round differently, or whether something is
+  counted that shouldn't be: the owner wondered about quota checks, which were to be left out
+  everywhere. If it isn't rounding, it's a bug.
+
 ## Loading
 
 - **`loading…` in the heading's state slot is too small to notice.** The owner would rather a
