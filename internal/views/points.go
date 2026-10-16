@@ -19,19 +19,6 @@ type pointsOver struct {
 	days     []string
 }
 
-// pointsOverOf is what the points of a session are taken over, its
-// requests, oldest first, being requests, and days the dates of the days it
-// made requests on.
-func pointsOverOf(requests []request, days []string) pointsOver {
-	accounts := make(map[string]bool)
-	for _, r := range requests {
-		if r.Account != "" {
-			accounts[r.Account] = true
-		}
-	}
-	return pointsOver{accounts: accounts, days: days}
-}
-
 // counts reports whether a, an answer of the day with the given date, counts
 // toward the session's points: of one of its accounts, on one of its days.
 func (o pointsOver) counts(date string, a answered) bool {

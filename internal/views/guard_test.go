@@ -153,6 +153,8 @@ var (
 		"views.HoldSessions", "views.Lanes.Look", "views.ListSessions", "views.ListWanted", "views.LogEvents", "views.LogFilter.KeptFrom",
 		"views.LogRead.Grown", "views.LogRows", "views.LogSessions", "views.Patch", "views.ReadEvents", "views.ReadLogHeld",
 		"views.RunwayReadings", "views.StubsOf", "views.Today", "views.Took", "views.TotalsOn",
+		"views.HeldPage.Found", "views.HeldPage.Held", "views.HeldPage.Opening", "views.HeldPage.ReadTurn", "views.HeldPage.TurnOf", "views.HeldPage.Turned", "views.ReadPage",
+		"views.SessionsWanted.Paging",
 	}
 )
 

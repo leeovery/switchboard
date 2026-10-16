@@ -37,23 +37,66 @@ func (m Model) turnKey(key string) (Model, tea.Cmd, bool) {
 	return m, nil, false
 }
 
+// turnReadMsg is a read of the lines of the requests of the turn the
+// turns'th open of the page of the session with the given id opened, as
+// views.HeldPage's ReadTurn reads them.
+type turnReadMsg struct {
+	turns int
+	id    string
+	turn  views.HeldTurn
+}
+
 // openTurn opens the turn chosen into its requests, in place, as enter does,
-// its first chosen: relived builds its requests' rows, and keeps them in
-// view as choosing has it. Nothing opens where no turn is chosen.
-func (m Model) openTurn() Model {
+// its first chosen, and reads the lines of its requests, as readTurn reads
+// them: till they're read, it shows they're loading; then relived builds
+// their rows, and keeps them in view as choosing has it. Nothing opens where
+// no turn is chosen.
+func (m Model) openTurn() (Model, tea.Cmd) {
 	s := *m.session
 	if s.shown.Turn == 0 {
-		return m
+		return m, nil
 	}
 	s.shown.Open, s.shown.Request, s.shown.RequestsScroll = s.shown.Turn, 0, 0
+	s.held, s.turns = s.held.Opening(s.shown.Turn), s.turns+1
+	m.session = &s
+	return m, m.readTurn()
+}
+
+// readTurn reads, as a command, the lines of the requests of the turn open
+// on the session's page, through the ledger, as the page is built at now,
+// as views.HeldPage's ReadTurn reads them: none, where the watch reads no
+// ledger.
+func (m Model) readTurn() tea.Cmd {
+	s := m.session
+	held, live, turns, id := s.held, m.pageLive(s.id, m.now()), s.turns, s.id
+	var l views.LedgerSession
+	if m.cfg.Ledger != nil {
+		l = m.cfg.Ledger
+	}
+	return func() tea.Msg {
+		return turnReadMsg{turns: turns, id: id, turn: held.ReadTurn(l, live)}
+	}
+}
+
+// turnRead takes in the read of a turn's lines, where the page it was read
+// for is open still, and the turn it opened last: the page holds them, as
+// views.HeldPage's Turned has it, and builds their rows afresh.
+func (m Model) turnRead(msg turnReadMsg) Model {
+	if m.session == nil || m.session.id != msg.id || m.session.turns != msg.turns {
+		return m
+	}
+	s := *m.session
+	s.held, s.taken = s.held.Turned(msg.turn), s.taken+1
 	m.session = &s
 	return m
 }
 
-// closeTurn closes the turn open, as esc does, the turn staying chosen.
+// closeTurn closes the turn open, as esc does, the turn staying chosen, the
+// page holding the lines of its requests no longer.
 func (m Model) closeTurn() Model {
 	s := *m.session
-	s.shown.Open, s.shown.Requests, s.shown.Request, s.shown.RequestsScroll = 0, nil, 0, 0
+	s.shown.Open, s.shown.Requests, s.shown.Request, s.shown.RequestsScroll, s.shown.RequestsLoading = 0, nil, 0, 0, false
+	s.held = s.held.Opening(0)
 	m.session = &s
 	return m
 }

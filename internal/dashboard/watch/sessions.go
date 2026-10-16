@@ -171,22 +171,42 @@ type heldFold struct {
 }
 
 // heldFold is what a read of the ledger's tail at now does for the store,
-// nil while nothing wants it, the List's first read yet to land: its late
-// days those of the days the tail missed, as missed has them, it holds not
-// every line of, as Unread has them; and those it awaits a line on, as
-// Awaited has them, whose lines could have come since they were last read,
-// as due has them, as the Log's are; each once, the oldest first.
+// nil while nothing wants it nor it holds anything: what it wants, the
+// List's sessions once its first read has landed, and the session of the
+// page open, once it's loaded, as views.SessionsWanted's Paging has it, so
+// it lets go of what nobody wants, reading no day again for a store nothing
+// wants; its late days those of the days the tail missed, as missed has
+// them, it holds not every line of, as Unread has them; and, of the List's,
+// those it awaits a line on, as Awaited has them, whose lines could have
+// come since they were last read, as due has them, as the Log's are, the
+// page's own being the page's; each once, the oldest first.
 func (m Model) heldFold(now time.Time) *heldFold {
 	t := m.sessionsTab
-	if !t.listed {
+	paged := m.session != nil && !m.session.shown.Loading
+	f := &heldFold{held: m.held, awaited: t.awaited}
+	switch {
+	case !t.listed && !paged && !m.holdsSessions():
 		return nil
+	case !t.listed && !paged:
+		return f
 	}
 	live := m.listLive(now, m.traffic.stream(now))
-	due, awaited := t.awaited.due(m.held.Awaited(live), live.Stream, now)
-	late := slices.Concat(due, m.held.Unread(m.tail.missed(views.Today(now))))
-	return &heldFold{
-		held: m.held, want: views.ListWanted(live.Running, live.Stream), late: slices.Compact(slices.Sorted(slices.Values(late))), awaited: awaited,
+	var due []string
+	if t.listed {
+		f.want = views.ListWanted(live.Running, live.Stream)
+		due, f.awaited = t.awaited.due(m.held.Awaited(live), live.Stream, now)
 	}
+	if paged {
+		f.want = f.want.Paging(m.session.held, live.Stream)
+	}
+	late := slices.Concat(due, m.held.Unread(m.tail.missed(views.Today(now))))
+	f.late = slices.Compact(slices.Sorted(slices.Values(late)))
+	return f
+}
+
+// holdsSessions reports whether the store holds a session.
+func (m Model) holdsSessions() bool {
+	return len(m.held.Holding().Open) > 0
 }
 
 // heldAwaiting is m with the store noting when each day it awaits a line on

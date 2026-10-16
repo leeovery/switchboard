@@ -54,9 +54,10 @@ type HeldSessions struct {
 // requests behind it, sealed; those at or past it, open, in order, as
 // inOrder has it; its story of them all, the sealed story told on with the
 // open; the flights of its requests that arrived from the day before its
-// day on, by their dates, for a line given again to be known; and how many
-// of its requests arrived on each day, by date, for a day read again whole
-// before then.
+// day on, by their dates, for a line given again to be known; how many of
+// its requests arrived on each day, by date, for a day read again whole
+// before then; and, of the session whose page is open alone, what its page
+// tallies of the requests sealed, nil of every other.
 type heldSession struct {
 	horizon instant
 	sealed  *story
@@ -64,6 +65,7 @@ type heldSession struct {
 	story   *story
 	flights map[string]heldFlights
 	counts  map[string]int
+	page    *pageTally
 }
 
 // heldFlights are the flights of a session's requests the store holds, by
@@ -100,6 +102,25 @@ type SessionsWanted struct {
 	Page    string
 	Log     []string
 	Pins    map[string][]time.Time
+	// paged is the session of the page open as its page holds it, read
+	// whole as it opened, nil where none is: the store takes it in place of
+	// the session it holds without what its page tallies, as Paging has it.
+	paged *heldSession
+}
+
+// Paging is w wanting the page h holds too, the session it's of tallied as
+// its page tallies it, pinned as the stream s tells where w isn't pinned.
+// Where the store holds the session but not its page's tally, it takes the
+// session as h holds it, read whole as the page opened, after the ledger's
+// tail was last read, as no read of the tail runs beside the page's: so the
+// read of the tail it's fed gives it every line since, those it holds
+// passed over.
+func (w SessionsWanted) Paging(h HeldPage, s Stream) SessionsWanted {
+	w.Page, w.paged = h.id, h.record
+	if w.Pins == nil {
+		w.Pins = pinsOf(s)
+	}
+	return w
 }
 
 // ListWanted is what the List wants of the store: today's sessions and
@@ -219,12 +240,32 @@ func (h HeldSessions) feeding(want SessionsWanted, now time.Time) *feed {
 	}
 	f.day, f.fed, f.last = Today(now), now, feedCounts{}
 	f.sessions = cloneOrMake(h.sessions)
+	if s, held := f.sessions[want.Page]; held && s.page == nil && want.paged != nil {
+		f.change(want.Page, want.paged)
+	}
 	for id, s := range f.sessions {
 		if s.day().Date < f.day.Date {
 			f.change(id, s.on(f.day, f.prices))
+			f.whole[id] = f.whole[id] || s.page != nil && !s.page.pricedAlike(f.prices, s.day().Date, f.day.Date)
 		}
 	}
+	if s, held := f.sessions[want.Page]; held && f.joinsLate(want.Page, s.horizon) {
+		f.whole[want.Page] = true
+	}
 	return f
+}
+
+// joinsLate reports whether the stream tells of a request of the session
+// with the given id, a pin of it, that may have arrived behind the horizon
+// given, as its page takes its requests in by when they were sent, the
+// stream's among its lines: one heard first after the horizon passed it,
+// as the stream joined late, whose page is tallied again whole. One pinned
+// longer than pinnedFor ago may be lost, its line never coming, and is
+// taken in after the requests sealed.
+func (f *feed) joinsLate(id string, horizon instant) bool {
+	return slices.ContainsFunc(f.want.Pins[id], func(pin time.Time) bool {
+		return f.now.Sub(pin) <= pinnedFor && instantOf(pin.Add(-arrivesWithin)).compare(horizon) < 0
+	})
 }
 
 // turnedBack reports whether the clock was set back, or the zone changed,
@@ -303,7 +344,8 @@ func (f *feed) read(l LedgerSessions) {
 func (f *feed) unheld() []string {
 	var ids []string
 	add := func(id string) {
-		if _, held := f.sessions[id]; id != "" && (!held || f.whole[id]) {
+		s, held := f.sessions[id]
+		if id != "" && (!held || f.whole[id] || id == f.want.Page && s.page == nil) {
 			ids = append(ids, id)
 		}
 	}
@@ -322,46 +364,57 @@ func (f *feed) unheld() []string {
 }
 
 // hold holds the session with the given id afresh, of lines, every line of
-// it read whole, each request once, as distinct has it, each priced at the
-// feed's day, sealed behind its horizon, as horizonOf has it.
+// it read whole, as readOf has it, sealed behind its horizon, as horizonOf
+// has it, its page tallied where it's the page's.
 func (f *feed) hold(id string, lines []ledger.Line) {
+	s := readOf(lines, f.prices, f.day, f.horizonOf(id), id == f.want.Page)
+	f.sessions[id] = s
+	delete(f.before, id)
+	f.gains[id] = SessionGain{whole: true}
+	f.last.read += s.held()
+}
+
+// readOf is a session held afresh of lines, every line of it read whole,
+// each request once, as distinct has it, each priced by prices at the day
+// d, sealed behind the horizon given, its page tallied where paged says.
+func readOf(lines []ledger.Line, prices ledger.Table, d LedgerDay, horizon instant, paged bool) *heldSession {
 	var read []heldRequest
 	for i := range lines {
 		if isRequest(&lines[i]) {
 			read = append(read, heldRequestOf(&lines[i]))
 		}
 	}
-	requests := pricedAt(distinct(read), f.prices, f.day.Date)
-	f.sessions[id] = heldSessionOf(requests, f.prices, f.day, f.horizonOf(id))
-	delete(f.before, id)
-	f.gains[id] = SessionGain{whole: true}
-	f.last.read += len(requests)
+	return heldSessionOf(pricedAt(distinct(read), prices, d.Date), prices, d, horizon, paged)
+}
+
+// held is how many requests s holds.
+func (s *heldSession) held() int {
+	n := 0
+	for _, c := range s.counts {
+		n += c
+	}
+	return n
 }
 
 // horizonOf is the horizon of the session with the given id at the feed's
-// time, before a moment it last had: openFor before then, or earlier, where
-// the earliest of its pins within pinnedFor before then is, as pinOf has
-// it, a moment earlier than it, as its request may have arrived
-// arrivesWithin before.
+// time, as horizonAt has it of its pins.
 func (f *feed) horizonOf(id string) instant {
-	horizon := f.now.Add(-openFor)
-	if pin, ok := f.pinOf(id); ok && pin.Add(-arrivesWithin).Before(horizon) {
-		horizon = pin.Add(-arrivesWithin)
-	}
-	return instantOf(horizon)
+	return horizonAt(f.now, f.want.Pins[id])
 }
 
-// pinOf is the earliest pin of the session with the given id no more than
-// pinnedFor before the feed's time, reporting false where it has none: one
-// earlier may be of a request lost, whose line never comes.
-func (f *feed) pinOf(id string) (time.Time, bool) {
-	var earliest time.Time
-	for _, pin := range f.want.Pins[id] {
-		if f.now.Sub(pin) <= pinnedFor && (earliest.IsZero() || pin.Before(earliest)) {
-			earliest = pin
+// horizonAt is the horizon of a session at now, before a moment it last
+// had: openFor before then, or earlier, where the earliest of its pins
+// within pinnedFor before then is, a moment earlier than it, as its request
+// may have arrived arrivesWithin before. A pin earlier than pinnedFor may be
+// of a request lost, whose line never comes.
+func horizonAt(now time.Time, pins []time.Time) instant {
+	horizon := now.Add(-openFor)
+	for _, pin := range pins {
+		if now.Sub(pin) <= pinnedFor && pin.Add(-arrivesWithin).Before(horizon) {
+			horizon = pin.Add(-arrivesWithin)
 		}
 	}
-	return earliest, !earliest.IsZero()
+	return instantOf(horizon)
 }
 
 // seal seals each session's requests behind its horizon, as it moves on at
@@ -388,13 +441,19 @@ func (f *feed) seal() {
 }
 
 // letGo lets go of the sessions nobody wants: of the List's, those with no
-// request today that don't run, and every one where it's no longer wanted.
+// request today that don't run, and every one where it's no longer wanted;
+// and of what a page tallies of a session it's no longer open on.
 func (f *feed) letGo() {
 	for id, s := range f.sessions {
 		list := f.want.List && (s.story.requests > 0 || f.running[id])
-		if !list && id != f.want.Page && !slices.Contains(f.want.Log, id) {
+		switch {
+		case !list && id != f.want.Page && !slices.Contains(f.want.Log, id):
 			delete(f.sessions, id)
 			delete(f.gains, id)
+		case id != f.want.Page && s.page != nil:
+			unpaged := *s
+			unpaged.page = nil
+			f.sessions[id] = &unpaged
 		}
 	}
 	f.listing = f.listing && f.want.List
@@ -418,9 +477,13 @@ func later(a, b instant) instant {
 
 // heldSessionOf is a session held of its requests, in order, as inOrder has
 // it, each priced, its requests on the day d counted and its moves priced by
-// prices, sealed behind the horizon given.
-func heldSessionOf(requests []heldRequest, prices ledger.Table, d LedgerDay, horizon instant) *heldSession {
+// prices, sealed behind the horizon given, its page tallied where paged
+// says.
+func heldSessionOf(requests []heldRequest, prices ledger.Table, d LedgerDay, horizon instant, paged bool) *heldSession {
 	s := &heldSession{horizon: horizon, sealed: newStory(prices, d), flights: make(map[string]heldFlights), counts: make(map[string]int)}
+	if paged {
+		s.page = newPageTally()
+	}
 	s.open = requests
 	s.taking(requests)
 	return s.sealedAt(horizon)
@@ -504,8 +567,14 @@ func heldFlight(held heldFlights, id string, is func(flight) bool) (knownLine, b
 // lined reports whether s holds the line of the request t the stream told
 // of, as Told.FiledAs has it.
 func (s *heldSession) lined(t Told) bool {
+	return s.linedAt(t.Request, t.Sent)
+}
+
+// linedAt reports whether s holds the line of the request with the given
+// id that arrived, or went upstream, at at, as sameRequest has it.
+func (s *heldSession) linedAt(id string, at time.Time) bool {
 	for _, flights := range s.flights {
-		if _, held := heldFlight(flights, t.Request, func(f flight) bool { return f.is(t.Request, t.Sent) }); held {
+		if _, held := heldFlight(flights, id, func(f flight) bool { return f.is(id, at) }); held {
 			return true
 		}
 	}
@@ -555,14 +624,17 @@ func mergedFlights(under, over map[string][]knownLine) map[string][]knownLine {
 }
 
 // sealedAt is s with its open requests behind the horizon given sealed into
-// its story, those at or past it held open, and its story told on of them,
-// afresh.
+// its story, and its page's tally where it's tallied, those at or past it
+// held open, and its story told on of them, afresh.
 func (s *heldSession) sealedAt(horizon instant) *heldSession {
 	i, _ := slices.BinarySearchFunc(s.open, horizon, func(r heldRequest, h instant) int { return r.at.compare(h) })
 	sealed := *s
 	sealed.horizon = horizon
 	if i > 0 {
 		sealed.sealed = s.sealed.told(s.open[:i])
+	}
+	if i > 0 && s.page != nil {
+		sealed.page = s.page.took(s.open[:i])
 	}
 	sealed.open = slices.Clone(s.open[i:])
 	sealed.story = sealed.sealed.told(sealed.open)
@@ -648,10 +720,12 @@ func (m move) same(o move) bool {
 // List's first read holds them, that h doesn't hold: none it holds is
 // changed. It's as last fed as the earlier fed of the two, so the days a
 // read of the ledger's tail reads again for it, as Unread has them, are
-// those any session it holds may have missed lines of. Where h was never
-// fed, it's found itself.
+// those any session it holds may have missed lines of. Where h holds no
+// session, its feeds having let go of every one, or never fed, it's found
+// itself, holding every one of today's sessions where either does.
 func (h HeldSessions) With(found HeldSessions) HeldSessions {
-	if h.fed.IsZero() && len(h.sessions) == 0 {
+	if len(h.sessions) == 0 {
+		found.listing = found.listing || h.listing
 		return found
 	}
 	sessions := cloneOrMake(h.sessions)

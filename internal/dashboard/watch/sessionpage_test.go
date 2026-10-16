@@ -3,6 +3,7 @@ package watch
 import (
 	"encoding/json"
 	"fmt"
+	"iter"
 	"maps"
 	"slices"
 	"strconv"
@@ -38,6 +39,18 @@ func (l *pageLedger) Sessions(ids []string, _ func(string, ledger.Line)) map[str
 
 func (l *pageLedger) SessionsOf(ids []string, take func(string, ledger.Line)) map[string][]ledger.Line {
 	return l.Sessions(ids, take)
+}
+
+// Session gives the session's lines newest first, as a Follower does, as a
+// turn opened reads them.
+func (l *pageLedger) Session(id string) iter.Seq[ledger.Held] {
+	return func(yield func(ledger.Held) bool) {
+		for _, line := range slices.Backward(l.lines[id]) {
+			if !yield(ledger.Held{Line: line}) {
+				return
+			}
+		}
+	}
 }
 
 // promptedLines are idD28C's lines of n turns on work, a prompt each, the

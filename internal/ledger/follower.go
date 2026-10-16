@@ -744,10 +744,14 @@ func (f *Follower) readSession(date, id string, now time.Time, lines *newestFirs
 
 // sessionHeldIn returns what reads a line of the ledger as the line it
 // holds, reporting false for one that doesn't read as a line, as heldIn does,
-// but holding its JSON only where it's of the session with the given id.
+// but reads a line of another session than the one with the given id for
+// its session alone, giving none of the rest, as keptLineIn does, so a read
+// of a session over a busy day decodes its own lines alone; and holds the
+// JSON of its own.
 func sessionHeldIn(id string) func(data []byte) (Held, bool) {
+	kept := keptLineIn(map[string]bool{id: true})
 	return func(data []byte) (Held, bool) {
-		line, ok := lineIn(data)
+		line, ok := kept(data)
 		if !ok || line.Session != id {
 			return Held{Line: line}, ok
 		}

@@ -28,8 +28,9 @@ type grower struct {
 }
 
 // growers are the readers that grow a story of their own as the ledger's
-// tail is read: the Log's read and a session's page held. The store, which
-// seals what it holds, is held to the same in its own tests.
+// tail is read: the Log's read. The store, which seals what it holds, and
+// the page, which tells its session's story as the store holds it, are held
+// to the same in their own tests.
 var growers = []grower{
 	{name: "the Log's read", grow: func(lines []ledger.Line, prices ledger.Table, day LedgerDay) []*story {
 		r := LogRead{prices: prices}
@@ -37,15 +38,6 @@ var growers = []grower{
 		for _, l := range lines {
 			r = r.Grown(noSessions{}, []ledger.Held{{Line: l}}, day.Start)
 			told = append(told, storyIn(r.sessions[l.Session], prices, day))
-		}
-		return told
-	}},
-	{name: "a session's page held", priced: true, grow: func(lines []ledger.Line, prices ledger.Table, day LedgerDay) []*story {
-		h := HoldPage("s", SessionsRead{}, prices, 0, day.Start)
-		var told []*story
-		for _, l := range lines {
-			h = h.Take(day.Date, []ledger.Held{{Line: l}})
-			told = append(told, h.story)
 		}
 		return told
 	}},

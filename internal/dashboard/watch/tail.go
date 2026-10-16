@@ -126,7 +126,8 @@ func (t ledgerTail) wholeLanded() ledgerTail {
 // Requests built first of what it holds now, as requestsBuilt builds them,
 // for what they await, the days before those its tables span left to it;
 // the session's page open, as pageFold has it; and the store, once the
-// List is held, shown or not, as heldFold has it, fed once for them all.
+// List is held, shown or not, or a page is open, as heldFold has it, fed
+// once for them all.
 func (m Model) readTail(now time.Time) (Model, tea.Cmd) {
 	r, mark, today := m.logReaders(), m.tail.mark, views.Today(now)
 	var log *logFold
@@ -169,13 +170,14 @@ func (m Model) readTail(now time.Time) (Model, tea.Cmd) {
 // shows, as readTail reads it, where no other read of the ledger is under
 // way: while a reader folds it, the Log once opened, Sessions' List once
 // held or a session's page open, so each keeps up while another tab shows;
-// or while the stream told of a request whose line it awaits, as the
-// traffic lets one go only once a read of the tail has read its line.
+// while the stream told of a request whose line it awaits, as the traffic
+// lets one go only once a read of the tail has read its line; or while the
+// store holds a session, for it to let go of those no reader wants.
 func (m Model) followTail() (Model, tea.Cmd) {
 	if !m.tail.due || m.tail.busy() || m.cfg.Ledger == nil || m.log.reading || m.sessionsTab.reading || m.pending != "" {
 		return m, nil
 	}
-	if !m.log.opened && !m.sessionsTab.listed && m.session == nil && !m.traffic.awaitsLines() {
+	if !m.log.opened && !m.sessionsTab.listed && m.session == nil && !m.traffic.awaitsLines() && !m.holdsSessions() {
 		return m, nil
 	}
 	return m.readTail(m.now())
@@ -210,23 +212,24 @@ func readLines(l views.Ledger, mark ledger.Mark, late []string) (tailLines, ledg
 }
 
 // tailed takes in what a read of the ledger's tail found: the tail read to
-// its mark; each reader grown by it, where it was read for one, as logGrown
-// and pageTaken have them, and the store as the read fed it, with the
-// sessions taken into it as the read was under way, as heldWith keeps them,
-// and none the read let go; and the lines it read of the requests the
-// stream told of held, as lined has it, for letGo.
+// its mark; the store as the read fed it, with the sessions taken into it
+// as the read was under way, as heldWith keeps them, and none the read let
+// go; each reader grown by it, where it was read for one, as logGrown and
+// pageTaken have them, the page taking its session from the store; and the
+// lines it read of the requests the stream told of held, as lined has it,
+// for letGo.
 func (m Model) tailed(msg tailedMsg) Model {
 	m.tail = m.tail.read(msg.tailRead)
-	if msg.log != nil {
-		m.log = m.log.grown(*msg.log)
-	}
-	if msg.page != nil {
-		m = m.pageTook(*msg.page)
-	}
 	if msg.held != nil {
 		m.held = msg.held.With(m.merged)
 	}
 	m.merged = views.HeldSessions{}
+	if msg.log != nil {
+		m.log = m.log.grown(*msg.log)
+	}
+	if msg.page != nil {
+		m = m.pageTook(*msg.page, msg.lines)
+	}
 	m.traffic = m.traffic.lined(msg.lines.all()...)
 	return m
 }
