@@ -33,9 +33,11 @@ type HeldPage struct {
 	prices ledger.Table
 	keep   time.Duration
 	// record is the session as the page holds it, its page tallied, as read
-	// whole at read, or as the store last fed it.
+	// whole at read, or as the store last fed it; joined how many feeds the
+	// store had had as the read joined it, as Joined has it.
 	record *heldSession
 	read   time.Time
+	joined int
 	// held are the keys of the lines taken, as heldKeys has them; answers
 	// every account's requests taken, answered, by the date of the day whose
 	// files hold them; over what the session's points are taken over; and
@@ -48,22 +50,20 @@ type HeldPage struct {
 }
 
 // turnLines are the lines of the requests of a session's turn open, as its
-// page holds them: the turn's number, and the prompt it serves; whether
-// they've been read; and the lines, of those read and those the ledger
-// gained since it opened, of the session's every request among them till
-// they're read, as which a turn's member is isn't known till then.
+// page holds them: the prompt the turn serves, by which it's known however
+// its number changes, as one of a request sent before it comes later;
+// whether its lines have been read; and the lines, of those read and those
+// the ledger gained since it opened, of its requests, as mine has them.
 type turnLines struct {
-	n      int
 	prompt string
 	read   bool
 	lines  []ledger.Line
 }
 
 // HeldTurn is a read of the lines of the requests of a session's turn, as
-// ReadTurn reads them: the turn's number, the prompt it serves, and the
-// lines, newest first.
+// ReadTurn reads them: the prompt the turn serves, and the lines, newest
+// first.
 type HeldTurn struct {
-	n      int
 	prompt string
 	lines  []ledger.Line
 }
@@ -183,14 +183,23 @@ func (h HeldPage) Found() HeldSessions {
 	return HeldSessions{prices: h.prices, day: Today(h.read), fed: h.read, sessions: map[string]*heldSession{h.id: h.record}}
 }
 
+// Joined is h as its read joins store, which holds its session, as Found
+// gives it, from then on, as HeldSessions' With takes it in: or holds it
+// already, of an earlier read, missing what h read since its last feed.
+func (h HeldPage) Joined(store HeldSessions) HeldPage {
+	h.joined = store.feeds
+	return h
+}
+
 // Held is h holding its session as store holds it, reporting whether that
-// changed it: where store holds it tallied as its page tallies it, fed since
-// h read it, as the store holds the session whose page it's fed wanting, as
-// SessionsWanted's Paging has it, from its first feed after. Else it's h,
-// unchanged: the store holds none of the page's that's newer.
+// changed it: where store holds it tallied as its page tallies it, fed
+// since h's read joined it, as Joined has it, as the store holds the session
+// whose page it's fed wanting, as SessionsWanted's Paging has it, from its
+// first feed after. Else it's h, unchanged: the store holds none of the
+// page's that's newer.
 func (h HeldPage) Held(store HeldSessions) (HeldPage, bool) {
 	s, ok := store.sessions[h.id]
-	if !ok || s.page == nil || s == h.record || store.fed.Before(h.read) {
+	if !ok || s.page == nil || s == h.record || store.feeds <= h.joined {
 		return h, false
 	}
 	h.record = s
@@ -209,8 +218,8 @@ func (h HeldPage) Held(store HeldSessions) (HeldPage, bool) {
 // else none of it. A date after the day h is held at rolls it on to that
 // day; an earlier one, of a ledger yet to turn its day, never rolls it back.
 // It's h itself where none is new and the date is no later than its day.
-// Its session's own requests it takes as the store holds them, as Held has
-// it, and into its turn open as TurnOf has it.
+// Its session's requests it holds as the store does, as Held takes them, and
+// its turn open's lines as TurnOf takes them, neither of which Take does.
 func (h HeldPage) Take(date string, lines []ledger.Held) HeldPage {
 	h, _ = h.Took(date, lines)
 	return h
@@ -258,10 +267,10 @@ func (h HeldPage) Took(date string, lines []ledger.Held) (HeldPage, bool) {
 }
 
 // TurnOf is h with the turn open was has open, as Opening and Turned have
-// it, the lines of the session's requests among those given, read of the
-// ledger since, taken into it: so a page grown of a read of the ledger's
-// tail off the event loop, of a copy of the page from before its turn
-// opened, holds the turn open as the page holds it now.
+// it, the lines of its requests among those given, read of the ledger
+// since, taken into it, as mine has them: so a page grown of a read of the
+// ledger's tail off the event loop, of a copy of the page from before its
+// turn opened, holds the turn open as the page holds it now.
 func (h HeldPage) TurnOf(was HeldPage, read ...[]ledger.Held) HeldPage {
 	h.turn = was.turn
 	if h.turn == nil {
@@ -270,7 +279,7 @@ func (h HeldPage) TurnOf(was HeldPage, read ...[]ledger.Held) HeldPage {
 	var mine []ledger.Line
 	for _, lines := range read {
 		for i := range lines {
-			if l := &lines[i].Line; l.Session == h.id && isRequest(l) {
+			if l := &lines[i].Line; h.mine(l) {
 				mine = append(mine, *l)
 			}
 		}
@@ -281,32 +290,82 @@ func (h HeldPage) TurnOf(was HeldPage, read ...[]ledger.Held) HeldPage {
 	return h
 }
 
-// with is t with the lines given among its own, each once, as keyOf knows a
-// line, afresh.
+// mine reports whether l may be the line of a request of h's turn open: of
+// its session's requests, a subagent's whose first request named the
+// turn's prompt, or whose first h's tally doesn't hold, as it may be among
+// those it holds open, or yet to come; else one naming the prompt. Which a
+// turn's member is, Build tells, as member has it.
+func (h HeldPage) mine(l *ledger.Line) bool {
+	switch {
+	case l.Session != h.id || !isRequest(l):
+		return false
+	case l.AgentID != "":
+		first, known := h.record.page.agents[l.AgentID]
+		return !known || first == h.turn.prompt
+	}
+	return l.Prompt == h.turn.prompt
+}
+
+// with is t with the lines given among its own, afresh: each of a request
+// with an id once, as keyOf knows it; one without, as often as the lines
+// given hold it beyond those t holds alike, as sumOf knows them, so a line
+// both read and gained is held once, and one the ledger's files hold twice,
+// twice.
 func (t *turnLines) with(lines []ledger.Line) *turnLines {
 	grown := *t
 	grown.lines = slices.Clip(t.lines)
-	held := keysOf(t.lines)
+	held := make(map[turnKey]int, len(t.lines))
+	for i := range t.lines {
+		held[turnKeyOf(&t.lines[i])]++
+	}
 	for i := range lines {
-		k, ok := keyOf(&lines[i])
-		if ok && held[k] {
+		k := turnKeyOf(&lines[i])
+		if held[k] > 0 {
+			if k.request == "" {
+				held[k]--
+			}
 			continue
 		}
-		held[k] = ok
 		grown.lines = append(grown.lines, lines[i])
 	}
 	return &grown
 }
 
-// Opening is h with its turn numbered n open, from 1 at its first, the lines
-// of its requests to be read, as ReadTurn reads them, those the ledger
-// gains of the session from now on held for it meanwhile: none open, where
-// n is 0, holding none.
-func (h HeldPage) Opening(n int) HeldPage {
-	h.turn = nil
-	if n > 0 {
-		h.turn = &turnLines{n: n}
+// turnKey is a line as a turn's lines know it from another: as keyOf has
+// it, and, of a request without an id, the sum of what it says, as sumOf
+// has it.
+type turnKey struct {
+	lineKey
+	sum uint64
+}
+
+// turnKeyOf is l's turnKey.
+func turnKeyOf(l *ledger.Line) turnKey {
+	k, ok := keyOf(l)
+	if ok {
+		return turnKey{lineKey: k}
 	}
+	return turnKey{lineKey: k, sum: sumOf(l)}
+}
+
+// Opening is h with its turn numbered n open, from 1 at its first, as live
+// builds its page, the lines of its requests to be read, as ReadTurn reads
+// them, those the ledger gains of them from now on held for it meanwhile:
+// none open, where it has no such turn, as Closing has it.
+func (h HeldPage) Opening(n int, live PageLive) HeldPage {
+	h = h.Closing()
+	if n < 1 {
+		return h
+	}
+	if turns := h.worked(live).tally.turns; n <= len(turns) {
+		h.turn = &turnLines{prompt: turns[n-1].prompt}
+	}
+	return h
+}
+
+// Closing is h with no turn open, holding the lines of none.
+func (h HeldPage) Closing() HeldPage {
+	h.turn = nil
 	return h
 }
 
@@ -315,19 +374,18 @@ func (h HeldPage) Opening(n int) HeldPage {
 // to arrivesWithin before the turn began, as the line of a request it first
 // knew of from the stream may have arrived as long before it was sent;
 // those of its requests among them, as its page counts a request in its
-// turn, of the agents it knows. None where no turn is open, or it has none
-// such.
+// turn, of the agents it knows. None where no turn is open.
 func (h HeldPage) ReadTurn(l LedgerSession, live PageLive) HeldTurn {
 	if h.turn == nil {
 		return HeldTurn{}
 	}
-	read := HeldTurn{n: h.turn.n}
+	read := HeldTurn{prompt: h.turn.prompt}
 	w := h.worked(live)
-	if l == nil || read.n < 1 || read.n > len(w.tally.turns) {
+	i, ok := w.tally.prompts[read.prompt]
+	if l == nil || !ok {
 		return read
 	}
-	t := w.tally.turns[read.n-1]
-	read.prompt = t.prompt
+	t := w.tally.turns[i]
 	from := t.started.Add(-arrivesWithin)
 	for held := range l.Session(h.id) {
 		line := held.Line
@@ -345,21 +403,23 @@ func (h HeldPage) ReadTurn(l LedgerSession, live PageLive) HeldTurn {
 // those the ledger gained since it opened: h, where t is of another turn
 // than h has open.
 func (h HeldPage) Turned(t HeldTurn) HeldPage {
-	if h.turn == nil || h.turn.n != t.n {
+	if h.turn == nil || h.turn.prompt != t.prompt {
 		return h
 	}
-	read := (&turnLines{n: t.n, prompt: t.prompt, read: true}).with(t.lines)
+	read := (&turnLines{prompt: t.prompt, read: true}).with(t.lines)
 	h.turn = read.with(h.turn.lines)
 	return h
 }
 
 // BuiltPage is a session's page as Build builds it: the page; its story;
-// the requests of its turn open, none where none is, or while they're read,
-// as RequestsLoading says; and until when it stands by the clock, as Until
-// has it.
+// the number of its turn open, from 1 at its first, 0 where none is, which
+// changes as a request sent before it comes later, and its requests, none
+// while they're read, as RequestsLoading says; and until when it stands by
+// the clock, as Until has it.
 type BuiltPage struct {
 	Page     SessionPage
 	Story    Story
+	Open     int
 	Requests []LogLine
 	// RequestsLoading is set while the lines of the requests of its turn
 	// open are read, as ReadTurn reads them.
@@ -377,19 +437,32 @@ type BuiltPage struct {
 }
 
 // Build is the page of the session h holds, as Page builds it, with its
-// story, as Story tells it, and the requests of its turn numbered open, as
-// TurnRequests has them, none where open is 0, all three of one working of
-// what h holds and what live gives, as worked has it, and until when it
-// stands, as BuiltPage's Until has it: reporting false where Page does,
-// with until when that stands.
-func (h HeldPage) Build(open int, live PageLive) (BuiltPage, bool) {
+// story, as Story tells it, and its turn open and its requests, as
+// TurnRequests has them, all three of one working of what h holds and what
+// live gives, as worked has it, and until when it stands, as BuiltPage's
+// Until has it: reporting false where Page does, with until when that
+// stands.
+func (h HeldPage) Build(live PageLive) (BuiltPage, bool) {
 	w := h.worked(live)
 	page, ok := w.page()
 	if !ok {
 		return BuiltPage{Until: w.until()}, false
 	}
+	open := w.open()
 	requests, loading := w.turnRequests(open)
-	return BuiltPage{Page: page, Story: w.story(page), Requests: requests, RequestsLoading: loading, Until: w.until()}, true
+	return BuiltPage{Page: page, Story: w.story(page), Open: open, Requests: requests, RequestsLoading: loading, Until: w.until()}, true
+}
+
+// open is the number of the turn open of the page w is built of, as
+// BuiltPage's Open has it.
+func (w worked) open() int {
+	if w.h.turn == nil {
+		return 0
+	}
+	if i, ok := w.tally.prompts[w.h.turn.prompt]; ok {
+		return i + 1
+	}
+	return 0
 }
 
 // until is when a page built of w stands otherwise by the clock alone, as
@@ -499,26 +572,27 @@ func (w worked) page() (SessionPage, bool) {
 // Details gives them. None where it has no such turn, or it isn't the turn
 // open, its lines read, as Opening and Turned have them.
 func (h HeldPage) TurnRequests(n int, live PageLive) []LogLine {
-	requests, _ := h.worked(live).turnRequests(n)
+	w := h.worked(live)
+	if n != w.open() {
+		return nil
+	}
+	requests, _ := w.turnRequests(n)
 	return requests
 }
 
-// turnRequests are the requests of the turn numbered n, as TurnRequests has
-// them, of w, reporting whether they're still being read: of the turn open,
-// its lines yet to be read.
+// turnRequests are the requests of the turn open, numbered n, as
+// TurnRequests has them, of w, reporting whether they're still being read:
+// none where none is open.
 func (w worked) turnRequests(n int) ([]LogLine, bool) {
 	t := w.h.turn
 	switch {
-	case n < 1 || n > len(w.tally.turns) || t == nil || t.n != n:
+	case n == 0:
 		return nil, false
 	case !t.read:
 		return nil, true
 	}
 	tally := w.tally
-	prompt := tally.turns[n-1].prompt
-	if t.prompt != prompt {
-		return nil, false
-	}
+	prompt := t.prompt
 	var lines []ledger.Line
 	for _, l := range t.lines {
 		if isRequest(&l) && tally.member(l.AgentID, l.Prompt, prompt) {

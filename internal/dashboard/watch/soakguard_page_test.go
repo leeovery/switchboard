@@ -181,12 +181,12 @@ func (g *pageGuard) sameAsOneRead(now time.Time) {
 	whole := views.ReadPage(g.s.follower, g.id, live.Stream, m.cfg.Prices, m.cfg.LedgerKeep, now)
 	open := m.session.shown.Open
 	if open != 0 {
-		whole = whole.Opening(open)
+		whole = whole.Opening(open, live)
 		whole = whole.Turned(whole.ReadTurn(g.s.follower, live))
 		g.opened = true
 	}
-	got, _ := m.session.held.Build(open, live)
-	want, _ := whole.Build(open, live)
+	got, _ := m.session.held.Build(live)
+	want, _ := whole.Build(live)
 	if !reflect.DeepEqual(got, want) {
 		gotJSON, _ := json.MarshalIndent(got, "", "  ")
 		wantJSON, _ := json.MarshalIndent(want, "", "  ")

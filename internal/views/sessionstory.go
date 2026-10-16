@@ -92,8 +92,8 @@ func (w worked) movesOf(page SessionPage) []SessionMove {
 // of whose line the session doesn't hold, once.
 func (w worked) upstream() []time.Time {
 	var at []time.Time
-	for _, n := range w.tally.upstream {
-		at = append(at, time.Unix(0, n).UTC())
+	for _, i := range w.tally.upstream {
+		at = append(at, i.time())
 	}
 	sealed := len(w.rec.page.upstream)
 	told := make(map[string]bool)

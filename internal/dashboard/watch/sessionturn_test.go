@@ -102,20 +102,38 @@ func TestATurnOpensIntoItsRequestsAndItsKeysMoveThroughThem(t *testing.T) {
 	}
 }
 
-// A turn opened reads its requests' lines from the ledger, its foot saying
-// it's loading till they're read, no row of them shown; then shows them.
-// A read for a turn closed since, or opened again since, opens nothing,
-// the turn open the later's; and closed, the page holds none of its lines.
+// openingTurn opens the turn chosen, as enter does, and returns its read,
+// held back undelivered as one still under way, and the timer armed for it
+// to say it's loading.
+func (h *harness) openingTurn() ([]tea.Msg, *timer) {
+	h.t.Helper()
+	read := holdingBack[turnReadMsg](h, h.update(enterKey)...)
+	tm, ok := h.pending(turnLoadingMsg{turns: h.model.session.turns, id: h.model.session.id})
+	if len(read) != 1 || !ok {
+		h.t.Fatalf("a turn opened, its read under way %d times, its loading armed %t; want it read once, its loading armed", len(read), ok)
+	}
+	return read, tm
+}
+
+// A turn opened reads its requests' lines from the ledger, no row of them
+// shown till they're read: its foot saying nothing of it short of
+// LoadingAfter, then saying it's loading till they're read; then shows
+// them. A read for a turn closed since, or opened again since, opens
+// nothing, the turn open the later's; and closed, the page holds none of
+// its lines.
 func TestATurnOpenedShowsItsLoadingTillItsLinesAreRead(t *testing.T) {
 	lines := turnsOfRequests(start.Add(-30*time.Minute), 8, 1)
 	h, _ := pageHarness(t, lines)
 	h.openPage(idD28C)
-	read := holdingBack[turnReadMsg](h, h.update(downKey)...)
-	read = append(read, holdingBack[turnReadMsg](h, h.update(enterKey)...)...)
-	shown := h.shownPage()
-	if len(read) != 1 || !shown.RequestsLoading || len(shown.Requests) != 0 || !footSays(h.view(), "loading…") {
-		t.Fatalf("turn 1 opened, its read under way %d times, loading %t, showing %d rows, its foot saying loading %t; want it read once, loading, no rows shown, saying so",
-			len(read), shown.RequestsLoading, len(shown.Requests), footSays(h.view(), "loading…"))
+	h.keys(downKey)
+	read, loading := h.openingTurn()
+	if shown := h.shownPage(); shown.RequestsLoading || len(shown.Requests) != 0 || footSays(h.view(), "loading…") {
+		t.Fatalf("turn 1 opened, its read under way short of %s, loading %t, showing %d rows; want no rows, saying nothing of loading", LoadingAfter, shown.RequestsLoading, len(shown.Requests))
+	}
+	h.fire(loading)
+	if shown := h.shownPage(); !shown.RequestsLoading || len(shown.Requests) != 0 || !footSays(h.view(), "loading…") {
+		t.Fatalf("turn 1 opened, its read under way %s on, loading %t, showing %d rows, its foot saying loading %t; want it loading, no rows shown, saying so",
+			LoadingAfter, shown.RequestsLoading, len(shown.Requests), footSays(h.view(), "loading…"))
 	}
 	h.deliver(read...)
 	if shown := h.shownPage(); shown.RequestsLoading || len(shown.Requests) != 8 {
@@ -123,9 +141,14 @@ func TestATurnOpenedShowsItsLoadingTillItsLinesAreRead(t *testing.T) {
 	}
 
 	h.keys(escKey)
-	stale := holdingBack[turnReadMsg](h, h.update(enterKey)...)
+	stale, staleLoading := h.openingTurn()
 	h.keys(escKey)
-	again := holdingBack[turnReadMsg](h, h.update(enterKey)...)
+	again, againLoading := h.openingTurn()
+	h.fire(staleLoading)
+	if shown := h.shownPage(); shown.RequestsLoading {
+		t.Error("the loading of a turn opened before it was closed and opened again came due, the turn says it's loading; want nothing said till its own comes due")
+	}
+	h.fire(againLoading)
 	h.deliver(stale...)
 	if shown := h.shownPage(); !shown.RequestsLoading || len(shown.Requests) != 0 {
 		t.Errorf("the read of a turn opened before it was closed and opened again landed, loading %t, showing %d rows; want it loading still, no rows",

@@ -185,7 +185,7 @@ func (m Model) heldFold(now time.Time) *heldFold {
 	paged := m.session != nil && !m.session.shown.Loading
 	f := &heldFold{held: m.held, awaited: t.awaited}
 	switch {
-	case !t.listed && !paged && !m.holdsSessions():
+	case !t.listed && !paged && m.held.Len() == 0:
 		return nil
 	case !t.listed && !paged:
 		return f
@@ -202,11 +202,6 @@ func (m Model) heldFold(now time.Time) *heldFold {
 	late := slices.Concat(due, m.held.Unread(m.tail.missed(views.Today(now))))
 	f.late = slices.Compact(slices.Sorted(slices.Values(late)))
 	return f
-}
-
-// holdsSessions reports whether the store holds a session.
-func (m Model) holdsSessions() bool {
-	return len(m.held.Holding().Open) > 0
 }
 
 // heldAwaiting is m with the store noting when each day it awaits a line on

@@ -22,13 +22,13 @@ func TestAHeldPagePastMidnightIsBuiltAsTheFeedThatRollsItGives(t *testing.T) {
 		Status: 200, Attempts: 1, TotalMS: 4000, Usage: []byte(`{"input_tokens":1000}`),
 	}}
 	h := HoldPage("s1", SessionsRead{day: Today(before), lines: map[string][]ledger.Line{"s1": lines}}, ledger.Pricing, 0, before)
-	looked, _ := h.Build(0, PageLive{Now: after})
+	looked, _ := h.Build(PageLive{Now: after})
 	fed, _ := h.Found().Fed(filedLedger{lines: lines, now: after}, Taken{}, SessionsWanted{}.Paging(h, Stream{}), after)
 	rolled, changed := h.Take(Today(after).Date, nil).Held(fed)
 	if !changed || fed.Holding().Read > 0 {
 		t.Fatalf("the feed past midnight changed the page %t, reading %d requests whole; want it changed, rolled on, none read", changed, fed.Holding().Read)
 	}
-	if got, _ := rolled.Build(0, PageLive{Now: after}); !reflect.DeepEqual(got, looked) {
+	if got, _ := rolled.Build(PageLive{Now: after}); !reflect.DeepEqual(got, looked) {
 		t.Errorf("past midnight, the page rolled by a feed is\n%+v\nwant it as looked at before the feed\n%+v", got, looked)
 	}
 	if lags := rolled.Take(Today(before).Date, nil); lags.day != rolled.day {

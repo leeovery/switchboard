@@ -42,6 +42,9 @@ type HeldSessions struct {
 	// zone changed has it, holds none of what it held.
 	day LedgerDay
 	fed time.Time
+	// feeds is how many feeds it's had, kept as the clock set back drops
+	// what it holds, so what was fed later is known by it.
+	feeds int
 	// listing is set while it holds every one of today's sessions, as the
 	// List wants them, its first read reading them whole.
 	listing  bool
@@ -229,7 +232,7 @@ type feed struct {
 // each session h holds rolled on to the day now falls on, as on has it.
 func (h HeldSessions) feeding(want SessionsWanted, now time.Time) *feed {
 	if h.turnedBack(now) {
-		h = HoldSessions(h.prices)
+		h = HeldSessions{prices: h.prices, feeds: h.feeds}
 	}
 	f := &feed{
 		HeldSessions: h, want: want, running: make(map[string]bool, len(want.Running)), now: now,
@@ -238,7 +241,7 @@ func (h HeldSessions) feeding(want SessionsWanted, now time.Time) *feed {
 	for _, id := range want.Running {
 		f.running[id] = true
 	}
-	f.day, f.fed, f.last = Today(now), now, feedCounts{}
+	f.day, f.fed, f.last, f.feeds = Today(now), now, feedCounts{}, h.feeds+1
 	f.sessions = cloneOrMake(h.sessions)
 	if s, held := f.sessions[want.Page]; held && s.page == nil && want.paged != nil {
 		f.change(want.Page, want.paged)
@@ -718,15 +721,18 @@ func (m move) same(o move) bool {
 
 // With is h with the sessions found, held of reads of their own, as the
 // List's first read holds them, that h doesn't hold: none it holds is
-// changed. It's as last fed as the earlier fed of the two, so the days a
-// read of the ledger's tail reads again for it, as Unread has them, are
-// those any session it holds may have missed lines of. Where h holds no
-// session, its feeds having let go of every one, or never fed, it's found
-// itself, holding every one of today's sessions where either does.
+// changed. It's priced as h is, whatever found is priced by; as last fed
+// as fedWith has it, so the days a read of the ledger's tail reads again
+// for it, as Unread has them, are those any session it holds may have
+// missed lines of, its last feed's counts found's where it was never fed;
+// holding every one of today's sessions where either does; and counting
+// the more feeds of the two.
 func (h HeldSessions) With(found HeldSessions) HeldSessions {
-	if len(h.sessions) == 0 {
-		found.listing = found.listing || h.listing
-		return found
+	if h.fed.IsZero() {
+		h.last = found.last
+	}
+	if h.fedWith(found) {
+		h.fed, h.day = found.fed, found.day
 	}
 	sessions := cloneOrMake(h.sessions)
 	for id, s := range found.sessions {
@@ -734,11 +740,27 @@ func (h HeldSessions) With(found HeldSessions) HeldSessions {
 			sessions[id] = s
 		}
 	}
-	h.sessions, h.listing = sessions, h.listing || found.listing
-	if !found.fed.IsZero() && found.fed.Before(h.fed) {
-		h.fed, h.day = found.fed, found.day
-	}
+	h.sessions, h.listing, h.feeds = sessions, h.listing || found.listing, max(h.feeds, found.feeds)
 	return h
+}
+
+// fedWith reports whether h given found's sessions is as last fed as found
+// is: where found was fed, and h never was; else, of the two that hold a
+// session, the earlier fed, as only a session held may have missed lines
+// since; of two that hold none, the later fed, as nothing held reads
+// again what was missed before then.
+func (h HeldSessions) fedWith(found HeldSessions) bool {
+	if found.fed.IsZero() || h.fed.IsZero() {
+		return h.fed.IsZero()
+	}
+	holds, finds := len(h.sessions) > 0, len(found.sessions) > 0
+	switch {
+	case holds != finds:
+		return finds
+	case holds:
+		return found.fed.Before(h.fed)
+	}
+	return h.fed.Before(found.fed)
 }
 
 // Without is h holding none of the sessions held holds, else as it's held:
@@ -809,6 +831,11 @@ func (h HeldSessions) Awaited(live ListLive) []string {
 // it took in every line filed on a day before it.
 func (h HeldSessions) Unread(missed []string) []string {
 	return slices.DeleteFunc(slices.Clone(missed), func(date string) bool { return date < h.day.Date })
+}
+
+// Len is how many sessions h holds.
+func (h HeldSessions) Len() int {
+	return len(h.sessions)
 }
 
 // Holding is what h holds, and what its last feed did, as Holding has them.

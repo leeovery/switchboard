@@ -119,12 +119,12 @@ func (p *paging) streamAt(now time.Time) Stream {
 // opened is the page with its turn open, as the watch opens it at now: its
 // newest, read through l as live builds the page.
 func (p *paging) opened(l LedgerSession, live PageLive) {
-	built, ok := p.page.Build(0, live)
+	built, ok := p.page.Build(live)
 	if !ok || len(built.Page.Turns) == 0 {
 		return
 	}
 	p.open = built.Page.Turns[0].Turn
-	p.page = p.page.Opening(p.open)
+	p.page = p.page.Opening(p.open, live)
 	p.page = p.page.Turned(p.page.ReadTurn(l, live))
 }
 
@@ -238,11 +238,12 @@ func (p *paging) check(now time.Time, l filedLedger, stream Stream) {
 	filed := l.filed()
 	whole := HoldPage("s", SessionsRead{day: Today(now), lines: map[string][]ledger.Line{"s": filed}}, p.prices, 0, now)
 	if p.page.turn != nil {
-		whole = whole.Opening(p.open).Turned(HeldTurn{n: p.open, prompt: p.page.turn.prompt, lines: filed})
+		whole.turn = &turnLines{prompt: p.page.turn.prompt}
+		whole = whole.Turned(HeldTurn{prompt: p.page.turn.prompt, lines: filed})
 	}
 	live := PageLive{Stream: stream, Now: now}
-	got, gotOK := p.page.Build(p.open, live)
-	want, wantOK := whole.Build(p.open, live)
+	got, gotOK := p.page.Build(live)
+	want, wantOK := whole.Build(live)
 	if gotOK != wantOK || !reflect.DeepEqual(got, want) {
 		gotJSON, _ := json.MarshalIndent(got, "", "  ")
 		wantJSON, _ := json.MarshalIndent(want, "", "  ")
@@ -274,6 +275,7 @@ func TestThePageFedLookByLookIsThePageBuiltWhole(t *testing.T) {
 		p := &paging{t: t, seed: seed, lines: lines, late: late, prices: prices, met: met, fed: at}
 		p.page = ReadPage(read, "s", p.streamAt(at), prices, 0, at)
 		p.store = HoldSessions(prices).With(p.page.Found())
+		p.page = p.page.Joined(p.store)
 		opens := r.IntN(len(lines))
 		for i := 0; i < len(lines); i += 1 + r.IntN(4) {
 			now := later(instantOf(at), instantOf(ended(&lines[i]))).time().Add(time.Duration(r.IntN(5000)) * time.Millisecond)
@@ -365,5 +367,57 @@ func TestAPageTakesRequestsTiedToTheMillisecondInTheOneOrder(t *testing.T) {
 		if got := pageOf(given); !reflect.DeepEqual(got, want) {
 			t.Errorf("given in the order %v, the page is\n%+v\nwant it as given in any other\n%+v", order, got, want)
 		}
+	}
+}
+
+// A page's story tells when each request went upstream exactly, whatever
+// the year it arrived in, as nanoseconds since the epoch alone don't hold
+// before 1678 or after 2262.
+func TestAPagesStoryTellsWhenARequestWentUpstreamWhateverItsYear(t *testing.T) {
+	long, far := time.Date(1500, 3, 1, 12, 0, 0, 0, time.UTC), time.Date(2400, 3, 1, 12, 0, 0, 0, time.UTC)
+	line := func(id string, at time.Time) ledger.Line {
+		return ledger.Line{
+			Request: id, At: at, Kind: ledger.KindMessage, Session: "s", Model: foldOpus, Account: "work", Reason: "sticky",
+			Status: 200, Attempts: 1, TotalMS: 1000, Class: ledger.ClassMain, Prompt: "p1", Usage: json.RawMessage(foldUsages[2]),
+		}
+	}
+	now := far.Add(time.Minute)
+	page := HoldPage("s", SessionsRead{day: Today(now), lines: map[string][]ledger.Line{"s": {line("a", long), line("b", far)}}}, ledger.Pricing, 0, now)
+	built, ok := page.Build(PageLive{Now: now})
+	if want := []time.Time{long, far}; !ok || !slices.EqualFunc(built.Story.Sent, want, time.Time.Equal) {
+		t.Errorf("the story tells its requests went upstream at %v, want %v", built.Story.Sent, want)
+	}
+}
+
+// A turn open holds, of the lines the ledger gains as it's open, only those
+// that may be its own: its session's requests naming its prompt, and its
+// subagents', or those of one whose turn its page doesn't know yet; never
+// another turn's, another session's, nor one of a subagent of another turn.
+func TestATurnOpenHoldsOnlyTheLinesThatMayBeItsOwn(t *testing.T) {
+	at := time.Date(2026, 10, 7, 12, 0, 0, 0, time.Local)
+	line := func(id, prompt, agent, session string, minutes int) ledger.Line {
+		return ledger.Line{
+			Request: id, At: at.Add(time.Duration(minutes) * time.Minute), Kind: ledger.KindMessage, Session: session, Model: foldOpus, Account: "work",
+			Reason: "sticky", Status: 200, Attempts: 1, TotalMS: 1000, Class: ledger.ClassMain, Prompt: prompt, AgentID: agent,
+		}
+	}
+	read := []ledger.Line{line("a", "p1", "", "s", 0), line("b", "p2", "", "s", 1), line("c", "p2", "other-agent", "s", 2)}
+	now := at.Add(3 * time.Hour)
+	live := PageLive{Now: now}
+	page := ReadPage(filedLedger{lines: read, now: now}, "s", Stream{}, ledger.Pricing, 0, now).Opening(1, live)
+	var gained []ledger.Held
+	for _, l := range []ledger.Line{
+		line("d", "p1", "", "s", 150), line("e", "p2", "", "s", 151), line("f", "p1", "", "elsewhere", 152),
+		line("g", "p1", "other-agent", "s", 153), line("h", "p2", "new-agent", "s", 154),
+	} {
+		gained = append(gained, ledger.Held{Line: l})
+	}
+	page = page.TurnOf(page, gained)
+	var held []string
+	for _, l := range page.turn.lines {
+		held = append(held, l.Request)
+	}
+	if want := []string{"d", "h"}; !slices.Equal(held, want) {
+		t.Errorf("the turn open holds the lines %v, want %v", held, want)
 	}
 }

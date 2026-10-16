@@ -44,7 +44,7 @@ type pageTally struct {
 	accounts []SessionAccount
 	kept     map[string]keptLines
 	totals   sessionSums
-	upstream []int64
+	upstream []instant
 	flying   []flight
 	models   map[string]bool
 
@@ -263,7 +263,7 @@ func (p *pageTally) wentUp(r *heldRequest) {
 		return
 	}
 	p.flying = append(p.flying, r.flight)
-	p.upstream = append(p.upstream, at.UnixNano())
+	p.upstream = append(p.upstream, instantOf(at))
 }
 
 // pricedAlike reports whether every model p's lines asked for costs alike

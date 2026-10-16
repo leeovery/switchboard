@@ -129,7 +129,8 @@ func newSoak(t *testing.T, setup soakSetup) *soak {
 		configured[i] = config.Account{ID: a}
 	}
 	m := &h.model
-	m.cfg.Ledger, m.cfg.Readings, m.cfg.Events, m.cfg.Prices, m.cfg.Accounts = read, history, filed, ledger.Pricing, configured
+	h.pricedBy(ledger.Pricing)
+	m.cfg.Ledger, m.cfg.Readings, m.cfg.Events, m.cfg.Accounts = read, history, filed, configured
 	m.accounts.shown.Accounts, m.past.page.Accounts = configured, configured
 	m.after, m.cfg.Await = s.arm, s.await
 	s.h, s.follower = h, follower

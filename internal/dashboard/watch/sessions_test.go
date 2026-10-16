@@ -1,6 +1,7 @@
 package watch
 
 import (
+	"encoding/json"
 	"fmt"
 	"iter"
 	"maps"
@@ -684,6 +685,42 @@ func sessionsOnTheLedger(t *testing.T, state string, now time.Time) (*harness, *
 		t.Fatal("Sessions shown, the List isn't held")
 	}
 	return h, l
+}
+
+// A read of the ledger's tail landing on a store holding no session, as on
+// a morning before any request, keeps it priced: a session it takes in
+// after is worth what the List built afresh says.
+func TestATailReadLandingOnAnEmptyStoreKeepsItPriced(t *testing.T) {
+	state := t.TempDir()
+	h := routedHarness(t, routerDocument(three()...))
+	h.source.sessions, h.clock.now = nil, onTheDay(9, 0, 0)
+	l := &daysCounted{}
+	l.Ledger = ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, logs.For("watch"))
+	cfg := h.config(Size{Width: 160, Height: 37})
+	cfg.Ledger, cfg.Prices, cfg.View = l, ledger.Pricing, dashboard.Overview
+	h.model = New(t.Context(), cfg)
+	h.start()
+	h.keys(toSessions...)
+	for range 2 {
+		h.clock.now = h.clock.now.Add(time.Second)
+		h.read(routerDocument(three()...))
+	}
+	if n := h.model.held.Len(); n != 0 {
+		t.Fatalf("the store holds %d sessions, want none, the ledger holding no line", n)
+	}
+
+	line := arrivedAt("0a000001", h.clock.now)
+	line.Usage = json.RawMessage(hourUsage)
+	writeLines(t, state, line)
+	h.clock.now = h.clock.now.Add(time.Second)
+	h.read(routerDocument(three()...))
+	got, want := h.model.sessionsTab.shown.List, builtAfresh(h, l)
+	if len(want.Sessions) == 0 || want.Sessions[0].Amount == nil {
+		t.Fatalf("the List built afresh is %+v, want a session worth what it cost", want)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("the List is\n%+v\nwant it as built afresh of every line, priced\n%+v", got, want)
+	}
 }
 
 // builtAfresh is the List built afresh of every line the ledger l holds, at

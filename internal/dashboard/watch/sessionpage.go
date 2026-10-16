@@ -31,6 +31,9 @@ type sessionShown struct {
 	until   time.Time
 	card    turnCarding
 	turns   int
+	// turnWaited is set once the read of the lines of its turn open has
+	// been waited on LoadingAfter, as turnLoading has it.
+	turnWaited bool
 }
 
 // sessionReadMsg is a read of the ledger for a session's page, the asked'th
@@ -105,7 +108,7 @@ func (m Model) sessionRead(msg sessionReadMsg) Model {
 	m.arrived = max(m.arrived, msg.asked)
 	if msg.asked == m.opening {
 		m = m.heldWith(msg.held.Found())
-		held, _ := msg.held.Held(m.held)
+		held := msg.held.Joined(m.held)
 		m.session = &sessionShown{id: msg.id, held: held, shown: dashboard.SessionShown{Home: m.cfg.Home}}
 	}
 	return m
@@ -227,8 +230,10 @@ func (m Model) pageTook(t pageTaken, read tailLines) Model {
 // the router's listing of it, as pageLive has it, and of what the request
 // stream told, as the views build it, its turn open's requests among it,
 // made again only as what it's made of changes, as pageBasis has it, or as
-// the clock reaches when it was built until; its turn chosen as following
-// has it. What streams on between, a row in flight and the answer it's
+// the clock reaches when it was built until; its turn open numbered as
+// views.BuiltPage's Open has it, chosen, and saying its requests load only
+// once turnLoading has waited on them; its turn chosen as following has it.
+// What streams on between, a row in flight and the answer it's
 // doing, is drawn as it stands at each frame. A page that can't be built, of
 // no request and listed by no router, stays as it was last built, and
 // doesn't open where it never was. One loading has nothing to build yet.
@@ -240,13 +245,17 @@ func (m Model) relived(msg tea.Msg, now time.Time) Model {
 	live := m.pageLive(s.id, now)
 	live.Stream = live.Stream.Of(s.id)
 	if basis := m.pageBasis(live); !s.built.same(basis) || !now.Before(s.until) {
-		built, ok := s.held.Build(s.shown.Open, live)
+		built, ok := s.held.Build(live)
 		if !ok && s.shown.Page.Session == "" {
 			m.session = nil
 			return m
 		}
 		if ok {
-			s.shown.Page, s.shown.Story, s.shown.Requests, s.shown.RequestsLoading = built.Page, built.Story, built.Requests, built.RequestsLoading
+			s.shown.Page, s.shown.Story, s.shown.Requests = built.Page, built.Story, built.Requests
+			s.shown.RequestsLoading = built.RequestsLoading && s.turnWaited
+			if built.Open != 0 {
+				s.shown.Open, s.shown.Turn = built.Open, built.Open
+			}
 		}
 		s.built, s.until = &basis, built.Until
 	}

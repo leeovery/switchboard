@@ -18,6 +18,7 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
@@ -83,8 +84,38 @@ func (h *harness) withLines(lines []ledger.Line) *pageLedger {
 	for _, line := range lines {
 		l.lines[line.Session] = append(l.lines[line.Session], line)
 	}
-	h.model.cfg.Ledger, h.model.cfg.Prices = l, ledger.Pricing
+	h.model.cfg.Ledger = l
+	h.pricedBy(ledger.Pricing)
 	return l
+}
+
+// A store first fed as a session's page opens, over a ledger holding none
+// of its lines, no List read before it, prices the session by the config's
+// prices, as the watch's store is priced from the start: the line the
+// ledger's tail gains after is worth what it cost.
+func TestAStoreFirstFedByASessionsPagePricesItsSession(t *testing.T) {
+	state := t.TempDir()
+	h := routedHarness(t, routerDocument(three()...))
+	h.source.sessions = []status.Session{sessionOn(idD28C, opus, "work", 0)}
+	cfg := h.config(Size{Width: 160, Height: 37})
+	cfg.Ledger, cfg.Prices = ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, logs.For("watch")), ledger.Pricing
+	h.model = New(t.Context(), cfg)
+	h.start()
+	h.openPage(idD28C)
+
+	line := arrived("0a000001", "work", 0)
+	line.Usage = json.RawMessage(hourUsage)
+	writeLines(t, state, line)
+	h.clock.now = h.clock.now.Add(time.Second)
+	h.read(routerDocument(three()...))
+	list := h.model.held.List(views.ListLive{Running: h.model.sessions, Now: h.clock.now})
+	i := slices.IndexFunc(list.Sessions, func(s views.ListedSession) bool { return s.Session == idD28C })
+	if i < 0 || list.Sessions[i].Amount == nil {
+		t.Fatalf("the store lists %+v, want d28c worth what its line cost, priced", list.Sessions)
+	}
+	if worth := h.shownPage().Page.Totals.Worth; worth.Amount == nil || *worth.Amount != *list.Sessions[i].Amount {
+		t.Errorf("the page is worth %+v, want what the store prices its session at, %+v", worth, list.Sessions[i].Worth)
+	}
 }
 
 // openPage opens the page of the session with the given id, as a click on

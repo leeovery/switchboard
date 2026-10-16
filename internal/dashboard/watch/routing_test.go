@@ -693,7 +693,8 @@ func pricedHarness(t *testing.T) (*harness, *sessionsLedger) {
 		id7F3A: asked(id7F3A, "claude-haiku-4-5", fiveMinuteUsage, 9*time.Minute),
 	}}
 	h := gridHarness(t)
-	h.model.cfg.Ledger, h.model.cfg.Prices = l, ledger.Pricing
+	h.model.cfg.Ledger = l
+	h.pricedBy(ledger.Pricing)
 	return h, l
 }
 

@@ -20,6 +20,7 @@ import (
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // start is when every test's clock starts: a Monday, 13:12 an hour east of UTC.
@@ -86,6 +87,12 @@ func (h *harness) config(size Size) Config {
 		Interval: interval, Policy: policy, Size: size, Ledger: h.emptyLedger(), Readings: readings.Empty{}, Events: events.Empty{},
 		Family: claude.Provider{}.Family, WeekWindow: claude.WeekWindow,
 	}
+}
+
+// pricedBy has the model price by prices, as New prices a model of a config
+// giving them, its store too, before it has read anything.
+func (h *harness) pricedBy(prices ledger.Table) {
+	h.model.cfg.Prices, h.model.held = prices, views.HoldSessions(prices)
 }
 
 // arm records a timer instead of starting one.

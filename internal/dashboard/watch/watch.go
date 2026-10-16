@@ -324,10 +324,11 @@ type Model struct {
 	// sessionsTab is what the watch holds of Sessions: what it shows, its
 	// Switchboard and its List as the last look built them, and whether the
 	// List is held. held are the sessions its readers want, the store
-	// views.HeldSessions holds, fed once a read of the ledger's tail: none
-	// till the List's first read lands. merged are the sessions taken into
-	// it while a read of the tail is under way, as heldWith takes them, for
-	// the store the read fed to take as it lands.
+	// views.HeldSessions holds, priced by the config's prices from the
+	// start, fed once a read of the ledger's tail: none till a reader's
+	// first read lands. merged are the sessions taken into it while a read
+	// of the tail is under way, as heldWith takes them, for the store the
+	// read fed to take as it lands.
 	sessionsTab sessionsTab
 	held        views.HeldSessions
 	merged      views.HeldSessions
@@ -444,7 +445,7 @@ func New(ctx context.Context, cfg Config) Model {
 		choice: cfg.Choice, pair: cfg.Pair, view: opening(cfg.View), sections: cfg.Sections, by: cfg.By, burn: cfg.Burn,
 		accounts: accountsTab{shown: cfg.AccountsShown}, past: historyTab{page: cfg.History, starts: cfg.WeekStarts},
 		sessionsTab: sessionsTab{shown: cfg.SessionsShown}, runwayTab: runwayTab{shown: cfg.RunwayShown}, log: openingLog(cfg.Log),
-		traffic: traffic{heard: new(views.Hearing)},
+		traffic: traffic{heard: new(views.Hearing)}, held: views.HoldSessions(cfg.Prices),
 	}
 	m.accounts.shown.Accounts, m.past.page.Accounts = cfg.Accounts, cfg.Accounts
 	if m.after == nil {
@@ -705,6 +706,8 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.sessionRead(msg), nil
 	case turnReadMsg:
 		return m.turnRead(msg), nil
+	case turnLoadingMsg:
+		return m.turnLoading(msg), nil
 	case pageLoadingMsg:
 		return m.pageLoading(msg), nil
 	case loadingMsg:

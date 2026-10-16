@@ -46,20 +46,42 @@ type turnReadMsg struct {
 	turn  views.HeldTurn
 }
 
+// turnLoadingMsg is the turn the turns'th open of the page of the session
+// with the given id opened, having waited LoadingAfter on its read.
+type turnLoadingMsg struct {
+	turns int
+	id    string
+}
+
 // openTurn opens the turn chosen into its requests, in place, as enter does,
 // its first chosen, and reads the lines of its requests, as readTurn reads
-// them: till they're read, it shows they're loading; then relived builds
-// their rows, and keeps them in view as choosing has it. Nothing opens where
-// no turn is chosen.
+// them: once it has waited LoadingAfter on them, it shows they're loading,
+// as turnLoading has it; once they're read, relived builds their rows, and
+// keeps them in view as choosing has it. Nothing opens where no turn is
+// chosen.
 func (m Model) openTurn() (Model, tea.Cmd) {
 	s := *m.session
 	if s.shown.Turn == 0 {
 		return m, nil
 	}
 	s.shown.Open, s.shown.Request, s.shown.RequestsScroll = s.shown.Turn, 0, 0
-	s.held, s.turns = s.held.Opening(s.shown.Turn), s.turns+1
+	s.held, s.turns, s.turnWaited = s.held.Opening(s.shown.Turn, m.pageLive(s.id, m.now())), s.turns+1, false
 	m.session = &s
-	return m, m.readTurn()
+	return m, tea.Batch(m.readTurn(), m.after(LoadingAfter, turnLoadingMsg{turns: s.turns, id: s.id}))
+}
+
+// turnLoading is m with the turn open shown loading, its read under way
+// LoadingAfter after it opened: not where the page it opened on is closed,
+// or another turn opened since; and, once its read has landed, loading no
+// longer, as relived builds it.
+func (m Model) turnLoading(msg turnLoadingMsg) Model {
+	if m.session == nil || m.session.id != msg.id || m.session.turns != msg.turns {
+		return m
+	}
+	s := *m.session
+	s.turnWaited, s.built = true, nil
+	m.session = &s
+	return m
 }
 
 // readTurn reads, as a command, the lines of the requests of the turn open
@@ -96,7 +118,7 @@ func (m Model) turnRead(msg turnReadMsg) Model {
 func (m Model) closeTurn() Model {
 	s := *m.session
 	s.shown.Open, s.shown.Requests, s.shown.Request, s.shown.RequestsScroll, s.shown.RequestsLoading = 0, nil, 0, 0, false
-	s.held = s.held.Opening(0)
+	s.held, s.turnWaited = s.held.Closing(), false
 	m.session = &s
 	return m
 }

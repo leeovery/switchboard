@@ -177,7 +177,7 @@ func (m Model) followTail() (Model, tea.Cmd) {
 	if !m.tail.due || m.tail.busy() || m.cfg.Ledger == nil || m.log.reading || m.sessionsTab.reading || m.pending != "" {
 		return m, nil
 	}
-	if !m.log.opened && !m.sessionsTab.listed && m.session == nil && !m.traffic.awaitsLines() && !m.holdsSessions() {
+	if !m.log.opened && !m.sessionsTab.listed && m.session == nil && !m.traffic.awaitsLines() && m.held.Len() == 0 {
 		return m, nil
 	}
 	return m.readTail(m.now())
