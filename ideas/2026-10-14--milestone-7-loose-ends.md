@@ -31,12 +31,32 @@ own reviews left. Each is an edge case or a cost with no wrong answer.
   is right throughout.
 - A session's page holds the answer and line keys of days the session never ran on (memory only).
 
+## The pool
+
+- `status`'s pool counts a tokenless account's room, where `Then` and Runway count none, so an
+  account whose token goes missing steps the pool's chart at now.
+- A limit can outlast the window it names: a 429's overall reset later than the window's own, or a
+  limit naming the 5-hour and the week whose week reads room in a new week while the 5-hour is
+  still spent. The moment holds the account, so `Σ pool` counts that window none, while `Then`,
+  Runway and the pool's chart before now count its room. Ending it means the holds the router
+  told of date a hold where the readings don't show one, which `Then`'s rule leaves out: the
+  router's events would carry each window's own end, or the document's own limit would join what's
+  told.
+- An account idle longer than the readings tail's carry-in, about 14 days, counts unknown on the
+  pool's chart, and days before the readings history's keep aren't summarised for it as they are
+  for Runway.
+
 ## Costs
 
 - The dashboard's canvas is its biggest allocator (`canvas.grow`, 38% in capture's sweeps): each
   frame allocates its rows of cells afresh.
 - Building the Log's stories decodes each request's usage (`CacheLife`, `Tokens`), about 50 ms of
   its 0.3 s first open on a busy ledger.
+- `readings.Day.Read` copies and sorts the whole tail on every read, now a week long, which is
+  most of what a look on Runway costs as a reading lands (8% over its cost before the week-long
+  tail, race detector on).
+- While the dashboard reads the documents itself, probing or with no router, Runway and the pool's
+  charts each concatenate and sort the whole tail (`views.RunwayReadings`) at every look.
 
 ## Cleanups
 
