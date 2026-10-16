@@ -19,22 +19,26 @@ import (
 // lines; and where the read read them, the day its tables span from, its
 // events as it first shows, or what the router's files were found to hold
 // since, to be taken in beside the events looks took in while the read was
-// under way, the figures of its days, and how far back its tables read.
+// under way, the figures of its days, how far back its tables read, and the
+// sessions of its lines the store held none of, read whole into a store of
+// their own, for the watch's to take in.
 type logGrown struct {
 	read   views.LogRead
 	from   views.LedgerDay
 	events *views.EventsRead
 	found  *views.EventsFiled
 	totals []views.DayTotals
+	held   *views.HeldSessions
 	logBounds
 }
 
 // lines reports whether g changes what the Log's Requests read, its read
-// held as given before it: lines taken in, or the figures of days read, or
-// where the tables start or how far back the ledger keeps its lines said,
-// as a read of the tail that gained nothing changes none of them.
+// held as given before it: lines taken in or told again, or the figures of
+// days read, or where the tables start or how far back the ledger keeps its
+// lines said, as a read of the tail that gained nothing changes none of
+// them.
 func (g logGrown) lines(held views.LogRead) bool {
-	return g.read.Len() != held.Len() || len(g.totals) > 0 || !g.from.Start.IsZero() || g.oldest != nil
+	return !g.read.Same(held) || len(g.totals) > 0 || !g.from.Start.IsZero() || g.oldest != nil
 }
 
 // changes reports whether g changes what the Log holds, its read held as
@@ -125,11 +129,11 @@ func (m Model) readLog() (Model, tea.Cmd) {
 
 // openLog reads the Log as it first shows, at now: every one of today's
 // lines, the tail's first read where it's unread, its mark otherwise left
-// where its readers fold from, the lines read again past it held already;
-// the router's events from today, as ReadEvents reads them; and how far
-// back its tables read, as bounds has it.
+// where its readers fold from, the lines read again past it held already,
+// as took takes them in; the router's events from today, as ReadEvents
+// reads them; and how far back its tables read, as bounds has it.
 func (m Model) openLog(now time.Time) (Model, tea.Cmd) {
-	r := m.logReaders()
+	r, held, stream := m.logReaders(), m.held, m.logStream(now)
 	joins := m.tail.unread()
 	if joins {
 		m.tail = m.tail.asking()
@@ -139,7 +143,8 @@ func (m Model) openLog(now time.Time) (Model, tea.Cmd) {
 		today := views.Today(now)
 		lines, next, _ := r.ledger.Today(ledger.Mark{})
 		events := views.ReadEvents(r.filed, today.Start, now)
-		msg := logReadMsg{grown: logGrown{read: views.ReadLogHeld(r.ledger, lines, r.prices, now), from: today, events: &events}}
+		msg := logReadMsg{grown: r.took(views.ReadLog(r.prices), lines, held, stream, now)}
+		msg.grown.from, msg.grown.events = today, &events
 		msg.grown.logBounds = r.bounds(now)
 		if joins {
 			msg.tail, msg.lined = &tailRead{mark: next, day: today}, lines
@@ -193,17 +198,37 @@ func (m Model) refiledFrom(from, now time.Time) (Model, tea.Cmd) {
 	}
 }
 
+// took is the Log's read, through r, taken in lines, a day's every one, as
+// a read of the Log's own reads them, at now: the sessions of their requests
+// the store held doesn't hold read whole into a store of their own, as Fed
+// reads them, wanting them alone, each pinned as the stream s tells, for
+// the watch's to take in; each line placed as s tells and its row told of
+// the stories the two hold.
+func (r logReaders) took(read views.LogRead, lines []ledger.Held, held views.HeldSessions, s views.Stream, now time.Time) logGrown {
+	var found *views.HeldSessions
+	telling := held
+	if ids := held.Unheld(views.ReadLog(r.prices).Wanted(lines)); len(ids) > 0 {
+		want := views.StreamWanted(s)
+		want.Log = ids
+		fresh, _ := views.HoldSessions(r.prices).Fed(r.ledger, views.Taken{}, want, now)
+		found, telling = &fresh, held.With(fresh)
+	}
+	return logGrown{read: read.Taken(lines, true, views.LogTaking{Held: telling, Stream: s, Now: now}), held: found}
+}
+
 // logFold is what a read of the ledger's tail does for the Log, as it
 // stands as the read is asked: grows its read by the lines the ledger
 // gained, and by those of the days before today it reads again whole, late,
 // as the tail followed them no further, or the line of a request across
-// midnight could have come on its day after the day turned; reads again the
-// figures of those days alone; and where how far back they read isn't
-// known today, as bounded has it, asks it again. Awaited is when each day awaiting a line was last
-// read for it, as the read leaves it.
+// midnight could have come on its day after the day turned, each placed as
+// the stream told as the read was asked; reads again the figures of those
+// days alone; and where how far back they read isn't known today, as
+// bounded has it, asks it again. Awaited is when each day awaiting a line
+// was last read for it, as the read leaves it.
 type logFold struct {
 	read    views.LogRead
 	late    []string
+	stream  views.Stream
 	awaited awaitedReads
 	asks    bool
 }
@@ -219,7 +244,23 @@ func (m Model) logFold(now time.Time) logFold {
 	today := views.Today(now)
 	due, awaited := m.log.awaited.due(m.log.spanned(m.log.page.Requests.Awaited(today)), m.logStream(now), now)
 	late := m.log.spanned(slices.Concat(due, m.tail.missed(today)))
-	return logFold{read: m.log.read, late: slices.Compact(slices.Sorted(slices.Values(late))), awaited: awaited, asks: !m.log.bounded(today.Date)}
+	return logFold{
+		read: m.log.read, late: slices.Compact(slices.Sorted(slices.Values(late))), stream: m.logStream(now), awaited: awaited, asks: !m.log.bounded(today.Date),
+	}
+}
+
+// wants are the sessions the Log wants the store to hold as a read of the
+// ledger's tail folds read, as LogRead's Wanted has them: of the lines it
+// holds, and those it takes in of the read. None where it doesn't fold it.
+func (f *logFold) wants(read tailLines) []string {
+	if f == nil {
+		return nil
+	}
+	lines := [][]ledger.Held{read.gained}
+	for _, date := range f.late {
+		lines = append(lines, read.days[date])
+	}
+	return f.read.Wanted(lines...)
 }
 
 // spanned are those of the dates given of the days the Log's tables span.
@@ -236,14 +277,16 @@ func (t logTab) awaitsBefore() bool {
 	return len(t.page.Requests.Awaited(t.from)) > 0
 }
 
-// grown is the Log grown, through r, at now, by what a read of the tail
-// read: the ledger's gain since the tail's mark, and the late days' lines,
-// as the fold says.
-func (f logFold) grown(r logReaders, read tailLines, now time.Time) *logGrown {
-	l := r.ledger
-	g := logGrown{read: f.read.Grown(l, read.gained, now), totals: views.TotalsOn(l, f.late, now, r.prices)}
+// grown is the Log grown, through r, by what a read of the tail read, as t
+// takes it in, its rows told by the store as the read fed it: the ledger's
+// gain since the tail's mark, and the late days' lines, as the fold says,
+// the rows of the sessions the feed changed told again once.
+func (f logFold) grown(r logReaders, read tailLines, t views.LogTaking) *logGrown {
+	l, now := r.ledger, t.Now
+	g := logGrown{read: f.read.Taken(read.gained, read.afresh, t), totals: views.TotalsOn(l, f.late, now, r.prices)}
+	t.Gains = nil
 	for _, date := range f.late {
-		g.read = g.read.Grown(l, read.days[date], now)
+		g.read = g.read.Taken(read.days[date], true, t)
 	}
 	if f.asks {
 		g.logBounds = r.bounds(now)
@@ -309,21 +352,22 @@ func foldedTotals(held, read []views.DayTotals) []views.DayTotals {
 }
 
 // readBack reads the day before those the Log's tables span, at now, as the
-// oldest day the ledger keeps allows, once known: its lines, its events and
-// its figures alone, those of the days after it held already.
+// oldest day the ledger keeps allows, once known: its lines, as took takes
+// them in, its events and its figures alone, those of the days after it
+// held already.
 func (m Model) readBack(now time.Time) (Model, tea.Cmd) {
 	t := m.log
 	day, ok := t.oldest.DayBefore(t.from)
 	if !ok {
 		return m, nil
 	}
-	r := m.logReaders()
+	r, held, stream := m.logReaders(), m.held, m.logStream(now)
 	m.log.reading = true
 	return m, func() tea.Msg {
 		l, back := r.ledger, t.events.Back(r.filed, day.Start)
-		return logReadMsg{grown: logGrown{
-			read: t.read.Grown(l, l.Day(day.Date), now), from: day, found: &back, totals: views.TotalsOn(l, []string{day.Date}, now, r.prices),
-		}}
+		g := r.took(t.read, l.Day(day.Date), held, stream, now)
+		g.from, g.found, g.totals = day, &back, views.TotalsOn(l, []string{day.Date}, now, r.prices)
+		return logReadMsg{grown: g}
 	}
 }
 
@@ -359,20 +403,24 @@ func keptFrom(first time.Time, err error, keep time.Duration, now time.Time) (*v
 	return &oldest, nil
 }
 
-// logRead takes in what a read for the Log of its own found: the Log grown
-// by it, and opened, its events taking in again those of the document on
-// screen while the router answers: as it first shows, as no look took them
-// in before it opened; and since, as the router holds them, in place of the
-// versions the read found on its files; then the tail read to where it read
-// today's lines, where it read them for it, and the lines it read of the
-// requests the stream told of held, as lined has it, for letGo.
+// logRead takes in what a read for the Log of its own found: the tail read
+// to where it read today's lines, where it read them for it, and the lines
+// it read of the requests the stream told of held, as lined has it, for
+// letGo; the sessions it read whole taken into the store, as heldWith takes
+// them; and the Log grown by it, and opened, its events taking in again
+// those of the document on screen while the router answers: as it first
+// shows, as no look took them in before it opened; and since, as the router
+// holds them, in place of the versions the read found on its files.
 func (m Model) logRead(msg logReadMsg) Model {
-	m.log = m.log.grown(msg.grown)
-	m.log.opened = true
-	m.log = m.log.looked(m.moment(m.now()), m.news.router, m.answering())
 	if msg.tail != nil {
 		m.tail, m.traffic = m.tail.read(*msg.tail), m.traffic.lined(msg.lined)
 	}
+	if msg.grown.held != nil {
+		m = m.heldWith(*msg.grown.held)
+	}
+	m.log = m.log.grown(msg.grown)
+	m.log.opened = true
+	m.log = m.log.looked(m.moment(m.now()), m.news.router, m.answering())
 	return m
 }
 

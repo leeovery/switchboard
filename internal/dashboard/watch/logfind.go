@@ -250,7 +250,7 @@ func (m Model) landed() Model {
 func (m Model) logSessions(now time.Time) []views.LogSession {
 	p := m.log.page
 	return views.LogSessions(views.LogSessionSources{
-		Read: m.log.read, Lines: p.Requests.Count(views.Today(now).Date).Sessions, Events: p.Events.Today.Sessions,
+		Read: m.log.read, Held: m.held, Lines: p.Requests.Count(views.Today(now).Date).Sessions, Events: p.Events.Today.Sessions,
 		Running: m.sessions, Unlisted: !m.answering(), Stream: m.logStream(now), Now: now,
 	})
 }

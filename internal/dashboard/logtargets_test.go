@@ -38,7 +38,7 @@ func TestEachRowOfTheLogsTableInViewIsATarget(t *testing.T) {
 	var rows []int
 	for _, target := range logTargetsOf(p, OnRow) {
 		rows = append(rows, target.Row)
-		if !lines[target.Row].choosable() {
+		if !lines.at(target.Row).choosable() {
 			t.Errorf("line %d is a target, but no row", target.Row)
 		}
 		if want := f.top() + 1 + target.Row; target.Y != want || target.X != 0 || target.Width != 160 {

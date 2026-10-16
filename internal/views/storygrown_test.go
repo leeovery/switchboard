@@ -9,15 +9,6 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 )
 
-// noSessions is a ledger that holds no session's lines, so a reader grows
-// its stories of what it's given alone.
-type noSessions struct{}
-
-func (noSessions) Sessions([]string, func(string, ledger.Line)) map[string][]ledger.Line { return nil }
-func (noSessions) SessionsOf([]string, func(string, ledger.Line)) map[string][]ledger.Line {
-	return nil
-}
-
 // grower is a reader that grows a session's story as its lines come, a line
 // at a time, at the day given: whether it prices its requests, and the story
 // it tells once it has taken in each line, in turn.
@@ -28,18 +19,10 @@ type grower struct {
 }
 
 // growers are the readers that grow a story of their own as the ledger's
-// tail is read: the Log's read and a session's page held. The store, which
-// seals what it holds, is held to the same in its own tests.
+// tail is read: a session's page held. The store, which seals what it
+// holds, is held to the same in its own tests, and the Log tells its rows
+// of the store's stories.
 var growers = []grower{
-	{name: "the Log's read", grow: func(lines []ledger.Line, prices ledger.Table, day LedgerDay) []*story {
-		r := LogRead{prices: prices}
-		var told []*story
-		for _, l := range lines {
-			r = r.Grown(noSessions{}, []ledger.Held{{Line: l}}, day.Start)
-			told = append(told, storyIn(r.sessions[l.Session], prices, day))
-		}
-		return told
-	}},
 	{name: "a session's page held", priced: true, grow: func(lines []ledger.Line, prices ledger.Table, day LedgerDay) []*story {
 		h := HoldPage("s", SessionsRead{}, prices, 0, day.Start)
 		var told []*story
@@ -49,15 +32,6 @@ var growers = []grower{
 		}
 		return told
 	}},
-}
-
-// storyIn is the story the Log holds of a session: one of no requests, at
-// the prices and day given, where it holds none.
-func storyIn(s *loggedSession, prices ledger.Table, day LedgerDay) *story {
-	if s == nil || s.story == nil {
-		return newStory(prices, day)
-	}
-	return s.story
 }
 
 // givenOrders are the orders a generated session's lines are given in, by

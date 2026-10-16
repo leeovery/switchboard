@@ -771,3 +771,15 @@ func (h HeldSessions) namingOf(id string) naming {
 	}
 	return naming{}
 }
+
+// StreamWanted is what the stream s wants of the store, whatever reader
+// reads it: each session's requests it tells of pinned, as pinsOf has it.
+func StreamWanted(s Stream) SessionsWanted {
+	return SessionsWanted{Pins: pinsOf(s)}
+}
+
+// Unheld are those of the ids given of sessions h doesn't hold, in their
+// order.
+func (h HeldSessions) Unheld(ids []string) []string {
+	return slices.DeleteFunc(slices.Clone(ids), func(id string) bool { _, held := h.sessions[id]; return held })
+}

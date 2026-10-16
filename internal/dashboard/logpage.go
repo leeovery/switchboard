@@ -64,24 +64,24 @@ type LogPage struct {
 	// files. The table fills its view no further back.
 	AtReach bool
 	Finding LogFinding
-	lined   *tableLines
+	lined   *heldLines
 }
 
 // LogStand is how one of the Log's tables stands: following, its newest
 // line at the foot, as the zero LogStand does; or paused, its view from the
 // line top, no further down than foot, the table's last line as it paused,
-// the line chosen lit where one is; and, of Requests', the table as it
-// paused, which says the lines come since. filledAt is the rows of the
-// tallest view the table has filled, or reached the oldest day or its reach
-// in, as Filling has it, none till it does: after, it reads back only as its top is reached, or,
-// following, as its view grows past them, where it refills, as refills
-// says.
+// the line chosen lit where one is; and, of Requests', where the table stood
+// as it paused, as views.LogMark has it, which says the lines come since.
+// filledAt is the rows of the tallest view the table has filled, or reached
+// the oldest day or its reach in, as Filling has it, none till it does:
+// after, it reads back only as its top is reached, or, following, as its
+// view grows past them, where it refills, as refills says.
 type LogStand struct {
 	paused    bool
 	top, foot LogKey
 	chosen    LogKey
 	choosing  bool
-	then      views.LogTable
+	mark      views.LogMark
 	filledAt  int
 }
 
@@ -131,59 +131,57 @@ func (l logLine) choosable() bool {
 	return l.row != nil || l.event != nil
 }
 
+// logLines are the lines of one of the Log's tables as the frame draws
+// them, the oldest first: how many there are, and each at its place.
+type logLines interface {
+	len() int
+	at(i int) logLine
+}
+
+// madeLines are a table's lines made whole, as the Events' are.
+type madeLines []logLine
+
+func (l madeLines) len() int         { return len(l) }
+func (l madeLines) at(i int) logLine { return l[i] }
+
 // lines are the lines of the table shown, the oldest first, as the frame
-// draws them: those Lined holds, while they're of the table; else made
-// afresh.
-func (p LogPage) lines() []logLine {
+// draws them: of Requests', each made as it's read of the table, so a build
+// of it makes none; of Events', those Lined holds, while they're of the
+// table, else made afresh.
+func (p LogPage) lines() logLines {
 	if p.Shown == LogEvents {
-		if h := p.lined; h != nil && h.events.of(p.Events.Lines, p.eventsEmpty()) {
-			return h.events.lines
+		if h := p.lined; h != nil && h.of(p.Events.Lines, p.eventsEmpty()) {
+			// A pointer, as a slice put in an interface allocates.
+			return &h.lines
 		}
 		return p.eventLines()
 	}
-	if h := p.lined; h != nil && h.requests.of(p.Requests.Lines, p.requestsEmpty()) {
-		return h.requests.lines
-	}
-	return p.requestLines()
+	return requestLines{table: p.Requests, empty: p.requestsEmpty()}
 }
 
-// Lined is p with the lines of both its tables, as the frame draws them,
-// each made once and held, for each read of them to take while its table is
-// the one they were made of: the watch lines each page it builds, so a table
-// is made into lines once a build of it, not at each look at it, nor at a
-// build of the other.
+// Lined is p with the lines of its Events, as the frame draws them, made
+// once and held, for each read of them to take while its table is the one
+// they were made of: the watch lines each page it builds, so a table is made
+// into lines once a build of it, not at each look at it, nor at a build of
+// the Requests, whose lines are made as they're read.
 func (p LogPage) Lined() LogPage {
-	var h tableLines
-	if p.lined != nil {
-		h = *p.lined
+	if empty := p.eventsEmpty(); p.lined == nil || !p.lined.of(p.Events.Lines, empty) {
+		p.lined = &heldLines{made: p.Events.Lines, empty: empty, lines: p.eventLines()}
 	}
-	if empty := p.requestsEmpty(); !h.requests.of(p.Requests.Lines, empty) {
-		h.requests = heldLines[views.LogLine]{made: p.Requests.Lines, empty: empty, lines: p.requestLines()}
-	}
-	if empty := p.eventsEmpty(); !h.events.of(p.Events.Lines, empty) {
-		h.events = heldLines[views.EventsLine]{made: p.Events.Lines, empty: empty, lines: p.eventLines()}
-	}
-	p.lined = &h
 	return p
 }
 
-// tableLines are the lines of the Log's tables as Lined holds them.
-type tableLines struct {
-	requests heldLines[views.LogLine]
-	events   heldLines[views.EventsLine]
-}
-
-// heldLines are a table's lines as drawn, made of its lines as views gave
+// heldLines are the Events' lines as drawn, made of its lines as views gave
 // them, the table saying it had nothing today where empty is set.
-type heldLines[T any] struct {
-	made  []T
+type heldLines struct {
+	made  []views.EventsLine
 	empty bool
-	lines []logLine
+	lines madeLines
 }
 
 // of reports whether h were made of the lines given, the very ones, the
 // table saying it had nothing today where empty is set.
-func (h heldLines[T]) of(lines []T, empty bool) bool {
+func (h heldLines) of(lines []views.EventsLine, empty bool) bool {
 	return h.empty == empty && len(h.made) == len(lines) && (len(lines) == 0 || &h.made[0] == &lines[0])
 }
 
@@ -200,12 +198,12 @@ func (p LogPage) standing(s LogStand) LogPage {
 
 // find is the place among lines of the line whose key is k: false where
 // they hold none.
-func (p LogPage) find(lines []logLine, k LogKey) (int, bool) {
+func (p LogPage) find(lines logLines, k LogKey) (int, bool) {
 	if p.Shown == LogRequests && k.other == "" {
 		return p.Requests.Find(k.request)
 	}
-	for i, l := range lines {
-		if l.key.is(k) {
+	for i := range lines.len() {
+		if lines.at(i).key.is(k) {
 			return i, true
 		}
 	}
@@ -218,14 +216,14 @@ func (p LogPage) find(lines []logLine, k LogKey) (int, bool) {
 // A foot no longer among them, as one a filter hides, falls back to the last
 // line; a top, to the view ending at the foot, but rising to the line chosen
 // where that's above it.
-func (p LogPage) window(lines []logLine, s LogStand, rows int) (first, last int) {
-	last = len(lines) - 1
+func (p LogPage) window(lines logLines, s LogStand, rows int) (first, last int) {
+	last = lines.len() - 1
 	if !s.paused {
-		return max(len(lines)-rows, 0), last
+		return max(lines.len()-rows, 0), last
 	}
 	if foot, ok := p.find(lines, s.foot); ok {
 		last = foot
-		if last+1 < len(lines) && lines[last+1].empty != nil {
+		if last+1 < lines.len() && lines.at(last+1).empty != nil {
 			last++
 		}
 	}
@@ -242,7 +240,7 @@ func (p LogPage) window(lines []logLine, s LogStand, rows int) (first, last int)
 
 // lit is the place of the line chosen among lines, as s stands: false
 // where none is chosen, or it's no longer among them.
-func (p LogPage) lit(lines []logLine, s LogStand) (int, bool) {
+func (p LogPage) lit(lines logLines, s LogStand) (int, bool) {
 	if !s.choosing {
 		return 0, false
 	}
@@ -273,7 +271,12 @@ func (p LogPage) Followed() LogPage {
 
 // Paused reports whether the table shown is paused.
 func (p LogPage) Paused() bool {
-	return p.stand().paused
+	return p.stand().Paused()
+}
+
+// Paused reports whether the table stands paused.
+func (s LogStand) Paused() bool {
+	return s.paused
 }
 
 // Chosen is the row of the table shown that's chosen, where one is: false
@@ -284,10 +287,11 @@ func (p LogPage) Chosen() (views.RequestRow, *views.LogEvent, bool) {
 	if !ok {
 		return views.RequestRow{}, nil, false
 	}
-	if r := lines[i].row; r != nil {
+	l := lines.at(i)
+	if r := l.row; r != nil {
 		return *r, nil, true
 	}
-	return views.RequestRow{}, lines[i].event, true
+	return views.RequestRow{}, l.event, true
 }
 
 // Chose is the table shown in a view rows rows tall, its choice moved by
@@ -323,13 +327,13 @@ func (p LogPage) Chose(by, rows int) LogPage {
 // choosing is s with the line at at among lines chosen, its view, rows rows
 // tall, scrolled to keep it in: to the line, where it's above the view, or
 // to end with it, where it's below.
-func (p LogPage) choosing(lines []logLine, s LogStand, at, rows int) LogStand {
-	s.chosen, s.choosing = lines[at].key, true
+func (p LogPage) choosing(lines logLines, s LogStand, at, rows int) LogStand {
+	s.chosen, s.choosing = lines.at(at).key, true
 	switch first, last := p.window(lines, s, rows); {
 	case at < first:
-		s.top = lines[at].key
+		s.top = lines.at(at).key
 	case at > last:
-		s.top = lines[max(at-rows+1, 0)].key
+		s.top = lines.at(max(at-rows+1, 0)).key
 	}
 	return s
 }
@@ -356,7 +360,7 @@ func (p LogPage) Landed(at time.Time, rows int) LogPage {
 // placed as placedRows has it.
 func (p LogPage) Scrolled(by, rows int) LogPage {
 	lines, s, rows := p.lines(), p.stand(), placedRows(rows)
-	if len(lines) == 0 || !s.paused && (by >= 0 || !holdsRow(lines)) {
+	if lines.len() == 0 || !s.paused && (by >= 0 || !holdsRow(lines)) {
 		return p
 	}
 	if !s.paused {
@@ -365,44 +369,44 @@ func (p LogPage) Scrolled(by, rows int) LogPage {
 	first, _ := p.window(lines, s, rows)
 	foot := p.footOf(lines, s)
 	to := min(max(first+by, 0), max(foot-rows+1, 0))
-	s.top = lines[to].key
+	s.top = lines.at(to).key
 	return p.standing(s)
 }
 
 // pausedAt is the table shown, of lines, paused where it follows in a view
 // rows rows tall: its view as it is, to the table's last line that came,
 // which it goes no further down than, the words saying it has nothing today
-// passed over, as they go once today's first comes; and of Requests', the
-// table as it is, which the lines come since are counted against.
-func (p LogPage) pausedAt(lines []logLine, rows int) LogStand {
+// passed over, as they go once today's first comes; and of Requests', where
+// the table stands, which the lines come since are counted against.
+func (p LogPage) pausedAt(lines logLines, rows int) LogStand {
 	s := p.stand()
 	first, last := p.window(lines, s, rows)
-	if lines[last].empty != nil && last > 0 {
+	if lines.at(last).empty != nil && last > 0 {
 		last--
 	}
-	s.paused, s.top, s.foot, s.then = true, lines[first].key, lines[last].key, p.Requests
+	s.paused, s.top, s.foot, s.mark = true, lines.at(first).key, lines.at(last).key, p.Requests.Mark()
 	return s
 }
 
 // footOf is the place of the paused foot among lines, as s stands: the last
 // line, where it's no longer among them.
-func (p LogPage) footOf(lines []logLine, s LogStand) int {
+func (p LogPage) footOf(lines logLines, s LogStand) int {
 	if foot, ok := p.find(lines, s.foot); ok {
 		return foot
 	}
-	return len(lines) - 1
+	return lines.len() - 1
 }
 
 // holdsRow reports whether lines hold a row, which a table pauses at.
-func holdsRow(lines []logLine) bool {
-	return newestRow(lines, 0, len(lines)-1) >= 0
+func holdsRow(lines logLines) bool {
+	return newestRow(lines, 0, lines.len()-1) >= 0
 }
 
 // newestRow is the place of the newest row of lines from first to last:
 // -1 where none is a row.
-func newestRow(lines []logLine, first, last int) int {
+func newestRow(lines logLines, first, last int) int {
 	for i := last; i >= first; i-- {
-		if lines[i].choosable() {
+		if lines.at(i).choosable() {
 			return i
 		}
 	}
@@ -412,9 +416,9 @@ func newestRow(lines []logLine, first, last int) int {
 // nextRow is the place of the row by places on from the row at among
 // lines, no further than the first of them, nor than foot: -1 where there's
 // none between.
-func nextRow(lines []logLine, at, by, foot int) int {
+func nextRow(lines logLines, at, by, foot int) int {
 	for i := at + by; i >= 0 && i <= foot; i += by {
-		if lines[i].choosable() {
+		if lines.at(i).choosable() {
 			return i
 		}
 	}
@@ -431,7 +435,7 @@ func (p LogPage) Filling(rows int) LogPage {
 	if s.filledAt >= rows || !p.Read {
 		return p
 	}
-	if len(p.lines()) >= rows || p.reached() || p.AtReach {
+	if p.lines().len() >= rows || p.reached() || p.AtReach {
 		s.filledAt = rows
 	}
 	return p.standing(s)
@@ -449,7 +453,7 @@ func (p LogPage) WantsDayBefore(rows int) bool {
 	}
 	lines, s := p.lines(), p.stand()
 	if s.filledAt == 0 || !s.paused && rows > s.filledAt && p.refills(p.Shown) {
-		return !p.AtReach && len(lines) < rows
+		return !p.AtReach && lines.len() < rows
 	}
 	first, _ := p.window(lines, s, rows)
 	return s.paused && first == 0
@@ -468,8 +472,8 @@ func (p LogPage) reached() bool {
 // oldest is the oldest day the ledger keeps, where the tables reach it: nil
 // where they don't, or it's not known.
 func (p LogPage) oldest() *views.OldestDay {
-	if l := p.Requests.Lines; len(l) > 0 {
-		return l[0].Oldest
+	if p.Requests.Len() > 0 {
+		return p.Requests.Line(0).Oldest
 	}
 	return nil
 }
@@ -558,7 +562,7 @@ func (p LogPage) namedSession(id string) string {
 // dirOf is the directory of the session with the given id as the Requests'
 // rows name it, else the Events': "" where none does.
 func (p LogPage) dirOf(id string) string {
-	for _, l := range p.Requests.Lines {
+	for _, l := range p.Requests.All() {
 		if l.IsRow() && l.Row.Session == id && l.Row.Dir != "" {
 			return l.Row.Dir
 		}
@@ -603,28 +607,28 @@ func (p LogPage) state(rows int) logState {
 
 // pausedTime is when the line the table, of lines, is paused at came: the
 // line chosen, else the newest row in view, or above it.
-func (p LogPage) pausedTime(lines []logLine, s LogStand, rows int) time.Time {
+func (p LogPage) pausedTime(lines logLines, s LogStand, rows int) time.Time {
 	if at, ok := p.lit(lines, s); ok {
-		return lines[at].at
+		return lines.at(at).at
 	}
 	_, last := p.window(lines, s, rows)
 	if at := newestRow(lines, 0, last); at >= 0 {
-		return lines[at].at
+		return lines.at(at).at
 	}
 	return time.Time{}
 }
 
 // fresh is how many lines have come since the table shown, of lines,
 // paused: of Requests', its rows of requests the table as it paused held
-// none of, as its filter shows them; of Events', those after its paused
-// foot.
-func (p LogPage) fresh(lines []logLine, s LogStand) int {
+// none of, as its filter shows them, as its mark says; of Events', those
+// after its paused foot.
+func (p LogPage) fresh(lines logLines, s LogStand) int {
 	if p.Shown == LogRequests {
-		return p.Requests.NewSince(s.then)
+		return p.Requests.NewSince(s.mark)
 	}
 	n := 0
-	for _, l := range lines[p.footOf(lines, s)+1:] {
-		if l.choosable() {
+	for i := p.footOf(lines, s) + 1; i < lines.len(); i++ {
+		if lines.at(i).choosable() {
 			n++
 		}
 	}
@@ -648,4 +652,42 @@ const logAroundTable = 2
 // view's rows but its heads and the blank row under it.
 func (f Frame) LogRows() int {
 	return max(f.viewRows()-logAroundTable, 0)
+}
+
+// KeptFrom is the latest day the Log's tables could span from, in a view
+// rows rows tall, still filling the rows each has filled, as Filling has
+// it, and the table shown the view: false where it's no later than the day
+// they span from, or a table filled no view, or fills its own no more.
+func (p LogPage) KeptFrom(rows int) (views.LedgerDay, bool) {
+	kept := p.Today
+	for v, s := range p.Stands {
+		need := s.filledAt
+		if LogView(v) == p.Shown {
+			need = max(need, rows)
+		}
+		if need == 0 {
+			continue
+		}
+		day, ok := p.filledFrom(LogView(v), need)
+		if !ok {
+			return views.LedgerDay{}, false
+		}
+		if day.Date < kept.Date {
+			kept = day
+		}
+	}
+	return kept, kept.Date > p.From.Date
+}
+
+// filledFrom is the latest day the table given could span from and still
+// fill a view rows rows tall, as its FilledFrom has it, the words saying
+// Requests has nothing today among its lines.
+func (p LogPage) filledFrom(v LogView, rows int) (views.LedgerDay, bool) {
+	if v == LogEvents {
+		return p.Events.FilledFrom(rows)
+	}
+	if p.requestsEmpty() {
+		rows--
+	}
+	return p.Requests.FilledFrom(rows)
 }

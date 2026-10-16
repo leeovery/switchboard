@@ -11,18 +11,45 @@ import (
 func TestEachLineIsFoundByItsOwnIdentityAtEachHardMoment(t *testing.T) {
 	for _, hm := range viewstest.LogMoments() {
 		table := views.LogRows(logSourcesOf(hm))
-		for i, l := range table.Lines {
+		for i, l := range table.Lines() {
 			if found, ok := table.Find(l.Key()); !ok || found != i {
-				t.Errorf("%s: line %d, %s, is found at %d, %t", hm.Name, i, tableLines(views.LogTable{Lines: []views.LogLine{l}}), found, ok)
+				t.Errorf("%s: line %d, %s, is found at %d, %t", hm.Name, i, lineSaid(l), found, ok)
 			}
 		}
 	}
 }
 
+// lineSaid says a line of a table, as the moments want it, for a failure
+// to show.
+func lineSaid(l views.LogLine) string {
+	return logSaid([]viewstest.LogLine{logLineOf(l)})
+}
+
+// pausedAndNow are the Log's tables at a paused moment: as it paused, of
+// the read of the moment then at once, and the same of every line; and now, of that read grown by the
+// moment's lines now, as a read of the tail gives each day's whole again.
+func pausedAndNow(hm viewstest.LogMoment) (then, all, table views.LogTable) {
+	l := ledgerHolding(hm.Now, hm.Lines...)
+	reading := readingAtOnce(*hm.Then, ledgerHolding(hm.Then.Now, hm.Then.Lines...))
+	src := logSourcesOf(*hm.Then)
+	src.Read = reading.Read
+	then = views.LogRows(src)
+	src.Filter = views.LogFilter{}
+	all = views.LogRows(src)
+	for _, day := range spannedDays(hm) {
+		reading = reading.Took(l, day, true, hm.Stream, hm.Now)
+	}
+	src = logSourcesOf(hm)
+	src.Read = reading.Read
+	return then, all, views.LogRows(src)
+}
+
 // TestAChosenLineStaysChosenAndNewRowsAreCountedAtEachPausedMoment holds
-// the table at each hard moment paused, to the table as it paused: the line
-// chosen then is found where it is now, every line then is found now, and
-// the rows new since are those of requests the table then didn't hold.
+// the table at each hard moment paused, to the table as it paused, its read
+// grown since: the line chosen then is found where it is now, every line
+// then is found now, and the rows new since, as the mark it paused at
+// counts them, are those of requests the table then didn't hold, as the
+// table then counts them itself.
 func TestAChosenLineStaysChosenAndNewRowsAreCountedAtEachPausedMoment(t *testing.T) {
 	paused := 0
 	for _, hm := range viewstest.LogMoments() {
@@ -31,17 +58,17 @@ func TestAChosenLineStaysChosenAndNewRowsAreCountedAtEachPausedMoment(t *testing
 		}
 		paused++
 		t.Run(hm.Name, func(t *testing.T) {
-			then, table := views.LogRows(logSourcesOf(*hm.Then)), views.LogRows(logSourcesOf(hm))
-			for i, l := range then.Lines {
+			then, all, table := pausedAndNow(hm)
+			for i, l := range then.Lines() {
 				if _, ok := table.Find(l.Key()); !ok {
-					t.Errorf("line %d then, %s, isn't found now", i, tableLines(views.LogTable{Lines: []views.LogLine{l}}))
+					t.Errorf("line %d then, %s, isn't found now", i, lineSaid(l))
 				}
 			}
-			if found, ok := table.Find(then.Lines[hm.Chosen].Key()); !ok || found != hm.ChosenNow {
-				t.Errorf("the line chosen, %s, is found at %d, %t, want %d", then.Lines[hm.Chosen].Row.Request, found, ok, hm.ChosenNow)
+			if found, ok := table.Find(then.Lines()[hm.Chosen].Key()); !ok || found != hm.ChosenNow {
+				t.Errorf("the line chosen, %s, is found at %d, %t, want %d", then.Lines()[hm.Chosen].Row.Request, found, ok, hm.ChosenNow)
 			}
-			if got := table.NewSince(then); got != hm.New {
-				t.Errorf("%d rows are new since the table paused, want %d", got, hm.New)
+			if got, held := table.NewSince(then.Mark()), views.NewSinceHeld(table, all); got != hm.New || got != held {
+				t.Errorf("%d rows are new since the table paused, want %d, as the table then counts them, %d", got, hm.New, held)
 			}
 		})
 	}
@@ -54,9 +81,11 @@ func TestARowAFilterShowsAgainWhilePausedIsntNew(t *testing.T) {
 	r0 := withID("r0", line(mover, opus, "work", "new", october(7, 12, 0), hourUsage))
 	o0 := withID("o0", line(older, opus, "work", "sticky", october(7, 12, 1), hourUsage))
 	r1 := withID("r1", line(mover, opus, "work", "sticky", october(7, 12, 5), hourUsage))
-	then := views.LogRows(views.LogSources{From: now, Now: now, Read: logRead(now, r0, o0), Filter: views.LogFilter{Sessions: []string{mover}}})
-	table := views.LogRows(views.LogSources{From: now, Now: now, Read: logRead(now, r0, o0, r1)})
-	if got := table.NewSince(then); got != 1 {
+	reading := logReading(now, views.Stream{}, r0, o0)
+	then := views.LogRows(views.LogSources{From: now, Now: now, Read: reading.Read, Filter: views.LogFilter{Sessions: []string{mover}}})
+	grown := reading.Took(ledgerHolding(now, r0, o0, r1), heldOf(r1), false, views.Stream{}, now)
+	table := views.LogRows(views.LogSources{From: now, Now: now, Read: grown.Read})
+	if got := table.NewSince(then.Mark()); got != 1 {
 		t.Errorf("%d rows are new since the table paused, older's shown again, want r1's alone", got)
 	}
 }
@@ -69,11 +98,11 @@ func TestAMomentsFirstRequestIsTheOneThatCameFirstAtOrAfterItAtEachHardMoment(t 
 	for _, hm := range viewstest.LogMoments() {
 		table := views.LogRows(logSourcesOf(hm))
 		var last time.Time
-		for i, l := range table.Lines {
+		for i, l := range table.Lines() {
 			if !l.IsRow() {
 				continue
 			}
-			if found, ok := table.At(l.Row.At); !ok || found > i || !table.Lines[found].Row.At.Equal(l.Row.At) {
+			if found, ok := table.At(l.Row.At); !ok || found > i || !table.Lines()[found].Row.At.Equal(l.Row.At) {
 				t.Errorf("%s: the first request at or after %s's time is at %d, %t, want %d", hm.Name, l.Row.Request, found, ok, i)
 			}
 			if l.Row.At.After(last) {
@@ -81,7 +110,7 @@ func TestAMomentsFirstRequestIsTheOneThatCameFirstAtOrAfterItAtEachHardMoment(t 
 			}
 		}
 		if found, ok := table.At(last.Add(time.Nanosecond)); ok {
-			t.Errorf("%s: after the last request, %s's comes", hm.Name, table.Lines[found].Row.Request)
+			t.Errorf("%s: after the last request, %s's comes", hm.Name, table.Lines()[found].Row.Request)
 		}
 	}
 }

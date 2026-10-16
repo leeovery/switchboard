@@ -7,8 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/claude"
-	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -63,33 +61,30 @@ type DetailBlock struct {
 }
 
 // Details are the details of the request the line's row is of, built from
-// its row and, once it has come, its line: false for a day's rule or the
-// oldest day's line.
+// its row and, once it has come, its line, as the Log's read holds it or a
+// turn's lines give it: false for a day's rule or the oldest day's line.
 func (l LogLine) Details() (RequestDetails, bool) {
 	if !l.IsRow() {
 		return RequestDetails{}, false
 	}
 	d := RequestDetails{Row: l.Row}
-	if l.line != nil {
-		d.lined(l.line)
+	switch {
+	case l.logged != nil:
+		d.lined(l.logged)
+	case l.line != nil:
+		d.lined(&loggedLine{routed: routedOf(l.line), shown: detailsOf(l.line)})
 	}
 	return d, true
 }
 
 // lined has d hold what the request's line l gives beyond its row.
-func (d *RequestDetails) lined(l *ledger.Line) {
-	d.Answer, d.Served = l.Answer.ID, l.Answer.Model
-	for _, beta := range l.Betas {
-		d.Betas = append(d.Betas, undated(beta))
-	}
-	d.Left = status.LeftWords(l.Reason, status.Facts{From: l.From, To: l.Account})
-	d.Windows, d.LimitStatus = windowsThen(claude.WindowsRead(l.Limits, 0), nil), claude.LimitStatus(l.Limits)
-	d.System, d.Effort, d.Stream = l.Shape.System, l.Shape.OutputConfig.Effort, l.Shape.Stream
-	if most := l.Shape.MaxTokens; most != nil {
-		d.MaxTokens = int(*most)
-	}
-	d.Blocks = blocksOf(l.Answer.Blocks)
-	d.CacheLife, _ = l.CacheLife()
+func (d *RequestDetails) lined(l *loggedLine) {
+	shown := l.shown
+	d.Answer, d.Served, d.Betas = shown.answer, shown.served, shown.betas
+	d.Left = status.LeftWords(l.routed.reason, status.Facts{From: l.routed.from, To: d.Row.Account})
+	d.Windows, d.LimitStatus = windowsThen(shown.windowsRead(0), nil), shown.status
+	d.System, d.Effort, d.Stream, d.MaxTokens = shown.system, shown.effort, shown.stream, shown.maxTokens
+	d.Blocks, d.CacheLife = shown.blocks, shown.life
 }
 
 // undated is a beta's name without the date it ends in, where it ends in

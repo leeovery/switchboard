@@ -116,10 +116,10 @@ func panelOf(lines []ledger.Line, running []status.Session, unlisted bool, strea
 			todays = append(todays, l)
 		}
 	}
-	read := views.ReadLogHeld(ledgerHolding(at, lines...), heldOf(todays...), ledger.Pricing, at)
-	counted := views.LogRows(views.LogSources{From: at, Now: at, Read: read, Stream: stream}).Count(today.Date)
+	read := viewstest.ReadingLog(ledger.Pricing).Took(ledgerHolding(at, lines...), heldOf(todays...), true, stream, at)
+	counted := views.LogRows(views.LogSources{From: at, Now: at, Read: read.Read, Stream: stream}).Count(today.Date)
 	return views.LogSessions(views.LogSessionSources{
-		Read: read, Lines: counted.Sessions, Events: events, Running: running, Unlisted: unlisted, Stream: stream, Now: at,
+		Read: read.Read, Held: read.Held, Lines: counted.Sessions, Events: events, Running: running, Unlisted: unlisted, Stream: stream, Now: at,
 	})
 }
 
@@ -350,12 +350,12 @@ func TestASessionTickedThatTodayCountsNoneOfJoinsThePanel(t *testing.T) {
 	}
 	todays := []ledger.Line{in("~/Code/web", line(early, opus, "work", "new", local(13, 0, 0), smallUsage))}
 	l := ledgerHolding(now, slices.Concat(theirs, todays)...)
-	unread := views.ReadLogHeld(l, heldOf(todays...), ledger.Pricing, now)
-	read := unread.Grown(l, heldOf(theirs...), now)
+	unread := viewstest.ReadLog(l, heldOf(todays...), ledger.Pricing, now)
+	read := unread.Took(l, heldOf(theirs...), true, views.Stream{}, now)
 	found := []views.FoundSession{{ID: older, Dir: "~/Code/api", Day: views.Today(last), Ended: true, Last: last}}
 	tests := []struct {
 		name   string
-		read   views.LogRead
+		read   viewstest.LogReading
 		ticked []string
 		found  []views.FoundSession
 		want   []string
@@ -376,7 +376,7 @@ func TestASessionTickedThatTodayCountsNoneOfJoinsThePanel(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			panel := views.LogSessions(views.LogSessionSources{
-				Read: tt.read, Lines: map[string]int{early: 1}, Ticked: tt.ticked, Found: tt.found, Unlisted: true, Now: now,
+				Read: tt.read.Read, Held: tt.read.Held, Lines: map[string]int{early: 1}, Ticked: tt.ticked, Found: tt.found, Unlisted: true, Now: now,
 			})
 			var got []string
 			for _, s := range panel {

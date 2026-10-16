@@ -75,6 +75,7 @@ var (
 	// package calls none, whether or not it takes raw data.
 	readsRaw = []string{
 		"claude.LimitStatus", "claude.LimitWindows", "claude.WindowsRead",
+		"claude.WindowsReadOf",
 		"ledger.Failing", "ledger.Line.Upstream",
 		"ledger.Reply.CacheLife", "ledger.Reply.Tokens", "ledger.Spend.CacheLife", "ledger.Spend.Tokens", "ledger.SpendOf",
 		"ledger.Table.CacheWrite", "ledger.Table.CacheWriteSpend", "ledger.Table.Priced", "ledger.Table.Request", "ledger.Table.Rewrite",
@@ -151,8 +152,10 @@ var (
 		"views.FindSessions", "views.HeldSessions.Awaited", "views.HeldSessions.Fed", "views.HeldSessions.Holding",
 		"views.HeldSessions.List", "views.HeldSessions.Unread", "views.HeldSessions.With", "views.HeldSessions.Without",
 		"views.HoldSessions", "views.Lanes.Look", "views.ListSessions", "views.ListWanted", "views.LogEvents", "views.LogFilter.KeptFrom",
-		"views.LogRead.Grown", "views.LogRows", "views.LogSessions", "views.Patch", "views.ReadEvents", "views.ReadLogHeld",
+		"views.LogRows", "views.LogSessions", "views.Patch", "views.ReadEvents",
 		"views.RunwayReadings", "views.StubsOf", "views.Today", "views.Took", "views.TotalsOn",
+		"views.EventsRead.From", "views.HeldSessions.Unheld", "views.LogLines.Rows", "views.LogLinesOf", "views.LogRead.From", "views.LogRead.HoldsTold",
+		"views.LogRead.Taken", "views.LogRead.Wanted", "views.ReadLog", "views.StreamWanted",
 	}
 )
 

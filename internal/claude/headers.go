@@ -86,8 +86,15 @@ type WindowRead struct {
 // it: how far it held its account back as score.HoldOf judges it, the
 // account's reserve the one given.
 func WindowsRead(limits map[string]string, reserve float64) []WindowRead {
+	return WindowsReadOf(LimitWindows(limits), reserve)
+}
+
+// WindowsReadOf returns the windows given, as LimitWindows reads them of a
+// line's limits and a reader keeps them, in their order, each as
+// WindowsRead has it.
+func WindowsReadOf(windows []quota.Window, reserve float64) []WindowRead {
 	var read []WindowRead
-	for _, w := range LimitWindows(limits) {
+	for _, w := range windows {
 		read = append(read, WindowRead{Key: w.Key, Use: w.Utilization, Resets: w.ResetsAt, Held: score.HoldOf(w, reserve)})
 	}
 	return read

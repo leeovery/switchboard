@@ -97,7 +97,7 @@ func (m Model) builtLogPanel(now time.Time) Model {
 // foundSessions has it, their doing told at now.
 func (m Model) panelFigures(p dashboard.LogPanel, now time.Time) dashboard.LogPanel {
 	src := views.LogSessionSources{
-		Read: m.log.read, Ticked: p.TickedSessions(), Found: m.foundSessions(), Running: m.sessions, Unlisted: !m.answering(), Stream: m.logStream(now),
+		Read: m.log.read, Held: m.held, Ticked: p.TickedSessions(), Found: m.foundSessions(), Running: m.sessions, Unlisted: !m.answering(), Stream: m.logStream(now),
 		Now: now,
 	}
 	if p.Of == dashboard.LogEvents {

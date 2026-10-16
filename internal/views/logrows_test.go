@@ -10,14 +10,15 @@ import (
 
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/views"
+	"github.com/leeovery/switchboard/internal/views/viewstest"
 )
 
 // tableSaid says each of a table's lines: a row as its mark, its request's
 // id and its stage, ↑ standing for in flight; and a rule as the dates of the
 // days it falls between and the requests of the day that ended.
 func tableSaid(table views.LogTable) []string {
-	said := make([]string, len(table.Lines))
-	for i, l := range table.Lines {
+	said := make([]string, len(table.Lines()))
+	for i, l := range table.Lines() {
 		if r := l.Rule; r != nil {
 			said[i] = "── " + r.Ended.Date + " " + strings.Repeat("·", r.Totals.Requests) + " → " + r.Began.Date
 			continue
@@ -65,9 +66,21 @@ func ledgerHolding(now time.Time, lines ...ledger.Line) fakeLedger {
 }
 
 // logRead is the Log's read of lines, in the order given, the ledger at now
-// holding them alone.
+// holding them alone, of a stream that told nothing.
 func logRead(now time.Time, lines ...ledger.Line) views.LogRead {
-	return views.ReadLogHeld(ledgerHolding(now, lines...), heldOf(lines...), ledger.Pricing, now)
+	return toldRead(now, views.Stream{}, lines...)
+}
+
+// toldRead is the Log's read of lines, as logRead has it, each placed as
+// the stream s tells.
+func toldRead(now time.Time, s views.Stream, lines ...ledger.Line) views.LogRead {
+	return logReading(now, s, lines...).Read
+}
+
+// logReading is the Log's read of lines, as toldRead has it, and the store
+// its rows are told by.
+func logReading(now time.Time, s views.Stream, lines ...ledger.Line) viewstest.LogReading {
+	return viewstest.ReadingLog(ledger.Pricing).Took(ledgerHolding(now, lines...), heldOf(lines...), true, s, now)
 }
 
 // heldOf are lines as the ledger holds them.
@@ -89,13 +102,14 @@ func TestEachRequestIsOneRowByItsIdFromItsLineWhereItHasCome(t *testing.T) {
 	sent := local(13, 0, 0)
 	ended := sentAt("r2", sent.Add(time.Second))
 	ended.Ended, ended.Status = sent.Add(5*time.Second), 200
+	stream := streamOf(sentAt("r1", sent), ended, sentAt("r4", sent.Add(20*time.Second)))
 	got := views.LogRows(views.LogSources{
 		From: now, Now: now,
-		Read: logRead(now,
+		Read: toldRead(now, stream,
 			withID("r1", took(5*time.Second, line(mover, opus, "work", "new", sent.Add(-time.Second), hourUsage))),
 			withID("r3", line(mover, opus, "work", "sticky", sent.Add(10*time.Second), hourUsage)),
 		),
-		Stream: streamOf(sentAt("r1", sent), ended, sentAt("r4", sent.Add(20*time.Second))),
+		Stream: stream,
 	})
 	if said, want := tableSaid(got), []string{"▲ r1 lined", "r2 ended", "r3 lined", "↑ r4 asking"}; !slices.Equal(said, want) {
 		t.Errorf("the table says %q, want %q: each request once, from its line where it has come", said, want)
@@ -109,9 +123,8 @@ func TestALineAndARequestTheStreamToldOfAreOneRowOnlyWhereTheyreTheSameRequest(t
 	later := withID("r2", took(time.Minute, line(mover, opus, "work", "sticky", local(12, 0, 0), hourUsage)))
 	lost := sentAt("r2", local(11, 30, 0))
 	lost.Lost = true
-	got := views.LogRows(views.LogSources{
-		From: now, Now: now, Read: logRead(now, earlier, later), Stream: streamOf(sentAt("r1", local(13, 0, 0)), lost),
-	})
+	stream := streamOf(sentAt("r1", local(13, 0, 0)), lost)
+	got := views.LogRows(views.LogSources{From: now, Now: now, Read: toldRead(now, stream, earlier, later), Stream: stream})
 	if said, want := tableSaid(got), []string{"▲ r1 lined", "■ r2 lost", "r2 lined", "↑ r1 asking"}; !slices.Equal(said, want) {
 		t.Errorf("the table says %q, want %q: each line where it arrived, and each request told of alone, its id another run's", said, want)
 	}
@@ -124,15 +137,16 @@ func TestARowSitsWhereItWasSentSoItNeverMovesAsItsLineFillsItIn(t *testing.T) {
 	r1 := withID("r1", took(5*time.Second, arrived(sent.Add(-100*time.Millisecond), line(mover, opus, "work", "new", time.Time{}, hourUsage))))
 	r2 := withID("r2", arrived(sent.Add(-50*time.Millisecond), line(mover, opus, "", "no account has room", time.Time{}, "")))
 	r2.Status, r2.Attempts = 429, 0
-	inFlight := views.LogSources{From: now, Now: now, Read: logRead(now, r2), Stream: streamOf(sentAt("r1", sent))}
+	stream := streamOf(sentAt("r1", sent))
+	inFlight := views.LogSources{From: now, Now: now, Read: toldRead(now, stream, r2), Stream: stream}
 	lined := inFlight
-	lined.Read = logRead(now, r1, r2)
+	lined.Read = toldRead(now, stream, r1, r2)
 	for name, src := range map[string]views.LogSources{"in flight": inFlight, "its line come": lined} {
 		got := views.LogRows(src)
 		if rows := tableSaid(got); len(rows) != 2 || !strings.HasSuffix(rows[0], "r2 lined") || !strings.Contains(rows[1], "r1") {
 			t.Errorf("%s, the table says %q, want r2 first, then r1, where it was sent", name, rows)
 		}
-		if r := got.Lines[1].Row; name == "its line come" && !r.At.Equal(r1.At) {
+		if r := got.Lines()[1].Row; name == "its line come" && !r.At.Equal(r1.At) {
 			t.Errorf("its line come, r1 shows at %v, want its arrival, %v", r.At, r1.At)
 		}
 	}
@@ -167,13 +181,13 @@ func TestChecksAndCountsAreHiddenUntilShownAndCountedFromTheRows(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := views.LogRows(views.LogSources{
-				From: now, Now: now, Read: logRead(now, lines...), Stream: streamOf(checking), Filter: views.LogFilter{Kinds: tt.kinds},
+				From: now, Now: now, Read: toldRead(now, streamOf(checking), lines...), Stream: streamOf(checking), Filter: views.LogFilter{Kinds: tt.kinds},
 			})
 			if said := tableSaid(got); !slices.Equal(said, tt.rows) {
 				t.Errorf("the table says %q, want %q", said, tt.rows)
 			}
 			c := got.Count(views.Today(now).Date)
-			if c.Requests != 1 || c.Checks != 3 || c.Counts != 1 || c.Shown != tt.shown || c.Shown != len(got.Lines) || c.Hidden() != 5-tt.shown {
+			if c.Requests != 1 || c.Checks != 3 || c.Counts != 1 || c.Shown != tt.shown || c.Shown != len(got.Lines()) || c.Hidden() != 5-tt.shown {
 				t.Errorf("today counts %+v, want 1 request, 3 checks and 1 count, %d of them shown, the rows the table holds", c, tt.shown)
 			}
 			if by := c.HiddenBy(); !slices.Equal(by, tt.hiddenBy) {
@@ -193,7 +207,9 @@ func TestALineStaysWhereItWasPlacedAsTheStreamLetsItsRequestGo(t *testing.T) {
 	r1 := withID("r1", took(5*time.Second, arrived(sent.Add(-100*time.Millisecond), line(mover, opus, "work", "new", time.Time{}, hourUsage))))
 	r2 := withID("r2", arrived(sent.Add(-50*time.Millisecond), line(mover, opus, "work", "sticky", time.Time{}, hourUsage)))
 	r3 := withID("r3", arrived(sent.Add(time.Minute), line(mover, opus, "work", "sticky", time.Time{}, hourUsage)))
-	told := views.LogSources{From: now, Now: now, Read: logRead(now, r1, r2), Stream: streamOf(sentAt("r1", sent))}
+	stream := streamOf(sentAt("r1", sent))
+	reading := logReading(now, stream, r1, r2)
+	told := views.LogSources{From: now, Now: now, Read: reading.Read, Stream: stream}
 	placed := views.LogLinesOf(views.LogLines{}, told)
 	if said, want := tableSaid(placed.Rows(told)), []string{"r2 lined", "▲ r1 lined"}; !slices.Equal(said, want) {
 		t.Fatalf("its request told of, the table says %q, want %q, r1 where it was sent", said, want)
@@ -201,11 +217,13 @@ func TestALineStaysWhereItWasPlacedAsTheStreamLetsItsRequestGo(t *testing.T) {
 
 	gone := told
 	gone.Stream = views.Stream{Live: true}
-	if said, want := tableSaid(views.LogRows(gone)), []string{"▲ r1 lined", "r2 lined"}; !slices.Equal(said, want) {
-		t.Errorf("built afresh, its request let go, the table says %q, want %q, r1 where it arrived", said, want)
+	afresh := gone
+	afresh.Read = logRead(now, r1, r2)
+	if said, want := tableSaid(views.LogRows(afresh)), []string{"▲ r1 lined", "r2 lined"}; !slices.Equal(said, want) {
+		t.Errorf("read afresh, its request let go, the table says %q, want %q, r1 where it arrived", said, want)
 	}
 	grown := gone
-	grown.Read = logRead(now, r1, r2, r3)
+	grown.Read = reading.Took(ledgerHolding(now, r1, r2, r3), heldOf(r3), false, gone.Stream, now).Read
 	for name, src := range map[string]views.LogSources{"its request let go": gone, "the read grown": grown} {
 		kept := views.LogLinesOf(placed, src)
 		want := []string{"r2 lined", "▲ r1 lined"}
@@ -261,10 +279,10 @@ func TestADaysRuleSaysTheFiguresOfTheDayThatEndedOrItsDateAlone(t *testing.T) {
 		"not":   {want: views.DayTotals{Date: "2026-10-06"}},
 	} {
 		got := views.LogRows(views.LogSources{From: october(6, 0, 0), Now: now, Read: logRead(now, lines...), Totals: tt.totals})
-		if len(got.Lines) != 3 || got.Lines[1].Rule == nil {
+		if len(got.Lines()) != 3 || got.Lines()[1].Rule == nil {
 			t.Fatalf("figures %s, the table says %q, want a rule between two rows", name, tableSaid(got))
 		}
-		rule := got.Lines[1].Rule
+		rule := got.Lines()[1].Rule
 		if !reflect.DeepEqual(rule.Totals, tt.want) || rule.Ended != views.Today(october(6, 9, 0)) || rule.Began != views.Today(now) {
 			t.Errorf("figures %s, the rule is %+v, want the figures %+v, from 6 October's to today's", name, *rule, tt.want)
 		}
@@ -299,7 +317,7 @@ func TestARequestInFlightAsTheDayEndedSitsAboveTheNextDaysRule(t *testing.T) {
 			want: []string{"▲ r1 lined", "r2 lined", "── 2026-10-06  → 2026-10-07", "↑ r4 asking"}, counts: [2]int{2, 1}},
 	}
 	for _, tt := range tests {
-		got := views.LogRows(views.LogSources{From: october(6, 0, 0), Now: tt.now, Read: logRead(tt.now, tt.lines...), Stream: tt.stream})
+		got := views.LogRows(views.LogSources{From: october(6, 0, 0), Now: tt.now, Read: toldRead(tt.now, tt.stream, tt.lines...), Stream: tt.stream})
 		if said := tableSaid(got); !slices.Equal(said, tt.want) {
 			t.Errorf("%s: the table says %q, want %q", tt.name, said, tt.want)
 		}
@@ -348,7 +366,7 @@ func TestTheTableAwaitsTheLineOfARequestTheStreamToldEndedOnAnEarlierDay(t *test
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			table := views.LogRows(views.LogSources{From: october(6, 0, 0), Now: now, Read: logRead(now, tt.lines...), Stream: tt.stream, Filter: tt.filter})
+			table := views.LogRows(views.LogSources{From: october(6, 0, 0), Now: now, Read: toldRead(now, tt.stream, tt.lines...), Stream: tt.stream, Filter: tt.filter})
 			if got := table.Awaited(views.Today(now)); !slices.Equal(got, tt.want) {
 				t.Errorf("the table awaits lines on %q, want %q", got, tt.want)
 			}
@@ -363,9 +381,9 @@ func TestARowIsOnTheDayItsRequestArrivedOnAsTheLedgerFilesIt(t *testing.T) {
 	ended := sentAt("r2", midnight.Add(50*time.Millisecond))
 	ended.Ended, ended.Status = midnight.Add(time.Second), 200
 	lines := []ledger.Line{withID("r1", line(mover, opus, "work", "new", october(6, 23, 0), hourUsage)), withID("r3", line(mover, opus, "work", "sticky", midnight, hourUsage))}
-	src := views.LogSources{From: october(6, 0, 0), Now: october(7, 0, 5), Stream: streamOf(ended), Read: logRead(october(7, 0, 5), lines...)}
+	src := views.LogSources{From: october(6, 0, 0), Now: october(7, 0, 5), Stream: streamOf(ended), Read: toldRead(october(7, 0, 5), streamOf(ended), lines...)}
 	before := views.LogRows(src)
-	src.Read = logRead(src.Now, append(lines, straddling)...)
+	src.Read = toldRead(src.Now, src.Stream, append(lines, straddling)...)
 	after := views.LogRows(src)
 	if said, want := tableSaid(before), []string{"▲ r1 lined", "── 2026-10-06  → 2026-10-07", "r3 lined", "r2 ended"}; !slices.Equal(said, want) {
 		t.Errorf("before its line came, the table says %q, want %q: on the day it was sent, the one day the stream tells", said, want)
@@ -403,9 +421,9 @@ func TestARowsStoryIsItsSessionsWhateverDayItsLinesAreOf(t *testing.T) {
 			want:  []string{"▲ r0 first new session", "r1"}},
 	}
 	for _, tt := range tests {
-		got := views.LogRows(views.LogSources{From: tt.from, Now: now, Read: views.ReadLogHeld(ledgerHolding(now, tt.held...), heldOf(tt.shown...), ledger.Pricing, now)})
+		got := views.LogRows(views.LogSources{From: tt.from, Now: now, Read: viewstest.ReadLog(ledgerHolding(now, tt.held...), heldOf(tt.shown...), ledger.Pricing, now).Read})
 		var said []string
-		for _, l := range got.Lines {
+		for _, l := range got.Lines() {
 			r := l.Row
 			first := map[bool]string{true: " first"}[r.NewSession]
 			said = append(said, strings.TrimSpace(r.Mark.String()+" "+r.Request+first+" "+routingWords(r.Routing)))
@@ -421,8 +439,8 @@ func TestTheTablesRowsAreInTheOrderTheyArrivedWhateverOrderTheirLinesCame(t *tes
 	moved := movedFrom("work", withID("r2", of(ledger.ClassMain, line(mover, opus, "side", "moved: work is at its reserve", local(10, 5, 0), hourUsage))))
 	// Its line came first, as it ended first.
 	got := views.LogRows(views.LogSources{From: now, Now: now, Read: logRead(now, moved, first)})
-	if said, want := tableSaid(got), []string{"▲ r1 lined", "▸ r2 lined"}; !slices.Equal(said, want) || got.Lines[1].Row.Routing.Cost == nil {
+	if said, want := tableSaid(got), []string{"▲ r1 lined", "▸ r2 lined"}; !slices.Equal(said, want) || got.Lines()[1].Row.Routing.Cost == nil {
 		t.Errorf("the table says %q, its move's cost %v, want %q, the move's cost known, its story told in the order its requests arrived",
-			said, got.Lines[1].Row.Routing.Cost, want)
+			said, got.Lines()[1].Row.Routing.Cost, want)
 	}
 }

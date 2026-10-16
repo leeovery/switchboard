@@ -10,6 +10,7 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
+	"github.com/leeovery/switchboard/internal/views/viewstest"
 )
 
 // kept90 is how long the held pages' tests' ledger keeps a day's lines, as
@@ -458,7 +459,7 @@ func TestATurnsRequestsAreTheLogsRowsOfThemOldestFirstWithNoMark(t *testing.T) {
 	stream := heard(toldOf("r8", p1, ledger.ClassMain, opus, "side", local(13, 10, 0)))
 	turn := held.TurnRequests(1, views.PageLive{Now: now, Stream: stream})
 	table := views.LogRows(views.LogSources{
-		From: now, Read: views.ReadLogHeld(l, heldOf(lines...), ledger.Pricing, now), Stream: stream, Now: now,
+		From: now, Read: viewstest.ReadingLog(ledger.Pricing).Took(l, heldOf(lines...), true, stream, now).Read, Stream: stream, Now: now,
 	})
 	logged := logRowsByID(table)
 	var ids []string
@@ -506,7 +507,7 @@ func TestATurnsRequestsAreTheLogsRowsOfThemOldestFirstWithNoMark(t *testing.T) {
 // Log's table holds its line, failing the test where it holds none.
 func logDetailsOf(t *testing.T, table views.LogTable, id string) views.RequestDetails {
 	t.Helper()
-	for _, l := range table.Lines {
+	for _, l := range table.Lines() {
 		if l.IsRow() && l.Row.Request == id {
 			d, _ := l.Details()
 			return d
@@ -519,7 +520,7 @@ func logDetailsOf(t *testing.T, table views.LogTable, id string) views.RequestDe
 // logRowsByID are the rows the Log's table holds, by their requests' ids.
 func logRowsByID(table views.LogTable) map[string]views.RequestRow {
 	rows := make(map[string]views.RequestRow)
-	for _, l := range table.Lines {
+	for _, l := range table.Lines() {
 		if l.IsRow() {
 			rows[l.Row.Request] = l.Row
 		}

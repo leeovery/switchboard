@@ -49,10 +49,12 @@ type tailedMsg struct {
 }
 
 // tailLines are what a read of the ledger's tail read: the lines today's
-// gained since the mark; and those of each day before today a reader reads
+// gained since the mark, afresh where they're every one of today's, as
+// Ledger's Today has it; and those of each day before today a reader reads
 // again whole, by its date, each read once for every reader.
 type tailLines struct {
 	gained []ledger.Held
+	afresh bool
 	days   map[string][]ledger.Held
 }
 
@@ -124,9 +126,11 @@ func (t ledgerTail) wholeLanded() ledgerTail {
 // lined has it: the Log, once opened, as logFold has it, shown or not, as
 // the mark moves past what the read gives for every reader alike, its
 // Requests built first of what it holds now, as requestsBuilt builds them,
-// for what they await, the days before those its tables span left to it;
-// the session's page open, as pageFold has it; and the store, once the
-// List is held, shown or not, as heldFold has it, fed once for them all.
+// for what they await, the days before those its tables span left to it,
+// its rows told by the store as the read fed it; the session's page open,
+// as pageFold has it; and the store, once the List is held or the Log
+// opened, shown or not, as heldFold has it, fed once for them all, the
+// first, wanting the sessions of the Log's lines, those read among them.
 func (m Model) readTail(now time.Time) (Model, tea.Cmd) {
 	r, mark, today := m.logReaders(), m.tail.mark, views.Today(now)
 	var log *logFold
@@ -152,14 +156,15 @@ func (m Model) readTail(now time.Time) (Model, tea.Cmd) {
 	return m, func() tea.Msg {
 		read, next := readLines(r.ledger, mark, late)
 		msg := tailedMsg{mark: next, day: today, lines: read}
-		if log != nil {
-			msg.log = log.grown(r, read, now)
+		if held != nil {
+			fed, gains := held.fed(r.ledger, read, log.wants(read), now)
+			msg.held = &fed
+			if log != nil {
+				msg.log = log.grown(r, read, views.LogTaking{Held: fed, Gains: gains, Stream: log.stream, Now: now})
+			}
 		}
 		if page != nil {
 			msg.page = page.taken(read, today)
-		}
-		if held != nil {
-			msg.held = held.fed(r.ledger, read, now)
 		}
 		return msg
 	}
@@ -201,8 +206,8 @@ func lateDays(log *logFold, page *pageFold, held *heldFold) []string {
 // readLines reads, through l, today's lines since mark, and the late days'
 // whole, returning them with the mark today's are read to.
 func readLines(l views.Ledger, mark ledger.Mark, late []string) (tailLines, ledger.Mark) {
-	gained, next, _ := l.Today(mark)
-	read := tailLines{gained: gained, days: make(map[string][]ledger.Held, len(late))}
+	gained, next, afresh := l.Today(mark)
+	read := tailLines{gained: gained, afresh: afresh, days: make(map[string][]ledger.Held, len(late))}
 	for _, date := range late {
 		read.days[date] = l.Day(date)
 	}
@@ -233,19 +238,14 @@ func (m Model) tailed(msg tailedMsg) Model {
 
 // letGo is m with the requests the stream told of let go whose lines a read
 // of the ledger's tail has read, once no longer in flight, as the traffic's
-// letGo has it, each reader having taken the line in as it folded the read:
-// but for one whose row the Log, opened, shows without its line, as
-// views.LogRead's ShowsTold has it, the line filed on a day before those it
-// spans, kept till it reads back to that day, as awaitsBefore has it. The
-// Log places the lines it holds first, as linesPlaced has it, while the
-// stream still tells when each was sent, so a row stays where it sat in
-// flight as its line takes over.
+// letGo has it, each reader having taken the line in as it folded the read,
+// the Log placing it as the stream told it was sent: but for one whose row
+// the Log, opened, shows without its line, as views.LogRead's ShowsTold has
+// it, the line filed on a day before those it spans, kept till it reads back
+// to that day, as awaitsBefore has it.
 func (m Model) letGo() Model {
 	if !m.traffic.holdsLines() {
 		return m
-	}
-	if m.log.opened {
-		m = m.linesPlaced(m.now())
 	}
 	log := m.log
 	m.traffic = m.traffic.letGo(func(r views.Told) bool { return log.opened && log.read.ShowsTold(r, log.from) })

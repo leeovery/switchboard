@@ -42,8 +42,7 @@ func RowOfLine(l ledger.Line, session []ledger.Line, prices ledger.Table, now ti
 // LinedDetails are the details of the request whose row is given, its line l
 // come.
 func LinedDetails(row RequestRow, l ledger.Line) RequestDetails {
-	d := RequestDetails{Row: row}
-	d.lined(&l)
+	d, _ := LogLine{Row: row, line: &l}.Details()
 	return d
 }
 
@@ -104,4 +103,34 @@ func (p AccountsPeriod) From(now time.Time, starts time.Weekday) time.Time {
 // model goes and why, in sm.
 func WhyRunning(m status.Moment, session string, sm SessionModel) status.Words {
 	return whyRunning(m, session, status.Assignment{Model: sm.Model, Account: sm.Account, Reason: sm.Reason, AssignedAt: sm.Since})
+}
+
+// Lines are t's lines, the oldest first, as Line gives each.
+func (t LogTable) Lines() []LogLine {
+	lines := make([]LogLine, 0, t.Len())
+	for _, l := range t.All() {
+		lines = append(lines, l)
+	}
+	return lines
+}
+
+// NewSinceHeld is how many of the rows t shows were of no request among
+// the rows all holds, every one shown, on the days from all's first: the
+// rows come since, as the Log counted them against the table it held as it
+// paused, before it held a mark in its place.
+func NewSinceHeld(t, all LogTable) int {
+	n := 0
+	for _, l := range t.All() {
+		if !l.IsRow() || !all.lines.first.Holds(l.day.Start) {
+			continue
+		}
+		held := false
+		for _, o := range all.All() {
+			held = held || o.IsRow() && o.Row.Request == l.Row.Request && runSpanOf(o.Row).meets(runSpanOf(l.Row))
+		}
+		if !held {
+			n++
+		}
+	}
+	return n
 }

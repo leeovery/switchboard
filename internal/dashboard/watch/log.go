@@ -2,6 +2,7 @@ package watch
 
 import (
 	"cmp"
+	"slices"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -75,7 +76,8 @@ func openingLog(columns dashboard.LogTicks) logTab {
 // atReach has it; on opening, the table shown filled once it fills its
 // view; the details card, where it's open, of what it holds; and
 // while it's open, the panel of what a table shows, as builtLogPanel has
-// it.
+// it. Built, it lets go of the days its tables no longer show, as
+// lettingGo has it, and is built again of what it holds then.
 func (m Model) builtLog(now time.Time) Model {
 	if !m.log.opened {
 		return m
@@ -89,7 +91,40 @@ func (m Model) builtLog(now time.Time) Model {
 		p.Events, m.log.built.events = views.LogEvents(m.logEventSources(p.Shows, now)), &basis
 	}
 	m.log.page = p.Lined().Filling(m.logRows())
-	return m.followedByLogCard().builtLogPanel(now)
+	m = m.followedByLogCard().builtLogPanel(now)
+	if day, ok := m.log.lettingGo(m.logRows()); ok {
+		m.log = m.log.spanningFrom(day)
+		return m.builtLog(now)
+	}
+	return m
+}
+
+// lettingGo is the latest day the Log could span from, its tables showing
+// in a view rows rows tall all they show now, as the page's KeptFrom has
+// it: false while either table is paused, a card or the find is open, or
+// lands, a read for it is under way, or a row of its Requests awaits a line
+// filed before that day, each of which may reach back past it; or the read
+// holds before it the line of a request the stream tells of, as HoldsTold
+// has it, whose row would await it there, reading it back again.
+func (t logTab) lettingGo(rows int) (views.LedgerDay, bool) {
+	p := t.page
+	if t.reading || p.Stands[dashboard.LogRequests].Paused() || p.Stands[dashboard.LogEvents].Paused() || t.card.request != nil || t.card.event != nil ||
+		p.Finding.Open || t.find.landing != nil {
+		return views.LedgerDay{}, false
+	}
+	day, ok := p.KeptFrom(rows)
+	return day, ok && len(p.Requests.Awaited(day)) == 0 && !t.read.HoldsTold(p.Stream, day)
+}
+
+// spanningFrom is the Log spanning the days from the one given, a later one than
+// it spans from: its read, its events and the figures of its days holding
+// none of those before, as From has it, what each holds counted changed.
+func (t logTab) spanningFrom(day views.LedgerDay) logTab {
+	t.from, t.read, t.events = day, t.read.From(day), t.events.From(day)
+	t.totals = slices.DeleteFunc(slices.Clone(t.totals), func(d views.DayTotals) bool { return d.Date < day.Date })
+	t.lined++
+	t.held++
+	return t
 }
 
 // requestsBuilt is m with the Log's Requests built at now of what it holds,
@@ -135,7 +170,7 @@ func (m Model) logSources(filter views.LogFilter, now time.Time) views.LogSource
 func (m Model) logEventSources(filter views.EventFilter, now time.Time) views.LogEventSources {
 	t := m.log
 	return views.LogEventSources{
-		From: t.from.Start, Events: t.events, Read: t.read, Filter: filter, Names: m.cfg.WindowName, Totals: t.totals, Oldest: t.oldest, Filed: t.filed,
+		From: t.from.Start, Events: t.events, Held: m.held, Filter: filter, Names: m.cfg.WindowName, Totals: t.totals, Oldest: t.oldest, Filed: t.filed,
 		Now: now,
 	}
 }

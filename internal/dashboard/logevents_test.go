@@ -10,6 +10,7 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
+	"github.com/leeovery/switchboard/internal/views/viewstest"
 )
 
 // An event's card names its session as the Log's tables do, its directory
@@ -21,12 +22,12 @@ func TestAnEventsCardNamesItsSessionAsTheTablesDo(t *testing.T) {
 		lines[i].Dir = dir
 	}
 	moved := status.Event{ID: 3, At: lines[1].At.Add(500 * time.Millisecond), Kind: status.EventMoved, Session: lines[1].Session, Model: lines[1].Model, From: "work", To: "side"}
-	read := views.ReadLogHeld(sessionsHeld(lines), heldOf(lines), ledger.Pricing, at)
-	events := views.LogEvents(views.LogEventSources{From: theDayBefore, Events: views.ReadEvents(filedEvents{moved}, theDayBefore, at), Read: read, Now: at})
+	read := viewstest.ReadLog(sessionsHeld(lines), heldOf(lines), ledger.Pricing, at)
+	events := views.LogEvents(views.LogEventSources{From: theDayBefore, Events: views.ReadEvents(filedEvents{moved}, theDayBefore, at), Held: read.Held, Now: at})
 	if len(events.Rows) != 1 {
 		t.Fatalf("the Events hold %d rows, want the move's alone", len(events.Rows))
 	}
-	d, _ := events.Details(events.Rows[0].Key, read)
+	d, _ := events.Details(events.Rows[0].Key, read.Read)
 	j := slices.IndexFunc(d.Happened, func(it views.DetailItem) bool { return it.Name == "session" })
 	if want := sessionNamed(lines[1].Session, dir); j < 0 || d.Happened[j].Value.String() != want {
 		t.Errorf("the move's card names its session %q, want %q, as the tables name it", d.Happened[max(j, 0)].Value.String(), want)
@@ -51,7 +52,7 @@ func TestTheEventsDrawEachKindOfRowAtEachWidth(t *testing.T) {
 	p := requestsOf(views.LogSources{From: theDayBefore, Now: at}, lines)
 	p.Events = views.LogEvents(views.LogEventSources{
 		From: theDayBefore, Events: views.ReadEvents(filedEvents{pinned, workAtItsCap, moved}, theDayBefore, at),
-		Read: views.ReadLogHeld(sessionsHeld(lines), heldOf(lines), ledger.Pricing, at), Now: at,
+		Held: viewstest.ReadLog(sessionsHeld(lines), heldOf(lines), ledger.Pricing, at).Held, Now: at,
 	})
 	p = p.Turned(1)
 	use, cost := inked{"95%", ink{token: theme.VizRamp4, bold: true}}, inked{"1.0M cached again, $8.00", attention}

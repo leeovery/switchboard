@@ -61,7 +61,7 @@ func onTheLog(h *harness, state string) *daysCounted {
 // oldest first.
 func shownRequests(h *harness) []string {
 	var ids []string
-	for _, l := range h.model.log.page.Requests.Lines {
+	for _, l := range h.model.log.page.Requests.All() {
 		if l.IsRow() {
 			ids = append(ids, l.Row.Request)
 		}
@@ -173,11 +173,17 @@ func TestARejoinedStreamFillsTheGapFromTheLedger(t *testing.T) {
 	}
 	h.fire(joining)
 
-	i := slices.IndexFunc(h.model.log.page.Requests.Lines, func(l views.LogLine) bool { return l.IsRow() && l.Row.Request == "0a000002" })
+	i := -1
+	for at, l := range h.model.log.page.Requests.All() {
+		if l.IsRow() && l.Row.Request == "0a000002" {
+			i = at
+			break
+		}
+	}
 	if i < 0 {
 		t.Fatalf("the Requests show %v, want 0a000002 among them", shownRequests(h))
 	}
-	if row := h.model.log.page.Requests.Lines[i].Row; row.Stage != views.RowLined || row.Failed {
+	if row := h.model.log.page.Requests.Line(i).Row; row.Stage != views.RowLined || row.Failed {
 		t.Errorf("the stream joined again, 0a000002, which ended while it was away, is %+v, want it as its line has it", row)
 	}
 }
@@ -432,10 +438,12 @@ func (a afterMidnight) shows(t *testing.T, when string) {
 
 // A request that arrived just before midnight and was sent just after, on a
 // Log first opened between midnight and its end, its tables spanning today
-// alone, keeps its row: told on today till its line comes, the line filed
-// on the day before, which the Log reads back to as its row awaits it
-// there; and where another reader folds the tail, as the List does, the
-// stream lets it go once the Log has its line.
+// alone, keeps its row while the stream tells of it: told on today till its
+// line comes, the line filed on the day before, which the Log reads back to
+// as its row awaits it there. Where another reader folds the tail, as the
+// List does, the stream lets it go once the Log has its line. Once the
+// stream no longer tells of it, the Log, today's rows filling its view, lets
+// go of the day, the row on it with it.
 func TestARowSentJustAfterMidnightStaysOnALogOpenedSince(t *testing.T) {
 	for _, list := range []bool{false, true} {
 		name := "the Log alone"
@@ -449,15 +457,24 @@ func TestARowSentJustAfterMidnightStaysOnALogOpenedSince(t *testing.T) {
 			writeLines(t, a.state, a.line)
 			a.h.hear(a.done())
 			a.shows(t, "its end told, its line filed on the day before")
+			filed, readBack := views.Today(a.line.At).Date, false
 			for tick := a.h.lastTick(); tick.due.Before(a.midnight.Add(2 * time.Minute)); tick = a.h.lastTick() {
 				a.h.fire(tick)
-				a.shows(t, "at "+a.h.clock.now.Format(time.TimeOnly))
+				readBack = readBack || a.h.model.log.from.Date == filed
+				if _, told := toldOf(a.h.model.traffic, "0a000001"); told {
+					a.shows(t, "at "+a.h.clock.now.Format(time.TimeOnly))
+				}
 			}
-			if got, want := a.h.model.log.from.Date, views.Today(a.line.At).Date; got != want {
-				t.Errorf("its line filed on %s, the Log's tables are from %s, want them read back to it", want, got)
+			if !readBack {
+				t.Errorf("its line filed on %s, the Log's tables never read back to it", filed)
 			}
-			if _, ok := toldOf(a.h.model.traffic, "0a000001"); list && ok {
+			told, today := false, views.Today(a.midnight).Date
+			if _, told = toldOf(a.h.model.traffic, "0a000001"); list && told {
 				t.Error("the Log has taken in its line, the stream keeps 0a000001 still, want it let go")
+			}
+			if got := a.h.model.log.from.Date; !told && (got != today || slices.Contains(shownRequests(a.h), "0a000001")) {
+				t.Errorf("the stream let 0a000001 go, the Log's tables are from %s, showing %q; want them from %s, the day before let go, its row with it",
+					got, shownRequests(a.h), today)
 			}
 		})
 	}
@@ -466,7 +483,9 @@ func TestARowSentJustAfterMidnightStaysOnALogOpenedSince(t *testing.T) {
 // A read of the tail finding a request's line, as the List's does, while
 // the Log shows its row without it, the line filed on a day before those it
 // spans, has the stream keep the request till the Log reads back to that
-// day, so its row never leaves the Log; then the stream lets it go.
+// day, so its row never leaves the Log; then the stream lets it go, and the
+// Log, today's rows filling its view, lets go of that day, the row on it
+// with it, as no row then awaits a line there.
 func TestTheStreamKeepsARequestTillTheLogShowingItsRowHasItsLine(t *testing.T) {
 	a := openedAfterMidnight(t, false)
 	a.h.hear(a.sent)
@@ -485,7 +504,9 @@ func TestTheStreamKeepsARequestTillTheLogShowingItsRowHasItsLine(t *testing.T) {
 	if _, ok := toldOf(a.h.model.traffic, "0a000001"); ok {
 		t.Error("the Log read back to its line's day, the stream keeps 0a000001 still, want it let go")
 	}
-	a.shows(t, "the Log read back to its line's day")
+	if got, want := a.h.model.log.from.Date, views.Today(a.midnight).Date; got != want || slices.Contains(shownRequests(a.h), "0a000001") {
+		t.Errorf("the Log read back to its line's day spans from %s, showing %q, want it from %s, the day let go, 0a000001's row with it", got, shownRequests(a.h), want)
+	}
 }
 
 // A request the Log shows the row of, its line filed on a day before those
@@ -685,7 +706,7 @@ func TestTheLogsTablesAreMadeAgainOnlyAsWhatTheyreMadeOfChanges(t *testing.T) {
 	type made struct{ requests, events, panel any }
 	madeNow := func() made {
 		p := h.model.log.page
-		return made{madeAt(p.Requests.Lines), madeAt(p.Events.Lines), madeAt(h.model.log.panel.Sessions)}
+		return made{h.model.log.built.requests, madeAt(p.Events.Lines), madeAt(h.model.log.panel.Sessions)}
 	}
 	unmoved := func() {
 		h.clock.now = h.clock.now.Add(100 * time.Millisecond)
@@ -747,7 +768,7 @@ func TestARequestInFlightCountsOnWithoutItsTableMadeAgain(t *testing.T) {
 	h.start()
 	h.hear(told(router.StreamSent, "0a000003", "work", 0))
 
-	made := madeAt(h.model.log.page.Requests.Lines)
+	made := h.model.log.built.requests
 	for range 10 {
 		h.clock.now = h.clock.now.Add(100 * time.Millisecond)
 		h.deliver(frameMsg{gen: h.model.frames})
@@ -755,7 +776,7 @@ func TestARequestInFlightCountsOnWithoutItsTableMadeAgain(t *testing.T) {
 			t.Fatalf("at %s, the row in flight doesn't read %s:\n%s", h.clock.now.Format(time.StampMilli), took, h.view())
 		}
 	}
-	if madeAt(h.model.log.page.Requests.Lines) != made {
+	if h.model.log.built.requests != made {
 		t.Error("over ten frames a tenth apart, a request in flight, the Requests were made again, want them made once")
 	}
 }
@@ -805,7 +826,7 @@ func TestARequestsProgressMakesNothingAfreshItsEndOnce(t *testing.T) {
 	h.hear(told(router.StreamSent, "0a000003", "work", 0))
 	h.hear(told(router.StreamFirst, "0a000003", "work", time.Second))
 
-	made := madeAt(h.model.log.page.Requests.Lines)
+	made := h.model.log.built.requests
 	for i := range 10 {
 		chars := (i + 1) * 500
 		h.clock.now = past(time.Second + time.Duration(i+1)*250*time.Millisecond)
@@ -814,17 +835,17 @@ func TestARequestsProgressMakesNothingAfreshItsEndOnce(t *testing.T) {
 			t.Fatalf("%d characters streamed, the row doesn't read %q:\n%s", chars, want, h.view())
 		}
 	}
-	if madeAt(h.model.log.page.Requests.Lines) != made {
+	if h.model.log.built.requests != made {
 		t.Error("ten times told how far a request's answer has streamed, the Requests were made again, want them made once")
 	}
 	h.hear(alter(told(router.StreamDone, "0a000003", "work", 5*time.Second), func(e *router.StreamEvent) { e.Status = 200 }))
-	ended := madeAt(h.model.log.page.Requests.Lines)
+	ended := h.model.log.built.requests
 	if ended == made {
 		t.Error("told the request ended, the Requests weren't made again, want its row ended")
 	}
 	h.clock.now = past(6 * time.Second)
 	h.deliver(frameMsg{gen: h.model.frames})
-	if madeAt(h.model.log.page.Requests.Lines) != ended {
+	if h.model.log.built.requests != ended {
 		t.Error("a frame after the request ended made the Requests again, want them made the once")
 	}
 }
