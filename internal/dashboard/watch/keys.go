@@ -12,16 +12,16 @@ import (
 // pageKey acts on a key of the page, as pressed hands it on: j, k, PgDn and
 // PgUp scroll the view where it doesn't fit, as scrollView has it; and the
 // rest each as acting has the page act: on the Overview, u, g, r, s, c and l
-// show and hide its sections, b switches how its windows are grouped, and ↑
-// and ↓ move the focus, as overviewKey says; on Accounts, its keys act as
-// accountsKey says; on History, [ ], < >, v and ← → act as historyKey says;
-// on Sessions, its keys act as sessionsKey says; on Runway, < > and ← → act
-// as runwayKey says; on the Log, [ ], ↑ ↓, end, esc, enter, s, f and / act
-// as logKey says; tab and shift-tab show the next tab and the one before, as
-// turn has it; and t opens the theme picker. esc, whatever the page does
-// with it, drops a session's page asked to
-// open, as unasked has it. The rest do nothing: the number keys and m among
-// them, which act in the routing card alone.
+// show and hide its sections, b switches how its windows are grouped, v
+// flips GRAPHS' chart, and ↑ and ↓ move the focus, as overviewKey says; on
+// Accounts, its keys act as accountsKey says; on History, [ ], < >, v and
+// ← → act as historyKey says; on Sessions, its keys act as sessionsKey says;
+// on Runway, < > and ← → act as runwayKey says; on the Log, [ ], ↑ ↓, end,
+// esc, enter, s, f and / act as logKey says; tab and shift-tab show the next
+// tab and the one before, as turn has it; and t opens the theme picker. esc,
+// whatever the page does with it, drops a session's page asked to open, as
+// unasked has it. The rest do nothing: the number keys and m among them,
+// which act in the routing card alone.
 func (m Model) pageKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	k := key.String()
 	if k == "esc" {
@@ -63,7 +63,9 @@ func (m Model) pageKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // overviewKey acts on a key of the Overview's, reporting false for a key it
 // doesn't take, or on another tab: a section's key shows or hides it, as
 // toggle has it; b switches how its windows are grouped, as regroup has it;
-// and ↑ and ↓ move the focus, as moveFocus has it.
+// v, while GRAPHS shows, flips its chart, as reburn has it; and ↑ and ↓ move
+// the focus, as moveFocus has it, while the Overview has one, as focuses
+// says.
 func (m Model) overviewKey(key string) (Model, bool) {
 	if m.shownView() != dashboard.Overview {
 		return m, false
@@ -71,12 +73,14 @@ func (m Model) overviewKey(key string) (Model, bool) {
 	if section, ok := dashboard.SectionKeyed(key); ok {
 		return m.toggle(section), true
 	}
-	switch key {
-	case "b":
+	switch {
+	case key == "b":
 		return m.regroup(), true
-	case "up":
+	case key == "v" && m.sections.Has(dashboard.SectionGraphs):
+		return m.reburn(), true
+	case key == "up" && m.focuses():
 		return m.moveFocus(-1), true
-	case "down":
+	case key == "down" && m.focuses():
 		return m.moveFocus(1), true
 	}
 	return m, false
@@ -112,11 +116,9 @@ type pageKeys struct {
 }
 
 // keys is what lists the page's keys as m stands, its own but those that
-// scroll it in the design's order: on the Overview, its toggles, each word
-// faint where its section is hidden; b, its word saying how the windows are
-// grouped; and with more than one account, ↑↓, which the key line sets with
-// p, ? and q; and Accounts', History's, Sessions', Runway's and the Log's,
-// as accountsListings, historyListings, sessionsListings, runwayListings and
+// scroll it in the design's order: the Overview's, Accounts', History's,
+// Sessions', Runway's and the Log's, as overviewListings,
+// accountsListings, historyListings, sessionsListings, runwayListings and
 // logListings have them, Detail's SESSIONS listing the sessions running
 // given. A session's page lists its own, as sessionKeys has them, in place
 // of its tab's.
@@ -126,18 +128,28 @@ func (m Model) keys(running []string) pageKeys {
 		return m.sessionKeys()
 	}
 	overview := shown == dashboard.Overview
+	pin, pinned := m.pinKey()
+	own := slices.Concat(m.overviewListings(), m.accountsListings(running), m.historyListings(), m.sessionsListings(), m.runwayListings(), m.logListings())
+	scrollsAlways := overview || shown == dashboard.Log
+	return pageKeys{own: own, overview: overview, scrollsAlways: scrollsAlways, pin: pin, pinned: pinned, coloured: m.coloured()}
+}
+
+// overviewListings are the Overview's own keys: its toggles, each word
+// faint where its section is hidden; b, its word saying how the windows are
+// grouped; while GRAPHS shows, v, its word saying the chart it draws; and
+// with more than one account, while the Overview has a focus, as focuses
+// says, ↑↓, which the key line sets with p, ? and q.
+func (m Model) overviewListings() []keyListing {
+	overview := m.shownView() == dashboard.Overview
 	var own []keyListing
 	for _, s := range dashboard.EverySection() {
 		own = append(own, keyListing{Key: dashboard.Key{Key: s.Key(), Does: s.Word(), Hidden: !m.sections.Has(s)}, works: overview})
 	}
-	own = append(own,
+	return append(own,
 		keyListing{Key: dashboard.Key{Key: "b", Does: "by", State: string(layoutOf(m.by))}, works: overview},
-		keyListing{Key: dashboard.Key{Key: "↑↓", Does: "focus"}, works: overview && m.asRead.accounts > 1, withEnds: true},
+		keyListing{Key: dashboard.Key{Key: "v", Does: "chart", State: m.burn.Name()}, works: overview && m.sections.Has(dashboard.SectionGraphs)},
+		keyListing{Key: dashboard.Key{Key: "↑↓", Does: "focus"}, works: overview && m.asRead.accounts > 1 && m.focuses(), withEnds: true},
 	)
-	pin, pinned := m.pinKey()
-	own = slices.Concat(own, m.accountsListings(running), m.historyListings(), m.sessionsListings(), m.runwayListings(), m.logListings())
-	scrollsAlways := overview || shown == dashboard.Log
-	return pageKeys{own: own, overview: overview, scrollsAlways: scrollsAlways, pin: pin, pinned: pinned, coloured: m.coloured()}
 }
 
 // accountsListings are Accounts' own keys, each move with enter in a group
@@ -180,12 +192,16 @@ func (m Model) accountsListings(running []string) []keyListing {
 // days.
 func (p pageKeys) listings(scrolls bool) []keyListing {
 	scrolls = scrolls || p.scrollsAlways
-	return slices.Concat(p.own, []keyListing{
-		{Key: dashboard.Key{Key: "j k", Does: "scroll"}, works: scrolls, helpful: true},
-		{Key: dashboard.Key{Key: "PgUp PgDn", Does: "page"}, works: scrolls, helpful: true},
-		{Key: dashboard.Key{Key: "wheel", Does: "scroll"}, works: scrolls, helpful: true},
-	})
+	listed := slices.Clone(p.own)
+	for _, k := range scrollKeys {
+		listed = append(listed, keyListing{Key: k, works: scrolls, helpful: true})
+	}
+	return listed
 }
+
+// scrollKeys are the keys that scroll a view, as help lists them: j and k,
+// PgUp and PgDn, and the wheel.
+var scrollKeys = []dashboard.Key{{Key: "j k", Does: "scroll"}, {Key: "PgUp PgDn", Does: "page"}, {Key: "wheel", Does: "scroll"}}
 
 // historyListings are History's own keys, each in a group of its own: [ ]
 // view; < > and the period, where the sub-tab shown has one; v and what it
@@ -304,6 +320,15 @@ var (
 	helpKey  = dashboard.Key{Key: "?", Does: "help"}
 )
 
+// pinWord, themesKey and refreshKey are p, t and R, which open the routing
+// card, open the theme picker and refresh, on every page, as the key line
+// and help word them.
+var (
+	pinWord    = dashboard.Key{Key: "p", Does: "pin"}
+	themesKey  = dashboard.Key{Key: "t", Does: "themes"}
+	refreshKey = dashboard.Key{Key: "R", Does: "refresh"}
+)
+
 // overviewApart is how many blank cells the Overview's key line sets each of
 // its groups apart by, tab views among them.
 const overviewApart = 5
@@ -323,7 +348,7 @@ func (p pageKeys) helpKeys(scrolls bool) []dashboard.Key {
 		keys = append(keys, p.pin)
 	}
 	if p.coloured {
-		keys = append(keys, dashboard.Key{Key: "t", Does: "themes"})
+		keys = append(keys, themesKey)
 	}
-	return append(keys, dashboard.Key{Key: "R", Does: "refresh"}, helpKey, dashboard.Quit)
+	return append(keys, refreshKey, helpKey, dashboard.Quit)
 }

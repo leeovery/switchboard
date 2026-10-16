@@ -85,7 +85,7 @@ func TestClientStatus(t *testing.T) {
 			{ID: "personal", Label: "Personal", Error: personalMissing},
 			{ID: "side", Label: "Side", TokenSet: true},
 		},
-	}.WorkedOut(claude.Policy)
+	}.WorkedOut(claude.Policy())
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Status() =\n%+v\nwant\n%+v", got, want)
 	}
@@ -326,7 +326,7 @@ func TestClientRefresh(t *testing.T) {
 			{ID: "personal", Label: "Personal", Error: personalMissing},
 			{ID: "side", Label: "Side", TokenSet: true, FetchedAt: now, Windows: []quota.Window{session, week}},
 		},
-	}.WorkedOut(claude.Policy)
+	}.WorkedOut(claude.Policy())
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Refresh() =\n%+v\nwant the document with what the probes read\n%+v", got, want)
 	}
@@ -394,7 +394,7 @@ func TestTheRoutersDocumentIsWorkedOutOnceItsPinIsSet(t *testing.T) {
 	for i := range bare.Accounts {
 		bare.Accounts[i].Windows = asRead(bare.Accounts[i].Windows)
 	}
-	if again := bare.WorkedOut(claude.Policy); !reflect.DeepEqual(again, doc) {
+	if again := bare.WorkedOut(claude.Policy()); !reflect.DeepEqual(again, doc) {
 		t.Errorf("Pin() gave\n%+v\nwant what its own fields work out to\n%+v", doc, again)
 	}
 }

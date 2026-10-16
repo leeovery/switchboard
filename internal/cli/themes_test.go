@@ -185,6 +185,30 @@ func TestDashboardGroupsTheOverviewsWindowsAsKeptElseAsConfigured(t *testing.T) 
 	}
 }
 
+func TestDashboardDrawsTheChartGRAPHSKept(t *testing.T) {
+	tests := []struct {
+		name, prefs string
+		want        dashboard.Burn
+	}{
+		{name: "none kept: the burn-up", prefs: `{}`, want: dashboard.BurnUp},
+		{name: "as kept", prefs: `{"graphs": "burn-down"}`, want: dashboard.BurnDown},
+		{name: "one kept it doesn't know: the burn-up", prefs: `{"graphs": "a-later-chart"}`, want: dashboard.BurnUp},
+		{name: "milestone 5's cards' style: the burn-up", prefs: `{"chart": "hourglass"}`, want: dashboard.BurnUp},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := statusDeps(t, fakeClaudeAPI(t), nil)
+			writePrefs(t, deps, tt.prefs)
+			cfg := recordWatch(t, &deps)
+			run(t, deps, "dashboard")
+
+			if cfg.Burn != tt.want {
+				t.Errorf("the dashboard opens drawing GRAPHS' %s, want its %s", cfg.Burn.Name(), tt.want.Name())
+			}
+		})
+	}
+}
+
 // History opens on what prefs.json keeps of its views, the Year's account
 // among those the config gives; none kept, as it opens at first.
 func TestDashboardShowsHistoryAsKept(t *testing.T) {

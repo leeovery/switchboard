@@ -352,17 +352,19 @@ func (m Model) costed(msg costedMsg) Model {
 // where there's more than one account to pin to, or a pin stands, to clear
 // it, as the document on screen was read; on a session's page, while the
 // session runs, as its page draws it, where there's more than one account,
-// or its own pin stands; but never while the source probes as asked,
+// or its own pin stands, and it isn't loading; but never while the source
+// probes as asked,
 // reading no router to pin through, whether one answers or not. It's faint
 // while the router doesn't answer, as p then opens nothing.
 func (m Model) pinKey() (dashboard.Key, bool) {
-	key := dashboard.Key{Key: "p", Does: "pin", Off: !m.answering()}
+	key := pinWord
+	key.Off = !m.answering()
 	switch {
 	case m.cfg.ProbeOnly:
 		return key, false
 	case m.shownView() == dashboard.SessionPage:
 		page := m.session.shown.Page
-		return key, page.Runs() && (m.asRead.accounts > 1 || page.Pin != "")
+		return key, !m.session.shown.Loading && page.Runs() && (m.asRead.accounts > 1 || page.Pin != "")
 	}
 	return key, m.asRead.accounts > 1 || m.asRead.pinned
 }

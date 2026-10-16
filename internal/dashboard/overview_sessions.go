@@ -34,11 +34,19 @@ var doingInk = ink{token: theme.AccentKey}
 // running, a row on each account a session's models go to, or a row saying
 // none is, at its least and its most alike; under routingRows columns, and
 // on a phone, two rows a session. A click on a session's row opens its page.
+// Its heading says loading…, in text.subtle, while the frame says so, as
+// what names its sessions is read.
 func (f Frame) sessionsSection(doc status.Document, now time.Time) section {
 	running := f.running(doc, now)
 	rows := sectionHead + max(len(running)*f.runningForm().rows, 1)
 	return section{
 		Section: SectionSessions, least: rows, most: rows,
+		description: func() line {
+			if !f.Loading {
+				return nil
+			}
+			return line{{loadingWord, dimInk}}
+		},
 		draw: func(c *canvas, body bounds) {
 			f.drawRunning(c, f.Moment(doc, now), running, body)
 		},
@@ -53,13 +61,21 @@ func (f Frame) sessionsSection(doc status.Document, now time.Time) section {
 
 // running are the sessions running on doc's accounts at now, as views lists
 // them, of the router's listing as the request stream has moved and seen
-// them since, each named as the List held names it: as holdRunning holds
-// them, where the frame holds them of doc at now, else worked out afresh.
+// them since, as listLive has them, each named as the List held names it: as
+// holdRunning holds them, where the frame holds them of doc at now, else
+// worked out afresh.
 func (f Frame) running(doc status.Document, now time.Time) []views.Running {
 	if f.runs != nil && f.runs.at.Of(doc, now, f.Policy) {
 		return f.runs.list()
 	}
-	return views.RunningOf(f.Moment(doc, now), f.Sessions, f.Stream, f.HeldList)
+	return views.RunningOf(f.Moment(doc, now), f.listLive(now), f.HeldList)
+}
+
+// listLive is what the views list the sessions running of at now: the
+// router's listing the frame holds, its last while it doesn't answer, as
+// Unlisted says, and what the request stream told.
+func (f Frame) listLive(now time.Time) views.ListLive {
+	return views.ListLive{Running: f.Sessions, Unlisted: f.Unlisted, Stream: f.Stream, Now: now}
 }
 
 // runningHeld are the sessions running of a document at a moment, as
@@ -153,7 +169,8 @@ var runningOut = outForm{lead: "+", inks: subtleOut}
 // wideRunning draws the session running r on row y, of the moment m, from
 // routingRows columns: from the name column, its id, its family, when it was
 // last seen, what it's doing, and why it's there, cut to end before its
-// trace; then its trace, and its rate right-aligned at the last column.
+// trace; then its trace, and its rate right-aligned at the edge
+// rateEdge gives it.
 func (f Frame) wideRunning(c *canvas, m status.Moment, r views.Running, column, y int) {
 	now := m.Now
 	seen := runningSeen(r.Activity.LastSeen, now)
@@ -168,8 +185,9 @@ func (f Frame) wideRunning(c *canvas, m status.Moment, r views.Running, column, 
 	why := column + runningWhy
 	c.line(why, y, line{{r.Why.String(), dimInk}}.fit(traceFrom-beforeTraceAt-why))
 	faded, t := outOfPool(m, r.Account), f.Traces.Sessions[r.Session]
-	f.drawTrace(c, t, now, bounds{x: traceFrom, y: y, width: f.wideTraceCells(), rows: 1}, faded)
-	c.right(f.Width, y, line{traceRate(t, now, faded).numbered(Number{Kind: NumberRate, Account: r.Account, Of: r.Session})})
+	trace := bounds{x: traceFrom, y: y, width: f.wideTraceCells(), rows: 1}
+	f.drawTrace(c, t, now, trace, faded)
+	c.right(f.rateEdge(trace), y, line{traceRate(t, now, faded).numbered(Number{Kind: NumberRate, Account: r.Account, Of: r.Session})})
 }
 
 // narrowRunning draws the session running r on rows y and y + 1, of the
@@ -204,12 +222,14 @@ func runningSeen(seen, now time.Time) string {
 
 // runningDoing is what a session running is doing, as SESSIONS says its
 // Activity, in the views' short words: in accent.key while it's under way,
-// as Underway says, else faint, refused as well, as it reads idle.
+// as Underway says, else faint, refused as well, as it reads idle; and as
+// last known as asKnown inks it.
 func runningDoing(a views.Activity) span {
+	k := faintInk
 	if a.Underway() {
-		return span{a.Short(), doingInk}
+		k = doingInk
 	}
-	return span{a.Short(), faintInk}
+	return span{a.Short(), asKnown(a, k)}
 }
 
 // runningCount says how many sessions run, and how many on each of m's

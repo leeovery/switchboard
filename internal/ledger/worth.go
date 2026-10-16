@@ -42,8 +42,22 @@ const (
 
 // Cents shows the amount to the nearest cent, as "$412.53".
 func (p Picodollars) Cents() string {
-	cents := (p.abs() + cent/2) / cent
+	cents := p.wholeCents()
 	return fmt.Sprintf("%s$%d.%02d", p.sign(), cents/100, cents%100)
+}
+
+// ToTheCent is the amount to the nearest cent, as Cents shows it, a half
+// cent away from none.
+func (p Picodollars) ToTheCent() Picodollars {
+	if p < 0 {
+		return -p.wholeCents() * cent
+	}
+	return p.wholeCents() * cent
+}
+
+// wholeCents is the amount without its sign, to the nearest cent.
+func (p Picodollars) wholeCents() Picodollars {
+	return (p.abs() + cent/2) / cent
 }
 
 // Dollars shows the amount to the nearest dollar, as "$413".
@@ -147,10 +161,12 @@ func (t Table) Worth(model, geo string, usage json.RawMessage, date string) (Wor
 }
 
 // Request returns what the line's request would have cost through the API at
-// the prices in effect on the local day with the given date, as Worth says:
-// one that went upstream whose answer gave no usage unpriced, never free.
+// the prices in effect on the local day with the given date, as Worth says,
+// of the usage worth prices, as worthUsage gives it, so a quota check is
+// worth nothing: one that went upstream whose answer gave no usage unpriced,
+// never free.
 func (t Table) Request(l *Line, date string) (Worth, bool) {
-	return t.worth(l.Model, l.Shape.InferenceGeo, countsOf(l.Usage), l.unmetered(), date)
+	return t.worth(l.Model, l.Shape.InferenceGeo, countsOf(l.worthUsage()), l.unmetered(), date)
 }
 
 // CacheWrite returns what the line's request's writes to the prompt cache
@@ -173,7 +189,7 @@ func (t Table) Summed(l *Line, date string) (Worth, bool) {
 	if w, ok := t.Request(l, date); ok {
 		return w, true
 	}
-	return Worth{Unpriced: t.wholly(l.Model, l.Shape.InferenceGeo, countsOf(l.Usage), l.unmetered(), date)}, false
+	return Worth{Unpriced: t.wholly(l.Model, l.Shape.InferenceGeo, countsOf(l.worthUsage()), l.unmetered(), date)}, false
 }
 
 // Rewrite returns what writing the line's request's whole prompt into the

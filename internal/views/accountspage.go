@@ -49,9 +49,10 @@ type AccountsRow struct {
 	Label string
 	// Totals are its totals over the period, and Plan its plan over it and
 	// its worth against it, as History counts and prices them: the plan
-	// priced whole for the period, whenever it began recording, so an
-	// account added part-way shows what was recorded of it against the
-	// whole period's price.
+	// priced whole for the period, whenever the account began recording, so
+	// an account added part-way shows what was recorded of it against the
+	// whole period's price; but from the ledger's first day where it began
+	// part-way through the period, as there's no worth for the days before.
 	Totals AccountTotals
 	Plan   PlanCost
 	// PlanName names its plan as the price table does, as Max 20x: "" where
@@ -93,7 +94,8 @@ func (p Past) Accounts(period AccountsPeriod) AccountsPage {
 	_, before = splitAt(before, first.AddDate(0, 0, -lookBack).Format(time.DateOnly))
 	totals := accountTotalsOf(before, days, in.Accounts, p.versions())
 	known := plans{accounts: in.Accounts, table: in.Prices}
-	costs := plansOf(days, known, first.Format(time.DateOnly), period.share())
+	firstDate := first.Format(time.DateOnly)
+	costs := plansOf(days, known, pricedOver(firstDate, period.last(today, in.WeekStarts).Format(time.DateOnly), p.counted(firstDate), period.share()))
 	_, weeks := splitAt(p.days, weeksTo(today, in.WeekStarts, weeksShown).AddDate(0, 0, -lookBack).Format(time.DateOnly))
 	page := AccountsPage{Period: period, Rows: make([]AccountsRow, len(in.Accounts)), PricesAsOf: in.Prices.AsOf, in: in, days: weeks}
 	for x, a := range in.Accounts {
@@ -163,17 +165,6 @@ func (page *AccountsPage) weeked(in HistoryInput, days []Day) {
 		}
 	}
 	page.All.Peaks, page.All.Verdict = weeks.All.Peaks[shown:], weeks.All.AccountVerdict
-}
-
-// PlansKnown counts the configured accounts whose plans are known, those
-// every account's plan sums, of all of them, as in "2 of 3 plans".
-func (p AccountsPage) PlansKnown() (known, of int) {
-	for _, row := range p.Rows {
-		if row.Plan.Price != nil {
-			known++
-		}
-	}
-	return known, len(p.Rows)
 }
 
 // Ends are the accounts whose weeks end with the most left at a reset, on

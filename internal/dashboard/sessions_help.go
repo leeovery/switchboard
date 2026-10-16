@@ -25,9 +25,9 @@ func (f Frame) sessionsHelp() []helpPart {
 					"last answer ended. Last, ▸ from the account it left, while the move that brought it is its latest."),
 				said("`[` and `]` switch between the Switchboard and the List. `↑` and `↓` choose a session, a call here or a row " +
 					"there, either of a session's two calls choosing it, and the choice follows it from look to look; `enter` opens " +
-					"its page, and `esc` ends the choice."),
-				said("While the router doesn't answer, the calls are the sessions it last listed, nothing travelling; with no " +
-					"router, there are none."),
+					"its page, and `esc` deselects it."),
+				said("While the router doesn't answer, the calls are the sessions it last listed, nothing travelling, what each " +
+					"was doing then said as it was, faint, as last known; with no router, there are none."),
 			},
 			glyphs: []glyph{
 				{drawn: line{rowMark(views.RequestRow{Mark: views.MarkAsking})}, means: "asking: its request sent, its answer not begun"},
@@ -43,13 +43,15 @@ func (f Frame) sessionsHelp() []helpPart {
 					"account: lit while its session works, dimmed at rest."),
 				said("A request going out runs a pulse along it to the jack. An answer coming back shimmers along it, the jack lit, " +
 					"and as it ends, a pulse runs home. A refusal marks the jack and runs a red pulse home; as it lands, the session " +
-					"moves, joining the foot of its new account's group, its cord on that line's first free jack."),
+					"moves, joining the foot of its new account's group, its cord on a jack of that line below those of the calls " +
+					"above it: a line's cords hold its jacks in the order of their calls, so none of them cross."),
 				said("Where a limit forced the move, the old cord hangs from its jack while the limit holds, one for each session " +
 					"the limit moved, the jack taken till then. A move by pressure, a pin or by hand leaves the old cord hanging a " +
 					"moment, fading."),
 				said("Where the terminal hasn't the width for the cords, as on a phone, the Switchboard draws lanes instead: each " +
 					"account's line with its sessions under it, a session's words bold while it works. Where they don't all fit, " +
-					"they scroll an account at a time, or a row at a time where an account's lane doesn't fit."),
+					"they scroll an account at a time, or a row at a time where an account's lane doesn't fit; turned from one to the " +
+					"other, as a resize or what's read can turn them, they go back to their top."),
 			},
 			glyphs: []glyph{
 				{drawn: line{{plugGlyph + strings.Repeat(heavyCord.along, 2) + pluggedJack, cordInk(true)}}, means: "a session's cord"},
@@ -67,7 +69,9 @@ func (f Frame) sessionsHelp() []helpPart {
 					"out, whose line is faded; an account closed by its cap or a limit never is, its words and colours saying why. " +
 					"Where the row is short, the mark gives way to the account's first words."),
 				said("As rows run short, the lines compact as the Overview's sections fold: no blank rows within a line, then two " +
-					"rows a line, then one, and past that they scroll, the calls with them."),
+					"rows a line, then one, and past that they scroll, the calls with them: an account at a time, each shown whole, " +
+					"or a row at a time where an account doesn't fit; turned from one to the other, as a resize or what's read can turn " +
+					"them, they go back to their top."),
 			},
 		},
 		{

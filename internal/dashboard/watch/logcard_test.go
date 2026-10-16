@@ -202,7 +202,8 @@ func TestARequestsCardInFlightCountsItsCharactersAsTheStreamTellsThem(t *testing
 }
 
 // An event's card, made of every line the Log read, is made again as its
-// table is, at a look: never at a frame, or as the pointer moves.
+// table is, at a look telling of an event anew: never at a frame, as the
+// pointer moves, or at a look telling of the events it told before alike.
 func TestAnEventsCardIsMadeAgainOnlyAsItsTableIs(t *testing.T) {
 	capped := status.Event{ID: 1, At: past(-time.Minute), Kind: status.EventCap, Account: "work", Windows: []string{"5h"}, Reserve: 0.05, To: "side"}
 	doc := routerDocument(three()...)
@@ -223,8 +224,14 @@ func TestAnEventsCardIsMadeAgainOnlyAsItsTableIs(t *testing.T) {
 	}
 	h.startRouter(doc)
 	h.tickUntilAsked()
+	if h.model.log.card.event != opened {
+		t.Error("a look telling of the cap alike made its card again, want it made as its table is")
+	}
+	doc.Events = append(slices.Clone(doc.Events), status.Event{ID: 2, At: past(0), Kind: status.EventPin, Accounts: []string{"side"}})
+	h.startRouter(doc)
+	h.tickUntilAsked()
 	if h.model.log.card.event == opened {
-		t.Error("a look left the cap's card as it was made, want it made again with its table")
+		t.Error("a look telling of an event anew left the cap's card as it was made, want it made again with its table")
 	}
 }
 

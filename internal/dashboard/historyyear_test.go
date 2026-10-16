@@ -643,6 +643,63 @@ func TestAPhonesGridShowsTheLatestWeeksThatFit(t *testing.T) {
 	}
 }
 
+// Every account's against it, over the plans known where some aren't, says
+// so in the room it has: in full, short, compact, or the ratio alone, never
+// cut; and BY MONTH says it once for the table, after what it shows, wide
+// where it fits, never of a version's months, whose worth is against no
+// plan.
+func TestTheYearsAgainstOverThePlansKnownSaysSoInTheRoomItHas(t *testing.T) {
+	someKnown := views.Against{Ratio: new(3.8), Cost: usd(7200), Plans: views.PlansKnown{Known: 2, Of: 3}}
+	tests := []struct {
+		name    string
+		against views.Against
+		width   int
+		want    string
+	}{
+		{name: "in full", against: someKnown, width: 60, want: "against it   3.8× · 2 of 3 plans known"},
+		{name: "short", against: someKnown, width: 37, want: "against it   3.8× · 2 of 3 plans"},
+		{name: "compact", against: someKnown, width: 31, want: "against it   3.8× · 2/3"},
+		{name: "the ratio alone", against: someKnown, width: 22, want: "against it   3.8×"},
+		{name: "every plan known", against: views.Against{Ratio: new(3.8), Cost: usd(7200), Plans: views.PlansKnown{Known: 3, Of: 3}},
+			width: 60, want: "against it   3.8×"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := againstFigure(tt.against).drawn("against it", yearLabelCells, tt.width).plain(); got != tt.want {
+				t.Errorf("in %d cells, against it reads %q, want %q", tt.width, got, tt.want)
+			}
+		})
+	}
+
+	heads := []struct {
+		name  string
+		width int
+		ask   views.YearAsk
+		page  func() views.YearPage
+		want  string
+	}{
+		{name: "BY MONTH, wide", width: 160, page: plainYear,
+			want: "BY MONTH  worth at API prices; against what the plans cost that month · 2 of 3 plans known"},
+		{name: "BY MONTH, short", width: 86, page: plainYear,
+			want: "BY MONTH  worth at API prices; against what the plans cost that month · 2 of 3 plans"},
+		{name: "BY MONTH, compact", width: 80, page: plainYear,
+			want: "BY MONTH  worth at API prices; against what the plans cost that month · 2/3"},
+		{name: "BY MONTH, without room", width: 74, page: plainYear, want: "BY MONTH  worth at API prices; against what the plans cost that month"},
+		{name: "a version's months", width: 160, ask: views.YearAsk{Version: "Opus 5.5"}, page: opusYear,
+			want: "BY MONTH  Opus 5.5 only: its worth at API prices, and its share of the month"},
+	}
+	for _, tt := range heads {
+		t.Run(tt.name, func(t *testing.T) {
+			page := tt.page()
+			page.Numbers.Plans = views.PlansKnown{Known: 2, Of: 3}
+			f := yearFrame(t, tt.width, 60, tt.ask, page)
+			if got := yearOf(f, byMonthWide).byMonthHead(false).plain(); got != tt.want {
+				t.Errorf("at %d columns, BY MONTH's heading reads %q, want %q", tt.width, got, tt.want)
+			}
+		})
+	}
+}
+
 // Every figure the Year draws is drawn whole, or where it doesn't fit, as an
 // ellipsis, never cut part-way, and is numbered only where it's drawn whole;
 // its words cut, as the key's, and a version's name in the heading; and BY

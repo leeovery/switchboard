@@ -43,19 +43,28 @@ func detailsSaid(d views.EventDetails) viewstest.Details {
 	}
 	if f := d.Followed; f != nil {
 		for _, m := range f.Moves {
-			said.Followed = append(said.Followed, status.ShownID(m.Session)+": to "+m.To+" "+costSaid(movedCost(m.Move)))
+			said.Followed = append(said.Followed, status.ShownID(m.Session)+": to "+m.To+" "+moveCostSaid(m.Move))
 		}
 		if !f.Till.IsZero() {
 			said.Followed = append(said.Followed, "new sessions: "+strings.TrimSpace(f.Family+" till "+prose.Dated(at, f.Till)))
 		}
-		if f.InAll != nil {
-			said.Followed = append(said.Followed, "in all: "+f.InAll.Cents())
+		if inAll := f.InAllSaid(); inAll != "" {
+			said.Followed = append(said.Followed, "in all: "+inAll)
 		}
 		if m := f.Move; m != nil {
-			said.Followed = append(said.Followed, "request: "+m.Request, "cached again: "+strconv.Itoa(m.Written), "the move: "+costSaid(m.Cost))
+			said.Followed = append(said.Followed, "request: "+m.Request, "cached again: "+strconv.Itoa(m.Written), "the move: "+moveCostSaid(m))
 		}
 	}
 	return said
+}
+
+// moveCostSaid says what a move came to, as its CostSaid says it: "none"
+// where it says nothing, or no line tells of the move.
+func moveCostSaid(m *views.EventMove) string {
+	if m == nil || m.CostSaid() == "" {
+		return "none"
+	}
+	return m.CostSaid()
 }
 
 // movedCost is what a move came to: none where no line tells of it.
@@ -155,6 +164,10 @@ func TestEachKindsDetailsSayWhatHappened(t *testing.T) {
 			headline: "work reached its cap", happened: []string{"its cap: 80% of its 5-hour and week windows"}},
 		{name: "a limit lifting the next day", event: status.Event{Kind: status.EventLimit, Account: "personal", Windows: []string{"5h"}, Until: october(8, 1, 15)},
 			headline: "personal reached its limit", happened: []string{"its limit: its 5-hour window", "till: Thu 01:15"}},
+		{name: "a limit a window joined after it began", event: status.Event{Kind: status.EventLimit, Account: "work", Windows: []string{"7d_oi", "5h"}, Until: october(12, 21, 0), Joined: map[string]time.Time{"5h": october(7, 14, 0)}},
+			headline: "work reached its limit", happened: []string{"its limit: its Fable week window", "and: 5-hour · joined 14:00", "till: Mon 21:00"}},
+		{name: "a cap a window joined after it began", event: status.Event{Kind: status.EventCap, Account: "work", Windows: []string{"5h", "7d"}, Reserve: 0.1, Joined: map[string]time.Time{"7d": october(8, 9, 30)}},
+			headline: "work reached its cap", happened: []string{"its cap: 90% of its 5-hour window", "and: week · joined Thu 09:30"}},
 		{name: "a token refused", event: status.Event{Kind: status.EventRefused, Account: "work", Status: 401, Until: october(7, 14, 0)},
 			headline: "work's token refused", happened: []string{"answer: 401", "till: 14:00"}},
 		{name: "a family refused alone", event: status.Event{Kind: status.EventRefused, Account: "work", Status: 403, Family: "opus", Until: october(7, 14, 0)},

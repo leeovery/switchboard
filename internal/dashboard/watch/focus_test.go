@@ -134,6 +134,35 @@ func TestUpAndDownMoveTheFocusInTheConfigsOrderNoFurtherThanTheEnds(t *testing.T
 	}
 }
 
+func TestWhileGRAPHSChartsEveryAccountBesideUSAGEThereIsNoFocusToMove(t *testing.T) {
+	tests := []struct {
+		name   string
+		width  int
+		typed  []string
+		moves  bool
+		listed bool
+	}{
+		{name: "by account, GRAPHS beside USAGE", width: 160, typed: []string{"b", "g"}},
+		{name: "by account under 150 columns, GRAPHS charting the focused account", width: 149, typed: []string{"b", "g"}, moves: true, listed: true},
+		{name: "by account, GRAPHS hidden", width: 160, typed: []string{"b"}, moves: true, listed: true},
+		{name: "by window, GRAPHS shown", width: 160, typed: []string{"g"}, moves: true, listed: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := gridHarness(t)
+			h.update(tea.WindowSizeMsg{Width: tt.width, Height: 40})
+			h.typed(tt.typed...)
+			h.keys(downKey)
+			if moved := h.model.focus == "personal"; moved != tt.moves {
+				t.Errorf("after ↓, the focus is on %q; want it moved to personal: %v", h.model.focus, tt.moves)
+			}
+			if listed := strings.Contains(h.keyLine(), "↑↓ focus"); listed != tt.listed {
+				t.Errorf("the key line reads %q; want ↑↓ focus listed: %v", h.keyLine(), tt.listed)
+			}
+		})
+	}
+}
+
 func TestTheFocusGoesToTheFirstAccountOnceItsAccountGoes(t *testing.T) {
 	h := gridHarness(t)
 	h.keys(downKey, downKey, downKey)

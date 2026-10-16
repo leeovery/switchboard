@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"errors"
 	"io/fs"
+	"iter"
 	"maps"
 	"os"
 	"path/filepath"
@@ -157,6 +158,7 @@ func TestADaysReadingsReadAsTheyGrowAreThoseAWholeReadGives(t *testing.T) {
 	}
 	files := readings.Files(dir, logs.For("cli"))
 	day, tail := readings.NewDay(files, from, start, end), readings.NewReader(state, logs.For("cli")).Tail(from, start, end)
+	between := func(from, to time.Time) iter.Seq[readings.Reading] { return readings.Between(files, from, to, nil) }
 	for _, step := range steps {
 		step.do(t, dir)
 
@@ -167,7 +169,7 @@ func TestADaysReadingsReadAsTheyGrowAreThoseAWholeReadGives(t *testing.T) {
 		if got := readings.Carried(readings.Between(files, from, end, nil), from, start, end); !slices.EqualFunc(got, want, sameReading) {
 			t.Errorf("%s: Carried() =\n%+v\nwant\n%+v, as a whole read gives", step.name, got, want)
 		}
-		if got, want := tail(), readings.CarriedRuns(readings.Between(files, from, end, nil), from, start, end); !slices.EqualFunc(got, want, sameReading) {
+		if got, want := tail(), readings.TailOf(between, from, start, end)(); !slices.EqualFunc(got, want, sameReading) {
 			t.Errorf("%s: the tail read\n%+v\nwant\n%+v, as a whole read carries in each window's run", step.name, got, want)
 		}
 	}

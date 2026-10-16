@@ -116,6 +116,76 @@ func TestAReadingShowingRoomLiftsALimitEarly(t *testing.T) {
 		t.Errorf("once a probe read work's session afresh, a new session went to %s, want work", got)
 	}
 	checkLimit(t, r.rt, "work", status.Limit{})
+	checkLiftedAt(t, r, "work", 1, now.Add(31*time.Minute))
+}
+
+// A limit reached in the same window after one lifted early is a limit of
+// its own, which the router holds and its events tell as holding: the lift
+// it remembers is the other's, whose identity is never reached again.
+func TestALimitReachedAfterOneLiftedEarlyHolds(t *testing.T) {
+	r := newRouted(t)
+	r.readsAs(workToken, session, weekOf(0.5, 24*time.Hour))
+	r.readsAs(sideToken, session, weekOf(0.5, 5*24*time.Hour))
+	shortSpent := quota.Window{Key: "5h", Label: "Session", Utilization: 1, ResetsAt: now.Add(30 * time.Minute), Status: quota.StatusRejected}
+	r.api.script(workToken, rejectedUntil(now.Add(2*time.Hour), shortSpent, weekOf(0.5, 24*time.Hour)))
+	if got := r.ask(t, "one", opus, ""); got != "side" {
+		t.Fatalf("the request went to %s last, want side, work having rejected it", got)
+	}
+	r.clock.advance(31 * time.Minute)
+	fresh := quota.Window{Key: "5h", Label: "Session", Utilization: 0.01, ResetsAt: now.Add(5*time.Hour + 30*time.Minute), Status: quota.StatusAllowed}
+	r.readsAs(workToken, fresh, weekOf(0.5, 24*time.Hour))
+	if got := r.ask(t, "two", opus, ""); got != "work" {
+		t.Fatalf("once a probe read work's session afresh, a new session went to %s, want work", got)
+	}
+	checkLiftedAt(t, r, "work", 1, now.Add(31*time.Minute))
+
+	// Work's new session is spent in turn, and refuses the session there.
+	r.clock.advance(time.Minute)
+	spentAgain := fresh
+	spentAgain.Utilization, spentAgain.Status = 1, quota.StatusRejected
+	r.api.script(workToken, rejectedUntil(now.Add(3*time.Hour), spentAgain, weekOf(0.5, 24*time.Hour)))
+	if got := r.ask(t, "two", opus, ""); got != "side" {
+		t.Fatalf("the request went to %s last, want side, work having rejected it again", got)
+	}
+	held := status.Limit{ID: 2, Windows: []string{"5h"}, Until: now.Add(3 * time.Hour)}
+	checkLimit(t, r.rt, "work", held)
+	events := r.rt.Status().Events
+	i := slices.IndexFunc(events, func(e status.Event) bool { return e.Kind == status.EventLimit && e.Limit == held.ID })
+	if i < 0 || !events[i].Until.Equal(held.Until) {
+		t.Fatalf("the status document's events are %+v, want limit 2's holding till %v", events, held.Until)
+	}
+}
+
+// Of two limits an account holds at once, the older, a later one having
+// taken its place, lifts as a reading shows its window with room: the router
+// tells of it, its event ends then, and the later limit holds on.
+func TestAnOlderLimitLiftsWhileALaterOneHolds(t *testing.T) {
+	r := newRouted(t)
+	fable := quota.Window{Key: "7d_oi", Label: "Fable week", Utilization: 0.5, ResetsAt: now.Add(72 * time.Hour), Status: quota.StatusAllowed}
+	r.readsAs(workToken, session, weekOf(0.5, 24*time.Hour), fable)
+	r.readsAs(sideToken, session, weekOf(0.5, 5*24*time.Hour))
+	fableSpent := fable
+	fableSpent.Utilization, fableSpent.Status = 1, quota.StatusRejected
+	r.api.script(workToken, rejectedUntil(fableSpent.ResetsAt, fableSpent))
+	if got := r.ask(t, "one", opus, ""); got != "side" {
+		t.Fatalf("the request went to %s last, want side, work having rejected it", got)
+	}
+	r.clock.advance(time.Minute)
+	sessionSpent := quota.Window{Key: "5h", Label: "Session", Utilization: 1, ResetsAt: now.Add(3 * time.Hour), Status: quota.StatusRejected}
+	r.api.script(workToken, rejectedUntil(sessionSpent.ResetsAt, sessionSpent))
+	if got := r.ask(t, "two", haiku, "work"); got != "side" {
+		t.Fatalf("the request pinned to work went to %s last, want side, work having rejected it", got)
+	}
+	checkLimit(t, r.rt, "work", status.Limit{ID: 2, Windows: []string{"5h"}, Until: sessionSpent.ResetsAt})
+
+	// Its Fable week starts again, as a probe reads it, its session still spent.
+	r.clock.advance(time.Minute)
+	r.readsAs(workToken, sessionSpent, weekOf(0.5, 24*time.Hour), quota.Window{Key: "7d_oi", Label: "Fable week", Utilization: 0.01, ResetsAt: now.Add(7 * 24 * time.Hour), Status: quota.StatusAllowed})
+	if _, err := router.NewClient(serveControl(t, r.rt)).Refresh(t.Context(), time.Minute); err != nil {
+		t.Fatalf("Refresh() error = %v", err)
+	}
+	checkLiftedAt(t, r, "work", 1, now.Add(2*time.Minute))
+	checkLimit(t, r.rt, "work", status.Limit{ID: 2, Windows: []string{"5h"}, Until: sessionSpent.ResetsAt})
 }
 
 func TestAResetMadeByHandIsSeenOnceTheRouterRefreshes(t *testing.T) {
@@ -255,8 +325,11 @@ func TestALimitReachedInNoWindowNamedLiftsOnceAProbeSinceIsTaken(t *testing.T) {
 		// admitted is set when the probe is answered with success.
 		admitted  bool
 		wantLimit status.Limit
+		// liftedAt is when the limit's event holds till, as it lifts: zero
+		// where it doesn't.
+		liftedAt time.Time
 	}{
-		{name: "a probe answered with success", admitted: true},
+		{name: "a probe answered with success", admitted: true, liftedAt: now.Add(2 * time.Minute)},
 		{name: "a probe answered with the limit", wantLimit: status.Limit{ID: 1, Until: now.Add(2 * time.Hour)}},
 	}
 	for _, tt := range tests {
@@ -280,6 +353,7 @@ func TestALimitReachedInNoWindowNamedLiftsOnceAProbeSinceIsTaken(t *testing.T) {
 				t.Fatal("work wasn't probed, want it probed: it can take no request, and nothing has been read of it for longer than the refresh asks")
 			}
 			checkLimit(t, r.rt, "work", tt.wantLimit)
+			checkLiftedAt(t, r, "work", 1, tt.liftedAt)
 		})
 	}
 }
@@ -310,6 +384,37 @@ func TestALimitReachedInNoWindowNamedLiftsOnceARequestSentSinceIsTaken(t *testin
 	}
 	checkLimit(t, r.rt, "work", status.Limit{})
 	checkLimit(t, r.rt, "side", status.Limit{ID: 2, Until: until})
+	checkLiftedAt(t, r, "work", 1, now)
+	checkLiftedAt(t, r, "side", 2, time.Time{})
+}
+
+// A limit that lifts early while the account's cap holds it back has its
+// event end at the lift all the same, though the account has no room, so no
+// room is told: the next limit the account reaches is dated from its own
+// start, not from this one's.
+func TestALimitLiftedEarlyWhileItsCapHoldsEndsItsEventThen(t *testing.T) {
+	r := newRouted(t, func(cfg *router.Config) { cfg.Accounts[0].Reserve = 0.1 })
+	r.readsAs(workToken, session, weekOf(0.5, 24*time.Hour))
+	r.readsAs(sideToken, session, weekOf(0.5, 5*24*time.Hour))
+	shortSpent := quota.Window{Key: "5h", Label: "Session", Utilization: 1, ResetsAt: now.Add(30 * time.Minute), Status: quota.StatusRejected}
+	r.api.script(workToken, rejectedUntil(now.Add(2*time.Hour), shortSpent, weekOf(0.5, 24*time.Hour)))
+	if got := r.ask(t, "one", opus, ""); got != "side" {
+		t.Fatalf("the request went to %s last, want side, work having rejected it", got)
+	}
+
+	// Its session resets, and the next is at its reserve as a probe reads it,
+	// so its cap holds it back as the limit lifts.
+	r.clock.advance(31 * time.Minute)
+	capped := quota.Window{Key: "5h", Label: "Session", Utilization: 0.95, ResetsAt: now.Add(5*time.Hour + 30*time.Minute), Status: quota.StatusAllowed}
+	r.readsAs(workToken, capped, weekOf(0.5, 24*time.Hour))
+	if _, err := router.NewClient(serveControl(t, r.rt)).Refresh(t.Context(), time.Minute); err != nil {
+		t.Fatalf("Refresh() error = %v", err)
+	}
+	if work, _ := r.rt.Status().Account("work"); !slices.Equal(work.AtReserve, []string{"5h"}) {
+		t.Fatalf("work is at its reserve in %v, want its session's: its cap holds it back", work.AtReserve)
+	}
+	checkLimit(t, r.rt, "work", status.Limit{})
+	checkLiftedAt(t, r, "work", 1, now.Add(31*time.Minute))
 }
 
 func TestAProbeAnsweredWithTheLimitKeepsItsBar(t *testing.T) {
@@ -413,6 +518,32 @@ func checkLapsed(t *testing.T, rt *router.Router, id string) {
 	t.Helper()
 	if got, _ := rt.Status().Account(id); !slices.Contains(got.Lapsed, "5h") {
 		t.Fatalf("%s's lapsed windows are %q, want its session among them", id, got.Lapsed)
+	}
+}
+
+// checkLiftedAt checks that the router told of the limit with the given
+// identity lifting early on the account with the given id, once, and that
+// its event holds till then, at, as the status document gives it; or, where
+// at is zero, that it told of no such lifting.
+func checkLiftedAt(t *testing.T, r *routed, id string, limit int, at time.Time) {
+	t.Helper()
+	lifted := router.LimitLifted{Account: id, Limit: limit}
+	told := slices.IndexFunc(r.events.heard(), func(e router.Event) bool { return e == router.Event(lifted) })
+	if at.IsZero() {
+		if told >= 0 {
+			t.Errorf("the router told of %+v, want it not lifted early", lifted)
+		}
+		return
+	}
+	if told < 0 {
+		t.Errorf("the router told of no %+v, want it lifted early", lifted)
+	}
+	i := slices.IndexFunc(r.rt.Status().Events, func(e status.Event) bool { return e.Kind == status.EventLimit && e.Limit == limit })
+	if i < 0 {
+		t.Fatalf("the status document has no event of limit %d", limit)
+	}
+	if got := r.rt.Status().Events[i].Until; !got.Equal(at) {
+		t.Errorf("limit %d's event holds till %v, want %v, as it lifted", limit, got, at)
 	}
 }
 

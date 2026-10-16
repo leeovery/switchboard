@@ -68,6 +68,9 @@ type Fixture struct {
 	// frame pins them otherwise than the frames' usual, as a session's story's
 	// frames do: zero for the usual.
 	scale float64
+	// loading has its last key's reads still under way, what they're for
+	// saying it's loading, as underWay has them.
+	loading bool
 	// records are what its world's readers serve the watch, and accounts
 	// its world's, as configured, whose plans History prices against: a
 	// printout has neither, and a watch drawn of it reads none.
@@ -252,6 +255,7 @@ type page struct {
 	view    dashboard.View
 	log     dashboard.LogTicks
 	scale   float64
+	loading bool
 	looked  *looked
 }
 
@@ -289,7 +293,7 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 	}
 	return Fixture{
 		Name: p.name, Size: p.size, now: now, router: router, keys: slices.Clone(p.keys), before: p.before,
-		theme: framesTheme(), records: w.records(), accounts: w.accounts, view: p.view, log: p.log, scale: p.scale,
+		theme: framesTheme(), records: w.records(), accounts: w.accounts, view: p.view, log: p.log, scale: p.scale, loading: p.loading,
 	}
 }
 
@@ -298,20 +302,29 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // over its world, with the keys that reach it: on auto, pinned and in the bad
 // hour; by account; USAGE alone; GRAPHS and SESSIONS shown, the rest folded;
 // six accounts and ten; at 216 columns, with SESSIONS, with SESSIONS and
-// GRAPHS, and everything shown; on a phone; and the routing card opened on
-// auto, with two picked, with one picked and m ticked, and over routing's
+// GRAPHS, and everything shown; on a phone; where no frame draws them, to
+// judge by eye, GRAPHS' burn-down, with v, GRAPHS and SESSIONS shown; by
+// account with GRAPHS at 160 × 37, and its burn-down at 220 × 50; by
+// account at 140 × 48, GRAPHS falling back to the focused account's charts,
+// ROUTING, COMING UP and LATELY hidden; the pool's charts beside Σ pool by
+// account, the burn-down at 160 × 37 and the burn-up at 220 × 50; and the
+// burn-down on a phone, USAGE and GRAPHS alone; and the routing card opened
+// on auto, with two picked, with one picked and m ticked, and over routing's
 // world of a limit, with side picked. History's frames, each reached from
 // the Overview with tab twice, then the keys to its view: the Year, and
 // filtered to Opus 5.5; Weeks, its table and its columns, and of ten
 // accounts; Days, and of ten; Tokens by account, and by model; and the Year
-// on a phone. Then the page as stage 6 builds it, over the auto world, where
-// no frame draws it, to judge by eye: the routing card over the Overview, two
-// accounts picked and m ticked, at 160×40, and on a phone, one picked and m
-// ticked; the router gone, R having found it so, the status line saying
-// since when and p pin faint; and the Overview's help on a short terminal,
-// scrolled down three rows. Then the Log's frames, each reached from the
-// Overview with shift-tab: Events, with ]; Requests as it opens; the router
-// gone, over the world of the Log not live; Requests on a phone; an event's
+// on a phone; and where no frame draws it, to judge by eye, the Year at
+// 160×24, scrolled down three rows with j. Then the page as stage 6 builds
+// it, over the auto world, where no frame draws it, to judge by eye: the
+// routing card over the Overview, two accounts picked and m ticked, at
+// 160×40, and on a phone, one picked and m ticked; and as it opens at
+// 160×16, shorter than it, its keys kept; the router gone, R having found it
+// so, the status line saying since when and p pin faint; and the Overview's
+// help on a short terminal, scrolled down three rows. Then the Log's frames,
+// each reached from the Overview with shift-tab: Events, with ]; Requests
+// as it opens; the router gone, over the world of the Log not live;
+// Requests on a phone; an event's
 // details, the cap's, ↑ five times on Events and enter; a request's, d28c's
 // move, ↑ to 14:31:09 and ↓ to it as the Log stood at 14:32:41, the table
 // paused there, then enter at the moment, what came since read; the f
@@ -323,14 +336,17 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // frames, each reached through the Log, its story's scale pinned at 8: d28c's
 // page, and on a phone; 9c2e's; b9c4's, ended yesterday; f41a's, over its
 // world, come back this morning; d28c's with ↓ to turn 12 and enter; and
-// the routing card over 9c2e's page, with p and 3. Then Accounts' frames,
-// each reached from the Overview with tab: Compare as it opens, over the
-// auto world, ten accounts' and the bad hour's, and with >, the last 30
+// the routing card over 9c2e's page, with p and 3. Where no frame draws it,
+// to judge by eye: d28c's page loading, its read under way. Then Accounts'
+// frames, each reached from the Overview with tab: Compare as it opens, over
+// the auto world, ten accounts' and the bad hour's, and with >, the last 30
 // days; Detail with ], all accounts chosen, ↓ to work, and over the bad
-// hour's world, ↓ twice to personal; side's SESSIONS, d28c selected, opening
-// on Accounts, so the stream first opens there, telling each request in
-// flight as it went; Detail alone, over work alone's world; and on a phone,
-// Compare, and Detail of work. Then Sessions' frames, each reached from the
+// hour's world, ↓ twice to personal; where no frame draws them, to judge by
+// eye, side chosen as Detail opens on Accounts, its list holding the focus,
+// and → and ↓ into its SESSIONS, d28c selected; side's SESSIONS, d28c
+// selected, opening on Accounts, so the stream first opens there, telling
+// each request in flight as it went; Detail alone, over work alone's
+// world; and on a phone, Compare, and Detail of work. Then Sessions' frames, each reached from the
 // Overview with tab three times: the Switchboard and, with ], the List, over
 // the scene's world, wide and on a phone; and, each as a later look has it,
 // the Switchboard kept from a look before its moment that saw its sessions
@@ -338,7 +354,10 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // shift-tab, so its stream opens afresh: of ten accounts, of work alone, and
 // pinned to personal and side, looked at a minute before; and at personal's
 // limit, refused at 16:05:41, and moved at 16:05:42, looked at at 14:42:07.
-// Where no frame draws it, to judge by eye: the Switchboard at 120 × 30.
+// Where no frame draws it, to judge by eye: the Switchboard at 120 × 30;
+// with ↓ four times, d28c chosen, its call lit to its plug; at 160 × 14, its
+// lines scrolling, ↓ six times scrolling to db8a; and the router gone, R
+// having found it so, what was in flight said as last known.
 // Then Runway's frames, each reached from the Overview with tab four times:
 // the 5-hour view, wide and on a phone; the week, with >; Wednesday, ← twice,
 // today and the day before; all over the auto world; and the 5-hour view of
@@ -357,12 +376,20 @@ var pages = []page{
 	{name: "overview-sessions-graphs-216", size: broad(70), world: accountWorlds.auto, keys: keysOf("s", "g")},
 	{name: "overview-everything-216x106", size: broad(106), world: accountWorlds.auto, keys: keysOf("g", "s")},
 	{name: "overview-phone-52", size: watch.Size{Width: 52, Height: 66}, world: accountWorlds.auto},
+	{name: "overview-burn-down-160x39", size: wide(39), world: accountWorlds.auto, keys: keysOf("g", "s", "v")},
+	{name: "overview-by-account-graphs-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("b", "g")},
+	{name: "overview-by-account-burn-down-220x50", size: watch.Size{Width: 220, Height: 50}, world: accountWorlds.auto, keys: keysOf("b", "g", "v")},
+	{name: "overview-by-account-graphs-140", size: watch.Size{Width: 140, Height: 48}, world: accountWorlds.auto, keys: keysOf("b", "g", "r", "c", "l")},
+	{name: "overview-pool-burn-down-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("b", "g", "v")},
+	{name: "overview-pool-220x50", size: watch.Size{Width: 220, Height: 50}, world: accountWorlds.auto, keys: keysOf("b", "g")},
+	{name: "overview-phone-burn-down-52", size: watch.Size{Width: 52, Height: 72}, world: accountWorlds.auto, keys: keysOf("g", "v", "r", "c", "l")},
 	{name: "routing-auto-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("p")},
 	{name: "routing-two-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("p", "2", "3")},
 	{name: "routing-move-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("p", "2", "m")},
 	{name: "routing-limit-160", size: wide(37), world: accountWorlds.limit, keys: keysOf("p", "3")},
 	{name: "history-year-160", size: wide(37), world: accountWorlds.auto, keys: toHistory()},
 	{name: "history-year-opus-160", size: wide(37), world: accountWorlds.auto, keys: toHistory("v")},
+	{name: "history-year-plan-unknown-160", size: wide(37), world: accountWorlds.sidesPlanUnknown, keys: toHistory()},
 	{name: "history-weeks-160", size: wide(37), world: accountWorlds.auto, keys: toHistory("]")},
 	{name: "history-weeks-columns-160", size: wide(37), world: accountWorlds.auto, keys: toHistory("]", "v")},
 	{name: "history-weeks-ten-160", size: wide(37), world: manyAccounts(10), keys: toHistory("]")},
@@ -370,9 +397,12 @@ var pages = []page{
 	{name: "history-days-ten-160", size: wide(37), world: manyAccounts(10), keys: toHistory("]", "]")},
 	{name: "history-tokens-160", size: wide(37), world: accountWorlds.auto, keys: toHistory("]", "]", "]")},
 	{name: "history-tokens-models-160", size: wide(37), world: accountWorlds.auto, keys: toHistory("]", "]", "]", "v")},
+	{name: "history-tokens-plan-unknown-160", size: wide(37), world: accountWorlds.sidesPlanUnknown, keys: toHistory("]", "]", "]")},
 	{name: "history-phone-year-52", size: watch.Size{Width: 52, Height: 35}, world: accountWorlds.auto, keys: toHistory()},
+	{name: "page-year-160x24", size: wide(24), world: accountWorlds.auto, keys: toHistory("j", "j", "j")},
 	{name: "page-routing", size: watch.Size{Width: 160, Height: 40}, world: accountWorlds.auto, keys: keysOf("p", "2", "3", "m")},
 	{name: "page-routing-phone", size: watch.Size{Width: 52, Height: 36}, world: accountWorlds.auto, keys: keysOf("p", "2", "m")},
+	{name: "page-routing-160x16", size: wide(16), world: accountWorlds.auto, keys: keysOf("p")},
 	{name: "page-not-answering", size: wide(37), world: accountWorlds.auto, keys: keysOf("R"), gone: true},
 	{name: "page-help-scrolled", size: wide(16), world: accountWorlds.auto, keys: keysOf("?", "j", "j", "j")},
 	{name: "log-events-160", size: wide(37), world: accountWorlds.auto, keys: toLog("]")},
@@ -402,8 +432,10 @@ var pages = []page{
 	{name: "session-turn-opened-160", size: wide(37), world: accountWorlds.auto, keys: toSession("d28c", downKey, enterKey), scale: storyScale},
 	{name: "session-phone-52", size: watch.Size{Width: 52, Height: 32}, world: accountWorlds.auto, keys: toSession("d28c"), scale: storyScale},
 	{name: "routing-session-160", size: wide(37), world: accountWorlds.auto, keys: toSession("9c2e", keysOf("p", "3")...), scale: storyScale},
+	{name: "page-session-loading", size: wide(37), world: accountWorlds.auto, keys: toSession("d28c"), scale: storyScale, loading: true},
 	{name: "accounts-compare-160", size: wide(37), world: accountWorlds.auto, keys: toAccounts()},
 	{name: "accounts-compare-month-160", size: wide(37), world: accountWorlds.auto, keys: toAccounts(">")},
+	{name: "accounts-compare-plan-unknown-160", size: wide(37), world: accountWorlds.sidesPlanUnknown, keys: toAccounts()},
 	{name: "accounts-compare-ten-160", size: wide(37), world: manyAccounts(10), keys: toAccounts()},
 	{name: "accounts-compare-bad-hour-160", size: wide(37), world: accountWorlds.badHour, keys: toAccounts()},
 	{name: "accounts-detail-all-160", size: wide(37), world: accountWorlds.auto, keys: toAccounts("]")},
@@ -413,9 +445,19 @@ var pages = []page{
 		name: "accounts-detail-sessions-160", size: wide(37), world: accountWorlds.auto, view: dashboard.Accounts,
 		keys: slices.Concat(keysOf("]"), repeated(downKey, 3), []tea.KeyPressMsg{rightKey, downKey}),
 	},
+	{
+		name: "page-detail-list-focus", size: wide(37), world: accountWorlds.auto, view: dashboard.Accounts,
+		keys: slices.Concat(keysOf("]"), repeated(downKey, 3)),
+	},
+	{
+		name: "page-detail-sessions-focus", size: wide(37), world: accountWorlds.auto, view: dashboard.Accounts,
+		keys: slices.Concat(keysOf("]"), repeated(downKey, 3), []tea.KeyPressMsg{rightKey, downKey}),
+	},
 	{name: "accounts-detail-one-160", size: wide(37), world: accountWorlds.oneLately, keys: toAccounts()},
 	{name: "accounts-phone-compare-52", size: watch.Size{Width: 52, Height: 48}, world: accountWorlds.auto, keys: toAccounts()},
 	{name: "accounts-phone-detail-52", size: watch.Size{Width: 52, Height: 41}, world: accountWorlds.auto, keys: toDetail(downKey)},
+	{name: "accounts-phone-compare-plan-unknown-52", size: watch.Size{Width: 52, Height: 48}, world: accountWorlds.sidesPlanUnknown, keys: toAccounts()},
+	{name: "accounts-phone-detail-plan-unknown-52", size: watch.Size{Width: 52, Height: 41}, world: accountWorlds.sidesPlanUnknown, keys: toDetail()},
 	{name: "sessions-switchboard-160", size: wide(37), world: accountWorlds.scene, keys: toSessions()},
 	{name: "sessions-list-160", size: wide(37), world: accountWorlds.scene, keys: toSessions("]")},
 	{name: "sessions-phone-52", size: phone(33), world: accountWorlds.scene, keys: toSessions()},
@@ -441,6 +483,9 @@ var pages = []page{
 		looked: &looked{after: movedAfter, listed: inTheFramesOrder(sceneSessions)},
 	},
 	{name: "page-sessions-120x30", size: watch.Size{Width: 120, Height: 30}, world: accountWorlds.scene, keys: toSessions()},
+	{name: "page-sessions-chosen", size: wide(37), world: accountWorlds.scene, keys: append(toSessions(), repeated(downKey, 4)...)},
+	{name: "page-sessions-short", size: wide(14), world: accountWorlds.scene, keys: append(toSessions(), repeated(downKey, 6)...)},
+	{name: "page-sessions-not-answering", size: wide(37), world: accountWorlds.scene, keys: toSessions("R"), gone: true},
 	{name: "runway-5-hour-160", size: wide(37), world: accountWorlds.auto, keys: toRunway()},
 	{name: "runway-week-160", size: wide(37), world: accountWorlds.auto, keys: toRunway(">")},
 	{name: "runway-stepped-back-160", size: wide(37), world: accountWorlds.auto, keys: append(toRunway(), leftKey, leftKey)},

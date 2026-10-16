@@ -201,9 +201,13 @@ type section struct {
 	// and goes, so only a layout made afresh, or its heading folded, asks.
 	lines       func() int
 	description func() line
-	draw        func(c *canvas, body bounds)
-	folded      func() line
-	targets     func(body bounds) []Target
+	// keyed reports whether its description is items blank spans apart, as
+	// a key's, which give way whole, as fitItems cuts them, where its
+	// heading has no room for them all.
+	keyed   bool
+	draw    func(c *canvas, body bounds)
+	folded  func() line
+	targets func(body bounds) []Target
 	// scrolling is how far the body scrolls in rows rows, scrolled offset
 	// down, as USAGE's does where its accounts are many: Most, the furthest,
 	// and Page, how many show at once from the offset, in accounts, or where
@@ -694,9 +698,10 @@ const leastRule = 1
 
 // sectionHeading draws the section's heading along its row, in the columns
 // it spans: its name in text.subtle; three cells on, what it says, as says
-// has it, where it says anything, cut to keep leastRule cells of rule; a
-// cell after that, or two after the name, a rule in border; and a cell on,
-// at its last column, the key that hides it, in bold accent.key.
+// has it, where it says anything, cut to keep leastRule cells of rule, as
+// fitted cuts it; a cell after that, or two after the name, a rule in
+// border; and a cell on, at its last column, the key that hides it, in bold
+// accent.key.
 func (f Frame) sectionHeading(c *canvas, p planned) {
 	h := p.head
 	key := h.x + h.width - 1
@@ -704,10 +709,20 @@ func (f Frame) sectionHeading(c *canvas, p planned) {
 	ruled := x + ruleGap
 	if says := f.says(p); len(says) > 0 {
 		at := x + headingGap
-		ruled = c.line(at, h.y, says.fit(key-at-leastRule-2)) + 1
+		ruled = c.line(at, h.y, p.fitted(says, key-at-leastRule-2)) + 1
 	}
 	c.text(ruled, h.y, rule(key-1-ruled), borderInk)
 	c.text(key, h.y, p.Key(), keyInk)
+}
+
+// fitted is what the section's heading says, as given, cut to width cells:
+// unfolded, of a section keyed, by whole items, as fitItems cuts them; else
+// word by word, as fit cuts it.
+func (p planned) fitted(says line, width int) line {
+	if p.keyed && !p.fold {
+		return says.fitItems(width)
+	}
+	return says.fit(width)
 }
 
 // says is what the section's heading says after its name: where it folds,
@@ -770,7 +785,8 @@ func (f Frame) overviewTargets(doc status.Document, now time.Time) []Target {
 
 // targetsOf are the click targets of the sections as they're laid out on the
 // page: each section's heading, which hides it, and the targets of the body
-// of each that doesn't fold; but none past the view's rows.
+// of each that doesn't fold; but none past the view's rows, nor an account's
+// row, which moves the focus, where the Overview has none, as Focuses says.
 func (f Frame) targetsOf(laid []planned) []Target {
 	var targets []Target
 	for _, p := range laid {
@@ -779,8 +795,8 @@ func (f Frame) targetsOf(laid []planned) []Target {
 			targets = append(targets, p.targets(p.body)...)
 		}
 	}
-	end := f.top() + f.viewRows()
-	return slices.DeleteFunc(targets, func(t Target) bool { return t.Y >= end })
+	end, focuses := f.top()+f.viewRows(), f.Focuses()
+	return slices.DeleteFunc(targets, func(t Target) bool { return t.Y >= end || t.On == OnAccount && !focuses })
 }
 
 // overviewScrolling is how far the Overview's USAGE of doc at now scrolls

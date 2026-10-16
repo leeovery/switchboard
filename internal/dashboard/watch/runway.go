@@ -12,6 +12,7 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -22,10 +23,11 @@ import (
 // lanes and COMING UP as the last look built them; the lanes themselves,
 // which hold what they judged of the past till what that's judged from
 // changes, and the moment of the message they were built at, as each is
-// built once; the readings history's live tail, read at each look for what
-// it gained, and the readings of each span stepped back to before it, read
-// once and held for the run; the readings the watch read of the documents it
-// read itself; the start of the first day the history holds, as the live
+// built once; the readings history's live tail, read for what it gained as
+// readRunway has it, which the pool's charts are judged by too, and the
+// readings of each span stepped back to before it, read once and held for
+// the run; the readings the watch read of the documents it read itself,
+// which join them; the start of the first day the history holds, as the live
 // tail last asked it, zero where it holds none, or failed to say; whether a
 // look since asks what the live tail gained; whether a read of the history
 // is under way, one at a time; and whether a failure to say where the
@@ -45,12 +47,14 @@ type runwayTab struct {
 }
 
 // readingsTail is a read of the readings history over a span, as
-// views.Readings' Tail reads it, and what it read last: none before its
-// first read lands.
+// views.Readings' Tail reads it; what it read last, none before its first
+// read lands; and when that read was asked, so it holds every reading by
+// then, zero before the first lands.
 type readingsTail struct {
-	span readingsSpan
-	read func() []readings.Reading
-	held []readings.Reading
+	span    readingsSpan
+	read    func() []readings.Reading
+	held    []readings.Reading
+	through time.Time
 }
 
 // heldSpan is what a read of the readings history over a span read.
@@ -71,12 +75,13 @@ func (s readingsSpan) is(o readingsSpan) bool {
 }
 
 // runwayReadMsg is what a read of the readings history over the span read
-// found; where it asked, the start of the first day the history holds, zero
-// where it holds none, or failed to say, and why; and where the ledger
-// began, where it asked that.
+// found, and when it was asked; where it asked, the start of the first day
+// the history holds, zero where it holds none, or failed to say, and why;
+// and where the ledger began, where it asked that.
 type runwayReadMsg struct {
 	span      readingsSpan
 	held      []readings.Reading
+	asked     time.Time
 	keptAsked bool
 	kept      time.Time
 	keptErr   error
@@ -89,16 +94,20 @@ type runwayReadMsg struct {
 // began in it.
 const carriedFor = 7
 
-// liveSpan is the span of the readings history the live tail reads at now,
-// weeks starting on the day given: from the start of the day before now's,
-// of this week, or of the week's live view, whichever is earliest, so the
-// live views, today and this week are each read of it, to a week on from
-// now's day, each window's run from a week before carried in. The week's
-// live view starts before the day before now's in the hour after the clocks
-// go forward. It moves as the day turns, and the tail is read afresh then,
-// but only what the history gains at each look between.
-func liveSpan(now time.Time, starts time.Weekday) readingsSpan {
-	start := slices.MinFunc([]time.Time{dayfile.DayStart(now, -1), views.WeekStart(now, starts), views.LiveTimeline(views.RunwayWeek, now, 0).Start}, time.Time.Compare)
+// liveSpan is the span of the readings history the live tail reads at now:
+// from the start of the day a week before now's, or of the day a week back
+// from now falls on, where that's earlier, as it is in the hour after
+// midnight for a week after the clocks go forward, so the live views, today,
+// this week, whichever day it starts on, and the pool's charts, reaching a
+// week back from now, are each read of it, to a week on from now's day, each
+// window's run from a week before carried in. It moves as the day turns, and
+// as the day a week back from now falls on does, and the tail is read afresh
+// then, but only what the history gains at each look between.
+func liveSpan(now time.Time) readingsSpan {
+	start := dayfile.DayStart(now, -7)
+	if weekBack := dayfile.DayStart(now.Add(-7*quota.Day), 0); weekBack.Before(start) {
+		start = weekBack
+	}
 	return readingsSpan{from: dayfile.DayStart(start, -carriedFor), start: start, end: dayfile.DayStart(now, 7)}
 }
 
@@ -244,7 +253,7 @@ func (m Model) runwayBuilt() Model {
 		return m
 	}
 	now := m.now()
-	mo, tl, live := m.moment(now), m.runwayTimeline(now), liveSpan(now, m.cfg.WeekStarts)
+	mo, tl, live := m.moment(now), m.runwayTimeline(now), liveSpan(now)
 	t.lanes = t.looking()(t.lanes, views.LanesFrom{
 		Moment: mo, Readings: t.readingsOf(spanOf(tl, live), live), Days: m.runwayDays(tl, now), Kept: t.kept, Seen: t.seen.from(), Timeline: tl, Window: t.shown.Window,
 	})
@@ -319,32 +328,39 @@ func (m Model) runwayDays(tl views.Timeline, now time.Time) []ledger.Summary {
 }
 
 // readRunway has the watch read the readings history for Runway's lanes
-// while it shows, as a command, once no read of it is under way, as
-// readingsRead reads it: a span stepped back to before the live one, of a
-// day or a week gone, once, its readings held for the run; else the live
-// tail, made afresh as its span moves, as the day turns, and read at once,
-// then at each look since, as due says, for what it gained. A read of the
-// live tail asks where the history begins as its span moves, and at a look
-// while that's unknown, as on a fresh install, or after a failure to say.
-// Without a reader, nothing.
+// while it shows, or for the pool's charts while they do, as a command, once
+// no read of it is under way, as readingsRead reads it: a span of Runway's
+// stepped back to before the live one, of a day or a week gone, once, its
+// readings held for the run; else the live tail, made afresh as its span
+// moves, as the day turns, and read at once, then at each look since, as due
+// says, for what it gained: for the pool's charts alone, only once their
+// past is judged through a moment after the last read was asked, as
+// poolBehind says, as what it gains till then is judged at none of their
+// columns. A read of the live tail asks where the history begins as its span
+// moves, and at a look while that's unknown, as on a fresh install, or after
+// a failure to say. Without a reader, nothing.
 func (m Model) readRunway() (Model, tea.Cmd) {
 	t := m.runwayTab
-	if m.view != dashboard.Runway || m.session != nil || m.cfg.Readings == nil || t.reading {
+	runway := m.view == dashboard.Runway && m.session == nil
+	if !runway && len(m.pool.charts) == 0 || m.cfg.Readings == nil || t.reading {
 		return m, nil
 	}
 	now := m.now()
-	live := liveSpan(now, m.cfg.WeekStarts)
-	read := historyRead{span: spanOf(m.runwayTimeline(now), live)}
+	live := liveSpan(now)
+	read := historyRead{span: live}
+	if runway {
+		read.span = spanOf(m.runwayTimeline(now), live)
+	}
 	switch _, held := t.holds(read.span); {
 	case !read.span.is(live) && held:
 		return m, nil
 	case !read.span.is(live):
 		read.tail = m.cfg.Readings.Tail(read.span.from, read.span.start, read.span.end)
 	case !live.is(t.live.span) || t.live.read == nil:
-		t.live = readingsTail{span: live, read: m.cfg.Readings.Tail(live.from, live.start, live.end), held: t.live.held}
+		t.live = readingsTail{span: live, read: m.cfg.Readings.Tail(live.from, live.start, live.end), held: t.live.held, through: t.live.through}
 		t.seen = t.seen.since(live.from)
 		read.tail, read.kept = t.live.read, m.cfg.Readings
-	case t.due:
+	case t.due && (runway || m.poolBehind(t.live.through, now)):
 		read.tail, t.due = t.live.read, false
 		if t.kept.IsZero() {
 			read.kept = m.cfg.Readings
@@ -371,7 +387,7 @@ type historyRead struct {
 // cmd is the read, at now, as a command.
 func (r historyRead) cmd(now time.Time) tea.Cmd {
 	return func() tea.Msg {
-		msg := runwayReadMsg{span: r.span, held: r.tail()}
+		msg := runwayReadMsg{span: r.span, held: r.tail(), asked: now}
 		if r.kept != nil {
 			msg.keptAsked = true
 			msg.kept, msg.keptErr = historyKept(r.kept)
@@ -397,15 +413,16 @@ func historyKept(history views.Readings) (time.Time, error) {
 }
 
 // runwayRead takes in what a read of the readings history found: the live
-// tail's, held in place of what it read last; or a span's stepped back to,
-// held for the run; the first day the history holds, where the read asked,
-// and where it couldn't be said, logged, the first time alone; and where
-// the ledger began, where it asked that, as History learns it.
+// tail's, held in place of what it read last, read through when it was
+// asked; or a span's stepped back to, held for the run; the first day the
+// history holds, where the read asked, and where it couldn't be said,
+// logged, the first time alone; and where the ledger began, where it asked
+// that, as History learns it.
 func (m Model) runwayRead(msg runwayReadMsg) Model {
 	t := m.runwayTab
 	t.reading = false
 	if msg.span.is(t.live.span) {
-		t.live.held = msg.held
+		t.live.held, t.live.through = msg.held, msg.asked
 	} else {
 		t.back = append(slices.Clip(t.back), heldSpan{span: msg.span, held: msg.held})
 	}

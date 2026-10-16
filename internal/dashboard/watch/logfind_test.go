@@ -381,6 +381,71 @@ func TestARefilteredTableReadsBackNoFurtherThanTheDaysSummariesSayItsLinesReach(
 	}
 }
 
+// The Events refiltered to some kinds read back no further than the
+// earliest event of them the router filed, its files read for it, though
+// the ledger and the files go back thirty days: shown through every kind, a
+// pin a day fills their view twenty days back; then through limits alone,
+// the first filed 25 days back, they read back to that day, where they stand
+// filled, short of their view; and through a kind none was filed of, no day
+// at all. Each day read back is read whole, so the days read are counted.
+func TestTheEventsRefilteredToAKindReadBackNoFurtherThanItsFirstEventFiled(t *testing.T) {
+	settled := func(h *harness) {
+		for range 40 {
+			h.deliver(h.update(frameMsg{gen: h.model.frames})...)
+		}
+	}
+	tests := []struct {
+		name  string
+		kinds []string
+		reach int
+	}{
+		{name: "limits alone, the first 25 days back", kinds: []string{status.EventLimit}, reach: 25},
+		{name: "a kind none was filed of", kinds: []string{status.EventCap}, reach: 20},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := t.TempDir()
+			var lines []ledger.Held
+			var filed []events.Line
+			for d := range 31 {
+				for i := range 20 {
+					lines = append(lines, ranIn(fmt.Sprintf("0d%02d%04d", d, i), webSession, "~/Code/web", -time.Duration(d)*day+time.Duration(i)*time.Minute))
+				}
+				if d > 0 {
+					filed = append(filed, events.Line{ID: d, At: past(-time.Duration(d) * day), Kind: status.EventPin, Accounts: []string{"work"}, Run: past(-40 * day)})
+				}
+			}
+			limit := past(-25*day + time.Hour)
+			filed = append(filed, events.Line{ID: 100, At: limit, Kind: status.EventLimit, Account: "side", Windows: []string{"5h"}, Run: past(-40 * day)})
+			writeLines(t, state, lines...)
+			writeEvents(t, state, filed...)
+			h := newHarness(t, probedWithoutTheRouter())
+			h.update(tea.WindowSizeMsg{Width: 150, Height: 50})
+			l := onTheLog(h, state)
+			h.model.cfg.Events = events.NewReader(state, h.clock.Now, logs.For("watch"))
+			h.start()
+			h.typed("]")
+			settled(h)
+			before := len(l.days)
+
+			h.keyed("f")
+			h.model.log.panel.Shows.Kinds = tt.kinds
+			h.keys(enter)
+			settled(h)
+			var want []string
+			for d := 21; d <= tt.reach; d++ {
+				want = append(want, dayfile.DateOf(past(-time.Duration(d)*day)))
+			}
+			if got := l.days[before:]; !slices.Equal(got, want) {
+				t.Errorf("the Events read back the days %v, want %v", got, want)
+			}
+			if got := h.model.log.from.Date; got != dayfile.DateOf(past(-time.Duration(tt.reach)*day)) {
+				t.Errorf("the tables span from %s, want %d days back", got, tt.reach)
+			}
+		})
+	}
+}
+
 // The Events through a session, paused at their top, read back past the
 // first day of its lines, which bounds only their filling: its first
 // request, two days back, lost as the router went away, the router filed

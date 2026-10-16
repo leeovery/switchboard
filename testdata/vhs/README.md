@@ -100,7 +100,10 @@ frame, with the cells `cells_test.go` reads and compares:
 - **The cells passed over** are `passedOver`, by stem: a row, or a row's cells from one column to
   another, each with what the frame's `.txt` reads there: the words it starts with; or blank; or,
   where the frame draws a trace or a chart from data no world gives, those glyphs alone, a chart's
-  lines among them. A test checks each, as it checks that this file names every stem in it.
+  lines among them. A test checks each, as it checks that this file names every stem in it. A
+  passing can instead redraw a glyph, where the design has since drawn it otherwise: its row is
+  held to the frame as though the frame drew the new glyph for the old, each cell's colours and
+  weight as the frame has them, and the frame must draw the old glyph there.
 
 ## The cells passed over
 
@@ -141,7 +144,10 @@ as Keys has them:
   `overview-six-accounts-160`; 42 of `overview-by-account-160`; 53 of `overview-ten-accounts-160`;
   70 of `overview-default-216`, `overview-sessions-216` and `overview-sessions-graphs-216`; and 106
   of `overview-everything-216x106`. The frames end it `↑↓ focus  0 auto  1-3 pin  m move  ? help
-  q quit`; the dashboard, `↑↓ focus  p pin  ? help  q quit`.
+  q quit`; the dashboard, `↑↓ focus  p pin  ? help  q quit`. Where GRAPHS shows, in
+  `overview-everything-160x39`, `overview-sessions-graphs-216` and `overview-everything-216x106`,
+  the dashboard draws `v chart: burn-up` before them too, which the frames, drawn before GRAPHS had
+  two charts, lack.
 - **ROUTING's heading under a pin,** row 19 of `overview-pinned-160` and `overview-bad-hour-160`,
   which ends `0 back to auto` in the frames, and `p back to auto` in the dashboard.
 - **The period on Accounts' and History's heading row,** row 5, from the rule's last two cells to
@@ -342,6 +348,10 @@ which the dashboard draws as its world gives it:
   COMING UP's and LATELY's names in their colours: in `overview-pinned-160`, `work` at columns 8 to
   11 and 92 to 95 of row 34, and `side` at 134 to 137 of row 34 and 8 to 11 of row 35; in
   `overview-bad-hour-160`, `work` at 92 to 95 of row 34.
+- **The focused account lit across its whole name column,** where the frames light its first 12
+  cells: work's row, row 9, columns 13 and 14, of `overview-everything-160x39` and
+  `overview-sessions-graphs-216`, the dashboard lighting 14 cells of the sample's 16-cell column,
+  all but the gap before the bars (the owner's call, 15 October 2026).
 
 **The Overview, and the page behind the routing card, where their worlds give otherwise** (see What
 the worlds give otherwise than the frames), which the dashboard draws as its world gives it:
@@ -534,6 +544,11 @@ frames):
   `◔`, in `accent.attention`.
 - **Detail's key line** in `accounts-detail-sessions-160`, under Key lines drawn before the keys were
   swept, above.
+- **The chosen rows, lit where the focus is,** in `accounts-detail-sessions-160`, whose fixture
+  reaches SESSIONS: the list's chosen row, side's, row 13, columns 1 to 17, which the frame lights,
+  bold and unlit, `▸` in bold `accent.key` at column 1, and `SESSIONS`, row 28, columns 25 to 32,
+  which the frame draws in `text.subtle`, bold `text.primary`, as the focus is on the sessions (the
+  owner's call, 15 October 2026).
 
 **Accounts, where its worlds give otherwise** (see What the worlds give otherwise than the frames),
 which the dashboard draws as its world gives it:
@@ -562,7 +577,12 @@ which the dashboard draws as its world gives it:
   not summed from its rows: BY MODEL's `53%`, `4%`, `4%` and `1%`, rows 13, 14, 16 and 17, the
   world's 55%, 3%, 2% and 2%; and `12,598` requests, `51` sessions served, `10 moves`, `9h 57m` at cap
   or limit, `$1,342` and `3.4×`, rows 21 to 23, 27, 33 and 34, the world's 11,698, 53, 5, 13h 31m,
-  $1,310 and 3.3×.
+  $1,310 and 3.3×. Work's bar, row 12, column 40, Sonnet 5.5's last cell in the frame, drawn in
+  Sonnet 5's shade: the world's week is its shares, 55%, 7%, 28% and 3%, to a picodollar's
+  rounding, so Opus 5.5, Opus 5 and Sonnet 5.5 end at half a cell, and that rounding decides which
+  of Sonnet 5.5 and Sonnet 5 has the cell. It tipped once quota checks were worth nothing (the
+  owner's call, 15 October 2026), their tenth of a cent of Haiku 4.5 moving from today's lines to
+  the days before.
 - **The 30 days,** typed, in `accounts-compare-month-160`: each column's requests, sessions served,
   moves, limits hit, time at cap or limit, worth and against its price, rows 21 to 23, 26, 27, 33
   and 34, from column 27, but all accounts' `31 moves`, which the world gives; and all accounts' BY
@@ -635,6 +655,18 @@ frames), which the dashboard draws as its world gives it:
 
 **Runway, where its frames and the design part** (see Runway in `docs/design.md`):
 
+- **Room, the full cell.** The frames draw a lane's room `▆`, the lower three quarters of a cell,
+  so a held column's `─` meets it above its middle and a reset's `│` stands taller than it; the
+  design has since drawn it `█`, the full cell, the legend's swatches with it. Each of these rows
+  is held to its frame with its `▆` read as `█`, its colours and weight as the frame has them:
+  rows 11, 14 and 17, the lanes, and 24, the legend, of `runway-5-hour-160`, `runway-week-160` and
+  `runway-stepped-back-160`; rows 10, 12, 14, 16, 18, 20, 22, 24, 26 and 28, the lanes, and 34,
+  the legend, of `runway-ten-accounts-160`; and rows 12, 15 and 18, the lanes, and 25, the legend,
+  of `runway-phone-52`. The pool's part-filled `▆`, on rows of their own, stay as the frames draw
+  them. The dashboard's own frame tests read the same rows the same way, through a `redrawn` of
+  their own in `internal/dashboard/reference_test.go`, as they read the frames apart from
+  capture's.
+
 - **The pool's part-filled cell in now's column,** which the frames draw on the canvas, where the
   design puts now's column's `bg.subtle` behind the gradient's empty part: row 20, column 31 of
   `runway-5-hour-160`; row 20, column 44 of `runway-week-160`; row 31, column 31 of
@@ -699,6 +731,10 @@ which the dashboard draws as its world gives it:
 - **Where auto would send it,** `: side for now`, row 17, columns 77 to 94 of
   `routing-session-160`: the frame predates the owner's call, and the router names where it would
   send it, its own rule keeping 9c2e where it runs, so the dashboard draws `: personal for now`.
+- **f41a's worth on personal,** `$114.10`, row 21, columns 154 to 160 of `session-resumed-160`: the
+  frame rounds each stay's worth on its own, so its rows come to `$128.18`, a cent short of TURNS'
+  `$128.19`; the frame predates the owner's call (15 October 2026) that the rows add up to TURNS'
+  total, so the dashboard draws `$114.11`.
 - **The key lines** of `session-phone-52` and `session-turn-opened-160`, under Key lines drawn before
   the keys were swept, above.
 
@@ -718,8 +754,8 @@ frames), which the dashboard draws as its world gives it:
   row 20 of `session-quiet-160`; on a phone, rows 19 and 20, from column 12, of `session-phone-52`.
 - **d28c's stays,** its work's ending `14:31`, row 20, columns 23 to 27, where its last request
   there came at 14:30, and their worth, `$41.06` and `$7.14`, rows 20 and 21, columns 155 to 160 and
-  156 to 160, which the world gives `$41.09` and `$7.12`; on a phone, rows 19 and 20, columns 47 to
-  52 and 48 to 52.
+  156 to 160, which the world gives `$41.09` and `$7.11`, adding up to TURNS' `$48.20`; on a phone,
+  rows 19 and 20, columns 47 to 52 and 48 to 52.
 - **b9c4's end,** `18:47`, at the start of row 7, columns 17 to 21, and on row 21, columns 33 to 37,
   and how long it ran, `5h 27m`, row 7, columns 155 to 160, where its last request came at 18:46,
   in the 11 minutes its last turn took from 18:36; its stay on work ending `16:02`, row 20, columns
@@ -951,6 +987,15 @@ costs; `page-help-scrolled`, the help over the Overview on a terminal 16 rows ta
 three rows with `j`; and `page-not-answering`, the auto world's router gone as `R` reads it, the
 status line saying so and since when, and `p pin` faint on the key line. Each is drawn over the
 auto world, its records and the sessions its router lists.
+
+Where no frame draws them, these draw a page shorter or otherwise than the frames, to judge by eye
+with `--print`, each over the auto world: `page-year-160x24`, the Year at 160 × 24, reached with
+`tab` twice, scrolled down three rows with `j`, its last row saying what's out of view;
+`page-routing-160x16`, the routing card as `p` opens it on a terminal 16 rows tall, shorter than
+the card, its keys kept at its foot; and Detail with each part holding the focus, opening on
+Accounts with `]` and `↓` three times to side: `page-detail-list-focus`, the list's row lit and
+c61b's bold, and `page-detail-sessions-focus`, with `→` and `↓` into side's SESSIONS, d28c's row
+lit and the list's bold, `▸` before it.
 
 Stage 9's, `log-*`, draw the Log's frames, the Log reached from the Overview with `shift-tab`:
 `log-requests-160` and, on a phone, `log-requests-phone-52`, as it opens, on Requests;

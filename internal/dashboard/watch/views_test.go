@@ -215,6 +215,43 @@ func TestBSwitchesHowTheWindowsAreGroupedAndKeepsIt(t *testing.T) {
 	}
 }
 
+func TestVFlipsGRAPHSChartWhileItShowsAndKeepsIt(t *testing.T) {
+	h := routedHarness(t, routerDocument(three()...))
+	prefs := &fakePrefs{}
+	h.model.cfg.Prefs = prefs
+	h.start()
+
+	h.typed("v")
+	if h.model.burn != dashboard.BurnUp || prefs.updates > 0 || strings.Contains(h.keyLine(), "v chart") {
+		t.Errorf("v with GRAPHS hidden: drawing the %s, kept %d times, the key line %q; want nothing changed, and v unlisted",
+			h.model.burn.Name(), prefs.updates, h.keyLine())
+	}
+	h.typed("g")
+	for _, want := range []struct {
+		burn dashboard.Burn
+		kept string
+	}{{burn: dashboard.BurnDown, kept: "burn-down"}, {burn: dashboard.BurnUp, kept: ""}} {
+		h.typed("v")
+		said := "v chart: " + want.burn.Name()
+		if h.model.burn != want.burn || prefs.kept.Graphs != want.kept || !strings.Contains(h.keyLine(), said) || h.model.frame(h.clock.now).Burn != want.burn {
+			t.Errorf("after v, drawing the %s, kept %q, the key line %q; want the %s, kept as %q, and %q said",
+				h.model.burn.Name(), prefs.kept.Graphs, h.keyLine(), want.burn.Name(), want.kept, said)
+		}
+	}
+	if !slices.Equal(prefs.kept.Sections, dashboard.Sections{}.Toggled(dashboard.SectionGraphs).Names()) || prefs.kept.By != "" {
+		t.Errorf("v kept the sections %q and the grouping %q, want neither touched but by g", prefs.kept.Sections, prefs.kept.By)
+	}
+}
+
+func TestTheWatchOpensOnTheChartThePreferencesKept(t *testing.T) {
+	h := routedHarness(t, routerDocument(three()...))
+	h.model = New(t.Context(), func() Config { c := h.model.cfg; c.Burn = dashboard.BurnDown; return c }())
+	h.start()
+	if got := h.model.frame(h.clock.now).Burn; got != dashboard.BurnDown {
+		t.Errorf("kept the burn-down, the watch opens drawing the %s", got.Name())
+	}
+}
+
 func TestTheSectionsOrGroupingThatCantBeKeptAreShownAllTheSame(t *testing.T) {
 	log := logstest.Capture(t)
 	h := routedHarness(t, routerDocument(three()...))

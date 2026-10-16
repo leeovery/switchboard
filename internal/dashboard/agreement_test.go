@@ -41,6 +41,9 @@ func TestTheViewsAgreeAtEachHardMoment(t *testing.T) {
 					agree(t, of+" resets", d.resets(a, w))
 				}
 			}
+			for _, w := range d.moment.Pool().Windows {
+				agree(t, "the pool's "+w.Key+" is used", d.poolUsed(w.Key))
+			}
 		})
 	}
 }
@@ -61,10 +64,10 @@ func agree(t *testing.T, fact string, says []viewSays) {
 }
 
 // drawn are the views of a document at a moment, each as it's drawn: USAGE,
-// ROUTING, the routing card, COMING UP, the status line, and Runway's live
-// views, the 5-hour's and the week's; and the moment, which says which
-// accounts and windows there are, and which account and window each thing
-// COMING UP says is of, in its order.
+// ROUTING, the routing card, COMING UP, the status line, Runway's live
+// views, the 5-hour's and the week's, and the pool's charts; and the
+// moment, which says which accounts and windows there are, and which account
+// and window each thing COMING UP says is of, in its order.
 type drawn struct {
 	now        time.Time
 	moment     status.Moment
@@ -74,15 +77,21 @@ type drawn struct {
 	coming     []happening
 	statusLine statusLine
 	runway     map[views.RunwayWindow]Frame
+	poolCharts []poolChart
 }
 
 // drawnAt is each view of doc at now, as a frame as wide as the frames draws
-// it: Runway's with its lanes built at the moment, as the watch builds them,
-// with nothing read before.
+// it: Runway's with its lanes built at the moment, and the pool's charts with
+// its room in each window, as the watch builds them, with nothing read
+// before.
 func drawnAt(t *testing.T, doc status.Document, now time.Time) drawn {
 	t.Helper()
 	f := frameOf(160, 40).At(doc, now)
 	m := f.Moment(doc, now)
+	f.PoolRooms = make(map[string]views.PoolRoom)
+	for _, w := range m.Pool().Windows {
+		f.PoolRooms[w.Key] = views.PoolRoom{}.Look(views.PoolRoomFrom{Moment: m, Key: w.Key, Columns: 25})
+	}
 	d := drawn{
 		now: now, moment: m,
 		usage:      newUsageBlock(m, 160, Look{}, ByWindow, usageWindows(m, nil, labelsOf(m))),
@@ -91,6 +100,7 @@ func drawnAt(t *testing.T, doc status.Document, now time.Time) drawn {
 		coming:     f.upcoming(doc, now),
 		statusLine: f.pageStatus(doc, now),
 		runway:     make(map[views.RunwayWindow]Frame),
+		poolCharts: f.poolChartsOf(doc, m),
 	}
 	if len(d.coming) != len(m.ComingUp) {
 		t.Fatalf("COMING UP says %d things, want the moment's %d", len(d.coming), len(m.ComingUp))
@@ -183,8 +193,9 @@ func (d drawn) place(a status.AccountNow) int {
 
 // back is when each view says account a is back, where ROUTING says a limit
 // or its cap holds it back from every request until a time it knows:
-// ROUTING, and Runway's lane, in the words of the stretch holding it at now,
-// as "back 17:10". Where a window running out before then carries the hold
+// ROUTING, and Runway's lane, in the words of the run of stretches holding it
+// at now, its last's, as "back 17:10", those before it saying when they lift
+// alone. Where a window running out before then carries the hold
 // on to the window's reset, Runway says it's back then, as ROUTING doesn't,
 // so Runway is left out. A hold on some models' requests alone, which no
 // lane draws, and a refused token, of which ROUTING says no back and Runway
@@ -201,9 +212,21 @@ func (d drawn) back(a status.AccountNow) []viewSays {
 	}
 	runway := "not held at now"
 	if ln := d.lane(a, views.RunwayFiveHour); ln.heldAt(d.runway[views.RunwayFiveHour].Runway.Timeline.NowColumn()) {
-		runway = backSaid(cmp.Or(append(d.runwaySays(a, views.RunwayFiveHour), "")...))
+		runway = runBack(d.runwaySays(a, views.RunwayFiveHour))
 	}
 	return append(says, viewSays{"Runway", runway})
+}
+
+// runBack is when the first run of stretches the phrases given say is back,
+// as backSaid has it of the first phrase that says so: "no back" where none
+// does.
+func runBack(phrases []string) string {
+	for _, p := range phrases {
+		if said := backSaid(p); said != "no back" {
+			return said
+		}
+	}
+	return "no back"
 }
 
 // backSaid is when the words given first say something's back, as "back
@@ -267,7 +290,7 @@ func cardStands(r RoutingRow) string {
 // window a request starts, ROUTING where it says the account's idle.
 func (d drawn) running(a status.AccountNow, w status.WindowNow) []viewSays {
 	chart := "running"
-	if !chartOf(a, shownWindow{key: w.Key, name: w.Name}, Trail{}, d.now).spanned {
+	if !chartOf(a, shownWindow{key: w.Key, name: w.Name}, Trail{}, d.now, BurnUp).spanned {
 		chart = "not started"
 	}
 	says := []viewSays{{"GRAPHS", chart}}
@@ -317,6 +340,25 @@ func (d drawn) used(a status.AccountNow, w status.WindowNow) []viewSays {
 	return says
 }
 
+// poolUsed is how much of the pool's window with the given key each view
+// says is used: USAGE's Σ pool bar, and the pool's chart of it at now, its
+// last column.
+func (d drawn) poolUsed(key string) []viewSays {
+	var says []viewSays
+	if n := len(d.usage.rows); n > 0 && d.usage.rows[n-1].pool {
+		if j := slices.IndexFunc(d.usage.windows, func(w shownWindow) bool { return w.key == key }); j >= 0 {
+			says = append(says, viewSays{"USAGE's Σ pool", prose.Percent(d.usage.rows[n-1].gauges[j].bar.used)})
+		}
+	}
+	for _, pc := range d.poolCharts {
+		if room := pc.room; pc.key == key && room.Of > 0 {
+			last := room.Columns[len(room.Columns)-1]
+			says = append(says, viewSays{"the pool's chart", prose.Percent(1 - last.Room/float64(room.Of))})
+		}
+	}
+	return says
+}
+
 // figure is the routing card's figure of account a's window w, reporting
 // false where the card has none of it.
 func (d drawn) figure(a status.AccountNow, w status.WindowNow) (Figure, bool) {
@@ -354,7 +396,8 @@ func staleness(stale bool) string {
 }
 
 // runsOut is where each view says account a's window w runs out, as "out ~"
-// and when, or "nowhere": USAGE's words; COMING UP, of an account that could
+// and when, or "nowhere": USAGE's words; GRAPHS' burn-down, where it draws
+// ✕; COMING UP, of an account that could
 // take a request as the document was built, as it gates those that couldn't
 // (D3); ROUTING's pressure, of the pressure window while it says the
 // account's under pressure, but of one stale, as the router's pressure goes
@@ -370,6 +413,11 @@ func (d drawn) runsOut(a status.AccountNow, w status.WindowNow) []viewSays {
 		}
 		says = append(says, viewSays{"USAGE", usage})
 	}
+	burnDown := "nowhere"
+	if ch := chartOf(a, shownWindow{key: w.Key, name: w.Name}, Trail{}, d.now, BurnDown); !ch.course.out.IsZero() {
+		burnDown = "out ~" + prose.Dated(d.now, ch.course.out)
+	}
+	says = append(says, viewSays{"GRAPHS", burnDown})
 	if built, _ := d.moment.At(d.moment.ReadAt).Account(a.ID); built.CanRise {
 		says = append(says, viewSays{"COMING UP", d.comingOut(a, w)})
 	}
@@ -431,7 +479,7 @@ func (d drawn) comingOut(a status.AccountNow, w status.WindowNow) string {
 // window resets.
 func (d drawn) resets(a status.AccountNow, w status.WindowNow) []viewSays {
 	var says []viewSays
-	if ch := chartOf(a, shownWindow{key: w.Key, name: w.Name}, Trail{}, d.now); ch.spanned {
+	if ch := chartOf(a, shownWindow{key: w.Key, name: w.Name}, Trail{}, d.now, BurnUp); ch.spanned {
 		says = append(says, viewSays{"GRAPHS", prose.Dated(d.now, ch.start.Add(ch.length))})
 	}
 	for i, u := range d.moment.ComingUp {

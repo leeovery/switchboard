@@ -279,16 +279,17 @@ func (l daysLayout) shown() (from, to int) {
 	return l.scrolled, l.scrolled + l.scrolling().Page
 }
 
-// daysScrolling is how far Days scrolls: laid out whole, by rows; else BY
-// ACCOUNT, by accounts; zero where they fit, or there's nothing to draw.
-func (f Frame) daysScrolling() Scrolling {
+// daysScrolling is how far Days scrolls, scrolled offset down: laid out
+// whole, by rows; else BY ACCOUNT, by accounts; zero where they fit, or
+// there's nothing to draw.
+func (f Frame) daysScrolling(offset int) Scrolling {
 	p := f.History.Days
 	if p == nil || !p.Recorded() || f.cramped() {
 		return Scrolling{}
 	}
 	l := f.layOutDays(*p, f.top())
 	if l.whole {
-		return l.paged(f).scrolling(f.Scroll)
+		return l.paged(f).scrolling(offset)
 	}
 	return l.scrolling()
 }

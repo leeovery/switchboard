@@ -267,17 +267,29 @@ func (s *story) latestMove(model string) *move {
 // write again on its next request anyway: unless flying says a request of
 // its model is in flight, keeping its cache warm.
 func (s *story) moveCost(now time.Time, flying func(model string) bool) (ledger.Picodollars, bool) {
-	prompt := s.used
+	prompt, life, cold := s.moving()
+	if prompt == nil {
+		return 0, false
+	}
+	if !flying(prompt.Model) && !now.Before(cold) {
+		return 0, false
+	}
+	return s.prices.Rewrite(prompt, life, s.day.Date)
+}
+
+// moving is what moveCost prices a move by: the prompt written again, nil
+// where none is known; how long its thread's writes to the cache last; and
+// the first moment its cache has run out since its thread's last request
+// ended.
+func (s *story) moving() (prompt *ledger.Line, life time.Duration, cold time.Time) {
+	prompt = s.used
 	if s.classed {
 		prompt = s.usedMain
 	}
 	if prompt == nil {
-		return 0, false
+		return nil, 0, time.Time{}
 	}
 	thread := threadOf(prompt)
-	life := s.life(thread)
-	if !flying(prompt.Model) && now.Sub(s.ends[thread]) > life {
-		return 0, false
-	}
-	return s.prices.Rewrite(prompt, life, s.day.Date)
+	life = s.life(thread)
+	return prompt, life, s.ends[thread].Add(life + time.Nanosecond)
 }

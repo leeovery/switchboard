@@ -148,8 +148,8 @@ func TestTheStreamsRequestsAreCountedOnceEachWhicheverTellsOfThemFirst(t *testin
 		t.Fatal("once the stream ended, no rejoin was armed")
 	}
 	h.fire(rejoin)
-	if !slices.Equal(l.given, []int{1, 3}) {
-		t.Fatalf("today's lines were read %v, want once as the stream opened, and again as it was joined again", l.given)
+	if !slices.Equal(l.given, []int{1, 1, 3, 3}) {
+		t.Fatalf("today's lines were read %v, want once as the stream opened, and once by the tail as it told of a request ended, whose line it awaits; then again as it was joined again, and by the tail, as it opened again", l.given)
 	}
 	for account, w := range want {
 		if got := tracedOn(h, account); !slices.Equal(got, w) {

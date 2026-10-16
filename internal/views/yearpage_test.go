@@ -321,13 +321,13 @@ func TestTheYearsNumbersCountTheTwelveMonths(t *testing.T) {
 			// $5 + $6 + $5 + $4 of 23 requests, against work's $200 and
 			// side's $20 a month, over the year's 365 days.
 			name: "all use",
-			want: `{"Requests":23,"Sessions":5,"Limits":{"5h":2,"7d":1},"worth":20,"cost":2640,"against":0.007575757575757576,` +
+			want: `{"Requests":23,"Sessions":5,"Limits":{"5h":2,"7d":1},"worth":20,"cost":2640,"against":0.007575757575757576,"plans":{"known":2,"of":3},` +
 				`"BusiestDay":"2025-10-08","LongestRun":2,"Share":null,"FirstUsed":""}`,
 		},
 		{
 			// Work's own, against its own plan.
 			name: "an account's alone", ask: views.YearAsk{Account: "work"},
-			want: `{"Requests":17,"Sessions":4,"Limits":{"5h":2,"7d":1},"worth":17,"cost":2400,"against":0.007083333333333333,` +
+			want: `{"Requests":17,"Sessions":4,"Limits":{"5h":2,"7d":1},"worth":17,"cost":2400,"against":0.007083333333333333,"plans":{"known":1,"of":1},` +
 				`"BusiestDay":"2025-10-08","LongestRun":2,"Share":null,"FirstUsed":""}`,
 		},
 		{
@@ -430,14 +430,16 @@ func TestByMonthMarksTheMonthTheLedgerBeganAndTheMonthSoFar(t *testing.T) {
 			want: []string{"2025-10 cost 173.58904109589 from  so far false", "2026-10 cost 220 from  so far true"},
 		},
 		{
+			// September from the ledger's first day, the 15th, is 16 days at
+			// 12/365 of a month: there's no worth for the days before it.
 			name: "a ledger begun on 15 September",
 			days: daysFrom("2026-09-15", busy("2026-09-15", 3)), began: "2026-09-15",
-			want: []string{"2026-09 cost 220 from 2026-09-15 so far false", "2026-10 cost 220 from  so far true"},
+			want: []string{"2026-09 cost 115.72602739726 from 2026-09-15 so far false", "2026-10 cost 220 from  so far true"},
 		},
 		{
 			name: "a ledger begun on 15 September, holding nothing before the 20th",
 			days: daysFrom("2026-09-20", busy("2026-09-20", 3)), began: "2026-09-15",
-			want: []string{"2026-09 cost 220 from 2026-09-15 so far false", "2026-10 cost 220 from  so far true"},
+			want: []string{"2026-09 cost 115.72602739726 from 2026-09-15 so far false", "2026-10 cost 220 from  so far true"},
 		},
 		{
 			name: "a ledger begun on the first of a month",

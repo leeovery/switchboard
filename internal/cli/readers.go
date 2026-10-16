@@ -13,7 +13,7 @@ import (
 // caps are the caps of the accounts cfg configures, as the request ledger
 // summarises its days with them.
 func caps(cfg *config.Config) ledger.Caps {
-	return ledger.CapsOf(cfg.Accounts, claude.SharedWindows)
+	return ledger.CapsOf(cfg.Accounts, claude.SharedWindows())
 }
 
 // stateReaders read the request ledger, the readings history and the

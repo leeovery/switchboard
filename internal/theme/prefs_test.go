@@ -125,6 +125,51 @@ func TestTheOverviewsSectionsAndGroupingAreKeptBesideTheTab(t *testing.T) {
 	}
 }
 
+// The chart GRAPHS draws is kept by name beside the rest, and read back as
+// the file names it, a name this build's dashboard doesn't know among them,
+// for the dashboard to read; left out for the burn-up; and none for a file
+// without it, as a milestone 5 file keeps its cards' style under "chart",
+// which is kept as a key this build doesn't know.
+func TestTheChartGRAPHSDrawsIsKeptByName(t *testing.T) {
+	state := t.TempDir()
+	path := filepath.Join(state, "prefs.json")
+	prefs := theme.NewPrefsFile(state, clock)
+
+	if err := prefs.Update(func(p *theme.Prefs) { p.Graphs = "burn-down" }); err != nil {
+		t.Fatal(err)
+	}
+	if got := prefs.Read().Graphs; got != "burn-down" {
+		t.Errorf("Read().Graphs = %q, want the burn-down read back", got)
+	}
+	if data, err := os.ReadFile(path); err != nil || !strings.Contains(string(data), `"graphs": "burn-down"`) {
+		t.Errorf("prefs.json holds %s, %v; want the chart kept by name", data, err)
+	}
+	if err := prefs.Update(func(p *theme.Prefs) { p.Graphs = "" }); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(path); err != nil || strings.Contains(string(data), "graphs") {
+		t.Errorf("prefs.json holds %s, %v; want the burn-up left out", data, err)
+	}
+
+	for _, tt := range []struct{ file, want string }{
+		{file: `{"chart": "hourglass", "tab": "overview"}`, want: ""},
+		{file: `{"graphs": "heartbeat"}`, want: "heartbeat"},
+	} {
+		if err := os.WriteFile(path, []byte(tt.file), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if got := prefs.Read().Graphs; got != tt.want {
+			t.Errorf("a file of %s reads Graphs %q, want %q", tt.file, got, tt.want)
+		}
+		if err := prefs.Update(func(p *theme.Prefs) { p.Graphs = "burn-down" }); err != nil {
+			t.Fatal(err)
+		}
+		if data, err := os.ReadFile(path); err != nil || strings.Contains(tt.file, "hourglass") && !strings.Contains(string(data), `"chart": "hourglass"`) {
+			t.Errorf("prefs.json holds %s, %v; want milestone 5's chart kept as it was", data, err)
+		}
+	}
+}
+
 // What Accounts shows is kept under a key of its own, the view and the
 // period by name, beside the rest and the keys of another build, and left
 // out where none is made, as this week is.

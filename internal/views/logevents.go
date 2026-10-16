@@ -47,15 +47,16 @@ type LogEvent struct {
 
 // MoveSaid is what the event's move came to, as the Log's Events say it
 // after what happened, as RoutingSaid's Said says a request's: once the move
-// wrote its session's context again, and that's priced, the tokens it
-// wrote, as the Log counts tokens, and what that cost, exactly, "182k cached
-// again, $1.82", as RowCost. None before, or of any other event.
+// wrote its session's context again, the tokens it wrote, as the Log counts
+// tokens, and what that cost, as its CostSaid says it, "182k cached again,
+// $1.82", or "182k cached again, unpriced", as RowCost. None before, or of
+// any other event.
 func (e LogEvent) MoveSaid() RowWords {
 	m := e.Move
-	if m == nil || m.Written == 0 || m.Cost == nil {
+	if m == nil || m.Written == 0 || m.CostSaid() == "" {
 		return nil
 	}
-	return RowWords{{Text: prose.Tokens(m.Written) + " cached again, " + Worth{Amount: m.Cost}.Cents(), Kind: RowCost}}
+	return RowWords{{Text: prose.Tokens(m.Written) + " cached again, " + m.CostSaid(), Kind: RowCost}}
 }
 
 // LogEventSources are what the Log's Events are built from.

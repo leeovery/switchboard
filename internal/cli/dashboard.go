@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -39,7 +40,28 @@ func newDashboardCommand(a *app) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "dashboard [interval] [--no-notify] [--probe]",
 		Short: "Show every account's usage as a dashboard, full screen",
-		Long: `Show every account's usage as a dashboard, full screen until q: the router's,
+		Long:  dashboardLong,
+		Args:  opts.parseArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return a.dashboard(cmd.Context(), cmd.OutOrStdout(), opts)
+		},
+	}
+	shown := cmd.HelpFunc()
+	cmd.SetHelpFunc(func(c *cobra.Command, args []string) {
+		c.Long = strings.Replace(dashboardLong, keysPlace, dashboardKeys(), 1)
+		shown(c, args)
+	})
+	cmd.Flags().BoolVar(&opts.noNotify, "no-notify", false, "post no desktop notifications without the router")
+	cmd.Flags().BoolVar(&opts.probe, "probe", false, "probe every account, even while the router runs")
+	return cmd
+}
+
+// keysPlace is where the dashboard's long help lists its keys, as
+// dashboardKeys says them: worked out as the help is asked for, as every
+// command builds the dashboard's, the launch of claude among them.
+const keysPlace = "{{keys}}"
+
+const dashboardLong = `Show every account's usage as a dashboard, full screen until q: the router's,
 while it answers, with its sessions and pin, else read by probing each
 account, as --probe does whether the router runs or not. It needs a
 terminal, and refuses without one.
@@ -53,33 +75,19 @@ instead. Without the router it probes every account every interval, sooner
 for a window that resets or an account that couldn't be read, and reads the
 router again once it's back.
 
-Keys: tab and shift-tab move between its tabs, the Overview, Accounts,
-History, Sessions, Runway and the Log. On the Overview, u, g, r, s, c and l
-show and hide its sections, USAGE, GRAPHS, ROUTING, SESSIONS, COMING UP and
-LATELY; b groups its windows by window or by account, as the config's
-[usage] by has them until b is pressed; and ↑ and ↓ move the focus between
-the accounts, which GRAPHS follows. The sections shown and b are kept for
-the next dashboard to open with. On History, [ and ] move between its views,
-the Year, Weeks, Days and Tokens; < and > step the Year back through each
-calendar year the ledger holds and forward again, and Tokens' periods
-between a day, a week and a month; v cycles what the Year shows, all use, a
-model version or an account, Weeks' shape, and how Tokens splits each
-period; and ← and → step the Year shown for one account between the
-accounts. Each is kept for the next dashboard, but a calendar year stepped
-back to. On Runway, < and > move between the 5-hour and the week views, kept
-for the next dashboard; ← steps back to today, then a day at a time, or to
-this week, then a week at a time, and → on again to the live view. j, k,
-PgDn, PgUp and the wheel scroll the view where it doesn't fit: on the
-Overview, USAGE, where its accounts don't, and on History, the Year, Weeks'
-accounts, Days' BY ACCOUNT and Tokens' periods. p opens the routing card,
-which picks the accounts new sessions go to and changes nothing until
-enter; ? the page's help; esc closes either, or the theme picker. R
-refreshes, t opens the theme picker, q quits, and ctrl-c quits wherever it
-is. A click on a tab shows it; on a key of the key line, does what the key
-does, but p and q; on History, on a view's name shows it, and on < or > by
-its period steps it; on Runway, on < or > by its window, moves between the
-views; and on the Overview, on a section's heading hides it, and on an
-account's row moves the focus there.
+Keys: tab and shift-tab move between its tabs, and ctrl-c quits wherever it
+is. The rest are each page's, as its ? help lists them:
+
+` + keysPlace + `
+
+The Overview's sections and b are kept for the next dashboard to open with,
+as is the view each tab shows, its period, window or columns, but a calendar
+year stepped back to. esc closes the routing card, help or the theme picker.
+A click on a tab shows it; on a key of the key line, does what the key does,
+but p and q; on History, on a view's name shows it, and on < or > by its
+period steps it; on Runway, on < or > by its window, moves between the views;
+and on the Overview, on a section's heading hides it, and on an account's row
+moves the focus there.
 
 While the router runs, it posts the desktop notifications, --probe or not;
 without it, the dashboard posts its own of an account with room again and a
@@ -90,16 +98,7 @@ The dashboard is drawn in the theme chosen in the picker, or the pair of
 tokyo-night-day for a light terminal and nord for a dark one, which the
 terminal is asked. Themes of your own are <slug>.theme files in
 $SWITCHBOARD_THEMES_DIR, else $XDG_CONFIG_HOME/switchboard/themes, else
-~/.config/switchboard/themes. NO_COLOR draws it without colour.`,
-		Args: opts.parseArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return a.dashboard(cmd.Context(), cmd.OutOrStdout(), opts)
-		},
-	}
-	cmd.Flags().BoolVar(&opts.noNotify, "no-notify", false, "post no desktop notifications without the router")
-	cmd.Flags().BoolVar(&opts.probe, "probe", false, "probe every account, even while the router runs")
-	return cmd
-}
+~/.config/switchboard/themes. NO_COLOR draws it without colour.`
 
 // parseArgs reads the interval, if one is given.
 func (o *dashboardOptions) parseArgs(_ *cobra.Command, args []string) error {
@@ -154,7 +153,7 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 		Notifications: cfg.Notifications,
 		Now:           a.Now,
 		Interval:      opts.interval,
-		Policy:        claude.Policy,
+		Policy:        claude.Policy(),
 		WindowName:    status.NameOfKey,
 		Accounts:      cfg.Accounts,
 		WeekStarts:    cfg.WeekStarts,
@@ -164,6 +163,7 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 		View:          dashboard.View(kept.Tab),
 		Sections:      dashboard.SectionsNamed(kept.Sections),
 		By:            keptBy(kept.By, cfg.Usage.By),
+		Burn:          dashboard.BurnKept(kept.Graphs),
 		AccountsShown: dashboard.AccountsKept(kept.Accounts),
 		SessionsShown: dashboard.SessionsKept(kept.Sessions),
 		RunwayShown:   dashboard.RunwayKept(kept.Runway),

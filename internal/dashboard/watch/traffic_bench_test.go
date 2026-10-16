@@ -36,7 +36,7 @@ func BenchmarkTheTrafficOfABusyHour(b *testing.B) {
 		}
 	})
 	b.Run("the Log's Requests' basis", func(b *testing.B) {
-		basis := requestsBasis{told: streamTold{answering: true, live: tr.live, changes: tr.changes, rowChanges: tr.rowChanges}}
+		basis := requestsBasis{told: streamTold{answering: true, live: tr.live, rowChanges: tr.rowChanges}}
 		b.ReportAllocs()
 		for b.Loop() {
 			basis.same(basis)

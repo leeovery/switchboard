@@ -549,7 +549,7 @@ func tokensSection(d views.RequestDetails, lined lineGives, moved bool) cardSect
 		{name: "worth", value: worthAtAPIPrices(r, lined)},
 	}}
 	if moved {
-		s.items = append(s.items, cardItem{name: "the move", value: theMove(r.Routing.Cost)})
+		s.items = append(s.items, cardItem{name: "the move", value: theMove(r.Routing)})
 	}
 	return s
 }
@@ -591,14 +591,19 @@ func worthAtAPIPrices(r views.RequestRow, lined lineGives) line {
 	return line{{r.Worth.Cents(), strongInk}, {" at API prices", mutedInk}}
 }
 
-// theMove is what writing the session's context again on the account it
-// moved to cost, bold accent.attention, of its worth: — where it's not
-// known.
-func theMove(cost *ledger.Picodollars) line {
-	if cost == nil {
+// theMove is what writing the session's context again on the account the
+// request moved it to cost, as its routing's CostSaid says it, bold
+// accent.attention, of its worth where it's priced: — where it wasn't
+// written again.
+func theMove(r views.RoutingSaid) line {
+	switch cost := r.CostSaid(); {
+	case cost == "":
 		return valued("")
+	case r.Cost == nil:
+		return line{{cost, alertInk}}
+	default:
+		return line{{cost, alertInk}, {" of it", mutedInk}}
 	}
-	return line{{views.Worth{Amount: cost}.Cents(), alertInk}, {" of it", mutedInk}}
 }
 
 // eventTree is the tree of the event's details d, its accounts named as m
@@ -672,17 +677,20 @@ func followedSection(f *views.Followed, at time.Time, m status.Moment) cardSecti
 		if move.Written > 0 {
 			s.items = append(s.items, cardItem{name: "cached again", value: valued(prose.Grouped(move.Written))})
 		}
-		if move.Cost != nil {
-			s.items = append(s.items, cardItem{name: "the move", value: line{{views.Worth{Amount: move.Cost}.Cents(), alertInk}}})
+		if cost := move.CostSaid(); cost != "" {
+			s.items = append(s.items, cardItem{name: "the move", value: line{{cost, alertInk}}})
 		}
 	}
 	for _, move := range f.Moves {
 		value := line{{"moved to ", mutedInk}, {named(m, move.To), secondaryInk}}
-		costs := move.Move != nil && move.Move.Cost != nil
-		if costs {
-			value = append(value, spaces(movedApart), span{views.Worth{Amount: move.Move.Cost}.Cents(), warningInk})
+		var cost string
+		if move.Move != nil {
+			cost = move.Move.CostSaid()
 		}
-		s.items = append(s.items, cardItem{name: status.ShownID(move.Session), value: value, costs: costs})
+		if cost != "" {
+			value = append(value, spaces(movedApart), span{cost, warningInk})
+		}
+		s.items = append(s.items, cardItem{name: status.ShownID(move.Session), value: value, costs: cost != ""})
 	}
 	if !f.Till.IsZero() {
 		name := "new sessions"
@@ -691,8 +699,8 @@ func followedSection(f *views.Followed, at time.Time, m status.Moment) cardSecti
 		}
 		s.items = append(s.items, cardItem{name: name, value: valued("go elsewhere till " + prose.Dated(at, f.Till))})
 	}
-	if f.InAll != nil {
-		s.items = append(s.items, cardItem{name: "in all", value: line{{views.Worth{Amount: f.InAll}.Cents(), alertInk}, {" to cache them again", mutedInk}}})
+	if inAll := f.InAllSaid(); inAll != "" {
+		s.items = append(s.items, cardItem{name: "in all", value: line{{inAll, alertInk}, {" to cache them again", mutedInk}}})
 	}
 	return s
 }

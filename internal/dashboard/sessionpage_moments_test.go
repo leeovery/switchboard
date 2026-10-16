@@ -22,6 +22,11 @@ type momentsLedger struct {
 	lines []ledger.Line
 }
 
+// SessionsOf reads as Sessions does: a moment's sessions are all there are.
+func (l momentsLedger) SessionsOf(ids []string, take func(date string, l ledger.Line)) map[string][]ledger.Line {
+	return l.Sessions(ids, take)
+}
+
 func (l momentsLedger) Sessions(_ []string, take func(date string, l ledger.Line)) map[string][]ledger.Line {
 	sessions := make(map[string][]ledger.Line)
 	for _, line := range l.lines {

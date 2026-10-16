@@ -106,16 +106,23 @@ func (f Frame) phrasesOf(ln laidLane, against time.Time) []phrase {
 // stretchParts are what's said of the stretch s without room of the account
 // a, times told against the time given: what holds it back, from when where
 // that's known, as headOf words it, of the timeline shown; then, muted, when
-// it's back, where that's known, as "  ·  back 17:10"; and of a stretch whose
-// head says so, where it's back as the view's window resets, that it is, as
-// ", as its 5-hour resets".
+// it ends, where that's known, as its Ends has it: as its own hold lifts, of
+// one of a run of stretches but the last, as "  ·  lifts 19:00", else as it's
+// back, as "  ·  back 17:10"; and of a stretch whose head says so, where
+// that's as the view's window resets, that it is, as ", as its 5-hour
+// resets".
 func (f Frame) stretchParts(s views.LaneStretch, a status.AccountNow, against time.Time) []line {
 	head, k, resets := headOf(s, a, f.Runway.Timeline.NowColumn(), against)
 	parts := []line{{{head, k}}}
-	if s.Back.IsZero() {
+	ends, lifts := s.Ends()
+	if ends.IsZero() {
 		return parts
 	}
-	parts = append(parts, line{{prose.Separator + "back " + prose.Dated(against, s.Back), mutedInk}})
+	said := "back "
+	if lifts {
+		said = "lifts "
+	}
+	parts = append(parts, line{{prose.Separator + said + prose.Dated(against, ends), mutedInk}})
 	if resets && s.AsItResets {
 		parts = append(parts, line{{", as its " + runwayNames[f.Runway.Window] + " resets", mutedInk}})
 	}

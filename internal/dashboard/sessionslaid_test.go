@@ -209,6 +209,10 @@ func TestBentCordsSitThreeTwoOrOneApartElseTheSwitchboardDrawsLanes(t *testing.T
 	}
 }
 
+// Bent cords turn down in the order of their jacks' rows, the first at the
+// bends' room's last column, so none crosses another: s2, joining b's foot
+// on the jack s0 left above s1's, takes the jack below s1's, s1 moving up to
+// the first, as a line's calls hold its jacks in their order.
 func TestBentCordsAreOrderedByTheirJacksRowsThenTheirCalls(t *testing.T) {
 	p := patchedBy(
 		sat{on: []string{"b: s0 s1"}},
@@ -216,9 +220,9 @@ func TestBentCordsAreOrderedByTheirJacksRowsThenTheirCalls(t *testing.T) {
 		sat{on: []string{"b: s1 s2", "c: s0"}},
 	)
 	l := sessionsLaid(160, 100, p, boardLines{accounts: []string{"a", "b", "c"}, windows: 3})
-	want := []string{"s1 6→15 @69", "s2 7→14 @72", "s0 9→22 @66"}
+	want := []string{"s1 6→14 @72", "s2 7→15 @69", "s0 9→22 @66"}
 	if got := l.cordsOf(); !slices.Equal(got, want) {
-		t.Errorf("s2 at b's foot on its first jack, the cords are %q, want %q", got, want)
+		t.Errorf("s2 at b's foot, the cords are %q, want %q", got, want)
 	}
 }
 
@@ -358,15 +362,15 @@ func TestTheFramesWorldsAreLaidOutAsTheFramesDrawThem(t *testing.T) {
 			wantCords: []string{"41e0 6→8 @72", "9c2e 7→9 @69", "c61b 9→10 @66", "d28c 10→11 @63", "7f3a 11→12 @60", "db8a 12→13 @57"},
 		},
 		{
-			name: "ten accounts at 160 by 29: step 5, scrolling, the key giving way", height: 29, patched: patchedBy(tenAt1442), lines: tenLines,
-			step: 5, keyAt: -1,
+			name:   "ten accounts at 160 by 29: step 5, scrolling, the key giving way, each group starting below the line above",
+			height: 29, patched: patchedBy(tenAt1442), lines: tenLines, step: 5, keyAt: -1,
 			wantLines: []string{
-				"work 6–6", "personal 7–8", "side 9–12", "client 14–16", "spare 17–17", "lab 18–19", "team 20–20", "extra 21–21",
-				"ops 22–22", "studio 23–24",
+				"work 6–6", "personal 7–8", "side 10–13", "client 15–17", "spare 18–18", "lab 19–20", "team 21–21", "extra 22–22",
+				"ops 23–23", "studio 24–25",
 			},
 			wantCords: []string{
-				"41e0 6→7 @72", "9c2e 7→8 @69", "c61b 9→9", "d28c 10→10", "7f3a 11→11", "db8a 12→12", "1f9a 14→14", "6c2e 15→15",
-				"0d4b 16→16", "b7e5 18→18", "93fa 19→19", "4ae8 21→21", "c0d1 23→23", "f3b1 24→24",
+				"41e0 7→7", "9c2e 8→8", "c61b 10→10", "d28c 11→11", "7f3a 12→12", "db8a 13→13", "1f9a 15→15", "6c2e 16→16",
+				"0d4b 17→17", "b7e5 19→19", "93fa 20→20", "4ae8 22→22", "c0d1 24→24", "f3b1 25→25",
 			},
 		},
 	}
@@ -405,13 +409,13 @@ func TestALineMovesDownToMeetItsGroupSoEveryCordRunsRightThenDown(t *testing.T) 
 			first:   []int{0, 4},
 		},
 		{
-			name: "a call at its group's foot plugged into a jack above it",
+			name: "a call joining its group's foot on a jack above the one before's, the jacks kept in the calls' order",
 			patched: patchedBy(
 				sat{on: []string{"work: s1", "personal: s2 s3"}},
 				sat{on: []string{"work: s1 s2", "personal: s3"}},
 				sat{on: []string{"work: s1 s2", "personal: s3 s4"}},
 			),
-			want:  []string{"s1 6→6", "s2 7→7", "s3 9→11 @72", "s4 10→10"},
+			want:  []string{"s1 6→6", "s2 7→7", "s3 9→9", "s4 10→10"},
 			first: []int{0, 3},
 		},
 		{

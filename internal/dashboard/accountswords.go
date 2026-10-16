@@ -164,9 +164,9 @@ func leftShort(row views.AccountsRow, k ink) []part {
 // planParts say an account's plan as Compare's VALUE does, by its name, then
 // its price a month, in text.subtle: "Max 20x · $200/mo"; of every
 // account's, the known plans' prices summed, then how many plans that is,
-// "$600/mo · 3 plans", or of how many, "$400/mo · 2 of 3 plans"; a dash
-// where none is known.
-func planParts(page views.AccountsPage, row views.AccountsRow, k ink) []part {
+// as views.PlansKnown words it, "$600/mo · 3 plans", or of how many,
+// "$400/mo · 2 of 3 plans"; a dash where none is known.
+func planParts(row views.AccountsRow, k ink) []part {
 	said := planNamed(row, k)
 	switch {
 	case row.Plan.Price == nil:
@@ -174,12 +174,7 @@ func planParts(page views.AccountsPage, row views.AccountsRow, k ink) []part {
 	case !row.Plan.All:
 		return append(said, wordsIn(accountsApart, dimInk), figureIn(row.Plan.Monthly(), dimInk))
 	}
-	said = append(said, wordsIn(accountsApart, dimInk))
-	known, of := page.PlansKnown()
-	if known < of {
-		said = append(said, figureIn(prose.Grouped(known), dimInk), wordsIn(" of ", dimInk))
-	}
-	return append(said, countedParts(of, "plan", dimInk)...)
+	return append(append(said, wordsIn(accountsApart, dimInk)), saidParts(row.Plan.Plans.Words(), dimInk)...)
 }
 
 // planNamed says an account's plan as Detail's THIS WEEK does, by its name
@@ -249,27 +244,42 @@ func worthParts(row views.AccountsRow, k ink) []part {
 }
 
 // againstParts say an account's worth against what its plan cost over the
-// period, the period named by its unit, as againstItsPrice says it: "4.0×
-// its $46 week".
-func againstParts(page views.AccountsPage, row views.AccountsRow) []part {
-	return againstItsPrice(row.Plan.Against, page.Period.Unit())
+// period, the period named by its unit, as againstItsPrice says it in the
+// cells given: "4.0× its $46 week".
+func againstParts(page views.AccountsPage, row views.AccountsRow, cells int) []part {
+	return againstItsPrice(row.Plan.Against, page.Period.Unit(), cells)
 }
 
-// againstShort says an account's worth against its plan's price as a phone's
-// VALUE does, the ratio alone, as againstSaid says it: "4.0×".
+// againstShort says an account's worth against its plan's price by the
+// ratio alone, as againstSaid says it: "4.0×".
 func againstShort(row views.AccountsRow) []part {
 	return []part{figurePart(againstSaid(row.Plan.Ratio), Number{})}
 }
 
+// againstOnPhone says an account's worth against its plan's price as a
+// phone's against it and against do, as againstShort says it, then, of
+// every account's where some plans aren't known, over those known, compact,
+// as views.PlansKnown says it, in text.subtle: "4.4× · 2/3".
+func againstOnPhone(row views.AccountsRow) []part {
+	said := againstShort(row)
+	if compact := row.Plan.Plans.SaidCompact(); row.Plan.Ratio != nil && compact != "" {
+		said = append(said, wordsIn(accountsApart+compact, dimInk))
+	}
+	return said
+}
+
 // worthAgainst say an account's worth as Detail's THIS WEEK does, as
 // worthParts says it, then two cells on, its worth against its price, as
-// againstShort says it: "$184  4.0×"; the worth alone where no plan is known.
-func worthAgainst(row views.AccountsRow, k ink) []part {
+// againstShort says it, "$184  4.0×", and of every account's, as knownParts
+// says it in the cells given that are left, "$635  4.3× · 2 of 3 plans
+// known"; the worth alone where no plan is known.
+func worthAgainst(row views.AccountsRow, k ink, cells int) []part {
 	worth := worthParts(row, k)
 	if row.Plan.Ratio == nil {
 		return worth
 	}
-	return append(append(worth, wordsIn("  ", k)), againstShort(row)...)
+	said := append(append(worth, wordsIn("  ", k)), againstShort(row)...)
+	return append(said, knownParts(row.Plan.Plans, cells-partsWidth(said))...)
 }
 
 // verdictParts say Weeks' verdict on a row of Detail's, as WEEKS' verdict

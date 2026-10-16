@@ -176,10 +176,17 @@ func Spent(w quota.Window) bool {
 }
 
 // HeldByReserve reports whether w's reading has reached the reserve, the
-// share of the window left unused, and nothing else holds it back: 1 − reserve
-// of it is used, but it isn't spent. Without a reserve, nothing reaches it.
+// share of the window left unused, and nothing else holds it back: its use
+// is at ReserveFrom's, but it isn't spent. Without a reserve, nothing
+// reaches it.
 func HeldByReserve(w quota.Window, reserve float64) bool {
-	return reserve > 0 && w.Utilization >= 1-reserve-Tolerance && !Spent(w)
+	return reserve > 0 && w.Utilization >= ReserveFrom(reserve) && !Spent(w)
+}
+
+// ReserveFrom is the use of a window from which the reserve given, the share
+// of it left unused, is reached: 1 − reserve of it, allowing for rounding.
+func ReserveFrom(reserve float64) float64 {
+	return 1 - reserve - Tolerance
 }
 
 // Hold is how far a reading of a window holds its account back, each further
@@ -220,4 +227,25 @@ const handReset = 0.10
 // as 0.3 less 0.2 reads a hair under 0.1.
 func ResetByHand(held, kept quota.Window) bool {
 	return kept.ResetsAt.Equal(held.ResetsAt) && held.Utilization-kept.Utilization >= handReset-Tolerance
+}
+
+// ResetBetween returns when a window read as was reset before w, the next
+// reading of it, read at at, reporting false where the two tell of no reset:
+// w shows it reset by hand, as ResetByHand says, at at; was's reset had
+// passed by at, w being of another window, or of none, at was's reset; or
+// w's reset is later than was's, which hadn't come, the window having
+// started again before it, at at. It's the one rule a day's summary and
+// Runway's resets both take a reset between readings by.
+func ResetBetween(was, w quota.Window, at time.Time) (time.Time, bool) {
+	switch {
+	case ResetByHand(was, w):
+		return at, true
+	case was.ResetsAt.IsZero() || w.ResetsAt.Equal(was.ResetsAt):
+		return time.Time{}, false
+	case was.ResetBy(at):
+		return was.ResetsAt, true
+	case w.ResetsAt.After(was.ResetsAt):
+		return at, true
+	}
+	return time.Time{}, false
 }

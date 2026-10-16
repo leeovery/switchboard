@@ -85,7 +85,7 @@ type laterCase struct {
 // of the week its now falls in.
 func laterCases() []laterCase {
 	var cases []laterCase
-	for _, hm := range statustest.HardMoments(claude.Policy) {
+	for _, hm := range statustest.HardMoments(claude.Policy()) {
 		cases = append(cases, laterOf(hm.Name, hm.Doc, hm.Now, docReadings(hm.Doc))...)
 	}
 	for _, rm := range viewstest.RunwayMoments() {
@@ -115,7 +115,7 @@ func laterOf(name string, doc status.Document, now time.Time, read []readings.Re
 	var cases []laterCase
 	for _, w := range []views.RunwayWindow{views.RunwayFiveHour, views.RunwayWeek} {
 		at := func(t time.Time) views.LanesFrom {
-			return views.LanesFrom{Moment: doc.At(t, claude.Policy), Readings: read, Timeline: views.Stepped(w, day, t, time.Monday, 136), Window: w}
+			return views.LanesFrom{Moment: doc.At(t, claude.Policy()), Readings: read, Timeline: views.Stepped(w, day, t, time.Monday, 136), Window: w}
 		}
 		first := at(now)
 		later, _ := first.Timeline.Bounds(first.Timeline.Columns - 1)

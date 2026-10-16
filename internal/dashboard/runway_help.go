@@ -45,8 +45,9 @@ func (f Frame) lanesHelp() helpPart {
 				"whose token is refused."),
 			said("Under each lane, words say where each stretch without room starts and when room is back: at its cap, at its " +
 				"limit, its token refused, or runs out ~16:05 at its pace, ~ marking a time projected at its pace, as switchboard " +
-				"usage projects it. A cap's or a run-out's back adds as its 5-hour resets, or as its week resets, where room comes " +
-				"back as the view's window resets. In the week view, resets Sun 21:00 where its week reaches no limit; else room " +
+				"usage projects it. Where another stretch holds the account on, a stretch says lifts 19:00, when its own hold lifts, " +
+				"and only the last says back. A cap's or a run-out's time adds as its 5-hour resets, or as its week resets, where " +
+				"it's as the view's window resets. In the week view, resets Sun 21:00 where its week reaches no limit; else room " +
 				"all day, or room all week."),
 			said("Now's column and those after it are read from the router at each look; those before it from the readings " +
 				"history, each by the last reading of each window by the column's middle, a window whose reset had passed by then " +
@@ -75,8 +76,9 @@ func poolHelp() helpPart {
 		says: []line{
 			said("Under the pool's rule, Σ pool: a column for each of the lanes', filled to how many of the pool's accounts have " +
 				"room then, and coloured as switchboard usage colours the pool's use, the ramp's second colour from 70% used and " +
-				"its last from 90%. An account at its cap or its limit counts without room, one running out at its pace with room " +
-				"until it does, and one not known then without."),
+				"its last from 90%, and where none has room, ─ along its foot, as a lane at its limit draws it. An account at its " +
+				"cap or its limit counts without room, one running out at its pace with room until it does, and one not known " +
+				"then without."),
 			said("The pool is every account on auto, and the pin's while one holds, as pinned says beside its room; an account " +
 				"out of it is faded, the words under its lane not."),
 			said("Under its lane, the pool's room in the view's window, as switchboard usage gives it, then a phrase for each dip, " +
@@ -143,10 +145,11 @@ func runwayComingHelp() helpPart {
 	return helpPart{
 		heading: SectionComing.heading(),
 		says: []line{
-			said("What happens next, soonest first, as the Overview's COMING UP has it: an account back from its cap or its limit, " +
-				"a window running out at its pace, ~ marking it projected, and each other reset of the view's window, where its │ " +
-				"stands. The 5-hour view lists the 5-hour windows'; the week view adds each week's run-out and reset. No prime is " +
-				"listed. As rows run short, it folds to its heading, which names the soonest; stepped back, there's none."),
+			said("What happens next, soonest first, as the Overview's COMING UP has it: an account back from its cap, its limit or " +
+				"its refused token, whichever lifts last, a window running out at its pace, ~ marking it projected, and each " +
+				"other reset of the view's window, where its │ stands. The 5-hour view lists the 5-hour windows'; the week view " +
+				"adds each week's run-out and reset. No prime is listed. As rows run short, it folds to its heading, which names " +
+				"the soonest; stepped back, there's none."),
 		},
 	}
 }

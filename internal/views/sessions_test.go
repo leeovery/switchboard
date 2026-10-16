@@ -176,13 +176,24 @@ func (f fakeLedger) Session(id string) iter.Seq[ledger.Held] {
 // Sessions reads as a Follower does: today's files, and those of the days
 // either side, then the days before whose summaries name a session read.
 func (f fakeLedger) Sessions(ids []string, take func(string, ledger.Line)) map[string][]ledger.Line {
+	return f.sessions(ids, true, take)
+}
+
+// SessionsOf reads as a Follower does, those with the given ids alone.
+func (f fakeLedger) SessionsOf(ids []string, take func(string, ledger.Line)) map[string][]ledger.Line {
+	return f.sessions(ids, false, take)
+}
+
+// sessions reads the sessions with the given ids, and where todays is set,
+// today's, as Sessions reads them.
+func (f fakeLedger) sessions(ids []string, todays bool, take func(string, ledger.Line)) map[string][]ledger.Line {
 	start := dayfile.DayStart(f.now, 0)
 	wanted := make(map[string]bool)
 	for _, id := range ids {
 		wanted[id] = true
 	}
 	for _, l := range f.lines {
-		if l.Kind == ledger.KindMessage && l.Session != "" && !l.At.Before(start) && !l.At.After(f.now) {
+		if todays && l.Kind == ledger.KindMessage && l.Session != "" && !l.At.Before(start) && !l.At.After(f.now) {
 			wanted[l.Session] = true
 		}
 	}
@@ -256,9 +267,10 @@ var routed = []status.Session{
 }
 
 // routingSaid is the routing of a move for the reason given, from the
-// account given to the one given, that cost what's given.
+// account given to the one given, that cost what's given, its session's
+// context written again where it cost anything.
 func routingSaid(reason, from, to string, c *ledger.Picodollars) views.RoutingSaid {
-	return views.RoutingSaid{Words: status.RoutingWords(reason, status.Facts{From: from, To: to}), From: from, Cost: c}
+	return views.RoutingSaid{Words: status.RoutingWords(reason, status.Facts{From: from, To: to}), From: from, Cost: c, Rewrote: c != nil}
 }
 
 // utc is t in UTC, as the List gives its times.
@@ -620,6 +632,11 @@ type countedLedger struct {
 func (c countedLedger) Sessions(ids []string, take func(string, ledger.Line)) map[string][]ledger.Line {
 	c.counts.sessionsRead++
 	return c.fakeLedger.Sessions(ids, take)
+}
+
+func (c countedLedger) SessionsOf(ids []string, take func(string, ledger.Line)) map[string][]ledger.Line {
+	c.counts.sessionsRead++
+	return c.fakeLedger.SessionsOf(ids, take)
 }
 
 func (c countedLedger) Session(id string) iter.Seq[ledger.Held] {

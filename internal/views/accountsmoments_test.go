@@ -19,11 +19,11 @@ import (
 )
 
 // accountsIn is what Accounts' page is built of at the moment am: its days,
-// asked for from the first, by the built-in price table, its accounts'
-// weeks Claude's.
+// asked for from the first, where the ledger began, as the watch learns it,
+// by the built-in price table, its accounts' weeks Claude's.
 func accountsIn(am viewstest.AccountsMoment) views.HistoryInput {
 	return views.HistoryInput{
-		Ledger: ledgerOf(am.Days), From: on(am.Days[0].Day), Now: am.Now, Prices: ledger.Pricing,
+		Ledger: ledgerOf(am.Days), From: on(am.Days[0].Day), Began: on(am.Days[0].Day), Now: am.Now, Prices: ledger.Pricing,
 		Accounts: am.Accounts, WeekStarts: am.WeekStarts, WeekWindow: claude.WeekWindow, Family: claude.Provider{}.Family,
 	}
 }
@@ -32,7 +32,7 @@ func accountsIn(am viewstest.AccountsMoment) views.HistoryInput {
 // of the moment's days, for its period, as they were read, then stood at its
 // moment; and the moment.
 func accountsAt(am viewstest.AccountsMoment) (views.AccountsPage, status.Moment) {
-	m := am.Doc.At(am.Now, claude.Policy)
+	m := am.Doc.At(am.Now, claude.Policy())
 	return builtOf(am).At(m), m
 }
 
@@ -106,7 +106,7 @@ func rowFigures(t *testing.T, am viewstest.AccountsMoment, page views.AccountsPa
 		f[viewstest.FigurePartial] = "partial"
 	}
 	if id == "" {
-		known, of := page.PlansKnown()
+		known, of := page.All.Plan.Plans.Known, page.All.Plan.Plans.Of
 		f[viewstest.FigurePlansOf] = fmt.Sprintf("%d of %d", known, of)
 		most, least, _ := page.Ends()
 		f[viewstest.FigureMostLeft], f[viewstest.FigureLeastLeft] = most.Totals.Account, least.Totals.Account
@@ -180,7 +180,7 @@ func weekUsedRead(m status.Moment, id string) string {
 // as Detail's SESSIONS lists them, by their shown ids.
 func runningRead(m status.Moment, am viewstest.AccountsMoment, id string) string {
 	var ids []string
-	for _, r := range views.RunningOn(views.RunningOf(m, am.Sessions, am.Stream, views.HeldList{}), id) {
+	for _, r := range views.RunningOn(views.RunningOf(m, views.ListLive{Running: am.Sessions, Stream: am.Stream}, views.HeldList{}), id) {
 		ids = append(ids, status.ShownID(r.Session))
 	}
 	return strings.Join(ids, " ")

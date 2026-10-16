@@ -57,6 +57,23 @@ func TestThePanelSaysWhatASessionIsDoing(t *testing.T) {
 			activity: views.Activity{Doing: views.Refused, Status: 403, Since: sent, LastSeen: sent}, started: now.Add(-time.Hour), want: views.LogAsking,
 		},
 		{
+			name:     "asking as last known, the router not answering: asking, as it was",
+			activity: views.Activity{Doing: views.Asking, Since: sent, LastSeen: sent, Stale: true}, started: now.Add(-time.Hour), want: views.LogAsking,
+		},
+		{
+			name:     "throttled as last known: asking, as it was",
+			activity: views.Activity{Doing: views.Throttled, Status: 429, Since: sent, LastSeen: sent, Stale: true}, started: now.Add(-time.Hour), want: views.LogAsking,
+		},
+		{
+			name:     "refused as last known: asking, as it was",
+			activity: views.Activity{Doing: views.Refused, Status: 403, Since: sent, LastSeen: sent, Stale: true}, started: now.Add(-time.Hour), want: views.LogAsking,
+		},
+		{
+			name:     "answering as last known, seen long ago: nothing, as it was, never idle",
+			activity: views.Activity{Doing: views.Answering, Since: now.Add(-9 * time.Minute), LastSeen: now.Add(-9 * time.Minute), Stale: true},
+			started:  now.Add(-time.Hour), want: views.LogBusy,
+		},
+		{
 			name:     "idle, at work within the minute",
 			activity: views.Activity{Since: now.Add(-30 * time.Second), LastSeen: now.Add(-30 * time.Second)}, started: now.Add(-time.Hour), want: views.LogBusy,
 		},

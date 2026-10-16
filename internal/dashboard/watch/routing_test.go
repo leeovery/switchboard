@@ -660,6 +660,10 @@ func (l *sessionsLedger) Sessions([]string, func(string, ledger.Line)) map[strin
 	return l.lines
 }
 
+func (l *sessionsLedger) SessionsOf(ids []string, take func(string, ledger.Line)) map[string][]ledger.Line {
+	return l.Sessions(ids, take)
+}
+
 // The usages of the priced sessions' answers. hourUsage writes the cache for
 // an hour: its prompt, 101,010 tokens, costs $0.81 to write again for an hour
 // at Claude Opus 5.5's prices. fiveMinuteUsage writes as much for five

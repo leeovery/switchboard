@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -178,6 +179,26 @@ func covers(spots []spot, row, col int) bool {
 		}
 	}
 	return false
+}
+
+// redrawn is the frame with the glyph was read as is along the rows given,
+// counted from 0, its cells' colours and weight as it has them: where the
+// design has since drawn the glyph otherwise, and the frame still holds the
+// rest of each cell.
+func redrawn(frame [][]seen, was, is rune, rows ...int) [][]seen {
+	cells := make([][]seen, len(frame))
+	for y, row := range frame {
+		cells[y] = slices.Clone(row)
+		if !slices.Contains(rows, y) {
+			continue
+		}
+		for x := range cells[y] {
+			if cells[y][x].glyph == was {
+				cells[y][x].glyph = is
+			}
+		}
+	}
+	return cells
 }
 
 // heldTo holds the cells drawn in the region to the frame's, as a terminal

@@ -153,7 +153,7 @@ type sessionDrawn struct {
 func (f Frame) sessionDrawn(doc status.Document, now time.Time) sessionDrawn {
 	m := f.Moment(doc, now)
 	return sessionDrawn{
-		Frame: f, shown: f.Session, page: f.Session.Page, m: m, names: namesOf(m),
+		Frame: f, shown: f.Session, page: f.Session.Page.Live(f.Stream), m: m, names: namesOf(m),
 		l: f.sessionLayout(len(f.Session.Page.Accounts)), phoneCells: phoneTurnCellsOf(f.Session.Page.Turns, now), now: now,
 	}
 }
@@ -161,9 +161,13 @@ func (f Frame) sessionDrawn(doc status.Document, now time.Time) sessionDrawn {
 // sessionPage draws the session's page open, in place of the view, of doc
 // at now: its heading; what it's doing now and where it runs; its story; the
 // accounts it ran on; and its turns, each as sessionLayout lays it out.
+// While it loads, its heading alone.
 func (f Frame) sessionPage(c *canvas, doc status.Document, now time.Time) {
 	d := f.sessionDrawn(doc, now)
 	d.heading(c)
+	if d.shown.Loading {
+		return
+	}
 	if d.l.wide {
 		d.wideNow(c)
 	} else {
@@ -187,9 +191,9 @@ func (d sessionDrawn) chosen() views.Turn {
 // shown, which chooses it.
 func (f Frame) sessionTargets(doc status.Document, now time.Time) []Target {
 	d := f.sessionDrawn(doc, now)
-	rows, from, to := d.turnsShown()
-	targets := make([]Target, 0, to-from)
-	for i, r := range rows[from:to] {
+	rows, _, _ := d.turnsShown()
+	targets := make([]Target, 0, len(rows))
+	for i, r := range rows {
 		if r.click.On == 0 {
 			continue
 		}
@@ -202,8 +206,9 @@ func (f Frame) sessionTargets(doc status.Document, now time.Time) []Target {
 
 // heading draws the page's heading: SESSION, the session's id and its
 // directory's name; wide, the directory, its home as ~, cut from its start
-// to leave the rule after it a cell at least, and the rule; and at the
-// right, esc back.
+// to leave what's said of its loading, and the rule after it a cell at
+// least; what's said of its loading, as loadingSaid has it; wide, the rule;
+// and at the right, esc back.
 func (d sessionDrawn) heading(c *canvas) {
 	y, apart := d.l.heading, sessionPhoneApart
 	if d.l.wide {
@@ -211,18 +216,32 @@ func (d sessionDrawn) heading(c *canvas) {
 	}
 	back := line{{"esc", keyInk}, {" back", mutedInk}}
 	end := c.right(d.Width, y, back) - ruleGap
+	loading := d.loadingSaid(apart)
+	room := end - loading.width()
 	x := c.text(0, y, "SESSION", dimInk) + apart
 	x = c.text(x, y, status.ShownID(d.page.Session), titleInk)
-	if name := status.DirName(d.page.Dir, end-x-apart); name != "" {
+	if name := status.DirName(d.page.Dir, room-x-apart); name != "" {
 		x = c.text(x+apart, y, name, titleInk)
 	}
-	if !d.l.wide {
-		return
+	if d.l.wide {
+		if path := status.DirPath(d.page.Dir, d.shown.Home, room-x-ruleGap-2); path != "" {
+			x = c.text(x+ruleGap, y, path, faintInk)
+		}
 	}
-	if path := status.DirPath(d.page.Dir, d.shown.Home, end-x-ruleGap-2); path != "" {
-		x = c.text(x+ruleGap, y, path, faintInk)
+	x = c.line(x, y, loading)
+	if d.l.wide {
+		c.text(x+1, y, rule(end-x-1), borderInk)
 	}
-	c.text(x+1, y, rule(end-x-1), borderInk)
+}
+
+// loadingSaid is what the heading says of the page while it loads, after
+// what names the session: apart cells, then loading…, in text.subtle;
+// nothing once it's loaded.
+func (d sessionDrawn) loadingSaid(apart int) line {
+	if !d.shown.Loading {
+		return nil
+	}
+	return line{spaces(apart), {loadingWord, dimInk}}
 }
 
 // wideNow draws the wide page's two rows of what the session's doing now:
@@ -270,7 +289,8 @@ func (d sessionDrawn) leftOf(c *canvas, y int, right line) int {
 
 // doing is what the session's doing, as its page says it, bold: asking or
 // answering in accent.key, refused in state.destructive, throttled in
-// text.subtle, idle in text.faint, and ended in text.secondary.
+// text.subtle, idle in text.faint, and ended in text.secondary; but what's
+// in flight as last known as asKnown has it.
 func (d sessionDrawn) doing() line {
 	a := d.page.Activity
 	k := idleInk
@@ -284,7 +304,7 @@ func (d sessionDrawn) doing() line {
 	case views.Ended:
 		k = strongInk
 	}
-	return line{{a.Said(d.now), k}}
+	return line{{a.Said(d.now), asKnown(a, k)}}
 }
 
 // started says when the session started and how it has run since, as row
@@ -467,11 +487,11 @@ func (d sessionDrawn) turns(c *canvas) {
 			col.draw(c, d.l.turnsHeading+2, line{{col.head, dimInk}})
 		}
 	}
-	rows, from, to := d.turnsShown()
-	for i, r := range rows[from:to] {
+	rows, above, below := d.turnsShown()
+	for i, r := range rows {
 		r.draw(c, d.l.turnsAt+i)
 	}
-	c.line(0, d.l.moreTurns, outOfView(turnsIn(rows[:from]), turnsIn(rows[to:]), d.Width, turnsOut))
+	c.line(0, d.l.moreTurns, outOfView(above, below, d.Width, turnsOut))
 }
 
 // turnsHeading draws TURNS' heading: TURNS, a rule, and at the right the
@@ -500,16 +520,18 @@ type pageRow struct {
 	draw  func(c *canvas, y int)
 }
 
-// turnsShown are the rows of the session's turns, newest first, the turn
-// open's requests under its own, and the first shown and the one after the
-// last, as turnsInView has them.
-func (d sessionDrawn) turnsShown() (rows []pageRow, from, to int) {
+// turnsShown are the rows of the session's turns in view, newest first, the
+// turn open's requests under its own, as turnsInView has them, and how many
+// turns are out of view above them and below. Only those in view are made
+// rows, as a session of weeks has thousands of turns, and its page is drawn
+// at every tick.
+func (d sessionDrawn) turnsShown() (rows []pageRow, above, below int) {
 	laid, from, to := d.shown.turnsInView(d.l)
-	rows = make([]pageRow, len(laid))
-	for i, r := range laid {
-		rows[i] = d.pageRow(r)
+	rows = make([]pageRow, 0, to-from)
+	for _, r := range laid[from:to] {
+		rows = append(rows, d.pageRow(r))
 	}
-	return rows, from, to
+	return rows, turnsIn(laid[:from]), turnsIn(laid[to:])
 }
 
 // turn draws the turn t's row along row y, the newest where newest says.
@@ -540,7 +562,7 @@ func (d sessionDrawn) turn(c *canvas, y int, t views.Turn, newest bool) {
 		c.emboldened(0, y, chosenCells)
 	}
 	if said := d.page.Activity.WaitingSaid(); newest && said != "" {
-		c.text(askingAt, y, said, keyInk)
+		c.text(askingAt, y, said, asKnown(d.page.Activity, keyInk))
 	}
 }
 

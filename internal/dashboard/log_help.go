@@ -30,7 +30,8 @@ func (f Frame) logHelp() []helpPart {
 			heading: logSubTabHeading(LogEvents),
 			says: []line{
 				said("A line a thing the router decided or noticed, a moment between requests; every move it makes is among them, " +
-					"with why. A move's cost is what writing its session's context again on the new account was worth."),
+					"with why. A move's cost is what writing its session's context again on the new account was worth, unpriced " +
+					"where the price table doesn't know the model."),
 			},
 			glyphs: latelyGlyphs(),
 		},
@@ -55,7 +56,8 @@ func (f Frame) logHelp() []helpPart {
 			says: []line{
 				said("Claude Code's quota checks, a request of one token it sends to read its account's usage, and its counts of " +
 					"tokens, which spend nothing, are hidden until `f` shows them: neither is work done for you, and they would " +
-					"crowd the lines that are. The heading counts them, and none counts among the requests, here or anywhere."),
+					"crowd the lines that are. The heading counts them, and none counts among the requests, here or anywhere. A " +
+					"quota check is worth nothing, its tokens left out of every worth."),
 			},
 		},
 		{

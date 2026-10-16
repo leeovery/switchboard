@@ -219,11 +219,11 @@ func runwayFramedAt(t *testing.T, name string, width, height int) (Frame, status
 	rm := moments[i]
 	doc := rm.Doc
 	doc.Best = "side"
-	m := doc.At(rm.Now, claude.Policy)
+	m := doc.At(rm.Now, claude.Policy())
 	tl := views.Stepped(rm.Window, rm.Day, rm.Now, rm.WeekStarts, RunwayColumns(width))
 	lanes := views.Lanes{}.Look(views.LanesFrom{Moment: m, Readings: rm.Readings, Days: filed(rm.Days), Kept: rm.Kept, Timeline: tl, Window: rm.Window})
 	f := Frame{
-		Width: width, Height: height, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claude.Policy,
+		Width: width, Height: height, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claude.Policy(),
 		Runway: RunwayShown{Window: rm.Window, Back: rm.Day, Timeline: tl, Lanes: &lanes, Coming: views.RunwayComing(m, rm.Window)},
 	}
 	return f, doc, rm.Now
@@ -256,6 +256,15 @@ var (
 	sidesWeekRunsOut = []spot{{16, 43, 116}, {17, 24, 159}, {19, 61, 116}, {20, 75, 90}, {21, 72, 159}, {29, 0, 159}, {30, 0, 159}, {31, 0, 159}, {32, 0, 159}, {33, 0, 159}}
 )
 
+// The rows of Runway's frames, counted from 0, whose room the frames draw ▆,
+// the lower three quarters of a cell, where the design has since drawn it █,
+// the full cell, so a held column's ─ meets it at its middle and a reset's │
+// at its top and bottom: each lane's and the legend's.
+var (
+	roomRows160   = []int{10, 13, 16, 23}
+	roomRowsPhone = []int{11, 14, 17, 24}
+)
+
 // Runway draws its frames cell for cell, in nord, from the heading row to
 // the foot of COMING UP, every part drawn from the views' facts of its
 // world.
@@ -271,7 +280,7 @@ func TestRunwayIsDrawnAsItsFrames(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.stem, func(t *testing.T) {
 			f, doc, now := runwayFramed(t, tt.moment)
-			drawn, frame, canvas := screenOf(t, f.Draw(doc, now)), reference(t, tt.stem), shadeOf(f.Look.Canvas())
+			drawn, frame, canvas := screenOf(t, f.Draw(doc, now)), redrawn(reference(t, tt.stem), '▆', '█', roomRows160...), shadeOf(f.Look.Canvas())
 			heldTo(t, tt.stem, frame, drawn, region{top: 4, bottom: 35, right: 159}, canvas, tt.passed, nil)
 		})
 	}

@@ -177,6 +177,12 @@ func (r LogRead) unheld(held []ledger.Held) []ledger.Line {
 	return fresh
 }
 
+// holdsLineOf reports whether r holds the line of the request t among the
+// table's, as t.FiledAs knows it.
+func (r LogRead) holdsLineOf(t Told) bool {
+	return slices.ContainsFunc(r.held[t.Request], func(at int) bool { return t.FiledAs(&r.lines[at].line) })
+}
+
 // holds reports whether r holds the line l among the table's.
 func (r LogRead) holds(l *ledger.Line) bool {
 	return slices.ContainsFunc(r.held[l.Request], func(at int) bool { return sameLine(&r.lines[at].line, l) })
@@ -221,7 +227,7 @@ func (r LogRead) read(l LedgerSessions, fresh []ledger.Line) map[string]bool {
 		return read
 	}
 	slices.Sort(ids)
-	for id, lines := range l.Sessions(ids, nil) {
+	for id, lines := range l.SessionsOf(ids, nil) {
 		if r.sessions[id] == nil {
 			r.sessions[id], read[id] = &loggedSession{requests: requestsUnpriced(lines)}, true
 		}

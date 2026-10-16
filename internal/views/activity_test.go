@@ -46,8 +46,8 @@ func TestWhatEachSessionIsDoingAtEachHardMoment(t *testing.T) {
 			for _, s := range list.Sessions {
 				whole[s.Session] = s.Activity
 			}
-			m := hm.Doc.At(hm.Now, claude.Policy)
-			rows := views.RunningOf(m, hm.Sessions, hm.Stream, listHeldOf(hm.Lines, hm.Sessions, hm.Now))
+			m := hm.Doc.At(hm.Now, claude.Policy())
+			rows := views.RunningOf(m, views.ListLive{Running: hm.Sessions, Unlisted: hm.Unlisted, Stream: hm.Stream}, listHeldOf(hm.Lines, hm.Sessions, hm.Now))
 			on := make(map[string]map[string]views.Activity)
 			for _, r := range rows {
 				if on[r.Session] == nil {
@@ -174,6 +174,69 @@ func TestASessionWorksWhileItAsksAnswersIsThrottledOrRefused(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			if got := (views.Activity{Doing: doing, LastSeen: now}).Works(); got != works[doing] {
 				t.Errorf("Works = %t, want %t, seen now or not", got, works[doing])
+			}
+		})
+	}
+}
+
+// What's in flight as last known, the router no longer answering, is never
+// at work now: it doesn't work, and is busy only where it was seen in the
+// last minute. It's said in the words it was, every way a view says it:
+// under way and waiting as it was, and never idle.
+func TestWhatsInFlightAsLastKnownIsSaidAsItWasNeverAtWorkNow(t *testing.T) {
+	for doing, name := range doingNames {
+		known := views.Activity{Doing: doing, Status: 429, Chars: 4936, LastSeen: now.Add(-time.Hour)}
+		if !known.InFlight() {
+			continue
+		}
+		t.Run(name, func(t *testing.T) {
+			stale := known
+			stale.Stale = true
+			if stale.Works() || stale.Busy(now) {
+				t.Errorf("as last known, it works %t, is busy %t; want neither", stale.Works(), stale.Busy(now))
+			}
+			if stale.LastSeen = now; !stale.Busy(now) {
+				t.Error("as last known, seen now, it isn't busy; want it busy, seen in the last minute")
+			}
+			said := func(a views.Activity) []string {
+				return []string{a.Said(now), a.State(now), a.Short(), a.WaitingSaid(), fmt.Sprint(a.Underway(), a.Waiting())}
+			}
+			if got, want := said(stale), said(known); !slices.Equal(got, want) {
+				t.Errorf("as last known, it's said %q, want %q, as it was", got, want)
+			}
+			panel := views.LogSession{Activity: stale}
+			if doing, _ := panel.Doing(now.Add(time.Hour)); doing == views.LogIdle {
+				t.Error("as last known, the Log's panel says it idle, want it said as it was")
+			}
+		})
+	}
+}
+
+// Where no router lists the sessions, as while it doesn't answer, what its
+// last listing had in flight is as last known, on every view alike: the
+// rows SESSIONS and Detail list, the Switchboard's calls, the List and a
+// session's page. While the router lists them, it's at work.
+func TestWhatTheLastListingHadInFlightIsAsLastKnownWhileNoRouterListsTheSessions(t *testing.T) {
+	routed := status.Session{ID: asking, Assignments: []status.Assignment{seatOn(opus, "opus", "side", status.ReasonNew, 3*time.Minute, time.Minute, status.Answering)}}
+	listing := []status.Session{routed}
+	m := runningDoc().At(now, claude.Policy())
+	for _, unlisted := range []bool{false, true} {
+		t.Run(fmt.Sprintf("unlisted %t", unlisted), func(t *testing.T) {
+			live := views.ListLive{Running: listing, Unlisted: unlisted, Now: now}
+			held := views.HoldList(views.ReadList(sessionsLedger(nil, now), listing), ledger.Pricing, now)
+			page, _ := views.SessionPageOf(asking, views.PageSources{
+				Routed: &routed, Unlisted: unlisted, Read: readOf(summarisedLedger(nil), &routed), Prices: ledger.Pricing, Now: now,
+			})
+			activities := map[string]views.Activity{
+				"RunningOf": views.RunningOf(m, live, held)[0].Activity,
+				"CallsOf":   views.CallsOf(m, live, held)[0].Activity,
+				"the List":  held.List(live).Sessions[0].Activity,
+				"its page":  page.Activity,
+			}
+			for of, a := range activities {
+				if a.Doing != views.Answering || a.Stale != unlisted || a.Works() == unlisted {
+					t.Errorf("%s has it doing %s, as last known %t, at work %t; want answering, as last known %t", of, doingNames[a.Doing], a.Stale, a.Works(), unlisted)
+				}
 			}
 		})
 	}

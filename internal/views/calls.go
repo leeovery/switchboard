@@ -23,17 +23,17 @@ type Call struct {
 }
 
 // CallsOf are the calls of the sessions running at the moment m, as RunningOf
-// lists them, of the sessions the router lists and what the request stream s
-// told, each named as the List held names it, with its directory and the
-// account it came from, as it tells of its lines.
-func CallsOf(m status.Moment, sessions []status.Session, s Stream, list HeldList) []Call {
+// lists them, of the sessions live gives the router listing and what the
+// request stream it gives told, each named as the List held names it, with
+// its directory and the account it came from, as it tells of its lines.
+func CallsOf(m status.Moment, live ListLive, list HeldList) []Call {
 	held := list.at(m.Now)
-	by := newLister(sessions, false, s, m.Now)
+	by := newLister(live.Running, live.Unlisted, live.Stream, m.Now)
 	running := runningOf(m, by, held)
 	calls := make([]Call, len(running))
 	for i, r := range running {
 		story := held.storyOf(r.Session)
-		calls[i] = Call{Running: r, Dir: by.dir(r.Session, story), From: from(r, story, s.Moves)}
+		calls[i] = Call{Running: r, Dir: by.dir(r.Session, story), From: from(r, story, live.Stream.Moves)}
 	}
 	return calls
 }

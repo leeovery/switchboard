@@ -243,6 +243,62 @@ func TestTheRequestsNoLongerInFlightGoSeenForAfterTheStreamLastToldOfThem(t *tes
 	}
 }
 
+// keptNone is what keeps a request whose line is read for no reader.
+func keptNone(views.Told) bool {
+	return false
+}
+
+// A request the stream told of goes as soon as a read of the ledger's tail
+// reads its line, which tells of it from then on, however soon after it
+// ended, its seat seen as late as the stream last told of it, so its
+// session's idle counts from its end still: but not one in flight, nor one
+// whose id a line of another request has, as a router gives an id again
+// once its run has ended, nor one a reader keeps for its line, till seenFor
+// after the stream last told of it, as no ended one outlives. Where it
+// reads none of them, the traffic is as it was; where it does, its
+// requests are another map.
+func TestARequestGoesOnceAReadOfTheTailReadsItsLine(t *testing.T) {
+	tr := traffic{live: true}.took([]router.StreamEvent{
+		told(router.StreamSent, "done", "work", 0),
+		alter(told(router.StreamDone, "done", "work", 4*time.Minute), func(e *router.StreamEvent) { e.Status = 200 }),
+		told(router.StreamSent, "flying", "work", time.Minute),
+		told(router.StreamSent, "again", "work", 2*time.Minute),
+		alter(told(router.StreamDone, "again", "work", 3*time.Minute), func(e *router.StreamEvent) { e.Status = 200 }),
+	}, heldNowhere, past(4*time.Minute))
+	read := []ledger.Held{
+		took(arrived("done", "work", 0), 4*time.Minute),
+		arrived("flying", "work", time.Minute),
+		took(arrived("again", "work", -time.Hour), time.Second),
+	}
+
+	if unread := tr.lined([]ledger.Held{arrived("other", "work", 0)}).letGo(keptNone); !sameMap(unread.requests, tr.requests) || unread.changes != tr.changes {
+		t.Error("a read of no line of a request told of changed the traffic, want it as it was")
+	}
+	kept := tr.lined(read).letGo(func(views.Told) bool { return true })
+	if !sameMap(kept.requests, tr.requests) {
+		t.Errorf("its line read, but kept for a reader, the requests kept are %q, want every one", ids(kept))
+	}
+	if got, want := ids(kept.tidied(past(4*time.Minute+seenFor))), []string{"flying"}; !slices.Equal(got, want) {
+		t.Errorf("kept for a reader, seenFor after the last ended, the requests kept are %q, want %q", got, want)
+	}
+	lined := tr.lined(read).letGo(keptNone)
+	if got, want := ids(lined), []string{"again", "flying"}; !slices.Equal(got, want) {
+		t.Errorf("its line read, the requests kept are %q, want %q", got, want)
+	}
+	if got, want := lined.stream(past(5*time.Minute)).Seen, map[views.Seat]time.Time{{Session: idD28C, Model: opus, Account: "work"}: past(4 * time.Minute)}; !maps.Equal(got, want) {
+		t.Errorf("its line read, the seats seen are %v, want %v, as the stream last told of done", got, want)
+	}
+	if _, ok := toldOf(tr, "done"); !ok {
+		t.Error("lined, the traffic it was lined from lost done, want its requests its own")
+	}
+	if lined.rowChanges == tr.rowChanges {
+		t.Error("its line read, the traffic counts no change to its rows, want one")
+	}
+	if seen := lined.tidied(past(4*time.Minute + seenFor)).stream(past(4*time.Minute + seenFor)).Seen; len(seen) > 0 {
+		t.Errorf("seenFor after done ended, the seats seen are %v, want none", seen)
+	}
+}
+
 // The views read each move from as soon as it's told of, and once a listing
 // shows it done, read it still, listed, for what it says of where its model
 // came from.
@@ -381,7 +437,7 @@ func TestEachFrameReadsTheStreamAsTheViewsLastHeardIt(t *testing.T) {
 	now := h.clock.now
 	f, mo := h.model.frame(now), h.model.moment(now)
 	look := func(s views.Stream) float64 {
-		return testing.AllocsPerRun(10, func() { views.RunningOf(mo, f.Sessions, s, f.HeldList) })
+		return testing.AllocsPerRun(10, func() { views.RunningOf(mo, views.ListLive{Running: f.Sessions, Stream: s}, f.HeldList) })
 	}
 	if heard, afresh := look(f.Stream), look(views.Stream{Live: f.Stream.Live, Requests: f.Stream.Requests, Moves: f.Stream.Moves}); heard >= afresh {
 		t.Errorf("a look at the frame's stream allocates %.0f times, one at it heard afresh %.0f: the frame's is heard again at each look", heard, afresh)
@@ -458,7 +514,7 @@ func runningOnWorkHeard(s views.Stream, at time.Time) []views.Running {
 		return status.Assignment{Model: model, Family: strings.Split(model, "-")[1], Account: "work", Reason: "new", AssignedAt: at.Add(-2 * time.Hour), LastSeen: at.Add(-ago)}
 	}
 	listed := []status.Session{{ID: idD28C, Assignments: []status.Assignment{seen(opus, time.Minute), seen(haiku, 2*time.Minute)}}}
-	return views.RunningOf(routerDocument(three()...).At(at, policy), listed, s, views.HeldList{})
+	return views.RunningOf(routerDocument(three()...).At(at, policy), views.ListLive{Running: listed, Stream: s}, views.HeldList{})
 }
 
 // sameMap reports whether a and b are the very same map, not alike ones.
@@ -471,7 +527,7 @@ func sameMap[K comparable, V any](a, b map[K]V) bool {
 func d28cRunning(t *testing.T, h *harness, now time.Time) views.Running {
 	t.Helper()
 	f := h.model.frame(now)
-	running := views.RunningOf(h.model.moment(now), f.Sessions, f.Stream, f.HeldList)
+	running := views.RunningOf(h.model.moment(now), views.ListLive{Running: f.Sessions, Stream: f.Stream}, f.HeldList)
 	i := slices.IndexFunc(running, func(r views.Running) bool { return r.Session == idD28C && r.Account == "work" })
 	if i < 0 {
 		t.Fatalf("the views run %+v, want d28c on work", running)

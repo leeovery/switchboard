@@ -118,8 +118,10 @@ type Followed struct {
 	Till   time.Time
 	Family string
 	// InAll is what the moves cost together, as their rows say each: nil
-	// where no move's cost is known.
-	InAll *ledger.Picodollars
+	// where no move's cost is known. Unpriced counts those of them that
+	// wrote their sessions' context again that the price table can't price.
+	InAll    *ledger.Picodollars
+	Unpriced int
 	// Move is a move's own move, as its row says it: nil for any other
 	// event.
 	Move *EventMove
@@ -251,8 +253,10 @@ func (d detailing) happened() []DetailItem {
 		items.add("rate since", d.timeWords(e.Since))
 	case status.EventCap:
 		items.add("its cap", d.capWords())
+		d.joinedItems(&items)
 	case status.EventLimit:
 		items.add("its limit", d.windowsWords())
+		d.joinedItems(&items)
 		items.add("till", d.timeWords(e.Until))
 	case status.EventRefused:
 		if e.Status != 0 {
@@ -334,11 +338,19 @@ func (d detailing) sessionWords() DetailWords {
 	return w
 }
 
-// windowsWords name the windows the event names, as its line does: "its
-// 5-hour window", or "its 5-hour and week windows"; none where it names
+// windowsWords name the windows the event began with, as its line does:
+// "its 5-hour window", or "its 5-hour and week windows"; none where it names
 // none.
 func (d detailing) windowsWords() DetailWords {
 	return valued(its(d.fact.windows, ""))
+}
+
+// joinedItems add an item to items for each window that joined the event
+// after it began, in its order, named "and": "5-hour · joined 14:00".
+func (d detailing) joinedItems(items *itemList) {
+	for _, w := range d.fact.joined {
+		items.add("and", slices.Concat(valued(w.name), saidWords(" · joined "), d.timeWords(w.at)))
+	}
 }
 
 // capWords say a cap as its line does: "95% of its 5-hour window", its use
@@ -556,11 +568,30 @@ func (d detailing) followed() *Followed {
 			continue
 		}
 		f.Moves = append(f.Moves, FollowedMove{Key: e.row.Key, Session: e.event.Session, To: e.event.To, Move: e.row.Move})
-		if e.row.Move != nil && e.row.Move.Cost != nil {
-			f.InAll = summedCost(f.InAll, *e.row.Move.Cost)
+		switch m := e.row.Move; {
+		case m != nil && m.Cost != nil:
+			f.InAll = summedCost(f.InAll, *m.Cost)
+		case m != nil && m.Rewrote:
+			f.Unpriced++
 		}
 	}
 	return f
+}
+
+// InAllSaid says what the moves cost together, as Worth.Cents says a sum:
+// "$3.64"; PartUnpriced after it where the price table can't price some that
+// wrote their sessions' context again, "$3.64+"; "unpriced" where it can
+// price none of them; and "" where none wrote it again.
+func (f Followed) InAllSaid() string {
+	switch {
+	case f.InAll == nil && f.Unpriced > 0:
+		return unpriced
+	case f.InAll == nil:
+		return ""
+	case f.Unpriced > 0:
+		return Worth{Amount: f.InAll}.Cents() + PartUnpriced
+	}
+	return Worth{Amount: f.InAll}.Cents()
 }
 
 // summedCost is sum with c added: c where sum is nil.

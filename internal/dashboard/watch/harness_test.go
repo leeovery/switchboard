@@ -42,7 +42,7 @@ const day = 24 * time.Hour
 // until the test fires it, and each wait on the request stream until the
 // test has the stream tell something.
 type harness struct {
-	t        *testing.T
+	t        testing.TB
 	model    Model
 	clock    *fakeClock
 	source   *fakeSource
@@ -61,7 +61,7 @@ type timer struct {
 
 // newHarness is a model of a source that reads doc, in a terminal 150 cells
 // wide and 50 lines tall. It hasn't started.
-func newHarness(t *testing.T, doc status.Document) *harness {
+func newHarness(t testing.TB, doc status.Document) *harness {
 	t.Helper()
 	h := unsizedHarness(t, doc, Size{Width: 80, Height: 24})
 	h.update(tea.WindowSizeMsg{Width: 150, Height: 50})
@@ -70,7 +70,7 @@ func newHarness(t *testing.T, doc status.Document) *harness {
 
 // unsizedHarness is a model of a source that reads doc, in a terminal that
 // hasn't given its size, so it draws at size. It hasn't started.
-func unsizedHarness(t *testing.T, doc status.Document, size Size) *harness {
+func unsizedHarness(t testing.TB, doc status.Document, size Size) *harness {
 	t.Helper()
 	h := &harness{t: t, clock: &fakeClock{now: start}, source: &fakeSource{doc: doc}, notifier: &fakeNotifier{}}
 	h.model = New(t.Context(), h.config(size))
@@ -124,12 +124,31 @@ func (h *harness) endStream() {
 // sends back.
 func (h *harness) heard() {
 	h.t.Helper()
+	h.deliver(h.waited()...)
+}
+
+// hearHoldingReads has the request stream tell of events, as hear does, but
+// holds back the Log's reads of its own, as holdingReads does, and returns
+// them.
+func (h *harness) hearHoldingReads(events ...router.StreamEvent) []tea.Msg {
+	h.t.Helper()
+	stream := h.source.lastStream(h.t)
+	for _, e := range events {
+		stream <- e
+	}
+	return h.holdingReads(h.waited()...)
+}
+
+// waited runs the wait on the request stream held last, returning what it
+// sends back, undelivered.
+func (h *harness) waited() []tea.Msg {
+	h.t.Helper()
 	if len(h.waits) == 0 {
 		h.t.Fatal("the model isn't waiting on the request stream")
 	}
 	wait := h.waits[len(h.waits)-1]
 	h.waits = h.waits[:len(h.waits)-1]
-	h.deliver(h.run(wait)...)
+	return h.run(wait)
 }
 
 // listening reports whether the model holds a wait on the request stream.
@@ -172,9 +191,17 @@ func (h *harness) deliver(msgs ...tea.Msg) {
 // still under way, and returns.
 func (h *harness) holdingReads(msgs ...tea.Msg) []tea.Msg {
 	h.t.Helper()
+	return holdingBack[logReadMsg](h, msgs...)
+}
+
+// holdingBack delivers msgs and all they send back, as deliver does, but
+// for those of type T, which it holds back undelivered, as reads still
+// under way, and returns.
+func holdingBack[T tea.Msg](h *harness, msgs ...tea.Msg) []tea.Msg {
+	h.t.Helper()
 	var held []tea.Msg
 	for ; len(msgs) > 0; msgs = msgs[1:] {
-		if _, ok := msgs[0].(logReadMsg); ok {
+		if _, ok := msgs[0].(T); ok {
 			held = append(held, msgs[0])
 			continue
 		}
@@ -499,7 +526,7 @@ func (s *fakeSource) Stream(ctx context.Context) (<-chan router.StreamEvent, err
 
 // lastStream is the request stream opened last, failing the test where none
 // was.
-func (s *fakeSource) lastStream(t *testing.T) chan router.StreamEvent {
+func (s *fakeSource) lastStream(t testing.TB) chan router.StreamEvent {
 	t.Helper()
 	if len(s.streams) == 0 {
 		t.Fatal("the request stream was never opened")
@@ -661,7 +688,7 @@ func probedWithoutTheRouter() status.Document {
 // routedHarness is a model of a source whose router answers with doc, in a
 // terminal 150 cells wide and 50 lines tall. Without the router, the source
 // probes as the router isn't running. It hasn't started.
-func routedHarness(t *testing.T, doc status.Document) *harness {
+func routedHarness(t testing.TB, doc status.Document) *harness {
 	t.Helper()
 	h := newHarness(t, probedWithoutTheRouter())
 	h.source.router = &doc

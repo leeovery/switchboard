@@ -96,6 +96,21 @@ func (m Model) regroup() Model {
 	return m
 }
 
+// reburn flips the chart GRAPHS draws, as v does, from the burn-up to the
+// burn-down, and back, and keeps it, for the next watch to open with.
+func (m Model) reburn() Model {
+	m.burn = m.burn.Flipped()
+	kept := m.burn.Kept()
+	m.keepPrefs("the chart GRAPHS draws", func(p *theme.Prefs) { p.Graphs = kept }, "graphs", m.burn.Name())
+	return m
+}
+
+// focuses reports whether the Overview has an account focus for ↑ and ↓ to
+// move, at the size drawn at, as dashboard's Focuses says.
+func (m Model) focuses() bool {
+	return dashboard.Frame{Width: m.size.Width, Sections: m.sections, By: m.by}.Focuses()
+}
+
 // layoutOf is the layout the config, and the preferences, name grouping by
 // by: window or account.
 func layoutOf(by dashboard.By) config.Layout {

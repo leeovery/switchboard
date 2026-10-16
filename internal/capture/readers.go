@@ -37,7 +37,7 @@ type records struct {
 // the sessions' world holds, or the world's own lines in their place, and
 // the router's events.
 func (a accountWorlds) recordsOf(w accountWorld) *records {
-	r := &records{days: a.year.summaries(w.history, w.accounts), readings: w.history, caps: ledger.CapsOf(w.accounts, claude.SharedWindows)}
+	r := &records{days: a.year.summaries(w.history, w.accounts), readings: w.history, caps: ledger.CapsOf(w.accounts, claude.SharedWindows())}
 	if w.traffic {
 		r.lines, r.events = a.traffic()
 	}
@@ -231,6 +231,18 @@ func (l heldLedger) Session(id string) iter.Seq[ledger.Held] {
 // each line of every day read, with the day's date, those either side of
 // today's and today's first.
 func (l heldLedger) Sessions(ids []string, take func(date string, line ledger.Line)) map[string][]ledger.Line {
+	return l.sessions(ids, true, take)
+}
+
+// SessionsOf gives the lines of the sessions with the given ids alone, as
+// Sessions gives them, but none of today's others, as a Follower reads them.
+func (l heldLedger) SessionsOf(ids []string, take func(date string, line ledger.Line)) map[string][]ledger.Line {
+	return l.sessions(ids, false, take)
+}
+
+// sessions gives the lines of the sessions with the given ids, and where
+// todays is set, of today's, as Sessions gives them.
+func (l heldLedger) sessions(ids []string, todays bool, take func(date string, line ledger.Line)) map[string][]ledger.Line {
 	now := l.now()
 	lines := l.arrived(now)
 	near := dayfile.Dates(now, now)
@@ -240,7 +252,7 @@ func (l heldLedger) Sessions(ids []string, take func(date string, line ledger.Li
 		wanted[id] = true
 	}
 	for _, f := range lines {
-		if slices.Contains(near, f.date) && f.Kind == ledger.KindMessage && f.Session != "" && !f.At.Before(start) {
+		if todays && slices.Contains(near, f.date) && f.Kind == ledger.KindMessage && f.Session != "" && !f.At.Before(start) {
 			wanted[f.Session] = true
 		}
 	}
@@ -304,11 +316,10 @@ func (h heldReadings) Between(from, to time.Time) iter.Seq[readings.Reading] {
 	}
 }
 
-// Tail gives a read of the readings from start up to end read by now, each
-// window's run from from up to start carried in, as readings.CarriedRuns has
+// Tail gives a read of the readings read by now, as readings.TailOf reads
 // them: each call reads them whole, as they're held, not filed.
 func (h heldReadings) Tail(from, start, end time.Time) func() []readings.Reading {
-	return func() []readings.Reading { return readings.CarriedRuns(h.Between(from, end), from, start, end) }
+	return readings.TailOf(h.Between, from, start, end)
 }
 
 // FirstDay gives the start of the local day of the first reading read by

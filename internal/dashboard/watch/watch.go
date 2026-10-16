@@ -148,13 +148,15 @@ type Config struct {
 	// View is the tab the preferences kept, which the watch opens on where
 	// it's one there is; Sections the Overview's sections they keep shown;
 	// By how they keep its windows grouped, else as the config's [usage] by
-	// has it; History what they keep History's views showing, as
-	// dashboard.HistoryKept reads it; and Log the Log's columns they keep
-	// shown, as dashboard.LogKept reads them. Prefs keeps each as it
-	// changes: nil keeps nothing.
+	// has it; Burn the chart they keep GRAPHS drawing, as
+	// dashboard.BurnKept reads it; History what they keep History's views
+	// showing, as dashboard.HistoryKept reads it; and Log the Log's columns
+	// they keep shown, as dashboard.LogKept reads them. Prefs keeps each as
+	// it changes: nil keeps nothing.
 	View     dashboard.View
 	Sections dashboard.Sections
 	By       dashboard.By
+	Burn     dashboard.Burn
 	History  dashboard.HistoryPage
 	Log      dashboard.LogTicks
 	Prefs    Prefs
@@ -294,10 +296,11 @@ type Model struct {
 	// the numbers drawn of it with those drawn since: nil where it told
 	// nothing that can.
 	toldBefore *toldSoFar
-	// sections are the Overview's sections shown, and by how its windows are
-	// grouped.
+	// sections are the Overview's sections shown, by how its windows are
+	// grouped, and burn the chart GRAPHS draws.
 	sections dashboard.Sections
 	by       dashboard.By
+	burn     dashboard.Burn
 	// layout is the Overview's layout as it was last made, kept from look to
 	// look, as keepLayout keeps it, so it changes only on an input the page
 	// acts on, a key, a click or the wheel, a resize, or a section's shape
@@ -324,15 +327,23 @@ type Model struct {
 	sessionsTab sessionsTab
 	// runwayTab is what the watch holds of Runway: what it shows, its lanes
 	// as the last look built them, and the readings history's tail they're
-	// judged by.
+	// judged by; and pool what it holds of the pool's charts GRAPHS draws
+	// beside Σ pool by account, judged by that tail too.
 	runwayTab runwayTab
-	// session is the session's page open, drawn in place of the view: nil
-	// while none is. opening counts the pages asked to open, each opening
-	// once its read lands, but one asked for before the last; and pending is
-	// the id of the last, while its read waits for the ledger's tail's.
+	pool      poolTab
+	// session is the session's page open, drawn in place of the view, or
+	// loading, as pageLoading has it: nil while none is. opening counts the
+	// pages asked to open, each opening once its read lands, but one asked
+	// for before the last; arrived is the last of them whose read landed;
+	// and pending is the id of the last, while its read waits for the
+	// ledger's tail's.
 	session *sessionShown
 	opening int
+	arrived int
 	pending string
+	// waiting is the tab shown as it waits on a read of what it draws, as
+	// waited notes it, for its heading to say it's loading.
+	waiting waiting
 	// log is what the watch holds of the Log, and tail today's lines of the
 	// ledger as its readers follow them.
 	log  logTab
@@ -424,7 +435,7 @@ type frameMsg struct {
 func New(ctx context.Context, cfg Config) Model {
 	m := Model{
 		ctx: ctx, cfg: cfg, after: cfg.After, size: cfg.Size, plan: plan{interval: cfg.Interval}, fetching: true,
-		choice: cfg.Choice, pair: cfg.Pair, view: opening(cfg.View), sections: cfg.Sections, by: cfg.By,
+		choice: cfg.Choice, pair: cfg.Pair, view: opening(cfg.View), sections: cfg.Sections, by: cfg.By, burn: cfg.Burn,
 		accounts: accountsTab{shown: cfg.AccountsShown}, past: historyTab{page: cfg.History, starts: cfg.WeekStarts},
 		sessionsTab: sessionsTab{shown: cfg.SessionsShown}, runwayTab: runwayTab{shown: cfg.RunwayShown}, log: openingLog(cfg.Log),
 		traffic: traffic{heard: new(views.Hearing)},
@@ -453,32 +464,36 @@ func (m Model) Init() tea.Cmd {
 }
 
 // Update takes in a message, at the one time it came, as taking has it, as
-// take says, building the session's page open afresh, as relived says, and
-// closing a session's card it leaves no p for, as closing says, then has
-// the watch read the router's request stream while it wants it, and the
-// ledger's days for History, Accounts, a session's page, the Log and its
-// find, and Sessions, as they want them, History's and Accounts' pages built
-// of them as historyBuilt and accountsBuilt have it, Detail's selection
-// following its sessions, as followed has it, Sessions and Runway built at
-// the look, as sessionsLooked and runwayLooked have it, the readings
-// history's tail read for Runway, as readRunway has it, and the Log's page
-// built of what it holds, and only
+// take says, letting go the requests the stream told of whose lines its
+// readers have taken in, as letGo has it, building the session's page open
+// afresh, as relived says, and closing a session's card it leaves no p for,
+// as closing says, then has the watch read the router's request stream
+// while it wants it, and the ledger's days for History, Accounts, a
+// session's page, the Log and its find, and Sessions, as they want them,
+// History's and Accounts' pages built of them as historyBuilt and
+// accountsBuilt have it, Detail's selection following its sessions, as
+// followed has it, Sessions and Runway built at the look, as sessionsLooked
+// and runwayLooked have it, the ledger's tail followed whatever shows, as
+// followTail has it, and the Log's page built of what it holds, and only
 // then, price the moves the routing card would make while it wants them.
-// Then, of the page as it stands at that moment, its Overview's sections
-// built once for each to share, it keeps the Overview's layout, and takes
-// the view back to its top where what its scroll counts changed, as
-// rescrolled has it, but for a frame, which takes nothing in to lay it out
-// afresh by, nor changes what it counts; brightens the
-// numbers what the stream told changed, as compared has it; and only then,
-// so the screen and its frames see the layout the page will draw and the
-// numbers it brightens, shows the page, drawing frames while anything on it
-// moves. The view is drawn again after each, which is all a note's lapsing
-// asks.
+// Then, of the page as it stands at that moment, the one frame a look
+// builds, it builds the pool's charts at the look, as poolLooked has it, has
+// the readings history's tail read for Runway and the pool's charts, as
+// readRunway has it, and notes the tab shown waiting on a read, as waited
+// has it, the page loading as that leaves it. Of that page, its Overview's
+// sections built once for each to share, it keeps the Overview's layout,
+// and takes the view back to its top where what its scroll counts changed,
+// as rescrolled has it, but for a frame, which takes nothing in to lay it
+// out afresh by, nor changes what it counts; brightens the numbers what the
+// stream told changed, as compared has it; and only then, so the screen and
+// its frames see the layout the page will draw and the numbers it
+// brightens, shows the page, drawing frames while anything on it moves. The
+// view is drawn again after each, which is all a note's lapsing asks.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	now := m.now()
 	m.taking = taking{at: now, moment: m.doc.HoldAt(now, m.cfg.Policy)}
 	next, cmd := m.take(msg)
-	tuned, closed := next.(Model).relived(msg, now).closing()
+	tuned, closed := next.(Model).letGo().relived(msg, now).closing()
 	tuned, stream := tuned.tune()
 	tuned, past := tuned.readHistory()
 	tuned = tuned.historyBuilt().accountsBuilt().followed(msg).sessionsLooked(msg).runwayLooked(msg)
@@ -486,9 +501,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	tuned, logged := tuned.readLog()
 	tuned, found := tuned.readFind()
 	tuned, listed := tuned.readSessions()
-	tuned, ran := tuned.readRunway()
+	tuned, tailing := tuned.followTail()
 	tuned, costs := tuned.costing()
-	page := tuned.frame(now).Built(tuned.doc, now)
+	f := tuned.frame(now)
+	tuned, f = tuned.poolLooked(msg, f)
+	tuned, ran := tuned.readRunway()
+	tuned, waits := tuned.waited(now)
+	f.Loading = tuned.loading(now)
+	page := f.Built(tuned.doc, now)
 	if _, frame := msg.(frameMsg); !frame {
 		tuned = tuned.keepLayout(page, now)
 		tuned, page = tuned.rescrolled(page, now)
@@ -496,7 +516,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	tuned = tuned.compared(page, now)
 	tuned, frames := tuned.startFrames(page, now)
 	tuned.taking = taking{}
-	return tuned, tea.Batch(cmd, closed, stream, past, paged, logged, found, listed, ran, costs, frames)
+	return tuned, tea.Batch(cmd, closed, stream, past, paged, logged, found, listed, ran, tailing, costs, waits, frames)
 }
 
 // taking is a message as Update takes it in: when it came, which every look
@@ -657,6 +677,8 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.findRead(msg), nil
 	case reachMsg:
 		return m.reachRead(msg), nil
+	case filedReachMsg:
+		return m.filedReachRead(msg), nil
 	case orderedMsg:
 		return m.ordered(msg)
 	case costedMsg:
@@ -675,6 +697,10 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.framed(msg), nil
 	case sessionReadMsg:
 		return m.sessionRead(msg), nil
+	case pageLoadingMsg:
+		return m.pageLoading(msg), nil
+	case loadingMsg:
+		return m, nil
 	case listReadMsg:
 		return m.listRead(msg), nil
 	case runwayReadMsg:
@@ -839,11 +865,13 @@ func (m Model) uncover() (Model, tea.Cmd) {
 // line and any card over it: at the size drawn at, in the look, showing the
 // tab shown, with what the watch knows of the router, its events and its
 // history, the numbers brightening, the Overview's sections shown, how its
-// windows are grouped, the requests its traces count and its layout as
-// kept, what Runway shows, the sessions listed, what the request stream
-// tells of their requests, the List held, whose lines name them, how far the
-// view is scrolled, the account the focus is on, and what Accounts, as
-// standing has it, and History show.
+// windows are grouped, the chart GRAPHS draws, the requests its traces count
+// and its layout as kept, what Runway shows, the sessions listed, what the
+// request stream tells of their requests, the List held, whose lines name
+// them, how far the view is scrolled, the account the focus is on, and what
+// Accounts, as standing has it, and History show; and while the theme picker
+// is open, the cells it covers at the right, so the traces keep now's end in
+// view.
 // It holds the one moment of the document at now, as At has it, for its
 // bars eased to it and every look at it to share: the message's, as taking
 // has it, where now is when the message came.
@@ -851,9 +879,9 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 	f := dashboard.Frame{
 		Width: m.size.Width, Height: m.size.Height, Look: m.look(),
 		View: m.view,
-		Lost: m.lostShown(), Failed: m.failure(), Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), StateChanged: m.changes.wordFaded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails,
-		Brightened: m.numbers.brightened(now), Sections: m.sections, By: m.by, Traces: m.traces, TraceScale: m.cfg.TraceScale, Layout: m.layout,
-		Sessions: m.sessions, Stream: m.traffic.stream(now), HeldList: m.sessionsTab.list(), Traffic: m.traffic.at(now), Scroll: m.scroll, SessionsTab: m.sessionsTab.shown,
+		Lost: m.lostShown(), Failed: m.failure(), Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), StateChanged: m.changes.wordFaded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails, PoolRooms: m.pool.rooms,
+		Brightened: m.numbers.brightened(now), Sections: m.sections, By: m.by, Burn: m.burn, Traces: m.traces, TraceScale: m.cfg.TraceScale, Layout: m.layout,
+		Sessions: m.sessions, Unlisted: m.unlisted(), Stream: m.traffic.stream(now), HeldList: m.sessionsTab.list(), Traffic: m.traffic.at(now), Scroll: m.scroll, SessionsTab: m.sessionsTab.shown,
 		Focus:      m.focus,
 		Policy:     m.cfg.Policy,
 		WindowName: m.cfg.WindowName,
@@ -862,10 +890,14 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 		Runway:     m.runwayTab.shown,
 		History:    m.past.page,
 		Session:    m.session.frame(),
+		Loading:    m.loading(now),
 		Log:        m.log.page,
 	}.Holding(m.taking.moment).At(m.doc, now)
 	if m.view == dashboard.Accounts {
 		f.Accounts = m.accounts.standing(f)
+	}
+	if m.picker.open {
+		f.Covered = dashboard.PickerWidth(m.size.Width)
 	}
 	f.Eased = m.ease.eased(f, m.doc, now)
 	return f

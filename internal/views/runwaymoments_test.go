@@ -43,7 +43,7 @@ func laneNamed(id string) string {
 // lanesFrom are what Runway's lanes are built from at the moment rm.
 func lanesFrom(rm viewstest.RunwayMoment) views.LanesFrom {
 	return views.LanesFrom{
-		Moment: rm.Doc.At(rm.Now, claude.Policy), Readings: rm.Readings, Days: rm.Days, Kept: rm.Kept, Seen: rm.Seen,
+		Moment: rm.Doc.At(rm.Now, claude.Policy()), Readings: rm.Readings, Days: rm.Days, Kept: rm.Kept, Seen: rm.Seen,
 		Timeline: views.Stepped(rm.Window, rm.Day, rm.Now, rm.WeekStarts, rm.Columns), Window: rm.Window,
 	}
 }
@@ -136,6 +136,9 @@ func stretchesSaid(stretches []views.LaneStretch, now time.Time) string {
 	said := make([]string, len(stretches))
 	for i, s := range stretches {
 		said[i] = fmt.Sprintf("%s %s – %s", cellWords[s.Cell], edgeSaid(s.Start, s.Projected, now), timeSaid(s.Back, now))
+		if !s.Lifts.IsZero() {
+			said[i] += ", lifts " + timeSaid(s.Lifts, now)
+		}
 		if s.AsItResets {
 			said[i] += ", as it resets"
 		}

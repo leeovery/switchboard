@@ -901,6 +901,33 @@ func TestTheBodyOfASectionNotFoldedHasItsTargetsWhereItsLaidOut(t *testing.T) {
 	}
 }
 
+// An account's row is a click's target, which moves the focus to it, only
+// where the Overview has a focus: not by account from 150 columns while
+// GRAPHS charts every account beside USAGE's blocks.
+func TestAnAccountsRowIsATargetOnlyWhereTheOverviewHasAFocus(t *testing.T) {
+	graphs := Sections{}.Toggled(SectionGraphs)
+	tests := []struct {
+		name     string
+		by       By
+		width    int
+		sections Sections
+		want     bool
+	}{
+		{name: "by account, GRAPHS beside USAGE", by: ByAccount, width: 160, sections: graphs},
+		{name: "by account under 150 columns, GRAPHS shown", by: ByAccount, width: 149, sections: graphs, want: true},
+		{name: "by account, GRAPHS hidden", by: ByAccount, width: 160, want: true},
+		{name: "by window, GRAPHS shown", by: ByWindow, width: 160, sections: graphs, want: true},
+	}
+	for _, tt := range tests {
+		f := frameOf(tt.width, 60)
+		f.By, f.Sections = tt.by, tt.sections
+		rows := slices.ContainsFunc(f.Targets(usageWorld(), now), func(t Target) bool { return t.On == OnAccount })
+		if rows != tt.want || f.Focuses() != tt.want {
+			t.Errorf("%s: an account's row is a target %t, the Overview focuses %t; want both %t", tt.name, rows, f.Focuses(), tt.want)
+		}
+	}
+}
+
 func TestUSAGEScrollsWithinTheBodyItsLaidOutIn(t *testing.T) {
 	usage := sized(SectionUsage, 30, 30)
 	usage.scrolling = func(rows, _ int) Scrolling { return Scrolling{Most: 30 - sectionHead - rows, Page: rows} }

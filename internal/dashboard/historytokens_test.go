@@ -26,6 +26,13 @@ func againstAt(ratio, cost float64) views.Against {
 	return views.Against{Cost: usd(cost), Ratio: &ratio}
 }
 
+// knownOf is a, every account's, over the plans of known accounts of the
+// accounts there are.
+func knownOf(a views.Against, known, accounts int) views.Against {
+	a.Plans = views.PlansKnown{Known: known, Of: accounts}
+	return a
+}
+
 // versionTokens is a model version's tokens and worth, by its id, on the accounts
 // given.
 func versionTokens(id string, t views.Tokens, w views.Worth, on ...string) views.ModelTokens {
@@ -591,11 +598,21 @@ func TestAgainstItsPriceAsTokensWritesIt(t *testing.T) {
 		got  []part
 		want []part
 	}{
-		{name: "no plan known", got: againstItsPrice(views.Against{}, "week"), want: dash},
-		{name: "plans that cost nothing", got: againstItsPrice(views.Against{Cost: new(ledger.Picodollars)}, "month"), want: dash},
-		{name: "a week's", got: againstItsPrice(againstAt(4.6, 138), "week"), want: said(span{"4.6×", boldPositiveInk}, "$138", "week")},
-		{name: "a month's, short of it", got: againstItsPrice(againstAt(0.94, 600), "month"), want: said(span{"0.9×", alertInk}, "$600", "month")},
-		{name: "a month's of a thousand or more", got: againstItsPrice(againstAt(1.2, 1800), "month"), want: said(span{"1.2×", boldPositiveInk}, "$1,800", "month")},
+		{name: "no plan known", got: againstItsPrice(views.Against{}, "week", 54), want: dash},
+		{name: "plans that cost nothing", got: againstItsPrice(views.Against{Cost: new(ledger.Picodollars)}, "month", 54), want: dash},
+		{name: "a week's", got: againstItsPrice(againstAt(4.6, 138), "week", 54), want: said(span{"4.6×", boldPositiveInk}, "$138", "week")},
+		{name: "a month's, short of it", got: againstItsPrice(againstAt(0.94, 600), "month", 54), want: said(span{"0.9×", alertInk}, "$600", "month")},
+		{name: "a month's of a thousand or more", got: againstItsPrice(againstAt(1.2, 1800), "month", 54), want: said(span{"1.2×", boldPositiveInk}, "$1,800", "month")},
+		{name: "every account's, over the plans known", got: againstItsPrice(knownOf(againstAt(4.4, 92), 2, 3), "week", 54),
+			want: append(said(span{"4.4×", boldPositiveInk}, "$92", "week"), wordsIn(" · 2 of 3 plans known", dimInk))},
+		{name: "every account's, over the plans known, short where that doesn't fit", got: againstItsPrice(knownOf(againstAt(4.4, 92), 2, 3), "week", 37),
+			want: append(said(span{"4.4×", boldPositiveInk}, "$92", "week"), wordsIn(" · 2 of 3 plans", dimInk))},
+		{name: "every account's, over the plans known, compact where neither fits", got: againstItsPrice(knownOf(againstAt(4.4, 92), 2, 3), "week", 30),
+			want: append(said(span{"4.4×", boldPositiveInk}, "$92", "week"), wordsIn(" · 2/3", dimInk))},
+		{name: "every account's, over the plans known, the ratio alone where none fits", got: againstItsPrice(knownOf(againstAt(4.4, 92), 2, 3), "week", 22),
+			want: said(span{"4.4×", boldPositiveInk}, "$92", "week")},
+		{name: "every account's, every plan known", got: againstItsPrice(knownOf(againstAt(4.4, 92), 3, 3), "week", 54),
+			want: said(span{"4.4×", boldPositiveInk}, "$92", "week")},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

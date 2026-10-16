@@ -21,10 +21,11 @@ import (
 const numbered = 9
 
 // routingSpare is how many of the frame's rows the routing card leaves
-// spare, at its tallest, its rows scrolling within it past that. It never
-// shows fewer rows than the one the cursor is on, so on a terminal too short
-// for that and its fixed rows it's taller; and taller than the page, it's
-// drawn from the page's top, its foot cut, as Card.box has it.
+// spare, at its tallest, its rows scrolling within it past that. It lays out
+// at least the row the cursor is on, so on a terminal too short for that and
+// its fixed rows it's taller, up to the page's height; on one shorter than
+// that, its body is cut over its keys, as Card.shown has it, the cursor's
+// row with it where it falls below the cut.
 const routingSpare = 4
 
 // The fewest rows the routing card keeps for its outcome, new sessions' and

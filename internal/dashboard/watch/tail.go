@@ -1,6 +1,7 @@
 package watch
 
 import (
+	"maps"
 	"slices"
 	"time"
 
@@ -36,14 +37,15 @@ type tailRead struct {
 }
 
 // tailedMsg is what a read of the ledger's tail found: where it read
-// today's lines to; and each reader as the read grew it, where it was read
-// for one: the Log, as logGrown has it, a session's page, as pageTaken has
-// it, and Sessions' List, as listTaken has it.
+// today's lines to; the lines it read; and each reader as the read grew it,
+// where it was read for one: the Log, as logGrown has it, a session's page,
+// as pageTaken has it, and Sessions' List, as listTaken has it.
 type tailedMsg struct {
 	tailRead
-	log  *logGrown
-	page *pageTaken
-	list *listTaken
+	lines tailLines
+	log   *logGrown
+	page  *pageTaken
+	list  *listTaken
 }
 
 // tailLines are what a read of the ledger's tail read: the lines today's
@@ -52,6 +54,11 @@ type tailedMsg struct {
 type tailLines struct {
 	gained []ledger.Held
 	days   map[string][]ledger.Held
+}
+
+// all are every line a read of the tail read, today's and the late days'.
+func (r tailLines) all() [][]ledger.Held {
+	return append([][]ledger.Held{r.gained}, slices.Collect(maps.Values(r.days))...)
 }
 
 // unread reports whether no reader has read the tail yet: the first to read
@@ -111,12 +118,15 @@ func (t ledgerTail) wholeLanded() ledgerTail {
 // readTail reads, at now, what the ledger gained since the tail's mark, and
 // the lines of the days before today its readers read again whole, each
 // once, the late days each has; and grows each reader by them, each noting
-// the days awaiting a line it reads: the Log, once opened, as logFold has
-// it, shown or not, as the mark moves past what the read gives for every
-// reader alike, its Requests built first of what it holds now, as
-// requestsBuilt builds them, for what they await; the session's page open,
-// as pageFold has it; and Sessions' List, once held, shown or not, as
-// listFold has it.
+// the days awaiting a line it reads, and each taking in every late day
+// read, as lateDays has them, so a line a reader awaits reaches every
+// reader in the read that finds it, as the stream lets its request go as
+// lined has it: the Log, once opened, as logFold has it, shown or not, as
+// the mark moves past what the read gives for every reader alike, its
+// Requests built first of what it holds now, as requestsBuilt builds them,
+// for what they await, the days before those its tables span left to it;
+// the session's page open, as pageFold has it; and Sessions' List, once
+// held, shown or not, as listFold has it.
 func (m Model) readTail(now time.Time) (Model, tea.Cmd) {
 	r, mark, today := m.logReaders(), m.tail.mark, views.Today(now)
 	var log *logFold
@@ -129,10 +139,19 @@ func (m Model) readTail(now time.Time) (Model, tea.Cmd) {
 	list := m.listFold(now)
 	m = m.pageAwaiting(page).listAwaiting(list)
 	late := lateDays(log, page, list)
+	if log != nil {
+		log.late = m.log.spanned(late)
+	}
+	if page != nil {
+		page.late = late
+	}
+	if list != nil {
+		list.late = late
+	}
 	m.tail = m.tail.asking()
 	return m, func() tea.Msg {
 		read, next := readLines(r.ledger, mark, late)
-		msg := tailedMsg{mark: next, day: today}
+		msg := tailedMsg{mark: next, day: today, lines: read}
 		if log != nil {
 			msg.log = log.grown(r, read, now)
 		}
@@ -144,6 +163,22 @@ func (m Model) readTail(now time.Time) (Model, tea.Cmd) {
 		}
 		return msg
 	}
+}
+
+// followTail has the watch read the ledger's tail at each look whatever
+// shows, as readTail reads it, where no other read of the ledger is under
+// way: while a reader folds it, the Log once opened, Sessions' List once
+// held or a session's page open, so each keeps up while another tab shows;
+// or while the stream told of a request whose line it awaits, as the
+// traffic lets one go only once a read of the tail has read its line.
+func (m Model) followTail() (Model, tea.Cmd) {
+	if !m.tail.due || m.tail.busy() || m.cfg.Ledger == nil || m.log.reading || m.sessionsTab.reading || m.pending != "" {
+		return m, nil
+	}
+	if !m.log.opened && m.sessionsTab.held == nil && m.session == nil && !m.traffic.awaitsLines() {
+		return m, nil
+	}
+	return m.readTail(m.now())
 }
 
 // lateDays are the dates of the days before today the readers that fold a
@@ -175,8 +210,9 @@ func readLines(l views.Ledger, mark ledger.Mark, late []string) (tailLines, ledg
 }
 
 // tailed takes in what a read of the ledger's tail found: the tail read to
-// its mark, and each reader grown by it, where it was read for one, as
-// logGrown, pageTaken and listTaken have them.
+// its mark; each reader grown by it, where it was read for one, as
+// logGrown, pageTaken and listTaken have them; and the lines it read of the
+// requests the stream told of held, as lined has it, for letGo.
 func (m Model) tailed(msg tailedMsg) Model {
 	m.tail = m.tail.read(msg.tailRead)
 	if msg.log != nil {
@@ -188,5 +224,27 @@ func (m Model) tailed(msg tailedMsg) Model {
 	if msg.list != nil {
 		m = m.listTook(*msg.list)
 	}
+	m.traffic = m.traffic.lined(msg.lines.all()...)
+	return m
+}
+
+// letGo is m with the requests the stream told of let go whose lines a read
+// of the ledger's tail has read, once no longer in flight, as the traffic's
+// letGo has it, each reader having taken the line in as it folded the read:
+// but for one whose row the Log, opened, shows without its line, as
+// views.LogRead's ShowsTold has it, the line filed on a day before those it
+// spans, kept till it reads back to that day, as awaitsBefore has it. The
+// Log places the lines it holds first, as linesPlaced has it, while the
+// stream still tells when each was sent, so a row stays where it sat in
+// flight as its line takes over.
+func (m Model) letGo() Model {
+	if !m.traffic.holdsLines() {
+		return m
+	}
+	if m.log.opened {
+		m = m.linesPlaced(m.now())
+	}
+	log := m.log
+	m.traffic = m.traffic.letGo(func(r views.Told) bool { return log.opened && log.read.ShowsTold(r, log.from) })
 	return m
 }

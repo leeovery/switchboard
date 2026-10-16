@@ -102,7 +102,8 @@ func (rp *replay) RoundTrip(out *http.Request) (*http.Response, error) {
 // send sends the request out on the exchange's account, with a body of its
 // own and the account's token as the router holds it now, and reads off the
 // answer, which it returns, the account's usage and, of a request that spends
-// its quota, whether it took the request.
+// its quota, whether it took the request, telling of each of the account's
+// limits lifting early where either shows it.
 func (rp *replay) send(out *http.Request) (*http.Response, error) {
 	ex := rp.ex
 	ex.attempts++
@@ -127,14 +128,18 @@ func (rp *replay) send(out *http.Request) (*http.Response, error) {
 	}
 	usage := rp.p.provider.Usage(resp.Header)
 	if len(usage.Windows) > 0 {
-		rp.p.state.record(ex.account.ID, usage.Windows, rp.when)
+		for _, lifted := range rp.p.state.record(ex.account.ID, usage.Windows, rp.when) {
+			rp.p.emit(lifted)
+		}
 		rp.p.state.learn(ex.req.Model, usage.Windows)
 	}
 	if usage.Extra.Given() {
 		rp.p.state.recordExtra(ex.account.ID, usage.Extra, rp.when)
 	}
 	if ex.spends && succeeded(resp.StatusCode) {
-		rp.p.state.admitted(ex.account.ID, rp.when)
+		for _, lifted := range rp.p.state.admitted(ex.account.ID, rp.when) {
+			rp.p.emit(lifted)
+		}
 	}
 	return resp, nil
 }

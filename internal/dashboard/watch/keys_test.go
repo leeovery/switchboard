@@ -115,6 +115,7 @@ func TestTheOverviewsKeyLineSaysWhichSectionsShowAndHowTheWindowsAreGrouped(t *t
 		{Key: "u", Does: "usage", Hidden: true}, {Key: "g", Does: "graphs"}, {Key: "r", Does: "routing"},
 		{Key: "s", Does: "sessions", Hidden: true}, {Key: "c", Does: "coming up"}, {Key: "l", Does: "lately"},
 		{Key: "b", Does: "by", State: "account"},
+		{Key: "v", Does: "chart", State: "burn-up"},
 	}
 	if got := h.model.live(h.clock.now).KeyLine.Groups[1]; !slices.Equal(got, want) {
 		t.Errorf("with GRAPHS shown, USAGE hidden and the windows grouped by account, the toggles are\n%+v\nwant\n%+v", got, want)

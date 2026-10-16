@@ -25,18 +25,17 @@ const (
 // columns, by window, the big bars, its windows stacked as sections at the
 // full width; otherwise its least. USAGE never folds: given fewer rows than
 // its least, it scrolls within them, as shown shows it. By account from 150
-// columns, ROUTING is drawn beside its blocks, from routingAt, and follows
-// them as they scroll; a click along an account's rows, its own or
-// ROUTING's beside them, moves the focus to it. ROUTING's table beside them
-// is built only as it's first drawn.
+// columns, GRAPHS' charts or ROUTING are drawn beside its blocks, from
+// besideAt, as besideUsage has them, and follow them as they scroll; a click
+// along an account's rows, its own or what's beside them, moves the focus to
+// it.
 func (f Frame) usageSection(doc status.Document, now time.Time) section {
 	block := f.overviewBlock(doc, now)
 	views := block.views()
+	beside := f.besideUsage(doc, now)
 	aside := 0
-	var routing func() routingTable
-	if f.routingBesideUsage() {
-		aside = block.routingAt()
-		routing = sync.OnceValue(func() routingTable { return f.routingTableOf(doc, now) })
+	if beside != nil {
+		aside = block.besideAt()
 	}
 	return section{
 		Section: SectionUsage, least: sectionHead + views.all, most: sectionHead + views.big, aside: aside,
@@ -44,8 +43,8 @@ func (f Frame) usageSection(doc status.Document, now time.Time) section {
 		draw: func(c *canvas, body bounds) {
 			shown := views.shown(body.rows, f.Scroll)
 			shown.draw(c, body)
-			if aside > 0 {
-				f.routingBeside(c.within(shown.rowsIn(body)), routing(), shown.beside(aside, body))
+			if beside != nil {
+				beside(c.within(shown.rowsIn(body)), shown.beside(aside, body))
 			}
 		},
 		targets: func(body bounds) []Target {
@@ -60,10 +59,10 @@ func (f Frame) usageSection(doc status.Document, now time.Time) section {
 // overviewBlock is usage's block of doc at now as the Overview's USAGE draws
 // it, grouped as the frame's By has it: as usage prints it, but for what the
 // Overview alone has. By account from 150 columns, its bars leave room for
-// ROUTING beside them. While GRAPHS shows, the matrix picks out the account
-// the focus is on. Its key line names the marks the accounts carry. An
-// account out of the pool at now is faint, as overviewGauge draws its windows
-// and overviewNames its name.
+// GRAPHS' charts or ROUTING beside them. While GRAPHS shows, the matrix picks
+// out the account the focus is on. Its key line names the marks the accounts
+// carry. An account out of the pool at now is faint, as overviewGauge draws
+// its windows and overviewNames its name.
 func (f Frame) overviewBlock(doc status.Document, now time.Time) usageBlock {
 	m := f.Moment(doc, now)
 	names := overviewNames(m)
@@ -193,10 +192,11 @@ func (f Frame) roomLeft(doc status.Document, now time.Time) line {
 	return slices.Concat(line{{"room left  ", faintInk}}, joined(span{"  ·  ", faintInk}, parts...))
 }
 
-// routingAt is the column ROUTING's blocks start at beside the block's, by
-// account from 150 columns: hx = n + 10 + bar + 7 + 22 + 4, its words'
-// cells and besideCells after them, 107 with a name column of 16.
-func (b usageBlock) routingAt() int {
+// besideAt is the column what's beside the block's blocks starts at, by
+// account from 150 columns, GRAPHS' charts or ROUTING's lines: hx = n + 10 +
+// bar + 7 + 22 + 4, its words' cells and besideCells after them, 107 with a
+// name column of 16.
+func (b usageBlock) besideAt() int {
 	return b.names + windowLabelCells + b.accountBar + afterBar + fullCells + besideCells
 }
 

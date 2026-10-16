@@ -106,7 +106,8 @@ const (
 func RunwayMoments() []RunwayMoment {
 	return slices.Concat(
 		weekResetBeforeRunwayRereads(), justAfterAFiveHourReset(), failedReads(), refusals(), holdsNoEventTells(), holdsEventsTell(), holdsTakenOver(), holdsChanging(), holdsAhead(),
-		holdsOutlasted(), holdsCarriedIn(), routerSilent(), pools(), steppedBack(),
+		holdsOutlasted(), holdsCarriedIn(), routerSilent(), pools(), steppedBack(), liftedByHand(),
+		[]RunwayMoment{liftedAsTheWeekResets()},
 		[]RunwayMoment{tokenless(), restartedByHand(), capTurningToALimit(), twoLimitsClose(), runOutReachingTheCap(), modelsOwnLimit()},
 		framesMoments(),
 	)
@@ -143,14 +144,14 @@ func readEach(id string, at time.Time, windows ...quota.Window) []readings.Readi
 func routed(at time.Time, events []status.Event, accounts ...status.Account) status.Document {
 	doc := readDoc(at, accounts...)
 	doc.Events = numbered(events...)
-	return doc.WorkedOut(claude.Policy)
+	return doc.WorkedOut(claude.Policy())
 }
 
 // pinned is doc with the global pin naming the accounts given, set at at,
 // worked out again.
 func pinned(doc status.Document, at time.Time, ids ...string) status.Document {
 	doc.Pin = status.Pin{Accounts: ids, Since: at}
-	return doc.WorkedOut(claude.Policy)
+	return doc.WorkedOut(claude.Policy())
 }
 
 // reserving is a with a reserve of the share given.
@@ -386,7 +387,7 @@ func holdsNoEventTells() []RunwayMoment {
 	back := onThu(15, 30, 0)
 	probe := status.Document{GeneratedAt: onThu(14, 41, 0), Source: status.SourceProbe, Fallback: status.Fallback{Router: status.RouterNotRunning}}
 	probed := readAccount(work, onThu(14, 41, 0), spent(fiveHour, 1, back), window(week, 0.5, mondayTen))
-	probe.Accounts = []status.Account{probed.AsOf(claude.Policy, probe.GeneratedAt), sideOn(onThu(14, 41, 0)).AsOf(claude.Policy, probe.GeneratedAt)}
+	probe.Accounts = []status.Account{probed.AsOf(claude.Policy(), probe.GeneratedAt), sideOn(onThu(14, 41, 0)).AsOf(claude.Policy(), probe.GeneratedAt)}
 	probe.Best = side
 	team := readAccount("team", onThu(14, 41, 0), spent(fiveHour, 1, back), window(week, 0.4, mondayTen))
 	unnamed := readAccount(work, onThu(14, 41, 0), window(fiveHour, 0.5, onThu(16, 30, 0)), window(week, 0.5, mondayTen))
@@ -408,7 +409,7 @@ func holdsNoEventTells() []RunwayMoment {
 		weekBefore = append(weekBefore, readEach(work, at, window(fiveHour, 0.2, at.Add(3*time.Hour)), window(week, 0.2, mondayTen))...)
 	}
 	return []RunwayMoment{
-		fiveHourAt("a hold no event tells of, probed", probe.WorkedOut(claude.Policy), sorted(
+		fiveHourAt("a hold no event tells of, probed", probe.WorkedOut(claude.Policy()), sorted(
 			readEach(work, onThu(13, 30, 0), window(fiveHour, 0.8, back), window(week, 0.5, mondayTen)),
 			readEach(work, onThu(14, 5, 0), spent(fiveHour, 1, back)),
 			readEach(work, onThu(14, 41, 0), probed.Windows...),
@@ -513,7 +514,7 @@ func holdsEventsTell() []RunwayMoment {
 // below its reserve since: one cap, unbroken since 10:00, as the router's
 // one event of it tells, though the window that began it holds it no
 // longer, its words saying 10:00 in either view; and, no event telling of
-// it, as the readings alone tell the week's own run, from 11:00.
+// it, as the readings alone tell it, the 5-hour's run among them.
 func holdsTakenOver() []RunwayMoment {
 	at := onThu(14, 41, 0)
 	capped := reserving(readAccount(work, at, window(fiveHour, 0.5, onThu(17, 0, 0)), window(week, 0.96, mondayTen)), 0.05)
@@ -539,7 +540,7 @@ func holdsTakenOver() []RunwayMoment {
 		}),
 		weekView,
 		fiveHourAt("a cap the 5-hour began and the week took over, no event telling of it", routed(at, nil, capped, sideOn(at)), read, map[string]Figures{
-			work: {FigureCells: "capped 0-135", FigureStretches: "capped 11:00 – Mon 10:00 @0 0-135"},
+			work: {FigureCells: "capped 0-135", FigureStretches: "capped 10:00 – Mon 10:00 @0 0-135"},
 		}),
 	}
 }
@@ -561,7 +562,7 @@ func holdsChanging() []RunwayMoment {
 			sideRead(),
 		), map[string]Figures{work: {
 			FigureCells:     "room 0-3, capped 4, limited 5-20, room 21-135",
-			FigureStretches: "capped 14:20 – 17:10, as it resets @4 4, over; limited 14:33 – 17:10, as it resets @5 5-20",
+			FigureStretches: "capped 14:20 – 17:10, lifts 17:10, as it resets @4 4, over; limited 14:33 – 17:10, as it resets @5 5-20",
 		}}),
 		fiveHourAt("a hold at now the readings tell otherwise", routed(onThu(14, 30, 0), nil, capped, sideOn(onThu(14, 30, 0))), sorted(
 			readEach(work, onThu(13, 30, 0), window(fiveHour, 0.8, back), window(week, 0.4, mondayTen)),
@@ -579,9 +580,9 @@ func holdsChanging() []RunwayMoment {
 func probedAt(at time.Time, accounts ...status.Account) status.Document {
 	doc := status.Document{GeneratedAt: at, Source: status.SourceProbe, Fallback: status.Fallback{Router: status.RouterNotRunning}, Best: side}
 	for _, a := range append(accounts, sideOn(at)) {
-		doc.Accounts = append(doc.Accounts, a.AsOf(claude.Policy, at))
+		doc.Accounts = append(doc.Accounts, a.AsOf(claude.Policy(), at))
 	}
-	return doc.WorkedOut(claude.Policy)
+	return doc.WorkedOut(claude.Policy())
 }
 
 // tokenless has work and spare without a usable token, work read before it
@@ -606,9 +607,9 @@ const spare = "spare"
 // 14:00 till 16:30, as its week runs out, at 16:00, to its limit, one
 // stretch till its week resets, as the 5-hour view leaves out a week running
 // out, but not a week at its limit; and to its cap, its reserve 5%, the
-// limit drawn till it lifts, then the cap, the limit back as the cap is; its
-// 5-hour's limit with no known
-// back, held all along; a limit naming no window from 14:12 till 15:00, its
+// limit drawn till it lifts, then the cap, the limit lifting at 16:30 and
+// back as the cap is; its 5-hour's limit with no known back, held all
+// along; a limit naming no window from 14:12 till 15:00, its
 // 5-hour running out once it lifts, at 15:50; and its Fable week running out,
 // which holds back Fable's requests alone, not drawn.
 func holdsAhead() []RunwayMoment {
@@ -633,7 +634,7 @@ func holdsAhead() []RunwayMoment {
 			side: {FigureCells: "room 0-1, limited 2-135", FigureStretches: "limited 14:00 – Mon 21:00 @2 2-135"},
 		}),
 		fiveHourAt("a limit holding as its week runs out to its cap", routed(at, nil, workAt, weekCapped), read(spentRead, readEach(side, at, weekCapped.Windows...)), map[string]Figures{
-			side: {FigureCells: "room 0-1, limited 2-16, capped 17-135", FigureStretches: "limited 14:00 – Mon 21:00 @2 2-16; capped ~16:00 – Mon 21:00 @14 17-135"},
+			side: {FigureCells: "room 0-1, limited 2-16, capped 17-135", FigureStretches: "limited 14:00 – Mon 21:00, lifts 16:30, as it resets @2 2-16; capped ~16:00 – Mon 21:00 @14 17-135"},
 		}),
 		fiveHourAt("a limit with no known back", routed(at, nil, workAt, noBack), read(
 			readEach(side, onThu(13, 30, 0), window(fiveHour, 0.8, back), window(week, 0.4, mondayTen)),
@@ -662,7 +663,8 @@ func holdsAhead() []RunwayMoment {
 // token refused till 14:52, which no event tells the start of, as its week
 // reaches its cap, the refusal drawn till it lifts, then the cap. Each
 // stretch starts as it began, its cap at 14:00 as the readings show it, and
-// is back as work next has room, on Monday.
+// is back as work next has room, on Monday, the limit and the refusal each
+// lifting as its own hold does.
 func holdsOutlasted() []RunwayMoment {
 	weekBack := mondayTen.Add(11 * time.Hour)
 	limited := reserving(readAccount(work, onThu(14, 0, 0), spent(fiveHour, 1, onThu(15, 30, 0)), window(week, 0.96, weekBack)), 0.05)
@@ -676,7 +678,7 @@ func holdsOutlasted() []RunwayMoment {
 	limitOver := fiveHourAt("a cap outlasting a limit, the limit over", routed(onThu(14, 41, 0), nil, limited, sideOn(onThu(14, 41, 0))), limitedRead, map[string]Figures{
 		work: {
 			FigureCells:     "limited 0-2, capped 3-135",
-			FigureStretches: "limited 14:00 – Mon 21:00 @0 0-2, over; capped 14:00 – Mon 21:00 @0 3-135",
+			FigureStretches: "limited 14:00 – Mon 21:00, lifts 15:30, as it resets @0 0-2, over; capped 14:00 – Mon 21:00 @0 3-135",
 		},
 	})
 	limitOver.Now = onThu(16, 0, 7)
@@ -686,7 +688,7 @@ func holdsOutlasted() []RunwayMoment {
 			"": {FigurePool: "2 0-1, 1 2-135", FigureDips: "1 14:00 – Mon 21:00 @2 2-135"},
 			work: {
 				FigureCells:     "room 0-1, limited 2-10, capped 11-135",
-				FigureStretches: "limited 14:00 – Mon 21:00 @2 2-10; capped 14:00 – Mon 21:00 @2 11-135",
+				FigureStretches: "limited 14:00 – Mon 21:00, lifts 15:30, as it resets @2 2-10; capped 14:00 – Mon 21:00 @2 11-135",
 				FigureResets:    "11 15:30 back", FigureRoom: "no",
 			},
 		}),
@@ -697,7 +699,7 @@ func holdsOutlasted() []RunwayMoment {
 			"": {FigurePool: "1 0-135", FigureDips: "1 — – Mon 21:00 @0 0-135"},
 			work: {
 				FigureCells:     "refused 0-6, capped 7-135",
-				FigureStretches: "refused — – Mon 21:00 @0 0-6; capped 14:00 – Mon 21:00 @2 7-135",
+				FigureStretches: "refused — – Mon 21:00, lifts 14:52 @0 0-6; capped 14:00 – Mon 21:00 @2 7-135",
 				FigureResets:    "20 17:00", FigureRoom: "no",
 			},
 		}),
@@ -1039,6 +1041,82 @@ func capTurningToALimit() RunwayMoment {
 			},
 		},
 	}
+}
+
+// liftedAsTheWeekResets is the week from Monday 21 September stepped back
+// to: work, its reserve 5%, at its cap from Friday at 12:00 till its week
+// resets on Saturday at 21:00, its 5-hour at its limit from Saturday at 20:00
+// till Sunday at 01:00 holding it on past the cap's lift. The cap's stretch
+// lifts as the week resets, which its │ marks as a stretch's end, so the
+// reset isn't said again; the limit's is back as its own hold lifts.
+func liftedAsTheWeekResets() RunwayMoment {
+	in := func(day, hour, minute int) time.Time {
+		return time.Date(2026, time.September, day, hour, minute, 0, 0, time.UTC)
+	}
+	weekReset := in(26, 21, 0)
+	workAt := reserving(readAccount(work, onThu(14, 41, 0), window(fiveHour, 0.6, onThu(17, 10, 0)), window(week, 0.34, mondayTen)), 0.05)
+	return RunwayMoment{
+		Name: "stepped back to a cap lifting as its week resets, a limit holding it on", Now: thursday,
+		Doc: routed(onThu(14, 41, 0), nil, workAt, sideOn(onThu(14, 41, 0))),
+		Readings: sorted(
+			readEach(work, in(24, 12, 0), window(fiveHour, 0.1, in(24, 17, 0)), window(week, 0.5, weekReset)),
+			readEach(work, in(25, 12, 0), window(fiveHour, 0.3, in(25, 17, 0)), window(week, 0.96, weekReset)),
+			readEach(work, in(26, 20, 0), spent(fiveHour, 1, in(27, 1, 0)), window(week, 0.97, weekReset)),
+			readEach(work, in(26, 21, 30), window(week, 0.01, weekReset.AddDate(0, 0, 7))),
+			readEach(work, in(27, 1, 30), window(fiveHour, 0.05, in(27, 6, 30))),
+		),
+		Days: []ledger.Summary{{Version: 2, Day: "2026-09-26", Accounts: []ledger.AccountDay{{
+			Account: work, Highest: map[string]float64{fiveHour: 1, week: 0.97},
+			Resets: []ledger.Reset{{Window: week, At: weekReset, Before: 0.97}},
+		}}}},
+		Window: views.RunwayWeek, Day: civilDay(2026, time.September, 24), WeekStarts: time.Monday, Columns: lanes,
+		Want: map[string]Figures{work: {
+			FigureStretches: "capped Fri 12:00 – Sun 01:00, lifts Sat 21:00, as it resets @87 87-112; limited Sat 20:00 – Sun 01:00 @113 113-116",
+			FigureResets:    "114 Sat 21:00 back",
+		}},
+	}
+}
+
+// liftedByHand are Wednesday stepped back to: work, its reserve 5%, at its
+// cap, or at its limit, from 14:00, its 5-hour reset by hand at 15:30, as
+// claude.ai's banked reset does, its use dropped and its reset, 17:10, kept.
+// Its hold lifts at the reading that shows the reset, as the window started
+// again then, which the day's summary has as one of its resets: back 15:30,
+// a cap's as the window resets, not at 17:10.
+func liftedByHand() []RunwayMoment {
+	reset := onWed(17, 10, 0)
+	workAt := reserving(readAccount(work, onThu(14, 41, 0), window(fiveHour, 0.6, onThu(17, 10, 0)), window(week, 0.34, mondayTen)), 0.05)
+	moment := func(name string, held quota.Window) RunwayMoment {
+		return RunwayMoment{
+			Name: name, Doc: routed(onThu(14, 41, 0), nil, workAt, sideOn(onThu(14, 41, 0))), Now: thursday,
+			Readings: sorted(
+				readEach(work, onWed(-1, 0, 0), window(fiveHour, 0, onWed(3, 0, 0)), window(week, 0.2, mondayTen)),
+				readEach(work, onWed(12, 10, 0), window(fiveHour, 0, reset)),
+				readEach(work, onWed(14, 0, 0), held),
+				readEach(work, onWed(15, 30, 0), window(fiveHour, 0.05, reset)),
+				readEach(side, onWed(-1, 0, 0), window(fiveHour, 0.1, onWed(3, 0, 0)), window(week, 0.2, mondayTen)),
+			),
+			Days: []ledger.Summary{{Version: 2, Day: "2026-09-30", Accounts: []ledger.AccountDay{{
+				Account: work, Highest: map[string]float64{fiveHour: held.Utilization, week: 0.2},
+				Resets: []ledger.Reset{
+					{Window: fiveHour, At: onWed(3, 0, 0)}, {Window: fiveHour, At: onWed(15, 30, 0), Before: held.Utilization},
+					{Window: fiveHour, At: reset, Before: 0.05},
+				},
+			}}}},
+			Day: civilDay(2026, time.September, 30), Columns: lanes,
+		}
+	}
+	capped := moment("stepped back to a cap lifted early by a reset made by hand", window(fiveHour, 0.96, reset))
+	capped.Want = map[string]Figures{work: {
+		FigureCells: "room 0-78, capped 79-87, room 88-135", FigureStretches: "capped Wed 14:00 – Wed 15:30, as it resets @79 79-87",
+		FigureResets: "17 Wed 03:00, 87 Wed 15:30 back, 97 Wed 17:10",
+	}}
+	limited := moment("stepped back to a limit lifted early by a reset made by hand", spent(fiveHour, 1, reset))
+	limited.Want = map[string]Figures{work: {
+		FigureCells: "room 0-78, limited 79-87, room 88-135", FigureStretches: "limited Wed 14:00 – Wed 15:30, as it resets @79 79-87",
+		FigureResets: "17 Wed 03:00, 87 Wed 15:30 back, 97 Wed 17:10",
+	}}
+	return []RunwayMoment{capped, limited}
 }
 
 // twoLimitsClose has work at its 5-hour limit from 13:52 till it resets at

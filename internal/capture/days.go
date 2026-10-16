@@ -28,7 +28,7 @@ var sampleWeek = struct {
 // account's requests by model, its sessions and its moves, as the day's lines
 // would give them.
 func (y year) summaries(h history, accounts config.Accounts) []ledger.Summary {
-	caps := ledger.CapsOf(accounts, claude.SharedWindows)
+	caps := ledger.CapsOf(accounts, claude.SharedWindows())
 	none := func(func(ledger.Line) bool) {}
 	days := make([]ledger.Summary, 0, today)
 	for d := range today {

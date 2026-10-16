@@ -248,6 +248,79 @@ func TestARefusalRenewedWhileItHoldsJoinsItsEvent(t *testing.T) {
 	}
 }
 
+// A limit lifting early, as a reading shows it, ends its event at the lift,
+// filed again as it then stands, whatever else holds the account back; one
+// that had ended, or another limit's lifting, changes nothing.
+func TestALimitLiftedEarlyEndsItsEventThen(t *testing.T) {
+	until := start.Add(time.Hour)
+	tests := []struct {
+		name string
+		// after is how long after start the lifting comes, of the limit
+		// with the identity limit.
+		after time.Duration
+		limit int
+		want  time.Time
+	}{
+		{name: "as it lifts", after: 10 * time.Minute, limit: 1, want: start.Add(10 * time.Minute)},
+		{name: "but another limit's lifting", after: 10 * time.Minute, limit: 2, want: until},
+		{name: "but once it has ended", after: 2 * time.Hour, limit: 1, want: until},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			k := newTelling(t)
+			k.hear(LimitReached{Account: "work", Windows: []string{"5h"}, Until: until, Limit: 1})
+			k.after(tt.after)
+			k.hear(LimitLifted{Account: "work", Limit: tt.limit})
+			k.expect(status.Event{ID: 1, At: start, Kind: status.EventLimit, Account: "work", Windows: []string{"5h"}, Until: tt.want, Limit: 1})
+		})
+	}
+}
+
+// The news of a limit reached heard after its lift, as emits from different
+// goroutines aren't ordered, is from before it, as a lifted limit's identity
+// is never reached again: reached again, its windows join the event as of
+// the lift, its until not widened past it; reached first, its event is kept
+// lifted, ending as it begins, not before. A limit reached after the lift is
+// another, held as its news says.
+func TestALimitsNewsHeardAfterItsLiftKeepsItLifted(t *testing.T) {
+	until := start.Add(time.Hour)
+	reached := LimitReached{Account: "work", Windows: []string{"5h"}, Until: until, Limit: 1}
+	lifted := LimitLifted{Account: "work", Limit: 1}
+	t.Run("reached again", func(t *testing.T) {
+		k := newTelling(t)
+		k.hear(reached)
+		k.after(10 * time.Minute)
+		k.hear(lifted)
+		k.after(time.Second)
+		k.hear(LimitReached{Account: "work", Windows: []string{"5h", "7d"}, Until: until, Limit: 1, Again: true})
+		liftedAt := start.Add(10 * time.Minute)
+		k.expect(status.Event{
+			ID: 1, At: start, Kind: status.EventLimit, Account: "work", Windows: []string{"5h", "7d"},
+			Joined: map[string]time.Time{"7d": liftedAt}, Until: liftedAt, Limit: 1,
+		})
+	})
+	t.Run("reached first", func(t *testing.T) {
+		k := newTelling(t)
+		k.hear(lifted)
+		k.after(time.Second)
+		k.hear(reached)
+		heard := start.Add(time.Second)
+		k.expect(status.Event{ID: 1, At: heard, Kind: status.EventLimit, Account: "work", Windows: []string{"5h"}, Until: heard, Limit: 1})
+	})
+	t.Run("another reached after", func(t *testing.T) {
+		k := newTelling(t)
+		k.hear(reached)
+		k.after(10 * time.Minute)
+		k.hear(lifted)
+		k.after(time.Minute)
+		k.hear(LimitReached{Account: "work", Windows: []string{"5h"}, Until: until, Limit: 2})
+		k.expect(
+			status.Event{ID: 2, At: start.Add(11 * time.Minute), Kind: status.EventLimit, Account: "work", Windows: []string{"5h"}, Until: until, Limit: 2},
+			status.Event{ID: 1, At: start, Kind: status.EventLimit, Account: "work", Windows: []string{"5h"}, Until: start.Add(10 * time.Minute), Limit: 1},
+		)
+	})
+}
+
 func TestARefusalCountsTheSessionsItMoved(t *testing.T) {
 	until := start.Add(refusedFor)
 	token := Refused{Account: "work", Status: http.StatusUnauthorized, Until: until, Request: someRequest}

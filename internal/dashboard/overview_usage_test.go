@@ -100,6 +100,11 @@ var (
 	// reset at 16:30, as the auto world's, its even pace and the pool's a
 	// cell back, where its world's resets at 15:54, as its limit lifts.
 	personalsLimit = []spot{{10, 26, 28}, {14, 22, 23}}
+	// workFocused is the last two cells of work's name column, which the frames
+	// leave unlit, lighting its first 12 cells, where the matrix lights the
+	// whole column but the gap before the bars, 14 of the sample's 16 (the
+	// owner's call, 15 October 2026).
+	workFocused = spot{8, 12, 13}
 )
 
 func TestUSAGEIsDrawnAsItsFrames(t *testing.T) {
@@ -121,8 +126,8 @@ func TestUSAGEIsDrawnAsItsFrames(t *testing.T) {
 		{stem: "overview-default-160", width: 160, height: 37, doc: usageWorld(), top: 6, rows: 11, whole: slices.Concat(evenPace160, []spot{sidesWeek["160"]})},
 		{stem: "overview-pinned-160", width: 160, height: 37, doc: usageWorld(usagePinned("personal")), top: 6, rows: 11, whole: slices.Concat(evenPace160, []spot{sidesWeek["160"]})},
 		{stem: "overview-bad-hour-160", width: 160, height: 37, doc: usageWorld(usageBadHour), top: 6, rows: 11, whole: slices.Concat(evenPace160, []spot{sidesWeek["160"]}, personalsLimit)},
-		{stem: "overview-everything-160x39", width: 160, height: 39, doc: usageWorld(), shown: graphed, top: 6, rows: 11, whole: slices.Concat(evenPace160, []spot{sidesWeek["160"]})},
-		{stem: "overview-sessions-graphs-216", width: 216, height: 70, doc: usageWorld(), shown: graphed, top: 6, rows: 11, whole: []spot{sidesWeek["216"]}},
+		{stem: "overview-everything-160x39", width: 160, height: 39, doc: usageWorld(), shown: graphed, top: 6, rows: 11, whole: slices.Concat(evenPace160, []spot{sidesWeek["160"], workFocused})},
+		{stem: "overview-sessions-graphs-216", width: 216, height: 70, doc: usageWorld(), shown: graphed, top: 6, rows: 11, whole: []spot{sidesWeek["216"], workFocused}},
 		{stem: "overview-default-216", width: 216, height: 70, doc: usageWorld(), top: 6, rows: 33, whole: slices.Concat(evenPace216, []spot{sidesWeek["216 big"]})},
 		{stem: "overview-everything-216x106", width: 216, height: 106, doc: usageWorld(), shown: graphed, top: 6, rows: 33, whole: slices.Concat(evenPace216, []spot{sidesWeek["216 big"]})},
 		{
@@ -573,7 +578,7 @@ func TestUSAGEShownWholeTargetsAndHasROUTINGBesideTheRowsItShows(t *testing.T) {
 		t.Errorf("scrolled 4 rows, USAGE's targets are\n%+v\nwant\n%+v", got, want)
 	}
 	rows, _ := usageBody(f, usageWorld(), now, 12)
-	at := f.overviewBlock(usageWorld(), now).routingAt()
+	at := f.overviewBlock(usageWorld(), now).besideAt()
 	beside := func(y int) string { return strings.TrimSpace(rows[y][min(len(rows[y]), at):]) }
 	if !strings.Contains(rows[3], "2 personal") || beside(3) == "" {
 		t.Errorf("scrolled 4 rows, personal's first row reads %q, want ROUTING's state beside it", rows[3])
@@ -701,6 +706,10 @@ func TestUSAGEHasItsBigBarsWhereTheyFitByWindowFrom150Columns(t *testing.T) {
 	}
 }
 
+// While GRAPHS shows, the matrix lights the focused account's whole name
+// column, its number, name and marks, as wide as USAGE fits the column to the
+// names, but the gap before the bars: 12 cells of the 14 the sample's names
+// fit in, and 22 of the 24 at most a long name takes, cut to fit.
 func TestTheFocusedAccountIsPickedOutInTheMatrixWhileGRAPHSShows(t *testing.T) {
 	graphed := Sections{}.Toggled(SectionGraphs)
 	tests := []struct {
@@ -708,9 +717,12 @@ func TestTheFocusedAccountIsPickedOutInTheMatrixWhileGRAPHSShows(t *testing.T) {
 		shown  Sections
 		by     By
 		rows   int
-		picked bool
+		label  string
+		picked int
 	}{
-		{name: "the matrix, GRAPHS shown", shown: graphed, rows: 11, picked: true},
+		{name: "the matrix, GRAPHS shown", shown: graphed, rows: 11, picked: 12},
+		{name: "the matrix, a name of 13 cells", shown: graphed, rows: 11, label: "personal-plus", picked: 17},
+		{name: "the matrix, a name longer than the column holds", shown: graphed, rows: 11, label: "personal-and-much-longer", picked: 22},
 		{name: "GRAPHS hidden", rows: 11},
 		{name: "the big bars", shown: graphed, rows: 22},
 		{name: "by account", shown: graphed, by: ByAccount, rows: 20},
@@ -719,11 +731,13 @@ func TestTheFocusedAccountIsPickedOutInTheMatrixWhileGRAPHSShows(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			f := frameOf(160, 60)
 			f.Sections, f.By, f.Focus = tt.shown, tt.by, "personal"
-			_, c := usageBody(f, threeRouted(), now, tt.rows)
+			doc := threeRouted()
+			doc.Accounts[1].Label = tt.label
+			_, c := usageBody(f, doc, now, tt.rows)
 			selected := hue{token: theme.BgSelection}
 			for y := range c.height() {
 				for x := range f.Width {
-					want := tt.picked && y == 4 && x < focusCells
+					want := y == 4 && x < tt.picked
 					if got := c.at(x, y).ink.on == selected; got != want {
 						t.Errorf("cell %d of row %d is on bg.selection: %v, want %v", x, y, got, want)
 					}
@@ -1029,8 +1043,8 @@ func TestByAccountUSAGEsBarsLeaveROUTINGItsRoomBesideThem(t *testing.T) {
 			f := frameOf(tt.width, 60)
 			f.By = ByAccount
 			b := f.overviewBlock(tt.doc, printNow)
-			if b.names != tt.names || b.accountBar != tt.bar || (tt.bar > 0 && b.routingAt() != tt.routing) {
-				t.Errorf("its name column %d, bars %d and ROUTING at %d; want %d, %d and %d", b.names, b.accountBar, b.routingAt(), tt.names, tt.bar, tt.routing)
+			if b.names != tt.names || b.accountBar != tt.bar || (tt.bar > 0 && b.besideAt() != tt.routing) {
+				t.Errorf("its name column %d, bars %d and ROUTING at %d; want %d, %d and %d", b.names, b.accountBar, b.besideAt(), tt.names, tt.bar, tt.routing)
 			}
 			if tt.bar > 0 {
 				rows, _ := usageBody(f, tt.doc, printNow, 30)
@@ -1050,7 +1064,7 @@ func TestByAccountUSAGEsWordsEndBeforeTheGapBeforeROUTINGBesideThem(t *testing.T
 	f := frameOf(160, 60)
 	f.By = ByAccount
 	b := f.overviewBlock(stale, printNow)
-	words, gap := b.names+windowLabelCells+b.accountBar+afterBar, b.routingAt()-besideCells
+	words, gap := b.names+windowLabelCells+b.accountBar+afterBar, b.besideAt()-besideCells
 	rows, _ := usageBody(f, stale, printNow, 30)
 	if got := strings.TrimRight(colAt(rows[0], words, gap-words), " "); got != "read Wed" {
 		t.Errorf("work's stale 5-hour reads %q from column %d, want %q, short, as in full it'd run into the gap before ROUTING", got, words, "read Wed")
@@ -1088,7 +1102,7 @@ func TestROUTINGBesideUSAGEsBlocksIsDrawnAsTheOverviewsFrameIs(t *testing.T) {
 	nord := Screen(builtin(t, "nord"))
 	f := Frame{
 		Width: 160, Height: 42, Look: nord, View: Overview, Policy: claudeLike, By: ByAccount,
-		Sections: Sections{}.Toggled(SectionGraphs).Toggled(SectionSessions),
+		Sections: Sections{}.Toggled(SectionSessions),
 		Sessions: sessionsRunning(map[string]int{"personal": 2, "side": 4}),
 	}
 	frame, drawn := reference(t, "overview-by-account-160"), screenOf(t, f.Draw(usageWorld(), routedAt))
@@ -1109,7 +1123,7 @@ func TestROUTINGBesideUSAGEsBlocksFollowsThemAsTheyScroll(t *testing.T) {
 	}
 	f := frameOf(160, 60)
 	f.By, f.Scroll = ByAccount, 2
-	x := f.overviewBlock(doc, now).routingAt()
+	x := f.overviewBlock(doc, now).besideAt()
 	rows, _ := usageBody(f, doc, now, 22)
 	beside := make([]string, len(rows))
 	for i, row := range rows {
@@ -1127,7 +1141,7 @@ func TestROUTINGBesideBlocksOfOneWindowLeavesTheirTracesOff(t *testing.T) {
 	doc := routerDoc("a1", 0, readAccount("a1", sessionOf(0.1, time.Hour)), readAccount("a2", sessionOf(0.2, time.Hour)))
 	f := frameOf(160, 40)
 	f.By, f.Policy.Shared = ByAccount, []string{"5h"}
-	x := f.overviewBlock(doc, now).routingAt()
+	x := f.overviewBlock(doc, now).besideAt()
 	rows, _ := usageBody(f, doc, now, 10)
 	want := map[int]string{0: "● open · new sessions come here", 1: "0 sessions", 2: "", 3: "● open", 4: "0 sessions", 6: "2 open", 7: "0 sessions"}
 	for y, w := range want {

@@ -462,7 +462,7 @@ func TestWeeksScrollsAccountsPastWhatFits(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			f := weeksFrame(manyWeeks(25), tt.shape, 160, 37, Look{})
 			f.Scroll = tt.scroll
-			if got := f.weeksScrolling(); got != tt.want {
+			if got := f.weeksScrolling(f.Scroll); got != tt.want {
 				t.Errorf("Weeks scrolls %+v, want %+v", got, tt.want)
 			}
 			rows := weeksText(f)
@@ -474,7 +474,7 @@ func TestWeeksScrollsAccountsPastWhatFits(t *testing.T) {
 			}
 		})
 	}
-	if s := weeksFrame(threeWeeks(), WeeksTable, 160, 37, Look{}).weeksScrolling(); s != (Scrolling{Page: 19}) {
+	if s := weeksFrame(threeWeeks(), WeeksTable, 160, 37, Look{}).weeksScrolling(0); s != (Scrolling{Page: 19}) {
 		t.Errorf("Weeks of three accounts scrolls %+v, want none, 19 to a page", s)
 	}
 }
@@ -519,7 +519,7 @@ func TestWeeksScrollsWholeWhereItsFramesDontFit(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := weeksFrame(tt.page, tt.shape, tt.width, tt.height, Look{})
-			if got := f.weeksScrolling(); got != tt.want || !f.ScrollsRows(status.Document{}, now) {
+			if got := f.weeksScrolling(f.Scroll); got != tt.want || !f.ScrollsRows(status.Document{}, now) {
 				t.Errorf("it scrolls %+v, a row at a time: %t; want %+v, a row at a time", got, f.ScrollsRows(status.Document{}, now), tt.want)
 			}
 			for _, at := range []struct {

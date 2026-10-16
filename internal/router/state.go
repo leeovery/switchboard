@@ -275,16 +275,21 @@ func (s *state) mark() moment {
 
 // record takes in a reading of an account's windows, off the answer to a
 // request sent at sent. Each window is merged with the reading of its key
-// before it, and the account's other windows stand.
-func (s *state) record(id string, windows []quota.Window, sent moment) {
+// before it, and the account's other windows stand. It returns the news of
+// each limit of the account's the reading shows lifted early, as liftedSince
+// has it.
+func (s *state) record(id string, windows []quota.Window, sent moment) []LimitLifted {
 	at := s.now().UTC()
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	changed, took := s.usage[id].take(windows, at, sent, s.mark())
+	u := s.usage[id]
+	was := slices.Clone(u.reached)
+	changed, took := u.take(windows, at, sent, s.mark())
 	if took {
 		s.readOff()
 	}
 	s.history(readings.Of(id, changed, at, readings.FromAnswer))
+	return u.liftedSince(id, was, at)
 }
 
 // recordExtra takes in an account's extra usage, off the answer to a request
@@ -309,42 +314,63 @@ func (u *usage) takeExtra(extra quota.ExtraUsage, sent moment) bool {
 }
 
 // admitted notes that the upstream answered a request on the account, sent
-// at sent, with success, which lifts the account's limit as admits says.
-func (s *state) admitted(id string, sent moment) {
+// at sent, with success, which lifts the account's limit as admits says, and
+// returns the news of it lifting early, as liftedSince has it.
+func (s *state) admitted(id string, sent moment) []LimitLifted {
+	at := s.now().UTC()
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.usage[id].admitted(sent)
+	u := s.usage[id]
+	was := slices.Clone(u.reached)
+	u.admitted(sent)
+	return u.liftedSince(id, was, at)
+}
+
+// liftedSince returns the news of each of was, the limits the account with
+// the given id had reached as they stood before what was taken in at now,
+// that lifted early then: each was in force, and is among those the account
+// reached no longer, as a limit lifted is. Of one that had ended by then,
+// there's none.
+func (u *usage) liftedSince(id string, was []limit, now time.Time) []LimitLifted {
+	var lifted []LimitLifted
+	for _, l := range was {
+		if l.inForce(now) && !slices.ContainsFunc(u.reached, func(r limit) bool { return r.id == l.id }) {
+			lifted = append(lifted, LimitLifted{Account: id, Limit: l.id})
+		}
+	}
+	return lifted
 }
 
 // recordProbe takes in what probing an account, from sent on, found, as a
 // prime or not, as from says: its usage, its extra usage among it, and which
 // models reported each window, and whether a request of it was answered with
-// success, or why it read nothing. It reports whether the probe went out on
-// the token before, sent before the account last went out on another, as
-// tokenReplaced marks it: of one of those, it takes in what it read alone,
-// the subscription's usage, which reads the same on either token, and when it
-// ended, for a prime's verdict, but not why it read nothing, what it couldn't
-// read, or the backoff its end would start. Its reading stamps the account
-// read, and clears its probes' error and backoff, as any reading does: none
-// can have come since the account took up its token, as its probes go out
-// one at a time.
-func (s *state) recordProbe(id string, probed quota.Probe, err error, sent moment, from readings.Source) bool {
+// success, or why it read nothing; and returns what it took in, as probeTaken
+// has it. It tells whether the probe went out on the token before, sent
+// before the account last went out on another, as tokenReplaced marks it: of
+// one of those, it takes in what it read alone, the subscription's usage,
+// which reads the same on either token, and when it ended, for a prime's
+// verdict, but not why it read nothing, what it couldn't read, or the backoff
+// its end would start. Its reading stamps the account read, and clears its
+// probes' error and backoff, as any reading does: none can have come since
+// the account took up its token, as its probes go out one at a time.
+func (s *state) recordProbe(id string, probed quota.Probe, err error, sent moment, from readings.Source) probeTaken {
 	at := s.now().UTC()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	u := s.usage[id]
-	tokenBefore := sent < u.afresh
+	taken := probeTaken{tokenBefore: sent < u.afresh}
 	if err != nil {
-		if !tokenBefore {
+		if !taken.tokenBefore {
 			u.probed, u.ended, u.probeErr = at, at, err.Error()
 			u.misses++
 		}
-		return tokenBefore
+		return taken
 	}
 	u.ended = at
-	if !tokenBefore {
+	if !taken.tokenBefore {
 		u.probed, u.failures = at, slices.Clone(probed.Failures)
 	}
+	was := slices.Clone(u.reached)
 	if probed.Admitted {
 		u.admitted(sent)
 	}
@@ -359,7 +385,16 @@ func (s *state) recordProbe(id string, probed quota.Probe, err error, sent momen
 	if news {
 		s.changed()
 	}
-	return tokenBefore
+	taken.lifted = u.liftedSince(id, was, at)
+	return taken
+}
+
+// probeTaken is what a probe's reading took in, as recordProbe has it:
+// whether the probe went out on the token before; and the news of each limit
+// of the account's it showed lifted early.
+type probeTaken struct {
+	tokenBefore bool
+	lifted      []LimitLifted
 }
 
 // learn notes that the response to a request for model reported windows:
@@ -542,7 +577,7 @@ func (u *usage) reachedAgain(windows []string, now time.Time) (int, bool) {
 
 // noteReached notes l, the limit the account reached last, among those it
 // has reached: as a new one, or as the one with its identity, named in its
-// windows too, which lifts as l does.
+// windows too, set and holding as l is, so it lifts as l does.
 func (u *usage) noteReached(l limit) {
 	i := slices.IndexFunc(u.reached, func(r limit) bool { return r.id == l.id })
 	if i < 0 {
@@ -556,7 +591,7 @@ func (u *usage) noteReached(l limit) {
 			r.windows = append(r.windows, key)
 		}
 	}
-	r.until = l.until
+	r.until, r.set = l.until, l.set
 }
 
 // lift lifts the limit the account reached last, as it's seen to have lifted
@@ -951,7 +986,20 @@ func (u *usage) take(windows []quota.Window, at time.Time, sent, taken moment) (
 	if u.limited.liftedBy(merged, at, sent) {
 		u.lift()
 	}
+	u.liftReached(merged, at, sent)
 	return changed, true
+}
+
+// liftReached lifts each limit the account reached but the one it holds, one
+// a later limit took the place of, that windows, read at at off the answer to
+// a request sent at sent, show lifted, as liftedBy says. It holds no request
+// back, the one it holds doing that, so lifting it changes nothing the
+// router routes by; but lifted, it's never reached again, as lift has the one
+// it holds, so its lifting is news, and a limit reached after it another.
+func (u *usage) liftReached(windows []quota.Window, at time.Time, sent moment) {
+	u.reached = slices.DeleteFunc(u.reached, func(l limit) bool {
+		return l.id != u.limited.id && l.liftedBy(windows, at, sent)
+	})
 }
 
 // fromBeforeReset reports whether w, a reading off the answer to a request sent

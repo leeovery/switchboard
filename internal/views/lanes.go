@@ -29,7 +29,7 @@ type Lanes struct {
 
 // judge is how an account stood at a moment gone, as status.Moment.Then has
 // it.
-type judge func(m status.Moment, a status.AccountNow, read []readings.Reading, reach status.Reach, told []status.Span, t time.Time) status.Was
+type judge func(m status.Moment, a status.AccountNow, read status.Readings, reach status.Reach, told []status.Span, t time.Time) status.Was
 
 // LanesFrom are what Runway's lanes are built from at a look: the moment;
 // the readings history's readings, oldest first, those the past is judged
@@ -136,15 +136,29 @@ type LaneStretch struct {
 	Projected bool
 	// Back is when room returns, zero where that isn't known: past its own
 	// hold's lift where another holds the account on, as backWithRoom has
-	// it. AsItResets is set where that's as the view's window resets.
-	Back       time.Time
-	AsItResets bool
+	// it. Lifts is when its own hold lifts where the stretch after it holds
+	// the account on, as heldOnBy has it, so the stretch is one of a run,
+	// back as the run's last is: zero where it's back as it lifts.
+	// AsItResets is set where the time it's said to end, as Ends has it, is
+	// as the view's window resets.
+	Back, Lifts time.Time
+	AsItResets  bool
 	// Column is where its words start: the column its start falls in, the
 	// first, of a start before the timeline, and First, of one not known.
 	Column, First, Last int
 	// Over is set where it's over, as the timeline's over has it, so not
 	// said.
 	Over bool
+}
+
+// Ends is when the stretch is said to end, and whether that's as its own
+// hold lifts, of one of a run but the last, as Lifts has it, rather than as
+// room returns, as Back has it: zero where that isn't known.
+func (s LaneStretch) Ends() (at time.Time, lifts bool) {
+	if !s.Lifts.IsZero() {
+		return s.Lifts, true
+	}
+	return s.Back, false
 }
 
 // Use is an account's use of the view's window, as the label under its name
@@ -217,7 +231,8 @@ func (from LanesFrom) laneOf(a status.AccountNow, past pastOf, then judge) Lane 
 	lane.Stretches = backWithRoom(lane.Stretches, h, tl.NowColumn())
 	resets := from.resetsKnown(a, past)
 	for i, s := range lane.Stretches {
-		lane.Stretches[i].AsItResets = !s.Back.IsZero() && slices.ContainsFunc(resets, s.Back.Equal)
+		ends, _ := s.Ends()
+		lane.Stretches[i].AsItResets = !ends.IsZero() && slices.ContainsFunc(resets, ends.Equal)
 	}
 	lane.Room = roomThrough(lane.Cells[from.saysFrom():])
 	return lane
@@ -293,12 +308,18 @@ func (s *LaneStretch) begunAt(holds []stood) {
 // next has room, as ROUTING's back says: one reaching now's column, now, or
 // past it, as the account standing from now on as h has it is, from when its
 // own hold lifts, whether or not a column draws what holds it on; and one
-// before, as the next is, where that holds it on, as heldOnBy says.
+// before, as the next is, where that holds it on, as heldOnBy says. Each the
+// next holds on lifts as its own hold does.
 func backWithRoom(stretches []LaneStretch, h ahead, now int) []LaneStretch {
 	for i := len(stretches) - 1; i >= 0; i-- {
-		if s := &stretches[i]; now >= 0 && s.Last >= now {
+		s := &stretches[i]
+		heldOn := i+1 < len(stretches) && s.heldOnBy(stretches[i+1])
+		if heldOn {
+			s.Lifts = s.Back
+		}
+		if now >= 0 && s.Last >= now {
 			s.Back = h.roomFrom(s.Back)
-		} else if i+1 < len(stretches) && s.heldOnBy(stretches[i+1]) {
+		} else if heldOn {
 			s.Back = stretches[i+1].Back
 		}
 	}

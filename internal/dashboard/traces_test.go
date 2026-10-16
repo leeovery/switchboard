@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
@@ -222,6 +224,99 @@ func TestAFramesTracesDrawItsRequestsAMinuteToItsScale(t *testing.T) {
 	}
 }
 
+// Under a slide-over, as the theme picker covers the page's right, a trace
+// ends as far short of it as it would of the edge, its oldest columns
+// dropped, as many as it covers, its newest kept, and its rate right-aligned
+// at the slide-over's edge: in ROUTING, wide and narrow, beside USAGE's
+// blocks, the pool's among them, and in SESSIONS. The scale is the busiest
+// of the columns that show: side's newest, 16, and the pool's, 18, the
+// older bursts on two accounts at once, 24 a session and 30 the pool,
+// dropped under it.
+func TestATraceUnderASlideOverKeepsNowsEndAndItsRate(t *testing.T) {
+	doc, listed, traces := tracedWorld()
+	tests := []struct {
+		name  string
+		width int
+		shown Sections
+		by    By
+		scale float64
+	}{
+		{name: "ROUTING, two rows an account", width: 160, shown: SectionsNamed([]string{"routing"}), scale: 16},
+		{name: "ROUTING under 110 columns", width: 109, shown: SectionsNamed([]string{"routing"}), scale: 16},
+		{name: "beside USAGE's blocks", width: 160, shown: SectionsNamed([]string{"usage", "routing"}), by: ByAccount, scale: 18},
+		{name: "SESSIONS", width: 160, shown: SectionsNamed([]string{"sessions"}), scale: 16},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := frameOf(tt.width, 60)
+			f.Sections, f.By, f.Sessions, f.Traces = tt.shown, tt.by, listed, traces
+			covered := f
+			covered.Covered = PickerWidth(tt.width)
+			whole, under := f.overviewDrawn(doc, routedAt), covered.overviewDrawn(doc, routedAt)
+			if len(*under.traces) == 0 || len(*under.traces) != len(*whole.traces) {
+				t.Fatalf("it draws %d traces under the slide-over, want as many as without it, %d", len(*under.traces), len(*whole.traces))
+			}
+			edge := tt.width - covered.Covered
+			for i, w := range *whole.traces {
+				u := (*under.traces)[i]
+				if u.at.x != w.at.x || u.at.width != w.at.width-covered.Covered || !slices.Equal(u.cells, w.cells[covered.Covered:]) {
+					t.Errorf("trace %d is %d cells from column %d, %v; want its newest %d of %v, from column %d", i, u.at.width, u.at.x, u.cells, w.at.width-covered.Covered, w.cells, w.at.x)
+				}
+				rate := rowOf(under, u.at.y+u.at.rows-1)
+				if !strings.HasSuffix(rate, "/min") || ansi.StringWidth(rate) != edge {
+					t.Errorf("trace %d's last row reads %q, want its rate ending at the slide-over's edge, column %d", i, rate, edge)
+				}
+			}
+			if got := covered.traceScale(*under.traces); got != tt.scale {
+				t.Errorf("scaled to %v, want %v, the busiest of the columns that show", got, tt.scale)
+			}
+		})
+	}
+}
+
+// A trace left no cell beside the slide-over keeps its place under it, and
+// so does its rate, which never moves onto the words before the trace: on
+// every row, what's drawn left of a trace's start, or the whole row where
+// none starts, is as it's drawn without the slide-over, from 100 to 130
+// columns, ROUTING a row an account, and with SESSIONS, at an ordinary
+// height, and ROUTING alone at a tall one.
+func TestARateNeverMovesOntoTheWordsBeforeItsTrace(t *testing.T) {
+	doc, listed, traces := tracedWorld()
+	for _, tc := range []struct {
+		name   string
+		height int
+		shown  Sections
+	}{
+		{name: "ROUTING and SESSIONS", height: 37, shown: SectionsNamed([]string{"usage", "routing", "sessions"})},
+		{name: "ROUTING alone", height: 60, shown: SectionsNamed([]string{"routing"})},
+	} {
+		for width := 100; width <= 130; width++ {
+			t.Run(fmt.Sprintf("%s at %d columns", tc.name, width), func(t *testing.T) {
+				f := frameOf(width, tc.height)
+				f.Sections, f.Sessions, f.Traces = tc.shown, listed, traces
+				covered := f
+				covered.Covered = PickerWidth(width)
+				whole, under := f.overviewDrawn(doc, routedAt), covered.overviewDrawn(doc, routedAt)
+				starts := map[int]int{}
+				for _, tr := range *under.traces {
+					for y := tr.at.y; y < tr.at.y+tr.at.rows; y++ {
+						starts[y] = tr.at.x
+					}
+				}
+				for y := range whole.height() {
+					before := width
+					if x, ok := starts[y]; ok {
+						before = x
+					}
+					if got, want := ansi.Truncate(rowOf(under, y), before, ""), ansi.Truncate(rowOf(whole, y), before, ""); got != want {
+						t.Errorf("row %d reads %q before column %d under the slide-over, want %q", y, got, before, want)
+					}
+				}
+			})
+		}
+	}
+}
+
 // pageScale is the scale the traces share on the Overview of doc at
 // routedAt, as f draws it.
 func pageScale(f Frame, doc status.Document) float64 {
@@ -279,7 +374,7 @@ func TestBesideUSAGEsBlocksTheScaleIsTheBusiestColumnAtTheWidthTheTracesAreDrawn
 	doc, listed := autoRouting()
 	f := frameOf(160, 60)
 	f.By, f.Sessions, f.Traces = ByAccount, listed, burst("side-0", "side", 16)
-	if x := f.overviewBlock(doc, routedAt).routingAt(); f.Width-traceTail-x != 45 {
+	if x := f.overviewBlock(doc, routedAt).besideAt(); f.Width-traceTail-x != 45 {
 		t.Fatalf("the traces beside USAGE's blocks are %d cells, want 45", f.Width-traceTail-x)
 	}
 	view := f.overviewDrawn(doc, routedAt)

@@ -98,7 +98,7 @@ func DayAccountsOf(days []Day) []DayAccounts {
 func dayAccountOf(a ledger.PricedAccount) DayAccount {
 	account := DayAccount{Account: a.Account, Sessions: a.Sessions, MovedOn: a.MovedOn, MovedOff: a.MovedOff}
 	for _, m := range a.Models {
-		if m.Requests() == 0 {
+		if !used(m.ModelDay) {
 			continue
 		}
 		tokens := m.Tokens()

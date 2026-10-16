@@ -69,8 +69,8 @@ type laneCase struct {
 // moment Runway has to get right that holds now.
 func agreementCases() []laneCase {
 	var cases []laneCase
-	for _, hm := range statustest.HardMoments(claude.Policy) {
-		m, read := hm.Doc.At(hm.Now, claude.Policy), docReadings(hm.Doc)
+	for _, hm := range statustest.HardMoments(claude.Policy()) {
+		m, read := hm.Doc.At(hm.Now, claude.Policy()), docReadings(hm.Doc)
 		for _, w := range []views.RunwayWindow{views.RunwayFiveHour, views.RunwayWeek} {
 			from := views.LanesFrom{Moment: m, Readings: read, Timeline: views.LiveTimeline(w, hm.Now, 136), Window: w}
 			cases = append(cases, laneCase{name: hm.Name + ", the " + viewKeys[w] + " view", from: from})

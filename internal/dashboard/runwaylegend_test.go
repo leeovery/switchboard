@@ -39,29 +39,29 @@ func TestTheLegendKeysOnlyWhatTheLanesDrawThenWhatAColumnIs(t *testing.T) {
 		{
 			name: "the 5-hour, live", shown: runwayLive(views.RunwayFiveHour), look: nord,
 			drawn: views.Drawn{Cells: []views.Cell{views.CellRoom, views.CellCapped}, Resets: true},
-			want:  []string{"▆ room    ─ at its cap    │ its 5-hour resets    a column 10 minutes · the past dimmed"},
+			want:  []string{"█ room    ─ at its cap    │ its 5-hour resets    a column 10 minutes · the past dimmed"},
 		},
 		{
 			name: "the week, live", shown: runwayLive(views.RunwayWeek), look: nord,
 			drawn: views.Drawn{Cells: []views.Cell{views.CellRoom, views.CellRunsOut, views.CellCapped, views.CellLimited}, Resets: true},
 			want: []string{
-				"▆ room    ▆ room, but it runs out at its pace    ─ at its cap    ─ at its limit    │ its week resets    a column ≈ 74 minutes · the past dimmed",
+				"█ room    █ room, but it runs out at its pace    ─ at its cap    ─ at its limit    │ its week resets    a column ≈ 74 minutes · the past dimmed",
 			},
 		},
 		{
 			name: "a day gone", shown: runwayBack(views.RunwayFiveHour, civilDay(9, 30)), look: nord,
 			drawn: views.Drawn{Cells: []views.Cell{views.CellRoom, views.CellLimited}, Resets: true},
-			want:  []string{"▆ room    ─ at its limit    │ its 5-hour resets    a column ≈ 10.6 minutes · under each name, the day's highest"},
+			want:  []string{"█ room    ─ at its limit    │ its 5-hour resets    a column ≈ 10.6 minutes · under each name, the day's highest"},
 		},
 		{
 			name: "today, stepped back to", shown: runwayBack(views.RunwayFiveHour, civilDay(10, 1)), look: nord,
 			drawn: views.Drawn{Cells: []views.Cell{views.CellRoom}},
-			want:  []string{"▆ room    a column ≈ 10.6 minutes · the past dimmed · under each name, the day's highest"},
+			want:  []string{"█ room    a column ≈ 10.6 minutes · the past dimmed · under each name, the day's highest"},
 		},
 		{
 			name: "a week gone", shown: runwayBack(views.RunwayWeek, civilDay(9, 21)), look: nord,
 			drawn: views.Drawn{Cells: []views.Cell{views.CellRoom}},
-			want:  []string{"▆ room    a column ≈ 74 minutes · under each name, the week's highest"},
+			want:  []string{"█ room    a column ≈ 74 minutes · under each name, the week's highest"},
 		},
 		{
 			name: "a refusal and no token, each keyed", shown: runwayLive(views.RunwayFiveHour), look: nord,
@@ -71,12 +71,12 @@ func TestTheLegendKeysOnlyWhatTheLanesDrawThenWhatAColumnIs(t *testing.T) {
 		{
 			name: "a look that can't blend, nothing said dimmed", shown: runwayLive(views.RunwayFiveHour), look: Screen(builtin(t, "terminal")),
 			drawn: views.Drawn{Cells: []views.Cell{views.CellRoom}},
-			want:  []string{"▆ room    a column 10 minutes"},
+			want:  []string{"█ room    a column 10 minutes"},
 		},
 		{
 			name: "without colour, a run-out shaded", shown: runwayLive(views.RunwayFiveHour), look: NoColour(),
 			drawn: views.Drawn{Cells: []views.Cell{views.CellRoom, views.CellRunsOut}},
-			want:  []string{"▆ room    ▒ room, but it runs out at its pace    a column 10 minutes"},
+			want:  []string{"█ room    ▒ room, but it runs out at its pace    a column 10 minutes"},
 		},
 		{name: "nothing drawn", shown: runwayLive(views.RunwayFiveHour), look: nord, want: []string{"a column 10 minutes · the past dimmed"}},
 	}
@@ -95,7 +95,7 @@ func TestTheLegendKeysOnlyWhatTheLanesDrawThenWhatAColumnIs(t *testing.T) {
 func TestTheLegendTakesOneLineWhereItFitsElseWrapsWholeKeys(t *testing.T) {
 	nord := Screen(builtin(t, "nord"))
 	four := views.Drawn{Cells: []views.Cell{views.CellRoom, views.CellRunsOut, views.CellCapped, views.CellLimited}, Resets: true}
-	keys := "▆ room    ▆ room, but it runs out at its pace    ─ at its cap    ─ at its limit    │ its 5-hour resets"
+	keys := "█ room    █ room, but it runs out at its pace    ─ at its cap    ─ at its limit    │ its 5-hour resets"
 	column := "a column 10 minutes · the past dimmed"
 	tests := []struct {
 		name  string
@@ -107,7 +107,7 @@ func TestTheLegendTakesOneLineWhereItFitsElseWrapsWholeKeys(t *testing.T) {
 		{name: "102 columns, the keys whole on a line", width: 102, want: []string{keys, column}},
 		{
 			name: "101 columns, the keys wrapped whole", width: 101,
-			want: []string{"▆ room    ▆ room, but it runs out at its pace    ─ at its cap    ─ at its limit", "│ its 5-hour resets", column},
+			want: []string{"█ room    █ room, but it runs out at its pace    ─ at its cap    ─ at its limit", "│ its 5-hour resets", column},
 		},
 	}
 	for _, tt := range tests {
@@ -157,7 +157,7 @@ func TestTheLegendIsDrawnFromItsRowALineARow(t *testing.T) {
 	f.Runway.Lanes = &views.Lanes{Drawn: everyCell}
 	c := newCanvas(f.Width, 40)
 	f.runwayLegend(c, runwayLaid{fit: runwayFit{fits: true, legend: 23}})
-	for y, want := range map[int]string{22: "", 23: "▆ room    ▆ room, but it runs out at its pace    ─ at its cap    ─ at its limit    ─ token refused", 24: "─ no token    │ its 5-hour resets", 25: "a column 10 minutes · the past dimmed", 26: ""} {
+	for y, want := range map[int]string{22: "", 23: "█ room    █ room, but it runs out at its pace    ─ at its cap    ─ at its limit    ─ token refused", 24: "─ no token    │ its 5-hour resets", 25: "a column 10 minutes · the past dimmed", 26: ""} {
 		if got := textAt(c, 0, y, f.Width); got != want {
 			t.Errorf("row %d reads %q, want %q", y, got, want)
 		}
