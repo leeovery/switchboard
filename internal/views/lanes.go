@@ -29,7 +29,7 @@ type Lanes struct {
 
 // judge is how an account stood at a moment gone, as status.Moment.Then has
 // it.
-type judge func(m status.Moment, a status.AccountNow, read []readings.Reading, reach status.Reach, told []status.Span, t time.Time) status.Was
+type judge func(m status.Moment, a status.AccountNow, read status.Readings, reach status.Reach, told []status.Span, t time.Time) status.Was
 
 // LanesFrom are what Runway's lanes are built from at a look: the moment;
 // the readings history's readings, oldest first, those the past is judged

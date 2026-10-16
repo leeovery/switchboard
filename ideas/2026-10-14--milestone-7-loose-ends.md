@@ -33,9 +33,6 @@ own reviews left. Each is an edge case or a cost with no wrong answer.
 
 ## Costs
 
-- Runway builds its lanes again at every message, a resize or any key, and judging its past calls
-  `Then` once a column, each scanning every reading of the account: columns × readings a message.
-  It's most of what capture's tests still spend, and it slows Runway in the real dashboard.
 - The dashboard's canvas is its biggest allocator (`canvas.grow`, 38% in capture's sweeps): each
   frame allocates its rows of cells afresh.
 - Building the Log's stories decodes each request's usage (`CacheLife`, `Tokens`), about 50 ms of

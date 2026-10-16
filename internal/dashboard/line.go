@@ -248,6 +248,31 @@ func (l line) fitWhole(width int) line {
 	return l[:min(len(l), 1)].fit(width)
 }
 
+// fitItems cuts the line, its items blank spans apart, as a key's are, to
+// width cells by leaving off whole items from its last, the blank before
+// each, as many as don't fit; where even its first doesn't fit alone, that
+// alone, cut short as fit cuts it.
+func (l line) fitItems(width int) line {
+	if l.width() <= width {
+		return l
+	}
+	for i := len(l) - 1; i > 0; i-- {
+		if l[i].blank() && l[:i].width() <= width {
+			return l[:i]
+		}
+	}
+	first := slices.IndexFunc(l, span.blank)
+	if first < 0 {
+		first = len(l)
+	}
+	return l[:first].fit(width)
+}
+
+// blank reports whether the span is spaces alone, as parts a line's items.
+func (s span) blank() bool {
+	return s.text != "" && strings.TrimSpace(s.text) == ""
+}
+
 // firstFit is the first of forms, each shorter than the one before, that fits
 // in width cells; where none does, the last, cut short.
 func firstFit(width int, forms ...line) line {

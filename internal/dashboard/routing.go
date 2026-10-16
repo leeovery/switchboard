@@ -94,9 +94,9 @@ func (f Frame) routingTableOf(doc status.Document, now time.Time) routingTable {
 
 // routingBesideUsage reports whether ROUTING is drawn beside USAGE's blocks
 // rather than as a section of its own: by account, from matrixWidth columns,
-// while both show.
+// while both show, but where GRAPHS is beside them, as graphsBeside says.
 func (f Frame) routingBesideUsage() bool {
-	return f.By == ByAccount && f.Width >= matrixWidth && f.Sections.Has(SectionUsage) && f.Sections.Has(SectionRouting)
+	return f.By == ByAccount && f.Width >= matrixWidth && f.Sections.Has(SectionUsage) && f.Sections.Has(SectionRouting) && !f.graphsBeside()
 }
 
 // routingSection is the Overview's ROUTING of doc at now: how each account

@@ -215,24 +215,24 @@ func TestTheReadingsHistorysTailIsReadAtEachLookWhileRunwayShows(t *testing.T) {
 	}
 }
 
-// The live tail spans from the day before today, or this week's first day
-// where that's earlier: the live views, today and this week are read of it
-// alone, today's readings never twice. A day or a week before it is read
-// once, a tail of its own from its first day, and held: stepping back to it
-// again reads nothing.
+// The live tail spans from the day a week before today: the live views,
+// today, each day of the week before and this week are read of it alone,
+// today's readings never twice. A day or a week before it is read once, a
+// tail of its own from its first day, and held: stepping back to it again
+// reads nothing.
 func TestADayOrAWeekSteppedBackToIsReadOnceAndHeld(t *testing.T) {
-	friday := dayfile.DayStart(start, -3)
+	weekBack, sunday, friday := dayfile.DayStart(start, -7), dayfile.DayStart(start, -8), dayfile.DayStart(start, -10)
 	tests := []struct {
 		keys   string
 		starts []time.Time
 		tails  int
 	}{
-		{keys: "left left left left", starts: []time.Time{friday}},
-		{keys: "left", starts: []time.Time{friday, dayfile.DayStart(start, -4)}, tails: 1},
-		{keys: "right left", starts: []time.Time{friday, dayfile.DayStart(start, -4)}},
-		{keys: "> left", starts: []time.Time{friday, dayfile.DayStart(start, -4)}},
-		{keys: "left", starts: []time.Time{friday, dayfile.DayStart(start, -4), dayfile.DayStart(start, -10)}, tails: 1},
-		{keys: "right right left left", starts: []time.Time{friday, dayfile.DayStart(start, -4), dayfile.DayStart(start, -10)}},
+		{keys: "left left left left left left left left", starts: []time.Time{weekBack}},
+		{keys: "left", starts: []time.Time{weekBack, sunday}, tails: 1},
+		{keys: "right left", starts: []time.Time{weekBack, sunday}},
+		{keys: "> left", starts: []time.Time{weekBack, sunday}},
+		{keys: "left", starts: []time.Time{weekBack, sunday, friday}, tails: 1},
+		{keys: "right right left left", starts: []time.Time{weekBack, sunday, friday}},
 	}
 	r := runwayHarness(t, dashboard.Runway, weeksFrom(time.Friday))
 	for _, tt := range tests {
@@ -263,7 +263,7 @@ func TestEachLiveViewTodayAndThisWeekAreReadOfTheLiveTail(t *testing.T) {
 	}
 	for _, now := range nows {
 		for _, starts := range []time.Weekday{time.Sunday, time.Monday} {
-			live := liveSpan(now, starts)
+			live := liveSpan(now)
 			timelines := map[string]views.Timeline{
 				"the live 5-hour": views.LiveTimeline(views.RunwayFiveHour, now, 136),
 				"the live week":   views.LiveTimeline(views.RunwayWeek, now, 136),
@@ -281,8 +281,8 @@ func TestEachLiveViewTodayAndThisWeekAreReadOfTheLiveTail(t *testing.T) {
 }
 
 // As the day turns, the live tail is made afresh over the span from the day
-// before the new today, and holds what it read till its read lands, so the
-// lanes never go blank as it's read.
+// a week before the new today, and holds what it read till its read lands,
+// so the lanes never go blank as it's read.
 func TestTheLiveTailIsMadeAfreshAsTheDayTurns(t *testing.T) {
 	inSpan := filedOn("work", "5h", start.Add(-time.Hour), 0.3)
 	r := runwayHarness(t, dashboard.Runway, nil, inSpan)
@@ -291,12 +291,12 @@ func TestTheLiveTailIsMadeAfreshAsTheDayTurns(t *testing.T) {
 	pending := r.lastTick()
 	r.clock.now, pending.fired = tomorrow, true
 	msgs := r.update(pending.msg)
-	if tail := r.model.runwayTab.live; !tail.span.is(liveSpan(tomorrow, time.Sunday)) || !slices.Equal(tail.held, []readings.Reading{inSpan}) {
-		t.Fatalf("as the day turned, the live tail spans %+v holding %v, want it made afresh over %+v, holding what it read till its read lands", tail.span, tail.held, liveSpan(tomorrow, time.Sunday))
+	if tail := r.model.runwayTab.live; !tail.span.is(liveSpan(tomorrow)) || !slices.Equal(tail.held, []readings.Reading{inSpan}) {
+		t.Fatalf("as the day turned, the live tail spans %+v holding %v, want it made afresh over %+v, holding what it read till its read lands", tail.span, tail.held, liveSpan(tomorrow))
 	}
 	r.deliver(msgs...)
-	if len(r.filed.starts) != 2 || !r.filed.starts[1].Equal(dayfile.DayStart(start, -1)) {
-		t.Errorf("as the day turned, the tails made start %v, want a second from this week's first day, the day before today", r.filed.starts)
+	if len(r.filed.starts) != 2 || !r.filed.starts[1].Equal(dayfile.DayStart(start, -6)) {
+		t.Errorf("as the day turned, the tails made start %v, want a second from the day a week before tomorrow", r.filed.starts)
 	}
 }
 
@@ -464,32 +464,31 @@ func TestTheReadingsTheWatchReadItselfAreLetGoOnceTheLiveTailStartsAfterThem(t *
 	if len(r.from.Readings) == 0 {
 		t.Fatal("probed as it opened, the lanes were judged by no reading, want the three's windows as read")
 	}
-	r.lookAt(start.AddDate(0, 0, 12))
+	r.lookAt(start.AddDate(0, 0, 14))
 	if len(r.from.Readings) == 0 {
-		t.Fatalf("on the Saturday after next, the live tail carrying in from the Sunday before they were read, the lanes were judged by no reading, want those read as Runway opened")
+		t.Fatalf("on the Monday after next, the live tail carrying in from the day they were read, the lanes were judged by no reading, want those read as Runway opened")
 	}
-	r.lookAt(start.AddDate(0, 0, 13))
+	r.lookAt(start.AddDate(0, 0, 15))
 	if len(r.from.Readings) > 0 || !r.from.Seen.IsZero() {
-		t.Errorf("on the Sunday after, the live tail carrying in from after them, the lanes were judged by %+v, the watch's own from %s, want none", r.from.Readings, r.from.Seen)
+		t.Errorf("on the Tuesday after next, the live tail carrying in from after them, the lanes were judged by %+v, the watch's own from %s, want none", r.from.Readings, r.from.Seen)
 	}
 }
 
 // Today stepped back to stays itself as the clock passes midnight, as it's
 // kept by its day: it's yesterday's then, with no now, and drawn of the live
 // tail made afresh, as the day turned, no tail of its own; this week stays
-// itself alike, passing the week's last midnight to be a week gone, a tail
-// of its own made and read for it, the live tail left till it's shown.
+// itself alike, passing the week's last midnight to be a week gone, drawn of
+// the live tail made afresh too, as it reaches back a week.
 func TestADayOrWeekSteppedBackToStaysItselfAcrossMidnight(t *testing.T) {
 	tests := []struct {
-		name    string
-		window  string
-		before  time.Time
-		first   time.Time
-		last    time.Time
-		ownTail bool
+		name   string
+		window string
+		before time.Time
+		first  time.Time
+		last   time.Time
 	}{
 		{name: "today", before: at(23, 59, 30), first: civilDay(0), last: civilDay(0)},
-		{name: "this week", window: ">", before: at(23, 59, 30).AddDate(0, 0, 5), first: civilDay(-1), last: civilDay(5), ownTail: true},
+		{name: "this week", window: ">", before: at(23, 59, 30).AddDate(0, 0, 5), first: civilDay(-1), last: civilDay(5)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -506,10 +505,10 @@ func TestADayOrWeekSteppedBackToStaysItselfAcrossMidnight(t *testing.T) {
 				t.Errorf("past midnight, Runway shows %s, its lanes over %s to %s, now %s; want %s kept, over %s to %s, with no now",
 					shown.Back.Format(time.DateOnly), first.Format(time.DateOnly), last.Format(time.DateOnly), r.from.Timeline.Now, back.Format(time.DateOnly), tt.first.Format(time.DateOnly), tt.last.Format(time.DateOnly))
 			}
-			renewed := r.model.runwayTab.live.span.is(liveSpan(midnight, time.Sunday))
-			if _, own := r.model.runwayTab.holds(spanOf(r.from.Timeline, liveSpan(midnight, time.Sunday))); len(r.filed.starts) != made+1 || renewed == tt.ownTail || own != tt.ownTail {
-				t.Errorf("past midnight, %d tails were made, the live one renewed %t, one of the day or week's own held %t; want one made, the live one renewed %t, its own held %t",
-					len(r.filed.starts)-made, renewed, own, !tt.ownTail, tt.ownTail)
+			renewed := r.model.runwayTab.live.span.is(liveSpan(midnight))
+			if _, own := r.model.runwayTab.holds(spanOf(r.from.Timeline, liveSpan(midnight))); len(r.filed.starts) != made+1 || !renewed || own {
+				t.Errorf("past midnight, %d tails were made, the live one renewed %t, one of the day or week's own held %t; want one made, the live one renewed, none of its own",
+					len(r.filed.starts)-made, renewed, own)
 			}
 		})
 	}

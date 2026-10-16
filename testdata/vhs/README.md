@@ -144,7 +144,10 @@ as Keys has them:
   `overview-six-accounts-160`; 42 of `overview-by-account-160`; 53 of `overview-ten-accounts-160`;
   70 of `overview-default-216`, `overview-sessions-216` and `overview-sessions-graphs-216`; and 106
   of `overview-everything-216x106`. The frames end it `↑↓ focus  0 auto  1-3 pin  m move  ? help
-  q quit`; the dashboard, `↑↓ focus  p pin  ? help  q quit`.
+  q quit`; the dashboard, `↑↓ focus  p pin  ? help  q quit`. Where GRAPHS shows, in
+  `overview-everything-160x39`, `overview-sessions-graphs-216` and `overview-everything-216x106`,
+  the dashboard draws `v chart: burn-up` before them too, which the frames, drawn before GRAPHS had
+  two charts, lack.
 - **ROUTING's heading under a pin,** row 19 of `overview-pinned-160` and `overview-bad-hour-160`,
   which ends `0 back to auto` in the frames, and `p back to auto` in the dashboard.
 - **The period on Accounts' and History's heading row,** row 5, from the rule's last two cells to

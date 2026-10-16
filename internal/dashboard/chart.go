@@ -44,11 +44,12 @@ const chartFade = 0.3
 // untracedLabel marks a chart of a window with no history.
 const untracedLabel = "no history yet"
 
-// chart is a window of an account as GRAPHS charts it at now: its name, in
-// capitals; when it started and how long it runs until it resets, spanned
-// where that's known; the readings of its use since it started, the oldest
-// first; and where the account has a cap, capped, the share of the window it
-// sits at.
+// chart is a window of an account as GRAPHS charts it at now, in the chart
+// burn names: its name, in capitals; when it started and how long it runs
+// until it resets, spanned where that's known; the readings of its use since
+// it started, the oldest first; where the account has a cap, capped, the
+// share of the window it sits at; and where the window's heading, as the
+// burn-down draws it ahead of now.
 type chart struct {
 	name     string
 	start    time.Time
@@ -58,6 +59,41 @@ type chart struct {
 	capAt    float64
 	capped   bool
 	now      time.Time
+	burn     Burn
+	course   course
+}
+
+// course is where a window is heading from now, as the burn-down draws it:
+// as its projection has it, the one Runway's words go by, out, when it runs
+// out before it resets, zero where it doesn't, on its floor, its account's
+// cap where atCap is set, else empty; else left, the room it has left at its
+// reset, where its projection keeps it short of running out, nil where
+// nothing says; and while Claude's limit holds it, held, from since, zero
+// where that isn't known, till back, when it lifts, zero where that isn't
+// known.
+type course struct {
+	out         time.Time
+	atCap       bool
+	left        *float64
+	held        bool
+	since, back time.Time
+}
+
+// courseOf is where the window w is heading at its moment, as course has
+// it, as the moment judged it: held, while a limit holds it; running out at
+// its Out, where it runs out; else, while it's open, to the room its
+// projection leaves it at its reset. A window at its cap, stale, not
+// started, or nothing known of, is heading nowhere the chart draws.
+func courseOf(w status.WindowNow) course {
+	switch {
+	case w.Held:
+		return course{held: true, since: w.Since, back: w.Back}
+	case w.RunsOut:
+		return course{out: w.Out.At, atCap: w.Out.Reserve}
+	case w.Kind == status.WindowOpen && w.Projected != nil:
+		return course{left: new(1 - *w.Projected)}
+	}
+	return course{}
 }
 
 // ChartSpan is the span GRAPHS charts the window w over, as it stands at its
@@ -70,16 +106,17 @@ func ChartSpan(w status.WindowNow) (start time.Time, length time.Duration, ok bo
 	return w.Start, w.Length, w.Length > 0
 }
 
-// chartOf is account a's window shown, charted over its span at now, as
-// ChartSpan has it, from its trail: none of its readings from before it
-// started, so none where it has reset since it was read; and nothing but its
-// name where a has no such window, or its span isn't known, as of one not
-// started.
-func chartOf(a status.AccountNow, shown shownWindow, trail Trail, now time.Time) chart {
-	ch := chart{name: strings.ToUpper(shown.name), capAt: a.Cap, capped: a.Reserve > 0, now: now}
+// chartOf is account a's window shown, charted as burn names over its span
+// at now, as ChartSpan has it, from its trail: none of its readings from
+// before it started, so none where it has reset since it was read; and
+// nothing but its name where a has no such window, or its span isn't known,
+// as of one not started. Where it's heading is as courseOf has it.
+func chartOf(a status.AccountNow, shown shownWindow, trail Trail, now time.Time, burn Burn) chart {
+	ch := chart{name: strings.ToUpper(shown.name), capAt: a.Cap, capped: a.Reserve > 0, now: now, burn: burn}
 	w, _ := a.Window(shown.key)
 	if ch.start, ch.length, ch.spanned = ChartSpan(w); ch.spanned {
 		ch.readings = slices.DeleteFunc(slices.Clone(trail.Readings), func(r score.Reading) bool { return r.At.Before(ch.start) })
+		ch.course = courseOf(w)
 	}
 	return ch
 }
@@ -104,8 +141,12 @@ func (ch chart) usedAt(t time.Time) (float64, bool) {
 // now, moving with the clock, rather than the window's even pace, which
 // stays as of when the document was read.
 func (ch chart) nowColumn(width int) int {
-	pace := min(max(float64(ch.now.Sub(ch.start))/float64(ch.length), 0), 1)
-	return min(halfEven(pace*float64(width)), width-1)
+	return min(halfEven(ch.pace()*float64(width)), width-1)
+}
+
+// pace is how much of the window has passed by now, from 0 to 1.
+func (ch chart) pace() float64 {
+	return min(max(ch.share(ch.now), 0), 1)
 }
 
 // readAt is the time column col of a chart width cells wide is filled to the
@@ -114,39 +155,55 @@ func (ch chart) readAt(col, width int) time.Time {
 	return score.Earlier(ch.start.Add(time.Duration((float64(col)+0.5)/float64(width)*float64(ch.length))), ch.now)
 }
 
+// plot is where a chart's rows are drawn: h rows up from row floor, width
+// cells from column x, now falling in column now.
+type plot struct {
+	x, floor, width, h, now int
+}
+
 // draw draws the chart in the bounds given: its top row, its window's name
 // and the limit's line along the rest of it; its rows, all but the top row
-// and the axis row, a column a cell over the window's whole length, filled to
-// now; its lines on the cells the fill leaves empty; and its axis. A window
-// with no history says so across the chart's middle row, over what it
-// crosses; one whose span isn't known has its top row alone, and that word.
+// and the axis row, a column a cell over the window's whole length, as its
+// burn-up or its burn-down; and its axis. A window with no history says so
+// across the chart's middle row, over what it crosses; one whose span isn't
+// known has its top row alone, and that word.
 func (ch chart) draw(c *canvas, look Look, at bounds) {
-	ch.top(c, at)
+	chartTop(c, at, ch.name)
 	h := at.rows - 2
 	if h < 1 || at.width < 1 {
 		return
 	}
 	if ch.spanned {
-		floor := at.y + h
-		now := ch.nowColumn(at.width)
-		for col := range now + 1 {
-			if used, ok := ch.usedAt(ch.readAt(col, at.width)); ok {
-				fillColumn(c, look, at.x+col, floor, h, halfEven(min(max(used, 0), 1)*float64(8*h)))
-			}
+		p := plot{x: at.x, floor: at.y + h, width: at.width, h: h, now: ch.nowColumn(at.width)}
+		if ch.burn == BurnDown {
+			ch.burnDown(c, look, p)
+		} else {
+			ch.burnUp(c, look, p)
 		}
-		ch.lines(c, at.x, floor, at.width, h, now)
-		ch.axis(c, at.x, floor+1, at.width, now)
+		ch.axis(c, p.x, p.floor+1, p.width, p.now)
 	}
 	if len(ch.readings) == 0 {
 		across(c, at.x, at.y+1+h/2, at.width, untracedLabel)
 	}
 }
 
-// top draws the chart's top row in the bounds given: its window's name in
-// text.subtle, then a space and the limit's line, faint, to the chart's
-// right.
-func (ch chart) top(c *canvas, at bounds) {
-	end := c.text(at.x, at.y, prose.Cut(ch.name, at.width), dimInk)
+// burnUp draws the chart's burn-up on p: each column to now filled to the
+// use read at its time, as readAt has it, and none past now; then its lines
+// on the cells the fill leaves empty.
+func (ch chart) burnUp(c *canvas, look Look, p plot) {
+	for col := range p.now + 1 {
+		if used, ok := ch.usedAt(ch.readAt(col, p.width)); ok {
+			fillColumn(c, look, p.x+col, p.floor, p.h, halfEven(min(max(used, 0), 1)*float64(8*p.h)))
+		}
+	}
+	ch.lines(c, p.x, p.floor, p.width, p.h, p.now)
+}
+
+// chartTop draws a chart's top row in the bounds given: its window's name,
+// as given, in text.subtle, then a space and the limit's line, faint, to
+// the chart's right.
+func chartTop(c *canvas, at bounds, name string) {
+	end := c.text(at.x, at.y, prose.Cut(name, at.width), dimInk)
 	if rest := at.x + at.width - end - 1; rest > 0 {
 		c.text(end, at.y, " "+strings.Repeat(limitLine, rest), faintInk)
 	}

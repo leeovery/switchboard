@@ -50,17 +50,17 @@ func heldReadingsOf(read []readings.Reading) heldReadings {
 
 // pastOf is an account's past: what Then reads of the account besides its
 // readings, its id, whether its token is usable, its reserve and whether it
-// holds, and the holds the router told of; its
-// readings, oldest first, those the days before the keep stand for among
-// them; the resets of the view's window they give; and how it stood at each
-// column's moment.
+// holds, and the holds the router told of; the readings of every account,
+// as status.Index indexes them once for them all, those the days before the
+// keep stand for among them; the resets of the view's window its own give;
+// and how it stood at each column's moment.
 type pastOf struct {
 	id           string
 	tokenSet     bool
 	reserve      float64
 	reserveHolds bool
 	told         []status.Span
-	read         []readings.Reading
+	read         status.Readings
 	resets       []time.Time
 	was          []status.Was
 }
@@ -114,7 +114,7 @@ func sameSpan(a, b status.Span) bool {
 // judgePast is the past of the timeline given, as heldPast has it, each
 // account at each column's moment as l judges it stood, by its readings, the
 // days before the readings history's keep standing for theirs: every one of
-// them, as those after a moment tell when a hold then lifted.
+// them, as those after a moment tell when a hold then lifted, indexed once.
 func (l Lanes) judgePast(from LanesFrom) heldPast {
 	m, tl, then := from.Moment, from.Timeline, l.judging()
 	past := heldPast{
@@ -125,11 +125,10 @@ func (l Lanes) judgePast(from LanesFrom) heldPast {
 	if now := tl.NowColumn(); now >= 0 {
 		judged = now
 	}
-	read, key := from.readingsAll(), from.viewKey()
+	read, key := status.Index(from.readingsAll()), from.viewKey()
 	for _, a := range m.Accounts {
-		p := pastOf{id: a.ID, tokenSet: a.TokenSet, reserve: a.Reserve, reserveHolds: a.ReserveHolds, told: from.told(a.ID)}
-		p.read = slices.DeleteFunc(slices.Clone(read), func(r readings.Reading) bool { return r.Account != a.ID })
-		p.resets = status.ResetsRead(p.read, key)
+		p := pastOf{id: a.ID, tokenSet: a.TokenSet, reserve: a.Reserve, reserveHolds: a.ReserveHolds, told: from.told(a.ID), read: read}
+		p.resets = read.Resets(a.ID, key)
 		p.was = make([]status.Was, judged)
 		for c := range p.was {
 			at := tl.Moment(c)
@@ -142,9 +141,13 @@ func (l Lanes) judgePast(from LanesFrom) heldPast {
 
 // readingsAll are the readings the past is judged by, each account's oldest
 // first: those the days before the readings history's keep stand for, then
-// those it holds, given.
+// those it holds, given, themselves where the days stand for none.
 func (from LanesFrom) readingsAll() []readings.Reading {
-	return slices.Concat(from.summarised(), from.Readings)
+	summarised := from.summarised()
+	if len(summarised) == 0 {
+		return from.Readings
+	}
+	return slices.Concat(summarised, from.Readings)
 }
 
 // summarisedDays are the dates of the days given before the readings

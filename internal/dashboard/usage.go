@@ -566,13 +566,13 @@ func (b usageBlock) split() ([]usageRow, *usageRow) {
 // each label in the name column; else the name on a line of its own above,
 // and the labels a cell in. Its bars take what the block's width leaves
 // them, and its words end a cell before the edge, but where the Overview sets
-// its bars: then its words end besideCells before routingAt, the gap before
+// its bars: then its words end besideCells before besideAt, the gap before
 // ROUTING's blocks beside them.
 func (b usageBlock) byAccount(c *canvas, y int) laid {
 	labelAt, cells := b.labels()
 	bar, end := b.bar(), b.width-afterWords
 	if b.accountBar > 0 {
-		end = b.routingAt() - besideCells
+		end = b.besideAt() - besideCells
 	}
 	l := b.each(c, 0, y, 3, func(r usageRow, y int) int {
 		c.line(0, y, r.name)

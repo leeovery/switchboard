@@ -176,10 +176,17 @@ func Spent(w quota.Window) bool {
 }
 
 // HeldByReserve reports whether w's reading has reached the reserve, the
-// share of the window left unused, and nothing else holds it back: 1 − reserve
-// of it is used, but it isn't spent. Without a reserve, nothing reaches it.
+// share of the window left unused, and nothing else holds it back: its use
+// is at ReserveFrom's, but it isn't spent. Without a reserve, nothing
+// reaches it.
 func HeldByReserve(w quota.Window, reserve float64) bool {
-	return reserve > 0 && w.Utilization >= 1-reserve-Tolerance && !Spent(w)
+	return reserve > 0 && w.Utilization >= ReserveFrom(reserve) && !Spent(w)
+}
+
+// ReserveFrom is the use of a window from which the reserve given, the share
+// of it left unused, is reached: 1 − reserve of it, allowing for rounding.
+func ReserveFrom(reserve float64) float64 {
+	return 1 - reserve - Tolerance
 }
 
 // Hold is how far a reading of a window holds its account back, each further

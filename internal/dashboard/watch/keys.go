@@ -12,16 +12,16 @@ import (
 // pageKey acts on a key of the page, as pressed hands it on: j, k, PgDn and
 // PgUp scroll the view where it doesn't fit, as scrollView has it; and the
 // rest each as acting has the page act: on the Overview, u, g, r, s, c and l
-// show and hide its sections, b switches how its windows are grouped, and ↑
-// and ↓ move the focus, as overviewKey says; on Accounts, its keys act as
-// accountsKey says; on History, [ ], < >, v and ← → act as historyKey says;
-// on Sessions, its keys act as sessionsKey says; on Runway, < > and ← → act
-// as runwayKey says; on the Log, [ ], ↑ ↓, end, esc, enter, s, f and / act
-// as logKey says; tab and shift-tab show the next tab and the one before, as
-// turn has it; and t opens the theme picker. esc, whatever the page does
-// with it, drops a session's page asked to
-// open, as unasked has it. The rest do nothing: the number keys and m among
-// them, which act in the routing card alone.
+// show and hide its sections, b switches how its windows are grouped, v
+// flips GRAPHS' chart, and ↑ and ↓ move the focus, as overviewKey says; on
+// Accounts, its keys act as accountsKey says; on History, [ ], < >, v and
+// ← → act as historyKey says; on Sessions, its keys act as sessionsKey says;
+// on Runway, < > and ← → act as runwayKey says; on the Log, [ ], ↑ ↓, end,
+// esc, enter, s, f and / act as logKey says; tab and shift-tab show the next
+// tab and the one before, as turn has it; and t opens the theme picker. esc,
+// whatever the page does with it, drops a session's page asked to open, as
+// unasked has it. The rest do nothing: the number keys and m among them,
+// which act in the routing card alone.
 func (m Model) pageKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	k := key.String()
 	if k == "esc" {
@@ -63,7 +63,9 @@ func (m Model) pageKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // overviewKey acts on a key of the Overview's, reporting false for a key it
 // doesn't take, or on another tab: a section's key shows or hides it, as
 // toggle has it; b switches how its windows are grouped, as regroup has it;
-// and ↑ and ↓ move the focus, as moveFocus has it.
+// v, while GRAPHS shows, flips its chart, as reburn has it; and ↑ and ↓ move
+// the focus, as moveFocus has it, while the Overview has one, as focuses
+// says.
 func (m Model) overviewKey(key string) (Model, bool) {
 	if m.shownView() != dashboard.Overview {
 		return m, false
@@ -71,12 +73,14 @@ func (m Model) overviewKey(key string) (Model, bool) {
 	if section, ok := dashboard.SectionKeyed(key); ok {
 		return m.toggle(section), true
 	}
-	switch key {
-	case "b":
+	switch {
+	case key == "b":
 		return m.regroup(), true
-	case "up":
+	case key == "v" && m.sections.Has(dashboard.SectionGraphs):
+		return m.reburn(), true
+	case key == "up" && m.focuses():
 		return m.moveFocus(-1), true
-	case "down":
+	case key == "down" && m.focuses():
 		return m.moveFocus(1), true
 	}
 	return m, false
@@ -132,8 +136,9 @@ func (m Model) keys(running []string) pageKeys {
 
 // overviewListings are the Overview's own keys: its toggles, each word
 // faint where its section is hidden; b, its word saying how the windows are
-// grouped; and with more than one account, ↑↓, which the key line sets with
-// p, ? and q.
+// grouped; while GRAPHS shows, v, its word saying the chart it draws; and
+// with more than one account, while the Overview has a focus, as focuses
+// says, ↑↓, which the key line sets with p, ? and q.
 func (m Model) overviewListings() []keyListing {
 	overview := m.shownView() == dashboard.Overview
 	var own []keyListing
@@ -142,7 +147,8 @@ func (m Model) overviewListings() []keyListing {
 	}
 	return append(own,
 		keyListing{Key: dashboard.Key{Key: "b", Does: "by", State: string(layoutOf(m.by))}, works: overview},
-		keyListing{Key: dashboard.Key{Key: "↑↓", Does: "focus"}, works: overview && m.asRead.accounts > 1, withEnds: true},
+		keyListing{Key: dashboard.Key{Key: "v", Does: "chart", State: m.burn.Name()}, works: overview && m.sections.Has(dashboard.SectionGraphs)},
+		keyListing{Key: dashboard.Key{Key: "↑↓", Does: "focus"}, works: overview && m.asRead.accounts > 1 && m.focuses(), withEnds: true},
 	)
 }
 

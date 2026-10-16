@@ -374,7 +374,7 @@ func TestBesideUSAGEsBlocksTheScaleIsTheBusiestColumnAtTheWidthTheTracesAreDrawn
 	doc, listed := autoRouting()
 	f := frameOf(160, 60)
 	f.By, f.Sessions, f.Traces = ByAccount, listed, burst("side-0", "side", 16)
-	if x := f.overviewBlock(doc, routedAt).routingAt(); f.Width-traceTail-x != 45 {
+	if x := f.overviewBlock(doc, routedAt).besideAt(); f.Width-traceTail-x != 45 {
 		t.Fatalf("the traces beside USAGE's blocks are %d cells, want 45", f.Width-traceTail-x)
 	}
 	view := f.overviewDrawn(doc, routedAt)

@@ -1138,12 +1138,12 @@ Routing takes keys alone: no click opens the routing card or acts in it, so a st
 moves a session.
 
 **What's remembered.** The preferences file keeps, as they change: the theme or the pair; the tab
-shown, which the dashboard opens on; the Overview's sections shown and its `b`; of each view, a
-view at a time, its sub-tab, its period or window and `v`'s choice; and the Log's columns. It never
-keeps a focus, a choice, a scroll, a card or help open, a session's page, a day Runway has stepped
-back to, or the Log's filters, so the Log opens on everything (settled in the plan). `[usage] by` in
-the config sets the default for `usage` and the dashboard alike; once `b` is pressed, the dashboard
-keeps its own.
+shown, which the dashboard opens on; the Overview's sections shown, its `b` and its `v`; of each
+view, a view at a time, its sub-tab, its period or window and `v`'s choice; and the Log's columns.
+It never keeps a focus, a choice, a scroll, a card or help open, a session's page, a day Runway has
+stepped back to, or the Log's filters, so the Log opens on everything (settled in the plan).
+`[usage] by` in the config sets the default for `usage` and the dashboard alike; once `b` is
+pressed, the dashboard keeps its own.
 
 ### `usage`, the printout
 
@@ -1411,7 +1411,7 @@ never changes, a section hidden taking no room:
 | Section | Key | Shown at first | What it is |
 |---|---|---|---|
 | USAGE | `u` | yes | Every account's windows, `usage`'s block |
-| GRAPHS | `g` | no | The focused account's use so far in each window, under USAGE's columns |
+| GRAPHS | `g` | no | The focused account's use so far in each window, under USAGE's columns; by account, every account's, beside its block, and the pool's room, beside `Σ pool` |
 | ROUTING | `r` | yes | How each account stands with the router, and its requests over the last 30 minutes |
 | SESSIONS | `s` | no | The sessions running, by account |
 | COMING UP | `c` | yes | What happens next, soonest first |
@@ -1429,7 +1429,7 @@ can't, state or a key to marks; what a section is, and why it's where it is, are
 | Section | Description |
 |---|---|
 | USAGE | None, as the pool's row says the room; with one account, which has no pool, the room left: `room left  ` in `text.faint`, `5h ` in `text.subtle`, `0.4` in bold `text.secondary`, ` of 1` in `text.subtle`, `  ·  ` in `text.faint`, then `week 0.6 of 1` the same way, summed as the pool's room is; on a phone, none |
-| GRAPHS | The focused account, `work`, in bold `text.primary`; five spaces; then the key: `·` in `text.subtle` and ` even pace   `, `╌` in `viz.reserve` and ` cap   `, `┄` and ` limit`, the rest in `text.faint` |
+| GRAPHS | The focused account, `work`, in bold `text.primary`; five spaces; then the key to the chart drawn, the rest in `text.faint`: of the burn-up, `·` in `text.subtle` and ` even pace   `, `╌` in `viz.reserve` and ` cap   `, `┄` and ` limit`; of the burn-down, `⠢` in `text.subtle` and ` heading   `, `✕` in bold `state.destructive` and ` runs out   `, `⠤` in `viz.reserve`, faint, and ` cap   `, `┄` and ` full`. Beside USAGE's blocks, the key alone, as no account is focused |
 | ROUTING | The mode (below) |
 | SESSIONS, COMING UP, LATELY | None |
 
@@ -1466,38 +1466,116 @@ Then, as only the Overview has them:
   accounts` over the first while some are above. `j`/`k`, PgUp, PgDn and the wheel scroll it, and
   moving the focus to an account out of view scrolls to it (settled in the plan).
 
-**GRAPHS** draws the focused account's use so far, a chart a window, each under its window's
-column in USAGE. `↑` and `↓` move the focus between the accounts, in the config's order.
+**GRAPHS** draws the focused account's windows, a chart a window, each under its window's column
+in USAGE. `↑` and `↓` move the focus between the accounts, in the config's order. `v`, while GRAPHS
+shows, flips every chart between its burn-up, the use so far rising from empty, and its burn-down,
+the room left falling from full and where it's heading; the preferences keep which, the burn-up at
+first (the owner's call, 15 October 2026).
 
 - **Placement:** from the name column, a chart every `gw = ⌊(w − 14 + 3) / k⌋ − ⌈(n − 14) / k⌉`
   columns for `k` windows, each `gw − 3` wide: 45 cells every 48 at 160 columns, 64 every 67 at 216.
 - **Its rows:** under the heading's blank row, the charts' top row: each chart's window, `5-HOUR`,
   `WEEK`, `FABLE WEEK`, in `text.subtle` and a space, then the limit's line along the rest of the
-  chart's width, `┄` in `text.faint`; then the chart's `h` rows; then its axis row. GRAPHS takes
-  `h + 4` rows, `h` from 5 to 19, as "Room", below, gives them; taller distorts.
+  chart's width, `┄` in `text.faint`, which on the burn-down marks full; then the chart's `h` rows;
+  then its axis row. GRAPHS takes `h + 4` rows, `h` from 5 to 19, as "Room", below, gives them;
+  taller distorts.
 - **A column a cell,** over the window's whole length, from its start to its reset; now's column is
-  `min(round(pace × width), width − 1)`. Each column to now is filled to the use read at its
-  middle, or at now for now's column, and none past now: `round(use × h × 8)` eighths, its full
-  cells as background, its top cell the eighth block of its height (`▁`–`▇`) on the canvas. A row is
-  coloured by its height, the ramp at `(r + 0.5) / h` for row `r` from the floor, mixed with the
-  canvas so 70% of it shows.
-- **Its lines,** each on empty cells alone, never over the fill, and where they meet in a cell, the
-  cap's `╌` first, then the even pace's `·`, then now's `│`:
+  `min(round(pace × width), width − 1)`.
+- **The burn-up:** each column to now is filled to the use read at its middle, or at now for now's
+  column, and none past now: `round(use × h × 8)` eighths, its full cells as background, its top
+  cell the eighth block of its height (`▁`–`▇`) on the canvas. A row is coloured by its height, the
+  ramp at `(r + 0.5) / h` for row `r` from the floor, mixed with the canvas so 70% of it shows.
+- **The burn-up's lines,** each on empty cells alone, never over the fill, and where they meet in a
+  cell, the cap's `╌` first, then the even pace's `·`, then now's `│`:
   - **the cap,** where the account has one: a row of `╌` in `viz.reserve`, `accent.attention` unless
     the theme sets it, `min(⌊cap × h⌋, h − 1)` rows up from the floor;
   - **even pace:** a `·` in `text.subtle` in each column `i`, `min(⌊i / (width − 1) × h⌋, h − 1)`
     rows up, from the bottom left to the top right, past now to the reset: a line to measure by,
     not a forecast (settled in the plan);
   - **now:** `│` in `text.faint` down now's column.
+- **The burn-down,** drawn as v0.1.6's cards drew it, in the burn-up's placement, rows, columns,
+  axis row and data (the owner's call, 15 October 2026):
+  - **its level:** each column to now is filled to the room left, `1 − use`, read at its middle, or
+    at now for now's column, and none past now: `round(room × h × 8)` eighths, but one at least
+    where any room is left, its full cells as background and its top cell an eighth block. A row
+    is coloured by its height read from the top, the ramp at `1 − (r + 0.5) / h` for row `r` from
+    the floor, 70% of it showing, so the level runs from the ramp's first stop to its last as it
+    falls. A column with no room left is `▁` along its floor in `state.destructive`, as are those
+    from when the router's event says Claude's limit was reached, while it holds the window.
+  - **held at its limit,** the `▁` runs on along the floor from the column after now's, each
+    column whose start is before the limit lifts, or to the chart's end where that isn't known.
+  - **where it's heading,** from the room left now: a braille line in `text.subtle`, a dot at the
+    left of each cell from the column after now's, on a straight line from the level now, at
+    `(c + 0.25) / width` of the way, to where the window's projection ends. The projection is the
+    one Runway's words go by, the window's run-out as the status document's moment works it out
+    (see The status document), never again in a drawing package: where the window runs out before
+    its reset, the line ends at `✕` in bold `state.destructive` on its floor, the cap's where the
+    cap holds the account back, else empty, in the column it runs out in, now's at the soonest;
+    else, where its projection keeps it short of running out, at the room it leaves at its reset,
+    at the chart's end. A window at its cap, held, stale, or not started heads nowhere it draws.
+    A dot's row, of the chart's `4h` rows of dots, is `round((1 − room) × (4h − 1))`, the top for
+    all of it.
+  - **the cap,** where the account has one: a faint braille line along its floor, where `1 − cap`
+    of the window is left, a dot at the right of every other cell from the first, in `viz.reserve`
+    mixed with the canvas so 60% of it shows.
+  - **now:** `│` in `text.faint` down now's column.
+  - **Its lines** are drawn on empty cells alone, never over the level: the limit's `▁` first; then
+    the cap's braille and where it's heading, which share a cell where they meet, in the heading's
+    colour; then now's `│`; and `✕` last, over what it falls on. No even pace: drawn a row at a
+    time, it reads as a staircase (the owner's call, 15 October 2026).
 - **The axis row:** the window's start, `12:10` or `Sun 21:00`, in `text.faint` at the left; `now`
   in bold `text.subtle`, from the cell before now's column; the reset in `text.faint`, ending at the
   chart's right.
 - **Its data** is the readings history, as `GET /history` gives it with each full read, each column
   the last reading at or before its time; with no router, the readings history's files and the
-  readings the dashboard takes as it probes (settled in the plan; see Live updates).
-- **By account,** GRAPHS draws as by window, its charts side by side under USAGE's blocks. **On a
-  phone,** its charts stack, a window's under another's, each from the name column to the edge
-  (settled in the plan).
+  readings the dashboard takes as it probes (settled in the plan; see Live updates). The pool's
+  charts are drawn from what Runway's lanes are (see By account, below).
+- **By account,** from 150 columns, every account's charts sit beside its block, to the right of
+  USAGE's bars, from `hx`, where ROUTING's blocks would be (see By account, below), to a cell short
+  of the edge, as v0.1.6's cards had every account show at once (the owner's call, 15 October
+  2026):
+  - **as many of its windows as fit,** in USAGE's order, each 24 cells at the least, 2 apart, and
+    as wide as they share the room: `⌊(w − 1 − hx + 2) / k⌋ − 2` for `k` that fit, two at 160
+    columns, 25 cells wide, and three from 184, 36 wide at 220;
+  - **each from the block's first row to the row after its last,** its top row on the block's
+    first and its axis on the row after, so a block of three windows has `h = 4`;
+  - **the pool's charts beside `Σ pool`,** as many of its windows as fit, as each account's: the
+    pool's room in each window over its length back from now, from its left edge to now at its
+    right, a column a cell, each column the room at its end's moment, a share of all its accounts'
+    (the owner's call, 15 October 2026). That room is each of the pool's accounts' room then,
+    summed, as Runway's past judges how each stood then, by the readings its live views read, the
+    readings history's live tail and those the dashboard read itself (see Runway's What it reads,
+    and Live updates): none in the window a request starts while a limit or its cap held it back
+    from every request, as Runway's pool lane counts it without room then, and none in any while
+    its token was refused, or isn't usable now; else the window's room to where it runs out, its
+    cap where its reserve holds, else its limit, as its last reading by then has it: none where
+    that read it spent or rejected, and all of it once that reading's reset had passed, so an
+    account idle before its window started has all its room till then, and each reset is a step
+    up. An account out of the pool isn't counted, and one with no reading by then isn't known.
+    `status` judges each account's room then, as it judges how each stood for Runway, finding its
+    readings by then with a search of them, indexed once a read, and `views` sums them. The columns
+    before now's sit on a grid of their step, the length over the columns, so each stays at its
+    moment as now moves on, each judged once and held while what it's judged from by its moment
+    stands, the readings by then among it, as none after changes it; none is judged past when the
+    readings were last read through, and waits blank for the read its step asks. The last, at now,
+    is the pool's room as the moment has it; and each column's share used is read by `Σ pool`'s
+    rule, so now's agrees with its bar. The burn-up fills each column to its share used, as an
+    account's, and the burn-down to what's left; neither draws a cap, even pace, now's line or
+    where it's heading.
+    Its axis: the time a length back from now in `text.faint` at the left, with its date for a
+    window longer than a day, as a week back falls on now's weekday, and `now` in bold
+    `text.subtle` ending at the right. A column none of whose accounts is known is blank, and one
+    that has only now says `no history yet` across its middle row;
+  - **GRAPHS takes no rows of its own,** so it never folds and every account shows at once, USAGE
+    scrolling as it does; its heading sits beside USAGE's, from `hx` to the edge, the key alone as
+    its description;
+  - **while it does, ROUTING is a section of its own,** as under 150 columns, and **there's no
+    focus:** `↑↓ focus` leaves the key line, and `↑` and `↓` do nothing.
+  - Under 150 columns, where by account has no room beside its blocks, GRAPHS falls back to the
+    focused account's charts, as by window.
+- **On a phone,** its charts stack, a window's under another's, each from the name column to the
+  edge, the burn-down as the burn-up (settled in the plan); by account, as by window, the focused
+  account's charts, stacked.
 
 **ROUTING** says how each account stands with the router, and how busy it's been.
 
@@ -1655,27 +1733,32 @@ remembered").
   10 cells; the bars 10 cells on; the percentage a cell after a bar, and the words two cells after
   the percentage: 26, 48 cells, 75 and 81 for the sample.
 - **ROUTING moves beside each block,** at column `hx = n + 10 + bar + 7 + 22 + 4`, 107 for the
-  sample. USAGE's heading is `hx − 3` wide, and ROUTING's, `ROUTING   auto` with the mode alone,
-  runs from `hx` to the edge. On each block's first row, its state's words, cut by whole clauses to
-  end two cells before the right edge; two rows down, `● pinned  ·  ` where the pin names it, then
-  its sessions; four rows down, a one-row trace from `hx` to `w − 8`, and its rate right-aligned.
+  sample, but while GRAPHS shows, when GRAPHS' charts are there instead and ROUTING keeps a section
+  of its own (see GRAPHS, above; the owner's call, 15 October 2026). USAGE's heading is `hx − 3`
+  wide, and ROUTING's, `ROUTING   auto` with the mode alone, runs from `hx` to the edge. On each
+  block's first row, its state's words, cut by whole clauses to end two cells before the right
+  edge; two rows down, `● pinned  ·  ` where the pin names it, then its sessions; four rows down, a
+  one-row trace from `hx` to `w − 8`, and its rate right-aligned.
 - **The pool's block is last,** under one rule across USAGE and ROUTING: its windows as each
   account's, and beside them its accounts' states counted, `2 open · 1 at cap`, each count in its
   state's colour (`open` in `text.secondary`, `pressure` and `at cap` in `accent.attention`, `limit`
   and `refused` in `state.destructive`) with ` · ` in `text.faint`; its accounts' sessions summed,
-  `6 sessions`; and their requests a minute summed, as a trace and a rate, `16/min`.
+  `6 sessions`; and their requests a minute summed, as a trace and a rate, `16/min`. While GRAPHS
+  shows, the pool's charts beside it instead (see GRAPHS, above).
 - **The key line** follows the last block, from the name column.
 - **Under 150 columns,** USAGE draws as `usage --by account` does at that width, and ROUTING stays a
-  section of its own under it (settled in the plan).
+  section of its own under it (settled in the plan), as GRAPHS does, charting the focused account
+  as by window.
 
 **The key line**, the last row:
 
 - **Wide:** `tab views`, five spaces; each toggle as its key and word, two spaces apart, `u usage  g
   graphs  r routing  s sessions  c coming up  l lately`, a key in bold `accent.key` and its word in
   `text.muted` while its section shows, else `text.faint`; two spaces, `b by: window`, the state in
-  `text.secondary`; five spaces; then `↑↓ focus  p pin  ? help  q quit`. With one account,
-  `↑↓ focus` doesn't show (settled in the plan), nor `p pin`, unless a pin set from the command line
-  stands.
+  `text.secondary`; while GRAPHS shows, two spaces and `v chart: burn-up` or `v chart: burn-down`,
+  the same way; five spaces; then `↑↓ focus  p pin  ? help  q quit`. With one account, `↑↓ focus`
+  doesn't show (settled in the plan), nor while GRAPHS charts every account beside USAGE's blocks,
+  nor `p pin`, unless a pin set from the command line stands.
 - **On a phone:** `tab views   ? keys and toggles   q quit`.
 
 **Room.** Each section has a least and a most:
@@ -1683,7 +1766,7 @@ remembered").
 | Section | Least | Most | Rows |
 |---|---|---|---|
 | USAGE | The compact matrix | The big bars, by window from 150 columns | Compact: `2a + 7` for `a` accounts and the pool, 7 for one account |
-| GRAPHS | 5 rows of chart | 19 | `h + 4` |
+| GRAPHS | 5 rows of chart | 19 | `h + 4`; beside USAGE's blocks by account, none of its own (the owner's call, 15 October 2026) |
 | ROUTING | A row an account | Two rows of trace an account, a blank row between | `a + 3`; `3a + 2` |
 | SESSIONS | A row a session | The same | Its sessions and 2 |
 | COMING UP and LATELY | 3 lines | 12 | Its lines and 2 |
@@ -1713,18 +1796,19 @@ ones:
   `text.muted` and `no room at 37 rows` in `text.subtle`;
 - `COMING UP   16:30  personal's 5-hour resets  …` and `LATELY   14:41  ▲ c61b started on side  …`,
   side by side, each its first row as drawn, then `  …` in `text.subtle`;
-- `GRAPHS   work   no room at 35 rows`;
+- `GRAPHS   work   no room at 35 rows`, but beside USAGE's blocks by account, where it never folds;
 - `ROUTING   auto   no room at 33 rows`.
 
 **Everything hidden,** row 4 says how to bring it back: `every section is hidden:` in `text.faint`,
 then the toggles as the key line words them (settled in the plan).
 
-**`?` help**, `HELP · OVERVIEW`, lists every key first, the toggles, `b`, `↑↓`, `p`, `t`, `R` and
-`j`/`k` among them; then it explains each section, what it shows and why it's where it is; USAGE's
-marks, the levels' colours, the allowance and `out ~…`, the pool against `all accounts`, and how it
-scrolls, an account at a time or a row at a time, going back to its top as `b`, a section's key or a
-resize turns it from one to the other; GRAPHS' lines; the modes and how each routes; ROUTING's
-states and the traces' scale; what a session is doing; and LATELY's marks.
+**`?` help**, `HELP · OVERVIEW`, lists every key first, the toggles, `b`, `v`, `↑↓`, `p`, `t`, `R`
+and `j`/`k` among them, each where it works; then it explains each section, what it shows and why
+it's where it is; USAGE's marks, the levels' colours, the allowance and `out ~…`, the pool against
+`all accounts`, and how it scrolls, an account at a time or a row at a time, going back to its top
+as `b`, a section's key or a resize turns it from one to the other; GRAPHS' two charts, `v`, and
+how by account charts every account, and the lines of each chart; the modes and how each routes;
+ROUTING's states and the traces' scale; what a session is doing; and LATELY's marks.
 
 ### Accounts
 
@@ -2908,8 +2992,8 @@ stepping back and how far it reaches, the minutes a column, and COMING UP.
   began and another took over, held unbroken, began as the first did, told or read. The readings
   tell such a run as far back as they reach: one that began before them tells no start, and one
   whose earlier window's run they don't hold, as the live views read the readings history from the
-  day before now's, carrying in only each window's last run from before then, is dated from the
-  run they do.
+  day a week before now's, as the pool's charts beside `Σ pool` do too, carrying in only each
+  window's last run from before then, is dated from the run they do.
 - **While the router doesn't answer, or the dashboard probes,** the documents it reads join the
   history, a reading of each window at each look (the owner's call, 14 October 2026).
 - **A run-out, `~16:05`:** the projection, as `usage` projects (see `usage`, the printout).
@@ -3702,8 +3786,8 @@ Two things are routed by hand, and **the page decides which,** never what's focu
   session's page has no `p`. A session chosen in a list is routed from its own page: `enter`, then
   `p`.
 
-On the Overview, `↑↓ focus` picks whose charts GRAPHS draws, and `r` hides ROUTING: neither touches
-routing.
+On the Overview, `↑↓ focus` picks whose charts GRAPHS draws, `v` which chart, and `r` hides ROUTING:
+none touches routing.
 
 **The card:**
 
@@ -3861,7 +3945,8 @@ that work there (see The page); `?` lists every one, with what it does.
 | `j` `k`, PgUp, PgDn, the wheel | Wherever something scrolls (settled in the plan) | Scroll |
 | `u` `g` `r` `s` `c` `l` | Overview | Show or hide USAGE, GRAPHS, ROUTING, SESSIONS, COMING UP, LATELY |
 | `b` | Overview | By window, or by account |
-| `↑` `↓` | Overview | Move the account focus, which GRAPHS follows |
+| `v` | Overview, while GRAPHS shows | GRAPHS' burn-up, or its burn-down (the owner's call, 15 October 2026) |
+| `↑` `↓` | Overview | Move the account focus, which GRAPHS follows; none while GRAPHS charts every account beside USAGE's blocks |
 | `[` `]` | Accounts, History, Sessions, the Log | The sub-tab before or after |
 | `<` `>` | Accounts, History | A shorter period, a longer one; on History's Year, the year before, the one after |
 | `<` `>` | Runway | The 5-hour view, the week's |
@@ -3897,7 +3982,8 @@ alone act, and `esc` closes it; so do the theme picker's while it's open, as The
 
 **Keys that mean one thing on one page and another elsewhere** are kept apart by the page: `r` and
 `s` hide sections on the Overview, where `R` refreshes on every page, and `s` opens a session's page
-on the Log; `g` shows GRAPHS on the Overview, and Requests from an event's details on the Log.
+on the Log; `g` shows GRAPHS on the Overview, and Requests from an event's details on the Log; and `v`
+flips GRAPHS' chart on the Overview, and a view's shape or split on History.
 
 ### What moves
 
@@ -4096,7 +4182,8 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
   Control API), each window's over its current length, the 5-hour window at 5-minute steps and the
   weeks at 30-minute steps. Without the router, GRAPHS draw from the readings history's files,
   read where they lie, and the readings the dashboard takes itself as it probes
-  (settled in the plan).
+  (settled in the plan). The pool's charts beside `Σ pool` read the readings history's live tail,
+  as Runway does (see The ledger, read as it grows, below).
 - **The request stream:** while a page that draws what it tells is shown, the dashboard subscribes
   to the router's request stream, `GET /stream` (see Control API): the Overview, with ROUTING or
   SESSIONS shown, whose traces and sessions it moves; Accounts' Detail, with its sessions;
@@ -4168,6 +4255,13 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
     Log first shows, `loading…` while they are; never again (settled in the plan).
   - **A period, or a day stepped back to,** as Accounts', History's and Runway's are, is read once
     as it's shown, then held; History's year is a year of summaries, read once a run.
+  - **The readings history's live tail,** from the day a week before today's, each window's run
+    from a week before that carried in, is read for what it gained at each look while Runway shows
+    a live view, today, or a day or week it holds; and for the pool's charts beside `Σ pool` only
+    as their columns before now's move a step on past when it was last read, as what it gains
+    between is judged at none of them till then: so a look on the Overview reads it only as a step
+    goes by, the column the step brings blank till that read lands, then judged, with any other
+    whose readings by its moment the read changed.
   - **The Log's Events through some kinds,** which no summary tells the days of, read back no
     further than the earliest of them the router filed: its files of events are read for it first,
     the oldest first and no further than that event, as they're far smaller than the ledger's days

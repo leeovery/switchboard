@@ -281,9 +281,15 @@ func writeDay(tb testing.TB, dir, name string, data []byte, compressed bool) {
 // the router's document with that page open, and with the Log shown; a batch
 // of the request stream's events, an answer of the session's streaming on,
 // with the page open and on the Log, the stream having told of the hour's
-// requests before; a look with the Log's panel open; a request sent, with
-// the Log shown; and the Events, filled through every kind, refiltered to a
-// kind none of the four weeks holds.
+// requests before; a look with the Log's panel open; on the Overview by
+// account, GRAPHS charting each account and the pool beside USAGE, a look,
+// a look as the pool's 5-hour chart moves a column on, twelve minutes, its
+// readings history having gained a reading of each account before it, the
+// pool's charts judged in full, and a resize; Runway built afresh, and a
+// look at it, its readings history having gained a reading of each account
+// since the last; a request sent, with the Log shown; and the Events,
+// filled through every kind, refiltered to a kind none of the four weeks
+// holds.
 func BenchmarkTheBusyDashboard(b *testing.B) {
 	w := newBusyWorld(b, start)
 	for _, s := range []struct{ name, id string }{{"of four weeks", w.longest()}, {"of three days", w.lately()}} {
@@ -340,6 +346,52 @@ func BenchmarkTheBusyDashboard(b *testing.B) {
 			h.look(w)
 		}
 	})
+	b.Run("a look on the Overview by account", func(b *testing.B) {
+		h := w.byAccount(b)
+		for b.Loop() {
+			h.look(w)
+		}
+	})
+	b.Run("the pool's charts judged in full", func(b *testing.B) {
+		h := w.byAccount(b)
+		for b.Loop() {
+			h.model.pool.rooms = nil
+			h.model = h.model.poolBuilt()
+		}
+	})
+	b.Run("a resize by account", func(b *testing.B) {
+		h := w.byAccount(b)
+		widths := []int{170, 160}
+		n := 0
+		for b.Loop() {
+			n++
+			h.deliver(h.update(tea.WindowSizeMsg{Width: widths[n%2], Height: 37})...)
+		}
+	})
+	b.Run("Runway built afresh", func(b *testing.B) {
+		h := w.onRunway(b)
+		for b.Loop() {
+			h.model.runwayTab.lanes, h.model.runwayTab.builtAt = views.Lanes{}, nil
+			h.model = h.model.runwayBuilt()
+		}
+	})
+	b.Run("a look on the Overview by account, a column on", func(b *testing.B) {
+		h := w.byAccount(b)
+		const column = 5 * time.Hour / 25
+		for b.Loop() {
+			h.clock.now = h.clock.now.Add(column)
+			w.gained(b, h.clock.now.Truncate(column).Add(-time.Minute))
+			h.look(w)
+		}
+	})
+	b.Run("a look on Runway, a reading gained", func(b *testing.B) {
+		h := w.onRunway(b)
+		for b.Loop() {
+			h.clock.now = h.clock.now.Add(30 * time.Second)
+			w.gained(b, h.clock.now.Add(-10*time.Second))
+			h.look(w)
+		}
+	})
 	b.Run("a request sent on the Log", func(b *testing.B) {
 		n := 0
 		for b.Loop() {
@@ -382,6 +434,50 @@ func (w busyWorld) harness(tb testing.TB) *harness {
 	h.update(tea.WindowSizeMsg{Width: 160, Height: 37})
 	h.start()
 	return h
+}
+
+// byAccount is the busy world's harness on the Overview by account, GRAPHS
+// shown, so each account's charts and the pool's sit beside USAGE, its
+// first look taken.
+func (w busyWorld) byAccount(tb testing.TB) *harness {
+	tb.Helper()
+	h := w.harness(tb)
+	h.model.by, h.model.sections = dashboard.ByAccount, dashboard.Sections{}.Toggled(dashboard.SectionGraphs)
+	h.look(w)
+	return h
+}
+
+// onRunway is the busy world's harness on Runway's live 5-hour view, its
+// first look taken.
+func (w busyWorld) onRunway(tb testing.TB) *harness {
+	tb.Helper()
+	h := w.harness(tb)
+	h.model.view = dashboard.Runway
+	h.look(w)
+	return h
+}
+
+// gained has the world's readings history gain a reading of each account's
+// 5-hour window at at, as the router files them, on the day's file.
+func (w busyWorld) gained(tb testing.TB, at time.Time) {
+	tb.Helper()
+	at = at.In(w.now.Location())
+	file, err := os.OpenFile(filepath.Join(readings.Dir(w.state), "readings-"+at.Format(time.DateOnly)+".jsonl"), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0o600)
+	if err != nil {
+		tb.Fatal(err)
+	}
+	defer func() { _ = file.Close() }()
+	for k, account := range busyAccounts {
+		r := readings.Reading{At: at.UTC(), Account: account, Key: "5h", Utilization: float64((at.Minute()+k*7)%60) / 60,
+			ResetsAt: at.Truncate(5 * time.Hour).Add(5 * time.Hour).UTC(), Status: quota.StatusAllowed, Source: readings.FromAnswer}
+		data, err := json.Marshal(r)
+		if err != nil {
+			tb.Fatal(err)
+		}
+		if _, err := file.Write(append(data, '\n')); err != nil {
+			tb.Fatal(err)
+		}
+	}
 }
 
 // onDetail is the busy world's harness on Accounts' Detail of the account
