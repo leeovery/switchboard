@@ -23,11 +23,13 @@ repo=$(cd "$(dirname "$0")/.." && pwd -P)
 # longer than go test's default of ten minutes. A -timeout given overrides it.
 limit=30m
 
-# packages is every package, unless the arguments name some, as ./internal/views/...
+# packages is every package, unless the arguments name some, as ./internal/views/...:
+# an argument naming a directory of the module, with /... or without, and not a
+# flag's value, as -coverprofile ./c.out has.
 packages=./...
 for arg in "$@"; do
 	case $arg in
-	./*) packages= ;;
+	./*) [[ -d $repo/${arg%/...} ]] && packages= ;;
 	esac
 done
 

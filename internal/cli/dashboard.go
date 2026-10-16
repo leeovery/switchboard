@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -39,7 +40,28 @@ func newDashboardCommand(a *app) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "dashboard [interval] [--no-notify] [--probe]",
 		Short: "Show every account's usage as a dashboard, full screen",
-		Long: `Show every account's usage as a dashboard, full screen until q: the router's,
+		Long:  dashboardLong,
+		Args:  opts.parseArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return a.dashboard(cmd.Context(), cmd.OutOrStdout(), opts)
+		},
+	}
+	shown := cmd.HelpFunc()
+	cmd.SetHelpFunc(func(c *cobra.Command, args []string) {
+		c.Long = strings.Replace(dashboardLong, keysPlace, dashboardKeys(), 1)
+		shown(c, args)
+	})
+	cmd.Flags().BoolVar(&opts.noNotify, "no-notify", false, "post no desktop notifications without the router")
+	cmd.Flags().BoolVar(&opts.probe, "probe", false, "probe every account, even while the router runs")
+	return cmd
+}
+
+// keysPlace is where the dashboard's long help lists its keys, as
+// dashboardKeys says them: worked out as the help is asked for, as every
+// command builds the dashboard's, the launch of claude among them.
+const keysPlace = "{{keys}}"
+
+const dashboardLong = `Show every account's usage as a dashboard, full screen until q: the router's,
 while it answers, with its sessions and pin, else read by probing each
 account, as --probe does whether the router runs or not. It needs a
 terminal, and refuses without one.
@@ -56,7 +78,7 @@ router again once it's back.
 Keys: tab and shift-tab move between its tabs, and ctrl-c quits wherever it
 is. The rest are each page's, as its ? help lists them:
 
-` + dashboardKeys() + `
+` + keysPlace + `
 
 The Overview's sections and b are kept for the next dashboard to open with,
 as is the view each tab shows, its period, window or columns, but a calendar
@@ -76,16 +98,7 @@ The dashboard is drawn in the theme chosen in the picker, or the pair of
 tokyo-night-day for a light terminal and nord for a dark one, which the
 terminal is asked. Themes of your own are <slug>.theme files in
 $SWITCHBOARD_THEMES_DIR, else $XDG_CONFIG_HOME/switchboard/themes, else
-~/.config/switchboard/themes. NO_COLOR draws it without colour.`,
-		Args: opts.parseArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return a.dashboard(cmd.Context(), cmd.OutOrStdout(), opts)
-		},
-	}
-	cmd.Flags().BoolVar(&opts.noNotify, "no-notify", false, "post no desktop notifications without the router")
-	cmd.Flags().BoolVar(&opts.probe, "probe", false, "probe every account, even while the router runs")
-	return cmd
-}
+~/.config/switchboard/themes. NO_COLOR draws it without colour.`
 
 // parseArgs reads the interval, if one is given.
 func (o *dashboardOptions) parseArgs(_ *cobra.Command, args []string) error {
