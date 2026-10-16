@@ -152,9 +152,18 @@ func (m Model) listRead(msg listReadMsg) Model {
 // store the read fed to take as it lands, as tailed has it.
 func (m Model) heldWith(found views.HeldSessions) Model {
 	if m.tail.reading {
-		m.merged = m.merged.With(found.Without(m.held))
+		m.merged, m.mergedAny = m.merged.With(found.Without(m.held)), true
 	}
-	m.held = m.held.With(found)
+	return m.holding(m.held.With(found), true)
+}
+
+// holding is m with the store held as h, counted as changed where it
+// tells otherwise of what it held, as changed says.
+func (m Model) holding(h views.HeldSessions, changed bool) Model {
+	m.held = h
+	if changed {
+		m.stored++
+	}
 	return m
 }
 
@@ -179,10 +188,16 @@ type heldFold struct {
 // oldest first. It wants what the List wants, once it's held, else what
 // the stream pins.
 func (m Model) heldFold(now time.Time) *heldFold {
-	t := m.sessionsTab
-	if !t.listed && !m.log.opened {
+	if !m.sessionsTab.listed && !m.log.opened {
 		return nil
 	}
+	return m.storeFold(now)
+}
+
+// storeFold is what a read of the ledger's tail at now does for the store,
+// as heldFold has it, whatever wants it.
+func (m Model) storeFold(now time.Time) *heldFold {
+	t := m.sessionsTab
 	live := m.listLive(now, m.traffic.stream(now))
 	due, awaited := t.awaited.due(m.held.Awaited(live), live.Stream, now)
 	late := slices.Concat(due, m.held.Unread(m.tail.missed(views.Today(now))))

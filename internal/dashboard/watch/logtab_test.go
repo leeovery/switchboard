@@ -441,9 +441,9 @@ func (a afterMidnight) shows(t *testing.T, when string) {
 // alone, keeps its row while the stream tells of it: told on today till its
 // line comes, the line filed on the day before, which the Log reads back to
 // as its row awaits it there. Where another reader folds the tail, as the
-// List does, the stream lets it go once the Log has its line. Once the
-// stream no longer tells of it, the Log, today's rows filling its view, lets
-// go of the day, the row on it with it.
+// List does, the stream lets it go once the Log has its line; alone, once
+// seenFor has passed. Once the stream no longer tells of it, the Log,
+// today's rows filling its view, lets go of the day, the row on it with it.
 func TestARowSentJustAfterMidnightStaysOnALogOpenedSince(t *testing.T) {
 	for _, list := range []bool{false, true} {
 		name := "the Log alone"
@@ -468,11 +468,17 @@ func TestARowSentJustAfterMidnightStaysOnALogOpenedSince(t *testing.T) {
 			if !readBack {
 				t.Errorf("its line filed on %s, the Log's tables never read back to it", filed)
 			}
-			told, today := false, views.Today(a.midnight).Date
-			if _, told = toldOf(a.h.model.traffic, "0a000001"); list && told {
+			if _, told := toldOf(a.h.model.traffic, "0a000001"); list && told {
 				t.Error("the Log has taken in its line, the stream keeps 0a000001 still, want it let go")
 			}
-			if got := a.h.model.log.from.Date; !told && (got != today || slices.Contains(shownRequests(a.h), "0a000001")) {
+			for tick := a.h.lastTick(); !list && tick.due.Before(a.midnight.Add(seenFor+2*time.Minute)); tick = a.h.lastTick() {
+				a.h.fire(tick)
+			}
+			today := views.Today(a.midnight).Date
+			if _, told := toldOf(a.h.model.traffic, "0a000001"); told {
+				t.Fatal("seenFor past its end, the stream keeps 0a000001 still, want it let go")
+			}
+			if got := a.h.model.log.from.Date; got != today || slices.Contains(shownRequests(a.h), "0a000001") {
 				t.Errorf("the stream let 0a000001 go, the Log's tables are from %s, showing %q; want them from %s, the day before let go, its row with it",
 					got, shownRequests(a.h), today)
 			}

@@ -16,7 +16,8 @@ import (
 // logTab is what the watch holds of the Log: its page, built afresh of what
 // it holds at each change, as builtLog has it, and what each of its builds
 // was last made of; once opened, as the Log first shows, the ledger's lines
-// read for its Requests and the router's events for its Events, over the
+// read for its Requests, and the read it was last built of while hidden, as
+// keptHidden has it, and the router's events for its Events, over the
 // local days from from, today's grown at each look since and the days
 // before read back as the tables want them; the figures of those days,
 // which their rules say; how many times what it holds has changed, as
@@ -39,6 +40,7 @@ type logTab struct {
 	built      logBuilt
 	opened     bool
 	read       views.LogRead
+	kept       views.LogRead
 	events     views.EventsRead
 	totals     []views.DayTotals
 	held       int

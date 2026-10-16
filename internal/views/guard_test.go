@@ -75,7 +75,7 @@ var (
 	// package calls none, whether or not it takes raw data.
 	readsRaw = []string{
 		"claude.LimitStatus", "claude.LimitWindows", "claude.WindowsRead",
-		"claude.WindowsReadOf",
+		"claude.KeptWindows", "claude.WindowsReadOf",
 		"ledger.Failing", "ledger.Line.Upstream",
 		"ledger.Reply.CacheLife", "ledger.Reply.Tokens", "ledger.Spend.CacheLife", "ledger.Spend.Tokens", "ledger.SpendOf",
 		"ledger.Table.CacheWrite", "ledger.Table.CacheWriteSpend", "ledger.Table.Priced", "ledger.Table.Request", "ledger.Table.Rewrite",
@@ -155,7 +155,7 @@ var (
 		"views.LogRows", "views.LogSessions", "views.Patch", "views.ReadEvents",
 		"views.RunwayReadings", "views.StubsOf", "views.Today", "views.Took", "views.TotalsOn",
 		"views.EventsRead.From", "views.HeldSessions.Unheld", "views.LogLines.Rows", "views.LogLinesOf", "views.LogRead.From", "views.LogRead.HoldsTold",
-		"views.LogRead.Taken", "views.LogRead.Wanted", "views.ReadLog", "views.StreamWanted",
+		"views.LogRead.Taken", "views.LogRead.Wanted", "views.ReadLog", "views.SessionGains.Retell", "views.StreamWanted",
 	}
 )
 

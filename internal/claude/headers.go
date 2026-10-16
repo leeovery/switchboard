@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unique"
 
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
@@ -86,19 +87,70 @@ type WindowRead struct {
 // it: how far it held its account back as score.HoldOf judges it, the
 // account's reserve the one given.
 func WindowsRead(limits map[string]string, reserve float64) []WindowRead {
-	return WindowsReadOf(LimitWindows(limits), reserve)
+	return windowsRead(LimitWindows(limits), reserve)
 }
 
-// WindowsReadOf returns the windows given, as LimitWindows reads them of a
-// line's limits and a reader keeps them, in their order, each as
-// WindowsRead has it.
-func WindowsReadOf(windows []quota.Window, reserve float64) []WindowRead {
+// WindowsReadOf returns the windows kept, as KeptWindows keeps them of a
+// line's limits, each as LimitWindows reads it, in their order, as
+// WindowsRead has them.
+func WindowsReadOf(kept []KeptWindow, reserve float64) []WindowRead {
+	windows := make([]quota.Window, len(kept))
+	for i, k := range kept {
+		windows[i] = k.Window()
+	}
+	return windowsRead(windows, reserve)
+}
+
+// windowsRead are the windows given, in their order, each as WindowRead has
+// it, the account's reserve the one given.
+func windowsRead(windows []quota.Window, reserve float64) []WindowRead {
 	var read []WindowRead
 	for _, w := range windows {
 		read = append(read, WindowRead{Key: w.Key, Use: w.Utilization, Resets: w.ResetsAt, Held: score.HoldOf(w, reserve)})
 	}
 	return read
 }
+
+// KeptWindow is a window a request ledger's line gives in its limits, as a
+// reader that holds the line keeps it, decoded once and small: its key and
+// status, interned, so every line's share one copy; its share used; and
+// when it resets, in seconds since the epoch, as the header gives it, the
+// zero time's where it didn't say.
+type KeptWindow struct {
+	key    unique.Handle[string]
+	status unique.Handle[quota.Status]
+	use    float64
+	resets int64
+}
+
+// KeptWindows returns the windows a request ledger's line gives in its
+// limits, as LimitWindows reads them, in its order, each kept as KeptWindow
+// keeps it.
+func KeptWindows(limits map[string]string) []KeptWindow {
+	windows := LimitWindows(limits)
+	if len(windows) == 0 {
+		return nil
+	}
+	kept := make([]KeptWindow, len(windows))
+	for i, w := range windows {
+		kept[i] = KeptWindow{key: unique.Make(w.Key), status: unique.Make(w.Status), use: w.Utilization, resets: w.ResetsAt.Unix()}
+	}
+	return kept
+}
+
+// Window is the window k keeps, as LimitWindows reads it.
+func (k KeptWindow) Window() quota.Window {
+	key := k.key.Value()
+	w := quota.Window{Key: key, Label: WindowLabel(key), Utilization: k.use, Status: k.status.Value()}
+	if k.resets != unsaidReset {
+		w.ResetsAt = time.Unix(k.resets, 0).UTC()
+	}
+	return w
+}
+
+// unsaidReset is when a window resets, kept as KeptWindow keeps it, where
+// the header didn't say: the zero time's.
+var unsaidReset = time.Time{}.Unix()
 
 // LimitStatus returns the status a request ledger's line gives in its limits,
 // the answer's usage headers as limitsOf kept them: the API's verdict on the

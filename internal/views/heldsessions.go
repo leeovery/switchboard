@@ -144,6 +144,18 @@ type SessionGain struct {
 	retold []flight
 }
 
+// Retell reports whether g tells otherwise of any request it holds: of a
+// session read whole, or of one whose story told otherwise of a request,
+// as SessionGain has them, so what's told of the store is told again.
+func (g SessionGains) Retell() bool {
+	for _, gain := range g {
+		if gain.whole || len(gain.retold) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // Holding is what the store holds, and what its last feed did, as the
 // watch's guard holds them to what a reader shows: the date of the day it
 // was last fed on; how many requests each session it holds keeps open, by

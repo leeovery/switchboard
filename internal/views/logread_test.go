@@ -413,3 +413,24 @@ func TestAReadHoldsTheLineOfARequestToldOfFiledOnADayBefore(t *testing.T) {
 		})
 	}
 }
+
+// A session's line without an id told again, as a later line settles what
+// its move cost, is its alone: another session's line without an id that
+// arrived at the same moment keeps its own story, so the read grown is the
+// read at once.
+func TestRetellingALineWithoutAnIDRetellsItsSessionsAlone(t *testing.T) {
+	at := october(7, 10, 0)
+	first := withID("d0", of(ledger.ClassMain, line(mover, opus, "work", "new", october(7, 9, 0), hourUsage)))
+	moved := movedFrom("work", withID("", of("auxiliary", line(mover, opus, "side", "moved: work is at its reserve", at, hourUsage))))
+	alongside := withID("", of(ledger.ClassMain, line(older, opus, "work", "new", at, hourUsage)))
+	settles := withID("d2", of(ledger.ClassMain, line(mover, opus, "side", "sticky", october(7, 10, 5), hourUsage)))
+	read, looked := october(7, 10, 2), october(7, 10, 6)
+	all := ledgerHolding(looked, first, moved, alongside, settles)
+	grown := logReading(read, views.Stream{}, first, moved, alongside).Took(all, heldOf(settles), false, views.Stream{}, looked)
+	src := views.LogSources{From: looked, Now: looked, Read: grown.Read}
+	once := src
+	once.Read = logRead(looked, first, moved, alongside, settles)
+	if got, want := views.LogRows(src), views.LogRows(once); !sameTable(got, want) {
+		t.Errorf("grown, the table is\n%s\nwant it as read at once\n%s", tableLines(got), tableLines(want))
+	}
+}

@@ -1,6 +1,7 @@
 package views_test
 
 import (
+	"slices"
 	"testing"
 	"time"
 
@@ -128,5 +129,38 @@ func TestTheLogNotLiveIsToTheLatestEndOfTheLinesReadAtEachHardMoment(t *testing.
 		if got := readAtOnce(hm, ledgerHolding(hm.Now, hm.Lines...)).WrittenTo(); !got.Equal(want) {
 			t.Errorf("%s: the ledger was last written at %s, want %s", hm.Name, got, want)
 		}
+	}
+}
+
+// A row chosen while the stream told of it in flight is found once its line
+// comes, the stream no longer telling of it, as the router stopped
+// answering: its line sits where it arrived, moments before it was sent,
+// and on the day before where it was sent just after midnight.
+func TestARowChosenInFlightIsFoundOnceItsLineComesUntold(t *testing.T) {
+	tests := []struct {
+		name string
+		sent time.Time
+	}{
+		{name: "sent at noon", sent: october(7, 12, 0)},
+		{name: "sent just after midnight", sent: october(7, 0, 0).Add(time.Second)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			at := now.Add(time.Minute)
+			r0 := withID("r0", line(mover, opus, "side", "new", tt.sent.Add(-time.Hour), hourUsage))
+			then := views.LogRows(views.LogSources{From: october(6, 0, 0), Now: at, Read: logRead(at, r0), Stream: streamOf(sentAt("r1", tt.sent))})
+			chosen := slices.IndexFunc(then.Lines(), func(l views.LogLine) bool { return l.IsRow() && l.Row.Request == "r1" })
+			if chosen < 0 {
+				t.Fatal("the table shows no row of r1's while the stream tells of it in flight")
+			}
+			key := then.Line(chosen).Key()
+			r1 := withID("r1", line(mover, opus, "side", "sticky", tt.sent.Add(-2*time.Second), hourUsage))
+			r1.TotalMS = (12 * time.Second).Milliseconds()
+			table := views.LogRows(views.LogSources{From: october(6, 0, 0), Now: at, Read: logRead(at, r0, r1)})
+			found, ok := table.Find(key)
+			if !ok || table.Line(found).Row.Request != "r1" {
+				t.Errorf("its line come, the row chosen in flight is found %t, at %d, want r1's row", ok, found)
+			}
+		})
 	}
 }

@@ -68,7 +68,9 @@ func (k LineKey) is(o LineKey) bool {
 
 // Find is the place among t's lines of the line whose identity is k: false
 // where t shows none, as where its filter hides it. A row is looked for
-// where it sits, on the day it was sent or arrived on.
+// where it sits, on the day it was sent or arrived on, or where its line
+// sits where the stream no longer told of it as the line came, as when it
+// arrived, up to arrivesWithin before it was sent.
 func (t LogTable) Find(k LineKey) (int, bool) {
 	at := 0
 	if t.oldest != nil {
@@ -93,11 +95,13 @@ func (t LogTable) Find(k LineKey) (int, bool) {
 }
 
 // find is the place among the section's own lines of the row whose identity
-// is k, as Find has it.
+// is k, as Find has it: among the rows placed from arrivesWithin before
+// where k sits to where it does.
 func (s tableSection) find(k LineKey) (int, bool) {
-	from := s.rows.search(func(l *loggedLine) bool { return !l.place.Before(k.place) })
+	earliest := k.place.Add(-arrivesWithin)
+	from := s.rows.search(func(l *loggedLine) bool { return !l.place.Before(earliest) })
 	for i, l := range s.rows.from(from) {
-		if !l.place.Equal(k.place) {
+		if l.place.After(k.place) {
 			break
 		}
 		if s.lined(i).Key().is(k) {

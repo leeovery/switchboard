@@ -59,12 +59,12 @@ func sumOf(l *ledger.Line) uint64 {
 	var h maphash.Hash
 	h.SetSeed(linesSeed)
 	maphash.WriteComparable(&h, struct {
-		request, dir, model, account, reason, from, class, agentID, geo, kind string
-		at, end                                                               instant
-		upstream                                                              bool
-		tried                                                                 int
+		request, session, dir, model, account, reason, from, class, agentID, geo, kind string
+		at, end                                                                        instant
+		upstream                                                                       bool
+		tried                                                                          int
 	}{
-		l.Request, l.Dir, l.Model, l.Account, l.Reason, l.From, l.Class, l.AgentID, l.Shape.InferenceGeo, l.Kind,
+		l.Request, l.Session, l.Dir, l.Model, l.Account, l.Reason, l.From, l.Class, l.AgentID, l.Shape.InferenceGeo, l.Kind,
 		instantOf(l.At), instantOf(ended(l)), l.Upstream(), len(l.Tried),
 	})
 	for _, t := range l.Tried {

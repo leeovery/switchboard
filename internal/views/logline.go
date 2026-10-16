@@ -46,7 +46,7 @@ func routedOf(l *ledger.Line) routed {
 // and the model that served it; its betas, each undated; its shape's system
 // blocks, max_tokens, effort and whether it streamed; its answer's blocks,
 // counted by kind, in answerOrder; how long its writes to the cache last;
-// and the windows its answer read, as claude.LimitWindows reads them, and
+// and the windows its answer read, as claude.KeptWindows keeps them, and
 // its status across them, as its usage headers gave them.
 type lineDetails struct {
 	answer, served    string
@@ -56,7 +56,7 @@ type lineDetails struct {
 	stream            *bool
 	blocks            []DetailBlock
 	life              time.Duration
-	windows           []quota.Window
+	windows           []claude.KeptWindow
 	status            quota.Status
 }
 
@@ -74,7 +74,7 @@ func detailsOf(l *ledger.Line) *lineDetails {
 		d.maxTokens = int(*most)
 	}
 	d.life, _ = l.CacheLife()
-	d.windows = claude.LimitWindows(l.Limits)
+	d.windows = claude.KeptWindows(l.Limits)
 	return d
 }
 

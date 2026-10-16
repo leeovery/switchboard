@@ -51,12 +51,21 @@ type loggedDay struct {
 
 // loggedKeys are the keys of a day's lines, as loggedDay holds them: those
 // with ids, by id, each with its flight, and its seq; those without, by
-// when they arrived, each with the sum of what its line says, as sumOf has
-// it, and its seq; and the seqs of each session's requests, by its id.
+// their session and when they arrived, as idlessAt has them, each with the
+// sum of what its line says, as sumOf has it, and its seq; and the seqs of
+// each session's requests, by its id.
 type loggedKeys struct {
 	byID      map[string][]loggedKey
-	idless    map[instant][]loggedKey
+	idless    map[idlessAt][]loggedKey
 	bySession map[string][]int
+}
+
+// idlessAt is where a line without an id is known among a day's: the
+// session it's of, and when it arrived, as two sessions' lines may arrive
+// at one moment.
+type idlessAt struct {
+	session string
+	at      instant
 }
 
 // loggedKey is a line as loggedKeys knows it.
@@ -225,10 +234,11 @@ type givenLines struct {
 	idless map[idlessKey]int
 }
 
-// idlessKey is a line without an id, as givenLines counts it: when it
-// arrived, and the sum of what its line says, as sumOf has it.
+// idlessKey is a line without an id, as givenLines counts it: its session
+// and when it arrived, as idlessAt has them, and the sum of what its line
+// says, as sumOf has it.
 type idlessKey struct {
-	at  instant
+	idlessAt
 	sum uint64
 }
 
@@ -237,8 +247,8 @@ type idlessKey struct {
 // before the read, holds none of, as Taken has it, noting it as given: of
 // one with an id, one of the same id that arrived at the same moment,
 // neither held nor given before in the read; of one without, any but in a
-// read whole, where it's fresh only where the read has given more that
-// arrived at its moment, saying the same, than held holds.
+// read whole, where it's fresh only where the read has given more of its
+// session that arrived at its moment, saying the same, than held holds.
 func (g givenLines) fresh(l *ledger.Line, held *stacked[loggedKeys], whole bool) bool {
 	if k, ok := keyOf(l); ok {
 		fresh := !g.ids[k] && !holdsKey(held, k)
@@ -248,7 +258,7 @@ func (g givenLines) fresh(l *ledger.Line, held *stacked[loggedKeys], whole bool)
 	if !whole {
 		return true
 	}
-	k := idlessKey{at: instantOf(l.At), sum: sumOf(l)}
+	k := idlessKey{session: l.Session, at: instantOf(l.At), sum: sumOf(l)}
 	g.idless[k]++
 	return g.idless[k] > idlessCount(held, k)
 }
@@ -263,12 +273,12 @@ func holdsKey(s *stacked[loggedKeys], k lineKey) bool {
 	return false
 }
 
-// idlessCount is how many lines without ids that arrived at the moment k
-// has, saying what its sum says, the keys held hold.
+// idlessCount is how many lines without ids of k's session that arrived at
+// its moment, saying what its sum says, the keys held hold.
 func idlessCount(s *stacked[loggedKeys], k idlessKey) int {
 	n := 0
 	for layer := s; layer != nil; layer = layer.under {
-		for _, o := range layer.top.idless[k.at] {
+		for _, o := range layer.top.idless[k.idlessAt] {
 			if o.sum == k.sum {
 				n++
 			}
@@ -283,7 +293,7 @@ func (k *loggedKeys) add(l *loggedLine) {
 	if l.flight.request != "" {
 		k.byID = withKey(k.byID, l.flight.request, key)
 	} else {
-		k.idless = withKey(k.idless, l.flight.at, key)
+		k.idless = withKey(k.idless, idlessAt{session: l.row.Session, at: l.flight.at}, key)
 	}
 	if l.isRequest() {
 		k.bySession = withKey(k.bySession, l.row.Session, l.seq)
@@ -382,7 +392,9 @@ func (r *LogRead) retell(t LogTaking, before int) []*loggedLine {
 
 // retelling are the seqs of the lines of the day d of the session with the
 // given id that gain tells of afresh: every one, of a session read whole;
-// else those of the requests whose story it told otherwise, each once.
+// else those of its requests whose story it told otherwise, each once,
+// known by their flights: by id, or without one, among the session's lines
+// that arrived at the moment.
 func (d *loggedDay) retelling(id string, gain SessionGain) []int {
 	var seqs []int
 	for layer := d.keys; layer != nil; layer = layer.under {
@@ -391,7 +403,7 @@ func (d *loggedDay) retelling(id string, gain SessionGain) []int {
 			continue
 		}
 		for _, f := range gain.retold {
-			for _, k := range slices.Concat(layer.top.byID[f.request], layer.top.idless[f.at]) {
+			for _, k := range slices.Concat(layer.top.byID[f.request], layer.top.idless[idlessAt{session: id, at: f.at}]) {
 				if k.flight == f {
 					seqs = append(seqs, k.seq)
 				}

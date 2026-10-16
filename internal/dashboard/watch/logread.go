@@ -75,13 +75,12 @@ func (m Model) logReaders() logReaders {
 }
 
 // logReadMsg is what a read for the Log of its own found, as it first shows
-// or as its tables reach back a day; and where it read today's lines whole
-// for the ledger's tail, unread till then, where it read them to, and the
-// lines it read.
+// or as its tables reach back a day; and as it first shows, what the read of
+// the ledger's tail it opens with found for every reader, as tailedMsg has
+// it.
 type logReadMsg struct {
-	grown logGrown
-	tail  *tailRead
-	lined []ledger.Held
+	grown  logGrown
+	tailed *tailedMsg
 }
 
 // readLog has the watch read for the Log while it shows, as it wants, one
@@ -98,10 +97,14 @@ type logReadMsg struct {
 // and of the Events through some kinds or accounts, the router's files, as
 // wantsFiledReach has it; or as the event its details card is open on does,
 // or the find's pick, of an earlier day, as reaching has it, or a row its
-// Requests show awaits a line filed on it, as awaitsBefore has it.
+// Requests show awaits a line filed on it, as awaitsBefore has it. While
+// it doesn't show, it lets go as keptHidden has it.
 func (m Model) readLog() (Model, tea.Cmd) {
-	if m.view != dashboard.Log || m.cfg.Ledger == nil {
+	if m.cfg.Ledger == nil {
 		return m, nil
+	}
+	if m.view != dashboard.Log {
+		return m.keptHidden(m.now()), nil
 	}
 	now := m.now()
 	m = m.builtLog(now)
@@ -127,29 +130,44 @@ func (m Model) readLog() (Model, tea.Cmd) {
 	return m, nil
 }
 
-// openLog reads the Log as it first shows, at now: every one of today's
-// lines, the tail's first read where it's unread, its mark otherwise left
-// where its readers fold from, the lines read again past it held already,
-// as took takes them in; the router's events from today, as ReadEvents
-// reads them; and how far back its tables read, as bounds has it.
-func (m Model) openLog(now time.Time) (Model, tea.Cmd) {
-	r, held, stream := m.logReaders(), m.held, m.logStream(now)
-	joins := m.tail.unread()
-	if joins {
-		m.tail = m.tail.asking()
+// keptHidden is m with the Log, opened but another tab showing, built at
+// now of what it holds as its read grows, as builtLog builds it, so it lets
+// go of the days its tables no longer show, as a read of the tail grows it
+// whatever shows: once a read, as its read changes.
+func (m Model) keptHidden(now time.Time) Model {
+	if !m.log.opened || m.log.read.Same(m.log.kept) {
+		return m
 	}
+	m = m.builtLog(now)
+	m.log.kept = m.log.read
+	return m
+}
+
+// openLog reads the Log as it first shows, at now, with a read of the
+// ledger's tail afresh, as askingTail asks it: every one of today's lines,
+// read once, from no mark, folded by every reader of the tail as a read of
+// it, the store fed them wanting their sessions, and the tail's mark moved
+// to where they were read to, so the Log is told of none the store wasn't
+// fed, and the tail gives it none of them again; the Log takes them whole,
+// each told by the store as fed. It reads too the router's events from
+// today, as ReadEvents reads them, and how far back its tables read, as
+// bounds has it.
+func (m Model) openLog(now time.Time) (Model, tea.Cmd) {
+	stream := m.logStream(now)
 	m.log.reading = true
+	m, t := m.askingTail(now, true)
 	return m, func() tea.Msg {
-		today := views.Today(now)
-		lines, next, _ := r.ledger.Today(ledger.Mark{})
-		events := views.ReadEvents(r.filed, today.Start, now)
-		msg := logReadMsg{grown: r.took(views.ReadLog(r.prices), lines, held, stream, now)}
-		msg.grown.from, msg.grown.events = today, &events
-		msg.grown.logBounds = r.bounds(now)
-		if joins {
-			msg.tail, msg.lined = &tailRead{mark: next, day: today}, lines
+		r := t.r
+		read, next := readLines(r.ledger, t.mark, t.late)
+		read.afresh = true
+		opened := views.ReadLog(r.prices)
+		tailed, _ := t.took(read, next, opened.Wanted(read.gained))
+		events := views.ReadEvents(r.filed, t.today.Start, now)
+		g := logGrown{
+			read: opened.Taken(read.gained, true, views.LogTaking{Held: *tailed.held, Stream: stream, Now: now}), from: t.today, events: &events,
+			logBounds: r.bounds(now),
 		}
-		return msg
+		return logReadMsg{grown: g, tailed: &tailed}
 	}
 }
 
@@ -403,17 +421,16 @@ func keptFrom(first time.Time, err error, keep time.Duration, now time.Time) (*v
 	return &oldest, nil
 }
 
-// logRead takes in what a read for the Log of its own found: the tail read
-// to where it read today's lines, where it read them for it, and the lines
-// it read of the requests the stream told of held, as lined has it, for
-// letGo; the sessions it read whole taken into the store, as heldWith takes
-// them; and the Log grown by it, and opened, its events taking in again
+// logRead takes in what a read for the Log of its own found: the read of
+// the tail it opened with, as tailed takes it in; the sessions it read whole
+// taken into the store, as heldWith takes them; and the Log grown by it,
+// and opened, its events taking in again
 // those of the document on screen while the router answers: as it first
 // shows, as no look took them in before it opened; and since, as the router
 // holds them, in place of the versions the read found on its files.
 func (m Model) logRead(msg logReadMsg) Model {
-	if msg.tail != nil {
-		m.tail, m.traffic = m.tail.read(*msg.tail), m.traffic.lined(msg.lined)
+	if msg.tailed != nil {
+		m = m.tailed(*msg.tailed)
 	}
 	if msg.grown.held != nil {
 		m = m.heldWith(*msg.grown.held)
