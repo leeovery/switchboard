@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-10-16
+
+✨ Added
+- GRAPHS can draw a burn-down — press `v` to flip every chart between the burn-up and the burn-down, which shows room left falling from full, where each window is heading, and ✕ where it runs out; the choice is kept.
+- By account from 150 columns, GRAPHS charts every account beside its USAGE block, and the pool's charts sit beside Σ pool.
+- Pages say "loading…" in their heading while a read of the ledger or readings is under way, including a session's page as it opens.
+- The `dashboard` help now lists every page's keys, generated from the same source as the in-app help so the two never drift.
+- The router now records a limit lifting early, and the Log's limit and cap events show windows that joined after they began.
+
+🔧 Changed
+- Where some accounts' plans aren't known, "against its price" is shown over the plans known, e.g. "4.4× its $92 · 2 of 3 plans known".
+- Quota checks are worth nothing and a model used only for quota checks no longer appears in any view.
+- A move on a model the price table can't price now says "unpriced" instead of leaving its cost blank.
+- Session and turn rows now add up to the cent against the session's total.
+- Runway marks room with a full cell, and the pool's lane draws a line along its foot where no account has room.
+- Runway's words say "lifts" for a hold that another holds on past, and "back" only for the last.
+- COMING UP names an account back from a refused token.
+- Detail's list fits its name column to the account names, and the chosen row shows which of the list and SESSIONS holds the focus.
+- When the router stops answering, sessions in flight are shown as last known, faint, rather than as working now.
+- The Switchboard's cords no longer cross, and its chosen call lights only its own columns.
+- A plan is priced from the ledger's first day where the ledger began part-way through the period.
+
+🐛 Fixed
+- Short terminals no longer cut the routing card's keys, and the Year, Weeks, Days and Switchboard scroll when they don't fit.
+- The Switchboard no longer cuts an account's calls when scrolling.
+- Traces and rates no longer run under the theme picker while it's open.
+- A request's row in the Log stays put as its line is filed, and a request's line is no longer lost when it was filed on the day before.
+- A session's page no longer rebuilds on every tick, and opening one no longer reads other sessions' days.
+- A week-long session's page and Runway's lanes are much faster to judge.
+- A cap or limit lifted by a reset made by hand now ends at the reset rather than at the window's old reset time.
+
 ## [0.2.0] - 2026-10-15
 
 The dashboard, redesigned to be read at a glance: six tabs, each account's usage and routing on one screen, every request on record, and a page for each session.
