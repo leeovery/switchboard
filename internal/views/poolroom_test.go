@@ -16,8 +16,8 @@ import (
 )
 
 // poolAt is when the pool's room is worked out in its tests: 14:20, its
-// 5-hour charted in five columns, an hour apart, at 11:00, 12:00, 13:00,
-// 14:00 and now.
+// 5-hour charted in six columns, an hour apart, at 10:00, 11:00, 12:00,
+// 13:00, 14:00 and now.
 var poolAt = poolClock(14, 20)
 
 // poolClock is the time on poolAt's day, Wednesday 14 October 2026, at the
@@ -82,17 +82,18 @@ func poolFrom(doc status.Document, read []readings.Reading, columns int) views.P
 }
 
 // The pool's room in a window at each column's moment is each account's room
-// as it stood then, as RoomThen judges it, summed: work's whole room once
-// its last session reset, 0.8, and 0.7 and 0.4 as read; personal's whole
-// room till its session's first reading, idle as it was, then 0.8; side's
-// 0.4 till its cap, then none, as at now, so no cliff there. Now's is the
-// pool's as the moment has it, Σ pool's. Each column's used share is what
-// Σ pool's bar fills to at that room, 1 − room ÷ 3, now's the bar's own.
+// as it stood then, as RoomThen judges it, summed: work's 0.3 left before its
+// last session reset, its whole room once it had, 0.8, and 0.7 and 0.4 as
+// read; personal's whole room till its session's first reading, idle as it
+// was, then 0.8; side's 0.4 till its cap, then none, as at now, so no cliff
+// there. Now's is the pool's as the moment has it, Σ pool's. Each column's
+// used share is what Σ pool's bar fills to at that room, 1 − room ÷ 3, now's
+// the bar's own.
 func TestThePoolsRoomIsEachAccountsRoomAsItStoodThenSummed(t *testing.T) {
-	from := poolFrom(pooledDoc(), poolReadings, 5)
+	from := poolFrom(pooledDoc(), poolReadings, 6)
 	got := views.PoolRoom{}.Look(from)
 	now := poolWindowNow(from.Moment, claude.FiveHourWindow)
-	want := []float64{2.2, 2.1, 1.7, 1.2, now.Room}
+	want := []float64{1.7, 2.2, 2.1, 1.7, 1.2, now.Room}
 	if got.Of != 3 || len(got.Columns) != len(want) {
 		t.Fatalf("the pool's room is of %d accounts, %d columns, want 3 and %d", got.Of, len(got.Columns), len(want))
 	}
@@ -101,10 +102,10 @@ func TestThePoolsRoomIsEachAccountsRoomAsItStoodThenSummed(t *testing.T) {
 			t.Errorf("column %d holds %v, %v used, known %v, want %v, %v used, known", c, col.Room, col.Used, col.Known, want[c], 1-want[c]/3)
 		}
 	}
-	if last := got.Columns[4]; last.Used != now.Used {
+	if last := got.Columns[5]; last.Used != now.Used {
 		t.Errorf("now's column is %v used, want %v, as Σ pool's bar fills to", last.Used, now.Used)
 	}
-	if now, before := got.Columns[4].Room, got.Columns[3].Room; math.Abs(now-before) > 1e-9 {
+	if now, before := got.Columns[5].Room, got.Columns[4].Room; math.Abs(now-before) > 1e-9 {
 		t.Errorf("the pool's room steps from %v to %v at now, with nothing read between", before, now)
 	}
 }
@@ -124,11 +125,11 @@ func poolWindowNow(m status.Moment, key string) status.PoolWindowNow {
 // isn't known; where nothing was read of one, it counts none.
 func TestAColumnNothingWasReadByIsNotKnown(t *testing.T) {
 	read := poolReadings[1:]
-	got := views.PoolRoom{}.Look(poolFrom(pooledDoc(), read[2:], 5))
-	if got.Columns[0].Known {
-		t.Errorf("at 11:00, nothing yet read of work or side the history holds, the column is known, holding %v", got.Columns[0].Room)
+	got := views.PoolRoom{}.Look(poolFrom(pooledDoc(), read[2:], 6))
+	if got.Columns[1].Known {
+		t.Errorf("at 11:00, nothing yet read of work or side the history holds, the column is known, holding %v", got.Columns[1].Room)
 	}
-	if col := got.Columns[2]; !col.Known || math.Abs(col.Room-0.7) > 1e-9 {
+	if col := got.Columns[3]; !col.Known || math.Abs(col.Room-0.7) > 1e-9 {
 		t.Errorf("at 13:00, work's alone read, the column holds %v, known %v, want 0.7, known", col.Room, col.Known)
 	}
 }
@@ -143,13 +144,71 @@ func TestThePoolHasNoRoomChartedWithoutAPoolOrItsWindow(t *testing.T) {
 		from views.PoolRoomFrom
 	}{
 		{name: "a window the pool hasn't", from: views.PoolRoomFrom{Moment: pooledDoc().At(poolAt, claude.Policy()), Readings: poolReadings, Key: claude.WeekWindow, Columns: 5}},
-		{name: "one account", from: poolFrom(alone, poolReadings, 5)},
+		{name: "one account", from: poolFrom(alone, poolReadings, 6)},
 		{name: "no columns", from: poolFrom(pooledDoc(), poolReadings, 0)},
 	}
 	for _, tt := range tests {
 		if got := (views.PoolRoom{}).Look(tt.from); got.Of != 0 || len(got.Columns) != 0 {
 			t.Errorf("%s: the pool's room is of %d accounts across %d columns, want none", tt.name, got.Of, len(got.Columns))
 		}
+	}
+}
+
+// The pool's chart reaches a length back from now, where its axis says it
+// starts, across any count of columns, wherever now falls in a step: its
+// columns before now's a step apart, the last at or a step short of now, and
+// the first, the room at its end's moment, starting a step before it, so a
+// length back from now falls within it.
+func TestThePoolsChartReachesALengthBackFromNow(t *testing.T) {
+	length, _ := quota.Length(claude.FiveHourWindow)
+	for _, columns := range []int{3, 6, 25, 40} {
+		for _, into := range []time.Duration{0, time.Second, 7 * time.Minute, 59 * time.Minute} {
+			now := poolAt.Add(into)
+			from := poolFrom(pooledDoc(), poolReadings, columns)
+			from.Moment, from.ReadThrough = pooledDoc().At(now, claude.Policy()), now
+			var judged []time.Time
+			views.NotingPoolRoom(&judged).Look(from)
+			at := slices.Compact(slices.SortedFunc(slices.Values(judged), time.Time.Compare))
+			if len(at) != columns-1 {
+				t.Fatalf("%d columns at %s: the columns before now's are at %v, want %d", columns, now.Format("15:04:05"), at, columns-1)
+			}
+			step, first, last := at[1].Sub(at[0]), at[0], at[len(at)-1]
+			for c := range at[1:] {
+				if at[c+1].Sub(at[c]) != step {
+					t.Errorf("%d columns at %s: the columns before now's are at %v, want them a step apart", columns, now.Format("15:04:05"), at)
+					break
+				}
+			}
+			if back := now.Add(-length); first.Add(-step).After(back) || !first.After(back) || last.After(now) || !last.After(now.Add(-step)) {
+				t.Errorf("%d columns at %s: the first column ends at %s, the last at %s, a step %s apart; want a length back, %s, within the first, and the last within a step of now",
+					columns, now.Format("15:04:05"), first.Format("15:04:05"), last.Format("15:04:05"), step, back.Format("15:04:05"))
+			}
+		}
+	}
+}
+
+// A look whose moment has no such window in the pool, as a read can leave it
+// across a plan re-read or a reconnect, charts no room, but holds what was
+// judged before it, so the look once the window's back judges nothing again
+// and builds the room a first look would.
+func TestALookWithoutItsWindowHoldsWhatWasJudged(t *testing.T) {
+	var judged int
+	first := views.CountingPoolRoom(&judged).Look(poolFrom(pooledDoc(), poolReadings, 6))
+	unread := pooledDoc()
+	for i := range unread.Accounts {
+		unread.Accounts[i].Windows = nil
+	}
+	without := first.Look(poolFrom(unread, poolReadings, 6))
+	if without.Of != 0 || len(without.Columns) != 0 {
+		t.Fatalf("without its window, the pool's room is of %d accounts across %d columns, want none", without.Of, len(without.Columns))
+	}
+	judged = 0
+	back := without.Look(poolFrom(pooledDoc(), poolReadings, 6))
+	if judged != 0 {
+		t.Errorf("the look with the window back judged %d times, want none", judged)
+	}
+	if fresh := (views.PoolRoom{}).Look(poolFrom(pooledDoc(), poolReadings, 6)); fresh.Of != back.Of || !slices.Equal(fresh.Columns, back.Columns) {
+		t.Errorf("with the window back, the pool's room is %+v, want %+v, as a first look builds it", back.Columns, fresh.Columns)
 	}
 }
 
@@ -176,8 +235,8 @@ func TestThePoolsRoomAtNowIsThePoolsAsTheMomentHasIt(t *testing.T) {
 // Σ pool counts it, though the lane counts it with room by its week, so a
 // moment with one is left out.
 func TestThePoolsRoomAgreesWithRunwaysPoolLane(t *testing.T) {
-	const columns = 60
-	step := 5 * time.Hour / columns
+	const columns = 61
+	step := 5 * time.Hour / (columns - 1)
 	held, with := 0, 0
 	for _, rm := range viewstest.RunwayMoments() {
 		from := lanesFrom(rm)
@@ -217,14 +276,14 @@ func TestThePoolsRoomAgreesWithRunwaysPoolLane(t *testing.T) {
 // the next look judges it alone, as a first look would.
 func TestAColumnAfterTheReadingsWereReadThroughWaitsForTheirRead(t *testing.T) {
 	var judged int
-	early := poolFrom(pooledDoc(), poolReadings, 5)
+	early := poolFrom(pooledDoc(), poolReadings, 6)
 	early.ReadThrough = poolClock(13, 50)
 	first := views.CountingPoolRoom(&judged).Look(early)
-	if col := first.Columns[3]; col.Known || judged != 3*3 {
-		t.Errorf("read through 13:50, the 14:00 column is %v, known %v, of %d judged; want it not known, of %d", col.Room, col.Known, judged, 3*3)
+	if col := first.Columns[4]; col.Known || judged != 3*4 {
+		t.Errorf("read through 13:50, the 14:00 column is %v, known %v, of %d judged; want it not known, of %d", col.Room, col.Known, judged, 3*4)
 	}
 	judged = 0
-	read := poolFrom(pooledDoc(), poolReadings, 5)
+	read := poolFrom(pooledDoc(), poolReadings, 6)
 	then := first.Look(read)
 	if judged != 3 {
 		t.Errorf("once read through 14:20, the next look judged %d times, want %d, the 14:00 column alone", judged, 3)
@@ -265,26 +324,26 @@ func TestALookJudgesThePoolsPastOnceWhileWhatItsJudgedFromStands(t *testing.T) {
 	gainedBefore := append(slices.Clip(poolReadings), sessionRead("side", poolClock(13, 45), 0.93, poolClock(15, 0)))
 	gainedEarlier := append(slices.Clip(poolReadings[:6]), sessionRead("work", poolClock(12, 45), 0.3, poolClock(16, 0)), poolReadings[6])
 	slices.SortStableFunc(gainedEarlier, func(a, b readings.Reading) int { return a.At.Compare(b.At) })
-	reserved := poolFrom(reserveOf(doc, "personal", 0.1), poolReadings, 5)
+	reserved := poolFrom(reserveOf(doc, "personal", 0.1), poolReadings, 6)
 	tests := []struct {
 		name string
 		then views.PoolRoomFrom
 		more int
 	}{
-		{name: "a second on", then: at(time.Second, poolReadings, 5), more: 0},
-		{name: "a reading gained at now", then: at(time.Second, gainedNow, 5), more: 0},
-		{name: "a step on", then: at(time.Hour, poolReadings, 5), more: 3},
-		{name: "a reading gained before the last column's moment", then: at(time.Second, gainedBefore, 5), more: 3},
-		{name: "a reading gained before the last two columns' moments", then: at(time.Second, gainedEarlier, 5), more: 3 * 2},
-		{name: "personal's reserve changed", then: reserved, more: 3 * 4},
+		{name: "a second on", then: at(time.Second, poolReadings, 6), more: 0},
+		{name: "a reading gained at now", then: at(time.Second, gainedNow, 6), more: 0},
+		{name: "a step on", then: at(time.Hour, poolReadings, 6), more: 3},
+		{name: "a reading gained before the last column's moment", then: at(time.Second, gainedBefore, 6), more: 3},
+		{name: "a reading gained before the last two columns' moments", then: at(time.Second, gainedEarlier, 6), more: 3 * 2},
+		{name: "personal's reserve changed", then: reserved, more: 3 * 5},
 		{name: "across other columns", then: at(time.Second, poolReadings, 10), more: 3 * 9},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var judged int
-			first := views.CountingPoolRoom(&judged).Look(poolFrom(doc, poolReadings, 5))
-			if judged != 3*4 {
-				t.Errorf("the first look judged %d times, want %d", judged, 3*4)
+			first := views.CountingPoolRoom(&judged).Look(poolFrom(doc, poolReadings, 6))
+			if judged != 3*5 {
+				t.Errorf("the first look judged %d times, want %d", judged, 3*5)
 			}
 			judged = 0
 			then := first.Look(tt.then)

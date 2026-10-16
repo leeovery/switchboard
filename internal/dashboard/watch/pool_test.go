@@ -1,6 +1,7 @@
 package watch
 
 import (
+	"maps"
 	"math"
 	"slices"
 	"testing"
@@ -31,7 +32,7 @@ func TestThePoolsChartsAreJudgedByTheReadingsHistorysLiveTail(t *testing.T) {
 		t.Fatalf("the live tail spans %+v, read %d times, want it over %+v, read", r.model.runwayTab.live.span, r.filed.tails, liveSpan(start))
 	}
 	room := r.model.pool.rooms["5h"]
-	step := 5 * time.Hour / 25
+	step := 5 * time.Hour / (25 - 1)
 	end := start.Truncate(step)
 	for c, col := range room.Columns[:24] {
 		at := end.Add(-time.Duration(23-c) * step)
@@ -87,6 +88,30 @@ func TestThePoolsRoomIsBuiltAtALookAndKept(t *testing.T) {
 	}
 }
 
+// The pool's room in a window its charts no longer chart, as a plan change
+// leaves them, is let go at the look that charts them without it, the rooms
+// in the windows they still chart kept.
+func TestThePoolsRoomInAWindowNoLongerChartedIsLetGo(t *testing.T) {
+	withFable := func(r *runwayed, cfg *Config) {
+		byAccountWithGraphs(r, cfg)
+		cfg.Size = Size{Width: 220, Height: 50}
+		accounts := three()
+		for i := range accounts {
+			accounts[i].Windows = append(accounts[i].Windows, fableWeek(0.5))
+		}
+		r.startRouter(routerDocument(accounts...))
+	}
+	r := runwayHarness(t, dashboard.Overview, withFable)
+	if keys := slices.Sorted(maps.Keys(r.model.pool.rooms)); !slices.Equal(keys, []string{"5h", "7d", "7d_oi"}) {
+		t.Fatalf("the pool's rooms are of %v, want the 5-hour, the week and the Fable week", keys)
+	}
+	r.startRouter(routerDocument(three()...))
+	r.lookAt(start.Add(interval))
+	if keys := slices.Sorted(maps.Keys(r.model.pool.rooms)); !slices.Equal(keys, []string{"5h", "7d"}) || len(r.model.pool.charts) != 2 {
+		t.Errorf("with no account reading the Fable week, the pool's charts are %v, its rooms of %v, want the 5-hour's and the week's alone", r.model.pool.charts, keys)
+	}
+}
+
 // The pool's charts alone have the live tail read again only once their past
 // is judged through a moment after the read of what it holds was asked: a
 // look before the 5-hour chart's columns move a step on reads nothing, as
@@ -96,7 +121,7 @@ func TestThePoolsRoomIsBuiltAtALookAndKept(t *testing.T) {
 // of what the read gained once it has.
 func TestThePoolsChartsReadTheTailAgainOnlyAsTheirPastMovesOn(t *testing.T) {
 	r := runwayHarness(t, dashboard.Overview, byAccountWithGraphs, filedOn("work", "5h", start.Add(-2*time.Hour), 0.3))
-	next := views.PoolRoomThrough("5h", 25, start).Add(5 * time.Hour / 25)
+	next := views.PoolRoomThrough("5h", 25, start).Add(5 * time.Hour / (25 - 1))
 	if views.PoolRoomThrough("7d", 25, next).After(start) {
 		t.Fatalf("the week's chart moves on by %s, before the 5-hour's", next.Format("15:04"))
 	}

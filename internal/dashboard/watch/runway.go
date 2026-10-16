@@ -12,6 +12,7 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -94,14 +95,19 @@ type runwayReadMsg struct {
 const carriedFor = 7
 
 // liveSpan is the span of the readings history the live tail reads at now:
-// from the start of the day a week before now's, so the live views, today,
+// from the start of the day a week before now's, or of the day a week back
+// from now falls on, where that's earlier, as it is in the hour after
+// midnight for a week after the clocks go forward, so the live views, today,
 // this week, whichever day it starts on, and the pool's charts, reaching a
 // week back from now, are each read of it, to a week on from now's day, each
 // window's run from a week before carried in. It moves as the day turns, and
-// the tail is read afresh then, but only what the history gains at each look
-// between.
+// as the day a week back from now falls on does, and the tail is read afresh
+// then, but only what the history gains at each look between.
 func liveSpan(now time.Time) readingsSpan {
 	start := dayfile.DayStart(now, -7)
+	if weekBack := dayfile.DayStart(now.Add(-7*quota.Day), 0); weekBack.Before(start) {
+		start = weekBack
+	}
 	return readingsSpan{from: dayfile.DayStart(start, -carriedFor), start: start, end: dayfile.DayStart(now, 7)}
 }
 

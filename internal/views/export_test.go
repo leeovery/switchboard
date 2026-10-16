@@ -77,6 +77,16 @@ func CountingPoolRoom(judged *int) PoolRoom {
 	}}
 }
 
+// NotingPoolRoom is the pool's room not yet looked at that notes in at each
+// moment a look judges the room an account had left in a window then, as
+// RoomThen judges it.
+func NotingPoolRoom(at *[]time.Time) PoolRoom {
+	return PoolRoom{then: func(m status.Moment, a status.AccountNow, read status.Readings, told []status.Span, key string, t time.Time) (float64, bool) {
+		*at = append(*at, t)
+		return m.RoomThen(a, read, told, key, t)
+	}}
+}
+
 // RowOfTold is the row of the request t, as the stream told of it, at now.
 func RowOfTold(t Told, now time.Time) RequestRow {
 	return toldRow(t, now)

@@ -13,6 +13,7 @@ import (
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -276,6 +277,41 @@ func TestEachLiveViewTodayAndThisWeekAreReadOfTheLiveTail(t *testing.T) {
 						now.Format(time.RFC3339), starts, name, tl.Start.Format(time.RFC3339), s.start.Format(time.RFC3339), live.start.Format(time.RFC3339))
 				}
 			}
+		}
+	}
+}
+
+// The live tail reaches both a week back from now, where the pool's week
+// chart starts, and the start of the day a week before now's, where the live
+// views do, starting at the latest start of a day that reaches both, whatever
+// the clocks did: in the hour after midnight for a week after they go
+// forward, a week back from now falls on the day before the one a week
+// before now's, and the tail starts there; for a week after they go back, it
+// can fall on the day after, and the tail starts at the day a week before.
+func TestTheLiveTailReachesAWeekBackFromNowWhateverTheClocksDid(t *testing.T) {
+	newYork, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		t.Fatalf("load America/New_York: %v", err)
+	}
+	nows := []time.Time{
+		time.Date(2026, time.March, 9, 0, 30, 0, 0, newYork),
+		time.Date(2026, time.March, 14, 0, 59, 0, 0, newYork),
+		time.Date(2026, time.March, 9, 1, 0, 0, 0, newYork),
+		time.Date(2026, time.March, 15, 0, 30, 0, 0, newYork),
+		time.Date(2026, time.November, 2, 23, 30, 0, 0, newYork),
+		time.Date(2026, time.November, 5, 12, 0, 0, 0, newYork),
+		start,
+	}
+	for _, now := range nows {
+		live := liveSpan(now)
+		weekBack, dayBefore := now.Add(-7*quota.Day), dayfile.DayStart(now, -7)
+		if live.start.After(weekBack) || live.start.After(dayBefore) {
+			t.Errorf("at %s, the live tail starts at %s, want it to reach a week back, %s, and the day a week before, %s",
+				now.Format(time.RFC3339), live.start.Format(time.RFC3339), weekBack.Format(time.RFC3339), dayBefore.Format(time.RFC3339))
+		}
+		if next := dayfile.DayStart(live.start, 1); !next.After(weekBack) && !next.After(dayBefore) {
+			t.Errorf("at %s, the live tail starts at %s, want it a day later, %s, which reaches a week back, %s, and the day a week before, %s",
+				now.Format(time.RFC3339), live.start.Format(time.RFC3339), next.Format(time.RFC3339), weekBack.Format(time.RFC3339), dayBefore.Format(time.RFC3339))
 		}
 	}
 }

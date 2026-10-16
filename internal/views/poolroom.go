@@ -66,13 +66,17 @@ type PoolRoomFrom struct {
 // and not judged, so not known, where it's after the readings were read
 // through, till a read since gives what they gained by then; and the last,
 // now's, the pool's room as the moment has it, Σ pool's. It's none where the
-// pool has no such window, or the window's length isn't known.
+// window's length isn't known, and where the pool has no such window, still
+// holding what p judged, for a look once it has again.
 func (p PoolRoom) Look(from PoolRoomFrom) PoolRoom {
+	step, ok := poolStep(from.Key, from.Columns)
+	if !ok {
+		return PoolRoom{}
+	}
 	pool := from.Moment.Pool()
 	i := slices.IndexFunc(pool.Windows, func(w status.PoolWindowNow) bool { return w.Key == from.Key })
-	step, ok := poolStep(from.Key, from.Columns)
-	if i < 0 || !ok {
-		return PoolRoom{}
+	if i < 0 {
+		return PoolRoom{then: p.then, past: p.past}
 	}
 	past := p.past.judged(from, step, p.judging())
 	room := PoolRoom{Of: len(pool.Accounts), Columns: make([]PoolRoomColumn, 0, from.Columns), then: p.then, past: past}
@@ -102,14 +106,17 @@ func PoolRoomThrough(key string, columns int, now time.Time) time.Time {
 }
 
 // poolStep is how far apart the columns of the pool's room in the window with
-// the given key are, charted across columns columns: its length over them,
-// reporting false where the length isn't known, or there are no columns.
+// the given key are, charted across columns columns: its length over those
+// before now's, so the first, the room at its end's moment, starts a length
+// before the last of them ends, and so by a length back from now, where the
+// axis says the chart starts; its length where now's is the only one. It
+// reports false where the length isn't known, or there are no columns.
 func poolStep(key string, columns int) (time.Duration, bool) {
 	length, ok := quota.Length(key)
 	if !ok || columns < 1 {
 		return 0, false
 	}
-	return length / time.Duration(columns), true
+	return length / time.Duration(max(columns-1, 1)), true
 }
 
 // judging is how p judges the room an account had left in a window at a

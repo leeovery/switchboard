@@ -1554,14 +1554,16 @@ first (the owner's call, 15 October 2026).
     up. An account out of the pool isn't counted, and one with no reading by then isn't known.
     `status` judges each account's room then, as it judges how each stood for Runway, finding its
     readings by then with a search of them, indexed once a read, and `views` sums them. The columns
-    before now's sit on a grid of their step, the length over the columns, so each stays at its
-    moment as now moves on, each judged once and held while what it's judged from by its moment
-    stands, the readings by then among it, as none after changes it; none is judged past when the
-    readings were last read through, and waits blank for the read its step asks. The last, at now,
-    is the pool's room as the moment has it; and each column's share used is read by `Σ pool`'s
-    rule, so now's agrees with its bar. The burn-up fills each column to its share used, as an
-    account's, and the burn-down to what's left; neither draws a cap, even pace, now's line or
-    where it's heading.
+    before now's sit on a grid of their step, the length over them, so the first, the room at its
+    end's moment, starts a length before the last of them ends, by a length back from now, where
+    the axis says the chart starts; each stays at its moment as now moves on, each judged once and
+    held while what it's judged from by its moment stands, the readings by then among it, as none
+    after changes it, and through a read whose pool lacks the window, for when it's back; none is
+    judged past when the readings were last read through, and waits blank for the read its step
+    asks; and a window's are let go once it's no longer charted. The last, at now, is the pool's
+    room as the moment has it; and each column's share used is read by `Σ pool`'s rule, so now's
+    agrees with its bar. The burn-up fills each column to its share used, as an account's, and the
+    burn-down to what's left; neither draws a cap, even pace, now's line or where it's heading.
     Its axis: the time a length back from now in `text.faint` at the left, with its date for a
     window longer than a day, as a week back falls on now's weekday, and `now` in bold
     `text.subtle` ending at the right. A column none of whose accounts is known is blank, and one
@@ -4255,10 +4257,12 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
     Log first shows, `loading…` while they are; never again (settled in the plan).
   - **A period, or a day stepped back to,** as Accounts', History's and Runway's are, is read once
     as it's shown, then held; History's year is a year of summaries, read once a run.
-  - **The readings history's live tail,** from the day a week before today's, each window's run
-    from a week before that carried in, is read for what it gained at each look while Runway shows
-    a live view, today, or a day or week it holds; and for the pool's charts beside `Σ pool` only
-    as their columns before now's move a step on past when it was last read, as what it gains
+  - **The readings history's live tail,** from the day a week before today's, or the day a week
+    back from now falls on where that's earlier, as it is in the hour after midnight for a week
+    after the clocks go forward, so it reaches where the pool's week chart starts, each window's
+    run from a week before that carried in, is read for what it gained at each look while Runway
+    shows a live view, today, or a day or week it holds; and for the pool's charts beside `Σ pool`
+    only as their columns before now's move a step on past when it was last read, as what it gains
     between is judged at none of them till then: so a look on the Overview reads it only as a step
     goes by, the column the step brings blank till that read lands, then judged, with any other
     whose readings by its moment the read changed.
