@@ -476,8 +476,6 @@ func TestTheStreamKeepsARequestTillTheLogShowingItsRowHasItsLine(t *testing.T) {
 		t.Fatal("its end told, the Log read back to no day, want it reading back to the day its line is filed on")
 	}
 	a.h.model.traffic = a.h.model.traffic.lined([]ledger.Held{a.line})
-	dbg, _ := toldOf(a.h.model.traffic, "0a000001")
-	t.Logf("DEBUG lines %d told %+v line %+v", len(a.h.model.traffic.lines), dbg, a.line.Line)
 	a.h.deliver(frameMsg{gen: a.h.model.frames})
 	if _, ok := toldOf(a.h.model.traffic, "0a000001"); !ok {
 		t.Error("its line read, the Log yet to read back to it, the stream let 0a000001 go, want it kept")
