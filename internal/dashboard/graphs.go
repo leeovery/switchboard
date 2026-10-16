@@ -91,9 +91,9 @@ func (f Frame) graphsSection(doc status.Document, now time.Time) section {
 	g := f.graphsOf(doc, now)
 	return section{
 		Section: SectionGraphs, least: g.rows(leastChart), most: g.rows(mostChart),
-		description: g.description,
-		draw:        g.draw,
-		folded:      g.folded,
+		description: g.description, keyed: true,
+		draw:   g.draw,
+		folded: g.folded,
 	}
 }
 
@@ -104,7 +104,7 @@ func (f Frame) graphsSection(doc status.Document, now time.Time) section {
 func graphsAside(burn Burn) section {
 	key := func() line { return burnKey(burn) }
 	return section{
-		Section: SectionGraphs, description: key, folded: key,
+		Section: SectionGraphs, description: key, keyed: true, folded: key,
 		draw:    func(*canvas, bounds) {},
 		targets: func(bounds) []Target { return nil },
 	}
@@ -175,8 +175,9 @@ func (g graphs) placed(i int, body bounds) bounds {
 	return bounds{x: body.x + g.names + i*every, y: body.y, width: every - chartGap, rows: min(body.rows, mostChart+2)}
 }
 
-// description is GRAPHS' heading's description: the focused account, then
-// the key to the charts' lines, as burnKey has it.
+// description is GRAPHS' heading's description: the focused account, then,
+// five cells on, the key to the charts' lines, as burnKey has it, each an
+// item, as its heading gives them way.
 func (g graphs) description() line {
 	if !g.focused {
 		return nil
@@ -185,18 +186,21 @@ func (g graphs) description() line {
 }
 
 // burnKey is the key to the lines of the charts burn names, as GRAPHS'
-// heading has it, each after the one before by three cells, its words in
-// text.faint: of the burn-up, even pace's ·, the cap's ╌ and the limit's ┄,
-// along its top; of the burn-down, where it's heading, ⠢, where it runs out,
-// ✕, the cap, ⠤, and full, the ┄ along its top.
+// heading has it, its items three cells apart, its words in text.faint: of
+// the burn-up, even pace's ·, the cap's ╌ and the limit's ┄, along its top;
+// of the burn-down, where it's heading, ⠢, where it runs out, ✕, the cap,
+// ⠤, and full, the ┄ along its top.
 func burnKey(burn Burn) line {
+	items := []line{
+		{{paceDot, dimInk}, {" even pace", faintInk}}, {{capLine, reserveInk}, {" cap", faintInk}}, {{limitLine + " limit", faintInk}},
+	}
 	if burn == BurnDown {
-		return line{
-			{headingKey, dimInk}, {" heading   ", faintInk}, {outMark, outInk}, {" runs out   ", faintInk},
-			{capKey, capDotInk}, {" cap   " + limitLine + " full", faintInk},
+		items = []line{
+			{{headingKey, dimInk}, {" heading", faintInk}}, {{outMark, outInk}, {" runs out", faintInk}},
+			{{capKey, capDotInk}, {" cap", faintInk}}, {{limitLine + " full", faintInk}},
 		}
 	}
-	return line{{paceDot, dimInk}, {" even pace   ", faintInk}, {capLine, reserveInk}, {" cap   " + limitLine + " limit", faintInk}}
+	return joined(span{"   ", faintInk}, items...)
 }
 
 // folded is what GRAPHS holds, as its heading says it folded: the focused

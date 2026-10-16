@@ -352,10 +352,7 @@ func TestGRAPHSChartsTheFocusedAccountOrTheFirst(t *testing.T) {
 	doc := trio()
 	for _, tt := range []struct{ focus, want string }{{"personal", "personal"}, {"", "work"}, {"gone", "work"}} {
 		g := Frame{Width: 160, Height: 39, Focus: tt.focus}.graphsSection(doc, printNow)
-		want := line{
-			{tt.want, titleInk}, spaces(5),
-			{"·", dimInk}, {" even pace   ", faintInk}, {"╌", reserveInk}, {" cap   ┄ limit", faintInk},
-		}
+		want := slices.Concat(line{{tt.want, titleInk}, spaces(5)}, burnUpKey)
 		if got := g.description(); !slices.Equal(got, want) {
 			t.Errorf("focused on %q, the description is %+v, want %+v", tt.focus, got, want)
 		}
@@ -425,15 +422,25 @@ func TestBurnIsKeptByItsNameAndVFlipsIt(t *testing.T) {
 	}
 }
 
+// The keys GRAPHS' heading gives, each item three cells after the one
+// before.
+var (
+	burnUpKey = line{
+		{"·", dimInk}, {" even pace", faintInk}, {"   ", faintInk}, {"╌", reserveInk}, {" cap", faintInk}, {"   ", faintInk}, {"┄ limit", faintInk},
+	}
+	burnDownKey = line{
+		{"⠢", dimInk}, {" heading", faintInk}, {"   ", faintInk}, {"✕", outInk}, {" runs out", faintInk}, {"   ", faintInk},
+		{"⠤", capDotInk}, {" cap", faintInk}, {"   ", faintInk}, {"┄ full", faintInk},
+	}
+)
+
 func TestGRAPHSHeadingKeysTheLinesOfTheChartItDraws(t *testing.T) {
 	tests := []struct {
 		burn Burn
 		want line
 	}{
-		{burn: BurnUp, want: line{{"·", dimInk}, {" even pace   ", faintInk}, {"╌", reserveInk}, {" cap   ┄ limit", faintInk}}},
-		{burn: BurnDown, want: line{
-			{"⠢", dimInk}, {" heading   ", faintInk}, {"✕", outInk}, {" runs out   ", faintInk}, {"⠤", capDotInk}, {" cap   ┄ full", faintInk},
-		}},
+		{burn: BurnUp, want: burnUpKey},
+		{burn: BurnDown, want: burnDownKey},
 	}
 	for _, tt := range tests {
 		g := Frame{Width: 160, Height: 39, Focus: "work", Burn: tt.burn}.graphsSection(trio(), printNow)
@@ -441,4 +448,49 @@ func TestGRAPHSHeadingKeysTheLinesOfTheChartItDraws(t *testing.T) {
 			t.Errorf("drawing the %s, GRAPHS' heading says %+v, want %+v", tt.burn.Name(), got, want)
 		}
 	}
+}
+
+// GRAPHS' heading gives its key way by whole items, from its last, never
+// cutting one short: at every width with room for its first, beside USAGE's
+// blocks, or after the focused account's name, either chart's key reads as
+// its first items, each whole.
+func TestGRAPHSKeyGivesWayByWholeItems(t *testing.T) {
+	for _, burn := range []Burn{BurnUp, BurnDown} {
+		items := strings.Split(burnKey(burn).plain(), "   ")
+		forms := []struct {
+			name    string
+			section section
+			lead    string
+		}{
+			{name: "beside USAGE's blocks", section: graphsAside(burn)},
+			{name: "after the focused account", section: Frame{Width: 160, Height: 39, Focus: "work", Burn: burn}.graphsSection(trio(), printNow), lead: "work"},
+		}
+		for _, form := range forms {
+			for width := 24; width <= 70; width++ {
+				c := newCanvas(width, 1)
+				frameOf(width, 40).sectionHeading(c, planned{section: form.section, head: bounds{width: width, rows: 1}})
+				said, _, _ := strings.Cut(strings.TrimPrefix(textOf(c.rows(Look{}))[0], "GRAPHS   "), " ─")
+				if !wholeItems(said, form.lead, items) {
+					t.Errorf("the %s's key %s, %d cells wide, reads %q, want its first items, each whole", burn.Name(), form.name, width, said)
+				}
+			}
+		}
+	}
+}
+
+// wholeItems reports whether said is lead, then five cells on, where there's
+// a lead, the first of the items given, three cells apart, each whole.
+func wholeItems(said, lead string, items []string) bool {
+	for n := range len(items) + 1 {
+		key := strings.Join(items[:n], "   ")
+		switch {
+		case lead == "" && n > 0 && said == key:
+			return true
+		case lead != "" && n == 0 && said == lead:
+			return true
+		case lead != "" && n > 0 && said == lead+"     "+key:
+			return true
+		}
+	}
+	return false
 }

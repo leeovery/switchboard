@@ -172,15 +172,17 @@ func TestTheMomentGuardFindsWhatItGuardsAgainst(t *testing.T) {
 }
 
 // How an account stood at a moment gone is worked out by status, for a view
-// to draw the past by: Then, and Told, which gives it the holds the router
-// told of, take and give none of the wire's types, so a view calls them
-// without callsAllowed naming them.
+// to draw the past by: Then, RoomThen, the room it had left in a window then,
+// and Told, which gives them the holds the router told of, take and give
+// none of the wire's types, so a view calls them without callsAllowed naming
+// them.
 func TestAViewMayAskHowAnAccountStoodThen(t *testing.T) {
 	methods := []struct {
 		name   string
 		method any
 	}{
 		{name: "Then", method: status.Moment.Then},
+		{name: "RoomThen", method: status.Moment.RoomThen},
 		{name: "Told", method: status.Moment.Told},
 	}
 	for _, m := range methods {

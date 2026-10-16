@@ -108,7 +108,8 @@ remembers which:
 
 By account, from 150 columns, GRAPHS draws every account's charts beside its block instead, as
 many of its windows as fit, and there's no focus to move. Beside `Σ pool`, the pool's charts show
-the room its accounts had left over each window's length back to now, each to its cap, summed.
+the room its accounts had left over each window's length back to now, each to its cap, summed, as
+Runway judges how each stood: one held back from every request counts none of its 5-hour window.
 Each account's reset shows as a step up. Narrower, and on a phone, GRAPHS charts the focused
 account under USAGE.
 

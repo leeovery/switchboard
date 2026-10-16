@@ -244,12 +244,11 @@ func TestGRAPHSChartsAHeldSessionResetSinceItWasReadAsNotStarted(t *testing.T) {
 	}
 }
 
-// The readings history's files are read from the day the longest of the
-// windows' lengths back from now falls on, as the pool's charts draw each
-// window over its length back from now: a week reset since it was read gives
-// the pool's charts its readings from before it reset, and its own chart,
-// drawn from its reset, none.
-func TestTheReadingsHistorysFilesAreReadFromTheLongestWindowsLengthBack(t *testing.T) {
+// The readings history's files are read from the day the earliest span the
+// charts draw started: a week reset since it was read is charted from its
+// reset, so the files of the days before, when it started before it reset,
+// aren't read.
+func TestTheReadingsHistorysFilesAreReadFromTheDayAWeekResetSinceItWasReadStartedAgain(t *testing.T) {
 	reset := time.Date(2026, 10, 14, 2, 0, 0, 0, time.Local)
 	work := status.Account{
 		ID: "work", Label: "Work", TokenSet: true, FetchedAt: reset.Add(-time.Minute).UTC(),
@@ -257,89 +256,13 @@ func TestTheReadingsHistorysFilesAreReadFromTheLongestWindowsLengthBack(t *testi
 	}
 	doc := status.Document{GeneratedAt: work.FetchedAt, Source: status.SourceRouter, Accounts: []status.Account{work}}
 	files := &filedReadings{held: []readings.Reading{filedOn("work", "7d", reset.Add(-4*time.Hour), 0.5)}}
-	moment := doc.At(reset.Add(time.Second), policy)
 
-	h := history{filed: filedOf(files, moment)}
-	if day := time.Date(2026, 10, 7, 0, 0, 0, 0, time.Local); !files.from.Equal(day) {
-		t.Errorf("the files are read from %v, want from %v, the day a week back from now falls on", files.from, day)
+	got := filedOf(files, doc.At(reset.Add(time.Second), policy))
+	if day := time.Date(2026, 10, 14, 0, 0, 0, 0, time.Local); !files.from.Equal(day) {
+		t.Errorf("the files are read from %v, want from %v, the day the week started again as it reset, not the days before", files.from, day)
 	}
-	ref := dashboard.Ref{Account: "work", Window: "7d"}
-	if trail, ok := h.drawn(moment)[ref]; ok {
-		t.Errorf("work's week's chart draws %+v, want nothing of the week from before it reset", trail)
-	}
-	if read := h.pooled(moment)[ref]; len(read) != 1 || read[0].Utilization != 0.5 {
-		t.Errorf("the pool's charts draw work's week from %+v, want the reading from before it reset", read)
-	}
-}
-
-// The pool's charts draw all the router gave of each account's window, back
-// past its start, then what the watch has seen since; and of a window the
-// router couldn't place as running, as one lapsed, all it gave too, where
-// the accounts' charts draw none of it, however the watch places the window.
-// A router from before its history went back past each start gives the
-// points from it alone, and the pool's charts draw those.
-func TestThePoolsChartsDrawAllTheRouterGaveThenWhatTheWatchSees(t *testing.T) {
-	sessionStart := start.Add(-time.Hour)
-	before := sessionStart.Add(-2 * time.Hour)
-	tests := []struct {
-		name   string
-		points []router.HistoryPoint
-		want   []float64
-	}{
-		{
-			name: "back past the window's start",
-			points: []router.HistoryPoint{
-				{At: before, Utilization: 0.7}, {At: before.Add(time.Hour), Utilization: 0},
-				{At: sessionStart, Utilization: 0.1}, {At: sessionStart.Add(30 * time.Minute), Utilization: 0.2},
-			},
-			want: []float64{0.7, 0, 0.1, 0.2, 0.3},
-		},
-		{
-			name:   "from the window's start alone, as an older router gives it",
-			points: []router.HistoryPoint{{At: sessionStart, Utilization: 0.1}, {At: sessionStart.Add(30 * time.Minute), Utilization: 0.2}},
-			want:   []float64{0.1, 0.2, 0.3},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ref := dashboard.Ref{Account: "work", Window: "5h"}
-			lapsedRef := dashboard.Ref{Account: "personal", Window: "5h"}
-			h := history{
-				router: map[string]router.History{"5h": {Window: "5h", Accounts: []router.AccountHistory{
-					{ID: "work", Start: sessionStart.UTC(), Points: tt.points},
-					{ID: "personal", Points: []router.HistoryPoint{{At: before, Utilization: 0.9}, {At: sessionStart, Utilization: 0}}},
-					{ID: "side", Points: []router.HistoryPoint{{At: sessionStart, Utilization: 0.4}}},
-				}}},
-				seen: map[dashboard.Ref][]score.Reading{ref: {
-					{At: sessionStart.Add(20 * time.Minute), Utilization: 0.2},
-					{At: sessionStart.Add(40 * time.Minute), Utilization: 0.3},
-				}},
-			}
-			doc := document(
-				account("work", "Work", session(0.3, 4*time.Hour)),
-				account("personal", "Personal", session(0.9, -time.Hour)),
-				account("side", "Side", session(0.4, 4*time.Hour)),
-			)
-			moment := doc.At(start, policy)
-
-			pooled := h.pooled(moment)
-			var uses []float64
-			for _, r := range pooled[ref] {
-				uses = append(uses, r.Utilization)
-			}
-			if !slices.Equal(uses, tt.want) {
-				t.Errorf("the pool's charts draw work's session as %v, want %v: all the router gave, then what the watch saw after it", uses, tt.want)
-			}
-			if got := len(pooled[lapsedRef]); got != 2 {
-				t.Errorf("the pool's charts draw %d of personal's points, want all the router gave of its lapsed session", got)
-			}
-			if trail, ok := h.drawn(moment)[lapsedRef]; ok {
-				t.Errorf("personal's chart draws %+v, want none of its lapsed session", trail)
-			}
-			if trail, ok := h.drawn(moment)[dashboard.Ref{Account: "side", Window: "5h"}]; ok {
-				t.Errorf("side's chart draws %+v, want none of the points of a session the router couldn't place as running", trail)
-			}
-		})
+	if len(got) != 0 {
+		t.Errorf("the files gave %+v, want nothing of the week from before it reset", got)
 	}
 }
 

@@ -162,8 +162,8 @@ func (s source) Sessions(context.Context) ([]status.Session, error) {
 }
 
 // History answers as GET /history does: every account's use of the window
-// with the given key over its length back from now, a point each step, as
-// each trail's history has it; none of an account without the window.
+// with the given key over its current length, a point each step from when it
+// started; or, for an account whose window isn't running, no points.
 func (s source) History(_ context.Context, window string, step time.Duration) (router.History, error) {
 	if step <= 0 {
 		return router.History{}, fmt.Errorf("step %s isn't more than 0", step)
@@ -172,7 +172,7 @@ func (s source) History(_ context.Context, window string, step time.Duration) (r
 	h := router.History{Window: window, Step: step.String()}
 	for _, a := range s.doc.Accounts {
 		held := router.AccountHistory{ID: a.ID}
-		if i := slices.IndexFunc(s.trails, func(t trail) bool { return t.account == a.ID && t.window.Key == window }); i >= 0 {
+		if i := slices.IndexFunc(s.trails, func(t trail) bool { return t.account == a.ID && t.window == window }); i >= 0 {
 			held = s.trails[i].history(step, s.now)
 		}
 		h.Accounts = append(h.Accounts, held)

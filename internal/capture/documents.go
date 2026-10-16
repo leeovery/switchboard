@@ -121,20 +121,24 @@ func (w accountWorld) readAt(id string, at time.Time) time.Time {
 	return at
 }
 
-// trails are each account's windows as the router holds them at now, as it
-// answers GET /history from the readings it took of them: each window as the
-// document doc reads it, and its readings taken to when the account was last
-// read.
+// trails are each account's use of each of its windows as it runs at now, as
+// the router answers GET /history from the readings it took of them: from when
+// the window, as the document doc reads it, started, each reading of it taken
+// since, to when the account was last read; none of a window that has lapsed.
 func (w accountWorld) trails(doc status.Document, now time.Time) []trail {
 	held := w.history.byAccount()
 	var trails []trail
 	for _, a := range doc.Accounts {
 		read := held[a.ID].before(w.readAt(a.ID, w.read(now)))
 		for _, window := range a.Windows {
-			t := trail{account: a.ID, window: window}
+			start, _, ok := window.Span()
+			if !ok || !window.ResetsAt.After(now) {
+				continue
+			}
+			t := trail{account: a.ID, window: window.Key, start: start}
 			for _, r := range read {
-				if r.Key == window.Key {
-					t.read = append(t.read, r)
+				if r.Key == window.Key && !r.At.Before(start) && !r.Window().ResetBy(start) {
+					t.readings = append(t.readings, router.HistoryPoint{At: r.At, Utilization: r.Utilization})
 				}
 			}
 			trails = append(trails, t)

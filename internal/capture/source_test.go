@@ -213,12 +213,10 @@ func TestAWorldsRouterAnswersHistoryAPointEachStepAsLastRead(t *testing.T) {
 	for _, p := range personal.Points {
 		got = append(got, p.Utilization)
 	}
-	// The session before at 15% at 10:30, an hour back from 11:30, as far
-	// back as 5 hours from now reaches; then primed at 11:30 and rising
-	// evenly to 39% at 14:40, a hundredth each reading, so 12 hundredths read
-	// by 12:30.
-	if want := []float64{0.15, 0, 0.12, 0.24, 0.36}; !slices.Equal(got, want) {
-		t.Errorf("personal's 5-hour window reads %v each hour back and on from 11:30, want %v", got, want)
+	// Primed at 11:30 and rising evenly to 39% at 14:40, a hundredth each
+	// reading, so 12 hundredths read by 12:30.
+	if want := []float64{0, 0.12, 0.24, 0.36}; !slices.Equal(got, want) {
+		t.Errorf("personal's 5-hour window reads %v each hour from 11:30, want %v", got, want)
 	}
 }
 

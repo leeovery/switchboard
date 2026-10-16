@@ -47,7 +47,7 @@ type history struct {
 	router map[string]router.History
 	// filed are the readings of each account's windows the readings
 	// history's files held when last read, the oldest first.
-	filed map[dashboard.Ref][]views.WindowReading
+	filed map[dashboard.Ref][]score.Reading
 	// filedSince is set once the files have been read since probing began:
 	// the readings the watch sees itself carry them on from then, so they're
 	// read again only once probing begins again.
@@ -71,7 +71,7 @@ type historyMsg struct {
 // account's windows' readings, the oldest first.
 type filedMsg struct {
 	asked int
-	got   map[dashboard.Ref][]views.WindowReading
+	got   map[dashboard.Ref][]score.Reading
 }
 
 // stepFor is the step the history of the window with the given key is asked
@@ -152,20 +152,23 @@ func (m Model) readFiled(moment status.Moment) (Model, tea.Cmd) {
 
 // filedOf are the readings the readings history's files hold of the moment's
 // windows, by account and window, read as the history verb reads them, from
-// the day the longest of their lengths back from now falls on, as the pool's
-// charts draw them over each one's length back from now.
-func filedOf(files views.Readings, moment status.Moment) map[dashboard.Ref][]views.WindowReading {
-	var longest time.Duration
+// the day the earliest of the spans the charts draw them over then, as
+// ChartSpan has them, started.
+func filedOf(files views.Readings, moment status.Moment) map[dashboard.Ref][]score.Reading {
+	from := moment.Now
 	for _, a := range moment.Accounts {
 		for _, w := range a.Windows {
-			if length, ok := quota.Length(w.Key); ok {
-				longest = max(longest, length)
+			if start, _, ok := dashboard.ChartSpan(w); ok {
+				from = score.Earlier(from, start)
 			}
 		}
 	}
-	got := make(map[dashboard.Ref][]views.WindowReading)
-	for _, w := range views.NewWindows(files, nil, moment.Now.Add(-longest), moment.Now).Windows {
-		got[dashboard.Ref{Account: w.Account, Window: w.Window}] = w.Readings
+	got := make(map[dashboard.Ref][]score.Reading)
+	for _, w := range views.NewWindows(files, nil, from, moment.Now).Windows {
+		ref := dashboard.Ref{Account: w.Account, Window: w.Window}
+		for _, r := range w.Readings {
+			got[ref] = append(got[ref], score.Reading{At: r.At, Utilization: r.Utilization})
+		}
 	}
 	return got
 }
@@ -265,7 +268,7 @@ func (h history) drawn(moment status.Moment) dashboard.Trails {
 			ref := dashboard.Ref{Account: a.ID, Window: w.Key}
 			readings, seen := h.routers(ref, start), since(h.seen[ref], start)
 			if len(readings) == 0 {
-				readings = since(usesOf(h.filed[ref]), start)
+				readings = slices.Clone(since(h.filed[ref], start))
 			}
 			if n := len(readings); n > 0 {
 				seen = beyond(seen, readings[n-1].At)
@@ -278,49 +281,12 @@ func (h history) drawn(moment status.Moment) dashboard.Trails {
 	return drawn
 }
 
-// charted is m with the history its charts draw of the moment's windows: the
-// accounts' charts', as drawn has it, and the pool's, as pooled has it.
-func (m Model) charted(moment status.Moment) Model {
-	m.trails, m.pooled = m.history.drawn(moment), m.history.pooled(moment)
-	return m
-}
-
-// pooled is the history the pool's charts draw of the moment's accounts'
-// windows, over each one's length back from now, as the router last gave
-// it, or where it gave none, as the readings history's files held it; then
-// what the watch has seen after the last of it; or what the watch has seen
-// alone, where neither holds any. A router from before its history went
-// back past each window's start gives it from then alone.
-func (h history) pooled(moment status.Moment) dashboard.PoolTrails {
-	pooled := make(dashboard.PoolTrails)
-	for _, a := range moment.Accounts {
-		for _, w := range a.Windows {
-			ref := dashboard.Ref{Account: a.ID, Window: w.Key}
-			read := h.routersAll(ref)
-			if len(read) == 0 {
-				read = slices.Clone(h.filed[ref])
-			}
-			seen := h.seen[ref]
-			if n := len(read); n > 0 {
-				seen = beyond(seen, read[n-1].At)
-			}
-			for _, r := range seen {
-				read = append(read, views.WindowReading{At: r.At, Utilization: r.Utilization})
-			}
-			if len(read) > 0 {
-				pooled[ref] = read
-			}
-		}
-	}
-	return pooled
-}
-
 // routers are the readings of the window ref names, from start, as the
-// router last gave them, of the window it placed as running.
+// router last gave them.
 func (h history) routers(ref dashboard.Ref, start time.Time) []score.Reading {
 	var readings []score.Reading
 	for _, a := range h.router[ref.Window].Accounts {
-		if a.ID != ref.Account || a.Start.IsZero() {
+		if a.ID != ref.Account {
 			continue
 		}
 		for _, p := range a.Points {
@@ -330,29 +296,6 @@ func (h history) routers(ref dashboard.Ref, start time.Time) []score.Reading {
 		}
 	}
 	return readings
-}
-
-// routersAll are the readings of the window ref names, all the router last
-// gave of it.
-func (h history) routersAll(ref dashboard.Ref) []views.WindowReading {
-	var readings []views.WindowReading
-	for _, a := range h.router[ref.Window].Accounts {
-		if a.ID == ref.Account {
-			for _, p := range a.Points {
-				readings = append(readings, views.WindowReading{At: p.At, Utilization: p.Utilization})
-			}
-		}
-	}
-	return readings
-}
-
-// usesOf are the uses read, each when it was read, in their order.
-func usesOf(read []views.WindowReading) []score.Reading {
-	uses := make([]score.Reading, len(read))
-	for i, r := range read {
-		uses[i] = score.Reading{At: r.At, Utilization: r.Utilization}
-	}
-	return uses
 }
 
 // since are the readings, in order, first read at t or after.

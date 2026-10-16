@@ -45,10 +45,11 @@ type Frame struct {
 	Changed      map[string]float64
 	StateChanged map[string]float64
 	TurnedOut    map[Ref]float64
-	// Trails are how the accounts' windows have been used, for the charts,
-	// and PoolTrails over each one's length back from now, for the pool's.
-	Trails     Trails
-	PoolTrails PoolTrails
+	// Trails are how the accounts' windows have been used, for the charts;
+	// and PoolRooms the pool's room in each window charted beside Σ pool by
+	// account, as PoolCharts has them, by its key, as the watch builds them.
+	Trails    Trails
+	PoolRooms map[string]views.PoolRoom
 	// Eased are how much of each bar easing after a read it fills, by its
 	// window's account and key, the pool's by its key alone, on its way to
 	// filling as the view draws it of the document, as Filled has it: nil

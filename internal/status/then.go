@@ -219,9 +219,19 @@ func (m Moment) Then(a AccountNow, read []readings.Reading, reach Reach, told []
 	if !a.TokenSet {
 		return Was{Kind: WasTokenless}
 	}
-	windows := m.readBy(a, read, reach, t)
+	was := stoodAt(a, m.readBy(a, read, reach, t), told, t)
+	if was.Kind == WasLimited || was.Kind == WasCapped {
+		was.Since = m.ranBack(a, read, reach, told, was.Kind, was.Since)
+	}
+	return was
+}
+
+// stoodAt is how the account a, its token usable, stood at t, as Then has
+// it, by its windows read by then, as readBy has them, and the holds told:
+// of a hold, Since when the first part of what holds it then began, not yet
+// run back as ranBack runs it.
+func stoodAt(a AccountNow, windows map[string]windowRead, told []Span, t time.Time) Was {
 	if was, ok := heldAs(WasLimited, slices.Concat(toldAt(told, WasLimited, t), shownAt(windows, told, WasLimited, t))); ok {
-		was.Since = m.ranBack(a, read, reach, told, WasLimited, was.Since)
 		return was
 	}
 	if was, ok := heldAs(WasRefused, toldAt(told, WasRefused, t)); ok {
@@ -231,10 +241,61 @@ func (m Moment) Then(a AccountNow, read []readings.Reading, reach Reach, told []
 		return Was{Kind: WasUnread}
 	}
 	if was, ok := heldAs(WasCapped, shownAt(windows, told, WasCapped, t)); ok && a.ReserveHolds {
-		was.Since = m.ranBack(a, read, reach, told, WasCapped, was.Since)
 		return was
 	}
 	return Was{Kind: WasRoom}
+}
+
+// RoomThen is the room the moment's account a had left at t in its window
+// with the given key, in accounts' worth, as the pool counts it, as Then
+// judges how it stood then, of the readings given and the holds told, as
+// Then takes them: none without a usable token, or its token refused, though
+// a limit held it back too; none in the window a request starts, as the
+// policy names it, while a limit or its cap held it back from every request;
+// else the window's room to where the account runs out, its Floor, as its
+// last reading by t has it, as score.Room has it, none where it was read
+// spent, or not read by then. It reports false where nothing was read of the
+// account by then, so how it stood isn't known. How far back the readings
+// reach dates a hold's start alone, not whether it holds, so it's asked of
+// none.
+func (m Moment) RoomThen(a AccountNow, read []readings.Reading, told []Span, key string, t time.Time) (float64, bool) {
+	if !a.TokenSet {
+		return 0, true
+	}
+	windows := m.readBy(a, read, Reach{}, t)
+	switch was := stoodAt(a, windows, told, t); {
+	case was.Kind == WasUnread:
+		return 0, false
+	case len(toldAt(told, WasRefused, t)) > 0, was.Kind != WasRoom && key == m.policy.Started:
+		return 0, true
+	}
+	w, ok := m.readOf(windows, a, read, key, t)
+	if !ok {
+		return 0, true
+	}
+	return score.Room(w, a.Floor, t), true
+}
+
+// readOf is the account a's window with the given key as its last reading
+// by t, of those given, oldest first, has it, reporting false where none was
+// read by then: of a window every model shares, as windows, its windows read
+// by then, as readBy has them, have it.
+func (m Moment) readOf(windows map[string]windowRead, a AccountNow, read []readings.Reading, key string, t time.Time) (quota.Window, bool) {
+	if m.policy.IsShared(key) {
+		w, ok := windows[key]
+		return w.last, ok
+	}
+	var last quota.Window
+	var ok bool
+	for _, r := range read {
+		if r.At.After(t) {
+			break
+		}
+		if r.Account == a.ID && r.Key == key {
+			last, ok = r.Window(), true
+		}
+	}
+	return last, ok
 }
 
 // ranBack is when the unbroken run of the holds of every request of the

@@ -1528,11 +1528,8 @@ first (the owner's call, 15 October 2026).
   chart's right.
 - **Its data** is the readings history, as `GET /history` gives it with each full read, each column
   the last reading at or before its time; with no router, the readings history's files and the
-  readings the dashboard takes as it probes (settled in the plan; see Live updates). An account's
-  charts draw it from its window's start; the pool's, over each window's length back from now,
-  the earlier windows' with it (the owner's call, 15 October 2026). A router from before
-  `GET /history` went back past each window's start gives those from it alone, and the pool's
-  charts draw what it gives.
+  readings the dashboard takes as it probes (settled in the plan; see Live updates). The pool's
+  charts are drawn from what Runway's lanes are (see By account, below).
 - **By account,** from 150 columns, every account's charts sit beside its block, to the right of
   USAGE's bars, from `hx`, where ROUTING's blocks would be (see By account, below), to a cell short
   of the edge, as v0.1.6's cards had every account show at once (the owner's call, 15 October
@@ -1545,18 +1542,26 @@ first (the owner's call, 15 October 2026).
   - **the pool's charts beside `Σ pool`,** as many of its windows as fit, as each account's: the
     pool's room in each window over its length back from now, from its left edge to now at its
     right, a column a cell, each column the room at its end's moment, a share of all its accounts'
-    (the owner's call, 15 October 2026). That room is each of the pool's accounts' room to where
-    it runs out, its cap where its reserve holds, else its limit, as the pool counts it, less its
-    use then, summed: its use the last reading at or before then, none once that reading's reset
-    has passed, and none from when its window, as it stands, started, so each account's reset is
-    a step up; an account out of the pool isn't counted, and one with no reading by then counts
-    none, as the pool counts one never read. The last column, at now, is the pool's room as the
-    moment has it, so it agrees with `Σ pool`'s bar. `views` works it out, from the history the
-    charts read (see Its data). The burn-up fills each column to what's used of it, as an
-    account's, and the burn-down to what's left; neither draws a cap, even pace, now's line or
-    where it's heading. Its axis: the time a length back from now in `text.faint` at the left, and
-    `now` in bold `text.subtle` ending at the right. A column no account's reading reaches is
-    blank, and one that has only now says `no history yet` across its middle row;
+    (the owner's call, 15 October 2026). That room is each of the pool's accounts' room then,
+    summed, as Runway's past judges how each stood then, by the readings its live views read, the
+    readings history's live tail and those the dashboard read itself (see Runway's What it reads,
+    and Live updates): none in the window a request starts while a limit or its cap held it back
+    from every request, as Runway's pool lane counts it without room then, and none in any while
+    its token was refused, or isn't usable now; else the window's room to where it runs out, its
+    cap where its reserve holds, else its limit, as its last reading by then has it: none where
+    that read it spent or rejected, and all of it once that reading's reset had passed, so an
+    account idle before its window started has all its room till then, and each reset is a step
+    up. An account out of the pool isn't counted, and one with no reading by then isn't known.
+    `status` judges each account's room then, as it judges how each stood for Runway, and `views`
+    sums them. The columns before now's sit on a grid of their step, the length over the columns,
+    so each stays at its moment as now moves on, judged once and held while what it's judged from
+    stands; the last, at now, is the pool's room as the moment has it, so it agrees with
+    `Σ pool`'s bar. The burn-up fills each column to what's used of it, as an account's, and the
+    burn-down to what's left; neither draws a cap, even pace, now's line or where it's heading.
+    Its axis: the time a length back from now in `text.faint` at the left, with its date for a
+    window longer than a day, as a week back falls on now's weekday, and `now` in bold
+    `text.subtle` ending at the right. A column none of whose accounts is known is blank, and one
+    that has only now says `no history yet` across its middle row;
   - **GRAPHS takes no rows of its own,** so it never folds and every account shows at once, USAGE
     scrolling as it does; its heading sits beside USAGE's, from `hx` to the edge, the key alone as
     its description;
@@ -2983,8 +2988,8 @@ stepping back and how far it reaches, the minutes a column, and COMING UP.
   began and another took over, held unbroken, began as the first did, told or read. The readings
   tell such a run as far back as they reach: one that began before them tells no start, and one
   whose earlier window's run they don't hold, as the live views read the readings history from the
-  day before now's, carrying in only each window's last run from before then, is dated from the
-  run they do.
+  day a week before now's, as the pool's charts beside `Σ pool` do too, carrying in only each
+  window's last run from before then, is dated from the run they do.
 - **While the router doesn't answer, or the dashboard probes,** the documents it reads join the
   history, a reading of each window at each look (the owner's call, 14 October 2026).
 - **A run-out, `~16:05`:** the projection, as `usage` projects (see `usage`, the printout).
@@ -4170,10 +4175,11 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
   list its sessions shows none, never those another router listed.
 - **What moves** at each look, and every second with nothing read, is as What moves says.
 - **The history** behind GRAPHS is read with each full read, not each look: `GET /history` (see
-  Control API), each window's over its length back from now, the 5-hour window at 5-minute steps
-  and the weeks at 30-minute steps. Without the router, GRAPHS draw from the readings history's
-  files, read where they lie, from the longest window's length back from now, and the readings the
-  dashboard takes itself as it probes (settled in the plan; the owner's call, 15 October 2026).
+  Control API), each window's over its current length, the 5-hour window at 5-minute steps and the
+  weeks at 30-minute steps. Without the router, GRAPHS draw from the readings history's files,
+  read where they lie, and the readings the dashboard takes itself as it probes
+  (settled in the plan). The pool's charts beside `Σ pool` read the readings history's live tail,
+  as Runway does (see The ledger, read as it grows, below).
 - **The request stream:** while a page that draws what it tells is shown, the dashboard subscribes
   to the router's request stream, `GET /stream` (see Control API): the Overview, with ROUTING or
   SESSIONS shown, whose traces and sessions it moves; Accounts' Detail, with its sessions;
@@ -4245,6 +4251,12 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
     Log first shows, `loading…` while they are; never again (settled in the plan).
   - **A period, or a day stepped back to,** as Accounts', History's and Runway's are, is read once
     as it's shown, then held; History's year is a year of summaries, read once a run.
+  - **The readings history's live tail,** from the day a week before today's, each window's run
+    from a week before that carried in, is read for what it gained at each look while Runway shows
+    a live view, today, or a day or week it holds; and for the pool's charts beside `Σ pool` only
+    as their columns before now's move a step on, as what it gains between is judged at none of
+    them till then: so a look on the Overview reads it only as a step goes by, and judges the
+    column the step brings alone.
   - **The Log's Events through some kinds,** which no summary tells the days of, read back no
     further than the earliest of them the router filed: its files of events are read for it first,
     the oldest first and no further than that event, as they're far smaller than the ledger's days
@@ -5472,7 +5484,7 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 | `GET /sessions` | The sessions routed in the last hour, the one seen last first, each as `/sessions/{id}` gives it but for `account`. `status` lists them, and `pin --session` and `status --session` find a session from part of its id here |
 | `POST /sessions/{id}/pin`, `DELETE /sessions/{id}/pin` | Set (`{"account": "work", "by": "dashboard"}`) or clear (`?by=dashboard`) one session's own pin, answering as `/sessions/{id}` does. `by`, `cli` or `dashboard`, says who did, for the `pin` or `auto` event it's told as (see The router's events); without it, the event names no one, and a router from before passes it over. 404 for a session never seen; pinning to an account nothing can go out on is a 400 |
 | `POST /pin`, `DELETE /pin` | Set (`{"accounts": ["work", "side"], "move": false, "force": false, "by": "cli"}`) or clear (`?by=cli`, with `&force=true` to clear every session's own pin too) the global pin, answering with the status document. `account`, naming one account, is taken as well, as a switchboard from before pins named several sends it, and sent beside `accounts` with a pin of one account, as such a router reads a pin, one still running between an upgrade and its restart. `by`, `cli` or `dashboard`, says who did, for the `pin` or `auto` event it's told as (see The router's events); without it, the event names no one, and a router from before passes it over. Pinning no account, or any account nothing can go out on, is a 400, saying why (see Pinning), and pins nothing |
-| `GET /history?window=<key>&step=<duration>` | Every account's use of a window over its length back from now, from the readings history and the readings since: `{"window": "7d", "step": "30m", "accounts": [{"id": "work", "start": …, "points": [{at, utilization}]}]}`, `start` when the account's window started, its reset less its length, or its `restarted_at`, none where it isn't running, wasn't read, or has reset since it was read; and a point each step, at most 1,000: from `start` to now, a step apart back from `start` to the length back from now, or, with no `start`, from the length back to now, each the last reading at or before it, none used once that reading's reset has passed, left out where none was. The points before `start` are of the windows that ran before, which the pool's charts draw (the owner's call, 15 October 2026); a router from before them gives those from `start` alone, and none with no `start`. A window whose length can't be read, or a step that isn't a duration, isn't more than 0, or would take more than 1,000 steps over the window's whole length, is a 400, saying what to give, the least step included. The dashboard's charts ask for `5h` at 5-minute steps and the weeks at 30-minute steps, with each full read |
+| `GET /history?window=<key>&step=<duration>` | Every account's use of a window over its current length, from the readings history and the readings since: `{"window": "7d", "step": "30m", "accounts": [{"id": "work", "start": …, "points": [{at, utilization}]}]}`, `start` when the account's window started, its reset less its length, or its `restarted_at`, and a point each step from it to now, at most 1,000, each the last reading at or before it, left out where none was; an account whose window isn't running, or wasn't read, has no points, and one whose window has reset since it was read has no `start` either. A window whose length can't be read, or a step that isn't a duration, isn't more than 0, or would take more than 1,000 steps over the window's whole length, is a 400, saying what to give, the least step included. The dashboard's charts ask for `5h` at 5-minute steps and the weeks at 30-minute steps, with each full read |
 | `GET /stream` | The requests as they happen, for the dashboard's views of what's in flight: the Overview's ROUTING and SESSIONS, Accounts' Detail, Sessions, the Log and a session's page. Held open, `application/x-ndjson`, a line of JSON an event, every one `{at, kind, request, attempt, session, dir, model, account, prompt, class, agent_id}` and what its kind adds, `request` the router's id for the request, counting up from a random start, and unique while it runs, `attempt` which time it went upstream, `session` and `model` cut to 200 bytes, `dir` the directory the request's session was started in, as its line in the ledger will give it, the home as `~` and cut as a line's is (see The request ledger), left out where the request names none, `account` the account it goes out on, or, of `first` and `done`, the one whose answer the client got, and `prompt`, `class` and `agent_id` as its line in the ledger will give them, each left out where the request carries none, so a session's page counts a request into its turn as it's sent (see A session's page). It opens with an `inflight` for each request already in flight, adding `sent_at`, `first_at` and `chars`, and `verdict`, the last of `limited`, `throttled` or `refused` told of it on the account it went out on last, with that answer's `status`; then `sent` as one goes upstream; `first` at its answer's first byte; `progress`, with `chars`, the characters of its text, thinking and tool input so far, a quarter second after its answer streams more, then every quarter second while it does, as the API counts tokens only as an answer ends; `done` as it ends, told before the router has finished with the request, with `status`, its final `chars`, and `tokens`, the closing usage's counts, `{input, output, cache_read, cache_write}`, left out without one; `limited`, a 429 at a limit, `throttled`, a 429 sent again on the account, and `refused`, a 401 or 403, each with `status`; and `moved`, with `from`, `to` and `reason`, its `account` the `to`, which a request every account refused tells as it takes its session back, `back where it was before its request`. `limited` and `refused` are told once the router has judged the answer a limit or a refusal of the account: a 429 from before a reset made by hand, which goes out again on the same account, or a 401 to a token replaced since, which goes out again on it once, then on another, are neither. A request the router knows for Claude Code's quota check carries `check: true`. A token count carries `count: true`. Requests that never go upstream, and those passed through, aren't on it. Reading the counts reads a copy of the answer's stream as it passes, decoded where it's gzip or deflate, as the request asked for one of those alone (see Proxy rules), never changing or holding the bytes passed on; an answer in another encoding goes uncounted, its bytes untouched. A reader that falls 256 events behind is dropped, and reconnects, and one that takes more than 10 seconds over a write is cut off. A stream ends as the control API closes; a restart in place ends it first, after its drain, once each reader has written what it was told of, waiting half a second at most, so its readers see the requests the router finished, and the dashboard reconnects to the router it becomes, while one that can't replace itself, and exits for launchd to start it again, closes it at once, as stopping does |
 | `POST /refresh` | Probe the accounts nothing has been read of for longer than `{"max_age": "30m"}`, and those that can take no request anyway, however lately they were read, but for those whose 5-hour window has lapsed and that can take a request (see Priming), sharing the probes choices and the router's rounds make and waiting a minute after one ended, as they do; wait 10 seconds at most for them, and answer with the status document. The dashboard asks every interval, and a minute after a window on screen resets |
 | `POST /restart` | Restart now, as `service restart` asks: answer as `GET /health` does, with `in_place`, whether it means to replace itself in place rather than exit for launchd to start it again, as when it doesn't know its binary; then finish the requests in flight, within 30 seconds, those it cuts off then given 5 more to unwind, and restart as the router restarts itself (see The router looking after itself). A 409, saying why, from a router run by hand, which nothing would start again, and while its config file doesn't make a valid config, which it couldn't start again from |

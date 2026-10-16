@@ -128,13 +128,14 @@ func TestGRAPHSBesideUSAGEChartsEveryAccountShownAsItsBlocksScroll(t *testing.T)
 	}
 }
 
-func TestBesideFitIsAsManyChartsAsTakeTheirLeastSideBySide(t *testing.T) {
-	for _, tt := range []struct{ k, room, want int }{
-		{k: 3, room: 23, want: 0}, {k: 3, room: 24, want: 1}, {k: 3, room: 49, want: 1}, {k: 3, room: 50, want: 2},
-		{k: 3, room: 75, want: 2}, {k: 3, room: 76, want: 3}, {k: 3, room: 200, want: 3}, {k: 0, room: 200, want: 0},
+func TestBesideAreAsManyChartsAsTakeTheirLeastSideBySideSharingTheRoom(t *testing.T) {
+	for _, tt := range []struct{ k, room, want, width int }{
+		{k: 3, room: 23, want: 0, width: 0}, {k: 3, room: 24, want: 1, width: 24}, {k: 3, room: 49, want: 1, width: 49},
+		{k: 3, room: 50, want: 2, width: 24}, {k: 3, room: 75, want: 2, width: 36}, {k: 3, room: 76, want: 3, width: 24},
+		{k: 3, room: 200, want: 3, width: 65}, {k: 0, room: 200, want: 0, width: 0},
 	} {
-		if got := besideFit(tt.k, tt.room); got != tt.want {
-			t.Errorf("of %d charts, %d fit in %d cells, want %d", tt.k, got, tt.room, tt.want)
+		if got, width := besideLayout(tt.k, tt.room); got != tt.want || width != tt.width {
+			t.Errorf("of %d charts, %d fit in %d cells, %d wide, want %d, %d wide", tt.k, got, tt.room, width, tt.want, tt.width)
 		}
 	}
 }

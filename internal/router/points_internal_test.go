@@ -112,8 +112,6 @@ func TestGETHistoryPlacesEachWindowAsItRunsNow(t *testing.T) {
 	passed.ResetsAt = at13(30)
 	previous := session
 	previous.ResetsAt = at13(10)
-	earlier := session
-	earlier.ResetsAt = at13(0).Add(-2 * time.Hour)
 	tests := []struct {
 		name  string
 		query string
@@ -124,7 +122,7 @@ func TestGETHistoryPlacesEachWindowAsItRunsNow(t *testing.T) {
 		want  AccountHistory
 	}{
 		{
-			name:  "reset by hand, as it ran before, then from when it started again",
+			name:  "reset by hand, from when it started again",
 			query: "window=5h&step=10m",
 			taken: []readings.Reading{lineOf("work", using(session, 0.6), at13(30)), lineOf("work", using(session, 0.05), at13(40))},
 			lines: []readings.Reading{
@@ -133,45 +131,40 @@ func TestGETHistoryPlacesEachWindowAsItRunsNow(t *testing.T) {
 				lineOf("work", using(session, 0.05), at13(40)),
 			},
 			want: AccountHistory{ID: "work", Start: at13(40), Points: []HistoryPoint{
-				{At: at13(20), Utilization: 0.5},
-				{At: at13(30), Utilization: 0.6},
 				{At: at13(40), Utilization: 0.05},
 				{At: at13(50), Utilization: 0.05},
 				{At: chartedAt, Utilization: 0.05},
 			}},
 		},
 		{
-			name:  "a session that has lapsed, as read till it reset, none used since",
+			name:  "none of a session that has lapsed",
 			query: "window=5h&step=10m",
 			taken: []readings.Reading{lineOf("work", using(lapsed, 0.4), at13(0).Add(-time.Hour))},
 			lines: []readings.Reading{lineOf("work", using(lapsed, 0.4), at13(0).Add(-time.Hour))},
-			want: AccountHistory{ID: "work", Points: slices.Concat(
-				pointsEvery(at13(0).Add(-time.Hour), 10*time.Minute, 6, 0.4),
-				pointsEvery(at13(0), 10*time.Minute, 7, 0),
-			)},
+			want:  AccountHistory{ID: "work"},
 		},
 		{
-			name:  "a window read without a reset, as read",
+			name:  "none of a window read without a reset",
 			query: "window=5h&step=10m",
 			taken: []readings.Reading{lineOf("work", using(noReset, 0.4), at13(30))},
 			lines: []readings.Reading{lineOf("work", using(noReset, 0.4), at13(30))},
-			want:  AccountHistory{ID: "work", Points: pointsEvery(at13(30), 10*time.Minute, 4, 0.4)},
+			want:  AccountHistory{ID: "work"},
 		},
 		{
-			name:  "a week past its reset, as read till it reset, none used since",
+			name:  "none of a week past its reset",
 			query: "window=7d&step=1h",
 			taken: []readings.Reading{lineOf("work", using(passed, 0.4), at13(0))},
 			lines: []readings.Reading{lineOf("work", using(passed, 0.4), at13(0))},
-			want:  AccountHistory{ID: "work", Points: []HistoryPoint{{At: at13(0), Utilization: 0.4}, {At: chartedAt, Utilization: 0}}},
+			want:  AccountHistory{ID: "work"},
 		},
 		{
-			name:  "a window the router hasn't read, as its files hold it",
+			name:  "none of a window never read",
 			query: "window=5h&step=10m",
 			lines: []readings.Reading{lineOf("work", using(session, 0.4), at13(30))},
-			want:  AccountHistory{ID: "work", Points: pointsEvery(at13(30), 10*time.Minute, 4, 0.4)},
+			want:  AccountHistory{ID: "work"},
 		},
 		{
-			name:  "an earlier window's before the window started, none of it since",
+			name:  "nothing of an earlier window, nor from before the window started",
 			query: "window=5h&step=10m",
 			taken: []readings.Reading{lineOf("work", using(session, 0.2), at13(50))},
 			lines: []readings.Reading{
@@ -181,35 +174,12 @@ func TestGETHistoryPlacesEachWindowAsItRunsNow(t *testing.T) {
 				lineOf("work", using(session, 0.1), at13(25)),
 				lineOf("work", using(noReset, 0.15), at13(35)),
 			},
-			want: AccountHistory{ID: "work", Start: at13(10), Points: slices.Concat(
-				pointsEvery(at13(0).Add(-30*time.Minute), 10*time.Minute, 4, 0.7),
-				[]HistoryPoint{
-					{At: at13(30), Utilization: 0.1},
-					{At: at13(40), Utilization: 0.15},
-					{At: at13(50), Utilization: 0.2},
-					{At: chartedAt, Utilization: 0.2},
-				},
-			)},
-		},
-		{
-			// The session before work's ran from 06:00 to 11:00, and the
-			// one now from 13:10: the points go back a step at a time from
-			// 13:10 to 09:00, the earlier one's use as read till 11:00, then
-			// none till 13:10, and none at 13:10, before it was read.
-			name:  "reset mid-span, as each window ran, none used between them",
-			query: "window=5h&step=10m",
-			taken: []readings.Reading{lineOf("work", using(session, 0.1), at13(20))},
-			lines: []readings.Reading{
-				lineOf("work", using(earlier, 0.3), at13(0).Add(-4*time.Hour)),
-				lineOf("work", using(earlier, 0.6), at13(0).Add(-3*time.Hour-15*time.Minute)),
-				lineOf("work", using(session, 0.1), at13(20)),
-			},
-			want: AccountHistory{ID: "work", Start: at13(10), Points: slices.Concat(
-				pointsEvery(at13(0).Add(-4*time.Hour), 10*time.Minute, 5, 0.3),
-				pointsEvery(at13(0).Add(-3*time.Hour-10*time.Minute), 10*time.Minute, 7, 0.6),
-				pointsEvery(at13(0).Add(-2*time.Hour), 10*time.Minute, 13, 0),
-				pointsEvery(at13(20), 10*time.Minute, 5, 0.1),
-			)},
+			want: AccountHistory{ID: "work", Start: at13(10), Points: []HistoryPoint{
+				{At: at13(30), Utilization: 0.1},
+				{At: at13(40), Utilization: 0.15},
+				{At: at13(50), Utilization: 0.2},
+				{At: chartedAt, Utilization: 0.2},
+			}},
 		},
 	}
 	for _, tt := range tests {
@@ -378,15 +348,6 @@ func using(w quota.Window, u float64) quota.Window {
 // id, as an answer read it at at.
 func lineOf(id string, w quota.Window, at time.Time) readings.Reading {
 	return readings.Of(id, []quota.Window{w}, at.UTC(), readings.FromAnswer)[0]
-}
-
-// pointsEvery are n points of a use, a step apart from from.
-func pointsEvery(from time.Time, step time.Duration, n int, used float64) []HistoryPoint {
-	points := make([]HistoryPoint, n)
-	for i := range points {
-		points[i] = HistoryPoint{At: from.Add(time.Duration(i) * step).UTC(), Utilization: used}
-	}
-	return points
 }
 
 // at13 is the given minute past 13:00 on chartedAt's day.

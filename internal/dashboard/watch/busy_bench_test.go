@@ -281,9 +281,11 @@ func writeDay(tb testing.TB, dir, name string, data []byte, compressed bool) {
 // the router's document with that page open, and with the Log shown; a batch
 // of the request stream's events, an answer of the session's streaming on,
 // with the page open and on the Log, the stream having told of the hour's
-// requests before; a look with the Log's panel open; a request sent, with
-// the Log shown; and the Events, filled through every kind, refiltered to a
-// kind none of the four weeks holds.
+// requests before; a look with the Log's panel open; a look on the Overview
+// by account, GRAPHS charting each account and the pool beside USAGE, and
+// one as the pool's 5-hour chart moves a column on, twelve minutes; a
+// request sent, with the Log shown; and the Events, filled through every
+// kind, refiltered to a kind none of the four weeks holds.
 func BenchmarkTheBusyDashboard(b *testing.B) {
 	w := newBusyWorld(b, start)
 	for _, s := range []struct{ name, id string }{{"of four weeks", w.longest()}, {"of three days", w.lately()}} {
@@ -340,6 +342,20 @@ func BenchmarkTheBusyDashboard(b *testing.B) {
 			h.look(w)
 		}
 	})
+	for _, on := range []struct {
+		name string
+		step time.Duration
+	}{{"a look on the Overview by account", 0}, {"a look on the Overview by account, a column on", 12 * time.Minute}} {
+		b.Run(on.name, func(b *testing.B) {
+			h := w.harness(b)
+			h.model.by, h.model.sections = dashboard.ByAccount, dashboard.Sections{}.Toggled(dashboard.SectionGraphs)
+			h.look(w)
+			for b.Loop() {
+				h.clock.now = h.clock.now.Add(on.step)
+				h.look(w)
+			}
+		})
+	}
 	b.Run("a request sent on the Log", func(b *testing.B) {
 		n := 0
 		for b.Loop() {

@@ -81,12 +81,17 @@ type drawn struct {
 }
 
 // drawnAt is each view of doc at now, as a frame as wide as the frames draws
-// it: Runway's with its lanes built at the moment, as the watch builds them,
-// with nothing read before.
+// it: Runway's with its lanes built at the moment, and the pool's charts with
+// its room in each window, as the watch builds them, with nothing read
+// before.
 func drawnAt(t *testing.T, doc status.Document, now time.Time) drawn {
 	t.Helper()
 	f := frameOf(160, 40).At(doc, now)
 	m := f.Moment(doc, now)
+	f.PoolRooms = make(map[string]views.PoolRoom)
+	for _, w := range m.Pool().Windows {
+		f.PoolRooms[w.Key] = views.PoolRoom{}.Look(views.PoolRoomFrom{Moment: m, Key: w.Key, Columns: 25})
+	}
 	d := drawn{
 		now: now, moment: m,
 		usage:      newUsageBlock(m, 160, Look{}, ByWindow, usageWindows(m, nil, labelsOf(m))),
@@ -346,10 +351,7 @@ func (d drawn) poolUsed(key string) []viewSays {
 		}
 	}
 	for _, pc := range d.poolCharts {
-		if pc.room.Key != key {
-			continue
-		}
-		if room := pc.room.Room(25); room.Of > 0 {
+		if room := pc.room; pc.key == key && room.Of > 0 {
 			last := room.Columns[len(room.Columns)-1]
 			says = append(says, viewSays{"the pool's chart", prose.Percent(1 - last.Room/float64(room.Of))})
 		}

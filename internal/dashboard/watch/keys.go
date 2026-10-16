@@ -13,15 +13,15 @@ import (
 // PgUp scroll the view where it doesn't fit, as scrollView has it; and the
 // rest each as acting has the page act: on the Overview, u, g, r, s, c and l
 // show and hide its sections, b switches how its windows are grouped, v
-// flips GRAPHS' chart, and ↑ and ↓ move the focus, as overviewKey says; on Accounts, its keys act as
-// accountsKey says; on History, [ ], < >, v and ← → act as historyKey says;
-// on Sessions, its keys act as sessionsKey says; on Runway, < > and ← → act
-// as runwayKey says; on the Log, [ ], ↑ ↓, end, esc, enter, s, f and / act
-// as logKey says; tab and shift-tab show the next tab and the one before, as
-// turn has it; and t opens the theme picker. esc, whatever the page does
-// with it, drops a session's page asked to
-// open, as unasked has it. The rest do nothing: the number keys and m among
-// them, which act in the routing card alone.
+// flips GRAPHS' chart, and ↑ and ↓ move the focus, as overviewKey says; on
+// Accounts, its keys act as accountsKey says; on History, [ ], < >, v and
+// ← → act as historyKey says; on Sessions, its keys act as sessionsKey says;
+// on Runway, < > and ← → act as runwayKey says; on the Log, [ ], ↑ ↓, end,
+// esc, enter, s, f and / act as logKey says; tab and shift-tab show the next
+// tab and the one before, as turn has it; and t opens the theme picker. esc,
+// whatever the page does with it, drops a session's page asked to open, as
+// unasked has it. The rest do nothing: the number keys and m among them,
+// which act in the routing card alone.
 func (m Model) pageKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	k := key.String()
 	if k == "esc" {

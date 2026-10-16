@@ -296,8 +296,8 @@ func TestThePagesShowWhatTheyAreFor(t *testing.T) {
 		},
 		{name: "overview-by-account-burn-down-220x50", want: []string{"u   GRAPHS   ⠢ heading", "FABLE WEEK ┄", "✕", "ROUTING   auto ─"}, wantNoneOf: []string{"↑↓ focus"}},
 		{name: "overview-by-account-graphs-140", want: []string{"GRAPHS   work     · even pace", "FABLE WEEK ┄"}},
-		{name: "overview-pool-burn-down-160", want: []string{"1.5 of 3 left             5-HOUR ┄", "09:42                 now  Thu 14:42             now", "v chart: burn-down"}},
-		{name: "overview-pool-220x50", want: []string{"1.5 of 3 left             5-HOUR ┄", "now  Thu 14:42                        now  Thu 14:42                        now", "v chart: burn-up"}},
+		{name: "overview-pool-burn-down-160", want: []string{"1.5 of 3 left             5-HOUR ┄", "09:42                 now  24 Sep 14:42          now", "v chart: burn-down"}},
+		{name: "overview-pool-220x50", want: []string{"1.5 of 3 left             5-HOUR ┄", "now  24 Sep 14:42                     now  24 Sep 14:42                     now", "v chart: burn-up"}},
 		{name: "overview-phone-burn-down-52", want: []string{"GRAPHS   work     ⠢ heading", "5-HOUR ┄", "FABLE WEEK ┄"}},
 	}
 	for _, tt := range tests {
