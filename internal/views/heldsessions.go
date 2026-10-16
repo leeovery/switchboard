@@ -106,18 +106,19 @@ type SessionsWanted struct {
 	Log     []string
 	Pins    map[string][]time.Time
 	// paged is the session of the page open as its page holds it, read
-	// whole as it opened, nil where none is: the store takes it in place of
-	// the session it holds without what its page tallies, as Paging has it.
+	// whole as it opened, or as the store has fed it since, nil where none
+	// is: the store takes it in place of the session it holds without what
+	// its page tallies, as Paging has it.
 	paged *heldSession
 }
 
 // Paging is w wanting the page h holds too, the session it's of tallied as
 // its page tallies it, pinned as the stream s tells where w isn't pinned.
 // Where the store holds the session but not its page's tally, it takes the
-// session as h holds it, read whole as the page opened, after the ledger's
-// tail was last read, as no read of the tail runs beside the page's: so the
-// read of the tail it's fed gives it every line since, those it holds
-// passed over.
+// session as h holds it: read whole as the page opened, after the ledger's
+// tail was last read, as no read of the tail runs beside the page's, or as
+// the store fed it since, as Held takes it; so the read of the tail it's
+// fed gives it every line since, those it holds passed over.
 func (w SessionsWanted) Paging(h HeldPage, s Stream) SessionsWanted {
 	w.Page, w.paged = h.id, h.record
 	if w.Pins == nil {

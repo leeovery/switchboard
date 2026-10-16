@@ -719,3 +719,27 @@ func TestATurnOpenShowsALineWithoutAnIDAsOftenAsTheLedgerHoldsIt(t *testing.T) {
 		})
 	}
 }
+
+// A turn opened as the line of a request the stream told of has been filed,
+// the store yet to be fed it, shows the request once, as its line, as a
+// page read whole shows it.
+func TestATurnOpenedBetweenFeedsShowsARequestFiledSinceOnce(t *testing.T) {
+	r1 := filedAs("r1", mainOn(p1, local(12, 0, 0), "tool_use"))
+	r2 := filedAs("r2", mainOn(p1, local(13, 0, 0), "end_turn"))
+	told := toldOf("r2", p1, ledger.ClassMain, opus, "side", local(13, 0, 0).Add(100*time.Millisecond))
+	told.Ended, told.Status = local(13, 1, 0), 200
+	live := views.PageLive{Now: now, Stream: heard(told)}
+	l := summarisedLedger([]ledger.Line{r1, r2})
+	held := turnOpened(views.HoldPage(paged, views.ReadSessions(summarisedLedger([]ledger.Line{r1}), nil, now, paged), ledger.Pricing, kept90, now), 1, l, live)
+	whole := turnOpened(views.HoldPage(paged, views.ReadSessions(l, nil, now, paged), ledger.Pricing, kept90, now), 1, l, live)
+	ids := func(lines []views.LogLine) []string {
+		var ids []string
+		for _, r := range lines {
+			ids = append(ids, r.Row.Request)
+		}
+		return ids
+	}
+	if got, want := ids(held.TurnRequests(1, live)), ids(whole.TurnRequests(1, live)); !slices.Equal(got, want) {
+		t.Errorf("the turn shows the requests %v, want %v, as the page read whole shows them", got, want)
+	}
+}

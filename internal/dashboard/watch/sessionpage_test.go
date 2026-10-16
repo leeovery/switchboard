@@ -833,6 +833,16 @@ func pricedOtherwiseFrom(date string) ledger.Table {
 // lines, priced by prices, and returns the ledger.
 func wholePage(t *testing.T, state string, at time.Time, prices ledger.Table, lines ...ledger.Held) (*harness, *ledger.Follower) {
 	t.Helper()
+	h, l := runningOn(t, state, at, prices, lines...)
+	h.openPage(idD28C)
+	h.settle()
+	return h, l
+}
+
+// runningOn is a model at at of d28c running, over a ledger in state holding
+// lines, priced by prices, and the ledger.
+func runningOn(t *testing.T, state string, at time.Time, prices ledger.Table, lines ...ledger.Held) (*harness, *ledger.Follower) {
+	t.Helper()
 	h := routedHarness(t, routerDocument(three()...))
 	h.source.sessions, h.clock.now = []status.Session{sessionOn(idD28C, opus, "work", 0)}, at
 	writeLines(t, state, lines...)
@@ -841,9 +851,56 @@ func wholePage(t *testing.T, state string, at time.Time, prices ledger.Table, li
 	cfg.Ledger, cfg.Prices = l, prices
 	h.model = New(t.Context(), cfg)
 	h.start()
-	h.openPage(idD28C)
-	h.settle()
 	return h, l
+}
+
+// A page whose read lands needing its session read whole, as no page built
+// before the store's next feed stands, says it's loading till that feed
+// lands, never drawing a page of nothing: one asked for before midnight
+// whose read lands after it, on a day its prices change; and one whose read
+// meets a stream row joining late.
+func TestAPageWhoseFirstBuildReadsWholeSaysItsLoading(t *testing.T) {
+	night := onTheDay(23, 59, 50)
+	priced := arrivedAt("0a000001", onTheDay(22, 30, 0))
+	priced.Usage = json.RawMessage(hourUsage)
+	lateRow := func(h *harness, read []tea.Msg) []tea.Msg {
+		stream := h.source.lastStream(t)
+		stream <- alter(told(router.StreamSent, "0a000002", "work", 0), func(e *router.StreamEvent) { e.At = h.clock.now.Add(-90 * time.Minute).UTC() })
+		h.deliver(h.waited()...)
+		return read
+	}
+	tests := []struct {
+		name   string
+		at     time.Time
+		prices ledger.Table
+		landed func(*harness, []tea.Msg) []tea.Msg
+	}{
+		{name: "landing past midnight, its prices changed", at: night, prices: pricedOtherwiseFrom(dayfile.DateOf(night.Add(time.Hour))),
+			landed: func(h *harness, read []tea.Msg) []tea.Msg { h.clock.now = night.Add(20 * time.Second); return read }},
+		{name: "a stream row joining late as it's read", at: onTheDay(12, 0, 0), prices: ledger.Pricing, landed: lateRow},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h, l := runningOn(t, t.TempDir(), tt.at, tt.prices, priced)
+			read, loading := h.askedPage(idD28C)
+			h.fire(loading)
+			read = tt.landed(h, read)
+			h.model.tail.due = false
+			tailed := holdingBack[tailedMsg](h, read...)
+			if s := h.model.session; s == nil || !s.shown.Loading || !strings.Contains(h.row(4), loadingSaid) || len(tailed) != 1 {
+				t.Fatalf("the page's read landed to be read whole, it shows loading %t, its heading %q, the tail read %d times; want it loading, the tail read at once",
+					s != nil && s.shown.Loading, h.row(4), len(tailed))
+			}
+			h.deliver(tailed...)
+			now := h.clock.now
+			live := h.model.pageLive(idD28C, now)
+			live.Stream = live.Stream.Of(idD28C)
+			want, _ := views.ReadPage(l, idD28C, live.Stream, h.model.cfg.Prices, h.model.cfg.LedgerKeep, now).Build(live)
+			if s := h.shownPage(); s.Loading || !reflect.DeepEqual(s.Page, want.Page) {
+				t.Errorf("the tail's read landed, the page loading %t, is\n%+v\nwant it read whole\n%+v", s.Loading, s.Page, want.Page)
+			}
+		})
+	}
 }
 
 // readWhole checks, of d28c's page, as the msgs given reach the model, its

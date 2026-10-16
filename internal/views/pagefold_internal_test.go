@@ -100,18 +100,24 @@ type paging struct {
 }
 
 // streamAt is what the stream tells at now of the session's requests: each
-// in flight, sent moments after it arrived, but the one it never tells of,
-// and the one it tells of late, untold for joinsLate after it arrived.
+// in flight, sent moments after it arrived, and each ended since the last
+// look, as the stream holds a request till a read of the ledger's tail
+// reads its line; but the one it never tells of, and the one it tells of
+// late, untold for joinsLate after it arrived.
 func (p *paging) streamAt(now time.Time) Stream {
 	s := Stream{Live: true, Requests: make(map[string]Told)}
 	for _, l := range p.lines {
-		if l.At.After(now) || !ended(&l).After(now) || l.Request == unseen || l.Request == p.late && now.Sub(l.At) < joinsLate || !l.Counted() {
+		if l.At.After(now) || !ended(&l).After(p.fed) || l.Request == unseen || l.Request == p.late && now.Sub(l.At) < joinsLate || !l.Counted() {
 			continue
 		}
-		s.Requests[l.Request] = Told{
+		t := Told{
 			Request: l.Request, Session: l.Session, Model: l.Model, Account: l.Account, Prompt: l.Prompt, Class: l.Class, AgentID: l.AgentID,
 			Sent: l.At.Add(100 * time.Millisecond), Heard: now,
 		}
+		if !ended(&l).After(now) {
+			t.Ended, t.Status, t.Heard = ended(&l), l.Status, ended(&l)
+		}
+		s.Requests[l.Request] = t
 	}
 	return s
 }
@@ -119,13 +125,58 @@ func (p *paging) streamAt(now time.Time) Stream {
 // opened is the page with its turn open, as the watch opens it at now: its
 // newest, read through l as live builds the page.
 func (p *paging) opened(l LedgerSession, live PageLive) {
-	built, ok := p.page.Build(live)
-	if !ok || len(built.Page.Turns) == 0 {
+	turns := len(p.page.worked(live).tally.turns)
+	if turns == 0 {
 		return
 	}
-	p.open = built.Page.Turns[0].Turn
+	p.open = turns
 	p.page = p.page.Opening(p.open, live)
 	p.page = p.page.Turned(p.page.ReadTurn(l, live))
+}
+
+// checkTurn holds the turn open, opened at now, between feeds, to the turn
+// of the page read whole at now, of every line l files, as the stream
+// tells: each of its requests a row once, those whose lines the store has
+// yet to be fed among them; and those of no subagent, in the same order,
+// but those filed since the feed that the stream never told of, which the
+// page learns of only at the next, as it does a subagent's turn, the one
+// its first request names, where that's such a request.
+func (p *paging) checkTurn(now time.Time, l filedLedger, stream Stream) {
+	p.t.Helper()
+	if p.page.turn == nil {
+		return
+	}
+	filed := l.filed()
+	whole := HoldPage("s", SessionsRead{day: Today(now), lines: map[string][]ledger.Line{"s": filed}}, p.prices, 0, now)
+	whole.turn = &turnLines{prompt: p.page.turn.prompt}
+	whole = whole.Turned(HeldTurn{prompt: p.page.turn.prompt, lines: filed})
+	live := PageLive{Stream: stream, Now: now}
+	fed := filedLedger{lines: p.lines, now: p.fed}.filed()
+	unknown := make(map[string]bool)
+	for _, l := range filed {
+		_, told := stream.Requests[l.Request]
+		unknown[l.Request] = l.AgentID != "" || !told && !slices.ContainsFunc(fed, func(f ledger.Line) bool { return sameLine(&f, &l) })
+	}
+	rowsOf := func(h HeldPage) (all, main []string) {
+		w := h.worked(live)
+		lines, _ := w.turnRequests(1)
+		for _, r := range lines {
+			all = append(all, r.Row.Request)
+			if !unknown[r.Row.Request] {
+				main = append(main, r.Row.Request)
+			}
+			if r.line != nil && !w.rec.linedAt(r.line.Request, r.line.At) {
+				p.met["a turn opened between feeds, a line of it filed since"] = true
+			}
+		}
+		return all, main
+	}
+	all, got := rowsOf(p.page)
+	_, want := rowsOf(whole)
+	if len(slices.Compact(slices.Sorted(slices.Values(all)))) != len(all) || !slices.Equal(got, want) {
+		p.t.Fatalf("session %d's turn, opened at %v between feeds, has the rows %v, of those it knows of %v; want each once, and %v, as the page read whole has them",
+			p.seed, now, all, got, want)
+	}
 }
 
 // look feeds the store a read of the ledger's tail at now, as the watch
@@ -279,11 +330,11 @@ func TestThePageFedLookByLookIsThePageBuiltWhole(t *testing.T) {
 		opens := r.IntN(len(lines))
 		for i := 0; i < len(lines); i += 1 + r.IntN(4) {
 			now := later(instantOf(at), instantOf(ended(&lines[i]))).time().Add(time.Duration(r.IntN(5000)) * time.Millisecond)
-			p.look(now)
-			if i >= opens && p.open == 0 {
-				p.opened(filedLedger{lines: lines, now: now}, PageLive{Stream: p.streamAt(now), Now: now})
-				p.check(now, filedLedger{lines: lines, now: now}, p.streamAt(now))
+			if between := at.Add(now.Sub(at) / 2); i >= opens && p.open == 0 {
+				p.opened(filedLedger{lines: lines, now: between}, PageLive{Stream: p.streamAt(between), Now: between})
+				p.checkTurn(between, filedLedger{lines: lines, now: between}, p.streamAt(between))
 			}
+			p.look(now)
 			at = now
 		}
 		p.look(ended(&lines[len(lines)-1]).Add(3 * time.Hour))
@@ -292,6 +343,7 @@ func TestThePageFedLookByLookIsThePageBuiltWhole(t *testing.T) {
 		"a request in flight", "a subagent's request naming another turn's prompt", "an idle gap folded",
 		"stretches told by its own conversation after others", "midnight", "midnight, its page priced again whole",
 		"a stream row joining late, read whole", "its page fed on of requests sealed", "its turn open taking in lines as they come",
+		"a turn opened between feeds, a line of it filed since",
 	} {
 		if !met[moment] {
 			t.Errorf("no generated run meets %s", moment)
@@ -419,5 +471,19 @@ func TestATurnOpenHoldsOnlyTheLinesThatMayBeItsOwn(t *testing.T) {
 	}
 	if want := []string{"d", "h"}; !slices.Equal(held, want) {
 		t.Errorf("the turn open holds the lines %v, want %v", held, want)
+	}
+}
+
+// A turn open holds a request's line once, however many times the lines it
+// takes in at once give it.
+func TestATurnOpenHoldsALineGivenTwiceAtOnceOnce(t *testing.T) {
+	at := time.Date(2026, 10, 7, 12, 0, 0, 0, time.Local)
+	l := ledger.Line{Request: "a", At: at, Kind: ledger.KindMessage, Session: "s", Model: foldOpus, Account: "work", Status: 200, Attempts: 1, Prompt: "p1"}
+	now := at.Add(time.Hour)
+	live := PageLive{Now: now}
+	page := ReadPage(filedLedger{lines: []ledger.Line{l}, now: now}, "s", Stream{}, ledger.Pricing, 0, now).Opening(1, live)
+	page = page.TurnOf(page, []ledger.Held{{Line: l}, {Line: l}})
+	if n := len(page.turn.lines); n != 1 {
+		t.Errorf("the turn open holds the line %d times, want once", n)
 	}
 }

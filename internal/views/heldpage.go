@@ -320,13 +320,16 @@ func (t *turnLines) with(lines []ledger.Line) *turnLines {
 	}
 	for i := range lines {
 		k := turnKeyOf(&lines[i])
-		if held[k] > 0 {
-			if k.request == "" {
-				held[k]--
+		switch {
+		case held[k] > 0 && k.request == "":
+			held[k]--
+		case held[k] > 0:
+		default:
+			grown.lines = append(grown.lines, lines[i])
+			if k.request != "" {
+				held[k]++
 			}
-			continue
 		}
-		grown.lines = append(grown.lines, lines[i])
 	}
 	return &grown
 }
@@ -622,11 +625,19 @@ func (w worked) turnRequests(n int) ([]LogLine, bool) {
 	})
 	var told []Told
 	for _, r := range w.told {
-		if !w.rec.lined(r) && tally.member(r.AgentID, r.Prompt, prompt) {
+		if !w.lined(r) && tally.member(r.AgentID, r.Prompt, prompt) {
 			told = append(told, r)
 		}
 	}
 	return w.rowsOf(lines, told), false
+}
+
+// lined reports whether a line of the request t the stream told of is held
+// by what the turn open's rows show: the session as w holds it, as its
+// lined has it, or the turn's own lines, read of the ledger past what the
+// store has been fed, as sameRequest has it of each.
+func (w worked) lined(t Told) bool {
+	return w.rec.lined(t) || w.h.turn != nil && slices.ContainsFunc(w.h.turn.lines, func(l ledger.Line) bool { return sameRequest(&l, t.Request, t.Sent) })
 }
 
 // rowsOf are the Log's lines of a turn's requests, as turnRequests has

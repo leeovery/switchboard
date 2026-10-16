@@ -31,6 +31,9 @@ type sessionShown struct {
 	until   time.Time
 	card    turnCarding
 	turns   int
+	// asked is the open that asked for it, from 1, as sessionReadMsg's
+	// asked has it: 0 while its read is under way, as it loads.
+	asked int
 	// turnWaited is set once the read of the lines of its turn open has
 	// been waited on LoadingAfter, as turnLoading has it; and wholeAsked
 	// once a read of the ledger's tail was asked for at once, its session
@@ -112,7 +115,7 @@ func (m Model) sessionRead(msg sessionReadMsg) Model {
 	if msg.asked == m.opening {
 		m = m.heldWith(msg.held.Found())
 		held := msg.held.Joined(m.held)
-		m.session = &sessionShown{id: msg.id, held: held, shown: dashboard.SessionShown{Home: m.cfg.Home}}
+		m.session = &sessionShown{id: msg.id, held: held, shown: dashboard.SessionShown{Home: m.cfg.Home}, asked: msg.asked}
 	}
 	return m
 }
@@ -163,7 +166,7 @@ type pageTaken struct {
 // are; each once, the oldest first.
 func (m Model) pageFold(now time.Time) *pageFold {
 	s := m.session
-	if s == nil || s.shown.Loading {
+	if s == nil || s.asked == 0 {
 		return nil
 	}
 	live := m.pageLive(s.id, now)
@@ -244,7 +247,7 @@ func (m Model) pageTook(t pageTaken, read tailLines) Model {
 // a read of the ledger's tail asked for at once, but once till a page is
 // built again. One loading has nothing to build yet.
 func (m Model) relived(msg tea.Msg, now time.Time) Model {
-	if _, frame := msg.(frameMsg); frame || m.session == nil || m.session.shown.Loading {
+	if _, frame := msg.(frameMsg); frame || m.session == nil || m.session.asked == 0 {
 		return m
 	}
 	s := *m.session
@@ -255,6 +258,9 @@ func (m Model) relived(msg tea.Msg, now time.Time) Model {
 		if built.ReadsWhole {
 			m.tail.due = m.tail.due || !s.wholeAsked
 			s.wholeAsked = true
+			if s.shown.Page.Session == "" {
+				s.shown = dashboard.SessionShown{Page: views.AskedPage(s.id, m.sessions), Home: m.cfg.Home, Loading: true}
+			}
 			m.session = &s
 			return m
 		}
@@ -264,7 +270,7 @@ func (m Model) relived(msg tea.Msg, now time.Time) Model {
 			return m
 		}
 		if ok {
-			s.shown.Page, s.shown.Story, s.shown.Requests = built.Page, built.Story, built.Requests
+			s.shown.Page, s.shown.Story, s.shown.Requests, s.shown.Loading = built.Page, built.Story, built.Requests, false
 			s.shown.RequestsLoading = built.RequestsLoading && s.turnWaited
 			if built.Open != 0 {
 				s.shown.Open, s.shown.Turn = built.Open, built.Open

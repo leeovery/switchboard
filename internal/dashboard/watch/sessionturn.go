@@ -37,20 +37,36 @@ func (m Model) turnKey(key string) (Model, tea.Cmd, bool) {
 	return m, nil, false
 }
 
-// turnReadMsg is a read of the lines of the requests of the turn the
-// turns'th open of the page of the session with the given id opened, as
-// views.HeldPage's ReadTurn reads them.
-type turnReadMsg struct {
-	turns int
-	id    string
-	turn  views.HeldTurn
+// turnOpened is a turn's open as the watch knows it from another: the open
+// of the page it opened on, as sessionShown's asked has it, which no page
+// opened since shares, and how many turns that page had opened, it the
+// last.
+type turnOpened struct {
+	asked, turns int
 }
 
-// turnLoadingMsg is the turn the turns'th open of the page of the session
-// with the given id opened, having waited LoadingAfter on its read.
+// opened is the open of the turn s has open last.
+func (s *sessionShown) opened() turnOpened {
+	return turnOpened{asked: s.asked, turns: s.turns}
+}
+
+// turnOpen reports whether the page open has the turn of the open given
+// open still, as the last it opened.
+func (m Model) turnOpen(o turnOpened) bool {
+	return m.session != nil && m.session.opened() == o
+}
+
+// turnReadMsg is a read of the lines of the requests of the turn of the
+// open given, as views.HeldPage's ReadTurn reads them.
+type turnReadMsg struct {
+	opened turnOpened
+	turn   views.HeldTurn
+}
+
+// turnLoadingMsg is the turn of the open given, having waited LoadingAfter
+// on its read.
 type turnLoadingMsg struct {
-	turns int
-	id    string
+	opened turnOpened
 }
 
 // openTurn opens the turn chosen into its requests, in place, as enter does,
@@ -67,15 +83,15 @@ func (m Model) openTurn() (Model, tea.Cmd) {
 	s.shown.Open, s.shown.Request, s.shown.RequestsScroll = s.shown.Turn, 0, 0
 	s.held, s.turns, s.turnWaited = s.held.Opening(s.shown.Turn, m.pageLive(s.id, m.now())), s.turns+1, false
 	m.session = &s
-	return m, tea.Batch(m.readTurn(), m.after(LoadingAfter, turnLoadingMsg{turns: s.turns, id: s.id}))
+	return m, tea.Batch(m.readTurn(), m.after(LoadingAfter, turnLoadingMsg{opened: s.opened()}))
 }
 
 // turnLoading is m with the turn open shown loading, its read under way
 // LoadingAfter after it opened: not where the page it opened on is closed,
-// or another turn opened since; and, once its read has landed, loading no
-// longer, as relived builds it.
+// or another page or turn opened since, as turnOpen has it; and, once its
+// read has landed, loading no longer, as relived builds it.
 func (m Model) turnLoading(msg turnLoadingMsg) Model {
-	if m.session == nil || m.session.id != msg.id || m.session.turns != msg.turns {
+	if !m.turnOpen(msg.opened) {
 		return m
 	}
 	s := *m.session
@@ -90,21 +106,22 @@ func (m Model) turnLoading(msg turnLoadingMsg) Model {
 // ledger.
 func (m Model) readTurn() tea.Cmd {
 	s := m.session
-	held, live, turns, id := s.held, m.pageLive(s.id, m.now()), s.turns, s.id
+	held, live, opened := s.held, m.pageLive(s.id, m.now()), s.opened()
 	var l views.LedgerSession
 	if m.cfg.Ledger != nil {
 		l = m.cfg.Ledger
 	}
 	return func() tea.Msg {
-		return turnReadMsg{turns: turns, id: id, turn: held.ReadTurn(l, live)}
+		return turnReadMsg{opened: opened, turn: held.ReadTurn(l, live)}
 	}
 }
 
 // turnRead takes in the read of a turn's lines, where the page it was read
-// for is open still, and the turn it opened last: the page holds them, as
-// views.HeldPage's Turned has it, and builds their rows afresh.
+// for is open still, and the turn it opened last, as turnOpen has it: the
+// page holds them, as views.HeldPage's Turned has it, and builds their rows
+// afresh.
 func (m Model) turnRead(msg turnReadMsg) Model {
-	if m.session == nil || m.session.id != msg.id || m.session.turns != msg.turns {
+	if !m.turnOpen(msg.opened) {
 		return m
 	}
 	s := *m.session

@@ -108,7 +108,7 @@ func TestATurnOpensIntoItsRequestsAndItsKeysMoveThroughThem(t *testing.T) {
 func (h *harness) openingTurn() ([]tea.Msg, *timer) {
 	h.t.Helper()
 	read := holdingBack[turnReadMsg](h, h.update(enterKey)...)
-	tm, ok := h.pending(turnLoadingMsg{turns: h.model.session.turns, id: h.model.session.id})
+	tm, ok := h.pending(turnLoadingMsg{opened: h.model.session.opened()})
 	if len(read) != 1 || !ok {
 		h.t.Fatalf("a turn opened, its read under way %d times, its loading armed %t; want it read once, its loading armed", len(read), ok)
 	}
@@ -436,5 +436,26 @@ func TestHowFarAPagesTurnsScrollIsLaidOutOfThePageAlone(t *testing.T) {
 	least := testing.AllocsPerRun(10, func() { bare.TurnsScrolling() })
 	if got := testing.AllocsPerRun(10, func() { h.model.turnsScrolling(shown) }); got > least {
 		t.Errorf("how far the turns scroll allocates %.0f times, want no more than the page alone laid out does, %.0f", got, least)
+	}
+}
+
+// The read of a turn opened on a page closed before it landed opens nothing
+// on the page opened again since, its same turn open: that waits on its own.
+func TestATurnsReadForAPageClosedSinceOpensNothingOnItOpenedAgain(t *testing.T) {
+	h, _ := pageHarness(t, turnsOfRequests(start.Add(-30*time.Minute), 8, 1))
+	h.openPage(idD28C)
+	h.keys(downKey)
+	stale, _ := h.openingTurn()
+	h.keys(escKey, escKey)
+	h.openPage(idD28C)
+	h.keys(downKey)
+	again, _ := h.openingTurn()
+	h.deliver(stale...)
+	if read := reflect.ValueOf(h.model.session.held).FieldByName("turn").Elem().FieldByName("read"); read.Bool() {
+		t.Error("the read of a turn opened on the page closed since landed, the page opened again holds it as its turn's; want it waiting on its own")
+	}
+	h.deliver(again...)
+	if shown := h.shownPage(); shown.RequestsLoading || len(shown.Requests) != 8 {
+		t.Errorf("the read of the turn opened again landed, loading %t, showing %d rows; want its 8 requests shown", shown.RequestsLoading, len(shown.Requests))
 	}
 }

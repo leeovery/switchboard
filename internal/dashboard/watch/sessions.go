@@ -182,7 +182,7 @@ type heldFold struct {
 // page's own being the page's; each once, the oldest first.
 func (m Model) heldFold(now time.Time) *heldFold {
 	t := m.sessionsTab
-	paged := m.session != nil && !m.session.shown.Loading
+	paged := m.session != nil && m.session.asked != 0
 	f := &heldFold{held: m.held, awaited: t.awaited}
 	switch {
 	case !t.listed && !paged && m.held.Len() == 0:
