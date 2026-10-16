@@ -49,6 +49,16 @@ worked on there till they're right.
   line broken onto two rows, its right half higher.
 - **Weeks says there aren't enough weeks yet** on a ledger begun 7 October: check that's the rule,
   not a fault.
+- **A phone's charts start under the bars' column,** about 10 columns in, the room to their left
+  unused: "Let the graphs be full width there."
+- **A phone's view tabs** (Compare, Detail) draw their highlight hard against the word, no cell
+  before it, so it reads left-aligned: a cell either side, as the page's tabs have.
+
+## Loading
+
+- **`loading…` in the heading's state slot is too small to notice.** The owner would rather a
+  central indicator of a decent size, animated perhaps: "We need something visual, decent-sized."
+  Not urgent.
 
 ## Accounts' Detail
 
