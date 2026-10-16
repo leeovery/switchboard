@@ -472,17 +472,19 @@ func (m Model) Init() tea.Cmd {
 // session's page, the Log and its find, and Sessions, as they want them,
 // History's and Accounts' pages built of them as historyBuilt and
 // accountsBuilt have it, Detail's selection following its sessions, as
-// followed has it, Sessions, Runway and the pool's charts built at the look,
-// as sessionsLooked, runwayLooked and poolLooked have it, the readings
-// history's tail read for Runway and the pool's charts, as readRunway has
-// it, the ledger's tail followed whatever shows, as followTail has it, and
-// the Log's page built of what it holds, and only then, price the moves the
-// routing card would make while it wants them.
-// Then, of the page as it stands at that moment, its Overview's sections
-// built once for each to share, it keeps the Overview's layout, and takes
-// the view back to its top where what its scroll counts changed, as
-// rescrolled has it, but for a frame, which takes nothing in to lay it out
-// afresh by, nor changes what it counts; brightens the numbers what the
+// followed has it, Sessions and Runway built at the look, as sessionsLooked
+// and runwayLooked have it, the ledger's tail followed whatever shows, as
+// followTail has it, and the Log's page built of what it holds, and only
+// then, price the moves the routing card would make while it wants them.
+// Then, of the page as it stands at that moment, the one frame a look
+// builds, it builds the pool's charts at the look, as poolLooked has it, has
+// the readings history's tail read for Runway and the pool's charts, as
+// readRunway has it, and notes the tab shown waiting on a read, as waited
+// has it, the page loading as that leaves it. Of that page, its Overview's
+// sections built once for each to share, it keeps the Overview's layout,
+// and takes the view back to its top where what its scroll counts changed,
+// as rescrolled has it, but for a frame, which takes nothing in to lay it
+// out afresh by, nor changes what it counts; brightens the numbers what the
 // stream told changed, as compared has it; and only then, so the screen and
 // its frames see the layout the page will draw and the numbers it
 // brightens, shows the page, drawing frames while anything on it moves. The
@@ -494,16 +496,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	tuned, closed := next.(Model).letGo().relived(msg, now).closing()
 	tuned, stream := tuned.tune()
 	tuned, past := tuned.readHistory()
-	tuned = tuned.historyBuilt().accountsBuilt().followed(msg).sessionsLooked(msg).runwayLooked(msg).poolLooked(msg)
+	tuned = tuned.historyBuilt().accountsBuilt().followed(msg).sessionsLooked(msg).runwayLooked(msg)
 	tuned, paged := tuned.readPage()
 	tuned, logged := tuned.readLog()
 	tuned, found := tuned.readFind()
 	tuned, listed := tuned.readSessions()
-	tuned, ran := tuned.readRunway()
 	tuned, tailing := tuned.followTail()
 	tuned, costs := tuned.costing()
+	f := tuned.frame(now)
+	tuned, f = tuned.poolLooked(msg, f)
+	tuned, ran := tuned.readRunway()
 	tuned, waits := tuned.waited(now)
-	page := tuned.frame(now).Built(tuned.doc, now)
+	f.Loading = tuned.loading(now)
+	page := f.Built(tuned.doc, now)
 	if _, frame := msg.(frameMsg); !frame {
 		tuned = tuned.keepLayout(page, now)
 		tuned, page = tuned.rescrolled(page, now)

@@ -354,9 +354,10 @@ func BenchmarkTheBusyDashboard(b *testing.B) {
 	})
 	b.Run("the pool's charts judged in full", func(b *testing.B) {
 		h := w.byAccount(b)
+		f := h.model.frame(h.model.now())
 		for b.Loop() {
 			h.model.pool.rooms = nil
-			h.model = h.model.poolBuilt()
+			h.model = h.model.poolBuilt(f)
 		}
 	})
 	b.Run("a resize by account", func(b *testing.B) {
@@ -377,7 +378,7 @@ func BenchmarkTheBusyDashboard(b *testing.B) {
 	})
 	b.Run("a look on the Overview by account, a column on", func(b *testing.B) {
 		h := w.byAccount(b)
-		const column = 5 * time.Hour / 25
+		const column = 5 * time.Hour / (25 - 1)
 		for b.Loop() {
 			h.clock.now = h.clock.now.Add(column)
 			w.gained(b, h.clock.now.Truncate(column).Add(-time.Minute))
