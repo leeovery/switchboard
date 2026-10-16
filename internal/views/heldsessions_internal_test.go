@@ -1,6 +1,7 @@
 package views
 
 import (
+	"encoding/json"
 	"fmt"
 	"maps"
 	"math/rand/v2"
@@ -444,5 +445,57 @@ func TestTheStoreFedInAnotherZoneIsReadWhole(t *testing.T) {
 				t.Errorf("the next feed read %d requests whole, want them read whole %t", fed.Holding().Read, tt.read)
 			}
 		})
+	}
+}
+
+// A line of a request the store holds, of the same id and arriving at the
+// same moment, that says otherwise of it, as a hand-edited ledger may hold,
+// has its session read whole, so the store keeps the line a read whole
+// keeps, the first it reads, whichever it was fed first: one filed before
+// the line it holds, or after it. The same line given again is passed over,
+// nothing read. Of a request it holds sealed, and one it holds open.
+func TestALineSayingOtherwiseOfARequestHeldHasItsSessionReadWhole(t *testing.T) {
+	lines := generatedSession(7)
+	now := ended(&lines[len(lines)-1]).Add(time.Minute)
+	changes := map[string]func(*ledger.Line){
+		"the same":             func(*ledger.Line) {},
+		"ending later":         func(l *ledger.Line) { l.TotalMS += 1000 },
+		"spending otherwise":   func(l *ledger.Line) { l.Usage = json.RawMessage(`{"input_tokens":7,"output_tokens":3}`) },
+		"on another account":   func(l *ledger.Line) { l.Account = "spare" },
+		"tried on another":     func(l *ledger.Line) { l.Tried = []ledger.Tried{{Account: "spare", Why: "limited"}} },
+		"of another class":     func(l *ledger.Line) { l.Class = "elsewhere" },
+		"in another directory": func(l *ledger.Line) { l.Dir = "/code/elsewhere" },
+		"for another reason":   func(l *ledger.Line) { l.Reason = "elsewhere" },
+		"moved from another":   func(l *ledger.Line) { l.From = "spare" },
+		"of another agent":     func(l *ledger.Line) { l.AgentID = "a9" },
+		"served elsewhere":     func(l *ledger.Line) { l.Shape.InferenceGeo = "eu" },
+	}
+	for _, held := range []struct {
+		name string
+		i    int
+	}{{name: "sealed", i: 0}, {name: "open", i: len(lines) - 1}} {
+		for name, change := range changes {
+			for _, before := range []bool{true, false} {
+				t.Run(fmt.Sprintf("%s, %s, filed before it %t", held.name, name, before), func(t *testing.T) {
+					other := lines[held.i]
+					change(&other)
+					at := held.i + 1
+					if before {
+						at = held.i
+					}
+					l := filedLedger{lines: slices.Insert(slices.Clone(lines), at, other), now: now}
+					want := SessionsWanted{Page: "s"}
+					store, _ := HoldSessions(ledger.Pricing).Fed(filedLedger{lines: lines, now: now}, Taken{}, want, now)
+					fed, _ := store.Fed(l, Took([]ledger.Held{{Line: other}}, nil), want, now)
+					whole, _ := HoldSessions(ledger.Pricing).Fed(l, Taken{}, want, now)
+					if !sameStory(fed.sessions["s"].story, whole.sessions["s"].story) {
+						t.Errorf("fed the line, the store tells\n%+v\nwant it as read whole\n%+v", fed.sessions["s"].story, whole.sessions["s"].story)
+					}
+					if read, same := fed.Holding().Read > 0, name == "the same"; read == same {
+						t.Errorf("fed the line, the store read %d requests whole, want them read whole %t", fed.Holding().Read, !same)
+					}
+				})
+			}
+		}
 	}
 }

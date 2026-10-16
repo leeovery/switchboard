@@ -211,9 +211,10 @@ func readLines(l views.Ledger, mark ledger.Mark, late []string) (tailLines, ledg
 
 // tailed takes in what a read of the ledger's tail found: the tail read to
 // its mark; each reader grown by it, where it was read for one, as logGrown
-// and pageTaken have them, and the store as the read fed it; and the lines
-// it read of the requests the stream told of held, as lined has it, for
-// letGo.
+// and pageTaken have them, and the store as the read fed it, with the
+// sessions taken into it as the read was under way, as heldWith keeps them,
+// and none the read let go; and the lines it read of the requests the
+// stream told of held, as lined has it, for letGo.
 func (m Model) tailed(msg tailedMsg) Model {
 	m.tail = m.tail.read(msg.tailRead)
 	if msg.log != nil {
@@ -223,8 +224,9 @@ func (m Model) tailed(msg tailedMsg) Model {
 		m = m.pageTook(*msg.page)
 	}
 	if msg.held != nil {
-		m.held = *msg.held
+		m.held = msg.held.With(m.merged)
 	}
+	m.merged = views.HeldSessions{}
 	m.traffic = m.traffic.lined(msg.lines.all()...)
 	return m
 }

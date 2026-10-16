@@ -140,8 +140,21 @@ func (m Model) readList() (Model, tea.Cmd) {
 // held off by it.
 func (m Model) listRead(msg listReadMsg) Model {
 	m.tail = m.tail.wholeLanded()
-	m.held = m.held.With(msg.held)
+	m = m.heldWith(msg.held)
 	m.sessionsTab.reading, m.sessionsTab.listed = false, true
+	return m
+}
+
+// heldWith is m with the sessions found, held of a reader's read of its
+// own, taken into the store, as views.HeldSessions' With takes them: the
+// one way a reader's read joins the store, in Update. Those it takes while
+// a read of the ledger's tail is under way are kept apart too, for the
+// store the read fed to take as it lands, as tailed has it.
+func (m Model) heldWith(found views.HeldSessions) Model {
+	if m.tail.reading {
+		m.merged = m.merged.With(found.Without(m.held))
+	}
+	m.held = m.held.With(found)
 	return m
 }
 

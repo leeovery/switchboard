@@ -149,10 +149,10 @@ var (
 		"views.CallsOf", "views.DaySessions", "views.EventsRead.Back", "views.EventsRead.Look", "views.EventsRead.Refiled",
 		"views.EventsRead.Skips", "views.EventsRead.Took", "views.EventsSince", "views.EventsTable.Details",
 		"views.FindSessions", "views.HeldSessions.Awaited", "views.HeldSessions.Fed", "views.HeldSessions.Holding",
-		"views.HeldSessions.List", "views.HeldSessions.Unread", "views.HeldSessions.With", "views.HoldSessions", "views.Lanes.Look",
-		"views.ListSessions", "views.ListWanted", "views.LogEvents", "views.LogFilter.KeptFrom", "views.LogRead.Grown", "views.LogRows",
-		"views.LogSessions", "views.Patch", "views.ReadEvents", "views.ReadLogHeld", "views.RunwayReadings", "views.StubsOf",
-		"views.Today", "views.Took", "views.TotalsOn",
+		"views.HeldSessions.List", "views.HeldSessions.Unread", "views.HeldSessions.With", "views.HeldSessions.Without",
+		"views.HoldSessions", "views.Lanes.Look", "views.ListSessions", "views.ListWanted", "views.LogEvents", "views.LogFilter.KeptFrom",
+		"views.LogRead.Grown", "views.LogRows", "views.LogSessions", "views.Patch", "views.ReadEvents", "views.ReadLogHeld",
+		"views.RunwayReadings", "views.StubsOf", "views.Today", "views.Took", "views.TotalsOn",
 	}
 )
 

@@ -67,9 +67,18 @@ type heldSession struct {
 }
 
 // heldFlights are the flights of a session's requests the store holds, by
-// their ids, in layers, as stacked has them, so a session that takes more in
-// shares them with the session it took them from.
-type heldFlights = *stacked[map[string][]flight]
+// their ids, each with the sum of what its line says, in layers, as stacked
+// has them, so a session that takes more in shares them with the session it
+// took them from.
+type heldFlights = *stacked[map[string][]knownLine]
+
+// knownLine is the flight of a request the store holds, and the sum of what
+// its line says of it, as sumOf has it, so a line of the same request given
+// again is known from one that says otherwise of it.
+type knownLine struct {
+	flight
+	sum uint64
+}
 
 // feedCounts are what a feed did: the requests it took in new of the
 // sessions held before it; those it told again of them, sealing or folding
@@ -432,23 +441,27 @@ func (s *heldSession) since() string {
 // gained are the requests among requests, the session's of a read, that s
 // doesn't hold, in order, reporting false where it can't place them all,
 // whole where they're a day's read again whole: one with no id, which can't
-// be known from another; one that arrived behind the horizon, which
-// would change what's sealed; or the requests of a day before those whose
-// flights it holds other than as many as it holds of that day, or not read
-// whole.
+// be known from another; one of a request it holds whose line says
+// otherwise of it, which a read whole may hold in its place, as distinct
+// keeps the first of a request's lines it reads; one that arrived behind the
+// horizon, which would change what's sealed; or the requests of a day before
+// those whose flights it holds other than as many as it holds of that day,
+// or not read whole.
 func (s *heldSession) gained(requests []heldRequest, whole bool) ([]heldRequest, bool) {
 	since := s.since()
 	counted := make(map[string]int)
 	var added []heldRequest
 	for i := range requests {
 		r := &requests[i]
-		switch date := dateOf(r); {
+		date := dateOf(r)
+		sum, held := s.heldSum(r, date)
+		switch {
 		case r.request == "":
 			return nil, false
 		case date < since:
 			counted[date]++
-		case s.holds(r, date):
-		case r.at.compare(s.horizon) < 0:
+		case held && sum == r.sum:
+		case held, r.at.compare(s.horizon) < 0:
 			return nil, false
 		default:
 			added = append(added, *r)
@@ -468,29 +481,31 @@ func dateOf(r *heldRequest) string {
 	return dayfile.DateOf(r.arrived())
 }
 
-// holds reports whether s holds the request r, which arrived on the day with
-// the given date, one of those it holds the flights of: the same id,
-// arrived at the same moment.
-func (s *heldSession) holds(r *heldRequest, date string) bool {
-	return heldFlight(s.flights[date], r.request, func(f flight) bool { return f.at == r.at })
+// heldSum is the sum of the line s holds of the request r, as sumOf has it,
+// reporting false where it holds none: of the same id, arrived at the same
+// moment, on the day with the given date, one of those it holds the flights
+// of.
+func (s *heldSession) heldSum(r *heldRequest, date string) (uint64, bool) {
+	f, held := heldFlight(s.flights[date], r.request, func(f flight) bool { return f.at == r.at })
+	return f.sum, held
 }
 
-// heldFlight reports whether held has a flight of the request with the given
-// id that is as is says.
-func heldFlight(held heldFlights, id string, is func(flight) bool) bool {
+// heldFlight is the flight held has of the request with the given id that
+// is as is says, reporting false where it has none.
+func heldFlight(held heldFlights, id string, is func(flight) bool) (knownLine, bool) {
 	for ; held != nil; held = held.under {
-		if slices.ContainsFunc(held.top[id], is) {
-			return true
+		if i := slices.IndexFunc(held.top[id], func(f knownLine) bool { return is(f.flight) }); i >= 0 {
+			return held.top[id][i], true
 		}
 	}
-	return false
+	return knownLine{}, false
 }
 
 // lined reports whether s holds the line of the request t the stream told
 // of, as Told.FiledAs has it.
 func (s *heldSession) lined(t Told) bool {
 	for _, flights := range s.flights {
-		if heldFlight(flights, t.Request, func(f flight) bool { return f.is(t.Request, t.Sent) }) {
+		if _, held := heldFlight(flights, t.Request, func(f flight) bool { return f.is(t.Request, t.Sent) }); held {
 			return true
 		}
 	}
@@ -512,7 +527,7 @@ func (s *heldSession) with(added []heldRequest) *heldSession {
 // arrived each day.
 func (s *heldSession) taking(requests []heldRequest) {
 	since := s.since()
-	byDate := make(map[string]map[string][]flight)
+	byDate := make(map[string]map[string][]knownLine)
 	for i := range requests {
 		r := &requests[i]
 		date := dateOf(r)
@@ -521,9 +536,9 @@ func (s *heldSession) taking(requests []heldRequest) {
 			continue
 		}
 		if byDate[date] == nil {
-			byDate[date] = make(map[string][]flight)
+			byDate[date] = make(map[string][]knownLine)
 		}
-		byDate[date][r.request] = append(byDate[date][r.request], r.flight)
+		byDate[date][r.request] = append(byDate[date][r.request], knownLine{flight: r.flight, sum: r.sum})
 	}
 	for date, flights := range byDate {
 		s.flights[date] = s.flights[date].with(flights, len(flights), mergedFlights)
@@ -531,7 +546,7 @@ func (s *heldSession) taking(requests []heldRequest) {
 }
 
 // mergedFlights are the flights under and over, afresh.
-func mergedFlights(under, over map[string][]flight) map[string][]flight {
+func mergedFlights(under, over map[string][]knownLine) map[string][]knownLine {
 	merged := maps.Clone(under)
 	for id, flights := range over {
 		merged[id] = append(slices.Clip(merged[id]), flights...)
@@ -649,6 +664,14 @@ func (h HeldSessions) With(found HeldSessions) HeldSessions {
 	if !found.fed.IsZero() && found.fed.Before(h.fed) {
 		h.fed, h.day = found.fed, found.day
 	}
+	return h
+}
+
+// Without is h holding none of the sessions held holds, else as it's held:
+// what held.With(h) takes of h.
+func (h HeldSessions) Without(held HeldSessions) HeldSessions {
+	h.sessions = maps.Clone(h.sessions)
+	maps.DeleteFunc(h.sessions, func(id string, _ *heldSession) bool { _, ok := held.sessions[id]; return ok })
 	return h
 }
 

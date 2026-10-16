@@ -51,8 +51,11 @@ func takenOf(lines []ledger.Held) takenLines {
 // distinct are requests, a session's, as a read gives them, each once, in
 // the order every story takes them in, as inOrder has it: a request is
 // known by its id and when it arrived, as keyOf knows its line, so one of
-// the same id that arrived at the same moment as one before it is the same
-// line given again, and passed over. Requests without ids are each kept.
+// the same id that arrived at the same moment as one before it is taken for
+// the same line given again, and passed over, even where it says otherwise
+// of its request: the first given is kept, as the store, given the other
+// in a read of its own, reads the session whole to keep it too, as gained
+// has it. Requests without ids are each kept.
 func distinct(requests []heldRequest) []heldRequest {
 	seen := make(map[lineKey]bool, len(requests))
 	kept := slices.DeleteFunc(requests, func(r heldRequest) bool {

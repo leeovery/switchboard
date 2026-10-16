@@ -325,9 +325,12 @@ type Model struct {
 	// Switchboard and its List as the last look built them, and whether the
 	// List is held. held are the sessions its readers want, the store
 	// views.HeldSessions holds, fed once a read of the ledger's tail: none
-	// till the List's first read lands.
+	// till the List's first read lands. merged are the sessions taken into
+	// it while a read of the tail is under way, as heldWith takes them, for
+	// the store the read fed to take as it lands.
 	sessionsTab sessionsTab
 	held        views.HeldSessions
+	merged      views.HeldSessions
 	// runwayTab is what the watch holds of Runway: what it shows, its lanes
 	// as the last look built them, and the readings history's tail they're
 	// judged by; and pool what it holds of the pool's charts GRAPHS draws

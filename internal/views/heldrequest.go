@@ -2,6 +2,7 @@ package views
 
 import (
 	"cmp"
+	"hash/maphash"
 	"slices"
 	"strings"
 	"time"
@@ -31,6 +32,8 @@ type heldRequest struct {
 	// is.
 	worth  ledger.Worth
 	priced bool
+	// sum is what its line says of it, summed, as sumOf has it.
+	sum uint64
 }
 
 // heldRequestOf returns the request of the line l, decoded once, unpriced.
@@ -38,10 +41,37 @@ func heldRequestOf(l *ledger.Line) heldRequest {
 	spend := ledger.SpendOf(l)
 	life, _ := spend.CacheLife()
 	return heldRequest{
-		flight: flightOf(l), tried: l.Tried, spend: spend, life: life,
+		flight: flightOf(l), tried: l.Tried, spend: spend, life: life, sum: sumOf(l),
 		dir: unique.Make(l.Dir), model: unique.Make(l.Model), account: unique.Make(l.Account), reason: unique.Make(l.Reason),
 		from: unique.Make(l.From), class: unique.Make(l.Class), agentID: unique.Make(l.AgentID), geo: unique.Make(l.Shape.InferenceGeo),
 	}
+}
+
+// linesSeed seeds every sum of a line, as sumOf has it: one seed for the
+// run, as a sum is held no longer than the run.
+var linesSeed = maphash.MakeSeed()
+
+// sumOf is a sum of all heldRequestOf decodes of the line l, its spend as
+// the usage, kind and upstream it's decoded of: two lines whose sums differ
+// say otherwise of their request, and two whose sums are the same say the
+// same of it, but by a chance of one in 2^64.
+func sumOf(l *ledger.Line) uint64 {
+	var h maphash.Hash
+	h.SetSeed(linesSeed)
+	maphash.WriteComparable(&h, struct {
+		request, dir, model, account, reason, from, class, agentID, geo, kind string
+		at, end                                                               instant
+		upstream                                                              bool
+		tried                                                                 int
+	}{
+		l.Request, l.Dir, l.Model, l.Account, l.Reason, l.From, l.Class, l.AgentID, l.Shape.InferenceGeo, l.Kind,
+		instantOf(l.At), instantOf(ended(l)), l.Upstream(), len(l.Tried),
+	})
+	for _, t := range l.Tried {
+		maphash.WriteComparable(&h, t)
+	}
+	_, _ = h.Write(l.Usage)
+	return h.Sum64()
 }
 
 // heldRequestsOf returns the requests among lines, a session's, as isRequest
@@ -179,8 +209,8 @@ func (f flight) inFlightAt(at time.Time) bool {
 	return inFlight(at, f.arrived(), f.ended())
 }
 
-// key is f as a held List knows a line from another, as keyOf has it of the
-// line, reporting false where it has no id.
+// key is f as a request is known from another, as keyOf has it of its line,
+// reporting false where it has no id.
 func (f flight) key() (lineKey, bool) {
 	return lineKey{request: f.request, at: f.at}, f.request != ""
 }
