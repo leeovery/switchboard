@@ -58,6 +58,10 @@ worked on there till they're right.
   unused: "Let the graphs be full width there."
 - **A phone's view tabs** (Compare, Detail) draw their highlight hard against the word, no cell
   before it, so it reads left-aligned: a cell either side, as the page's tabs have.
+- **A card left open reads as a hang.** Under a card the page holds as it stood when the card
+  opened (`watch.go` screen: `m.page.frame` at `m.page.at`), its clock included. A dashboard left
+  with a card open on the phone at 08:28 was taken for one that had frozen, its keys no longer
+  reaching it over Mosh. To decide: whether the heading's clock stays live under a card.
 
 ## Loading
 
