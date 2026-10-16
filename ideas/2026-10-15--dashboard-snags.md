@@ -20,6 +20,36 @@ come back to after the patch.
 - **The blank rows between the blocks differ:** two after the 5-hour's and the week's pools, one
   after Fable week's before the key; and the sections below are cramped while every one shows.
 
+## On a phone, 16 October
+
+Seen on an iPhone 17 Pro Max in Blink, over Mosh into tmux, the dashboard the last tab: portrait
+73×61, about 73×35 with the keyboard up; landscape about 138×30, about 138×15 with the keyboard up.
+"Making it work well on my phone, my iPad, and my desktop is a priority, especially the phone."
+The owner's plan: the screens drawn into Paper on each device's grid, portrait and landscape, and
+worked on there till they're right.
+
+- **The phone layout is drawn for 52 columns.** At 73, Compare, Detail, the Year and the List
+  leave a third of the width empty, while the header, status line and key line run full width.
+  "No one has phones that small anymore."
+- **Names cut short where there's room,** to 8–11 cells, so two labels that differ at their end
+  read alike: the Log, Sessions' Switchboard, the List, Tokens.
+- **In landscape,** Detail uses under half the width; the Year shows the same 22 weeks it does in
+  portrait; Days draws its blocks at the left and its figures at the far right, a gap between.
+  The Overview stretches well, but needs scrolling; Compare and Tokens read well.
+- **Runway** reads best of every view, portrait and landscape, but:
+  - under the pool's bars, its key and words are cramped against them, with blank rows spare
+    below; and on a phone in portrait with the keyboard up COMING UP is cut to its first line;
+  - in landscape with the keyboard up (about 15 rows) it draws no lane at all: "it'd be better to
+    show something than nothing";
+  - the owner would put `Σ pool` at the top, not the bottom ("I think that was a mistake"), and
+    drop the rule above it now it's named and marked; perhaps a texture on its bars, to discuss.
+- **The key floats mid-page,** on Sessions' Switchboard most: the owner's idea, to spike, is the
+  key at the foot with the key line, a footer of two, any other words above it.
+- **The List's summary** sits right-aligned on the row over the key line, so it reads as the key
+  line broken onto two rows, its right half higher.
+- **Weeks says there aren't enough weeks yet** on a ledger begun 7 October: check that's the rule,
+  not a fault.
+
 ## Accounts' Detail
 
 - **The period keys need shift.** `<` `>` are shifted keys on most keyboards. The owner found it
