@@ -1,6 +1,7 @@
 package views_test
 
 import (
+	"maps"
 	"slices"
 	"testing"
 	"time"
@@ -308,4 +309,68 @@ func TestTheStoreAwaitsTheLineOfARequestThatEndedAcrossMidnight(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A store given the sessions of another's read, as a reader's own read holds
+// them, is as last fed as the earlier of the two, whichever it is: across
+// midnight, it reads the day before again whole, as the tail missed it, for
+// the sessions held of the read on it, and takes in the line one of them
+// gained on it after that read, as one read whole holds it.
+func TestTheStoreGivenAnothersSessionsReadsAgainTheDaysEitherMissed(t *testing.T) {
+	first := sessionAsked("o1", older, "work", "new", october(6, 23, 0))
+	late := sessionAsked("o2", older, "work", "sticky", october(6, 23, 55))
+	other := sessionAsked("e1", early, "work", "new", october(7, 0, 5))
+	night, morning, now := october(6, 23, 50), october(7, 0, 10), october(7, 0, 11)
+	atNight := listHeld(sessionsLedger([]ledger.Line{first}, night), nil, night)
+	atMorning := listHeld(sessionsLedger([]ledger.Line{first, late, other}, morning), nil, morning)
+	running := []status.Session{{ID: older, Assignments: []status.Assignment{{Model: opus, Account: "work", LastSeen: october(6, 23, 55)}}}}
+	l := sessionsLedger([]ledger.Line{first, late, other}, now)
+	tests := []struct {
+		name string
+		held views.HeldSessions
+	}{
+		{name: "fed the day before, given a read after midnight", held: atNight.With(atMorning)},
+		{name: "fed after midnight, given a read the day before", held: atMorning.With(atNight)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			unread := tt.held.Unread([]string{"2026-10-06"})
+			if !slices.Equal(unread, []string{"2026-10-06"}) {
+				t.Fatalf("the store reads again whole the days %v, want the day before, its sessions held of the read on it", unread)
+			}
+			days := make(map[string][]ledger.Held)
+			for _, date := range unread {
+				days[date] = l.Day(date)
+			}
+			fed, _ := tt.held.Fed(l, views.Took(nil, days), views.ListWanted(running, views.Stream{}), now)
+			assertList(t, fed.List(views.ListLive{Running: running, Now: now}),
+				views.ListSessions(views.SessionSources{Running: running, Ledger: l, Prices: ledger.Pricing, Now: now}))
+			if got, want := fed.Holding().Open, listHeld(l, running, now).Holding().Open; !maps.Equal(got, want) {
+				t.Errorf("the store holds %v requests open, want %v, as one read whole holds them", got, want)
+			}
+		})
+	}
+}
+
+// A request the stream tells of in flight pins its session's horizon for up
+// to pinnedFor, though the stream tells too of an older one, lost longer ago
+// than that: the line of the one in flight, landing two hours on, is taken
+// in, its session not read whole, as the List built afresh has it.
+func TestARequestInFlightPinsItsSessionPastAnOlderOneLost(t *testing.T) {
+	first := sessionAsked("p1", paged, "work", "new", local(10, 0, 0))
+	sent := toldOf("p3", p1, ledger.ClassMain, opus, "work", local(11, 0, 0))
+	lost := lostAt(local(6, 0, 30), toldOf("p2", p1, ledger.ClassMain, opus, "work", local(6, 0, 0)))
+	long := took(2*time.Hour+10*time.Minute, sessionAsked("p3", paged, "work", "sticky", local(10, 59, 59)))
+	inFlight := views.ListWanted(nil, heard(lost, sent))
+	held, _ := views.HoldSessions(ledger.Pricing).Fed(sessionsLedger([]ledger.Line{first}, local(11, 30, 0)), views.Taken{}, inFlight, local(11, 30, 0))
+	for _, at := range []time.Time{local(12, 0, 0), local(12, 30, 0), local(13, 0, 0)} {
+		held, _ = held.Fed(sessionsLedger([]ledger.Line{first}, at), views.Taken{}, inFlight, at)
+	}
+	ended := heard(lost, endedAt(local(13, 9, 59), sent))
+	l := sessionsLedger([]ledger.Line{first, long}, now)
+	held, _ = held.Fed(l, views.Took(heldOf(long), nil), views.ListWanted(nil, ended), now)
+	if got := held.Holding(); got.Read != 0 || got.Gained != 1 {
+		t.Errorf("the feed of its line read %d requests whole and gained %d, want none read whole, the line gained", got.Read, got.Gained)
+	}
+	assertList(t, held.List(views.ListLive{Stream: ended, Now: now}), views.ListSessions(views.SessionSources{Stream: ended, Ledger: l, Prices: ledger.Pricing, Now: now}))
 }

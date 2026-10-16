@@ -145,6 +145,9 @@ func (m Model) readTail(now time.Time) (Model, tea.Cmd) {
 	if page != nil {
 		page.late = late
 	}
+	if held != nil {
+		held.late = late
+	}
 	m.tail = m.tail.asking()
 	return m, func() tea.Msg {
 		read, next := readLines(r.ledger, mark, late)

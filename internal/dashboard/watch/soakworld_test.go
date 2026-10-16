@@ -36,15 +36,17 @@ const (
 )
 
 // soakPace is how busy the soak's world is: rate requests a day, each
-// answer's progress told every step.
+// answer's progress told every step, each session listed by the router for
+// listed after it was last seen.
 type soakPace struct {
-	rate int
-	step time.Duration
+	rate   int
+	step   time.Duration
+	listed time.Duration
 }
 
 // ownersPace is the owner's: 25,000 requests a day, progress told every
-// second.
-var ownersPace = soakPace{rate: 25000, step: time.Second}
+// second, each session listed for an hour after it was last seen.
+var ownersPace = soakPace{rate: 25000, step: time.Second, listed: time.Hour}
 
 // gap is how long after each request the world sends the next.
 func (p soakPace) gap() time.Duration {
@@ -417,12 +419,13 @@ func (w *soakWorld) document(now time.Time) status.Document {
 	return doc
 }
 
-// listed are the sessions the router lists at now: those seen in the last
-// hour, the one seen last first, each on the account it went out on last.
+// listed are the sessions the router lists at now: those seen within its
+// pace's listed, the one seen last first, each on the account it went out
+// on last.
 func (w *soakWorld) listed(now time.Time) []status.Session {
 	var sessions []status.Session
 	for g, seen := range w.seen {
-		if now.Sub(seen) > time.Hour {
+		if now.Sub(seen) > w.pace.listed {
 			delete(w.seen, g)
 			continue
 		}

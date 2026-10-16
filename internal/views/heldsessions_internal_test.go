@@ -190,24 +190,26 @@ func (f *feeding) gainsLong(now time.Time, days map[string][]ledger.Held) bool {
 }
 
 // ruled is the session's horizon at now as the rule has it, before the
-// horizon it last had: openFor before now, or a moment before its pin,
-// arrivesWithin, where that's earlier and the pin less than pinnedFor
-// before now.
+// horizon it last had: openFor before now, or a moment before the earliest
+// of its pins no more than pinnedFor before now, arrivesWithin, where
+// that's earlier.
 func (f *feeding) ruled(now time.Time) instant {
 	horizon := now.Add(-openFor)
-	if pin, ok := f.pins(now)["s"]; ok && now.Sub(pin) <= pinnedFor && pin.Add(-arrivesWithin).Before(horizon) {
-		horizon = pin.Add(-arrivesWithin)
+	for _, pin := range f.pins(now)["s"] {
+		if now.Sub(pin) <= pinnedFor && pin.Add(-arrivesWithin).Before(horizon) {
+			horizon = pin.Add(-arrivesWithin)
+		}
 	}
 	return instantOf(horizon)
 }
 
-// pins are the session's pin at now: when the earliest of its requests in
-// flight then arrived, but for the one the stream never told of.
-func (f *feeding) pins(now time.Time) map[string]time.Time {
-	pins := make(map[string]time.Time)
+// pins are the session's pins at now: when each of its requests in flight
+// then arrived, but for the one the stream never told of.
+func (f *feeding) pins(now time.Time) map[string][]time.Time {
+	pins := make(map[string][]time.Time)
 	for _, line := range f.lines {
-		if pin, ok := pins["s"]; line.Request != unseen && !line.At.After(now) && ended(&line).After(now) && (!ok || line.At.Before(pin)) {
-			pins["s"] = line.At
+		if line.Request != unseen && !line.At.After(now) && ended(&line).After(now) {
+			pins["s"] = append(pins["s"], line.At)
 		}
 	}
 	return pins
@@ -411,5 +413,36 @@ func TestTheStoreFedLookByLookTellsWhatOneReadAtOnceTells(t *testing.T) {
 		if !met[moment] {
 			t.Errorf("no generated run meets %s", moment)
 		}
+	}
+}
+
+// A store whose day was set in another zone than the clock's now, as the
+// zone changed since it was last fed, holds none of what it held: its next
+// feed reads its sessions whole, as when the clock was set back. Fed again
+// in the zone it was fed in, it reads none.
+func TestTheStoreFedInAnotherZoneIsReadWhole(t *testing.T) {
+	lines := generatedSession(1)
+	at := ended(&lines[len(lines)-1]).Add(time.Minute)
+	l := filedLedger{lines: lines, now: at}
+	want := SessionsWanted{Page: "s"}
+	held, _ := HoldSessions(ledger.Pricing).Fed(l, Taken{}, want, at)
+	_, offset := at.Zone()
+	tests := []struct {
+		name string
+		zone *time.Location
+		read bool
+	}{
+		{name: "fed in the clock's zone", zone: time.Local},
+		{name: "fed in another", zone: time.FixedZone("elsewhere", offset+3*60*60), read: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := held
+			h.day.Start = dayfile.DayStart(h.fed.In(tt.zone), 0)
+			fed, _ := h.Fed(l, Taken{}, want, at.Add(time.Minute))
+			if got := fed.Holding().Read > 0; got != tt.read {
+				t.Errorf("the next feed read %d requests whole, want them read whole %t", fed.Holding().Read, tt.read)
+			}
+		})
 	}
 }

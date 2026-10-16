@@ -470,14 +470,15 @@ type Mark struct {
 // Mark they're read to. Each is the line it reads as alone, none of its JSON
 // held: the follower holds every one of today's for whoever reads them from
 // the zero Mark, and the dashboard that follows them never reads it. A verb
-// that writes lines as the ledger holds them reads them through a Reader. Where mark is the zero Mark, or one of today's lines
-// as they were before they were read afresh, as when the day turned since,
-// or one of the days' files was replaced, or shrunk, they're every one of
-// today's, as Reader.Lines gives them from today's start, and afresh reports
-// it, for those read before to be let go of. A line still being written, cut
-// short, is given once it's whole. The days' files are read as they grow,
-// those of the day before's to the day after's, as a change of time zone
-// files a line under a date beside its own.
+// that writes lines as the ledger holds them reads them through a Reader.
+// Where mark is the zero Mark, or one of today's lines as they were before
+// they were read afresh, as when the day turned since, or one of the days'
+// files was replaced, or shrunk, they're every one of today's, as
+// Reader.Lines gives them from today's start, and afresh reports it, for
+// those read before to be let go of. A line still being written, cut short,
+// is given once it's whole. The days' files are read as they grow, those of
+// the day before's to the day after's, as a change of time zone files a line
+// under a date beside its own.
 func (f *Follower) Today(mark Mark) (lines []Held, next Mark, afresh bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

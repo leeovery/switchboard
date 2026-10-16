@@ -16,23 +16,28 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// The soak's guard: a soak of the dashboard over a world a fifth as busy as
+// The soak's guard: a soak of the dashboard over a world far quieter than
 // the owner's, run across midnight, holding what each reader reads and
 // holds to what it shows, exactly, at every read of the ledger. The heap
 // isn't held to a number: the full soak, behind -soak, reports it.
 
-// guardPace is the guarded world's: 5,000 requests a day, each answer's
-// progress told every five seconds.
-var guardPace = soakPace{rate: 5000, step: 5 * time.Second}
+// guardPace is the guarded world's: 600 requests a day, each answer's
+// progress told every five seconds, each session listed for three minutes
+// after it was last seen, so most of the day before's are let go of as the
+// day turns. Across the guard's run, one request is in flight as it starts,
+// one goes out at midnight, arriving moments before it, its line filed on
+// the day before after the day turned, and the long session's first request
+// of the new day moves it.
+var guardPace = soakPace{rate: 600, step: 5 * time.Second, listed: 3 * time.Minute}
 
 // guardDays are the days the guarded world has run as the guard starts, at
-// guardStart, ten minutes before midnight; guardEnd is when it ends, once
-// the sessions last seen before midnight have stopped running an hour.
-const guardDays = 3
+// guardStart, two minutes before midnight; guardEnd is when it ends, once
+// the day before is no longer read again.
+const guardDays = 2
 
 var (
-	guardStart = time.Date(start.Year(), start.Month(), start.Day(), 23, 50, 0, 0, start.Location())
-	guardEnd   = guardStart.Add(72*time.Minute + 30*time.Second)
+	guardStart = time.Date(start.Year(), start.Month(), start.Day(), 23, 58, 0, 0, start.Location())
+	guardEnd   = guardStart.Add(8*time.Minute + 30*time.Second)
 )
 
 // The rule the store keeps its sessions' requests open by, as the guard
@@ -103,15 +108,15 @@ func (c *countingLedger) SessionsOf(ids []string, take func(string, ledger.Line)
 // before today is read again only as the day turns, for the lines of the
 // requests that ended across midnight; and a feed folds only what it gained
 // and the requests the store held open, none open longer than the store's
-// rule keeps it. Half an hour into the day and at the end, the store holds
-// today's sessions and those running alone, having let go by the end of
-// those that stopped running before midnight; and as the day turns, just
-// after, and at the end, an hour on, the List of the store as the reads fed
-// it is the List of one read whole.
+// rule keeps it. As the run starts, once the day before is no longer read
+// again, and at the end, the store holds today's sessions and those running
+// alone, having let go by the end of those that stopped running before
+// midnight; and as the day turns, just after, and at the end, the List of
+// the store as the reads fed it is the List of one read whole.
 func TestTheStoreHoldsOnlyWhatTheListShows(t *testing.T) {
 	midnight := dayfile.DayStart(guardStart, 1)
 	last := guardEnd.Add(-2 * lookEvery)
-	g := &storeGuard{t: t, ids: make(map[int]string), held: []time.Time{midnight.Add(30 * time.Minute), last},
+	g := &storeGuard{t: t, ids: make(map[int]string), held: []time.Time{guardStart, midnight.Add(guardLateFor), last},
 		checks: []time.Time{midnight, midnight.Add(90 * time.Second), last}}
 	s := newSoak(t, soakSetup{start: guardStart, days: guardDays, pace: guardPace, guard: g})
 	s.show("sessions")
@@ -120,6 +125,10 @@ func TestTheStoreHoldsOnlyWhatTheListShows(t *testing.T) {
 	}
 	s.runUntil(guardEnd)
 	g.judged(s.h.model)
+	crossed := func(r soakRequest) bool { return r.arrived().Before(midnight) && r.done.After(midnight) }
+	if !slices.ContainsFunc(s.w.filedFrom(guardStart), crossed) {
+		t.Fatal("the world filed no request that arrived before midnight and ended after it, want one, its line read late")
+	}
 	if len(g.checks) > 0 || len(g.held) > 0 {
 		t.Errorf("no read of the tail landed after %v to compare the store at, nor after %v to see what it holds", g.checks, g.held)
 	}
@@ -307,11 +316,14 @@ func (g *storeGuard) fedFrom(was views.Holding, now time.Time) {
 }
 
 // horizonOf is the horizon the rule gives the session with the given id at
-// now, its pin as the feed was given it.
+// now, its pins as the feed was given them: the earliest within
+// guardPinnedFor holds it back.
 func (g *storeGuard) horizonOf(id string, now time.Time) time.Time {
 	horizon := now.Add(-guardOpenFor)
-	if pin, ok := g.want.Pins[id]; ok && now.Sub(pin) <= guardPinnedFor && pin.Add(-guardArrives).Before(horizon) {
-		horizon = pin.Add(-guardArrives)
+	for _, pin := range g.want.Pins[id] {
+		if now.Sub(pin) <= guardPinnedFor && pin.Add(-guardArrives).Before(horizon) {
+			horizon = pin.Add(-guardArrives)
+		}
 	}
 	return horizon
 }

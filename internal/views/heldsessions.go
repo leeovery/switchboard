@@ -81,16 +81,16 @@ type feedCounts struct {
 // SessionsWanted are the sessions the readers of the store want held: where
 // List is set, today's, those with a request today, and those running, as
 // the router lists them, by their ids; the session whose page is open; and
-// those of the Log's days. Pins are when each session's earliest request
-// the stream tells of went upstream, by its id: its pin, which holds its
-// later requests open, as the line of one that arrived before them may yet
-// come.
+// those of the Log's days. Pins are when each of a session's requests the
+// stream tells of went upstream, by its id, in no order: each a pin, which
+// holds the session's later requests open, as the line of one that arrived
+// before them may yet come.
 type SessionsWanted struct {
 	List    bool
 	Running []string
 	Page    string
 	Log     []string
-	Pins    map[string]time.Time
+	Pins    map[string][]time.Time
 }
 
 // ListWanted is what the List wants of the store: today's sessions and
@@ -100,12 +100,11 @@ func ListWanted(running []status.Session, s Stream) SessionsWanted {
 	return SessionsWanted{List: true, Running: runningIDs(running), Pins: pinsOf(s)}
 }
 
-// pinsOf are when the earliest of each session's requests s tells of went
-// upstream, by the session's id, or, of one yet to go, when s last told of
-// it: in flight, or with its line to come, as s holds a request till its
-// line is read.
-func pinsOf(s Stream) map[string]time.Time {
-	pins := make(map[string]time.Time)
+// pinsOf are when each of the requests s tells of went upstream, or, of
+// one yet to go, when s last told of it, by its session's id: in flight, or
+// with its line to come, as s holds a request till its line is read.
+func pinsOf(s Stream) map[string][]time.Time {
+	pins := make(map[string][]time.Time)
 	for _, t := range s.Requests {
 		session := t.countedSession()
 		if session == "" {
@@ -115,9 +114,7 @@ func pinsOf(s Stream) map[string]time.Time {
 		if sent.IsZero() {
 			sent = t.Heard
 		}
-		if pin, ok := pins[session]; !ok || sent.Before(pin) {
-			pins[session] = sent
-		}
+		pins[session] = append(pins[session], sent)
 	}
 	return pins
 }
@@ -334,15 +331,28 @@ func (f *feed) hold(id string, lines []ledger.Line) {
 
 // horizonOf is the horizon of the session with the given id at the feed's
 // time, before a moment it last had: openFor before then, or earlier, where
-// a request the stream tells of went upstream, its pin, less than
-// pinnedFor before, a moment earlier than it, as it may have arrived
+// the earliest of its pins within pinnedFor before then is, as pinOf has
+// it, a moment earlier than it, as its request may have arrived
 // arrivesWithin before.
 func (f *feed) horizonOf(id string) instant {
 	horizon := f.now.Add(-openFor)
-	if pin, ok := f.want.Pins[id]; ok && f.now.Sub(pin) <= pinnedFor && pin.Add(-arrivesWithin).Before(horizon) {
+	if pin, ok := f.pinOf(id); ok && pin.Add(-arrivesWithin).Before(horizon) {
 		horizon = pin.Add(-arrivesWithin)
 	}
 	return instantOf(horizon)
+}
+
+// pinOf is the earliest pin of the session with the given id no more than
+// pinnedFor before the feed's time, reporting false where it has none: one
+// earlier may be of a request lost, whose line never comes.
+func (f *feed) pinOf(id string) (time.Time, bool) {
+	var earliest time.Time
+	for _, pin := range f.want.Pins[id] {
+		if f.now.Sub(pin) <= pinnedFor && (earliest.IsZero() || pin.Before(earliest)) {
+			earliest = pin
+		}
+	}
+	return earliest, !earliest.IsZero()
 }
 
 // seal seals each session's requests behind its horizon, as it moves on at
@@ -621,7 +631,10 @@ func (m move) same(o move) bool {
 
 // With is h with the sessions found, held of reads of their own, as the
 // List's first read holds them, that h doesn't hold: none it holds is
-// changed. Where h was never fed, it's found itself.
+// changed. It's as last fed as the earlier fed of the two, so the days a
+// read of the ledger's tail reads again for it, as Unread has them, are
+// those any session it holds may have missed lines of. Where h was never
+// fed, it's found itself.
 func (h HeldSessions) With(found HeldSessions) HeldSessions {
 	if h.fed.IsZero() && len(h.sessions) == 0 {
 		return found
@@ -633,7 +646,7 @@ func (h HeldSessions) With(found HeldSessions) HeldSessions {
 		}
 	}
 	h.sessions, h.listing = sessions, h.listing || found.listing
-	if found.fed.After(h.fed) {
+	if !found.fed.IsZero() && found.fed.Before(h.fed) {
 		h.fed, h.day = found.fed, found.day
 	}
 	return h
@@ -644,17 +657,19 @@ func (h HeldSessions) With(found HeldSessions) HeldSessions {
 // rolled on to it, as on has it, as a look before a feed rolls them sees.
 func (h HeldSessions) at(now time.Time) HeldSessions {
 	day := Today(now)
-	stale := func(s *heldSession) bool { return s.day().Date < day.Date }
-	if !slices.ContainsFunc(slices.Collect(maps.Values(h.sessions)), stale) {
-		return h
-	}
-	rolled := maps.Clone(h.sessions)
+	var rolled map[string]*heldSession
 	for id, s := range h.sessions {
-		if stale(s) {
-			rolled[id] = s.on(day, h.prices)
+		if s.day().Date >= day.Date {
+			continue
 		}
+		if rolled == nil {
+			rolled = maps.Clone(h.sessions)
+		}
+		rolled[id] = s.on(day, h.prices)
 	}
-	h.sessions = rolled
+	if rolled != nil {
+		h.sessions = rolled
+	}
 	return h
 }
 
