@@ -345,16 +345,15 @@ func TestAReadingAsHighArrivingLateLiftsNoLimit(t *testing.T) {
 // answer tells of it lifting early, the news of it, where it was in force
 // as it lifted: not of one that had ended by then.
 func TestALimitLiftsOnlyOnTheAnswerToARequestSentSinceItWasSet(t *testing.T) {
-	admitted := func(s *state, sent moment) (LimitLifted, bool) { return s.admitted("work", sent) }
+	admitted := func(s *state, sent moment) []LimitLifted { return s.admitted("work", sent) }
 	// readRoom reads work's Fable week with room, which the 429 that set the
 	// limit didn't read.
-	readRoom := func(s *state, sent moment) (LimitLifted, bool) {
+	readRoom := func(s *state, sent moment) []LimitLifted {
 		return s.record("work", []quota.Window{fableWeek}, sent)
 	}
 	// probeRoom has a probe read it so, answered with success.
-	probeRoom := func(s *state, sent moment) (LimitLifted, bool) {
-		taken := s.recordProbe("work", quota.Probe{Windows: []quota.Window{fableWeek}, Admitted: true}, nil, sent, readings.FromProbe)
-		return taken.lifted, taken.liftedEarly
+	probeRoom := func(s *state, sent moment) []LimitLifted {
+		return s.recordProbe("work", quota.Probe{Windows: []quota.Window{fableWeek}, Admitted: true}, nil, sent, readings.FromProbe).lifted
 	}
 	until := start.Add(72 * time.Hour)
 	tests := []struct {
@@ -362,7 +361,7 @@ func TestALimitLiftsOnlyOnTheAnswerToARequestSentSinceItWasSet(t *testing.T) {
 		// reached are the windows the limit was reached in.
 		reached []string
 		// answer answers a request on work, sent at sent, at.
-		answer func(s *state, sent moment) (LimitLifted, bool)
+		answer func(s *state, sent moment) []LimitLifted
 		at     time.Time
 		// since is set when the request was sent after the limit was set.
 		since      bool
@@ -393,14 +392,65 @@ func TestALimitLiftsOnlyOnTheAnswerToARequestSentSinceItWasSet(t *testing.T) {
 				clock.now = tt.at
 			}
 
-			news, told := tt.answer(s, sent)
+			news := tt.answer(s, sent)
 			if lifted := !s.usage["work"].limited.inForce(start); lifted != tt.wantLifted {
 				t.Errorf("the limit lifted = %v, want %v", lifted, tt.wantLifted)
 			}
-			if want := (LimitLifted{Account: "work", Limit: 1}); told != tt.wantTold || told && news != want {
-				t.Errorf("the answer tells of %+v: %v, want %v, of %+v", news, told, tt.wantTold, want)
+			var want []LimitLifted
+			if tt.wantTold {
+				want = []LimitLifted{{Account: "work", Limit: 1}}
+			}
+			if !slices.Equal(news, want) {
+				t.Errorf("the answer tells of %+v, want %+v", news, want)
 			}
 		})
+	}
+}
+
+// An older limit a later one took the place of lifts as a reading shows its
+// windows with room, by the rule that lifts the one the account holds, and
+// the reading tells of it, the later limit holding still; lifted, it's
+// never reached again, so a limit reached in its window after is another.
+func TestAnOlderLimitLiftsAsTheReadingsShowItThoughALaterOneHolds(t *testing.T) {
+	clock := &testClock{now: start}
+	s := newTestState(clock)
+	s.record("work", []quota.Window{session, week, fableWeek}, s.mark())
+	s.limit("work", []string{"7d_oi"}, start.Add(72*time.Hour), s.mark())
+	clock.now = start.Add(time.Minute)
+	s.limit("work", []string{"5h"}, start.Add(3*time.Hour), s.mark())
+	clock.now = start.Add(2 * time.Minute)
+
+	if got, want := s.record("work", []quota.Window{fableWeek}, s.mark()), []LimitLifted{{Account: "work", Limit: 1}}; !slices.Equal(got, want) {
+		t.Errorf("the reading tells of %+v lifting, want %+v, the Fable week's limit", got, want)
+	}
+	if got := s.usage["work"].limited; got.id != 2 || !got.inForce(clock.now) {
+		t.Errorf("work holds %+v, want the 5-hour's limit, 2, still in force", got)
+	}
+	if got, _ := s.limit("work", []string{"7d_oi"}, start.Add(72*time.Hour), s.mark()); got.Again || got.Limit == 1 {
+		t.Errorf("limit() = %+v, want a limit of its own, not the Fable week's lifted one reached again", got)
+	}
+}
+
+// An older limit, reached again before a later one took its place, lifts by
+// the rule the one the account holds does: only on the answer to a request
+// sent since it was last reached, as one sent before may show room there was
+// before it.
+func TestAnOlderLimitLiftsOnlyOnTheAnswerToARequestSentSinceItWasLastReached(t *testing.T) {
+	clock := &testClock{now: start}
+	s := newTestState(clock)
+	s.record("work", []quota.Window{session, week, fableWeek}, s.mark())
+	s.limit("work", []string{"7d_oi"}, start.Add(72*time.Hour), s.mark())
+	between := s.mark()
+	s.limit("work", []string{"7d_oi"}, start.Add(72*time.Hour), s.mark())
+	clock.now = start.Add(time.Minute)
+	s.limit("work", []string{"5h"}, start.Add(3*time.Hour), s.mark())
+	clock.now = start.Add(2 * time.Minute)
+
+	if got := s.record("work", []quota.Window{fableWeek}, between); len(got) > 0 {
+		t.Errorf("the answer to a request sent before the Fable week's limit was reached again tells of %+v lifting, want none", got)
+	}
+	if got, want := s.record("work", []quota.Window{fableWeek}, s.mark()), []LimitLifted{{Account: "work", Limit: 1}}; !slices.Equal(got, want) {
+		t.Errorf("the answer to a request sent since tells of %+v lifting, want %+v, the Fable week's limit", got, want)
 	}
 }
 

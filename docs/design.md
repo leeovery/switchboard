@@ -5573,7 +5573,9 @@ verbs).
     while it holds; `windows` the windows named as reached, and `until` when it lifts, brought
     forward should it lift early, as a refusal's is, whether or not the account has room then: its
     cap or a refused token can hold it on, so no `room` event tells the lift, and the next limit is
-    dated from its own start; and `count` and `to`, as a cap's are.
+    dated from its own start. A limit a later one took the place of lifts early alike, as a reading
+    shows its windows with room by the rule that lifts the one the account holds, though the router
+    routes by the later; and `count` and `to`, as a cap's are.
   - `moved`: a session's requests of a model moving to another account: `session` and `model`;
     `from`, `to` and `reason`; `limit`, the id of the limit's event, for a move that limit forced,
     holding the session's request back; and `forced_by`, the id of the event whose moves it counts
@@ -5597,13 +5599,16 @@ verbs).
   - `restart`: one falling due: `reason` why, as the status document's `restart` gives it.
   - `health`: the router's health turning: `reason` as it turns unhealthy, none as it's well again.
 - **Joining:** a limit reached again while it holds joins its event, keeping its `id`, in whatever
-  order the news of it comes, unless it has lifted early: a lifted limit's `id` is never reached
-  again, so news of it reached that comes after the lift is from before it, and leaves the event as
-  the lift left it. Another limit reached meanwhile is an event of its own. A cap reached
-  again while it holds, in another window, joins its own the same way, and so does a refusal of the
-  account renewed while it holds. A window that joins a limit or a cap it didn't begin with is kept
-  in the event's `joined`, by its key, with when it joined, so a hold is dated from when each of its
-  windows began holding it.
+  order the news of it comes, and its lift's too: a lifted limit's `id` is never reached again, so
+  news of it reached that comes after the lift is from before it. Its windows join the event as of
+  the lift, its `until` not brought on past it; and where no event of it is kept yet, its event is
+  kept lifted then, ending as it begins at the soonest. The router remembers a lift as long as an
+  event begun then could change. Another limit reached meanwhile is an event of its own, and so is
+  one reached after a lift, which has an `id` of its own. A cap reached again while it holds, in
+  another window, joins its own the same way, and so does a refusal of the account renewed while it
+  holds. A window that joins a limit or a cap it didn't begin with is kept in the event's `joined`,
+  by its key, with when it joined, so a hold is dated from when each of its windows began holding
+  it.
 - **Kept in files,** so the Log and `events` look back across restarts:
   `<state dir>/ledger/events-<local date>.jsonl`, 0600 in the ledger's directory, a line an event,
   as the status document gives it, with `run`: when the router that told it started, as its

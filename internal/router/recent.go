@@ -51,6 +51,11 @@ type recent struct {
 	// heard of, so the news of a limit heard of before, whose event is no
 	// longer kept, is told from that of one yet to be.
 	limits map[string]int
+	// lifts holds when each limit lifted early, by its identity, as long as
+	// an event begun then could change: emits from different goroutines
+	// aren't ordered, so the news of a limit reached can come after its
+	// lift, of its event or before it's kept, and is told as lifted then.
+	lifts map[int]time.Time
 	// caps holds, by id, how each account read stood at its reserve as last
 	// looked at.
 	caps map[string]capped
@@ -72,6 +77,7 @@ func newRecent(state *state, sessions *sessions, now func() time.Time) *recent {
 		judge:    func() {},
 		nudge:    make(chan struct{}, 1),
 		limits:   make(map[string]int),
+		lifts:    make(map[int]time.Time),
 		caps:     make(map[string]capped),
 		short:    make(ranOut),
 		under:    make(map[string]bool),
@@ -91,10 +97,6 @@ type happening struct {
 	requests []refusedUntil
 	waits    awaiting
 	marked   bool
-	// lifted is set on a limit's event once the limit lifts early: a
-	// lifted limit's identity is never reached again, so news of it reached
-	// that's heard after is from before the lift, and never holds it on.
-	lifted bool
 }
 
 // mark marks the happening as changed, for it to be filed again once the
@@ -106,7 +108,13 @@ func (h *happening) mark() {
 // changes reports whether the event can still change at now: it began no
 // more than events.ChangesFor days before.
 func (h *happening) changes(now time.Time) bool {
-	return !now.After(h.At.AddDate(0, 0, events.ChangesFor))
+	return changesFrom(h.At, now)
+}
+
+// changesFrom reports whether an event begun at began can still change at
+// now, as changes says.
+func changesFrom(began, now time.Time) bool {
+	return !now.After(began.AddDate(0, 0, events.ChangesFor))
 }
 
 // event is the happening as the status document gives it, a copy.

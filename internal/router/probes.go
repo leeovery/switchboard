@@ -222,7 +222,7 @@ func (p *probes) stop() {
 }
 
 // probe reads an account's usage, as r, and notes how that went, telling of
-// the account's limit lifting early where its reading shows it.
+// each of the account's limits lifting early where its reading shows it.
 func (p *probes) probe(a account, r *run) {
 	// sent is marked before the token is read, so a token the account takes up
 	// after the read is marked after sent, and recordProbe judges this probe
@@ -235,8 +235,8 @@ func (p *probes) probe(a account, r *run) {
 		return
 	}
 	taken := p.state.recordProbe(a.ID, probed, err, sent, p.sourceOf(r))
-	if taken.liftedEarly {
-		p.emit(taken.lifted)
+	for _, lifted := range taken.lifted {
+		p.emit(lifted)
 	}
 	p.told(r)(a, went{probed: probed, err: err, at: at, took: took, tokenBefore: taken.tokenBefore})
 }
