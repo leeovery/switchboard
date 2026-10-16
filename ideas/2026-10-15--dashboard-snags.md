@@ -43,6 +43,11 @@ worked on there till they're right.
     show something than nothing";
   - the owner would put `Σ pool` at the top, not the bottom ("I think that was a mistake"), and
     drop the rule above it now it's named and marked; perhaps a texture on its bars, to discuss.
+  - the words under the pool's lane, "3 of 4 with room till ~Sat 11:18, 2 till ~Sat 20:47, 1 till
+    Sun 02:00, …", read its bar aloud a step at a time, crammed on one row: "I don't know even what
+    all that means, let alone if we need it." The owner likes "week 0.9 of 4 left" beside it;
+  - the pool's red `at its limit` line runs along the lane's bottom row, not through its middle as
+    the accounts' lanes have it, and looks wrong there: thicker, perhaps, to mock up. A nitpick.
 - **The key floats mid-page,** on Sessions' Switchboard most: the owner's idea, to spike, is the
   key at the foot with the key line, a footer of two, any other words above it.
 - **The List's summary** sits right-aligned on the row over the key line, so it reads as the key
