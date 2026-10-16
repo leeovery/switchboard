@@ -19,7 +19,8 @@ own reviews left. Each is an edge case or a cost with no wrong answer.
   reader's place would take a mapping between the two both ways. Where a change of unit was still
   pending as a key moved the focus, the reset undoes that move for one key. On Sessions at step 5,
   the unit can flip as calls come and go.
-- The routing card's cursor can sit below its cut on a terminal shorter than the card.
+- The routing card's cursor can sit below its cut, and act on an account not shown, on a terminal
+  8 rows tall or less.
 - Detail's name column is sized from the config's labels, where an older router's moment may name
   an account otherwise.
 
@@ -30,6 +31,12 @@ own reviews left. Each is an edge case or a cost with no wrong answer.
   is kept the hour once the Log reads that day back, the tail read at each look meanwhile; its row
   is right throughout.
 - A session's page holds the answer and line keys of days the session never ran on (memory only).
+- A request that never gets a line on the day tailed, cut off, its router gone mid-request, or its
+  line filed on an earlier day no reader awaits, keeps the ledger's tail re-read at every look for
+  the hour it's kept.
+- Reading a session's lines, a malformed line of another session whose `session` field decodes
+  counts as read, so the warning of lines unread undercounts, and counts differently by the session
+  asked for.
 
 ## The pool
 
@@ -42,6 +49,9 @@ own reviews left. Each is an edge case or a cost with no wrong answer.
   told of date a hold where the readings don't show one, which `Then`'s rule leaves out: the
   router's events would carry each window's own end, or the document's own limit would join what's
   told.
+- A past column of the pool's chart is known once any account's room is, and counts an account not
+  read by then as spent, as `Σ pool` counts one never read: an account added to the readings
+  history yesterday shows the pool more used before its first reading than the readings say.
 - An account idle longer than the readings tail's carry-in, about 14 days, counts unknown on the
   pool's chart, and days before the readings history's keep aren't summarised for it as they are
   for Runway.
