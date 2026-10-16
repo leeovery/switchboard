@@ -40,14 +40,14 @@ type HeldPage struct {
 // and when it arrived.
 type lineKey struct {
 	request string
-	at      int64
+	at      instant
 }
 
 // keyOf is the line l's key, reporting false where it has no id, as a line
 // from before the router gave requests ids, which is taken as often as it's
 // given.
 func keyOf(l *ledger.Line) (lineKey, bool) {
-	return lineKey{request: l.Request, at: l.At.UnixNano()}, l.Request != ""
+	return lineKey{request: l.Request, at: instantOf(l.At)}, l.Request != ""
 }
 
 // PageLive is what a session's page is built of beside its lines: the

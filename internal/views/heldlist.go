@@ -186,7 +186,12 @@ func (h HeldList) Awaited(live ListLive) []string {
 // lined reports whether the request t the stream told of is among requests,
 // its line come, as Told.FiledAs has it.
 func lined(requests []heldRequest, t Told) bool {
-	return slices.ContainsFunc(requests, func(r heldRequest) bool { return r.is(t.Request, t.Sent) })
+	for i := range requests {
+		if requests[i].is(t.Request, t.Sent) {
+			return true
+		}
+	}
+	return false
 }
 
 // Unread are the dates of those of the days missed, the days the ledger's

@@ -14,9 +14,9 @@ import (
 // decoded once: its flight; what its line names it by, each name interned, as
 // a session's requests name the same again and again; the accounts it went
 // out on that couldn't serve it; what it spent; how long its writes to the
-// cache last; and what it was worth at a day's prices. A view holds it in
-// place of its line, a tenth of the size, and tells its story again without
-// decoding the line again.
+// cache last; and what it was worth at a day's prices. A story is told again
+// from it without decoding its line again, and it's a fraction of its line's
+// size, so the List holds it in place of the line.
 type heldRequest struct {
 	flight
 	dir, model, account, reason, from, class, agentID, geo unique.Handle[string]
@@ -87,7 +87,7 @@ func withRequests(held, added []heldRequest) []heldRequest {
 // each arrived, then when it ended, then by its id, so a story is told the
 // same however its lines were read, which file or place each came from.
 func inOrder(a, b heldRequest) int {
-	return cmp.Or(cmp.Compare(a.at, b.at), cmp.Compare(a.end, b.end), strings.Compare(a.request, b.request))
+	return cmp.Or(a.at.compare(b.at), a.end.compare(b.end), strings.Compare(a.request, b.request))
 }
 
 // metered reports whether r's answer gave usage, as ledger.Spend's Tokens
@@ -116,25 +116,49 @@ func (r *heldRequest) thread() string {
 }
 
 // flight is a request as a view tells it from another: its id, and when it
-// arrived and ended, in nanoseconds since the epoch, as sameRequest has them.
+// arrived and ended, as sameRequest has them.
 type flight struct {
 	request string
-	at, end int64
+	at, end instant
 }
 
 // flightOf returns the flight of the request of the line l.
 func flightOf(l *ledger.Line) flight {
-	return flight{request: l.Request, at: l.At.UnixNano(), end: ended(l).UnixNano()}
+	return flight{request: l.Request, at: instantOf(l.At), end: instantOf(ended(l))}
 }
 
 // arrived is when f's request arrived, in UTC, as a line gives it.
 func (f flight) arrived() time.Time {
-	return time.Unix(0, f.at).UTC()
+	return f.at.time()
 }
 
 // ended is when f's request ended, in UTC.
 func (f flight) ended() time.Time {
-	return time.Unix(0, f.end).UTC()
+	return f.end.time()
+}
+
+// instant is a moment as a flight holds it, exactly, whatever its year: the
+// seconds since the epoch and the nanoseconds after, as time.Unix takes them.
+// Nanoseconds alone hold only the years 1678 to 2262, and a hand-edited line
+// may arrive at no time at all, the zero time, or far off.
+type instant struct {
+	sec  int64
+	nsec int32
+}
+
+// instantOf returns the instant t is.
+func instantOf(t time.Time) instant {
+	return instant{sec: t.Unix(), nsec: int32(t.Nanosecond())}
+}
+
+// time is i in UTC: the zero time where i is the zero time's.
+func (i instant) time() time.Time {
+	return time.Unix(i.sec, int64(i.nsec)).UTC()
+}
+
+// compare orders instants, the earlier first.
+func (i instant) compare(o instant) int {
+	return cmp.Or(cmp.Compare(i.sec, o.sec), cmp.Compare(i.nsec, o.nsec))
 }
 
 // is reports whether f is of the request with the given id that arrived, or

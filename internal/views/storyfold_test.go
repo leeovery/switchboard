@@ -246,7 +246,7 @@ func lineSaid(l *ledger.Line) string {
 
 // flightSaid names the request of a flight, as lineSaid names a line's.
 func flightSaid(f flight) string {
-	return fmt.Sprintf("%s@%d+%d", f.request, f.at, f.end)
+	return fmt.Sprintf("%s@%d+%d", f.request, f.arrived().UnixNano(), f.ended().UnixNano())
 }
 
 // sightingSaid names a sighting, as the stories' namings are held alike.

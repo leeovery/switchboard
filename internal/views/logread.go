@@ -1,7 +1,6 @@
 package views
 
 import (
-	"cmp"
 	"maps"
 	"slices"
 	"time"
@@ -249,11 +248,12 @@ func (s *loggedSession) copied() *loggedSession {
 
 // hold holds the request l, a line of the session's among the table's at
 // the place given: among its requests, in order, as inOrder has it, where it
-// holds none of it, as sameLine has it, from the ledger's read of it.
+// holds no request of the same id that arrived at the same moment, as the
+// ledger's read of it may.
 func (s *loggedSession) hold(l *ledger.Line, at int) {
 	s.lines = append(s.lines, at)
-	arrived := l.At.UnixNano()
-	i, _ := slices.BinarySearchFunc(s.requests, arrived, func(r heldRequest, at int64) int { return cmp.Compare(r.at, at) })
+	arrived := instantOf(l.At)
+	i, _ := slices.BinarySearchFunc(s.requests, arrived, func(r heldRequest, at instant) int { return r.at.compare(at) })
 	for j := i; j < len(s.requests) && s.requests[j].at == arrived; j++ {
 		if s.requests[j].request == l.Request {
 			return
