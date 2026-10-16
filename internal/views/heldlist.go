@@ -12,21 +12,21 @@ import (
 // HeldList is Sessions' List as its lines build it, held between looks, so
 // today's lines are read as they're appended, never afresh at each look, and
 // a look, a stream event or a tick works out only what they change. It holds
-// each session's requests it has read, or taken in since, each priced once at
-// the day it's held at, and each one's story; and which sessions it has read
-// whole, every line of them whatever day it's of, so their starts are found
-// once. Take takes in the lines a day gained since; Found takes in a read of
-// sessions whole; List builds the List of what's held, what the router lists
-// and what the request stream told, as ListSessions builds it of the same
-// lines. What changes it returns afresh, so a copy holding it never sees it
-// change.
+// each session's requests it has read, or taken in since, each decoded once
+// and priced at the day it's held at, and each one's story; and which
+// sessions it has read whole, every line of them whatever day it's of, so
+// their starts are found once. Take takes in the lines a day gained since;
+// Found takes in a read of sessions whole; List builds the List of what's
+// held, what the router lists and what the request stream told, as
+// ListSessions builds it of the same lines. What changes it returns afresh,
+// so a copy holding it never sees it change.
 type HeldList struct {
 	day    LedgerDay
 	prices ledger.Table
 	// held are the lines taken, by keyOf: none where they have no id.
 	held     map[lineKey]bool
 	whole    map[string]bool
-	requests map[string][]request
+	requests map[string][]heldRequest
 	stories  map[string]*story
 }
 
@@ -171,16 +171,22 @@ func (h HeldList) Awaited(live ListLive) []string {
 	today := Today(live.Now)
 	var dates []string
 	for id, told := range live.Stream.hearing().told {
-		for _, s := range sentOf(h.requests[id], told) {
-			if s.told == nil || toldRow(*s.told, live.Now).Stage != RowEnded {
+		for _, t := range told {
+			if lined(h.requests[id], t) || toldRow(t, live.Now).Stage != RowEnded {
 				continue
 			}
-			if day, ok := s.told.FiledOn(); ok && day.Start.Before(today.Start) {
+			if day, ok := t.FiledOn(); ok && day.Start.Before(today.Start) {
 				dates = append(dates, day.Date)
 			}
 		}
 	}
 	return slices.Compact(slices.Sorted(slices.Values(dates)))
+}
+
+// lined reports whether the request t the stream told of is among requests,
+// its line come, as Told.FiledAs has it.
+func lined(requests []heldRequest, t Told) bool {
+	return slices.ContainsFunc(requests, func(r heldRequest) bool { return r.is(t.Request, t.Sent) })
 }
 
 // Unread are the dates of those of the days missed, the days the ledger's
@@ -192,9 +198,9 @@ func (h HeldList) Unread(missed []string) []string {
 }
 
 // take holds the lines given of the session with the given id, those it
-// holds already passed over, with its requests, each priced once, in the
-// order they arrived, and tells its story afresh. It changes h's maps, which
-// must be its own.
+// holds already passed over, with its requests, each decoded and priced
+// once, in order, as inOrder has it, and tells its story afresh. It changes
+// h's maps, which must be its own.
 func (h HeldList) take(id string, lines []ledger.Line) {
 	var gained []ledger.Line
 	for i := range lines {
@@ -207,10 +213,17 @@ func (h HeldList) take(id string, lines []ledger.Line) {
 		}
 		gained = append(gained, lines[i])
 	}
-	if added := requestsOf(gained, h.prices, h.day.Date); len(added) > 0 {
-		h.requests[id] = inArrival(h.requests[id], added)
-		h.stories[id] = storyOf(h.requests[id], h.prices, h.day)
+	if added := pricedRequestsOf(gained, h.prices, h.day.Date); len(added) > 0 {
+		h.tell(id, withRequests(h.requests[id], added))
 	}
+}
+
+// tell holds requests, in order, as the session with the given id's, and
+// tells its story of them afresh. It changes h's maps, which must be its
+// own.
+func (h HeldList) tell(id string, requests []heldRequest) {
+	h.requests[id] = requests
+	h.stories[id] = storyOf(requests, h.prices, h.day)
 }
 
 // at is h at now: as it's held, where now falls on the day it's held at,
@@ -230,15 +243,16 @@ func (h HeldList) at(now time.Time) HeldList {
 func (h HeldList) on(day LedgerDay) HeldList {
 	next := HeldList{day: day, prices: h.prices}.cloned()
 	for id, requests := range h.requests {
-		if !ended(requests[len(requests)-1].Line).After(day.Start.Add(-IdleHour)) {
+		if !requests[len(requests)-1].ended().After(day.Start.Add(-IdleHour)) {
 			continue
 		}
-		lines := make([]ledger.Line, len(requests))
-		for i, r := range requests {
-			lines[i] = *r.Line
+		for _, r := range requests {
+			if k, ok := r.key(); ok {
+				next.held[k] = true
+			}
 		}
 		next.whole[id] = h.whole[id]
-		next.take(id, lines)
+		next.tell(id, pricedAt(requests, h.prices, day.Date))
 	}
 	return next
 }

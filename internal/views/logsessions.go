@@ -143,7 +143,7 @@ func tickedSession(by lister, id string, found []FoundSession, s *story) LogSess
 		return ticked
 	}
 	ticked.Dir = cmp.Or(ticked.Dir, found[i].Dir)
-	if s.last == nil {
+	if !s.begun {
 		ticked.Activity = Activity{Doing: Ended, Since: found[i].Last, LastSeen: found[i].Last}
 	}
 	return ticked

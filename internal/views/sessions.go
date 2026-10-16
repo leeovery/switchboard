@@ -137,7 +137,7 @@ func ListSessions(src SessionSources) SessionList {
 	read := src.Ledger.Sessions(runningIDs(src.Running), nil)
 	stories := make(map[string]*story, len(read))
 	for id, lines := range read {
-		stories[id] = storyOf(requestsOf(lines, src.Prices, today.Date), src.Prices, today)
+		stories[id] = storyOf(pricedRequestsOf(lines, src.Prices, today.Date), src.Prices, today)
 	}
 	return listOf(stories, newLister(src.Running, src.Unlisted, src.Stream, src.Now), src.Prices)
 }
@@ -230,11 +230,8 @@ func newLister(running []status.Session, unlisted bool, s Stream, now time.Time)
 // it.
 func (by lister) listed(id string, s *story) ListedSession {
 	listed := ListedSession{Session: id, Dir: by.dir(id, s), Requests: s.requests, Worth: s.worth}
-	if s.first != nil {
-		listed.Started = s.first.At.UTC()
-	}
-	if s.last != nil {
-		listed.Ended = s.last.At.UTC()
+	if s.begun {
+		listed.Started, listed.Ended = s.first.arrived(), s.last.arrived()
 	}
 	listed.Account, listed.Model = by.names(id, s.naming)
 	if session, running := by.routed[id]; running {
@@ -289,11 +286,11 @@ func (by lister) activity(id string, s *story) Activity {
 	session, listed := by.routed[id]
 	session.ID = id
 	a := by.h.session(session).inUTC()
-	if s.last == nil {
+	if !s.begun {
 		return by.known(a)
 	}
-	last := s.last.At.UTC()
-	a = a.with(Activity{Since: ended(s.last).UTC(), LastSeen: last})
+	last := s.last.arrived()
+	a = a.with(Activity{Since: s.last.ended(), LastSeen: last})
 	if listed || by.h.saw(id, by.now) || by.unlisted && by.now.Before(lapsed(last)) {
 		return by.known(a)
 	}

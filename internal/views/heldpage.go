@@ -12,12 +12,13 @@ import (
 // HeldPage is a session's page as its lines build it, held between looks,
 // so a look, a stream event or a tick works out only what they change: what
 // it's doing, its turns as the stream adds to them, and the clock's words.
-// It holds its requests, each priced once; its story; every account's
-// requests on its days, each answered once, for the points; and the accounts
-// it ran on, with what they took. Take takes in the lines a day gained since,
-// each once; Page builds the page of what's held, what the router lists and
-// what the stream told. What changes it returns afresh, so a copy holding it
-// never sees it change, sharing what it took before, which nothing changes.
+// It holds its requests, each priced once; the same as its story folds
+// them, each decoded once; its story; every account's requests on its days,
+// each answered once, for the points; and the accounts it ran on, with what
+// they took. Take takes in the lines a day gained since, each once; Page
+// builds the page of what's held, what the router lists and what the stream
+// told. What changes it returns afresh, so a copy holding it never sees it
+// change, sharing what it took before, which nothing changes.
 type HeldPage struct {
 	id     string
 	day    LedgerDay
@@ -30,6 +31,7 @@ type HeldPage struct {
 	answers  map[string]answersTaken
 	over     pointsOver
 	requests []request
+	folded   []heldRequest
 	story    *story
 	accounts []SessionAccount
 }
@@ -94,6 +96,7 @@ func HoldPage(id string, read SessionsRead, prices ledger.Table, keep time.Durat
 	}
 	h.held = holding(h.held, read.lines[id])
 	h.requests = requestsOf(read.lines[id], prices, h.day.Date)
+	h.folded = pricedRequestsOf(read.lines[id], prices, h.day.Date)
 	h.over.days = daysOf(answers)
 	return h.built()
 }
@@ -102,7 +105,7 @@ func HoldPage(id string, read SessionsRead, prices ledger.Table, keep time.Durat
 // and the accounts it ran on, with the points they took, as pointed has
 // them.
 func (h HeldPage) built() HeldPage {
-	h.story = storyOf(h.requests, h.prices, h.day)
+	h.story = storyOf(h.folded, h.prices, h.day)
 	h.accounts = accountsOf(h.requests)
 	h.over = pointsOverOf(h.requests, h.over.days)
 	return h.pointed()
@@ -177,6 +180,7 @@ func (h HeldPage) Took(date string, lines []ledger.Held) (HeldPage, bool) {
 	switch {
 	case len(mine) > 0 || rolls:
 		h.requests = inArrival(h.requests, requestsOf(mine, h.prices, h.day.Date))
+		h.folded = withRequests(h.folded, pricedRequestsOf(mine, h.prices, h.day.Date))
 		h.over = h.over.withDay(date, answers)
 		return h.built(), true
 	case counts:
@@ -213,6 +217,7 @@ func (h HeldPage) on(day LedgerDay) HeldPage {
 		lines[i] = *r.Line
 	}
 	h.day, h.requests = day, requestsOf(lines, h.prices, day.Date)
+	h.folded = pricedAt(h.folded, h.prices, day.Date)
 	return h
 }
 
@@ -268,8 +273,8 @@ func (w worked) until() time.Time {
 	for _, k := range w.by.h.sat[w.h.id] {
 		sooner(lapsed(w.by.h.seats[k].last))
 	}
-	if last := w.h.story.last; w.by.unlisted && last != nil {
-		sooner(lapsed(last.At))
+	if s := w.h.story; w.by.unlisted && s.begun {
+		sooner(lapsed(s.last.arrived()))
 	}
 	if _, _, cold := w.h.story.moving(); !cold.IsZero() {
 		sooner(cold)
@@ -338,8 +343,8 @@ func (w worked) page() (SessionPage, bool) {
 			page.Auto = autoOf(routed, page.Model)
 		}
 	}
-	if !page.Running && h.story.first != nil {
-		page.KeptUntil, _ = dayfile.KeptUntil(Today(h.story.first.At).Date, h.keep)
+	if !page.Running && h.story.begun {
+		page.KeptUntil, _ = dayfile.KeptUntil(Today(h.story.first.arrived()).Date, h.keep)
 	}
 	page.Totals = totalsOf(h.requests, len(page.Turns))
 	return page, true

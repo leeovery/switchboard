@@ -29,20 +29,25 @@ func (d LedgerDay) Holds(t time.Time) bool {
 	return !t.Before(d.Start)
 }
 
-// story is what a session's requests tell, taken in oldest first, as add
-// takes them: its first and last request; what names it; the directory it
-// last named; its last request whose answer gave usage, and its last such
-// turn of its own conversation; its requests on the day and their worth;
-// each move a request of it made; and, of each of its threads, when its last
-// request ended, and how long its writes to the cache last.
+// story is what a session's requests tell, taken in in order, as inOrder
+// has it, as add takes them: its first and last request; what names it; the
+// directory it last named; its last request whose answer gave usage, and its
+// last such turn of its own conversation; its requests on the day and their
+// worth; each move a request of it made; and, of each of its threads, when
+// its last request ended, and how long its writes to the cache last.
 type story struct {
 	prices ledger.Table
 	day    LedgerDay
 
-	first, last    *ledger.Line
-	naming         naming
-	dir            string
-	used, usedMain *ledger.Line
+	// begun is set once it has taken in a request: first and last are none
+	// till then.
+	begun       bool
+	first, last flight
+	naming      naming
+	dir         string
+	// used and usedMain are each none, as metered says it's not, till a
+	// request of each kind is taken in.
+	used, usedMain heldRequest
 	// classed is set once a request of it says its class, as a Claude Code
 	// and a router that tell prompts apart have each say.
 	classed  bool
@@ -51,7 +56,7 @@ type story struct {
 	moves    []move
 	// ends are when each thread's last request so far ended, and lives how
 	// long its writes to the cache last, as its last request that wrote to
-	// the cache said, by threadOf: a move of the thread's comes after them.
+	// the cache said, by its thread: a move of the thread's comes after them.
 	ends  map[string]time.Time
 	lives map[string]time.Duration
 }
@@ -62,10 +67,12 @@ func newStory(prices ledger.Table, d LedgerDay) *story {
 	return &story{prices: prices, day: d, ends: make(map[string]time.Time), lives: make(map[string]time.Duration)}
 }
 
-func storyOf(requests []request, prices ledger.Table, d LedgerDay) *story {
+// storyOf returns the story of a session's requests, in order, as inOrder
+// has it, its requests on the day d counted, and moves priced by prices.
+func storyOf(requests []heldRequest, prices ledger.Table, d LedgerDay) *story {
 	s := newStory(prices, d)
-	for _, r := range requests {
-		s.add(r)
+	for i := range requests {
+		s.add(&requests[i])
 	}
 	return s
 }
@@ -78,62 +85,45 @@ func isRequest(l *ledger.Line) bool {
 }
 
 // add takes in r, the session's next request.
-func (s *story) add(r request) {
-	l := r.Line
-	if s.first == nil {
-		s.first = l
+func (s *story) add(r *heldRequest) {
+	if !s.begun {
+		s.begun, s.first = true, r.flight
 	}
-	s.last = l
-	if l.Dir != "" {
-		s.dir = l.Dir
+	s.last = r.flight
+	if dir := r.dir.Value(); dir != "" {
+		s.dir = dir
 	}
-	s.classed = s.classed || l.Class != ""
-	main := l.Class == ledger.ClassMain
-	s.naming.see(l.Model, l.Account, l.Class, l.At)
-	if r.metered {
-		s.used = l
+	class, from := r.class.Value(), r.from.Value()
+	s.classed = s.classed || class != ""
+	main := class == ledger.ClassMain
+	at := r.arrived()
+	s.naming.see(r.model.Value(), r.account.Value(), class, at)
+	if r.metered() {
+		s.used = *r
 		if main {
-			s.usedMain = l
+			s.usedMain = *r
 		}
 	}
-	if s.day.Holds(l.At) {
+	if s.day.Holds(at) {
 		s.requests++
-		s.worth.add(r.worth)
+		s.worth.addSummed(r.worth, r.priced)
 	}
-	if l.From != "" {
-		s.moves = append(s.moves, move{by: l, at: l.At, model: l.Model, from: l.From, to: l.Account, reason: l.Reason})
+	if from != "" {
+		s.moves = append(s.moves, move{by: r.flight, tried: r.tried, at: at, model: r.model.Value(), from: from, to: r.account.Value(), reason: r.reason.Value()})
 	}
-	if main || l.Class == "" && l.From != "" {
-		s.rewrites(l)
+	if main || class == "" && from != "" {
+		s.rewrites(r)
 	}
-	thread := threadOf(l)
-	s.ends[thread] = score.Later(s.ends[thread], ended(l))
-	if life, ok := l.CacheLife(); ok {
-		s.lives[thread] = life
+	thread := r.thread()
+	s.ends[thread] = score.Later(s.ends[thread], r.ended())
+	if r.life != 0 {
+		s.lives[thread] = r.life
 	}
 }
 
 // classCompaction is the class, as a line's hints give it, of a compaction
 // of a session's conversation.
 const classCompaction = "compaction"
-
-// threadOf returns the thread of a session's requests the request l is of,
-// as its cache follows them: a subagent's, by its id; the session's own
-// conversation, its compactions, which read it, among them; a side
-// request's, as a title, by its class and model; and, of a line from before
-// requests said their class, which tells no thread from another, its
-// model's.
-func threadOf(l *ledger.Line) string {
-	switch {
-	case l.AgentID != "":
-		return "agent " + l.AgentID
-	case l.Class == ledger.ClassMain || l.Class == classCompaction:
-		return "conversation"
-	case l.Class == "":
-		return "model " + l.Model
-	}
-	return l.Class + " " + l.Model
-}
 
 // life returns how long the writes to the cache of the thread with the given
 // name last: as its last request that wrote to the cache said, else an hour.
@@ -145,54 +135,58 @@ func (s *story) life(thread string) time.Duration {
 }
 
 // move is a request's move of its session from one account onto another:
-// the request that made it; when it came, the model it asked for, as a
-// session's models are routed apart, the account it left and the one it went
-// to, and why, as the router said; and, settled once its conversation's first
-// request after it came, where that went to the account it moved to, the
-// tokens that request wrote to the cache, and what that cost, nil where that
-// isn't known, or its cache would have run out anyway; and rewrote, that
-// request, as it wrote the session's context again, nil where none has, or
-// the cache would have run out anyway.
+// the request that made it, and the accounts it went out on that couldn't
+// serve it; when it came, the model it asked for, as a session's models are
+// routed apart, the account it left and the one it went to, and why, as the
+// router said; and, settled once its conversation's first request after it
+// came, where that went to the account it moved to, the tokens that request
+// wrote to the cache, and what that cost, nil where that isn't known, or its
+// cache would have run out anyway; and rewrote, that request, as it wrote
+// the session's context again, nil where none has, or the cache would have
+// run out anyway.
 type move struct {
-	by                      *ledger.Line
+	by                      flight
+	tried                   []ledger.Tried
 	at                      time.Time
 	model, from, to, reason string
 	settled                 bool
 	written                 int
 	cost                    *ledger.Picodollars
-	rewrote                 *ledger.Line
+	rewrote                 *flight
 }
 
-// rewrites settles each move of l's model that awaits it, l being a request
+// rewrites settles each move of r's model that awaits it, r being a request
 // of the session's own conversation, or one from before requests said their
 // class that moved it: the conversation's first after the move, which wrote
 // its context again on the account it went to, where it went to the account
 // the move did. The move's written tokens are then its writes to the cache;
-// l the request that wrote the context again, and the move's cost the
+// r the request that wrote the context again, and the move's cost the
 // writes' price, at the day's prices, left out where the table can't price
-// all of it. Both are left out where the last request of its thread, as
-// threadOf tells it, ended longer before l than the thread's writes to the
-// cache last, as the cache would have run out by then anyway.
-func (s *story) rewrites(l *ledger.Line) {
-	thread := threadOf(l)
+// all of it. Both are left out where the last request of its thread ended
+// longer before r than the thread's writes to the cache last, as the cache
+// would have run out by then anyway.
+func (s *story) rewrites(r *heldRequest) {
+	thread := r.thread()
 	end, ok := s.ends[thread]
-	warm := !ok || !l.At.After(end.Add(s.life(thread)))
-	tokens, _ := l.Tokens()
+	warm := !ok || !r.arrived().After(end.Add(s.life(thread)))
+	tokens, _ := r.spend.Tokens()
+	model, account := r.model.Value(), r.account.Value()
 	for i := range s.moves {
 		m := &s.moves[i]
-		if m.settled || m.model != l.Model {
+		if m.settled || m.model != model {
 			continue
 		}
 		m.settled = true
-		if m.to != l.Account {
+		if m.to != account {
 			continue
 		}
 		m.written = tokens.CacheWrite
 		if !warm {
 			continue
 		}
-		m.rewrote = l
-		if w, priced := s.prices.CacheWrite(l, s.day.Date); priced && len(w.Unpriced) == 0 {
+		rewrote := r.flight
+		m.rewrote = &rewrote
+		if w, priced := s.prices.CacheWriteSpend(model, r.geo.Value(), r.spend, s.day.Date); priced && len(w.Unpriced) == 0 {
 			m.cost = &w.Cost
 		}
 	}
@@ -205,13 +199,13 @@ func (s *story) rewrites(l *ledger.Line) {
 // holds where it's the same request, as sameRequest has it, so a line read
 // apart from the story's own tells alike.
 func (s *story) toldOf(l *ledger.Line) (first bool, made *move, rewrote bool) {
-	first = s.first != nil && sameRequest(s.first, l.Request, l.At)
+	first = s.begun && s.first.is(l.Request, l.At)
 	for i := range s.moves {
 		m := &s.moves[i]
-		if sameRequest(m.by, l.Request, l.At) {
+		if m.by.is(l.Request, l.At) {
 			made = m
 		}
-		rewrote = rewrote || m.rewrote != nil && sameRequest(m.rewrote, l.Request, l.At)
+		rewrote = rewrote || m.rewrote != nil && m.rewrote.is(l.Request, l.At)
 	}
 	return first, made, rewrote
 }
@@ -224,11 +218,17 @@ func sameRequest(l *ledger.Line, id string, at time.Time) bool {
 	return l.Request == id && inFlightAt(l, at)
 }
 
-// inFlightAt reports whether the request of the line l was in flight at at:
-// from its arrival to its end. TotalMS is cut to the millisecond, so l may
-// have ended up to a millisecond after it says.
+// inFlightAt reports whether the request of the line l was in flight at at,
+// as inFlight has it.
 func inFlightAt(l *ledger.Line, at time.Time) bool {
-	return !at.Before(l.At) && at.Before(ended(l).Add(time.Millisecond))
+	return inFlight(at, l.At, ended(l))
+}
+
+// inFlight reports whether a request that arrived and ended when given was
+// in flight at at: from its arrival to its end. A line's TotalMS is cut to
+// the millisecond, so it may have ended up to a millisecond after it says.
+func inFlight(at, arrived, ended time.Time) bool {
+	return !at.Before(arrived) && at.Before(ended.Add(time.Millisecond))
 }
 
 // moveOnto returns the move of the model with the given id that brought
@@ -271,25 +271,26 @@ func (s *story) moveCost(now time.Time, flying func(model string) bool) (ledger.
 	if prompt == nil {
 		return 0, false
 	}
-	if !flying(prompt.Model) && !now.Before(cold) {
+	model := prompt.model.Value()
+	if !flying(model) && !now.Before(cold) {
 		return 0, false
 	}
-	return s.prices.Rewrite(prompt, life, s.day.Date)
+	return s.prices.RewriteSpend(model, prompt.geo.Value(), prompt.spend, life, s.day.Date)
 }
 
 // moving is what moveCost prices a move by: the prompt written again, nil
 // where none is known; how long its thread's writes to the cache last; and
 // the first moment its cache has run out since its thread's last request
 // ended.
-func (s *story) moving() (prompt *ledger.Line, life time.Duration, cold time.Time) {
-	prompt = s.used
+func (s *story) moving() (prompt *heldRequest, life time.Duration, cold time.Time) {
+	prompt = &s.used
 	if s.classed {
-		prompt = s.usedMain
+		prompt = &s.usedMain
 	}
-	if prompt == nil {
+	if !prompt.metered() {
 		return nil, 0, time.Time{}
 	}
-	thread := threadOf(prompt)
+	thread := prompt.thread()
 	life = s.life(thread)
 	return prompt, life, s.ends[thread].Add(life + time.Nanosecond)
 }

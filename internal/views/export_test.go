@@ -34,7 +34,7 @@ func TakeFacts(name func(key string) string, events []status.Event) []TakenFacts
 // first, are those given, its story told from them, at now's prices.
 func RowOfLine(l ledger.Line, session []ledger.Line, prices ledger.Table, now time.Time) RequestRow {
 	today := Today(now)
-	r := lineRow(&l, storyOf(requestsOf(session, prices, today.Date), prices, today))
+	r := lineRow(&l, storyOf(pricedRequestsOf(session, prices, today.Date), prices, today))
 	r.Worth = summed(prices, &l, today.Date)
 	return r
 }

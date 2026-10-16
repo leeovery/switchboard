@@ -1,0 +1,156 @@
+package views
+
+import (
+	"cmp"
+	"slices"
+	"strings"
+	"time"
+	"unique"
+
+	"github.com/leeovery/switchboard/internal/ledger"
+)
+
+// heldRequest is a session's request as its story takes it in, its line
+// decoded once: its flight; what its line names it by, each name interned, as
+// a session's requests name the same again and again; the accounts it went
+// out on that couldn't serve it; what it spent; how long its writes to the
+// cache last; and what it was worth at a day's prices. A view holds it in
+// place of its line, a tenth of the size, and tells its story again without
+// decoding the line again.
+type heldRequest struct {
+	flight
+	dir, model, account, reason, from, class, agentID, geo unique.Handle[string]
+	tried                                                  []ledger.Tried
+	spend                                                  ledger.Spend
+	// life is how long its writes to the cache last, as ledger.Spend's
+	// CacheLife has it: none where it wrote nothing to the cache.
+	life time.Duration
+	// worth is what it was worth at the prices of the day it's priced at, as
+	// ledger.Table.SummedSpend gives it, priced where the table priced it:
+	// none, and not priced, till it's priced, as a story the Log tells never
+	// is.
+	worth  ledger.Worth
+	priced bool
+}
+
+// heldRequestOf returns the request of the line l, decoded once, unpriced.
+func heldRequestOf(l *ledger.Line) heldRequest {
+	spend := ledger.SpendOf(l)
+	life, _ := spend.CacheLife()
+	return heldRequest{
+		flight: flightOf(l), tried: l.Tried, spend: spend, life: life,
+		dir: unique.Make(l.Dir), model: unique.Make(l.Model), account: unique.Make(l.Account), reason: unique.Make(l.Reason),
+		from: unique.Make(l.From), class: unique.Make(l.Class), agentID: unique.Make(l.AgentID), geo: unique.Make(l.Shape.InferenceGeo),
+	}
+}
+
+// heldRequestsOf returns the requests among lines, a session's, as isRequest
+// says, each decoded once, unpriced, in the order every story takes them in,
+// as inOrder has it, whatever the order of lines.
+func heldRequestsOf(lines []ledger.Line) []heldRequest {
+	var requests []heldRequest
+	for i := range lines {
+		if isRequest(&lines[i]) {
+			requests = append(requests, heldRequestOf(&lines[i]))
+		}
+	}
+	slices.SortStableFunc(requests, inOrder)
+	return requests
+}
+
+// pricedRequestsOf returns the requests among lines, as heldRequestsOf has
+// them, each priced by prices at the local day with the given date.
+func pricedRequestsOf(lines []ledger.Line, prices ledger.Table, date string) []heldRequest {
+	return pricedAt(heldRequestsOf(lines), prices, date)
+}
+
+// pricedAt returns requests, each priced by prices at the local day with the
+// given date, afresh.
+func pricedAt(requests []heldRequest, prices ledger.Table, date string) []heldRequest {
+	priced := slices.Clone(requests)
+	for i := range priced {
+		r := &priced[i]
+		r.worth, r.priced = prices.SummedSpend(r.model.Value(), r.geo.Value(), r.spend, date)
+	}
+	return priced
+}
+
+// withRequests returns held, a session's requests in order, as inOrder has
+// it, with those added among them, afresh.
+func withRequests(held, added []heldRequest) []heldRequest {
+	all := slices.Concat(held, added)
+	slices.SortStableFunc(all, inOrder)
+	return all
+}
+
+// inOrder orders a session's requests as every story takes them in: by when
+// each arrived, then when it ended, then by its id, so a story is told the
+// same however its lines were read, which file or place each came from.
+func inOrder(a, b heldRequest) int {
+	return cmp.Or(cmp.Compare(a.at, b.at), cmp.Compare(a.end, b.end), strings.Compare(a.request, b.request))
+}
+
+// metered reports whether r's answer gave usage, as ledger.Spend's Tokens
+// says.
+func (r *heldRequest) metered() bool {
+	_, ok := r.spend.Tokens()
+	return ok
+}
+
+// thread returns the thread of a session's requests r is of, as its cache
+// follows them: a subagent's, by its id; the session's own conversation, its
+// compactions, which read it, among them; a side request's, as a title, by
+// its class and model; and, of a request from before requests said their
+// class, which tells no thread from another, its model's.
+func (r *heldRequest) thread() string {
+	agentID, class, model := r.agentID.Value(), r.class.Value(), r.model.Value()
+	switch {
+	case agentID != "":
+		return "agent " + agentID
+	case class == ledger.ClassMain || class == classCompaction:
+		return "conversation"
+	case class == "":
+		return "model " + model
+	}
+	return class + " " + model
+}
+
+// flight is a request as a view tells it from another: its id, and when it
+// arrived and ended, in nanoseconds since the epoch, as sameRequest has them.
+type flight struct {
+	request string
+	at, end int64
+}
+
+// flightOf returns the flight of the request of the line l.
+func flightOf(l *ledger.Line) flight {
+	return flight{request: l.Request, at: l.At.UnixNano(), end: ended(l).UnixNano()}
+}
+
+// arrived is when f's request arrived, in UTC, as a line gives it.
+func (f flight) arrived() time.Time {
+	return time.Unix(0, f.at).UTC()
+}
+
+// ended is when f's request ended, in UTC.
+func (f flight) ended() time.Time {
+	return time.Unix(0, f.end).UTC()
+}
+
+// is reports whether f is of the request with the given id that arrived, or
+// went upstream, at at, as sameRequest has it of a line.
+func (f flight) is(id string, at time.Time) bool {
+	return f.request == id && f.inFlightAt(at)
+}
+
+// inFlightAt reports whether f's request was in flight at at, as inFlightAt
+// has it of a line.
+func (f flight) inFlightAt(at time.Time) bool {
+	return inFlight(at, f.arrived(), f.ended())
+}
+
+// key is f as a held List knows a line from another, as keyOf has it of the
+// line, reporting false where it has no id.
+func (f flight) key() (lineKey, bool) {
+	return lineKey{request: f.request, at: f.at}, f.request != ""
+}
