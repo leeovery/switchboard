@@ -2,6 +2,7 @@ package views
 
 import (
 	"cmp"
+	"hash/maphash"
 	"slices"
 	"strings"
 	"time"
@@ -14,9 +15,9 @@ import (
 // decoded once: its flight; what its line names it by, each name interned, as
 // a session's requests name the same again and again; the accounts it went
 // out on that couldn't serve it; what it spent; how long its writes to the
-// cache last; and what it was worth at a day's prices. A view holds it in
-// place of its line, a tenth of the size, and tells its story again without
-// decoding the line again.
+// cache last; and what it was worth at a day's prices. A story is told again
+// from it without decoding its line again, and it's a fraction of its line's
+// size, so the store holds it in place of the line.
 type heldRequest struct {
 	flight
 	dir, model, account, reason, from, class, agentID, geo unique.Handle[string]
@@ -31,6 +32,8 @@ type heldRequest struct {
 	// is.
 	worth  ledger.Worth
 	priced bool
+	// sum is what its line says of it, summed, as sumOf has it.
+	sum uint64
 }
 
 // heldRequestOf returns the request of the line l, decoded once, unpriced.
@@ -38,10 +41,37 @@ func heldRequestOf(l *ledger.Line) heldRequest {
 	spend := ledger.SpendOf(l)
 	life, _ := spend.CacheLife()
 	return heldRequest{
-		flight: flightOf(l), tried: l.Tried, spend: spend, life: life,
+		flight: flightOf(l), tried: l.Tried, spend: spend, life: life, sum: sumOf(l),
 		dir: unique.Make(l.Dir), model: unique.Make(l.Model), account: unique.Make(l.Account), reason: unique.Make(l.Reason),
 		from: unique.Make(l.From), class: unique.Make(l.Class), agentID: unique.Make(l.AgentID), geo: unique.Make(l.Shape.InferenceGeo),
 	}
+}
+
+// linesSeed seeds every sum of a line, as sumOf has it: one seed for the
+// run, as a sum is held no longer than the run.
+var linesSeed = maphash.MakeSeed()
+
+// sumOf is a sum of all heldRequestOf decodes of the line l, its spend as
+// the usage, kind and upstream it's decoded of: two lines whose sums differ
+// say otherwise of their request, and two whose sums are the same say the
+// same of it, but by a chance of one in 2^64.
+func sumOf(l *ledger.Line) uint64 {
+	var h maphash.Hash
+	h.SetSeed(linesSeed)
+	maphash.WriteComparable(&h, struct {
+		request, dir, model, account, reason, from, class, agentID, geo, kind string
+		at, end                                                               instant
+		upstream                                                              bool
+		tried                                                                 int
+	}{
+		l.Request, l.Dir, l.Model, l.Account, l.Reason, l.From, l.Class, l.AgentID, l.Shape.InferenceGeo, l.Kind,
+		instantOf(l.At), instantOf(ended(l)), l.Upstream(), len(l.Tried),
+	})
+	for _, t := range l.Tried {
+		maphash.WriteComparable(&h, t)
+	}
+	_, _ = h.Write(l.Usage)
+	return h.Sum64()
 }
 
 // heldRequestsOf returns the requests among lines, a session's, as isRequest
@@ -65,14 +95,20 @@ func pricedRequestsOf(lines []ledger.Line, prices ledger.Table, date string) []h
 }
 
 // pricedAt returns requests, each priced by prices at the local day with the
-// given date, afresh.
+// given date, as pricedOn has it, afresh.
 func pricedAt(requests []heldRequest, prices ledger.Table, date string) []heldRequest {
 	priced := slices.Clone(requests)
 	for i := range priced {
-		r := &priced[i]
-		r.worth, r.priced = prices.SummedSpend(r.model.Value(), r.geo.Value(), r.spend, date)
+		priced[i] = priced[i].pricedOn(prices, date)
 	}
 	return priced
+}
+
+// pricedOn is r priced by prices at the local day with the given date, as
+// ledger.Table.SummedSpend prices it.
+func (r heldRequest) pricedOn(prices ledger.Table, date string) heldRequest {
+	r.worth, r.priced = prices.SummedSpend(r.model.Value(), r.geo.Value(), r.spend, date)
+	return r
 }
 
 // withRequests returns held, a session's requests in order, as inOrder has
@@ -87,7 +123,7 @@ func withRequests(held, added []heldRequest) []heldRequest {
 // each arrived, then when it ended, then by its id, so a story is told the
 // same however its lines were read, which file or place each came from.
 func inOrder(a, b heldRequest) int {
-	return cmp.Or(cmp.Compare(a.at, b.at), cmp.Compare(a.end, b.end), strings.Compare(a.request, b.request))
+	return cmp.Or(a.at.compare(b.at), a.end.compare(b.end), strings.Compare(a.request, b.request))
 }
 
 // metered reports whether r's answer gave usage, as ledger.Spend's Tokens
@@ -116,25 +152,49 @@ func (r *heldRequest) thread() string {
 }
 
 // flight is a request as a view tells it from another: its id, and when it
-// arrived and ended, in nanoseconds since the epoch, as sameRequest has them.
+// arrived and ended, as sameRequest has them.
 type flight struct {
 	request string
-	at, end int64
+	at, end instant
 }
 
 // flightOf returns the flight of the request of the line l.
 func flightOf(l *ledger.Line) flight {
-	return flight{request: l.Request, at: l.At.UnixNano(), end: ended(l).UnixNano()}
+	return flight{request: l.Request, at: instantOf(l.At), end: instantOf(ended(l))}
 }
 
 // arrived is when f's request arrived, in UTC, as a line gives it.
 func (f flight) arrived() time.Time {
-	return time.Unix(0, f.at).UTC()
+	return f.at.time()
 }
 
 // ended is when f's request ended, in UTC.
 func (f flight) ended() time.Time {
-	return time.Unix(0, f.end).UTC()
+	return f.end.time()
+}
+
+// instant is a moment as a flight holds it, exactly, whatever its year: the
+// seconds since the epoch and the nanoseconds after, as time.Unix takes them.
+// Nanoseconds alone hold only the years 1678 to 2262, and a hand-edited line
+// may arrive at no time at all, the zero time, or far off.
+type instant struct {
+	sec  int64
+	nsec int32
+}
+
+// instantOf returns the instant t is.
+func instantOf(t time.Time) instant {
+	return instant{sec: t.Unix(), nsec: int32(t.Nanosecond())}
+}
+
+// time is i in UTC: the zero time where i is the zero time's.
+func (i instant) time() time.Time {
+	return time.Unix(i.sec, int64(i.nsec)).UTC()
+}
+
+// compare orders instants, the earlier first.
+func (i instant) compare(o instant) int {
+	return cmp.Or(cmp.Compare(i.sec, o.sec), cmp.Compare(i.nsec, o.nsec))
 }
 
 // is reports whether f is of the request with the given id that arrived, or
@@ -149,8 +209,8 @@ func (f flight) inFlightAt(at time.Time) bool {
 	return inFlight(at, f.arrived(), f.ended())
 }
 
-// key is f as a held List knows a line from another, as keyOf has it of the
-// line, reporting false where it has no id.
+// key is f as a request is known from another, as keyOf has it of its line,
+// reporting false where it has no id.
 func (f flight) key() (lineKey, bool) {
 	return lineKey{request: f.request, at: f.at}, f.request != ""
 }

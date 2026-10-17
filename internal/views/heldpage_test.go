@@ -536,7 +536,7 @@ func logRowsByID(table views.LogTable) map[string]views.RequestRow {
 func TestAPageReadsTheLastListingWhileNoRouterAnswers(t *testing.T) {
 	lines := []ledger.Line{filedAs("p1", mainOn(p1, local(11, 50, 0), "end_turn"))}
 	held := views.HoldPage(paged, views.ReadSessions(summarisedLedger(lines), nil, now, paged), ledger.Pricing, kept90, now)
-	list := views.HoldList(views.ReadList(summarisedLedger(lines), nil, paged), ledger.Pricing, now)
+	list := listHeld(summarisedLedger(lines), nil, now)
 	last := runningOn("side")
 	last.Pin, last.Assignments[0].Auto = "side", "work"
 	tests := []struct {

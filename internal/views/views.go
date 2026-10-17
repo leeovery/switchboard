@@ -38,11 +38,13 @@ type Ledger interface {
 	LedgerDates
 	// Today gives today's lines read since mark, and the Mark they're read
 	// to, reporting afresh where they're every one of today's, for those
-	// read before to be let go of.
+	// read before to be let go of: each the line it reads as, none of its
+	// JSON held.
 	Today(mark ledger.Mark) (lines []ledger.Held, next ledger.Mark, afresh bool)
 	// Day gives the lines of the requests that arrived on the local day with
-	// the given date, by now, oldest first, read whole at each call: none of
-	// a day the ledger holds no lines of.
+	// the given date, by now, oldest first, read whole at each call, none of
+	// their JSON held, as Today gives them: none of a day the ledger holds no
+	// lines of.
 	Day(date string) []ledger.Held
 	// FirstLinesDay gives the start of the first local day the ledger holds
 	// lines of, at now: the first Day reads back to, a summary of an earlier

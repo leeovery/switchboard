@@ -3,6 +3,7 @@ package watch
 import (
 	"fmt"
 	"iter"
+	"maps"
 	"reflect"
 	"slices"
 	"strings"
@@ -388,7 +389,8 @@ func TestSessionsOpensAsKept(t *testing.T) {
 }
 
 // sessionsCounted is a request ledger followed as it grows, which notes the
-// ids each read of its sessions whole asked for.
+// ids each read of today's sessions whole asked for, and the ids of those
+// it read whole alone.
 type sessionsCounted struct {
 	followed
 	asked [][]string
@@ -401,7 +403,7 @@ func (l *sessionsCounted) Sessions(ids []string, take func(string, ledger.Line))
 }
 
 func (l *sessionsCounted) SessionsOf(ids []string, take func(string, ledger.Line)) map[string][]ledger.Line {
-	l.asked = append(l.asked, slices.Clone(ids))
+	l.alone = append(l.alone, ids...)
 	return l.Ledger.SessionsOf(ids, take)
 }
 
@@ -466,8 +468,8 @@ func TestTheListIsReadOnceAsSessionsFirstShowsThenFedByTheTail(t *testing.T) {
 	l.Ledger = ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, logs.For("watch"))
 	h.model.cfg.Ledger = l
 	h.start()
-	if len(l.asked) != 0 || h.model.sessionsTab.held != nil {
-		t.Fatalf("on the Overview, the List was read %d times, held %t; want it unread", len(l.asked), h.model.sessionsTab.held != nil)
+	if len(l.asked) != 0 || h.model.sessionsTab.listed {
+		t.Fatalf("on the Overview, the List was read %d times, held %t; want it unread", len(l.asked), h.model.sessionsTab.listed)
 	}
 	h.keys(toSessions...)
 	requests := func() int {
@@ -678,7 +680,7 @@ func sessionsOnTheLedger(t *testing.T, state string, now time.Time) (*harness, *
 	h.clock.now = now
 	h.start()
 	h.keys(toSessions...)
-	if h.model.sessionsTab.held == nil {
+	if !h.model.sessionsTab.listed {
 		t.Fatal("Sessions shown, the List isn't held")
 	}
 	return h, l
@@ -714,8 +716,8 @@ func TestTheListTakesInTheDayBeforeAsTheDayTurns(t *testing.T) {
 	h.hear(sent(router.StreamSent, arrival.Add(100*time.Millisecond)))
 	h.clock.now = night.Add(35 * time.Second)
 	h.read(routerDocument(three()...))
-	if held := *h.model.sessionsTab.held; !reflect.DeepEqual(held, held.Take(views.Today(h.clock.now).Date, nil)) {
-		t.Error("the first look past midnight left the List held at the day before, want it rolled on to the new day")
+	if day := h.model.held.Holding().Day; day != views.Today(h.clock.now).Date {
+		t.Errorf("the first look past midnight left the store held at %s, want it rolled on to the new day", day)
 	}
 
 	line := took(arrivedAt("0a000002", arrival), 22*time.Second)
@@ -788,7 +790,49 @@ func TestTheListReadsTheDaysTheTailMissedOnce(t *testing.T) {
 	if !slices.Equal(l.days, want) {
 		t.Errorf("the days %v were read whole, want %v, each missed once", l.days, want)
 	}
-	if held := *h.model.sessionsTab.held; !reflect.DeepEqual(held, held.Take(views.Today(h.clock.now).Date, nil)) {
-		t.Error("the List is held at a day missed, want it rolled on to today")
+	if day := h.model.held.Holding().Day; day != views.Today(h.clock.now).Date {
+		t.Errorf("the store is held at %s, a day missed, want it rolled on to today", day)
+	}
+}
+
+// A reader's read of its own taken into the store while a read of the
+// ledger's tail is under way, as heldWith takes it, is held once the read
+// lands; a session the read let go, held as it began, nobody wanting it, is
+// not, though the reader's read held it too; and a session new to both, as
+// the read met it, is as the read fed it.
+func TestASessionTakenIntoTheStoreAsTheTailIsReadIsHeldOnceTheReadLands(t *testing.T) {
+	const fresh = "4c6b2e90-1f3d-4a57-9b8e-d5a0c7e3f612"
+	state := t.TempDir()
+	now := onTheDay(12, 0, 0)
+	of := func(session, request string, at time.Time) ledger.Held {
+		l := arrivedAt(request, at)
+		l.Session = session
+		return l
+	}
+	yesterday := now.AddDate(0, 0, -1)
+	writeLines(t, state, arrivedAt("0a000001", now.Add(-10*time.Minute)), of(id7F3A, "0a000002", yesterday), of(id9E21, "0a000003", yesterday))
+	h, l := sessionsOnTheLedger(t, state, now)
+	readOf := func(ids ...string) views.HeldSessions {
+		held, _ := views.HoldSessions(h.model.cfg.Prices).Fed(l, views.Taken{}, views.SessionsWanted{Log: ids}, h.clock.now)
+		return held
+	}
+	h.model = h.model.heldWith(readOf(id7F3A))
+
+	read := h.readingTheTail()
+	writeLines(t, state, of(fresh, "0a000004", now.Add(-2*time.Minute)))
+	h.model = h.model.heldWith(readOf(id9E21, id7F3A, fresh))
+	writeLines(t, state, of(fresh, "0a000005", now.Add(-time.Minute)))
+	h.deliver(h.run(read)...)
+
+	held := slices.Sorted(maps.Keys(h.model.held.Holding().Open))
+	if !slices.Contains(held, id9E21) {
+		t.Errorf("the store holds %v, want %s, taken in as the read was under way", held, id9E21)
+	}
+	if slices.Contains(held, id7F3A) {
+		t.Errorf("the store holds %v, want %s let go, as the read let it go", held, id7F3A)
+	}
+	list := h.model.held.List(h.model.listLive(h.clock.now, h.model.traffic.stream(h.clock.now)))
+	if !slices.ContainsFunc(list.Sessions, func(s views.ListedSession) bool { return s.Session == fresh && s.Requests == 2 }) {
+		t.Errorf("the List holds %+v, want %s with both its requests, as the read fed it", list.Sessions, fresh)
 	}
 }

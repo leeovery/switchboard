@@ -11,7 +11,7 @@ import (
 // calls priced over it read: each gives exactly what the line's own call
 // gives, which decodes the usage every time. So a view that holds a request
 // holds none of its raw usage. Its zero value is the spend of a line without
-// usage, of a request that never went upstream.
+// usage, of a request that never went upstream and isn't a quota check.
 type Spend struct {
 	// all is its usage's bill, as Request prices it.
 	all bill

@@ -198,6 +198,28 @@ func TestAModelCostsAlikeOnDaysItsPricesAreTheSame(t *testing.T) {
 	}
 }
 
+// The zero Spend is the spend of a line without usage of a request that
+// never went upstream, and of no other: not of one that went and gave no
+// usage, whose spend is unknown, nor of a quota check.
+func TestTheZeroSpendIsALinesThatNeverWentUpstream(t *testing.T) {
+	tests := []struct {
+		name string
+		line ledger.Line
+		zero bool
+	}{
+		{name: "never upstream", line: ledger.Line{Kind: ledger.KindMessage, Status: 429}, zero: true},
+		{name: "upstream, no usage given", line: ledger.Line{Kind: ledger.KindMessage, Status: 200, Attempts: 1}},
+		{name: "a quota check", line: ledger.Line{Kind: ledger.KindCheck, Status: 200}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if zero := reflect.DeepEqual(ledger.SpendOf(&tt.line), ledger.Spend{}); zero != tt.zero {
+				t.Errorf("SpendOf(%+v) is the zero Spend: %t, want %t", tt.line, zero, tt.zero)
+			}
+		})
+	}
+}
+
 // worthOn is what usage, of a request for the model with the given id, is
 // worth at table's prices on the day with the given date, priced or not.
 func worthOn(table ledger.Table, model string, usage json.RawMessage, date string) []any {

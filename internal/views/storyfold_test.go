@@ -246,7 +246,7 @@ func lineSaid(l *ledger.Line) string {
 
 // flightSaid names the request of a flight, as lineSaid names a line's.
 func flightSaid(f flight) string {
-	return fmt.Sprintf("%s@%d+%d", f.request, f.at, f.end)
+	return fmt.Sprintf("%s@%d+%d", f.request, f.arrived().UnixNano(), f.ended().UnixNano())
 }
 
 // sightingSaid names a sighting, as the stories' namings are held alike.
@@ -364,7 +364,7 @@ func toldOfHeld(s *story, q foldQuery) storyTold {
 	for _, m := range s.moves {
 		rewrote := ""
 		if m.rewrote != nil {
-			rewrote = flightSaid(*m.rewrote)
+			rewrote = flightSaid(m.rewrote.flight)
 		}
 		told.Moves = append(told.Moves, moveTold{
 			By: flightSaid(m.by), At: m.at.UnixNano(), Model: m.model, From: m.from, To: m.to, Reason: m.reason, Settled: m.settled,

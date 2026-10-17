@@ -164,9 +164,10 @@ func (l heldLedger) FirstLinesDay(now time.Time) (time.Time, error) {
 }
 
 // Today gives every line that arrived from today's start to now, oldest
-// first, as a Follower orders them, afresh, whatever mark says, as a Follower
-// gives them where today's files were replaced: a ledger.Mark is the ledger
-// package's alone to make, so the zero Mark is all it can give back.
+// first, as a Follower orders them, none of its JSON held, as a Follower
+// gives them, afresh, whatever mark says, as a Follower gives them where
+// today's files were replaced: a ledger.Mark is the ledger package's alone
+// to make, so the zero Mark is all it can give back.
 func (l heldLedger) Today(ledger.Mark) (lines []ledger.Held, next ledger.Mark, afresh bool) {
 	now := l.now()
 	start := dayfile.DayStart(now.Local(), 0)
@@ -178,14 +179,15 @@ func (l heldLedger) Today(ledger.Mark) (lines []ledger.Held, next ledger.Mark, a
 	}
 	slices.SortStableFunc(today, byArrival)
 	for _, f := range today {
-		lines = append(lines, f.Held)
+		lines = append(lines, ledger.Held{Line: f.Line})
 	}
 	return lines, ledger.Mark{}, true
 }
 
 // Day gives the lines that arrived on the local day with the given date, by
-// now, oldest first, as a Follower orders them: whichever day's files hold
-// them, as a Follower reads the day's files and its neighbours'.
+// now, oldest first, as a Follower orders them, none of its JSON held, as a
+// Follower gives them: whichever day's files hold them, as a Follower reads
+// the day's files and its neighbours'.
 func (l heldLedger) Day(date string) []ledger.Held {
 	start, end, ok := dayfile.Day(date)
 	if !ok {
@@ -200,7 +202,7 @@ func (l heldLedger) Day(date string) []ledger.Held {
 	slices.SortStableFunc(day, byArrival)
 	lines := make([]ledger.Held, len(day))
 	for i, f := range day {
-		lines[i] = f.Held
+		lines[i] = ledger.Held{Line: f.Line}
 	}
 	return lines
 }

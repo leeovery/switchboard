@@ -48,7 +48,7 @@ const (
 // SessionsMoment is a scene Sessions has to get right, look by look, each
 // after the last: the Switchboard keeping who sits where from one to the
 // next, as views.Patch keeps it, and the List held as the ledger's lines are
-// appended, as views.HeldList holds it.
+// appended, as the store views.HeldSessions holds it.
 type SessionsMoment struct {
 	Name  string
 	Looks []SessionsLook

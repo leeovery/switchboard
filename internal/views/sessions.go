@@ -128,18 +128,25 @@ type SessionSources struct {
 	Now    time.Time
 }
 
+// ListLive is what the List is built of beside its lines: the sessions the
+// router lists, as GET /sessions gives them, none without the router;
+// whether no router lists them, as SessionSources' Unlisted has it; what the
+// request stream told; and now.
+type ListLive struct {
+	Running  []status.Session
+	Unlisted bool
+	Stream   Stream
+	Now      time.Time
+}
+
 // ListSessions builds the List from src: the sessions the router lists, and
 // those with requests today, each with what the router says of it, what the
 // request stream tells of its requests, and what its lines tell, of
-// whatever day, as the ledger's Sessions reads them.
+// whatever day, as the ledger's Sessions reads them: the List of a store
+// held afresh of that one read, as the watch's first read of it holds it.
 func ListSessions(src SessionSources) SessionList {
-	today := Today(src.Now)
-	read := src.Ledger.Sessions(runningIDs(src.Running), nil)
-	stories := make(map[string]*story, len(read))
-	for id, lines := range read {
-		stories[id] = storyOf(pricedRequestsOf(lines, src.Prices, today.Date), src.Prices, today)
-	}
-	return listOf(stories, newLister(src.Running, src.Unlisted, src.Stream, src.Now), src.Prices)
+	held, _ := HoldSessions(src.Prices).Fed(src.Ledger, Taken{}, ListWanted(src.Running, src.Stream), src.Now)
+	return held.List(ListLive{Running: src.Running, Unlisted: src.Unlisted, Stream: src.Stream, Now: src.Now})
 }
 
 // listOf is the List of the sessions by lists, as the router lists them,

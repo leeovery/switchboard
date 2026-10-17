@@ -84,9 +84,10 @@ type Frame struct {
 	// requests, as the views read it, by each request's id: zero where the
 	// watch hears none.
 	Stream views.Stream
-	// HeldList is Sessions' List as the watch holds it, whose lines name the
-	// sessions running as the List names them: zero till its read lands.
-	HeldList views.HeldList
+	// Held are the sessions the watch holds, as views.HeldSessions holds
+	// them, whose lines name the sessions running as the List names them:
+	// none till the List's first read lands.
+	Held views.HeldSessions
 	// Traffic is what the router's request stream tells of the sessions'
 	// requests, as Sessions' switchboard draws it, while the watch reads it:
 	// zero while it doesn't.

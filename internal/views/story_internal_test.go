@@ -39,3 +39,29 @@ func TestALineIsOfTheRequestWithItsIdWhileItWasInFlight(t *testing.T) {
 		})
 	}
 }
+
+// A line is its own request whenever it says it arrived, as a hand-edited
+// file may give one: at no time at all, or in a year nanoseconds since the
+// epoch can't hold. Its flight arrives and ends when its line does, and its
+// story tells it's the first request and the move it made.
+func TestALineIsItsOwnRequestWheneverItArrived(t *testing.T) {
+	for _, at := range []time.Time{
+		{}, time.Date(1600, 3, 1, 9, 0, 0, 0, time.UTC), time.Date(3000, 3, 1, 9, 0, 0, 1, time.UTC), time.Date(2026, 10, 7, 13, 0, 0, 0, time.UTC),
+	} {
+		t.Run(at.String(), func(t *testing.T) {
+			l := ledger.Line{
+				Request: "r1", At: at, TotalMS: 2000, Kind: ledger.KindMessage, Session: "s", Model: "claude-opus-5-5",
+				Account: "side", From: "work", Reason: "moved: work hit its limit", Class: ledger.ClassMain, Attempts: 1,
+			}
+			f := flightOf(&l)
+			if !f.arrived().Equal(l.At) || !f.ended().Equal(ended(&l)) || !f.is(l.Request, l.At) {
+				t.Errorf("the flight arrived %v and ended %v, of its line: %t; want %v and %v, of it", f.arrived(), f.ended(), f.is(l.Request, l.At), l.At, ended(&l))
+			}
+			s := storyOf(heldRequestsOf([]ledger.Line{l}), ledger.Pricing, Today(at))
+			if first, made, _ := s.toldOf(&l); !first || made == nil || !s.first.arrived().Equal(l.At) {
+				t.Errorf("its story begins at %v, and tells it's the first %t, and made a move %t; want it to begin at %v, the first, its move made",
+					s.first.arrived(), first, made != nil, l.At)
+			}
+		})
+	}
+}

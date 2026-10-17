@@ -7,38 +7,33 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
 // sessionsTab is what the watch holds of Sessions: what it shows, its
-// Switchboard and its List as the last look built them; the List held, as
-// views.HeldList holds it, from its first read, as a view naming the
-// sessions running first shows, as namesSessions has it, for the run, fed
-// by the ledger's tail: nil till that read lands; whether it's under way;
-// when each day the List awaits a line on was last read for it; and how
-// many moves the views read as the last look built Sessions, for a frame to
-// build it afresh only as a move comes to show.
+// Switchboard and its List as the last look built them; whether the List is
+// held, in the store, from its first read, as a view naming the sessions
+// running first shows, as namesSessions has it, for the run, fed by the
+// ledger's tail; whether that read is under way; when each day the store
+// awaits a line on was last read for it; and how many moves the views read
+// as the last look built Sessions, for a frame to build it afresh only as a
+// move comes to show.
 type sessionsTab struct {
 	shown   dashboard.SessionsShown
-	held    *views.HeldList
+	listed  bool
 	reading bool
 	awaited awaitedReads
 	moves   int
 }
 
-// list is the List held: none till its first read lands.
-func (t sessionsTab) list() views.HeldList {
-	if t.held == nil {
-		return views.HeldList{}
-	}
-	return *t.held
-}
-
-// listReadMsg is the List's first read, as views.HoldList holds it.
+// listReadMsg is the List's first read, the sessions it lists held as a
+// store of their own, as views.HeldSessions holds them, for the watch's to
+// take them in.
 type listReadMsg struct {
-	held views.HeldList
+	held views.HeldSessions
 }
 
 // sessionsLooked is m with Sessions built afresh at the look msg takes, while
@@ -62,11 +57,10 @@ func (m Model) sessionsLooked(msg tea.Msg) Model {
 	sighted := m.sessionsTab.shown.Chosen != (dashboard.Plug{}) && chosenShows(m.frame(now), m.doc, now, m.scroll)
 	mo := m.moment(now)
 	t := m.sessionsTab
-	held := t.list()
-	if t.held != nil {
-		t.shown.List = held.List(m.listLive(now, s))
+	if t.listed {
+		t.shown.List = m.held.List(m.listLive(now, s))
 	}
-	t.shown.Calls = views.CallsOf(mo, m.listLive(now, s), held)
+	t.shown.Calls = views.CallsOf(mo, m.listLive(now, s), m.held)
 	t.shown.Patched = views.Patch(t.shown.Patched, t.shown.Calls, views.StubsOf(mo))
 	t.shown = t.shown.Following(accountIDs(mo))
 	t.moves = len(s.Moves)
@@ -91,7 +85,7 @@ func (m Model) unlisted() bool {
 	return !m.answering()
 }
 
-// readSessions has the watch read the ledger for the List held as it wants,
+// readSessions has the watch read the ledger for the List as it wants,
 // while what it shows names the sessions running, as namesSessions has it:
 // the List's first read, as readList reads it; and once it's held, at each
 // look, what the ledger gained since the tail's mark, as readTail reads it
@@ -101,7 +95,7 @@ func (m Model) readSessions() (Model, tea.Cmd) {
 	switch t := m.sessionsTab; {
 	case !m.namesSessions() || m.cfg.Ledger == nil || t.reading:
 		return m, nil
-	case t.held == nil:
+	case !t.listed:
 		return m.readList()
 	case !m.tail.due || m.tail.busy() || m.log.reading || m.pending != "":
 		return m, nil
@@ -122,97 +116,98 @@ func (m Model) namesSessions() bool {
 	return m.detailShown()
 }
 
-// readList reads the List, as a command, once: the sessions it lists whole,
-// of the router's listing, as views.ReadList reads them, held as
-// views.HoldList holds them, priced at the config's prices. It waits till no
-// read of the ledger's tail is under way, and holds the tail's reads off
-// till it lands, as a session's page's read does, so the mark never moves
-// past where its read of today's lines ends, the List yet to take what lies
-// between.
+// readList reads the List, as a command, once: a store of its own fed as
+// the List wants, which reads whole every session it lists, of the router's
+// listing, priced at the config's prices. It waits till no read of the
+// ledger's tail is under way, and holds the tail's reads off till it lands,
+// as a session's page's read does, so the mark never moves past where its
+// read of today's lines ends, the store yet to take what lies between.
 func (m Model) readList() (Model, tea.Cmd) {
 	if m.tail.reading {
 		return m, nil
 	}
-	l, running, prices, now := m.cfg.Ledger, m.sessions, m.cfg.Prices, m.now()
+	l, prices, now := m.cfg.Ledger, m.cfg.Prices, m.now()
+	want := views.ListWanted(m.sessions, m.traffic.stream(now))
 	m.sessionsTab.reading, m.tail = true, m.tail.wholeAsked()
 	return m, func() tea.Msg {
-		return listReadMsg{held: views.HoldList(views.ReadList(l, running), prices, now)}
+		held, _ := views.HoldSessions(prices).Fed(l, views.Taken{}, want, now)
+		return listReadMsg{held: held}
 	}
 }
 
-// listRead takes in the List's first read, held for the run from then on,
-// the tail's reads no longer held off by it.
+// listRead takes in the List's first read, its sessions taken into the
+// watch's store, held for the run from then on, the tail's reads no longer
+// held off by it.
 func (m Model) listRead(msg listReadMsg) Model {
 	m.tail = m.tail.wholeLanded()
-	m.sessionsTab.reading, m.sessionsTab.held = false, &msg.held
+	m = m.heldWith(msg.held)
+	m.sessionsTab.reading, m.sessionsTab.listed = false, true
 	return m
 }
 
-// listFold is what a read of the ledger's tail does for the List held: it
-// takes in the lines of the days before today it reads again whole, late,
-// the oldest first, then what today's gained, each at its day's date, so
-// it's rolled on to today even where nothing is new; then it reads whole,
-// once, the sessions the List of live then lists that it holds no read of,
-// as Unfound has them. Awaited is when each day the List awaits a line on was
-// last read for it, as the read leaves it.
-type listFold struct {
-	held    views.HeldList
-	live    views.ListLive
+// heldWith is m with the sessions found, held of a reader's read of its
+// own, taken into the store, as views.HeldSessions' With takes them: the
+// one way a reader's read joins the store, in Update. Those it takes while
+// a read of the ledger's tail is under way are kept apart too, for the
+// store the read fed to take as it lands, as tailed has it.
+func (m Model) heldWith(found views.HeldSessions) Model {
+	if m.tail.reading {
+		m.merged = m.merged.With(found.Without(m.held))
+	}
+	m.held = m.held.With(found)
+	return m
+}
+
+// heldFold is what a read of the ledger's tail does for the store: it takes
+// in the lines of the days before today it reads again whole, late, the
+// oldest first, then what today's gained, wanting what want wants, as
+// views.HeldSessions' Fed feeds it. Awaited is when each day the store
+// awaits a line on was last read for it, as the read leaves it.
+type heldFold struct {
+	held    views.HeldSessions
+	want    views.SessionsWanted
 	late    []string
 	awaited awaitedReads
 }
 
-// listTaken is the List held, as a read of the ledger's tail grew it.
-type listTaken struct {
-	held views.HeldList
-}
-
-// listFold is what a read of the ledger's tail at now does for the List
-// held, nil before its first read lands: its late days those of the days the
-// tail missed, as missed has them, it holds not every line of, as Unread has
-// them; and those it awaits a line on, as Awaited has them, whose lines
-// could have come since they were last read, as due has them, as the Log's
-// are; each once, the oldest first.
-func (m Model) listFold(now time.Time) *listFold {
+// heldFold is what a read of the ledger's tail at now does for the store,
+// nil while nothing wants it, the List's first read yet to land: its late
+// days those of the days the tail missed, as missed has them, it holds not
+// every line of, as Unread has them; and those it awaits a line on, as
+// Awaited has them, whose lines could have come since they were last read,
+// as due has them, as the Log's are; each once, the oldest first.
+func (m Model) heldFold(now time.Time) *heldFold {
 	t := m.sessionsTab
-	if t.held == nil {
+	if !t.listed {
 		return nil
 	}
 	live := m.listLive(now, m.traffic.stream(now))
-	due, awaited := t.awaited.due(t.held.Awaited(live), live.Stream, now)
-	late := slices.Concat(due, t.held.Unread(m.tail.missed(views.Today(now))))
-	return &listFold{held: *t.held, live: live, late: slices.Compact(slices.Sorted(slices.Values(late))), awaited: awaited}
+	due, awaited := t.awaited.due(m.held.Awaited(live), live.Stream, now)
+	late := slices.Concat(due, m.held.Unread(m.tail.missed(views.Today(now))))
+	return &heldFold{
+		held: m.held, want: views.ListWanted(live.Running, live.Stream), late: slices.Compact(slices.Sorted(slices.Values(late))), awaited: awaited,
+	}
 }
 
-// listAwaiting is m with the List held noting when each day it awaits a line
-// on was last read for it, as the read of the tail f folds leaves it: none
-// before its first read lands.
-func (m Model) listAwaiting(f *listFold) Model {
+// heldAwaiting is m with the store noting when each day it awaits a line on
+// was last read for it, as the read of the tail f folds leaves it: none
+// while nothing wants it.
+func (m Model) heldAwaiting(f *heldFold) Model {
 	if f != nil {
 		m.sessionsTab.awaited = f.awaited
 	}
 	return m
 }
 
-// taken is the List held grown by what a read of the ledger's tail on the
-// day given read, as the fold says, reading whole through l the sessions it
-// then lists that it holds no read of, as ReadListOf reads them.
-func (f listFold) taken(l views.LedgerSession, read tailLines, today views.LedgerDay) *listTaken {
-	held := f.held
+// fed is the store fed, through l, at now, what a read of the ledger's tail
+// read, as the fold says: today's gain, and the late days it reads again.
+func (f heldFold) fed(l views.LedgerSessions, read tailLines, now time.Time) *views.HeldSessions {
+	days := make(map[string][]ledger.Held, len(f.late))
 	for _, date := range f.late {
-		held = held.Take(date, read.days[date])
+		days[date] = read.days[date]
 	}
-	held = held.Take(today.Date, read.gained)
-	if unfound := held.Unfound(f.live); len(unfound) > 0 {
-		held = held.Found(views.ReadListOf(l, unfound...))
-	}
-	return &listTaken{held: held}
-}
-
-// listTook is m with the List held as a read of the ledger's tail grew it.
-func (m Model) listTook(t listTaken) Model {
-	m.sessionsTab.held = &t.held
-	return m
+	held, _ := f.held.Fed(l, views.Took(read.gained, days), f.want, now)
+	return &held
 }
 
 // noSessionChosen is why enter opens nothing on Sessions while no session

@@ -1,6 +1,7 @@
 package views
 
 import (
+	"maps"
 	"slices"
 	"time"
 
@@ -77,6 +78,56 @@ func storyOf(requests []heldRequest, prices ledger.Table, d LedgerDay) *story {
 	return s
 }
 
+// cloned is a copy of s for what tells it on to change, sharing nothing it
+// changes with s: its moves, and each thread's end and life, its own. What
+// tells it on puts a move's cost and the request that rewrote it in their
+// places, never changing either, so they're shared.
+func (s *story) cloned() *story {
+	c := *s
+	c.moves = slices.Clone(s.moves)
+	c.ends, c.lives = maps.Clone(s.ends), maps.Clone(s.lives)
+	return &c
+}
+
+// told is s told on afresh, requests, its session's next, taken in, in
+// order, as inOrder has it.
+func (s *story) told(requests []heldRequest) *story {
+	c := s.cloned()
+	for i := range requests {
+		c.add(&requests[i])
+	}
+	return c
+}
+
+// on is s, its requests priced, told on the day given, a later one than its
+// own, none of whose requests arrived on it, afresh, as it would be told of
+// the same requests priced on it: none of them is on the day, they're worth
+// nothing, the requests it keeps are priced at the day's prices, and so is
+// each move's cost, where its model's prices are others than they were on
+// s's day, as SamePrices has it.
+func (s *story) on(day LedgerDay) *story {
+	c := s.cloned()
+	was := c.day.Date
+	c.day, c.requests, c.worth = day, 0, Worth{}
+	for _, r := range []*heldRequest{&c.used, &c.usedMain} {
+		if r.metered() {
+			*r = r.pricedOn(c.prices, day.Date)
+		}
+	}
+	for i := range c.moves {
+		m := &c.moves[i]
+		if m.rewrote == nil {
+			continue
+		}
+		rewrote := m.rewrote.pricedOn(c.prices, day.Date)
+		m.rewrote = &rewrote
+		if !c.prices.SamePrices(m.model, was, day.Date) {
+			m.cost = c.rewriteCost(m)
+		}
+	}
+	return c
+}
+
 // isRequest reports whether l is a session's request: one of a session that
 // ledger.Line.Counted counts, as every view counts requests, a line of no
 // session being none of a session's.
@@ -143,7 +194,7 @@ func (s *story) life(thread string) time.Duration {
 // wrote to the cache, and what that cost, nil where that isn't known, or its
 // cache would have run out anyway; and rewrote, that request, as it wrote
 // the session's context again, nil where none has, or the cache would have
-// run out anyway.
+// run out anyway, for its cost to be priced again on another day.
 type move struct {
 	by                      flight
 	tried                   []ledger.Tried
@@ -152,7 +203,7 @@ type move struct {
 	settled                 bool
 	written                 int
 	cost                    *ledger.Picodollars
-	rewrote                 *flight
+	rewrote                 *heldRequest
 }
 
 // rewrites settles each move of r's model that awaits it, r being a request
@@ -184,12 +235,21 @@ func (s *story) rewrites(r *heldRequest) {
 		if !warm {
 			continue
 		}
-		rewrote := r.flight
+		rewrote := *r
 		m.rewrote = &rewrote
-		if w, priced := s.prices.CacheWriteSpend(model, r.geo.Value(), r.spend, s.day.Date); priced && len(w.Unpriced) == 0 {
-			m.cost = &w.Cost
-		}
+		m.cost = s.rewriteCost(m)
 	}
+}
+
+// rewriteCost is what the request that rewrote the session's context, as the
+// move m settled, cost to write to the cache, at the day's prices: nil where
+// the table can't price all of it.
+func (s *story) rewriteCost(m *move) *ledger.Picodollars {
+	r := m.rewrote
+	if w, priced := s.prices.CacheWriteSpend(m.model, r.geo.Value(), r.spend, s.day.Date); priced && len(w.Unpriced) == 0 {
+		return &w.Cost
+	}
+	return nil
 }
 
 // toldOf is what the story tells of l, a line of its session's: whether

@@ -1,6 +1,8 @@
 package watch
 
 import (
+	"fmt"
+	"maps"
 	"reflect"
 	"slices"
 	"testing"
@@ -11,6 +13,7 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -413,5 +416,83 @@ func TestTheLogBehindASessionsPageAwaitsTheLineOfARequestThatEndedAcrossMidnight
 	}
 	if got := h.model.log.read.WrittenTo(); !got.Equal(ended) {
 		t.Errorf("the Log's read holds lines written to %s, want %s, the line of the request across midnight taken in", got, ended)
+	}
+}
+
+// Every late day a read of the tail reads reaches every reader that folds
+// it, as the stream lets a request go once any reader finds its line: a
+// request across midnight ends, the first reader reads the day before for
+// its line before it lands; a second reader, opened then, finds it at the
+// next look, its own read due, the first's not. The first holds the line all
+// the same: the store, the List held, under the page or the Log; and the
+// Log, under the page.
+func TestEveryReaderTakesInTheLateDaysAnotherReadsForItsLine(t *testing.T) {
+	sessions := func(h *harness) { h.keys(toSessions...) }
+	page := func(h *harness) { h.openPage(idD28C) }
+	storeHolds := func(h *harness, l *daysCounted, _ time.Time) string {
+		now := h.clock.now
+		if got, want := h.model.held.List(h.model.listLive(now, h.model.traffic.stream(now))), builtAfresh(h, l); !reflect.DeepEqual(got, want) {
+			return fmt.Sprintf("the store's List is\n%+v\nwant it as built afresh of every line\n%+v", got, want)
+		}
+		whole, _ := views.HoldSessions(h.model.cfg.Prices).Fed(l, views.Taken{}, views.ListWanted(h.model.sessions, h.model.traffic.stream(now)), now)
+		if got, want := h.model.held.Holding().Open, whole.Holding().Open; !maps.Equal(got, want) {
+			return fmt.Sprintf("the store holds %v requests open, want %v, as one read whole holds them", got, want)
+		}
+		return ""
+	}
+	logHolds := func(h *harness, _ *daysCounted, ended time.Time) string {
+		if got := h.model.log.read.WrittenTo(); !got.Equal(ended) {
+			return fmt.Sprintf("the Log's read holds lines written to %s, want %s, the line across midnight taken in", got, ended)
+		}
+		return ""
+	}
+	tests := []struct {
+		name          string
+		view          dashboard.View
+		first, second func(*harness)
+		holds         func(*harness, *daysCounted, time.Time) string
+	}{
+		{name: "the List held, then the page", view: dashboard.Overview, first: sessions, second: page, holds: storeHolds},
+		{name: "the List held, then the Log", view: dashboard.Overview, first: sessions, second: func(h *harness) { h.keys(tabKey, tabKey) }, holds: storeHolds},
+		{name: "the Log, then the page", view: dashboard.Log, first: func(*harness) {}, second: page, holds: logHolds},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := t.TempDir()
+			writeLines(t, state, arrivedAt("0a000001", onTheDay(23, 50, 0)))
+			h := routedHarness(t, routerDocument(three()...))
+			h.source.sessions = []status.Session{sessionOn(idD28C, opus, "work", 0)}
+			l := onTheLog(h, state)
+			h.model.view = tt.view
+			h.clock.now = onTheDay(24, 0, 10)
+			h.start()
+			tt.first(h)
+
+			at := func(kind string, when time.Time) router.StreamEvent {
+				return alter(told(kind, "0a000003", "work", 0), func(e *router.StreamEvent) { e.At, e.Status = when.UTC(), 200 })
+			}
+			arrival := onTheDay(23, 59, 50)
+			line := took(arrivedAt("0a000003", arrival), 40*time.Second)
+			ended := line.At.Add(40 * time.Second)
+			h.hear(at(router.StreamSent, arrival.Add(100*time.Millisecond)), at(router.StreamDone, ended))
+			h.clock.now = onTheDay(24, 0, 31)
+			h.read(routerDocument(three()...))
+
+			h.clock.now = onTheDay(24, 0, 35)
+			tt.second(h)
+			read := len(l.days)
+			writeLines(t, state, line)
+			h.clock.now = onTheDay(24, 0, 45)
+			h.read(routerDocument(three()...))
+			if got := l.days[read:]; !slices.Equal(got, []string{dayfile.DateOf(arrival)}) {
+				t.Fatalf("after the second reader opened, the days %v were read whole, want the day before once, for the second reader", got)
+			}
+			if h.model.traffic.holdsLines() {
+				t.Error("the stream still holds the request across midnight, want it let go, its line read")
+			}
+			if msg := tt.holds(h, l, ended); msg != "" {
+				t.Error(msg)
+			}
+		})
 	}
 }

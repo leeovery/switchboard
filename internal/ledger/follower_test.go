@@ -55,10 +55,24 @@ func (p *page) read(f *ledger.Follower) (added []ledger.Held, afresh bool) {
 	return added, afresh
 }
 
-// inArrival returns the JSON of the lines the page holds, oldest first: the
-// tests' lines each arrived at a time of its own.
-func (p *page) inArrival() []string {
-	return heldJSON(slices.SortedStableFunc(slices.Values(p.lines), func(a, b ledger.Held) int { return a.At.Compare(b.At) }))
+// inArrival returns the lines the page holds, oldest first, each as it
+// reads, as readAs has them: the tests' lines each arrived at a time of its
+// own.
+func (p *page) inArrival(t *testing.T) []string {
+	t.Helper()
+	return readAs(t, slices.SortedStableFunc(slices.Values(p.lines), func(a, b ledger.Held) int { return a.At.Compare(b.At) }))
+}
+
+// readAs is each of held as the line it reads as, written again: Today
+// gives its lines without the JSON they were written as, which a Reader's
+// hold.
+func readAs(t *testing.T, held []ledger.Held) []string {
+	t.Helper()
+	lines := make([]string, len(held))
+	for i, h := range held {
+		lines[i] = jsonOf(t, h.Line)
+	}
+	return lines
 }
 
 // fullJSON returns each of summaries as JSON, the sizes of its day's files
@@ -112,12 +126,12 @@ func sameAsWhole(t *testing.T, step string, f *ledger.Follower, p *page, state s
 			lines = append(lines, h)
 		}
 	}
-	today := heldJSON(lines)
-	if got := p.inArrival(); !slices.Equal(got, today) {
+	today := readAs(t, lines)
+	if got := p.inArrival(t); !slices.Equal(got, today) {
 		t.Errorf("%s: the page holds\n%s\nwant today's lines\n%s", step, strings.Join(got, "\n"), strings.Join(today, "\n"))
 	}
-	if got, _, _ := f.Today(ledger.Mark{}); !slices.Equal(heldJSON(got), today) {
-		t.Errorf("%s: Today() from the zero Mark =\n%s\nwant\n%s, in the order a whole read gives", step, strings.Join(heldJSON(got), "\n"), strings.Join(today, "\n"))
+	if got, _, _ := f.Today(ledger.Mark{}); !slices.Equal(readAs(t, got), today) {
+		t.Errorf("%s: Today() from the zero Mark =\n%s\nwant\n%s, in the order a whole read gives", step, strings.Join(readAs(t, got), "\n"), strings.Join(today, "\n"))
 	}
 	if got, want := heldJSON(slices.Collect(f.Session("one"))), wholeSession(state, "one", at); !slices.Equal(got, want) {
 		t.Errorf("%s: Session() =\n%s\nwant\n%s", step, strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -384,12 +398,33 @@ func TestEachReadOfTodaysLinesAfterTheFirstGivesWhatTheDaysFilesGained(t *testin
 	holdLines(t, dir, date, fourth, third)
 
 	added, afresh := p.read(follower)
-	if want := []string{jsonOf(t, third), jsonOf(t, fourth)}; !slices.Equal(heldJSON(added), want) || afresh {
-		t.Errorf("Today() gave\n%s\nafresh %v; want what the day's file gained, oldest first, not afresh\n%s", strings.Join(heldJSON(added), "\n"), afresh,
+	if want := []string{jsonOf(t, third), jsonOf(t, fourth)}; !slices.Equal(readAs(t, added), want) || afresh {
+		t.Errorf("Today() gave\n%s\nafresh %v; want what the day's file gained, oldest first, not afresh\n%s", strings.Join(readAs(t, added), "\n"), afresh,
 			strings.Join(want, "\n"))
 	}
 	if added, afresh := p.read(follower); len(added) != 0 || afresh {
 		t.Errorf("Today() gave %d lines, afresh %v; want none, as nothing was written", len(added), afresh)
+	}
+}
+
+// Today's lines, which the follower holds every one of for the run, and a
+// day's it reads again whole, hold none of the JSON they were written as, as
+// the dashboard that follows them never reads it, while a Reader's lines,
+// which a verb writes as the ledger holds them, hold theirs.
+func TestTheFollowersLinesHoldNoneOfTheirJSON(t *testing.T) {
+	state, dir, _ := stateDirs(t)
+	holdLines(t, dir, date, asked("1", on(0, 9, 0)), asked("2", on(0, 9, 30)))
+	clock := &testClock{at: on(0, 10, 0)}
+	follower := followerOf(state, clock, caps)
+	today, _, _ := follower.Today(ledger.Mark{})
+	for name, lines := range map[string][]ledger.Held{"Today()": today, "Day()": follower.Day(date)} {
+		if len(lines) != 2 || slices.ContainsFunc(lines, func(h ledger.Held) bool { return h.JSON != nil }) {
+			t.Errorf("%s gave %d lines, %q; want two, none holding its JSON", name, len(lines), heldJSON(lines))
+		}
+	}
+	read := slices.Collect(readerAt(state, clock.at).Lines(startOfDay(clock.at)))
+	if len(read) != 2 || slices.ContainsFunc(read, func(h ledger.Held) bool { return h.JSON == nil }) {
+		t.Errorf("a Reader's Lines() gave %d lines, %q; want two, each holding its JSON", len(read), heldJSON(read))
 	}
 }
 
@@ -403,11 +438,11 @@ func TestALineOfTodaysStillBeingWrittenIsGivenOnceItsWhole(t *testing.T) {
 	var p page
 
 	if added, _ := p.read(follower); len(added) != 0 {
-		t.Errorf("Today() gave %q, want none until the line is whole", heldJSON(added))
+		t.Errorf("Today() gave %q, want none until the line is whole", readAs(t, added))
 	}
 	appendTo(t, dir, "requests-"+date+".jsonl", "\n")
-	if added, afresh := p.read(follower); !slices.Equal(heldJSON(added), []string{line}) || afresh {
-		t.Errorf("Today() gave %q, afresh %v; want the line once it's whole, not afresh", heldJSON(added), afresh)
+	if added, afresh := p.read(follower); !slices.Equal(readAs(t, added), []string{line}) || afresh {
+		t.Errorf("Today() gave %q, afresh %v; want the line once it's whole, not afresh", readAs(t, added), afresh)
 	}
 }
 
@@ -422,8 +457,8 @@ func TestALineOfTodaysThatArrivesLaterByTheClockIsGivenOnceItsTimeComes(t *testi
 	p.read(follower)
 
 	clock.at = on(0, 11, 0)
-	if added, afresh := p.read(follower); !slices.Equal(heldJSON(added), []string{jsonOf(t, later)}) || afresh {
-		t.Errorf("Today() gave %q, afresh %v; want the later line once the clock reaches it", heldJSON(added), afresh)
+	if added, afresh := p.read(follower); !slices.Equal(readAs(t, added), []string{jsonOf(t, later)}) || afresh {
+		t.Errorf("Today() gave %q, afresh %v; want the later line once the clock reaches it", readAs(t, added), afresh)
 	}
 }
 

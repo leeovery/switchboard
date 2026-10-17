@@ -132,7 +132,7 @@ func (m Model) sessionsOn(mo status.Moment, sessions []status.Session, s views.S
 		return nil
 	}
 	var ids []string
-	for _, r := range views.RunningOn(views.RunningOf(mo, views.ListLive{Running: sessions, Stream: s}, m.sessionsTab.list()), m.accounts.shown.Account()) {
+	for _, r := range views.RunningOn(views.RunningOf(mo, views.ListLive{Running: sessions, Stream: s}, m.held), m.accounts.shown.Account()) {
 		ids = append(ids, r.Session)
 	}
 	return ids
