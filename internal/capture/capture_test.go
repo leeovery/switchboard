@@ -172,8 +172,8 @@ func TestAFixtureIsDrawnAtItsMoment(t *testing.T) {
 		// The document read, rather than still being read.
 		"● healthy",
 		// side's 5-hour window at its reading, its bar eased all the way
-		// there.
-		"3 side ▲          ▏┃              13%  21%/h till 18:50",
+		// there, after its week.
+		"78%  out ~Fri 12:20             ▏┃              13%  21%/h till 18:50",
 		// What the router tells of lately, none picked out as new, the first
 		// look having seen them all.
 		"14:41  ▲ c61b started on side",
@@ -296,8 +296,8 @@ func TestThePagesShowWhatTheyAreFor(t *testing.T) {
 		},
 		{name: "overview-by-account-burn-down-220x50", want: []string{"u   GRAPHS   ⠢ heading", "FABLE WEEK ┄", "✕", "ROUTING   auto ─"}, wantNoneOf: []string{"↑↓ focus"}},
 		{name: "overview-by-account-graphs-140", want: []string{"GRAPHS   work     · even pace", "FABLE WEEK ┄"}},
-		{name: "overview-pool-burn-down-160", want: []string{"1.5 of 3 left             5-HOUR ┄", "09:42                 now  24 Sep 14:42          now", "v chart: burn-down"}},
-		{name: "overview-pool-220x50", want: []string{"1.5 of 3 left             5-HOUR ┄", "now  24 Sep 14:42                     now  24 Sep 14:42                     now", "v chart: burn-up"}},
+		{name: "overview-pool-burn-down-160", want: []string{"1.2 of 3 left             WEEK ┄", "24 Sep 14:42          now  09:42                 now", "v chart: burn-down"}},
+		{name: "overview-pool-220x50", want: []string{"1.2 of 3 left             WEEK ┄", "24 Sep 14:42                     now  09:42                            now  24 Sep 14:42                     now", "v chart: burn-up"}},
 		{name: "overview-phone-burn-down-52", want: []string{"GRAPHS   work     ⠢ heading", "5-HOUR ┄", "FABLE WEEK ┄"}},
 	}
 	for _, tt := range tests {

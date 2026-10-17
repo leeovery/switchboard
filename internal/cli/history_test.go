@@ -466,7 +466,7 @@ func TestHistorysTotalsSayTheirFiguresAsTheDashboardDoes(t *testing.T) {
 		{name: "against a price of thousands, set apart", plan: views.PlanCost{Cost: dollars(138_000), Ratio: new(1.0)},
 			want: "  against its price       1.0× its $1,380\n"},
 		{name: "each window left at its reset named as status names it", totals: views.AccountTotals{LeftAtReset: map[string]float64{"5h": 0, "7d": 0.59}},
-			want: "  left at its last reset  5-hour 0% · week 59%\n"},
+			want: "  left at its last reset  week 59% · 5-hour 0%\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

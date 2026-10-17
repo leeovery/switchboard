@@ -165,28 +165,33 @@ func keyMarks(names []accountName, phone bool) []line {
 }
 
 // roomLeft is USAGE's description of doc at now: with one account, which has
-// no pool, the room it has left in its 5-hour window and its week at now,
-// where it has them, as their Room has it, and numbered as its window's room,
-// as in "room left  5h 0.4 of 1  ·  week 0.6 of 1"; none on a phone, nor with
-// more accounts, whose pool's row says the room.
+// no pool, the room it has left in its week and its 5-hour window at now,
+// where it has them, in the order m lists windows, as its CompareWindows has
+// it, as their Room has it, and numbered as its window's room, as in
+// "room left  week 0.6 of 1  ·  5h 0.4 of 1"; none on a phone, nor with more
+// accounts, whose pool's row says the room.
 func (f Frame) roomLeft(doc status.Document, now time.Time) line {
 	m := f.Moment(doc, now)
 	if len(m.Accounts) != 1 || f.phone() {
 		return nil
 	}
 	a := m.Accounts[0]
-	session, hasSession := a.Window(m.Policy().Started)
-	week, hasWeek := sharedWeek(a)
-	var parts []line
-	for _, w := range []struct {
+	type room struct {
 		window status.WindowNow
-		has    bool
 		word   string
-	}{{session, hasSession, "5h"}, {week, hasWeek, "week"}} {
-		if w.has {
-			left := span{prose.Tenths(w.window.Room), strongInk}.numbered(Number{Kind: NumberRoom, Account: a.ID, Of: w.window.Key})
-			parts = append(parts, line{{w.word + " ", dimInk}, left, {" of 1", dimInk}})
-		}
+	}
+	var rooms []room
+	if session, ok := a.Window(m.Policy().Started); ok {
+		rooms = append(rooms, room{session, "5h"})
+	}
+	if week, ok := sharedWeek(a); ok {
+		rooms = append(rooms, room{week, "week"})
+	}
+	slices.SortFunc(rooms, func(a, b room) int { return m.CompareWindows(a.window.Key, b.window.Key) })
+	var parts []line
+	for _, r := range rooms {
+		left := span{prose.Tenths(r.window.Room), strongInk}.numbered(Number{Kind: NumberRoom, Account: a.ID, Of: r.window.Key})
+		parts = append(parts, line{{r.word + " ", dimInk}, left, {" of 1", dimInk}})
 	}
 	if parts == nil {
 		return nil

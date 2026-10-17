@@ -148,33 +148,34 @@ func endsWith(left, right string, width int) string {
 	return left + strings.Repeat(" ", width-len([]rune(left))-len([]rune(right))) + right
 }
 
-// A lane's windows share one row, as step 3 draws them: 5-hour at column 1,
-// its bar from 8, a cell and its percentage; three cells on, Week, its bar 5
-// cells after it, a cell and its percentage; each bar ⌊(width − 26) ÷ 2⌋
-// cells, ending at the last column where the width leaves no cell over.
+// A lane's windows share one row, as step 3 draws them, in the order of
+// care: Week at column 1, its bar from 8, a cell and its percentage; three
+// cells on, 5-hour, its bar 7 cells after it, a cell and its percentage;
+// each bar ⌊(width − 28) ÷ 2⌋ cells, ending at the last column where the
+// width leaves no cell over.
 func TestALanesWindowsShareARowEachBarHalfWhatTheWidthLeaves(t *testing.T) {
-	for _, tt := range []struct{ width, bar int }{{52, 13}, {61, 17}, {80, 27}, {99, 36}} {
+	for _, tt := range []struct{ width, bar int }{{52, 12}, {61, 16}, {80, 26}, {99, 35}} {
 		t.Run(fmt.Sprint(tt.width), func(t *testing.T) {
 			f := lanesFrame(tt.width, 40, Look{}, phoneScene())
 			doc := phoneDoc()
 			rows := f.At(doc, routedAt).page(doc, routedAt).rows(Look{})
 			y := slices.IndexFunc(rows, func(r string) bool { return strings.HasPrefix(r, "2 personal") }) + 1
 			row := []rune(rows[y])
-			week := laneWindowsAt + laneFirstBar + tt.bar + 1 + percentCells + laneApart
+			second := laneWindowsAt + laneFirstBar + tt.bar + 1 + percentCells + laneApart
 			for _, at := range []struct {
 				x    int
 				want string
 			}{
-				{x: laneWindowsAt, want: "5-hour"},
-				{x: laneWindowsAt + laneFirstBar + tt.bar + 1, want: " 39%"},
-				{x: week, want: "Week"},
-				{x: week + laneNextBar + tt.bar + 1, want: " 66%"},
+				{x: laneWindowsAt, want: "Week"},
+				{x: laneWindowsAt + laneFirstBar + tt.bar + 1, want: " 66%"},
+				{x: second, want: "5-hour"},
+				{x: second + laneNextBar + tt.bar + 1, want: " 39%"},
 			} {
 				if got := string(row[at.x : at.x+len([]rune(at.want))]); got != at.want {
 					t.Errorf("column %d reads %q, want %q; the row reads %q", at.x, got, at.want, rows[y])
 				}
 			}
-			if end := week + laneNextBar + tt.bar + 1 + percentCells; strings.TrimRight(rows[y], " ") != string(row[:end]) {
+			if end := second + laneNextBar + tt.bar + 1 + percentCells; strings.TrimRight(rows[y], " ") != string(row[:end]) {
 				t.Errorf("the row ends past column %d: %q", end, rows[y])
 			}
 		})
@@ -255,9 +256,9 @@ func TestWhereBentCordsOutnumberTheRoomTheSwitchboardDrawsLanes(t *testing.T) {
 			t.Errorf("row %d reads %q, want %q", want.y+1, got, want.says)
 		}
 	}
-	bar := (160 - 26) / 2
-	if got := []rune(rows[top+1])[laneWindowsAt+laneFirstBar+bar+1:][:4]; string(got) != " 95%" {
-		t.Errorf("work's 5-hour percentage reads %q, want a bar of %d before it", string(got), bar)
+	bar := (160 - 28) / 2
+	if got := []rune(rows[top+1])[laneWindowsAt+laneFirstBar+bar+1:][:4]; string(got) != " 34%" {
+		t.Errorf("work's week percentage reads %q, want a bar of %d before it", string(got), bar)
 	}
 	if !slices.ContainsFunc(rows, func(r string) bool { return strings.Contains(r, "◆ primary    ▲ new sessions go here") }) {
 		t.Errorf("the key isn't the wide one:\n%s", strings.Join(rows, "\n"))

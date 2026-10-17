@@ -185,7 +185,7 @@ func sideRead() []readings.Reading {
 // fiveHourAt is the 5-hour view at thursday, of the document and readings
 // given, wanting what's given.
 func fiveHourAt(name string, doc status.Document, read []readings.Reading, want map[string]Figures) RunwayMoment {
-	return RunwayMoment{Name: name, Doc: doc, Now: thursday, Readings: read, Columns: lanes, Want: want}
+	return RunwayMoment{Window: views.RunwayFiveHour, Name: name, Doc: doc, Now: thursday, Readings: read, Columns: lanes, Want: want}
 }
 
 // sorted are the readings given, oldest first.
@@ -226,7 +226,7 @@ func weekResetBeforeRunwayRereads() []RunwayMoment {
 				},
 			},
 		},
-		{
+		{Window: views.RunwayFiveHour,
 			Name: "the v0.1.6 case, the 5-hour view at 21:30", Doc: at(onThu(21, 30, 0)), Now: onThu(21, 30, 0), Readings: read, Columns: lanes,
 			Want: map[string]Figures{
 				"": {FigureNow: "6"},
@@ -255,7 +255,7 @@ func justAfterAFiveHourReset() []RunwayMoment {
 	)
 	doc := routed(onThu(17, 9, 30), nil, workAt, sideAt)
 	return []RunwayMoment{
-		{
+		{Window: views.RunwayFiveHour,
 			Name: "just before a 5-hour reset", Doc: doc, Now: onThu(17, 9, 59), Readings: read, Columns: lanes,
 			Want: map[string]Figures{
 				"": {
@@ -268,7 +268,7 @@ func justAfterAFiveHourReset() []RunwayMoment {
 				},
 			},
 		},
-		{
+		{Window: views.RunwayFiveHour,
 			Name: "just after a 5-hour reset, before the reread", Doc: doc, Now: onThu(17, 10, 1), Readings: read, Columns: lanes,
 			Days: []ledger.Summary{{Version: 2, Day: "2026-10-01", Accounts: []ledger.AccountDay{{Account: work, Resets: []ledger.Reset{{Window: fiveHour, At: reset, Before: 1}}}}}},
 			Want: map[string]Figures{
@@ -423,7 +423,7 @@ func holdsNoEventTells() []RunwayMoment {
 		), map[string]Figures{
 			work: {FigureCells: "limited 0-10, room 11-135", FigureStretches: "limited — – 15:30 @0 0-10"},
 		}),
-		{
+		{Window: views.RunwayFiveHour,
 			Name: "a hold neither an event nor a reading tells the start of, a day a week before stepped back to",
 			Doc:  routed(weekOn.Add(-time.Minute), nil, unnamedWeekOn, sideOn(weekOn.Add(-time.Minute))), Now: weekOn, Readings: weekBefore,
 			Day: civilDay(2026, time.October, 1), Columns: lanes,
@@ -464,7 +464,7 @@ func holdsEventsTell() []RunwayMoment {
 	limitWant := map[string]Figures{work: {FigureCells: "room 0-1, limited 2-10, room 11-135", FigureStretches: "limited 14:03:30 – 15:30, as it resets @2 2-10"}}
 	lifted := func(name string, at time.Time, events []status.Event, read []readings.Reading, want map[string]Figures) RunwayMoment {
 		fresh := reserving(readAccount(work, at, window(fiveHour, 0.02, at.Add(5*time.Hour)), window(week, 0.4, mondayTen)), 0.05)
-		return RunwayMoment{
+		return RunwayMoment{Window: views.RunwayFiveHour,
 			Name: name, Doc: routed(at, events, fresh, sideOn(at)), Now: at.Add(time.Minute + 7*time.Second),
 			Readings: sorted(read, readEach(work, at, fresh.Windows...)), Day: civilDay(2026, time.October, 1), Columns: lanes, Want: want,
 		}
@@ -752,7 +752,7 @@ func holdsCarriedIn() []RunwayMoment {
 	return []RunwayMoment{
 		fiveHourAt("a week at its limit since before the live tail, read every half hour", doc, halfHourly, sinceSaturday),
 		weekView,
-		{
+		{Window: views.RunwayFiveHour,
 			Name: "a week at its limit since before the live tail, read every half hour, Tuesday stepped back to", Doc: doc, Now: thursday,
 			Readings: halfHourly, Day: civilDay(2026, time.September, 29), WeekStarts: time.Monday, Columns: lanes,
 			Want: map[string]Figures{work: {FigureStretches: "limited Sat 15:00 – Mon 10:00 @0 0-135"}},
@@ -779,13 +779,13 @@ func routerSilent() []RunwayMoment {
 		readEach(work, built, workAt.Windows...),
 	)
 	return []RunwayMoment{
-		{
+		{Window: views.RunwayFiveHour,
 			Name: "the router's document as it's read", Doc: doc, Now: built, Readings: read, Columns: lanes,
 			Want: map[string]Figures{
 				side: {FigureCells: "room 0-5, runs out 6-8, limited 9-17, room 18-135", FigureStretches: "limited ~15:04:15 – 16:30, as it resets @9 9-17"},
 			},
 		},
-		{
+		{Window: views.RunwayFiveHour,
 			Name: "the router not answering for 10 minutes", Doc: doc, Now: built.Add(10 * time.Minute), Readings: read, Columns: lanes,
 			Want: map[string]Figures{
 				"":   {FigureNow: "6"},
@@ -864,7 +864,7 @@ func steppedBack() []RunwayMoment {
 	lastRead := readAccount(work, onThu(23, 59, 30), window(fiveHour, 0.2, time.Date(2026, 10, 2, 3, 0, 0, 0, time.UTC)), window(week, 0.4, mondayTen))
 	thursdays := []ledger.Summary{{Version: 2, Day: "2026-10-01", Accounts: []ledger.AccountDay{{Account: work, Highest: map[string]float64{fiveHour: 0.5, week: 0.4}}}}}
 	return slices.Concat([]RunwayMoment{
-		{
+		{Window: views.RunwayFiveHour,
 			Name: "stepped back to a day with nothing read", Doc: doc, Now: thursday, Readings: fromWednesday,
 			Days: []ledger.Summary{{Version: 2, Day: "2026-09-29"}}, Day: civilDay(2026, time.September, 29), Columns: lanes,
 			Want: map[string]Figures{
@@ -872,7 +872,7 @@ func steppedBack() []RunwayMoment {
 				work: {FigureCells: "blank 0-135", FigureStretches: "", FigureResets: "", FigureRoom: "no", FigureUse: "5h highest —"},
 			},
 		},
-		{
+		{Window: views.RunwayFiveHour,
 			Name: "stepped back to a day older than the readings history's keep", Doc: doc, Now: thursday, Readings: fromWednesday,
 			Days: keptFrom, Kept: onWed(0, 0, 0), Day: civilDay(2026, time.September, 28), Columns: lanes,
 			Want: map[string]Figures{
@@ -884,7 +884,7 @@ func steppedBack() []RunwayMoment {
 				},
 			},
 		},
-		{
+		{Window: views.RunwayFiveHour,
 			Name: "stepped back to a day older than the readings history's keep, a limit lifted early by hand", Doc: doc, Now: thursday,
 			Readings: fromWednesday, Kept: onWed(0, 0, 0), Day: civilDay(2026, time.September, 28), Columns: lanes,
 			Days: []ledger.Summary{{Version: 2, Day: "2026-09-28", Accounts: []ledger.AccountDay{{
@@ -894,7 +894,7 @@ func steppedBack() []RunwayMoment {
 			}}}},
 			Want: map[string]Figures{work: {FigureCells: "room 0-57, limited 58-64, room 65-135"}},
 		},
-		{
+		{Window: views.RunwayFiveHour,
 			Name: "stepped back to today", Doc: doc, Now: thursday, Readings: fromWednesday, Day: civilDay(2026, time.October, 1), Columns: lanes,
 			Days: []ledger.Summary{{Version: 2, Day: "2026-10-01", Accounts: []ledger.AccountDay{{
 				Account: work, Highest: map[string]float64{fiveHour: 0.3}, Resets: []ledger.Reset{{Window: fiveHour, At: onThu(12, 10, 0)}},
@@ -906,12 +906,12 @@ func steppedBack() []RunwayMoment {
 			Window: views.RunwayWeek, Day: civilDay(2026, time.September, 24), WeekStarts: time.Monday, Columns: lanes,
 			Want: map[string]Figures{work: {FigureUse: "7d highest 98%"}},
 		},
-		{
+		{Window: views.RunwayFiveHour,
 			Name: "stepped back to today, a second before midnight", Doc: routed(onThu(23, 59, 30), nil, lastRead),
 			Now: onThu(23, 59, 59), Readings: today, Days: thursdays, Day: civilDay(2026, time.October, 1), Columns: lanes,
 			Want: map[string]Figures{"": {FigureNow: "135"}, work: {FigureUse: "5h highest 50%", FigureRoom: "no"}},
 		},
-		{
+		{Window: views.RunwayFiveHour,
 			Name: "stepped back to today, a second after midnight, its date kept", Doc: routed(onThu(23, 59, 30), nil, lastRead),
 			Now: time.Date(2026, 10, 2, 0, 0, 1, 0, time.UTC), Readings: today, Days: thursdays, Day: civilDay(2026, time.October, 1), Columns: lanes,
 			Want: map[string]Figures{"": {FigureNow: "none"}, work: {FigureUse: "5h highest 50%", FigureRoom: "no"}},
@@ -939,12 +939,12 @@ func clocksChanging() []RunwayMoment {
 	}
 	weekBack := in(time.October, 26, 10)
 	return []RunwayMoment{
-		{
+		{Window: views.RunwayFiveHour,
 			Name: "stepped back to a day of 23 hours", Doc: doc, Now: now, Readings: limitedOn(in(time.March, 29, 0)),
 			Day: civilDay(2026, time.March, 29), Columns: lanes,
 			Want: map[string]Figures{work: {FigureCells: "room 0-64, limited 65-70, room 71-135", FigureStretches: "limited Sun 12:00 – Sun 13:00, as it resets @65 65-70"}},
 		},
-		{
+		{Window: views.RunwayFiveHour,
 			Name: "stepped back to a day of 25 hours", Doc: doc, Now: now, Readings: limitedOn(in(time.October, 25, 0)),
 			Day: civilDay(2026, time.October, 25), Columns: lanes,
 			Want: map[string]Figures{work: {FigureCells: "room 0-70, limited 71-75, room 76-135", FigureStretches: "limited Sun 12:00 – Sun 13:00, as it resets @70 71-75"}},
@@ -1002,7 +1002,7 @@ func restartedByHand() RunwayMoment {
 func capTurningToALimit() RunwayMoment {
 	reset := onWed(17, 10, 0)
 	workAt := reserving(readAccount(work, onThu(14, 41, 0), window(fiveHour, 0.6, onThu(17, 10, 0)), window(week, 0.34, mondayTen)), 0.05)
-	return RunwayMoment{
+	return RunwayMoment{Window: views.RunwayFiveHour,
 		Name: "stepped back to a cap turning to a limit", Doc: routed(onThu(14, 41, 0), nil, workAt, sideOn(onThu(14, 41, 0))), Now: thursday,
 		Readings: sorted(
 			readEach(work, onWed(-1, 0, 0), window(fiveHour, 0, onWed(3, 0, 0)), window(week, 0.2, mondayTen)),
@@ -1074,7 +1074,7 @@ func liftedByHand() []RunwayMoment {
 	reset := onWed(17, 10, 0)
 	workAt := reserving(readAccount(work, onThu(14, 41, 0), window(fiveHour, 0.6, onThu(17, 10, 0)), window(week, 0.34, mondayTen)), 0.05)
 	moment := func(name string, held quota.Window) RunwayMoment {
-		return RunwayMoment{
+		return RunwayMoment{Window: views.RunwayFiveHour,
 			Name: name, Doc: routed(onThu(14, 41, 0), nil, workAt, sideOn(onThu(14, 41, 0))), Now: thursday,
 			Readings: sorted(
 				readEach(work, onWed(-1, 0, 0), window(fiveHour, 0, onWed(3, 0, 0)), window(week, 0.2, mondayTen)),
@@ -1169,7 +1169,7 @@ const fable = "7d_oi"
 func framesMoments() []RunwayMoment {
 	auto, ten := autoWorld(), tenWorld()
 	return []RunwayMoment{
-		{
+		{Window: views.RunwayFiveHour,
 			Name: "the auto world's 5-hour view", Doc: auto.doc(), Now: thursday, Readings: auto.read, Columns: lanes,
 			Want: map[string]Figures{
 				"": {
@@ -1200,7 +1200,7 @@ func framesMoments() []RunwayMoment {
 				},
 			},
 		},
-		{
+		{Window: views.RunwayFiveHour,
 			Name: "the auto world, Wednesday stepped back to", Doc: auto.doc(), Now: thursday, Readings: auto.read, Days: autoWednesday(),
 			Day: civilDay(2026, time.September, 30), Columns: lanes,
 			Want: map[string]Figures{
@@ -1212,7 +1212,7 @@ func framesMoments() []RunwayMoment {
 				side:     {FigureCells: "room 0-135", FigureStretches: "", FigureUse: "5h highest 62%"},
 			},
 		},
-		{
+		{Window: views.RunwayFiveHour,
 			Name: "the ten world's 5-hour view", Doc: ten.doc(), Now: thursday, Readings: ten.read, Columns: lanes,
 			Want: map[string]Figures{
 				"": {

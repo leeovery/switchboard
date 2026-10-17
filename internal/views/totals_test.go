@@ -10,10 +10,10 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-func TestTheLimitsHitAreSaidByWindowTheShortestFirst(t *testing.T) {
+func TestTheLimitsHitAreSaidByWindowTheWeekFirst(t *testing.T) {
 	limits := map[string]int{"7d": 1, "5h": 1240, "7d_oi": 3}
 	got := views.LimitsHit(limits, status.NameOfKey)
-	if want := []string{"5-hour ×1,240", "week ×1", "Fable week ×3"}; !slices.Equal(got, want) {
+	if want := []string{"week ×1", "5-hour ×1,240", "Fable week ×3"}; !slices.Equal(got, want) {
 		t.Errorf("LimitsHit(%v) = %q, want %q", limits, got, want)
 	}
 	if got := views.LimitsHit(nil, status.NameOfKey); len(got) != 0 {

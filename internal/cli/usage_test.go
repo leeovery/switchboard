@@ -160,8 +160,8 @@ func TestUsagePrintsTheWindowsGivenLaidOutAsAsked(t *testing.T) {
 		{name: "the 5-hour window alone", args: []string{"--5h"}, windows: []string{"5h"}},
 		{name: "the week alone", args: []string{"--week"}, windows: []string{"7d"}},
 		{name: "Fable's week alone, by its model's name", args: []string{"--fable"}, windows: []string{"7d_oi"}},
-		{name: "the windows given, in Claude's order", args: []string{"--fable", "--week", "--5h"}, windows: []string{"5h", "7d", "7d_oi"}},
-		{name: "the windows given, by account", args: []string{"--week", "--by", "account", "--5h"}, by: dashboard.ByAccount, windows: []string{"5h", "7d"}},
+		{name: "the windows given, the week first, then the 5-hour, then Fable's week", args: []string{"--fable", "--5h", "--week"}, windows: []string{"7d", "5h", "7d_oi"}},
+		{name: "the windows given, by account", args: []string{"--5h", "--by", "account", "--week"}, by: dashboard.ByAccount, windows: []string{"7d", "5h"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -191,15 +191,15 @@ func TestUsageRefusesAWindowNoAccountReportsNamingThoseThereAre(t *testing.T) {
 	}{
 		{
 			name: "a model's window", upstream: sharedWindowsAPI, args: []string{"--fable"},
-			want: "no account reports the Fable week: give --5h or --week",
+			want: "no account reports the Fable week: give --week or --5h",
 		},
 		{
 			name: "a model's window, among others reported", upstream: sharedWindowsAPI, args: []string{"--5h", "--fable", "--week"},
-			want: "no account reports the Fable week: give --5h or --week",
+			want: "no account reports the Fable week: give --week or --5h",
 		},
 		{
 			name: "a model's window, where no account is read", upstream: refusingAPI, args: []string{"--fable", "--5h"},
-			want: "no account reports the Fable week: give --5h or --week",
+			want: "no account reports the Fable week: give --week or --5h",
 		},
 	}
 	for _, tt := range tests {

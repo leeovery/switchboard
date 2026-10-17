@@ -130,6 +130,19 @@ func TestAllAccountsTakesEveryAccountsWindowsTogether(t *testing.T) {
 			},
 		},
 		{
+			name: "every window: the week first, then the 5-hour, then Fable's week",
+			doc: routed(nil,
+				with(readAt("work", windowIn("5h", 0.4, 2*time.Hour), windowIn("7d", 0.3, 3*day)), fable(0.2)),
+				with(readAt("side", windowIn("5h", 0.1, 4*time.Hour), windowIn("7d", 0.5, 3*day)), fable(0.6)),
+			),
+			now: built.Add(time.Minute),
+			want: []allWindow{
+				{key: "7d", of: 2, used: 0.4, room: 1.2, pace: 4.0 / 7},
+				{key: "5h", of: 2, used: 0.25, room: 1.5, pace: 0.4},
+				{key: "7d_oi", of: 2, used: 0.4, room: 1.2, pace: 4.0 / 7},
+			},
+		},
+		{
 			name: "one never read",
 			doc:  routed(nil, status.Account{ID: "work", Label: "work", TokenSet: true}, readAt("side", windowIn("5h", 0.1, 4*time.Hour))),
 			now:  built.Add(time.Minute),

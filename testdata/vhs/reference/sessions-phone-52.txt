@@ -6,22 +6,22 @@
 SESSIONS   Switchboard  List
 
 1 work          ● at its cap · 17:10
- 5-hour        ┃    ╎  95%   Week     ▍  ┃    ╎  34%
+ Week       ▏ ┃    ╎  34%   5-hour       ┃    ╎  95%
 
 2 personal ◆    ● open
- 5-hour      ▏  ┃      39%   Week         ┃      66%
+ Week          ▉┃     66%   5-hour     ▋   ┃     39%
   41e0 docs         idle 34s
   9c2e website      idle 9m
 
 3 side ▲        ● open · next
- 5-hour  ▊┃            13%   Week       ┃   ▏    78%
+ Week        ┃   ▍    78%   5-hour  ▌┃           13%
   c61b mobile       ↓ answering
   d28c switchboard  ↑ asking     ▸ from work
   7f3a api          ↓ answering  ▸ from work
   db8a infra        idle 50s     ▸ from work
 ────────────────────────────────────────────────────
 Σ pool
- 5-hour 1.5 of 3 left   Week 1.2 of 3 left
+ Week 1.2 of 3 left   5-hour 1.5 of 3 left
 
 ┃ even pace: where you would be now, used evenly
 ╎ cap: work at 95%   ◆ primary   ▲ new

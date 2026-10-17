@@ -144,8 +144,8 @@ func TestTheMatrixLaysEachWindowOutAsAGroupFromTheNameColumn(t *testing.T) {
 		row, col int
 		want     string
 	}{
-		{2, 16, "5-HOUR"}, {2, 64, "WEEK"}, {2, 112, "FABLE WEEK"},
-		{4, 0, "1 work "}, {4, 34, "95%"}, {4, 39, "at cap · back 17:10"},
+		{2, 16, "WEEK"}, {2, 64, "5-HOUR"}, {2, 112, "FABLE WEEK"},
+		{4, 0, "1 work "}, {4, 34, "34%"}, {4, 39, "19%/day till Sun 21:00"},
 		{6, 0, "2 personal ◆ "}, {8, 0, "3 side ▲ "},
 		{9, 0, strings.Repeat("─", 160)},
 		{10, 0, "Σ pool "},
@@ -192,7 +192,7 @@ func TestWindowsWhoseMatrixBarsWouldBeUnder12CellsStack(t *testing.T) {
 			headings = append(headings, r)
 		}
 	}
-	if want := []string{"5-HOUR", "WEEK", "FABLE WEEK", "SONNET WEEK"}; !slices.Equal(headings, want) {
+	if want := []string{"WEEK", "5-HOUR", "FABLE WEEK", "SONNET WEEK"}; !slices.Equal(headings, want) {
 		t.Errorf("four windows at 160 columns are headed %q, want %q, each a section of its own", headings, want)
 	}
 }
@@ -235,16 +235,16 @@ func TestByAccountEachAccountIsABlockOfItsWindows(t *testing.T) {
 		row, col int
 		want     string
 	}{
-		{name: "wide, a blank line under the header", rows: wide, row: 2, col: 0, want: "1 work          5-hour"},
-		{name: "wide, its bar 104 cells", rows: wide, row: 2, col: 26 + 104 + 2, want: "95%  at cap · back 17:10"},
-		{name: "wide, its week", rows: wide, row: 4, col: 16, want: "Week"},
+		{name: "wide, a blank line under the header", rows: wide, row: 2, col: 0, want: "1 work          Week"},
+		{name: "wide, its bar 104 cells", rows: wide, row: 2, col: 26 + 104 + 2, want: "34%  19%/day till Sun 21:00"},
+		{name: "wide, its 5-hour", rows: wide, row: 4, col: 16, want: "5-hour"},
 		{name: "wide, Fable's week", rows: wide, row: 6, col: 16, want: "Fable wk"},
-		{name: "wide, a blank line between blocks", rows: wide, row: 8, col: 0, want: "2 personal ◆    5-hour"},
+		{name: "wide, a blank line between blocks", rows: wide, row: 8, col: 0, want: "2 personal ◆    Week"},
 		{name: "wide, the pool's rule in the blank line", rows: wide, row: 19, col: 0, want: strings.Repeat("─", 160)},
-		{name: "wide, the pool last", rows: wide, row: 20, col: 0, want: "Σ pool          5-hour"},
+		{name: "wide, the pool last", rows: wide, row: 20, col: 0, want: "Σ pool          Week"},
 		{name: "narrow, its name on a line of its own", rows: narrow, row: 4, col: 0, want: "1 work"},
-		{name: "narrow, the label a cell in, its bar 18 cells", rows: narrow, row: 5, col: 0, want: " 5-hour"},
-		{name: "narrow, its percentage", rows: narrow, row: 5, col: 12 + 18 + 2, want: "95%  back 17:10"},
+		{name: "narrow, the label a cell in, its bar 18 cells", rows: narrow, row: 5, col: 0, want: " Week"},
+		{name: "narrow, its percentage", rows: narrow, row: 5, col: 12 + 18 + 2, want: "34%  19%/day · Sun"},
 		{name: "narrow, the next block", rows: narrow, row: 11, col: 0, want: "2 personal ◆"},
 	}
 	for _, tt := range tests {
@@ -427,7 +427,7 @@ func TestTheWindowsGivenPrintAlone(t *testing.T) {
 		windows []string
 		want    []string
 	}{
-		{name: "none given: every one, in Claude's order", want: []string{"5-HOUR", "WEEK", "FABLE WEEK"}},
+		{name: "none given: every one, in the order of care", want: []string{"WEEK", "5-HOUR", "FABLE WEEK"}},
 		{name: "two given", windows: []string{"5h", "7d_oi"}, want: []string{"5-HOUR", "FABLE WEEK"}},
 		{name: "the week alone", windows: []string{"7d"}, want: []string{"WEEK"}},
 	}
@@ -482,7 +482,7 @@ func TestAStaleReadingShowsAsItWasLastReadFaded(t *testing.T) {
 	stale := trio(account("work", func(a *status.Account) {
 		a.Error, a.FetchedAt = "HTTP 529 · Overloaded", on(1, 14, 20).UTC()
 	}))
-	if got := colAt(printed(stale, 160, ByWindow)[4], 34, 25); got != "95%  not read since 14:20" {
+	if got := colAt(printed(stale, 160, ByWindow)[4], 34, 25); got != "34%  not read since 14:20" {
 		t.Errorf("a stale account's window reads %q, want its last reading, not read since then", got)
 	}
 	c := blockOn(t, stale, 160, "nord")
@@ -551,14 +551,16 @@ func TestThePoolIsLastAndCountsTheAccountsNewSessionsCanGoTo(t *testing.T) {
 }
 
 func TestThePoolSaysItsPinnedOnTheFirstWindowItHasWordsFor(t *testing.T) {
-	noSession := func(a *status.Account) { a.Windows = a.Windows[1:] }
-	pinned := trio(pinnedTo("personal", "side"), account("personal", noSession), account("side", noSession))
+	noWeek := func(a *status.Account) {
+		a.Windows = slices.DeleteFunc(slices.Clone(a.Windows), func(w quota.Window) bool { return w.Key == "7d" })
+	}
+	pinned := trio(pinnedTo("personal", "side"), account("personal", noWeek), account("side", noWeek))
 	rows := printed(pinned, 160, ByWindow)
 	if got := colAt(rows[10], 39, 22); strings.TrimSpace(got) != "" {
-		t.Errorf("the pool's 5-hour window, which its accounts don't report, reads %q, want no words", got)
+		t.Errorf("the pool's week, which its accounts don't report, reads %q, want no words", got)
 	}
 	if got := colAt(rows[10], 87, 22); !strings.HasSuffix(got, " of 2 left · pinned") {
-		t.Errorf("the pool's week, the first window it has words for, reads %q, want its room of 2, pinned", got)
+		t.Errorf("the pool's 5-hour window, the first window it has words for, reads %q, want its room of 2, pinned", got)
 	}
 	if got := colAt(rows[10], 135, 22); strings.Contains(got, "pinned") || !strings.Contains(got, " of 2 left") {
 		t.Errorf("the pool's Fable week reads %q, want its room of 2, not saying pinned again", got)
@@ -576,10 +578,10 @@ func TestAPinSpendsTheCapsOfTheAccountsItNamesKeepingTheirMarks(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			row := printed(tt.doc, 160, ByWindow)[4]
-			if got := strings.HasPrefix(colAt(row, 39, 22), "at cap"); got != tt.capped {
-				t.Errorf("work's 5-hour window reads %q: at cap %t, want %t", colAt(row, 39, 22), got, tt.capped)
+			if got := strings.HasPrefix(colAt(row, 87, 22), "at cap"); got != tt.capped {
+				t.Errorf("work's 5-hour window reads %q: at cap %t, want %t", colAt(row, 87, 22), got, tt.capped)
 			}
-			if got := colAt(row, 16+15, 1); got != capMark {
+			if got := colAt(row, 64+15, 1); got != capMark {
 				t.Errorf("work's bar has %q at cell 15, want its cap's mark", got)
 			}
 		})
@@ -669,27 +671,30 @@ func TestEveryAccountKeepsItsRowsBeforeAnyWindowIsRead(t *testing.T) {
 	}
 }
 
-func TestUsageShowsTheSharedWindowsAndEveryOneReportedOnceInClaudesOrder(t *testing.T) {
-	unread := func(a *status.Account) { a.FetchedAt, a.Windows = time.Time{}, nil }
+// The printout and USAGE list the windows in the order of care, as the
+// moment's Listed has them: the week, the 5-hour, then Fable's week, in
+// every layout.
+func TestUsageListsTheWindowsInTheOrderOfCare(t *testing.T) {
 	tests := []struct {
-		name   string
-		doc    status.Document
-		shared []string
-		want   []string
+		name  string
+		width int
+		by    By
+		want  []string
 	}{
-		{name: "every one reported", doc: trio(), shared: []string{"5h", "7d"}, want: []string{"5h", "7d", "7d_oi"}},
-		{name: "one shared that no account reports", doc: trio(), shared: []string{"5h", "1d"}, want: []string{"5h", "1d", "7d", "7d_oi"}},
-		{
-			name: "the shared alone, before any is read", shared: []string{"7d", "5h"}, want: []string{"5h", "7d"},
-			doc: trio(account("work", unread), account("personal", unread), account("side", unread)),
-		},
+		{name: "the matrix", width: 160, by: ByWindow, want: []string{"WEEK", "5-HOUR", "FABLE WEEK"}},
+		{name: "stacked", width: 80, by: ByWindow, want: []string{"WEEK", "5-HOUR", "FABLE WEEK"}},
+		{name: "by account", width: 160, by: ByAccount, want: []string{"Week", "5-hour", "Fable wk"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			policy := printPolicy
-			policy.Shared = tt.shared
-			if got := UsageWindows(tt.doc.At(printNow, policy)); !slices.Equal(got, tt.want) {
-				t.Errorf("UsageWindows() = %q, want %q", got, tt.want)
+			text := strings.Join(printed(trio(), tt.width, tt.by), "\n")
+			at := -1
+			for _, name := range tt.want {
+				i := strings.Index(text, name)
+				if i <= at {
+					t.Fatalf("the printout has %q at %d, want it after %d, in the order %q:\n%s", name, i, at, tt.want, text)
+				}
+				at = i
 			}
 		})
 	}
@@ -704,25 +709,27 @@ func TestTheWindowsAreNamedAsNameNamesThem(t *testing.T) {
 	}{
 		{
 			name: "by Name, over their labels", namer: printName,
-			want: []shownWindow{{"5h", "5-hour"}, {"7d", "Week"}, {"7d_oi", "Fable week"}},
+			want: []shownWindow{{"7d", "Week"}, {"5h", "5-hour"}, {"7d_oi", "Fable week"}},
 		},
 		{
 			name: "by Name, cleaned", namer: func(key string) string { return "\x1b" + key + "\a" },
-			want: []shownWindow{{"5h", "5h"}, {"7d", "7d"}, {"7d_oi", "7d_oi"}},
+			want: []shownWindow{{"7d", "7d"}, {"5h", "5h"}, {"7d_oi", "7d_oi"}},
 		},
 		{
 			name: "without Name, by their labels",
-			want: []shownWindow{{"5h", "Session"}, {"7d", "Week"}, {"7d_oi", "Fable week"}},
+			want: []shownWindow{{"7d", "Week"}, {"5h", "Session"}, {"7d_oi", "Fable week"}},
 		},
 		{
 			name: "a window every model shares that no account reports, by Name", namer: printName, shared: []string{"5h", "1d"},
-			want: []shownWindow{{"5h", "5-hour"}, {"1d", "1d"}, {"7d", "Week"}, {"7d_oi", "Fable week"}},
+			want: []shownWindow{{"1d", "1d"}, {"5h", "5-hour"}, {"7d", "Week"}, {"7d_oi", "Fable week"}},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			policy := printPolicy
-			policy.Shared = tt.shared
+			if tt.shared != nil {
+				policy.Shared = tt.shared
+			}
 			m := trio().At(printNow, policy)
 			if got := usageWindows(m, nil, Printout{Name: tt.namer}.namer(m)); !slices.Equal(got, tt.want) {
 				t.Errorf("the windows are %+v, want %+v", got, tt.want)
@@ -744,10 +751,10 @@ func TestWordsACellTooLongInFullAreShortLeavingTheCellsAfterThemBlank(t *testing
 		blankFrom int
 		blank     int
 	}{
-		{name: "the matrix, the 3 cells before the next group", width: 160, by: ByWindow, row: 4, wordsAt: 87, blankFrom: 87 + 22, blank: 3},
-		{name: "stacked, the last column", width: 120, by: ByWindow, row: 14, wordsAt: 97, blankFrom: 119, blank: 1},
-		{name: "by account, wide, the last column", width: 160, by: ByAccount, row: 4, wordsAt: 137, blankFrom: 159, blank: 1},
-		{name: "by account, narrow, the last column", width: 100, by: ByAccount, row: 7, wordsAt: 77, blankFrom: 99, blank: 1},
+		{name: "the matrix, the 3 cells before the next group", width: 160, by: ByWindow, row: 4, wordsAt: 39, blankFrom: 39 + 22, blank: 3},
+		{name: "stacked, the last column", width: 120, by: ByWindow, row: 4, wordsAt: 97, blankFrom: 119, blank: 1},
+		{name: "by account, wide, the last column", width: 160, by: ByAccount, row: 2, wordsAt: 137, blankFrom: 159, blank: 1},
+		{name: "by account, narrow, the last column", width: 100, by: ByAccount, row: 5, wordsAt: 77, blankFrom: 99, blank: 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -41,7 +41,7 @@ func TestOnAPhoneTheLegendsKeysThenWhatAColumnIsTakeALineEach(t *testing.T) {
 		},
 		{
 			name: "today stepped back to, what a column is wrapped at its parts", width: 52,
-			shown: RunwayShown{Back: civilDay(10, 1), Timeline: views.Stepped(views.RunwayFiveHour, civilDay(10, 1), routedAt, time.Monday, RunwayColumns(52))},
+			shown: RunwayShown{Window: views.RunwayFiveHour, Back: civilDay(10, 1), Timeline: views.Stepped(views.RunwayFiveHour, civilDay(10, 1), routedAt, time.Monday, RunwayColumns(52))},
 			drawn: views.Drawn{Cells: []views.Cell{views.CellRoom}},
 			want:  []string{"█ room", "a column ≈ 38 minutes · the past dimmed", "under each name, the day's highest"},
 		},

@@ -27,7 +27,7 @@ func titlesRow(width, gap int, names ...string) string {
 }
 
 func TestGRAPHSByAccountChartsTheWindowsThatFitBesideEachBlock(t *testing.T) {
-	windows := []string{"5-HOUR", "WEEK", "FABLE WEEK"}
+	windows := []string{"WEEK", "5-HOUR", "FABLE WEEK"}
 	tests := []struct {
 		width     int
 		fit, wide int
@@ -63,8 +63,8 @@ func TestTheChartsBesideABlockTakeItsRowsAndTheRowAfterForTheirAxis(t *testing.T
 	rows, _ := usageBody(f, trio(), printNow, 40)
 	// work's block takes rows 0 to 4: the charts' top row on its first, four
 	// rows of chart, and their axis on row 5, under its last.
-	if got := colAt(rows[5], 107, 5); got != "12:10" {
-		t.Errorf("row 5 beside work's block reads %q, want the 5-hour's axis, from its start, 12:10", got)
+	if got := colAt(rows[5], 107, 9); got != "Sun 21:00" {
+		t.Errorf("row 5 beside work's block reads %q, want the week's axis, from its start, Sun 21:00", got)
 	}
 	if got := colAt(rows[6], 107, 113); strings.TrimSpace(got) != "" {
 		t.Errorf("row 6, between work's block and personal's, reads %q beside them, want nothing", got)
@@ -118,7 +118,7 @@ func TestGRAPHSBesideUSAGEChartsEveryAccountShownAsItsBlocksScroll(t *testing.T)
 			f.Scroll = tt.scroll
 			doc := manyRead(tt.accounts)
 			rows, _ := usageBody(f, doc, now, tt.rows)
-			want := titlesRow(25, besideGap, "5-HOUR", "WEEK")
+			want := titlesRow(25, besideGap, "WEEK", "5-HOUR")
 			for id, y := range tt.shown {
 				if !strings.Contains(rows[y], id) || colAt(rows[y], 107, 53) != want {
 					t.Errorf("row %d reads %q, want %s's block, its charts beside it from column 107", y, rows[y], id)

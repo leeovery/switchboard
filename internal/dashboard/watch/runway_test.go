@@ -34,7 +34,8 @@ type runwayed struct {
 // 37 tall, its readings history filed holding the readings given, its ledger
 // holding the days from 2024 on, as historyHarness's does, each of no
 // requests but as the test puts them there, set up as setup has it, where
-// it's given; it counts Runway's lanes as they're built. It's started.
+// it's given, Runway kept on the 5-hour, which > steps on from to the week;
+// it counts Runway's lanes as they're built. It's started.
 func runwayHarness(t *testing.T, view dashboard.View, setup func(*runwayed, *Config), held ...readings.Reading) *runwayed {
 	t.Helper()
 	h := routedHarness(t, routerDocument(three()...))
@@ -42,6 +43,7 @@ func runwayHarness(t *testing.T, view dashboard.View, setup func(*runwayed, *Con
 	r.ledger = &daysLedger{Empty: h.emptyLedger(), clock: h.clock, first: "2024-06-03", days: map[string]ledger.Summary{}}
 	cfg := h.config(Size{Width: 160, Height: 37})
 	cfg.Readings, cfg.Ledger, cfg.View = r.filed, r.ledger, view
+	cfg.RunwayShown = dashboard.RunwayShown{Window: views.RunwayFiveHour}
 	if setup != nil {
 		setup(r, &cfg)
 	}
@@ -97,8 +99,19 @@ func TestRunwaysWindowIsKeptAsItChangesAndAStepBackNever(t *testing.T) {
 				step.key, shown, prefs.kept.Runway, prefs.updates, step.window, step.back, step.updates)
 		}
 	}
-	if prefs.kept.Runway != (theme.RunwayPrefs{Window: "week"}) {
+	if prefs.kept.Runway != (theme.RunwayPrefs{}) {
 		t.Errorf("the preferences keep %+v, want the week", prefs.kept.Runway)
+	}
+}
+
+// With nothing kept, Runway opens on the week's live view.
+func TestRunwayOpensOnTheWeek(t *testing.T) {
+	r := runwayHarness(t, dashboard.Runway, func(_ *runwayed, cfg *Config) { cfg.RunwayShown = dashboard.RunwayKept(theme.RunwayPrefs{}) })
+	if shown := r.model.runwayTab.shown; shown.Window != views.RunwayWeek || !shown.Back.IsZero() {
+		t.Errorf("Runway opens on %+v, want the week's live view", shown)
+	}
+	if r.from.Timeline != views.LiveTimeline(views.RunwayWeek, start, 136) {
+		t.Errorf("its lanes are built over %+v, want the week's live view", r.from.Timeline)
 	}
 }
 
@@ -564,7 +577,7 @@ func TestAClickOnRunwayDoesWhatItsKeyDoes(t *testing.T) {
 		{name: "< by the window", click: onStep(-1), want: dashboard.RunwayShown{Window: views.RunwayWeek}},
 		{name: "> by the window", keys: ">", click: onStep(1), want: dashboard.RunwayShown{Window: views.RunwayFiveHour}},
 		{name: "the key line's < > window", click: onKey("< >"), want: dashboard.RunwayShown{Window: views.RunwayWeek}},
-		{name: "the key line's ←→ day, stepped back", keys: "left left", click: onKey("←→"), want: dashboard.RunwayShown{Back: civilDay(0)}},
+		{name: "the key line's ←→ day, stepped back", keys: "left left", click: onKey("←→"), want: dashboard.RunwayShown{Window: views.RunwayFiveHour, Back: civilDay(0)}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

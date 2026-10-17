@@ -3,31 +3,31 @@
 
 ● healthy · auto · 6 sessions · new → ▲ side
 
-RUNWAY  ────────────────────────────────  < 5-hour >
+RUNWAY  ──────────────────────────────────  < week >
 
-              now
-                     18:00     Fri       06:00
-              ┬──┬───┬──┬──┬───┬──┬───┬──┬──┬───┬──┬
+                  now
+                Thu  Fri  Sat   Sun  Mon   Tue  Wed
+              ──┬────┬────┬─────┬────┬─────┬────┬───
 
-1 work        █────│████████████████████████████████
-  5-hour 95%   at its cap 14:31  ·  back 17:10
-
-2 perso… ◆    ████│█████████████████████████████████
-  5-hour 39%    room all day
-
-3 side ▲      ████████│█████████████████████████████
-  5-hour 13%    room all day
-
-Σ pool         ▃▃▃▃▃
-
-  5-hour 1.5 of 3 left
-█ room    ─ at its cap    │ its 5-hour resets
-a column ≈ 36 minutes · the past dimmed
-
-COMING UP
-16:30  personal's 5-hour resets            in 1h 48m
-17:10  work back from its cap              in 2h 28m
-18:50  side's 5-hour resets                in 4h 08m
+1 work        ─████─█████████████████│██████████████
+  week 34%         at its cap 14:31  ·  back 17:10
+2 perso… ◆    █─████████████────│███████████████████
+  week 66%
+3 side ▲      ██████████────────────────│███████████
+  week 78%
+Σ pool        ▃▃   ▃    ▃▃▃▃     ▃▃▃▃▃▃▃
+                            ▅▅▅▅▅
+  week 1.2 of 3 left
+█ room    █ room, but it runs out at its pace
+─ at its cap    ─ at its limit    │ its week resets
+a column ≈ 265 minutes · the past dimmed
+COMING UP   16:30  personal's 5-hour resets  …
 
 
-tab views   < > window   ←→ day   ? keys   q quit
+
+
+
+
+
+
+tab views   < > window   ←→ week   ? keys   q quit

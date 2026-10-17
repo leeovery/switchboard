@@ -178,7 +178,7 @@ func TestTheTerminalThemeDrawsInTheTerminalsOwnColours(t *testing.T) {
 		t.Errorf("drawn in the terminal's own colours, it has a colour of its own:\n%q", frame)
 	}
 	text := ansi.Strip(frame)
-	if want := "1 work ◆      ██████▎░░░┃░░░░░░  37%"; !strings.Contains(text, want) {
+	if want := "1 work ◆      ██████▊░░░┃░░░░░░  40%"; !strings.Contains(text, want) {
 		t.Errorf("drawn in the terminal's own colours\n%s\nwant %q, its bars drawn whole", text, want)
 	}
 	for i, row := range strings.Split(text, "\n") {

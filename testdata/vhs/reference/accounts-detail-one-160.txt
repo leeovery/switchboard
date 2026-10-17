@@ -7,9 +7,9 @@ ACCOUNTS    Detail   ───────────────────�
 1 work ◆   ● under pressure · new sessions still come here
 
 USAGE                                                                                               THIS WEEK
-5-hour                            ┃                      ╎   58%  out ~16:05                        requests  612
+Week                                ┃                    ╎   34%  19%/day till Sun 21:00            requests  612
                                                                                                     limits    5-hour ×2
-Week                                ┃                    ╎   34%  19%/day till Sun 21:00            plan      Max 20x
+5-hour                            ┃                      ╎   58%  out ~16:05                        plan      Max 20x
                                                                                                     worth     $127  2.8×
 Fable wk                            ┃                    ╎    0%  29%/day till Sun 21:00            extra use off
 

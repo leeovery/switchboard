@@ -18,7 +18,7 @@ func runwayFrame(t *testing.T, height int, lanes *views.Lanes, coming []status.U
 	tl := views.LiveTimeline(views.RunwayFiveHour, routedAt, RunwayColumns(160))
 	return Frame{
 		Width: 160, Height: height, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claudeLike,
-		Runway: RunwayShown{Timeline: tl, Lanes: lanes, Coming: coming},
+		Runway: RunwayShown{Window: views.RunwayFiveHour, Timeline: tl, Lanes: lanes, Coming: coming},
 	}
 }
 
@@ -191,27 +191,27 @@ func TestRunwaysPartsLieOnTheRowsItsStepGivesThem(t *testing.T) {
 		want   rows
 	}{
 		{
-			name: "the 5-hour frame's three", shown: RunwayShown{Lanes: lanesOf(3), Coming: thingsComing(3)}, width: 160, height: 37,
+			name: "the 5-hour frame's three", shown: RunwayShown{Window: views.RunwayFiveHour, Lanes: lanesOf(3), Coming: thingsComing(3)}, width: 160, height: 37,
 			shape: runwayShape{legendGap: true, legend: 1}, want: rows{10, 3, 19, 20, 22, 24, 3},
 		},
 		{
-			name: "Wednesday stepped back to", shown: RunwayShown{Back: civilDay(9, 30), Lanes: lanesOf(3)}, width: 160, height: 37,
+			name: "Wednesday stepped back to", shown: RunwayShown{Window: views.RunwayFiveHour, Back: civilDay(9, 30), Lanes: lanesOf(3)}, width: 160, height: 37,
 			shape: runwayShape{legendGap: true, legend: 1}, want: rows{10, 3, 19, noRow, 22, noRow, 0},
 		},
 		{
-			name: "the ten frame's ten", shown: RunwayShown{Lanes: lanesOf(10), Coming: thingsComing(9)}, width: 160, height: 37,
+			name: "the ten frame's ten", shown: RunwayShown{Window: views.RunwayFiveHour, Lanes: lanesOf(10), Coming: thingsComing(9)}, width: 160, height: 37,
 			shape: runwayShape{legendGap: true, legend: 1}, want: rows{10, 2, 30, 31, 32, 33, 0},
 		},
 		{
-			name: "one account", shown: RunwayShown{Lanes: lanesOf(1), Coming: thingsComing(2)}, width: 160, height: 37,
+			name: "one account", shown: RunwayShown{Window: views.RunwayFiveHour, Lanes: lanesOf(1), Coming: thingsComing(2)}, width: 160, height: 37,
 			shape: runwayShape{legendGap: true, legend: 1}, want: rows{10, 3, noRow, noRow, 13, 15, 2},
 		},
 		{
-			name: "the legend on two rows, at (a)", shown: RunwayShown{Lanes: lanesOf(5), Coming: thingsComing(5)}, width: 120, height: 37,
+			name: "the legend on two rows, at (a)", shown: RunwayShown{Window: views.RunwayFiveHour, Lanes: lanesOf(5), Coming: thingsComing(5)}, width: 120, height: 37,
 			shape: runwayShape{legendGap: true, legend: 2}, want: rows{10, 2, 20, 21, 23, 26, 5},
 		},
 		{
-			name: "the phone frame's three", shown: RunwayShown{Lanes: lanesOf(3), Coming: thingsComing(3)}, width: 52, height: 33,
+			name: "the phone frame's three", shown: RunwayShown{Window: views.RunwayFiveHour, Lanes: lanesOf(3), Coming: thingsComing(3)}, width: 52, height: 33,
 			shape: runwayShape{roomRow: true, legend: 2}, want: rows{11, 3, 20, 22, 23, 26, 3},
 		},
 	}

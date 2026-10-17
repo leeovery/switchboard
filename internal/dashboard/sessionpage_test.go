@@ -309,7 +309,7 @@ func TestASessionsPageAtEachSize(t *testing.T) {
 				4:  "SESSION  d28c  switchboard" + strings.Repeat(" ", 87) + "esc back",
 				6:  "↑ asking  on side ▲ since 14:31",
 				7:  "moved from work: its cap" + strings.Repeat(" ", 91) + "2h 40m",
-				17: "1 work     ≈ 41 of 5-hour · 6 of week" + strings.Repeat(" ", 78) + "$41.06",
+				17: "1 work     ≈ 6 of week · 41 of 5-hour" + strings.Repeat(" ", 78) + "$41.06",
 				20: "TURNS    " + rule(104) + "  $48.20",
 				22: "13 14:40   3m…   6 req" + strings.Repeat(" ", 83) + "$0.79  side",
 			},
@@ -387,10 +387,10 @@ func TestANarrowWidePageCutsItsRowsBeforeTheirRightParts(t *testing.T) {
 	if want := models + "   sonnet-5-5 → personal"; !strings.HasPrefix(rows[7], want+"         personal now") {
 		t.Errorf("row 8 reads\n%q\nwant the model that doesn't fit left out whole, after\n%q", rows[7], want)
 	}
-	if want := "≈ 31 points of its 5-hour · 9 of its week" + strings.Repeat(" ", 18) + "$114.10"; !strings.HasSuffix(rows[20], want) {
+	if want := "≈ 9 points of its week · 31 of its 5-hour" + strings.Repeat(" ", 18) + "$114.10"; !strings.HasSuffix(rows[20], want) {
 		t.Errorf("row 21 reads\n%q\nwant Fable week's points left out whole, ending\n%q", rows[20], want)
 	}
-	if want := "≈ 31 points of its 5-hour · 9 of its week · 2 of its Fable week"; !strings.Contains(pageText(pageFrame(t, shown, 160, 37))[20], want) {
+	if want := "≈ 9 points of its week · 31 of its 5-hour · 2 of its Fable week"; !strings.Contains(pageText(pageFrame(t, shown, 160, 37))[20], want) {
 		t.Errorf("at 160 columns, row 21 doesn't say %q", want)
 	}
 }

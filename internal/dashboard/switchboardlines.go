@@ -4,16 +4,15 @@ import (
 	"slices"
 
 	"github.com/leeovery/switchboard/internal/prose"
-	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
 // The cells of a line's parts as its steps draw them: a window's label, the
-// first's a cell in, and at step 3, the second's beside it; and at step 4,
-// its 5-hour bar's.
+// first's a cell in, and at step 3, the second's beside it, room for
+// "5-hour"; and at step 4, its week's bar's.
 const (
 	firstLabelCells  = windowLabelCells + 1
-	secondLabelCells = 5
+	secondLabelCells = 7
 	oneRowBar        = 14
 )
 
@@ -73,8 +72,8 @@ func (d linesDrawn) width() int {
 
 // line draws account a's line, named as given, from row y, at the step the
 // layout takes: at steps 1 and 2, its name row, then a row a window, a blank
-// row between at step 1; at step 3, its name row, then its 5-hour and its
-// week side by side; and from step 4, all on one row.
+// row between at step 1; at step 3, its name row, then its week and its
+// 5-hour side by side; and from step 4, all on one row.
 func (d linesDrawn) line(c *canvas, a status.AccountNow, n accountName, y int) {
 	switch d.laid.step {
 	case 1, 2:
@@ -161,7 +160,7 @@ func (d linesDrawn) barDrawn() int {
 	return oneRowBar
 }
 
-// sideBySide draws a's 5-hour and week along row y, as windowsBeside draws
+// sideBySide draws a's week and 5-hour along row y, as windowsBeside draws
 // them, a cell in, the two bars sharing what the lines' width leaves them,
 // ending at the last column.
 func (d linesDrawn) sideBySide(c *canvas, a status.AccountNow, y int) {
@@ -174,12 +173,10 @@ func (d linesDrawn) sideBySide(c *canvas, a status.AccountNow, y int) {
 }
 
 // besideWindows are the windows drawn side by side of m, as step 3 and a
-// lane draw them: the first two every model shares, its 5-hour and its
-// week, as the policy m was judged by has them, in Claude's order, each
-// named as the frame names it.
+// lane draw them: the first two every model shares, its week and its
+// 5-hour, as m's SharedWindows has them, each named as the frame names it.
 func (f Frame) besideWindows(m status.Moment) []shownWindow {
-	keys := slices.SortedFunc(slices.Values(m.Policy().Shared), quota.CompareKeys)
-	shown := usageWindows(m, keys, f.windowNamer(m))
+	shown := usageWindows(m, m.SharedWindows(), f.windowNamer(m))
 	return shown[:min(len(shown), len(stepThreeLabels))]
 }
 
@@ -213,7 +210,7 @@ func windowsBeside(c *canvas, look Look, x, y, bar int, labels []int, windows []
 }
 
 // oneRow draws a's line on row y alone: its number, name and marks, cut to
-// the name column; from it, its 5-hour bar, oneRowBar cells, a cell and its
+// the name column; from it, its week's bar, oneRowBar cells, a cell and its
 // percentage; and afterBar cells on from its bar, how it stands, short where
 // the lines are narrower than their widest, as stands has it.
 func (d linesDrawn) oneRow(c *canvas, a status.AccountNow, n accountName, y int) {
@@ -264,8 +261,9 @@ func (d linesDrawn) wordsBlock() usageBlock {
 }
 
 // windowsShown are the windows a line draws at the layout's step: every
-// window usage shows at steps 1 and 2; at step 3, its 5-hour and its week,
-// as besideWindows has them; and from step 4, its 5-hour alone.
+// window usage shows at steps 1 and 2; at step 3, its week and its 5-hour,
+// as besideWindows has them; and from step 4, the first usage shows alone,
+// its week.
 func (d linesDrawn) windowsShown() []shownWindow {
 	switch d.laid.step {
 	case 1, 2:

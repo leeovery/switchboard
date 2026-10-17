@@ -10,7 +10,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/prose"
-	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 )
@@ -149,26 +148,12 @@ func blockOf(m status.Moment, width int, look Look, by By, windows []shownWindow
 	return b
 }
 
-// UsageWindows are the keys of the windows usage shows of m where none is
-// given: those every model shares, as the policy m was judged by has them,
-// and every other any account reports, so every account keeps its rows
-// before any is read; in Claude's order.
-func UsageWindows(m status.Moment) []string {
-	keys := slices.Clone(m.Policy().Shared)
-	for _, a := range m.Accounts {
-		for _, w := range a.Windows {
-			keys = append(keys, w.Key)
-		}
-	}
-	return slices.Compact(slices.SortedFunc(slices.Values(keys), quota.CompareKeys))
-}
-
-// usageWindows are the windows of m with the keys given, in their order,
-// which is Claude's, or with none, those UsageWindows has, each named as name
-// names it, cleaned.
+// usageWindows are the windows of m with the keys given, in their order, or
+// with none, those m lists, as its Listed has them, each named as name names
+// it, cleaned.
 func usageWindows(m status.Moment, keys []string, name func(key string) string) []shownWindow {
 	if len(keys) == 0 {
-		keys = UsageWindows(m)
+		keys = m.Listed()
 	}
 	shown := make([]shownWindow, 0, len(keys))
 	for _, key := range keys {

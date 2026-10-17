@@ -198,7 +198,7 @@ func TestAPhonesDetailOfAllAccounts(t *testing.T) {
 	for y, want := range map[int]string{
 		8:  "◂ 0 all accounts ▸             ↑↓ an account, or all",
 		9:  "2 open · 1 at cap",
-		14: "Week     ██████████┃         59%  1.2 of 3 left",
+		14: "5-hour   ████████┃           49%  1.5 of 3 left",
 		19: "requests  5,410           worth     $635",
 		20: "limits    3               extra use off",
 		21: "plan      $600/mo         against   4.6×",

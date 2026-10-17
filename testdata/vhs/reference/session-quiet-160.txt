@@ -5,7 +5,7 @@
 SESSION   9c2e   website  ~/Code/website ─────────────────────────────────────────────────────────────────────────────────────────────────────────────  esc back
 
 idle 9m   on personal ◆ since it started: sticky                                                                                          started 11:55 · 2h 46m
-opus-5-5 → personal                                                                                          personal now  5-hour 39%   week 66%   fable week 0%
+opus-5-5 → personal                                                                                          personal now  week 66%   5-hour 39%   fable week 0%
 
 STORY   requests a minute ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 

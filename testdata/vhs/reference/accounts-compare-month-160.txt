@@ -23,7 +23,7 @@ ACTIVITY
   sessions moved          1 in · 20 out                    2 in · 9 out                     28 in · 2 out                    31 moves
 
 LIMITS
-  limits hit              5-hour ×19 · week ×2             5-hour ×8                        5-hour ×3                        32
+  limits hit              week ×2 · 5-hour ×19             5-hour ×8                        5-hour ×3                        32
   at cap or limit         5d 22h                           18h 45m                          4h 52m                           6d 21h
   left at its last reset  0% (limit Fri)                   15%                              40%                              —
 

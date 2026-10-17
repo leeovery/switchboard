@@ -359,9 +359,9 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // lines scrolling, ↓ six times scrolling to db8a; and the router gone, R
 // having found it so, what was in flight said as last known.
 // Then Runway's frames, each reached from the Overview with tab four times:
-// the 5-hour view, wide and on a phone; the week, with >; Wednesday, ← twice,
-// today and the day before; all over the auto world; and the 5-hour view of
-// ten accounts.
+// the week, which it opens on, wide and on a phone; the 5-hour view, with >;
+// Wednesday, > then ← twice, today and the day before; all over the auto
+// world; and the week of ten accounts.
 var pages = []page{
 	{name: "overview-default-160", size: wide(37), world: accountWorlds.auto},
 	{name: "overview-pinned-160", size: wide(37), world: accountWorlds.pinned},
@@ -486,9 +486,9 @@ var pages = []page{
 	{name: "page-sessions-chosen", size: wide(37), world: accountWorlds.scene, keys: append(toSessions(), repeated(downKey, 4)...)},
 	{name: "page-sessions-short", size: wide(14), world: accountWorlds.scene, keys: append(toSessions(), repeated(downKey, 6)...)},
 	{name: "page-sessions-not-answering", size: wide(37), world: accountWorlds.scene, keys: toSessions("R"), gone: true},
-	{name: "runway-5-hour-160", size: wide(37), world: accountWorlds.auto, keys: toRunway()},
-	{name: "runway-week-160", size: wide(37), world: accountWorlds.auto, keys: toRunway(">")},
-	{name: "runway-stepped-back-160", size: wide(37), world: accountWorlds.auto, keys: append(toRunway(), leftKey, leftKey)},
+	{name: "runway-5-hour-160", size: wide(37), world: accountWorlds.auto, keys: toRunway(">")},
+	{name: "runway-week-160", size: wide(37), world: accountWorlds.auto, keys: toRunway()},
+	{name: "runway-stepped-back-160", size: wide(37), world: accountWorlds.auto, keys: append(toRunway(">"), leftKey, leftKey)},
 	{name: "runway-ten-accounts-160", size: wide(37), world: manyAccounts(10), keys: toRunway()},
 	{name: "runway-phone-52", size: phone(33), world: accountWorlds.auto, keys: toRunway()},
 }

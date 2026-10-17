@@ -597,7 +597,7 @@ func TestUSAGEHasItsBigBarsWhereTheyFitByWindowFrom150Columns(t *testing.T) {
 			f := frameOf(tt.width, 60)
 			f.By = tt.by
 			rows, _ := usageBody(f, threeRouted(), now, tt.rows)
-			if big := rows[0] == "5-HOUR" && strings.HasPrefix(rows[2], " 1 work") && tt.width >= matrixWidth; big != tt.big {
+			if big := rows[0] == "WEEK" && strings.HasPrefix(rows[2], " 1 work") && tt.width >= matrixWidth; big != tt.big {
 				t.Errorf("in %d rows, USAGE's big bars show: %v, want %v; its first rows read %q", tt.rows, big, tt.big, rows[:3])
 			}
 		})
@@ -746,8 +746,8 @@ func TestOneAccountsUSAGESaysTheRoomLeftWhereThePoolWouldSayIt(t *testing.T) {
 		width int
 		want  string
 	}{
-		{name: "one account", doc: one(0), width: 160, want: "room left  5h 0.4 of 1  ·  week 0.6 of 1"},
-		{name: "to its cap, as the pool counts its room", doc: one(0.2), width: 160, want: "room left  5h 0.2 of 1  ·  week 0.4 of 1"},
+		{name: "one account, the week first", doc: one(0), width: 160, want: "room left  week 0.6 of 1  ·  5h 0.4 of 1"},
+		{name: "to its cap, as the pool counts its room", doc: one(0.2), width: 160, want: "room left  week 0.4 of 1  ·  5h 0.2 of 1"},
 		{name: "on a phone, none", doc: one(0), width: 52},
 		{name: "several accounts, whose pool says it", doc: threeRouted(), width: 160},
 	}
@@ -760,7 +760,7 @@ func TestOneAccountsUSAGESaysTheRoomLeftWhereThePoolWouldSayIt(t *testing.T) {
 		})
 	}
 	room := func(key string) ink { return strongInk.numbered(Number{Kind: NumberRoom, Account: "work", Of: key}) }
-	inks := []ink{faintInk, dimInk, room("5h"), dimInk, faintInk, dimInk, room("7d"), dimInk}
+	inks := []ink{faintInk, dimInk, room("7d"), dimInk, faintInk, dimInk, room("5h"), dimInk}
 	got := frameOf(160, 60).usageSection(one(0), now).description()
 	if len(got) != len(inks) {
 		t.Fatalf("USAGE's description is %+v, want %d spans", got, len(inks))
@@ -785,8 +785,8 @@ func TestAcrossAResetBetweenReadsOneAccountsRoomLeftAndROUTINGAgree(t *testing.T
 		capped bool
 		want   string
 	}{
-		{name: "a moment before it resets", now: reset.Add(-time.Second), capped: true, want: "room left  5h 0.0 of 1  ·  week 0.4 of 1"},
-		{name: "a moment after, before it's read again", now: reset.Add(time.Second), want: "room left  5h 0.8 of 1  ·  week 0.4 of 1"},
+		{name: "a moment before it resets", now: reset.Add(-time.Second), capped: true, want: "room left  week 0.4 of 1  ·  5h 0.0 of 1"},
+		{name: "a moment after, before it's read again", now: reset.Add(time.Second), want: "room left  week 0.4 of 1  ·  5h 0.8 of 1"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -823,8 +823,9 @@ func TestAcrossAResetBetweenReadsThePoolsRoomAndROUTINGAgree(t *testing.T) {
 				t.Errorf("ROUTING has work capped %t, want %t", capped, tt.capped)
 			}
 			rows, _ := usageBody(f, doc, tt.now, 20)
-			i := slices.IndexFunc(rows, func(r string) bool { return strings.Contains(r, "Σ pool") })
-			if i < 0 || !strings.Contains(rows[i], "  "+tt.room) {
+			fiveHour := slices.Index(rows, "5-HOUR")
+			i := slices.IndexFunc(rows[max(fiveHour, 0):], func(r string) bool { return strings.Contains(r, "Σ pool") }) + fiveHour
+			if fiveHour < 0 || i < fiveHour || !strings.Contains(rows[i], "  "+tt.room) {
 				t.Errorf("USAGE reads\n%s\nwant the pool's 5-hour room %q", strings.Join(rows, "\n"), tt.room)
 			}
 		})
@@ -912,13 +913,13 @@ func TestTheOverviewFadesAnAccountOutOfThePoolWhereThePrintoutDoesnt(t *testing.
 
 func TestUSAGEsBarsFillAsFarAsTheyveEasedTheirPercentagesAsRead(t *testing.T) {
 	f := frameOf(160, 60)
-	f.Eased = map[Ref]float64{{Account: "work", Window: "5h"}: 0}
+	f.Eased = map[Ref]float64{{Account: "work", Window: "7d"}: 0}
 	rows, _ := usageBody(f, threeRouted(), now, 11)
 	if got := colAt(rows[2], 14, 42); strings.TrimSpace(got) != "┃" {
-		t.Errorf("work's 5-hour bar, easing from nothing, reads %q, want its track and even pace's mark alone", got)
+		t.Errorf("work's week bar, easing from nothing, reads %q, want its track and even pace's mark alone", got)
 	}
-	if got := colAt(rows[2], 14+42+1, 4); got != " 58%" {
-		t.Errorf("work's 5-hour percentage reads %q, want the reading's, 58%%", got)
+	if got := colAt(rows[2], 14+42+1, 4); got != " 34%" {
+		t.Errorf("work's week percentage reads %q, want the reading's, 34%%", got)
 	}
 }
 
@@ -936,10 +937,10 @@ func TestAWindowsWordsAreCuedWhileTheirTurningToOutIs(t *testing.T) {
 		x, y, to int
 		cued     bool
 	}{
-		{name: "work's 5-hour, turned out ~14:42", x: 63, y: 2, to: 73, cued: true},
-		{name: "work's week, its allowance", x: 137, y: 2, to: 159},
-		{name: "personal's week, out, but not turned out, its account's state changed", x: 137, y: 4, to: 151},
-		{name: "side's 5-hour, seen to turn out, but not out now", x: 63, y: 6, to: 79},
+		{name: "work's week, its allowance", x: 63, y: 2, to: 85},
+		{name: "personal's week, out, but not turned out, its account's state changed", x: 63, y: 4, to: 77},
+		{name: "work's 5-hour, turned out ~14:42", x: 137, y: 2, to: 147, cued: true},
+		{name: "side's 5-hour, seen to turn out, but not out now", x: 137, y: 6, to: 153},
 	}
 	t.Run("on bg.attention", func(t *testing.T) {
 		c, cue := cued(Screen(builtin(t, "nord"))), hue{token: theme.BgAttention, fade: 0.25}
@@ -991,9 +992,9 @@ func TestByAccountUSAGEsBarsLeaveROUTINGItsRoomBesideThem(t *testing.T) {
 			}
 			if tt.bar > 0 {
 				rows, _ := usageBody(f, tt.doc, printNow, 30)
-				at, want := tt.names+windowLabelCells+tt.bar+1, " 95%  at cap · back 17:10"
+				at, want := tt.names+windowLabelCells+tt.bar+1, " 34%  19%/day till Sun 21:00"
 				if got := colAt(rows[0], at, len([]rune(want))); got != want {
-					t.Errorf("work's 5-hour reads %q from column %d, want %q, its percentage a cell after its bar", got, at, want)
+					t.Errorf("work's week reads %q from column %d, want %q, its percentage a cell after its bar", got, at, want)
 				}
 			}
 		})
@@ -1104,7 +1105,7 @@ func TestTheOverviewShowsEachAccountsRowsUnderTheWindowsEveryModelSharesBeforeAn
 				for _, ch := range f.graphsOf(doc, now).charts {
 					charts = append(charts, ch.name)
 				}
-				if want := []string{"5-HOUR", "WEEK"}; !slices.Equal(charts, want) {
+				if want := []string{"WEEK", "5-HOUR"}; !slices.Equal(charts, want) {
 					t.Errorf("GRAPHS charts %q, want %q", charts, want)
 				}
 			})

@@ -20,7 +20,7 @@ F   ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ 
 LAST 12 MONTHS
 requests  212,885         worth     $24,736
 sessions  1,688           plans     $7,200
-limits    5-hour ×412     against   3.4×
+limits    week ×3         against   3.4×
 
 BY MONTH    worth     against   by model
  May        $2,330    3.9×      ▅▅▅▅▅▅▅▅▅▅▅▅▅

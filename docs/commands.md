@@ -55,7 +55,7 @@ switchboard usage [--5h] [--week] [--<model>] [--by window|account] [--probe] [-
 
 | Flag | What it does |
 |---|---|
-| `--5h`, `--week` | Print that window alone, with the header and the key line. Given together, they print the windows given, in Claude's order: the 5-hour window, the week, then each model's own. |
+| `--5h`, `--week` | Print that window alone, with the header and the key line. Given together, they print the windows given, in the order of care: the week, the 5-hour window, then each model's own. |
 | `--<model>` | Print a model's own window, as `--week` does the week. There's a flag for each model with a window of its own, named for it: `--fable` is for Fable's week. A flag for a window no account reports fails, naming the windows there are. |
 | `--by window\|account` | Lay the windows out by window, comparing the accounts one window at a time, or by account, keeping each account's windows together. Overrides [`[usage] by`](configuration.md#usage-keys). Where neither says, it's by window. |
 | `--probe` | Probe every account, even while the router runs. |

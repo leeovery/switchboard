@@ -448,7 +448,7 @@ func TestAPhonesFirstColumnOfNumbersEndsShortOfTheSecond(t *testing.T) {
 		limits map[string]int
 		want   string
 	}{
-		{name: "the second left off", limits: map[string]int{"5h": 412, "7d": 3}, want: "limits    5-hour ×412     against   3.8×"},
+		{name: "the second, the 5-hour, left off", limits: map[string]int{"5h": 412, "7d": 3}, want: "limits    week ×3         against   3.8×"},
 		{name: "the first too long", limits: map[string]int{"5h": 41_200_000}, want: "limits    …               against   3.8×"},
 	}
 	for _, tt := range tests {

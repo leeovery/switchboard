@@ -22,7 +22,7 @@ const (
 // runwayWindows are the windows Runway's views are named for, in the order
 // < and > step between them, and runwayNames what the heading calls each.
 var (
-	runwayWindows = []views.RunwayWindow{views.RunwayFiveHour, views.RunwayWeek}
+	runwayWindows = []views.RunwayWindow{views.RunwayWeek, views.RunwayFiveHour}
 	runwayNames   = map[views.RunwayWindow]string{views.RunwayFiveHour: "5-hour", views.RunwayWeek: "week"}
 )
 
@@ -43,7 +43,7 @@ type RunwayShown struct {
 }
 
 // RunwayKept is Runway as the preferences kept it: the window, by its name,
-// live. What names none, as a later build's, shows the 5-hour.
+// live. What names none, as a later build's, shows the week.
 func RunwayKept(kept theme.RunwayPrefs) RunwayShown {
 	if w := views.RunwayWindow(kept.Window); slices.Contains(runwayWindows, w) {
 		return RunwayShown{Window: w}

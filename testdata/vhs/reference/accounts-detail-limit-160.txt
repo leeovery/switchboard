@@ -7,9 +7,9 @@ ACCOUNTS    Compare  Detail  [ ]  ───────────────�
  0 all accounts     │   2 personal ◆   ■ limit reached · new sessions go elsewhere
                     │
  1 work        ■    │   USAGE                                                                               THIS WEEK
-                    │   5-hour                                 ┃          100%  limit · back 15:54          requests  1,867
+                    │   Week                               ┃               66%  out ~Sat 06:00              requests  1,867
  2 personal ◆  ■    │                                                                                       limits    5-hour ×2
-                    │   Week                               ┃               66%  out ~Sat 06:00              plan      Max 20x
+                    │   5-hour                                 ┃          100%  limit · back 15:54          plan      Max 20x
  3 side        ●    │                                                                                       worth     $164  3.6×
                     │   Fable wk                           ┃                0%  40%/day till Sun 02:00      extra use off
                     │

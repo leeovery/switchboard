@@ -4,17 +4,17 @@
 
 USAGE  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── u
 
-                5-HOUR                                          WEEK                                            FABLE WEEK
+                WEEK                                            5-HOUR                                          FABLE WEEK
 
-1 work                  ┃      ╎  95%  at cap · back 17:10           ▌   ┃     ╎  34%  19%/day till Sun 21:00    ▉       ┃     ╎  12%  25%/day till Sun 21:00
+1 work               ▌   ┃     ╎  34%  19%/day till Sun 21:00           ┃      ╎  95%  at cap · back 17:10       ▉       ┃     ╎  12%  25%/day till Sun 21:00
                                        ╭─ ROUTING · NEW SESSIONS ───────────────────────────────────────────────────────╮
-2 personal ◆                ┃    100%  │                                                                                │ ┃        0%  40%/day till Sun 02:00
+2 personal ◆              ┃       66%  │                                                                                │ ┃        0%  40%/day till Sun 02:00
                                        │  Pick the accounts new sessions go to.                                         │
-3 side ▲          ▏┃              13%  │                                                                                │          4%  25%/day till Mon 10:00
+3 side ▲               ┃    ▌     78%  │                                                                                │          4%  25%/day till Mon 10:00
 ───────────────────────────────────────│  □ 0 auto        the router chooses                                            │───────────────────────────────────────
-Σ pool                  ┃  ▍      71%  │  □ 1 work        closed    5-hour 95%   week 34%        at its cap till 17:10  │┃         7%  2.8 of 3 left
-                                       │    2 personal    closed    5-hour 100%  week 66%      at its limit till 15:54  │
-                ┃ even pace: where you │  ■ 3 side        open      5-hour 13%   week 78%                    6 running  │here
+Σ pool                   ┃        61%  │  □ 1 work        closed    week 34%   5-hour 95%        at its cap till 17:10  │┃         7%  2.8 of 3 left
+                                       │    2 personal    closed    week 66%   5-hour 100%     at its limit till 15:54  │
+                ┃ even pace: where you │  ■ 3 side        open      week 78%   5-hour 13%                    6 running  │here
                                        │                                                                                │
 ROUTING   auto ────────────────────────│  □ m  also move the sessions running                                           │───────────────────────────────────── r
                                        │                                                                                │

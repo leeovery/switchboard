@@ -278,7 +278,7 @@ func TestTheYearsNumbersAreCutAtTheWidthNotDrawnOnAPhone(t *testing.T) {
 	}
 	rows := textOf(historyDrawn(f).rows(Look{}))
 	limits := slices.IndexFunc(rows, func(row string) bool { return strings.Contains(row, "limits hit") })
-	if want := "limits hit   5-hour ×4,120"; limits < 0 || !strings.HasSuffix(rows[limits], want) {
+	if want := "limits hit   week ×3"; limits < 0 || !strings.HasSuffix(rows[limits], want) {
 		t.Errorf("the limits row reads %q, want it to end %q", rows[max(limits, 0)], want)
 	}
 }

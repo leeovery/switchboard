@@ -46,9 +46,11 @@ Sleep 300ms
 Tab
 Sleep 300ms
 Tab
-# Runway's 5-hour from 11.9s; work's 5-hour read up to 59% at 14.1s, shown at
-# the look by 15s.
-Sleep 8100ms
+Sleep 300ms
+Type ">"
+# Runway's 5-hour from 12.2s, > from the week it opens on; work's 5-hour read
+# up to 59% at 14.1s, shown at the look by 15s.
+Sleep 7800ms
 
 Hide
 Type "q"

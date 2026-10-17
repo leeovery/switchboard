@@ -1,16 +1,12 @@
 package status
 
-import (
-	"slices"
-
-	"github.com/leeovery/switchboard/internal/quota"
-)
+import "slices"
 
 // AllNow is every account at a moment, taken together, as all accounts has
 // them: whatever the global pin names, and whatever holds any of them back.
 type AllNow struct {
 	// Windows are a window each that the use of is known on any account, in
-	// quota's order.
+	// the order the owner reads windows listed, as CompareWindows has it.
 	Windows []AllWindowNow
 }
 
@@ -47,7 +43,7 @@ func (m Moment) All() AllNow {
 			}
 		}
 	}
-	slices.SortFunc(keys, quota.CompareKeys)
+	slices.SortFunc(keys, m.CompareWindows)
 	var all AllNow
 	for _, key := range keys {
 		if w := allWindowOf(m.Accounts, key); w.Of > 0 {

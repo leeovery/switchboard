@@ -43,9 +43,9 @@ func tabListings(v dashboard.View) [][]keyListing {
 	case dashboard.Sessions:
 		return [][]keyListing{m.sessionsListings()}
 	case dashboard.Runway:
-		week := m
-		week.runwayTab.shown.Window = views.RunwayWeek
-		return [][]keyListing{m.runwayListings(), week.runwayListings()}
+		fiveHour := m
+		fiveHour.runwayTab.shown.Window = views.RunwayFiveHour
+		return [][]keyListing{fiveHour.runwayListings(), m.runwayListings()}
 	case dashboard.Log:
 		events := m
 		events.log.page.Shown = dashboard.LogEvents

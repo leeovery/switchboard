@@ -118,7 +118,7 @@ account under USAGE.
 </div>
 
 The animation shows one account, `work`, alone on the Overview, with its usage, its routing trace
-and LATELY. Then `g` shows GRAPHS, and `tab` moves on to Runway's 5-hour view. There, work's lane
+and LATELY. Then `g` shows GRAPHS, `tab` moves on to Runway, and `>` to its 5-hour view. There, work's lane
 runs out at its pace to its cap, and is back at 17:10.
 
 ### ROUTING
@@ -350,10 +350,11 @@ the session's:
 <img src="../art/runway-week.webp" alt="Runway over the week: a lane an account to next Wednesday, work at its cap till 17:10, personal's and side's weeks running out at their pace before they reset, and the pool's room under them" width="840">
 </div>
 
-Runway has two windows, and `<` and `>` switch between them:
+Runway has two windows, and `<` and `>` switch between them. It opens on the week, and remembers
+the one you last left it on:
 
-- **5-hour:** from the hour before now, for 22 hours 40 minutes.
 - **Week:** the week.
+- **5-hour:** from the hour before now, for 22 hours 40 minutes.
 
 Each column of a lane is one cell, showing room, at its cap, or at its limit. The past is dimmed.
 

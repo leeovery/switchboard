@@ -5,7 +5,7 @@
 SESSION   9c2e   website  ~/Code/website ─────────────────────────────────────────────────────────────────────────────────────────────────────────────  esc back
 
 idle 9m   on personal ◆ since it started: sticky                                                                                          started 11:55 · 2h 46m
-opus-5-5 → personal                                                                                          personal now  5-hour 39%   week 66%   fable week 0%
+opus-5-5 → personal                                                                                          personal now  week 66%   5-hour 39%   fable week 0%
 
 STORY   requests a minute ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
                                        ╭─ ROUTING · THIS SESSION ───────────────────────────────────────────────────────╮
@@ -15,9 +15,9 @@ STORY   requests a minute ──────────────────
  ▂▃          ▄▂     ▁               ▃▇ │  9c2e  website  ~/Code/website                               runs on personal  │       ▆          ▄
 ▅              ▇▁▁▁▁        ▁▁▁▁▁▁▁▃   │                                                                                │        ▃▁▁▁▁▁▁▁▁▁   ▁▁▁▁▁▇   ▆▁▁▁▁▁▁▁▁
 ├──────────────────────────────────────│  ○ 0 auto        the router chooses: personal for now                          │──────────────────────────────────────┤
-11:55                            12:30 │  ○ 1 work        closed    5-hour 95%   week 34%        at its cap till 17:10  │:00                        14:30    now
-                                       │  ○ 2 personal    open      5-hour 39%   week 66%                    2 running  │
-2 personal ◆  11:55 – now              │  ● 3 side        open      5-hour 13%   week 78%                    4 running  │                                 $27.15
+11:55                            12:30 │  ○ 1 work        closed    week 34%   5-hour 95%        at its cap till 17:10  │:00                        14:30    now
+                                       │  ○ 2 personal    open      week 66%   5-hour 39%                    2 running  │
+2 personal ◆  11:55 – now              │  ● 3 side        open      week 78%   5-hour 13%                    4 running  │                                 $27.15
                                        │                                                                                │
 TURNS    ──────────────────────────────│  This session moves to side on its next request.                               │· 97% from cache · $27.15 at API prices
                                        │  Rebuilding its cache costs ≈ $1.97.                                           │

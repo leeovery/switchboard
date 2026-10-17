@@ -41,9 +41,9 @@ func TestTheLiveTimelineOfEachWindow(t *testing.T) {
 		// wantNow is the column now falls in.
 		wantNow int
 	}{
-		{name: "the 5-hour at 160 columns: from the hour before now, on its ten minutes, a column every 10", columns: 136, start: clockOn(12, 10), step: 10 * time.Minute, wantNow: 6},
-		{name: "the 5-hour narrower: more minutes a column, spanning as long", columns: 68, start: clockOn(12, 10), step: 20 * time.Minute, wantNow: 3},
-		{name: "the 5-hour wider: fewer", columns: 170, start: clockOn(12, 10), step: 8 * time.Minute, wantNow: 7},
+		{name: "the 5-hour at 160 columns: from the hour before now, on its ten minutes, a column every 10", window: views.RunwayFiveHour, columns: 136, start: clockOn(12, 10), step: 10 * time.Minute, wantNow: 6},
+		{name: "the 5-hour narrower: more minutes a column, spanning as long", window: views.RunwayFiveHour, columns: 68, start: clockOn(12, 10), step: 20 * time.Minute, wantNow: 3},
+		{name: "the 5-hour wider: fewer", window: views.RunwayFiveHour, columns: 170, start: clockOn(12, 10), step: 8 * time.Minute, wantNow: 7},
 		{name: "the week: from a day before now, on its ten minutes, its 10,080 minutes shared", window: views.RunwayWeek, columns: 136, start: clockOn(13, 10).AddDate(0, 0, -1), step: 7 * 24 * time.Hour / 136, wantNow: 19},
 	}
 	for _, tt := range tests {
@@ -67,9 +67,9 @@ func TestTheFramesNowFallsInItsColumn(t *testing.T) {
 		columns int
 		want    int
 	}{
-		{name: "runway-5-hour-160, its lanes from column 24", columns: 136, want: 30 - 24},
+		{name: "runway-5-hour-160, its lanes from column 24", window: views.RunwayFiveHour, columns: 136, want: 30 - 24},
 		{name: "runway-week-160", window: views.RunwayWeek, columns: 136, want: 43 - 24},
-		{name: "runway-phone-52, its lanes from column 14", columns: 38, want: 15 - 14},
+		{name: "runway-phone-52, its lanes from column 14, the week it opens on", columns: 38, want: 5},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

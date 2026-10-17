@@ -80,8 +80,9 @@ type SessionsPrefs struct {
 }
 
 // RunwayPrefs are what Runway shows, by its name: the window its view is
-// named for, week, or "" for the 5-hour. A name the dashboard doesn't know
-// reads as the 5-hour. A day or week stepped back to is the run's alone.
+// named for, 5-hour, or "" for the week. A name the dashboard doesn't know,
+// as "week", which earlier builds kept the week by, reads as the week. A day
+// or week stepped back to is the run's alone.
 type RunwayPrefs struct {
 	Window string `json:"window,omitempty"`
 }

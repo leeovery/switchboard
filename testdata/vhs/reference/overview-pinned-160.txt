@@ -4,15 +4,15 @@
 
 USAGE  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── u
 
-                5-HOUR                                          WEEK                                            FABLE WEEK
+                WEEK                                            5-HOUR                                          FABLE WEEK
 
-1 work                  ┃      ╎  95%  at cap · back 17:10           ▌   ┃     ╎  34%  19%/day till Sun 21:00    ▉       ┃     ╎  12%  25%/day till Sun 21:00
+1 work               ▌   ┃     ╎  34%  19%/day till Sun 21:00           ┃      ╎  95%  at cap · back 17:10       ▉       ┃     ╎  12%  25%/day till Sun 21:00
 
-2 personal ◆ ▲        ▎   ┃       39%  34%/h till 16:30                   ┃       66%  out ~Sat 06:00                     ┃        0%  40%/day till Sun 02:00
+2 personal ◆ ▲            ┃       66%  out ~Sat 06:00                 ▎   ┃       39%  34%/h till 16:30                   ┃        0%  40%/day till Sun 02:00
 
-3 side            ▏┃              13%  21%/h till 18:50                ┃    ▌     78%  out ~Fri 12:20           ▋      ┃           4%  25%/day till Mon 10:00
+3 side                 ┃    ▌     78%  out ~Fri 12:20             ▏┃              13%  21%/h till 18:50         ▋      ┃           4%  25%/day till Mon 10:00
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Σ pool                ▎   ┃       39%  0.6 of 1 left · pinned             ┃       66%  0.3 of 1 left                      ┃        0%  1.0 of 1 left
+Σ pool                    ┃       66%  0.3 of 1 left · pinned         ▎   ┃       39%  0.6 of 1 left                      ┃        0%  1.0 of 1 left
 
                 ┃ even pace: where you would be now, used evenly    ╎ cap: work at 95%    ◆ primary    ▲ new sessions go here
 

@@ -29,9 +29,10 @@ func TestThePreferencesKeepRunwaysWindowAndNeverAStepBack(t *testing.T) {
 		kept theme.RunwayPrefs
 		want views.RunwayWindow
 	}{
-		{name: "none kept", want: views.RunwayFiveHour},
-		{name: "the week", kept: theme.RunwayPrefs{Window: "week"}, want: views.RunwayWeek},
-		{name: "a window a later build names", kept: theme.RunwayPrefs{Window: "month"}, want: views.RunwayFiveHour},
+		{name: "none kept: the week, which Runway opens on", want: views.RunwayWeek},
+		{name: "the 5-hour", kept: theme.RunwayPrefs{Window: "5-hour"}, want: views.RunwayFiveHour},
+		{name: "the week as earlier builds kept it", kept: theme.RunwayPrefs{Window: "week"}, want: views.RunwayWeek},
+		{name: "a window a later build names", kept: theme.RunwayPrefs{Window: "month"}, want: views.RunwayWeek},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -41,12 +42,23 @@ func TestThePreferencesKeepRunwaysWindowAndNeverAStepBack(t *testing.T) {
 		})
 	}
 
-	back := RunwayShown{Window: views.RunwayWeek, Back: civilDay(9, 21)}
-	if got := back.Kept(); got != (theme.RunwayPrefs{Window: "week"}) {
-		t.Errorf("a week stepped back keeps %+v, want its window alone", got)
+	back := RunwayShown{Window: views.RunwayFiveHour, Back: civilDay(9, 30)}
+	if got := back.Kept(); got != (theme.RunwayPrefs{Window: "5-hour"}) {
+		t.Errorf("a day stepped back keeps %+v, want its window alone", got)
 	}
-	if got := RunwayKept(back.Kept()); got.Window != views.RunwayWeek || !got.Back.IsZero() {
-		t.Errorf("a week stepped back, kept and read again, is %+v, want the week's live view", got)
+	if got := RunwayKept(back.Kept()); got.Window != views.RunwayFiveHour || !got.Back.IsZero() {
+		t.Errorf("a day stepped back, kept and read again, is %+v, want the 5-hour's live view", got)
+	}
+}
+
+// Runway opens on the week: its zero value, as a watch given nothing kept
+// shows it.
+func TestRunwayOpensOnTheWeek(t *testing.T) {
+	if got := (RunwayShown{}).Window; got != views.RunwayWeek {
+		t.Errorf("Runway opens on %q, want the week", got)
+	}
+	if got := RunwayKept(theme.RunwayPrefs{}); got.Window != views.RunwayWeek {
+		t.Errorf("with nothing kept, Runway opens on %q, want the week", got.Window)
 	}
 }
 
@@ -58,13 +70,13 @@ func TestLessAndMoreShowTheOtherWindowsLiveViewRound(t *testing.T) {
 		want    views.RunwayWindow
 		changed bool
 	}{
-		{name: "> from the 5-hour", from: RunwayShown{}, by: 1, want: views.RunwayWeek, changed: true},
-		{name: "< from the 5-hour, round", from: RunwayShown{}, by: -1, want: views.RunwayWeek, changed: true},
-		{name: "> from the week, round", from: RunwayShown{Window: views.RunwayWeek}, by: 1, want: views.RunwayFiveHour, changed: true},
-		{name: "< from the week", from: RunwayShown{Window: views.RunwayWeek}, by: -1, want: views.RunwayFiveHour, changed: true},
-		{name: "from a day stepped back", from: RunwayShown{Back: civilDay(9, 30)}, by: 1, want: views.RunwayWeek, changed: true},
-		{name: "round to a day stepped back's own window", from: RunwayShown{Back: civilDay(9, 30)}, by: 2, want: views.RunwayFiveHour, changed: true},
-		{name: "round to the live view shown", from: RunwayShown{}, by: 2, want: views.RunwayFiveHour},
+		{name: "> from the week, which it opens on", from: RunwayShown{}, by: 1, want: views.RunwayFiveHour, changed: true},
+		{name: "< from the week, round", from: RunwayShown{}, by: -1, want: views.RunwayFiveHour, changed: true},
+		{name: "> from the 5-hour, round", from: RunwayShown{Window: views.RunwayFiveHour}, by: 1, want: views.RunwayWeek, changed: true},
+		{name: "< from the 5-hour", from: RunwayShown{Window: views.RunwayFiveHour}, by: -1, want: views.RunwayWeek, changed: true},
+		{name: "from a day stepped back", from: RunwayShown{Window: views.RunwayFiveHour, Back: civilDay(9, 30)}, by: 1, want: views.RunwayWeek, changed: true},
+		{name: "round to a day stepped back's own window", from: RunwayShown{Window: views.RunwayFiveHour, Back: civilDay(9, 30)}, by: 2, want: views.RunwayFiveHour, changed: true},
+		{name: "round to the live view shown", from: RunwayShown{}, by: 2, want: views.RunwayWeek},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -82,7 +94,7 @@ func TestLeftStepsBackADayOrAWeekAtATimeAndRightOnToTheLiveView(t *testing.T) {
 		window views.RunwayWindow
 		want   []time.Time
 	}{
-		{name: "the 5-hour, from today a day at a time", want: []time.Time{civilDay(10, 1), civilDay(9, 30), civilDay(9, 29)}},
+		{name: "the 5-hour, from today a day at a time", window: views.RunwayFiveHour, want: []time.Time{civilDay(10, 1), civilDay(9, 30), civilDay(9, 29)}},
 		{name: "the week, from this week a week at a time", window: views.RunwayWeek, want: []time.Time{civilDay(9, 28), civilDay(9, 21), civilDay(9, 14)}},
 	}
 	for _, tt := range tests {
@@ -125,7 +137,7 @@ func steppedOnce(t *testing.T, r RunwayShown, by int) RunwayShown {
 // becomes yesterday, so → steps on to the new today before the live view.
 func TestADaySteppedBackToStaysItselfAsTheClockPassesMidnight(t *testing.T) {
 	before := time.Date(2026, 10, 1, 23, 50, 0, 0, time.Local)
-	r, _ := RunwayShown{}.Stepped(-1, before, time.Monday)
+	r, _ := RunwayShown{Window: views.RunwayFiveHour}.Stepped(-1, before, time.Monday)
 
 	after := before.Add(20 * time.Minute)
 	on, changed := r.Stepped(1, after, time.Monday)
@@ -144,9 +156,9 @@ func TestRunwaysHeadingNamesItsWindowAndTheDaysSteppedBackTo(t *testing.T) {
 		wantPeriod string
 		wantState  line
 	}{
-		{name: "the 5-hour, live", wantPeriod: "5-hour"},
+		{name: "the 5-hour, live", shown: RunwayShown{Window: views.RunwayFiveHour}, wantPeriod: "5-hour"},
 		{name: "the week, live", shown: RunwayShown{Window: views.RunwayWeek}, wantPeriod: "week"},
-		{name: "a day stepped back to", shown: RunwayShown{Back: civilDay(9, 30)}, wantPeriod: "5-hour", wantState: line{{"Wed 30 Sep", faintInk}}},
+		{name: "a day stepped back to", shown: RunwayShown{Window: views.RunwayFiveHour, Back: civilDay(9, 30)}, wantPeriod: "5-hour", wantState: line{{"Wed 30 Sep", faintInk}}},
 		{name: "a week stepped back to", shown: RunwayShown{Window: views.RunwayWeek, Back: civilDay(9, 28)}, wantPeriod: "week", wantState: line{{"Mon 28 Sep – Sun 4 Oct", faintInk}}},
 	}
 	for _, tt := range tests {
@@ -182,9 +194,9 @@ func TestRunwaysTimelineIsTheLiveViewsOrTheDaySteppedBacksAcrossItsColumns(t *te
 		shown RunwayShown
 		want  views.Timeline
 	}{
-		{name: "the 5-hour, live", want: views.LiveTimeline(views.RunwayFiveHour, runwayAt(), 136)},
+		{name: "the 5-hour, live", shown: RunwayShown{Window: views.RunwayFiveHour}, want: views.LiveTimeline(views.RunwayFiveHour, runwayAt(), 136)},
 		{name: "the week, live", shown: RunwayShown{Window: views.RunwayWeek}, want: views.LiveTimeline(views.RunwayWeek, runwayAt(), 136)},
-		{name: "a day stepped back to", shown: RunwayShown{Back: civilDay(9, 30)}, want: views.Stepped(views.RunwayFiveHour, civilDay(9, 30), runwayAt(), time.Monday, 136)},
+		{name: "a day stepped back to", shown: RunwayShown{Window: views.RunwayFiveHour, Back: civilDay(9, 30)}, want: views.Stepped(views.RunwayFiveHour, civilDay(9, 30), runwayAt(), time.Monday, 136)},
 		{name: "a week stepped back to", shown: RunwayShown{Window: views.RunwayWeek, Back: civilDay(9, 21)}, want: views.Stepped(views.RunwayWeek, civilDay(9, 21), runwayAt(), time.Monday, 136)},
 	}
 	for _, tt := range tests {

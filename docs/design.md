@@ -1160,8 +1160,7 @@ the same block (see The Overview).
 
 - **The windows:** `--5h`, `--week`, and one flag for each model's own window switchboard knows,
   named for its model (`--fable`), each print the header, that window alone in either layout, and
-  the key line. Given together, they print the windows given, in Claude's order
-  (settled in the plan). A flag for a window no account reports fails, naming the windows there are
+  the key line. Given together, they print the windows given, in the order of care (see below). A flag for a window no account reports fails, naming the windows there are
   (settled in the plan).
 - **The layout:** `--by window` or `--by account`. `[usage] by` in the config sets the default for
   `usage` and the dashboard alike, `window` unless set (see Config); the flag beats it.
@@ -1197,7 +1196,7 @@ The layout follows the terminal's width, `w` columns:
 
 **By window, the matrix** (`w ≥ 150`):
 
-- **Headings,** in `text.subtle`, not bold: `5-HOUR`, `WEEK`, then each model's own window as its
+- **Headings,** in `text.subtle`, not bold: `WEEK`, `5-HOUR`, then each model's own window as its
   model's name in capitals and ` WEEK`, as `FABLE WEEK`; each over its group's first column, with a
   blank line under them.
 - **A row an account,** in the config's order, with a blank line under each, then the pool, last,
@@ -1233,7 +1232,7 @@ The layout follows the terminal's width, `w` columns:
   window's row; the labels at column 1, 11 cells; the bars from column 12, `w − 1 − 11 − 8 − d`
   wide: 18 at 52.
 - **After each bar,** as in the other layouts: a cell, the percentage, two cells and the words.
-- **The labels,** in `text.subtle`: `5-hour`, `Week`, then each model's own window as its model's
+- **The labels,** in `text.subtle`: `Week`, `5-hour`, then each model's own window as its model's
   name and ` wk`, as `Fable wk`.
 - **The pool's block** comes last, its rule in the blank line above it.
 
@@ -1361,9 +1360,18 @@ line after it, as a shell's prompt spaces itself (settled in the plan).
   status document gives it (see The status document). With one account there's no pool: it would
   repeat the account.
 - **Every window shows, used or not:** a model's own window, as Fable's week, on every account, at
-  0% as at 40%, as probes read every model family's window before any use. Windows come in Claude's
-  order: the 5-hour window, the week, then each model's week. An account that hasn't reported a
-  window the others have shows it as nothing read.
+  0% as at 40%, as probes read every model family's window before any use. An account that hasn't
+  reported a window the others have shows it as nothing read.
+- **The order of care:** the week, the 5-hour window, then each model's own week (the owner's call,
+  17 October 2026). In general, the windows every model shares, the policy's, longest first; then
+  each model's own, as any window the policy doesn't share is, a new model's among them, in
+  quota's order. `status.CompareWindows` owns it, and the moment's `Listed` lists the windows by
+  it; every tab and verb that lists windows to the owner reads it there: USAGE by window and by
+  account, GRAPHS' charts, Runway's `<` `>`, the Switchboard's lines, the routing card, a
+  session's page, the Accounts tab's and History's limits and resets, and `usage`'s flags. The
+  JSON keeps quota's order, shortest first, as it's for agents and the order carries nothing
+  there, and so does what's recorded. The views guard holds it: no drawing package or command
+  orders windows itself.
 
 **The pool, the names and their numbers:**
 
@@ -1432,7 +1440,7 @@ can't, state or a key to marks; what a section is, and why it's where it is, are
 
 | Section | Description |
 |---|---|
-| USAGE | None, as the pool's row says the room; with one account, which has no pool, the room left: `room left  ` in `text.faint`, `5h ` in `text.subtle`, `0.4` in bold `text.secondary`, ` of 1` in `text.subtle`, `  ·  ` in `text.faint`, then `week 0.6 of 1` the same way, summed as the pool's room is; on a phone, none |
+| USAGE | None, as the pool's row says the room; with one account, which has no pool, the room left, in the order of care: `room left  ` in `text.faint`, `week ` in `text.subtle`, `0.6` in bold `text.secondary`, ` of 1` in `text.subtle`, `  ·  ` in `text.faint`, then `5h 0.4 of 1` the same way, summed as the pool's room is; on a phone, none |
 | GRAPHS | The focused account, `work`, in bold `text.primary`; five spaces; then the key to the chart drawn, the rest in `text.faint`: of the burn-up, `·` in `text.subtle` and ` even pace   `, `╌` in `viz.reserve` and ` cap   `, `┄` and ` limit`; of the burn-down, `⠢` in `text.subtle` and ` heading   `, `✕` in bold `state.destructive` and ` runs out   `, `⠤` in `viz.reserve`, faint, and ` cap   `, `┄` and ` full`. Beside USAGE's blocks, the key alone, as no account is focused |
 | ROUTING | The mode (below) |
 | SESSIONS, COMING UP, LATELY | None |
@@ -1951,7 +1959,7 @@ holds.
     `sessions moved`, `3 out` or `4 in`, or `2 in · 1 out` for an account with both
     (settled in the plan), and for `all accounts` every move, `4 moves`.
   - **LIMITS:** `limits hit`, by window, `5-hour ×2`, its windows joined by ` · `,
-    `5-hour ×2 · week ×1` (settled in the plan), in `state.destructive`, `none` without, and for
+    `week ×1 · 5-hour ×2` (settled in the plan; in the order of care), in `state.destructive`, `none` without, and for
     `all accounts` how many, `3`; `at cap or limit`, the time it spent at its cap or at a limit,
     `3h 10m`, and for `all accounts` their sum; and `left at its last reset`, what its week had left
     as it last reset, `15%`, or `0% (limit Fri)` where the week ran out, naming the day it did, and
@@ -2166,7 +2174,7 @@ section holds.
 - **The numbers,** at column 126: `LAST 12 MONTHS` on row 6, then from row 7 a row each, labels 13
   wide in `text.subtle` and values in `text.secondary`: `requests`, `236,410`; `sessions`, `1,688`,
   each counted once; `limits hit`, `5-hour ×402`, in `state.destructive`, those of more than one
-  window joined by ` · `, `5-hour ×402 · week ×3` (settled in the plan); `worth`, `$27,480`;
+  window joined by ` · `, `week ×3 · 5-hour ×402` (settled in the plan; in the order of care); `worth`, `$27,480`;
   `plans cost`, `$7,200`, the plans' monthly prices over the months, from the ledger's first day
   where it began part-way through them, as Against its price prices a young ledger's period (see
   Accounts); `against it`, `3.8×`, bold, in `state.positive` at 1× or more and `accent.attention`
@@ -2453,7 +2461,7 @@ edge.
     `■ limit reached · back 16:30`, `■ refused (401) · its token needs renewing` or `○ not read yet`
     (see The Overview); and ending at the last column, `● pinned` or `✕ out of the pool` (see
     Pinned, below);
-  - a row a window, `5-hour`, `Week`, then each model's own week, `Fable wk`, a blank row between:
+  - a row a window, `Week`, `5-hour`, then each model's own week, `Fable wk`, a blank row between:
     its label at 87 in `text.subtle`, its bar at 98, 32 cells, a cell, its percentage in 4 cells at
     131, two cells, and its words, 22 cells, at 137.
 
@@ -2540,11 +2548,11 @@ two blank rows, the key on the next two, and the row over the key line:
 2. No blank rows within a line: its name row and a row a window, then a blank row
    (settled in the plan).
 3. Two rows a line, and no blank rows between lines: the name row with its state words; then
-   `5-hour` at 87, its bar from 98, 22 cells, a cell and its percentage; three cells on, `Week` at
-   128, its bar from 133, 22 cells, a cell and its percentage, ending at the last column. The
+   `Week` at 87, its bar from 98, 21 cells, a cell and its percentage; three cells on, `5-hour` at
+   127, its bar from 134, 21 cells, a cell and its percentage, ending at the last column. The
    even-pace and cap marks stay; the words and the model windows go, as `usage` and the Overview
    show them.
-4. One row a line: the number, name and marks, cut to the name column; from it, the 5-hour bar, 14
+4. One row a line: the number, name and marks, cut to the name column; from it, the week's bar, 14
    cells, a cell and its percentage; and 21 cells after it, the state words (settled in the plan).
 5. Step 4's lines, scrolling, the calls with them, as Accounts scrolls (see Accounts): the key gives
    way, and the row over the key line says what's out of view, right-aligned: `▼ 3 more accounts`
@@ -2748,10 +2756,11 @@ in `text.faint`, the rule starting a cell after it.
 **The views,** named by their windows, `<` and `>` stepping between them, each account's use of the
 view's window under its name:
 
-- **5-hour,** the first the dashboard shows: from the hour before now, taken back to its ten
-  minutes, 13:40 at 14:42, for 22 hours 40 minutes: 136 columns of 10 minutes.
-- **week:** from a day before now, for a week: 136 columns of 74.1 minutes, its 10,080 minutes
-  shared among them (settled in the plan).
+- **week,** the first the dashboard shows (the owner's call, 17 October 2026): from a day before
+  now, for a week: 136 columns of 74.1 minutes, its 10,080 minutes shared among them (settled in
+  the plan).
+- **5-hour:** from the hour before now, taken back to its ten minutes, 13:40 at 14:42, for 22 hours
+  40 minutes: 136 columns of 10 minutes.
 - At other widths, the lanes keep their span, and the minutes a column scale with their width.
 
 The window shown is kept in the preferences file; a step back never is, so the dashboard opens live
@@ -3499,7 +3508,8 @@ plan).
   (settled in the plan). At the right, while it runs, ending at the last column: the account in
   `text.secondary` and ` now  ` in `text.subtle`, then each of its windows, three spaces apart, its
   name in `text.muted` and its use bold in its level's colour (see `usage`, the printout):
-  `side now  5-hour 13%   week 78%   fable week 4%`. Every window shows, used or not.
+  `side now  week 78%   5-hour 13%   fable week 4%`, in the order of care. Every window shows, used
+  or not.
 - **Account names are white** wherever named: bold `text.primary` where it runs (`on side`) and on
   an account's own row, `text.secondary` everywhere else, the story's labels and a turn's `on` among
   them, so a name reads as an account and not a word.
@@ -3567,7 +3577,8 @@ first ran on them:
   `yesterday 13:20 – 16:02` (settled in the plan);
 - at 40, its requests in `text.muted`: `404 requests`;
 - at 56, what it took of the account's windows, the points bold `text.primary` and the rest
-  `text.muted`: `≈ 41 points of its 5-hour · 6 of its week`, a model's own window it used adding
+  `text.muted`, in the order of care: `≈ 6 points of its week · 41 of its 5-hour`, a model's own
+  window it used adding
   `· N of its Fable week` (settled in the plan);
 - right-aligned to the last column, its worth at API prices, in `text.secondary`: `$41.06`.
 - **A turn that moved splits** between the two, each request counted on the account that answered
@@ -3835,7 +3846,7 @@ none touches routing.
      `text.subtle` not; a session's card picks one, `●` and `○` the same. A row's mark is its one
      mark: an account's state has no dot.
    - **The state,** a word: `open` in `state.positive`, or `closed` in the colour of why.
-   - **The windows:** `5-hour 39%` and `week 66%`, the words in `text.muted` and the figures in
+   - **The windows,** in the order of care: `week 66%` and `5-hour 39%`, the words in `text.muted` and the figures in
      bold, coloured by level as `usage` colours them, in their columns so they read down; kept for a
      closed account, as it can still be picked or they say why it's closed.
    - **At the right edge:** a closed account's reason, in the colour of why, `at its cap till
@@ -3951,7 +3962,7 @@ that work there (see The page); `?` lists every one, with what it does.
 | `↑` `↓` | Overview | Move the account focus, which GRAPHS follows; none while GRAPHS charts every account beside USAGE's blocks |
 | `[` `]` | Accounts, History, Sessions, the Log | The sub-tab before or after |
 | `<` `>` | Accounts, History | A shorter period, a longer one; on History's Year, the year before, the one after |
-| `<` `>` | Runway | The 5-hour view, the week's |
+| `<` `>` | Runway | The week's view, the 5-hour's |
 | `v` | History | The next shape or split of the view |
 | `←` `→` | Accounts' Compare | Move the focus along the accounts' columns |
 | `←` `→` | History's Year, filtered to an account | The account before or after |

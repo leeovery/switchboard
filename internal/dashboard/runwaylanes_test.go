@@ -167,7 +167,7 @@ func TestEachLaneIsHeadedByItsNameAndItsUseOfTheViewsWindow(t *testing.T) {
 		useInks []ink
 	}{
 		{
-			name: "live, 95%, red", lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Key: "5h", Used: 0.95, Read: true}}},
+			name: "live, 95%, red", window: views.RunwayFiveHour, lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Key: "5h", Used: 0.95, Read: true}}},
 			head: "1 work", use: "5-hour 95%", useInks: []ink{dimInk, usedFigure(0.95, "work", "5h")},
 		},
 		{
@@ -175,36 +175,36 @@ func TestEachLaneIsHeadedByItsNameAndItsUseOfTheViewsWindow(t *testing.T) {
 			head: "1 work", use: "week 78%", useInks: []ink{dimInk, usedFigure(0.78, "work", "7d")},
 		},
 		{
-			name: "stepped back, the day's highest", lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Key: "5h", Used: 1, Read: true, Highest: true}}},
+			name: "stepped back, the day's highest", window: views.RunwayFiveHour, lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Key: "5h", Used: 1, Read: true, Highest: true}}},
 			head: "1 work", use: "5-hour 100%", useInks: []ink{dimInk, usedFigure(1, "work", "5h")},
 		},
 		{
-			name: "stepped back, nothing read", lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Key: "5h", Highest: true}}},
+			name: "stepped back, nothing read", window: views.RunwayFiveHour, lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Key: "5h", Highest: true}}},
 			head: "1 work", use: "5-hour —", useInks: []ink{dimInk, faintInk},
 		},
-		{name: "stale", lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: stale}}, head: "1 work", use: "not read since 14:20", useInks: []ink{dimInk}},
-		{name: "stale since a day before, short", lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: staleBefore}}, head: "1 work", use: "read Wed", useInks: []ink{dimInk}},
-		{name: "not read yet", lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Key: "5h", Unread: true}}}, head: "1 work", use: "not read yet", useInks: []ink{dimInk}},
-		{name: "without a token", lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Tokenless: true}}}, head: "1 work", use: "no token", useInks: []ink{errorInk}},
+		{name: "stale", window: views.RunwayFiveHour, lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: stale}}, head: "1 work", use: "not read since 14:20", useInks: []ink{dimInk}},
+		{name: "stale since a day before, short", window: views.RunwayFiveHour, lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: staleBefore}}, head: "1 work", use: "read Wed", useInks: []ink{dimInk}},
+		{name: "not read yet", window: views.RunwayFiveHour, lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Key: "5h", Unread: true}}}, head: "1 work", use: "not read yet", useInks: []ink{dimInk}},
+		{name: "without a token", window: views.RunwayFiveHour, lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Tokenless: true}}}, head: "1 work", use: "no token", useInks: []ink{errorInk}},
 		{
-			name: "out of the pool, faint", lane: laidLane{
+			name: "out of the pool, faint", window: views.RunwayFiveHour, lane: laidLane{
 				name: accountName{number: "2", label: "personal", primary: true, out: true, faint: true}, account: status.AccountNow{OutOfPool: true},
 				Lane: views.Lane{ID: "personal", Use: views.Use{Key: "5h", Used: 0.39, Read: true}},
 			},
 			head: "2 personal ◆", use: "5-hour 39%", useInks: []ink{faintInk, faintInk},
 		},
 		{
-			name: "on a phone's label column, cut", x: phoneRunwayLanesFrom, lane: laidLane{
+			name: "on a phone's label column, cut", window: views.RunwayFiveHour, x: phoneRunwayLanesFrom, lane: laidLane{
 				name: accountName{number: "2", label: "personal", primary: true}, Lane: views.Lane{ID: "personal", Use: views.Use{Key: "5h", Used: 1, Read: true, Highest: true}},
 			},
 			head: "2 perso… ◆", use: "5-hour 100%", useInks: []ink{dimInk, usedFigure(1, "personal", "5h")},
 		},
 		{
-			name: "on a phone's label column, short where the blank before the lane leaves too few cells", x: phoneRunwayLanesFrom,
+			name: "on a phone's label column, short where the blank before the lane leaves too few cells", window: views.RunwayFiveHour, x: phoneRunwayLanesFrom,
 			lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Key: "5h", Unread: true}}}, head: "1 work", use: "not read", useInks: []ink{dimInk},
 		},
 		{
-			name: "on a phone's label column, stale, short", x: phoneRunwayLanesFrom,
+			name: "on a phone's label column, stale, short", window: views.RunwayFiveHour, x: phoneRunwayLanesFrom,
 			lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: stale}}, head: "1 work", use: "read 14:20", useInks: []ink{dimInk},
 		},
 	}

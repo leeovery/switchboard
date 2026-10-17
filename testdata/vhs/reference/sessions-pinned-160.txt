@@ -5,25 +5,25 @@
 SESSIONS    Switchboard  List  [ ]  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 c61b mobile       ↓ answering                   ●━━━━━━━━━━━━━━━━━━━━━━━┓           ○ 1 work          ● at its cap · back 17:10                ✕ out of the pool
-d28c switchboard  ↑ asking     ▸ from work      ●━━━━━━━━━━━━━━━━━━━━┓  ┃           ○  5-hour                     ┃             ╎   95%  at cap · back 17:10
+d28c switchboard  ↑ asking     ▸ from work      ●━━━━━━━━━━━━━━━━━━━━┓  ┃           ○  Week                 ▉      ┃            ╎   34%  19%/day till Sun 21:00
 7f3a api          ↓ answering                   ●━━━━━━━━━━━━━━━━━┓  ┃  ┃           ○
-db8a infra        idle 50s     ▸ from work      ●━━━━━━━━━━━━━━┓  ┃  ┃  ┃           ○  Week                 ▉      ┃            ╎   34%  19%/day till Sun 21:00
+db8a infra        idle 50s     ▸ from work      ●━━━━━━━━━━━━━━┓  ┃  ┃  ┃           ○  5-hour                     ┃             ╎   95%  at cap · back 17:10
 41e0 docs         idle 34s     ▸ from personal  ●━━━━━━━━━━━┓  ┃  ┃  ┃  ┃           ○
 9c2e website      idle 9m      ▸ from personal  ●━━━━━━━━┓  ┃  ┃  ┃  ┃  ┃           ○  Fable wk      ▉             ┃            ╎   12%  25%/day till Sun 21:00
                                                          ┃  ┃  ┃  ┃  ┃  ┃
                                                          ┃  ┃  ┃  ┃  ┃  ┃
                                                          ┃  ┃  ┃  ┃  ┃  ┃    ╌╌╌╌╌╌╌○ 2 personal ◆    ■ limit reached · back 15:54                      ● pinned
-                                                         ┃  ┃  ┃  ┃  ┃  ┃     ╌╌╌╌╌╌○  5-hour                             ┃        100%  limit · back 15:54
+                                                         ┃  ┃  ┃  ┃  ┃  ┃     ╌╌╌╌╌╌○  Week                            ┃            66%  out ~Sat 06:00
                                                          ┃  ┃  ┃  ┃  ┃  ┃           ○
-                                                         ┃  ┃  ┃  ┃  ┃  ┃           ○  Week                            ┃            66%  out ~Sat 06:00
+                                                         ┃  ┃  ┃  ┃  ┃  ┃           ○  5-hour                             ┃        100%  limit · back 15:54
                                                          ┃  ┃  ┃  ┃  ┃  ┃           ○
                                                          ┃  ┃  ┃  ┃  ┃  ┃           ○  Fable wk                        ┃             0%  40%/day till Sun 02:00
                                                          ┃  ┃  ┃  ┃  ┃  ┃
                                                          ┃  ┃  ┃  ┃  ┃  ┃
                                                          ┃  ┃  ┃  ┃  ┃  ┗━━━━━━━━━━━◉ 3 side ▲        ● open · new sessions come here                   ● pinned
-                                                         ┃  ┃  ┃  ┃  ┗━━━━━━━━━━━━━━◉  5-hour         ▏ ┃                           13%  21%/h till 18:50
+                                                         ┃  ┃  ┃  ┃  ┗━━━━━━━━━━━━━━◉  Week                      ┃                  78%  out ~Fri 12:20
                                                          ┃  ┃  ┃  ┗━━━━━━━━━━━━━━━━━◉
-                                                         ┃  ┃  ┗━━━━━━━━━━━━━━━━━━━━◉  Week                      ┃                  78%  out ~Fri 12:20
+                                                         ┃  ┃  ┗━━━━━━━━━━━━━━━━━━━━◉  5-hour         ▏ ┃                           13%  21%/h till 18:50
                                                          ┃  ┗━━━━━━━━━━━━━━━━━━━━━━━◉
                                                          ┗━━━━━━━━━━━━━━━━━━━━━━━━━━◉  Fable wk    ▎             ┃                   4%  25%/day till Mon 10:00
 

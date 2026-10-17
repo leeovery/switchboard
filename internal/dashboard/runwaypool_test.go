@@ -18,7 +18,7 @@ func poolShown(doc status.Document, pool views.Pool) RunwayShown {
 	for _, a := range doc.Accounts {
 		lanes.Accounts = append(lanes.Accounts, views.Lane{ID: a.ID})
 	}
-	return RunwayShown{Timeline: views.LiveTimeline(views.RunwayFiveHour, routedAt, RunwayColumns(160)), Lanes: lanes}
+	return RunwayShown{Window: views.RunwayFiveHour, Timeline: views.LiveTimeline(views.RunwayFiveHour, routedAt, RunwayColumns(160)), Lanes: lanes}
 }
 
 // poolDrawn is the canvas of Runway shown as r of doc at routedAt, 160 by

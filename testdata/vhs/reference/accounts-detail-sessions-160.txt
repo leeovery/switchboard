@@ -7,9 +7,9 @@ ACCOUNTS    Compare  Detail  [ ]  ───────────────�
  0 all accounts     │   3 side   ● open · new sessions come here
                     │
  1 work        ●    │   USAGE                                                                               THIS WEEK
-                    │   5-hour        ▎ ┃                                  13%  21%/h till 18:50            requests  1,876
+                    │   Week                       ┃            ▎          78%  out ~Fri 12:20              requests  1,876
  2 personal ◆  ●    │                                                                                       limits    5-hour ×1
-                    │   Week                       ┃            ▎          78%  out ~Fri 12:20              plan      Max 20x
+                    │   5-hour        ▎ ┃                                  13%  21%/h till 18:50            plan      Max 20x
 ▸3 side        ●    │                                                                                       worth     $239  5.2×
                     │   Fable wk  ▋                ┃                        4%  25%/day till Mon 10:00      extra use off
                     │

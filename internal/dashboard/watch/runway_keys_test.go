@@ -41,16 +41,16 @@ func TestRunwaysKeyLinesAreTheDesigns(t *testing.T) {
 		keys  string
 		want  string
 	}{
-		{name: "the 5-hour view", want: day},
-		{name: "today, from its midnight", keys: "left", want: day},
-		{name: "a day stepped back to", keys: "left left", want: day},
-		{name: "the week view", keys: ">", want: week},
-		{name: "this week", keys: "> left", want: week},
-		{name: "a week stepped back to", keys: "> left left", want: week},
-		{name: "the 5-hour view again", keys: "> <", want: day},
-		{name: "one account, with nowhere else to pin", doc: routerDocument(three()[0]), want: "tab views   < > window  ←→ day    ? help  q quit"},
-		{name: "a phone", width: 52, want: "tab views   < > window   ←→ day   ? keys   q quit"},
-		{name: "a phone in the week view", width: 52, keys: ">", want: "tab views   < > window   ←→ week   ? keys   q quit"},
+		{name: "the week view, which Runway opens on", want: week},
+		{name: "this week", keys: "left", want: week},
+		{name: "a week stepped back to", keys: "left left", want: week},
+		{name: "the 5-hour view", keys: ">", want: day},
+		{name: "today, from its midnight", keys: "> left", want: day},
+		{name: "a day stepped back to", keys: "> left left", want: day},
+		{name: "the week view again", keys: "> <", want: week},
+		{name: "one account, with nowhere else to pin", doc: routerDocument(three()[0]), want: "tab views   < > window  ←→ week    ? help  q quit"},
+		{name: "a phone", width: 52, want: "tab views   < > window   ←→ week   ? keys   q quit"},
+		{name: "a phone in the 5-hour view", width: 52, keys: ">", want: "tab views   < > window   ←→ day   ? keys   q quit"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -74,8 +74,8 @@ func TestRunwaysHelpListsItsKeys(t *testing.T) {
 		name, keys string
 		want       []string
 	}{
-		{name: "the 5-hour view", want: []string{"tab views", "< > window", "←→ day", "p pin", "t themes", "R refresh", "? help", "q quit"}},
-		{name: "the week view", keys: ">", want: []string{"tab views", "< > window", "←→ week", "p pin", "t themes", "R refresh", "? help", "q quit"}},
+		{name: "the week view, which Runway opens on", want: []string{"tab views", "< > window", "←→ week", "p pin", "t themes", "R refresh", "? help", "q quit"}},
+		{name: "the 5-hour view", keys: ">", want: []string{"tab views", "< > window", "←→ day", "p pin", "t themes", "R refresh", "? help", "q quit"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			h := routedHarness(t, routerDocument(three()...))

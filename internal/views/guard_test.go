@@ -125,6 +125,12 @@ var (
 		// window's, as Accounts, history and the Year count and say them.
 		"views.AccountTotals.Limits": "views.AccountTotals' LimitCount and LimitsHit",
 		"views.Month.Limits":         "views.Month.LimitCount",
+		// The order windows are listed in, the week first, as every tab and
+		// verb lists them to the owner: quota's, shortest first, is for
+		// agents' JSON and what's recorded.
+		"quota.Sort":        "status.CompareWindows",
+		"quota.Compare":     "status.CompareWindows",
+		"quota.CompareKeys": "status.CompareWindows",
 		// The time spent at a cap or a limit, together, and whether it's
 		// known.
 		"views.AccountTotals.MinutesAtCap":   "views.AccountTotals.AtCapOrLimit",
@@ -228,6 +234,7 @@ func TestTheDrawingGuardFindsWhatItGuardsAgainst(t *testing.T) {
 		"internal/cli/fields.go:20: events.Line.Event reads raw data's fields; " + rawFix,
 		"internal/cli/fields.go:20: status.Event.ID reads raw data's fields; " + rawFix,
 		"internal/cli/fields.go:25: ledger.Held.Session reads raw data's fields; " + rawFix,
+		"internal/cli/order.go:9: " + absorbedSays("quota.CompareKeys", "status.CompareWindows"),
 		"internal/cli/readers.go:13: ledger.Held.Session reads raw data's fields; " + rawFix,
 		"internal/dashboard/dashboard.go:12: status.Event.ID reads raw data's fields; " + rawFix,
 		"internal/dashboard/dashboard.go:15: " + absorbedSays("status.ShortID", "status.ShownID"),
@@ -264,6 +271,18 @@ var drawingFixture = map[string]string{
 	"internal/quota/quota.go": `package quota
 
 type Tokens struct{ Input, Output int }
+
+func CompareKeys(a, b string) int { return 0 }
+`,
+	"internal/cli/order.go": `package cli
+
+import (
+	"slices"
+
+	"example.com/fixture/internal/quota"
+)
+
+func ordered(keys []string) { slices.SortFunc(keys, quota.CompareKeys) }
 `,
 	"internal/ledger/ledger.go": `package ledger
 

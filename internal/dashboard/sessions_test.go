@@ -232,8 +232,8 @@ func TestSessionsChoiceEndsOpensAndIsClicked(t *testing.T) {
 func TestTheSwitchboardsLinesAreTheMomentsAccounts(t *testing.T) {
 	m := threeRouted().At(now, claudeLike)
 	got := boardLinesOf(m)
-	if want := []string{"work", "personal", "side"}; !reflect.DeepEqual(got.accounts, want) || got.windows != len(UsageWindows(m)) || got.windows == 0 {
-		t.Errorf("the lines are %+v, want %v, each of %d windows", got, want, len(UsageWindows(m)))
+	if want := []string{"work", "personal", "side"}; !reflect.DeepEqual(got.accounts, want) || got.windows != len(m.Listed()) || got.windows == 0 {
+		t.Errorf("the lines are %+v, want %v, each of %d windows", got, want, len(m.Listed()))
 	}
 }
 

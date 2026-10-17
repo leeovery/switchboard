@@ -32,7 +32,7 @@ type Printout struct {
 	Look  Look
 	By    By
 	// Windows are the windows' keys to print, each once, in Claude's order;
-	// none prints every one, as UsageWindows has them.
+	// none prints every one, as its Listed has them.
 	Windows []string
 	// Name names a window by its key, as "5-hour" or "Fable week"; where
 	// it's nil, a window is named by its label in the document.

@@ -7,9 +7,9 @@ ACCOUNTS    Compare  Detail  [ ]  ───────────────�
  0 all accounts     │   0 all accounts   2 open · 1 at cap
                     │
  1 work        ●    │   USAGE                                                                               THIS WEEK
-                    │   5-hour                     ┃▋                      49%  1.5 of 3 left               requests  5,410
+                    │   Week                           ┃▊                  59%  1.2 of 3 left               requests  5,410
  2 personal ◆  ●    │                                                                                       limits    4
-                    │   Week                           ┃▊                  59%  1.2 of 3 left               plan      $600/mo
+                    │   5-hour                     ┃▋                      49%  1.5 of 3 left               plan      $600/mo
  3 side        ●    │                                                                                       worth     $635  4.6×
                     │   Fable wk   ▏                   ┃                    5%  2.8 of 3 left               extra use off
                     │

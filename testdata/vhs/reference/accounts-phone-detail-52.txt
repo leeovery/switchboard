@@ -10,9 +10,9 @@ ACCOUNTS   Compare  Detail
 ● at its cap
 
 USAGE
-5-hour            ┃       ╎  95%  back 17:10
-
 Week           ▏   ┃      ╎  34%  19%/day · Sun
+
+5-hour            ┃       ╎  95%  back 17:10
 
 Fable wk   ▏       ┃      ╎  12%  25%/day · Sun
 

@@ -454,7 +454,7 @@ func TestComparesValuesAreCutToTheirColumnsAllAccountsToTheEdge(t *testing.T) {
 		row, column int
 		want        string
 	}{
-		{row: 25, column: 26, want: "5-hour ×2 · …      n"},
+		{row: 25, column: 26, want: "week ×1 · …        n"},
 		{row: 31, column: 26, want: "on · billed past…  o"},
 		{row: 31, column: 102, want: "on for 1 of 10"},
 		{row: 30, column: 102, want: "$1,700/mo · 10 plans"},
@@ -640,7 +640,7 @@ func TestWEEKUSEDsBarsEaseAsFarAsTheyHaveEased(t *testing.T) {
 	f, doc := threeCompared(t, 160, 37)
 	account("side", func(a *status.Account) { a.TokenSet = false })(&doc)
 	doc = doc.WorkedOut(claudeLike)
-	all := f.Moment(doc, routedAt).All().Windows[1].Used
+	all := f.Moment(doc, routedAt).All().Windows[0].Used
 	want := map[Ref]float64{{Account: "work", Window: "7d"}: 0.34, {Account: "personal", Window: "7d"}: 0.66, {Window: "7d"}: all}
 	if got := f.Filled(doc, routedAt); !maps.Equal(got, want) {
 		t.Errorf("Compare's bars fill %v, want %v", got, want)

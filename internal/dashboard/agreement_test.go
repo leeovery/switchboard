@@ -362,15 +362,7 @@ func (d drawn) poolUsed(key string) []viewSays {
 // figure is the routing card's figure of account a's window w, reporting
 // false where the card has none of it.
 func (d drawn) figure(a status.AccountNow, w status.WindowNow) (Figure, bool) {
-	row := d.card[d.place(a)+1]
-	switch {
-	case w.Started:
-		return row.Session, true
-	case w.Shared && quota.WeekLong(w.Key):
-		return row.Week, true
-	default:
-		return Figure{}, false
-	}
+	return cardFigure(d.card[d.place(a)+1], w.Key)
 }
 
 // stale is whether each view says account a's window w reads as last read,

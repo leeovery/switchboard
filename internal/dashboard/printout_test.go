@@ -38,11 +38,11 @@ func TestTheHeaderTakesOneLineFrom120Columns(t *testing.T) {
 	if got := one[0]; !strings.HasSuffix(got, says) || len([]rune(got)) != 120 {
 		t.Errorf("at 120 columns the header reads %q, want its status ending at the last column", got)
 	}
-	if one[1] != "" || one[2] != "5-HOUR" {
+	if one[1] != "" || one[2] != "WEEK" {
 		t.Errorf("at 120 columns, the header is followed by %q, want a blank line, then the first window", one[1:3])
 	}
 	two := printed(trio(), 119, ByWindow)
-	if got, want := two[:5], []string{" SWITCHBOARD   Thu 1 Oct  14:42", "", says, "", "5-HOUR"}; strings.Join(got, "\n") != strings.Join(want, "\n") {
+	if got, want := two[:5], []string{" SWITCHBOARD   Thu 1 Oct  14:42", "", says, "", "WEEK"}; strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Errorf("at 119 columns the printout starts %q, want %q: its status on a line of its own", got, want)
 	}
 }
