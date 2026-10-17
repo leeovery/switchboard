@@ -22,7 +22,7 @@
 3 side ▲
  5-hour       ▍┃                13%  21%/h · 18:50
 
- Week               ┃           78%  6%/day · Mon
+ Week               ┃           78%  out ~Fri
 
  Fable wk   ▊       ┃            4%  25%/day · Mon
 

@@ -330,7 +330,7 @@ func TestTheRouterGoneHasPPinFaint(t *testing.T) {
 	from := utf8.RuneCountInString(before)
 	faint := rgb(0x4C, 0x56, 0x6A)
 	for _, c := range keys[from : from+len("p pin")] {
-		if c.glyph != ' ' && (c.bold || !c.fg.near(faint)) {
+		if c.glyph != ' ' && (c.bold || c.fg != faint) {
 			t.Errorf("p pin's %s, want it faint, %s, not bold, as the router doesn't answer", c, faint)
 		}
 	}

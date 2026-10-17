@@ -3,9 +3,6 @@ package dashboard
 import (
 	"fmt"
 	"image/color"
-	"os"
-	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -56,8 +53,8 @@ func (s shade) String() string {
 }
 
 // near reports whether s and o are one colour, a channel one apart at most,
-// as the frames' generator rounds a half to even, where Go's mixing rounds
-// it away from zero.
+// as the frames' generator rounded a half to even, where Go's mixing rounds
+// it away from zero: the shades tests give from it.
 func (s shade) near(o shade) bool {
 	apart := func(x, y uint8) bool { return max(x, y)-min(x, y) <= 1 }
 	return s.set == o.set && apart(s.r, o.r) && apart(s.g, o.g) && apart(s.b, o.b)
@@ -146,91 +143,6 @@ func channel(t *testing.T, code string) uint8 {
 		t.Fatalf("channel %q: %v", code, err)
 	}
 	return uint8(n)
-}
-
-// reference is the cells of the signed-off frame with the stem given, as a
-// terminal shows its ANSI.
-func reference(t *testing.T, stem string) [][]seen {
-	t.Helper()
-	data, err := os.ReadFile(filepath.Join("..", "..", "testdata", "vhs", "reference", stem+".ansi"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return screenOf(t, strings.Split(strings.TrimSuffix(string(data), "\n"), "\n"))
-}
-
-// region is the cells of a frame a test holds to it: from row top to
-// bottom and column left to right, counted from 0.
-type region struct {
-	top, bottom, left, right int
-}
-
-// spot is cells along a frame's row, from column first to last, counted
-// from 0.
-type spot struct {
-	row, first, last int
-}
-
-// covers reports whether any of the spots covers the cell at row and col.
-func covers(spots []spot, row, col int) bool {
-	for _, s := range spots {
-		if s.row == row && s.first <= col && col <= s.last {
-			return true
-		}
-	}
-	return false
-}
-
-// aRowUp is drawn read a row down, its row y as row y+1, so what the design
-// has since drawn a row up from where a frame drew it is held to the frame's
-// rows, as Runway's pool's room and all under it are, the rule over the
-// pool's lane and its words under it gone (the owner's call, 17 October
-// 2026).
-func aRowUp(drawn [][]seen) [][]seen {
-	return append([][]seen{nil}, drawn...)
-}
-
-// redrawn is the frame with the glyph was read as is along the rows given,
-// counted from 0, its cells' colours and weight as it has them: where the
-// design has since drawn the glyph otherwise, and the frame still holds the
-// rest of each cell.
-func redrawn(frame [][]seen, was, is rune, rows ...int) [][]seen {
-	cells := make([][]seen, len(frame))
-	for y, row := range frame {
-		cells[y] = slices.Clone(row)
-		if !slices.Contains(rows, y) {
-			continue
-		}
-		for x := range cells[y] {
-			if cells[y][x].glyph == was {
-				cells[y][x].glyph = is
-			}
-		}
-	}
-	return cells
-}
-
-// heldTo holds the cells drawn in the region to the frame's, as a terminal
-// whose background is canvas shows them: their glyphs and backgrounds, and
-// their foregrounds and weight, but a blank's, which nothing shows. It
-// passes over the cells whole covers, and the foregrounds of those
-// foreground covers, where the frame draws them otherwise than the design.
-func heldTo(t *testing.T, stem string, frame, drawn [][]seen, in region, canvas shade, whole, foreground []spot) {
-	t.Helper()
-	var unlike []string
-	for y := in.top; y <= in.bottom; y++ {
-		for x := in.left; x <= in.right; x++ {
-			want, got := seenAt(frame, x, y), seenAt(drawn, x, y)
-			glyph := want.glyph == got.glyph && want.bg.or(canvas).near(got.bg.or(canvas))
-			ink := want.glyph == ' ' || want.bold == got.bold && (want.fg.near(got.fg) || covers(foreground, y, x))
-			if alike := glyph && ink; !alike && !covers(whole, y, x) {
-				unlike = append(unlike, fmt.Sprintf("row %d, column %d: the frame's %s, drawn %s", y+1, x+1, want, got))
-			}
-		}
-	}
-	if len(unlike) > 0 {
-		t.Errorf("drew %d cells otherwise than %s:\n  %s", len(unlike), stem, strings.Join(unlike[:min(len(unlike), 20)], "\n  "))
-	}
 }
 
 // seenAt is the cell at x along row y, or a blank one where none was drawn,

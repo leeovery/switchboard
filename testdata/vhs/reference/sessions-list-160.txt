@@ -10,7 +10,7 @@ SESSIONS    Switchboard  List  [ ]  ──────────────�
 ↑ d28c switchboard   side      opus-5-5   asking       12:02                 445   $48.20  from work, at its cap  $1.82
   41e0 docs          personal  opus-5-5   idle 34s     12:47                 158   $17.86
 ↓ 7f3a api           side      opus-5-5   answering    14:12                  84    $8.94  from work, at its cap  $0.98
-↓ c61b mobile        side      opus-5-5   answering    14:41                   5    $0.29
+↓ c61b mobile        side      opus-5-5   answering    14:41                   4    $0.22
   ended today  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
   5b19 mobile        personal  opus-5-5   ended 11:21  10:02                  38    $3.12
   3d7a docs          work      opus-5-5   ended 10:15  09:40                  12    $0.84
@@ -19,7 +19,7 @@ SESSIONS    Switchboard  List  [ ]  ──────────────�
   2b6d api           work      opus-5-5   ended 09:05  07:58                  31    $2.61
   5e7d api           side      opus-5-5   ended 00:41  yesterday 23:47        17    $1.28
   4b0e infra         work      opus-5-5   ended 00:31  yesterday 15:52         5    $0.31
-  8a2c docs          side      opus-5-5   ended 00:18  yesterday 16:55         9    $0.63  from personal, at its limit  $0.61
+  8a2c docs          side      opus-5-5   ended 00:18  yesterday 16:55         9    $0.63
 
 
 
@@ -33,5 +33,5 @@ SESSIONS    Switchboard  List  [ ]  ──────────────�
 
 
 
-                                                                                                     today  14 sessions · 1,240 requests · $126.02 at API prices
+                                                                                                     today  14 sessions · 1,239 requests · $125.94 at API prices
 tab views   [ ] view    ↑↓ session  enter its page    p pin    ? help  q quit

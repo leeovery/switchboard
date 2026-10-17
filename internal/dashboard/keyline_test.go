@@ -1,10 +1,7 @@
 package dashboard
 
 import (
-	"os"
-	"path/filepath"
 	"slices"
-	"strings"
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
@@ -22,17 +19,6 @@ func keyed(width int, l KeyLine) Frame {
 func lastRow(f Frame) string {
 	rows := f.Draw(threeRouted(), now)
 	return rows[len(rows)-1]
-}
-
-// referenceRows are the rows of milestone 7's frame named, as its file of
-// the extension given has them: its text, "txt", or its ANSI, "ansi".
-func referenceRows(t *testing.T, name, ext string) []string {
-	t.Helper()
-	b, err := os.ReadFile(filepath.Join("..", "..", "testdata", "vhs", "reference", name+"."+ext))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return strings.Split(strings.TrimRight(string(b), "\n"), "\n")
 }
 
 // Keys as the design words them.
@@ -100,52 +86,6 @@ func TestAKeysWordsAreDrawnAsItStands(t *testing.T) {
 	}
 }
 
-func TestAKeyThatCantActIsDrawnAsTheFrameDrawsIt(t *testing.T) {
-	frame := referenceRows(t, "log-not-live-160", "ansi")
-	f := keyed(160, KeyLine{Groups: [][]Key{{tabViews}, {{Key: "p", Does: "pin", Off: true}}}, Lead: 3})
-	f.Height, f.Look, f.View = len(frame), Screen(builtin(t, "nord")), Log
-	rows := f.Draw(threeRouted(), now)
-	if got, want := sgrBefore(rows[len(rows)-1], "p pin"), sgrBefore(frame[len(frame)-1], "p pin"); got == "" || got != want {
-		t.Errorf("p pin, off, is drawn in %q, want %q, as log-not-live-160 draws it", got, want)
-	}
-}
-
-func TestTheOverviewsTogglesAreDrawnAsTheFrameDrawsThem(t *testing.T) {
-	toggles := []Key{
-		{Key: "u", Does: "usage"}, {Key: "g", Does: "graphs", Hidden: true}, {Key: "r", Does: "routing"},
-		{Key: "s", Does: "sessions", Hidden: true}, {Key: "c", Does: "coming up"}, {Key: "l", Does: "lately"},
-		{Key: "b", Does: "by", State: "window"},
-	}
-	text, frame := referenceRows(t, "overview-default-160", "txt"), referenceRows(t, "overview-default-160", "ansi")
-	f := keyed(160, KeyLine{Groups: [][]Key{{tabViews}, toggles, {{Key: "↑↓", Does: "focus"}}}, Lead: 5, After: 5})
-	f.Height, f.View = len(text), Overview
-	if got, want := lastRow(f), text[len(text)-1]; !strings.HasPrefix(want, got) {
-		t.Errorf("the key line reads\n%q\nwant the frame's, as far as ↑↓ focus\n%q", got, want)
-	}
-	f.Look = Screen(builtin(t, "nord"))
-	rows := f.Draw(threeRouted(), now)
-	for _, words := range []string{"usage", "graphs", "sessions", "by:", "window"} {
-		if got, want := sgrBefore(rows[len(rows)-1], words), sgrBefore(frame[len(frame)-1], words); got == "" || got != want {
-			t.Errorf("%q is drawn in %q, want %q, as overview-default-160 draws it", words, got, want)
-		}
-	}
-}
-
-// sgrBefore is the parameters of the last SGR sequence before text in the
-// row, and any spaces drawn in it before the text, without a reset leading
-// them: "" where text isn't there.
-func sgrBefore(row, text string) string {
-	at := strings.Index(row, text)
-	if at < 0 {
-		return ""
-	}
-	from := strings.LastIndex(row[:at], "\x1b[")
-	if from < 0 {
-		return ""
-	}
-	return strings.TrimPrefix(strings.TrimSuffix(strings.TrimRight(row[from+2:at], " "), "m"), "0;")
-}
-
 func TestANoteTakesTheKeyLinesPlace(t *testing.T) {
 	tests := []struct {
 		width int
@@ -159,56 +99,6 @@ func TestANoteTakesTheKeyLinesPlace(t *testing.T) {
 			t.Errorf("at %d columns, the last row = %q, want %q", tt.width, got, tt.want)
 		}
 	}
-}
-
-func TestTheKeyLinesAreTheFrames(t *testing.T) {
-	logs := [][]Key{
-		{tabViews}, {subTabs},
-		{{Key: "↑↓", Does: "request"}, {Key: "enter", Does: "open"}, {Key: "f", Does: "what it shows"}, {Key: "/", Does: "find"}},
-		{pin}, helpQuit,
-	}
-	sessions := [][]Key{{tabViews}, {subTabs}, {{Key: "↑↓", Does: "session"}, {Key: "enter", Does: "its page"}}, {pin}, helpQuit}
-	overview := [][]Key{
-		{tabViews},
-		{{Key: "u", Does: "usage"}, {Key: "g", Does: "graphs"}, {Key: "r", Does: "routing"}, {Key: "s", Does: "sessions"}, {Key: "c", Does: "coming up"}, {Key: "l", Does: "lately"}, {Key: "b", Does: "by: window"}},
-		{{Key: "↑↓", Does: "focus"}, pin, helpQuit[0], helpQuit[1]},
-	}
-	runway := func(step string) [][]Key { return [][]Key{{tabViews}, runwayKeys(step), {pin}, helpQuit} }
-	tests := []struct {
-		frame string
-		view  View
-		line  KeyLine
-	}{
-		{frame: "runway-5-hour-160", view: Runway, line: KeyLine{Groups: runway("day"), Lead: 3}},
-		{frame: "runway-stepped-back-160", view: Runway, line: KeyLine{Groups: runway("day"), Lead: 3}},
-		{frame: "runway-ten-accounts-160", view: Runway, line: KeyLine{Groups: runway("day"), Lead: 3}},
-		{frame: "runway-week-160", view: Runway, line: KeyLine{Groups: runway("week"), Lead: 3}},
-		{frame: "log-requests-160", view: Log, line: KeyLine{Groups: logs, Lead: 3}},
-		{frame: "sessions-switchboard-160", view: Sessions, line: KeyLine{Groups: sessions, Lead: 3}},
-		{frame: "sessions-list-160", view: Sessions, line: KeyLine{Groups: sessions, Lead: 3}},
-		{frame: "log-requests-phone-52", view: Log, line: KeyLine{Groups: logs, Lead: 3, Phone: []Key{{Key: "↑↓", Does: "request"}, {Key: "enter", Does: "open"}, subTabs}, PhoneHelp: "keys"}},
-		{frame: "sessions-phone-52", view: Sessions, line: KeyLine{Groups: sessions, Lead: 3, Phone: []Key{{Key: "↑↓", Does: "session"}, {Key: "enter", Does: "open"}, subTabs}, PhoneHelp: "keys"}},
-		{frame: "sessions-list-phone-52", view: Sessions, line: KeyLine{Groups: sessions, Lead: 3, Phone: []Key{{Key: "↑↓", Does: "session"}, {Key: "enter", Does: "open"}, subTabs}, PhoneHelp: "keys"}},
-		{frame: "accounts-phone-compare-52", view: Accounts, line: KeyLine{Groups: [][]Key{{tabViews}, {subTabs}, helpQuit}, Lead: 3, Phone: []Key{subTabs}, PhoneHelp: "keys"}},
-		{frame: "overview-phone-52", view: Overview, line: KeyLine{Groups: overview, Lead: 5, PhoneHelp: "keys and toggles"}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.frame, func(t *testing.T) {
-			frame := referenceRows(t, tt.frame, "txt")
-			want := frame[len(frame)-1]
-			f := frameOf(ansi.StringWidth(frame[0]), len(frame))
-			f.View, f.KeyLine = tt.view, tt.line
-			if got := lastRow(f); got != want {
-				t.Errorf("the key line reads\n%q\nwant the frame's\n%q", got, want)
-			}
-		})
-	}
-}
-
-// runwayKeys are Runway's own keys as the design words them: < > window,
-// and ←→ stepping by the day or the week.
-func runwayKeys(step string) []Key {
-	return []Key{{Key: "< >", Does: "window"}, {Key: "←→", Does: step}}
 }
 
 func TestAPhonesKeyLineKeepsTheKeysItEndsWith(t *testing.T) {

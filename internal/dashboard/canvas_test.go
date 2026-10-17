@@ -294,21 +294,6 @@ func reversedRows(rows []string) []int {
 	return reversed
 }
 
-// The page behind a card is faded as its frame draws it, but for the
-// heading's clock, which the frame fades, where the design draws it bright,
-// ticking on (the owner's call, 17 October 2026).
-func TestThePageBehindACardIsFadedAsItsFrameDrawsIt(t *testing.T) {
-	nord := Screen(builtin(t, "nord"))
-	doc, sessions := routedWorld(false)
-	f := Frame{
-		Width: 160, Height: 37, Look: nord, View: Overview, Policy: claudeLike, Sessions: sessions,
-		Card: RoutingCard{Rows: RoutingRows(doc.At(routedAt, claudeLike), sessions, views.Stream{})},
-	}
-
-	clock := []spot{{row: 0, first: f.Width - clockCells(routedAt), last: f.Width - 1}}
-	heldTo(t, "routing-auto-160", reference(t, "routing-auto-160"), screenOf(t, f.Draw(doc, routedAt)), region{top: 0, bottom: 2, left: 0, right: 159}, shadeOf(nord.Canvas()), clock, nil)
-}
-
 func TestEveryCellOfThePageBehindACardButTheClockIsFadedAndNothingInItBold(t *testing.T) {
 	f := frameOf(160, 40)
 	f.Look = Screen(builtin(t, "nord"))

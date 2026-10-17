@@ -4,21 +4,21 @@
 
 SESSION   d28c   switchboard  ~/Code/switchboard ─────────────────────────────────────────────────────────────────────────────────────────────────────  esc back
 
-↑ asking   on side ▲ since 14:31, moved from work: work reached its cap                                                                   started 12:02 · 2h 40m
+↑ asking   on side ▲ since 14:31, moved from work: work reached its cap                                                                   started 12:02 · 2h 39m
 opus-5-5 → side   haiku-4-5 → side                                                                               side now  5-hour 13%   week 78%   fable week 4%
 
 STORY   requests a minute ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
                                                                                        work reached its cap → side · 182k cached again, $1.82  14:31 ┊
-                                                                                                                                                     ┊
- ▅▅         ▁▄▅▄▁                    ▃▅▆▆▅▃           ▁▁                   ▁▃▅▆▆▆▅▃▁              ▂▂                     ▁▄▆▆▄▁           ▁▂▃▂▁      ┊▃▄▃
-           ▅     ▅         ▄       ▃▇      ▇▃        ▄  ▄                ▄▇         ▇▄          ▂▇  ▇▂       ▄▇▄        ▅      ▅        ▄▇     ▇▄  ▃▁▇   ▇▁
-         ▂         ▂      ▄ ▄    ▂▇          ▇▂     ▃    ▃      ▄▄    ▁▅               ▅▁      ▂      ▂     ▃   ▃     ▂          ▂    ▅           ▅        ▂   ▅
-    ▁▁▁▁▁           ▁▁▁▁▁▁   ▁▁▁▁              ▁▁▁▁▁      ▁▁▁▁▁▁  ▁▁▁▁                   ▁▁▁▁▁▁        ▁▁▁▁▁     ▁▁▁▁▁            ▁▁▁                       ▁▁
+                                        ▃                                      ▃                                                                     ┊ ▃
+ ▆▆         ▁▆▆▆▁          ▁         ▆▁▆ ▁▆           ▁▁                   ▁▆▁▆ ▆▁▆▁              ▁▆          ▁          ▁▆▆▆▆▁          ▁▁▁▆▁▁▁     ┊▆ ▆▆
+           ▄     ▄                 ▄▄      ▄▄        ▄  ▄               ▄▄▄         ▄▄▄         ▄▄  ▄▄       ▄ ▄        ▄      ▄        ▄       ▄    ┊    ▄
+▇  ▇     ▂▇       ▇▂      ▂ ▂    ▂▇          ▇▂     ▂    ▂      ▂▇    ▂▂               ▂▂      ▂      ▂     ▂   ▂     ▂▇        ▇▂   ▂▂▇         ▇▂▇ ▇     ▇  ▂▄
+    ▁▁▁▁▁           ▁▁▁▁▁▁   ▁▁▁▁              ▁▁▁▁▁      ▁▁▁▁▁▁  ▁▁▁▁                   ▁▁▁▁▁▁        ▁▁▁▁▁     ▁▁▁▁▁            ▁▁▁               ▅       ▁▁
 ├─────────────────────────────────────────────────────────────────────── work ──────────────────────────────────────────────────────────────────────┤├── side ─┤
 12:02                       12:30                         13:00                         13:30                         14:00                         14:30    now
 
-1 work        12:02 – 14:31             404 requests    ≈ 41 points of its 5-hour · 6 of its week                                                         $41.06
-3 side ▲      14:31 – now               41 requests     ≈ 9 points of its 5-hour · 1 of its week                                                           $7.14
+1 work        12:02 – 14:30             404 requests                                                                                                      $41.09
+3 side ▲      14:31 – now               41 requests                                                                                                        $7.11
 
 TURNS    ──────────────────────────────────────────────────────────────────────────────────────  13 turns · 445 requests · 97% from cache · $48.20 at API prices
 
@@ -34,4 +34,4 @@ TURNS    ───────────────────────�
   └  ▼ 32 more of its requests   ·   j/k through them
  11  14:15    15m          58   Bash ×20, Edit ×13, Read ×13       8.4M     174k     52k    $7.26   work
 ▼ 10 more turns   ·   j/k to scroll
-esc close    ↑↓ request  p pin    ? help  q quit
+esc close    ↑↓ request  enter open    p pin    ? help  q quit

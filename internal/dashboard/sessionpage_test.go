@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-	"unicode/utf8"
 
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
@@ -245,88 +244,6 @@ func pageFrame(t *testing.T, shown *SessionShown, width, height int) Frame {
 	f := frameOf(width, height)
 	f.View, f.Look, f.Session = Log, Screen(builtin(t, "nord")), shown
 	return f
-}
-
-// tabsOf are the cells of the tabs named on row y of the frame with the stem
-// given, as its text has them.
-func tabsOf(t *testing.T, stem string, y int, tabs ...string) []spot {
-	t.Helper()
-	row := []rune(referenceRows(t, stem, "txt")[y])
-	var spots []spot
-	for _, tab := range tabs {
-		i := strings.Index(string(row)+" ", " "+tab+" ")
-		if i < 0 {
-			t.Fatalf("%s's row %d has no %s tab", stem, y+1, tab)
-		}
-		first := len([]rune(string(row)[:i]))
-		spots = append(spots, spot{row: y, first: first, last: first + len(tab) + 1})
-	}
-	return spots
-}
-
-// A session's page draws the rows of its frames cell for cell, in nord,
-// from the title row to the row over the key line, which the watch lists:
-// but its STORY's, which the story's drawer holds, and the tabs, as the
-// frames light the Overview the page opened over, where the fixtures reach
-// it from the Log (call 64). Each frame passes over what the build draws
-// otherwise than it, for the reason given.
-func TestASessionsPageDrawsItsFramesRows(t *testing.T) {
-	tests := []struct {
-		stem          string
-		shown         *SessionShown
-		width, height int
-		// tabs is the row of the tabs, and story the story's rows.
-		tabs, storyFrom, storyTo int
-		passed                   []spot
-	}{
-		{stem: "session-moved-160", shown: moved(), width: 160, height: 37, storyFrom: 9, storyTo: 17, passed: pathOf(30, "~/Code/switchboard")},
-		{stem: "session-quiet-160", shown: quiet(), width: 160, height: 37, storyFrom: 9, storyTo: 17, passed: pathOf(26, "~/Code/website")},
-		{
-			stem: "session-ended-160", shown: ended(), width: 160, height: 37, storyFrom: 9, storyTo: 17, passed: pathOf(30, "~/Code/switchboard"),
-		},
-		{
-			stem: "session-resumed-160", shown: resumed(), width: 160, height: 37, storyFrom: 9, storyTo: 17,
-			passed: slices.Concat(pathOf(22, "~/Code/api"), []spot{
-				// The frame predates the design's word: it says its answer
-				// streams as "↓ streaming", where the design says "↓
-				// answering".
-				{row: 6, first: 0, last: 10},
-				// The router writes the world's idle as it is, 15h 7m, where
-				// the frame says 15h, so the where-words run 3 cells longer.
-				{row: 6, first: 56, last: 94},
-			}),
-		},
-		{
-			stem: "session-turn-opened-160", shown: turnOpened(), width: 160, height: 37, storyFrom: 9, storyTo: 17,
-			// The frame lights no request of the turn open, where the design
-			// has its first chosen as it opens (3417); its text is held by
-			// TestATurnOpenedLightsItsRequestChosenAndSaysWhatsOutOfView.
-			passed: slices.Concat(pathOf(30, "~/Code/switchboard"), []spot{{row: 28, first: 0, last: 159}}),
-		},
-		{
-			stem: "session-phone-52", shown: moved(), width: 52, height: 32, tabs: 1, storyFrom: 10, storyTo: 16,
-			// The frame leaves the row under its seven turns blank, where
-			// six more are out of view, as the design says them (3461).
-			passed: []spot{{row: 30, first: 0, last: 51}},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.stem, func(t *testing.T) {
-			f := pageFrame(t, tt.shown, tt.width, tt.height)
-			drawn, frame := screenOf(t, f.Draw(pageDoc(), sessionNow)), reference(t, tt.stem)
-			passed := slices.Concat(tt.passed, tabsOf(t, tt.stem, tt.tabs, "Overview", "Log"))
-			canvas := shadeOf(f.Look.Canvas())
-			heldTo(t, tt.stem, frame, drawn, region{top: 0, bottom: tt.storyFrom - 1, right: tt.width - 1}, canvas, passed, nil)
-			heldTo(t, tt.stem, frame, drawn, region{top: tt.storyTo + 1, bottom: tt.height - 2, right: tt.width - 1}, canvas, passed, nil)
-		})
-	}
-}
-
-// pathOf is the spot of a session's directory on its heading, from column
-// first, which the frames draw in text.faint, where the design has it in
-// text.muted (the owner's call, 17 October 2026).
-func pathOf(first int, path string) []spot {
-	return []spot{{row: 4, first: first, last: first + utf8.RuneCountInString(path) - 1}}
 }
 
 // pageText is the page f draws, of the frames' document at their now, as

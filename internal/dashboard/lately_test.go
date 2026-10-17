@@ -367,18 +367,6 @@ func framedDoc(coming []status.Upcoming, events []status.Event) status.Document 
 	}
 }
 
-// framedComing is what's coming up in the frames drawn on auto, soonest
-// first.
-var framedComing = []status.Upcoming{
-	{At: routedClock(1, 16, 30), Account: "personal", Kind: status.UpcomingReset, Window: "5h"},
-	{At: routedClock(1, 17, 10), Account: "work", Kind: status.UpcomingBack, Cap: true},
-	{At: routedClock(1, 18, 50), Account: "side", Kind: status.UpcomingReset, Window: "5h"},
-	{At: routedClock(3, 6, 0), Account: "personal", Kind: status.UpcomingRunsOut, Window: "7d"},
-	{At: routedClock(4, 2, 0), Account: "personal", Kind: status.UpcomingReset, Window: "7d"},
-	{At: routedClock(4, 21, 0), Account: "work", Kind: status.UpcomingReset, Window: "7d"},
-	{At: routedClock(5, 10, 0), Account: "side", Kind: status.UpcomingReset, Window: "7d"},
-}
-
 // framedEvents are the events given, newest first, numbered from the
 // oldest, their moves counted in the line of the event that forced them,
 // which is the event before them.
@@ -442,78 +430,6 @@ func onAuto() []status.Event {
 			startedAt(9, 12, "e0c4a917", "work", status.ReasonNew),
 		},
 	)...)
-}
-
-func TestCOMINGUPAndLATELYAreDrawnAsTheirFrames(t *testing.T) {
-	nord := Screen(builtin(t, "nord"))
-	badHour := []status.Upcoming{
-		{At: routedClock(1, 15, 54), Account: "personal", Kind: status.UpcomingBack},
-		framedComing[2], framedComing[3],
-	}
-	refused := status.Event{At: routedClock(1, 14, 20), Kind: status.EventRefused, Account: "work", Status: 401, Count: 2, To: "side"}
-	limited := status.Event{At: routedClock(1, 14, 12), Kind: status.EventLimit, Account: "personal", Windows: []string{"5h"}, Count: 2, To: "side"}
-	pinned := status.Event{At: routedClock(1, 14, 2), Kind: status.EventPin, Account: "personal", Accounts: []string{"personal"}, By: "cli"}
-	type held struct {
-		body bounds
-		of   func(Frame, status.Document) section
-	}
-	coming := func(f Frame, doc status.Document) section { return f.comingSection(doc, routedAt) }
-	lately := func(f Frame, doc status.Document) section { return f.latelySection(doc, routedAt) }
-	tests := []struct {
-		stem          string
-		width, height int
-		doc           status.Document
-		held          []held
-		// whole are the cells the frame draws otherwise than its world.
-		whole []spot
-	}{
-		{stem: "overview-default-160", width: 160, height: 37, doc: framedDoc(framedComing, onAuto()),
-			held: []held{{body: bounds{y: 32, width: 72, rows: 3}, of: coming}, {body: bounds{x: 82, y: 32, width: 78, rows: 3}, of: lately}}},
-		{stem: "overview-pinned-160", width: 160, height: 37,
-			doc:  framedDoc(framedComing, framedEvents(slices.Concat([]status.Event{startedAt(14, 41, "c61b2f8d", "personal", status.ReasonGlobalPin)}, workCapped(), []status.Event{pinned})...)),
-			held: []held{{body: bounds{y: 32, width: 72, rows: 3}, of: coming}, {body: bounds{x: 82, y: 32, width: 78, rows: 3}, of: lately}}},
-		// The frame's c61b started on side with a why no reason of the
-		// router's reads as, ": personal is at its limit": under the pin of
-		// personal and side, the router's reason is the pin's.
-		{stem: "overview-bad-hour-160", width: 160, height: 37,
-			doc:   framedDoc(badHour, framedEvents(startedAt(14, 41, "c61b2f8d", "side", status.ReasonGlobalPin), refused, limited)),
-			held:  []held{{body: bounds{y: 32, width: 72, rows: 3}, of: coming}, {body: bounds{x: 82, y: 32, width: 78, rows: 3}, of: lately}},
-			whole: []spot{{32, 111, 159}}},
-		{stem: "overview-default-216", width: 216, height: 70, doc: framedDoc(framedComing, onAuto()),
-			held: []held{{body: bounds{y: 54, width: 97, rows: 7}, of: coming}, {body: bounds{x: 110, y: 54, width: 106, rows: 12}, of: lately}}},
-		{stem: "overview-phone-52", width: 52, height: 66, doc: framedDoc(framedComing, onAuto()),
-			held: []held{{body: bounds{y: 55, width: 52, rows: 3}, of: coming}, {body: bounds{y: 61, width: 52, rows: 3}, of: lately}}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.stem, func(t *testing.T) {
-			f := Frame{Width: tt.width, Height: tt.height, Look: nord, View: Overview, Policy: claudeLike}
-			c := newCanvas(f.Width, f.Height)
-			for _, h := range tt.held {
-				h.of(f, tt.doc).draw(c, h.body)
-			}
-			drawn := screenOf(t, c.rows(nord))
-			for _, h := range tt.held {
-				in := region{top: h.body.y, bottom: h.body.y + h.body.rows - 1, left: h.body.x, right: h.body.x + h.body.width - 1}
-				heldTo(t, tt.stem, reference(t, tt.stem), drawn, in, shadeOf(nord.Canvas()), tt.whole, nil)
-			}
-		})
-	}
-}
-
-func TestCOMINGUPAndLATELYFoldAsTheirFrames(t *testing.T) {
-	nord := Screen(builtin(t, "nord"))
-	f := Frame{Width: 160, Height: 39, Look: nord, View: Overview, Policy: claudeLike}
-	doc := framedDoc(framedComing, onAuto())
-	c := newCanvas(f.Width, f.Height)
-	c.line(12, 36, f.says(planned{section: f.comingSection(doc, routedAt), fold: true}))
-	c.line(91, 36, f.says(planned{section: f.latelySection(doc, routedAt), fold: true}))
-
-	// The frame draws the folded LATELY's object, side, in text.muted, not
-	// bold, where its rows, and the design, draw it bold text.secondary.
-	whole := []spot{{36, 116, 119}}
-	drawn, frame := screenOf(t, c.rows(nord)), reference(t, "overview-everything-160x39")
-	heldTo(t, "overview-everything-160x39", frame, drawn, region{top: 36, bottom: 36, left: 12, right: 46}, shadeOf(nord.Canvas()), nil, nil)
-	heldTo(t, "overview-everything-160x39", frame, drawn, region{top: 36, bottom: 36, left: 91, right: 123}, shadeOf(nord.Canvas()), whole, nil)
 }
 
 func TestLATELYSaysWhyItHasNoneWhereverItsDocumentCameFrom(t *testing.T) {

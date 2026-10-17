@@ -13,20 +13,20 @@ d28c switchboard  ↑ asking     ▸ from work      ●━━━━━━━━�
 db8a infra        idle 50s     ▸ from work      ●━━━━━━━━━━━━━┓ ┗━━━━━━━━━━━━━━━━━━━◉
                                                               ┗━━━━━━━━━━━━━━━━━━━━━◉
 1f9a billing      idle 2m                       ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━◉  4 client        ● open
-6c2e ios-app      idle 14m                      ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━◉  5-hour              ┃ ▌            52%   Week           ▍  ┃          47%
+6c2e ios-app      idle 14m                      ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━◉  5-hour              ┃ ▌            52%   Week           ▍┃            47%
 0d4b scraper      idle 41s                      ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━◉
                                                                                     ○  5 spare         ● open
-b7e5 notebooks    idle 6m                       ●━━━━━━━━━━━┓                       ○  5-hour     ▉┃                       4%   Week  ▏     ┃                 5%
+b7e5 notebooks    idle 6m                       ●━━━━━━━━━━━┓                       ○  5-hour     ▉┃                       4%   Week  ▏    ┃                  5%
 93fa evals        idle 1m                       ●━━━━━━━━━┓ ┗━━━━━━━━━━━━━━━━━━━━━━━◉  6 lab           ● under pressure · out ~16:05
-                                                          ┗━━━━━━━━━━━━━━━━━━━━━━━━━◉  5-hour                   ┃▋        71%   Week            ┃▊           58%
+                                                          ┗━━━━━━━━━━━━━━━━━━━━━━━━━◉  5-hour                 ┃  ▋        71%   Week           ┃ ▊           58%
 4ae8 blog         idle 22m                      ●━━━━━━━┓                           ○  7 team          ■ limit reached · back 15:30
-                                                        ┃                           ○  5-hour                    ┃       100%   Week              ┃    ▎     83%
+                                                        ┃                           ○  5-hour                       ┃    100%   Week                ┃  ▎     83%
 c0d1 design       idle 3m                       ●━━━━━┓ ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━◉  8 extra         ● open
 f3b1 site-v2      idle 8s                       ●━━━┓ ┃                             ○  5-hour         ▉   ┃               22%   Week   ▋ ┃                   12%
                                                     ┃ ┃                             ○  9 ops           ● open
-                                                    ┃ ┃                             ○  5-hour      ▍ ┃                     6%   Week       ▍   ┃             29%
+                                                    ┃ ┃                             ○  5-hour      ▍┃                      6%   Week       ▍   ┃             29%
                                                     ┃ ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━◉ 10 studio        ● open
-                                                    ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━◉  5-hour            ▎    ┃           33%   Week         ┃               41%
+                                                    ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━◉  5-hour            ▎       ┃        33%   Week               ┃         41%
 
 
                                                                                        ┃ even pace: where you would be now, used evenly

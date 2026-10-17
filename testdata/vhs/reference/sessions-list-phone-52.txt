@@ -11,7 +11,7 @@ SESSIONS   Switchboard  List
 ↑ d28c switchboard side      asking              445
   41e0 docs        personal  idle 34s            158
 ↓ 7f3a api         side      answering            84
-↓ c61b mobile      side      answering             5
+↓ c61b mobile      side      answering             4
   ended today  ─────────────────────────────────────
   5b19 mobile      personal  ended 11:21          38
   3d7a docs        work      ended 10:15          12
@@ -28,6 +28,6 @@ SESSIONS   Switchboard  List
 
 
 
-                 today  14 sessions · 1,240 requests
-                               $126.02 at API prices
+                 today  14 sessions · 1,239 requests
+                               $125.94 at API prices
 ↑↓ session   enter open   [ ] view   ? keys   q quit

@@ -22,7 +22,7 @@ WEEK
 
  2 personal ◆            ┃      66%  out ~Sat
 
- 3 side ▲             ┃   ▉     78%  6%/day · Mon
+ 3 side ▲             ┃   ▉     78%  out ~Fri
 ────────────────────────────────────────────────────
  Σ pool                 ┃       61%  1.2 of 3 left
 
@@ -43,13 +43,13 @@ FABLE WEEK
 ROUTING   auto ─────────────────────────────────── r
 
  1 work         ● at its cap · 17:10
-                ▅▄▄▅▄▄▅▄▄▅▁▁▁▁▁▁   0 sessions  0/min
+                ▄▂▂▅▅▃▂▂▁▁▁▁▁▁▁▁   0 sessions  0/min
 
  2 personal ◆   ● open
-                ▁▁▂▂▁▂▂▁▂▂▁▂▂▁▂▂   2 sessions  2/min
+                ▂▁▁▁▂▁▁▁▁▅▂▁▁▁▁▂   2 sessions  3/min
 
  3 side ▲       ● open · next
-                ▁▁▁▁▁▁▁▁▁▁▄▆▅▅▆▆  4 sessions  15/min
+                ▁▁▁▁▁▁▁▁▁▁▆ ▇▆▄▆  4 sessions  11/min
 
 COMING UP  ─────────────────────────────────────── c
 

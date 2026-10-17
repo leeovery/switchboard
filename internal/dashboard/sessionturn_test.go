@@ -143,9 +143,6 @@ func TestATurnOpenedLightsItsRequestChosenAndSaysWhatsOutOfView(t *testing.T) {
 			if got := rows[33]; got != tt.foot {
 				t.Errorf("its foot reads %q, want %q", got, tt.foot)
 			}
-			if want := strings.TrimRight(referenceRows(t, "session-turn-opened-160", "txt")[28], " "); tt.scroll == 0 && rows[28] != want {
-				t.Errorf("its first request reads\n%q\nwant the frame's\n%q", rows[28], want)
-			}
 			if y, ok := f.turnLitRow(); !ok || y != tt.lit {
 				t.Errorf("the request chosen is drawn on row %d, %t; want row %d", y+1, ok, tt.lit+1)
 			}

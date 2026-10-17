@@ -13,7 +13,7 @@ db8a infra        idle 50s     ▸ from work      ●━━━━━━━━━
                                                          ┃  ┃  ┃  ┃  ┃  ┃
                                                          ┃  ┃  ┃  ┃  ┃  ┃
                                                          ┃  ┃  ┃  ┃  ┃  ┃    ╌╌╌╌╌╌╌○ 2 personal ◆    ■ limit reached · back 15:54                      ● pinned
-                                                         ┃  ┃  ┃  ┃  ┃  ┃     ╌╌╌╌╌╌○  5-hour                         ┃            100%  limit · back 15:54
+                                                         ┃  ┃  ┃  ┃  ┃  ┃     ╌╌╌╌╌╌○  5-hour                             ┃        100%  limit · back 15:54
                                                          ┃  ┃  ┃  ┃  ┃  ┃           ○
                                                          ┃  ┃  ┃  ┃  ┃  ┃           ○  Week                            ┃            66%  out ~Sat 06:00
                                                          ┃  ┃  ┃  ┃  ┃  ┃           ○
@@ -21,9 +21,9 @@ db8a infra        idle 50s     ▸ from work      ●━━━━━━━━━
                                                          ┃  ┃  ┃  ┃  ┃  ┃
                                                          ┃  ┃  ┃  ┃  ┃  ┃
                                                          ┃  ┃  ┃  ┃  ┃  ┗━━━━━━━━━━━◉ 3 side ▲        ● open · new sessions come here                   ● pinned
-                                                         ┃  ┃  ┃  ┃  ┗━━━━━━━━━━━━━━◉  5-hour         ▏┃                            13%  21%/h till 18:50
+                                                         ┃  ┃  ┃  ┃  ┗━━━━━━━━━━━━━━◉  5-hour         ▏ ┃                           13%  21%/h till 18:50
                                                          ┃  ┃  ┃  ┗━━━━━━━━━━━━━━━━━◉
-                                                         ┃  ┃  ┗━━━━━━━━━━━━━━━━━━━━◉  Week                      ┃                  78%  6%/day till Mon 10:00
+                                                         ┃  ┃  ┗━━━━━━━━━━━━━━━━━━━━◉  Week                      ┃                  78%  out ~Fri 12:20
                                                          ┃  ┗━━━━━━━━━━━━━━━━━━━━━━━◉
                                                          ┗━━━━━━━━━━━━━━━━━━━━━━━━━━◉  Fable wk    ▎             ┃                   4%  25%/day till Mon 10:00
 

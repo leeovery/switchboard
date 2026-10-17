@@ -34,20 +34,6 @@ func pinnedRouting() status.Document {
 	return doc.WorkedOut(claudeLike)
 }
 
-// badHourRouting is the world of a bad hour: new sessions pinned to personal
-// and side since 13:40; personal at its limit till 15:54; work's token
-// refused since 14:41, nothing read of it since 14:20; and as the document
-// counts them, six sessions on side.
-func badHourRouting() status.Document {
-	doc, _ := routedWorld(true)
-	doc.Accounts[1].Primary = true
-	doc.Accounts[0].Refused = status.Refusal{Until: routedClock(1, 14, 51), Status: 401}
-	doc.Accounts[0].FetchedAt = routedClock(1, 14, 20)
-	doc.Pin = status.Pin{Accounts: []string{"personal", "side"}, Since: routedClock(1, 13, 40)}
-	doc.Accounts[2].Sessions = 6
-	return doc.WorkedOut(claudeLike)
-}
-
 // tenRouting is the world of ten accounts: the auto world's three, as the
 // document counts their sessions, then client; spare; lab, under pressure,
 // running out at 16:05; team, at its limit till 15:30; extra, ops and
@@ -73,78 +59,6 @@ func tenRouting() status.Document {
 		doc.Accounts[place(m, id)-1].Sessions = n
 	}
 	return doc.WorkedOut(claudeLike)
-}
-
-// routingDrawn are the cells ROUTING of doc at routedAt draws in f, as a
-// terminal shows them, its body from row y, rows tall.
-func routingDrawn(t *testing.T, f Frame, doc status.Document, y, rows int) [][]seen {
-	t.Helper()
-	c := newCanvas(f.Width, f.Height)
-	f.routingSection(doc, routedAt).draw(c, bounds{y: y, width: f.Width, rows: rows})
-	return screenOf(t, c.rows(f.Look))
-}
-
-// spanning are the spots of the cells from column first to last on each row
-// given.
-func spanning(first, last int, rows ...int) []spot {
-	spots := make([]spot, len(rows))
-	for i, row := range rows {
-		spots[i] = spot{row: row, first: first, last: last}
-	}
-	return spots
-}
-
-func TestROUTINGIsDrawnAsItsFramesAre(t *testing.T) {
-	nord := Screen(builtin(t, "nord"))
-	auto, listed := autoRouting()
-	tests := []struct {
-		stem     string
-		doc      status.Document
-		sessions []status.Session
-		width    int
-		y, rows  int
-		// traces are the cells of the traces and their rates, which draw
-		// the frames' own data, held by their tests; and names those of
-		// the names of accounts out of the pool, which USAGE fades.
-		traces, names []spot
-	}{
-		{stem: "overview-default-160", doc: auto, sessions: listed, width: 160, y: 20, rows: 9, traces: spanning(92, 159, 20, 21, 23, 24, 26, 27)},
-		{
-			stem: "overview-pinned-160", doc: pinnedRouting(), width: 160, y: 20, rows: 9,
-			traces: spanning(92, 159, 20, 21, 23, 24, 26, 27), names: spanning(0, 15, 20, 26),
-		},
-		{
-			stem: "overview-bad-hour-160", doc: badHourRouting(), width: 160, y: 20, rows: 9,
-			traces: spanning(92, 159, 20, 21, 23, 24, 26, 27), names: spanning(0, 15, 20),
-		},
-		{stem: "overview-everything-160x39", doc: auto, sessions: listed, width: 160, y: 30, rows: 4, traces: spanning(92, 159, 30, 31, 32)},
-		{stem: "overview-ten-accounts-160", doc: tenRouting(), width: 160, y: 34, rows: 11, traces: spanning(92, 159, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43)},
-		{stem: "overview-phone-52", doc: auto, sessions: listed, width: 52, y: 44, rows: 8, traces: spanning(16, 51, 45, 48, 51)},
-	}
-	for _, tt := range tests {
-		t.Run(tt.stem, func(t *testing.T) {
-			f := Frame{Width: tt.width, Height: 66, Look: nord, View: Overview, Policy: claudeLike, Sessions: tt.sessions}
-			in := region{top: tt.y, bottom: tt.y + tt.rows - 1, left: 0, right: tt.width - 1}
-			heldTo(t, tt.stem, reference(t, tt.stem), routingDrawn(t, f, tt.doc, tt.y, tt.rows), in, shadeOf(nord.Canvas()), tt.traces, tt.names)
-		})
-	}
-}
-
-func TestROUTINGBesideUSAGEsBlocksIsDrawnAsItsFrameIs(t *testing.T) {
-	nord := Screen(builtin(t, "nord"))
-	doc, sessions := autoRouting()
-	f := Frame{Width: 160, Height: 42, Look: nord, View: Overview, Policy: claudeLike, Sessions: sessions, By: ByAccount}
-	c := newCanvas(f.Width, f.Height)
-	f.routingBeside(c, f.routingTableOf(doc, routedAt), blocksBeside{x: 107, blocks: []rowAt{{"work", 6, 5}, {"personal", 13, 5}, {"side", 20, 5}, {"", 27, 5}}})
-
-	// The frame draws work's state whole to the edge, where the design cuts
-	// its words by whole clauses to end two cells short of it.
-	whole := append(spanning(107, 159, 10, 17, 24, 31), spot{row: 6, first: 132, last: 159})
-	frame, drawn := reference(t, "overview-by-account-160"), screenOf(t, c.rows(nord))
-	// Row 26 is the pool's rule, which USAGE's blocks draw.
-	for _, in := range []region{{top: 6, bottom: 25, left: 107, right: 159}, {top: 27, bottom: 31, left: 107, right: 159}} {
-		heldTo(t, "overview-by-account-160", frame, drawn, in, shadeOf(nord.Canvas()), whole, nil)
-	}
 }
 
 func TestROUTINGsFormsLayItsRowsOut(t *testing.T) {

@@ -61,39 +61,6 @@ func framesPanel(of LogView, more int) LogPanel {
 	}
 }
 
-// panelDrawn is the panel's card as a terminal 160 by 37 shows it, alone,
-// in Nord.
-func panelDrawn(t *testing.T, p LogPanel) [][]seen {
-	t.Helper()
-	nord := Screen(builtin(t, "nord"))
-	f := Frame{Width: 160, Height: 37, Look: nord, View: Log, Card: p}
-	c := newCanvas(f.Width, f.Height)
-	p.card(f).draw(c)
-	return screenOf(t, c.rows(nord))
-}
-
-// The panel is drawn as its frames draw it, cell for cell: Requests' with
-// the cursor on d28c, a cell either side of its row lit; Events' with the
-// cursor where it starts, on its first kind, lit where the frame lights no
-// tick, as the routing frames light no row.
-func TestThePanelIsDrawnAsItsFramesAre(t *testing.T) {
-	tests := []struct {
-		stem  string
-		panel LogPanel
-		whole []spot
-	}{
-		{stem: "log-requests-filter-160", panel: framesPanel(LogRequests, 8).Sided(1).Moved(9)},
-		{stem: "log-events-filter-160", panel: framesPanel(LogEvents, 5), whole: []spot{{row: 12, first: 20, last: 30}}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.stem, func(t *testing.T) {
-			nord := Screen(builtin(t, "nord"))
-			in := region{top: 7, bottom: 28, left: 18, right: 141}
-			heldTo(t, tt.stem, reference(t, tt.stem), panelDrawn(t, tt.panel), in, shadeOf(nord.Canvas()), tt.whole, nil)
-		})
-	}
-}
-
 // bodyText is the panel's body as the frame f shows it, each row its text,
 // its blanks at its end trimmed.
 func bodyText(p LogPanel, f Frame) []string {

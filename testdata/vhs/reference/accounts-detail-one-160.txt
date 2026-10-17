@@ -2,31 +2,31 @@
 
 ● healthy  ·  auto  ·  3 sessions  ·  new sessions → ▲ work
 
-ACCOUNTS    Detail  [ ]  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  p this week
+ACCOUNTS    Detail   ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  < this week >
 
-1 work ▲   ● under pressure · new sessions still come here
+1 work ◆   ● under pressure · new sessions still come here
 
 USAGE                                                                                               THIS WEEK
-5-hour                             ┃                     ╎   58%  out ~16:05                        requests  1,204
+5-hour                            ┃                      ╎   58%  out ~16:05                        requests  612
                                                                                                     limits    5-hour ×2
-Week                               ┃                     ╎   34%  19%/day till Sun 21:00            plan      Max 20x
-                                                                                                    worth     $184  4.0×
-Fable wk                           ┃                     ╎    0%  29%/day till Sun 21:00            extra use off
+Week                                ┃                    ╎   34%  19%/day till Sun 21:00            plan      Max 20x
+                                                                                                    worth     $127  2.8×
+Fable wk                            ┃                    ╎    0%  29%/day till Sun 21:00            extra use off
 
 BY MODEL
-            ● Opus 5.5 60%  ● Opus 5 7%  ● Sonnet 5.5 28%  ● Sonnet 5 3%  ● Haiku 4.5 2%
+            ● Opus 5.5 35%  ● Opus 5 10%  ● Sonnet 5.5 41%  ● Sonnet 5 4%  ● Fable 5.1 7%  ● Haiku 4.5 3%
 
 ┄┄ the last six weeks ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
 
-BY DAY       ▪  ▪  ▪  ▪  ▪         ▪  ▪  ▪  ▪  ▪         ▪  ▪  ▪  ▪  ▪         ▪  ▪  ▪     ▪         ▪  ▪  ▪  ▪  ▪            ▪     ▪ ·········
+BY DAY       ▪  ▪  ▪  ▪  ▪         ▪  ▪  ▪  ▪  ▪         ▪  ▪  ▪  ▪  ▪         ▪  ▪  ▪     ▪         ▪  ▪  ▪  ▪  ▪            ▪  ▪    ·········
             24 Aug                31 Aug                7 Sep                 14 Sep                21 Sep                28 Sep
 
 WEEKS                        100                   94                    100                   81                    100       ▌           34
 
 hits its limit most weeks   limit hit 3 of the last 7 weeks · 9% left at a reset, on average
 
-LATELY      14:38  ● came under pressure: out ~16:05 at this pace
-            14:12  ▲ 7f3a started here
+LATELY      14:38  ◔ came under pressure: out ~16:05 at this pace
+            14:12  ▲ 7f3a started here, the best
             12:10  ◇ primed: its 5-hour window started
 
 
@@ -34,4 +34,4 @@ LATELY      14:38  ● came under pressure: out ~16:05 at this pace
 
 
 
-tab views   [ ] view     p period: this week     ? help  q quit
+tab views   < > period: this week    ? help  q quit

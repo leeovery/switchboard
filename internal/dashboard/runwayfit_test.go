@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -298,54 +297,6 @@ func runwayDoc(n int) status.Document {
 		accounts[i] = routedAccount("a"+strconv.Itoa(i+1), routedWindow("5h", 0.1, routedClock(1, 17, 0)), routedWindow("7d", 0.1, routedClock(4, 21, 0)))
 	}
 	return status.Document{GeneratedAt: routedAt, Source: status.SourceRouter, Best: "a1", Router: status.Health{Healthy: true}, Accounts: accounts}.WorkedOut(claudeLike)
-}
-
-// tenRunway is the ten world, as runway-ten-accounts-160 draws it, at
-// routedAt: work at its cap, its 5-hour at 95%; personal, the primary, at
-// 39%; side, where new sessions go, at 13%; client, spare and lab; team at
-// its limit since 13:58 till 15:30; extra, ops and studio. The pool of ten
-// has 5.6 left in the 5-hour.
-func tenRunway() status.Document {
-	type read struct {
-		id   string
-		used float64
-		at   int
-	}
-	var accounts []status.Account
-	for _, r := range []read{
-		{"work", 0.95, 1710}, {"personal", 0.39, 1630}, {"side", 0.13, 1850}, {"client", 0.52, 1740}, {"spare", 0.04, 1935},
-		{"lab", 0.71, 1655}, {"team", 1, 1530}, {"extra", 0.22, 1755}, {"ops", 0.06, 1910}, {"studio", 0.33, 1620},
-	} {
-		a := routedAccount(r.id, routedWindow("5h", r.used, routedClock(1, r.at/100, r.at%100)), routedWindow("7d", 0.3, routedClock(2, 10, 0)))
-		accounts = append(accounts, a)
-	}
-	accounts[0].Reserve = 0.05
-	accounts[1].Primary = true
-	team := &accounts[6]
-	team.Windows[0].Status = quota.StatusRejected
-	team.Limit = status.Limit{Windows: []string{"5h"}, Until: routedClock(1, 15, 30)}
-	return status.Document{GeneratedAt: routedAt, Source: status.SourceRouter, Best: "side", Router: status.Health{Healthy: true}, Sessions: 14, Accounts: accounts}.WorkedOut(claudeLike)
-}
-
-// tenPool is the ten world's pool's lane, as runway-ten-accounts-160 draws
-// it: all ten with room till team's limit at 13:58, nine till work's cap at
-// 14:31:03, eight till team's back at 15:30, nine till lab runs out at
-// ~16:05, eight till its 5-hour resets at 16:55, nine till work's resets at
-// 17:10, then ten.
-func tenPool() views.Pool {
-	return views.Pool{Of: 10, Key: "5h", Columns: poolColumnsOf(136, 10, 0, 9, 2, 8, 5, 9, 11, 8, 14, 9, 19, 10, 21)}
-}
-
-// poolColumnsOf are n of the pool's columns, each known, counted in runs: a
-// count with room, then the column its run starts at, and so on.
-func poolColumnsOf(n int, runs ...int) []views.PoolColumn {
-	columns := make([]views.PoolColumn, n)
-	for i := 0; i < len(runs); i += 2 {
-		for c := runs[i+1]; c < n; c++ {
-			columns[c] = views.PoolColumn{With: runs[i], Known: true}
-		}
-	}
-	return columns
 }
 
 // At (e), the axis and the pool's foot hold, the lanes shown between them:

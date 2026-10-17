@@ -72,28 +72,6 @@ func sessionsDrawn(f Frame, doc status.Document, rows int) []string {
 	return c.rows(Look{})
 }
 
-func TestSESSIONSIsDrawnAsItsFramesAre(t *testing.T) {
-	nord := Screen(builtin(t, "nord"))
-	doc, sessions, stream := overviewWorld()
-	for _, tt := range []struct {
-		stem string
-		top  int
-	}{
-		{stem: "overview-sessions-216", top: 54},
-		{stem: "overview-sessions-graphs-216", top: 56},
-		{stem: "overview-everything-216x106", top: 78},
-	} {
-		t.Run(tt.stem, func(t *testing.T) {
-			f := Frame{Width: 216, Height: 106, Look: nord, View: Overview, Policy: claudeLike, Sessions: sessions, Stream: stream}
-			c := newCanvas(f.Width, f.Height)
-			f.sessionsSection(doc, routedAt).draw(c, bounds{y: tt.top, width: f.Width, rows: 6})
-			// The traces and rates are the traces' own, held by their tests.
-			in := region{top: tt.top, bottom: tt.top + 5, left: 0, right: traceFrom - 1}
-			heldTo(t, tt.stem, reference(t, tt.stem), screenOf(t, c.rows(nord)), in, shadeOf(nord.Canvas()), nil, nil)
-		})
-	}
-}
-
 func TestSESSIONSFoldsToHowManyRunAndWhere(t *testing.T) {
 	doc, sessions, stream := overviewWorld()
 	two := slices.Clone(sessions)

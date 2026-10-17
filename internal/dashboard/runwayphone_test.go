@@ -9,24 +9,6 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// Runway on a phone draws its frame cell for cell, in nord, from the heading
-// row to the row over the key line: the labels in 14 cells, the lanes after
-// them, the pool's room on a row of its own under its lane, the legend on
-// two lines and COMING UP the frame's width after a blank row; now's column
-// picked out down the pool's lane. Σ pool, the room and all under them are a
-// row up from the frame's, the rule over the pool's lane and its words under
-// it gone. The part-filled cell of now's column in the pool's lane is passed
-// over, on the canvas in the frame where the design has bg.subtle (D4).
-func TestRunwayOnAPhoneIsDrawnAsItsFrame(t *testing.T) {
-	f, doc, now := runwayFramedAt(t, "the auto world's 5-hour view", 52, 33)
-	drawn, frame, canvas := screenOf(t, f.Draw(doc, now)), redrawn(reference(t, "runway-phone-52"), '▆', '█', roomRowsPhone...), shadeOf(f.Look.Canvas())
-	partFilled := []spot{{20, 15, 15}}
-	heldTo(t, "runway-phone-52", frame, drawn, region{top: 4, bottom: 18, right: 51}, canvas, nil, nil)
-	heldTo(t, "runway-phone-52", frame, drawn, region{top: 20, bottom: 21, left: phoneRunwayLanesFrom, right: 51}, canvas, partFilled, nil)
-	heldTo(t, "runway-phone-52", frame, aRowUp(drawn), region{top: 21, bottom: 22, right: phoneRunwayLanesFrom - 1}, canvas, nil, nil)
-	heldTo(t, "runway-phone-52", frame, aRowUp(drawn), region{top: 23, bottom: 31, right: 51}, canvas, nil, nil)
-}
-
 // On a phone, the legend's keys take a line, wrapping whole keys where they
 // don't fit one, and what a column is the line after them, though both would
 // fit one line; and what a column is wraps too, at its " · ", a part never

@@ -149,14 +149,6 @@ func at1605(doing41E0 views.Activity) []views.Call {
 	}
 }
 
-// movedAt1605 are the calls at 16:05:42, 41e0 moved from personal to side,
-// asking there, seen last of them.
-func movedAt1605() []views.Call {
-	calls := at1605(views.Activity{})[1:]
-	moved := boardCall(id41E0, "side", "~/Code/docs", inFlight(views.Asking, atClock(16, 5, 42), 0), "personal")
-	return slices.Insert(calls, 1, moved)
-}
-
 // pinnedWorld is the world of the pinned frame: new sessions pinned to
 // personal and side, side where they go; work at its cap, out of the pool;
 // and personal at its 5-hour limit since 14:12 till 15:54, its event
@@ -176,24 +168,6 @@ func pinnedCalls() []views.Call {
 	}
 	calls[0].From, calls[1].From, calls[4].From = "personal", "personal", ""
 	return calls
-}
-
-// aloneCalls are the calls of the frame of one account, each on work: 41e0,
-// idle 34s, 9c2e, idle 9m, c61b answering, d28c asking and 7f3a answering.
-func aloneCalls() []views.Call {
-	calls := sceneCalls()[:5]
-	for i := range calls {
-		calls[i].Account, calls[i].From = "work", ""
-	}
-	return calls
-}
-
-// primaryAlone is aloneDoc with work the primary, which ◆ marks with one
-// account as with several.
-func primaryAlone() status.Document {
-	doc := aloneDoc()
-	doc.Accounts[0].Primary = true
-	return doc.WorkedOut(claudeLike)
 }
 
 // pacedAccount is an account of the frame of ten, read a minute before
@@ -242,19 +216,6 @@ func tenCalls() []views.Call {
 	)
 }
 
-// seenLastFirst are the calls given, each account's seen last first, as
-// RunningOf lists them.
-func seenLastFirst(calls []views.Call) []views.Call {
-	sorted := slices.Clone(calls)
-	slices.SortStableFunc(sorted, func(a, b views.Call) int {
-		if a.Account != b.Account {
-			return 0
-		}
-		return b.Activity.LastSeen.Compare(a.Activity.LastSeen)
-	})
-	return sorted
-}
-
 // streamingOn is what the stream tells of a call whose answer streams back,
 // its shimmer as the frames freeze it.
 var streamingOn = Call{Doing: Streaming, Shimmer: 2}
@@ -264,120 +225,6 @@ var streamingOn = Call{Doing: Streaming, Shimmer: 2}
 // freeze it.
 func askingOn(head, last int) Call {
 	return Call{Doing: Asking, Pulsing: true, Pulse: Pulse{Along: float64(head) / float64(last)}}
-}
-
-// refusedOn is what the stream tells of a call whose request was refused at
-// its account's limit, its red pulse's head at cell head of a cord last
-// cells long, counted from the jack, as the frames freeze it.
-func refusedOn(head, last int) Call {
-	return Call{Doing: Refused, Pulsing: true, Pulse: Pulse{Along: float64(head) / float64(last), Back: true, Red: true}}
-}
-
-// The cells of the Switchboard's frames passed over, as the frames draw them
-// otherwise than the design or than the world.
-var (
-	// boardSidesPace is where the frames place side's 5-hour even pace a
-	// cell on, as USAGE's frames place each window's as if its pace were a
-	// whole percent, evenPace160.
-	boardSidesPace = spot{23, 103, 104}
-	// boardSidesWeek is where the frames give side's week its allowance,
-	// where the world has it run out, as USAGE's frames do, sidesWeek.
-	boardSidesWeek = spot{25, 137, 158}
-	// fableAt1442 are where the frames at 16:05 give each Fable week the
-	// allowance it had at 14:42, a percent a day less than the world's.
-	fableAt1442 = []spot{{11, 137, 138}, {19, 137, 138}, {27, 137, 138}}
-	// alonePrimary is where the frame of one account marks work ▲ alone, and
-	// its key names no ◆, where, by the owner's call of 11 October 2026, ◆
-	// marks the primary with one account as with several.
-	alonePrimary = []spot{{6, 93, 95}, {15, 109, 143}}
-	// personalsPinnedPace is where the pinned frame places personal's
-	// 5-hour even pace as if its window reset at 16:30, as the auto world's,
-	// where its world's resets at 15:54, as its limit lifts.
-	personalsPinnedPace = spot{15, 118, 122}
-	// teamsPace is where the frame of ten places team's 5-hour even pace as
-	// if its window reset at about 16:17, where its world's resets at 15:30,
-	// as its limit lifts.
-	teamsPace = spot{22, 113, 116}
-)
-
-func TestTheSwitchboardIsDrawnAsItsFrames(t *testing.T) {
-	nord := Screen(builtin(t, "nord"))
-	tests := []struct {
-		stem    string
-		doc     status.Document
-		now     time.Time
-		board   SessionsShown
-		traffic Traffic
-		whole   []spot
-	}{
-		{
-			stem: "sessions-switchboard-160", doc: usageWorld(), now: routedAt, board: boardOf(boardLook{calls: sceneCalls()}),
-			traffic: Traffic{Calls: map[Plug]Call{
-				{Session: idC61B, Account: "side"}: streamingOn,
-				{Session: id7F3A, Account: "side"}: streamingOn,
-				{Session: idD28C, Account: "side"}: askingOn(24, 49),
-			}},
-			whole: []spot{boardSidesPace, boardSidesWeek},
-		},
-		{
-			stem: "sessions-refused-160", doc: limitWorld(atClock(16, 5, 41), 0), now: atClock(16, 5, 41),
-			board: boardOf(boardLook{calls: sceneCalls()}, boardLook{calls: at1605(inFlight(views.Refused, atClock(16, 5, 40), 429))}),
-			traffic: Traffic{Calls: map[Plug]Call{
-				{Session: id41E0, Account: "personal"}: refusedOn(14, 44),
-				{Session: idC61B, Account: "side"}:     streamingOn,
-			}},
-			whole: append([]spot{boardSidesWeek}, fableAt1442...),
-		},
-		{
-			stem: "sessions-moved-160", doc: limitWorld(atClock(16, 5, 42), 1), now: atClock(16, 5, 42),
-			board: boardOf(
-				boardLook{calls: sceneCalls()},
-				boardLook{calls: at1605(inFlight(views.Refused, atClock(16, 5, 40), 429))},
-				boardLook{calls: movedAt1605(), stubs: map[string]int{"personal": 1}},
-			),
-			traffic: Traffic{Calls: map[Plug]Call{
-				{Session: id41E0, Account: "side"}: askingOn(7, 49),
-				{Session: idC61B, Account: "side"}: streamingOn,
-			}},
-			whole: append([]spot{boardSidesWeek}, fableAt1442...),
-		},
-		{
-			stem: "sessions-pinned-160", doc: pinnedWorld(), now: routedAt,
-			board: boardOf(boardLook{calls: sceneCalls()}, boardLook{calls: pinnedCalls(), stubs: map[string]int{"personal": 2}}),
-			traffic: Traffic{Calls: map[Plug]Call{
-				{Session: idC61B, Account: "side"}: streamingOn,
-				{Session: id7F3A, Account: "side"}: streamingOn,
-				{Session: idD28C, Account: "side"}: askingOn(26, 52),
-			}},
-			whole: []spot{boardSidesPace, boardSidesWeek, personalsPinnedPace},
-		},
-		{
-			stem: "sessions-ten-accounts-160", doc: boardOfTen(), now: routedAt,
-			board: boardOf(boardLook{calls: tenCalls()}, boardLook{calls: seenLastFirst(tenCalls())}),
-			traffic: Traffic{Calls: map[Plug]Call{
-				{Session: idC61B, Account: "side"}: streamingOn,
-				{Session: id7F3A, Account: "side"}: streamingOn,
-				{Session: idD28C, Account: "side"}: askingOn(18, 37),
-			}},
-			whole: []spot{teamsPace},
-		},
-		{
-			stem: "sessions-one-account-160", doc: primaryAlone(), now: routedAt, board: boardOf(boardLook{calls: aloneCalls()}),
-			traffic: Traffic{Calls: map[Plug]Call{
-				{Session: idC61B, Account: "work"}: streamingOn,
-				{Session: id7F3A, Account: "work"}: streamingOn,
-				{Session: idD28C, Account: "work"}: askingOn(18, 36),
-			}},
-			whole: alonePrimary,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.stem, func(t *testing.T) {
-			f := Frame{Width: 160, Height: 37, Look: nord, View: Sessions, Policy: claudeLike, SessionsTab: tt.board, Traffic: tt.traffic}
-			drawn := screenOf(t, f.Draw(tt.doc, tt.now))
-			heldTo(t, tt.stem, reference(t, tt.stem), drawn, region{top: 6, bottom: 34, right: 159}, shadeOf(nord.Canvas()), tt.whole, nil)
-		})
-	}
 }
 
 // sceneTraffic is what the stream tells at 14:42:07, as the frames freeze

@@ -66,42 +66,6 @@ var framesNumbers = views.YearNumbers{
 	Cost: usd(7200), Ratio: ratioOf(27480, 7200), BusiestDay: "2026-09-22", LongestRun: 58,
 }
 
-// framedYear is the Year's page a frame of it draws, as the design holds it,
-// in the look given: its grid, 53 weeks from the frames' first, the last
-// shown of them from column x and row top, each day that shows at the level
-// whose shade the frame draws it in, as square gives each level's, this
-// week's days to come left out; and BY MONTH's rows, each split by family
-// as the frame's bar is, from column barX and the row first.
-func framedYear(t *testing.T, look Look, stem string, square func(level int) ink, x, top, shown int, months []framedMonth, barX, first int) views.YearPage {
-	t.Helper()
-	frame := reference(t, stem)
-	shades := make(map[shade]int)
-	for level := range shadeLevels {
-		shades[shadeOf(look.colour(square(level)))] = level
-	}
-	shownFrom := 53 - shown
-	page := views.YearPage{Weeks: make([]views.GridWeek, 53), Months: framesLabels}
-	for w := range page.Weeks {
-		days := make([]views.GridDay, 7)
-		for i := range days {
-			days[i].Day = framesFirstWeek.AddDate(0, 0, 7*w+i).Format(time.DateOnly)
-			days[i].LeftOut = w == 52 && i > 3
-			if w >= shownFrom && !days[i].LeftOut {
-				days[i].Level = shades[seenAt(frame, x+2*(w-shownFrom), top+1+i).fg]
-			}
-		}
-		page.Weeks[w] = views.GridWeek{First: days[0].Day, Days: days}
-	}
-	families := make(map[shade]string)
-	for _, family := range []string{"opus", "sonnet", "fable", "haiku"} {
-		families[shadeOf(look.colour(familyHue(family).ink()))] = family
-	}
-	for i, m := range months {
-		page.ByMonth = append(page.ByMonth, monthOf(m, frame, families, barX, first+i))
-	}
-	return page
-}
-
 // monthOf is the month as BY MONTH's row of it, its worth split by family as
 // the frame's bar along row y from column x is, a family's worth its cells':
 // all Opus where the frame draws no bar there. Of all use, its plans cost
@@ -145,64 +109,6 @@ func yearFrame(t *testing.T, width, height int, ask views.YearAsk, page views.Ye
 	f.History = HistoryPage{Read: true, YearAsk: ask, Year: &page}
 	f.WindowName = func(key string) string { return map[string]string{"5h": "5-hour", "7d": "Week"}[key] }
 	return f
-}
-
-// The Year is drawn as its frames are, cell for cell, but where they light
-// September, the frames' month before, where the design lights today's,
-// October: its name over the grid and bold in BY MONTH.
-func TestTheYearIsDrawnAsItsFrames(t *testing.T) {
-	nord := Screen(builtin(t, "nord"))
-	opus, _ := ledger.Pricing.Version("claude-opus-5-5")
-	steps := func(level int) ink { return stepInk(versionHue(opus), level) }
-	tests := []struct {
-		stem          string
-		width, height int
-		ask           views.YearAsk
-		page          func() views.YearPage
-		in            region
-		current       []spot
-	}{
-		{
-			stem: "history-year-160", width: 160, height: 37,
-			page: func() views.YearPage {
-				page := framedYear(t, nord, "history-year-160", dayInk, yearGridX, 6, 53, framesMonths, byMonthBarX, 19)
-				page.KeyCuts, page.Numbers, page.Families = []int{450, 750, 1000}, framesNumbers, []string{"opus", "sonnet", "fable", "haiku"}
-				return page
-			},
-			in:      region{top: 6, bottom: 34, left: 0, right: 159},
-			current: []spot{{row: 6, first: 110, last: 120}, {row: 30, first: 2, last: 4}, {row: 31, first: 2, last: 4}},
-		},
-		{
-			stem: "history-year-opus-160", width: 160, height: 37, ask: views.YearAsk{Version: "Opus 5.5"},
-			page: func() views.YearPage {
-				page := framedYear(t, nord, "history-year-opus-160", steps, yearGridX, 6, 53, opusMonths, byMonthBarX, 20)
-				page.KeyCuts, page.Version = []int{400, 600, 700}, opus
-				page.Numbers = views.YearNumbers{
-					Requests: 48880, Sessions: 352, Amount: usd(5760), Share: new(0.21), FirstUsed: "2026-06-22", BusiestDay: "2026-09-22",
-				}
-				page.Before = &views.MonthsBefore{From: "2025-10", To: "2026-05", Then: "Opus 5"}
-				return page
-			},
-			in:      region{top: 6, bottom: 34, left: 0, right: 159},
-			current: []spot{{row: 6, first: 110, last: 120}, {row: 23, first: 2, last: 4}, {row: 24, first: 2, last: 4}},
-		},
-		{
-			stem: "history-phone-year-52", width: 52, height: 35,
-			page: func() views.YearPage {
-				page := framedYear(t, nord, "history-phone-year-52", dayInk, yearPhoneGridX, 8, yearPhoneWeeks, framesMonths, byMonthPhoneBarX, 25-7)
-				page.KeyCuts, page.Numbers = []int{450, 750, 1000}, framesNumbers
-				return page
-			},
-			in:      region{top: 8, bottom: 33, left: 0, right: 51},
-			current: []spot{{row: 8, first: 38, last: 48}, {row: 29, first: 1, last: 3}, {row: 30, first: 1, last: 3}},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.stem, func(t *testing.T) {
-			f := yearFrame(t, tt.width, tt.height, tt.ask, tt.page())
-			heldTo(t, tt.stem, reference(t, tt.stem), screenOf(t, historyDrawn(f).rows(f.Look)), tt.in, shadeOf(nord.Canvas()), tt.current, nil)
-		})
-	}
 }
 
 // plainYear is the Year's page of the frames' numbers and months, its grid

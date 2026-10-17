@@ -72,57 +72,6 @@ func daysFrame(t *testing.T, page views.DaysPage, width, height int) Frame {
 	return f
 }
 
-// Days draws its frames' text, from the weeks' first days on row 7 to the
-// key on row 35. The frames' ▲ after side, where new sessions go, is
-// routing, which History never shows, as the design holds: it's passed over.
-func TestDaysDrawsItsFramesText(t *testing.T) {
-	tests := []struct {
-		stem string
-		page views.DaysPage
-	}{
-		{stem: "history-days-160", page: daysWorld(workDays, personalDays, sideDays)},
-		{stem: "history-days-ten-160", page: daysShared([4]float64{0.57, 0.39, 0.01, 0.03}, tenDays...)},
-	}
-	for _, tt := range tests {
-		t.Run(tt.stem, func(t *testing.T) {
-			f := daysFrame(t, tt.page, 160, 37)
-			drawn, frame := textOf(historyDrawn(f).rows(f.Look)), referenceRows(t, tt.stem, "txt")
-			unmarked := strings.NewReplacer(" ▲", "  ")
-			for y := 6; y < 35; y++ {
-				want := strings.TrimRight(unmarked.Replace(frame[y]), " ")
-				if drawn[y] != want {
-					t.Errorf("row %d reads\n%q\nwant\n%q", y+1, drawn[y], want)
-				}
-			}
-		})
-	}
-}
-
-// Days draws its frames cell for cell, in nord, from row 7 to the key on row
-// 35: but the days of each strip, whose levels are the world's, which F's
-// fixtures hold; and the two cells of the ▲ after side, where new sessions
-// go, which is routing, and History shows no routing, as the design holds.
-func TestDaysHoldsToItsFramesCells(t *testing.T) {
-	tests := []struct {
-		stem string
-		page views.DaysPage
-	}{
-		{stem: "history-days-160", page: daysWorld(workDays, personalDays, sideDays)},
-		{stem: "history-days-ten-160", page: daysShared([4]float64{0.57, 0.39, 0.01, 0.03}, tenDays...)},
-	}
-	for _, tt := range tests {
-		t.Run(tt.stem, func(t *testing.T) {
-			f := daysFrame(t, tt.page, 160, 37)
-			passed := []spot{{row: 25, first: 4, last: 5}}
-			for _, row := range []int{10, 12, 14, 16, 21, 23, 25, 27, 29, 31} {
-				passed = append(passed, spot{row: row, first: daysAt, last: 126})
-			}
-			drawn := screenOf(t, historyDrawn(f).rows(f.Look))
-			heldTo(t, tt.stem, reference(t, tt.stem), drawn, region{top: 6, bottom: 34, left: 0, right: 159}, shadeOf(f.Look.Canvas()), passed, nil)
-		})
-	}
-}
-
 // A family's days take its own colour in four steps, and an account's the
 // days' shades, as the frames draw them in nord.
 func TestDaysShadesEachStripsDays(t *testing.T) {

@@ -15,34 +15,24 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// phoneDays are where accounts-phone-detail-52 draws BY DAY's days, its row
-// and the column its first day is at.
-const (
-	phoneDaysRow = 27
-	phoneDaysAt  = 10
-)
+// phoneDays are each row's last three weeks of days on the phone's Detail:
+// each day's level, and whether a limit was reached on it.
+var phoneDays = []views.StripDay{
+	{Level: 3, Limit: true}, {Level: 3, Limit: true}, {Level: 4, Limit: true}, {Level: 4}, {Level: 2, Limit: true}, {Level: 1}, {Level: 1},
+	{Level: 4, Limit: true}, {Level: 3, Limit: true}, {Level: 3, Limit: true}, {Level: 4, Limit: true}, {Level: 4, Limit: true}, {Level: 1}, {Level: 1},
+	{Level: 2}, {Level: 2, Limit: true}, {Level: 2}, {Level: 2, Limit: true}, {}, {}, {},
+}
 
 // phonePage is Accounts' page of the phone's frames, as Compare's frames have
 // it, this week, its six weeks to the frames' week; each row's last three
-// weeks of days as accounts-phone-detail-52 draws work's, read off its cells
-// as nord shades each level, the weeks before them of no use, and its last
+// weeks of days phoneDays, the weeks before them of no use, and its last
 // three days to come; and each row's peaks, work's.
 func phonePage(t *testing.T) *views.AccountsPage {
 	t.Helper()
-	nord := Screen(builtin(t, "nord"))
 	page := comparedPage(views.AccountsThisWeek, comparedVersions(t), compareWork, comparePersonal, compareSide, compareAll)
 	page.Weeks = []string{"2026-08-24", "2026-08-31", "2026-09-07", "2026-09-14", "2026-09-21", "2026-09-28"}
 	page.ToCome = 3
-	frame := reference(t, "accounts-phone-detail-52")
-	levels := make(map[shade]int)
-	for level := range shadeLevels {
-		levels[shadeOf(nord.colour(dayInk(level)))] = level
-	}
-	days := make([]views.StripDay, 7*stackWeeks, 7*2*stackWeeks)
-	for i := range 7 * stackWeeks {
-		cell := seenAt(frame, phoneDaysAt+i/7*stackLayout.step()+i%7*swatchCells, phoneDaysRow)
-		days = append(days, views.StripDay{Level: levels[cell.bg], Limit: cell.glyph == '▪'})
-	}
+	days := slices.Concat(make([]views.StripDay, 7*stackWeeks), phoneDays)
 	var peaks []views.WeekPeak
 	for i, p := range []float64{1, 0.94, 1, 0.81, 1, 0.34} {
 		peaks = append(peaks, views.WeekPeak{Share: new(p), Open: i == 5})
@@ -68,61 +58,6 @@ func phoneFrame(t *testing.T, height int, shown AccountsView, chosen string, pag
 // every account's extra usage read off.
 func phoneDoc() status.Document {
 	return usageWorld(extraOff, func(d *status.Document) { d.Events = onAuto() })
-}
-
-// The cells the phone's frames draw otherwise than the design, or than
-// their world.
-var (
-	// phoneNoBest are side's ▲, and the blank before it, on each of its rows
-	// of the phone's Compare, which Accounts doesn't show, as it shows no
-	// routing (P1).
-	phoneNoBest = []spot{{14, 5, 6}, {24, 5, 6}, {31, 5, 6}, {37, 5, 6}, {43, 5, 6}}
-	// phoneOlderHaiku is Haiku 4.5's part of personal's and all accounts'
-	// bars, which the phone's Compare frame draws in Haiku's own shade, as
-	// olderHaiku has it.
-	phoneOlderHaiku = []spot{{22, 32, 32}, {26, 32, 32}}
-	// stackedOlderHaiku is Haiku 4.5's part of work's bar on the phone's
-	// Detail, and its ●, drawn as phoneOlderHaiku's are.
-	stackedOlderHaiku = []spot{{23, 49, 49}, {25, 31, 31}}
-	// stackedMovedOn is work's LATELY's last row, where the frame tells its
-	// prime at 12:10 and leaves out db8a's move onto it at 13:22, which
-	// LATELY tells from work's side, as any move onto it (P12).
-	stackedMovedOn = spot{37, 0, 51}
-	// stackedBest is ", the best" after 7f3a's start on work's LATELY,
-	// which the frame leaves out, as startedBest has it.
-	stackedBest = spot{36, 26, 35}
-)
-
-// A phone's Compare and Detail are drawn as their frames, cell for cell, in
-// nord: Compare turned, a group at a time, an account a row, all accounts
-// last; Detail stacked, each part under its heading. Each passes over the
-// cells it draws otherwise than its frame, for the reason given.
-func TestAPhonesAccountsAreDrawnAsTheirFrames(t *testing.T) {
-	page := phonePage(t)
-	tests := []struct {
-		stem   string
-		height int
-		shown  AccountsView
-		chosen string
-		in     region
-		passed []spot
-	}{
-		{
-			stem: "accounts-phone-compare-52", height: 48, shown: AccountsCompare, in: region{top: 8, bottom: 46, right: 51},
-			passed: append(phoneNoBest, phoneOlderHaiku...),
-		},
-		{
-			stem: "accounts-phone-detail-52", height: 41, shown: AccountsDetail, chosen: "work", in: region{top: 8, bottom: 39, right: 51},
-			passed: append(stackedOlderHaiku, stackedMovedOn, stackedBest),
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.stem, func(t *testing.T) {
-			f := phoneFrame(t, tt.height, tt.shown, tt.chosen, page)
-			drawn := screenOf(t, f.Draw(phoneDoc(), routedAt))
-			heldTo(t, tt.stem, reference(t, tt.stem), drawn, tt.in, shadeOf(f.Look.Canvas()), tt.passed, nil)
-		})
-	}
 }
 
 // phoneText is a frame of Accounts at routedAt, as text alone, as

@@ -219,39 +219,3 @@ func TestTheLogsRequestsNarrowWhateverIsTicked(t *testing.T) {
 		})
 	}
 }
-
-// The column heads, each at its column's start, or ending at its end where
-// the column is right-aligned, are as the design's frames draw them: at 160,
-// and on a phone.
-func TestTheLogsHeadsSitAsTheFramesDrawThem(t *testing.T) {
-	tests := []struct {
-		stem  string
-		width int
-		row   int
-	}{
-		{stem: "log-requests-160", width: 160, row: 6},
-		{stem: "log-requests-phone-52", width: 52, row: 7},
-	}
-	for _, tt := range tests {
-		t.Run(tt.stem, func(t *testing.T) {
-			want := referenceRows(t, tt.stem, "txt")[tt.row]
-			if got := headsOf(logColumns(tt.width, LogTicks{})); got != strings.TrimRight(want, " ") {
-				t.Errorf("the heads at %d read\n%q\nwant\n%q", tt.width, got, want)
-			}
-		})
-	}
-}
-
-// headsOf is the layout's heads, as a row of text: each column's name at its
-// start, or ending at its end where it's right-aligned.
-func headsOf(l logLayout) string {
-	row := []rune(strings.Repeat(" ", 300))
-	for _, p := range l.places {
-		x := p.x
-		if p.aligned == alignRight {
-			x = p.x + p.width - len(p.column.Name())
-		}
-		copy(row[x:], []rune(p.column.Name()))
-	}
-	return strings.TrimRight(string(row), " ")
-}

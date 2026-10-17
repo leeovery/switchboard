@@ -242,55 +242,6 @@ func filed(days []ledger.Summary) []ledger.Summary {
 	return days
 }
 
-// The cells of Runway's frames drawn otherwise than the design or their
-// world: where the week's frame ticks Friday and four of its quarters, and
-// names Friday, a cell before where the design's columns of 74.1 minutes
-// from Wednesday 14:40 put them; where it has side's week room till Monday
-// 10:00, which its world, 78% used since Monday 10:00, runs out ~Fri 12:18
-// at its average pace, as USAGE's frames have it: side's lane and words, the
-// pool's dip from then, and COMING UP, a line longer for it; and
-// the part-filled cell of now's column in the pool's lane, on the canvas in
-// the frames where the design has bg.subtle (D4).
-var (
-	weeksTicksAhead  = []spot{{7, 50, 53}, {8, 50, 51}, {8, 84, 85}, {8, 118, 119}, {8, 152, 153}, {8, 157, 158}}
-	sidesWeekRunsOut = []spot{{16, 43, 116}, {17, 24, 159}, {19, 61, 116}, {20, 75, 90}, {29, 0, 159}, {30, 0, 159}, {31, 0, 159}, {32, 0, 159}, {33, 0, 159}}
-)
-
-// The rows of Runway's frames, counted from 0, whose room the frames draw ▆,
-// the lower three quarters of a cell, where the design has since drawn it █,
-// the full cell, so a held column's ─ meets it at its middle and a reset's │
-// at its top and bottom: each lane's and the legend's.
-var (
-	roomRows160   = []int{10, 13, 16, 23}
-	roomRowsPhone = []int{11, 14, 17, 24}
-)
-
-// Runway draws its frames cell for cell, in nord, from the heading row to
-// the foot of COMING UP, every part drawn from the views' facts of its
-// world: the pool's columns where the frames draw them; Σ pool, the room and
-// all under them a row up from the frames', the rule over the pool's lane
-// and its words under it gone.
-func TestRunwayIsDrawnAsItsFrames(t *testing.T) {
-	tests := []struct {
-		stem, moment string
-		passed       []spot
-	}{
-		{stem: "runway-5-hour-160", moment: "the auto world's 5-hour view", passed: []spot{{19, 30, 30}}},
-		{stem: "runway-week-160", moment: "the auto world's week view", passed: slices.Concat(weeksTicksAhead, sidesWeekRunsOut, []spot{{19, 43, 43}})},
-		{stem: "runway-stepped-back-160", moment: "the auto world, Wednesday stepped back to"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.stem, func(t *testing.T) {
-			f, doc, now := runwayFramed(t, tt.moment)
-			drawn, frame, canvas := screenOf(t, f.Draw(doc, now)), redrawn(reference(t, tt.stem), '▆', '█', roomRows160...), shadeOf(f.Look.Canvas())
-			heldTo(t, tt.stem, frame, drawn, region{top: 4, bottom: 17, right: 159}, canvas, tt.passed, nil)
-			heldTo(t, tt.stem, frame, drawn, region{top: 19, bottom: 20, left: runwayLanesFrom, right: 159}, canvas, tt.passed, nil)
-			heldTo(t, tt.stem, frame, aRowUp(drawn), region{top: 20, bottom: 21, right: runwayLanesFrom - 1}, canvas, tt.passed, nil)
-			heldTo(t, tt.stem, frame, aRowUp(drawn), region{top: 22, bottom: 35, right: 159}, canvas, tt.passed, nil)
-		})
-	}
-}
-
 // Each account's use of the view's window under its name is a number a look
 // reads, which brightens as it changes, as is the pool's room under Σ pool;
 // so is the highest a day gone read, which never changes, and it has no

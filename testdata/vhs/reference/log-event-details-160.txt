@@ -24,7 +24,7 @@ LOG    Requests  Events  [ ]  ────────────────�
 ▲ 12:02:10  d28c│                                                    └ sessions     3 on it   ├ new sessions go elsewhere till 17:10           │
 ◇ 12:10:00      │                                                                             └ in all       $3.46 to cache them again         │
 ▲ 12:47:12  41e0│                                                                                                                              │
-▸ 13:22:40  db8a│                                                                          ↑↓ previous/next event   g in Requests   esc close  │8
+▸ 13:22:40  db8a│                                                                          ↑↓ previous/next event   g in Requests   esc close  │
 ◇ 13:50:00      ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ▲ 14:12:30  7f3a api           started   work
 ╎ 14:31:03                     cap       work              95% of its 5-hour window: its 3 sessions move to side as their next requests come

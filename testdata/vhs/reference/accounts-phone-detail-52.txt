@@ -3,8 +3,8 @@
 
 ● healthy · auto · 6 sessions · new → ▲ side
 
-ACCOUNTS  Compare Detail
-                                         p this week
+ACCOUNTS   Compare  Detail
+                                       < this week >
 
 ◂ 1 work ▸                     ↑↓ an account, or all
 ● at its cap
@@ -25,7 +25,7 @@ BY MODEL
 ● Opus 5.5 55%  ● Opus 5 7%  ● Sonnet 5.5 28%
 ● Sonnet 5 3%  ● Fable 5.1 5%  ● Haiku 4.5 2%
 
-BY DAY    ▪ ▪ ▪   ▪      ▪ ▪ ▪ ▪ ▪        ▪   ▪ ····
+BY DAY    ▪ ▪ ▪   ▪      ▪ ▪ ▪ ▪ ▪        ▪ ▪   ····
           14 Sep         21 Sep         28 Sep
 
 WEEKS      100%   81%  100%  34%…
@@ -34,8 +34,8 @@ limit hit 3 of 7 weeks · 9% left at a reset
 
 LATELY
 14:31  ╎ reached its cap: 3 sessions moved to side
-14:12  ▲ 7f3a started here
-12:10  ◇ primed: its 5-hour window started
+14:12  ▲ 7f3a started here, the best
+13:22  ▸ db8a came from personal: personal came un…
 
 
 tab views   [ ] view   ? keys   q quit

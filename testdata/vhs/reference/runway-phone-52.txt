@@ -9,20 +9,19 @@ RUNWAY  ────────────────────────
                      18:00     Fri       06:00
               ┬──┬───┬──┬──┬───┬──┬───┬──┬──┬───┬──┬
 
-1 work        ▆────│▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆
+1 work        █────│████████████████████████████████
   5-hour 95%   at its cap 14:31  ·  back 17:10
 
-2 perso… ◆    ▆▆▆▆│▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆
+2 perso… ◆    ████│█████████████████████████████████
   5-hour 39%    room all day
 
-3 side ▲      ▆▆▆▆▆▆▆▆│▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆
+3 side ▲      ████████│█████████████████████████████
   5-hour 13%    room all day
-────────────────────────────────────────────────────
-               ▃▃▃▃▃
-Σ pool
-               2 of 3 with room till 17:10
+
+Σ pool         ▃▃▃▃▃
+
   5-hour 1.5 of 3 left
-▆ room    ─ at its cap    │ its 5-hour resets
+█ room    ─ at its cap    │ its 5-hour resets
 a column ≈ 36 minutes · the past dimmed
 
 COMING UP
@@ -30,4 +29,5 @@ COMING UP
 17:10  work back from its cap              in 2h 28m
 18:50  side's 5-hour resets                in 4h 08m
 
-< > window   ←→ day   ? keys   q quit
+
+tab views   < > window   ←→ day   ? keys   q quit

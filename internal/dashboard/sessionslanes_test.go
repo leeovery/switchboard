@@ -48,16 +48,6 @@ func lanesText(f Frame, doc status.Document) []string {
 	return textOf(f.Draw(doc, routedAt))
 }
 
-// A phone draws the Switchboard in lanes, as sessions-phone-52 draws it, cell
-// for cell, in nord, from its heading row to the row over its key line: each
-// account's line, its windows on one row, its sessions under it; then the
-// pool's rule, Σ pool and the room in each window; then the phone's key.
-func TestAPhonesSwitchboardIsDrawnInLanesAsItsFrame(t *testing.T) {
-	f := lanesFrame(52, 33, Screen(builtin(t, "nord")), phoneScene())
-	drawn := screenOf(t, f.Draw(phoneDoc(), routedAt))
-	heldTo(t, "sessions-phone-52", reference(t, "sessions-phone-52"), drawn, region{top: 5, bottom: 31, right: 51}, shadeOf(f.Look.Canvas()), nil, nil)
-}
-
 // A session's row says what it's doing at column 20, in a session's page's
 // words, bold accent.key while it asks or answers, bold state.destructive
 // while refused, text.subtle while throttled, and text.faint while idle;

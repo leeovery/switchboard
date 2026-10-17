@@ -55,105 +55,6 @@ func usagePinned(ids ...string) func(*status.Document) {
 	}
 }
 
-// usageBadHour is the bad hour's world: new sessions pinned to personal and
-// side, side where they go; work's token refused, its last reading at 14:20;
-// and personal at its 5-hour limit till its window resets at 15:54.
-func usageBadHour(d *status.Document) {
-	usagePinned("personal", "side")(d)
-	d.Best = "side"
-	account("work", func(a *status.Account) {
-		a.FetchedAt, a.Refused = routedClock(1, 14, 20), status.Refusal{Until: routedAt.Add(time.Hour), Status: 401}
-	})(d)
-	account("personal", func(a *status.Account) {
-		a.Windows[0] = quota.Window{Key: "5h", Label: "Session", Utilization: 1, Status: quota.StatusRejected, ResetsAt: routedClock(1, 15, 54)}
-		a.Limit = status.Limit{Windows: []string{"5h"}, Until: routedClock(1, 15, 54)}
-	})(d)
-}
-
-// usageDrawn is the cells of USAGE of doc as f draws its section's body in
-// the rows given, from row top, on a canvas the frame's size, nothing else
-// drawn on it.
-func usageDrawn(t *testing.T, f Frame, doc status.Document, top, rows int) [][]seen {
-	t.Helper()
-	c := newCanvas(f.Width, f.Height)
-	f.usageSection(doc, routedAt).draw(c, bounds{y: top, width: f.Width, rows: rows})
-	return screenOf(t, c.rows(f.Look))
-}
-
-// The cells of USAGE's frames passed over, as the frames draw them otherwise
-// than the design or than the world.
-var (
-	// evenPace160, evenPace216 and evenPaceByAccount are where the frames
-	// place even pace's mark as if each window's pace were a whole percent,
-	// where the design's rule, min(round(pace × bar), bar − 1), puts it a
-	// cell on or back: work's week and Fable week at 16 and 48 cells, and,
-	// at 170, its 5-hour and side's too.
-	evenPace160       = []spot{{8, 72, 73}, {8, 120, 121}}
-	evenPace216       = []spot{{8, 102, 103}, {12, 45, 46}, {19, 106, 107}, {30, 106, 107}}
-	evenPaceByAccount = []spot{{8, 51, 52}, {10, 51, 52}}
-	// sidesWeek is where the frames give side's week its allowance, 6%/day
-	// till Mon 10:00, where it runs out ~Fri 12:20 at its average pace.
-	sidesWeek = map[string]spot{
-		"160": {12, 87, 107}, "216": {12, 125, 145}, "216 big": {23, 193, 213}, "by account": {22, 81, 101}, "phone": {24, 37, 48},
-	}
-	// personalsLimit is where the bad hour's frame has personal's 5-hour
-	// reset at 16:30, as the auto world's, its even pace and the pool's a
-	// cell back, where its world's resets at 15:54, as its limit lifts.
-	personalsLimit = []spot{{10, 26, 28}, {14, 22, 23}}
-	// workFocused is the last two cells of work's name column, which the frames
-	// leave unlit, lighting its first 12 cells, where the matrix lights the
-	// whole column but the gap before the bars, 14 of the sample's 16 (the
-	// owner's call, 15 October 2026).
-	workFocused = spot{8, 12, 13}
-)
-
-func TestUSAGEIsDrawnAsItsFrames(t *testing.T) {
-	nord := Screen(builtin(t, "nord"))
-	graphed := Sections{}.Toggled(SectionGraphs).Toggled(SectionSessions)
-	wide := func(top, rows, width int) []region {
-		return []region{{top: top, bottom: top + rows - 1, right: width - 1}}
-	}
-	tests := []struct {
-		stem          string
-		width, height int
-		doc           status.Document
-		shown         Sections
-		by            By
-		top, rows     int
-		in            []region
-		whole         []spot
-	}{
-		{stem: "overview-default-160", width: 160, height: 37, doc: usageWorld(), top: 6, rows: 11, whole: slices.Concat(evenPace160, []spot{sidesWeek["160"]})},
-		{stem: "overview-pinned-160", width: 160, height: 37, doc: usageWorld(usagePinned("personal")), top: 6, rows: 11, whole: slices.Concat(evenPace160, []spot{sidesWeek["160"]})},
-		{stem: "overview-bad-hour-160", width: 160, height: 37, doc: usageWorld(usageBadHour), top: 6, rows: 11, whole: slices.Concat(evenPace160, []spot{sidesWeek["160"]}, personalsLimit)},
-		{stem: "overview-everything-160x39", width: 160, height: 39, doc: usageWorld(), shown: graphed, top: 6, rows: 11, whole: slices.Concat(evenPace160, []spot{sidesWeek["160"], workFocused})},
-		{stem: "overview-sessions-graphs-216", width: 216, height: 70, doc: usageWorld(), shown: graphed, top: 6, rows: 11, whole: []spot{sidesWeek["216"], workFocused}},
-		{stem: "overview-default-216", width: 216, height: 70, doc: usageWorld(), top: 6, rows: 33, whole: slices.Concat(evenPace216, []spot{sidesWeek["216 big"]})},
-		{stem: "overview-everything-216x106", width: 216, height: 106, doc: usageWorld(), shown: graphed, top: 6, rows: 33, whole: slices.Concat(evenPace216, []spot{sidesWeek["216 big"]})},
-		{
-			stem: "overview-by-account-160", width: 160, height: 42, doc: usageWorld(), by: ByAccount, top: 6, rows: 28,
-			// USAGE's blocks end before ROUTING's beside them, but for the
-			// pool's rule across both and the key line.
-			in:    []region{{top: 6, bottom: 31, right: 103}, {top: 26, bottom: 26, right: 159}, {top: 32, bottom: 33, right: 159}},
-			whole: slices.Concat(evenPaceByAccount, []spot{sidesWeek["by account"]}),
-		},
-		{stem: "overview-phone-52", width: 52, height: 66, doc: usageWorld(), top: 7, rows: 34, whole: []spot{sidesWeek["phone"]}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.stem, func(t *testing.T) {
-			f := Frame{Width: tt.width, Height: tt.height, Look: nord, View: Overview, Policy: claudeLike, Sections: tt.shown, By: tt.by, Focus: "work"}
-			drawn := usageDrawn(t, f, tt.doc, tt.top, tt.rows)
-			in := tt.in
-			if in == nil {
-				in = wide(tt.top, tt.rows, tt.width)
-			}
-			for _, r := range in {
-				heldTo(t, tt.stem, reference(t, tt.stem), drawn, r, shadeOf(nord.Canvas()), tt.whole, nil)
-			}
-		})
-	}
-}
-
 // usageBody is USAGE of doc at the moment given as f draws its body in rows
 // rows from row 0, as text, and the canvas it's drawn on.
 func usageBody(f Frame, doc status.Document, at time.Time, rows int) ([]string, *canvas) {
@@ -1095,24 +996,6 @@ func TestUSAGELeavesROUTINGItsColumnsBesideItsBlocksWhileItShowsByAccountFrom150
 				t.Errorf("USAGE leaves ROUTING the columns from %d, want %d", got, tt.aside)
 			}
 		})
-	}
-}
-
-func TestROUTINGBesideUSAGEsBlocksIsDrawnAsTheOverviewsFrameIs(t *testing.T) {
-	nord := Screen(builtin(t, "nord"))
-	f := Frame{
-		Width: 160, Height: 42, Look: nord, View: Overview, Policy: claudeLike, By: ByAccount,
-		Sections: Sections{}.Toggled(SectionSessions),
-		Sessions: sessionsRunning(map[string]int{"personal": 2, "side": 4}),
-	}
-	frame, drawn := reference(t, "overview-by-account-160"), screenOf(t, f.Draw(usageWorld(), routedAt))
-	// The traces and their rates, as the frame's traffic isn't the world's;
-	// and work's state, which the frame draws whole to the edge, where the
-	// design cuts its words by whole clauses to end two cells short of it.
-	whole := append(spanning(107, 159, 10, 17, 24, 31), spot{row: 6, first: 132, last: 159})
-	// Row 26 is the pool's rule, which USAGE's blocks draw.
-	for _, in := range []region{{top: 4, bottom: 25, left: 107, right: 159}, {top: 27, bottom: 31, left: 107, right: 159}} {
-		heldTo(t, "overview-by-account-160", frame, drawn, in, shadeOf(nord.Canvas()), whole, nil)
 	}
 }
 

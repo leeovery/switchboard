@@ -2,15 +2,15 @@
 
 ● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
 
-ACCOUNTS    Compare  Detail  [ ]  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────  p this week
+ACCOUNTS    Compare  Detail  [ ]  ───────────────────────────────────────────────────────────────────────────────────────────────────────────────  < this week >
 
- 0 all accounts     │   3 side ▲   ● open · new sessions come here
+ 0 all accounts     │   3 side   ● open · new sessions come here
                     │
  1 work        ●    │   USAGE                                                                               THIS WEEK
                     │   5-hour        ▎ ┃                                  13%  21%/h till 18:50            requests  1,876
  2 personal ◆  ●    │                                                                                       limits    5-hour ×1
-                    │   Week                       ┃            ▎          78%  6%/day till Mon 10:00       plan      Max 20x
- 3 side ▲      ●    │                                                                                       worth     $239  5.2×
+                    │   Week                       ┃            ▎          78%  out ~Fri 12:20              plan      Max 20x
+▸3 side        ●    │                                                                                       worth     $239  5.2×
                     │   Fable wk  ▋                ┃                        4%  25%/day till Mon 10:00      extra use off
                     │
  ↑↓ choose          │   BY MODEL
@@ -34,4 +34,4 @@ ACCOUNTS    Compare  Detail  [ ]  ───────────────�
                     │     enter opens d28c's page
 
 
-tab views   [ ] view     p period: this week     ↑↓ account  enter its page     0 auto  1-3 pin  m move  ? help  q quit
+tab views   [ ] view    < > period: this week    ↑↓ session  ← accounts  enter its page    p pin    ? help  q quit

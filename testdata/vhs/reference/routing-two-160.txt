@@ -6,7 +6,7 @@ USAGE  ────────────────────────�
 
                 5-HOUR                                          WEEK                                            FABLE WEEK
 
-1 work                  ┃      ╎  95%  at cap · back 17:10           ▌  ┃      ╎  34%  19%/day till Sun 21:00    ▉      ┃      ╎  12%  25%/day till Sun 21:00
+1 work                  ┃      ╎  95%  at cap · back 17:10           ▌   ┃     ╎  34%  19%/day till Sun 21:00    ▉       ┃     ╎  12%  25%/day till Sun 21:00
                                        ╭─ ROUTING · NEW SESSIONS ───────────────────────────────────────────────────────╮
 2 personal ◆          ▎   ┃       39%  │                                                                                │ ┃        0%  40%/day till Sun 02:00
                                        │  Pick the accounts new sessions go to.                                         │
@@ -18,14 +18,14 @@ USAGE  ────────────────────────�
                                        │                                                                                │
 ROUTING   auto ────────────────────────│  □ m  also move the sessions running                                           │───────────────────────────────────── r
                                        │                                                                                │
-1 work          ● at its cap · back 17:│  New sessions go to personal or side. When both are full, the router chooses.  │   ▃▄▃▁▁▂
-                                       │                                                                                │▆▆       ▃▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
+1 work          ● at its cap · back 17:│  New sessions go to personal or side. When both are full, the router chooses.  │
+                                       │                                                                                │▄▃▃▂▄▃▂▄▄▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
                                        │                                                                                │
-2 personal ◆    ● open                 │                                                                                │
-                                       │                                                                                │▄▅▅▄▄▄▄▄▂▂▂▄▄▄▄▄▅▅▄▂▂▂▄▄▄▃▄▅▅▄▂   2/min
+2 personal ◆    ● open                 │                                                                                │       ▁▃▂
+                                       │                                                                                │▁▁▁▁▁▂▅    ▆▃▁▁▁▁▁▁▁▁▁▁▁▁▁▂▃▄▃▃   3/min
                                        │          ↑↓ move   space 0-3 tick   m move running   enter apply   esc cancel  │
-3 side ▲        ● open · new sessions c╰────────────────────────────────────────────────────────────────────────────────╯         ▁▃▂▃▄▅▄▂ ▁▂▃▂▂▂▄▅▄▂▂▆▆
-                                                                                            ▁▁▂▂▂▁▁▂▂▁▁▁▁▂▂▂▁▂▂▂▁▁▁▁▂▂▂▁▂▂▂▁▁▁▁▁▂▁                        15/min
+3 side ▲        ● open · new sessions c╰────────────────────────────────────────────────────────────────────────────────╯           ▄▇▇   ▇▇▆▆▇▅▂▁  ▂▂▃▃
+                                                                                            ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▄                       11/min
                                                                                             requests a minute, last 30 minutes
 
 COMING UP  ─────────────────────────────────────────────────────────── c          LATELY  ──────────────────────────────────────────────────────────────────── l

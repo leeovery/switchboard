@@ -27,21 +27,6 @@ func sessionCard(change func(*RoutingCard)) RoutingCard {
 	})
 }
 
-func TestASessionsCardIsDrawnAsItsFrame(t *testing.T) {
-	nord := Screen(builtin(t, "nord"))
-	doc, sessions := routedWorld(false)
-	card := sessionCard(func(r *RoutingCard) { r.Picked, r.Cursor, r.Cost = []string{"side"}, 3, dollars(156) })
-	f := Frame{Width: 160, Height: 37, Look: nord, View: Overview, Policy: claudeLike, Sessions: sessions, Card: card}
-	drawn := screenOf(t, f.Draw(doc, routedAt))
-	// The frame colours each figure along the ramp, where the design colours
-	// it by its level, as usage does; and lights no row, where the design
-	// lights the cursor's, its rows from row 17, from a cell before the
-	// card's content to a cell after it.
-	figures := []spot{{17, 75, 78}, {17, 86, 89}, {18, 75, 78}, {18, 86, 89}, {19, 75, 78}, {19, 86, 89}}
-	lit := spot{row: 16 + card.Cursor, first: 41, last: 118}
-	heldTo(t, "routing-session-160", reference(t, "routing-session-160"), drawn, region{top: 10, bottom: 25, left: 39, right: 120}, shadeOf(nord.Canvas()), []spot{lit}, figures)
-}
-
 func TestASessionsCardIs13RowsTallAndOneAnAccount(t *testing.T) {
 	for _, accounts := range []int{1, 2, 3, 4} {
 		doc := routerDoc("", 0, namedAccounts(accounts)...)

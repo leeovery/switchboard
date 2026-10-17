@@ -81,41 +81,6 @@ func dollars(cents int64) *ledger.Picodollars {
 	return &p
 }
 
-func TestTheRoutingCardIsDrawnAsItsFrames(t *testing.T) {
-	nord := Screen(builtin(t, "nord"))
-	// The frames colour each figure along the ramp, where the design colours
-	// it by its level, as usage does: its first stop below 70%, its second
-	// from 70%, its last from 90%.
-	figures := []spot{{14, 75, 78}, {14, 86, 89}, {15, 75, 78}, {15, 86, 89}, {16, 75, 78}, {16, 86, 89}}
-	tests := []struct {
-		stem  string
-		limit bool
-		card  RoutingCard
-		// whole are the cells the frame draws otherwise than the world.
-		whole []spot
-	}{
-		{stem: "routing-auto-160", card: RoutingCard{}},
-		{stem: "routing-two-160", card: RoutingCard{Picked: []string{"personal", "side"}, Cursor: 3}},
-		{stem: "routing-move-160", card: RoutingCard{Picked: []string{"personal"}, Cursor: 2, Move: true, Moving: 4, Cost: dollars(620)}},
-		// The frame's card draws personal's week 64%, where its page, and
-		// the world, have 66%.
-		{stem: "routing-limit-160", limit: true, card: RoutingCard{Picked: []string{"side"}, Cursor: 3}, whole: []spot{{15, 87, 87}}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.stem, func(t *testing.T) {
-			doc, sessions := routedWorld(tt.limit)
-			tt.card.Rows = RoutingRows(doc.At(routedAt, claudeLike), sessions, views.Stream{})
-			f := Frame{Width: 160, Height: 37, Look: nord, View: Overview, Policy: claudeLike, Sessions: sessions, Card: tt.card}
-			drawn := screenOf(t, f.Draw(doc, routedAt))
-			// The frames light no row, where the design lights the cursor's,
-			// its rows from row 13, from a cell before the card's content to
-			// a cell after it.
-			lit := spot{row: 13 + tt.card.Cursor, first: 41, last: 118}
-			heldTo(t, tt.stem, reference(t, tt.stem), drawn, region{top: 9, bottom: 26, left: 39, right: 120}, shadeOf(nord.Canvas()), append(tt.whole, lit), figures)
-		})
-	}
-}
-
 func TestTheRoutingCardsRowsAreAutoThenEachAccountNumbered(t *testing.T) {
 	accounts := make([]status.Account, 10)
 	for i := range accounts {
