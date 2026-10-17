@@ -56,11 +56,14 @@ func TestReadingDaysAheadReadsNoMoreThanItsWindowAheadOfTheDayHandedOn(t *testin
 	}
 }
 
+// A read of a session's lines holds its own, read whole, with their JSON,
+// and reads any other for its session alone, giving none of it, as a read
+// of a few sessions does.
 func TestASessionsLinesAloneAreHeldWithTheirJSON(t *testing.T) {
 	tests := []struct {
 		name, line string
 		// read is whether the line reads as one, and held whether it's held
-		// with its JSON.
+		// with its JSON, read whole as lineIn reads it.
 		read, held bool
 	}{
 		{name: "the session's", line: `{"at":"2026-10-05T09:00:00Z","request":"1","kind":"message","session":"one","reason":"sticky"}`, read: true, held: true},
@@ -74,6 +77,13 @@ func TestASessionsLinesAloneAreHeldWithTheirJSON(t *testing.T) {
 			h, read := decode([]byte(tt.line))
 			if read != tt.read || (h.JSON != nil) != tt.held || tt.held && string(h.JSON) != tt.line {
 				t.Errorf("read %v, its JSON %q; want read %v, its JSON held %v", read, h.JSON, tt.read, tt.held)
+			}
+			want, _ := lineIn([]byte(tt.line))
+			if !tt.held {
+				want = Line{}
+			}
+			if !reflect.DeepEqual(h.Line, want) {
+				t.Errorf("gave %+v, want %+v", h.Line, want)
 			}
 		})
 	}

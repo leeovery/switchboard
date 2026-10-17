@@ -1,6 +1,7 @@
 package views
 
 import (
+	"reflect"
 	"strconv"
 	"testing"
 	"time"
@@ -8,10 +9,12 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 )
 
-// Past midnight, a held page is built afresh once, as the first look takes
-// in the new day's lines, none here, and rolls it on to the new day: no look
-// after builds it again, each its story as held.
-func TestAHeldPagePastMidnightIsBuiltOnceForAllItsLooks(t *testing.T) {
+// Past midnight, before a feed of the store rolls its session on, a held
+// page is built of its session rolled on to the new day as it's looked at,
+// as the store rolls a look at a later day: the page the feed then gives,
+// which rolls the session held, its prices alike on both days. A look of
+// the day before, as a ledger yet to turn gives, never rolls it back.
+func TestAHeldPagePastMidnightIsBuiltAsTheFeedThatRollsItGives(t *testing.T) {
 	before := time.Date(2026, 10, 7, 23, 50, 0, 0, time.Local)
 	after := before.Add(20 * time.Minute)
 	lines := []ledger.Line{{
@@ -19,27 +22,27 @@ func TestAHeldPagePastMidnightIsBuiltOnceForAllItsLooks(t *testing.T) {
 		Status: 200, Attempts: 1, TotalMS: 4000, Usage: []byte(`{"input_tokens":1000}`),
 	}}
 	h := HoldPage("s1", SessionsRead{day: Today(before), lines: map[string][]ledger.Line{"s1": lines}}, ledger.Pricing, 0, before)
-	built := map[*story]bool{}
-	for range 2 {
-		h = h.Take(Today(after).Date, nil)
-		built[h.story] = true
-		built[h.at(after).story] = true
+	looked, _ := h.Build(PageLive{Now: after})
+	fed, _ := h.Found().Fed(filedLedger{lines: lines, now: after}, Taken{}, SessionsWanted{}.Paging(h, Stream{}), after)
+	rolled, changed := h.Take(Today(after).Date, nil).Held(fed)
+	if !changed || fed.Holding().Read > 0 {
+		t.Fatalf("the feed past midnight changed the page %t, reading %d requests whole; want it changed, rolled on, none read", changed, fed.Holding().Read)
 	}
-	if len(built) != 1 || h.day != Today(after) {
-		t.Errorf("two looks past midnight built the page %d times, held at %s; want it built once, held at %s", len(built), h.day.Date, Today(after).Date)
+	if got, _ := rolled.Build(PageLive{Now: after}); !reflect.DeepEqual(got, looked) {
+		t.Errorf("past midnight, the page rolled by a feed is\n%+v\nwant it as looked at before the feed\n%+v", got, looked)
 	}
-	if lags := h.Take(Today(before).Date, nil); lags.story != h.story || lags.day != h.day {
-		t.Errorf("a look of the day before, as a ledger yet to turn gives, held the page at %s, built afresh %t; want it as held", lags.day.Date, lags.story != h.story)
+	if lags := rolled.Take(Today(before).Date, nil); lags.day != rolled.day {
+		t.Errorf("a look of the day before, as a ledger yet to turn gives, held the page at %s, want it at %s", lags.day.Date, rolled.day.Date)
 	}
 }
 
 // A held page takes in other sessions' lines working out only what they
 // change. Those of an account the session never ran on change nothing of
-// it: its story and its accounts are the page's it took them from, and the
+// it: its session and its points are the page's it took them from, and the
 // keys of the lines it held before are shared with that page, not copied, as
 // much allocated however many requests it holds. Those of one it ran on, on
-// a day it made requests on, change its points alone, its story as it was.
-// Its own build it afresh.
+// a day it made requests on, change its points alone, its session as it
+// was. Its own leave its session as it was too, as the store takes them in.
 func TestAHeldPageTakingOtherSessionsLinesWorksOutOnlyWhatTheyChange(t *testing.T) {
 	at := time.Date(2026, 10, 7, 12, 0, 0, 0, time.Local)
 	date := Today(at).Date
@@ -71,9 +74,9 @@ func TestAHeldPageTakingOtherSessionsLinesWorksOutOnlyWhatTheyChange(t *testing.
 	}}
 	few, many := holding(50), holding(500)
 	elsewhere := many.Take(date, side)
-	if elsewhere.story != many.story || &elsewhere.accounts[0] != &many.accounts[0] || elsewhere.held.under != many.held {
-		t.Errorf("taking another's line on side, the story was built afresh %t, the accounts %t, the keys held copied %t; want none of them",
-			elsewhere.story != many.story, &elsewhere.accounts[0] != &many.accounts[0], elsewhere.held.under != many.held)
+	if elsewhere.record != many.record || !reflect.DeepEqual(elsewhere.points, many.points) || elsewhere.held.under != many.held {
+		t.Errorf("taking another's line on side, the session was held afresh %t, the points changed %t, the keys held copied %t; want none of them",
+			elsewhere.record != many.record, !reflect.DeepEqual(elsewhere.points, many.points), elsewhere.held.under != many.held)
 	}
 	fewer := testing.AllocsPerRun(10, func() { few.Take(date, side) })
 	if got := testing.AllocsPerRun(10, func() { many.Take(date, side) }); got != fewer {
@@ -81,15 +84,16 @@ func TestAHeldPageTakingOtherSessionsLinesWorksOutOnlyWhatTheyChange(t *testing.
 	}
 
 	h := holding(2)
-	if got := h.accounts[0].Points["5h"]; got != 5 {
+	if got := h.points["work"]["5h"]; got != 5 {
 		t.Fatalf("held, s1 took %d points of work's 5-hour, want 5", got)
 	}
 	shared := h.Take(date, theirs("o3", "work", -90*time.Second, "0.12"))
-	if got := shared.accounts[0].Points["5h"]; shared.story != h.story || got != 3 {
-		t.Errorf("taking another's line on work between its two, the story was built afresh %t, its points of work's 5-hour %d; want the story as it was, the points 3, worked out afresh",
-			shared.story != h.story, got)
+	if got := shared.points["work"]["5h"]; shared.record != h.record || got != 3 {
+		t.Errorf("taking another's line on work between its two, the session was held afresh %t, its points of work's 5-hour %d; want the session as it was, the points 3, worked out afresh",
+			shared.record != h.record, got)
 	}
-	if own := shared.Take(date, []ledger.Held{{Line: lineOf("s9", "s1", "work", 2*time.Second, "0.40")}}); own.story == shared.story {
-		t.Errorf("taking a line of its own, the story is as it was, want it built afresh")
+	own, changed := shared.Took(date, []ledger.Held{{Line: lineOf("s9", "s1", "work", 2*time.Second, "0.40")}})
+	if !changed || own.record != shared.record {
+		t.Errorf("taking a line of its own, the page changed %t, its session held afresh %t; want it changed, its session as the store holds it", changed, own.record != shared.record)
 	}
 }

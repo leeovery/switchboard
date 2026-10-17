@@ -153,6 +153,14 @@ func linesInOrder(lines []ledger.Line) []ledger.Line {
 	return ordered
 }
 
+// sameStory reports whether two stories hold the same, told by the same
+// prices: so whatever is asked of one, the other tells alike.
+func sameStory(a, b *story) bool {
+	x, y := *a, *b
+	x.prices, y.prices = ledger.Table{}, ledger.Table{}
+	return reflect.DeepEqual(x, y)
+}
+
 // storyTold is what a story tells, as the views read it, for one told over
 // held requests to be held to one told over lines: its first and last
 // request, what names it, its directory, its last requests that gave usage,

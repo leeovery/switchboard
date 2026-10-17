@@ -164,9 +164,13 @@ func (d sessionDrawn) request(c *canvas, y, i int) {
 
 // foot draws the turn open's foot along row y: its tree's └ in border, and
 // how many of its requests are out of view either way, and how to go
-// through them.
+// through them; or, while they're read, loading…, in text.subtle.
 func (d sessionDrawn) foot(c *canvas, y int) {
 	c.text(treeAt, y, "└", borderInk)
+	if d.shown.RequestsLoading {
+		c.line(turnSpread.left, y, line{{loadingWord, dimInk}}.fit(d.Width-turnSpread.left))
+		return
+	}
 	from, to := d.shown.requestsShown(d.l)
 	c.line(turnSpread.left, y, outOfView(from, len(d.shown.Requests)-to, d.Width-turnSpread.left, requestsOut))
 }

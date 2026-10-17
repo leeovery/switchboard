@@ -17,10 +17,12 @@ type SessionShown struct {
 	// Open is the turn open, by its number: 0 while none is. Requests are the
 	// Log's lines of its requests, oldest first, as
 	// views.HeldPage.TurnRequests gives them, and Request the one chosen
-	// among them, by its index.
-	Open     int
-	Requests []views.LogLine
-	Request  int
+	// among them, by its index; RequestsLoading is set while they're read,
+	// as views.BuiltPage's has it, its foot saying so.
+	Open            int
+	Requests        []views.LogLine
+	Request         int
+	RequestsLoading bool
 	// Scroll is how many rows its turns are scrolled down by, and
 	// RequestsScroll how many the open turn's requests are.
 	Scroll, RequestsScroll int

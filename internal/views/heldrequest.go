@@ -3,6 +3,7 @@ package views
 import (
 	"cmp"
 	"hash/maphash"
+	"iter"
 	"slices"
 	"strings"
 	"time"
@@ -11,16 +12,20 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 )
 
-// heldRequest is a session's request as its story takes it in, its line
-// decoded once: its flight; what its line names it by, each name interned, as
-// a session's requests name the same again and again; the accounts it went
-// out on that couldn't serve it; what it spent; how long its writes to the
-// cache last; and what it was worth at a day's prices. A story is told again
-// from it without decoding its line again, and it's a fraction of its line's
-// size, so the store holds it in place of the line.
+// heldRequest is a session's request as its story and its page take it in,
+// its line decoded once: its flight; what its line names it by, each name
+// interned, as a session's requests name the same again and again, the
+// prompt it serves and why its answer stopped among them, and the tools its
+// answer called, interned as one, as calls repeat; whether it went upstream;
+// the accounts it went out on that couldn't serve it; what it spent; how long
+// its writes to the cache last; and what it was worth at a day's prices. A
+// story is told again from it without decoding its line again, and it's a
+// fraction of its line's size, so the store holds it in place of the line.
 type heldRequest struct {
 	flight
 	dir, model, account, reason, from, class, agentID, geo unique.Handle[string]
+	prompt, stop, tools                                    unique.Handle[string]
+	upstream                                               bool
 	tried                                                  []ledger.Tried
 	spend                                                  ledger.Spend
 	// life is how long its writes to the cache last, as ledger.Spend's
@@ -41,9 +46,27 @@ func heldRequestOf(l *ledger.Line) heldRequest {
 	spend := ledger.SpendOf(l)
 	life, _ := spend.CacheLife()
 	return heldRequest{
-		flight: flightOf(l), tried: l.Tried, spend: spend, life: life, sum: sumOf(l),
+		flight: flightOf(l), tried: l.Tried, spend: spend, life: life, sum: sumOf(l), upstream: l.Upstream(),
 		dir: unique.Make(l.Dir), model: unique.Make(l.Model), account: unique.Make(l.Account), reason: unique.Make(l.Reason),
 		from: unique.Make(l.From), class: unique.Make(l.Class), agentID: unique.Make(l.AgentID), geo: unique.Make(l.Shape.InferenceGeo),
+		prompt: unique.Make(l.Prompt), stop: unique.Make(l.Answer.Stop), tools: unique.Make(strings.Join(l.Answer.Tools, toolsApart)),
+	}
+}
+
+// toolsApart is what parts the names of the tools an answer called as a
+// held request interns them as one: no tool's name holds it.
+const toolsApart = "\x00"
+
+// calls are the names of the tools r's answer called, in order.
+func (r *heldRequest) calls() iter.Seq[string] {
+	return func(yield func(string) bool) {
+		if all := r.tools.Value(); all != "" {
+			for name := range strings.SplitSeq(all, toolsApart) {
+				if !yield(name) {
+					return
+				}
+			}
+		}
 	}
 }
 
@@ -59,16 +82,19 @@ func sumOf(l *ledger.Line) uint64 {
 	var h maphash.Hash
 	h.SetSeed(linesSeed)
 	maphash.WriteComparable(&h, struct {
-		request, session, dir, model, account, reason, from, class, agentID, geo, kind string
-		at, end                                                                        instant
-		upstream                                                                       bool
-		tried                                                                          int
+		request, session, dir, model, account, reason, from, class, agentID, geo, kind, prompt, stop string
+		at, end                                                                                      instant
+		upstream                                                                                     bool
+		tried, tools                                                                                 int
 	}{
-		l.Request, l.Session, l.Dir, l.Model, l.Account, l.Reason, l.From, l.Class, l.AgentID, l.Shape.InferenceGeo, l.Kind,
-		instantOf(l.At), instantOf(ended(l)), l.Upstream(), len(l.Tried),
+		l.Request, l.Session, l.Dir, l.Model, l.Account, l.Reason, l.From, l.Class, l.AgentID, l.Shape.InferenceGeo, l.Kind, l.Prompt, l.Answer.Stop,
+		instantOf(l.At), instantOf(ended(l)), l.Upstream(), len(l.Tried), len(l.Answer.Tools),
 	})
 	for _, t := range l.Tried {
 		maphash.WriteComparable(&h, t)
+	}
+	for _, tool := range l.Answer.Tools {
+		maphash.WriteComparable(&h, tool)
 	}
 	_, _ = h.Write(l.Usage)
 	return h.Sum64()
@@ -109,6 +135,14 @@ func pricedAt(requests []heldRequest, prices ledger.Table, date string) []heldRe
 func (r heldRequest) pricedOn(prices ledger.Table, date string) heldRequest {
 	r.worth, r.priced = prices.SummedSpend(r.model.Value(), r.geo.Value(), r.spend, date)
 	return r
+}
+
+// worthSaid is what r was worth, as a page sums it: as it was priced, none
+// where it wasn't.
+func (r *heldRequest) worthSaid() Worth {
+	var w Worth
+	w.addSummed(r.worth, r.priced)
+	return w
 }
 
 // withRequests returns held, a session's requests in order, as inOrder has

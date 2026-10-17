@@ -708,6 +708,10 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.framed(msg), nil
 	case sessionReadMsg:
 		return m.sessionRead(msg), nil
+	case turnReadMsg:
+		return m.turnRead(msg), nil
+	case turnLoadingMsg:
+		return m.turnLoading(msg), nil
 	case pageLoadingMsg:
 		return m.pageLoading(msg), nil
 	case loadingMsg:

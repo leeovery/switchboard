@@ -1,6 +1,7 @@
 package watch
 
 import (
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -99,6 +100,98 @@ func TestATurnOpensIntoItsRequestsAndItsKeysMoveThroughThem(t *testing.T) {
 	if h.model.session != nil {
 		t.Error("esc again left the page open, want it gone back where it was opened from")
 	}
+}
+
+// openingTurn opens the turn chosen, as enter does, and returns its read,
+// held back undelivered as one still under way, and the timer armed for it
+// to say it's loading.
+func (h *harness) openingTurn() ([]tea.Msg, *timer) {
+	h.t.Helper()
+	read := holdingBack[turnReadMsg](h, h.update(enterKey)...)
+	tm, ok := h.pending(turnLoadingMsg{opened: h.model.session.opened()})
+	if len(read) != 1 || !ok {
+		h.t.Fatalf("a turn opened, its read under way %d times, its loading armed %t; want it read once, its loading armed", len(read), ok)
+	}
+	return read, tm
+}
+
+// A turn opened reads its requests' lines from the ledger, no row of them
+// shown till they're read: its foot saying nothing of it short of
+// LoadingAfter, then saying it's loading till they're read; then shows
+// them. A read for a turn closed since, or opened again since, opens
+// nothing, the turn open the later's; and closed, the page holds none of
+// its lines.
+func TestATurnOpenedShowsItsLoadingTillItsLinesAreRead(t *testing.T) {
+	lines := turnsOfRequests(start.Add(-30*time.Minute), 8, 1)
+	h, _ := pageHarness(t, lines)
+	h.openPage(idD28C)
+	h.keys(downKey)
+	read, loading := h.openingTurn()
+	if shown := h.shownPage(); shown.RequestsLoading || len(shown.Requests) != 0 || footSays(h.view(), "loading…") {
+		t.Fatalf("turn 1 opened, its read under way short of %s, loading %t, showing %d rows; want no rows, saying nothing of loading", LoadingAfter, shown.RequestsLoading, len(shown.Requests))
+	}
+	h.fire(loading)
+	if shown := h.shownPage(); !shown.RequestsLoading || len(shown.Requests) != 0 || !footSays(h.view(), "loading…") {
+		t.Fatalf("turn 1 opened, its read under way %s on, loading %t, showing %d rows, its foot saying loading %t; want it loading, no rows shown, saying so",
+			LoadingAfter, shown.RequestsLoading, len(shown.Requests), footSays(h.view(), "loading…"))
+	}
+	h.deliver(read...)
+	if shown := h.shownPage(); shown.RequestsLoading || len(shown.Requests) != 8 {
+		t.Errorf("its read landed, loading %t, showing %d rows; want its 8 requests shown", shown.RequestsLoading, len(shown.Requests))
+	}
+
+	h.keys(escKey)
+	stale, staleLoading := h.openingTurn()
+	h.keys(escKey)
+	again, againLoading := h.openingTurn()
+	h.fire(staleLoading)
+	if shown := h.shownPage(); shown.RequestsLoading {
+		t.Error("the loading of a turn opened before it was closed and opened again came due, the turn says it's loading; want nothing said till its own comes due")
+	}
+	h.fire(againLoading)
+	h.deliver(stale...)
+	if shown := h.shownPage(); !shown.RequestsLoading || len(shown.Requests) != 0 {
+		t.Errorf("the read of a turn opened before it was closed and opened again landed, loading %t, showing %d rows; want it loading still, no rows",
+			shown.RequestsLoading, len(shown.Requests))
+	}
+	h.deliver(again...)
+	if shown := h.shownPage(); shown.RequestsLoading || len(shown.Requests) != 8 {
+		t.Errorf("the read of the turn opened again landed, loading %t, showing %d rows; want its 8 requests shown", shown.RequestsLoading, len(shown.Requests))
+	}
+	h.keys(escKey)
+	if turn := reflect.ValueOf(h.model.session.held).FieldByName("turn"); !turn.IsNil() {
+		t.Error("its turn closed, the page holds its lines, want none")
+	}
+}
+
+// A turn opened while a read of the ledger's tail is under way, the read
+// growing a copy of the page from before it opened, stays open as the read
+// lands, its requests shown.
+func TestATurnOpenedWhileTheTailIsReadStaysOpenAsTheReadLands(t *testing.T) {
+	h, _ := pageHarness(t, turnsOfRequests(start.Add(-30*time.Minute), 8, 1))
+	h.openPage(idD28C)
+	h.settle()
+	h.model.tail.due = true
+	tailed := holdingBack[tailedMsg](h, h.update(tea.WindowSizeMsg{Width: h.model.size.Width, Height: h.model.size.Height})...)
+	if len(tailed) != 1 {
+		t.Fatalf("a look read the tail %d times, want once", len(tailed))
+	}
+	h.keys(downKey, enterKey)
+	h.deliver(tailed...)
+	if turn := reflect.ValueOf(h.model.session.held).FieldByName("turn"); turn.IsNil() {
+		t.Fatal("the tail's read landed, turn 1 opened as it ran, the page holds none of its lines; want them held")
+	}
+	if shown := h.shownPage(); shown.RequestsLoading || len(shown.Requests) != 8 {
+		t.Errorf("the tail's read landed, turn 1 opened as it ran, loading %t, showing %d rows; want its 8 requests shown", shown.RequestsLoading, len(shown.Requests))
+	}
+}
+
+// footSays reports whether the foot of the turn open the view draws says
+// what's given.
+func footSays(view, said string) bool {
+	return slices.ContainsFunc(strings.Split(view, "\n"), func(row string) bool {
+		return strings.HasPrefix(strings.TrimSpace(row), "└") && strings.Contains(row, said)
+	})
 }
 
 // A turn open's request in flight counts on as it's drawn, as the Log's row
@@ -343,5 +436,26 @@ func TestHowFarAPagesTurnsScrollIsLaidOutOfThePageAlone(t *testing.T) {
 	least := testing.AllocsPerRun(10, func() { bare.TurnsScrolling() })
 	if got := testing.AllocsPerRun(10, func() { h.model.turnsScrolling(shown) }); got > least {
 		t.Errorf("how far the turns scroll allocates %.0f times, want no more than the page alone laid out does, %.0f", got, least)
+	}
+}
+
+// The read of a turn opened on a page closed before it landed opens nothing
+// on the page opened again since, its same turn open: that waits on its own.
+func TestATurnsReadForAPageClosedSinceOpensNothingOnItOpenedAgain(t *testing.T) {
+	h, _ := pageHarness(t, turnsOfRequests(start.Add(-30*time.Minute), 8, 1))
+	h.openPage(idD28C)
+	h.keys(downKey)
+	stale, _ := h.openingTurn()
+	h.keys(escKey, escKey)
+	h.openPage(idD28C)
+	h.keys(downKey)
+	again, _ := h.openingTurn()
+	h.deliver(stale...)
+	if read := reflect.ValueOf(h.model.session.held).FieldByName("turn").Elem().FieldByName("read"); read.Bool() {
+		t.Error("the read of a turn opened on the page closed since landed, the page opened again holds it as its turn's; want it waiting on its own")
+	}
+	h.deliver(again...)
+	if shown := h.shownPage(); shown.RequestsLoading || len(shown.Requests) != 8 {
+		t.Errorf("the read of the turn opened again landed, loading %t, showing %d rows; want its 8 requests shown", shown.RequestsLoading, len(shown.Requests))
 	}
 }

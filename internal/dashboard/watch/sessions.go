@@ -180,32 +180,53 @@ type heldFold struct {
 }
 
 // heldFold is what a read of the ledger's tail at now does for the store,
-// nil while nothing wants it, the List's first read yet to land and the Log
-// not opened: its late days those of the days the tail missed, as missed
-// has them, it holds not every line of, as Unread has them; and those it
-// awaits a line on, as Awaited has them, whose lines could have come since
-// they were last read, as due has them, as the Log's are; each once, the
-// oldest first. It wants what the List wants, once it's held, else what
-// the stream pins.
+// nil while nothing wants it nor it holds anything: as storeFold has it
+// while a reader wants it, the List once its first read has landed, the Log
+// once opened, or the session's page open once it's loaded; else one
+// wanting none, so it lets go of what nobody wants, reading no day again
+// for a store nothing wants.
 func (m Model) heldFold(now time.Time) *heldFold {
-	if !m.sessionsTab.listed && !m.log.opened {
-		return nil
+	switch {
+	case m.sessionsTab.listed || m.log.opened || m.paged():
+		return m.storeFold(now, m.log.opened)
+	case m.held.Len() > 0:
+		return &heldFold{held: m.held, awaited: m.sessionsTab.awaited}
 	}
-	return m.storeFold(now)
+	return nil
 }
 
 // storeFold is what a read of the ledger's tail at now does for the store,
-// as heldFold has it, whatever wants it.
-func (m Model) storeFold(now time.Time) *heldFold {
+// whatever wants it, logs saying whether the Log does: it wants what the
+// List wants, once it's held, else what the stream pins, and the session of
+// the page open, once it's loaded, as views.SessionsWanted's Paging has it;
+// its late days those of the days the tail missed, as missed has them, it
+// holds not every line of, as Unread has them; and, for the List or the
+// Log, which tell of every request the stream tells of, those it awaits a
+// line on, as Awaited has them, whose lines could have come since they were
+// last read, as due has them, as the Log's are, the page's own being the
+// page's; each once, the oldest first.
+func (m Model) storeFold(now time.Time, logs bool) *heldFold {
 	t := m.sessionsTab
 	live := m.listLive(now, m.traffic.stream(now))
-	due, awaited := t.awaited.due(m.held.Awaited(live), live.Stream, now)
-	late := slices.Concat(due, m.held.Unread(m.tail.missed(views.Today(now))))
-	want := views.StreamWanted(live.Stream)
+	f := &heldFold{held: m.held, want: views.StreamWanted(live.Stream), awaited: t.awaited}
 	if t.listed {
-		want = views.ListWanted(live.Running, live.Stream)
+		f.want = views.ListWanted(live.Running, live.Stream)
 	}
-	return &heldFold{held: m.held, want: want, late: slices.Compact(slices.Sorted(slices.Values(late))), awaited: awaited}
+	var due []string
+	if t.listed || logs {
+		due, f.awaited = t.awaited.due(m.held.Awaited(live), live.Stream, now)
+	}
+	if m.paged() {
+		f.want = f.want.Paging(m.session.held, live.Stream)
+	}
+	late := slices.Concat(due, m.held.Unread(m.tail.missed(views.Today(now))))
+	f.late = slices.Compact(slices.Sorted(slices.Values(late)))
+	return f
+}
+
+// paged reports whether a session's page is open, its first read landed.
+func (m Model) paged() bool {
+	return m.session != nil && m.session.asked != 0
 }
 
 // heldAwaiting is m with the store noting when each day it awaits a line on

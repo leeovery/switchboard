@@ -10,7 +10,6 @@ import (
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
-	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -270,47 +269,8 @@ func KeptUntil(date string, now time.Time) string {
 	return "kept until " + prose.DayMonth(until)
 }
 
-// request is a session's request: its line, what it would have cost through
-// the API, as ledger.Table.Summed gives it, and the tokens its answer's usage
-// counts, metered where it gave usage, none where it gave none.
-type request struct {
-	*ledger.Line
-	worth   Worth
-	tokens  quota.Tokens
-	metered bool
-}
-
-// requestsOf returns the requests among lines, a session's, oldest first, as
-// isRequest says, each priced by prices at the local day with the given
-// date, once, for its story and its page alike.
-func requestsOf(lines []ledger.Line, prices ledger.Table, date string) []request {
-	var requests []request
-	for i := range lines {
-		l := &lines[i]
-		if !isRequest(l) {
-			continue
-		}
-		tokens, metered := l.Tokens()
-		requests = append(requests, request{Line: l, worth: summed(prices, l, date), tokens: tokens, metered: metered})
-	}
-	return requests
-}
-
 func ended(l *ledger.Line) time.Time {
 	return l.At.Add(time.Duration(l.TotalMS) * time.Millisecond)
-}
-
-// resumedAt returns when a session's requests, oldest first, as its lines
-// and the stream tell of them, last came back after an idle gap, as idled
-// says: zero where they never did.
-func resumedAt(requests []sent) time.Time {
-	var resumed time.Time
-	for i := 1; i < len(requests); i++ {
-		if idled(requests[i-1].at, requests[i].at) {
-			resumed = requests[i].at.UTC()
-		}
-	}
-	return resumed
 }
 
 // idled reports whether a session's requests that came at prev and then at
@@ -321,54 +281,10 @@ func idled(prev, next time.Time) bool {
 	return next.Sub(prev) >= IdleHour
 }
 
-// accountsOf returns the accounts requests, a session's, oldest first, went
-// to, in the order they first did, each with its first and last request
-// there, their count and their worth: one the router answered itself went to
-// none.
-func accountsOf(requests []request) []SessionAccount {
-	var accounts []SessionAccount
-	for _, r := range requests {
-		if r.Account == "" {
-			continue
-		}
-		i := slices.IndexFunc(accounts, func(a SessionAccount) bool { return a.Account == r.Account })
-		if i < 0 {
-			i = len(accounts)
-			accounts = append(accounts, SessionAccount{Account: r.Account, From: r.At.UTC()})
-		}
-		accounts[i].To = r.At.UTC()
-		accounts[i].Requests++
-		accounts[i].add(r.worth)
-	}
-	if accounts == nil {
-		return []SessionAccount{}
-	}
-	return accounts
-}
-
 func movesOf(s *story) []SessionMove {
 	moves := make([]SessionMove, len(s.moves))
 	for i, m := range s.moves {
 		moves[i] = SessionMove{At: m.at.UTC(), Model: m.model, From: m.from, To: m.to, Reason: m.reason, Written: m.written, Cost: m.cost, Rewrote: m.rewrote != nil}
 	}
 	return moves
-}
-
-// totalsOf sums requests, a session's, of which it told turns turns: the
-// share of the tokens they sent that the cache served is their reads from it
-// over their input, those reads and their writes to it together, none where
-// they sent none.
-func totalsOf(requests []request, turns int) SessionTotals {
-	var worth Worth
-	var read, sent int
-	for _, r := range requests {
-		worth.add(r.worth)
-		read += r.tokens.CacheRead
-		sent += r.tokens.Input + r.tokens.CacheRead + r.tokens.CacheWrite
-	}
-	totals := SessionTotals{Turns: turns, Requests: len(requests), Worth: worth}
-	if sent > 0 {
-		totals.FromCache = float64(read) / float64(sent)
-	}
-	return totals
 }

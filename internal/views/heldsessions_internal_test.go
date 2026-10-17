@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"math/rand/v2"
+	"reflect"
 	"slices"
 	"testing"
 	"time"
@@ -128,7 +129,7 @@ func (f *feeding) look(now time.Time, lag time.Duration, again bool) {
 	switch whole := gains["s"].whole; {
 	case behind && !whole:
 		f.t.Fatalf("session %d fed at %v took a line behind its horizon in, want it read whole", f.seed, now)
-	case whole && before != nil && !ruled && !now.Before(f.fed) && !f.gainsLong(now, days):
+	case whole && before != nil && !ruled && !now.Before(f.fed) && !f.gainsLong(now, days) && !f.repriced(before, now):
 		f.t.Fatalf("session %d fed at %v was read whole, want it held as it was, its lines all placed", f.seed, now)
 	case whole:
 		f.horizon = f.ruled(now)
@@ -188,6 +189,13 @@ func (f *feeding) gainsLong(now time.Time, days map[string][]ledger.Held) bool {
 		}
 	}
 	return false
+}
+
+// repriced reports whether a look at now turns the day of the session s,
+// whose page is open, on to one on which a model its lines asked for costs
+// otherwise: its page, priced at today's prices, is tallied again whole.
+func (f *feeding) repriced(s *heldSession, now time.Time) bool {
+	return s.page != nil && Today(now).Date > s.day().Date && !s.page.pricedAlike(f.prices, s.day().Date, Today(now).Date)
 }
 
 // ruled is the session's horizon at now as the rule has it, before the
@@ -497,5 +505,58 @@ func TestALineSayingOtherwiseOfARequestHeldHasItsSessionReadWhole(t *testing.T) 
 				})
 			}
 		}
+	}
+}
+
+// A store given another's sessions keeps its own prices whatever the
+// other's are; takes those of its sessions it doesn't hold; and is as last
+// fed, by one rule, whether it holds a session or not: as the other, where
+// it was never fed; else, of the two that hold a session, the earlier fed;
+// of two that hold none, the later. It counts the more feeds of the two.
+func TestTheStoreGivenAnothersSessionsKeepsItsPricesAndIsAsLastFedByOneRule(t *testing.T) {
+	early, late := time.Date(2026, 10, 6, 23, 0, 0, 0, time.Local), time.Date(2026, 10, 7, 9, 0, 0, 0, time.Local)
+	own, others := ledger.Pricing, changingPrices()
+	holding := func(prices ledger.Table, at time.Time, feeds int, ids ...string) HeldSessions {
+		h := HeldSessions{prices: prices, day: Today(at), fed: at, feeds: feeds, sessions: make(map[string]*heldSession)}
+		for _, id := range ids {
+			h.sessions[id] = readOf(nil, prices, Today(at), instantOf(at), false)
+		}
+		return h
+	}
+	tests := []struct {
+		name     string
+		h, found HeldSessions
+		fed      time.Time
+		held     []string
+		feeds    int
+	}{
+		{name: "never fed, given a read", h: HoldSessions(own), found: holding(others, late, 1, "a"), fed: late, held: []string{"a"}, feeds: 1},
+		{name: "fed, holding none, given nothing", h: holding(own, late, 3), found: HeldSessions{}, fed: late, feeds: 3},
+		{name: "fed, holding none, given a later read holding none", h: holding(own, early, 3), found: holding(others, late, 1), fed: late, feeds: 3},
+		{name: "fed, holding none, given an earlier read holding none", h: holding(own, late, 3), found: holding(others, early, 1), fed: late, feeds: 3},
+		{name: "fed long ago, holding none, given a later read", h: holding(own, early, 3), found: holding(others, late, 1, "a"), fed: late, held: []string{"a"}, feeds: 3},
+		{name: "fed, holding, given a later read holding none", h: holding(own, late, 3, "a"), found: holding(others, early, 1), fed: late, held: []string{"a"}, feeds: 3},
+		{name: "fed, holding, given an earlier read", h: holding(own, late, 3, "a"), found: holding(others, early, 1, "a", "b"), fed: early, held: []string{"a", "b"}, feeds: 3},
+		{name: "fed, holding, given a later read", h: holding(own, early, 3, "a"), found: holding(others, late, 4, "b"), fed: early, held: []string{"a", "b"}, feeds: 4},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.h.With(tt.found)
+			if !reflect.DeepEqual(got.prices, own) {
+				t.Errorf("the store is priced as %s, want its own prices, as of %s", got.prices.AsOf, own.AsOf)
+			}
+			if !got.fed.Equal(tt.fed) || got.day != Today(tt.fed) {
+				t.Errorf("the store is as last fed at %v, on %s; want %v, on %s", got.fed, got.day.Date, tt.fed, Today(tt.fed).Date)
+			}
+			if ids := slices.Sorted(maps.Keys(got.sessions)); !slices.Equal(ids, tt.held) {
+				t.Errorf("the store holds %v, want %v", ids, tt.held)
+			}
+			if tt.h.sessions["a"] != nil && got.sessions["a"] != tt.h.sessions["a"] {
+				t.Error("the store took in place of a session it held the other's, want its own kept")
+			}
+			if got.feeds != tt.feeds {
+				t.Errorf("the store counts %d feeds, want %d", got.feeds, tt.feeds)
+			}
+		})
 	}
 }
