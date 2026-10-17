@@ -81,12 +81,12 @@ func onTheBoard() (dashboard.SessionsShown, dashboard.Traffic) {
 }
 
 // frames are frames of threeAccounts the tests draw, as text alone: full
-// screen, at a size each, Sessions' Switchboard, and Runway over the 5-hour
-// and the week, among them.
+// screen, at a size each, every model's own window shown, as w shows them,
+// Sessions' Switchboard, and Runway over the 5-hour and the week, among them.
 func frames() map[string]dashboard.Frame {
 	frame := func(width, height int) dashboard.Frame {
 		return dashboard.Frame{
-			Width: width, Height: height, View: dashboard.Overview, Policy: claude,
+			Width: width, Height: height, View: dashboard.Overview, Policy: claude, Models: true,
 			KeyLine: dashboard.KeyLine{Groups: [][]dashboard.Key{{{Key: "q", Does: "quit"}}}},
 		}
 	}
@@ -178,7 +178,7 @@ func TestTheTerminalThemeDrawsInTheTerminalsOwnColours(t *testing.T) {
 		t.Errorf("drawn in the terminal's own colours, it has a colour of its own:\n%q", frame)
 	}
 	text := ansi.Strip(frame)
-	if want := "1 work ◆      ██████▎░░░┃░░░░░░  37%"; !strings.Contains(text, want) {
+	if want := "1 work ◆      ██████▊░░░┃░░░░░░  40%"; !strings.Contains(text, want) {
 		t.Errorf("drawn in the terminal's own colours\n%s\nwant %q, its bars drawn whole", text, want)
 	}
 	for i, row := range strings.Split(text, "\n") {

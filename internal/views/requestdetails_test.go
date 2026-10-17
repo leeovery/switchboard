@@ -55,7 +55,7 @@ func TestARequestsDetailsAreWhatItsLineGivesBeyondItsRow(t *testing.T) {
 			want: views.RequestDetails{
 				Answer: "msg_01", Served: "claude-opus-5-5-20261001", Betas: []string{"context-1m", "interleaved-thinking"},
 				Windows: []views.WindowThen{
-					{Key: "5h", Name: "5-hour", Use: 0.91, Resets: october(7, 17, 10).UTC()}, {Key: "7d", Name: "week", Use: 0.77},
+					{Key: "7d", Name: "week", Use: 0.77}, {Key: "5h", Name: "5-hour", Use: 0.91, Resets: october(7, 17, 10).UTC()},
 					{Key: "7d_oi", Name: "Fable week", Use: 0.4},
 				},
 				LimitStatus: quota.StatusAllowedWarning, System: 3, MaxTokens: 32_000, Effort: "high", Stream: new(true),

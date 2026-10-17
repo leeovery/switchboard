@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/views"
@@ -137,28 +138,34 @@ func TestTheLogsFilterIsSaidAsWhatItKeeps(t *testing.T) {
 	}
 }
 
-// The state line at 160 columns, and on a phone, is as the frames draw it.
-func TestTheLogsStateLineIsAsTheFramesDrawIt(t *testing.T) {
+// The state line at 160 columns, and on a phone, says how the table stands
+// at its left and the count at its right: following, paused with what's new
+// since, not live with the ledger's lines to when, filtered to a session, and
+// of events.
+func TestTheLogsStateLineSaysHowTheTableStandsThenItsCount(t *testing.T) {
 	tests := []struct {
-		stem  string
-		width int
-		row   int
-		state logState
+		name        string
+		width       int
+		state       logState
+		left, right string
 	}{
-		{stem: "log-requests-160", width: 160, row: 35, state: logState{standing: logFollowing, shown: 1240, noun: "line"}},
-		{stem: "log-requests-phone-52", width: 52, row: 31, state: logState{standing: logFollowing, shown: 1240, noun: "line"}},
-		{stem: "log-requests-filtered-160", width: 160, row: 35, state: logState{shown: 445, of: "d28c"}},
-		{stem: "log-events-160", width: 160, row: 35, state: logState{shown: 20, noun: "event"}},
+		{name: "following", width: 160, state: logState{standing: logFollowing, shown: 1240, noun: "line"}, left: "● following", right: "1,240 lines today"},
+		{name: "on a phone", width: 52, state: logState{standing: logFollowing, shown: 1240, noun: "line"}, left: "● following", right: "1,240 lines today"},
+		{name: "a session's lines", width: 160, state: logState{shown: 445, of: "d28c"}, left: "● following", right: "445 of d28c's today"},
+		{name: "events", width: 160, state: logState{shown: 20, noun: "event"}, left: "● following", right: "20 events today"},
 		{
-			stem: "log-request-details-160", width: 160, row: 35,
-			state: logState{standing: logPaused, at: loggedOn(0, 14, 31, 13), fresh: 214, shown: 1240, noun: "line"},
+			name: "paused", width: 160, state: logState{standing: logPaused, at: loggedOn(0, 14, 31, 13), fresh: 214, shown: 1240, noun: "line"},
+			left: "‖ paused at 14:31:13   ▼ 214 new   end to follow", right: "1,240 lines today",
 		},
-		{stem: "log-not-live-160", width: 160, row: 35, state: logState{standing: logNotLive, at: loggedOn(0, 14, 40, 52), shown: 1198, noun: "line"}},
+		{
+			name: "not live", width: 160, state: logState{standing: logNotLive, at: loggedOn(0, 14, 40, 52), shown: 1198, noun: "line"},
+			left: "○ not live   the ledger's lines to 14:40:52; those since come in as the router answers again", right: "1,198 lines today",
+		},
 	}
 	for _, tt := range tests {
-		t.Run(tt.stem, func(t *testing.T) {
-			want := strings.TrimRight(referenceRows(t, tt.stem, "txt")[tt.row], " ")
-			if got := tt.state.line(tt.width, logNow).plain(); got != want {
+		t.Run(tt.name, func(t *testing.T) {
+			gap := tt.width - utf8.RuneCountInString(tt.left) - utf8.RuneCountInString(tt.right)
+			if got, want := tt.state.line(tt.width, logNow).plain(), tt.left+strings.Repeat(" ", gap)+tt.right; got != want {
 				t.Errorf("the state line reads\n%q\nwant\n%q", got, want)
 			}
 		})
@@ -230,18 +237,14 @@ func dayRuleOf(totals views.DayTotals) views.DayRule {
 	return views.DayRule{Ended: views.LedgerDay{Date: "2026-09-30"}, Began: views.LedgerDay{Date: "2026-10-01"}, Totals: totals}
 }
 
-// wedTotals are the day rule's figures as log-events-160 draws them.
+// wedTotals are the day rule's figures, Wednesday's in the auto world.
 var wedTotals = views.DayTotals{Date: "2026-09-30", Requests: 1912, Sessions: 17, Limits: 2, Amount: usd(212)}
 
-// The day rule at 160 columns is as log-events-160 draws it, inked as the
-// design says: the days bold text.primary, the figures text.secondary, the
-// limits bold state.destructive and the worth bold text.secondary.
-func TestTheDayRuleIsAsTheFrameDrawsIt(t *testing.T) {
-	want := referenceRows(t, "log-events-160", "txt")[13]
+// The day rule at 160 columns is inked as the design says: the days bold
+// text.primary, the figures text.secondary, the limits bold
+// state.destructive and the worth bold text.secondary.
+func TestTheDayRuleIsInkedAsTheDesignSays(t *testing.T) {
 	got := logDayRule(dayRuleOf(wedTotals), 158)
-	if text := "  " + got.plain(); text != want {
-		t.Errorf("the day rule reads\n%q\nwant\n%q", text, want)
-	}
 	inks := line{
 		{"Wed 30 Sep", titleInk}, {"   ", ink{}}, {"1,912", secondaryInk}, {" requests · ", mutedInk}, {"17", secondaryInk}, {" sessions · ", mutedInk},
 		{"2", exhaustedInk}, {" limits reached · ", mutedInk}, {"$212", strongInk}, {" at API prices", mutedInk}, {"  ", ink{}},

@@ -38,14 +38,14 @@ const (
 
 // The columns the routing card's rows lay their parts in, from its
 // content's start: the mark; the name, its number before it; the state, or
-// auto's description; the 5-hour window, then the week, a phone's under the
-// name from the state's column; and at the content's end, the reason or the
-// sessions running.
+// auto's description; the first window, the week, then the second, the
+// 5-hour, a phone's under the name from the state's column; and at the
+// content's end, the reason or the sessions running.
 const (
 	choiceName    = 2
 	choiceState   = 16
-	choiceSession = 26
-	choiceWeek    = 39
+	choiceWindows = 26
+	choiceSecond  = 37
 )
 
 // RoutingCard is the routing card's data, which the watch builds afresh at
@@ -124,8 +124,9 @@ type RoutingRow struct {
 	Open   bool
 	Reason string
 	Capped bool
-	// Session and Week are its 5-hour window's use and its week's.
-	Session, Week Figure
+	// Windows are the use of the first two windows every model shares, its
+	// week and its 5-hour, as the moment's SharedWindows lists them.
+	Windows [2]RoutingWindow
 	// Running counts its sessions running.
 	Running int
 	// Pickable is set where it can be picked: not where it can take no
@@ -142,6 +143,14 @@ type Figure struct {
 	Read, Stale bool
 }
 
+// RoutingWindow is a window of an account's row on the routing card: its
+// key; its name, as a sentence has it, as "week" or "5-hour"; and its use:
+// none of a row with no window in its place.
+type RoutingWindow struct {
+	Key, Name string
+	Figure
+}
+
 // RoutingRows are the routing card's rows of the moment m, with the sessions
 // the router listed, as the request stream s has moved and seen them since:
 // 0 auto's, then an account's each, in the config's order, each with its
@@ -150,13 +159,12 @@ type Figure struct {
 func RoutingRows(m status.Moment, sessions []status.Session, s views.Stream) []RoutingRow {
 	rows := []RoutingRow{{Key: "0", Name: "auto", Open: true, Pickable: true}}
 	running := views.RunningCountsOf(m, sessions, s)
+	shared := m.SharedWindows()
 	for i, a := range m.Accounts {
-		session, _ := startedWindow(a)
-		week, _ := sharedWeek(a)
-		row := RoutingRow{
-			Account: a.ID, Name: name(a), Pickable: pickable(a),
-			Session: figureOf(session), Week: figureOf(week),
-			Running: running[a.ID],
+		row := RoutingRow{Account: a.ID, Name: name(a), Pickable: pickable(a), Running: running[a.ID]}
+		for j, key := range shared[:min(len(shared), len(row.Windows))] {
+			w, _ := a.Window(key)
+			row.Windows[j] = RoutingWindow{Key: key, Name: status.InProse(status.NameOfKey(key)), Figure: figureOf(w)}
 		}
 		row.Reason, row.Capped = closedBy(a, m.Now)
 		row.Open = row.Reason == ""
@@ -219,13 +227,6 @@ func figureOf(w status.WindowNow) Figure {
 // it.
 func sharedWeek(a status.AccountNow) (status.WindowNow, bool) {
 	return windowWhere(a, func(w status.WindowNow) bool { return w.Shared && quota.WeekLong(w.Key) })
-}
-
-// startedWindow is the account's window a request starts, as it stands; or,
-// reporting false, where it has none, one it hasn't reported, as Window has
-// it.
-func startedWindow(a status.AccountNow) (status.WindowNow, bool) {
-	return windowWhere(a, func(w status.WindowNow) bool { return w.Started })
 }
 
 // windowWhere is the first of the account's windows that is, as it stands;
@@ -423,11 +424,24 @@ func (r RoutingCard) choice(row RoutingRow, phone bool, width int) []line {
 		state = line{{"closed", reasonInk(row)}}
 	}
 	named := padTo(head, choiceState, state)
-	windows := padTo(figureWords("5-hour", row.Session), choiceWeek-choiceSession, figureWords("week", row.Week))
+	windows := row.windowsWords()
 	if phone {
 		return []line{atEnd(named, row.sideWords(), width), padTo(nil, choiceState, windows).fit(width)}
 	}
-	return []line{atEnd(padTo(named, choiceSession, windows), row.sideWords(), width)}
+	return []line{atEnd(padTo(named, choiceWindows, windows), row.sideWords(), width)}
+}
+
+// windowsWords are the row's windows' use as the card says it, as
+// figureWords has each, the second choiceSecond-choiceWindows cells from the
+// first: none of a row with no window in its place.
+func (row RoutingRow) windowsWords() line {
+	var words line
+	for i, w := range row.Windows {
+		if w.Name != "" {
+			words = padTo(words, i*(choiceSecond-choiceWindows), figureWords(w.Name, w.Figure))
+		}
+	}
+	return words
 }
 
 // autoChooses is what auto's row says of it, in room cells: the router

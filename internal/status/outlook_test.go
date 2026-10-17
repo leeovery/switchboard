@@ -191,7 +191,7 @@ func TestEachWindowsEvenPaceAndAllowance(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			w := tt.doc.WorkedOut(policy).Accounts[0].Windows[0]
 			if (w.Pace != nil) != tt.wantOK || w.Pace != nil && math.Abs(*w.Pace-tt.pace) > 1e-12 {
-				t.Errorf("its even pace is %s, want %s", paceOf(w.Pace), paceWanted(tt.wantOK, tt.pace))
+				t.Errorf("its even pace is %s, want %s", figureOf(w.Pace), paceWanted(tt.wantOK, tt.pace))
 			}
 			if math.Abs(w.Allowance.Share-tt.allowed.Share) > 1e-12 || w.Allowance.Per != tt.allowed.Per {
 				t.Errorf("its allowance is %+v, want %+v", w.Allowance, tt.allowed)
@@ -200,12 +200,12 @@ func TestEachWindowsEvenPaceAndAllowance(t *testing.T) {
 	}
 }
 
-// paceOf shows an even pace, or that there's none.
-func paceOf(pace *float64) string {
-	if pace == nil {
+// figureOf shows a figure, as an even pace, or that there's none.
+func figureOf(figure *float64) string {
+	if figure == nil {
 		return "none"
 	}
-	return fmt.Sprintf("%.6g", *pace)
+	return fmt.Sprintf("%.6g", *figure)
 }
 
 // paceWanted shows the even pace a test wants: pace, or none unless ok.
@@ -213,7 +213,7 @@ func paceWanted(ok bool, pace float64) string {
 	if !ok {
 		return "none"
 	}
-	return paceOf(&pace)
+	return figureOf(&pace)
 }
 
 func TestThePool(t *testing.T) {
@@ -222,6 +222,7 @@ func TestThePool(t *testing.T) {
 	reservingMore := func(a *status.Account) { a.Reserve = 0.2 }
 	weekCapped := with(readAt("work", windowIn("5h", 0.3, 3*time.Hour), windowIn("7d", 0.95, 2*day)), reserving)
 	plainSide := readAt("side", windowIn("5h", 0.2, time.Hour), windowIn("7d", 0.1, 6*day))
+	refused := func(a *status.Account) { a.Refused = status.Refusal{Until: built.Add(time.Hour), Status: 401} }
 	tests := []struct {
 		name     string
 		doc      status.Document
@@ -238,7 +239,7 @@ func TestThePool(t *testing.T) {
 			want: []string{
 				"5h Session: room 1.4, used 0.3, pace 0.6",
 				"7d Week: room 1.4, used 0.3, pace 0.428571",
-				"7d_oi Fable week: room 0.7, used 0.65, pace 0.142857",
+				"7d_oi Fable week: room 0.7, used 0.3, pace 0.142857",
 			},
 		},
 		{
@@ -246,9 +247,9 @@ func TestThePool(t *testing.T) {
 			doc:      status.Document{GeneratedAt: built, Source: status.SourceProbe, Accounts: []status.Account{with(work, reserving), with(side, reservingMore)}},
 			accounts: []string{"work", "side"},
 			want: []string{
-				"5h Session: room 1.1, used 0.45, pace 0.6",
-				"7d Week: room 1.1, used 0.45, pace 0.428571",
-				"7d_oi Fable week: room 0.5, used 0.75, pace 0.142857",
+				"5h Session: room 1.1, used 0.3, pace 0.6",
+				"7d Week: room 1.1, used 0.3, pace 0.428571",
+				"7d_oi Fable week: room 0.5, used 0.3, pace 0.142857",
 			},
 		},
 		{
@@ -259,7 +260,7 @@ func TestThePool(t *testing.T) {
 			want: []string{
 				"5h Session: room 1.4, used 0.3, pace 0.6",
 				"7d Week: room 1.4, used 0.3, pace 0.428571",
-				"7d_oi Fable week: room 0.7, used 0.65, pace 0.142857",
+				"7d_oi Fable week: room 0.7, used 0.3, pace 0.142857",
 			},
 		},
 		{
@@ -269,8 +270,8 @@ func TestThePool(t *testing.T) {
 			}), plainSide),
 			accounts: []string{"work", "side"},
 			want: []string{
-				"5h Session: room 0.8, used 0.6, pace 0.6",
-				"7d Week: room 0.9, used 0.55, pace 0.428571",
+				"5h Session: room 0.8, used 0.25, pace 0.6",
+				"7d Week: room 0.9, used 0.535, pace 0.428571",
 			},
 		},
 		{
@@ -280,7 +281,7 @@ func TestThePool(t *testing.T) {
 			}), plainSide),
 			accounts: []string{"work", "side"},
 			want: []string{
-				"5h Session: room 0.8, used 0.6, pace 0.6",
+				"5h Session: room 0.8, used 0.25, pace 0.6",
 				"7d Week: room 1.4, used 0.3, pace 0.428571",
 			},
 		},
@@ -294,8 +295,8 @@ func TestThePool(t *testing.T) {
 			doc:      routerDocOf(weekCapped, plainSide),
 			accounts: []string{"work", "side"},
 			want: []string{
-				"5h Session: room 0.8, used 0.6, pace 0.6",
-				"7d Week: room 0.9, used 0.55, pace 0.428571",
+				"5h Session: room 0.8, used 0.25, pace 0.6",
+				"7d Week: room 0.9, used 0.525, pace 0.428571",
 			},
 		},
 		{
@@ -309,14 +310,45 @@ func TestThePool(t *testing.T) {
 			},
 		},
 		{
-			name: "none from an account whose token is refused, nor one not read, though both count",
-			doc: routerDocOf(with(work, func(a *status.Account) {
-				a.Refused = status.Refusal{Until: built.Add(time.Hour), Status: 401}
-			}), status.Account{ID: "personal", Label: "personal", TokenSet: true}, plainSide),
+			name: "its use the accounts' mean, not the room a reserve leaves: every account at none, one keeping a reserve",
+			doc: routerDocOf(
+				with(readAt("work", windowIn("5h", 0, 3*time.Hour), windowIn("7d", 0, 2*day)), reserving),
+				readAt("side", windowIn("5h", 0, time.Hour), windowIn("7d", 0, 6*day)),
+			),
+			accounts: []string{"work", "side"},
+			want: []string{
+				"5h Session: room 1.9, used 0, pace 0.6",
+				"7d Week: room 1.9, used 0, pace 0.428571",
+			},
+		},
+		{
+			name: "neither use nor room counted of an account without a usable token, though it was read",
+			doc: routerDocOf(work, with(side, func(a *status.Account) {
+				a.TokenSet = false
+			})),
+			accounts: []string{"work", "side"},
+			want: []string{
+				"5h Session: room 0.6, used 0.4, pace 0.6",
+				"7d Week: room 0.5, used 0.5, pace 0.428571",
+				"7d_oi Fable week: room 0, used none, pace 0.142857",
+			},
+		},
+		{
+			name:     "no use where none of its accounts' is counted, each one's token refused",
+			doc:      routerDocOf(with(work, refused), with(plainSide, refused)),
+			accounts: []string{"work", "side"},
+			want: []string{
+				"5h Session: room 0, used none, pace 0.6",
+				"7d Week: room 0, used none, pace 0.428571",
+			},
+		},
+		{
+			name:     "none from an account whose token is refused, nor one not read, though both count",
+			doc:      routerDocOf(with(work, refused), status.Account{ID: "personal", Label: "personal", TokenSet: true}, plainSide),
 			accounts: []string{"work", "personal", "side"},
 			want: []string{
-				"5h Session: room 0.8, used 0.733333, pace 0.6",
-				"7d Week: room 0.9, used 0.7, pace 0.428571",
+				"5h Session: room 0.8, used 0.2, pace 0.6",
+				"7d Week: room 0.9, used 0.1, pace 0.428571",
 			},
 		},
 		{
@@ -324,7 +356,7 @@ func TestThePool(t *testing.T) {
 			doc:      routerDocOf(readAt("work", spentIn("5h", 1.04, time.Hour), windowIn("7d", 0.9, -day)), plainSide),
 			accounts: []string{"work", "side"},
 			want: []string{
-				"5h Session: room 0.8, used 0.6, pace 0.8",
+				"5h Session: room 0.8, used 0.62, pace 0.8",
 				"7d Week: room 1.9, used 0.05, pace 0.142857",
 			},
 		},
@@ -433,7 +465,7 @@ func TestThePoolsWindowsAreAListEvenOfNone(t *testing.T) {
 func poolLines(p status.Pool) []string {
 	var lines []string
 	for _, w := range p.Windows {
-		lines = append(lines, fmt.Sprintf("%s %s: room %.6g, used %.6g, pace %s", w.Key, w.Label, w.Room, w.Used, paceOf(w.Pace)))
+		lines = append(lines, fmt.Sprintf("%s %s: room %.6g, used %s, pace %s", w.Key, w.Label, w.Room, figureOf(w.Used), figureOf(w.Pace)))
 	}
 	return lines
 }
@@ -443,7 +475,7 @@ func poolLines(p status.Pool) []string {
 func poolNowLines(p status.PoolNow) []string {
 	var lines []string
 	for _, w := range p.Windows {
-		lines = append(lines, fmt.Sprintf("%s: room %.6g, used %.6g, pace %s", w.Key, w.Room, w.Used, paceOf(w.Pace)))
+		lines = append(lines, fmt.Sprintf("%s: room %.6g, used %s, pace %s", w.Key, w.Room, figureOf(w.Used), figureOf(w.Pace)))
 	}
 	return lines
 }
@@ -745,8 +777,9 @@ func TestAnAccountWorkedOutAloneIsAsTheDocumentWorkedOutHasIt(t *testing.T) {
 }
 
 // The JSON of a document worked out is held to the bytes status --json gave
-// before the read model: its pool and what's coming up most of all, which
-// WorkedOut works out as a view does at the moment it was built.
+// before the read model, but for the pool's use, its accounts' mean since:
+// its pool and what's coming up most of all, which WorkedOut works out as a
+// view does at the moment it was built.
 func TestADocumentWorkedOutGivesTheJSONItAlwaysHas(t *testing.T) {
 	want, err := os.ReadFile(filepath.Join("testdata", "worked-out.golden"))
 	if err != nil {
@@ -777,7 +810,7 @@ func TestWorkingADocumentOutGivesWhatItLacksAndLeavesItAsItWas(t *testing.T) {
 	for _, a := range doc.Accounts {
 		for _, w := range a.Windows {
 			if w.Pace != nil || w.Allowance != (quota.Allowance{}) {
-				t.Errorf("worked out, the document given has %s's %s with pace %s and allowance %+v, want it as it was", a.ID, w.Key, paceOf(w.Pace), w.Allowance)
+				t.Errorf("worked out, the document given has %s's %s with pace %s and allowance %+v, want it as it was", a.ID, w.Key, figureOf(w.Pace), w.Allowance)
 			}
 		}
 	}

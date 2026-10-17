@@ -24,7 +24,7 @@ LOG    Requests  Events  [ ]  ────────────────�
 ▲ 12:02:10  d28c switchboard   started   work
 ◇ 12:10:00                     primed    work              its 5-hour window started, resets at 17:10
 ▲ 12:47:12  41e0 docs          started   personal
-▸ 13:22:40  db8a infra         moved     personal → work   personal came under pressure, its 5-hour to run out at 15:10   48k cached again, $0.48
+▸ 13:22:40  db8a infra         moved     personal → work   personal came under pressure
 ◇ 13:50:00                     primed    side              its 5-hour window started, resets at 18:50
 ▲ 14:12:30  7f3a api           started   work
 ╎ 14:31:03                     cap       work              95% of its 5-hour window: its 3 sessions move to side as their next requests come

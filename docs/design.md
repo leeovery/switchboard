@@ -1003,7 +1003,9 @@ have glyphs of their own, told apart from an event's mark by their colour and th
   ` Sessions `, ` Runway `, ` Log `. The one shown is bold `text.primary` on `bg.selection`; the
   rest are `text.subtle`. Two cells after the last, `tab ⇥` in `text.faint`.
 - **The clock,** ending at the last column: the date, `Thu 1 Oct  `, in `text.muted`, then the time,
-  `14:42:07`, in bold `text.secondary`, ticking each second.
+  `14:42:07`, in bold `text.secondary`, ticking each second. Under a card it ticks on, drawn as it
+  is with no card open, not faded with the page, which stands still behind the card, so a card left
+  open never reads as a dashboard that's stopped (the owner's call, 17 October 2026).
 - **On a phone,** the clock stays on row 0, and the tabs take row 1 from column 0 with no space
   between them and no `tab ⇥`: the six fill 52 columns exactly.
 
@@ -1086,6 +1088,12 @@ Overview).
 
 - `t`, the theme picker, and `R`, refresh, work on every page and are never on the key line: `?`
   lists them.
+- `w`, each model's own window shown or hidden, works wherever windows are listed as they stand:
+  the Overview, Accounts' Detail, Sessions' Switchboard and a session's page. It's never on the
+  key line: `?` and the keys-and-toggles card list it, its word `models` faint while they're
+  hidden. It's set once and remembered, so it doesn't earn the 10 cells it would cost every other
+  key: on the Overview's line, they'd have it fall to a phone's below 137 columns, 155 while GRAPHS
+  shows, where it fits whole from 127 and 145 (the owner's call, 17 October 2026).
 - `[ ]`'s word is `view` everywhere; `enter`'s word says what it does on the page, as `enter its
   page` or `enter open`.
 - A key that can't act now is drawn in `text.faint`, its key not bold, as `p pin` is while the
@@ -1138,8 +1146,9 @@ Routing takes keys alone: no click opens the routing card or acts in it, so a st
 moves a session.
 
 **What's remembered.** The preferences file keeps, as they change: the theme or the pair; the tab
-shown, which the dashboard opens on; the Overview's sections shown, its `b` and its `v`; of each
-view, a view at a time, its sub-tab, its period or window and `v`'s choice; and the Log's columns.
+shown, which the dashboard opens on; the Overview's sections shown, its `b` and its `v`; `w`; of each
+view, a view at a time, its sub-tab, its period or window and `v`'s choice; Runway's `a`; and the
+Log's columns.
 It never keeps a focus, a choice, a scroll, a card or help open, a session's page, a day Runway has
 stepped back to, or the Log's filters, so the Log opens on everything (settled in the plan).
 `[usage] by` in the config sets the default for `usage` and the dashboard alike; once `b` is
@@ -1158,8 +1167,7 @@ the same block (see The Overview).
 
 - **The windows:** `--5h`, `--week`, and one flag for each model's own window switchboard knows,
   named for its model (`--fable`), each print the header, that window alone in either layout, and
-  the key line. Given together, they print the windows given, in Claude's order
-  (settled in the plan). A flag for a window no account reports fails, naming the windows there are
+  the key line. Given together, they print the windows given, in the order of care (see below). A flag for a window no account reports fails, naming the windows there are
   (settled in the plan).
 - **The layout:** `--by window` or `--by account`. `[usage] by` in the config sets the default for
   `usage` and the dashboard alike, `window` unless set (see Config); the flag beats it.
@@ -1195,7 +1203,7 @@ The layout follows the terminal's width, `w` columns:
 
 **By window, the matrix** (`w ≥ 150`):
 
-- **Headings,** in `text.subtle`, not bold: `5-HOUR`, `WEEK`, then each model's own window as its
+- **Headings,** in `text.subtle`, not bold: `WEEK`, `5-HOUR`, then each model's own window as its
   model's name in capitals and ` WEEK`, as `FABLE WEEK`; each over its group's first column, with a
   blank line under them.
 - **A row an account,** in the config's order, with a blank line under each, then the pool, last,
@@ -1211,8 +1219,8 @@ The layout follows the terminal's width, `w` columns:
 **By window, stacked** (`w < 150`):
 
 - **Each window is a section:** its heading at column 0, in `text.subtle`; a blank line; then a row
-  an account with a blank line under each, and the pool last, under its rule. Between sections
-  there's another blank line, so two separate a section's last row from the next heading.
+  an account with a blank line under each, and the pool last, under its rule. A blank line
+  separates each section from the next, as it does the key line from the last.
 - **A row:** the account's number and name at column 1, a cell in from the heading; the bar from the
   name column, `w − n − 8 − d` cells wide for words `d` cells wide: 74 at 120 columns, 34 at 80 and
   14 at 52, the name column at 16. Then a cell, the percentage in 4 cells, two cells, and the words,
@@ -1220,8 +1228,10 @@ The layout follows the terminal's width, `w` columns:
 
 **By account** (`--by account`), one layout at every width:
 
-- **A block an account,** its windows as rows. Two blank lines separate the header from the first
-  block, and each block from the next; a blank line separates a block's rows.
+- **A block an account,** its windows as rows. A blank line separates the header from the first
+  block and each block from the next, as it does the key line from the last block, and a section
+  from the next by window: one rule for every gap in the printout (the owner's call, 17 October
+  2026). A blank line separates a block's rows too.
 - **Wide** (`w ≥ 110`): the account's number and name at column 0, on its first window's row; the
   window's label at the name column, 10 cells; the bar 10 cells on, `w − n − 10 − 8 − d` wide: 104
   at 160.
@@ -1229,9 +1239,9 @@ The layout follows the terminal's width, `w` columns:
   window's row; the labels at column 1, 11 cells; the bars from column 12, `w − 1 − 11 − 8 − d`
   wide: 18 at 52.
 - **After each bar,** as in the other layouts: a cell, the percentage, two cells and the words.
-- **The labels,** in `text.subtle`: `5-hour`, `Week`, then each model's own window as its model's
+- **The labels,** in `text.subtle`: `Week`, `5-hour`, then each model's own window as its model's
   name and ` wk`, as `Fable wk`.
-- **The pool's block** comes last, its rule in the second blank line above it.
+- **The pool's block** comes last, its rule in the blank line above it.
 
 **The key line** says what the marks mean:
 
@@ -1349,17 +1359,44 @@ line after it, as a shell's prompt spaces itself (settled in the plan).
 - **The pool,** wherever there's more than one account, totals the room new sessions can go to now:
   every account on auto, only those the global pin names when pinned. Each window's room is summed
   to each account's cap, `cap − used` and never below 0, with nothing from the 5-hour window of an
-  account at its limit or its cap, nor from any window of an account refused or not read. Its bar
-  shows `1 − room ÷ the accounts in the pool`, coloured as every bar is, with no cap's mark; its
-  even pace is the mean of its accounts'; its percentage is its bar's. Its words are the room, to
-  one decimal place: `1.5` in bold `text.secondary`, then ` of 3 left` in `text.muted`; pinned, the
+  account at its limit or its cap, nor from any window of an account without a usable token, refused or not read. Its
+  percentage is its accounts' mean use of the window, each as its row shows it, leaving out one
+  without a usable token, not read, whose token is refused, or that hasn't reported the window;
+  where none is left it shows `—`, its bar empty, as a window nothing is read of (the owner's call,
+  17 October 2026: a share of the room used read a 5% reserve as 1% used when every account read
+  0%). Its bar fills to its percentage, coloured as every bar is, with no cap's mark; its even pace
+  is the mean of its accounts'. Its words are the room, their reserves counted, to one decimal
+  place: `1.5` in bold `text.secondary`, then ` of 3 left` in `text.muted`; pinned, the
   first window's words add ` · pinned`, in `text.muted`, and the smaller pool shows in `of 2`. The
   status document gives it (see The status document). With one account there's no pool: it would
   repeat the account.
-- **Every window shows, used or not:** a model's own window, as Fable's week, on every account, at
-  0% as at 40%, as probes read every model family's window before any use. Windows come in Claude's
-  order: the 5-hour window, the week, then each model's week. An account that hasn't reported a
-  window the others have shows it as nothing read.
+- **Every window shows, used or not, but each model's own on `w`:** the windows every model shares
+  show on every account, as nothing read before any is. Each model's own window, as Fable's week,
+  any window the policy doesn't share, so a new model's falls under it with no change, shows on
+  `w`, remembered in the preferences and hidden at first (the owner's call, 17 October 2026). It
+  shows then on every account, at 0% as at 40%, as probes read every model family's window before
+  any use; an account that hasn't reported it shows it as nothing read. Hidden, one shows all the
+  same for as long as it nears its limit on any account: held at it, at the account's cap, running
+  out, or nearing where it runs out, within 10 points, as the moment judges each window
+  (`WindowNow`'s `Held`, `Capped`, `RunsOut` and `Nearing`). The toggle is for the live views
+  alone, display and nothing else: USAGE by window and by account, GRAPHS' charts, the
+  Switchboard's lines, a session's page and Accounts' Detail, its figures of now. Runway's `<` `>`
+  step between the week and the 5-hour alone, and the routing card shows those two, so neither
+  has a model's window to hide. `usage`'s printout keeps every window, as do History's records,
+  the Log, Accounts' records (limits hit, past weeks) and every JSON; routing and scoring never
+  read it. The moment's `Listed(models)` owns which windows a live view lists, with `w`'s state;
+  the views guard holds drawing packages from asking the policy which windows are shared.
+- **The order of care:** the week, the 5-hour window, then each model's own week (the owner's call,
+  17 October 2026). In general, the windows every model shares, the policy's, longest first; then
+  each model's own, as any window the policy doesn't share is, a new model's among them, in
+  quota's order. `status.CompareWindows` owns it, and the moment's `Listed` lists the windows by
+  it; every tab and verb that lists windows to the owner reads it there: USAGE by window and by
+  account, GRAPHS' charts, Runway's `<` `>`, the Switchboard's lines, the routing card, a
+  session's page, the Accounts tab's and History's limits and resets, the Log's request and event
+  cards, `usage`'s flags, `status`'s text, and `history`'s text, its days' highest use and
+  `--windows`' readings. The JSON keeps quota's order, shortest first, as it's for agents and the
+  order carries nothing there, and so does what's recorded. The views guard holds it: no drawing
+  package or command orders windows itself.
 
 **The pool, the names and their numbers:**
 
@@ -1428,7 +1465,7 @@ can't, state or a key to marks; what a section is, and why it's where it is, are
 
 | Section | Description |
 |---|---|
-| USAGE | None, as the pool's row says the room; with one account, which has no pool, the room left: `room left  ` in `text.faint`, `5h ` in `text.subtle`, `0.4` in bold `text.secondary`, ` of 1` in `text.subtle`, `  ·  ` in `text.faint`, then `week 0.6 of 1` the same way, summed as the pool's room is; on a phone, none |
+| USAGE | None, as the pool's row says the room; with one account, which has no pool, the room left, in the order of care: `room left  ` in `text.faint`, `week ` in `text.subtle`, `0.6` in bold `text.secondary`, ` of 1` in `text.subtle`, `  ·  ` in `text.faint`, then `5h 0.4 of 1` the same way, summed as the pool's room is; on a phone, none |
 | GRAPHS | The focused account, `work`, in bold `text.primary`; five spaces; then the key to the chart drawn, the rest in `text.faint`: of the burn-up, `·` in `text.subtle` and ` even pace   `, `╌` in `viz.reserve` and ` cap   `, `┄` and ` limit`; of the burn-down, `⠢` in `text.subtle` and ` heading   `, `✕` in bold `state.destructive` and ` runs out   `, `⠤` in `viz.reserve`, faint, and ` cap   `, `┄` and ` full`. Beside USAGE's blocks, the key alone, as no account is focused |
 | ROUTING | The mode (below) |
 | SESSIONS, COMING UP, LATELY | None |
@@ -1538,7 +1575,9 @@ first (the owner's call, 15 October 2026).
     as wide as they share the room: `⌊(w − 1 − hx + 2) / k⌋ − 2` for `k` that fit, two at 160
     columns, 25 cells wide, and three from 184, 36 wide at 220;
   - **each from the block's first row to the row after its last,** its top row on the block's
-    first and its axis on the row after, so a block of three windows has `h = 4`;
+    first and its axis on the row after, so a block of three windows has `h = 4`; for the axis,
+    USAGE's blocks are two rows apart here, the axis on the first, where everywhere else they're
+    one, the phone's among them (the owner's call, 17 October 2026);
   - **the pool's charts beside `Σ pool`,** as many of its windows as fit, as each account's: the
     pool's room in each window over its length back from now, from its left edge to now at its
     right, a column a cell, each column the room at its end's moment, a share of all its accounts'
@@ -1561,9 +1600,11 @@ first (the owner's call, 15 October 2026).
     after changes it, and through a read whose pool lacks the window, for when it's back; none is
     judged past when the readings were last read through, and waits blank for the read its step
     asks; and a window's are let go once it's no longer charted. The last, at now, is the pool's
-    room as the moment has it; and each column's share used is read by `Σ pool`'s rule, so now's
-    agrees with its bar. The burn-up fills each column to its share used, as an account's, and the
-    burn-down to what's left; neither draws a cap, even pace, now's line or where it's heading.
+    room as the moment has it, as `Σ pool`'s words say it; and each column's share used is the
+    share of all the accounts' room it leaves used, `1 − room ÷ accounts`, now's too, where
+    `Σ pool`'s bar fills to their mean use. The burn-up fills each column to its share used, as an
+    account's, and the burn-down to what's left; neither draws a cap, even pace, now's line or
+    where it's heading.
     Its axis: the time a length back from now in `text.faint` at the left, with its date for a
     window longer than a day, as a week back falls on now's weekday, and `now` in bold
     `text.subtle` ending at the right. A column none of whose accounts is known is blank, and one
@@ -1733,14 +1774,17 @@ remembered").
 - **USAGE is a block an account,** as `usage --by account` draws it at 160 columns, but with bars
   `50 − (n − 14)` cells wide: the number and name at column 0; the window labels at the name column,
   10 cells; the bars 10 cells on; the percentage a cell after a bar, and the words two cells after
-  the percentage: 26, 48 cells, 75 and 81 for the sample.
+  the percentage: 26, 48 cells, 75 and 81 for the sample. Its blocks are a blank row apart, as
+  `usage`'s are, but two while GRAPHS' charts sit beside them (see GRAPHS, above).
 - **ROUTING moves beside each block,** at column `hx = n + 10 + bar + 7 + 22 + 4`, 107 for the
   sample, but while GRAPHS shows, when GRAPHS' charts are there instead and ROUTING keeps a section
   of its own (see GRAPHS, above; the owner's call, 15 October 2026). USAGE's heading is `hx − 3`
   wide, and ROUTING's, `ROUTING   auto` with the mode alone, runs from `hx` to the edge. On each
   block's first row, its state's words, cut by whole clauses to end two cells before the right
   edge; two rows down, `● pinned  ·  ` where the pin names it, then its sessions; four rows down, a
-  one-row trace from `hx` to `w − 8`, and its rate right-aligned.
+  one-row trace from `hx` to `w − 8`, and its rate right-aligned. Beside a block of fewer windows,
+  the lines are a row apart, and any past the row after the block, or on the pool's rule, is left
+  off.
 - **The pool's block is last,** under one rule across USAGE and ROUTING: its windows as each
   account's, and beside them its accounts' states counted, `2 open · 1 at cap`, each count in its
   state's colour (`open` in `text.secondary`, `pressure` and `at cap` in `accent.attention`, `limit`
@@ -1832,9 +1876,10 @@ holds.
 - **The heading row** is the page's (see The page): `ACCOUNTS` or `HISTORY`, the sub-tabs, and at
   the right the period between its keys, `< this week >`. The state after `[ ]` is only what the
   screen can't show otherwise, as which accounts Compare shows of more than fit, or what History's
-  Year is filtered to. On a phone, the sub-tabs follow the tab's name after two spaces, each `Name `
-  with a space after it, with no `[ ]` or rule, and the period goes to row 6, at the right, the view
-  then starting at row 8.
+  Year is filtered to. On a phone, the sub-tabs follow the tab's name after two spaces, each
+  ` Name ` with a space either side, as wider, so the highlight sits centred on its name (the
+  owner's call, 17 October 2026), with no `[ ]` or rule, and the period goes to row 6, at the right,
+  the view then starting at row 8.
 - **No description after a heading,** a tab's or a group's: the tab and the sub-tab name the view,
   and what a view is, and how to read it, is for `?` help. A dim line says only what the screen
   can't: a key to an encoding, as to the shades or the dots; a rule the eye can't see, as that worth
@@ -1941,7 +1986,7 @@ holds.
     `sessions moved`, `3 out` or `4 in`, or `2 in · 1 out` for an account with both
     (settled in the plan), and for `all accounts` every move, `4 moves`.
   - **LIMITS:** `limits hit`, by window, `5-hour ×2`, its windows joined by ` · `,
-    `5-hour ×2 · week ×1` (settled in the plan), in `state.destructive`, `none` without, and for
+    `week ×1 · 5-hour ×2` (settled in the plan; in the order of care), in `state.destructive`, `none` without, and for
     `all accounts` how many, `3`; `at cap or limit`, the time it spent at its cap or at a limit,
     `3h 10m`, and for `all accounts` their sum; and `left at its last reset`, what its week had left
     as it last reset, `15%`, or `0% (limit Fri)` where the week ran out, naming the day it did, and
@@ -2156,7 +2201,7 @@ section holds.
 - **The numbers,** at column 126: `LAST 12 MONTHS` on row 6, then from row 7 a row each, labels 13
   wide in `text.subtle` and values in `text.secondary`: `requests`, `236,410`; `sessions`, `1,688`,
   each counted once; `limits hit`, `5-hour ×402`, in `state.destructive`, those of more than one
-  window joined by ` · `, `5-hour ×402 · week ×3` (settled in the plan); `worth`, `$27,480`;
+  window joined by ` · `, `week ×3 · 5-hour ×402` (settled in the plan; in the order of care); `worth`, `$27,480`;
   `plans cost`, `$7,200`, the plans' monthly prices over the months, from the ledger's first day
   where it began part-way through them, as Against its price prices a young ledger's period (see
   Accounts); `against it`, `3.8×`, bold, in `state.positive` at 1× or more and `accent.attention`
@@ -2443,9 +2488,9 @@ edge.
     `■ limit reached · back 16:30`, `■ refused (401) · its token needs renewing` or `○ not read yet`
     (see The Overview); and ending at the last column, `● pinned` or `✕ out of the pool` (see
     Pinned, below);
-  - a row a window, `5-hour`, `Week`, then each model's own week, `Fable wk`, a blank row between:
-    its label at 87 in `text.subtle`, its bar at 98, 32 cells, a cell, its percentage in 4 cells at
-    131, two cells, and its words, 22 cells, at 137.
+  - a row a window, `Week`, `5-hour`, then each model's own week on `w`, `Fable wk`, a blank row
+    between: its label at 87 in `text.subtle`, its bar at 98, 32 cells, a cell, its percentage in 4
+    cells at 131, two cells, and its words, 22 cells, at 137.
 
   The lines start on row 6, each followed by two blank rows: 8 rows apart with three windows. A line
   whose group of calls starts below its first jack moves down to meet it, so cords only run right,
@@ -2530,11 +2575,11 @@ two blank rows, the key on the next two, and the row over the key line:
 2. No blank rows within a line: its name row and a row a window, then a blank row
    (settled in the plan).
 3. Two rows a line, and no blank rows between lines: the name row with its state words; then
-   `5-hour` at 87, its bar from 98, 22 cells, a cell and its percentage; three cells on, `Week` at
-   128, its bar from 133, 22 cells, a cell and its percentage, ending at the last column. The
+   `Week` at 87, its bar from 98, 21 cells, a cell and its percentage; three cells on, `5-hour` at
+   127, its bar from 134, 21 cells, a cell and its percentage, ending at the last column. The
    even-pace and cap marks stay; the words and the model windows go, as `usage` and the Overview
    show them.
-4. One row a line: the number, name and marks, cut to the name column; from it, the 5-hour bar, 14
+4. One row a line: the number, name and marks, cut to the name column; from it, the week's bar, 14
    cells, a cell and its percentage; and 21 cells after it, the state words (settled in the plan).
 5. Step 4's lines, scrolling, the calls with them, as Accounts scrolls (see Accounts): the key gives
    way, and the row over the key line says what's out of view, right-aligned: `▼ 3 more accounts`
@@ -2721,12 +2766,13 @@ rows run from row 7 (settled in the plan):
 
 ### Runway
 
-When each account has room, as a timeline: a lane per account, then the pool's lane under the pool's
-rule, over the window the view is named for. The frames are in the Paper file *Switchboard ·
+When each account has room, as a timeline: a lane per account, then the pool's lane, named `Σ pool`,
+over the window the view is named for. The frames are in the Paper file *Switchboard ·
 Sessions and Runway*, on the page **FINAL · Sessions and Runway · signed off · 8 Oct 2026**; the
 references are `testdata/vhs/reference/runway-*`: `runway-5-hour-160`, `runway-week-160`,
-`runway-stepped-back-160`, `runway-ten-accounts-160` and `runway-phone-52`. Columns and rows are at
-160 by 37 unless they say otherwise.
+`runway-stepped-back-160`, `runway-ten-accounts-160` and `runway-phone-52`; and with the account
+column collapsed, `runway-collapsed-160`, `runway-collapsed-108x43` and `runway-phone-collapsed-52`.
+Columns and rows are at 160 by 37 unless they say otherwise.
 
 **The heading row,** row 4: `RUNWAY` in `text.subtle`; a rule of `─` in `border` from two cells
 after it to two cells short of the window; and at the right edge, the window between its keys, as a
@@ -2738,14 +2784,16 @@ in `text.faint`, the rule starting a cell after it.
 **The views,** named by their windows, `<` and `>` stepping between them, each account's use of the
 view's window under its name:
 
-- **5-hour,** the first the dashboard shows: from the hour before now, taken back to its ten
-  minutes, 13:40 at 14:42, for 22 hours 40 minutes: 136 columns of 10 minutes.
-- **week:** from a day before now, for a week: 136 columns of 74.1 minutes, its 10,080 minutes
-  shared among them (settled in the plan).
+- **week,** the first the dashboard shows (the owner's call, 17 October 2026): from a day before
+  now, for a week: 136 columns of 74.1 minutes, its 10,080 minutes shared among them (settled in
+  the plan).
+- **5-hour:** from the hour before now, taken back to its ten minutes, 13:40 at 14:42, for 22 hours
+  40 minutes: 136 columns of 10 minutes.
 - At other widths, the lanes keep their span, and the minutes a column scale with their width.
 
-The window shown is kept in the preferences file; a step back never is, so the dashboard opens live
-(settled in the plan).
+The window shown is kept in the preferences file, as is the account column collapsed or not (see
+The account column collapsed); a step back never is, so the dashboard opens live (settled in the
+plan).
 
 **Stepping back.** `←` steps back: in the 5-hour view, first to today from its midnight, then a day
 at a time; in the week view, first to this week from its first day, as `week_starts` begins weeks
@@ -2776,7 +2824,7 @@ kept for good (settled in the plan; see The request ledger).
   - An hour the clocks skip, going forward, is neither ticked nor labelled, and a day starts where
     the clocks put its midnight: where they went forward over it, at the hour they went forward to,
     and where they went back over it, at the first of its two.
-- **Now's column** is picked out in `bg.subtle`, from the axis's first row to the pool's words, on
+- **Now's column** is picked out in `bg.subtle`, from the axis's first row to the pool's lane's last, on
   every cell without a background of its own; a part-filled column's gradient takes it in place of
   the canvas.
 - **The past is dimmed:** every colour before now's column is `mix(canvas, colour, 0.45)`.
@@ -2804,6 +2852,31 @@ kept for good (settled in the plan; see The request ledger).
   token is refused has the windows' use under its name faded as stale (the owner's call, 13 October
   2026).
 
+**The account column collapsed.** `a` collapses the labels to each account's number, marks and use,
+to give the lanes more room, at every width, and `a` again expands them; expanded is the default,
+and the preferences file keeps it (the owner's call, 17 October 2026).
+
+- **The lanes** run from two cells after the labels to the edge, at every width alike: from column
+  12 where an account is the primary, 148 columns at 160, 96 at an iPad's 108 and 40 at 52; from
+  column 11, the least, where none is.
+- **The labels,** in the cells before them, on the lane's row alone: the account's number in
+  `text.subtle`, its marks, `◆` and `▲`, as the expanded label carries them, and its use of the
+  view's window, the figure the expanded label gives, in its colour, right-aligned to the label's
+  end, a cell after the marks at the least, as `2 ◆    66%`. The labels are as wide as the widest
+  a lane's can be, so every figure ends in one column, and the lanes hold still as `▲` moves: the
+  widest number, `◆` where an account is the primary, `▲`, a space and `100%`, 10 cells with a
+  primary and fewer than ten accounts, 9 the least. The window's name goes: the heading's
+  `< week >` names it. Where the expanded label words why there's no use, stale, not read yet or
+  without a token, the figure is `—` in `text.faint`; out of the pool, the whole label is faint. No
+  row under it holds a use; the words under the lane are as expanded.
+- **The pool's lane,** `Σ` in its numbers' column, and its room short, right-aligned as the lanes'
+  use: the room bold `text.secondary` and `/3`, of how many accounts the pool is, in `text.muted`,
+  as `Σ    1.2/3`, where the expanded lane says `Σ pool` and `week 1.2 of 3 left`. ` · pinned` is left
+  off. Where it has no room to say, as on a day stepped back to, `Σ pool`.
+- **COMING UP** puts each account's number before its name, in `text.subtle`, as the labels draw
+  it, so a lane's number finds its name: `16:30  2 personal's 5-hour resets`; folded too.
+- **On a phone,** the pool's room has no row of its own: its label says it.
+
 **The words under a lane** say where each stretch without room starts, from its column, 24 at the
 least, or two cells after the words before:
 
@@ -2827,44 +2900,32 @@ all day`, or `room all week`, in `text.subtle`, from the cell after now's column
 fit drop whole parts from the end, `, as its 5-hour resets` first. A stretch already over, or one
 that starts past the view, isn't said.
 
-**The pool's lane** sits under the lanes, under the pool's rule, one unbroken `─` in `border` across
-the whole row, as `usage` draws it: with three rows an account, the rule takes the last account's
-blank row; with two, it takes a row of its own.
+**The pool's lane** sits under the lanes, named and marked as an account's lane is, with no rule
+over it (the owner's call, 17 October 2026): with three rows an account, after the last account's
+blank row; with two, on the row after its words.
 
 - **Its columns,** two rows of them, a column for each of the lanes': how many of the pool's
   accounts have room, the column's height `with room ÷ accounts`, its full cells background and its
   top cell part-filled, as GRAPHS draws its columns (see The Overview). They're coloured as `usage`
-  colours the pool's use, `1 − with room ÷ accounts`: green under 70%, yellow from 70% and red from
+  colours a use, by `1 − with room ÷ accounts`: green under 70%, yellow from 70% and red from
   90%; the past dimmed. An account at its cap or its limit counts without room; one running out at
   its pace has room until it does. A column where none has room is `─` in `state.destructive` along
   its lower row, as a lane at its limit draws it, the past dimmed alike; one where no account's
   state is known is blank.
-- **`Σ pool`** on its second row: `Σ` in `text.subtle` in the numbers' column, and `pool` in
-  `text.secondary`.
-- **Its room,** on the row under it, from column 2, the pool's room in the view's window, in
-  `usage`'s words for the pool: `5-hour ` or `week ` in `text.subtle`, `1.5` bold `text.secondary`,
-  and ` of 3 left` in `text.muted`.
-- **Its words,** on that row, two cells after the room at the least: a phrase for each dip, a
-  stretch where fewer than all the pool have room, in time order, each from its dip's first column,
-  or two cells after the phrase before.
-  - A phrase is the count, `8 of 10`, in `text.secondary`, then, in `text.muted`,
-    ` with room till 15:30` for a dip under way, ` with room ~16:05 – 16:55` for one ahead, or
-    ` with room 15:02 – 17:10` on a day stepped back to.
-  - Each change of the count within a dip chains on, each count in `text.secondary` as the first:
-    `8 of 10 with room till 15:30, 9 till ~16:05, 8 till 16:55, 9 till 17:10`.
-  - `~` marks a moment a run-out projects, a cap or a limit still ahead; a reset is known, so takes
-    none.
-  - A dip too close to the phrase before for a phrase of its own, starting less than two cells after
-    it, joins it with `and` where its count is the same: `2 of 3 with room 15:02 – 17:10 and 19:12 –
-    23:58`.
-  - Words that don't fit drop whole parts from the end, and a dip whose first stretch doesn't fit
-    isn't said. In the live views, a dip already over isn't said.
+- **`Σ pool`** on its first row, as an account's name heads its lane: `Σ` in `text.subtle` in the
+  numbers' column, and `pool` in `text.secondary`.
+- **Its room,** on its second row, from column 2, as an account's use is under its name: the pool's
+  room in the view's window, in `usage`'s words for the pool: `5-hour ` or `week ` in
+  `text.subtle`, `1.5` bold `text.secondary`, and ` of 3 left` in `text.muted`; whole parts left
+  off its end that don't fit before the lanes' column, as ` · pinned` doesn't at 160 columns. No
+  words follow it: the pool's columns say when fewer than all of it have room (the owner's call,
+  17 October 2026).
 - **The pool's accounts** are every account on auto, and the pin's while one holds: its room is then
   `of 2`, the room's words add ` · pinned`, as `usage`'s pool row does, and an account out of the
   pool has its lane, label and use faded as Sessions fades its line (see Sessions), the words under
   its lane not (settled in the plan).
 
-**The legend,** on the row after the pool's words and a blank row, from column 0, keys only what the
+**The legend,** on the row after the pool's lane and a blank row, from column 0, keys only what the
 view draws, four spaces apart: `█` and ` room`; `█` in `accent.attention` and
 ` room, but it runs out at its pace`; `─` in `accent.attention` and ` at its cap`; `─` in
 `state.destructive` and ` at its limit`; and `│` and ` its 5-hour resets`, or ` its week resets`;
@@ -2903,8 +2964,7 @@ minutes a column.
 - Each lane is as the day had it, with `│` wherever its window reset that day, and the words of its
   stretches from column 24 at the least: `room all day` from column 24.
 - Under each name, the day's highest use of the view's window, `5-hour 100%`, as the legend says.
-- The pool's lane counts the pool as it is now, and its words take the past form:
-  `2 of 3 with room 15:02 – 17:10 and 19:12 – 23:58`.
+- The pool's lane counts the pool as it is now.
 - The key line is the live view's.
 - **Today, from its midnight,** the first step back, is drawn as a day stepped back to, but with
   now's column picked out, what's past dimmed, and the room line kept; still with no COMING UP.
@@ -2918,16 +2978,17 @@ key line never go. For N accounts and K lines of COMING UP, on a terminal h rows
 
 | Step | What changes | Holds if | At 160 by 37 |
 |---|---|---|---|
-| — | Three rows an account, its lane, its words and a blank row; blank rows under the axis and round the legend and COMING UP | 3N + K ≤ h − 19 | 4 accounts |
-| (a) | Two rows an account; the pool's rule on a row of its own (settled in the plan) | 2N + K ≤ h − 20 | 5 |
-| (b) | No blank rows round the legend and COMING UP (settled in the plan) | 2N + K ≤ h − 18 | 6 |
-| (c) | COMING UP folded to its heading (settled in the plan) | 2N ≤ h − 18 | 9 |
-| (d) | No blank row between the axis and the lanes | 2N ≤ h − 17 | 10 |
-| (e) | The lanes scroll (settled in the plan) | | 11 and up |
+| — | Three rows an account, its lane, its words and a blank row; blank rows under the axis and round the legend and COMING UP | 3N + K ≤ h − 18 | 4 accounts |
+| (a) | Two rows an account (settled in the plan) | 2N + K ≤ h − 18 | 6 |
+| (b) | No blank rows round the legend and COMING UP (settled in the plan) | 2N + K ≤ h − 16 | 6 |
+| (c) | COMING UP folded to its heading (settled in the plan) | 2N ≤ h − 16 | 10 |
+| (d) | No blank row between the axis and the lanes | 2N ≤ h − 15 | 11 |
+| (e) | The lanes scroll (settled in the plan) | | 12 and up |
 
 The counts at 160 by 37 hold with a line of COMING UP an account, or one more. Ten accounts take
-(d): the lanes on rows 9 to 28, the rule on 29, the pool's lane on 30 and 31, its words on 32, the
-legend on 33, and COMING UP, folded, on 34.
+(c): the lanes on rows 10 to 29, the pool's lane on 30 and 31, its room on 31, the legend on 32,
+and COMING UP, folded, on 33. With a pool's lane, (e) shows a lane from 17 rows; with one account,
+from 15.
 
 - **COMING UP folded,** as the Overview folds a section, keeps its heading, saying what it holds, on
   the row under the legend: `COMING UP` in `text.subtle`, three spaces, the soonest's time in
@@ -2936,7 +2997,7 @@ legend on 33, and COMING UP, folded, on 34.
 - **At (e),** the lanes scroll as Accounts' do (see Accounts): the axis and the pool's foot hold,
   and the row over the key line says what's out of view, right-aligned: `▼ 1 more account`.
 
-**One account:** its lane alone, with no pool's lane, rule, `Σ pool` or room line, as they'd only
+**One account:** its lane alone, with no pool's lane, `Σ pool` or room line, as they'd only
 repeat the account (settled in the plan).
 
 **Under 100 columns,** in The page's phone frame (settled in the plan):
@@ -2946,8 +3007,8 @@ repeat the account (settled in the plan).
   minutes a column, ticked every 2 hours and labelled every 6, `18:00`, `Fri`, `06:00`, by the rule
   above;
 - the words are cut by the rule above, as `at its cap 14:31  ·  back 17:10`;
-- the pool's lane, then its words, with its room on the row under them, from column 2, as the label
-  column is too narrow;
+- the pool's lane, `Σ pool` on its first row, and its room on a row of its own under it, from
+  column 2, whole, as the label column is too narrow for it beside the lane;
 - the legend on two lines, the keyed glyphs, then `a column ≈ 36 minutes · the past dimmed`;
 - COMING UP, the full width, after a blank row;
 - the heading keeps its rule and the window at the right.
@@ -2956,14 +3017,17 @@ repeat the account (settled in the plan).
 
 | Where | Key line |
 |---|---|
-| 5-hour, live or stepped back | `tab views   < > window  ←→ day    p pin    ? help  q quit` |
-| week, live or stepped back | `tab views   < > window  ←→ week    p pin    ? help  q quit` |
+| 5-hour, live or stepped back | `tab views   < > window  ←→ day    a names    p pin    ? help  q quit` |
+| week, live or stepped back | `tab views   < > window  ←→ week    a names    p pin    ? help  q quit` |
 | A phone | `tab views   < > window   ←→ day   ? keys   q quit`, `←→ week` in the week view |
 
-`<` and `>` step between the 5-hour and the week views; `←` steps back and `→` forward; `j`, `k`,
+`a names` has its word faint while the labels are collapsed, as a hidden section's is. The line
+holds it whole from 100 columns; a phone's line leaves it to `?`, as it would cost its `tab views`.
+`<` and `>` step between the week and the 5-hour views; `←` steps back and `→` forward; `a`
+collapses the account column and expands it again; `j`, `k`,
 PgUp, PgDn and the wheel scroll the lanes at (e); `p`, `R`, `t`, `?` and `q` are as on every page
 (see Keys). `?` help (see The page), `HELP · RUNWAY`, lists the page's keys first, `t`, `R` and
-`j`/`k` among them; then it explains the lanes' marks and colours, the pool's lane and its words,
+`j`/`k` among them; then it explains the lanes' marks and colours, the pool's lane and its room,
 stepping back and how far it reaches, the minutes a column, and COMING UP.
 
 **Other states.**
@@ -3159,7 +3223,7 @@ filling in as its line comes (settled in the plan).
   |---|---|---|
   | 19 | `REQUEST` | `id`, the router's `request`; `Anthropic's`, `answer.id`; `from`, `agent` cut to its name and version (`claude-cli/2.1.0`); `betas`, `betas` without their dates (`context-1m, interleaved-thinking`) |
   | 19 | `ROUTED` | `to`, `account`; `from`, the account it left and why (`work, at its cap`); `upstream`, `attempts` in words, `once`, `twice`, then `3 times` (settled in the plan) |
-  | 19 | `<ACCOUNT>'S WINDOWS AFTER IT` | from `limits`, as the answer left them: `5-hour` and `week`, each use bold in its level's colour (see `usage`, the printout), and a model's window where the answer gave it; `status` |
+  | 19 | `<ACCOUNT>'S WINDOWS AFTER IT` | from `limits`, as the answer left them, in the order of care: `week` and `5-hour`, each use bold in its level's colour (see `usage`, the printout), and a model's window where the answer gave it; `status` |
   | 69 | `ASKED` | `model`; `size`, `shape.bytes` (`482 KB`); `messages`, `system` (`3 blocks`) and `tools`, `shape`'s counts; `max_tokens`; `thinking`, its budget; `effort`, `output_config`'s; `stream`, `yes` or `no` |
   | 94 | `ANSWERED` | `status`; `model`, `answer.model`, the one that served it; `first byte`, `first_ms`; `ended`, `total_ms`; `stopped`, `answer.stop` and its tools as the table words them; `blocks`, `answer.blocks` (`2 thinking, 1 text, 1 tool use`) |
   | 94 | `TOKENS` | `in`, `usage.input_tokens`; `from cache`, the cache reads; `cached`, the cache writes, bold `accent.attention` where the request moved its session, then their lifetime in `text.muted` (` for an hour`, ` for 5 minutes`, from `usage.cache_creation`); `out`; `worth`, bold `text.secondary`, then ` at API prices` in `text.muted`; `the move`, its cache write priced, bold `accent.attention`, then ` of it` in `text.muted`, or `unpriced` alone where the price table can't price it (the owner's call, 15 October 2026) |
@@ -3182,8 +3246,10 @@ filling in as its line comes (settled in the plan).
     `week · joined 16:02`, as a limit's card has them after its `its limit` (the owner's call, 15
     October 2026); `known from`, the request whose answer first read the window at its cap,
     `7f3a's request at 14:30:51`;
-  - `WORK THEN`: `5-hour` and `week`, each bold in its level's colour; `resets`, `17:10`;
-    `sessions`, `3 on it`;
+  - `WORK THEN`: `week` and `5-hour`, in the order of care, each bold in its level's colour;
+    `resets`, `17:10`, as the event says it: a cap's or a limit's lifting, a prime's window
+    ending, else the reset of the first window the event names, else of the shortest the answer
+    read, the 5-hour where it read one; `sessions`, `3 on it`;
   - `WHAT FOLLOWED`: a row each session it moved, named by its id, `moved to side` and three
     spaces then what writing its context again was worth, in `accent.attention`, `unpriced` where
     the price table can't price it; `new sessions`, `go elsewhere till 17:10`; `in all`, the moves'
@@ -3469,10 +3535,11 @@ session page · signed off · 7 Oct 2026**, its frames kept as `testdata/vhs/ref
 **The heading** (row 4): `SESSION` in `text.subtle`; three spaces; the session's id cut to 4, as the
 dashboard shows ids, bold `text.primary`; three spaces; its directory's last part, bold
 `text.primary`; two spaces; the directory as the ledger holds it, the home as `~`
-(`~/Code/switchboard`), in `text.faint`; one space; a rule of `─` in `border`; two spaces; and,
-ending at the last column, `esc` bold `accent.key` and ` back` in `text.muted`. While it loads,
-three spaces and `loading…` in `text.subtle` go before the rule; on a phone, two, as its parts are
-spaced there (settled in the plan).
+(`~/Code/switchboard`), in `text.muted`, the tone of a heading's quieter words (the owner's call,
+17 October 2026); one space; a rule of `─` in `border`; two spaces; and, ending at the last column,
+`esc` bold `accent.key` and ` back` in `text.muted`. While it loads, three spaces and `loading…` in
+`text.subtle` go before the rule; on a phone, two, as its parts are spaced there (settled in the
+plan).
 
 **Now** (rows 6 and 7).
 
@@ -3500,7 +3567,8 @@ spaced there (settled in the plan).
   (settled in the plan). At the right, while it runs, ending at the last column: the account in
   `text.secondary` and ` now  ` in `text.subtle`, then each of its windows, three spaces apart, its
   name in `text.muted` and its use bold in its level's colour (see `usage`, the printout):
-  `side now  5-hour 13%   week 78%   fable week 4%`. Every window shows, used or not.
+  `side now  week 78%   5-hour 13%   fable week 4%`, in the order of care. Every window shows, used
+  or not, each model's own on `w` (see The Overview).
 - **Account names are white** wherever named: bold `text.primary` where it runs (`on side`) and on
   an account's own row, `text.secondary` everywhere else, the story's labels and a turn's `on` among
   them, so a name reads as an account and not a word.
@@ -3568,7 +3636,8 @@ first ran on them:
   `yesterday 13:20 – 16:02` (settled in the plan);
 - at 40, its requests in `text.muted`: `404 requests`;
 - at 56, what it took of the account's windows, the points bold `text.primary` and the rest
-  `text.muted`: `≈ 41 points of its 5-hour · 6 of its week`, a model's own window it used adding
+  `text.muted`, in the order of care: `≈ 6 points of its week · 41 of its 5-hour`, a model's own
+  window it used adding
   `· N of its Fable week` (settled in the plan);
 - right-aligned to the last column, its worth at API prices, in `text.secondary`: `$41.06`.
 - **A turn that moved splits** between the two, each request counted on the account that answered
@@ -3801,9 +3870,10 @@ none touches routing.
   (not all sessions: one pinned on its own keeps its pin); `ROUTING · THIS SESSION` on a session's
   page.
 - **The page behind it, faded:** every cell's colours, foreground and background, mixed 80% of the
-  way to `canvas`, nothing bold, even pace's marks among them. A terminal draws it by drawing the
-  page again in those colours. The page behind stands still while the card is open, the card's own
-  figures following each read (settled in the plan).
+  way to `canvas`, nothing bold, even pace's marks among them, but the title row's clock's. A
+  terminal draws it by drawing the page again in those colours. The page behind stands still while
+  the card is open, the card's own figures following each read (settled in the plan), and the
+  clock ticking on (see The page, "The title row").
 - **It keeps its place:** new sessions' card holds room for its longest outcome, four lines, and a
   session's for two, so picking, which changes how long the outcome is, never moves it. New
   sessions' card is `15 + a` rows tall for `a` accounts, a session's `13 + a`.
@@ -3835,7 +3905,7 @@ none touches routing.
      `text.subtle` not; a session's card picks one, `●` and `○` the same. A row's mark is its one
      mark: an account's state has no dot.
    - **The state,** a word: `open` in `state.positive`, or `closed` in the colour of why.
-   - **The windows:** `5-hour 39%` and `week 66%`, the words in `text.muted` and the figures in
+   - **The windows,** in the order of care: `week 66%` and `5-hour 39%`, the words in `text.muted` and the figures in
      bold, coloured by level as `usage` colours them, in their columns so they read down; kept for a
      closed account, as it can still be picked or they say why it's closed.
    - **At the right edge:** a closed account's reason, in the colour of why, `at its cap till
@@ -3951,13 +4021,14 @@ that work there (see The page); `?` lists every one, with what it does.
 | `↑` `↓` | Overview | Move the account focus, which GRAPHS follows; none while GRAPHS charts every account beside USAGE's blocks |
 | `[` `]` | Accounts, History, Sessions, the Log | The sub-tab before or after |
 | `<` `>` | Accounts, History | A shorter period, a longer one; on History's Year, the year before, the one after |
-| `<` `>` | Runway | The 5-hour view, the week's |
+| `<` `>` | Runway | The week's view, the 5-hour's |
 | `v` | History | The next shape or split of the view |
 | `←` `→` | Accounts' Compare | Move the focus along the accounts' columns |
 | `←` `→` | History's Year, filtered to an account | The account before or after |
 | `↑` `↓` | Accounts' Detail | Choose an account in the list, all accounts first; or, in its SESSIONS, a session |
 | `→` `←` | Accounts' Detail | Into the account's SESSIONS, and back to the list |
 | `←` `→` | Runway | Step back a day, or a week in the week view; step forward, to the live view |
+| `a` | Runway | Collapse the account column to each account's number, marks and use, or expand it (the owner's call, 17 October 2026) |
 | `↑` `↓` | Sessions | Choose a session, a call on the Switchboard or a row on the List |
 | `↑` `↓` | The Log | Choose a line; from following, `↑` chooses the newest and pauses; with its details open, the line before or after |
 | `end` | The Log | Follow again, the newest line at the foot and nothing chosen |
@@ -4020,7 +4091,7 @@ turn growing (see A session's page); Runway's lanes moving on with the clock (se
 card or under `?`, so nothing new is drawn while nothing happens. They come at most 30 a second, a
 motion with steps drawing at its steps, as the cords' shimmer does on the clock's 80-millisecond
 marks. The page behind a card stands still, its card's figures following each read
-(settled in the plan). Where the look can't blend, with `NO_COLOR`, a number that changes is bold
+(settled in the plan), and the title row's clock ticking on. Where the look can't blend, with `NO_COLOR`, a number that changes is bold
 for its second instead of brightening, and a cue is bold for its 5 seconds (settled in the plan);
 the `terminal` theme draws `bg.attention` as reverse video, as Themes says.
 
@@ -5212,7 +5283,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | Package | Owns |
 |---|---|
 | `cmd/switchboard` | `main`: builds the command tree from the real system (environment, clock, home, working directory, `claude`'s version, launchd, notifications, the terminal) and exits with its status. Run by the name `claude`, it hands every argument to `run` |
-| `cmd/capturetool` | The capture harness's program, never a switchboard command: draws a fixture of `internal/capture` by its name, full screen until `q`, or once, as text (`--print`) or in colour (`--ansi`), at its frame's size or one given (`--size`), in a built-in theme or a `.theme` file given by its path (`--theme`), for `vhs` to screenshot; and plays a scenario of `internal/capture`'s in real time, for the README's demos (`--scenario`). Capture's tests hold each fixture to its frame's text and ANSI, cell for cell (see Files). Its import guard fails should anything `cmd/switchboard` builds import `internal/capture` |
+| `cmd/capturetool` | The capture harness's program, never a switchboard command: draws a fixture of `internal/capture` by its name, full screen until `q`, or once, as text (`--print`) or in colour (`--ansi`), at its frame's size or one given (`--size`), in a built-in theme or a `.theme` file given by its path (`--theme`), for `vhs` to screenshot; plays a scenario of `internal/capture`'s in real time, for the README's demos (`--scenario`); and writes the frames in `testdata/vhs/reference/` from their fixtures, every one it keeps or those named (`--frames`). Capture's tests hold each fixture to its frame's text and ANSI, cell for cell (see Files). Its import guard fails should anything `cmd/switchboard` builds import `internal/capture` |
 | `internal/cli` | Cobra commands. Thin: parse flags, call the packages below, print; a data verb in its form for a person on a terminal, else its JSON (see The data verbs) |
 | `internal/config` | Locating, parsing and validating the config file, and editing it: adding and removing accounts, and setting the primary and the priming day; and locating the state directory, and switchboard's bin directory |
 | `internal/tokens` | The token files: reading them, checking their ownership and mode, writing them, and keeping their directory private. `tokens/tokenstest` stands in for the token files, for tests |
@@ -5232,7 +5303,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/dashboard` | Rendering the dashboard as frames (Lip Gloss): the page's chrome, its title row, status line, heading row and key line; the Overview, Accounts, History, Sessions, Runway, the Log and a session's page, each drawn from what `internal/views` builds; the usage block, which `usage` prints and the Overview's USAGE draws; the card a routing picker or a line's details is drawn in, over the page faded; the theme picker; and `?`'s help for each page |
 | `internal/dashboard/watch` | The live dashboard (Bubble Tea): when to read the router or probe; the ledger's, the readings history's and the events' files, read as they grow through small interfaces it's given, which its tests and the capture harness fake; the history and the request stream; the pages and the stack `esc` goes back through, their keys and clicks, the routing pickers' orders, scrolling, easing and what moves; the theme picker; the preferences; and its desktop notifications while it probes without the router |
 | `internal/theme` | Themes: the tokens, the built-ins, loading `.theme` files, working out `viz.*`, the families', versions' and days' shades among them, picking the light or dark half by the terminal's background, and the preferences file |
-| `internal/capture` | The capture harness's fixtures, a fixture a signed-off frame, each a moment of the dashboard or a printout of `usage`: the specs' sample worlds; a fake router serving them, with its history and request stream; fakes of the ledger's, the readings history's and the events' readers, holding a year of days, a session's lines and the router's events, and of the price table; and the real watch model built through `watch.New` with every seam faked, or `usage`'s printout drawn through a path of its own, from its fake router's status document, read as `usage` reads the router's, so it never dials the router, probes, runs a program, or reads or writes the real config, themes, state, ledger, preferences or tokens. Imported by `cmd/capturetool` alone |
+| `internal/capture` | The capture harness's fixtures, a fixture a frame, each a moment of the dashboard or a printout of `usage`: the specs' sample worlds; a fake router serving them, with its history and request stream; fakes of the ledger's, the readings history's and the events' readers, holding a year of days, a session's lines and the router's events, and of the price table; and the real watch model built through `watch.New` with every seam faked, or `usage`'s printout drawn through a path of its own, from its fake router's status document, read as `usage` reads the router's, so it never dials the router, probes, runs a program, or reads or writes the real config, themes, state, ledger, preferences or tokens. Imported by `cmd/capturetool` alone |
 | `internal/router` | The proxy and its replays, the scheduler, live account state, priming, the state file, keeping the readings history, in the lines `internal/readings` owns, each routed request's line handed to the request ledger, and the readings it summarises its days with, the router's health, the events it emits, filed through `internal/events` so they outlast a restart, and the notifications it posts, the control API and its client, and looking after itself: taking up the token files as they change, and restarting in place for a config change, an upgrade or a new time zone, or when asked |
 | `internal/handover` | Handing listening sockets over across `exec`: holding them open as their listeners close, making them survive `exec`, naming them in `SWITCHBOARD_LISTENERS`, and taking up, on the other side, those it names that are listening sockets |
 | `internal/launch` | `run`'s hand-over to `claude`, the real one, as `internal/claude` finds it on the `PATH` Claude Code starts with, and how a notice reads on stderr |
@@ -5395,52 +5466,34 @@ hiding it behind the provider would take a wider interface than it's worth:
 - **The skill:** `skills/switchboard/SKILL.md` in Claude Code's config directory,
   `$CLAUDE_CONFIG_DIR`, else `~/.claude`, once `setup` has written it.
 - **The capture harness,** in the repository: `testdata/vhs/`, where the dashboard is checked
-  against its design. `reference/` keeps milestone 7's signed-off frames, 77 of them, each exported
-  from Paper as a PNG, and as the text and ANSI of the generator that drew it, named by its stem:
-  `usage-*` (9), `overview-*` (13), `accounts-*` (11), `history-*` (10), `routing-*` (5),
-  `session-*` (6), `log-*` (9), `sessions-*` (9) and `runway-*` (5), each area's Paper page named in
-  its section. A fixture of `internal/capture`'s, of the same name, draws each, and capture's tests
-  hold it to the frame's `.txt` and `.ansi`, cell for cell: each cell's glyph, colours and bold, a
-  blank's background alone, a cell not painted taken as the canvas, as `usage`'s printout paints
-  none and writes nothing past a line's end, and a channel of a colour let one apart, as the
-  generators rounded a half to even. A fixture pins what its frame was drawn with, as it pins its
-  frame's clock, Thu 1 Oct 2026 at 14:42:07, or at 16:05:41 and 16:05:42 for `sessions-refused-160`
-  and `sessions-moved-160`: the traces' scale at 16 requests a minute and a session's story's at 8,
-  the frames' fixed scales, where the live page scales as its rule says (see The Overview, A
-  session's page); `[ledger] keep` at `90d`, for the ended session's `kept until 29 Dec`; and the
-  price table, injected (settled in the plan), dated 1 Oct 2026 as the frames were drawn, every
-  model priced alike at the frames' sample, Opus 5's rates, where the built-in table's date is 11
-  Oct 2026. Its world is the frame's spec's, worked out by the real code but for where new sessions
-  go: every frame drawn in auto marks side, where the design's scoring would choose personal, or
-  spare, so the fake router says side, the frame's choice (the owner's call, 11 Oct 2026). The tests
-  pass over the cells a frame drew otherwise than this document says:
-  - the rows a frame drew with the keys as they stood before the sweep of 7 and 8 October 2026,
-    which the dashboard draws as Keys has them: the key lines of every `overview-*` frame but
-    `overview-phone-52`, and ROUTING's heading in `overview-pinned-160` and
-    `overview-bad-hour-160`; the period's key on every `accounts-*` and `history-*` frame's heading
-    row, or on a phone's the row under it, and the whole key line of each wider than a phone, as its
-    period, its pin and its groups' spacing all differ; and the key lines of `session-phone-52`,
-    which lacks `q quit`, `session-turn-opened-160`, which lacks `enter open`,
-    `sessions-one-account-160`, which shows `p pin` with one account, and `runway-phone-52`, which
-    lacks `tab views`;
-  - the per-account `without it: short` counts in `history-weeks-160` and
-    `history-weeks-columns-160`, drawn 6, 5 and 3 for `work`, `personal` and `side`, where the
-    capacity replay gives 7, 7 and 6 (see History);
-  - in `history-weeks-ten-160`, whose headline the replay bears out: its short weeks, drawn 4 as
-    now, 4 with one fewer and 6 with two fewer, and 4 in `all accounts`' row, where the replay gives
-    3 each; `spare`'s `5% used`, in the line naming it to drop and in its verdict, where its weeks
-    average 6%; and `extra`'s `80% left at a reset`, where its weeks average 78%;
-  - the mark of a pressure event in the LATELY of `accounts-detail-*`, drawn `●` before each event
-    kind had one mark, where the Log's marks give `◔`.
-
-  `testdata/vhs/README.md` lists each, with what the dashboard draws in its place, rather than their
-  being patched in `reference/`, which stays the generators' output (settled in the plan). So do the
-  figures a frame drew that no world gives, as the generators typed them by hand, disagreeing with
-  each other or with this document's rules: each view's stage fits its world where it can, passes
-  over the rest, and lists them, the README naming those known when the worlds were built (the
-  owner's call, 11 Oct 2026). Beside `reference/`, `vhs` tapes screenshot fixtures `cmd/capturetool`
-  draws: scaffolding, cleared, with their captures, as each milestone is signed off.
-  `testdata/vhs/README.md` says how (see Visual capture harness in `CLAUDE.md`).
+  against its frames. `reference/` keeps them, 82 of them, named by their
+  stems: `usage-*` (9), `overview-*` (15), `accounts-*` (11), `history-*` (10), `routing-*` (5),
+  `session-*` (6), `log-*` (9), `sessions-*` (9) and `runway-*` (8). Each is the tests' snapshot
+  of the live view: the text and ANSI that the fixture of `internal/capture`'s with the same
+  name draws, written by `go run ./cmd/capturetool --frames testdata/vhs/reference [names…]`, which
+  writes every frame `reference/` keeps, or the ones named (`testdata/vhs/README.md` says what each
+  file of a frame is). Every frame has a fixture of its name, and capture's tests hold each
+  fixture to its frame's `.txt` and `.ansi`, cell for cell, passing over nothing: each cell's glyph, colours and bold, a blank's
+  background alone, and a cell not painted taken as the canvas, as `usage`'s printout paints none
+  and writes nothing past a line's end. A change that alters a screen on purpose regenerates the
+  frames it alters with the command, in the same change, once the new drawing is right; a frame
+  that changes when nothing meant it to is a regression to fix, not a frame to rewrite. The frames began as those signed off in Paper from 4 to 8 October 2026, each
+  area's Paper page named in its section, held to with passings where the build drew otherwise;
+  on 17 October 2026 they were written afresh from their fixtures, snapshots of the live view
+  since. Only a big redesign goes back to Paper. A fixture pins what its frame is
+  drawn with, as it pins its frame's clock, Thu 1 Oct 2026 at 14:42:07, or at 16:05:41 and
+  16:05:42 for `sessions-refused-160` and `sessions-moved-160`: the traces' scale at 16 requests a
+  minute and a session's story's at 8, the frames' fixed scales, where the live page scales as its
+  rule says (see The Overview, A session's page); `[ledger] keep` at `90d`, for the ended
+  session's `kept until 29 Dec`; and the price table, injected (settled in the plan), dated 1 Oct
+  2026 as the frames were drawn, every model priced alike at the frames' sample, Opus 5's rates,
+  where the built-in table's date is 11 Oct 2026. Its world is the frame's spec's, worked out by
+  the real code but for where new sessions go: every frame drawn in auto marks side, where the
+  design's scoring would choose personal, or spare, so the fake router says side, the frame's
+  choice (the owner's call, 11 Oct 2026). The dashboard package's own tests hold its rules, never
+  the frames: capture alone holds them. Beside `reference/`, `vhs` tapes screenshot fixtures
+  `cmd/capturetool` draws: scaffolding, cleared, with their captures, as each milestone is signed
+  off. `testdata/vhs/README.md` says how (see The dashboard, by fixture, in `CLAUDE.md`).
 
 ### Config
 
@@ -5634,7 +5687,7 @@ probing.
 | `restart` | *router* A restart it has due: `{reason, since, in_flight, by_hand}`, `reason` why, `config changed`, `upgraded` or `time zone changed`, `since` when it found it due, `in_flight` how many requests it had in flight as it gave the document, and `by_hand` set when it was run by hand, with `serve`, and restarts only when it's run again. Left out while none is due (see The router looking after itself) |
 | `sessions` | *router* How many sessions have been routed in the last hour, each counted once, however many accounts its models went to; left out at 0 |
 | `events` | *router* What's happened lately, newest first, 50 at most, kept in memory, so a restart starts them afresh, though the router files every one (see The router's events): `[{id, at, kind, account, accounts, session, model, from, to, reason, windows, until, since, count, limit, forced_by, reserve, status, family, move, force, by}]`, `id` rising by one an event, from 1 as the router starts, so a reader tells which are new; `kind` one of `started`, `pressure`, `cap`, `limit`, `moved`, `refused`, `primed`, `room`, `pin`, `auto`, `restart` and `health`, each with the fields The router's events gives it. The Overview's LATELY reads the newest, folding the moves a limit, a cap or a refusal counts into its line where that's among them, and the Log's Events lists each (see The Overview, The Log). Left out when there are none |
-| `pool` | The accounts new sessions can go to now, as one, as `usage` and the Overview end their windows with it (see `usage`, the printout): `{accounts, pinned, windows}`. `accounts` their ids, in the config's order: those the global pin names, `pinned` then set, else every account; probing, every account, as the pin isn't known. `windows` a window each that any of them has, shortest first: `{key, label, room, used, pace}`, `room` its room summed in accounts' worth, `1.5` being an account and a half: each account's room to its cap, `1 − reserve` (to its limit without a reserve), and none in the 5-hour window of an account at its limit or its cap, nor in any window of one whose token is refused, or that hasn't been read; `used` what its bar fills to, `1 − room ÷` its accounts; and `pace` the even paces of its accounts' windows that are running, averaged. Left out with one account, whose own windows say the same |
+| `pool` | The accounts new sessions can go to now, as one, as `usage` and the Overview end their windows with it (see `usage`, the printout): `{accounts, pinned, windows}`. `accounts` their ids, in the config's order: those the global pin names, `pinned` then set, else every account; probing, every account, as the pin isn't known. `windows` a window each that any of them has, shortest first: `{key, label, room, used, pace}`, `room` its room summed in accounts' worth, `1.5` being an account and a half: each account's room to its cap, `1 − reserve` (to its limit without a reserve), and none in the 5-hour window of an account at its limit or its cap, nor in any window of one without a usable token, whose token is refused, or that hasn't been read; `used` what its bar fills to, its accounts' mean use of it, as each one's window has it, leaving out one without a usable token, not read, or whose token is refused, and left out itself where none is left; and `pace` the even paces of its accounts' windows that are running, averaged. Left out with one account, whose own windows say the same |
 | `coming_up` | What's coming to the accounts after the document was built, soonest first, as the Overview's and Runway's COMING UP list it: `[{at, account, kind, window, cap, refused}]`, `kind` one of `back` (the account has room again: its limit lifting; with `cap` set, the window at its cap resetting; or with `refused` set, its token's refusal ending, where that lifts after its limit and its cap; `window` set where a limit holds back only a model's requests, as a model's own week's), `runs_out` (`window` runs out before it resets, by its projection (see `usage`, the printout), the 5-hour window at its recent rate whenever there is one: at the account's cap, `cap` set, where its reserve holds it back, else at its limit), `reset` (`window` resets: each window's next, but one whose reset brings the account back, which `back` tells, and a model's own window only where its reset isn't its week's) and `prime` (*router* the account's next prime, as `prime` gives it). Left out when nothing is coming |
 | `accounts` | Every configured account, in the config's order, as below |
 
@@ -6163,6 +6216,22 @@ the Overview read today whole again; the tail alone asks it now, the traces taki
 the stream's open asking for one. A whole read that can't read a file has that file read afresh at
 the next read, so no line is lost; and the traces copy only the lines they keep.
 
+**The dashboard's snags — done.** The release after v0.2.3 fixes what its owner met using the
+dashboard on a phone, an iPad and the Mac, as sorted with the owner on 17 October 2026
+([dashboard-snags](../ideas/2026-10-15--dashboard-snags.md)):
+- **Order:** the week first wherever windows are listed (`status.CompareWindows`), with Runway
+  opening on it.
+- **Model windows:** each model's own window behind `w`, hidden at first, and shown anyway near its
+  limit.
+- **The pool:** its percentage is its accounts' mean use.
+- **Layout:** USAGE's blocks a blank row apart; the heading's clock live under a card; Runway's pool
+  lane named at its top; Runway's account column collapsing on `a`; a phone's view tabs padded; a
+  session's path brighter.
+- **The frames:** they became the tests' snapshots of the live view, written by
+  `capturetool --frames`, with nothing passed over.
+
+The layout snags went to the phone, iPad and desktop rounds.
+
 The release, through GoReleaser, a Homebrew tap and mint, follows milestone 3.
 
 ## Observed
@@ -6331,7 +6400,7 @@ why.
 | The dashboard's memory the fix after v0.2.1 left: the Log's line, a request in flight across midnight, and smaller costs | open: any time | [dashboard-memory-left](../ideas/2026-10-17--dashboard-memory-left.md) |
 | Watching switchboard's CPU and memory for a week after milestone 7's release, against v0.1.6's baseline | next, after milestone 7's release, the owner's choice on 14 October 2026 | [performance-watch](../ideas/2026-10-14--performance-watch.md) |
 | Money in a chosen currency, such as pounds sterling, wherever money shows, with a rate for API prices | open: raised by the owner on 15 October 2026 | [currencies](../ideas/2026-10-15--currencies.md) |
-| Snags the owner meets using v0.2.0's dashboard, gathered as found | open: a smaller screen's layout, to come back to; the rest fixed in the patch after v0.2.0, 15 October 2026 | [dashboard-snags](../ideas/2026-10-15--dashboard-snags.md) |
+| Snags the owner meets using v0.2.0's dashboard, gathered as found | done in the release after v0.2.3, 17 October 2026; the layout snags to the phone, iPad and desktop rounds | [dashboard-snags](../ideas/2026-10-15--dashboard-snags.md) |
 | Mockups drawn in Go: a design's mockups drawn from the dashboard's own components, or `capturetool`'s screens, rather than from a second model of the dashboard | open: an idea for another time | [mockups-drawn-in-go](../ideas/2026-10-11--mockups-drawn-in-go.md) |
 | Worth past what it's counted in: a config's price, or a period's sum, too large to hold | open: a small fix, its bound to settle | [worth-range](../ideas/2026-10-09--worth-range.md) |
 | What a routed session's environment carries to a `claude` switchboard steps aside for, as one a script points at another gateway | open: a small fix, any time | [stepping-aside](../ideas/2026-10-09--stepping-aside.md) |

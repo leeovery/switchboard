@@ -25,7 +25,7 @@ func byAccountWithGraphs(_ *runwayed, cfg *Config) {
 func TestThePoolsChartsAreJudgedByTheReadingsHistorysLiveTail(t *testing.T) {
 	readAt := start.Add(-2 * time.Hour)
 	r := runwayHarness(t, dashboard.Overview, byAccountWithGraphs, filedOn("work", "5h", readAt, 0.3))
-	if want := []dashboard.PoolChart{{Key: "5h", Columns: 25}, {Key: "7d", Columns: 25}}; !slices.Equal(r.model.pool.charts, want) {
+	if want := []dashboard.PoolChart{{Key: "7d", Columns: 25}, {Key: "5h", Columns: 25}}; !slices.Equal(r.model.pool.charts, want) {
 		t.Fatalf("the pool's charts are %v, want %v", r.model.pool.charts, want)
 	}
 	if !r.model.runwayTab.live.span.is(liveSpan(start)) || r.filed.tails == 0 {

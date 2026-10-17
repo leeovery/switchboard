@@ -34,8 +34,7 @@ type roomJudge func(m status.Moment, a status.AccountNow, read status.Readings, 
 
 // PoolRoomColumn is the pool's room at a column's moment: the room its
 // accounts had left in the window then, summed in accounts' worth; the share
-// of all of theirs that leaves used, as Σ pool's bar fills to, as
-// status.PoolUsed has it; and whether how any of them stood then is known,
+// of all of theirs that leaves used, as status.PoolUsed has it; and whether how any of them stood then is known,
 // the column blank where none's is, or it isn't judged yet.
 type PoolRoomColumn struct {
 	Room, Used float64
@@ -86,8 +85,8 @@ func (p PoolRoom) Look(from PoolRoomFrom) PoolRoom {
 		}
 		room.Columns = append(room.Columns, c.room)
 	}
-	now := pool.Windows[i]
-	room.Columns = append(room.Columns, PoolRoomColumn{Room: now.Room, Used: now.Used, Known: true})
+	now := pool.Windows[i].Room
+	room.Columns = append(room.Columns, PoolRoomColumn{Room: now, Used: status.PoolUsed(now, room.Of), Known: true})
 	return room
 }
 

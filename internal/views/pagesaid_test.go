@@ -381,13 +381,13 @@ func TestATurnsToolsAreTheThreeItCalledMost(t *testing.T) {
 	}
 }
 
-func TestTheWindowsASessionTookPointsOfAreNamedShortestFirst(t *testing.T) {
+func TestTheWindowsASessionTookPointsOfAreNamedTheWeekFirst(t *testing.T) {
 	tests := []struct {
 		points map[string]int
 		want   string
 	}{
-		{points: map[string]int{"7d": 6, "5h": 41}, want: "≈ 41 points of its 5-hour · 6 of its week"},
-		{points: map[string]int{"5h": 1, "7d": 1, "7d_oi": 2}, want: "≈ 1 point of its 5-hour · 1 of its week · 2 of its Fable week"},
+		{points: map[string]int{"7d": 6, "5h": 41}, want: "≈ 6 points of its week · 41 of its 5-hour"},
+		{points: map[string]int{"5h": 1, "7d": 1, "7d_oi": 2}, want: "≈ 1 point of its week · 1 of its 5-hour · 2 of its Fable week"},
 		{points: map[string]int{"5h": 0, "7d": 3}, want: "≈ 3 points of its week"},
 		{points: map[string]int{"5h": 0}},
 		{},
@@ -405,7 +405,7 @@ func TestTheWindowsASessionTookPointsOfAreNamedShortestFirst(t *testing.T) {
 // whose key PointsKeys gives in its place, none that rounds to none.
 func TestTheWindowsASessionTookPointsOfAreWordsApartWideAndShort(t *testing.T) {
 	points := map[string]int{"7d": 6, "5h": 1, "7d_oi": 2, "7d_sonnet": 0}
-	if got, want := (views.SessionAccount{Points: points}).PointsKeys(), []string{"5h", "7d", "7d_oi"}; !slices.Equal(got, want) {
+	if got, want := (views.SessionAccount{Points: points}).PointsKeys(), []string{"7d", "5h", "7d_oi"}; !slices.Equal(got, want) {
 		t.Errorf("PointsKeys = %q, want %q", got, want)
 	}
 	tests := []struct {
@@ -413,13 +413,13 @@ func TestTheWindowsASessionTookPointsOfAreWordsApartWideAndShort(t *testing.T) {
 		want []status.Words
 	}{
 		{form: views.PointsWide, want: []status.Words{
-			{status.Plain("≈ "), status.Figure("1"), status.Plain(" point"), status.Plain(" of its 5-hour")},
-			{status.Plain(" · "), status.Figure("6"), status.Plain(" of its week")},
+			{status.Plain("≈ "), status.Figure("6"), status.Plain(" points"), status.Plain(" of its week")},
+			{status.Plain(" · "), status.Figure("1"), status.Plain(" of its 5-hour")},
 			{status.Plain(" · "), status.Figure("2"), status.Plain(" of its Fable week")},
 		}},
 		{form: views.PointsShort, want: []status.Words{
-			{status.Plain("≈ "), status.Figure("1"), status.Plain(" of 5-hour")},
-			{status.Plain(" · "), status.Figure("6"), status.Plain(" of week")},
+			{status.Plain("≈ "), status.Figure("6"), status.Plain(" of week")},
+			{status.Plain(" · "), status.Figure("1"), status.Plain(" of 5-hour")},
 			{status.Plain(" · "), status.Figure("2"), status.Plain(" of Fable week")},
 		}},
 	}

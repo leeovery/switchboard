@@ -262,30 +262,39 @@ func TestTheWheelScrollsUSAGEByRowsWhereItScrollsWhole(t *testing.T) {
 // accounts or accounts where it counted rows, the view goes back to its top,
 // as History's does on any change, so no offset is read in the other's
 // unit: USAGE of ten accounts at 120 columns, shown whole or an account at a
-// time, as b, a resize, a section's key or a read changes it.
+// time, as b, a resize, a section's key, w or a read changes it.
 func TestAViewWhoseScrollChangesWhatItCountsGoesBackToItsTop(t *testing.T) {
+	withFable := func(used float64) status.Document {
+		doc := tenRouted()
+		for i := range doc.Accounts {
+			doc.Accounts[i].Windows = append(doc.Accounts[i].Windows, fableWeek(used))
+		}
+		return doc
+	}
 	tests := []struct {
 		name    string
+		doc     status.Document
 		by      dashboard.By
 		size    tea.WindowSizeMsg
 		changed func(*harness)
 	}{
+		{name: "w, from accounts to rows", doc: withFable(0.3), size: tea.WindowSizeMsg{Width: 120, Height: 30}, changed: func(h *harness) { h.press("w") }},
 		{name: "b, from rows to accounts", size: tea.WindowSizeMsg{Width: 120, Height: 24}, changed: func(h *harness) { h.press("b") }},
 		{name: "b, from accounts to rows", by: dashboard.ByAccount, size: tea.WindowSizeMsg{Width: 120, Height: 24}, changed: func(h *harness) { h.press("b") }},
-		{name: "a resize, from rows to accounts", size: tea.WindowSizeMsg{Width: 120, Height: 28}, changed: func(h *harness) { h.update(tea.WindowSizeMsg{Width: 120, Height: 29}) }},
-		{name: "a section's key, from rows to accounts", size: tea.WindowSizeMsg{Width: 120, Height: 28}, changed: func(h *harness) { h.press("r") }},
-		{name: "a read of a window more on each account, from accounts to rows", size: tea.WindowSizeMsg{Width: 120, Height: 30}, changed: func(h *harness) {
-			doc := tenRouted()
-			for i := range doc.Accounts {
-				doc.Accounts[i].Windows = append(doc.Accounts[i].Windows, fableWeek(0.3))
-			}
-			h.startRouter(doc)
+		{name: "a resize, from rows to accounts", size: tea.WindowSizeMsg{Width: 120, Height: 27}, changed: func(h *harness) { h.update(tea.WindowSizeMsg{Width: 120, Height: 28}) }},
+		{name: "a section's key, from rows to accounts", size: tea.WindowSizeMsg{Width: 120, Height: 27}, changed: func(h *harness) { h.press("r") }},
+		{name: "a read of a model's window nearing its limit on each account, from accounts to rows", size: tea.WindowSizeMsg{Width: 120, Height: 30}, changed: func(h *harness) {
+			h.startRouter(withFable(0.6))
 			h.tickUntilAsked()
 		}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := routedHarness(t, tenRouted())
+			doc := tt.doc
+			if doc.Accounts == nil {
+				doc = tenRouted()
+			}
+			h := routedHarness(t, doc)
 			h.model.by = tt.by
 			h.update(tt.size)
 			h.start()

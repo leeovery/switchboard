@@ -4,16 +4,15 @@
 
 SESSIONS    Switchboard  List  [ ]  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-41e0 docs         idle 34s                      ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━◉ 1 work ▲      ● under pressure · out ~16:05
-9c2e website      idle 9m                       ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━◉  5-hour                     ┃ ▌           ╎   58%  out ~16:05
+41e0 docs         idle 34s                      ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━◉ 1 work ◆ ▲    ● under pressure · out ~16:05
+9c2e website      idle 9m                       ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━◉  Week                 ▉      ┃            ╎   34%  19%/day till Sun 21:00
 c61b mobile       ↓ answering                   ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━◉
-d28c switchboard  ↑ asking                      ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━◉  Week                 ▉      ┃            ╎   34%  19%/day till Sun 21:00
+d28c switchboard  ↑ asking                      ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━◉  5-hour                     ┃ ▌           ╎   58%  out ~16:05
 7f3a api          ↓ answering                   ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━◉
-                                                                                    ○  Fable wk                    ┃            ╎    0%  29%/day till Sun 21:00
 
 
                                                                                        ┃ even pace: where you would be now, used evenly
-                                                                                       ╎ cap: work at 95%    ▲ new sessions go here
+                                                                                       ╎ cap: work at 95%    ◆ primary    ▲ new sessions go here
 
 
 
@@ -34,4 +33,5 @@ d28c switchboard  ↑ asking                      ●━━━━━━━━━
 
 
 
-tab views   [ ] view    ↑↓ session  enter its page    p pin    ? help  q quit
+
+tab views   [ ] view    ↑↓ session  enter its page    ? help  q quit

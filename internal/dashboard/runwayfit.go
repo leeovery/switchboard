@@ -8,8 +8,7 @@ const (
 	// runwayRoomy is three rows an account, its lane, its words and a blank
 	// row, and blank rows under the axis and round the legend and COMING UP.
 	runwayRoomy runwayStep = iota
-	// runwayTwoRows is step (a): two rows an account, and the pool's rule on
-	// a row of its own.
+	// runwayTwoRows is step (a): two rows an account.
 	runwayTwoRows
 	// runwayNoGaps is step (b): no blank rows round the legend and COMING
 	// UP.
@@ -35,10 +34,10 @@ const (
 const noRow = -1
 
 // runwayShape is how Runway's rows go on a frame: whether the pool's room
-// takes a row of its own under the pool's words, as on a phone, whose label
-// column is too narrow for it; whether a blank row goes before the legend,
-// where the step keeps blank rows round it, as none does on a phone; and how
-// many rows the legend takes.
+// takes a row of its own under the pool's lane, as on a phone, whose label
+// column is too narrow for it beside the lane; whether a blank row goes
+// before the legend, where the step keeps blank rows round it, as none does
+// on a phone; and how many rows the legend takes.
 type runwayShape struct {
 	roomRow, legendGap bool
 	legend             int
@@ -84,10 +83,9 @@ type runwayFit struct {
 	// accounts.
 	lanes, apart           int
 	first, shown, accounts int
-	// rule, pool and words are the rows of the pool's rule, its lane's first
-	// and its words; room is its room's: the words' row, or the row under
-	// it, as the shape has it.
-	rule, pool, words, room int
+	// pool is the pool's lane's first row, Σ pool's; room is its room's: the
+	// lane's second, or the row under the lane, as the shape has it.
+	pool, room int
 	// legend is the legend's first row; coming COMING UP's heading's, folded
 	// where it's folded to its heading, else with lines lines under it.
 	legend, coming, lines int
@@ -99,8 +97,8 @@ type runwayFit struct {
 
 // runwayFitted is how Runway fits the rows from row top to the one over the
 // key line on a frame from phoneUnder columns, as runwayFittedAs fits them:
-// its room on its words' row, blank rows round the legend, and the legend as
-// many rows as runwayLegend draws.
+// its room beside the pool's lane, blank rows round the legend, and the
+// legend as many rows as runwayLegend draws.
 func (f Frame) runwayFitted(top int) runwayFit {
 	return f.runwayFittedAs(top, runwayShape{legendGap: true, legend: f.runwayLegendRows()})
 }
@@ -133,15 +131,14 @@ func (f Frame) runwayFittedAs(top int, shape runwayShape) runwayFit {
 
 // laidOut is Runway laid out from row top at the step given, in the shape,
 // of what holds says it holds, its lanes shown from the first given, shown
-// of them: the axis; a blank row, before (d); the lanes; the pool's rule, on
-// the last lane's blank row while each takes three, its lane, its words and
+// of them: the axis; a blank row, before (d); the lanes; the pool's lane and
 // its room; a blank row, while the step keeps them and the shape has one,
 // where the row before isn't blank already; the legend; and a blank row,
 // while the step keeps them, then COMING UP.
 func (s runwayShape) laidOut(step runwayStep, top int, holds runwayHolds, first, shown int) runwayFit {
 	fit := runwayFit{
 		step: step, fits: true, axis: top, apart: 2, first: first, shown: shown, accounts: holds.lanes,
-		rule: noRow, pool: noRow, words: noRow, room: noRow, coming: noRow, out: noRow, end: top + runwayAxisRows,
+		pool: noRow, room: noRow, coming: noRow, out: noRow, end: top + runwayAxisRows,
 	}
 	if step < runwayAxisClose {
 		fit.take(1)
@@ -151,7 +148,7 @@ func (s runwayShape) laidOut(step runwayStep, top int, holds runwayHolds, first,
 	}
 	fit.lanes = fit.take(shown * fit.apart)
 	if holds.pool {
-		fit.layPool(step == runwayRoomy, s.roomRow, holds.room)
+		fit.layPool(s.roomRow, holds.room)
 	}
 	roomy := step < runwayNoGaps
 	if blank := step == runwayRoomy && !holds.pool; roomy && s.legendGap && !blank {
@@ -171,24 +168,28 @@ func (s runwayShape) laidOut(step runwayStep, top int, holds runwayHolds, first,
 	return fit
 }
 
-// layPool lays the pool's lane out at the fit's end: its rule, on the last
-// lane's blank row where it's onBlank, else on a row of its own; its lane;
-// its words; and where roomed, its room, on the words' row, or with roomRow,
-// on a row of its own under them.
-func (r *runwayFit) layPool(onBlank, roomRow, roomed bool) {
-	if onBlank {
-		r.rule = r.end - 1
-	} else {
-		r.rule = r.take(1)
-	}
+// layPool lays the pool's lane out at the fit's end, and where roomed, its
+// room: on the lane's second row, as an account's use is under its name, or
+// with roomRow, on a row of its own under the lane.
+func (r *runwayFit) layPool(roomRow, roomed bool) {
 	r.pool = r.take(runwayPoolRows)
-	r.words = r.take(1)
 	switch {
 	case roomed && roomRow:
 		r.room = r.take(1)
 	case roomed:
-		r.room = r.words
+		r.room = r.pool + 1
 	}
+}
+
+// roomEnds is the column the pool's room ends before, its lanes from column
+// x on a frame width columns wide: beside the pool's lane, the cell before
+// the lanes', as an account's use ends; on a row of its own, the frame's
+// edge.
+func (r runwayFit) roomEnds(x, width int) int {
+	if r.room < r.pool+runwayPoolRows {
+		return x - 1
+	}
+	return width
 }
 
 // take is the fit's end, the rows given taken from it.

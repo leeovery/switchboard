@@ -280,7 +280,7 @@ no window joined. A window that `joined` leaves out was held from `at`.
 | `restart` | A restart the router has due. |
 | `sessions` | How many sessions the router has routed in the last hour. |
 | `events` | What's happened lately, newest first. |
-| `pool` | The room new sessions can go to, summed across the pool's accounts. |
+| `pool` | The room new sessions can go to, summed across the pool's accounts, and their mean use. |
 | `coming_up` | Each limit, cap or refused token lifting, window running out or resetting, and prime, soonest first. |
 | `accounts` | Each account, in the config's order. See below. |
 

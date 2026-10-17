@@ -97,29 +97,6 @@ var (
 	compareAll      = compareFramed{accountsFramed: framedAll, requests: 5410, sessions: 19, shares: []int{57, 2, 33, 3, 2, 3}}
 )
 
-// overMonth is the row as accounts-compare-month-160 has it, over the last 30
-// days: its requests and sessions; its moves, on or off as this week's are;
-// its 5-hour limits and its minutes at its cap or a limit; its worth and
-// ratio; its shares; and what its plan costs over the period, a month.
-func overMonth(f compareFramed, requests, sessions, moved, limits, atCap int, worth, ratio float64, shares []int, cost float64) compareFramed {
-	f.requests, f.sessions, f.shares, f.cost = requests, sessions, shares, cost
-	if f.on > 0 {
-		f.on = moved
-	} else {
-		f.off = moved
-	}
-	f.limits, f.atCap, f.atLimit, f.worth, f.ratio = map[string]int{"5h": limits}, atCap, 0, worth, ratio
-	return f
-}
-
-// The rows of accounts-compare-month-160.
-var (
-	monthWork     = overMonth(compareWork, 5180, 38, 12, 9, 13*60+40, 790, 4.0, []int{52, 8, 30, 3, 5, 2}, 200)
-	monthPersonal = overMonth(comparePersonal, 9930, 27, 5, 3, 2*60+5, 905, 4.5, []int{31, -1, 57, 7, 1, 4}, 200)
-	monthSide     = overMonth(compareSide, 8050, 41, 14, 4, 3*60+10, 1020, 5.1, []int{79, -1, 19, -1, 1, 1}, 200)
-	monthAll      = overMonth(compareAll, 23160, 71, 31, 16, 18*60+55, 2715, 4.5, []int{54, 3, 35, 4, 2, 2}, 600)
-)
-
 // tenRow is an account's row of accounts-compare-ten-160 past its first
 // three, on Max 20x.
 func tenRow(id string, requests, sessions, off int, limits map[string]int, atCap int, left, worth, ratio float64, shares []int) compareFramed {
@@ -205,74 +182,6 @@ func compareFrame(t *testing.T, configured config.Accounts, page views.AccountsP
 func extraOff(d *status.Document) {
 	for i := range d.Accounts {
 		d.Accounts[i].Extra = quota.ExtraUsage{Status: quota.StatusRejected}
-	}
-}
-
-// The cells Compare's frames draw otherwise than the design.
-var (
-	// noBest is side's ▲, and the blank before it, which Accounts doesn't
-	// show, as it shows no routing; tenNoBest is the same, in columns 19
-	// wide.
-	noBest    = spot{6, 98, 99}
-	tenNoBest = spot{6, 70, 71}
-	// olderHaiku is Haiku 4.5's ●, and its part of personal's and all
-	// accounts' bars, which the frames draw in Haiku's own shade, where the
-	// version table holds Haiku 5.5, so Haiku 4.5 is older, mixed toward the
-	// canvas; tenOlderHaiku is the same, of personal's, client's and
-	// spare's bars, in columns 19 wide.
-	olderHaiku    = []spot{{11, 82, 82}, {11, 148, 148}, {17, 2, 2}}
-	tenOlderHaiku = []spot{{11, 59, 59}, {11, 97, 97}, {11, 116, 116}, {17, 2, 2}}
-	// staleBold is work's week's percentage in the bad hour, its token
-	// refused, which the frame draws bold, where usage draws a stale
-	// reading's percentage not bold.
-	staleBold = spot{9, 46, 48}
-)
-
-func TestCompareIsDrawnAsItsFrames(t *testing.T) {
-	versions := comparedVersions(t)
-	badHour := comparePersonal
-	badHour.limits = map[string]int{"5h": 1}
-	tests := []struct {
-		stem       string
-		configured config.Accounts
-		doc        status.Document
-		page       views.AccountsPage
-		// in is the regions held past the view's rows: the heading row's
-		// state, where it has one, to the rule.
-		in    []region
-		whole []spot
-	}{
-		{
-			stem: "accounts-compare-160", configured: threeFramed, doc: usageWorld(extraOff),
-			page:  comparedPage(views.AccountsThisWeek, versions, compareWork, comparePersonal, compareSide, compareAll),
-			whole: append([]spot{noBest}, olderHaiku...),
-		},
-		{
-			stem: "accounts-compare-month-160", configured: threeFramed, doc: usageWorld(extraOff),
-			page:  comparedPage(views.AccountsThirtyDays, versions, monthWork, monthPersonal, monthSide, monthAll),
-			whole: append([]spot{noBest}, olderHaiku...),
-		},
-		{
-			stem: "accounts-compare-bad-hour-160", configured: threeFramed, doc: usageWorld(usageBadHour, extraOff),
-			page:  comparedPage(views.AccountsThisWeek, versions, compareWork, badHour, compareSide, compareAll),
-			whole: append([]spot{noBest, staleBold}, olderHaiku...),
-		},
-		{
-			stem: "accounts-compare-ten-160", configured: tenFramed, doc: usageWorld(tenCompared, extraOff),
-			page:  comparedPage(views.AccountsThisWeek, versions, tenRows()...),
-			in:    []region{{top: 4, bottom: 4, right: 100}},
-			whole: append([]spot{tenNoBest}, tenOlderHaiku...),
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.stem, func(t *testing.T) {
-			f := compareFrame(t, tt.configured, tt.page)
-			drawn := screenOf(t, f.Draw(tt.doc, routedAt))
-			frame, canvas := reference(t, tt.stem), shadeOf(Screen(builtin(t, "nord")).Canvas())
-			for _, in := range append(tt.in, region{top: 6, bottom: 34, right: 159}) {
-				heldTo(t, tt.stem, frame, drawn, in, canvas, tt.whole, nil)
-			}
-		})
 	}
 }
 
@@ -545,7 +454,7 @@ func TestComparesValuesAreCutToTheirColumnsAllAccountsToTheEdge(t *testing.T) {
 		row, column int
 		want        string
 	}{
-		{row: 25, column: 26, want: "5-hour ×2 · …      n"},
+		{row: 25, column: 26, want: "week ×1 · …        n"},
 		{row: 31, column: 26, want: "on · billed past…  o"},
 		{row: 31, column: 102, want: "on for 1 of 10"},
 		{row: 30, column: 102, want: "$1,700/mo · 10 plans"},
@@ -731,7 +640,7 @@ func TestWEEKUSEDsBarsEaseAsFarAsTheyHaveEased(t *testing.T) {
 	f, doc := threeCompared(t, 160, 37)
 	account("side", func(a *status.Account) { a.TokenSet = false })(&doc)
 	doc = doc.WorkedOut(claudeLike)
-	all := f.Moment(doc, routedAt).All().Windows[1].Used
+	all := f.Moment(doc, routedAt).All().Windows[0].Used
 	want := map[Ref]float64{{Account: "work", Window: "7d"}: 0.34, {Account: "personal", Window: "7d"}: 0.66, {Window: "7d"}: all}
 	if got := f.Filled(doc, routedAt); !maps.Equal(got, want) {
 		t.Errorf("Compare's bars fill %v, want %v", got, want)

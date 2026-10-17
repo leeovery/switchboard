@@ -1,7 +1,6 @@
 package views
 
 import (
-	"reflect"
 	"testing"
 	"time"
 )
@@ -34,26 +33,6 @@ func TestAHoldsPartsAreOne(t *testing.T) {
 	}
 	if _, ok := asOne(nil); ok {
 		t.Errorf("asOne of no parts reports a hold")
-	}
-}
-
-// Where the pool's accounts lose their room between the same two columns'
-// moments, its count reaches the dip's when the last does; where they get it
-// back so, the dip ends when the first does. A change whose time isn't known
-// tells neither.
-func TestADipsCountChangesWhenItsAccountsDo(t *testing.T) {
-	start := time.Date(2026, 10, 1, 14, 0, 0, 0, time.UTC)
-	at := func(minute int) time.Time { return start.Add(time.Duration(minute) * time.Minute) }
-	tl := Timeline{Start: start, End: at(60), Columns: 6}
-	cells := []Cell{CellRoom, CellLimited, CellLimited, CellLimited, CellRoom, CellRoom}
-	held := func(since, back time.Time) Lane {
-		return Lane{Cells: cells, Stretches: []LaneStretch{{Cell: CellLimited, Start: since, Back: back, First: 1, Last: 3}}}
-	}
-	members := []Lane{held(at(12), at(43)), held(at(14), at(41)), held(time.Time{}, time.Time{})}
-	pool := Pool{Of: 3, Columns: []PoolColumn{{3, true}, {0, true}, {0, true}, {0, true}, {3, true}, {3, true}}}
-	want := []Dip{{Steps: []Step{{With: 0, From: Edge{At: at(14)}, Until: Edge{At: at(41)}, First: 1, Last: 3}}, Column: 1, First: 1, Last: 3}}
-	if got := pool.dipsOver(members, tl); !reflect.DeepEqual(got, want) {
-		t.Errorf("the dips are %+v, want %+v", got, want)
 	}
 }
 

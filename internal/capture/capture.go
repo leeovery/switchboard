@@ -56,7 +56,7 @@ type Fixture struct {
 	view dashboard.View
 	log  dashboard.LogTicks
 	// by is how a printout groups the windows, and windows are the keys of
-	// those it prints, in Claude's order: none prints every one.
+	// those it prints, in the order of care: none prints every one.
 	by      dashboard.By
 	windows []string
 	// theme is what it's drawn in: the frames' nord unless InTheme says
@@ -300,15 +300,17 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // pages are the pages the watch draws over the worlds. The Overview's frames
 // and the routing card's over it, each named after its frame, at its size,
 // over its world, with the keys that reach it: on auto, pinned and in the bad
-// hour; by account; USAGE alone; GRAPHS and SESSIONS shown, the rest folded;
-// six accounts and ten; at 216 columns, with SESSIONS, with SESSIONS and
-// GRAPHS, and everything shown; on a phone; where no frame draws them, to
-// judge by eye, GRAPHS' burn-down, with v, GRAPHS and SESSIONS shown; by
-// account with GRAPHS at 160 × 37, and its burn-down at 220 × 50; by
-// account at 140 × 48, GRAPHS falling back to the focused account's charts,
-// ROUTING, COMING UP and LATELY hidden; the pool's charts beside Σ pool by
-// account, the burn-down at 160 × 37 and the burn-up at 220 × 50; and the
-// burn-down on a phone, USAGE and GRAPHS alone; and the routing card opened
+// hour; by account; each model's own window shown, with w; side's Fable week
+// nearing its limit, shown with them hidden; USAGE alone; GRAPHS and
+// SESSIONS shown, the rest folded; six accounts and ten; at 216 columns, with
+// SESSIONS, with SESSIONS and GRAPHS, and everything shown; on a phone; where
+// no frame draws them, to judge by eye, GRAPHS' burn-down, with v, GRAPHS and
+// SESSIONS shown; by account with GRAPHS at 160 × 37, and with w its
+// burn-down at 220 × 50; by account at 140 × 48, with w, GRAPHS falling back
+// to the focused account's charts, ROUTING, COMING UP and LATELY hidden; the
+// pool's charts beside Σ pool by account, the burn-down at 160 × 37 and with
+// w the burn-up at 220 × 50; and with w the burn-down on a phone, USAGE and
+// GRAPHS alone; and the routing card opened
 // on auto, with two picked, with one picked and m ticked, and over routing's
 // world of a limit, with side picked. History's frames, each reached from
 // the Overview with tab twice, then the keys to its view: the Year, and
@@ -359,14 +361,16 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // lines scrolling, ↓ six times scrolling to db8a; and the router gone, R
 // having found it so, what was in flight said as last known.
 // Then Runway's frames, each reached from the Overview with tab four times:
-// the 5-hour view, wide and on a phone; the week, with >; Wednesday, ← twice,
-// today and the day before; all over the auto world; and the 5-hour view of
-// ten accounts.
+// the week, which it opens on, wide and on a phone; the 5-hour view, with >;
+// Wednesday, > then ← twice, today and the day before; all over the auto
+// world; and the week of ten accounts.
 var pages = []page{
 	{name: "overview-default-160", size: wide(37), world: accountWorlds.auto},
 	{name: "overview-pinned-160", size: wide(37), world: accountWorlds.pinned},
 	{name: "overview-bad-hour-160", size: wide(37), world: accountWorlds.badHour},
 	{name: "overview-by-account-160", size: wide(42), world: accountWorlds.auto, keys: keysOf("b")},
+	{name: "overview-models-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("w")},
+	{name: "overview-model-nearing-160", size: wide(37), world: accountWorlds.fableNearing},
 	{name: "overview-usage-alone-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("r", "c", "l")},
 	{name: "overview-everything-160x39", size: wide(39), world: accountWorlds.auto, keys: keysOf("g", "s")},
 	{name: "overview-six-accounts-160", size: wide(41), world: manyAccounts(6)},
@@ -378,11 +382,11 @@ var pages = []page{
 	{name: "overview-phone-52", size: watch.Size{Width: 52, Height: 66}, world: accountWorlds.auto},
 	{name: "overview-burn-down-160x39", size: wide(39), world: accountWorlds.auto, keys: keysOf("g", "s", "v")},
 	{name: "overview-by-account-graphs-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("b", "g")},
-	{name: "overview-by-account-burn-down-220x50", size: watch.Size{Width: 220, Height: 50}, world: accountWorlds.auto, keys: keysOf("b", "g", "v")},
-	{name: "overview-by-account-graphs-140", size: watch.Size{Width: 140, Height: 48}, world: accountWorlds.auto, keys: keysOf("b", "g", "r", "c", "l")},
+	{name: "overview-by-account-burn-down-220x50", size: watch.Size{Width: 220, Height: 50}, world: accountWorlds.auto, keys: keysOf("b", "g", "v", "w")},
+	{name: "overview-by-account-graphs-140", size: watch.Size{Width: 140, Height: 48}, world: accountWorlds.auto, keys: keysOf("b", "g", "r", "c", "l", "w")},
 	{name: "overview-pool-burn-down-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("b", "g", "v")},
-	{name: "overview-pool-220x50", size: watch.Size{Width: 220, Height: 50}, world: accountWorlds.auto, keys: keysOf("b", "g")},
-	{name: "overview-phone-burn-down-52", size: watch.Size{Width: 52, Height: 72}, world: accountWorlds.auto, keys: keysOf("g", "v", "r", "c", "l")},
+	{name: "overview-pool-220x50", size: watch.Size{Width: 220, Height: 50}, world: accountWorlds.auto, keys: keysOf("b", "g", "w")},
+	{name: "overview-phone-burn-down-52", size: watch.Size{Width: 52, Height: 72}, world: accountWorlds.auto, keys: keysOf("g", "v", "r", "c", "l", "w")},
 	{name: "routing-auto-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("p")},
 	{name: "routing-two-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("p", "2", "3")},
 	{name: "routing-move-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("p", "2", "m")},
@@ -486,11 +490,14 @@ var pages = []page{
 	{name: "page-sessions-chosen", size: wide(37), world: accountWorlds.scene, keys: append(toSessions(), repeated(downKey, 4)...)},
 	{name: "page-sessions-short", size: wide(14), world: accountWorlds.scene, keys: append(toSessions(), repeated(downKey, 6)...)},
 	{name: "page-sessions-not-answering", size: wide(37), world: accountWorlds.scene, keys: toSessions("R"), gone: true},
-	{name: "runway-5-hour-160", size: wide(37), world: accountWorlds.auto, keys: toRunway()},
-	{name: "runway-week-160", size: wide(37), world: accountWorlds.auto, keys: toRunway(">")},
-	{name: "runway-stepped-back-160", size: wide(37), world: accountWorlds.auto, keys: append(toRunway(), leftKey, leftKey)},
+	{name: "runway-5-hour-160", size: wide(37), world: accountWorlds.auto, keys: toRunway(">")},
+	{name: "runway-week-160", size: wide(37), world: accountWorlds.auto, keys: toRunway()},
+	{name: "runway-stepped-back-160", size: wide(37), world: accountWorlds.auto, keys: append(toRunway(">"), leftKey, leftKey)},
 	{name: "runway-ten-accounts-160", size: wide(37), world: manyAccounts(10), keys: toRunway()},
 	{name: "runway-phone-52", size: phone(33), world: accountWorlds.auto, keys: toRunway()},
+	{name: "runway-collapsed-160", size: wide(37), world: accountWorlds.auto, keys: toRunway("a")},
+	{name: "runway-collapsed-108x43", size: watch.Size{Width: 108, Height: 43}, world: accountWorlds.auto, keys: toRunway("a")},
+	{name: "runway-phone-collapsed-52", size: phone(33), world: accountWorlds.auto, keys: toRunway("a")},
 }
 
 // lookedAway are the keys a look at Sessions' Switchboard by before a page's

@@ -304,10 +304,10 @@ func (d detailDrawn) scrolls() (x, y, width, rows int) {
 	return d.l.panel, d.f.top(), d.f.Width - d.l.panel, d.f.viewRows()
 }
 
-// windows are the windows USAGE shows: every one, used or not, as usage
-// shows them, each named as the Overview names it.
+// windows are the windows USAGE shows: those the Overview lists, used or
+// not, as listedWindows has them.
 func (d detailDrawn) windows() []shownWindow {
-	return usageWindows(d.m, nil, d.f.windowNamer(d.m))
+	return d.f.listedWindows(d.m)
 }
 
 // byModelAt is the row of the panel BY MODEL is on: byModelGap rows under

@@ -22,7 +22,7 @@ func runwayHelping(width int, look Look, r RunwayShown, keys ...Key) Card {
 // runwaySaid is what Runway's help says at width columns in the look
 // given, its rows run together.
 func runwaySaid(width int, look Look) string {
-	return strings.Join(plainLines(runwayHelping(width, look, RunwayShown{}).body), " ")
+	return strings.Join(plainLines(runwayHelping(width, look, RunwayShown{Window: views.RunwayFiveHour}).body), " ")
 }
 
 // runwayHelpGlyphs are the glyphs Runway's help explains under the part
@@ -37,7 +37,7 @@ func runwayHelpGlyphs(look Look, r RunwayShown, heading string) []glyph {
 
 func TestRunwayHelpListsItsKeysThenEachPartInTheDesignsOrder(t *testing.T) {
 	keys := []Key{tabViews, {Key: "< >", Does: "window"}, {Key: "←→", Does: "day"}, {Key: "t", Does: "themes"}, {Key: "R", Does: "refresh"}, helpQuit[0], helpQuit[1]}
-	card := runwayHelping(160, Look{}, RunwayShown{}, keys...)
+	card := runwayHelping(160, Look{}, RunwayShown{Window: views.RunwayFiveHour}, keys...)
 	if card.title != "HELP · RUNWAY" {
 		t.Errorf("help is titled %q, want HELP · RUNWAY", card.title)
 	}
@@ -63,7 +63,7 @@ func TestRunwayHelpLeavesThePoolOutWithOneAccount(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := helpHeadings(runwayHelping(160, Look{}, RunwayShown{Lanes: tt.lanes}, tabViews)); !slices.Equal(got, tt.want) {
+			if got := helpHeadings(runwayHelping(160, Look{}, RunwayShown{Window: views.RunwayFiveHour, Lanes: tt.lanes}, tabViews)); !slices.Equal(got, tt.want) {
 				t.Errorf("help explains %q, want %q", got, tt.want)
 			}
 		})
@@ -94,7 +94,7 @@ func TestRunwayHelpDrawsEachMarkAsALaneDrawsIt(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var got []line
-			for _, g := range runwayHelpGlyphs(tt.look, RunwayShown{}, "LANES") {
+			for _, g := range runwayHelpGlyphs(tt.look, RunwayShown{Window: views.RunwayFiveHour}, "LANES") {
 				got = append(got, g.drawn)
 			}
 			if !slices.EqualFunc(got, tt.want, func(a, b line) bool { return slices.Equal(a, b) }) {
@@ -143,6 +143,10 @@ func TestRunwayHelpSaysWhatItsRulesAre(t *testing.T) {
 		{"the windows that count", "Every window every model shares counts, a model's own window not"},
 		{"the 5-hour leaving out a week running out", "the 5-hour view leaves out a week running out"},
 		{"the use under a name", "its use of the view's window"},
+		{"the labels collapsed", "a collapses the labels, to give the lanes more room"},
+		{"a collapsed label", "its number, its marks and its use alone, as 2 ◆ 66%"},
+		{"COMING UP numbered", "COMING UP numbers each account, so a lane's number finds its name"},
+		{"the pool's room collapsed", "beside Σ, of how many accounts the pool is, as Σ 1.2/3"},
 		{"a stale account", "not read since 14:20"},
 		{"a refused token's use faded", "and the use of one whose token is refused"},
 		{"a run of stretches", "a stretch says lifts 19:00, when its own hold lifts, and only the last says back"},
@@ -156,10 +160,8 @@ func TestRunwayHelpSaysWhatItsRulesAre(t *testing.T) {
 		{"the pool's columns at none", "where none has room, ─ along its foot, as a lane at its limit draws it"},
 		{"what counts without room", "An account at its cap or its limit counts without room"},
 		{"the pool's accounts", "The pool is every account on auto, and the pin's while one holds"},
-		{"a dip under way", "8 of 10 with room till 15:30"},
-		{"a dip ahead", "~16:05 – 16:55 for one ahead"},
-		{"a day's dip", "15:02 – 17:10 on a day stepped back to"},
-		{"a chain", "each change of its count chained on"},
+		{"the pool's room", "Under Σ pool, the pool's room in the view's window"},
+		{"the pool pinned", "as pinned says after its room where it fits"},
 		{"stepping back a day", "first to today from its midnight, then a day at a time"},
 		{"stepping back a week", "first to this week from its first day, as week_starts begins weeks"},
 		{"stepping forward", "from today, or this week, to the live view"},
@@ -219,7 +221,7 @@ func TestRunwayHelpSaysHowLongAColumnIsAtTheWidth(t *testing.T) {
 
 func TestRunwayHelpFitsTheCardAtEveryWidth(t *testing.T) {
 	for _, width := range []int{216, 160, 100, 52} {
-		card := runwayHelping(width, Look{}, RunwayShown{}, tabViews, helpQuit[0], helpQuit[1])
+		card := runwayHelping(width, Look{}, RunwayShown{Window: views.RunwayFiveHour}, tabViews, helpQuit[0], helpQuit[1])
 		inside := card.width - 2*cardInset
 		for i, row := range card.body {
 			if row.width() > inside || strings.Contains(row.plain(), prose.Ellipsis) {

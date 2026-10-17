@@ -39,8 +39,8 @@ func TestPrintsItsColoursWithAnsi(t *testing.T) {
 	if !strings.ContainsRune(out, ansi.ESC) {
 		t.Errorf("printed\n%s\nwant it in colour", out)
 	}
-	if text := capturing(t, "--fixture", "overview-default-160", "--print"); plain(out) != text {
-		t.Errorf("in colour, the frame reads\n%s\nwant it to read as it does without\n%s", plain(out), text)
+	if text := capturing(t, "--fixture", "overview-default-160", "--print"); capture.Plain(out) != text {
+		t.Errorf("in colour, the frame reads\n%s\nwant it to read as it does without\n%s", capture.Plain(out), text)
 	}
 }
 
@@ -61,6 +61,7 @@ func TestPrintsAtTheSizeGiven(t *testing.T) {
 func TestRefusesWhatTheCommandLineCantMean(t *testing.T) {
 	available := "(available: " + strings.Join(capture.Names(), ", ") + ")"
 	scenarios := "(available: " + strings.Join(capture.ScenarioNames(), ", ") + ")"
+	empty := t.TempDir()
 	tests := []struct {
 		name string
 		args []string
@@ -78,6 +79,10 @@ func TestRefusesWhatTheCommandLineCantMean(t *testing.T) {
 		{name: "a scenario's size", args: []string{"--scenario", "routing", "--size", "80x24"}, want: "--size takes --print: full screen, the terminal gives the size"},
 		{name: "a scenario in a theme there isn't", args: []string{"--scenario", "routing", "--theme", "solarized"}, want: `--theme "solarized" names no built-in theme (built in: amber, exchange, nord, terminal, tokyo-night, tokyo-night-day), nor a .theme file`},
 		{name: "a scenario without a terminal", args: []string{"--scenario", "routing"}, want: "a scenario plays full screen: it needs a terminal"},
+		{name: "frames for no fixture", args: []string{"--frames", empty, "usage-160", "sessions-2"}, want: `--frames: unknown fixture "sessions-2" ` + available},
+		{name: "frames where none is kept", args: []string{"--frames", empty}, want: "--frames: " + empty + " keeps no frames: name those to write after it"},
+		{name: "frames in another theme", args: []string{"--theme", "amber", "--frames", empty}, want: "--frames takes the frames' names alone, not --theme"},
+		{name: "frames printed", args: []string{"--frames", empty, "--print", "--fixture", "usage-160"}, want: "--frames takes the frames' names alone, not --fixture, --print"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -90,6 +95,70 @@ func TestRefusesWhatTheCommandLineCantMean(t *testing.T) {
 				t.Errorf("run(%q) printed %q, want nothing", tt.args, stdout.String())
 			}
 		})
+	}
+}
+
+func TestWritesTheFramesNamedFromTheirFixtures(t *testing.T) {
+	dir := t.TempDir()
+	out := capturing(t, "--frames", dir, "usage-52", "overview-default-160")
+
+	if want := "wrote usage-52\nwrote overview-default-160\n"; out != want {
+		t.Errorf("printed %q, want %q", out, want)
+	}
+	for _, name := range []string{"usage-52", "overview-default-160"} {
+		heldAsWritten(t, dir, name)
+	}
+	if got, _ := capture.FramesIn(dir); len(got) != 2 {
+		t.Errorf("wrote the frames %v, want the two named", got)
+	}
+}
+
+func TestWritesEveryFrameTheDirectoryKeepsAfresh(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range []string{"usage-52.txt", "usage-52.ansi", "usage-80.txt", "usage-80.ansi"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("as Paper drew it"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	capturing(t, "--frames", dir)
+
+	for _, name := range []string{"usage-52", "usage-80"} {
+		heldAsWritten(t, dir, name)
+	}
+	if got, _ := capture.FramesIn(dir); len(got) != 2 {
+		t.Errorf("wrote the frames %v, want the two it kept", got)
+	}
+}
+
+func TestWritesNoFrameWhereOneNamedHasNoFixture(t *testing.T) {
+	dir := t.TempDir()
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{"--frames", dir, "usage-52", "sessions-2"}, &stdout, &stderr, noEnv); err == nil {
+		t.Fatal("wrote frames where one named has no fixture, want an error")
+	}
+	if entries, _ := os.ReadDir(dir); len(entries) > 0 {
+		t.Errorf("wrote %d files, want none", len(entries))
+	}
+}
+
+// heldAsWritten fails unless dir keeps the fixture called name's frame as
+// it's drawn at its own size: its colours, without the newline after the last
+// row, and its text.
+func heldAsWritten(t *testing.T, dir, name string) {
+	t.Helper()
+	f, err := capture.ByName(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	frame := f.Frame(f.Size)
+	for ext, want := range map[string]string{".ansi": strings.TrimSuffix(frame, "\n"), ".txt": capture.Plain(frame)} {
+		got, err := os.ReadFile(filepath.Join(dir, name+ext))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(got) != want {
+			t.Errorf("%s%s reads\n%s\nwant\n%s", name, ext, got, want)
+		}
 	}
 }
 
@@ -197,7 +266,7 @@ func TestPrintsAPrintoutAsTallAsItIsAtTheWidthGiven(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if want := plain(f.Frame(watch.Size{Width: 100, Height: 20})); out.String() != want {
+	if want := capture.Plain(f.Frame(watch.Size{Width: 100, Height: 20})); out.String() != want {
 		t.Errorf("printed\n%s\nwant the printout\n%s", out.String(), want)
 	}
 	var taller bytes.Buffer

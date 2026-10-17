@@ -289,7 +289,7 @@ func (t *todayOf) three(open bool) *todayOf {
 	if open {
 		t.personal()
 	}
-	t.side()
+	t.side(sidesFable)
 	return t
 }
 
@@ -313,16 +313,20 @@ func (t *todayOf) personal(after ...level) {
 	t.week("personal", 0, level{t.at(13, 32, 41), .65}, level{t.at(14, 20, 0), .66})
 }
 
+// sidesFable is how much of side's Fable week the auto world has used.
+const sidesFable = .04
+
 // side takes in side's readings today as the auto world has them: its
 // window primed at 13:50, quiet until it took work's sessions at 14:31, at
-// 13% now, rising on to the levels given after; its week at 78%.
-func (t *todayOf) side(after ...level) {
+// 13% now, rising on to the levels given after; its week at 78%, and its
+// Fable week at fable.
+func (t *todayOf) side(fable float64, after ...level) {
 	t.session("side", t.at(0, 31, 0), false, level{t.at(0, 41, 0), .02})
 	t.session("side", t.at(8, 47, 0), true, level{t.at(12, 47, 0), .20})
 	t.session("side", t.at(13, 50, 0), true, slices.Concat(
 		[]level{{t.at(14, 10, 0), .03}, {t.at(14, 31, 0), .03}, {t.at(14, 41, 30), .13}}, after,
 	)...)
-	t.week("side", .04, level{t.at(14, 40, 0), .78})
+	t.week("side", fable, level{t.at(14, 40, 0), .78})
 }
 
 // limited takes in personal's readings today as a world where it reached its
@@ -353,12 +357,28 @@ const framesChoice = "side"
 // tells of its day as the Log does, and today's traffic is the sessions'
 // world's.
 func (a accountWorlds) auto() accountWorld {
-	return a.kept("auto", func() accountWorld {
-		accounts := firstAccounts(3)
-		return accountWorld{
-			accounts: accounts, history: a.today().three(true).history(accounts), sessions: autoSessions, best: framesChoice,
-			routed: routedSessions, events: autoEvents(a.now), stream: inFlight(a.now), traffic: true,
-		}
+	return a.kept("auto", func() accountWorld { return a.autoOf(a.today().three(true)) })
+}
+
+// autoOf is the auto world, its readings today as t took them in.
+func (a accountWorlds) autoOf(t *todayOf) accountWorld {
+	accounts := firstAccounts(3)
+	return accountWorld{
+		accounts: accounts, history: t.history(accounts), sessions: autoSessions, best: framesChoice,
+		routed: routedSessions, events: autoEvents(a.now), stream: inFlight(a.now), traffic: true,
+	}
+}
+
+// fableNearing is the auto world with side's Fable week read at 88% at
+// 14:40, running out before it resets at the rate it rose at: nearing its
+// limit, the live views list it while they hide each model's own window.
+func (a accountWorlds) fableNearing() accountWorld {
+	return a.kept("fableNearing", func() accountWorld {
+		t := a.today()
+		t.work()
+		t.personal()
+		t.side(.88)
+		return a.autoOf(t)
 	})
 }
 

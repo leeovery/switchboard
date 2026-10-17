@@ -102,11 +102,10 @@ func (s AccountsShown) Account() string {
 }
 
 // heading is Accounts' heading row: its name and its sub-tabs, the one drawn
-// picked out, set tight on a phone, as the rule Accounts and History share
-// has them, Detail alone where there's one account; and at its right, the
+// picked out, Detail alone where there's one account; and at its right, the
 // period between < and >.
 func (s AccountsShown) heading() heading {
-	h := heading{name: strings.ToUpper(Accounts.Title()), subTabs: accountsViews, shown: int(s.View()), tight: true, period: s.Period.Name()}
+	h := heading{name: strings.ToUpper(Accounts.Title()), subTabs: accountsViews, shown: int(s.View()), period: s.Period.Name()}
 	if s.Alone() {
 		h.subTabs, h.shown = accountsViews[AccountsDetail:], 0
 	}

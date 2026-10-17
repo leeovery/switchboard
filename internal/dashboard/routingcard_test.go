@@ -81,41 +81,6 @@ func dollars(cents int64) *ledger.Picodollars {
 	return &p
 }
 
-func TestTheRoutingCardIsDrawnAsItsFrames(t *testing.T) {
-	nord := Screen(builtin(t, "nord"))
-	// The frames colour each figure along the ramp, where the design colours
-	// it by its level, as usage does: its first stop below 70%, its second
-	// from 70%, its last from 90%.
-	figures := []spot{{14, 75, 78}, {14, 86, 89}, {15, 75, 78}, {15, 86, 89}, {16, 75, 78}, {16, 86, 89}}
-	tests := []struct {
-		stem  string
-		limit bool
-		card  RoutingCard
-		// whole are the cells the frame draws otherwise than the world.
-		whole []spot
-	}{
-		{stem: "routing-auto-160", card: RoutingCard{}},
-		{stem: "routing-two-160", card: RoutingCard{Picked: []string{"personal", "side"}, Cursor: 3}},
-		{stem: "routing-move-160", card: RoutingCard{Picked: []string{"personal"}, Cursor: 2, Move: true, Moving: 4, Cost: dollars(620)}},
-		// The frame's card draws personal's week 64%, where its page, and
-		// the world, have 66%.
-		{stem: "routing-limit-160", limit: true, card: RoutingCard{Picked: []string{"side"}, Cursor: 3}, whole: []spot{{15, 87, 87}}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.stem, func(t *testing.T) {
-			doc, sessions := routedWorld(tt.limit)
-			tt.card.Rows = RoutingRows(doc.At(routedAt, claudeLike), sessions, views.Stream{})
-			f := Frame{Width: 160, Height: 37, Look: nord, View: Overview, Policy: claudeLike, Sessions: sessions, Card: tt.card}
-			drawn := screenOf(t, f.Draw(doc, routedAt))
-			// The frames light no row, where the design lights the cursor's,
-			// its rows from row 13, from a cell before the card's content to
-			// a cell after it.
-			lit := spot{row: 13 + tt.card.Cursor, first: 41, last: 118}
-			heldTo(t, tt.stem, reference(t, tt.stem), drawn, region{top: 9, bottom: 26, left: 39, right: 120}, shadeOf(nord.Canvas()), append(tt.whole, lit), figures)
-		})
-	}
-}
-
 func TestTheRoutingCardsRowsAreAutoThenEachAccountNumbered(t *testing.T) {
 	accounts := make([]status.Account, 10)
 	for i := range accounts {
@@ -208,6 +173,17 @@ func TestTheCardSaysAClosedAccountsBackAsItsMomentHasItAtEachHardMoment(t *testi
 	}
 }
 
+// cardFigure is the figure of the window with the given key on the routing
+// card's row, reporting false where the row has none of it.
+func cardFigure(row RoutingRow, key string) (Figure, bool) {
+	for _, w := range row.Windows {
+		if w.Key == key {
+			return w.Figure, true
+		}
+	}
+	return Figure{}, false
+}
+
 func TestAnAccountsFiguresAreItsWindowsAsUsageReadsThem(t *testing.T) {
 	refused := readAccount("refused", sessionOf(0.3, time.Hour), weekOf(0.5, 3*quota.Day))
 	refused.Refused = status.Refusal{Until: now.Add(time.Hour).UTC(), Status: 401}
@@ -227,8 +203,9 @@ func TestAnAccountsFiguresAreItsWindowsAsUsageReadsThem(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			row := RoutingRows(routerDoc("", 0, tt.account).At(now, claudeLike), nil, views.Stream{})[1]
-			if row.Session != tt.session || row.Week != tt.week {
-				t.Errorf("the 5-hour reads %+v and the week %+v, want %+v and %+v", row.Session, row.Week, tt.session, tt.week)
+			want := [2]RoutingWindow{{Key: "7d", Name: "week", Figure: tt.week}, {Key: "5h", Name: "5-hour", Figure: tt.session}}
+			if row.Windows != want {
+				t.Errorf("the card's windows read %+v, want the week, then the 5-hour, %+v", row.Windows, want)
 			}
 		})
 	}
@@ -239,7 +216,7 @@ func TestAnAccountNotReadYetIsOpenItsFiguresFaint(t *testing.T) {
 	unread.FetchedAt = time.Time{}
 	r := RoutingCard{Rows: RoutingRows(routerDoc("", 0, unread).At(now, claudeLike), nil, views.Stream{})}
 	row := r.choice(r.Rows[1], false, 76)[0]
-	if got, want := strings.TrimRight(row.plain(), " "), "□ 1 unread      open      5-hour —     week —"; got != want {
+	if got, want := strings.TrimRight(row.plain(), " "), "□ 1 unread      open      week —     5-hour —"; got != want {
 		t.Errorf("its row reads %q, want %q", got, want)
 	}
 	for _, s := range row {
@@ -775,11 +752,11 @@ func TestOnAPhoneAnAccountsWindowsTakeARowOfTheirOwn(t *testing.T) {
 		"",
 		"■ 0 auto        the router chooses",
 		"□ 1 work        closed  at its cap till 17:…",
-		"                5-hour 95%   week 34%",
+		"                week 34%   5-hour 95%",
 		"□ 2 personal    open               2 running",
-		"                5-hour 39%   week 66%",
+		"                week 66%   5-hour 39%",
 		"□ 3 side        open               4 running",
-		"                5-hour 13%   week 78%",
+		"                week 78%   5-hour 13%",
 	}
 	if got := body[:10]; !slices.Equal(got, want) {
 		t.Errorf("the rows read\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))

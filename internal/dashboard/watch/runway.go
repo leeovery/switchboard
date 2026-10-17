@@ -244,16 +244,19 @@ func (m Model) runwaySaw(look status.Moment) Model {
 
 // runwayBuilt is m with Runway built afresh at the moment of the message
 // taken in, while it shows with no session's page over it, once a moment:
-// its timeline; its lanes, as views.Lanes builds them from the last look's,
-// of the readings and the ledger's days they're judged by, as readingsOf and
-// runwayDays have them; and COMING UP, as views.RunwayComing has it.
+// its collapsed labels' cells, as Labelled sizes them, which its timeline's
+// columns are counted after; its timeline; its lanes, as views.Lanes builds
+// them from the last look's, of the readings and the ledger's days they're
+// judged by, as readingsOf and runwayDays have them; and COMING UP, as
+// views.RunwayComing has it.
 func (m Model) runwayBuilt() Model {
-	t := m.runwayTab
-	if m.view != dashboard.Runway || m.session != nil || t.builtAt != nil && t.builtAt == m.taking.moment {
+	if m.view != dashboard.Runway || m.session != nil || m.runwayTab.builtAt != nil && m.runwayTab.builtAt == m.taking.moment {
 		return m
 	}
 	now := m.now()
-	mo, tl, live := m.moment(now), m.runwayTimeline(now), liveSpan(now)
+	mo := m.moment(now)
+	m.runwayTab.shown = m.runwayTab.shown.Labelled(mo)
+	t, tl, live := m.runwayTab, m.runwayTimeline(now), liveSpan(now)
 	t.lanes = t.looking()(t.lanes, views.LanesFrom{
 		Moment: mo, Readings: t.readingsOf(spanOf(tl, live), live), Days: m.runwayDays(tl, now), Kept: t.kept, Seen: t.seen.from(), Timeline: tl, Window: t.shown.Window,
 	})
@@ -448,7 +451,8 @@ var (
 // runwayKey acts on a key of Runway's, reporting false for a key it doesn't
 // take, or on another tab: < and > show the live view of the other window,
 // as Windowed has it; ← and → step back and on, as Stepped has it, ← no
-// further than runwayReaches says. A key that changes what's shown shows it
+// further than runwayReaches says; and a collapses the account column, or
+// expands it, as Collapsing has it. A key that changes what's shown shows it
 // as showRunway has it.
 func (m Model) runwayKey(key string) (Model, bool) {
 	if m.view != dashboard.Runway {
@@ -462,6 +466,8 @@ func (m Model) runwayKey(key string) (Model, bool) {
 	} else if by, ok := runwayStepKeys[key]; ok {
 		next, changed = s.Stepped(by, now, m.cfg.WeekStarts)
 		changed = changed && m.runwayReaches(next, now)
+	} else if key == "a" {
+		next, changed = s.Collapsing(), true
 	} else {
 		return m, false
 	}
@@ -483,13 +489,14 @@ func (m Model) runwayReaches(r dashboard.RunwayShown, now time.Time) bool {
 	return !named || !tl.Now.IsZero() || !began.IsZero() && !last.Before(civilOf(began))
 }
 
-// showRunway is m showing Runway as r has it, keeping its window where that
-// changed, for the next watch to open with: never a step back.
+// showRunway is m showing Runway as r has it, keeping its window and its
+// account column collapsed or not where either changed, for the next watch
+// to open with: never a step back.
 func (m Model) showRunway(r dashboard.RunwayShown) Model {
 	was := m.runwayTab.shown
 	m.runwayTab.shown = r
 	if kept := r.Kept(); kept != was.Kept() {
-		m.keepPrefs("Runway's window", func(prefs *theme.Prefs) { prefs.Runway = kept }, "window", kept.Window)
+		m.keepPrefs("what Runway shows", func(prefs *theme.Prefs) { prefs.Runway = kept }, "window", kept.Window, "collapsed", kept.Collapsed)
 	}
 	return m
 }

@@ -42,7 +42,7 @@ func TestTheViewsAgreeAtEachHardMoment(t *testing.T) {
 				}
 			}
 			for _, w := range d.moment.Pool().Windows {
-				agree(t, "the pool's "+w.Key+" is used", d.poolUsed(w.Key))
+				agree(t, "the pool's "+w.Key+" has left", d.poolRoom(w.Key))
 			}
 		})
 	}
@@ -94,7 +94,7 @@ func drawnAt(t *testing.T, doc status.Document, now time.Time) drawn {
 	}
 	d := drawn{
 		now: now, moment: m,
-		usage:      newUsageBlock(m, 160, Look{}, ByWindow, usageWindows(m, nil, labelsOf(m))),
+		usage:      newUsageBlock(m, 160, Look{}, ByWindow, usageWindows(m.Listed(true), labelsOf(m))),
 		routing:    f.routingTableOf(doc, now),
 		card:       RoutingRows(m, nil, views.Stream{}),
 		coming:     f.upcoming(doc, now),
@@ -106,7 +106,7 @@ func drawnAt(t *testing.T, doc status.Document, now time.Time) drawn {
 		t.Fatalf("COMING UP says %d things, want the moment's %d", len(d.coming), len(m.ComingUp))
 	}
 	for _, w := range runwayWindows {
-		tl := views.LiveTimeline(w, now, RunwayColumns(f.Width))
+		tl := views.LiveTimeline(w, now, RunwayShown{}.Columns(f.Width))
 		lanes := views.Lanes{}.Look(views.LanesFrom{Moment: m, Timeline: tl, Window: w})
 		runway := f
 		runway.View, runway.Runway = Runway, RunwayShown{Window: w, Timeline: tl, Lanes: &lanes}
@@ -340,20 +340,21 @@ func (d drawn) used(a status.AccountNow, w status.WindowNow) []viewSays {
 	return says
 }
 
-// poolUsed is how much of the pool's window with the given key each view
-// says is used: USAGE's Σ pool bar, and the pool's chart of it at now, its
-// last column.
-func (d drawn) poolUsed(key string) []viewSays {
+// poolRoom is how much room the pool's window with the given key each view
+// says its accounts have left, to a tenth: USAGE's Σ pool words, and the
+// pool's chart of it at now, its last column. Σ pool's bar is left out, as
+// it fills to the accounts' mean use, by design another figure than the
+// chart's share of their room used.
+func (d drawn) poolRoom(key string) []viewSays {
 	var says []viewSays
 	if n := len(d.usage.rows); n > 0 && d.usage.rows[n-1].pool {
 		if j := slices.IndexFunc(d.usage.windows, func(w shownWindow) bool { return w.key == key }); j >= 0 {
-			says = append(says, viewSays{"USAGE's Σ pool", prose.Percent(d.usage.rows[n-1].gauges[j].bar.used)})
+			says = append(says, viewSays{"USAGE's Σ pool", d.usage.rows[n-1].gauges[j].words.full[0].text})
 		}
 	}
 	for _, pc := range d.poolCharts {
 		if room := pc.room; pc.key == key && room.Of > 0 {
-			last := room.Columns[len(room.Columns)-1]
-			says = append(says, viewSays{"the pool's chart", prose.Percent(1 - last.Room/float64(room.Of))})
+			says = append(says, viewSays{"the pool's chart", prose.Tenths(room.Columns[len(room.Columns)-1].Room)})
 		}
 	}
 	return says
@@ -362,15 +363,7 @@ func (d drawn) poolUsed(key string) []viewSays {
 // figure is the routing card's figure of account a's window w, reporting
 // false where the card has none of it.
 func (d drawn) figure(a status.AccountNow, w status.WindowNow) (Figure, bool) {
-	row := d.card[d.place(a)+1]
-	switch {
-	case w.Started:
-		return row.Session, true
-	case w.Shared && quota.WeekLong(w.Key):
-		return row.Week, true
-	default:
-		return Figure{}, false
-	}
+	return cardFigure(d.card[d.place(a)+1], w.Key)
 }
 
 // stale is whether each view says account a's window w reads as last read,

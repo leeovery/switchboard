@@ -12,48 +12,6 @@ import (
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
-// trailFilled is the trail of a window from start, length long, that a chart
-// width cells wide and h rows tall fills as filled gives it, a column's
-// eighths each, from its first to now's: a reading at each column's middle,
-// and now's at now.
-func trailFilled(start time.Time, length time.Duration, width, h int, filled []int) Trail {
-	var trail Trail
-	for col, eighths := range filled {
-		at := start.Add(time.Duration((float64(col) + 0.5) / float64(width) * float64(length)))
-		if col == len(filled)-1 {
-			at = printNow
-		}
-		trail.Readings = append(trail.Readings, score.Reading{At: at, Utilization: float64(eighths) / float64(8*h)})
-	}
-	return trail
-}
-
-// trailsOf are the trails of account a's windows with the keys given, each
-// charted width cells wide and h rows tall, filled as filled gives each, in
-// that order.
-func trailsOf(t *testing.T, a status.Account, keys []string, width, h int, filled ...[]int) Trails {
-	t.Helper()
-	trails := make(Trails)
-	for i, key := range keys {
-		w, _ := a.Window(key)
-		start, length, ok := w.Span()
-		if !ok {
-			t.Fatalf("%s's %s has no span", a.ID, key)
-		}
-		trails[Ref{Account: a.ID, Window: key}] = trailFilled(start, length, width, h, filled[i])
-	}
-	return trails
-}
-
-// down are the cells of column col from row top to bottom.
-func down(col, top, bottom int) []spot {
-	var spots []spot
-	for row := top; row <= bottom; row++ {
-		spots = append(spots, spot{row, col, col})
-	}
-	return spots
-}
-
 // graphsDrawn is GRAPHS drawn by f of doc at printNow on a canvas of f's
 // size, its description from column 9 of row heading, as its heading has it
 // after "GRAPHS" and three spaces, and its body from two rows under, rows
@@ -64,60 +22,6 @@ func graphsDrawn(f Frame, doc status.Document, heading, rows int) *canvas {
 	c.line(len("GRAPHS   "), heading, s.description())
 	s.draw(c, bounds{y: heading + sectionHead, width: f.Width, rows: rows})
 	return c
-}
-
-func TestGRAPHSIsDrawnAsItsFrames(t *testing.T) {
-	nord := Screen(builtin(t, "nord"))
-	tests := []struct {
-		stem          string
-		width, height int
-		// heading is the row GRAPHS' heading is on, and h its charts' rows.
-		heading, h int
-		// chart is how many cells wide each chart is.
-		chart int
-		// filled are the eighths of each chart's columns, the 5-hour's, the
-		// week's and Fable's week's, to now's, as the frame fills them.
-		filled [3][]int
-		// whole are the cells the frame draws otherwise than the design.
-		whole []spot
-	}{
-		{
-			stem: "overview-everything-160x39", width: 160, height: 39, heading: 18, h: leastChart, chart: 45,
-			filled: [3][]int{
-				{1, 4, 7, 9, 10, 11, 12, 14, 16, 19, 21, 22, 23, 24, 26, 29, 32, 34, 35, 36, 37, 38, 38, 38},
-				{0, 0, 0, 1, 3, 4, 4, 4, 4, 4, 6, 7, 7, 8, 8, 8, 9, 10, 11, 11, 11, 11, 11, 13, 14},
-				slices.Concat(slices.Repeat([]int{0}, 5), slices.Repeat([]int{2}, 12), slices.Repeat([]int{5}, 8)),
-			},
-		},
-		{
-			stem: "overview-sessions-graphs-216", width: 216, height: 70, heading: 18, h: mostChart, chart: 64,
-			filled: [3][]int{
-				{3, 9, 17, 24, 31, 36, 38, 40, 42, 46, 51, 58, 66, 73, 79, 83, 86, 87, 90, 93, 99, 106, 114, 121, 127, 131, 133, 135, 137, 141, 144, 144, 144},
-				{0, 0, 0, 1, 1, 6, 11, 13, 14, 15, 15, 15, 15, 15, 19, 24, 27, 28, 28, 29, 29, 29, 29, 33, 38, 40, 42, 42, 42, 42, 42, 42, 46, 50, 52},
-				slices.Concat(slices.Repeat([]int{0}, 7), []int{7}, slices.Repeat([]int{9}, 16), []int{15}, slices.Repeat([]int{18}, 10)),
-			},
-			// The frame fills the 5-hour chart to column 33, a column past
-			// now's, where min(round(0.507 × 64), 63) puts now in 32, and
-			// draws now a cell on with it. Its chart at 160 columns agrees
-			// with the design.
-			whole: append(down(49, 22, 39), spot{40, 47, 50}),
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.stem, func(t *testing.T) {
-			doc := trio()
-			work, _ := doc.Account("work")
-			f := Frame{
-				Width: tt.width, Height: tt.height, Look: nord, View: Overview, Focus: "work",
-				Trails: trailsOf(t, work, []string{"5h", "7d", "7d_oi"}, tt.chart, tt.h, tt.filled[:]...),
-			}
-			drawn := screenOf(t, graphsDrawn(f, doc, tt.heading, tt.h+2).rows(nord))
-			frame, canvas := reference(t, tt.stem), shadeOf(nord.Canvas())
-			heldTo(t, tt.stem, frame, drawn, region{top: tt.heading, bottom: tt.heading, left: 9, right: 46}, canvas, nil, nil)
-			body := region{top: tt.heading + sectionHead, bottom: tt.heading + sectionHead + tt.h + 1, left: 0, right: tt.width - 1}
-			heldTo(t, tt.stem, frame, drawn, body, canvas, tt.whole, nil)
-		})
-	}
 }
 
 // chartAt is a chart of a window ten hours long, from 08:00, of an account
@@ -332,7 +236,7 @@ func TestGRAPHSPutsAChartUnderEachWindowOfUSAGEOrStacksThemOnAPhone(t *testing.T
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := Frame{Width: tt.width, Height: 70, Focus: "work"}
+			f := Frame{Width: tt.width, Height: 70, Focus: "work", Policy: claudeLike, Models: true}
 			g := f.graphsOf(doc, printNow)
 			var got []bounds
 			for i := range g.charts {

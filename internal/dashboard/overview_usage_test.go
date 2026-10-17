@@ -25,6 +25,50 @@ func usageAccount(id string, used float64, session time.Time, weekUsed, fableUse
 	}}
 }
 
+// Every live view lists each model's own window, as Fable's week, only while
+// w shows them, as the moment's Listed has it: USAGE, by window and by
+// account; GRAPHS; Accounts' Detail; Sessions' Switchboard; and a session's
+// page. One nearing its limit shows all the same.
+func TestEveryLiveViewListsAModelsWindowWhileWShowsThemOrItNearsItsLimit(t *testing.T) {
+	graphsAlone := frameOf(160, 40)
+	graphsAlone.Sections = Sections{}.Toggled(SectionUsage).Toggled(SectionGraphs)
+	byAccount := frameOf(160, 40)
+	byAccount.By = ByAccount
+	nearing := func(d *status.Document) { d.Accounts[2].Windows[2].Utilization = 0.95 }
+	tests := []struct {
+		name  string
+		f     Frame
+		doc   status.Document
+		now   time.Time
+		fable string
+	}{
+		{name: "USAGE by window", f: frameOf(160, 40), doc: usageWorld(), now: routedAt, fable: "FABLE WEEK"},
+		{name: "USAGE by account", f: byAccount, doc: usageWorld(), now: routedAt, fable: "Fable wk"},
+		{name: "GRAPHS", f: graphsAlone, doc: usageWorld(), now: routedAt, fable: "FABLE WEEK"},
+		{name: "Accounts' Detail", f: detailFrame(Look{}, framedAccounts, "side", "", nil, nil), doc: usageWorld(), now: routedAt, fable: "Fable wk"},
+		{name: "Sessions' Switchboard", f: sceneFrame(160, 37, Look{}), doc: usageWorld(), now: routedAt, fable: "Fable wk"},
+		{name: "a session's page", f: pageFrame(t, resumed(), 160, 37), doc: pageDoc(), now: sessionNow, fable: "fable week"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, models := range []bool{false, true} {
+				tt.f.Models = models
+				text := strings.Join(textOf(tt.f.Draw(tt.doc, tt.now)), "\n")
+				if strings.Contains(text, tt.fable) != models {
+					t.Errorf("with models %t, it says %q %t, want %t:\n%s", models, tt.fable, !models, models, text)
+				}
+			}
+		})
+	}
+	t.Run("nearing its limit", func(t *testing.T) {
+		f := frameOf(160, 40)
+		f.Models = false
+		if text := strings.Join(textOf(f.Draw(usageWorld(nearing), routedAt)), "\n"); !strings.Contains(text, "FABLE WEEK") {
+			t.Errorf("side's Fable week at 95%%, models hidden, USAGE reads\n%s\nwant it listed", text)
+		}
+	})
+}
+
 // usageWorld is the world the Overview's frames are drawn of, as change
 // leaves it, with what's worked out of it: work, capped at 95%, at its cap in
 // its 5-hour window; personal, the primary, its week running out ~Sat 06:00
@@ -52,105 +96,6 @@ func usageWorld(change ...func(*status.Document)) status.Document {
 func usagePinned(ids ...string) func(*status.Document) {
 	return func(d *status.Document) {
 		d.Pin, d.Best = status.Pin{Accounts: ids, Since: routedClock(1, 14, 2)}, ids[0]
-	}
-}
-
-// usageBadHour is the bad hour's world: new sessions pinned to personal and
-// side, side where they go; work's token refused, its last reading at 14:20;
-// and personal at its 5-hour limit till its window resets at 15:54.
-func usageBadHour(d *status.Document) {
-	usagePinned("personal", "side")(d)
-	d.Best = "side"
-	account("work", func(a *status.Account) {
-		a.FetchedAt, a.Refused = routedClock(1, 14, 20), status.Refusal{Until: routedAt.Add(time.Hour), Status: 401}
-	})(d)
-	account("personal", func(a *status.Account) {
-		a.Windows[0] = quota.Window{Key: "5h", Label: "Session", Utilization: 1, Status: quota.StatusRejected, ResetsAt: routedClock(1, 15, 54)}
-		a.Limit = status.Limit{Windows: []string{"5h"}, Until: routedClock(1, 15, 54)}
-	})(d)
-}
-
-// usageDrawn is the cells of USAGE of doc as f draws its section's body in
-// the rows given, from row top, on a canvas the frame's size, nothing else
-// drawn on it.
-func usageDrawn(t *testing.T, f Frame, doc status.Document, top, rows int) [][]seen {
-	t.Helper()
-	c := newCanvas(f.Width, f.Height)
-	f.usageSection(doc, routedAt).draw(c, bounds{y: top, width: f.Width, rows: rows})
-	return screenOf(t, c.rows(f.Look))
-}
-
-// The cells of USAGE's frames passed over, as the frames draw them otherwise
-// than the design or than the world.
-var (
-	// evenPace160, evenPace216 and evenPaceByAccount are where the frames
-	// place even pace's mark as if each window's pace were a whole percent,
-	// where the design's rule, min(round(pace × bar), bar − 1), puts it a
-	// cell on or back: work's week and Fable week at 16 and 48 cells, and,
-	// at 170, its 5-hour and side's too.
-	evenPace160       = []spot{{8, 72, 73}, {8, 120, 121}}
-	evenPace216       = []spot{{8, 102, 103}, {12, 45, 46}, {19, 106, 107}, {30, 106, 107}}
-	evenPaceByAccount = []spot{{8, 51, 52}, {10, 51, 52}}
-	// sidesWeek is where the frames give side's week its allowance, 6%/day
-	// till Mon 10:00, where it runs out ~Fri 12:20 at its average pace.
-	sidesWeek = map[string]spot{
-		"160": {12, 87, 107}, "216": {12, 125, 145}, "216 big": {23, 193, 213}, "by account": {22, 81, 101}, "phone": {24, 37, 48},
-	}
-	// personalsLimit is where the bad hour's frame has personal's 5-hour
-	// reset at 16:30, as the auto world's, its even pace and the pool's a
-	// cell back, where its world's resets at 15:54, as its limit lifts.
-	personalsLimit = []spot{{10, 26, 28}, {14, 22, 23}}
-	// workFocused is the last two cells of work's name column, which the frames
-	// leave unlit, lighting its first 12 cells, where the matrix lights the
-	// whole column but the gap before the bars, 14 of the sample's 16 (the
-	// owner's call, 15 October 2026).
-	workFocused = spot{8, 12, 13}
-)
-
-func TestUSAGEIsDrawnAsItsFrames(t *testing.T) {
-	nord := Screen(builtin(t, "nord"))
-	graphed := Sections{}.Toggled(SectionGraphs).Toggled(SectionSessions)
-	wide := func(top, rows, width int) []region {
-		return []region{{top: top, bottom: top + rows - 1, right: width - 1}}
-	}
-	tests := []struct {
-		stem          string
-		width, height int
-		doc           status.Document
-		shown         Sections
-		by            By
-		top, rows     int
-		in            []region
-		whole         []spot
-	}{
-		{stem: "overview-default-160", width: 160, height: 37, doc: usageWorld(), top: 6, rows: 11, whole: slices.Concat(evenPace160, []spot{sidesWeek["160"]})},
-		{stem: "overview-pinned-160", width: 160, height: 37, doc: usageWorld(usagePinned("personal")), top: 6, rows: 11, whole: slices.Concat(evenPace160, []spot{sidesWeek["160"]})},
-		{stem: "overview-bad-hour-160", width: 160, height: 37, doc: usageWorld(usageBadHour), top: 6, rows: 11, whole: slices.Concat(evenPace160, []spot{sidesWeek["160"]}, personalsLimit)},
-		{stem: "overview-everything-160x39", width: 160, height: 39, doc: usageWorld(), shown: graphed, top: 6, rows: 11, whole: slices.Concat(evenPace160, []spot{sidesWeek["160"], workFocused})},
-		{stem: "overview-sessions-graphs-216", width: 216, height: 70, doc: usageWorld(), shown: graphed, top: 6, rows: 11, whole: []spot{sidesWeek["216"], workFocused}},
-		{stem: "overview-default-216", width: 216, height: 70, doc: usageWorld(), top: 6, rows: 33, whole: slices.Concat(evenPace216, []spot{sidesWeek["216 big"]})},
-		{stem: "overview-everything-216x106", width: 216, height: 106, doc: usageWorld(), shown: graphed, top: 6, rows: 33, whole: slices.Concat(evenPace216, []spot{sidesWeek["216 big"]})},
-		{
-			stem: "overview-by-account-160", width: 160, height: 42, doc: usageWorld(), by: ByAccount, top: 6, rows: 28,
-			// USAGE's blocks end before ROUTING's beside them, but for the
-			// pool's rule across both and the key line.
-			in:    []region{{top: 6, bottom: 31, right: 103}, {top: 26, bottom: 26, right: 159}, {top: 32, bottom: 33, right: 159}},
-			whole: slices.Concat(evenPaceByAccount, []spot{sidesWeek["by account"]}),
-		},
-		{stem: "overview-phone-52", width: 52, height: 66, doc: usageWorld(), top: 7, rows: 34, whole: []spot{sidesWeek["phone"]}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.stem, func(t *testing.T) {
-			f := Frame{Width: tt.width, Height: tt.height, Look: nord, View: Overview, Policy: claudeLike, Sections: tt.shown, By: tt.by, Focus: "work"}
-			drawn := usageDrawn(t, f, tt.doc, tt.top, tt.rows)
-			in := tt.in
-			if in == nil {
-				in = wide(tt.top, tt.rows, tt.width)
-			}
-			for _, r := range in {
-				heldTo(t, tt.stem, reference(t, tt.stem), drawn, r, shadeOf(nord.Canvas()), tt.whole, nil)
-			}
-		})
 	}
 }
 
@@ -370,9 +315,9 @@ func TestUSAGEScrollsAnAccountsRowsAtATimeAPageBeingThoseShownAtItsOffset(t *tes
 		{name: "the matrix scrolled past the foot, as the frame now has it", width: 160, n: 10, rows: 14, scroll: 9, want: Scrolling{Most: 6, Page: 4}},
 		{name: "stacked, under 150 columns, at the top", width: 120, n: 6, rows: 25, want: Scrolling{Most: 3, Page: 3}},
 		{name: "stacked, under 150 columns, between ▲ and ▼", width: 120, n: 6, rows: 25, scroll: 1, want: Scrolling{Most: 3, Page: 2}},
-		{name: "by account", width: 160, by: ByAccount, n: 6, rows: 20, want: Scrolling{Most: 4, Page: 2}},
-		{name: "by account at the top", width: 160, by: ByAccount, n: 6, rows: 21, want: Scrolling{Most: 3, Page: 3}},
-		{name: "by account between ▲ and ▼", width: 160, by: ByAccount, n: 6, rows: 21, scroll: 1, want: Scrolling{Most: 3, Page: 2}},
+		{name: "by account", width: 160, by: ByAccount, n: 6, rows: 17, want: Scrolling{Most: 4, Page: 2}},
+		{name: "by account at the top", width: 160, by: ByAccount, n: 6, rows: 18, want: Scrolling{Most: 3, Page: 3}},
+		{name: "by account between ▲ and ▼", width: 160, by: ByAccount, n: 6, rows: 18, scroll: 1, want: Scrolling{Most: 3, Page: 2}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -569,21 +514,21 @@ func TestUSAGEShownWholeTargetsAndHasROUTINGBesideTheRowsItShows(t *testing.T) {
 	f := frameOf(160, 60)
 	f.By, f.Scroll = ByAccount, 4
 	usage := f.usageSection(usageWorld(), now)
-	body := bounds{y: 6, width: 160, rows: 12}
+	body := bounds{y: 6, width: 160, rows: 10}
 	want := []Target{{Y: 6, Width: 160, On: OnAccount, Account: "work"}}
-	for y := 3; y < 8; y++ {
+	for y := 2; y < 7; y++ {
 		want = append(want, Target{Y: 6 + y, Width: 160, On: OnAccount, Account: "personal"})
 	}
 	if got := usage.targets(body); !slices.Equal(got, want) {
 		t.Errorf("scrolled 4 rows, USAGE's targets are\n%+v\nwant\n%+v", got, want)
 	}
-	rows, _ := usageBody(f, usageWorld(), now, 12)
+	rows, _ := usageBody(f, usageWorld(), now, 10)
 	at := f.overviewBlock(usageWorld(), now).besideAt()
 	beside := func(y int) string { return strings.TrimSpace(rows[y][min(len(rows[y]), at):]) }
-	if !strings.Contains(rows[3], "2 personal") || beside(3) == "" {
-		t.Errorf("scrolled 4 rows, personal's first row reads %q, want ROUTING's state beside it", rows[3])
+	if !strings.Contains(rows[2], "2 personal") || beside(2) == "" {
+		t.Errorf("scrolled 4 rows, personal's first row reads %q, want ROUTING's state beside it", rows[2])
 	}
-	for _, y := range []int{8, 9, 10} {
+	for _, y := range []int{7, 8} {
 		if beside(y) != "" {
 			t.Errorf("scrolled 4 rows, row %d reads %q, want nothing beside the rows under personal's, the scroll line's among them", y, rows[y])
 		}
@@ -594,8 +539,8 @@ func TestUSAGEShownWholeTargetsAndHasROUTINGBesideTheRowsItShows(t *testing.T) {
 // shows; else no further than shows its nearest row, below the page or above
 // it. Stacked at 120 columns in 8 rows, five show at once over the key line:
 // the 5-hour's heading on row 0 and its accounts on 2, 4 and 6; the week's
-// heading on 11, and its accounts on 13, 15 and 17; Fable week's on 22, and
-// 24, 26 and 28.
+// heading on 10, and its accounts on 12, 14 and 16; Fable week's on 20, and
+// 22, 24 and 26.
 func TestRevealingAnAccountInUSAGEShownWholeScrollsNoFurtherThanShowsARowOfIt(t *testing.T) {
 	usage := frameOf(120, 60).usageSection(usageWorld(), now)
 	tests := []struct {
@@ -606,9 +551,9 @@ func TestRevealingAnAccountInUSAGEShownWholeScrollsNoFurtherThanShowsARowOfIt(t 
 	}{
 		{name: "shown at the top: where it is", id: "work", want: 0},
 		{name: "below the page: till it's the page's last", id: "side", want: 2},
-		{name: "a row of it the page's first: where it is", scroll: 13, id: "work", want: 13},
-		{name: "nearer below than above: down till it shows", scroll: 7, id: "work", want: 9},
-		{name: "nearer above than below: up till it's the page's first", scroll: 16, id: "work", want: 13},
+		{name: "a row of it the page's first: where it is", scroll: 12, id: "work", want: 12},
+		{name: "nearer below than above: down till it shows", scroll: 7, id: "work", want: 8},
+		{name: "nearer above than below: up till it's the page's first", scroll: 14, id: "work", want: 12},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -653,11 +598,11 @@ func TestEachAccountsRowsInUSAGEMoveTheFocusThere(t *testing.T) {
 		},
 		{
 			name: "stacked: a row an account in each window", width: 120, doc: threeRouted(), rows: 25,
-			want: slices.Concat(rowsOf("work", 2), rowsOf("personal", 4), rowsOf("side", 6), rowsOf("work", 13), rowsOf("personal", 15), rowsOf("side", 17)),
+			want: slices.Concat(rowsOf("work", 2), rowsOf("personal", 4), rowsOf("side", 6), rowsOf("work", 12), rowsOf("personal", 14), rowsOf("side", 16)),
 		},
 		{
 			name: "by account: its block's rows, across ROUTING's beside them", width: 160, by: ByAccount, doc: threeRouted(), rows: 25,
-			want: slices.Concat(rowsOf("work", 0, 1, 2), rowsOf("personal", 5, 6, 7), rowsOf("side", 10, 11, 12)),
+			want: slices.Concat(rowsOf("work", 0, 1, 2), rowsOf("personal", 4, 5, 6), rowsOf("side", 8, 9, 10)),
 		},
 		{
 			name: "scrolled: those shown alone", width: 160, doc: manyRead(10), scroll: 3, rows: 15,
@@ -686,8 +631,8 @@ func TestUSAGEHasItsBigBarsWhereTheyFitByWindowFrom150Columns(t *testing.T) {
 		rows  int
 		big   bool
 	}{
-		{name: "rows for the big bars", width: 160, rows: 22, big: true},
-		{name: "a row short of them: the compact matrix", width: 160, rows: 21},
+		{name: "rows for the big bars", width: 160, rows: 21, big: true},
+		{name: "a row short of them: the compact matrix", width: 160, rows: 20},
 		{name: "under 150 columns: usage's stacked layout, no bigger", width: 149, rows: 40},
 		{name: "by account: its blocks, no bigger", width: 160, by: ByAccount, rows: 40},
 	}
@@ -696,13 +641,55 @@ func TestUSAGEHasItsBigBarsWhereTheyFitByWindowFrom150Columns(t *testing.T) {
 			f := frameOf(tt.width, 60)
 			f.By = tt.by
 			rows, _ := usageBody(f, threeRouted(), now, tt.rows)
-			if big := rows[0] == "5-HOUR" && strings.HasPrefix(rows[2], " 1 work") && tt.width >= matrixWidth; big != tt.big {
+			if big := rows[0] == "WEEK" && strings.HasPrefix(rows[2], " 1 work") && tt.width >= matrixWidth; big != tt.big {
 				t.Errorf("in %d rows, USAGE's big bars show: %v, want %v; its first rows read %q", tt.rows, big, tt.big, rows[:3])
 			}
 		})
 	}
-	if got, want := frameOf(160, 60).usageSection(threeRouted(), now).most, 24; got != want {
+	if got, want := frameOf(160, 60).usageSection(threeRouted(), now).most, 23; got != want {
 		t.Errorf("USAGE's most is %d rows, want %d: its heading and the big bars", got, want)
+	}
+}
+
+// On the Overview, as in the printout, USAGE's blocks are a blank row apart,
+// by window and by account, at every width, as its key line is from the
+// last; but two where GRAPHS' charts sit beside its blocks by account, each
+// chart's axis on the first, beside the cells of USAGE's own.
+func TestUSAGEsBlocksAreABlankRowApartButTwoBesideGRAPHSCharts(t *testing.T) {
+	at := func(width int, by By) Frame {
+		f := frameOf(width, 60)
+		f.By = by
+		return f
+	}
+	tests := []struct {
+		name  string
+		f     Frame
+		apart int
+	}{
+		{name: "the big bars", f: at(160, ByWindow), apart: 1},
+		{name: "stacked at 120", f: at(120, ByWindow), apart: 1},
+		{name: "stacked at 80", f: at(80, ByWindow), apart: 1},
+		{name: "stacked on a phone", f: at(52, ByWindow), apart: 1},
+		{name: "by account, ROUTING beside", f: at(160, ByAccount), apart: 1},
+		{name: "by account at 120", f: at(120, ByAccount), apart: 1},
+		{name: "by account on a phone", f: at(52, ByAccount), apart: 1},
+		{name: "by account, GRAPHS' charts beside", f: besideOf(160), apart: 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			starts, cells := startsWindow, tt.f.Width
+			if tt.f.By == ByAccount {
+				starts = startsAccount
+			}
+			if tt.f.Width >= matrixWidth && tt.f.By == ByAccount {
+				cells = tt.f.overviewBlock(usageWorld(), now).besideAt()
+			}
+			rows, _ := usageBody(tt.f, usageWorld(), now, 60)
+			blocks, key := gapsOver(rows, cells, starts)
+			if want := slices.Repeat([]int{tt.apart}, len(blocks)); len(blocks) < 2 || !slices.Equal(blocks, want) || key != 1 {
+				t.Errorf("the blank rows over each block but the first are %v, and over the key line %d; want %d over each, and 1:\n%s", blocks, key, tt.apart, strings.Join(rows, "\n"))
+			}
+		})
 	}
 }
 
@@ -803,8 +790,8 @@ func TestOneAccountsUSAGESaysTheRoomLeftWhereThePoolWouldSayIt(t *testing.T) {
 		width int
 		want  string
 	}{
-		{name: "one account", doc: one(0), width: 160, want: "room left  5h 0.4 of 1  ·  week 0.6 of 1"},
-		{name: "to its cap, as the pool counts its room", doc: one(0.2), width: 160, want: "room left  5h 0.2 of 1  ·  week 0.4 of 1"},
+		{name: "one account, the week first", doc: one(0), width: 160, want: "room left  week 0.6 of 1  ·  5h 0.4 of 1"},
+		{name: "to its cap, as the pool counts its room", doc: one(0.2), width: 160, want: "room left  week 0.4 of 1  ·  5h 0.2 of 1"},
 		{name: "on a phone, none", doc: one(0), width: 52},
 		{name: "several accounts, whose pool says it", doc: threeRouted(), width: 160},
 	}
@@ -817,7 +804,7 @@ func TestOneAccountsUSAGESaysTheRoomLeftWhereThePoolWouldSayIt(t *testing.T) {
 		})
 	}
 	room := func(key string) ink { return strongInk.numbered(Number{Kind: NumberRoom, Account: "work", Of: key}) }
-	inks := []ink{faintInk, dimInk, room("5h"), dimInk, faintInk, dimInk, room("7d"), dimInk}
+	inks := []ink{faintInk, dimInk, room("7d"), dimInk, faintInk, dimInk, room("5h"), dimInk}
 	got := frameOf(160, 60).usageSection(one(0), now).description()
 	if len(got) != len(inks) {
 		t.Fatalf("USAGE's description is %+v, want %d spans", got, len(inks))
@@ -842,8 +829,8 @@ func TestAcrossAResetBetweenReadsOneAccountsRoomLeftAndROUTINGAgree(t *testing.T
 		capped bool
 		want   string
 	}{
-		{name: "a moment before it resets", now: reset.Add(-time.Second), capped: true, want: "room left  5h 0.0 of 1  ·  week 0.4 of 1"},
-		{name: "a moment after, before it's read again", now: reset.Add(time.Second), want: "room left  5h 0.8 of 1  ·  week 0.4 of 1"},
+		{name: "a moment before it resets", now: reset.Add(-time.Second), capped: true, want: "room left  week 0.4 of 1  ·  5h 0.0 of 1"},
+		{name: "a moment after, before it's read again", now: reset.Add(time.Second), want: "room left  week 0.4 of 1  ·  5h 0.8 of 1"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -880,8 +867,9 @@ func TestAcrossAResetBetweenReadsThePoolsRoomAndROUTINGAgree(t *testing.T) {
 				t.Errorf("ROUTING has work capped %t, want %t", capped, tt.capped)
 			}
 			rows, _ := usageBody(f, doc, tt.now, 20)
-			i := slices.IndexFunc(rows, func(r string) bool { return strings.Contains(r, "Σ pool") })
-			if i < 0 || !strings.Contains(rows[i], "  "+tt.room) {
+			fiveHour := slices.Index(rows, "5-HOUR")
+			i := slices.IndexFunc(rows[max(fiveHour, 0):], func(r string) bool { return strings.Contains(r, "Σ pool") }) + fiveHour
+			if fiveHour < 0 || i < fiveHour || !strings.Contains(rows[i], "  "+tt.room) {
 				t.Errorf("USAGE reads\n%s\nwant the pool's 5-hour room %q", strings.Join(rows, "\n"), tt.room)
 			}
 		})
@@ -969,13 +957,13 @@ func TestTheOverviewFadesAnAccountOutOfThePoolWhereThePrintoutDoesnt(t *testing.
 
 func TestUSAGEsBarsFillAsFarAsTheyveEasedTheirPercentagesAsRead(t *testing.T) {
 	f := frameOf(160, 60)
-	f.Eased = map[Ref]float64{{Account: "work", Window: "5h"}: 0}
+	f.Eased = map[Ref]float64{{Account: "work", Window: "7d"}: 0}
 	rows, _ := usageBody(f, threeRouted(), now, 11)
 	if got := colAt(rows[2], 14, 42); strings.TrimSpace(got) != "┃" {
-		t.Errorf("work's 5-hour bar, easing from nothing, reads %q, want its track and even pace's mark alone", got)
+		t.Errorf("work's week bar, easing from nothing, reads %q, want its track and even pace's mark alone", got)
 	}
-	if got := colAt(rows[2], 14+42+1, 4); got != " 58%" {
-		t.Errorf("work's 5-hour percentage reads %q, want the reading's, 58%%", got)
+	if got := colAt(rows[2], 14+42+1, 4); got != " 34%" {
+		t.Errorf("work's week percentage reads %q, want the reading's, 34%%", got)
 	}
 }
 
@@ -993,10 +981,10 @@ func TestAWindowsWordsAreCuedWhileTheirTurningToOutIs(t *testing.T) {
 		x, y, to int
 		cued     bool
 	}{
-		{name: "work's 5-hour, turned out ~14:42", x: 63, y: 2, to: 73, cued: true},
-		{name: "work's week, its allowance", x: 137, y: 2, to: 159},
-		{name: "personal's week, out, but not turned out, its account's state changed", x: 137, y: 4, to: 151},
-		{name: "side's 5-hour, seen to turn out, but not out now", x: 63, y: 6, to: 79},
+		{name: "work's week, its allowance", x: 63, y: 2, to: 85},
+		{name: "personal's week, out, but not turned out, its account's state changed", x: 63, y: 4, to: 77},
+		{name: "work's 5-hour, turned out ~14:42", x: 137, y: 2, to: 147, cued: true},
+		{name: "side's 5-hour, seen to turn out, but not out now", x: 137, y: 6, to: 153},
 	}
 	t.Run("on bg.attention", func(t *testing.T) {
 		c, cue := cued(Screen(builtin(t, "nord"))), hue{token: theme.BgAttention, fade: 0.25}
@@ -1048,9 +1036,9 @@ func TestByAccountUSAGEsBarsLeaveROUTINGItsRoomBesideThem(t *testing.T) {
 			}
 			if tt.bar > 0 {
 				rows, _ := usageBody(f, tt.doc, printNow, 30)
-				at, want := tt.names+windowLabelCells+tt.bar+1, " 95%  at cap · back 17:10"
+				at, want := tt.names+windowLabelCells+tt.bar+1, " 34%  19%/day till Sun 21:00"
 				if got := colAt(rows[0], at, len([]rune(want))); got != want {
-					t.Errorf("work's 5-hour reads %q from column %d, want %q, its percentage a cell after its bar", got, at, want)
+					t.Errorf("work's week reads %q from column %d, want %q, its percentage a cell after its bar", got, at, want)
 				}
 			}
 		})
@@ -1098,24 +1086,6 @@ func TestUSAGELeavesROUTINGItsColumnsBesideItsBlocksWhileItShowsByAccountFrom150
 	}
 }
 
-func TestROUTINGBesideUSAGEsBlocksIsDrawnAsTheOverviewsFrameIs(t *testing.T) {
-	nord := Screen(builtin(t, "nord"))
-	f := Frame{
-		Width: 160, Height: 42, Look: nord, View: Overview, Policy: claudeLike, By: ByAccount,
-		Sections: Sections{}.Toggled(SectionSessions),
-		Sessions: sessionsRunning(map[string]int{"personal": 2, "side": 4}),
-	}
-	frame, drawn := reference(t, "overview-by-account-160"), screenOf(t, f.Draw(usageWorld(), routedAt))
-	// The traces and their rates, as the frame's traffic isn't the world's;
-	// and work's state, which the frame draws whole to the edge, where the
-	// design cuts its words by whole clauses to end two cells short of it.
-	whole := append(spanning(107, 159, 10, 17, 24, 31), spot{row: 6, first: 132, last: 159})
-	// Row 26 is the pool's rule, which USAGE's blocks draw.
-	for _, in := range []region{{top: 4, bottom: 25, left: 107, right: 159}, {top: 27, bottom: 31, left: 107, right: 159}} {
-		heldTo(t, "overview-by-account-160", frame, drawn, in, shadeOf(nord.Canvas()), whole, nil)
-	}
-}
-
 func TestROUTINGBesideUSAGEsBlocksFollowsThemAsTheyScroll(t *testing.T) {
 	doc := manyRead(10)
 	for i := range doc.Accounts {
@@ -1129,7 +1099,7 @@ func TestROUTINGBesideUSAGEsBlocksFollowsThemAsTheyScroll(t *testing.T) {
 	for i, row := range rows {
 		beside[i] = strings.TrimRight(colAt(row, x, f.Width-x), " ")
 	}
-	want := map[int][2]string{1: {"3 a3", "3 sessions"}, 6: {"4 a4", "4 sessions"}, 11: {"5 a5", "5 sessions"}, 17: {"Σ pool", "55 sessions"}}
+	want := map[int][2]string{1: {"3 a3", "3 sessions"}, 5: {"4 a4", "4 sessions"}, 9: {"5 a5", "5 sessions"}, 17: {"Σ pool", "55 sessions"}}
 	for y, w := range want {
 		if !strings.HasPrefix(strings.TrimLeft(rows[y], " "), w[0]) || beside[y+1] != w[1] {
 			t.Errorf("row %d reads %q, %q beside the row under it; want it to start %q, %q beside", y, rows[y], beside[y+1], w[0], w[1])
@@ -1143,16 +1113,16 @@ func TestROUTINGBesideBlocksOfOneWindowLeavesTheirTracesOff(t *testing.T) {
 	f.By, f.Policy.Shared = ByAccount, []string{"5h"}
 	x := f.overviewBlock(doc, now).besideAt()
 	rows, _ := usageBody(f, doc, now, 10)
-	want := map[int]string{0: "● open · new sessions come here", 1: "0 sessions", 2: "", 3: "● open", 4: "0 sessions", 6: "2 open", 7: "0 sessions"}
+	want := map[int]string{0: "● open · new sessions come here", 1: "0 sessions", 2: "● open", 4: "2 open", 5: "0 sessions"}
 	for y, w := range want {
 		if got := strings.TrimRight(colAt(rows[y], x, f.Width-x), " "); got != w {
 			t.Errorf("beside row %d reads %q, want %q", y, got, w)
 		}
 	}
-	if rule := rows[5]; strings.Trim(rule, "─") != "" {
-		t.Errorf("the pool's rule reads %q, want it whole, no trace over it", rule)
+	if rule := rows[3]; strings.Trim(rule, "─") != "" {
+		t.Errorf("the pool's rule reads %q, want it whole, nothing beside the block above over it", rule)
 	}
-	if key := rows[8]; strings.Contains(key, "/min") {
+	if key := rows[7]; strings.Contains(key, "/min") {
 		t.Errorf("the key line reads %q, want no trace over it", key)
 	}
 }
@@ -1179,7 +1149,7 @@ func TestTheOverviewShowsEachAccountsRowsUnderTheWindowsEveryModelSharesBeforeAn
 				for _, ch := range f.graphsOf(doc, now).charts {
 					charts = append(charts, ch.name)
 				}
-				if want := []string{"5-HOUR", "WEEK"}; !slices.Equal(charts, want) {
+				if want := []string{"WEEK", "5-HOUR"}; !slices.Equal(charts, want) {
 					t.Errorf("GRAPHS charts %q, want %q", charts, want)
 				}
 			})

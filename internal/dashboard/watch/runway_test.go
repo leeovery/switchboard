@@ -34,7 +34,8 @@ type runwayed struct {
 // 37 tall, its readings history filed holding the readings given, its ledger
 // holding the days from 2024 on, as historyHarness's does, each of no
 // requests but as the test puts them there, set up as setup has it, where
-// it's given; it counts Runway's lanes as they're built. It's started.
+// it's given, Runway kept on the 5-hour, which > steps on from to the week;
+// it counts Runway's lanes as they're built. It's started.
 func runwayHarness(t *testing.T, view dashboard.View, setup func(*runwayed, *Config), held ...readings.Reading) *runwayed {
 	t.Helper()
 	h := routedHarness(t, routerDocument(three()...))
@@ -42,6 +43,7 @@ func runwayHarness(t *testing.T, view dashboard.View, setup func(*runwayed, *Con
 	r.ledger = &daysLedger{Empty: h.emptyLedger(), clock: h.clock, first: "2024-06-03", days: map[string]ledger.Summary{}}
 	cfg := h.config(Size{Width: 160, Height: 37})
 	cfg.Readings, cfg.Ledger, cfg.View = r.filed, r.ledger, view
+	cfg.RunwayShown = dashboard.RunwayShown{Window: views.RunwayFiveHour}
 	if setup != nil {
 		setup(r, &cfg)
 	}
@@ -97,16 +99,80 @@ func TestRunwaysWindowIsKeptAsItChangesAndAStepBackNever(t *testing.T) {
 				step.key, shown, prefs.kept.Runway, prefs.updates, step.window, step.back, step.updates)
 		}
 	}
-	if prefs.kept.Runway != (theme.RunwayPrefs{Window: "week"}) {
+	if prefs.kept.Runway != (theme.RunwayPrefs{}) {
 		t.Errorf("the preferences keep %+v, want the week", prefs.kept.Runway)
 	}
 }
 
+// a collapses Runway's account column and expands it again, keeping each,
+// whatever the view or step shows, its lanes built afresh over the columns
+// its labels give up and given back: 149 at 160 collapsed, 136 expanded.
+func TestACollapsesRunwaysAccountColumnAndKeepsIt(t *testing.T) {
+	r := runwayHarness(t, dashboard.Runway, nil)
+	prefs := &fakePrefs{}
+	r.model.cfg.Prefs = prefs
+	steps := []struct {
+		keys      string
+		collapsed bool
+		back      bool
+		columns   int
+		updates   int
+	}{
+		{keys: "a", collapsed: true, columns: 149, updates: 1},
+		{keys: "left", collapsed: true, back: true, columns: 149, updates: 1},
+		{keys: "a", back: true, columns: 136, updates: 2},
+		{keys: "right a", collapsed: true, columns: 149, updates: 3},
+	}
+	for _, step := range steps {
+		r.keyed(step.keys)
+		shown := r.model.runwayTab.shown
+		if shown.Collapsed != step.collapsed || shown.Back.IsZero() == step.back || prefs.kept.Runway != shown.Kept() || prefs.updates != step.updates {
+			t.Fatalf("after %s, Runway shows %+v, the preferences keep %+v, updated %d times; want collapsed %t, stepped back %t, kept, %d times",
+				step.keys, shown, prefs.kept.Runway, prefs.updates, step.collapsed, step.back, step.updates)
+		}
+		if got := r.from.Timeline.Columns; got != step.columns {
+			t.Errorf("after %s, Runway's lanes are built over %d columns, want %d", step.keys, got, step.columns)
+		}
+	}
+	if want := (theme.RunwayPrefs{Window: "5-hour", Collapsed: true}); prefs.kept.Runway != want {
+		t.Errorf("the preferences keep %+v, want %+v", prefs.kept.Runway, want)
+	}
+}
+
+// Runway opens with its account column as the preferences kept it: expanded,
+// as with nothing kept, or collapsed.
+func TestRunwayOpensWithItsAccountColumnAsKept(t *testing.T) {
+	for _, collapsed := range []bool{false, true} {
+		r := runwayHarness(t, dashboard.Runway, func(_ *runwayed, cfg *Config) {
+			cfg.RunwayShown = dashboard.RunwayKept(theme.RunwayPrefs{Collapsed: collapsed})
+		})
+		columns := map[bool]int{false: 136, true: 149}[collapsed]
+		if shown := r.model.runwayTab.shown; shown.Collapsed != collapsed || r.from.Timeline.Columns != columns {
+			t.Errorf("kept collapsed %t, Runway opens collapsed %t over %d columns, want %d", collapsed, shown.Collapsed, r.from.Timeline.Columns, columns)
+		}
+	}
+}
+
+// With nothing kept, Runway opens on the week's live view.
+func TestRunwayOpensOnTheWeek(t *testing.T) {
+	r := runwayHarness(t, dashboard.Runway, func(_ *runwayed, cfg *Config) { cfg.RunwayShown = dashboard.RunwayKept(theme.RunwayPrefs{}) })
+	if shown := r.model.runwayTab.shown; shown.Window != views.RunwayWeek || !shown.Back.IsZero() {
+		t.Errorf("Runway opens on %+v, want the week's live view", shown)
+	}
+	if r.from.Timeline != views.LiveTimeline(views.RunwayWeek, start, 136) {
+		t.Errorf("its lanes are built over %+v, want the week's live view", r.from.Timeline)
+	}
+}
+
 func TestRunwaysKeysAreTakenOnRunwayAlone(t *testing.T) {
-	r := runwayHarness(t, dashboard.History, nil)
-	r.keyed("> left")
-	if shown := r.model.runwayTab.shown; shown.Window != views.RunwayFiveHour || !shown.Back.IsZero() {
-		t.Errorf("> and ← on History leave Runway showing %+v, want its live 5-hour view as it was", shown)
+	for _, view := range []dashboard.View{dashboard.Overview, dashboard.Accounts, dashboard.History, dashboard.Sessions, dashboard.Log} {
+		t.Run(view.Title(), func(t *testing.T) {
+			r := runwayHarness(t, view, nil)
+			r.keyed("> left a")
+			if shown := r.model.runwayTab.shown; shown.Window != views.RunwayFiveHour || !shown.Back.IsZero() || shown.Collapsed {
+				t.Errorf(">, ← and a on %s leave Runway showing %+v, want its live 5-hour view, expanded, as it was", view.Title(), shown)
+			}
+		})
 	}
 }
 
@@ -564,7 +630,7 @@ func TestAClickOnRunwayDoesWhatItsKeyDoes(t *testing.T) {
 		{name: "< by the window", click: onStep(-1), want: dashboard.RunwayShown{Window: views.RunwayWeek}},
 		{name: "> by the window", keys: ">", click: onStep(1), want: dashboard.RunwayShown{Window: views.RunwayFiveHour}},
 		{name: "the key line's < > window", click: onKey("< >"), want: dashboard.RunwayShown{Window: views.RunwayWeek}},
-		{name: "the key line's ←→ day, stepped back", keys: "left left", click: onKey("←→"), want: dashboard.RunwayShown{Back: civilDay(0)}},
+		{name: "the key line's ←→ day, stepped back", keys: "left left", click: onKey("←→"), want: dashboard.RunwayShown{Window: views.RunwayFiveHour, Back: civilDay(0)}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -10,7 +10,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/prose"
-	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 )
@@ -63,7 +62,7 @@ type usageBlock struct {
 	width int
 	look  Look
 	by    By
-	// windows are those shown, in Claude's order.
+	// windows are those shown, in the order of care.
 	windows []shownWindow
 	// rows are the accounts', in the config's order, then the pool's, where
 	// there's one.
@@ -76,15 +75,17 @@ type usageBlock struct {
 	// the account whose number and name the matrix picks out; marks are the
 	// marks the key line names after the cap's; above and below are how
 	// many accounts' rows are scrolled out of view above those shown, and
-	// below; and spare are the rows those shown leave blank under them, over
+	// below; spare are the rows those shown leave blank under them, over
 	// the pool's, so the pool and the key line keep their rows however far
-	// the block's scrolled.
+	// the block's scrolled; and charted is whether GRAPHS' charts sit beside
+	// its blocks by account.
 	big          bool
 	accountBar   int
 	focus        string
 	marks        []line
 	above, below int
 	spare        int
+	charted      bool
 }
 
 // shownWindow is a window the block shows: its key, and its name, as in
@@ -147,27 +148,9 @@ func blockOf(m status.Moment, width int, look Look, by By, windows []shownWindow
 	return b
 }
 
-// UsageWindows are the keys of the windows usage shows of m where none is
-// given: those every model shares, as the policy m was judged by has them,
-// and every other any account reports, so every account keeps its rows
-// before any is read; in Claude's order.
-func UsageWindows(m status.Moment) []string {
-	keys := slices.Clone(m.Policy().Shared)
-	for _, a := range m.Accounts {
-		for _, w := range a.Windows {
-			keys = append(keys, w.Key)
-		}
-	}
-	return slices.Compact(slices.SortedFunc(slices.Values(keys), quota.CompareKeys))
-}
-
-// usageWindows are the windows of m with the keys given, in their order,
-// which is Claude's, or with none, those UsageWindows has, each named as name
-// names it, cleaned.
-func usageWindows(m status.Moment, keys []string, name func(key string) string) []shownWindow {
-	if len(keys) == 0 {
-		keys = UsageWindows(m)
-	}
+// usageWindows are the windows with the keys given, in their order, each
+// named as name names it, cleaned.
+func usageWindows(keys []string, name func(key string) string) []shownWindow {
 	shown := make([]shownWindow, 0, len(keys))
 	for _, key := range keys {
 		shown = append(shown, shownWindow{key: key, name: prose.Clean(name(key))})
@@ -196,9 +179,10 @@ func drawsEmpty(kind status.WindowKind) bool {
 
 // poolRow is pool's row under the rows of accounts named as names has them,
 // of the windows shown, its Σ in their number column, reporting false where
-// there's no pool, as with one account: each window's bar filled to what the
-// pool has used, with its accounts' even pace and no cap's mark, and its
-// words its room, the first it has words for saying it's pinned, where it is.
+// there's no pool, as with one account: each window's bar filled to its
+// accounts' mean use, with their even pace and no cap's mark, empty where no
+// account's use is counted, and its words its room, the first it has words
+// for saying it's pinned, where it is.
 func poolRow(pool status.PoolNow, names []accountName, windows []shownWindow) (usageRow, bool) {
 	if len(names) < 2 || len(pool.Accounts) == 0 {
 		return usageRow{}, false
@@ -212,11 +196,11 @@ func poolRow(pool status.PoolNow, names []accountName, windows []shownWindow) (u
 			continue
 		}
 		p := pool.Windows[j]
-		row.gauges = append(row.gauges, gauge{
-			of:    Ref{Window: w.key},
-			bar:   usageBar{used: p.Used, capAt: 1, pace: p.Pace},
-			words: poolWords(p.Room, len(pool.Accounts), pinned),
-		})
+		bar := usageBar{empty: true}
+		if p.Used != nil {
+			bar = usageBar{used: *p.Used, capAt: 1, pace: p.Pace}
+		}
+		row.gauges = append(row.gauges, gauge{of: Ref{Window: w.key}, bar: bar, words: poolWords(p.Room, len(pool.Accounts), pinned)})
 		pinned = false
 	}
 	return row, true
@@ -226,7 +210,13 @@ func poolRow(pool status.PoolNow, names []accountName, windows []shownWindow) (u
 // accounts named as names has them: Σ in their numbers' column, in
 // text.subtle, then pool, in text.secondary.
 func poolNamed(names []accountName) line {
-	return line{{strings.Repeat(" ", len(names[0].number)-1) + "Σ", dimInk}, {" pool", noteInk}}
+	return line{poolSigma(names), {" pool", noteInk}}
+}
+
+// poolSigma is the pool's Σ, under the rows of accounts named as names has
+// them: in their numbers' column, right-aligned, in text.subtle.
+func poolSigma(names []accountName) span {
+	return span{strings.Repeat(" ", len(names[0].number)-1) + "Σ", dimInk}
 }
 
 // caps is the key line's cap part: ╎ and the cap of each account whose bars,
@@ -276,10 +266,15 @@ func namesOf(m status.Moment) []accountName {
 }
 
 // cells are the cells the name takes in the name column, its label whole:
-// its number, its label and its marks, ▲'s kept on an account without it,
-// but where the name is unrouted.
+// its number, its label and its marks, as headCells counts them.
 func (n accountName) cells(label int) int {
-	cells := len(n.number) + 1 + label
+	return n.headCells() + 1 + label
+}
+
+// headCells are the cells the name's number and marks take, ▲'s kept on an
+// account without it, but where the name is unrouted.
+func (n accountName) headCells() int {
+	cells := len(n.number)
 	if !n.unrouted {
 		cells += markCells
 	}
@@ -310,12 +305,17 @@ func (n accountName) labelIn(cells int) line {
 	if n.number == "" {
 		return append(line{label}, n.marks()...)
 	}
-	number := dimInk
-	if n.out {
-		number = faintInk
-	}
 	label.text = " " + label.text
-	return append(line{{n.number, number}, label}, n.marks()...)
+	return append(line{n.numbered(), label}, n.marks()...)
+}
+
+// numbered is the name's number, in text.subtle, or text.faint where it's
+// out of the pool.
+func (n accountName) numbered() span {
+	if n.out {
+		return span{n.number, faintInk}
+	}
+	return span{n.number, dimInk}
 }
 
 // marks are the marks after the name's label, each after a space: ◆ on the
@@ -480,17 +480,17 @@ func (b usageBlock) focusCells() int {
 }
 
 // stacked draws the block's windows one under another, each a section, its
-// heading, then a row an account, the pool last, from row y, two blank lines
-// between sections. The block's spare rows are shared out among its sections,
-// each's over the pool it ends with, the last's the rows left over too: as
-// every section shows the same accounts, each is then as tall however far the
-// block's scrolled, and every heading keeps its row.
+// heading, then a row an account, the pool last, from row y, a blank line
+// between sections, as before the key line. The block's spare rows are shared
+// out among its sections, each's over the pool it ends with, the last's the
+// rows left over too: as every section shows the same accounts, each is then
+// as tall however far the block's scrolled, and every heading keeps its row.
 func (b usageBlock) stacked(c *canvas, y int) laid {
 	bar := b.bar()
 	all := laid{end: y}
 	for i, w := range b.windows {
 		if i > 0 {
-			y += 2
+			y++
 		}
 		c.line(0, y, line{{strings.ToUpper(w.name), dimInk}})
 		in := b
@@ -561,20 +561,20 @@ func (b usageBlock) split() ([]usageRow, *usageRow) {
 }
 
 // byAccount draws a block an account from row y, each window a row of it,
-// the pool's last, two blank lines between blocks, the pool's rule in the
-// second: wide, from 110 columns, the name beside its first window's row and
-// each label in the name column; else the name on a line of its own above,
-// and the labels a cell in. Its bars take what the block's width leaves
-// them, and its words end a cell before the edge, but where the Overview sets
-// its bars: then its words end besideCells before besideAt, the gap before
-// ROUTING's blocks beside them.
+// the pool's last, as far apart as blocksApart has them, the pool's rule in
+// the last blank line before it: wide, from 110 columns, the name beside its
+// first window's row and each label in the name column; else the name on a
+// line of its own above, and the labels a cell in. Its bars take what the
+// block's width leaves them, and its words end a cell before the edge, but
+// where the Overview sets its bars: then its words end besideCells before
+// besideAt, the gap before ROUTING's blocks beside them.
 func (b usageBlock) byAccount(c *canvas, y int) laid {
 	labelAt, cells := b.labels()
 	bar, end := b.bar(), b.width-afterWords
 	if b.accountBar > 0 {
 		end = b.besideAt() - besideCells
 	}
-	l := b.each(c, 0, y, 3, func(r usageRow, y int) int {
+	l := b.each(c, 0, y, b.blocksApart(), func(r usageRow, y int) int {
 		c.line(0, y, r.name)
 		if b.width < wideAccounts {
 			y++
@@ -594,6 +594,16 @@ func (b usageBlock) byAccount(c *canvas, y int) laid {
 		}
 	}
 	return l
+}
+
+// blocksApart is how far a block by account's first row is from the last
+// of the block before: a blank line between them, as before the key line;
+// two where GRAPHS' charts sit beside them, each chart's axis on the first.
+func (b usageBlock) blocksApart() int {
+	if b.charted {
+		return 3
+	}
+	return 2
 }
 
 // labels are the column a block by account's window labels start at, and the

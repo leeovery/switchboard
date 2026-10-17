@@ -95,8 +95,8 @@ func checkCardAgrees(t *testing.T, m status.Moment, rows []RoutingRow) {
 		if !drawsEmpty(session.Kind) {
 			want = Figure{Used: session.Used, Read: true, Stale: session.Kind == status.WindowStale}
 		}
-		if row.Session != want {
-			t.Errorf("%s: the card's 5-hour figure is %+v, want %+v", a.ID, row.Session, want)
+		if got, _ := cardFigure(row, claudeLike.Started); got != want {
+			t.Errorf("%s: the card's 5-hour figure is %+v, want %+v", a.ID, got, want)
 		}
 	}
 }

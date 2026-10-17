@@ -31,8 +31,7 @@ Tab
 Tab
 Tab
 Tab
-Type ">"
-# Shown at 5s, its keycaps gone.
+# Runway opens on the week. Shown at 5s, its keycaps gone.
 Sleep 2600ms
 Show
 

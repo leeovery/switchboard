@@ -22,17 +22,25 @@ var (
 var (
 	tabInk      = ink{token: theme.TextSubtle}
 	shownTabInk = ink{token: theme.TextPrimary, on: hue{token: theme.BgSelection}, bold: true}
+	// The clock's date and time are kept bright behind a card, as it ticks on
+	// while one is open.
+	dateInk = ink{token: theme.TextMuted, kept: true}
+	timeInk = ink{token: theme.TextSecondary, bold: true, kept: true}
 )
 
 // title draws the title row, on the rows titleRows says it takes: the
 // dashboard's name, from the first column; the tabs, the one shown picked
-// out, then tab's hint; and ending at the last column, the clock. On a phone,
-// the tabs take a row of their own, without the hint.
+// out, then tab's hint; and ending at the last column, the clock, at the
+// frame's Clock where it's set, else at now. On a phone, the tabs take a row
+// of their own, without the hint.
 func (f Frame) title(c *canvas, now time.Time) {
 	end := c.line(0, 0, pill)
 	tabsEnd := f.tabs(c)
 	if !f.phone() {
 		end = c.line(tabsEnd+titleGap, 0, hint)
+	}
+	if !f.Clock.IsZero() {
+		now = f.Clock
 	}
 	f.clock(c, end, now)
 }
@@ -82,8 +90,8 @@ func (f Frame) tab(v View) line {
 // time to the second, or where the date doesn't fit, as a two-digit day's
 // doesn't at 100 columns, the time alone.
 func (f Frame) clock(c *canvas, end int, now time.Time) {
-	clock := line{{prose.ToTheSecond(now, now), strongInk}}
-	for _, l := range []line{slices.Concat(line{{prose.Day(now) + "  ", mutedInk}}, clock), clock} {
+	clock := line{{prose.ToTheSecond(now, now), timeInk}}
+	for _, l := range []line{slices.Concat(line{{prose.Day(now) + "  ", dateInk}}, clock), clock} {
 		if f.Width-l.width() >= end+titleGap {
 			c.right(f.Width, 0, l)
 			return

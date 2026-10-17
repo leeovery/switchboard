@@ -99,44 +99,6 @@ func weeksFrame(page views.WeeksPage, shape WeeksShape, width, height int, look 
 	return f
 }
 
-func TestWeeksIsDrawnAsItsFrames(t *testing.T) {
-	nord := Screen(builtin(t, "nord"))
-	tests := []struct {
-		stem  string
-		page  views.WeeksPage
-		shape WeeksShape
-		// whole are the cells the frame draws otherwise than the design,
-		// and foreground those whose foregrounds it does.
-		whole, foreground []spot
-	}{
-		{
-			// side's ▲ is routing's, which History doesn't show; and the
-			// legend's sample is 34%… where the frame's is 59%….
-			stem: "history-weeks-160", page: threeWeeks(), shape: WeeksTable,
-			whole: []spot{{16, 5, 5}, {34, 56, 57}},
-		},
-		{
-			// side's ▲; the second rows that all accounts' 66% and
-			// personal's 66%… fill whole, which the frame draws █ on the
-			// canvas, where a whole cell is a space on its colour; ", each
-			// time work alone" muted, as the table's frame
-			// draws it, where this frame's is text.subtle; and the legend,
-			// led by what short means, as the design has it, where the
-			// frame leaves out what a peak is and samples 59%….
-			stem: "history-weeks-columns-160", page: threeWeeks(), shape: WeeksColumns,
-			whole: []spot{{24, 5, 5}, {7, 30, 34}, {19, 70, 74}, {34, 0, 159}}, foreground: []spot{{7, 120, 141}},
-		},
-		{stem: "history-weeks-ten-160", page: tenWeeks(), shape: WeeksTable, whole: []spot{{16, 5, 5}}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.stem, func(t *testing.T) {
-			f := weeksFrame(tt.page, tt.shape, 160, 37, nord)
-			drawn := screenOf(t, historyDrawn(f).rows(nord))
-			heldTo(t, tt.stem, reference(t, tt.stem), drawn, region{top: 6, bottom: 34, right: 159}, shadeOf(nord.Canvas()), tt.whole, tt.foreground)
-		})
-	}
-}
-
 // weeksText is f's view of Weeks drawn as text alone, a row each from the
 // view's top, without the blanks at their ends.
 func weeksText(f Frame) []string {

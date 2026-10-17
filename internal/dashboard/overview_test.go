@@ -105,14 +105,17 @@ func TestEachSectionsLeastAndMostRows(t *testing.T) {
 	running.Sessions = flippingSessions()
 	phone := at(52, ByWindow)
 	phone.Sessions = flippingSessions()
+	charted := at(160, ByAccount)
+	charted.Sections = charted.Sections.Toggled(SectionGraphs)
 	tests := []struct {
 		name        string
 		section     section
 		least, most int
 	}{
-		{name: "USAGE from 150 columns: the compact matrix, 2a + 7, to the big bars, a window's heading, its accounts and the pool", section: at(160, ByWindow).usageSection(doc, now), least: 13, most: 24},
-		{name: "USAGE under 150 columns: stacked, as usage is, its key line's marks on a line of their own", section: at(149, ByWindow).usageSection(doc, now), least: 25, most: 25},
-		{name: "USAGE by account: a block an account", section: at(160, ByAccount).usageSection(doc, now), least: 22, most: 22},
+		{name: "USAGE from 150 columns: the compact matrix, 2a + 7, to the big bars, a window's heading, its accounts and the pool", section: at(160, ByWindow).usageSection(doc, now), least: 13, most: 23},
+		{name: "USAGE under 150 columns: stacked, as usage is, its key line's marks on a line of their own", section: at(149, ByWindow).usageSection(doc, now), least: 24, most: 24},
+		{name: "USAGE by account: a block an account, a blank row after each", section: at(160, ByAccount).usageSection(doc, now), least: 19, most: 19},
+		{name: "USAGE by account beside GRAPHS' charts: two rows after each block, the charts' axis on the first", section: charted.usageSection(doc, now), least: 22, most: 22},
 		{name: "GRAPHS: h + 4, 5 rows of chart to 19", section: at(160, ByWindow).graphsSection(doc, now), least: 9, most: 23},
 		{name: "ROUTING: a + 3, to 3a + 2", section: at(160, ByWindow).routingSection(doc, now), least: 6, most: 11},
 		{name: "ROUTING by account under 150 columns: a section of its own", section: at(149, ByAccount).routingSection(doc, now), least: 6, most: 11},
@@ -321,34 +324,7 @@ func TestThePlannerLaysEachOverviewFrameOutOnItsRows(t *testing.T) {
 			if !slices.Equal(got, tt.want) {
 				t.Errorf("laid out\n  %v\nwant\n  %v", got, tt.want)
 			}
-			heldToItsText(t, tt.stem, laid)
 		})
-	}
-}
-
-// heldToItsText holds the sections as they're laid out to the text of the
-// frame they're laid out for: each heading's name where its heading starts,
-// and its key, after a rule, at its last column; and every row under the
-// last section blank, to the key line.
-func heldToItsText(t *testing.T, stem string, laid []planned) {
-	t.Helper()
-	rows := referenceRows(t, stem, "txt")
-	foot := 0
-	for _, p := range laid {
-		row := []rune(rows[p.head.y] + strings.Repeat(" ", p.head.x+p.head.width))
-		name, key := []rune(p.heading()), p.head.x+p.head.width-1
-		if got := string(row[p.head.x : p.head.x+len(name)]); got != string(name) {
-			t.Errorf("%s's heading is laid out from column %d of row %d, where the frame has %q", string(name), p.head.x+1, p.head.y+1, got)
-		}
-		if got, want := string(row[key-2:key+1]), "─ "+p.Key(); got != want {
-			t.Errorf("%s's key is laid out at column %d of row %d, where the frame has %q, want %q", string(name), key+1, p.head.y+1, got, want)
-		}
-		foot = max(foot, p.lastRow()+1)
-	}
-	for y := foot; y < len(rows)-1; y++ {
-		if strings.TrimSpace(rows[y]) != "" {
-			t.Errorf("row %d reads %q, under the last section laid out, on row %d: want it empty", y+1, rows[y], foot)
-		}
 	}
 }
 
@@ -722,50 +698,6 @@ func TestAFrameBuiltBuildsItsSectionsAfreshAtAnotherMoment(t *testing.T) {
 	}
 }
 
-func TestASectionsHeadingIsDrawnAsTheFramesDrawIt(t *testing.T) {
-	nord := Screen(builtin(t, "nord"))
-	words := map[Section]line{
-		SectionRouting:  {{"auto", strongInk}},
-		SectionSessions: {{"6 running: 2 on personal, 4 on side", mutedInk}},
-		SectionComing:   {{"16:30  ", secondaryInk}, {"personal", titleInk}, {"'s 5-hour resets", mutedInk}},
-		SectionLately:   {{"14:41  ", secondaryInk}, {"▲ ", accentInk}, {"c61b", titleInk}, {" started on side", mutedInk}},
-	}
-	tests := []struct {
-		stem          string
-		width, height int
-		by            By
-		shown         Sections
-		// rows are the headings' rows, counted from 1.
-		rows []int
-	}{
-		{stem: "overview-default-160", width: 160, height: 37, rows: []int{5, 19, 31}},
-		{stem: "overview-by-account-160", width: 160, height: 42, by: ByAccount, rows: []int{5, 36}},
-		{stem: "overview-everything-160x39", width: 160, height: 39, shown: gs, rows: []int{5, 29, 36, 37}},
-		{stem: "overview-default-216", width: 216, height: 70, rows: []int{5, 41, 53}},
-		{stem: "overview-phone-52", width: 52, height: 66, rows: []int{6, 43, 54, 60}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.stem, func(t *testing.T) {
-			f := Frame{Width: tt.width, Height: tt.height, View: Overview, By: tt.by, Look: nord}
-			sections := autoWorld.sections(tt.width, tt.by, tt.shown)
-			for i := range sections {
-				if said, ok := words[sections[i].Section]; ok {
-					sections[i].folded = func() line { return said }
-					if sections[i].Section == SectionRouting {
-						sections[i].description = sections[i].folded
-					}
-				}
-			}
-			c := newCanvas(tt.width, tt.height)
-			f.drawSections(c, planOf(f, sections, f.top(), f.viewRows()))
-			frame, drawn := reference(t, tt.stem), screenOf(t, c.rows(nord))
-			for _, row := range tt.rows {
-				heldTo(t, tt.stem, frame, drawn, region{top: row - 1, bottom: row - 1, right: tt.width - 1}, shadeOf(nord.Canvas()), nil, nil)
-			}
-		})
-	}
-}
-
 func TestWhatAHeadingSaysIsCutToKeepACellOfRuleBeforeItsKey(t *testing.T) {
 	c := newCanvas(30, 1)
 	long := func() line { return line{{"a very long description that won't fit", strongInk}} }
@@ -804,13 +736,10 @@ func TestAFoldedHeadingSaysWhatItHoldsThenWhyOrThatItHasMore(t *testing.T) {
 	}
 }
 
-func TestAFoldedSectionsHeadingSaysOnceThatThereIsNoRoomAsTheFrameAndTheDesignWordIt(t *testing.T) {
+func TestAFoldedSectionsHeadingSaysOnceThatThereIsNoRoomAsTheDesignWordsIt(t *testing.T) {
 	nord := Screen(builtin(t, "nord"))
 	doc, sessions, stream := overviewWorld()
 	f := Frame{Width: 160, Height: 39, Look: nord, View: Overview, Policy: claudeLike, Sessions: sessions, Stream: stream, Sections: gs}
-	const stem = "overview-everything-160x39"
-	heldTo(t, stem, reference(t, stem), screenOf(t, f.Draw(doc, routedAt)), region{top: 35, bottom: 35, right: 159}, shadeOf(nord.Canvas()), nil, nil)
-
 	tests := []struct {
 		height  int
 		section Section

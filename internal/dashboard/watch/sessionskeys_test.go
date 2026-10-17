@@ -164,15 +164,17 @@ func TestSessionsEnterIsFaintExactlyWhereItOpensNothing(t *testing.T) {
 }
 
 // Help on Sessions lists its keys as the key line words them, on both
-// sub-tabs, enter among them while it's faint, with t, R and the rest.
+// sub-tabs, enter among them while it's faint, with t, R and the rest; on
+// the Switchboard, w too, faint while each model's own window is hidden.
 func TestSessionsHelpListsItsKeysAsTheKeyLineWordsThem(t *testing.T) {
 	for _, shown := range []dashboard.SessionsView{dashboard.SessionsSwitchboard, dashboard.SessionsList} {
 		t.Run([]string{"Switchboard", "List"}[shown], func(t *testing.T) {
 			h := sessionsKeysHarness(t, routerDocument(three()...), shown, 160)
-			want := []dashboard.Key{
-				{Key: "tab", Does: "views"}, {Key: "[ ]", Does: "view"}, {Key: "↑↓", Does: "session"},
-				{Key: "enter", Does: "its page", Off: true}, {Key: "p", Does: "pin"}, {Key: "R", Does: "refresh"}, helpKey, dashboard.Quit,
+			want := []dashboard.Key{{Key: "tab", Does: "views"}, {Key: "[ ]", Does: "view"}, {Key: "↑↓", Does: "session"}, {Key: "enter", Does: "its page", Off: true}}
+			if shown == dashboard.SessionsSwitchboard {
+				want = append(want, dashboard.Key{Key: "w", Does: "models", Hidden: true})
 			}
+			want = append(want, dashboard.Key{Key: "p", Does: "pin"}, dashboard.Key{Key: "R", Does: "refresh"}, helpKey, dashboard.Quit)
 			if got := helpOver(h.model); !slices.Equal(got, want) {
 				t.Errorf("help lists\n%+v\nwant\n%+v", got, want)
 			}

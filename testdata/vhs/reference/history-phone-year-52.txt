@@ -3,10 +3,10 @@
 
 ● healthy · auto · 6 sessions · new → ▲ side
 
-HISTORY  Year Weeks Days Tokens
-                                    p last 12 months
+HISTORY   Year  Weeks  Days  Tokens
+                                  < last 12 months >
 
-    May     Jun     Jul       Aug     Sep
+    May     Jun     Jul       Aug     Sep     Oct
 M   ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
     ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
 W   ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
@@ -15,20 +15,20 @@ F   ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ 
     ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
     ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
 
-■ 0 ■ <450 ■ 450–750 ■ 750–1k ■ >1k  requests a day
+■ 0 ■ <350 ■ 350–650 ■ 650–950 ■ >950  requests a d…
 
 LAST 12 MONTHS
-requests  236,410         worth     $27,480
+requests  212,885         worth     $24,736
 sessions  1,688           plans     $7,200
-limits    5-hour ×402     against   3.8×
+limits    week ×3         against   3.4×
 
 BY MONTH    worth     against   by model
  May        $2,330    3.9×      ▅▅▅▅▅▅▅▅▅▅▅▅▅
  Jun        $2,470    4.1×      ▅▅▅▅▅▅▅▅▅▅▅▅▅▅
  Jul        $2,690    4.5×      ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
- Aug        $2,860    4.8×      ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
+ Aug        $2,860    4.8×      ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
  Sep        $3,120    5.2×      ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
- Oct        $180      —         ▅
+ Oct        $126      —         ▅
 
 
 

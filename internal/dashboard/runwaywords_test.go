@@ -166,12 +166,11 @@ func TestTheWordsUnderALaneSayEachStretchFromItsStart(t *testing.T) {
 	}
 }
 
-// Today stepped back to is drawn as a day stepped back to, its lanes and its
-// pool's as views build them from the readings and the router's events: the
-// words under a lane say each stretch it held, those over before now's
-// column among them, the status its token was refused with only of the
-// refusal holding it now; and the pool's words say each dip.
-func TestTodaySteppedBackToSaysEachStretchAndDipOverBeforeNow(t *testing.T) {
+// Today stepped back to is drawn as a day stepped back to, its lanes as views
+// build them from the readings and the router's events: the words under a
+// lane say each stretch it held, those over before now's column among them,
+// the status its token was refused with only of the refusal holding it now.
+func TestTodaySteppedBackToSaysEachStretchOverBeforeNow(t *testing.T) {
 	at := func(hour, minute int) time.Time { return routedClock(1, hour, minute) }
 	week := routedClock(4, 21, 0)
 	fiveHour := func(used float64, resets time.Time, st quota.Status) quota.Window {
@@ -197,21 +196,18 @@ func TestTodaySteppedBackToSaysEachStretchAndDipOverBeforeNow(t *testing.T) {
 		doc   status.Document
 		read  []readings.Reading
 		words string
-		pool  []phraseRead
 	}{
 		{
 			name:  "at its limit this morning, room since",
 			doc:   doc(status.Account{}),
 			read:  slices.Concat(both, read("work", at(9, 0), fiveHour(1, at(10, 0), quota.StatusRejected)), read("work", at(10, 5), open...)),
 			words: strings.Repeat(" ", 51) + "at its limit 09:00  ·  back 10:00",
-			pool:  []phraseRead{{24 + 51, "1 of 2 with room 09:00 – 10:00"}},
 		},
 		{
 			name:  "its token refused this morning, and again now",
 			doc:   doc(status.Account{Refused: status.Refusal{Until: at(15, 0), Status: 401}}, refused(2, at(14, 12), at(15, 0)), refused(1, at(9, 0), at(9, 30))),
 			read:  both,
 			words: strings.Repeat(" ", 51) + "token refused 09:00  ·  back 09:30  token refused (401) 14:12  ·  back 15:00",
-			pool:  []phraseRead{{24 + 51, "1 of 2 with room 09:00 – 09:30"}, {24 + 83, "1 of 2 with room till 15:00"}},
 		},
 	}
 	for _, tt := range tests {
@@ -223,9 +219,6 @@ func TestTodaySteppedBackToSaysEachStretchAndDipOverBeforeNow(t *testing.T) {
 			ln := laidLane{Lane: l.Accounts[0], account: m.Accounts[0], row: 10}
 			if got := wordsRead(runwayShowing(shown).wordsUnder(ln, routedAt)); got != tt.words {
 				t.Errorf("the words under work's lane say\n%q, want\n%q", got, tt.words)
-			}
-			if got := phrasesRead(shown.poolPhrases(l.Pool, routedAt, 24, 24, 160)); !slices.Equal(got, tt.pool) {
-				t.Errorf("the pool's words say %v, want %v", got, tt.pool)
 			}
 		})
 	}

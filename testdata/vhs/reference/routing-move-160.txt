@@ -4,28 +4,28 @@
 
 USAGE  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── u
 
-                5-HOUR                                          WEEK                                            FABLE WEEK
+                WEEK                                                                     5-HOUR
 
-1 work                  ┃      ╎  95%  at cap · back 17:10           ▌  ┃      ╎  34%  19%/day till Sun 21:00    ▉      ┃      ╎  12%  25%/day till Sun 21:00
+1 work                                ┃                ╎   34%  19%/day till Sun 21:00                        ┃                 ╎   95%  at cap · back 17:10
                                        ╭─ ROUTING · NEW AND RUNNING SESSIONS ───────────────────────────────────────────╮
-2 personal ◆          ▎   ┃       39%  │                                                                                │ ┃        0%  40%/day till Sun 02:00
+2 personal ◆                           │                                                                                │           39%  34%/h till 16:30
                                        │  Pick the accounts new and running sessions go to.                             │
-3 side ▲          ▏┃              13%  │                                                                                │          4%  25%/day till Mon 10:00
+3 side ▲                           ┃   │                                                                                │           13%  21%/h till 18:50
 ───────────────────────────────────────│  □ 0 auto        the router chooses                                            │───────────────────────────────────────
-Σ pool                 ┃▏         51%  │  □ 1 work        closed    5-hour 95%   week 34%        at its cap till 17:10  │┃         7%  2.8 of 3 left
-                                       │  ■ 2 personal    open      5-hour 39%   week 66%                    2 running  │
-                ┃ even pace: where you │  □ 3 side        open      5-hour 13%   week 78%                    4 running  │here
+Σ pool                                ┃│  □ 1 work        closed    week 34%   5-hour 95%        at its cap till 17:10  │           49%  1.5 of 3 left
+                                       │  ■ 2 personal    open      week 66%   5-hour 39%                    2 running  │
+                ┃ even pace: where you │  □ 3 side        open      week 78%   5-hour 13%                    4 running  │here
                                        │                                                                                │
 ROUTING   auto ────────────────────────│  ■ m  also move the sessions running                                           │───────────────────────────────────── r
                                        │                                                                                │
-1 work          ● at its cap · back 17:│  New sessions go to personal. When it's full, the router chooses.              │   ▃▄▃▁▁▂
-                                       │  The 4 sessions running elsewhere move there too.                              │▆▆       ▃▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
-                                       │  Rebuilding their caches costs ≈ $6.20.                                        │
-2 personal ◆    ● open                 │                                                                                │
-                                       │                                                                                │▄▅▅▄▄▄▄▄▂▂▂▄▄▄▄▄▅▅▄▂▂▂▄▄▄▃▄▅▅▄▂   2/min
+1 work          ● at its cap · back 17:│  New sessions go to personal. When it's full, the router chooses.              │
+                                       │  The 4 sessions running elsewhere move there too.                              │▄▃▃▂▄▃▂▄▄▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
+                                       │  Rebuilding their caches costs ≈ $4.15.                                        │
+2 personal ◆    ● open                 │                                                                                │       ▁▃▂
+                                       │                                                                                │▁▁▁▁▁▂▅    ▆▃▁▁▁▁▁▁▁▁▁▁▁▁▁▂▃▄▃▃   3/min
                                        │          ↑↓ move   space 0-3 tick   m move running   enter apply   esc cancel  │
-3 side ▲        ● open · new sessions c╰────────────────────────────────────────────────────────────────────────────────╯         ▁▃▂▃▄▅▄▂ ▁▂▃▂▂▂▄▅▄▂▂▆▆
-                                                                                            ▁▁▂▂▂▁▁▂▂▁▁▁▁▂▂▂▁▂▂▂▁▁▁▁▂▂▂▁▂▂▂▁▁▁▁▁▂▁                        15/min
+3 side ▲        ● open · new sessions c╰────────────────────────────────────────────────────────────────────────────────╯           ▄▇▇   ▇▇▆▆▇▅▂▁  ▂▂▃▃
+                                                                                            ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▄                       11/min
                                                                                             requests a minute, last 30 minutes
 
 COMING UP  ─────────────────────────────────────────────────────────── c          LATELY  ──────────────────────────────────────────────────────────────────── l

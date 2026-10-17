@@ -34,8 +34,8 @@ type RequestDetails struct {
 	// moved none.
 	Left status.Words
 	// Windows are the windows of the account it went out on as its answer
-	// left them, in quota's order, as an event's card has an account's, and
-	// LimitStatus is its answer's status across them, both as its usage
+	// left them, in the order of care, as an event's card has an account's,
+	// and LimitStatus is its answer's status across them, both as its usage
 	// headers gave them: none where they gave none.
 	Windows     []WindowThen
 	LimitStatus quota.Status

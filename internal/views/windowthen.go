@@ -1,9 +1,11 @@
 package views
 
 import (
+	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // WindowThen is a window of an account as an answer read it, as the Log's
@@ -18,7 +20,8 @@ type WindowThen struct {
 
 // windowsThen are the windows an answer read, as claude.WindowsRead reads
 // them, each as WindowThen has it, named by names as an event's windows are,
-// or as status.NameOfKey names it where names is nil: none where it read
+// or as status.NameOfKey names it where names is nil, in the order of care,
+// as status.CompareWindows has it by Claude's policy: none where it read
 // none.
 func windowsThen(windows []claude.WindowRead, names func(key string) string) []WindowThen {
 	named := eventFacts{name: names}
@@ -26,5 +29,7 @@ func windowsThen(windows []claude.WindowRead, names func(key string) string) []W
 	for _, w := range windows {
 		then = append(then, WindowThen{Key: w.Key, Name: named.windowOf(w.Key), Use: w.Use, Resets: w.Resets})
 	}
+	order := status.CompareWindows(claude.Policy())
+	slices.SortStableFunc(then, func(a, b WindowThen) int { return order(a.Key, b.Key) })
 	return then
 }

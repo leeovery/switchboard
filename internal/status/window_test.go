@@ -203,7 +203,7 @@ func TestAWindowsPaceAndAllowanceAreAsTheDocumentWorkedThemOut(t *testing.T) {
 	for _, w := range doc.Accounts[0].Windows {
 		got := windowAt(doc, a.ID, w.Key, stateNow, policy)
 		if got.Pace == nil || w.Pace == nil || !near(*got.Pace, *w.Pace) {
-			t.Errorf("%s's even pace is %s, want %s, the document's", w.Key, paceOf(got.Pace), paceOf(w.Pace))
+			t.Errorf("%s's even pace is %s, want %s, the document's", w.Key, figureOf(got.Pace), figureOf(w.Pace))
 		}
 		if got.Kind != status.WindowOpen || got.Allowance != w.Allowance {
 			t.Errorf("%s stands as kind %d, its allowance %+v; want open, its allowance %+v, the document's", w.Key, got.Kind, got.Allowance, w.Allowance)

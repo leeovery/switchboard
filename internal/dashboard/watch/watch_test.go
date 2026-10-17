@@ -467,7 +467,7 @@ func TestOnlyAKeyThePageActsOnLaysTheOverviewOutAfresh(t *testing.T) {
 	}{
 		{name: "help's keys: scrolling it, and closing it", keys: []string{"?", "j", "pgdown", "k", "esc"}},
 		{name: "the routing card's: moving in it, and closing it", keys: []string{"p", "down", "esc"}},
-		{name: "keys the page doesn't take", keys: []string{"w", "1", "m", "x"}},
+		{name: "keys the page doesn't take", keys: []string{"z", "1", "m", "x"}},
 		{name: "j and k, every account in view, which scroll nothing", keys: []string{"j", "k"}},
 	}
 	for _, tt := range tests {

@@ -13,66 +13,102 @@ import (
 
 // The columns Runway's lanes start at, after their labels: 24 on a frame
 // from phoneUnder columns, the labels in the 22 cells before them; 14 on a
-// phone's, its label column.
+// phone's, its label column; and 11 at the least at every width with the
+// account column collapsed, its labels in the cells before them, as
+// collapsedCells sizes them.
 const (
 	runwayLanesFrom      = 24
 	phoneRunwayLanesFrom = 14
+	collapsedLanesFrom   = 11
 )
 
 // runwayWindows are the windows Runway's views are named for, in the order
 // < and > step between them, and runwayNames what the heading calls each.
 var (
-	runwayWindows = []views.RunwayWindow{views.RunwayFiveHour, views.RunwayWeek}
+	runwayWindows = []views.RunwayWindow{views.RunwayWeek, views.RunwayFiveHour}
 	runwayNames   = map[views.RunwayWindow]string{views.RunwayFiveHour: "5-hour", views.RunwayWeek: "week"}
 )
 
 // RunwayShown is Runway as the watch gives it: the window its view is named
-// for, which the preferences keep; the day stepped back to, as dayfile.Civil
-// gives one, of the 5-hour view, or the first day of the week stepped back
-// to, of the week's, zero in the live view, which they never keep; and what
+// for, and whether its account column is collapsed, as a has it, which the
+// preferences keep; the day stepped back to, as dayfile.Civil gives one, of
+// the 5-hour view, or the first day of the week stepped back to, of the
+// week's, zero in the live view, which they never keep; and what
 // the watch built at the look: the timeline the lanes are drawn over, as
 // TimelineAt has it, the lanes, as views.Lanes builds them, nil till
-// it's built them, and COMING UP's lines, as views.RunwayComing has them.
-// What draws Runway reads what the watch built.
+// it's built them, and COMING UP's lines, as views.RunwayComing has them;
+// and the cells the collapsed account column's labels take, as Labelled
+// sizes them, the least till it does. What draws Runway reads what the
+// watch built.
 type RunwayShown struct {
-	Window   views.RunwayWindow
-	Back     time.Time
-	Timeline views.Timeline
-	Lanes    *views.Lanes
-	Coming   []status.Upcoming
+	Window    views.RunwayWindow
+	Collapsed bool
+	Back      time.Time
+	Timeline  views.Timeline
+	Lanes     *views.Lanes
+	Coming    []status.Upcoming
+	labels    int
+}
+
+// Labelled is Runway shown as r with its collapsed account column's labels
+// sized for the accounts of the moment m, as collapsedCells sizes them.
+func (r RunwayShown) Labelled(m status.Moment) RunwayShown {
+	r.labels = collapsedCells(namesOf(m))
+	return r
 }
 
 // RunwayKept is Runway as the preferences kept it: the window, by its name,
-// live. What names none, as a later build's, shows the 5-hour.
+// live, and its account column collapsed or not. What names no window, as a
+// later build's, shows the week.
 func RunwayKept(kept theme.RunwayPrefs) RunwayShown {
+	r := RunwayShown{Collapsed: kept.Collapsed}
 	if w := views.RunwayWindow(kept.Window); slices.Contains(runwayWindows, w) {
-		return RunwayShown{Window: w}
+		r.Window = w
 	}
-	return RunwayShown{}
+	return r
 }
 
 // Kept is what the preferences keep of Runway, as RunwayKept reads it: the
-// window, never a step back.
+// window and whether its account column is collapsed, never a step back.
 func (r RunwayShown) Kept() theme.RunwayPrefs {
-	return theme.RunwayPrefs{Window: string(r.Window)}
+	return theme.RunwayPrefs{Window: string(r.Window), Collapsed: r.Collapsed}
+}
+
+// Collapsing is Runway with its account column collapsed where it's
+// expanded, and expanded where it's collapsed, as a does.
+func (r RunwayShown) Collapsing() RunwayShown {
+	r.Collapsed = !r.Collapsed
+	return r
 }
 
 // TimelineAt is the timeline the lanes of Runway shown as r are drawn
 // over at now on a terminal width cells wide, weeks starting on the day
 // given: the live view's, or that of the day or week stepped back to, as
-// views.Stepped has it, across the columns RunwayColumns gives them.
+// views.Stepped has it, across the columns Columns gives them.
 func (r RunwayShown) TimelineAt(now time.Time, starts time.Weekday, width int) views.Timeline {
-	return views.Stepped(r.Window, r.Back, now, starts, RunwayColumns(width))
+	return views.Stepped(r.Window, r.Back, now, starts, r.Columns(width))
 }
 
-// RunwayColumns is how many columns Runway's lanes take on a terminal width
-// cells wide: from their first, after the labels, to the edge.
-func RunwayColumns(width int) int {
-	from := runwayLanesFrom
-	if Phone(width) {
-		from = phoneRunwayLanesFrom
+// Columns is how many columns Runway shown as r has its lanes take on a
+// terminal width cells wide: from their first, as lanesFrom has it, to the
+// edge.
+func (r RunwayShown) Columns(width int) int {
+	return max(width-r.lanesFrom(width), 0)
+}
+
+// lanesFrom is the column Runway shown as r starts its lanes at on a
+// terminal width cells wide, after its labels: with its account column
+// collapsed, at every width, nameGap after the cells Labelled gave its
+// labels, collapsedLanesFrom the least; else phoneRunwayLanesFrom on a
+// phone, and runwayLanesFrom wider.
+func (r RunwayShown) lanesFrom(width int) int {
+	switch {
+	case r.Collapsed:
+		return max(collapsedLanesFrom, r.labels+nameGap)
+	case Phone(width):
+		return phoneRunwayLanesFrom
 	}
-	return max(width-from, 0)
+	return runwayLanesFrom
 }
 
 // Windowed is Runway showing the live view of the window by places on from
@@ -177,10 +213,10 @@ func (f Frame) runwayForm(doc status.Document, now time.Time) runwayForm {
 }
 
 // wideRunway is Runway of doc at now from phoneUnder columns, as its form
-// draws it: its lanes from runwayLanesFrom, laid out as runwayFitted fits
-// it, as runwayFormed draws them.
+// draws it: its lanes from where lanesFrom starts them, laid out as
+// runwayFitted fits it, as runwayFormed draws them.
 func (f Frame) wideRunway(doc status.Document, now time.Time) runwayForm {
-	return f.runwayFormed(doc, now, runwayLanesFrom, f.runwayFitted)
+	return f.runwayFormed(doc, now, f.Runway.lanesFrom(f.Width), f.runwayFitted)
 }
 
 // runwayFormed is Runway of doc at now as its form draws it, its lanes from

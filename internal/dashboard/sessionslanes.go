@@ -21,17 +21,17 @@ var laneCall = callColumns{id: 2, dir: 11, doing: 20, from: 33, account: fromAcc
 
 // A lane's windows' row: the first's label at laneWindowsAt, its bar
 // laneFirstBar cells after it; the second's bar laneNextBar cells after its
-// label, as windowsBeside draws them. The foot's room line sets each window
+// label, room for "5-hour", as windowsBeside draws them. The foot's room line sets each window
 // laneApart cells from the last.
 const (
 	laneWindowsAt = 1
 	laneFirstBar  = 7
-	laneNextBar   = 5
+	laneNextBar   = 7
 	laneApart     = 3
 )
 
 // laneBarsAfter are how many cells after its label each window's bar starts
-// on a lane's windows' row: the 5-hour's, then the week's.
+// on a lane's windows' row: the week's, then the 5-hour's.
 var laneBarsAfter = []int{laneFirstBar, laneNextBar}
 
 // lanesBoard is the Switchboard of a moment drawn in lanes: the frame, the

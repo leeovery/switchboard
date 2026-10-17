@@ -18,7 +18,7 @@ func poolShown(doc status.Document, pool views.Pool) RunwayShown {
 	for _, a := range doc.Accounts {
 		lanes.Accounts = append(lanes.Accounts, views.Lane{ID: a.ID})
 	}
-	return RunwayShown{Timeline: views.LiveTimeline(views.RunwayFiveHour, routedAt, RunwayColumns(160)), Lanes: lanes}
+	return RunwayShown{Window: views.RunwayFiveHour, Timeline: views.LiveTimeline(views.RunwayFiveHour, routedAt, RunwayShown{}.Columns(160)), Lanes: lanes}
 }
 
 // poolDrawn is the canvas of Runway shown as r of doc at routedAt, 160 by
@@ -36,12 +36,6 @@ func framesDoc() status.Document {
 	doc, _ := routedWorld(false)
 	doc.Accounts[0].Reserve = 0.05
 	return doc.WorkedOut(claudeLike)
-}
-
-// stepAt is a step of a dip, of the count with room given, from and until
-// the times given, over the columns given: zero where a time's unknown.
-func stepAt(with int, from, until time.Time, first, last int) views.Step {
-	return views.Step{With: with, From: views.Edge{At: from}, Until: views.Edge{At: until}, First: first, Last: last}
 }
 
 // The pool's columns are each as high as the share of the pool's accounts
@@ -73,7 +67,7 @@ func TestThePoolsColumnsAreAsHighAsTheShareOfItsAccountsWithRoom(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			columns := slices.Repeat([]views.PoolColumn{tt.col}, RunwayColumns(160))
+			columns := slices.Repeat([]views.PoolColumn{tt.col}, RunwayShown{}.Columns(160))
 			c, top := poolDrawn(poolShown(runwayDoc(tt.of), views.Pool{Of: tt.of, Key: "5h", Columns: columns}), runwayDoc(tt.of), Screen(builtin(t, "nord")))
 			const x = 100
 			if got := cellAt(c, x, top); got != tt.top {
@@ -106,7 +100,7 @@ func cellAt(c *canvas, x, y int) seenCell {
 // to, which has no now, none is.
 func TestThePoolsPastIsDimmed(t *testing.T) {
 	doc := runwayDoc(3)
-	columns := slices.Repeat([]views.PoolColumn{{With: 2, Known: true}}, RunwayColumns(160))
+	columns := slices.Repeat([]views.PoolColumn{{With: 2, Known: true}}, RunwayShown{}.Columns(160))
 	live := poolShown(doc, views.Pool{Of: 3, Key: "5h", Columns: columns})
 	gone := live
 	gone.Back = civilDay(9, 30)
@@ -146,7 +140,7 @@ func TestThePoolsPastIsDimmed(t *testing.T) {
 // ─ is bold, as a lane's held back from every request is.
 func TestThePoolsColumnsWithNoRoomAreDrawnAsALanesHeldBack(t *testing.T) {
 	doc := runwayDoc(3)
-	columns := slices.Repeat([]views.PoolColumn{{Known: true}}, RunwayColumns(160))
+	columns := slices.Repeat([]views.PoolColumn{{Known: true}}, RunwayShown{}.Columns(160))
 	shown := poolShown(doc, views.Pool{Of: 3, Key: "5h", Columns: columns})
 	now := shown.Timeline.NowColumn()
 	tests := []struct {
@@ -184,57 +178,59 @@ func mixed(t *testing.T, fade float64, tok theme.Token) string {
 // columns is █, as GRAPHS draws one.
 func TestThePoolsFullCellsAreBlocksWhereTheLookBlendsNothing(t *testing.T) {
 	doc := runwayDoc(3)
-	columns := slices.Repeat([]views.PoolColumn{{With: 2, Known: true}}, RunwayColumns(160))
+	columns := slices.Repeat([]views.PoolColumn{{With: 2, Known: true}}, RunwayShown{}.Columns(160))
 	c, top := poolDrawn(poolShown(doc, views.Pool{Of: 3, Key: "5h", Columns: columns}), doc, NoColour())
-	if got := string([]rune(rowOf(c, top+1))[runwayLanesFrom:]); got != strings.Repeat("█", RunwayColumns(160)) {
+	if got := string([]rune(rowOf(c, top+1))[runwayLanesFrom:]); got != strings.Repeat("█", RunwayShown{}.Columns(160)) {
 		t.Errorf("the pool's bottom row reads %q, want █ in every column", got)
 	}
-	if got := string([]rune(rowOf(c, top))[runwayLanesFrom:]); got != strings.Repeat("▃", RunwayColumns(160)) {
+	if got := string([]rune(rowOf(c, top))[runwayLanesFrom:]); got != strings.Repeat("▃", RunwayShown{}.Columns(160)) {
 		t.Errorf("the pool's top row reads %q, want its part-filled cells", got)
 	}
 }
 
-// The pool's rule runs across the whole row, in border; Σ pool sits on its
-// lane's second row, Σ in text.subtle in the accounts' numbers' column, the
-// ones', and pool in text.secondary.
-func TestThePoolsRuleAndSigmaPool(t *testing.T) {
+// Σ pool heads the pool's lane on its first row, as an account's name heads
+// its lane, Σ in text.subtle in the accounts' numbers' column, the ones', and
+// pool in text.secondary; and no rule runs over it, the row before it the
+// last lane's blank row, with three rows an account, or its words, with two.
+func TestSigmaPoolHeadsThePoolsLaneWithNoRuleOverIt(t *testing.T) {
 	tests := []struct {
 		name     string
 		accounts int
-		rule     int
+		pool     int
+		over     string
 		sigma    string
 	}{
-		{name: "three, the rule on the last lane's blank row", accounts: 3, rule: 18, sigma: "Σ pool"},
-		{name: "ten, the rule on a row of its own, numbered from ten", accounts: 10, rule: 29, sigma: " Σ pool"},
+		{name: "three, after the last lane's blank row", accounts: 3, pool: 19, sigma: "Σ pool"},
+		{name: "ten, after the last lane's words, numbered from ten", accounts: 10, pool: 30, over: "  5-hour", sigma: " Σ pool"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			doc := runwayDoc(tt.accounts)
-			c, _ := poolDrawn(poolShown(doc, views.Pool{Of: tt.accounts, Key: "5h"}), doc, Screen(builtin(t, "nord")))
-			if got := rowOf(c, tt.rule); got != strings.Repeat("─", 160) {
-				t.Errorf("row %d reads %q, want the rule across it", tt.rule, got)
+			c, top := poolDrawn(poolShown(doc, views.Pool{Of: tt.accounts, Key: "5h"}), doc, Screen(builtin(t, "nord")))
+			if top != tt.pool {
+				t.Errorf("the pool's lane is on row %d, want %d", top, tt.pool)
 			}
-			if got := c.at(159, tt.rule).ink; got != borderInk {
-				t.Errorf("the rule is in %+v, want border", got)
+			if got := rowOf(c, top-1); !strings.HasPrefix(got, tt.over) || strings.Contains(got, "─") {
+				t.Errorf("the row over the pool's lane reads %q, want %q and no rule", got, tt.over)
 			}
-			if got := rowOf(c, tt.rule+2); got != tt.sigma {
-				t.Errorf("the pool's second row reads %q, want %q", got, tt.sigma)
+			if got := rowOf(c, top); got != tt.sigma {
+				t.Errorf("the pool's first row reads %q, want %q", got, tt.sigma)
 			}
 			sigma := strings.Index(tt.sigma, "Σ")
-			if k, pool := c.at(sigma, tt.rule+2).ink, c.at(sigma+2, tt.rule+2).ink; k != dimInk || pool != noteInk {
+			if k, pool := c.at(sigma, top).ink, c.at(sigma+2, top).ink; k != dimInk || pool != noteInk {
 				t.Errorf("Σ is in %+v and pool in %+v, want text.subtle and text.secondary", k, pool)
 			}
 		})
 	}
 }
 
-// With one account, there's no pool's lane: no rule, no columns, no Σ pool
-// and no room, as they'd only repeat the account.
+// With one account, there's no pool's lane: no columns, no Σ pool and no
+// room, as they'd only repeat the account.
 func TestOneAccountHasNoPoolsLane(t *testing.T) {
 	doc := runwayDoc(1)
 	c, _ := poolDrawn(poolShown(doc, views.Pool{}), doc, Screen(builtin(t, "nord")))
 	for y, row := range textOf(c.rows(Look{})) {
-		if strings.HasPrefix(row, "─") || strings.Contains(row, "Σ") || strings.Contains(row, " left") {
+		if strings.Contains(row, "Σ") || strings.Contains(row, " left") {
 			t.Errorf("row %d reads %q, want nothing of a pool", y, row)
 		}
 	}
@@ -245,9 +241,79 @@ func TestOneAccountHasNoPoolsLane(t *testing.T) {
 func TestThePoolsLaneIsntDrawnForAMomentOfNoAccounts(t *testing.T) {
 	c := runwayDrawn(runwayFrame(t, 37, lanesOf(3), nil), status.Document{})
 	for y, row := range textOf(c.rows(Look{})) {
-		if strings.Contains(row, "Σ") || strings.Contains(row, " with room") {
+		if strings.Contains(row, "Σ") || strings.Contains(row, " left") {
 			t.Errorf("row %d reads %q, want nothing of a pool", y, row)
 		}
+	}
+}
+
+// With the account column collapsed, the pool's label says its room short in
+// Σ pool's place, the room the expanded lane words, of how many accounts
+// the pool is: Σ in text.subtle, the room bold text.secondary, brightening
+// as it changes, and "/3" in text.muted, right-aligned to the label's 9
+// cells as the lanes' use is; nothing under it, on a phone too, which gives
+// it no row of its own; and Σ pool where it has no room to say, as on a day
+// stepped back to.
+func TestCollapsedThePoolsLabelSaysItsRoomShort(t *testing.T) {
+	doc, pinned := framesDoc(), framesDoc()
+	pinned.Pin = status.Pin{Accounts: []string{"personal", "side"}, Since: routedClock(1, 13, 40)}
+	pinned = pinned.WorkedOut(claudeLike)
+	collapsed := func(r RunwayShown, width int) RunwayShown {
+		r.Collapsed = true
+		r.Timeline = r.TimelineAt(routedAt, time.Monday, width)
+		return r
+	}
+	live := poolShown(doc, views.Pool{Of: 3, Key: "5h"})
+	week := live
+	week.Window, week.Lanes = views.RunwayWeek, &views.Lanes{Accounts: live.Lanes.Accounts, Pool: views.Pool{Of: 3, Key: "7d"}}
+	gone := live
+	gone.Back = civilDay(9, 30)
+	tests := []struct {
+		name  string
+		doc   status.Document
+		shown RunwayShown
+		width int
+		want  string
+	}{
+		{name: "the 5-hour", doc: doc, shown: collapsed(live, 160), width: 160, want: "Σ   1.5/3"},
+		{name: "the week", doc: doc, shown: collapsed(week, 160), width: 160, want: "Σ   1.2/3"},
+		{name: "pinned to two", doc: pinned, shown: collapsed(live, 160), width: 160, want: "Σ   1.5/2"},
+		{name: "on a phone", doc: doc, shown: collapsed(live, 52), width: 52, want: "Σ   1.5/3"},
+		{name: "a day stepped back to", doc: doc, shown: collapsed(gone, 160), width: 160, want: "Σ pool"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := Frame{Width: tt.width, Height: 37, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claudeLike, Runway: tt.shown}
+			c := runwayDrawn(f, tt.doc)
+			fitted := f.runwayFitted
+			if f.phone() {
+				fitted = f.phoneRunwayFitted
+			}
+			fit := fitted(f.top())
+			if got := textAt(c, 0, fit.pool, collapsedLanesFrom); got != tt.want {
+				t.Errorf("the pool's label reads %q, want %q", got, tt.want)
+			}
+			if over := fit.pool + runwayPoolRows; fit.room >= over {
+				t.Errorf("the pool's room is laid on row %d, a row of its own; want none past its lane's, %d", fit.room, over-1)
+			}
+			for y := fit.pool + 1; y <= fit.pool+runwayPoolRows; y++ {
+				if got := textAt(c, 0, y, f.Width); strings.Contains(got, "left") {
+					t.Errorf("row %d reads %q, want no room in words", y, got)
+				}
+			}
+			figure := strings.TrimLeft(strings.TrimPrefix(tt.want, "Σ"), " ")
+			if !strings.Contains(figure, "/") {
+				return
+			}
+			room := collapsedLanesFrom - nameGap - len(figure)
+			if sigma, k, of := c.at(0, fit.pool).ink, c.at(room, fit.pool).ink, c.at(room+3, fit.pool).ink; sigma != dimInk || k.token != theme.TextSecondary || !k.bold || of != mutedInk {
+				t.Errorf("Σ is in %+v, the room in %+v and its accounts in %+v; want text.subtle, bold text.secondary and text.muted", sigma, k, of)
+			}
+			key := tt.shown.Lanes.Pool.Key
+			if got, want := f.Numbers(tt.doc, routedAt)[Number{Kind: NumberRoom, Of: key}], figure[:3]; got != want {
+				t.Errorf("the room brightens as %q, want %q", got, want)
+			}
+		})
 	}
 }
 
@@ -255,7 +321,11 @@ func TestThePoolsLaneIsntDrawnForAMomentOfNoAccounts(t *testing.T) {
 // view's window: the window's name in text.subtle, the room bold
 // text.secondary, brightening as it changes, and " of 3 left" in
 // text.muted, " · pinned" after where a pin holds; drawn while the timeline
-// holds now, live and on today stepped back to, never on a day gone.
+// holds now, live and on today stepped back to, never on a day gone. It's
+// on the pool's lane's second row, under Σ pool, as an account's use is
+// under its name, whole parts left off its end that don't fit before the
+// lanes' column, as " · pinned" doesn't at 160; and on a phone, on a row of
+// its own under the lane, whole; nothing after it either way.
 func TestThePoolsRoomIsUsagesWordsForThePoolInTheViewsWindow(t *testing.T) {
 	doc, pinned := framesDoc(), framesDoc()
 	pinned.Pin = status.Pin{Accounts: []string{"personal", "side"}, Since: routedClock(1, 13, 40)}
@@ -270,319 +340,40 @@ func TestThePoolsRoomIsUsagesWordsForThePoolInTheViewsWindow(t *testing.T) {
 	gone := live
 	gone.Back = civilDay(9, 30)
 	gone.Timeline = gone.TimelineAt(routedAt, time.Monday, 160)
+	phone := live
+	phone.Timeline = views.LiveTimeline(views.RunwayFiveHour, routedAt, RunwayShown{}.Columns(52))
 	tests := []struct {
-		name  string
-		doc   status.Document
-		shown RunwayShown
-		want  string
+		name       string
+		doc        status.Document
+		shown      RunwayShown
+		width, row int
+		want       string
 	}{
-		{name: "the 5-hour", doc: doc, shown: live, want: "  5-hour 1.5 of 3 left"},
-		{name: "the week", doc: doc, shown: week, want: "  week 1.2 of 3 left"},
-		{name: "pinned to two", doc: pinned, shown: live, want: "  5-hour 1.5 of 2 left · pinned"},
-		{name: "today stepped back to", doc: doc, shown: today, want: "  5-hour 1.5 of 3 left"},
-		{name: "a day stepped back to", doc: doc, shown: gone, want: ""},
+		{name: "the 5-hour", doc: doc, shown: live, width: 160, row: 20, want: "  5-hour 1.5 of 3 left"},
+		{name: "the week", doc: doc, shown: week, width: 160, row: 20, want: "  week 1.2 of 3 left"},
+		{name: "pinned to two, beside the lane", doc: pinned, shown: live, width: 160, row: 20, want: "  5-hour 1.5 of 2 left"},
+		{name: "today stepped back to", doc: doc, shown: today, width: 160, row: 20, want: "  5-hour 1.5 of 3 left"},
+		{name: "a day stepped back to", doc: doc, shown: gone, width: 160, row: 20, want: ""},
+		{name: "on a phone", doc: doc, shown: phone, width: 52, row: 22, want: "  5-hour 1.5 of 3 left"},
+		{name: "pinned to two, on a phone", doc: pinned, shown: phone, width: 52, row: 22, want: "  5-hour 1.5 of 2 left · pinned"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := Frame{Width: 160, Height: 37, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claudeLike, Runway: tt.shown}
+			f := Frame{Width: tt.width, Height: 37, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claudeLike, Runway: tt.shown}
 			c := runwayDrawn(f, tt.doc)
-			if got := rowOf(c, 21); got != tt.want {
-				t.Errorf("the pool's words' row reads %q, want %q", got, tt.want)
+			if got := rowOf(c, tt.row); got != tt.want {
+				t.Errorf("the pool's room's row reads %q, want %q", got, tt.want)
 			}
 			if tt.want == "" {
 				return
 			}
-			name, room, rest := c.at(2, 21).ink, c.at(strings.Index(tt.want, "1."), 21), c.at(strings.Index(tt.want, " of")+1, 21).ink
+			name, room, rest := c.at(2, tt.row).ink, c.at(strings.Index(tt.want, "1."), tt.row), c.at(strings.Index(tt.want, " of")+1, tt.row).ink
 			if name != dimInk || room.ink != strongInk || rest != mutedInk {
 				t.Errorf("the window's name is in %+v, the room in %+v and the rest in %+v; want text.subtle, bold text.secondary and text.muted", name, room.ink, rest)
 			}
 			key := tt.shown.Lanes.Pool.Key
 			if got, want := f.Numbers(tt.doc, routedAt)[Number{Kind: NumberRoom, Of: key}], strings.Fields(tt.want)[1]; got != want {
 				t.Errorf("the room brightens as %q, want %q", got, want)
-			}
-		})
-	}
-}
-
-// The pool's words share its room's row, from their dip's column, two cells
-// after the room at the least.
-func TestThePoolsWordsStartTwoCellsAfterItsRoom(t *testing.T) {
-	pinned := framesDoc()
-	pinned.Pin = status.Pin{Accounts: []string{"personal", "side"}, Since: routedClock(1, 13, 40)}
-	pinned = pinned.WorkedOut(claudeLike)
-	tests := []struct {
-		name string
-		doc  status.Document
-		of   int
-		want string
-	}{
-		{name: "from its dip's column, clear of the room", doc: framesDoc(), of: 3, want: "  5-hour 1.5 of 3 left   2 of 3 with room till 15:30"},
-		{name: "two cells after the room, where the dip's column is under it", doc: pinned, of: 2, want: "  5-hour 1.5 of 2 left · pinned  1 of 2 with room till 15:30"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			dip := views.Dip{Steps: []views.Step{stepAt(tt.of-1, routedClock(1, 13, 52), routedClock(1, 15, 30), 2, 10)}, Column: 1, First: 2, Last: 10}
-			c, top := poolDrawn(poolShown(tt.doc, views.Pool{Of: tt.of, Key: "5h", Dips: []views.Dip{dip}}), tt.doc, Screen(builtin(t, "nord")))
-			if got := rowOf(c, top+runwayPoolRows); got != tt.want {
-				t.Errorf("the pool's words' row reads %q, want %q", got, tt.want)
-			}
-		})
-	}
-}
-
-// phraseRead is a phrase of the pool's words as a test reads it: its column
-// and its text.
-type phraseRead struct {
-	x    int
-	text string
-}
-
-// phrasesRead are the phrases placed, as a test reads them.
-func phrasesRead(placed []placed) []phraseRead {
-	var said []phraseRead
-	for _, p := range placed {
-		said = append(said, phraseRead{p.x, p.said.plain()})
-	}
-	return said
-}
-
-// The pool's words say each dip, from its column, the column its start
-// falls in, two cells after the room or the phrase before at the least: under
-// way, its count at now till it changes, each change after chained on; ahead,
-// from its projected start to its end; on a day stepped back to, from start
-// to end, a dip too close for a phrase of its own joining the one before
-// with "and" where its count is the same, else its own phrase two cells
-// after; a back past the day's midnight with its weekday, the week's times
-// with theirs. A dip over isn't said live, but is on today stepped back to.
-// Words that don't fit drop whole parts from the end, and a dip whose first
-// doesn't fit isn't said, nor any after it; a phrase ends at a step whose
-// end isn't known.
-func TestThePoolsWordsSayEachDip(t *testing.T) {
-	live := RunwayShown{Timeline: views.LiveTimeline(views.RunwayFiveHour, routedAt, 136)}
-	week := RunwayShown{Window: views.RunwayWeek, Timeline: views.LiveTimeline(views.RunwayWeek, routedAt, 136)}
-	wednesday := RunwayShown{Back: civilDay(9, 30)}
-	wednesday.Timeline = wednesday.TimelineAt(routedAt, time.Monday, 160)
-	today := RunwayShown{Back: civilDay(10, 1)}
-	today.Timeline = today.TimelineAt(routedAt, time.Monday, 160)
-	wed := func(hour, minute int) time.Time { return routedClock(1, hour, minute).AddDate(0, 0, -1) }
-	capped := routedAt.Add(-11*time.Minute - 4*time.Second)
-	aheadOf := func(from, until time.Time, first, last int) views.Dip {
-		steps := []views.Step{{With: 2, From: views.Edge{At: from, Projected: true}, Until: views.Edge{At: until}, First: first, Last: last}}
-		return views.Dip{Steps: steps, Column: first, First: first, Last: last, Ahead: true}
-	}
-	ahead := aheadOf(routedClock(1, 16, 5), routedClock(1, 16, 55), 14, 18)
-	underWay := views.Dip{Steps: []views.Step{stepAt(2, capped, routedClock(1, 17, 10), 5, 20)}, Column: 5, First: 5, Last: 20}
-	soon, later := aheadOf(routedClock(1, 18, 5), routedClock(1, 18, 55), 26, 30), aheadOf(routedClock(1, 20, 25), routedClock(1, 21, 0), 40, 43)
-	over := views.Dip{Steps: []views.Step{stepAt(2, routedClock(1, 13, 50), routedClock(1, 14, 10), 1, 2)}, Column: 1, First: 1, Last: 2, Over: true}
-	limitWed := views.Dip{Steps: []views.Step{stepAt(2, wed(15, 2), wed(17, 10), 85, 96)}, Column: 85, First: 85, Last: 96}
-	tests := []struct {
-		name  string
-		shown RunwayShown
-		pool  views.Pool
-		from  int
-		edge  int
-		want  []phraseRead
-	}{
-		{
-			name: "under way, its counts chained, from its start's column", shown: live, pool: tenPool(), from: 24, edge: 160,
-			want: []phraseRead{{25, "8 of 10 with room till 15:30, 9 till ~16:05, 8 till 16:55, 9 till 17:10"}},
-		},
-		{
-			name: "under way, two cells after the room", shown: live, pool: views.Pool{Of: 3, Dips: []views.Dip{underWay}}, from: 31, edge: 160,
-			want: []phraseRead{{31, "2 of 3 with room till 17:10"}},
-		},
-		{
-			name: "under way, then a dip ahead too close, of the same count, joined", shown: live, pool: views.Pool{Of: 3, Dips: []views.Dip{underWay, soon}}, from: 24, edge: 160,
-			want: []phraseRead{{29, "2 of 3 with room till 17:10 and ~18:05 – 18:55"}},
-		},
-		{
-			name: "under way, then a dip ahead far enough for a phrase of its own", shown: live, pool: views.Pool{Of: 3, Dips: []views.Dip{underWay, later}}, from: 24, edge: 160,
-			want: []phraseRead{{29, "2 of 3 with room till 17:10"}, {64, "2 of 3 with room ~20:25 – 21:00"}},
-		},
-		{
-			name: "ahead, from its projected start", shown: live, pool: views.Pool{Of: 3, Dips: []views.Dip{ahead}}, from: 24, edge: 160,
-			want: []phraseRead{{38, "2 of 3 with room ~16:05 – 16:55"}},
-		},
-		{
-			name: "over, live, unsaid", shown: live, pool: views.Pool{Of: 3, Dips: []views.Dip{over, underWay}}, from: 24, edge: 160,
-			want: []phraseRead{{29, "2 of 3 with room till 17:10"}},
-		},
-		{
-			name:  "on today stepped back to, one before now's column; the dip under way too close, of the same count, two cells after, as one under way joins none",
-			shown: today, pool: views.Pool{Of: 3, Dips: []views.Dip{{Steps: []views.Step{stepAt(2, routedClock(1, 9, 0), routedClock(1, 10, 0), 51, 56)}, Column: 51, First: 51, Last: 56}, {Steps: []views.Step{stepAt(2, capped, routedClock(1, 17, 10), 82, 97)}, Column: 82, First: 82, Last: 97}}},
-			from: 24, edge: 160,
-			want: []phraseRead{{75, "2 of 3 with room 09:00 – 10:00"}, {107, "2 of 3 with room till 17:10"}},
-		},
-		{
-			name: "a day stepped back to, the next dip too close, of the same count, joined", shown: wednesday,
-			pool: views.Pool{Of: 3, Dips: []views.Dip{limitWed, {Steps: []views.Step{stepAt(2, wed(19, 12).Add(40*time.Second), wed(23, 58), 109, 135)}, Column: 108, First: 109, Last: 135}}},
-			from: 24, edge: 160,
-			want: []phraseRead{{109, "2 of 3 with room 15:02 – 17:10 and 19:12 – 23:58"}},
-		},
-		{
-			name: "a day stepped back to, the dip joining it dropped where it doesn't fit", shown: wednesday,
-			pool: views.Pool{Of: 3, Dips: []views.Dip{limitWed, {Steps: []views.Step{stepAt(2, wed(19, 12), wed(23, 58), 109, 135)}, Column: 108, First: 109, Last: 135}}},
-			from: 24, edge: 150,
-			want: []phraseRead{{109, "2 of 3 with room 15:02 – 17:10"}},
-		},
-		{
-			name: "a day stepped back to, the next dip too close, of another count, two cells after", shown: wednesday,
-			pool: views.Pool{Of: 3, Dips: []views.Dip{limitWed, {Steps: []views.Step{stepAt(1, wed(19, 12), wed(23, 58), 109, 135)}, Column: 108, First: 109, Last: 135}}},
-			from: 24, edge: 200,
-			want: []phraseRead{{109, "2 of 3 with room 15:02 – 17:10"}, {141, "1 of 3 with room 19:12 – 23:58"}},
-		},
-		{
-			name: "a day stepped back to, a back past its midnight", shown: wednesday,
-			pool: views.Pool{Of: 3, Dips: []views.Dip{{Steps: []views.Step{stepAt(2, wed(22, 0), routedClock(1, 1, 10), 125, 135)}, Column: 125, First: 125, Last: 135}}},
-			from: 24, edge: 200,
-			want: []phraseRead{{149, "2 of 3 with room 22:00 – Thu 01:10"}},
-		},
-		{
-			name: "the week's, with their weekdays", shown: week,
-			pool: views.Pool{Of: 3, Dips: []views.Dip{{Steps: []views.Step{{With: 2, From: views.Edge{At: routedClock(3, 6, 0), Projected: true}, Until: views.Edge{At: routedClock(4, 2, 0)}, First: 51, Last: 66}}, Column: 51, First: 51, Last: 66, Ahead: true}}},
-			from: 22, edge: 160,
-			want: []phraseRead{{75, "2 of 3 with room ~Sat 06:00 – Sun 02:00"}},
-		},
-		{
-			name: "dropping whole parts from the end", shown: live, pool: tenPool(), from: 24, edge: 80,
-			want: []phraseRead{{25, "8 of 10 with room till 15:30, 9 till ~16:05"}},
-		},
-		{
-			name: "a dip whose first part doesn't fit, unsaid, nor any after it", shown: live,
-			pool: views.Pool{Of: 3, Dips: []views.Dip{underWay, later, aheadOf(routedClock(1, 22, 5), routedClock(1, 22, 30), 50, 52)}},
-			from: 24, edge: 80,
-			want: []phraseRead{{29, "2 of 3 with room till 17:10"}},
-		},
-		{
-			name: "a step whose end isn't known ends the phrase", shown: live,
-			pool: views.Pool{Of: 3, Dips: []views.Dip{{Steps: []views.Step{stepAt(2, capped, time.Time{}, 5, 20), stepAt(1, time.Time{}, routedClock(1, 22, 0), 21, 30)}, Column: 5, First: 5, Last: 30}}},
-			from: 24, edge: 160,
-			want: []phraseRead{{29, "2 of 3 with room"}},
-		},
-		{
-			name: "a pool of one", shown: live,
-			pool: views.Pool{Of: 1, Dips: []views.Dip{{Steps: []views.Step{stepAt(0, routedClock(1, 13, 58), routedClock(1, 15, 30), 2, 10)}, Column: 1, First: 2, Last: 10}}},
-			from: 24, edge: 160,
-			want: []phraseRead{{25, "0 of 1 with room till 15:30"}},
-		},
-		{name: "no dips", shown: live, pool: views.Pool{Of: 3}, from: 24, edge: 160},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := phrasesRead(tt.shown.poolPhrases(tt.pool, routedAt, runwayLanesFrom, tt.from, tt.edge))
-			if !slices.Equal(got, tt.want) {
-				t.Errorf("the pool's words are %+v, want %+v", got, tt.want)
-			}
-		})
-	}
-}
-
-// Each phrase's counts are in text.secondary, and the rest in text.muted.
-func TestThePoolsWordsInks(t *testing.T) {
-	live := RunwayShown{Timeline: views.LiveTimeline(views.RunwayFiveHour, routedAt, 136)}
-	got := live.poolPhrases(tenPool(), routedAt, runwayLanesFrom, 24, 160)[0].said.inked()
-	want := line{
-		{"8 of 10", secondaryInk}, {" with room till 15:30, ", mutedInk}, {"9", secondaryInk}, {" till ~16:05, ", mutedInk},
-		{"8", secondaryInk}, {" till 16:55, ", mutedInk}, {"9", secondaryInk}, {" till 17:10", mutedInk},
-	}
-	if !slices.Equal(got, want) {
-		t.Errorf("the phrase is inked %+v, want %+v", got, want)
-	}
-}
-
-// On a phone, as its frame has them, the pool's words start from the lanes'
-// column, the dip's, its room on the row under them, from column 2; the
-// rule, the columns and Σ pool as on a frame from 100 columns; now's column
-// picked out down to the words, not the room under them. The frame's
-// part-filled cell of now's column is passed over, on the canvas where the
-// design has bg.subtle (D4).
-func TestThePoolsLaneOnAPhoneIsDrawnAsItsFrame(t *testing.T) {
-	doc := framesDoc()
-	nord := Screen(builtin(t, "nord"))
-	tl := views.LiveTimeline(views.RunwayFiveHour, routedAt, RunwayColumns(52))
-	pool := views.Pool{
-		Of: 3, Key: "5h", Columns: poolColumnsOf(tl.Columns, 3, 0, 2, 1, 3, 6),
-		Dips: []views.Dip{{Steps: []views.Step{stepAt(2, routedAt.Add(-11*time.Minute-4*time.Second), routedClock(1, 17, 10), 1, 5)}, Column: 1, First: 1, Last: 5}},
-	}
-	f := Frame{Width: 52, Height: 33, Look: nord, View: Runway, Policy: claudeLike, Runway: poolShown(doc, pool)}
-	f.Runway.Timeline = tl
-	c := newCanvas(f.Width, f.Height)
-	fit := f.runwayFittedAs(f.top(), runwayShape{roomRow: true, legend: 2})
-	laid := runwayLaid{x: phoneRunwayLanesFrom, fit: fit, m: f.Moment(doc, routedAt)}
-	f.runwayPool(c, laid)
-	f.runwayNow(c, laid)
-	heldTo(t, "runway-phone-52", reference(t, "runway-phone-52"), screenOf(t, c.rows(nord)), region{top: 19, bottom: 23, right: 51}, shadeOf(nord.Canvas()), []spot{{20, 15, 15}}, nil)
-}
-
-// Runway's pool's lane, its room and its words, and COMING UP, are drawn as
-// their frames draw them: the 5-hour's and the week's live, Wednesday
-// stepped back to, with no room and no COMING UP, and ten accounts', its
-// COMING UP folded, now's column picked out down the pool's words. The rows
-// between them, the legend's, are the lanes' drawer's, as are those over the
-// rule; and the part-filled cell of now's column is passed over, on the
-// canvas in the frames where the design has bg.subtle (D4).
-func TestRunwaysPoolAndComingUpAreDrawnAsTheirFrames(t *testing.T) {
-	doc := framesDoc()
-	m := doc.At(routedAt, claudeLike)
-	capped := routedAt.Add(-11*time.Minute - 4*time.Second)
-	wed := func(hour, minute int) time.Time { return routedClock(1, hour, minute).AddDate(0, 0, -1) }
-	fiveHour := poolShown(doc, views.Pool{
-		Of: 3, Key: "5h", Columns: poolColumnsOf(136, 3, 0, 2, 5, 3, 21),
-		Dips: []views.Dip{{Steps: []views.Step{stepAt(2, capped, routedClock(1, 17, 10), 5, 20)}, Column: 5, First: 5, Last: 20}},
-	})
-	fiveHour.Coming = views.RunwayComing(m, views.RunwayFiveHour)
-	week := poolShown(doc, views.Pool{
-		Of: 3, Key: "7d", Columns: poolColumnsOf(136, 2, 0, 3, 2, 2, 4, 3, 8, 2, 19, 3, 21, 2, 51, 3, 68),
-		Dips: []views.Dip{
-			{Steps: []views.Step{stepAt(2, wed(15, 2), wed(17, 10), 0, 1)}, Column: 0, First: 0, Last: 1, Over: true},
-			{Steps: []views.Step{stepAt(2, wed(19, 12), wed(23, 58), 4, 7)}, Column: 3, First: 4, Last: 7, Over: true},
-			{Steps: []views.Step{stepAt(2, capped, routedClock(1, 17, 10), 19, 20)}, Column: 19, First: 19, Last: 20},
-			{Steps: []views.Step{{With: 2, From: views.Edge{At: routedClock(3, 6, 0), Projected: true}, Until: views.Edge{At: routedClock(4, 2, 0)}, First: 51, Last: 67}}, Column: 51, First: 51, Last: 67, Ahead: true},
-		},
-	})
-	week.Window, week.Timeline = views.RunwayWeek, views.LiveTimeline(views.RunwayWeek, routedAt, 136)
-	week.Coming = []status.Upcoming{
-		{At: routedClock(1, 16, 30), Account: "personal", Kind: status.UpcomingReset, Window: "5h"},
-		{At: routedClock(1, 17, 10), Account: "work", Kind: status.UpcomingBack, Cap: true},
-		{At: routedClock(1, 18, 50), Account: "side", Kind: status.UpcomingReset, Window: "5h"},
-		{At: routedClock(3, 6, 0), Account: "personal", Kind: status.UpcomingRunsOut, Window: "7d"},
-		{At: routedClock(4, 2, 0), Account: "personal", Kind: status.UpcomingReset, Window: "7d"},
-		{At: routedClock(4, 21, 0), Account: "work", Kind: status.UpcomingReset, Window: "7d"},
-		{At: routedClock(5, 10, 0), Account: "side", Kind: status.UpcomingReset, Window: "7d"},
-	}
-	wednesday := poolShown(doc, views.Pool{
-		Of: 3, Key: "5h", Columns: poolColumnsOf(136, 3, 0, 2, 85, 3, 97, 2, 109),
-		Dips: []views.Dip{
-			{Steps: []views.Step{stepAt(2, wed(15, 2), wed(17, 10), 85, 96)}, Column: 85, First: 85, Last: 96},
-			{Steps: []views.Step{stepAt(2, wed(19, 12).Add(40*time.Second), wed(23, 58), 109, 135)}, Column: 108, First: 109, Last: 135},
-		},
-	})
-	wednesday.Back = civilDay(9, 30)
-	wednesday.Timeline = wednesday.TimelineAt(routedAt, time.Monday, 160)
-	ten := tenRunway()
-	tenShown := poolShown(ten, tenPool())
-	tenShown.Coming = views.RunwayComing(ten.At(routedAt, claudeLike), views.RunwayFiveHour)
-	tests := []struct {
-		stem  string
-		doc   status.Document
-		shown RunwayShown
-		// regions are those of the frame the pool's and COMING UP's drawers
-		// draw, and partFilled the part-filled cell of now's column in them.
-		regions    []region
-		partFilled []spot
-	}{
-		{stem: "runway-5-hour-160", doc: doc, shown: fiveHour, regions: []region{{top: 18, bottom: 22, right: 159}, {top: 24, bottom: 35, right: 159}}, partFilled: []spot{{19, 30, 30}}},
-		{stem: "runway-week-160", doc: doc, shown: week, regions: []region{{top: 18, bottom: 22, right: 159}, {top: 24, bottom: 35, right: 159}}, partFilled: []spot{{19, 43, 43}}},
-		{stem: "runway-stepped-back-160", doc: doc, shown: wednesday, regions: []region{{top: 18, bottom: 22, right: 159}, {top: 24, bottom: 35, right: 159}}},
-		{stem: "runway-ten-accounts-160", doc: ten, shown: tenShown, regions: []region{{top: 29, bottom: 32, right: 159}, {top: 34, bottom: 35, right: 159}}, partFilled: []spot{{30, 30, 30}}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.stem, func(t *testing.T) {
-			f := Frame{Width: 160, Height: 37, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claudeLike, Runway: tt.shown}
-			f.WindowName = func(key string) string { return map[string]string{"5h": "5-hour", "7d": "week"}[key] }
-			drawn, frame := screenOf(t, f.Draw(tt.doc, routedAt)), reference(t, tt.stem)
-			for _, in := range tt.regions {
-				heldTo(t, tt.stem, frame, drawn, in, shadeOf(f.Look.Canvas()), tt.partFilled, nil)
 			}
 		})
 	}

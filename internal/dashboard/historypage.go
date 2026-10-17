@@ -82,13 +82,12 @@ type HistoryPage struct {
 }
 
 // heading is History's heading row: its name and its sub-tabs, the one shown
-// picked out, set tight on a phone, as the rule Accounts and History share
-// has them; after [ ], what the Year is shown for, where it's shown for one
+// picked out; after [ ], what the Year is shown for, where it's shown for one
 // version or account; and at its right, the period of the sub-tab shown, as
 // Period names it, between < and >; else eight weeks, which Weeks and Days
 // keep to.
 func (p HistoryPage) heading() heading {
-	h := heading{name: strings.ToUpper(History.Title()), subTabs: historyViews, shown: int(p.Shown), tight: true, state: p.state()}
+	h := heading{name: strings.ToUpper(History.Title()), subTabs: historyViews, shown: int(p.Shown), state: p.state()}
 	if h.period = p.Period(); h.period == "" {
 		h.right = line{{"eight weeks", mutedInk}}
 	}

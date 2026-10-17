@@ -116,11 +116,11 @@ func TestByAccountThePoolsChartsSitBesideItsBlock(t *testing.T) {
 	if i < 0 {
 		t.Fatalf("USAGE by account reads\n%s\nwant the pool's block", strings.Join(rows, "\n"))
 	}
-	if got, want := colAt(rows[i], 107, 53), titlesRow(25, besideGap, "5-HOUR", "WEEK"); got != want {
+	if got, want := colAt(rows[i], 107, 53), titlesRow(25, besideGap, "WEEK", "5-HOUR"); got != want {
 		t.Errorf("beside the pool's block, the charts' top row reads\n%q\nwant\n%q", got, want)
 	}
-	if got := colAt(rows[i+5], 107, 5); got != "09:42" {
-		t.Errorf("the row under the pool's block reads %q beside it, want the 5-hour's axis, from 5 hours back, 09:42", got)
+	if got := colAt(rows[i+5], 107, 6); got != "24 Sep" {
+		t.Errorf("the row under the pool's block reads %q beside it, want the week's axis, from a week back, 24 Sep", got)
 	}
 }
 
@@ -140,8 +140,8 @@ func TestThePoolsChartsAreThoseDrawnBesideItsBlock(t *testing.T) {
 		doc   status.Document
 		want  []PoolChart
 	}{
-		{name: "by account at 160 columns", frame: besideOf(160), doc: trio(), want: []PoolChart{{Key: "5h", Columns: 25}, {Key: "7d", Columns: 25}}},
-		{name: "by account at 150 columns", frame: besideOf(150), doc: trio(), want: []PoolChart{{Key: "5h", Columns: 42}}},
+		{name: "by account at 160 columns", frame: besideOf(160), doc: trio(), want: []PoolChart{{Key: "7d", Columns: 25}, {Key: "5h", Columns: 25}}},
+		{name: "by account at 150 columns", frame: besideOf(150), doc: trio(), want: []PoolChart{{Key: "7d", Columns: 42}}},
 		{name: "by window", frame: byWindow, doc: trio()},
 		{name: "under 150 columns", frame: besideOf(149), doc: trio()},
 		{name: "GRAPHS hidden", frame: hidden, doc: trio()},

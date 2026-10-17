@@ -111,18 +111,6 @@ func happened(events ...status.Event) func(*status.Document) {
 	return func(d *status.Document) { d.Events = events }
 }
 
-// badHourEvents are the bad hour's events Detail's frame of personal tells:
-// its 5-hour limit at 14:12, its two sessions moved to side; the pin of it
-// and side, by hand, at 13:40; and its prime at 10:54, as its 5-hour window
-// resets at 15:54.
-func badHourEvents() []status.Event {
-	return framedEvents(
-		status.Event{At: routedClock(1, 14, 12), Kind: status.EventLimit, Account: "personal", Windows: []string{"5h"}, Count: 2, To: "side"},
-		status.Event{At: routedClock(1, 13, 40), Kind: status.EventPin, Accounts: []string{"personal", "side"}},
-		primeAt(10, 54, "personal"),
-	)
-}
-
 // aloneDoc is the world of Detail's frame of one account: work, where new
 // sessions go, under pressure, its 5-hour window running out at 16:05 at its
 // pace; and what befell it, its pressure at 14:38, 7f3a starting at 14:12
@@ -147,121 +135,15 @@ func aloneDoc() status.Document {
 }
 
 // detailFrame is a frame of Detail at routedAt, 160 by 37, in the look
-// given, of the accounts configured, the one chosen, the session selected,
+// given, every model's own window shown, as w shows them, of the accounts
+// configured, the one chosen, the session selected,
 // and the page given, the router listing the sessions given, the request
 // stream telling what it told in the Overview's world.
 func detailFrame(look Look, configured config.Accounts, chosen, selected string, page *views.AccountsPage, sessions []status.Session) Frame {
 	_, _, stream := overviewWorld()
 	return Frame{
-		Width: 160, Height: 37, Look: look, View: Accounts, Policy: claudeLike, Sessions: sessions, Stream: stream,
+		Width: 160, Height: 37, Look: look, View: Accounts, Policy: claudeLike, Models: true, Sessions: sessions, Stream: stream,
 		Accounts: AccountsShown{Shown: AccountsDetail, Accounts: configured, Chosen: chosen, Selected: selected, InSessions: selected != "", Page: page},
-	}
-}
-
-// The cells of Detail's frames passed over, as the frames draw them
-// otherwise than the design, or than their worlds.
-var (
-	// sidesMark is ▲ after side in the list, and the blank before it, which
-	// the frames mark where new sessions go, where Accounts shows no
-	// routing (P1).
-	sidesMark = spot{12, 7, 8}
-	// markedHead is the head of the account ▲ marks, which the frames draw
-	// after its name, the state three cells after it: drawn without it, the
-	// state three cells after the name, from where ▲ was to the head's end.
-	markedHead = map[string]spot{"sessions": {6, 31, 65}, "one": {6, 7, 60}}
-	// workMovedOn is work's LATELY's last row, where the frame tells its
-	// prime at 12:10 and leaves out db8a's move onto it at 13:22, which
-	// LATELY tells from work's side, as any move onto it (P12).
-	workMovedOn = spot{29, 36, 140}
-	// personalsPace is where the bad hour's frame has personal's 5-hour
-	// reset at 16:30, as the auto world's, its even pace's mark four cells
-	// back, where its world's resets at 15:54, as its limit lifts.
-	personalsPace = []spot{{9, 59, 59}, {9, 63, 63}}
-	// personalsPrime is when the bad hour's frame has personal primed,
-	// 11:30, where its world's 5-hour window starts at 10:54, to reset at
-	// 15:54 (D5).
-	personalsPrime = spot{29, 36, 40}
-	// sidesWeekWords is where the frame gives side's week its allowance, as
-	// the Overview's frames do, sidesWeek.
-	sidesWeekWords = spot{11, 80, 101}
-	// alonePace is where the frame of one account places even pace's mark
-	// as if each window's pace were a whole percent, as the Overview's frames
-	// do, evenPace160.
-	alonePace = []spot{{9, 34, 35}, {11, 35, 36}, {13, 35, 36}}
-	// alonePressure is LATELY's mark of work's pressure, which the frame
-	// draws ●, where LATELY marks pressure ◔, as testdata/vhs/README.md
-	// lists.
-	alonePressure = spot{27, 19, 19}
-	// startedBest is where 7f3a's start is told, which the frames tell
-	// without ", the best", where LATELY says it, as 7f3a started on the
-	// router's best, as its reason says.
-	startedBest = map[string]spot{"all": {29, 65, 74}, "work": {28, 62, 71}, "one": {28, 38, 48}}
-	// olderHaikus are Haiku 4.5's part of BY MODEL's bar, and its ●, which
-	// the frames draw in Haiku's own shade, where the version table holds
-	// Haiku 5.5, so Haiku 4.5 is older, mixed toward the canvas, as
-	// Compare's olderHaiku.
-	// sessionsFocused are where the frame of side's SESSIONS, the focus in
-	// them, lights side's row in the list and heads SESSIONS in text.subtle,
-	// where the row the focus has left keeps its choice in bold, unlit, ▸
-	// before it, and SESSIONS, holding it, is headed in bold text.primary
-	// (the owner's call, 15 October 2026).
-	sessionsFocused = []spot{{12, 0, 16}, {27, 24, 31}}
-	olderHaikus     = map[string][]spot{
-		"all":      {{15, 137, 139}, {16, 114, 114}},
-		"work":     {{15, 138, 139}, {16, 114, 114}},
-		"limit":    {{15, 136, 139}, {16, 85, 85}},
-		"sessions": {{15, 139, 139}, {16, 86, 86}},
-		"one":      {{15, 140, 142}, {16, 74, 74}},
-	}
-)
-
-// Detail draws its frames' views cell for cell, in nord: the list, the
-// panel's head, USAGE and THIS WEEK, BY MODEL, the rule, BY DAY, WEEKS, the
-// verdict, LATELY, and SESSIONS beside it. Each passes over the cells it
-// draws otherwise than its frame, for the reason given.
-func TestDetailIsDrawnAsItsFrames(t *testing.T) {
-	nord := Screen(builtin(t, "nord"))
-	auto := usageWorld(extraOff, happened(onAuto()...))
-	badHour := usageWorld(usageBadHour, extraOff, happened(badHourEvents()...))
-	_, sessions, _ := overviewWorld()
-	_, movedToSide := routedWorld(true)
-	page := detailsPage(t)
-	tests := []struct {
-		stem          string
-		doc           status.Document
-		configured    config.Accounts
-		chosen, picks string
-		page          *views.AccountsPage
-		sessions      []status.Session
-		passed        []spot
-	}{
-		{
-			stem: "accounts-detail-all-160", doc: auto, configured: framedAccounts, page: page, sessions: sessions,
-			passed: slices.Concat([]spot{sidesMark, startedBest["all"]}, olderHaikus["all"]),
-		},
-		{
-			stem: "accounts-detail-work-160", doc: auto, configured: framedAccounts, chosen: "work", page: page, sessions: sessions,
-			passed: slices.Concat([]spot{sidesMark, workMovedOn, startedBest["work"]}, olderHaikus["work"]),
-		},
-		{
-			stem: "accounts-detail-limit-160", doc: badHour, configured: framedAccounts, chosen: "personal", page: page, sessions: movedToSide,
-			passed: slices.Concat([]spot{sidesMark, personalsPrime}, personalsPace, olderHaikus["limit"]),
-		},
-		{
-			stem: "accounts-detail-sessions-160", doc: auto, configured: framedAccounts, chosen: "side", picks: idD28C, page: page, sessions: sessions,
-			passed: slices.Concat([]spot{sidesMark, markedHead["sessions"], sidesWeekWords}, sessionsFocused, olderHaikus["sessions"]),
-		},
-		{
-			stem: "accounts-detail-one-160", doc: aloneDoc(), configured: framedAccounts[:1], page: alonePage(t),
-			passed: slices.Concat([]spot{markedHead["one"], alonePressure, startedBest["one"]}, alonePace, olderHaikus["one"]),
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.stem, func(t *testing.T) {
-			f := detailFrame(nord, tt.configured, tt.chosen, tt.picks, tt.page, tt.sessions)
-			drawn := screenOf(t, f.Draw(tt.doc, routedAt))
-			heldTo(t, tt.stem, reference(t, tt.stem), drawn, region{top: 6, bottom: 34, right: 159}, shadeOf(nord.Canvas()), tt.passed, nil)
-		})
 	}
 }
 

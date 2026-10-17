@@ -20,8 +20,9 @@ const prefsName = "prefs.json"
 // Prefs are the dashboard's preferences, which it keeps as they change, and
 // the user never needs to write: the themes it's drawn in, the tab it
 // shows, the Overview's sections shown, how its windows are grouped and the
-// chart GRAPHS draws, what Accounts, History's views, Sessions and Runway
-// show, and the Log's columns.
+// chart GRAPHS draws, whether the live views show each model's own window,
+// what Accounts, History's views, Sessions and Runway show, and the Log's
+// columns.
 type Prefs struct {
 	Choice
 	// Tab names the tab shown, one of overview, accounts, history, sessions,
@@ -43,6 +44,10 @@ type Prefs struct {
 	// Milestone 5 kept its cards' chart style under "chart", which isn't
 	// this: a file of then keeps it as a key these don't know.
 	Graphs string `json:"graphs,omitempty"`
+	// Models is whether the live views show each model's own window, as
+	// Fable's week, as w last left it: unset, as a file without it reads,
+	// hides them.
+	Models bool `json:"models,omitempty"`
 	// Accounts is what Accounts shows, as its keys last left it.
 	Accounts AccountsPrefs `json:"accounts,omitzero"`
 	// History is what History's views show, as their keys last left them.
@@ -79,11 +84,15 @@ type SessionsPrefs struct {
 	View string `json:"view,omitempty"`
 }
 
-// RunwayPrefs are what Runway shows, by its name: the window its view is
-// named for, week, or "" for the 5-hour. A name the dashboard doesn't know
-// reads as the 5-hour. A day or week stepped back to is the run's alone.
+// RunwayPrefs are what Runway shows: the window its view is named for, by
+// its name, 5-hour, or "" for the week, a name the dashboard doesn't know,
+// as "week", which earlier builds kept the week by, reading as the week; and
+// whether its account column is collapsed, as a last left it: unset, as a
+// file without it reads, expands it. A day or week stepped back to is the
+// run's alone.
 type RunwayPrefs struct {
-	Window string `json:"window,omitempty"`
+	Window    string `json:"window,omitempty"`
+	Collapsed bool   `json:"collapsed,omitempty"`
 }
 
 // HistoryPrefs are what History's views show, each by its name: the view

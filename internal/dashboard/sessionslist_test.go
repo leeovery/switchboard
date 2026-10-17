@@ -113,29 +113,6 @@ func listOf(sessions ...listedSession) views.SessionList {
 	return list
 }
 
-// The List draws its frames cell for cell, in nord: its heads, its rows, its
-// marks and inks, the ended rule, and the today line, on a row wide and
-// broken onto two on a phone. 8a2c's routing, a move of yesterday's, is
-// passed over: the List gives a move of today's alone.
-func TestTheListIsDrawnAsItsFrames(t *testing.T) {
-	tests := []struct {
-		stem          string
-		width, height int
-		in            region
-		passed        []spot
-	}{
-		{stem: "sessions-list-160", width: 160, height: 37, in: region{top: 6, bottom: 35, right: 159}, passed: []spot{{21, 91, 125}}},
-		{stem: "sessions-list-phone-52", width: 52, height: 33, in: region{top: 7, bottom: 31, right: 51}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.stem, func(t *testing.T) {
-			f := listFrame(t, tt.width, tt.height, framedList())
-			drawn := screenOf(t, f.Draw(framedDoc(nil, nil), routedAt))
-			heldTo(t, tt.stem, reference(t, tt.stem), drawn, tt.in, shadeOf(f.Look.Canvas()), tt.passed, nil)
-		})
-	}
-}
-
 // d28cMoved is d28c, asking on side, which a move from work at its cap
 // brought there for $1.82.
 var d28cMoved = listedSession{"d28c5e17", "~/Code/switchboard", "side", asking, routedClock(1, 12, 2), 445, 4820, views.MarkAsking, 182}

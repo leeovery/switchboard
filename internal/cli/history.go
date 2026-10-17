@@ -279,7 +279,7 @@ func modelName(m views.DayModel) string {
 // off it, the limits it reached, the resets of its weeks, and each window's
 // highest use, each window named as windowInProse names it, times in now's
 // time zone, as "work: 6 sessions  ·  2 moved on, 1 off  ·  limits: 5-hour at
-// 14:37  ·  week reset 10:00  ·  highest: 5-hour 100%, week 41%".
+// 14:37  ·  week reset 10:00  ·  highest: week 41%, 5-hour 100%".
 func accountNote(a views.DayAccount, now time.Time) string {
 	parts := []string{prose.SessionCount(a.Sessions)}
 	for _, part := range []string{moves(a.MovedOn, a.MovedOff), limitsOf(a.Limits, now), weeksResetOf(a.WeeksReset, now), highestOf(a.Highest)} {
@@ -321,7 +321,7 @@ func weeksResetOf(resets []views.WindowAt, now time.Time) string {
 }
 
 // highestOf says each of an account's windows' highest use, as "highest:
-// 5-hour 100%, week 41%": "" for none.
+// week 41%, 5-hour 100%": "" for none.
 func highestOf(uses []views.WindowUse) string {
 	if len(uses) == 0 {
 		return ""

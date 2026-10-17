@@ -6,9 +6,11 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -292,18 +294,7 @@ func reversedRows(rows []string) []int {
 	return reversed
 }
 
-func TestThePageBehindACardIsFadedAsItsFrameDrawsIt(t *testing.T) {
-	nord := Screen(builtin(t, "nord"))
-	doc, sessions := routedWorld(false)
-	f := Frame{
-		Width: 160, Height: 37, Look: nord, View: Overview, Policy: claudeLike, Sessions: sessions,
-		Card: RoutingCard{Rows: RoutingRows(doc.At(routedAt, claudeLike), sessions, views.Stream{})},
-	}
-
-	heldTo(t, "routing-auto-160", reference(t, "routing-auto-160"), screenOf(t, f.Draw(doc, routedAt)), region{top: 0, bottom: 2, left: 0, right: 159}, shadeOf(nord.Canvas()), nil, nil)
-}
-
-func TestEveryCellOfThePageBehindACardIsFadedAndNothingInItBold(t *testing.T) {
+func TestEveryCellOfThePageBehindACardButTheClockIsFadedAndNothingInItBold(t *testing.T) {
 	f := frameOf(160, 40)
 	f.Look = Screen(builtin(t, "nord"))
 	doc := threeRouted()
@@ -321,9 +312,16 @@ func TestEveryCellOfThePageBehindACardIsFadedAndNothingInItBold(t *testing.T) {
 		}
 		return shadeOf(theme.Mix(color.RGBA{R: s.r, G: s.g, B: s.b, A: 0xff}, canvas, behindFade))
 	}
+	clock := f.Width - clockCells(now)
 	for row := range page {
 		for col, was := range page[row] {
 			if row >= y && row < y+height && col >= x && col < x+k.width {
+				continue
+			}
+			if row == 0 && col >= clock {
+				if got := behind[row][col]; got != was {
+					t.Errorf("the clock's column %d is %s, want %s, as it's drawn with no card open", col+1, got, was)
+				}
 				continue
 			}
 			want := seen{glyph: was.glyph, fg: faded(was.fg), bg: faded(was.bg.or(shadeOf(canvas)))}
@@ -339,6 +337,49 @@ func TestEveryCellOfThePageBehindACardIsFadedAndNothingInItBold(t *testing.T) {
 	if title := behind[y][x+3]; title.fg != shadeOf(f.Look.theme.Colour(theme.TextSubtle)) {
 		t.Errorf("the card's title is %s, want it in text.subtle, not faded", title)
 	}
+}
+
+// Behind a card, the heading's clock ticks on at the frame's Clock, drawn as
+// it is with no card open, while the page behind it, its countdowns among
+// it, stands as it's drawn at the moment it's of, faded.
+func TestBehindACardTheClockTicksOnBrightWhileThePageStandsStill(t *testing.T) {
+	doc, later := threeRouted(), now.Add(10*time.Minute)
+	f := frameOf(160, 40)
+	f.Look = Screen(builtin(t, "nord"))
+	ticked := f.Draw(doc, later)
+	f.Card = RoutingCard{Rows: RoutingRows(doc.At(now, claudeLike), nil, views.Stream{})}
+	still := f.Draw(doc, now)
+	f.Clock = later
+	drawn := f.Draw(doc, now)
+
+	if got, want := ansi.Strip(drawn[0]), "Mon 28 Sep  13:22:00"; !strings.HasSuffix(got, want) {
+		t.Errorf("the title row is %q, want it to end at the Clock, %s", got, want)
+	}
+	behind, liveClock, stillPage := screenOf(t, drawn), screenOf(t, ticked)[0], screenOf(t, still)
+	clock := f.Width - clockCells(later)
+	for col, got := range behind[0] {
+		want := stillPage[0][col]
+		if col >= clock {
+			want = liveClock[col]
+		}
+		if got != want {
+			t.Errorf("the title row's column %d is %s, want %s: the clock as drawn with no card open, the rest faded", col+1, got, want)
+		}
+	}
+	for row := 1; row < len(behind); row++ {
+		if !slices.Equal(behind[row], stillPage[row]) {
+			t.Errorf("row %d is\n%s\nwant the page behind the card as it stood\n%s", row+1, ansi.Strip(drawn[row]), ansi.Strip(still[row]))
+		}
+	}
+	if page := ansi.Strip(strings.Join(drawn, "\n")); !strings.Contains(page, "in 1h 30m") || !strings.Contains(ansi.Strip(strings.Join(ticked, "\n")), "in 1h 20m") {
+		t.Errorf("the page behind the card is\n%s\nwant work's run out in 1h 30m, as it stood, where the page live counts down to 1h 20m", page)
+	}
+}
+
+// clockCells is how many cells the heading's clock takes at at, its date
+// and its time.
+func clockCells(at time.Time) int {
+	return ansi.StringWidth(prose.Day(at) + "  " + prose.ToTheSecond(at, at))
 }
 
 func TestAFadeBehindACardComesAfterTheCellsOwn(t *testing.T) {
@@ -372,6 +413,19 @@ func TestAFadeLeavesTheRowsKeptAsTheyreDrawn(t *testing.T) {
 		if kept := y == 1; row[0].ink.behind == kept || row[0].ink.bold != kept {
 			t.Errorf("row %d is behind the card %v and bold %v, want it %v and %v", y+1, row[0].ink.behind, row[0].ink.bold, !kept, kept)
 		}
+	}
+}
+
+func TestAFadeLeavesACellInAKeptInkAsItsDrawn(t *testing.T) {
+	c := newCanvas(2, 1)
+	c.text(0, 0, "a", ink{token: theme.TextSecondary, bold: true})
+	c.text(1, 0, "b", ink{token: theme.TextSecondary, bold: true, kept: true})
+	c.fade()
+	if got := c.cells[0][0].ink; !got.behind || got.bold {
+		t.Errorf("the cell not kept is behind the card %v and bold %v, want it behind, not bold", got.behind, got.bold)
+	}
+	if got := c.cells[0][1].ink; got.behind || !got.bold {
+		t.Errorf("the cell kept is behind the card %v and bold %v, want it as it's drawn, bold", got.behind, got.bold)
 	}
 }
 

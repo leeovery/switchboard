@@ -110,9 +110,7 @@ frames to `finalize.sh`, which makes the art:
 - **The size.** JetBrains Mono at 17px makes a cell 10 × 22 px, so the 160 × 37 clips are
   1648 × 862 with their margin: twice the 840 px the README shows them at, so a high-density
   screen draws them sharp.
-- **The colours** are the themes' own: nothing is graded. Beside the signed-off frames in
-  `testdata/vhs/reference/`, which carry a Display P3 profile, as a wide-gamut screen shows a
-  terminal's colours, they don't read flat.
+- **The colours** are the themes' own: nothing is graded.
 
 `demo/out/` is remade each time and never committed: `art/` is.
 

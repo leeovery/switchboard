@@ -31,8 +31,9 @@ type Printout struct {
 	Width int
 	Look  Look
 	By    By
-	// Windows are the windows' keys to print, each once, in Claude's order;
-	// none prints every one, as UsageWindows has them.
+	// Windows are the windows' keys to print, each once, in the order of care;
+	// none prints every one, each model's own among them, as the moment's
+	// Listed has them.
 	Windows []string
 	// Name names a window by its key, as "5-hour" or "Fable week"; where
 	// it's nil, a window is named by its label in the document.
@@ -42,17 +43,23 @@ type Printout struct {
 // Draw draws the printout of the moment m, a document as a policy judges it
 // at a time: a string for each of its rows, as tall as it is, from the
 // header to the key line, with no blank row before or after. Under the
-// header, after a blank line, or by account two, is the usage block, then a
-// blank line and its key line.
+// header, after a blank line, is the usage block, then a blank line and its
+// key line.
 func (p Printout) Draw(m status.Moment) []string {
 	c := growing(p.Width)
 	y := p.header(c, m) + 2
-	if p.By == ByAccount {
-		y++
-	}
-	block := newUsageBlock(m, p.Width, p.Look, p.By, usageWindows(m, p.Windows, p.namer(m)))
+	block := newUsageBlock(m, p.Width, p.Look, p.By, usageWindows(p.windows(m), p.namer(m)))
 	block.key(c, block.draw(c, y)+1)
 	return c.rows(p.Look)
+}
+
+// windows are the keys of the windows the printout of m prints: its Windows,
+// else every one m lists, each model's own among them.
+func (p Printout) windows(m status.Moment) []string {
+	if len(p.Windows) > 0 {
+		return p.Windows
+	}
+	return m.Listed(true)
 }
 
 // namer names m's windows by their keys as the printout names them: as its

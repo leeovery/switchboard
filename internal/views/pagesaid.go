@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
-	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -336,11 +336,11 @@ const (
 )
 
 // PointsWords says the points of the account's windows the session took, in
-// form, the shortest window first, each named as status names it, and each
+// form, in the order of care, each named as status names it, and each
 // window's words apart, so a row short of room leaves whole windows off its
 // end: the first leading with "≈ ", each after it with " · ", the points a
-// figure. Wide, "≈ 41 points of its 5-hour", " · 6 of its week"; short, as a
-// phone says them, "≈ 41 of 5-hour", " · 6 of week". It leaves out those
+// figure. Wide, "≈ 6 points of its week", " · 41 of its 5-hour"; short, as a
+// phone says them, "≈ 6 of week", " · 41 of 5-hour". It leaves out those
 // that round to none: none where all do. Each says the window PointsKeys
 // gives in its place.
 func (a SessionAccount) PointsWords(form PointsForm) []status.Words {
@@ -364,10 +364,11 @@ func (a SessionAccount) PointsWords(form PointsForm) []status.Words {
 }
 
 // PointsKeys are the keys of the account's windows the session took points
-// of, as PointsWords says them, the shortest window first, those that round
-// to none left out.
+// of, as PointsWords says them, in the order the owner reads windows listed,
+// as status.CompareWindows has it by Claude's policy, those that round to
+// none left out.
 func (a SessionAccount) PointsKeys() []string {
-	keys := slices.SortedFunc(maps.Keys(a.Points), quota.CompareKeys)
+	keys := slices.SortedFunc(maps.Keys(a.Points), status.CompareWindows(claude.Policy()))
 	return slices.DeleteFunc(keys, func(key string) bool { return a.Points[key] == 0 })
 }
 

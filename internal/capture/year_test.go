@@ -178,8 +178,7 @@ func TestTheCapacityIsTheOneWeeksDraws(t *testing.T) {
 			t.Errorf("%s's verdict is %q, %d limits, %v left, want %q, %d, %d%%", a.Account, a.Verdict, a.Limits, a.LeftAtReset, w.verdict, w.limits, w.left)
 		}
 	}
-	// The ten's replay, which its frame draws 4, 4 and 6: 3 each, as
-	// testdata/vhs/README.md says.
+	// The ten's replay: 3 each, where the Paper frame drew 4, 4 and 6.
 	ten := historyFrom(tenWorld(), eightWeeks).Capacity
 	if ten.Weeks != 7 || ten.Short != 3 || ten.WithOneFewer == nil || *ten.WithOneFewer != 3 || ten.WithTwoFewer == nil || *ten.WithTwoFewer != 3 {
 		t.Errorf("the ten's capacity is %+v, want short on 3 of 7 weeks as now, with one fewer and with two fewer", ten)

@@ -9,14 +9,14 @@ import (
 )
 
 // RunwayWindow is the window Runway's view is named for, as < and > step
-// between them: the 5-hour, the first the dashboard shows, or the week.
+// between them: the week, the first the dashboard shows, or the 5-hour.
 type RunwayWindow string
 
 const (
-	// RunwayFiveHour is the 5-hour view.
-	RunwayFiveHour RunwayWindow = ""
 	// RunwayWeek is the week view.
-	RunwayWeek RunwayWindow = "week"
+	RunwayWeek RunwayWindow = ""
+	// RunwayFiveHour is the 5-hour view.
+	RunwayFiveHour RunwayWindow = "5-hour"
 )
 
 // The live views' spans: the 5-hour's, from the hour before now, 22 hours

@@ -25,8 +25,8 @@ func TestStatus(t *testing.T) {
 			got := form.run(t, deps, "status")
 			want := result{
 				stdout: `work · Work (primary)
-  5-hour      23%  resets in 4h 58m · Mon 18:10
   Week        93%  resets in 4d 7h · Fri 21:00 · runs out ~Mon 14:34
+  5-hour      23%  resets in 4h 58m · Mon 18:10
   Fable week 100%  resets in 5d 11h · Sun 01:10 · exhausted
   limit until Sun 01:10
 
@@ -84,14 +84,14 @@ func statusDocument(t *testing.T, deps cli.Deps) result {
         "key": "5h",
         "label": "Session",
         "room": 0.72,
-        "used": 0.76,
+        "used": 0.23,
         "pace": 0.006666666666666667
       },
       {
         "key": "7d",
         "label": "Week",
         "room": 0.019999999999999907,
-        "used": 0.9933333333333334,
+        "used": 0.93,
         "pace": 0.3821428571428571
       },
       {

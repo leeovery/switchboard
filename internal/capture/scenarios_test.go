@@ -58,7 +58,7 @@ func TestEachTapePlaysItsScenarioAsItsCuesAreTimedFor(t *testing.T) {
 				{at: 7.3, says: []string{"Requests", "● following"}},
 				{at: 8.5, says: []string{"SESSION   ", "esc back"}},
 				{at: 11.5, says: []string{"SESSION   ", "esc back"}},
-				{at: 14.5, says: []string{"RUNWAY", "< 5-hour >"}},
+				{at: 14.5, says: []string{"RUNWAY", "< week >"}},
 				{at: 18.5, says: []string{"SESSIONS    Switchboard"}},
 				{at: 21.5, says: []string{"HISTORY    Year"}},
 				{at: 24.5, says: []string{"ACCOUNTS    Compare"}},
@@ -82,7 +82,7 @@ func TestEachTapePlaysItsScenarioAsItsCuesAreTimedFor(t *testing.T) {
 		},
 		{
 			tape: "dashboard", scenario: "dashboard", size: wide(37),
-			keys: []press{{6, keysOf("g")}, {11, repeated(tabKey, 1)}, {11.3, repeated(tabKey, 1)}, {11.6, repeated(tabKey, 1)}, {11.9, repeated(tabKey, 1)}},
+			keys: []press{{6, keysOf("g")}, {11, repeated(tabKey, 1)}, {11.3, repeated(tabKey, 1)}, {11.6, repeated(tabKey, 1)}, {11.9, repeated(tabKey, 1)}, {12.2, keysOf(">")}},
 			shows: []shows{
 				{at: 0, says: []string{"5 sessions  ·  new sessions → ▲ work", "~16:05     work reaches its cap", "◔ work came under pressure"}},
 				{at: 7, says: []string{"GRAPHS   work"}},
@@ -118,7 +118,7 @@ func TestEachTapePlaysItsScenarioAsItsCuesAreTimedFor(t *testing.T) {
 		},
 		{
 			tape: "runway-week", scenario: "routing", size: wide(37),
-			keys:  []press{{2, slices.Concat(repeated(tabKey, 4), keysOf(">"))}},
+			keys:  []press{{2, repeated(tabKey, 4)}},
 			shows: []shows{{at: 5, says: []string{"RUNWAY", "< week >", "1 work", "2 personal ◆", "3 side ▲"}}},
 		},
 		{
@@ -296,7 +296,7 @@ func TestTheReadingsTheAnswersReadDrawOnRunwayAtTheNextLook(t *testing.T) {
 		t.Fatal("the scenario's answers read nothing of work's 5-hour window")
 	}
 	at := read[i].At.Sub(p.base.start).Seconds()
-	p.press(1, toRunway()...)
+	p.press(1, toRunway(">")...)
 	now := regexp.MustCompile(`5-hour (\d+)%`)
 	p.until(at - 0.001)
 	if got := now.FindStringSubmatch(p.screen()); got == nil || got[1] != "58" {

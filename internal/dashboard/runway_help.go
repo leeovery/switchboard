@@ -9,7 +9,7 @@ import (
 
 // runwayHelp are Runway's parts as help explains them, after its keys, in
 // the design's order: the lanes, their marks and colours and the words under
-// them; the pool's lane and its words; stepping back and how far it
+// them; the pool's lane and its room; stepping back and how far it
 // reaches; how long a column is; and COMING UP. With one account, which has
 // no pool's lane, the pool's part goes, as it does from the page.
 func (f Frame) runwayHelp() []helpPart {
@@ -22,7 +22,7 @@ func (f Frame) runwayHelp() []helpPart {
 
 // lanesHelp is the lanes as help explains them: what a column is drawn by,
 // and, where the look blends, that the past is dimmed; the label and the use
-// beside each; the words under each; what each column is read from, a cap
+// beside each, and the label collapsed on a; the words under each; what each column is read from, a cap
 // by the reserve the config gives now, so a reserve changed redraws the
 // caps of days gone; how the page compacts; and a key to the lanes' marks,
 // each drawn as a lane draws it.
@@ -43,6 +43,9 @@ func (f Frame) lanesHelp() helpPart {
 				"since 14:20 where its last read failed; and not read yet before its first, its lane blank, saying why where that " +
 				"read failed. A stale account's lane and use are faded, as the Overview fades a stale account, and the use of one " +
 				"whose token is refused."),
+			said("`a` collapses the labels, to give the lanes more room: beside each lane, its number, its marks and its use alone, " +
+				"as 2 ◆ 66%, the window named in the heading, or — where there's no use to show; and COMING UP numbers each account, " +
+				"so a lane's number finds its name. `a` again expands them. It's kept for next time."),
 			said("Under each lane, words say where each stretch without room starts and when room is back: at its cap, at its " +
 				"limit, its token refused, or runs out ~16:05 at its pace, ~ marking a time projected at its pace, as switchboard " +
 				"usage projects it. Where another stretch holds the account on, a stretch says lifts 19:00, when its own hold lifts, " +
@@ -68,23 +71,20 @@ func (f Frame) lanesHelp() helpPart {
 }
 
 // poolHelp is the pool's lane as help explains it: its columns, how they're
-// counted and coloured; which accounts the pool is; and the room and the
-// words under it.
+// counted and coloured; its room under Σ pool, or collapsed, beside Σ; and
+// which accounts the pool is.
 func poolHelp() helpPart {
 	return helpPart{
 		heading: "POOL",
 		says: []line{
-			said("Under the pool's rule, Σ pool: a column for each of the lanes', filled to how many of the pool's accounts have " +
+			said("Beside Σ pool, under the lanes: a column for each of the lanes', filled to how many of the pool's accounts have " +
 				"room then, and coloured as switchboard usage colours the pool's use, the ramp's second colour from 70% used and " +
 				"its last from 90%, and where none has room, ─ along its foot, as a lane at its limit draws it. An account at its " +
 				"cap or its limit counts without room, one running out at its pace with room until it does, and one not known " +
-				"then without."),
-			said("The pool is every account on auto, and the pin's while one holds, as pinned says beside its room; an account " +
-				"out of it is faded, the words under its lane not."),
-			said("Under its lane, the pool's room in the view's window, as switchboard usage gives it, then a phrase for each dip, " +
-				"a stretch where fewer than all of the pool have room: 8 of 10 with room till 15:30 for one under way, ~16:05 – " +
-				"16:55 for one ahead, and 15:02 – 17:10 on a day stepped back to, each change of its count chained on, as 9 till " +
-				"~16:05. A dip too close to the phrase before for its own joins it with and, where its count is the same."),
+				"then without. Under Σ pool, the pool's room in the view's window, as switchboard usage gives it; with the labels " +
+				"collapsed, beside Σ, of how many accounts the pool is, as Σ 1.2/3."),
+			said("The pool is every account on auto, and the pin's while one holds, as pinned says after its room where it fits; " +
+				"an account out of it is faded, the words under its lane not."),
 		},
 	}
 }
@@ -114,7 +114,7 @@ func steppingBackHelp() helpPart {
 // width; and how long it is at the frame's width in each view, and on a day
 // stepped back to, as columnLengths says them.
 func (f Frame) columnsHelp() helpPart {
-	fiveHour, week, day := columnLengths(RunwayColumns(f.Width))
+	fiveHour, week, day := columnLengths(f.Runway.Columns(f.Width))
 	return helpPart{
 		heading: "COLUMNS",
 		says: []line{

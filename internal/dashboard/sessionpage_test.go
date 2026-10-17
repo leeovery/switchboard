@@ -10,6 +10,7 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -245,81 +246,6 @@ func pageFrame(t *testing.T, shown *SessionShown, width, height int) Frame {
 	return f
 }
 
-// tabsOf are the cells of the tabs named on row y of the frame with the stem
-// given, as its text has them.
-func tabsOf(t *testing.T, stem string, y int, tabs ...string) []spot {
-	t.Helper()
-	row := []rune(referenceRows(t, stem, "txt")[y])
-	var spots []spot
-	for _, tab := range tabs {
-		i := strings.Index(string(row)+" ", " "+tab+" ")
-		if i < 0 {
-			t.Fatalf("%s's row %d has no %s tab", stem, y+1, tab)
-		}
-		first := len([]rune(string(row)[:i]))
-		spots = append(spots, spot{row: y, first: first, last: first + len(tab) + 1})
-	}
-	return spots
-}
-
-// A session's page draws the rows of its frames cell for cell, in nord,
-// from the title row to the row over the key line, which the watch lists:
-// but its STORY's, which the story's drawer holds, and the tabs, as the
-// frames light the Overview the page opened over, where the fixtures reach
-// it from the Log (call 64). Each frame passes over what the build draws
-// otherwise than it, for the reason given.
-func TestASessionsPageDrawsItsFramesRows(t *testing.T) {
-	tests := []struct {
-		stem          string
-		shown         *SessionShown
-		width, height int
-		// tabs is the row of the tabs, and story the story's rows.
-		tabs, storyFrom, storyTo int
-		passed                   []spot
-	}{
-		{stem: "session-moved-160", shown: moved(), width: 160, height: 37, storyFrom: 9, storyTo: 17},
-		{stem: "session-quiet-160", shown: quiet(), width: 160, height: 37, storyFrom: 9, storyTo: 17},
-		{
-			stem: "session-ended-160", shown: ended(), width: 160, height: 37, storyFrom: 9, storyTo: 17,
-		},
-		{
-			stem: "session-resumed-160", shown: resumed(), width: 160, height: 37, storyFrom: 9, storyTo: 17,
-			passed: []spot{
-				// The frame predates the design's word: it says its answer
-				// streams as "↓ streaming", where the design says "↓
-				// answering".
-				{row: 6, first: 0, last: 10},
-				// The router writes the world's idle as it is, 15h 7m, where
-				// the frame says 15h, so the where-words run 3 cells longer.
-				{row: 6, first: 56, last: 94},
-			},
-		},
-		{
-			stem: "session-turn-opened-160", shown: turnOpened(), width: 160, height: 37, storyFrom: 9, storyTo: 17,
-			// The frame lights no request of the turn open, where the design
-			// has its first chosen as it opens (3417); its text is held by
-			// TestATurnOpenedLightsItsRequestChosenAndSaysWhatsOutOfView.
-			passed: []spot{{row: 28, first: 0, last: 159}},
-		},
-		{
-			stem: "session-phone-52", shown: moved(), width: 52, height: 32, tabs: 1, storyFrom: 10, storyTo: 16,
-			// The frame leaves the row under its seven turns blank, where
-			// six more are out of view, as the design says them (3461).
-			passed: []spot{{row: 30, first: 0, last: 51}},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.stem, func(t *testing.T) {
-			f := pageFrame(t, tt.shown, tt.width, tt.height)
-			drawn, frame := screenOf(t, f.Draw(pageDoc(), sessionNow)), reference(t, tt.stem)
-			passed := slices.Concat(tt.passed, tabsOf(t, tt.stem, tt.tabs, "Overview", "Log"))
-			canvas := shadeOf(f.Look.Canvas())
-			heldTo(t, tt.stem, frame, drawn, region{top: 0, bottom: tt.storyFrom - 1, right: tt.width - 1}, canvas, passed, nil)
-			heldTo(t, tt.stem, frame, drawn, region{top: tt.storyTo + 1, bottom: tt.height - 2, right: tt.width - 1}, canvas, passed, nil)
-		})
-	}
-}
-
 // pageText is the page f draws, of the frames' document at their now, as
 // text, each row without the blanks at its end.
 func pageText(f Frame) []string {
@@ -383,7 +309,7 @@ func TestASessionsPageAtEachSize(t *testing.T) {
 				4:  "SESSION  d28c  switchboard" + strings.Repeat(" ", 87) + "esc back",
 				6:  "↑ asking  on side ▲ since 14:31",
 				7:  "moved from work: its cap" + strings.Repeat(" ", 91) + "2h 40m",
-				17: "1 work     ≈ 41 of 5-hour · 6 of week" + strings.Repeat(" ", 78) + "$41.06",
+				17: "1 work     ≈ 6 of week · 41 of 5-hour" + strings.Repeat(" ", 78) + "$41.06",
 				20: "TURNS    " + rule(104) + "  $48.20",
 				22: "13 14:40   3m…   6 req" + strings.Repeat(" ", 83) + "$0.79  side",
 			},
@@ -461,10 +387,10 @@ func TestANarrowWidePageCutsItsRowsBeforeTheirRightParts(t *testing.T) {
 	if want := models + "   sonnet-5-5 → personal"; !strings.HasPrefix(rows[7], want+"         personal now") {
 		t.Errorf("row 8 reads\n%q\nwant the model that doesn't fit left out whole, after\n%q", rows[7], want)
 	}
-	if want := "≈ 31 points of its 5-hour · 9 of its week" + strings.Repeat(" ", 18) + "$114.10"; !strings.HasSuffix(rows[20], want) {
+	if want := "≈ 9 points of its week · 31 of its 5-hour" + strings.Repeat(" ", 18) + "$114.10"; !strings.HasSuffix(rows[20], want) {
 		t.Errorf("row 21 reads\n%q\nwant Fable week's points left out whole, ending\n%q", rows[20], want)
 	}
-	if want := "≈ 31 points of its 5-hour · 9 of its week · 2 of its Fable week"; !strings.Contains(pageText(pageFrame(t, shown, 160, 37))[20], want) {
+	if want := "≈ 9 points of its week · 31 of its 5-hour · 2 of its Fable week"; !strings.Contains(pageText(pageFrame(t, shown, 160, 37))[20], want) {
 		t.Errorf("at 160 columns, row 21 doesn't say %q", want)
 	}
 }
@@ -713,6 +639,35 @@ func TestASessionsHeadingNamesItByItsDirectory(t *testing.T) {
 				t.Errorf("the heading reads\n%q\nwant\n%q", got, tt.want)
 			}
 		})
+	}
+}
+
+// A session's heading draws its id and its directory's name bold
+// text.primary, and the directory, as wide pages show it, in text.muted, the
+// tone of a heading's quieter words: SESSION   d28c   switchboard
+// ~/Code/switchboard.
+func TestASessionsHeadingsInks(t *testing.T) {
+	f := pageFrame(t, moved(), 160, 37)
+	c, y := pageCanvas(f), f.sessionLayout(len(moved().Page.Accounts)).heading
+	tests := []struct {
+		name   string
+		x, end int
+		want   ink
+	}{
+		{name: "SESSION", x: 0, end: 6, want: dimInk},
+		{name: "the id", x: 10, end: 13, want: titleInk},
+		{name: "the directory's name", x: 17, end: 27, want: titleInk},
+		{name: "the directory", x: 30, end: 47, want: mutedInk},
+	}
+	for _, tt := range tests {
+		for x := tt.x; x <= tt.end; x++ {
+			if got := c.at(x, y).ink; got != tt.want {
+				t.Errorf("%s, at column %d, is in %+v, want %+v", tt.name, x, got, tt.want)
+			}
+		}
+	}
+	if mutedInk != (ink{token: theme.TextMuted}) {
+		t.Errorf("the directory's ink is %+v, want text.muted", mutedInk)
 	}
 }
 

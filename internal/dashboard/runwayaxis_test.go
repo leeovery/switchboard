@@ -59,7 +59,7 @@ func TestTheDaysHoursAreTickedAndLabelledAsFarApartAsTheWidthAsks(t *testing.T) 
 	}
 	for _, tt := range tests {
 		t.Run(strconv.Itoa(tt.width), func(t *testing.T) {
-			tl := views.LiveTimeline(views.RunwayFiveHour, routedAt, RunwayColumns(tt.width))
+			tl := views.LiveTimeline(views.RunwayFiveHour, routedAt, RunwayShown{}.Columns(tt.width))
 			c := newCanvas(tl.Columns, 2)
 			hours(c, tl, 0, 0)
 			midnight := tl.Column(tl.Midnights()[0])

@@ -66,15 +66,70 @@ func (f Frame) laidLanes(m status.Moment, fit runwayFit) []laidLane {
 
 // runwayLanes draws the lanes, as laid out, each on its row: its account's
 // name in the label column before it, and its use of the view's window from
-// runwayUseFrom on the row under, as useLine has it; then the lane itself, as
-// drawLane draws it.
+// runwayUseFrom on the row under, as useLine has it, or with the account
+// column collapsed, its label as collapsedLabel has it alone; then the lane
+// itself, as drawLane draws it.
 func (f Frame) runwayLanes(c *canvas, laid runwayLaid) {
 	window := runwayNames[f.Runway.Window]
 	for _, ln := range laid.lanes {
-		c.line(0, ln.row, ln.name.line(laid.x))
-		c.line(runwayUseFrom, ln.row+1, ln.useLine(window, laid.m.Now, f.Width, laid.x-runwayUseFrom-1))
+		if f.Runway.Collapsed {
+			c.line(0, ln.row, ln.collapsedLabel(laid.x-nameGap))
+		} else {
+			c.line(0, ln.row, ln.name.line(laid.x))
+			c.line(runwayUseFrom, ln.row+1, ln.useLine(window, laid.m.Now, f.Width, laid.x-runwayUseFrom-1))
+		}
 		f.drawLane(c, ln, laid.x)
 	}
+}
+
+// collapsedLabel is the lane's label with Runway's account column collapsed,
+// in the cells given, as in "2 ◆    84%": its account's number and marks, as
+// its name heads it, and its use of the view's window, as collapsedUse has
+// it, as collapsedLabelled lays them out.
+func (ln laidLane) collapsedLabel(cells int) line {
+	head := append(line{ln.name.numbered()}, ln.name.marks()...)
+	return collapsedLabelled(head, line{ln.collapsedUse()}, cells)
+}
+
+// collapsedCells are the cells the labels of Runway's collapsed account
+// column take, of lanes named as names has them: the widest a lane's can
+// be, its number and marks, as headCells counts them, a space, and the
+// widest figure, as 100%, so every figure ends in one column, and the
+// column holds still as ▲ moves; collapsedLanesFrom less nameGap the least.
+// The pool's, Σ and its room of n accounts, is never the widest.
+func collapsedCells(names []accountName) int {
+	head := 0
+	for _, n := range names {
+		head = max(head, n.headCells())
+	}
+	return max(collapsedLanesFrom-nameGap, head+1+widestFigure)
+}
+
+// widestFigure is how many cells the widest use a lane's label says takes,
+// as 100%.
+const widestFigure = len("100%")
+
+// collapsedLabelled is a label of Runway's collapsed account column, in the
+// cells given: its head, then its figure right-aligned to the label's end, a
+// cell after the head at the least, so the figures of every lane and the
+// pool's end in a column.
+func collapsedLabelled(head, figure line, cells int) line {
+	return slices.Concat(head, line{spaces(max(cells-head.width()-figure.width(), 1))}, figure)
+}
+
+// collapsedUse is the lane's use of the view's window as its collapsed label
+// says it: its figure, as useFigure has it, in text.faint where the pool
+// leaves its account out; or — in text.faint where its use is stale, it has
+// no token or it's not read yet, which the expanded label words.
+func (ln laidLane) collapsedUse() span {
+	u := ln.Use
+	switch {
+	case u.Stale || u.Tokenless || u.Unread:
+		return noFigure
+	case ln.account.OutOfPool:
+		return span{ln.useFigure().text, faintInk}
+	}
+	return ln.useFigure()
 }
 
 // drawLane draws the lane ln along its row from column x: each column known,
@@ -179,18 +234,28 @@ func (ln laidLane) useWords(window string, now time.Time) usageWords {
 		return wordsOf(status.WindowNow{Kind: status.WindowTokenless}, now)
 	case u.Unread:
 		return wordsOf(status.WindowNow{Kind: status.WindowUnread}, now)
-	case !u.Read:
-		return alikeLine(line{{window + " ", dimInk}, noFigure})
+	}
+	return alikeLine(line{{window + " ", dimInk}, ln.useFigure()})
+}
+
+// useFigure is the lane's share used of the view's window, as its label says
+// it after the window's name: bold in its level's colour, as usage colours
+// it, numbered as its window's use; or — in text.faint, where none's read of
+// it.
+func (ln laidLane) useFigure() span {
+	u := ln.Use
+	if !u.Read {
+		return noFigure
 	}
 	used := span{prose.Percent(u.Used), usedInk(u.Used, ink{token: theme.VizRamp1, bold: true})}
-	return alikeLine(line{{window + " ", dimInk}, used.numbered(Number{Kind: NumberUsed, Account: ln.ID, Of: u.Key})})
+	return used.numbered(Number{Kind: NumberUsed, Account: ln.ID, Of: u.Key})
 }
 
 // nowTo is the last row now's column is picked out on, as fitted: the pool's
-// words', or without a pool's lane, the last lane shown's words'.
+// lane's last, or without a pool's lane, the last lane shown's words'.
 func (r runwayFit) nowTo() int {
-	if r.draws(r.words) {
-		return r.words
+	if r.draws(r.pool) {
+		return r.pool + runwayPoolRows - 1
 	}
 	return r.lanes + (r.shown-1)*r.apart + 1
 }

@@ -17,7 +17,6 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
-	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -52,8 +51,9 @@ the router runs or not.
 time, or by account, each account's windows together, over the config's
 [usage] by; by window where neither says. --5h, --week, and a flag for each
 model's own window, named for its model, as --fable is for Fable's week,
-print the windows given alone, in Claude's order. One that no account
-reports fails, naming those there are.
+print the windows given alone, in the order of care: the week, the
+5-hour, then each model's own. One that no account reports fails, naming
+those there are.
 
 On a terminal, usage prints the windows. Anywhere else, as in a pipe or an
 agent's shell, it prints the status document as JSON in their place, as
@@ -181,7 +181,8 @@ type windowFlag struct {
 	given bool
 }
 
-// windowFlags are usage's window flags, in Claude's order.
+// windowFlags are usage's window flags, in the order the owner reads windows
+// listed, as status.CompareWindows has it by Claude's policy.
 type windowFlags []*windowFlag
 
 // addWindowFlags registers usage's window flags on cmd, and returns them:
@@ -195,20 +196,21 @@ func addWindowFlags(cmd *cobra.Command) windowFlags {
 	for _, w := range claude.ModelWindows() {
 		flags = append(flags, &windowFlag{name: strings.ToLower(w.Name), key: w.Key, what: "the " + status.NameOfKey(w.Key)})
 	}
-	slices.SortStableFunc(flags, func(a, b *windowFlag) int { return quota.CompareKeys(a.key, b.key) })
+	order := status.CompareWindows(claude.Policy())
+	slices.SortStableFunc(flags, func(a, b *windowFlag) int { return order(a.key, b.key) })
 	for _, f := range flags {
 		cmd.Flags().BoolVar(&f.given, f.name, false, "print "+f.what+" alone, or with the others given")
 	}
 	return flags
 }
 
-// keys returns the keys of the windows given, in Claude's order: none where
-// none is, which prints every window. It fails for a window the printout of
-// the moment m wouldn't show, as dashboard.UsageWindows has them, naming
-// those it would by their flags.
+// keys returns the keys of the windows given, in the flags' order: none
+// where none is, which prints every window. It fails for a window the
+// printout of the moment m wouldn't show, as its Listed has them, each
+// model's own among them, naming those it would by their flags.
 func (ws windowFlags) keys(m status.Moment) ([]string, error) {
 	reported := make(map[string]bool)
-	for _, key := range dashboard.UsageWindows(m) {
+	for _, key := range m.Listed(true) {
 		reported[key] = true
 	}
 	var keys []string

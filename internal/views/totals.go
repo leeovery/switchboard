@@ -4,10 +4,10 @@ import (
 	"maps"
 	"slices"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
-	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -83,11 +83,12 @@ func limitCount(limits map[string]int) int {
 }
 
 // LimitsHit says the limits reached, by window, as AccountTotals' Limits
-// holds them: each window, the shortest first, by its name as name gives it,
-// as a sentence has it, and how many times, its thousands set apart, as
-// "5-hour ×402" and "week ×3"; none where none was.
+// holds them: each window, in the order the owner reads windows listed, as
+// status.CompareWindows has it by Claude's policy, by its name as name gives
+// it, as a sentence has it, and how many times, its thousands set apart, as
+// "week ×3" and "5-hour ×402"; none where none was.
 func LimitsHit(limits map[string]int, name func(key string) string) []string {
-	keys := slices.SortedFunc(maps.Keys(limits), quota.CompareKeys)
+	keys := slices.SortedFunc(maps.Keys(limits), status.CompareWindows(claude.Policy()))
 	hit := make([]string, len(keys))
 	for i, key := range keys {
 		hit[i] = status.InProse(name(key)) + " ×" + prose.Grouped(limits[key])

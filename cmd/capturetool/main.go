@@ -8,7 +8,8 @@
 // dials the router, probes, touches the network, reads or writes the real
 // config, state, prefs or tokens, looks in the themes directory, or runs
 // another process. NO_COLOR draws it without colour, as it does the
-// dashboard.
+// dashboard. Or it writes the reference frames from their fixtures, as the
+// capture test holds them: every frame a directory keeps, or the ones named.
 //
 // Usage:
 //
@@ -18,6 +19,8 @@
 //	capturetool --fixture overview-default-160 --theme amber
 //	capturetool --fixture overview-default-160 --theme ~/themes/lake.theme
 //	capturetool --scenario routing                      played full screen, in real time
+//	capturetool --frames testdata/vhs/reference         every frame it keeps, written afresh
+//	capturetool --frames testdata/vhs/reference usage-160 runway-week-160
 package main
 
 import (
@@ -31,7 +34,6 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/term"
 
 	"github.com/leeovery/switchboard/internal/capture"
@@ -52,12 +54,16 @@ type options struct {
 	print, ansi       bool
 	size              string
 	theme             string
+	// frames is the directory to write the frames into, and named those
+	// to write, or every one it keeps where none is named.
+	frames string
+	named  []string
 }
 
 // run draws the fixture args name, in the theme they name, or without colour
 // where getenv has NO_COLOR set: printed once to stdout with --print, else
 // full screen in the terminal stdout is; or plays the scenario they name, so,
-// full screen.
+// full screen; or writes the frames they name.
 func run(args []string, stdout, stderr io.Writer, getenv func(string) string) error {
 	o, err := parse(args, stderr)
 	if errors.Is(err, flag.ErrHelp) {
@@ -66,7 +72,10 @@ func run(args []string, stdout, stderr io.Writer, getenv func(string) string) er
 	if err != nil {
 		return err
 	}
-	if o.scenario != "" {
+	switch {
+	case o.frames != "":
+		return writeFrames(o, stdout)
+	case o.scenario != "":
 		return play(o, stdout, getenv)
 	}
 	f, err := capture.ByName(o.fixture)
@@ -138,8 +147,43 @@ func themeOf(arg string) (theme.Theme, error) {
 	return t, nil
 }
 
-// parse reads the command line, refusing a fixture and a scenario both, and
-// what only --print takes without it.
+// writeFrames writes the frames o names into its directory from their
+// fixtures, in the frames' theme and in colour whatever NO_COLOR says, or
+// every frame the directory keeps where o names none, saying each it writes
+// on out. A name with no fixture is an error before any is written.
+func writeFrames(o options, out io.Writer) error {
+	names := o.named
+	if len(names) == 0 {
+		var err error
+		if names, err = capture.FramesIn(o.frames); err != nil {
+			return err
+		}
+	}
+	if len(names) == 0 {
+		return fmt.Errorf("--frames: %s keeps no frames: name those to write after it", o.frames)
+	}
+	fixtures := make([]capture.Fixture, len(names))
+	for i, name := range names {
+		f, err := capture.ByName(name)
+		if err != nil {
+			return fmt.Errorf("--frames: %w", err)
+		}
+		fixtures[i] = f
+	}
+	for _, f := range fixtures {
+		if err := f.WriteFrame(o.frames); err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintln(out, "wrote", f.Name); err != nil {
+			return fmt.Errorf("say what's written: %w", err)
+		}
+	}
+	return nil
+}
+
+// parse reads the command line, refusing a fixture and a scenario both, what
+// only --print takes without it, and anything beside --frames but the names
+// of the frames it writes.
 func parse(args []string, stderr io.Writer) (options, error) {
 	var o options
 	flags := flag.NewFlagSet("capturetool", flag.ContinueOnError)
@@ -150,8 +194,12 @@ func parse(args []string, stderr io.Writer) (options, error) {
 	flags.BoolVar(&o.print, "print", false, "print its frame once, as text, rather than run it full screen")
 	flags.StringVar(&o.size, "size", "", "with --print, the terminal's size as WxH, such as 160x34: the fixture's own unless given")
 	flags.BoolVar(&o.ansi, "ansi", false, "with --print, print its colours too")
+	flags.StringVar(&o.frames, "frames", "", "write into the directory given the frames named after it, or every frame it keeps, from their fixtures")
 	if err := flags.Parse(args); err != nil {
 		return options{}, err
+	}
+	if o.frames != "" {
+		return framesOnly(o, flags)
 	}
 	switch {
 	case flags.NArg() > 0:
@@ -168,6 +216,23 @@ func parse(args []string, stderr io.Writer) (options, error) {
 	return o, nil
 }
 
+// framesOnly is o with the frames named after --frames, which takes no other
+// flag: the frames are written as the test holds them, in their own theme,
+// at their own sizes.
+func framesOnly(o options, flags *flag.FlagSet) (options, error) {
+	var others []string
+	flags.Visit(func(f *flag.Flag) {
+		if f.Name != "frames" {
+			others = append(others, "--"+f.Name)
+		}
+	})
+	if len(others) > 0 {
+		return options{}, fmt.Errorf("--frames takes the frames' names alone, not %s", strings.Join(others, ", "))
+	}
+	o.named = flags.Args()
+	return o, nil
+}
+
 // printFrame writes the fixture's frame to out, as a terminal of the size asked
 // shows it: as text alone, or with --ansi, in colour.
 func printFrame(f capture.Fixture, o options, out io.Writer) error {
@@ -180,7 +245,7 @@ func printFrame(f capture.Fixture, o options, out io.Writer) error {
 	}
 	frame := f.Frame(size)
 	if !o.ansi {
-		frame = plain(frame)
+		frame = capture.Plain(frame)
 	}
 	_, err := io.WriteString(out, frame)
 	return err
@@ -209,14 +274,4 @@ func parseSize(s string) (watch.Size, error) {
 		return watch.Size{}, fmt.Errorf("--size %q: give it as WxH, such as 160x34", s)
 	}
 	return watch.Size{Width: width, Height: height}, nil
-}
-
-// plain is a frame as text alone, as it diffs against a reference: its
-// escape codes stripped, and each line's trailing spaces trimmed.
-func plain(frame string) string {
-	lines := strings.Split(strings.TrimSuffix(frame, "\n"), "\n")
-	for i, line := range lines {
-		lines[i] = strings.TrimRight(ansi.Strip(line), " ")
-	}
-	return strings.Join(lines, "\n") + "\n"
 }

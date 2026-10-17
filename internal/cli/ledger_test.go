@@ -446,7 +446,7 @@ const historyOfToday = `Wed 7 Oct 2026, so far
   work        claude-opus-5-5  1 request  186k tokens  1 session  $0.08
               claude-opus-9    1 request  110 tokens   1 session  unpriced
   side: 1 session  ·  highest: 5-hour 10%
-  work: 2 sessions  ·  highest: 5-hour 30%, week 41%
+  work: 2 sessions  ·  highest: week 41%, 5-hour 30%
 `
 
 // historyPricedAt is what history prints last, the prices its worth is at.

@@ -360,11 +360,12 @@ type PoolNow struct {
 type PoolWindowNow struct {
 	Key string
 	// Room is the room its accounts have left in it, summed in accounts'
-	// worth, 1.5 being an account and a half; Used is what its bar fills to,
-	// 1 − Room ÷ its accounts; and Pace is the even paces of its accounts'
-	// windows that are running, averaged: nil where none is.
-	Room, Used float64
-	Pace       *float64
+	// worth, 1.5 being an account and a half; Used is its accounts' mean use
+	// of it, what its bar fills to, nil where none's is counted; and Pace is
+	// the even paces of its accounts' windows that are running, averaged: nil
+	// where none is.
+	Room       float64
+	Used, Pace *float64
 }
 
 // Pool is the accounts new sessions can go to at Now, as one, each window's

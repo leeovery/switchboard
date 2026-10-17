@@ -10,6 +10,7 @@ import (
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -94,12 +95,13 @@ type KnownRequest struct {
 type AccountThen struct {
 	Account string
 	// Windows are its windows as the last answer on it at or before the
-	// event read them, in quota's order: none where no line read tells.
+	// event read them, in the order of care: none where no line read tells.
 	Windows []WindowThen
 	// Resets is when what the event tells of resets: a cap's last window, a
 	// limit lifting, a window a prime started; else the first window the
-	// event names, or else the first of Windows, as they read it. It's zero
-	// where that isn't known.
+	// event names, or else the shortest of Windows, as quota orders them,
+	// the 5-hour where it was read, as they read it. It's zero where that
+	// isn't known.
 	Resets time.Time
 	// Sessions counts the sessions whose requests went out on it in the hour
 	// before.
@@ -547,7 +549,7 @@ func (d detailing) resets(windows []WindowThen) time.Time {
 			return windows[i].Resets
 		}
 	}
-	return windows[0].Resets
+	return slices.MinFunc(windows, func(a, b WindowThen) int { return quota.CompareKeys(a.Key, b.Key) }).Resets
 }
 
 // followed is what followed the event: of a limit, a cap or a refusal, the

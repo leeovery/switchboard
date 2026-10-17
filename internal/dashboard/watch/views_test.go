@@ -243,6 +243,71 @@ func TestVFlipsGRAPHSChartWhileItShowsAndKeepsIt(t *testing.T) {
 	}
 }
 
+// w shows each model's own window and hides it again wherever the page lists
+// windows as they stand, keeping it: the Overview, Accounts' Detail,
+// Sessions' Switchboard and a session's page. Help lists it there, its word
+// faint while they're hidden; the key line never does. Elsewhere it does
+// nothing.
+func TestWShowsAndHidesModelsWindowsWhereThePageListsThemAndKeepsIt(t *testing.T) {
+	tests := []struct {
+		name  string
+		show  func(h *harness)
+		works bool
+	}{
+		{name: "the Overview", show: func(*harness) {}, works: true},
+		{name: "Accounts' Detail", show: func(h *harness) {
+			h.model.view, h.model.accounts.shown.Shown = dashboard.Accounts, dashboard.AccountsDetail
+		}, works: true},
+		{name: "Accounts' Compare", show: func(h *harness) { h.model.view = dashboard.Accounts }},
+		{name: "Sessions' Switchboard", show: func(h *harness) { h.model.view = dashboard.Sessions }, works: true},
+		{name: "Sessions' List", show: func(h *harness) {
+			h.model.view, h.model.sessionsTab.shown.Shown = dashboard.Sessions, dashboard.SessionsList
+		}},
+		{name: "History", show: func(h *harness) { h.model.view = dashboard.History }},
+		{name: "Runway", show: func(h *harness) { h.model.view = dashboard.Runway }},
+		{name: "the Log", show: func(h *harness) { h.model.view = dashboard.Log }},
+		{name: "a session's page", show: func(h *harness) { h.openPage(idD28C) }, works: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h, _ := openedOn(t, t.TempDir(), dashboard.Overview)
+			prefs := &fakePrefs{}
+			h.model.cfg.Prefs = prefs
+			tt.show(h)
+
+			wKey := func(hidden bool) dashboard.Key { return dashboard.Key{Key: "w", Does: "models", Hidden: hidden} }
+			if helped := slices.Contains(helpOver(h.model), wKey(true)); helped != tt.works {
+				t.Errorf("help lists w %t, want %t: %+v", helped, tt.works, helpOver(h.model))
+			}
+			for _, want := range []bool{tt.works, false} {
+				h.typed("w")
+				if h.model.models != want || prefs.kept.Models != want || h.model.frame(h.clock.now).Models != want {
+					t.Errorf("after w, models shown %t, kept %t, the frame's %t; want %t",
+						h.model.models, prefs.kept.Models, h.model.frame(h.clock.now).Models, want)
+				}
+				if tt.works != (prefs.updates > 0) {
+					t.Errorf("w kept the preferences %d times, want kept %t", prefs.updates, tt.works)
+				}
+				if tt.works && !slices.Contains(helpOver(h.model), wKey(!want)) {
+					t.Errorf("after w, help lists %+v, want w with its word faint %t", helpOver(h.model), !want)
+				}
+				if slices.Contains(h.listed(), "w") {
+					t.Errorf("the key line lists %q, want w left to help", h.listed())
+				}
+			}
+		})
+	}
+}
+
+func TestTheWatchOpensShowingTheModelsWindowsThePreferencesKept(t *testing.T) {
+	h := routedHarness(t, routerDocument(three()...))
+	h.model = New(t.Context(), func() Config { c := h.model.cfg; c.Models = true; return c }())
+	h.start()
+	if !h.model.frame(h.clock.now).Models {
+		t.Error("kept shown, the watch opens with each model's own window hidden")
+	}
+}
+
 func TestTheWatchOpensOnTheChartThePreferencesKept(t *testing.T) {
 	h := routedHarness(t, routerDocument(three()...))
 	h.model = New(t.Context(), func() Config { c := h.model.cfg; c.Burn = dashboard.BurnDown; return c }())

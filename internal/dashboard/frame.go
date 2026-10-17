@@ -66,6 +66,11 @@ type Frame struct {
 	Sections Sections
 	By       By
 	Burn     Burn
+	// Models is set while w shows each model's own window, as Fable's week,
+	// wherever the live views list windows: unset, they list those every
+	// model shares, and a model's only while it nears its limit, as the
+	// moment's Listed has them.
+	Models bool
 	// Traces are the requests the Overview's traces draw, by account and by
 	// session, as the watch counts them; and TraceScale the requests a
 	// minute that fill a trace's height, 0 for the live rule, the busiest
@@ -113,8 +118,12 @@ type Frame struct {
 	// or the note a key left in their place.
 	KeyLine KeyLine
 	// Card is the card open over the page, which is drawn faded behind it,
-	// standing still: nil while none is.
+	// standing still, but for the heading's clock: nil while none is.
 	Card Opened
+	// Clock is the time the heading's clock shows, where it isn't the page's,
+	// as under a card, the page standing as it stood when the card opened
+	// while the clock ticks on: zero shows the page's own.
+	Clock time.Time
 	// Policy is the provider's say in which windows every model shares, which
 	// a session's 5-hour window is, and which its week.
 	Policy score.Policy

@@ -83,6 +83,12 @@ pool's.
 - Narrower, it stacks the windows as `usage` stacks them.
 - An account out of the pool, under a pin, is drawn faint.
 
+Each model's own window, such as Fable's week, is hidden until you press `w`. That goes for every
+view that shows the windows as they stand now: USAGE, GRAPHS, Accounts' Detail, Sessions'
+Switchboard and a session's page. A hidden window still shows while it nears its limit on any
+account: at the limit, at the cap, running out, or within 10 points of running out. `usage`,
+History and the Log always show every window.
+
 The key line under the block names the marks:
 
 | Mark | Means |
@@ -118,7 +124,7 @@ account under USAGE.
 </div>
 
 The animation shows one account, `work`, alone on the Overview, with its usage, its routing trace
-and LATELY. Then `g` shows GRAPHS, and `tab` moves on to Runway's 5-hour view. There, work's lane
+and LATELY. Then `g` shows GRAPHS, `tab` moves on to Runway, and `>` to its 5-hour view. There, work's lane
 runs out at its pace to its cap, and is back at 17:10.
 
 ### ROUTING
@@ -174,6 +180,7 @@ again.
 | Key | Does |
 |---|---|
 | `u` `g` `r` `s` `c` `l` | Shows or hides a section: USAGE, GRAPHS, ROUTING, SESSIONS, COMING UP and LATELY. |
+| `w` | Shows or hides each model's own window, such as Fable's week. They're hidden until you press `w`. `?` lists it; the key line leaves it out. |
 | `b` | Groups the windows by window or by account. Until you press `b`, the grouping follows [`[usage] by`](configuration.md#usage-keys). |
 | `v` | While GRAPHS shows, flips it between the burn-up and the burn-down. |
 | `↑` `↓` | Moves the focus between the accounts, in the config's order. GRAPHS charts the focused account, and USAGE scrolls to it. While GRAPHS charts every account beside USAGE, there's no focus to move. |
@@ -350,10 +357,11 @@ the session's:
 <img src="../art/runway-week.webp" alt="Runway over the week: a lane an account to next Wednesday, work at its cap till 17:10, personal's and side's weeks running out at their pace before they reset, and the pool's room under them" width="840">
 </div>
 
-Runway has two windows, and `<` and `>` switch between them:
+Runway has two windows, and `<` and `>` switch between them. It opens on the week, and remembers
+the one you last left it on:
 
-- **5-hour:** from the hour before now, for 22 hours 40 minutes.
 - **Week:** the week.
+- **5-hour:** from the hour before now, for 22 hours 40 minutes.
 
 Each column of a lane is one cell, showing room, at its cap, or at its limit. The past is dimmed.
 
@@ -363,7 +371,14 @@ straight into another, the first says when it lifts, and only the last says when
 back: `at its limit 14:00  ·  lifts 19:00  at its cap 14:00  ·  back Mon 21:00`.
 
 With more than one account, the pool's lane sits under the others. It shows how many accounts have
-room, a column at a time, and draws a line, as a lane at its limit does, where none has.
+room, a column at a time, and draws a line, as a lane at its limit does, where none has. `Σ pool`
+names it, as an account's name heads its lane, with the pool's room in the view's window under
+it, such as `week 1.2 of 3 left`.
+
+`a` collapses the labels beside the lanes, to give the lanes more room: each lane keeps its
+account's number, its marks and its use, such as `2 ◆    66%`, and the pool's lane its room short,
+such as `Σ    1.2/3`. COMING UP then puts each account's number before its name, so a lane's number
+finds its name. `a` again expands them. Runway remembers which you left it on.
 
 To look back:
 
@@ -718,7 +733,8 @@ session to an account, or back to auto. It has no `m`.
 ### Cards over a page
 
 A card over a page, the routing card or help, is drawn with the page faded behind it. The page
-stands still while the card is open. The card's own figures follow each read.
+stands still while the card is open, but for the clock, which keeps ticking. The card's own
+figures follow each read.
 
 ## The key line
 
@@ -780,10 +796,11 @@ It remembers:
 - the theme, or the pair
 - the tab shown
 - the Overview's sections shown, its `b` grouping, and the chart `v` has GRAPHS draw
+- whether `w` shows each model's own window
 - Accounts' view and period
 - History's view, what its Year shows, Weeks' shape, and Tokens' period and split
 - Sessions' view
-- Runway's window
+- Runway's window, and whether `a` collapsed its labels
 - the Log's columns.
 
 If the version or account the Year showed is no longer there to show, the Year shows all use again.

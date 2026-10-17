@@ -25,7 +25,7 @@ func EveryPagesKeys() []PageKeys {
 	for _, v := range dashboard.Views() {
 		pages = append(pages, PageKeys{Page: v.Title(), Keys: toldOnce(tabListings(v)...)})
 	}
-	return append(pages, PageKeys{Page: "a session's page", Keys: toldOnce(sessionListings(false), sessionListings(true))})
+	return append(pages, PageKeys{Page: "a session's page", Keys: toldOnce(Model{}.sessionListings(false), Model{}.sessionListings(true))})
 }
 
 // tabListings are the tab's own keys, as the model lists them showing it, in
@@ -43,9 +43,9 @@ func tabListings(v dashboard.View) [][]keyListing {
 	case dashboard.Sessions:
 		return [][]keyListing{m.sessionsListings()}
 	case dashboard.Runway:
-		week := m
-		week.runwayTab.shown.Window = views.RunwayWeek
-		return [][]keyListing{m.runwayListings(), week.runwayListings()}
+		fiveHour := m
+		fiveHour.runwayTab.shown.Window = views.RunwayFiveHour
+		return [][]keyListing{fiveHour.runwayListings(), m.runwayListings()}
 	case dashboard.Log:
 		events := m
 		events.log.page.Shown = dashboard.LogEvents

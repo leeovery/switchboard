@@ -55,21 +55,6 @@ func (c colour) String() string {
 	return fmt.Sprintf("#%02X%02X%02X", c.r, c.g, c.b)
 }
 
-// near reports whether c and d are one colour, but for a channel one apart
-// at most: the frames' generators round a half to even, where Go's mixing
-// rounds it away from zero.
-func (c colour) near(d colour) bool {
-	if c.painted != d.painted {
-		return false
-	}
-	return apart(c.r, d.r) <= 1 && apart(c.g, d.g) <= 1 && apart(c.b, d.b) <= 1
-}
-
-// apart is how far x and y are apart.
-func apart(x, y uint8) uint8 {
-	return max(x, y) - min(x, y)
-}
-
 // or is c, or e where c isn't painted.
 func (c colour) or(e colour) colour {
 	if c.painted {
@@ -219,26 +204,6 @@ func truecolour(codes []string) (colour, error) {
 	return rgb(channels[0], channels[1], channels[2]), nil
 }
 
-// span is cells of a frame's row: its columns from and to, or the whole row
-// where neither is given. Rows and columns count from 1, as a frame's .txt
-// reads in an editor.
-type span struct {
-	row, from, to int
-}
-
-// String reads as the README lists a span.
-func (s span) String() string {
-	if s.from == 0 {
-		return fmt.Sprintf("row %d", s.row)
-	}
-	return fmt.Sprintf("row %d, columns %d to %d", s.row, s.from, s.to)
-}
-
-// covers reports whether the span covers the cell at row and column.
-func (s span) covers(row, col int) bool {
-	return row == s.row && (s.from == 0 || s.from <= col && col <= s.to)
-}
-
 // difference is a cell, at its row and column counted from 1, that a fixture
 // draws otherwise than its frame.
 type difference struct {
@@ -246,15 +211,14 @@ type difference struct {
 	frame, drawn cell
 }
 
-// compare lists the cells drawn differs from frame in, passing over those a
-// span of over covers. A cell whose background isn't painted is the canvas's,
-// as a terminal of that background shows it; a colour's channel may be one
-// apart (see colour.near); and a blank's foreground and weight aren't
-// compared, as nothing shows them. A drawn row shorter than the frame's is
+// compare lists the cells drawn differs from frame in. A cell whose
+// background isn't painted is the canvas's, as a terminal of that background
+// shows it; and a blank's foreground and weight aren't compared, as nothing
+// shows them. A drawn row shorter than the frame's is
 // filled to its width with blank, unpainted cells, as a terminal shows what
 // wasn't written, since usage's printout writes nothing past a line's end.
 // The grids must have as many rows, and no drawn row may be wider.
-func compare(frame, drawn grid, canvas colour, over []span) ([]difference, error) {
+func compare(frame, drawn grid, canvas colour) ([]difference, error) {
 	if len(drawn) != len(frame) {
 		return nil, fmt.Errorf("drawn %d rows, where the frame has %d", len(drawn), len(frame))
 	}
@@ -265,7 +229,7 @@ func compare(frame, drawn grid, canvas colour, over []span) ([]difference, error
 		}
 		row := filled(drawn[r], len(frame[r]))
 		for c := range frame[r] {
-			if passed(over, r+1, c+1) || alike(frame[r][c], row[c], canvas) {
+			if alike(frame[r][c], row[c], canvas) {
 				continue
 			}
 			diffs = append(diffs, difference{row: r + 1, col: c + 1, frame: frame[r][c], drawn: row[c]})
@@ -280,23 +244,13 @@ func filled(row []cell, width int) []cell {
 	return slices.Concat(row, slices.Repeat([]cell{{glyph: ' '}}, width-len(row)))
 }
 
-// passed reports whether a span of over covers the cell at row and column.
-func passed(over []span, row, col int) bool {
-	for _, s := range over {
-		if s.covers(row, col) {
-			return true
-		}
-	}
-	return false
-}
-
 // alike reports whether cells a and b look the same on a terminal whose
 // background is canvas.
 func alike(a, b cell, canvas colour) bool {
-	if a.glyph != b.glyph || !a.bg.or(canvas).near(b.bg.or(canvas)) {
+	if a.glyph != b.glyph || a.bg.or(canvas) != b.bg.or(canvas) {
 		return false
 	}
-	return a.glyph == ' ' || a.bold == b.bold && a.fg.near(b.fg)
+	return a.glyph == ' ' || a.bold == b.bold && a.fg == b.fg
 }
 
 // shown is how many cells a failure lists before it counts the rest.
@@ -423,39 +377,25 @@ func TestCompareHoldsEachCellToItsFrame(t *testing.T) {
 	tests := []struct {
 		name   string
 		change func(g grid)
-		over   []span
 		// want are the cells found to differ, each as its row and column.
 		want [][2]int
 	}{
 		{name: "the frame itself", change: func(grid) {}},
 		{name: "a glyph changed", change: func(g grid) { g[0][1].glyph = 'B' }, want: [][2]int{{1, 2}}},
-		{name: "a channel one apart", change: func(g grid) { g[0][0].fg.r++; g[1][0].bg.b-- }},
-		{name: "a channel two apart", change: func(g grid) { g[0][3].fg.g += 2 }, want: [][2]int{{1, 4}}},
-		{name: "a background two apart", change: func(g grid) { g[1][1].bg.r -= 2 }, want: [][2]int{{2, 2}}},
+		{name: "a foreground a channel apart", change: func(g grid) { g[0][3].fg.g++ }, want: [][2]int{{1, 4}}},
+		{name: "a background a channel apart", change: func(g grid) { g[1][1].bg.r-- }, want: [][2]int{{2, 2}}},
 		{name: "bold changed", change: func(g grid) { g[1][3].bold = true }, want: [][2]int{{2, 4}}},
 		{name: "a foreground left to the terminal", change: func(g grid) { g[0][0].fg = colour{} }, want: [][2]int{{1, 1}}},
 		{name: "a background unpainted, on the canvas", change: func(g grid) { g[0][1].bg = colour{}; g[1][3].bg = colour{} }},
 		{name: "a background unpainted, off the canvas", change: func(g grid) { g[1][0].bg = colour{} }, want: [][2]int{{2, 1}}},
 		{name: "a blank's foreground and weight", change: func(g grid) { g[0][2].fg = rgb(9, 9, 9); g[1][2].bold = true }},
 		{name: "a blank's background", change: func(g grid) { g[0][2].bg = rgb(9, 9, 9) }, want: [][2]int{{1, 3}}},
-		{
-			name:   "cells passed over",
-			change: func(g grid) { g[0][1].glyph, g[0][2].glyph, g[0][3].glyph = 'x', 'y', 'z' },
-			over:   []span{{row: 1, from: 2, to: 3}},
-			want:   [][2]int{{1, 4}},
-		},
-		{
-			name:   "a row passed over",
-			change: func(g grid) { g[0][0].bold = false; g[1][0].glyph, g[1][3].bold = 'x', true },
-			over:   []span{{row: 2}},
-			want:   [][2]int{{1, 1}},
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			drawn := clone(frame)
 			tt.change(drawn)
-			diffs, err := compare(frame, drawn, canvas, tt.over)
+			diffs, err := compare(frame, drawn, canvas)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -498,7 +438,7 @@ func TestCompareFillsAShortRowAsATerminalShowsIt(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			drawn := grid{inked("ab", pen{ink, canvas, true})}
-			diffs, err := compare(grid{tt.frame}, drawn, canvas, nil)
+			diffs, err := compare(grid{tt.frame}, drawn, canvas)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -526,7 +466,7 @@ func TestCompareRefusesAGridOfAnotherSize(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if _, err := compare(frame, tt.drawn, colour{}, nil); err == nil || err.Error() != tt.want {
+			if _, err := compare(frame, tt.drawn, colour{}); err == nil || err.Error() != tt.want {
 				t.Errorf("compare error = %v, want %s", err, tt.want)
 			}
 		})

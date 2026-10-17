@@ -324,7 +324,7 @@ func TestADocumentWorkedOutIsAsItStoodWhenItWasBuilt(t *testing.T) {
 				for j, w := range a.Windows {
 					if now := m.Accounts[i].Windows[j]; !reflect.DeepEqual(w.Pace, now.Pace) || w.Allowance != now.Allowance {
 						t.Errorf("worked out, %s's %s has pace %s and allowance %+v, want %s and %+v, as it stood as the document was built",
-							a.ID, w.Key, paceOf(w.Pace), w.Allowance, paceOf(now.Pace), now.Allowance)
+							a.ID, w.Key, figureOf(w.Pace), w.Allowance, figureOf(now.Pace), now.Allowance)
 					}
 				}
 			}
@@ -733,7 +733,7 @@ func TestAWindowRestartedByHandRunsFromItsRestart(t *testing.T) {
 		a, _ := hm.Doc.At(hm.Now, policy).Account("work")
 		w, _ := a.Window("5h")
 		if !w.Start.Equal(statustest.Built.Add(-time.Hour)) || w.Length != 4*time.Hour || w.Pace == nil || *w.Pace != 0.25 {
-			t.Errorf("the session runs from %v for %v, its pace %s; want from an hour before %v, for 4h, its pace 0.25", w.Start, w.Length, paceOf(w.Pace), statustest.Built)
+			t.Errorf("the session runs from %v for %v, its pace %s; want from an hour before %v, for 4h, its pace 0.25", w.Start, w.Length, figureOf(w.Pace), statustest.Built)
 		}
 		return
 	}

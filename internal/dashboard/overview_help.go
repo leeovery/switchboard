@@ -17,7 +17,8 @@ func overviewHelp() []helpPart {
 		{
 			heading: SectionUsage.heading(),
 			says: []line{
-				said("Every account's windows, as switchboard usage prints them, first as the rest of the page is read against them. " +
+				said("Each account's windows, those every model shares, and each model's own while `w` shows them, as switchboard usage " +
+					"prints them, first as the rest of the page is read against them. " +
 					"A bar fills along the theme's ramp as its window is used, and its percentage takes the ramp's second colour from 70% " +
 					"and its last from 90%."),
 				said("The words say what can be spent an hour, or a day of a week, and still last to the reset; out ~16:05 where the window " +
@@ -30,6 +31,10 @@ func overviewHelp() []helpPart {
 					"With more accounts than fit, USAGE " +
 					"scrolls within itself, an account at a time, or a row at a time where not even one account a window fits; turned " +
 					"from one to the other, as `b`, a section's key, a resize or what's read can turn it, it goes back to its top."),
+				said("`w` shows each model's own window, as Fable's week, here and wherever windows are listed as they stand now: GRAPHS, " +
+					"Accounts' Detail, Sessions' Switchboard and a session's page. Hidden, one shows all the same while it nears its limit " +
+					"on any account: held at it, at the cap, or running out or nearing where it would. switchboard usage, History and the " +
+					"Log list every window."),
 			},
 			glyphs: []glyph{
 				{drawn: line{{paceMark, paceInk}}, means: "even pace: where you would be now, used evenly"},

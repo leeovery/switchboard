@@ -204,13 +204,14 @@ func (f Frame) sessionsForm(doc status.Document, now time.Time) sessionsForm {
 // view, as sessionsLaid lays it: on a line for each of the moment's accounts,
 // in their order, each drawing a row for each window usage shows of it.
 func (f Frame) switchboardLaid(doc status.Document, now time.Time) boardLayout {
-	return sessionsLaid(f.Width, f.viewRows(), f.SessionsTab.Patched, boardLinesOf(f.Moment(doc, now)))
+	return sessionsLaid(f.Width, f.viewRows(), f.SessionsTab.Patched, f.boardLines(f.Moment(doc, now)))
 }
 
-// boardLinesOf are the Switchboard's lines of the moment m: its accounts',
-// in their order, each drawing a row for each window UsageWindows has of m.
-func boardLinesOf(m status.Moment) boardLines {
-	lines := boardLines{windows: len(UsageWindows(m))}
+// boardLines are the Switchboard's lines of the moment m: its accounts', in
+// their order, each drawing a row for each window the live views list, as
+// listedWindows has them.
+func (f Frame) boardLines(m status.Moment) boardLines {
+	lines := boardLines{windows: len(f.listedWindows(m))}
 	for _, a := range m.Accounts {
 		lines.accounts = append(lines.accounts, a.ID)
 	}

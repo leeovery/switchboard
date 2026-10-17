@@ -209,6 +209,30 @@ func TestDashboardDrawsTheChartGRAPHSKept(t *testing.T) {
 	}
 }
 
+// The live views show each model's own window where prefs.json keeps them
+// shown; none kept, they're hidden.
+func TestDashboardShowsModelsWindowsAsKept(t *testing.T) {
+	tests := []struct {
+		name, prefs string
+		want        bool
+	}{
+		{name: "none kept: hidden", prefs: `{}`, want: false},
+		{name: "kept shown", prefs: `{"models": true}`, want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := statusDeps(t, fakeClaudeAPI(t), nil)
+			writePrefs(t, deps, tt.prefs)
+			cfg := recordWatch(t, &deps)
+			run(t, deps, "dashboard")
+
+			if cfg.Models != tt.want {
+				t.Errorf("the dashboard opens with models' windows shown %t, want %t", cfg.Models, tt.want)
+			}
+		})
+	}
+}
+
 // History opens on what prefs.json keeps of its views, the Year's account
 // among those the config gives; none kept, as it opens at first.
 func TestDashboardShowsHistoryAsKept(t *testing.T) {

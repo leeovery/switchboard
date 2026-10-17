@@ -6,6 +6,33 @@ patch after v0.2.0 fixed the rest, and built the charts the owner agreed. The ow
 literally only one thing at the moment that's jumped out at me", then a few nitpicks, "no doubt
 I'll find others".
 
+## Where they went, 17 October
+
+Sorted with the owner on 17 October and built in the snags pass after v0.2.3:
+
+- **Built:**
+  - USAGE's blocks are a blank row apart everywhere: two only where GRAPHS' charts sit beside the
+    by-account blocks, and one under the printout's header.
+  - The week comes first wherever windows are listed, and Runway opens on the week.
+  - Model windows are behind `w`, hidden at first, and one near its limit shows anyway.
+  - The pool's percentage is its accounts' mean use, its room kept in its words.
+  - The heading's clock stays live and bright under a card.
+  - Runway's pool lane: `Σ pool` on its top row, with no rule and no step words.
+  - A phone's view tabs have a cell either side.
+  - A session's path is in `text.muted`.
+  - Runway's account column collapses on `a` (the owner's, from the iPad), and COMING UP numbers
+    the accounts while it's collapsed.
+- **The rule, not a fault:** Weeks' "not enough weeks yet" is the stated rule: a whole week recorded,
+  and every account's week ended.
+- **To the layout rounds for phone, iPad and desktop:**
+  - the phone's 52 columns, names cut short, landscape's gaps, Runway at 15 rows, the key mid-page
+    and the List's summary;
+  - the charts' width, and the pool's red limit line as a quarter-cell bar;
+  - the Overview on an iPad: narrow charts, and blocks folded with room to spare;
+  - USAGE scrolling as linked boxes.
+- **To the saved roll-ups for fast opens:** `loading…`.
+- **Left:** `,` `.` as period keys, not asked for.
+
 ## A smaller screen
 
 Seen on an iPad over Mosh, the Overview in a phone's layout (under 100 columns), USAGE alone with

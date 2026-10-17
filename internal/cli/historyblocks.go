@@ -13,7 +13,6 @@ import (
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
-	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -186,12 +185,14 @@ func minutesText(t views.AccountTotals) string {
 }
 
 // leftText says what each window had left at its last reset, each named as
-// windowInProse names it, as "5-hour 0% · week 59%": a dash where none reset.
+// windowInProse names it, as "week 59% · 5-hour 0%", in the order the owner
+// reads windows listed, as status.CompareWindows has it: a dash where none
+// reset.
 func leftText(left map[string]float64) string {
 	if len(left) == 0 {
 		return dash
 	}
-	keys := slices.SortedFunc(maps.Keys(left), quota.CompareKeys)
+	keys := slices.SortedFunc(maps.Keys(left), status.CompareWindows(claude.Policy()))
 	shares := make([]string, len(keys))
 	for i, key := range keys {
 		shares[i] = windowInProse(key) + " " + prose.Percent(left[key])
@@ -281,7 +282,8 @@ func entryOf(week views.Week, entry views.AccountWeek) views.AccountWeek {
 }
 
 // peakKeys are the keys of the windows any of weeks gives a peak of for the
-// account entry is of, in quota's order: the account's week's at the least.
+// account entry is of, in the order the owner reads windows listed, as
+// status.CompareWindows has it: the account's week's at the least.
 func peakKeys(weeks []views.Week, entry views.AccountWeek) []string {
 	keys := map[string]bool{claude.WeekWindow: true}
 	for _, w := range weeks {
@@ -289,7 +291,7 @@ func peakKeys(weeks []views.Week, entry views.AccountWeek) []string {
 			keys[key] = true
 		}
 	}
-	return slices.SortedFunc(maps.Keys(keys), quota.CompareKeys)
+	return slices.SortedFunc(maps.Keys(keys), status.CompareWindows(claude.Policy()))
 }
 
 // peakText says an account's week's peak of the window with the given key,

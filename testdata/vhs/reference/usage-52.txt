@@ -2,6 +2,16 @@
 
 ● healthy  ·  6 sessions  ·  new sessions → ▲ side
 
+WEEK
+
+ 1 work             ▊  ┃     ╎  34%  19%/day · Sun
+
+ 2 personal ◆            ┃      66%  out ~Sat
+
+ 3 side ▲             ┃   ▉     78%  out ~Fri
+────────────────────────────────────────────────────
+ Σ pool                 ┃       59%  1.2 of 3 left
+
 5-HOUR
 
  1 work                ┃     ╎  95%  back 17:10
@@ -10,19 +20,7 @@
 
  3 side ▲        ▉┃             13%  21%/h · 18:50
 ────────────────────────────────────────────────────
- Σ pool               ┃▏        51%  1.5 of 3 left
-
-
-WEEK
-
- 1 work             ▊  ┃     ╎  34%  19%/day · Sun
-
- 2 personal ◆            ┃      66%  out ~Sat
-
- 3 side ▲             ┃   ▉     78%  6%/day · Mon
-────────────────────────────────────────────────────
- Σ pool                 ┃       61%  1.2 of 3 left
-
+ Σ pool               ┃         49%  1.5 of 3 left
 
 FABLE WEEK
 
@@ -32,7 +30,7 @@ FABLE WEEK
 
  3 side ▲       ▌     ┃          4%  25%/day · Mon
 ────────────────────────────────────────────────────
- Σ pool                 ┃        7%  2.8 of 3 left
+ Σ pool         ▊       ┃        5%  2.8 of 3 left
 
 ┃ even pace: where you would be now, used evenly
 ╎ cap: work at 95%
