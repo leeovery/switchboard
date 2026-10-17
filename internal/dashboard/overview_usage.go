@@ -59,10 +59,11 @@ func (f Frame) usageSection(doc status.Document, now time.Time) section {
 // overviewBlock is usage's block of doc at now as the Overview's USAGE draws
 // it, grouped as the frame's By has it: as usage prints it, but for what the
 // Overview alone has. By account from 150 columns, its bars leave room for
-// GRAPHS' charts or ROUTING beside them. While GRAPHS shows, the matrix picks
-// out the account the focus is on. Its key line names the marks the accounts
-// carry. An account out of the pool at now is faint, as overviewGauge draws
-// its windows and overviewNames its name.
+// GRAPHS' charts or ROUTING beside them, its blocks a row further apart for
+// the charts' axes, where they're the charts. While GRAPHS shows, the matrix
+// picks out the account the focus is on. Its key line names the marks the
+// accounts carry. An account out of the pool at now is faint, as
+// overviewGauge draws its windows and overviewNames its name.
 func (f Frame) overviewBlock(doc status.Document, now time.Time) usageBlock {
 	m := f.Moment(doc, now)
 	names := overviewNames(m)
@@ -71,6 +72,7 @@ func (f Frame) overviewBlock(doc status.Document, now time.Time) usageBlock {
 	if f.By == ByAccount && f.Width >= matrixWidth {
 		b.accountBar = besideBar - (b.names - matrixNames)
 	}
+	b.charted = f.graphsBeside()
 	if f.Sections.Has(SectionGraphs) {
 		b.focus = f.Focus
 	}

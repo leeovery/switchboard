@@ -443,16 +443,19 @@ func TestEveryAccountsStatesCountedAreNumbersApartFromThePools(t *testing.T) {
 func TestROUTINGsLinesBesideABlockAreTwoRowsApartWhereItHasTheRows(t *testing.T) {
 	tests := []struct {
 		windows int
+		ruled   bool
 		want    []int
 	}{
 		{windows: 4, want: []int{0, 2, 4}},
 		{windows: 3, want: []int{0, 2, 4}},
 		{windows: 2, want: []int{0, 1, 2}},
 		{windows: 1, want: []int{0, 1}},
+		{windows: 1, ruled: true, want: []int{0}},
+		{windows: 2, ruled: true, want: []int{0, 1, 2}},
 	}
 	for _, tt := range tests {
-		if got := besideRows(2*tt.windows - 1); !slices.Equal(got, tt.want) {
-			t.Errorf("beside a block of %d windows: rows %v down, want %v", tt.windows, got, tt.want)
+		if got := besideRows(2*tt.windows-1, tt.ruled); !slices.Equal(got, tt.want) {
+			t.Errorf("beside a block of %d windows, the pool's rule under it %v: rows %v down, want %v", tt.windows, tt.ruled, got, tt.want)
 		}
 	}
 }

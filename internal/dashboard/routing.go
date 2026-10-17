@@ -383,8 +383,8 @@ type blocksBeside struct {
 // pool's block, its accounts' states counted, as countedStates says; their
 // sessions summed; and their traces and rates summed.
 func (f Frame) routingBeside(c *canvas, t routingTable, at blocksBeside) {
-	for _, block := range at.blocks {
-		rows := besideRows(block.rows)
+	for i, block := range at.blocks {
+		rows := besideRows(block.rows, at.ruled(i))
 		for i := range rows {
 			rows[i] += block.y
 		}
@@ -397,32 +397,42 @@ func (f Frame) routingBeside(c *canvas, t routingTable, at blocksBeside) {
 }
 
 // besideAccount draws account r's lines beside its block from column x, on
-// the rows given, as routingBeside has them: its trace only where it has its
-// row.
+// the rows given, as routingBeside has them: its sessions and its trace only
+// where they have their rows.
 func (f Frame) besideAccount(c *canvas, t routingTable, r accountRouting, x int, rows []int) {
-	f.drawStanding(c, r, x, rows[0], f.Width-wordsGap-x, false)
-	c.line(x, rows[1], besideSessions(r))
-	if len(rows) < 3 {
-		return
-	}
-	trace := f.besideTrace(x, rows[2])
-	f.drawTrace(c, r.trace, t.now, trace, r.faded)
-	c.right(f.rateEdge(trace), rows[2], line{r.rate(t.now)})
+	drawLines(rows,
+		func(y int) { f.drawStanding(c, r, x, y, f.Width-wordsGap-x, false) },
+		func(y int) { c.line(x, y, besideSessions(r)) },
+		func(y int) {
+			trace := f.besideTrace(x, y)
+			f.drawTrace(c, r.trace, t.now, trace, r.faded)
+			c.right(f.rateEdge(trace), y, line{r.rate(t.now)})
+		})
 }
 
 // besidePool draws the pool's lines beside its block from column x, on the
 // rows given, as routingBeside has them, each of the pool's accounts' rows
-// of t: its trace only where it has its row.
+// of t: its sessions and its trace only where they have their rows.
 func (f Frame) besidePool(c *canvas, t routingTable, x int, rows []int) {
-	c.line(x, rows[0], countedStates(t.states, NumberStates, f.Width-wordsGap-x))
-	c.line(x, rows[1], line{sessionsSpan(summedSessions(t.pool)).numbered(Number{Kind: NumberSessions})})
-	if len(rows) < 3 {
-		return
+	drawLines(rows,
+		func(y int) { c.line(x, y, countedStates(t.states, NumberStates, f.Width-wordsGap-x)) },
+		func(y int) {
+			c.line(x, y, line{sessionsSpan(summedSessions(t.pool)).numbered(Number{Kind: NumberSessions})})
+		},
+		func(y int) {
+			trace := f.besideTrace(x, y)
+			pool := summed(tracesOf(t.pool), func(tr views.Trace) []float64 { return tr.Cells(trace.width, t.now) })
+			f.drawCells(c, pool, trace, false)
+			c.right(f.rateEdge(trace), y, line{rateOf(summedRate(t.pool, t.now), false).numbered(Number{Kind: NumberRate})})
+		})
+}
+
+// drawLines draws each line on its row of those given, in their order, as
+// many as there are rows.
+func drawLines(rows []int, lines ...func(y int)) {
+	for i, y := range rows {
+		lines[i](y)
 	}
-	trace := f.besideTrace(x, rows[2])
-	pool := summed(tracesOf(t.pool), func(tr views.Trace) []float64 { return tr.Cells(trace.width, t.now) })
-	f.drawCells(c, pool, trace, false)
-	c.right(f.rateEdge(trace), rows[2], line{rateOf(summedRate(t.pool, t.now), false).numbered(Number{Kind: NumberRate})})
 }
 
 // tracesOf are the accounts' traces, in their order.
@@ -440,17 +450,32 @@ func (f Frame) besideTrace(x, y int) bounds {
 	return bounds{x: x, y: y, width: f.Width - traceTail - x, rows: 1}
 }
 
+// ruled reports whether the row after the block at i is the pool's rule, the
+// pool's block coming straight after it.
+func (at blocksBeside) ruled(i int) bool {
+	if i+1 == len(at.blocks) {
+		return false
+	}
+	block, next := at.blocks[i], at.blocks[i+1]
+	return next.id == "" && next.y == block.y+block.rows+1
+}
+
 // besideRows are the rows, down from a block's first, that ROUTING's three
 // lines beside a block rows tall take: its state, its sessions and its
 // trace, two rows apart where it has the rows, as three windows give it,
 // else one apart; any past the row after the block is left off, as it
-// would be the next block's.
-func besideRows(rows int) []int {
+// would be the next block's, and any on that row too where it's ruled, the
+// pool's rule.
+func besideRows(rows int, ruled bool) []int {
 	lines := []int{0, 1, 2}
 	if rows >= 5 {
 		lines = []int{0, 2, 4}
 	}
-	return slices.DeleteFunc(lines, func(down int) bool { return down > rows })
+	last := rows
+	if ruled {
+		last--
+	}
+	return slices.DeleteFunc(lines, func(down int) bool { return down > last })
 }
 
 // besideSessions is account r's sessions beside its block: after ● pinned

@@ -76,15 +76,17 @@ type usageBlock struct {
 	// the account whose number and name the matrix picks out; marks are the
 	// marks the key line names after the cap's; above and below are how
 	// many accounts' rows are scrolled out of view above those shown, and
-	// below; and spare are the rows those shown leave blank under them, over
+	// below; spare are the rows those shown leave blank under them, over
 	// the pool's, so the pool and the key line keep their rows however far
-	// the block's scrolled.
+	// the block's scrolled; and charted is whether GRAPHS' charts sit beside
+	// its blocks by account.
 	big          bool
 	accountBar   int
 	focus        string
 	marks        []line
 	above, below int
 	spare        int
+	charted      bool
 }
 
 // shownWindow is a window the block shows: its key, and its name, as in
@@ -480,17 +482,17 @@ func (b usageBlock) focusCells() int {
 }
 
 // stacked draws the block's windows one under another, each a section, its
-// heading, then a row an account, the pool last, from row y, two blank lines
-// between sections. The block's spare rows are shared out among its sections,
-// each's over the pool it ends with, the last's the rows left over too: as
-// every section shows the same accounts, each is then as tall however far the
-// block's scrolled, and every heading keeps its row.
+// heading, then a row an account, the pool last, from row y, a blank line
+// between sections, as before the key line. The block's spare rows are shared
+// out among its sections, each's over the pool it ends with, the last's the
+// rows left over too: as every section shows the same accounts, each is then
+// as tall however far the block's scrolled, and every heading keeps its row.
 func (b usageBlock) stacked(c *canvas, y int) laid {
 	bar := b.bar()
 	all := laid{end: y}
 	for i, w := range b.windows {
 		if i > 0 {
-			y += 2
+			y++
 		}
 		c.line(0, y, line{{strings.ToUpper(w.name), dimInk}})
 		in := b
@@ -561,20 +563,20 @@ func (b usageBlock) split() ([]usageRow, *usageRow) {
 }
 
 // byAccount draws a block an account from row y, each window a row of it,
-// the pool's last, two blank lines between blocks, the pool's rule in the
-// second: wide, from 110 columns, the name beside its first window's row and
-// each label in the name column; else the name on a line of its own above,
-// and the labels a cell in. Its bars take what the block's width leaves
-// them, and its words end a cell before the edge, but where the Overview sets
-// its bars: then its words end besideCells before besideAt, the gap before
-// ROUTING's blocks beside them.
+// the pool's last, as far apart as blocksApart has them, the pool's rule in
+// the last blank line before it: wide, from 110 columns, the name beside its
+// first window's row and each label in the name column; else the name on a
+// line of its own above, and the labels a cell in. Its bars take what the
+// block's width leaves them, and its words end a cell before the edge, but
+// where the Overview sets its bars: then its words end besideCells before
+// besideAt, the gap before ROUTING's blocks beside them.
 func (b usageBlock) byAccount(c *canvas, y int) laid {
 	labelAt, cells := b.labels()
 	bar, end := b.bar(), b.width-afterWords
 	if b.accountBar > 0 {
 		end = b.besideAt() - besideCells
 	}
-	l := b.each(c, 0, y, 3, func(r usageRow, y int) int {
+	l := b.each(c, 0, y, b.blocksApart(), func(r usageRow, y int) int {
 		c.line(0, y, r.name)
 		if b.width < wideAccounts {
 			y++
@@ -594,6 +596,16 @@ func (b usageBlock) byAccount(c *canvas, y int) laid {
 		}
 	}
 	return l
+}
+
+// blocksApart is how far a block by account's first row is from the last
+// of the block before: a blank line between them, as before the key line;
+// two where GRAPHS' charts sit beside them, each chart's axis on the first.
+func (b usageBlock) blocksApart() int {
+	if b.charted {
+		return 3
+	}
+	return 2
 }
 
 // labels are the column a block by account's window labels start at, and the

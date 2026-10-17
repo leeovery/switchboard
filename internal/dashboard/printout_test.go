@@ -84,10 +84,10 @@ func TestTheHeaderLeavesOffWholePartsBeforeCuttingAny(t *testing.T) {
 	}
 }
 
-func TestByAccountLeavesTwoBlankLinesUnderTheHeader(t *testing.T) {
+func TestByAccountLeavesABlankLineUnderTheHeader(t *testing.T) {
 	rows := printed(trio(), 160, ByAccount)
-	if rows[1] != "" || rows[2] != "" || !strings.HasPrefix(rows[3], "1 work") {
-		t.Errorf("by account, the printout starts %q, want the header, two blank lines, then work's block", rows[:4])
+	if rows[1] != "" || !strings.HasPrefix(rows[2], "1 work") {
+		t.Errorf("by account, the printout starts %q, want the header, a blank line, then work's block", rows[:3])
 	}
 }
 

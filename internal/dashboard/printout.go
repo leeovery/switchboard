@@ -42,14 +42,11 @@ type Printout struct {
 // Draw draws the printout of the moment m, a document as a policy judges it
 // at a time: a string for each of its rows, as tall as it is, from the
 // header to the key line, with no blank row before or after. Under the
-// header, after a blank line, or by account two, is the usage block, then a
-// blank line and its key line.
+// header, after a blank line, is the usage block, then a blank line and its
+// key line.
 func (p Printout) Draw(m status.Moment) []string {
 	c := growing(p.Width)
 	y := p.header(c, m) + 2
-	if p.By == ByAccount {
-		y++
-	}
 	block := newUsageBlock(m, p.Width, p.Look, p.By, usageWindows(m, p.Windows, p.namer(m)))
 	block.key(c, block.draw(c, y)+1)
 	return c.rows(p.Look)

@@ -1213,8 +1213,8 @@ The layout follows the terminal's width, `w` columns:
 **By window, stacked** (`w < 150`):
 
 - **Each window is a section:** its heading at column 0, in `text.subtle`; a blank line; then a row
-  an account with a blank line under each, and the pool last, under its rule. Between sections
-  there's another blank line, so two separate a section's last row from the next heading.
+  an account with a blank line under each, and the pool last, under its rule. A blank line
+  separates each section from the next, as it does the key line from the last.
 - **A row:** the account's number and name at column 1, a cell in from the heading; the bar from the
   name column, `w − n − 8 − d` cells wide for words `d` cells wide: 74 at 120 columns, 34 at 80 and
   14 at 52, the name column at 16. Then a cell, the percentage in 4 cells, two cells, and the words,
@@ -1222,8 +1222,10 @@ The layout follows the terminal's width, `w` columns:
 
 **By account** (`--by account`), one layout at every width:
 
-- **A block an account,** its windows as rows. Two blank lines separate the header from the first
-  block, and each block from the next; a blank line separates a block's rows.
+- **A block an account,** its windows as rows. A blank line separates the header from the first
+  block and each block from the next, as it does the key line from the last block, and a section
+  from the next by window: one rule for every gap in the printout (the owner's call, 17 October
+  2026). A blank line separates a block's rows too.
 - **Wide** (`w ≥ 110`): the account's number and name at column 0, on its first window's row; the
   window's label at the name column, 10 cells; the bar 10 cells on, `w − n − 10 − 8 − d` wide: 104
   at 160.
@@ -1233,7 +1235,7 @@ The layout follows the terminal's width, `w` columns:
 - **After each bar,** as in the other layouts: a cell, the percentage, two cells and the words.
 - **The labels,** in `text.subtle`: `5-hour`, `Week`, then each model's own window as its model's
   name and ` wk`, as `Fable wk`.
-- **The pool's block** comes last, its rule in the second blank line above it.
+- **The pool's block** comes last, its rule in the blank line above it.
 
 **The key line** says what the marks mean:
 
@@ -1540,7 +1542,9 @@ first (the owner's call, 15 October 2026).
     as wide as they share the room: `⌊(w − 1 − hx + 2) / k⌋ − 2` for `k` that fit, two at 160
     columns, 25 cells wide, and three from 184, 36 wide at 220;
   - **each from the block's first row to the row after its last,** its top row on the block's
-    first and its axis on the row after, so a block of three windows has `h = 4`;
+    first and its axis on the row after, so a block of three windows has `h = 4`; for the axis,
+    USAGE's blocks are two rows apart here, the axis on the first, where everywhere else they're
+    one, the phone's among them (the owner's call, 17 October 2026);
   - **the pool's charts beside `Σ pool`,** as many of its windows as fit, as each account's: the
     pool's room in each window over its length back from now, from its left edge to now at its
     right, a column a cell, each column the room at its end's moment, a share of all its accounts'
@@ -1735,14 +1739,17 @@ remembered").
 - **USAGE is a block an account,** as `usage --by account` draws it at 160 columns, but with bars
   `50 − (n − 14)` cells wide: the number and name at column 0; the window labels at the name column,
   10 cells; the bars 10 cells on; the percentage a cell after a bar, and the words two cells after
-  the percentage: 26, 48 cells, 75 and 81 for the sample.
+  the percentage: 26, 48 cells, 75 and 81 for the sample. Its blocks are a blank row apart, as
+  `usage`'s are, but two while GRAPHS' charts sit beside them (see GRAPHS, above).
 - **ROUTING moves beside each block,** at column `hx = n + 10 + bar + 7 + 22 + 4`, 107 for the
   sample, but while GRAPHS shows, when GRAPHS' charts are there instead and ROUTING keeps a section
   of its own (see GRAPHS, above; the owner's call, 15 October 2026). USAGE's heading is `hx − 3`
   wide, and ROUTING's, `ROUTING   auto` with the mode alone, runs from `hx` to the edge. On each
   block's first row, its state's words, cut by whole clauses to end two cells before the right
   edge; two rows down, `● pinned  ·  ` where the pin names it, then its sessions; four rows down, a
-  one-row trace from `hx` to `w − 8`, and its rate right-aligned.
+  one-row trace from `hx` to `w − 8`, and its rate right-aligned. Beside a block of fewer windows,
+  the lines are a row apart, and any past the row after the block, or on the pool's rule, is left
+  off.
 - **The pool's block is last,** under one rule across USAGE and ROUTING: its windows as each
   account's, and beside them its accounts' states counted, `2 open · 1 at cap`, each count in its
   state's colour (`open` in `text.secondary`, `pressure` and `at cap` in `accent.attention`, `limit`

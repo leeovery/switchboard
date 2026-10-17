@@ -271,9 +271,9 @@ func TestUSAGEScrollsAnAccountsRowsAtATimeAPageBeingThoseShownAtItsOffset(t *tes
 		{name: "the matrix scrolled past the foot, as the frame now has it", width: 160, n: 10, rows: 14, scroll: 9, want: Scrolling{Most: 6, Page: 4}},
 		{name: "stacked, under 150 columns, at the top", width: 120, n: 6, rows: 25, want: Scrolling{Most: 3, Page: 3}},
 		{name: "stacked, under 150 columns, between ▲ and ▼", width: 120, n: 6, rows: 25, scroll: 1, want: Scrolling{Most: 3, Page: 2}},
-		{name: "by account", width: 160, by: ByAccount, n: 6, rows: 20, want: Scrolling{Most: 4, Page: 2}},
-		{name: "by account at the top", width: 160, by: ByAccount, n: 6, rows: 21, want: Scrolling{Most: 3, Page: 3}},
-		{name: "by account between ▲ and ▼", width: 160, by: ByAccount, n: 6, rows: 21, scroll: 1, want: Scrolling{Most: 3, Page: 2}},
+		{name: "by account", width: 160, by: ByAccount, n: 6, rows: 17, want: Scrolling{Most: 4, Page: 2}},
+		{name: "by account at the top", width: 160, by: ByAccount, n: 6, rows: 18, want: Scrolling{Most: 3, Page: 3}},
+		{name: "by account between ▲ and ▼", width: 160, by: ByAccount, n: 6, rows: 18, scroll: 1, want: Scrolling{Most: 3, Page: 2}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -470,21 +470,21 @@ func TestUSAGEShownWholeTargetsAndHasROUTINGBesideTheRowsItShows(t *testing.T) {
 	f := frameOf(160, 60)
 	f.By, f.Scroll = ByAccount, 4
 	usage := f.usageSection(usageWorld(), now)
-	body := bounds{y: 6, width: 160, rows: 12}
+	body := bounds{y: 6, width: 160, rows: 10}
 	want := []Target{{Y: 6, Width: 160, On: OnAccount, Account: "work"}}
-	for y := 3; y < 8; y++ {
+	for y := 2; y < 7; y++ {
 		want = append(want, Target{Y: 6 + y, Width: 160, On: OnAccount, Account: "personal"})
 	}
 	if got := usage.targets(body); !slices.Equal(got, want) {
 		t.Errorf("scrolled 4 rows, USAGE's targets are\n%+v\nwant\n%+v", got, want)
 	}
-	rows, _ := usageBody(f, usageWorld(), now, 12)
+	rows, _ := usageBody(f, usageWorld(), now, 10)
 	at := f.overviewBlock(usageWorld(), now).besideAt()
 	beside := func(y int) string { return strings.TrimSpace(rows[y][min(len(rows[y]), at):]) }
-	if !strings.Contains(rows[3], "2 personal") || beside(3) == "" {
-		t.Errorf("scrolled 4 rows, personal's first row reads %q, want ROUTING's state beside it", rows[3])
+	if !strings.Contains(rows[2], "2 personal") || beside(2) == "" {
+		t.Errorf("scrolled 4 rows, personal's first row reads %q, want ROUTING's state beside it", rows[2])
 	}
-	for _, y := range []int{8, 9, 10} {
+	for _, y := range []int{7, 8} {
 		if beside(y) != "" {
 			t.Errorf("scrolled 4 rows, row %d reads %q, want nothing beside the rows under personal's, the scroll line's among them", y, rows[y])
 		}
@@ -495,8 +495,8 @@ func TestUSAGEShownWholeTargetsAndHasROUTINGBesideTheRowsItShows(t *testing.T) {
 // shows; else no further than shows its nearest row, below the page or above
 // it. Stacked at 120 columns in 8 rows, five show at once over the key line:
 // the 5-hour's heading on row 0 and its accounts on 2, 4 and 6; the week's
-// heading on 11, and its accounts on 13, 15 and 17; Fable week's on 22, and
-// 24, 26 and 28.
+// heading on 10, and its accounts on 12, 14 and 16; Fable week's on 20, and
+// 22, 24 and 26.
 func TestRevealingAnAccountInUSAGEShownWholeScrollsNoFurtherThanShowsARowOfIt(t *testing.T) {
 	usage := frameOf(120, 60).usageSection(usageWorld(), now)
 	tests := []struct {
@@ -507,9 +507,9 @@ func TestRevealingAnAccountInUSAGEShownWholeScrollsNoFurtherThanShowsARowOfIt(t 
 	}{
 		{name: "shown at the top: where it is", id: "work", want: 0},
 		{name: "below the page: till it's the page's last", id: "side", want: 2},
-		{name: "a row of it the page's first: where it is", scroll: 13, id: "work", want: 13},
-		{name: "nearer below than above: down till it shows", scroll: 7, id: "work", want: 9},
-		{name: "nearer above than below: up till it's the page's first", scroll: 16, id: "work", want: 13},
+		{name: "a row of it the page's first: where it is", scroll: 12, id: "work", want: 12},
+		{name: "nearer below than above: down till it shows", scroll: 7, id: "work", want: 8},
+		{name: "nearer above than below: up till it's the page's first", scroll: 14, id: "work", want: 12},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -554,11 +554,11 @@ func TestEachAccountsRowsInUSAGEMoveTheFocusThere(t *testing.T) {
 		},
 		{
 			name: "stacked: a row an account in each window", width: 120, doc: threeRouted(), rows: 25,
-			want: slices.Concat(rowsOf("work", 2), rowsOf("personal", 4), rowsOf("side", 6), rowsOf("work", 13), rowsOf("personal", 15), rowsOf("side", 17)),
+			want: slices.Concat(rowsOf("work", 2), rowsOf("personal", 4), rowsOf("side", 6), rowsOf("work", 12), rowsOf("personal", 14), rowsOf("side", 16)),
 		},
 		{
 			name: "by account: its block's rows, across ROUTING's beside them", width: 160, by: ByAccount, doc: threeRouted(), rows: 25,
-			want: slices.Concat(rowsOf("work", 0, 1, 2), rowsOf("personal", 5, 6, 7), rowsOf("side", 10, 11, 12)),
+			want: slices.Concat(rowsOf("work", 0, 1, 2), rowsOf("personal", 4, 5, 6), rowsOf("side", 8, 9, 10)),
 		},
 		{
 			name: "scrolled: those shown alone", width: 160, doc: manyRead(10), scroll: 3, rows: 15,
@@ -587,8 +587,8 @@ func TestUSAGEHasItsBigBarsWhereTheyFitByWindowFrom150Columns(t *testing.T) {
 		rows  int
 		big   bool
 	}{
-		{name: "rows for the big bars", width: 160, rows: 22, big: true},
-		{name: "a row short of them: the compact matrix", width: 160, rows: 21},
+		{name: "rows for the big bars", width: 160, rows: 21, big: true},
+		{name: "a row short of them: the compact matrix", width: 160, rows: 20},
 		{name: "under 150 columns: usage's stacked layout, no bigger", width: 149, rows: 40},
 		{name: "by account: its blocks, no bigger", width: 160, by: ByAccount, rows: 40},
 	}
@@ -602,8 +602,50 @@ func TestUSAGEHasItsBigBarsWhereTheyFitByWindowFrom150Columns(t *testing.T) {
 			}
 		})
 	}
-	if got, want := frameOf(160, 60).usageSection(threeRouted(), now).most, 24; got != want {
+	if got, want := frameOf(160, 60).usageSection(threeRouted(), now).most, 23; got != want {
 		t.Errorf("USAGE's most is %d rows, want %d: its heading and the big bars", got, want)
+	}
+}
+
+// On the Overview, as in the printout, USAGE's blocks are a blank row apart,
+// by window and by account, at every width, as its key line is from the
+// last; but two where GRAPHS' charts sit beside its blocks by account, each
+// chart's axis on the first, beside the cells of USAGE's own.
+func TestUSAGEsBlocksAreABlankRowApartButTwoBesideGRAPHSCharts(t *testing.T) {
+	at := func(width int, by By) Frame {
+		f := frameOf(width, 60)
+		f.By = by
+		return f
+	}
+	tests := []struct {
+		name  string
+		f     Frame
+		apart int
+	}{
+		{name: "the big bars", f: at(160, ByWindow), apart: 1},
+		{name: "stacked at 120", f: at(120, ByWindow), apart: 1},
+		{name: "stacked at 80", f: at(80, ByWindow), apart: 1},
+		{name: "stacked on a phone", f: at(52, ByWindow), apart: 1},
+		{name: "by account, ROUTING beside", f: at(160, ByAccount), apart: 1},
+		{name: "by account at 120", f: at(120, ByAccount), apart: 1},
+		{name: "by account on a phone", f: at(52, ByAccount), apart: 1},
+		{name: "by account, GRAPHS' charts beside", f: besideOf(160), apart: 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			starts, cells := startsWindow, tt.f.Width
+			if tt.f.By == ByAccount {
+				starts = startsAccount
+			}
+			if tt.f.Width >= matrixWidth && tt.f.By == ByAccount {
+				cells = tt.f.overviewBlock(usageWorld(), now).besideAt()
+			}
+			rows, _ := usageBody(tt.f, usageWorld(), now, 60)
+			blocks, key := gapsOver(rows, cells, starts)
+			if want := slices.Repeat([]int{tt.apart}, len(blocks)); len(blocks) < 2 || !slices.Equal(blocks, want) || key != 1 {
+				t.Errorf("the blank rows over each block but the first are %v, and over the key line %d; want %d over each, and 1:\n%s", blocks, key, tt.apart, strings.Join(rows, "\n"))
+			}
+		})
 	}
 }
 
@@ -1012,7 +1054,7 @@ func TestROUTINGBesideUSAGEsBlocksFollowsThemAsTheyScroll(t *testing.T) {
 	for i, row := range rows {
 		beside[i] = strings.TrimRight(colAt(row, x, f.Width-x), " ")
 	}
-	want := map[int][2]string{1: {"3 a3", "3 sessions"}, 6: {"4 a4", "4 sessions"}, 11: {"5 a5", "5 sessions"}, 17: {"Σ pool", "55 sessions"}}
+	want := map[int][2]string{1: {"3 a3", "3 sessions"}, 5: {"4 a4", "4 sessions"}, 9: {"5 a5", "5 sessions"}, 17: {"Σ pool", "55 sessions"}}
 	for y, w := range want {
 		if !strings.HasPrefix(strings.TrimLeft(rows[y], " "), w[0]) || beside[y+1] != w[1] {
 			t.Errorf("row %d reads %q, %q beside the row under it; want it to start %q, %q beside", y, rows[y], beside[y+1], w[0], w[1])
@@ -1026,16 +1068,16 @@ func TestROUTINGBesideBlocksOfOneWindowLeavesTheirTracesOff(t *testing.T) {
 	f.By, f.Policy.Shared = ByAccount, []string{"5h"}
 	x := f.overviewBlock(doc, now).besideAt()
 	rows, _ := usageBody(f, doc, now, 10)
-	want := map[int]string{0: "● open · new sessions come here", 1: "0 sessions", 2: "", 3: "● open", 4: "0 sessions", 6: "2 open", 7: "0 sessions"}
+	want := map[int]string{0: "● open · new sessions come here", 1: "0 sessions", 2: "● open", 4: "2 open", 5: "0 sessions"}
 	for y, w := range want {
 		if got := strings.TrimRight(colAt(rows[y], x, f.Width-x), " "); got != w {
 			t.Errorf("beside row %d reads %q, want %q", y, got, w)
 		}
 	}
-	if rule := rows[5]; strings.Trim(rule, "─") != "" {
-		t.Errorf("the pool's rule reads %q, want it whole, no trace over it", rule)
+	if rule := rows[3]; strings.Trim(rule, "─") != "" {
+		t.Errorf("the pool's rule reads %q, want it whole, nothing beside the block above over it", rule)
 	}
-	if key := rows[8]; strings.Contains(key, "/min") {
+	if key := rows[7]; strings.Contains(key, "/min") {
 		t.Errorf("the key line reads %q, want no trace over it", key)
 	}
 }

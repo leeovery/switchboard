@@ -272,8 +272,8 @@ func TestAViewWhoseScrollChangesWhatItCountsGoesBackToItsTop(t *testing.T) {
 	}{
 		{name: "b, from rows to accounts", size: tea.WindowSizeMsg{Width: 120, Height: 24}, changed: func(h *harness) { h.press("b") }},
 		{name: "b, from accounts to rows", by: dashboard.ByAccount, size: tea.WindowSizeMsg{Width: 120, Height: 24}, changed: func(h *harness) { h.press("b") }},
-		{name: "a resize, from rows to accounts", size: tea.WindowSizeMsg{Width: 120, Height: 28}, changed: func(h *harness) { h.update(tea.WindowSizeMsg{Width: 120, Height: 29}) }},
-		{name: "a section's key, from rows to accounts", size: tea.WindowSizeMsg{Width: 120, Height: 28}, changed: func(h *harness) { h.press("r") }},
+		{name: "a resize, from rows to accounts", size: tea.WindowSizeMsg{Width: 120, Height: 27}, changed: func(h *harness) { h.update(tea.WindowSizeMsg{Width: 120, Height: 28}) }},
+		{name: "a section's key, from rows to accounts", size: tea.WindowSizeMsg{Width: 120, Height: 27}, changed: func(h *harness) { h.press("r") }},
 		{name: "a read of a window more on each account, from accounts to rows", size: tea.WindowSizeMsg{Width: 120, Height: 30}, changed: func(h *harness) {
 			doc := tenRouted()
 			for i := range doc.Accounts {

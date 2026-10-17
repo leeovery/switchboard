@@ -15,7 +15,6 @@ USAGE  ────────────────────────�
 ────────────────────────────────────────────────────
  Σ pool               ┃▏        51%  1.5 of 3 left
 
-
 WEEK
 
  1 work             ▊  ┃     ╎  34%  19%/day · Sun
@@ -25,7 +24,6 @@ WEEK
  3 side ▲             ┃   ▉     78%  out ~Fri
 ────────────────────────────────────────────────────
  Σ pool                 ┃       61%  1.2 of 3 left
-
 
 FABLE WEEK
 
@@ -53,14 +51,16 @@ ROUTING   auto ─────────────────────�
 
 COMING UP  ─────────────────────────────────────── c
 
-16:30  personal's 5-hour resets            in 1h 48m
-17:10  work back from its cap              in 2h 28m
-18:50  side's 5-hour resets                in 4h 08m
+16:30       personal's 5-hour resets       in 1h 48m
+17:10       work back from its cap         in 2h 28m
+18:50       side's 5-hour resets           in 4h 08m
+~Fri 12:20  side's week runs out at its…  in 21h 38m
 
 LATELY  ────────────────────────────────────────── l
 
 14:41  ▲ c61b started on side
 14:31  ╎ work at its cap: 3 moved to side
 14:12  ▲ 7f3a started on work
+13:50  ◇ side primed
 
 tab views   ? keys and toggles   q quit

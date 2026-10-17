@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
@@ -233,17 +235,17 @@ func TestByAccountEachAccountIsABlockOfItsWindows(t *testing.T) {
 		row, col int
 		want     string
 	}{
-		{name: "wide, two blank lines under the header", rows: wide, row: 3, col: 0, want: "1 work          5-hour"},
-		{name: "wide, its bar 104 cells", rows: wide, row: 3, col: 26 + 104 + 2, want: "95%  at cap · back 17:10"},
-		{name: "wide, its week", rows: wide, row: 5, col: 16, want: "Week"},
-		{name: "wide, Fable's week", rows: wide, row: 7, col: 16, want: "Fable wk"},
-		{name: "wide, two blank lines between blocks", rows: wide, row: 10, col: 0, want: "2 personal ◆    5-hour"},
-		{name: "wide, the pool's rule in the second", rows: wide, row: 23, col: 0, want: strings.Repeat("─", 160)},
-		{name: "wide, the pool last", rows: wide, row: 24, col: 0, want: "Σ pool          5-hour"},
-		{name: "narrow, its name on a line of its own", rows: narrow, row: 5, col: 0, want: "1 work"},
-		{name: "narrow, the label a cell in, its bar 18 cells", rows: narrow, row: 6, col: 0, want: " 5-hour"},
-		{name: "narrow, its percentage", rows: narrow, row: 6, col: 12 + 18 + 2, want: "95%  back 17:10"},
-		{name: "narrow, the next block", rows: narrow, row: 13, col: 0, want: "2 personal ◆"},
+		{name: "wide, a blank line under the header", rows: wide, row: 2, col: 0, want: "1 work          5-hour"},
+		{name: "wide, its bar 104 cells", rows: wide, row: 2, col: 26 + 104 + 2, want: "95%  at cap · back 17:10"},
+		{name: "wide, its week", rows: wide, row: 4, col: 16, want: "Week"},
+		{name: "wide, Fable's week", rows: wide, row: 6, col: 16, want: "Fable wk"},
+		{name: "wide, a blank line between blocks", rows: wide, row: 8, col: 0, want: "2 personal ◆    5-hour"},
+		{name: "wide, the pool's rule in the blank line", rows: wide, row: 19, col: 0, want: strings.Repeat("─", 160)},
+		{name: "wide, the pool last", rows: wide, row: 20, col: 0, want: "Σ pool          5-hour"},
+		{name: "narrow, its name on a line of its own", rows: narrow, row: 4, col: 0, want: "1 work"},
+		{name: "narrow, the label a cell in, its bar 18 cells", rows: narrow, row: 5, col: 0, want: " 5-hour"},
+		{name: "narrow, its percentage", rows: narrow, row: 5, col: 12 + 18 + 2, want: "95%  back 17:10"},
+		{name: "narrow, the next block", rows: narrow, row: 11, col: 0, want: "2 personal ◆"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -252,8 +254,88 @@ func TestByAccountEachAccountIsABlockOfItsWindows(t *testing.T) {
 			}
 		})
 	}
-	if got := narrow[6]; strings.TrimRight(got, " ") != got || len([]rune(got)) > 51 {
+	if got := narrow[5]; strings.TrimRight(got, " ") != got || len([]rune(got)) > 51 {
 		t.Errorf("a narrow row %q runs to the edge, want it to end a cell short", got)
+	}
+}
+
+// startsWindow reports whether a row of USAGE starts a block by window: its
+// window's heading, or the matrix's headings.
+func startsWindow(row string) bool {
+	return strings.TrimSpace(row) != "" && strings.ToUpper(row) == row && !strings.ContainsAny(row, "┃╎─Σ")
+}
+
+// startsAccount reports whether a row of USAGE starts a block by account: its
+// account's name, or the pool's, at column 0.
+func startsAccount(row string) bool {
+	first, _ := utf8.DecodeRuneInString(row)
+	return unicode.IsDigit(first) || first == 'Σ'
+}
+
+// gapsOver are the blank rows over each row of rows that starts a block of
+// USAGE's, as starts says, and over its key line, in their first cells
+// cells, up to the row drawn above them, a rule counted blank: a start on
+// the first row, with nothing drawn above it, has none counted.
+func gapsOver(rows []string, cells int, starts func(string) bool) (blocks []int, key int) {
+	key = -1
+	for y, row := range rows {
+		isKey := strings.Contains(row, "even pace")
+		if !isKey && !starts(row) {
+			continue
+		}
+		gap := 0
+		for gap < y && strings.Trim(colAt(rows[y-gap-1], 0, cells), " ─") == "" {
+			gap++
+		}
+		switch {
+		case gap == y:
+		case isKey:
+			key = gap
+		default:
+			blocks = append(blocks, gap)
+		}
+	}
+	return blocks, key
+}
+
+// USAGE's blocks are a blank line apart, by window and by account, at every
+// width, as its key line is from the last of them and the first from the
+// header; the pool's rule takes the blank line over the pool's block.
+func TestTheBlocksAreABlankLineApartAsTheKeyLineIsFromTheLastAndTheFirstFromTheHeader(t *testing.T) {
+	sonnet := func(a *status.Account) {
+		a.Windows = append(a.Windows, quota.Window{Key: "7d_sonnet", Label: "Sonnet week", Utilization: 0.1, ResetsAt: on(4, 21, 0).UTC()})
+	}
+	four := trio(account("work", sonnet), account("personal", sonnet), account("side", sonnet))
+	tests := []struct {
+		name   string
+		doc    status.Document
+		width  int
+		by     By
+		blocks int
+	}{
+		{name: "the matrix", doc: trio(), width: 160, by: ByWindow, blocks: 1},
+		{name: "four windows stacked at 160", doc: four, width: 160, by: ByWindow, blocks: 4},
+		{name: "stacked at 149", doc: trio(), width: 149, by: ByWindow, blocks: 3},
+		{name: "stacked at 120", doc: trio(), width: 120, by: ByWindow, blocks: 3},
+		{name: "stacked at 80", doc: trio(), width: 80, by: ByWindow, blocks: 3},
+		{name: "stacked on a phone", doc: trio(), width: 52, by: ByWindow, blocks: 3},
+		{name: "by account, wide", doc: trio(), width: 160, by: ByAccount, blocks: 4},
+		{name: "by account at 110", doc: trio(), width: 110, by: ByAccount, blocks: 4},
+		{name: "by account, narrow", doc: trio(), width: 100, by: ByAccount, blocks: 4},
+		{name: "by account on a phone", doc: trio(), width: 52, by: ByAccount, blocks: 4},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			starts := startsWindow
+			if tt.by == ByAccount {
+				starts = startsAccount
+			}
+			rows := printed(tt.doc, tt.width, tt.by)
+			blocks, key := gapsOver(rows, tt.width, starts)
+			if want := slices.Repeat([]int{1}, tt.blocks); !slices.Equal(blocks, want) || key != 1 {
+				t.Errorf("the blank lines over each block are %v, and over the key line %d; want %v and 1:\n%s", blocks, key, want, strings.Join(rows, "\n"))
+			}
+		})
 	}
 }
 
@@ -663,9 +745,9 @@ func TestWordsACellTooLongInFullAreShortLeavingTheCellsAfterThemBlank(t *testing
 		blank     int
 	}{
 		{name: "the matrix, the 3 cells before the next group", width: 160, by: ByWindow, row: 4, wordsAt: 87, blankFrom: 87 + 22, blank: 3},
-		{name: "stacked, the last column", width: 120, by: ByWindow, row: 15, wordsAt: 97, blankFrom: 119, blank: 1},
-		{name: "by account, wide, the last column", width: 160, by: ByAccount, row: 5, wordsAt: 137, blankFrom: 159, blank: 1},
-		{name: "by account, narrow, the last column", width: 100, by: ByAccount, row: 8, wordsAt: 77, blankFrom: 99, blank: 1},
+		{name: "stacked, the last column", width: 120, by: ByWindow, row: 14, wordsAt: 97, blankFrom: 119, blank: 1},
+		{name: "by account, wide, the last column", width: 160, by: ByAccount, row: 4, wordsAt: 137, blankFrom: 159, blank: 1},
+		{name: "by account, narrow, the last column", width: 100, by: ByAccount, row: 7, wordsAt: 77, blankFrom: 99, blank: 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
