@@ -291,17 +291,16 @@ func (h HeldPage) TurnOf(was HeldPage, read ...[]ledger.Held) HeldPage {
 }
 
 // mine reports whether l may be the line of a request of h's turn open: of
-// its session's requests, a subagent's whose first request named the
-// turn's prompt, or whose first h's tally doesn't hold, as it may be among
-// those it holds open, or yet to come; else one naming the prompt. Which a
-// turn's member is, Build tells, as member has it.
+// its session's requests, every subagent's, as the first request a subagent
+// made, which names its turn, may land after those the page knows of; else
+// one naming the prompt. Which a turn's member is, Build tells, as member
+// has it, of the agents it knows then.
 func (h HeldPage) mine(l *ledger.Line) bool {
 	switch {
 	case l.Session != h.id || !isRequest(l):
 		return false
 	case l.AgentID != "":
-		first, known := h.record.page.agents[l.AgentID]
-		return !known || first == h.turn.prompt
+		return true
 	}
 	return l.Prompt == h.turn.prompt
 }
@@ -376,8 +375,8 @@ func (h HeldPage) Closing() HeldPage {
 // live builds its page: the session's lines, the latest arrived first, back
 // to arrivesWithin before the turn began, as the line of a request it first
 // knew of from the stream may have arrived as long before it was sent;
-// those of its requests among them, as its page counts a request in its
-// turn, of the agents it knows. None where no turn is open.
+// those that may be its requests among them, as mine has them. None where
+// no turn is open.
 func (h HeldPage) ReadTurn(l LedgerSession, live PageLive) HeldTurn {
 	if h.turn == nil {
 		return HeldTurn{}
@@ -395,7 +394,7 @@ func (h HeldPage) ReadTurn(l LedgerSession, live PageLive) HeldTurn {
 		if line.At.Before(from) {
 			break
 		}
-		if line.Session == h.id && isRequest(&line) && w.tally.member(line.AgentID, line.Prompt, t.prompt) {
+		if h.mine(&line) {
 			read.lines = append(read.lines, line)
 		}
 	}
@@ -612,7 +611,7 @@ func (w worked) turnRequests(n int) ([]LogLine, bool) {
 	case !t.read:
 		return nil, true
 	}
-	tally := w.tally
+	tally := w.membership()
 	prompt := t.prompt
 	var lines []ledger.Line
 	for _, l := range t.lines {
@@ -630,6 +629,25 @@ func (w worked) turnRequests(n int) ([]LogLine, bool) {
 		}
 	}
 	return w.rowsOf(lines, told), false
+}
+
+// membership is the tally the turn open's rows are counted in their turn
+// by, as member has it: w's, but where the turn's lines hold one of a
+// request the session as w holds it doesn't, read of the ledger past what
+// the store has been fed, its tally of what it holds open with those lines
+// among them, as a subagent's turn is the one its first request names,
+// which may be such a line.
+func (w worked) membership() *pageTally {
+	var unfed []heldRequest
+	for i := range w.h.turn.lines {
+		if l := &w.h.turn.lines[i]; isRequest(l) && instantOf(l.At).compare(w.rec.horizon) >= 0 && !w.rec.linedAt(l.Request, l.At) {
+			unfed = append(unfed, heldRequestOf(l))
+		}
+	}
+	if len(unfed) == 0 {
+		return w.tally
+	}
+	return w.rec.page.told(sentOf(withRequests(w.rec.open, unfed), w.told, w.lined))
 }
 
 // lined reports whether a line of the request t the stream told of is held
