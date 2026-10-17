@@ -478,7 +478,8 @@ type Mark struct {
 // follower holds only those given since the mark last asked with, and gives
 // them again to one who asks with it again: a mark before it, or the zero
 // Mark, has every one of today's given afresh, those let go of read again
-// from the days' files. A line still being written, cut short, is given once
+// from the days' files, and every one it gives let go of. A line still being
+// written, cut short, is given once
 // it's whole. The days' files are read as they grow, those of the day
 // before's to the day after's, as a change of time zone files a line under a
 // date beside its own.
@@ -525,8 +526,8 @@ func (f *Follower) Day(date string) []Held {
 // files of the day before's to the day after's, as Reader.Lines reads them,
 // by their dates. given are those given from base on, in the order they were
 // read, of those arrived by when they were, base counting those given before
-// them, let go of as a mark later than base was asked with: a zero mark, or
-// one before base, lets none go. pending are those read that arrived later;
+// them, let go of as a mark later than base was asked with, or as every one
+// of today's was given. pending are those read that arrived later;
 // gen counts the times today's lines began to be given afresh.
 type todaysLines struct {
 	start   time.Time
@@ -706,21 +707,33 @@ func (t *todaysLines) give(lines []*placed, now time.Time) {
 // since returns the lines given since mark, and whether they're every one of
 // today's, given afresh, as Today says: those given since a mark of them as
 // they're given now, letting go of those before it; else every one, those
-// let go of read again.
+// let go of read again, letting go of every one.
 func (t *todaysLines) since(d days, mark Mark) ([]*placed, bool) {
 	from, afresh := mark.read, mark.gen != t.gen
 	if afresh {
 		from = 0
 	}
-	if from < t.base {
-		return append(t.readAgain(d), t.given...), true
+	if !afresh && from >= t.base {
+		t.letGo(from)
+		return slices.Clone(t.given), false
 	}
-	if from > t.base {
+	var whole []*placed
+	if from < t.base {
+		whole = t.readAgain(d)
+	}
+	whole = append(whole, t.given...)
+	t.letGo(t.base + len(t.given))
+	return whole, true
+}
+
+// letGo lets go of the lines given before read, counted as a Mark's read
+// counts them.
+func (t *todaysLines) letGo(read int) {
+	if read > t.base {
 		// Cloned, as the array behind a slice of it would hold on to every line
 		// let go of.
-		t.given, t.base = slices.Clone(t.given[from-t.base:]), from
+		t.given, t.base = slices.Clone(t.given[read-t.base:]), read
 	}
-	return slices.Clone(t.given), afresh
 }
 
 // mark is the Mark of today's lines read to the last given.

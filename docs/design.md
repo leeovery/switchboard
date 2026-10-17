@@ -1643,9 +1643,9 @@ right:
 - **Its rate,** at the right, is the requests of the last minute.
 - **The requests counted** are those that spend quota and went upstream (see The request ledger),
   each once, by its id, as it's sent, on the account it went out on; Claude Code's quota checks and
-  token counts never. The last 30 minutes come from today's lines once, as the Overview is first
-  shown (settled in the plan), then from the request stream (see Live updates). A session moved
-  between accounts carries its whole 30 minutes on its own trace.
+  token counts never. The last 30 minutes come from each read of the ledger's tail, the stream's
+  opening asking for one (see Live updates), then from the request stream. A session moved between
+  accounts carries its whole 30 minutes on its own trace.
 
 **SESSIONS** lists the sessions running, those the router has routed in the last hour, grouped by
 account in the config's order, a session whose models go to two accounts on each:
@@ -4251,16 +4251,15 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
     awaits a line, so each keeps up while another tab shows; and once after the stream opens, for
     the traces, whether a reader holds them or not. The tail alone asks the follower for today's
     lines, with its one mark. A line one read finds, of today or of a day before read again whole,
-    every reader takes in, the store of sessions once for them
-    all (settled in the plan). The ledger's follower holds only the lines given since the mark last
-    asked with, which a read asked again with it is given again, and those arrived later by the
-    clock, never all of today's: a read from today's start, as the Log's first, or from a mark
-    before what it holds, is given today whole, what it let go of read again from the day's files
-    as far as the tail had read them, so the tail goes on from where it ended, no line given twice
-    or missed. A day turning, or a file read again from its start, reads the files again, never
-    replaying held lines. Each line is held without the JSON it was written as, which only
-    `requests` writes out, through a reader of its own; a test reading the source holds every other
-    reader of a line's JSON to it.
+    every reader takes in, the store of sessions once for them all (settled in the plan). The
+    ledger's follower holds the last read's gain, which a read asked again with the same mark is
+    given again, and the lines arrived later by the clock: a read from today's start, as the Log's
+    first, or from a mark before what it holds, is given today whole, what it let go of read again
+    from the day's files as far as the tail had read them, so the tail goes on from where it ended,
+    no line given twice or missed, and every line it gives let go of. A day turning, or a file read
+    again from its start, reads the files again, never replaying held lines. Each line is held
+    without the JSON it was written as, which only `requests` writes out, through a reader of its
+    own; a test reading the source holds every other reader of a line's JSON to it.
   - **A past day's summary** is read once and held for the run, until its stamp or its sizes change
     (see The request ledger). **Today's** is a running tally of the lines tailed, never summarised
     afresh at a look (settled in the plan).

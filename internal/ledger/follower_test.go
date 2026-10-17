@@ -486,6 +486,9 @@ func TestAFollowerHoldsNoneOfTodaysLinesBeforeTheMarkLastAskedWith(t *testing.T)
 	clock := &testClock{at: on(0, 10, 0)}
 	follower := followerOf(state, clock, caps)
 	_, first, _ := follower.Today(ledger.Mark{})
+	if held, want := follower.TodayHeld(), []string{"6"}; !slices.Equal(held, want) {
+		t.Errorf("after the first read, the follower holds %q, want %q: every line it gave let go of, the line pending kept", held, want)
+	}
 	holdLines(t, dir, date, asked("3", on(0, 9, 40)))
 	_, second, _ := follower.Today(first)
 	if held, want := follower.TodayHeld(), []string{"3", "6"}; !slices.Equal(held, want) {
@@ -529,20 +532,32 @@ func TestAMarkBeforeWhatTheFollowerHoldsGetsTodayWholeReadAgain(t *testing.T) {
 			follower.Today(second)
 
 			got, next, afresh := follower.Today(tt.mark(first))
-			if want := wholeToday(t, state, clock.at); !slices.Equal(readAs(t, got), want) || !afresh {
-				t.Errorf("Today() gave\n%s\nafresh %v; want today's lines whole, afresh, as a whole read gives\n%s",
-					strings.Join(readAs(t, got), "\n"), afresh, strings.Join(want, "\n"))
-			}
-			if held, want := follower.TodayHeld(), []string{"4", "6"}; !slices.Equal(held, want) {
-				t.Errorf("after the whole read, the follower holds %q, want %q: those since the mark last asked with, and the line pending", held, want)
-			}
-			if gained, _, afresh := follower.Today(second); !slices.Equal(requestsHeld(gained), []string{"4"}) || afresh {
-				t.Errorf("Today() from the mark last asked with before gave %q, afresh %v; want what it gave before, not afresh", requestsHeld(gained), afresh)
+			wholeIs(t, "Today()", got, afresh, wholeToday(t, state, clock.at))
+			if held, want := follower.TodayHeld(), []string{"6"}; !slices.Equal(held, want) {
+				t.Errorf("after the whole read, the follower holds %q, want %q: every line it gave let go of, the line pending kept", held, want)
 			}
 			if gained, again, afresh := follower.Today(next); len(gained) != 0 || afresh || again != next {
 				t.Errorf("Today() from the mark the whole read gave gave %q, afresh %v; want none, not afresh, as nothing was written", requestsHeld(gained), afresh)
 			}
+			holdLines(t, dir, date, asked("5", on(0, 9, 50)))
+			if gained, _, afresh := follower.Today(next); !slices.Equal(requestsHeld(gained), []string{"5"}) || afresh {
+				t.Errorf("Today() from the mark the whole read gave gave %q, afresh %v; want what the file gained since, not afresh", requestsHeld(gained), afresh)
+			}
+			for name, mark := range map[string]ledger.Mark{"the zero mark": {}, "the second mark": second} {
+				got, _, afresh := follower.Today(mark)
+				wholeIs(t, "Today() from "+name+" again", got, afresh, wholeToday(t, state, clock.at))
+			}
 		})
+	}
+}
+
+// wholeIs fails t where got, and whether it was given afresh, isn't today's
+// lines whole, as want has them, afresh.
+func wholeIs(t *testing.T, name string, got []ledger.Held, afresh bool, want []string) {
+	t.Helper()
+	if !slices.Equal(readAs(t, got), want) || !afresh {
+		t.Errorf("%s gave\n%s\nafresh %v; want today's lines whole, afresh, as a whole read gives\n%s",
+			name, strings.Join(readAs(t, got), "\n"), afresh, strings.Join(want, "\n"))
 	}
 }
 
