@@ -46,8 +46,13 @@ worked on there till they're right.
   - the words under the pool's lane, "3 of 4 with room till ~Sat 11:18, 2 till ~Sat 20:47, 1 till
     Sun 02:00, …", read its bar aloud a step at a time, crammed on one row: "I don't know even what
     all that means, let alone if we need it." The owner likes "week 0.9 of 4 left" beside it;
-  - the pool's red `at its limit` line runs along the lane's bottom row, not through its middle as
-    the accounts' lanes have it, and looks wrong there: thicker, perhaps, to mock up. A nitpick.
+  - the pool's red `at its limit` line sits in the lane's bottom row, its `─` at mid-cell, so it
+    runs level with the top of the half-cell yellow beside it, not through the lane's middle as the
+    accounts' lanes have it. Seen on the Mac at 13:30 on 16 October, "0 till Sun 02:00" between two
+    yellow stretches of 1 (screenshots in the session's records, `shots/pool-limit-line-*.png`); it
+    looks wrong there. The owner's idea, to mock up: the red a bar, not a line, a little thicker:
+    "the green, then maybe a half yellow, and then a quarter red", the lane stepping down to a
+    quarter-cell red block (`▂`). A nitpick.
 - **The key floats mid-page,** on Sessions' Switchboard most: the owner's idea, to spike, is the
   key at the foot with the key line, a footer of two, any other words above it.
 - **The List's summary** sits right-aligned on the row over the key line, so it reads as the key
@@ -62,6 +67,28 @@ worked on there till they're right.
   opened (`watch.go` screen: `m.page.frame` at `m.page.at`), its clock included. A dashboard left
   with a card open on the phone at 08:28 was taken for one that had frozen, its keys no longer
   reaching it over Mosh. To decide: whether the heading's clock stays live under a card.
+
+## Week first, and the model windows on a toggle
+
+The owner, 16 October: the week is "usually the one I'm most interested in. I very rarely hit a
+five-hour limit."
+
+- **The week first, then the 5-hour, then each model's week** (Fable), "the order of care":
+  - on the Overview by window, the week's block at the top, where the 5-hour's accounts and pool
+    sit now, so the one he watches isn't mid-screen;
+  - by account (`b`), each account's windows in the same order.
+- **Model windows on a toggle,** remembered: "most of the time, all I really care about is the week
+  limits and then the five-hour limit." Unused, Fable's window is noise; in use, he'd turn it on and
+  expect it to stay on. One category for every model's own window, so a new model with a limit of
+  its own falls under the same toggle, in every graph; separating them later stays simple. It may
+  apply in many places.
+- **One window's pool read 1% used while all four of its accounts read 0%** (the Overview by
+  window). Not a bug, nor rounding, nor quota checks: it's the 5% reserve on one account. The pool
+  counts each account's room to its cap (design.md:957–961, :1349–1354; status `poolWindow`,
+  `PoolUsed`, outlook.go:361–389), so a reserve reads as used: 1 − 3.95 ÷ 4 = 1.25%, shown 1%, and
+  the pool runs 1.25 points over its accounts' mean at every level. To decide, if it's unwanted: the
+  pool's percentage as its accounts' mean use, its room to their caps kept in its words; or the
+  bar marked as counting reserves.
 
 ## Loading
 
