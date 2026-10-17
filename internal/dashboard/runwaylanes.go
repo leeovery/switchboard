@@ -187,10 +187,10 @@ func (ln laidLane) useWords(window string, now time.Time) usageWords {
 }
 
 // nowTo is the last row now's column is picked out on, as fitted: the pool's
-// words', or without a pool's lane, the last lane shown's words'.
+// lane's last, or without a pool's lane, the last lane shown's words'.
 func (r runwayFit) nowTo() int {
-	if r.draws(r.words) {
-		return r.words
+	if r.draws(r.pool) {
+		return r.pool + runwayPoolRows - 1
 	}
 	return r.lanes + (r.shown-1)*r.apart + 1
 }

@@ -258,12 +258,12 @@ func textAt(c *canvas, x, y, cells int) string {
 }
 
 // Now's column is picked out on bg.subtle from the axis's first row down to
-// the pool's words, under every cell without a surface of its own, where
+// the pool's lane's last row, under every cell without a surface of its own, where
 // the timeline has a now: on a day gone, nothing; nor where the look can't
 // blend, as it can't dim the past either; nor where nothing fits.
-func TestNowsColumnIsPickedOutDownToThePoolsWords(t *testing.T) {
+func TestNowsColumnIsPickedOutDownToThePoolsLane(t *testing.T) {
 	nord := Screen(builtin(t, "nord"))
-	fitted := runwayFit{fits: true, axis: 6, lanes: 10, apart: 3, shown: 3, words: 21}
+	fitted := runwayFit{fits: true, axis: 6, lanes: 10, apart: 3, shown: 3, pool: 19}
 	for _, tt := range []struct {
 		name  string
 		shown RunwayShown
@@ -289,7 +289,7 @@ func TestNowsColumnIsPickedOutDownToThePoolsWords(t *testing.T) {
 				switch {
 				case y == 15:
 					want = hue{token: theme.VizRamp1}
-				case tt.col >= 0 && y >= 6 && y <= 21:
+				case tt.col >= 0 && y >= 6 && y <= 20:
 					want = hue{token: theme.BgSubtle}
 				}
 				if got := c.at(x, y).ink.on; got != want {
@@ -346,17 +346,17 @@ func TestRunwaysLanesAreThoseTheFitShowsOnItsRows(t *testing.T) {
 	}
 }
 
-// Now's column runs down to the pool's words, or without a pool's lane, to
-// the last lane shown's words.
-func TestNowsColumnRunsDownToThePoolsWordsOrTheLastLanesShown(t *testing.T) {
+// Now's column runs down to the pool's lane's last row, or without a pool's
+// lane, to the last lane shown's words.
+func TestNowsColumnRunsDownToThePoolsLaneOrTheLastLanesShown(t *testing.T) {
 	tests := []struct {
 		name string
 		fit  runwayFit
 		want int
 	}{
-		{name: "the pool's words", fit: runwayFit{fits: true, lanes: 10, apart: 3, shown: 3, words: 21}, want: 21},
-		{name: "one account, no pool's lane", fit: runwayFit{fits: true, lanes: 10, apart: 3, shown: 1, words: noRow}, want: 11},
-		{name: "scrolled, the last lane shown's", fit: runwayFit{fits: true, lanes: 7, apart: 2, first: 3, shown: 4, words: noRow}, want: 14},
+		{name: "the pool's lane's last row", fit: runwayFit{fits: true, lanes: 10, apart: 3, shown: 3, pool: 19}, want: 20},
+		{name: "one account, no pool's lane", fit: runwayFit{fits: true, lanes: 10, apart: 3, shown: 1, pool: noRow}, want: 11},
+		{name: "scrolled, the last lane shown's", fit: runwayFit{fits: true, lanes: 7, apart: 2, first: 3, shown: 4, pool: noRow}, want: 14},
 	}
 	for _, tt := range tests {
 		if got := tt.fit.nowTo(); got != tt.want {

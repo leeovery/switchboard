@@ -2721,8 +2721,8 @@ rows run from row 7 (settled in the plan):
 
 ### Runway
 
-When each account has room, as a timeline: a lane per account, then the pool's lane under the pool's
-rule, over the window the view is named for. The frames are in the Paper file *Switchboard ·
+When each account has room, as a timeline: a lane per account, then the pool's lane, named `Σ pool`,
+over the window the view is named for. The frames are in the Paper file *Switchboard ·
 Sessions and Runway*, on the page **FINAL · Sessions and Runway · signed off · 8 Oct 2026**; the
 references are `testdata/vhs/reference/runway-*`: `runway-5-hour-160`, `runway-week-160`,
 `runway-stepped-back-160`, `runway-ten-accounts-160` and `runway-phone-52`. Columns and rows are at
@@ -2776,7 +2776,7 @@ kept for good (settled in the plan; see The request ledger).
   - An hour the clocks skip, going forward, is neither ticked nor labelled, and a day starts where
     the clocks put its midnight: where they went forward over it, at the hour they went forward to,
     and where they went back over it, at the first of its two.
-- **Now's column** is picked out in `bg.subtle`, from the axis's first row to the pool's words, on
+- **Now's column** is picked out in `bg.subtle`, from the axis's first row to the pool's lane's last, on
   every cell without a background of its own; a part-filled column's gradient takes it in place of
   the canvas.
 - **The past is dimmed:** every colour before now's column is `mix(canvas, colour, 0.45)`.
@@ -2827,9 +2827,9 @@ all day`, or `room all week`, in `text.subtle`, from the cell after now's column
 fit drop whole parts from the end, `, as its 5-hour resets` first. A stretch already over, or one
 that starts past the view, isn't said.
 
-**The pool's lane** sits under the lanes, under the pool's rule, one unbroken `─` in `border` across
-the whole row, as `usage` draws it: with three rows an account, the rule takes the last account's
-blank row; with two, it takes a row of its own.
+**The pool's lane** sits under the lanes, named and marked as an account's lane is, with no rule
+over it (the owner's call, 17 October 2026): with three rows an account, after the last account's
+blank row; with two, on the row after its words.
 
 - **Its columns,** two rows of them, a column for each of the lanes': how many of the pool's
   accounts have room, the column's height `with room ÷ accounts`, its full cells background and its
@@ -2839,32 +2839,20 @@ blank row; with two, it takes a row of its own.
   its pace has room until it does. A column where none has room is `─` in `state.destructive` along
   its lower row, as a lane at its limit draws it, the past dimmed alike; one where no account's
   state is known is blank.
-- **`Σ pool`** on its second row: `Σ` in `text.subtle` in the numbers' column, and `pool` in
-  `text.secondary`.
-- **Its room,** on the row under it, from column 2, the pool's room in the view's window, in
-  `usage`'s words for the pool: `5-hour ` or `week ` in `text.subtle`, `1.5` bold `text.secondary`,
-  and ` of 3 left` in `text.muted`.
-- **Its words,** on that row, two cells after the room at the least: a phrase for each dip, a
-  stretch where fewer than all the pool have room, in time order, each from its dip's first column,
-  or two cells after the phrase before.
-  - A phrase is the count, `8 of 10`, in `text.secondary`, then, in `text.muted`,
-    ` with room till 15:30` for a dip under way, ` with room ~16:05 – 16:55` for one ahead, or
-    ` with room 15:02 – 17:10` on a day stepped back to.
-  - Each change of the count within a dip chains on, each count in `text.secondary` as the first:
-    `8 of 10 with room till 15:30, 9 till ~16:05, 8 till 16:55, 9 till 17:10`.
-  - `~` marks a moment a run-out projects, a cap or a limit still ahead; a reset is known, so takes
-    none.
-  - A dip too close to the phrase before for a phrase of its own, starting less than two cells after
-    it, joins it with `and` where its count is the same: `2 of 3 with room 15:02 – 17:10 and 19:12 –
-    23:58`.
-  - Words that don't fit drop whole parts from the end, and a dip whose first stretch doesn't fit
-    isn't said. In the live views, a dip already over isn't said.
+- **`Σ pool`** on its first row, as an account's name heads its lane: `Σ` in `text.subtle` in the
+  numbers' column, and `pool` in `text.secondary`.
+- **Its room,** on its second row, from column 2, as an account's use is under its name: the pool's
+  room in the view's window, in `usage`'s words for the pool: `5-hour ` or `week ` in
+  `text.subtle`, `1.5` bold `text.secondary`, and ` of 3 left` in `text.muted`; whole parts left
+  off its end that don't fit before the lanes' column, as ` · pinned` doesn't at 160 columns. No
+  words follow it: the pool's columns say when fewer than all of it have room (the owner's call,
+  17 October 2026).
 - **The pool's accounts** are every account on auto, and the pin's while one holds: its room is then
   `of 2`, the room's words add ` · pinned`, as `usage`'s pool row does, and an account out of the
   pool has its lane, label and use faded as Sessions fades its line (see Sessions), the words under
   its lane not (settled in the plan).
 
-**The legend,** on the row after the pool's words and a blank row, from column 0, keys only what the
+**The legend,** on the row after the pool's lane and a blank row, from column 0, keys only what the
 view draws, four spaces apart: `█` and ` room`; `█` in `accent.attention` and
 ` room, but it runs out at its pace`; `─` in `accent.attention` and ` at its cap`; `─` in
 `state.destructive` and ` at its limit`; and `│` and ` its 5-hour resets`, or ` its week resets`;
@@ -2903,8 +2891,7 @@ minutes a column.
 - Each lane is as the day had it, with `│` wherever its window reset that day, and the words of its
   stretches from column 24 at the least: `room all day` from column 24.
 - Under each name, the day's highest use of the view's window, `5-hour 100%`, as the legend says.
-- The pool's lane counts the pool as it is now, and its words take the past form:
-  `2 of 3 with room 15:02 – 17:10 and 19:12 – 23:58`.
+- The pool's lane counts the pool as it is now.
 - The key line is the live view's.
 - **Today, from its midnight,** the first step back, is drawn as a day stepped back to, but with
   now's column picked out, what's past dimmed, and the room line kept; still with no COMING UP.
@@ -2918,16 +2905,17 @@ key line never go. For N accounts and K lines of COMING UP, on a terminal h rows
 
 | Step | What changes | Holds if | At 160 by 37 |
 |---|---|---|---|
-| — | Three rows an account, its lane, its words and a blank row; blank rows under the axis and round the legend and COMING UP | 3N + K ≤ h − 19 | 4 accounts |
-| (a) | Two rows an account; the pool's rule on a row of its own (settled in the plan) | 2N + K ≤ h − 20 | 5 |
-| (b) | No blank rows round the legend and COMING UP (settled in the plan) | 2N + K ≤ h − 18 | 6 |
-| (c) | COMING UP folded to its heading (settled in the plan) | 2N ≤ h − 18 | 9 |
-| (d) | No blank row between the axis and the lanes | 2N ≤ h − 17 | 10 |
-| (e) | The lanes scroll (settled in the plan) | | 11 and up |
+| — | Three rows an account, its lane, its words and a blank row; blank rows under the axis and round the legend and COMING UP | 3N + K ≤ h − 18 | 4 accounts |
+| (a) | Two rows an account (settled in the plan) | 2N + K ≤ h − 18 | 6 |
+| (b) | No blank rows round the legend and COMING UP (settled in the plan) | 2N + K ≤ h − 16 | 6 |
+| (c) | COMING UP folded to its heading (settled in the plan) | 2N ≤ h − 16 | 10 |
+| (d) | No blank row between the axis and the lanes | 2N ≤ h − 15 | 11 |
+| (e) | The lanes scroll (settled in the plan) | | 12 and up |
 
 The counts at 160 by 37 hold with a line of COMING UP an account, or one more. Ten accounts take
-(d): the lanes on rows 9 to 28, the rule on 29, the pool's lane on 30 and 31, its words on 32, the
-legend on 33, and COMING UP, folded, on 34.
+(c): the lanes on rows 10 to 29, the pool's lane on 30 and 31, its room on 31, the legend on 32,
+and COMING UP, folded, on 33. With a pool's lane, (e) shows a lane from 17 rows; with one account,
+from 15.
 
 - **COMING UP folded,** as the Overview folds a section, keeps its heading, saying what it holds, on
   the row under the legend: `COMING UP` in `text.subtle`, three spaces, the soonest's time in
@@ -2936,7 +2924,7 @@ legend on 33, and COMING UP, folded, on 34.
 - **At (e),** the lanes scroll as Accounts' do (see Accounts): the axis and the pool's foot hold,
   and the row over the key line says what's out of view, right-aligned: `▼ 1 more account`.
 
-**One account:** its lane alone, with no pool's lane, rule, `Σ pool` or room line, as they'd only
+**One account:** its lane alone, with no pool's lane, `Σ pool` or room line, as they'd only
 repeat the account (settled in the plan).
 
 **Under 100 columns,** in The page's phone frame (settled in the plan):
@@ -2946,8 +2934,8 @@ repeat the account (settled in the plan).
   minutes a column, ticked every 2 hours and labelled every 6, `18:00`, `Fri`, `06:00`, by the rule
   above;
 - the words are cut by the rule above, as `at its cap 14:31  ·  back 17:10`;
-- the pool's lane, then its words, with its room on the row under them, from column 2, as the label
-  column is too narrow;
+- the pool's lane, `Σ pool` on its first row, and its room on a row of its own under it, from
+  column 2, whole, as the label column is too narrow for it beside the lane;
 - the legend on two lines, the keyed glyphs, then `a column ≈ 36 minutes · the past dimmed`;
 - COMING UP, the full width, after a blank row;
 - the heading keeps its rule and the window at the right.
@@ -2963,7 +2951,7 @@ repeat the account (settled in the plan).
 `<` and `>` step between the 5-hour and the week views; `←` steps back and `→` forward; `j`, `k`,
 PgUp, PgDn and the wheel scroll the lanes at (e); `p`, `R`, `t`, `?` and `q` are as on every page
 (see Keys). `?` help (see The page), `HELP · RUNWAY`, lists the page's keys first, `t`, `R` and
-`j`/`k` among them; then it explains the lanes' marks and colours, the pool's lane and its words,
+`j`/`k` among them; then it explains the lanes' marks and colours, the pool's lane and its room,
 stepping back and how far it reaches, the minutes a column, and COMING UP.
 
 **Other states.**

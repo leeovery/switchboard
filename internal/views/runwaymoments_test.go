@@ -56,7 +56,6 @@ func runwayFigures(l views.Lanes, from views.LanesFrom) map[string]viewstest.Fig
 		viewstest.FigureNow:    nowColumn(from.Timeline),
 		viewstest.FigureOf:     strconv.Itoa(l.Pool.Of),
 		viewstest.FigurePool:   poolRuns(l.Pool),
-		viewstest.FigureDips:   dipsSaid(l.Pool.Dips, now),
 		viewstest.FigureDrawn:  drawnSaid(l.Drawn),
 		viewstest.FigureComing: comingSaid(views.RunwayComing(from.Moment, from.Window), now),
 	}}
@@ -180,25 +179,6 @@ func useSaid(u views.Use, now time.Time) string {
 		return "not read yet"
 	}
 	return "—"
-}
-
-// dipsSaid are the dips as the figures write them.
-func dipsSaid(dips []views.Dip, now time.Time) string {
-	said := make([]string, len(dips))
-	for i, d := range dips {
-		steps := make([]string, len(d.Steps))
-		for j, s := range d.Steps {
-			steps[j] = fmt.Sprintf("%d %s – %s", s.With, edgeSaid(s.From.At, s.From.Projected, now), edgeSaid(s.Until.At, s.Until.Projected, now))
-		}
-		said[i] = strings.Join(steps, ", ") + " @" + strconv.Itoa(d.Column) + " " + columnsSaid(d.First, d.Last)
-		switch {
-		case d.Over:
-			said[i] += ", over"
-		case d.Ahead:
-			said[i] += ", ahead"
-		}
-	}
-	return strings.Join(said, "; ")
 }
 
 // drawnSaid is what the lanes draw, as the figures write it.

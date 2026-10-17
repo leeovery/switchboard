@@ -49,10 +49,10 @@ type RunwayMoment struct {
 // tests read it off, its times as "15:04", with ":05" where the seconds
 // aren't none, a day other than Now's led by its weekday, as "Sun 21:00",
 // and "—" where a time is zero. Of the view: now's column, "none" where the
-// timeline has no now; the pool's count of accounts, its columns' counts with
-// room, and its dips; what the lanes draw, as the legend keys it, and
-// COMING UP. Of a lane: its cells, its stretches without room, its resets, its
-// room and its use.
+// timeline has no now; the pool's count of accounts and its columns' counts
+// with room; what the lanes draw, as the legend keys it; and COMING UP. Of a
+// lane: its cells, its stretches without room, its resets, its room and its
+// use.
 //
 //   - cells and the pool's columns are runs of like columns, ", " between,
 //     each as "room 0-29", or "room 7" for one: a lane's by its cell, "blank",
@@ -68,9 +68,6 @@ type RunwayMoment struct {
 //   - use is its window's key and its share, as "5h 34%", "stale, read 14:20"
 //     after where it's stale; "5h highest 62%" stepped back, "5h highest —"
 //     where none was read; else "not read yet", "no token" or "—".
-//   - dips are "; " between, each its steps, ", " between, each its count
-//     and edges, "~" before one projected, as "2 14:31:03 – 17:10", then "@"
-//     its column and its columns, then ", over" or ", ahead".
 //   - drawn are the cells, ", " between, then "│" where any lane marks a
 //     reset.
 //   - coming is "; " between, each its time, account and kind, then its
@@ -79,7 +76,6 @@ const (
 	FigureNow       = "now"
 	FigureOf        = "of"
 	FigurePool      = "pool"
-	FigureDips      = "dips"
 	FigureDrawn     = "drawn"
 	FigureComing    = "coming"
 	FigureCells     = "cells"
@@ -223,7 +219,7 @@ func weekResetBeforeRunwayRereads() []RunwayMoment {
 			Name: "the v0.1.6 case, the week view at 22:50", Doc: at(onThu(22, 50, 0)), Now: onThu(22, 50, 0), Readings: read,
 			Window: views.RunwayWeek, Columns: lanes,
 			Want: map[string]Figures{
-				"": {FigureNow: "19", FigureOf: "2", FigurePool: "1 0-17, 2 18-135", FigureDips: "1 Wed 10:00 – 21:00 @0 0-17, over"},
+				"": {FigureNow: "19", FigureOf: "2", FigurePool: "1 0-17, 2 18-135"},
 				work: {
 					FigureCells: "limited 0-17, room 18-135", FigureStretches: "limited Wed 10:00 – 21:00, as it resets @0 0-17, over",
 					FigureResets: "", FigureRoom: "yes", FigureUse: "7d 0%",
@@ -246,8 +242,8 @@ func weekResetBeforeRunwayRereads() []RunwayMoment {
 // justAfterAFiveHourReset has work's 5-hour, read at its limit at 16:50,
 // reset at 17:10, the router not yet reading it again: at 17:09:59, held till
 // 17:10, its │ there; at 17:10:01, room from now's column, its use none, the
-// │ gone, its stretch over, the pool's dip over, and COMING UP without its
-// back, all on the one second.
+// │ gone, its stretch over, the pool all with room again, and COMING UP
+// without its back, all on the one second.
 func justAfterAFiveHourReset() []RunwayMoment {
 	reset := onThu(17, 10, 0)
 	workAt := readAccount(work, onThu(16, 50, 0), spent(fiveHour, 1, reset), window(week, 0.5, mondayTen.Add(11*time.Hour)))
@@ -263,7 +259,7 @@ func justAfterAFiveHourReset() []RunwayMoment {
 			Name: "just before a 5-hour reset", Doc: doc, Now: onThu(17, 9, 59), Readings: read, Columns: lanes,
 			Want: map[string]Figures{
 				"": {
-					FigureNow: "6", FigurePool: "2 0-4, 1 5-6, 2 7-135", FigureDips: "1 16:50 – 17:10 @5 5-6",
+					FigureNow: "6", FigurePool: "2 0-4, 1 5-6, 2 7-135",
 					FigureComing: "17:10 work back; 19:00 side reset 5h",
 				},
 				work: {
@@ -277,7 +273,7 @@ func justAfterAFiveHourReset() []RunwayMoment {
 			Days: []ledger.Summary{{Version: 2, Day: "2026-10-01", Accounts: []ledger.AccountDay{{Account: work, Resets: []ledger.Reset{{Window: fiveHour, At: reset, Before: 1}}}}}},
 			Want: map[string]Figures{
 				"": {
-					FigureNow: "6", FigurePool: "2 0-3, 1 4-5, 2 6-135", FigureDips: "1 16:50 – 17:10 @4 4-5, over",
+					FigureNow: "6", FigurePool: "2 0-3, 1 4-5, 2 6-135",
 					FigureComing: "19:00 side reset 5h",
 				},
 				work: {
@@ -303,7 +299,7 @@ func failedReads() []RunwayMoment {
 	sideAt := sideOn(onThu(14, 41, 0))
 	return []RunwayMoment{
 		fiveHourAt("its first read failed", routed(onThu(14, 41, 0), nil, unread, sideAt), sideRead(), map[string]Figures{
-			"":   {FigurePool: "1 0-135", FigureDips: "1 — – — @0 0-135"},
+			"":   {FigurePool: "1 0-135"},
 			work: {FigureCells: "blank 0-135", FigureStretches: "", FigureResets: "", FigureRoom: "no", FigureUse: "not read yet"},
 		}),
 		fiveHourAt("a failed read after an earlier one", routed(onThu(14, 41, 0), nil, stale, sideAt), sorted(
@@ -311,7 +307,7 @@ func failedReads() []RunwayMoment {
 			readEach(work, onThu(14, 20, 0), stale.Windows...),
 			sideRead(),
 		), map[string]Figures{
-			"":   {FigurePool: "2 0-135", FigureDips: ""},
+			"":   {FigurePool: "2 0-135"},
 			work: {FigureCells: "room 0-135", FigureResets: "17 16:30", FigureRoom: "yes", FigureUse: "5h 40% stale, read 14:20"},
 		}),
 		fiveHourAt("a window its account hasn't reported", routed(onThu(14, 41, 0), nil, weekOnly, sideAt), sorted(
@@ -345,20 +341,18 @@ func refusals() []RunwayMoment {
 	familyEvent := status.Event{At: refusedAt, Kind: status.EventRefused, Account: work, Until: refusal.Until, Status: 404, Family: "opus"}
 	sideAt := sideOn(onThu(14, 41, 0))
 	liftedToday := fiveHourAt("its token's refusal lifted early, today stepped back to", routed(onThu(14, 41, 0), []status.Event{lifted}, workAt(status.Refusal{}), sideAt), read, map[string]Figures{
-		"":   {FigureDips: "1 14:12 – 14:30 @80 80-81"},
 		work: {FigureCells: "blank 0-73, room 74-79, refused 80-81, room 82-135", FigureStretches: "refused 14:12 – 14:30 @80 80-81"},
 	})
 	liftedToday.Day = civilDay(2026, time.October, 1)
 	return []RunwayMoment{
 		fiveHourAt("its token refused", routed(onThu(14, 41, 0), []status.Event{refused}, workAt(refusal), sideAt), read, map[string]Figures{
-			"": {FigurePool: "2 0-2, 1 3-7, 2 8-135", FigureDips: "1 14:12 – 15:00 @3 3-7", FigureDrawn: "room, refused, │"},
+			"": {FigurePool: "2 0-2, 1 3-7, 2 8-135", FigureDrawn: "room, refused, │"},
 			work: {
 				FigureCells: "room 0-2, refused 3-7, room 8-135", FigureStretches: "refused 14:12 – 15:00 @3 3-7",
 				FigureRoom: "no", FigureUse: "5h 30% stale, read 14:12",
 			},
 		}),
 		fiveHourAt("its token's refusal lifted early", routed(onThu(14, 41, 0), []status.Event{lifted}, workAt(status.Refusal{}), sideAt), read, map[string]Figures{
-			"": {FigureDips: "1 14:12 – 14:30 @3 3-4, over"},
 			work: {
 				FigureCells: "room 0-2, refused 3-4, room 5-135", FigureStretches: "refused 14:12 – 14:30 @3 3-4, over",
 				FigureRoom: "yes", FigureUse: "5h 30%",
@@ -366,7 +360,7 @@ func refusals() []RunwayMoment {
 		}),
 		liftedToday,
 		fiveHourAt("its Opus requests refused alone", routed(onThu(14, 41, 0), []status.Event{familyEvent}, workAt(family), sideAt), read, map[string]Figures{
-			"":   {FigureDips: "", FigureDrawn: "room, │"},
+			"":   {FigureDrawn: "room, │"},
 			work: {FigureCells: "room 0-135", FigureStretches: "", FigureRoom: "yes"},
 		}),
 	}
@@ -400,7 +394,6 @@ func holdsNoEventTells() []RunwayMoment {
 		readEach(work, onThu(14, 41, 0), probed.Windows...),
 		sideRead(),
 	), map[string]Figures{
-		"":   {FigureDips: "1 — – 15:30 @6 6-10"},
 		work: {FigureCells: "room 0-5, limited 6-10, room 11-135", FigureStretches: "limited — – 15:30, as it resets @6 6-10"},
 	})
 	firstSeen.Seen = onThu(14, 41, 0)
@@ -422,14 +415,12 @@ func holdsNoEventTells() []RunwayMoment {
 			readEach(team.ID, onThu(13, 58, 0), spent(fiveHour, 1, back)),
 			sideRead(),
 		), map[string]Figures{
-			"":      {FigureDips: "1 13:58 – 15:30 @1 2-10"},
 			team.ID: {FigureCells: "room 0-1, limited 2-10, room 11-135", FigureStretches: "limited 13:58 – 15:30, as it resets @1 2-10"},
 		}),
 		fiveHourAt("a hold neither an event nor a reading tells the start of", routed(onThu(14, 41, 0), nil, unnamed, sideOn(onThu(14, 41, 0))), sorted(
 			readEach(work, onThu(13, 0, 0), unnamed.Windows...),
 			sideRead(),
 		), map[string]Figures{
-			"":   {FigureDips: "1 — – 15:30 @0 0-10"},
 			work: {FigureCells: "limited 0-10, room 11-135", FigureStretches: "limited — – 15:30 @0 0-10"},
 		}),
 		{
@@ -485,11 +476,9 @@ func holdsEventsTell() []RunwayMoment {
 			readEach(work, onThu(14, 41, 0), capped.Windows...),
 			sideRead(),
 		), map[string]Figures{
-			"":   {FigureDips: "1 — – — @74 74-76; 1 14:31:03 – 17:10 @82 82-96"},
 			work: {FigureStretches: "capped 14:31:03 – 17:10, as it resets @82 82-96"},
 		}),
 		lifted("a limit its event tells the start of, read later, today stepped back to once it's lifted", onThu(15, 59, 0), []status.Event{limitEvent}, spentRead, map[string]Figures{
-			"":   {FigureDips: "1 — – — @74 74-76; 1 14:03:30 – 15:30 @79 80-87"},
 			work: {FigureStretches: "limited 14:03:30 – 15:30, as it resets @79 80-87"},
 		}),
 		fiveHourAt("a cap its event tells the start of, read later", routed(onThu(14, 41, 0), []status.Event{capEvent}, capped, sideOn(onThu(14, 41, 0))), sorted(
@@ -498,7 +487,6 @@ func holdsEventsTell() []RunwayMoment {
 			readEach(work, onThu(14, 41, 0), capped.Windows...),
 			sideRead(),
 		), map[string]Figures{
-			"":   {FigureDips: "1 14:31:03 – 17:10 @5 5-20"},
 			work: {FigureCells: "room 0-4, capped 5-20, room 21-135", FigureStretches: "capped 14:31:03 – 17:10, as it resets @5 5-20"},
 		}),
 		fiveHourAt("a cap its event tells the start of, the readings history holding none of it", routed(onThu(14, 41, 0), []status.Event{capEvent}, capped, sideOn(onThu(14, 41, 0))), sideRead(), map[string]Figures{
@@ -685,7 +673,7 @@ func holdsOutlasted() []RunwayMoment {
 	return []RunwayMoment{
 		limitOver,
 		fiveHourAt("a cap outlasting a limit", routed(onThu(14, 41, 0), nil, limited, sideOn(onThu(14, 41, 0))), limitedRead, map[string]Figures{
-			"": {FigurePool: "2 0-1, 1 2-135", FigureDips: "1 14:00 – Mon 21:00 @2 2-135"},
+			"": {FigurePool: "2 0-1, 1 2-135"},
 			work: {
 				FigureCells:     "room 0-1, limited 2-10, capped 11-135",
 				FigureStretches: "limited 14:00 – Mon 21:00, lifts 15:30, as it resets @2 2-10; capped 14:00 – Mon 21:00 @2 11-135",
@@ -696,7 +684,7 @@ func holdsOutlasted() []RunwayMoment {
 			readEach(work, onThu(14, 0, 0), refused.Windows...),
 			sideRead(),
 		), map[string]Figures{
-			"": {FigurePool: "1 0-135", FigureDips: "1 — – Mon 21:00 @0 0-135"},
+			"": {FigurePool: "1 0-135"},
 			work: {
 				FigureCells:     "refused 0-6, capped 7-135",
 				FigureStretches: "refused — – Mon 21:00, lifts 14:52 @0 0-6; capped 14:00 – Mon 21:00 @2 7-135",
@@ -749,7 +737,6 @@ func holdsCarriedIn() []RunwayMoment {
 		limitedDay("2026-09-26", ledger.Limit{Window: week, At: saturday, ResetsAt: mondayTen}), limitedDay("2026-09-27"), limitedDay("2026-09-28"),
 	}
 	sinceSaturday := map[string]Figures{
-		"":   {FigureDips: "1 Sat 15:00 – Mon 10:00 @0 0-135"},
 		work: {FigureCells: "limited 0-135", FigureStretches: "limited Sat 15:00 – Mon 10:00 @0 0-135"},
 	}
 	weekView := fiveHourAt("a week at its limit since before the live tail, read every half hour, the week view", doc, halfHourly, map[string]Figures{
@@ -801,7 +788,7 @@ func routerSilent() []RunwayMoment {
 		{
 			Name: "the router not answering for 10 minutes", Doc: doc, Now: built.Add(10 * time.Minute), Readings: read, Columns: lanes,
 			Want: map[string]Figures{
-				"":   {FigureNow: "6", FigureDips: "1 ~15:04:15 – 16:30 @8 8-16, ahead"},
+				"":   {FigureNow: "6"},
 				side: {FigureCells: "room 0-5, runs out 6-7, limited 8-16, room 17-135", FigureStretches: "limited ~15:04:15 – 16:30, as it resets @8 8-16"},
 			},
 		},
@@ -821,7 +808,7 @@ func pools() []RunwayMoment {
 	return []RunwayMoment{
 		fiveHourAt("the global pin naming one account, a pool of one",
 			pinned(routed(onThu(14, 41, 0), nil, workOpen, sideOn(onThu(14, 41, 0))), onThu(14, 0, 0), side), open,
-			map[string]Figures{"": {FigureOf: "1", FigurePool: "1 0-135", FigureDips: ""}}),
+			map[string]Figures{"": {FigureOf: "1", FigurePool: "1 0-135"}}),
 		fiveHourAt("the global pin naming an account at its limit",
 			pinned(routed(onThu(14, 41, 0), []status.Event{limitedEvent}, limited, sideOn(onThu(14, 41, 0))), onThu(14, 30, 0), work), sorted(
 				readEach(work, onThu(13, 0, 0), window(fiveHour, 0.7, back), window(week, 0.4, mondayTen)),
@@ -829,11 +816,11 @@ func pools() []RunwayMoment {
 				sideRead(),
 			),
 			map[string]Figures{
-				"":   {FigureOf: "1", FigurePool: "1 0-3, 0 4-7, 1 8-135", FigureDips: "0 14:20 – 15:05 @4 4-7"},
+				"":   {FigureOf: "1", FigurePool: "1 0-3, 0 4-7, 1 8-135"},
 				work: {FigureCells: "room 0-3, limited 4-7, room 8-135", FigureStretches: "limited 14:20 – 15:05, as it resets @4 4-7"},
 			}),
 		fiveHourAt("one account", routed(onThu(14, 41, 0), nil, workOpen), readEach(work, onThu(13, 0, 0), workOpen.Windows...),
-			map[string]Figures{"": {FigureOf: "0", FigurePool: "", FigureDips: ""}}),
+			map[string]Figures{"": {FigureOf: "0", FigurePool: ""}}),
 	}
 }
 
@@ -881,7 +868,7 @@ func steppedBack() []RunwayMoment {
 			Name: "stepped back to a day with nothing read", Doc: doc, Now: thursday, Readings: fromWednesday,
 			Days: []ledger.Summary{{Version: 2, Day: "2026-09-29"}}, Day: civilDay(2026, time.September, 29), Columns: lanes,
 			Want: map[string]Figures{
-				"":   {FigureNow: "none", FigurePool: "blank 0-135", FigureDips: "", FigureDrawn: ""},
+				"":   {FigureNow: "none", FigurePool: "blank 0-135", FigureDrawn: ""},
 				work: {FigureCells: "blank 0-135", FigureStretches: "", FigureResets: "", FigureRoom: "no", FigureUse: "5h highest —"},
 			},
 		},
@@ -1011,7 +998,7 @@ func restartedByHand() RunwayMoment {
 // capTurningToALimit is Wednesday stepped back to: work, its reserve 5%,
 // reaching its cap at 14:58 and its limit at 15:02, till 17:10. No column's
 // moment falls in its cap, which is neither drawn nor said, nor counted in
-// the pool's dip.
+// the pool's columns.
 func capTurningToALimit() RunwayMoment {
 	reset := onWed(17, 10, 0)
 	workAt := reserving(readAccount(work, onThu(14, 41, 0), window(fiveHour, 0.6, onThu(17, 10, 0)), window(week, 0.34, mondayTen)), 0.05)
@@ -1034,7 +1021,7 @@ func capTurningToALimit() RunwayMoment {
 		}}},
 		Day: civilDay(2026, time.September, 30), Columns: lanes,
 		Want: map[string]Figures{
-			"": {FigurePool: "2 0-84, 1 85-96, 2 97-135", FigureDips: "1 Wed 15:02 – Wed 17:10 @85 85-96", FigureDrawn: "room, limited, │"},
+			"": {FigurePool: "2 0-84, 1 85-96, 2 97-135", FigureDrawn: "room, limited, │"},
 			work: {
 				FigureCells: "room 0-84, limited 85-96, room 97-135", FigureStretches: "limited Wed 15:02 – Wed 17:10, as it resets @85 85-96",
 				FigureResets: "17 Wed 03:00, 97 Wed 17:10 back", FigureUse: "5h highest 100%",
@@ -1147,7 +1134,7 @@ func runOutReachingTheCap() RunwayMoment {
 		readEach(work, onThu(14, 41, 0), workAt.Windows...),
 		sideRead(),
 	), map[string]Figures{
-		"": {FigureDips: "1 ~15:16:49 – 16:30 @9 10-16, ahead", FigureDrawn: "room, runs out, capped, │"},
+		"": {FigureDrawn: "room, runs out, capped, │"},
 		work: {
 			FigureCells: "room 0-5, runs out 6-9, capped 10-16, room 17-135", FigureStretches: "capped ~15:16:49 – 16:30, as it resets @9 10-16",
 			FigureResets: "17 16:30 back", FigureRoom: "no",
@@ -1167,7 +1154,7 @@ func modelsOwnLimit() RunwayMoment {
 		readEach(work, onThu(14, 41, 0), workAt.Windows...),
 		sideRead(),
 	), map[string]Figures{
-		"":   {FigurePool: "2 0-135", FigureDips: "", FigureDrawn: "room, │", FigureComing: "16:30 work reset 5h; 16:50 side reset 5h"},
+		"":   {FigurePool: "2 0-135", FigureDrawn: "room, │", FigureComing: "16:30 work reset 5h; 16:50 side reset 5h"},
 		work: {FigureCells: "room 0-135", FigureStretches: "", FigureRoom: "yes"},
 	})
 }
@@ -1186,7 +1173,7 @@ func framesMoments() []RunwayMoment {
 			Name: "the auto world's 5-hour view", Doc: auto.doc(), Now: thursday, Readings: auto.read, Columns: lanes,
 			Want: map[string]Figures{
 				"": {
-					FigureOf: "3", FigurePool: "3 0-4, 2 5-20, 3 21-135", FigureDips: "2 14:31:03 – 17:10 @5 5-20", FigureDrawn: "room, capped, │",
+					FigureOf: "3", FigurePool: "3 0-4, 2 5-20, 3 21-135", FigureDrawn: "room, capped, │",
 					FigureComing: "16:30 personal reset 5h; 17:10 work back cap; 18:50 side reset 5h",
 				},
 				work: {
@@ -1219,7 +1206,6 @@ func framesMoments() []RunwayMoment {
 			Want: map[string]Figures{
 				"": {
 					FigureNow: "none", FigurePool: "3 0-84, 2 85-96, 3 97-108, 2 109-135",
-					FigureDips: "2 Wed 15:02 – Wed 17:10 @85 85-96; 2 Wed 19:12:40 – Wed 23:58 @108 109-135",
 				},
 				work:     {FigureCells: "room 0-84, limited 85-96, room 97-135", FigureStretches: "limited Wed 15:02 – Wed 17:10, as it resets @85 85-96", FigureUse: "5h highest 100%"},
 				personal: {FigureCells: "room 0-108, limited 109-135", FigureStretches: "limited Wed 19:12:40 – Wed 23:58, as it resets @108 109-135", FigureUse: "5h highest 100%"},
@@ -1231,7 +1217,6 @@ func framesMoments() []RunwayMoment {
 			Want: map[string]Figures{
 				"": {
 					FigureOf: "10", FigurePool: "10 0-1, 9 2-4, 8 5-10, 9 11-13, 8 14-18, 9 19-20, 10 21-135",
-					FigureDips: "9 13:58 – 14:31:03, 8 14:31:03 – 15:30, 9 15:30 – ~16:04, 8 ~16:04 – 16:55, 9 16:55 – 17:10 @1 2-20",
 				},
 				"team": {FigureCells: "room 0-1, limited 2-10, room 11-135", FigureStretches: "limited 13:58 – 15:30, as it resets @1 2-10"},
 				"lab":  {FigureCells: "room 0-5, runs out 6-13, limited 14-18, room 19-135", FigureStretches: "limited ~16:04 – 16:55, as it resets @14 14-18"},

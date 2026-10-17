@@ -38,6 +38,10 @@ type passing struct {
 	// cells are held to the frame as though it drew is for was, their
 	// colours and weight as it has them, rather than passed over.
 	was, is rune
+	// drawnOn, where it's given, is the row the design has since drawn the
+	// span's cells on, other than the frame's: they're held to the frame as
+	// what's drawn on that row reads, rather than passed over.
+	drawnOn int
 }
 
 // holds reports whether text, what the frame reads over the passing's span,
@@ -735,14 +739,42 @@ func partFilled(n, c int) passing {
 	return drawnIn(n, c, c, eighths)
 }
 
+// cellsDrawnOn holds row n's cells from and to, which read as given, to
+// what's drawn on row m, where the design has since drawn them.
+func cellsDrawnOn(n, from, to, m int, reads string) passing {
+	return passing{row: n, from: from, to: to, reads: reads, drawnOn: m}
+}
+
+// rowsDrawnOn holds the rows from first, which read as given, a row each, ""
+// where the frame's is blank, to what's drawn by rows on from each, or
+// before it where by is less than none, where the design has since drawn
+// them.
+func rowsDrawnOn(first, by int, reads ...string) []passing {
+	p := make([]passing, len(reads))
+	for i, r := range reads {
+		p[i] = passing{row: first + i, reads: r, drawnOn: first + i + by}
+	}
+	return p
+}
+
+// poolsLane is Runway's pool's lane as the design has drawn it since the
+// frames were signed off, Σ pool a row up, on the lane's first row, and no
+// rule over it (the owner's call, 17 October 2026): it passes over the
+// frame's rule, on row rule, and the blank label column, labels cells wide,
+// on the lane's first row; and holds the frame's Σ pool, on the lane's
+// second row, to what's drawn a row up.
+func poolsLane(rule, labels int) []passing {
+	return []passing{wholeRow(rule, "─"), blankCells(rule+1, 1, labels), cellsDrawnOn(rule+2, 1, labels, rule+1, "Σ pool")}
+}
+
 // Runway's week view, where its frame and the design part, or the frame and
 // its world: weeksTicks, Fri on row 8 and the ┬ and ╵ under it on row 9,
 // which the frame ticks a cell on from the design's columns, 74.1 minutes
 // each from Wed 14:40; and sidesWeekOnRunway, side's week, which the frame
 // has with room till it resets at Mon 10:00, where its world has it run out
 // ~Fri 12:20 at its pace, as usage says: its lane, row 17, and its words,
-// row 18; the pool's columns, its dip and its words, rows 20 to 22; and
-// COMING UP from its fourth line, a line early, rows 30 to 34.
+// row 18; the pool's columns and its dip, rows 20 and 21; and COMING UP from
+// its fourth line, a line early, rows 30 to 34.
 var (
 	weeksTicks = []passing{
 		cellsOf(8, 51, 54, "Fri"), cellsOf(9, 51, 52, "─┬"), cellsOf(9, 85, 86, "─╵"), cellsOf(9, 119, 120, "─╵"),
@@ -751,9 +783,44 @@ var (
 	sidesWeekOnRunway = slices.Concat(
 		[]passing{
 			drawnIn(17, 44, 117, "▆"), cellsOf(18, 61, 130, "resets Mon 10:00"),
-			drawnIn(20, 62, 117, eighths), blankCells(21, 76, 91), cellsOf(22, 73, 148, "2 of 3 with room ~Sat 06:00"),
+			drawnIn(20, 62, 117, eighths), blankCells(21, 76, 91),
 		},
 		comingLines(30, 72, "~Sat 06:00", "Sun 02:00", "Sun 21:00", "Mon 10:00", ""),
+	)
+)
+
+// Runway's pool's room and all under it, as the design has drawn them a row
+// up since the frames were signed off, the pool's words gone from the row
+// the room shared with them (the owner's call, 17 October 2026): each
+// frame's room, from its label's cells, and its words, from the lanes'
+// column, passed over, which start as given; and each row under them to the
+// last that draws anything, which read as given, held to what's drawn a row
+// up. The ten's lanes, and their words, are drawn a row down, as they now
+// fit at (c), with a blank row under the axis.
+var (
+	fiveHoursFoot = slices.Concat(
+		poolsLane(19, 24), []passing{cellsDrawnOn(22, 1, 24, 21, "5-hour 1.5"), cellsOf(22, 25, 160, "2 of 3 with room")},
+		rowsDrawnOn(23, -1, "", "▆ room", "", "COMING UP", "16:30", "17:10", "18:50"),
+	)
+	weeksFoot = slices.Concat(
+		poolsLane(19, 24), []passing{cellsDrawnOn(22, 1, 24, 21, "week 1.2"), cellsOf(22, 25, 160, "2 of 3 with room")},
+		rowsDrawnOn(23, -1, "", "▆ room", "", "COMING UP", "16:30", "17:10", "18:50", "~Sat 06:00", "Sun 02:00", "Sun 21:00", "Mon 10:00", ""),
+	)
+	steppedBacksFoot = slices.Concat(
+		poolsLane(19, 24), []passing{cellsDrawnOn(22, 1, 24, 21, ""), cellsOf(22, 25, 160, "2 of 3 with room")},
+		rowsDrawnOn(23, -1, "", "▆ room"),
+	)
+	tensLanesAndFoot = slices.Concat(
+		rowsDrawnOn(10, 1,
+			"1 work", "5-hour 95%", "2 personal", "5-hour 39%", "3 side", "5-hour 13%", "4 client", "5-hour 52%", "5 spare", "5-hour 4%",
+			"6 lab", "5-hour 71%", "7 team", "5-hour 100%", "8 extra", "5-hour 22%", "9 ops", "5-hour 6%", "10 studio", "5-hour 33%",
+		),
+		poolsLane(30, 24), []passing{cellsDrawnOn(33, 1, 24, 32, "5-hour 5.6"), cellsOf(33, 25, 160, "8 of 10 with room")},
+		rowsDrawnOn(34, -1, "▆ room", "COMING UP"),
+	)
+	phonesFoot = slices.Concat(
+		poolsLane(20, 14), []passing{cellsDrawnOn(23, 1, 14, 22, ""), cellsOf(23, 15, 52, "2 of 3 with room")},
+		rowsDrawnOn(24, -1, "5-hour 1.5 of 3 left", "▆ room", "a column", "", "COMING UP", "16:30", "17:10", "18:50"),
 	)
 )
 
@@ -1133,11 +1200,11 @@ var passedOver = map[string][]passing{
 		cellsOf(7, 94, 96, "▲"), cellsOf(16, 110, 144, "▲ new sessions go here"),
 		wholeRow(37, "tab views   [ ] view    ↑↓ session  enter its page    p pin"),
 	},
-	"runway-5-hour-160":       slices.Concat(roomOf(11, 14, 17, 24), []passing{partFilled(20, 31)}),
-	"runway-week-160":         slices.Concat(roomOf(11, 14, 17, 24), weeksTicks, sidesWeekOnRunway, []passing{partFilled(20, 44)}),
-	"runway-stepped-back-160": roomOf(11, 14, 17, 24),
-	"runway-ten-accounts-160": slices.Concat(roomOf(10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 34), []passing{cellsOf(20, 39, 39, "─"), partFilled(31, 31), drawnIn(31, 39, 39, eighths)}),
-	"runway-phone-52":         slices.Concat(roomOf(12, 15, 18, 25), []passing{partFilled(21, 16), wholeRow(33, "< > window   ←→ day   ? keys")}),
+	"runway-5-hour-160":       slices.Concat(roomOf(11, 14, 17, 24), []passing{partFilled(20, 31)}, fiveHoursFoot),
+	"runway-week-160":         slices.Concat(roomOf(11, 14, 17, 24), weeksTicks, sidesWeekOnRunway, []passing{partFilled(20, 44)}, weeksFoot),
+	"runway-stepped-back-160": slices.Concat(roomOf(11, 14, 17, 24), steppedBacksFoot),
+	"runway-ten-accounts-160": slices.Concat(roomOf(10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 34), []passing{cellsOf(20, 39, 39, "─"), partFilled(31, 31), drawnIn(31, 39, 39, eighths)}, tensLanesAndFoot),
+	"runway-phone-52":         slices.Concat(roomOf(12, 15, 18, 25), []passing{partFilled(21, 16), wholeRow(33, "< > window   ←→ day   ? keys")}, phonesFoot),
 }
 
 func TestReferenceKeepsEachFrameAsTextANSIAndPNG(t *testing.T) {
@@ -1219,7 +1286,7 @@ func TestEveryFixtureNamedAfterAFrameDrawsItCellForCell(t *testing.T) {
 			if err != nil {
 				t.Fatalf("parsing what %s draws: %v", stem, err)
 			}
-			diffs, err := compare(redrawn(frame, passedOver[stem]), drawn, canvas, spans(passedOver[stem]))
+			diffs, err := compare(redrawn(frame, passedOver[stem]), moved(drawn, passedOver[stem]), canvas, spans(passedOver[stem]))
 			if err != nil {
 				t.Fatalf("%s: %v", stem, err)
 			}
@@ -1307,6 +1374,26 @@ func TestARedrawingPassingHoldsItsCellsAsThoughTheFrameDrewItsGlyph(t *testing.T
 	}
 }
 
+// A passing that moves cells holds them to the frame as what's drawn on its
+// drawnOn row reads, a whole row's or a span's of it, a row drawn short of
+// the span filled blank, every other cell as drawn, the drawing itself
+// untouched; and it passes no cell over.
+func TestAMovingPassingHoldsItsCellsAsDrawnOnItsRow(t *testing.T) {
+	a, b, blank := cell{glyph: 'a'}, cell{glyph: 'b'}, cell{glyph: ' '}
+	drawn := grid{{a, a, a}, {b, b, b}, {b}}
+	passings := slices.Concat(rowsDrawnOn(1, 1, "a"), []passing{cellsDrawnOn(2, 2, 3, 3, "b")})
+	want := grid{{b, b, b}, {b, blank, blank}, {b}}
+	if got := moved(drawn, passings); !slices.EqualFunc(got, want, slices.Equal) {
+		t.Errorf("moved, the drawing reads %v, want %v", got, want)
+	}
+	if drawn[0][0] != a {
+		t.Error("moving changed the drawing itself")
+	}
+	if got := spans(passings); len(got) > 0 {
+		t.Errorf("a moving passing passes over %v, want nothing", got)
+	}
+}
+
 func TestTheReadmeListsEveryFramePassedOver(t *testing.T) {
 	readme, err := os.ReadFile(filepath.Join(referenceDir, "..", "README.md"))
 	if err != nil {
@@ -1371,15 +1458,39 @@ func sizeOf(t *testing.T, stem string) (width, height int) {
 }
 
 // spans are the spans the passings given pass over, those that redraw a
-// glyph aside.
+// glyph or move cells aside.
 func spans(passings []passing) []span {
 	var s []span
 	for _, p := range passings {
-		if p.was == 0 {
+		if p.was == 0 && p.drawnOn == 0 {
 			s = append(s, p.span)
 		}
 	}
 	return s
+}
+
+// moved is drawn as the passings given that move cells have it: each cell of
+// their spans as drawn on their drawnOn row, the rows drawn short of a span
+// filled blank to its end.
+func moved(drawn grid, passings []passing) grid {
+	cells := make(grid, len(drawn))
+	for r, row := range drawn {
+		cells[r] = slices.Clone(row)
+	}
+	for _, p := range passings {
+		if p.drawnOn < 1 || p.drawnOn > len(drawn) || p.row < 1 || p.row > len(drawn) {
+			continue
+		}
+		from := drawn[p.drawnOn-1]
+		if p.from == 0 {
+			cells[p.row-1] = slices.Clone(from)
+			continue
+		}
+		from, to := filled(from, max(len(from), p.to)), filled(cells[p.row-1], max(len(cells[p.row-1]), p.to))
+		copy(to[p.from-1:p.to], from[p.from-1:p.to])
+		cells[p.row-1] = to
+	}
+	return cells
 }
 
 // redrawn is g as the passings given that redraw a glyph have it: each cell

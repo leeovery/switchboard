@@ -52,9 +52,9 @@ func runwayDrawn(f Frame, doc status.Document) *canvas {
 
 // Runway takes the first step of its compaction whose last row is two above
 // the key line or higher, with a line of COMING UP an account: at 160 by 37,
-// as many accounts as each step holds, four, five, six, nine and ten, and
-// one more, its lanes scrolling; and with three accounts, the frames' steps
-// as rows run short, down to (e)'s least, one lane in view.
+// as many accounts as each step holds, four, six, ten and eleven, and one
+// more, its lanes scrolling; (b) where COMING UP is longer; and the week
+// frame's three as rows run short.
 func TestRunwayTakesTheFirstOfItsStepsThatFits(t *testing.T) {
 	tests := []struct {
 		name                  string
@@ -64,24 +64,22 @@ func TestRunwayTakesTheFirstOfItsStepsThatFits(t *testing.T) {
 	}{
 		{name: "four accounts, three rows each", accounts: 4, lines: 5, rows: 37, want: runwayRoomy, shown: 4},
 		{name: "five, at (a)", accounts: 5, lines: 6, rows: 37, want: runwayTwoRows, shown: 5},
-		{name: "six, at (b)", accounts: 6, lines: 7, rows: 37, want: runwayNoGaps, shown: 6},
+		{name: "six, at (a)", accounts: 6, lines: 7, rows: 37, want: runwayTwoRows, shown: 6},
+		{name: "six with eight lines, at (b)", accounts: 6, lines: 8, rows: 37, want: runwayNoGaps, shown: 6},
 		{name: "seven, COMING UP folded at (c)", accounts: 7, lines: 8, rows: 37, want: runwayFolded, shown: 7},
-		{name: "nine, at (c)", accounts: 9, lines: 10, rows: 37, want: runwayFolded, shown: 9},
-		{name: "ten, at (d)", accounts: 10, lines: 11, rows: 37, want: runwayAxisClose, shown: 10},
-		{name: "eleven, scrolling at (e)", accounts: 11, lines: 12, rows: 37, want: runwayScrolled, shown: 10},
-		{name: "ten at 36, nine in view", accounts: 10, lines: 3, rows: 36, want: runwayScrolled, shown: 9},
-		{name: "ten at 33, eight in view", accounts: 10, lines: 3, rows: 33, want: runwayScrolled, shown: 8},
-		{name: "ten at 29, six in view", accounts: 10, lines: 3, rows: 29, want: runwayScrolled, shown: 6},
-		{name: "ten at 24, three in view", accounts: 10, lines: 3, rows: 24, want: runwayScrolled, shown: 3},
-		{name: "ten at 19, one in view", accounts: 10, lines: 3, rows: 19, want: runwayScrolled, shown: 1},
+		{name: "ten, at (c)", accounts: 10, lines: 11, rows: 37, want: runwayFolded, shown: 10},
+		{name: "eleven, at (d)", accounts: 11, lines: 12, rows: 37, want: runwayAxisClose, shown: 11},
+		{name: "twelve, scrolling at (e)", accounts: 12, lines: 13, rows: 37, want: runwayScrolled, shown: 11},
+		{name: "ten at 34, nine in view", accounts: 10, lines: 3, rows: 34, want: runwayScrolled, shown: 9},
+		{name: "ten at 31, eight in view", accounts: 10, lines: 3, rows: 31, want: runwayScrolled, shown: 8},
+		{name: "ten at 27, six in view", accounts: 10, lines: 3, rows: 27, want: runwayScrolled, shown: 6},
+		{name: "ten at 22, three in view", accounts: 10, lines: 3, rows: 22, want: runwayScrolled, shown: 3},
+		{name: "ten at 17, one in view", accounts: 10, lines: 3, rows: 17, want: runwayScrolled, shown: 1},
 		{name: "the 5-hour frame's three", accounts: 3, lines: 3, rows: 37, want: runwayRoomy, shown: 3},
 		{name: "the week frame's three", accounts: 3, lines: 7, rows: 37, want: runwayRoomy, shown: 3},
-		{name: "the 5-hour's three at 33", accounts: 3, lines: 3, rows: 33, want: runwayRoomy, shown: 3},
 		{name: "the week's three at 33", accounts: 3, lines: 7, rows: 33, want: runwayTwoRows, shown: 3},
-		{name: "the 5-hour's three at 29", accounts: 3, lines: 3, rows: 29, want: runwayTwoRows, shown: 3},
-		{name: "the week's three at 29", accounts: 3, lines: 7, rows: 29, want: runwayFolded, shown: 3},
-		{name: "three at 24", accounts: 3, lines: 3, rows: 24, want: runwayFolded, shown: 3},
-		{name: "three at 19, one in view", accounts: 3, lines: 3, rows: 19, want: runwayScrolled, shown: 1},
+		{name: "the week's three at 29", accounts: 3, lines: 7, rows: 29, want: runwayNoGaps, shown: 3},
+		{name: "the week's three at 28", accounts: 3, lines: 7, rows: 28, want: runwayFolded, shown: 3},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -97,7 +95,43 @@ func TestRunwayTakesTheFirstOfItsStepsThatFits(t *testing.T) {
 	}
 }
 
-// Where not even (e)'s least, a lane in view, fits, as under 19 rows with a
+// The 5-hour frame's three accounts, with three lines of COMING UP, take each
+// step as rows run short, a row at a time from 37 to 15: three rows each to
+// 30, the pool's lane taking no rows but its own; (a) to 27; (b) to 25; (c)
+// to 22; (d) at 21; then their lanes scrolling, two in view to 19 and one to
+// 17; and under that, nothing but the page's chrome.
+func TestRunwayFitsAtEveryHeightDownTo15Rows(t *testing.T) {
+	type fitted struct {
+		step  runwayStep
+		shown int
+		fits  bool
+	}
+	at := func(step runwayStep, shown int) fitted { return fitted{step, shown, true} }
+	want := map[int]fitted{
+		37: at(runwayRoomy, 3), 36: at(runwayRoomy, 3), 35: at(runwayRoomy, 3), 34: at(runwayRoomy, 3),
+		33: at(runwayRoomy, 3), 32: at(runwayRoomy, 3), 31: at(runwayRoomy, 3), 30: at(runwayRoomy, 3),
+		29: at(runwayTwoRows, 3), 28: at(runwayTwoRows, 3), 27: at(runwayTwoRows, 3),
+		26: at(runwayNoGaps, 3), 25: at(runwayNoGaps, 3),
+		24: at(runwayFolded, 3), 23: at(runwayFolded, 3), 22: at(runwayFolded, 3),
+		21: at(runwayAxisClose, 3),
+		20: at(runwayScrolled, 2), 19: at(runwayScrolled, 2), 18: at(runwayScrolled, 1), 17: at(runwayScrolled, 1),
+		16: {}, 15: {},
+	}
+	for rows := 37; rows >= 15; rows-- {
+		t.Run(strconv.Itoa(rows), func(t *testing.T) {
+			f := runwayFrame(t, rows, lanesOf(3), thingsComing(3))
+			fit := f.runwayFitted(f.top())
+			if got := (fitted{fit.step, fit.shown, fit.fits}); got != want[rows] {
+				t.Errorf("at %d rows, Runway fits %+v, want %+v", rows, got, want[rows])
+			}
+			if fit.fits && fit.end > rows-underView {
+				t.Errorf("at %d rows, its last row is %d, past row %d, two above the key line", rows, fit.end-1, rows-underView-1)
+			}
+		})
+	}
+}
+
+// Where not even (e)'s least, a lane in view, fits, as under 17 rows with a
 // pool's lane, or before the lanes are built, Runway draws nothing but the
 // page's chrome; one account, with no pool's lane, fits shorter.
 func TestRunwayDrawsThePagesChromeAloneWhereNotOneLaneFits(t *testing.T) {
@@ -107,9 +141,9 @@ func TestRunwayDrawsThePagesChromeAloneWhereNotOneLaneFits(t *testing.T) {
 		rows  int
 		fits  bool
 	}{
-		{name: "ten at 19", lanes: lanesOf(10), rows: 19, fits: true},
-		{name: "ten at 18", lanes: lanesOf(10), rows: 18},
-		{name: "two at 18", lanes: lanesOf(2), rows: 18},
+		{name: "ten at 17", lanes: lanesOf(10), rows: 17, fits: true},
+		{name: "ten at 16", lanes: lanesOf(10), rows: 16},
+		{name: "two at 16", lanes: lanesOf(2), rows: 16},
 		{name: "one at 15", lanes: lanesOf(1), rows: 15, fits: true},
 		{name: "one at 14", lanes: lanesOf(1), rows: 14},
 		{name: "before the lanes are built", rows: 37},
@@ -140,15 +174,15 @@ func TestRunwayDrawsThePagesChromeAloneWhereNotOneLaneFits(t *testing.T) {
 }
 
 // Each of Runway's parts lies on the row its step gives it, from the axis at
-// the view's top: three rows an account, the rule on the last one's blank
-// row, the pool's room on its words' row, a blank row round the legend and
-// COMING UP, as the 5-hour frame lays them out; a day stepped back to with
-// neither COMING UP nor the room; ten at (d), as their frame lays them out;
-// one account, its blank row the legend's; and on a phone, its room under
-// its words, no blank row before its legend of two rows, as the phone's
-// frame lays them out.
+// the view's top: three rows an account, the pool's lane after the last
+// one's blank row, no rule over it, its room on its second row, a blank row
+// round the legend and COMING UP, as the 5-hour frame lays them out; a day
+// stepped back to with neither COMING UP nor the room; ten at (c), the
+// pool's lane under the last one's words; one account, its blank row the
+// legend's; and on a phone, its room on a row of its own under the pool's
+// lane, no blank row before its legend of two rows.
 func TestRunwaysPartsLieOnTheRowsItsStepGivesThem(t *testing.T) {
-	type rows struct{ lanes, apart, rule, pool, words, room, legend, coming, lines int }
+	type rows struct{ lanes, apart, pool, room, legend, coming, lines int }
 	tests := []struct {
 		name   string
 		shown  RunwayShown
@@ -159,27 +193,27 @@ func TestRunwaysPartsLieOnTheRowsItsStepGivesThem(t *testing.T) {
 	}{
 		{
 			name: "the 5-hour frame's three", shown: RunwayShown{Lanes: lanesOf(3), Coming: thingsComing(3)}, width: 160, height: 37,
-			shape: runwayShape{legendGap: true, legend: 1}, want: rows{10, 3, 18, 19, 21, 21, 23, 25, 3},
+			shape: runwayShape{legendGap: true, legend: 1}, want: rows{10, 3, 19, 20, 22, 24, 3},
 		},
 		{
 			name: "Wednesday stepped back to", shown: RunwayShown{Back: civilDay(9, 30), Lanes: lanesOf(3)}, width: 160, height: 37,
-			shape: runwayShape{legendGap: true, legend: 1}, want: rows{10, 3, 18, 19, 21, noRow, 23, noRow, 0},
+			shape: runwayShape{legendGap: true, legend: 1}, want: rows{10, 3, 19, noRow, 22, noRow, 0},
 		},
 		{
 			name: "the ten frame's ten", shown: RunwayShown{Lanes: lanesOf(10), Coming: thingsComing(9)}, width: 160, height: 37,
-			shape: runwayShape{legendGap: true, legend: 1}, want: rows{9, 2, 29, 30, 32, 32, 33, 34, 0},
+			shape: runwayShape{legendGap: true, legend: 1}, want: rows{10, 2, 30, 31, 32, 33, 0},
 		},
 		{
 			name: "one account", shown: RunwayShown{Lanes: lanesOf(1), Coming: thingsComing(2)}, width: 160, height: 37,
-			shape: runwayShape{legendGap: true, legend: 1}, want: rows{10, 3, noRow, noRow, noRow, noRow, 13, 15, 2},
+			shape: runwayShape{legendGap: true, legend: 1}, want: rows{10, 3, noRow, noRow, 13, 15, 2},
 		},
 		{
 			name: "the legend on two rows, at (a)", shown: RunwayShown{Lanes: lanesOf(5), Coming: thingsComing(5)}, width: 120, height: 37,
-			shape: runwayShape{legendGap: true, legend: 2}, want: rows{10, 2, 20, 21, 23, 23, 25, 28, 5},
+			shape: runwayShape{legendGap: true, legend: 2}, want: rows{10, 2, 20, 21, 23, 26, 5},
 		},
 		{
 			name: "the phone frame's three", shown: RunwayShown{Lanes: lanesOf(3), Coming: thingsComing(3)}, width: 52, height: 33,
-			shape: runwayShape{roomRow: true, legend: 2}, want: rows{11, 3, 19, 20, 22, 23, 24, 27, 3},
+			shape: runwayShape{roomRow: true, legend: 2}, want: rows{11, 3, 20, 22, 23, 26, 3},
 		},
 	}
 	for _, tt := range tests {
@@ -188,7 +222,7 @@ func TestRunwaysPartsLieOnTheRowsItsStepGivesThem(t *testing.T) {
 			tt.shown.Timeline = tt.shown.TimelineAt(now, time.Monday, tt.width)
 			f := Frame{Width: tt.width, Height: tt.height, View: Runway, Runway: tt.shown}
 			fit := f.runwayFittedAs(f.top(), tt.shape)
-			got := rows{fit.lanes, fit.apart, fit.rule, fit.pool, fit.words, fit.room, fit.legend, fit.coming, fit.lines}
+			got := rows{fit.lanes, fit.apart, fit.pool, fit.room, fit.legend, fit.coming, fit.lines}
 			if got != tt.want {
 				t.Errorf("its parts lie on rows %+v, want %+v", got, tt.want)
 			}
@@ -210,10 +244,10 @@ func TestRunwaysLanesScrollAnAccountAtATimeAndSayWhatsOutOfView(t *testing.T) {
 		first        int
 		says         string
 	}{
-		{name: "ten at 36, at the top", rows: 36, first: 0, says: "▼ 1 more account"},
-		{name: "ten at 36, scrolled to the last", rows: 36, scroll: 1, first: 1, says: "▲ 1 more account"},
-		{name: "ten at 36, scrolled past it", rows: 36, scroll: 5, first: 1, says: "▲ 1 more account"},
-		{name: "ten at 29, scrolled by two", rows: 29, scroll: 2, first: 2, says: "▲ 2 more accounts · ▼ 2 more accounts"},
+		{name: "ten at 34, at the top", rows: 34, first: 0, says: "▼ 1 more account"},
+		{name: "ten at 34, scrolled to the last", rows: 34, scroll: 1, first: 1, says: "▲ 1 more account"},
+		{name: "ten at 34, scrolled past it", rows: 34, scroll: 5, first: 1, says: "▲ 1 more account"},
+		{name: "ten at 27, scrolled by two", rows: 27, scroll: 2, first: 2, says: "▲ 2 more accounts · ▼ 2 more accounts"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -252,7 +286,7 @@ func TestRunwaysLanesScrollAnAccountAtATimeAndSayWhatsOutOfView(t *testing.T) {
 func TestRunwaySaysNothingOverTheKeyLineWhereEveryLaneShows(t *testing.T) {
 	f := runwayFrame(t, 37, lanesOf(10), thingsComing(3))
 	if got := rowOf(runwayDrawn(f, runwayDoc(10)), 37-underView); got != "" {
-		t.Errorf("at (d), the row over the key line reads %q, want nothing", got)
+		t.Errorf("at (c), the row over the key line reads %q, want nothing", got)
 	}
 }
 
@@ -299,17 +333,7 @@ func tenRunway() status.Document {
 // ~16:05, eight till its 5-hour resets at 16:55, nine till work's resets at
 // 17:10, then ten.
 func tenPool() views.Pool {
-	steps := []views.Step{
-		{With: 9, From: views.Edge{At: routedClock(1, 13, 58)}, Until: views.Edge{At: routedAt.Add(-11*time.Minute - 4*time.Second)}, First: 2, Last: 4},
-		{With: 8, From: views.Edge{At: routedAt.Add(-11*time.Minute - 4*time.Second)}, Until: views.Edge{At: routedClock(1, 15, 30)}, First: 5, Last: 10},
-		{With: 9, From: views.Edge{At: routedClock(1, 15, 30)}, Until: views.Edge{At: routedClock(1, 16, 5), Projected: true}, First: 11, Last: 13},
-		{With: 8, From: views.Edge{At: routedClock(1, 16, 5), Projected: true}, Until: views.Edge{At: routedClock(1, 16, 55)}, First: 14, Last: 18},
-		{With: 9, From: views.Edge{At: routedClock(1, 16, 55)}, Until: views.Edge{At: routedClock(1, 17, 10)}, First: 19, Last: 20},
-	}
-	return views.Pool{
-		Of: 10, Key: "5h", Columns: poolColumnsOf(136, 10, 0, 9, 2, 8, 5, 9, 11, 8, 14, 9, 19, 10, 21),
-		Dips: []views.Dip{{Steps: steps, Column: 1, First: 2, Last: 20}},
-	}
+	return views.Pool{Of: 10, Key: "5h", Columns: poolColumnsOf(136, 10, 0, 9, 2, 8, 5, 9, 11, 8, 14, 9, 19, 10, 21)}
 }
 
 // poolColumnsOf are n of the pool's columns, each known, counted in runs: a
@@ -325,15 +349,16 @@ func poolColumnsOf(n int, runs ...int) []views.PoolColumn {
 }
 
 // At (e), the axis and the pool's foot hold, the lanes shown between them:
-// the pool's rule on the row after the last lane shown's words, and the rest
-// of the foot a row after another, COMING UP folded.
+// the pool's lane on the row after the last lane shown's words, its room on
+// its second row, and the legend and COMING UP a row after another under it,
+// COMING UP folded.
 func TestRunwaysPoolsFootHoldsUnderTheLanesShownAtE(t *testing.T) {
-	f := runwayFrame(t, 29, lanesOf(10), thingsComing(3))
+	f := runwayFrame(t, 27, lanesOf(10), thingsComing(3))
 	f.Scroll = 2
 	fit := f.runwayFitted(f.top())
 	last, _ := fit.laneRow(fit.first + fit.shown - 1)
-	if fit.rule != last+2 || fit.pool != fit.rule+1 || fit.words != fit.pool+runwayPoolRows || fit.legend != fit.words+1 || fit.coming != fit.legend+1 || !fit.folded {
-		t.Errorf("at (e), the last lane shown's words are on row %d, the rule on %d, the pool's lane on %d, its words on %d, the legend on %d and COMING UP on %d, folded %t; want each on the row after the one before, folded",
-			last+1, fit.rule, fit.pool, fit.words, fit.legend, fit.coming, fit.folded)
+	if fit.pool != last+2 || fit.room != fit.pool+1 || fit.legend != fit.pool+runwayPoolRows || fit.coming != fit.legend+1 || !fit.folded {
+		t.Errorf("at (e), the last lane shown's words are on row %d, the pool's lane on %d, its room on %d, the legend on %d and COMING UP on %d, folded %t; want the lane after the words, its room on its second row, and each after on the row after the one before, folded",
+			last+1, fit.pool, fit.room, fit.legend, fit.coming, fit.folded)
 	}
 }
