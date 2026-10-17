@@ -189,7 +189,7 @@ func (s windowStates) judge(w quota.Window) judged {
 	j.stands = windowAsOf(w, j.lapsed, s.now)
 	j.pace, j.allowance = s.doc.measure(s.account, s.stood, w.Key, j.stands, s.now)
 	j.out, j.runsOut = s.doc.runOutOf(s.account, w, s.now)
-	j.room = s.doc.poolRoom(s.account, s.stood, w, s.now, s.policy)
+	j.room = s.poolRoom(w)
 	return j
 }
 

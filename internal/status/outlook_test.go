@@ -322,15 +322,15 @@ func TestThePool(t *testing.T) {
 			},
 		},
 		{
-			name: "no use counted of an account without a usable token, though its room is",
+			name: "neither use nor room counted of an account without a usable token, though it was read",
 			doc: routerDocOf(work, with(side, func(a *status.Account) {
 				a.TokenSet = false
 			})),
 			accounts: []string{"work", "side"},
 			want: []string{
-				"5h Session: room 1.4, used 0.4, pace 0.6",
-				"7d Week: room 1.4, used 0.5, pace 0.428571",
-				"7d_oi Fable week: room 0.7, used none, pace 0.142857",
+				"5h Session: room 0.6, used 0.4, pace 0.6",
+				"7d Week: room 0.5, used 0.5, pace 0.428571",
+				"7d_oi Fable week: room 0, used none, pace 0.142857",
 			},
 		},
 		{

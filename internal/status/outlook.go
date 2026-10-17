@@ -398,32 +398,38 @@ func PoolUsed(room float64, accounts int) float64 {
 }
 
 // usedOf is the use of the account judged as j of its window w, as its row
-// shows it, as the pool's mean counts it, reporting false where it counts
-// none: of an account without a usable token, nothing read, as unknown says,
-// or whose token is refused, as poolRoom counts no room in.
+// shows it, as the pool's mean counts it, reporting false where the pool
+// counts none of the account, as uncounted says.
 func (j judgedAccount) usedOf(w judged) (float64, bool) {
-	if _, unknown := j.states.unknown(true); unknown || j.states.stood.refused {
+	if j.states.uncounted() {
 		return 0, false
 	}
 	return w.stands.Utilization, true
 }
 
-// poolRoom is the room account a has left in its window w at at, as the pool
-// counts it, standing as s says then, to where the account runs out, as
-// floor says: none in any window of one nothing has been read of, or whose
-// token is refused; none in the window a request starts, as policy names it,
-// of one at its limit or its cap; and none in a window a limit holds as its
-// own, as holds says.
-func (d Document) poolRoom(a Account, s standing, w quota.Window, at time.Time, policy score.Policy) float64 {
+// uncounted reports whether the pool counts nothing of the account, neither
+// its use nor its room: one without a usable token, or nothing read, as
+// unknown says, or whose token is refused.
+func (s windowStates) uncounted() bool {
+	_, unknown := s.unknown(true)
+	return unknown || s.stood.refused
+}
+
+// poolRoom is the room the account has left in its window w at now, as the
+// pool counts it, to where it runs out, as floor says: none in any window of
+// one the pool counts nothing of, as uncounted says; none in the window a
+// request starts, as the policy names it, of one at its limit or its cap;
+// and none in a window a limit holds as its own, as holds says.
+func (s windowStates) poolRoom(w quota.Window) float64 {
 	switch {
-	case a.FetchedAt.IsZero() || s.refused:
+	case s.uncounted():
 		return 0
-	case w.Key == policy.Started && s.outOfQuota():
+	case w.Key == s.policy.Started && s.stood.outOfQuota():
 		return 0
-	case s.holds(w.Key):
+	case s.stood.holds(w.Key):
 		return 0
 	}
-	return score.Room(w, d.floor(a), at)
+	return score.Room(w, s.doc.floor(s.account), s.now)
 }
 
 // comingUp is what's coming to the accounts after now, as it's worked out of
