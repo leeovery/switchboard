@@ -5983,7 +5983,7 @@ early as it can:
    price table and worth, and the summaries keeping apart what US-only inference prices otherwise;
    `requests` and `history`; and the skill telling agents of them.
 
-**7. The dashboard redesigned — next.** Its owner redesigned the dashboard area by area, in Paper,
+**7. The dashboard redesigned — done.** Its owner redesigned the dashboard area by area, in Paper,
 from 4 to 8 October 2026, each area signed off with its frames and a spec: `usage`, the Overview,
 Accounts and History, the routing pickers, a session's page and the Log, and Sessions and Runway.
 The Dashboard section is that design, and The data verbs the commands it brought. It's built in 14
