@@ -3,6 +3,8 @@ package watch
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -11,6 +13,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
@@ -38,15 +41,17 @@ func (l *todays) Today(ledger.Mark) ([]ledger.Held, ledger.Mark, bool) {
 }
 
 // followed is a request ledger followed as it grows, as the dashboard
-// follows it, which notes how many lines each read of today's gave.
+// follows it, which notes how many lines each read of today's gave, and
+// whether it gave every one of today's afresh.
 type followed struct {
 	views.Ledger
-	given []int
+	given  []int
+	afresh []bool
 }
 
 func (l *followed) Today(mark ledger.Mark) ([]ledger.Held, ledger.Mark, bool) {
 	lines, next, afresh := l.Ledger.Today(mark)
-	l.given = append(l.given, len(lines))
+	l.given, l.afresh = append(l.given, len(lines)), append(l.afresh, afresh)
 	return lines, next, afresh
 }
 
@@ -148,8 +153,8 @@ func TestTheStreamsRequestsAreCountedOnceEachWhicheverTellsOfThemFirst(t *testin
 		t.Fatal("once the stream ended, no rejoin was armed")
 	}
 	h.fire(rejoin)
-	if !slices.Equal(l.given, []int{1, 1, 3, 3}) {
-		t.Fatalf("today's lines were read %v, want once as the stream opened, and once by the tail as it told of a request ended, whose line it awaits; then again as it was joined again, and by the tail, as it opened again", l.given)
+	if !slices.Equal(l.given, []int{1, 3}) {
+		t.Fatalf("today's lines were read %v, want them read by the tail once as the stream opened, then once again as it was joined again", l.given)
 	}
 	for account, w := range want {
 		if got := tracedOn(h, account); !slices.Equal(got, w) {
@@ -158,43 +163,149 @@ func TestTheStreamsRequestsAreCountedOnceEachWhicheverTellsOfThemFirst(t *testin
 	}
 }
 
-func TestEachTimeTheStreamOpensTheTracesReadWhatTodaysLinesGained(t *testing.T) {
-	state := t.TempDir()
-	write := func(lines ...ledger.Held) {
-		t.Helper()
-		writeLines(t, state, lines...)
-	}
-	write(arrived("0a000001", "work", -5*time.Minute), arrived("0a000002", "side", -4*time.Minute))
+// followedHarness is tracedHarness, its watch reading the request ledger in
+// the state directory given as it grows, as followed notes its reads.
+func followedHarness(t *testing.T, state string) (*harness, *followed) {
+	t.Helper()
 	l := &followed{}
 	h := tracedHarness(t, l)
 	l.Ledger = ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, logs.For("watch"))
+	return h, l
+}
+
+// streamRejoined has the request stream end, as the router ends it as it
+// restarts, and joined again once the rejoin armed falls due.
+func (h *harness) streamRejoined() {
+	h.t.Helper()
+	h.endStream()
+	rejoin, ok := h.pendingRejoin()
+	if !ok {
+		h.t.Fatal("once the stream ended, no rejoin was armed")
+	}
+	h.fire(rejoin)
+}
+
+// routerLooked has the watch look at the router's document, as R does.
+func (h *harness) routerLooked() {
+	h.t.Helper()
+	h.read(routerDocument(three()...))
+}
+
+// No reader follows the ledger's tail, the Overview alone shown: each time
+// the stream opens, as at first, back from another tab and joined again as
+// the router restarts, the tail is read once, and only once, the looks
+// between reading nothing, for the traces, each read giving what the day's
+// files gained since the last.
+func TestEachTimeTheStreamOpensTheTailIsReadOnceForTheTraces(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state, arrived("0a000001", "work", -5*time.Minute), arrived("0a000002", "side", -4*time.Minute))
+	h, l := followedHarness(t, state)
 	h.start()
+	h.routerLooked()
 
 	// Away from the Overview the stream closes; back, it opens again.
-	write(arrived("0a000003", "work", -3*time.Minute))
+	writeLines(t, state, arrived("0a000003", "work", -3*time.Minute))
 	h.keys(tabKey)
 	if got, want := tracedOn(h, "work"), []time.Duration{5 * time.Minute}; !slices.Equal(got, want) {
 		t.Errorf("the stream closed, the traces count requests on work sent %v ago, want %v, kept", got, want)
 	}
 	h.keys(shiftTabKey)
+	h.routerLooked()
 
-	// The stream ends, as the router restarts, and is joined again.
-	write(arrived("0a000004", "side", -2*time.Minute))
-	h.endStream()
-	rejoin, ok := h.pendingRejoin()
-	if !ok {
-		t.Fatal("once the stream ended, no rejoin was armed")
-	}
-	h.fire(rejoin)
+	writeLines(t, state, arrived("0a000004", "side", -2*time.Minute))
+	h.streamRejoined()
+	h.routerLooked()
 
 	if h.opened() != 3 || !slices.Equal(l.given, []int{2, 1, 1}) {
-		t.Errorf("the stream opened %d times, today's lines read giving %v lines; want it opened 3 times, the lines each time, each read giving what the day's file gained since the last, [2 1 1]", h.opened(), l.given)
+		t.Errorf("the stream opened %d times, today's lines read giving %v lines; want it opened 3 times, the tail read once each time, and at no look, each read giving what the day's files gained since the last, [2 1 1]",
+			h.opened(), l.given)
 	}
 	for account, want := range map[string][]time.Duration{"work": {5 * time.Minute, 3 * time.Minute}, "side": {4 * time.Minute, 2 * time.Minute}} {
 		if got := tracedOn(h, account); !slices.Equal(got, want) {
 			t.Errorf("the traces count requests on %s sent %v ago, want %v", account, got, want)
 		}
 	}
+}
+
+// The Log opened, the tail is read at each look whatever shows: the stream
+// opening again, back from another tab and as the router restarts, never
+// has the follower give today's lines whole again, as asking it with a mark
+// it has let go of would; only the first read and the Log's open, each from
+// today's start, are given them whole. The traces count what one read of
+// today's lines whole gives.
+func TestTheStreamOpeningAgainNeverHasTodaysLinesGivenWholeAgain(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state, arrived("0a000001", "work", -20*time.Minute), arrived("0a000002", "side", -18*time.Minute))
+	h, l := followedHarness(t, state)
+	h.start()
+	h.keys(shiftTabKey)
+	if h.model.view != dashboard.Log || !h.model.log.opened {
+		t.Fatalf("shift+tab from the Overview shows %s, the Log opened %t; want the Log, opened", h.model.view, h.model.log.opened)
+	}
+
+	// Back to the Overview, away to Accounts, which closes the stream, back
+	// again, which opens it, and the router restarting, a look after each,
+	// a line written before each.
+	steps := []func(){
+		func() { h.keys(tabKey) }, h.routerLooked,
+		func() { h.keys(tabKey) }, h.routerLooked,
+		func() { h.keys(shiftTabKey) }, h.routerLooked,
+		h.streamRejoined, h.routerLooked,
+	}
+	for i, step := range steps {
+		writeLines(t, state, arrived(fmt.Sprintf("0b%06d", i), []string{"work", "side"}[i%2], time.Duration(i-16)*time.Minute))
+		step()
+	}
+
+	if h.opened() != 3 {
+		t.Errorf("the stream opened %d times, want 3: at first, back from Accounts, and joined again", h.opened())
+	}
+	if want := []bool{true, true, false, false, false, false, false, false}; !slices.Equal(l.afresh, want) {
+		t.Errorf("today's lines were read giving them whole %v, want %v: whole by the first read and the Log's open alone, then what the files gained, at each look and as the stream opened again",
+			l.afresh, want)
+	}
+	whole, _, _ := ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, logs.For("watch")).Today(ledger.Mark{})
+	want := views.Traces{}.Read(whole, h.clock.now)
+	if !sameTraces(h.model.traces.Accounts, want.Accounts) || !sameTraces(h.model.traces.Sessions, want.Sessions) {
+		t.Errorf("the traces count %v by account and %v by session, want %v and %v, as one read of today's lines whole counts them",
+			h.model.traces.Accounts, h.model.traces.Sessions, want.Accounts, want.Sessions)
+	}
+}
+
+// A read of the ledger's tail under way as the stream opens may have read
+// the day's files before it opened: a request that ended between that read
+// and the open, which the stream never tells of, is counted by the traces
+// once the read asked after the open lands, though no reader follows the
+// tail.
+func TestARequestEndedJustBeforeTheStreamOpenedIsTracedThoughATailReadWasUnderWay(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state, arrived("0a000001", "work", -5*time.Minute))
+	h, l := followedHarness(t, state)
+	under := holdingBack[tailedMsg](h, h.init()...)
+	if len(under) != 1 {
+		t.Fatalf("as the stream opened, %d reads of the tail were asked, want 1", len(under))
+	}
+
+	writeLines(t, state, took(arrived("0a000002", "side", -time.Minute), 30*time.Second))
+	under = append(under, holdingBack[tailedMsg](h, h.update(tabKey)...)...)
+	under = append(under, holdingBack[tailedMsg](h, h.update(shiftTabKey)...)...)
+	if h.opened() != 2 || len(under) != 1 {
+		t.Fatalf("the stream opened %d times, %d reads of the tail asked; want it opened twice, no read asked while the first was under way", h.opened(), len(under))
+	}
+	h.deliver(under...)
+
+	if got, want := tracedOn(h, "side"), []time.Duration{time.Minute}; !slices.Equal(got, want) {
+		t.Errorf("the traces count requests on side sent %v ago, want %v: the request that ended before the stream opened again, read by the read asked after it", got, want)
+	}
+	if !slices.Equal(l.given, []int{1, 1}) {
+		t.Errorf("today's lines were read giving %v, want [1 1]: once as the stream first opened, and once more after the read under way as it opened again landed", l.given)
+	}
+}
+
+// sameTraces reports whether a and b hold the same traces, by their ids,
+// each of requests sent at the same instants.
+func sameTraces(a, b map[string]views.Trace) bool {
+	return maps.EqualFunc(a, b, func(x, y views.Trace) bool { return slices.EqualFunc(x.Sent, y.Sent, time.Time.Equal) })
 }
 
 func TestTodaysLinesArentReadWhileTheStreamDoesntOpen(t *testing.T) {

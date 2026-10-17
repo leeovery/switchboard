@@ -10,9 +10,9 @@ import (
 
 // These tests read the module's source, so nothing reads a line's JSON but
 // what writes lines as the ledger holds them, without failing here: the
-// follower gives today's lines without it, as it holds every one of them for
-// the run, so what reads one of theirs would read nothing, and what reads one
-// of a Reader's is the verb that passes lines through.
+// follower gives today's lines without it, as it holds them, so what reads
+// one of theirs would read nothing, and what reads one of a Reader's is the
+// verb that passes lines through.
 
 // jsonAllowed are the functions allowed to read a line's JSON, by path from
 // the module's root, a colon and the function's name, a method's its

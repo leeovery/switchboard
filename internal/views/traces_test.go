@@ -1,6 +1,7 @@
 package views_test
 
 import (
+	"fmt"
 	"slices"
 	"testing"
 	"time"
@@ -311,6 +312,17 @@ func TestRequestsBeyondWhatTheTracesReachAreLetGo(t *testing.T) {
 	traces = traces.Told([]views.Told{sentAgo("0a000004", tracedC61B, "side", -35*time.Minute)}, tracedAt.Add(35*time.Minute))
 	if got := len(traces.Accounts["side"].Sent); got != 1 {
 		t.Errorf("40 minutes after a request, as another is sent, side's trace counts %d, want the new one alone", got)
+	}
+}
+
+func TestLinesBeyondWhatTheTracesReachAreNeverCopied(t *testing.T) {
+	old := make([]ledger.Held, 1000)
+	for i := range old {
+		old[i] = requestLine(fmt.Sprintf("0a%06d", i), tracedC61B, "side", 1, 40*time.Minute)
+	}
+	allocs := testing.AllocsPerRun(10, func() { views.Traces{}.Read(old, tracedAt) })
+	if allocs >= float64(len(old))/10 {
+		t.Errorf("reading %d lines older than the traces reach allocates %.0f times, want far fewer than one a line: none is copied", len(old), allocs)
 	}
 }
 

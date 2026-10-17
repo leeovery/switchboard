@@ -1643,9 +1643,9 @@ right:
 - **Its rate,** at the right, is the requests of the last minute.
 - **The requests counted** are those that spend quota and went upstream (see The request ledger),
   each once, by its id, as it's sent, on the account it went out on; Claude Code's quota checks and
-  token counts never. The last 30 minutes come from today's lines once, as the Overview is first
-  shown (settled in the plan), then from the request stream (see Live updates). A session moved
-  between accounts carries its whole 30 minutes on its own trace.
+  token counts never. The last 30 minutes come from each read of the ledger's tail, the stream's
+  opening asking for one (see Live updates), then from the request stream. A session moved between
+  accounts carries its whole 30 minutes on its own trace.
 
 **SESSIONS** lists the sessions running, those the router has routed in the last hour, grouped by
 account in the config's order, a session whose models go to two accounts on each:
@@ -4231,11 +4231,15 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
   its session's story, never at a look telling what the last told; its panel builds its figures as
   the table it's of, the stream's rows or the sessions listed change, never at each look (settled
   in the plan).
-- **The traces and a session's story:** the Overview's traces take their last 30 minutes from
-  today's lines once, as the Overview is first shown or the stream is joined again, and a session's
-  story its life from its own days' lines, as its page opens; then each counts the requests the
-  stream tells of as they're sent, each request once, by its id, whether the stream or its line
-  tells of it first. No look reads the ledger for them (settled in the plan).
+- **The traces and a session's story:** the Overview's traces hold no mark of their own: they take
+  their last 30 minutes from today's lines as each read of the ledger's tail reads them, whoever
+  it's read for, a whole day given again included. Each time the stream opens, as the Overview is
+  first shown or the stream is joined again, it asks for one read of the tail, whether or not a
+  reader follows it, asked after it opened, so no request that ended before it goes unread: a read
+  already under way as it opens doesn't stand for it. A session's story takes its life from its own
+  days' lines, as its page opens. Then each counts the requests the stream tells of as they're
+  sent, each request once, by its id, whether the stream or its line tells of it first. No look
+  reads the ledger for them (settled in the plan).
 - **The ledger, read as it grows.** The dashboard reads the ledger's, the readings history's and
   the events' files itself, with no router, through the readers it's given (see Packages), and
   never reads them whole at a look:
@@ -4244,10 +4248,17 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
     never the day. A file found replaced, or shorter than where the last read ended, is read again
     from its start. The tail is read at each look whatever tab shows, while a reader holds today's
     lines, as the Log once shown, the List once read and a session's page open do, or the stream
-    awaits a line, so each keeps up while another tab shows; and a line one read finds, of today or
-    of a day before read again whole, every reader takes in, the store of sessions once for them
-    all (settled in the plan). The ledger's follower holds each of today's lines as it reads it,
-    none of the JSON it was written as, which only `requests` writes out, through a reader of its
+    awaits a line, so each keeps up while another tab shows; and once after the stream opens, for
+    the traces, whether a reader holds them or not. The tail alone asks the follower for today's
+    lines, with its one mark. A line one read finds, of today or of a day before read again whole,
+    every reader takes in, the store of sessions once for them all (settled in the plan). The
+    ledger's follower holds the last read's gain, which a read asked again with the same mark is
+    given again, and the lines arrived later by the clock: a read from today's start, as the Log's
+    first, or from a mark before what it holds, is given today whole, what it let go of read again
+    from the day's files as far as the tail had read them, so the tail goes on from where it ended,
+    no line given twice or missed, and every line it gives let go of. A day turning, or a file read
+    again from its start, reads the files again, never replaying held lines. Each line is held
+    without the JSON it was written as, which only `requests` writes out, through a reader of its
     own; a test reading the source holds every other reader of a line's JSON to it.
   - **A past day's summary** is read once and held for the run, until its stamp or its sizes change
     (see The request ledger). **Today's** is a running tally of the lines tailed, never summarised
@@ -5207,7 +5218,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/tokens` | The token files: reading them, checking their ownership and mode, writing them, and keeping their directory private. `tokens/tokenstest` stands in for the token files, for tests |
 | `internal/accounts` | Adding accounts, replacing their tokens and removing them, for the `accounts` commands and `setup`: the config file and the token file together, and a token the user gives, typed unseen at a terminal or piped in, checked with the API before it's saved |
 | `internal/dayfile` | Files a day of JSON lines, as the readings history, the request ledger and the router's events keep them: appending, compressing a day's file once its day ended two days ago, removing it once past keeping, leaving one named for a day after tomorrow until its day comes round, and reading them back, oldest first whichever day's file each is in, lines cut short and damaged files included, or a day's file on from where a read of it last ended, as a tail reads it; the days themselves, each from its first instant, and the times of a day, each as the clocks first read it, where they go forward over it, or back over it, too; and the queue and goroutine that write to them, so noting a line never waits, with the round they're kept on, hourly and before each prune, which what else is kept of a day, as the request ledger's summaries, is kept on too, at every round or just before each prune |
-| `internal/ledger` | The request ledger: its lines and their writing, through `internal/dayfile`, the days' summaries, written again while lines come to be filed under their days, each knowing no less than the one it replaces, reading lines and summaries back, with no router, today and the days not summarised since lines came to be filed under them summarised as they're read; reading them as they grow, today's lines tailed, each day's summary held once read, and a session's days found by the summaries' session ids, the follower's lines holding none of their JSON; a line's usage decoded once into what its request spent, which the price table prices as it prices the line; and the price table, with the plans' prices and the version table, and the worth they give, a move's cache write's among it |
+| `internal/ledger` | The request ledger: its lines and their writing, through `internal/dayfile`, the days' summaries, written again while lines come to be filed under their days, each knowing no less than the one it replaces, reading lines and summaries back, with no router, today and the days not summarised since lines came to be filed under them summarised as they're read; reading them as they grow, today's lines tailed, only those since the last mark held, each day's summary held once read, and a session's days found by the summaries' session ids, the follower's lines holding none of their JSON; a line's usage decoded once into what its request spent, which the price table prices as it prices the line; and the price table, with the plans' prices and the version table, and the worth they give, a move's cache write's among it |
 | `internal/readings` | The readings history's lines, as the router writes them and reads them back, and the request ledger summarises its days with them: a reading as a line, and the history's files in the state directory, through `internal/dayfile`, and the readings they hold of a time, in the order they were read |
 | `internal/events` | The router's events kept across restarts, in a package of their own, as the readings history's lines are in `internal/readings` (settled in the plan): each as a line, filed in a file a day through `internal/dayfile`, beside the request ledger's and kept as long, and read back with no router, each event's versions merged by `run` and `id`, a day's read from its own file and the next 8 days', for the Log, LATELY, a session's page and `events` (see The router's events) |
 | `internal/atomicfile` | Writing a file whole or not at all: beside where it goes, synced, then renamed into place; and where writing through a link leads, so a file that's a link is written where it leads, never replaced |
@@ -6139,8 +6150,18 @@ Sessions and History before the Log opened, and:
 Its one slow hour, the hour after midnight with the long session's page open, its reads of the
 tail 367 ms on average and one 22.8 s, was every reader reading the whole day before again as a
 request sent just after midnight ended; fixed after the soak, by the rule A request sent just
-after midnight says, and not measured since. What it left, the follower's today foremost, is an
-idea of its own (see Backlog).
+after midnight says, and not measured since. What it left, the Log's line the largest, is an idea
+of its own (see Backlog).
+
+**The follower's today — done.** After v0.2.2 the ledger's follower still held every one of today's
+lines for the run, its raw usage and limits with each, for whoever asked for today from its start:
+about 40 MB by the evening in the soak's world, the largest steady holder left. The release after
+v0.2.2 has it hold only the last read's gain, and those arrived later by the clock, reading today's
+files again, as far as its tail had read them, for a read of today whole (see Live updates). The
+dashboard asked it with two marks, the tail's and the traces', which would have had every return to
+the Overview read today whole again; the tail alone asks it now, the traces taking every read of it,
+the stream's open asking for one. A whole read that can't read a file has that file read afresh at
+the next read, so no line is lost; and the traces copy only the lines they keep.
 
 The release, through GoReleaser, a Homebrew tap and mint, follows milestone 3.
 
@@ -6307,7 +6328,7 @@ why.
 | Advice from the ledger: the settings that would have bought more usage, and whether a keep-alive pays | open: to discuss with its owner | [advice-from-the-ledger](../ideas/2026-10-14--advice-from-the-ledger.md) |
 | Usage limits for agents, read and watched as their own work moves them | open: to discuss with its owner | [usage-for-agents](../ideas/2026-10-14--usage-for-agents.md) |
 | Signing in, one account, and a first setup: setup tokens or logins, switchboard's worth with one account, onboarding, each account's plan, and managing accounts | next, after milestone 7's release: the owner, 15 October 2026 | [auth-and-onboarding](../ideas/2026-10-14--auth-and-onboarding.md) |
-| The dashboard's memory the fix after v0.2.1 left: the follower's today, the Log's line, and smaller costs | open: the follower's today the largest, with its owner to place; the rest any time | [dashboard-memory-left](../ideas/2026-10-17--dashboard-memory-left.md) |
+| The dashboard's memory the fix after v0.2.1 left: the Log's line, a request in flight across midnight, and smaller costs | open: any time | [dashboard-memory-left](../ideas/2026-10-17--dashboard-memory-left.md) |
 | Watching switchboard's CPU and memory for a week after milestone 7's release, against v0.1.6's baseline | next, after milestone 7's release, the owner's choice on 14 October 2026 | [performance-watch](../ideas/2026-10-14--performance-watch.md) |
 | Money in a chosen currency, such as pounds sterling, wherever money shows, with a rate for API prices | open: raised by the owner on 15 October 2026 | [currencies](../ideas/2026-10-15--currencies.md) |
 | Snags the owner meets using v0.2.0's dashboard, gathered as found | open: a smaller screen's layout, to come back to; the rest fixed in the patch after v0.2.0, 15 October 2026 | [dashboard-snags](../ideas/2026-10-15--dashboard-snags.md) |

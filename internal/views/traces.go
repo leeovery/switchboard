@@ -63,18 +63,10 @@ func (t Traces) Read(lines []ledger.Held, now time.Time) Traces {
 	var sent []upstream
 	for i := range lines {
 		if u, ok := lineUpstream(&lines[i].Line); ok {
-			sent = append(sent, u.detached())
+			sent = append(sent, u)
 		}
 	}
 	return t.count(sent, now)
-}
-
-// detached is u holding a line of its own, a copy of the one it was read
-// from, so the traces keep none of the lines it was read among.
-func (u upstream) detached() upstream {
-	line := *u.line
-	u.line = &line
-	return u
 }
 
 // Told is t with the requests the stream told of counted at now: those that
@@ -119,7 +111,7 @@ func (t Traces) count(sent []upstream, now time.Time) Traces {
 // counted in, each once, as same says, those sent before from let go of. One
 // told of again, as one going out again on another account after a refusal,
 // keeps when it was first sent, and is counted on the account it went out on
-// last.
+// last. A line it keeps is held as detached copies it, and no other.
 func counting(held map[string][]counted, sent []upstream, from time.Time) map[string][]counted {
 	requests := make(map[string][]counted, len(held)+len(sent))
 	for id, cs := range held {
@@ -139,10 +131,20 @@ func counting(held map[string][]counted, sent []upstream, from time.Time) map[st
 			kept, i = append(kept, counted{at: s.at}), len(kept)
 		}
 		c := &kept[i]
-		c.account, c.session, c.line = cmp.Or(s.account, c.account), cmp.Or(c.session, s.session), cmp.Or(c.line, s.line)
+		c.account, c.session = cmp.Or(s.account, c.account), cmp.Or(c.session, s.session)
+		if c.line == nil && s.line != nil {
+			c.line = detached(s.line)
+		}
 		requests[s.request] = kept
 	}
 	return requests
+}
+
+// detached is a copy of the line l, so the traces keep none of the lines it
+// was read among: made only of a line they keep.
+func detached(l *ledger.Line) *ledger.Line {
+	line := *l
+	return &line
 }
 
 // same reports whether a and b, each counted as the request with the given

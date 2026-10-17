@@ -4,34 +4,14 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 )
 
-// tracedLines are today's lines read for the Overview's traces as the
-// request stream opened, those the day's files gained since it last did,
-// and the Mark they're read to.
-type tracedLines struct {
-	lines []ledger.Held
-	read  ledger.Mark
-}
-
-// readTraces reads the requests today's lines tell of for the Overview's
-// traces, for the request stream to go on from, as openStream has it once
-// the stream has opened: after it, so no request ends unread between the
-// two. Each time the stream opens, as when it's joined again, it reads only
-// what the day's files gained since it last did; and nothing where the watch
-// reads no ledger.
-func (m Model) readTraces() func() tracedLines {
-	l, mark := m.cfg.Ledger, m.stream.read
-	return func() tracedLines {
-		if l == nil {
-			return tracedLines{read: mark}
-		}
-		lines, next, _ := l.Today(mark)
-		return tracedLines{lines: lines, read: next}
-	}
-}
-
-// traced takes in today's lines read for the traces as the request stream
-// opened.
-func (m Model) traced(t tracedLines) Model {
-	m.traces, m.stream.read = m.traces.Read(t.lines, m.now()), t.read
+// traced is m with the Overview's traces counting today's lines a read of
+// the ledger's tail read, whoever it was read for: they hold no mark of
+// their own, so the ledger is asked for today's lines by the tail alone,
+// and the request stream, as it opens, has a read of the tail owed to them,
+// as streamOpened has it. Lines given again, as a read that gives every one
+// of today's afresh gives them, count once, the traces counting each
+// request once.
+func (m Model) traced(lines []ledger.Held) Model {
+	m.traces = m.traces.Read(lines, m.now())
 	return m
 }
