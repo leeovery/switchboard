@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3] - 2026-10-17
+
+🐛 Fixed
+- The dashboard holds far less memory for today's request lines — the ledger follower now keeps only what was gained since the last read instead of every line of the day.
+- The Overview's traces now count today's lines from every read of the ledger, so requests that ended while the request stream was reopening are no longer missed.
+
+🔧 Changed
+- The Overview's traces no longer run their own separate read of today's lines when the request stream opens — a single read of the ledger's tail now feeds them.
+
 ## [0.2.2] - 2026-10-17
 
 🔧 Changed
