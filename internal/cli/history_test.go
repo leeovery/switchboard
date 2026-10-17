@@ -169,16 +169,16 @@ func TestHistoryJSONGivesEachWeeksPeaksAndTheCapacity(t *testing.T) {
 }
 
 // windowsFromThe6th are the readings history --windows gives from the 6th:
-// work's 5-hour window reaching its limit, and its week, then side's 5-hour
-// window, each a reading at a time, the configured accounts in the config's
-// order.
-const windowsFromThe6th = `work  5-hour
+// work's week, then its 5-hour window reaching its limit, in the order of
+// care, then side's 5-hour window, each a reading at a time, the configured
+// accounts in the config's order.
+const windowsFromThe6th = `work  Week
+  Wed 7 Oct 09:00  41%  resets Mon 12 Oct 10:00  allowed  answer
+
+work  5-hour
   Tue 6 Oct 21:00  90%   resets Tue 6 Oct 23:10  allowed   answer
   Tue 6 Oct 22:14  100%  resets Tue 6 Oct 23:10  rejected  answer
   Wed 7 Oct 09:00  30%   resets Wed 7 Oct 14:00  allowed   answer
-
-work  Week
-  Wed 7 Oct 09:00  41%  resets Mon 12 Oct 10:00  allowed  answer
 
 side  5-hour
   Tue 6 Oct 22:15  10%  resets Wed 7 Oct 03:15  allowed  answer
@@ -193,11 +193,11 @@ func TestHistoryWindowsPrintsEachAccountsWindowsReadings(t *testing.T) {
 		want string
 	}{
 		{name: "from a day", args: []string{"--since", "2026-10-06"}, want: windowsFromThe6th},
-		{name: "from the day of a time today, whatever the time", args: []string{"--since", "10:00"}, want: `work  5-hour
-  Wed 7 Oct 09:00  30%  resets Wed 7 Oct 14:00  allowed  answer
-
-work  Week
+		{name: "from the day of a time today, whatever the time", args: []string{"--since", "10:00"}, want: `work  Week
   Wed 7 Oct 09:00  41%  resets Mon 12 Oct 10:00  allowed  answer
+
+work  5-hour
+  Wed 7 Oct 09:00  30%  resets Wed 7 Oct 14:00  allowed  answer
 
 side  5-hour
   Wed 7 Oct 10:00  5%  resets Wed 7 Oct 15:00  allowed  answer
@@ -308,7 +308,7 @@ func TestHistoryOfDaysWithoutRequestsSaysSoThenNotesTheirLimitsAndWeeksReset(t *
 			name: "a check and a count, work's session reaching its limit", today: []ledger.Line{worksCheck, worksCount},
 			read: append(slices.Clone(fixtureReadings), readings.Reading{At: october(7, 9, 30, 0), Account: "work", Key: "5h", Utilization: 1,
 				ResetsAt: october(7, 14, 0, 0), Status: quota.StatusRejected}),
-			want: none + "\nWed 7 Oct 2026, so far\n  work: 1 session  ·  limits: 5-hour at 09:30  ·  highest: 5-hour 100%, week 41%\n",
+			want: none + "\nWed 7 Oct 2026, so far\n  work: 1 session  ·  limits: 5-hour at 09:30  ·  highest: week 41%, 5-hour 100%\n",
 		},
 	}
 	for _, tt := range tests {
@@ -325,7 +325,7 @@ func TestHistoryNotesAnAccountThatServedNoRequestOnlyWhereALimitWasReachedOrAWee
 	// Work's request of claude-opus-9, side serving none, its windows read.
 	worksRequest := fixtureLines["2026-10-07"][4]
 	const busy = "Wed 7 Oct 2026, so far\n  work  claude-opus-9  1 request  110 tokens  1 session  unpriced\n"
-	const works = "  work: 1 session  ·  highest: 5-hour 30%, week 41%\n\n"
+	const works = "  work: 1 session  ·  highest: week 41%, 5-hour 30%\n\n"
 	tests := []struct {
 		name string
 		read []readings.Reading

@@ -47,7 +47,7 @@ func TestADaysAccountsAreThoseThatServedARequestOrWhoseDayWasEventful(t *testing
 				},
 				Limits:     []views.WindowAt{{Window: "5h", At: at(14)}},
 				WeeksReset: []views.WindowAt{{Window: "7d", At: at(10)}, {Window: "7d_oi", At: at(11)}},
-				Highest:    []views.WindowUse{{Window: "5h", Use: 1}, {Window: "7d", Use: 0.41}},
+				Highest:    []views.WindowUse{{Window: "7d", Use: 0.41}, {Window: "5h", Use: 1}},
 			},
 		}},
 		{Date: "2026-10-08", Accounts: []views.DayAccount{{Sessions: 1, Models: []views.DayModel{{Requests: 1, Sessions: 1}}}}},

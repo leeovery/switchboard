@@ -51,8 +51,8 @@ func TestText(t *testing.T) {
 				},
 			},
 			want: `work · Work
-  5-hour      23%  resets in 2h 58m · Mon 17:10 · on pace for 57%
   Week        93%  resets in 5d 11h · Sun 02:10 · runs out ~Mon 16:54
+  5-hour      23%  resets in 2h 58m · Mon 17:10 · on pace for 57%
   Fable offline: HTTP 529 · Overloaded
 
 side · Side
@@ -124,8 +124,8 @@ probed directly
 				},
 			},
 			want: `work · Work
-  5-hour  23%  resets in 2h 58m · Mon 17:10 · on pace for 57%
   Week    40%  resets in 5d 11h · Sun 02:10 · runs out ~Wed 20:15
+  5-hour  23%  resets in 2h 58m · Mon 17:10 · on pace for 57%
   2 sessions
 
 side · Side
@@ -200,8 +200,8 @@ from the router: healthy  ·  no sessions  ·  routing automatically
 				},
 			},
 			want: `work · Work
-  5-hour   0%  not started
   Week    40%  resets in 5d 11h · Sun 02:10 · runs out ~Wed 20:15
+  5-hour   0%  not started
 
 best next: work · Work
 from the router: healthy  ·  no sessions  ·  routing automatically
@@ -234,8 +234,8 @@ from the router: healthy  ·  no sessions  ·  routing automatically
 				},
 			},
 			want: `work · Work
-  5-hour  23%  resets in 2h 58m · Mon 17:10 · on pace for 57%
   Week    40%  resets in 5d 11h · Sun 02:10 · runs out ~Wed 20:15
+  5-hour  23%  resets in 2h 58m · Mon 17:10 · on pace for 57%
 
 side · Side
   5-hour   0%  not started · next prime Mon 14:17
@@ -373,8 +373,8 @@ func TestTextMarksThePrimaryAndAReserveHoldingItsAccountBack(t *testing.T) {
 				Accounts:    []status.Account{work, side},
 			}
 			want := "work · Work (primary)\n" +
-				"  5-hour  23%  resets in 2h 58m · Mon 17:10 · on pace for 57%\n" +
 				tt.week +
+				"  5-hour  23%  resets in 2h 58m · Mon 17:10 · on pace for 57%\n" +
 				tt.work + "\n" +
 				"side · Side\n" +
 				"  5-hour  60%  resets in 2h 58m · Mon 17:10 · runs out ~Mon 15:33\n" +

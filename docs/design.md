@@ -1392,10 +1392,11 @@ line after it, as a shell's prompt spaces itself (settled in the plan).
   quota's order. `status.CompareWindows` owns it, and the moment's `Listed` lists the windows by
   it; every tab and verb that lists windows to the owner reads it there: USAGE by window and by
   account, GRAPHS' charts, Runway's `<` `>`, the Switchboard's lines, the routing card, a
-  session's page, the Accounts tab's and History's limits and resets, and `usage`'s flags. The
-  JSON keeps quota's order, shortest first, as it's for agents and the order carries nothing
-  there, and so does what's recorded. The views guard holds it: no drawing package or command
-  orders windows itself.
+  session's page, the Accounts tab's and History's limits and resets, the Log's request and event
+  cards, `usage`'s flags, `status`'s text, and `history`'s text, its days' highest use and
+  `--windows`' readings. The JSON keeps quota's order, shortest first, as it's for agents and the
+  order carries nothing there, and so does what's recorded. The views guard holds it: no drawing
+  package or command orders windows itself.
 
 **The pool, the names and their numbers:**
 
@@ -3218,7 +3219,7 @@ filling in as its line comes (settled in the plan).
   |---|---|---|
   | 19 | `REQUEST` | `id`, the router's `request`; `Anthropic's`, `answer.id`; `from`, `agent` cut to its name and version (`claude-cli/2.1.0`); `betas`, `betas` without their dates (`context-1m, interleaved-thinking`) |
   | 19 | `ROUTED` | `to`, `account`; `from`, the account it left and why (`work, at its cap`); `upstream`, `attempts` in words, `once`, `twice`, then `3 times` (settled in the plan) |
-  | 19 | `<ACCOUNT>'S WINDOWS AFTER IT` | from `limits`, as the answer left them: `5-hour` and `week`, each use bold in its level's colour (see `usage`, the printout), and a model's window where the answer gave it; `status` |
+  | 19 | `<ACCOUNT>'S WINDOWS AFTER IT` | from `limits`, as the answer left them, in the order of care: `week` and `5-hour`, each use bold in its level's colour (see `usage`, the printout), and a model's window where the answer gave it; `status` |
   | 69 | `ASKED` | `model`; `size`, `shape.bytes` (`482 KB`); `messages`, `system` (`3 blocks`) and `tools`, `shape`'s counts; `max_tokens`; `thinking`, its budget; `effort`, `output_config`'s; `stream`, `yes` or `no` |
   | 94 | `ANSWERED` | `status`; `model`, `answer.model`, the one that served it; `first byte`, `first_ms`; `ended`, `total_ms`; `stopped`, `answer.stop` and its tools as the table words them; `blocks`, `answer.blocks` (`2 thinking, 1 text, 1 tool use`) |
   | 94 | `TOKENS` | `in`, `usage.input_tokens`; `from cache`, the cache reads; `cached`, the cache writes, bold `accent.attention` where the request moved its session, then their lifetime in `text.muted` (` for an hour`, ` for 5 minutes`, from `usage.cache_creation`); `out`; `worth`, bold `text.secondary`, then ` at API prices` in `text.muted`; `the move`, its cache write priced, bold `accent.attention`, then ` of it` in `text.muted`, or `unpriced` alone where the price table can't price it (the owner's call, 15 October 2026) |
@@ -3241,8 +3242,10 @@ filling in as its line comes (settled in the plan).
     `week · joined 16:02`, as a limit's card has them after its `its limit` (the owner's call, 15
     October 2026); `known from`, the request whose answer first read the window at its cap,
     `7f3a's request at 14:30:51`;
-  - `WORK THEN`: `5-hour` and `week`, each bold in its level's colour; `resets`, `17:10`;
-    `sessions`, `3 on it`;
+  - `WORK THEN`: `week` and `5-hour`, in the order of care, each bold in its level's colour;
+    `resets`, `17:10`, as the event says it: a cap's or a limit's lifting, a prime's window
+    ending, else the reset of the first window the event names, else of the shortest the answer
+    read, the 5-hour where it read one; `sessions`, `3 on it`;
   - `WHAT FOLLOWED`: a row each session it moved, named by its id, `moved to side` and three
     spaces then what writing its context again was worth, in `accent.attention`, `unpriced` where
     the price table can't price it; `new sessions`, `go elsewhere till 17:10`; `in all`, the moves'

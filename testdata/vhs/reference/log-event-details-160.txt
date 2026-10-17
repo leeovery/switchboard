@@ -18,8 +18,8 @@ LOG    Requests  Events  [ ]  ────────────────�
 ◇ 08:47:00      ╭─ EVENT · 14:31:03 · work reached its cap ────────────────────────────────────────────────────────────────────────────────────╮
 ▲ 09:12:40  e0c4│                                                                                                                              │
 ▲ 09:40:05  3d7a│  WHAT HAPPENED                                     WORK THEN                WHAT FOLLOWED                                    │
-▲ 10:02:18  5b19│  ├ event        work reached its cap               ├ 5-hour       95%       ├ d28c         moved to side   $1.82             │
-◇ 11:30:02      │  ├ its cap      95% of its 5-hour window           ├ week         34%       ├ 7f3a         moved to side   $0.98             │
+▲ 10:02:18  5b19│  ├ event        work reached its cap               ├ week         34%       ├ d28c         moved to side   $1.82             │
+◇ 11:30:02      │  ├ its cap      95% of its 5-hour window           ├ 5-hour       95%       ├ 7f3a         moved to side   $0.98             │
 ▲ 11:55:31  9c2e│  └ known from   7f3a's request at 14:30:51         ├ resets       17:10     ├ db8a         moved to side   $0.66             │
 ▲ 12:02:10  d28c│                                                    └ sessions     3 on it   ├ new sessions go elsewhere till 17:10           │
 ◇ 12:10:00      │                                                                             └ in all       $3.46 to cache them again         │

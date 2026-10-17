@@ -5,8 +5,10 @@ import (
 	"slices"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // DayAccounts are a day's accounts as history's day table shows them, beside
@@ -38,8 +40,8 @@ type DayAccount struct {
 	// windows a week long, its own week or a model's, as quota.WeekLong
 	// says, each in the order they came.
 	Limits, WeeksReset []WindowAt
-	// Highest is each of its windows' highest use that day, by their keys,
-	// in order.
+	// Highest is each of its windows' highest use that day, in the order of
+	// care, as status.CompareWindows has it by Claude's policy.
 	Highest []WindowUse
 }
 
@@ -115,7 +117,7 @@ func dayAccountOf(a ledger.PricedAccount) DayAccount {
 			account.WeeksReset = append(account.WeeksReset, WindowAt{Window: r.Window, At: r.At})
 		}
 	}
-	for _, key := range slices.Sorted(maps.Keys(a.Highest)) {
+	for _, key := range slices.SortedFunc(maps.Keys(a.Highest), status.CompareWindows(claude.Policy())) {
 		account.Highest = append(account.Highest, WindowUse{Window: key, Use: a.Highest[key]})
 	}
 	return account

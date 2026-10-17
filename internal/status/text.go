@@ -325,15 +325,21 @@ func RefusalAnswer(code int, family string) string {
 
 // writeAccount writes the account a, judged as j, as it stands at the
 // moment: its title, marking the primary, its windows with their names
-// width wide, each as accountWindow has it, and whatever couldn't be read.
+// width wide, in the order of care, as CompareWindows has it, each as
+// accountWindow has it, and whatever couldn't be read.
 func (m Moment) writeAccount(b *strings.Builder, a AccountNow, j judgedAccount, width int) {
 	title := a.Title()
 	if a.Primary {
 		title += " (primary)"
 	}
 	fmt.Fprintf(b, "%s\n", title)
-	for i, w := range j.windows {
-		fmt.Fprintf(b, "  %s\n", m.accountWindow(a, a.Windows[i], w, width))
+	listed := make([]int, len(a.Windows))
+	for i := range listed {
+		listed[i] = i
+	}
+	slices.SortStableFunc(listed, func(x, y int) int { return m.CompareWindows(a.Windows[x].Key, a.Windows[y].Key) })
+	for _, i := range listed {
+		fmt.Fprintf(b, "  %s\n", m.accountWindow(a, a.Windows[i], j.windows[i], width))
 	}
 	for _, f := range a.Failures {
 		fmt.Fprintf(b, "  %s offline: %s\n", prose.Clean(f.Label), prose.Clean(f.Error))

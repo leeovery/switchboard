@@ -6,10 +6,12 @@ import (
 	"slices"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // Windows are each account's every window's readings over the days asked
@@ -40,7 +42,8 @@ type WindowReading struct {
 // NewWindows builds the Windows of the local days from from's to today's,
 // now the time now, as history reads them: the configured accounts' first,
 // in the config's order, then any other's, by id, each one's windows in
-// quota's order.
+// quota's order, as history --json gives them; Listed has them as its text
+// lists them.
 func NewWindows(history Readings, accounts config.Accounts, from, now time.Time) Windows {
 	type window struct{ account, key string }
 	held := make(map[window][]WindowReading)
@@ -57,6 +60,22 @@ func NewWindows(history Readings, accounts config.Accounts, from, now time.Time)
 		windows.Windows[i] = WindowReadings{Account: w.account, Window: w.key, Readings: held[w]}
 	}
 	return windows
+}
+
+// Listed are the windows' readings as the verbs' text lists them: each
+// account's together, the accounts in their order, each one's windows in the
+// order of care, as status.CompareWindows has it by Claude's policy.
+func (w Windows) Listed() []WindowReadings {
+	place := make(map[string]int)
+	for i, r := range w.Windows {
+		if _, ok := place[r.Account]; !ok {
+			place[r.Account] = i
+		}
+	}
+	order := status.CompareWindows(claude.Policy())
+	return slices.SortedStableFunc(slices.Values(w.Windows), func(a, b WindowReadings) int {
+		return cmp.Or(cmp.Compare(place[a.Account], place[b.Account]), order(a.Window, b.Window))
+	})
 }
 
 // byConfig orders accounts' ids as the config orders the accounts, those it

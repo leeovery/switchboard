@@ -348,7 +348,7 @@ func capSaid(followed ...string) Details {
 		Headline:  "work reached its cap",
 		Happened:  []string{"event: work reached its cap", "its cap: 95% of its 5-hour window", "known from: 7f3a's request at 14:30:51"},
 		KnownFrom: "f1",
-		Then:      []string{"account: work", "5-hour: 97%", "week: 34%", "resets: 17:10", "sessions: 3"},
+		Then:      []string{"account: work", "week: 34%", "5-hour: 97%", "resets: 17:10", "sessions: 3"},
 		Followed:  followed,
 	}
 }
@@ -434,6 +434,24 @@ func pins() EventMoment {
 			Happened: []string{"event: new sessions back to the router's choice", "from: work, side, personal", "set from: the dashboard"},
 		},
 	}
+	return m
+}
+
+// startedRead is c61b starting on work, its first answer reading work's week
+// to reset before its 5-hour: the card lists the week first, but says the
+// 5-hour's reset, the shortest window it read, as an event that names no
+// window and no end of its own says.
+func startedRead() EventMoment {
+	run := localOn(7, 8, 0)
+	c0 := reading(localOn(7, 14, 0), asked("c0", C61B, work, status.ReasonNew, localOn(7, 10, 0)), fiveHour, 0.2, week, 0.5)
+	c0.Limits[week+"-reset"] = fmt.Sprint(localOn(7, 12, 0).Unix())
+	started := status.Event{ID: 1, At: localOn(7, 10, 1), Kind: status.EventStarted, Account: work, Session: C61B, Model: Opus, Reason: status.ReasonNew}
+	m := toldAll("a session started, its account's week to reset before its 5-hour", run, localOn(7, 0, 0), localOn(7, 11, 0), started)
+	m.Lines = []ledger.Line{c0}
+	m.Details = map[Key]Details{keyOf(run, started): {
+		Headline: "c61b started on work", Happened: []string{"event: c61b started on work", "session: c61b mobile", "model: opus-5-5"},
+		Then: []string{"account: work", "week: 50%", "5-hour: 20%", "resets: 14:00", "sessions: 1"},
+	}}
 	return m
 }
 
