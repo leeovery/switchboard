@@ -109,9 +109,14 @@ the real dashboard, built with every seam faked: it never dials the router, prob
 real install. `go run ./cmd/capturetool --fixture <name> --print --size 160x37` prints one as text
 (`--ansi` with its colour, `--theme` in another theme); `--help` lists the fixtures.
 
-- **The signed-off frames** are in `testdata/vhs/reference/`. capture's tests hold each fixture
-  named after a frame to it, cell for cell, passing over only the cells `testdata/vhs/README.md`
-  lists, and hold every view to its rows at every size.
+- **The frames** in `testdata/vhs/reference/` are the live view as the owner last signed it off.
+  capture's tests hold each fixture named after a frame to it, cell for cell, passing over nothing,
+  and hold every view to its rows at every size; the dashboard package's tests hold its rules,
+  never the frames.
+- **A change that alters a screen** shows the owner its prints first (`--print`), then, once he
+  signs them off, regenerates its frames in the same change:
+  `go run ./cmd/capturetool --frames testdata/vhs/reference [names…]`, every frame without names.
+  Never edit a frame by hand.
 - **The README's demos:** `--scenario` plays a scripted scenario in real time; their tapes are in
   `demo/` and their art in `art/`, as `demo/README.md` says.
 - **Scaffolding:** the `vhs` tapes and captures in `testdata/vhs/` are for judging a milestone by
