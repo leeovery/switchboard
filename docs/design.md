@@ -1003,7 +1003,9 @@ have glyphs of their own, told apart from an event's mark by their colour and th
   ` Sessions `, ` Runway `, ` Log `. The one shown is bold `text.primary` on `bg.selection`; the
   rest are `text.subtle`. Two cells after the last, `tab ⇥` in `text.faint`.
 - **The clock,** ending at the last column: the date, `Thu 1 Oct  `, in `text.muted`, then the time,
-  `14:42:07`, in bold `text.secondary`, ticking each second.
+  `14:42:07`, in bold `text.secondary`, ticking each second. Under a card it ticks on, drawn as it
+  is with no card open, not faded with the page, which stands still behind the card, so a card left
+  open never reads as a dashboard that's stopped (the owner's call, 17 October 2026).
 - **On a phone,** the clock stays on row 0, and the tabs take row 1 from column 0 with no space
   between them and no `tab ⇥`: the six fill 52 columns exactly.
 
@@ -3801,9 +3803,10 @@ none touches routing.
   (not all sessions: one pinned on its own keeps its pin); `ROUTING · THIS SESSION` on a session's
   page.
 - **The page behind it, faded:** every cell's colours, foreground and background, mixed 80% of the
-  way to `canvas`, nothing bold, even pace's marks among them. A terminal draws it by drawing the
-  page again in those colours. The page behind stands still while the card is open, the card's own
-  figures following each read (settled in the plan).
+  way to `canvas`, nothing bold, even pace's marks among them, but the title row's clock's. A
+  terminal draws it by drawing the page again in those colours. The page behind stands still while
+  the card is open, the card's own figures following each read (settled in the plan), and the
+  clock ticking on (see The page, "The title row").
 - **It keeps its place:** new sessions' card holds room for its longest outcome, four lines, and a
   session's for two, so picking, which changes how long the outcome is, never moves it. New
   sessions' card is `15 + a` rows tall for `a` accounts, a session's `13 + a`.
@@ -4020,7 +4023,7 @@ turn growing (see A session's page); Runway's lanes moving on with the clock (se
 card or under `?`, so nothing new is drawn while nothing happens. They come at most 30 a second, a
 motion with steps drawing at its steps, as the cords' shimmer does on the clock's 80-millisecond
 marks. The page behind a card stands still, its card's figures following each read
-(settled in the plan). Where the look can't blend, with `NO_COLOR`, a number that changes is bold
+(settled in the plan), and the title row's clock ticking on. Where the look can't blend, with `NO_COLOR`, a number that changes is bold
 for its second instead of brightening, and a cue is bold for its 5 seconds (settled in the plan);
 the `terminal` theme draws `bg.attention` as reverse video, as Themes says.
 

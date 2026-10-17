@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/theme"
 )
@@ -13,12 +14,17 @@ func TestTheTitleRow(t *testing.T) {
 		name  string
 		width int
 		shown View
+		// clock is the frame's Clock: zero for none.
+		clock time.Time
 		// want are the rows it draws, and wantRows how many it takes.
 		want     []string
 		wantRows int
 	}{
 		{name: "the badge at the first column, the six tabs two cells after it, the hint, and the clock ending at the last", width: 160, shown: Overview, want: []string{
 			" SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Log   tab ⇥" + blanks(61) + "Mon 28 Sep  13:12:00",
+		}, wantRows: 1},
+		{name: "the clock at the frame's Clock, where it's set", width: 160, shown: Overview, clock: now.Add(10 * time.Minute), want: []string{
+			" SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Log   tab ⇥" + blanks(61) + "Mon 28 Sep  13:22:00",
 		}, wantRows: 1},
 		{name: "the clock two cells clear of the hint", width: 101, shown: Overview, want: []string{
 			" SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Log   tab ⇥  Mon 28 Sep  13:12:00",
@@ -37,7 +43,7 @@ func TestTheTitleRow(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := Frame{Width: tt.width, Height: 4, View: tt.shown}
+			f := Frame{Width: tt.width, Height: 4, View: tt.shown, Clock: tt.clock}
 			c := newCanvas(f.Width, f.Height)
 			f.title(c, now)
 			if got := f.titleRows(); got != tt.wantRows {
@@ -61,10 +67,10 @@ func TestTheTitleRowsInks(t *testing.T) {
 		{name: "a tab not shown", width: 160, x: 15, want: tabInk},
 		{name: "the tab shown", width: 160, x: 47, want: shownTabInk},
 		{name: "the hint", width: 160, x: 74, want: faintInk},
-		{name: "the date", width: 160, x: 140, want: mutedInk},
-		{name: "the time, bold", width: 160, x: 159, want: strongInk},
+		{name: "the date", width: 160, x: 140, want: dateInk},
+		{name: "the time, bold", width: 160, x: 159, want: timeInk},
 		{name: "a phone's tab shown", width: 52, x: 30, y: 1, want: shownTabInk},
-		{name: "a phone's time", width: 52, x: 51, want: strongInk},
+		{name: "a phone's time", width: 52, x: 51, want: timeInk},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -76,8 +82,11 @@ func TestTheTitleRowsInks(t *testing.T) {
 			}
 		})
 	}
-	if shownTabInk.on != (hue{token: theme.BgSelection}) || strongInk != (ink{token: theme.TextSecondary, bold: true}) {
-		t.Errorf("the tab shown is on %v and the time in %+v, want bg.selection, and bold text.secondary", shownTabInk.on, strongInk)
+	if shownTabInk.on != (hue{token: theme.BgSelection}) || timeInk != (ink{token: theme.TextSecondary, bold: true, kept: true}) {
+		t.Errorf("the tab shown is on %v and the time in %+v, want bg.selection, and bold text.secondary, kept bright behind a card", shownTabInk.on, timeInk)
+	}
+	if dateInk != (ink{token: theme.TextMuted, kept: true}) {
+		t.Errorf("the date is in %+v, want text.muted, kept bright behind a card", dateInk)
 	}
 }
 

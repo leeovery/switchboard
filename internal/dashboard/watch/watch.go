@@ -822,16 +822,16 @@ func (m Model) refresh() (Model, tea.Cmd) {
 
 // screen is what's on screen at now: the frame drawn, and the document and
 // the moment it's drawn of. With a card open, it's the page frozen as the
-// card opened, at the size drawn at now and in the look as it stands, the
-// card over it; else the page as the model stands at now, its key line
-// listing the keys that work.
+// card opened, but for its clock, at now, at the size drawn at now and in the
+// look as it stands, the card over it; else the page as the model stands at
+// now, its key line listing the keys that work.
 func (m Model) screen(now time.Time) (dashboard.Frame, status.Document, time.Time) {
 	if m.open == nothingOpen {
 		return m.live(now), m.doc, now
 	}
 	f := m.page.frame
 	f.Width, f.Height, f.Look = m.size.Width, m.size.Height, m.look()
-	f.Card = m.card(now)
+	f.Card, f.Clock = m.card(now), now
 	return f, m.page.doc, m.page.at
 }
 

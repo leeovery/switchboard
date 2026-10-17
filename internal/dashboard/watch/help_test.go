@@ -140,8 +140,8 @@ func TestADocumentLandingUnderHelpMovesNothingInIt(t *testing.T) {
 	if len(h.model.doc.Accounts) != len(twelve().Accounts) {
 		t.Fatalf("the watch has %d accounts after the read, want the twelve it read", len(h.model.doc.Accounts))
 	}
-	if got := h.view(); got != before {
-		t.Errorf("once a document that scrolls lands under help, the screen is\n%s\nwant it as help opened\n%s", got, before)
+	if got := h.view(); unclocked(got) != unclocked(before) {
+		t.Errorf("once a document that scrolls lands under help, the screen is\n%s\nwant it as help opened, but for its clock\n%s", got, before)
 	}
 }
 

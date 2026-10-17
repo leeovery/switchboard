@@ -836,8 +836,8 @@ func TestARowInFlightCountsOnPausedAndStandsStillBehindACard(t *testing.T) {
 	if _, ok := h.pendingFrame(); ok {
 		t.Error("the card open over the Log, a frame is armed, want none: the page behind it stands still")
 	}
-	if got := h.view(); got != opened || strings.Contains(got, prose.Seconds(5*time.Second)) {
-		t.Errorf("3s on, behind the card, the screen is\n%s\nwant it as the card opened\n%s", got, opened)
+	if got := h.view(); unclocked(got) != unclocked(opened) || strings.Contains(got, prose.Seconds(5*time.Second)) {
+		t.Errorf("3s on, behind the card, the screen is\n%s\nwant it as the card opened, but for its clock\n%s", got, opened)
 	}
 }
 
