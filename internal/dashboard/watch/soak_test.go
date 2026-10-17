@@ -469,9 +469,9 @@ func (s *soak) report(hour int, began time.Time) {
 	s.t.Logf("hour %2d %s on %-8s took %6.1fs: heap %7.1f MB, in use %7.1f MB, %9d objects, %d goroutines; sent %d (%d the long session's), filed %d, told %d",
 		hour, s.h.clock.now.Format("Jan 2 15:04"), m.shownView(), time.Since(began).Seconds(), mb(mem.HeapAlloc), mb(mem.HeapInuse), mem.HeapObjects,
 		runtime.NumGoroutine(), s.w.sent, s.w.longSent(), s.w.filed, s.heard)
-	s.t.Logf("        traffic: %d requests, %d lines, %d seats, %d calls, %d moves; log: %d lines read, %d sessions, the long one's %d requests, from %s, %d days' totals",
+	s.t.Logf("        traffic: %d requests, %d lines, %d seats, %d calls, %d moves; log: %d lines read, %d days, from %s, %d days' totals",
 		len(m.traffic.requests), len(m.traffic.lines), len(m.traffic.seen), len(m.traffic.calls), len(m.traffic.moves),
-		m.log.read.Len(), held(m.log.read, "sessions"), heldRequests(m.log.read, s.w.longest()), m.log.from.Date, len(m.log.totals))
+		m.log.read.Len(), held(m.log.read, "days"), m.log.from.Date, len(m.log.totals))
 	store := m.held.Holding()
 	open := 0
 	for _, n := range store.Open {
@@ -490,16 +490,6 @@ func (s *soak) report(hour int, began time.Time) {
 // slice, unexported or not.
 func held(v any, field string) int {
 	return reflect.ValueOf(v).FieldByName(field).Len()
-}
-
-// heldRequests is how many requests the Log's read holds of the session
-// with the given id, as its story is told from them.
-func heldRequests(read any, id string) int {
-	s := reflect.ValueOf(read).FieldByName("sessions").MapIndex(reflect.ValueOf(id))
-	if !s.IsValid() || s.IsNil() {
-		return 0
-	}
-	return s.Elem().FieldByName("requests").Len()
 }
 
 // profile writes the heap profile to path, the collector having run.
