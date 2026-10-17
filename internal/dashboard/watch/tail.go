@@ -14,17 +14,20 @@ import (
 
 // ledgerTail is today's lines of the request ledger as the watch follows
 // them: one Mark for every reader of them, each folding in what the ledger
-// gained since, as the Log's Requests fold it into their read; the day the
-// mark is of, which a read on another day turns from, none before its first
-// read; whether a look since the last read asks what the ledger gained;
-// whether a read of it is under way, one at a time; and how many reads of
-// today's lines whole a reader has under way for itself alone, as a
-// session's page reads its lines as it opens, which no read of the tail
-// runs beside, so the mark never moves past where one ends without its
-// reader taking in what lies between.
+// gained since, as the Log's Requests fold it into their read, the traces
+// counting what every read gives; the day the mark is of, which a read on
+// another day turns from, none before its first read; whether a look since
+// the last read asks what the ledger gained; whether the request stream
+// opened since a read was last asked, the traces owed one asked after it,
+// whether or not a reader follows the tail; whether a read of it is under
+// way, one at a time; and how many reads of today's lines whole a reader
+// has under way for itself alone, as a session's page reads its lines as it
+// opens, which no read of the tail runs beside, so the mark never moves past
+// where one ends without its reader taking in what lies between.
 type ledgerTail struct {
 	tailRead
 	due     bool
+	owed    bool
 	reading bool
 	whole   int
 }
@@ -96,9 +99,18 @@ func (t ledgerTail) busy() bool {
 }
 
 // asking is the tail with a read of it under way, none due till a look
-// since asks.
+// since asks, nor owed to the traces till the stream opens again.
 func (t ledgerTail) asking() ledgerTail {
-	t.reading, t.due = true, false
+	t.reading, t.due, t.owed = true, false, false
+	return t
+}
+
+// streamOpened is the tail once the request stream has opened: a read of it
+// due, and owed to the traces, which only a read asked from then on pays, as
+// one under way may have read the files before the stream opened, and a
+// request that ended between told the stream nothing.
+func (t ledgerTail) streamOpened() ledgerTail {
+	t.due, t.owed = true, true
 	return t
 }
 
@@ -212,19 +224,27 @@ func (t tailReading) took(read tailLines, next ledger.Mark, logged []string) (ta
 
 // followTail has the watch read the ledger's tail at each look whatever
 // shows, as readTail reads it, where no other read of the ledger is under
-// way: while a reader folds it, the Log once opened, Sessions' List once
-// held or a session's page open, so each keeps up while another tab shows;
-// while the stream told of a request whose line it awaits, as the traffic
-// lets one go only once a read of the tail has read its line; or while the
-// store holds a session, for it to let go of those no reader wants.
+// way, while a reader follows it, as tailFollowed has it; and once after
+// the request stream opens, whether or not one does, as the traces are owed
+// a read, as streamOpened has it.
 func (m Model) followTail() (Model, tea.Cmd) {
 	if !m.tail.due || m.tail.busy() || m.cfg.Ledger == nil || m.log.reading || m.sessionsTab.reading || m.pending != "" {
 		return m, nil
 	}
-	if !m.log.opened && !m.sessionsTab.listed && m.session == nil && !m.traffic.awaitsLines() && m.held.Len() == 0 {
+	if !m.tail.owed && !m.tailFollowed() {
 		return m, nil
 	}
 	return m.readTail(m.now())
+}
+
+// tailFollowed reports whether a reader follows the ledger's tail: one that
+// folds it, the Log once opened, Sessions' List once held or a session's
+// page open, so each keeps up while another tab shows; the stream, while it
+// told of a request whose line it awaits, as the traffic lets one go only
+// once a read of the tail has read its line; or the store, while it holds a
+// session, for it to let go of those no reader wants.
+func (m Model) tailFollowed() bool {
+	return m.log.opened || m.sessionsTab.listed || m.session != nil || m.traffic.awaitsLines() || m.held.Len() > 0
 }
 
 // lateDays are the dates of the days before today the readers that fold a
@@ -259,11 +279,13 @@ func readLines(l views.Ledger, mark ledger.Mark, late []string) (tailLines, ledg
 // its mark; the store as the read fed it, with the sessions taken into it
 // as the read was under way, as heldWith keeps them, and none the read let
 // go; each reader grown by it, where it was read for one, as logGrown and
-// pageTaken have them, the page taking its session from the store; and the
-// lines it read of the requests the stream told of held, as lined has it,
-// for letGo.
+// pageTaken have them, the page taking its session from the store; today's
+// lines it read counted by the traces, whoever it was read for, as traced
+// has it; and the lines it read of the requests the stream told of held, as
+// lined has it, for letGo.
 func (m Model) tailed(msg tailedMsg) Model {
 	m.tail = m.tail.read(msg.tailRead)
+	m = m.traced(msg.lines.gained)
 	if msg.held != nil {
 		m = m.holding(msg.held.With(m.merged), msg.retells || m.mergedAny)
 	}

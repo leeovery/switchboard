@@ -27,8 +27,8 @@ const (
 	logUnder
 )
 
-// pageBeside is a model probing three accounts without the router, so the
-// traces, which keep a mark of their own, never read the request ledger;
+// pageBeside is a model probing three accounts without the router, so no
+// stream opens to ask a read of the request ledger's tail for the traces;
 // reading it in the state directory given, as daysCounted counts its reads,
 // with d28c's page open, the Log standing as log says.
 func pageBeside(t *testing.T, state string, log logBeside) (*harness, *daysCounted) {
