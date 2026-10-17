@@ -13,8 +13,14 @@ import (
 )
 
 // phraseGap is the fewest blank cells between two of the phrases under a
-// lane, the pool's too, and between the pool's room and its words.
+// lane.
 const phraseGap = 2
+
+// placed is a line placed from a column.
+type placed struct {
+	x    int
+	said line
+}
 
 // phrase is what's said under a lane of a stretch, of a reset, or of the
 // lane as a whole: its parts, whole ones dropped from the end where they
@@ -239,4 +245,15 @@ func (ln laidLane) heldAt(col int) bool {
 		return false
 	}
 	return slices.Contains([]views.Cell{views.CellCapped, views.CellLimited, views.CellRefused}, ln.Cells[col])
+}
+
+// datedAgainst is the moment the times Runway shown as r says are dated
+// against, as prose.Dated dates them: on a day stepped back to, today too,
+// its start, so its own times read alone and the next day's with their
+// weekday; else now, as in the live views and a week stepped back to.
+func (r RunwayShown) datedAgainst(now time.Time) time.Time {
+	if first, last, ok := r.Timeline.Named(); ok && first.Equal(last) {
+		return r.Timeline.Start
+	}
+	return now
 }

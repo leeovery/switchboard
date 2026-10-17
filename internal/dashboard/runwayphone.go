@@ -15,8 +15,8 @@ func (f Frame) phoneRunway(doc status.Document, now time.Time) runwayForm {
 
 // phoneRunwayFitted is how Runway fits the rows from row top to the one over
 // the key line on a phone, as runwayFittedAs fits them: its room on a row of
-// its own under the pool's words, as the label column is too narrow for it
-// beside them; no blank row before the legend; and the legend as many rows
+// its own under the pool's lane, as the label column is too narrow for it
+// beside the lane; no blank row before the legend; and the legend as many rows
 // as runwayLegend draws, its keys and what a column is on a line each at the
 // least.
 func (f Frame) phoneRunwayFitted(top int) runwayFit {

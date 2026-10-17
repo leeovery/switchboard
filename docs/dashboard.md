@@ -363,7 +363,9 @@ straight into another, the first says when it lifts, and only the last says when
 back: `at its limit 14:00  ·  lifts 19:00  at its cap 14:00  ·  back Mon 21:00`.
 
 With more than one account, the pool's lane sits under the others. It shows how many accounts have
-room, a column at a time, and draws a line, as a lane at its limit does, where none has.
+room, a column at a time, and draws a line, as a lane at its limit does, where none has. `Σ pool`
+names it, as an account's name heads its lane, with the pool's room in the view's window under
+it, such as `week 1.2 of 3 left`.
 
 To look back:
 

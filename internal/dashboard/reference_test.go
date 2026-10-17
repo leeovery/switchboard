@@ -181,6 +181,15 @@ func covers(spots []spot, row, col int) bool {
 	return false
 }
 
+// aRowUp is drawn read a row down, its row y as row y+1, so what the design
+// has since drawn a row up from where a frame drew it is held to the frame's
+// rows, as Runway's pool's room and all under it are, the rule over the
+// pool's lane and its words under it gone (the owner's call, 17 October
+// 2026).
+func aRowUp(drawn [][]seen) [][]seen {
+	return append([][]seen{nil}, drawn...)
+}
+
 // redrawn is the frame with the glyph was read as is along the rows given,
 // counted from 0, its cells' colours and weight as it has them: where the
 // design has since drawn the glyph otherwise, and the frame still holds the

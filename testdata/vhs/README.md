@@ -103,7 +103,9 @@ frame, with the cells `cells_test.go` reads and compares:
   lines among them. A test checks each, as it checks that this file names every stem in it. A
   passing can instead redraw a glyph, where the design has since drawn it otherwise: its row is
   held to the frame as though the frame drew the new glyph for the old, each cell's colours and
-  weight as the frame has them, and the frame must draw the old glyph there.
+  weight as the frame has them, and the frame must draw the old glyph there. Or it can move them,
+  where the design has since drawn the frame's cells on another row: they're held to the frame as
+  what's drawn on that row reads, and the frame must read there as the passing says.
 
 ## The cells passed over
 
@@ -687,6 +689,25 @@ frames), which the dashboard draws as its world gives it:
   Wed 14:40, its start on its ten minutes: the dashboard draws `Fri`, row 8, from column 51, a cell
   before the frame's, and Friday's `┬` and the four `╵` after it, row 9, columns 51, 85, 119, 153
   and 158, each a cell before the frame's. Every lane's cells are the same under both.
+- **The pool's lane, named at its top, with no rule and no words** (the owner's call, 17 October
+  2026). The frames draw a rule over the pool's lane, `Σ pool` on its second row, and under it, on
+  a row of their own, the pool's room and a phrase for each stretch where fewer than all the pool
+  have room; the design has since drawn `Σ pool` on the lane's first row, the room on its second,
+  as an account's name and use are, or on a phone on the row under the lane, and no rule and no
+  words. So the dashboard draws everything from the room down a row up from the frames', and the
+  rows the rule and the words held go to the page's fit. Passed over: the rule, row 19 of
+  `runway-5-hour-160`, `runway-week-160` and `runway-stepped-back-160`, row 30 of
+  `runway-ten-accounts-160` and row 20 of `runway-phone-52`; the label column of the lane's first
+  row, blank in the frames, where `Σ pool` now is: row 20, columns 1 to 24, row 31, columns 1 to
+  24, and row 21, columns 1 to 14, of each in turn; and the words, from the lanes' column: row 22,
+  columns 25 to 160, row 33, columns 25 to 160, and row 23, columns 15 to 52. Held to what's drawn
+  a row up: `Σ pool`, the label column of row 21, 32 and 22 of each; the room, the label column of
+  row 22 of the three, 33 of `runway-ten-accounts-160`, and on a phone, row 24 whole; and every row
+  under it to the last that draws anything: rows 23 to 29 of `runway-5-hour-160`, 23 to 34 of
+  `runway-week-160`, 23 and 24 of `runway-stepped-back-160`, 34 and 35 of
+  `runway-ten-accounts-160` and 25 to 31 of `runway-phone-52`. Ten accounts now fit at (c), with
+  a blank row under the axis, so `runway-ten-accounts-160`'s lanes and their words, rows 10 to 29,
+  are held to what's drawn a row down.
 
 **Runway, where its worlds give otherwise** (see What the worlds give otherwise than the frames),
 which the dashboard draws as its world gives it:
@@ -697,9 +718,7 @@ which the dashboard draws as its world gives it:
   `accent.attention` to ~Fri 12:20, then `─` at its limit to the `│`; its words, row 18, from
   column 61, `runs out ~Fri 12:20 at its pace  ·  back Mon 10:00, as its week resets`, where the
   frame says `resets Mon 10:00`; the pool's columns, row 20, columns 62 to 117, and its dip an
-  account deeper, row 21, columns 76 to 91; the pool's words, row 22, from column 73,
-  `2 of 3 with room ~Fri 12:20 – ~Sat 06:00, 1 till Sun 02:00, 2 till Mon 10:00`, where the frame
-  says `2 of 3 with room ~Sat 06:00 – Sun 02:00`; and COMING UP, rows 30 to 34, columns 1 to 72,
+  account deeper, row 21, columns 76 to 91; and COMING UP, rows 30 to 34, columns 1 to 72,
   which lists side's week running out ~Fri 12:20 fourth, so the frame's lines from its fourth are a
   line early.
 - **Lab's run-out,** in `runway-ten-accounts-160`: its world has lab run out at 16:05:29 at its

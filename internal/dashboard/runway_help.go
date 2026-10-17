@@ -9,7 +9,7 @@ import (
 
 // runwayHelp are Runway's parts as help explains them, after its keys, in
 // the design's order: the lanes, their marks and colours and the words under
-// them; the pool's lane and its words; stepping back and how far it
+// them; the pool's lane and its room; stepping back and how far it
 // reaches; how long a column is; and COMING UP. With one account, which has
 // no pool's lane, the pool's part goes, as it does from the page.
 func (f Frame) runwayHelp() []helpPart {
@@ -68,23 +68,19 @@ func (f Frame) lanesHelp() helpPart {
 }
 
 // poolHelp is the pool's lane as help explains it: its columns, how they're
-// counted and coloured; which accounts the pool is; and the room and the
-// words under it.
+// counted and coloured; its room under Σ pool; and which accounts the pool
+// is.
 func poolHelp() helpPart {
 	return helpPart{
 		heading: "POOL",
 		says: []line{
-			said("Under the pool's rule, Σ pool: a column for each of the lanes', filled to how many of the pool's accounts have " +
+			said("Beside Σ pool, under the lanes: a column for each of the lanes', filled to how many of the pool's accounts have " +
 				"room then, and coloured as switchboard usage colours the pool's use, the ramp's second colour from 70% used and " +
 				"its last from 90%, and where none has room, ─ along its foot, as a lane at its limit draws it. An account at its " +
 				"cap or its limit counts without room, one running out at its pace with room until it does, and one not known " +
-				"then without."),
-			said("The pool is every account on auto, and the pin's while one holds, as pinned says beside its room; an account " +
-				"out of it is faded, the words under its lane not."),
-			said("Under its lane, the pool's room in the view's window, as switchboard usage gives it, then a phrase for each dip, " +
-				"a stretch where fewer than all of the pool have room: 8 of 10 with room till 15:30 for one under way, ~16:05 – " +
-				"16:55 for one ahead, and 15:02 – 17:10 on a day stepped back to, each change of its count chained on, as 9 till " +
-				"~16:05. A dip too close to the phrase before for its own joins it with and, where its count is the same."),
+				"then without. Under Σ pool, the pool's room in the view's window, as switchboard usage gives it."),
+			said("The pool is every account on auto, and the pin's while one holds, as pinned says after its room where it fits; " +
+				"an account out of it is faded, the words under its lane not."),
 		},
 	}
 }
