@@ -22,8 +22,7 @@ const (
 var shownSubTabInk = ink{token: theme.TextPrimary, on: hue{token: theme.BgSubtle}, bold: true}
 
 // heading is a tab's heading row, as the tab gives it: its name; its
-// sub-tabs, where it has them, which of them is shown, and whether a phone
-// sets them tight, as the rule Accounts and History share has it; the state
+// sub-tabs, where it has them, and which of them is shown; the state
 // the screen can't otherwise show, in text.faint, a key within it in bold
 // accent.key, where there's any, and its shorter forms, each a clause fewer,
 // for less room; and at its right, its period or window, which < and > step,
@@ -32,7 +31,6 @@ type heading struct {
 	name    string
 	subTabs []string
 	shown   int
-	tight   bool
 	state   line
 	shorter []line
 	period  string
@@ -138,12 +136,6 @@ func (h heading) compact(phone bool) bool {
 	return phone && len(h.subTabs) > 0
 }
 
-// tightly reports whether the heading's sub-tabs are set tight, as a phone
-// sets them where the heading says to: each its name and a cell after it.
-func (h heading) tightly(phone bool) bool {
-	return h.tight && h.compact(phone)
-}
-
 // ownPeriod reports whether the heading's period takes the row under it, as
 // a phone has it where the heading is compact. A tab without sub-tabs, as
 // Runway, keeps its rule and its window on its row.
@@ -189,9 +181,8 @@ func (h heading) pieces(y, width int, phone bool) []piece {
 
 // named lays the heading's name out from the first column of row y, then,
 // where it has them, its sub-tabs, touching, three cells on, or two where
-// it's compact, set tight or not, as the Log's and History's phone frames
-// draw them, and a cell on, [ ], but where it's compact, or has one sub-tab
-// alone, with none to turn to; and returns the column after them.
+// it's compact, and a cell on, [ ], but where it's compact, or has one
+// sub-tab alone, with none to turn to; and returns the column after them.
 func (h heading) named(laid *laying, y int, phone bool) int {
 	x := laid.put(0, y, line{{h.name, dimInk}}, Target{})
 	if len(h.subTabs) == 0 {
@@ -203,7 +194,7 @@ func (h heading) named(laid *laying, y int, phone bool) int {
 	}
 	x += gap
 	for i := range h.subTabs {
-		x = laid.put(x, y, h.subTab(i, phone), Target{On: OnSubTab, SubTab: i})
+		x = laid.put(x, y, h.subTab(i), Target{On: OnSubTab, SubTab: i})
 	}
 	if h.compact(phone) || len(h.subTabs) == 1 {
 		return x
@@ -223,14 +214,10 @@ func (l *laying) put(x, y int, ln line, click Target) int {
 	return x + ln.width()
 }
 
-// subTab is the heading's sub-tab i, on a phone where phone says, its name
-// with a space either side, or after it alone where it's set tight, picked
-// out, the space with it, where it's the one shown.
-func (h heading) subTab(i int, phone bool) line {
+// subTab is the heading's sub-tab i, its name with a space either side,
+// picked out, the spaces with it, where it's the one shown.
+func (h heading) subTab(i int) line {
 	name := " " + h.subTabs[i] + " "
-	if h.tightly(phone) {
-		name = h.subTabs[i] + " "
-	}
 	if i == h.shown {
 		return line{{name, shownSubTabInk}}
 	}

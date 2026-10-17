@@ -131,7 +131,7 @@ func TestHistorysHeadingSaysWhatTheYearIsShownForAlone(t *testing.T) {
 	}
 }
 
-// On a phone, History's heading sets its sub-tabs tight after its name, its
+// On a phone, History's heading sets its sub-tabs two cells after its name, its
 // period on the row under them, at the right, and the view starts two rows
 // on, as history-phone-year-52 draws it.
 func TestHistorysHeadingOnAPhone(t *testing.T) {
@@ -139,7 +139,7 @@ func TestHistorysHeadingOnAPhone(t *testing.T) {
 	f.View = History
 	rows := f.page(threeRouted(), now).rows(Look{})
 
-	if got, want := rows[5], "HISTORY  Year Weeks Days Tokens"; strings.TrimRight(got, " ") != want {
+	if got, want := rows[5], "HISTORY   Year  Weeks  Days  Tokens"; strings.TrimRight(got, " ") != want {
 		t.Errorf("row 6 reads %q, want %q", got, want)
 	}
 	if got, want := rows[6], blanks(34)+"< last 12 months >"; got != want {

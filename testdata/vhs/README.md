@@ -510,6 +510,11 @@ frames):
 - **`[ ]` after Detail alone,** on `accounts-detail-one-160`'s heading row, row 5, columns 21 to 25,
   where with one account the heading shows ` Detail ` alone, with no sub-tabs and so no `[ ]`
   (1834–1835, 1947): the dashboard draws the rule two cells after ` Detail `.
+- **A phone's view tabs,** on its heading row, row 6, which the frames set tight, each its name and
+  a cell after it, so the highlight sits hard against the word: the dashboard pads each a cell
+  either side, ` Compare `, as the page's tabs are (the owner's call, 17 October 2026). Columns 11
+  to 27 of `accounts-phone-compare-52` and `accounts-phone-detail-52`; and History's alike, columns
+  10 to 36 of `history-phone-year-52`.
 
 - **`▲` after side,** where new sessions go, which the frames mark, where Accounts and History show
   no routing (1744–1745), as History's frames pass it over: on Compare's heads, row 7, column 100
@@ -767,6 +772,12 @@ which the dashboard draws as its world gives it:
   total, so the dashboard draws `$114.11`.
 - **The key lines** of `session-phone-52` and `session-turn-opened-160`, under Key lines drawn before
   the keys were swept, above.
+- **The session's directory** on the heading, row 5, which the frames draw in `text.faint`, where
+  the dashboard draws it in `text.muted`, the tone of a heading's quieter words (the owner's call,
+  17 October 2026): `~/Code/switchboard`, columns 31 to 48, of `session-moved-160`,
+  `session-ended-160` and `session-turn-opened-160`; `~/Code/website`, columns 27 to 40, of
+  `session-quiet-160` and `routing-session-160`; and `~/Code/api`, columns 23 to 32, of
+  `session-resumed-160`.
 
 **A session's page, where its world gives otherwise** (see What the worlds give otherwise than the
 frames), which the dashboard draws as its world gives it:

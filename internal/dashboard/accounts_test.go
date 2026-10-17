@@ -123,7 +123,7 @@ func TestAccountsHeadingRow(t *testing.T) {
 	}
 }
 
-// On a phone, Accounts' heading sets its sub-tabs tight after its name, its
+// On a phone, Accounts' heading sets its sub-tabs two cells after its name, its
 // period on the row under them, at the right, and the view starts two rows
 // on, as accounts-phone-compare-52 draws it.
 func TestAccountsHeadingOnAPhone(t *testing.T) {
@@ -131,7 +131,7 @@ func TestAccountsHeadingOnAPhone(t *testing.T) {
 	f.View, f.Accounts = Accounts, AccountsShown{Accounts: threeConfigured}
 	rows := f.page(threeRouted(), now).rows(Look{})
 
-	if got, want := rows[5], "ACCOUNTS  Compare Detail"; strings.TrimRight(got, " ") != want {
+	if got, want := rows[5], "ACCOUNTS   Compare  Detail"; strings.TrimRight(got, " ") != want {
 		t.Errorf("row 6 reads %q, want %q", got, want)
 	}
 	if got, want := rows[6], blanks(39)+"< this week >"; got != want {
