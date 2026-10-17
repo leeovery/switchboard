@@ -117,7 +117,9 @@ func (f Frame) Filled(doc status.Document, now time.Time) map[Ref]float64 {
 func overviewFilled(m status.Moment) map[Ref]float64 {
 	filled := windowsFilled(m, func(w status.WindowNow) bool { return !drawsEmpty(w.Kind) })
 	for _, p := range m.Pool().Windows {
-		filled[Ref{Window: p.Key}] = p.Used
+		if p.Used != nil {
+			filled[Ref{Window: p.Key}] = *p.Used
+		}
 	}
 	return filled
 }

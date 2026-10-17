@@ -42,7 +42,7 @@ func TestTheViewsAgreeAtEachHardMoment(t *testing.T) {
 				}
 			}
 			for _, w := range d.moment.Pool().Windows {
-				agree(t, "the pool's "+w.Key+" is used", d.poolUsed(w.Key))
+				agree(t, "the pool's "+w.Key+" has left", d.poolRoom(w.Key))
 			}
 		})
 	}
@@ -340,20 +340,21 @@ func (d drawn) used(a status.AccountNow, w status.WindowNow) []viewSays {
 	return says
 }
 
-// poolUsed is how much of the pool's window with the given key each view
-// says is used: USAGE's Σ pool bar, and the pool's chart of it at now, its
-// last column.
-func (d drawn) poolUsed(key string) []viewSays {
+// poolRoom is how much room the pool's window with the given key each view
+// says its accounts have left, to a tenth: USAGE's Σ pool words, and the
+// pool's chart of it at now, its last column. Σ pool's bar is left out, as
+// it fills to the accounts' mean use, by design another figure than the
+// chart's share of their room used.
+func (d drawn) poolRoom(key string) []viewSays {
 	var says []viewSays
 	if n := len(d.usage.rows); n > 0 && d.usage.rows[n-1].pool {
 		if j := slices.IndexFunc(d.usage.windows, func(w shownWindow) bool { return w.key == key }); j >= 0 {
-			says = append(says, viewSays{"USAGE's Σ pool", prose.Percent(d.usage.rows[n-1].gauges[j].bar.used)})
+			says = append(says, viewSays{"USAGE's Σ pool", d.usage.rows[n-1].gauges[j].words.full[0].text})
 		}
 	}
 	for _, pc := range d.poolCharts {
 		if room := pc.room; pc.key == key && room.Of > 0 {
-			last := room.Columns[len(room.Columns)-1]
-			says = append(says, viewSays{"the pool's chart", prose.Percent(1 - last.Room/float64(room.Of))})
+			says = append(says, viewSays{"the pool's chart", prose.Tenths(room.Columns[len(room.Columns)-1].Room)})
 		}
 	}
 	return says

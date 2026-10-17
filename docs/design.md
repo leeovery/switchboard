@@ -1352,10 +1352,14 @@ line after it, as a shell's prompt spaces itself (settled in the plan).
 - **The pool,** wherever there's more than one account, totals the room new sessions can go to now:
   every account on auto, only those the global pin names when pinned. Each window's room is summed
   to each account's cap, `cap − used` and never below 0, with nothing from the 5-hour window of an
-  account at its limit or its cap, nor from any window of an account refused or not read. Its bar
-  shows `1 − room ÷ the accounts in the pool`, coloured as every bar is, with no cap's mark; its
-  even pace is the mean of its accounts'; its percentage is its bar's. Its words are the room, to
-  one decimal place: `1.5` in bold `text.secondary`, then ` of 3 left` in `text.muted`; pinned, the
+  account at its limit or its cap, nor from any window of an account refused or not read. Its
+  percentage is its accounts' mean use of the window, each as its row shows it, leaving out one
+  without a usable token, not read, whose token is refused, or that hasn't reported the window;
+  where none is left it shows `—`, its bar empty, as a window nothing is read of (the owner's call,
+  17 October 2026: a share of the room used read a 5% reserve as 1% used when every account read
+  0%). Its bar fills to its percentage, coloured as every bar is, with no cap's mark; its even pace
+  is the mean of its accounts'. Its words are the room, their reserves counted, to one decimal
+  place: `1.5` in bold `text.secondary`, then ` of 3 left` in `text.muted`; pinned, the
   first window's words add ` · pinned`, in `text.muted`, and the smaller pool shows in `of 2`. The
   status document gives it (see The status document). With one account there's no pool: it would
   repeat the account.
@@ -1575,9 +1579,11 @@ first (the owner's call, 15 October 2026).
     after changes it, and through a read whose pool lacks the window, for when it's back; none is
     judged past when the readings were last read through, and waits blank for the read its step
     asks; and a window's are let go once it's no longer charted. The last, at now, is the pool's
-    room as the moment has it; and each column's share used is read by `Σ pool`'s rule, so now's
-    agrees with its bar. The burn-up fills each column to its share used, as an account's, and the
-    burn-down to what's left; neither draws a cap, even pace, now's line or where it's heading.
+    room as the moment has it, as `Σ pool`'s words say it; and each column's share used is the
+    share of all the accounts' room it leaves used, `1 − room ÷ accounts`, now's too, where
+    `Σ pool`'s bar fills to their mean use. The burn-up fills each column to its share used, as an
+    account's, and the burn-down to what's left; neither draws a cap, even pace, now's line or
+    where it's heading.
     Its axis: the time a length back from now in `text.faint` at the left, with its date for a
     window longer than a day, as a week back falls on now's weekday, and `now` in bold
     `text.subtle` ending at the right. A column none of whose accounts is known is blank, and one
@@ -2853,7 +2859,7 @@ blank row; with two, on the row after its words.
 - **Its columns,** two rows of them, a column for each of the lanes': how many of the pool's
   accounts have room, the column's height `with room ÷ accounts`, its full cells background and its
   top cell part-filled, as GRAPHS draws its columns (see The Overview). They're coloured as `usage`
-  colours the pool's use, `1 − with room ÷ accounts`: green under 70%, yellow from 70% and red from
+  colours a use, by `1 − with room ÷ accounts`: green under 70%, yellow from 70% and red from
   90%; the past dimmed. An account at its cap or its limit counts without room; one running out at
   its pace has room until it does. A column where none has room is `─` in `state.destructive` along
   its lower row, as a lane at its limit draws it, the past dimmed alike; one where no account's
@@ -5627,7 +5633,7 @@ probing.
 | `restart` | *router* A restart it has due: `{reason, since, in_flight, by_hand}`, `reason` why, `config changed`, `upgraded` or `time zone changed`, `since` when it found it due, `in_flight` how many requests it had in flight as it gave the document, and `by_hand` set when it was run by hand, with `serve`, and restarts only when it's run again. Left out while none is due (see The router looking after itself) |
 | `sessions` | *router* How many sessions have been routed in the last hour, each counted once, however many accounts its models went to; left out at 0 |
 | `events` | *router* What's happened lately, newest first, 50 at most, kept in memory, so a restart starts them afresh, though the router files every one (see The router's events): `[{id, at, kind, account, accounts, session, model, from, to, reason, windows, until, since, count, limit, forced_by, reserve, status, family, move, force, by}]`, `id` rising by one an event, from 1 as the router starts, so a reader tells which are new; `kind` one of `started`, `pressure`, `cap`, `limit`, `moved`, `refused`, `primed`, `room`, `pin`, `auto`, `restart` and `health`, each with the fields The router's events gives it. The Overview's LATELY reads the newest, folding the moves a limit, a cap or a refusal counts into its line where that's among them, and the Log's Events lists each (see The Overview, The Log). Left out when there are none |
-| `pool` | The accounts new sessions can go to now, as one, as `usage` and the Overview end their windows with it (see `usage`, the printout): `{accounts, pinned, windows}`. `accounts` their ids, in the config's order: those the global pin names, `pinned` then set, else every account; probing, every account, as the pin isn't known. `windows` a window each that any of them has, shortest first: `{key, label, room, used, pace}`, `room` its room summed in accounts' worth, `1.5` being an account and a half: each account's room to its cap, `1 − reserve` (to its limit without a reserve), and none in the 5-hour window of an account at its limit or its cap, nor in any window of one whose token is refused, or that hasn't been read; `used` what its bar fills to, `1 − room ÷` its accounts; and `pace` the even paces of its accounts' windows that are running, averaged. Left out with one account, whose own windows say the same |
+| `pool` | The accounts new sessions can go to now, as one, as `usage` and the Overview end their windows with it (see `usage`, the printout): `{accounts, pinned, windows}`. `accounts` their ids, in the config's order: those the global pin names, `pinned` then set, else every account; probing, every account, as the pin isn't known. `windows` a window each that any of them has, shortest first: `{key, label, room, used, pace}`, `room` its room summed in accounts' worth, `1.5` being an account and a half: each account's room to its cap, `1 − reserve` (to its limit without a reserve), and none in the 5-hour window of an account at its limit or its cap, nor in any window of one whose token is refused, or that hasn't been read; `used` what its bar fills to, its accounts' mean use of it, as each one's window has it, leaving out one without a usable token, not read, or whose token is refused, and left out itself where none is left; and `pace` the even paces of its accounts' windows that are running, averaged. Left out with one account, whose own windows say the same |
 | `coming_up` | What's coming to the accounts after the document was built, soonest first, as the Overview's and Runway's COMING UP list it: `[{at, account, kind, window, cap, refused}]`, `kind` one of `back` (the account has room again: its limit lifting; with `cap` set, the window at its cap resetting; or with `refused` set, its token's refusal ending, where that lifts after its limit and its cap; `window` set where a limit holds back only a model's requests, as a model's own week's), `runs_out` (`window` runs out before it resets, by its projection (see `usage`, the printout), the 5-hour window at its recent rate whenever there is one: at the account's cap, `cap` set, where its reserve holds it back, else at its limit), `reset` (`window` resets: each window's next, but one whose reset brings the account back, which `back` tells, and a model's own window only where its reset isn't its week's) and `prime` (*router* the account's next prime, as `prime` gives it). Left out when nothing is coming |
 | `accounts` | Every configured account, in the config's order, as below |
 

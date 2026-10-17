@@ -348,7 +348,7 @@ func TestThePoolsBarsEaseAsTheAccountsDo(t *testing.T) {
 	h.redraw()
 
 	pool := dashboard.Ref{Window: "5h"}
-	from, to := both(0.5).Pool.Windows[0].Used, both(0.75).Pool.Windows[0].Used
+	from, to := *both(0.5).Pool.Windows[0].Used, *both(0.75).Pool.Windows[0].Used
 	now := h.model.now()
 	f := h.model.live(now)
 	if got, want := f.Eased[pool], lerp(from, to, easeOutCubic(0.5)); got != want {

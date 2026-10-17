@@ -27,8 +27,9 @@ type PoolWindow struct {
 	// Room is the room its accounts have left in it, summed in accounts'
 	// worth, 1.5 being an account and a half.
 	Room float64 `json:"room"`
-	// Used is what its bar fills to: 1 − Room ÷ its accounts.
-	Used float64 `json:"used"`
+	// Used is its accounts' mean use of it, as usedOf counts them, what its
+	// bar fills to: nil where none's is counted.
+	Used *float64 `json:"used,omitempty"`
 	// Pace is the even paces of its accounts' windows that are running,
 	// averaged: nil where none is.
 	Pace *float64 `json:"pace,omitempty"`
@@ -355,13 +356,13 @@ func (d Document) inPool(id string) bool {
 }
 
 // poolWindow is the window with the given key of the members given, as one:
-// the room each has left in it, as poolRoom has it, summed; what that leaves
-// its bar filled to; and their even paces in it, as it stands, where it's
-// running, as paceOf has each, averaged.
+// the room each has left in it, as poolRoom has it, summed; their use of it,
+// those usedOf counts, averaged; and their even paces in it, as it stands,
+// where it's running, as paceOf has each, averaged.
 func poolWindow(members []judgedAccount, key string) PoolWindow {
 	pw := PoolWindow{Key: key}
-	var paces float64
-	var running int
+	var used, paces float64
+	var counted, running int
 	for _, m := range members {
 		w, ok := m.window(key)
 		if !ok {
@@ -369,23 +370,42 @@ func poolWindow(members []judgedAccount, key string) PoolWindow {
 		}
 		pw.Label = cmp.Or(pw.Label, w.window.Label)
 		pw.Room += w.room
+		if u, ok := m.usedOf(w); ok {
+			used, counted = used+u, counted+1
+		}
 		if w.pace != nil {
 			paces, running = paces+*w.pace, running+1
 		}
 	}
-	pw.Used = PoolUsed(pw.Room, len(members))
-	if running > 0 {
-		mean := paces / float64(running)
-		pw.Pace = &mean
-	}
+	pw.Used, pw.Pace = meanOf(used, counted), meanOf(paces, running)
 	return pw
 }
 
-// PoolUsed is what a pool's bar fills to, the room its accounts have left in
-// a window summed as given, in accounts' worth, of the pool's number of
-// accounts given: 1 − room ÷ accounts, the share of all of theirs used.
+// meanOf is the mean of n figures summing to sum: nil where there are none.
+func meanOf(sum float64, n int) *float64 {
+	if n == 0 {
+		return nil
+	}
+	return new(sum / float64(n))
+}
+
+// PoolUsed is the share of all of a pool's accounts' room used, the room
+// they have left in a window summed as given, in accounts' worth, of the
+// pool's number of accounts given: 1 − room ÷ accounts, as the pool's room
+// is charted. The pool's bar fills to its accounts' mean use instead.
 func PoolUsed(room float64, accounts int) float64 {
 	return 1 - room/float64(accounts)
+}
+
+// usedOf is the use of the account judged as j of its window w, as its row
+// shows it, as the pool's mean counts it, reporting false where it counts
+// none: of an account without a usable token, nothing read, as unknown says,
+// or whose token is refused, as poolRoom counts no room in.
+func (j judgedAccount) usedOf(w judged) (float64, bool) {
+	if _, unknown := j.states.unknown(true); unknown || j.states.stood.refused {
+		return 0, false
+	}
+	return w.stands.Utilization, true
 }
 
 // poolRoom is the room account a has left in its window w at at, as the pool

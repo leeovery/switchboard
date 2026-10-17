@@ -26,7 +26,7 @@ USAGE  ────────────────────────�
 
 10 studio              ▌   ┃       41%  22%/day till Sun 06:00        ▎     ┃      33%  41%/h till 16:20          ▋        ┃       10%  34%/day till Sun 06:00
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- Σ pool                 ▍┃         46%  5.4 of 10 left                  ┃          44%  5.6 of 10 left            ▌      ┃          9%  9.1 of 10 left
+ Σ pool                 ▎┃         45%  5.4 of 10 left                  ┃          43%  5.6 of 10 left            ▍      ┃          9%  9.1 of 10 left
 
                  ┃ even pace: where you would be now, used evenly    ╎ cap: work at 95%    ◆ primary    ▲ new sessions go here
 

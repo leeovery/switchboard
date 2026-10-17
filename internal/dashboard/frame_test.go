@@ -344,19 +344,29 @@ func TestAFrameKeepsAMomentItHoldsOnlyWhereItsPolicyJudgedIt(t *testing.T) {
 	doc := routerDoc("side", 0, capped, readAccount("side", sessionOf(0.1, 4*time.Hour), weekOf(0.4, 5*quota.Day)))
 	unjudged := frameOf(160, 40)
 	unjudged.Policy = score.Policy{}
-	judged, afresh := frameOf(160, 40).Filled(doc, now), unjudged.Filled(doc, now)
+	judged, afresh := poolRooms(frameOf(160, 40), doc), poolRooms(unjudged, doc)
 	if maps.Equal(afresh, judged) {
-		t.Fatalf("both policies fill the bars %v, want fills that differ", judged)
+		t.Fatalf("both policies leave the pool %v, want rooms that differ", judged)
 	}
 	held := frameOf(160, 40).At(doc, now)
 	held.Policy = score.Policy{}
-	if got := held.Filled(doc, now); !maps.Equal(got, afresh) {
-		t.Errorf("a copy of a frame held at doc, its Policy changed since, fills the bars %v, want them afresh, by its own Policy, %v", got, afresh)
+	if got := poolRooms(held, doc); !maps.Equal(got, afresh) {
+		t.Errorf("a copy of a frame held at doc, its Policy changed since, leaves the pool %v, want it afresh, by its own Policy, %v", got, afresh)
 	}
-	if got := unjudged.Holding(doc.HoldAt(now, claudeLike)).At(doc, now).Filled(doc, now); !maps.Equal(got, afresh) {
-		t.Errorf("a frame given a moment another policy judged fills the bars %v, want them by its own Policy, %v", got, afresh)
+	if got := poolRooms(unjudged.Holding(doc.HoldAt(now, claudeLike)).At(doc, now), doc); !maps.Equal(got, afresh) {
+		t.Errorf("a frame given a moment another policy judged leaves the pool %v, want it by its own Policy, %v", got, afresh)
 	}
-	if got := frameOf(160, 40).Holding(doc.HoldAt(now, claudeLike)).At(doc, now).Filled(doc, now); !maps.Equal(got, judged) {
-		t.Errorf("a frame given a moment its Policy judged fills the bars %v, want them as that moment has them, %v", got, judged)
+	if got := poolRooms(frameOf(160, 40).Holding(doc.HoldAt(now, claudeLike)).At(doc, now), doc); !maps.Equal(got, judged) {
+		t.Errorf("a frame given a moment its Policy judged leaves the pool %v, want it as that moment has it, %v", got, judged)
 	}
+}
+
+// poolRooms are the room the pool has left in each of its windows, by key,
+// as the frame f reads the moment of doc at now.
+func poolRooms(f Frame, doc status.Document) map[string]float64 {
+	rooms := make(map[string]float64)
+	for _, w := range f.Moment(doc, now).Pool().Windows {
+		rooms[w.Key] = w.Room
+	}
+	return rooms
 }

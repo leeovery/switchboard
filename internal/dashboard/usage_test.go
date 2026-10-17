@@ -3,6 +3,7 @@ package dashboard
 import (
 	"cmp"
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 	"testing"
@@ -564,6 +565,54 @@ func TestThePoolSaysItsPinnedOnTheFirstWindowItHasWordsFor(t *testing.T) {
 	}
 	if got := colAt(rows[10], 135, 22); strings.Contains(got, "pinned") || !strings.Contains(got, " of 2 left") {
 		t.Errorf("the pool's Fable week reads %q, want its room of 2, not saying pinned again", got)
+	}
+}
+
+// Σ pool's figure is its accounts' mean use, as their rows show it, its bar
+// filled to it, and its words their room to their caps: with every account
+// at none, one keeping a reserve, it reads 0%, though their room is 1.9 of 2.
+// Where none of their use is counted, each one's token refused, it reads —,
+// as a row nothing is read of does, its bar empty, its words still the room.
+func TestThePoolsFigureIsItsAccountsMeanUseItsWordsTheirRoom(t *testing.T) {
+	reserved := readAccount("work", sessionOf(0, 4*time.Hour), weekOf(0, 3*quota.Day))
+	reserved.Reserve = 0.1
+	refused := func(a status.Account) status.Account {
+		a.Refused = status.Refusal{Until: now.Add(time.Hour), Status: 401}
+		return a
+	}
+	side := readAccount("side", sessionOf(0, 2*time.Hour), weekOf(0, 5*quota.Day))
+	tests := []struct {
+		name          string
+		doc           status.Document
+		figure, words string
+		filled        float64
+	}{
+		{name: "every account at none, one keeping a reserve", doc: routerDoc("side", 0, reserved, side), figure: "0%", words: "1.9 of 2 left"},
+		{
+			name:   "mixed uses",
+			doc:    routerDoc("side", 0, readAccount("work", sessionOf(0.6, 4*time.Hour), weekOf(0.2, 3*quota.Day)), readAccount("side", sessionOf(0.1, 2*time.Hour), weekOf(0.5, 5*quota.Day))),
+			figure: "35%", words: "1.3 of 2 left", filled: 0.35,
+		},
+		{name: "none counted, each token refused", doc: routerDoc("side", 0, refused(reserved), refused(side)), figure: "—", words: "0.0 of 2 left"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := tt.doc.At(now, claudeLike)
+			row, ok := poolRow(m.Pool(), namesOf(m), usageWindows(m, []string{"7d"}, labelsOf(m)))
+			if !ok || len(row.gauges) != 1 {
+				t.Fatalf("the pool's row is %+v, %v, want its week's gauge", row, ok)
+			}
+			g := row.gauges[0]
+			if got := g.bar.percentage().plain(); got != tt.figure {
+				t.Errorf("Σ pool's week reads %q, want %q", got, tt.figure)
+			}
+			if got := g.words.full.plain(); got != tt.words {
+				t.Errorf("Σ pool's week's words read %q, want %q, the room to the accounts' caps", got, tt.words)
+			}
+			if filled := g.bar.fills(); g.bar.empty != (tt.figure == "—") || !g.bar.empty && math.Abs(filled-tt.filled) > 1e-9 {
+				t.Errorf("Σ pool's week's bar fills %v, empty %v, want it filled to its figure", filled, g.bar.empty)
+			}
+		})
 	}
 }
 

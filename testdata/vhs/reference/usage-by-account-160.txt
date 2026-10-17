@@ -18,10 +18,10 @@
 
                 Fable wk      ▏                                          ┃                                                           4%  25%/day till Mon 10:00
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Σ pool          Week                                                               ┃     ▌                                          61%  1.2 of 3 left
+Σ pool          Week                                                               ┃   ▊                                            59%  1.2 of 3 left
 
-                5-hour                                                  ┃     ▊                                                     51%  1.5 of 3 left
+                5-hour                                                  ┃                                                           49%  1.5 of 3 left
 
-                Fable wk         ▎                                                 ┃                                                 7%  2.8 of 3 left
+                Fable wk       ▌                                                   ┃                                                 5%  2.8 of 3 left
 
                 ┃ even pace: where you would be now, used evenly    ╎ cap: work at 95%

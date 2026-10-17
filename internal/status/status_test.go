@@ -740,13 +740,14 @@ func TestDocumentJSON(t *testing.T) {
 }`,
 		},
 		{
-			name: "with what's worked out of it: each window's even pace and allowance, the pool and what's coming up",
+			name: "with what's worked out of it: each window's even pace and allowance, the pool, its use left out where none's counted, and what's coming up",
 			doc: status.Document{
 				GeneratedAt: generated,
 				Source:      status.SourceRouter,
 				Pool: status.Pool{Accounts: []string{"work", "side"}, Pinned: true, Windows: []status.PoolWindow{
-					{Key: "5h", Label: "Session", Room: 1.5, Used: 0.25, Pace: new(0.4)},
-					{Key: "7d", Label: "Week", Room: 0.3333333333333333, Used: 0.8333333333333334},
+					{Key: "5h", Label: "Session", Room: 1.5, Used: new(0.25), Pace: new(0.4)},
+					{Key: "7d", Label: "Week", Room: 0.3333333333333333, Used: new(0.8333333333333334)},
+					{Key: "7d_oi", Label: "Fable week", Room: 0},
 				}},
 				ComingUp: []status.Upcoming{
 					{At: generated.Add(time.Minute), Account: "side", Kind: status.UpcomingPrime},
@@ -786,6 +787,11 @@ func TestDocumentJSON(t *testing.T) {
         "label": "Week",
         "room": 0.3333333333333333,
         "used": 0.8333333333333334
+      },
+      {
+        "key": "7d_oi",
+        "label": "Fable week",
+        "room": 0
       }
     ]
   },

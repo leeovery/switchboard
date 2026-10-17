@@ -87,12 +87,15 @@ func poolFrom(doc status.Document, read []readings.Reading, columns int) views.P
 // read; personal's whole room till its session's first reading, idle as it
 // was, then 0.8; side's 0.4 till its cap, then none, as at now, so no cliff
 // there. Now's is the pool's as the moment has it, Σ pool's. Each column's
-// used share is what Σ pool's bar fills to at that room, 1 − room ÷ 3, now's
-// the bar's own.
+// used share is the share of all three accounts' room that room leaves used,
+// 1 − room ÷ 3, now's too, where Σ pool's bar fills to their mean use, 51%.
 func TestThePoolsRoomIsEachAccountsRoomAsItStoodThenSummed(t *testing.T) {
 	from := poolFrom(pooledDoc(), poolReadings, 6)
 	got := views.PoolRoom{}.Look(from)
 	now := poolWindowNow(from.Moment, claude.FiveHourWindow)
+	if now.Used == nil || math.Abs(*now.Used-(0.4+0.2+0.92)/3) > 1e-9 {
+		t.Fatalf("Σ pool's bar fills to %v, want the accounts' mean use, %v", now.Used, (0.4+0.2+0.92)/3)
+	}
 	want := []float64{1.7, 2.2, 2.1, 1.7, 1.2, now.Room}
 	if got.Of != 3 || len(got.Columns) != len(want) {
 		t.Fatalf("the pool's room is of %d accounts, %d columns, want 3 and %d", got.Of, len(got.Columns), len(want))
@@ -101,9 +104,6 @@ func TestThePoolsRoomIsEachAccountsRoomAsItStoodThenSummed(t *testing.T) {
 		if math.Abs(col.Room-want[c]) > 1e-9 || math.Abs(col.Used-(1-want[c]/3)) > 1e-9 || !col.Known {
 			t.Errorf("column %d holds %v, %v used, known %v, want %v, %v used, known", c, col.Room, col.Used, col.Known, want[c], 1-want[c]/3)
 		}
-	}
-	if last := got.Columns[5]; last.Used != now.Used {
-		t.Errorf("now's column is %v used, want %v, as Σ pool's bar fills to", last.Used, now.Used)
 	}
 	if now, before := got.Columns[5].Room, got.Columns[4].Room; math.Abs(now-before) > 1e-9 {
 		t.Errorf("the pool's room steps from %v to %v at now, with nothing read between", before, now)
@@ -118,7 +118,7 @@ func poolWindowNow(m status.Moment, key string) status.PoolWindowNow {
 			return w
 		}
 	}
-	return status.PoolWindowNow{Room: math.NaN(), Used: math.NaN()}
+	return status.PoolWindowNow{Room: math.NaN()}
 }
 
 // Where nothing was read of any account by a column's moment, the column
@@ -212,15 +212,17 @@ func TestALookWithoutItsWindowHoldsWhatWasJudged(t *testing.T) {
 	}
 }
 
-// At now, the pool's room, and the share of it used, is Σ pool's, as the
-// moment has it, at every hard moment, in each of the pool's windows.
+// At now, the pool's room is Σ pool's, as the moment has it, at every hard
+// moment, in each of the pool's windows, and the share of it used is the
+// share of all its accounts' room that leaves used.
 func TestThePoolsRoomAtNowIsThePoolsAsTheMomentHasIt(t *testing.T) {
 	for _, hm := range statustest.HardMoments(claude.Policy()) {
 		m := hm.Doc.At(hm.Now, claude.Policy())
 		for _, w := range m.Pool().Windows {
 			got := views.PoolRoom{}.Look(views.PoolRoomFrom{Moment: m, Readings: docReadings(hm.Doc), ReadThrough: hm.Now, Key: w.Key, Columns: 24})
-			if last := got.Columns[len(got.Columns)-1]; last.Room != w.Room || last.Used != w.Used || !last.Known {
-				t.Errorf("%s: the pool's %s room at now is %v, %v used, known %v, want %v, %v used, as the moment has it", hm.Name, w.Key, last.Room, last.Used, last.Known, w.Room, w.Used)
+			used := status.PoolUsed(w.Room, len(m.Pool().Accounts))
+			if last := got.Columns[len(got.Columns)-1]; last.Room != w.Room || last.Used != used || !last.Known {
+				t.Errorf("%s: the pool's %s room at now is %v, %v used, known %v, want %v, %v used, as the moment has it", hm.Name, w.Key, last.Room, last.Used, last.Known, w.Room, used)
 			}
 		}
 	}

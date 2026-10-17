@@ -84,14 +84,14 @@ func statusDocument(t *testing.T, deps cli.Deps) result {
         "key": "5h",
         "label": "Session",
         "room": 0.72,
-        "used": 0.76,
+        "used": 0.23,
         "pace": 0.006666666666666667
       },
       {
         "key": "7d",
         "label": "Week",
         "room": 0.019999999999999907,
-        "used": 0.9933333333333334,
+        "used": 0.93,
         "pace": 0.3821428571428571
       },
       {

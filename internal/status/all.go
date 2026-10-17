@@ -78,9 +78,6 @@ func allWindowOf(accounts []AccountNow, key string) AllWindowNow {
 	if all.Of == 0 {
 		return all
 	}
-	all.Used, all.Stale = used/float64(all.Of), stale == all.Of
-	if running > 0 {
-		all.Pace = new(paces / float64(running))
-	}
+	all.Used, all.Stale, all.Pace = used/float64(all.Of), stale == all.Of, meanOf(paces, running)
 	return all
 }

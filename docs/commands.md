@@ -111,8 +111,10 @@ every account on auto, or, when there's a global pin, only the accounts pinned. 
 pool wherever there's more than one account:
 
 - The pool's row, `Σ pool`, comes last, under a rule.
-- Its words are the room left, in accounts' worth, such as `1.5 of 3 left`. When pinned, they add
-  ` · pinned`.
+- Its percentage is its accounts' mean use, each as its row shows it. An account without a usable
+  token, nothing read, or whose token is refused, is left out of it.
+- Its words are the room left to the accounts' caps, in accounts' worth, such as `1.5 of 3 left`.
+  When pinned, they add ` · pinned`.
 - An account outside the pool has its number drawn faintly.
 
 **Every window shows,** used or not. A model's own window, such as Fable's week, shows on every
@@ -525,7 +527,7 @@ document as JSON instead. The document holds:
 - every account's windows, each with its even pace, where even use would have put it by now, and
   its allowance, what can be spent of it an hour or a day and still last to its reset;
 - each account's extra usage, where the API reports it;
-- the pool: the room new sessions can go to, summed across its accounts; and
+- the pool: the room new sessions can go to, summed across its accounts, and their mean use; and
 - what's coming up, soonest first: each limit or cap lifting, window running out or resetting, and
   prime.
 

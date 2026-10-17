@@ -183,9 +183,10 @@ func drawsEmpty(kind status.WindowKind) bool {
 
 // poolRow is pool's row under the rows of accounts named as names has them,
 // of the windows shown, its Σ in their number column, reporting false where
-// there's no pool, as with one account: each window's bar filled to what the
-// pool has used, with its accounts' even pace and no cap's mark, and its
-// words its room, the first it has words for saying it's pinned, where it is.
+// there's no pool, as with one account: each window's bar filled to its
+// accounts' mean use, with their even pace and no cap's mark, empty where no
+// account's use is counted, and its words its room, the first it has words
+// for saying it's pinned, where it is.
 func poolRow(pool status.PoolNow, names []accountName, windows []shownWindow) (usageRow, bool) {
 	if len(names) < 2 || len(pool.Accounts) == 0 {
 		return usageRow{}, false
@@ -199,11 +200,11 @@ func poolRow(pool status.PoolNow, names []accountName, windows []shownWindow) (u
 			continue
 		}
 		p := pool.Windows[j]
-		row.gauges = append(row.gauges, gauge{
-			of:    Ref{Window: w.key},
-			bar:   usageBar{used: p.Used, capAt: 1, pace: p.Pace},
-			words: poolWords(p.Room, len(pool.Accounts), pinned),
-		})
+		bar := usageBar{empty: true}
+		if p.Used != nil {
+			bar = usageBar{used: *p.Used, capAt: 1, pace: p.Pace}
+		}
+		row.gauges = append(row.gauges, gauge{of: Ref{Window: w.key}, bar: bar, words: poolWords(p.Room, len(pool.Accounts), pinned)})
 		pinned = false
 	}
 	return row, true

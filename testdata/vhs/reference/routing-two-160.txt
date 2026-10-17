@@ -12,7 +12,7 @@ USAGE  ────────────────────────�
                                        │  Pick the accounts new sessions go to.                                         │
 3 side ▲               ┃    ▌     78%  │                                                                                │          4%  25%/day till Mon 10:00
 ───────────────────────────────────────│  □ 0 auto        the router chooses                                            │───────────────────────────────────────
-Σ pool                   ┃        61%  │  □ 1 work        closed    week 34%   5-hour 95%        at its cap till 17:10  │┃         7%  2.8 of 3 left
+Σ pool                   ┃        59%  │  □ 1 work        closed    week 34%   5-hour 95%        at its cap till 17:10  │┃         5%  2.8 of 3 left
                                        │  ■ 2 personal    open      week 66%   5-hour 39%                    2 running  │
                 ┃ even pace: where you │  ■ 3 side        open      week 78%   5-hour 13%                    4 running  │here
                                        │                                                                                │

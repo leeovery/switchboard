@@ -22,11 +22,11 @@ USAGE  ────────────────────────�
 
                 Fable wk   ▉                    ┃                            4%  25%/day till Mon 10:00    ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂▄▇     ▇ ▆▅▄▄▅▅▆  11/min
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Σ pool          Week                                ┃  ▎                    61%  1.2 of 3 left             2 open · 1 at cap
+Σ pool          Week                                ┃ ▌                     59%  1.2 of 3 left             2 open · 1 at cap
 
-                5-hour                         ┃  ▍                         51%  1.5 of 3 left             6 sessions
+                5-hour                         ┃ ▌                          49%  1.5 of 3 left             6 sessions
 
-                Fable wk     ▍                      ┃                        7%  2.8 of 3 left             ▄▆▇▆▃▃▃▃▂▂▄▆▇▇▅▄▃▃▂▂▂▂▂▁▂▂▄         ▇ ▆▅▄▅▇▆▇  14/min
+                Fable wk    ▌                       ┃                        5%  2.8 of 3 left             ▄▆▇▆▃▃▃▃▂▂▄▆▇▇▅▄▃▃▂▂▂▂▂▁▂▂▄         ▇ ▆▅▄▅▇▆▇  14/min
 
                 ┃ even pace: where you would be now, used evenly    ╎ cap: work at 95%    ◆ primary    ▲ new sessions go here
 

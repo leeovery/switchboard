@@ -18,7 +18,7 @@ USAGE  ────────────────────────�
 
 6 lab                  ┃ ▎        58%  out ~Sat 23:41                    ┃ ▍      71%  out ~16:05                  ▍   ┃          21%  21%/day till Mon 08:00
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Σ pool                 ▉┃         49%  3.1 of 6 left                  ┃▌          46%  3.2 of 6 left             ▍      ┃          8%  5.5 of 6 left
+Σ pool                 ▋┃         48%  3.1 of 6 left                  ┃▎          46%  3.2 of 6 left             ▎      ┃          8%  5.5 of 6 left
 
                 ┃ even pace: where you would be now, used evenly    ╎ cap: work at 95%    ◆ primary    ▲ new sessions go here
 
