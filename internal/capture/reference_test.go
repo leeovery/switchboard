@@ -10,10 +10,10 @@ import (
 )
 
 // referenceDir is where the frames are kept, each by its stem, as the text
-// and ANSI its fixture draws and a PNG.
+// and ANSI its fixture draws.
 const referenceDir = "../../testdata/vhs/reference"
 
-func TestReferenceKeepsEachFrameAsTextANSIAndPNG(t *testing.T) {
+func TestReferenceKeepsEachFrameAsTextAndANSI(t *testing.T) {
 	entries, err := os.ReadDir(referenceDir)
 	if err != nil {
 		t.Fatal(err)
@@ -26,7 +26,7 @@ func TestReferenceKeepsEachFrameAsTextANSIAndPNG(t *testing.T) {
 	}
 	for stem, exts := range kinds {
 		slices.Sort(exts)
-		if want := []string{".ansi", ".png", ".txt"}; !slices.Equal(exts, want) {
+		if want := []string{ansiExt, textExt}; !slices.Equal(exts, want) {
 			t.Errorf("reference/ keeps %s as %v, want %v", stem, exts, want)
 		}
 	}

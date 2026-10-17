@@ -23,11 +23,10 @@ import guard test fails if anything `cmd/switchboard` builds ever does.
 
 | Path | What | Lifetime |
 |---|---|---|
-| `<name>.tape` | A tape that runs a fixture, or cats a reference, and screenshots it | Scaffolding: cleared, with its capture, as each milestone is signed off |
+| `<name>.tape` | A tape that runs a fixture and screenshots it | Scaffolding: cleared, with its capture, as each milestone is signed off |
 | `<name>.png` | Its capture | Scaffolding, as its tape |
 | `reference/<stem>.txt` | The frame's character grid, as its fixture draws it: a line a row, its trailing blanks trimmed | **Kept** |
 | `reference/<stem>.ansi` | The frame in 24-bit colour, as its fixture draws it, with no newline after the last row, so `cat` in a terminal of its size doesn't scroll it | **Kept** |
-| `reference/<stem>.png` | The frame as Paper exported it, at 1x, when its area was signed off there; `--frames` doesn't write it | **Kept** |
 
 A capture is a render of the code, so it goes stale as the code moves on, and nothing checks it
 against a baseline: tapes and captures are written as a stage proceeds, committed while it's
@@ -110,15 +109,14 @@ not a frame to rewrite.
 
 ## Setting up
 
-`vhs` needs `ttyd` and `ffmpeg`, which Homebrew installs with it. Comparing a capture with its
-frame needs ImageMagick, and the tapes need JetBrains Mono, as the frames used it.
+`vhs` needs `ttyd` and `ffmpeg`, which Homebrew installs with it, and the tapes need JetBrains
+Mono.
 
 ```bash
-brew install vhs imagemagick
+brew install vhs
 vhs --version       # vhs 0.12 or later
 ttyd --version
 ffmpeg -version
-magick -version
 ls ~/Library/Fonts /Library/Fonts | grep JetBrainsMono-Regular
 ```
 
@@ -283,8 +281,7 @@ vhs testdata/vhs/<name>.tape
 
 It writes the PNG its `Screenshot` names. A fixture's tape, such as `history-year-160.tape`, runs
 it through `go run`, so the first run waits on a build; it waits for the frame with `Wait+Screen`
-rather than sleeping a guess. `calibrate-overview-default-160.tape` cats the frame's `.ansi`
-instead, for the calibration below.
+rather than sleeping a guess.
 
 ### Gotcha 1: the sandbox
 
@@ -342,9 +339,9 @@ Copy the `Theme` from a tape: Nord's canvas as the terminal's background, its `t
 the foreground, and Nord's own sixteen colours, so a dashboard that paints no background of its own
 shows on the frames' canvas.
 
-The frames are a terminal of 9 × 20 px cells, JetBrains Mono at 15px, under a 30px title bar, the
-grid 24px in and 16px down from it. The settings come from these, and from what was proven by
-experiment:
+The settings came from the Paper frames the dashboard was first built to, a terminal of 9 × 20 px
+cells, JetBrains Mono at 15px, under a 30px title bar, the grid 24px in and 16px down from it, and
+from what was proven by experiment:
 
 - **`LetterSpacing 0`**: `vhs` defaults to 1, a pixel more for every cell.
 - **The width and height**: `ttyd` and `xterm` keep 25px of the width, `ttyd`'s padding either
@@ -354,43 +351,9 @@ experiment:
   bar, and 8px of width to spare.
 - **The scale**: `vhs` captures `xterm`'s canvas, which holds the cells alone, and has `ffmpeg` fit
   it to the whole terminal, padding included, so the grid comes out scaled by
-  k = (R × 20 + 10) / (R × 20): 1.35% at 37 rows, its cells 9.12 × 20.27 px. No setting undoes it:
-  the grid matches the frame cell for cell, a little larger. The spare width keeps the fit to the
-  height, so the grid is R × 20 + 10 px tall at 46px down, under the bar, as the frames' grid is,
-  and round(C × 9 × k) px wide, centred: at 160 × 37, 1459 × 750 at +23+46.
-
-Through these settings, a frame's `.ansi`, as Paper's generator drew it, rendered what its `.png`
-shows, cell for cell, as `calibrate-overview-default-160` proved: once both are in sRGB and the capture's grid is scaled to
-the frame's, RMSE over the whole grid is 0.07, with 1.3% of pixels more than 10% apart. What differs
-is how a glyph is drawn, not where: anti-aliasing, and the block and box-drawing glyphs, which
-Paper drew from the font, where `xterm` draws its own.
-
-## Comparing a capture with its frame
-
-By eye, the two side by side or one over the other:
-
-```bash
-magick testdata/vhs/reference/overview-default-160.png testdata/vhs/calibrate-overview-default-160.png -append side-by-side.png
-```
-
-With `magick compare`, on the terminal grid alone. The frames carry a Display P3 colour profile, so
-take the frame to sRGB first, as a capture is, or every saturated colour reads as a difference;
-crop the frame's grid; crop the capture's, as the calibrated settings place it, and scale it to the
-frame's; then compare. At 160 × 37:
-
-```bash
-magick testdata/vhs/reference/overview-default-160.png -profile "/System/Library/ColorSync/Profiles/sRGB Profile.icc" \
-  -crop 1440x740+24+46 +repage frame.png
-magick testdata/vhs/calibrate-overview-default-160.png -crop 1459x750+23+46 +repage -resize '1440x740!' capture.png
-magick compare -metric RMSE frame.png capture.png diff.png
-magick compare -metric AE -fuzz 10% frame.png capture.png null:
-```
-
-For C × R, the frame's grid is (C × 9)x(R × 20)+24+46, and the capture's
-(round(C × 9 × k))x(R × 20 + 10)+(16 + floor((C × 9 + 33 − w) / 2))+46, where w is that width.
-`diff.png` marks what differs. The comparison is judged by eye in the end: anti-aliasing, bold and
-the box-drawing glyphs always differ a little, and a frame's colours are its theme's tokens, not
-what to read off a picture: the test holds those.
+  k = (R × 20 + 10) / (R × 20): 1.35% at 37 rows, its cells 9.12 × 20.27 px. No setting undoes it.
+  The spare width keeps the fit to the height, so the grid is R × 20 + 10 px tall at 46px down,
+  under the bar, and round(C × 9 × k) px wide, centred: at 160 × 37, 1459 × 750 at +23+46.
 
 ## Determinism
 
