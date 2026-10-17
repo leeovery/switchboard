@@ -60,8 +60,8 @@ const movedApart = 3
 
 // eventLines are the Events' lines, the oldest first, as the table holds
 // them; then, where it shows none of today's, the words saying so.
-func (p LogPage) eventLines() []logLine {
-	lines := make([]logLine, len(p.Events.Lines), len(p.Events.Lines)+1)
+func (p LogPage) eventLines() madeLines {
+	lines := make(madeLines, len(p.Events.Lines), len(p.Events.Lines)+1)
 	for i, l := range p.Events.Lines {
 		switch {
 		case l.Row != nil:

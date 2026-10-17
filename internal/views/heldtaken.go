@@ -3,16 +3,13 @@ package views
 import (
 	"maps"
 	"slices"
-
-	"github.com/leeovery/switchboard/internal/ledger"
 )
 
-// stacked is what a held page has taken, in layers, the last taken over
-// those before, which no taking changes, so a page that takes more shares
-// them with the page it took them from. A layer at least half as big as the
-// one under it is merged into it, as with has it, so what's taken is copied
-// again only as the layers under it double, and there are few to look
-// through.
+// stacked is what a holder has taken, in layers, the last taken over those
+// before, which no taking changes, so one that takes more shares them with
+// the one it took them from. A layer at least half as big as the one under
+// it is merged into it, as with has it, so what's taken is copied again only
+// as the layers under it double, and there are few to look through.
 type stacked[T any] struct {
 	top   T
 	size  int
@@ -34,72 +31,96 @@ func (s *stacked[T]) with(more T, size int, merge func(under, over T) T) *stacke
 	return top
 }
 
-// heldKeys are the keys of the lines a held page has taken, of whichever
-// session, as keyOf has them: none where they have no id.
-type heldKeys = *stacked[map[lineKey]bool]
+// answersHeld are a day's answers a page's points hold, every account's, in
+// layers, as stacked has them, each with how many of its answers each key
+// has, as answered's key has it, so a day that gains a few answers shares
+// those it held with the page it took them from.
+type answersHeld struct {
+	layers *stacked[answerLayer]
+}
 
-// keysOf are the keys of lines, those with ids, as keyOf has them.
-func keysOf(lines []ledger.Line) map[lineKey]bool {
-	keys := make(map[lineKey]bool)
-	for i := range lines {
-		if k, ok := keyOf(&lines[i]); ok {
-			keys[k] = true
-		}
+// answerLayer is a layer of answers held, and how many of them each key
+// has.
+type answerLayer struct {
+	answers []answered
+	keys    map[turnKey]int
+}
+
+// heldOf are the answers given, held.
+func heldOf(answers []answered) answersHeld {
+	return answersHeld{}.with(answers)
+}
+
+// with is h with the answers added over it, afresh: h itself where there are
+// none.
+func (h answersHeld) with(added []answered) answersHeld {
+	keys := make(map[turnKey]int, len(added))
+	for i := range added {
+		keys[added[i].key()]++
 	}
-	return keys
+	return answersHeld{h.layers.with(answerLayer{answers: added, keys: keys}, len(added), mergedLayers)}
 }
 
-// holding is held with the keys of lines taken over it.
-func holding(held heldKeys, lines []ledger.Line) heldKeys {
-	keys := keysOf(lines)
-	return held.with(keys, len(keys), mergedKeys)
-}
-
-// mergedKeys are the keys under and over hold, afresh.
-func mergedKeys(under, over map[lineKey]bool) map[lineKey]bool {
-	merged := maps.Clone(under)
-	maps.Copy(merged, over)
-	return merged
-}
-
-// holds reports whether held has the key k.
-func holds(held heldKeys, k lineKey) bool {
-	for ; held != nil; held = held.under {
-		if held.top[k] {
-			return true
-		}
+// mergedLayers are the answers under, then those over, afresh.
+func mergedLayers(under, over answerLayer) answerLayer {
+	keys := maps.Clone(under.keys)
+	for k, n := range over.keys {
+		keys[k] += n
 	}
-	return false
+	return answerLayer{answers: slices.Concat(under.answers, over.answers), keys: keys}
 }
 
-// answersTaken are a day's answers, every account's requests, as a held page
-// takes them in, in the order it took them.
-type answersTaken = *stacked[[]answered]
-
-// answering is answers, by date, with more taken in on the day with the
-// given date, afresh: answers itself where there are none. Only the dates
-// are copied, a few, each day's answers shared with answers.
-func answering(answers map[string]answersTaken, date string, more []answered) map[string]answersTaken {
-	if len(more) == 0 {
-		return answers
-	}
-	grown := make(map[string]answersTaken, len(answers)+1)
-	maps.Copy(grown, answers)
-	grown[date] = answers[date].with(more, len(more), mergedAnswers)
-	return grown
-}
-
-// mergedAnswers are the answers under, then those over, afresh.
-func mergedAnswers(under, over []answered) []answered {
-	return slices.Concat(under, over)
-}
-
-// takenAll are the answers taken, in the order they were taken.
-func takenAll(taken answersTaken) []answered {
+// all are the answers h holds, in the order they were taken.
+func (h answersHeld) all() []answered {
 	var layers [][]answered
-	for ; taken != nil; taken = taken.under {
-		layers = append(layers, taken.top)
+	for s := h.layers; s != nil; s = s.under {
+		layers = append(layers, s.top.answers)
 	}
 	slices.Reverse(layers)
 	return slices.Concat(layers...)
+}
+
+// count is how many of the answers h holds have the key k.
+func (h answersHeld) count(k turnKey) int {
+	n := 0
+	for s := h.layers; s != nil; s = s.under {
+		n += s.top.keys[k]
+	}
+	return n
+}
+
+// given are the answers among given, a read of h's day, that h doesn't hold,
+// in their order, and how many of the others were sealed, both read and
+// ended before sealedTo, as the points took them in, where the read is of
+// the day whole: one of a request with an id h holds, or given before among
+// them, passed over; one without, as often as h holds it alike, as its key
+// knows it. Of a read of the day's gain, one sealed is passed over too: a
+// line is filed as its request ends, so one the gain gives that ended before
+// what was sealed, a while before the read, is one given again, as a read
+// of today afresh gives every one of its lines. It reports false where one
+// it doesn't hold was read before sealedTo but ended after, which would
+// change what's sealed: the points can't place it.
+func (h answersHeld) given(given []answered, sealedTo instant, whole bool) ([]answered, int, bool) {
+	var added []answered
+	sealed := 0
+	seen := make(map[turnKey]int)
+	for i := range given {
+		a := &given[i]
+		k := a.key()
+		if seen[k] < h.count(k) || a.request != "" && seen[k] > 0 {
+			seen[k]++
+			continue
+		}
+		switch both, either := a.sealedBy(sealedTo); {
+		case both && whole:
+			sealed++
+		case both:
+		case either:
+			return nil, 0, false
+		default:
+			added = append(added, *a)
+			seen[k]++
+		}
+	}
+	return added, sealed, true
 }

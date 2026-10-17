@@ -187,7 +187,7 @@ func TestALogFilterKeepsThoseTickedAndEveryOneWhereNoneIs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			table := views.LogRows(views.LogSources{From: now, Now: now, Read: logRead(now, lines...), Filter: tt.filter})
 			var ids []string
-			for _, l := range table.Lines {
+			for _, l := range table.Lines() {
 				ids = append(ids, l.Row.Request)
 			}
 			if !slices.Equal(ids, tt.ids) {
@@ -290,7 +290,7 @@ func countedSession(r views.RequestRow) string {
 // datesOf are the dates of the days the table's rows are on, each once.
 func datesOf(table views.LogTable) []string {
 	var dates []string
-	for _, l := range table.Lines {
+	for _, l := range table.Lines() {
 		if date := views.Today(l.Row.At).Date; l.IsRow() && !slices.Contains(dates, date) {
 			dates = append(dates, date)
 		}
@@ -302,7 +302,7 @@ func datesOf(table views.LogTable) []string {
 // says, every one where it's nil.
 func rowsOn(table views.LogTable, date string, keep func(views.RequestRow) bool) int {
 	n := 0
-	for _, l := range table.Lines {
+	for _, l := range table.Lines() {
 		if l.IsRow() && views.Today(l.Row.At).Date == date && (keep == nil || keep(l.Row)) {
 			n++
 		}

@@ -78,12 +78,13 @@ func unsizedHarness(t testing.TB, doc status.Document, size Size) *harness {
 }
 
 // config is the watch's config the harness's models are made of, drawing
-// at size till the terminal gives its own, reading an empty ledger, and a
-// model's family and an account's week as Claude's are read.
+// at size till the terminal gives its own, reading an empty ledger priced at
+// the price table's prices, and a model's family and an account's week as
+// Claude's are read.
 func (h *harness) config(size Size) Config {
 	return Config{
 		Source: h.source, Notifier: h.notifier, Notifications: notifications, Now: h.clock.Now, After: h.arm, Await: h.await,
-		Interval: interval, Policy: policy, Size: size, Ledger: h.emptyLedger(), Readings: readings.Empty{}, Events: events.Empty{},
+		Interval: interval, Policy: policy, Size: size, Ledger: h.emptyLedger(), Prices: ledger.Pricing, Readings: readings.Empty{}, Events: events.Empty{},
 		Family: claude.Provider{}.Family, WeekWindow: claude.WeekWindow,
 	}
 }

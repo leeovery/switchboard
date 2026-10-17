@@ -10,40 +10,55 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
+	"github.com/leeovery/switchboard/internal/views/viewstest"
 )
 
 // kept90 is how long the held pages' tests' ledger keeps a day's lines, as
 // pageOf keeps them.
 const kept90 = 90 * 24 * time.Hour
 
-// A held page says a take changed its page where a line it takes in is the
-// session's, or moves its points, being of an account it ran on, on a day
-// it ran there, or the date rolls it on; and that none did where every line
-// was held already, or none is the session's or moves its points.
-func TestAHeldPageSaysWhetherATakeChangedItsPage(t *testing.T) {
+// A held page says a read of the ledger's tail changed it where the read
+// gains a line it doesn't hold, the session's, or any account's on a day
+// the session made requests on, which its points hold, whether it ran on
+// the account yet or not, or the read rolls it on to a later day; and that
+// none did where every line was held already, or none is new, or the only
+// new is another's on a day before yesterday the session made no request on.
+func TestAHeldPageSaysWhetherAReadChangedIt(t *testing.T) {
 	fiveHour := local(15, 0, 0)
 	ours := limited(filedAs("p1", serving(p1, ledger.ClassMain, line(paged, opus, "work", "sticky", local(11, 0, 0), hourUsage))), "5h", "0.10", fiveHour)
 	noon := local(12, 0, 0)
-	held := views.HoldPage(paged, views.ReadSessions(fakeLedger{now: noon, lines: []ledger.Line{ours}}, nil, noon, paged), ledger.Pricing, kept90, noon)
+	l := fakeLedger{now: noon, lines: []ledger.Line{ours}}
+	held := views.HoldPage(paged, views.ReadSessions(l, nil, noon, paged), ledger.Pricing, kept90, noon)
 	tests := []struct {
 		name, date string
-		lines      []ledger.Line
+		gained     []ledger.Line
+		late       []ledger.Line
 		want       bool
 	}{
 		{name: "nothing new", date: "2026-10-07"},
-		{name: "a line held already", date: "2026-10-07", lines: []ledger.Line{ours}},
+		{name: "a line held already", date: "2026-10-07", gained: []ledger.Line{ours}},
 		{name: "a line of its own", date: "2026-10-07", want: true,
-			lines: []ledger.Line{limited(filedAs("p2", serving(p1, ledger.ClassMain, line(paged, opus, "work", "sticky", local(12, 10, 0), hourUsage))), "5h", "0.15", fiveHour)}},
+			gained: []ledger.Line{limited(filedAs("p2", serving(p1, ledger.ClassMain, line(paged, opus, "work", "sticky", local(12, 10, 0), hourUsage))), "5h", "0.15", fiveHour)}},
 		{name: "another's on an account it ran on", date: "2026-10-07", want: true,
-			lines: []ledger.Line{limited(filedAs("o1", line(other, opus, "work", "sticky", local(12, 5, 0), hourUsage)), "5h", "0.20", fiveHour)}},
-		{name: "another's on an account it never ran on", date: "2026-10-07",
-			lines: []ledger.Line{limited(filedAs("o2", line(other, opus, "side", "sticky", local(12, 5, 0), hourUsage)), "5h", "0.20", fiveHour)}},
+			gained: []ledger.Line{limited(filedAs("o1", line(other, opus, "work", "sticky", local(12, 5, 0), hourUsage)), "5h", "0.20", fiveHour)}},
+		{name: "another's on an account it never ran on", date: "2026-10-07", want: true,
+			gained: []ledger.Line{limited(filedAs("o2", line(other, opus, "side", "sticky", local(12, 5, 0), hourUsage)), "5h", "0.20", fiveHour)}},
+		{name: "another's on a day before yesterday it made no request on", date: "2026-10-07",
+			late: []ledger.Line{limited(filedAs("o3", line(other, opus, "work", "sticky", october(5, 12, 0), hourUsage)), "5h", "0.20", fiveHour)}},
 		{name: "nothing new on the day after", date: "2026-10-08", want: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if _, got := held.Took(tt.date, heldOf(tt.lines...)); got != tt.want {
-				t.Errorf("taking in %d lines on %s, the page changed %t, want %t", len(tt.lines), tt.date, got, tt.want)
+			store := views.HoldSessions(ledger.Pricing).With(held.Found())
+			h := held.Joined(store)
+			var days map[string][]ledger.Held
+			if len(tt.late) > 0 {
+				days = map[string][]ledger.Held{"2026-10-05": heldOf(tt.late...)}
+			}
+			store, _ = store.Fed(l, views.Took(heldOf(tt.gained...), days), views.SessionsWanted{}.Paging(h, views.Stream{}), noon)
+			h, rolled := h.On(tt.date)
+			if _, fed := h.Held(store); (rolled || fed) != tt.want {
+				t.Errorf("reading %d lines on %s, the page rolled on %t, took its session afresh %t; want it changed %t", len(tt.gained)+len(tt.late), tt.date, rolled, fed, tt.want)
 			}
 		})
 	}
@@ -143,7 +158,7 @@ func TestABuiltPageStandsUntilTheClockWouldChangeIt(t *testing.T) {
 			}
 			live := tt.live
 			live.Now = now
-			built, ok := held.Build(0, live)
+			built, ok := held.Build(live)
 			if !ok || !built.Until.Equal(tt.want) {
 				t.Fatalf("built at %s, the page stands until %s, want %s", now, built.Until, tt.want)
 			}
@@ -167,7 +182,7 @@ func TestAPageCountsItsAnswerOnAsItsDrawn(t *testing.T) {
 	lines := []ledger.Line{filedAs("r1", mainOn(p1, local(11, 0, 0), "end_turn"))}
 	held := views.HoldPage(paged, views.ReadSessions(summarisedLedger(lines), nil, now, paged), ledger.Pricing, kept90, now)
 	was := heard(answering)
-	built, ok := held.Build(0, views.PageLive{Routed: runningOn("side"), Stream: was, Now: now})
+	built, ok := held.Build(views.PageLive{Routed: runningOn("side"), Stream: was, Now: now})
 	if !ok || built.Page.Activity.Doing != views.Answering || built.Page.Activity.Tokens() != 100 {
 		t.Fatalf("built as it answers, the page is doing %+v, want answering, ~100 tokens", built.Page.Activity)
 	}
@@ -204,7 +219,8 @@ func TestAPageHeldThenFedWhatItsDayGainedIsThePageBuiltWhole(t *testing.T) {
 	}
 	noon := local(12, 0, 0)
 	read := views.ReadSessions(fakeLedger{now: noon, lines: early}, nil, noon, paged)
-	held := views.HoldPage(paged, read, ledger.Pricing, kept90, noon).Take("2026-10-07", heldOf(append(gained, early[2])...))
+	held := fedWith(views.HoldPage(paged, read, ledger.Pricing, kept90, noon), fakeLedger{now: now, lines: slices.Concat(early, gained)}, "2026-10-07",
+		heldOf(append(gained, early[2])...), now)
 	got, ok := held.Page(views.PageLive{Now: now})
 	if want := pageOf(t, slices.Concat(early, gained), nil); !ok || !reflect.DeepEqual(got, want) {
 		t.Errorf("the page held, then fed its gain, is\n%+v\nwant it as built whole\n%+v", got, want)
@@ -231,16 +247,17 @@ func TestAPageItsStoryAndItsTurnsRequestsAreBuiltTogetherOfOneWorking(t *testing
 	stream := heard(toldOf("r4", p2, ledger.ClassMain, opus, "side", local(13, 10, 0)), views.Told{Request: "o2", Session: other, Model: opus, Account: "work", Sent: local(13, 11, 0)})
 	stream.Moves = []views.Moved{{Request: "o2", Session: other, Model: opus, From: "work", To: "side", Reason: "moved: work hit its limit", At: local(13, 11, 0)}}
 	live := views.PageLive{Now: now, Stream: stream}
+	held = turnOpened(held, 2, summarisedLedger(lines), live)
 	page, ok := held.Page(live)
 	if !ok {
 		t.Fatal("the page held built no page")
 	}
-	want := views.BuiltPage{Page: page, Story: held.Story(page, live), Requests: held.TurnRequests(2, live), Until: now.Truncate(time.Minute).Add(time.Minute)}
+	want := views.BuiltPage{Page: page, Story: held.Story(page, live), Open: 2, Requests: held.TurnRequests(2, live), Until: now.Truncate(time.Minute).Add(time.Minute)}
 	if len(want.Requests) != 2 {
 		t.Fatalf("turn 2 has %d requests, want r3 and r4", len(want.Requests))
 	}
 	for name, live := range map[string]views.PageLive{"whole": live, "of the session alone": {Now: now, Stream: stream.Of(paged)}} {
-		if got, ok := held.Build(2, live); !ok || !reflect.DeepEqual(got, want) {
+		if got, ok := held.Build(live); !ok || !reflect.DeepEqual(got, want) {
 			t.Errorf("built together, of the stream %s, the page is\n%+v\nwant each as built alone\n%+v", name, got, want)
 		}
 	}
@@ -249,9 +266,34 @@ func TestAPageItsStoryAndItsTurnsRequestsAreBuiltTogetherOfOneWorking(t *testing
 		held.Story(page, live)
 		held.TurnRequests(2, live)
 	})
-	if together := testing.AllocsPerRun(10, func() { held.Build(2, live) }); together >= alone {
+	if together := testing.AllocsPerRun(10, func() { held.Build(live) }); together >= alone {
 		t.Errorf("built together, the page, its story and its turn's requests allocate %.0f times, want fewer than the %.0f built alone", together, alone)
 	}
+}
+
+// fedWith is the page h fed the lines given, those the day with the given
+// date gained since it was held, as the watch feeds it a read of the
+// ledger's tail at now: rolled on to the day, as On has it; and its session,
+// its points among it, held as the store fed them holds it, as Held has it,
+// the store reading whole through l what it can't place.
+func fedWith(h views.HeldPage, l views.LedgerSessions, date string, gained []ledger.Held, now time.Time) views.HeldPage {
+	store, _ := h.Found().Fed(l, views.Took(gained, nil), views.SessionsWanted{}.Paging(h, views.Stream{}), now)
+	h, _ = rolledTo(h, date).Held(store)
+	return h
+}
+
+// rolledTo is the page h holds, rolled on to the day with the given date, as
+// On has it.
+func rolledTo(h views.HeldPage, date string) views.HeldPage {
+	h, _ = h.On(date)
+	return h
+}
+
+// turnOpened is the page h with its turn numbered n open, the lines of its
+// requests read through l, as live builds the page, as the watch opens it.
+func turnOpened(h views.HeldPage, n int, l views.LedgerSession, live views.PageLive) views.HeldPage {
+	h = h.Opening(n, live)
+	return h.Turned(h.ReadTurn(l, live))
 }
 
 // A held page reads the ledger once, as it's held: each look after, and each
@@ -261,7 +303,7 @@ func TestAHeldPageReadsTheLedgerOnceHoweverOftenItsLookedAt(t *testing.T) {
 	l := countedLedger{counts: counts, fakeLedger: summarisedLedger([]ledger.Line{filedAs("p1", mainOn(p1, local(12, 0, 0), "tool_use"))})}
 	held := views.HoldPage(paged, views.ReadSessions(l, nil, now, paged), ledger.Pricing, kept90, now)
 	for i := range 5 {
-		held = held.Take("2026-10-07", heldOf(filedAs("p"+string(rune('2'+i)), mainOn(p1, local(12, 1+i, 0), "tool_use"))))
+		held = fedWith(held, l, "2026-10-07", heldOf(filedAs("p"+string(rune('2'+i)), mainOn(p1, local(12, 20+i, 0), "tool_use"))), now)
 		if page, ok := held.Page(views.PageLive{Now: now.Add(time.Duration(i) * time.Second)}); !ok || page.Totals.Requests != 2+i {
 			t.Fatalf("look %d gave %+v, %v; want the page, of its %d requests", i, page.Totals, ok, 2+i)
 		}
@@ -281,7 +323,7 @@ func TestAHeldPagePricesAfreshAsTheDayTurns(t *testing.T) {
 	held := views.HoldPage(paged, views.ReadSessions(summarisedLedger(lines), nil, now, paged), ledger.Pricing, kept90, now)
 	read := views.ReadSessions(fakeLedger{now: tomorrow, lines: lines, summaries: summarisedLedger(lines).summaries}, nil, tomorrow, paged)
 	want, _ := views.SessionPageOf(paged, views.PageSources{Read: read, Prices: ledger.Pricing, Keep: kept90, Now: tomorrow})
-	for name, h := range map[string]views.HeldPage{"looked at": held, "rolled on": held.Take(views.Today(tomorrow).Date, nil)} {
+	for name, h := range map[string]views.HeldPage{"looked at": held, "rolled on": rolledTo(held, views.Today(tomorrow).Date)} {
 		if got, _ := h.Page(views.PageLive{Now: tomorrow}); !reflect.DeepEqual(got, want) {
 			t.Errorf("the page held a day, %s, is\n%+v\nwant it as built that day\n%+v", name, got, want)
 		}
@@ -319,7 +361,7 @@ func TestAHeldPageAwaitsTheLineOfARequestThatEndedAcrossMidnight(t *testing.T) {
 			first := []ledger.Line{filedAs("r1", mainOn(p1, local(23, 0, 0), "tool_use"))}
 			held := views.HoldPage(paged, views.ReadSessions(summarisedLedger(first), nil, night, paged), ledger.Pricing, kept90, night)
 			if tt.taken {
-				held = held.Take("2026-10-07", heldOf(lined))
+				held = fedWith(held, summarisedLedger(append(first, lined)), "2026-10-07", heldOf(lined), morning)
 			}
 			if got := held.Awaited(views.PageLive{Stream: heard(tt.told), Now: morning}); !slices.Equal(got, tt.awaits) {
 				t.Errorf("the page awaits lines on %v, want %v", got, tt.awaits)
@@ -342,8 +384,8 @@ func TestAHeldPageReadsAgainTheDaysMissedFromTheDayItsHeldAt(t *testing.T) {
 		unread []string
 	}{
 		{name: "held the day before last", held: held, unread: []string{"2026-10-07", "2026-10-08"}},
-		{name: "rolled on to the day before", held: held.Take("2026-10-08", nil), unread: []string{"2026-10-08"}},
-		{name: "rolled on past them", held: held.Take("2026-10-09", nil)},
+		{name: "rolled on to the day before", held: rolledTo(held, "2026-10-08"), unread: []string{"2026-10-08"}},
+		{name: "rolled on past them", held: rolledTo(held, "2026-10-09")},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -398,7 +440,8 @@ func TestATurnOpenedIsTheFramesRowsOfItsRequests(t *testing.T) {
 	at := local(14, 42, 7)
 	l := summarisedLedger(lines)
 	l.now = at
-	rows := turnRowsOf(views.HoldPage(paged, views.ReadSessions(l, nil, at, paged), ledger.Pricing, kept90, at).TurnRequests(1, views.PageLive{Unlisted: true, Now: at}))
+	live := views.PageLive{Unlisted: true, Now: at}
+	rows := turnRowsOf(turnOpened(views.HoldPage(paged, views.ReadSessions(l, nil, at, paged), ledger.Pricing, kept90, at), 1, l, live).TurnRequests(1, live))
 	want := []turnRow{
 		{local(14, 29, 4), opus, "work", 200, sec(8), sec(112), 176_000, 2100, 1300, "tool_use", "Bash"},
 		{local(14, 30, 42), opus, "work", 200, sec(9), sec(124), 181_000, 2400, 1100, "tool_use", "Bash"},
@@ -456,9 +499,10 @@ func TestATurnsRequestsAreTheLogsRowsOfThemOldestFirstWithNoMark(t *testing.T) {
 	l := summarisedLedger(lines)
 	held := views.HoldPage(paged, views.ReadSessions(l, nil, now, paged), ledger.Pricing, kept90, now)
 	stream := heard(toldOf("r8", p1, ledger.ClassMain, opus, "side", local(13, 10, 0)))
-	turn := held.TurnRequests(1, views.PageLive{Now: now, Stream: stream})
+	live := views.PageLive{Now: now, Stream: stream}
+	turn := turnOpened(held, 1, l, live).TurnRequests(1, live)
 	table := views.LogRows(views.LogSources{
-		From: now, Read: views.ReadLogHeld(l, heldOf(lines...), ledger.Pricing, now), Stream: stream, Now: now,
+		From: now, Read: viewstest.ReadingLog(ledger.Pricing).Took(l, heldOf(lines...), true, stream, now).Read, Stream: stream, Now: now,
 	})
 	logged := logRowsByID(table)
 	var ids []string
@@ -502,11 +546,86 @@ func TestATurnsRequestsAreTheLogsRowsOfThemOldestFirstWithNoMark(t *testing.T) {
 	}
 }
 
+// A turn's requests arriving at one moment are in the one order the store
+// tells its story in, whatever the order of their lines: the first ended
+// first, then by id.
+func TestATurnsRequestsArrivingTogetherAreInTheOneOrder(t *testing.T) {
+	at := local(12, 30, 0)
+	main := func(id string, d time.Duration) ledger.Line {
+		return filedAs(id, took(d, serving(p1, ledger.ClassMain, line(paged, opus, "work", "sticky", at, hourUsage))))
+	}
+	l := summarisedLedger([]ledger.Line{main("q2", 9*time.Second), main("q3", 5*time.Second), main("q1", 5*time.Second)})
+	live := views.PageLive{Now: now}
+	held := views.HoldPage(paged, views.ReadSessions(l, nil, now, paged), ledger.Pricing, kept90, now)
+	var ids []string
+	for _, line := range turnOpened(held, 1, l, live).TurnRequests(1, live) {
+		ids = append(ids, line.Row.Request)
+	}
+	if want := []string{"q1", "q3", "q2"}; !slices.Equal(ids, want) {
+		t.Errorf("turn 1's requests are %v, want %v, the first ended first, then by id", ids, want)
+	}
+}
+
+// A page open across midnight, fed at each read of the ledger's tail as the
+// watch feeds it, while another session's request on its account is in
+// flight over midnight, its headers read before it and its line filed on
+// the day before after it, is never read whole: past midnight, the day
+// before read again for that line; the session's first request of the new
+// day; and an hour on, as what's sealed reaches midnight. At each it's the
+// page read whole at the same moment.
+func TestAPageOpenAcrossMidnightIsNeverReadWhole(t *testing.T) {
+	fiveHour := october(7, 3, 0)
+	ours := func(id string, at time.Time, use string) ledger.Line {
+		return limited(filedAs(id, took(10*time.Second, serving(p1, ledger.ClassMain, line(paged, opus, "work", "sticky", at, hourUsage)))), "5h", use, fiveHour)
+	}
+	crossing := limited(filedAs("o1", took(40*time.Second, headersAfter(2*time.Second, line(other, opus, "work", "sticky", october(6, 23, 59).Add(50*time.Second), hourUsage)))),
+		"5h", "0.30", fiveHour)
+	lines := []ledger.Line{ours("p1", october(6, 23, 30), "0.10"), ours("p2", october(6, 23, 50), "0.20"), crossing, ours("p3", october(7, 0, 10), "0.40")}
+	filedBy := func(at time.Time) fakeLedger {
+		l := summarisedLedger(slices.DeleteFunc(slices.Clone(lines), func(l ledger.Line) bool { return writtenAt(l).After(at) }))
+		l.now = at
+		return l
+	}
+	opened := october(6, 23, 59).Add(55 * time.Second)
+	held := views.ReadPage(filedBy(opened), paged, views.Stream{}, ledger.Pricing, kept90, opened)
+	store := held.Found()
+	was := opened
+	for _, at := range []time.Time{october(7, 0, 0).Add(35 * time.Second), october(7, 0, 10).Add(30 * time.Second), october(7, 1, 0).Add(30 * time.Second), october(7, 1, 5)} {
+		l, today := filedBy(at), views.Today(at)
+		var gained []ledger.Held
+		days := make(map[string][]ledger.Held)
+		for _, line := range lines {
+			switch filed := writtenAt(line); {
+			case filed.After(at) || !filed.After(was):
+			case views.Today(line.At).Date == today.Date:
+				gained = append(gained, ledger.Held{Line: line})
+			default:
+				days[views.Today(line.At).Date] = l.Day(views.Today(line.At).Date)
+			}
+		}
+		store, _ = store.Fed(l, views.Took(gained, days), views.SessionsWanted{}.Paging(held, views.Stream{}), at)
+		held, _ = rolledTo(held, today.Date).Held(store)
+		if read := store.Holding().Read; read > 0 {
+			t.Errorf("at %s the store read %d requests whole, want none, the page held as fed", at.Format(time.TimeOnly), read)
+		}
+		live := views.PageLive{Unlisted: true, Now: at}
+		got, _ := held.Page(live)
+		want, _ := views.ReadPage(l, paged, views.Stream{}, ledger.Pricing, kept90, at).Page(live)
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("at %s the page fed across midnight is\n%+v\nwant it read whole\n%+v", at.Format(time.TimeOnly), got, want)
+		}
+		if len(got.Accounts) != 1 || len(got.Accounts[0].Points) == 0 {
+			t.Errorf("at %s the page's accounts are %+v, want work's, its five-hour window's points taken", at.Format(time.TimeOnly), got.Accounts)
+		}
+		was = at
+	}
+}
+
 // logDetailsOf are the details of the request with the given id, as the
 // Log's table holds its line, failing the test where it holds none.
 func logDetailsOf(t *testing.T, table views.LogTable, id string) views.RequestDetails {
 	t.Helper()
-	for _, l := range table.Lines {
+	for _, l := range table.Lines() {
 		if l.IsRow() && l.Row.Request == id {
 			d, _ := l.Details()
 			return d
@@ -519,7 +638,7 @@ func logDetailsOf(t *testing.T, table views.LogTable, id string) views.RequestDe
 // logRowsByID are the rows the Log's table holds, by their requests' ids.
 func logRowsByID(table views.LogTable) map[string]views.RequestRow {
 	rows := make(map[string]views.RequestRow)
-	for _, l := range table.Lines {
+	for _, l := range table.Lines() {
 		if l.IsRow() {
 			rows[l.Row.Request] = l.Row
 		}
@@ -633,5 +752,91 @@ func TestASessionKeptWhereItStartedSaysSoWhetherTheRouterAnswersOrNot(t *testing
 				}
 			}
 		})
+	}
+}
+
+// A page whose store is fed after the clock is set back takes its session
+// as the store holds it then, as it did before: the store, dropped and its
+// session read whole, holds what the page shows from that feed on.
+func TestAPageTakesItsSessionFromTheStoreFedAfterTheClockIsSetBack(t *testing.T) {
+	first := filedAs("p1", mainOn(p1, local(12, 0, 0), "tool_use"))
+	page := views.ReadPage(summarisedLedger([]ledger.Line{first}), paged, views.Stream{}, ledger.Pricing, kept90, now)
+	store := views.HoldSessions(ledger.Pricing).With(page.Found())
+	page = page.Joined(store)
+	gained := filedAs("p2", mainOn(p1, local(12, 10, 0), "tool_use"))
+	back := now.Add(-30 * time.Minute)
+	l := summarisedLedger([]ledger.Line{first, gained})
+	store, _ = store.Fed(l, views.Took(heldOf(gained), nil), views.SessionsWanted{}.Paging(page, views.Stream{}), back)
+	page, took := rolledTo(page, "2026-10-07").Held(store)
+	if built, ok := page.Page(views.PageLive{Now: back}); !took || !ok || built.Totals.Requests != 2 {
+		t.Errorf("fed with the clock set back, the page took the store's session %t, counting %d requests; want it taken, of both", took, built.Totals.Requests)
+	}
+}
+
+// A turn open, renumbered as the line of a request of another prompt sent
+// before it comes, stays open by its prompt: the page numbers it afresh,
+// its requests its own.
+func TestATurnOpenRenumberedStaysOpenByItsPrompt(t *testing.T) {
+	const p3 = "prompt-3"
+	r1 := filedAs("r1", mainOn(p1, local(12, 0, 0), "end_turn"))
+	r2 := filedAs("r2", mainOn(p2, local(13, 5, 0), "end_turn"))
+	live := views.PageLive{Now: now, Stream: heard(toldOf("r3", p3, ledger.ClassMain, opus, "side", local(13, 10, 0)))}
+	l := summarisedLedger([]ledger.Line{r1})
+	held := turnOpened(views.HoldPage(paged, views.ReadSessions(l, nil, now, paged), ledger.Pricing, kept90, now), 2, l, live)
+	if built, _ := held.Build(live); built.Open != 2 || len(built.Requests) != 1 || built.Requests[0].Row.Request != "r3" {
+		t.Fatalf("turn 2 opened, the page has %d open, of %d requests; want turn 2, r3's", built.Open, len(built.Requests))
+	}
+	held = fedWith(held, summarisedLedger([]ledger.Line{r1, r2}), "2026-10-07", heldOf(r2), now)
+	built, _ := held.Build(live)
+	if built.Open != 3 || len(built.Requests) != 1 || built.Requests[0].Row.Request != "r3" || built.RequestsLoading {
+		t.Errorf("r2's line came, sent before r3, the page has turn %d open, of %d requests, loading %t; want turn 3, r3's, read", built.Open, len(built.Requests), built.RequestsLoading)
+	}
+	if got := held.TurnRequests(2, live); got != nil {
+		t.Errorf("the turn numbered 2 now, open no longer, has %d requests, want none", len(got))
+	}
+}
+
+// A turn open shows a line without an id gained as its lines are read, the
+// read holding it too, once; and one the ledger's files hold twice, twice:
+// as a page read whole as the line came shows them.
+func TestATurnOpenShowsALineWithoutAnIDAsOftenAsTheLedgerHoldsIt(t *testing.T) {
+	r1 := filedAs("r1", mainOn(p1, local(12, 0, 0), "tool_use"))
+	idless := mainOn(p1, local(12, 5, 0), "end_turn")
+	for name, gained := range map[string][]ledger.Line{"once": {idless}, "twice": {idless, idless}} {
+		t.Run(name, func(t *testing.T) {
+			live := views.PageLive{Now: now}
+			l := summarisedLedger(append([]ledger.Line{r1}, gained...))
+			held := views.HoldPage(paged, views.ReadSessions(summarisedLedger([]ledger.Line{r1}), nil, now, paged), ledger.Pricing, kept90, now).Opening(1, live)
+			held = held.TurnOf(held, heldOf(idless))
+			held = held.Turned(held.ReadTurn(l, live))
+			whole := turnOpened(views.HoldPage(paged, views.ReadSessions(l, nil, now, paged), ledger.Pricing, kept90, now), 1, l, live)
+			if got, want := len(held.TurnRequests(1, live)), len(whole.TurnRequests(1, live)); got != want || want != 1+len(gained) {
+				t.Errorf("the turn shows %d requests, want %d, as the page read whole shows them", got, 1+len(gained))
+			}
+		})
+	}
+}
+
+// A turn opened as the line of a request the stream told of has been filed,
+// the store yet to be fed it, shows the request once, as its line, as a
+// page read whole shows it.
+func TestATurnOpenedBetweenFeedsShowsARequestFiledSinceOnce(t *testing.T) {
+	r1 := filedAs("r1", mainOn(p1, local(12, 0, 0), "tool_use"))
+	r2 := filedAs("r2", mainOn(p1, local(13, 0, 0), "end_turn"))
+	told := toldOf("r2", p1, ledger.ClassMain, opus, "side", local(13, 0, 0).Add(100*time.Millisecond))
+	told.Ended, told.Status = local(13, 1, 0), 200
+	live := views.PageLive{Now: now, Stream: heard(told)}
+	l := summarisedLedger([]ledger.Line{r1, r2})
+	held := turnOpened(views.HoldPage(paged, views.ReadSessions(summarisedLedger([]ledger.Line{r1}), nil, now, paged), ledger.Pricing, kept90, now), 1, l, live)
+	whole := turnOpened(views.HoldPage(paged, views.ReadSessions(l, nil, now, paged), ledger.Pricing, kept90, now), 1, l, live)
+	ids := func(lines []views.LogLine) []string {
+		var ids []string
+		for _, r := range lines {
+			ids = append(ids, r.Row.Request)
+		}
+		return ids
+	}
+	if got, want := ids(held.TurnRequests(1, live)), ids(whole.TurnRequests(1, live)); !slices.Equal(got, want) {
+		t.Errorf("the turn shows the requests %v, want %v, as the page read whole shows them", got, want)
 	}
 }

@@ -297,7 +297,7 @@ func TestASessionsPageTakesInTheDayBeforeAsTheDayTurns(t *testing.T) {
 			h.hear(sent(router.StreamSent, arrival.Add(100*time.Millisecond)))
 			h.clock.now = night.Add(35 * time.Second)
 			h.read(routerDocument(three()...))
-			if held := h.model.session.held; !reflect.DeepEqual(held, held.Take(views.Today(h.clock.now).Date, nil)) {
+			if held := h.model.session.held; !reflect.DeepEqual(held, rolledOn(held, h.clock.now)) {
 				t.Error("the first look past midnight left the page held at the day before, want it rolled on to the new day")
 			}
 
@@ -495,4 +495,11 @@ func TestEveryReaderTakesInTheLateDaysAnotherReadsForItsLine(t *testing.T) {
 			}
 		})
 	}
+}
+
+// rolledOn is the page h holds, rolled on to the day now falls on, as a read
+// of the ledger's tail then finds it.
+func rolledOn(h views.HeldPage, now time.Time) views.HeldPage {
+	rolled, _ := h.On(views.Today(now).Date)
+	return rolled
 }

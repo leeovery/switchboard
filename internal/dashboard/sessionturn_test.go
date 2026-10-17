@@ -218,7 +218,7 @@ func TestATurnOpensRequestInFlightIsDrawnAsItStands(t *testing.T) {
 		return views.Stream{Live: true, Requests: map[string]views.Told{told.Request: told}}
 	}
 	shown := turnOpened()
-	shown.Requests[0] = views.LogRows(views.LogSources{From: sent, Now: sessionNow, Stream: streamed(1000)}).Lines[0]
+	shown.Requests[0] = views.LogRows(views.LogSources{From: sent, Now: sessionNow, Stream: streamed(1000)}).Line(0)
 	for _, tt := range []struct {
 		at    time.Duration
 		chars int

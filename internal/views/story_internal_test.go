@@ -58,7 +58,7 @@ func TestALineIsItsOwnRequestWheneverItArrived(t *testing.T) {
 				t.Errorf("the flight arrived %v and ended %v, of its line: %t; want %v and %v, of it", f.arrived(), f.ended(), f.is(l.Request, l.At), l.At, ended(&l))
 			}
 			s := storyOf(heldRequestsOf([]ledger.Line{l}), ledger.Pricing, Today(at))
-			if first, made, _ := s.toldOf(&l); !first || made == nil || !s.first.arrived().Equal(l.At) {
+			if first, made, _ := s.toldOf(l.Request, l.At); !first || made == nil || !s.first.arrived().Equal(l.At) {
 				t.Errorf("its story begins at %v, and tells it's the first %t, and made a move %t; want it to begin at %v, the first, its move made",
 					s.first.arrived(), first, made != nil, l.At)
 			}

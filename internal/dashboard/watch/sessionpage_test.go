@@ -3,7 +3,9 @@ package watch
 import (
 	"encoding/json"
 	"fmt"
+	"iter"
 	"maps"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -17,6 +19,7 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
@@ -38,6 +41,18 @@ func (l *pageLedger) Sessions(ids []string, _ func(string, ledger.Line)) map[str
 
 func (l *pageLedger) SessionsOf(ids []string, take func(string, ledger.Line)) map[string][]ledger.Line {
 	return l.Sessions(ids, take)
+}
+
+// Session gives the session's lines newest first, as a Follower does, as a
+// turn opened reads them.
+func (l *pageLedger) Session(id string) iter.Seq[ledger.Held] {
+	return func(yield func(ledger.Held) bool) {
+		for _, line := range slices.Backward(l.lines[id]) {
+			if !yield(ledger.Held{Line: line}) {
+				return
+			}
+		}
+	}
 }
 
 // promptedLines are idD28C's lines of n turns on work, a prompt each, the
@@ -70,8 +85,37 @@ func (h *harness) withLines(lines []ledger.Line) *pageLedger {
 	for _, line := range lines {
 		l.lines[line.Session] = append(l.lines[line.Session], line)
 	}
-	h.model.cfg.Ledger, h.model.cfg.Prices = l, ledger.Pricing
+	h.model.cfg.Ledger = l
 	return l
+}
+
+// A store first fed as a session's page opens, over a ledger holding none
+// of its lines, no List read before it, prices the session by the config's
+// prices, as the watch's store is priced from the start: the line the
+// ledger's tail gains after is worth what it cost.
+func TestAStoreFirstFedByASessionsPagePricesItsSession(t *testing.T) {
+	state := t.TempDir()
+	h := routedHarness(t, routerDocument(three()...))
+	h.source.sessions = []status.Session{sessionOn(idD28C, opus, "work", 0)}
+	cfg := h.config(Size{Width: 160, Height: 37})
+	cfg.Ledger = ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, logs.For("watch"))
+	h.model = New(t.Context(), cfg)
+	h.start()
+	h.openPage(idD28C)
+
+	line := arrived("0a000001", "work", 0)
+	line.Usage = json.RawMessage(hourUsage)
+	writeLines(t, state, line)
+	h.clock.now = h.clock.now.Add(time.Second)
+	h.read(routerDocument(three()...))
+	list := h.model.held.List(views.ListLive{Running: h.model.sessions, Now: h.clock.now})
+	i := slices.IndexFunc(list.Sessions, func(s views.ListedSession) bool { return s.Session == idD28C })
+	if i < 0 || list.Sessions[i].Amount == nil {
+		t.Fatalf("the store lists %+v, want d28c worth what its line cost, priced", list.Sessions)
+	}
+	if worth := h.shownPage().Page.Totals.Worth; worth.Amount == nil || *worth.Amount != *list.Sessions[i].Amount {
+		t.Errorf("the page is worth %+v, want what the store prices its session at, %+v", worth, list.Sessions[i].Worth)
+	}
 }
 
 // openPage opens the page of the session with the given id, as a click on
@@ -701,16 +745,19 @@ func TestASessionsPageIsBuiltAsWhatItShowsChangesAndDrawnAsItStands(t *testing.T
 	}
 }
 
-// pageBuilt is the newest turn, the first request sent of the story, and
-// the first request of the turn open of the session's page open, each where
-// it's held, so a page built afresh is told from one as it was.
+// pageBuilt is the newest turn, the first stretch of the story, and the
+// first request of the turn open of the session's page open, each where
+// it's held, so a page built afresh is told from one as it was. The story's
+// requests sent aren't among them, as those it sealed are held as sealed,
+// whatever's built afresh.
 func (h *harness) pageBuilt() [3]any {
 	h.t.Helper()
 	s := h.shownPage()
-	if len(s.Page.Turns) == 0 || len(s.Story.Sent) == 0 || len(s.Requests) == 0 {
-		h.t.Fatalf("the page has %d turns, its story %d requests sent, its turn open %d requests; want some of each", len(s.Page.Turns), len(s.Story.Sent), len(s.Requests))
+	if len(s.Page.Turns) == 0 || len(s.Story.Stretches) == 0 || len(s.Requests) == 0 {
+		h.t.Fatalf("the page has %d turns, its story %d stretches, its turn open %d requests; want some of each", len(s.Page.Turns), len(s.Story.Stretches),
+			len(s.Requests))
 	}
-	return [3]any{&s.Page.Turns[0], &s.Story.Sent[0], &s.Requests[0]}
+	return [3]any{&s.Page.Turns[0], &s.Story.Stretches[0], &s.Requests[0]}
 }
 
 // On a session's page, a look that takes in lines raising the points of a
@@ -767,4 +814,160 @@ func TestASessionsKeyLineLeadsWithEscBack(t *testing.T) {
 			}
 		})
 	}
+}
+
+// pricedOtherwiseFrom is the price table with Claude Opus 5.5's writes to
+// the prompt cache costing twice as much from the day with the given date.
+func pricedOtherwiseFrom(date string) ledger.Table {
+	t := ledger.Pricing
+	t.Models = slices.Clone(t.Models)
+	for i, m := range t.Models {
+		if slices.Contains(m.IDs, opus) {
+			later := m.Prices[len(m.Prices)-1]
+			later.From, later.CacheWrite5m, later.CacheWrite1h = date, 2*later.CacheWrite5m, 2*later.CacheWrite1h
+			t.Models[i].Prices = append(slices.Clone(m.Prices), later)
+		}
+	}
+	return t
+}
+
+// wholePage opens d28c's page at at, running, over a ledger in state holding
+// lines, priced by prices, and returns the ledger.
+func wholePage(t *testing.T, state string, at time.Time, prices ledger.Table, lines ...ledger.Held) (*harness, *ledger.Follower) {
+	t.Helper()
+	h, l := runningOn(t, state, at, prices, lines...)
+	h.openPage(idD28C)
+	h.settle()
+	return h, l
+}
+
+// runningOn is a model at at of d28c running, over a ledger in state holding
+// lines, priced by prices, and the ledger.
+func runningOn(t *testing.T, state string, at time.Time, prices ledger.Table, lines ...ledger.Held) (*harness, *ledger.Follower) {
+	t.Helper()
+	h := routedHarness(t, routerDocument(three()...))
+	h.source.sessions, h.clock.now = []status.Session{sessionOn(idD28C, opus, "work", 0)}, at
+	writeLines(t, state, lines...)
+	l := ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, logs.For("watch"))
+	cfg := h.config(Size{Width: 160, Height: 37})
+	cfg.Ledger, cfg.Prices = l, prices
+	h.model = New(t.Context(), cfg)
+	h.start()
+	return h, l
+}
+
+// A page whose read lands needing its session read whole, as no page built
+// before the store's next feed stands, says it's loading till that feed
+// lands, never drawing a page of nothing: one asked for before midnight
+// whose read lands after it, on a day its prices change; and one whose read
+// meets a stream row joining late.
+func TestAPageWhoseFirstBuildReadsWholeSaysItsLoading(t *testing.T) {
+	night := onTheDay(23, 59, 50)
+	priced := arrivedAt("0a000001", onTheDay(22, 30, 0))
+	priced.Usage = json.RawMessage(hourUsage)
+	lateRow := func(h *harness, read []tea.Msg) []tea.Msg {
+		stream := h.source.lastStream(t)
+		stream <- alter(told(router.StreamSent, "0a000002", "work", 0), func(e *router.StreamEvent) { e.At = h.clock.now.Add(-90 * time.Minute).UTC() })
+		h.deliver(h.waited()...)
+		return read
+	}
+	tests := []struct {
+		name   string
+		at     time.Time
+		prices ledger.Table
+		landed func(*harness, []tea.Msg) []tea.Msg
+	}{
+		{name: "landing past midnight, its prices changed", at: night, prices: pricedOtherwiseFrom(dayfile.DateOf(night.Add(time.Hour))),
+			landed: func(h *harness, read []tea.Msg) []tea.Msg { h.clock.now = night.Add(20 * time.Second); return read }},
+		{name: "a stream row joining late as it's read", at: onTheDay(12, 0, 0), prices: ledger.Pricing, landed: lateRow},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h, l := runningOn(t, t.TempDir(), tt.at, tt.prices, priced)
+			read, loading := h.askedPage(idD28C)
+			h.fire(loading)
+			read = tt.landed(h, read)
+			h.model.tail.due = false
+			tailed := holdingBack[tailedMsg](h, read...)
+			if s := h.model.session; s == nil || !s.shown.Loading || !strings.Contains(h.row(4), loadingSaid) || len(tailed) != 1 {
+				t.Fatalf("the page's read landed to be read whole, it shows loading %t, its heading %q, the tail read %d times; want it loading, the tail read at once",
+					s != nil && s.shown.Loading, h.row(4), len(tailed))
+			}
+			h.deliver(tailed...)
+			now := h.clock.now
+			live := h.model.pageLive(idD28C, now)
+			live.Stream = live.Stream.Of(idD28C)
+			want, _ := views.ReadPage(l, idD28C, live.Stream, h.model.cfg.Prices, h.model.cfg.LedgerKeep, now).Build(live)
+			if s := h.shownPage(); s.Loading || !reflect.DeepEqual(s.Page, want.Page) {
+				t.Errorf("the tail's read landed, the page loading %t, is\n%+v\nwant it read whole\n%+v", s.Loading, s.Page, want.Page)
+			}
+		})
+	}
+}
+
+// readWhole checks, of d28c's page, as the msgs given reach the model, its
+// store's feed to read the session whole yet to be read, that it showed the
+// page built last, was, till the read was asked, and asked it at once, the
+// once; and, the read landed, that it shows the page read whole, and asks
+// no read again.
+func readWhole(t *testing.T, h *harness, l *ledger.Follower, was views.SessionPage, msgs ...tea.Msg) views.SessionPage {
+	t.Helper()
+	h.model.tail.due = false
+	tailed := holdingBack[tailedMsg](h, msgs...)
+	if len(tailed) != 1 || !reflect.DeepEqual(h.shownPage().Page, was) {
+		t.Fatalf("the page to be read whole, the tail was read %d times, the page shown as last built %t; want it read at once, the last page shown",
+			len(tailed), reflect.DeepEqual(h.shownPage().Page, was))
+	}
+	resized := tea.WindowSizeMsg{Width: h.model.size.Width, Height: h.model.size.Height}
+	h.update(resized)
+	if h.model.tail.due || !reflect.DeepEqual(h.shownPage().Page, was) {
+		t.Errorf("a look on, the read under way, a read is asked again %t, the page shown as last built %t; want none asked, the last page shown",
+			h.model.tail.due, reflect.DeepEqual(h.shownPage().Page, was))
+	}
+	h.deliver(tailed...)
+	now := h.clock.now
+	live := h.model.pageLive(idD28C, now)
+	live.Stream = live.Stream.Of(idD28C)
+	want, _ := views.ReadPage(l, idD28C, live.Stream, h.model.cfg.Prices, h.model.cfg.LedgerKeep, now).Build(live)
+	if got := h.shownPage().Page; !reflect.DeepEqual(got, want.Page) {
+		t.Errorf("the read landed, the page is\n%+v\nwant it read whole\n%+v", got, want.Page)
+	}
+	if again := holdingBack[tailedMsg](h, h.update(resized)...); len(again) != 0 || h.model.tail.due {
+		t.Errorf("the page read whole, a look on read the tail %d times, asking it again %t; want neither", len(again), h.model.tail.due)
+	}
+	return want.Page
+}
+
+// A session's page looked at past midnight, before its store's feed rolls
+// it on, on a day a model its lines asked for costs otherwise, shows the
+// page as it was last built, not one priced at yesterday's prices; asks a
+// read of the ledger's tail at once, which reads its session whole; and
+// then shows the page read whole, priced at today's.
+func TestAPageRepricedPastMidnightShowsItsLastTillItsReadWhole(t *testing.T) {
+	night := onTheDay(23, 58, 0)
+	line := arrivedAt("0a000001", onTheDay(22, 30, 0))
+	line.Usage = json.RawMessage(hourUsage)
+	h, l := wholePage(t, t.TempDir(), night, pricedOtherwiseFrom(dayfile.DateOf(night.Add(time.Hour))), line)
+	was := h.shownPage().Page
+	h.clock.now = night.Add(3 * time.Minute)
+	got := readWhole(t, h, l, was, h.update(tea.WindowSizeMsg{Width: h.model.size.Width, Height: h.model.size.Height})...)
+	if got.Totals.Amount == nil || was.Totals.Amount == nil || *got.Totals.Amount == *was.Totals.Amount {
+		t.Errorf("read whole past midnight, the page is worth %v, as it was the day before; want it priced at today's prices", got.Totals.Amount)
+	}
+}
+
+// A session's page told by the stream of a request that went upstream
+// behind its horizon, as the stream joined late, shows the page as it was
+// last built, not one placing the request after those sealed; asks a read
+// of the ledger's tail at once, which reads its session whole; and then
+// shows the page read whole.
+func TestAPageAStreamRowJoinsLateShowsItsLastTillItsReadWhole(t *testing.T) {
+	now := onTheDay(12, 0, 0)
+	line := arrivedAt("0a000001", onTheDay(10, 0, 0))
+	line.Usage = json.RawMessage(hourUsage)
+	h, l := wholePage(t, t.TempDir(), now, ledger.Pricing, line)
+	was := h.shownPage().Page
+	stream := h.source.lastStream(t)
+	stream <- alter(told(router.StreamSent, "0a000002", "work", 0), func(e *router.StreamEvent) { e.At = now.Add(-90 * time.Minute).UTC() })
+	readWhole(t, h, l, was, h.waited()...)
 }

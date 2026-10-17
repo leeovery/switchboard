@@ -153,6 +153,14 @@ func linesInOrder(lines []ledger.Line) []ledger.Line {
 	return ordered
 }
 
+// sameStory reports whether two stories hold the same, told by the same
+// prices: so whatever is asked of one, the other tells alike.
+func sameStory(a, b *story) bool {
+	x, y := *a, *b
+	x.prices, y.prices = ledger.Table{}, ledger.Table{}
+	return reflect.DeepEqual(x, y)
+}
+
 // storyTold is what a story tells, as the views read it, for one told over
 // held requests to be held to one told over lines: its first and last
 // request, what names it, its directory, its last requests that gave usage,
@@ -300,7 +308,7 @@ func lineMoveSaid(m *lineMove) string {
 type heldTelling struct{ *story }
 
 func (s heldTelling) toldSaid(l *ledger.Line) string {
-	first, made, rewrote := s.toldOf(l)
+	first, made, rewrote := s.toldOf(l.Request, l.At)
 	return toldSaid(first, s.moves, func(m move) bool { return made != nil && m.by == made.by }, rewrote)
 }
 
@@ -331,7 +339,7 @@ func toldOfLines(s *lineStory, q foldQuery) storyTold {
 		Ends: endsSaid(s.ends), Lives: s.lives,
 	}
 	for _, m := range s.moves {
-		routing := routingOf(m.by, false, nil)
+		routing := routedOf(m.by, nil).said(m.by.Account, false, nil)
 		routing.Cost, routing.Rewrote = m.cost, m.rewrote != nil
 		told.Moves = append(told.Moves, moveTold{
 			By: lineSaid(m.by), At: m.at.UnixNano(), Model: m.model, From: m.from, To: m.to, Reason: m.reason, Settled: m.settled,

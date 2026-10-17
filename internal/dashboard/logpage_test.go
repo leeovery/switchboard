@@ -13,6 +13,7 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
+	"github.com/leeovery/switchboard/internal/views/viewstest"
 )
 
 // The day the Log's page tests are of, Thursday 1 October, from 09:00 and at
@@ -144,7 +145,7 @@ func eventsOfItsSession(filter views.LogFilter) LogPage {
 	started := status.Event{ID: 1, At: logDay, Kind: status.EventStarted, Session: first.Session, Account: "side"}
 	p.Events = views.LogEvents(views.LogEventSources{
 		From: logDay, Events: views.ReadEvents(filedEvents{started}, logDay, logDayNoon), Now: logDayNoon,
-		Read: views.ReadLogHeld(sessionsHeld(lines), heldOf(lines), ledger.Pricing, logDayNoon),
+		Held: viewstest.ReadLog(sessionsHeld(lines), heldOf(lines), ledger.Pricing, logDayNoon).Held,
 	})
 	return p.Turned(1)
 }

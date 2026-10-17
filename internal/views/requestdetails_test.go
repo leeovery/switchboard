@@ -17,7 +17,7 @@ import (
 func detailsOf(t *testing.T, lines ...ledger.Line) views.RequestDetails {
 	t.Helper()
 	last := lines[len(lines)-1]
-	for _, l := range views.LogRows(views.LogSources{From: now, Now: now, Read: logRead(now, lines...)}).Lines {
+	for _, l := range views.LogRows(views.LogSources{From: now, Now: now, Read: logRead(now, lines...)}).Lines() {
 		if d, ok := l.Details(); ok && l.Row.Request == last.Request {
 			return d
 		}
@@ -149,11 +149,11 @@ func TestARequestsDetailsAreItsRowAndItsOwnLineAtEachHardMoment(t *testing.T) {
 	for _, hm := range viewstest.LogMoments() {
 		src := logSourcesOf(hm)
 		src.Filter = views.LogFilter{}
-		for _, l := range views.LogRows(src).Lines {
+		for _, l := range views.LogRows(src).Lines() {
 			d, ok := l.Details()
 			if !l.IsRow() {
 				if ok {
-					t.Errorf("%s: %s has details", hm.Name, tableLines(views.LogTable{Lines: []views.LogLine{l}}))
+					t.Errorf("%s: %s has details", hm.Name, lineSaid(l))
 				}
 				continue
 			}

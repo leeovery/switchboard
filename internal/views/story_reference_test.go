@@ -39,6 +39,29 @@ type lineStory struct {
 	lives map[string]time.Duration
 }
 
+// request is a session's request as the fold over lines took it in: its
+// line, what it would have cost through the API, as ledger.Table.Summed
+// gives it, and whether its answer gave usage.
+type request struct {
+	*ledger.Line
+	worth   Worth
+	metered bool
+}
+
+// requestsOf returns the requests among lines, a session's, oldest first, as
+// isRequest says, each priced by prices at the local day with the given
+// date.
+func requestsOf(lines []ledger.Line, prices ledger.Table, date string) []request {
+	var requests []request
+	for i := range lines {
+		if l := &lines[i]; isRequest(l) {
+			_, metered := l.Tokens()
+			requests = append(requests, request{Line: l, worth: summed(prices, l, date), metered: metered})
+		}
+	}
+	return requests
+}
+
 // newLineStory returns the story of a session before any of its requests is
 // taken in, its requests on the day d counted, and moves priced by prices.
 func newLineStory(prices ledger.Table, d LedgerDay) *lineStory {

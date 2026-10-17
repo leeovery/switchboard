@@ -149,7 +149,8 @@ func TestTheFindDropsASummariesReadOfAnEarlierOpening(t *testing.T) {
 // tables reading back to its day, how far its lines reach read from the
 // days' summaries first, then pauses at its newest line, chosen, the panel
 // listing it among today's sessions, ticked; but with the filter let go on
-// the way, they read back no further, and nothing pauses.
+// the way, they read back no further, and nothing pauses: the day the read
+// under way read let go again, as today's rows fill the view.
 func TestEnterOnAnEarlierDaysSessionShowsItsLinesAlonePausedAtItsNewest(t *testing.T) {
 	state := t.TempDir()
 	var today []ledger.Held
@@ -172,8 +173,8 @@ func TestEnterOnAnEarlierDaysSessionShowsItsLinesAlonePausedAtItsNewest(t *testi
 	}
 	h.keys(escape)
 	h.deliver(reading...)
-	if got, want := h.model.log.from.Date, dayfile.DateOf(past(-day)); got != want || h.model.log.page.Paused() {
-		t.Errorf("the filter let go as the tables read back, they span from %s, paused %t; want %s, the read under way, and following",
+	if got, want := h.model.log.from.Date, dayfile.DateOf(past(0)); got != want || h.model.log.page.Paused() {
+		t.Errorf("the filter let go as the tables read back, they span from %s, paused %t; want %s, the day the read under way read let go, and following",
 			got, h.model.log.page.Paused(), want)
 	}
 

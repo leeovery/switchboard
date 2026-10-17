@@ -791,7 +791,7 @@ func (f Frame) LogFitted(c LogCard) (LogPage, LogCard) {
 func (p LogPage) lifted(from, to, rows int) LogPage {
 	lines, s := p.lines(), p.stand()
 	first, _ := p.window(lines, s, rows)
-	s.top = lines[first+from-to].key
+	s.top = lines.at(first + from - to).key
 	return p.standing(s)
 }
 
@@ -801,14 +801,14 @@ func (p LogPage) lifted(from, to, rows int) LogPage {
 // view of no rows is placed as placedRows has it.
 func (p LogPage) Unlifted(rows int) LogPage {
 	lines, s, rows := p.lines(), p.stand(), placedRows(rows)
-	if !s.paused || len(lines) == 0 {
+	if !s.paused || lines.len() == 0 {
 		return p
 	}
 	lowest := max(p.footOf(lines, s)-rows+1, 0)
 	if first, _ := p.window(lines, s, rows); first <= lowest {
 		return p
 	}
-	s.top = lines[lowest].key
+	s.top = lines.at(lowest).key
 	return p.standing(s)
 }
 
@@ -819,8 +819,8 @@ func (p LogPage) ChosenRequest() (views.LogLine, bool) {
 		return views.LogLine{}, false
 	}
 	i, ok := p.lit(p.lines(), p.stand())
-	if !ok || i >= len(p.Requests.Lines) {
+	if !ok || i >= p.Requests.Len() {
 		return views.LogLine{}, false
 	}
-	return p.Requests.Lines[i], true
+	return p.Requests.Line(i), true
 }

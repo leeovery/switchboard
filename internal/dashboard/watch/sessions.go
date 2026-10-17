@@ -152,9 +152,18 @@ func (m Model) listRead(msg listReadMsg) Model {
 // store the read fed to take as it lands, as tailed has it.
 func (m Model) heldWith(found views.HeldSessions) Model {
 	if m.tail.reading {
-		m.merged = m.merged.With(found.Without(m.held))
+		m.merged, m.mergedAny = m.merged.With(found.Without(m.held)), true
 	}
-	m.held = m.held.With(found)
+	return m.holding(m.held.With(found), true)
+}
+
+// holding is m with the store held as h, counted as changed where it
+// tells otherwise of what it held, as changed says.
+func (m Model) holding(h views.HeldSessions, changed bool) Model {
+	m.held = h
+	if changed {
+		m.stored++
+	}
 	return m
 }
 
@@ -171,22 +180,53 @@ type heldFold struct {
 }
 
 // heldFold is what a read of the ledger's tail at now does for the store,
-// nil while nothing wants it, the List's first read yet to land: its late
-// days those of the days the tail missed, as missed has them, it holds not
-// every line of, as Unread has them; and those it awaits a line on, as
-// Awaited has them, whose lines could have come since they were last read,
-// as due has them, as the Log's are; each once, the oldest first.
+// nil while nothing wants it nor it holds anything: as storeFold has it
+// while a reader wants it, the List once its first read has landed, the Log
+// once opened, or the session's page open once it's loaded; else one
+// wanting none, so it lets go of what nobody wants, reading no day again
+// for a store nothing wants.
 func (m Model) heldFold(now time.Time) *heldFold {
+	switch {
+	case m.sessionsTab.listed || m.log.opened || m.paged():
+		return m.storeFold(now, m.log.opened)
+	case m.held.Len() > 0:
+		return &heldFold{held: m.held, awaited: m.sessionsTab.awaited}
+	}
+	return nil
+}
+
+// storeFold is what a read of the ledger's tail at now does for the store,
+// whatever wants it, logs saying whether the Log does: it wants what the
+// List wants, once it's held, else what the stream pins, and the session of
+// the page open, once it's loaded, as views.SessionsWanted's Paging has it;
+// its late days those of the days the tail missed, as missed has them, it
+// holds not every line of, as Unread has them; and, for the List or the
+// Log, which tell of every request the stream tells of, those it awaits a
+// line on, as Awaited has them, whose lines could have come since they were
+// last read, as due has them, as the Log's are, the page's own being the
+// page's; each once, the oldest first.
+func (m Model) storeFold(now time.Time, logs bool) *heldFold {
 	t := m.sessionsTab
-	if !t.listed {
-		return nil
-	}
 	live := m.listLive(now, m.traffic.stream(now))
-	due, awaited := t.awaited.due(m.held.Awaited(live), live.Stream, now)
-	late := slices.Concat(due, m.held.Unread(m.tail.missed(views.Today(now))))
-	return &heldFold{
-		held: m.held, want: views.ListWanted(live.Running, live.Stream), late: slices.Compact(slices.Sorted(slices.Values(late))), awaited: awaited,
+	f := &heldFold{held: m.held, want: views.StreamWanted(live.Stream), awaited: t.awaited}
+	if t.listed {
+		f.want = views.ListWanted(live.Running, live.Stream)
 	}
+	var due []string
+	if t.listed || logs {
+		due, f.awaited = t.awaited.due(m.held.Awaited(live), live.Stream, now, m.tail.at)
+	}
+	if m.paged() {
+		f.want = f.want.Paging(m.session.held, live.Stream)
+	}
+	late := slices.Concat(due, m.held.Unread(m.tail.missed(views.Today(now))))
+	f.late = slices.Compact(slices.Sorted(slices.Values(late)))
+	return f
+}
+
+// paged reports whether a session's page is open, its first read landed.
+func (m Model) paged() bool {
+	return m.session != nil && m.session.asked != 0
 }
 
 // heldAwaiting is m with the store noting when each day it awaits a line on
@@ -200,14 +240,17 @@ func (m Model) heldAwaiting(f *heldFold) Model {
 }
 
 // fed is the store fed, through l, at now, what a read of the ledger's tail
-// read, as the fold says: today's gain, and the late days it reads again.
-func (f heldFold) fed(l views.LedgerSessions, read tailLines, now time.Time) *views.HeldSessions {
+// read, as the fold says, wanting the sessions of the Log's lines, logged,
+// too: today's gain, and the late days it reads again; and what the feed
+// changed of each session.
+func (f heldFold) fed(l views.LedgerSessions, read tailLines, logged []string, now time.Time) (views.HeldSessions, views.SessionGains) {
 	days := make(map[string][]ledger.Held, len(f.late))
 	for _, date := range f.late {
 		days[date] = read.days[date]
 	}
-	held, _ := f.held.Fed(l, views.Took(read.gained, days), f.want, now)
-	return &held
+	want := f.want
+	want.Log = logged
+	return f.held.Fed(l, views.Took(read.gained, days), want, now)
 }
 
 // noSessionChosen is why enter opens nothing on Sessions while no session

@@ -3,15 +3,15 @@
 Milestone 7, the dashboard's redesign, went through a review of each pull request, of each stage,
 and of the whole release, several rounds each. What those reviews found and left, as not worth
 holding the release for, gathered here; the patch after v0.2.0 fixed the rest and added what its
-own reviews left. Each is an edge case or a cost with no wrong answer.
+own reviews left, and the memory fix after v0.2.1 two more: the Log's panel now names a session as
+the List does, and a page holds the answers only of its last run, today and yesterday. Each is an
+edge case or a cost with no wrong answer.
 
 ## On screen
 
 - The Overview's USAGE at 20 columns or fewer, scrolled.
 - A session's page under 39 columns, below the phone's floor.
 - Click targets at 1 to 30 columns.
-- The Log's panel names a session by the lines the Log holds, so across midnight it can name it
-  otherwise than the List does.
 - The Overview at 14 rows with every section open: USAGE is left its heading alone, or nothing.
 - At 11 to 13 rows: Compare says `▼ 25 more below` with nothing shown, Detail's `↑↓ choose` is
   clipped, and a phone's Days pages nothing.
@@ -30,7 +30,6 @@ own reviews left. Each is an edge case or a cost with no wrong answer.
 - With the Log open and no other reader, a request whose line is filed before the Log's first day
   is kept the hour once the Log reads that day back, the tail read at each look meanwhile; its row
   is right throughout.
-- A session's page holds the answer and line keys of days the session never ran on (memory only).
 - A request that never gets a line on the day tailed, cut off, its router gone mid-request, or its
   line filed on an earlier day no reader awaits, keeps the ledger's tail re-read at every look for
   the hour it's kept.

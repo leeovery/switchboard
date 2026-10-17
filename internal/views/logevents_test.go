@@ -46,7 +46,7 @@ func eventsRead(hm viewstest.EventMoment, files views.Events) views.EventsRead {
 // reads them, the moment's lines read as the Log's Requests read them.
 func eventsOf(hm viewstest.EventMoment, read views.EventsRead) views.EventsTable {
 	return views.LogEvents(views.LogEventSources{
-		From: hm.From, Events: read, Read: logRead(hm.Now, hm.Lines...),
+		From: hm.From, Events: read, Held: logReading(hm.Now, views.Stream{}, hm.Lines...).Held,
 		Names: status.NameOfKey, Now: hm.Now,
 	})
 }
@@ -496,7 +496,7 @@ func TestAMovesCostIsTheSameInItsEventsRowItsRequestsRowAndTheList(t *testing.T)
 				if row.Move == nil {
 					continue
 				}
-				for _, l := range requests.Lines {
+				for _, l := range requests.Lines() {
 					if l.Rule == nil && l.Row.Request == row.Move.Request {
 						compared["request"]++
 						if !sameCost(l.Row.Routing.Cost, row.Move.Cost) || l.Row.Routing.CostSaid() != row.Move.CostSaid() {

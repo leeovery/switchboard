@@ -49,10 +49,11 @@ func heldOf(lines []ledger.Line) []ledger.Held {
 }
 
 // requestsOf is the Log's page showing Requests, as the watch builds it of
-// what src says, its read of lines, the ledger holding them alone: the
-// router answering, following, nothing chosen.
+// what src says, its read of lines, the ledger holding them alone, each
+// placed as src's stream tells: the router answering, following, nothing
+// chosen.
 func requestsOf(src views.LogSources, lines []ledger.Line) LogPage {
-	src.Read = views.ReadLogHeld(sessionsHeld(lines), heldOf(lines), ledger.Pricing, src.Now)
+	src.Read = viewstest.ReadingLog(ledger.Pricing).Took(sessionsHeld(lines), heldOf(lines), true, src.Stream, src.Now).Read
 	return LogPage{
 		Read: true, Requests: views.LogRows(src), Totals: src.Totals, From: views.Today(src.From), Today: views.Today(src.Now),
 		Filter: src.Filter, Live: true, Written: src.Read.WrittenTo(),
@@ -67,29 +68,35 @@ func logFrameOf(p LogPage, width, height int) Frame {
 	return f
 }
 
-// A lined page makes the lines of its tables once: each read of a table's
-// lines after takes those held, making nothing, while the table is the one
-// they were made of; a table built afresh is read as it is.
+// A lined page makes the lines of its Events once: each read of them after
+// takes those held, making nothing, while the table is the one they were
+// made of. Its Requests' lines are made as each is read, so reading them
+// costs the same whatever the table holds, and a table built afresh is read
+// as it is.
 func TestALinedPageMakesItsTablesLinesOnce(t *testing.T) {
 	p := cardPage(40)
 	p.Events = views.LogEvents(views.LogEventSources{From: logDay, Events: views.ReadEvents(filedEvents{workAtItsCap}, logDay, logDayNoon), Now: logDayNoon})
 	lined := p.Lined()
-	for _, shown := range []LogView{LogRequests, LogEvents} {
-		lined.Shown = shown
-		if allocs := testing.AllocsPerRun(10, func() { lined.lines() }); allocs != 0 {
-			t.Errorf("each read of %s's lines made %v allocations, want none: their lines held", logViews[shown], allocs)
-		}
+	lined.Shown = LogEvents
+	if allocs := testing.AllocsPerRun(10, func() { lined.lines() }); allocs != 0 {
+		t.Errorf("each read of the Events' lines made %v allocations, want none: their lines held", allocs)
+	}
+	lined.Shown = LogRequests
+	few := testing.AllocsPerRun(10, func() { lined.lines().at(20) })
+	lined.Requests = cardPage(400).Requests
+	if many := testing.AllocsPerRun(10, func() { lined.lines().at(200) }); many != few {
+		t.Errorf("reading a line of 400 Requests made %v allocations, want %v, as of 40: the lines made as each is read", many, few)
 	}
 
-	lined.Shown, lined.Requests = LogRequests, cardPage(41).Requests
-	if got, want := keysOf(lined.lines()), keysOf(lined.requestLines()); !slices.Equal(got, want) {
-		t.Errorf("built afresh, the Requests read as %d lines, want %d, those of the table as it is", len(got), len(want))
+	lined.Requests = cardPage(41).Requests
+	if got := keysOf(lined.lines()); len(got) != lined.Requests.Len() || got[40] != (LogKey{request: lined.Requests.Line(40).Key()}) {
+		t.Errorf("built afresh, the Requests read as %d lines, want %d, those of the table as it is", len(got), lined.Requests.Len())
 	}
 }
 
-// A page lined again after one of its tables is built afresh makes that
-// table's lines again alone, the other's held, as a look builds the Events
-// afresh and not the Requests.
+// A page lined again after its Events are built afresh makes their lines
+// again, as a look builds them afresh; lined again of the same Events, it
+// makes none.
 func TestALinedPageMakesTheLinesOfATableBuiltAfreshAlone(t *testing.T) {
 	events := func() views.EventsTable {
 		return views.LogEvents(views.LogEventSources{From: logDay, Events: views.ReadEvents(filedEvents{workAtItsCap}, logDay, logDayNoon), Now: logDayNoon})
@@ -97,18 +104,19 @@ func TestALinedPageMakesTheLinesOfATableBuiltAfreshAlone(t *testing.T) {
 	p := cardPage(40)
 	p.Events = events()
 	lined := p.Lined()
+	same := lined.Lined()
 	lined.Events = events()
 	again := lined.Lined()
-	if madeRequests, madeEvents := &again.lined.requests.lines[0], &again.lined.events.lines[0]; madeRequests != &lined.lined.requests.lines[0] || madeEvents == &lined.lined.events.lines[0] {
-		t.Error("lined again, the Events built afresh, the Requests' lines were made again, or the Events' weren't: want the Events' alone made again")
+	if made := &lined.lined.lines[0]; &same.lined.lines[0] != made || &again.lined.lines[0] == made {
+		t.Error("lined again, the Events' lines were made again of the same Events, or weren't of Events built afresh: want them made again of those alone")
 	}
 }
 
 // keysOf are the keys of lines, in order.
-func keysOf(lines []logLine) []LogKey {
-	keys := make([]LogKey, len(lines))
-	for i, l := range lines {
-		keys[i] = l.key
+func keysOf(lines logLines) []LogKey {
+	keys := make([]LogKey, lines.len())
+	for i := range keys {
+		keys[i] = lines.at(i).key
 	}
 	return keys
 }
@@ -142,8 +150,8 @@ func TestTheLogDrawsEachHardMomentAtEveryWidth(t *testing.T) {
 					if heads := text[f.top()]; !strings.HasPrefix(heads, "  at ") {
 						t.Errorf("the heads' row reads %q, want the heads, from at", heads)
 					}
-					foot := f.top() + min(len(lines), f.LogRows())
-					if got, want := text[foot], newestSaid(lines[len(lines)-1], hm.Now); !strings.Contains(got, want) {
+					foot := f.top() + min(lines.len(), f.LogRows())
+					if got, want := text[foot], newestSaid(lines.at(lines.len()-1), hm.Now); !strings.Contains(got, want) {
 						t.Errorf("the table's foot reads %q, want its newest line, %q", got, want)
 					}
 					if state := text[height-2]; !strings.HasPrefix(state, "● following") {
@@ -201,8 +209,8 @@ func TestARequestsRowIsDrawnInTheColumnsItsLayoutGives(t *testing.T) {
 		Account: "side", From: "work", Reason: "moved off work at its reserve", Status: 200, Attempts: 1, TotalMS: 9300,
 	}
 	row := views.LogRows(views.LogSources{
-		From: at, Now: at.Add(time.Minute), Read: views.ReadLogHeld(sessionsHeld{l}, heldOf([]ledger.Line{l}), ledger.Pricing, at.Add(time.Minute)),
-	}).Lines[0].Row
+		From: at, Now: at.Add(time.Minute), Read: viewstest.ReadLog(sessionsHeld{l}, heldOf([]ledger.Line{l}), ledger.Pricing, at.Add(time.Minute)).Read,
+	}).Line(0).Row
 	layout := logLayout{places: []logPlace{{column: LogAt, x: 5, width: 8}, {column: LogOn, x: 15, width: 8}, {column: LogTook, x: 25, width: 6, aligned: alignRight}}}
 	for name, want := range map[string]string{
 		"SIDE":            "   ▸ 14:31:13  SIDE        9.3s",
@@ -303,12 +311,12 @@ func TestTheLogsWindowFollowsAndPauses(t *testing.T) {
 		ls := p.lines()
 		first, last := p.window(ls, p.stand(), rows)
 		var view []string
-		for _, l := range ls[first : last+1] {
-			view = append(view, timeOf(l))
+		for i := first; i <= last; i++ {
+			view = append(view, timeOf(ls.at(i)))
 		}
 		chosen := ""
 		if i, ok := p.lit(ls, p.stand()); ok {
-			chosen = timeOf(ls[i])
+			chosen = timeOf(ls.at(i))
 		}
 		fresh := 0
 		if p.Paused() {
@@ -450,7 +458,7 @@ func TestTheLogsKeysHoldInAViewWithNoRow(t *testing.T) {
 			chosen := ""
 			at, ok := p.lit(lines, p.stand())
 			if ok {
-				chosen = timeOf(lines[at])
+				chosen = timeOf(lines.at(at))
 			}
 			if p.Paused() != tt.paused || chosen != tt.chosen {
 				t.Fatalf("with no row in view, paused %t, %q chosen; want %t, %q", p.Paused(), chosen, tt.paused, tt.chosen)
@@ -479,7 +487,7 @@ func inView(p LogPage, rows int) []string {
 	first, last := p.window(lines, p.stand(), rows)
 	var view []string
 	for i := first; i <= last; i++ {
-		l := lines[i]
+		l := lines.at(i)
 		if l.empty != nil {
 			view = append(view, "words")
 			continue

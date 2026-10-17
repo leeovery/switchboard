@@ -79,6 +79,20 @@ func (r EventsRead) Took(f EventsFiled) EventsRead {
 	return took
 }
 
+// From is r reaching back no further than EventsFrom of the local day
+// given, as the Log no longer shows the days before it: the events before
+// then let go of, those after kept as they stand.
+func (r EventsRead) From(day LedgerDay) EventsRead {
+	since := EventsFrom(day.Start)
+	if !since.After(r.since) {
+		return r
+	}
+	from := r.clone()
+	from.since = since
+	maps.DeleteFunc(from.held, func(_ eventKey, e Event) bool { return e.Event.At.Before(since) })
+	return from
+}
+
 // Back is what r reaching back, through filed, to EventsFrom of the local
 // day first falls on finds, where that's before it reaches, to be taken in
 // as Took has it: the files' events from then up to when r began. It finds

@@ -17,10 +17,11 @@ const SessionDirCells = 12
 
 // LogSessionSources are what the Log's panel's sessions are built from.
 type LogSessionSources struct {
-	// Read is the Log's read, which its Requests are built from: every line
-	// of each of its sessions, whatever day it's of, and the story each
-	// tells, priced, as it holds them.
+	// Read is the Log's read, which its Requests are built from, its lines
+	// telling when each session's first today came; and Held the store,
+	// whose stories tell each session as the List tells it.
 	Read LogRead
+	Held HeldSessions
 	// Lines and Events count each session's lines today and its events
 	// today, by its whole id, as the Log counts them: the panel's sessions
 	// are those either counts.
@@ -109,21 +110,23 @@ func (s LogSession) Doing(now time.Time) (doing LogDoing, since time.Time) {
 // say of it, started at its first line today; and those src ticks that it
 // counts none of, as tickedSession has them, so a session the filter keeps
 // always has a tick; those that haven't ended first, seen last first, then
-// those ended, the latest ended first.
+// those ended, the latest ended first. Each session's story is the store's,
+// at src's now, as the List's is.
 func LogSessions(src LogSessionSources) []LogSession {
 	by := newLister(src.Running, src.Unlisted, src.Stream, src.Now)
 	counted := countedIDs(src.Lines, src.Events)
 	firsts := src.Read.firstsOn(Today(src.Now))
+	held := src.Held.at(src.Now)
 	var sessions []LogSession
 	for _, id := range counted {
-		listed := by.listed(id, src.Read.sessionStory(id))
+		listed := by.listed(id, held.storyOf(id))
 		sessions = append(sessions, LogSession{
 			ID: id, Dir: listed.Dir, Account: listed.Account, Lines: src.Lines[id], Events: src.Events[id],
 			Activity: listed.Activity, Started: firsts[id],
 		})
 	}
 	for _, id := range notAmong(src.Ticked, counted) {
-		sessions = append(sessions, tickedSession(by, id, src.Found, src.Read.sessionStory(id)))
+		sessions = append(sessions, tickedSession(by, id, src.Found, held.storyOf(id)))
 	}
 	slices.SortFunc(sessions, inLogOrder)
 	return sessions
@@ -131,8 +134,8 @@ func LogSessions(src LogSessionSources) []LogSession {
 
 // tickedSession is the session with the given id, ticked, as the panel lists
 // it with no lines nor events today, so not started today: as the List has
-// it, from its story s, where the Log's read holds its lines; else as the
-// find found it, among found, its directory as its day's lines named it,
+// it, from its story s, where the store holds its lines; else as the find
+// found it, among found, its directory as its day's lines named it,
 // ended at its last request, its account not known; else its id alone, with
 // what the router and the request stream say of it.
 func tickedSession(by lister, id string, found []FoundSession, s *story) LogSession {

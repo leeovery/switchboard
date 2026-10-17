@@ -246,7 +246,7 @@ func TestAStorysComeBackIsTheColumnAfterItsFoldAtEveryWidth(t *testing.T) {
 				from := start.Add(time.Duration(back-1) * time.Minute)
 				to := from.Add(2 * time.Hour)
 				end := to.Add(time.Duration(total-back) * time.Minute)
-				s := views.Story{Start: start, End: end, Sent: []time.Time{start, from, to, end}, Folds: []views.Fold{{From: from, To: to}}}
+				s := views.Story{Start: start, End: end, Sent: views.SentAt(start, from, to, end), Folds: []views.Fold{{From: from, To: to}}}
 				c := s.Columns(width)
 				if i := slices.IndexFunc(c.Rates, math.IsNaN); i >= 0 {
 					t.Fatalf("at %d, %d minutes back at their %d: column %d's rate is no number", width, total, back, i)

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/quota"
@@ -302,6 +303,29 @@ func TestALedgerLinesLimitsGiveTheWindowsItsAnswersHeadersDid(t *testing.T) {
 	}
 }
 
+// A line's windows kept, as a reader that holds the line keeps them, are
+// the windows LimitWindows reads of its limits, each as it was: its key,
+// label, use, status, and its reset, the zero time where it said none; each
+// kept in 32 bytes, a fifth of a quota.Window.
+func TestALedgerLinesWindowsKeptAreTheWindowsItsLimitsGive(t *testing.T) {
+	if size := unsafe.Sizeof(claude.KeptWindow{}); size > 32 {
+		t.Errorf("a window kept takes %d bytes, want 32 at most", size)
+	}
+	for _, limits := range []map[string]string{
+		{"5h-utilization": "0.23", "5h-reset": "1790619000", "5h-status": "allowed", "7d-utilization": "0.93", "7d-reset": "1790974800", "status": "allowed"},
+		{"7d-utilization": "0.97", "7d_oi-utilization": "0.4", "7d_oi-status": "rejected"},
+		nil,
+	} {
+		var got []quota.Window
+		for _, k := range claude.KeptWindows(limits) {
+			got = append(got, k.Window())
+		}
+		if want := claude.LimitWindows(limits); !reflect.DeepEqual(got, want) {
+			t.Errorf("KeptWindows(%v), as kept, are\n%+v\nwant\n%+v", limits, got, want)
+		}
+	}
+}
+
 // A ledger line's limits give each window as its answer read it, in
 // LimitWindows' order: its key, its use, its reset, zero where the answer
 // didn't say, and how far it held its account back, its reserve the one
@@ -334,6 +358,9 @@ func TestALedgerLinesLimitsGiveEachWindowAsItsAnswerReadIt(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := claude.WindowsRead(tt.limits, 0.05); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("WindowsRead(%v, 0.05) =\n%+v\nwant\n%+v", tt.limits, got, tt.want)
+			}
+			if got := claude.WindowsReadOf(claude.KeptWindows(tt.limits), 0.05); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("WindowsReadOf(KeptWindows(%v), 0.05) =\n%+v\nwant\n%+v", tt.limits, got, tt.want)
 			}
 		})
 	}
