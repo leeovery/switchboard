@@ -6,18 +6,6 @@ world of 25,000 requests a day with 9 days behind it, race detector on, put the 
 61 to 95 MB before the Log opens and 359 MB at its peak with the Log paged back over all 9 days,
 from 2,452 MB. What it left, each a cost, not a wrong answer, gathered here.
 
-## The follower's today
-
-The largest steady holder left. The ledger's follower holds every one of today's lines for the run,
-for whoever reads today from its start, each as a whole line, its raw usage and its limits map
-included; the fix took only each line's JSON out. In the soak's world that's 37.5 MB at 21:00 and
-43 MB by midnight, more than every reader's own holding before the Log opens; the owner's days run
-larger than the soak's. Midnight lets it go, as today starts afresh.
-
-The fix: hold only the lines past the tail's mark, as every reader takes what it gains and holds
-its own, and read the day's files again for a reader that asks for today from its start, as the Log
-opening does. The owner is deciding, 17 October 2026, whether it goes in the fix's own release.
-
 ## The Log's line
 
 The Log's lines hold about 1 KB each, against the 250 to 300 B the fix planned: 25 MB for a day of

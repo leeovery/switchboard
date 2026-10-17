@@ -468,32 +468,32 @@ type Mark struct {
 // since mark, oldest first, by when each arrived, then the date of the day's
 // file each is in, and its place there, as Reader.Lines orders them, and the
 // Mark they're read to. Each is the line it reads as alone, none of its JSON
-// held: the follower holds every one of today's for whoever reads them from
-// the zero Mark, and the dashboard that follows them never reads it. A verb
-// that writes lines as the ledger holds them reads them through a Reader.
-// Where mark is the zero Mark, or one of today's lines as they were before
-// they were read afresh, as when the day turned since, or one of the days'
-// files was replaced, or shrunk, they're every one of today's, as
-// Reader.Lines gives them from today's start, and afresh reports it, for
-// those read before to be let go of. A line still being written, cut short,
-// is given once it's whole. The days' files are read as they grow, those of
-// the day before's to the day after's, as a change of time zone files a line
-// under a date beside its own.
+// held, as the dashboard that follows them never reads it. A verb that writes
+// lines as the ledger holds them reads them through a Reader. Where mark is
+// the zero Mark, or one of today's lines as they were before they were read
+// afresh, as when the day turned since, or one of the days' files was
+// replaced, or shrunk, they're every one of today's, as Reader.Lines gives
+// them from today's start, and afresh reports it, for those read before to be
+// let go of. Asking with a mark lets go of the lines given before it, so the
+// follower holds only those given since the mark last asked with, and gives
+// them again to one who asks with it again: a mark before it, or the zero
+// Mark, has every one of today's given afresh, those let go of read again
+// from the days' files. A line still being written, cut short, is given once
+// it's whole. The days' files are read as they grow, those of the day
+// before's to the day after's, as a change of time zone files a line under a
+// date beside its own.
 func (f *Follower) Today(mark Mark) (lines []Held, next Mark, afresh bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	t := &f.today
 	t.read(f.days, f.now())
-	from := mark.read
-	if afresh = mark.gen != t.gen; afresh {
-		from = 0
-	}
-	given := slices.SortedFunc(slices.Values(t.given[from:]), byArrival)
+	given, afresh := t.since(f.days, mark)
+	slices.SortFunc(given, byArrival)
 	lines = make([]Held, len(given))
 	for i, a := range given {
 		lines[i] = a.Held
 	}
-	return lines, Mark{gen: t.gen, read: len(t.given)}, afresh
+	return lines, t.mark(), afresh
 }
 
 // Day returns the lines of the requests that arrived on the local day with
@@ -523,24 +523,26 @@ func (f *Follower) Day(date string) []Held {
 // todaysLines are today's lines as a Follower reads them as they grow:
 // those of the requests that arrived from today's start, start, on, in the
 // files of the day before's to the day after's, as Reader.Lines reads them,
-// by their dates. given are those given so far, in the order they were read,
-// of those arrived by when they were; pending, those read that arrived later;
-// gen counts the times today's lines began to be given afresh.
+// by their dates. given are those given since the mark last asked with, in
+// the order they were read, of those arrived by when they were, and base how
+// many were given before them, let go of; pending, those read that arrived
+// later; gen counts the times today's lines began to be given afresh.
 type todaysLines struct {
 	start   time.Time
 	files   map[string]*arrivals
 	given   []*placed
+	base    int
 	pending []*placed
 	gen     int
 }
 
-// arrivals are the lines of the files of a local day that arrived from
-// today's start on, as they're read as they grow, in the order the files hold
-// them, taken counting every line read since they were last read afresh.
+// arrivals are the files of a local day as today's lines read them as they
+// grow, holding none of their lines: taken counts every line read since they
+// were last read afresh, and kept those of them that arrived from today's
+// start on.
 type arrivals struct {
 	tailed[Held]
-	lines []*placed
-	taken int
+	taken, kept int
 }
 
 // placed is a line read, as Today and Session order them: the date of the
@@ -557,49 +559,46 @@ func byArrival(a, b *placed) int {
 	return cmp.Or(a.At.Compare(b.At), strings.Compare(a.date, b.date), cmp.Compare(a.place, b.place))
 }
 
-// read reads what the files of today's lines gained by now, as they turn to
-// now's day, where it's another, giving those that arrived by now, and
-// giving every one afresh where the day turned, or a file was read afresh.
+// read reads what the files of today's lines gained by now, giving those that
+// arrived by now, and giving every one afresh, as begin does, where the day
+// turned to now's, or a file was read afresh.
 func (t *todaysLines) read(d days, now time.Time) {
-	fresh := t.turn(now)
+	if t.turn(now) {
+		t.begin(d, now)
+		return
+	}
 	var gained []*placed
 	for _, date := range dayfile.Dates(t.start, now) {
-		file, ok := t.files[date]
-		if !ok {
-			file = &arrivals{Tail: dayfile.NewTail(d.files, date, lineHeldIn), date: date}
-			t.files[date] = file
+		read, afresh := t.file(d, date).read(d.logger, t.start)
+		if afresh {
+			t.begin(d, now)
+			return
 		}
-		read, afresh := file.read(d.logger, t.start)
-		gained, fresh = append(gained, read...), fresh || afresh
-	}
-	if fresh {
-		t.begin(now)
-		return
+		gained = append(gained, read...)
 	}
 	t.give(append(gained, t.pending...), now)
 }
 
-// turn has today's lines turn to now's day where it's another, reporting
-// whether it is: those read of the days' files they still read that arrived
-// from the day's start on are kept, where it's after the day before, and
-// none, to be read afresh, where it's before it, as when the clock was set
-// back.
+// turn has today's lines turn to now's day where it's another, as after
+// midnight, or a clock set back, reporting whether it is.
 func (t *todaysLines) turn(now time.Time) bool {
 	start := dayfile.DayStart(now.Local(), 0)
 	if start.Equal(t.start) {
 		return false
 	}
-	files := make(map[string]*arrivals)
-	if start.After(t.start) {
-		for _, date := range dayfile.Dates(start, now) {
-			if file, ok := t.files[date]; ok {
-				file.lines = slices.DeleteFunc(file.lines, func(a *placed) bool { return a.At.Before(start) })
-				files[date] = file
-			}
-		}
-	}
-	t.start, t.files = start, files
+	t.start = start
 	return true
+}
+
+// file returns the files of the local day with the given date as today's
+// lines read them, none read yet where they're new to them.
+func (t *todaysLines) file(d days, date string) *arrivals {
+	file, ok := t.files[date]
+	if !ok {
+		file = &arrivals{Tail: dayfile.NewTail(d.files, date, lineHeldIn), date: date}
+		t.files[date] = file
+	}
+	return file
 }
 
 // lineHeldIn returns the line a line of the ledger holds, as Today and Day
@@ -613,32 +612,56 @@ func lineHeldIn(data []byte) (Held, bool) {
 	return Held{Line: line}, true
 }
 
-// read reads what the day's files gained, holding those that arrived from
-// start on, and returns them, and whether it read the files afresh, letting
-// go of any it held: a first read of them, or one afresh of files that held
-// none, lets go of nothing.
+// read reads what the day's files gained, returning those that arrived from
+// start on, and whether it read the files afresh where they'd given any such
+// before: a first read of them, or one afresh of files that gave none, lets
+// go of nothing.
 func (a *arrivals) read(logger *slog.Logger, start time.Time) (gained []*placed, afresh bool) {
 	a.tailed.read(logger, func() {
-		afresh = len(a.lines) > 0
-		a.lines, a.taken, gained = nil, 0, nil
+		afresh = a.kept > 0
+		a.taken, a.kept, gained = 0, 0, nil
 	}, func(h Held) {
 		if !h.At.Before(start) {
-			line := &placed{Held: h, date: a.date, place: a.taken}
-			a.lines, gained = append(a.lines, line), append(gained, line)
+			gained = append(gained, &placed{Held: h, date: a.date, place: a.taken})
+			a.kept++
 		}
 		a.taken++
 	})
 	return gained, afresh
 }
 
-// begin gives today's lines afresh: every one of the days' files that
-// arrived by now.
-func (t *todaysLines) begin(now time.Time) {
+// readAgain reads again, from the start of the day's files, the lines read
+// of them that arrived from start on, as far as they were read, but those
+// held reports true of, by their places.
+func (a *arrivals) readAgain(d days, start time.Time, held func(place int) bool) []*placed {
+	if a.taken == 0 {
+		return nil
+	}
+	var lines []*placed
+	place := 0
+	_, _, err := dayfile.ReadDay(d.files, a.date, lineHeldIn, func(h Held) bool {
+		if !h.At.Before(start) && !held(place) {
+			lines = append(lines, &placed{Held: h, date: a.date, place: place})
+		}
+		place++
+		return place < a.taken
+	})
+	if err != nil {
+		d.logger.Warn("can't read the request ledger", "day", a.date, "error", err)
+	}
+	return lines
+}
+
+// begin gives today's lines afresh: every one of the days' files, read again
+// from their start, that arrived by now.
+func (t *todaysLines) begin(d days, now time.Time) {
+	t.files = make(map[string]*arrivals)
 	var all []*placed
 	for _, date := range dayfile.Dates(t.start, now) {
-		all = append(all, t.files[date].lines...)
+		read, _ := t.file(d, date).read(d.logger, t.start)
+		all = append(all, read...)
 	}
-	t.given, t.pending, t.gen = nil, nil, t.gen+1
+	t.given, t.base, t.pending, t.gen = nil, 0, nil, t.gen+1
 	t.give(all, now)
 }
 
@@ -653,6 +676,51 @@ func (t *todaysLines) give(lines []*placed, now time.Time) {
 			t.given = append(t.given, line)
 		}
 	}
+}
+
+// since returns the lines given since mark, and whether they're every one of
+// today's, given afresh, as Today says: those given since a mark of them as
+// they're given now, letting go of those before it; else every one, those
+// let go of read again.
+func (t *todaysLines) since(d days, mark Mark) ([]*placed, bool) {
+	from, afresh := mark.read, mark.gen != t.gen
+	if afresh {
+		from = 0
+	}
+	if from < t.base {
+		return append(t.readAgain(d), t.given...), true
+	}
+	if from > t.base {
+		// Cloned, as the array behind a slice of it would hold on to every line
+		// let go of.
+		t.given, t.base = slices.Clone(t.given[from-t.base:]), from
+	}
+	return slices.Clone(t.given), afresh
+}
+
+// mark is the Mark of today's lines read to the last given.
+func (t *todaysLines) mark() Mark {
+	return Mark{gen: t.gen, read: t.base + len(t.given)}
+}
+
+// readAgain reads again the lines given before base, let go of: those the
+// days' files gave as far as they've been read, but those still held, given
+// since or pending. As far as they've been read, whatever they gained since,
+// so the next read gives what they gained, each line once.
+func (t *todaysLines) readAgain(d days) []*placed {
+	type spot struct {
+		date  string
+		place int
+	}
+	held := make(map[spot]bool, len(t.given)+len(t.pending))
+	for _, line := range slices.Concat(t.given, t.pending) {
+		held[spot{line.date, line.place}] = true
+	}
+	var gone []*placed
+	for date, file := range t.files {
+		gone = append(gone, file.readAgain(d, t.start, func(place int) bool { return held[spot{date, place}] })...)
+	}
+	return gone
 }
 
 // Session returns the lines of the session with the given id that arrived by

@@ -31,3 +31,15 @@ func (f *Follower) Followed() []string {
 	defer f.mu.Unlock()
 	return slices.Sorted(maps.Keys(f.followed))
 }
+
+// TodayHeld returns the requests of today's lines the follower holds, given
+// and pending, for tests of what it lets go of.
+func (f *Follower) TodayHeld() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var held []string
+	for _, line := range slices.Concat(f.today.given, f.today.pending) {
+		held = append(held, line.Request)
+	}
+	return held
+}

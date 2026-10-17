@@ -1,12 +1,17 @@
 package ledger
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/leeovery/switchboard/internal/logs"
 )
 
 // Reading days ahead reads those of its window side by side, and however
@@ -117,5 +122,53 @@ func TestALineOfASessionNotKeptIsReadForItsSessionAlone(t *testing.T) {
 				t.Errorf("read %v, giving %+v; want read %v, giving %+v", read, got, tt.read, want)
 			}
 		})
+	}
+}
+
+// A whole read of today's lines reads those let go of again as far as the
+// days' files were read, whatever they gained since: so a line they gain
+// between a read of them and the whole read is given once, by the next read.
+func TestAWholeReadOfTodayReadsAgainAsFarAsTheFilesWereRead(t *testing.T) {
+	state := t.TempDir()
+	dir := Dir(state)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 10, 5, 10, 0, 0, 0, time.Local)
+	write := func(request string, minute int) {
+		data, err := json.Marshal(Line{At: now.Add(time.Duration(minute-60) * time.Minute), Request: request, Kind: KindMessage})
+		if err != nil {
+			t.Fatal(err)
+		}
+		file, err := os.OpenFile(filepath.Join(dir, "requests-2026-10-05.jsonl"), os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o600)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = file.Close() }()
+		if _, err := file.Write(append(data, '\n')); err != nil {
+			t.Fatal(err)
+		}
+	}
+	f := NewFollower(state, func() time.Time { return now }, Caps{}, logs.For("cli"))
+	write("1", 1)
+	_, first, _ := f.Today(Mark{})
+	write("2", 2)
+	f.Today(first)
+	write("3", 3)
+	f.today.read(f.days, now)
+	write("4", 4)
+
+	whole, afresh := f.today.since(f.days, Mark{})
+	slices.SortFunc(whole, byArrival)
+	requests := make([]string, len(whole))
+	for i, line := range whole {
+		requests[i] = line.Request
+	}
+	if want := []string{"1", "2", "3"}; !slices.Equal(requests, want) || !afresh {
+		t.Errorf("the whole read gave %q, afresh %v; want %q, afresh, as far as the file was read", requests, afresh, want)
+	}
+	gained, _, afresh := f.Today(f.today.mark())
+	if len(gained) != 1 || gained[0].Request != "4" || afresh {
+		t.Errorf("the read after it gave %+v, afresh %v; want the line the file gained since it was read, once, not afresh", gained, afresh)
 	}
 }
