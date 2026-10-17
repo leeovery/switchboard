@@ -4231,11 +4231,15 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
   its session's story, never at a look telling what the last told; its panel builds its figures as
   the table it's of, the stream's rows or the sessions listed change, never at each look (settled
   in the plan).
-- **The traces and a session's story:** the Overview's traces take their last 30 minutes from
-  today's lines once, as the Overview is first shown or the stream is joined again, and a session's
-  story its life from its own days' lines, as its page opens; then each counts the requests the
-  stream tells of as they're sent, each request once, by its id, whether the stream or its line
-  tells of it first. No look reads the ledger for them (settled in the plan).
+- **The traces and a session's story:** the Overview's traces hold no mark of their own: they take
+  their last 30 minutes from today's lines as each read of the ledger's tail reads them, whoever
+  it's read for, a whole day given again included. Each time the stream opens, as the Overview is
+  first shown or the stream is joined again, it asks for one read of the tail, whether or not a
+  reader follows it, asked after it opened, so no request that ended before it goes unread: a read
+  already under way as it opens doesn't stand for it. A session's story takes its life from its own
+  days' lines, as its page opens. Then each counts the requests the stream tells of as they're
+  sent, each request once, by its id, whether the stream or its line tells of it first. No look
+  reads the ledger for them (settled in the plan).
 - **The ledger, read as it grows.** The dashboard reads the ledger's, the readings history's and
   the events' files itself, with no router, through the readers it's given (see Packages), and
   never reads them whole at a look:
@@ -4244,8 +4248,10 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
     never the day. A file found replaced, or shorter than where the last read ended, is read again
     from its start. The tail is read at each look whatever tab shows, while a reader holds today's
     lines, as the Log once shown, the List once read and a session's page open do, or the stream
-    awaits a line, so each keeps up while another tab shows; and a line one read finds, of today or
-    of a day before read again whole, every reader takes in, the store of sessions once for them
+    awaits a line, so each keeps up while another tab shows; and once after the stream opens, for
+    the traces, whether a reader holds them or not. The tail alone asks the follower for today's
+    lines, with its one mark. A line one read finds, of today or of a day before read again whole,
+    every reader takes in, the store of sessions once for them
     all (settled in the plan). The ledger's follower holds only the lines given since the mark last
     asked with, which a read asked again with it is given again, and those arrived later by the
     clock, never all of today's: a read from today's start, as the Log's first, or from a mark
