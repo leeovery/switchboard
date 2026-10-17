@@ -134,6 +134,7 @@ var (
 		// Which windows a live view lists: those every model shares, and
 		// each model's own while w shows them or it nears its limit.
 		"score.Policy.IsShared": "status.Moment.Listed",
+		"score.Policy.Shared":   "status.Moment's Listed and SharedWindows",
 		// The time spent at a cap or a limit, together, and whether it's
 		// known.
 		"views.AccountTotals.MinutesAtCap":   "views.AccountTotals.AtCapOrLimit",
