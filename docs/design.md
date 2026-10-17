@@ -5406,21 +5406,21 @@ hiding it behind the provider would take a wider interface than it's worth:
 - **The skill:** `skills/switchboard/SKILL.md` in Claude Code's config directory,
   `$CLAUDE_CONFIG_DIR`, else `~/.claude`, once `setup` has written it.
 - **The capture harness,** in the repository: `testdata/vhs/`, where the dashboard is checked
-  against what the owner signed off. `reference/` keeps the frames, 77 of them, named by their
+  against its frames. `reference/` keeps them, 77 of them, named by their
   stems: `usage-*` (9), `overview-*` (13), `accounts-*` (11), `history-*` (10), `routing-*` (5),
-  `session-*` (6), `log-*` (9), `sessions-*` (9) and `runway-*` (5). Each is the live view as the
-  owner last signed it off: the text and ANSI that the fixture of `internal/capture`'s with the same
+  `session-*` (6), `log-*` (9), `sessions-*` (9) and `runway-*` (5). Each is the tests' snapshot
+  of the live view: the text and ANSI that the fixture of `internal/capture`'s with the same
   name draws, written by `go run ./cmd/capturetool --frames testdata/vhs/reference [names…]`, which
   writes every frame `reference/` keeps, or the ones named (`testdata/vhs/README.md` says what each
   file of a frame is). Every frame has a fixture of its name, and capture's tests hold each
   fixture to its frame's `.txt` and `.ansi`, cell for cell, passing over nothing: each cell's glyph, colours and bold, a blank's
   background alone, and a cell not painted taken as the canvas, as `usage`'s printout paints none
-  and writes nothing past a line's end. A change that alters a screen shows the owner its prints
-  first (`--print`); once they are signed off, it regenerates the frames it alters with the command,
-  in the same change. The frames began as those signed off in Paper from 4 to 8 October 2026, each
+  and writes nothing past a line's end. A change that alters a screen on purpose regenerates the
+  frames it alters with the command, in the same change, once the new drawing is right; a frame
+  that changes when nothing meant it to is a regression to fix, not a frame to rewrite. The frames began as those signed off in Paper from 4 to 8 October 2026, each
   area's Paper page named in its section, held to with passings where the build drew otherwise;
-  on 17 October 2026 the owner made the live view the record, and the frames were written afresh
-  from their fixtures. Only a big redesign goes back to Paper. A fixture pins what its frame is
+  on 17 October 2026 they were written afresh from their fixtures, snapshots of the live view
+  since. Only a big redesign goes back to Paper. A fixture pins what its frame is
   drawn with, as it pins its frame's clock, Thu 1 Oct 2026 at 14:42:07, or at 16:05:41 and
   16:05:42 for `sessions-refused-160` and `sessions-moved-160`: the traces' scale at 16 requests a
   minute and a session's story's at 8, the frames' fixed scales, where the live page scales as its
