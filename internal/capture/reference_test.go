@@ -238,6 +238,14 @@ func period(p int, reads string) passing {
 	return cellsOf(5, p-4, 160, "──  p "+reads)
 }
 
+// phoneTabs passes over a phone's view tabs on its heading row, row 6, from
+// column from to column to, which the frames set tight, each its name and a
+// cell after it, where the design pads each a cell either side, as the
+// page's tabs are (the owner's call, 17 October 2026).
+func phoneTabs(from, to int, reads string) passing {
+	return cellsOf(6, from, to, reads)
+}
+
 // phonePeriod passes over a phone's period, the row under its heading.
 func phonePeriod(reads string) passing {
 	return wholeRow(7, "p "+reads)
@@ -617,6 +625,21 @@ func fromTheLog(n, overview, log int) []passing {
 	return []passing{cellsOf(n, overview, overview+9, "Overview"), cellsOf(n, log, log+4, "Log")}
 }
 
+// thePath passes over a session's directory on its page's heading, row 5,
+// from column c, which the frames draw in text.faint, where the design has it
+// in text.muted (the owner's call, 17 October 2026).
+func thePath(c int, path string) passing {
+	return wordsAt(5, c, path)
+}
+
+// The directories of the sessions the frames of a session's page draw, as
+// their headings show them.
+var (
+	switchboardPath = thePath(31, "~/Code/switchboard")
+	websitePath     = thePath(27, "~/Code/website")
+	apiPath         = thePath(23, "~/Code/api")
+)
+
 // storyColumns passes over the columns given of a session's story, from row
 // top to row bottom, which the frame draws from its generator's curves,
 // where the world's requests fall in their minutes otherwise: each cell an
@@ -933,14 +956,14 @@ var passedOver = map[string][]passing{
 		[]passing{cellsOf(28, 20, 20, "●"), blankCells(29, 39, 49), wholeRow(37, accountsKeys)},
 	),
 	"accounts-phone-compare-52": {
-		phonePeriod("this week"), unrouted(15, 7), blankCells(23, 33, 33), unrouted(25, 7), blankCells(27, 32, 33), wordsAt(27, 47, "57%"),
+		phoneTabs(11, 27, "Compare Detail"), phonePeriod("this week"), unrouted(15, 7), blankCells(23, 33, 33), unrouted(25, 7), blankCells(27, 32, 33), wordsAt(27, 47, "57%"),
 		cellsOf(30, 36, 47, "3 out"), cellsOf(31, 24, 25, "6"), cellsOf(31, 36, 40, "1 out"), unrouted(32, 7), cellsOf(32, 24, 25, "11"),
 		cellsOf(33, 24, 25, "19"), cellsOf(33, 36, 42, "4 moves"),
 		cellsOf(37, 14, 18, "none"), cellsOf(37, 27, 32, "—"), unrouted(38, 7), wordsAt(39, 14, "3"), cellsOf(39, 27, 32, "4h 02m"),
 		unrouted(44, 7),
 	},
 	"accounts-phone-detail-52": slices.Concat(
-		[]passing{phonePeriod("this week"), blankCells(24, 50, 50), cellsOf(26, 32, 32, "●")},
+		[]passing{phoneTabs(11, 27, "Compare Detail"), phonePeriod("this week"), blankCells(24, 50, 50), cellsOf(26, 32, 32, "●")},
 		byDays(28, 2, 13, 15, 19, 21, 28, 34, 36, 38, 43, 45, 47),
 		[]passing{blankCells(37, 27, 36), wholeRow(38, "12:10")},
 	),
@@ -973,7 +996,7 @@ var passedOver = map[string][]passing{
 		},
 	),
 	"history-phone-year-52": slices.Concat(
-		[]passing{phonePeriod("last 12 months")}, currentMonth(9, 39, 30, 2), phoneSquares,
+		[]passing{phoneTabs(10, 36, "Year Weeks Days Tokens"), phonePeriod("last 12 months")}, currentMonth(9, 39, 30, 2), phoneSquares,
 		[]passing{
 			cellsOf(18, 8, 52, "450 ■ 450–750"),
 			cellsOf(21, 11, 17, "236,410"), cellsOf(21, 37, 43, "$27,480"),
@@ -1065,7 +1088,7 @@ var passedOver = map[string][]passing{
 	"routing-session-160": slices.Concat(
 		quietPage,
 		[]passing{
-			cellsOf(7, 23, 23, "◆"), wordsAt(8, 12, "personal"), wordsAt(8, 110, "personal"), wordsAt(8, 142, "66%"),
+			websitePath, cellsOf(7, 23, 23, "◆"), wordsAt(8, 12, "personal"), wordsAt(8, 110, "personal"), wordsAt(8, 142, "66%"),
 			wholeRow(10, "STORY   requests a minute, its whole life"), cellsOf(17, 77, 94, ": side for now"),
 		},
 		figures(18, "95%", "34%"), figures(19, "39%", "66%"),
@@ -1076,12 +1099,12 @@ var passedOver = map[string][]passing{
 		behindTheSessionsCard,
 	),
 
-	"session-moved-160": d28cPage,
-	"session-quiet-160": slices.Concat(quietPage, quietStory, []passing{wordsAt(20, 57, "≈ 23 points of its 5-hour · 4 of its week")}),
+	"session-moved-160": slices.Concat(d28cPage, []passing{switchboardPath}),
+	"session-quiet-160": slices.Concat(quietPage, quietStory, []passing{websitePath, wordsAt(20, 57, "≈ 23 points of its 5-hour · 4 of its week")}),
 	"session-ended-160": slices.Concat(
 		fromTheLog(1, 16, 68),
 		[]passing{
-			wordsAt(7, 17, "18:47"), wordsAt(7, 155, "5h 27m"), cellsOf(8, 10, 40, "· haiku-4-5"),
+			switchboardPath, wordsAt(7, 17, "18:47"), wordsAt(7, 155, "5h 27m"), cellsOf(8, 10, 40, "· haiku-4-5"),
 			cellsOf(18, 49, 54, "15:00"),
 			wordsAt(20, 33, "16:02"), wordsAt(20, 57, "≈ 52 points of its 5-hour · 8 of its week"),
 			wordsAt(21, 33, "18:47"), wordsAt(21, 57, "≈ 38 points of its 5-hour · 6 of its week"),
@@ -1092,7 +1115,7 @@ var passedOver = map[string][]passing{
 	"session-resumed-160": slices.Concat(
 		fromTheLog(1, 16, 68),
 		[]passing{
-			wordsAt(7, 1, "↓ streaming"), cellsOf(7, 57, 95, "15h idle"), cellsOf(11, 36, 83, "┊ 09:12  rescored after 15h idle"),
+			apiPath, wordsAt(7, 1, "↓ streaming"), cellsOf(7, 57, 95, "15h idle"), cellsOf(11, 36, 83, "┊ 09:12  rescored after 15h idle"),
 			drawnIn(12, 32, 37, eighths+"╱┊"), drawnIn(13, 32, 37, eighths+"╱┊"), drawnIn(14, 32, 37, eighths+"╱┊"),
 			drawnIn(15, 32, 37, eighths+"╱┊"), drawnIn(16, 32, 37, eighths+"╱┊"),
 			cellsOf(17, 14, 20, "─ side"), cellsOf(17, 32, 37, "─┤"), cellsOf(18, 32, 42, "15h  09:12"),
@@ -1102,7 +1125,7 @@ var passedOver = map[string][]passing{
 		},
 		resumedStory,
 	),
-	"session-turn-opened-160": slices.Concat(d28cPage, []passing{wholeRow(29, "│  14:29:04"), wholeRow(37, "esc close    ↑↓ request  p pin")}),
+	"session-turn-opened-160": slices.Concat(d28cPage, []passing{switchboardPath, wholeRow(29, "│  14:29:04"), wholeRow(37, "esc close    ↑↓ request  p pin")}),
 	"session-phone-52": slices.Concat(
 		fromTheLog(2, 1, 48),
 		[]passing{

@@ -1832,9 +1832,10 @@ holds.
 - **The heading row** is the page's (see The page): `ACCOUNTS` or `HISTORY`, the sub-tabs, and at
   the right the period between its keys, `< this week >`. The state after `[ ]` is only what the
   screen can't show otherwise, as which accounts Compare shows of more than fit, or what History's
-  Year is filtered to. On a phone, the sub-tabs follow the tab's name after two spaces, each `Name `
-  with a space after it, with no `[ ]` or rule, and the period goes to row 6, at the right, the view
-  then starting at row 8.
+  Year is filtered to. On a phone, the sub-tabs follow the tab's name after two spaces, each
+  ` Name ` with a space either side, as wider, so the highlight sits centred on its name (the
+  owner's call, 17 October 2026), with no `[ ]` or rule, and the period goes to row 6, at the right,
+  the view then starting at row 8.
 - **No description after a heading,** a tab's or a group's: the tab and the sub-tab name the view,
   and what a view is, and how to read it, is for `?` help. A dim line says only what the screen
   can't: a key to an encoding, as to the shades or the dots; a rule the eye can't see, as that worth
@@ -3469,10 +3470,11 @@ session page · signed off · 7 Oct 2026**, its frames kept as `testdata/vhs/ref
 **The heading** (row 4): `SESSION` in `text.subtle`; three spaces; the session's id cut to 4, as the
 dashboard shows ids, bold `text.primary`; three spaces; its directory's last part, bold
 `text.primary`; two spaces; the directory as the ledger holds it, the home as `~`
-(`~/Code/switchboard`), in `text.faint`; one space; a rule of `─` in `border`; two spaces; and,
-ending at the last column, `esc` bold `accent.key` and ` back` in `text.muted`. While it loads,
-three spaces and `loading…` in `text.subtle` go before the rule; on a phone, two, as its parts are
-spaced there (settled in the plan).
+(`~/Code/switchboard`), in `text.muted`, the tone of a heading's quieter words (the owner's call,
+17 October 2026); one space; a rule of `─` in `border`; two spaces; and, ending at the last column,
+`esc` bold `accent.key` and ` back` in `text.muted`. While it loads, three spaces and `loading…` in
+`text.subtle` go before the rule; on a phone, two, as its parts are spaced there (settled in the
+plan).
 
 **Now** (rows 6 and 7).
 

@@ -225,7 +225,7 @@ func (d sessionDrawn) heading(c *canvas) {
 	}
 	if d.l.wide {
 		if path := status.DirPath(d.page.Dir, d.shown.Home, room-x-ruleGap-2); path != "" {
-			x = c.text(x+ruleGap, y, path, faintInk)
+			x = c.text(x+ruleGap, y, path, mutedInk)
 		}
 	}
 	x = c.line(x, y, loading)

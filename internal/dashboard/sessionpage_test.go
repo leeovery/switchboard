@@ -6,10 +6,12 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -277,14 +279,14 @@ func TestASessionsPageDrawsItsFramesRows(t *testing.T) {
 		tabs, storyFrom, storyTo int
 		passed                   []spot
 	}{
-		{stem: "session-moved-160", shown: moved(), width: 160, height: 37, storyFrom: 9, storyTo: 17},
-		{stem: "session-quiet-160", shown: quiet(), width: 160, height: 37, storyFrom: 9, storyTo: 17},
+		{stem: "session-moved-160", shown: moved(), width: 160, height: 37, storyFrom: 9, storyTo: 17, passed: pathOf(30, "~/Code/switchboard")},
+		{stem: "session-quiet-160", shown: quiet(), width: 160, height: 37, storyFrom: 9, storyTo: 17, passed: pathOf(26, "~/Code/website")},
 		{
-			stem: "session-ended-160", shown: ended(), width: 160, height: 37, storyFrom: 9, storyTo: 17,
+			stem: "session-ended-160", shown: ended(), width: 160, height: 37, storyFrom: 9, storyTo: 17, passed: pathOf(30, "~/Code/switchboard"),
 		},
 		{
 			stem: "session-resumed-160", shown: resumed(), width: 160, height: 37, storyFrom: 9, storyTo: 17,
-			passed: []spot{
+			passed: slices.Concat(pathOf(22, "~/Code/api"), []spot{
 				// The frame predates the design's word: it says its answer
 				// streams as "↓ streaming", where the design says "↓
 				// answering".
@@ -292,14 +294,14 @@ func TestASessionsPageDrawsItsFramesRows(t *testing.T) {
 				// The router writes the world's idle as it is, 15h 7m, where
 				// the frame says 15h, so the where-words run 3 cells longer.
 				{row: 6, first: 56, last: 94},
-			},
+			}),
 		},
 		{
 			stem: "session-turn-opened-160", shown: turnOpened(), width: 160, height: 37, storyFrom: 9, storyTo: 17,
 			// The frame lights no request of the turn open, where the design
 			// has its first chosen as it opens (3417); its text is held by
 			// TestATurnOpenedLightsItsRequestChosenAndSaysWhatsOutOfView.
-			passed: []spot{{row: 28, first: 0, last: 159}},
+			passed: slices.Concat(pathOf(30, "~/Code/switchboard"), []spot{{row: 28, first: 0, last: 159}}),
 		},
 		{
 			stem: "session-phone-52", shown: moved(), width: 52, height: 32, tabs: 1, storyFrom: 10, storyTo: 16,
@@ -318,6 +320,13 @@ func TestASessionsPageDrawsItsFramesRows(t *testing.T) {
 			heldTo(t, tt.stem, frame, drawn, region{top: tt.storyTo + 1, bottom: tt.height - 2, right: tt.width - 1}, canvas, passed, nil)
 		})
 	}
+}
+
+// pathOf is the spot of a session's directory on its heading, from column
+// first, which the frames draw in text.faint, where the design has it in
+// text.muted (the owner's call, 17 October 2026).
+func pathOf(first int, path string) []spot {
+	return []spot{{row: 4, first: first, last: first + utf8.RuneCountInString(path) - 1}}
 }
 
 // pageText is the page f draws, of the frames' document at their now, as
@@ -713,6 +722,35 @@ func TestASessionsHeadingNamesItByItsDirectory(t *testing.T) {
 				t.Errorf("the heading reads\n%q\nwant\n%q", got, tt.want)
 			}
 		})
+	}
+}
+
+// A session's heading draws its id and its directory's name bold
+// text.primary, and the directory, as wide pages show it, in text.muted, the
+// tone of a heading's quieter words: SESSION   d28c   switchboard
+// ~/Code/switchboard.
+func TestASessionsHeadingsInks(t *testing.T) {
+	f := pageFrame(t, moved(), 160, 37)
+	c, y := pageCanvas(f), f.sessionLayout(len(moved().Page.Accounts)).heading
+	tests := []struct {
+		name   string
+		x, end int
+		want   ink
+	}{
+		{name: "SESSION", x: 0, end: 6, want: dimInk},
+		{name: "the id", x: 10, end: 13, want: titleInk},
+		{name: "the directory's name", x: 17, end: 27, want: titleInk},
+		{name: "the directory", x: 30, end: 47, want: mutedInk},
+	}
+	for _, tt := range tests {
+		for x := tt.x; x <= tt.end; x++ {
+			if got := c.at(x, y).ink; got != tt.want {
+				t.Errorf("%s, at column %d, is in %+v, want %+v", tt.name, x, got, tt.want)
+			}
+		}
+	}
+	if mutedInk != (ink{token: theme.TextMuted}) {
+		t.Errorf("the directory's ink is %+v, want text.muted", mutedInk)
 	}
 }
 
