@@ -523,10 +523,11 @@ func (f *Follower) Day(date string) []Held {
 // todaysLines are today's lines as a Follower reads them as they grow:
 // those of the requests that arrived from today's start, start, on, in the
 // files of the day before's to the day after's, as Reader.Lines reads them,
-// by their dates. given are those given since the mark last asked with, in
-// the order they were read, of those arrived by when they were, and base how
-// many were given before them, let go of; pending, those read that arrived
-// later; gen counts the times today's lines began to be given afresh.
+// by their dates. given are those given from base on, in the order they were
+// read, of those arrived by when they were, base counting those given before
+// them, let go of as a mark later than base was asked with: a zero mark, or
+// one before base, lets none go. pending are those read that arrived later;
+// gen counts the times today's lines began to be given afresh.
 type todaysLines struct {
 	start   time.Time
 	files   map[string]*arrivals
@@ -620,45 +621,69 @@ func (a *arrivals) read(logger *slog.Logger, start time.Time) (gained []*placed,
 	a.tailed.read(logger, func() {
 		afresh = a.kept > 0
 		a.taken, a.kept, gained = 0, 0, nil
-	}, func(h Held) {
-		if !h.At.Before(start) {
-			gained = append(gained, &placed{Held: h, date: a.date, place: a.taken})
-			a.kept++
-		}
-		a.taken++
-	})
+	}, a.placing(start, &a.taken, func(line *placed) {
+		gained = append(gained, line)
+		a.kept++
+	}))
 	return gained, afresh
+}
+
+// placing returns what takes each line read of the day's files, in the order
+// they hold them, counted by taken, which counts every one, handing keep
+// those that arrived from start on, each placed where taken counted it: so a
+// read of them as they grow, and one again from their start, place them
+// alike.
+func (a *arrivals) placing(start time.Time, taken *int, keep func(*placed)) func(Held) {
+	return func(h Held) {
+		if !h.At.Before(start) {
+			keep(&placed{Held: h, date: a.date, place: *taken})
+		}
+		*taken++
+	}
 }
 
 // readAgain reads again, from the start of the day's files, the lines read
 // of them that arrived from start on, as far as they were read, but those
-// held reports true of, by their places.
+// held reports true of, by their places. Where it can't read as far, which is
+// warned of where a file can't be read, the files are read afresh at their
+// next read, so the lines it couldn't give are given then.
 func (a *arrivals) readAgain(d days, start time.Time, held func(place int) bool) []*placed {
-	if a.taken == 0 {
+	if a.kept == 0 {
 		return nil
 	}
 	var lines []*placed
-	place := 0
-	_, _, err := dayfile.ReadDay(d.files, a.date, lineHeldIn, func(h Held) bool {
-		if !h.At.Before(start) && !held(place) {
-			lines = append(lines, &placed{Held: h, date: a.date, place: place})
+	read := 0
+	take := a.placing(start, &read, func(line *placed) {
+		if !held(line.place) {
+			lines = append(lines, line)
 		}
-		place++
-		return place < a.taken
+	})
+	_, _, err := dayfile.ReadDay(d.files, a.date, lineHeldIn, func(h Held) bool {
+		take(h)
+		return read < a.taken
 	})
 	if err != nil {
 		d.logger.Warn("can't read the request ledger", "day", a.date, "error", err)
+	}
+	if err != nil || read < a.taken {
+		a.Tail = dayfile.NewTail(d.files, a.date, lineHeldIn)
 	}
 	return lines
 }
 
 // begin gives today's lines afresh: every one of the days' files, read again
-// from their start, that arrived by now.
+// from their start, that arrived by now, each file's unread lines warned of
+// only where more can't be read than were last warned of.
 func (t *todaysLines) begin(d days, now time.Time) {
+	was := t.files
 	t.files = make(map[string]*arrivals)
 	var all []*placed
 	for _, date := range dayfile.Dates(t.start, now) {
-		read, _ := t.file(d, date).read(d.logger, t.start)
+		file := t.file(d, date)
+		if before, ok := was[date]; ok {
+			file.warned = before.warned
+		}
+		read, _ := file.read(d.logger, t.start)
 		all = append(all, read...)
 	}
 	t.given, t.base, t.pending, t.gen = nil, 0, nil, t.gen+1

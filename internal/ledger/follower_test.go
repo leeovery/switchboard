@@ -407,8 +407,8 @@ func TestEachReadOfTodaysLinesAfterTheFirstGivesWhatTheDaysFilesGained(t *testin
 	}
 }
 
-// Today's lines, which the follower holds every one of for the run, and a
-// day's it reads again whole, hold none of the JSON they were written as, as
+// Today's lines, as the follower holds them, and a day's it reads again
+// whole, hold none of the JSON they were written as, as
 // the dashboard that follows them never reads it, while a Reader's lines,
 // which a verb writes as the ledger holds them, hold theirs.
 func TestTheFollowersLinesHoldNoneOfTheirJSON(t *testing.T) {
@@ -643,6 +643,68 @@ func TestTodaysLinesGivenAfreshAreReadAgainFromTheFiles(t *testing.T) {
 				t.Errorf("the follower holds %q, want %q: none given since the mark last asked with, but those pending", held, tt.pending)
 			}
 		})
+	}
+}
+
+func TestTodaysFileAWholeReadCantReadIsReadAfreshNext(t *testing.T) {
+	state, dir, _ := stateDirs(t)
+	holdLines(t, dir, date, asked("1", on(0, 9, 0)), asked("2", on(0, 9, 10)))
+	clock := &testClock{at: on(0, 10, 0)}
+	follower := followerOf(state, clock, caps)
+	var p page
+	p.read(follower)
+	holdLines(t, dir, date, asked("3", on(0, 9, 20)))
+	p.read(follower)
+	p.read(follower)
+	// A change of its mode moves neither the file's size nor when it was
+	// last modified, so its tail alone would never tell.
+	unopenable(t, dir, "requests-"+date+".jsonl")
+	follower.Today(ledger.Mark{})
+	if err := os.Chmod(filepath.Join(dir, "requests-"+date+".jsonl"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	holdLines(t, dir, date, asked("4", on(0, 9, 30)))
+
+	if _, afresh := p.read(follower); !afresh {
+		t.Error("today's lines given not afresh after a whole read couldn't read today's file, want them afresh")
+	}
+	if got, want := p.inArrival(t), wholeToday(t, state, clock.at); !slices.Equal(got, want) {
+		t.Errorf("the page holds\n%s\nwant today's lines\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}
+
+func TestAWholeReadReadsAgainOnlyTheFilesThatGaveTodaysLines(t *testing.T) {
+	log := logstest.Capture(t)
+	state, dir, _ := stateDirs(t)
+	holdLines(t, dir, "2026-10-04", asked("y", on(-1, 23, 0)))
+	holdLines(t, dir, date, asked("1", on(0, 9, 0)))
+	follower := followerOf(state, &testClock{at: on(0, 10, 0)}, caps)
+	_, first, _ := follower.Today(ledger.Mark{})
+	holdLines(t, dir, date, asked("2", on(0, 9, 10)))
+	follower.Today(first)
+	unopenable(t, dir, "requests-2026-10-04.jsonl")
+
+	if got, _, _ := follower.Today(ledger.Mark{}); !slices.Equal(requestsHeld(got), []string{"1", "2"}) || log.Has("permission denied") {
+		t.Errorf("log reads\n%s\nToday() from the zero Mark gave %q; want today's lines, the day before's file, which gave none of them, not opened",
+			log, requestsHeld(got))
+	}
+}
+
+func TestTodaysUnreadLinesAreWarnedOfOnceAsTheyreReadAfresh(t *testing.T) {
+	log := logstest.Capture(t)
+	state, dir, _ := stateDirs(t)
+	holdLines(t, dir, date, asked("1", on(0, 9, 0)))
+	appendTo(t, dir, "requests-"+date+".jsonl", "not a line\n")
+	clock := &testClock{at: on(0, 10, 0)}
+	follower := followerOf(state, clock, caps)
+	follower.Today(ledger.Mark{})
+	// Midnight passed: the day before's files, today's as was, are read again
+	// from their start.
+	clock.at = on(1, 0, 10)
+	follower.Today(ledger.Mark{})
+
+	if warned := strings.Count(log.String(), "request ledger lines unread"); warned != 1 {
+		t.Errorf("log reads\n%s\nwant the unread line warned of once, not again as it's read afresh: %d times", log, warned)
 	}
 }
 

@@ -6145,8 +6145,8 @@ Sessions and History before the Log opened, and:
 Its one slow hour, the hour after midnight with the long session's page open, its reads of the
 tail 367 ms on average and one 22.8 s, was every reader reading the whole day before again as a
 request sent just after midnight ended; fixed after the soak, by the rule A request sent just
-after midnight says, and not measured since. What it left, the follower's today foremost, is an
-idea of its own (see Backlog).
+after midnight says, and not measured since. What it left, the Log's line the largest, is an idea
+of its own (see Backlog).
 
 The release, through GoReleaser, a Homebrew tap and mint, follows milestone 3.
 
