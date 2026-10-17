@@ -6153,6 +6153,16 @@ request sent just after midnight ended; fixed after the soak, by the rule A requ
 after midnight says, and not measured since. What it left, the Log's line the largest, is an idea
 of its own (see Backlog).
 
+**The follower's today — done.** After v0.2.2 the ledger's follower still held every one of today's
+lines for the run, its raw usage and limits with each, for whoever asked for today from its start:
+about 40 MB by the evening in the soak's world, the largest steady holder left. The release after
+v0.2.2 has it hold only the last read's gain, and those arrived later by the clock, reading today's
+files again, as far as its tail had read them, for a read of today whole (see Live updates). The
+dashboard asked it with two marks, the tail's and the traces', which would have had every return to
+the Overview read today whole again; the tail alone asks it now, the traces taking every read of it,
+the stream's open asking for one. A whole read that can't read a file has that file read afresh at
+the next read, so no line is lost; and the traces copy only the lines they keep.
+
 The release, through GoReleaser, a Homebrew tap and mint, follows milestone 3.
 
 ## Observed
