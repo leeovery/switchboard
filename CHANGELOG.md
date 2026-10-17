@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2026-10-17
+
+🔧 Changed
+- The dashboard keeps one shared store of sessions, fed once per read of the ledger, that the List, the Log, a session's page and its points all read — the same session now tells the same story everywhere.
+- The Log's Requests table builds its lines on demand from the read instead of copying them each look — far less memory and work on busy days.
+- The Log lets go of days its tables no longer show, and re-reads them only if needed — memory stays flat as you scroll back and return.
+- Ledger lines decode once into compact held requests, with repeated names shared — a fraction of the previous footprint.
+- A session's page keeps what it tallies of sealed requests and folds in only the recent ones — pages on long sessions stay fast.
+- Reads of today's or a day's lines no longer hold each line's raw JSON.
+- A read of a single session decodes only that session's lines, even on a busy day.
+
+🐛 Fixed
+- Opening a turn on a session's page now reads its requests in the background and shows "loading…" instead of stalling.
+- A request sent just after midnight no longer makes the dashboard re-read the whole previous day at every look.
+
 ## [0.2.1] - 2026-10-16
 
 ✨ Added
