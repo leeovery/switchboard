@@ -18,7 +18,8 @@ var keysSaid = map[string]string{
 		"the accounts new sessions go to and changes nothing until enter. j, k, PgDn, PgUp and the wheel scroll " +
 		"a view where it doesn't fit: the Overview's USAGE, Accounts' views, History's Year, Weeks' accounts, " +
 		"Days' BY ACCOUNT and Tokens' periods, Sessions' List and lanes, Runway's lanes, the Log's table, and " +
-		"a session's turns, or an open turn's requests.",
+		"a session's turns, or an open turn's requests. w, where it's listed, shows and hides each model's own " +
+		"window; one near its limit shows either way.",
 	"Overview": "u, g, r, s, c and l show and hide USAGE, GRAPHS, ROUTING, SESSIONS, COMING UP and LATELY; " +
 		"b groups the windows by window or by account, as the config's [usage] by has them until b is pressed; " +
 		"v, while GRAPHS shows, flips its charts between the burn-up and the burn-down; and ↑↓ moves the focus " +
@@ -31,7 +32,7 @@ var keysSaid = map[string]string{
 		"and Tokens' periods between a day, a week and a month; v cycles what the Year shows, all use, a model " +
 		"version or an account, Weeks' shape, and how Tokens splits each period; and ←→ steps the Year shown " +
 		"for one account between the accounts.",
-	"Runway": "< and > move between the 5-hour and the week views; ← steps back to today, then a day at a " +
+	"Runway": "< and > move between the week and the 5-hour views; ← steps back to today, then a day at a " +
 		"time, or to this week, then a week at a time, and → on again to the live view; and a collapses the " +
 		"lanes' labels to each account's number, marks and use, giving the lanes more room, and expands them " +
 		"again.",

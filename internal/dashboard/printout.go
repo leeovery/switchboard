@@ -31,7 +31,7 @@ type Printout struct {
 	Width int
 	Look  Look
 	By    By
-	// Windows are the windows' keys to print, each once, in Claude's order;
+	// Windows are the windows' keys to print, each once, in the order of care;
 	// none prints every one, each model's own among them, as the moment's
 	// Listed has them.
 	Windows []string

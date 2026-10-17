@@ -39,7 +39,7 @@ Regenerating the frames), never by hand.
 
 ## The frames
 
-77 of them, each by its stem: its area, what it shows, and its width, then its height where it
+82 of them, each by its stem: its area, what it shows, and its width, then its height where it
 isn't its area's usual, as in `overview-everything-160x39`. They're drawn in `nord` at Thu 1 Oct
 14:42:07, or at 16:05:41 and 16:05:42 for `sessions-refused-160` and `sessions-moved-160`, with the
 placeholder accounts and sample numbers of the worlds `internal/capture` builds from the design's
@@ -53,14 +53,14 @@ change that alters a screen. Only a big redesign goes back to Paper first.
 | Area | Stems | First signed off in Paper |
 |---|---|---|
 | `usage` | `usage-*`, 9 | *Switchboard · usage*, **FINAL · usage · signed off 4 Oct 2026 · revised 6 Oct** |
-| The Overview | `overview-*`, 13 | *Switchboard · Overview*, **FINAL · dashboard overview · signed off 5 Oct 2026 · revised 6 Oct** |
+| The Overview | `overview-*`, 15 | *Switchboard · Overview*, **FINAL · dashboard overview · signed off 5 Oct 2026 · revised 6 Oct** |
 | Routing by hand | `routing-*`, 5 | *Switchboard · Routing*, **FINAL · routing · signed off · 7 Oct 2026** |
 | Accounts | `accounts-*`, 11 | *Switchboard · Accounts*, **FINAL · accounts · signed off 5 Oct 2026 · revised 6 Oct** |
 | History | `history-*`, 10 | *Switchboard · History*, **FINAL · history · signed off 5 Oct 2026 · revised 6 Oct** |
 | A session's page | `session-*`, 6 | *Switchboard · Session and Log*, **FINAL · session page · signed off · 7 Oct 2026** |
 | The Log | `log-*`, 9 | *Switchboard · Session and Log*, **FINAL · Log · signed off · 7 Oct 2026** |
 | Sessions | `sessions-*`, 9 | *Switchboard · Sessions and Runway*, **FINAL · Sessions and Runway · signed off · 8 Oct 2026** |
-| Runway | `runway-*`, 5 | *Switchboard · Sessions and Runway*, the same page |
+| Runway | `runway-*`, 8 | *Switchboard · Sessions and Runway*, the same page |
 
 ## How the frames are held
 

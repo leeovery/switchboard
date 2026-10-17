@@ -51,8 +51,9 @@ the router runs or not.
 time, or by account, each account's windows together, over the config's
 [usage] by; by window where neither says. --5h, --week, and a flag for each
 model's own window, named for its model, as --fable is for Fable's week,
-print the windows given alone, in Claude's order. One that no account
-reports fails, naming those there are.
+print the windows given alone, in the order of care: the week, the
+5-hour, then each model's own. One that no account reports fails, naming
+those there are.
 
 On a terminal, usage prints the windows. Anywhere else, as in a pipe or an
 agent's shell, it prints the status document as JSON in their place, as

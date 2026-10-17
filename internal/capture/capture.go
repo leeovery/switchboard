@@ -56,7 +56,7 @@ type Fixture struct {
 	view dashboard.View
 	log  dashboard.LogTicks
 	// by is how a printout groups the windows, and windows are the keys of
-	// those it prints, in Claude's order: none prints every one.
+	// those it prints, in the order of care: none prints every one.
 	by      dashboard.By
 	windows []string
 	// theme is what it's drawn in: the frames' nord unless InTheme says

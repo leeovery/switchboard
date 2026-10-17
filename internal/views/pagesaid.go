@@ -336,7 +336,7 @@ const (
 )
 
 // PointsWords says the points of the account's windows the session took, in
-// form, the shortest window first, each named as status names it, and each
+// form, in the order of care, each named as status names it, and each
 // window's words apart, so a row short of room leaves whole windows off its
 // end: the first leading with "≈ ", each after it with " · ", the points a
 // figure. Wide, "≈ 6 points of its week", " · 41 of its 5-hour"; short, as a

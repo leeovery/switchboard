@@ -3023,7 +3023,7 @@ repeat the account (settled in the plan).
 
 `a names` has its word faint while the labels are collapsed, as a hidden section's is. The line
 holds it whole from 100 columns; a phone's line leaves it to `?`, as it would cost its `tab views`.
-`<` and `>` step between the 5-hour and the week views; `←` steps back and `→` forward; `a`
+`<` and `>` step between the week and the 5-hour views; `←` steps back and `→` forward; `a`
 collapses the account column and expands it again; `j`, `k`,
 PgUp, PgDn and the wheel scroll the lanes at (e); `p`, `R`, `t`, `?` and `q` are as on every page
 (see Keys). `?` help (see The page), `HELP · RUNWAY`, lists the page's keys first, `t`, `R` and
@@ -5466,9 +5466,9 @@ hiding it behind the provider would take a wider interface than it's worth:
 - **The skill:** `skills/switchboard/SKILL.md` in Claude Code's config directory,
   `$CLAUDE_CONFIG_DIR`, else `~/.claude`, once `setup` has written it.
 - **The capture harness,** in the repository: `testdata/vhs/`, where the dashboard is checked
-  against its frames. `reference/` keeps them, 77 of them, named by their
-  stems: `usage-*` (9), `overview-*` (13), `accounts-*` (11), `history-*` (10), `routing-*` (5),
-  `session-*` (6), `log-*` (9), `sessions-*` (9) and `runway-*` (5). Each is the tests' snapshot
+  against its frames. `reference/` keeps them, 82 of them, named by their
+  stems: `usage-*` (9), `overview-*` (15), `accounts-*` (11), `history-*` (10), `routing-*` (5),
+  `session-*` (6), `log-*` (9), `sessions-*` (9) and `runway-*` (8). Each is the tests' snapshot
   of the live view: the text and ANSI that the fixture of `internal/capture`'s with the same
   name draws, written by `go run ./cmd/capturetool --frames testdata/vhs/reference [names…]`, which
   writes every frame `reference/` keeps, or the ones named (`testdata/vhs/README.md` says what each

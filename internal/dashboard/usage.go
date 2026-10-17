@@ -62,7 +62,7 @@ type usageBlock struct {
 	width int
 	look  Look
 	by    By
-	// windows are those shown, in Claude's order.
+	// windows are those shown, in the order of care.
 	windows []shownWindow
 	// rows are the accounts', in the config's order, then the pool's, where
 	// there's one.

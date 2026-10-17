@@ -11,10 +11,10 @@ import (
 )
 
 // CompareWindows orders windows' keys as the owner reads windows listed, in
-// the order of care, by the policy p: those every model shares first, the
-// longest first, a key whose length can't be read last of them; then each
-// model's own, as any window the policy doesn't share is, in quota's order:
-// 7d, 5h, 7d_oi. Lists for agents, as the status document's, and what's
+// the order of care, by the policy p, as in 7d, 5h, 7d_oi: those every model
+// shares first, the longest first, a key whose length can't be read last of
+// them; then each model's own, as any window the policy doesn't share is, in
+// quota's order. Lists for agents, as the status document's, and what's
 // recorded keep quota's order.
 func CompareWindows(p score.Policy) func(a, b string) int {
 	return func(a, b string) int {
