@@ -83,13 +83,31 @@ func (f Frame) runwayLanes(c *canvas, laid runwayLaid) {
 }
 
 // collapsedLabel is the lane's label with Runway's account column collapsed,
-// in the cells given, as in "2 ◆   84%": its account's number and marks, as
+// in the cells given, as in "2 ◆    84%": its account's number and marks, as
 // its name heads it, and its use of the view's window, as collapsedUse has
 // it, as collapsedLabelled lays them out.
 func (ln laidLane) collapsedLabel(cells int) line {
 	head := append(line{ln.name.numbered()}, ln.name.marks()...)
 	return collapsedLabelled(head, line{ln.collapsedUse()}, cells)
 }
+
+// collapsedCells are the cells the labels of Runway's collapsed account
+// column take, of lanes named as names has them: the widest a lane's can
+// be, its number and marks, as headCells counts them, a space, and the
+// widest figure, as 100%, so every figure ends in one column, and the
+// column holds still as ▲ moves; collapsedLanesFrom less nameGap the least.
+// The pool's, Σ and its room of n accounts, is never the widest.
+func collapsedCells(names []accountName) int {
+	head := 0
+	for _, n := range names {
+		head = max(head, n.headCells())
+	}
+	return max(collapsedLanesFrom-nameGap, head+1+widestFigure)
+}
+
+// widestFigure is how many cells the widest use a lane's label says takes,
+// as 100%.
+const widestFigure = len("100%")
 
 // collapsedLabelled is a label of Runway's collapsed account column, in the
 // cells given: its head, then its figure right-aligned to the label's end, a

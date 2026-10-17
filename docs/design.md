@@ -2771,7 +2771,7 @@ over the window the view is named for. The frames are in the Paper file *Switchb
 Sessions and Runway*, on the page **FINAL · Sessions and Runway · signed off · 8 Oct 2026**; the
 references are `testdata/vhs/reference/runway-*`: `runway-5-hour-160`, `runway-week-160`,
 `runway-stepped-back-160`, `runway-ten-accounts-160` and `runway-phone-52`; and with the account
-column collapsed, `runway-collapsed-160`, `runway-collapsed-108` and `runway-phone-collapsed-52`.
+column collapsed, `runway-collapsed-160`, `runway-collapsed-108x43` and `runway-phone-collapsed-52`.
 Columns and rows are at 160 by 37 unless they say otherwise.
 
 **The heading row,** row 4: `RUNWAY` in `text.subtle`; a rule of `─` in `border` from two cells
@@ -2856,18 +2856,22 @@ kept for good (settled in the plan; see The request ledger).
 to give the lanes more room, at every width, and `a` again expands them; expanded is the default,
 and the preferences file keeps it (the owner's call, 17 October 2026).
 
-- **The lanes** run from column 11 to the edge, 149 columns at 160, 97 at an iPad's 108 and 41 at
-  52, at every width alike.
-- **The labels,** in the 9 cells before them, on the lane's row alone: the account's number in
+- **The lanes** run from two cells after the labels to the edge, at every width alike: from column
+  12 where an account is the primary, 148 columns at 160, 96 at an iPad's 108 and 40 at 52; from
+  column 11, the least, where none is.
+- **The labels,** in the cells before them, on the lane's row alone: the account's number in
   `text.subtle`, its marks, `◆` and `▲`, as the expanded label carries them, and its use of the
   view's window, the figure the expanded label gives, in its colour, right-aligned to the label's
-  end, a cell after the marks at the least, as `2 ◆   66%`. The window's name goes: the heading's
+  end, a cell after the marks at the least, as `2 ◆    66%`. The labels are as wide as the widest
+  a lane's can be, so every figure ends in one column, and the lanes hold still as `▲` moves: the
+  widest number, `◆` where an account is the primary, `▲`, a space and `100%`, 10 cells with a
+  primary and fewer than ten accounts, 9 the least. The window's name goes: the heading's
   `< week >` names it. Where the expanded label words why there's no use, stale, not read yet or
   without a token, the figure is `—` in `text.faint`; out of the pool, the whole label is faint. No
   row under it holds a use; the words under the lane are as expanded.
 - **The pool's lane,** `Σ` in its numbers' column, and its room short, right-aligned as the lanes'
   use: the room bold `text.secondary` and `/3`, of how many accounts the pool is, in `text.muted`,
-  as `Σ   1.2/3`, where the expanded lane says `Σ pool` and `week 1.2 of 3 left`. ` · pinned` is left
+  as `Σ    1.2/3`, where the expanded lane says `Σ pool` and `week 1.2 of 3 left`. ` · pinned` is left
   off. Where it has no room to say, as on a day stepped back to, `Σ pool`.
 - **COMING UP** puts each account's number before its name, in `text.subtle`, as the labels draw
   it, so a lane's number finds its name: `16:30  2 personal's 5-hour resets`; folded too.

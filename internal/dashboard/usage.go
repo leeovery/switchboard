@@ -266,10 +266,15 @@ func namesOf(m status.Moment) []accountName {
 }
 
 // cells are the cells the name takes in the name column, its label whole:
-// its number, its label and its marks, ▲'s kept on an account without it,
-// but where the name is unrouted.
+// its number, its label and its marks, as headCells counts them.
 func (n accountName) cells(label int) int {
-	cells := len(n.number) + 1 + label
+	return n.headCells() + 1 + label
+}
+
+// headCells are the cells the name's number and marks take, ▲'s kept on an
+// account without it, but where the name is unrouted.
+func (n accountName) headCells() int {
+	cells := len(n.number)
 	if !n.unrouted {
 		cells += markCells
 	}

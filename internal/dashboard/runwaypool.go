@@ -58,7 +58,7 @@ func runwayRoom(m status.Moment, key string) (runwayPoolRoom, bool) {
 
 // poolShort is the pool's lane's label with the account column collapsed,
 // under the lanes' labels named as names has them, in the cells given, as in
-// "Σ  1.2/3": Σ, as poolSigma has it, and the pool's room of how many
+// "Σ    1.2/3": Σ, as poolSigma has it, and the pool's room of how many
 // accounts it is, the room bold text.secondary, brightening as it changes,
 // and "/3" in text.muted, as collapsedLabelled lays them out.
 func poolShort(names []accountName, r runwayPoolRoom, cells int) line {

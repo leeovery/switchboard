@@ -13,8 +13,9 @@ import (
 
 // The columns Runway's lanes start at, after their labels: 24 on a frame
 // from phoneUnder columns, the labels in the 22 cells before them; 14 on a
-// phone's, its label column; and 11 at every width with the account column
-// collapsed, its labels in the 9 cells before them.
+// phone's, its label column; and 11 at the least at every width with the
+// account column collapsed, its labels in the cells before them, as
+// collapsedCells sizes them.
 const (
 	runwayLanesFrom      = 24
 	phoneRunwayLanesFrom = 14
@@ -35,8 +36,10 @@ var (
 // week's, zero in the live view, which they never keep; and what
 // the watch built at the look: the timeline the lanes are drawn over, as
 // TimelineAt has it, the lanes, as views.Lanes builds them, nil till
-// it's built them, and COMING UP's lines, as views.RunwayComing has them.
-// What draws Runway reads what the watch built.
+// it's built them, and COMING UP's lines, as views.RunwayComing has them;
+// and the cells the collapsed account column's labels take, as Labelled
+// sizes them, the least till it does. What draws Runway reads what the
+// watch built.
 type RunwayShown struct {
 	Window    views.RunwayWindow
 	Collapsed bool
@@ -44,6 +47,14 @@ type RunwayShown struct {
 	Timeline  views.Timeline
 	Lanes     *views.Lanes
 	Coming    []status.Upcoming
+	labels    int
+}
+
+// Labelled is Runway shown as r with its collapsed account column's labels
+// sized for the accounts of the moment m, as collapsedCells sizes them.
+func (r RunwayShown) Labelled(m status.Moment) RunwayShown {
+	r.labels = collapsedCells(namesOf(m))
+	return r
 }
 
 // RunwayKept is Runway as the preferences kept it: the window, by its name,
@@ -86,13 +97,14 @@ func (r RunwayShown) Columns(width int) int {
 }
 
 // lanesFrom is the column Runway shown as r starts its lanes at on a
-// terminal width cells wide, after its labels: collapsedLanesFrom with its
-// account column collapsed, at every width; else phoneRunwayLanesFrom on a
+// terminal width cells wide, after its labels: with its account column
+// collapsed, at every width, nameGap after the cells Labelled gave its
+// labels, collapsedLanesFrom the least; else phoneRunwayLanesFrom on a
 // phone, and runwayLanesFrom wider.
 func (r RunwayShown) lanesFrom(width int) int {
 	switch {
 	case r.Collapsed:
-		return collapsedLanesFrom
+		return max(collapsedLanesFrom, r.labels+nameGap)
 	case Phone(width):
 		return phoneRunwayLanesFrom
 	}
