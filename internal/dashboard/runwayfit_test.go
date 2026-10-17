@@ -15,7 +15,7 @@ import (
 // given, and COMING UP's lines.
 func runwayFrame(t *testing.T, height int, lanes *views.Lanes, coming []status.Upcoming) Frame {
 	t.Helper()
-	tl := views.LiveTimeline(views.RunwayFiveHour, routedAt, RunwayColumns(160))
+	tl := views.LiveTimeline(views.RunwayFiveHour, routedAt, RunwayShown{}.Columns(160))
 	return Frame{
 		Width: 160, Height: height, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claudeLike,
 		Runway: RunwayShown{Window: views.RunwayFiveHour, Timeline: tl, Lanes: lanes, Coming: coming},

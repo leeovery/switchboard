@@ -295,6 +295,36 @@ func TestRunwaysWindowIsKeptUnderAKeyOfItsOwn(t *testing.T) {
 	}
 }
 
+// Whether Runway's account column is collapsed is kept beside its window,
+// read back as it was kept, and read as expanded from a file without it, as
+// an earlier build's, and left out once it's expanded again.
+func TestWhetherRunwaysAccountColumnIsCollapsedIsKeptAndExpandedWithout(t *testing.T) {
+	state := t.TempDir()
+	path := filepath.Join(state, "prefs.json")
+	write(t, path, `{"runway": {"window": "5-hour"}}`)
+	prefs := theme.NewPrefsFile(state, clock)
+	if prefs.Read().Runway.Collapsed {
+		t.Error("a file of an earlier build reads Runway collapsed; want it expanded")
+	}
+
+	if err := prefs.Update(func(p *theme.Prefs) { p.Runway.Collapsed = true }); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := prefs.Read().Runway, (theme.RunwayPrefs{Window: "5-hour", Collapsed: true}); got != want {
+		t.Errorf("Read().Runway = %+v, want %+v", got, want)
+	}
+	if data, err := os.ReadFile(path); err != nil || !strings.Contains(string(data), `"collapsed": true`) {
+		t.Errorf("prefs.json holds %s, %v; want Runway's column kept collapsed", data, err)
+	}
+
+	if err := prefs.Update(func(p *theme.Prefs) { p.Runway.Collapsed = false }); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(path); err != nil || strings.Contains(string(data), "collapsed") {
+		t.Errorf("prefs.json holds %s, %v; want no collapsed kept once it's expanded", data, err)
+	}
+}
+
 // What History's views show is kept under a key of its own, each choice by
 // its name, beside the rest and the keys of another build, and left out
 // where none is made.

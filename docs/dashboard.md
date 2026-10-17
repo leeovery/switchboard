@@ -375,6 +375,11 @@ room, a column at a time, and draws a line, as a lane at its limit does, where n
 names it, as an account's name heads its lane, with the pool's room in the view's window under
 it, such as `week 1.2 of 3 left`.
 
+`a` collapses the labels beside the lanes, to give the lanes more room: each lane keeps its
+account's number, its marks and its use, such as `2 ◆   66%`, and the pool's lane its room short,
+such as `Σ   1.2/3`. COMING UP then puts each account's number before its name, so a lane's number
+finds its name. `a` again expands them. Runway remembers which you left it on.
+
 To look back:
 
 - In the 5-hour view, `←` goes back to today, then a day at a time.
@@ -795,7 +800,7 @@ It remembers:
 - Accounts' view and period
 - History's view, what its Year shows, Weeks' shape, and Tokens' period and split
 - Sessions' view
-- Runway's window
+- Runway's window, and whether `a` collapsed its labels
 - the Log's columns.
 
 If the version or account the Year showed is no longer there to show, the Year shows all use again.

@@ -34,4 +34,4 @@ RUNWAY  ────────────────────────
 COMING UP   15:30  team back from its limit  …
 
 
-tab views   < > window  ←→ week    p pin    ? help  q quit
+tab views   < > window  ←→ week    a names    p pin    ? help  q quit

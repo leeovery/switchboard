@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -16,7 +17,7 @@ func runwayComingDrawn(t *testing.T, width, height int, coming []status.Upcoming
 	t.Helper()
 	doc := framesDoc()
 	r := poolShown(doc, views.Pool{Of: 3, Key: "5h"})
-	r.Timeline, r.Coming = views.LiveTimeline(views.RunwayFiveHour, routedAt, RunwayColumns(width)), coming
+	r.Timeline, r.Coming = views.LiveTimeline(views.RunwayFiveHour, routedAt, RunwayShown{}.Columns(width)), coming
 	f := Frame{Width: width, Height: height, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claudeLike, Runway: r}
 	f.WindowName = func(key string) string { return map[string]string{"5h": "5-hour", "7d": "week"}[key] }
 	shape := runwayShape{legendGap: true, legend: 1}
@@ -130,6 +131,63 @@ func TestRunwaysComingUpFoldsToItsHeading(t *testing.T) {
 			got := runwayComingDrawn(t, 160, 22, tt.coming)
 			if !slices.Equal(got, []string{tt.want}) {
 				t.Errorf("folded, COMING UP reads %q, want %q alone", got, tt.want)
+			}
+		})
+	}
+}
+
+// With the account column collapsed, COMING UP puts each account's number
+// before its name, in the number's ink, as the lanes' labels draw it, so a
+// lane's number finds its name; folded too. Expanded, it names them alone.
+func TestCollapsedRunwaysComingUpNumbersItsAccounts(t *testing.T) {
+	tests := []struct {
+		name      string
+		collapsed bool
+		height    int
+		want      []string
+	}{
+		{
+			name: "collapsed", collapsed: true, height: 37,
+			want: []string{
+				"16:30  2 personal's 5-hour resets                              in 1h 48m",
+				"17:10  1 work back from its cap                                in 2h 28m",
+				"18:50  3 side's 5-hour resets                                  in 4h 08m",
+			},
+		},
+		{name: "collapsed, folded", collapsed: true, height: 21, want: []string{"COMING UP   16:30  2 personal's 5-hour resets  …"}},
+		{
+			name: "expanded", height: 37,
+			want: []string{
+				"16:30  personal's 5-hour resets                                in 1h 48m",
+				"17:10  work back from its cap                                  in 2h 28m",
+				"18:50  side's 5-hour resets                                    in 4h 08m",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := framesDoc()
+			r := poolShown(doc, views.Pool{Of: 3, Key: "5h"})
+			r.Collapsed, r.Coming = tt.collapsed, fiveHourComing
+			r.Timeline = r.TimelineAt(routedAt, time.Monday, 160)
+			f := Frame{Width: 160, Height: tt.height, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claudeLike, Runway: r}
+			f.WindowName = func(key string) string { return map[string]string{"5h": "5-hour", "7d": "week"}[key] }
+			c := runwayDrawn(f, doc)
+			fit := f.runwayFitted(f.top())
+			first := fit.coming + 1
+			if fit.folded {
+				first = fit.coming
+			}
+			got := textOf(c.rows(Look{}))[first : first+len(tt.want)]
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("COMING UP reads\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(tt.want, "\n"))
+			}
+			if !tt.collapsed {
+				return
+			}
+			number := strings.Index(tt.want[0], "2 personal")
+			if k := c.at(number, first).ink; k != dimInk {
+				t.Errorf("personal's number is in %+v, want text.subtle, as its lane's label has it", k)
 			}
 		})
 	}

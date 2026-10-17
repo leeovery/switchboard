@@ -49,10 +49,12 @@ func (f Frame) comingSection(doc status.Document, now time.Time) section {
 }
 
 // happening is something coming up: when, the account it befalls, named in
-// bold text.primary, what befalls it, in words that follow the name, and
-// whether it's a window running out, which its whole line warns of.
+// bold text.primary, after its number where the teller numbers it, what
+// befalls it, in words that follow the name, and whether it's a window
+// running out, which its whole line warns of.
 type happening struct {
 	at      time.Time
+	number  span
 	name    span
 	what    string
 	runsOut bool
@@ -72,12 +74,15 @@ func (f Frame) upcoming(doc status.Document, now time.Time) []happening {
 // moment, have them; its windows as window names them; and the window a
 // request starts as the policy the moment was judged by says, unnamed but
 // where namesStarted is set, as Runway names it, as in "lab's 5-hour runs
-// out at its pace", where the Overview has "lab runs out at its pace".
+// out at its pace", where the Overview has "lab runs out at its pace"; and
+// each account's number before its name where numbered is set, as Runway's
+// collapsed account column has it, as in "3 side's week resets".
 type comingTeller struct {
 	moment       status.Moment
 	names        []accountName
 	window       func(key string) string
 	namesStarted bool
+	numbered     bool
 }
 
 // happenings are what COMING UP says comes of each of the things coming up
@@ -100,7 +105,7 @@ func (t comingTeller) happenings(coming []status.Upcoming) []happening {
 // 5-hour resets"; or its being primed. It reports false for a kind it
 // doesn't tell of, as one from a later router.
 func (t comingTeller) happening(u status.Upcoming) (happening, bool) {
-	h := happening{at: u.At, name: overviewNamed(t.moment, t.names, u.Account, titleInk)}
+	h := happening{at: u.At, number: t.numberOf(u.Account), name: overviewNamed(t.moment, t.names, u.Account, titleInk)}
 	switch u.Kind {
 	case status.UpcomingBack:
 		h.what = " back from its " + t.holder(u)
@@ -114,6 +119,19 @@ func (t comingTeller) happening(u status.Upcoming) (happening, bool) {
 		return happening{}, false
 	}
 	return h, true
+}
+
+// numberOf is the number of the account with the given id, as its name has
+// it, and a space, where the teller numbers its accounts and the moment has
+// it: else nothing.
+func (t comingTeller) numberOf(id string) span {
+	i := place(t.moment, id)
+	if !t.numbered || i < 1 {
+		return span{}
+	}
+	n := t.names[i-1].numbered()
+	n.text += " "
+	return n
 }
 
 // holder names what held back the account u is back from: the refusal of
@@ -179,10 +197,15 @@ func comingLines(c *canvas, things []happening, now time.Time, body bounds) {
 }
 
 // said is what's coming as its line says it, from its time, padded to
-// column cells, to the end of its words.
+// column cells, its account's number where it has one, to the end of its
+// words.
 func (h happening) said(now time.Time, column int) line {
 	at, words, _ := h.inks()
-	return line{{padded(h.when(now), column) + afterTime, at}, h.name, {h.what, words}}
+	said := line{{padded(h.when(now), column) + afterTime, at}}
+	if h.number.text != "" {
+		said = append(said, h.number)
+	}
+	return append(said, h.name, span{h.what, words})
 }
 
 // when is when it comes, as its line says it, in now's time zone: as in

@@ -34,4 +34,4 @@ RUNWAY   Wed 30 Sep ────────────────────
 
 
 
-tab views   < > window  ←→ day    p pin    ? help  q quit
+tab views   < > window  ←→ day    a names    p pin    ? help  q quit

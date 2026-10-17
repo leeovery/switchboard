@@ -18,7 +18,7 @@ func poolShown(doc status.Document, pool views.Pool) RunwayShown {
 	for _, a := range doc.Accounts {
 		lanes.Accounts = append(lanes.Accounts, views.Lane{ID: a.ID})
 	}
-	return RunwayShown{Window: views.RunwayFiveHour, Timeline: views.LiveTimeline(views.RunwayFiveHour, routedAt, RunwayColumns(160)), Lanes: lanes}
+	return RunwayShown{Window: views.RunwayFiveHour, Timeline: views.LiveTimeline(views.RunwayFiveHour, routedAt, RunwayShown{}.Columns(160)), Lanes: lanes}
 }
 
 // poolDrawn is the canvas of Runway shown as r of doc at routedAt, 160 by
@@ -67,7 +67,7 @@ func TestThePoolsColumnsAreAsHighAsTheShareOfItsAccountsWithRoom(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			columns := slices.Repeat([]views.PoolColumn{tt.col}, RunwayColumns(160))
+			columns := slices.Repeat([]views.PoolColumn{tt.col}, RunwayShown{}.Columns(160))
 			c, top := poolDrawn(poolShown(runwayDoc(tt.of), views.Pool{Of: tt.of, Key: "5h", Columns: columns}), runwayDoc(tt.of), Screen(builtin(t, "nord")))
 			const x = 100
 			if got := cellAt(c, x, top); got != tt.top {
@@ -100,7 +100,7 @@ func cellAt(c *canvas, x, y int) seenCell {
 // to, which has no now, none is.
 func TestThePoolsPastIsDimmed(t *testing.T) {
 	doc := runwayDoc(3)
-	columns := slices.Repeat([]views.PoolColumn{{With: 2, Known: true}}, RunwayColumns(160))
+	columns := slices.Repeat([]views.PoolColumn{{With: 2, Known: true}}, RunwayShown{}.Columns(160))
 	live := poolShown(doc, views.Pool{Of: 3, Key: "5h", Columns: columns})
 	gone := live
 	gone.Back = civilDay(9, 30)
@@ -140,7 +140,7 @@ func TestThePoolsPastIsDimmed(t *testing.T) {
 // ─ is bold, as a lane's held back from every request is.
 func TestThePoolsColumnsWithNoRoomAreDrawnAsALanesHeldBack(t *testing.T) {
 	doc := runwayDoc(3)
-	columns := slices.Repeat([]views.PoolColumn{{Known: true}}, RunwayColumns(160))
+	columns := slices.Repeat([]views.PoolColumn{{Known: true}}, RunwayShown{}.Columns(160))
 	shown := poolShown(doc, views.Pool{Of: 3, Key: "5h", Columns: columns})
 	now := shown.Timeline.NowColumn()
 	tests := []struct {
@@ -178,12 +178,12 @@ func mixed(t *testing.T, fade float64, tok theme.Token) string {
 // columns is █, as GRAPHS draws one.
 func TestThePoolsFullCellsAreBlocksWhereTheLookBlendsNothing(t *testing.T) {
 	doc := runwayDoc(3)
-	columns := slices.Repeat([]views.PoolColumn{{With: 2, Known: true}}, RunwayColumns(160))
+	columns := slices.Repeat([]views.PoolColumn{{With: 2, Known: true}}, RunwayShown{}.Columns(160))
 	c, top := poolDrawn(poolShown(doc, views.Pool{Of: 3, Key: "5h", Columns: columns}), doc, NoColour())
-	if got := string([]rune(rowOf(c, top+1))[runwayLanesFrom:]); got != strings.Repeat("█", RunwayColumns(160)) {
+	if got := string([]rune(rowOf(c, top+1))[runwayLanesFrom:]); got != strings.Repeat("█", RunwayShown{}.Columns(160)) {
 		t.Errorf("the pool's bottom row reads %q, want █ in every column", got)
 	}
-	if got := string([]rune(rowOf(c, top))[runwayLanesFrom:]); got != strings.Repeat("▃", RunwayColumns(160)) {
+	if got := string([]rune(rowOf(c, top))[runwayLanesFrom:]); got != strings.Repeat("▃", RunwayShown{}.Columns(160)) {
 		t.Errorf("the pool's top row reads %q, want its part-filled cells", got)
 	}
 }
@@ -247,6 +247,76 @@ func TestThePoolsLaneIsntDrawnForAMomentOfNoAccounts(t *testing.T) {
 	}
 }
 
+// With the account column collapsed, the pool's label says its room short in
+// Σ pool's place, the room the expanded lane words, of how many accounts
+// the pool is: Σ in text.subtle, the room bold text.secondary, brightening
+// as it changes, and "/3" in text.muted, right-aligned to the label's 9
+// cells as the lanes' use is; nothing under it, on a phone too, which gives
+// it no row of its own; and Σ pool where it has no room to say, as on a day
+// stepped back to.
+func TestCollapsedThePoolsLabelSaysItsRoomShort(t *testing.T) {
+	doc, pinned := framesDoc(), framesDoc()
+	pinned.Pin = status.Pin{Accounts: []string{"personal", "side"}, Since: routedClock(1, 13, 40)}
+	pinned = pinned.WorkedOut(claudeLike)
+	collapsed := func(r RunwayShown, width int) RunwayShown {
+		r.Collapsed = true
+		r.Timeline = r.TimelineAt(routedAt, time.Monday, width)
+		return r
+	}
+	live := poolShown(doc, views.Pool{Of: 3, Key: "5h"})
+	week := live
+	week.Window, week.Lanes = views.RunwayWeek, &views.Lanes{Accounts: live.Lanes.Accounts, Pool: views.Pool{Of: 3, Key: "7d"}}
+	gone := live
+	gone.Back = civilDay(9, 30)
+	tests := []struct {
+		name  string
+		doc   status.Document
+		shown RunwayShown
+		width int
+		want  string
+	}{
+		{name: "the 5-hour", doc: doc, shown: collapsed(live, 160), width: 160, want: "Σ   1.5/3"},
+		{name: "the week", doc: doc, shown: collapsed(week, 160), width: 160, want: "Σ   1.2/3"},
+		{name: "pinned to two", doc: pinned, shown: collapsed(live, 160), width: 160, want: "Σ   1.5/2"},
+		{name: "on a phone", doc: doc, shown: collapsed(live, 52), width: 52, want: "Σ   1.5/3"},
+		{name: "a day stepped back to", doc: doc, shown: collapsed(gone, 160), width: 160, want: "Σ pool"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := Frame{Width: tt.width, Height: 37, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claudeLike, Runway: tt.shown}
+			c := runwayDrawn(f, tt.doc)
+			fitted := f.runwayFitted
+			if f.phone() {
+				fitted = f.phoneRunwayFitted
+			}
+			fit := fitted(f.top())
+			if got := textAt(c, 0, fit.pool, collapsedLanesFrom); got != tt.want {
+				t.Errorf("the pool's label reads %q, want %q", got, tt.want)
+			}
+			if over := fit.pool + runwayPoolRows; fit.room >= over {
+				t.Errorf("the pool's room is laid on row %d, a row of its own; want none past its lane's, %d", fit.room, over-1)
+			}
+			for y := fit.pool + 1; y <= fit.pool+runwayPoolRows; y++ {
+				if got := textAt(c, 0, y, f.Width); strings.Contains(got, "left") {
+					t.Errorf("row %d reads %q, want no room in words", y, got)
+				}
+			}
+			figure := strings.TrimLeft(strings.TrimPrefix(tt.want, "Σ"), " ")
+			if !strings.Contains(figure, "/") {
+				return
+			}
+			room := collapsedLanesFrom - nameGap - len(figure)
+			if sigma, k, of := c.at(0, fit.pool).ink, c.at(room, fit.pool).ink, c.at(room+3, fit.pool).ink; sigma != dimInk || k.token != theme.TextSecondary || !k.bold || of != mutedInk {
+				t.Errorf("Σ is in %+v, the room in %+v and its accounts in %+v; want text.subtle, bold text.secondary and text.muted", sigma, k, of)
+			}
+			key := tt.shown.Lanes.Pool.Key
+			if got, want := f.Numbers(tt.doc, routedAt)[Number{Kind: NumberRoom, Of: key}], figure[:3]; got != want {
+				t.Errorf("the room brightens as %q, want %q", got, want)
+			}
+		})
+	}
+}
+
 // The pool's room, from column 2, is usage's words for the pool in the
 // view's window: the window's name in text.subtle, the room bold
 // text.secondary, brightening as it changes, and " of 3 left" in
@@ -271,7 +341,7 @@ func TestThePoolsRoomIsUsagesWordsForThePoolInTheViewsWindow(t *testing.T) {
 	gone.Back = civilDay(9, 30)
 	gone.Timeline = gone.TimelineAt(routedAt, time.Monday, 160)
 	phone := live
-	phone.Timeline = views.LiveTimeline(views.RunwayFiveHour, routedAt, RunwayColumns(52))
+	phone.Timeline = views.LiveTimeline(views.RunwayFiveHour, routedAt, RunwayShown{}.Columns(52))
 	tests := []struct {
 		name       string
 		doc        status.Document

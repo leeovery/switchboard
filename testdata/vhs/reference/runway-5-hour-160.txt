@@ -34,4 +34,4 @@ COMING UP
 
 
 
-tab views   < > window  ←→ day    p pin    ? help  q quit
+tab views   < > window  ←→ day    a names    p pin    ? help  q quit

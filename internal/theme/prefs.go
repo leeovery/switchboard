@@ -84,12 +84,15 @@ type SessionsPrefs struct {
 	View string `json:"view,omitempty"`
 }
 
-// RunwayPrefs are what Runway shows, by its name: the window its view is
-// named for, 5-hour, or "" for the week. A name the dashboard doesn't know,
-// as "week", which earlier builds kept the week by, reads as the week. A day
-// or week stepped back to is the run's alone.
+// RunwayPrefs are what Runway shows: the window its view is named for, by
+// its name, 5-hour, or "" for the week, a name the dashboard doesn't know,
+// as "week", which earlier builds kept the week by, reading as the week; and
+// whether its account column is collapsed, as a last left it: unset, as a
+// file without it reads, expands it. A day or week stepped back to is the
+// run's alone.
 type RunwayPrefs struct {
-	Window string `json:"window,omitempty"`
+	Window    string `json:"window,omitempty"`
+	Collapsed bool   `json:"collapsed,omitempty"`
 }
 
 // HistoryPrefs are what History's views show, each by its name: the view

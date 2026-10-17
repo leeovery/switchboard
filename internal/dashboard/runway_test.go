@@ -51,6 +51,28 @@ func TestThePreferencesKeepRunwaysWindowAndNeverAStepBack(t *testing.T) {
 	}
 }
 
+// Runway's account column is expanded at first, as with nothing kept;
+// collapsing it, as a does, is kept beside the window, and read back so, and
+// collapsing it again expands it.
+func TestThePreferencesKeepRunwaysAccountColumnCollapsedOrNot(t *testing.T) {
+	if got := RunwayKept(theme.RunwayPrefs{}); got.Collapsed {
+		t.Error("with nothing kept, Runway's account column is collapsed; want it expanded")
+	}
+	collapsed := RunwayShown{Window: views.RunwayFiveHour}.Collapsing()
+	if got := collapsed.Kept(); got != (theme.RunwayPrefs{Window: "5-hour", Collapsed: true}) {
+		t.Errorf("collapsed, Runway keeps %+v, want its window and its column collapsed", got)
+	}
+	if got := RunwayKept(collapsed.Kept()); !got.Collapsed || got.Window != views.RunwayFiveHour {
+		t.Errorf("collapsed, kept and read again, Runway is %+v, want the 5-hour's, collapsed", got)
+	}
+	if got := RunwayKept(theme.RunwayPrefs{Window: "month", Collapsed: true}); !got.Collapsed || got.Window != views.RunwayWeek {
+		t.Errorf("a window a later build names, collapsed, reads as %+v, want the week's, collapsed", got)
+	}
+	if collapsed.Collapsing().Collapsed {
+		t.Error("collapsing a collapsed column leaves it collapsed; want it expanded")
+	}
+}
+
 // Runway opens on the week: its zero value, as a watch given nothing kept
 // shows it.
 func TestRunwayOpensOnTheWeek(t *testing.T) {
@@ -173,17 +195,27 @@ func TestRunwaysHeadingNamesItsWindowAndTheDaysSteppedBackTo(t *testing.T) {
 	}
 }
 
+// Runway's lanes run from their labels to the edge: from column 24, or 14 on
+// a phone; and with the account column collapsed, from column 11 at every
+// width, the chart wider by the cells its labels give up.
 func TestRunwaysLanesRunFromTheirLabelsToTheEdge(t *testing.T) {
 	tests := []struct {
-		width, want int
+		width     int
+		collapsed bool
+		want      int
 	}{
 		{width: 160, want: 136},
+		{width: 108, want: 84},
 		{width: 52, want: 38},
 		{width: 10, want: 0},
+		{width: 160, collapsed: true, want: 149},
+		{width: 108, collapsed: true, want: 97},
+		{width: 52, collapsed: true, want: 41},
+		{width: 10, collapsed: true, want: 0},
 	}
 	for _, tt := range tests {
-		if got := RunwayColumns(tt.width); got != tt.want {
-			t.Errorf("RunwayColumns(%d) = %d, want %d", tt.width, got, tt.want)
+		if got := (RunwayShown{Collapsed: tt.collapsed}).Columns(tt.width); got != tt.want {
+			t.Errorf("Columns(%d), collapsed %v, = %d, want %d", tt.width, tt.collapsed, got, tt.want)
 		}
 	}
 }
@@ -232,7 +264,7 @@ func runwayFramedAt(t *testing.T, name string, width, height int) (Frame, status
 	doc := rm.Doc
 	doc.Best = "side"
 	m := doc.At(rm.Now, claude.Policy())
-	tl := views.Stepped(rm.Window, rm.Day, rm.Now, rm.WeekStarts, RunwayColumns(width))
+	tl := views.Stepped(rm.Window, rm.Day, rm.Now, rm.WeekStarts, RunwayShown{}.Columns(width))
 	lanes := views.Lanes{}.Look(views.LanesFrom{Moment: m, Readings: rm.Readings, Days: filed(rm.Days), Kept: rm.Kept, Timeline: tl, Window: rm.Window})
 	f := Frame{
 		Width: width, Height: height, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claude.Policy(),

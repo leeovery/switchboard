@@ -448,7 +448,8 @@ var (
 // runwayKey acts on a key of Runway's, reporting false for a key it doesn't
 // take, or on another tab: < and > show the live view of the other window,
 // as Windowed has it; ← and → step back and on, as Stepped has it, ← no
-// further than runwayReaches says. A key that changes what's shown shows it
+// further than runwayReaches says; and a collapses the account column, or
+// expands it, as Collapsing has it. A key that changes what's shown shows it
 // as showRunway has it.
 func (m Model) runwayKey(key string) (Model, bool) {
 	if m.view != dashboard.Runway {
@@ -462,6 +463,8 @@ func (m Model) runwayKey(key string) (Model, bool) {
 	} else if by, ok := runwayStepKeys[key]; ok {
 		next, changed = s.Stepped(by, now, m.cfg.WeekStarts)
 		changed = changed && m.runwayReaches(next, now)
+	} else if key == "a" {
+		next, changed = s.Collapsing(), true
 	} else {
 		return m, false
 	}
@@ -483,13 +486,14 @@ func (m Model) runwayReaches(r dashboard.RunwayShown, now time.Time) bool {
 	return !named || !tl.Now.IsZero() || !began.IsZero() && !last.Before(civilOf(began))
 }
 
-// showRunway is m showing Runway as r has it, keeping its window where that
-// changed, for the next watch to open with: never a step back.
+// showRunway is m showing Runway as r has it, keeping its window and its
+// account column collapsed or not where either changed, for the next watch
+// to open with: never a step back.
 func (m Model) showRunway(r dashboard.RunwayShown) Model {
 	was := m.runwayTab.shown
 	m.runwayTab.shown = r
 	if kept := r.Kept(); kept != was.Kept() {
-		m.keepPrefs("Runway's window", func(prefs *theme.Prefs) { prefs.Runway = kept }, "window", kept.Window)
+		m.keepPrefs("what Runway shows", func(prefs *theme.Prefs) { prefs.Runway = kept }, "window", kept.Window, "collapsed", kept.Collapsed)
 	}
 	return m
 }

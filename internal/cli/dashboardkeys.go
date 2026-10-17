@@ -32,7 +32,9 @@ var keysSaid = map[string]string{
 		"version or an account, Weeks' shape, and how Tokens splits each period; and ←→ steps the Year shown " +
 		"for one account between the accounts.",
 	"Runway": "< and > move between the 5-hour and the week views; ← steps back to today, then a day at a " +
-		"time, or to this week, then a week at a time, and → on again to the live view.",
+		"time, or to this week, then a week at a time, and → on again to the live view; and a collapses the " +
+		"lanes' labels to each account's number, marks and use, giving the lanes more room, and expands them " +
+		"again.",
 	"Log": "end, or esc, follows the newest line again while the table is paused; enter opens the chosen " +
 		"line's details, and s its session's page; f sets the columns and which lines show; / finds a session " +
 		"by its id's start or its directory's name; and esc, with a filter on, clears it.",

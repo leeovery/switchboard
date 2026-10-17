@@ -41,13 +41,13 @@ func TestOnAPhoneTheLegendsKeysThenWhatAColumnIsTakeALineEach(t *testing.T) {
 		},
 		{
 			name: "today stepped back to, what a column is wrapped at its parts", width: 52,
-			shown: RunwayShown{Window: views.RunwayFiveHour, Back: civilDay(10, 1), Timeline: views.Stepped(views.RunwayFiveHour, civilDay(10, 1), routedAt, time.Monday, RunwayColumns(52))},
+			shown: RunwayShown{Window: views.RunwayFiveHour, Back: civilDay(10, 1), Timeline: views.Stepped(views.RunwayFiveHour, civilDay(10, 1), routedAt, time.Monday, RunwayShown{}.Columns(52))},
 			drawn: views.Drawn{Cells: []views.Cell{views.CellRoom}},
 			want:  []string{"█ room", "a column ≈ 38 minutes · the past dimmed", "under each name, the day's highest"},
 		},
 		{
 			name: "a week gone, at 99", width: 99,
-			shown: RunwayShown{Window: views.RunwayWeek, Back: civilDay(9, 21), Timeline: views.Stepped(views.RunwayWeek, civilDay(9, 21), routedAt, time.Monday, RunwayColumns(99))},
+			shown: RunwayShown{Window: views.RunwayWeek, Back: civilDay(9, 21), Timeline: views.Stepped(views.RunwayWeek, civilDay(9, 21), routedAt, time.Monday, RunwayShown{}.Columns(99))},
 			drawn: views.Drawn{Cells: []views.Cell{views.CellRoom}},
 			want:  []string{"█ room", "a column ≈ 119 minutes · under each name, the week's highest"},
 		},
@@ -129,5 +129,5 @@ func TestOnAPhoneRunwayTakesTheFirstOfItsStepsThatFits(t *testing.T) {
 // phoneRunwayLive is Runway's live view of the window given at routedAt on a
 // phone width columns wide.
 func phoneRunwayLive(w views.RunwayWindow, width int) RunwayShown {
-	return RunwayShown{Window: w, Timeline: views.LiveTimeline(w, routedAt, RunwayColumns(width))}
+	return RunwayShown{Window: w, Timeline: views.LiveTimeline(w, routedAt, RunwayShown{}.Columns(width))}
 }

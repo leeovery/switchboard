@@ -14,7 +14,9 @@ const runwayComingWidth = 72
 
 // runwayComing draws COMING UP, as laid out: its heading, in text.subtle,
 // and under it a line for each thing Runway's COMING UP lists, as
-// comingLines draws the Overview's, the window a request starts named; or
+// comingLines draws the Overview's, the window a request starts named, and
+// with the account column collapsed, each account's number before its name,
+// so a lane's number finds its name; or
 // folded, its heading saying what's soonest, as comingFolded has it. Stepped
 // back, there's none.
 func (f Frame) runwayComing(c *canvas, laid runwayLaid) {
@@ -23,7 +25,8 @@ func (f Frame) runwayComing(c *canvas, laid runwayLaid) {
 		return
 	}
 	m := laid.m
-	things := comingTeller{moment: m, names: overviewNames(m), window: f.windowNamer(m), namesStarted: true}.happenings(f.Runway.Coming)
+	teller := comingTeller{moment: m, names: overviewNames(m), window: f.windowNamer(m), namesStarted: true, numbered: f.Runway.Collapsed}
+	things := teller.happenings(f.Runway.Coming)
 	heading := line{{SectionComing.heading(), dimInk}}
 	if fit.folded {
 		c.line(0, fit.coming, slices.Concat(heading, comingFolded(things, m.Now)).fit(f.Width))

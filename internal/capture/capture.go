@@ -495,6 +495,9 @@ var pages = []page{
 	{name: "runway-stepped-back-160", size: wide(37), world: accountWorlds.auto, keys: append(toRunway(">"), leftKey, leftKey)},
 	{name: "runway-ten-accounts-160", size: wide(37), world: manyAccounts(10), keys: toRunway()},
 	{name: "runway-phone-52", size: phone(33), world: accountWorlds.auto, keys: toRunway()},
+	{name: "runway-collapsed-160", size: wide(37), world: accountWorlds.auto, keys: toRunway("a")},
+	{name: "runway-collapsed-108", size: watch.Size{Width: 108, Height: 43}, world: accountWorlds.auto, keys: toRunway("a")},
+	{name: "runway-phone-collapsed-52", size: phone(33), world: accountWorlds.auto, keys: toRunway("a")},
 }
 
 // lookedAway are the keys a look at Sessions' Switchboard by before a page's

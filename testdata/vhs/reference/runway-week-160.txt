@@ -34,4 +34,4 @@ Mon 10:00   side's week resets                                 in 3d 19h
 
 
 
-tab views   < > window  ←→ week    p pin    ? help  q quit
+tab views   < > window  ←→ week    a names    p pin    ? help  q quit

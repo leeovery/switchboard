@@ -210,7 +210,13 @@ func poolRow(pool status.PoolNow, names []accountName, windows []shownWindow) (u
 // accounts named as names has them: Σ in their numbers' column, in
 // text.subtle, then pool, in text.secondary.
 func poolNamed(names []accountName) line {
-	return line{{strings.Repeat(" ", len(names[0].number)-1) + "Σ", dimInk}, {" pool", noteInk}}
+	return line{poolSigma(names), {" pool", noteInk}}
+}
+
+// poolSigma is the pool's Σ, under the rows of accounts named as names has
+// them: in their numbers' column, right-aligned, in text.subtle.
+func poolSigma(names []accountName) span {
+	return span{strings.Repeat(" ", len(names[0].number)-1) + "Σ", dimInk}
 }
 
 // caps is the key line's cap part: ╎ and the cap of each account whose bars,
@@ -294,12 +300,17 @@ func (n accountName) labelIn(cells int) line {
 	if n.number == "" {
 		return append(line{label}, n.marks()...)
 	}
-	number := dimInk
-	if n.out {
-		number = faintInk
-	}
 	label.text = " " + label.text
-	return append(line{{n.number, number}, label}, n.marks()...)
+	return append(line{n.numbered(), label}, n.marks()...)
+}
+
+// numbered is the name's number, in text.subtle, or text.faint where it's
+// out of the pool.
+func (n accountName) numbered() span {
+	if n.out {
+		return span{n.number, faintInk}
+	}
+	return span{n.number, dimInk}
 }
 
 // marks are the marks after the name's label, each after a space: ◆ on the

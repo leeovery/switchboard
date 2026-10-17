@@ -230,6 +230,83 @@ func TestEachLaneIsHeadedByItsNameAndItsUseOfTheViewsWindow(t *testing.T) {
 	}
 }
 
+// With the account column collapsed, each lane's label is its number and
+// marks, as its name heads it, and its use of the view's window, the figure
+// the expanded label gives, in its ink, right-aligned to the label's 9 cells,
+// a cell after the marks at the least, or — in text.faint where the expanded
+// label words why there's none; out of the pool, all of it faint. No row
+// under it holds a use, and the lane starts at column 11, at every width.
+func TestACollapsedLaneIsLabelledByItsNumberMarksAndUse(t *testing.T) {
+	work := accountName{number: "1", label: "work"}
+	personal := accountName{number: "2", label: "personal", primary: true}
+	read := func(used float64) views.Use { return views.Use{Key: "7d", Used: used, Read: true} }
+	tests := []struct {
+		name   string
+		lane   laidLane
+		width  int
+		label  string
+		figure ink
+	}{
+		{name: "no marks, green", lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: read(0.34)}}, label: "1     34%", figure: usedFigure(0.34, "work", "7d")},
+		{name: "primary, yellow", lane: laidLane{name: personal, Lane: views.Lane{ID: "personal", Use: read(0.84)}}, label: "2 ◆   84%", figure: usedFigure(0.84, "personal", "7d")},
+		{
+			name: "new sessions go here, at its limit, red", lane: laidLane{name: accountName{number: "3", label: "side", best: true}, Lane: views.Lane{ID: "side", Use: read(1)}},
+			label: "3 ▲  100%", figure: usedFigure(1, "side", "7d"),
+		},
+		{
+			name: "both marks and the widest use, a cell after them", lane: laidLane{name: accountName{number: "1", label: "work", primary: true, best: true}, Lane: views.Lane{ID: "work", Use: read(1)}},
+			label: "1 ◆ ▲ 100%", figure: usedFigure(1, "work", "7d"),
+		},
+		{name: "numbered from ten", lane: laidLane{name: accountName{number: " 3", label: "side"}, Lane: views.Lane{ID: "side", Use: read(0.05)}}, label: " 3     5%", figure: usedFigure(0.05, "side", "7d")},
+		{name: "on a phone, alike", width: 52, lane: laidLane{name: personal, Lane: views.Lane{ID: "personal", Use: read(0.84)}}, label: "2 ◆   84%", figure: usedFigure(0.84, "personal", "7d")},
+		{name: "nothing read", lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Key: "7d"}}}, label: "1       —", figure: faintInk},
+		{name: "stale", lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Key: "7d", Used: 0.4, Read: true, Stale: true}}}, label: "1       —", figure: faintInk},
+		{name: "not read yet", lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Key: "7d", Unread: true}}}, label: "1       —", figure: faintInk},
+		{name: "without a token", lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Tokenless: true}}}, label: "1       —", figure: faintInk},
+		{
+			name: "out of the pool, faint", lane: laidLane{
+				name: accountName{number: "2", label: "personal", primary: true, out: true, faint: true}, account: status.AccountNow{OutOfPool: true}, Lane: views.Lane{ID: "personal", Use: read(0.84)},
+			},
+			label: "2 ◆   84%", figure: faintInk,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := runwayLive(views.RunwayWeek)
+			r.Collapsed = true
+			f := runwayShowing(r)
+			f.Width = cmpOr(tt.width, 160)
+			ln := tt.lane
+			ln.row, ln.Cells = 10, laneCells()
+			c := newCanvas(f.Width, 20)
+			x := r.lanesFrom(f.Width)
+			f.runwayLanes(c, runwayLaid{m: status.Moment{Now: routedAt}, x: x, lanes: []laidLane{ln}})
+			if x != collapsedLanesFrom {
+				t.Errorf("the lanes start at column %d, want %d", x, collapsedLanesFrom)
+			}
+			if got := textAt(c, 0, 10, x); got != tt.label {
+				t.Errorf("the label reads %q, want %q", got, tt.label)
+			}
+			if label := ln.collapsedLabel(x - nameGap); label[len(label)-1].ink != tt.figure {
+				t.Errorf("the use is in %+v, want %+v", label[len(label)-1].ink, tt.figure)
+			}
+			number := dimInk
+			if ln.account.OutOfPool {
+				number = faintInk
+			}
+			if got := c.at(len(ln.name.number)-1, 10).ink; got != number {
+				t.Errorf("the number is in %+v, want %+v", got, number)
+			}
+			if got := c.at(x, 10).glyph; got != roomCell {
+				t.Errorf("column %d, the lane's first, is %q, want █", x, got)
+			}
+			if got := textAt(c, 0, 11, x); got != "" {
+				t.Errorf("the row under the label reads %q, want nothing", got)
+			}
+		})
+	}
+}
+
 // usedFigure is the ink of a share used of an account's window, bold in its
 // level's colour and numbered as its use.
 func usedFigure(used float64, account, key string) ink {

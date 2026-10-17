@@ -1147,7 +1147,8 @@ moves a session.
 
 **What's remembered.** The preferences file keeps, as they change: the theme or the pair; the tab
 shown, which the dashboard opens on; the Overview's sections shown, its `b` and its `v`; `w`; of each
-view, a view at a time, its sub-tab, its period or window and `v`'s choice; and the Log's columns.
+view, a view at a time, its sub-tab, its period or window and `v`'s choice; Runway's `a`; and the
+Log's columns.
 It never keeps a focus, a choice, a scroll, a card or help open, a session's page, a day Runway has
 stepped back to, or the Log's filters, so the Log opens on everything (settled in the plan).
 `[usage] by` in the config sets the default for `usage` and the dashboard alike; once `b` is
@@ -2768,8 +2769,9 @@ When each account has room, as a timeline: a lane per account, then the pool's l
 over the window the view is named for. The frames are in the Paper file *Switchboard ·
 Sessions and Runway*, on the page **FINAL · Sessions and Runway · signed off · 8 Oct 2026**; the
 references are `testdata/vhs/reference/runway-*`: `runway-5-hour-160`, `runway-week-160`,
-`runway-stepped-back-160`, `runway-ten-accounts-160` and `runway-phone-52`. Columns and rows are at
-160 by 37 unless they say otherwise.
+`runway-stepped-back-160`, `runway-ten-accounts-160` and `runway-phone-52`; and with the account
+column collapsed, `runway-collapsed-160`, `runway-collapsed-108` and `runway-phone-collapsed-52`.
+Columns and rows are at 160 by 37 unless they say otherwise.
 
 **The heading row,** row 4: `RUNWAY` in `text.subtle`; a rule of `─` in `border` from two cells
 after it to two cells short of the window; and at the right edge, the window between its keys, as a
@@ -2788,8 +2790,9 @@ view's window under its name:
   40 minutes: 136 columns of 10 minutes.
 - At other widths, the lanes keep their span, and the minutes a column scale with their width.
 
-The window shown is kept in the preferences file; a step back never is, so the dashboard opens live
-(settled in the plan).
+The window shown is kept in the preferences file, as is the account column collapsed or not (see
+The account column collapsed); a step back never is, so the dashboard opens live (settled in the
+plan).
 
 **Stepping back.** `←` steps back: in the 5-hour view, first to today from its midnight, then a day
 at a time; in the week view, first to this week from its first day, as `week_starts` begins weeks
@@ -2847,6 +2850,27 @@ kept for good (settled in the plan; see The request ledger).
   `can't read it: HTTP 529 · Overloaded` (the owner's call, 13 October 2026). An account whose
   token is refused has the windows' use under its name faded as stale (the owner's call, 13 October
   2026).
+
+**The account column collapsed.** `a` collapses the labels to each account's number, marks and use,
+to give the lanes more room, at every width, and `a` again expands them; expanded is the default,
+and the preferences file keeps it (the owner's call, 17 October 2026).
+
+- **The lanes** run from column 11 to the edge, 149 columns at 160, 97 at an iPad's 108 and 41 at
+  52, at every width alike.
+- **The labels,** in the 9 cells before them, on the lane's row alone: the account's number in
+  `text.subtle`, its marks, `◆` and `▲`, as the expanded label carries them, and its use of the
+  view's window, the figure the expanded label gives, in its colour, right-aligned to the label's
+  end, a cell after the marks at the least, as `2 ◆   66%`. The window's name goes: the heading's
+  `< week >` names it. Where the expanded label words why there's no use, stale, not read yet or
+  without a token, the figure is `—` in `text.faint`; out of the pool, the whole label is faint. No
+  row under it holds a use; the words under the lane are as expanded.
+- **The pool's lane,** `Σ` in its numbers' column, and its room short, right-aligned as the lanes'
+  use: the room bold `text.secondary` and `/3`, of how many accounts the pool is, in `text.muted`,
+  as `Σ   1.2/3`, where the expanded lane says `Σ pool` and `week 1.2 of 3 left`. ` · pinned` is left
+  off. Where it has no room to say, as on a day stepped back to, `Σ pool`.
+- **COMING UP** puts each account's number before its name, in `text.subtle`, as the labels draw
+  it, so a lane's number finds its name: `16:30  2 personal's 5-hour resets`; folded too.
+- **On a phone,** the pool's room has no row of its own: its label says it.
 
 **The words under a lane** say where each stretch without room starts, from its column, 24 at the
 least, or two cells after the words before:
@@ -2988,11 +3012,14 @@ repeat the account (settled in the plan).
 
 | Where | Key line |
 |---|---|
-| 5-hour, live or stepped back | `tab views   < > window  ←→ day    p pin    ? help  q quit` |
-| week, live or stepped back | `tab views   < > window  ←→ week    p pin    ? help  q quit` |
+| 5-hour, live or stepped back | `tab views   < > window  ←→ day    a names    p pin    ? help  q quit` |
+| week, live or stepped back | `tab views   < > window  ←→ week    a names    p pin    ? help  q quit` |
 | A phone | `tab views   < > window   ←→ day   ? keys   q quit`, `←→ week` in the week view |
 
-`<` and `>` step between the 5-hour and the week views; `←` steps back and `→` forward; `j`, `k`,
+`a names` has its word faint while the labels are collapsed, as a hidden section's is. The line
+holds it whole from 100 columns; a phone's line leaves it to `?`, as it would cost its `tab views`.
+`<` and `>` step between the 5-hour and the week views; `←` steps back and `→` forward; `a`
+collapses the account column and expands it again; `j`, `k`,
 PgUp, PgDn and the wheel scroll the lanes at (e); `p`, `R`, `t`, `?` and `q` are as on every page
 (see Keys). `?` help (see The page), `HELP · RUNWAY`, lists the page's keys first, `t`, `R` and
 `j`/`k` among them; then it explains the lanes' marks and colours, the pool's lane and its room,
@@ -3994,6 +4021,7 @@ that work there (see The page); `?` lists every one, with what it does.
 | `↑` `↓` | Accounts' Detail | Choose an account in the list, all accounts first; or, in its SESSIONS, a session |
 | `→` `←` | Accounts' Detail | Into the account's SESSIONS, and back to the list |
 | `←` `→` | Runway | Step back a day, or a week in the week view; step forward, to the live view |
+| `a` | Runway | Collapse the account column to each account's number, marks and use, or expand it (the owner's call, 17 October 2026) |
 | `↑` `↓` | Sessions | Choose a session, a call on the Switchboard or a row on the List |
 | `↑` `↓` | The Log | Choose a line; from following, `↑` chooses the newest and pauses; with its details open, the line before or after |
 | `end` | The Log | Follow again, the newest line at the foot and nothing chosen |

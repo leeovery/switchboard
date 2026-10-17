@@ -106,7 +106,7 @@ func drawnAt(t *testing.T, doc status.Document, now time.Time) drawn {
 		t.Fatalf("COMING UP says %d things, want the moment's %d", len(d.coming), len(m.ComingUp))
 	}
 	for _, w := range runwayWindows {
-		tl := views.LiveTimeline(w, now, RunwayColumns(f.Width))
+		tl := views.LiveTimeline(w, now, RunwayShown{}.Columns(f.Width))
 		lanes := views.Lanes{}.Look(views.LanesFrom{Moment: m, Timeline: tl, Window: w})
 		runway := f
 		runway.View, runway.Runway = Runway, RunwayShown{Window: w, Timeline: tl, Lanes: &lanes}
