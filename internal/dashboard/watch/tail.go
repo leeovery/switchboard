@@ -162,9 +162,9 @@ type tailReading struct {
 // requestsBuilt builds them, for what they await, the days before those its
 // tables span left to it; the session's page open, as pageFold has it; and
 // the store, once the List is held, the Log opened or a page open, or while
-// it holds anything, as heldFold has it, or where the read opens the Log
-// and heldFold has none, as storeFold has it, shown or not, fed once for
-// them all, the first.
+// it holds anything, as heldFold has it, or where the read opens the Log,
+// as storeFold has it for the Log, whatever else it holds, shown or not,
+// fed once for them all, the first.
 func (m Model) askingTail(now time.Time, opens bool) (Model, tailReading) {
 	t := tailReading{r: m.logReaders(), mark: m.tail.mark, today: views.Today(now), now: now}
 	if opens {
@@ -176,9 +176,10 @@ func (m Model) askingTail(now time.Time, opens bool) (Model, tailReading) {
 		t.log, m.log.reading, m.log.awaited = &f, true, f.awaited
 	}
 	t.page = m.pageFold(now)
-	t.held = m.heldFold(now)
-	if t.held == nil && opens {
+	if opens {
 		t.held = m.storeFold(now, true)
+	} else {
+		t.held = m.heldFold(now)
 	}
 	m = m.pageAwaiting(t.page).heldAwaiting(t.held)
 	t.late = lateDays(t.log, t.page, t.held)
