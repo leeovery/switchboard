@@ -186,9 +186,6 @@ func (m Model) askingTail(now time.Time, opens bool) (Model, tailReading) {
 	if t.log != nil {
 		t.log.late = m.log.spanned(t.late)
 	}
-	if t.page != nil {
-		t.page.late = t.late
-	}
 	if t.held != nil {
 		t.held.late = t.late
 	}
@@ -207,7 +204,7 @@ func (t tailReading) took(read tailLines, next ledger.Mark, logged []string) (ta
 		msg.held, msg.retells, gains = &fed, g.Retell(), g
 	}
 	if t.page != nil {
-		msg.page = t.page.taken(read, t.today)
+		msg.page = t.page.taken(t.today)
 	}
 	return msg, gains
 }

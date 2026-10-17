@@ -9,10 +9,19 @@ import (
 // Taken is a read of the ledger's tail as the store takes it in, each line
 // decoded once, as Took decodes it: the requests among today's lines it
 // gained, and among the lines of each day before today it read again whole,
-// by its date. Every other line is passed over.
+// by its date; and the lines read, as tailRead has them, for the points of
+// the session whose page is open, decoded only where the store holds it.
 type Taken struct {
 	gained takenLines
 	days   map[string]takenLines
+	read   tailRead
+}
+
+// tailRead are the lines of a read of the ledger's tail: today's it gained,
+// and those of each day before today it read again whole, by its date.
+type tailRead struct {
+	gained []ledger.Held
+	days   map[string][]ledger.Held
 }
 
 // takenLines are the requests among a read's lines, by their sessions' ids,
@@ -24,9 +33,10 @@ type takenLines map[string][]heldRequest
 // loop: gained, today's lines read since the tail's mark, as Ledger's Today
 // gives them; and days, the lines of the days before today read again
 // whole, by their dates, as Ledger's Day gives them. Each line is decoded
-// once, and only a session's request kept, as isRequest says, each once.
+// once, and only a session's request kept, as isRequest says, each once;
+// the lines given are the read's, kept as Taken's read for a page's points.
 func Took(gained []ledger.Held, days map[string][]ledger.Held) Taken {
-	t := Taken{gained: takenOf(gained), days: make(map[string]takenLines, len(days))}
+	t := Taken{gained: takenOf(gained), days: make(map[string]takenLines, len(days)), read: tailRead{gained: gained, days: days}}
 	for date, lines := range days {
 		t.days[date] = takenOf(lines)
 	}

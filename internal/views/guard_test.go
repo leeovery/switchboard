@@ -158,6 +158,7 @@ var (
 		"views.LogRead.Taken", "views.LogRead.Wanted", "views.ReadLog", "views.SessionGains.Retell", "views.StreamWanted",
 		"views.HeldPage.Closing", "views.HeldPage.Found", "views.HeldPage.Held", "views.HeldPage.Joined", "views.HeldPage.Opening", "views.HeldPage.ReadTurn", "views.HeldPage.TurnOf", "views.HeldPage.Turned", "views.ReadPage",
 		"views.SessionsWanted.Paging", "views.HeldSessions.Len",
+		"views.HeldPage.On",
 	}
 )
 

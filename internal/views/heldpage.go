@@ -2,7 +2,6 @@ package views
 
 import (
 	"cmp"
-	"maps"
 	"math"
 	"slices"
 	"strings"
@@ -17,16 +16,14 @@ import (
 // stream event or a tick works out only what they change: what it's doing,
 // its turns as the stream adds to them, and the clock's words. It holds its
 // session as the store holds it, its requests sealed into its story and its
-// page's tally, the recent held open, as HeldSessions holds the page's
-// session, read whole as it's held, and as the store holds it from the
-// first feed after; every account's requests on its days, each answered
-// once, for the points; and of its turn open, the lines of its requests,
-// read as it opened, and those the ledger gained since. Take takes in the
-// lines a day gained since, each once; Held takes its session as the store
-// fed it; Build builds the page of what's held, what the router lists and
-// what the stream told. What changes it returns afresh, so a copy holding
-// it never sees it change, sharing what it took before, which nothing
-// changes.
+// page's tally, its points among it, the recent held open, as HeldSessions
+// holds the page's session, read whole as it's held, and as the store holds
+// it from the first feed after; and of its turn open, the lines of its
+// requests, read as it opened, and those the ledger gained since. On rolls
+// it on to a later day; Held takes its session as the store fed it; Build
+// builds the page of what's held, what the router lists and what the stream
+// told. What changes it returns afresh, so a copy holding it never sees it
+// change, sharing what it held before, which nothing changes.
 type HeldPage struct {
 	id     string
 	day    LedgerDay
@@ -38,15 +35,7 @@ type HeldPage struct {
 	record *heldSession
 	read   time.Time
 	joined int
-	// held are the keys of the lines taken, as heldKeys has them; answers
-	// every account's requests taken, answered, by the date of the day whose
-	// files hold them; over what the session's points are taken over; and
-	// points the points it took, by account, then by window key.
-	held    heldKeys
-	answers map[string]answersTaken
-	over    pointsOver
-	points  map[string]map[string]int
-	turn    *turnLines
+	turn   *turnLines
 }
 
 // turnLines are the lines of the requests of a session's turn open, as its
@@ -141,40 +130,8 @@ func ReadPage(l LedgerSessions, id string, s Stream, prices ledger.Table, keep t
 // does, sealed behind the horizon given.
 func holdPage(id string, read SessionsRead, prices ledger.Table, keep time.Duration, horizon instant, now time.Time) HeldPage {
 	day := Today(now)
-	h := HeldPage{id: id, day: day, prices: prices, keep: ledgerKept(keep), read: now}
-	answers := answersOf(read.requests, id)
-	for date, lines := range read.requests {
-		h.held = holding(h.held, lines)
-		h.answers = answering(h.answers, date, answers[date])
-	}
-	h.held = holding(h.held, read.lines[id])
-	h.record = readOf(read.lines[id], prices, day, horizon, true)
-	h.over.days = daysOf(answers)
-	return h.pointed()
-}
-
-// pointed is h with the points the session took of the windows of the
-// accounts it ran on worked out afresh, as pointsOf has them, of the answers
-// it holds of the days they're taken over.
-func (h HeldPage) pointed() HeldPage {
-	h.over.accounts = h.record.accountSet()
-	answers := make(map[string][]answered, len(h.over.days))
-	for _, date := range h.over.days {
-		answers[date] = takenAll(h.answers[date])
-	}
-	h.points = pointsOf(answers, h.over)
-	return h
-}
-
-// accountSet are the accounts the requests s holds went to.
-func (s *heldSession) accountSet() map[string]bool {
-	set := s.page.accountSet()
-	for _, r := range s.open {
-		if account := r.account.Value(); account != "" {
-			set[account] = true
-		}
-	}
-	return set
+	record := readOf(read.lines[id], answersOf(read.requests, id), prices, day, horizon, true)
+	return HeldPage{id: id, day: day, prices: prices, keep: ledgerKept(keep), record: record, read: now}
 }
 
 // Found is the store of h's session alone, as h holds it, read whole as it
@@ -203,67 +160,21 @@ func (h HeldPage) Held(store HeldSessions) (HeldPage, bool) {
 		return h, false
 	}
 	h.record = s
-	if !maps.Equal(h.over.accounts, s.accountSet()) {
-		h = h.pointed()
-	}
 	return h, true
 }
 
-// Take is h with the lines given taken in, those a day, of the given date,
-// gained since it was held, as the ledger's Today gives them: each of an
-// account's, every session's, for the points, each line once, whether it
-// was held already or not. Only what they change is worked out afresh: its
-// points, where one is of an account it ran on, on a day it made requests
-// on, as its points are shared out among them, or is the session's own;
-// else none of it. A date after the day h is held at rolls it on to that
-// day; an earlier one, of a ledger yet to turn its day, never rolls it back.
-// It's h itself where none is new and the date is no later than its day.
-// Its session's requests it holds as the store does, as Held takes them, and
-// its turn open's lines as TurnOf takes them, neither of which Take does.
-func (h HeldPage) Take(date string, lines []ledger.Held) HeldPage {
-	h, _ = h.Took(date, lines)
-	return h
-}
-
-// Took is h with the lines given taken in, as Take has it, reporting whether
-// its page changed by them: false where none of them is of the session, nor
-// moves its points, and the date doesn't roll it on, so a page built of it
-// before stands.
-func (h HeldPage) Took(date string, lines []ledger.Held) (HeldPage, bool) {
-	var gained []ledger.Line
-	for _, l := range lines {
-		if k, ok := keyOf(&l.Line); !ok || !holds(h.held, k) {
-			gained = append(gained, l.Line)
-		}
-	}
-	rolls := date > h.day.Date
-	if len(gained) == 0 && !rolls {
+// On is h at the day with the given date, as a read of the ledger's tail on
+// it finds it, reporting whether it rolled on to it, so a page built of it
+// before no longer stands: a later day than h is held at rolls it on to
+// it; an earlier one, of a ledger yet to turn its day, never rolls it back.
+// What the read gained it holds as the store does, as Held takes it, its
+// points among it, and its turn open's lines as TurnOf takes them.
+func (h HeldPage) On(date string) (HeldPage, bool) {
+	if date <= h.day.Date {
 		return h, false
 	}
-	if rolls {
-		h.day = dayOf(date)
-	}
-	h.held = holding(h.held, gained)
-	mine := false
-	var answers []answered
-	counts := false
-	for i := range gained {
-		l := &gained[i]
-		if l.Counted() && l.Account != "" {
-			a := answeredOf(l, h.id)
-			answers, counts = append(answers, a), counts || h.over.counts(date, a)
-		}
-		mine = mine || l.Session == h.id && isRequest(l)
-	}
-	h.answers = answering(h.answers, date, answers)
-	switch {
-	case mine || rolls:
-		h.over = h.over.withDay(date, answers)
-		return h.pointed(), true
-	case counts:
-		return h.pointed(), true
-	}
-	return h, false
+	h.day = dayOf(date)
+	return h, true
 }
 
 // TurnOf is h with the turn open was has open, as Opening and Turned have
@@ -565,7 +476,7 @@ func (w worked) page() (SessionPage, bool) {
 	page := SessionPage{
 		Session: listed.Session, Dir: listed.Dir, Account: listed.Account, Model: listed.Model, Running: listed.Running, LastSeen: listed.LastSeen,
 		Models: listed.Models, State: listed.State, MoveCost: listed.MoveCost, Ended: listed.Ended, Started: listed.Started,
-		Resumed: p.resumed, Accounts: p.accountsSaid(h.points), Moves: movesOf(rec.story), Activity: listed.Activity,
+		Resumed: p.resumed, Accounts: p.accountsSaid(), Moves: movesOf(rec.story), Activity: listed.Activity,
 	}
 	unplaced := running && by.h.unplaced(routed)
 	page.Turns = turnsOf(p.turns, p.inNone, page.Runs(), unplaced)

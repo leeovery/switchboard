@@ -7,7 +7,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
-	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -135,13 +134,12 @@ func (m Model) readPage() (Model, tea.Cmd) {
 }
 
 // pageFold is what a read of the ledger's tail does for the session's page
-// open as it's asked: the page held, of the session with the given id,
-// takes in the lines of the days before today it reads again whole, late,
-// the oldest first, then what today's gained, each at its day's date, so
-// it's rolled on to today even where nothing is new, for its points and its
-// turn open, its session's own requests as the store the read feeds holds
-// them. Awaited is when each day the page awaits a line on was last read
-// for it, as the read leaves it.
+// open as it's asked: the page held, of the session with the given id, is
+// rolled on to today, its session, its points among it, held as the store
+// the read feeds holds it, the days before today the read reads again
+// whole, late, among what it feeds it, and its turn open taking in what the
+// read read. Awaited is when each day the page awaits a line on was last
+// read for it, as the read leaves it.
 type pageFold struct {
 	id      string
 	held    views.HeldPage
@@ -150,8 +148,8 @@ type pageFold struct {
 }
 
 // pageTaken is the page held of the session with the given id, as a read
-// of the ledger's tail grew it, and whether that changed its page, as
-// views.HeldPage's Took has it.
+// of the ledger's tail found it, and whether that changed its page, as
+// views.HeldPage's On has it.
 type pageTaken struct {
 	id      string
 	held    views.HeldPage
@@ -188,19 +186,11 @@ func (m Model) pageAwaiting(f *pageFold) Model {
 	return m
 }
 
-// taken is the page held grown by what a read of the ledger's tail on the
-// day given read, as the fold says.
-func (f pageFold) taken(read tailLines, today views.LedgerDay) *pageTaken {
-	t := pageTaken{id: f.id, held: f.held}
-	took := func(date string, lines []ledger.Held) {
-		var changed bool
-		t.held, changed = t.held.Took(date, lines)
-		t.changed = t.changed || changed
-	}
-	for _, date := range f.late {
-		took(date, read.days[date])
-	}
-	took(today.Date, read.gained)
+// taken is the page held as a read of the ledger's tail on the day given
+// finds it, rolled on to it.
+func (f pageFold) taken(today views.LedgerDay) *pageTaken {
+	t := pageTaken{id: f.id}
+	t.held, t.changed = f.held.On(today.Date)
 	return &t
 }
 

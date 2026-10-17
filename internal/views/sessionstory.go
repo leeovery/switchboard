@@ -88,13 +88,11 @@ func (w worked) movesOf(page SessionPage) []SessionMove {
 
 // upstream are when the session's requests, by their lines and as the
 // stream told of them, went upstream, oldest first, as the traces count
-// them: each by its line, as its page tallies them; and each the stream told
-// of whose line the session doesn't hold, once.
+// them: each by its line, as its page tallies them, those sealed as the
+// store sealed them, the open taken in on them; and each the stream told of
+// whose line the session doesn't hold, once.
 func (w worked) upstream() []time.Time {
-	var at []time.Time
-	for _, i := range w.tally.upstream {
-		at = append(at, i.time())
-	}
+	at := w.tally.upstream
 	sealed := len(w.rec.page.upstream)
 	told := make(map[string]bool)
 	for _, t := range w.told {

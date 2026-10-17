@@ -208,10 +208,10 @@ func sessionsReadAt(now time.Time) SessionsRead {
 	return SessionsRead{day: Today(now), requests: make(map[string][]ledger.Line)}
 }
 
-// take holds the line given, of the day with the given date, where it's a
-// request of an account's, for the points.
+// take holds the line given, of the day with the given date, where it's an
+// answer the points share rises among, as isAnswer has it.
 func (r SessionsRead) take(date string, line ledger.Line) {
-	if line.Counted() && line.Account != "" {
+	if isAnswer(&line) {
 		r.requests[date] = append(r.requests[date], line)
 	}
 }

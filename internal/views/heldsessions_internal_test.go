@@ -53,10 +53,15 @@ func (l filedLedger) Sessions(ids []string, take func(string, ledger.Line)) map[
 	return l.SessionsOf(wanted, take)
 }
 
-// SessionsOf reads as a Follower does: the sessions with the given ids.
-func (l filedLedger) SessionsOf(ids []string, _ func(string, ledger.Line)) map[string][]ledger.Line {
+// SessionsOf reads as a Follower does: the sessions with the given ids,
+// handing take, where it's given, every line filed, by the date of the day
+// it's filed on.
+func (l filedLedger) SessionsOf(ids []string, take func(string, ledger.Line)) map[string][]ledger.Line {
 	read := make(map[string][]ledger.Line)
 	for _, line := range l.filed() {
+		if take != nil {
+			take(dayfile.DateOf(line.At), line)
+		}
 		if slices.Contains(ids, line.Session) {
 			read[line.Session] = append(read[line.Session], line)
 		}
@@ -558,7 +563,7 @@ func TestTheStoreGivenAnothersSessionsKeepsItsPricesAndIsAsLastFedByOneRule(t *t
 	holding := func(prices ledger.Table, at time.Time, feeds int, ids ...string) HeldSessions {
 		h := HeldSessions{prices: prices, day: Today(at), fed: at, feeds: feeds, sessions: make(map[string]*heldSession)}
 		for _, id := range ids {
-			h.sessions[id] = readOf(nil, prices, Today(at), instantOf(at), false)
+			h.sessions[id] = readOf(nil, nil, prices, Today(at), instantOf(at), false)
 		}
 		return h
 	}

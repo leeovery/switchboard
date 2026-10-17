@@ -17,34 +17,48 @@ import (
 // pageOf keeps them.
 const kept90 = 90 * 24 * time.Hour
 
-// A held page says a take changed its page where a line it takes in is the
-// session's, or moves its points, being of an account it ran on, on a day
-// it ran there, or the date rolls it on; and that none did where every line
-// was held already, or none is the session's or moves its points.
-func TestAHeldPageSaysWhetherATakeChangedItsPage(t *testing.T) {
+// A held page says a read of the ledger's tail changed it where the read
+// gains a line it doesn't hold, the session's, or any account's on a day
+// the session made requests on, which its points hold, whether it ran on
+// the account yet or not, or the read rolls it on to a later day; and that
+// none did where every line was held already, or none is new, or the only
+// new is another's on a day before yesterday the session made no request on.
+func TestAHeldPageSaysWhetherAReadChangedIt(t *testing.T) {
 	fiveHour := local(15, 0, 0)
 	ours := limited(filedAs("p1", serving(p1, ledger.ClassMain, line(paged, opus, "work", "sticky", local(11, 0, 0), hourUsage))), "5h", "0.10", fiveHour)
 	noon := local(12, 0, 0)
-	held := views.HoldPage(paged, views.ReadSessions(fakeLedger{now: noon, lines: []ledger.Line{ours}}, nil, noon, paged), ledger.Pricing, kept90, noon)
+	l := fakeLedger{now: noon, lines: []ledger.Line{ours}}
+	held := views.HoldPage(paged, views.ReadSessions(l, nil, noon, paged), ledger.Pricing, kept90, noon)
 	tests := []struct {
 		name, date string
-		lines      []ledger.Line
+		gained     []ledger.Line
+		late       []ledger.Line
 		want       bool
 	}{
 		{name: "nothing new", date: "2026-10-07"},
-		{name: "a line held already", date: "2026-10-07", lines: []ledger.Line{ours}},
+		{name: "a line held already", date: "2026-10-07", gained: []ledger.Line{ours}},
 		{name: "a line of its own", date: "2026-10-07", want: true,
-			lines: []ledger.Line{limited(filedAs("p2", serving(p1, ledger.ClassMain, line(paged, opus, "work", "sticky", local(12, 10, 0), hourUsage))), "5h", "0.15", fiveHour)}},
+			gained: []ledger.Line{limited(filedAs("p2", serving(p1, ledger.ClassMain, line(paged, opus, "work", "sticky", local(12, 10, 0), hourUsage))), "5h", "0.15", fiveHour)}},
 		{name: "another's on an account it ran on", date: "2026-10-07", want: true,
-			lines: []ledger.Line{limited(filedAs("o1", line(other, opus, "work", "sticky", local(12, 5, 0), hourUsage)), "5h", "0.20", fiveHour)}},
-		{name: "another's on an account it never ran on", date: "2026-10-07",
-			lines: []ledger.Line{limited(filedAs("o2", line(other, opus, "side", "sticky", local(12, 5, 0), hourUsage)), "5h", "0.20", fiveHour)}},
+			gained: []ledger.Line{limited(filedAs("o1", line(other, opus, "work", "sticky", local(12, 5, 0), hourUsage)), "5h", "0.20", fiveHour)}},
+		{name: "another's on an account it never ran on", date: "2026-10-07", want: true,
+			gained: []ledger.Line{limited(filedAs("o2", line(other, opus, "side", "sticky", local(12, 5, 0), hourUsage)), "5h", "0.20", fiveHour)}},
+		{name: "another's on a day before yesterday it made no request on", date: "2026-10-07",
+			late: []ledger.Line{limited(filedAs("o3", line(other, opus, "work", "sticky", october(5, 12, 0), hourUsage)), "5h", "0.20", fiveHour)}},
 		{name: "nothing new on the day after", date: "2026-10-08", want: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if _, got := held.Took(tt.date, heldOf(tt.lines...)); got != tt.want {
-				t.Errorf("taking in %d lines on %s, the page changed %t, want %t", len(tt.lines), tt.date, got, tt.want)
+			store := views.HoldSessions(ledger.Pricing).With(held.Found())
+			h := held.Joined(store)
+			var days map[string][]ledger.Held
+			if len(tt.late) > 0 {
+				days = map[string][]ledger.Held{"2026-10-05": heldOf(tt.late...)}
+			}
+			store, _ = store.Fed(l, views.Took(heldOf(tt.gained...), days), views.SessionsWanted{}.Paging(h, views.Stream{}), noon)
+			h, rolled := h.On(tt.date)
+			if _, fed := h.Held(store); (rolled || fed) != tt.want {
+				t.Errorf("reading %d lines on %s, the page rolled on %t, took its session afresh %t; want it changed %t", len(tt.gained)+len(tt.late), tt.date, rolled, fed, tt.want)
 			}
 		})
 	}
@@ -259,12 +273,19 @@ func TestAPageItsStoryAndItsTurnsRequestsAreBuiltTogetherOfOneWorking(t *testing
 
 // fedWith is the page h fed the lines given, those the day with the given
 // date gained since it was held, as the watch feeds it a read of the
-// ledger's tail at now: its points taking them in, as Take has it; and its
-// session held as the store fed them holds it, as Held has it, the store
-// reading whole through l what it can't place.
+// ledger's tail at now: rolled on to the day, as On has it; and its session,
+// its points among it, held as the store fed them holds it, as Held has it,
+// the store reading whole through l what it can't place.
 func fedWith(h views.HeldPage, l views.LedgerSessions, date string, gained []ledger.Held, now time.Time) views.HeldPage {
 	store, _ := h.Found().Fed(l, views.Took(gained, nil), views.SessionsWanted{}.Paging(h, views.Stream{}), now)
-	h, _ = h.Take(date, gained).Held(store)
+	h, _ = rolledTo(h, date).Held(store)
+	return h
+}
+
+// rolledTo is the page h holds, rolled on to the day with the given date, as
+// On has it.
+func rolledTo(h views.HeldPage, date string) views.HeldPage {
+	h, _ = h.On(date)
 	return h
 }
 
@@ -302,7 +323,7 @@ func TestAHeldPagePricesAfreshAsTheDayTurns(t *testing.T) {
 	held := views.HoldPage(paged, views.ReadSessions(summarisedLedger(lines), nil, now, paged), ledger.Pricing, kept90, now)
 	read := views.ReadSessions(fakeLedger{now: tomorrow, lines: lines, summaries: summarisedLedger(lines).summaries}, nil, tomorrow, paged)
 	want, _ := views.SessionPageOf(paged, views.PageSources{Read: read, Prices: ledger.Pricing, Keep: kept90, Now: tomorrow})
-	for name, h := range map[string]views.HeldPage{"looked at": held, "rolled on": held.Take(views.Today(tomorrow).Date, nil)} {
+	for name, h := range map[string]views.HeldPage{"looked at": held, "rolled on": rolledTo(held, views.Today(tomorrow).Date)} {
 		if got, _ := h.Page(views.PageLive{Now: tomorrow}); !reflect.DeepEqual(got, want) {
 			t.Errorf("the page held a day, %s, is\n%+v\nwant it as built that day\n%+v", name, got, want)
 		}
@@ -363,8 +384,8 @@ func TestAHeldPageReadsAgainTheDaysMissedFromTheDayItsHeldAt(t *testing.T) {
 		unread []string
 	}{
 		{name: "held the day before last", held: held, unread: []string{"2026-10-07", "2026-10-08"}},
-		{name: "rolled on to the day before", held: held.Take("2026-10-08", nil), unread: []string{"2026-10-08"}},
-		{name: "rolled on past them", held: held.Take("2026-10-09", nil)},
+		{name: "rolled on to the day before", held: rolledTo(held, "2026-10-08"), unread: []string{"2026-10-08"}},
+		{name: "rolled on past them", held: rolledTo(held, "2026-10-09")},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -671,7 +692,7 @@ func TestAPageTakesItsSessionFromTheStoreFedAfterTheClockIsSetBack(t *testing.T)
 	back := now.Add(-30 * time.Minute)
 	l := summarisedLedger([]ledger.Line{first, gained})
 	store, _ = store.Fed(l, views.Took(heldOf(gained), nil), views.SessionsWanted{}.Paging(page, views.Stream{}), back)
-	page, took := page.Take("2026-10-07", heldOf(gained)).Held(store)
+	page, took := rolledTo(page, "2026-10-07").Held(store)
 	if built, ok := page.Page(views.PageLive{Now: back}); !took || !ok || built.Totals.Requests != 2 {
 		t.Errorf("fed with the clock set back, the page took the store's session %t, counting %d requests; want it taken, of both", took, built.Totals.Requests)
 	}

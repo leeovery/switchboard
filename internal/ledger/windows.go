@@ -156,6 +156,14 @@ func NewClimb(key string, began func(first quota.Window) float64) *Climb {
 	return &Climb{key: key, began: began}
 }
 
+// Clone is a copy of c that takes readings on as c would, without changing
+// c, nor c it.
+func (c *Climb) Clone() *Climb {
+	d := *c
+	d.resets, d.ended = slices.Clone(c.resets), slices.Clone(c.ended)
+	return &d
+}
+
 // BeginAt begins the window's run at use, before any reading of it is
 // taken.
 func (c *Climb) BeginAt(use float64) {

@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -18,7 +19,8 @@ import (
 // as it opens, and its turn's lines once, as it opens, never again; a day
 // before today is read again only as the day turns; and the page holds its
 // session as the store holds it, no more of its requests open than the
-// store's rule keeps open, and the lines of no turn but while one is open.
+// store's rule keeps open, the lines of no request but its turn open's,
+// while one is, and its points the answers of today and yesterday alone.
 // Just after midnight, a few minutes on and at the end, the page and its
 // turn open are those of a page read whole at the same moment.
 func TestThePageHoldsOnlyItsTurns(t *testing.T) {
@@ -43,10 +45,10 @@ func TestThePageHoldsOnlyItsTurns(t *testing.T) {
 		t.Fatal("the page closed, want it open to the end")
 	case len(g.checks) > 0:
 		t.Errorf("no read of the tail landed after %v to compare the page at", g.checks)
-	case g.wholes != 1 || g.turns != 1 || g.fed == 0 || g.late == 0 || !g.opened:
-		t.Errorf("the page's session was read whole %d times, a turn's lines %d, the store fed %d times, the day before read again %d, a turn compared open %t; "+
-			"want the session read once, a turn's lines once, the store fed at each read of the tail, the day before read again as the day turned, a turn compared",
-			g.wholes, g.turns, g.fed, g.late, g.opened)
+	case g.wholes != 1 || g.turns != 1 || g.fed == 0 || g.late == 0 || !g.opened || g.answers == 0:
+		t.Errorf("the page's session was read whole %d times, a turn's lines %d, the store fed %d times, the day before read again %d, a turn compared open %t, "+
+			"its points holding answers at %d reads; want the session read once, a turn's lines once, the store fed at each read of the tail, the day before "+
+			"read again as the day turned, a turn compared, answers held", g.wholes, g.turns, g.fed, g.late, g.opened, g.answers)
 	}
 	if turn := reflect.ValueOf(m.session.held).FieldByName("turn"); m.session.shown.Open != 0 || !turn.IsNil() {
 		t.Errorf("its turn closed, the page has turn %d open, holding its lines %t; want none open, none held", m.session.shown.Open, !turn.IsNil())
@@ -60,8 +62,8 @@ func TestThePageHoldsOnlyItsTurns(t *testing.T) {
 // one read whole at, the earliest first; wholes how many times the page's
 // session was read whole, turns how many times a turn's lines were, fed how
 // many reads of the tail fed the store, late how many times the day before
-// was read again; and opened whether the page was compared with a turn
-// open.
+// was read again; opened whether the page was compared with a turn open;
+// and answers at how many reads its points held answers.
 type pageGuard struct {
 	t        *testing.T
 	s        *soak
@@ -74,6 +76,7 @@ type pageGuard struct {
 	fed      int
 	late     int
 	opened   bool
+	answers  int
 }
 
 func (g *pageGuard) reads(s *soak, l views.Ledger) views.Ledger {
@@ -145,8 +148,9 @@ func (g *pageGuard) judged() {
 
 // holds judges what the page holds at now: its session as the store holds
 // it, not a copy of its own; no more of its requests open than the world
-// filed at or past the horizon the store's rule gives it; and the lines of
-// no turn while none is open.
+// filed at or past the horizon the store's rule gives it; the lines of no
+// turn while none is open, nor of any request else, by any path; and its
+// points' answers of today and yesterday alone, as pageHolds finds them.
 func (g *pageGuard) holds(now time.Time) {
 	g.t.Helper()
 	m := g.s.h.model
@@ -169,6 +173,64 @@ func (g *pageGuard) holds(now time.Time) {
 	if turn := held.FieldByName("turn"); m.session.shown.Open == 0 && !turn.IsNil() {
 		g.t.Errorf("at %s the page holds the lines of a turn, none open", now.Format(time.DateTime))
 	}
+	dates, lines := pageHolds(m.session.held)
+	if m.session.shown.Open == 0 && lines > 0 {
+		g.t.Errorf("at %s the page holds %d lines of requests, no turn open", now.Format(time.DateTime), lines)
+	}
+	today, yesterday := views.Today(now).Date, dayfile.DateOf(dayfile.DayStart(now, -1))
+	for date, n := range dates {
+		if date != today && date != yesterday {
+			g.t.Errorf("at %s the page's points hold %d answers of %s, want those of today and yesterday alone", now.Format(time.DateTime), n, date)
+		}
+	}
+	if len(dates) > 0 {
+		g.answers++
+	}
+}
+
+// pageHolds walks what the page h holds, by any path, as daysHeld walks the
+// Log: how many answers its points hold, by the date of the day each
+// arrived on, and how many lines of requests it holds.
+func pageHolds(h views.HeldPage) (map[string]int, int) {
+	answers, lines := make(map[string]int), 0
+	seen := make(map[uintptr]bool)
+	var walk func(reflect.Value)
+	walk = func(v reflect.Value) {
+		if k := v.Kind(); (k == reflect.Pointer || k == reflect.Map) && !v.IsNil() {
+			if seen[v.Pointer()] {
+				return
+			}
+			seen[v.Pointer()] = true
+		}
+		switch v.Kind() {
+		case reflect.Pointer, reflect.Interface:
+			if !v.IsNil() {
+				walk(v.Elem())
+			}
+		case reflect.Slice, reflect.Array:
+			for i := range v.Len() {
+				walk(v.Index(i))
+			}
+		case reflect.Map:
+			for it := v.MapRange(); it.Next(); {
+				walk(it.Key())
+				walk(it.Value())
+			}
+		case reflect.Struct:
+			switch t := v.Type(); {
+			case t == reflect.TypeFor[ledger.Line]():
+				lines++
+				return
+			case t.PkgPath() == viewsPkg && t.Name() == "answered":
+				answers[dayfile.DateOf(time.Unix(v.FieldByName("flight").FieldByName("at").FieldByName("sec").Int(), 0))]++
+			}
+			for _, field := range v.Fields() {
+				walk(field)
+			}
+		}
+	}
+	walk(reflect.ValueOf(h))
+	return answers, lines
 }
 
 // sameAsOneRead judges the page at now, and its turn open, those of a page

@@ -24,76 +24,99 @@ func TestAHeldPagePastMidnightIsBuiltAsTheFeedThatRollsItGives(t *testing.T) {
 	h := HoldPage("s1", SessionsRead{day: Today(before), lines: map[string][]ledger.Line{"s1": lines}}, ledger.Pricing, 0, before)
 	looked, _ := h.Build(PageLive{Now: after})
 	fed, _ := h.Found().Fed(filedLedger{lines: lines, now: after}, Taken{}, SessionsWanted{}.Paging(h, Stream{}), after)
-	rolled, changed := h.Take(Today(after).Date, nil).Held(fed)
+	rolled, _ := h.On(Today(after).Date)
+	rolled, changed := rolled.Held(fed)
 	if !changed || fed.Holding().Read > 0 {
 		t.Fatalf("the feed past midnight changed the page %t, reading %d requests whole; want it changed, rolled on, none read", changed, fed.Holding().Read)
 	}
 	if got, _ := rolled.Build(PageLive{Now: after}); !reflect.DeepEqual(got, looked) {
 		t.Errorf("past midnight, the page rolled by a feed is\n%+v\nwant it as looked at before the feed\n%+v", got, looked)
 	}
-	if lags := rolled.Take(Today(before).Date, nil); lags.day != rolled.day {
+	if lags, _ := rolled.On(Today(before).Date); lags.day != rolled.day {
 		t.Errorf("a look of the day before, as a ledger yet to turn gives, held the page at %s, want it at %s", lags.day.Date, rolled.day.Date)
 	}
 }
 
-// A held page takes in other sessions' lines working out only what they
-// change. Those of an account the session never ran on change nothing of
-// it: its session and its points are the page's it took them from, and the
-// keys of the lines it held before are shared with that page, not copied, as
-// much allocated however many requests it holds. Those of one it ran on, on
-// a day it made requests on, change its points alone, its session as it
-// was. Its own leave its session as it was too, as the store takes them in.
-func TestAHeldPageTakingOtherSessionsLinesWorksOutOnlyWhatTheyChange(t *testing.T) {
+// A page's story tells when its sealed requests went upstream as they were
+// sealed, making only its open requests' times as it's built: built of 500
+// requests sealed, its page allocates as often as of 50, and tells each.
+func TestAPagesStoryMakesItsSealedRequestsTimesOnce(t *testing.T) {
+	at := time.Date(2026, 10, 7, 9, 0, 0, 0, time.Local)
+	built := func(n int) (BuiltPage, func()) {
+		lines := make([]ledger.Line, n)
+		for i := range lines {
+			lines[i] = ledger.Line{
+				Request: "r" + strconv.Itoa(i), At: at.Add(time.Duration(i) * 10 * time.Second), Kind: ledger.KindMessage, Session: "s1", Model: "claude-opus-5-5",
+				Account: "work", Status: 200, Attempts: 1, TotalMS: 4000, Class: ledger.ClassMain, Prompt: "p1", Usage: []byte(`{"input_tokens":1000}`),
+			}
+		}
+		now := lines[n-1].At.Add(3 * time.Hour)
+		open := ledger.Line{Request: "open", At: now.Add(-time.Minute), Kind: ledger.KindMessage, Session: "s1", Model: "claude-opus-5-5", Account: "work",
+			Status: 200, Attempts: 1, TotalMS: 4000, Class: ledger.ClassMain, Prompt: "p1", Usage: []byte(`{"input_tokens":1000}`)}
+		page := ReadPage(filedLedger{lines: append(lines, open), now: now}, "s1", Stream{}, ledger.Pricing, 0, now)
+		live := PageLive{Now: now}
+		b, _ := page.Build(live)
+		return b, func() { page.Build(live) }
+	}
+	few, buildFew := built(50)
+	many, buildMany := built(500)
+	if len(few.Story.Sent) != 51 || len(many.Story.Sent) != 501 {
+		t.Fatalf("the stories tell %d and %d requests sent, want 51 and 501", len(few.Story.Sent), len(many.Story.Sent))
+	}
+	if fewer, got := testing.AllocsPerRun(10, buildFew), testing.AllocsPerRun(10, buildMany); got != fewer {
+		t.Errorf("a page of 500 requests sealed allocates %.0f times as it's built, of 50 %.0f; want as many, whatever it sealed", got, fewer)
+	}
+}
+
+// A page's points take another session's answers in working out only what
+// isn't sealed: holding its session's every answer sealed, they let go of
+// them all, and take another's in allocating as much whether they sealed 50
+// or 500. Each rise is shared among the requests that ended before it, the
+// sealed among them: another's answer on work between the session's two
+// takes its share of work's 5-hour from 5 points to 3.
+func TestAPagesPointsTakeAReadInWorkingOutOnlyWhatsOpen(t *testing.T) {
 	at := time.Date(2026, 10, 7, 12, 0, 0, 0, time.Local)
-	date := Today(at).Date
+	day := Today(at)
 	reset := strconv.FormatInt(at.Add(3*time.Hour).Unix(), 10)
-	lineOf := func(request, session, account string, d time.Duration, used string) ledger.Line {
-		return ledger.Line{
-			Request: request, At: at.Add(d), Kind: ledger.KindMessage, Session: session, Model: "claude-opus-5-5", Account: account,
+	answerOf := func(request, session string, d time.Duration, used string) answered {
+		l := ledger.Line{
+			Request: request, At: at.Add(d), Kind: ledger.KindMessage, Session: session, Model: "claude-opus-5-5", Account: "work",
 			Status: 200, Attempts: 1, TotalMS: 4000, Usage: []byte(`{"input_tokens":1000}`),
 			Limits: map[string]string{"5h-utilization": used, "5h-reset": reset},
 		}
+		return answeredOf(&l, "s1")
 	}
-	holding := func(n int) HeldPage {
-		lines := make([]ledger.Line, n)
-		for i := range lines {
+	pointed := func(n int, horizon instant) *pointing {
+		answers := make([]answered, n)
+		for i := range answers {
 			used := strconv.FormatFloat(0.10+0.05*float64(i)/float64(n-1), 'f', 4, 64)
-			lines[i] = lineOf("s"+strconv.Itoa(i), "s1", "work", time.Duration(i-n)*time.Minute, used)
+			answers[i] = answerOf("s"+strconv.Itoa(i), "s1", time.Duration(i-n)*time.Minute, used)
 		}
-		read := SessionsRead{day: Today(at), lines: map[string][]ledger.Line{"s1": lines}, requests: map[string][]ledger.Line{date: lines}}
-		return HoldPage("s1", read, ledger.Pricing, 0, at)
+		return pointingOf(map[string][]answered{day.Date: answers}, day).sealedAt(horizon, day)
 	}
-	theirs := func(request, account string, d time.Duration, used string) []ledger.Held {
-		return []ledger.Held{{Line: lineOf(request, "s2", account, d, used)}}
+	sealedBy := instantOf(at.Add(-time.Second))
+	theirs := []answered{answerOf("o1", "s2", time.Minute, "0.16")}
+	few, many := pointed(50, sealedBy), pointed(500, sealedBy)
+	if held := len(many.held[day.Date].all()); held != 0 || many.folded[day.Date] != 500 {
+		t.Errorf("sealed behind its answers, the points hold %d of them, let go of %d; want none held, all 500 let go of", held, many.folded[day.Date])
 	}
-
-	// Its answer counts no tokens and reads no windows: under the race
-	// detector, the pools reading them draw on allocate unevenly.
-	side := []ledger.Held{{
-		Request: "o1", At: at.Add(time.Second), Kind: ledger.KindMessage, Session: "s2", Model: "claude-opus-5-5", Account: "side", Status: 200, Attempts: 1, TotalMS: 4000,
-	}}
-	few, many := holding(50), holding(500)
-	elsewhere := many.Take(date, side)
-	if elsewhere.record != many.record || !reflect.DeepEqual(elsewhere.points, many.points) || elsewhere.held.under != many.held {
-		t.Errorf("taking another's line on side, the session was held afresh %t, the points changed %t, the keys held copied %t; want none of them",
-			elsewhere.record != many.record, !reflect.DeepEqual(elsewhere.points, many.points), elsewhere.held.under != many.held)
+	taken := func(p *pointing) func() {
+		return func() {
+			took, _ := p.took(day.Date, theirs, false, day)
+			took.sealedAt(sealedBy, day)
+		}
 	}
-	fewer := testing.AllocsPerRun(10, func() { few.Take(date, side) })
-	if got := testing.AllocsPerRun(10, func() { many.Take(date, side) }); got != fewer {
-		t.Errorf("taking another's line on side allocates %.0f times holding 500 requests, %.0f holding 50; want as many, whatever it holds", got, fewer)
+	fewer := testing.AllocsPerRun(10, taken(few))
+	if got := testing.AllocsPerRun(10, taken(many)); got != fewer {
+		t.Errorf("taking another's answer in allocates %.0f times having sealed 500 answers, %.0f having sealed 50; want as many, whatever it sealed", got, fewer)
 	}
 
-	h := holding(2)
-	if got := h.points["work"]["5h"]; got != 5 {
-		t.Fatalf("held, s1 took %d points of work's 5-hour, want 5", got)
+	open := pointed(2, unsealed)
+	if got := open.of("work")["5h"]; got != 5 {
+		t.Fatalf("s1 took %d points of work's 5-hour, want 5", got)
 	}
-	shared := h.Take(date, theirs("o3", "work", -90*time.Second, "0.12"))
-	if got := shared.points["work"]["5h"]; shared.record != h.record || got != 3 {
-		t.Errorf("taking another's line on work between its two, the session was held afresh %t, its points of work's 5-hour %d; want the session as it was, the points 3, worked out afresh",
-			shared.record != h.record, got)
-	}
-	own, changed := shared.Took(date, []ledger.Held{{Line: lineOf("s9", "s1", "work", 2*time.Second, "0.40")}})
-	if !changed || own.record != shared.record {
-		t.Errorf("taking a line of its own, the page changed %t, its session held afresh %t; want it changed, its session as the store holds it", changed, own.record != shared.record)
+	shared, ok := open.took(day.Date, []answered{answerOf("o3", "s2", -90*time.Second, "0.12")}, false, day)
+	if got := shared.sealedAt(unsealed, day).of("work")["5h"]; !ok || got != 3 {
+		t.Errorf("taking another's answer on work between its two, s1's points of work's 5-hour are %d, placed %t; want 3", got, ok)
 	}
 }

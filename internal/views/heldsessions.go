@@ -60,7 +60,8 @@ type HeldSessions struct {
 // day on, by their dates, for a line given again to be known; how many of
 // its requests arrived on each day, by date, for a day read again whole
 // before then; and, of the session whose page is open alone, what its page
-// tallies of the requests sealed, nil of every other.
+// tallies of the requests sealed, and of its points, its accounts' every
+// request on its days among them, nil of every other.
 type heldSession struct {
 	horizon instant
 	sealed  *story
@@ -217,6 +218,7 @@ func (h HeldSessions) Fed(l LedgerSessions, t Taken, want SessionsWanted, now ti
 		f.take(t.days[date], true)
 	}
 	f.take(t.gained, false)
+	f.answer(t)
 	f.read(l)
 	f.seal()
 	f.letGo()
@@ -335,28 +337,70 @@ func (f *feed) take(batch takenLines, whole bool) {
 	}
 }
 
+// answer takes the lines a read of the ledger's tail read into the points
+// of the session whose page is open, where the store holds it tallied, and
+// reads it whole where they can't be placed: every account's answers, as
+// pointing's took has them, of the late days, the oldest first, each read
+// whole, then today's gain.
+func (f *feed) answer(t Taken) {
+	id := f.want.Page
+	s, held := f.sessions[id]
+	if !held || s.page == nil || f.whole[id] {
+		return
+	}
+	points, ok := s.page.points, true
+	for _, date := range slices.Sorted(maps.Keys(t.read.days)) {
+		if points, ok = points.took(date, answersIn(t.read.days[date], id), true, f.day); !ok {
+			break
+		}
+	}
+	if ok {
+		points, ok = points.took(f.day.Date, answersIn(t.read.gained, id), false, f.day)
+	}
+	switch {
+	case !ok:
+		f.whole[id] = true
+	case points != s.page.points:
+		paged := *s
+		paged.page = s.page.pointed(points)
+		f.change(id, &paged)
+	}
+}
+
 // read reads whole through l, in one read, the sessions wanted that the
 // store doesn't hold, and those it can't place a line of, each held afresh,
 // as hold holds it: every one of today's too, where the List is wanted and
-// the store doesn't hold them yet.
+// the store doesn't hold them yet. Where the session whose page is open is
+// among them, every account's answers on the days read are taken for its
+// points, as answersOf has them.
 func (f *feed) read(l LedgerSessions) {
 	ids := f.unheld()
 	listing := f.want.List && !f.listing
 	if len(ids) == 0 && !listing {
 		return
 	}
+	var answers map[string][]answered
+	var take func(string, ledger.Line)
+	if slices.Contains(ids, f.want.Page) {
+		answers = make(map[string][]answered)
+		take = func(date string, line ledger.Line) {
+			if isAnswer(&line) {
+				answers[date] = append(answers[date], answeredOf(&line, f.want.Page))
+			}
+		}
+	}
 	var read map[string][]ledger.Line
 	if listing {
-		read, f.listing = l.Sessions(ids, nil), true
+		read, f.listing = l.Sessions(ids, take), true
 	} else {
-		read = l.SessionsOf(ids, nil)
+		read = l.SessionsOf(ids, take)
 	}
 	for _, id := range ids {
-		f.hold(id, read[id])
+		f.hold(id, read[id], answers)
 	}
 	for id, lines := range read {
 		if _, held := f.sessions[id]; !held {
-			f.hold(id, lines)
+			f.hold(id, lines, answers)
 		}
 	}
 }
@@ -388,9 +432,9 @@ func (f *feed) unheld() []string {
 
 // hold holds the session with the given id afresh, of lines, every line of
 // it read whole, as readOf has it, sealed behind its horizon, as horizonOf
-// has it, its page tallied where it's the page's.
-func (f *feed) hold(id string, lines []ledger.Line) {
-	s := readOf(lines, f.prices, f.day, f.horizonOf(id), id == f.want.Page)
+// has it, its page tallied, of answers, where it's the page's.
+func (f *feed) hold(id string, lines []ledger.Line, answers map[string][]answered) {
+	s := readOf(lines, answers, f.prices, f.day, f.horizonOf(id), id == f.want.Page)
 	f.sessions[id] = s
 	delete(f.before, id)
 	f.gains[id] = SessionGain{whole: true}
@@ -399,15 +443,16 @@ func (f *feed) hold(id string, lines []ledger.Line) {
 
 // readOf is a session held afresh of lines, every line of it read whole,
 // each request once, as distinct has it, each priced by prices at the day
-// d, sealed behind the horizon given, its page tallied where paged says.
-func readOf(lines []ledger.Line, prices ledger.Table, d LedgerDay, horizon instant, paged bool) *heldSession {
+// d, sealed behind the horizon given, its page tallied, its points of
+// answers, every account's on the days read, by date, where paged says.
+func readOf(lines []ledger.Line, answers map[string][]answered, prices ledger.Table, d LedgerDay, horizon instant, paged bool) *heldSession {
 	var read []heldRequest
 	for i := range lines {
 		if isRequest(&lines[i]) {
 			read = append(read, heldRequestOf(&lines[i]))
 		}
 	}
-	return heldSessionOf(pricedAt(distinct(read), prices, d.Date), prices, d, horizon, paged)
+	return heldSessionOf(pricedAt(distinct(read), prices, d.Date), answers, prices, d, horizon, paged)
 }
 
 // held is how many requests s holds.
@@ -500,12 +545,13 @@ func later(a, b instant) instant {
 
 // heldSessionOf is a session held of its requests, in order, as inOrder has
 // it, each priced, its requests on the day d counted and its moves priced by
-// prices, sealed behind the horizon given, its page tallied where paged
-// says.
-func heldSessionOf(requests []heldRequest, prices ledger.Table, d LedgerDay, horizon instant, paged bool) *heldSession {
+// prices, sealed behind the horizon given, its page tallied, its points of
+// answers, as pointingOf has them, where paged says.
+func heldSessionOf(requests []heldRequest, answers map[string][]answered, prices ledger.Table, d LedgerDay, horizon instant, paged bool) *heldSession {
 	s := &heldSession{horizon: horizon, sealed: newStory(prices, d), flights: make(map[string]heldFlights), counts: make(map[string]int)}
 	if paged {
 		s.page = newPageTally()
+		s.page.points = pointingOf(answers, d)
 	}
 	s.open = requests
 	s.taking(requests)
@@ -647,8 +693,8 @@ func mergedFlights(under, over map[string][]knownLine) map[string][]knownLine {
 }
 
 // sealedAt is s with its open requests behind the horizon given sealed into
-// its story, and its page's tally where it's tallied, those at or past it
-// held open, and its story told on of them, afresh.
+// its story, and its page's tally where it's tallied, its points among it,
+// those at or past it held open, and its story told on of them, afresh.
 func (s *heldSession) sealedAt(horizon instant) *heldSession {
 	i, _ := slices.BinarySearchFunc(s.open, horizon, func(r heldRequest, h instant) int { return r.at.compare(h) })
 	sealed := *s
@@ -656,8 +702,12 @@ func (s *heldSession) sealedAt(horizon instant) *heldSession {
 	if i > 0 {
 		sealed.sealed = s.sealed.told(s.open[:i])
 	}
-	if i > 0 && s.page != nil {
-		sealed.page = s.page.took(s.open[:i])
+	if s.page != nil {
+		page := s.page
+		if i > 0 {
+			page = page.took(s.open[:i])
+		}
+		sealed.page = page.pointedAt(horizon, s.day())
 	}
 	sealed.open = slices.Clone(s.open[i:])
 	sealed.story = sealed.sealed.told(sealed.open)

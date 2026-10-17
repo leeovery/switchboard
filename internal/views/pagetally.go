@@ -18,12 +18,16 @@ import (
 // its idle gaps folded and when it last came back after one; its stretches,
 // both of every request and of its own conversation's, for whichever it's
 // told by; where its models went last, in the order they first came, as
-// goesOf has them; and of its lines alone, the accounts they went to, what
-// they tell of why each model goes where it does, as keptLines has it, its
+// goesOf has them; of its lines alone, the accounts they went to, what they
+// tell of why each model goes where it does, as keptLines has it, its
 // totals, when each that went upstream arrived, oldest first, each request
-// once, as the traces count them, with those that may still be in flight as
-// the next arrives, and the models they asked for. What's taken in tells on
-// a copy of it, as told has it, so a page built of it never changes it.
+// once, as the traces count them, in the times a story tells, so a page
+// built of it makes only its open requests' afresh, with those that may
+// still be in flight as the next arrives, and the models they asked for;
+// and the points it took of its accounts' windows, as pointing has them,
+// sealed as the store seals it, the same of every copy told on. What's
+// taken in tells on a copy of it, as told has it, so a page built of it
+// never changes it.
 type pageTally struct {
 	turns   []*turnTally
 	prompts map[string]int
@@ -44,9 +48,10 @@ type pageTally struct {
 	accounts []SessionAccount
 	kept     map[string]keptLines
 	totals   sessionSums
-	upstream []instant
+	upstream []time.Time
 	flying   []flight
 	models   map[string]bool
+	points   *pointing
 
 	// own are the turns a copy telling on has made its own, and whether its
 	// maps are, so it changes nothing it shares with what it was copied of.
@@ -263,7 +268,22 @@ func (p *pageTally) wentUp(r *heldRequest) {
 		return
 	}
 	p.flying = append(p.flying, r.flight)
-	p.upstream = append(p.upstream, instantOf(at))
+	p.upstream = append(p.upstream, at)
+}
+
+// pointedAt is p with its points sealed behind the horizon given, at the
+// day given, as pointing's sealedAt has it, afresh.
+func (p *pageTally) pointedAt(horizon instant, day LedgerDay) *pageTally {
+	c := *p
+	c.points = p.points.sealedAt(horizon, day)
+	return &c
+}
+
+// pointed is p with the points given, afresh.
+func (p *pageTally) pointed(points *pointing) *pageTally {
+	c := *p
+	c.points = points
+	return &c
 }
 
 // pricedAlike reports whether every model p's lines asked for costs alike
@@ -289,11 +309,11 @@ func (p *pageTally) stretches() []Stretch {
 }
 
 // accountsSaid are the accounts the session ran on, as accountsOf has them,
-// each with the points given it took, by account.
-func (p *pageTally) accountsSaid(points map[string]map[string]int) []SessionAccount {
+// each with the points it took of its windows, as its points have them.
+func (p *pageTally) accountsSaid() []SessionAccount {
 	accounts := make([]SessionAccount, len(p.accounts))
 	for i, a := range p.accounts {
-		a.Points = points[a.Account]
+		a.Points = p.points.of(a.Account)
 		accounts[i] = a
 	}
 	return accounts
@@ -308,15 +328,6 @@ func (p *pageTally) totalsOf(turns int) SessionTotals {
 		totals.FromCache = float64(t.read) / float64(t.sent)
 	}
 	return totals
-}
-
-// accountSet are the accounts the session's lines went to.
-func (p *pageTally) accountSet() map[string]bool {
-	set := make(map[string]bool, len(p.accounts))
-	for _, a := range p.accounts {
-		set[a.Account] = true
-	}
-	return set
 }
 
 // member reports whether the request of the agent with the given id, naming

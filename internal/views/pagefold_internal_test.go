@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"iter"
+	"maps"
 	"math/rand/v2"
 	"reflect"
 	"slices"
+	"strconv"
 	"testing"
 	"time"
 
@@ -38,10 +40,44 @@ const joinsLate = 90 * time.Minute
 // compactions the prompt then, a subagent's naming any prompt so far, as
 // only its first request's counts, and now and then one naming none; each
 // answer of its own conversation stopping to call a tool or ending its
-// turn; and of one in five, the long request the stream tells of told late,
-// as late says.
+// turn; of one in five, the long request the stream tells of told late, as
+// late says; of one in seven, a request of its own two days after the day
+// of its last, beginning another run of its days, and of another, one at
+// two in the morning of the day after, joining its run once its points
+// sealed past the day's start. Among them, other sessions' requests,
+// on its accounts and another, as othersOf makes them, from the day before
+// its first; and every answer reading its account's windows, as limitedOf
+// has them. The lines are in the order the ledger files them.
 func pagedRun(seed uint64) (lines []ledger.Line, late string) {
-	lines = generatedRun(seed)
+	lines = promptedRun(seed)
+	if seed%5 == 1 {
+		long := slices.IndexFunc(lines, func(l ledger.Line) bool { return l.TotalMS == (2 * time.Hour).Milliseconds() })
+		late = lines[long].Request
+	}
+	r := rand.New(rand.NewPCG(seed, 10))
+	if after, ok := map[uint64]time.Duration{3: 48 * time.Hour, 5: 26 * time.Hour}[seed%7]; ok {
+		lines = append(lines, ledger.Line{
+			Request: fmt.Sprintf("%08x", r.Uint32()), At: dayfile.DayStart(ended(&lines[len(lines)-1]), 0).Add(after), Kind: ledger.KindMessage, Session: "s",
+			Model: foldOpus, Account: "work", Reason: "sticky", Status: 200, Attempts: 1, TotalMS: 3000, Class: ledger.ClassMain, Prompt: "pfar",
+			Usage: json.RawMessage(foldUsages[2]),
+		})
+	}
+	var opusReads time.Time
+	if seed%4 == 2 {
+		opusReads = lines[arrivalOrder(lines)[0]].At.Add(2 * time.Hour)
+	}
+	lines = append(lines, othersOf(seed, lines)...)
+	slices.SortStableFunc(lines, func(a, b ledger.Line) int { return ended(&a).Compare(ended(&b)) })
+	for i := range lines {
+		limitedOf(&lines[i], r, opusReads)
+	}
+	return lines, late
+}
+
+// promptedRun is a generated session as generatedRun makes it, its
+// requests serving prompts as pagedRun has them.
+func promptedRun(seed uint64) []ledger.Line {
+	lines := generatedRun(seed)
 	r := rand.New(rand.NewPCG(seed, 8))
 	var prompts []string
 	for _, i := range arrivalOrder(lines) {
@@ -63,11 +99,78 @@ func pagedRun(seed uint64) (lines []ledger.Line, late string) {
 			l.Prompt = ""
 		}
 	}
-	if seed%5 == 1 {
-		long := slices.IndexFunc(lines, func(l ledger.Line) bool { return l.TotalMS == (2 * time.Hour).Milliseconds() })
-		late = lines[long].Request
+	return lines
+}
+
+// othersOf are other sessions' requests among a generated session's lines,
+// as the seed given makes them: on its accounts and another, from the day
+// before its first arrived until two hours after its last, some running
+// long, now and then one without an id, as from before requests had them;
+// and of one in six, one whose answer's headers came two hours before it
+// ended.
+func othersOf(seed uint64, lines []ledger.Line) []ledger.Line {
+	r := rand.New(rand.NewPCG(seed, 11))
+	order := arrivalOrder(lines)
+	from, until := lines[order[0]].At.Add(-26*time.Hour), lines[order[len(order)-1]].At.Add(2*time.Hour)
+	var others []ledger.Line
+	for range 15 + r.IntN(30) {
+		l := ledger.Line{
+			At: from.Add(time.Duration(r.Int64N(int64(until.Sub(from))))).Truncate(time.Millisecond).UTC(), Request: fmt.Sprintf("o%07x", r.Uint32()),
+			Kind: ledger.KindMessage, Session: []string{"o1", "o2", "o3"}[r.IntN(3)], Model: []string{foldOpus, foldHaiku, foldSonnet}[r.IntN(3)],
+			Account: []string{"work", "side", "personal"}[r.IntN(3)], Reason: "sticky", Status: 200, Attempts: 1, TotalMS: int64(200 + r.IntN(20_000)),
+			Class: ledger.ClassMain, Prompt: "q", Usage: json.RawMessage(foldUsages[2+r.IntN(len(foldUsages)-2)]),
+		}
+		if r.IntN(6) == 0 {
+			l.TotalMS = int64(60_000 + r.IntN(540_000))
+		}
+		if r.IntN(15) == 0 {
+			l.Request = ""
+		}
+		others = append(others, l)
 	}
-	return lines, late
+	if seed%6 == 5 {
+		first := int64(1000)
+		long := others[0]
+		long.Request, long.At, long.TotalMS, long.FirstMS = "olong", from.Add(until.Sub(from)/2).Truncate(time.Millisecond), (2 * time.Hour).Milliseconds(), &first
+		others = append(others, long)
+	}
+	return others
+}
+
+// limitedOf has l's answer read its account's windows as they stand when
+// its headers came, a third of them before it ended: the five-hour window
+// and the week, every model's, each climbing through the window, every
+// account from its own use, now and then reading lower, as headers that
+// came late read; and Claude Sonnet's own week, read by its answers, and by
+// Claude Opus's from opusReads on, where that's given, as a model first
+// reads a window only some models share.
+func limitedOf(l *ledger.Line, r *rand.Rand, opusReads time.Time) {
+	if r.IntN(3) == 0 {
+		first := l.TotalMS / int64(2+r.IntN(4))
+		l.FirstMS = &first
+	}
+	read := ended(l)
+	if l.FirstMS != nil {
+		read = l.At.Add(time.Duration(*l.FirstMS) * time.Millisecond)
+	}
+	base := map[string]float64{"work": 0, "side": 0.1, "personal": 0.2}[l.Account]
+	use := func(through float64) string {
+		used := base + 0.7*through
+		if r.IntN(8) == 0 {
+			used -= 0.05
+		}
+		return strconv.FormatFloat(max(used, 0), 'f', 4, 64)
+	}
+	fiveHour := read.Truncate(5 * time.Hour)
+	week := time.Date(2026, 10, 5, 10, 0, 0, 0, time.Local)
+	weekThrough := float64(read.Sub(week)) / float64(7*24*time.Hour)
+	l.Limits = map[string]string{
+		"5h-utilization": use(float64(read.Sub(fiveHour)) / float64(5*time.Hour)), "5h-reset": strconv.FormatInt(fiveHour.Add(5*time.Hour).Unix(), 10),
+		"7d-utilization": use(weekThrough), "7d-reset": strconv.FormatInt(week.AddDate(0, 0, 7).Unix(), 10),
+	}
+	if l.Model == foldSonnet || l.Model == foldOpus && !opusReads.IsZero() && read.After(opusReads) {
+		l.Limits["7d_sonnet-utilization"], l.Limits["7d_sonnet-reset"] = use(weekThrough/2), strconv.FormatInt(week.AddDate(0, 0, 7).Unix(), 10)
+	}
 }
 
 // arrivalOrder are the indices of lines in the order they arrived.
@@ -126,7 +229,8 @@ func untoldOf(lines []ledger.Line, seed uint64) map[string]bool {
 func (p *paging) streamAt(now time.Time) Stream {
 	s := Stream{Live: true, Requests: make(map[string]Told)}
 	for _, l := range p.lines {
-		if l.At.After(now) || !ended(&l).After(p.fed) || l.Request == unseen || p.untold[l.Request] || l.Request == p.late && now.Sub(l.At) < joinsLate || !l.Counted() {
+		untold := l.Request == "" || l.Request == unseen || p.untold[l.Request] || l.Request == p.late && now.Sub(l.At) < joinsLate
+		if l.At.After(now) || !ended(&l).After(p.fed) || untold || !l.Counted() {
 			continue
 		}
 		t := Told{
@@ -163,11 +267,11 @@ func (p *paging) checkTurn(now time.Time, l filedLedger, stream Stream) {
 	if p.page.turn == nil {
 		return
 	}
-	filed := l.filed()
-	p.untoldSince(filed, stream)
-	whole := HoldPage("s", SessionsRead{day: Today(now), lines: map[string][]ledger.Line{"s": filed}}, p.prices, 0, now)
+	read := l.readWhole(now)
+	p.untoldSince(read.lines["s"], stream)
+	whole := HoldPage("s", read, p.prices, 0, now)
 	whole.turn = &turnLines{prompt: p.page.turn.prompt}
-	whole = whole.Turned(HeldTurn{prompt: p.page.turn.prompt, lines: filed})
+	whole = whole.Turned(HeldTurn{prompt: p.page.turn.prompt, lines: read.lines["s"]})
 	live := PageLive{Stream: stream, Now: now}
 	rowsOf := func(h HeldPage) []string {
 		w := h.worked(live)
@@ -203,12 +307,13 @@ func (p *paging) untoldSince(filed []ledger.Line, stream Stream) {
 
 // look feeds the store a read of the ledger's tail at now, as the watch
 // does with the page open: what the ledger filed since the last look,
-// today's, and each earlier day that gained a line read again whole; the
-// page taking each in, as Take has it, its turn open too, as TurnOf has it,
-// then its session as the store holds it, as Held has it. The page is held
-// to the page of every line filed,
-// held whole, its turn open of every line of the session, as check has it.
-func (p *paging) look(now time.Time) {
+// today's, or where again says, every one of today's again, as a read
+// afresh gives them, and each earlier day that gained a line read again
+// whole; the page rolled on to the day, as On has it, its turn open taking
+// the lines in, as TurnOf has it, then its session as the store holds it,
+// as Held has it. The page is held to the page of every line filed, held
+// whole, its turn open of every line of the session, as check has it.
+func (p *paging) look(now time.Time, again bool) {
 	p.t.Helper()
 	today := Today(now)
 	l := filedLedger{lines: p.lines, now: now}
@@ -216,12 +321,11 @@ func (p *paging) look(now time.Time) {
 	var gained []ledger.Held
 	days := make(map[string][]ledger.Held)
 	for _, line := range l.filed() {
-		if slices.ContainsFunc(was, func(w ledger.Line) bool { return w.Request == line.Request && w.At.Equal(line.At) }) {
-			continue
-		}
-		if date := dayfile.DateOf(line.At); date < today.Date {
+		fresh := !slices.ContainsFunc(was, func(w ledger.Line) bool { return w.Request == line.Request && w.At.Equal(line.At) })
+		switch date := dayfile.DateOf(line.At); {
+		case date < today.Date && fresh:
 			days[date] = append(days[date], ledger.Held{Line: line})
-		} else {
+		case date == today.Date && (fresh || again):
 			gained = append(gained, ledger.Held{Line: line})
 		}
 	}
@@ -232,17 +336,99 @@ func (p *paging) look(now time.Time) {
 	before := p.store.sessions["s"]
 	store, gains := p.store.Fed(l, Took(gained, days), SessionsWanted{}.Paging(p.page, stream), now)
 	p.note(now, before, stream, gains["s"].whole)
+	p.notePoints(before, slices.Concat(slices.Concat(slices.Collect(maps.Values(days))...), gained), gains["s"].whole, store.sessions["s"])
+	if again && before != nil && before.page.points.folded[today.Date] > 0 {
+		p.met["today's lines given again afresh, its points having sealed some"] = true
+	}
 	p.store, p.fed = store, now
 	turn, opened := p.page.turn, p.page
 	read := [][]ledger.Held{gained}
-	for date, lines := range days {
-		p.page, read = p.page.Take(date, lines), append(read, lines)
+	for _, lines := range days {
+		read = append(read, lines)
 	}
-	p.page, _ = p.page.Take(today.Date, gained).TurnOf(opened, read...).Held(p.store)
+	p.page, _ = p.page.On(today.Date)
+	p.page, _ = p.page.TurnOf(opened, read...).Held(p.store)
 	if turn != nil && len(p.page.turn.lines) > len(turn.lines) {
 		p.met["its turn open taking in lines as they come"] = true
 	}
 	p.check(now, l, stream)
+}
+
+// notePoints notes the hard moments of its points a feed meets, the session
+// held before it as before, giving the lines given, whole saying whether it
+// read the session whole, the session held after it as after: its points
+// sealed across midnight; answers held of a day it made no request on, for
+// it to join its days; a run of its days done as a later one began; and the
+// session read whole as a line read before what its points sealed and ended
+// after came, or as a model first read a window only some models share,
+// sealed.
+func (p *paging) notePoints(before *heldSession, given []ledger.Held, whole bool, after *heldSession) {
+	if before == nil {
+		return
+	}
+	points := before.page.points
+	if r := points.run; r != nil && r.first != r.last && r.through.compare(startOf(r.last)) > 0 {
+		p.met["its points sealed across midnight"] = true
+	}
+	for date := range points.held {
+		if !points.isDay(date) {
+			p.met["answers held of a day it made no request on"] = true
+		}
+	}
+	switch r := after.page.points.run; {
+	case whole || points.run == nil || r == nil:
+	case r.first != points.run.first:
+		p.met["a run of its days done as a later one began"] = true
+	case r.last != points.run.last && before.horizon.compare(startOf(r.last)) > 0:
+		p.met["a day joining its run once its horizon passed the day's start"] = true
+	}
+	r := points.run
+	if !whole || r == nil {
+		return
+	}
+	for _, h := range given {
+		a := answeredOf(&h.Line, "s")
+		if !isAnswer(&h.Line) || !r.holds(dayfile.DateOf(h.At)) {
+			continue
+		}
+		if both, either := a.sealedBy(r.through); either && !both && points.held[dayfile.DateOf(h.At)].count(a.key()) == 0 {
+			p.met["an answer read before its points sealed and ended after, read whole"] = true
+		}
+		if !r.takes([]answered{a}) {
+			p.met["a model first reading a window only some models share, sealed, read whole"] = true
+		}
+	}
+}
+
+// readAtOnce reports whether two of lines, answers of the same account,
+// were read at the same moment, their windows reading otherwise.
+func readAtOnce(lines []ledger.Line) bool {
+	read := make(map[string]map[string]bool)
+	for i := range lines {
+		a := answeredOf(&lines[i], "s")
+		at := a.account.Value() + " " + a.read.time().String()
+		if read[at] == nil {
+			read[at] = make(map[string]bool)
+		}
+		read[at][lines[i].Limits["5h-utilization"]] = true
+		if len(read[at]) > 1 {
+			return true
+		}
+	}
+	return false
+}
+
+// readWhole is a read of every line l files for the page of the session s:
+// its lines, and every account's requests, by the date of the day each is
+// filed on.
+func (l filedLedger) readWhole(now time.Time) SessionsRead {
+	read := sessionsReadAt(now)
+	filed := l.filed()
+	read.lines = map[string][]ledger.Line{"s": slices.DeleteFunc(slices.Clone(filed), func(line ledger.Line) bool { return line.Session != "s" })}
+	for _, line := range filed {
+		read.take(dayfile.DateOf(line.At), line)
+	}
+	return read
 }
 
 // dayOf is every line l files on the day with the given date, as a day
@@ -308,11 +494,11 @@ func (p *paging) note(now time.Time, before *heldSession, stream Stream, whole b
 // when it stands, alike.
 func (p *paging) check(now time.Time, l filedLedger, stream Stream) {
 	p.t.Helper()
-	filed := l.filed()
-	whole := HoldPage("s", SessionsRead{day: Today(now), lines: map[string][]ledger.Line{"s": filed}}, p.prices, 0, now)
+	read := l.readWhole(now)
+	whole := HoldPage("s", read, p.prices, 0, now)
 	if p.page.turn != nil {
 		whole.turn = &turnLines{prompt: p.page.turn.prompt}
-		whole = whole.Turned(HeldTurn{prompt: p.page.turn.prompt, lines: filed})
+		whole = whole.Turned(HeldTurn{prompt: p.page.turn.prompt, lines: read.lines["s"]})
 	}
 	live := PageLive{Stream: stream, Now: now}
 	got, gotOK := p.page.Build(live)
@@ -336,40 +522,102 @@ func (p *paging) check(now time.Time, l filedLedger, stream Stream) {
 // comes after others, across midnight, a model's prices changing on the
 // new day, and a stream row joining late, behind its horizon. The turn it
 // opens, read from the ledger as it opens, its lines taken in as they come,
-// is the turn's every request.
+// is the turn's every request. Its points, sealed as its requests are, are
+// those of the page built whole: of its accounts' every request, other
+// sessions' among them, from the day before its first; a run of its days
+// across midnight, and another begun after a day without; readings read at
+// once; today's lines given again afresh; and the page read whole as a model
+// first reads a window only some models share, sealed, or as an answer read
+// before what its points sealed comes after.
 func TestThePageFedLookByLookIsThePageBuiltWhole(t *testing.T) {
 	prices := changingPrices()
 	met := make(map[string]bool)
 	for seed := range uint64(120) {
 		lines, late := pagedRun(seed)
 		r := rand.New(rand.NewPCG(seed, 9))
-		at := lines[0].At.Add(time.Duration(r.IntN(30)) * time.Minute)
+		first := slices.IndexFunc(lines, func(l ledger.Line) bool { return l.Session == "s" })
+		at := lines[first].At.Add(time.Duration(r.IntN(30)) * time.Minute)
 		read := filedLedger{lines: lines, now: at}
 		p := &paging{t: t, seed: seed, lines: lines, late: late, prices: prices, met: met, fed: at, untold: untoldOf(lines, seed)}
 		p.page = ReadPage(read, "s", p.streamAt(at), prices, 0, at)
 		p.store = HoldSessions(prices).With(p.page.Found())
 		p.page = p.page.Joined(p.store)
-		opens := r.IntN(len(lines))
-		for i := 0; i < len(lines); i += 1 + r.IntN(4) {
+		if readAtOnce(lines) {
+			met["readings of an account read at once, reading otherwise"] = true
+		}
+		opens := first + r.IntN(len(lines)-first)
+		for i := first; i < len(lines); i += 1 + r.IntN(4) {
 			now := later(instantOf(at), instantOf(ended(&lines[i]))).time().Add(time.Duration(r.IntN(5000)) * time.Millisecond)
 			if between := at.Add(now.Sub(at) / 2); i >= opens && p.open == 0 {
 				p.opened(filedLedger{lines: lines, now: between}, PageLive{Stream: p.streamAt(between), Now: between})
 				p.checkTurn(between, filedLedger{lines: lines, now: between}, p.streamAt(between))
 			}
-			p.look(now)
+			p.look(now, r.IntN(10) == 0)
 			at = now
 		}
-		p.look(ended(&lines[len(lines)-1]).Add(3 * time.Hour))
+		p.look(ended(&lines[len(lines)-1]).Add(3*time.Hour), false)
 	}
 	for _, moment := range []string{
 		"a request in flight", "a subagent's request naming another turn's prompt", "an idle gap folded",
 		"stretches told by its own conversation after others", "midnight", "midnight, its page priced again whole",
 		"a stream row joining late, read whole", "its page fed on of requests sealed", "its turn open taking in lines as they come",
 		"a turn opened between feeds, a line of it filed since", "a subagent's first request, untold, filed since the feed before a turn opened",
+		"its points sealed across midnight", "answers held of a day it made no request on", "a run of its days done as a later one began",
+		"today's lines given again afresh, its points having sealed some", "an answer read before its points sealed and ended after, read whole",
+		"a model first reading a window only some models share, sealed, read whole", "readings of an account read at once, reading otherwise",
+		"a day joining its run once its horizon passed the day's start",
 	} {
 		if !met[moment] {
 			t.Errorf("no generated run meets %s", moment)
 		}
+	}
+}
+
+// A page's points take each line as often as the ledger's files hold it
+// when today's lines are given again, as a read of today afresh gives them
+// once its file is replaced: another session's lines without ids, sharing
+// each rise with the session's, one sealed and one held open filed twice,
+// and two lines new since among them. Its points are the page's read whole,
+// and nothing is read whole for them.
+func TestAPagesPointsTakeLinesWithoutIDsGivenAgainAsOftenAsFiled(t *testing.T) {
+	start := time.Date(2026, 10, 7, 10, 0, 0, 0, time.Local)
+	reset := strconv.FormatInt(start.Add(5*time.Hour).Unix(), 10)
+	first := int64(1000)
+	line := func(request, session string, minutes int, took time.Duration, used float64) ledger.Line {
+		return ledger.Line{
+			Request: request, At: start.Add(time.Duration(minutes) * time.Minute).UTC(), Kind: ledger.KindMessage, Session: session, Model: foldOpus,
+			Account: "work", Reason: "sticky", Status: 200, Attempts: 1, FirstMS: &first, TotalMS: took.Milliseconds(), Class: ledger.ClassMain, Prompt: "p1",
+			Usage: json.RawMessage(foldUsages[2]), Limits: map[string]string{"5h-utilization": strconv.FormatFloat(used, 'f', 4, 64), "5h-reset": reset},
+		}
+	}
+	var lines []ledger.Line
+	for i := range 19 {
+		lines = append(lines, line(fmt.Sprintf("s%02d", i), "s", 10*i, 6*time.Minute, 0.10+0.04*float64(i)))
+		lines = append(lines, line("", "o", 10*i+5, 2*time.Minute, 0.12+0.04*float64(i)))
+	}
+	lines = append(lines, lines[3], lines[33])
+	opened := start.Add(3*time.Hour + 5*time.Minute)
+	page := ReadPage(filedLedger{lines: lines, now: opened}, "s", Stream{}, ledger.Pricing, 0, opened)
+	store := HoldSessions(ledger.Pricing).With(page.Found())
+	page = page.Joined(store)
+	today, twice := Today(opened).Date, answeredOf(&lines[33], "s")
+	if points := page.record.page.points; points.folded[today] == 0 || points.held[today].count(twice.key()) != 2 {
+		t.Fatalf("the page opened sealed %d answers, holding the one filed twice %d times; want some sealed, it held twice",
+			points.folded[today], points.held[today].count(twice.key()))
+	}
+	now := opened.Add(10 * time.Minute)
+	l := filedLedger{lines: lines, now: now}
+	var again []ledger.Held
+	for _, filed := range l.filed() {
+		again = append(again, ledger.Held{Line: filed})
+	}
+	store, _ = store.Fed(l, Took(again, nil), SessionsWanted{}.Paging(page, Stream{}), now)
+	page, _ = page.Held(store)
+	got, _ := page.Build(PageLive{Now: now})
+	want, _ := HoldPage("s", l.readWhole(now), ledger.Pricing, 0, now).Build(PageLive{Now: now})
+	if !reflect.DeepEqual(got.Page.Accounts, want.Page.Accounts) || store.Holding().Read > 0 {
+		t.Errorf("given today's lines again, the page's accounts are %+v, reading %d requests whole; want them as read whole, %+v, none read",
+			got.Page.Accounts, store.Holding().Read, want.Page.Accounts)
 	}
 }
 
@@ -548,7 +796,7 @@ func TestATurnCountsASubagentWhoseFirstLineLandsLateInIt(t *testing.T) {
 			if opened.Before(landed) {
 				gained := []ledger.Held{{Line: lines[1]}}
 				store, _ = store.Fed(filedLedger{lines: lines, now: landed}, Took(gained, nil), SessionsWanted{}.Paging(page, Stream{}), landed)
-				page, _ = page.Take(Today(landed).Date, gained).TurnOf(page, gained).Held(store)
+				page, _ = page.TurnOf(page, gained).Held(store)
 			}
 			live = PageLive{Now: landed}
 			whole := HoldPage("s", SessionsRead{day: Today(landed), lines: map[string][]ledger.Line{"s": lines}}, ledger.Pricing, 0, landed)

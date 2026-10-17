@@ -590,6 +590,34 @@ func TestAnAccountKeptFromASummaryOfVersionOneIsKeptAsItWasNeverRead(t *testing.
 	}
 }
 
+// A climb's clone takes readings on as the climb would, and neither changes
+// the other: what each climbs, the resets each ends, and a reading of an
+// earlier run read late raising the use one of them ended it at.
+func TestAClimbsCloneTakesReadingsOnApartFromIt(t *testing.T) {
+	week := func(used float64, resets time.Time) quota.Window {
+		return quota.Window{Key: "7d", Utilization: used, ResetsAt: resets}
+	}
+	monday := time.Date(2026, 10, 5, 21, 0, 0, 0, time.UTC)
+	c := ledger.NewClimb("7d", nil)
+	c.Take(week(0.5, monday), monday.Add(-2*time.Hour))
+	c.Take(week(0.125, monday.AddDate(0, 0, 7)), monday.Add(time.Minute))
+	resets := c.Resets()
+	clone := c.Clone()
+	if climbed, ok := clone.Take(week(0.625, monday.AddDate(0, 0, 7)), monday.Add(time.Hour)); !ok || climbed != 0.5 {
+		t.Errorf("the clone climbed %v, %t; want 0.5, taken on from the climb's last reading", climbed, ok)
+	}
+	clone.Take(week(0.75, monday), monday.Add(-30*time.Minute))
+	if got := c.Resets(); !slices.Equal(got, resets) {
+		t.Errorf("the climb's resets are %+v once its clone took a reading read late, want them as they were, %+v", got, resets)
+	}
+	if climbed, ok := c.Take(week(0.25, monday.AddDate(0, 0, 7)), monday.Add(time.Hour)); !ok || climbed != 0.125 {
+		t.Errorf("the climb climbed %v, %t once its clone took on; want 0.125, from its own last reading", climbed, ok)
+	}
+	if got := clone.Resets(); len(got) != 1 || got[0].Before != 0.75 {
+		t.Errorf("the clone's resets are %+v, want the one it ended, before it at 0.75, the reading read late", got)
+	}
+}
+
 // A climb's resets are those a day's summary files of the readings it takes:
 // one between two readings, at the reset the first read; one its end comes
 // after, at the reset the last read; each with the highest use of the run it
