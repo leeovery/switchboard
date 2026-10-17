@@ -336,21 +336,21 @@ func (l *ListedSession) cameBy(m *move) {
 // for one of no session, its worth unpriced and left zero, as the Log's read
 // prices it.
 func lineRow(l *ledger.Line, s *story) RequestRow {
-	r := lineFacts(l)
-	r.toldBy(routedOf(l), s)
+	r := lineFacts(l, nil)
+	r.toldBy(routedOf(l, nil), s)
 	return r
 }
 
 // lineFacts is the row of the request l as its line alone tells it, its
 // worth unpriced and left zero, before its session's story tells the rest,
-// as toldBy has it, the words it names a request by interned, as a
+// as toldBy has it, the words it names a request by interned by n, as a
 // session's requests name the same again and again.
-func lineFacts(l *ledger.Line) RequestRow {
+func lineFacts(l *ledger.Line, n interning) RequestRow {
 	r := RequestRow{
-		Request: l.Request, At: l.At, Kind: kindOf(l), Session: interned(l.Session), Dir: interned(l.Dir), CountedSession: interned(l.CountedSession()),
-		Model: interned(l.Model), Account: interned(l.Account), Status: l.Status, Canceled: l.Canceled, CutOff: l.CutOff, Failed: l.Failed(),
-		Took: millis(l.TotalMS), Stop: interned(l.Answer.Stop), Attempts: l.Attempts, Size: l.Shape.Bytes, Messages: l.Shape.Messages,
-		Tools: l.Shape.Tools, Agent: interned(agentOf(l.Agent)),
+		Request: l.Request, At: l.At, Kind: kindOf(l), Session: n.of(l.Session), Dir: n.of(l.Dir), CountedSession: n.of(l.CountedSession()),
+		Model: n.of(l.Model), Account: n.of(l.Account), Status: l.Status, Canceled: l.Canceled, CutOff: l.CutOff, Failed: l.Failed(),
+		Took: millis(l.TotalMS), Stop: n.of(l.Answer.Stop), Attempts: l.Attempts, Size: l.Shape.Bytes, Messages: l.Shape.Messages,
+		Tools: l.Shape.Tools, Agent: n.of(agentOf(l.Agent)),
 	}
 	if l.FirstMS != nil {
 		r.First = millis(*l.FirstMS)
@@ -362,7 +362,7 @@ func lineFacts(l *ledger.Line) RequestRow {
 		r.Read, r.Written, r.Out, r.Input, r.Metered = tokens.CacheRead, tokens.CacheWrite, tokens.Output, tokens.Input, true
 	}
 	if tools := l.Answer.Tools; len(tools) > 0 {
-		r.Tool, r.More = interned(tools[0]), len(tools)-1
+		r.Tool, r.More = n.of(tools[0]), len(tools)-1
 	}
 	return r
 }

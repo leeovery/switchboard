@@ -157,14 +157,34 @@ func TestTheLogsEventsAreMadeAgainAsAReadersReadJoinsTheStore(t *testing.T) {
 // tables were tabled and drawn of, as views holds each, by its LedgerDay.
 func daysHeld(v any, before string) []string {
 	var held []string
+	walked(v, func(v reflect.Value) bool {
+		if t := v.Type(); v.Kind() == reflect.Struct && t.PkgPath() == viewsPkg && slices.Contains(daysOfLines, t.Name()) {
+			if date := v.FieldByName("day").FieldByName("Date").String(); date < before {
+				held = append(held, t.Name()+" "+date)
+			}
+		}
+		return true
+	})
+	return held
+}
+
+// walked hands visit every value v reaches, by any path, each pointer and
+// map once, going on into those it reaches where visit says to.
+func walked(v any, visit func(reflect.Value) bool) {
 	seen := make(map[uintptr]bool)
 	var walk func(reflect.Value)
 	walk = func(v reflect.Value) {
+		if !v.IsValid() {
+			return
+		}
 		if k := v.Kind(); (k == reflect.Pointer || k == reflect.Map) && !v.IsNil() {
 			if seen[v.Pointer()] {
 				return
 			}
 			seen[v.Pointer()] = true
+		}
+		if !visit(v) {
+			return
 		}
 		switch v.Kind() {
 		case reflect.Pointer, reflect.Interface:
@@ -181,18 +201,12 @@ func daysHeld(v any, before string) []string {
 				walk(it.Value())
 			}
 		case reflect.Struct:
-			if t := v.Type(); t.PkgPath() == viewsPkg && slices.Contains(daysOfLines, t.Name()) {
-				if date := v.FieldByName("day").FieldByName("Date").String(); date < before {
-					held = append(held, t.Name()+" "+date)
-				}
-			}
 			for _, field := range v.Fields() {
 				walk(field)
 			}
 		}
 	}
 	walk(reflect.ValueOf(v))
-	return held
 }
 
 // viewsPkg is the views package's path, and daysOfLines the names of its

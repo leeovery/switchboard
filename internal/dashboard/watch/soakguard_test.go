@@ -2,6 +2,7 @@ package watch
 
 import (
 	"encoding/json"
+	"encoding/json/jsontext"
 	"iter"
 	"maps"
 	"reflect"
@@ -281,8 +282,10 @@ func (g *storeGuard) todays(msg tailedMsg, was ledgerTail) {
 
 // fedFrom judges what the store's last feed did at now, the store as it was
 // held before it: it folded none but the requests it gained and those it
-// held open; and it holds open no more of a session's requests than the
-// world filed at or past the horizon the rule gives it.
+// held open; it holds open no more of a session's requests than the world
+// filed at or past the horizon the rule gives it; and it holds the keys of
+// no more requests than the world filed of its sessions since yesterday
+// began.
 func (g *storeGuard) fedFrom(was views.Holding, now time.Time) {
 	g.t.Helper()
 	is := g.s.h.model.held.Holding()
@@ -292,6 +295,17 @@ func (g *storeGuard) fedFrom(was views.Holding, now time.Time) {
 	}
 	if is.Folded > is.Gained+open {
 		g.t.Errorf("at %s the store folded %d requests, more than the %d it gained and the %d it held open", now.Format(time.DateTime), is.Folded, is.Gained, open)
+	}
+	yesterday := dayfile.DayStart(now, -1)
+	recent := 0
+	for _, r := range g.s.w.filedFrom(yesterday) {
+		if _, held := is.Open[g.idOf(r.g)]; held {
+			recent++
+		}
+	}
+	if is.Keys > recent {
+		g.t.Errorf("at %s the store holds the keys of %d requests, more than the %d the world filed of its sessions since %s", now.Format(time.DateTime), is.Keys, recent,
+			yesterday.Format(time.DateTime))
 	}
 	horizons := make(map[string]time.Time, len(is.Open))
 	earliest := now
@@ -339,10 +353,12 @@ func (g *storeGuard) idOf(n int) string {
 }
 
 // holds judges what the store holds at now: today's sessions, those with a
-// line filed today, and those running alone; and notes whether it let go of
-// one it held when it was last seen.
+// line filed today, and those running alone, none of what it decodes once,
+// as heldRaw has it; and notes whether it let go of one it held when it was
+// last seen.
 func (g *storeGuard) holds(now time.Time) {
 	g.t.Helper()
+	heldRaw(g.t, g.s.h.model, now)
 	want := make(map[string]bool)
 	for _, r := range g.s.w.filedFrom(dayfile.DayStart(now, 0)) {
 		want[g.idOf(r.g)] = true
@@ -356,6 +372,52 @@ func (g *storeGuard) holds(now time.Time) {
 	}
 	g.letGo = g.letGo || slices.ContainsFunc(g.holding, func(id string) bool { return !slices.Contains(got, id) })
 	g.holding = got
+}
+
+// rawHeld are what v holds, by any path, that the readers keep decoded once
+// in its place, each by its type: a line's raw JSON, its usage among it; a
+// map of a line's limits, but a page's tally's map of its agents' prompts,
+// of the same type; and a line itself, but for the open turn's, as its page
+// holds them, read as it opened.
+func rawHeld(v any) []string {
+	var held []string
+	prompts := make(map[uintptr]bool)
+	walked(v, func(v reflect.Value) bool {
+		switch t := v.Type(); {
+		case t.PkgPath() == viewsPkg && t.Name() == "pageTally":
+			prompts[v.FieldByName("agents").Pointer()] = true
+		case t == limitsType && prompts[v.Pointer()]:
+		case slices.Contains(rawTypes, t):
+			held = append(held, t.String())
+			return false
+		case t.PkgPath() == viewsPkg && t.Name() == "turnLines":
+			return false
+		}
+		return true
+	})
+	return held
+}
+
+// limitsType is a line's limits' type, and rawTypes the types of what
+// rawHeld finds.
+var (
+	limitsType = reflect.TypeOf(ledger.Reply{}.Limits)
+	rawTypes   = []reflect.Type{reflect.TypeFor[json.RawMessage](), reflect.TypeFor[jsontext.Value](), limitsType, reflect.TypeFor[ledger.Line]()}
+)
+
+// heldRaw judges what the readers of m hold at now, as rawHeld finds it:
+// none in the store, the Log or the page open.
+func heldRaw(t *testing.T, m Model, now time.Time) {
+	t.Helper()
+	held := map[string]any{"the store": m.held, "the Log": m.log}
+	if m.session != nil {
+		held["the page"] = m.session.held
+	}
+	for name, v := range held {
+		if raw := rawHeld(v); len(raw) > 0 {
+			t.Errorf("at %s %s holds %d of %v, want what it holds decoded once in their place", now.Format(time.DateTime), name, len(raw), slices.Compact(slices.Sorted(slices.Values(raw))))
+		}
+	}
 }
 
 // sameAsOneRead judges the List of the store at now the List of a store

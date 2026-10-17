@@ -72,7 +72,7 @@ func (l LogLine) Details() (RequestDetails, bool) {
 	case l.logged != nil:
 		d.lined(l.logged)
 	case l.line != nil:
-		d.lined(&loggedLine{routed: routedOf(l.line), shown: detailsOf(l.line)})
+		d.lined(&loggedLine{routed: routedOf(l.line, nil), shown: detailsOf(l.line, nil)})
 	}
 	return d, true
 }

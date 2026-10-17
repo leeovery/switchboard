@@ -1,6 +1,7 @@
 package views
 
 import (
+	"maps"
 	"time"
 	"unique"
 
@@ -17,7 +18,7 @@ import (
 // it; its request's flight, and the sum of what its line says, as sumOf has
 // it; how the router routed it, as its routing is told again; and what its
 // details give beyond its row. The table's lines point at it, so a row is
-// held once.
+// held once. Its day holds the handles of its words, as interning has them.
 type loggedLine struct {
 	row    RequestRow
 	seq    int
@@ -36,9 +37,10 @@ type routed struct {
 	from, reason string
 }
 
-// routedOf is how the router routed the request of the line l.
-func routedOf(l *ledger.Line) routed {
-	return routed{tried: l.Tried, from: interned(l.From), reason: interned(l.Reason)}
+// routedOf is how the router routed the request of the line l, its words
+// interned by n.
+func routedOf(l *ledger.Line, n interning) routed {
+	return routed{tried: l.Tried, from: n.of(l.From), reason: n.of(l.Reason)}
 }
 
 // lineDetails are what a request's details give beyond its row, as its line
@@ -61,14 +63,14 @@ type lineDetails struct {
 }
 
 // detailsOf are what the details of the request of the line l give beyond
-// its row.
-func detailsOf(l *ledger.Line) *lineDetails {
+// its row, their words interned by n.
+func detailsOf(l *ledger.Line, n interning) *lineDetails {
 	d := &lineDetails{
-		answer: l.Answer.ID, served: interned(l.Answer.Model), system: l.Shape.System, effort: interned(l.Shape.OutputConfig.Effort),
+		answer: l.Answer.ID, served: n.of(l.Answer.Model), system: l.Shape.System, effort: n.of(l.Shape.OutputConfig.Effort),
 		stream: l.Shape.Stream, blocks: blocksOf(l.Answer.Blocks), status: claude.LimitStatus(l.Limits),
 	}
 	for _, beta := range l.Betas {
-		d.betas = append(d.betas, interned(undated(beta)))
+		d.betas = append(d.betas, n.of(undated(beta)))
 	}
 	if most := l.Shape.MaxTokens; most != nil {
 		d.maxTokens = int(*most)
@@ -85,10 +87,10 @@ func (d *lineDetails) windowsRead(reserve float64) []claude.WindowRead {
 }
 
 // loggedLineOf is the Log's line of l, taken in as the read's seqth,
-// placed at place, its request worth what's given, and its row told of the
-// story s of its session, nil for none.
-func loggedLineOf(l *ledger.Line, seq int, place time.Time, worth Worth, s *story) *loggedLine {
-	logged := &loggedLine{row: lineFacts(l), seq: seq, place: place, flight: flightOf(l), sum: sumOf(l), routed: routedOf(l), shown: detailsOf(l)}
+// placed at place, its request worth what's given, its row told of the
+// story s of its session, nil for none, and its words interned by n.
+func loggedLineOf(l *ledger.Line, seq int, place time.Time, worth Worth, s *story, n interning) *loggedLine {
+	logged := &loggedLine{row: lineFacts(l, n), seq: seq, place: place, flight: flightOf(l), sum: sumOf(l), routed: routedOf(l, n), shown: detailsOf(l, n)}
 	logged.row.Worth = worth
 	logged.row.toldBy(logged.routed, s)
 	return logged
@@ -107,7 +109,35 @@ func (l *loggedLine) isRequest() bool {
 	return l.row.Kind == RowRequest && l.row.Session != ""
 }
 
-// interned is s, the one copy of it every string interned the same holds.
-func interned(s string) string {
-	return unique.Make(s).Value()
+// interning interns the words of lines, each the one copy every word
+// interned the same holds, holding the handle of each, so that copy stays
+// the one shared for as long as the holder is held: a word alone doesn't
+// keep its copy interned, so one interned once that's collected is copied
+// afresh. A nil one holds none, for words held no longer than a look.
+type interning map[unique.Handle[string]]struct{}
+
+// of is s interned, its handle held by n.
+func (n interning) of(s string) string {
+	h := unique.Make(s)
+	if n != nil {
+		n[h] = struct{}{}
+	}
+	return h.Value()
+}
+
+// mergedNames are the handles under and over, afresh.
+func mergedNames(under, over interning) interning {
+	merged := maps.Clone(under)
+	maps.Copy(merged, over)
+	return merged
+}
+
+// heldName reports whether the handles held hold h.
+func heldName(held *stacked[interning], h unique.Handle[string]) bool {
+	for layer := held; layer != nil; layer = layer.under {
+		if _, ok := layer.top[h]; ok {
+			return true
+		}
+	}
+	return false
 }

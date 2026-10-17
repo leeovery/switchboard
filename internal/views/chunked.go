@@ -124,9 +124,27 @@ func (c chunked[T]) inserted(i int, item T) chunked[T] {
 	return c
 }
 
-// appended is c with the item put after its last.
-func (c chunked[T]) appended(item T) chunked[T] {
-	return c.inserted(c.n, item)
+// appended is c with the items put after its last, in order: its last chunk
+// copied once, filled to chunkRows, and the rest in chunks of their own, as
+// chunkedOf has them, so a day built whole copies a chunk for each
+// chunkRows of its items, never one for each item.
+func (c chunked[T]) appended(items []T) chunked[T] {
+	if len(items) == 0 {
+		return c
+	}
+	c.chunks = slices.Clone(c.chunks)
+	from := len(c.chunks)
+	if last := from - 1; last >= 0 && len(c.chunks[last]) < chunkRows {
+		filled := min(chunkRows-len(c.chunks[last]), len(items))
+		c.chunks[last] = slices.Concat(c.chunks[last], items[:filled])
+		items, from = items[filled:], last
+		c.copied++
+	}
+	rest := chunkedOf(items)
+	c.chunks = append(c.chunks, rest.chunks...)
+	c.copied += len(rest.chunks)
+	c.restart(from)
+	return c
 }
 
 // set is c with the item at the place given in place of the one there.

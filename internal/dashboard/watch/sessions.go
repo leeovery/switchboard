@@ -214,7 +214,7 @@ func (m Model) storeFold(now time.Time, logs bool) *heldFold {
 	}
 	var due []string
 	if t.listed || logs {
-		due, f.awaited = t.awaited.due(m.held.Awaited(live), live.Stream, now)
+		due, f.awaited = t.awaited.due(m.held.Awaited(live), live.Stream, now, m.tail.at)
 	}
 	if m.paged() {
 		f.want = f.want.Paging(m.session.held, live.Stream)

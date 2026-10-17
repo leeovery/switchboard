@@ -1,6 +1,7 @@
 package views
 
 import (
+	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
@@ -37,6 +38,20 @@ func RowOfLine(l ledger.Line, session []ledger.Line, prices ledger.Table, now ti
 	r := lineRow(&l, storyOf(pricedRequestsOf(session, prices, today.Date), prices, today))
 	r.Worth = summed(prices, &l, today.Date)
 	return r
+}
+
+// Retold are the ids of the requests whose rows r's last change told again,
+// in order: none where it told none again.
+func Retold(r LogRead) []string {
+	if len(r.changes) == 0 {
+		return nil
+	}
+	var ids []string
+	for _, l := range r.changes[len(r.changes)-1].retold {
+		ids = append(ids, l.flight.request)
+	}
+	slices.Sort(ids)
+	return ids
 }
 
 // LinedDetails are the details of the request whose row is given, its line l

@@ -157,7 +157,12 @@ func withRequests(held, added []heldRequest) []heldRequest {
 // each arrived, then when it ended, then by its id, so a story is told the
 // same however its lines were read, which file or place each came from.
 func inOrder(a, b heldRequest) int {
-	return cmp.Or(a.at.compare(b.at), a.end.compare(b.end), strings.Compare(a.request, b.request))
+	return a.compare(b.flight)
+}
+
+// compare orders f before o as inOrder orders their requests.
+func (f flight) compare(o flight) int {
+	return cmp.Or(f.at.compare(o.at), f.end.compare(o.end), strings.Compare(f.request, o.request))
 }
 
 // metered reports whether r's answer gave usage, as ledger.Spend's Tokens

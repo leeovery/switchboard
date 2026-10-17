@@ -260,7 +260,7 @@ type logFold struct {
 // has it.
 func (m Model) logFold(now time.Time) logFold {
 	today := views.Today(now)
-	due, awaited := m.log.awaited.due(m.log.spanned(m.log.page.Requests.Awaited(today)), m.logStream(now), now)
+	due, awaited := m.log.awaited.due(m.log.spanned(m.log.page.Requests.Awaited(today)), m.logStream(now), now, m.tail.at)
 	late := m.log.spanned(slices.Concat(due, m.tail.missed(today)))
 	return logFold{
 		read: m.log.read, late: slices.Compact(slices.Sorted(slices.Values(late))), stream: m.logStream(now), awaited: awaited, asks: !m.log.bounded(today.Date),
@@ -323,16 +323,17 @@ type awaitedReads map[string]time.Time
 const awaitedEvery = time.Minute
 
 // due are those of the dates given, of the days awaiting a line, to be read
-// whole at now, s being what the stream tells: each one a request filed on
-// ended since it was last read for it, as Told.FiledOn files it, or read
-// for it awaitedEvery ago or more; and r as it'll stand, those due read at
-// now, those no longer awaited let go.
-func (r awaitedReads) due(dates []string, s views.Stream, now time.Time) ([]string, awaitedReads) {
+// whole at now, s being what the stream tells, and tailed when the tail
+// last read today's lines: each one a request whose line it awaits ended on
+// since it was last read for it, as endedSince has it, or read for it
+// awaitedEvery ago or more; and r as it'll stand, those due read at now,
+// those no longer awaited let go.
+func (r awaitedReads) due(dates []string, s views.Stream, now, tailed time.Time) ([]string, awaitedReads) {
 	next := make(awaitedReads, len(dates))
 	var due []string
 	for _, date := range dates {
 		read := r[date]
-		if now.Sub(read) >= awaitedEvery || endedSince(s, date, read) {
+		if !read.IsZero() && now.Sub(read) >= awaitedEvery || endedSince(s, date, read, tailed) {
 			due, read = append(due, date), now
 		}
 		next[date] = read
@@ -341,10 +342,16 @@ func (r awaitedReads) due(dates []string, s views.Stream, now time.Time) ([]stri
 }
 
 // endedSince reports whether s told a request filed on the day with the
-// given date, as Told.FiledOn files it, ended after since.
-func endedSince(s views.Stream, date string, since time.Time) bool {
+// given date, as Told.FiledOn files it, ended after since: one surely filed
+// on it, as Told.FiledSurely has it; or one sent just after its midnight,
+// most likely filed with the next day's, once the tail read today's lines
+// after it ended, tailed, so its line, still awaited, wasn't among them.
+// Each sent in the minute after midnight would else have the whole day
+// before read again as it ended, for a line today's nearly always holds: at
+// 25,000 requests a day, at nearly every look of the two minutes after.
+func endedSince(s views.Stream, date string, since, tailed time.Time) bool {
 	for _, t := range s.Requests {
-		if day, ok := t.FiledOn(); ok && day.Date == date && t.Ended.After(since) {
+		if day, ok := t.FiledOn(); ok && day.Date == date && t.Ended.After(since) && (t.FiledSurely() || t.Ended.Before(tailed)) {
 			return true
 		}
 	}

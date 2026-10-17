@@ -257,6 +257,30 @@ func TestALookReadsOnlyTheSessionsTheStoreDoesntHold(t *testing.T) {
 	}
 }
 
+// A read of the tail that changes one of a session's moves tells again the
+// rows of that move's request alone, its settling request new: neither the
+// session's other rows, nor those of its other move, which the read leaves
+// as it was.
+func TestARetellTellsAgainOnlyTheRowsOfTheMoveChanged(t *testing.T) {
+	main := func(id, account string, at time.Time) ledger.Line {
+		return withID(id, of(ledger.ClassMain, line(mover, opus, account, "sticky", at, hourUsage)))
+	}
+	moved := func(id, from, to string, at time.Time) ledger.Line {
+		return movedFrom(from, withID(id, of("auxiliary", line(mover, opus, to, "moved: "+from+" is at its reserve", at, hourUsage))))
+	}
+	lines := []ledger.Line{
+		main("m0", "work", october(7, 9, 0)), moved("m1", "work", "side", october(7, 9, 10)), main("m2", "side", october(7, 9, 15)),
+		moved("n1", "side", "work", october(7, 9, 30)),
+	}
+	settles := main("n2", "work", october(7, 9, 35))
+	read := logReading(writtenAt(lines[3]), views.Stream{}, lines...)
+	at := writtenAt(settles)
+	grown := read.Took(ledgerHolding(at, append(lines, settles)...), heldOf(settles), false, views.Stream{}, at)
+	if got, want := views.Retold(grown.Read), []string{"n1"}; !slices.Equal(got, want) {
+		t.Errorf("settling n1's move told again the rows of %v, want %v alone", got, want)
+	}
+}
+
 func TestGrowingTheLogsReadLeavesTheReadItGrewAsItWas(t *testing.T) {
 	// d1, a side request, moves mover, and runs long; d2, its conversation's
 	// next, arrives after it, but ends first, so its line comes a look before

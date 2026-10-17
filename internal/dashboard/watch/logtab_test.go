@@ -587,39 +587,60 @@ func TestTheLogKeepsUpWhileAnotherTabShows(t *testing.T) {
 	}
 }
 
-// A request that arrived at 23:59:58 and first went upstream at 00:00:01
-// has its line filed under the day it arrived on, written after the turn:
-// the stream tells no arrival, so the Log awaits its line on the day before
-// the one it was sent on, reading that day again whole as the stream tells
-// it ended.
+// A request that first went upstream at 00:00:01 has its line filed under
+// the day it arrived on, written after the turn, and the stream tells no
+// arrival. Arrived after midnight, as nearly every one sent then has, its
+// line comes with today's at the look after the stream told it ended, and
+// the day before is never read again for it. Arrived at 23:59:58, its line
+// isn't among today's at that look, so the Log reads the day before again
+// whole at the next.
 func TestALineOfARequestSentJustAfterMidnightComesOnTheDayItArrived(t *testing.T) {
-	state := t.TempDir()
-	night := onTheDay(23, 59, 30)
-	writeLines(t, state, arrivedAt("0a000001", night.Add(-10*time.Minute)))
-	h := routedHarness(t, routerDocument(three()...))
-	l := onTheLog(h, state)
-	h.clock.now = night
-	h.start()
-
-	at := func(kind string, when time.Time) router.StreamEvent {
-		return alter(told(kind, "0a000002", "work", 0), func(e *router.StreamEvent) { e.At = when.UTC() })
+	looks := []time.Time{onTheDay(24, 0, 25), onTheDay(24, 0, 30)}
+	tests := []struct {
+		name    string
+		arrived time.Time
+		// days are how many times the day before was read whole by each
+		// look, and lined whether the line was taken in by it.
+		days  []int
+		lined []bool
+	}{
+		{name: "arrived after midnight", arrived: onTheDay(24, 0, 0).Add(500 * time.Millisecond), days: []int{1, 1}, lined: []bool{true, true}},
+		{name: "arrived before midnight", arrived: onTheDay(23, 59, 58), days: []int{1, 2}, lined: []bool{false, true}},
 	}
-	h.hear(at(router.StreamSent, onTheDay(24, 0, 1)))
-	h.clock.now = onTheDay(24, 0, 5)
-	h.read(routerDocument(three()...))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := t.TempDir()
+			night := onTheDay(23, 59, 30)
+			writeLines(t, state, arrivedAt("0a000001", night.Add(-10*time.Minute)))
+			h := routedHarness(t, routerDocument(three()...))
+			l := onTheLog(h, state)
+			h.clock.now = night
+			h.start()
 
-	line := took(arrivedAt("0a000002", onTheDay(23, 59, 58)), 20*time.Second)
-	writeLines(t, state, line)
-	ended := line.At.Add(20 * time.Second)
-	h.hear(alter(at(router.StreamDone, ended), func(e *router.StreamEvent) { e.Status = 200 }))
-	h.clock.now = onTheDay(24, 0, 25)
-	h.read(routerDocument(three()...))
-	yesterday := dayfile.DateOf(night)
-	if want := []string{yesterday, yesterday}; !slices.Equal(l.days, want) {
-		t.Errorf("the days %v were read whole, want %v: the day before at the turn, then again as the stream told its request ended", l.days, want)
-	}
-	if got := h.model.log.read.WrittenTo(); !got.Equal(ended) {
-		t.Errorf("the Log's read holds lines written to %s, want %s, the line of the request sent after midnight taken in", got, ended)
+			at := func(kind string, when time.Time) router.StreamEvent {
+				return alter(told(kind, "0a000002", "work", 0), func(e *router.StreamEvent) { e.At = when.UTC() })
+			}
+			h.hear(at(router.StreamSent, onTheDay(24, 0, 1)))
+			h.clock.now = onTheDay(24, 0, 5)
+			h.read(routerDocument(three()...))
+
+			line := took(arrivedAt("0a000002", tt.arrived), 20*time.Second)
+			writeLines(t, state, line)
+			ended := line.At.Add(20 * time.Second)
+			h.hear(alter(at(router.StreamDone, ended), func(e *router.StreamEvent) { e.Status = 200 }))
+			yesterday := dayfile.DateOf(night)
+			for i, look := range looks {
+				h.clock.now = look
+				h.read(routerDocument(three()...))
+				if want := slices.Repeat([]string{yesterday}, tt.days[i]); !slices.Equal(l.days, want) {
+					t.Errorf("by %s the days %v were read whole, want %v", look.Format(time.TimeOnly), l.days, want)
+				}
+				if got := h.model.log.read.WrittenTo(); got.Equal(ended) != tt.lined[i] {
+					t.Errorf("by %s the Log's read holds lines written to %s, want the line of the request sent after midnight taken in %t", look.Format(time.TimeOnly), got,
+						tt.lined[i])
+				}
+			}
+		})
 	}
 }
 

@@ -546,6 +546,81 @@ func TestATurnsRequestsAreTheLogsRowsOfThemOldestFirstWithNoMark(t *testing.T) {
 	}
 }
 
+// A turn's requests arriving at one moment are in the one order the store
+// tells its story in, whatever the order of their lines: the first ended
+// first, then by id.
+func TestATurnsRequestsArrivingTogetherAreInTheOneOrder(t *testing.T) {
+	at := local(12, 30, 0)
+	main := func(id string, d time.Duration) ledger.Line {
+		return filedAs(id, took(d, serving(p1, ledger.ClassMain, line(paged, opus, "work", "sticky", at, hourUsage))))
+	}
+	l := summarisedLedger([]ledger.Line{main("q2", 9*time.Second), main("q3", 5*time.Second), main("q1", 5*time.Second)})
+	live := views.PageLive{Now: now}
+	held := views.HoldPage(paged, views.ReadSessions(l, nil, now, paged), ledger.Pricing, kept90, now)
+	var ids []string
+	for _, line := range turnOpened(held, 1, l, live).TurnRequests(1, live) {
+		ids = append(ids, line.Row.Request)
+	}
+	if want := []string{"q1", "q3", "q2"}; !slices.Equal(ids, want) {
+		t.Errorf("turn 1's requests are %v, want %v, the first ended first, then by id", ids, want)
+	}
+}
+
+// A page open across midnight, fed at each read of the ledger's tail as the
+// watch feeds it, while another session's request on its account is in
+// flight over midnight, its headers read before it and its line filed on
+// the day before after it, is never read whole: past midnight, the day
+// before read again for that line; the session's first request of the new
+// day; and an hour on, as what's sealed reaches midnight. At each it's the
+// page read whole at the same moment.
+func TestAPageOpenAcrossMidnightIsNeverReadWhole(t *testing.T) {
+	fiveHour := october(7, 3, 0)
+	ours := func(id string, at time.Time, use string) ledger.Line {
+		return limited(filedAs(id, took(10*time.Second, serving(p1, ledger.ClassMain, line(paged, opus, "work", "sticky", at, hourUsage)))), "5h", use, fiveHour)
+	}
+	crossing := limited(filedAs("o1", took(40*time.Second, headersAfter(2*time.Second, line(other, opus, "work", "sticky", october(6, 23, 59).Add(50*time.Second), hourUsage)))),
+		"5h", "0.30", fiveHour)
+	lines := []ledger.Line{ours("p1", october(6, 23, 30), "0.10"), ours("p2", october(6, 23, 50), "0.20"), crossing, ours("p3", october(7, 0, 10), "0.40")}
+	filedBy := func(at time.Time) fakeLedger {
+		l := summarisedLedger(slices.DeleteFunc(slices.Clone(lines), func(l ledger.Line) bool { return writtenAt(l).After(at) }))
+		l.now = at
+		return l
+	}
+	opened := october(6, 23, 59).Add(55 * time.Second)
+	held := views.ReadPage(filedBy(opened), paged, views.Stream{}, ledger.Pricing, kept90, opened)
+	store := held.Found()
+	was := opened
+	for _, at := range []time.Time{october(7, 0, 0).Add(35 * time.Second), october(7, 0, 10).Add(30 * time.Second), october(7, 1, 0).Add(30 * time.Second), october(7, 1, 5)} {
+		l, today := filedBy(at), views.Today(at)
+		var gained []ledger.Held
+		days := make(map[string][]ledger.Held)
+		for _, line := range lines {
+			switch filed := writtenAt(line); {
+			case filed.After(at) || !filed.After(was):
+			case views.Today(line.At).Date == today.Date:
+				gained = append(gained, ledger.Held{Line: line})
+			default:
+				days[views.Today(line.At).Date] = l.Day(views.Today(line.At).Date)
+			}
+		}
+		store, _ = store.Fed(l, views.Took(gained, days), views.SessionsWanted{}.Paging(held, views.Stream{}), at)
+		held, _ = rolledTo(held, today.Date).Held(store)
+		if read := store.Holding().Read; read > 0 {
+			t.Errorf("at %s the store read %d requests whole, want none, the page held as fed", at.Format(time.TimeOnly), read)
+		}
+		live := views.PageLive{Unlisted: true, Now: at}
+		got, _ := held.Page(live)
+		want, _ := views.ReadPage(l, paged, views.Stream{}, ledger.Pricing, kept90, at).Page(live)
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("at %s the page fed across midnight is\n%+v\nwant it read whole\n%+v", at.Format(time.TimeOnly), got, want)
+		}
+		if len(got.Accounts) != 1 || len(got.Accounts[0].Points) == 0 {
+			t.Errorf("at %s the page's accounts are %+v, want work's, its five-hour window's points taken", at.Format(time.TimeOnly), got.Accounts)
+		}
+		was = at
+	}
+}
+
 // logDetailsOf are the details of the request with the given id, as the
 // Log's table holds its line, failing the test where it holds none.
 func logDetailsOf(t *testing.T, table views.LogTable, id string) views.RequestDetails {

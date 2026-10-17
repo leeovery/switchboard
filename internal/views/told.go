@@ -193,6 +193,14 @@ func (t Told) FiledOn() (LedgerDay, bool) {
 	return Today(t.Sent.Add(-arrivesWithin)), true
 }
 
+// FiledSurely reports whether the request's line is surely filed on the day
+// FiledOn gives: it was sent on it. One sent within arrivesWithin after
+// midnight most likely arrived after it too, its line filed with that day's.
+func (t Told) FiledSurely() bool {
+	day, ok := t.FiledOn()
+	return ok && Today(t.Sent).Date == day.Date
+}
+
 // FiledAs reports whether l is the request's line: the same request, as
 // sameRequest has it, by when it first went upstream.
 func (t Told) FiledAs(l *ledger.Line) bool {

@@ -5,10 +5,12 @@ import (
 	"maps"
 	"math/rand/v2"
 	"reflect"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
@@ -232,6 +234,70 @@ func TestTheLogGrownLookByLookIsTheLogReadAtOnceOnGeneratedRuns(t *testing.T) {
 		once.Read = g.readAtOnce(at)
 		if got, want := LogRows(src), LogRows(once); !reflect.DeepEqual(tiesSorted(got), tiesSorted(want)) {
 			t.Fatalf("run %d: grown look by look, the table is\n%s\nwant it as read at once\n%s\n%s", seed, linesSaid(got), linesSaid(want), unlike(tiesSorted(got), tiesSorted(want)))
+		}
+	}
+}
+
+// A day taken into the Log's read whole copies a chunk of its lines for each
+// chunkRows of them, as a day built whole has them, never one for each line;
+// and a read of the tail gaining a few lines after copies one. Each line is
+// held in the order taken in.
+func TestADayTakenInWholeCopiesAChunkForEachChunkOfItsLines(t *testing.T) {
+	at := time.Date(2026, 10, 7, 9, 0, 0, 0, time.Local)
+	lines := make([]ledger.Held, 3000)
+	for i := range lines {
+		lines[i] = ledger.Held{At: at.Add(time.Duration(i) * time.Second), Request: fmt.Sprintf("r%05d", i), Kind: ledger.KindMessage, Session: "s", Status: 200}
+	}
+	taking := LogTaking{Held: HoldSessions(ledger.Pricing), Now: at.Add(time.Hour)}
+	whole, tail := lines[:2990], lines[2990:]
+	read := ReadLog(ledger.Pricing).Taken(whole, true, taking)
+	if copied, most := read.days[0].lines.copied, (len(whole)+chunkRows-1)/chunkRows; copied > most {
+		t.Errorf("a day of %d lines taken in whole copied %d chunks, want %d at most, one for each %d lines", len(whole), copied, most, chunkRows)
+	}
+	grown := read.Taken(tail, false, taking)
+	if copied := grown.days[0].lines.copied - read.days[0].lines.copied; copied > 1 {
+		t.Errorf("a read of the tail gaining %d lines copied %d chunks, want one at most", len(tail), copied)
+	}
+	var got, want []string
+	for _, l := range grown.days[0].lines.all() {
+		got = append(got, l.flight.request)
+	}
+	for _, h := range lines {
+		want = append(want, h.Request)
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("the read holds %d lines, want the %d taken in, in order", len(got), len(want))
+	}
+}
+
+// Lines taken into the Log's read either side of a collection share one
+// copy of each word they name alike, as interned holds it: a session's id
+// and directory, its model, account and reason, and its answer's model.
+func TestLinesTakenInEitherSideOfACollectionShareTheirWords(t *testing.T) {
+	at := time.Date(2026, 10, 7, 9, 0, 0, 0, time.Local)
+	lineOf := func(id string, at time.Time) ledger.Held {
+		l := ledger.Line{At: at, Request: id, Kind: ledger.KindMessage, Session: fmt.Sprint("s-", 7), Dir: fmt.Sprint("/code/", "x"), Model: fmt.Sprint("model-", 7),
+			Account: fmt.Sprint("acct-", 7), Reason: fmt.Sprint("reason-", 7), Status: 200}
+		l.Answer.Model = fmt.Sprint("served-", 7)
+		return ledger.Held{Line: l}
+	}
+	taking := LogTaking{Held: HoldSessions(ledger.Pricing), Now: at.Add(time.Hour)}
+	read := ReadLog(ledger.Pricing).Taken([]ledger.Held{lineOf("r1", at)}, false, taking)
+	runtime.GC()
+	runtime.GC()
+	read = read.Taken([]ledger.Held{lineOf("r2", at.Add(time.Second))}, false, taking)
+	lines := slices.Collect(read.lines())
+	if len(lines) != 2 {
+		t.Fatalf("the read holds %d lines, want 2", len(lines))
+	}
+	a, b := lines[0], lines[1]
+	words := map[string][2]string{
+		"session": {a.row.Session, b.row.Session}, "directory": {a.row.Dir, b.row.Dir}, "model": {a.row.Model, b.row.Model},
+		"account": {a.row.Account, b.row.Account}, "reason": {a.routed.reason, b.routed.reason}, "served": {a.shown.served, b.shown.served},
+	}
+	for name, w := range words {
+		if unsafe.StringData(w[0]) != unsafe.StringData(w[1]) {
+			t.Errorf("the lines' %s, %q, are two copies, want one shared", name, w[0])
 		}
 	}
 }

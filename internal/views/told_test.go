@@ -32,18 +32,20 @@ func TestARequestToldOfIsInFlightTillItEndsOrIsLost(t *testing.T) {
 // A request told of is filed on the day it arrived, which the stream doesn't
 // tell: the day it was first sent, but the day before where it was sent
 // within moments of midnight, as one arriving at 23:59:58 and sent at
-// 00:00:01 is; none where the stream told of no sending.
+// 00:00:01 is; none where the stream told of no sending. It's surely filed
+// there where it was sent on that day.
 func TestARequestToldOfIsFiledOnTheDayItMayHaveArrived(t *testing.T) {
 	midnight := october(7, 0, 0)
 	tests := []struct {
-		name string
-		told views.Told
-		want string
+		name   string
+		told   views.Told
+		want   string
+		surely bool
 	}{
-		{name: "sent in the afternoon", told: views.Told{Sent: october(7, 13, 0)}, want: "2026-10-07"},
+		{name: "sent in the afternoon", told: views.Told{Sent: october(7, 13, 0)}, want: "2026-10-07", surely: true},
 		{name: "sent as the day began", told: views.Told{Sent: midnight.Add(time.Second)}, want: "2026-10-06"},
-		{name: "sent a while after it began", told: views.Told{Sent: midnight.Add(2 * time.Minute)}, want: "2026-10-07"},
-		{name: "sent as the day before ended", told: views.Told{Sent: midnight.Add(-time.Second)}, want: "2026-10-06"},
+		{name: "sent a while after it began", told: views.Told{Sent: midnight.Add(2 * time.Minute)}, want: "2026-10-07", surely: true},
+		{name: "sent as the day before ended", told: views.Told{Sent: midnight.Add(-time.Second)}, want: "2026-10-06", surely: true},
 		{name: "never sent", told: views.Told{}},
 	}
 	for _, tt := range tests {
@@ -51,6 +53,9 @@ func TestARequestToldOfIsFiledOnTheDayItMayHaveArrived(t *testing.T) {
 			day, ok := tt.told.FiledOn()
 			if day.Date != tt.want || ok != (tt.want != "") {
 				t.Errorf("FiledOn = %q, %t; want %q", day.Date, ok, tt.want)
+			}
+			if got := tt.told.FiledSurely(); got != tt.surely {
+				t.Errorf("FiledSurely = %t, want %t", got, tt.surely)
 			}
 		})
 	}

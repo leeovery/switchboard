@@ -491,7 +491,7 @@ func TestTheStoreFedInAnotherZoneIsReadWhole(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := held
-			h.day.Start = dayfile.DayStart(h.fed.In(tt.zone), 0)
+			h.fed.day.Start = dayfile.DayStart(h.fed.at.In(tt.zone), 0)
 			fed, _ := h.Fed(l, Taken{}, want, at.Add(time.Minute))
 			if got := fed.Holding().Read > 0; got != tt.read {
 				t.Errorf("the next feed read %d requests whole, want them read whole %t", fed.Holding().Read, tt.read)
@@ -553,15 +553,17 @@ func TestALineSayingOtherwiseOfARequestHeldHasItsSessionReadWhole(t *testing.T) 
 }
 
 // A store given another's sessions keeps its own prices whatever the
-// other's are; takes those of its sessions it doesn't hold; and is as last
-// fed, by one rule, whether it holds a session or not: as the other, where
-// it was never fed; else, of the two that hold a session, the earlier fed;
-// of two that hold none, the later. It counts the more feeds of the two.
+// other's are; takes those of its sessions it doesn't hold; is as last fed,
+// for the days a read of the ledger's tail reads again for it, by one rule,
+// whether it holds a session or not: as the other, where it was never fed;
+// else, of the two that hold a session, the earlier fed; of two that hold
+// none, the later; and as last fed, for a clock set back, at the later fed
+// of the two, whichever. It counts the more feeds of the two.
 func TestTheStoreGivenAnothersSessionsKeepsItsPricesAndIsAsLastFedByOneRule(t *testing.T) {
 	early, late := time.Date(2026, 10, 6, 23, 0, 0, 0, time.Local), time.Date(2026, 10, 7, 9, 0, 0, 0, time.Local)
 	own, others := ledger.Pricing, changingPrices()
 	holding := func(prices ledger.Table, at time.Time, feeds int, ids ...string) HeldSessions {
-		h := HeldSessions{prices: prices, day: Today(at), fed: at, feeds: feeds, sessions: make(map[string]*heldSession)}
+		h := HeldSessions{prices: prices, fed: fedOn(at), unread: fedOn(at), feeds: feeds, sessions: make(map[string]*heldSession)}
 		for _, id := range ids {
 			h.sessions[id] = readOf(nil, nil, prices, Today(at), instantOf(at), false)
 		}
@@ -570,18 +572,18 @@ func TestTheStoreGivenAnothersSessionsKeepsItsPricesAndIsAsLastFedByOneRule(t *t
 	tests := []struct {
 		name     string
 		h, found HeldSessions
-		fed      time.Time
+		unread   time.Time
 		held     []string
 		feeds    int
 	}{
-		{name: "never fed, given a read", h: HoldSessions(own), found: holding(others, late, 1, "a"), fed: late, held: []string{"a"}, feeds: 1},
-		{name: "fed, holding none, given nothing", h: holding(own, late, 3), found: HeldSessions{}, fed: late, feeds: 3},
-		{name: "fed, holding none, given a later read holding none", h: holding(own, early, 3), found: holding(others, late, 1), fed: late, feeds: 3},
-		{name: "fed, holding none, given an earlier read holding none", h: holding(own, late, 3), found: holding(others, early, 1), fed: late, feeds: 3},
-		{name: "fed long ago, holding none, given a later read", h: holding(own, early, 3), found: holding(others, late, 1, "a"), fed: late, held: []string{"a"}, feeds: 3},
-		{name: "fed, holding, given a later read holding none", h: holding(own, late, 3, "a"), found: holding(others, early, 1), fed: late, held: []string{"a"}, feeds: 3},
-		{name: "fed, holding, given an earlier read", h: holding(own, late, 3, "a"), found: holding(others, early, 1, "a", "b"), fed: early, held: []string{"a", "b"}, feeds: 3},
-		{name: "fed, holding, given a later read", h: holding(own, early, 3, "a"), found: holding(others, late, 4, "b"), fed: early, held: []string{"a", "b"}, feeds: 4},
+		{name: "never fed, given a read", h: HoldSessions(own), found: holding(others, late, 1, "a"), unread: late, held: []string{"a"}, feeds: 1},
+		{name: "fed, holding none, given nothing", h: holding(own, late, 3), found: HeldSessions{}, unread: late, feeds: 3},
+		{name: "fed, holding none, given a later read holding none", h: holding(own, early, 3), found: holding(others, late, 1), unread: late, feeds: 3},
+		{name: "fed, holding none, given an earlier read holding none", h: holding(own, late, 3), found: holding(others, early, 1), unread: late, feeds: 3},
+		{name: "fed long ago, holding none, given a later read", h: holding(own, early, 3), found: holding(others, late, 1, "a"), unread: late, held: []string{"a"}, feeds: 3},
+		{name: "fed, holding, given a later read holding none", h: holding(own, late, 3, "a"), found: holding(others, early, 1), unread: late, held: []string{"a"}, feeds: 3},
+		{name: "fed, holding, given an earlier read", h: holding(own, late, 3, "a"), found: holding(others, early, 1, "a", "b"), unread: early, held: []string{"a", "b"}, feeds: 3},
+		{name: "fed, holding, given a later read", h: holding(own, early, 3, "a"), found: holding(others, late, 4, "b"), unread: early, held: []string{"a", "b"}, feeds: 4},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -589,8 +591,11 @@ func TestTheStoreGivenAnothersSessionsKeepsItsPricesAndIsAsLastFedByOneRule(t *t
 			if !reflect.DeepEqual(got.prices, own) {
 				t.Errorf("the store is priced as %s, want its own prices, as of %s", got.prices.AsOf, own.AsOf)
 			}
-			if !got.fed.Equal(tt.fed) || got.day != Today(tt.fed) {
-				t.Errorf("the store is as last fed at %v, on %s; want %v, on %s", got.fed, got.day.Date, tt.fed, Today(tt.fed).Date)
+			if got.unread != fedOn(tt.unread) {
+				t.Errorf("the store reads again as last fed at %v, on %s; want %v, on %s", got.unread.at, got.unread.day.Date, tt.unread, Today(tt.unread).Date)
+			}
+			if got.fed != fedOn(late) {
+				t.Errorf("the store is as last fed at %v, on %s; want the later of the two, %v, on %s", got.fed.at, got.fed.day.Date, late, Today(late).Date)
 			}
 			if ids := slices.Sorted(maps.Keys(got.sessions)); !slices.Equal(ids, tt.held) {
 				t.Errorf("the store holds %v, want %v", ids, tt.held)

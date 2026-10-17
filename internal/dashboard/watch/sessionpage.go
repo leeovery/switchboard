@@ -168,7 +168,7 @@ func (m Model) pageFold(now time.Time) *pageFold {
 		return nil
 	}
 	live := m.pageLive(s.id, now)
-	due, awaited := s.awaited.due(s.held.Awaited(live), live.Stream, now)
+	due, awaited := s.awaited.due(s.held.Awaited(live), live.Stream, now, m.tail.at)
 	late := slices.Concat(due, s.held.Unread(m.tail.missed(views.Today(now))))
 	return &pageFold{id: s.id, held: s.held, late: slices.Compact(slices.Sorted(slices.Values(late))), awaited: awaited}
 }

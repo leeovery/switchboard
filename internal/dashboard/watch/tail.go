@@ -29,11 +29,12 @@ type ledgerTail struct {
 	whole   int
 }
 
-// tailRead is where a read of today's lines read them to: the mark, and the
-// day it's of.
+// tailRead is where a read of today's lines read them to: the mark, the
+// day it's of, and when it read them.
 type tailRead struct {
 	mark ledger.Mark
 	day  views.LedgerDay
+	at   time.Time
 }
 
 // tailedMsg is what a read of the ledger's tail found: where it read
@@ -197,7 +198,7 @@ func (m Model) askingTail(now time.Time, opens bool) (Model, tailReading) {
 // it, wanting the sessions of the Log's lines, logged, too, and what the
 // feed changed of each session; and the page open grown by it.
 func (t tailReading) took(read tailLines, next ledger.Mark, logged []string) (tailedMsg, views.SessionGains) {
-	msg := tailedMsg{mark: next, day: t.today, lines: read}
+	msg := tailedMsg{mark: next, day: t.today, at: t.now, lines: read}
 	var gains views.SessionGains
 	if t.held != nil {
 		fed, g := t.held.fed(t.r.ledger, read, logged, t.now)

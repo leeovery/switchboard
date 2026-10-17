@@ -194,51 +194,26 @@ func (g *pageGuard) holds(now time.Time) {
 // arrived on, and how many lines of requests it holds.
 func pageHolds(h views.HeldPage) (map[string]int, int) {
 	answers, lines := make(map[string]int), 0
-	seen := make(map[uintptr]bool)
-	var walk func(reflect.Value)
-	walk = func(v reflect.Value) {
-		if k := v.Kind(); (k == reflect.Pointer || k == reflect.Map) && !v.IsNil() {
-			if seen[v.Pointer()] {
-				return
-			}
-			seen[v.Pointer()] = true
+	walked(h, func(v reflect.Value) bool {
+		switch t := v.Type(); {
+		case t == reflect.TypeFor[ledger.Line]():
+			lines++
+			return false
+		case t.PkgPath() == viewsPkg && t.Name() == "answered":
+			answers[dayfile.DateOf(time.Unix(v.FieldByName("flight").FieldByName("at").FieldByName("sec").Int(), 0))]++
 		}
-		switch v.Kind() {
-		case reflect.Pointer, reflect.Interface:
-			if !v.IsNil() {
-				walk(v.Elem())
-			}
-		case reflect.Slice, reflect.Array:
-			for i := range v.Len() {
-				walk(v.Index(i))
-			}
-		case reflect.Map:
-			for it := v.MapRange(); it.Next(); {
-				walk(it.Key())
-				walk(it.Value())
-			}
-		case reflect.Struct:
-			switch t := v.Type(); {
-			case t == reflect.TypeFor[ledger.Line]():
-				lines++
-				return
-			case t.PkgPath() == viewsPkg && t.Name() == "answered":
-				answers[dayfile.DateOf(time.Unix(v.FieldByName("flight").FieldByName("at").FieldByName("sec").Int(), 0))]++
-			}
-			for _, field := range v.Fields() {
-				walk(field)
-			}
-		}
-	}
-	walk(reflect.ValueOf(h))
+		return true
+	})
 	return answers, lines
 }
 
 // sameAsOneRead judges the page at now, and its turn open, those of a page
-// read whole at now, its turn open read whole as it opens.
+// read whole at now, its turn open read whole as it opens; and none of the
+// readers holding what they decode once, as heldRaw has it.
 func (g *pageGuard) sameAsOneRead(now time.Time) {
 	g.t.Helper()
 	m := g.s.h.model
+	heldRaw(g.t, m, now)
 	live := m.pageLive(g.id, now)
 	live.Stream = live.Stream.Of(g.id)
 	whole := views.ReadPage(g.s.follower, g.id, live.Stream, m.cfg.Prices, m.cfg.LedgerKeep, now)

@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unique"
 
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/score"
@@ -41,12 +42,14 @@ type LogRead struct {
 }
 
 // loggedDay is a day of the Log's read: its lines, in the order taken in,
-// as their seqs have them; and their keys, by which a line given again is
-// known, and a session's lines found.
+// as their seqs have them; their keys, by which a line given again is
+// known, and a session's lines found; and the handles of their words, as
+// interning holds them, in layers, as stacked has them.
 type loggedDay struct {
 	day   LedgerDay
 	lines chunked[*loggedLine]
 	keys  *stacked[loggedKeys]
+	names *stacked[interning]
 }
 
 // loggedKeys are the keys of a day's lines, as loggedDay holds them: those
@@ -213,7 +216,7 @@ func (r LogRead) changed(retold []*loggedLine) LogRead {
 func (r *LogRead) take(lines []ledger.Held, whole bool, t LogTaking) bool {
 	today := Today(t.Now)
 	given := givenLines{ids: make(map[lineKey]bool), idless: make(map[idlessKey]int)}
-	added := make(map[string]*loggedKeys)
+	added := make(map[string]*takenDay)
 	for i := range lines {
 		l := &lines[i].Line
 		at := r.dayOf(Today(l.At))
@@ -221,21 +224,39 @@ func (r *LogRead) take(lines []ledger.Held, whole bool, t LogTaking) bool {
 			continue
 		}
 		r.seq++
-		logged := loggedLineOf(l, r.seq, placeOf(l, t.Stream), r.worthOf(l, today.Date), r.storyOf(l, t.Held))
-		r.days[at].lines = r.days[at].lines.appended(logged)
 		date := r.days[at].day.Date
 		if added[date] == nil {
-			added[date] = new(loggedKeys)
+			added[date] = &takenDay{names: make(interning)}
 		}
-		added[date].add(logged)
+		a := added[date]
+		logged := loggedLineOf(l, r.seq, placeOf(l, t.Stream), r.worthOf(l, today.Date), r.storyOf(l, t.Held), a.names)
+		a.lines = append(a.lines, logged)
+		a.keys.add(logged)
 		r.written = score.Later(r.written, ended(l))
 	}
 	for i := range r.days {
-		if keys := added[r.days[i].day.Date]; keys != nil {
-			r.days[i].keys = r.days[i].keys.with(*keys, keys.size(), mergedLoggedKeys)
+		if a := added[r.days[i].day.Date]; a != nil {
+			r.days[i].took(a)
 		}
 	}
 	return len(added) > 0
+}
+
+// takenDay is what a read took in of a day's lines: the Log's lines, in the
+// order taken in, their keys, and the handles of their words.
+type takenDay struct {
+	lines []*loggedLine
+	keys  loggedKeys
+	names interning
+}
+
+// took has d, its read's own, hold what a read took in of its lines, a,
+// whose handles of words it holds already it lets go.
+func (d *loggedDay) took(a *takenDay) {
+	d.lines = d.lines.appended(a.lines)
+	d.keys = d.keys.with(a.keys, a.keys.size(), mergedLoggedKeys)
+	maps.DeleteFunc(a.names, func(h unique.Handle[string], _ struct{}) bool { return heldName(d.names, h) })
+	d.names = d.names.with(a.names, len(a.names), mergedNames)
 }
 
 // givenLines are the lines a read has given so far: those with ids, by

@@ -37,11 +37,13 @@ const (
 // the watch draws the one it holds.
 type HeldSessions struct {
 	prices ledger.Table
-	// day is the day it was last fed on, and fed when, by the clock its
-	// feeds are given: a feed before either, as the clock set back or the
-	// zone changed has it, holds none of what it held.
-	day LedgerDay
-	fed time.Time
+	// fed is when it was last fed, as fedAt has it: of the reads it was
+	// given, the latest fed, as a feed before it, as the clock set back or
+	// the zone changed has it, holds none of what it held. unread is when it
+	// was last fed as the days a read of the ledger's tail reads again for
+	// it have it, as Unread has them: of the reads it was given, as fedWith
+	// has it.
+	fed, unread fedAt
 	// feeds is how many feeds it's had, kept as the clock set back drops
 	// what it holds, so what was fed later is known by it.
 	feeds int
@@ -53,6 +55,18 @@ type HeldSessions struct {
 	last feedCounts
 }
 
+// fedAt is when a store was fed, by the clock its feeds are given, and the
+// day that fell on: none where it never was.
+type fedAt struct {
+	at  time.Time
+	day LedgerDay
+}
+
+// fedOn is a store fed at now.
+func fedOn(now time.Time) fedAt {
+	return fedAt{at: now, day: Today(now)}
+}
+
 // heldSession is a session the store holds: its horizon; its story of the
 // requests behind it, sealed; those at or past it, open, in order, as
 // inOrder has it; its story of them all, the sealed story told on with the
@@ -60,8 +74,9 @@ type HeldSessions struct {
 // day on, by their dates, for a line given again to be known; how many of
 // its requests arrived on each day, by date, for a day read again whole
 // before then; and, of the session whose page is open alone, what its page
-// tallies of the requests sealed, and of its points, its accounts' every
-// request on its days among them, nil of every other.
+// tallies of the requests sealed, its points among it, which hold its
+// accounts' answers of the last run of its days they haven't sealed, and of
+// today's and yesterday's, as pointing has them; nil of every other.
 type heldSession struct {
 	horizon instant
 	sealed  *story
@@ -256,15 +271,16 @@ func (h HeldSessions) feeding(want SessionsWanted, now time.Time) *feed {
 	for _, id := range want.Running {
 		f.running[id] = true
 	}
-	f.day, f.fed, f.last, f.feeds = Today(now), now, feedCounts{}, h.feeds+1
+	f.fed, f.last, f.feeds = fedOn(now), feedCounts{}, h.feeds+1
+	f.unread = f.fed
 	f.sessions = cloneOrMake(h.sessions)
 	if s, held := f.sessions[want.Page]; held && s.page == nil && want.paged != nil {
 		f.change(want.Page, want.paged)
 	}
 	for id, s := range f.sessions {
-		if s.day().Date < f.day.Date {
-			f.change(id, s.on(f.day, f.prices))
-			f.whole[id] = f.whole[id] || s.repricedOn(f.prices, f.day)
+		if s.day().Date < f.fed.day.Date {
+			f.change(id, s.on(f.fed.day, f.prices))
+			f.whole[id] = f.whole[id] || s.repricedOn(f.prices, f.fed.day)
 		}
 	}
 	if s, held := f.sessions[want.Page]; held && joinedLate(f.now, want.Pins[want.Page], s.horizon) {
@@ -297,7 +313,7 @@ func joinedLate(now time.Time, pins []time.Time, horizon instant) bool {
 // since h was last fed, now: now is before then, or the day then falls on
 // starts otherwise than it did.
 func (h HeldSessions) turnedBack(now time.Time) bool {
-	return !h.fed.IsZero() && (now.Before(h.fed) || !Today(h.fed).Start.Equal(h.day.Start))
+	return !h.fed.at.IsZero() && (now.Before(h.fed.at) || !Today(h.fed.at).Start.Equal(h.fed.day.Start))
 }
 
 // change has the session with the given id held as s, its story to be told
@@ -321,7 +337,7 @@ func (f *feed) take(batch takenLines, whole bool) {
 		s, held := f.sessions[id]
 		switch {
 		case !held:
-			f.today[id] = f.today[id] || slices.ContainsFunc(requests, func(r heldRequest) bool { return f.day.Holds(r.arrived()) })
+			f.today[id] = f.today[id] || slices.ContainsFunc(requests, func(r heldRequest) bool { return f.fed.day.Holds(r.arrived()) })
 			continue
 		case f.whole[id]:
 			continue
@@ -331,7 +347,7 @@ func (f *feed) take(batch takenLines, whole bool) {
 		case !placed:
 			f.whole[id] = true
 		case len(added) > 0:
-			f.change(id, s.with(pricedAt(added, f.prices, f.day.Date)))
+			f.change(id, s.with(pricedAt(added, f.prices, f.fed.day.Date)))
 			f.last.gained += len(added)
 		}
 	}
@@ -350,12 +366,12 @@ func (f *feed) answer(t Taken) {
 	}
 	points, ok := s.page.points, true
 	for _, date := range slices.Sorted(maps.Keys(t.read.days)) {
-		if points, ok = points.took(date, answersIn(t.read.days[date], id), true, f.day); !ok {
+		if points, ok = points.took(date, answersIn(t.read.days[date], id), true, f.fed.day); !ok {
 			break
 		}
 	}
 	if ok {
-		points, ok = points.took(f.day.Date, answersIn(t.read.gained, id), false, f.day)
+		points, ok = points.took(f.fed.day.Date, answersIn(t.read.gained, id), false, f.fed.day)
 	}
 	switch {
 	case !ok:
@@ -434,7 +450,7 @@ func (f *feed) unheld() []string {
 // it read whole, as readOf has it, sealed behind its horizon, as horizonOf
 // has it, its page tallied, of answers, where it's the page's.
 func (f *feed) hold(id string, lines []ledger.Line, answers map[string][]answered) {
-	s := readOf(lines, answers, f.prices, f.day, f.horizonOf(id), id == f.want.Page)
+	s := readOf(lines, answers, f.prices, f.fed.day, f.horizonOf(id), id == f.want.Page)
 	f.sessions[id] = s
 	delete(f.before, id)
 	f.gains[id] = SessionGain{whole: true}
@@ -792,17 +808,22 @@ func (m move) same(o move) bool {
 // With is h with the sessions found, held of reads of their own, as the
 // List's first read holds them, that h doesn't hold: none it holds is
 // changed. It's priced as h is, whatever found is priced by; as last fed
-// as fedWith has it, so the days a read of the ledger's tail reads again
-// for it, as Unread has them, are those any session it holds may have
-// missed lines of, its last feed's counts found's where it was never fed;
-// holding every one of today's sessions where either does; and counting
-// the more feeds of the two.
+// as the later fed of the two, so a feed after the clock was set back
+// behind either knows it was; and as last fed, for the days a read of the
+// ledger's tail reads again for it, as fedWith has it, so those, as Unread
+// has them, are those any session it holds may have missed lines of; its
+// last feed's counts found's where it was never fed; holding every one of
+// today's sessions where either does; and counting the more feeds of the
+// two.
 func (h HeldSessions) With(found HeldSessions) HeldSessions {
-	if h.fed.IsZero() {
+	if h.fed.at.IsZero() {
 		h.last = found.last
 	}
 	if h.fedWith(found) {
-		h.fed, h.day = found.fed, found.day
+		h.unread = found.unread
+	}
+	if found.fed.at.After(h.fed.at) {
+		h.fed = found.fed
 	}
 	sessions := cloneOrMake(h.sessions)
 	for id, s := range found.sessions {
@@ -815,22 +836,23 @@ func (h HeldSessions) With(found HeldSessions) HeldSessions {
 }
 
 // fedWith reports whether h given found's sessions is as last fed as found
-// is: where found was fed, and h never was; else, of the two that hold a
-// session, the earlier fed, as only a session held may have missed lines
-// since; of two that hold none, the later fed, as nothing held reads
-// again what was missed before then.
+// is, for the days a read of the ledger's tail reads again for it: where
+// found was fed, and h never was; else, of the two that hold a session, the
+// earlier fed, as only a session held may have missed lines since; of two
+// that hold none, the later fed, as nothing held reads again what was
+// missed before then.
 func (h HeldSessions) fedWith(found HeldSessions) bool {
-	if found.fed.IsZero() || h.fed.IsZero() {
-		return h.fed.IsZero()
+	if found.unread.at.IsZero() || h.unread.at.IsZero() {
+		return h.unread.at.IsZero()
 	}
 	holds, finds := len(h.sessions) > 0, len(found.sessions) > 0
 	switch {
 	case holds != finds:
 		return finds
 	case holds:
-		return found.fed.Before(h.fed)
+		return found.unread.at.Before(h.unread.at)
 	}
-	return h.fed.Before(found.fed)
+	return h.unread.at.Before(found.unread.at)
 }
 
 // Without is h holding none of the sessions held holds, else as it's held:
@@ -900,7 +922,7 @@ func (h HeldSessions) Awaited(live ListLive) []string {
 // whole for the store: the day it was last fed on and those after it, as
 // it took in every line filed on a day before it.
 func (h HeldSessions) Unread(missed []string) []string {
-	return slices.DeleteFunc(slices.Clone(missed), func(date string) bool { return date < h.day.Date })
+	return slices.DeleteFunc(slices.Clone(missed), func(date string) bool { return date < h.unread.day.Date })
 }
 
 // Len is how many sessions h holds.
@@ -910,7 +932,7 @@ func (h HeldSessions) Len() int {
 
 // Holding is what h holds, and what its last feed did, as Holding has them.
 func (h HeldSessions) Holding() Holding {
-	held := Holding{Day: h.day.Date, Open: make(map[string]int, len(h.sessions)), Gained: h.last.gained, Folded: h.last.folded, Read: h.last.read}
+	held := Holding{Day: h.fed.day.Date, Open: make(map[string]int, len(h.sessions)), Gained: h.last.gained, Folded: h.last.folded, Read: h.last.read}
 	for id, s := range h.sessions {
 		held.Open[id] = len(s.open)
 		for _, flights := range s.flights {
@@ -930,7 +952,7 @@ func (h HeldSessions) storyOf(id string) *story {
 	if s, ok := h.sessions[id]; ok {
 		return s.story
 	}
-	return newStory(h.prices, h.day)
+	return newStory(h.prices, h.fed.day)
 }
 
 // namingOf is what the lines h holds of the session with the given id name

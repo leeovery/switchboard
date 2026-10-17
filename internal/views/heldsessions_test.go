@@ -1,6 +1,7 @@
 package views_test
 
 import (
+	"fmt"
 	"maps"
 	"slices"
 	"testing"
@@ -349,6 +350,43 @@ func TestTheStoreGivenAnothersSessionsReadsAgainTheDaysEitherMissed(t *testing.T
 				t.Errorf("the store holds %v requests open, want %v, as one read whole holds them", got, want)
 			}
 		})
+	}
+}
+
+// A store fed, then given the session of a page read after the clock was set
+// back, knows the clock was set back at its next feed, as it would without
+// the page's read: it holds none of what it held, so a request that arrived
+// after the clock's now is listed by neither, as the List built afresh has
+// it.
+func TestTheStoreGivenAReadAfterTheClockWasSetBackKnowsItWas(t *testing.T) {
+	ahead := sessionAsked("a1", mover, "work", "new", local(9, 50, 0))
+	b1 := sessionAsked("b1", older, "work", "new", local(8, 40, 0))
+	fed, back, next := local(10, 0, 0), local(9, 0, 0), local(9, 1, 0)
+	held := listHeld(sessionsLedger([]ledger.Line{b1, ahead}, fed), nil, fed)
+	l := sessionsLedger([]ledger.Line{b1}, next)
+	held = held.With(views.ReadPage(sessionsLedger([]ledger.Line{b1}, back), older, views.Stream{}, ledger.Pricing, 0, back).Found())
+	got := fedList(held, l, nil, next).List(views.ListLive{Now: next})
+	assertList(t, got, views.ListSessions(views.SessionSources{Ledger: l, Prices: ledger.Pricing, Now: next}))
+	if len(got.Sessions) != 1 || got.Sessions[0].Session != older {
+		t.Errorf("the List holds %+v, want older alone, mover's request arriving after the clock's now", got.Sessions)
+	}
+}
+
+// A store holding a session over two midnights keeps the keys, for lines
+// given again, of its requests of yesterday and today alone: those of the
+// day before yesterday it lets go of as the day turns.
+func TestTheStoreKeepsTheKeysOfYesterdaysAndTodaysRequestsAlone(t *testing.T) {
+	want := views.SessionsWanted{Log: []string{older}}
+	var lines []ledger.Line
+	held := views.HoldSessions(ledger.Pricing)
+	for day := 5; day <= 7; day++ {
+		gained := sessionAsked(fmt.Sprintf("o%d", day), older, "work", "sticky", october(day, 11, 0))
+		lines = append(lines, gained)
+		at := october(day, 12, 0)
+		held, _ = held.Fed(sessionsLedger(lines, at), views.Took(heldOf(gained), nil), want, at)
+	}
+	if got := held.Holding(); got.Keys != 2 || got.Day != "2026-10-07" {
+		t.Errorf("on %s the store holds the keys of %d requests, want 2 on 7 October, yesterday's and today's", got.Day, got.Keys)
 	}
 }
 

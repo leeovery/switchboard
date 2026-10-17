@@ -98,6 +98,26 @@ func TestTheLogHoldsOnlyWhatItShows(t *testing.T) {
 	if len(g.checks) > 0 {
 		t.Errorf("no read of the ledger landed after %v to hold the Log's Requests to one read whole at", g.checks)
 	}
+	if unwanted := unwantedHeld(m); len(unwanted) > 0 {
+		t.Errorf("following again, its page closed, the store holds %v, which neither the Log's days nor the sessions running want", unwanted)
+	}
+}
+
+// unwantedHeld are the sessions the store m holds that nothing wants it to:
+// none of the Log's days' lines, nor running, as the router lists them. The
+// List isn't open, to want today's.
+func unwantedHeld(m Model) []string {
+	wanted := m.log.read.Wanted()
+	for _, s := range m.sessions {
+		wanted = append(wanted, s.ID)
+	}
+	var unwanted []string
+	for id := range m.held.Holding().Open {
+		if !slices.Contains(wanted, id) {
+			unwanted = append(unwanted, id)
+		}
+	}
+	return unwanted
 }
 
 // logGuard holds the Log to what it shows, read by read: s is the soak;
@@ -200,11 +220,13 @@ func (g *logGuard) judged(was Model) {
 // sameAsOneRead judges the Log's Requests at now, of the lines it has
 // tabled read by read, those of one read whole at now: each day's lines the
 // ledger holds, from the day the Log spans from, the store fed them whole,
-// through the same filter, of what the stream tells; and the Log reaching
-// nothing of a day before it spans from, by any path, as daysHeld finds.
+// through the same filter, of what the stream tells; the Log reaching
+// nothing of a day before it spans from, by any path, as daysHeld finds;
+// and none of the readers holding what they decode once, as heldRaw has it.
 func (g *logGuard) sameAsOneRead(now time.Time) {
 	g.t.Helper()
 	m := g.s.h.model
+	heldRaw(g.t, m, now)
 	if held := daysHeld(m.log, m.log.from.Date); len(held) > 0 {
 		g.t.Errorf("at %s the Log, spanning from %s, still reaches %v", now.Format(time.DateTime), m.log.from.Date, held)
 	}

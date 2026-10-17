@@ -1,10 +1,8 @@
 package views
 
 import (
-	"cmp"
 	"math"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
@@ -137,7 +135,8 @@ func holdPage(id string, read SessionsRead, prices ledger.Table, keep time.Durat
 // Found is the store of h's session alone, as h holds it, read whole as it
 // was held, for the watch's store to take in, as HeldSessions' With has it.
 func (h HeldPage) Found() HeldSessions {
-	return HeldSessions{prices: h.prices, day: Today(h.read), fed: h.read, sessions: map[string]*heldSession{h.id: h.record}}
+	read := fedOn(h.read)
+	return HeldSessions{prices: h.prices, fed: read, unread: read, sessions: map[string]*heldSession{h.id: h.record}}
 }
 
 // Joined is h as its read joins store, which holds its session, as Found
@@ -537,9 +536,7 @@ func (w worked) turnRequests(n int) ([]LogLine, bool) {
 			lines = append(lines, l)
 		}
 	}
-	slices.SortStableFunc(lines, func(a, b ledger.Line) int {
-		return cmp.Or(instantOf(a.At).compare(instantOf(b.At)), instantOf(ended(&a)).compare(instantOf(ended(&b))), strings.Compare(a.Request, b.Request))
-	})
+	slices.SortStableFunc(lines, func(a, b ledger.Line) int { return flightOf(&a).compare(flightOf(&b)) })
 	var told []Told
 	for _, r := range w.told {
 		if !w.lined(r) && tally.member(r.AgentID, r.Prompt, prompt) {
