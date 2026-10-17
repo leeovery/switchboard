@@ -464,6 +464,9 @@ left it.
 A session that has run for weeks takes a moment to read. While it does, the page shows its heading
 with `loading…` after it, and `esc` goes back.
 
+A turn's requests are read from the ledger as you open it. If that takes a moment, the turn's foot
+says `loading…` until they're read.
+
 Keys on a session's page:
 
 | Key | Does |
@@ -503,7 +506,8 @@ When a tab reads a lot, as Sessions or the Log first showing a long ledger, its 
 `loading…` until the read lands. On the Overview, which has no heading row, SESSIONS' heading says
 it. A quick read says nothing. Once the Log, Sessions' List or a session's page has read the
 ledger, it keeps reading what the ledger gains while another tab shows, so it's up to date when you
-come back to it.
+come back to it. The Log keeps only the days it shows: once today's lines fill it, it lets go of
+yesterday's, and scrolling back reads them in again.
 
 ### The tabs
 
