@@ -37,7 +37,8 @@ const logGuardDays = 1
 // before again; following again, it lets go of it again, its read holding
 // today's lines alone, its Events none before today's reach. As it lets go,
 // paged back, and at the end, following again, its Requests are those of
-// one read whole, from the day they span from, the store fed it whole.
+// one read whole, from the day they span from, the store fed it whole, and
+// nothing of the Log's reaches a day before it.
 func TestTheLogHoldsOnlyWhatItShows(t *testing.T) {
 	midnight := dayfile.DayStart(guardStart, 1)
 	paged, followed, end := midnight.Add(4*time.Minute), midnight.Add(4*time.Minute+20*time.Second), midnight.Add(5*time.Minute)
@@ -151,10 +152,14 @@ func (g *logGuard) judged(was Model) {
 // sameAsOneRead judges the Log's Requests at now, of the lines it has
 // tabled read by read, those of one read whole at now: each day's lines the
 // ledger holds, from the day the Log spans from, the store fed them whole,
-// through the same filter, of what the stream tells.
+// through the same filter, of what the stream tells; and the Log reaching
+// nothing of a day before it spans from, by any path, as daysHeld finds.
 func (g *logGuard) sameAsOneRead(now time.Time) {
 	g.t.Helper()
 	m := g.s.h.model
+	if held := daysHeld(m.log, m.log.from.Date); len(held) > 0 {
+		g.t.Errorf("at %s the Log, spanning from %s, still reaches %v", now.Format(time.DateTime), m.log.from.Date, held)
+	}
 	stream := m.logStream(now)
 	read := viewstest.ReadingLog(m.cfg.Prices)
 	for day := views.Today(now); !day.Start.Before(m.log.from.Start); day = views.Today(day.Start.Add(-time.Hour)) {

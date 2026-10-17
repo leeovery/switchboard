@@ -656,8 +656,10 @@ func (f Frame) LogRows() int {
 
 // KeptFrom is the latest day the Log's tables could span from, in a view
 // rows rows tall, still filling the rows each has filled, as Filling has
-// it, and the table shown the view: false where it's no later than the day
-// they span from, or a table filled no view, or fills its own no more.
+// it, and the table shown the view, a table not shown that has filled no
+// view passed over: false where it's no later than the day they span from,
+// or a table can't fill what it must from any day, as the shown one can't
+// where it holds fewer lines than the view.
 func (p LogPage) KeptFrom(rows int) (views.LedgerDay, bool) {
 	kept := p.Today
 	for v, s := range p.Stands {

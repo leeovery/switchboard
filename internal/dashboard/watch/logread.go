@@ -135,11 +135,11 @@ func (m Model) readLog() (Model, tea.Cmd) {
 // go of the days its tables no longer show, as a read of the tail grows it
 // whatever shows: once a read, as its read changes.
 func (m Model) keptHidden(now time.Time) Model {
-	if !m.log.opened || m.log.read.Same(m.log.kept) {
+	if !m.log.opened || m.log.read.Gen() == m.log.kept {
 		return m
 	}
 	m = m.builtLog(now)
-	m.log.kept = m.log.read
+	m.log.kept = m.log.read.Gen()
 	return m
 }
 

@@ -143,7 +143,19 @@ func (r LogRead) From(day LedgerDay) LogRead {
 // Same reports whether r and o are the same read: o grown into r, or r into
 // o, by nothing.
 func (r LogRead) Same(o LogRead) bool {
-	return r.grew == o.grew && r.gen == o.gen
+	return r.Gen() == o.Gen()
+}
+
+// LogGen is which read a LogRead is, as Same knows it, holding none of its
+// lines: two reads are the same where their gens are.
+type LogGen struct {
+	grew *int
+	gen  int
+}
+
+// Gen is which read r is, as LogGen has it.
+func (r LogRead) Gen() LogGen {
+	return LogGen{grew: r.grew, gen: r.gen}
 }
 
 // Wanted are the ids of the sessions the Log wants the store to hold, in

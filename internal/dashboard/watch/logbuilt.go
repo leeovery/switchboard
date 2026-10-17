@@ -71,7 +71,8 @@ func (b *eventsBasis) same(o eventsBasis) bool {
 
 // panelBasis is what the Log's panel's figures are made of: what the Log
 // holds of the table it's of, as lined counts the changes to its lines, of
-// Requests', and held every change, of Events'; what the stream told of
+// Requests', and held every change, of Events'; the store its sessions are
+// told by, as stored counts its changes; what the stream told of
 // the requests' rows, as logTold gives it and sameRows compares it, which
 // says what its sessions are doing, an answer streaming on saying nothing
 // more; the table it's of, what it picks and the sessions it ticks; the
@@ -81,6 +82,7 @@ func (b *eventsBasis) same(o eventsBasis) bool {
 // sessions' doing is told at.
 type panelBasis struct {
 	held   int
+	stored int
 	told   streamTold
 	of     dashboard.LogView
 	filter views.LogFilter
@@ -94,7 +96,7 @@ type panelBasis struct {
 // same reports whether b is o, the panel's figures made of one as of the
 // other.
 func (b *panelBasis) same(o panelBasis) bool {
-	return b != nil && b.held == o.held && b.told.sameRows(o.told) && b.of == o.of && b.filter.Equal(o.filter) && b.shows.Equal(o.shows) &&
+	return b != nil && b.held == o.held && b.stored == o.stored && b.told.sameRows(o.told) && b.of == o.of && b.filter.Equal(o.filter) && b.shows.Equal(o.shows) &&
 		slices.Equal(b.ticked, o.ticked) && views.SameListings(b.listed, o.listed) && b.found == o.found && b.minute.Equal(o.minute)
 }
 
@@ -150,7 +152,7 @@ func (m Model) panelBasis(p dashboard.LogPanel, now time.Time) panelBasis {
 		held = m.log.held
 	}
 	return panelBasis{
-		held: held, told: m.logTold(), of: p.Of, filter: p.Filter, shows: p.Shows, ticked: p.TickedSessions(),
+		held: held, stored: m.stored, told: m.logTold(), of: p.Of, filter: p.Filter, shows: p.Shows, ticked: p.TickedSessions(),
 		listed: views.KeptListings(m.sessions), found: m.log.find.picked, minute: now.Truncate(time.Minute),
 	}
 }

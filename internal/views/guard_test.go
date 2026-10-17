@@ -154,7 +154,7 @@ var (
 		"views.HoldSessions", "views.Lanes.Look", "views.ListSessions", "views.ListWanted", "views.LogEvents", "views.LogFilter.KeptFrom",
 		"views.LogRows", "views.LogSessions", "views.Patch", "views.ReadEvents",
 		"views.RunwayReadings", "views.StubsOf", "views.Today", "views.Took", "views.TotalsOn",
-		"views.EventsRead.From", "views.HeldSessions.Unheld", "views.LogLines.Rows", "views.LogLinesOf", "views.LogRead.From", "views.LogRead.HoldsTold",
+		"views.EventsRead.From", "views.HeldSessions.Unheld", "views.LogLines.Rows", "views.LogLinesOf", "views.LogRead.From", "views.LogRead.Gen", "views.LogRead.HoldsTold",
 		"views.LogRead.Taken", "views.LogRead.Wanted", "views.ReadLog", "views.SessionGains.Retell", "views.StreamWanted",
 	}
 )
