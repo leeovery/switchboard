@@ -44,7 +44,7 @@ func moveOf(s *story, e status.Event) *move {
 	var made *move
 	for i := range s.moves {
 		m := &s.moves[i]
-		if m.from != e.From || m.to != e.To || e.Model != "" && m.model != e.Model || !inFlightAt(m.by, e.At) {
+		if m.from != e.From || m.to != e.To || e.Model != "" && m.model != e.Model || !m.by.inFlightAt(e.At) {
 			continue
 		}
 		if made == nil || !m.at.Before(made.at) {
@@ -59,7 +59,7 @@ func eventMove(m *move) *EventMove {
 	if m == nil {
 		return nil
 	}
-	made := &EventMove{Request: m.by.Request, At: m.at, Cost: m.cost, Rewrote: m.rewrote != nil}
+	made := &EventMove{Request: m.by.request, At: m.at, Cost: m.cost, Rewrote: m.rewrote != nil}
 	if made.Rewrote {
 		made.Written = m.written
 	}

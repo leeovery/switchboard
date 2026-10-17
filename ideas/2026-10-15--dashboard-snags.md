@@ -43,12 +43,31 @@ worked on there till they're right.
     show something than nothing";
   - the owner would put `Σ pool` at the top, not the bottom ("I think that was a mistake"), and
     drop the rule above it now it's named and marked; perhaps a texture on its bars, to discuss.
+  - the words under the pool's lane, "3 of 4 with room till ~Sat 11:18, 2 till ~Sat 20:47, 1 till
+    Sun 02:00, …", read its bar aloud a step at a time, crammed on one row: "I don't know even what
+    all that means, let alone if we need it." The owner likes "week 0.9 of 4 left" beside it;
+  - the pool's red `at its limit` line runs along the lane's bottom row, not through its middle as
+    the accounts' lanes have it, and looks wrong there: thicker, perhaps, to mock up. A nitpick.
 - **The key floats mid-page,** on Sessions' Switchboard most: the owner's idea, to spike, is the
   key at the foot with the key line, a footer of two, any other words above it.
 - **The List's summary** sits right-aligned on the row over the key line, so it reads as the key
   line broken onto two rows, its right half higher.
 - **Weeks says there aren't enough weeks yet** on a ledger begun 7 October: check that's the rule,
   not a fault.
+- **A phone's charts start under the bars' column,** about 10 columns in, the room to their left
+  unused: "Let the graphs be full width there."
+- **A phone's view tabs** (Compare, Detail) draw their highlight hard against the word, no cell
+  before it, so it reads left-aligned: a cell either side, as the page's tabs have.
+- **A card left open reads as a hang.** Under a card the page holds as it stood when the card
+  opened (`watch.go` screen: `m.page.frame` at `m.page.at`), its clock included. A dashboard left
+  with a card open on the phone at 08:28 was taken for one that had frozen, its keys no longer
+  reaching it over Mosh. To decide: whether the heading's clock stays live under a card.
+
+## Loading
+
+- **`loading…` in the heading's state slot is too small to notice.** The owner would rather a
+  central indicator of a decent size, animated perhaps: "We need something visual, decent-sized."
+  Not urgent.
 
 ## Accounts' Detail
 

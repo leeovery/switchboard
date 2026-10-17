@@ -276,23 +276,37 @@ func (s RoutingSaid) CostSaid() string {
 // its session, the reason; else, where it's the session's first, "new
 // session". The cost is its move's.
 func routingOf(l *ledger.Line, first bool, made *move) RoutingSaid {
-	said := RoutingSaid{From: l.From}
-	switch {
-	case len(l.Tried) > 0:
-		tried := make([]status.Tried, len(l.Tried))
-		for i, t := range l.Tried {
-			tried[i] = status.Tried(t)
-		}
-		said.Words = status.TriedWords(tried...)
-	case l.From != "":
-		said.Words = status.RoutingWords(l.Reason, status.Facts{From: l.From, To: l.Account})
-	case first:
-		said.Words = newSession()
-	}
+	said := RoutingSaid{From: l.From, Words: routingWords(l.Tried, l.Reason, status.Facts{From: l.From, To: l.Account}, first)}
 	if made != nil {
 		said.Cost, said.Rewrote = made.cost, made.rewrote != nil
 	}
 	return said
+}
+
+// routing is how the router chose the account of the request that made m,
+// as routingOf says it of its line.
+func (m *move) routing() RoutingSaid {
+	return RoutingSaid{From: m.from, Words: routingWords(m.tried, m.reason, status.Facts{From: m.from, To: m.to}, false), Cost: m.cost, Rewrote: m.rewrote != nil}
+}
+
+// routingWords are the words of a request's routing, as routingOf has them,
+// of the accounts it went out on that couldn't serve it, tried; the router's
+// reason; the account it moved its session from, none where it moved none,
+// and the one it went to; and whether it's its session's first.
+func routingWords(tried []ledger.Tried, reason string, moved status.Facts, first bool) status.Words {
+	switch {
+	case len(tried) > 0:
+		accounts := make([]status.Tried, len(tried))
+		for i, t := range tried {
+			accounts[i] = status.Tried(t)
+		}
+		return status.TriedWords(accounts...)
+	case moved.From != "":
+		return status.RoutingWords(reason, moved)
+	case first:
+		return newSession()
+	}
+	return nil
 }
 
 // newSession is a session's first request's routing: "new session".
@@ -312,7 +326,7 @@ func (l *ListedSession) cameBy(m *move) {
 	switch {
 	case m != nil:
 		l.Moved = &Move{At: m.at.UTC(), From: m.from, Reason: m.reason, Cost: m.cost}
-		l.Routing = routingOf(m.by, false, m)
+		l.Routing = m.routing()
 	case slices.ContainsFunc(l.Models, func(s SessionModel) bool { return s.Account == l.Account && s.Reason == status.ReasonPinned }):
 		l.Routing = RoutingSaid{Words: status.SessionWords(status.ReasonPinned, status.Facts{})}
 	}

@@ -1,6 +1,7 @@
 package views
 
 import (
+	"cmp"
 	"maps"
 	"slices"
 	"time"
@@ -44,10 +45,12 @@ type loggedLine struct {
 }
 
 // loggedSession is a session of the table's requests, as the read holds it:
-// its requests, oldest first, of whatever day; its story, told from them;
+// its requests, in order, as inOrder has it, of whatever day, each decoded
+// once, unpriced, as a story the Log tells its rows from says nothing of its
+// requests' worth, which each row holds priced; its story, told from them;
 // and the places of its requests among the table's lines.
 type loggedSession struct {
-	requests []request
+	requests []heldRequest
 	story    *story
 	lines    []int
 }
@@ -229,25 +232,10 @@ func (r LogRead) read(l LedgerSessions, fresh []ledger.Line) map[string]bool {
 	slices.Sort(ids)
 	for id, lines := range l.SessionsOf(ids, nil) {
 		if r.sessions[id] == nil {
-			r.sessions[id], read[id] = &loggedSession{requests: requestsUnpriced(lines)}, true
+			r.sessions[id], read[id] = &loggedSession{requests: heldRequestsOf(lines)}, true
 		}
 	}
 	return read
-}
-
-// requestsUnpriced are the requests among lines, a session's, oldest first,
-// as requestsOf has them, but unpriced: a story the Log tells its rows from
-// says nothing of its requests' worth, which each row holds priced.
-func requestsUnpriced(lines []ledger.Line) []request {
-	var requests []request
-	for i := range lines {
-		l := &lines[i]
-		if isRequest(l) {
-			tokens, metered := l.Tokens()
-			requests = append(requests, request{Line: l, tokens: tokens, metered: metered})
-		}
-	}
-	return requests
 }
 
 // copied is a copy of s for what grows it to change, sharing nothing it
@@ -260,21 +248,20 @@ func (s *loggedSession) copied() *loggedSession {
 }
 
 // hold holds the request l, a line of the session's among the table's at
-// the place given: among its requests, in the order they arrived, where it
+// the place given: among its requests, in order, as inOrder has it, where it
 // holds none of it, as sameLine has it, from the ledger's read of it.
 func (s *loggedSession) hold(l *ledger.Line, at int) {
 	s.lines = append(s.lines, at)
-	i, _ := slices.BinarySearchFunc(s.requests, l.At, func(r request, at time.Time) int { return r.At.Compare(at) })
-	for j := i; j < len(s.requests) && s.requests[j].At.Equal(l.At); j++ {
-		if sameLine(s.requests[j].Line, l) {
+	arrived := l.At.UnixNano()
+	i, _ := slices.BinarySearchFunc(s.requests, arrived, func(r heldRequest, at int64) int { return cmp.Compare(r.at, at) })
+	for j := i; j < len(s.requests) && s.requests[j].at == arrived; j++ {
+		if s.requests[j].request == l.Request {
 			return
 		}
 	}
-	for i < len(s.requests) && s.requests[i].At.Equal(l.At) {
-		i++
-	}
-	tokens, metered := l.Tokens()
-	s.requests = slices.Insert(s.requests, i, request{Line: l, tokens: tokens, metered: metered})
+	r := heldRequestOf(l)
+	i, _ = slices.BinarySearchFunc(s.requests, r, inOrder)
+	s.requests = slices.Insert(s.requests, i, r)
 }
 
 // retell tells the story of the session with the given id again, at the

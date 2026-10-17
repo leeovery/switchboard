@@ -9,7 +9,8 @@ import (
 
 // A line is of a request the stream told of, or another line, only by its id
 // and when: an id is unique only while the router that gave it runs, so the
-// same id at another time is another request.
+// same id at another time is another request. A held request's flight is
+// the same request as its line.
 func TestALineIsOfTheRequestWithItsIdWhileItWasInFlight(t *testing.T) {
 	arrived := time.Date(2026, 10, 7, 13, 0, 0, 0, time.UTC)
 	// It took 2.0009 seconds, which its line cuts to 2000 milliseconds.
@@ -31,6 +32,9 @@ func TestALineIsOfTheRequestWithItsIdWhileItWasInFlight(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := sameRequest(&l, tt.id, tt.at); got != tt.want {
 				t.Errorf("sameRequest(%s at %v for %d ms, %s, %v) = %t, want %t", l.Request, l.At, l.TotalMS, tt.id, tt.at, got, tt.want)
+			}
+			if got := flightOf(&l).is(tt.id, tt.at); got != tt.want {
+				t.Errorf("the flight of %s at %v for %d ms is of %s at %v: %t, want %t", l.Request, l.At, l.TotalMS, tt.id, tt.at, got, tt.want)
 			}
 		})
 	}

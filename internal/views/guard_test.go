@@ -65,7 +65,7 @@ var (
 	rawTypes = []string{
 		"events.Held", "events.Line",
 		"ledger.AccountDay", "ledger.Answer", "ledger.Held", "ledger.Hints", "ledger.Line", "ledger.ModelDay",
-		"ledger.Priced", "ledger.PricedModel", "ledger.Reply", "ledger.Shape", "ledger.Summary", "ledger.Tried",
+		"ledger.Priced", "ledger.PricedModel", "ledger.Reply", "ledger.Shape", "ledger.Spend", "ledger.Summary", "ledger.Tried",
 		"quota.Tokens",
 		"readings.Reading",
 		"router.StreamEvent",
@@ -76,9 +76,9 @@ var (
 	readsRaw = []string{
 		"claude.LimitStatus", "claude.LimitWindows", "claude.WindowsRead",
 		"ledger.Failing", "ledger.Line.Upstream",
-		"ledger.Reply.CacheLife", "ledger.Reply.Tokens",
-		"ledger.Table.CacheWrite", "ledger.Table.Priced", "ledger.Table.Request", "ledger.Table.Rewrite",
-		"ledger.Table.Summed", "ledger.Table.Worth",
+		"ledger.Reply.CacheLife", "ledger.Reply.Tokens", "ledger.Spend.CacheLife", "ledger.Spend.Tokens", "ledger.SpendOf",
+		"ledger.Table.CacheWrite", "ledger.Table.CacheWriteSpend", "ledger.Table.Priced", "ledger.Table.Request", "ledger.Table.Rewrite",
+		"ledger.Table.RewriteSpend", "ledger.Table.SamePrices", "ledger.Table.Summed", "ledger.Table.SummedSpend", "ledger.Table.Worth",
 	}
 	// absorbed are what a rule's one owner took the place of, each with its
 	// owner: a drawing package calls none, but its owner.

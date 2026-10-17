@@ -25,12 +25,17 @@ type Worth struct {
 // Amount where the table priced none of it.
 func summed(prices ledger.Table, l *ledger.Line, date string) Worth {
 	var w Worth
-	worth, priced := prices.Summed(l, date)
+	w.addSummed(prices.Summed(l, date))
+	return w
+}
+
+// addSummed adds what a request was worth, as ledger.Table.Summed gives it:
+// its cost, where the table priced it, and what it left unpriced.
+func (w *Worth) addSummed(worth ledger.Worth, priced bool) {
 	if priced {
 		w.addAmount(worth.Cost)
 	}
 	w.unprice(worth.Unpriced...)
-	return w
 }
 
 // addModel adds what a model's day was worth.

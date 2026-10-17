@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/quota"
 )
 
 // Picodollars are an amount of US dollars, in millionths of a millionth of a
@@ -157,7 +158,7 @@ const noUsage = "no_usage"
 // day with the given date. It reports false for a model the table doesn't
 // know, or a geo it doesn't price the model in: never zero.
 func (t Table) Worth(model, geo string, usage json.RawMessage, date string) (Worth, bool) {
-	return t.counted(model, geo, countsOf(usage), date)
+	return t.priced(model, geo, billOf(countsOf(usage)), false, date)
 }
 
 // Request returns what the line's request would have cost through the API at
@@ -166,7 +167,7 @@ func (t Table) Worth(model, geo string, usage json.RawMessage, date string) (Wor
 // worth nothing: one that went upstream whose answer gave no usage unpriced,
 // never free.
 func (t Table) Request(l *Line, date string) (Worth, bool) {
-	return t.worth(l.Model, l.Shape.InferenceGeo, countsOf(l.worthUsage()), l.unmetered(), date)
+	return t.priced(l.Model, l.Shape.InferenceGeo, billOf(countsOf(l.worthUsage())), l.unmetered(), date)
 }
 
 // CacheWrite returns what the line's request's writes to the prompt cache
@@ -176,7 +177,7 @@ func (t Table) Request(l *Line, date string) (Worth, bool) {
 // It's what a move cost, as a request that moved its session wrote its
 // context again on the account it moved to.
 func (t Table) CacheWrite(l *Line, date string) (Worth, bool) {
-	return t.worth(l.Model, l.Shape.InferenceGeo, countsOf(l.Usage).only(cacheWrites, cacheTTLs), l.unmetered(), date)
+	return t.priced(l.Model, l.Shape.InferenceGeo, billOf(countsOf(l.Usage).only(cacheWrites, cacheTTLs)), l.unmetered(), date)
 }
 
 // Summed returns what the line's request adds to a sum of requests' worth at
@@ -189,7 +190,7 @@ func (t Table) Summed(l *Line, date string) (Worth, bool) {
 	if w, ok := t.Request(l, date); ok {
 		return w, true
 	}
-	return Worth{Unpriced: t.wholly(l.Model, l.Shape.InferenceGeo, countsOf(l.worthUsage()), l.unmetered(), date)}, false
+	return Worth{Unpriced: t.wholly(l.Model, l.Shape.InferenceGeo, countsOf(l.worthUsage()).costly(), l.unmetered(), date)}, false
 }
 
 // Rewrite returns what writing the line's request's whole prompt into the
@@ -201,12 +202,17 @@ func (t Table) Summed(l *Line, date string) (Worth, bool) {
 // false where the table can't price the request, and where its answer gave
 // no usage, as what it was then is unknown.
 func (t Table) Rewrite(l *Line, life time.Duration, date string) (Picodollars, bool) {
-	tokens, ok := l.Tokens()
-	prices, priced := t.prices(l.Model, date)
-	if priced {
-		prices, priced = prices.in(l.Shape.InferenceGeo)
-	}
-	if !ok || !priced {
+	tokens, metered := l.Tokens()
+	return t.rewrite(l.Model, l.Shape.InferenceGeo, tokens, metered, life, date)
+}
+
+// rewrite returns what writing a prompt of the tokens given into the prompt
+// cache again would cost, as Rewrite says, of a request for the model with
+// the given id that asked for the geo given, metered where its answer gave
+// usage.
+func (t Table) rewrite(model, geo string, tokens quota.Tokens, metered bool, life time.Duration, date string) (Picodollars, bool) {
+	prices, priced := t.pricesIn(model, geo, date)
+	if !metered || !priced {
 		return 0, false
 	}
 	price := prices.CacheWrite1h
@@ -235,7 +241,15 @@ func (r Reply) CacheLife() (time.Duration, bool) {
 	written, _ := held[cacheWrites].(int64)
 	ttls, _ := held[cacheTTLs].(counts)
 	short, _ := ttls[shortWrites].(int64)
-	switch written = max(written, held.total(cacheTTLs)); {
+	return cacheLife(written, held.total(cacheTTLs), short)
+}
+
+// cacheLife returns how long the prompt cache's writes of a usage last, as
+// CacheLife says, of the count of its writes as a whole, written; of those
+// its cache_creation breaks down by how long each lasts, brokenDown; and of
+// those it says last five minutes, short.
+func cacheLife(written, brokenDown, short int64) (time.Duration, bool) {
+	switch written = max(written, brokenDown); {
 	case written == 0:
 		return 0, false
 	case short == written:
@@ -244,29 +258,21 @@ func (r Reply) CacheLife() (time.Duration, bool) {
 	return LongCache, true
 }
 
-// worth returns what the counts held would have cost, as Worth says, naming
-// noUsage among what it leaves unpriced where unmetered says requests they're
-// of went upstream without usage.
-func (t Table) worth(model, geo string, held counts, unmetered bool, date string) (Worth, bool) {
-	w, ok := t.counted(model, geo, held, date)
-	if ok && unmetered {
-		w.Unpriced = append(w.Unpriced, noUsage)
-		slices.Sort(w.Unpriced)
-	}
-	return w, ok
-}
-
-// counted returns what the counts held, of a request for the model with the
-// given id that asked for the geo given, would have cost, as Worth says.
-func (t Table) counted(model, geo string, held counts, date string) (Worth, bool) {
-	prices, ok := t.prices(model, date)
-	if ok {
-		prices, ok = prices.in(geo)
-	}
+// priced returns what the bill given, of a request for the model with the
+// given id that asked for the geo given, would have cost, as Worth says,
+// naming noUsage among what it leaves unpriced where unmetered says requests
+// it's of went upstream without usage.
+func (t Table) priced(model, geo string, billed bill, unmetered bool, date string) (Worth, bool) {
+	prices, ok := t.pricesIn(model, geo, date)
 	if !ok {
 		return Worth{}, false
 	}
-	return prices.worth(held), true
+	w := prices.worth(billed)
+	if unmetered {
+		w.Unpriced = append(w.Unpriced, noUsage)
+		slices.Sort(w.Unpriced)
+	}
+	return w, true
 }
 
 // countsOf returns the counts usage holds, as add reads them.
@@ -296,6 +302,30 @@ func (t Table) prices(model, date string) (Prices, bool) {
 		return Prices{}, false
 	}
 	return inEffect(t.Models[i].Prices, date), true
+}
+
+// pricesIn returns the prices of the model with the given id in effect on the
+// local day with the given date, as prices finds them, in the geo given, as
+// in has them. It reports false for a model the table doesn't know, or a geo
+// it doesn't price the model in.
+func (t Table) pricesIn(model, geo, date string) (Prices, bool) {
+	prices, ok := t.prices(model, date)
+	if !ok {
+		return Prices{}, false
+	}
+	return prices.in(geo)
+}
+
+// SamePrices reports whether the model with the given id costs alike on the
+// local days with the dates a and b: the prices in effect on each, as prices
+// finds them, the same but for the day they took effect, so whatever is
+// priced on one is worth as much on the other. A model the table doesn't know
+// costs alike, as none, on any day.
+func (t Table) SamePrices(model, a, b string) bool {
+	onA, _ := t.prices(model, a)
+	onB, _ := t.prices(model, b)
+	onA.From, onB.From = "", ""
+	return onA == onB
 }
 
 // dated is a price that took effect on a day of its own.
@@ -355,43 +385,90 @@ const (
 // answer's iterations give them, whose counts the usage's own sum.
 var uncharged = []string{"server_tool_use.web_fetch_requests", "output_tokens_details.", "iterations.message."}
 
-// charge returns what each of the count at path costs at p, reporting false
-// for a count p doesn't charge for.
-func (p Prices) charge(path string) (Picodollars, bool) {
+// charge is a count a price charges for, as chargeOf finds it by its path.
+type charge int
+
+// The counts a price charges for: input; writes to the prompt cache that
+// last five minutes, and an hour; reads from it; output; and web searches.
+const (
+	chargeInput charge = iota
+	chargeWrite5m
+	chargeWrite1h
+	chargeRead
+	chargeOutput
+	chargeWebSearch
+	charges
+)
+
+// chargeOf returns the charge of the count at path, reporting false for a
+// count no price charges for.
+func chargeOf(path string) (charge, bool) {
 	switch path {
 	case "input_tokens":
-		return p.Input, true
+		return chargeInput, true
 	case cacheTTLs + "." + shortWrites:
-		return p.CacheWrite5m, true
+		return chargeWrite5m, true
 	case cacheTTLs + ".ephemeral_1h_input_tokens":
-		return p.CacheWrite1h, true
+		return chargeWrite1h, true
 	case "cache_read_input_tokens":
-		return p.CacheRead, true
+		return chargeRead, true
 	case "output_tokens":
-		return p.Output, true
+		return chargeOutput, true
 	case "server_tool_use.web_search_requests":
-		return p.WebSearch, true
+		return chargeWebSearch, true
 	}
 	return 0, false
 }
 
-// worth returns what usage, as counts, costs at p: each count p charges for
-// at its price, the prompt cache's writes as how long each lasts breaks them
-// down. Any other count but one of none is unpriced, unless it costs nothing
-// of its own, as uncharged says, or it's the cache's writes as a whole, as
-// far as they're broken down: those beyond may have lasted either long.
-func (p Prices) worth(usage counts) Worth {
-	var w Worth
+// byCharge are what each of every count p charges for costs, by its charge.
+func (p Prices) byCharge() [charges]Picodollars {
+	return [charges]Picodollars{
+		chargeInput: p.Input, chargeWrite5m: p.CacheWrite5m, chargeWrite1h: p.CacheWrite1h,
+		chargeRead: p.CacheRead, chargeOutput: p.Output, chargeWebSearch: p.WebSearch,
+	}
+}
+
+// bill is a usage's counts as its prices bill them: how many it counts of
+// each charge, every path giving it summed, and the paths of those no price
+// charges for, in order, as billOf has them.
+type bill struct {
+	charged  [charges]int64
+	unpriced []string
+}
+
+// billOf returns the bill of usage, as counts: each count a price charges
+// for, the prompt cache's writes as how long each lasts breaks them down. Any
+// other count but one of none is unpriced, unless it costs nothing of its
+// own, as uncharged says, or it's the cache's writes as a whole, as far as
+// they're broken down: those beyond may have lasted either long.
+func billOf(usage counts) bill {
+	var b bill
 	brokenDown := usage.total(cacheTTLs)
 	usage.each("", func(path string, n int64) {
-		switch price, charged := p.charge(path); {
+		switch c, charged := chargeOf(path); {
 		case charged:
-			w.Cost += Picodollars(n) * price
+			b.charged[c] += n
 		case n != 0 && !free(path) && (path != cacheWrites || n > brokenDown):
-			w.Unpriced = append(w.Unpriced, path)
+			b.unpriced = append(b.unpriced, path)
 		}
 	})
-	slices.Sort(w.Unpriced)
+	slices.Sort(b.unpriced)
+	return b
+}
+
+// same reports whether b and o are the same bill.
+func (b bill) same(o bill) bool {
+	return b.charged == o.charged && slices.Equal(b.unpriced, o.unpriced)
+}
+
+// worth returns what the bill given costs at p: each count it charges for
+// at its price, and what it leaves unpriced.
+func (p Prices) worth(billed bill) Worth {
+	prices := p.byCharge()
+	w := Worth{Unpriced: slices.Clone(billed.unpriced)}
+	for c, n := range billed.charged {
+		w.Cost += Picodollars(n) * prices[c]
+	}
 	return w
 }
 
@@ -470,10 +547,10 @@ func (t Table) Priced(s Summary, date string) Priced {
 		for _, m := range a.Models {
 			model := PricedModel{ModelDay: m}
 			held := countsOf(m.Usage)
-			if w, ok := t.worth(m.Model, m.InferenceGeo, held, m.NoUsage > 0, date); ok {
+			if w, ok := t.priced(m.Model, m.InferenceGeo, billOf(held), m.NoUsage > 0, date); ok {
 				model.Worth, model.Unpriced = &w.Cost, w.Unpriced
 			} else {
-				model.Unpriced = t.wholly(m.Model, m.InferenceGeo, held, m.NoUsage > 0, date)
+				model.Unpriced = t.wholly(m.Model, m.InferenceGeo, held.costly(), m.NoUsage > 0, date)
 			}
 			account.Models = append(account.Models, model)
 		}
@@ -484,18 +561,17 @@ func (t Table) Priced(s Summary, date string) Priced {
 
 // wholly names why requests the table prices none of, of the model with the
 // given id that asked for the geo given, are unpriced on the local day with
-// the given date, their usage counting held, unmetered where some went
-// upstream without usage: noModel where they named no model; the geo, as
-// inference_geo:eu, where the table knows the model but doesn't price it
-// there; else the model's id; and noUsage beside it where unmetered. It's
-// none where they spent nothing, their usage holding no count that costs
-// anything and none upstream without it, so their worth is none, not
-// unknown.
-func (t Table) wholly(model, geo string, held counts, unmetered bool, date string) []string {
+// the given date, costly where their usage holds a count that costs
+// anything, unmetered where some went upstream without usage: noModel where
+// they named no model; the geo, as inference_geo:eu, where the table knows
+// the model but doesn't price it there; else the model's id; and noUsage
+// beside it where unmetered. It's none where they spent nothing, neither
+// costly nor unmetered, so their worth is none, not unknown.
+func (t Table) wholly(model, geo string, costly, unmetered bool, date string) []string {
 	var named string
 	_, known := t.prices(model, date)
 	switch {
-	case !held.costly() && !unmetered:
+	case !costly && !unmetered:
 		return nil
 	case model == "":
 		named = noModel
