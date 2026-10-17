@@ -8,28 +8,28 @@ SESSIONS    Switchboard  List  [ ]  ──────────────�
 9c2e website      idle 13m                      ●━━━━━━━━━━━━━━━━━━━━┓  ┃           ○  Week                 ▉      ┃            ╎   34%  19%/day till Sun 21:00
                                                                      ┃  ┃           ○
 c61b mobile       ↓ answering                   ●━━━━━━━━━━━━━━━━━┓  ┃  ┃           ○  5-hour                              ┃    ╎   95%  at cap · back 17:10
-d28c switchboard  idle 5s      ▸ from work      ●━━━━━━━━━━━━━━┓  ┃  ┃  ┃           ○
-7f3a api          idle 2m      ▸ from work      ●━━━━━━━━━━━┓  ┃  ┃  ┃  ┃           ○  Fable wk      ▉             ┃            ╎   12%  26%/day till Sun 21:00
-db8a infra        idle 46s     ▸ from work      ●━━━━━━━━┓  ┃  ┃  ┃  ┃  ┃
-                                                         ┃  ┃  ┃  ┃  ┃  ┃
-                                                         ┃  ┃  ┃  ┃  ┃  ┗━━━━━━━━━━━✕ 2 personal ◆    ■ limit reached · back 16:30
+d28c switchboard  idle 5s      ▸ from work      ●━━━━━━━━━━━━━━┓  ┃  ┃  ┃
+7f3a api          idle 2m      ▸ from work      ●━━━━━━━━━━━┓  ┃  ┃  ┃  ┃
+db8a infra        idle 46s     ▸ from work      ●━━━━━━━━┓  ┃  ┃  ┃  ┃  ┗━━━━━━━━━━━✕ 2 personal ◆    ■ limit reached · back 16:30
                                                          ┃  ┃  ┃  ┃  ┗━━━━━━━━━━━━━━◉  Week                            ┃            66%  out ~Sun 00:48
                                                          ┃  ┃  ┃  ┃                 ○
                                                          ┃  ┃  ┃  ┃                 ○  5-hour                                  ┃   100%  limit · back 16:30
-                                                         ┃  ┃  ┃  ┃                 ○
-                                                         ┃  ┃  ┃  ┃                 ○  Fable wk                        ┃             0%  41%/day till Sun 02:00
                                                          ┃  ┃  ┃  ┃
                                                          ┃  ┃  ┃  ┃
                                                          ┃  ┃  ┃  ┗━━━━━━━━━━━━━━━━━◉ 3 side ▲        ● open · new sessions come here
                                                          ┃  ┃  ┗━━━━━━━━━━━━━━━━━━━━◉  Week                      ┃                  78%  out ~Fri 14:07
                                                          ┃  ┗━━━━━━━━━━━━━━━━━━━━━━━◉
                                                          ┗━━━━━━━━━━━━━━━━━━━━━━━━━━◉  5-hour              ▉    ┃                   31%  25%/h till 18:50
-                                                                                    ○
-                                                                                    ○  Fable wk    ▎             ┃                   4%  26%/day till Mon 10:00
 
 
                                                                                        ┃ even pace: where you would be now, used evenly
                                                                                        ╎ cap: work at 95%    ◆ primary    ▲ new sessions go here
+
+
+
+
+
+
 
 
 

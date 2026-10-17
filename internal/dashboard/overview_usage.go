@@ -85,15 +85,17 @@ func (f Frame) overviewBlock(doc status.Document, now time.Time) usageBlock {
 	return b
 }
 
-// overviewWindows are the windows of doc the Overview shows, in USAGE and
-// GRAPHS, as usage prints them: those every model shares, as the policy the
-// moment was judged by has them, so every account keeps its rows before any
-// is read, and
-// every other any account reports, in Claude's order, each named as
-// windowNamer names it of doc at now.
+// overviewWindows are the windows of doc at now the Overview shows, in USAGE
+// and GRAPHS, as listedWindows has them.
 func (f Frame) overviewWindows(doc status.Document, now time.Time) []shownWindow {
-	m := f.Moment(doc, now)
-	return usageWindows(m, nil, f.windowNamer(m))
+	return f.listedWindows(f.Moment(doc, now))
+}
+
+// listedWindows are the windows of m the live views list, as m's Listed has
+// them while the frame's Models shows each model's own or not, each named as
+// windowNamer names it.
+func (f Frame) listedWindows(m status.Moment) []shownWindow {
+	return usageWindows(m.Listed(f.Models), f.windowNamer(m))
 }
 
 // windowNamer names m's windows by their keys as the Overview names them

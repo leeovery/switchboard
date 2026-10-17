@@ -25,6 +25,50 @@ func usageAccount(id string, used float64, session time.Time, weekUsed, fableUse
 	}}
 }
 
+// Every live view lists each model's own window, as Fable's week, only while
+// w shows them, as the moment's Listed has it: USAGE, by window and by
+// account; GRAPHS; Accounts' Detail; Sessions' Switchboard; and a session's
+// page. One nearing its limit shows all the same.
+func TestEveryLiveViewListsAModelsWindowWhileWShowsThemOrItNearsItsLimit(t *testing.T) {
+	graphsAlone := frameOf(160, 40)
+	graphsAlone.Sections = Sections{}.Toggled(SectionUsage).Toggled(SectionGraphs)
+	byAccount := frameOf(160, 40)
+	byAccount.By = ByAccount
+	nearing := func(d *status.Document) { d.Accounts[2].Windows[2].Utilization = 0.95 }
+	tests := []struct {
+		name  string
+		f     Frame
+		doc   status.Document
+		now   time.Time
+		fable string
+	}{
+		{name: "USAGE by window", f: frameOf(160, 40), doc: usageWorld(), now: routedAt, fable: "FABLE WEEK"},
+		{name: "USAGE by account", f: byAccount, doc: usageWorld(), now: routedAt, fable: "Fable wk"},
+		{name: "GRAPHS", f: graphsAlone, doc: usageWorld(), now: routedAt, fable: "FABLE WEEK"},
+		{name: "Accounts' Detail", f: detailFrame(Look{}, framedAccounts, "side", "", nil, nil), doc: usageWorld(), now: routedAt, fable: "Fable wk"},
+		{name: "Sessions' Switchboard", f: sceneFrame(160, 37, Look{}), doc: usageWorld(), now: routedAt, fable: "Fable wk"},
+		{name: "a session's page", f: pageFrame(t, resumed(), 160, 37), doc: pageDoc(), now: sessionNow, fable: "fable week"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, models := range []bool{false, true} {
+				tt.f.Models = models
+				text := strings.Join(textOf(tt.f.Draw(tt.doc, tt.now)), "\n")
+				if strings.Contains(text, tt.fable) != models {
+					t.Errorf("with models %t, it says %q %t, want %t:\n%s", models, tt.fable, !models, models, text)
+				}
+			}
+		})
+	}
+	t.Run("nearing its limit", func(t *testing.T) {
+		f := frameOf(160, 40)
+		f.Models = false
+		if text := strings.Join(textOf(f.Draw(usageWorld(nearing), routedAt)), "\n"); !strings.Contains(text, "FABLE WEEK") {
+			t.Errorf("side's Fable week at 95%%, models hidden, USAGE reads\n%s\nwant it listed", text)
+		}
+	})
+}
+
 // usageWorld is the world the Overview's frames are drawn of, as change
 // leaves it, with what's worked out of it: work, capped at 95%, at its cap in
 // its 5-hour window; personal, the primary, its week running out ~Sat 06:00

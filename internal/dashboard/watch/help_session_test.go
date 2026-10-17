@@ -14,10 +14,10 @@ import (
 // turns, or with a turn open, that turn's requests, which they scroll in its
 // turns' place.
 func TestHelpOverASessionsPageListsItsKeysNotItsTabs(t *testing.T) {
-	running := []string{"tab views", "esc back", "↑↓ turn", "enter its requests", "p pin", "R refresh", "? help", "q quit"}
-	opened := []string{"tab views", "esc close", "↑↓ request", "enter open", "p pin", "R refresh", "? help", "q quit"}
+	running := []string{"tab views", "esc back", "↑↓ turn", "enter its requests", "w models", "p pin", "R refresh", "? help", "q quit"}
+	opened := []string{"tab views", "esc close", "↑↓ request", "enter open", "w models", "p pin", "R refresh", "? help", "q quit"}
 	scrolled := func(keys []string) []string {
-		return slices.Concat(keys[:4], []string{"j k scroll", "PgUp PgDn page", "wheel scroll"}, keys[4:])
+		return slices.Concat(keys[:5], []string{"j k scroll", "PgUp PgDn page", "wheel scroll"}, keys[5:])
 	}
 	turns := func(s *dashboard.SessionShown, n int) {
 		s.Page.Turns = make([]views.Turn, n)
@@ -37,7 +37,7 @@ func TestHelpOverASessionsPageListsItsKeysNotItsTabs(t *testing.T) {
 		{name: "running", want: running},
 		{name: "running, over the Log, whose own keys don't work on it", over: dashboard.Log, want: running},
 		{name: "ended, with no p", page: func(s *dashboard.SessionShown) { s.Page.Activity.Doing = views.Ended },
-			want: []string{"tab views", "esc back", "↑↓ turn", "enter its requests", "R refresh", "? help", "q quit"}},
+			want: []string{"tab views", "esc back", "↑↓ turn", "enter its requests", "w models", "R refresh", "? help", "q quit"}},
 		{name: "a turn open", page: func(s *dashboard.SessionShown) { s.Open = 1 }, want: opened},
 		{name: "its turns scrolling", page: func(s *dashboard.SessionShown) { turns(s, 60) }, want: scrolled(running)},
 		{name: "a turn open, its requests scrolling where its turns don't",

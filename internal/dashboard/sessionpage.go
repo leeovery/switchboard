@@ -367,7 +367,7 @@ func (d sessionDrawn) windows() line {
 		return nil
 	}
 	l := line{{name(a), secondaryInk}, {" now  ", dimInk}}
-	for i, w := range usageWindows(d.m, nil, d.windowNamer(d.m)) {
+	for i, w := range d.listedWindows(d.m) {
 		if i > 0 {
 			l = append(l, spaces(sessionApart))
 		}

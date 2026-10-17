@@ -205,11 +205,11 @@ func addWindowFlags(cmd *cobra.Command) windowFlags {
 
 // keys returns the keys of the windows given, in the flags' order: none
 // where none is, which prints every window. It fails for a window the
-// printout of the moment m wouldn't show, as its Listed has them, naming
-// those it would by their flags.
+// printout of the moment m wouldn't show, as its Listed has them, each
+// model's own among them, naming those it would by their flags.
 func (ws windowFlags) keys(m status.Moment) ([]string, error) {
 	reported := make(map[string]bool)
-	for _, key := range m.Listed() {
+	for _, key := range m.Listed(true) {
 		reported[key] = true
 	}
 	var keys []string

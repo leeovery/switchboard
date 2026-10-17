@@ -24,16 +24,6 @@ WEEK
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Σ pool                                                                                    ┃       ▎                                                                                        49%  1.5 of 3 left
 
-FABLE WEEK
-
- 1 work                             ▍                                                                      ┃                                                                      ╎         12%  25%/day till Sun 21:00
-
- 2 personal ◆                                                                                                                 ┃                                                              0%  40%/day till Sun 02:00
-
- 3 side ▲             ▊                                                                       ┃                                                                                              4%  25%/day till Mon 10:00
-────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- Σ pool                  ▏                                                                                   ┃                                                                               5%  2.8 of 3 left
-
                 ┃ even pace: where you would be now, used evenly    ╎ cap: work at 95%    ◆ primary    ▲ new sessions go here
 
 ROUTING   auto ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── r
@@ -66,5 +56,15 @@ COMING UP  ───────────────────────
 ~Sat 06:00  personal's week runs out at its pace                                        in 1d 15h             13:22  ▸ db8a moved personal → work: personal came under pressure
 Sun 02:00   personal's week resets                                                      in 2d 11h             12:47  ▲ 41e0 started on personal
 Sun 21:00   work's week resets                                                           in 3d 6h             12:10  ◇ work primed: its 5-hour window started
+Mon 10:00   side's week resets                                                          in 3d 19h             12:02  ▲ d28c started on work
+                                                                                                              11:55  ▲ 9c2e started on personal
+                                                                                                              11:30  ◇ personal primed: its 5-hour window started
+                                                                                                              10:02  ▲ 5b19 started on personal
+                                                                                                              09:40  ▲ 3d7a started on work
 
-tab views     u usage  g graphs  r routing  s sessions  c coming up  l lately  b by: window     ↑↓ focus  p pin  ? help  q quit
+
+
+
+
+
+tab views     u usage  g graphs  r routing  s sessions  c coming up  l lately  w models  b by: window     ↑↓ focus  p pin  ? help  q quit

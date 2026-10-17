@@ -148,13 +148,9 @@ func blockOf(m status.Moment, width int, look Look, by By, windows []shownWindow
 	return b
 }
 
-// usageWindows are the windows of m with the keys given, in their order, or
-// with none, those m lists, as its Listed has them, each named as name names
-// it, cleaned.
-func usageWindows(m status.Moment, keys []string, name func(key string) string) []shownWindow {
-	if len(keys) == 0 {
-		keys = m.Listed()
-	}
+// usageWindows are the windows with the keys given, in their order, each
+// named as name names it, cleaned.
+func usageWindows(keys []string, name func(key string) string) []shownWindow {
 	shown := make([]shownWindow, 0, len(keys))
 	for _, key := range keys {
 		shown = append(shown, shownWindow{key: key, name: prose.Clean(name(key))})

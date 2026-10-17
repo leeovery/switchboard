@@ -11,7 +11,7 @@ ACCOUNTS    Compare  Detail  [ ]  ───────────────�
  2 personal ◆  ●    │                                                                                       limits    4
                     │   5-hour                     ┃▋                      49%  1.5 of 3 left               plan      $600/mo
  3 side        ●    │                                                                                       worth     $635  4.6×
-                    │   Fable wk   ▏                   ┃                    5%  2.8 of 3 left               extra use off
+                    │                                                                                       extra use off
                     │
  ↑↓ choose          │   BY MODEL
                     │               ● Opus 5.5 56%  ● Opus 5 2%  ● Sonnet 5.5 34%  ● Sonnet 5 3%  ● Fable 5.1 2%  ● Haiku 4.5 2%

@@ -83,6 +83,12 @@ pool's.
 - Narrower, it stacks the windows as `usage` stacks them.
 - An account out of the pool, under a pin, is drawn faint.
 
+Each model's own window, such as Fable's week, is hidden until you press `w`. That goes for every
+view that shows the windows as they stand now: USAGE, GRAPHS, Accounts' Detail, Sessions'
+Switchboard and a session's page. A hidden window still shows while it nears its limit on any
+account: at the limit, at the cap, running out, or within 10 points of running out. `usage`,
+History and the Log always show every window.
+
 The key line under the block names the marks:
 
 | Mark | Means |
@@ -174,6 +180,7 @@ again.
 | Key | Does |
 |---|---|
 | `u` `g` `r` `s` `c` `l` | Shows or hides a section: USAGE, GRAPHS, ROUTING, SESSIONS, COMING UP and LATELY. |
+| `w` | Shows or hides each model's own window, such as Fable's week. They're hidden until you press `w`. |
 | `b` | Groups the windows by window or by account. Until you press `b`, the grouping follows [`[usage] by`](configuration.md#usage-keys). |
 | `v` | While GRAPHS shows, flips it between the burn-up and the burn-down. |
 | `↑` `↓` | Moves the focus between the accounts, in the config's order. GRAPHS charts the focused account, and USAGE scrolls to it. While GRAPHS charts every account beside USAGE, there's no focus to move. |
@@ -738,7 +745,8 @@ place, for 4 seconds.
 
 `t`, `R` and the scrolling keys work everywhere, and are left to `?`.
 
-The Overview's key line lists its section toggles, each word faint while its section is hidden.
+The Overview's key line lists its section toggles, each word faint while its section is hidden,
+and `w models`, faint while each model's own window is hidden.
 Then come `b by: window`, `v chart: burn-up` while GRAPHS shows, and
 `↑↓ focus  p pin  ? help  q quit`.
 
@@ -784,6 +792,7 @@ It remembers:
 - the theme, or the pair
 - the tab shown
 - the Overview's sections shown, its `b` grouping, and the chart `v` has GRAPHS draw
+- whether `w` shows each model's own window
 - Accounts' view and period
 - History's view, what its Year shows, Weeks' shape, and Tokens' period and split
 - Sessions' view

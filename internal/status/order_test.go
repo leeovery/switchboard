@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -59,12 +60,85 @@ func TestTheMomentListsItsWindowsInTheOrderOfCare(t *testing.T) {
 			p := policy
 			p.Shared = tt.shared
 			m := tt.doc.At(built.Add(time.Minute), p)
-			if got := m.Listed(); !slices.Equal(got, tt.want) {
-				t.Errorf("Listed() = %q, want %q", got, tt.want)
+			if got := m.Listed(true); !slices.Equal(got, tt.want) {
+				t.Errorf("Listed(true) = %q, want %q", got, tt.want)
 			}
 			if got, want := m.SharedWindows(), tt.want[:len(tt.shared)]; !slices.Equal(got, want) {
 				t.Errorf("SharedWindows() = %q, want %q", got, want)
 			}
 		})
 	}
+}
+
+// Each model's own window is listed where models are asked for, and else
+// only while it nears or reaches its limit on some account: held at it, at
+// the account's cap, running out, or nearing where it runs out. Those every
+// model shares are listed always.
+func TestAModelsWindowIsListedWhereAskedForOrNearingItsLimit(t *testing.T) {
+	limitedOn := func(key string) func(*status.Account) {
+		return func(a *status.Account) {
+			a.Limit = status.Limit{ID: 1, Windows: []string{key}, Until: built.Add(time.Hour)}
+		}
+	}
+	sideWith := func(w quota.Window, change func(*status.Account)) status.Document {
+		side := readAt("side", windowIn("5h", 0.1, 4*time.Hour), windowIn("7d", 0.5, 3*day), w)
+		if change != nil {
+			side = with(side, change)
+		}
+		return routerDocOf(readAt("work", windowIn("5h", 0.4, 2*time.Hour), windowIn("7d", 0.3, 3*day), windowIn("7d_oi", 0.2, 3*day)), side)
+	}
+	shared := []string{"7d", "5h"}
+	tests := []struct {
+		name string
+		doc  status.Document
+		// stands is how side's model window stands, checked so the case
+		// lists it, or doesn't, for the reason it names.
+		stands func(status.WindowNow) bool
+		hidden []string
+	}{
+		{name: "quiet on every account: hidden", doc: sideWith(windowIn("7d_oi", 0.3, 3*day), nil), stands: quiet, hidden: shared},
+		{name: "a new model's, quiet: hidden as any model's is", doc: sideWith(windowIn("7d_om", 0.3, 3*day), nil), stands: quiet, hidden: shared},
+		{
+			name: "held at its limit", doc: sideWith(windowIn("7d_oi", 0.3, 3*day), limitedOn("7d_oi")),
+			stands: func(w status.WindowNow) bool { return w.Held }, hidden: []string{"7d", "5h", "7d_oi"},
+		},
+		{
+			name: "at the account's cap", doc: sideWith(windowIn("7d_oi", 0.92, 3*day), reserving),
+			stands: func(w status.WindowNow) bool { return w.Capped && !w.Held }, hidden: []string{"7d", "5h", "7d_oi"},
+		},
+		{
+			name: "running out", doc: sideWith(windowIn("7d_oi", 0.5, 6*day), nil),
+			stands: func(w status.WindowNow) bool { return w.RunsOut && !w.Capped }, hidden: []string{"7d", "5h", "7d_oi"},
+		},
+		{
+			name: "nearing where it runs out", doc: sideWith(windowIn("7d_oi", 0.8, day), nil),
+			stands: func(w status.WindowNow) bool { return w.Nearing && !w.RunsOut && !w.Capped }, hidden: []string{"7d", "5h", "7d_oi"},
+		},
+		{
+			name: "a new model's, nearing", doc: sideWith(windowIn("7d_om", 0.8, day), nil),
+			stands: func(w status.WindowNow) bool { return w.Nearing && !w.RunsOut }, hidden: []string{"7d", "5h", "7d_om"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := tt.doc.At(built.Add(time.Minute), policy)
+			side, _ := m.Account("side")
+			model := side.Windows[2]
+			if model.Shared || !tt.stands(model) {
+				t.Fatalf("side's %s stands as %+v, not as the case says", model.Key, model)
+			}
+			if got := m.Listed(false); !slices.Equal(got, tt.hidden) {
+				t.Errorf("Listed(false) = %q, want %q", got, tt.hidden)
+			}
+			every := slices.Compact(slices.SortedFunc(slices.Values([]string{"7d", "5h", "7d_oi", model.Key}), m.CompareWindows))
+			if got := m.Listed(true); !slices.Equal(got, every) {
+				t.Errorf("Listed(true) = %q, want %q", got, every)
+			}
+		})
+	}
+}
+
+// quiet reports whether the window neither nears nor reaches its limit.
+func quiet(w status.WindowNow) bool {
+	return !w.Held && !w.Capped && !w.RunsOut && !w.Nearing
 }

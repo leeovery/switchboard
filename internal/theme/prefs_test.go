@@ -170,6 +170,40 @@ func TestTheChartGRAPHSDrawsIsKeptByName(t *testing.T) {
 	}
 }
 
+// Whether the live views show each model's own window is kept beside the
+// rest and read back; left out while they're hidden, as a file without it
+// reads, and as one of an earlier build does.
+func TestWhetherModelsWindowsShowIsKeptAndHiddenWithout(t *testing.T) {
+	state := t.TempDir()
+	path := filepath.Join(state, "prefs.json")
+	prefs := theme.NewPrefsFile(state, clock)
+
+	if prefs.Read().Models {
+		t.Error("without a file, Read().Models is set; want them hidden")
+	}
+	if err := os.WriteFile(path, []byte(`{"tab": "runway", "graphs": "burn-down"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if prefs.Read().Models {
+		t.Error("a file of an earlier build reads Models set; want them hidden")
+	}
+	if err := prefs.Update(func(p *theme.Prefs) { p.Models = true }); err != nil {
+		t.Fatal(err)
+	}
+	if got := prefs.Read(); !got.Models || got.Tab != "runway" {
+		t.Errorf("Read() = %+v, want Models read back beside the tab", got)
+	}
+	if data, err := os.ReadFile(path); err != nil || !strings.Contains(string(data), `"models": true`) {
+		t.Errorf("prefs.json holds %s, %v; want models kept", data, err)
+	}
+	if err := prefs.Update(func(p *theme.Prefs) { p.Models = false }); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(path); err != nil || strings.Contains(string(data), "models") {
+		t.Errorf("prefs.json holds %s, %v; want models left out while hidden", data, err)
+	}
+}
+
 // What Accounts shows is kept under a key of its own, the view and the
 // period by name, beside the rest and the keys of another build, and left
 // out where none is made, as this week is.

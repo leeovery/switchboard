@@ -121,7 +121,7 @@ func blockOn(t *testing.T, doc status.Document, width int, slug string) *canvas 
 // prints it at printNow, by window, of every window, named as Claude's are.
 func printBlock(doc status.Document, width int, look Look) usageBlock {
 	m := doc.At(printNow, printPolicy)
-	return newUsageBlock(m, width, look, ByWindow, usageWindows(m, nil, printName))
+	return newUsageBlock(m, width, look, ByWindow, usageWindows(m.Listed(true), printName))
 }
 
 // windowNowOf is the window with the given key of doc's account with the
@@ -598,7 +598,7 @@ func TestThePoolsFigureIsItsAccountsMeanUseItsWordsTheirRoom(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := tt.doc.At(now, claudeLike)
-			row, ok := poolRow(m.Pool(), namesOf(m), usageWindows(m, []string{"7d"}, labelsOf(m)))
+			row, ok := poolRow(m.Pool(), namesOf(m), usageWindows([]string{"7d"}, labelsOf(m)))
 			if !ok || len(row.gauges) != 1 {
 				t.Fatalf("the pool's row is %+v, %v, want its week's gauge", row, ok)
 			}
@@ -780,7 +780,7 @@ func TestTheWindowsAreNamedAsNameNamesThem(t *testing.T) {
 				policy.Shared = tt.shared
 			}
 			m := trio().At(printNow, policy)
-			if got := usageWindows(m, nil, Printout{Name: tt.namer}.namer(m)); !slices.Equal(got, tt.want) {
+			if got := usageWindows(Printout{Name: tt.namer}.windows(m), Printout{Name: tt.namer}.namer(m)); !slices.Equal(got, tt.want) {
 				t.Errorf("the windows are %+v, want %+v", got, tt.want)
 			}
 		})
@@ -840,7 +840,7 @@ func TestUSAGEAgreesWithTheMomentAtEachHardMoment(t *testing.T) {
 	for _, hm := range statustest.HardMoments(claudeLike) {
 		t.Run(hm.Name, func(t *testing.T) {
 			m := hm.Doc.At(hm.Now, claudeLike)
-			b := newUsageBlock(m, 160, Look{}, ByWindow, usageWindows(m, nil, labelsOf(m)))
+			b := newUsageBlock(m, 160, Look{}, ByWindow, usageWindows(m.Listed(true), labelsOf(m)))
 			for i, a := range m.Accounts {
 				row := b.rows[i]
 				if marked := strings.Contains(row.name.plain(), "▲"); marked != a.Next {

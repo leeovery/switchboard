@@ -47,7 +47,7 @@ func (f Frame) linesDrawn(m status.Moment, laid boardLayout) linesDrawn {
 	names := overviewNames(m)
 	return linesDrawn{
 		f: f, m: m, laid: laid, names: names, column: nameColumn(names, f.Width),
-		windows: usageWindows(m, nil, f.windowNamer(m)), beside: f.besideWindows(m),
+		windows: f.listedWindows(m), beside: f.besideWindows(m),
 	}
 }
 
@@ -176,7 +176,7 @@ func (d linesDrawn) sideBySide(c *canvas, a status.AccountNow, y int) {
 // lane draw them: the first two every model shares, its week and its
 // 5-hour, as m's SharedWindows has them, each named as the frame names it.
 func (f Frame) besideWindows(m status.Moment) []shownWindow {
-	shown := usageWindows(m, m.SharedWindows(), f.windowNamer(m))
+	shown := usageWindows(m.SharedWindows(), f.windowNamer(m))
 	return shown[:min(len(shown), len(stepThreeLabels))]
 }
 

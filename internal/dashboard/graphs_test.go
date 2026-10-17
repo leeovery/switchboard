@@ -236,7 +236,7 @@ func TestGRAPHSPutsAChartUnderEachWindowOfUSAGEOrStacksThemOnAPhone(t *testing.T
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := Frame{Width: tt.width, Height: 70, Focus: "work"}
+			f := Frame{Width: tt.width, Height: 70, Focus: "work", Policy: claudeLike, Models: true}
 			g := f.graphsOf(doc, printNow)
 			var got []bounds
 			for i := range g.charts {

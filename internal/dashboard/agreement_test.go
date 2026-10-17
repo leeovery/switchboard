@@ -94,7 +94,7 @@ func drawnAt(t *testing.T, doc status.Document, now time.Time) drawn {
 	}
 	d := drawn{
 		now: now, moment: m,
-		usage:      newUsageBlock(m, 160, Look{}, ByWindow, usageWindows(m, nil, labelsOf(m))),
+		usage:      newUsageBlock(m, 160, Look{}, ByWindow, usageWindows(m.Listed(true), labelsOf(m))),
 		routing:    f.routingTableOf(doc, now),
 		card:       RoutingRows(m, nil, views.Stream{}),
 		coming:     f.upcoming(doc, now),

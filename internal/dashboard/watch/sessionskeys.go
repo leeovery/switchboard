@@ -5,8 +5,9 @@ import "github.com/leeovery/switchboard/internal/dashboard"
 // sessionsListings are Sessions' own keys, as the key line and help list
 // them, on both sub-tabs alike, each move with enter in a group of its own:
 // [ ] view; ↑↓ choosing a session; enter opening the one chosen, faint
-// till one is, as Opens has it; and while one is, esc deselecting it,
-// which the key line leaves to help. A phone's line sets them as
+// till one is, as Opens has it; while one is, esc deselecting it; and on
+// the Switchboard, w, as modelsKey has it: the last two
+// the key line leaves to help. A phone's line sets them as
 // sessionsPhoneKeys has it.
 func (m Model) sessionsListings() []keyListing {
 	sessions := m.view == dashboard.Sessions
@@ -15,6 +16,7 @@ func (m Model) sessionsListings() []keyListing {
 		{Key: sessionsChooseKey, works: sessions, apart: true},
 		{Key: m.sessionsOpenKey("its page"), works: sessions},
 		{Key: dashboard.Key{Key: "esc", Does: "deselect"}, works: sessions && m.sessionsTab.shown.Opens(), helpful: true},
+		{Key: m.modelsKey(), works: sessions && m.listsModels(), helpful: true},
 	}
 }
 

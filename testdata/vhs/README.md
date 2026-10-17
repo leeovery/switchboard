@@ -134,7 +134,8 @@ and stage 13 its Runway's `runway-day-*` and `runway-week-3`, with their tapes.
 
 Stage 7's, `overview-*` and `routing-*`, draw the Overview's frames and the routing card's over it,
 each over its frame's world with the keys that reach it: `overview-by-account-160` with `b`,
-`overview-usage-alone-160` with `r`, `c` and `l`, `overview-everything-160x39` and
+`overview-models-160` with `w`, each model's own window shown, `overview-model-nearing-160` with
+none, side's Fable week shown as it nears its limit, `overview-usage-alone-160` with `r`, `c` and `l`, `overview-everything-160x39` and
 `overview-everything-216x106` with `g` and `s`, `overview-sessions-216` with `s`, and
 `overview-sessions-graphs-216` with `s` and `g`; `routing-auto-160` with `p`, `routing-two-160`
 with `p`, `2` and `3`, and `routing-move-160` with `p`, `2` and `m`, over the auto world, which

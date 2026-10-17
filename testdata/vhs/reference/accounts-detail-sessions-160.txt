@@ -11,7 +11,7 @@ ACCOUNTS    Compare  Detail  [ ]  ───────────────�
  2 personal ◆  ●    │                                                                                       limits    5-hour ×1
                     │   5-hour        ▎ ┃                                  13%  21%/h till 18:50            plan      Max 20x
 ▸3 side        ●    │                                                                                       worth     $239  5.2×
-                    │   Fable wk  ▋                ┃                        4%  25%/day till Mon 10:00      extra use off
+                    │                                                                                       extra use off
                     │
  ↑↓ choose          │   BY MODEL
                     │               ● Opus 5.5 82%  ● Sonnet 5.5 16%  ● Fable 5.1 1%  ● Haiku 4.5 1%

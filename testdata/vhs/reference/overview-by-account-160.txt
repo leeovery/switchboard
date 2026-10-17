@@ -5,28 +5,20 @@
 USAGE  ─────────────────────────────────────────────────────────────────────────────────────────────── u   ROUTING   auto ──────────────────────────────────── r
 
 1 work          Week                      ▍         ┃                   ╎   34%  19%/day till Sun 21:00    ● at its cap · back 17:10
-
-                5-hour                            ┃                    ▋╎   95%  at cap · back 17:10       0 sessions
-
-                Fable wk       ▊                    ┃                   ╎   12%  25%/day till Sun 21:00    ▂▄▅▄▁▂▂▂▂▂▄▅▆▅▄▃▃▃▂▂▂▂▂▁▂▂▁▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
+                                                                                                           0 sessions
+                5-hour                            ┃                    ▋╎   95%  at cap · back 17:10       ▂▄▅▄▁▂▂▂▂▂▄▅▆▅▄▃▃▃▂▂▂▂▂▁▂▂▁▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
 
 2 personal ◆    Week                                     ┃                  66%  out ~Sat 06:00            ● open
-
-                5-hour                      ▊            ┃                  39%  34%/h till 16:30          2 sessions
-
-                Fable wk                                 ┃                   0%  40%/day till Sun 02:00    ▁▂▂▂▂▁▁▁▁▁▁▁▁▂▂▁▁▁▁▁▁▁▁▁▁▁▃▅▅▄▂▁▁▁▁▁▁▁▁▁▁▁▂▁▂   3/min
+                                                                                                           2 sessions
+                5-hour                      ▊            ┃                  39%  34%/h till 16:30          ▁▂▂▂▂▁▁▁▁▁▁▁▁▂▂▁▁▁▁▁▁▁▁▁▁▁▃▅▅▄▂▁▁▁▁▁▁▁▁▁▁▁▂▁▂   3/min
 
 3 side ▲        Week                            ┃              ▌            78%  out ~Fri 12:20            ● open · new sessions come here
-
-                5-hour          ▎ ┃                                         13%  21%/h till 18:50          4 sessions
-
-                Fable wk   ▉                    ┃                            4%  25%/day till Mon 10:00    ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂▄▇     ▇ ▆▅▄▄▅▅▆  11/min
+                                                                                                           4 sessions
+                5-hour          ▎ ┃                                         13%  21%/h till 18:50          ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂▄▇     ▇ ▆▅▄▄▅▅▆  11/min
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Σ pool          Week                                ┃ ▌                     59%  1.2 of 3 left             2 open · 1 at cap
-
-                5-hour                         ┃ ▌                          49%  1.5 of 3 left             6 sessions
-
-                Fable wk    ▌                       ┃                        5%  2.8 of 3 left             ▄▆▇▆▃▃▃▃▂▂▄▆▇▇▅▄▃▃▂▂▂▂▂▁▂▂▄         ▇ ▆▅▄▅▇▆▇  14/min
+                                                                                                           6 sessions
+                5-hour                         ┃ ▌                          49%  1.5 of 3 left             ▄▆▇▆▃▃▃▃▂▂▄▆▇▇▅▄▃▃▂▂▂▂▂▁▂▂▄         ▇ ▆▅▄▅▇▆▇  14/min
 
                 ┃ even pace: where you would be now, used evenly    ╎ cap: work at 95%    ◆ primary    ▲ new sessions go here
 
@@ -38,5 +30,13 @@ COMING UP  ───────────────────────
 ~Fri 12:20  side's week runs out at its pace                  in 21h 38m          13:50  ◇ side primed: its 5-hour window started
 ~Sat 06:00  personal's week runs out at its pace               in 1d 15h          13:22  ▸ db8a moved personal → work: personal came under pressure
 Sun 02:00   personal's week resets                             in 2d 11h          12:47  ▲ 41e0 started on personal
+Sun 21:00   work's week resets                                  in 3d 6h          12:10  ◇ work primed: its 5-hour window started
+Mon 10:00   side's week resets                                 in 3d 19h          12:02  ▲ d28c started on work
+                                                                                  11:55  ▲ 9c2e started on personal
+                                                                                  11:30  ◇ personal primed: its 5-hour window started
+                                                                                  10:02  ▲ 5b19 started on personal
+                                                                                  09:40  ▲ 3d7a started on work
 
-tab views     u usage  g graphs  r routing  s sessions  c coming up  l lately  b by: account     ↑↓ focus  p pin  ? help  q quit
+
+
+tab views     u usage  g graphs  r routing  s sessions  c coming up  l lately  w models  b by: account     ↑↓ focus  p pin  ? help  q quit

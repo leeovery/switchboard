@@ -135,13 +135,14 @@ func aloneDoc() status.Document {
 }
 
 // detailFrame is a frame of Detail at routedAt, 160 by 37, in the look
-// given, of the accounts configured, the one chosen, the session selected,
+// given, every model's own window shown, as w shows them, of the accounts
+// configured, the one chosen, the session selected,
 // and the page given, the router listing the sessions given, the request
 // stream telling what it told in the Overview's world.
 func detailFrame(look Look, configured config.Accounts, chosen, selected string, page *views.AccountsPage, sessions []status.Session) Frame {
 	_, _, stream := overviewWorld()
 	return Frame{
-		Width: 160, Height: 37, Look: look, View: Accounts, Policy: claudeLike, Sessions: sessions, Stream: stream,
+		Width: 160, Height: 37, Look: look, View: Accounts, Policy: claudeLike, Models: true, Sessions: sessions, Stream: stream,
 		Accounts: AccountsShown{Shown: AccountsDetail, Accounts: configured, Chosen: chosen, Selected: selected, InSessions: selected != "", Page: page},
 	}
 }

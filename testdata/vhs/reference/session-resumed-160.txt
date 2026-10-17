@@ -5,7 +5,7 @@
 SESSION   f41a   api  ~/Code/api ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  esc back
 
 ↓ answering   on personal ◆ since 09:12, rescored after 15h 7m idle: personal had the most room                          started yesterday 16:40 · resumed 09:12
-opus-5-5 → personal                                                                                          personal now  week 66%   5-hour 39%   fable week 0%
+opus-5-5 → personal                                                                                                          personal now  week 66%   5-hour 39%
 
 STORY   requests a minute ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
                                    ┊ 09:12  rescored after 15h 7m idle → personal

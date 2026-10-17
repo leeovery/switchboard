@@ -14,8 +14,6 @@ Week           ▏   ┃      ╎  34%  19%/day · Sun
 
 5-hour            ┃       ╎  95%  back 17:10
 
-Fable wk   ▏       ┃      ╎  12%  25%/day · Sun
-
 THIS WEEK
 requests  1,204           worth     $184
 limits    5-hour ×2       extra use off
@@ -36,6 +34,8 @@ LATELY
 14:31  ╎ reached its cap: 3 sessions moved to side
 14:12  ▲ 7f3a started here, the best
 13:22  ▸ db8a came from personal: personal came un…
+
+
 
 
 tab views   [ ] view   ? keys   q quit

@@ -173,7 +173,7 @@ func TestAFixtureIsDrawnAtItsMoment(t *testing.T) {
 		"● healthy",
 		// side's 5-hour window at its reading, its bar eased all the way
 		// there, after its week.
-		"78%  out ~Fri 12:20             ▏┃              13%  21%/h till 18:50",
+		"78%  out ~Fri 12:20                ▍ ┃                                   13%  21%/h till 18:50",
 		// What the router tells of lately, none picked out as new, the first
 		// look having seen them all.
 		"14:41  ▲ c61b started on side",

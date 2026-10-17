@@ -3,6 +3,7 @@ package watch
 import (
 	"errors"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -156,8 +157,8 @@ func TestWhileGRAPHSChartsEveryAccountBesideUSAGEThereIsNoFocusToMove(t *testing
 			if moved := h.model.focus == "personal"; moved != tt.moves {
 				t.Errorf("after ↓, the focus is on %q; want it moved to personal: %v", h.model.focus, tt.moves)
 			}
-			if listed := strings.Contains(h.keyLine(), "↑↓ focus"); listed != tt.listed {
-				t.Errorf("the key line reads %q; want ↑↓ focus listed: %v", h.keyLine(), tt.listed)
+			if listed := slices.Contains(helpOver(h.model), dashboard.Key{Key: "↑↓", Does: "focus"}); listed != tt.listed {
+				t.Errorf("help lists %+v; want ↑↓ focus listed: %v", helpOver(h.model), tt.listed)
 			}
 		})
 	}

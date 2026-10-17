@@ -1088,6 +1088,11 @@ Overview).
 
 - `t`, the theme picker, and `R`, refresh, work on every page and are never on the key line: `?`
   lists them.
+- `w`, each model's own window shown or hidden, works wherever windows are listed as they stand:
+  the Overview, whose key line lists it among its toggles, its word `models` faint while they're
+  hidden; and Accounts' Detail, Sessions' Switchboard and a session's page, where `?` lists it.
+  It adds 10 cells to the Overview's wide line, which then fits whole from 137 columns, 155 while
+  GRAPHS shows.
 - `[ ]`'s word is `view` everywhere; `enter`'s word says what it does on the page, as `enter its
   page` or `enter open`.
 - A key that can't act now is drawn in `text.faint`, its key not bold, as `p pin` is while the
@@ -1140,7 +1145,7 @@ Routing takes keys alone: no click opens the routing card or acts in it, so a st
 moves a session.
 
 **What's remembered.** The preferences file keeps, as they change: the theme or the pair; the tab
-shown, which the dashboard opens on; the Overview's sections shown, its `b` and its `v`; of each
+shown, which the dashboard opens on; the Overview's sections shown, its `b` and its `v`; `w`; of each
 view, a view at a time, its sub-tab, its period or window and `v`'s choice; and the Log's columns.
 It never keeps a focus, a choice, a scroll, a card or help open, a session's page, a day Runway has
 stepped back to, or the Log's filters, so the Log opens on everything (settled in the plan).
@@ -1363,9 +1368,22 @@ line after it, as a shell's prompt spaces itself (settled in the plan).
   first window's words add ` · pinned`, in `text.muted`, and the smaller pool shows in `of 2`. The
   status document gives it (see The status document). With one account there's no pool: it would
   repeat the account.
-- **Every window shows, used or not:** a model's own window, as Fable's week, on every account, at
-  0% as at 40%, as probes read every model family's window before any use. An account that hasn't
-  reported a window the others have shows it as nothing read.
+- **Every window shows, used or not, but each model's own on `w`:** the windows every model shares
+  show on every account, as nothing read before any is. Each model's own window, as Fable's week,
+  any window the policy doesn't share, so a new model's falls under it with no change, shows on
+  `w`, remembered in the preferences and hidden at first (the owner's call, 17 October 2026). It
+  shows then on every account, at 0% as at 40%, as probes read every model family's window before
+  any use; an account that hasn't reported it shows it as nothing read. Hidden, one shows all the
+  same for as long as it nears its limit on any account: held at it, at the account's cap, running
+  out, or nearing where it runs out, within 10 points, as the moment judges each window
+  (`WindowNow`'s `Held`, `Capped`, `RunsOut` and `Nearing`). The toggle is for the live views
+  alone, display and nothing else: USAGE by window and by account, GRAPHS' charts, the
+  Switchboard's lines, a session's page and Accounts' Detail, its figures of now. Runway's `<` `>`
+  step between the week and the 5-hour alone, and the routing card shows those two, so neither
+  has a model's window to hide. `usage`'s printout keeps every window, as do History's records,
+  the Log, Accounts' records (limits hit, past weeks) and every JSON; routing and scoring never
+  read it. The moment's `Listed(models)` owns which windows a live view lists, with `w`'s state;
+  the views guard holds drawing packages from asking the policy which windows are shared.
 - **The order of care:** the week, the 5-hour window, then each model's own week (the owner's call,
   17 October 2026). In general, the windows every model shares, the policy's, longest first; then
   each model's own, as any window the policy doesn't share is, a new model's among them, in
@@ -1779,7 +1797,8 @@ remembered").
 
 - **Wide:** `tab views`, five spaces; each toggle as its key and word, two spaces apart, `u usage  g
   graphs  r routing  s sessions  c coming up  l lately`, a key in bold `accent.key` and its word in
-  `text.muted` while its section shows, else `text.faint`; two spaces, `b by: window`, the state in
+  `text.muted` while its section shows, else `text.faint`; two spaces, `w models`, its word so
+  while each model's own window shows, else `text.faint`; two spaces, `b by: window`, the state in
   `text.secondary`; while GRAPHS shows, two spaces and `v chart: burn-up` or `v chart: burn-down`,
   the same way; five spaces; then `↑↓ focus  p pin  ? help  q quit`. With one account, `↑↓ focus`
   doesn't show (settled in the plan), nor while GRAPHS charts every account beside USAGE's blocks,
@@ -2467,9 +2486,9 @@ edge.
     `■ limit reached · back 16:30`, `■ refused (401) · its token needs renewing` or `○ not read yet`
     (see The Overview); and ending at the last column, `● pinned` or `✕ out of the pool` (see
     Pinned, below);
-  - a row a window, `Week`, `5-hour`, then each model's own week, `Fable wk`, a blank row between:
-    its label at 87 in `text.subtle`, its bar at 98, 32 cells, a cell, its percentage in 4 cells at
-    131, two cells, and its words, 22 cells, at 137.
+  - a row a window, `Week`, `5-hour`, then each model's own week on `w`, `Fable wk`, a blank row
+    between: its label at 87 in `text.subtle`, its bar at 98, 32 cells, a cell, its percentage in 4
+    cells at 131, two cells, and its words, 22 cells, at 137.
 
   The lines start on row 6, each followed by two blank rows: 8 rows apart with three windows. A line
   whose group of calls starts below its first jack moves down to meet it, so cords only run right,
@@ -3515,7 +3534,7 @@ plan).
   `text.secondary` and ` now  ` in `text.subtle`, then each of its windows, three spaces apart, its
   name in `text.muted` and its use bold in its level's colour (see `usage`, the printout):
   `side now  week 78%   5-hour 13%   fable week 4%`, in the order of care. Every window shows, used
-  or not.
+  or not, each model's own on `w` (see The Overview).
 - **Account names are white** wherever named: bold `text.primary` where it runs (`on side`) and on
   an account's own row, `text.secondary` everywhere else, the story's labels and a turn's `on` among
   them, so a name reads as an account and not a word.

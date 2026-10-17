@@ -30,6 +30,10 @@ func overviewHelp() []helpPart {
 					"With more accounts than fit, USAGE " +
 					"scrolls within itself, an account at a time, or a row at a time where not even one account a window fits; turned " +
 					"from one to the other, as `b`, a section's key, a resize or what's read can turn it, it goes back to its top."),
+				said("`w` shows each model's own window, as Fable's week, here and wherever windows are listed as they stand now: GRAPHS, " +
+					"Accounts' Detail, Sessions' Switchboard and a session's page. Hidden, one shows all the same while it nears its limit " +
+					"on any account: held at it, at the cap, or running out or nearing where it would. switchboard usage, History and the " +
+					"Log list every window."),
 			},
 			glyphs: []glyph{
 				{drawn: line{{paceMark, paceInk}}, means: "even pace: where you would be now, used evenly"},

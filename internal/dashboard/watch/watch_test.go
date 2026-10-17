@@ -394,7 +394,7 @@ func calmScreen(size Size, now time.Time, trails dashboard.Trails) string {
 			{{Key: "tab", Does: "views"}},
 			{
 				{Key: "u", Does: "usage"}, {Key: "g", Does: "graphs", Hidden: true}, {Key: "r", Does: "routing"},
-				{Key: "s", Does: "sessions", Hidden: true}, {Key: "c", Does: "coming up"}, {Key: "l", Does: "lately"},
+				{Key: "s", Does: "sessions", Hidden: true}, {Key: "c", Does: "coming up"}, {Key: "l", Does: "lately"}, {Key: "w", Does: "models", Hidden: true},
 				{Key: "b", Does: "by", State: "window"},
 			},
 			{{Key: "?", Does: "help"}, {Key: "q", Does: "quit"}},
@@ -467,7 +467,7 @@ func TestOnlyAKeyThePageActsOnLaysTheOverviewOutAfresh(t *testing.T) {
 	}{
 		{name: "help's keys: scrolling it, and closing it", keys: []string{"?", "j", "pgdown", "k", "esc"}},
 		{name: "the routing card's: moving in it, and closing it", keys: []string{"p", "down", "esc"}},
-		{name: "keys the page doesn't take", keys: []string{"w", "1", "m", "x"}},
+		{name: "keys the page doesn't take", keys: []string{"z", "1", "m", "x"}},
 		{name: "j and k, every account in view, which scroll nothing", keys: []string{"j", "k"}},
 	}
 	for _, tt := range tests {

@@ -149,7 +149,8 @@ type Config struct {
 	// it's one there is; Sections the Overview's sections they keep shown;
 	// By how they keep its windows grouped, else as the config's [usage] by
 	// has it; Burn the chart they keep GRAPHS drawing, as
-	// dashboard.BurnKept reads it; History what they keep History's views
+	// dashboard.BurnKept reads it; Models whether they keep the live views
+	// showing each model's own window; History what they keep History's views
 	// showing, as dashboard.HistoryKept reads it; and Log the Log's columns
 	// they keep shown, as dashboard.LogKept reads them. Prefs keeps each as
 	// it changes: nil keeps nothing.
@@ -157,6 +158,7 @@ type Config struct {
 	Sections dashboard.Sections
 	By       dashboard.By
 	Burn     dashboard.Burn
+	Models   bool
 	History  dashboard.HistoryPage
 	Log      dashboard.LogTicks
 	Prefs    Prefs
@@ -297,10 +299,12 @@ type Model struct {
 	// nothing that can.
 	toldBefore *toldSoFar
 	// sections are the Overview's sections shown, by how its windows are
-	// grouped, and burn the chart GRAPHS draws.
+	// grouped, and burn the chart GRAPHS draws; and models whether the live
+	// views show each model's own window, as w toggles it.
 	sections dashboard.Sections
 	by       dashboard.By
 	burn     dashboard.Burn
+	models   bool
 	// layout is the Overview's layout as it was last made, kept from look to
 	// look, as keepLayout keeps it, so it changes only on an input the page
 	// acts on, a key, a click or the wheel, a resize, or a section's shape
@@ -446,7 +450,7 @@ type frameMsg struct {
 func New(ctx context.Context, cfg Config) Model {
 	m := Model{
 		ctx: ctx, cfg: cfg, after: cfg.After, size: cfg.Size, plan: plan{interval: cfg.Interval}, fetching: true,
-		choice: cfg.Choice, pair: cfg.Pair, view: opening(cfg.View), sections: cfg.Sections, by: cfg.By, burn: cfg.Burn,
+		choice: cfg.Choice, pair: cfg.Pair, view: opening(cfg.View), sections: cfg.Sections, by: cfg.By, burn: cfg.Burn, models: cfg.Models,
 		accounts: accountsTab{shown: cfg.AccountsShown}, past: historyTab{page: cfg.History, starts: cfg.WeekStarts},
 		sessionsTab: sessionsTab{shown: cfg.SessionsShown}, runwayTab: runwayTab{shown: cfg.RunwayShown}, log: openingLog(cfg.Log),
 		traffic: traffic{heard: new(views.Hearing)}, held: views.HoldSessions(cfg.Prices),
@@ -895,7 +899,7 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 		Width: m.size.Width, Height: m.size.Height, Look: m.look(),
 		View: m.view,
 		Lost: m.lostShown(), Failed: m.failure(), Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), StateChanged: m.changes.wordFaded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails, PoolRooms: m.pool.rooms,
-		Brightened: m.numbers.brightened(now), Sections: m.sections, By: m.by, Burn: m.burn, Traces: m.traces, TraceScale: m.cfg.TraceScale, Layout: m.layout,
+		Brightened: m.numbers.brightened(now), Sections: m.sections, By: m.by, Burn: m.burn, Models: m.models, Traces: m.traces, TraceScale: m.cfg.TraceScale, Layout: m.layout,
 		Sessions: m.sessions, Unlisted: m.unlisted(), Stream: m.traffic.stream(now), Held: m.held, Traffic: m.traffic.at(now), Scroll: m.scroll, SessionsTab: m.sessionsTab.shown,
 		Focus:      m.focus,
 		Policy:     m.cfg.Policy,

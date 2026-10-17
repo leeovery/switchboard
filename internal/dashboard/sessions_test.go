@@ -4,7 +4,9 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
@@ -228,12 +230,21 @@ func TestSessionsChoiceEndsOpensAndIsClicked(t *testing.T) {
 }
 
 // The Switchboard's lines are the moment's accounts, in their order, each a
-// row a window usage shows of it.
+// row a window the live views list of it: each model's own, quiet, only
+// while w shows them.
 func TestTheSwitchboardsLinesAreTheMomentsAccounts(t *testing.T) {
-	m := threeRouted().At(now, claudeLike)
-	got := boardLinesOf(m)
-	if want := []string{"work", "personal", "side"}; !reflect.DeepEqual(got.accounts, want) || got.windows != len(m.Listed()) || got.windows == 0 {
-		t.Errorf("the lines are %+v, want %v, each of %d windows", got, want, len(m.Listed()))
+	doc := routerDoc("side", 5, pressedAccount("work"), limitedAccount("personal"),
+		readAccount("side", sessionOf(0.12, 4*time.Hour), weekOf(0.33, 5*quota.Day), windowOf("7d_oi", "Fable week", 0.1, 5*quota.Day)))
+	m := doc.At(now, claudeLike)
+	for _, models := range []bool{false, true} {
+		got := Frame{Models: models}.boardLines(m)
+		want, windows := []string{"work", "personal", "side"}, len(m.Listed(models))
+		if !reflect.DeepEqual(got.accounts, want) || got.windows != windows {
+			t.Errorf("with models %t, the lines are %+v, want %v, each of %d windows", models, got, want, windows)
+		}
+	}
+	if hidden, shown := len(m.Listed(false)), len(m.Listed(true)); hidden != 2 || shown != 3 {
+		t.Errorf("the moment lists %d windows, and %d with models; want 2 and 3", hidden, shown)
 	}
 }
 

@@ -351,7 +351,8 @@ func choosing(shown dashboard.SessionShown, i int, s dashboard.Scrolling) dashbo
 // pageKey has them; ↑ and ↓ choose the turn before and after, newest first,
 // as moveTurn has it; enter opens the turn chosen, as openTurn has it; j,
 // k, PgDn and PgUp scroll the turns, or the turn open's requests, as
-// scrollSession has it; and t opens the theme picker. The rest do nothing,
+// scrollSession has it; t opens the theme picker; and w shows and hides each
+// model's own window, as toggleModels has it. The rest do nothing,
 // the tab's own keys among them. While it loads, its keys are loadingKey's.
 func (m Model) sessionKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.session.shown.Loading {
@@ -379,6 +380,8 @@ func (m Model) sessionKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.openTurn()
 	case "t":
 		return m.openPicker()
+	case "w":
+		return m.toggleModels(), nil
 	}
 	return m, nil
 }

@@ -56,14 +56,27 @@ func (m Moment) SharedWindows() []string {
 // Listed are the keys of the windows the owner reads listed at the moment
 // where none is asked for, as USAGE, GRAPHS, the Switchboard's lines and
 // usage's printout list them: those every model shares, as SharedWindows has
-// them, and every other any account reports, so every account keeps its rows
-// before any is read; in the order CompareWindows has.
-func (m Moment) Listed() []string {
+// them, so every account keeps its rows before any is read; then each
+// model's own any account reports, as any window the policy doesn't share
+// is: with models, every one, as usage's printout lists them, and the live
+// views while w shows them; without, only one nearing or at its limit on
+// some account, as nearsLimit has it, for as long as that holds. In the
+// order CompareWindows has.
+func (m Moment) Listed(models bool) []string {
 	keys := slices.Clone(m.policy.Shared)
 	for _, a := range m.Accounts {
 		for _, w := range a.Windows {
-			keys = append(keys, w.Key)
+			if models || w.nearsLimit() {
+				keys = append(keys, w.Key)
+			}
 		}
 	}
 	return slices.Compact(slices.SortedFunc(slices.Values(keys), m.CompareWindows))
+}
+
+// nearsLimit reports whether the window nears or reaches its limit at Now:
+// held at it, at its account's cap, running out, or nearing where it runs
+// out.
+func (w WindowNow) nearsLimit() bool {
+	return w.Held || w.Capped || w.RunsOut || w.Nearing
 }

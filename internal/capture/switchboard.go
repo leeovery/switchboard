@@ -271,7 +271,7 @@ func (a accountWorlds) limitedAt(now, refused time.Time, moved int, routed func(
 func (t *todayOf) towardTheLimit(refused time.Time) *todayOf {
 	t.work()
 	t.personal(level{refused, 1})
-	t.side(level{t.at(16, 5, 0), .31})
+	t.side(sidesFable, level{t.at(16, 5, 0), .31})
 	return t
 }
 

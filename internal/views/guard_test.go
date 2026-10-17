@@ -131,6 +131,9 @@ var (
 		"quota.Sort":        "status.CompareWindows",
 		"quota.Compare":     "status.CompareWindows",
 		"quota.CompareKeys": "status.CompareWindows",
+		// Which windows a live view lists: those every model shares, and
+		// each model's own while w shows them or it nears its limit.
+		"score.Policy.IsShared": "status.Moment.Listed",
 		// The time spent at a cap or a limit, together, and whether it's
 		// known.
 		"views.AccountTotals.MinutesAtCap":   "views.AccountTotals.AtCapOrLimit",

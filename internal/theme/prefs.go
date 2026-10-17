@@ -20,8 +20,9 @@ const prefsName = "prefs.json"
 // Prefs are the dashboard's preferences, which it keeps as they change, and
 // the user never needs to write: the themes it's drawn in, the tab it
 // shows, the Overview's sections shown, how its windows are grouped and the
-// chart GRAPHS draws, what Accounts, History's views, Sessions and Runway
-// show, and the Log's columns.
+// chart GRAPHS draws, whether the live views show each model's own window,
+// what Accounts, History's views, Sessions and Runway show, and the Log's
+// columns.
 type Prefs struct {
 	Choice
 	// Tab names the tab shown, one of overview, accounts, history, sessions,
@@ -43,6 +44,10 @@ type Prefs struct {
 	// Milestone 5 kept its cards' chart style under "chart", which isn't
 	// this: a file of then keeps it as a key these don't know.
 	Graphs string `json:"graphs,omitempty"`
+	// Models is whether the live views show each model's own window, as
+	// Fable's week, as w last left it: unset, as a file without it reads,
+	// hides them.
+	Models bool `json:"models,omitempty"`
 	// Accounts is what Accounts shows, as its keys last left it.
 	Accounts AccountsPrefs `json:"accounts,omitzero"`
 	// History is what History's views show, as their keys last left them.

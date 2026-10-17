@@ -9,11 +9,11 @@ SESSIONS    Switchboard  List  [ ]  ──────────────�
 c61b mobile       ↓ answering                   ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━◉
 d28c switchboard  ↑ asking                      ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━◉  5-hour                     ┃ ▌           ╎   58%  out ~16:05
 7f3a api          ↓ answering                   ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━◉
-                                                                                    ○  Fable wk                    ┃            ╎    0%  29%/day till Sun 21:00
 
 
                                                                                        ┃ even pace: where you would be now, used evenly
                                                                                        ╎ cap: work at 95%    ◆ primary    ▲ new sessions go here
+
 
 
 

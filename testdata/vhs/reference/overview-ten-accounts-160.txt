@@ -4,29 +4,29 @@
 
 USAGE  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── u
 
-                 WEEK                                            5-HOUR                                          FABLE WEEK
+                 WEEK                                                                    5-HOUR
 
- 1 work               ▌   ┃     ╎  34%  19%/day till Sun 21:00           ┃      ╎  95%  at cap · back 17:10       ▉       ┃     ╎  12%  25%/day till Sun 21:00
+ 1 work                       ▋       ┃                ╎   34%  19%/day till Sun 21:00                       ┃                 ╎   95%  at cap · back 17:10
 
- 2 personal ◆              ┃       66%  out ~Sat 06:00                 ▎   ┃       39%  34%/h till 16:30                   ┃        0%  40%/day till Sun 02:00
+ 2 personal ◆                              ┃               66%  out ~Sat 06:00                          ▋          ┃               39%  34%/h till 16:30
 
- 3 side ▲               ┃    ▌     78%  out ~Fri 12:20             ▏┃              13%  21%/h till 18:50         ▋      ┃           4%  25%/day till Mon 10:00
+ 3 side ▲                          ┃            ▎          78%  out ~Fri 12:20                ▎ ┃                                  13%  21%/h till 18:50
 
- 4 client               ▌┃         47%  16%/day till Sun 23:00          ┃▍         52%  16%/h till 17:40          ▎      ┃          8%  27%/day till Sun 23:00
+ 4 client                          ▊  ┃                    47%  16%/day till Sun 23:00                   ┃   ▊                     52%  16%/h till 17:40
 
- 5 spare         ▊    ┃             5%  19%/day till Tue 14:00   ┃                  4%  20%/h till 19:35              ┃             0%  20%/day till Tue 14:00
+ 5 spare                     ┃                              5%  19%/day till Tue 14:00    ┃                                         4%  20%/h till 19:35
 
- 6 lab                  ┃ ▎        58%  out ~Sat 23:41                    ┃ ▍      71%  out ~16:05                  ▍   ┃          21%  21%/day till Mon 08:00
+ 6 lab                              ┃   ▎                  58%  out ~Sat 23:41                                 ┃     ▍             71%  out ~16:05
 
- 7 team                     ┃ ▎    83%  out ~Fri 13:47                        ┃   100%  limit · back 15:30           ▊      ┃      30%  30%/day till Sat 22:00
+ 7 team                                     ┃     ▎        83%  out ~Fri 13:47                                             ┃      100%  limit · back 15:30
 
- 8 extra          ▉ ┃              12%  15%/day till Wed 07:00      ▌  ┃           22%  24%/h till 17:55            ┃               0%  18%/day till Wed 07:00
+ 8 extra             ▊   ┃                                 12%  15%/day till Wed 07:00           ▊     ┃                           22%  24%/h till 17:55
 
- 9 ops               ▋  ┃          29%  18%/day till Mon 14:00     ┃                6%  21%/h till 19:10         ▍      ┃           2%  25%/day till Mon 14:00
+ 9 ops                      ▋     ┃                        29%  18%/day till Mon 14:00     ▍ ┃                                      6%  21%/h till 19:10
 
-10 studio              ▌   ┃       41%  22%/day till Sun 06:00        ▎     ┃      33%  41%/h till 16:20          ▋        ┃       10%  34%/day till Sun 06:00
+10 studio                        ▍        ┃                41%  22%/day till Sun 06:00                ▎             ┃              33%  41%/h till 16:20
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- Σ pool                 ▎┃         45%  5.4 of 10 left                  ┃          43%  5.6 of 10 left            ▍      ┃          9%  9.1 of 10 left
+ Σ pool                            ▏┃                      45%  5.4 of 10 left                            ┃                        43%  5.6 of 10 left
 
                  ┃ even pace: where you would be now, used evenly    ╎ cap: work at 95%    ◆ primary    ▲ new sessions go here
 
@@ -50,4 +50,4 @@ COMING UP  ───────────────────────
 ~16:05  lab runs out at its pace                               in 1h 24m          14:31  ╎ work reached its cap: 3 sessions moved to side
 16:20   studio's 5-hour resets                                 in 1h 38m          14:12  ▲ 7f3a started on work
 
-tab views     u usage  g graphs  r routing  s sessions  c coming up  l lately  b by: window     ↑↓ focus  p pin  ? help  q quit
+tab views     u usage  g graphs  r routing  s sessions  c coming up  l lately  w models  b by: window     ↑↓ focus  p pin  ? help  q quit

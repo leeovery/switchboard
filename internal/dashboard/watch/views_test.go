@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -217,6 +219,7 @@ func TestBSwitchesHowTheWindowsAreGroupedAndKeepsIt(t *testing.T) {
 
 func TestVFlipsGRAPHSChartWhileItShowsAndKeepsIt(t *testing.T) {
 	h := routedHarness(t, routerDocument(three()...))
+	h.update(tea.WindowSizeMsg{Width: 160, Height: 50})
 	prefs := &fakePrefs{}
 	h.model.cfg.Prefs = prefs
 	h.start()
@@ -240,6 +243,67 @@ func TestVFlipsGRAPHSChartWhileItShowsAndKeepsIt(t *testing.T) {
 	}
 	if !slices.Equal(prefs.kept.Sections, dashboard.Sections{}.Toggled(dashboard.SectionGraphs).Names()) || prefs.kept.By != "" {
 		t.Errorf("v kept the sections %q and the grouping %q, want neither touched but by g", prefs.kept.Sections, prefs.kept.By)
+	}
+}
+
+// w shows each model's own window and hides it again wherever the page lists
+// windows as they stand, keeping it, help listing it there: the Overview,
+// its key line too, its word faint while they're hidden; Accounts' Detail;
+// Sessions' Switchboard; and a session's page. Elsewhere it does nothing.
+func TestWShowsAndHidesModelsWindowsWhereThePageListsThemAndKeepsIt(t *testing.T) {
+	tests := []struct {
+		name  string
+		show  func(h *harness)
+		works bool
+	}{
+		{name: "the Overview", show: func(*harness) {}, works: true},
+		{name: "Accounts' Detail", show: func(h *harness) {
+			h.model.view, h.model.accounts.shown.Shown = dashboard.Accounts, dashboard.AccountsDetail
+		}, works: true},
+		{name: "Accounts' Compare", show: func(h *harness) { h.model.view = dashboard.Accounts }},
+		{name: "Sessions' Switchboard", show: func(h *harness) { h.model.view = dashboard.Sessions }, works: true},
+		{name: "Sessions' List", show: func(h *harness) {
+			h.model.view, h.model.sessionsTab.shown.Shown = dashboard.Sessions, dashboard.SessionsList
+		}},
+		{name: "History", show: func(h *harness) { h.model.view = dashboard.History }},
+		{name: "Runway", show: func(h *harness) { h.model.view = dashboard.Runway }},
+		{name: "the Log", show: func(h *harness) { h.model.view = dashboard.Log }},
+		{name: "a session's page", show: func(h *harness) { h.openPage(idD28C) }, works: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h, _ := openedOn(t, t.TempDir(), dashboard.Overview)
+			prefs := &fakePrefs{}
+			h.model.cfg.Prefs = prefs
+			tt.show(h)
+
+			wKey := func(hidden bool) dashboard.Key { return dashboard.Key{Key: "w", Does: "models", Hidden: hidden} }
+			if helped := slices.Contains(helpOver(h.model), wKey(true)); helped != tt.works {
+				t.Errorf("help lists w %t, want %t: %+v", helped, tt.works, helpOver(h.model))
+			}
+			for _, want := range []bool{tt.works, false} {
+				h.typed("w")
+				if h.model.models != want || prefs.kept.Models != want || h.model.frame(h.clock.now).Models != want {
+					t.Errorf("after w, models shown %t, kept %t, the frame's %t; want %t",
+						h.model.models, prefs.kept.Models, h.model.frame(h.clock.now).Models, want)
+				}
+				if tt.works != (prefs.updates > 0) {
+					t.Errorf("w kept the preferences %d times, want kept %t", prefs.updates, tt.works)
+				}
+				if overview := h.model.shownView() == dashboard.Overview; overview && !slices.Contains(h.model.live(h.clock.now).KeyLine.Groups[1], wKey(!want)) {
+					t.Errorf("the Overview's toggles are %+v, want w among them, faint %t", h.model.live(h.clock.now).KeyLine.Groups[1], !want)
+				}
+			}
+		})
+	}
+}
+
+func TestTheWatchOpensShowingTheModelsWindowsThePreferencesKept(t *testing.T) {
+	h := routedHarness(t, routerDocument(three()...))
+	h.model = New(t.Context(), func() Config { c := h.model.cfg; c.Models = true; return c }())
+	h.start()
+	if !h.model.frame(h.clock.now).Models {
+		t.Error("kept shown, the watch opens with each model's own window hidden")
 	}
 }
 
