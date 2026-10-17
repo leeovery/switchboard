@@ -113,8 +113,12 @@ type Frame struct {
 	// or the note a key left in their place.
 	KeyLine KeyLine
 	// Card is the card open over the page, which is drawn faded behind it,
-	// standing still: nil while none is.
+	// standing still, but for the heading's clock: nil while none is.
 	Card Opened
+	// Clock is the time the heading's clock shows, where it isn't the page's,
+	// as under a card, the page standing as it stood when the card opened
+	// while the clock ticks on: zero shows the page's own.
+	Clock time.Time
 	// Policy is the provider's say in which windows every model shares, which
 	// a session's 5-hour window is, and which its week.
 	Policy score.Policy

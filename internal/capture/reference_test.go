@@ -375,13 +375,19 @@ func cursorRow(n int, reads string) passing {
 	return cellsOf(n, 42, 119, reads)
 }
 
+// clockBehindTheCard passes over the heading's clock, row 1, columns 142 to
+// 160, which the frames fade with the page behind a card, where the design
+// draws it bright, ticking on while the card's open (the owner's call, 17
+// October 2026).
+var clockBehindTheCard = cellsOf(1, 142, 160, "Thu 1 Oct  14:42:07")
+
 // behindTheCard passes over the page the routing frames draw behind the
-// card's box, of three accounts: work's week's and Fable week's even paces,
-// on row 9, above it; and ROUTING's traces beside and under it, and their
-// rates, as given.
+// card's box, of three accounts: the heading's clock, as clockBehindTheCard
+// has it; work's week's and Fable week's even paces, on row 9, above it; and
+// ROUTING's traces beside and under it, and their rates, as given.
 func behindTheCard(work, personal, side string) []passing {
 	return slices.Concat(
-		[]passing{evenPace(9, 73), evenPace(9, 121), traced(28, 93, 121)},
+		[]passing{clockBehindTheCard, evenPace(9, 73), evenPace(9, 121), traced(28, 93, 121)},
 		twoHigh(21, 160, 122, work, personal, side),
 	)
 }
@@ -1023,23 +1029,23 @@ var passedOver = map[string][]passing{
 		[]passing{period(152, "by week")}, byModelFigures, []passing{cellsOf(32, 3, 41, "5 more weeks below"), historyKeys(75)},
 	),
 
-	"log-event-details-160": {cellsOf(27, 145, 145, "8")},
+	"log-event-details-160": {clockBehindTheCard, cellsOf(27, 145, 145, "8")},
 	"log-events-160":        {cellsOf(27, 88, 160, ", its 5-hour to run out at 15:10   48k cached again, $0.48")},
 	"log-requests-160":      append(tableRows(8, logTail...), cellsOf(36, 144, 148, "1,240")),
 	"log-requests-phone-52": append(tableRows(9, logTail[len(logTail)-22:]...), cellsOf(32, 36, 40, "1,240")),
 	"log-events-filter-160": slices.Concat(
-		[]passing{cellsOf(13, 21, 31, "■ started")},
+		[]passing{clockBehindTheCard, cellsOf(13, 21, 31, "■ started")},
 		panelSessions(15, 80, 138, "□ d28c", "", "□ 7f3a", "□ db8a", "□ 41e0"),
 		[]passing{cellsOf(27, 143, 145, ".48")},
 	),
 	"log-requests-filter-160": slices.Concat(
 		behindThePanel(),
-		[]passing{cellsOf(10, 70, 74, "1,275"), blankCells(14, 98, 110), cellsOf(15, 83, 87, "1,240")},
+		[]passing{clockBehindTheCard, cellsOf(10, 70, 74, "1,275"), blankCells(14, 98, 110), cellsOf(15, 83, 87, "1,240")},
 		panelSessions(18, 73, 131, "□ d28c", "", "□ 7f3a", "□ db8a", "□ 41e0"),
 		[]passing{cellsOf(26, 31, 45, "1,240 of 1,275"), cellsOf(36, 144, 148, "1,240")},
 	),
 	"log-request-details-160": slices.Concat(
-		[]passing{wholeRow(10, "14:31:18  9c2e")}, besideTheCard(11, aroundTheCap...),
+		[]passing{clockBehindTheCard, wholeRow(10, "14:31:18  9c2e")}, besideTheCard(11, aroundTheCap...),
 		[]passing{
 			blankCells(11, 145, 160), cellsOf(12, 145, 160, "s cap  $0.98"),
 			blankCells(15, 145, 160), cellsOf(16, 145, 160, "s cap  $0.66"),
@@ -1065,7 +1071,7 @@ var passedOver = map[string][]passing{
 	"routing-session-160": slices.Concat(
 		quietPage,
 		[]passing{
-			cellsOf(7, 23, 23, "◆"), wordsAt(8, 12, "personal"), wordsAt(8, 110, "personal"), wordsAt(8, 142, "66%"),
+			clockBehindTheCard, cellsOf(7, 23, 23, "◆"), wordsAt(8, 12, "personal"), wordsAt(8, 110, "personal"), wordsAt(8, 142, "66%"),
 			wholeRow(10, "STORY   requests a minute, its whole life"), cellsOf(17, 77, 94, ": side for now"),
 		},
 		figures(18, "95%", "34%"), figures(19, "39%", "66%"),

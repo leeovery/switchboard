@@ -718,7 +718,8 @@ session to an account, or back to auto. It has no `m`.
 ### Cards over a page
 
 A card over a page, the routing card or help, is drawn with the page faded behind it. The page
-stands still while the card is open. The card's own figures follow each read.
+stands still while the card is open, but for the clock, which keeps ticking. The card's own
+figures follow each read.
 
 ## The key line
 

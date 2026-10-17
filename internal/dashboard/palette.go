@@ -123,6 +123,9 @@ type ink struct {
 	// the colour beneath; or, in a look that blends nothing, faint, on no
 	// surface.
 	behind bool
+	// kept marks a cell a fade leaves as it's drawn, as the heading's clock,
+	// which ticks on behind a card.
+	kept bool
 	// mark is what of the page a span in the ink draws that moves as it
 	// changes, where it draws any, as a number the page brightens: the
 	// canvas notes it on the cells it draws the span in, and leaves it out of

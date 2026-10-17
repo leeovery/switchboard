@@ -84,7 +84,9 @@ func TestThePickerNeverOpensOverACard(t *testing.T) {
 	}
 }
 
-func TestThePageUnderACardStandsStill(t *testing.T) {
+// The page under a card stands still, as the card opened over it, but for
+// the heading's clock, which ticks on.
+func TestThePageUnderACardStandsStillButForItsClock(t *testing.T) {
 	h := routedHarness(t, routerDocument(three()...))
 	h.start()
 	h.settle()
@@ -95,25 +97,43 @@ func TestThePageUnderACardStandsStill(t *testing.T) {
 	moved.Accounts[0].Windows[0].Utilization = 0.9
 	h.startRouter(moved)
 	h.tickUntil(at(13, 12, 30))
-	if got := h.view(); behindCard(got) != behindCard(under) || !strings.Contains(got, "5-hour 90%") {
+	got := h.view()
+	if behindCard(got) != behindCard(under) || !strings.Contains(got, "5-hour 90%") {
 		t.Errorf("half a minute on, a look read since, the screen is\n%s\nwant the page as the card opened over it, and the card's figures as read since\n%s", got, under)
 	}
-	if !strings.Contains(under, opened) {
-		t.Errorf("the screen is\n%s\nwant the clock stopped at %s, when the card opened", under, opened)
+	if now := h.clock.now.Format(time.TimeOnly); clockOf(under) != opened || clockOf(got) != now {
+		t.Errorf("the clock read %s as the card opened and %s half a minute on, want %s, then ticked on to %s", clockOf(under), clockOf(got), opened, now)
 	}
 	if _, ok := h.pendingFrame(); ok {
 		t.Error("a read eased a bar under the card, a frame armed, want none: the page under it is still")
 	}
 
 	h.update(escKey)
-	if view := h.view(); !strings.Contains(view, h.clock.now.Format(time.TimeOnly)) || view == under {
+	if view := h.view(); clockOf(view) != h.clock.now.Format(time.TimeOnly) || behindCard(view) == behindCard(under) {
 		t.Errorf("the card closed, the screen is\n%s\nwant the page as it stands now", view)
 	}
 }
 
-// behindCard is the screen with the routing card's box over it blanked: the
-// page behind it alone.
+// clockOf is the time the heading's clock reads on the screen: the title
+// row's last word.
+func clockOf(view string) string {
+	title, _, _ := strings.Cut(view, "\n")
+	words := strings.Fields(title)
+	return words[len(words)-1]
+}
+
+// unclocked is the screen with the heading's clock, which ticks on under a
+// card, blanked: the page behind a card, which stands still, alone.
+func unclocked(view string) string {
+	title, page, _ := strings.Cut(view, "\n")
+	clock := strings.LastIndex(title, clockOf(view))
+	return title[:clock] + strings.Repeat(" ", len(title)-clock) + "\n" + page
+}
+
+// behindCard is the screen with the routing card's box over it blanked, and
+// the heading's clock, as unclocked has it: the page behind it alone.
 func behindCard(view string) string {
+	view = unclocked(view)
 	rows := strings.Split(view, "\n")
 	top := slices.IndexFunc(rows, func(row string) bool { return strings.Contains(row, "╭─ ROUTING") })
 	if top < 0 {
@@ -143,8 +163,8 @@ func TestThePageUnderACardFollowsTheTerminalsSize(t *testing.T) {
 	h.update(tea.WindowSizeMsg{Width: 120, Height: 30})
 
 	rows := strings.Split(h.view(), "\n")
-	if len(rows) != 30 || !strings.Contains(rows[0], "13:12:00") || !strings.Contains(h.view(), "╭─ HELP · OVERVIEW ─") {
-		t.Errorf("resized under help, the screen is\n%s\nwant it 30 rows tall, the page as help opened over it, help over it", h.view())
+	if len(rows) != 30 || clockOf(h.view()) != "13:12:05" || !strings.Contains(h.view(), "╭─ HELP · OVERVIEW ─") {
+		t.Errorf("resized under help, the screen is\n%s\nwant it 30 rows tall, the page as help opened over it, its clock ticking on, help over it", h.view())
 	}
 }
 

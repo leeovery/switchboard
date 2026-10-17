@@ -414,6 +414,17 @@ the worlds give otherwise than the frames), which the dashboard draws as its wor
   117, and rows 38 to 40, columns 158 to 184; and in `overview-everything-216x106`, the same
   columns of rows 45 to 62, 56 to 62 and 60 to 62.
 
+**The page behind a card, where its frames and the design part:**
+
+- **The heading's clock, bright,** row 1, columns 142 to 160, `Thu 1 Oct  14:42:07`, which the
+  frames fade with the page behind the card, where the design draws it as with no card open,
+  ticking on while the card's open (The page, "The title row"; the owner's call, 17 October
+  2026): behind
+  the routing card in `routing-auto-160`, `routing-two-160`, `routing-move-160`,
+  `routing-limit-160` and `routing-session-160`; behind the Log's details in
+  `log-request-details-160` and `log-event-details-160`; and behind its `f` panel in
+  `log-requests-filter-160` and `log-events-filter-160`.
+
 **The routing card:**
 
 - **The windows' figures,** coloured along a ramp in the frames, where the design colours them by
