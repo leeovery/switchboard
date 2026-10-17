@@ -140,11 +140,11 @@ func (m Model) keys(running []string) pageKeys {
 }
 
 // overviewListings are the Overview's own keys: its toggles, each word
-// faint where its section is hidden, then w, as modelsKey has it; b, its
-// word saying how the windows are grouped; while GRAPHS shows, v, its word
-// saying the chart it draws; and with more than one account, while the
-// Overview has a focus, as focuses says, ↑↓, which the key line sets with p,
-// ? and q.
+// faint where its section is hidden, then w, as modelsKey has it, which the
+// key line leaves to help; b, its word saying how the windows are grouped;
+// while GRAPHS shows, v, its word saying the chart it draws; and with more
+// than one account, while the Overview has a focus, as focuses says, ↑↓,
+// which the key line sets with p, ? and q.
 func (m Model) overviewListings() []keyListing {
 	overview := m.shownView() == dashboard.Overview
 	var own []keyListing
@@ -152,7 +152,7 @@ func (m Model) overviewListings() []keyListing {
 		own = append(own, keyListing{Key: dashboard.Key{Key: s.Key(), Does: s.Word(), Hidden: !m.sections.Has(s)}, works: overview})
 	}
 	return append(own,
-		keyListing{Key: m.modelsKey(), works: overview},
+		keyListing{Key: m.modelsKey(), works: overview, helpful: true},
 		keyListing{Key: dashboard.Key{Key: "b", Does: "by", State: string(layoutOf(m.by))}, works: overview},
 		keyListing{Key: dashboard.Key{Key: "v", Does: "chart", State: m.burn.Name()}, works: overview && m.sections.Has(dashboard.SectionGraphs)},
 		keyListing{Key: dashboard.Key{Key: "↑↓", Does: "focus"}, works: overview && m.asRead.accounts > 1 && m.focuses(), withEnds: true},

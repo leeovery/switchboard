@@ -180,7 +180,7 @@ again.
 | Key | Does |
 |---|---|
 | `u` `g` `r` `s` `c` `l` | Shows or hides a section: USAGE, GRAPHS, ROUTING, SESSIONS, COMING UP and LATELY. |
-| `w` | Shows or hides each model's own window, such as Fable's week. They're hidden until you press `w`. |
+| `w` | Shows or hides each model's own window, such as Fable's week. They're hidden until you press `w`. `?` lists it; the key line leaves it out. |
 | `b` | Groups the windows by window or by account. Until you press `b`, the grouping follows [`[usage] by`](configuration.md#usage-keys). |
 | `v` | While GRAPHS shows, flips it between the burn-up and the burn-down. |
 | `↑` `↓` | Moves the focus between the accounts, in the config's order. GRAPHS charts the focused account, and USAGE scrolls to it. While GRAPHS charts every account beside USAGE, there's no focus to move. |
@@ -745,8 +745,7 @@ place, for 4 seconds.
 
 `t`, `R` and the scrolling keys work everywhere, and are left to `?`.
 
-The Overview's key line lists its section toggles, each word faint while its section is hidden,
-and `w models`, faint while each model's own window is hidden.
+The Overview's key line lists its section toggles, each word faint while its section is hidden.
 Then come `b by: window`, `v chart: burn-up` while GRAPHS shows, and
 `↑↓ focus  p pin  ? help  q quit`.
 

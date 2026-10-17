@@ -6,8 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	tea "charm.land/bubbletea/v2"
-
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -219,7 +217,6 @@ func TestBSwitchesHowTheWindowsAreGroupedAndKeepsIt(t *testing.T) {
 
 func TestVFlipsGRAPHSChartWhileItShowsAndKeepsIt(t *testing.T) {
 	h := routedHarness(t, routerDocument(three()...))
-	h.update(tea.WindowSizeMsg{Width: 160, Height: 50})
 	prefs := &fakePrefs{}
 	h.model.cfg.Prefs = prefs
 	h.start()
@@ -247,9 +244,10 @@ func TestVFlipsGRAPHSChartWhileItShowsAndKeepsIt(t *testing.T) {
 }
 
 // w shows each model's own window and hides it again wherever the page lists
-// windows as they stand, keeping it, help listing it there: the Overview,
-// its key line too, its word faint while they're hidden; Accounts' Detail;
-// Sessions' Switchboard; and a session's page. Elsewhere it does nothing.
+// windows as they stand, keeping it: the Overview, Accounts' Detail,
+// Sessions' Switchboard and a session's page. Help lists it there, its word
+// faint while they're hidden; the key line never does. Elsewhere it does
+// nothing.
 func TestWShowsAndHidesModelsWindowsWhereThePageListsThemAndKeepsIt(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -290,8 +288,11 @@ func TestWShowsAndHidesModelsWindowsWhereThePageListsThemAndKeepsIt(t *testing.T
 				if tt.works != (prefs.updates > 0) {
 					t.Errorf("w kept the preferences %d times, want kept %t", prefs.updates, tt.works)
 				}
-				if overview := h.model.shownView() == dashboard.Overview; overview && !slices.Contains(h.model.live(h.clock.now).KeyLine.Groups[1], wKey(!want)) {
-					t.Errorf("the Overview's toggles are %+v, want w among them, faint %t", h.model.live(h.clock.now).KeyLine.Groups[1], !want)
+				if tt.works && !slices.Contains(helpOver(h.model), wKey(!want)) {
+					t.Errorf("after w, help lists %+v, want w with its word faint %t", helpOver(h.model), !want)
+				}
+				if slices.Contains(h.listed(), "w") {
+					t.Errorf("the key line lists %q, want w left to help", h.listed())
 				}
 			}
 		})

@@ -394,7 +394,7 @@ func calmScreen(size Size, now time.Time, trails dashboard.Trails) string {
 			{{Key: "tab", Does: "views"}},
 			{
 				{Key: "u", Does: "usage"}, {Key: "g", Does: "graphs", Hidden: true}, {Key: "r", Does: "routing"},
-				{Key: "s", Does: "sessions", Hidden: true}, {Key: "c", Does: "coming up"}, {Key: "l", Does: "lately"}, {Key: "w", Does: "models", Hidden: true},
+				{Key: "s", Does: "sessions", Hidden: true}, {Key: "c", Does: "coming up"}, {Key: "l", Does: "lately"},
 				{Key: "b", Does: "by", State: "window"},
 			},
 			{{Key: "?", Does: "help"}, {Key: "q", Does: "quit"}},

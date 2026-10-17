@@ -17,7 +17,8 @@ func overviewHelp() []helpPart {
 		{
 			heading: SectionUsage.heading(),
 			says: []line{
-				said("Every account's windows, as switchboard usage prints them, first as the rest of the page is read against them. " +
+				said("Each account's windows, those every model shares, and each model's own while `w` shows them, as switchboard usage " +
+					"prints them, first as the rest of the page is read against them. " +
 					"A bar fills along the theme's ramp as its window is used, and its percentage takes the ramp's second colour from 70% " +
 					"and its last from 90%."),
 				said("The words say what can be spent an hour, or a day of a week, and still last to the reset; out ~16:05 where the window " +

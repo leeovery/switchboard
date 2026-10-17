@@ -36,4 +36,4 @@ ROUTING   auto ─────────────────────�
 SESSIONS   6 running: 2 on personal, 4 on side   no room at 39 rows ────────────────────────────────────────────────────────────────────────────────────────── s
 COMING UP   16:30  personal's 5-hour resets  … ─────────────────────── c          LATELY   14:41  ▲ c61b started on side  … ────────────────────────────────── l
 
-tab views     u usage  g graphs  r routing  s sessions  c coming up  l lately  w models  b by: window  v chart: burn-up     ↑↓ focus  p pin  ? help  q quit
+tab views     u usage  g graphs  r routing  s sessions  c coming up  l lately  b by: window  v chart: burn-up     ↑↓ focus  p pin  ? help  q quit

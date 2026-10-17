@@ -1089,10 +1089,11 @@ Overview).
 - `t`, the theme picker, and `R`, refresh, work on every page and are never on the key line: `?`
   lists them.
 - `w`, each model's own window shown or hidden, works wherever windows are listed as they stand:
-  the Overview, whose key line lists it among its toggles, its word `models` faint while they're
-  hidden; and Accounts' Detail, Sessions' Switchboard and a session's page, where `?` lists it.
-  It adds 10 cells to the Overview's wide line, which then fits whole from 137 columns, 155 while
-  GRAPHS shows.
+  the Overview, Accounts' Detail, Sessions' Switchboard and a session's page. It's never on the
+  key line: `?` and the keys-and-toggles card list it, its word `models` faint while they're
+  hidden. It's set once and remembered, so it doesn't earn the 10 cells it would cost every other
+  key: on the Overview's line, they'd have it fall to a phone's below 137 columns, 155 while GRAPHS
+  shows, where it fits whole from 127 and 145 (the owner's call, 17 October 2026).
 - `[ ]`'s word is `view` everywhere; `enter`'s word says what it does on the page, as `enter its
   page` or `enter open`.
 - A key that can't act now is drawn in `text.faint`, its key not bold, as `p pin` is while the
@@ -1797,8 +1798,7 @@ remembered").
 
 - **Wide:** `tab views`, five spaces; each toggle as its key and word, two spaces apart, `u usage  g
   graphs  r routing  s sessions  c coming up  l lately`, a key in bold `accent.key` and its word in
-  `text.muted` while its section shows, else `text.faint`; two spaces, `w models`, its word so
-  while each model's own window shows, else `text.faint`; two spaces, `b by: window`, the state in
+  `text.muted` while its section shows, else `text.faint`; two spaces, `b by: window`, the state in
   `text.secondary`; while GRAPHS shows, two spaces and `v chart: burn-up` or `v chart: burn-down`,
   the same way; five spaces; then `↑↓ focus  p pin  ? help  q quit`. With one account, `↑↓ focus`
   doesn't show (settled in the plan), nor while GRAPHS charts every account beside USAGE's blocks,

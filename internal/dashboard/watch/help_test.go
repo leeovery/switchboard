@@ -58,7 +58,9 @@ func TestHelpTakesEveryKeyButCtrlC(t *testing.T) {
 func TestHelpListsEveryKeyThatWorksAndTheKeyLineTheMostUsed(t *testing.T) {
 	pinned := routerDocument(three()[0])
 	pinned.Pin = status.Pin{Accounts: []string{"work"}}
-	toggles := []string{"u", "g", "r", "s", "c", "l", "w", "b"}
+	// toggles are the Overview's as help lists them, w among them; lined,
+	// as the key line does, which leaves w to help.
+	toggles, lined := []string{"u", "g", "r", "s", "c", "l", "w", "b"}, []string{"u", "g", "r", "s", "c", "l", "b"}
 	scrolling := []string{"j k", "PgUp PgDn", "wheel"}
 	tests := []struct {
 		name string
@@ -71,7 +73,7 @@ func TestHelpListsEveryKeyThatWorksAndTheKeyLineTheMostUsed(t *testing.T) {
 			name:     "the router of three",
 			h:        func(t *testing.T) *harness { return routedHarness(t, routerDocument(three()...)) },
 			wantHelp: slices.Concat([]string{"tab"}, toggles, []string{"↑↓"}, scrolling, []string{"p", "R", "?", "q"}),
-			wantLine: slices.Concat([]string{"tab"}, toggles, []string{"↑↓", "p", "?", "q"}),
+			wantLine: slices.Concat([]string{"tab"}, lined, []string{"↑↓", "p", "?", "q"}),
 		},
 		{
 			name: "the router of three in Sessions, which doesn't scroll",
@@ -97,13 +99,13 @@ func TestHelpListsEveryKeyThatWorksAndTheKeyLineTheMostUsed(t *testing.T) {
 			name:     "one account, with nowhere else to pin",
 			h:        func(t *testing.T) *harness { return routedHarness(t, routerDocument(three()[0])) },
 			wantHelp: slices.Concat([]string{"tab"}, toggles, scrolling, []string{"R", "?", "q"}),
-			wantLine: slices.Concat([]string{"tab"}, toggles, []string{"?", "q"}),
+			wantLine: slices.Concat([]string{"tab"}, lined, []string{"?", "q"}),
 		},
 		{
 			name:     "one account, pinned from the command line",
 			h:        func(t *testing.T) *harness { return routedHarness(t, pinned) },
 			wantHelp: slices.Concat([]string{"tab"}, toggles, scrolling, []string{"p", "R", "?", "q"}),
-			wantLine: slices.Concat([]string{"tab"}, toggles, []string{"p", "?", "q"}),
+			wantLine: slices.Concat([]string{"tab"}, lined, []string{"p", "?", "q"}),
 		},
 	}
 	for _, tt := range tests {

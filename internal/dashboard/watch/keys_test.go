@@ -40,7 +40,7 @@ func TestTheKeyLineGroupsTheKeysOfEachTab(t *testing.T) {
 		wantPhone []string
 		wantHelp  string
 	}{
-		{view: dashboard.Overview, lead: 5, after: 5, want: [][]string{{"tab"}, {"u", "g", "r", "s", "c", "l", "w", "b"}, {"↑↓", "p", "?", "q"}}, wantHelp: "keys and toggles"},
+		{view: dashboard.Overview, lead: 5, after: 5, want: [][]string{{"tab"}, {"u", "g", "r", "s", "c", "l", "b"}, {"↑↓", "p", "?", "q"}}, wantHelp: "keys and toggles"},
 		{view: dashboard.Accounts, lead: 3, want: [][]string{{"tab"}, {"[ ]"}, {"< >"}, {"←→", "enter"}, {"p"}, {"?", "q"}}, wantPhone: []string{"[ ]"}, wantHelp: "keys"},
 		{view: dashboard.History, lead: 3, want: [][]string{{"tab"}, {"[ ]"}, {"< >"}, {"v"}, {"p"}, {"?", "q"}}, wantPhone: []string{"[ ]"}, wantHelp: "keys"},
 		{
@@ -78,7 +78,7 @@ func TestTheKeyLineGroupsTheKeysOfEachTab(t *testing.T) {
 func TestTheOverviewsKeyLineIsTheDesigns(t *testing.T) {
 	pinned := routerDocument(three()[0])
 	pinned.Pin = status.Pin{Accounts: []string{"work"}}
-	toggles := "tab views     u usage  g graphs  r routing  s sessions  c coming up  l lately  w models  b by: window     "
+	toggles := "tab views     u usage  g graphs  r routing  s sessions  c coming up  l lately  b by: window     "
 	phone := "tab views   ? keys and toggles   q quit"
 	tests := []struct {
 		name  string
@@ -113,7 +113,7 @@ func TestTheOverviewsKeyLineSaysWhichSectionsShowAndHowTheWindowsAreGrouped(t *t
 
 	want := []dashboard.Key{
 		{Key: "u", Does: "usage", Hidden: true}, {Key: "g", Does: "graphs"}, {Key: "r", Does: "routing"},
-		{Key: "s", Does: "sessions", Hidden: true}, {Key: "c", Does: "coming up"}, {Key: "l", Does: "lately"}, {Key: "w", Does: "models", Hidden: true},
+		{Key: "s", Does: "sessions", Hidden: true}, {Key: "c", Does: "coming up"}, {Key: "l", Does: "lately"},
 		{Key: "b", Does: "by", State: "account"},
 		{Key: "v", Does: "chart", State: "burn-up"},
 	}
