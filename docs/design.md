@@ -6216,6 +6216,22 @@ the Overview read today whole again; the tail alone asks it now, the traces taki
 the stream's open asking for one. A whole read that can't read a file has that file read afresh at
 the next read, so no line is lost; and the traces copy only the lines they keep.
 
+**The dashboard's snags — done.** The release after v0.2.3 fixes what its owner met using the
+dashboard on a phone, an iPad and the Mac, as sorted with the owner on 17 October 2026
+([dashboard-snags](../ideas/2026-10-15--dashboard-snags.md)):
+- **Order:** the week first wherever windows are listed (`status.CompareWindows`), with Runway
+  opening on it.
+- **Model windows:** each model's own window behind `w`, hidden at first, and shown anyway near its
+  limit.
+- **The pool:** its percentage is its accounts' mean use.
+- **Layout:** USAGE's blocks a blank row apart; the heading's clock live under a card; Runway's pool
+  lane named at its top; Runway's account column collapsing on `a`; a phone's view tabs padded; a
+  session's path brighter.
+- **The frames:** they became the tests' snapshots of the live view, written by
+  `capturetool --frames`, with nothing passed over.
+
+The layout snags went to the phone, iPad and desktop rounds.
+
 The release, through GoReleaser, a Homebrew tap and mint, follows milestone 3.
 
 ## Observed
@@ -6384,7 +6400,7 @@ why.
 | The dashboard's memory the fix after v0.2.1 left: the Log's line, a request in flight across midnight, and smaller costs | open: any time | [dashboard-memory-left](../ideas/2026-10-17--dashboard-memory-left.md) |
 | Watching switchboard's CPU and memory for a week after milestone 7's release, against v0.1.6's baseline | next, after milestone 7's release, the owner's choice on 14 October 2026 | [performance-watch](../ideas/2026-10-14--performance-watch.md) |
 | Money in a chosen currency, such as pounds sterling, wherever money shows, with a rate for API prices | open: raised by the owner on 15 October 2026 | [currencies](../ideas/2026-10-15--currencies.md) |
-| Snags the owner meets using v0.2.0's dashboard, gathered as found | open: a smaller screen's layout, to come back to; the rest fixed in the patch after v0.2.0, 15 October 2026 | [dashboard-snags](../ideas/2026-10-15--dashboard-snags.md) |
+| Snags the owner meets using v0.2.0's dashboard, gathered as found | done in the release after v0.2.3, 17 October 2026; the layout snags to the phone, iPad and desktop rounds | [dashboard-snags](../ideas/2026-10-15--dashboard-snags.md) |
 | Mockups drawn in Go: a design's mockups drawn from the dashboard's own components, or `capturetool`'s screens, rather than from a second model of the dashboard | open: an idea for another time | [mockups-drawn-in-go](../ideas/2026-10-11--mockups-drawn-in-go.md) |
 | Worth past what it's counted in: a config's price, or a period's sum, too large to hold | open: a small fix, its bound to settle | [worth-range](../ideas/2026-10-09--worth-range.md) |
 | What a routed session's environment carries to a `claude` switchboard steps aside for, as one a script points at another gateway | open: a small fix, any time | [stepping-aside](../ideas/2026-10-09--stepping-aside.md) |
