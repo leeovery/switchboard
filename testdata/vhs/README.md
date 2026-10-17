@@ -1,7 +1,7 @@
 # The dashboard's visual capture harness (`vhs`)
 
 This directory is where the dashboard is checked against what the owner signed off. `reference/`
-keeps the frames: the live view, the dashboard and `usage`'s printout, as he last signed it off. A
+keeps the frames: the live view, the dashboard and `usage`'s printout, as the owner last signed it off. A
 test holds every fixture named after a frame to that frame, cell for cell: its glyphs, its colours
 and its bold. And by eye, for what a test can't judge, how a page reads and what moves: a stage
 that changes what the dashboard draws can write a `vhs` tape here and screenshot a fixture through
@@ -103,8 +103,8 @@ yet there among them for a new frame. It takes no other flag, and writes nothing
 fixture. It says each frame it writes.
 
 A change that alters a screen shows the owner the new screen first, each frame it alters printed
-with `--print`, and once he signs them off regenerates those frames in the same change. The test
-then holds the build to them. A frame that changes without his sign-off is a regression to fix,
+with `--print`, and once they are signed off regenerates those frames in the same change. The test
+then holds the build to them. A frame that changes without the owner's sign-off is a regression to fix,
 not a frame to rewrite.
 
 ## Setting up
@@ -410,7 +410,7 @@ to the frame's, cell for cell.
    world goes in `pages`, with its world and keys, and a printout of `usage` in `printouts`, with
    how it groups the windows and which it prints, as its flags have them, and its flags in
    `TestAPrintoutIsWhatUsagePrintsOfItsRouter`, which holds it to what `usage` prints given them.
-2. Show the owner what it draws, with `--print`. Once he signs it off, write its frame with
+2. Show the owner what it draws, with `--print`. Once it is signed off, write its frame with
    `go run ./cmd/capturetool --frames testdata/vhs/reference <name>`: from then on, the test holds
    it to its frame.
 3. To judge it by eye too, write its tape, modelled on `history-year-160.tape`, its `Width` and

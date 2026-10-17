@@ -113,8 +113,8 @@ real install. `go run ./cmd/capturetool --fixture <name> --print --size 160x37` 
   capture's tests hold each fixture named after a frame to it, cell for cell, passing over nothing,
   and hold every view to its rows at every size; the dashboard package's tests hold its rules,
   never the frames.
-- **A change that alters a screen** shows the owner its prints first (`--print`), then, once he
-  signs them off, regenerates its frames in the same change:
+- **A change that alters a screen** shows the owner its prints first (`--print`), then, once
+  they are signed off, regenerates its frames in the same change:
   `go run ./cmd/capturetool --frames testdata/vhs/reference [names…]`, every frame without names.
   Never edit a frame by hand.
 - **The README's demos:** `--scenario` plays a scripted scenario in real time; their tapes are in

@@ -5398,7 +5398,7 @@ hiding it behind the provider would take a wider interface than it's worth:
   fixture to its frame's `.txt` and `.ansi`, cell for cell, passing over nothing: each cell's glyph, colours and bold, a blank's
   background alone, and a cell not painted taken as the canvas, as `usage`'s printout paints none
   and writes nothing past a line's end. A change that alters a screen shows the owner its prints
-  first (`--print`); once he signs them off, it regenerates the frames it alters with the command,
+  first (`--print`); once they are signed off, it regenerates the frames it alters with the command,
   in the same change. The frames began as those signed off in Paper from 4 to 8 October 2026, each
   area's Paper page named in its section, held to with passings where the build drew otherwise;
   on 17 October 2026 the owner made the live view the record, and the frames were written afresh
