@@ -129,7 +129,7 @@ func newSoak(t *testing.T, setup soakSetup) *soak {
 		configured[i] = config.Account{ID: a}
 	}
 	cfg := h.model.cfg
-	cfg.Ledger, cfg.Readings, cfg.Events, cfg.Prices, cfg.Accounts = read, history, filed, ledger.Pricing, configured
+	cfg.Ledger, cfg.Readings, cfg.Events, cfg.Accounts = read, history, filed, configured
 	cfg.After, cfg.Await = s.arm, s.await
 	h.model = New(t.Context(), cfg)
 	s.h, s.follower = h, follower

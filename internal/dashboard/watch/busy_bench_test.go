@@ -432,7 +432,6 @@ func (w busyWorld) harness(tb testing.TB) *harness {
 	h.source.sessions = w.running()
 	follower, history, filed := w.readers(h.clock.Now)
 	h.model.cfg.Ledger, h.model.cfg.Readings, h.model.cfg.Events = follower, history, filed
-	h.pricedBy(ledger.Pricing)
 	h.update(tea.WindowSizeMsg{Width: 160, Height: 37})
 	h.start()
 	return h

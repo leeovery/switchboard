@@ -79,7 +79,7 @@ func historyHarness(t *testing.T, opening dashboard.View, kept dashboard.History
 	h.source.router = &doc
 	l := &daysLedger{Empty: h.emptyLedger(), clock: h.clock, first: "2024-06-03", days: map[string]ledger.Summary{}}
 	cfg := h.config(Size{Width: 160, Height: 37})
-	cfg.Ledger, cfg.Prices, cfg.Accounts, cfg.WeekStarts, cfg.WeekWindow = l, ledger.Pricing, threeConfigured, time.Monday, "7d"
+	cfg.Ledger, cfg.Accounts, cfg.WeekStarts, cfg.WeekWindow = l, threeConfigured, time.Monday, "7d"
 	cfg.View, cfg.History = opening, kept
 	h.model = New(t.Context(), cfg)
 	return h, l

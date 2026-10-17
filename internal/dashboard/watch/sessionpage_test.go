@@ -86,7 +86,6 @@ func (h *harness) withLines(lines []ledger.Line) *pageLedger {
 		l.lines[line.Session] = append(l.lines[line.Session], line)
 	}
 	h.model.cfg.Ledger = l
-	h.pricedBy(ledger.Pricing)
 	return l
 }
 
@@ -99,7 +98,7 @@ func TestAStoreFirstFedByASessionsPagePricesItsSession(t *testing.T) {
 	h := routedHarness(t, routerDocument(three()...))
 	h.source.sessions = []status.Session{sessionOn(idD28C, opus, "work", 0)}
 	cfg := h.config(Size{Width: 160, Height: 37})
-	cfg.Ledger, cfg.Prices = ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, logs.For("watch")), ledger.Pricing
+	cfg.Ledger = ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, logs.For("watch"))
 	h.model = New(t.Context(), cfg)
 	h.start()
 	h.openPage(idD28C)

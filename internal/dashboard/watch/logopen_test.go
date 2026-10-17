@@ -16,18 +16,6 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// pricedFromNew is newHarness, its model made with the price table's
-// prices, as the dashboard's is.
-func pricedFromNew(t *testing.T) *harness {
-	t.Helper()
-	h := &harness{t: t, clock: &fakeClock{now: start}, source: &fakeSource{doc: probedWithoutTheRouter()}, notifier: &fakeNotifier{}}
-	cfg := h.config(Size{Width: 80, Height: 24})
-	cfg.Prices = ledger.Pricing
-	h.model = New(t.Context(), cfg)
-	h.update(tea.WindowSizeMsg{Width: 150, Height: 50})
-	return h
-}
-
 // listedToday is the List of the store as the watch holds it at the clock's
 // time.
 func listedToday(h *harness) views.SessionsToday {
@@ -40,7 +28,7 @@ func listedToday(h *harness) views.SessionsToday {
 // priced from the start.
 func TestAStoreTheLogFeedsFirstPricesItsSessions(t *testing.T) {
 	state := t.TempDir()
-	h := pricedFromNew(t)
+	h := newHarness(t, probedWithoutTheRouter())
 	onTheLog(h, state)
 	h.start()
 	l := arrived("0a000001", "work", -time.Minute)
@@ -60,7 +48,7 @@ func TestAStoreTheLogFeedsFirstPricesItsSessions(t *testing.T) {
 func TestTheLogOpeningAfterTheListsFirstReadFeedsTheStoreWhatCameBetween(t *testing.T) {
 	state := t.TempDir()
 	writeLines(t, state, arrived("0a000001", "work", -5*time.Minute), arrived("0a000002", "work", -4*time.Minute))
-	h := pricedFromNew(t)
+	h := newHarness(t, probedWithoutTheRouter())
 	onTheLog(h, state)
 	h.model.view = dashboard.Sessions
 	listing := h.deliverHolding(func(msg tea.Msg) bool { _, ok := msg.(listReadMsg); return ok }, h.init()...)
@@ -88,7 +76,7 @@ func TestTheLogOpeningAfterTheListsFirstReadFeedsTheStoreWhatCameBetween(t *test
 func TestTheLogOpeningAfterTheTailWasReadIsGivenNoLineTwice(t *testing.T) {
 	state := t.TempDir()
 	writeLines(t, state, arrived("0a000001", "work", -5*time.Minute))
-	h := pricedFromNew(t)
+	h := newHarness(t, probedWithoutTheRouter())
 	onTheLog(h, state)
 	h.model.view = dashboard.Sessions
 	h.start()
@@ -123,7 +111,7 @@ func TestTheLogLetsGoOfTheDayBeforeWhileAnotherTabShows(t *testing.T) {
 		yesterday = append(yesterday, arrivedAt(fmt.Sprintf("0b%06d", i), midnight.Add(-time.Hour+time.Duration(i)*time.Minute)))
 	}
 	writeLines(t, state, yesterday...)
-	h := pricedFromNew(t)
+	h := newHarness(t, probedWithoutTheRouter())
 	onTheLog(h, state)
 	h.clock.now = midnight.Add(-10 * time.Minute)
 	h.start()
@@ -227,7 +215,7 @@ func TestTheLogShownAgainHoldsNothingOfADayLetGo(t *testing.T) {
 		yesterday = append(yesterday, arrivedAt(fmt.Sprintf("0b%06d", i), midnight.Add(-time.Hour+time.Duration(i)*time.Minute)))
 	}
 	writeLines(t, state, yesterday...)
-	h := pricedFromNew(t)
+	h := newHarness(t, probedWithoutTheRouter())
 	onTheLog(h, state)
 	h.clock.now = midnight.Add(-10 * time.Minute)
 	h.start()

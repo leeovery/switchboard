@@ -32,21 +32,37 @@ const logGuardDays = 1
 // read by read. Each read for the Log reads a day only before those its
 // tables span, as it reads back, or the day before today in the first
 // guardLateFor of the day, for the lines of the requests that ended across
-// midnight; and no session whole the store holds. Once the new day's rows
-// fill its view, it lets go of the day before. Paged back, it reads the day
-// before again; following again, it lets go of it again, its read holding
-// today's lines alone, its Events none before today's reach. As it lets go,
-// paged back, and at the end, following again, its Requests are those of
-// one read whole, from the day they span from, the store fed it whole, and
-// nothing of the Log's reaches a day before it.
+// midnight; and no session whole the store holds, but for a page's, as it
+// opens. Once the new day's rows fill its view, it lets go of the day
+// before. A while after, a line chosen, the page of its session is opened
+// over it, and closed, the Log following again: the page's session is read
+// whole once, as it opens, and at every read of the tail while it's open
+// the page holds what the page's part holds it to, once compared with a
+// page read whole. Paged back, the Log reads the day before again;
+// following again, it lets go of it again, its read holding today's lines
+// alone, its Events none before today's reach. As it lets go, under the
+// page, paged back, and at the end, following again, its Requests are those
+// of one read whole, from the day they span from, the store fed it whole,
+// and nothing of the Log's reaches a day before it.
 func TestTheLogHoldsOnlyWhatItShows(t *testing.T) {
 	midnight := dayfile.DayStart(guardStart, 1)
+	covered, uncovered := midnight.Add(3*time.Minute+10*time.Second), midnight.Add(3*time.Minute+40*time.Second)
 	paged, followed, end := midnight.Add(4*time.Minute), midnight.Add(4*time.Minute+20*time.Second), midnight.Add(5*time.Minute)
-	g := &logGuard{t: t, midnight: midnight, checks: []time.Time{paged.Add(10 * time.Second), end.Add(-2 * lookEvery)}}
+	g := &logGuard{t: t, midnight: midnight, checks: []time.Time{covered.Add(20 * time.Second), paged.Add(10 * time.Second), end.Add(-2 * lookEvery)}}
 	s := newSoak(t, soakSetup{start: guardStart, days: logGuardDays, pace: logGuardPace, guard: g})
 	s.resized(logGuardSize)
 	s.show("log")
+	page := &pageGuard{t: t, s: s, checks: []time.Time{covered.Add(20 * time.Second)}}
 	s.schedule = append(s.schedule,
+		soakAction{at: covered, do: func() {
+			s.keyed(tea.KeyPressMsg{Code: tea.KeyUp})
+			page.id, g.page = s.h.model.log.page.ChosenSession(), page
+			s.typed("s")
+		}},
+		soakAction{at: uncovered, do: func() {
+			s.keyed(tea.KeyPressMsg{Code: tea.KeyEscape})
+			s.keyed(tea.KeyPressMsg{Code: tea.KeyEnd})
+		}},
 		soakAction{at: paged, do: func() {
 			g.pagedFrom = len(g.daysRead)
 			s.pagedBack()
@@ -61,6 +77,14 @@ func TestTheLogHoldsOnlyWhatItShows(t *testing.T) {
 	m := s.h.model
 	if g.letGo.IsZero() || !g.letGo.Before(paged) {
 		t.Errorf("the Log let go of the day before at %v, want it let go once today's rows filled its view, before %v", g.letGo, paged)
+	}
+	if !g.underPage {
+		t.Error("no read of the ledger landed with the page open over the Log to hold its Requests to one read whole at")
+	}
+	if page.id == "" || page.wholes != 1 || page.fed == 0 || len(page.checks) > 0 || m.session != nil {
+		t.Errorf("over the Log, a page opened of %q, its session read whole %d times, the store fed for it %d times, %d of its compares to one read whole left, still open %t; "+
+			"want a page opened of the chosen line's session, read whole once as it opened, the store fed at each read of the tail, compared once, closed by esc",
+			page.id, page.wholes, page.fed, len(page.checks), m.session != nil)
 	}
 	if !slices.Contains(g.daysRead[g.pagedFrom:g.followedFrom], yesterday) {
 		t.Errorf("paged back, the Log read the days %v, want the day before, %s, among them", g.daysRead[g.pagedFrom:g.followedFrom], yesterday)
@@ -82,7 +106,9 @@ func TestTheLogHoldsOnlyWhatItShows(t *testing.T) {
 // followedFrom how many had been read as the Log was paged back, and as it
 // followed again; letGo when the Log first let go of the day before; and
 // checks the moments still to hold its Requests to one read whole at, the
-// earliest first, the moment it let go among them.
+// earliest first, the moment it let go among them, and whether one was held
+// under a page; and page the guard of the page opened over it, once it's
+// opened.
 type logGuard struct {
 	t            *testing.T
 	s            *soak
@@ -93,11 +119,29 @@ type logGuard struct {
 	followedFrom int
 	letGo        time.Time
 	checks       []time.Time
+	underPage    bool
+	page         *pageGuard
 }
 
 func (g *logGuard) reads(s *soak, l views.Ledger) views.Ledger {
 	g.s = s
-	return &countingLedger{Ledger: l, read: func(r ledgerRead) { g.unjudged = append(g.unjudged, r) }}
+	return &countingLedger{Ledger: l, read: func(r ledgerRead) {
+		if g.page == nil {
+			g.unjudged = append(g.unjudged, r)
+			return
+		}
+		g.page.counted(r)
+		if !g.pageOpening(r) {
+			g.unjudged = append(g.unjudged, r)
+		}
+	}}
+}
+
+// pageOpening reports whether r is the read of the page opened over the Log
+// as it opens, its session read whole, as the page's part has it, whether or
+// not the store holds it; the page guard counts it.
+func (g *logGuard) pageOpening(r ledgerRead) bool {
+	return g.s.h.model.session == nil && slices.Equal(r.asked, []string{g.page.id})
 }
 
 func (g *logGuard) took(msg tea.Msg, was Model) {
@@ -108,15 +152,19 @@ func (g *logGuard) took(msg tea.Msg, was Model) {
 		g.letGo = now
 		g.checks = append([]time.Time{now}, g.checks...)
 	}
-	switch msg.(type) {
-	case logReadMsg, tailedMsg, listReadMsg:
+	switch msg := msg.(type) {
+	case tailedMsg:
+		if g.page != nil {
+			g.page.tailed(msg)
+		}
+	case logReadMsg, listReadMsg:
 	default:
 		return
 	}
 	g.judged(was)
 	if len(g.checks) > 0 && !now.Before(g.checks[0]) && !m.log.reading {
 		g.sameAsOneRead(now)
-		g.checks = g.checks[1:]
+		g.checks, g.underPage = g.checks[1:], g.underPage || m.session != nil
 	}
 }
 

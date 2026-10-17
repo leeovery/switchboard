@@ -20,7 +20,6 @@ import (
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
-	"github.com/leeovery/switchboard/internal/views"
 )
 
 // start is when every test's clock starts: a Monday, 13:12 an hour east of UTC.
@@ -79,20 +78,15 @@ func unsizedHarness(t testing.TB, doc status.Document, size Size) *harness {
 }
 
 // config is the watch's config the harness's models are made of, drawing
-// at size till the terminal gives its own, reading an empty ledger, and a
-// model's family and an account's week as Claude's are read.
+// at size till the terminal gives its own, reading an empty ledger priced at
+// the price table's prices, and a model's family and an account's week as
+// Claude's are read.
 func (h *harness) config(size Size) Config {
 	return Config{
 		Source: h.source, Notifier: h.notifier, Notifications: notifications, Now: h.clock.Now, After: h.arm, Await: h.await,
-		Interval: interval, Policy: policy, Size: size, Ledger: h.emptyLedger(), Readings: readings.Empty{}, Events: events.Empty{},
+		Interval: interval, Policy: policy, Size: size, Ledger: h.emptyLedger(), Prices: ledger.Pricing, Readings: readings.Empty{}, Events: events.Empty{},
 		Family: claude.Provider{}.Family, WeekWindow: claude.WeekWindow,
 	}
-}
-
-// pricedBy has the model price by prices, as New prices a model of a config
-// giving them, its store too, before it has read anything.
-func (h *harness) pricedBy(prices ledger.Table) {
-	h.model.cfg.Prices, h.model.held = prices, views.HoldSessions(prices)
 }
 
 // arm records a timer instead of starting one.

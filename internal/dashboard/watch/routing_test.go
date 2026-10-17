@@ -694,7 +694,6 @@ func pricedHarness(t *testing.T) (*harness, *sessionsLedger) {
 	}}
 	h := gridHarness(t)
 	h.model.cfg.Ledger = l
-	h.pricedBy(ledger.Pricing)
 	return h, l
 }
 

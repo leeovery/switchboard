@@ -16,15 +16,28 @@ import (
 
 // filedLedger is a session's lines as the ledger files them, each as its
 // request ends, as a read at now finds them: those of the requests that
-// arrived and ended by then.
+// arrived and ended by then, but for the last short of them, which end at
+// now, as a read part-way through filing requests ending together finds.
 type filedLedger struct {
 	lines []ledger.Line
 	now   time.Time
+	short int
 }
 
 // filed are the lines l holds by its now, as filed.
 func (l filedLedger) filed() []ledger.Line {
-	return slices.DeleteFunc(slices.Clone(l.lines), func(line ledger.Line) bool { return line.At.After(l.now) || ended(&line).After(l.now) })
+	filed := slices.DeleteFunc(slices.Clone(l.lines), func(line ledger.Line) bool { return line.At.After(l.now) || ended(&line).After(l.now) })
+	return filed[:len(filed)-l.short]
+}
+
+// endingWith is how many of lines, as filed, after the one at i end as it
+// does.
+func endingWith(lines []ledger.Line, i int) int {
+	n := 0
+	for j := i + 1; j < len(lines) && ended(&lines[j]).Equal(ended(&lines[i])); j++ {
+		n++
+	}
+	return n
 }
 
 // Sessions reads as a Follower does: the sessions with the given ids, and
@@ -77,8 +90,9 @@ func generatedRun(seed uint64) []ledger.Line {
 // feeding is a run of feeds of the store over a generated session, as the
 // watch feeds it a read of the ledger's tail at each look: the session's
 // lines, as filed; the store; the requests it has been given, by their keys,
-// and those of them it read whole; when it was last fed; the session's
-// horizon as the rule has it; and the hard moments the runs met.
+// and those of them it read whole; when it was last fed, and how many lines
+// ending then its read had yet to find; the session's horizon as the rule
+// has it; and the hard moments the runs met.
 type feeding struct {
 	t       *testing.T
 	seed    uint64
@@ -88,12 +102,14 @@ type feeding struct {
 	given   map[lineKey]ledger.Line
 	read    map[lineKey]bool
 	fed     time.Time
+	short   int
 	horizon instant
 	met     map[string]bool
 }
 
-// look feeds the store a read of the ledger's tail at now, as Fed takes it:
-// what the ledger filed since the last look, today's, and each earlier day
+// look feeds the store a read of the ledger's tail at now, as Fed takes it,
+// short of the last short lines filed ending at now: what the ledger filed
+// since the last look, today's, and each earlier day
 // that gained a line read again whole, as the tail reads a late day; and,
 // where again says, every one of today's again, as a read afresh gives
 // them. Its reads whole are of a ledger lag after now, as a read whole may
@@ -101,16 +117,16 @@ type feeding struct {
 // its requests in flight, as the stream tells of them. A line it gains
 // behind the horizon has the session read whole; and the store is held to
 // what it was given, as check has it.
-func (f *feeding) look(now time.Time, lag time.Duration, again bool) {
+func (f *feeding) look(now time.Time, lag time.Duration, again bool, short int) {
 	f.t.Helper()
 	today := Today(now)
-	was := filedLedger{lines: f.lines, now: f.fed}.filed()
+	was := filedLedger{lines: f.lines, now: f.fed, short: f.short}.filed()
 	fresh := func(l ledger.Line) bool {
 		return !slices.ContainsFunc(was, func(w ledger.Line) bool { return w.Request == l.Request && w.At.Equal(l.At) })
 	}
 	var gained []ledger.Held
 	days := make(map[string][]ledger.Held)
-	for _, line := range (filedLedger{lines: f.lines, now: now}).filed() {
+	for _, line := range (filedLedger{lines: f.lines, now: now, short: short}).filed() {
 		switch date := dayfile.DateOf(line.At); {
 		case date < today.Date:
 			days[date] = append(days[date], ledger.Held{Line: line})
@@ -125,6 +141,9 @@ func (f *feeding) look(now time.Time, lag time.Duration, again bool) {
 	before, sealed := f.held.sessions["s"], f.sealedOf(f.held.sessions["s"])
 	behind, ruled := f.behind(gained, days, func(s *heldSession) instant { return s.horizon }), f.behind(gained, days, func(*heldSession) instant { return f.horizon })
 	l := filedLedger{lines: f.lines, now: now.Add(lag)}
+	if lag == 0 {
+		l.short = short
+	}
 	held, gains := f.held.Fed(l, Took(gained, days), SessionsWanted{Page: "s", Pins: f.pins(now)}, now)
 	switch whole := gains["s"].whole; {
 	case behind && !whole:
@@ -139,7 +158,7 @@ func (f *feeding) look(now time.Time, lag time.Duration, again bool) {
 	if h := held.sessions["s"].horizon; h.compare(f.horizon) > 0 {
 		f.t.Fatalf("session %d fed at %v sealed to %v, want no further than the rule's horizon, %v", f.seed, now, h.time(), f.horizon.time())
 	}
-	f.held, f.fed = held, now
+	f.held, f.fed, f.short = held, now, short
 	if gains["s"].whole {
 		f.given, f.read = make(map[lineKey]ledger.Line), make(map[lineKey]bool)
 		for _, line := range l.filed() {
@@ -239,6 +258,9 @@ func (f *feeding) note(now time.Time, gained []ledger.Held, days map[string][]le
 			f.met["a read whole overlapping the next look's"] = true
 		}
 		_, given := f.given[k]
+		if !given && f.laterTied(&h.Line) {
+			f.met["requests ending together given in separate feeds, the later first"] = true
+		}
 		switch {
 		case given:
 		case h.Request == unseen:
@@ -271,6 +293,17 @@ func (f *feeding) note(now time.Time, gained []ledger.Held, days map[string][]le
 			f.met["midnight, a move's cost priced again"] = true
 		}
 	}
+}
+
+// laterTied reports whether the store was given a request that arrived and
+// ended as the line l's did, coming after it in the one order, by its id.
+func (f *feeding) laterTied(l *ledger.Line) bool {
+	for _, g := range f.given {
+		if g.At.Equal(l.At) && ended(&g).Equal(ended(l)) && g.Request > l.Request {
+			return true
+		}
+	}
+	return false
 }
 
 // keyOfLine is the line l's key, as keyOf has it.
@@ -382,7 +415,8 @@ func toldOfLine(s *story, l *ledger.Line) string {
 // requests, compactions and lines without a class, across midnight, a
 // model's prices changing on the new day; a line landing behind the
 // horizon, read whole; lines given again, a day read again whole, a read
-// whole overlapping the next look's, and the clock set back.
+// whole overlapping the next look's, a look part-way through filing
+// requests ending together, and the clock set back.
 func TestTheStoreFedLookByLookTellsWhatOneReadAtOnceTells(t *testing.T) {
 	prices := changingPrices()
 	met := make(map[string]bool)
@@ -393,31 +427,36 @@ func TestTheStoreFedLookByLookTellsWhatOneReadAtOnceTells(t *testing.T) {
 		}
 		r := rand.New(rand.NewPCG(seed, 4))
 		at := f.lines[0].At.Add(-time.Minute)
-		f.look(at, 0, false)
+		f.look(at, 0, false, 0)
 		looked := len(f.lines)
 		if seed%4 == 3 {
 			looked /= 2
 		}
 		for i := 0; i < looked; i += 1 + r.IntN(4) {
+			if short, tied := endingWith(f.lines, i), ended(&f.lines[i]); short > 0 && !tied.Before(at) {
+				f.look(tied, 0, false, short)
+				at = tied
+			}
 			now := later(instantOf(at), instantOf(ended(&f.lines[i]))).time().Add(time.Duration(r.IntN(5000)) * time.Millisecond)
 			if r.IntN(25) == 0 {
 				now = at.Add(-time.Duration(1+r.IntN(20)) * time.Minute)
 			}
-			f.look(now, time.Duration(r.IntN(3))*10*time.Second, r.IntN(10) == 0)
+			f.look(now, time.Duration(r.IntN(3))*10*time.Second, r.IntN(10) == 0, 0)
 			at = now
 		}
 		last := ended(&f.lines[len(f.lines)-1])
 		if looked < len(f.lines) {
-			f.look(last.AddDate(0, 0, 2), 0, false)
+			f.look(last.AddDate(0, 0, 2), 0, false, 0)
 			continue
 		}
-		f.look(last.Add(3*time.Hour), 0, false)
+		f.look(last.Add(3*time.Hour), 0, false, 0)
 	}
 	for _, moment := range []string{
 		"a line given again", "a read whole overlapping the next look's", "a day read again whole", "a day before yesterday read again whole",
 		"a day before yesterday gaining a line",
 		"the clock set back",
 		"a line behind the horizon", "a line behind openFor, pinned", "midnight, a move's cost priced again",
+		"requests ending together given in separate feeds, the later first",
 	} {
 		if !met[moment] {
 			t.Errorf("no generated run meets %s", moment)

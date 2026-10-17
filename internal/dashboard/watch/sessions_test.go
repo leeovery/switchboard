@@ -697,7 +697,7 @@ func TestATailReadLandingOnAnEmptyStoreKeepsItPriced(t *testing.T) {
 	l := &daysCounted{}
 	l.Ledger = ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, logs.For("watch"))
 	cfg := h.config(Size{Width: 160, Height: 37})
-	cfg.Ledger, cfg.Prices, cfg.View = l, ledger.Pricing, dashboard.Overview
+	cfg.Ledger, cfg.View = l, dashboard.Overview
 	h.model = New(t.Context(), cfg)
 	h.start()
 	h.keys(toSessions...)

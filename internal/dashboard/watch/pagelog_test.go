@@ -1,10 +1,13 @@
 package watch
 
 import (
+	"encoding/json"
+	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -28,7 +31,7 @@ func openedOn(t *testing.T, state string, view dashboard.View, lines ...ledger.H
 	writeLines(t, state, lines...)
 	l := ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, logs.For("watch"))
 	cfg := h.config(Size{Width: 160, Height: 37})
-	cfg.Ledger, cfg.Prices, cfg.View = l, ledger.Pricing, view
+	cfg.Ledger, cfg.View = l, view
 	h.model = New(t.Context(), cfg)
 	h.start()
 	return h, l
@@ -43,9 +46,10 @@ func helds(lines []ledger.Line) []ledger.Held {
 	return held
 }
 
-// The Log opens only as it shows, and it shows only once the session's page
-// open over another tab is closed, as showing a tab closes it; and, where a
-// page's read is under way, only once that has landed, opening nothing: so
+// The Log opens only as it shows: a page open over another tab is closed as
+// the Log shows, and, where a page's read is under way, the Log opens only
+// once that has landed, opening nothing; a page opened over the Log itself,
+// from one of its lines, opens over a Log already shown, its open asked. So
 // the read of the ledger's tail the Log opens with, of every one of today's
 // lines afresh, is given to no page.
 func TestTheLogsOpenGivesNoSessionsPageTodaysLinesAfresh(t *testing.T) {
@@ -86,12 +90,17 @@ func TestTheLogsOpenGivesNoSessionsPageTodaysLinesAfresh(t *testing.T) {
 
 // A session's page, its turn open, given every one of today's lines afresh
 // by a read of the ledger's tail, as the Log's open gives them, and the
-// tail gives them as the day's file is replaced, holds each line once,
-// those without an id too: the page is the page read whole, its turn open
-// shows each of its requests once, and the store counts each once.
+// tail gives them as the day's file is replaced, those with an id and those
+// without: its turn open shows each of its requests once, the page drawn is
+// the page read whole, and the store counts each line once. The points the
+// page answers aren't held to it: HeldPage.Took takes in again a line
+// without an id given again, as yet.
 func TestAPageGivenTodaysLinesAfreshHoldsEachLineOnce(t *testing.T) {
 	state := t.TempDir()
 	lines := turnsOfRequests(start.Add(-30*time.Minute), 8, 1)
+	for i := 0; i < len(lines); i += 2 {
+		lines[i].Request = fmt.Sprintf("0a%06d", i+1)
+	}
 	h, l := openedOn(t, state, dashboard.Runway, helds(lines)...)
 	h.openPage(idD28C)
 	h.keys(downKey)
@@ -138,16 +147,21 @@ func TestAPageGivenTodaysLinesAfreshHoldsEachLineOnce(t *testing.T) {
 // The store, fed by the page's open, the Log's open and its read of the day
 // before, in either order, a read of the ledger's tail between and after,
 // holds what one fed whole holds, wanting what its last feed wanted: the
-// List of it alike, and alike its requests held open.
+// List of it alike, alike its requests held open, and alike what moving the
+// session read back would cost, by the prices its story was read at, once
+// a line today has it writing its cache.
 func TestTheStoreFedByThePageAndTheLogInEitherOrderIsAsOneFedWhole(t *testing.T) {
-	gained := func(id string) func(*harness, string) {
+	gained := func(l ledger.Held) func(*harness, string) {
 		return func(h *harness, state string) {
 			h.clock.now = h.clock.now.Add(time.Minute)
-			writeLines(t, state, arrivedAt(id, h.clock.now.Add(-time.Second)))
+			l.At = h.clock.now.Add(-time.Second)
+			writeLines(t, state, l)
 			h.model.tail.due = true
 			h.deliver(h.update(tea.WindowSizeMsg{Width: 160, Height: 37})...)
 		}
 	}
+	readBack := ranIn("0b000101", id9E21, "~/Code/web", 0)
+	readBack.Usage = json.RawMessage(hourUsage)
 	page := func(h *harness, _ string) { h.openPage(idD28C) }
 	log := func(h *harness, _ string) {
 		h.keys(escKey, tabKey)
@@ -158,8 +172,8 @@ func TestTheStoreFedByThePageAndTheLogInEitherOrderIsAsOneFedWhole(t *testing.T)
 		view  dashboard.View
 		steps []func(*harness, string)
 	}{
-		{name: "the page, then the Log", view: dashboard.Runway, steps: []func(*harness, string){page, gained("0a000101"), log, gained("0a000102")}},
-		{name: "the Log, then the page", view: dashboard.Log, steps: []func(*harness, string){func(h *harness, _ string) { h.settle() }, gained("0a000101"), page, gained("0a000102")}},
+		{name: "the page, then the Log", view: dashboard.Runway, steps: []func(*harness, string){page, gained(arrived("0a000101", "work", 0)), log, gained(readBack)}},
+		{name: "the Log, then the page", view: dashboard.Log, steps: []func(*harness, string){func(h *harness, _ string) { h.settle() }, gained(arrived("0a000101", "work", 0)), page, gained(readBack)}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -184,8 +198,10 @@ func TestTheStoreFedByThePageAndTheLogInEitherOrderIsAsOneFedWhole(t *testing.T)
 
 // asFedWhole checks the store h holds is as one fed whole through l at the
 // clock's now holds, wanting what its last feed wanted, the sessions of
-// the Log's lines among them: the List of it alike, and alike its requests
-// held open.
+// the Log's lines among them: the List of it alike, alike its requests held
+// open, and alike every session it holds, each listed as running, the List
+// telling of a running session's story more than of the rest, its move's
+// cost among it.
 func asFedWhole(t *testing.T, h *harness, l views.Ledger) {
 	t.Helper()
 	now := h.clock.now
@@ -198,6 +214,16 @@ func asFedWhole(t *testing.T, h *harness, l views.Ledger) {
 	}
 	if got, want := h.model.held.Holding().Open, whole.Holding().Open; !maps.Equal(got, want) {
 		t.Errorf("the store holds %v requests open, want %v, as one fed whole", got, want)
+	}
+	every := live
+	every.Running = slices.Clone(live.Running)
+	for _, id := range slices.Sorted(maps.Keys(h.model.held.Holding().Open)) {
+		if !slices.ContainsFunc(live.Running, func(s status.Session) bool { return s.ID == id }) {
+			every.Running = append(every.Running, sessionOn(id, opus, "work", 0))
+		}
+	}
+	if got, want := h.model.held.List(every).Sessions, whole.List(every).Sessions; !reflect.DeepEqual(got, want) {
+		t.Errorf("every session the store holds, listed as running, is\n%+v\nwant each as one fed whole\n%+v", got, want)
 	}
 }
 
