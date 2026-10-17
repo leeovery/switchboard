@@ -385,8 +385,10 @@ func rawHeld(v any) []string {
 	walked(v, func(v reflect.Value) bool {
 		switch t := v.Type(); {
 		case t.PkgPath() == viewsPkg && t.Name() == "pageTally":
-			prompts[v.FieldByName("agents").Pointer()] = true
-		case t == limitsType && prompts[v.Pointer()]:
+			if agents := v.FieldByName("agents").Pointer(); agents != 0 {
+				prompts[agents] = true
+			}
+		case t == limitsType && v.Pointer() != 0 && prompts[v.Pointer()]:
 		case slices.Contains(rawTypes, t):
 			held = append(held, t.String())
 			return false
