@@ -90,21 +90,20 @@ func (f LogFilter) keepsKindOf(m ledger.ModelDay) bool {
 	return m.Requests() > 0 && ticked(f.Kinds, RowRequest) || m.Checks > 0 && ticked(f.Kinds, RowCheck) || m.Counts > 0 && ticked(f.Kinds, RowCount)
 }
 
-// hiding is what of the filter f hides the row p: none; its kind alone; or a
-// choice of another, its kind kept or not.
-func (f LogFilter) hiding(p placedRow) hidden {
+// hiding is what of the filter f hides the row r: none; its kind alone; or
+// a choice of another, its kind kept or not.
+func (f LogFilter) hiding(r *RequestRow) hidden {
 	switch {
-	case !f.chose(p):
+	case !f.chose(r):
 		return hiddenChosen
-	case !ticked(f.Kinds, p.row.Kind):
+	case !ticked(f.Kinds, r.Kind):
 		return hiddenKind
 	}
 	return notHidden
 }
 
-// chose reports whether the filter's choices but its kinds keep the row p.
-func (f LogFilter) chose(p placedRow) bool {
-	r := p.row
+// chose reports whether the filter's choices but its kinds keep the row r.
+func (f LogFilter) chose(r *RequestRow) bool {
 	return ticked(f.Accounts, r.Account) && ticked(f.Models, r.Model) && ticked(f.Sessions, r.CountedSession) && (!f.Failed || r.Failed)
 }
 
@@ -190,9 +189,8 @@ func (c LogCount) HiddenBy() []RowKind {
 	return by
 }
 
-// add counts the row p, the filter hiding it as given.
-func (c *LogCount) add(p placedRow, hid hidden) {
-	r := p.row
+// add counts the row r, the filter hiding it as given.
+func (c *LogCount) add(r *RequestRow, hid hidden) {
 	switch r.Kind {
 	case RowCheck:
 		c.Checks++
@@ -213,6 +211,13 @@ func (c *LogCount) add(p placedRow, hid hidden) {
 	case hiddenChosen:
 		c.chosen++
 	}
+}
+
+// cloned is c, counting as it does, for what counts on to change, sharing
+// nothing it changes with c.
+func (c LogCount) cloned() LogCount {
+	c.Models, c.Accounts, c.Sessions = maps.Clone(c.Models), maps.Clone(c.Accounts), maps.Clone(c.Sessions)
+	return c
 }
 
 // tally is counted with one more of the id given, made where it's nil: as

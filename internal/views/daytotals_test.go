@@ -186,7 +186,7 @@ func TestADaysRowsInTheLogAreWorthItsTotals(t *testing.T) {
 			for _, l := range hm.Lines {
 				rows[dayfile.DateOf(l.At)] = nil
 			}
-			for _, l := range views.LogRows(views.LogSources{From: hm.From, Now: hm.Now, Read: logRead(hm.Now, hm.Lines...)}).Lines {
+			for _, l := range views.LogRows(views.LogSources{From: hm.From, Now: hm.Now, Read: logRead(hm.Now, hm.Lines...)}).Lines() {
 				if l.Rule != nil || l.Oldest != nil || l.Row.Worth.Amount == nil {
 					continue
 				}

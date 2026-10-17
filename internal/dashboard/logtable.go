@@ -29,20 +29,30 @@ var rowPartInks = map[views.RowPartKind]ink{
 }
 
 // requestLines are the Requests' lines, the oldest first, as the table
-// holds them; then, where it shows none of today's, the words saying so.
-func (p LogPage) requestLines() []logLine {
-	lines := make([]logLine, len(p.Requests.Lines), len(p.Requests.Lines)+1)
-	for i := range p.Requests.Lines {
-		l := &p.Requests.Lines[i]
-		lines[i] = logLine{key: LogKey{request: l.Key()}, rule: l.Rule, oldest: l.Oldest}
-		if l.IsRow() {
-			lines[i].row, lines[i].at = &l.Row, l.Row.At
-		}
+// holds them, each made as it's read; then, where it shows none of today's,
+// empty, the words saying so.
+type requestLines struct {
+	table views.LogTable
+	empty bool
+}
+
+func (r requestLines) len() int {
+	if r.empty {
+		return r.table.Len() + 1
 	}
-	if p.requestsEmpty() {
-		lines = append(lines, logLine{key: LogKey{other: emptyKey}, empty: noRequestsToday})
+	return r.table.Len()
+}
+
+func (r requestLines) at(i int) logLine {
+	if i == r.table.Len() {
+		return logLine{key: LogKey{other: emptyKey}, empty: noRequestsToday}
 	}
-	return lines
+	l := r.table.Line(i)
+	drawn := logLine{key: LogKey{request: l.Key()}, rule: l.Rule, oldest: l.Oldest}
+	if l.IsRow() {
+		drawn.row, drawn.at = &l.Row, l.Row.At
+	}
+	return drawn
 }
 
 // requestsEmpty reports whether the Requests show none of today's lines,
@@ -73,7 +83,7 @@ func (f Frame) log(c *canvas, doc status.Document, now time.Time, top int) {
 	lit, isLit := p.lit(lines, s)
 	for i := first; i <= last; i++ {
 		y := top + 1 + i - first
-		f.logLine(c, y, lines[i], draw)
+		f.logLine(c, y, lines.at(i), draw)
 		if isLit && i == lit {
 			c.surface(0, y, f.Width, litInk)
 		}

@@ -269,14 +269,14 @@ func (s RoutingSaid) CostSaid() string {
 	return rewriteSaid(s.Rewrote, s.Cost)
 }
 
-// routingOf is how the router chose the account of the request l, as its
-// session's story tells it: whether it's the session's first request, and
-// the move it made, nil where it made none. Where it was sent again after an
-// account couldn't serve it, where it went out before; else, where it moved
-// its session, the reason; else, where it's the session's first, "new
-// session". The cost is its move's.
-func routingOf(l *ledger.Line, first bool, made *move) RoutingSaid {
-	said := RoutingSaid{From: l.From, Words: routingWords(l.Tried, l.Reason, status.Facts{From: l.From, To: l.Account}, first)}
+// said is how the router chose the account given of a request it routed
+// as r says, as its session's story tells it: whether it's the session's
+// first request, and the move it made, nil where it made none. Where it was
+// sent again after an account couldn't serve it, where it went out before;
+// else, where it moved its session, the reason; else, where it's the
+// session's first, "new session". The cost is its move's.
+func (r routed) said(to string, first bool, made *move) RoutingSaid {
+	said := RoutingSaid{From: r.from, Words: routingWords(r.tried, r.reason, status.Facts{From: r.from, To: to}, first)}
 	if made != nil {
 		said.Cost, said.Rewrote = made.cost, made.rewrote != nil
 	}
@@ -337,18 +337,20 @@ func (l *ListedSession) cameBy(m *move) {
 // prices it.
 func lineRow(l *ledger.Line, s *story) RequestRow {
 	r := lineFacts(l)
-	r.toldBy(l, s)
+	r.toldBy(routedOf(l), s)
 	return r
 }
 
 // lineFacts is the row of the request l as its line alone tells it, its
 // worth unpriced and left zero, before its session's story tells the rest,
-// as toldBy has it.
+// as toldBy has it, the words it names a request by interned, as a
+// session's requests name the same again and again.
 func lineFacts(l *ledger.Line) RequestRow {
 	r := RequestRow{
-		Request: l.Request, At: l.At, Kind: kindOf(l), Session: l.Session, Dir: l.Dir, CountedSession: l.CountedSession(), Model: l.Model, Account: l.Account,
-		Status: l.Status, Canceled: l.Canceled, CutOff: l.CutOff, Failed: l.Failed(), Took: millis(l.TotalMS), Stop: l.Answer.Stop,
-		Attempts: l.Attempts, Size: l.Shape.Bytes, Messages: l.Shape.Messages, Tools: l.Shape.Tools, Agent: agentOf(l.Agent),
+		Request: l.Request, At: l.At, Kind: kindOf(l), Session: interned(l.Session), Dir: interned(l.Dir), CountedSession: interned(l.CountedSession()),
+		Model: interned(l.Model), Account: interned(l.Account), Status: l.Status, Canceled: l.Canceled, CutOff: l.CutOff, Failed: l.Failed(),
+		Took: millis(l.TotalMS), Stop: interned(l.Answer.Stop), Attempts: l.Attempts, Size: l.Shape.Bytes, Messages: l.Shape.Messages,
+		Tools: l.Shape.Tools, Agent: interned(agentOf(l.Agent)),
 	}
 	if l.FirstMS != nil {
 		r.First = millis(*l.FirstMS)
@@ -360,22 +362,22 @@ func lineFacts(l *ledger.Line) RequestRow {
 		r.Read, r.Written, r.Out, r.Input, r.Metered = tokens.CacheRead, tokens.CacheWrite, tokens.Output, tokens.Input, true
 	}
 	if tools := l.Answer.Tools; len(tools) > 0 {
-		r.Tool, r.More = tools[0], len(tools)-1
+		r.Tool, r.More = interned(tools[0]), len(tools)-1
 	}
 	return r
 }
 
-// toldBy has r, the row of the request l as lineFacts has it, say what the
-// story s of its session tells of it, nil for none: whether it's the
-// session's first request, whether it wrote the session's context again, its
-// routing, and so its mark.
-func (r *RequestRow) toldBy(l *ledger.Line, s *story) {
+// toldBy has r, the row of a request the router routed as how says, as
+// lineFacts has it, say what the story s of its session tells of it, nil
+// for none: whether it's the session's first request, whether it wrote the
+// session's context again, its routing, and so its mark.
+func (r *RequestRow) toldBy(how routed, s *story) {
 	var made *move
 	r.NewSession, r.Rewrote = false, false
 	if s != nil {
-		r.NewSession, made, r.Rewrote = s.toldOf(l)
+		r.NewSession, made, r.Rewrote = s.toldOf(r.Request, r.At)
 	}
-	r.Routing = routingOf(l, r.NewSession, made)
+	r.Routing = how.said(r.Account, r.NewSession, made)
 	r.Mark = r.marking().mark()
 }
 

@@ -1,6 +1,7 @@
 package views
 
 import (
+	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/prose"
@@ -68,11 +69,10 @@ type LogEventSources struct {
 	// reaching back to EventsFrom of From's day, so the facts of the first
 	// shown are worked out over those told before them.
 	Events EventsRead
-	// Read is the Log's read, which its Requests are built from, reaching
-	// back as far as the events it shows, so the ledger's read once for
-	// both: a move's cost, and a session's directory, are its session's story
-	// as it holds it told, priced as it prices.
-	Read LogRead
+	// Held is the store, which tells a move's cost, and a session's
+	// directory, as its session's story, as the Log's Requests and the List
+	// tell them.
+	Held HeldSessions
 	// Filter is which events it shows.
 	Filter EventFilter
 	// Names name a window by its key, as the moment's NameOf does: nil names
@@ -145,14 +145,14 @@ type toldEvent struct {
 // it, both its session's story's.
 func LogEvents(src LogEventSources) EventsTable {
 	first, today := Today(src.From), Today(src.Now)
-	telling := NewTelling(src.Names)
+	telling, held := NewTelling(src.Names), src.Held.at(src.Now)
 	table := EventsTable{names: src.Names, filed: src.Filed, first: first}
 	for _, e := range src.Events.Events() {
 		line, fact := telling.tell(e.Event, src.Now)
 		if !first.Holds(e.Event.At) {
 			continue
 		}
-		row := eventRow(e, line, fact, src.Read.sessionStory(e.Event.Session), src.Now)
+		row := eventRow(e, line, fact, held.storyOf(e.Event.Session), src.Now)
 		table.told = append(table.told, toldEvent{event: e.Event, fact: fact, row: row})
 		shown := src.Filter.Keeps(row)
 		if shown {
@@ -203,4 +203,17 @@ func eventRow(e Event, line EventLine, fact eventFact, s *story, now time.Time) 
 		row.Use = capUse(e.Event)
 	}
 	return row
+}
+
+// FilledFrom is the latest day t could start from and still fill a view
+// rows rows tall, as LogTable's FilledFrom has it of its lines: of a day's
+// first row, its lines from it on at least as many.
+func (t EventsTable) FilledFrom(rows int) (LedgerDay, bool) {
+	for i, l := range slices.Backward(t.Lines) {
+		first := i == 0 || t.Lines[i-1].Row == nil
+		if l.Row != nil && first && len(t.Lines)-i >= rows {
+			return Today(l.Row.At), true
+		}
+	}
+	return LedgerDay{}, false
 }

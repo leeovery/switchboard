@@ -16,7 +16,7 @@ func (f Frame) logTargets(now time.Time) []Target {
 	first, last := p.window(lines, s, rows)
 	var targets []Target
 	for i := first; i <= last; i++ {
-		if lines[i].choosable() {
+		if lines.at(i).choosable() {
 			targets = append(targets, Target{X: 0, Y: f.top() + 1 + i - first, Width: f.Width, On: OnRow, Row: i})
 		}
 	}
@@ -64,7 +64,7 @@ func (p LogPage) Lit(at int) bool {
 // placedRows has it.
 func (p LogPage) ChoseLine(at, rows int) LogPage {
 	lines, s, rows := p.lines(), p.stand(), placedRows(rows)
-	if at < 0 || at >= len(lines) || !lines[at].choosable() {
+	if at < 0 || at >= lines.len() || !lines.at(at).choosable() {
 		return p
 	}
 	if !s.paused {

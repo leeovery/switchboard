@@ -105,7 +105,7 @@ func (f *feeding) look(now time.Time, lag time.Duration, again bool) {
 	today := Today(now)
 	was := filedLedger{lines: f.lines, now: f.fed}.filed()
 	fresh := func(l ledger.Line) bool {
-		return !slices.ContainsFunc(was, func(w ledger.Line) bool { return sameLine(&w, &l) })
+		return !slices.ContainsFunc(was, func(w ledger.Line) bool { return w.Request == l.Request && w.At.Equal(l.At) })
 	}
 	var gained []ledger.Held
 	days := make(map[string][]ledger.Held)
@@ -349,7 +349,7 @@ func flightsOf(requests []heldRequest) []flight {
 // it, and whether it wrote the session's context again on the account a
 // move took it to.
 func toldOfLine(s *story, l *ledger.Line) string {
-	first, made, rewrote := s.toldOf(l)
+	first, made, rewrote := s.toldOf(l.Request, l.At)
 	if made == nil {
 		return fmt.Sprintf("first %t, no move, rewrote %t", first, rewrote)
 	}

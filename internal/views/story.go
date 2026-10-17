@@ -252,20 +252,21 @@ func (s *story) rewriteCost(m *move) *ledger.Picodollars {
 	return nil
 }
 
-// toldOf is what the story tells of l, a line of its session's: whether
-// it's the session's first request; the move it made, nil where it made
-// none; and whether it wrote the session's context again on the account a
-// move took it to, as rewrites settles it. A line is the request a story
-// holds where it's the same request, as sameRequest has it, so a line read
-// apart from the story's own tells alike.
-func (s *story) toldOf(l *ledger.Line) (first bool, made *move, rewrote bool) {
-	first = s.begun && s.first.is(l.Request, l.At)
+// toldOf is what the story tells of the request with the given id that
+// arrived at at, of its session's: whether it's the session's first
+// request; the move it made, nil where it made none; and whether it wrote
+// the session's context again on the account a move took it to, as
+// rewrites settles it. A request is one the story holds where it's the
+// same request, as flight's is has it, so a line read apart from the
+// story's own tells alike.
+func (s *story) toldOf(id string, at time.Time) (first bool, made *move, rewrote bool) {
+	first = s.begun && s.first.is(id, at)
 	for i := range s.moves {
 		m := &s.moves[i]
-		if m.by.is(l.Request, l.At) {
+		if m.by.is(id, at) {
 			made = m
 		}
-		rewrote = rewrote || m.rewrote != nil && m.rewrote.is(l.Request, l.At)
+		rewrote = rewrote || m.rewrote != nil && m.rewrote.is(id, at)
 	}
 	return first, made, rewrote
 }

@@ -128,10 +128,10 @@ func newSoak(t *testing.T, setup soakSetup) *soak {
 	for i, a := range busyAccounts {
 		configured[i] = config.Account{ID: a}
 	}
-	m := &h.model
-	m.cfg.Ledger, m.cfg.Readings, m.cfg.Events, m.cfg.Prices, m.cfg.Accounts = read, history, filed, ledger.Pricing, configured
-	m.accounts.shown.Accounts, m.past.page.Accounts = configured, configured
-	m.after, m.cfg.Await = s.arm, s.await
+	cfg := h.model.cfg
+	cfg.Ledger, cfg.Readings, cfg.Events, cfg.Prices, cfg.Accounts = read, history, filed, ledger.Pricing, configured
+	cfg.After, cfg.Await = s.arm, s.await
+	h.model = New(t.Context(), cfg)
 	s.h, s.follower = h, follower
 	s.stands()
 	s.resized(tea.WindowSizeMsg{Width: 160, Height: 37})

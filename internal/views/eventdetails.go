@@ -148,16 +148,16 @@ func (t EventsTable) Details(key EventKey, read LogRead) (EventDetails, bool) {
 	if i < 0 {
 		return EventDetails{}, false
 	}
-	d := detailing{toldEvent: t.told[i], table: t, lines: read.lines}
+	d := detailing{toldEvent: t.told[i], table: t, read: read}
 	return d.details(), true
 }
 
 // detailing works out an event's details: the event, told; the table it's
-// of; and the ledger's lines read, as the Log's read holds them.
+// of; and the Log's read, which holds the ledger's lines read.
 type detailing struct {
 	toldEvent
 	table EventsTable
-	lines []*loggedLine
+	read  LogRead
 }
 
 func (d detailing) details() EventDetails {
@@ -432,22 +432,21 @@ func detailWords(w status.Words) DetailWords {
 // onAccount are the lines read of requests that went out on the account
 // with the given id, there or tried there, that arrived at or before at, in
 // the order they arrived.
-func (d detailing) onAccount(id string, at time.Time) []*ledger.Line {
-	var on []*ledger.Line
-	for _, h := range d.lines {
-		l := &h.line
-		if !l.At.After(at) && (l.Account == id || triedOn(l, id, "")) {
+func (d detailing) onAccount(id string, at time.Time) []*loggedLine {
+	var on []*loggedLine
+	for l := range d.read.lines() {
+		if !l.row.At.After(at) && (l.row.Account == id || triedOn(l, id, "")) {
 			on = append(on, l)
 		}
 	}
-	slices.SortStableFunc(on, func(a, b *ledger.Line) int { return a.At.Compare(b.At) })
+	slices.SortStableFunc(on, func(a, b *loggedLine) int { return a.row.At.Compare(b.row.At) })
 	return on
 }
 
-// triedOn reports whether the request l went out on the account with the
-// given id and was left there for why, any why for "".
-func triedOn(l *ledger.Line, id, why string) bool {
-	return slices.ContainsFunc(l.Tried, func(t ledger.Tried) bool { return t.Account == id && (why == "" || t.Why == why) })
+// triedOn reports whether the request of the line l went out on the account
+// with the given id and was left there for why, any why for "".
+func triedOn(l *loggedLine, id, why string) bool {
+	return slices.ContainsFunc(l.routed.tried, func(t ledger.Tried) bool { return t.Account == id && (why == "" || t.Why == why) })
 }
 
 // knownFrom is the request the event, a limit, a cap or a refusal, was
@@ -455,7 +454,7 @@ func triedOn(l *ledger.Line, id, why string) bool {
 // of what it tells after the last that told otherwise, as knowing judges
 // each. It's nil where none did.
 func (d detailing) knownFrom() *KnownRequest {
-	var first *ledger.Line
+	var first *loggedLine
 	for _, l := range d.onAccount(d.event.Account, d.event.At) {
 		switch tells, otherwise := d.knowing(l); {
 		case tells && first == nil:
@@ -467,20 +466,20 @@ func (d detailing) knownFrom() *KnownRequest {
 	if first == nil {
 		return nil
 	}
-	return &KnownRequest{Request: first.Request, Session: first.Session, At: first.At}
+	return &KnownRequest{Request: first.row.Request, Session: first.row.Session, At: first.row.At}
 }
 
-// knowing judges whether the request l, on or tried on the event's account,
-// told of what the event tells, or told otherwise: of a cap, its answer read
-// one of the cap's windows holding the account back, or each it read
-// holding it back at nothing; of a limit, it met the limit there, answered
-// 429, or its answer read one of the limit's windows holding it back at its
-// limit, or it was answered there with room; of a refusal, it was refused
-// there, or answered there, a request of the family refused alone, where
-// that's all that's refused.
-func (d detailing) knowing(l *ledger.Line) (tells, otherwise bool) {
-	e := d.event
-	on := l.Account == e.Account
+// knowing judges whether the request of the line l, on or tried on the
+// event's account, told of what the event tells, or told otherwise: of a
+// cap, its answer read one of the cap's windows holding the account back, or
+// each it read holding it back at nothing; of a limit, it met the limit
+// there, answered 429, or its answer read one of the limit's windows holding
+// it back at its limit, or it was answered there with room; of a refusal,
+// it was refused there, or answered there, a request of the family refused
+// alone, where that's all that's refused.
+func (d detailing) knowing(l *loggedLine) (tells, otherwise bool) {
+	e, r := d.event, &l.row
+	on := r.Account == e.Account
 	switch e.Kind {
 	case status.EventCap:
 		atCap, read := d.reads(l, score.HeldAtCap)
@@ -488,23 +487,23 @@ func (d detailing) knowing(l *ledger.Line) (tells, otherwise bool) {
 	case status.EventLimit:
 		spent, _ := d.reads(l, score.HeldAtLimit)
 		spent = on && spent
-		return triedOn(l, e.Account, status.WhyLimit) || on && l.Status == http.StatusTooManyRequests || spent, on && !l.Failed() && !spent
+		return triedOn(l, e.Account, status.WhyLimit) || on && r.Status == http.StatusTooManyRequests || spent, on && !r.Failed && !spent
 	case status.EventRefused:
-		if e.Family != "" && (claude.Provider{}).Family(l.Model) != prose.Clean(e.Family) {
+		if e.Family != "" && (claude.Provider{}).Family(r.Model) != prose.Clean(e.Family) {
 			return false, false
 		}
-		refused := on && (l.Status == http.StatusUnauthorized || l.Status == http.StatusForbidden)
-		return triedOn(l, e.Account, status.WhyRefused) || refused, on && !l.Failed()
+		refused := on && (r.Status == http.StatusUnauthorized || r.Status == http.StatusForbidden)
+		return triedOn(l, e.Account, status.WhyRefused) || refused, on && !r.Failed
 	}
 	return false, false
 }
 
-// reads judges the windows the answer to l read that the event names, every
-// one it read where it names none, as claude.WindowsRead judges them by the
-// event's reserve: whether any held the account back as far as least, or
-// further, and whether it read any.
-func (d detailing) reads(l *ledger.Line, least score.Hold) (held, read bool) {
-	for _, w := range claude.WindowsRead(l.Limits, d.event.Reserve) {
+// reads judges the windows the answer to the request of the line l read
+// that the event names, every one it read where it names none, as
+// claude.WindowsReadOf judges them by the event's reserve: whether any held
+// the account back as far as least, or further, and whether it read any.
+func (d detailing) reads(l *loggedLine, least score.Hold) (held, read bool) {
+	for _, w := range l.shown.windowsRead(d.event.Reserve) {
 		if len(d.event.Windows) > 0 && !slices.Contains(d.event.Windows, w.Key) {
 			continue
 		}
@@ -522,10 +521,10 @@ func (d detailing) then(id string) *AccountThen {
 	then := &AccountThen{Account: id}
 	sessions := make(map[string]bool)
 	for _, l := range d.onAccount(id, d.event.At) {
-		if session := l.CountedSession(); session != "" && !l.At.Before(d.event.At.Add(-sessionsBefore)) {
+		if session := l.row.CountedSession; session != "" && !l.row.At.Before(d.event.At.Add(-sessionsBefore)) {
 			sessions[session] = true
 		}
-		if windows := claude.WindowsRead(l.Limits, d.event.Reserve); l.Account == id && len(windows) > 0 {
+		if windows := l.shown.windowsRead(d.event.Reserve); l.row.Account == id && len(windows) > 0 {
 			then.Windows = windowsThen(windows, d.table.names)
 		}
 	}

@@ -380,10 +380,10 @@ func logPanelOf(lines []ledger.Line, running []status.Session, unlisted bool, st
 			todays = append(todays, ledger.Held{Line: line})
 		}
 	}
-	read := views.ReadLogHeld(sessionsLedger(lines, now), todays, ledger.Pricing, now)
-	counts := views.LogRows(views.LogSources{From: now, Read: read, Stream: stream, Now: now}).Count(today.Date)
+	read := viewstest.ReadingLog(ledger.Pricing).Took(sessionsLedger(lines, now), todays, true, stream, now)
+	counts := views.LogRows(views.LogSources{From: now, Read: read.Read, Stream: stream, Now: now}).Count(today.Date)
 	return views.LogSessions(views.LogSessionSources{
-		Read: read, Lines: counts.Sessions, Running: running, Unlisted: unlisted, Stream: stream, Now: now,
+		Read: read.Read, Held: read.Held, Lines: counts.Sessions, Running: running, Unlisted: unlisted, Stream: stream, Now: now,
 	})
 }
 

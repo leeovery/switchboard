@@ -324,13 +324,17 @@ type Model struct {
 	// sessionsTab is what the watch holds of Sessions: what it shows, its
 	// Switchboard and its List as the last look built them, and whether the
 	// List is held. held are the sessions its readers want, the store
-	// views.HeldSessions holds, fed once a read of the ledger's tail: none
-	// till the List's first read lands. merged are the sessions taken into
-	// it while a read of the tail is under way, as heldWith takes them, for
-	// the store the read fed to take as it lands.
+	// views.HeldSessions holds, fed once a read of the ledger's tail, priced
+	// from the start, as New makes it, and stored how many times it has
+	// told otherwise of what it held, for what's built of it to know. merged
+	// are the sessions taken into it while a read of the tail is under way,
+	// as heldWith takes them, for the store the read fed to take as it
+	// lands, and mergedAny whether any read was.
 	sessionsTab sessionsTab
 	held        views.HeldSessions
+	stored      int
 	merged      views.HeldSessions
+	mergedAny   bool
 	// runwayTab is what the watch holds of Runway: what it shows, its lanes
 	// as the last look built them, and the readings history's tail they're
 	// judged by; and pool what it holds of the pool's charts GRAPHS draws
@@ -437,14 +441,15 @@ type frameMsg struct {
 }
 
 // New returns a model that reads cfg's source at once, and whenever a read
-// falls due after, under ctx.
+// falls due after, under ctx, its store of sessions priced at cfg's prices
+// from the start, as whichever reader feeds it first.
 func New(ctx context.Context, cfg Config) Model {
 	m := Model{
 		ctx: ctx, cfg: cfg, after: cfg.After, size: cfg.Size, plan: plan{interval: cfg.Interval}, fetching: true,
 		choice: cfg.Choice, pair: cfg.Pair, view: opening(cfg.View), sections: cfg.Sections, by: cfg.By, burn: cfg.Burn,
 		accounts: accountsTab{shown: cfg.AccountsShown}, past: historyTab{page: cfg.History, starts: cfg.WeekStarts},
 		sessionsTab: sessionsTab{shown: cfg.SessionsShown}, runwayTab: runwayTab{shown: cfg.RunwayShown}, log: openingLog(cfg.Log),
-		traffic: traffic{heard: new(views.Hearing)},
+		traffic: traffic{heard: new(views.Hearing)}, held: views.HoldSessions(cfg.Prices),
 	}
 	m.accounts.shown.Accounts, m.past.page.Accounts = cfg.Accounts, cfg.Accounts
 	if m.after == nil {

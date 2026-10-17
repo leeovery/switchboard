@@ -30,12 +30,18 @@ func logSourcesOf(hm viewstest.LogMoment) views.LogSources {
 
 // readAtOnce is the Log's read of the moment's lines through l, as the watch
 // reads it on opening: today's, as the ledger's Today gives them, then each
-// day before, newest first, as its Day gives one, as spannedDays has them.
+// day before, newest first, as its Day gives one, as spannedDays has them,
+// each placed as the moment's stream tells.
 func readAtOnce(hm viewstest.LogMoment, l views.LedgerSessions) views.LogRead {
-	days := spannedDays(hm)
-	read := views.ReadLogHeld(l, days[0], ledger.Pricing, hm.Now)
-	for _, day := range days[1:] {
-		read = read.Grown(l, day, hm.Now)
+	return readingAtOnce(hm, l).Read
+}
+
+// readingAtOnce is the Log's read of the moment's lines, as readAtOnce has
+// it, and the store its rows are told by.
+func readingAtOnce(hm viewstest.LogMoment, l views.LedgerSessions) viewstest.LogReading {
+	read := viewstest.ReadingLog(ledger.Pricing)
+	for _, day := range spannedDays(hm) {
+		read = read.Took(l, day, true, hm.Stream, hm.Now)
 	}
 	return read
 }
@@ -102,13 +108,13 @@ func TestTheLogsRowsAtEachHardMoment(t *testing.T) {
 		t.Run(hm.Name, func(t *testing.T) {
 			table := views.LogRows(logSourcesOf(hm))
 			var got []viewstest.LogLine
-			for _, l := range table.Lines {
+			for _, l := range table.Lines() {
 				got = append(got, logLineOf(l))
 			}
 			if !reflect.DeepEqual(got, hm.Want) {
 				t.Errorf("the table is\n%s\nwant\n%s", logSaid(got), logSaid(hm.Want))
 			}
-			for _, l := range table.Lines {
+			for _, l := range table.Lines() {
 				if r := l.Rule; r != nil && !reflect.DeepEqual(r.Totals, ruleFigures(hm.Totals, r.Ended.Date)) {
 					t.Errorf("the rule after %s says %+v, want the day's figures, %+v", r.Ended.Date, r.Totals, ruleFigures(hm.Totals, r.Ended.Date))
 				}
@@ -138,7 +144,7 @@ func TestANarrowTableAndAPhoneFoldARowsRoutingInAlikeAtEachHardMoment(t *testing
 	for _, hm := range viewstest.LogMoments() {
 		src := logSourcesOf(hm)
 		src.Filter = views.LogFilter{}
-		for _, l := range views.LogRows(src).Lines {
+		for _, l := range views.LogRows(src).Lines() {
 			r := l.Row
 			if !l.IsRow() {
 				continue
@@ -263,7 +269,7 @@ func TestTheListAndTheLogAgreeOnASessionsLatestRequest(t *testing.T) {
 // id among the table's, as it places them, and how many of its requests are
 // in flight: false where it holds none.
 func latestOf(table views.LogTable, session string) (latest views.RequestRow, flying int, ok bool) {
-	for _, l := range table.Lines {
+	for _, l := range table.Lines() {
 		if !l.IsRow() || l.Row.Session != session || l.Row.Kind != views.RowRequest {
 			continue
 		}

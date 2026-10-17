@@ -144,6 +144,18 @@ type SessionGain struct {
 	retold []flight
 }
 
+// Retell reports whether g tells otherwise of any request it holds: of a
+// session read whole, or of one whose story told otherwise of a request,
+// as SessionGain has them, so what's told of the store is told again.
+func (g SessionGains) Retell() bool {
+	for _, gain := range g {
+		if gain.whole || len(gain.retold) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // Holding is what the store holds, and what its last feed did, as the
 // watch's guard holds them to what a reader shows: the date of the day it
 // was last fed on; how many requests each session it holds keeps open, by
@@ -770,4 +782,16 @@ func (h HeldSessions) namingOf(id string) naming {
 		return s.story.naming
 	}
 	return naming{}
+}
+
+// StreamWanted is what the stream s wants of the store, whatever reader
+// reads it: each session's requests it tells of pinned, as pinsOf has it.
+func StreamWanted(s Stream) SessionsWanted {
+	return SessionsWanted{Pins: pinsOf(s)}
+}
+
+// Unheld are those of the ids given of sessions h doesn't hold, in their
+// order.
+func (h HeldSessions) Unheld(ids []string) []string {
+	return slices.DeleteFunc(slices.Clone(ids), func(id string) bool { _, held := h.sessions[id]; return held })
 }

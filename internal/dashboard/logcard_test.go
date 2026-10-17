@@ -330,7 +330,7 @@ func TestARequestsCardInFlightCountsItsCharactersAsItsDrawn(t *testing.T) {
 		Sent: logDay, First: logDay.Add(time.Second), Chars: 1000,
 	}
 	stream := views.Stream{Live: true, Requests: map[string]views.Told{told.Request: told}}
-	d := views.RequestDetails{Row: views.LogRows(views.LogSources{From: logDay, Now: logDay.Add(2 * time.Second), Stream: stream}).Lines[0].Row}
+	d := views.RequestDetails{Row: views.LogRows(views.LogSources{From: logDay, Now: logDay.Add(2 * time.Second), Stream: stream}).Line(0).Row}
 	f := logFrameOf(cardPage(1), 160, 37)
 	f.Log.Stream = stream
 	for _, chars := range []int{1000, 5100} {
