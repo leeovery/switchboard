@@ -201,7 +201,7 @@ func checkStoryTraces(t *testing.T, hm viewstest.SessionMoment, id string, s vie
 	slices.SortFunc(told, func(a, b views.Told) int { return a.Sent.Compare(b.Sent) })
 	trace := views.Traces{}.Read(held, hm.Now).Told(told, hm.Now).Sessions[id]
 	from := hm.Now.Add(-views.TraceSpan - time.Minute)
-	recent := slices.DeleteFunc(slices.Clone(s.Sent), func(at time.Time) bool { return at.Before(from) })
+	recent := slices.DeleteFunc(slices.Collect(s.Sent.All()), func(at time.Time) bool { return at.Before(from) })
 	if !slices.EqualFunc(recent, trace.Sent, time.Time.Equal) {
 		t.Errorf("%s's story counts %v over its last 30 minutes, its trace %v", id[:4], recent, trace.Sent)
 	}

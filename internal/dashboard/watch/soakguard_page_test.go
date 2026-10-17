@@ -3,6 +3,7 @@ package watch
 import (
 	"encoding/json"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -249,6 +250,7 @@ func (g *pageGuard) sameAsOneRead(now time.Time) {
 	}
 	got, _ := m.session.held.Build(live)
 	want, _ := whole.Build(live)
+	got.Story.Sent, want.Story.Sent = views.SentAt(slices.Collect(got.Story.Sent.All())...), views.SentAt(slices.Collect(want.Story.Sent.All())...)
 	if !reflect.DeepEqual(got, want) {
 		gotJSON, _ := json.MarshalIndent(got, "", "  ")
 		wantJSON, _ := json.MarshalIndent(want, "", "  ")

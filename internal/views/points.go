@@ -25,15 +25,15 @@ import (
 // apart, with a day between them the session made no request on, are none
 // of its. Held: the dates of those days, oldest first; its shares of the
 // runs before the last, done, by account, then by window key; the last run,
-// sealed as runShares has it; the answers it holds, by the date of the day
+// sealed as runShares has it, none once it's done too, as sealedAt has it;
+// the answers it holds, by the date of the day
 // whose files hold them: those of the last run it hasn't sealed, and every
 // one of today's and of yesterday's while the day isn't yet one of the
 // session's, for a run to take them in as it becomes one; how many answers
-// of each day it let
-// go of, sealed or done, for a day read again whole to be known; and its
-// points, in whole points, as prose.WholePercent rounds a share, of it all,
-// by account, then by window key. A window the account's answers never read
-// has no points. What changes it returns afresh, sharing with it what it
+// of each day it let go of, sealed or done, for a day read again whole to be
+// known; and its points, in whole points, as prose.WholePercent rounds a
+// share, of it all, by account, then by window key. A window the account's
+// answers never read has no points. What changes it returns afresh, sharing with it what it
 // doesn't change.
 type pointing struct {
 	days   []string
@@ -312,18 +312,19 @@ func (p *pointing) took(date string, given []answered, whole bool, day LedgerDay
 // later, one of the session's, reporting false where it can't place it: one
 // after its last run, the day after it, extending it, the day's answers
 // taken in as takes has it; else after another, done, beginning a new one.
-// One before its last run's last day, or on it, would change what's sealed.
+// One on or before its last day, or the day after it, its last run done,
+// would change what's sealed or done.
 func (p *pointing) joining(date string) (*pointing, bool) {
-	switch r := p.run; {
-	case r == nil:
-	case date <= r.last:
-		return nil, false
-	case date == nextDate(r.last):
+	r := p.run
+	switch {
+	case r != nil && date == nextDate(r.last):
 		extended := *r
 		extended.last = date
 		p.run, p.days = &extended, append(slices.Clip(p.days), date)
 		return p, p.run.takes(p.held[date].all())
-	default:
+	case len(p.days) > 0 && date <= nextDate(p.days[len(p.days)-1]):
+		return nil, false
+	case r != nil:
 		p.finish()
 	}
 	p.run = &runShares{first: date, last: date, through: unsealed, accounts: make(map[string]*accountShares)}
@@ -368,16 +369,22 @@ func (r *runShares) takes(answers []answered) bool {
 
 // sealedAt is p sealed behind the horizon given, at the day given: the
 // answers it held of a day before yesterday the session made no request on
-// let go of; its last run's readings and ends before the horizon, or the
-// start of the day after its last, as one of that day joining it comes after
-// them, taken in, and the answers both of whose came before let go of; and
-// its points worked out afresh, its last run's held answers taken in on what
-// it sealed.
+// let go of; its last run done, as finish has it, once its last day is
+// before yesterday, so it holds no answer of a day before yesterday, a day
+// joining it then read whole, as joining has it; else its readings and ends
+// before the horizon, or the start of the day after its last, as one of that
+// day joining it comes after them, taken in, and the answers both of whose
+// came before let go of; and its points worked out afresh, its last run's
+// held answers taken in on what it sealed.
 func (p *pointing) sealedAt(horizon instant, day LedgerDay) *pointing {
 	q := p.cloned()
 	yesterday := yesterdayOf(day)
 	maps.DeleteFunc(q.held, func(date string, _ answersHeld) bool { return !q.isDay(date) && date < yesterday })
-	if r := q.run; r != nil {
+	switch r := q.run; {
+	case r == nil:
+	case r.last < yesterday:
+		q.finish()
+	default:
 		through := later(r.through, earlier(horizon, startOf(nextDate(r.last))))
 		if through.compare(r.through) > 0 {
 			sealed := r.cloned()

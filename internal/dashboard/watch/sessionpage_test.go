@@ -745,16 +745,19 @@ func TestASessionsPageIsBuiltAsWhatItShowsChangesAndDrawnAsItStands(t *testing.T
 	}
 }
 
-// pageBuilt is the newest turn, the first request sent of the story, and
-// the first request of the turn open of the session's page open, each where
-// it's held, so a page built afresh is told from one as it was.
+// pageBuilt is the newest turn, the first stretch of the story, and the
+// first request of the turn open of the session's page open, each where
+// it's held, so a page built afresh is told from one as it was. The story's
+// requests sent aren't among them, as those it sealed are held as sealed,
+// whatever's built afresh.
 func (h *harness) pageBuilt() [3]any {
 	h.t.Helper()
 	s := h.shownPage()
-	if len(s.Page.Turns) == 0 || len(s.Story.Sent) == 0 || len(s.Requests) == 0 {
-		h.t.Fatalf("the page has %d turns, its story %d requests sent, its turn open %d requests; want some of each", len(s.Page.Turns), len(s.Story.Sent), len(s.Requests))
+	if len(s.Page.Turns) == 0 || len(s.Story.Stretches) == 0 || len(s.Requests) == 0 {
+		h.t.Fatalf("the page has %d turns, its story %d stretches, its turn open %d requests; want some of each", len(s.Page.Turns), len(s.Story.Stretches),
+			len(s.Requests))
 	}
-	return [3]any{&s.Page.Turns[0], &s.Story.Sent[0], &s.Requests[0]}
+	return [3]any{&s.Page.Turns[0], &s.Story.Stretches[0], &s.Requests[0]}
 }
 
 // On a session's page, a look that takes in lines raising the points of a

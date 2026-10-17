@@ -1,7 +1,9 @@
 package views
 
 import (
+	"math"
 	"reflect"
+	"runtime"
 	"strconv"
 	"testing"
 	"time"
@@ -38,8 +40,10 @@ func TestAHeldPagePastMidnightIsBuiltAsTheFeedThatRollsItGives(t *testing.T) {
 }
 
 // A page's story tells when its sealed requests went upstream as they were
-// sealed, making only its open requests' times as it's built: built of 500
-// requests sealed, its page allocates as often as of 50, and tells each.
+// sealed, making only its open requests' times as it's built, copying none
+// sealed: built of 500 requests sealed and one open, its page allocates as
+// often as of 50, and less than a byte more for each sealed beyond them, and
+// tells each.
 func TestAPagesStoryMakesItsSealedRequestsTimesOnce(t *testing.T) {
 	at := time.Date(2026, 10, 7, 9, 0, 0, 0, time.Local)
 	built := func(n int) (BuiltPage, func()) {
@@ -60,11 +64,63 @@ func TestAPagesStoryMakesItsSealedRequestsTimesOnce(t *testing.T) {
 	}
 	few, buildFew := built(50)
 	many, buildMany := built(500)
-	if len(few.Story.Sent) != 51 || len(many.Story.Sent) != 501 {
-		t.Fatalf("the stories tell %d and %d requests sent, want 51 and 501", len(few.Story.Sent), len(many.Story.Sent))
+	if few.Story.Sent.Len() != 51 || many.Story.Sent.Len() != 501 || few.Story.Sent.sealed.len() != 50 || len(many.Story.Sent.open) != 1 {
+		t.Fatalf("the stories tell %d and %d requests sent, the first %d sealed, the second %d open; want 51 and 501, 50 sealed, one open",
+			few.Story.Sent.Len(), many.Story.Sent.Len(), few.Story.Sent.sealed.len(), len(many.Story.Sent.open))
 	}
 	if fewer, got := testing.AllocsPerRun(10, buildFew), testing.AllocsPerRun(10, buildMany); got != fewer {
 		t.Errorf("a page of 500 requests sealed allocates %.0f times as it's built, of 50 %.0f; want as many, whatever it sealed", got, fewer)
+	}
+	if fewer, got := bytesPerRun(buildFew), bytesPerRun(buildMany); got-fewer >= 450 {
+		t.Errorf("a page of 500 requests sealed allocates %d bytes as it's built, of 50 %d; want less than a byte more for each sealed beyond", got, fewer)
+	}
+}
+
+// bytesPerRun is how many bytes f allocates a run, the least of a few
+// tries, as what else runs meanwhile allocates too.
+func bytesPerRun(f func()) int64 {
+	least := int64(math.MaxInt64)
+	var before, after runtime.MemStats
+	for range 3 {
+		runtime.ReadMemStats(&before)
+		for range 10 {
+			f()
+		}
+		runtime.ReadMemStats(&after)
+		least = min(least, int64(after.TotalAlloc-before.TotalAlloc)/10)
+	}
+	return least
+}
+
+// A page's points of a run of days that ended before yesterday hold none of
+// its answers, those in flight at its last midnight among them: of a
+// session last run the day before yesterday, its answer read after that
+// midnight is taken in, its points as read whole, and let go. A request of
+// its own of yesterday, filed late, would have joined the run, so the
+// session is read whole again.
+func TestAPagesPointsOfARunEndedBeforeYesterdayHoldNoneOfItsAnswers(t *testing.T) {
+	last := time.Date(2026, 10, 4, 23, 50, 0, 0, time.Local)
+	reset := strconv.FormatInt(last.Add(3*time.Hour).Unix(), 10)
+	line := func(request string, at time.Time, totalMS int64, used string) ledger.Line {
+		return ledger.Line{
+			Request: request, At: at, Kind: ledger.KindMessage, Session: "s1", Model: "claude-opus-5-5", Account: "work",
+			Status: 200, Attempts: 1, TotalMS: totalMS, Usage: []byte(`{"input_tokens":1000}`),
+			Limits: map[string]string{"5h-utilization": used, "5h-reset": reset},
+		}
+	}
+	lines := []ledger.Line{line("r1", last, 60_000, "0.10"), line("r2", last.Add(8*time.Minute), 240_000, "0.15")}
+	now := last.Add(2 * 24 * time.Hour)
+	page := ReadPage(filedLedger{lines: lines, now: now}, "s1", Stream{}, ledger.Pricing, 0, now)
+	points := page.record.page.points
+	if held := len(points.held); held != 0 || points.run != nil {
+		t.Errorf("the points hold answers of %d days, their run live %t; want none held, the run done", held, points.run != nil)
+	}
+	if got := points.of("work")["5h"]; got != 5 {
+		t.Errorf("s1 took %d points of work's 5-hour, want 5", got)
+	}
+	late := line("r3", last.Add(24*time.Hour), 60_000, "0.20")
+	if _, ok := points.took(Today(late.At).Date, []answered{answeredOf(&late, "s1")}, false, Today(now)); ok {
+		t.Error("a request of its own of yesterday, filed late, was placed; want the session read whole, as it joins the run done")
 	}
 }
 

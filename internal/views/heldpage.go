@@ -286,8 +286,12 @@ func (h HeldPage) Closing() HeldPage {
 // live builds its page: the session's lines, the latest arrived first, back
 // to arrivesWithin before the turn began, as the line of a request it first
 // knew of from the stream may have arrived as long before it was sent;
-// those that may be its requests among them, as mine has them. None where
-// no turn is open.
+// those that may be its requests among them, as mine has them. Further back,
+// to the horizon its session is held open from, it reads the subagents'
+// lines the session as held doesn't hold, as the store has yet to be fed
+// them: a subagent's turn is the one its first request names, which may have
+// arrived before the turn began, and be filed only since, untold by the
+// stream. None where no turn is open.
 func (h HeldPage) ReadTurn(l LedgerSession, live PageLive) HeldTurn {
 	if h.turn == nil {
 		return HeldTurn{}
@@ -298,14 +302,17 @@ func (h HeldPage) ReadTurn(l LedgerSession, live PageLive) HeldTurn {
 	if l == nil || !ok {
 		return read
 	}
-	t := w.tally.turns[i]
-	from := t.started.Add(-arrivesWithin)
+	from := instantOf(w.tally.turns[i].started.Add(-arrivesWithin))
 	for held := range l.Session(h.id) {
 		line := held.Line
-		if line.At.Before(from) {
-			break
-		}
-		if h.mine(&line) {
+		switch at := instantOf(line.At); {
+		case at.compare(from) >= 0:
+			if h.mine(&line) {
+				read.lines = append(read.lines, line)
+			}
+		case at.compare(w.rec.horizon) < 0:
+			return read
+		case line.AgentID != "" && isRequest(&line) && !w.rec.linedAt(line.Request, line.At):
 			read.lines = append(read.lines, line)
 		}
 	}

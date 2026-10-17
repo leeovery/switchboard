@@ -281,9 +281,9 @@ func (sc storyScale) opening(t time.Time) int {
 
 // rates are the requests a minute of each column, of requests sent at the
 // times given, as StoryColumns.Rates has them.
-func (sc storyScale) rates(sent []time.Time) []float64 {
+func (sc storyScale) rates(sent SentTimes) []float64 {
 	perMinute := make([]int, sc.total+1)
-	for _, t := range sent {
+	for t := range sent.All() {
 		if u := sc.unfolded(t); !sc.hides(t) && u >= 0 && u <= sc.total {
 			perMinute[u]++
 		}

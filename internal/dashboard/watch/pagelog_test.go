@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strconv"
 	"testing"
 	"time"
 
@@ -90,57 +91,87 @@ func TestTheLogsOpenGivesNoSessionsPageTodaysLinesAfresh(t *testing.T) {
 
 // A session's page, its turn open, given every one of today's lines afresh
 // by a read of the ledger's tail, as the Log's open gives them, and the
-// tail gives them as the day's file is replaced, those with an id and those
-// without: its turn open shows each of its requests once, the page drawn is
-// the page read whole, and the store counts each line once. The points the
-// page answers aren't held to it: HeldPage.Took takes in again a line
-// without an id given again, as yet.
+// tail gives them as the day's file is replaced: its turn open shows each of
+// its requests once, the page drawn is the page read whole, its points among
+// it, each rise of work's shared with another session's lines without ids,
+// and the store counts each line once. Of its own lines, some without an id,
+// the store reads the session whole, as it can't place a line without one;
+// each with one, it reads nothing whole, its points taking each line in as
+// often as the day's file holds it.
 func TestAPageGivenTodaysLinesAfreshHoldsEachLineOnce(t *testing.T) {
-	state := t.TempDir()
-	lines := turnsOfRequests(start.Add(-30*time.Minute), 8, 1)
-	for i := 0; i < len(lines); i += 2 {
-		lines[i].Request = fmt.Sprintf("0a%06d", i+1)
+	reading := func(l ledger.Line, used float64) ledger.Line {
+		l.Usage = json.RawMessage(`{"input_tokens":1000}`)
+		l.Limits = map[string]string{"5h-utilization": strconv.FormatFloat(used, 'f', 2, 64), "5h-reset": strconv.FormatInt(start.Add(4*time.Hour).Unix(), 10)}
+		return l
 	}
-	h, l := openedOn(t, state, dashboard.Runway, helds(lines)...)
-	h.openPage(idD28C)
-	h.keys(downKey)
-	read, _ := h.openingTurn()
-	h.deliver(read...)
-	if shown := h.shownPage(); len(shown.Requests) != 8 {
-		t.Fatalf("turn 1 opened, it shows %d rows, want its 8 requests", len(shown.Requests))
+	firstMS := int64(1000)
+	tests := []struct {
+		name  string
+		every int
+		whole bool
+	}{
+		{name: "its own lines with ids and without", every: 2, whole: true},
+		{name: "its own lines each with an id", every: 1},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := t.TempDir()
+			var lines []ledger.Line
+			for i, l := range turnsOfRequests(start.Add(-30*time.Minute), 8, 1) {
+				if i%tt.every == 0 {
+					l.Request = fmt.Sprintf("0a%06d", i+1)
+				}
+				other := ledger.Line{At: l.At.Add(5 * time.Second), Kind: ledger.KindMessage, Session: id7F3A, Model: "claude-haiku-4-5", Account: "work",
+					Reason: "new", Status: 200, Attempts: 1, FirstMS: &firstMS, TotalMS: 3000, Class: ledger.ClassMain}
+				lines = append(lines, reading(l, 0.10+0.08*float64(i)), reading(other, 0.14+0.08*float64(i)))
+			}
+			h, l := openedOn(t, state, dashboard.Runway, helds(lines)...)
+			h.openPage(idD28C)
+			h.keys(downKey)
+			read, _ := h.openingTurn()
+			h.deliver(read...)
+			shown := h.shownPage()
+			if len(shown.Requests) != 8 || len(shown.Page.Accounts) != 1 || shown.Page.Accounts[0].Points["5h"] == 0 {
+				t.Fatalf("turn 1 opened, it shows %d rows, the page's accounts %+v; want its 8 requests, points of work's 5-hour", len(shown.Requests),
+					shown.Page.Accounts)
+			}
 
-	file := filepath.Join(ledger.Dir(state), "requests-"+dayfile.DateOf(start)+".jsonl")
-	data, err := os.ReadFile(file)
-	if err != nil {
-		t.Fatal(err)
-	}
-	replaced := filepath.Join(t.TempDir(), "requests")
-	if err := os.WriteFile(replaced, data, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Rename(replaced, file); err != nil {
-		t.Fatal(err)
-	}
-	h.model.tail.due = true
-	tailed := holdingBack[tailedMsg](h, h.update(tea.WindowSizeMsg{Width: 160, Height: 37})...)
-	if len(tailed) != 1 || !tailed[0].(tailedMsg).lines.afresh || len(tailed[0].(tailedMsg).lines.gained) != len(lines) {
-		t.Fatalf("the day's file replaced, the tail was read %d times; want it read once, given every one of today's %d lines afresh", len(tailed), len(lines))
-	}
-	h.deliver(tailed...)
+			file := filepath.Join(ledger.Dir(state), "requests-"+dayfile.DateOf(start)+".jsonl")
+			data, err := os.ReadFile(file)
+			if err != nil {
+				t.Fatal(err)
+			}
+			replaced := filepath.Join(t.TempDir(), "requests")
+			if err := os.WriteFile(replaced, data, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Rename(replaced, file); err != nil {
+				t.Fatal(err)
+			}
+			h.model.tail.due = true
+			tailed := holdingBack[tailedMsg](h, h.update(tea.WindowSizeMsg{Width: 160, Height: 37})...)
+			if len(tailed) != 1 || !tailed[0].(tailedMsg).lines.afresh || len(tailed[0].(tailedMsg).lines.gained) != len(lines) {
+				t.Fatalf("the day's file replaced, the tail was read %d times; want it read once, given every one of today's %d lines afresh", len(tailed), len(lines))
+			}
+			h.deliver(tailed...)
 
-	shown := h.shownPage()
-	if len(shown.Requests) != 8 {
-		t.Errorf("given today's lines afresh, turn 1 shows %d rows, want its 8 requests, each once", len(shown.Requests))
-	}
-	now := h.clock.now
-	live := h.model.pageLive(idD28C, now)
-	live.Stream = live.Stream.Of(idD28C)
-	if want, _ := views.ReadPage(l, idD28C, live.Stream, h.model.cfg.Prices, h.model.cfg.LedgerKeep, now).Build(live); !reflect.DeepEqual(shown.Page, want.Page) {
-		t.Errorf("given today's lines afresh, the page is\n%+v\nwant it read whole\n%+v", shown.Page, want.Page)
-	}
-	if got := listedToday(h).Requests; got != len(lines) {
-		t.Errorf("given today's lines afresh, the store counts %d requests today, want the %d the ledger holds", got, len(lines))
+			shown = h.shownPage()
+			if len(shown.Requests) != 8 {
+				t.Errorf("given today's lines afresh, turn 1 shows %d rows, want its 8 requests, each once", len(shown.Requests))
+			}
+			now := h.clock.now
+			live := h.model.pageLive(idD28C, now)
+			live.Stream = live.Stream.Of(idD28C)
+			if want, _ := views.ReadPage(l, idD28C, live.Stream, h.model.cfg.Prices, h.model.cfg.LedgerKeep, now).Build(live); !reflect.DeepEqual(shown.Page, want.Page) {
+				t.Errorf("given today's lines afresh, the page is\n%+v\nwant it read whole\n%+v", shown.Page, want.Page)
+			}
+			if got, want := listedToday(h).Requests, len(lines)/2; got != want {
+				t.Errorf("given today's lines afresh, the store counts %d requests today, want the %d of the page's session the ledger holds", got, want)
+			}
+			if whole := h.model.held.Holding().Read > 0; whole != tt.whole {
+				t.Errorf("given today's lines afresh, the store read the page's session whole %t, want %t", whole, tt.whole)
+			}
+		})
 	}
 }
 

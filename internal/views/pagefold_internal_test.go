@@ -503,7 +503,7 @@ func (p *paging) check(now time.Time, l filedLedger, stream Stream) {
 	live := PageLive{Stream: stream, Now: now}
 	got, gotOK := p.page.Build(live)
 	want, wantOK := whole.Build(live)
-	if gotOK != wantOK || !reflect.DeepEqual(got, want) {
+	if gotOK != wantOK || !reflect.DeepEqual(sentAlike(got), sentAlike(want)) {
 		gotJSON, _ := json.MarshalIndent(got, "", "  ")
 		wantJSON, _ := json.MarshalIndent(want, "", "  ")
 		p.t.Fatalf("session %d's page, fed at %v, is\n%s\nwant it built whole\n%s", p.seed, now, gotJSON, wantJSON)
@@ -511,6 +511,13 @@ func (p *paging) check(now time.Time, l filedLedger, stream Stream) {
 	if got.RequestsLoading {
 		p.t.Fatalf("session %d's page, fed at %v, reads its turn open's requests still, want them read", p.seed, now)
 	}
+}
+
+// sentAlike is b, its story's times held as SentAt holds them, so pages
+// sealed apart are held alike by the times they tell.
+func sentAlike(b BuiltPage) BuiltPage {
+	b.Story.Sent = SentAt(slices.Collect(b.Story.Sent.All())...)
+	return b
 }
 
 // The page of a session, its session held in the store fed a read of the
@@ -577,8 +584,8 @@ func TestThePageFedLookByLookIsThePageBuiltWhole(t *testing.T) {
 // when today's lines are given again, as a read of today afresh gives them
 // once its file is replaced: another session's lines without ids, sharing
 // each rise with the session's, one sealed and one held open filed twice,
-// and two lines new since among them. Its points are the page's read whole,
-// and nothing is read whole for them.
+// and lines new since among them, two alike, each taken in. Its points are
+// the page's read whole, and nothing is read whole for them.
 func TestAPagesPointsTakeLinesWithoutIDsGivenAgainAsOftenAsFiled(t *testing.T) {
 	start := time.Date(2026, 10, 7, 10, 0, 0, 0, time.Local)
 	reset := strconv.FormatInt(start.Add(5*time.Hour).Unix(), 10)
@@ -596,6 +603,9 @@ func TestAPagesPointsTakeLinesWithoutIDsGivenAgainAsOftenAsFiled(t *testing.T) {
 		lines = append(lines, line("", "o", 10*i+5, 2*time.Minute, 0.12+0.04*float64(i)))
 	}
 	lines = append(lines, lines[3], lines[33])
+	alike := line("", "o", 186, 30*time.Second, 0)
+	alike.Limits = nil
+	lines = append(lines, alike, alike, line("", "o", 187, 2*time.Minute, 0.96))
 	opened := start.Add(3*time.Hour + 5*time.Minute)
 	page := ReadPage(filedLedger{lines: lines, now: opened}, "s", Stream{}, ledger.Pricing, 0, opened)
 	store := HoldSessions(ledger.Pricing).With(page.Found())
@@ -694,20 +704,60 @@ func TestAPageTakesRequestsTiedToTheMillisecondInTheOneOrder(t *testing.T) {
 
 // A page's story tells when each request went upstream exactly, whatever
 // the year it arrived in, as nanoseconds since the epoch alone don't hold
-// before 1678 or after 2262.
+// before 1678 or after 2262: of requests sealed and open alike.
 func TestAPagesStoryTellsWhenARequestWentUpstreamWhateverItsYear(t *testing.T) {
-	long, far := time.Date(1500, 3, 1, 12, 0, 0, 0, time.UTC), time.Date(2400, 3, 1, 12, 0, 0, 0, time.UTC)
+	long, now, far := time.Date(1500, 3, 1, 12, 0, 0, 0, time.UTC), time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC), time.Date(2400, 3, 1, 12, 0, 0, 0, time.UTC)
 	line := func(id string, at time.Time) ledger.Line {
 		return ledger.Line{
 			Request: id, At: at, Kind: ledger.KindMessage, Session: "s", Model: foldOpus, Account: "work", Reason: "sticky",
 			Status: 200, Attempts: 1, TotalMS: 1000, Class: ledger.ClassMain, Prompt: "p1", Usage: json.RawMessage(foldUsages[2]),
 		}
 	}
-	now := far.Add(time.Minute)
-	page := HoldPage("s", SessionsRead{day: Today(now), lines: map[string][]ledger.Line{"s": {line("a", long), line("b", far)}}}, ledger.Pricing, 0, now)
-	built, ok := page.Build(PageLive{Now: now})
-	if want := []time.Time{long, far}; !ok || !slices.EqualFunc(built.Story.Sent, want, time.Time.Equal) {
-		t.Errorf("the story tells its requests went upstream at %v, want %v", built.Story.Sent, want)
+	for _, at := range []time.Time{now, far.Add(2 * time.Hour)} {
+		lines := []ledger.Line{line("a", long), line("b", now.Add(-2*time.Hour)), line("c", far)}
+		page := ReadPage(filedLedger{lines: lines, now: far.Add(2 * time.Hour)}, "s", Stream{}, ledger.Pricing, 0, at)
+		built, ok := page.Build(PageLive{Now: at})
+		if want, got := []time.Time{long, now.Add(-2 * time.Hour), far}, slices.Collect(built.Story.Sent.All()); !ok || !slices.EqualFunc(got, want, time.Time.Equal) {
+			t.Errorf("read at %v, the story tells its requests went upstream at %v, want %v", at, got, want)
+		}
+	}
+}
+
+// A story's times are given oldest first, those sealed and the rest
+// between each other however they fall.
+func TestAStorysTimesAreGivenOldestFirstSealedOrNot(t *testing.T) {
+	at := time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC)
+	minutes := func(ms ...int) []time.Time {
+		var times []time.Time
+		for _, m := range ms {
+			times = append(times, at.Add(time.Duration(m)*time.Minute))
+		}
+		return times
+	}
+	sent := SentTimes{sealed: upstreamTimes{}.with(minutes(1, 3, 3)), open: minutes(0, 2, 3, 4, 5)}
+	if got, want := slices.Collect(sent.All()), minutes(0, 1, 2, 3, 3, 3, 4, 5); !slices.EqualFunc(got, want, time.Time.Equal) || sent.Len() != 8 {
+		t.Errorf("the story's times are %v, %d of them; want %v", got, sent.Len(), want)
+	}
+}
+
+// Times held as nanoseconds since the epoch are held so while every one
+// falls in the years those hold, and each as an instant once one doesn't,
+// exactly, those held before among them.
+func TestUpstreamTimesHoldEachExactlyWhateverItsYear(t *testing.T) {
+	at := time.Date(2026, 10, 7, 12, 0, 0, 123, time.UTC)
+	far := time.Date(2400, 3, 1, 12, 0, 0, 0, time.UTC)
+	near := upstreamTimes{}.with([]time.Time{at, at.Add(time.Second)})
+	if near.far != nil || len(near.nanos) != 2 {
+		t.Errorf("times in the nanoseconds' years are held as %d nanoseconds, %d instants; want 2 nanoseconds", len(near.nanos), len(near.far))
+	}
+	held := near.with([]time.Time{far}).with([]time.Time{far.Add(time.Second)})
+	var got []time.Time
+	for i := range held.len() {
+		got = append(got, held.at(i))
+	}
+	if want := []time.Time{at, at.Add(time.Second), far, far.Add(time.Second)}; held.nanos != nil || !slices.EqualFunc(got, want, time.Time.Equal) || near.len() != 2 {
+		t.Errorf("one beyond the nanoseconds' years held, the times are %v, as nanoseconds %t, those before %d; want %v, as instants, those before 2", got,
+			held.nanos != nil, near.len(), want)
 	}
 }
 
@@ -806,5 +856,76 @@ func TestATurnCountsASubagentWhoseFirstLineLandsLateInIt(t *testing.T) {
 				t.Errorf("turn 1's rows are %v, want %v, as the page read whole has them", got, want)
 			}
 		})
+	}
+}
+
+// A turn open between feeds counts a subagent's requests in the turn its
+// first request names, as the page read whole does, though that first
+// request, untold by the stream, arrived before the turn began and was filed
+// only since the store was last fed, after the subagent's next, naming the
+// turn's prompt: the turn shows none of the subagent's requests. Its read
+// holds that first request, and of the lines before the turn began none the
+// store was fed, and reads none from before the session's horizon but the
+// first.
+func TestATurnOpenBetweenFeedsCountsASubagentByAFirstRequestFiledSince(t *testing.T) {
+	t0 := time.Date(2026, 10, 7, 12, 0, 0, 0, time.Local)
+	line := func(id, prompt, agent string, minutes float64, took time.Duration) ledger.Line {
+		return ledger.Line{
+			Request: id, At: t0.Add(time.Duration(minutes * float64(time.Minute))), Kind: ledger.KindMessage, Session: "s", Model: foldOpus,
+			Account: "work", Reason: "sticky", Status: 200, Attempts: 1, TotalMS: took.Milliseconds(), Class: ledger.ClassMain, Prompt: prompt, AgentID: agent,
+			Usage: json.RawMessage(foldUsages[2]),
+		}
+	}
+	lines := []ledger.Line{
+		line("o1", "p0", "", -180, time.Second), line("o2", "p0", "", -120, time.Second),
+		line("m1", "p1", "", 0, time.Second), line("a0", "p1", "y", 0.5, time.Second), line("a1", "p1", "x", 1, 5*time.Minute),
+		line("m2", "p2", "", 2.5, time.Second), line("a2", "p2", "x", 3, time.Second),
+	}
+	fedAt, opened := t0.Add(4*time.Minute), t0.Add(7*time.Minute)
+	page := ReadPage(filedLedger{lines: lines, now: fedAt}, "s", Stream{}, ledger.Pricing, 0, fedAt)
+	page = page.Joined(HoldSessions(ledger.Pricing).With(page.Found()))
+	live := PageLive{Now: opened}
+	page = page.Opening(3, live)
+	counted := readCounting{l: filedLedger{lines: lines, now: opened}, read: new(int)}
+	read := page.ReadTurn(counted, live)
+	page = page.Turned(read)
+	var held []string
+	for _, l := range read.lines {
+		held = append(held, l.Request)
+	}
+	if want := []string{"a2", "m2", "a1"}; !slices.Equal(held, want) || *counted.read != 6 {
+		t.Errorf("the turn's read holds %v, reading %d lines; want %v, reading 6, the last the first before its horizon", held, *counted.read, want)
+	}
+	whole := HoldPage("s", SessionsRead{day: Today(opened), lines: map[string][]ledger.Line{"s": lines}}, ledger.Pricing, 0, opened)
+	whole.turn = &turnLines{prompt: "p2"}
+	whole = whole.Turned(HeldTurn{prompt: "p2", lines: lines})
+	rowsOf := func(h HeldPage) []string {
+		requests, _ := h.worked(live).turnRequests(3)
+		var rows []string
+		for _, r := range requests {
+			rows = append(rows, r.Row.Request)
+		}
+		return rows
+	}
+	if got, want := rowsOf(page), rowsOf(whole); !slices.Equal(got, want) || !slices.Equal(want, []string{"m2"}) {
+		t.Errorf("turn 3's rows are %v, want %v, as the page read whole has them: m2 alone", got, want)
+	}
+}
+
+// readCounting reads a session's lines through l, counting in read those
+// it gives.
+type readCounting struct {
+	l    LedgerSession
+	read *int
+}
+
+func (c readCounting) Session(id string) iter.Seq[ledger.Held] {
+	return func(yield func(ledger.Held) bool) {
+		for held := range c.l.Session(id) {
+			*c.read++
+			if !yield(held) {
+				return
+			}
+		}
 	}
 }

@@ -1,6 +1,7 @@
 package views
 
 import (
+	"iter"
 	"slices"
 	"time"
 
@@ -18,10 +19,49 @@ type Story struct {
 	Start, End time.Time
 	// Ended is set once it's over, as its page's Runs says.
 	Ended     bool
-	Sent      []time.Time
+	Sent      SentTimes
 	Folds     []Fold
 	Moves     []SessionMove
 	Stretches []Stretch
+}
+
+// SentTimes are when a story's requests went upstream, oldest first: those
+// its page sealed, as it holds them, and the rest, each oldest first, so a
+// story told again copies none of those sealed.
+type SentTimes struct {
+	sealed upstreamTimes
+	open   []time.Time
+}
+
+// SentAt are the times given, oldest first, as a story's.
+func SentAt(times ...time.Time) SentTimes {
+	return SentTimes{open: times}
+}
+
+// Len is how many times s holds.
+func (s SentTimes) Len() int {
+	return s.sealed.len() + len(s.open)
+}
+
+// All gives every time s holds, oldest first.
+func (s SentTimes) All() iter.Seq[time.Time] {
+	return func(yield func(time.Time) bool) {
+		i, j, sealed := 0, 0, s.sealed.len()
+		for i < sealed || j < len(s.open) {
+			var t time.Time
+			if i < sealed {
+				t = s.sealed.at(i)
+			}
+			if i == sealed || j < len(s.open) && s.open[j].Before(t) {
+				t, j = s.open[j], j+1
+			} else {
+				i++
+			}
+			if !yield(t) {
+				return
+			}
+		}
+	}
 }
 
 // Fold is an idle gap in a session's story, as idled has it: from its last
@@ -89,22 +129,18 @@ func (w worked) movesOf(page SessionPage) []SessionMove {
 // upstream are when the session's requests, by their lines and as the
 // stream told of them, went upstream, oldest first, as the traces count
 // them: each by its line, as its page tallies them, those sealed as the
-// store sealed them, the open taken in on them; and each the stream told of
+// store sealed them, the open taken in since; and each the stream told of
 // whose line the session doesn't hold, once.
-func (w worked) upstream() []time.Time {
-	at := w.tally.upstream
-	sealed := len(w.rec.page.upstream)
+func (w worked) upstream() SentTimes {
+	open := slices.Clone(w.tally.sentSince)
 	told := make(map[string]bool)
 	for _, t := range w.told {
 		if _, ok := toldUpstream(t); !ok || told[t.Request] || w.rec.lined(t) {
 			continue
 		}
 		told[t.Request] = true
-		at = append(at, t.Sent)
+		open = append(open, t.Sent)
 	}
-	slices.SortFunc(at[sealed:], time.Time.Compare)
-	if sealed > 0 && sealed < len(at) && at[sealed].Before(at[sealed-1]) {
-		slices.SortFunc(at, time.Time.Compare)
-	}
-	return at
+	slices.SortFunc(open, time.Time.Compare)
+	return SentTimes{sealed: w.tally.upstream, open: open}
 }

@@ -34,7 +34,7 @@ func capMove(from, to string, at time.Time, written int, cents int64) views.Sess
 // movedStory is d28c's story, as session-moved-160 and session-phone-52 draw
 // it: from 12:02 to now, 14:42:07, moved from work to side at its cap at 14:31.
 func movedStory() views.Story {
-	return views.Story{Start: storyAt(8, 12, 2, 0), End: storyAt(8, 14, 42, 7), Sent: minutely(storyAt(8, 12, 2, 0), storyAt(8, 14, 41, 0)),
+	return views.Story{Start: storyAt(8, 12, 2, 0), End: storyAt(8, 14, 42, 7), Sent: views.SentAt(minutely(storyAt(8, 12, 2, 0), storyAt(8, 14, 41, 0))...),
 		Moves:     []views.SessionMove{capMove("work", "side", storyAt(8, 14, 31, 0), 182_000, 182)},
 		Stretches: []views.Stretch{{Account: "work", From: storyAt(8, 12, 2, 0)}, {Account: "side", From: storyAt(8, 14, 31, 0)}}}
 }
@@ -42,14 +42,14 @@ func movedStory() views.Story {
 // quietStory is 9c2e's story, as session-quiet-160 draws it: on personal
 // from 11:55 to now, 14:42:07.
 func quietStory() views.Story {
-	return views.Story{Start: storyAt(8, 11, 55, 0), End: storyAt(8, 14, 42, 7), Sent: minutely(storyAt(8, 11, 55, 0), storyAt(8, 14, 33, 0)),
+	return views.Story{Start: storyAt(8, 11, 55, 0), End: storyAt(8, 14, 42, 7), Sent: views.SentAt(minutely(storyAt(8, 11, 55, 0), storyAt(8, 14, 33, 0))...),
 		Stretches: []views.Stretch{{Account: "personal", From: storyAt(8, 11, 55, 0)}}}
 }
 
 // endedStory is b9c4's story, as session-ended-160 draws it: yesterday from
 // 13:20 to its end at 18:47, moved from work to side at its cap at 16:02.
 func endedStory() views.Story {
-	return views.Story{Start: storyAt(7, 13, 20, 0), End: storyAt(7, 18, 47, 0), Ended: true, Sent: minutely(storyAt(7, 13, 20, 0), storyAt(7, 18, 47, 0)),
+	return views.Story{Start: storyAt(7, 13, 20, 0), End: storyAt(7, 18, 47, 0), Ended: true, Sent: views.SentAt(minutely(storyAt(7, 13, 20, 0), storyAt(7, 18, 47, 0))...),
 		Moves:     []views.SessionMove{capMove("work", "side", storyAt(7, 16, 2, 0), 188_000, 188)},
 		Stretches: []views.Stretch{{Account: "work", From: storyAt(7, 13, 20, 0)}, {Account: "side", From: storyAt(7, 16, 2, 0)}}}
 }
@@ -60,7 +60,7 @@ func endedStory() views.Story {
 func resumedStory() views.Story {
 	back := storyAt(8, 9, 12, 0)
 	return views.Story{Start: storyAt(7, 16, 40, 0), End: storyAt(8, 14, 42, 7),
-		Sent:      slices.Concat(minutely(storyAt(7, 16, 40, 0), storyAt(7, 18, 5, 0)), minutely(back, storyAt(8, 14, 41, 0))),
+		Sent:      views.SentAt(slices.Concat(minutely(storyAt(7, 16, 40, 0), storyAt(7, 18, 5, 0)), minutely(back, storyAt(8, 14, 41, 0)))...),
 		Folds:     []views.Fold{{From: storyAt(7, 18, 5, 0), To: back}},
 		Moves:     []views.SessionMove{{At: back, Model: "claude-opus-5-5", From: "side", To: "personal", Reason: "rescored after 15h 7m idle"}},
 		Stretches: []views.Stretch{{Account: "side", From: storyAt(7, 16, 40, 0)}, {Account: "personal", From: back}}}
@@ -141,7 +141,7 @@ func sentLike(story views.Story, width, rows int, eighths []int) []time.Time {
 	var sent []time.Time
 	for t := story.Start.Truncate(time.Minute); !t.After(story.End); t = t.Add(time.Minute) {
 		probe := story
-		probe.Sent = []time.Time{t}
+		probe.Sent = views.SentAt(t)
 		rates := probe.Columns(width).Rates
 		most, empty := -1, false
 		for i, r := range rates {
@@ -217,7 +217,7 @@ func TestASessionsStoryIsDrawnAsItsFrames(t *testing.T) {
 				in, bottom = region{top: 10, bottom: 16, right: tt.width - 1}, 14
 			}
 			frame, story := reference(t, tt.stem), tt.story
-			story.Sent = sentLike(story, tt.width, bottom-top+1, columnEighths(frame, top, bottom, tt.width, canvas, fills))
+			story.Sent = views.SentAt(sentLike(story, tt.width, bottom-top+1, columnEighths(frame, top, bottom, tt.width, canvas, fills))...)
 			drawn := screenOf(t, storyDrawnOn(storyFrame(tt.width, tt.height, nord), 1, story, tt.chosen).rows(nord))
 			whole := slices.Clone(tt.flagged)
 			for y := top; y <= bottom; y++ {
@@ -260,7 +260,7 @@ var wideStory = sessionLayout{wide: true, story: true}
 // twentyMinutes is a story 20 minutes old, laid across 10 columns two
 // minutes each, but the last's three, with the requests given.
 func twentyMinutes(sent ...[]time.Time) views.Story {
-	return views.Story{Start: storyAt(8, 12, 0, 0), End: storyAt(8, 12, 20, 0), Sent: slices.Concat(sent...),
+	return views.Story{Start: storyAt(8, 12, 0, 0), End: storyAt(8, 12, 20, 0), Sent: views.SentAt(slices.Concat(sent...)...),
 		Stretches: []views.Stretch{{Account: "work", From: storyAt(8, 12, 0, 0)}}}
 }
 
@@ -345,7 +345,7 @@ func TestTheTurnChosensColumnsAreLit(t *testing.T) {
 // session moved at its cap at each time given, from work to side, then on to
 // personal, its cache run out by each, so none cost anything.
 func movesStory(at ...time.Time) views.Story {
-	s := views.Story{Start: storyAt(8, 12, 0, 0), End: storyAt(8, 14, 40, 30), Sent: minutely(storyAt(8, 12, 0, 0), storyAt(8, 14, 40, 0))}
+	s := views.Story{Start: storyAt(8, 12, 0, 0), End: storyAt(8, 14, 40, 30), Sent: views.SentAt(minutely(storyAt(8, 12, 0, 0), storyAt(8, 14, 40, 0))...)}
 	accounts := []string{"work", "side", "personal"}
 	for i, t := range at {
 		s.Moves = append(s.Moves, capMove(accounts[i], accounts[i+1], t, 182_000, 182))
@@ -525,7 +525,7 @@ func litColumns(cells [][]seen, top, bottom, width int, fills []shade) []int {
 
 // youngStory is a story 20 minutes old, on work from 12:05 to now, 12:25:30.
 func youngStory() views.Story {
-	return views.Story{Start: storyAt(8, 12, 5, 0), End: storyAt(8, 12, 25, 30), Sent: minutely(storyAt(8, 12, 5, 0), storyAt(8, 12, 25, 0)),
+	return views.Story{Start: storyAt(8, 12, 5, 0), End: storyAt(8, 12, 25, 30), Sent: views.SentAt(minutely(storyAt(8, 12, 5, 0), storyAt(8, 12, 25, 0))...),
 		Stretches: []views.Stretch{{Account: "work", From: storyAt(8, 12, 5, 0)}}}
 }
 
@@ -534,15 +534,16 @@ func youngStory() views.Story {
 // now, 30 seconds after its last request.
 func foldedStory() views.Story {
 	var s views.Story
+	var sent []time.Time
 	for b := range 33 {
 		at := storyAt(8, 0, 0, 0).Add(time.Duration(63*b) * time.Minute)
-		s.Sent = append(s.Sent, minutely(at, at.Add(2*time.Minute))...)
+		sent = append(sent, minutely(at, at.Add(2*time.Minute))...)
 		s.Stretches = append(s.Stretches, views.Stretch{Account: "work", From: at})
 		if b > 0 {
 			s.Folds = append(s.Folds, views.Fold{From: at.Add(-61 * time.Minute), To: at})
 		}
 	}
-	s.Start, s.End = s.Sent[0], s.Sent[len(s.Sent)-1].Add(30*time.Second)
+	s.Start, s.End, s.Sent = sent[0], sent[len(sent)-1].Add(30*time.Second), views.SentAt(sent...)
 	return s
 }
 

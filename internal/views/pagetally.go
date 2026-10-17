@@ -21,8 +21,9 @@ import (
 // goesOf has them; of its lines alone, the accounts they went to, what they
 // tell of why each model goes where it does, as keptLines has it, its
 // totals, when each that went upstream arrived, oldest first, each request
-// once, as the traces count them, in the times a story tells, so a page
-// built of it makes only its open requests' afresh, with those that may
+// once, as the traces count them: those it sealed held as upstreamTimes
+// holds them, and those a copy took in since, so a page built of it makes
+// only its open requests' afresh, copying none sealed; with those that may
 // still be in flight as the next arrives, and the models they asked for;
 // and the points it took of its accounts' windows, as pointing has them,
 // sealed as the store seals it, the same of every copy told on. What's
@@ -45,13 +46,14 @@ type pageTally struct {
 	stretched [2]stretching
 	goes      []SessionModel
 
-	accounts []SessionAccount
-	kept     map[string]keptLines
-	totals   sessionSums
-	upstream []time.Time
-	flying   []flight
-	models   map[string]bool
-	points   *pointing
+	accounts  []SessionAccount
+	kept      map[string]keptLines
+	totals    sessionSums
+	upstream  upstreamTimes
+	sentSince []time.Time
+	flying    []flight
+	models    map[string]bool
+	points    *pointing
 
 	// own are the turns a copy telling on has made its own, and whether its
 	// maps are, so it changes nothing it shares with what it was copied of.
@@ -94,13 +96,16 @@ func (p *pageTally) told(sent []sent) *pageTally {
 }
 
 // took is p told on afresh of requests, its session's next lines, in order,
-// as inOrder has it.
+// as inOrder has it, sealed: when they went upstream held among those it
+// sealed before.
 func (p *pageTally) took(requests []heldRequest) *pageTally {
 	sent := make([]sent, len(requests))
 	for i := range requests {
 		sent[i] = lineSent(&requests[i])
 	}
-	return p.told(sent)
+	c := p.told(sent)
+	c.upstream, c.sentSince = c.upstream.with(c.sentSince), nil
+	return c
 }
 
 // cloned is a copy of p for what tells it on, sharing with p what it
@@ -113,7 +118,7 @@ func (p *pageTally) cloned() *pageTally {
 	for i := range c.stretched {
 		c.stretched[i].stretches = slices.Clone(p.stretched[i].stretches)
 	}
-	c.folds, c.upstream, c.flying = slices.Clip(p.folds), slices.Clip(p.upstream), slices.Clone(p.flying)
+	c.folds, c.sentSince, c.flying = slices.Clip(p.folds), slices.Clip(p.sentSince), slices.Clone(p.flying)
 	c.own, c.ownMaps = make(map[*turnTally]bool), false
 	return &c
 }
@@ -268,7 +273,55 @@ func (p *pageTally) wentUp(r *heldRequest) {
 		return
 	}
 	p.flying = append(p.flying, r.flight)
-	p.upstream = append(p.upstream, at)
+	p.sentSince = append(p.sentSince, at)
+}
+
+// upstreamTimes are when requests went upstream, oldest first, each in 8
+// bytes, as nanoseconds since the epoch, while every one falls in the years
+// those hold, 1678 to 2262; else each as an instant, whatever its year, as
+// far holds them. What changes them returns afresh.
+type upstreamTimes struct {
+	nanos []int64
+	far   []instant
+}
+
+// with is u with times, oldest first, after its own, afresh.
+func (u upstreamTimes) with(times []time.Time) upstreamTimes {
+	if len(times) == 0 {
+		return u
+	}
+	grown := upstreamTimes{nanos: slices.Clip(u.nanos), far: slices.Clip(u.far)}
+	for _, t := range times {
+		n := t.UnixNano()
+		switch {
+		case grown.far == nil && time.Unix(0, n).Equal(t):
+			grown.nanos = append(grown.nanos, n)
+			continue
+		case grown.far == nil:
+			grown.far = make([]instant, len(grown.nanos), len(grown.nanos)+len(times))
+			for i, n := range grown.nanos {
+				grown.far[i] = instantOf(time.Unix(0, n))
+			}
+			grown.nanos = nil
+		}
+		grown.far = append(grown.far, instantOf(t))
+	}
+	return grown
+}
+
+func (u upstreamTimes) len() int {
+	if u.far != nil {
+		return len(u.far)
+	}
+	return len(u.nanos)
+}
+
+// at is the ith of u, in UTC.
+func (u upstreamTimes) at(i int) time.Time {
+	if u.far != nil {
+		return u.far[i].time()
+	}
+	return time.Unix(0, u.nanos[i]).UTC()
 }
 
 // pointedAt is p with its points sealed behind the horizon given, at the
