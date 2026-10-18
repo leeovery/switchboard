@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"time"
@@ -35,6 +36,17 @@ const (
 // with the given date.
 func digestFile(dir, date string) string {
 	return filepath.Join(dir, digestPrefix+date+digestSuffix)
+}
+
+// digestInfo returns a look at the file of the digest the ledger holds of the
+// local day with the given date: nil where it holds none, or the file can't
+// be looked at.
+func (d days) digestInfo(date string) fs.FileInfo {
+	info, err := os.Stat(digestFile(d.files.Dir, date))
+	if err != nil {
+		return nil
+	}
+	return info
 }
 
 // Digest is a finished day's digest, beside the day's lines and its summary:

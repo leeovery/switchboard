@@ -191,39 +191,68 @@ func Begins(first time.Time, err error, now time.Time) (began time.Time, none bo
 // first returns the start of the first local day the ledger holds, as listed
 // gives it.
 func (d days) first() (time.Time, error) {
-	_, first, err := d.listed()
+	listing, err := d.listed()
 	if err != nil {
 		return time.Time{}, err
 	}
-	start, _, _ := dayfile.Day(first)
+	start, _, _ := dayfile.Day(listing.first)
 	return start, nil
 }
 
-// listed returns, from one listing of the ledger's directory, the dates of
-// the local days it holds lines of, oldest first, each once, and the date of
-// the first day it holds: the earliest its files of lines, and its
-// summaries, are of, by the dates their names give. It lists the directory
-// as dayfile.Files.List does, never halfway through a prune. It fails with
-// fs.ErrNotExist where it holds none.
-func (d days) listed() (lines []string, first string, err error) {
+// dayListing is what a listing of the ledger's directory finds, as
+// days.listed gives it: the dates of the local days it holds lines of,
+// oldest first, each once; the date of the first day it holds, of its lines
+// or its summaries; and the dates of the days it holds digests of.
+type dayListing struct {
+	lines   []string
+	first   string
+	digests []string
+}
+
+// listed returns what one listing of the ledger's directory finds, as
+// dayListing has it: the first day it holds the earliest its files of lines,
+// and its summaries, are of, by the dates their names give. It lists the
+// directory as dayfile.Files.List does, never halfway through a prune. It
+// fails with fs.ErrNotExist where it holds no day, whatever digests it
+// holds.
+func (d days) listed() (dayListing, error) {
 	entries, err := d.files.List()
 	if err != nil {
-		return nil, "", err
+		return dayListing{}, err
 	}
+	var listing dayListing
 	var summaries []string
 	for _, e := range entries {
 		if date, ok := d.files.DateOf(e.Name()); ok {
-			lines = append(lines, date)
-		} else if date, ok := summaryDate(e.Name()); ok {
+			listing.lines = append(listing.lines, date)
+		} else if date, ok := datedName(e.Name(), summaryPrefix, summarySuffix); ok {
 			summaries = append(summaries, date)
+		} else if date, ok := datedName(e.Name(), digestPrefix, digestSuffix); ok {
+			listing.digests = append(listing.digests, date)
 		}
 	}
-	held := append(slices.Clone(lines), summaries...)
+	held := append(slices.Clone(listing.lines), summaries...)
 	if len(held) == 0 {
-		return nil, "", fmt.Errorf("the request ledger holds no day: %w", fs.ErrNotExist)
+		return dayListing{}, fmt.Errorf("the request ledger holds no day: %w", fs.ErrNotExist)
 	}
-	slices.Sort(lines)
-	return slices.Compact(lines), slices.Min(held), nil
+	slices.Sort(listing.lines)
+	listing.lines, listing.first = slices.Compact(listing.lines), slices.Min(held)
+	return listing, nil
+}
+
+// listedNoting returns what a listing of the ledger's directory finds, as
+// listed does, reporting false where it can't be listed, or holds no day:
+// how the listing went noted by unlisted, as failing.note says, so a
+// listing that fails is warned of once, until one succeeds, but one that
+// finds no day never is.
+func (d days) listedNoting(unlisted *failing) (dayListing, bool) {
+	listing, err := d.listed()
+	failed := err
+	if errors.Is(err, fs.ErrNotExist) {
+		failed = nil
+	}
+	unlisted.note(d.logger, "can't read the request ledger", failed, "dir", d.files.Dir)
+	return listing, err == nil
 }
 
 // heldIn returns the line a line of the ledger holds, as it's held, reporting

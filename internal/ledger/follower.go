@@ -77,22 +77,10 @@ func (h *heldListing[T]) listed(path string, now time.Time, list func() (T, erro
 	return found, listErr
 }
 
-// dayListing is what a listing of the ledger's directory finds, as
-// days.listed gives it: the dates of the local days it holds lines of,
-// oldest first, and the date of the first day it holds, of its lines or its
-// summaries.
-type dayListing struct {
-	lines []string
-	first string
-}
-
 // listed returns what a listing of the ledger's directory finds, at now,
 // held as heldListing.listed says while the directory looks as it did.
 func (f *Follower) listed(now time.Time) (dayListing, error) {
-	return f.listing.listed(f.days.files.Dir, now, func() (dayListing, error) {
-		lines, first, err := f.days.listed()
-		return dayListing{lines: lines, first: first}, err
-	})
+	return f.listing.listed(f.days.files.Dir, now, f.days.listed)
 }
 
 // firstDay returns the start of the first local day the ledger holds, as
@@ -260,7 +248,7 @@ func (f *Follower) follow(date string) *followedDay {
 		d = &followedDay{date: date}
 		f.followed[date] = d
 	}
-	if l := f.lookAt(date); !d.looked || !l.same(d.look) {
+	if l := f.days.lookAt(date); !d.looked || !l.same(d.look) {
 		f.standing(d, l)
 	}
 	return d
@@ -336,12 +324,12 @@ type look struct {
 
 // lookAt looks at the summary's file and the files of the local day with
 // the given date.
-func (f *Follower) lookAt(date string) look {
+func (d days) lookAt(date string) look {
 	var l look
-	if info, err := os.Stat(summaryFile(f.days.files.Dir, date)); err == nil {
+	if info, err := os.Stat(summaryFile(d.files.Dir, date)); err == nil {
 		l.summary = info
 	}
-	l.files, l.err = f.days.files.Stat(date)
+	l.files, l.err = d.files.Stat(date)
 	if errors.Is(l.err, fs.ErrNotExist) {
 		l.none, l.err = true, nil
 	}
@@ -841,19 +829,35 @@ func (f *Follower) namesLocked(date string, wanted map[string]bool) bool {
 }
 
 // naming returns those of the sessions wanted the summary names among those
-// its accounts' requests were of, or might, by their ids: one that counts
-// sessions it doesn't name, as Unnamed says, as one of version 1, might name
-// any, so every one.
+// its accounts' requests were of, or might, as named tells them, by their
+// ids.
 func (s Summary) naming(wanted map[string]bool) map[string]bool {
-	if s.Unnamed() > 0 {
+	ids, unnamed := s.named()
+	return namingAmong(wanted, ids, unnamed)
+}
+
+// named returns the ids of the sessions the summary names among those its
+// accounts' requests were of, sorted, each once; and whether it might be of
+// any other: one that counts sessions it doesn't name, as Unnamed says, as
+// one of version 1, might be of any.
+func (s Summary) named() (ids []string, unnamed bool) {
+	for _, a := range s.Accounts {
+		ids = append(ids, a.SessionIDs...)
+	}
+	slices.Sort(ids)
+	return slices.Compact(ids), s.Unnamed() > 0
+}
+
+// namingAmong returns those of the sessions wanted among those with the ids
+// given, by their ids: every one, where every says any might be among them.
+func namingAmong(wanted map[string]bool, ids []string, every bool) map[string]bool {
+	if every {
 		return maps.Clone(wanted)
 	}
 	named := make(map[string]bool)
-	for _, a := range s.Accounts {
-		for _, id := range a.SessionIDs {
-			if wanted[id] {
-				named[id] = true
-			}
+	for _, id := range ids {
+		if wanted[id] {
+			named[id] = true
 		}
 	}
 	return named

@@ -19,6 +19,13 @@ func WriteDigest(dir string, digest Digest) error {
 	return days{files: filesIn(dir, nil)}.writeDigest(digest)
 }
 
+// ReadDigest returns the digest the ledger in dir holds of the local day with
+// the given date, its sessions' states of the version body, for tests of
+// what's written.
+func ReadDigest(dir, date string, body int) (Digest, error) {
+	return days{files: filesIn(dir, nil)}.digest(date, body)
+}
+
 // SessionsAsOf returns the sessions with the given ids as of the start of
 // the local day with the given date, their states of the version body, as
 // the follower's lookup finds them, handing take each line read, where it's
