@@ -60,6 +60,11 @@ type Request struct {
 	// produced it: moving the session loses its reasoning, so it stays on its
 	// account, cache cold or not, while the account can serve it.
 	Bound bool
+	// Compacted is set when the request is the first of its session's main
+	// conversation after Claude Code compacted it, which has little of its
+	// cache left to lose: the moment a busy session's move is judged, as
+	// decide says.
+	Compacted bool
 	// Pin is the account the request is pinned to, as the session was
 	// launched with it, or "" when it isn't: a pin the session is given while
 	// it runs passes over it. It's only ever an account with a token.
