@@ -178,7 +178,7 @@ func TestAHeldRequestsStoredFormIsWhatItDecodes(t *testing.T) {
 	got, err := json.Marshal(r.stored())
 	want := `{"r":"r1","a":{"s":1791403200,"n":123000000},"e":{"s":1791403203,"n":123000000},"d":"/code/app","m":"claude-opus-5-5",` +
 		`"ac":"side","rs":"moved: work hit its limit","f":"work","c":"main","ag":"a1","g":"us","p":"p1","st":"tool_use","tl":["Read","Edit"],` +
-		`"u":true,"t":[{"account":"work","why":"hit its limit"}],"sp":{"i":10,"1h":1000,"r":100000,"o":500,"w":1000,"b":1000,"d":true,"c":true}}`
+		`"u":true,"t":[{"a":"work","w":"hit its limit"}],"sp":{"i":10,"1h":1000,"r":100000,"o":500,"w":1000,"b":1000,"d":true,"c":true}}`
 	if err != nil || string(got) != want {
 		t.Errorf("stored as\n%s, %v, want\n%s", got, err, want)
 	}

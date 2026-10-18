@@ -129,6 +129,9 @@ func (s storedSpend) spend() Spend {
 	return spend
 }
 
+// A seventh charge fails to compile here until storedBill names it too.
+var _ = [1]int{}[charges-6]
+
 // storedBillOf is b as a file stores it.
 func storedBillOf(b bill) storedBill {
 	c := b.charged

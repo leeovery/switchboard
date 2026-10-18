@@ -589,12 +589,12 @@ func (s *heldSession) since() string {
 // gained are the requests among requests, the session's of a read, that s
 // doesn't hold, in order, reporting false where it can't place them all,
 // whole where they're a day's read again whole: one with no id, which can't
-// be known from another; one of a request it holds whose line says
-// otherwise of it, which a read whole may hold in its place, as distinct
-// keeps the first of a request's lines it reads; one that arrived behind the
-// horizon, which would change what's sealed; or the requests of a day before
-// those whose flights it holds other than as many as it holds of that day,
-// or not read whole.
+// be known from another; one of a request it holds whose line decodes
+// otherwise of it, as summed has it, which a read whole may hold in its
+// place, as distinct keeps the first of a request's lines it reads; one that
+// arrived behind the horizon, which would change what's sealed; or the
+// requests of a day before those whose flights it holds other than as many
+// as it holds of that day, or not read whole.
 func (s *heldSession) gained(requests []heldRequest, whole bool) ([]heldRequest, bool) {
 	since := s.since()
 	counted := make(map[string]int)

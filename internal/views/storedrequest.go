@@ -16,20 +16,27 @@ import (
 // its own day. Its keys are short and its zeros left out.
 type storedRequest struct {
 	storedFlight
-	Dir      string         `json:"d,omitempty"`
-	Model    string         `json:"m,omitempty"`
-	Account  string         `json:"ac,omitempty"`
-	Reason   string         `json:"rs,omitempty"`
-	From     string         `json:"f,omitempty"`
-	Class    string         `json:"c,omitempty"`
-	AgentID  string         `json:"ag,omitempty"`
-	Geo      string         `json:"g,omitempty"`
-	Prompt   string         `json:"p,omitempty"`
-	Stop     string         `json:"st,omitempty"`
-	Tools    []string       `json:"tl,omitempty"`
-	Upstream bool           `json:"u,omitzero"`
-	Tried    []ledger.Tried `json:"t,omitzero"`
-	Spend    ledger.Spend   `json:"sp,omitzero"`
+	Dir      string        `json:"d,omitempty"`
+	Model    string        `json:"m,omitempty"`
+	Account  string        `json:"ac,omitempty"`
+	Reason   string        `json:"rs,omitempty"`
+	From     string        `json:"f,omitempty"`
+	Class    string        `json:"c,omitempty"`
+	AgentID  string        `json:"ag,omitempty"`
+	Geo      string        `json:"g,omitempty"`
+	Prompt   string        `json:"p,omitempty"`
+	Stop     string        `json:"st,omitempty"`
+	Tools    []string      `json:"tl,omitempty"`
+	Upstream bool          `json:"u,omitzero"`
+	Tried    []storedTried `json:"t,omitzero"`
+	Spend    ledger.Spend  `json:"sp,omitzero"`
+}
+
+// storedTried is an account a request went out on that couldn't serve it,
+// and why it was left, as a stored form holds it.
+type storedTried struct {
+	Account string `json:"a,omitempty"`
+	Why     string `json:"w,omitempty"`
 }
 
 // storedFlight is a flight as a stored form holds it: its request's id, and
@@ -52,7 +59,7 @@ func (r *heldRequest) stored() storedRequest {
 	return storedRequest{
 		storedFlight: r.flight.stored(), Dir: r.dir.Value(), Model: r.model.Value(), Account: r.account.Value(), Reason: r.reason.Value(),
 		From: r.from.Value(), Class: r.class.Value(), AgentID: r.agentID.Value(), Geo: r.geo.Value(), Prompt: r.prompt.Value(),
-		Stop: r.stop.Value(), Tools: slices.Collect(r.calls()), Upstream: r.upstream, Tried: r.tried, Spend: r.spend,
+		Stop: r.stop.Value(), Tools: slices.Collect(r.calls()), Upstream: r.upstream, Tried: storedTriedOf(r.tried), Spend: r.spend,
 	}
 }
 
@@ -61,8 +68,34 @@ func (r *heldRequest) stored() storedRequest {
 func (s *storedRequest) restored() heldRequest {
 	return newHeldRequest(decodedRequest{
 		flight: s.flight(), dir: s.Dir, model: s.Model, account: s.Account, reason: s.Reason, from: s.From, class: s.Class, agentID: s.AgentID,
-		geo: s.Geo, prompt: s.Prompt, stop: s.Stop, tools: s.Tools, upstream: s.Upstream, tried: s.Tried, spend: s.Spend,
+		geo: s.Geo, prompt: s.Prompt, stop: s.Stop, tools: s.Tools, upstream: s.Upstream, tried: triedOf(s.Tried), spend: s.Spend,
 	})
+}
+
+// storedTriedOf is tried as a stored form holds it: none of none, and an
+// empty list of an empty list.
+func storedTriedOf(tried []ledger.Tried) []storedTried {
+	if tried == nil {
+		return nil
+	}
+	stored := make([]storedTried, len(tried))
+	for i, t := range tried {
+		stored[i] = storedTried{Account: t.Account, Why: t.Why}
+	}
+	return stored
+}
+
+// triedOf is the accounts stored holds: none of none, and an empty list of
+// an empty list.
+func triedOf(stored []storedTried) []ledger.Tried {
+	if stored == nil {
+		return nil
+	}
+	tried := make([]ledger.Tried, len(stored))
+	for i, t := range stored {
+		tried[i] = ledger.Tried{Account: t.Account, Why: t.Why}
+	}
+	return tried
 }
 
 // stored is f as a stored form holds it.
