@@ -37,7 +37,7 @@ var guardPace = soakPace{rate: 600, step: 5 * time.Second, listed: 3 * time.Minu
 const guardDays = 2
 
 var (
-	guardStart = time.Date(start.Year(), start.Month(), start.Day(), 23, 58, 0, 0, start.Location())
+	guardStart = soakAt(23, 58)
 	guardEnd   = guardStart.Add(8*time.Minute + 30*time.Second)
 )
 

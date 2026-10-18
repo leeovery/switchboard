@@ -36,7 +36,14 @@ var (
 
 // soakStart is when the soak starts: the evening of a day, so it crosses
 // midnight three hours in.
-var soakStart = time.Date(start.Year(), start.Month(), start.Day(), 21, 0, 0, 0, start.Location())
+var soakStart = soakAt(21, 0)
+
+// soakAt is the time of day given on the date the tests' clock starts on, in
+// the machine's zone, as the ledger's days are: so the soak's midnight is the
+// one its world's days turn at, whatever zone the tests run in.
+func soakAt(hour, minute int) time.Time {
+	return time.Date(start.Year(), start.Month(), start.Day(), hour, minute, 0, 0, time.Local)
+}
 
 // TestTheDashboardsLiveHeapOverASoak runs the dashboard over the soak's
 // world for the simulated hours -soak asks, at the owner's rate, on what
