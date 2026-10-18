@@ -498,11 +498,14 @@ func (s *sessionAsked) unsettled(held []filed, failed map[string]bool) bool {
 // from returns the sessions asked as SessionFrom has them, by their ids, each
 // with its lines of those read held, the dates of the days that couldn't be
 // read whole failed among it: none of one resting on none that none of them
-// are of.
+// are of. The read lets go of each session's lines once they're given, so
+// what it read and what's given are held side by side for one session at a
+// time, never for every one.
 func (l *sessionsLookup) from(asked map[string]*sessionAsked, read *sessionsRead) map[string]SessionFrom {
 	sessions := make(map[string]SessionFrom, len(asked))
 	for id, s := range asked {
 		held := filedOn(read.held[id], s.reads())
+		delete(read.held, id)
 		if s.base == nil && len(held) == 0 {
 			continue
 		}
@@ -536,17 +539,12 @@ func (l *sessionsLookup) restsOn(s *sessionAsked, failed map[string]bool) map[st
 	return restsOn
 }
 
-// filedOn returns those of held filed under the days with the given dates.
+// filedOn returns those of held filed under the days with the given dates,
+// afresh, held left as it is.
 func filedOn(held []filed, dates []string) []filed {
 	on := make(map[string]bool, len(dates))
 	for _, date := range dates {
 		on[date] = true
 	}
-	var lines []filed
-	for _, l := range held {
-		if on[l.date] {
-			lines = append(lines, l)
-		}
-	}
-	return lines
+	return slices.DeleteFunc(slices.Clone(held), func(l filed) bool { return !on[l.date] })
 }

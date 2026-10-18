@@ -124,10 +124,10 @@ func newSessionsRead(now time.Time, take func(date string, l Line)) *sessionsRea
 	return &sessionsRead{take: take, now: now, held: make(map[string][]filed), daysRead: make(map[string]bool), failed: make(map[string]bool)}
 }
 
-// filed is a line read, with the date of the day whose files hold it, and its
-// place among the lines read.
+// filed is a line read, as the read of its day holds it, with the date of the
+// day whose files hold it, and its place among the lines read.
 type filed struct {
-	Line
+	*Line
 	date  string
 	place int
 }
@@ -157,9 +157,9 @@ func (r *sessionsRead) days(d days, dates []string, keep map[string]bool) {
 		}
 		for _, l := range read.lines {
 			if r.take != nil {
-				r.take(date, l)
+				r.take(date, *l)
 			}
-			if kept(&l, keep) {
+			if kept(l, keep) {
 				r.held[l.Session] = append(r.held[l.Session], filed{Line: l, date: date, place: r.read})
 			}
 			r.read++
@@ -194,9 +194,10 @@ func readAhead[T any](dates []string, ahead int, read func(date string) T, take 
 }
 
 // dayRead is what a read of a local day's files gave, as day reads them: the
-// lines to be taken in, and whether one of the files couldn't be read.
+// lines to be taken in, each where the read of sessions holds it, so none is
+// copied as it's taken in; and whether one of the files couldn't be read.
 type dayRead struct {
-	lines  []Line
+	lines  []*Line
 	failed bool
 }
 
@@ -212,10 +213,10 @@ func (r *sessionsRead) day(d days, date string, keep map[string]bool) dayRead {
 	if r.take == nil && keep != nil {
 		decode = keptLineIn(keep)
 	}
-	var lines []Line
+	var lines []*Line
 	_, unread, err := dayfile.ReadDay(d.files, date, decode, func(l Line) bool {
 		if !l.At.After(r.now) && (r.take != nil || kept(&l, keep)) {
-			lines = append(lines, l)
+			lines = append(lines, new(l))
 		}
 		return true
 	})
@@ -269,14 +270,14 @@ func (r *sessionsRead) today(start time.Time) map[string]bool {
 
 // oldestFirst returns the lines of held, sorting it oldest first, by when
 // each arrived, then the date of the day whose files hold it, and its place
-// among those read.
+// among those read: each copied once, from where the read held it.
 func oldestFirst(held []filed) []Line {
 	slices.SortFunc(held, func(a, b filed) int {
 		return cmp.Or(a.At.Compare(b.At), strings.Compare(a.date, b.date), cmp.Compare(a.place, b.place))
 	})
 	lines := make([]Line, len(held))
 	for i, h := range held {
-		lines[i] = h.Line
+		lines[i] = *h.Line
 	}
 	return lines
 }

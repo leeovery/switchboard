@@ -167,11 +167,16 @@ func heldRequestsOf(lines []ledger.Line) []heldRequest {
 }
 
 // requestsIn returns the requests among lines, as isRequest says, each
-// decoded once, unpriced, in the order of lines.
+// decoded once, unpriced, in the order of lines: none where none is, else
+// room made at the first for every line from it on, as most lines are
+// requests, so none is copied as they're gathered.
 func requestsIn(lines []ledger.Line) []heldRequest {
 	var requests []heldRequest
 	for i := range lines {
 		if isRequest(&lines[i]) {
+			if requests == nil {
+				requests = make([]heldRequest, 0, len(lines)-i)
+			}
 			requests = append(requests, heldRequestOf(&lines[i]))
 		}
 	}

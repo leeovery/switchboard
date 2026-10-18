@@ -6415,10 +6415,12 @@ Measured once phase 1 was built (18 October 2026, the same soak, race detector o
 at a load of 5 to 7 on 10 cores): the List opens in 0.34 s with 9 days kept and with 30, however
 many days a session ran; a page, which phase 1 leaves as it was, in 1.8 s and 6.2 s; the Log's
 first open in 0.56 s and 0.57 s, as before. The router builds a day's digest in 0.7 s, its heap
-rising some 150 MB while it does, most of it the day's lines decoded and copied as the ledger's
-read of sessions holds them; a backfill of 30 days, as after the upgrade that brings digests in,
-takes 21 s of work, paced to half a core; its first pass after a start, judging 30 digests of
-100 KB in all, 10 ms; and a pass that finds nothing changed, under 1 ms.
+rising some 95 MB while it does: the day's lines, each decoded once and held once by the ledger's
+read of sessions, some 47 MB, and the garbage collector letting the heap grow to about twice what
+it holds before it collects. A backfill of 30 days, as after the upgrade that brings digests in,
+takes 20 s of work, paced to half a core, its heap rising about as much; its first pass after a
+start, judging 30 digests of 100 KB in all, 10 ms; and a pass that finds nothing changed, under
+1 ms.
 
 The release, through GoReleaser, a Homebrew tap and mint, follows milestone 3.
 
