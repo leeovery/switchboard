@@ -118,9 +118,7 @@ func newSoakWorld(tb testing.TB, now time.Time, days int, pace soakPace) *soakWo
 			tb.Fatal(err)
 		}
 	}
-	quiet := slog.New(slog.DiscardHandler)
-	w.ledger = ledger.Open(ledger.Dir(w.state), 400*24*time.Hour, func() time.Time { return w.at }, ledger.HistoryIn(readings.Files(readings.Dir(w.state), quiet)),
-		w.caps(), quiet, ledger.Digesting(views.Digests{}))
+	w.ledger = w.opened()
 	for w.at.Before(now) {
 		next := w.at.Add(time.Minute)
 		if next.After(now) {
@@ -131,6 +129,15 @@ func newSoakWorld(tb testing.TB, now time.Time, days int, pace soakPace) *soakWo
 	w.flush()
 	w.round(now)
 	return w
+}
+
+// opened is the world's ledger as the router opens it, by the world's
+// clock: digesting its days by the views' Digests, holding nothing of a
+// pass made before.
+func (w *soakWorld) opened() *ledger.Ledger {
+	quiet := slog.New(slog.DiscardHandler)
+	return ledger.Open(ledger.Dir(w.state), 400*24*time.Hour, func() time.Time { return w.at }, ledger.HistoryIn(readings.Files(readings.Dir(w.state), quiet)),
+		w.caps(), quiet, ledger.Digesting(views.Digests{}))
 }
 
 // round is the router's round at at, its files written: the days that have

@@ -125,7 +125,8 @@ func busySession(g int) string {
 // busyOn is the account the world's gth session runs on on its dth day: a
 // day on, another, as it's rescored after a night idle.
 func busyOn(g, d int) string {
-	return busyAccounts[(g+d+len(busyAccounts))%len(busyAccounts)]
+	n := len(busyAccounts)
+	return busyAccounts[((g+d)%n+n)%n]
 }
 
 // running are the sessions the router lists at the world's now: today's,
