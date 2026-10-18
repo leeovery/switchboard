@@ -21,7 +21,7 @@ import (
 // change of time zone files a line under the date beside its own, and a clock
 // set back one under a day after today's; then those of the days before them
 // whose summaries, as Days gives them, name any of the sessions it reads among
-// theirs, or might, as Summary.names says: each day's files once, and no
+// theirs, or might, as Summary.naming says: each day's files once, and no
 // summary where it reads no session; the days of each read side by side, as
 // days reads them. take, where it's given, is handed each line read that
 // arrived by now, of whichever session, with the date of the day whose files

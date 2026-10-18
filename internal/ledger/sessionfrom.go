@@ -16,7 +16,10 @@ import (
 // none, oldest first, as sessionsRead.of orders them. restsOn is what a
 // state folded from it rests on, as a digest's entry keeps it, and
 // sessionsLookup.restsOn gives it: nil where that can't be told, so the
-// state isn't one to keep.
+// state isn't one to keep. A session's state as of the end of a day is
+// folded from it as of the start of the day after, which reads the day's own
+// files, so the day is among what the state rests on, as the days naming the
+// session up to its own must be for it to stand.
 type SessionFrom struct {
 	Base    *SessionBase
 	Lines   []Line
@@ -45,7 +48,9 @@ type daysLook interface {
 // the local day with the given date, by the follower's own look at the
 // ledger's days, as followerLook has it, their states of the version body,
 // as sessionsAsOf has them: take, where it's given, handed each line read,
-// with the date of the day whose files hold it, as Sessions hands it.
+// with the date of the day whose files hold it, in the order they're read,
+// not oldest first: the days read for the sessions' bases, oldest first,
+// then any before them read once a session's base falls.
 func (f *Follower) sessionsAsOf(ids []string, date string, body int, take func(date string, l Line)) map[string]SessionFrom {
 	read := newSessionsRead(f.now(), take)
 	f.mu.Lock()
@@ -70,9 +75,11 @@ func (l followerLook) naming(date string, wanted map[string]bool) map[string]boo
 
 // kept gives the lines the ledger keeps of the local day with the given
 // date, as digestGrounds' kept gives them: none of a day with no files,
-// whatever its summary counted; the Lines of its summary where it stands, as
-// follow finds; and none known where its files can't be looked at, or it has
-// no summary that stands.
+// whatever its summary counted; the Lines of its summary where its files
+// hold exactly as many, as follow finds; and none known where its files
+// can't be looked at, or it has no summary that stands, or one that stands
+// for more lines than they hold, as after one was lost to damage, as a read
+// of them reads fewer than a state folded from them did.
 func (l followerLook) kept(date string) (int, bool) {
 	l.f.mu.Lock()
 	defer l.f.mu.Unlock()
@@ -82,7 +89,7 @@ func (l followerLook) kept(date string) (int, bool) {
 		return 0, false
 	case d.look.none:
 		return 0, true
-	case d.stands:
+	case d.exact:
 		return d.held.Lines, true
 	}
 	return 0, false
@@ -107,12 +114,14 @@ type writerLook struct {
 
 // writtenDay is a local day as the writer's look finds it: the summary the
 // ledger holds of it, nil where it holds none that reads as the day's; none,
-// where the day has no files, its lines pruned, or none written; and stands,
-// where it has files, and its summary stands, as stands says.
+// where the day has no files, its lines pruned, or none written; stands,
+// where it has files, and its summary stands, as stands says; and exact,
+// where those files hold exactly the lines it counts, as counting tells.
 type writtenDay struct {
 	summary *Summary
 	none    bool
 	stands  bool
+	exact   bool
 }
 
 // newWriterLook returns the writer's look at the ledger's days d, having
@@ -139,16 +148,15 @@ func (l writerLook) naming(date string, wanted map[string]bool) map[string]bool 
 }
 
 // kept gives the lines the ledger keeps of the local day with the given
-// date, as digestGrounds' kept gives them: none of a day with no files,
-// whatever its summary counted; the Lines of its summary where it stands;
-// and none known where its files can't be looked at, or it has no summary
-// that stands.
+// date, as followerLook's kept gives them: none of a day with no files; the
+// Lines of its summary where its files hold exactly as many; and none known
+// else.
 func (l writerLook) kept(date string) (int, bool) {
 	day := l.day(date)
 	switch {
 	case day.none:
 		return 0, true
-	case day.stands:
+	case day.exact:
 		return day.summary.Lines, true
 	}
 	return 0, false
@@ -167,8 +175,8 @@ func (l writerLook) day(date string) writtenDay {
 	stat, err := l.days.files.Stat(date)
 	day.none = errors.Is(err, fs.ErrNotExist)
 	if err == nil && day.summary != nil {
-		stands, err := l.days.stands(*day.summary, stat)
-		day.stands = err == nil && stands
+		stands, exact, err := l.days.counting(*day.summary, stat)
+		day.stands, day.exact = err == nil && stands, err == nil && exact
 	}
 	l.looked[date] = day
 	return day
@@ -185,10 +193,10 @@ func (l writerLook) day(date string) writtenDay {
 // by the days' files, each day's once for every session wanting them. It
 // rests on none, its lines those of every day naming it, where one of those
 // days can't be told, as told says; and where, once the days after its base
-// are read, one of them couldn't be read whole, or one of its lines read
-// there arrived before its base's day ended, as a change of time zone files
-// a line under a later date than its own: a state sealed at that day's end
-// can't take it in.
+// are read, one of them couldn't be read whole, or one of the lines it hands
+// on after its base arrived before the base's day ended, as a change of time
+// zone files a line under a later date than its own: a state sealed at that
+// day's end can't take it in.
 func sessionsAsOf(d days, look daysLook, dates, ids []string, body int, read *sessionsRead) map[string]SessionFrom {
 	l := &sessionsLookup{days: d, look: look, body: body, kept: make(map[string]keptLines), digests: make(map[string]*Digest), read: make(map[string]bool)}
 	wanted := wanting(make(map[string]bool), ids)

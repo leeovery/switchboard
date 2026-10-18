@@ -2,10 +2,14 @@ package ledger_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"maps"
+	"math/rand/v2"
+	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
-	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -51,6 +55,15 @@ func (w *lookupWorld) file(days int, lines ...ledger.Line) {
 	holdLines(w.t, w.dir, dayOf(days), lines...)
 }
 
+// damage has the file of the local day days after the summaries' day hold
+// the lines given alone, as one damaged since the day's lines were filed,
+// the rest lost.
+func (w *lookupWorld) damage(days int, kept ...ledger.Line) {
+	w.t.Helper()
+	removeFile(w.t, w.dir, "requests-"+dayOf(days)+".jsonl")
+	w.file(days, kept...)
+}
+
 // summarise summarises the days that have ended and have no summary that
 // stands, as the router's round does.
 func (w *lookupWorld) summarise() {
@@ -59,9 +72,11 @@ func (w *lookupWorld) summarise() {
 
 // digest writes the digest of the local day days after the summaries' day,
 // as the router's digester would: its head of the day as the ledger keeps
-// it, and an entry of each of the sessions with the given ids, as the
-// writer's lookup finds it as of the day's end, of the state stateOf gives,
-// resting on what the lookup says a state folded from it rests on.
+// it, counting the lines its file holds that arrived on another day; and an
+// entry of each of the sessions with the given ids, as the writer's lookup
+// finds it as of the start of the day after, which reads the day's own
+// files, of the state folded from it, as foldedFrom folds it, resting on
+// what the lookup says that rests on.
 func (w *lookupWorld) digest(days int, ids ...string) {
 	w.t.Helper()
 	date := dayOf(days)
@@ -70,8 +85,9 @@ func (w *lookupWorld) digest(days int, ids ...string) {
 		w.t.Fatalf("the digest of %s: the ledger can't tell the lines it keeps of the day", date)
 	}
 	start, end, _ := dayfile.Day(date)
+	early, late := w.arrivals(date)
 	digest := ledger.Digest{
-		Head:     ledger.DigestHead{Body: digestBody, Day: date, Start: start, End: end, SummaryLines: lines, Lines: lines},
+		Head:     ledger.DigestHead{Body: digestBody, Day: date, Start: start, End: end, SummaryLines: lines, Lines: lines, Early: early, Late: late},
 		Sessions: make(map[string]ledger.DigestEntry),
 	}
 	sessions := w.writer.SessionsAsOf(ids, dayOf(days+1), digestBody, w.at)
@@ -80,18 +96,68 @@ func (w *lookupWorld) digest(days int, ids ...string) {
 		if !ok || from.RestsOn() == nil {
 			w.t.Fatalf("the digest of %s: session %s is found %t, resting on %v; want it found, resting on days it can tell", date, id, ok, from.RestsOn())
 		}
-		digest.Sessions[id] = ledger.DigestEntry{RestsOn: from.RestsOn(), State: stateOf(id, date)}
+		state, err := json.Marshal(foldedFrom(w.t, id, date, from))
+		if err != nil {
+			w.t.Fatal(err)
+		}
+		digest.Sessions[id] = ledger.DigestEntry{RestsOn: from.RestsOn(), State: state}
 	}
 	if err := ledger.WriteDigest(w.dir, digest); err != nil {
 		w.t.Fatal(err)
 	}
 }
 
-// stateOf is the state the lookup's tests fold the session with the given
-// id into as of the end of the local day with the given date: the two,
-// told, as stateAt tells them.
-func stateOf(id, date string) json.RawMessage {
-	return json.RawMessage(strconv.Quote(stateAt(id, date)))
+// arrivals counts the lines the plain file of the local day with the given
+// date holds that arrived before the day started, early, and after it ended,
+// late.
+func (w *lookupWorld) arrivals(date string) (early, late int) {
+	w.t.Helper()
+	data, err := os.ReadFile(filepath.Join(w.dir, "requests-"+date+".jsonl"))
+	if err != nil {
+		w.t.Fatal(err)
+	}
+	start, end, _ := dayfile.Day(date)
+	for text := range strings.Lines(string(data)) {
+		var line ledger.Line
+		if err := json.Unmarshal([]byte(text), &line); err != nil {
+			w.t.Fatal(err)
+		}
+		if line.At.Before(start) {
+			early++
+		}
+		if !line.At.Before(end) {
+			late++
+		}
+	}
+	return early, late
+}
+
+// testState is a session's state as the lookup's tests fold it, as of the
+// end of a day: Of tells the session and the day, as stateAt tells them, and
+// Requests are those of the lines folded into it, in the order they were.
+type testState struct {
+	Of       string   `json:"of"`
+	Requests []string `json:"requests"`
+}
+
+// foldedFrom is the state of the session with the given id as of the end of
+// the local day with the given date, folded from from, the session as of the
+// start of the day after: its base's requests, then those of its lines.
+func foldedFrom(t *testing.T, id, date string, from ledger.SessionFrom) testState {
+	t.Helper()
+	return testState{Of: stateAt(id, date), Requests: append(baseOf(t, from.Base).Requests, requestsOf(from.Lines)...)}
+}
+
+// baseOf is the state base holds: none where it's nil.
+func baseOf(t *testing.T, base *ledger.SessionBase) testState {
+	t.Helper()
+	var state testState
+	if base != nil {
+		if err := json.Unmarshal(base.State, &state); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return state
 }
 
 // stateAt tells the session with the given id as of the end of the local day
@@ -100,18 +166,24 @@ func stateAt(id, date string) string {
 	return id + "@" + date
 }
 
-// asOf returns the sessions with the given ids as of the local day days after
-// the summaries' day, as the follower's lookup finds them, as found tells
-// them, failing the test where the router's writer's lookup finds them
-// otherwise.
-func (w *lookupWorld) asOf(days int, ids ...string) map[string]found {
+// sessionsAsOf returns the sessions with the given ids as of the local day
+// days after the summaries' day, as the follower's lookup finds them,
+// failing the test where the router's writer's lookup finds them otherwise.
+func (w *lookupWorld) sessionsAsOf(days int, ids ...string) map[string]ledger.SessionFrom {
 	w.t.Helper()
 	date := dayOf(days)
 	read := followerOf(w.state, &testClock{at: w.at}, caps).SessionsAsOf(ids, date, digestBody, nil)
 	if written := w.writer.SessionsAsOf(ids, date, digestBody, w.at); !reflect.DeepEqual(read, written) {
 		w.t.Errorf("as of %s, the follower finds %q as\n%+v\nand the router's writer as\n%+v; want them alike", date, ids, read, written)
 	}
-	return foundOf(w.t, read)
+	return read
+}
+
+// asOf returns the sessions with the given ids as of the local day days after
+// the summaries' day, as sessionsAsOf finds them, as found tells them.
+func (w *lookupWorld) asOf(days int, ids ...string) map[string]found {
+	w.t.Helper()
+	return foundOf(w.t, w.sessionsAsOf(days, ids...))
 }
 
 // found is a session as the lookup finds it, as the tests tell it: the state
@@ -129,14 +201,9 @@ func foundOf(t *testing.T, sessions map[string]ledger.SessionFrom) map[string]fo
 	t.Helper()
 	all := make(map[string]found, len(sessions))
 	for id, s := range sessions {
-		f := found{requests: requestsOf(s.Lines), restsOn: s.RestsOn()}
-		if s.Base != nil {
-			if err := json.Unmarshal(s.Base.State, &f.base); err != nil {
-				t.Fatal(err)
-			}
-			if f.base != stateAt(id, s.Base.Date) {
-				t.Errorf("session %s rests on the state %q, as of %s; want the state of its own as of that day", id, f.base, s.Base.Date)
-			}
+		f := found{base: baseOf(t, s.Base).Of, requests: requestsOf(s.Lines), restsOn: s.RestsOn()}
+		if s.Base != nil && f.base != stateAt(id, s.Base.Date) {
+			t.Errorf("session %s rests on the state of %q, as of %s; want the state of its own as of that day", id, f.base, s.Base.Date)
 		}
 		all[id] = f
 	}
@@ -244,6 +311,23 @@ func TestAStateRestingOnADayPrunedSinceStandsOnceFoldedAfresh(t *testing.T) {
 	w.digest(1, "one")
 
 	isFound(t, 2, w.asOf(2, "one"), map[string]found{"one": {base: stateAt("one", dayOf(1)), requests: []string{}, restsOn: pruned}})
+}
+
+// A state resting on a day that lost a line since, as to a damaged file,
+// doesn't stand, though the day's summary, made from more, does: a read of
+// the session's lines reads the line no more, so the session rests on none,
+// and what a state folded from it rests on can't be told.
+func TestAStateRestingOnADayThatLostALineDoesntStand(t *testing.T) {
+	w := newLookupWorld(t)
+	w.file(-3, askedBy("1", "one", on(-3, 9, 0)), askedBy("2", "one", on(-3, 10, 0)))
+	w.file(0, askedBy("3", "one", on(0, 9, 0)))
+	w.summarise()
+	w.digest(-3, "one")
+	w.damage(-3, askedBy("1", "one", on(-3, 9, 0)))
+
+	got := w.asOf(2, "one")
+
+	isFound(t, 2, got, map[string]found{"one": {requests: []string{"1", "3"}}})
 }
 
 // A line of a session filed late under a day it never ran on, as after a
@@ -385,14 +469,18 @@ func TestALookupReadsEachDayOnceForEverySessionWantingIt(t *testing.T) {
 // follower's and the router's writer's alike: those its summary counts,
 // where it stands; none of a day without files, its lines pruned, though its
 // summary stands, or never written; and none known of one whose summary
-// doesn't stand, as lines were filed under it since, or that has none.
+// doesn't stand, as lines were filed under it since, or that stands for
+// more than its files hold, as one was lost since to damage, or that has
+// none.
 func TestTheLinesKeptOfADayAreThoseItsFilesHoldAsItsSummaryCountsThem(t *testing.T) {
 	w := newLookupWorld(t)
+	w.file(-4, askedBy("7", "one", on(-4, 9, 0)), askedBy("8", "one", on(-4, 10, 0)))
 	w.file(-3, askedBy("1", "one", on(-3, 9, 0)), askedBy("2", "two", on(-3, 10, 0)))
 	w.file(-2, askedBy("3", "one", on(-2, 9, 0)))
 	w.file(0, askedBy("4", "one", on(0, 9, 0)))
 	w.summarise()
 	removeFile(t, w.dir, "requests-"+dayOf(-2)+".jsonl")
+	w.damage(-4, askedBy("7", "one", on(-4, 9, 0)))
 	w.file(0, askedBy("5", "one", on(0, 10, 0)))
 	w.file(1, askedBy("6", "one", on(1, 9, 0)))
 	follower := followerOf(w.state, &testClock{at: w.at}, caps)
@@ -406,6 +494,7 @@ func TestTheLinesKeptOfADayAreThoseItsFilesHoldAsItsSummaryCountsThem(t *testing
 		{name: "a day whose lines are pruned, its summary standing", days: -2, lines: 0, known: true},
 		{name: "a day of no lines and no summary", days: -1, lines: 0, known: true},
 		{name: "a day whose summary doesn't stand, its lines filed since", days: 0, lines: 0, known: false},
+		{name: "a day that lost a line since its summary, as to damage", days: -4, lines: 0, known: false},
 		{name: "a day of lines and no summary", days: 1, lines: 0, known: false},
 	}
 	for _, tt := range tests {
@@ -416,6 +505,140 @@ func TestTheLinesKeptOfADayAreThoseItsFilesHoldAsItsSummaryCountsThem(t *testing
 			}
 			if lines, known := w.writer.Kept(date); lines != tt.lines || known != tt.known {
 				t.Errorf("the router's writer's Kept(%s) = %d, %t; want %d, %t", date, lines, known, tt.lines, tt.known)
+			}
+		})
+	}
+}
+
+// generatedSessions are the sessions whose lines a generated ledger holds.
+var generatedSessions = []string{"one", "two", "three", "four"}
+
+// generatedLedger is a ledger whose lines r draws, filed in w: the lines
+// each day's file holds, by the day's offset from the summaries' day, and
+// the date of the day whose file holds each, by its request.
+type generatedLedger struct {
+	w     *lookupWorld
+	r     *rand.Rand
+	days  map[int][]ledger.Line
+	filed map[string]string
+}
+
+// newGeneratedLedger returns a ledger of the test's own whose lines are drawn
+// from the given seed, holding none yet.
+func newGeneratedLedger(t *testing.T, seed uint64) *generatedLedger {
+	t.Helper()
+	return &generatedLedger{w: newLookupWorld(t), r: rand.New(rand.NewPCG(seed, seed)), days: make(map[int][]ledger.Line), filed: make(map[string]string)}
+}
+
+// generate files the lines of the sessions that run on each local day from
+// four before the summaries' day to the one after it, as r draws them, and
+// summarises them: one to three a session through its day, and now and then
+// one more that arrived just before the day began, or just after it ended,
+// as after a change of time zone.
+func (g *generatedLedger) generate() {
+	for days := -4; days <= 1; days++ {
+		for _, id := range generatedSessions {
+			if g.r.IntN(2) == 0 {
+				continue
+			}
+			for i := range 1 + g.r.IntN(3) {
+				g.add(days, id, on(days, 8+3*i, g.r.IntN(60)))
+			}
+			switch g.r.IntN(6) {
+			case 0:
+				g.add(days, id, on(days-1, 23, g.r.IntN(60)))
+			case 1:
+				g.add(days, id, on(days+1, 0, g.r.IntN(30)))
+			}
+		}
+		if len(g.days[days]) > 0 {
+			g.w.file(days, g.days[days]...)
+		}
+	}
+	g.w.summarise()
+}
+
+// add adds a line of the session with the given id, arriving at at, to those
+// of the local day days after the summaries' day, and returns it.
+func (g *generatedLedger) add(days int, id string, at time.Time) ledger.Line {
+	line := askedBy(fmt.Sprintf("r%d", len(g.filed)+1), id, at)
+	g.days[days] = append(g.days[days], line)
+	g.filed[line.Request] = dayOf(days)
+	return line
+}
+
+// digestEach digests each day, oldest first, as the router's digester
+// would, of the sessions with a line of its own, but those r passes over, as
+// a digest missing mid-chain.
+func (g *generatedLedger) digestEach() {
+	for days := -4; days <= 1; days++ {
+		var named []string
+		for _, line := range g.days[days] {
+			named = append(named, line.Session)
+		}
+		if named = slices.Compact(slices.Sorted(slices.Values(named))); len(named) > 0 && g.r.IntN(3) > 0 {
+			g.w.digest(days, named...)
+		}
+	}
+}
+
+// upset changes the ledger since its days were digested, as r draws it: a
+// line filed late under a day before, of a session that may never have run
+// on it, as after a clock set back, and a day's lines pruned, then its days
+// summarised again by a round; and a day's last line lost since, as to a
+// damaged file.
+func (g *generatedLedger) upset() {
+	if days := -4 + g.r.IntN(4); g.r.IntN(3) > 0 {
+		g.w.file(days, g.add(days, generatedSessions[g.r.IntN(len(generatedSessions))], on(days, 21, g.r.IntN(60))))
+	}
+	if days := -4 + g.r.IntN(6); g.r.IntN(4) == 0 && len(g.days[days]) > 0 {
+		removeFile(g.w.t, g.w.dir, "requests-"+dayOf(days)+".jsonl")
+		delete(g.days, days)
+	}
+	g.w.summarise()
+	if days := -4 + g.r.IntN(6); g.r.IntN(3) == 0 && len(g.days[days]) > 1 {
+		g.days[days] = g.days[days][:len(g.days[days])-1]
+		g.w.damage(days, g.days[days]...)
+	}
+}
+
+// A lookup over a generated ledger, its days digested as the router's
+// digester would, then changed since, gives each session as a raw read of
+// its lines does: its base's state folded from exactly those filed under the
+// base's day and before, and its lines those filed after, in the order the
+// raw read gives them, none of which arrived before the base's day ended.
+func TestALookupGivesWhatARawReadGivesOverAGeneratedLedger(t *testing.T) {
+	for seed := range uint64(40) {
+		t.Run(fmt.Sprintf("seed %d", seed), func(t *testing.T) {
+			g := newGeneratedLedger(t, seed)
+			g.generate()
+			g.digestEach()
+			g.upset()
+
+			sessions := g.w.sessionsAsOf(2, generatedSessions...)
+
+			for _, id := range generatedSessions {
+				raw := requestsOf(followerOf(g.w.state, &testClock{at: g.w.at}, caps).SessionsOf([]string{id}, nil)[id])
+				from, base := sessions[id], ""
+				if from.Base != nil {
+					base = from.Base.Date
+				}
+				var before, after []string
+				for _, request := range raw {
+					if g.filed[request] <= base {
+						before = append(before, request)
+					} else {
+						after = append(after, request)
+					}
+				}
+				if folded, lines := baseOf(t, from.Base).Requests, requestsOf(from.Lines); !slices.Equal(folded, before) || !slices.Equal(lines, after) {
+					t.Errorf("seed %d: session %s rests on its state as of %q, folded from %q, its lines %q; want it folded from %q, its lines %q, as a raw read of %q has them",
+						seed, id, base, folded, lines, before, after, raw)
+				}
+				if _, ended, _ := dayfile.Day(base); from.Base != nil && slices.ContainsFunc(from.Lines, func(l ledger.Line) bool { return l.At.Before(ended) }) {
+					t.Errorf("seed %d: session %s rests on its state as of %s, its lines %q among them one that arrived before that day ended; want none",
+						seed, id, base, requestsOf(from.Lines))
+				}
 			}
 		})
 	}

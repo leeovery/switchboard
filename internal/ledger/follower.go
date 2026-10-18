@@ -269,8 +269,10 @@ func (f *Follower) follow(date string) *followedDay {
 // followedDay is a day of the ledger as a Follower last found it, by its
 // date: look, its summary's file and its files, as last looked at; held, the
 // summary the ledger holds of it, as read then, nil where it holds none, or
-// one that can't be read as the day's; and whether held stands, as standing
-// says, or is taken as it's held. live is the day summarised from its lines
+// one that can't be read as the day's; whether held stands, as standing
+// says, or is taken as it's held; and exact, whether the day has files that
+// hold exactly the lines held counts, as they look as they did when it was
+// marked, or are counted to tell. live is the day summarised from its lines
 // as they grow, where held doesn't stand, or stands only as they were counted
 // to tell.
 type followedDay struct {
@@ -279,6 +281,7 @@ type followedDay struct {
 	looked bool
 	held   *Summary
 	stands bool
+	exact  bool
 	live   *liveDay
 }
 
@@ -298,9 +301,9 @@ func (d *followedDay) liveDay(f *Follower) *liveDay {
 // it stands without.
 func (f *Follower) standing(d *followedDay, l look) {
 	d.look, d.looked = l, true
+	d.held, d.stands, d.exact = nil, false, false
 	held, ok := f.days.readable(d.date)
 	if !ok {
-		d.held, d.stands = nil, false
 		return
 	}
 	d.held = &held.Summary
@@ -310,9 +313,9 @@ func (f *Follower) standing(d *followedDay, l look) {
 		f.days.logger.Warn("can't read the request ledger", "day", d.date, "error", err)
 		d.stands = true
 	case told:
-		d.stands = stands
+		d.stands, d.exact = stands, stands && !l.none
 	default:
-		d.stands = d.liveDay(f).countsNoMore(f.days.logger, held.Lines)
+		d.stands, d.exact = d.liveDay(f).counting(f.days.logger, held.Lines)
 		return
 	}
 	if d.stands {
@@ -412,15 +415,16 @@ func (d *liveDay) naming(wanted map[string]bool) map[string]bool {
 	return named
 }
 
-// countsNoMore reports whether the day's files hold no more lines than held,
-// as they're read now: true, too, where they can't all be read, as its
-// summary is then taken as it's held.
-func (d *liveDay) countsNoMore(logger *slog.Logger, held int) bool {
+// counting reports whether the day's files hold no more lines than held, as
+// they're read now, and whether they hold exactly as many: no more, but not
+// exactly, where they can't all be read, as its summary is then taken as
+// it's held.
+func (d *liveDay) counting(logger *slog.Logger, held int) (noMore, exactly bool) {
 	if !d.read(logger) {
-		return true
+		return true, false
 	}
 	lines, _ := d.lines.Lines()
-	return lines <= held
+	return lines <= held, lines == held
 }
 
 // summary returns the day summarised from its lines as last read, and the
