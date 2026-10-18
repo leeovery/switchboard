@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.5] - 2026-10-18
+
+✨ Added
+- A busy session now moves to a different account at its compaction — when that account's week would otherwise reset with room unused, the session switches there since little cache is left to lose.
+- The routing reason for such a move reads "compacted: side would reset with 35% of its week left".
+- Debug logging explains why a session stayed on its account after a compaction.
+
+🔧 Changed
+- Only the main conversation's compaction triggers a move — a subagent's compaction is ignored, so the session's cache is kept.
+
 ## [0.2.4] - 2026-10-18
 
 ✨ Added
