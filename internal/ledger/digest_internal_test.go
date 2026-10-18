@@ -1,0 +1,370 @@
+package ledger
+
+import (
+	"bytes"
+	"compress/gzip"
+	"encoding/json"
+	"errors"
+	"io"
+	"io/fs"
+	"maps"
+	"os"
+	"reflect"
+	"testing"
+	"time"
+
+	"github.com/leeovery/switchboard/internal/dayfile"
+	"github.com/leeovery/switchboard/internal/logs"
+)
+
+// The dates of the local days the digests' tests digest: digested, a
+// Monday; the days either side of it; and rested, a day before them its
+// sessions rest on.
+const (
+	digested      = "2026-10-05"
+	before, after = "2026-10-04", "2026-10-06"
+	rested        = "2026-10-02"
+)
+
+// statesVersion is the version of the sessions' states the digests' tests
+// digest, as their builder would give it.
+const statesVersion = 3
+
+// digestDays are the ledger's days in a directory of the test's own.
+func digestDays(t *testing.T) days {
+	t.Helper()
+	logger := logs.For("router")
+	return days{files: filesIn(t.TempDir(), logger), logger: logger}
+}
+
+// headOf is the head of a digest of the local day with the given date, of
+// states of statesVersion, as it was built against a summary of as many
+// lines as given, every one of them read, none arriving on another day.
+func headOf(date string, lines int) DigestHead {
+	start, end, _ := dayfile.Day(date)
+	return DigestHead{Body: statesVersion, Day: date, Start: start, End: end, SummaryLines: lines, Lines: lines}
+}
+
+// arriving is h holding as many lines that arrived before its day started,
+// early, and after it ended, late, as given.
+func arriving(h DigestHead, early, late int) DigestHead {
+	h.Early, h.Late = early, late
+	return h
+}
+
+// gunzipped returns what data, gzipped, holds.
+func gunzipped(t *testing.T, data []byte) []byte {
+	t.Helper()
+	r, err := gzip.NewReader(bytes.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	plain, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return plain
+}
+
+// A digest reads back as it was written, every field of it, a session's
+// state byte for byte, its characters unescaped; and each session's entry
+// is the one written, whichever is asked for.
+func TestADigestReadsBackAsItWasWritten(t *testing.T) {
+	every := arriving(headOf(digested, 42), 1, 2)
+	every.Lines = 41
+	tests := []struct {
+		name   string
+		digest Digest
+	}{
+		{
+			name: "every field held",
+			digest: Digest{Head: every, Sessions: map[string]DigestEntry{
+				"one": {RestsOn: map[string]int{rested: 12, digested: 42},
+					State: json.RawMessage(`{"story":{"dir":"~/Code/<api> & co","named":"café"},"counts":{"2026-10-05":7}}`)},
+				"two": {RestsOn: map[string]int{digested: 42}, State: json.RawMessage(`[1,"\u00e9",null]`)},
+			}},
+		},
+		{
+			name:   "none of its counts, and no sessions",
+			digest: Digest{Head: headOf(digested, 0)},
+		},
+		{
+			name:   "a session of no state, resting on no day",
+			digest: Digest{Head: headOf(digested, 3), Sessions: map[string]DigestEntry{"one": {}}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := digestDays(t)
+			if err := d.writeDigest(tt.digest); err != nil {
+				t.Fatalf("writeDigest(%+v): %v", tt.digest, err)
+			}
+
+			read, err := d.digest(digested, statesVersion)
+
+			if err != nil || !reflect.DeepEqual(read, tt.digest) {
+				t.Fatalf("digest(%q) = %+v, %v; want %+v, as it was written", digested, read, err, tt.digest)
+			}
+			for id, want := range tt.digest.Sessions {
+				if got := read.Sessions[id]; !reflect.DeepEqual(got, want) {
+					t.Errorf("the entry of %q reads %+v, want %+v", id, got, want)
+				}
+			}
+		})
+	}
+}
+
+// A digest's file is its stored form, gzipped, the user's alone: its keys
+// short, its zeros left out, its day's bounds as nanoseconds since the Unix
+// epoch, its sessions in the order of their ids, and each state as it was
+// given, but for its insignificant spaces, its characters unescaped.
+func TestADigestIsWrittenGzippedAsItsStoredFormTheUsersAlone(t *testing.T) {
+	d := digestDays(t)
+	digest := Digest{
+		Head: DigestHead{Body: statesVersion, Day: digested, Start: time.Date(2026, 10, 4, 23, 0, 0, 0, time.UTC),
+			End: time.Date(2026, 10, 5, 23, 0, 0, 0, time.UTC), SummaryLines: 40, Lines: 40},
+		Sessions: map[string]DigestEntry{
+			"two": {RestsOn: map[string]int{digested: 40}, State: json.RawMessage(`{ "dir": "~/<api> & co" }`)},
+			"one": {RestsOn: map[string]int{rested: 12, digested: 40}, State: json.RawMessage(`[1]`)},
+		},
+	}
+	if err := d.writeDigest(digest); err != nil {
+		t.Fatal(err)
+	}
+
+	path := digestFile(d.files.Dir, digested)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"version":1,"body":3,"day":"2026-10-05","from":1791154800000000000,"to":1791241200000000000,"summary_lines":40,"lines":40,` +
+		`"sessions":{"one":{"rests_on":{"2026-10-02":12,"2026-10-05":40},"state":[1]},"two":{"rests_on":{"2026-10-05":40},"state":{"dir":"~/<api> & co"}}}}` + "\n"
+	if got := string(gunzipped(t, data)); got != want {
+		t.Errorf("the digest's file holds\n%s\nwant\n%s", got, want)
+	}
+	if info, err := os.Stat(path); err != nil || info.Mode().Perm() != 0o600 {
+		t.Errorf("the digest's file is %v, %v; want it the user's alone, 0600", info.Mode().Perm(), err)
+	}
+}
+
+// A digest that can't be written whole, of a day that isn't one, or holding
+// a state that isn't JSON, isn't written at all.
+func TestADigestThatCantBeWrittenWholeIsntWritten(t *testing.T) {
+	cutShort := map[string]DigestEntry{"one": {State: json.RawMessage(`{"dir":"~/a`)}}
+	tests := []struct {
+		name   string
+		digest Digest
+	}{
+		{name: "of a day that isn't one", digest: Digest{Head: DigestHead{Body: statesVersion, Day: "someday"}}},
+		{name: "a session's state that isn't JSON", digest: Digest{Head: headOf(digested, 1), Sessions: cutShort}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := digestDays(t)
+
+			err := d.writeDigest(tt.digest)
+
+			entries, _ := os.ReadDir(d.files.Dir)
+			if err == nil || len(entries) > 0 {
+				t.Errorf("writeDigest(%+v) = %v, leaving %d files; want it failing, writing none", tt.digest, err, len(entries))
+			}
+		})
+	}
+}
+
+// A digest held that doesn't read as the day's digest, or reads as one of
+// another version, fails as its reader can tell from there being none.
+func TestADigestThatDoesntReadAsTheDaysFailsSoItsReaderCanTell(t *testing.T) {
+	stored := storedOf(Digest{Head: headOf(digested, 40), Sessions: map[string]DigestEntry{"one": {State: json.RawMessage(`{"dir":"~/api"}`)}}})
+	file := func(s storedDigest) []byte {
+		data, err := gzippedJSON(s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return data
+	}
+	whole := file(stored)
+	envelope := stored
+	envelope.Version = digestVersion + 1
+	damaged := bytes.Clone(whole)
+	damaged[len(damaged)/2] ^= 0xff
+	plain := gunzipped(t, whole)
+	tests := []struct {
+		name string
+		// file is what the ledger holds as the day's digest: nil for none.
+		file []byte
+		body int
+		want error
+	}{
+		{name: "none held", file: nil, body: statesVersion, want: fs.ErrNotExist},
+		{name: "of another version of the envelope", file: file(envelope), body: statesVersion, want: errDigestOutdated},
+		{name: "of another version of the states", file: whole, body: statesVersion + 1, want: errDigestOutdated},
+		{name: "another day's", file: file(storedOf(Digest{Head: headOf(before, 7)})), body: statesVersion, want: errNotTheDaysDigest},
+		{name: "cut short within its JSON", file: whole[:len(whole)/2], body: statesVersion, want: errNotTheDaysDigest},
+		{name: "cut short past its JSON, in its gzip trailer", file: whole[:len(whole)-4], body: statesVersion, want: errNotTheDaysDigest},
+		{name: "damaged", file: damaged, body: statesVersion, want: errNotTheDaysDigest},
+		{name: "not gzipped", file: plain, body: statesVersion, want: errNotTheDaysDigest},
+		{name: "gzipped, but not JSON", file: gzippedText(t, "not a digest"), body: statesVersion, want: errNotTheDaysDigest},
+		{name: "gzipped JSON, but not an object", file: gzippedText(t, `["2026-10-05"]`), body: statesVersion, want: errNotTheDaysDigest},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := digestDays(t)
+			if tt.file != nil {
+				if err := os.WriteFile(digestFile(d.files.Dir, digested), tt.file, 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			_, err := d.digest(digested, tt.body)
+
+			if !errors.Is(err, tt.want) {
+				t.Errorf("digest(%q, %d) failed with %v, want %v", digested, tt.body, err, tt.want)
+			}
+			if !errors.Is(tt.want, fs.ErrNotExist) && errors.Is(err, fs.ErrNotExist) {
+				t.Errorf("digest(%q, %d) failed with %v, as though none were held", digested, tt.body, err)
+			}
+		})
+	}
+}
+
+// gzippedText is text, gzipped.
+func gzippedText(t *testing.T, text string) []byte {
+	t.Helper()
+	var data bytes.Buffer
+	w := gzip.NewWriter(&data)
+	if _, err := w.Write([]byte(text)); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return data.Bytes()
+}
+
+// keptDay is what digestGrounds' kept gives of a day: its lines, as its
+// summary counts them, and whether that summary stands as held.
+type keptDay struct {
+	lines int
+	known bool
+}
+
+// keeping is the lines the ledger keeps of each day, as digestGrounds' kept
+// gives them, of the digests' day as it was built: its own, against a
+// summary of 40 lines; those of the day its sessions rest on; none of the
+// day before; and none summarised yet of the day after, as of today. over
+// gives other lines of the days it names, and unsettled the days whose
+// summaries don't stand as held, of the lines they count all the same.
+func keeping(over map[string]int, unsettled ...string) map[string]keptDay {
+	lines := map[string]int{rested: 12, before: 0, digested: 40}
+	maps.Copy(lines, over)
+	kept := make(map[string]keptDay, len(lines))
+	for date, n := range lines {
+		kept[date] = keptDay{lines: n, known: true}
+	}
+	for _, date := range unsettled {
+		kept[date] = keptDay{lines: lines[date]}
+	}
+	return kept
+}
+
+// groundsOf are the grounds of a ledger that keeps the lines of each day
+// kept gives, by its date, none summarised of a day it doesn't give, and
+// holds the digests whose heads are given, by their dates.
+func groundsOf(kept map[string]keptDay, heads map[string]DigestHead) digestGrounds {
+	return digestGrounds{
+		kept: func(date string) (int, bool) {
+			return kept[date].lines, kept[date].known
+		},
+		heads: func(date string) (DigestHead, bool) {
+			head, held := heads[date]
+			return head, held
+		},
+	}
+}
+
+// A digest stands, and a session's entry in it, while what it was built from
+// does: its day in this time zone, keeping the lines its summary counted as
+// it was built, none of them of another day, and none of another's of its
+// own, as far as the days beside it tell; and each day the entry rests on
+// keeping the lines it did.
+func TestADigestStandsOnlyWhileWhatItWasBuiltFromDoes(t *testing.T) {
+	built := headOf(digested, 40)
+	entry := DigestEntry{RestsOn: map[string]int{rested: 12, digested: 40}, State: json.RawMessage(`{}`)}
+	_, offset := built.Start.Zone()
+	elsewhere := time.FixedZone("elsewhere", offset+3*60*60)
+	inZone, started, ended := built, built, built
+	inZone.Start, inZone.End = time.Date(2026, 10, 5, 0, 0, 0, 0, elsewhere), time.Date(2026, 10, 6, 0, 0, 0, 0, elsewhere)
+	started.Start, ended.End = built.Start.Add(time.Hour), built.End.Add(time.Hour)
+	tests := []struct {
+		name  string
+		head  DigestHead
+		entry DigestEntry
+		// kept are the lines the ledger keeps of each day, as keeping gives
+		// them, and heads the heads of the digests it holds, by their dates.
+		kept  map[string]keptDay
+		heads map[string]DigestHead
+		want  bool
+	}{
+		{name: "as it was built", head: built, entry: entry, kept: keeping(nil), want: true},
+		{name: "its head alone, as it was built", head: built, kept: keeping(nil), want: true},
+		{
+			name: "the day after's digest current, none of its lines arriving before it", head: built, entry: entry,
+			kept: keeping(map[string]int{after: 30}), heads: map[string]DigestHead{after: headOf(after, 30)}, want: true,
+		},
+		{
+			name: "the day after's digest not current, as its summary was made again since, though a line of it arrived before it",
+			head: built, entry: entry,
+			kept: keeping(map[string]int{after: 31}), heads: map[string]DigestHead{after: arriving(headOf(after, 30), 1, 0)}, want: true,
+		},
+		{
+			name: "the day before's digest current, none of its lines arriving after it", head: built, entry: entry,
+			kept: keeping(map[string]int{before: 9}), heads: map[string]DigestHead{before: headOf(before, 9)}, want: true,
+		},
+		{name: "built in another time zone", head: inZone, entry: entry, kept: keeping(nil), want: false},
+		{name: "built where its day started otherwise", head: started, entry: entry, kept: keeping(nil), want: false},
+		{name: "built where its day ended otherwise", head: ended, entry: entry, kept: keeping(nil), want: false},
+		{name: "a line it read arriving before its day", head: arriving(built, 1, 0), entry: entry, kept: keeping(nil), want: false},
+		{name: "a line it read arriving after its day", head: arriving(built, 0, 1), entry: entry, kept: keeping(nil), want: false},
+		{name: "its day's summary missing", head: built, kept: keeping(map[string]int{digested: 0}, digested), want: false},
+		{name: "its day's summary not standing as held, of the lines it was built against", head: built, kept: keeping(nil, digested), want: false},
+		{name: "its day's summary made again since, of more lines", head: built, kept: keeping(map[string]int{digested: 41}), want: false},
+		{name: "its day's lines pruned", head: built, kept: keeping(map[string]int{digested: 0}), want: false},
+		{
+			name: "a day its entry rests on summarised again since, of more lines", head: built, entry: entry,
+			kept: keeping(map[string]int{rested: 13}), want: false,
+		},
+		{name: "a day its entry rests on pruned", head: built, entry: entry, kept: keeping(map[string]int{rested: 0}), want: false},
+		{
+			name: "a day its entry rests on, its summary not standing as held, of the lines it was built from", head: built, entry: entry,
+			kept: keeping(nil, rested), want: false,
+		},
+		{
+			name: "the day after's digest current, a line of it arriving before it", head: built, entry: entry,
+			kept: keeping(map[string]int{after: 30}), heads: map[string]DigestHead{after: arriving(headOf(after, 30), 1, 0)}, want: false,
+		},
+		{
+			name: "the day before's digest current, a line of it arriving after it", head: built, entry: entry,
+			kept: keeping(map[string]int{before: 9}), heads: map[string]DigestHead{before: arriving(headOf(before, 9), 0, 1)}, want: false,
+		},
+		{name: "the day before keeping lines, of no digest", head: built, entry: entry, kept: keeping(map[string]int{before: 9}), want: false},
+		{name: "the day before keeping lines of no summary yet, of no digest", head: built, entry: entry, kept: keeping(nil, before), want: false},
+		{
+			name: "the day before keeping lines, its digest not current, as its summary was made again since", head: built, entry: entry,
+			kept: keeping(map[string]int{before: 10}), heads: map[string]DigestHead{before: headOf(before, 9)}, want: false,
+		},
+		{
+			name: "the day before keeping lines, its digest not current, as its summary doesn't stand as held", head: built, entry: entry,
+			kept: keeping(map[string]int{before: 9}, before), heads: map[string]DigestHead{before: headOf(before, 9)}, want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := groundsOf(tt.kept, tt.heads)
+
+			if got := g.stands(tt.head, tt.entry); got != tt.want {
+				t.Errorf("stands(%+v, %+v) = %t, want %t, the ledger keeping %v, holding digests %+v", tt.head, tt.entry, got, tt.want, tt.kept, tt.heads)
+			}
+		})
+	}
+}

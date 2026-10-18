@@ -12,6 +12,12 @@ func (l *Ledger) SetLooked(looked func(date string)) {
 	l.looked = looked
 }
 
+// WriteDigest writes digest as the ledger in dir holds the digest of its
+// day, for tests of what passes over it.
+func WriteDigest(dir string, digest Digest) error {
+	return days{files: filesIn(dir, nil)}.writeDigest(digest)
+}
+
 // SetHistory has the reader list and read the readings history as history
 // gives it, for tests of how it's asked.
 func (r *Reader) SetHistory(history History) {
