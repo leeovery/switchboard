@@ -75,6 +75,12 @@ type decision struct {
 	// pin or after the session's idle hour, carries none.
 	held  Hold
 	limit int
+	// compacted is set when the decision keeps the session where it is at
+	// the first request after its compaction, as compacted says, and move is
+	// how moving it was judged then, which, while the router only watches,
+	// moves nothing: the log alone tells of it.
+	compacted bool
+	move      score.Move
 }
 
 // decide chooses the account a request goes out on, in this order, room
@@ -100,16 +106,29 @@ type decision struct {
 //     A request tried already goes out on none.
 //
 // A choice that passing over those under pressure changed says so, naming
-// the account passed over, after why it was made; and one that has to move
-// the session off its account, as it can't take the request, says what held
-// the request back there, as forcedOff does.
+// the account passed over, after why it was made; one that has to move the
+// session off its account, as it can't take the request, says what held the
+// request back there, as forcedOff does; and one that keeps the session where
+// it is at the first request after its compaction carries how moving it to
+// where step 4 would send it was judged, as compacted says.
 func decide(s situation) decision {
 	s.accounts = s.accounts.spend(s.req.Pin).spend(s.pin.Accounts...)
 	d := s.choose()
 	if d.passedOver != "" {
 		d.reason = status.PassingOver(d.reason, d.passedOver)
 	}
+	if s.compacted(d) {
+		d.compacted, d.move = true, s.accounts.atCompaction(s.current.Account, s.pin.Accounts)
+	}
 	return d
+}
+
+// compacted reports whether d keeps the session on its account at the first
+// request of its main conversation after its compaction, where a move would
+// cost it neither its reasoning, as its model's thinking isn't bound to its
+// account, nor its own pin's say: the moment a busy session's move is judged.
+func (s situation) compacted(d decision) bool {
+	return s.req.Compacted && d.sticky && !s.req.Bound && s.req.Pin == ""
 }
 
 // choose chooses as decide does, but for saying which account a choice passed

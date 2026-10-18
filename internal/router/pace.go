@@ -68,6 +68,19 @@ func (u *usage) pace(policy score.Policy, now time.Time) (score.Pace, bool) {
 	return score.PaceOf(w, u.trails[w.Key], now)
 }
 
+// recentRate returns how fast the account's window named key has been used
+// lately, at now, as score.RecentRate judges it over its trail. It reports
+// false when that can't be said, as when the window hasn't been read, or not
+// for long enough.
+func (u *usage) recentRate(key string, now time.Time) (float64, bool) {
+	w, ok := u.windows[key]
+	if !ok {
+		return 0, false
+	}
+	rate, _, ok := score.RecentRate(w, u.trails[key], now)
+	return rate, ok
+}
+
 // rates returns how fast each of the account's windows has been used lately,
 // at now, in quota.Sort's order, as status.RatesOf says.
 func (u *usage) rates(now time.Time) []status.Rate {

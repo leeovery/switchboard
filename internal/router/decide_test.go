@@ -1,6 +1,7 @@
 package router
 
 import (
+	"math"
 	"slices"
 	"testing"
 	"time"
@@ -475,6 +476,61 @@ func TestDecide(t *testing.T) {
 			if got := decide(s); got != tt.want {
 				t.Errorf("decide() = %+v, want %+v", got, tt.want)
 			}
+			if got := decideAfterCompaction(s); got != tt.want {
+				t.Errorf("decide() after a compaction = %+v, want %+v, as without one: the router only watches", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDecideJudgesAMoveAtACompactionAsAChoiceAfreshWouldMakeIt(t *testing.T) {
+	// Work's week is 90% used and resets in five days; side's is 85% used and
+	// resets tomorrow, quiet lately, and side keeps a tenth of it back: its
+	// quota needs using first, 5% of its week at risk, or 15% where a pin
+	// spends its reserve.
+	pinSide := status.Pin{Accounts: []string{"side"}, Since: start.Add(-time.Hour)}
+	tests := []struct {
+		name    string
+		global  status.Pin
+		current *assignment
+		want    decision
+		// wantLeft is the share of side's week the judgement has left at its
+		// reset.
+		wantLeft float64
+	}{
+		{
+			name:     "with no pin, judged against side, its reserve kept back",
+			current:  on("work", 5*time.Minute),
+			want:     decision{account: "work", reason: "sticky", sticky: true, compacted: true, move: score.Move{Verdict: score.Moves, To: "side", Resets: start.Add(24 * time.Hour)}},
+			wantLeft: 0.05,
+		},
+		{
+			name:     "with a pin set without moving sessions, the session outside it, judged against the pin's account, its reserve spent",
+			global:   pinSide,
+			current:  on("work", 5*time.Minute),
+			want:     decision{account: "work", reason: "sticky", sticky: true, compacted: true, move: score.Move{Verdict: score.Moves, To: "side", Resets: start.Add(24 * time.Hour)}},
+			wantLeft: 0.15,
+		},
+		{
+			name:    "its cache cold, chosen afresh and not judged",
+			current: on("work", 2*time.Hour),
+			want:    decision{account: "side", reason: "rescored after 2h idle", afresh: true},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			accounts := reserving(known(weekAt(0.9, 5*24*time.Hour), weekAt(0.85, 24*time.Hour)), "side", 0.1)
+			for i := range accounts.candidates {
+				accounts.candidates[i].PerishableKnown = true
+			}
+			req := Request{Session: "0b5c6f2e", Model: opus, Client: "work", Compacted: true}
+			s := situation{req: req, now: start, pin: tt.global, current: *tt.current, assigned: true, accounts: accounts}
+			got := decide(s)
+			left := got.move.Left
+			got.move.Left = 0
+			if got != tt.want || math.Abs(left-tt.wantLeft) > 1e-9 {
+				t.Errorf("decide() = %+v, its move leaving %v, want %+v, leaving %v", got, left, tt.want, tt.wantLeft)
+			}
 		})
 	}
 }
@@ -602,6 +658,9 @@ func TestDecideLeavesAnAccountsReserveToPins(t *testing.T) {
 			}
 			if got := decide(s); got != tt.want {
 				t.Errorf("decide() = %+v, want %+v", got, tt.want)
+			}
+			if got := decideAfterCompaction(s); got != tt.want {
+				t.Errorf("decide() after a compaction = %+v, want %+v, as without one: the router only watches", got, tt.want)
 			}
 		})
 	}
@@ -804,6 +863,9 @@ func TestDecideWithTheGlobalPinOnSeveralAccounts(t *testing.T) {
 			if got := decide(s); got != tt.want {
 				t.Errorf("decide() = %+v, want %+v", got, tt.want)
 			}
+			if got := decideAfterCompaction(s); got != tt.want {
+				t.Errorf("decide() after a compaction = %+v, want %+v, as without one: the router only watches", got, tt.want)
+			}
 		})
 	}
 }
@@ -876,6 +938,9 @@ func TestChoosingAfreshBetweenNearEqualsFavoursTheSessionResettingSoonest(t *tes
 			}
 			if got := decide(s); got != tt.want {
 				t.Errorf("decide() = %+v, want %+v", got, tt.want)
+			}
+			if got := decideAfterCompaction(s); got != tt.want {
+				t.Errorf("decide() after a compaction = %+v, want %+v, as without one: the router only watches", got, tt.want)
 			}
 		})
 	}
@@ -956,6 +1021,9 @@ func TestWithNoRoomButInTheReservesARequestGoesNowhere(t *testing.T) {
 			}
 			if got := decide(s); got != tt.want {
 				t.Errorf("decide() = %+v, want %+v", got, tt.want)
+			}
+			if got := decideAfterCompaction(s); got != tt.want {
+				t.Errorf("decide() after a compaction = %+v, want %+v, as without one: the router only watches", got, tt.want)
 			}
 		})
 	}
@@ -1162,6 +1230,16 @@ func TestDecidePassesOverAccountsUnderPressure(t *testing.T) {
 			}
 		})
 	}
+}
+
+// decideAfterCompaction decides as decide does, s's request being the first
+// after its session's compaction, but for the judgement of a move the decision
+// carries then.
+func decideAfterCompaction(s situation) decision {
+	s.req.Compacted = true
+	d := decide(s)
+	d.compacted, d.move = false, score.Move{}
+	return d
 }
 
 // known is what a choice knows of work and side, whose windows are as given,

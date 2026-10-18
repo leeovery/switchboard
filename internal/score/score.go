@@ -3,9 +3,9 @@
 // its use is heading, what can be spent of it and still last to its reset,
 // whether an account can take a request, within its limits or within its
 // reserve, whether it's under pressure, how urgently its quota needs using,
-// and which account to use next. Every function is pure and is handed the
-// clock. None knows a provider's windows by name: a Policy names the ones
-// that matter.
+// which account to use next, and whether a session moves to it at its
+// compaction. Every function is pure and is handed the clock. None knows a
+// provider's windows by name: a Policy names the ones that matter.
 package score
 
 import (
@@ -109,6 +109,11 @@ type Candidate struct {
 	// Rate is how fast the account's pressure window is being used, as a
 	// share of it an hour: zero when that isn't known.
 	Rate float64
+	// PerishableRate is how fast its perishable window has been used lately,
+	// as RecentRate judges it, a share of it an hour, where PerishableKnown
+	// is set: RecentRate can't always say, as of a window read too lately.
+	PerishableRate  float64
+	PerishableKnown bool
 }
 
 // Available reports whether an account with these windows can take a

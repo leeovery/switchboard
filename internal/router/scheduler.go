@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -61,6 +62,9 @@ func (s *scheduler) Choose(ctx context.Context, req Request) Choice {
 	}
 	if d.passedOver != "" {
 		notePressure(req, d)
+	}
+	if d.compacted {
+		noteCompaction(req, d)
 	}
 	c := Choice{Account: d.account, Reason: d.reason, NoRoom: d.noRoom, Reserved: d.reserved, Back: d.back}
 	if req.Session != "" && d.account != "" && !req.Check {
@@ -181,6 +185,31 @@ func (s *scheduler) view(req Request, now time.Time) view {
 func notePressure(req Request, d decision) {
 	logger.Info("passed over under pressure", "id", req.ID, "account", d.passedOver, "rate", prose.Percent(d.pressure.Rate)+" an hour",
 		"runs_out", d.pressure.RunsOut, "chosen", d.account)
+}
+
+// staying says why a session stays where it is at its compaction, as each
+// verdict but a move judges it.
+var staying = map[score.Verdict]string{
+	score.StaysUnknown:     "unknown",
+	score.StaysSame:        "same account",
+	score.StaysResetsLater: "resets later",
+	score.StaysNotAtRisk:   "not at risk",
+}
+
+// noteCompaction notes in the log how the choice d judged moving the session
+// at the first request after its compaction, while the router only watches:
+// at info, the move it would make, to which account, how fast that account's
+// perishable window has been used lately, when it resets, and the share of it
+// left then; else, at debug, why the session stays.
+func noteCompaction(req Request, d decision) {
+	m := d.move
+	attrs := []any{"id", req.ID, "session", status.ShortID(req.Session), "model", req.Model, "account", d.account}
+	if m.Verdict != score.Moves {
+		logger.Debug("stays after compaction", append(attrs, "why", staying[m.Verdict], "chosen", m.To)...)
+		return
+	}
+	logger.Info("would move after compaction", append(attrs, "to", m.To, "rate", prose.Tenths(m.Rate*100)+"% an hour",
+		"resets", m.Resets, "left", prose.Tenths(m.Left*100)+"%")...)
 }
 
 // recheck probes again the accounts whose usage as last read leaves no room
