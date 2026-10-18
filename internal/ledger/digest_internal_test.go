@@ -10,6 +10,7 @@ import (
 	"maps"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -148,7 +149,8 @@ func TestADigestIsWrittenGzippedAsItsStoredFormTheUsersAlone(t *testing.T) {
 }
 
 // A digest that can't be written whole, of a day that isn't one, or holding
-// a state that isn't JSON, isn't written at all.
+// a state that isn't JSON, isn't written at all, failing with an error that
+// names the day.
 func TestADigestThatCantBeWrittenWholeIsntWritten(t *testing.T) {
 	cutShort := map[string]DigestEntry{"one": {State: json.RawMessage(`{"dir":"~/a`)}}
 	tests := []struct {
@@ -166,7 +168,10 @@ func TestADigestThatCantBeWrittenWholeIsntWritten(t *testing.T) {
 
 			entries, _ := os.ReadDir(d.files.Dir)
 			if err == nil || len(entries) > 0 {
-				t.Errorf("writeDigest(%+v) = %v, leaving %d files; want it failing, writing none", tt.digest, err, len(entries))
+				t.Fatalf("writeDigest(%+v) = %v, leaving %d files; want it failing, writing none", tt.digest, err, len(entries))
+			}
+			if !strings.Contains(err.Error(), tt.digest.Head.Day) {
+				t.Errorf("writeDigest(%+v) failed with %q, want it naming the day, %s", tt.digest, err, tt.digest.Head.Day)
 			}
 		})
 	}
@@ -225,6 +230,41 @@ func TestADigestThatDoesntReadAsTheDaysFailsSoItsReaderCanTell(t *testing.T) {
 				t.Errorf("digest(%q, %d) failed with %v, as though none were held", digested, tt.body, err)
 			}
 		})
+	}
+}
+
+// A digest's file that inflates past digestMax, as one made by hand may,
+// fails as one that doesn't read as the day's, inflated no further: its
+// gzip trailer, cut short two megabytes past the most, is never reached.
+func TestADigestInflatingPastItsMostFailsUnread(t *testing.T) {
+	d := digestDays(t)
+	var data bytes.Buffer
+	w, err := gzip.NewWriterLevel(&data, gzip.BestSpeed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	padding := bytes.Repeat([]byte{'a'}, 1<<20)
+	parts := [][]byte{[]byte(`{"version":1,"body":3,"day":"2026-10-05","from":0,"to":0,"sessions":{"one":{"state":"`)}
+	for range digestMax/len(padding) + 2 {
+		parts = append(parts, padding)
+	}
+	for _, part := range append(parts, []byte(`"}}}`)) {
+		if _, err := w.Write(part); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(digestFile(d.files.Dir, digested), data.Bytes()[:data.Len()-4], 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = d.digest(digested, statesVersion)
+
+	if !errors.Is(err, errNotTheDaysDigest) || !errors.Is(err, errDigestTooLarge) {
+		t.Errorf("digest(%q, %d) of a file inflating past %d bytes failed with %v, want %v, as %v", digested, statesVersion, digestMax, err,
+			errNotTheDaysDigest, errDigestTooLarge)
 	}
 }
 

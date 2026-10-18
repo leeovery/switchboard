@@ -25,6 +25,10 @@ const (
 	// digestPrefix and digestSuffix begin and end the name of a day's digest:
 	// digest-<date>.json.gz.
 	digestPrefix, digestSuffix = "digest-", ".json.gz"
+	// digestMax is the most a digest's file is inflated to as it's read: a
+	// busy day's runs to a few megabytes, and a file made by hand to inflate
+	// past it mustn't be read whole into memory.
+	digestMax = 64 << 20
 )
 
 // digestFile is where the ledger in dir keeps the digest of the local day
@@ -153,7 +157,7 @@ func (d days) writeDigest(digest Digest) error {
 	}
 	data, err := gzippedJSON(storedOf(digest))
 	if err != nil {
-		return err
+		return fmt.Errorf("digest of %s: %w", date, err)
 	}
 	return atomicfile.Write(digestFile(d.files.Dir, date), data, 0o600)
 }
@@ -204,17 +208,26 @@ func (d days) digest(date string, body int) (Digest, error) {
 	return stored.digest(), nil
 }
 
+// errDigestTooLarge is the error of a digest's file that inflates past
+// digestMax.
+var errDigestTooLarge = fmt.Errorf("inflates past %d bytes", digestMax)
+
 // storedIn returns the digest r holds, as its file holds it: read to its
 // end, so a file cut short, or damaged, fails as its gzip trailer is
-// checked, whatever its JSON reads as.
+// checked, whatever its JSON reads as; and failing with errDigestTooLarge,
+// having inflated no more than digestMax and a byte, where it inflates past
+// that.
 func storedIn(r io.Reader) (storedDigest, error) {
 	members, err := gzip.NewReader(r)
 	if err != nil {
 		return storedDigest{}, err
 	}
-	data, err := io.ReadAll(members)
-	if err != nil {
+	data, err := io.ReadAll(io.LimitReader(members, digestMax+1))
+	switch {
+	case err != nil:
 		return storedDigest{}, err
+	case len(data) > digestMax:
+		return storedDigest{}, errDigestTooLarge
 	}
 	var stored storedDigest
 	err = json.Unmarshal(data, &stored)
@@ -260,12 +273,16 @@ func (g digestGrounds) current(head DigestHead) bool {
 
 // alone reports whether no line the days either side of the local day with
 // the given date hold arrived on it, as far as their digests tell. Of the day
-// after's, it's told only where its digest is current: a reader resting on
-// the day reads the lines of a day after it without one raw, and one of them
-// that arrived before the day ended has its session read whole. Of the day
-// before's, it can't be told without one, as no reader resting on the day
-// reads that day's lines: its digest must be current and hold none that
-// arrived after it ended, unless it keeps no lines at all.
+// after's, it's told only where its digest is current: one without is the
+// reader's to catch, as it reads that day's lines raw after a state resting
+// on this one, by the rule its restore keeps, that a session any of whose
+// raw lines after its base arrived before the base's day ended is read whole.
+// The store's gained doesn't catch it: once the store's day is two or more
+// after this one, it only counts such a line among its own day's requests,
+// and may take it in.
+// Of the day before's, it can't be told without one, as no reader resting on
+// the day reads that day's lines: its digest must be current and hold none
+// that arrived after it ended, unless it keeps no lines at all.
 func (g digestGrounds) alone(date string) bool {
 	start, end, _ := dayfile.Day(date)
 	if after, current := g.currentHead(dayfile.DateOf(end)); current && after.Early > 0 {
