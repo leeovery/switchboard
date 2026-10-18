@@ -1,11 +1,8 @@
 package ledger
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
-	"encoding/json/jsontext"
-	jsonv2 "encoding/json/v2"
 	"errors"
 	"io/fs"
 	"maps"
@@ -22,7 +19,8 @@ import (
 // version of the states it gives, as a digest of states of another doesn't
 // stand; and Digest gives the state of each session day hands it, by its id,
 // failing where it can't fold them, or ctx ends first. A session it gives no
-// state of has no entry in the digest.
+// state of has no entry in the digest, which leaves the day due: it's built
+// again whenever it's judged afresh, as at each start of the router.
 type Digester interface {
 	Version() int
 	Digest(ctx context.Context, day DigestDay) (map[string]json.RawMessage, error)
@@ -114,10 +112,12 @@ func (d *digesting) kick() {
 }
 
 // pass makes a pass over the ledger's days at now, but none once ctx has
-// ended: it deletes the digests of days without lines, as prune does, then
-// digests each finished day that's due, as digestDue does, pausing after
-// each, where paced, as long as it took to build. Where the ledger's
-// directory can't be listed, it does neither, as listedNoting says.
+// ended: it deletes the digests of days without lines, as prune does, even
+// where the ledger holds no day; lets go of what it holds of the days before
+// where the ledger begins, as letGoBefore does; then digests each finished
+// day that's due, as digestDue does, pausing after each, where paced, as
+// long as it took to build. Where the ledger's directory can't be listed, it
+// does none of these, as listedNoting says.
 func (d *digesting) pass(ctx context.Context, now time.Time, paced bool) {
 	d.passing.Lock()
 	defer d.passing.Unlock()
@@ -125,12 +125,30 @@ func (d *digesting) pass(ctx context.Context, now time.Time, paced bool) {
 		return
 	}
 	listing, ok := d.days.listedNoting(&d.unlisted)
+	d.prune(listing)
 	if !ok {
 		return
 	}
-	d.prune(listing)
+	d.letGoBefore(listing.first)
 	first, _, _ := dayfile.Day(listing.first)
 	d.digestDue(ctx, d.days.datesBefore(dayfile.DateOf(now), first, nil, now), now, paced)
+}
+
+// letGoBefore lets go of the days before the one with the given date, where
+// the ledger begins, as a prune of its earlier days leaves it, and of the
+// judgements of the digests resting on one of them, as a state resting on a
+// pruned day stops standing. No other judgement is on a day before where the
+// ledger begins, as holds judges none that rests on one due.
+func (d *digesting) letGoBefore(first string) {
+	maps.DeleteFunc(d.held, func(date string, _ writtenDay) bool { return date < first })
+	maps.DeleteFunc(d.judged, func(_ string, j judgement) bool {
+		for date := range j.on {
+			if date < first {
+				return true
+			}
+		}
+		return false
+	})
 }
 
 // prune deletes the digests listing finds of days it finds no lines of, their
@@ -142,7 +160,7 @@ func (d *digesting) prune(listing dayListing) {
 			continue
 		}
 		if err := os.Remove(digestFile(d.days.files.Dir, date)); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			d.warn(date, d.days.lookAt(date), "can't prune the request ledger's digest of a day", err)
+			d.warn(date, d.days.lookAt(date), "can't prune the request ledger's digest of a day", "error", err)
 			continue
 		}
 		delete(d.judged, date)
@@ -153,24 +171,29 @@ func (d *digesting) prune(listing dayListing) {
 // digestDue digests each of the days with the given dates, those from where
 // the ledger begins to yesterday, at now, oldest first, so a day built again
 // has those resting on it built after it: each with files whose digest is
-// due, as due says, it and every day before it told, as kept tells, so its
-// summary stands for exactly the lines its files hold, and nothing it rests
-// on is a day that can't be told, which no state could be kept on. It looks
-// at each day once, as find finds it, so it judges and builds each on the one
-// look at the days before it. Where paced, it pauses after each build as
-// long as the build took, so it never takes more than half a core. It
-// digests none once ctx has ended.
+// due, as due says, so long as it's told, as kept tells, its summary standing
+// for exactly the lines its files hold. It stops at a day that can't be
+// told, as a day that might name any session leaves no state after it one
+// to keep; that's warned of where days after it go undigested, as warn says,
+// as it may last, as a day whose files can't be looked at. It looks at each
+// day once, as find finds it, so it judges and builds each on the one look
+// at the days before it. Where paced, it pauses after each build as long as
+// the build took, so it never takes more than half a core. It digests none
+// once ctx has ended.
 func (d *digesting) digestDue(ctx context.Context, dates []string, now time.Time, paced bool) {
-	view := writerLook{looked: make(map[string]writtenDay), find: d.find}
-	told := true
+	view := d.view()
 	for i, date := range dates {
 		if ctx.Err() != nil {
 			return
 		}
 		day := view.day(date)
-		_, known := day.kept()
-		told = told && known
-		if !told || day.look.none || !d.due(dates[:i+1], view) {
+		if _, known := day.kept(); !known {
+			if i < len(dates)-1 {
+				d.warn(date, day.look, "can't digest the request ledger's days after one whose lines can't be told against its summary")
+			}
+			return
+		}
+		if day.look.none || !d.due(dates[:i+1], view) {
 			continue
 		}
 		began := time.Now()
@@ -181,13 +204,19 @@ func (d *digesting) digestDue(ctx context.Context, dates []string, now time.Time
 	}
 }
 
+// view returns a look at the ledger's days for one pass, finding each day
+// as find does.
+func (d *digesting) view() writerLook {
+	return writerLook{looked: make(map[string]writtenDay), find: d.find}
+}
+
 // due reports whether the digest of the local day with the given date, the
 // last of dates, those of the days from where the ledger begins, is due, as
 // view finds the days: none is held that reads, of the version its Digester
 // gives, or the one held holds no longer, as holds says. One judged not due
 // before isn't, without its digest read, while its file looks as it did
-// then, as nothing it was judged on changed since, as forget lets go of
-// those something did.
+// then, as nothing it was judged on changed since, as forget and letGoBefore
+// let go of those something did.
 func (d *digesting) due(dates []string, view writerLook) bool {
 	date := dates[len(dates)-1]
 	file := d.days.digestInfo(date)
@@ -267,7 +296,7 @@ func (d *digesting) find(date string) writtenDay {
 	l := d.days.lookAt(date)
 	was, held := d.held[date]
 	if !held {
-		was = writtenDay{look: look{none: true}}
+		was = writtenDay{look: look{none: true}, known: true}
 	} else if was.look.same(l) {
 		return was
 	}
@@ -314,7 +343,7 @@ func (d *digesting) build(ctx context.Context, dates []string, view writerLook, 
 		err = d.days.writeDigest(digest)
 	}
 	if err != nil {
-		d.warn(date, looked, "can't digest a day of the request ledger", err)
+		d.warn(date, looked, "can't digest a day of the request ledger", "error", err)
 		return
 	}
 	delete(d.warned, date)
@@ -337,7 +366,7 @@ func (d *digesting) digestOf(ctx context.Context, dates []string, view writerLoo
 	date := dates[len(dates)-1]
 	day := view.day(date)
 	start, end, _ := dayfile.Day(date)
-	head := DigestHead{Body: d.digester.Version(), Day: date, Start: start, End: end, SummaryLines: day.summary.Lines}
+	head := DigestHead{Body: d.digester.Version(), Day: date, Start: start, End: end, SummaryLines: day.lines}
 	var err error
 	if head.Lines, head.Early, head.Late, err = d.days.arrivals(date, start, end); err != nil {
 		return Digest{}, err
@@ -378,12 +407,12 @@ func entriesOf(date string, sessions map[string]SessionFrom, states map[string]j
 	return entries
 }
 
-// warn warns of err, as msg says, of the local day with the given date, once
-// until its digest is built, or pruned, or the day looks otherwise than l
-// does, as look.same says.
-func (d *digesting) warn(date string, l look, msg string, err error) {
+// warn warns of the local day with the given date as msg and args, its
+// attributes after the day's, say, once until its digest is built, or
+// pruned, or the day looks otherwise than l does, as look.same says.
+func (d *digesting) warn(date string, l look, msg string, args ...any) {
 	if was, warned := d.warned[date]; !warned || !was.same(l) {
-		d.days.logger.Warn(msg, "day", date, "error", err)
+		d.days.logger.Warn(msg, append([]any{"day", date}, args...)...)
 	}
 	d.warned[date] = l
 }
@@ -403,8 +432,8 @@ func pause(ctx context.Context, d time.Duration) {
 // lines arrived before start, and how many from end on, as a change of time
 // zone files a line under a date beside its own. It fails as ReadDay does.
 func (d days) arrivals(date string, start, end time.Time) (lines, early, late int, err error) {
-	lines, _, err = dayfile.ReadDay(d.files, date, arrivalIn, func(at time.Time) bool {
-		switch {
+	lines, _, err = dayfile.ReadDay(d.files, date, lineIn, func(line Line) bool {
+		switch at := line.At; {
 		case at.Before(start):
 			early++
 		case !at.Before(end):
@@ -413,30 +442,4 @@ func (d days) arrivals(date string, start, end time.Time) (lines, early, late in
 		return true
 	})
 	return lines, early, late, err
-}
-
-// arrivalIn returns when the request a line of the ledger holds arrived,
-// reporting false for a line that doesn't read as an object holding it: read
-// no further than its at, which the ledger writes first, so a busy day's
-// lines are counted without each read whole.
-func arrivalIn(data []byte) (time.Time, bool) {
-	dec := jsontext.NewDecoder(bytes.NewReader(data))
-	if open, err := dec.ReadToken(); err != nil || open.Kind() != '{' {
-		return time.Time{}, false
-	}
-	for dec.PeekKind() == '"' {
-		name, err := dec.ReadToken()
-		if err != nil {
-			return time.Time{}, false
-		}
-		if name.String() == "at" {
-			var at time.Time
-			err := jsonv2.UnmarshalDecode(dec, &at)
-			return at, err == nil
-		}
-		if dec.SkipValue() != nil {
-			return time.Time{}, false
-		}
-	}
-	return time.Time{}, false
 }

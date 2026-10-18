@@ -92,29 +92,12 @@ func (l followerLook) kept(date string) (int, bool) {
 	return 0, false
 }
 
-// sessionsAsOf returns the sessions with the given ids as of the start of
-// the local day with the given date, at now, by the router's writer's own
-// look at the ledger's days, as writerLook has it, their states of the
-// version body, as sessionsAsOf has them.
-func (l *Ledger) sessionsAsOf(ids []string, date string, body int, now time.Time) map[string]SessionFrom {
-	first, err := l.days.first()
-	return sessionsAsOf(l.days, newWriterLook(l.days), l.days.datesBefore(date, first, err, now), ids, body, newSessionsRead(now, nil))
-}
-
 // writerLook is the router's writer's look at the ledger's days, made for
-// one lookup, or one of the digesting's passes: each day found once, as
-// it's first asked of, as find finds it.
+// one of the digesting's passes: each day found once, as it's first asked
+// of, as find finds it.
 type writerLook struct {
 	looked map[string]writtenDay
 	find   func(date string) writtenDay
-}
-
-// newWriterLook returns the writer's look at the ledger's days d, having
-// looked at none yet, finding each as days.written does, afresh.
-func newWriterLook(d days) writerLook {
-	return writerLook{looked: make(map[string]writtenDay), find: func(date string) writtenDay {
-		return d.written(date, d.lookAt(date))
-	}}
 }
 
 // naming gives those of the sessions wanted the local day with the given
@@ -140,67 +123,65 @@ func (l writerLook) day(date string) writtenDay {
 	return day
 }
 
-// writtenDay is a local day as the writer's look finds it: look, its
-// summary's file and its files, as looked at; the summary the ledger holds
-// of it, nil where it holds none that reads as the day's; stands, where it
-// has files, and its summary stands, as stands says; and exact, where those
-// files hold exactly the lines it counts, as counting tells.
+// writtenDay is a local day as the writer's look finds it, as written finds
+// it: look, its summary's file and its files, as looked at; ids, the
+// sessions it names, sorted, each once, and every, whether it might name any
+// other, as named gives them; and lines, the lines it keeps, where known, as
+// kept gives them. It holds nothing more of its summary, as a day held for
+// the router's life.
 type writtenDay struct {
-	look    look
-	summary *Summary
-	stands  bool
-	exact   bool
+	look  look
+	ids   []string
+	every bool
+	lines int
+	known bool
 }
 
 // written returns the local day with the given date as the writer's look
-// finds it, its summary's file and its files as l looks at them: its summary
-// read now, and whether it stands, and its files hold exactly the lines it
-// counts, as counting tells, its files as l looked at them.
+// finds it, its summary's file and its files as l looks at them, its
+// summary read now: the sessions it names, as its summary names them, as
+// Summary.named says, where it stands, or the day has no files; none of a
+// day with neither files nor a summary that reads; and any, where it has
+// files without a summary that stands, as only a read of them would tell.
+// And the lines it keeps: none of a day with no files; the Lines of its
+// summary where its files hold exactly as many, as counting tells; and none
+// known else, as followerLook's kept gives them.
 func (d days) written(date string, l look) writtenDay {
-	day := writtenDay{look: l}
-	if held, err := d.held(date); err == nil {
-		day.summary = &held.Summary
+	day := writtenDay{look: l, every: !l.none, known: l.none}
+	held, err := d.held(date)
+	if err != nil {
+		return day
 	}
-	if l.err == nil && !l.none && day.summary != nil {
-		stands, exact, err := d.counting(*day.summary, l.files)
-		day.stands, day.exact = err == nil && stands, err == nil && exact
+	stands, exact := l.none, false
+	if l.err == nil && !l.none {
+		s, e, err := d.counting(held.Summary, l.files)
+		stands, exact = err == nil && s, err == nil && e
+	}
+	if stands {
+		day.ids, day.every = held.named()
+	}
+	if exact {
+		day.lines, day.known = held.Lines, true
 	}
 	return day
 }
 
 // named returns the ids of the sessions the day names, sorted, each once,
-// and whether it might name any other: as its summary names them, as
-// Summary.named says, where it stands, or the day has no files; none of a
-// day with neither files nor a summary that reads; and any, where it has
-// files without a summary that stands, as only a read of them would tell.
+// and whether it might name any other, as written finds them.
 func (w writtenDay) named() (ids []string, every bool) {
-	switch {
-	case w.summary != nil && (w.look.none || w.stands):
-		return w.summary.named()
-	case w.look.none:
-		return nil, false
-	}
-	return nil, true
+	return w.ids, w.every
 }
 
 // naming gives those of the sessions wanted the day names, or might, as
 // named tells them, by their ids.
 func (w writtenDay) naming(wanted map[string]bool) map[string]bool {
-	ids, every := w.named()
-	return namingAmong(wanted, ids, every)
+	return namingAmong(wanted, w.ids, w.every)
 }
 
-// kept gives the lines the ledger keeps of the day, as followerLook's kept
-// gives them: none of a day with no files; the Lines of its summary where
-// its files hold exactly as many; and none known else.
+// kept gives the lines the ledger keeps of the day, where they're known, as
+// written finds them.
 func (w writtenDay) kept() (int, bool) {
-	switch {
-	case w.look.none:
-		return 0, true
-	case w.exact:
-		return w.summary.Lines, true
-	}
-	return 0, false
+	return w.lines, w.known
 }
 
 // sessionsAsOf returns the sessions with the given ids as of the start of a

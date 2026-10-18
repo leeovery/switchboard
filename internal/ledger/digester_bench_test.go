@@ -95,17 +95,3 @@ func BenchmarkDigestingAHeavyDay(b *testing.B) {
 		l.DigestEnded(b.Context(), now)
 	}
 }
-
-// removeDigests removes every digest the ledger in dir holds.
-func removeDigests(b *testing.B, dir string) {
-	b.Helper()
-	digests, err := filepath.Glob(filepath.Join(dir, "digest-*"))
-	if err != nil {
-		b.Fatal(err)
-	}
-	for _, path := range digests {
-		if err := os.Remove(path); err != nil {
-			b.Fatal(err)
-		}
-	}
-}

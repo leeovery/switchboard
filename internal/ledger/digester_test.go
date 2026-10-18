@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -137,38 +138,21 @@ func failingOn(date string) func(context.Context, ledger.DigestDay) error {
 	}
 }
 
-// digestWorld is a ledger whose days the digester's tests digest, as the
-// lookup's tests file and summarise them, by the same clock: opened to
-// digest them with fold.
-type digestWorld struct {
-	*lookupWorld
-	fold   *folding
-	ledger *ledger.Ledger
-}
-
-// newDigestWorld returns a world of the test's own, holding no lines yet.
-func newDigestWorld(t *testing.T) *digestWorld {
-	t.Helper()
-	w := &digestWorld{lookupWorld: newLookupWorld(t), fold: &folding{}}
-	w.ledger = w.opened(w.fold)
-	return w
-}
-
 // opened returns the world's ledger, opened afresh to digest its days with
 // fold.
-func (w *digestWorld) opened(fold *folding) *ledger.Ledger {
+func (w *lookupWorld) opened(fold *folding) *ledger.Ledger {
 	return ledger.Open(w.dir, 400*24*time.Hour, func() time.Time { return w.at }, historyIn(w.history), caps, logs.For("router"), ledger.Digesting(fold))
 }
 
 // digestEnded has the world's ledger digest each finished day due, as
 // DigestEnded does.
-func (w *digestWorld) digestEnded() {
-	w.ledger.DigestEnded(w.t.Context(), w.at)
+func (w *lookupWorld) digestEnded() {
+	w.writer.DigestEnded(w.t.Context(), w.at)
 }
 
 // digestOf returns the digest the world's ledger holds of the local day days
 // after the summaries' day, failing the test where it holds none that reads.
-func (w *digestWorld) digestOf(days int) ledger.Digest {
+func (w *lookupWorld) digestOf(days int) ledger.Digest {
 	w.t.Helper()
 	digest, err := ledger.ReadDigest(w.dir, dayOf(days), digestBody)
 	if err != nil {
@@ -180,7 +164,7 @@ func (w *digestWorld) digestOf(days int) ledger.Digest {
 // requestsIn returns the requests each session's state holds in the digest
 // the world's ledger holds of the local day days after the summaries' day,
 // by its id.
-func (w *digestWorld) requestsIn(days int) map[string][]string {
+func (w *lookupWorld) requestsIn(days int) map[string][]string {
 	w.t.Helper()
 	requests := make(map[string][]string)
 	for id, e := range w.digestOf(days).Sessions {
@@ -195,7 +179,7 @@ func (w *digestWorld) requestsIn(days int) map[string][]string {
 
 // digested reports whether the world's ledger holds a digest of the local day
 // days after the summaries' day.
-func (w *digestWorld) digested(days int) bool {
+func (w *lookupWorld) digested(days int) bool {
 	w.t.Helper()
 	_, err := os.Stat(filepath.Join(w.dir, "digest-"+dayOf(days)+".json.gz"))
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -207,7 +191,7 @@ func (w *digestWorld) digested(days int) bool {
 // lateLine files a line of session two under the 3rd, after the days are
 // digested, as one in flight past the hour its day was given, and has the
 // day summarised again with it.
-func (w *digestWorld) lateLine() {
+func (w *lookupWorld) lateLine() {
 	w.file(-2, askedBy("late", "two", on(-2, 12, 0)))
 	w.summarise()
 }
@@ -218,8 +202,8 @@ func (w *digestWorld) lateLine() {
 // so the states chain, each holding every request of its session up to its
 // day.
 func TestFinishedDaysAreDigestedOldestFirstEachOnTheDayBefore(t *testing.T) {
-	w := newDigestWorld(t)
-	sharedDays(w.lookupWorld)
+	w := newLookupWorld(t)
+	sharedDays(w)
 
 	w.digestEnded()
 
@@ -248,7 +232,7 @@ func TestFinishedDaysAreDigestedOldestFirstEachOnTheDayBefore(t *testing.T) {
 // before it began, and after it ended; and each session's entry resting on
 // each day naming it, with the lines its summary counts.
 func TestADigestIsWrittenOfTheDayAsItsFilesHoldIt(t *testing.T) {
-	w := newDigestWorld(t)
+	w := newLookupWorld(t)
 	w.file(-3, askedBy("1", "one", on(-3, 9, 0)))
 	w.file(0, askedBy("early", "one", on(-1, 23, 0)), askedBy("2", "one", on(0, 9, 0)), askedBy("late", "two", on(1, 0, 30)))
 	w.summarise()
@@ -273,8 +257,8 @@ func TestADigestIsWrittenOfTheDayAsItsFilesHoldIt(t *testing.T) {
 // it whose entries rest on it, but not the others: those before it, and those
 // after it of sessions that never ran on it.
 func TestALateLineHasItsDayAndThoseRestingOnItDigestedAgain(t *testing.T) {
-	w := newDigestWorld(t)
-	sharedDays(w.lookupWorld)
+	w := newLookupWorld(t)
+	sharedDays(w)
 	w.digestEnded()
 	w.fold.days()
 	w.lateLine()
@@ -293,8 +277,8 @@ func TestALateLineHasItsDayAndThoseRestingOnItDigestedAgain(t *testing.T) {
 // day's own digest still, keep its state there, not handed to be folded
 // again.
 func TestASessionStandingOnItsDaysOwnDigestKeepsItsState(t *testing.T) {
-	w := newDigestWorld(t)
-	sharedDays(w.lookupWorld)
+	w := newLookupWorld(t)
+	sharedDays(w)
 	w.digestEnded()
 	w.fold.days()
 	was := w.digestOf(0).Sessions["one"]
@@ -313,18 +297,23 @@ func TestASessionStandingOnItsDaysOwnDigestKeepsItsState(t *testing.T) {
 
 // A day one of whose lines arrived on another, as a change of time zone files
 // it, whose digest never stands, is digested once, and never again while
-// nothing changes.
+// nothing changes, nor by a ledger opened afresh.
 func TestADayThatNeverStandsIsDigestedOnce(t *testing.T) {
-	w := newDigestWorld(t)
+	w := newLookupWorld(t)
 	w.file(0, askedBy("early", "one", on(-1, 23, 0)), askedBy("1", "one", on(0, 9, 0)))
 	w.summarise()
 
 	for range 3 {
 		w.digestEnded()
 	}
+	fresh := &folding{}
+	w.opened(fresh).DigestEnded(t.Context(), w.at)
 
 	if dates, want := datesOf(w.fold.days()), []string{dayOf(0)}; !slices.Equal(dates, want) {
 		t.Errorf("the days digested over three passes are %q, want %q, once", dates, want)
+	}
+	if handed := fresh.days(); len(handed) > 0 {
+		t.Errorf("a ledger opened afresh digested %q again, want none", datesOf(handed))
 	}
 	if early := w.digestOf(0).Head.Early; early != 1 {
 		t.Errorf("the digest of %s holds %d lines that arrived before it began, want 1", dayOf(0), early)
@@ -337,8 +326,8 @@ func TestADayThatNeverStandsIsDigestedOnce(t *testing.T) {
 // again.
 func TestAPassFindingNothingChangedReadsNoDigest(t *testing.T) {
 	log := logstest.Capture(t)
-	w := newDigestWorld(t)
-	sharedDays(w.lookupWorld)
+	w := newLookupWorld(t)
+	sharedDays(w)
 	w.digestEnded()
 	w.fold.days()
 	unopenable(t, w.dir, "digest-*")
@@ -358,12 +347,19 @@ func TestAPassFindingNothingChangedReadsNoDigest(t *testing.T) {
 	}
 }
 
-// warnedOf returns how many of the lines log holds warn that the digest of
-// the local day with the given date couldn't be built, or written.
-func warnedOf(log *logstest.Log, date string) int {
+// What the digesting warns: that the digest of a day can't be built, or
+// written; and that the days after one can't be digested, as its lines can't
+// be told against its summary.
+const (
+	cantDigest = "can't digest a day of the request ledger"
+	cantTell   = "can't digest the request ledger's days after one whose lines can't be told against its summary"
+)
+
+// warnedOf returns how many of the lines log holds warn msg of the local day
+// with the given date.
+func warnedOf(log *logstest.Log, msg, date string) int {
 	return len(slices.DeleteFunc(log.Lines(), func(line string) bool {
-		return !strings.Contains(line, "level=WARN") || !strings.Contains(line, `msg="can't digest a day of the request ledger"`) ||
-			!strings.Contains(line, "day="+date)
+		return !strings.Contains(line, "level=WARN") || !strings.Contains(line, `msg="`+msg+`"`) || !strings.Contains(line, "day="+date)
 	}))
 }
 
@@ -371,8 +367,8 @@ func warnedOf(log *logstest.Log, date string) int {
 // until it changes, then again, and digested once its Digester can.
 func TestADayThatCantBeDigestedIsWarnedOfOnceUntilItChanges(t *testing.T) {
 	log := logstest.Capture(t)
-	w := newDigestWorld(t)
-	sharedDays(w.lookupWorld)
+	w := newLookupWorld(t)
+	sharedDays(w)
 	w.fold.doing(failingOn(dayOf(0)))
 
 	for range 3 {
@@ -383,19 +379,19 @@ func TestADayThatCantBeDigestedIsWarnedOfOnceUntilItChanges(t *testing.T) {
 	if len(tried) != 3 || w.digested(0) {
 		t.Errorf("over three passes %s was tried %d times, digested %t; want three times, none written", dayOf(0), len(tried), w.digested(0))
 	}
-	if warned := warnedOf(log, dayOf(0)); warned != 1 {
+	if warned := warnedOf(log, cantDigest, dayOf(0)); warned != 1 {
 		t.Errorf("log reads\n%s\nwant %s warned of once, not %d times", log, dayOf(0), warned)
 	}
 	w.file(0, askedBy("8", "one", on(0, 12, 0)))
 	w.summarise()
 	w.digestEnded()
-	if warned := warnedOf(log, dayOf(0)); warned != 2 {
+	if warned := warnedOf(log, cantDigest, dayOf(0)); warned != 2 {
 		t.Errorf("log reads\n%s\nwant %s warned of again once it changed, twice in all, not %d times", log, dayOf(0), warned)
 	}
 	w.fold.doing(nil)
 	w.digestEnded()
-	if !w.digested(0) || warnedOf(log, dayOf(0)) != 2 {
-		t.Errorf("once it can be, %s is digested %t, warned of %d times; want it digested, warned of no more", dayOf(0), w.digested(0), warnedOf(log, dayOf(0)))
+	if !w.digested(0) || warnedOf(log, cantDigest, dayOf(0)) != 2 {
+		t.Errorf("once it can be, %s is digested %t, warned of %d times; want it digested, warned of no more", dayOf(0), w.digested(0), warnedOf(log, cantDigest, dayOf(0)))
 	}
 }
 
@@ -403,8 +399,8 @@ func TestADayThatCantBeDigestedIsWarnedOfOnceUntilItChanges(t *testing.T) {
 // once it can be.
 func TestADigestThatCantBeWrittenIsWrittenOnceItCanBe(t *testing.T) {
 	log := logstest.Capture(t)
-	w := newDigestWorld(t)
-	sharedDays(w.lookupWorld)
+	w := newLookupWorld(t)
+	sharedDays(w)
 	// A digest can't be written over a directory standing at its path.
 	blocked := filepath.Join(w.dir, "digest-"+dayOf(0)+".json.gz")
 	if err := os.Mkdir(blocked, 0o700); err != nil {
@@ -414,7 +410,7 @@ func TestADigestThatCantBeWrittenIsWrittenOnceItCanBe(t *testing.T) {
 	w.digestEnded()
 	w.digestEnded()
 
-	if warned := warnedOf(log, dayOf(0)); warned != 1 {
+	if warned := warnedOf(log, cantDigest, dayOf(0)); warned != 1 {
 		t.Errorf("log reads\n%s\nwant %s warned of once over two passes, not %d times", log, dayOf(0), warned)
 	}
 	if err := os.Remove(blocked); err != nil {
@@ -430,8 +426,8 @@ func TestADigestThatCantBeWrittenIsWrittenOnceItCanBe(t *testing.T) {
 // and is digested at the next pass once it's summarised again, the line
 // among it.
 func TestADayGainingALineAsItsDigestedHasNoneWritten(t *testing.T) {
-	w := newDigestWorld(t)
-	sharedDays(w.lookupWorld)
+	w := newLookupWorld(t)
+	sharedDays(w)
 	added := false
 	w.fold.doing(func(_ context.Context, day ledger.DigestDay) error {
 		if day.Date == dayOf(0) && !added {
@@ -456,8 +452,8 @@ func TestADayGainingALineAsItsDigestedHasNoneWritten(t *testing.T) {
 // A day whose lines go as it's digested, as to a prune, has nothing written
 // of it, and isn't digested again.
 func TestADayLosingItsLinesAsItsDigestedHasNoneWritten(t *testing.T) {
-	w := newDigestWorld(t)
-	sharedDays(w.lookupWorld)
+	w := newLookupWorld(t)
+	sharedDays(w)
 	w.fold.doing(func(_ context.Context, day ledger.DigestDay) error {
 		if day.Date == dayOf(0) {
 			removeFile(t, w.dir, "requests-"+dayOf(0)+".jsonl")
@@ -480,7 +476,7 @@ func TestADayLosingItsLinesAsItsDigestedHasNoneWritten(t *testing.T) {
 // of a day never written; those of the days either side are kept as they
 // were.
 func TestTheDigestOfADayWithoutLinesIsDeleted(t *testing.T) {
-	w := newDigestWorld(t)
+	w := newLookupWorld(t)
 	w.file(-3, askedBy("1", "one", on(-3, 9, 0)))
 	w.file(-2, askedBy("2", "two", on(-2, 9, 0)))
 	w.file(0, askedBy("3", "one", on(0, 9, 0)))
@@ -519,23 +515,188 @@ func digestInfo(t *testing.T, dir string, days int) os.FileInfo {
 	return info
 }
 
-// A ledger opened without a Digester writes no digest, as it runs or as it's
-// asked to digest its days.
+// A ledger opened without a Digester starts no goroutine to digest its days
+// as it runs, as one opened with one does, and writes no digest, as it runs
+// or as it's asked to digest its days.
 func TestALedgerWithoutADigesterWritesNoDigest(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		w := newLookupWorld(t)
-		sharedDays(w)
-		compressAll(t, w.dir)
-		w.summarise()
+		w := runWorld(t)
 		l := ledger.Open(w.dir, 400*24*time.Hour, func() time.Time { return w.at }, historyIn(w.history), caps, logs.For("router"))
 
-		running(t, l)()
+		without := digestingWhileRunning(t, l)
 		l.DigestEnded(t.Context(), w.at)
 
+		if without != 0 {
+			t.Errorf("the ledger ran %d goroutines digesting its days, want none", without)
+		}
 		if digests, err := filepath.Glob(filepath.Join(w.dir, "digest-*")); err != nil || len(digests) > 0 {
 			t.Errorf("the ledger holds digests %q, %v; want none", digests, err)
 		}
+		if with := digestingWhileRunning(t, w.writer); with != 1 {
+			t.Errorf("a ledger opened with a Digester ran %d goroutines digesting its days, want one", with)
+		}
 	})
+}
+
+// digestingWhileRunning runs l, in a synctest bubble, until every goroutine
+// it starts waits, and returns how many goroutines were then digesting its
+// days, as their stacks tell it.
+func digestingWhileRunning(t *testing.T, l *ledger.Ledger) int {
+	t.Helper()
+	stop := running(t, l)
+	defer stop()
+	synctest.Wait()
+	stacks := make([]byte, 1<<16)
+	for {
+		n := runtime.Stack(stacks, true)
+		if n < len(stacks) {
+			return strings.Count(string(stacks[:n]), "ledger.(*digesting).run(")
+		}
+		stacks = make([]byte, 2*len(stacks))
+	}
+}
+
+// A day whose lines can't be told against its summary, as one filed under it
+// since it was summarised, stops the digesting at it: the days before it are
+// digested, those after it left as they are, even one whose digest is gone,
+// and that's warned of once until it changes, naming it. Once it's
+// summarised again, the days after it are digested.
+func TestADayThatCantBeToldStopsDigestingAfterIt(t *testing.T) {
+	log := logstest.Capture(t)
+	w := newLookupWorld(t)
+	sharedDays(w)
+	w.digestEnded()
+	w.fold.days()
+	w.file(-2, askedBy("late", "two", on(-2, 12, 0)))
+	for _, days := range []int{-3, 1} {
+		removeFile(t, w.dir, "digest-"+dayOf(days)+".json.gz")
+	}
+
+	w.digestEnded()
+	w.digestEnded()
+
+	if dates, want := datesOf(w.fold.days()), []string{dayOf(-3)}; !slices.Equal(dates, want) || w.digested(1) {
+		t.Errorf("with %s untold, %q were digested, %s's digest written %t; want %q alone, the day before it", dayOf(-2), dates, dayOf(1), w.digested(1), want)
+	}
+	if warned := warnedOf(log, cantTell, dayOf(-2)); warned != 1 {
+		t.Errorf("log reads\n%s\nwant %s warned of once over two passes, not %d times", log, dayOf(-2), warned)
+	}
+	w.file(-2, askedBy("later", "two", on(-2, 13, 0)))
+	w.digestEnded()
+	if warned := warnedOf(log, cantTell, dayOf(-2)); warned != 2 {
+		t.Errorf("log reads\n%s\nwant %s warned of again once it changed, twice in all, not %d times", log, dayOf(-2), warned)
+	}
+	w.summarise()
+	w.digestEnded()
+	if dates, want := datesOf(w.fold.days()), []string{dayOf(-2), dayOf(0), dayOf(1)}; !slices.Equal(dates, want) {
+		t.Errorf("once %s is summarised again, %q were digested, want %q: it, the day resting on it, and the day whose digest is gone", dayOf(-2), dates, want)
+	}
+}
+
+// A ledger whose directory holds digests, but no day, has them deleted.
+func TestTheDigestsOfALedgerHoldingNoDayAreDeleted(t *testing.T) {
+	w := newLookupWorld(t)
+	stray, _, _ := dayfile.Day(dayOf(-1))
+	if err := ledger.WriteDigest(w.dir, ledger.Digest{Head: ledger.DigestHead{Body: digestBody, Day: dayOf(-1), Start: stray, End: stray.AddDate(0, 0, 1)}}); err != nil {
+		t.Fatal(err)
+	}
+
+	w.digestEnded()
+
+	if w.digested(-1) {
+		t.Errorf("the digest of %s is kept, the ledger holding no day; want it deleted", dayOf(-1))
+	}
+}
+
+// Digesting the days as they change, pass by pass, leaves the digests a
+// ledger opened afresh writes of them, from none: each day's due judged
+// again where a change may have made it so, and none passed over.
+func TestDigestingAsDaysChangeWritesWhatALedgerAfreshDoes(t *testing.T) {
+	tests := []struct {
+		name   string
+		change func(w *lookupWorld)
+	}{
+		{name: "a late line of a session under a day it never ran on", change: func(w *lookupWorld) {
+			w.file(-2, askedBy("late", "one", on(-2, 12, 0)))
+			w.summarise()
+		}},
+		{name: "a late line under a day of none", change: func(w *lookupWorld) {
+			w.file(-1, askedBy("late", "two", on(-1, 12, 0)))
+			w.summarise()
+		}},
+		{name: "a new session under an old day", change: func(w *lookupWorld) {
+			w.file(-3, askedBy("late", "four", on(-3, 12, 0)))
+			w.summarise()
+		}},
+		{name: "the first day pruned", change: func(w *lookupWorld) {
+			removeFile(w.t, w.dir, "requests-"+dayOf(-3)+".jsonl")
+			removeFile(w.t, w.dir, filepath.Base(summaryFile(w.dir, dayOf(-3))))
+		}},
+		{name: "a digest deleted by hand", change: func(w *lookupWorld) {
+			removeFile(w.t, w.dir, "digest-"+dayOf(0)+".json.gz")
+		}},
+		{name: "every day compressed and summarised again", change: func(w *lookupWorld) {
+			compressAll(w.t, w.dir)
+			w.summarise()
+		}},
+		{name: "a day naming a session its digest holds no entry of", change: func(w *lookupWorld) {
+			digest := w.digestOf(0)
+			delete(digest.Sessions, "one")
+			if err := ledger.WriteDigest(w.dir, digest); err != nil {
+				w.t.Fatal(err)
+			}
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newLookupWorld(t)
+			sharedDays(w)
+			w.digestEnded()
+			tt.change(w)
+
+			w.digestEnded()
+			w.digestEnded()
+
+			digested := digestsRead(t, w.dir)
+			removeDigests(t, w.dir)
+			w.opened(&folding{}).DigestEnded(t.Context(), w.at)
+			if afresh := digestsRead(t, w.dir); !reflect.DeepEqual(digested, afresh) {
+				t.Errorf("digested pass by pass, the digests are\n%+v\nwant\n%+v\nas a ledger opened afresh writes them", digested, afresh)
+			}
+		})
+	}
+}
+
+// digestsRead returns every digest the ledger in dir holds, by its day's date,
+// failing the test where one doesn't read.
+func digestsRead(t *testing.T, dir string) map[string]ledger.Digest {
+	t.Helper()
+	paths, err := filepath.Glob(filepath.Join(dir, "digest-*.json.gz"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	digests := make(map[string]ledger.Digest, len(paths))
+	for _, path := range paths {
+		date := strings.TrimSuffix(strings.TrimPrefix(filepath.Base(path), "digest-"), ".json.gz")
+		if digests[date], err = ledger.ReadDigest(dir, date, digestBody); err != nil {
+			t.Fatalf("the digest of %s: %v", date, err)
+		}
+	}
+	return digests
+}
+
+// removeDigests removes every digest the ledger in dir holds.
+func removeDigests(tb testing.TB, dir string) {
+	tb.Helper()
+	digests, err := filepath.Glob(filepath.Join(dir, "digest-*"))
+	if err != nil {
+		tb.Fatal(err)
+	}
+	for _, path := range digests {
+		if err := os.Remove(path); err != nil {
+			tb.Fatal(err)
+		}
+	}
 }
 
 // compressAll compresses each of the ledger's plain files in dir, as a
@@ -553,10 +714,10 @@ func compressAll(t *testing.T, dir string) {
 
 // runWorld returns a world whose ledger's Run digests sharedDays' days,
 // their files compressed, as Run's prune would have them, and summarised.
-func runWorld(t *testing.T) *digestWorld {
+func runWorld(t *testing.T) *lookupWorld {
 	t.Helper()
-	w := newDigestWorld(t)
-	sharedDays(w.lookupWorld)
+	w := newLookupWorld(t)
+	sharedDays(w)
 	compressAll(t, w.dir)
 	w.summarise()
 	return w
@@ -573,7 +734,7 @@ func TestRunPausesAfterEachBuildAsLongAsItTook(t *testing.T) {
 			return nil
 		})
 
-		stop := running(t, w.ledger)
+		stop := running(t, w.writer)
 		synctest.Sleep(time.Hour / 2)
 		stop()
 
@@ -599,7 +760,7 @@ func TestRunStopsABuildAsItsContextEnds(t *testing.T) {
 			return ctx.Err()
 		})
 		began := time.Now()
-		stop := running(t, w.ledger)
+		stop := running(t, w.writer)
 		synctest.Sleep(time.Minute)
 
 		stop()
@@ -620,7 +781,7 @@ func TestRunWaitsForABuildAsItsContextEnds(t *testing.T) {
 			return nil
 		})
 		began := time.Now()
-		stop := running(t, w.ledger)
+		stop := running(t, w.writer)
 		synctest.Sleep(time.Minute)
 
 		stop()
@@ -645,12 +806,12 @@ func TestKicksDuringAPassComeToOnePassAfterIt(t *testing.T) {
 			}
 			return fail(ctx, day)
 		})
-		stop := running(t, w.ledger)
+		stop := running(t, w.writer)
 		defer stop()
 		synctest.Wait()
 
 		for range 3 {
-			w.ledger.SummariseEnded(w.at)
+			w.writer.SummariseEnded(w.at)
 		}
 		close(release)
 		synctest.Wait()

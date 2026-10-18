@@ -36,9 +36,14 @@ func (f *Follower) SessionsAsOf(ids []string, date string, body int, take func(d
 
 // SessionsAsOf returns the sessions with the given ids as of the start of
 // the local day with the given date, at now, their states of the version
-// body, as the router's writer's lookup finds them, for tests of the lookup.
+// body, as the router's digester's lookup finds them, through the look its
+// passes take at the days, held from one to the next, for tests of the
+// lookup. The ledger must be opened Digesting.
 func (l *Ledger) SessionsAsOf(ids []string, date string, body int, now time.Time) map[string]SessionFrom {
-	return l.sessionsAsOf(ids, date, body, now)
+	l.digesting.passing.Lock()
+	defer l.digesting.passing.Unlock()
+	first, err := l.days.first()
+	return sessionsAsOf(l.days, l.digesting.view(), l.days.datesBefore(date, first, err, now), ids, body, newSessionsRead(now, nil))
 }
 
 // RestsOn returns what a state folded from s rests on, as the lookup found
@@ -55,10 +60,12 @@ func (f *Follower) Kept(date string) (int, bool) {
 }
 
 // Kept gives the lines the ledger keeps of the local day with the given
-// date, as the router's writer's look gives them to the lookup, for tests of
-// its contract.
+// date, as the router's digester's look gives them to the lookup, for tests
+// of its contract. The ledger must be opened Digesting.
 func (l *Ledger) Kept(date string) (int, bool) {
-	return newWriterLook(l.days).kept(date)
+	l.digesting.passing.Lock()
+	defer l.digesting.passing.Unlock()
+	return l.digesting.view().kept(date)
 }
 
 // SetHistory has the reader list and read the readings history as history

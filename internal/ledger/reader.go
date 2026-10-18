@@ -213,8 +213,8 @@ type dayListing struct {
 // dayListing has it: the first day it holds the earliest its files of lines,
 // and its summaries, are of, by the dates their names give. It lists the
 // directory as dayfile.Files.List does, never halfway through a prune. It
-// fails with fs.ErrNotExist where it holds no day, whatever digests it
-// holds.
+// fails with fs.ErrNotExist where it holds no day, giving the digests it
+// holds all the same, as those are its to delete.
 func (d days) listed() (dayListing, error) {
 	entries, err := d.files.List()
 	if err != nil {
@@ -233,7 +233,7 @@ func (d days) listed() (dayListing, error) {
 	}
 	held := append(slices.Clone(listing.lines), summaries...)
 	if len(held) == 0 {
-		return dayListing{}, fmt.Errorf("the request ledger holds no day: %w", fs.ErrNotExist)
+		return dayListing{digests: listing.digests}, fmt.Errorf("the request ledger holds no day: %w", fs.ErrNotExist)
 	}
 	slices.Sort(listing.lines)
 	listing.lines, listing.first = slices.Compact(listing.lines), slices.Min(held)

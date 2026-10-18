@@ -15,7 +15,6 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
-	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 )
 
@@ -31,11 +30,14 @@ func dayOf(days int) string {
 // lookupWorld is a ledger the lookup's tests look sessions up in, as of a
 // day: the lines each test files under its days, summarised, and digested,
 // as the router's round and digester would, by a clock stopped at at, two
-// days after the last day the tests file lines under.
+// days after the last day the tests file lines under. writer is the router's
+// ledger, opened to digest its days with fold, whose digester's lookup the
+// tests ask, as the digester's own tests have it digest them.
 type lookupWorld struct {
 	t                   *testing.T
 	state, dir, history string
 	at                  time.Time
+	fold                *folding
 	writer              *ledger.Ledger
 }
 
@@ -43,9 +45,9 @@ type lookupWorld struct {
 func newLookupWorld(t *testing.T) *lookupWorld {
 	t.Helper()
 	state, dir, history := stateDirs(t)
-	at := on(3, 10, 0)
-	writer := ledger.Open(dir, 400*24*time.Hour, func() time.Time { return at }, historyIn(history), caps, logs.For("router"))
-	return &lookupWorld{t: t, state: state, dir: dir, history: history, at: at, writer: writer}
+	w := &lookupWorld{t: t, state: state, dir: dir, history: history, at: on(3, 10, 0), fold: &folding{}}
+	w.writer = w.opened(w.fold)
+	return w
 }
 
 // file files lines under the local day days after the summaries' day,
