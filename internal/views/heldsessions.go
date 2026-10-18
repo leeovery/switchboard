@@ -88,14 +88,14 @@ type heldSession struct {
 }
 
 // heldFlights are the flights of a session's requests the store holds, by
-// their ids, each with the sum of what its line says, in layers, as stacked
-// has them, so a session that takes more in shares them with the session it
-// took them from.
+// their ids, each with the sum of all it decodes of its line, in layers, as
+// stacked has them, so a session that takes more in shares them with the
+// session it took them from.
 type heldFlights = *stacked[map[string][]knownLine]
 
-// knownLine is the flight of a request the store holds, and the sum of what
-// its line says of it, as sumOf has it, so a line of the same request given
-// again is known from one that says otherwise of it.
+// knownLine is the flight of a request the store holds, and the sum of all
+// it decodes of its line, as heldRequest's summed has it, so a line of the
+// same request given again is known from one that says otherwise of it.
 type knownLine struct {
 	flight
 	sum uint64
@@ -629,10 +629,10 @@ func dateOf(r *heldRequest) string {
 	return dayfile.DateOf(r.arrived())
 }
 
-// heldSum is the sum of the line s holds of the request r, as sumOf has it,
-// reporting false where it holds none: of the same id, arrived at the same
-// moment, on the day with the given date, one of those it holds the flights
-// of.
+// heldSum is the sum s holds of the request r, as heldRequest's summed has
+// it, reporting false where it holds none: of the same id, arrived at the
+// same moment, on the day with the given date, one of those it holds the
+// flights of.
 func (s *heldSession) heldSum(r *heldRequest, date string) (uint64, bool) {
 	f, held := heldFlight(s.flights[date], r.request, func(f flight) bool { return f.at == r.at })
 	return f.sum, held

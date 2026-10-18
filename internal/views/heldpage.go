@@ -217,9 +217,9 @@ func (h HeldPage) mine(l *ledger.Line) bool {
 
 // with is t with the lines given among its own, afresh: each of a request
 // with an id once, as keyOf knows it; one without, as often as the lines
-// given hold it beyond those t holds alike, as sumOf knows them, so a line
-// both read and gained is held once, and one the ledger's files hold twice,
-// twice.
+// given hold it beyond those t holds alike, as lineSumOf knows them, so a
+// line both read and gained is held once, and one the ledger's files hold
+// twice, twice.
 func (t *turnLines) with(lines []ledger.Line) *turnLines {
 	grown := *t
 	grown.lines = slices.Clip(t.lines)
@@ -244,7 +244,7 @@ func (t *turnLines) with(lines []ledger.Line) *turnLines {
 }
 
 // turnKey is a line as a turn's lines know it from another: as keyOf has
-// it, and, of a request without an id, the sum of what it says, as sumOf
+// it, and, of a request without an id, the sum of what it says, as lineSumOf
 // has it.
 type turnKey struct {
 	lineKey
@@ -257,7 +257,7 @@ func turnKeyOf(l *ledger.Line) turnKey {
 	if ok {
 		return turnKey{lineKey: k}
 	}
-	return turnKey{lineKey: k, sum: sumOf(l)}
+	return turnKey{lineKey: k, sum: lineSumOf(l)}
 }
 
 // Opening is h with its turn numbered n open, from 1 at its first, as live
