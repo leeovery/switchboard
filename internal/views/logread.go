@@ -55,8 +55,8 @@ type loggedDay struct {
 // loggedKeys are the keys of a day's lines, as loggedDay holds them: those
 // with ids, by id, each with its flight, and its seq; those without, by
 // their session and when they arrived, as idlessAt has them, each with the
-// sum of what its line says, as sumOf has it, and its seq; and the seqs of
-// each session's requests, by its id.
+// sum of what its line says, as lineSumOf has it, and its seq; and the seqs
+// of each session's requests, by its id.
 type loggedKeys struct {
 	byID      map[string][]loggedKey
 	idless    map[idlessAt][]loggedKey
@@ -269,7 +269,7 @@ type givenLines struct {
 
 // idlessKey is a line without an id, as givenLines counts it: its session
 // and when it arrived, as idlessAt has them, and the sum of what its line
-// says, as sumOf has it.
+// says, as lineSumOf has it.
 type idlessKey struct {
 	idlessAt
 	sum uint64
@@ -291,7 +291,7 @@ func (g givenLines) fresh(l *ledger.Line, held *stacked[loggedKeys], whole bool)
 	if !whole {
 		return true
 	}
-	k := idlessKey{session: l.Session, at: instantOf(l.At), sum: sumOf(l)}
+	k := idlessKey{session: l.Session, at: instantOf(l.At), sum: lineSumOf(l)}
 	g.idless[k]++
 	return g.idless[k] > idlessCount(held, k)
 }

@@ -98,7 +98,7 @@ func TestASpendGivesWhatItsLineGives(t *testing.T) {
 		for _, k := range spendKinds {
 			t.Run(u.name+", "+k.name, func(t *testing.T) {
 				l := spendLine(u.usage, k.edit)
-				for _, problem := range spendDisagreements(&l) {
+				for _, problem := range spendDisagreements(&l, ledger.SpendOf(&l)) {
 					t.Error(problem)
 				}
 			})
@@ -116,23 +116,22 @@ func FuzzASpendGivesWhatItsLineGives(f *testing.F) {
 	}
 	f.Fuzz(func(t *testing.T, usage []byte, kind uint8) {
 		l := spendLine(string(usage), spendKinds[int(kind)%len(spendKinds)].edit)
-		for _, problem := range spendDisagreements(&l) {
+		for _, problem := range spendDisagreements(&l, ledger.SpendOf(&l)) {
 			t.Error(problem)
 		}
 	})
 }
 
-// spendDisagreements are where a Spend of the line l, as SpendOf decodes
-// it, gives otherwise than the line's own calls, priced at ledger.Pricing,
-// of each of spendModels, on each of spendDates: none where it agrees.
-func spendDisagreements(l *ledger.Line) []string {
+// spendDisagreements are where spend, the line l's, gives otherwise than the
+// line's own calls, priced at ledger.Pricing, of each of spendModels, on
+// each of spendDates: none where it agrees.
+func spendDisagreements(l *ledger.Line, spend ledger.Spend) []string {
 	var problems []string
 	differs := func(call string, got, want any) {
 		if !reflect.DeepEqual(got, want) {
 			problems = append(problems, fmt.Sprintf("of %q, %s gives %#v, want %#v, as the line's", l.Usage, call, got, want))
 		}
 	}
-	spend := ledger.SpendOf(l)
 	tokens, metered := l.Tokens()
 	got, gotMetered := spend.Tokens()
 	differs("Tokens", []any{got, gotMetered}, []any{tokens, metered})

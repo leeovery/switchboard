@@ -27,23 +27,23 @@ func ReadDigest(dir, date string, body int) (Digest, error) {
 }
 
 // SessionsAsOf returns the sessions with the given ids as of the start of
-// the local day with the given date, their states of the version body, as
-// the follower's lookup finds them, handing take each line read, where it's
-// given, for tests of the lookup.
-func (f *Follower) SessionsAsOf(ids []string, date string, body int, take func(date string, l Line)) map[string]SessionFrom {
-	return f.sessionsAsOf(ids, date, body, take)
+// the local day with the given date, as the follower's lookup finds them,
+// handing take each line read, where it's given, for tests of the lookup.
+func (f *Follower) SessionsAsOf(ids []string, date string, take func(date string, l Line)) map[string]SessionFrom {
+	return f.sessionsAsOf(ids, date, take)
 }
 
 // SessionsAsOf returns the sessions with the given ids as of the start of
-// the local day with the given date, at now, their states of the version
-// body, as the router's digester's lookup finds them, through the look its
-// passes take at the days, held from one to the next, for tests of the
-// lookup. The ledger must be opened Digesting.
-func (l *Ledger) SessionsAsOf(ids []string, date string, body int, now time.Time) map[string]SessionFrom {
+// the local day with the given date, at now, as the router's digester's
+// lookup finds them, through the look its passes take at the days, held
+// from one to the next, their states of the version its Digester gives, for
+// tests of the lookup. The ledger must be opened Digesting.
+func (l *Ledger) SessionsAsOf(ids []string, date string, now time.Time) map[string]SessionFrom {
 	l.digesting.passing.Lock()
 	defer l.digesting.passing.Unlock()
 	first, err := l.days.first()
-	return sessionsAsOf(l.days, l.digesting.view(), l.days.datesBefore(date, first, err, now), ids, body, newSessionsRead(now, nil))
+	view := l.digesting.view()
+	return newSessionsLookup(l.days, view).asOf(l.days.datesBefore(date, first, err, now), nil, wanting(make(map[string]bool), ids), nil, newSessionsRead(now, nil))
 }
 
 // RestsOn returns what a state folded from s rests on, as the lookup found

@@ -27,15 +27,16 @@ type stateReaders struct {
 
 // newStateReaders returns readers of the request ledger, the readings history
 // and the router's events in the state directory, by the commands' clock, the
-// ledger's days summarised with the caps of the accounts cfg configures. It
-// fails where there's no state directory to find.
+// ledger's days summarised with the caps of the accounts cfg configures, and
+// its sessions resting on the states its digests hold, of the version the
+// views build them in. It fails where there's no state directory to find.
 func (a *app) newStateReaders(cfg *config.Config) (stateReaders, error) {
 	dir, err := config.StateDir(a.Getenv, a.HomeDir)
 	if err != nil {
 		return stateReaders{}, err
 	}
 	return stateReaders{
-		ledger:   ledger.NewFollower(dir, a.Now, caps(cfg), logger),
+		ledger:   ledger.NewFollower(dir, a.Now, caps(cfg), views.DigestVersion, logger),
 		readings: readings.NewReader(dir, logger),
 		events:   events.NewReader(dir, a.Now, logger),
 	}, nil

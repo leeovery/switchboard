@@ -88,14 +88,14 @@ type heldSession struct {
 }
 
 // heldFlights are the flights of a session's requests the store holds, by
-// their ids, each with the sum of what its line says, in layers, as stacked
-// has them, so a session that takes more in shares them with the session it
-// took them from.
+// their ids, each with the sum of all it decodes of its line, in layers, as
+// stacked has them, so a session that takes more in shares them with the
+// session it took them from.
 type heldFlights = *stacked[map[string][]knownLine]
 
-// knownLine is the flight of a request the store holds, and the sum of what
-// its line says of it, as sumOf has it, so a line of the same request given
-// again is known from one that says otherwise of it.
+// knownLine is the flight of a request the store holds, and the sum of all
+// it decodes of its line, as heldRequest's summed has it, so a line of the
+// same request given again is known from one that says otherwise of it.
 type knownLine struct {
 	flight
 	sum uint64
@@ -405,18 +405,18 @@ func (f *feed) read(l LedgerSessions) {
 			}
 		}
 	}
-	var read map[string][]ledger.Line
+	var read map[string]ledger.SessionFrom
 	if listing {
-		read, f.listing = l.Sessions(ids, take), true
+		read, f.listing = l.Sessions(ids, eachWhole, take), true
 	} else {
-		read = l.SessionsOf(ids, take)
+		read = l.SessionsOf(ids, eachWhole, take)
 	}
 	for _, id := range ids {
-		f.hold(id, read[id], answers)
+		f.hold(id, read[id].Lines, answers)
 	}
-	for id, lines := range read {
+	for id, from := range read {
 		if _, held := f.sessions[id]; !held {
-			f.hold(id, lines, answers)
+			f.hold(id, from.Lines, answers)
 		}
 	}
 }
@@ -589,12 +589,12 @@ func (s *heldSession) since() string {
 // gained are the requests among requests, the session's of a read, that s
 // doesn't hold, in order, reporting false where it can't place them all,
 // whole where they're a day's read again whole: one with no id, which can't
-// be known from another; one of a request it holds whose line says
-// otherwise of it, which a read whole may hold in its place, as distinct
-// keeps the first of a request's lines it reads; one that arrived behind the
-// horizon, which would change what's sealed; or the requests of a day before
-// those whose flights it holds other than as many as it holds of that day,
-// or not read whole.
+// be known from another; one of a request it holds whose line decodes
+// otherwise of it, as summed has it, which a read whole may hold in its
+// place, as distinct keeps the first of a request's lines it reads; one that
+// arrived behind the horizon, which would change what's sealed; or the
+// requests of a day before those whose flights it holds other than as many
+// as it holds of that day, or not read whole.
 func (s *heldSession) gained(requests []heldRequest, whole bool) ([]heldRequest, bool) {
 	since := s.since()
 	counted := make(map[string]int)
@@ -629,10 +629,10 @@ func dateOf(r *heldRequest) string {
 	return dayfile.DateOf(r.arrived())
 }
 
-// heldSum is the sum of the line s holds of the request r, as sumOf has it,
-// reporting false where it holds none: of the same id, arrived at the same
-// moment, on the day with the given date, one of those it holds the flights
-// of.
+// heldSum is the sum s holds of the request r, as heldRequest's summed has
+// it, reporting false where it holds none: of the same id, arrived at the
+// same moment, on the day with the given date, one of those it holds the
+// flights of.
 func (s *heldSession) heldSum(r *heldRequest, date string) (uint64, bool) {
 	f, held := heldFlight(s.flights[date], r.request, func(f flight) bool { return f.at == r.at })
 	return f.sum, held

@@ -614,36 +614,36 @@ func TestTheDigestsOfALedgerHoldingNoDayAreDeleted(t *testing.T) {
 func TestDigestingAsDaysChangeWritesWhatALedgerAfreshDoes(t *testing.T) {
 	tests := []struct {
 		name   string
-		change func(w *lookupWorld)
+		change func(t *testing.T, w *lookupWorld)
 	}{
-		{name: "a late line of a session under a day it never ran on", change: func(w *lookupWorld) {
+		{name: "a late line of a session under a day it never ran on", change: func(t *testing.T, w *lookupWorld) {
 			w.file(-2, askedBy("late", "one", on(-2, 12, 0)))
 			w.summarise()
 		}},
-		{name: "a late line under a day of none", change: func(w *lookupWorld) {
+		{name: "a late line under a day of none", change: func(t *testing.T, w *lookupWorld) {
 			w.file(-1, askedBy("late", "two", on(-1, 12, 0)))
 			w.summarise()
 		}},
-		{name: "a new session under an old day", change: func(w *lookupWorld) {
+		{name: "a new session under an old day", change: func(t *testing.T, w *lookupWorld) {
 			w.file(-3, askedBy("late", "four", on(-3, 12, 0)))
 			w.summarise()
 		}},
-		{name: "the first day pruned", change: func(w *lookupWorld) {
-			removeFile(w.t, w.dir, "requests-"+dayOf(-3)+".jsonl")
-			removeFile(w.t, w.dir, filepath.Base(summaryFile(w.dir, dayOf(-3))))
+		{name: "the first day pruned", change: func(t *testing.T, w *lookupWorld) {
+			removeFile(t, w.dir, "requests-"+dayOf(-3)+".jsonl")
+			removeFile(t, w.dir, filepath.Base(summaryFile(w.dir, dayOf(-3))))
 		}},
-		{name: "a digest deleted by hand", change: func(w *lookupWorld) {
-			removeFile(w.t, w.dir, "digest-"+dayOf(0)+".json.gz")
+		{name: "a digest deleted by hand", change: func(t *testing.T, w *lookupWorld) {
+			removeFile(t, w.dir, "digest-"+dayOf(0)+".json.gz")
 		}},
-		{name: "every day compressed and summarised again", change: func(w *lookupWorld) {
-			compressAll(w.t, w.dir)
+		{name: "every day compressed and summarised again", change: func(t *testing.T, w *lookupWorld) {
+			compressAll(t, w.dir)
 			w.summarise()
 		}},
-		{name: "a day naming a session its digest holds no entry of", change: func(w *lookupWorld) {
+		{name: "a day naming a session its digest holds no entry of", change: func(t *testing.T, w *lookupWorld) {
 			digest := w.digestOf(0)
 			delete(digest.Sessions, "one")
 			if err := ledger.WriteDigest(w.dir, digest); err != nil {
-				w.t.Fatal(err)
+				t.Fatal(err)
 			}
 		}},
 	}
@@ -652,7 +652,7 @@ func TestDigestingAsDaysChangeWritesWhatALedgerAfreshDoes(t *testing.T) {
 			w := newLookupWorld(t)
 			sharedDays(w)
 			w.digestEnded()
-			tt.change(w)
+			tt.change(t, w)
 
 			w.digestEnded()
 			w.digestEnded()

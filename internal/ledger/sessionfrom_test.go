@@ -1,6 +1,7 @@
 package ledger_test
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -30,19 +31,22 @@ func dayOf(days int) string {
 // lookupWorld is a ledger the lookup's tests look sessions up in, as of a
 // day: the lines each test files under its days, summarised, and digested,
 // as the router's round and digester would, by a clock stopped at at, two
-// days after the last day the tests file lines under. writer is the router's
-// ledger, opened to digest its days with fold, whose digester's lookup the
-// tests ask, as the digester's own tests have it digest them.
+// days after the last day the tests file lines under; each state it digests
+// carrying filler bytes of filler, none where it's 0, as a busy session's
+// state runs to kilobytes. writer is the router's ledger, opened to digest
+// its days with fold, whose digester's lookup the tests ask, as the
+// digester's own tests have it digest them.
 type lookupWorld struct {
-	t                   *testing.T
+	t                   testing.TB
 	state, dir, history string
 	at                  time.Time
 	fold                *folding
 	writer              *ledger.Ledger
+	filler              int
 }
 
 // newLookupWorld returns a world of the test's own, holding no lines yet.
-func newLookupWorld(t *testing.T) *lookupWorld {
+func newLookupWorld(t testing.TB) *lookupWorld {
 	t.Helper()
 	state, dir, history := stateDirs(t)
 	w := &lookupWorld{t: t, state: state, dir: dir, history: history, at: on(3, 10, 0), fold: &folding{}}
@@ -92,13 +96,15 @@ func (w *lookupWorld) digest(days int, ids ...string) {
 		Head:     ledger.DigestHead{Body: digestBody, Day: date, Start: start, End: end, SummaryLines: lines, Lines: lines, Early: early, Late: late},
 		Sessions: make(map[string]ledger.DigestEntry),
 	}
-	sessions := w.writer.SessionsAsOf(ids, dayOf(days+1), digestBody, w.at)
+	sessions := w.writer.SessionsAsOf(ids, dayOf(days+1), w.at)
 	for _, id := range ids {
 		from, ok := sessions[id]
 		if !ok || from.RestsOn() == nil {
 			w.t.Fatalf("the digest of %s: session %s is found %t, resting on %v; want it found, resting on days it can tell", date, id, ok, from.RestsOn())
 		}
-		state, err := json.Marshal(foldedFrom(w.t, id, date, from))
+		folded := foldedFrom(w.t, id, date, from)
+		folded.Filler = fillerOf(w.filler, uint64(len(digest.Sessions)))
+		state, err := json.Marshal(folded)
 		if err != nil {
 			w.t.Fatal(err)
 		}
@@ -135,23 +141,37 @@ func (w *lookupWorld) arrivals(date string) (early, late int) {
 }
 
 // testState is a session's state as the lookup's tests fold it, as of the
-// end of a day: Of tells the session and the day, as stateAt tells them, and
-// Requests are those of the lines folded into it, in the order they were.
+// end of a day: Of tells the session and the day, as stateAt tells them;
+// Requests are those of the lines folded into it, in the order they were;
+// and Filler is what a world's filler gives it.
 type testState struct {
 	Of       string   `json:"of"`
 	Requests []string `json:"requests"`
+	Filler   string   `json:"filler,omitempty"`
+}
+
+// fillerOf is n bytes of hex, drawn from the given seed, as unlike each other
+// as a stored state's text is, so a digest of them gzips as one of states
+// would: none where n is 0.
+func fillerOf(n int, seed uint64) string {
+	r := rand.New(rand.NewPCG(seed, seed))
+	drawn := make([]byte, n/2)
+	for i := range drawn {
+		drawn[i] = byte(r.Uint32())
+	}
+	return hex.EncodeToString(drawn)
 }
 
 // foldedFrom is the state of the session with the given id as of the end of
 // the local day with the given date, folded from from, the session as of the
 // start of the day after: its base's requests, then those of its lines.
-func foldedFrom(t *testing.T, id, date string, from ledger.SessionFrom) testState {
+func foldedFrom(t testing.TB, id, date string, from ledger.SessionFrom) testState {
 	t.Helper()
 	return testState{Of: stateAt(id, date), Requests: append(baseOf(t, from.Base).Requests, requestsOf(from.Lines)...)}
 }
 
 // baseOf is the state base holds: none where it's nil.
-func baseOf(t *testing.T, base *ledger.SessionBase) testState {
+func baseOf(t testing.TB, base *ledger.SessionBase) testState {
 	t.Helper()
 	var state testState
 	if base != nil {
@@ -174,8 +194,8 @@ func stateAt(id, date string) string {
 func (w *lookupWorld) sessionsAsOf(days int, ids ...string) map[string]ledger.SessionFrom {
 	w.t.Helper()
 	date := dayOf(days)
-	read := followerOf(w.state, &testClock{at: w.at}, caps).SessionsAsOf(ids, date, digestBody, nil)
-	if written := w.writer.SessionsAsOf(ids, date, digestBody, w.at); !reflect.DeepEqual(read, written) {
+	read := followerOf(w.state, &testClock{at: w.at}, caps).SessionsAsOf(ids, date, nil)
+	if written := w.writer.SessionsAsOf(ids, date, w.at); !reflect.DeepEqual(read, written) {
 		w.t.Errorf("as of %s, the follower finds %q as\n%+v\nand the router's writer as\n%+v; want them alike", date, ids, read, written)
 	}
 	return read
@@ -199,7 +219,7 @@ type found struct {
 
 // foundOf tells each of sessions as found has it, by its id, failing the
 // test where one rests on a state its digest's day doesn't tell.
-func foundOf(t *testing.T, sessions map[string]ledger.SessionFrom) map[string]found {
+func foundOf(t testing.TB, sessions map[string]ledger.SessionFrom) map[string]found {
 	t.Helper()
 	all := make(map[string]found, len(sessions))
 	for id, s := range sessions {
@@ -448,7 +468,7 @@ func TestALookupReadsEachDayOnceForEverySessionWantingIt(t *testing.T) {
 		read[date][l.Request]++
 	}
 
-	got := foundOf(t, followerOf(w.state, &testClock{at: w.at}, caps).SessionsAsOf([]string{"one", "two", "three"}, dayOf(2), digestBody, take))
+	got := foundOf(t, followerOf(w.state, &testClock{at: w.at}, caps).SessionsAsOf([]string{"one", "two", "three"}, dayOf(2), take))
 
 	for date, requests := range read {
 		for request, times := range requests {
@@ -515,11 +535,12 @@ func TestTheLinesKeptOfADayAreThoseItsFilesHoldAsItsSummaryCountsThem(t *testing
 // generatedSessions are the sessions whose lines a generated ledger holds.
 var generatedSessions = []string{"one", "two", "three", "four"}
 
-// generatedLedger is a ledger whose lines r draws, filed in w: the lines
-// each day's file holds, by the day's offset from the summaries' day, and
-// the date of the day whose file holds each, by its request.
+// generatedLedger is a ledger whose lines r draws, from seed, filed in w: the
+// lines each day's file holds, by the day's offset from the summaries' day,
+// and the date of the day whose file holds each, by its request.
 type generatedLedger struct {
 	w     *lookupWorld
+	seed  uint64
 	r     *rand.Rand
 	days  map[int][]ledger.Line
 	filed map[string]string
@@ -529,7 +550,7 @@ type generatedLedger struct {
 // from the given seed, holding none yet.
 func newGeneratedLedger(t *testing.T, seed uint64) *generatedLedger {
 	t.Helper()
-	return &generatedLedger{w: newLookupWorld(t), r: rand.New(rand.NewPCG(seed, seed)), days: make(map[int][]ledger.Line), filed: make(map[string]string)}
+	return &generatedLedger{w: newLookupWorld(t), seed: seed, r: rand.New(rand.NewPCG(seed, seed)), days: make(map[int][]ledger.Line), filed: make(map[string]string)}
 }
 
 // generate files the lines of the sessions that run on each local day from
@@ -620,7 +641,7 @@ func TestALookupGivesWhatARawReadGivesOverAGeneratedLedger(t *testing.T) {
 			sessions := g.w.sessionsAsOf(2, generatedSessions...)
 
 			for _, id := range generatedSessions {
-				raw := requestsOf(followerOf(g.w.state, &testClock{at: g.w.at}, caps).SessionsOf([]string{id}, nil)[id])
+				raw := requestsOf(followerOf(g.w.state, &testClock{at: g.w.at}, caps).SessionsOf([]string{id}, eachWhole, nil)[id].Lines)
 				from, base := sessions[id], ""
 				if from.Base != nil {
 					base = from.Base.Date

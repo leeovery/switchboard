@@ -173,15 +173,16 @@ func (f fakeLedger) Session(id string) iter.Seq[ledger.Held] {
 	}
 }
 
-// Sessions reads as a Follower does: today's files, and those of the days
-// either side, then the days before whose summaries name a session read.
-func (f fakeLedger) Sessions(ids []string, take func(string, ledger.Line)) map[string][]ledger.Line {
-	return f.sessions(ids, true, take)
+// Sessions reads as a Follower of a ledger that holds no digest does: today's
+// files, and those of the days either side, then the days before whose
+// summaries name a session read, each session read whole.
+func (f fakeLedger) Sessions(ids []string, _ func(string) bool, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	return ledger.SessionsWhole(f.sessions(ids, true, take))
 }
 
-// SessionsOf reads as a Follower does, those with the given ids alone.
-func (f fakeLedger) SessionsOf(ids []string, take func(string, ledger.Line)) map[string][]ledger.Line {
-	return f.sessions(ids, false, take)
+// SessionsOf reads as Sessions does, those with the given ids alone.
+func (f fakeLedger) SessionsOf(ids []string, _ func(string) bool, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	return ledger.SessionsWhole(f.sessions(ids, false, take))
 }
 
 // sessions reads the sessions with the given ids, and where todays is set,
@@ -629,14 +630,14 @@ type countedLedger struct {
 	counts *readCounts
 }
 
-func (c countedLedger) Sessions(ids []string, take func(string, ledger.Line)) map[string][]ledger.Line {
+func (c countedLedger) Sessions(ids []string, whole func(string) bool, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
 	c.counts.sessionsRead++
-	return c.fakeLedger.Sessions(ids, take)
+	return c.fakeLedger.Sessions(ids, whole, take)
 }
 
-func (c countedLedger) SessionsOf(ids []string, take func(string, ledger.Line)) map[string][]ledger.Line {
+func (c countedLedger) SessionsOf(ids []string, whole func(string) bool, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
 	c.counts.sessionsRead++
-	return c.fakeLedger.SessionsOf(ids, take)
+	return c.fakeLedger.SessionsOf(ids, whole, take)
 }
 
 func (c countedLedger) Session(id string) iter.Seq[ledger.Held] {

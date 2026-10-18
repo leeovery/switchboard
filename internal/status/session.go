@@ -2,6 +2,7 @@ package status
 
 import (
 	"cmp"
+	"math"
 	"path"
 	"slices"
 	"strconv"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/score"
 )
 
 const (
@@ -49,6 +51,9 @@ const (
 	// ReasonRescored starts the reason for choosing afresh the account of a
 	// session that idled, as Rescored gives it.
 	ReasonRescored = "rescored after "
+	// ReasonCompacted starts the reason for moving a session at the first
+	// request after its compaction, as Compacted gives it.
+	ReasonCompacted = "compacted: "
 	// ReasonBack is a session going back to the account it was on before a
 	// request every account it went out on refused.
 	ReasonBack = "back where it was before its request"
@@ -62,6 +67,25 @@ const rescoredIdle = " idle"
 // idled says it.
 func Rescored(idle time.Duration) string {
 	return ReasonRescored + idled(idle) + rescoredIdle
+}
+
+// The reason Compacted gives goes on from the account it names, and ends
+// after the share of its week left.
+const (
+	compactedResets = " would reset with "
+	compactedLeft   = " of its week left"
+)
+
+// Compacted is the reason for moving a session at the first request after
+// its compaction to the account with the given id, whose week would reset
+// with the share left of it unused, as in "compacted: side would reset with
+// 35% of its week left": a whole percentage, rounded down, so it never says
+// more is left than would be. A share within score.Tolerance below a whole
+// percentage counts as it, as 0.57 does, which floating point makes just
+// under 57%.
+func Compacted(to string, left float64) string {
+	percent := int(math.Floor((left + score.Tolerance) * 100))
+	return ReasonCompacted + to + compactedResets + strconv.Itoa(percent) + "%" + compactedLeft
 }
 
 // idled says how long a session idled, as the reason Rescored gives files it:

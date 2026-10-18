@@ -205,9 +205,9 @@ func (d *digesting) digestDue(ctx context.Context, dates []string, now time.Time
 }
 
 // view returns a look at the ledger's days for one pass, finding each day
-// as find does.
+// as find does, and reading their digests of the version its Digester gives.
 func (d *digesting) view() writerLook {
-	return writerLook{looked: make(map[string]writtenDay), find: d.find}
+	return writerLook{days: d.days, body: d.digester.Version(), looked: make(map[string]writtenDay), find: d.find}
 }
 
 // due reports whether the digest of the local day with the given date, the
@@ -227,8 +227,8 @@ func (d *digesting) due(dates []string, view writerLook) bool {
 		return false
 	}
 	delete(d.judged, date)
-	digest, err := d.days.digest(date, d.digester.Version())
-	if err != nil || !holds(digest, dates, view) {
+	digest, ok := view.digest(date)
+	if !ok || !holds(digest, dates, view) {
 		return true
 	}
 	d.judged[date] = judgementOf(digest, file)
@@ -250,9 +250,9 @@ func holds(digest Digest, dates []string, view writerLook) bool {
 	if !grounds.current(digest.Head) || !digest.entering(named) {
 		return false
 	}
-	naming := namingEach(view, dates, wanting(make(map[string]bool), slices.Collect(maps.Keys(digest.Sessions))))
+	asked := newSessionsLookup(view.days, view).namingEach(dates, nil, wanting(make(map[string]bool), slices.Collect(maps.Keys(digest.Sessions))))
 	for id, entry := range digest.Sessions {
-		if !grounds.restsOn(entry) || !restsOnEach(entry, naming[id]) {
+		if !grounds.restsOn(entry) || !restsOnEach(entry, asked[id].naming) {
 			return false
 		}
 	}
@@ -366,13 +366,13 @@ func (d *digesting) digestOf(ctx context.Context, dates []string, view writerLoo
 	date := dates[len(dates)-1]
 	day := view.day(date)
 	start, end, _ := dayfile.Day(date)
-	head := DigestHead{Body: d.digester.Version(), Day: date, Start: start, End: end, SummaryLines: day.lines}
+	head := DigestHead{Body: view.body, Day: date, Start: start, End: end, SummaryLines: day.lines}
 	var err error
 	if head.Lines, head.Early, head.Late, err = d.days.arrivals(date, start, end); err != nil {
 		return Digest{}, err
 	}
 	named, _ := day.named()
-	sessions := sessionsAsOf(d.days, view, dates, named, head.Body, newSessionsRead(now, nil))
+	sessions := newSessionsLookup(d.days, view).asOf(dates, nil, wanting(make(map[string]bool), named), nil, newSessionsRead(now, nil))
 	maps.DeleteFunc(sessions, func(_ string, s SessionFrom) bool { return s.restsOn == nil })
 	folding := maps.Clone(sessions)
 	maps.DeleteFunc(folding, func(_ string, s SessionFrom) bool { return s.restingOn(date) })

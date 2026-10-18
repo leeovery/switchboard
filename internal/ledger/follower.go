@@ -25,27 +25,33 @@ import (
 // read, until its stamp or its sizes change; today, and any day not
 // summarised since lines came to be filed under it, a running tally of its
 // lines as they're tailed, beside the readings history, read as it grows too;
-// and a session's days found by the summaries' session ids. What it gives is
-// what a Reader gives, reading them whole. It's safe for concurrent use.
+// a session's days found by the summaries' session ids; and the sessions it
+// reads resting on the states the digests of the days before hold, of the
+// version body, their builder's, as it's told where it's made. What it gives
+// is what a Reader gives, reading them whole. It's safe for concurrent use.
 type Follower struct {
 	days    days
 	history *dayfile.Files
 	now     func() time.Time
+	body    int
 
 	mu       sync.Mutex
 	listing  heldListing[dayListing]
 	readings heldListing[[]string]
 	unlisted failing
 	followed map[string]*followedDay
+	heads    map[string]heldHead
 	today    todaysLines
 }
 
 // NewFollower returns a follower of the ledger in the state directory
 // stateDir, by now's clock, which summarises days with the accounts' caps as
-// caps gives them, what it can't read logged to logger.
-func NewFollower(stateDir string, now func() time.Time, caps Caps, logger *slog.Logger) *Follower {
+// caps gives them, and rests the sessions it reads on the states digests
+// hold of the version body, as their builder gives it, what it can't read
+// logged to logger.
+func NewFollower(stateDir string, now func() time.Time, caps Caps, body int, logger *slog.Logger) *Follower {
 	d, history := daysIn(stateDir, caps, logger)
-	return &Follower{days: d, history: history, now: now, followed: make(map[string]*followedDay)}
+	return &Follower{days: d, history: history, now: now, body: body, followed: make(map[string]*followedDay), heads: make(map[string]heldHead)}
 }
 
 // heldListing is what a listing of a directory found, found, or why it
@@ -334,6 +340,35 @@ func (d days) lookAt(date string) look {
 		l.none, l.err = true, nil
 	}
 	return l
+}
+
+// heldHead is the head of a day's digest as a Follower last read it: file,
+// the digest's file as it looked then; and the head, held false where it
+// didn't read as the day's, of the version the follower reads.
+type heldHead struct {
+	file fs.FileInfo
+	head DigestHead
+	held bool
+}
+
+// digestHead returns the head of the digest the ledger holds of the local
+// day with the given date, as days.digestHead reads it, of the version the
+// follower reads, reporting false where it holds none that reads: as it was
+// last read, while its file looks as it did then, as dayfile.SameAs says, as
+// the follower holds summaries; else read afresh, and held. The follower is
+// held.
+func (f *Follower) digestHead(date string) (DigestHead, bool) {
+	file, err := os.Stat(digestFile(f.days.files.Dir, date))
+	if err != nil {
+		delete(f.heads, date)
+		return DigestHead{}, false
+	}
+	if held, ok := f.heads[date]; ok && dayfile.SameAs(held.file, file) {
+		return held.head, held.held
+	}
+	head, err := f.days.digestHead(date, f.body)
+	f.heads[date] = heldHead{file: file, head: head, held: err == nil}
+	return head, err == nil
 }
 
 // same reports whether l looks as other does: the same summary's file, as

@@ -170,6 +170,21 @@ func (v view) pinned(ids []string) (score.Choice, bool) {
 	return v.policy.PickPinned(v.open(), ids, v.applies, "", v.now)
 }
 
+// atCompaction returns the account a new session would go to, as pick
+// chooses it, those pinned first, preferring none, and how moving a session
+// there from the account with the given id, at the first request after its
+// compaction, is judged, as score.Policy.AtCompaction judges it: where none
+// is chosen, it stays, as nothing is known to judge by.
+func (v view) atCompaction(from string, pinned []string) (score.Choice, score.Move) {
+	c, ok := v.pick("", pinned...)
+	if !ok {
+		return score.Choice{}, score.Move{}
+	}
+	own, _ := v.candidate(from)
+	choice, _ := v.candidate(c.ID)
+	return c, v.policy.AtCompaction(own, choice, v.now)
+}
+
 // full returns the ids of the accounts whose windows as last read leave no
 // room for the request, and that aren't barred: a probe could find room on
 // them after all, were a window to have reset unseen.

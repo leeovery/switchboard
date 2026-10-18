@@ -30,7 +30,7 @@ func openedOn(t *testing.T, state string, view dashboard.View, lines ...ledger.H
 	h := routedHarness(t, routerDocument(three()...))
 	h.source.sessions = []status.Session{sessionOn(idD28C, opus, "work", 0), sessionOn(id7F3A, "claude-haiku-4-5", "work", 0)}
 	writeLines(t, state, lines...)
-	l := ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, logs.For("watch"))
+	l := ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, views.DigestVersion, logs.For("watch"))
 	cfg := h.config(Size{Width: 160, Height: 37})
 	cfg.Ledger, cfg.View = l, view
 	h.model = New(t.Context(), cfg)

@@ -15,10 +15,11 @@ import (
 // story and told again only as the store says the story changed, its words
 // sharing the strings the store's requests name; when it was taken in among
 // the read's lines, and where its row sits within its day, as placedRow has
-// it; its request's flight, and the sum of what its line says, as sumOf has
-// it; how the router routed it, as its routing is told again; and what its
-// details give beyond its row. The table's lines point at it, so a row is
-// held once. Its day holds the handles of its words, as interning has them.
+// it; its request's flight, and the sum of what its line says, as lineSumOf
+// has it; how the router routed it, as its routing is told again; and what
+// its details give beyond its row. The table's lines point at it, so a row
+// is held once. Its day holds the handles of its words, as interning has
+// them.
 type loggedLine struct {
 	row    RequestRow
 	seq    int
@@ -90,7 +91,7 @@ func (d *lineDetails) windowsRead(reserve float64) []claude.WindowRead {
 // placed at place, its request worth what's given, its row told of the
 // story s of its session, nil for none, and its words interned by n.
 func loggedLineOf(l *ledger.Line, seq int, place time.Time, worth Worth, s *story, n interning) *loggedLine {
-	logged := &loggedLine{row: lineFacts(l, n), seq: seq, place: place, flight: flightOf(l), sum: sumOf(l), routed: routedOf(l, n), shown: detailsOf(l, n)}
+	logged := &loggedLine{row: lineFacts(l, n), seq: seq, place: place, flight: flightOf(l), sum: lineSumOf(l), routed: routedOf(l, n), shown: detailsOf(l, n)}
 	logged.row.Worth = worth
 	logged.row.toldBy(logged.routed, s)
 	return logged

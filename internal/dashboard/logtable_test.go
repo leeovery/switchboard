@@ -15,17 +15,17 @@ import (
 	"github.com/leeovery/switchboard/internal/views/viewstest"
 )
 
-// sessionsHeld reads the sessions of the lines given, every line of each, as
-// a ledger holding them alone does.
+// sessionsHeld reads the sessions of the lines given, each read whole, as a
+// ledger holding them alone, and no digest, does.
 type sessionsHeld []ledger.Line
 
 // SessionsOf reads as Sessions does: the sessions of the lines given are
 // all there are.
-func (s sessionsHeld) SessionsOf(ids []string, take func(date string, l ledger.Line)) map[string][]ledger.Line {
-	return s.Sessions(ids, take)
+func (s sessionsHeld) SessionsOf(ids []string, whole func(string) bool, take func(date string, l ledger.Line)) map[string]ledger.SessionFrom {
+	return s.Sessions(ids, whole, take)
 }
 
-func (s sessionsHeld) Sessions(_ []string, take func(date string, l ledger.Line)) map[string][]ledger.Line {
+func (s sessionsHeld) Sessions(_ []string, _ func(string) bool, take func(date string, l ledger.Line)) map[string]ledger.SessionFrom {
 	got := make(map[string][]ledger.Line)
 	for _, l := range s {
 		if l.Session == "" {
@@ -36,7 +36,7 @@ func (s sessionsHeld) Sessions(_ []string, take func(date string, l ledger.Line)
 			take(dayfile.DateOf(l.At), l)
 		}
 	}
-	return got
+	return ledger.SessionsWhole(got)
 }
 
 // heldOf are the lines as the ledger holds them.

@@ -15,19 +15,20 @@ import (
 )
 
 // momentsLedger is a moment's lines as the ledger reads a session's page's:
-// every line of each session, by its id, oldest first, and each line handed
-// to take with its day's date. A page reads nothing else of it.
+// each session read whole, every line of it, by its id, oldest first, and
+// each line handed to take with its day's date. A page reads nothing else of
+// it.
 type momentsLedger struct {
 	views.Ledger
 	lines []ledger.Line
 }
 
 // SessionsOf reads as Sessions does: a moment's sessions are all there are.
-func (l momentsLedger) SessionsOf(ids []string, take func(date string, l ledger.Line)) map[string][]ledger.Line {
-	return l.Sessions(ids, take)
+func (l momentsLedger) SessionsOf(ids []string, whole func(string) bool, take func(date string, l ledger.Line)) map[string]ledger.SessionFrom {
+	return l.Sessions(ids, whole, take)
 }
 
-func (l momentsLedger) Sessions(_ []string, take func(date string, l ledger.Line)) map[string][]ledger.Line {
+func (l momentsLedger) Sessions(_ []string, _ func(string) bool, take func(date string, l ledger.Line)) map[string]ledger.SessionFrom {
 	sessions := make(map[string][]ledger.Line)
 	for _, line := range l.lines {
 		if take != nil {
@@ -35,7 +36,7 @@ func (l momentsLedger) Sessions(_ []string, take func(date string, l ledger.Line
 		}
 		sessions[line.Session] = append(sessions[line.Session], line)
 	}
-	return sessions
+	return ledger.SessionsWhole(sessions)
 }
 
 // momentsShown is the page of the session with the given id at the moment

@@ -68,8 +68,9 @@ func gunzipped(t *testing.T, data []byte) []byte {
 }
 
 // A digest reads back as it was written, every field of it, a session's
-// state byte for byte, its characters unescaped; and each session's entry
-// is the one written, whichever is asked for.
+// state byte for byte, its characters unescaped; each session's entry is the
+// one written, whichever is asked for; and its head, read alone, is the head
+// written.
 func TestADigestReadsBackAsItWasWritten(t *testing.T) {
 	every := arriving(headOf(digested, 42), 1, 2)
 	every.Lines = 41
@@ -110,6 +111,102 @@ func TestADigestReadsBackAsItWasWritten(t *testing.T) {
 				if got := read.Sessions[id]; !reflect.DeepEqual(got, want) {
 					t.Errorf("the entry of %q reads %+v, want %+v", id, got, want)
 				}
+			}
+			if head, err := d.digestHead(digested, statesVersion); err != nil || !reflect.DeepEqual(head, tt.digest.Head) {
+				t.Errorf("digestHead(%q) = %+v, %v; want %+v, as it was written", digested, head, err, tt.digest.Head)
+			}
+		})
+	}
+}
+
+// A digest's head is read by stopping at its sessions' entries: so they're
+// its stored form's last field, written after every field of its head.
+func TestADigestsSessionsAreItsStoredFormsLastField(t *testing.T) {
+	fields := reflect.VisibleFields(reflect.TypeFor[storedDigest]())
+	if name, _, _ := strings.Cut(fields[len(fields)-1].Tag.Get("json"), ","); name != digestSessions {
+		t.Errorf("storedDigest's last field is stored as %q, want %q: its head's fields come first, as storedHeadIn reads them", name, digestSessions)
+	}
+}
+
+// A digest's head is read without its sessions' entries, which no damage to
+// them or its gzip trailer fails, as the whole read does, as none of them is
+// read.
+func TestADigestsHeadIsReadWithoutItsSessions(t *testing.T) {
+	head := `{"version":1,"body":3,"day":"2026-10-05","from":1,"to":2,"summary_lines":40,"lines":40,"late":1,`
+	whole := gzippedText(t, head+`"sessions":{"one":{"state":[1]}}}`)
+	tests := []struct {
+		name string
+		file []byte
+	}{
+		{name: "its sessions cut short", file: gzippedText(t, head+`"sessions":{"one":{"sta`)},
+		{name: "its sessions not JSON", file: gzippedText(t, head+`"sessions":not a digest`)},
+		{name: "cut short in its gzip trailer", file: whole[:len(whole)-4]},
+	}
+	want := DigestHead{Body: statesVersion, Day: digested, Start: time.Unix(0, 1), End: time.Unix(0, 2), SummaryLines: 40, Lines: 40, Late: 1}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := digestDays(t)
+			if err := os.WriteFile(digestFile(d.files.Dir, digested), tt.file, 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			got, err := d.digestHead(digested, statesVersion)
+
+			if err != nil || !reflect.DeepEqual(got, want) {
+				t.Errorf("digestHead(%q) = %+v, %v; want %+v, its sessions unread", digested, got, err, want)
+			}
+			if _, err := d.digest(digested, statesVersion); !errors.Is(err, errNotTheDaysDigest) {
+				t.Errorf("digest(%q) failed with %v, want %v: the whole read reads its sessions", digested, err, errNotTheDaysDigest)
+			}
+		})
+	}
+}
+
+// A digest's head that doesn't read as the day's digest's, or reads as one of
+// another version, fails as the whole read fails.
+func TestADigestsHeadThatDoesntReadFailsAsTheWholeReadDoes(t *testing.T) {
+	stored := storedOf(Digest{Head: headOf(digested, 40)})
+	file := func(s storedDigest) []byte {
+		data, err := gzippedJSON(s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return data
+	}
+	envelope := stored
+	envelope.Version = digestVersion + 1
+	tests := []struct {
+		name string
+		// file is what the ledger holds as the day's digest: nil for none.
+		file []byte
+		body int
+		want error
+	}{
+		{name: "none held", file: nil, body: statesVersion, want: fs.ErrNotExist},
+		{name: "of another version of the envelope", file: file(envelope), body: statesVersion, want: errDigestOutdated},
+		{name: "of another version of the states", file: file(stored), body: statesVersion + 1, want: errDigestOutdated},
+		{name: "another day's", file: file(storedOf(Digest{Head: headOf(before, 7)})), body: statesVersion, want: errNotTheDaysDigest},
+		{name: "cut short within its head", file: gzippedText(t, `{"version":1,"body":3,"day":"2026-10-05","from":`), body: statesVersion, want: errNotTheDaysDigest},
+		{name: "not gzipped", file: gunzipped(t, file(stored)), body: statesVersion, want: errNotTheDaysDigest},
+		{name: "gzipped, but not JSON", file: gzippedText(t, "not a digest"), body: statesVersion, want: errNotTheDaysDigest},
+		{name: "gzipped JSON, but not an object", file: gzippedText(t, `["2026-10-05"]`), body: statesVersion, want: errNotTheDaysDigest},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := digestDays(t)
+			if tt.file != nil {
+				if err := os.WriteFile(digestFile(d.files.Dir, digested), tt.file, 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			_, err := d.digestHead(digested, tt.body)
+
+			if !errors.Is(err, tt.want) {
+				t.Errorf("digestHead(%q, %d) failed with %v, want %v", digested, tt.body, err, tt.want)
+			}
+			if _, whole := d.digest(digested, tt.body); !errors.Is(whole, tt.want) {
+				t.Errorf("digest(%q, %d) failed with %v, want %v, as the head read fails", digested, tt.body, whole, tt.want)
 			}
 		})
 	}

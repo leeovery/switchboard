@@ -52,7 +52,7 @@ func (l *daysCounted) DaysOn(dates []string) []ledger.Summary {
 // directory given, as daysCounted counts its reads.
 func onTheLog(h *harness, state string) *daysCounted {
 	l := &daysCounted{}
-	l.Ledger = ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, logs.For("watch"))
+	l.Ledger = ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, views.DigestVersion, logs.For("watch"))
 	h.model.cfg.Ledger, h.model.view = l, dashboard.Log
 	return l
 }

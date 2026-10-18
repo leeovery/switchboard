@@ -169,7 +169,7 @@ func followedHarness(t *testing.T, state string) (*harness, *followed) {
 	t.Helper()
 	l := &followed{}
 	h := tracedHarness(t, l)
-	l.Ledger = ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, logs.For("watch"))
+	l.Ledger = ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, views.DigestVersion, logs.For("watch"))
 	return h, l
 }
 
@@ -264,7 +264,7 @@ func TestTheStreamOpeningAgainNeverHasTodaysLinesGivenWholeAgain(t *testing.T) {
 		t.Errorf("today's lines were read giving them whole %v, want %v: whole by the first read and the Log's open alone, then what the files gained, at each look and as the stream opened again",
 			l.afresh, want)
 	}
-	whole, _, _ := ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, logs.For("watch")).Today(ledger.Mark{})
+	whole, _, _ := ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, views.DigestVersion, logs.For("watch")).Today(ledger.Mark{})
 	want := views.Traces{}.Read(whole, h.clock.now)
 	if !sameTraces(h.model.traces.Accounts, want.Accounts) || !sameTraces(h.model.traces.Sessions, want.Sessions) {
 		t.Errorf("the traces count %v by account and %v by session, want %v and %v, as one read of today's lines whole counts them",
