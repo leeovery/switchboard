@@ -292,20 +292,30 @@ func (tr trip) wholeMove(m move) *move {
 	return &tr.whole.story.moves[i]
 }
 
+// The hard moments of a round trip that the reads over digests meet too, of
+// a session resting on its state of a day D, read on a day T.
+const (
+	settledAfter = "a move on D settled by a request after midnight"
+	flightAcross = "a request in flight across midnight, arrived on D and ended on D+1"
+	agentAcross  = "a subagent's thread first seen on D continuing on D+1"
+	idlessStored = "a request without an id, stored"
+	idlessLater  = "a request without an id, told on after D"
+)
+
 // tripMoments are the hard moments a round trip meets, each with what tells
 // a trip met it, of its state of a day D restored on a day T.
 var tripMoments = map[string]func(tr trip) bool{
-	"a move on D settled by a request after midnight": func(tr trip) bool {
+	settledAfter: func(tr trip) bool {
 		return slices.ContainsFunc(tr.stateMoves(), func(m move) bool { w := tr.wholeMove(m); return !m.settled && w != nil && w.settled })
 	},
 	"a move whose rewriting request found the cache cold": func(tr trip) bool {
 		return slices.ContainsFunc(tr.stateMoves(), func(m move) bool { return m.settled && m.rewrote == nil && m.written > 0 })
 	},
-	"a request in flight across midnight, arrived on D and ended on D+1": func(tr trip) bool {
+	flightAcross: func(tr trip) bool {
 		end := tr.next().Start
 		return slices.ContainsFunc(tr.onDay(tr.from.day), func(q heldRequest) bool { return !q.ended().Before(end) })
 	},
-	"a subagent's thread first seen on D continuing on D+1": func(tr trip) bool {
+	agentAcross: func(tr trip) bool {
 		before := tr.r.arrived(time.Time{}, tr.from.day.Start)
 		return slices.ContainsFunc(tr.onDay(tr.from.day), func(q heldRequest) bool {
 			continues := func(o heldRequest) bool { return o.agentID == q.agentID }
@@ -316,10 +326,10 @@ var tripMoments = map[string]func(tr trip) bool{
 	"a session whose requests start saying their class on D+1": func(tr trip) bool {
 		return !tr.from.held.sealed.classed && slices.ContainsFunc(tr.onDay(tr.next()), func(q heldRequest) bool { return q.class.Value() != "" })
 	},
-	"a request without an id, stored": func(tr trip) bool {
+	idlessStored: func(tr trip) bool {
 		return slices.ContainsFunc(tr.r.arrived(time.Time{}, tr.next().Start), func(q heldRequest) bool { return q.request == "" })
 	},
-	"a request without an id, told on after D": func(tr trip) bool {
+	idlessLater: func(tr trip) bool {
 		return slices.ContainsFunc(tr.r.arrived(tr.next().Start, dayfile.DayStart(tr.on.Start, 1)), func(q heldRequest) bool { return q.request == "" })
 	},
 	"a session idle for days between D and T": func(tr trip) bool {

@@ -21,6 +21,7 @@ import (
 	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // The soak's world: requests sent at its pace's rate, two in five of them
@@ -61,8 +62,8 @@ var soakRun = start.Add(-30 * 24 * time.Hour).UTC()
 // run from the start of its first day to the clock's time, at: each request
 // sent in turn, told of as the router's stream tells, and filed on the
 // ledger as it ends; the readings and the router's events filed; each day
-// summarised once it has ended, and its files compressed the day after, as
-// the router has them.
+// summarised once it has ended, and digested by the views' Digests, and its
+// files compressed the day after, as the router has them.
 type soakWorld struct {
 	busyWorld
 	tb         testing.TB
@@ -119,7 +120,7 @@ func newSoakWorld(tb testing.TB, now time.Time, days int, pace soakPace) *soakWo
 	}
 	quiet := slog.New(slog.DiscardHandler)
 	w.ledger = ledger.Open(ledger.Dir(w.state), 400*24*time.Hour, func() time.Time { return w.at }, ledger.HistoryIn(readings.Files(readings.Dir(w.state), quiet)),
-		w.caps(), quiet)
+		w.caps(), quiet, ledger.Digesting(views.Digests{}))
 	for w.at.Before(now) {
 		next := w.at.Add(time.Minute)
 		if next.After(now) {
@@ -128,8 +129,16 @@ func newSoakWorld(tb testing.TB, now time.Time, days int, pace soakPace) *soakWo
 		w.advance(w.at, next)
 	}
 	w.flush()
-	w.ledger.SummariseEnded(now)
+	w.round(now)
 	return w
+}
+
+// round is the router's round at at, its files written: the days that have
+// ended summarised, and each finished day due digested by the views'
+// Digests, as its digester does once the round kicks it, at once here.
+func (w *soakWorld) round(at time.Time) {
+	w.ledger.SummariseEnded(at)
+	w.ledger.DigestEnded(w.tb.Context(), at)
 }
 
 // advance runs the world from was to at, returning what the router's stream
@@ -137,15 +146,19 @@ func newSoakWorld(tb testing.TB, now time.Time, days int, pace soakPace) *soakWo
 // session goes out on another account than it did last; each in flight
 // told of, its line filed as it ends; the readings filed as each falls due;
 // and the router telling of an account capped every three hours, with room
-// again forty minutes on. A day that ends is summarised, and the files of
-// the day before it compressed.
+// again forty minutes on. The router's round comes as a day begins, the
+// files of the day before the one that ended compressed, and on the hour.
 func (w *soakWorld) advance(was, at time.Time) []router.StreamEvent {
 	w.tb.Helper()
 	w.at = at
-	if dayfile.DateOf(was) != dayfile.DateOf(at) {
+	switch {
+	case dayfile.DateOf(was) != dayfile.DateOf(at):
 		w.flush()
-		w.ledger.SummariseEnded(at)
+		w.round(at)
 		w.compress(dayfile.DateOf(dayfile.DayStart(at, -2)))
+	case crossed(was, at, at.Truncate(time.Hour)):
+		w.flush()
+		w.round(at)
 	}
 	var told []router.StreamEvent
 	for at.Sub(w.origin) >= time.Duration(w.sent)*w.pace.gap() {

@@ -57,6 +57,17 @@ func (n Names) Type(named *types.Named) string {
 	return strings.TrimPrefix(obj.Pkg().Path(), n.internal) + "." + obj.Name()
 }
 
+// Declared is the name of obj, declared at its package's level, by its
+// package's, as "status.Account": "" of one of no package under the
+// internal directory, or declared within a function or a type.
+func (n Names) Declared(obj types.Object) string {
+	pkg := obj.Pkg()
+	if pkg == nil || obj.Parent() != pkg.Scope() || !strings.HasPrefix(pkg.Path(), n.internal) {
+		return ""
+	}
+	return strings.TrimPrefix(pkg.Path(), n.internal) + "." + obj.Name()
+}
+
 // StructOf is the struct t is, or points to, and the type it's named by,
 // where it is: nil where it's no struct.
 func StructOf(t types.Type) (*types.Named, *types.Struct) {
@@ -76,8 +87,9 @@ type Rule struct {
 	// the field named, as "status.Account.ID", breaks the rule.
 	Fields []string
 	Read   func(field string) string
-	// Used are the functions none of which may be used, called or not, and
-	// the fields, as "status.Account.ID", none of which may be read, each
+	// Used are the functions none of which may be used, called or not; the
+	// types and constants, as "status.Account", none of which may be named;
+	// and the fields, as "status.Account.ID", none of which may be read, each
 	// with how using it breaks the rule, and where.
 	Used map[string]Ban
 	// Calls are the functions whose calls may break the rule, by what they're
@@ -196,12 +208,21 @@ func (w *walk) field(sel *ast.SelectorExpr) {
 }
 
 // used finds id using a function of Used, or one of Owners' that takes one
-// of Fields, or one the rule allows.
+// of Fields, or one the rule allows; or a type or a constant of Used.
 func (w *walk) used(id *ast.Ident) {
-	fn, ok := w.info.Uses[id].(*types.Func)
-	if !ok {
-		return
+	switch obj := w.info.Uses[id].(type) {
+	case *types.Func:
+		w.usedFunc(id, obj)
+	case *types.TypeName, *types.Const:
+		if ban, ok := w.r.Used[w.r.Declared(obj)]; ok && ban.holdsIn(w.dir) {
+			w.breach(id.Pos(), ban.Says)
+		}
 	}
+}
+
+// usedFunc finds id using fn, where it's of Used, or one of Owners' that
+// takes one of Fields, or one the rule allows.
+func (w *walk) usedFunc(id *ast.Ident, fn *types.Func) {
 	switch name, says := w.r.called(fn, w.dir); {
 	case says != "":
 		w.breach(id.Pos(), says)

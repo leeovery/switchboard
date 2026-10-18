@@ -174,6 +174,80 @@ func tested(r data.Record) string { return r.ID }
 `,
 }
 
+func TestACheckFindsEachTypeAndConstantNamedThatItsRuleBans(t *testing.T) {
+	root := sourcecheck.WriteModule(t, typesNamedFixture)
+	r := sourcecheck.Rule{Names: sourcecheck.NamesIn("example.com/fixture"), Used: map[string]sourcecheck.Ban{
+		"data.Banned": {Says: "data.Banned is banned in reader; " + usedFix, In: []string{"internal/reader"}},
+		"data.Limit":  {Says: "data.Limit is banned; " + usedFix},
+	}}
+	got := sourcecheck.Check(t, root, "example.com/fixture", r, []string{"internal/reader", "internal/other"}, fixtureAllowance())
+	want := []string{
+		"internal/reader/named.go:5: data.Banned is banned in reader; " + usedFix,
+		"internal/reader/named.go:7: data.Banned is banned in reader; " + usedFix,
+		"internal/reader/named.go:9: data.Limit is banned; " + usedFix,
+		"internal/reader/named.go:11: data.Banned is banned in reader; " + usedFix,
+		"internal/reader/named.go:12: data.Banned is banned in reader; " + usedFix,
+		"internal/reader/named.go:16: data.Limit is banned; " + usedFix,
+		"internal/other/other.go:7: data.Limit is banned; " + usedFix,
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("found\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}
+
+// typesNamedFixture is a module whose data package declares a type and a
+// constant a rule bans, beside a type, a constant and a function it
+// doesn't; a reader package naming the banned type embedded, aliased, in a
+// map's type and a variable's, and the constant, beside what isn't banned,
+// a value of the banned type among it, made without naming it, and a test
+// file naming them, which a check passes over; and another package, where
+// the type is allowed and the constant isn't, naming both.
+var typesNamedFixture = map[string]string{
+	"go.mod": "module example.com/fixture\n",
+	"internal/data/data.go": `package data
+
+type Banned struct{ ID string }
+
+type Kept struct{ ID string }
+
+const Limit, Free = 3, 4
+
+func Make() Banned { return Banned{} }
+`,
+	"internal/reader/named.go": `package reader
+
+import "example.com/fixture/internal/data"
+
+type holds struct{ data.Banned }
+
+type alias = data.Banned
+
+var limit = data.Limit
+
+func named(m map[string]data.Banned) int {
+	var b data.Banned
+	_ = data.Kept{ID: b.ID}
+	made := data.Make()
+	const Limit = 5
+	return len(m) + data.Free + len(made.ID) + data.Limit + Limit
+}
+`,
+	"internal/reader/reader_test.go": `package reader
+
+import "example.com/fixture/internal/data"
+
+var tested = data.Banned{ID: string(rune(data.Limit))}
+`,
+	"internal/other/other.go": `package other
+
+import "example.com/fixture/internal/data"
+
+var scoped data.Banned
+
+var limited = data.Limit
+`,
+}
+
 func TestACheckSeesRawDataTakenThroughFuncsChannelsAndTypeArguments(t *testing.T) {
 	root := sourcecheck.WriteModule(t, shapesFixture)
 	got := sourcecheck.Check(t, root, "example.com/fixture", fixtureRule(), []string{"internal/reader"}, fixtureAllowance())

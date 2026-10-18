@@ -2,9 +2,11 @@ package views
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"maps"
 	"math/rand/v2"
@@ -218,6 +220,41 @@ func (c *digestChain) file(date string, lines ...ledger.Line) {
 	if err != nil {
 		c.t.Fatal(err)
 	}
+}
+
+// digestPath is where the ledger keeps the digest of the local day with the
+// given date, as it names one.
+func (c *digestChain) digestPath(date string) string {
+	return filepath.Join(ledger.Dir(c.state), "digest-"+date+".json.gz")
+}
+
+// gunzipped is data inflated.
+func gunzipped(t *testing.T, data []byte) []byte {
+	t.Helper()
+	r, err := gzip.NewReader(bytes.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	plain, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return plain
+}
+
+// gzipped is data deflated, as the ledger writes a digest.
+func gzipped(t *testing.T, data []byte) []byte {
+	t.Helper()
+	var b bytes.Buffer
+	w := gzip.NewWriter(&b)
+	_, err := w.Write(data)
+	if closeErr := w.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b.Bytes()
 }
 
 // days are the days from the one after the first line arrived on through
