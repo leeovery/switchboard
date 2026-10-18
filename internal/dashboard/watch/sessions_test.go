@@ -398,14 +398,14 @@ type sessionsCounted struct {
 	alone []string
 }
 
-func (l *sessionsCounted) Sessions(ids []string, take func(string, ledger.Line)) map[string][]ledger.Line {
+func (l *sessionsCounted) Sessions(ids []string, whole func(string) bool, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
 	l.asked = append(l.asked, slices.Clone(ids))
-	return l.Ledger.Sessions(ids, take)
+	return l.Ledger.Sessions(ids, whole, take)
 }
 
-func (l *sessionsCounted) SessionsOf(ids []string, take func(string, ledger.Line)) map[string][]ledger.Line {
+func (l *sessionsCounted) SessionsOf(ids []string, whole func(string) bool, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
 	l.alone = append(l.alone, ids...)
-	return l.Ledger.SessionsOf(ids, take)
+	return l.Ledger.SessionsOf(ids, whole, take)
 }
 
 func (l *sessionsCounted) Session(id string) iter.Seq[ledger.Held] {
@@ -422,7 +422,7 @@ func TestTheListIsReadOneReadOfTheLedgerAtATime(t *testing.T) {
 	state := t.TempDir()
 	writeLines(t, state, arrived("0a000001", "work", -5*time.Minute))
 	l := &sessionsCounted{}
-	l.Ledger = ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, logs.For("watch"))
+	l.Ledger = ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, views.DigestVersion, logs.For("watch"))
 	h.model.cfg.Ledger = l
 	h.start()
 	looked := func() []tea.Msg {
@@ -466,7 +466,7 @@ func TestTheListIsReadOnceAsSessionsFirstShowsThenFedByTheTail(t *testing.T) {
 	state := t.TempDir()
 	writeLines(t, state, arrived("0a000001", "work", -5*time.Minute), arrived("0a000002", "side", -4*time.Minute))
 	l := &sessionsCounted{}
-	l.Ledger = ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, logs.For("watch"))
+	l.Ledger = ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, views.DigestVersion, logs.For("watch"))
 	h.model.cfg.Ledger = l
 	h.start()
 	if len(l.asked) != 0 || h.model.sessionsTab.listed {
@@ -695,7 +695,7 @@ func TestATailReadLandingOnAnEmptyStoreKeepsItPriced(t *testing.T) {
 	h := routedHarness(t, routerDocument(three()...))
 	h.source.sessions, h.clock.now = nil, onTheDay(9, 0, 0)
 	l := &daysCounted{}
-	l.Ledger = ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, logs.For("watch"))
+	l.Ledger = ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, views.DigestVersion, logs.For("watch"))
 	cfg := h.config(Size{Width: 160, Height: 37})
 	cfg.Ledger, cfg.View = l, dashboard.Overview
 	h.model = New(t.Context(), cfg)

@@ -405,18 +405,18 @@ func (f *feed) read(l LedgerSessions) {
 			}
 		}
 	}
-	var read map[string][]ledger.Line
+	var read map[string]ledger.SessionFrom
 	if listing {
-		read, f.listing = l.Sessions(ids, take), true
+		read, f.listing = l.Sessions(ids, eachWhole, take), true
 	} else {
-		read = l.SessionsOf(ids, take)
+		read = l.SessionsOf(ids, eachWhole, take)
 	}
 	for _, id := range ids {
-		f.hold(id, read[id], answers)
+		f.hold(id, read[id].Lines, answers)
 	}
-	for id, lines := range read {
+	for id, from := range read {
 		if _, held := f.sessions[id]; !held {
-			f.hold(id, lines, answers)
+			f.hold(id, from.Lines, answers)
 		}
 	}
 }

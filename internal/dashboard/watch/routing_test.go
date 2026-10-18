@@ -647,21 +647,21 @@ func TestEnterSaysSoInTheCardWhileTheRouterDoesntAnswer(t *testing.T) {
 	}
 }
 
-// sessionsLedger is a request ledger of the lines given, by session, which
-// counts the times its sessions' lines are read.
+// sessionsLedger is a request ledger of the lines given, by session, each
+// read whole, which counts the times its sessions' lines are read.
 type sessionsLedger struct {
 	ledger.Empty
 	lines map[string][]ledger.Line
 	reads int
 }
 
-func (l *sessionsLedger) Sessions([]string, func(string, ledger.Line)) map[string][]ledger.Line {
+func (l *sessionsLedger) Sessions([]string, func(string) bool, func(string, ledger.Line)) map[string]ledger.SessionFrom {
 	l.reads++
-	return l.lines
+	return ledger.SessionsWhole(l.lines)
 }
 
-func (l *sessionsLedger) SessionsOf(ids []string, take func(string, ledger.Line)) map[string][]ledger.Line {
-	return l.Sessions(ids, take)
+func (l *sessionsLedger) SessionsOf(ids []string, whole func(string) bool, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	return l.Sessions(ids, whole, take)
 }
 
 // The usages of the priced sessions' answers. hourUsage writes the cache for

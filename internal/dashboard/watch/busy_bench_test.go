@@ -95,7 +95,7 @@ func (w busyWorld) caps() ledger.Caps {
 // readers are the world's readers, as the dashboard's are, by clock.
 func (w busyWorld) readers(clock func() time.Time) (*ledger.Follower, *readings.Reader, *events.Reader) {
 	quiet := slog.New(slog.DiscardHandler)
-	return ledger.NewFollower(w.state, clock, w.caps(), quiet), readings.NewReader(w.state, quiet), events.NewReader(w.state, clock, quiet)
+	return ledger.NewFollower(w.state, clock, w.caps(), views.DigestVersion, quiet), readings.NewReader(w.state, quiet), events.NewReader(w.state, clock, quiet)
 }
 
 // busySeat is the session of the world's dth day's jth seat of those

@@ -25,12 +25,15 @@ import (
 // read, until its stamp or its sizes change; today, and any day not
 // summarised since lines came to be filed under it, a running tally of its
 // lines as they're tailed, beside the readings history, read as it grows too;
-// and a session's days found by the summaries' session ids. What it gives is
-// what a Reader gives, reading them whole. It's safe for concurrent use.
+// a session's days found by the summaries' session ids; and the sessions it
+// reads resting on the states the digests of the days before hold, of the
+// version body, their builder's, as it's told where it's made. What it gives
+// is what a Reader gives, reading them whole. It's safe for concurrent use.
 type Follower struct {
 	days    days
 	history *dayfile.Files
 	now     func() time.Time
+	body    int
 
 	mu       sync.Mutex
 	listing  heldListing[dayListing]
@@ -42,10 +45,12 @@ type Follower struct {
 
 // NewFollower returns a follower of the ledger in the state directory
 // stateDir, by now's clock, which summarises days with the accounts' caps as
-// caps gives them, what it can't read logged to logger.
-func NewFollower(stateDir string, now func() time.Time, caps Caps, logger *slog.Logger) *Follower {
+// caps gives them, and rests the sessions it reads on the states digests
+// hold of the version body, as their builder gives it, what it can't read
+// logged to logger.
+func NewFollower(stateDir string, now func() time.Time, caps Caps, body int, logger *slog.Logger) *Follower {
 	d, history := daysIn(stateDir, caps, logger)
-	return &Follower{days: d, history: history, now: now, followed: make(map[string]*followedDay)}
+	return &Follower{days: d, history: history, now: now, body: body, followed: make(map[string]*followedDay)}
 }
 
 // heldListing is what a listing of a directory found, found, or why it

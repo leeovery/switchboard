@@ -6,6 +6,8 @@ import (
 	"maps"
 	"slices"
 	"time"
+
+	"github.com/leeovery/switchboard/internal/dayfile"
 )
 
 // SessionFrom is a session as of the start of a local day, as the ledger
@@ -13,7 +15,7 @@ import (
 // and a reader alike: Base, the state it rests on, as the digest of an
 // earlier day holds it, nil where it rests on none; and Lines, its lines
 // after the base, read raw, by the days' files, every one where it rests on
-// none, oldest first, as sessionsRead.of orders them. restsOn is what a
+// none, oldest first, as oldestFirst orders them. restsOn is what a
 // state folded from it rests on, as a digest's entry keeps it, and
 // sessionsLookup.restsOn gives it: nil where that can't be told, so the
 // state isn't one to keep. A session's state as of the end of a day is
@@ -24,6 +26,17 @@ type SessionFrom struct {
 	Base    *SessionBase
 	Lines   []Line
 	restsOn map[string]int
+}
+
+// SessionsWhole returns the sessions whose lines are given, by their ids,
+// each as SessionFrom has one read whole, resting on no base, its lines every
+// one given: as a read of a ledger that holds no digest gives them.
+func SessionsWhole(lines map[string][]Line) map[string]SessionFrom {
+	sessions := make(map[string]SessionFrom, len(lines))
+	for id, held := range lines {
+		sessions[id] = SessionFrom{Lines: held}
+	}
+	return sessions
 }
 
 // SessionBase is the state a session rests on, as the digest of the local
@@ -45,18 +58,20 @@ type daysLook interface {
 }
 
 // sessionsAsOf returns the sessions with the given ids as of the start of
-// the local day with the given date, by the follower's own look at the
-// ledger's days, as followerLook has it, their states of the version body,
-// as sessionsAsOf has them: take, where it's given, handed each line read,
-// with the date of the day whose files hold it, in the order they're read,
-// not oldest first: the days read for the sessions' bases, oldest first,
-// then any before them read once a session's base falls.
-func (f *Follower) sessionsAsOf(ids []string, date string, body int, take func(date string, l Line)) map[string]SessionFrom {
+// the local day with the given date, as the follower's lookup finds them,
+// their lines none of that day's or later, as sessionsLookup.asOf has them:
+// take, where it's given, handed each line read, with the date of the day
+// whose files hold it, as asOf hands them on.
+func (f *Follower) sessionsAsOf(ids []string, date string, take func(date string, l Line)) map[string]SessionFrom {
 	read := newSessionsRead(f.now(), take)
-	f.mu.Lock()
-	dates := f.datesBefore(date, read.now)
-	f.mu.Unlock()
-	return sessionsAsOf(f.days, followerLook{f: f}, dates, ids, body, read)
+	return f.lookup().asOf(f.datesBefore(date, read.now), nil, wanting(make(map[string]bool), ids), nil, read)
+}
+
+// lookup returns a lookup of sessions by the follower's own look at the
+// ledger's days, as followerLook has it, their states of the version it
+// reads, having looked at none yet.
+func (f *Follower) lookup() *sessionsLookup {
+	return newSessionsLookup(f.days, followerLook{f: f}, f.body)
 }
 
 // followerLook is a Follower's look at the ledger's days, each as follow
@@ -98,10 +113,11 @@ func (l followerLook) kept(date string) (int, bool) {
 // sessionsAsOf returns the sessions with the given ids as of the start of
 // the local day with the given date, at now, by the router's writer's own
 // look at the ledger's days, as writerLook has it, their states of the
-// version body, as sessionsAsOf has them.
+// version body, as sessionsLookup.asOf has them.
 func (l *Ledger) sessionsAsOf(ids []string, date string, body int, now time.Time) map[string]SessionFrom {
 	first, err := l.days.first()
-	return sessionsAsOf(l.days, newWriterLook(l.days), l.days.datesBefore(date, first, err, now), ids, body, newSessionsRead(now, nil))
+	lookup := newSessionsLookup(l.days, newWriterLook(l.days), body)
+	return lookup.asOf(l.days.datesBefore(date, first, err, now), nil, wanting(make(map[string]bool), ids), nil, newSessionsRead(now, nil))
 }
 
 // writerLook is the router's writer's look at the ledger's days, made for
@@ -182,27 +198,53 @@ func (l writerLook) day(date string) writtenDay {
 	return day
 }
 
-// sessionsAsOf returns the sessions with the given ids as of the start of a
-// local day, as SessionFrom has them, by their ids: none of one no day
-// names, or of one resting on none whose days hold none of its lines. dates
-// are those of the days before that day, from where the ledger begins,
-// oldest first, as datesBefore gives them, and look the asker's own look at
-// them. Each session rests on the newest state the digest of a day naming it
-// holds, of the version body, that stands for it, as standsFor says; and its
-// lines are those of the days naming it after that one, read through read,
-// by the days' files, each day's once for every session wanting them. It
-// rests on none, its lines those of every day naming it, where one of those
-// days can't be told, as told says; and where, once the days after its base
-// are read, one of them couldn't be read whole, or one of the lines it hands
-// on after its base arrived before the base's day ended, as a change of time
-// zone files a line under a later date than its own: a state sealed at that
-// day's end can't take it in.
-func sessionsAsOf(d days, look daysLook, dates, ids []string, body int, read *sessionsRead) map[string]SessionFrom {
-	l := &sessionsLookup{days: d, look: look, body: body, kept: make(map[string]keptLines), digests: make(map[string]*Digest), read: make(map[string]bool)}
-	wanted := wanting(make(map[string]bool), ids)
-	asked := l.namingEach(dates, wanted)
+// sessionsLookup is a lookup of sessions as of a local day: the ledger's
+// days, the asker's look at them, and the version of the states its sessions
+// rest on; and, held so each day is looked at and its digest read once, the
+// lines the ledger kept of each day as the look first gave them, and each
+// day's digest, nil where it holds none that reads.
+type sessionsLookup struct {
+	days    days
+	look    daysLook
+	body    int
+	kept    map[string]keptLines
+	digests map[string]*Digest
+}
+
+// newSessionsLookup returns a lookup of sessions in the ledger's days d, by
+// the asker's own look at them, the states its sessions rest on of the
+// version body, having looked at none yet.
+func newSessionsLookup(d days, look daysLook, body int) *sessionsLookup {
+	return &sessionsLookup{days: d, look: look, body: body, kept: make(map[string]keptLines), digests: make(map[string]*Digest)}
+}
+
+// asOf returns the sessions wanted as of the start of a local day, as
+// SessionFrom has them, by their ids: none of one resting on none none of
+// whose days holds a line of it. dates are those of the days before that
+// day, from where the ledger begins, oldest first, as datesBefore gives
+// them; and near those of the near days, from that day on, oldest first,
+// whose lines are every session's after whatever it rests on, as a reader's
+// sessions read today's. Each session rests on the newest state the digest
+// of a day naming it holds, of the lookup's version, that stands for it, as
+// standsFor says, but one whole reports true of, where it's given, which
+// rests on none; and its lines are those of the days naming it after that
+// one, then the near days', read through read, by the days' files, each
+// day's once for every session wanting them, as days reads them. It rests on
+// none, its lines those of every day naming it and the near days', where one
+// of the days naming it can't be told, as told says; and where, once the days
+// after its base are read, one of them couldn't be read whole, or one of the
+// lines it hands on after its base arrived before the base's day ended, as a
+// change of time zone files a line under a later date than its own: a state
+// sealed at that day's end can't take it in. take, where read hands one each
+// line read, is handed them in the order they're read, not oldest first: the
+// days read for the sessions' bases, oldest first, but those read before,
+// then any before them read once a session's base falls.
+func (l *sessionsLookup) asOf(dates, near []string, wanted map[string]bool, whole func(id string) bool, read *sessionsRead) map[string]SessionFrom {
+	asked := l.namingEach(dates, near, wanted)
 	for id, s := range asked {
-		l.rest(id, s)
+		if whole == nil || !whole(id) {
+			l.rest(id, s)
+		}
 	}
 	l.readFor(read, asked, wanted)
 	for id, s := range asked {
@@ -214,19 +256,27 @@ func sessionsAsOf(d days, look daysLook, dates, ids []string, body int, read *se
 	return l.from(asked, read)
 }
 
-// sessionsLookup is a lookup of sessions as of a local day, as sessionsAsOf
-// makes one: the ledger's days, the asker's look at them, and the version of
-// the states its sessions rest on; and, held so each day is looked at, its
-// digest read and its files read once, the lines the ledger kept of each day
-// as the look first gave them, each day's digest, nil where it holds none
-// that reads, and the days whose files have been read.
-type sessionsLookup struct {
-	days    days
-	look    daysLook
-	body    int
-	kept    map[string]keptLines
-	digests map[string]*Digest
-	read    map[string]bool
+// nearDays returns the dates of the near days at now, oldest first, whose
+// files a reader's sessions read raw, every session's: today's, and the day
+// after's, as a clock set back files a line under a day after today's; and
+// the day before's, as a change of time zone files a line under the date
+// beside its own, while its digest doesn't stand, as standing says. One whose
+// digest stands holds no line that arrived after it ended, nor any filed
+// since, so none of today's: the sessions it names read it as a day before
+// the near days.
+func (l *sessionsLookup) nearDays(now time.Time) []string {
+	dates := dayfile.Dates(now, now)
+	if l.standing(dates[0]) {
+		return dates[1:]
+	}
+	return dates
+}
+
+// standing reports whether the digest the ledger holds of the local day with
+// the given date stands, as digestGrounds.stands judges its head alone.
+func (l *sessionsLookup) standing(date string) bool {
+	head, held := l.head(date)
+	return held && l.grounds().stands(head, DigestEntry{})
 }
 
 // keptLines are the lines the ledger keeps of a day, as daysLook's kept gives
@@ -237,29 +287,31 @@ type keptLines struct {
 }
 
 // sessionAsked is a session as a lookup finds it: naming, the dates of the
-// days naming it, oldest first, as the asker's look tells; base, the state it
-// rests on, nil for none; and ended, when its base's day ended, as the
-// digest's head says.
+// days before the one it's asked as of naming it, oldest first, as the
+// asker's look tells; near, those of the near days, every session's lines
+// read of them; base, the state it rests on, nil for none; and ended, when
+// its base's day ended, as the digest's head says.
 type sessionAsked struct {
 	naming []string
+	near   []string
 	base   *SessionBase
 	ended  time.Time
 }
 
-// namingEach returns the sessions wanted that any of the days with the given
-// dates names, or might, as the look tells, by their ids, each with the dates
-// of the days naming it, in the order given: none, and no day looked at,
+// namingEach returns the sessions wanted, by their ids, each with the dates
+// of those of the days with the given dates naming it, or that might, as the
+// look tells, in the order given, and of the near days: no day looked at
 // where none is wanted.
-func (l *sessionsLookup) namingEach(dates []string, wanted map[string]bool) map[string]*sessionAsked {
-	asked := make(map[string]*sessionAsked)
+func (l *sessionsLookup) namingEach(dates, near []string, wanted map[string]bool) map[string]*sessionAsked {
+	asked := make(map[string]*sessionAsked, len(wanted))
+	for id := range wanted {
+		asked[id] = &sessionAsked{near: near}
+	}
 	if len(wanted) == 0 {
 		return asked
 	}
 	for _, date := range dates {
 		for id := range l.look.naming(date, wanted) {
-			if asked[id] == nil {
-				asked[id] = &sessionAsked{}
-			}
 			asked[id].naming = append(asked[id].naming, date)
 		}
 	}
@@ -351,30 +403,27 @@ func (l *sessionsLookup) digest(date string) *Digest {
 }
 
 // readFor reads through read the files of the days whose lines the sessions
-// asked are read from, as reads gives them, but those read before, holding
-// the lines of those wanted, oldest day first.
+// asked are read from, as reads gives them, but those read before, as days
+// passes them over, holding the lines of those wanted, oldest day first.
 func (l *sessionsLookup) readFor(read *sessionsRead, asked map[string]*sessionAsked, wanted map[string]bool) {
-	var dates []string
+	dates := make(map[string]bool)
 	for _, s := range asked {
 		for _, date := range s.reads() {
-			if !l.read[date] {
-				l.read[date] = true
-				dates = append(dates, date)
-			}
+			dates[date] = true
 		}
 	}
-	slices.Sort(dates)
-	read.days(l.days, dates, wanted)
+	read.days(l.days, slices.Sorted(maps.Keys(dates)), wanted)
 }
 
 // reads returns the dates of the days whose lines are read for the session,
 // oldest first: those naming it after its base's, every one where it rests on
-// none.
+// none, then the near days.
 func (s *sessionAsked) reads() []string {
-	if s.base == nil {
-		return s.naming
+	naming := s.naming
+	if s.base != nil {
+		naming = naming[slices.Index(naming, s.base.Date)+1:]
 	}
-	return s.naming[slices.Index(s.naming, s.base.Date)+1:]
+	return slices.Concat(naming, s.near)
 }
 
 // unsettled reports whether the session, resting on a base, can't, once the
@@ -416,9 +465,11 @@ func (l *sessionsLookup) from(asked map[string]*sessionAsked, read *sessionsRead
 // since stops the state standing, as digestGrounds.stands says. It gives
 // none where one of those days can't be told, as told says, or one read for
 // it, failed among them, couldn't be read whole: the state couldn't be told
-// to hold what a read of its lines holds.
+// to hold what a read of its lines holds. Nor where its lines are read of
+// near days too: a state folded from today's lines, which go on growing, is
+// none to keep.
 func (l *sessionsLookup) restsOn(s *sessionAsked, failed map[string]bool) map[string]int {
-	if !l.told(s.naming) || slices.ContainsFunc(s.reads(), func(date string) bool { return failed[date] }) {
+	if len(s.near) > 0 || !l.told(s.naming) || slices.ContainsFunc(s.reads(), func(date string) bool { return failed[date] }) {
 		return nil
 	}
 	restsOn := make(map[string]int, len(s.naming))

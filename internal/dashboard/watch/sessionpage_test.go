@@ -26,21 +26,21 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// pageLedger is a request ledger of the lines given, by session, which notes
-// the ids each read of its sessions asked for.
+// pageLedger is a request ledger of the lines given, by session, each read
+// whole, which notes the ids each read of its sessions asked for.
 type pageLedger struct {
 	ledger.Empty
 	lines map[string][]ledger.Line
 	asked [][]string
 }
 
-func (l *pageLedger) Sessions(ids []string, _ func(string, ledger.Line)) map[string][]ledger.Line {
+func (l *pageLedger) Sessions(ids []string, _ func(string) bool, _ func(string, ledger.Line)) map[string]ledger.SessionFrom {
 	l.asked = append(l.asked, slices.Clone(ids))
-	return l.lines
+	return ledger.SessionsWhole(l.lines)
 }
 
-func (l *pageLedger) SessionsOf(ids []string, take func(string, ledger.Line)) map[string][]ledger.Line {
-	return l.Sessions(ids, take)
+func (l *pageLedger) SessionsOf(ids []string, whole func(string) bool, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	return l.Sessions(ids, whole, take)
 }
 
 // Session gives the session's lines newest first, as a Follower does, as a
@@ -98,7 +98,7 @@ func TestAStoreFirstFedByASessionsPagePricesItsSession(t *testing.T) {
 	h := routedHarness(t, routerDocument(three()...))
 	h.source.sessions = []status.Session{sessionOn(idD28C, opus, "work", 0)}
 	cfg := h.config(Size{Width: 160, Height: 37})
-	cfg.Ledger = ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, logs.For("watch"))
+	cfg.Ledger = ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, views.DigestVersion, logs.For("watch"))
 	h.model = New(t.Context(), cfg)
 	h.start()
 	h.openPage(idD28C)
@@ -848,7 +848,7 @@ func runningOn(t *testing.T, state string, at time.Time, prices ledger.Table, li
 	h := routedHarness(t, routerDocument(three()...))
 	h.source.sessions, h.clock.now = []status.Session{sessionOn(idD28C, opus, "work", 0)}, at
 	writeLines(t, state, lines...)
-	l := ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, logs.For("watch"))
+	l := ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, views.DigestVersion, logs.For("watch"))
 	cfg := h.config(Size{Width: 160, Height: 37})
 	cfg.Ledger, cfg.Prices = l, prices
 	h.model = New(t.Context(), cfg)

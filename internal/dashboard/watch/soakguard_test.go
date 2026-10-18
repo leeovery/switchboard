@@ -91,14 +91,14 @@ func (c *countingLedger) Session(id string) iter.Seq[ledger.Held] {
 	return c.Ledger.Session(id)
 }
 
-func (c *countingLedger) Sessions(ids []string, take func(string, ledger.Line)) map[string][]ledger.Line {
+func (c *countingLedger) Sessions(ids []string, whole func(string) bool, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
 	c.read(ledgerRead{method: "Sessions", asked: ids})
-	return c.Ledger.Sessions(ids, take)
+	return c.Ledger.Sessions(ids, whole, take)
 }
 
-func (c *countingLedger) SessionsOf(ids []string, take func(string, ledger.Line)) map[string][]ledger.Line {
+func (c *countingLedger) SessionsOf(ids []string, whole func(string) bool, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
 	c.read(ledgerRead{method: "SessionsOf", asked: ids})
-	return c.Ledger.SessionsOf(ids, take)
+	return c.Ledger.SessionsOf(ids, whole, take)
 }
 
 // The store's part: Sessions' List open across midnight, the store fed at

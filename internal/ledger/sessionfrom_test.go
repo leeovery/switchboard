@@ -172,7 +172,7 @@ func stateAt(id, date string) string {
 func (w *lookupWorld) sessionsAsOf(days int, ids ...string) map[string]ledger.SessionFrom {
 	w.t.Helper()
 	date := dayOf(days)
-	read := followerOf(w.state, &testClock{at: w.at}, caps).SessionsAsOf(ids, date, digestBody, nil)
+	read := followerOf(w.state, &testClock{at: w.at}, caps).SessionsAsOf(ids, date, nil)
 	if written := w.writer.SessionsAsOf(ids, date, digestBody, w.at); !reflect.DeepEqual(read, written) {
 		w.t.Errorf("as of %s, the follower finds %q as\n%+v\nand the router's writer as\n%+v; want them alike", date, ids, read, written)
 	}
@@ -446,7 +446,7 @@ func TestALookupReadsEachDayOnceForEverySessionWantingIt(t *testing.T) {
 		read[date][l.Request]++
 	}
 
-	got := foundOf(t, followerOf(w.state, &testClock{at: w.at}, caps).SessionsAsOf([]string{"one", "two", "three"}, dayOf(2), digestBody, take))
+	got := foundOf(t, followerOf(w.state, &testClock{at: w.at}, caps).SessionsAsOf([]string{"one", "two", "three"}, dayOf(2), take))
 
 	for date, requests := range read {
 		for request, times := range requests {
@@ -513,11 +513,12 @@ func TestTheLinesKeptOfADayAreThoseItsFilesHoldAsItsSummaryCountsThem(t *testing
 // generatedSessions are the sessions whose lines a generated ledger holds.
 var generatedSessions = []string{"one", "two", "three", "four"}
 
-// generatedLedger is a ledger whose lines r draws, filed in w: the lines
-// each day's file holds, by the day's offset from the summaries' day, and
-// the date of the day whose file holds each, by its request.
+// generatedLedger is a ledger whose lines r draws, from seed, filed in w: the
+// lines each day's file holds, by the day's offset from the summaries' day,
+// and the date of the day whose file holds each, by its request.
 type generatedLedger struct {
 	w     *lookupWorld
+	seed  uint64
 	r     *rand.Rand
 	days  map[int][]ledger.Line
 	filed map[string]string
@@ -527,7 +528,7 @@ type generatedLedger struct {
 // from the given seed, holding none yet.
 func newGeneratedLedger(t *testing.T, seed uint64) *generatedLedger {
 	t.Helper()
-	return &generatedLedger{w: newLookupWorld(t), r: rand.New(rand.NewPCG(seed, seed)), days: make(map[int][]ledger.Line), filed: make(map[string]string)}
+	return &generatedLedger{w: newLookupWorld(t), seed: seed, r: rand.New(rand.NewPCG(seed, seed)), days: make(map[int][]ledger.Line), filed: make(map[string]string)}
 }
 
 // generate files the lines of the sessions that run on each local day from
@@ -618,7 +619,7 @@ func TestALookupGivesWhatARawReadGivesOverAGeneratedLedger(t *testing.T) {
 			sessions := g.w.sessionsAsOf(2, generatedSessions...)
 
 			for _, id := range generatedSessions {
-				raw := requestsOf(followerOf(g.w.state, &testClock{at: g.w.at}, caps).SessionsOf([]string{id}, nil)[id])
+				raw := requestsOf(followerOf(g.w.state, &testClock{at: g.w.at}, caps).SessionsOf([]string{id}, eachWhole, nil)[id].Lines)
 				from, base := sessions[id], ""
 				if from.Base != nil {
 					base = from.Base.Date

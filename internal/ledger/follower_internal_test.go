@@ -149,7 +149,7 @@ func TestAWholeReadOfTodayReadsAgainAsFarAsTheFilesWereRead(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	f := NewFollower(state, func() time.Time { return now }, Caps{}, logs.For("cli"))
+	f := NewFollower(state, func() time.Time { return now }, Caps{}, statesVersion, logs.For("cli"))
 	write("1", 1)
 	_, first, _ := f.Today(Mark{})
 	write("2", 2)
