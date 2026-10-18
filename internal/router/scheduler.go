@@ -24,9 +24,10 @@ const (
 // model on one account, so their prompt cache stays warm, and their reasoning
 // with them where the model's thinking is bound to the account, choosing
 // afresh only for a new session, one idle past its cache's life whose
-// model's thinking isn't bound, or one whose account has no room: then it
-// chooses the account whose quota would be lost soonest unused, having probed
-// the accounts whose usage is stale. See decide for the whole order.
+// model's thinking isn't bound, one whose account has no room, or one moved
+// at its compaction: then it chooses the account whose quota would be lost
+// soonest unused, having probed the accounts whose usage is stale. See decide
+// for the whole order.
 type scheduler struct {
 	// accounts are every account configured, among which requests go out on
 	// those with tokens.
@@ -196,20 +197,16 @@ var staying = map[score.Verdict]string{
 	score.StaysNotAtRisk:   "not at risk",
 }
 
-// noteCompaction notes in the log how the choice d judged moving the session
-// at the first request after its compaction, while the router only watches:
-// at info, the move it would make, to which account, how fast that account's
-// perishable window has been used lately, when it resets, and the share of it
-// left then; else, at debug, why the session stays.
+// noteCompaction notes in the log, at debug, why the choice d kept the
+// session where it is at the first request after its compaction, and the
+// account it judged moving it to. A move it notes nothing of: the request's
+// routed line and the move's own say it.
 func noteCompaction(req Request, d decision) {
-	m := d.move
-	attrs := []any{"id", req.ID, "session", status.ShortID(req.Session), "model", req.Model, "account", d.account}
-	if m.Verdict != score.Moves {
-		logger.Debug("stays after compaction", append(attrs, "why", staying[m.Verdict], "chosen", m.To)...)
+	if d.move.Verdict == score.Moves {
 		return
 	}
-	logger.Info("would move after compaction", append(attrs, "to", m.To, "rate", prose.Tenths(m.Rate*100)+"% an hour",
-		"resets", m.Resets, "left", prose.Tenths(m.Left*100)+"%")...)
+	logger.Debug("stays after compaction", "id", req.ID, "session", status.ShortID(req.Session), "model", req.Model,
+		"account", d.account, "why", staying[d.move.Verdict], "chosen", d.move.To)
 }
 
 // recheck probes again the accounts whose usage as last read leaves no room

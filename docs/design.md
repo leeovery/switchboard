@@ -232,9 +232,10 @@ lost (see Choosing an account).
    would otherwise be lost. As the sessions moved add to that account's rate, the room at risk
    falls and the moves stop. A session on a model whose thinking is bound to its account never
    moves for it, and nor does one its own pin holds. The compaction itself, which reads the whole
-   conversation from the cache, never moves. For now the router only watches: it logs the move it
-   would make (see Logging) and moves nothing, until a week of the log shows the moves landing
-   where the replay that set this rule foretold.
+   conversation from the cache, never moves. A move is a choice afresh, so it waits on the probes
+   of the accounts whose usage is stale, as any does, and is judged again on what they read. Its
+   reason says why (`compacted: side would reset with 12% of its week left`), and its `moved` event
+   records it.
 6. **Limit hit:** a 429 whose overall status or any window's status reads `rejected` means real
    exhaustion. Switchboard replays the buffered request on the next candidate, among the accounts
    the request hasn't been tried on, before any response reaches Claude Code, and the session
@@ -319,6 +320,7 @@ The routed line in the log gives the reason for each request's account, one of:
 | `new` | A new session's first account |
 | `unsessioned` | A request without a session id |
 | `rescored after <idle> idle` | A session idle past its cache's hour, chosen afresh, its model's thinking not bound to its account |
+| `compacted: <id> would reset with <n>% of its week left` | A busy session's first request after its compaction, moved to `<id>`, the account chosen afresh, as `<id>`'s week resets before its own account's and would otherwise reset with `<n>`% of it unused (step 5) |
 | `moved: <id> has no room` | The session's account, `<id>`, can't serve the request |
 | `moved: <id> is at its reserve` | The same, as `<id>` has reached its reserve |
 | `moved: <id> hit its limit`, `moved: <id> was refused` | The same, as `<id>` answered this request with its limit, or refused it, and it was replayed |
@@ -5075,11 +5077,9 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
 - **The router's own events:** at `info`, each prime, with the reset it read; an account held back
   by its reserve, and let go at its reset; each choice that passes an account over as under
   pressure, with its rate and when it runs out at it (`passed over under pressure`), the routed
-  line's reason naming it too; each move the first request after a compaction would make, while
-  the router only watches (see Choosing an account): the session, its account and the account it
-  would move to, that account's week's recent rate, its reset, and the share of its week it would
-  have left then (`would move after compaction`), and, where the judgement leaves the session
-  where it is, why, at `debug` (`stays after compaction`); a limit a 429 to a request sent before a reset made by hand
+  line's reason naming it too; at `debug`, why the first request after a session's compaction
+  leaves it where it is (`stays after compaction`, see Choosing an account); a limit a 429 to a
+  request sent before a reset made by hand
   reaches, passed over as the request goes out again (`limit from before a reset passed over`); a
   token file read again after a 401, and whether it held a different token; a token replaced
   while the router was away, which it finds as it starts; a token file found holding another
@@ -5853,6 +5853,8 @@ verbs).
     to;
   - `rescored after 15h idle`: as it is; `from side, rescored after 15h idle`; on a session's page,
     with what the choice found, `personal had the most room`;
+  - `compacted: side would reset with 12% of its week left`: as it is; `from work, compacted: side
+    would reset with 12% of its week left`;
   - a reason ending `, personal under pressure`, naming an account the choice passed over:
     `personal came under pressure, its 5-hour to run out at 15:10`, the time its `pressure`
     event's `until`;

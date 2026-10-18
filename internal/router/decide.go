@@ -72,13 +72,13 @@ type decision struct {
 	// the choice has to move the session off it, as it can't take the
 	// request, and limit the identity of the limit, where that's what does,
 	// as view's holding says: what forces the move. A move by choice, as by
-	// pin or after the session's idle hour, carries none.
+	// pin, after the session's idle hour or at its compaction, carries none.
 	held  Hold
 	limit int
-	// compacted is set when the decision keeps the session where it is at
-	// the first request after its compaction, as compacted says, and move is
-	// how moving it was judged then, which, while the router only watches,
-	// moves nothing: the log alone tells of it.
+	// compacted is set when the decision was judged at the first request
+	// after the session's compaction, as compacted says, and move is how
+	// moving the session was judged then: to move it, which the decision
+	// does, or else why it stays.
 	compacted bool
 	move      score.Move
 }
@@ -105,21 +105,37 @@ type decision struct {
 //     held back by their reserve alone; with none left but the latter, none.
 //     A request tried already goes out on none.
 //
-// A choice that passing over those under pressure changed says so, naming
-// the account passed over, after why it was made; one that has to move the
-// session off its account, as it can't take the request, says what held the
-// request back there, as forcedOff does; and one that keeps the session where
-// it is at the first request after its compaction carries how moving it to
-// where step 4 would send it was judged, as compacted says.
+// Where step 3 keeps the session at the first request after its compaction,
+// as compacted says, it moves instead where step 4 would send a new session,
+// should atCompaction judge it to. A choice that passing over those under
+// pressure changed says so, naming the account passed over, after why it was
+// made; and one that has to move the session off its account, as it can't
+// take the request, says what held the request back there, as forcedOff
+// does.
 func decide(s situation) decision {
 	s.accounts = s.accounts.spend(s.req.Pin).spend(s.pin.Accounts...)
 	d := s.choose()
+	if s.compacted(d) {
+		d = s.atCompaction(d)
+	}
 	if d.passedOver != "" {
 		d.reason = status.PassingOver(d.reason, d.passedOver)
 	}
-	if s.compacted(d) {
-		d.compacted, d.move = true, s.accounts.atCompaction(s.current.Account, s.pin.Accounts)
+	return d
+}
+
+// atCompaction judges moving the session from where d keeps it, at the first
+// request after its compaction, to the account step 4 would send a new
+// session to, as the view's atCompaction does: where it moves, the decision
+// is that choice, made afresh, its reason the compaction's whether or not
+// the global pin made the choice; else d. Either way it carries how the move
+// was judged.
+func (s situation) atCompaction(d decision) decision {
+	c, m := s.accounts.atCompaction(s.current.Account, s.pin.Accounts)
+	if m.Verdict == score.Moves {
+		d = chosen(c, status.Compacted(m.To, m.Left))
 	}
+	d.compacted, d.move = true, m
 	return d
 }
 
