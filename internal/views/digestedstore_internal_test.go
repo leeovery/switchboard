@@ -28,30 +28,32 @@ const (
 	givenAgain       = "a line of the day before given again once its digest stands, its session read whole"
 	zoneEarly        = "a zone change's early line in a near day's file, its session resting on none"
 	pinnedAcross     = "a request in flight across midnight, its session's state at the day before's end"
+	wantedAgain      = "a session the store held across the moments let go, then wanted again, resting on its state"
 )
 
 // spreadMoments are the hard moments the reads over digests meet.
-var spreadMoments = []string{onYesterdayLate, yesterdayRaw, onYesterdayEarly, idleThenActive, pageOnState, givenAgain, zoneEarly, pinnedAcross}
+var spreadMoments = []string{onYesterdayLate, yesterdayRaw, onYesterdayEarly, idleThenActive, pageOnState, givenAgain, zoneEarly, pinnedAcross, wantedAgain}
 
 // The store, and every view read through it, of a real ledger digested at
 // each moment as the router digests it, read through a Follower resting
 // each session on the newest state a digest holds of it that stands, is what
 // it is read through a Follower of the same files that reads every line, as
 // of another version, for which none stands: the List, as the sessions verb
-// prints it without the router; the Log's sessions; the store as the List's
-// first read holds it, a session's page open, the day before's lines given
-// it again at half past one, and of it the routing card's costs and what the
-// page shows; and the store held across the moments, fed as the dashboard
-// feeds it. At a minute before midnight, a minute after, a minute before
-// one, the day before read raw, and half past one, its digest standing; of
-// spread worlds, meeting each of spreadMoments.
+// prints it without the router; the routing card's costs; the Log's
+// sessions; the store as the List's first read holds it, a session's page
+// open, and what the page shows; and the store held across the moments, fed
+// as the dashboard feeds it, the router's sessions and the page wanted at
+// some moments and not at others; each store given the day before's lines
+// again at half past one. At a minute before midnight, a minute after, a
+// minute before one, the day before read raw, and half past one, its digest
+// standing; of spread worlds, meeting each of spreadMoments.
 func TestTheStoreOverDigestsIsTheStoreReadRaw(t *testing.T) {
 	met := make(map[string]bool)
 	for seed := range uint64(spreadSeeds) {
 		w := newSpread(t, seed, met)
-		for _, at := range w.moments() {
+		for i, at := range w.moments() {
 			w.by(at)
-			w.check(at)
+			w.check(i, at)
 		}
 	}
 	for _, moment := range spreadMoments {
@@ -128,10 +130,16 @@ type spread struct {
 // moment a read of the ledger's tail, as tailAt reads it: of today's lines,
 // those since the read to mark; and each day from the one last fed on,
 // day, to today's, read again whole, as the tail missed the end of each.
+// restsOn is the date of the digest each session the store fed through the
+// Follower resting on digests holds rested on as it was last held afresh,
+// as restingOn gives it then, by its id: none of one read whole then; and
+// ever the sessions it has held.
 type across struct {
 	based, raw HeldSessions
 	mark       ledger.Mark
 	day        string
+	restsOn    map[string]string
+	ever       map[string]bool
 }
 
 // newSpread is the spread world of the seed given, written in a state
@@ -148,7 +156,7 @@ func newSpread(t *testing.T, seed uint64, met map[string]bool) *spread {
 		digestChain: c, zone: zone, prices: prices, met: met,
 		based: ledger.NewFollower(c.state, clock, ledger.CapsOf(nil, nil), DigestVersion, quiet),
 		raw:   ledger.NewFollower(c.state, clock, ledger.CapsOf(nil, nil), DigestVersion+1, quiet),
-		held:  across{based: HoldSessions(prices), raw: HoldSessions(prices)},
+		held:  across{based: HoldSessions(prices), raw: HoldSessions(prices), restsOn: make(map[string]string), ever: make(map[string]bool)},
 	}
 }
 
@@ -177,57 +185,126 @@ func (w *spread) by(at time.Time) {
 	w.ledger.DigestEnded(w.t.Context(), at)
 }
 
-// check holds each view read at now through the Follower resting on digests
-// to the view read through the one reading raw, as the store's test names
-// them, noting the hard moments met. The flights of the requests that
-// arrived on the day before are set aside, as a session restored from its
-// state at that day's end holds none, but where the day's lines are given
-// the store again, which reads such a session whole.
-func (w *spread) check(now time.Time) {
+// check holds each view read at the i-th moment, now, through the Follower
+// resting on digests to the view read through the one reading raw, as the
+// store's test names them, noting the hard moments met. The flights of the
+// requests that arrived on the day of the state each session rests on, or
+// before, are set aside, as a session restored from it holds none, but where
+// the day before's lines are given a store again, which reads such a session
+// whole.
+func (w *spread) check(i int, now time.Time) {
 	w.t.Helper()
-	running, stream := w.running(now), w.pinning(now)
-	yesterday := yesterdayOf(Today(now))
-	w.note(now, stream)
+	m := w.momentAt(i, now)
+	w.note(now, m.stream, m.bases)
 	w.same(now, "the List", func(l Ledger) any {
 		return ListSessions(SessionSources{Unlisted: true, Ledger: l, Prices: w.prices, Now: now})
 	})
-	w.same(now, "the Log's sessions", func(l Ledger) any { return w.logSessions(l, now) })
+	w.same(now, "the routing card's costs", func(l Ledger) any {
+		return ListSessions(SessionSources{Running: m.running, Ledger: l, Prices: w.prices, Now: now}).Sessions
+	})
+	w.same(now, "the Log's sessions", func(l Ledger) any { return w.logSessions(l, m) })
 
-	paged := ListWanted(running, stream)
+	paged := ListWanted(m.running, m.stream)
 	paged.Page = "s"
 	based, raw := w.fresh(w.based, paged, now), w.fresh(w.raw, paged, now)
-	w.sameStores(now, "the store, as the List's first read holds it, s's page open", based, raw, yesterday, paged.Page)
-	live := ListLive{Running: running, Stream: stream, Now: now}
-	w.alike(now, "the routing card's costs", based.List(live).Sessions, raw.List(live).Sessions)
-	w.alike(now, "s's page", pageShown(based, paged.Page, now), pageShown(raw, paged.Page, now))
-	if now.Hour() == 1 {
-		w.givenAgain(now, based, raw, paged)
-	}
-
-	t := w.tailAt(now)
-	tailed := ListWanted(nil, Stream{})
-	w.held.based, _ = w.held.based.Fed(w.based, t, tailed, now)
-	w.held.raw, _ = w.held.raw.Fed(w.raw, t, tailed, now)
-	w.sameStores(now, "the store held across the moments", w.held.based, w.held.raw, yesterday, "")
+	w.sameStores(now, "the store, as the List's first read holds it, s's page open", based, raw, m.bases, paged.Page)
+	w.givenAgain(m, "the store, as the List's first read holds it", based, raw, paged)
+	w.feedHeld(m)
 }
 
-// givenAgain holds the stores as the List's first read holds them at now,
-// based and raw, wanting want, fed the day before's lines again, as the
-// dashboard's read of the ledger's tail reads a day again, to each other,
-// every flight held alike: a session resting on the day's state, which holds
-// none of the day's flights, can't place them, so it's read whole.
-func (w *spread) givenAgain(now time.Time, based, raw HeldSessions, want SessionsWanted) {
+// moment is what the reads at a moment share: it's the i-th, now; the
+// world's sessions as the router lists them then, as running has them; the
+// stream, as pinning has it; the date of the state each session rests on,
+// as restingOn has them; today's lines, as a Follower's Day reads them; and
+// at half past one, the day before's lines to be given a store again, as
+// the dashboard's read of the ledger's tail reads a day again whole, none
+// at another moment.
+type moment struct {
+	i       int
+	now     time.Time
+	running []status.Session
+	stream  Stream
+	bases   map[string]string
+	today   []ledger.Held
+	again   *Taken
+}
+
+// momentAt is the i-th moment, now, as moment has it, its lines read
+// through the Follower reading raw, each day's once.
+func (w *spread) momentAt(i int, now time.Time) moment {
+	day := Today(now)
+	m := moment{i: i, now: now, running: w.running(now), stream: w.pinning(now), bases: w.restingOn(), today: w.raw.Day(day.Date)}
+	if now.Hour() == 1 {
+		yesterday := yesterdayOf(day)
+		again := Took(nil, map[string][]ledger.Held{yesterday: w.raw.Day(yesterday)})
+		m.again = &again
+	}
+	return m
+}
+
+// feedHeld feeds the stores held across the moments at the moment m, as the
+// dashboard feeds the one it holds: a read of the ledger's tail, as tailAt
+// reads it, wanting what heldWants wants; and the day before's lines again,
+// as givenAgain gives them. It holds the two to each other, each session's
+// flights set aside as across's restsOn notes them, of the dates of the
+// states the sessions rest on at m; and notes a session let go and wanted
+// again.
+func (w *spread) feedHeld(m moment) {
 	w.t.Helper()
-	yesterday := yesterdayOf(Today(now))
-	again := Took(nil, map[string][]ledger.Held{yesterday: w.raw.Day(yesterday)})
-	based, basedGains := based.Fed(w.based, again, want, now)
-	raw, rawGains := raw.Fed(w.raw, again, want, now)
-	w.sameStores(now, "the store, as the List's first read holds it, given the day before's lines again", based, raw, "", want.Page)
+	want, held := w.heldWants(m), &w.held
+	t := w.tailAt(m.now)
+	based, gains := held.based.Fed(w.based, t, want, m.now)
+	raw, _ := held.raw.Fed(w.raw, t, want, m.now)
+	for id, gain := range gains {
+		if !gain.whole {
+			continue
+		}
+		if _, was := held.based.sessions[id]; !was && held.ever[id] && m.bases[id] != "" {
+			w.met[wantedAgain] = true
+		}
+		held.restsOn[id], held.ever[id] = m.bases[id], true
+	}
+	w.sameStores(m.now, "the store held across the moments", based, raw, held.restsOn, want.Page)
+	held.based, held.raw = w.givenAgain(m, "the store held across the moments", based, raw, want)
+}
+
+// heldWants is what the dashboard's store wants at the moment m, its List
+// and its page open: today's sessions, pinned as m's stream tells; those the
+// router lists, but at one moment in three, as where the router lists none,
+// so those with no request today are let go, to be wanted again; and s's
+// page, open at two moments in four, the seed shifting which, so it opens
+// and closes across midnight and across one in the morning.
+func (w *spread) heldWants(m moment) SessionsWanted {
+	shift, running := m.i+int(w.seed), m.running
+	if shift%3 == 2 {
+		running = nil
+	}
+	want := ListWanted(running, m.stream)
+	if shift%4 < 2 {
+		want.Page = "s"
+	}
+	return want
+}
+
+// givenAgain is based and raw, the stores what names, held through each
+// Follower at the moment m, wanting want, fed the day before's lines again,
+// where m gives them, held to each other, every flight alike: a session
+// resting on the day's state, which holds none of the day's flights, can't
+// place them, so it's read whole. Where m gives none, it's the two as given.
+func (w *spread) givenAgain(m moment, what string, based, raw HeldSessions, want SessionsWanted) (HeldSessions, HeldSessions) {
+	w.t.Helper()
+	if m.again == nil {
+		return based, raw
+	}
+	based, basedGains := based.Fed(w.based, *m.again, want, m.now)
+	raw, rawGains := raw.Fed(w.raw, *m.again, want, m.now)
+	w.sameStores(m.now, what+", given the day before's lines again", based, raw, nil, want.Page)
 	for id, gain := range basedGains {
 		if id != want.Page && gain.whole && !rawGains[id].whole {
 			w.met[givenAgain] = true
 		}
 	}
+	return based, raw
 }
 
 // running are the world's sessions as the router lists them at now, each
@@ -266,19 +343,18 @@ func (w *spread) fresh(l LedgerSessions, want SessionsWanted, now time.Time) Hel
 	return held
 }
 
-// logSessions are the Log's panel's sessions at now, of today's lines read
-// through l, the Log's store fed them as the Log's read feeds it, wanting
-// the sessions of its lines.
-func (w *spread) logSessions(l Ledger, now time.Time) []LogSession {
-	today := l.Day(Today(now).Date)
+// logSessions are the Log's panel's sessions at the moment m, of its today's
+// lines, the Log's store fed them through l as the Log's read feeds it,
+// wanting the sessions of its lines.
+func (w *spread) logSessions(l Ledger, m moment) []LogSession {
 	read := ReadLog(w.prices)
-	held, gains := HoldSessions(w.prices).Fed(l, Took(today, nil), SessionsWanted{Log: read.Wanted(today)}, now)
-	read = read.Taken(today, true, LogTaking{Held: held, Gains: gains, Now: now})
+	held, gains := HoldSessions(w.prices).Fed(l, Took(m.today, nil), SessionsWanted{Log: read.Wanted(m.today)}, m.now)
+	read = read.Taken(m.today, true, LogTaking{Held: held, Gains: gains, Now: m.now})
 	lines := make(map[string]int)
-	for _, h := range today {
+	for _, h := range m.today {
 		lines[h.Session]++
 	}
-	return LogSessions(LogSessionSources{Read: read, Held: held, Lines: lines, Unlisted: true, Now: now})
+	return LogSessions(LogSessionSources{Read: read, Held: held, Lines: lines, Unlisted: true, Now: m.now})
 }
 
 // tailAt is a read of the ledger's tail at now, as the dashboard reads it,
@@ -317,12 +393,13 @@ func (w *spread) alike(now time.Time, view string, got, want any) {
 // resting on digests, holds otherwise than want, the store fed through the
 // one reading raw: a session one holds and the other doesn't; one each holds
 // otherwise, as sameHeld has them, the flights of the requests that arrived
-// on the day with the given date or before set aside, as a session restored
-// from its state at that day's end holds none, and the page of the session
-// with the given id, as its points hold the answers of the days a read
-// reads, which differ while what it shows doesn't, as pageShown shows it;
-// or a List of either otherwise than the other's.
-func (w *spread) sameStores(now time.Time, what string, got, want HeldSessions, through, page string) {
+// on the day with the date through gives of the session, or before, set
+// aside, as a session restored from its state at that day's end holds none,
+// and the page of the session with the given id, as its points hold the
+// answers of the days a read reads, which differ while what it shows
+// doesn't; a page of it shown otherwise, as pageShown shows it; or a List of
+// either otherwise than the other's.
+func (w *spread) sameStores(now time.Time, what string, got, want HeldSessions, through map[string]string, page string) {
 	w.t.Helper()
 	either := cloneOrMake(got.sessions)
 	maps.Copy(either, want.sessions)
@@ -331,11 +408,14 @@ func (w *spread) sameStores(now time.Time, what string, got, want HeldSessions, 
 		switch {
 		case g == nil || h == nil:
 			w.t.Errorf("%s at %v: %s holds session %s %t, want %t, as read raw", w.name, now, what, id, g != nil, h != nil)
-		case !sameHeld(unpaged(g, id == page), unpaged(h, id == page), through):
+		case !sameHeld(unpaged(g, id == page), unpaged(h, id == page), through[id]):
 			q := queryOf(w.lines)
 			w.t.Errorf("%s at %v: %s holds session %s\n%s\nflights %v\nwant, as read raw\n%s\nflights %v", w.name, now, what, id,
-				heldSaid(g, q), flightsSaid(g, through), heldSaid(h, q), flightsSaid(h, through))
+				heldSaid(g, q), flightsSaid(g, through[id]), heldSaid(h, q), flightsSaid(h, through[id]))
 		}
+	}
+	if page != "" {
+		w.alike(now, what+", "+page+"'s page", pageShown(got, page, now), pageShown(want, page, now))
 	}
 	live := ListLive{Unlisted: true, Now: now}
 	if g, h := got.List(live), want.List(live); !reflect.DeepEqual(g, h) {
@@ -379,21 +459,28 @@ func pageShown(h HeldSessions, id string, now time.Time) SessionPage {
 	return page
 }
 
-// note notes the hard moments the reads at now meet, as the Follower resting
-// on digests gives the world's sessions then, the stream given pinning one.
-func (w *spread) note(now time.Time, stream Stream) {
-	ids := sessionsIn(w.lines)
-	from := w.based.SessionsOf(ids, func(string) bool { return false }, nil)
-	restsOn := func(id string) string {
-		if base := from[id].Base; base != nil {
-			return base.Date
+// restingOn is the date of the day whose digest holds the state each of the
+// world's sessions rests on, by its id, as the Follower resting on digests
+// gives them asked for none whole: none of one it reads whole.
+func (w *spread) restingOn() map[string]string {
+	bases := make(map[string]string)
+	for id, from := range w.based.SessionsOf(sessionsIn(w.lines), func(string) bool { return false }, nil) {
+		if from.Base != nil {
+			bases[id] = from.Base.Date
 		}
-		return ""
 	}
+	return bases
+}
+
+// note notes the hard moments the reads at now meet, the world's sessions
+// resting on the states of the days bases gives, as restingOn has them, the
+// stream given pinning one.
+func (w *spread) note(now time.Time, stream Stream, bases map[string]string) {
+	ids := sessionsIn(w.lines)
 	today := Today(now)
 	yesterday := yesterdayOf(today)
-	onYesterday := slices.ContainsFunc(ids, func(id string) bool { return restsOn(id) == yesterday })
-	onOlder := slices.ContainsFunc(ids, func(id string) bool { return restsOn(id) != "" && restsOn(id) < yesterday })
+	onYesterday := slices.ContainsFunc(ids, func(id string) bool { return bases[id] == yesterday })
+	onOlder := slices.ContainsFunc(ids, func(id string) bool { return bases[id] != "" && bases[id] < yesterday })
 	for _, moment := range []struct {
 		name string
 		met  bool
@@ -401,11 +488,11 @@ func (w *spread) note(now time.Time, stream Stream) {
 		{name: onYesterdayLate, met: now.Hour() == 23 && onYesterday},
 		{name: yesterdayRaw, met: now.Hour() == 0 && onOlder && !onYesterday},
 		{name: onYesterdayEarly, met: now.Hour() == 1 && onYesterday},
-		{name: idleThenActive, met: restsOn("idle") != "" && restsOn("idle") < yesterday && w.arrivedOn("idle", today, now)},
-		{name: pageOnState, met: restsOn("s") != ""},
-		{name: zoneEarly, met: !w.zone.At.After(now) && restsOn(w.zone.Session) == "" && w.digestHolds(dayfile.DateOf(w.zone.At), w.zone.Session)},
+		{name: idleThenActive, met: bases["idle"] != "" && bases["idle"] < yesterday && w.arrivedOn("idle", today, now)},
+		{name: pageOnState, met: bases["s"] != ""},
+		{name: zoneEarly, met: !w.zone.At.After(now) && bases[w.zone.Session] == "" && w.digestHolds(dayfile.DateOf(w.zone.At), w.zone.Session)},
 		{name: pinnedAcross, met: now.Hour() == 1 && slices.ContainsFunc(slices.Collect(maps.Values(stream.Requests)), func(t Told) bool {
-			return restsOn(t.Session) == yesterday
+			return bases[t.Session] == yesterday
 		})},
 	} {
 		w.met[moment.name] = w.met[moment.name] || moment.met
@@ -453,19 +540,24 @@ func (c datesTaken) taking(take func(string, ledger.Line)) func(string, ledger.L
 }
 
 // The List at half past one, once the day before's digest stands, over nine
-// days whose sessions each ran on every one, reads no day's files but the
-// near days', today's and the day after's, every session resting on its
-// state at the day before's end: where the same List read raw reads every
-// day's. A day is told read by the lines its read hands on.
+// days whose sessions each ran on every one, and made a request today,
+// reads today's file alone, every session resting on its state at the day
+// before's end: where the same List read raw reads every day's. A day is
+// told read by the lines its read hands on, and the day after today's holds
+// none.
 func TestAListOverDigestsReadsTheNearDaysFilesAlone(t *testing.T) {
 	ids := []string{"a", "b", "c"}
+	first, today := Today(foldDays[0]), Today(dayfile.DayStart(foldDays[0], 9))
 	var lines []ledger.Line
 	for i, id := range ids {
-		lines = append(lines, dayAfterDay(renamed(generatedSession(uint64(i)), id), 9)...)
+		session := renamed(generatedSession(uint64(i)), id)
+		early := session[0]
+		early.Request, early.At = "today-"+id, today.Start.Add(time.Duration(30+i)*time.Minute)
+		lines = append(lines, dayAfterDay(session, 9)...)
+		lines = append(lines, early)
 	}
 	slices.SortStableFunc(lines, func(a, b ledger.Line) int { return ended(&a).Compare(ended(&b)) })
 	c := newDigestChain(t, "nine days", 0, lines)
-	first, today := Today(foldDays[0]), Today(dayfile.DayStart(foldDays[0], 9))
 	now := today.Start.Add(90 * time.Minute)
 	c.at = now
 	c.ledger.SummariseEnded(now)
@@ -482,20 +574,13 @@ func TestAListOverDigestsReadsTheNearDaysFilesAlone(t *testing.T) {
 	for i, id := range ids {
 		running[i] = status.Session{ID: id, Assignments: []status.Assignment{{Model: foldOpus, Account: "work", LastSeen: now}}}
 	}
-	near := []string{today.Date, nextDate(today.Date)}
-	before := dayfile.Span(first.Start, dayfile.DayStart(today.Start, -1))
 	tests := []struct {
 		name    string
 		version int
-		read    func(dates []string) bool
-		says    string
+		read    []string
 	}{
-		{name: "over digests", version: DigestVersion, read: func(dates []string) bool {
-			return !slices.ContainsFunc(dates, func(date string) bool { return !slices.Contains(near, date) })
-		}, says: fmt.Sprintf("the near days' alone, %v", near)},
-		{name: "read raw", version: DigestVersion + 1, read: func(dates []string) bool {
-			return !slices.ContainsFunc(before, func(date string) bool { return !slices.Contains(dates, date) })
-		}, says: fmt.Sprintf("every day's from %s through %s", first.Date, yesterday)},
+		{name: "over digests", version: DigestVersion, read: []string{today.Date}},
+		{name: "read raw", version: DigestVersion + 1, read: dayfile.Span(first.Start, today.Start)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -506,8 +591,8 @@ func TestAListOverDigestsReadsTheNearDaysFilesAlone(t *testing.T) {
 			if len(list.Sessions) != len(ids) {
 				t.Errorf("the List lists %d sessions, want %d", len(list.Sessions), len(ids))
 			}
-			if dates := slices.Sorted(maps.Keys(l.dates)); !tt.read(dates) {
-				t.Errorf("the List read the lines of %v, want %s", dates, tt.says)
+			if dates := slices.Sorted(maps.Keys(l.dates)); !slices.Equal(dates, tt.read) {
+				t.Errorf("the List read the lines of %v, want those of %v", dates, tt.read)
 			}
 		})
 	}

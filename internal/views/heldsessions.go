@@ -223,9 +223,10 @@ func HoldSessions(prices ledger.Table) HeldSessions {
 // session's requests on the day counted afresh and its moves priced at its
 // prices; the late days t holds taken in, the oldest first, then today's
 // gain, each line h holds already passed over; the sessions wanted that it
-// doesn't hold, and those whose lines it can't place, held afresh of one
-// read through l, as read has them, of every one of today's sessions too
-// where the List is wanted and h doesn't hold them yet; each session's
+// doesn't hold, and those whose lines it can't place, held afresh of a read
+// through l, and a second of those it can't hold on their states, as read
+// has them, of every one of today's sessions too where the List is wanted
+// and h doesn't hold them yet; each session's
 // requests sealed behind its horizon; and the sessions nobody wants let go.
 // With h, it gives what changed of each session, as SessionGains has it.
 func (h HeldSessions) Fed(l LedgerSessions, t Taken, want SessionsWanted, now time.Time) (HeldSessions, SessionGains) {
