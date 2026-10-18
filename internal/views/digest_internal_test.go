@@ -31,19 +31,25 @@ var chainWorlds = append(slices.Clip(storedWorlds), struct {
 }{name: "a week of days", lines: everyDay})
 
 // everyDay is a generated session's lines, as generatedSession makes them,
-// and again a day later, and so on four times more, each request of each
-// day's its own, in the order the ledger files them.
+// and again a day later, and so on four times more, as dayAfterDay has them.
 func everyDay(seed uint64) []ledger.Line {
-	first := generatedSession(seed)
-	lines := slices.Clone(first)
-	for day := 1; day <= 4; day++ {
-		for _, l := range first {
-			l.At, l.Request = l.At.AddDate(0, 0, day), fmt.Sprintf("%s-%d", l.Request, day)
-			lines = append(lines, l)
+	return dayAfterDay(generatedSession(seed), 5)
+}
+
+// dayAfterDay are lines, and again a day later, as movedOn moves them, and
+// so on, on as many days in all as given, each request of each day's its
+// own, in the order the ledger files them.
+func dayAfterDay(lines []ledger.Line, days int) []ledger.Line {
+	all := slices.Clone(lines)
+	for day := 1; day < days; day++ {
+		for _, l := range lines {
+			l = movedOn(l, day)
+			l.Request = fmt.Sprintf("%s-%d", l.Request, day)
+			all = append(all, l)
 		}
 	}
-	slices.SortStableFunc(lines, func(a, b ledger.Line) int { return ended(&a).Compare(ended(&b)) })
-	return lines
+	slices.SortStableFunc(all, func(a, b ledger.Line) int { return ended(&a).Compare(ended(&b)) })
+	return all
 }
 
 // Digests built by a real ledger day by day, each session's state chained on
@@ -176,23 +182,42 @@ func newDigestChain(t *testing.T, name string, seed uint64, lines []ledger.Line)
 			t.Fatal(err)
 		}
 	}
-	filed := make(map[string][]byte)
+	filed := make(map[string][]ledger.Line)
 	for _, l := range lines {
-		data, err := json.Marshal(l)
-		if err != nil {
-			t.Fatal(err)
-		}
 		date := dayfile.DateOf(l.At)
-		filed[date] = append(append(filed[date], data...), '\n')
+		filed[date] = append(filed[date], l)
 	}
-	for date, data := range filed {
-		if err := os.WriteFile(filepath.Join(ledger.Dir(c.state), "requests-"+date+".jsonl"), data, 0o600); err != nil {
-			t.Fatal(err)
-		}
+	for date, lines := range filed {
+		c.file(date, lines...)
 	}
 	c.ledger = ledger.Open(ledger.Dir(c.state), 400*24*time.Hour, func() time.Time { return c.at }, ledger.HistoryIn(readings.Files(readings.Dir(c.state), quiet)),
 		ledger.CapsOf(nil, nil), quiet, ledger.Digesting(c.digests))
 	return c
+}
+
+// file files lines, in their order, under the local day with the given
+// date, after those filed there before, whenever each arrived.
+func (c *digestChain) file(date string, lines ...ledger.Line) {
+	c.t.Helper()
+	var data []byte
+	for _, l := range lines {
+		line, err := json.Marshal(l)
+		if err != nil {
+			c.t.Fatal(err)
+		}
+		data = append(append(data, line...), '\n')
+	}
+	f, err := os.OpenFile(filepath.Join(ledger.Dir(c.state), "requests-"+date+".jsonl"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		c.t.Fatal(err)
+	}
+	_, err = f.Write(data)
+	if closeErr := f.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		c.t.Fatal(err)
+	}
 }
 
 // days are the days from the one after the first line arrived on through
