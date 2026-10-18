@@ -248,6 +248,72 @@ var limited = data.Limit
 `,
 }
 
+func TestACheckFindsABannedTypeByEachRouteToIt(t *testing.T) {
+	root := sourcecheck.WriteModule(t, routesFixture)
+	r := sourcecheck.Rule{
+		Names:  sourcecheck.NamesIn("example.com/fixture"),
+		Fields: []string{"data.Banned"},
+		Read:   func(field string) string { return field + " reads raw fields; " + readFix },
+		Used: map[string]sourcecheck.Ban{
+			"data.Banned": {Says: "data.Banned is banned; " + usedFix},
+			"data.Shared": {Says: "data.Shared is banned; " + usedFix},
+		},
+	}
+	got := sourcecheck.Check(t, root, "example.com/fixture", r, []string{"internal/reader"}, fixtureAllowance())
+	want := []string{
+		"internal/reader/routes.go:8: data.Banned is banned; " + usedFix,
+		"internal/reader/routes.go:8: data.Banned is banned; " + usedFix,
+		"internal/reader/routes.go:9: data.Banned is banned; " + usedFix,
+		"internal/reader/routes.go:10: data.Banned.ID reads raw fields; " + readFix,
+		"internal/reader/routes.go:10: data.Banned.ID reads raw fields; " + readFix,
+		"internal/reader/routes.go:10: data.Banned.ID reads raw fields; " + readFix,
+		"internal/reader/routes.go:10: data.Shared is banned; " + usedFix,
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("found\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}
+
+// routesFixture is a module whose data package declares a type and a
+// variable a rule bans, beside a variable it doesn't; an elsewhere package,
+// which no check reads, declaring an alias of the banned type, a type defined
+// as it, another defined as that one, and a struct of its own alike but for
+// its name; and a reader package naming each of elsewhere's, reading a field
+// of each, and naming both variables.
+var routesFixture = map[string]string{
+	"go.mod": "module example.com/fixture\n",
+	"internal/data/data.go": `package data
+
+type Banned struct{ ID string }
+
+var Shared, Open = 7, 8
+`,
+	"internal/elsewhere/elsewhere.go": `package elsewhere
+
+import "example.com/fixture/internal/data"
+
+type Alias = data.Banned
+
+type Over data.Banned
+
+type Again Over
+
+type Own struct{ ID string }
+`,
+	"internal/reader/routes.go": `package reader
+
+import (
+	"example.com/fixture/internal/data"
+	"example.com/fixture/internal/elsewhere"
+)
+
+func routes(o elsewhere.Over, a elsewhere.Again, own elsewhere.Own) int {
+	var al elsewhere.Alias
+	return len(o.ID) + len(a.ID) + len(al.ID) + len(own.ID) + data.Shared + data.Open
+}
+`,
+}
+
 func TestACheckSeesRawDataTakenThroughFuncsChannelsAndTypeArguments(t *testing.T) {
 	root := sourcecheck.WriteModule(t, shapesFixture)
 	got := sourcecheck.Check(t, root, "example.com/fixture", fixtureRule(), []string{"internal/reader"}, fixtureAllowance())

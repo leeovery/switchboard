@@ -66,7 +66,12 @@ func TestTheDigestGuardFindsWhatItGuardsAgainst(t *testing.T) {
 		"internal/cli/named.go:17: ledger.Ledger.DigestEnded is a digest's; " + digestFix,
 		"internal/cli/named.go:19: ledger.SessionFrom.Base reads a digest's fields; " + digestFix,
 		"internal/cli/named.go:19: ledger.SessionBase.Date reads a digest's fields; " + digestFix,
-		"internal/dashboard/dashboard.go:5: views.Digests is a digest's; " + digestFix,
+		"internal/dashboard/dashboard.go:8: views.Digests is a digest's; " + digestFix,
+		"internal/dashboard/dashboard.go:10: views.DigestEvery is a digest's; " + digestFix,
+		"internal/dashboard/dashboard.go:12: ledger.DigestHead is a digest's; " + digestFix,
+		"internal/dashboard/dashboard.go:12: ledger.SessionBase is a digest's; " + digestFix,
+		"internal/dashboard/dashboard.go:12: ledger.DigestHead.Day reads a digest's fields; " + digestFix,
+		"internal/dashboard/dashboard.go:12: ledger.SessionBase.Date reads a digest's fields; " + digestFix,
 		"internal/cli/readers.go:kept: digestsWired allows it, but it keeps the rule; " + wiredFix,
 		"internal/cli/readers.go:gone: digestsWired allows it, but it's gone; " + wiredFix,
 		"ledger.SessionGone: sessionsAsOf bans it, but ledger declares no such name; " + sessionsAsOfFix,
@@ -79,11 +84,13 @@ func TestTheDigestGuardFindsWhatItGuardsAgainst(t *testing.T) {
 // digestsFixture is a module of the ledger, with a digest's types, its
 // method that digests the days ended, a session as of a day, and a Follower
 // giving sessions as of one without naming it; the views, with the
-// version of their states and their Digests; and two drawing packages: the
-// CLI, with a file naming each and reading a session's fields as of a day
-// it never names, a function allowed to name one, one allowed that names
-// none, and a test file, which the guard passes over; and the dashboard,
-// with the views' Digests.
+// version of their states, a variable and their Digests; a kit, no drawing
+// package, with an alias of a digest's head and a type defined as a session
+// as of a day; and two drawing packages: the CLI, with a file naming each
+// and reading a session's fields as of a day it never names, a function
+// allowed to name one, one allowed that names none, and a test file, which
+// the guard passes over; and the dashboard, with the views' Digests and
+// variable, and the kit's types, reading a field of each.
 var digestsFixture = map[string]string{
 	"go.mod": "module example.com/fixture\n",
 	"internal/ledger/ledger.go": `package ledger
@@ -107,6 +114,8 @@ func (f *Follower) Sessions(ids []string) map[string]SessionFrom { return nil }
 	"internal/views/views.go": `package views
 
 const DigestVersion = 1
+
+var DigestEvery = 2
 
 type Digests struct{}
 `,
@@ -145,11 +154,26 @@ import "example.com/fixture/internal/ledger"
 
 var tested ledger.SessionFrom
 `,
+	"internal/kit/kit.go": `package kit
+
+import "example.com/fixture/internal/ledger"
+
+type Head = ledger.DigestHead
+
+type Base ledger.SessionBase
+`,
 	"internal/dashboard/dashboard.go": `package dashboard
 
-import "example.com/fixture/internal/views"
+import (
+	"example.com/fixture/internal/kit"
+	"example.com/fixture/internal/views"
+)
 
 var digests = views.Digests{}
+
+var every = views.DigestEvery
+
+func routes(h kit.Head, b kit.Base) string { return h.Day + b.Date }
 `,
 }
 
