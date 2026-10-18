@@ -1,6 +1,7 @@
 package ledger_test
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -31,16 +32,19 @@ func dayOf(days int) string {
 // lookupWorld is a ledger the lookup's tests look sessions up in, as of a
 // day: the lines each test files under its days, summarised, and digested,
 // as the router's round and digester would, by a clock stopped at at, two
-// days after the last day the tests file lines under.
+// days after the last day the tests file lines under; each state it digests
+// carrying filler bytes of filler, none where it's 0, as a busy session's
+// state runs to kilobytes.
 type lookupWorld struct {
-	t                   *testing.T
+	t                   testing.TB
 	state, dir, history string
 	at                  time.Time
 	writer              *ledger.Ledger
+	filler              int
 }
 
 // newLookupWorld returns a world of the test's own, holding no lines yet.
-func newLookupWorld(t *testing.T) *lookupWorld {
+func newLookupWorld(t testing.TB) *lookupWorld {
 	t.Helper()
 	state, dir, history := stateDirs(t)
 	at := on(3, 10, 0)
@@ -96,7 +100,9 @@ func (w *lookupWorld) digest(days int, ids ...string) {
 		if !ok || from.RestsOn() == nil {
 			w.t.Fatalf("the digest of %s: session %s is found %t, resting on %v; want it found, resting on days it can tell", date, id, ok, from.RestsOn())
 		}
-		state, err := json.Marshal(foldedFrom(w.t, id, date, from))
+		folded := foldedFrom(w.t, id, date, from)
+		folded.Filler = fillerOf(w.filler, uint64(len(digest.Sessions)))
+		state, err := json.Marshal(folded)
 		if err != nil {
 			w.t.Fatal(err)
 		}
@@ -133,23 +139,37 @@ func (w *lookupWorld) arrivals(date string) (early, late int) {
 }
 
 // testState is a session's state as the lookup's tests fold it, as of the
-// end of a day: Of tells the session and the day, as stateAt tells them, and
-// Requests are those of the lines folded into it, in the order they were.
+// end of a day: Of tells the session and the day, as stateAt tells them;
+// Requests are those of the lines folded into it, in the order they were;
+// and Filler is what a world's filler gives it.
 type testState struct {
 	Of       string   `json:"of"`
 	Requests []string `json:"requests"`
+	Filler   string   `json:"filler,omitempty"`
+}
+
+// fillerOf is n bytes of hex, drawn from the given seed, as unlike each other
+// as a stored state's text is, so a digest of them gzips as one of states
+// would: none where n is 0.
+func fillerOf(n int, seed uint64) string {
+	r := rand.New(rand.NewPCG(seed, seed))
+	drawn := make([]byte, n/2)
+	for i := range drawn {
+		drawn[i] = byte(r.Uint32())
+	}
+	return hex.EncodeToString(drawn)
 }
 
 // foldedFrom is the state of the session with the given id as of the end of
 // the local day with the given date, folded from from, the session as of the
 // start of the day after: its base's requests, then those of its lines.
-func foldedFrom(t *testing.T, id, date string, from ledger.SessionFrom) testState {
+func foldedFrom(t testing.TB, id, date string, from ledger.SessionFrom) testState {
 	t.Helper()
 	return testState{Of: stateAt(id, date), Requests: append(baseOf(t, from.Base).Requests, requestsOf(from.Lines)...)}
 }
 
 // baseOf is the state base holds: none where it's nil.
-func baseOf(t *testing.T, base *ledger.SessionBase) testState {
+func baseOf(t testing.TB, base *ledger.SessionBase) testState {
 	t.Helper()
 	var state testState
 	if base != nil {
@@ -197,7 +217,7 @@ type found struct {
 
 // foundOf tells each of sessions as found has it, by its id, failing the
 // test where one rests on a state its digest's day doesn't tell.
-func foundOf(t *testing.T, sessions map[string]ledger.SessionFrom) map[string]found {
+func foundOf(t testing.TB, sessions map[string]ledger.SessionFrom) map[string]found {
 	t.Helper()
 	all := make(map[string]found, len(sessions))
 	for id, s := range sessions {

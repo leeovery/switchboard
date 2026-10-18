@@ -40,6 +40,7 @@ type Follower struct {
 	readings heldListing[[]string]
 	unlisted failing
 	followed map[string]*followedDay
+	heads    map[string]heldHead
 	today    todaysLines
 }
 
@@ -50,7 +51,7 @@ type Follower struct {
 // logged to logger.
 func NewFollower(stateDir string, now func() time.Time, caps Caps, body int, logger *slog.Logger) *Follower {
 	d, history := daysIn(stateDir, caps, logger)
-	return &Follower{days: d, history: history, now: now, body: body, followed: make(map[string]*followedDay)}
+	return &Follower{days: d, history: history, now: now, body: body, followed: make(map[string]*followedDay), heads: make(map[string]heldHead)}
 }
 
 // heldListing is what a listing of a directory found, found, or why it
@@ -351,6 +352,35 @@ func (f *Follower) lookAt(date string) look {
 		l.none, l.err = true, nil
 	}
 	return l
+}
+
+// heldHead is the head of a day's digest as a Follower last read it: file,
+// the digest's file as it looked then; and the head, held false where it
+// didn't read as the day's, of the version the follower reads.
+type heldHead struct {
+	file fs.FileInfo
+	head DigestHead
+	held bool
+}
+
+// digestHead returns the head of the digest the ledger holds of the local
+// day with the given date, as days.digestHead reads it, of the version the
+// follower reads, reporting false where it holds none that reads: as it was
+// last read, while its file looks as it did then, as dayfile.SameAs says, as
+// the follower holds summaries; else read afresh, and held. The follower is
+// held.
+func (f *Follower) digestHead(date string) (DigestHead, bool) {
+	file, err := os.Stat(digestFile(f.days.files.Dir, date))
+	if err != nil {
+		delete(f.heads, date)
+		return DigestHead{}, false
+	}
+	if held, ok := f.heads[date]; ok && dayfile.SameAs(held.file, file) {
+		return held.head, held.held
+	}
+	head, err := f.days.digestHead(date, f.body)
+	f.heads[date] = heldHead{file: file, head: head, held: err == nil}
+	return head, err == nil
 }
 
 // same reports whether l looks as other does: the same summary's file, as

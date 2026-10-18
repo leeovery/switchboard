@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 	"io"
@@ -81,7 +82,8 @@ type DigestEntry struct {
 // storedDigest is a digest as its file holds it, gzipped: the version of the
 // envelope it was written in, its head, its day's bounds as nanoseconds
 // since the Unix epoch, and its sessions' entries, by their ids, zeros left
-// out.
+// out. The entries come last, as storedHeadIn reads the head alone by
+// stopping at them.
 type storedDigest struct {
 	Version      int                    `json:"version"`
 	Body         int                    `json:"body"`
@@ -191,12 +193,27 @@ var errDigestOutdated = errors.New("a digest of another version")
 // errNotTheDaysDigest where it doesn't read as the day's digest. It reads
 // none of the sessions' states.
 func (d days) digest(date string, body int) (Digest, error) {
+	return d.digestRead(date, body, storedIn)
+}
+
+// digestHead returns the head of the digest the ledger holds of the local
+// day with the given date, as digest judges it, reading none of its
+// sessions' entries, as storedHeadIn reads it: failing as digest fails,
+// but for a file damaged after its head, as the rest of it isn't read.
+func (d days) digestHead(date string, body int) (DigestHead, error) {
+	digest, err := d.digestRead(date, body, storedHeadIn)
+	return digest.Head, err
+}
+
+// digestRead returns the digest the ledger holds of the local day with the
+// given date, as read reads its file, judged as digest judges it.
+func (d days) digestRead(date string, body int, read func(io.Reader) (storedDigest, error)) (Digest, error) {
 	file, err := os.Open(digestFile(d.files.Dir, date))
 	if err != nil {
 		return Digest{}, err
 	}
 	defer func() { _ = file.Close() }()
-	stored, err := storedIn(file)
+	stored, err := read(file)
 	switch {
 	case err != nil:
 		return Digest{}, fmt.Errorf("%w: %w", errNotTheDaysDigest, err)
@@ -232,6 +249,61 @@ func storedIn(r io.Reader) (storedDigest, error) {
 	var stored storedDigest
 	err = json.Unmarshal(data, &stored)
 	return stored, err
+}
+
+// digestSessions is the name a digest's file keeps its sessions' entries
+// under, after every field of its head, as storedDigest declares them.
+const digestSessions = "sessions"
+
+// storedHeadIn returns the head of the digest r holds, as its file holds it,
+// its sessions none: reading its fields as far as its sessions' entries,
+// which follow every field of the head, so none of them is inflated or
+// read. It fails where the head doesn't read whole, inflating no more than
+// digestMax.
+func storedHeadIn(r io.Reader) (storedDigest, error) {
+	members, err := gzip.NewReader(r)
+	if err != nil {
+		return storedDigest{}, err
+	}
+	var head bytes.Buffer
+	if err := headCopied(jsontext.NewDecoder(io.LimitReader(members, digestMax)), jsontext.NewEncoder(&head)); err != nil {
+		return storedDigest{}, err
+	}
+	var stored storedDigest
+	err = json.Unmarshal(head.Bytes(), &stored)
+	return stored, err
+}
+
+// headCopied writes to head, as an object of its own, the members of the
+// object from reads, as far as its sessions' entries, or its end.
+func headCopied(from *jsontext.Decoder, head *jsontext.Encoder) error {
+	begin, err := from.ReadToken()
+	switch {
+	case err != nil:
+		return err
+	case begin.Kind() != jsontext.BeginObject.Kind():
+		return fmt.Errorf("begins with %v, not an object", begin.Kind())
+	}
+	if err := head.WriteToken(jsontext.BeginObject); err != nil {
+		return err
+	}
+	for {
+		token, err := from.ReadToken()
+		switch {
+		case err != nil:
+			return err
+		case token.Kind() == jsontext.EndObject.Kind(), token.String() == digestSessions:
+			return head.WriteToken(jsontext.EndObject)
+		}
+		name := jsontext.String(token.String())
+		value, err := from.ReadValue()
+		if err != nil {
+			return err
+		}
+		if err := errors.Join(head.WriteToken(name), head.WriteValue(value)); err != nil {
+			return err
+		}
+	}
 }
 
 // digestGrounds are what a digest is judged against, as stands judges it,

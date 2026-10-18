@@ -48,13 +48,18 @@ type SessionBase struct {
 }
 
 // daysLook is a look at the ledger's days, as one who asks for sessions as of
-// a day has its own, the router's writer and a reader alike: naming gives
-// those of the sessions wanted the local day with the given date names among
-// its sessions' ids, or might, by their ids; and kept the lines the ledger
-// keeps of a day, as digestGrounds' kept gives them.
+// a day has its own, the router's writer and a reader alike, of the version
+// of the sessions' states it reads: naming gives those of the sessions
+// wanted the local day with the given date names among its sessions' ids, or
+// might, by their ids; kept the lines the ledger keeps of a day, as
+// digestGrounds' kept gives them; digest the digest the ledger holds of a
+// day, as days.digest reads it, and head its head alone, as days.digestHead
+// reads it, each reporting false where it holds none that reads.
 type daysLook interface {
 	naming(date string, wanted map[string]bool) map[string]bool
 	kept(date string) (lines int, known bool)
+	digest(date string) (Digest, bool)
+	head(date string) (DigestHead, bool)
 }
 
 // sessionsAsOf returns the sessions with the given ids as of the start of
@@ -68,16 +73,32 @@ func (f *Follower) sessionsAsOf(ids []string, date string, take func(date string
 }
 
 // lookup returns a lookup of sessions by the follower's own look at the
-// ledger's days, as followerLook has it, their states of the version it
-// reads, having looked at none yet.
+// ledger's days, as followerLook has it, having looked at none yet.
 func (f *Follower) lookup() *sessionsLookup {
-	return newSessionsLookup(f.days, followerLook{f: f}, f.body)
+	return newSessionsLookup(f.days, followerLook{f: f})
 }
 
 // followerLook is a Follower's look at the ledger's days, each as follow
-// finds it, holding the follower as it looks.
+// finds it, and the digests of them of the version it reads, holding the
+// follower as it looks.
 type followerLook struct {
 	f *Follower
+}
+
+// digest gives the digest the ledger holds of the local day with the given
+// date, of the version the follower reads, as days.digest reads it,
+// reporting false where it holds none that reads.
+func (l followerLook) digest(date string) (Digest, bool) {
+	digest, err := l.f.days.digest(date, l.f.body)
+	return digest, err == nil
+}
+
+// head gives the head of the digest the ledger holds of the local day with
+// the given date, as Follower.digestHead holds it.
+func (l followerLook) head(date string) (DigestHead, bool) {
+	l.f.mu.Lock()
+	defer l.f.mu.Unlock()
+	return l.f.digestHead(date)
 }
 
 // naming gives those of the sessions wanted the local day with the given
@@ -116,15 +137,17 @@ func (l followerLook) kept(date string) (int, bool) {
 // version body, as sessionsLookup.asOf has them.
 func (l *Ledger) sessionsAsOf(ids []string, date string, body int, now time.Time) map[string]SessionFrom {
 	first, err := l.days.first()
-	lookup := newSessionsLookup(l.days, newWriterLook(l.days), body)
+	lookup := newSessionsLookup(l.days, newWriterLook(l.days, body))
 	return lookup.asOf(l.days.datesBefore(date, first, err, now), nil, wanting(make(map[string]bool), ids), nil, newSessionsRead(now, nil))
 }
 
 // writerLook is the router's writer's look at the ledger's days, made for
 // one lookup: each day's summary read, and its files looked at, once, as
-// it's first asked of, as writtenDay holds it.
+// it's first asked of, as writtenDay holds it; and its digest read, of the
+// sessions' states of the version body, as it's asked of.
 type writerLook struct {
 	days   days
+	body   int
 	looked map[string]writtenDay
 }
 
@@ -140,10 +163,26 @@ type writtenDay struct {
 	exact   bool
 }
 
-// newWriterLook returns the writer's look at the ledger's days d, having
-// looked at none yet.
-func newWriterLook(d days) writerLook {
-	return writerLook{days: d, looked: make(map[string]writtenDay)}
+// newWriterLook returns the writer's look at the ledger's days d, of the
+// sessions' states of the version body, having looked at none yet.
+func newWriterLook(d days, body int) writerLook {
+	return writerLook{days: d, body: body, looked: make(map[string]writtenDay)}
+}
+
+// digest gives the digest the ledger holds of the local day with the given
+// date, as days.digest reads it, reporting false where it holds none that
+// reads.
+func (l writerLook) digest(date string) (Digest, bool) {
+	digest, err := l.days.digest(date, l.body)
+	return digest, err == nil
+}
+
+// head gives the head of the digest the ledger holds of the local day with
+// the given date, as days.digestHead reads it, reporting false where it
+// holds none that reads.
+func (l writerLook) head(date string) (DigestHead, bool) {
+	head, err := l.days.digestHead(date, l.body)
+	return head, err == nil
 }
 
 // naming gives those of the sessions wanted the local day with the given
@@ -199,23 +238,30 @@ func (l writerLook) day(date string) writtenDay {
 }
 
 // sessionsLookup is a lookup of sessions as of a local day: the ledger's
-// days, the asker's look at them, and the version of the states its sessions
-// rest on; and, held so each day is looked at and its digest read once, the
-// lines the ledger kept of each day as the look first gave them, and each
-// day's digest, nil where it holds none that reads.
+// days, and the asker's look at them; and, held so each day is looked at,
+// its digest read and its digest's head read once, the lines the ledger kept
+// of each day as the look first gave them, each day's digest, nil where it
+// holds none that reads, and each day's digest's head, as the look first
+// gave them.
 type sessionsLookup struct {
 	days    days
 	look    daysLook
-	body    int
 	kept    map[string]keptLines
 	digests map[string]*Digest
+	heads   map[string]headLooked
+}
+
+// headLooked is the head of a day's digest as a look gave it: held false
+// where the ledger holds none that reads.
+type headLooked struct {
+	head DigestHead
+	held bool
 }
 
 // newSessionsLookup returns a lookup of sessions in the ledger's days d, by
-// the asker's own look at them, the states its sessions rest on of the
-// version body, having looked at none yet.
-func newSessionsLookup(d days, look daysLook, body int) *sessionsLookup {
-	return &sessionsLookup{days: d, look: look, body: body, kept: make(map[string]keptLines), digests: make(map[string]*Digest)}
+// the asker's own look at them, having looked at none yet.
+func newSessionsLookup(d days, look daysLook) *sessionsLookup {
+	return &sessionsLookup{days: d, look: look, kept: make(map[string]keptLines), digests: make(map[string]*Digest), heads: make(map[string]headLooked)}
 }
 
 // asOf returns the sessions wanted as of the start of a local day, as
@@ -379,22 +425,25 @@ func (l *sessionsLookup) keptOn(date string) (int, bool) {
 }
 
 // head gives the head of the digest the ledger holds of the local day with
-// the given date, as digest reads it, reporting false where it holds none
-// that reads.
+// the given date, as the look gives it, where it hasn't yet: reporting false
+// where it holds none that reads. None of the digest's sessions is read for
+// it.
 func (l *sessionsLookup) head(date string) (DigestHead, bool) {
-	if digest := l.digest(date); digest != nil {
-		return digest.Head, true
+	h, asked := l.heads[date]
+	if !asked {
+		h.head, h.held = l.look.head(date)
+		l.heads[date] = h
 	}
-	return DigestHead{}, false
+	return h.head, h.held
 }
 
 // digest returns the digest the ledger holds of the local day with the given
-// date, its sessions' states of the lookup's version, as days.digest reads
-// it, where it hasn't yet: nil where it holds none that reads.
+// date, as the look gives it, where it hasn't yet: nil where it holds none
+// that reads.
 func (l *sessionsLookup) digest(date string) *Digest {
 	digest, read := l.digests[date]
 	if !read {
-		if held, err := l.days.digest(date, l.body); err == nil {
+		if held, ok := l.look.digest(date); ok {
 			digest = &held
 		}
 		l.digests[date] = digest

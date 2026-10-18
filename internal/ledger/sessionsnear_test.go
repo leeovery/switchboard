@@ -23,7 +23,7 @@ type nearWorld struct {
 }
 
 // newNearWorld returns a world of the test's own, holding no lines yet.
-func newNearWorld(t *testing.T) *nearWorld {
+func newNearWorld(t testing.TB) *nearWorld {
 	t.Helper()
 	return &nearWorld{lookupWorld: newLookupWorld(t), named: make(map[int][]string)}
 }
@@ -74,6 +74,17 @@ func (d takenDays) take(date string, l ledger.Line) {
 // dates are the dates of the days whose lines take was handed, oldest first.
 func (d takenDays) dates() []string {
 	return slices.Sorted(maps.Keys(d))
+}
+
+// on is what take was handed of the days with the given dates alone.
+func (d takenDays) on(dates []string) takenDays {
+	on := takenDays{}
+	for _, date := range dates {
+		if requests, ok := d[date]; ok {
+			on[date] = requests
+		}
+	}
+	return on
 }
 
 // nearDays files the lines the tests of a follower's sessions share, the
@@ -223,6 +234,73 @@ func TestSessionsOfGivesThoseAskedForAloneOnTheirDigests(t *testing.T) {
 	}
 }
 
+// Yesterday's lines are handed to take while it's a near day, whatever
+// sessions it names; once its digest stands, only where a session read
+// reads it: one it names asked for whole, or resting on an older state. A
+// raw read hands take yesterday's lines all the same.
+func TestYesterdaysLinesAreTakenWhileItsNearOrASessionReadReadsIt(t *testing.T) {
+	tests := []struct {
+		name  string
+		at    time.Time
+		ids   []string
+		whole []string
+		read  []string
+	}{
+		{name: "at 00:59, yesterday near, naming none asked for", at: on(1, 0, 59), ids: []string{"four"}, read: []string{dayOf(0), dayOf(1)}},
+		{name: "at 01:30, yesterday digested, naming none asked for", at: on(1, 1, 30), ids: []string{"four"}, read: []string{dayOf(1)}},
+		{name: "at 01:30, yesterday digested, naming one asked for resting on it", at: on(1, 1, 30), ids: []string{"one"}, read: []string{dayOf(1)}},
+		{
+			name: "at 01:30, yesterday digested, naming one asked for whole", at: on(1, 1, 30), ids: []string{"one"}, whole: []string{"one"},
+			read: []string{dayOf(-2), dayOf(-1), dayOf(0), dayOf(1)},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newNearWorld(t)
+			nearDays(w)
+			w.by(tt.at)
+			taken := takenDays{}
+
+			w.follower().SessionsOf(tt.ids, func(id string) bool { return slices.Contains(tt.whole, id) }, taken.take)
+
+			if dates := taken.dates(); !slices.Equal(dates, tt.read) {
+				t.Errorf("SessionsOf(%q), %q whole, handed take the lines of %q, want those of %q", tt.ids, tt.whole, dates, tt.read)
+			}
+		})
+	}
+}
+
+// A follower holds the head of a day's digest while its file looks as it did
+// when it was read, opening it no more, and reads it afresh once it's
+// written again: a digest of yesterday's of another version leaves it a near
+// day, read raw.
+func TestAFollowerHoldsADigestsHeadWhileItsFileLooksAsItDid(t *testing.T) {
+	w := newNearWorld(t)
+	nearDays(w)
+	w.by(on(1, 1, 30))
+	follower := w.follower()
+	read := func() []string {
+		taken := takenDays{}
+		follower.SessionsOf([]string{"four"}, eachWhole, taken.take)
+		return taken.dates()
+	}
+	digested := []string{dayOf(-1), dayOf(1)}
+	if dates := read(); !slices.Equal(dates, digested) {
+		t.Fatalf("SessionsOf() handed take the lines of %q, want those of %q: four's day, and today's, yesterday's digest standing", dates, digested)
+	}
+	unopenable(t, w.dir, "digest-*")
+
+	if dates := read(); !slices.Equal(dates, digested) {
+		t.Errorf("read again, its digests open to no one, SessionsOf() handed take the lines of %q, want those of %q: their heads held", dates, digested)
+	}
+	if err := ledger.WriteDigest(w.dir, ledger.Digest{Head: ledger.DigestHead{Body: digestBody + 1, Day: dayOf(0)}}); err != nil {
+		t.Fatal(err)
+	}
+	if dates, want := read(), []string{dayOf(-1), dayOf(0), dayOf(1)}; !slices.Equal(dates, want) {
+		t.Errorf("yesterday's digest written again, of another version, SessionsOf() handed take the lines of %q, want those of %q: yesterday read raw", dates, want)
+	}
+}
+
 // A follower of another version of the sessions' states than the digests
 // hold rests no session on one, reading yesterday's files raw too, and each
 // session's every day.
@@ -279,7 +357,9 @@ var turnMoments = []time.Time{on(1, 23, 59), on(2, 0, 1), on(2, 0, 59), on(2, 1,
 
 // Over a generated ledger, its days digested as the router's digester would,
 // then changed since, a follower's sessions read each whole are what a
-// follower reading no digest gives, take handed the same lines; and read on
+// follower reading no digest gives, take handed, of each day the whole read
+// reads, the lines that raw read hands it: the raw read reads yesterday's
+// too where its digest stands and it names none of them; and read on
 // their digests, each is what that raw read gives it: its base's state
 // folded from exactly those filed under the base's day and before, and its
 // lines those filed after, none of which arrived before the base's day
@@ -297,9 +377,10 @@ func TestAFollowersSessionsAreWhatARawReadGivesOverAGeneratedLedger(t *testing.T
 				raw := ledger.NewFollower(g.w.state, clock.now, caps, digestBody+1, logs.For("cli")).Sessions(generatedSessions, eachWhole, rawTaken.take)
 				follower := followerOf(g.w.state, clock, caps)
 
-				if whole := follower.Sessions(generatedSessions, eachWhole, wholeTaken.take); !reflect.DeepEqual(whole, raw) || !reflect.DeepEqual(wholeTaken, rawTaken) {
-					t.Errorf("seed %d, at %s: read whole, the sessions are\n%+v\nand take was handed %v; want them as a follower reading no digest gives them\n%+v\nhanded %v",
-						seed, at.Format(time.DateTime), whole, wholeTaken, raw, rawTaken)
+				whole := follower.Sessions(generatedSessions, eachWhole, wholeTaken.take)
+				if rawOn := rawTaken.on(wholeTaken.dates()); !reflect.DeepEqual(whole, raw) || !reflect.DeepEqual(wholeTaken, rawOn) {
+					t.Errorf("seed %d, at %s: read whole, the sessions are\n%+v\nand take was handed %v; want them as a follower reading no digest gives them\n%+v\nhanded %v of those days",
+						seed, at.Format(time.DateTime), whole, wholeTaken, raw, rawOn)
 				}
 				g.restOnARawRead(at, follower.Sessions(generatedSessions, nil, nil), raw)
 			}

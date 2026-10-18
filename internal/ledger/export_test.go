@@ -47,10 +47,10 @@ func (f *Follower) Kept(date string) (int, bool) {
 }
 
 // Kept gives the lines the ledger keeps of the local day with the given
-// date, as the router's writer's look gives them to the lookup, for tests of
-// its contract.
+// date, as the router's writer's look gives them to the lookup, whatever
+// version of the states it reads, for tests of its contract.
 func (l *Ledger) Kept(date string) (int, bool) {
-	return newWriterLook(l.days).kept(date)
+	return newWriterLook(l.days, 0).kept(date)
 }
 
 // SetHistory has the reader list and read the readings history as history

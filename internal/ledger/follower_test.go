@@ -193,7 +193,7 @@ func compressFile(t *testing.T, dir, name string) {
 }
 
 // removeFile removes the file with the given name in dir, as a prune does.
-func removeFile(t *testing.T, dir, name string) {
+func removeFile(t testing.TB, dir, name string) {
 	t.Helper()
 	if err := os.Remove(filepath.Join(dir, name)); err != nil {
 		t.Fatal(err)
