@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.4] - 2026-10-18
+
+✨ Added
+- `w` shows and hides each model's own window, such as Fable's week, on the Overview, Accounts' Detail, Sessions and a session's page — hidden at first and remembered; a model window nearing or at its limit shows either way.
+- `a` on Runway collapses the account column to each account's number, marks and use, giving the chart more room; COMING UP then numbers its accounts. Remembered.
+
+🔧 Changed
+- Windows are listed the week first, then the 5-hour, then each model's own — on the Overview, in `usage`, GRAPHS, Sessions, the routing card, a session's page, Accounts, `status`, `history --windows` and the Log's cards. The JSON keeps its order.
+- Runway opens on the week.
+- Σ pool's percentage is its accounts' mean use, so a reserve no longer reads as use; its words still count the room to their caps. `status --json`'s `pool.windows[].used` is the mean, left out where no account's use counts.
+- USAGE's blocks are a blank row apart, two only where GRAPHS' charts sit beside them.
+- Runway's pool lane is named `Σ pool` on its top row, without the rule above it or the step-by-step words.
+- The heading's clock keeps time, bright, while a card is open, so a card left open doesn't read as a hang.
+- A phone's view tabs have a cell either side, and a session's path is drawn brighter.
+
+🐛 Fixed
+- An account without a usable token adds no room to the pool, as its row shows none.
+
 ## [0.2.3] - 2026-10-17
 
 🐛 Fixed
