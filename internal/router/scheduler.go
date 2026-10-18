@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -23,9 +24,10 @@ const (
 // model on one account, so their prompt cache stays warm, and their reasoning
 // with them where the model's thinking is bound to the account, choosing
 // afresh only for a new session, one idle past its cache's life whose
-// model's thinking isn't bound, or one whose account has no room: then it
-// chooses the account whose quota would be lost soonest unused, having probed
-// the accounts whose usage is stale. See decide for the whole order.
+// model's thinking isn't bound, one whose account has no room, or one moved
+// at its compaction: then it chooses the account whose quota would be lost
+// soonest unused, having probed the accounts whose usage is stale. See decide
+// for the whole order.
 type scheduler struct {
 	// accounts are every account configured, among which requests go out on
 	// those with tokens.
@@ -61,6 +63,9 @@ func (s *scheduler) Choose(ctx context.Context, req Request) Choice {
 	}
 	if d.passedOver != "" {
 		notePressure(req, d)
+	}
+	if d.compacted {
+		noteCompaction(req, d)
 	}
 	c := Choice{Account: d.account, Reason: d.reason, NoRoom: d.noRoom, Reserved: d.reserved, Back: d.back}
 	if req.Session != "" && d.account != "" && !req.Check {
@@ -181,6 +186,34 @@ func (s *scheduler) view(req Request, now time.Time) view {
 func notePressure(req Request, d decision) {
 	logger.Info("passed over under pressure", "id", req.ID, "account", d.passedOver, "rate", prose.Percent(d.pressure.Rate)+" an hour",
 		"runs_out", d.pressure.RunsOut, "chosen", d.account)
+}
+
+// staying says why a session stays where it is at its compaction, as each
+// verdict but a move judges it.
+var staying = map[score.Verdict]string{
+	score.StaysUnknown:     "unknown",
+	score.StaysSame:        "same account",
+	score.StaysResetsLater: "resets later",
+	score.StaysNotAtRisk:   "not at risk",
+}
+
+// noteCompaction notes in the log, at debug, why the choice d kept the
+// session where it is at the first request after its compaction, the account
+// it judged moving it to, "" where none was chosen, and where that account's
+// room isn't at risk, the share of its perishable window it would leave
+// unused at its reset. A move it notes nothing of: the request's routed line
+// and the move's own say it.
+func noteCompaction(req Request, d decision) {
+	m := d.move
+	if m.Verdict == score.Moves {
+		return
+	}
+	attrs := []any{"id", req.ID, "session", status.ShortID(req.Session), "model", req.Model,
+		"account", d.account, "why", staying[m.Verdict], "chosen", m.To}
+	if m.Verdict == score.StaysNotAtRisk {
+		attrs = append(attrs, "left", prose.Tenths(m.Left*100)+"%")
+	}
+	logger.Debug("stays after compaction", attrs...)
 }
 
 // recheck probes again the accounts whose usage as last read leaves no room

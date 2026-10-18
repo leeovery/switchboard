@@ -8,9 +8,9 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-// marked runs words together, each account they name in brackets and each
-// duration in braces, so a test sees both what they say and the kind of each
-// part.
+// marked runs words together, each account they name in brackets, each
+// duration in braces and each figure in angle brackets, so a test sees both
+// what they say and the kind of each part.
 func marked(w status.Words) string {
 	var b strings.Builder
 	for _, p := range w {
@@ -19,6 +19,8 @@ func marked(w status.Words) string {
 			b.WriteString("[" + p.Text + "]")
 		case status.PartDuration:
 			b.WriteString("{" + p.Text + "}")
+		case status.PartFigure:
+			b.WriteString("<" + p.Text + ">")
 		default:
 			b.WriteString(p.Text)
 		}
@@ -158,6 +160,45 @@ func TestReasonWords(t *testing.T) {
 			event:   "rescored after {15h} idle",
 			routing: "from [side], rescored after {15h} idle",
 			session: "rescored after {15h} idle",
+		},
+		{
+			name:    "a session moved at its compaction, alike everywhere",
+			reason:  "compacted: side would reset with 35% of its week left",
+			facts:   status.Facts{From: "work", To: "side"},
+			event:   "compacted: [side] would reset with <35%> of its week left",
+			routing: "from [work], compacted: [side] would reset with <35%> of its week left",
+			session: "compacted: [side] would reset with <35%> of its week left",
+		},
+		{
+			name:    "a session moved at its compaction, the account it left not given, so no move",
+			reason:  "compacted: side would reset with 35% of its week left",
+			facts:   status.Facts{To: "side"},
+			event:   "compacted: [side] would reset with <35%> of its week left",
+			session: "compacted: [side] would reset with <35%> of its week left",
+		},
+		{
+			name:    "a session moved at its compaction, its reason from elsewhere, cleaned",
+			reason:  "compacted:  side\x1bwould reset with 35%\tof its week left\x07",
+			facts:   status.Facts{From: "work", To: "side"},
+			event:   "compacted: [side] would reset with <35%> of its week left",
+			routing: "from [work], compacted: [side] would reset with <35%> of its week left",
+			session: "compacted: [side] would reset with <35%> of its week left",
+		},
+		{
+			name:    "a reason for a move at its compaction naming two words for an account, which no account's id is, as the router gives it",
+			reason:  "compacted: si de would reset with 35% of its week left",
+			facts:   status.Facts{From: "work", To: "side"},
+			event:   "compacted: si de would reset with 35% of its week left",
+			routing: "from [work], compacted: si de would reset with 35% of its week left",
+			session: "compacted: si de would reset with 35% of its week left",
+		},
+		{
+			name:    "a session moved at its compaction that passed an account over for pressure",
+			reason:  "compacted: side would reset with 35% of its week left, personal under pressure",
+			facts:   status.Facts{From: "work", To: "side"},
+			event:   "[personal] came under pressure",
+			routing: "from [work], [personal] came under pressure",
+			session: "[personal] came under pressure",
 		},
 		{
 			name:    "a new session that passed an account over for pressure, when it runs out in now's time zone",
@@ -364,6 +405,7 @@ func TestShortWordsSayAForcedMovesWhyWithoutItsAccount(t *testing.T) {
 		{reason: status.PassingOver(status.ReasonMovedOff+"work "+status.WhyLimit, "personal"), want: "its limit, [personal] came under pressure"},
 		{reason: status.PassingOver(status.ReasonPinYields+"side has no room", "personal"), want: "its pin to [side] yields: [side] has no room, [personal] came under pressure"},
 		{reason: status.Rescored(15*time.Hour + 7*time.Minute), facts: status.Facts{To: "personal"}, want: "rescored after {15h 7m} idle"},
+		{reason: status.Compacted("side", 0.354), facts: status.Facts{From: "work", To: "side"}, want: "compacted: [side] would reset with <35%> of its week left"},
 		{reason: status.ReasonPinned, want: "pinned here"},
 		{reason: status.ReasonMovedByPin, facts: status.Facts{From: "work", To: "side"}, want: "pinned to [side]"},
 		{reason: status.ReasonPinYields + "side has no room", want: "its pin to [side] yields: [side] has no room"},
@@ -397,6 +439,7 @@ func TestAReasonSaysWhetherItMovedTheSessionAndFromWhere(t *testing.T) {
 		{reason: status.ReasonPinned},
 		{reason: status.ReasonMovedByPin},
 		{reason: status.Rescored(time.Hour)},
+		{reason: status.Compacted("side", 0.354)},
 		{reason: status.ReasonPinYields + "side has no room"},
 	}
 	for _, tt := range tests {
@@ -503,10 +546,65 @@ func TestARescoredReasonReadsBackItsIdleSpanFiledBeforeOrSince(t *testing.T) {
 	}
 }
 
+// A session moves at its compaction only where more than 2% of the week it
+// moves to would be left, so the share said, rounded down, is never more than
+// is left, and never less than 2%.
+func TestACompactedReasonSaysTheShareLeftAsAWholePercentageRoundedDown(t *testing.T) {
+	tests := []struct {
+		name    string
+		left    float64
+		percent string
+	}{
+		{name: "a share", left: 0.354, percent: "35%"},
+		{name: "just past the 2% at risk a move needs", left: 0.0201, percent: "2%"},
+		{name: "just under a whole percentage", left: 0.0299, percent: "2%"},
+		{name: "within tolerance under a whole percentage, as it", left: 0.03 - 1e-12, percent: "3%"},
+		{name: "a whole percentage floating point makes just under it", left: 0.57, percent: "57%"},
+		{name: "a whole percentage", left: 0.03, percent: "3%"},
+		{name: "the whole week", left: 1, percent: "100%"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reason := status.Compacted("side", tt.left)
+			if want := "compacted: side would reset with " + tt.percent + " of its week left"; reason != want {
+				t.Errorf("Compacted(side, %v) = %q, want %q", tt.left, reason, want)
+			}
+			if got, want := marked(status.EventWords(reason, status.Facts{})), "compacted: [side] would reset with <"+tt.percent+"> of its week left"; got != want {
+				t.Errorf("EventWords(%q) = %q, want %q", reason, got, want)
+			}
+		})
+	}
+}
+
+func TestACompactedReasonMalformedPastItsStartReadsAsTheRouterGivesIt(t *testing.T) {
+	words := map[string]func(reason string, f status.Facts) status.Words{
+		"EventWords": status.EventWords, "SessionWords": status.SessionWords, "ShortWords": status.ShortWords,
+	}
+	for _, reason := range []string{
+		"compacted: side",
+		"compacted: side would reset with 35%",
+		"compacted: would reset with 35% of its week left",
+		"compacted: side would reset with lots of its week left",
+		"compacted: side would reset with 35 of its week left",
+		"compacted: side would reset with -5% of its week left",
+		"compacted: side would reset with % of its week left",
+		"compacted: side would reset with 35% of its week left, and more",
+	} {
+		t.Run(reason, func(t *testing.T) {
+			for name, said := range words {
+				if got := marked(said(reason, status.Facts{From: "work", To: "side"})); got != reason {
+					t.Errorf("%s(%q) = %q, want it as given", name, reason, got)
+				}
+			}
+		})
+	}
+}
+
 func TestPassingOverEndsAReasonAsPassedOverReadsIt(t *testing.T) {
 	tests := []struct{ reason, account, want string }{
 		{reason: status.ReasonNew, account: "personal", want: "new, personal under pressure"},
 		{reason: status.Rescored(15 * time.Hour), account: "work", want: "rescored after 15h idle, work under pressure"},
+		{reason: status.Compacted("side", 0.354), account: "personal", want: "compacted: side would reset with 35% of its week left, personal under pressure"},
 	}
 	for _, tt := range tests {
 		got := status.PassingOver(tt.reason, tt.account)
@@ -552,6 +650,8 @@ func TestRunningWordsSayWhyASessionIsOnItsAccountAndSinceWhen(t *testing.T) {
 		{name: "a move off an account at its reserve that passed an account over for pressure: why it moved, then the pressure", reason: "moved: work is at its reserve, personal under pressure", facts: status.Facts{To: "side", At: at, Now: now}, want: "moved from [work] 14:31: [work] reached its cap, [personal] came under pressure"},
 		{name: "its pin yielding that passed an account over for pressure: why it yielded, then the pressure", reason: "pin yields: side has no room, personal under pressure", facts: status.Facts{At: at, Now: now}, want: "its pin to [side] yields: [side] has no room, [personal] came under pressure"},
 		{name: "a move by the global pin, the account it left the event's", reason: status.ReasonMovedByPin, facts: status.Facts{From: "work", To: "side", At: at, Now: now}, want: "moved from [work] 14:31: pinned to [side]"},
+		{name: "a move at its compaction, the account it left the event's", reason: status.Compacted("side", 0.354), facts: status.Facts{From: "work", To: "side", At: at, Now: now},
+			want: "moved from [work] 14:31: compacted: [side] would reset with <35%> of its week left"},
 		{name: "its pin yielding: no when", reason: "pin yields: side has no room", facts: status.Facts{At: at, Now: now}, want: "its pin to [side] yields: [side] has no room"},
 		{name: "chosen afresh under the global pin, from nowhere told", reason: status.ReasonGlobalPin, facts: status.Facts{To: "side", At: at, Now: now}, want: "here since 14:31: pinned to [side]"},
 		{name: "a reason from a later router, cleaned", reason: "balanced\x1b", facts: status.Facts{At: at, Now: now}, want: "here since 14:31: balanced"},

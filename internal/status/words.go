@@ -220,7 +220,7 @@ func Use(text string) Part {
 // readers each read a kind of reason, reporting false for any other, in the
 // order they're tried: a choice that passed an account over for pressure says
 // so after why it was made, as pressured reads it.
-var readers = []func(reason string, f Facts) (forms, bool){pressured, settled, rescored, movedOff, pinYields}
+var readers = []func(reason string, f Facts) (forms, bool){pressured, settled, rescored, compacted, movedOff, pinYields}
 
 // wordsOf is the reason's words, cleaned, as it's from elsewhere: as the
 // router gives it where none of readers reads it.
@@ -382,6 +382,25 @@ func rescored(reason string, f Facts) (forms, bool) {
 		w.session = append(slices.Clone(why), Plain(": "), Named(f.To), Plain(" had the most room"))
 	}
 	return w, true
+}
+
+// compacted reads the reason for moving a session at the first request after
+// its compaction, "compacted: side would reset with 35% of its week left", as
+// Compacted gives it, alike in every form, as it says why itself.
+func compacted(reason string, _ Facts) (forms, bool) {
+	rest, ok := strings.CutPrefix(reason, ReasonCompacted)
+	account, rest, named := strings.Cut(rest, compactedResets)
+	share, ends := strings.CutSuffix(rest, compactedLeft)
+	if !ok || !named || !ends || account == "" || strings.Contains(account, " ") || !wholePercent(share) {
+		return forms{}, false
+	}
+	return alike(Words{Plain(ReasonCompacted), Named(account), Plain(compactedResets), Figure(share), Plain(compactedLeft)}), true
+}
+
+// wholePercent reports whether s is a whole percentage, as "35%".
+func wholePercent(s string) bool {
+	digits, ok := strings.CutSuffix(s, "%")
+	return ok && digits != "" && strings.Trim(digits, "0123456789") == ""
 }
 
 // offWords are why a move off an account was forced, as the router says it,

@@ -114,9 +114,17 @@ turn. So the router keeps each session on its account:
   as long as the account has room.
 - **After an hour idle:** the session's cache is cold, and a move costs nothing. The router scores
   the session again. The session keeps its own account unless another account beats it by 20%.
+- **After a compaction:** a busy session never idles for an hour. Without this check, it would stay
+  on its account until that account ran out, while another account's week reset with room nobody
+  used. A compaction is the cheap moment to move, as only the system prompt and tools have to be
+  cached again. So at the first request after a compaction, the router looks at the account it would
+  choose for a new session. The session moves there if that account's week resets sooner than its
+  own account's, and, at the rate it's been used lately, would reset with more than 2% of the week
+  unused, above any reserve.
 
-A Claude Sonnet 5.5 session isn't scored again for idling. Its thinking works only on the account
-that produced it, and a move would lose it.
+A Claude Sonnet 5.5 session isn't scored again for idling, nor moved after a compaction. Its
+thinking works only on the account that produced it, and a move would lose it. A session's own pin
+holds it through a compaction too.
 
 ### Pressure
 
@@ -137,6 +145,7 @@ window and steers sessions off an account that is heading for its limit.
   - A request without a session.
   - A session chosen afresh after an idle hour, because its account can't serve it, or because its
     own pin yields.
+  - A busy session that moves after its compaction.
 - **What stays:** running sessions stay where they are, and a session's own pin holds. When every
   account is under pressure, pressure changes nothing.
 

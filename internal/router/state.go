@@ -825,11 +825,12 @@ func (u *usage) primeFailed(policy score.Policy) bool {
 }
 
 // view returns what a choice of account for a request of model knows at now:
-// every account with a token, as it stands, with its reserve and the pace its
-// pressure window is being used at, which windows count the request, which
-// accounts have no room for it whatever their windows read, which of those
-// refused it lately, and which limits hold it back on the others. It notes in
-// the log how the accounts' reserves hold them back, as noteReserves says.
+// every account with a token, as it stands, with its reserve, the pace its
+// pressure window is being used at and its perishable window's recent rate,
+// which windows count the request, which accounts have no room for it whatever
+// their windows read, which of those refused it lately, and which limits hold
+// it back on the others. It notes in the log how the accounts' reserves hold
+// them back, as noteReserves says.
 func (s *state) view(model string, now time.Time) view {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -856,7 +857,11 @@ func (s *state) viewing(model string, now time.Time) view {
 		}
 		u := s.usage[a.ID]
 		pace, _ := u.pace(s.policy, now)
-		v.candidates = append(v.candidates, score.Candidate{ID: a.ID, Windows: u.current(s.policy, now), Reserve: a.Reserve, Rate: pace.Rate})
+		perishing, known := u.recentRate(s.policy.Perishable, now)
+		v.candidates = append(v.candidates, score.Candidate{
+			ID: a.ID, Windows: u.current(s.policy, now), Reserve: a.Reserve,
+			Rate: pace.Rate, PerishableRate: perishing, PerishableKnown: known,
+		})
 		if u.barred(now, family, applies) {
 			v.barred = append(v.barred, a.ID)
 		}
