@@ -18,9 +18,11 @@ import (
 // of its end, for the ledger to keep in the day's digest: Version is the
 // version of the states it gives, as a digest of states of another doesn't
 // stand; and Digest gives the state of each session day hands it, by its id,
-// failing where it can't fold them, or ctx ends first. A session it gives no
-// state of has no entry in the digest, which leaves the day due: it's built
-// again whenever it's judged afresh, as at each start of the router.
+// failing where it can't fold them, or ctx ends first. A session handed
+// resting on a state it gives none of is handed it again read whole, in a
+// call of its own; one it gives no state of then has no entry in the digest,
+// which leaves the day due: it's built again whenever it's judged afresh, as
+// at each start of the router.
 type Digester interface {
 	Version() int
 	Digest(ctx context.Context, day DigestDay) (map[string]json.RawMessage, error)
@@ -360,8 +362,11 @@ func (d *digesting) build(ctx context.Context, dates []string, view writerLook, 
 // summary names, as of the day's end, as sessionsAsOf finds it, whose state
 // can be kept, resting on what that says: its state the Digester's, folded
 // from the session as DigestDay hands it, or its state in the day's own
-// digest, where it rests on that still. It fails where the day's files can't
-// be read, or the Digester fails.
+// digest, where it rests on that still. A session handed resting on a state
+// the Digester gave none of, as one it can't restore, is handed it again read
+// whole, so a spoiled state is folded past, not rested on day after day; one
+// it gives none of then has no entry. It fails where the day's files can't be
+// read, or the Digester fails.
 func (d *digesting) digestOf(ctx context.Context, dates []string, view writerLook, now time.Time) (Digest, error) {
 	date := dates[len(dates)-1]
 	day := view.day(date)
@@ -372,15 +377,60 @@ func (d *digesting) digestOf(ctx context.Context, dates []string, view writerLoo
 		return Digest{}, err
 	}
 	named, _ := day.named()
-	sessions := newSessionsLookup(d.days, view).asOf(dates, nil, wanting(make(map[string]bool), named), nil, newSessionsRead(now, nil))
-	maps.DeleteFunc(sessions, func(_ string, s SessionFrom) bool { return s.restsOn == nil })
-	folding := maps.Clone(sessions)
-	maps.DeleteFunc(folding, func(_ string, s SessionFrom) bool { return s.restingOn(date) })
-	states, err := d.digester.Digest(ctx, DigestDay{Date: date, Start: start, End: end, Sessions: folding})
+	lookup := newSessionsLookup(d.days, view)
+	sessions := lookup.foldable(dates, named, nil, now)
+	states, err := d.fold(ctx, head, sessions)
 	if err != nil {
 		return Digest{}, err
 	}
+	if spoiled := unfolded(head.Day, sessions, states); len(spoiled) > 0 {
+		whole := lookup.foldable(dates, spoiled, func(string) bool { return true }, now)
+		again, err := d.fold(ctx, head, whole)
+		if err != nil {
+			return Digest{}, err
+		}
+		for id, state := range again {
+			sessions[id], states[id] = whole[id], state
+		}
+	}
 	return Digest{Head: head, Sessions: entriesOf(date, sessions, states)}, nil
+}
+
+// foldable returns the sessions with the given ids as of the end of the last
+// of the local days with the given dates, those from where the ledger begins,
+// at now, as asOf finds them, those whole reports true of read whole: each
+// whose state can be kept, as restsOn says.
+func (l *sessionsLookup) foldable(dates, ids []string, whole func(id string) bool, now time.Time) map[string]SessionFrom {
+	sessions := l.asOf(dates, nil, wanting(make(map[string]bool), ids), whole, newSessionsRead(now, nil))
+	maps.DeleteFunc(sessions, func(_ string, s SessionFrom) bool { return s.restsOn == nil })
+	return sessions
+}
+
+// fold returns the states the Digester gives of sessions as of the end of
+// the day head is of, by their ids, never nil: of each but those resting on
+// the day's own digest still.
+func (d *digesting) fold(ctx context.Context, head DigestHead, sessions map[string]SessionFrom) (map[string]json.RawMessage, error) {
+	folding := maps.Clone(sessions)
+	maps.DeleteFunc(folding, func(_ string, s SessionFrom) bool { return s.restingOn(head.Day) })
+	states, err := d.digester.Digest(ctx, DigestDay{Date: head.Day, Start: head.Start, End: head.End, Sessions: folding})
+	if states == nil {
+		states = make(map[string]json.RawMessage)
+	}
+	return states, err
+}
+
+// unfolded returns the ids of those of sessions resting on the state of a
+// day before the one with the given date that states holds none of, in
+// order.
+func unfolded(date string, sessions map[string]SessionFrom, states map[string]json.RawMessage) []string {
+	var ids []string
+	for id, s := range sessions {
+		if _, folded := states[id]; !folded && s.Base != nil && !s.restingOn(date) {
+			ids = append(ids, id)
+		}
+	}
+	slices.Sort(ids)
+	return ids
 }
 
 // restingOn reports whether s rests on the state the digest of the local day

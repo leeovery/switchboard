@@ -22,30 +22,90 @@ import (
 // chainSeeds is how many seeds of each world the chained digests run.
 const chainSeeds = 8
 
+// chainWorlds are the generated worlds the chained digests run: those the
+// stored request's tests decode, and a session running every day for a
+// week, so a state rests on a chain of several before it.
+var chainWorlds = append(slices.Clip(storedWorlds), struct {
+	name  string
+	lines func(seed uint64) []ledger.Line
+}{name: "a week of days", lines: everyDay})
+
+// everyDay is a generated session's lines, as generatedSession makes them,
+// and again a day later, and so on four times more, each request of each
+// day's its own, in the order the ledger files them.
+func everyDay(seed uint64) []ledger.Line {
+	first := generatedSession(seed)
+	lines := slices.Clone(first)
+	for day := 1; day <= 4; day++ {
+		for _, l := range first {
+			l.At, l.Request = l.At.AddDate(0, 0, day), fmt.Sprintf("%s-%d", l.Request, day)
+			lines = append(lines, l)
+		}
+	}
+	slices.SortStableFunc(lines, func(a, b ledger.Line) int { return ended(&a).Compare(ended(&b)) })
+	return lines
+}
+
 // Digests built by a real ledger day by day, each session's state chained on
-// its state of the last day before that named it, as the ledger's files
-// hold them, are
-// the sessions read whole: each state restored onto each later day, and told
-// on with the session's lines since, as heldAsOf tells them, is the session
-// read whole on that day, sealed at the same horizon, flights aside, as a
-// restored session holds none; and each session as a Follower of the files
-// gives it, resting on its newest state, is the session read whole through
-// the same Follower. Of the generated worlds, read with tables other than
-// the one the states are built with.
+// its state of the last day before that named it, as the ledger's files hold
+// them, are the sessions read whole: each state restored onto each later
+// day, and told on with the session's lines since, as heldAsOf tells them, is
+// the session read whole on that day, sealed at the same horizon, flights
+// aside, as a restored session holds none; and each session as a Follower of
+// the files gives it, resting on its newest state, is the session read whole
+// through the same Follower. Of the generated worlds, read with tables other
+// than the one the states are built with.
 func TestChainedDigestsAreTheSessionsReadWhole(t *testing.T) {
 	prices := digestPrices(t)
-	var restored, followed int
-	for _, w := range storedWorlds {
+	var restored, followed, chained int
+	for _, w := range chainWorlds {
 		for seed := range uint64(chainSeeds) {
 			c := newDigestChain(t, fmt.Sprintf("%s %d", w.name, seed), seed, w.lines(seed))
-			c.digestDayByDay(prices)
-			c.checkChained()
+			c.digestDayByDay(func(day LedgerDay) { c.checkFollowed(day.Start.Add(12*time.Hour), prices) })
+			chained = max(chained, c.checkChained())
 			restored += c.checkRestored(prices)
 			followed += c.followed
 		}
 	}
-	if restored == 0 || followed == 0 {
-		t.Errorf("%d states restored onto a later day, %d sessions followed resting on one: want some of each", restored, followed)
+	if restored == 0 || followed == 0 || chained < 4 {
+		t.Errorf("%d states restored onto a later day, %d sessions followed resting on one, %d states the longest chain: want some of each, and a chain of four",
+			restored, followed, chained)
+	}
+}
+
+// A state the Digests can't restore, as one spoiled, is folded past: the day
+// after it the session is handed again read whole, so every later day's
+// digest holds its state, the session read whole, and no day stays due.
+func TestADigestPastASpoiledStateHoldsTheSessionReadWhole(t *testing.T) {
+	prices := digestPrices(t)
+	var lines []ledger.Line
+	for day := range 5 {
+		lines = append(lines, ledger.Line{
+			At: time.Date(2026, 10, 7+day, 12, 0, 0, 0, time.Local).UTC(), Request: fmt.Sprintf("r%d", day), Kind: ledger.KindMessage, Session: "s",
+			Model: foldOpus, Account: "work", Reason: "sticky", Status: 200, Attempts: 1, TotalMS: 3000, Class: ledger.ClassMain, Usage: json.RawMessage(foldUsages[2]),
+		})
+	}
+	c := newDigestChain(t, "a request a day", 0, lines)
+	spoiled := dayfile.DateOf(lines[2].At)
+	c.digests.spoiled = spoiled
+	c.digestDayByDay(func(LedgerDay) {})
+	for _, l := range lines[3:] {
+		if date := dayfile.DateOf(l.At); c.digests.states[date]["s"] == nil {
+			t.Errorf("the digest of %s holds no state of s, after the state of %s spoiled", date, spoiled)
+		}
+	}
+	if after := dayfile.DateOf(lines[3].At); c.digests.handed[after].Sessions["s"].Base != nil {
+		t.Errorf("the digest of %s, the day after the spoiled state's, was handed s last resting on %+v, want it read whole", after, c.digests.handed[after].Sessions["s"].Base)
+	}
+	c.checkRestored(prices)
+	c.checkFollowed(c.at, prices)
+	if c.followed == 0 {
+		t.Errorf("no session followed at %v rests on a state", c.at)
+	}
+	calls := c.digests.calls
+	c.ledger.DigestEnded(t.Context(), c.at)
+	if c.digests.calls != calls {
+		t.Errorf("a pass after every day's digest was built handed the Digests %d more days, want none due", c.digests.calls-calls)
 	}
 }
 
@@ -67,17 +127,37 @@ type digestChain struct {
 }
 
 // recordedDigests are the views' Digests, each day handed them recorded, by
-// its date, with the states they gave of it.
+// its date, as last handed, with the states they gave of it, and how many
+// times they were handed one; but of the day with the date spoiled, where
+// it's set, they give spoiledState of each session, recording none.
 type recordedDigests struct {
 	Digests
-	handed map[string]ledger.DigestDay
-	states map[string]map[string]json.RawMessage
+	handed  map[string]ledger.DigestDay
+	states  map[string]map[string]json.RawMessage
+	calls   int
+	spoiled string
 }
 
-// Digest gives what the views' Digests give of day, recording both.
+// spoiledState is a state as one edited by hand might be: JSON, but of
+// another day than its digest's, so it won't restore.
+const spoiledState = `{"d":"2000-01-01"}`
+
+// Digest gives what the views' Digests give of day, recording both, or
+// spoiled states, of the day spoiled.
 func (r *recordedDigests) Digest(ctx context.Context, day ledger.DigestDay) (map[string]json.RawMessage, error) {
+	r.calls++
+	r.handed[day.Date] = day
 	states, err := r.Digests.Digest(ctx, day)
-	r.handed[day.Date], r.states[day.Date] = day, states
+	if day.Date == r.spoiled {
+		for id := range states {
+			states[id] = json.RawMessage(spoiledState)
+		}
+		return states, err
+	}
+	if r.states[day.Date] == nil {
+		r.states[day.Date] = make(map[string]json.RawMessage)
+	}
+	maps.Copy(r.states[day.Date], states)
 	return states, err
 }
 
@@ -130,9 +210,8 @@ func (c *digestChain) days() []LedgerDay {
 // digestDayByDay has the ledger, at half past one of each day, summarise
 // and digest the days that have ended, as the router's round and its
 // digester do, so each day's digest is built once, the day after it, on the
-// one before it; and at noon of each, has a Follower give each session, as
-// checkFollowed has it.
-func (c *digestChain) digestDayByDay(prices []pricedAs) {
+// one before it; then doing on each day what then does.
+func (c *digestChain) digestDayByDay(then func(day LedgerDay)) {
 	c.t.Helper()
 	for _, day := range c.days() {
 		c.at = day.Start.Add(90 * time.Minute)
@@ -142,7 +221,7 @@ func (c *digestChain) digestDayByDay(prices []pricedAs) {
 		if _, built := c.digests.handed[yesterday]; !built && c.filedOn(yesterday) {
 			c.t.Fatalf("%s: %s, its lines filed, isn't digested by %v", c.name, yesterday, c.at)
 		}
-		c.checkFollowed(day.Start.Add(12*time.Hour), prices)
+		then(day)
 	}
 }
 
@@ -154,10 +233,12 @@ func (c *digestChain) filedOn(date string) bool {
 // checkChained checks the ledger handed the Digests each session its day
 // names resting on the state they gave of it on the last day before that
 // named it, its bytes as given, or on none where no day before named it;
-// and that they gave a state of every session handed them.
-func (c *digestChain) checkChained() {
+// and that they gave a state of every session handed them. It returns how
+// many states the longest chain of them holds.
+func (c *digestChain) checkChained() int {
 	c.t.Helper()
 	last := make(map[string]string)
+	chains := make(map[string]int)
 	for _, date := range slices.Sorted(maps.Keys(c.digests.handed)) {
 		day, states := c.digests.handed[date], c.digests.states[date]
 		for _, id := range slices.Sorted(maps.Keys(day.Sessions)) {
@@ -172,8 +253,10 @@ func (c *digestChain) checkChained() {
 				c.t.Errorf("%s, session %s on %s: no state given", c.name, id, date)
 			}
 			last[id] = date
+			chains[id]++
 		}
 	}
+	return slices.Max(slices.Concat([]int{0}, slices.Collect(maps.Values(chains))))
 }
 
 // checkRestored checks each state the Digests gave, restored onto each later
@@ -282,14 +365,18 @@ func TestASessionAsOfADayIsHeldAsReadWhole(t *testing.T) {
 	if len(since) == 0 {
 		t.Fatalf("session 2 has no request after %v, to tell on", end)
 	}
+	twice := slices.Insert(slices.Clone(since), 1, since[0])
 	tests := []struct {
-		name string
-		from ledger.SessionFrom
+		name  string
+		from  ledger.SessionFrom
+		whole []ledger.Line
 	}{
-		{name: "resting on no base", from: ledger.SessionFrom{Lines: lines}},
-		{name: "resting on its state at an earlier day's end", from: ledger.SessionFrom{
-			Base: baseOf(day.Date, state), Lines: since,
-		}},
+		{name: "resting on no base", from: ledger.SessionFrom{Lines: lines}, whole: lines},
+		{name: "resting on its state at an earlier day's end", from: ledger.SessionFrom{Base: baseOf(day.Date, state), Lines: since}, whole: lines},
+		{
+			name: "resting on its state, a line since filed twice", from: ledger.SessionFrom{Base: baseOf(day.Date, state), Lines: twice},
+			whole: append(arrivedBefore(lines, end), twice...),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -297,7 +384,7 @@ func TestASessionAsOfADayIsHeldAsReadWhole(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			want := readOf(lines, nil, changingPrices(), on, horizon, false)
+			want := readOf(tt.whole, nil, changingPrices(), on, horizon, false)
 			if !sameHeld(got, want, day.Date) {
 				q := queryOf(lines)
 				t.Errorf("holds\n%s\nwant, as read whole\n%s", heldSaid(got, q), heldSaid(want, q))
@@ -306,23 +393,50 @@ func TestASessionAsOfADayIsHeldAsReadWhole(t *testing.T) {
 	}
 }
 
-// A session resting on a base is sealed no earlier than its base is: held
-// behind a horizon before its base's day ended, it's sealed at that end,
-// none of its requests open, as the store never moves a session's horizon
-// back.
-func TestASessionAsOfADayIsSealedNoEarlierThanItsBase(t *testing.T) {
+// A session resting on a base is held only behind a horizon at its base's
+// own, the end of its base's day, or after it, where it's held as read
+// whole: behind an earlier one, the base holds sealed what a whole read
+// holds open, so that's an error, for its caller to read it whole.
+func TestASessionAsOfADayIsHeldOnABaseOnlyFromTheBasesEnd(t *testing.T) {
+	lines := generatedSession(2)
 	day, end := digestDay()
-	state, err := stateAsOf(ledger.SessionFrom{Lines: arrivedBefore(generatedSession(2), end)}, day)
+	state, err := stateAsOf(ledger.SessionFrom{Lines: arrivedBefore(lines, end)}, day)
 	if err != nil {
 		t.Fatal(err)
 	}
-	from := ledger.SessionFrom{Base: baseOf(day.Date, state)}
-	got, err := heldAsOf(from, ledger.Pricing, Today(end), instantOf(end.Add(-time.Hour)))
-	if err != nil {
-		t.Fatal(err)
+	from := ledger.SessionFrom{Base: baseOf(day.Date, state), Lines: slices.DeleteFunc(slices.Clone(lines), func(l ledger.Line) bool { return l.At.Before(end) })}
+	on := Today(end)
+	tests := []struct {
+		name    string
+		after   time.Duration
+		refused bool
+	}{
+		{name: "a minute before its end", after: -time.Minute, refused: true},
+		{name: "half an hour before its end", after: -30 * time.Minute, refused: true},
+		{name: "an hour before its end", after: -time.Hour, refused: true},
+		{name: "six hours before its end", after: -6 * time.Hour, refused: true},
+		{name: "at its end", after: 0},
+		{name: "a minute after its end", after: time.Minute},
+		{name: "six hours after its end", after: 6 * time.Hour},
 	}
-	if got.horizon != endOfDay(day) || len(got.open) > 0 {
-		t.Errorf("held behind %v, with %d requests open; want behind %v, none open", got.horizon.time(), len(got.open), end)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			horizon := instantOf(end.Add(tt.after))
+			got, err := heldAsOf(from, ledger.Pricing, on, horizon)
+			switch {
+			case tt.refused:
+				if err == nil {
+					t.Errorf("held behind %v, want an error", horizon.time())
+				}
+			case err != nil:
+				t.Fatal(err)
+			default:
+				if want := readOf(lines, nil, ledger.Pricing, on, horizon, false); !sameHeld(got, want, day.Date) {
+					q := queryOf(lines)
+					t.Errorf("holds\n%s\nwant, as read whole\n%s", heldSaid(got, q), heldSaid(want, q))
+				}
+			}
+		})
 	}
 }
 

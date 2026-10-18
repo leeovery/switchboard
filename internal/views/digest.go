@@ -21,8 +21,10 @@ func (Digests) Version() int {
 
 // Digest gives the state of each session day hands it at the day's end, by
 // its id, as stateAsOf has it: none of one whose base won't decode or
-// restore, which its readers read whole, as they read a session of no
-// state. It fails once ctx ends, looked at between sessions.
+// restore, nor of one with a request that arrived after the day, as a change
+// of time zone files one, which stored refuses; its readers read those
+// whole, as they read a session of no state. It fails once ctx ends, looked
+// at between sessions.
 func (Digests) Digest(ctx context.Context, day ledger.DigestDay) (map[string]json.RawMessage, error) {
 	d := LedgerDay{Start: day.Start, Date: day.Date}
 	states := make(map[string]json.RawMessage, len(day.Sessions))

@@ -1,6 +1,7 @@
 package views
 
 import (
+	"fmt"
 	"maps"
 	"slices"
 	"time"
@@ -470,10 +471,11 @@ func readOf(lines []ledger.Line, answers map[string][]answered, prices ledger.Ta
 // resting on no base, its lines read whole, as readOf has them; else its
 // base restored onto d, as restoredFrom has it, and its requests since told
 // on, each once, as distinct has them, priced at d, as with has it, sealed
-// behind the later of the horizon given and its base's own, as seal keeps a
-// session's horizon from going back. It fails where its base won't decode,
-// or restore onto d, for its caller to read it whole: it gives no session
-// told otherwise than its lines tell it.
+// behind the horizon given. It fails where its base won't decode, or restore
+// onto d, or the horizon given is before its base's own, the end of its
+// base's day, as the base holds sealed what a whole read would hold open:
+// its caller reads it whole then, as it gives no session held otherwise than
+// a whole read holds it.
 func heldAsOf(from ledger.SessionFrom, prices ledger.Table, d LedgerDay, horizon instant) (*heldSession, error) {
 	if from.Base == nil {
 		return readOf(from.Lines, nil, prices, d, horizon, false), nil
@@ -482,10 +484,13 @@ func heldAsOf(from ledger.SessionFrom, prices ledger.Table, d LedgerDay, horizon
 	if err != nil {
 		return nil, err
 	}
+	if horizon.compare(s.horizon) < 0 {
+		return nil, fmt.Errorf("hold a session of the digest of %s behind %v: before the end of its day", from.Base.Date, horizon.time())
+	}
 	if since := requestsIn(from.Lines); len(since) > 0 {
 		s = s.with(pricedAt(distinct(since), prices, d.Date))
 	}
-	return s.sealedAt(later(s.horizon, horizon)), nil
+	return s.sealedAt(horizon), nil
 }
 
 // held is how many requests s holds.
