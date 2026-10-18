@@ -191,8 +191,9 @@ func ReadSession(l LedgerSessions, now time.Time, id string) SessionsRead {
 }
 
 // eachWhole has a read of the ledger's sessions read each whole, resting on
-// no state a digest holds: every line of each given, as the store and a
-// session's page fold each from its every line.
+// no state a digest holds: every line of each given, as a session's page
+// folds each from its every line, and the store reads again one resting on
+// a state that won't restore.
 func eachWhole(string) bool { return true }
 
 // sessionLines returns the lines of sessions, each read whole, as eachWhole
