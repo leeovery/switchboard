@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"iter"
 	"log/slog"
+	"maps"
 	"os"
 	"slices"
 	"strings"
@@ -224,18 +225,29 @@ func (f *Follower) summaryOf(date string, now time.Time, reachOf func(date strin
 
 // names reports whether the local day with the given date, as Days gives it,
 // names any of the sessions wanted among its sessions' ids, or might, as
-// Summary.names says: from the summary the ledger holds of it, where it
-// stands, as follow finds; else from its lines as they grow, and the summary
-// held of it, which the day's knows no less than. It never reads the
-// readings history, which names no session.
+// naming says.
 func (f *Follower) names(date string, wanted map[string]bool) bool {
+	return len(f.naming(date, wanted)) > 0
+}
+
+// naming returns those of the sessions wanted the local day with the given
+// date, as Days gives it, names among its sessions' ids, or might, as
+// Summary.naming says, by their ids: from the summary the ledger holds of
+// it, where it stands, as follow finds; else from its lines as they grow,
+// and the summary held of it, which the day's knows no less than. It never
+// reads the readings history, which names no session.
+func (f *Follower) naming(date string, wanted map[string]bool) map[string]bool {
 	d := f.follow(date)
 	if d.stands {
-		return d.held.names(wanted)
+		return d.held.naming(wanted)
 	}
 	live := d.liveDay(f)
 	live.read(f.days.logger)
-	return live.names(wanted) || d.held != nil && d.held.names(wanted)
+	named := live.naming(wanted)
+	if d.held != nil {
+		maps.Copy(named, d.held.naming(wanted))
+	}
+	return named
 }
 
 // follow returns the local day with the given date as the follower follows
@@ -382,19 +394,22 @@ func (d *liveDay) read(logger *slog.Logger) bool {
 	})
 }
 
-// names reports whether the day's lines, as last read, the line the plain
-// file ends in, cut short, among them, are of any of the sessions wanted, as
-// a summary of them counts its sessions.
-func (d *liveDay) names(wanted map[string]bool) bool {
+// naming returns those of the sessions wanted the day's lines, as last read,
+// the line the plain file ends in, cut short, among them, are of, as a
+// summary of them counts its sessions, by their ids.
+func (d *liveDay) naming(wanted map[string]bool) map[string]bool {
+	named := make(map[string]bool)
 	for _, a := range d.tally {
 		for id := range a.sessions {
 			if wanted[id] {
-				return true
+				named[id] = true
 			}
 		}
 	}
-	cut, ok := d.lines.Cut()
-	return ok && wanted[cut.CountedSession()]
+	if cut, ok := d.lines.Cut(); ok && wanted[cut.CountedSession()] {
+		named[cut.CountedSession()] = true
+	}
+	return named
 }
 
 // countsNoMore reports whether the day's files hold no more lines than held,
@@ -821,13 +836,23 @@ func (f *Follower) namesLocked(date string, wanted map[string]bool) bool {
 	return f.names(date, wanted)
 }
 
-// names reports whether the summary names any of the sessions wanted among
-// those its accounts' requests were of, or might: one that counts sessions it
-// doesn't name, as Unnamed says, as one of version 1, might name any.
-func (s Summary) names(wanted map[string]bool) bool {
-	return s.Unnamed() > 0 || slices.ContainsFunc(s.Accounts, func(a AccountDay) bool {
-		return slices.ContainsFunc(a.SessionIDs, func(id string) bool { return wanted[id] })
-	})
+// naming returns those of the sessions wanted the summary names among those
+// its accounts' requests were of, or might, by their ids: one that counts
+// sessions it doesn't name, as Unnamed says, as one of version 1, might name
+// any, so every one.
+func (s Summary) naming(wanted map[string]bool) map[string]bool {
+	if s.Unnamed() > 0 {
+		return maps.Clone(wanted)
+	}
+	named := make(map[string]bool)
+	for _, a := range s.Accounts {
+		for _, id := range a.SessionIDs {
+			if wanted[id] {
+				named[id] = true
+			}
+		}
+	}
+	return named
 }
 
 // readSession holds in lines those of the local day with the given date
