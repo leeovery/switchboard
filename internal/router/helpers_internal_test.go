@@ -103,7 +103,13 @@ func newTestRouter(t *testing.T, now func() time.Time, prober Prober) *Router {
 // accounts' tokens with read.
 func newTestRouterReading(t *testing.T, now func() time.Time, prober Prober, read func(id string) (tokens.Token, error)) *Router {
 	t.Helper()
-	r, err := New(Config{
+	return newTestRouterOf(t, testConfig(now, prober, read))
+}
+
+// testConfig is the config of a router of testConfigured on now's time,
+// probing with prober, reading the accounts' tokens with read.
+func testConfig(now func() time.Time, prober Prober, read func(id string) (tokens.Token, error)) Config {
+	return Config{
 		Accounts: testConfigured,
 		Token:    read,
 		Upstream: "http://127.0.0.1:1",
@@ -111,7 +117,13 @@ func newTestRouterReading(t *testing.T, now func() time.Time, prober Prober, rea
 		Prober:   prober,
 		Policy:   testPolicy,
 		Now:      now,
-	})
+	}
+}
+
+// newTestRouterOf builds a router of cfg.
+func newTestRouterOf(t *testing.T, cfg Config) *Router {
+	t.Helper()
+	r, err := New(cfg)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}

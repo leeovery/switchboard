@@ -462,13 +462,30 @@ func (f *feed) hold(id string, lines []ledger.Line, answers map[string][]answere
 // d, sealed behind the horizon given, its page tallied, its points of
 // answers, every account's on the days read, by date, where paged says.
 func readOf(lines []ledger.Line, answers map[string][]answered, prices ledger.Table, d LedgerDay, horizon instant, paged bool) *heldSession {
-	var read []heldRequest
-	for i := range lines {
-		if isRequest(&lines[i]) {
-			read = append(read, heldRequestOf(&lines[i]))
-		}
+	return heldSessionOf(pricedAt(distinct(requestsIn(lines)), prices, d.Date), answers, prices, d, horizon, paged)
+}
+
+// heldAsOf is the session from gives, as the store would hold it on the day
+// d, sealed behind the horizon given, had it read every line of it whole:
+// resting on no base, its lines read whole, as readOf has them; else its
+// base restored onto d, as restoredFrom has it, and its requests since told
+// on, each once, as distinct has them, priced at d, as with has it, sealed
+// behind the later of the horizon given and its base's own, as seal keeps a
+// session's horizon from going back. It fails where its base won't decode,
+// or restore onto d, for its caller to read it whole: it gives no session
+// told otherwise than its lines tell it.
+func heldAsOf(from ledger.SessionFrom, prices ledger.Table, d LedgerDay, horizon instant) (*heldSession, error) {
+	if from.Base == nil {
+		return readOf(from.Lines, nil, prices, d, horizon, false), nil
 	}
-	return heldSessionOf(pricedAt(distinct(read), prices, d.Date), answers, prices, d, horizon, paged)
+	s, err := restoredFrom(from.Base, prices, d)
+	if err != nil {
+		return nil, err
+	}
+	if since := requestsIn(from.Lines); len(since) > 0 {
+		s = s.with(pricedAt(distinct(since), prices, d.Date))
+	}
+	return s.sealedAt(later(s.horizon, horizon)), nil
 }
 
 // held is how many requests s holds.

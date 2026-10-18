@@ -1,6 +1,7 @@
 package views
 
 import (
+	"encoding/json"
 	"fmt"
 	"maps"
 	"time"
@@ -95,6 +96,36 @@ func (s *heldSession) stored() (storedSession, error) {
 		return storedSession{}, fmt.Errorf("store a session of %s: its page tallied", day.Date)
 	}
 	return storedSession{Date: day.Date, Story: s.sealed.stored(), Counts: maps.Clone(s.counts)}, nil
+}
+
+// state is s as a day's digest holds it: stored, as stored has it, put as
+// JSON. It's refused as stored refuses it.
+func (s *heldSession) state() (json.RawMessage, error) {
+	st, err := s.stored()
+	if err != nil {
+		return nil, err
+	}
+	data, err := json.Marshal(st)
+	if err != nil {
+		return nil, fmt.Errorf("put the state of a session of %s: %w", st.Date, err)
+	}
+	return data, nil
+}
+
+// restoredFrom is the session whose state base holds, as state puts it,
+// restored onto the day given, as restored has it. It fails where the state
+// doesn't decode as one, or is of another day than the digest holding it,
+// as the lines after it would be others than those it was told of, or where
+// restored refuses it.
+func restoredFrom(base *ledger.SessionBase, prices ledger.Table, day LedgerDay) (*heldSession, error) {
+	var st storedSession
+	if err := json.Unmarshal(base.State, &st); err != nil {
+		return nil, fmt.Errorf("read the state of a session in the digest of %s: %w", base.Date, err)
+	}
+	if st.Date != base.Date {
+		return nil, fmt.Errorf("read the state of a session in the digest of %s: a state of %q", base.Date, st.Date)
+	}
+	return st.restored(prices, day)
 }
 
 // endOfDay is the horizon a session's state at the end of the day d is

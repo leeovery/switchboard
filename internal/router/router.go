@@ -130,6 +130,10 @@ type Config struct {
 	// Ledger says how long the request ledger's lines are kept: a zero Keep
 	// keeps them for config.DefaultLedgerKeep.
 	Ledger config.Ledger
+	// Digester folds the sessions of each of the ledger's finished days into
+	// their states at its end, which the ledger keeps in the day's digest, as
+	// ledger.Digesting says. Nil digests none.
+	Digester ledger.Digester
 	// Listen is the proxy's address, and StateDir the directory its control
 	// socket and state file go in: only Run uses them.
 	Listen   string
@@ -277,7 +281,7 @@ func New(cfg Config) (*Router, error) {
 	rounds := newRounds(accounts, state, probes, primer)
 	inFlight := newInFlight()
 	stream := newStream(cfg.Now)
-	requests := newRequestLedger(cfg.Ledger, ledger.CapsOf(cfg.Accounts, cfg.Policy.Shared), cfg.Now)
+	requests := newRequestLedger(cfg.Ledger, ledger.CapsOf(cfg.Accounts, cfg.Policy.Shared), cfg.Digester, cfg.Now)
 	history.pruning = requests.summariseEnded
 	transport := newPool()
 	awake := &wakes{now: clock, woke: func() {

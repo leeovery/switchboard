@@ -20,6 +20,7 @@ import (
 	"github.com/leeovery/switchboard/internal/service"
 	"github.com/leeovery/switchboard/internal/skill"
 	"github.com/leeovery/switchboard/internal/tokens"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 func newServeCommand(a *app) *cobra.Command {
@@ -88,6 +89,7 @@ func (a *app) serve(ctx context.Context) error {
 		Notifications: cfg.Notifications,
 		History:       cfg.History,
 		Ledger:        cfg.Ledger,
+		Digester:      views.Digests{},
 		Listen:        cfg.Listen,
 		StateDir:      stateDir,
 		ConfigFile:    configFile,

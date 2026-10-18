@@ -157,17 +157,24 @@ func lineSumOf(l *ledger.Line) uint64 {
 	return h.Sum64()
 }
 
-// heldRequestsOf returns the requests among lines, a session's, as isRequest
-// says, each decoded once, unpriced, in the order every story takes them in,
-// as inOrder has it, whatever the order of lines.
+// heldRequestsOf returns the requests among lines, a session's, as
+// requestsIn has them, in the order every story takes them in, as inOrder
+// has it, whatever the order of lines.
 func heldRequestsOf(lines []ledger.Line) []heldRequest {
+	requests := requestsIn(lines)
+	slices.SortStableFunc(requests, inOrder)
+	return requests
+}
+
+// requestsIn returns the requests among lines, as isRequest says, each
+// decoded once, unpriced, in the order of lines.
+func requestsIn(lines []ledger.Line) []heldRequest {
 	var requests []heldRequest
 	for i := range lines {
 		if isRequest(&lines[i]) {
 			requests = append(requests, heldRequestOf(&lines[i]))
 		}
 	}
-	slices.SortStableFunc(requests, inOrder)
 	return requests
 }
 
