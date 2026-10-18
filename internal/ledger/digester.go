@@ -137,10 +137,12 @@ func (d *digesting) pass(ctx context.Context, now time.Time, paced bool) {
 }
 
 // letGoBefore lets go of the days before the one with the given date, where
-// the ledger begins, as a prune of its earlier days leaves it, and of the
-// judgements of the digests resting on one of them, as a state resting on a
-// pruned day stops standing. No other judgement is on a day before where the
-// ledger begins, as holds judges none that rests on one due.
+// the ledger begins, its earliest summary or file of lines, and of the
+// judgements of the digests resting on one of them. A prune leaves a day's
+// summary, so where the ledger begins moves only where a day's summary and
+// files are removed alike; forget lets go of the judgements resting on a
+// pruned day's lines. No other judgement is on a day before where the ledger
+// begins, as holds judges none that rests on one due.
 func (d *digesting) letGoBefore(first string) {
 	maps.DeleteFunc(d.held, func(date string, _ writtenDay) bool { return date < first })
 	maps.DeleteFunc(d.judged, func(_ string, j judgement) bool {

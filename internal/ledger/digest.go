@@ -324,7 +324,7 @@ func headCopied(from *jsontext.Decoder, head *jsontext.Encoder) error {
 // by its date, as the summary of them that stands as held counts them, its
 // Lines; none of a day it keeps no lines of, its lines pruned, or none ever
 // written; and reports false of a day whose lines it keeps without a summary
-// that stands. heads gives the head of the digest the ledger holds of a
+// that stands, or with one counting more lines than its files hold. heads gives the head of the digest the ledger holds of a
 // day, by its date, as digest reads it, reporting false where it holds none
 // that reads.
 type digestGrounds struct {

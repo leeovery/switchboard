@@ -41,3 +41,9 @@ needs care.
 - The soak's guard that the List reads no day behind a session's state sees a day only where it
   handed on a line of a session given: one read with no such line passes unseen.
 - `Holding`'s count of sessions read whole counts one restored from its state too.
+- A reader decodes a digest whole before it learns the digest is of another version, or that its
+  head no longer stands: after a release raising `views.DigestVersion`, the List decodes every
+  outdated digest on its sessions' days until the router builds them again. Checking the head first,
+  as the reader already holds it, would read the entries only of one that stands.
+- How many lines the ledger keeps of a day, by its look, is worked out twice, by the reader's look
+  and the writer's, each from a count of its own; a test holds them alike. One helper could own it.

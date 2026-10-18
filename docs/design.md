@@ -4453,8 +4453,8 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
     turns and totals price every request at today's prices; the stream first telling, after the
     horizon passed it, of a request that may have arrived behind it; or an answer its points can't
     place. A clock set back, or a zone changed, since the last feed drops everything the store held,
-    and the sessions wanted are read whole. Each costs time alone: what's shown is what one read
-    whole shows.
+    and the sessions wanted are read again, each from its newest standing digest or whole. Each
+    costs time alone: what's shown is what one read whole shows.
   - **Resting on digests:** a read of sessions, for the List, the Overview's SESSIONS, the Log's
     sessions, the routing card's costs or `sessions`, has the ledger give each session on the newest
     state a day's digest holds of it that stands, and its raw lines after it: those of the days
