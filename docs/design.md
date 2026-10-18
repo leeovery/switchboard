@@ -4383,8 +4383,9 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
     session's first request, and whether a move wrote its context again, need the last request of
     its thread, however long before, and a move of an earlier day still unsettled. The store keeps
     the stories those lines tell, never the lines. So a session that ran every day of four weeks has
-    its four weeks read once, as the first reader that wants it shows, `loading…` while they are;
-    never again while a reader wants it (settled in the plan).
+    its four weeks read once, as the first reader that wants it shows, `loading…` while they are,
+    or, resting on a digest, only the days since it; never again while a reader wants it (settled
+    in the plan).
   - **A period, or a day stepped back to,** as Accounts', History's and Runway's are, is read once
     as it's shown, then held; History's year is a year of summaries, read once a run.
   - **The readings history's live tail,** from the day a week before today's, or the day a week
@@ -4415,9 +4416,10 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
     session is told once, and alike wherever it's shown. It holds the sessions a reader wants:
     today's and those running, once the List has been read; those of the Log's days; and the one
     whose page is open. One wanted by none goes at the next feed, and one wanted again is read
-    whole again, as it first was. A reader's own read of sessions the store doesn't hold, as the
-    List's first, a page's open or the Log reading a day back, reads them whole off the screen and
-    joins the store as it lands, adding only the sessions it lacks. The store is priced from the
+    again, as it first was. A reader's own read of sessions the store doesn't hold, as the List's
+    first, a page's open or the Log reading a day back, reads them off the screen, each from its
+    newest standing digest or whole (see Resting on digests, below), and joins the store as it
+    lands, adding only the sessions it lacks. The store is priced from the
     start, by the price table the dashboard is given, so a session is never told unpriced, whichever
     reader fed it first.
   - **A request decoded once:** each line is decoded as it's read, into what the views read of its
@@ -4453,6 +4455,26 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
     place. A clock set back, or a zone changed, since the last feed drops everything the store held,
     and the sessions wanted are read whole. Each costs time alone: what's shown is what one read
     whole shows.
+  - **Resting on digests:** a read of sessions, for the List, the Overview's SESSIONS, the Log's
+    sessions, the routing card's costs or `sessions`, has the ledger give each session on the newest
+    state a day's digest holds of it that stands, and its raw lines after it: those of the days
+    naming it after the digest's, and of the near days, today and tomorrow, and yesterday while its
+    digest doesn't stand yet, as in the hour or so after midnight, every session's lines read of
+    those (see The request ledger). The store holds it from there by its own steps, never a copy of
+    them: the state restored onto its day, rolled on to the store's day as midnight rolls a session,
+    its settled moves priced there, the lines since told on, and sealed at the session's horizon. So
+    the List, read at half past one, reads today's and tomorrow's files alone, however long its
+    sessions have run. Read whole, from no base: the session whose page is open, and `ReadSessions`
+    for a page and `sessions <id>`, as its turns, totals and points need every day's answers, until
+    a page rests on digests of its own (see Milestones); a session the store can't place a line of,
+    as Read whole again says, as one restored onto the day after its base holds none of the base
+    day's requests to place a line of that day given again, or a request the stream tells of filed
+    on it, so its base would fail alike at every feed; one whose state won't decode or restore; and
+    one whose horizon falls before its base's day ended, as one the stream pins from before
+    midnight, whose state sealed at midnight would hold requests the horizon holds open (settled in
+    the plan, 18 October 2026). So every reader through digests shows exactly what it shows read
+    raw: a test holds the store fed through digests to the store fed raw, at each hard moment of a
+    day's turning, over generated worlds.
   - **At midnight,** the first feed of the day rolls each session on: its requests on the day
     counted afresh, from none, and each settled move's cost priced at the new day's prices only
     where its model's prices differ from the day before's, else carried, as the price table's dated
@@ -4948,6 +4970,103 @@ from the first day a router that has it runs, so nothing before then is in it.
   summaries; today, and any day not summarised since lines came to be filed under it, is
   summarised from its lines, and its readings where it reads them, as its reach says, as it's
   read, as is a day of no requests the router hasn't summarised.
+- **A digest a day,** so a reader of a session's story needn't read every day the session ran (the
+  owner's call, 18 October 2026): once a day has ended and its summary stands, the router writes
+  the day's digest beside it, `digest-<local date>.json.gz`, holding each session the summary names
+  as of the day's end, as the store of sessions would hold it read whole then, every request of it
+  sealed (see Live updates). A reader rests a session on the newest digest that stands for it, and
+  reads raw only the days after. Of each session it holds:
+  - **Its state:** its story, whether it has begun, its first and last request, what names it, the
+    directory it last named, its last request whose answer gave usage and its last such of its own
+    conversation, whether a request of it said its class, each move a request of it made, settled
+    or not, the request that wrote the session's context again among it, and of each of its threads
+    when its last request ended and how long its writes to the cache last; and how many of its
+    requests arrived on each day, by date, so a day read again whole is placed. None of its
+    requests but those its story names, no flights, nothing held open, and not its page: a
+    session's page reads its days whole (see Milestones).
+  - **What the state rests on:** each day naming the session up to the digest's own, as their
+    summaries name it, each with the `lines` its summary counted as the state was built.
+  - **Nothing priced:** no worth, no move's cost, nothing a price table gave. A state is restored at
+    the reader's day and priced there by the reader's table, its settled moves' costs worked out
+    again, so a new table, or a config's price, applies to the days digested at once, nothing built
+    again, and worth is still never stored (see Worth; settled in the plan, 18 October 2026).
+
+  Its head says what it was built from: the version of its envelope, the ledger's, and of its
+  sessions' states, the views' (`views.DigestVersion`); its day, and the day's start and end in the
+  time zone it was built in; the `lines` of the summary it was built against; how many lines the
+  day's files held; and how many of those arrived before the day began, or after it ended, as a
+  change of time zone files a line under the date beside its own. It's JSON, gzipped, its keys
+  short and its zeros left out, a few kilobytes a session, written whole, 0600, beside where it goes
+  and renamed into place, as a summary is. A reader inflates one no further than 64 MiB, and reads
+  its head alone, none of its sessions decoded, where the head is all it asks of it. Each stored
+  form is a struct of its own beside the type it stores: the envelope and a request's spend the
+  ledger's, a session's state the views', which the ledger carries as it's given and never reads.
+
+  - **Derived and disposable.** The day's lines stay the truth. A digest missing, unreadable, of
+    another version or no longer standing is read past: the session's days are read raw, slower,
+    never otherwise. A release that stores a session otherwise, or tells a story otherwise of what's
+    stored, raises `views.DigestVersion`, and a test holds a fixed world's digest to the one it
+    keeps, so a change can't ship with digests it would misread; a day whose digest is of another
+    version is digested again. So deleting the digests is safe: the router writes them again.
+    Weighed and left: SQLite, a dependency and a second truth; each session's part of a day merged
+    across days, a second fold to keep equal to the store's; and the dashboard writing digests as
+    it reads, which would make readers writers, and its first open after midnight slow (the owner's
+    call, 18 October 2026).
+  - **Who writes them, and when:** the router alone, on a goroutine of the ledger's own beside its
+    writer, never on the round, the one drain of the lines' queue, which a build would hold up a
+    second, and a backfill minutes. It makes a pass as it starts, and again as each round's
+    summarising ends, a kick waiting while a pass is made standing for every kick since it began. A
+    pass deletes the digests of days without lines, as their lines were pruned; then builds, oldest
+    first, from the first day the ledger holds to yesterday, each day with lines whose digest is due,
+    so those resting on a day built again are built after it, in the same pass. A day's digest is
+    due where none reads, of these versions, or the one there no longer holds: its head no longer
+    the day's as the ledger keeps it, a session its summary names without an entry, or an entry
+    resting on other days than those naming the session now, or on one whose lines changed. Judged
+    not due, it isn't judged again while its file, and the days it was judged on, look as they did.
+    A pass stops at a day whose lines can't be told against its summary, as no state after it could
+    be told to hold, and warns of it once. It pauses after each build as long as the build took, so
+    it takes no more than half a core. A build reads the day's files afresh, never sharing the
+    summary's read, which would tie it to the round and hold some 40 MB more at its peak, to save
+    under half a second a day (settled in the plan, 18 October 2026).
+  - **Built by the views:** each session the summary names is handed, as of the day's end, on its
+    newest standing state and its lines after it, read as a reader reads them (below), to the
+    views' builder, through `ledger.Digester`, a seam the ledger declares and `serve` fills with
+    `views.Digests`, as the ledger never imports the views: so the writer and the readers share one
+    read. The builder runs the store's own steps, never a copy of them: the state restored onto the
+    day, rolled on as midnight rolls a session, the lines since told on, and sealed at the day's end;
+    or, resting on none, the session read whole as the store reads one. A session whose state the
+    builder can't restore is handed again read whole, so a spoiled state is folded past, never
+    rested on day after day; one it still can't hold, as one with a line that arrived after the day,
+    has no entry, which leaves the day due, built again at the router's next start. A day whose
+    files or summary change while it's built, or a router stopping, writes nothing; a build that
+    fails is warned of once, until the day's built, and tried again at the next pass. After an
+    upgrade, the days kept are digested oldest first, the readers reading raw meanwhile.
+  - **When one stands,** for a reader and for the writer alike, by one rule in `internal/ledger`:
+    its versions are those read; its day's start and end are the day's in this time zone; its day's
+    summary stands, counting the `lines` it was built against, and the day's files hold exactly that
+    many, as the summary's `bytes`, or a count, tells; none of its day's lines arrived on another
+    day, nor, where the day after's digest stands, any of that day's on it; and the day before has a
+    digest that stands holding no line that arrived after that day ended, or keeps no lines at all,
+    as no reader resting on the day reads the day before's: so a digest missing mid-chain costs its
+    day and the next (settled in the plan, 18 October 2026). A session's entry stands where, too, it
+    rests on exactly the days naming the session up to its own, as a line of the session filed
+    under a day it never ran on has that day's summary name it, and each of them keeps the lines it
+    did as the state was built: so a line filed late under an earlier day stops every later state
+    resting on that day standing, none of their digests read to tell it, and a state resting on a
+    day whose lines are pruned stops standing, so a view through digests is exactly a raw read
+    (settled in the plan, 18 October 2026). A session's base is dropped, and the session read
+    whole, where a raw line of it read after the base arrived before the base's day ended, as a
+    change of time zone files one: a state sealed at that day's end can't take it in. Accepted, each
+    settled in the plan on 18 October 2026: a damaged day, its files holding fewer lines than its
+    summary counts, reads raw until a round marks its summary afresh by the damaged files' sizes,
+    as summaries keep the count they know, and the states resting on it then stand again; and a file
+    made unreadable by its permissions, its size unchanged, isn't opened to tell, so a view through
+    a digest may hold lines a raw read can no longer get, as telling would open every file a state
+    rests on at every lookup.
+  - **What it costs,** accepted (settled in the plan, 18 October 2026): the first pass after a start
+    reads every digest kept, to judge it; a router stopping waits for a build's read of a heavy day,
+    a second at most; and a prune of the ledger's files, once a day, waits for a build's reads, as
+    pruning waits for every read of the files.
 - **Worth** is what a request would have cost through the API, priced from a table built into
   switchboard, read from Anthropic's pricing page on 7 October 2026: each model's prices of input,
   output, cache reads, and cache writes for five minutes and for an hour, each as the page gives
@@ -5327,7 +5446,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/tokens` | The token files: reading them, checking their ownership and mode, writing them, and keeping their directory private. `tokens/tokenstest` stands in for the token files, for tests |
 | `internal/accounts` | Adding accounts, replacing their tokens and removing them, for the `accounts` commands and `setup`: the config file and the token file together, and a token the user gives, typed unseen at a terminal or piped in, checked with the API before it's saved |
 | `internal/dayfile` | Files a day of JSON lines, as the readings history, the request ledger and the router's events keep them: appending, compressing a day's file once its day ended two days ago, removing it once past keeping, leaving one named for a day after tomorrow until its day comes round, and reading them back, oldest first whichever day's file each is in, lines cut short and damaged files included, or a day's file on from where a read of it last ended, as a tail reads it; the days themselves, each from its first instant, and the times of a day, each as the clocks first read it, where they go forward over it, or back over it, too; and the queue and goroutine that write to them, so noting a line never waits, with the round they're kept on, hourly and before each prune, which what else is kept of a day, as the request ledger's summaries, is kept on too, at every round or just before each prune |
-| `internal/ledger` | The request ledger: its lines and their writing, through `internal/dayfile`, the days' summaries, written again while lines come to be filed under their days, each knowing no less than the one it replaces, reading lines and summaries back, with no router, today and the days not summarised since lines came to be filed under them summarised as they're read; reading them as they grow, today's lines tailed, only those since the last mark held, each day's summary held once read, and a session's days found by the summaries' session ids, the follower's lines holding none of their JSON; a line's usage decoded once into what its request spent, which the price table prices as it prices the line; and the price table, with the plans' prices and the version table, and the worth they give, a move's cache write's among it |
+| `internal/ledger` | The request ledger: its lines and their writing, through `internal/dayfile`, the days' summaries, written again while lines come to be filed under their days, each knowing no less than the one it replaces, reading lines and summaries back, with no router, today and the days not summarised since lines came to be filed under them summarised as they're read; reading them as they grow, today's lines tailed, only those since the last mark held, each day's summary held once read, and a session's days found by the summaries' session ids, the follower's lines holding none of their JSON; the days' digests, built on a goroutine of their own through the `Digester` seam it declares, when one stands, and a session as of a day, on the newest state a digest holds that stands for it and the raw lines after, one lookup the writer and the readers share; a line's usage decoded once into what its request spent, which the price table prices as it prices the line; and the price table, with the plans' prices and the version table, and the worth they give, a move's cache write's among it |
 | `internal/readings` | The readings history's lines, as the router writes them and reads them back, and the request ledger summarises its days with them: a reading as a line, and the history's files in the state directory, through `internal/dayfile`, and the readings they hold of a time, in the order they were read |
 | `internal/events` | The router's events kept across restarts, in a package of their own, as the readings history's lines are in `internal/readings` (settled in the plan): each as a line, filed in a file a day through `internal/dayfile`, beside the request ledger's and kept as long, and read back with no router, each event's versions merged by `run` and `id`, a day's read from its own file and the next 8 days', for the Log, LATELY, a session's page and `events` (see The router's events) |
 | `internal/atomicfile` | Writing a file whole or not at all: beside where it goes, synced, then renamed into place; and where writing through a link leads, so a file that's a link is written where it leads, never replaced |
@@ -5337,7 +5456,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/score` | Pace, projection, a window's rate of use, the allowance, eligibility against the reserve, pressure, perishability, the 5-hour tiebreak and the best-account pick. Pure functions of a snapshot and a clock |
 | `internal/prime` | The priming schedule: each account's slot from the day and the accounts, and when a prime is due. Pure functions of the day, the accounts, the window a request starts, which the `score.Policy` names, the readings and a clock |
 | `internal/status` | The status document, each window's allowance and even pace, the pool's room and COMING UP among what it holds, and building it by probing every account; what the router says of a session; and their words: `status`'s text, the countdowns, clocks, titles and state words the dashboard shares, and one map from the router's reasons to the dashboard's words |
-| `internal/views` | Each view's data, built by one function from what's read, the status document, the router's sessions and what its request stream tells, the ledger's, the readings history's and the events' readers, the price table and a clock: what a page of the dashboard draws, and its data verb prints, so the two never disagree (see The data verbs); and the one store of sessions the dashboard's readers of the ledger share, fed once a read of its tail, each session's story told on as its lines come (see Live updates). It opens nothing itself; it reads through the readers it's given |
+| `internal/views` | Each view's data, built by one function from what's read, the status document, the router's sessions and what its request stream tells, the ledger's, the readings history's and the events' readers, the price table and a clock: what a page of the dashboard draws, and its data verb prints, so the two never disagree (see The data verbs); and the one store of sessions the dashboard's readers of the ledger share, fed once a read of its tail, each session's story told on as its lines come, from a digest's state or whole (see Live updates); and a session's state as a day's digest stores it, and `Digests`, the builder the ledger digests its days with (see The request ledger). It opens nothing itself; it reads through the readers it's given |
 | `internal/dashboard` | Rendering the dashboard as frames (Lip Gloss): the page's chrome, its title row, status line, heading row and key line; the Overview, Accounts, History, Sessions, Runway, the Log and a session's page, each drawn from what `internal/views` builds; the usage block, which `usage` prints and the Overview's USAGE draws; the card a routing picker or a line's details is drawn in, over the page faded; the theme picker; and `?`'s help for each page |
 | `internal/dashboard/watch` | The live dashboard (Bubble Tea): when to read the router or probe; the ledger's, the readings history's and the events' files, read as they grow through small interfaces it's given, which its tests and the capture harness fake; the history and the request stream; the pages and the stack `esc` goes back through, their keys and clicks, the routing pickers' orders, scrolling, easing and what moves; the theme picker; the preferences; and its desktop notifications while it probes without the router |
 | `internal/theme` | Themes: the tokens, the built-ins, loading `.theme` files, working out `viz.*`, the families', versions' and days' shades among them, picking the light or dark half by the terminal's background, and the preferences file |
@@ -5473,16 +5592,19 @@ hiding it behind the provider would take a wider interface than it's worth:
   file's end, as a crash or a power cut partway through a write leaves one, is ended before more
   lines follow it, whether appended or compressed after it, so the next starts a line of its own.
 - **Request ledger:** `<state dir>/ledger/`, 0700: `requests-<local date>.jsonl`, a line a request,
-  `day-<local date>.json`, a day's summary, and `events-<local date>.jsonl`, a line for each version
-  of the router's events, each 0600 (see The request ledger, The router's events). The lines are
+  `day-<local date>.json`, a day's summary, `digest-<local date>.json.gz`, a day's digest, and
+  `events-<local date>.jsonl`, a line for each version of the router's events, each 0600 (see The
+  request ledger, The router's events). The lines are
   appended, compressed and removed as the readings history's are, by the same rules, but kept as
   long as `[ledger] keep` says, 400 days unless it's set, or for good where it says `forever` (see
   Config). A day's summary is written whole, beside where it goes and renamed into place, written
   again while lines come to be filed under its day, and never removed; it holds the sizes of its
   day's files, and its modification time is its stamp, when the day's compressed file was last
   modified, a second later for each version of the summaries past the first, which a round checks
-  before it reads it, or counts the day's lines (see The request ledger). The router leaves
-  anything else in the directory alone.
+  before it reads it, or counts the day's lines (see The request ledger). A day's digest is
+  written whole, as a summary is, written again while it's due, and removed once its day's lines
+  are gone; any can be deleted, as the router writes it again (see The request ledger). The router
+  leaves anything else in the directory alone.
 - **Events:** `<state dir>/ledger/events-<local date>.jsonl`, the router's events, kept across
   restarts, a file a day beside the request ledger's, and kept as long: see The router's events.
 - **Preferences:** `<state dir>/prefs.json`: the dashboard's theme or pair of themes, and what its
@@ -6271,6 +6393,23 @@ dashboard on a phone, an iPad and the Mac, as sorted with the owner on 17 Octobe
   `capturetool --frames`, with nothing passed over.
 
 The layout snags went to the phone, iPad and desktop rounds.
+
+**Day digests, phase 1: the List opens fast.** After v0.2.5, opening Sessions' List read every raw
+line of every day each session it lists ran, and a session's page every line of its days: in the
+soak's world, race detector off, the List took 1.4 s with 9 days kept and 4.0 s with 30, some
+0.13 s more for each day a session ran, and a page 1.9 s and 6.0 s (measured 18 October 2026). The
+router now digests each finished day, and the store of sessions rests each session on the newest
+digest that stands for it, reading raw only the days after (see The request ledger, Live updates).
+The owner agreed the direction, and its four phases, on 18 October 2026, each phase released on its
+own, and measured by the soak before the next goes ahead:
+1. **The List opens fast,** and with it every reader of sessions through the store: the Overview's
+   SESSIONS at start, the Log's sessions, the routing card's costs and `sessions`. This phase.
+2. **A session's page opens fast:** its tallies kept without prices, and its page's state, its
+   parts of each day and its points restored from digests.
+3. **The Log's days from rows** the router files beside each digest, its find among them; whether
+   rows are kept as long as lines is the owner's to settle then.
+4. **The Log pages by rows,** holding the rows in view and a page or two either side, never every
+   day paged through.
 
 The release, through GoReleaser, a Homebrew tap and mint, follows milestone 3.
 
