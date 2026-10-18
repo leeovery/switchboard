@@ -127,19 +127,21 @@ func (d days) datesBefore(date string, first time.Time, err error, now time.Time
 
 // sessionsRead is a read of sessions' days as Sessions reads them: the lines
 // held so far, by session, each with the date of the day whose files hold it,
-// and its place among those read; how many have been read; the lines handed
-// on to take, where it's given; and the time no line arrived after.
+// and its place among those read; how many have been read; the dates of the
+// days one of whose files couldn't be read; the lines handed on to take,
+// where it's given; and the time no line arrived after.
 type sessionsRead struct {
-	take func(date string, l Line)
-	now  time.Time
-	held map[string][]filed
-	read int
+	take   func(date string, l Line)
+	now    time.Time
+	held   map[string][]filed
+	read   int
+	failed map[string]bool
 }
 
 // newSessionsRead returns a read of sessions' days at now, holding none yet,
 // handing take each line read, where it's given.
 func newSessionsRead(now time.Time, take func(date string, l Line)) *sessionsRead {
-	return &sessionsRead{take: take, now: now, held: make(map[string][]filed)}
+	return &sessionsRead{take: take, now: now, held: make(map[string][]filed), failed: make(map[string]bool)}
 }
 
 // filed is a line read, with the date of the day whose files hold it, and its
@@ -156,10 +158,14 @@ type filed struct {
 // the order given, as reading one after another would, each day as soon as
 // those before it are, and let go once taken in: take handed each line, and
 // held each line of a session that arrived by now, every session's where
-// keep is nil, else those of the sessions it holds.
+// keep is nil, else those of the sessions it holds; and the day noted among
+// those that failed where one of its files couldn't be read.
 func (r *sessionsRead) days(d days, dates []string, keep map[string]bool) {
-	readAhead(dates, runtime.GOMAXPROCS(0), func(date string) []Line { return r.day(d, date, keep) }, func(date string, lines []Line) {
-		for _, l := range lines {
+	readAhead(dates, runtime.GOMAXPROCS(0), func(date string) dayRead { return r.day(d, date, keep) }, func(date string, read dayRead) {
+		if read.failed {
+			r.failed[date] = true
+		}
+		for _, l := range read.lines {
 			if r.take != nil {
 				r.take(date, l)
 			}
@@ -177,13 +183,13 @@ func (r *sessionsRead) days(d days, dates []string, keep map[string]bool) {
 // handed on, the next begun as one is taken, so a slow day holds no more
 // than ahead read after it, never a long keep's every day. ahead is one or
 // more.
-func readAhead(dates []string, ahead int, read func(date string) []Line, take func(date string, lines []Line)) {
-	got := make([]chan []Line, len(dates))
+func readAhead[T any](dates []string, ahead int, read func(date string) T, take func(date string, got T)) {
+	got := make([]chan T, len(dates))
 	var reads sync.WaitGroup
 	defer reads.Wait()
 	begin := func(i int) {
 		if i < len(dates) {
-			got[i] = make(chan []Line, 1)
+			got[i] = make(chan T, 1)
 			reads.Go(func() { got[i] <- read(dates[i]) })
 		}
 	}
@@ -191,19 +197,27 @@ func readAhead(dates []string, ahead int, read func(date string) []Line, take fu
 		begin(i)
 	}
 	for i, date := range dates {
-		lines := <-got[i]
+		day := <-got[i]
 		begin(i + ahead)
-		take(date, lines)
+		take(date, day)
 	}
+}
+
+// dayRead is what a read of a local day's files gave, as day reads them: the
+// lines to be taken in, and whether one of the files couldn't be read.
+type dayRead struct {
+	lines  []Line
+	failed bool
 }
 
 // day returns the lines of the files of the local day with the given date
 // that arrived by now, in the order the files hold them, to be taken in as
 // days takes them in: every one, where take is to be handed them, else only
 // those kept, as kept has it, the others read for their sessions alone, as
-// keptLineIn reads them. How many of its lines couldn't be read is warned
-// of, as is a file that can't be read.
-func (r *sessionsRead) day(d days, date string, keep map[string]bool) []Line {
+// keptLineIn reads them; and whether one of the files couldn't be read, none
+// failing where the day has none. How many of its lines couldn't be read is
+// warned of, as is a file that can't be read.
+func (r *sessionsRead) day(d days, date string, keep map[string]bool) dayRead {
 	decode := lineIn
 	if r.take == nil && keep != nil {
 		decode = keptLineIn(keep)
@@ -218,10 +232,11 @@ func (r *sessionsRead) day(d days, date string, keep map[string]bool) []Line {
 	if unread > 0 {
 		d.logger.Warn("request ledger lines unread", "day", date, "lines", unread)
 	}
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+	failed := err != nil && !errors.Is(err, fs.ErrNotExist)
+	if failed {
 		d.logger.Warn("can't read the request ledger", "day", date, "error", err)
 	}
-	return lines
+	return dayRead{lines: lines, failed: failed}
 }
 
 // kept reports whether a read of sessions holds the line l: one of a

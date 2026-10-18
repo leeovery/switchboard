@@ -3,6 +3,7 @@ package ledger
 import (
 	"maps"
 	"slices"
+	"time"
 )
 
 // SetLooked has a round call looked with the date of each day it summarises
@@ -16,6 +17,41 @@ func (l *Ledger) SetLooked(looked func(date string)) {
 // day, for tests of what passes over it.
 func WriteDigest(dir string, digest Digest) error {
 	return days{files: filesIn(dir, nil)}.writeDigest(digest)
+}
+
+// SessionsAsOf returns the sessions with the given ids as of the start of
+// the local day with the given date, their states of the version body, as
+// the follower's lookup finds them, handing take each line read, where it's
+// given, for tests of the lookup.
+func (f *Follower) SessionsAsOf(ids []string, date string, body int, take func(date string, l Line)) map[string]SessionFrom {
+	return f.sessionsAsOf(ids, date, body, take)
+}
+
+// SessionsAsOf returns the sessions with the given ids as of the start of
+// the local day with the given date, at now, their states of the version
+// body, as the router's writer's lookup finds them, for tests of the lookup.
+func (l *Ledger) SessionsAsOf(ids []string, date string, body int, now time.Time) map[string]SessionFrom {
+	return l.sessionsAsOf(ids, date, body, now)
+}
+
+// RestsOn returns what a state folded from s rests on, as the lookup found
+// it, for tests of the lookup.
+func (s SessionFrom) RestsOn() map[string]int {
+	return s.restsOn
+}
+
+// Kept gives the lines the ledger keeps of the local day with the given
+// date, as the follower's look gives them to the lookup, for tests of its
+// contract.
+func (f *Follower) Kept(date string) (int, bool) {
+	return followerLook{f: f}.kept(date)
+}
+
+// Kept gives the lines the ledger keeps of the local day with the given
+// date, as the router's writer's look gives them to the lookup, for tests of
+// its contract.
+func (l *Ledger) Kept(date string) (int, bool) {
+	return newWriterLook(l.days).kept(date)
 }
 
 // SetHistory has the reader list and read the readings history as history

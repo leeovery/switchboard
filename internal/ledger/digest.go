@@ -274,12 +274,11 @@ func (g digestGrounds) current(head DigestHead) bool {
 // alone reports whether no line the days either side of the local day with
 // the given date hold arrived on it, as far as their digests tell. Of the day
 // after's, it's told only where its digest is current: one without is the
-// reader's to catch, as it reads that day's lines raw after a state resting
-// on this one, by the rule its restore keeps, that a session any of whose
-// raw lines after its base arrived before the base's day ended is read whole.
-// The store's gained doesn't catch it: once the store's day is two or more
-// after this one, it only counts such a line among its own day's requests,
-// and may take it in.
+// lookup's to catch, as sessionsAsOf reads that day's lines raw after a state
+// resting on this one, and rests a session on none where one of its lines
+// read there arrived before its base's day ended. The store's gained doesn't
+// catch it: once the store's day is two or more after this one, it only
+// counts such a line among its own day's requests, and may take it in.
 // Of the day before's, it can't be told without one, as no reader resting on
 // the day reads that day's lines: its digest must be current and hold none
 // that arrived after it ended, unless it keeps no lines at all.
