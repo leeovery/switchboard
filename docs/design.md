@@ -4996,7 +4996,7 @@ from the first day a router that has it runs, so nothing before then is in it.
   time zone it was built in; the `lines` of the summary it was built against; how many lines the
   day's files held; and how many of those arrived before the day began, or after it ended, as a
   change of time zone files a line under the date beside its own. It's JSON, gzipped, its keys
-  short and its zeros left out, a few kilobytes a session, written whole, 0600, beside where it goes
+  short and its zeros left out, written whole, 0600, beside where it goes
   and renamed into place, as a summary is. A reader inflates one no further than 64 MiB, and reads
   its head alone, none of its sessions decoded, where the head is all it asks of it. Each stored
   form is a struct of its own beside the type it stores: the envelope and a request's spend the
@@ -6400,8 +6400,8 @@ soak's world, race detector off, the List took 1.4 s with 9 days kept and 4.0 s 
 0.13 s more for each day a session ran, and a page 1.9 s and 6.0 s (measured 18 October 2026). The
 router now digests each finished day, and the store of sessions rests each session on the newest
 digest that stands for it, reading raw only the days after (see The request ledger, Live updates).
-The owner agreed the direction, and its four phases, on 18 October 2026, each phase released on its
-own, and measured by the soak before the next goes ahead:
+The owner agreed the direction, and its four phases, on 18 October 2026, each able to ship on its
+own, and measured by the soak:
 1. **The List opens fast,** and with it every reader of sessions through the store: the Overview's
    SESSIONS at start, the Log's sessions, the routing card's costs and `sessions`. This phase.
 2. **A session's page opens fast:** its tallies kept without prices, and its page's state, its
