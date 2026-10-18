@@ -21,7 +21,7 @@ import (
 // change of time zone files a line under the date beside its own, and a clock
 // set back one under a day after today's; then those of the days before them
 // whose summaries, as Days gives them, name any of the sessions it reads among
-// theirs, or might, as Summary.names says: each day's files once, and no
+// theirs, or might, as Summary.naming says: each day's files once, and no
 // summary where it reads no session; the days of each read side by side, as
 // days reads them. take, where it's given, is handed each line read that
 // arrived by now, of whichever session, with the date of the day whose files
@@ -41,7 +41,7 @@ func (f *Follower) Sessions(ids []string, take func(date string, l Line)) map[st
 func (f *Follower) SessionsOf(ids []string, take func(date string, l Line)) map[string][]Line {
 	read, near := f.sessionsRead(take)
 	wanted := wanting(make(map[string]bool), ids)
-	read.days(f, append(f.namingBefore(near[0], wanted, read.now), near...), wanted)
+	read.days(f.days, append(f.namingBefore(near[0], wanted, read.now), near...), wanted)
 	return read.of(wanted)
 }
 
@@ -50,7 +50,7 @@ func (f *Follower) SessionsOf(ids []string, take func(date string, l Line)) map[
 // either side of it, oldest first.
 func (f *Follower) sessionsRead(take func(date string, l Line)) (*sessionsRead, []string) {
 	now := f.now()
-	return &sessionsRead{take: take, now: now, held: make(map[string][]filed)}, dayfile.Dates(now, now)
+	return newSessionsRead(now, take), dayfile.Dates(now, now)
 }
 
 // readNear reads the files of today and of the days either side of it,
@@ -58,7 +58,7 @@ func (f *Follower) sessionsRead(take func(date string, l Line)) (*sessionsRead, 
 // days' dates, oldest first.
 func (f *Follower) readNear(take func(date string, l Line)) (*sessionsRead, []string) {
 	read, near := f.sessionsRead(take)
-	read.days(f, near, nil)
+	read.days(f.days, near, nil)
 	return read, near
 }
 
@@ -67,7 +67,7 @@ func (f *Follower) readNear(take func(date string, l Line)) (*sessionsRead, []st
 // whose summaries name any of them, or might, as namingBefore finds them.
 func (f *Follower) readNaming(read *sessionsRead, near []string, wanted map[string]bool, ids []string) map[string][]Line {
 	wanted = wanting(wanted, ids)
-	read.days(f, f.namingBefore(near[0], wanted, read.now), wanted)
+	read.days(f.days, f.namingBefore(near[0], wanted, read.now), wanted)
 	return read.of(wanted)
 }
 
@@ -93,15 +93,8 @@ func (f *Follower) namingBefore(date string, wanted map[string]bool, now time.Ti
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	first, err := f.firstDay(now)
-	began, _, err := Begins(first, err, now)
-	if err != nil {
-		f.days.logger.Warn("can't read the request ledger", "dir", f.days.files.Dir, "error", err)
-		return nil
-	}
-	before, _, _ := dayfile.Day(date)
 	var dates []string
-	for _, d := range dayfile.Span(began, dayfile.DayStart(before, -1)) {
+	for _, d := range f.datesBefore(date, now) {
 		if f.names(d, wanted) {
 			dates = append(dates, d)
 		}
@@ -109,15 +102,46 @@ func (f *Follower) namingBefore(date string, wanted map[string]bool, now time.Ti
 	return dates
 }
 
+// datesBefore returns the dates of the local days before the one with the
+// given date, from where the ledger begins at now, as days.datesBefore gives
+// them, the first day it holds as firstDay gives it. The follower is held.
+func (f *Follower) datesBefore(date string, now time.Time) []string {
+	first, err := f.firstDay(now)
+	return f.days.datesBefore(date, first, err, now)
+}
+
+// datesBefore returns the dates of the local days before the one with the
+// given date, oldest first, from where the ledger begins at now, as Begins
+// says, the first day it holds as first and err give it: so none before
+// today where it holds no day; and none where it can't be looked at to tell,
+// which is warned of.
+func (d days) datesBefore(date string, first time.Time, err error, now time.Time) []string {
+	began, _, err := Begins(first, err, now)
+	if err != nil {
+		d.logger.Warn("can't read the request ledger", "dir", d.files.Dir, "error", err)
+		return nil
+	}
+	before, _, _ := dayfile.Day(date)
+	return dayfile.Span(began, dayfile.DayStart(before, -1))
+}
+
 // sessionsRead is a read of sessions' days as Sessions reads them: the lines
 // held so far, by session, each with the date of the day whose files hold it,
-// and its place among those read; how many have been read; the lines handed
-// on to take, where it's given; and the time no line arrived after.
+// and its place among those read; how many have been read; the dates of the
+// days one of whose files couldn't be read; the lines handed on to take,
+// where it's given; and the time no line arrived after.
 type sessionsRead struct {
-	take func(date string, l Line)
-	now  time.Time
-	held map[string][]filed
-	read int
+	take   func(date string, l Line)
+	now    time.Time
+	held   map[string][]filed
+	read   int
+	failed map[string]bool
+}
+
+// newSessionsRead returns a read of sessions' days at now, holding none yet,
+// handing take each line read, where it's given.
+func newSessionsRead(now time.Time, take func(date string, l Line)) *sessionsRead {
+	return &sessionsRead{take: take, now: now, held: make(map[string][]filed), failed: make(map[string]bool)}
 }
 
 // filed is a line read, with the date of the day whose files hold it, and its
@@ -134,10 +158,14 @@ type filed struct {
 // the order given, as reading one after another would, each day as soon as
 // those before it are, and let go once taken in: take handed each line, and
 // held each line of a session that arrived by now, every session's where
-// keep is nil, else those of the sessions it holds.
-func (r *sessionsRead) days(f *Follower, dates []string, keep map[string]bool) {
-	readAhead(dates, runtime.GOMAXPROCS(0), func(date string) []Line { return r.day(f, date, keep) }, func(date string, lines []Line) {
-		for _, l := range lines {
+// keep is nil, else those of the sessions it holds; and the day noted among
+// those that failed where one of its files couldn't be read.
+func (r *sessionsRead) days(d days, dates []string, keep map[string]bool) {
+	readAhead(dates, runtime.GOMAXPROCS(0), func(date string) dayRead { return r.day(d, date, keep) }, func(date string, read dayRead) {
+		if read.failed {
+			r.failed[date] = true
+		}
+		for _, l := range read.lines {
 			if r.take != nil {
 				r.take(date, l)
 			}
@@ -155,13 +183,13 @@ func (r *sessionsRead) days(f *Follower, dates []string, keep map[string]bool) {
 // handed on, the next begun as one is taken, so a slow day holds no more
 // than ahead read after it, never a long keep's every day. ahead is one or
 // more.
-func readAhead(dates []string, ahead int, read func(date string) []Line, take func(date string, lines []Line)) {
-	got := make([]chan []Line, len(dates))
+func readAhead[T any](dates []string, ahead int, read func(date string) T, take func(date string, got T)) {
+	got := make([]chan T, len(dates))
 	var reads sync.WaitGroup
 	defer reads.Wait()
 	begin := func(i int) {
 		if i < len(dates) {
-			got[i] = make(chan []Line, 1)
+			got[i] = make(chan T, 1)
 			reads.Go(func() { got[i] <- read(dates[i]) })
 		}
 	}
@@ -169,37 +197,46 @@ func readAhead(dates []string, ahead int, read func(date string) []Line, take fu
 		begin(i)
 	}
 	for i, date := range dates {
-		lines := <-got[i]
+		day := <-got[i]
 		begin(i + ahead)
-		take(date, lines)
+		take(date, day)
 	}
+}
+
+// dayRead is what a read of a local day's files gave, as day reads them: the
+// lines to be taken in, and whether one of the files couldn't be read.
+type dayRead struct {
+	lines  []Line
+	failed bool
 }
 
 // day returns the lines of the files of the local day with the given date
 // that arrived by now, in the order the files hold them, to be taken in as
 // days takes them in: every one, where take is to be handed them, else only
 // those kept, as kept has it, the others read for their sessions alone, as
-// keptLineIn reads them. How many of its lines couldn't be read is warned
-// of, as is a file that can't be read.
-func (r *sessionsRead) day(f *Follower, date string, keep map[string]bool) []Line {
+// keptLineIn reads them; and whether one of the files couldn't be read, none
+// failing where the day has none. How many of its lines couldn't be read is
+// warned of, as is a file that can't be read.
+func (r *sessionsRead) day(d days, date string, keep map[string]bool) dayRead {
 	decode := lineIn
 	if r.take == nil && keep != nil {
 		decode = keptLineIn(keep)
 	}
 	var lines []Line
-	_, unread, err := dayfile.ReadDay(f.days.files, date, decode, func(l Line) bool {
+	_, unread, err := dayfile.ReadDay(d.files, date, decode, func(l Line) bool {
 		if !l.At.After(r.now) && (r.take != nil || kept(&l, keep)) {
 			lines = append(lines, l)
 		}
 		return true
 	})
 	if unread > 0 {
-		f.days.logger.Warn("request ledger lines unread", "day", date, "lines", unread)
+		d.logger.Warn("request ledger lines unread", "day", date, "lines", unread)
 	}
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		f.days.logger.Warn("can't read the request ledger", "day", date, "error", err)
+	failed := err != nil && !errors.Is(err, fs.ErrNotExist)
+	if failed {
+		d.logger.Warn("can't read the request ledger", "day", date, "error", err)
 	}
-	return lines
+	return dayRead{lines: lines, failed: failed}
 }
 
 // kept reports whether a read of sessions holds the line l: one of a
@@ -241,23 +278,27 @@ func (r *sessionsRead) today(start time.Time) map[string]bool {
 }
 
 // of returns the lines held of the sessions wanted, by each one's id, oldest
-// first, by when each arrived, then the date of the day whose files hold it,
-// and its place among those read.
+// first, as oldestFirst orders them.
 func (r *sessionsRead) of(wanted map[string]bool) map[string][]Line {
 	sessions := make(map[string][]Line)
 	for id := range wanted {
-		held := r.held[id]
-		if len(held) == 0 {
-			continue
+		if held := r.held[id]; len(held) > 0 {
+			sessions[id] = oldestFirst(held)
 		}
-		slices.SortFunc(held, func(a, b filed) int {
-			return cmp.Or(a.At.Compare(b.At), strings.Compare(a.date, b.date), cmp.Compare(a.place, b.place))
-		})
-		lines := make([]Line, len(held))
-		for i, h := range held {
-			lines[i] = h.Line
-		}
-		sessions[id] = lines
 	}
 	return sessions
+}
+
+// oldestFirst returns the lines of held, sorting it oldest first, by when
+// each arrived, then the date of the day whose files hold it, and its place
+// among those read.
+func oldestFirst(held []filed) []Line {
+	slices.SortFunc(held, func(a, b filed) int {
+		return cmp.Or(a.At.Compare(b.At), strings.Compare(a.date, b.date), cmp.Compare(a.place, b.place))
+	})
+	lines := make([]Line, len(held))
+	for i, h := range held {
+		lines[i] = h.Line
+	}
+	return lines
 }

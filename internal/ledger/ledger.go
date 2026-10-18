@@ -504,17 +504,28 @@ func (d days) holdsSummary(date string) bool {
 // while those are. It fails where the lines can't be counted, as when one of
 // the day's files can't be opened.
 func (d days) stands(held Summary, stat dayfile.DayStat) (bool, error) {
+	stands, _, err := d.counting(held, stat)
+	return stands, err
+}
+
+// counting reports whether held, a summary the ledger holds, stands, as
+// stands says, its day's files as stat looks at them, and whether they hold
+// exactly the lines it counts: as they're as they were when it was marked,
+// as marked says, or as a count of them tells, none of a day whose lines are
+// pruned between the look and the count. Fewer, as to a damaged file,
+// stand, but not exactly. It fails as stands does.
+func (d days) counting(held Summary, stat dayfile.DayStat) (stands, exact bool, err error) {
 	if stands, told := standsUncounted(held, stat); told {
-		return stands, nil
+		return stands, stands, nil
 	}
 	lines, err := d.files.Count(held.Day)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
-		return true, nil
+		return true, held.Lines == 0, nil
 	case err != nil:
-		return false, err
+		return false, false, err
 	}
-	return lines <= held.Lines, nil
+	return lines <= held.Lines, lines == held.Lines, nil
 }
 
 // settled reports whether the summary of the local day with the given date
