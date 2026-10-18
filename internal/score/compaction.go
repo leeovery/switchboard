@@ -34,12 +34,8 @@ type Move struct {
 	Verdict Verdict
 	// To is the account chosen, "" when none was.
 	To string
-	// Rate is how fast To's perishable window has been used lately, a share
-	// of it an hour, and Resets when it resets: zero when that isn't known.
-	Rate   float64
-	Resets time.Time
 	// Left is the share of To's perishable window it would leave unused at
-	// Resets, as LeftAtReset says: zero when that isn't known.
+	// its reset, as LeftAtReset says: zero when that isn't known.
 	Left float64
 }
 
@@ -51,7 +47,7 @@ type Move struct {
 // which must be known, it would leave more than atRisk of that window unused
 // at its reset, as LeftAtReset says.
 func (p Policy) AtCompaction(own, choice Candidate, now time.Time) Move {
-	m := Move{To: choice.ID, Rate: choice.PerishableRate}
+	m := Move{To: choice.ID}
 	if choice.ID == own.ID {
 		m.Verdict = StaysSame
 		return m
@@ -59,7 +55,7 @@ func (p Policy) AtCompaction(own, choice Candidate, now time.Time) Move {
 	ours, oursKnown := p.perishableReset(own, now)
 	theirs, theirsKnown := p.perishableReset(choice, now)
 	left, leftKnown := p.LeftAtReset(choice, now)
-	m.Resets, m.Left = theirs, left
+	m.Left = left
 	switch {
 	case !oursKnown || !theirsKnown:
 		m.Verdict = StaysUnknown

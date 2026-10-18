@@ -218,9 +218,11 @@ func (p *proxy) route(w http.ResponseWriter, r *http.Request, client account) {
 // request is what the chooser is to know of a routed request, whose body is
 // body, sent by client's token: its session and the directory it was started
 // in, its model and whether the model's thinking is bound to its account,
-// whether it's the client's quota check, whether it's the first after its
-// conversation was compacted, and its pin; and the request's shape, which the
-// provider reads in the same pass over the body.
+// whether it's the client's quota check, whether it's the first of its
+// session's main conversation after that was compacted, and its pin; and the
+// request's shape, which the provider reads in the same pass over the body. A
+// subagent's own conversation is compacted too, and marked alike, but its
+// session's main conversation keeps its cache, which a move would throw away.
 func (p *proxy) request(r *http.Request, body []byte, ex *exchange, client account) (Request, ledger.Shape) {
 	model, check, shape := p.provider.Asks(body)
 	session := p.provider.Session(r.Header)
@@ -231,7 +233,7 @@ func (p *proxy) request(r *http.Request, body []byte, ex *exchange, client accou
 		Model:     model,
 		Check:     check,
 		Bound:     p.provider.ThinkingBound(model),
-		Compacted: ex.hints.Compacted != "",
+		Compacted: ex.hints.Class == ledger.ClassMain && ex.hints.Compacted != "",
 		Pin:       p.pin(r, ex, session),
 		Client:    client.ID,
 	}, shape

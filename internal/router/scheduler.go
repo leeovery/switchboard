@@ -198,15 +198,22 @@ var staying = map[score.Verdict]string{
 }
 
 // noteCompaction notes in the log, at debug, why the choice d kept the
-// session where it is at the first request after its compaction, and the
-// account it judged moving it to. A move it notes nothing of: the request's
-// routed line and the move's own say it.
+// session where it is at the first request after its compaction, the account
+// it judged moving it to, "" where none was chosen, and where that account's
+// room isn't at risk, the share of its perishable window it would leave
+// unused at its reset. A move it notes nothing of: the request's routed line
+// and the move's own say it.
 func noteCompaction(req Request, d decision) {
-	if d.move.Verdict == score.Moves {
+	m := d.move
+	if m.Verdict == score.Moves {
 		return
 	}
-	logger.Debug("stays after compaction", "id", req.ID, "session", status.ShortID(req.Session), "model", req.Model,
-		"account", d.account, "why", staying[d.move.Verdict], "chosen", d.move.To)
+	attrs := []any{"id", req.ID, "session", status.ShortID(req.Session), "model", req.Model,
+		"account", d.account, "why", staying[m.Verdict], "chosen", m.To}
+	if m.Verdict == score.StaysNotAtRisk {
+		attrs = append(attrs, "left", prose.Tenths(m.Left*100)+"%")
+	}
+	logger.Debug("stays after compaction", attrs...)
 }
 
 // recheck probes again the accounts whose usage as last read leaves no room

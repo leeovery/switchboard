@@ -228,14 +228,15 @@ lost (see Choosing an account).
    marks `X-Claude-Code-Context-Compacted`, is judged too: the account the router would choose for
    a new session, as step 4 of the order below chooses it, is where the session moves when that
    account's week resets before the session's own account's does, and, used from now on at its
-   week's recent rate (step 3), would reach its reset with more than 2% of its week left: room that
-   would otherwise be lost. As the sessions moved add to that account's rate, the room at risk
-   falls and the moves stop. A session on a model whose thinking is bound to its account never
-   moves for it, and nor does one its own pin holds. The compaction itself, which reads the whole
-   conversation from the cache, never moves. A move is a choice afresh, so it waits on the probes
-   of the accounts whose usage is stale, as any does, and is judged again on what they read. Its
-   reason says why (`compacted: side would reset with 12% of its week left`), and its `moved` event
-   records it.
+   week's recent rate (step 3), would reach its reset with more than 2% of its week left above its
+   reserve: room that would otherwise be lost. As the sessions moved add to that account's rate,
+   the room at risk falls and the moves stop. A session on a model whose thinking is bound to its
+   account never moves for it, and nor does one its own pin holds. The compaction itself, which
+   reads the whole conversation from the cache, never moves, nor does the first request after a
+   subagent's own compaction, which Claude Code marks alike, as the main conversation's cache is
+   still warm. A move is a choice afresh, so it waits on the probes of the accounts whose usage is
+   stale, as any does, and is judged again on what they read. Its reason says why (`compacted:
+   side would reset with 12% of its week left`), and its `moved` event records it.
 6. **Limit hit:** a 429 whose overall status or any window's status reads `rejected` means real
    exhaustion. Switchboard replays the buffered request on the next candidate, among the accounts
    the request hasn't been tried on, before any response reaches Claude Code, and the session
@@ -320,7 +321,7 @@ The routed line in the log gives the reason for each request's account, one of:
 | `new` | A new session's first account |
 | `unsessioned` | A request without a session id |
 | `rescored after <idle> idle` | A session idle past its cache's hour, chosen afresh, its model's thinking not bound to its account |
-| `compacted: <id> would reset with <n>% of its week left` | A busy session's first request after its compaction, moved to `<id>`, the account chosen afresh, as `<id>`'s week resets before its own account's and would otherwise reset with `<n>`% of it unused (step 5) |
+| `compacted: <id> would reset with <n>% of its week left` | A busy session's first request after its compaction, moved to `<id>`, the account chosen afresh, as `<id>`'s week resets before its own account's and would otherwise reset with `<n>`% of it unused above its reserve (step 5) |
 | `moved: <id> has no room` | The session's account, `<id>`, can't serve the request |
 | `moved: <id> is at its reserve` | The same, as `<id>` has reached its reserve |
 | `moved: <id> hit its limit`, `moved: <id> was refused` | The same, as `<id>` answered this request with its limit, or refused it, and it was replayed |
@@ -5077,9 +5078,7 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
 - **The router's own events:** at `info`, each prime, with the reset it read; an account held back
   by its reserve, and let go at its reset; each choice that passes an account over as under
   pressure, with its rate and when it runs out at it (`passed over under pressure`), the routed
-  line's reason naming it too; at `debug`, why the first request after a session's compaction
-  leaves it where it is (`stays after compaction`, see Choosing an account); a limit a 429 to a
-  request sent before a reset made by hand
+  line's reason naming it too; a limit a 429 to a request sent before a reset made by hand
   reaches, passed over as the request goes out again (`limit from before a reset passed over`); a
   token file read again after a 401, and whether it held a different token; a token replaced
   while the router was away, which it finds as it starts; a token file found holding another
@@ -5095,9 +5094,11 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
   config change refused, as invalid at two looks in a row; a restart that couldn't replace the
   process, and exits instead; and listeners handed over that couldn't be taken up. At `debug`, a
   token file found holding no usable token at one look, which the account's token outlasts; a
-  config file found making no valid config at one look; and, of a probe on the token its account
-  has since replaced, its failure or a window it couldn't read, as neither is kept, though a
-  prime's failure is warned of as any is. Of the readings
+  config file found making no valid config at one look; of a probe on the token its account has
+  since replaced, its failure or a window it couldn't read, as neither is kept, though a prime's
+  failure is warned of as any is; and why the first request after a session's compaction leaves
+  it where it is, and, where it's known, what the account judged would have left of its week
+  (`stays after compaction`, see Choosing an account). Of the readings
   history (see Files): at `info`, how many readings the router took up from it as it started
   (`took up the readings history`), and that it's written again after failing (`writing the
   readings history again`); at `warn`, that its directory can't be made private (`can't make the

@@ -2,6 +2,7 @@ package router
 
 import (
 	"cmp"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -11,8 +12,10 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -33,11 +36,12 @@ func TestTheFirstRequestAfterACompactionMovesItsSessionWhereAChoiceAfreshWouldSe
 	later := start.Add(6 * 24 * time.Hour)
 	tests := []struct {
 		name string
-		// headers are what the request carries beside its session.
+		// headers are what the request carries beside its session and pin.
 		headers map[string]string
 		// model is the request's, Opus where it's "".
 		model string
-		// pin is the session's own, as it was launched with it.
+		// pin is the session's own, as it was launched with it, which the
+		// request carries.
 		pin string
 		// sideResets is when side's week resets, and sideFresh has it read
 		// first as the request comes, too lately for its rate to be known.
@@ -53,26 +57,26 @@ func TestTheFirstRequestAfterACompactionMovesItsSessionWhereAChoiceAfreshWouldSe
 	}{
 		{
 			name:       "after its compaction, another account's week resetting sooner with room at risk: moves",
-			headers:    map[string]string{claude.CompactedHeader: "auto"},
+			headers:    afterCompaction(ledger.ClassMain, "auto"),
 			sideResets: sideSooner,
 			wantOn:     "side", wantReason: compactedToSide,
 		},
 		{
 			name:       "after a compaction by hand, the same",
-			headers:    map[string]string{claude.CompactedHeader: "manual"},
+			headers:    afterCompaction(ledger.ClassMain, "manual"),
 			sideResets: sideSooner,
 			wantOn:     "side", wantReason: compactedToSide,
 		},
 		{
 			name:       "after its compaction, the account chosen's week resetting later: stays, saying why",
-			headers:    map[string]string{claude.CompactedHeader: "auto"},
+			headers:    afterCompaction(ledger.ClassMain, "auto"),
 			sideResets: later,
 			wantOn:     "work", wantReason: reasonSticky,
 			wantStays: []string{"level=DEBUG", `msg="stays after compaction"`, "session=one", "model=" + opus, "account=work", `why="resets later"`, "chosen=side"},
 		},
 		{
 			name:       "after its compaction, the account chosen's week read too lately for its rate to be known: stays, saying why",
-			headers:    map[string]string{claude.CompactedHeader: "auto"},
+			headers:    afterCompaction(ledger.ClassMain, "auto"),
 			sideResets: sideSooner,
 			sideFresh:  true,
 			wantOn:     "work", wantReason: reasonSticky,
@@ -80,11 +84,23 @@ func TestTheFirstRequestAfterACompactionMovesItsSessionWhereAChoiceAfreshWouldSe
 		},
 		{
 			name:       "after its compaction, its own account chosen: stays, saying why",
-			headers:    map[string]string{claude.CompactedHeader: "auto"},
+			headers:    afterCompaction(ledger.ClassMain, "auto"),
 			sideResets: later,
 			workUsed:   0.3,
 			wantOn:     "work", wantReason: reasonSticky,
 			wantStays: []string{"level=DEBUG", `msg="stays after compaction"`, "account=work", `why="same account"`, "chosen=work"},
+		},
+		{
+			name:       "after a subagent's compaction, of the same model, the main conversation's cache whole: not judged",
+			headers:    afterCompaction("subagent", "auto"),
+			sideResets: sideSooner,
+			wantOn:     "work", wantReason: reasonSticky,
+		},
+		{
+			name:       "after a compaction of a conversation it doesn't say is the main one: not judged",
+			headers:    map[string]string{claude.CompactedHeader: "auto"},
+			sideResets: sideSooner,
+			wantOn:     "work", wantReason: reasonSticky,
 		},
 		{
 			name:       "no compaction: not judged",
@@ -99,21 +115,21 @@ func TestTheFirstRequestAfterACompactionMovesItsSessionWhereAChoiceAfreshWouldSe
 		},
 		{
 			name:       "after its compaction, on a model whose thinking is bound to its account: not judged",
-			headers:    map[string]string{claude.CompactedHeader: "auto"},
+			headers:    afterCompaction(ledger.ClassMain, "auto"),
 			model:      sonnet,
 			sideResets: sideSooner,
 			wantOn:     "work", wantReason: reasonSticky,
 		},
 		{
 			name:       "after its compaction, held by its own pin: not judged",
-			headers:    map[string]string{claude.CompactedHeader: "auto", PinHeader: "work"},
+			headers:    afterCompaction(ledger.ClassMain, "auto"),
 			pin:        "work",
 			sideResets: sideSooner,
 			wantOn:     "work", wantReason: reasonPinned,
 		},
 		{
 			name:       "after its compaction, kept where it went when its own pin yielded: not judged",
-			headers:    map[string]string{claude.CompactedHeader: "auto", PinHeader: "side"},
+			headers:    afterCompaction(ledger.ClassMain, "auto"),
 			pin:        "side",
 			sideResets: sideSooner,
 			wantOn:     "work", wantReason: reasonSticky,
@@ -131,8 +147,13 @@ func TestTheFirstRequestAfterACompactionMovesItsSessionWhereAChoiceAfreshWouldSe
 			assign(r.sessions, k, tt.pin, decision{account: "work", reason: reasonNew}, start.Add(-5*time.Minute))
 			upstream := scripted(served, served)
 			r.proxy.transport = upstream
+			headers := map[string]string{}
+			maps.Copy(headers, tt.headers)
+			if tt.pin != "" {
+				headers[PinHeader] = tt.pin
+			}
 
-			routeWith(t, r, model, tt.headers)
+			routeWith(t, r, model, headers)
 
 			if sent := upstream.sent(); !slices.Equal(sent, []string{tt.wantOn}) {
 				t.Errorf("the request went out on %q, want %s alone", sent, tt.wantOn)
@@ -181,7 +202,7 @@ func TestACompactionsMoveThatHitsALimitIsReplayedAsAnyRequestIsAndNotJudgedAgain
 	upstream := scripted(served, limitHit)
 	r.proxy.transport = upstream
 
-	routeWith(t, r, opus, map[string]string{claude.CompactedHeader: "auto"})
+	routeWith(t, r, opus, afterCompaction(ledger.ClassMain, "auto"))
 
 	if sent := upstream.sent(); !slices.Equal(sent, []string{"side", "work"}) {
 		t.Errorf("the request went out on %q, want side then work", sent)
@@ -225,46 +246,137 @@ func TestARequestThatMovedItsSessionAtItsCompactionAndWentUnansweredPutsItBack(t
 	}
 }
 
-func TestACompactionsMoveThatAProbesReadingTurnsIntoAStayKeepsTheSessionWhereItIs(t *testing.T) {
-	// Side's week, as readRising has it read, last read 20 minutes before the
-	// request, its usage stale: rising at 0.3% an hour over the 40 minutes
-	// since it was first read, it has 42.7% of its week at risk, and the
-	// session moves there, but for the probe a choice afresh waits on. That
-	// reads it 95% used, used since at 67.5% an hour: at that rate it runs
-	// out before its reset, nothing of it at risk.
-	log := logstest.Capture(t)
-	clock := &testClock{}
-	prober := &stubProber{readings: map[string]quota.Probe{
-		workToken: probed(nil, risingSession, quota.Window{Key: "7d", Label: "Week", Utilization: 0.9, ResetsAt: start.Add(5 * 24 * time.Hour)}),
-		sideToken: probed(nil, risingSession, quota.Window{Key: "7d", Label: "Week", Utilization: 0.95, ResetsAt: sideSooner}),
-	}}
-	r := newTestRouter(t, clock.read, prober)
-	readRising(r, clock, 0.9, sideSooner, false)
-	clock.now = start.Add(20 * time.Minute)
-	k := key{session: "one", model: opus}
-	assign(r.sessions, k, "", decision{account: "work", reason: reasonNew}, start)
+func TestACompactionsMoveIsJudgedAgainOnTheReadingsOfTheProbesItWaitsOn(t *testing.T) {
+	// Work's week and side's, as readRising has them read, were last read 20
+	// minutes before the request, and are stale: side's, rising at 0.3% an
+	// hour over the 40 minutes since it was first read, reaches its reset
+	// 57.3% used, 42.7% of it at risk, so the session moves there; but the
+	// move is made afresh, and waits on the probes of both, which read work's
+	// week as it was, and side's as given.
+	stale := status.Compacted("side", 0.427)
+	tests := []struct {
+		name string
+		// sideRead is how much of side's week its probe reads used.
+		sideRead float64
+		// want is the choice made once the probes are in, wantMove the move it
+		// makes, if any, and wantLines the log's lines of it.
+		want      Choice
+		wantMove  []eventMove
+		wantLines [][]string
+	}{
+		{
+			// Used since at 67.5% an hour, side runs out before its reset.
+			name:     "side read used faster since, nothing of it at risk: stays",
+			sideRead: 0.95,
+			want:     Choice{Account: "work", Reason: reasonSticky},
+			wantLines: [][]string{
+				{"level=DEBUG", `msg="decision overturned"`, "account=work", "account_before=side", "reason=sticky", "reason_before=" + logged(stale)},
+				{"level=DEBUG", `msg="stays after compaction"`, "account=work", `why="not at risk"`, "chosen=side", "left=0.0%"},
+			},
+		},
+		{
+			// Used since at 1.5% an hour, side reaches its reset 86.5% used,
+			// 13.5% of it at risk: the share the move says.
+			name:     "side read a little more used, its room still at risk: moves, saying what the probe read",
+			sideRead: 0.51,
+			want:     Choice{Account: "side", Reason: status.Compacted("side", 0.135), From: "work"},
+			wantMove: []eventMove{{from: "work", to: "side", reason: status.Compacted("side", 0.135)}},
+			wantLines: [][]string{
+				{"level=DEBUG", `msg="decision overturned"`, "reason=" + logged(status.Compacted("side", 0.135)), "reason_before=" + logged(stale)},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			clock := &testClock{}
+			prober := &stubProber{readings: map[string]quota.Probe{
+				workToken: probed(nil, risingSession, quota.Window{Key: "7d", Label: "Week", Utilization: 0.9, ResetsAt: start.Add(5 * 24 * time.Hour)}),
+				sideToken: probed(nil, risingSession, quota.Window{Key: "7d", Label: "Week", Utilization: tt.sideRead, ResetsAt: sideSooner}),
+			}}
+			r := newTestRouter(t, clock.read, prober)
+			readRising(r, clock, 0.9, sideSooner, false)
+			clock.now = start.Add(20 * time.Minute)
+			k := key{session: "one", model: opus}
+			assign(r.sessions, k, "", decision{account: "work", reason: reasonNew}, start)
 
-	got := choose(t.Context(), r, Request{ID: "c3d4e5f6", Session: "one", Model: opus, Compacted: true, Client: "work"})
+			got := choose(t.Context(), r, Request{ID: "c3d4e5f6", Session: "one", Model: opus, Compacted: true, Client: "work"})
 
-	if want := (Choice{Account: "work", Reason: reasonSticky}); got != want {
-		t.Errorf("Choose() = %+v, want %+v", got, want)
+			if got != tt.want {
+				t.Errorf("Choose() = %+v, want %+v", got, tt.want)
+			}
+			if probes := prober.counts(); probes[workToken] != 1 || probes[sideToken] != 1 {
+				t.Errorf("probes = %v, want work and side probed once each", probes)
+			}
+			wantReason := tt.want.Reason
+			if tt.wantMove == nil {
+				wantReason = reasonNew
+			}
+			if a := r.sessions.lookup(k).current; a.Account != tt.want.Account || a.Reason != wantReason {
+				t.Errorf("the session is on %s for %q, want %s for %q", a.Account, a.Reason, tt.want.Account, wantReason)
+			}
+			if moves := movesOf(r); !slices.Equal(moves, tt.wantMove) {
+				t.Errorf("moves = %+v, want %+v", moves, tt.wantMove)
+			}
+			for _, line := range tt.wantLines {
+				if !log.Has(line...) {
+					t.Errorf("log reads\n%s\nwant a line with %q", log, line)
+				}
+			}
+		})
 	}
-	if probes := prober.counts(); probes[sideToken] != 1 {
-		t.Errorf("probes = %v, want side probed once", probes)
+}
+
+func TestNoteCompactionSaysWhyASessionStays(t *testing.T) {
+	// The session is on work, nothing read of either account: no account is
+	// chosen to judge moving it to.
+	unread := situation{
+		req: Request{Session: "0b5c6f2e", Model: opus, Client: "work", Compacted: true}, now: start,
+		current: *on("work", 5*time.Minute), assigned: true, accounts: known(nil, nil),
 	}
-	if a := r.sessions.lookup(k).current; a.Account != "work" || a.Reason != reasonNew {
-		t.Errorf("the session is on %s for %q, want work for %q, as it was", a.Account, a.Reason, reasonNew)
+	tests := []struct {
+		name string
+		move score.Move
+		// want is the log's line, nil for none.
+		want []string
+	}{
+		{
+			name: "not at risk: the share the account chosen would leave",
+			move: score.Move{Verdict: score.StaysNotAtRisk, To: "side", Left: 0.015},
+			want: []string{"level=DEBUG", `msg="stays after compaction"`, "session=0b5c6f2e", "account=work", `why="not at risk"`, "chosen=side", "left=1.5%"},
+		},
+		{
+			name: "resetting later: no share",
+			move: score.Move{Verdict: score.StaysResetsLater, To: "side", Left: 0.5},
+			want: []string{"level=DEBUG", `msg="stays after compaction"`, "account=work", `why="resets later"`, "chosen=side"},
+		},
+		{
+			name: "no account chosen, nothing read of any: unknown, none chosen",
+			move: decide(unread).move,
+			want: []string{"level=DEBUG", `msg="stays after compaction"`, "account=work", "why=unknown", `chosen=""`},
+		},
+		{
+			name: "a move: nothing, as its routing says it",
+			move: score.Move{Verdict: score.Moves, To: "side", Left: 0.3},
+		},
 	}
-	if moves := movesOf(r); len(moves) > 0 {
-		t.Errorf("moves = %+v, want none", moves)
-	}
-	overturned := []string{"level=DEBUG", `msg="decision overturned"`, "account=work", "account_before=side", "reason=sticky",
-		"reason_before=" + logged(status.Compacted("side", 0.427))}
-	stays := []string{"level=DEBUG", `msg="stays after compaction"`, "account=work", `why="not at risk"`, "chosen=side"}
-	for _, line := range [][]string{overturned, stays} {
-		if !log.Has(line...) {
-			t.Errorf("log reads\n%s\nwant a line with %q", log, line)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			d := decision{account: "work", reason: reasonSticky, sticky: true, compacted: true, move: tt.move}
+
+			noteCompaction(Request{ID: someRequest, Session: "0b5c6f2e", Model: opus}, d)
+
+			judged := slices.DeleteFunc(log.Lines(), func(line string) bool { return !strings.Contains(line, "after compaction") })
+			switch {
+			case tt.want == nil && len(judged) > 0:
+				t.Errorf("log reads\n%s\nwant no line of a judgement", log)
+			case tt.want != nil && (len(judged) != 1 || !log.Has(tt.want...)):
+				t.Errorf("log reads\n%s\nwant one line of a judgement, with %q", log, tt.want)
+			case tt.move.Verdict != score.StaysNotAtRisk && log.Has("left="):
+				t.Errorf("log reads\n%s\nwant no share left, the verdict not judging by it", log)
+			}
+		})
 	}
 }
 
@@ -314,6 +426,12 @@ func logged(value string) string {
 		return strconv.Quote(value)
 	}
 	return value
+}
+
+// afterCompaction are the headers of the first request of a conversation of
+// the class given after a compaction, which by started.
+func afterCompaction(class, by string) map[string]string {
+	return map[string]string{claude.ClassHeader: class, claude.CompactedHeader: by}
 }
 
 // routeWith has the router's proxy route a messages request of model, of the

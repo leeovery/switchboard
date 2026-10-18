@@ -120,7 +120,7 @@ turn. So the router keeps each session on its account:
   cached again. So at the first request after a compaction, the router looks at the account it would
   choose for a new session. The session moves there if that account's week resets sooner than its
   own account's, and, at the rate it's been used lately, would reset with more than 2% of the week
-  unused.
+  unused, above any reserve.
 
 A Claude Sonnet 5.5 session isn't scored again for idling, nor moved after a compaction. Its
 thinking works only on the account that produced it, and a move would lose it. A session's own pin

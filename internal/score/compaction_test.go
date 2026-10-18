@@ -53,85 +53,85 @@ func TestAtCompaction(t *testing.T) {
 			name:   "resets sooner, with room at risk: moves",
 			own:    work,
 			choice: weekly("side", 0.5, 2*day, 0.005),
-			want:   score.Move{Verdict: score.Moves, To: "side", Rate: 0.005, Resets: now.Add(2 * day), Left: 0.26},
+			want:   score.Move{Verdict: score.Moves, To: "side", Left: 0.26},
 		},
 		{
 			name:   "resets sooner, just over 2% at risk: moves",
 			own:    work,
 			choice: weekly("side", 0.97, 2*day, 0),
-			want:   score.Move{Verdict: score.Moves, To: "side", Resets: now.Add(2 * day), Left: 0.03},
+			want:   score.Move{Verdict: score.Moves, To: "side", Left: 0.03},
 		},
 		{
 			name:   "resets sooner, its rate unknown: stays",
 			own:    work,
 			choice: unrated(weekly("side", 0.1, 18*time.Hour, 0)),
-			want:   score.Move{Verdict: score.StaysUnknown, To: "side", Resets: now.Add(18 * time.Hour)},
+			want:   score.Move{Verdict: score.StaysUnknown, To: "side"},
 		},
 		{
 			name:   "resets later, its rate unknown: stays, as it resets later",
 			own:    work,
 			choice: unrated(weekly("side", 0.5, 6*day, 0)),
-			want:   score.Move{Verdict: score.StaysResetsLater, To: "side", Resets: now.Add(6 * day)},
+			want:   score.Move{Verdict: score.StaysResetsLater, To: "side"},
 		},
 		{
 			name:   "the same account: stays",
 			own:    work,
 			choice: work,
-			want:   score.Move{Verdict: score.StaysSame, To: "work", Rate: 0.004},
+			want:   score.Move{Verdict: score.StaysSame, To: "work"},
 		},
 		{
 			name:   "resets later: stays",
 			own:    work,
 			choice: weekly("side", 0.5, 6*day, 0),
-			want:   score.Move{Verdict: score.StaysResetsLater, To: "side", Resets: now.Add(6 * day), Left: 0.5},
+			want:   score.Move{Verdict: score.StaysResetsLater, To: "side", Left: 0.5},
 		},
 		{
 			name:   "resets at the same time: stays",
 			own:    work,
 			choice: weekly("side", 0.5, 5*day, 0),
-			want:   score.Move{Verdict: score.StaysResetsLater, To: "side", Resets: now.Add(5 * day), Left: 0.5},
+			want:   score.Move{Verdict: score.StaysResetsLater, To: "side", Left: 0.5},
 		},
 		{
 			name:   "2% at risk exactly: stays",
 			own:    work,
 			choice: weekly("side", 0.98, 2*day, 0),
-			want:   score.Move{Verdict: score.StaysNotAtRisk, To: "side", Resets: now.Add(2 * day), Left: 0.02},
+			want:   score.Move{Verdict: score.StaysNotAtRisk, To: "side", Left: 0.02},
 		},
 		{
 			name:   "used at a rate that leaves none: stays",
 			own:    work,
 			choice: weekly("side", 0.5, 2*day, 0.02),
-			want:   score.Move{Verdict: score.StaysNotAtRisk, To: "side", Rate: 0.02, Resets: now.Add(2 * day)},
+			want:   score.Move{Verdict: score.StaysNotAtRisk, To: "side"},
 		},
 		{
 			name:   "its room at risk only past its reserve: stays",
 			own:    work,
 			choice: reserving(weekly("side", 0.9, 2*day, 0), 0.1),
-			want:   score.Move{Verdict: score.StaysNotAtRisk, To: "side", Resets: now.Add(2 * day)},
+			want:   score.Move{Verdict: score.StaysNotAtRisk, To: "side"},
 		},
 		{
 			name:   "its reserve spent, as a pin spends it: moves",
 			own:    work,
 			choice: weekly("side", 0.9, 2*day, 0),
-			want:   score.Move{Verdict: score.Moves, To: "side", Resets: now.Add(2 * day), Left: 0.1},
+			want:   score.Move{Verdict: score.Moves, To: "side", Left: 0.1},
 		},
 		{
 			name:   "the session's account's reset unknown: stays",
 			own:    withWeek("work", quota.Window{Key: "7d", Utilization: 0.5}, 0),
 			choice: weekly("side", 0.5, 2*day, 0),
-			want:   score.Move{Verdict: score.StaysUnknown, To: "side", Resets: now.Add(2 * day), Left: 0.5},
+			want:   score.Move{Verdict: score.StaysUnknown, To: "side", Left: 0.5},
 		},
 		{
 			name:   "the session's account's week unread: stays",
 			own:    score.Candidate{ID: "work"},
 			choice: weekly("side", 0.5, 2*day, 0),
-			want:   score.Move{Verdict: score.StaysUnknown, To: "side", Resets: now.Add(2 * day), Left: 0.5},
+			want:   score.Move{Verdict: score.StaysUnknown, To: "side", Left: 0.5},
 		},
 		{
 			name:   "the session's account's week reset since it was read: stays",
 			own:    weekly("work", 0.5, -time.Hour, 0),
 			choice: weekly("side", 0.5, 2*day, 0),
-			want:   score.Move{Verdict: score.StaysUnknown, To: "side", Resets: now.Add(2 * day), Left: 0.5},
+			want:   score.Move{Verdict: score.StaysUnknown, To: "side", Left: 0.5},
 		},
 		{
 			name:   "the choice's reset unknown: stays",
@@ -143,14 +143,13 @@ func TestAtCompaction(t *testing.T) {
 			name:   "the choice's week reset since it was read: stays",
 			own:    work,
 			choice: weekly("side", 0.5, -time.Hour, 0.01),
-			want:   score.Move{Verdict: score.StaysUnknown, To: "side", Rate: 0.01},
+			want:   score.Move{Verdict: score.StaysUnknown, To: "side"},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := policy.AtCompaction(tt.own, tt.choice, now)
-			if got.Verdict != tt.want.Verdict || got.To != tt.want.To || got.Rate != tt.want.Rate ||
-				!got.Resets.Equal(tt.want.Resets) || math.Abs(got.Left-tt.want.Left) > 1e-9 {
+			if got.Verdict != tt.want.Verdict || got.To != tt.want.To || math.Abs(got.Left-tt.want.Left) > 1e-9 {
 				t.Errorf("AtCompaction(%+v, %+v) = %+v, want %+v", tt.own, tt.choice, got, tt.want)
 			}
 		})

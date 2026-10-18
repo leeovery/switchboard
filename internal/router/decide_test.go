@@ -476,7 +476,7 @@ func TestDecide(t *testing.T) {
 			if got := decide(s); got != tt.want {
 				t.Errorf("decide() = %+v, want %+v", got, tt.want)
 			}
-			unmovedAtCompaction(t, s, tt.want)
+			movedOnlyWhereKeptAtCompaction(t, s)
 		})
 	}
 }
@@ -486,7 +486,6 @@ func TestDecideMovesASessionAtItsCompactionWhereAChoiceAfreshWouldSendItAndItsWe
 	// resets tomorrow, quiet lately, and side keeps a tenth of it back: its
 	// quota needs using first, 5% of its week at risk, or 15% where a pin
 	// spends its reserve.
-	tomorrow := start.Add(24 * time.Hour)
 	pinSide := status.Pin{Accounts: []string{"side"}, Since: start.Add(-time.Hour)}
 	moveToSide := status.Pin{Accounts: []string{"side"}, Since: start.Add(-time.Hour), Move: true}
 	tests := []struct {
@@ -504,7 +503,7 @@ func TestDecideMovesASessionAtItsCompactionWhereAChoiceAfreshWouldSendItAndItsWe
 			name:    "with no pin, moved to side, its reserve kept back",
 			current: on("work", 5*time.Minute),
 			want: decision{account: "side", reason: "compacted: side would reset with 5% of its week left", afresh: true,
-				compacted: true, move: score.Move{Verdict: score.Moves, To: "side", Resets: tomorrow}},
+				compacted: true, move: score.Move{Verdict: score.Moves, To: "side"}},
 			wantLeft: 0.05,
 		},
 		{
@@ -512,7 +511,7 @@ func TestDecideMovesASessionAtItsCompactionWhereAChoiceAfreshWouldSendItAndItsWe
 			global:  pinSide,
 			current: on("work", 5*time.Minute),
 			want: decision{account: "side", reason: "compacted: side would reset with 15% of its week left", afresh: true,
-				compacted: true, move: score.Move{Verdict: score.Moves, To: "side", Resets: tomorrow}},
+				compacted: true, move: score.Move{Verdict: score.Moves, To: "side"}},
 			wantLeft: 0.15,
 		},
 		{
@@ -525,7 +524,7 @@ func TestDecideMovesASessionAtItsCompactionWhereAChoiceAfreshWouldSendItAndItsWe
 			name:        "its week's rate unknown, kept where it is, as it was",
 			current:     on("work", 5*time.Minute),
 			rateUnknown: true,
-			want:        decision{account: "work", reason: "sticky", sticky: true, compacted: true, move: score.Move{Verdict: score.StaysUnknown, To: "side", Resets: tomorrow}},
+			want:        decision{account: "work", reason: "sticky", sticky: true, compacted: true, move: score.Move{Verdict: score.StaysUnknown, To: "side"}},
 		},
 		{
 			name:    "on the account a choice afresh would send it to, kept there, as it was",
@@ -680,7 +679,7 @@ func TestDecideLeavesAnAccountsReserveToPins(t *testing.T) {
 			if got := decide(s); got != tt.want {
 				t.Errorf("decide() = %+v, want %+v", got, tt.want)
 			}
-			unmovedAtCompaction(t, s, tt.want)
+			movedOnlyWhereKeptAtCompaction(t, s)
 		})
 	}
 }
@@ -882,7 +881,7 @@ func TestDecideWithTheGlobalPinOnSeveralAccounts(t *testing.T) {
 			if got := decide(s); got != tt.want {
 				t.Errorf("decide() = %+v, want %+v", got, tt.want)
 			}
-			unmovedAtCompaction(t, s, tt.want)
+			movedOnlyWhereKeptAtCompaction(t, s)
 		})
 	}
 }
@@ -956,7 +955,7 @@ func TestChoosingAfreshBetweenNearEqualsFavoursTheSessionResettingSoonest(t *tes
 			if got := decide(s); got != tt.want {
 				t.Errorf("decide() = %+v, want %+v", got, tt.want)
 			}
-			unmovedAtCompaction(t, s, tt.want)
+			movedOnlyWhereKeptAtCompaction(t, s)
 		})
 	}
 }
@@ -1037,7 +1036,7 @@ func TestWithNoRoomButInTheReservesARequestGoesNowhere(t *testing.T) {
 			if got := decide(s); got != tt.want {
 				t.Errorf("decide() = %+v, want %+v", got, tt.want)
 			}
-			unmovedAtCompaction(t, s, tt.want)
+			movedOnlyWhereKeptAtCompaction(t, s)
 		})
 	}
 }
@@ -1176,7 +1175,7 @@ func TestDecidePassesOverAccountsUnderPressure(t *testing.T) {
 			compacted: true,
 			rates:     map[string]float64{"work": pressing},
 			want: decision{account: "side", reason: "compacted: side would reset with 50% of its week left, work under pressure", afresh: true, passedOver: "work",
-				compacted: true, move: score.Move{Verdict: score.Moves, To: "side", Resets: start.Add(48 * time.Hour), Left: 0.5}},
+				compacted: true, move: score.Move{Verdict: score.Moves, To: "side", Left: 0.5}},
 		},
 		{
 			name:  "a session's own pin holds on its account under pressure",
@@ -1256,18 +1255,50 @@ func TestDecidePassesOverAccountsUnderPressure(t *testing.T) {
 	}
 }
 
-// unmovedAtCompaction checks that s's request, were it the first after its
-// session's compaction, would be decided as want, as without one, but for the
-// judgement of a move the decision carries then: no week's recent rate is
-// known in s, and without it a compaction moves nothing.
-func unmovedAtCompaction(t *testing.T, s situation, want decision) {
+// early is an account no test's own view has, whose week resets in two hours,
+// before any other's in these tests, and is half used, quiet lately: where a
+// compaction is judged, a session moves to it.
+const early = "early"
+
+// movedOnlyWhereKeptAtCompaction checks how s's request would be decided
+// were it the first after its session's compaction, early among the accounts,
+// and among the global pin's where there is one, and every account's week
+// known to have been quiet lately: where the session would stay where it is,
+// its model's thinking not bound to its account and its own pin not holding
+// it there, it moves to early instead, half early's week at risk, unless when
+// its own account's week resets isn't known, which leaves it where it is;
+// every other decision stands as it would without the compaction, judging
+// nothing.
+func movedOnlyWhereKeptAtCompaction(t *testing.T, s situation) {
 	t.Helper()
-	s.req.Compacted = true
-	got := decide(s)
-	got.compacted, got.move = false, score.Move{}
-	if got != want {
-		t.Errorf("decide() after a compaction = %+v, want %+v, as without one: no week's rate is known to move it by", got, want)
+	s.accounts.candidates = append(slices.Clone(s.accounts.candidates), score.Candidate{ID: early, Windows: weekAt(0.5, 2*time.Hour)})
+	for i := range s.accounts.candidates {
+		s.accounts.candidates[i].PerishableKnown = true
 	}
+	if len(s.pin.Accounts) > 0 {
+		s.pin.Accounts = append(slices.Clone(s.pin.Accounts), early)
+	}
+	want := decide(s)
+	own, _ := s.accounts.candidate(s.current.Account)
+	switch {
+	case !want.sticky || s.req.Bound || s.req.Pin != "":
+	case !weekResetKnown(own):
+		want.compacted, want.move = true, score.Move{Verdict: score.StaysUnknown, To: early, Left: 0.5}
+	default:
+		want = decision{account: early, reason: status.Compacted(early, 0.5), afresh: true, compacted: true,
+			move: score.Move{Verdict: score.Moves, To: early, Left: 0.5}}
+	}
+	s.req.Compacted = true
+	if got := decide(s); got != want {
+		t.Errorf("decide() after a compaction, early among the accounts = %+v, want %+v", got, want)
+	}
+}
+
+// weekResetKnown reports whether when c's week resets is known, and is yet to
+// come at start.
+func weekResetKnown(c score.Candidate) bool {
+	i := slices.IndexFunc(c.Windows, func(w quota.Window) bool { return w.Key == testPolicy.Perishable })
+	return i >= 0 && c.Windows[i].ResetsAt.After(start)
 }
 
 // known is what a choice knows of work and side, whose windows are as given,

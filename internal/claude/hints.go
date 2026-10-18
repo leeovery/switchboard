@@ -30,7 +30,7 @@ const (
 	AgentTypeHeader = "X-Claude-Code-Agent-Type"
 	// CompactionHeader is what started the compaction a request is: auto,
 	// manual or reactive; and CompactedHeader the same, on the first request
-	// of the main conversation after one.
+	// of the conversation after one, a subagent's as well as the main one's.
 	CompactionHeader = "X-Claude-Code-Compaction"
 	CompactedHeader  = "X-Claude-Code-Context-Compacted"
 	// ToolTimesHeader is how long each tool call whose result a request
