@@ -30,7 +30,8 @@ func ReadDigest(dir, date string, body int) (Digest, error) {
 // the local day with the given date, as the follower's lookup finds them,
 // handing take each line read, where it's given, for tests of the lookup.
 func (f *Follower) SessionsAsOf(ids []string, date string, take func(date string, l Line)) map[string]SessionFrom {
-	return f.sessionsAsOf(ids, date, take)
+	read := newSessionsRead(f.now(), take)
+	return f.lookup().asOf(f.datesBefore(date, read.now), nil, wanting(make(map[string]bool), ids), nil, read)
 }
 
 // SessionsAsOf returns the sessions with the given ids as of the start of

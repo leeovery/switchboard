@@ -359,7 +359,7 @@ func (d *digesting) build(ctx context.Context, dates []string, view writerLook, 
 // of dates, those from where the ledger begins, at now, as view finds the
 // days: its head of the day's bounds, its summary, and its lines as its files
 // hold them now, as arrivals counts them; and an entry of each session its
-// summary names, as of the day's end, as sessionsAsOf finds it, whose state
+// summary names, as of the day's end, as sessionsLookup.asOf finds it, whose state
 // can be kept, resting on what that says: its state the Digester's, folded
 // from the session as DigestDay hands it, or its state in the day's own
 // digest, where it rests on that still. A session handed resting on a state

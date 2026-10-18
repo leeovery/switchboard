@@ -5045,8 +5045,9 @@ from the first day a router that has it runs, so nothing before then is in it.
     its versions are those read; its day's start and end are the day's in this time zone; its day's
     summary stands, counting the `lines` it was built against, and the day's files hold exactly that
     many, as the summary's `bytes`, or a count, tells; none of its day's lines arrived on another
-    day, nor, where the day after's digest stands, any of that day's on it; and the day before has a
-    digest that stands holding no line that arrived after that day ended, or keeps no lines at all,
+    day, nor, where the day after has a current digest, its day's bounds and lines those the ledger
+    keeps now, any of that day's on it; and the day before has a current digest, holding no line
+    that arrived after that day ended, or keeps no lines at all,
     as no reader resting on the day reads the day before's: so a digest missing mid-chain costs its
     day and the next (settled in the plan, 18 October 2026). A session's entry stands where, too, it
     rests on exactly the days naming the session up to its own, as a line of the session filed

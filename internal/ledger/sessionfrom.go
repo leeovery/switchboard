@@ -60,16 +60,6 @@ type daysLook interface {
 	head(date string) (DigestHead, bool)
 }
 
-// sessionsAsOf returns the sessions with the given ids as of the start of
-// the local day with the given date, as the follower's lookup finds them,
-// their lines none of that day's or later, as sessionsLookup.asOf has them:
-// take, where it's given, handed each line read, with the date of the day
-// whose files hold it, as asOf hands them on.
-func (f *Follower) sessionsAsOf(ids []string, date string, take func(date string, l Line)) map[string]SessionFrom {
-	read := newSessionsRead(f.now(), take)
-	return f.lookup().asOf(f.datesBefore(date, read.now), nil, wanting(make(map[string]bool), ids), nil, read)
-}
-
 // lookup returns a lookup of sessions by the follower's own look at the
 // ledger's days, as followerLook has it, having looked at none yet.
 func (f *Follower) lookup() *sessionsLookup {
