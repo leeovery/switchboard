@@ -91,7 +91,23 @@ Claude Code ──ANTHROPIC_BASE_URL──▶ switchboard ──▶ api.anthropi
 - Claude Code uses a 1-hour cache TTL on a subscription within its limits, 5 minutes in overage.
 - A 1-hour cache write costs 2× base input; a cache read on Opus 5.5 costs 0.05×. The first turn
   after a move therefore costs roughly 40× a warm turn. How the subscription limits weigh cache
-  tokens is undocumented.
+  tokens is undocumented, but the windows' readings show it: fitted to the rise in every account's
+  readings over the ledger's first eleven days, 7–18 October 2026, input, output and 5-minute cache
+  writes count against both windows as their prices weigh them, a 1-hour cache write at about 0.8×
+  its price's weight and a cache read at about half. Fitted on the first week alone, the weights
+  foretold every account's readings through the second to within 5 points of its week. Rewriting
+  a 460k-token conversation into a cache costs about 0.15 points of a week, and a 90k-token one
+  0.03.
+- Claude Code compacts its main conversation as it nears its auto-compact threshold, or on
+  `/compact`. The compaction is a request of its own, which carries the whole conversation, reads
+  it all from the cache, and is answered with the summary; the main conversation's next request
+  carries the summary and what Claude Code restores, a handful of messages, and reads only its
+  system prompt and tools from the cache, writing the rest. Claude Code says which request is
+  which: `X-Claude-Code-Compaction` on the compaction, `X-Claude-Code-Context-Compacted` on the
+  first request after it (see The request ledger). Over the ledger's first eleven days, a
+  busy session compacted every three hours or so, and the first request after read a median 90k
+  tokens from the cache, its system prompt and its 110 to 140 tools, against the 460k its
+  compaction read.
 - Caches don't carry across models.
 - Since 28 September 2026, the thinking blocks Claude Sonnet 5.5 produces work only in the account
   that produced them, or one linked to it. Linking is automatic only between accounts under one
@@ -117,7 +133,10 @@ and
 [What's new in Claude Sonnet 5.5](https://platform.claude.com/docs/en/models/sonnet-5-5/whats-new-sonnet-5-5).
 
 Hence: move a session only when its cache is already cold or its account can't serve it, and one
-on a model whose thinking is bound to its account only when its account can't serve it.
+on a model whose thinking is bound to its account only when its account can't serve it. A busy
+session's cache never goes cold, so the first request after its compaction, which has only its
+system prompt and tools left to lose, is the moment to move it, should room elsewhere otherwise be
+lost (see Choosing an account).
 
 ## Choosing an account
 
@@ -202,6 +221,20 @@ on a model whose thinking is bound to its account only when its account can't se
      for idling, as a move would lose its reasoning; or
    - its account can't serve the request. An account nothing has been read of counts as able, so
      neither a session nor a pin moves on no evidence.
+
+   A busy session never idles past its cache's hour, so its account would only change when that
+   account runs out, while another account's week could reset with room no new session was sent to
+   use. So the first request of its main conversation after a compaction, the one Claude Code
+   marks `X-Claude-Code-Context-Compacted`, is judged too: the account the router would choose for
+   a new session, as step 4 of the order below chooses it, is where the session moves when that
+   account's week resets before the session's own account's does, and, used from now on at its
+   week's recent rate (step 3), would reach its reset with more than 2% of its week left: room that
+   would otherwise be lost. As the sessions moved add to that account's rate, the room at risk
+   falls and the moves stop. A session on a model whose thinking is bound to its account never
+   moves for it, and nor does one its own pin holds. The compaction itself, which reads the whole
+   conversation from the cache, never moves. For now the router only watches: it logs the move it
+   would make (see Logging) and moves nothing, until a week of the log shows the moves landing
+   where the replay that set this rule foretold.
 6. **Limit hit:** a 429 whose overall status or any window's status reads `rejected` means real
    exhaustion. Switchboard replays the buffered request on the next candidate, among the accounts
    the request hasn't been tried on, before any response reaches Claude Code, and the session
@@ -5042,7 +5075,11 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
 - **The router's own events:** at `info`, each prime, with the reset it read; an account held back
   by its reserve, and let go at its reset; each choice that passes an account over as under
   pressure, with its rate and when it runs out at it (`passed over under pressure`), the routed
-  line's reason naming it too; a limit a 429 to a request sent before a reset made by hand
+  line's reason naming it too; each move the first request after a compaction would make, while
+  the router only watches (see Choosing an account): the session, its account and the account it
+  would move to, that account's week's recent rate, its reset, and the share of its week it would
+  have left then (`would move after compaction`), and, where the judgement leaves the session
+  where it is, why, at `debug` (`stays after compaction`); a limit a 429 to a request sent before a reset made by hand
   reaches, passed over as the request goes out again (`limit from before a reset passed over`); a
   token file read again after a 401, and whether it held a different token; a token replaced
   while the router was away, which it finds as it starts; a token file found holding another
@@ -6315,6 +6352,17 @@ any of it. Times are the Mac's, UTC+1.
   background subagent's later requests the ids of the session's newer turns, ones started by
   agents' reports rather than by the user, where the guide has a subagent's requests keep the id
   of the prompt that started it.
+- **18 October 2026: what a move costs, and when it's cheapest.** Replaying the ledger's first
+  eleven days, 217,000 requests, through the router's rules, each request's cost fitted to the
+  windows' readings (see Cache and thinking facts): busy sessions never moved, so when an account
+  joined with eighteen hours of its week left, the router alone would have let 68% of it reset
+  unused and left the pool with no room for a day four days on, where a pin moved by hand had used
+  most of it. Moving busy sessions at any request saved the most room but spent the most on
+  caches, and left the pool without room longer when demand was at its capacity; re-scoring at
+  every compaction moved five times as often and did worse; moving at a compaction only where
+  room would otherwise be lost kept nearly all the room for almost nothing. Scoring by the
+  soonest week's reset instead of perishability piled sessions on one account, and forced more
+  moves.
 - **9 October 2026: token counts carry no usage.** The answers to counting a message's tokens
   (`/v1/messages/count_tokens`) carry no `anthropic-ratelimit-unified-*` header: none of the 505
   over the week before did, though the router reads every answer's. Counting tokens reads nothing
