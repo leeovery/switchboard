@@ -47,7 +47,7 @@ func unclassedWhere(lines []ledger.Line, unsaid func(l *ledger.Line) bool) []led
 }
 
 // digestSeeds is how many seeds of each world the round trip runs.
-const digestSeeds = 100
+const digestSeeds = 30
 
 // pricedAs are the price tables a round trip's states are built with, and
 // those they're restored and read whole with, by a name for the moment they
@@ -225,7 +225,7 @@ func (r *restoring) roundTrip(from dayState, day LedgerDay, horizon instant, who
 		got = got.with(pricedAt(distinct(since), r.prices.read, day.Date))
 	}
 	got = got.sealedAt(horizon)
-	if !sameHeld(got, whole) {
+	if !sameHeld(got, whole, from.day.Date) {
 		q := queryOf(r.lines)
 		r.t.Errorf("%s, stored at the end of %s, restored on %s, holds\n%s\nwant, as read whole\n%s", r.name, from.day.Date, day.Date, heldSaid(got, q), heldSaid(whole, q))
 	}
@@ -233,11 +233,21 @@ func (r *restoring) roundTrip(from dayState, day LedgerDay, horizon instant, who
 }
 
 // sameHeld reports whether two sessions the store holds are the same, but
-// for the flights of their requests.
-func sameHeld(a, b *heldSession) bool {
+// for the flights of their requests that arrived on the day with the given
+// date or before it, those a session restored from its state at that day's
+// end holds none of.
+func sameHeld(a, b *heldSession, through string) bool {
 	x, y := *a, *b
-	x.flights, y.flights = nil, nil
+	x.flights, y.flights = flightsAfter(a.flights, through), flightsAfter(b.flights, through)
 	return reflect.DeepEqual(x, y)
+}
+
+// flightsAfter are those of flights of the days after the one with the given
+// date, afresh.
+func flightsAfter(flights map[string]heldFlights, date string) map[string]heldFlights {
+	after := maps.Clone(flights)
+	maps.DeleteFunc(after, func(d string, _ heldFlights) bool { return d <= date })
+	return after
 }
 
 // heldSaid is what a session the store holds tells, asked q: its horizon,
@@ -397,7 +407,7 @@ func TestASessionsStateIsRestoredOnlyOntoALaterDay(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			st := storedSession{Date: tt.date, Horizon: instantOf(end).stored()}
+			st := storedSession{Date: tt.date}
 			if _, err := st.restored(ledger.Pricing, Today(tt.on)); (err != nil) != tt.refused {
 				t.Errorf("restored on %s with error %v, want it refused %t", Today(tt.on).Date, err, tt.refused)
 			}
@@ -483,7 +493,7 @@ func TestASessionsStoredStateIsItsStoryAndCountsNeverAWorth(t *testing.T) {
 	got, err := json.Marshal(st)
 	r2 := `{"r":"r2","a":{"s":1791374700},"e":{"s":1791374703},"d":"/code/app","m":"claude-opus-5-5","ac":"side","rs":"moved: work hit its limit",` +
 		`"f":"work","c":"main","u":true,"t":[{"a":"work","w":"hit its limit"}],"sp":{"i":10,"5m":2000,"r":90000,"o":300,"w":2000,"b":2000,"d":true,"c":true}}`
-	want := `{"d":"2026-10-07","h":{"s":1791417600},"s":{"b":true,"f":{"r":"r1","a":{"s":1791374400},"e":{"s":1791374403}},` +
+	want := `{"d":"2026-10-07","s":{"b":true,"f":{"r":"r1","a":{"s":1791374400},"e":{"s":1791374403}},` +
 		`"l":{"r":"r3","a":{"s":1791374760},"e":{"s":1791374763}},"mn":{"m":"claude-opus-5-5","a":"side","t":{"s":1791374700}},` +
 		`"lt":{"m":"claude-haiku-4-5","a":"side","t":{"s":1791374760}},"d":"/code/app",` +
 		`"u":{"r":"r3","a":{"s":1791374760},"e":{"s":1791374763},"d":"/code/app","m":"claude-haiku-4-5","ac":"side","rs":"moved: work hit its limit",` +

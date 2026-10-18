@@ -18,17 +18,16 @@ const DigestVersion = 1
 
 // storedSession is a session the store holds as a day's digest stores it,
 // sealed at the start of the day after its own, none of its requests open
-// and its page untallied: the date of its day; its horizon; its story of its
-// requests; and how many of them arrived on each day, by date, for a day
-// read again whole. Nothing priced is stored, nor its requests on its day,
-// nor the flights of its requests: it's restored onto a later day, to be
-// priced and counted there, as restored has it. Its keys are short and its
-// zeros left out.
+// and its page untallied: the date of its day; its story of its requests;
+// and how many of them arrived on each day, by date, for a day read again
+// whole. Its horizon isn't stored, as its date says it, nor anything priced,
+// its requests on its day, or the flights of its requests: it's restored
+// onto a later day, to be priced and counted there, as restored has it. Its
+// keys are short and its zeros left out.
 type storedSession struct {
-	Date    string         `json:"d"`
-	Horizon storedInstant  `json:"h"`
-	Story   storedStory    `json:"s"`
-	Counts  map[string]int `json:"c,omitempty"`
+	Date   string         `json:"d"`
+	Story  storedStory    `json:"s"`
+	Counts map[string]int `json:"c,omitempty"`
 }
 
 // storedStory is a story as a session's stored state holds it: whether it
@@ -87,27 +86,34 @@ type storedMove struct {
 // own, a request of it held open, or its page tallied.
 func (s *heldSession) stored() (storedSession, error) {
 	day := s.day()
-	switch end := dayfile.DayStart(day.Start, 1); {
-	case s.horizon != instantOf(end):
-		return storedSession{}, fmt.Errorf("store a session of %s: sealed at %v, not at the day's end, %v", day.Date, s.horizon.time(), end)
+	switch end := endOfDay(day); {
+	case s.horizon != end:
+		return storedSession{}, fmt.Errorf("store a session of %s: sealed at %v, not at the day's end, %v", day.Date, s.horizon.time(), end.time())
 	case len(s.open) > 0:
 		return storedSession{}, fmt.Errorf("store a session of %s: %d of its requests open", day.Date, len(s.open))
 	case s.page != nil:
 		return storedSession{}, fmt.Errorf("store a session of %s: its page tallied", day.Date)
 	}
-	return storedSession{Date: day.Date, Horizon: s.horizon.stored(), Story: s.sealed.stored(), Counts: maps.Clone(s.counts)}, nil
+	return storedSession{Date: day.Date, Story: s.sealed.stored(), Counts: maps.Clone(s.counts)}, nil
+}
+
+// endOfDay is the horizon a session's state at the end of the day d is
+// sealed at: the start of the day after it.
+func endOfDay(d LedgerDay) instant {
+	return instantOf(dayfile.DayStart(d.Start, 1))
 }
 
 // restored is the session st stores, as the store would hold it on the day
-// given, a later one than st's: its story put back on st's day, as story's
-// restored has it, then rolled on to the day given as the store rolls a
-// session on, as heldSession's on has it, so it's priced and counted there.
-// It holds none of its requests open, nor the flights of any, so a line of a
-// request it holds, given again, has its session read whole, as gained can't
-// place it: but for a day before the one before the day given, read again
-// whole, as many of its requests as it holds of that day, which gained
-// places by their count. It's refused on a day not later than st's, and
-// where st's date isn't one.
+// given, a later one than st's: sealed at the end of st's day, as endOfDay
+// has it; its story put back on st's day, as story's restored has it, then
+// rolled on to the day given as the store rolls a session on, as
+// heldSession's on has it, so it's priced and counted there. It holds none
+// of its requests open, nor the flights of any, so a line of a request it
+// holds, given again, has its session read whole, as gained can't place it:
+// but for a day before the one before the day given, read again whole, as
+// many of its requests as it holds of that day, which gained places by
+// their count. It's refused on a day not later than st's, and where st's
+// date isn't one.
 func (st *storedSession) restored(prices ledger.Table, day LedgerDay) (*heldSession, error) {
 	start, _, ok := dayfile.Day(st.Date)
 	switch {
@@ -116,11 +122,12 @@ func (st *storedSession) restored(prices ledger.Table, day LedgerDay) (*heldSess
 	case day.Date <= st.Date:
 		return nil, fmt.Errorf("restore a session of %s on %s: not a later day", st.Date, day.Date)
 	}
-	sealed := st.Story.restored(prices, LedgerDay{Start: start, Date: st.Date})
+	own := LedgerDay{Start: start, Date: st.Date}
+	sealed := st.Story.restored(prices, own)
 	counts := make(map[string]int, len(st.Counts))
 	maps.Copy(counts, st.Counts)
 	s := &heldSession{
-		horizon: st.Horizon.instant(), sealed: sealed, story: sealed, flights: make(map[string]heldFlights), counts: counts,
+		horizon: endOfDay(own), sealed: sealed, story: sealed, flights: make(map[string]heldFlights), counts: counts,
 		// Empty, not none, as sealedAt leaves a session it sealed every
 		// request of.
 		open: []heldRequest{},
