@@ -349,7 +349,7 @@ func holds(digest Digest, dates []string, view writerLook) bool {
 	}
 	asked := newSessionsLookup(view.days, view).namingEach(dates, nil, wanting(make(map[string]bool), slices.Collect(maps.Keys(digest.Sessions))))
 	for id, entry := range digest.Sessions {
-		if !grounds.restsOn(entry) || !restsOnEach(entry, asked[id].naming) {
+		if !grounds.restsOn(entry.RestsOn) || !restsOnEach(entry, asked[id].naming) {
 			return false
 		}
 	}

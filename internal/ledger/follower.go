@@ -551,8 +551,8 @@ func (f *Follower) Today(mark Mark) (lines []Held, next Mark, afresh bool) {
 // head is built of, as days.day reads them for both.
 func (f *Follower) Day(date string) []Held {
 	var lines []Held
-	f.days.day(date, f.now(), func(h Held) bool {
-		lines = append(lines, h)
+	f.days.day(date, f.now(), func(h filedHeld) bool {
+		lines = append(lines, h.Held)
 		return true
 	}, nil)
 	return lines

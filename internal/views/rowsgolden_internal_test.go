@@ -39,14 +39,15 @@ func TestADaysHeadIsEncodedAsTheGoldenOfItsVersionsHoldsIt(t *testing.T) {
 // ledger and digested day by day, as goldenChain has it, its session o's last
 // request on the day arriving to the nanosecond, as only a line edited by
 // hand does, so a side kept to the millisecond fails it, and the day given
-// the lines headChecked adds: its file's JSON, inflated, indented, ending its
-// last line. The digest's golden keeps the world as it is.
+// the lines headChecked adds, and the one headBeside files under the day
+// before: its file's JSON, inflated, indented, ending its last line. The
+// digest's golden keeps the world as it is.
 func goldenHead(t *testing.T) []byte {
 	t.Helper()
 	lines, zoned := goldenWorld()
 	last := slices.IndexFunc(lines, func(l ledger.Line) bool { return l.Request == "o4" })
 	lines[last].At = lines[last].At.Add(123_456 * time.Nanosecond)
-	c := goldenChain(t, append(lines, headChecked()...), zoned)
+	c := goldenChain(t, append(lines, headChecked()...), map[string][]ledger.Line{goldenDay: zoned, "2026-10-07": {headBeside()}})
 	data, err := os.ReadFile(filepath.Join(ledger.Dir(c.state), "logday-"+goldenDay+".json.gz"))
 	if err != nil {
 		t.Fatal(err)
@@ -78,6 +79,17 @@ func headChecked() []ledger.Line {
 		At: time.Date(2026, 10, 8, 16, 0, 0, 0, time.Local).UTC(), Request: "n1", Kind: ledger.KindCount, Session: "s", Model: foldOpus,
 		Account: "side", Reason: "sticky", Status: 200, Attempts: 1, TotalMS: 90,
 	})
+}
+
+// headBeside is the line goldenHead files under the day before goldenDay,
+// though it arrived on goldenDay, as a change of time zone files one, so the
+// day's head rests on the day before: a count of tokens of session z's just
+// past midnight.
+func headBeside() ledger.Line {
+	return ledger.Line{
+		At: time.Date(2026, 10, 8, 0, 10, 0, 0, time.Local).UTC(), Request: "z0", Kind: ledger.KindCount, Session: "z", Model: foldSonnet,
+		Account: "side", Reason: "sticky", Status: 200, Attempts: 1, TotalMS: 90,
+	}
 }
 
 // headEnvelopeOf is the version of the ledger's envelope a golden's day head

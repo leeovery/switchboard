@@ -5212,31 +5212,40 @@ from the first day a router that has it runs, so nothing before then is in it.
   builder through the same `ledger.Digester` seam, the side its JSON, which the ledger carries as
   it's given and never reads.
   - **Its head says what it was built from,** as a digest's does: the version of its envelope, the
-    ledger's, and of its side, the views' (`views.RowsVersion`), each 1; its day, and the day's
-    start and end in the time zone it was built in, as nanoseconds; the `lines` of the summary it
-    was built against; and how many lines the day's read gave. It's JSON, gzipped, its zeros left
-    out, its side last, written whole, 0600, beside where it goes and renamed
-    into place, and read head first, its side never inflated where the head is all that's asked of
-    it. Its own file and its own version, never the digest's: a digest's body changed would make
-    every digest due, the List and pages reading raw through the backfill; and a head rests on no
-    other day, so it's built newest first, where digests are built oldest first for their chains.
-    No digest's version changed for it.
+    ledger's, 3, and of its side, the views' (`views.RowsVersion`); its day, and the day's start
+    and end in the time zone it was built in, as nanoseconds; the `lines` of the summary it was
+    built against; how many lines the day's read gave; and `rests_on`, each day beside it whose
+    files gave it a line, as a change of time zone files one, with the lines the ledger kept of
+    that day before the read, as a digest's entry keeps the days it rests on. It's JSON, gzipped,
+    its zeros left out, its side last, written whole, 0600, beside where it goes and renamed into
+    place, and read head first, its side never inflated where the head is all that's asked of it.
+    Its own file and its own version, never the digest's: a digest's body changed would make every
+    digest due, the List and pages reading raw through the backfill; and a head rests on no other
+    day's head or digest, so it's built newest first, where digests are built oldest first for
+    their chains. No digest's version changed for it.
   - **When it stands,** for the find and the writer alike, by the digests' own rule in
     `internal/ledger`: its versions those read; its day's start and end the day's in this time
     zone; its day's summary standing, counting the `lines` it was built against, the day's files
-    holding exactly that many; and its day alone, as the digests either side of it tell, as a
-    digest's must be. It rests on no other day's state. A line of its day filed since under a day
-    beside it, as two writers in different time zones may file one, is told only once that day's
-    digest is written again: until then, a day at most, the head stands without it (accepted in
-    the plan, 19 October 2026). One missing, unreadable, of another version or no longer standing
-    is read past, and the day's lines read instead, slower, never otherwise; so deleting a head is
-    safe.
+    holding exactly that many; its day alone, as the digests either side of it tell, as a
+    digest's must be; and each day beside it whose files gave it a line still keeping the lines it
+    did, by the same rule as a digest's entry: a day pruned since gives the day's read none of its
+    lines, though the day is alone then. A day it rests on whose lines couldn't be told as it was
+    built, the day before's untold or either counted at none though it gave a line, is recorded
+    untold, so the head never stands on it, and is built again once that day's digest changes or
+    goes; the day after, untold while it's today, isn't rested on, and the head stands meanwhile,
+    as its day counts as alone while that day has no digest. A line of its day filed since under a
+    day beside it, as two writers in different time zones may file one, is told only once that
+    day's digest is written again: until then, a day at most, the head stands without it (accepted
+    in the plan, 19 October 2026). One missing, unreadable, of another version or no longer
+    standing is read past, and the day's lines read instead, slower, never otherwise; so deleting
+    a head is safe.
   - **Who writes it, and when:** the router's digesting, in each pass, after the digests: each
     finished day with lines whose head is due, from yesterday back, newest first, so yesterday's
     stands a second or two after its digest, paced as digests are, pausing after each build as long as
     it took, and stopped as the router stops. A head is due where none reads, of these versions,
-    or it no longer stands; one current but not alone is built again once each time a digest
-    beside its day changes, not at every pass. A build that fails is warned of once, until the day's
+    or it no longer stands; one current but not alone, or resting on a day beside it whose lines
+    have changed, is built again once each time a digest beside its day changes, or is pruned
+    with its day's lines, not at every pass. A build that fails is warned of once, until the day's
     built. After the upgrade that brings heads in, every day kept is given one, newest first, once
     the digests' own backfill is through, as a pass builds every digest due before any head; the
     find reads each day's lines until its head stands.
