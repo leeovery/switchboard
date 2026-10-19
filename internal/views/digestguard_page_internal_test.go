@@ -107,16 +107,28 @@ func (w *spread) checkPages(m moment) map[string]openedPage {
 }
 
 // pagesAt are the ids of the sessions whose pages are opened at the moment
-// m, of those of the world's with a request that arrived by then: s's, and
-// one other's, each in turn, from the one the world's seed gives.
+// m, of those of the world's with a request that arrived by then: none at a
+// minute before one, as pagesOpenAt has it; s's at the others; and where the
+// day before's digest stands, as yesterdayStands has it, one other's, each
+// in turn, from the one the world's seed gives.
 func (w *spread) pagesAt(m moment) []string {
+	if !pagesOpenAt(m.now) {
+		return nil
+	}
 	begun := sessionsIn(slices.DeleteFunc(slices.Clone(w.lines), func(l ledger.Line) bool { return l.At.After(m.now) }))
 	others := slices.DeleteFunc(slices.Clone(begun), func(id string) bool { return id == pageSession })
 	pages := slices.DeleteFunc(begun, func(id string) bool { return id != pageSession })
-	if len(others) > 0 {
+	if len(others) > 0 && yesterdayStands(m.now) {
 		pages = append(pages, others[(m.i+int(w.seed))%len(others)])
 	}
 	return pages
+}
+
+// pagesOpenAt reports whether pages are opened afresh at now, of the moments
+// the reads are held at: at each but a minute before one, whose reads of the
+// day before, read raw, a minute after midnight's read alike.
+func pagesOpenAt(now time.Time) bool {
+	return now.Hour() != 0 || now.Minute() < 30
 }
 
 // openedPage is a session's page opened afresh at a moment through each
@@ -133,15 +145,15 @@ type openedPage struct {
 // openPage is the page of the session with the given id opened afresh at the
 // moment m through each Follower, as the watch opens one: read as ReadPage
 // reads it, pinned as m's stream tells, the router listing the world's
-// sessions as m has them; then, of s's at a minute before midnight, where
-// it's held open from, its turn open, as turnToOpen chooses it, read, as
-// turnRead has it, as reading a turn's lines reads the session's files back,
-// raw, either way.
+// sessions as m has them; then, of s's at a minute before midnight on one
+// day in two, where it's held open from, its turn open, as turnToOpen
+// chooses it, read, as turnRead has it, as reading a turn's lines reads the
+// session's files back, raw, either way.
 func (w *spread) openPage(m moment, id string) openedPage {
 	read := readingThrough(w.based)
 	o := openedPage{id: id, got: read.got, live: PageLive{Routed: Routed(m.running, id), Stream: m.stream.Of(id), Now: m.now}}
 	o.based, o.raw = ReadPage(read, id, m.stream, w.prices.read, 0, m.now), ReadPage(m.raw, id, m.stream, w.prices.read, 0, m.now)
-	if id == pageSession && m.now.Hour() == 23 {
+	if id == pageSession && m.now.Hour() == 23 && Today(m.now).Start.YearDay()%2 == 0 {
 		n := o.turnToOpen()
 		o.based, o.raw = turnRead(o.based, n, o.live, w.based), turnRead(o.raw, n, o.live, w.raw)
 	}
@@ -209,16 +221,6 @@ func (w *spread) notePage(m moment, o openedPage) {
 	} {
 		w.met[moment.name] = w.met[moment.name] || moment.met
 	}
-}
-
-// partDates are the dates of the days of from's chain of parts, oldest
-// first.
-func partDates(from ledger.SessionFrom) []string {
-	dates := make([]string, len(from.Parts))
-	for i, p := range from.Parts {
-		dates[i] = p.Date
-	}
-	return dates
 }
 
 // datesAfter are the dates of the days after the one with the given date
@@ -347,11 +349,11 @@ func (w *spread) ranBy(id, model string, then time.Time) bool {
 // midnight, as openPage opens it, its session read whole or resting on its
 // chain of parts as its reads through the Follower resting on digests, got,
 // gave it; then at each moment through half past one rolled on and fed a
-// read of the ledger's tail, as tailAt reads it from tail.
+// read of the ledger's tail, as tail reads it.
 type pageAcross struct {
 	opened     time.Time
 	got        *basesGot
-	tail       tailMark
+	tail       ledgerTail
 	based, raw heldOpen
 }
 
@@ -377,7 +379,7 @@ func (w *spread) holdPage(m moment, o openedPage) {
 	if p == nil {
 		return
 	}
-	t := w.tailAt(&p.tail, m.now)
+	t := p.tail.at(m.now)
 	p.based, p.raw = p.based.fed(w.based, t, m), p.raw.fed(m.raw, t, m)
 	live := PageLive{Routed: Routed(m.running, pageSession), Stream: m.stream.Of(pageSession), Now: m.now}
 	shown := shownPageOf(p.raw.page, live)
@@ -397,7 +399,7 @@ func (w *spread) heldFrom(m moment, o openedPage) *pageAcross {
 		return nil
 	}
 	_, mark, _ := w.raw.Today(ledger.Mark{})
-	return &pageAcross{opened: m.now, got: o.got, tail: tailMark{mark: mark, day: Today(m.now).Date}, based: w.heldOpen(o.based), raw: w.heldOpen(o.raw)}
+	return &pageAcross{opened: m.now, got: o.got, tail: ledgerTail{l: w.raw, mark: mark, day: Today(m.now).Date}, based: w.heldOpen(o.based), raw: w.heldOpen(o.raw)}
 }
 
 // heldOpen is page held open, its session taken into a store of its own, as
@@ -437,22 +439,24 @@ type printedPage struct {
 }
 
 // checkPrinted holds s's page as sessions <id> prints it at the moment m,
-// where it's half past one, the day before's digest standing, read through
-// the Follower resting on digests, to the same read through the one reading
-// raw, as printed has it: on one day in two as with no router, on the other
-// as the router lists the world's sessions, read among them; noting the
-// moment of its read among sessions resting on states of several days.
+// where it's half past one on one day in two, the day before's digest
+// standing, read through the Follower resting on digests, to the same read
+// through the one reading raw, as printed has it: on one of those days in
+// two as with no router, on the other as the router lists the world's
+// sessions, read among them; noting the moment of its read among sessions
+// resting on states of several days.
 func (w *spread) checkPrinted(m moment) {
 	w.t.Helper()
-	if m.now.Hour() != 1 {
+	day := Today(m.now).Start.YearDay()
+	if m.now.Hour() != 1 || day%2 != 0 {
 		return
 	}
-	listed := Today(m.now).Start.YearDay()%2 == 0
+	listed := day%4 == 0
 	read := readingThrough(w.based)
 	w.alike(m.now, "s's page, as sessions <id> prints it", w.printed(read, m, listed), w.printed(m.raw, m, listed))
 	from, rested := read.got.restedPage(pageSession)
-	several := rested && slices.ContainsFunc(slices.Collect(maps.Values(read.got.pages)), func(o ledger.SessionFrom) bool {
-		return o.Base.Date != from.Base.Date
+	several := rested && slices.ContainsFunc(slices.Collect(maps.Values(read.got.states)), func(o *ledger.SessionBase) bool {
+		return o.Date != from.Base.Date
 	})
 	w.met[sessionsPrinted] = w.met[sessionsPrinted] || several
 }
@@ -574,21 +578,34 @@ func (w *spread) takesSplit(now time.Time) upsetJudged {
 }
 
 // countedIdle files a count of s's tokens, arrived a minute before now, on
-// today, where no line of s's is filed: so the day names s, though s makes no
-// request of its own on it, and the state of s the day's digest holds, its
-// points holding none of the day's answers, is the one the page rests on
-// from the day after. Its moment is judged as the pages opened then rest on
-// that state, as notePage judges them, none at the moment it's made.
+// today, where no line of s's is filed, and no day of the world's names s
+// without a request of its own yet, as namedIdle has it: so the day names
+// s, though s makes no request of its own on it, and the state of s the
+// day's digest holds, its points holding none of the day's answers, is the
+// one the page rests on from the day after. Its moment is judged as the
+// pages opened then rest on that state, as notePage judges them, none at
+// the moment it's made.
 func (w *spread) countedIdle(now time.Time) upsetJudged {
 	today := Today(now).Date
 	i := slices.IndexFunc(w.lines, func(l ledger.Line) bool { return l.Session == pageSession && isRequest(&l) })
-	if i < 0 || slices.ContainsFunc(w.lines, func(l ledger.Line) bool { return l.Session == pageSession && w.filedUnder(l) == today }) {
+	if i < 0 || slices.ContainsFunc(w.lines, func(l ledger.Line) bool { return l.Session == pageSession && w.filedUnder(l) == today }) ||
+		w.namedIdle(pageSession, w.filedDates()) {
 		return nil
 	}
 	l := w.lines[i]
 	l.Request, l.Kind, l.At, l.TotalMS, l.FirstMS, l.Limits = "count-"+now.Format("2006-01-02T15:04"), ledger.KindCount, now.Add(-time.Minute).UTC(), 300, nil, nil
 	w.fileLine(l)
 	return judgedLater
+}
+
+// filedDates are the dates of the days the world's lines are filed under,
+// as filedUnder has them, each once, oldest first.
+func (w *spread) filedDates() []string {
+	dates := make([]string, len(w.lines))
+	for i, l := range w.lines {
+		dates[i] = w.filedUnder(l)
+	}
+	return slices.Compact(slices.Sorted(slices.Values(dates)))
 }
 
 // ranEach reports whether the session with the given id made a request on

@@ -172,24 +172,17 @@ type spread struct {
 }
 
 // across are the stores a dashboard holds, fed through each Follower at each
-// moment a read of the ledger's tail, as tailAt reads it from tail. restsOn
-// is the date of the digest each session the store fed through the Follower
-// resting on digests holds rested on as it was last held afresh, as
-// restingOn gives it then, by its id: none of one read whole then; and ever
-// the sessions it has held.
+// moment a read of the ledger's tail, as tail reads it through the one
+// reading raw, from the day of the first moment on. restsOn is the date of
+// the digest each session the store fed through the Follower resting on
+// digests holds rested on as it was last held afresh, as restingOn gives it
+// then, by its id: none of one read whole then; and ever the sessions it
+// has held.
 type across struct {
 	based, raw HeldSessions
-	tail       tailMark
+	tail       ledgerTail
 	restsOn    map[string]string
 	ever       map[string]bool
-}
-
-// tailMark is where a dashboard's reads of the ledger's tail have got to:
-// mark, the end of today's lines they read, and day, the date of the day
-// they last read on.
-type tailMark struct {
-	mark ledger.Mark
-	day  string
 }
 
 // newSpread is the spread world of the seed given, written in a state
@@ -209,6 +202,7 @@ func newSpread(t *testing.T, seed uint64, prices pricedAs, met map[string]bool) 
 	}
 	w.fileBeside(dayfile.DateOf(dayfile.DayStart(early.At, 1)), early)
 	w.fileBeside(dayfile.DateOf(dayfile.DayStart(late.At, -1)), late)
+	w.held.tail = ledgerTail{l: w.raw, day: Today(w.moments()[0]).Date}
 	return w
 }
 
@@ -336,18 +330,18 @@ func (w *spread) momentAt(i int, now time.Time) moment {
 }
 
 // feedHeld feeds the stores held across the moments at the moment m, as the
-// dashboard feeds the one it holds: a read of the ledger's tail, as tailAt
-// reads it, wanting what heldWants wants; and the day before's lines again,
-// as givenAgain gives them. It holds the two to each other, each session's
-// flights set aside as across's restsOn notes them, of the dates of the
-// states the sessions rest on at m; and notes a session let go and wanted
-// again, as the feed's reads gave it, and a store held since before one in
-// the morning whose feed's reads rest a session on the day before's digest
-// once it stands.
+// dashboard feeds the one it holds: a read of the ledger's tail, as across's
+// tail reads it, wanting what heldWants wants; and the day before's lines
+// again, as givenAgain gives them. It holds the two to each other, each
+// session's flights set aside as across's restsOn notes them, of the dates
+// of the states the sessions rest on at m; and notes a session let go and
+// wanted again, as the feed's reads gave it, and a store held since before
+// one in the morning whose feed's reads rest a session on the day before's
+// digest once it stands.
 func (w *spread) feedHeld(m moment) {
 	w.t.Helper()
 	want, held := w.heldWants(m), &w.held
-	t := w.tailAt(&held.tail, m.now)
+	t := held.tail.at(m.now)
 	fed := readingThrough(w.based)
 	based, gains := held.based.Fed(fed, t, want, m.now)
 	raw, _ := held.raw.Fed(m.raw, t, want, m.now)
@@ -457,22 +451,6 @@ func (w *spread) logSessions(l Ledger, m moment) []LogSession {
 		lines[h.Session]++
 	}
 	return LogSessions(LogSessionSources{Read: read, Held: held, Lines: lines, Unlisted: true, Now: m.now})
-}
-
-// tailAt is a read of the ledger's tail at now, as the dashboard reads it,
-// through the Follower reading raw, from where t has got to, which it moves
-// on to now: today's lines since the last read, as Today gives them; and
-// the lines of each day from the one t last read on until today's, read
-// again whole, as Day reads them, as the tail missed the end of each.
-func (w *spread) tailAt(t *tailMark, now time.Time) Taken {
-	gained, mark, _ := w.raw.Today(t.mark)
-	days := make(map[string][]ledger.Held)
-	today := Today(now).Date
-	for date := t.day; date != "" && date < today; date = nextDate(date) {
-		days[date] = w.raw.Day(date)
-	}
-	t.mark, t.day = mark, today
-	return Took(gained, days)
 }
 
 // same fails the test where what a view gives at the moment m, read through
@@ -821,23 +799,41 @@ func upsetMoments() []string {
 // upset has the next of upsets, in turn from the one the world's seed
 // gives, upset its files at now, at each moment the day before's digest
 // stands, a minute before midnight and half past one, as yesterdayStands
-// has them; and the next of pageUpsets, in turn alike, at each of the others,
-// past midnight before it stands: holding the upset made to judge, as
-// judgeUpset judges it, where the world lets it make it. The router's round
-// at the next moment digests again what it upset.
+// has them; and a minute after midnight, before it stands, the pages opened
+// then, as pagesOpenAt has them, the next of pageUpsets the world lets make,
+// in turn alike, of those whose moments no world has met yet, as that's
+// their one moment a day, and each slows every read after it: holding the
+// upset made to judge, as judgeUpset judges it, where the world lets it
+// make it. The router's round at the next moment digests again what it
+// upset.
 func (w *spread) upset(now time.Time) {
 	w.made = nil
-	var u upsetting
-	if yesterdayStands(now) {
-		u = upsets[(w.upsets+int(w.seed))%len(upsets)]
+	switch {
+	case yesterdayStands(now):
+		w.made = upsets[(w.upsets+int(w.seed))%len(upsets)].made(w, now)
 		w.upsets++
-	} else {
-		u = pageUpsets[(w.pageUpsets+int(w.seed))%len(pageUpsets)]
-		w.pageUpsets++
+	case pagesOpenAt(now):
+		for range pageUpsets {
+			u := pageUpsets[(w.pageUpsets+int(w.seed))%len(pageUpsets)]
+			w.pageUpsets++
+			if w.met[u.moment] {
+				continue
+			}
+			if w.made = u.made(w, now); w.made != nil {
+				return
+			}
+		}
 	}
-	if judged := u.upset(w, now); judged != nil {
-		w.made = &upsetMade{moment: u.moment, judged: judged}
+}
+
+// made is the upset u makes at now, held to judge: none where the world
+// doesn't let it make it.
+func (u upsetting) made(w *spread, now time.Time) *upsetMade {
+	judged := u.upset(w, now)
+	if judged == nil {
+		return nil
 	}
+	return &upsetMade{moment: u.moment, judged: judged}
 }
 
 // yesterdayStands reports whether the day before the one now falls on has its
