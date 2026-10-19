@@ -206,12 +206,11 @@ func (r heldRequest) pricedOn(prices ledger.Table, date string) heldRequest {
 	return r
 }
 
-// worthSaid is what r was worth, as a page sums it: as it was priced, none
-// where it wasn't.
-func (r *heldRequest) worthSaid() Worth {
-	var w Worth
-	w.addSummed(r.worth, r.priced)
-	return w
+// spentInto adds what r spent to sp, by the model it asked for and the geo
+// it asked its inference to run in, as a page tallies it, to be priced as
+// the page is built.
+func (r *heldRequest) spentInto(sp *ledger.Spent) {
+	sp.Add(r.model.Value(), r.geo.Value(), r.spend)
 }
 
 // withRequests returns held, a session's requests in order, as inOrder has

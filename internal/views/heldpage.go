@@ -345,9 +345,8 @@ type BuiltPage struct {
 	RequestsLoading bool
 	// ReadsWhole is set, and nothing else built, where its store's next feed
 	// reads its session whole, as no page built before it of what it holds
-	// stands: it holds what it tallied priced otherwise than on the day it's
-	// built on, or the stream tells of a request that joined late, behind
-	// its horizon, as readsWhole has it.
+	// stands: the stream tells of a request that joined late, behind its
+	// horizon, as readsWhole has it.
 	ReadsWhole bool
 	// Until is the first moment a page built of the same would be built
 	// otherwise, by the clock alone: the next minute, as its story steps on
@@ -383,11 +382,10 @@ func (h HeldPage) Build(live PageLive) (BuiltPage, bool) {
 }
 
 // readsWhole reports whether the store's next feed reads h's session whole,
-// as live gives the page: its day rolling on to one its tally is priced
-// otherwise on, as repricedOn has it, or the stream telling of a request
-// that joined late, as joinedLate has it, as the feed checks both.
+// as live gives the page: the stream telling of a request that joined late,
+// as joinedLate has it, as the feed checks it.
 func (h HeldPage) readsWhole(live PageLive) bool {
-	return h.record.repricedOn(h.prices, Today(live.Now)) || joinedLate(live.Now, pinsOf(live.Stream)[h.id], h.record.horizon)
+	return joinedLate(live.Now, pinsOf(live.Stream)[h.id], h.record.horizon)
 }
 
 // open is the number of the turn open of the page w is built of, as
@@ -478,14 +476,15 @@ func (w worked) page() (SessionPage, bool) {
 	if !rec.story.begun && !running {
 		return SessionPage{}, false
 	}
+	priced := pricing{prices: h.prices, date: rec.day().Date}
 	listed := by.listed(h.id, rec.story)
 	page := SessionPage{
 		Session: listed.Session, Dir: listed.Dir, Account: listed.Account, Model: listed.Model, Running: listed.Running, LastSeen: listed.LastSeen,
 		Models: listed.Models, State: listed.State, MoveCost: listed.MoveCost, Ended: listed.Ended, Started: listed.Started,
-		Resumed: p.resumed, Accounts: p.accountsSaid(), Moves: movesOf(rec.story), Activity: listed.Activity,
+		Resumed: p.resumed, Accounts: p.accountsSaid(priced), Moves: movesOf(rec.story), Activity: listed.Activity,
 	}
 	unplaced := running && by.h.unplaced(routed)
-	page.Turns = turnsOf(p.turns, p.inNone, page.Runs(), unplaced)
+	page.Turns = turnsOf(p.turns, p.inNone, page.Runs(), unplaced, priced)
 	page.Goes = by.goesOf(h.id, live.Stream, p)
 	if running {
 		page.Pin = routed.Pin
@@ -496,7 +495,7 @@ func (w worked) page() (SessionPage, bool) {
 	if !page.Running && rec.story.begun {
 		page.KeptUntil, _ = dayfile.KeptUntil(Today(rec.story.first.arrived()).Date, h.keep)
 	}
-	page.Totals = p.totalsOf(len(page.Turns))
+	page.Totals = p.totalsOf(len(page.Turns), priced)
 	return page, true
 }
 

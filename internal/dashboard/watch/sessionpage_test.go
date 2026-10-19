@@ -858,50 +858,30 @@ func runningOn(t *testing.T, state string, at time.Time, prices ledger.Table, li
 
 // A page whose read lands needing its session read whole, as no page built
 // before the store's next feed stands, says it's loading till that feed
-// lands, never drawing a page of nothing: one asked for before midnight
-// whose read lands after it, on a day its prices change; and one whose read
-// meets a stream row joining late.
+// lands, never drawing a page of nothing: one whose read meets a stream row
+// joining late.
 func TestAPageWhoseFirstBuildReadsWholeSaysItsLoading(t *testing.T) {
-	night := onTheDay(23, 59, 50)
-	priced := arrivedAt("0a000001", onTheDay(22, 30, 0))
-	priced.Usage = json.RawMessage(hourUsage)
-	lateRow := func(h *harness, read []tea.Msg) []tea.Msg {
-		stream := h.source.lastStream(t)
-		stream <- alter(told(router.StreamSent, "0a000002", "work", 0), func(e *router.StreamEvent) { e.At = h.clock.now.Add(-90 * time.Minute).UTC() })
-		h.deliver(h.waited()...)
-		return read
+	line := arrivedAt("0a000001", onTheDay(22, 30, 0))
+	line.Usage = json.RawMessage(hourUsage)
+	h, l := runningOn(t, t.TempDir(), onTheDay(12, 0, 0), ledger.Pricing, line)
+	read, loading := h.askedPage(idD28C)
+	h.fire(loading)
+	stream := h.source.lastStream(t)
+	stream <- alter(told(router.StreamSent, "0a000002", "work", 0), func(e *router.StreamEvent) { e.At = h.clock.now.Add(-90 * time.Minute).UTC() })
+	h.deliver(h.waited()...)
+	h.model.tail.due = false
+	tailed := holdingBack[tailedMsg](h, read...)
+	if s := h.model.session; s == nil || !s.shown.Loading || !strings.Contains(h.row(4), loadingSaid) || len(tailed) != 1 {
+		t.Fatalf("the page's read landed to be read whole, it shows loading %t, its heading %q, the tail read %d times; want it loading, the tail read at once",
+			s != nil && s.shown.Loading, h.row(4), len(tailed))
 	}
-	tests := []struct {
-		name   string
-		at     time.Time
-		prices ledger.Table
-		landed func(*harness, []tea.Msg) []tea.Msg
-	}{
-		{name: "landing past midnight, its prices changed", at: night, prices: pricedOtherwiseFrom(dayfile.DateOf(night.Add(time.Hour))),
-			landed: func(h *harness, read []tea.Msg) []tea.Msg { h.clock.now = night.Add(20 * time.Second); return read }},
-		{name: "a stream row joining late as it's read", at: onTheDay(12, 0, 0), prices: ledger.Pricing, landed: lateRow},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			h, l := runningOn(t, t.TempDir(), tt.at, tt.prices, priced)
-			read, loading := h.askedPage(idD28C)
-			h.fire(loading)
-			read = tt.landed(h, read)
-			h.model.tail.due = false
-			tailed := holdingBack[tailedMsg](h, read...)
-			if s := h.model.session; s == nil || !s.shown.Loading || !strings.Contains(h.row(4), loadingSaid) || len(tailed) != 1 {
-				t.Fatalf("the page's read landed to be read whole, it shows loading %t, its heading %q, the tail read %d times; want it loading, the tail read at once",
-					s != nil && s.shown.Loading, h.row(4), len(tailed))
-			}
-			h.deliver(tailed...)
-			now := h.clock.now
-			live := h.model.pageLive(idD28C, now)
-			live.Stream = live.Stream.Of(idD28C)
-			want, _ := views.ReadPage(l, idD28C, live.Stream, h.model.cfg.Prices, h.model.cfg.LedgerKeep, now).Build(live)
-			if s := h.shownPage(); s.Loading || !reflect.DeepEqual(s.Page, want.Page) {
-				t.Errorf("the tail's read landed, the page loading %t, is\n%+v\nwant it read whole\n%+v", s.Loading, s.Page, want.Page)
-			}
-		})
+	h.deliver(tailed...)
+	now := h.clock.now
+	live := h.model.pageLive(idD28C, now)
+	live.Stream = live.Stream.Of(idD28C)
+	want, _ := views.ReadPage(l, idD28C, live.Stream, h.model.cfg.Prices, h.model.cfg.LedgerKeep, now).Build(live)
+	if s := h.shownPage(); s.Loading || !reflect.DeepEqual(s.Page, want.Page) {
+		t.Errorf("the tail's read landed, the page loading %t, is\n%+v\nwant it read whole\n%+v", s.Loading, s.Page, want.Page)
 	}
 }
 
@@ -938,21 +918,52 @@ func readWhole(t *testing.T, h *harness, l *ledger.Follower, was views.SessionPa
 	return want.Page
 }
 
-// A session's page looked at past midnight, before its store's feed rolls
-// it on, on a day a model its lines asked for costs otherwise, shows the
-// page as it was last built, not one priced at yesterday's prices; asks a
-// read of the ledger's tail at once, which reads its session whole; and
-// then shows the page read whole, priced at today's.
-func TestAPageRepricedPastMidnightShowsItsLastTillItsReadWhole(t *testing.T) {
-	night := onTheDay(23, 58, 0)
+// A session's page held across midnight, on a day a model its lines asked
+// for costs otherwise, shows the page priced at the new day's prices at
+// once, before any read of the ledger's tail lands, as one read whole then
+// shows it: looked at past midnight, before its store's feed rolls it on;
+// and its read, asked before midnight, landing after it.
+func TestAPageHeldAcrossAPriceChangeShowsTheNewPricesAtOnce(t *testing.T) {
 	line := arrivedAt("0a000001", onTheDay(22, 30, 0))
 	line.Usage = json.RawMessage(hourUsage)
-	h, l := wholePage(t, t.TempDir(), night, pricedOtherwiseFrom(dayfile.DateOf(night.Add(time.Hour))), line)
-	was := h.shownPage().Page
-	h.clock.now = night.Add(3 * time.Minute)
-	got := readWhole(t, h, l, was, h.update(tea.WindowSizeMsg{Width: h.model.size.Width, Height: h.model.size.Height})...)
-	if got.Totals.Amount == nil || was.Totals.Amount == nil || *got.Totals.Amount == *was.Totals.Amount {
-		t.Errorf("read whole past midnight, the page is worth %v, as it was the day before; want it priced at today's prices", got.Totals.Amount)
+	tests := []struct {
+		name string
+		at   time.Time
+		// past brings the page past midnight, returning what's yet to reach
+		// the model.
+		past func(*harness) []tea.Msg
+	}{
+		{name: "looked at past midnight", at: onTheDay(23, 58, 0), past: func(h *harness) []tea.Msg {
+			h.openPage(idD28C)
+			h.settle()
+			h.clock.now = h.clock.now.Add(3 * time.Minute)
+			return h.update(tea.WindowSizeMsg{Width: h.model.size.Width, Height: h.model.size.Height})
+		}},
+		{name: "its read landing past midnight", at: onTheDay(23, 59, 50), past: func(h *harness) []tea.Msg {
+			read, loading := h.askedPage(idD28C)
+			h.fire(loading)
+			h.clock.now = h.clock.now.Add(20 * time.Second)
+			return read
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h, l := runningOn(t, t.TempDir(), tt.at, pricedOtherwiseFrom(dayfile.DateOf(tt.at.Add(time.Hour))), line)
+			holdingBack[tailedMsg](h, tt.past(h)...)
+			read := func(now time.Time) views.SessionPage {
+				live := h.model.pageLive(idD28C, now)
+				live.Stream = live.Stream.Of(idD28C)
+				built, _ := views.ReadPage(l, idD28C, live.Stream, h.model.cfg.Prices, h.model.cfg.LedgerKeep, now).Build(live)
+				return built.Page
+			}
+			want, was := read(h.clock.now), read(tt.at)
+			if s := h.shownPage(); s.Loading || !reflect.DeepEqual(s.Page, want) {
+				t.Errorf("past midnight, the tail unread, the page loading %t, is\n%+v\nwant it as read whole\n%+v", s.Loading, s.Page, want)
+			}
+			if want.Totals.Amount == nil || was.Totals.Amount == nil || *want.Totals.Amount == *was.Totals.Amount {
+				t.Errorf("read whole past midnight, the page is worth %v, as it was the day before; want it priced at today's prices", want.Totals.Amount)
+			}
+		})
 	}
 }
 
