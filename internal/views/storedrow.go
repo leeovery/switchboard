@@ -236,6 +236,14 @@ func (m *chunkMeta) take(r *lineRecord) {
 	m.lines.count(&row)
 }
 
+// meets reports whether the chunk m tells of may hold a request of the
+// session with the given id that arrived within span: it counts a row toward
+// the session, and its rows arrived from no later than the span's end to no
+// earlier than its start.
+func (m *chunkMeta) meets(id string, span ledger.Span) bool {
+	return m.lines.Sessions[id] > 0 && m.first.compare(instantOf(span.To)) <= 0 && m.last.compare(instantOf(span.From)) >= 0
+}
+
 // storedChunkMeta is a chunk's meta as its stored form holds it: when the
 // first and the last of its rows arrived, exactly; how many of them asked
 // what each kind asks; how many failed; and how many are of each model,

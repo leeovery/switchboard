@@ -52,16 +52,6 @@ type Ledger interface {
 	// false where it holds none that stands, so the day's lines are read
 	// instead, as Day gives them.
 	DaySide(date string, body int) (json.RawMessage, bool)
-	// DayRows gives the rows of the head the ledger holds of the local day
-	// with the given date, of the version body, as the head points at them
-	// in the day's rows file, its chunks unread, reporting false where it
-	// holds none whose rows stand, so the day's lines are read instead, as
-	// Day gives them.
-	DayRows(date string, body int) (ledger.DayRows, bool)
-	// RowChunk gives the rows chunk holds, a chunk of the rows of the local
-	// day with the given date as DayRows gives them, as their builder gave
-	// them, failing where they don't read as written there, by their CRC.
-	RowChunk(date string, chunk ledger.RowsChunk) ([]byte, error)
 	// FirstLinesDay gives the start of the first local day the ledger holds
 	// lines of, at now: the first Day reads back to, a summary of an earlier
 	// day, whose lines are pruned, aside. It fails with fs.ErrNotExist where
@@ -72,13 +62,31 @@ type Ledger interface {
 }
 
 // LedgerSession reads one session's lines where they lie, with no router, as
-// a ledger.Follower does: of the days that name it alone.
+// a ledger.Follower does: of the days that name it alone; and the Log's rows
+// of a day, as LedgerRows reads them, so a turn reads a day of its own whose
+// rows stand from them.
 type LedgerSession interface {
 	// Session gives the lines of the session with the given id, newest
 	// first, read as far back as the caller goes on: of the days whose files
 	// may hold lines that arrived within the spans given alone, as
 	// ledger.Spanning has them, of every day where none is given.
 	Session(id string, within ...ledger.Span) iter.Seq[ledger.Held]
+	LedgerRows
+}
+
+// LedgerRows reads the Log's rows of a day where they lie, with no router, as
+// a ledger.Follower does: a chunk at a time, as the day's head points at
+// them.
+type LedgerRows interface {
+	// DayRows gives the rows of the head the ledger holds of the local day
+	// with the given date, of the version body, as the head points at them
+	// in the day's rows file, its chunks unread, reporting false where it
+	// holds none whose rows stand, so the day's lines are read instead.
+	DayRows(date string, body int) (ledger.DayRows, bool)
+	// RowChunk gives the rows chunk holds, a chunk of the rows of the local
+	// day with the given date as DayRows gives them, as their builder gave
+	// them, failing where they don't read as written there, by their CRC.
+	RowChunk(date string, chunk ledger.RowsChunk) ([]byte, error)
 }
 
 // LedgerSessions reads the request ledger's sessions where they lie, with no
