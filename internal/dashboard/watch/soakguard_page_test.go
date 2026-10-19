@@ -16,8 +16,10 @@ import (
 
 // The page's part: the long session's page open across midnight, its
 // newest turn opened before it and closed at the end, the store fed for it
-// at every read of the ledger's tail. The page's session is read whole once,
-// as it opens, and its turn's lines once, as it opens, never again; a day
+// at every read of the ledger's tail. The page's session is read once, as
+// it opens, resting on its state at the end of the day before, and its
+// turn's lines once, as it opens, never again; a read of sessions reads no
+// day behind the digests' states the sessions it gives rest on; a day
 // before today is read again only as the day turns; and the page holds its
 // session as the store holds it, no more of its requests open than the
 // store's rule keeps open, the lines of no request but its turn open's,
@@ -33,13 +35,17 @@ func TestThePageHoldsOnlyItsTurns(t *testing.T) {
 	g.id = s.w.longest()
 	s.show("session")
 	if m := s.h.model; m.session == nil || m.session.shown.Loading || g.wholes != 1 {
-		t.Fatalf("the long session's page is open %t, its session read whole %d times; want it open, read once", m.session != nil, g.wholes)
+		t.Fatalf("the long session's page is open %t, its session read %d times; want it open, read once", m.session != nil, g.wholes)
 	}
 	s.schedule = append(s.schedule,
 		soakAction{at: midnight.Add(-30 * time.Second), do: func() { s.keyed(tea.KeyPressMsg{Code: tea.KeyEnter}) }},
 		soakAction{at: closes, do: func() { s.keyed(tea.KeyPressMsg{Code: tea.KeyEscape}) }},
 	)
 	s.runUntil(ends)
+	g.judged()
+	if g.rested == 0 {
+		t.Error("no read of sessions gave the page's session resting on a digest's state, want it on its state at the end of the day before")
+	}
 	m := s.h.model
 	switch {
 	case m.session == nil:
@@ -47,7 +53,7 @@ func TestThePageHoldsOnlyItsTurns(t *testing.T) {
 	case len(g.checks) > 0:
 		t.Errorf("no read of the tail landed after %v to compare the page at", g.checks)
 	case g.wholes != 1 || g.turns != 1 || g.fed == 0 || g.late == 0 || !g.opened || g.answers == 0:
-		t.Errorf("the page's session was read whole %d times, a turn's lines %d, the store fed %d times, the day before read again %d, a turn compared open %t, "+
+		t.Errorf("the page's session was read %d times, a turn's lines %d, the store fed %d times, the day before read again %d, a turn compared open %t, "+
 			"its points holding answers at %d reads; want the session read once, a turn's lines once, the store fed at each read of the tail, the day before "+
 			"read again as the day turned, a turn compared, answers held", g.wholes, g.turns, g.fed, g.late, g.opened, g.answers)
 	}
@@ -61,10 +67,11 @@ func TestThePageHoldsOnlyItsTurns(t *testing.T) {
 // lines since a read last landed; want what the read of the tail under way
 // wants of the store; checks the moments still to compare the page with
 // one read whole at, the earliest first; wholes how many times the page's
-// session was read whole, turns how many times a turn's lines were, fed how
-// many reads of the tail fed the store, late how many times the day before
-// was read again; opened whether the page was compared with a turn open;
-// and answers at how many reads its points held answers.
+// session was read, turns how many times a turn's lines were, rested how
+// many reads of sessions gave the page's resting on a digest's state, fed
+// how many reads of the tail fed the store, late how many times the day
+// before was read again; opened whether the page was compared with a turn
+// open; and answers at how many reads its points held answers.
 type pageGuard struct {
 	t        *testing.T
 	s        *soak
@@ -74,6 +81,7 @@ type pageGuard struct {
 	checks   []time.Time
 	wholes   int
 	turns    int
+	rested   int
 	fed      int
 	late     int
 	opened   bool
@@ -130,18 +138,27 @@ func (g *pageGuard) tailed(msg tailedMsg) {
 }
 
 // judged judges the reads of the ledger's lines since a read last landed: a
-// day before today read only as the day turns; the page's session read
-// whole by its open alone, as wholes counts it. None are left to judge.
+// day before today read only as the day turns; a read of sessions reading no
+// day behind the states the sessions it gave rest on, as readNoneBehind has
+// it, counted where it gave the page's session resting on one; the page's
+// session read by its open alone, as wholes counts it. None are left to
+// judge.
 func (g *pageGuard) judged() {
 	g.t.Helper()
 	now := g.s.h.model.now()
 	for _, r := range g.unjudged {
-		if r.method != "Day" {
-			continue
-		}
-		g.late++
-		if r.asked[0] != dayfile.DateOf(dayfile.DayStart(now, -1)) || now.Sub(dayfile.DayStart(now, 0)) >= guardLateFor {
-			g.t.Errorf("at %s the day %s was read again, want only the day before today, in the first %s of the day", now.Format(time.DateTime), r.asked[0], guardLateFor)
+		switch r.method {
+		case "Day":
+			g.late++
+			if r.asked[0] != dayfile.DateOf(dayfile.DayStart(now, -1)) || now.Sub(dayfile.DayStart(now, 0)) >= guardLateFor {
+				g.t.Errorf("at %s the day %s was read again, want only the day before today, in the first %s of the day", now.Format(time.DateTime), r.asked[0],
+					guardLateFor)
+			}
+		case "Sessions", "SessionsOf":
+			readNoneBehind(g.t, r, now)
+			if r.rests[g.id] != "" {
+				g.rested++
+			}
 		}
 	}
 	g.unjudged = nil
