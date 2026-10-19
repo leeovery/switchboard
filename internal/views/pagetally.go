@@ -70,8 +70,8 @@ type stretching struct {
 }
 
 // accountSums are what a session's lines that went to an account sum, as
-// accountsOf has it, as they're taken in: the account; when the first and
-// the last of them arrived; how many there are; and what they spent.
+// lined takes them in: the account; when the first and the last of them
+// arrived; how many there are; and what they spent.
 type accountSums struct {
 	account  string
 	from, to time.Time
@@ -79,8 +79,8 @@ type accountSums struct {
 	spent    ledger.Spent
 }
 
-// sessionSums are what a session's totals sum of its lines, as totalsOf sums
-// them: how many there are, what they spent, and the tokens they read from
+// sessionSums are what a session's totals sum of its lines, as lined takes
+// them in: how many there are, what they spent, and the tokens they read from
 // the cache, and sent.
 type sessionSums struct {
 	requests   int
@@ -359,7 +359,7 @@ func (p *pageTally) stretches() []Stretch {
 	return slices.DeleteFunc(slices.Clone(s.stretches), func(s Stretch) bool { return s.Account == "" })
 }
 
-// accountsSaid are the accounts the session ran on, as accountsOf has them,
+// accountsSaid are the accounts the session ran on, as lined took them in,
 // each worth what its requests spent, as priced prices it, with the points
 // it took of its windows, as its points have them.
 func (p *pageTally) accountsSaid(priced pricing) []SessionAccount {
@@ -372,8 +372,8 @@ func (p *pageTally) accountsSaid(priced pricing) []SessionAccount {
 	return accounts
 }
 
-// totalsOf sums the session, of which it told turns turns, as totalsOf sums
-// its requests, worth what they spent, as priced prices it.
+// totalsOf sums the session, of which it told turns turns, as lined took
+// its requests in, worth what they spent, as priced prices it.
 func (p *pageTally) totalsOf(turns int, priced pricing) SessionTotals {
 	t := p.totals
 	totals := SessionTotals{Turns: turns, Requests: t.requests, Worth: priced.worth(t.spent)}
