@@ -337,16 +337,12 @@ func (p *pointing) took(date string, given []answered, whole bool, day LedgerDay
 	return q, !q.run.holds(date) || q.run.takes(added)
 }
 
-// tookAfter is p with answers, every account's, by the date of the day whose
-// files hold them, taken in at the day given, of each day after the one with
-// the given date, oldest first, each read whole, as took has them: none of
-// that day or before it, which p took in as it was sealed. It reports false
-// where took can't place a day's, so the session's page is read whole.
-func (p *pointing) tookAfter(date string, answers map[string][]answered, day LedgerDay) (*pointing, bool) {
+// tookDays is p with answers, every account's, by the date of the day whose
+// files hold them, taken in at the day given, one day's after another's,
+// oldest first, each read whole, as took has them. It reports false where
+// took can't place a day's, so the session's page is read whole.
+func (p *pointing) tookDays(answers map[string][]answered, day LedgerDay) (*pointing, bool) {
 	for _, d := range slices.Sorted(maps.Keys(answers)) {
-		if d <= date {
-			continue
-		}
 		var ok bool
 		if p, ok = p.took(d, answers[d], true, day); !ok {
 			return nil, false

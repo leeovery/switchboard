@@ -120,7 +120,8 @@ const (
 	pageNone pageRead = iota
 	// pageToFold holds all of it but its times, counted unheld, as
 	// upstreamTimes has them: a fold resting on it needs only how many
-	// there are, so its parts are read without them.
+	// there are, so none of its parts' times is read, as the ledger,
+	// resting a session to fold, as ledger.RestToFold has it, reads none.
 	pageToFold
 	// pageWhole holds all of it.
 	pageWhole
@@ -145,11 +146,7 @@ func restoredFrom(from ledger.SessionFrom, prices ledger.Table, day LedgerDay, p
 	if page == pageNone {
 		return st.restored(prices, day)
 	}
-	parts := make([]json.RawMessage, len(from.Parts))
-	for i, p := range from.Parts {
-		parts[i] = p.Part
-	}
-	return st.restoredPaged(prices, day, parts, page == pageWhole)
+	return st.restoredPaged(prices, day, from.Parts, page == pageWhole)
 }
 
 // endOfDay is the horizon a session's state at the end of the day d is

@@ -102,11 +102,13 @@ type DigestEntry struct {
 // PartRef is where a session's part of a day lies in the day's parts file,
 // as the day's digest points at it: On, the date of the state the part was
 // folded on, "" where it was folded on none, as a session's parts chain from
-// one folded on none through the states each was folded on; and the Member,
-// the part's gzip member there.
+// one folded on none through the states each was folded on; the Member, the
+// part's gzip member there; and Times, the member of its times, after it,
+// as Folded has them, nil where it has none.
 type PartRef struct {
 	On string
 	Member
+	Times *Member
 }
 
 // storedDigest is a digest as its file holds it, gzipped: the version of the
@@ -135,10 +137,12 @@ type storedEntry struct {
 	Part    *storedPart     `json:"part,omitzero"`
 }
 
-// storedPart is where a session's part lies, as a digest's file holds it.
+// storedPart is where a session's part lies, and its times, as a digest's
+// file holds it.
 type storedPart struct {
 	On string `json:"on,omitzero"`
 	storedMember
+	Times *storedMember `json:"times,omitempty"`
 }
 
 // storedOf is digest as its file holds it, of the envelope's version the
@@ -178,7 +182,12 @@ func (r *PartRef) stored() *storedPart {
 	if r == nil {
 		return nil
 	}
-	return &storedPart{On: r.On, storedMember: r.Member.stored()}
+	p := &storedPart{On: r.On, storedMember: r.Member.stored()}
+	if r.Times != nil {
+		times := r.Times.stored()
+		p.Times = &times
+	}
+	return p
 }
 
 // ref is where p says a part lies: none of none.
@@ -186,7 +195,12 @@ func (p *storedPart) ref() *PartRef {
 	if p == nil {
 		return nil
 	}
-	return &PartRef{On: p.On, Member: p.member()}
+	r := &PartRef{On: p.On, Member: p.member()}
+	if p.Times != nil {
+		times := p.Times.member()
+		r.Times = &times
+	}
+	return r
 }
 
 // entriesAs is entries, each as as gives it, by the same ids: none of none,
@@ -212,17 +226,14 @@ func entriesAs[From, To any](entries map[string]From, as func(From) To) map[stri
 // between the two, is held beside a parts file of another size than its head
 // records, so its day is due, or its parts don't read, by their CRC. It
 // returns the digest as written. It fails where its day isn't a date, or a
-// session's state or part isn't a JSON value, writing nothing.
+// session's state isn't a JSON value, writing nothing.
 func (d days) writeDigest(digest Digest, parts map[string]builtPart) (Digest, error) {
 	date := digest.Head.Day
 	if _, _, ok := dayfile.Day(date); !ok {
 		return Digest{}, fmt.Errorf("digest of %q: not a date", date)
 	}
-	file, members, err := partsFileOf(parts)
-	if err != nil {
-		return Digest{}, fmt.Errorf("digest of %s: %w", date, err)
-	}
-	digest = digest.pointedAt(parts, members, int64(len(file)))
+	file, refs := partsFileOf(parts)
+	digest = digest.pointedAt(refs, int64(len(file)))
 	data, err := gzippedJSON(storedOf(digest))
 	if err != nil {
 		return Digest{}, fmt.Errorf("digest of %s: %w", date, err)
@@ -234,15 +245,15 @@ func (d days) writeDigest(digest Digest, parts map[string]builtPart) (Digest, er
 }
 
 // pointedAt returns d with each session's entry pointing at its part where
-// members has it, on the date parts gives it, none where it doesn't, and its
-// head recording the parts file's size as given, d left as it is.
-func (d Digest) pointedAt(parts map[string]builtPart, members map[string]Member, size int64) Digest {
+// refs has it, by its id, none where it doesn't, and its head recording the
+// parts file's size as given, d left as it is.
+func (d Digest) pointedAt(refs map[string]PartRef, size int64) Digest {
 	d.Head.PartsSize = size
 	d.Sessions = maps.Clone(d.Sessions)
 	for id, e := range d.Sessions {
 		e.Part = nil
-		if m, ok := members[id]; ok {
-			e.Part = &PartRef{On: parts[id].on, Member: m}
+		if ref, ok := refs[id]; ok {
+			e.Part = &ref
 		}
 		d.Sessions[id] = e
 	}

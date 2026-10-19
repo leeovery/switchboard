@@ -236,31 +236,46 @@ func TestAPageReadWholeAfterARefusedRestoreTakesEveryDaysAnswers(t *testing.T) {
 	}
 }
 
-// A page's points resting on a state take in the answers of the days after
-// its day alone, which they took in as they were sealed: given the answers
-// of its own day again, or of a day before it, with one more of the
-// session's own, which they'd refuse, as more than they folded that day,
-// they take nothing in, and are as they were.
+// A page resting on a state takes into its points the answers taken of the
+// days after its state's alone, which it took in as it was sealed: held on
+// the answers taken of its state's own day again, or of a day before it,
+// with one more of the session's own, which its points would refuse, as
+// more than they folded that day, it's held as on none, its points as they
+// were.
 func TestAPagesPointsTakeInNoAnswerOfTheDaysThroughTheirBase(t *testing.T) {
 	lines := daily(foldSonnet, foldSonnet, foldSonnet)
 	base := dayOf(dateOn(1))
 	end := endOfDay(base)
 	folded := arrivedBefore(lines, end.time())
-	p := readOf(folded, answersOf(linesByDate(folded), "s"), ledger.Pricing, base, end, true).page.points
+	f, err := foldedAsOf("s", ledger.SessionFrom{Lines: folded}, answersTaken(linesByDate(folded)), base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	from := ledger.SessionFrom{Base: baseOf(base.Date, f.State), Parts: []ledger.SessionPart{{Date: base.Date, Part: f.Part, Times: f.Times}}}
 	next := Today(end.time())
+	restored, err := restoredFrom(from, ledger.Pricing, next, pageWhole)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := heldAsOf("s", from, nil, ledger.Pricing, next, end, true)
+	if err != nil {
+		t.Fatal(err)
+	}
 	for i, date := range []string{dateOn(0), dateOn(1)} {
 		t.Run(date, func(t *testing.T) {
 			again := lines[i]
 			again.Request, again.At = "again", again.At.Add(time.Minute)
-			given := []answered{answeredOf(&lines[i], "s"), answeredOf(&again, "s")}
-			if _, ok := p.took(date, given, true, next); ok {
+			if _, ok := restored.page.points.took(date, []answered{answeredOf(&lines[i], "s"), answeredOf(&again, "s")}, true, next); ok {
 				t.Fatalf("the points take in %s's answers and one more of the session's own, want them refused", date)
 			}
 
-			got, ok := p.tookAfter(base.Date, map[string][]answered{date: given}, next)
+			got, err := heldAsOf("s", from, answersTaken(map[string][]ledger.Line{date: {lines[i], again}}), ledger.Pricing, next, end, true)
 
-			if !ok || got != p {
-				t.Errorf("resting on the state of %s, given %s's answers, the points took %t, as %p; want them as they were, %p", base.Date, date, ok, got, p)
+			if err != nil {
+				t.Fatalf("resting on the state of %s, given %s's answers, held with error %v; want it held as on none", base.Date, date, err)
+			}
+			if !samePage(got.page, want.page) {
+				t.Errorf("resting on the state of %s, given %s's answers, its page is\n%s\nwant it held as on none\n%s", base.Date, date, pageSaid(got.page), pageSaid(want.page))
 			}
 		})
 	}

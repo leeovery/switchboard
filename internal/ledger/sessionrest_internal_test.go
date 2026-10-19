@@ -3,10 +3,12 @@ package ledger
 import (
 	"cmp"
 	"encoding/json"
+	"fmt"
 	"maps"
 	"os"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -114,21 +116,34 @@ func looks() map[string]func(d days) daysLook {
 
 // pagedDigests writes the digests of the page's lookup tests: older, of
 // rested, its session work folded on none; and the digest of digested, its
-// session folded on rested's state; each with work's part beside it.
-func pagedDigests(t *testing.T, d days, older Digest) {
+// session folded on rested's state; each with work's part beside it, and
+// its times, as pagedPart has them. It returns them as written.
+func pagedDigests(t *testing.T, d days, older Digest) []Digest {
 	t.Helper()
 	newer := Digest{Head: headOf(digested, 40), Sessions: map[string]DigestEntry{"work": {RestsOn: map[string]int{rested: 12, digested: 40}, State: json.RawMessage(`{}`)}}}
+	var digests []Digest
 	for _, written := range []struct {
 		digest Digest
-		part   builtPart
+		on     string
 	}{
-		{digest: older, part: builtPart{data: json.RawMessage(`["` + rested + `"]`)}},
-		{digest: newer, part: builtPart{on: rested, data: json.RawMessage(`["` + digested + `"]`)}},
+		{digest: older},
+		{digest: newer, on: rested},
 	} {
-		if _, err := d.writeDigest(written.digest, map[string]builtPart{"work": written.part}); err != nil {
+		date := written.digest.Head.Day
+		digest, err := d.writeDigest(written.digest, builtOf(t, map[string]givenPart{"work": pagedPart(written.on, date)}))
+		if err != nil {
 			t.Fatal(err)
 		}
+		digests = append(digests, digest)
 	}
+	return digests
+}
+
+// pagedPart is work's part of the local day with the given date, folded on
+// the state of the day with the date on, as pagedDigests writes it: its
+// part, and its times, each naming the day.
+func pagedPart(on, date string) givenPart {
+	return givenPart{on: on, part: `["` + date + `"]`, times: `["times of ` + date + `"]`}
 }
 
 // olderPaged is the older digest of the page's lookup tests, of rested, its
@@ -187,9 +202,9 @@ func TestAPagesWalkDecodesNoLinkWhoseHeadDoesntStand(t *testing.T) {
 	}
 }
 
-// A lookup reads a session's part of a day once, whichever of the session's
-// rests lead through it: a rest after its parts files are gone rests on the
-// parts it read.
+// A lookup reads a session's part of a day, and its times, once, whichever
+// of the session's rests lead through it: a rest after its parts files are
+// gone rests on the parts it read, their times among them.
 func TestALookupReadsASessionsPartOnce(t *testing.T) {
 	d := digestDays(t)
 	pagedDigests(t, d, olderPaged(statesVersion))
@@ -205,9 +220,95 @@ func TestALookupReadsASessionsPartOnce(t *testing.T) {
 	again := &sessionAsked{naming: []string{rested, digested}}
 	l.rest("work", again, RestOnPage)
 
-	if again.base == nil || again.base.Date != digested || !reflect.DeepEqual(again.parts, first.parts) || len(first.parts) != 2 {
-		t.Errorf("rested again, its parts gone, the session rests on %+v, of the parts %q; want it on %s's state, of the parts first read, %q",
+	timed := !slices.ContainsFunc(first.parts, func(p SessionPart) bool { return p.Times == nil })
+	if again.base == nil || again.base.Date != digested || !reflect.DeepEqual(again.parts, first.parts) || len(first.parts) != 2 || !timed {
+		t.Errorf("rested again, its parts gone, the session rests on %+v, of the parts %q; want it on %s's state, of the parts first read, %q, each with its times",
 			again.base, partsDated(again.parts), digested, partsDated(first.parts))
+	}
+}
+
+// memberAt is a member of a day's parts file as a lookup read it: the day's
+// date, and where the member lies.
+type memberAt struct {
+	date string
+	m    Member
+}
+
+// readsOf has l note each member it reads of a parts file, in the order
+// read, giving what it notes.
+func readsOf(l *sessionsLookup) *[]memberAt {
+	var read []memberAt
+	l.reading = func(date string, m Member) { read = append(read, memberAt{date: date, m: m}) }
+	return &read
+}
+
+// A lookup resting a session to fold, as the router's writer rests each
+// session of a day it builds, reads each part of the chain behind its state
+// once, and none of their times, its parts given without them; resting it
+// on its page, as a reader of its page does, it reads each part and its
+// times once, both given, as they were written, but for their
+// insignificant spaces.
+func TestALookupRestingToFoldReadsNoPartsTimes(t *testing.T) {
+	for name, lookOf := range looks() {
+		for _, on := range []Rest{RestToFold, RestOnPage} {
+			t.Run(name+", "+on.String(), func(t *testing.T) {
+				d := digestDays(t)
+				written := pagedDigests(t, d, olderPaged(statesVersion))
+				l := newSessionsLookup(d, &countingLook{daysLook: lookOf(d), lines: keeping(withDayBeforeRested(nil))})
+				read := readsOf(l)
+				s := &sessionAsked{naming: []string{rested, digested}}
+
+				l.rest("work", s, on)
+
+				var parts []SessionPart
+				var reads []memberAt
+				for _, digest := range slices.Backward(written) {
+					date, ref := digest.Head.Day, digest.Sessions["work"].Part
+					given, p := pagedPart(ref.On, date), SessionPart{Date: date}
+					p.Part, reads = compacted(t, given.part), append(reads, memberAt{date: date, m: ref.Member})
+					if on == RestOnPage {
+						p.Times, reads = compacted(t, given.times), append(reads, memberAt{date: date, m: *ref.Times})
+					}
+					parts = append([]SessionPart{p}, parts...)
+				}
+				if s.base == nil || s.base.Date != digested || !reflect.DeepEqual(s.parts, parts) || !slices.Equal(*read, reads) {
+					t.Errorf("the session rests on %+v, of the parts\n%s\nthe members read %+v; want it on %s's state, of the parts\n%s\nthe members read %+v",
+						s.base, partsSaid(s.parts), *read, digested, partsSaid(parts), reads)
+				}
+			})
+		}
+	}
+}
+
+// partsSaid is what parts hold, each its date, its part and its times.
+func partsSaid(parts []SessionPart) string {
+	var said strings.Builder
+	for _, p := range parts {
+		fmt.Fprintf(&said, "%s: %s, times %s\n", p.Date, p.Part, p.Times)
+	}
+	return said.String()
+}
+
+// A part's times damaged in place, its parts file as long, break the chain
+// of each state leading through it for a lookup resting a session on its
+// page, which rests it on the state before; but not for one resting it to
+// fold, which never reads them.
+func TestAPartsTimesDamagedBreakAPagesChainButNotAFolds(t *testing.T) {
+	for name, lookOf := range looks() {
+		d := digestDays(t)
+		written := pagedDigests(t, d, olderPaged(statesVersion))
+		damaged(t, partsFile(d.files.Dir, digested), *written[1].Sessions["work"].Part.Times)
+		for on, chain := range map[Rest][]string{RestToFold: {rested, digested}, RestOnPage: {rested}} {
+			l := newSessionsLookup(d, &countingLook{daysLook: lookOf(d), lines: keeping(withDayBeforeRested(nil))})
+			s := &sessionAsked{naming: []string{rested, digested}}
+
+			l.rest("work", s, on)
+
+			want := chain[len(chain)-1]
+			if s.base == nil || s.base.Date != want || !slices.Equal(partsDated(s.parts), chain) {
+				t.Errorf("%s, resting %s, the session rests on %+v, of the parts %q; want it on %s's state, of the parts %q", name, on, s.base, partsDated(s.parts), want, chain)
+			}
+		}
 	}
 }
 
@@ -229,12 +330,12 @@ func TestAPagesWalkJudgesEachLinkOnce(t *testing.T) {
 		for _, on := range naming {
 			restsOn[on] = 1
 		}
-		part := builtPart{data: json.RawMessage(`["` + date + `"]`)}
+		on := ""
 		if i > 0 {
-			part.on = naming[i-1]
+			on = naming[i-1]
 		}
 		written, err := d.writeDigest(Digest{Head: headOf(date, 1), Sessions: map[string]DigestEntry{"work": {RestsOn: restsOn, State: json.RawMessage(`{}`)}}},
-			map[string]builtPart{"work": part})
+			builtOf(t, map[string]givenPart{"work": pagedPart(on, date)}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -277,12 +378,13 @@ func TestALookupRestingASessionOnItsStateReadsNoPart(t *testing.T) {
 	d := digestDays(t)
 	pagedDigests(t, d, olderPaged(statesVersion))
 	l := newSessionsLookup(d, &countingLook{daysLook: looks()["a reader's"](d), lines: keeping(withDayBeforeRested(nil))})
+	read := readsOf(l)
 	s := &sessionAsked{naming: []string{rested, digested}}
 
 	l.rest("work", s, RestOnState)
 
-	if s.base == nil || s.base.Date != digested || len(l.parts) > 0 || s.parts != nil {
-		t.Errorf("the session rests on %+v, of the parts %q, the lookup having read %d; want it on %s's state, none read", s.base, partsDated(s.parts), len(l.parts), digested)
+	if s.base == nil || s.base.Date != digested || len(*read) > 0 || s.parts != nil {
+		t.Errorf("the session rests on %+v, of the parts %q, the lookup having read %+v; want it on %s's state, none read", s.base, partsDated(s.parts), *read, digested)
 	}
 }
 

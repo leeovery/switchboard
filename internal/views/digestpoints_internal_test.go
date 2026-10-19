@@ -209,11 +209,11 @@ func (tr *pointsTrip) check(on LedgerDay, now, later time.Time) {
 	}
 }
 
-// datesThrough are those of answers, by date, of the day with the given
-// date and before.
-func datesThrough(answers map[string][]answered, date string) map[string][]answered {
-	through := maps.Clone(answers)
-	maps.DeleteFunc(through, func(d string, _ []answered) bool { return d > date })
+// datesThrough are those of byDate, answers or lines by date, of the day
+// with the given date and before.
+func datesThrough[T any](byDate map[string]T, date string) map[string]T {
+	through := maps.Clone(byDate)
+	maps.DeleteFunc(through, func(d string, _ T) bool { return d > date })
 	return through
 }
 

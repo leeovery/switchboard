@@ -13,18 +13,19 @@ import (
 // storedPage is a page's tally as a day's digest carries it in its session's
 // state, sealed at the end of its day as the store seals it: all of it but
 // its turns, its agents first seen and when its requests went upstream,
-// which its parts hold, as storedPart has them; of each of those, how many
-// there are, for its parts to give exactly. Each of the rest as the tally
-// holds it: whether a request in none is in flight; whether it's taken one
-// in, its first and last; its idle gaps folded and when it last came back
-// after one; whether its own conversation tells its stretches, and its
-// stretches of every request and of its own conversation's; where its
-// models went last; its accounts, why each model goes where it does, and
-// its totals, each with what it spent in ledger.Spent's own stored form;
-// the requests that may still be in flight as the next arrives; and its
-// points, as storedPointing has them. Not its prompts' turns, worked out of
-// its turns as it's restored, nor what a copy of it takes in. Its times are
-// as storedTime has them. Its keys are short and its zeros left out.
+// which its parts hold, as storedPart and storedTimes have them; of each of
+// those, how many there are, for its parts to give exactly. Each of the rest
+// as the tally holds it: whether a request in none is in flight; whether
+// it's taken one in, its first and last; its idle gaps folded and when it
+// last came back after one; whether its own conversation tells its
+// stretches, and its stretches of every request and of its own
+// conversation's; where its models went last; its accounts, why each model
+// goes where it does, and its totals, each with what it spent in
+// ledger.Spent's own stored form; the requests that may still be in flight
+// as the next arrives; and its points, as storedPointing has them. Not its
+// prompts' turns, worked out of its turns as it's restored, nor what a copy
+// of it takes in. Its times are as storedTime has them. Its keys are short
+// and its zeros left out.
 type storedPage struct {
 	Turns     int                   `json:"tn,omitzero"`
 	Agents    int                   `json:"ag,omitzero"`
@@ -105,16 +106,17 @@ type storedSums struct {
 
 // storedPart is what a fold of a page's day added to the tally it was
 // folded on, as the day's parts file keeps it: each turn it took a request
-// into, or began, as it is after, by its index; each agent first seen, with
-// the prompt of its first request; and when the requests it sealed went
-// upstream, oldest first. A fold on no tally adds all of it. Its turns come
-// first and its times last, so a reader wanting its turns alone can stop
-// before its times. Not the date of the state it was folded on, which the
-// digest pointing at it names. Its keys are short and its zeros left out.
+// into, or began, as it is after, by its index; and each agent first seen,
+// with the prompt of its first request. When the requests it sealed went
+// upstream, oldest first, it keeps apart, as storedTimes has them, in a
+// member of their own after its own, as ledger.Folded's Times, so a fold
+// resting on the page reads none of them, as it needs only how many there
+// are, which the page's state carries. A fold on no tally adds all of it.
+// Not the date of the state it was folded on, which the digest pointing at
+// it names. Its keys are short and its zeros left out.
 type storedPart struct {
 	Turns  []storedTurn      `json:"t,omitempty"`
 	Agents map[string]string `json:"a,omitempty"`
-	Times  storedTimes       `json:"s,omitzero"`
 }
 
 // storedTurn is a turn as a page's part holds it: its index among the
@@ -147,11 +149,12 @@ type storedEnd struct {
 }
 
 // storedTimes are when requests went upstream, oldest first, as a page's
-// part holds them: as nanoseconds since the epoch, the first whole and each
-// after as how many after the one before, where every one of them falls in
-// the years those hold, as upstreamTimes has it, however its tally holds
-// those before them; else each as an instant. So a part is put alike of a
-// tally holding every time and of one counting those before it unheld.
+// part keeps them, apart from it: as nanoseconds since the epoch, the first
+// whole and each after as how many after the one before, where every one of
+// them falls in the years those hold, as upstreamTimes has it, however its
+// tally holds those before them; else each as an instant. So a part is put
+// alike of a tally holding every time and of one counting those before it
+// unheld. Its keys are short and its zeros left out.
 type storedTimes struct {
 	Nanos []int64         `json:"n,omitempty"`
 	Far   []storedInstant `json:"f,omitempty"`
@@ -160,8 +163,9 @@ type storedTimes struct {
 // folded is s as a day's digest keeps it, folded at the end of its day:
 // its state, as stored has it, put as JSON; and, where that holds its page,
 // the part of its page the fold added to base, the tally of the state it
-// was folded on, as partOver has it, whole where base is nil, as of a fold
-// on no state. It's refused as stored refuses it.
+// was folded on, and the part's times, as partOver has them, each put as
+// JSON, whole where base is nil, as of a fold on no state. It's refused as
+// stored refuses it.
 func (s *heldSession) folded(base *pageTally) (ledger.Folded, error) {
 	st, err := s.stored()
 	if err != nil {
@@ -175,7 +179,11 @@ func (s *heldSession) folded(base *pageTally) (ledger.Folded, error) {
 	if st.Page == nil {
 		return f, nil
 	}
-	if f.Part, err = json.Marshal(s.page.partOver(base)); err != nil {
+	part, times := s.page.partOver(base)
+	if f.Part, err = json.Marshal(part); err == nil {
+		f.Times, err = json.Marshal(times)
+	}
+	if err != nil {
 		return ledger.Folded{}, fmt.Errorf("put the part of the page of a session of %s: %w", st.Date, err)
 	}
 	return f, nil
@@ -229,12 +237,13 @@ func (p *pageTally) carried() storedPage {
 }
 
 // partOver is what p's fold added to base, the tally it was folded on, as
-// storedPart has it: each turn of p's base doesn't hold, or holds otherwise,
-// as a fold makes the turns it takes a request into its own, as turnOwned
-// has it, so base shares the rest with p; each agent of p's base doesn't
-// know; and p's times after base's. Of a base of nil, all of p. It shares
-// its turns' tools and accounts, so it's put as JSON at once.
-func (p *pageTally) partOver(base *pageTally) storedPart {
+// storedPart has it, and its times, as storedTimes has them: each turn of p's
+// base doesn't hold, or holds otherwise, as a fold makes the turns it takes a
+// request into its own, as turnOwned has it, so base shares the rest with p;
+// each agent of p's base doesn't know; and p's times after base's. Of a base
+// of nil, all of p. It shares its turns' tools and accounts, so it's put as
+// JSON at once.
+func (p *pageTally) partOver(base *pageTally) (storedPart, storedTimes) {
 	if base == nil {
 		base = &pageTally{}
 	}
@@ -250,17 +259,18 @@ func (p *pageTally) partOver(base *pageTally) storedPart {
 			part.Agents[agent] = prompt
 		}
 	}
-	part.Times = p.upstream.storedFrom(base.upstream.len())
-	return part
+	return part, p.upstream.storedFrom(base.upstream.len())
 }
 
 // pageOf is the page st carries, as its stored form put it, restored with
 // parts, the parts of the folds of the states it was folded on, oldest
-// first, from one folded on none, each as partOver put it, read as read has
-// it, their times with them where times says, as storedPage's restored has
-// it. It's refused where st carries no page, as a session's state whose page
-// was left out, or its page or a part won't read, or won't restore.
-func (st *storedSession) pageOf(parts []json.RawMessage, times bool) (*pageTally, error) {
+// first, from one folded on none, each as partOver put it, as storedPage's
+// restored has it; and, where times says, their times with them, as
+// timedBy has them, else as many as it counts, unheld, none of its parts'
+// times read. It's refused where st carries no page, as a session's state
+// whose page was left out, or its page or a part won't read, or won't
+// restore.
+func (st *storedSession) pageOf(parts []ledger.SessionPart, times bool) (*pageTally, error) {
 	if st.Page == nil {
 		return nil, fmt.Errorf("restore the page of a session of %s: none stored", st.Date)
 	}
@@ -270,40 +280,25 @@ func (st *storedSession) pageOf(parts []json.RawMessage, times bool) (*pageTally
 	}
 	chain := make([]storedPart, len(parts))
 	for i, part := range parts {
-		if err := chain[i].read(part, times); err != nil {
+		if err := json.Unmarshal(part.Part, &chain[i]); err != nil {
 			return nil, fmt.Errorf("read part %d of %d of the page of a session of %s: %w", i+1, len(parts), st.Date, err)
 		}
 	}
-	p, err := carried.restored(chain, times)
+	p, err := carried.restored(chain)
+	if err == nil && times {
+		err = p.timedBy(parts)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("restore the page of a session of %s: %w", st.Date, err)
 	}
 	return p, nil
 }
 
-// read reads data, a part as partOver put it, into part: all of it where
-// times says; else all but its times, passed over, none of them held, as a
-// fold resting on the page needs only how many there are, which the page's
-// state carries.
-func (part *storedPart) read(data []byte, times bool) error {
-	if times {
-		return json.Unmarshal(data, part)
-	}
-	var timeless struct {
-		storedPart
-		// Less nested than the part's own, this field takes the times' key.
-		Times struct{} `json:"s"`
-	}
-	err := json.Unmarshal(data, &timeless)
-	*part = timeless.storedPart
-	return err
-}
-
 // restoredPaged is the session st stores restored onto the day given, as
 // restored has it, its page tallied as st carries it with parts laid over
 // it, their times with them where times says, as pageOf has it. It's refused
 // as either refuses it.
-func (st *storedSession) restoredPaged(prices ledger.Table, day LedgerDay, parts []json.RawMessage, times bool) (*heldSession, error) {
+func (st *storedSession) restoredPaged(prices ledger.Table, day LedgerDay, parts []ledger.SessionPart, times bool) (*heldSession, error) {
 	page, err := st.pageOf(parts, times)
 	if err != nil {
 		return nil, err
@@ -318,21 +313,18 @@ func (st *storedSession) restoredPaged(prices ledger.Table, day LedgerDay, parts
 
 // restored is the tally st carries with parts laid over it, the parts of
 // the folds of the states it was folded on, oldest first, from one folded
-// on none: each turn as the newest part holding it has it; each agent first
-// seen as a part gives it; and, where times says, the times of one part
-// after another's, taken in at once, as upstreamTimes' with takes them in,
-// so they're held as a fold of them all at once holds them, and copied once,
-// however many parts give them; else as many as st counts, unheld, its parts
-// read without them. Its prompts' turns are worked out of its turns, and it
-// owns nothing a copy of it shares, as told leaves a tally. It's refused
-// where it counts more turns than its parts hold together, before room is
-// made for them, as a count no fold made may be past any room there is, or
-// fewer turns or times than none; a part's times won't read; a part holds a
-// turn beyond the count st carries, or leaves one below it in none; two
-// turns serve one prompt; its parts give other than as many agents, or times
-// where it holds them, as it counts, as a chain short of a part would; or
-// its points won't restore, as storedPointing's restored has it.
-func (st *storedPage) restored(parts []storedPart, times bool) (*pageTally, error) {
+// on none: each turn as the newest part holding it has it; and each agent
+// first seen as a part gives it. Its times are as many as st counts, unheld,
+// as a fold resting on it needs, until timedBy gives them. Its prompts'
+// turns are worked out of its turns, and it owns nothing a copy of it
+// shares, as told leaves a tally. It's refused where it counts more turns
+// than its parts hold together, before room is made for them, as a count no
+// fold made may be past any room there is, or fewer turns or times than
+// none; a part holds a turn beyond the count st carries, or leaves one below
+// it in none; two turns serve one prompt; its parts give other than as many
+// agents as it counts, as a chain short of a part would; or its points won't
+// restore, as storedPointing's restored has it.
+func (st *storedPage) restored(parts []storedPart) (*pageTally, error) {
 	if held := turnsHeld(parts); st.Turns < 0 || st.Turns > held {
 		return nil, fmt.Errorf("%d turns, of parts holding %d", st.Turns, held)
 	}
@@ -345,28 +337,53 @@ func (st *storedPage) restored(parts []storedPart, times bool) (*pageTally, erro
 	}
 	p := st.tally()
 	p.points = points
-	if !times {
-		p.upstream.unheld = st.Times
-	}
+	p.upstream.unheld = st.Times
 	if st.Turns > 0 {
 		p.turns = make([]*turnTally, st.Turns)
 	}
-	var sent []time.Time
 	for i := range parts {
-		given, err := p.overlaid(&parts[i])
-		if err != nil {
+		if err := p.overlaid(&parts[i]); err != nil {
 			return nil, fmt.Errorf("part %d of %d: %w", i+1, len(parts), err)
 		}
-		sent = append(sent, given...)
 	}
-	p.upstream = p.upstream.with(sent)
 	if err := p.prompted(); err != nil {
 		return nil, err
 	}
-	if agents, given := len(p.agents), p.upstream.len(); agents != st.Agents || given != st.Times {
-		return nil, fmt.Errorf("%d agents and %d times, of parts giving %d and %d", st.Agents, st.Times, agents, given)
+	if agents := len(p.agents); agents != st.Agents {
+		return nil, fmt.Errorf("%d agents, of parts giving %d", st.Agents, agents)
 	}
 	return p, nil
+}
+
+// timedBy has p, a tally restored as storedPage's restored has it, its times
+// counted unheld, hold in their place the times of parts, the parts it was
+// restored with, one part's after another's, each as its times member keeps
+// them, none of a part with none: taken in at once, as upstreamTimes' with
+// takes them in, so they're held as a fold of them all at once holds them,
+// and copied once, however many parts give them. It fails where a part's
+// times won't read, or they're other than as many as p counts, as a chain
+// short of a part's times would give, holding none of them.
+func (p *pageTally) timedBy(parts []ledger.SessionPart) error {
+	var sent []time.Time
+	for i, part := range parts {
+		if part.Times == nil {
+			continue
+		}
+		var st storedTimes
+		if err := json.Unmarshal(part.Times, &st); err != nil {
+			return fmt.Errorf("the times of part %d of %d: %w", i+1, len(parts), err)
+		}
+		given, err := st.times()
+		if err != nil {
+			return fmt.Errorf("the times of part %d of %d: %w", i+1, len(parts), err)
+		}
+		sent = append(sent, given...)
+	}
+	if counted := p.upstream.len(); len(sent) != counted {
+		return fmt.Errorf("%d times, of parts giving %d", counted, len(sent))
+	}
+	p.upstream = upstreamTimes{}.with(sent)
+	return nil
 }
 
 // turnsHeld is how many turns parts hold together.
@@ -410,19 +427,18 @@ func (st *storedPage) tally() *pageTally {
 }
 
 // overlaid lays part over p, the newer: its turns in place of those p holds
-// at their indices, and its agents among p's. It gives part's times, for p
-// to take in after those before. It fails where a turn's index is beyond p's
-// turns, or part's times won't read.
-func (p *pageTally) overlaid(part *storedPart) ([]time.Time, error) {
+// at their indices, and its agents among p's. It fails where a turn's index
+// is beyond p's turns.
+func (p *pageTally) overlaid(part *storedPart) error {
 	for i := range part.Turns {
 		t := &part.Turns[i]
 		if t.Index < 0 || t.Index >= len(p.turns) {
-			return nil, fmt.Errorf("turn %d of %d turns", t.Index, len(p.turns))
+			return fmt.Errorf("turn %d of %d turns", t.Index, len(p.turns))
 		}
 		p.turns[t.Index] = t.restored()
 	}
 	maps.Copy(p.agents, part.Agents)
-	return part.Times.times()
+	return nil
 }
 
 // prompted works out p's prompts' turns of its turns, failing where one is

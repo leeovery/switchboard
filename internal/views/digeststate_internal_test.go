@@ -491,15 +491,15 @@ func TestASessionOfNoRequestRestoredFromItsStateIsTheSessionReadWhole(t *testing
 		t.Fatalf("the count arrived at %v, want it on %s", counted.At, day.Date)
 	}
 	lines := []ledger.Line{counted}
-	f, err := foldedAsOf(ledger.SessionFrom{Lines: lines}, nil, day)
+	f, err := foldedAsOf(counted.Session, ledger.SessionFrom{Lines: lines}, nil, day)
 	if err != nil {
 		t.Fatal(err)
 	}
-	from := ledger.SessionFrom{Base: baseOf(day.Date, f.State), Parts: []ledger.SessionPart{{Date: day.Date, Part: f.Part}}}
+	from := ledger.SessionFrom{Base: baseOf(day.Date, f.State), Parts: []ledger.SessionPart{{Date: day.Date, Part: f.Part, Times: f.Times}}}
 	on, horizon := Today(end), instantOf(end.Add(9*time.Hour))
 	for _, paged := range []bool{false, true} {
 		t.Run(fmt.Sprintf("its page tallied %t", paged), func(t *testing.T) {
-			got, err := heldAsOf(from, nil, ledger.Pricing, on, horizon, paged)
+			got, err := heldAsOf(counted.Session, from, nil, ledger.Pricing, on, horizon, paged)
 			if err != nil {
 				t.Fatal(err)
 			}

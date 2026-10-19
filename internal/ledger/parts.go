@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/leeovery/switchboard/internal/atomicfile"
 )
@@ -33,28 +35,73 @@ func digestedName(name string) (string, bool) {
 
 // builtPart is a session's part of a day as it's built, to be written to the
 // day's parts file: on, the date of the state it was folded on, as PartRef's
-// On has it; and data, the part, a JSON value of its Digester's.
+// On has it; and part and times, the gzip members of the part and of its
+// times, as builtPartOf makes them of what its Digester gives, or as a parts
+// file written before holds them, copied, as keptPart reads them: none of
+// its times where it has none.
 type builtPart struct {
-	on   string
-	data json.RawMessage
+	on          string
+	part, times []byte
+}
+
+// builtPartOf returns the part of a session folded on the state of the day
+// with the date on, "" for none, as builtPart has it: part and times, JSON
+// values of its Digester's, each a member of its own, its insignificant
+// spaces left out; none of its times where they're empty, and none at all
+// where part is. It fails where either isn't a JSON value.
+func builtPartOf(on string, part, times json.RawMessage) (builtPart, error) {
+	if len(part) == 0 {
+		return builtPart{}, nil
+	}
+	built := builtPart{on: on}
+	var err error
+	if built.part, err = compactMember(part); err != nil {
+		return builtPart{}, fmt.Errorf("the part: %w", err)
+	}
+	if len(times) > 0 {
+		if built.times, err = compactMember(times); err != nil {
+			return builtPart{}, fmt.Errorf("the part's times: %w", err)
+		}
+	}
+	return built, nil
+}
+
+// compactMember is data, a JSON value, its insignificant spaces left out, as
+// one gzip member. It fails where data isn't a JSON value.
+func compactMember(data json.RawMessage) ([]byte, error) {
+	var compact bytes.Buffer
+	if err := json.Compact(&compact, data); err != nil {
+		return nil, err
+	}
+	return memberOf(compact.Bytes()), nil
 }
 
 // partsFileOf returns the parts file of parts, the parts of sessions by their
-// ids, as membersOf makes it of each part's JSON, its insignificant spaces
-// left out, so it's of the sessions in the order of their ids; and where each
-// session's part lies in it, by its id. It fails where a part isn't a JSON
-// value.
-func partsFileOf(parts map[string]builtPart) ([]byte, map[string]Member, error) {
-	contents := make(map[string][]byte, len(parts))
-	for id, p := range parts {
-		var compact bytes.Buffer
-		if err := json.Compact(&compact, p.data); err != nil {
-			return nil, nil, fmt.Errorf("the part of %s: %w", id, err)
+// ids: each session's part's member, then its times', in the order of the
+// sessions' ids, as membersOf lays them out, so the same parts make the same
+// file, byte for byte; and where each session's part lies in it, by its id,
+// on the date its part gives.
+func partsFileOf(parts map[string]builtPart) ([]byte, map[string]PartRef) {
+	ids := slices.Sorted(maps.Keys(parts))
+	var members [][]byte
+	for _, id := range ids {
+		members = append(members, parts[id].part)
+		if parts[id].times != nil {
+			members = append(members, parts[id].times)
 		}
-		contents[id] = compact.Bytes()
 	}
-	file, members := membersOf(contents)
-	return file, members, nil
+	file, at := membersOf(members)
+	refs := make(map[string]PartRef, len(parts))
+	for _, id := range ids {
+		ref := PartRef{On: parts[id].on, Member: at[0]}
+		at = at[1:]
+		if parts[id].times != nil {
+			times := at[0]
+			ref.Times, at = &times, at[1:]
+		}
+		refs[id] = ref
+	}
+	return file, refs
 }
 
 // writeParts writes file as the parts file of the local day with the given
@@ -80,15 +127,34 @@ func (d days) partsHeld(date string, size int64) bool {
 	return err == nil && info.Size() == size
 }
 
-// readPart returns the part of a session ref points at in the parts file of
-// the local day with the given date, as it was written: failing as memberIn
-// fails, with fs.ErrNotExist where the day holds no parts file.
-func (d days) readPart(date string, ref PartRef) (json.RawMessage, error) {
-	part, err := memberIn(partsFile(d.files.Dir, date), ref.Member)
+// readMember returns what the member m points at in the parts file of the
+// local day with the given date holds, a part or its times, as it was
+// written: failing as memberIn fails, with fs.ErrNotExist where the day holds
+// no parts file.
+func (d days) readMember(date string, m Member) (json.RawMessage, error) {
+	data, err := memberIn(partsFile(d.files.Dir, date), m)
 	if err != nil {
 		return nil, fmt.Errorf("a part of %s: %w", date, err)
 	}
-	return part, nil
+	return data, nil
+}
+
+// keptPart returns the part of a session ref points at in the parts file of
+// the local day with the given date, as builtPart has it, on the date ref
+// names: its members' bytes as they were written there, none of them
+// inflated, to be written again as they are. It fails as memberBytes fails,
+// with fs.ErrNotExist where the day holds no parts file.
+func (d days) keptPart(date string, ref PartRef) (builtPart, error) {
+	path := partsFile(d.files.Dir, date)
+	kept := builtPart{on: ref.On}
+	var err error
+	if kept.part, err = memberBytes(path, ref.Member); err == nil && ref.Times != nil {
+		kept.times, err = memberBytes(path, *ref.Times)
+	}
+	if err != nil {
+		return builtPart{}, fmt.Errorf("a part of %s: %w", date, err)
+	}
+	return kept, nil
 }
 
 // removed removes the file at path, failing as os.Remove does, but where

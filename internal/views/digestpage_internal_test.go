@@ -97,19 +97,20 @@ const (
 // A session's page folded at the end of each day it's named on, as a day's
 // digests keep it, each fold resting on the state the last such day before
 // it kept, restored from what it carries and the chain of parts behind it, as
-// restoredPaged has it, read to fold as pageToFold has it, its points taking
+// restoredPaged has it, read to fold as pageToFold has it, its parts given
+// without their times, as the ledger hands a builder them, its points taking
 // every account's answers of each day since, oldest first, each whole, then
 // its requests since told on, as the store tells them, sealed at the day's
 // end: is, restored from the state each day keeps and its chain of parts,
-// the page folded whole of every line by the day's end. Its turns, agents,
-// sums and all else alike, its times as lists, its points' points and
-// shares; and each day's part exactly what its fold added: the turns it
-// took a request into, or began, the agents first seen, and its times. Each
-// day's state and part are exactly those of the fold restoring every time
-// of its chain. A fold is refused only as its points can't take a day's
-// answers in, as takesSince has it, and folds whole again then, its part
-// whole. Of generated worlds, meeting the hard moments the constants above
-// name.
+// their times with them, the page folded whole of every line by the day's
+// end. Its turns, agents, sums and all else alike, its times as lists, its
+// points' points and shares; and each day's part exactly what its fold
+// added: the turns it took a request into, or began, the agents first seen,
+// and its times. Each day's state, part and times are exactly those of the
+// fold restoring every time of its chain. A fold is refused only as its
+// points can't take a day's answers in, as takesSince has it, and folds
+// whole again then, its part whole. Of generated worlds, meeting the hard
+// moments the constants above name.
 func TestAPageFoldedDayByDayThroughItsStatesAndPartsIsThePageFoldedWhole(t *testing.T) {
 	met := make(map[string]bool)
 	for _, w := range pageWorlds {
@@ -131,13 +132,15 @@ func TestAPageFoldedDayByDayThroughItsStatesAndPartsIsThePageFoldedWhole(t *test
 
 // pageChain is a generated session's page as a day's digests keep it,
 // folded day by day: named by its world and seed; the session's lines; every
-// account's answers, by the date of the day whose files hold them, as
-// answeredOf has each of the page of s; the state the last day folded kept,
-// none before the first; and the hard moments the chains met.
+// account's answers, by the date of the day whose files hold them, as a
+// read of them takes them, and as answeredOf has each of the page of s; the
+// state the last day folded kept, none before the first; and the hard
+// moments the chains met.
 type pageChain struct {
 	t       *testing.T
 	name    string
 	lines   []ledger.Line
+	taken   takenAnswers
 	answers map[string][]answered
 	kept    *keptPage
 	met     map[string]bool
@@ -145,23 +148,21 @@ type pageChain struct {
 
 // keptPage is a session's state as a day's digest keeps it: its day; its
 // state, as given, and as its bytes read back; and the parts of its page's
-// chain, oldest first, from one folded on none through the day's own.
+// chain, oldest first, from one folded on none through the day's own, each
+// with its times.
 type keptPage struct {
 	day    LedgerDay
 	state  json.RawMessage
 	stored storedSession
-	parts  []json.RawMessage
+	parts  []ledger.SessionPart
 }
 
 // newPageChain is the page of s of lines, named as given, folded on no day
 // yet, noting the moments it meets in met.
 func newPageChain(t *testing.T, name string, lines []ledger.Line, met map[string]bool) *pageChain {
-	byDate := make(map[string][]ledger.Line)
-	for _, l := range lines {
-		byDate[dayfile.DateOf(l.At)] = append(byDate[dayfile.DateOf(l.At)], l)
-	}
+	byDate := linesByDate(lines)
 	own := slices.DeleteFunc(slices.Clone(lines), func(l ledger.Line) bool { return l.Session != "s" })
-	return &pageChain{t: t, name: name, lines: own, answers: answersOf(byDate, "s"), met: met}
+	return &pageChain{t: t, name: name, lines: own, taken: answersTaken(byDate), answers: answersOf(byDate, "s"), met: met}
 }
 
 // days are the days a line of the session's names it on, as a day's summary
@@ -190,19 +191,19 @@ func (c *pageChain) fold(day LedgerDay) {
 	held, base := c.foldedOn(day, pageToFold)
 	f := c.folded(day, held, base)
 	wholeHeld, wholeBase := c.foldedOn(day, pageWhole)
-	if whole := c.folded(day, wholeHeld, wholeBase); !bytes.Equal(f.State, whole.State) || !bytes.Equal(f.Part, whole.Part) {
-		c.t.Errorf("%s, folded at the end of %s, its page read to fold, keeps\n%s\n%s\nwant, as its page read whole\n%s\n%s",
-			c.name, day.Date, f.State, f.Part, whole.State, whole.Part)
+	if whole := c.folded(day, wholeHeld, wholeBase); !bytes.Equal(f.State, whole.State) || !bytes.Equal(f.Part, whole.Part) || !bytes.Equal(f.Times, whole.Times) {
+		c.t.Errorf("%s, folded at the end of %s, its page read to fold, keeps\n%s\n%s\n%s\nwant, as its page read whole\n%s\n%s\n%s",
+			c.name, day.Date, f.State, f.Part, f.Times, whole.State, whole.Part, whole.Times)
 	}
 	var st storedSession
 	if err := json.Unmarshal(f.State, &st); err != nil {
 		c.t.Fatalf("%s, folded at the end of %s, reading back %s: %v", c.name, day.Date, f.State, err)
 	}
-	parts := []json.RawMessage{f.Part}
+	parts := []ledger.SessionPart{{Date: day.Date, Part: f.Part, Times: f.Times}}
 	if base != nil {
-		parts = append(slices.Clone(c.kept.parts), f.Part)
+		parts = append(slices.Clone(c.kept.parts), parts...)
 	}
-	c.partExactly(day, held.page, base, f.Part)
+	c.partExactly(day, held.page, base, f)
 	c.note(day, held.page, base, parts)
 	c.kept = &keptPage{day: day, state: f.State, stored: st, parts: parts}
 	c.check(day)
@@ -221,23 +222,23 @@ func (c *pageChain) folded(day LedgerDay, held *heldSession, base *pageTally) le
 
 // foldedOn is the session folded at the end of the day given, as heldResting
 // holds it, its page read as given, and the tally its page was folded on:
-// resting on the state kept last, with its chain of parts, its points of
-// every account's answers of each day through the day given, its lines
-// since; or, where none is kept yet, on none, its lines every one that
-// arrived by the day's end. Where it's refused resting on the state kept
-// last, it's so only as its points can't take the answers since in, as
-// takesSince has it: then it's folded whole, on no tally.
+// resting on the state kept last, with its chain of parts, as from gives it
+// for page, its points of every account's answers taken of each day through
+// the day given, its lines since; or, where none is kept yet, on none, its
+// lines every one that arrived by the day's end. Where it's refused resting
+// on the state kept last, it's so only as its points can't take the answers
+// since in, as takesSince has it: then it's folded whole, on no tally.
 func (c *pageChain) foldedOn(day LedgerDay, page pageRead) (*heldSession, *pageTally) {
 	c.t.Helper()
-	from, answers := c.from(day), datesThrough(c.answers, day.Date)
-	held, base, err := heldResting(from, answers, ledger.Pricing, day, endOfDay(day), page)
+	from, answers := c.from(day, page), datesThrough(c.taken, day.Date)
+	held, base, err := heldResting("s", from, answers, ledger.Pricing, day, endOfDay(day), page)
 	if err == nil {
 		return held, base
 	}
 	if c.kept == nil {
 		c.t.Fatalf("%s, folded whole at the end of %s: %v", c.name, day.Date, err)
 	}
-	if takes, restoring := takesSince(from, answers, day); takes || restoring != nil {
+	if takes, restoring := takesSince("s", from, answers, day); takes || restoring != nil {
 		c.t.Fatalf("%s, folded at the end of %s on the state of %s, refused: %v; its points take the answers since %t, restored with error %v; "+
 			"want it refused only as they can't", c.name, day.Date, c.kept.day.Date, err, takes, restoring)
 	}
@@ -246,16 +247,20 @@ func (c *pageChain) foldedOn(day LedgerDay, page pageRead) (*heldSession, *pageT
 }
 
 // from is the session as of the start of the day after the one given, as
-// the ledger hands it a day's builder: resting on the state kept last, with
-// its chain of parts, its lines those since; else on none, its lines every
-// one that arrived by the day's end.
-func (c *pageChain) from(day LedgerDay) ledger.SessionFrom {
+// the ledger hands it one who reads its page as page says: resting on the
+// state kept last, with its chain of parts, their times among it only where
+// page reads its page whole, as the ledger hands a day's builder none of
+// them, its lines those since; else on none, its lines every one that
+// arrived by the day's end.
+func (c *pageChain) from(day LedgerDay, page pageRead) ledger.SessionFrom {
 	if c.kept == nil {
 		return ledger.SessionFrom{Lines: arrivedBefore(c.lines, endOfDay(day).time())}
 	}
-	parts := make([]ledger.SessionPart, len(c.kept.parts))
-	for i, part := range c.kept.parts {
-		parts[i] = ledger.SessionPart{Part: part}
+	parts := slices.Clone(c.kept.parts)
+	if page != pageWhole {
+		for i := range parts {
+			parts[i].Times = nil
+		}
 	}
 	return ledger.SessionFrom{Base: baseOf(c.kept.day.Date, c.kept.state), Parts: parts, Lines: c.since(day)}
 }
@@ -290,13 +295,13 @@ func (c *pageChain) check(day LedgerDay) {
 	}
 }
 
-// partExactly holds data, the part of the day's fold of after on base, to
-// what the fold added: every turn after holds that base doesn't, or holds
-// otherwise, by its index, and no other; each agent after knows that base
-// doesn't; and the times after holds beyond base's, as many.
-func (c *pageChain) partExactly(day LedgerDay, after, base *pageTally, data json.RawMessage) {
+// partExactly holds f's part and its times, those of the day's fold of after
+// on base, to what the fold added: every turn after holds that base doesn't,
+// or holds otherwise, by its index, and no other; each agent after knows
+// that base doesn't; and the times after holds beyond base's, as many.
+func (c *pageChain) partExactly(day LedgerDay, after, base *pageTally, f ledger.Folded) {
 	c.t.Helper()
-	part := partRead(c.t, data)
+	part, sent := partRead(c.t, f.Part), timesRead(c.t, f.Times)
 	if base == nil {
 		base = newPageTally()
 	}
@@ -311,16 +316,16 @@ func (c *pageChain) partExactly(day LedgerDay, after, base *pageTally, data json
 	}
 	agents := maps.Clone(after.agents)
 	maps.DeleteFunc(agents, func(agent, _ string) bool { _, known := base.agents[agent]; return known })
-	times, err := part.Times.times()
+	times, err := sent.times()
 	if !slices.Equal(got, want) || !maps.Equal(part.Agents, agents) || err != nil || len(times) != after.upstream.len()-base.upstream.len() {
-		c.t.Errorf("%s, folded at the end of %s, has the part %s, %v; want the turns %v, the agents %v, %d times",
-			c.name, day.Date, data, err, want, agents, after.upstream.len()-base.upstream.len())
+		c.t.Errorf("%s, folded at the end of %s, has the part %s, its times %s, %v; want the turns %v, the agents %v, %d times",
+			c.name, day.Date, f.Part, f.Times, err, want, agents, after.upstream.len()-base.upstream.len())
 	}
 }
 
 // note notes the hard moments the fold of the day given meets, of after on
 // base, its chain of parts as given.
-func (c *pageChain) note(day LedgerDay, after, base *pageTally, parts []json.RawMessage) {
+func (c *pageChain) note(day LedgerDay, after, base *pageTally, parts []ledger.SessionPart) {
 	end := endOfDay(day).time()
 	c.met[pageFlightAcross] = c.met[pageFlightAcross] || slices.ContainsFunc(c.lines, func(l ledger.Line) bool { return l.At.Before(end) && !ended(&l).Before(end) })
 	c.met[pageIdle] = c.met[pageIdle] || len(after.folds) > 0
@@ -329,7 +334,8 @@ func (c *pageChain) note(day LedgerDay, after, base *pageTally, parts []json.Raw
 		return
 	}
 	c.met[pageGap] = c.met[pageGap] || c.kept.day.Date < yesterdayOf(day)
-	part := partRead(c.t, parts[len(parts)-1])
+	last := parts[len(parts)-1]
+	part := partRead(c.t, last.Part)
 	c.met[pageTurnAcross] = c.met[pageTurnAcross] || slices.ContainsFunc(part.Turns, func(t storedTurn) bool { return t.Index < len(base.turns) })
 	for _, l := range c.since(day) {
 		_, known := base.agents[l.AgentID]
@@ -338,7 +344,7 @@ func (c *pageChain) note(day LedgerDay, after, base *pageTally, parts []json.Raw
 			return f.request == l.Request && f.at != instantOf(l.At) && f.inFlightAt(l.At)
 		})
 	}
-	if len(part.Times.Far) > 0 && slices.ContainsFunc(parts[:len(parts)-1], func(p json.RawMessage) bool { return len(partRead(c.t, p).Times.Nanos) > 0 }) {
+	if len(timesRead(c.t, last.Times).Far) > 0 && slices.ContainsFunc(parts[:len(parts)-1], func(p ledger.SessionPart) bool { return len(timesRead(c.t, p.Times).Nanos) > 0 }) {
 		c.met[pageFarAfter] = true
 	}
 }
@@ -351,6 +357,16 @@ func partRead(t *testing.T, data json.RawMessage) storedPart {
 		t.Fatalf("reading back the part %s: %v", data, err)
 	}
 	return part
+}
+
+// timesRead are the times of a part data puts, read back.
+func timesRead(t *testing.T, data json.RawMessage) storedTimes {
+	t.Helper()
+	var times storedTimes
+	if err := json.Unmarshal(data, &times); err != nil {
+		t.Fatalf("reading back the times %s: %v", data, err)
+	}
+	return times
 }
 
 // samePage reports whether two pages' tallies hold the same, as a page is
@@ -384,12 +400,14 @@ func pageSaid(p *pageTally) string {
 	if p == nil {
 		return "none"
 	}
+	part, times := p.partOver(nil)
 	said, err := json.Marshal(struct {
 		Carried storedPage
 		Part    storedPart
+		Times   storedTimes
 		Points  map[string]map[string]int
 		Shares  map[string]map[string]float64
-	}{p.carried(), p.partOver(nil), p.points.worked(), p.points.taken()})
+	}{p.carried(), part, times, p.points.worked(), p.points.taken()})
 	if err != nil {
 		return err.Error()
 	}
@@ -444,10 +462,10 @@ func pinnedPage() *pageTally {
 // has, and its times in UTC; what its account and its totals spent in
 // ledger.Spent's own stored form, never a worth; and its points in their
 // own stored form. Its part, folded on none, is all its turns, by their
-// indices, a request's end not yet come left out, its agents, and its times
-// as nanoseconds, each after the first as how many after the one before:
-// its turns first and its times last. Restored, they're the tally, owning
-// nothing a copy of it shares, as told leaves one.
+// indices, a request's end not yet come left out, and its agents; and the
+// part's times, apart from it, are its times as nanoseconds, each after the
+// first as how many after the one before. Restored, they're the tally,
+// owning nothing a copy of it shares, as told leaves one.
 func TestAPagesCarriedStateAndPartAreAllItHoldsByShortKeys(t *testing.T) {
 	p := pinnedPage()
 	carried, err := json.Marshal(p.carried())
@@ -461,21 +479,39 @@ func TestAPagesCarriedStateAndPartAreAllItHoldsByShortKeys(t *testing.T) {
 	if err != nil || string(carried) != want {
 		t.Errorf("carried as\n%s, %v, want\n%s", carried, err, want)
 	}
-	part, err := json.Marshal(p.partOver(nil))
+	part, times := put(t, p, nil)
 	want = `{"t":[{"p":"p1","s":{"s":1791374400},"l":{"e":{"s":1791374460},"l":true,"s":"tool_use"},"lm":{"e":{"s":1791374460},"l":true,"s":"tool_use"},` +
 		`"r":2,"tl":{"Read":2},"rd":90000,"w":2000,"o":300,"sp":` + spent + `,"a":["work"],"ma":["work"]},` +
-		`{"i":1,"p":"p2","s":{"s":1791378600},"l":{"e":{"s":1791378660}},"lm":{},"r":2,"pn":true,"mp":true}],"a":{"a1":"p2"},` +
-		`"s":{"n":[1791374400000000000,1500000000,4198500000000]}}`
-	if err != nil || string(part) != want {
-		t.Errorf("its part, folded on none, put as\n%s, %v, want\n%s", part, err, want)
+		`{"i":1,"p":"p2","s":{"s":1791378600},"l":{"e":{"s":1791378660}},"lm":{},"r":2,"pn":true,"mp":true}],"a":{"a1":"p2"}}`
+	if string(part) != want {
+		t.Errorf("its part, folded on none, put as\n%s, want\n%s", part, want)
 	}
-	restored, err := (&storedSession{Date: "2026-10-07", Page: carried}).pageOf([]json.RawMessage{part}, true)
+	if want := `{"n":[1791374400000000000,1500000000,4198500000000]}`; string(times) != want {
+		t.Errorf("its part's times put as\n%s, want\n%s", times, want)
+	}
+	restored, err := (&storedSession{Date: "2026-10-07", Page: carried}).pageOf([]ledger.SessionPart{{Part: part, Times: times}}, true)
 	if err != nil {
 		t.Fatalf("restored with error %v", err)
 	}
 	if !samePage(restored, p) || restored.own != nil || restored.ownMaps {
 		t.Errorf("restored as\n%s, owning %v, its maps %t; want\n%s, owning nothing", pageSaid(restored), restored.own, restored.ownMaps, pageSaid(p))
 	}
+}
+
+// put is the part of p's fold on base, and its times, as partOver gives
+// them, each put as JSON.
+func put(t *testing.T, p, base *pageTally) (json.RawMessage, json.RawMessage) {
+	t.Helper()
+	part, times := p.partOver(base)
+	putPart, err := json.Marshal(part)
+	if err != nil {
+		t.Fatal(err)
+	}
+	putTimes, err := json.Marshal(times)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return putPart, putTimes
 }
 
 // A page's part over the tally its fold rested on is what the fold added:
@@ -494,21 +530,21 @@ func TestAPagesPartIsWhatItsFoldAddedToTheTallyItRestedOn(t *testing.T) {
 	after.prompts = map[string]int{"p1": 0, "p2": 1, "p3": 2}
 	after.agents = map[string]string{"a1": "p2", "a2": "p3"}
 	after.upstream = base.upstream.with([]time.Time{at, at.Add(2 * time.Second)})
-	part, err := json.Marshal(after.partOver(base))
+	part, times := put(t, &after, base)
 	want := `{"t":[{"i":1,"p":"p2","s":{"s":1791378600},"l":{"e":{"s":1791378660}},"lm":{},"r":3,"pn":true,"mp":true},{"i":2,"p":"p3","s":{"s":1791450000}}],` +
-		`"a":{"a2":"p3"},"s":{"n":[1791450000000000000,2000000000]}}`
-	if err != nil || string(part) != want {
-		t.Errorf("its part over its base put as\n%s, %v, want\n%s", part, err, want)
+		`"a":{"a2":"p3"}}`
+	if string(part) != want {
+		t.Errorf("its part over its base put as\n%s, want\n%s", part, want)
+	}
+	if want := `{"n":[1791450000000000000,2000000000]}`; string(times) != want {
+		t.Errorf("its part's times over its base put as\n%s, want\n%s", times, want)
 	}
 	carried, err := json.Marshal(after.carried())
 	if err != nil {
 		t.Fatal(err)
 	}
-	root, err := json.Marshal(base.partOver(nil))
-	if err != nil {
-		t.Fatal(err)
-	}
-	restored, err := (&storedSession{Date: "2026-10-08", Page: carried}).pageOf([]json.RawMessage{root, part}, true)
+	root, rootTimes := put(t, base, nil)
+	restored, err := (&storedSession{Date: "2026-10-08", Page: carried}).pageOf([]ledger.SessionPart{{Part: root, Times: rootTimes}, {Part: part, Times: times}}, true)
 	if err != nil || !samePage(restored, &after) {
 		t.Errorf("laid over its base's part, restored with error %v as\n%s\nwant\n%s", err, pageSaid(restored), pageSaid(&after))
 	}
@@ -542,20 +578,16 @@ func TestAPagesPartIsPutAlikeOverAPageRestoredToFold(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			root, err := json.Marshal(base.partOver(nil))
-			if err != nil {
-				t.Fatal(err)
-			}
+			root, rootTimes := put(t, base, nil)
 			restored := make(map[bool]*pageTally)
 			for _, times := range []bool{true, false} {
-				if restored[times], err = (&storedSession{Date: "2026-10-07", Page: carried}).pageOf([]json.RawMessage{root}, times); err != nil {
+				if restored[times], err = (&storedSession{Date: "2026-10-07", Page: carried}).pageOf([]ledger.SessionPart{{Part: root, Times: rootTimes}}, times); err != nil {
 					t.Fatalf("restored with every time %t, with error %v", times, err)
 				}
 				after := *restored[times]
 				after.upstream = after.upstream.with(tt.more)
-				got, err := json.Marshal(after.partOver(restored[times]).Times)
-				if err != nil || string(got) != tt.want {
-					t.Errorf("over the page restored with every time %t, its part's times put as %s, %v; want %s", times, got, err, tt.want)
+				if _, got := put(t, &after, restored[times]); string(got) != tt.want {
+					t.Errorf("over the page restored with every time %t, its part's times put as %s; want %s", times, got, tt.want)
 				}
 			}
 			whole, folding := *restored[true], *restored[false]
@@ -593,7 +625,7 @@ func TestAPagesZeroTimesAreLeftOutAndTheEpochKept(t *testing.T) {
 			if err != nil || string(carried) != tt.want {
 				t.Errorf("carried as %s, %v, want %s", carried, err, tt.want)
 			}
-			restored, err := (&storedSession{Date: "2026-10-07", Page: carried}).pageOf([]json.RawMessage{json.RawMessage(`{}`)}, true)
+			restored, err := (&storedSession{Date: "2026-10-07", Page: carried}).pageOf([]ledger.SessionPart{{Part: json.RawMessage(`{}`)}}, true)
 			if err != nil || !samePage(restored, tt.page) {
 				t.Errorf("restored with error %v as\n%s\nwant\n%s", err, pageSaid(restored), pageSaid(tt.page))
 			}
@@ -603,23 +635,25 @@ func TestAPagesZeroTimesAreLeftOutAndTheEpochKept(t *testing.T) {
 
 // A page's chain of parts is laid over what its state carries oldest first:
 // a turn as the newest part holding it has it, every agent any part first
-// saw, and every part's times one after another. It's refused, for the page
-// to be read whole, where the state carries no page, or its page or a part
-// isn't one; it counts more turns than its parts hold, or fewer than none,
-// however many, before room is made for them, or fewer times than none; a
-// part holds a turn beyond those the state counts, or leaves one below in
-// none; two turns serve one prompt; its parts give other than as many
-// agents or times as it counts, as a chain without its whole part at its
-// root does; a part's times aren't any, or are both nanoseconds and
-// instants; or its points won't restore. Restored to fold, as pageToFold
-// reads it, it's all the same but its times, as many as the state counts and
-// none held, its parts' never read: it's refused alike, but for its times
-// alone.
+// saw, and every part's times one after another, none of a part of none.
+// It's refused, for the page to be read whole, where the state carries no
+// page, or its page or a part isn't one; it counts more turns than its parts
+// hold, or fewer than none, however many, before room is made for them, or
+// fewer times than none; a part holds a turn beyond those the state counts,
+// or leaves one below in none; two turns serve one prompt; its parts give
+// other than as many agents or times as it counts, as a chain without its
+// whole part at its root does; a part's times aren't JSON, or aren't any,
+// or are both nanoseconds and instants; or its points won't restore.
+// Restored to fold, as pageToFold reads it, it's all the same but its
+// times, as many as the state counts and none held, its parts' never read:
+// it's refused alike, but for its times alone.
 func TestAPagesChainOfPartsIsLaidOverWhatItsStateCarries(t *testing.T) {
+	// none is a part holding nothing, of no times.
+	none := []chainPart{{part: `{}`}}
 	tests := []struct {
 		name       string
 		page       string
-		parts      []string
+		parts      []chainPart
 		turns      []int
 		agents     []string
 		times      []int64
@@ -628,34 +662,43 @@ func TestAPagesChainOfPartsIsLaidOverWhatItsStateCarries(t *testing.T) {
 	}{
 		{
 			name: "a turn as its newest part has it", page: `{"tn":2}`,
-			parts: []string{`{"t":[{"p":"p1","r":1},{"i":1,"p":"p2","r":1}]}`, `{"t":[{"p":"p1","r":3}]}`}, turns: []int{3, 1},
+			parts: []chainPart{{part: `{"t":[{"p":"p1","r":1},{"i":1,"p":"p2","r":1}]}`}, {part: `{"t":[{"p":"p1","r":3}]}`}}, turns: []int{3, 1},
 		},
-		{name: "every agent first seen", page: `{"ag":2}`, parts: []string{`{"a":{"a1":"p1"}}`, `{}`, `{"a":{"a2":"p1"}}`}, agents: []string{"a1", "a2"}},
 		{
-			name: "every part's times in turn", page: `{"tm":4}`, parts: []string{`{"s":{"n":[1000,5]}}`, `{"s":{"n":[2000]}}`, `{"s":{"f":[{"n":3000}]}}`},
+			name: "every agent first seen", page: `{"ag":2}`, parts: []chainPart{{part: `{"a":{"a1":"p1"}}`}, {part: `{}`}, {part: `{"a":{"a2":"p1"}}`}},
+			agents: []string{"a1", "a2"},
+		},
+		{
+			name: "every part's times in turn", page: `{"tm":4}`,
+			parts: []chainPart{{part: `{}`, times: `{"n":[1000,5]}`}, {part: `{}`}, {part: `{}`, times: `{"n":[2000]}`}, {part: `{}`, times: `{"f":[{"n":3000}]}`}},
 			times: []int64{1000, 1005, 2000, 3000},
 		},
-		{name: "no page", parts: []string{`{}`}, refused: true},
-		{name: "a page that isn't one", page: `{"tn":"two"}`, parts: []string{`{}`}, refused: true},
-		{name: "a part that isn't one", page: `{}`, parts: []string{`{"t":{}}`}, refused: true},
-		{name: "more turns than any room", page: `{"tn":9000000000000000000}`, parts: []string{`{}`}, refused: true},
-		{name: "more turns than its parts hold", page: `{"tn":2}`, parts: []string{`{"t":[{"p":"p1"}]}`}, refused: true},
-		{name: "fewer turns than none", page: `{"tn":-1}`, parts: []string{`{}`}, refused: true},
-		{name: "a turn below the count in no part", page: `{"tn":2}`, parts: []string{`{"t":[{"p":"p1"}]}`, `{"t":[{"p":"p1"}]}`}, refused: true},
-		{name: "a turn beyond the count", page: `{"tn":1}`, parts: []string{`{"t":[{"p":"p1"},{"i":1,"p":"p2"}]}`}, refused: true},
-		{name: "more agents than its parts give", page: `{"ag":2}`, parts: []string{`{"a":{"a1":"p1"}}`}, refused: true},
-		{name: "fewer agents than its parts give", page: `{"ag":1}`, parts: []string{`{"a":{"a1":"p1"}}`, `{"a":{"a2":"p1"}}`}, refused: true},
-		{name: "more times than its parts give", page: `{"tm":3}`, parts: []string{`{"s":{"n":[1000,5]}}`}, refused: true, timesAlone: true},
-		{name: "fewer times than none", page: `{"tm":-1}`, parts: []string{`{}`}, refused: true},
-		{name: "times that aren't any", page: `{"tm":1}`, parts: []string{`{"s":{"n":["now"]}}`}, refused: true, timesAlone: true},
+		{name: "no page", parts: none, refused: true},
+		{name: "a page that isn't one", page: `{"tn":"two"}`, parts: none, refused: true},
+		{name: "a part that isn't one", page: `{}`, parts: []chainPart{{part: `{"t":{}}`}}, refused: true},
+		{name: "more turns than any room", page: `{"tn":9000000000000000000}`, parts: none, refused: true},
+		{name: "more turns than its parts hold", page: `{"tn":2}`, parts: []chainPart{{part: `{"t":[{"p":"p1"}]}`}}, refused: true},
+		{name: "fewer turns than none", page: `{"tn":-1}`, parts: none, refused: true},
+		{name: "a turn below the count in no part", page: `{"tn":2}`, parts: []chainPart{{part: `{"t":[{"p":"p1"}]}`}, {part: `{"t":[{"p":"p1"}]}`}}, refused: true},
+		{name: "a turn beyond the count", page: `{"tn":1}`, parts: []chainPart{{part: `{"t":[{"p":"p1"},{"i":1,"p":"p2"}]}`}}, refused: true},
+		{name: "more agents than its parts give", page: `{"ag":2}`, parts: []chainPart{{part: `{"a":{"a1":"p1"}}`}}, refused: true},
+		{name: "fewer agents than its parts give", page: `{"ag":1}`, parts: []chainPart{{part: `{"a":{"a1":"p1"}}`}, {part: `{"a":{"a2":"p1"}}`}}, refused: true},
+		{name: "more times than its parts give", page: `{"tm":3}`, parts: []chainPart{{part: `{}`, times: `{"n":[1000,5]}`}}, refused: true, timesAlone: true},
+		{name: "times of a part of none", page: `{"tm":1}`, parts: none, refused: true, timesAlone: true},
+		{name: "fewer times than none", page: `{"tm":-1}`, parts: none, refused: true},
+		{name: "times that aren't JSON", page: `{"tm":1}`, parts: []chainPart{{part: `{}`, times: `{"n":[1000`}}, refused: true, timesAlone: true},
+		{name: "times that aren't any", page: `{"tm":1}`, parts: []chainPart{{part: `{}`, times: `{"n":["now"]}`}}, refused: true, timesAlone: true},
 		{
 			name: "a chain without its whole part, a later one holding every turn", page: `{"tn":1,"ag":1,"tm":3}`,
-			parts: []string{`{"t":[{"p":"p1","r":2}],"s":{"n":[2000]}}`}, refused: true,
+			parts: []chainPart{{part: `{"t":[{"p":"p1","r":2}]}`, times: `{"n":[2000]}`}}, refused: true,
 		},
-		{name: "a turn before the first", page: `{"tn":1}`, parts: []string{`{"t":[{"i":-1,"p":"p1"}]}`}, refused: true},
-		{name: "two turns serving one prompt", page: `{"tn":2}`, parts: []string{`{"t":[{"p":"p1"},{"i":1,"p":"p1"}]}`}, refused: true},
-		{name: "times as nanoseconds and instants at once", page: `{}`, parts: []string{`{"s":{"n":[1000],"f":[{"n":2000}]}}`}, refused: true, timesAlone: true},
-		{name: "points whose days aren't dates", page: `{"pt":{"d":["7 October"]}}`, parts: []string{`{}`}, refused: true},
+		{name: "a turn before the first", page: `{"tn":1}`, parts: []chainPart{{part: `{"t":[{"i":-1,"p":"p1"}]}`}}, refused: true},
+		{name: "two turns serving one prompt", page: `{"tn":2}`, parts: []chainPart{{part: `{"t":[{"p":"p1"},{"i":1,"p":"p1"}]}`}}, refused: true},
+		{
+			name: "times as nanoseconds and instants at once", page: `{}`, parts: []chainPart{{part: `{}`, times: `{"n":[1000],"f":[{"n":2000}]}`}},
+			refused: true, timesAlone: true,
+		},
+		{name: "points whose days aren't dates", page: `{"pt":{"d":["7 October"]}}`, parts: none, refused: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -663,9 +706,12 @@ func TestAPagesChainOfPartsIsLaidOverWhatItsStateCarries(t *testing.T) {
 			if tt.page != "" {
 				st.Page = json.RawMessage(tt.page)
 			}
-			var parts []json.RawMessage
-			for _, part := range tt.parts {
-				parts = append(parts, json.RawMessage(part))
+			parts := make([]ledger.SessionPart, len(tt.parts))
+			for i, p := range tt.parts {
+				parts[i].Part = json.RawMessage(p.part)
+				if p.times != "" {
+					parts[i].Times = json.RawMessage(p.times)
+				}
 			}
 			for _, times := range []bool{true, false} {
 				p, err := st.pageOf(parts, times)
@@ -695,6 +741,12 @@ func TestAPagesChainOfPartsIsLaidOverWhatItsStateCarries(t *testing.T) {
 	}
 }
 
+// chainPart is a part of a page's chain as a test gives it: its JSON, and
+// its times', "" for none.
+type chainPart struct {
+	part, times string
+}
+
 // checkTimes checks u holds the times given, as nanoseconds since the epoch,
 // oldest first.
 func checkTimes(t *testing.T, u upstreamTimes, want []int64) {
@@ -717,8 +769,8 @@ func TestASessionsPageJSONCantCarryIsLeftOutOfItsState(t *testing.T) {
 	held := readOf(arrivedBefore(generatedSession(2), end), nil, ledger.Pricing, day, instantOf(end), true)
 	held.page = held.page.pointed(&pointing{done: map[string]map[string]float64{"work": {"5h": math.NaN()}}})
 	f, err := held.folded(nil)
-	if err != nil || f.Part != nil {
-		t.Fatalf("folded with error %v, the part %s; want it folded, no part", err, f.Part)
+	if err != nil || f.Part != nil || f.Times != nil {
+		t.Fatalf("folded with error %v, the part %s, its times %s; want it folded, no part", err, f.Part, f.Times)
 	}
 	var st storedSession
 	if err := json.Unmarshal(f.State, &st); err != nil || st.Page != nil || st.Counts[day.Date] == 0 {
@@ -746,7 +798,7 @@ func TestASessionsStateRestoredForItsStoryNeverReadsItsPage(t *testing.T) {
 	if _, err := st.restored(ledger.Pricing, Today(end)); err != nil {
 		t.Errorf("restored with error %v, want it restored", err)
 	}
-	if _, err := st.restoredPaged(ledger.Pricing, Today(end), []json.RawMessage{json.RawMessage(`{}`)}, true); err == nil {
+	if _, err := st.restoredPaged(ledger.Pricing, Today(end), []ledger.SessionPart{{Part: json.RawMessage(`{}`)}}, true); err == nil {
 		t.Error("restored paged, want it refused")
 	}
 }

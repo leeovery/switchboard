@@ -2,6 +2,7 @@ package ledger
 
 import (
 	"encoding/json"
+	"fmt"
 	"maps"
 	"slices"
 	"time"
@@ -28,20 +29,32 @@ func WriteDigest(dir string, digest Digest) error {
 	return atomicfile.Write(digestFile(dir, digest.Head.Day), data, 0o600)
 }
 
-// WriteParts writes the parts given, by their sessions' ids, as the ledger in
-// dir holds the parts file of the local day with the given date, as a build
-// writes it before its digest, the digest left as it is, for tests of a
-// build that stopped between the two.
+// WriteParts writes the parts given, by their sessions' ids, of no times, as
+// the ledger in dir holds the parts file of the local day with the given
+// date, as a build writes it before its digest, the digest left as it is,
+// for tests of a build that stopped between the two.
 func WriteParts(dir, date string, parts map[string]json.RawMessage) error {
-	built := make(map[string]builtPart, len(parts))
-	for id, part := range parts {
-		built[id] = builtPart{data: part}
-	}
-	file, _, err := partsFileOf(built)
+	built, err := builtParts(parts, nil)
 	if err != nil {
 		return err
 	}
+	file, _ := partsFileOf(built)
 	return days{files: filesIn(dir, nil)}.writeParts(date, file)
+}
+
+// builtParts returns parts, by their sessions' ids, each as builtPartOf
+// builds it of no times, folded on the state of the date on gives it, ""
+// for none.
+func builtParts(parts map[string]json.RawMessage, on map[string]string) (map[string]builtPart, error) {
+	built := make(map[string]builtPart, len(parts))
+	for id, part := range parts {
+		b, err := builtPartOf(on[id], part, nil)
+		if err != nil {
+			return nil, err
+		}
+		built[id] = b
+	}
+	return built, nil
 }
 
 // ReadDigest returns the digest the ledger in dir holds of the local day with
@@ -52,10 +65,21 @@ func ReadDigest(dir, date string, body int) (Digest, error) {
 }
 
 // ReadPart returns the part of a session ref points at in the parts file the
-// ledger in dir holds of the local day with the given date, as readPart
+// ledger in dir holds of the local day with the given date, as readMember
 // reads it, for tests of what's written.
 func ReadPart(dir, date string, ref PartRef) (json.RawMessage, error) {
-	return days{files: filesIn(dir, nil)}.readPart(date, ref)
+	return days{files: filesIn(dir, nil)}.readMember(date, ref.Member)
+}
+
+// ReadTimes returns the times of the part of a session ref points at in the
+// parts file the ledger in dir holds of the local day with the given date,
+// as readMember reads them, for tests of what's written: failing where ref
+// points at none.
+func ReadTimes(dir, date string, ref PartRef) (json.RawMessage, error) {
+	if ref.Times == nil {
+		return nil, fmt.Errorf("the part of %s at %+v has no times", date, ref.Member)
+	}
+	return days{files: filesIn(dir, nil)}.readMember(date, *ref.Times)
 }
 
 // SessionsAsOf returns the sessions with the given ids as of the start of
@@ -100,14 +124,14 @@ func (l *Ledger) SessionsAsOf(ids []string, date string, now time.Time, rest fun
 }
 
 // WriteDigestWithParts writes digest as the router's writer writes it, with
-// the parts of its sessions given, by their ids, each folded on the state
-// of the date on gives it, "" for none, as the day's parts file, its
-// entries pointing at them, for tests of what reads them. It returns the
+// the parts of its sessions given, by their ids, each of no times, folded on
+// the state of the date on gives it, "" for none, as the day's parts file,
+// its entries pointing at them, for tests of what reads them. It returns the
 // digest as written.
 func WriteDigestWithParts(dir string, digest Digest, parts map[string]json.RawMessage, on map[string]string) (Digest, error) {
-	built := make(map[string]builtPart, len(parts))
-	for id, part := range parts {
-		built[id] = builtPart{on: on[id], data: part}
+	built, err := builtParts(parts, on)
+	if err != nil {
+		return Digest{}, err
 	}
 	return days{files: filesIn(dir, nil)}.writeDigest(digest, built)
 }

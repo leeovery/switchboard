@@ -41,7 +41,7 @@ var digestsOwners = []string{"ledger", "views"}
 // a name that's gone passes whatever names it.
 var sessionsAsOf = []string{
 	"ledger.SessionBase", "ledger.SessionFrom", "ledger.SessionPart", "ledger.SessionsWhole",
-	"ledger.Rest", "ledger.RestOnPage", "ledger.RestOnState", "ledger.RestWhole",
+	"ledger.Rest", "ledger.RestOnPage", "ledger.RestOnState", "ledger.RestToFold", "ledger.RestWhole",
 }
 
 // The fix each kind of breach gives.

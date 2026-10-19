@@ -170,17 +170,18 @@ type digestChain struct {
 
 // recordedDigests are the views' Digests, each day handed a builder of them
 // recorded, by its date: as last handed; the states and parts they gave of
-// it, by session, each with the base it was folded on, nil for none; the
-// sessions handed that they gave none of, as refusal has each; and how many
-// times a builder was handed one. What they give of a day is changed as
-// alter changes it, where it's set, before it's recorded; but of the day
-// with the date spoiled, where it's set, they give spoiledState of each
-// session, recording none.
+// it, and the parts' times, by session, each with the base it was folded on,
+// nil for none; the sessions handed that they gave none of, as refusal has
+// each; and how many times a builder was handed one. What they give of a
+// day is changed as alter changes it, where it's set, before it's recorded;
+// but of the day with the date spoiled, where it's set, they give
+// spoiledState of each session, recording none.
 type recordedDigests struct {
 	Digests
 	handed  map[string]ledger.DigestDay
 	states  map[string]map[string]json.RawMessage
 	parts   map[string]map[string]json.RawMessage
+	times   map[string]map[string]json.RawMessage
 	bases   map[string]map[string]*ledger.SessionBase
 	refused map[string]map[string]refusal
 	calls   int
@@ -202,7 +203,7 @@ type refusal struct {
 func newRecordedDigests() *recordedDigests {
 	return &recordedDigests{
 		handed: make(map[string]ledger.DigestDay), states: make(map[string]map[string]json.RawMessage), parts: make(map[string]map[string]json.RawMessage),
-		bases: make(map[string]map[string]*ledger.SessionBase), refused: make(map[string]map[string]refusal),
+		times: make(map[string]map[string]json.RawMessage), bases: make(map[string]map[string]*ledger.SessionBase), refused: make(map[string]map[string]refusal),
 	}
 }
 
@@ -247,6 +248,7 @@ func (b recordedDay) Digest(ctx context.Context, day ledger.DigestDay) (map[stri
 			continue
 		}
 		recorded(r.states, day.Date)[id], recorded(r.parts, day.Date)[id], recorded(r.bases, day.Date)[id] = f.State, f.Part, from.Base
+		recorded(r.times, day.Date)[id] = f.Times
 	}
 	return folded, err
 }
@@ -255,10 +257,9 @@ func (b recordedDay) Digest(ctx context.Context, day ledger.DigestDay) (map[stri
 // builder gave none of on day, as refusal has it, of the answers the builder
 // took.
 func (b recordedDay) refusalOf(id string, from ledger.SessionFrom, day ledger.DigestDay) refusal {
-	r := refusal{base: baseDateOf(from)}
+	r := refusal{base: from.BaseDate()}
 	if from.Base != nil {
-		answers := b.DigestBuilder.(*dayDigest).answers.of(id, r.base)
-		r.takes, r.restoring = takesSince(from, answers, LedgerDay{Start: day.Start, Date: day.Date})
+		r.takes, r.restoring = takesSince(id, from, b.DigestBuilder.(*dayDigest).answers, LedgerDay{Start: day.Start, Date: day.Date})
 	}
 	return r
 }
@@ -465,7 +466,7 @@ func (c *digestChain) checkRestored(prices []pricedAs) int {
 			for _, id := range slices.Sorted(maps.Keys(c.digests.states[date])) {
 				base := baseOf(date, c.digests.states[date][id])
 				for _, p := range prices {
-					got, err := heldAsOf(ledger.SessionFrom{Base: base, Lines: c.filed(id, date, on.Date)}, nil, p.read, on, horizon, false)
+					got, err := heldAsOf(id, ledger.SessionFrom{Base: base, Lines: c.filed(id, date, on.Date)}, nil, p.read, on, horizon, false)
 					if err != nil {
 						c.t.Fatalf("%s, session %s, its state of %s held on %s: %v", c.name, id, date, on.Date, err)
 					}
@@ -514,12 +515,12 @@ func (c *digestChain) checkPaged() int {
 // chainOf is the chain of parts of the state the Digests gave of the session
 // with the given id on the day with the given date, oldest first: from the
 // part of a state folded on none, then that of each folded on the one
-// before, as they gave each.
+// before, each with its times, as they gave each.
 func (c *digestChain) chainOf(date, id string) []ledger.SessionPart {
 	var chain []ledger.SessionPart
 	for date != "" {
-		chain = append(chain, ledger.SessionPart{Date: date, Part: c.digests.parts[date][id]})
-		date = baseDateOf(ledger.SessionFrom{Base: c.digests.bases[date][id]})
+		chain = append(chain, ledger.SessionPart{Date: date, Part: c.digests.parts[date][id], Times: c.digests.times[date][id]})
+		date = ledger.SessionFrom{Base: c.digests.bases[date][id]}.BaseDate()
 	}
 	slices.Reverse(chain)
 	return chain
@@ -576,7 +577,7 @@ func (c *digestChain) checkFollowed(now time.Time, prices []pricedAs) {
 			c.followed++
 		}
 		for _, p := range prices {
-			got, err := heldAsOf(from, nil, p.read, day, horizon, false)
+			got, err := heldAsOf(id, from, nil, p.read, day, horizon, false)
 			if err != nil {
 				c.t.Fatalf("%s, session %s, followed at %v: %v", c.name, id, now, err)
 			}
@@ -586,26 +587,27 @@ func (c *digestChain) checkFollowed(now time.Time, prices []pricedAs) {
 		p := prices[0]
 		want := readOf(whole[id].Lines, wholeAnswers.of(id, ""), p.read, day, horizon, true)
 		c.samePaged(id, fmt.Sprintf("session %s followed at %v, resting on its page, %s", id, now, p.name), paged[id],
-			pagedAnswers.of(id, baseDateOf(paged[id])), p.read, day, horizon, want)
+			pagedAnswers, p.read, day, horizon, want)
 	}
 }
 
 // samePaged checks from, the session with the given id resting on its page
 // as what names it says, held paged on the day given behind horizon, as
-// heldAsOf holds it, its points of answers, is want, the session read whole,
-// its page tallied: flights aside, through the day of the state it rests on,
-// as sameHeld has them, and its page as samePage has it. Where it rests on a
-// state, but heldAsOf refuses it, it's refused only as its points can't take
-// the days since in, as takesSince has it, and named among those refused.
-func (c *digestChain) samePaged(id, what string, from ledger.SessionFrom, answers map[string][]answered, prices ledger.Table, day LedgerDay, horizon instant, want *heldSession) {
+// heldAsOf holds it, its points of the answers taken, is want, the session
+// read whole, its page tallied: flights aside, through the day of the state
+// it rests on, as sameHeld has them, and its page as samePage has it. Where
+// it rests on a state, but heldAsOf refuses it, it's refused only as its
+// points can't take the days since in, as takesSince has it, and named
+// among those refused.
+func (c *digestChain) samePaged(id, what string, from ledger.SessionFrom, answers takenAnswers, prices ledger.Table, day LedgerDay, horizon instant, want *heldSession) {
 	c.t.Helper()
-	through := baseDateOf(from)
-	got, err := heldAsOf(from, answers, prices, day, horizon, true)
+	through := from.BaseDate()
+	got, err := heldAsOf(id, from, answers, prices, day, horizon, true)
 	switch {
 	case err != nil && from.Base == nil:
 		c.t.Fatalf("%s, %s, read whole: %v", c.name, what, err)
 	case err != nil:
-		if takes, restoring := takesSince(from, answers, day); takes || restoring != nil {
+		if takes, restoring := takesSince(id, from, answers, day); takes || restoring != nil {
 			c.t.Fatalf("%s, %s, on the state of %s and %d parts, refused: %v; its points take the answers since %t, restored with error %v; "+
 				"want it refused only as they can't", c.name, what, through, len(from.Parts), err, takes, restoring)
 		}
@@ -621,16 +623,17 @@ func (c *digestChain) samePaged(id, what string, from ledger.SessionFrom, answer
 	}
 }
 
-// takesSince reports whether the page from rests on, its state restored
-// onto the day d with every time of its chain, as restoredFrom has it, takes
-// in the answers of each day after its state's, as tookAfter has it; or why
-// it won't restore.
-func takesSince(from ledger.SessionFrom, answers map[string][]answered, d LedgerDay) (bool, error) {
-	s, err := restoredFrom(from, ledger.Pricing, d, pageWhole)
+// takesSince reports whether the page from rests on, the page of the session
+// with the given id, its state restored onto the day d to fold, as
+// restoredFrom has it, whose points need none of its chain's times, takes in
+// the answers taken of each day after its state's, as tookDays has them; or
+// why it won't restore.
+func takesSince(id string, from ledger.SessionFrom, answers takenAnswers, d LedgerDay) (bool, error) {
+	s, err := restoredFrom(from, ledger.Pricing, d, pageToFold)
 	if err != nil {
 		return false, err
 	}
-	_, takes := s.page.points.tookAfter(from.Base.Date, answers, d)
+	_, takes := s.page.points.tookDays(answers.of(id, from.BaseDate()), d)
 	return takes, nil
 }
 
@@ -655,8 +658,9 @@ func TestASessionAsOfADayIsHeldAsReadWhole(t *testing.T) {
 	day, end := digestDay()
 	on := Today(dayfile.DayStart(day.Start, 2))
 	horizon := instantOf(on.Start.Add(9 * time.Hour))
-	answers := answersOf(linesByDate(lines), lines[0].Session)
-	f, err := foldedAsOf(ledger.SessionFrom{Lines: arrivedBefore(lines, end)}, datesThrough(answers, day.Date), day)
+	id, byDate := lines[0].Session, linesByDate(lines)
+	answers, taken := answersOf(byDate, id), answersTaken(byDate)
+	f, err := foldedAsOf(id, ledger.SessionFrom{Lines: arrivedBefore(lines, end)}, answersTaken(datesThrough(byDate, day.Date)), day)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -665,7 +669,7 @@ func TestASessionAsOfADayIsHeldAsReadWhole(t *testing.T) {
 		t.Fatalf("session 2 has no request after %v, to tell on", end)
 	}
 	twice := slices.Insert(slices.Clone(since), 1, since[0])
-	base, chain := baseOf(day.Date, f.State), []ledger.SessionPart{{Date: day.Date, Part: f.Part}}
+	base, chain := baseOf(day.Date, f.State), []ledger.SessionPart{{Date: day.Date, Part: f.Part, Times: f.Times}}
 	tests := []struct {
 		name  string
 		from  ledger.SessionFrom
@@ -685,7 +689,7 @@ func TestASessionAsOfADayIsHeldAsReadWhole(t *testing.T) {
 				if paged {
 					given = answers
 				}
-				got, err := heldAsOf(tt.from, given, changingPrices(), on, horizon, paged)
+				got, err := heldAsOf(id, tt.from, taken, changingPrices(), on, horizon, paged)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -714,6 +718,19 @@ func answersOf(byDate map[string][]ledger.Line, id string) map[string][]answered
 	return answers
 }
 
+// answersTaken returns the answers a read of the lines byDate holds takes,
+// by the date of the day whose files hold them, each line taken as
+// takenAnswers takes it, in the order byDate holds them.
+func answersTaken(byDate map[string][]ledger.Line) takenAnswers {
+	taken := make(takenAnswers)
+	for date, lines := range byDate {
+		for _, l := range lines {
+			taken.take(date, l)
+		}
+	}
+	return taken
+}
+
 // linesByDate are lines by the date of the day each arrived on, as the
 // ledger files them, in their order.
 func linesByDate(lines []ledger.Line) map[string][]ledger.Line {
@@ -729,7 +746,7 @@ func linesByDate(lines []ledger.Line) map[string][]ledger.Line {
 // a day's digest keeps it, as foldedAsOf folds it, of its lines alone.
 func stateOf(t *testing.T, lines []ledger.Line, d LedgerDay) json.RawMessage {
 	t.Helper()
-	f, err := foldedAsOf(ledger.SessionFrom{Lines: lines}, nil, d)
+	f, err := foldedAsOf(lines[0].Session, ledger.SessionFrom{Lines: lines}, nil, d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -762,7 +779,7 @@ func TestASessionAsOfADayIsHeldOnABaseOnlyFromTheBasesEnd(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			horizon := instantOf(end.Add(tt.after))
-			got, err := heldAsOf(from, nil, ledger.Pricing, on, horizon, false)
+			got, err := heldAsOf("s", from, nil, ledger.Pricing, on, horizon, false)
 			switch {
 			case tt.refused:
 				if err == nil {
@@ -800,7 +817,7 @@ func TestASessionAsOfADayIsntHeldOnABaseThatWontRestore(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			from := ledger.SessionFrom{Base: baseOf(tt.date, json.RawMessage(tt.state))}
-			if s, err := heldAsOf(from, nil, ledger.Pricing, tt.on, endOfDay(tt.on), false); err == nil {
+			if s, err := heldAsOf("s", from, nil, ledger.Pricing, tt.on, endOfDay(tt.on), false); err == nil {
 				t.Errorf("held on %s as %+v, want an error", tt.on.Date, s)
 			}
 		})

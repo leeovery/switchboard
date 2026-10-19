@@ -139,9 +139,9 @@ func (c *digestChain) checkRested(now time.Time, rest ledger.Rest, dates ...stri
 	if rest != ledger.RestOnPage {
 		want = nil
 	}
-	if baseDateOf(from) != dates[len(dates)-1] || !slices.Equal(chain, want) {
+	if from.BaseDate() != dates[len(dates)-1] || !slices.Equal(chain, want) {
 		c.t.Errorf("%s: s rested %s at %v on the state of %q, its chain of the parts of %q; want on that of %s, its chain %q",
-			c.name, rest, now, baseDateOf(from), chain, dates[len(dates)-1], want)
+			c.name, rest, now, from.BaseDate(), chain, dates[len(dates)-1], want)
 	}
 }
 

@@ -7,9 +7,7 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
-	"maps"
 	"os"
-	"slices"
 )
 
 // memberMax is the most a member of one of the ledger's files of gzip
@@ -50,32 +48,54 @@ func (m storedMember) member() Member {
 // since, of other members.
 var errMemberDamaged = errors.New("not the member written there")
 
-// membersOf returns a file of gzip members, one of each of contents, in the
-// order of their keys, so the same contents make the same file, byte for
-// byte; and where each lies in it, by its key: an empty file of none.
-func membersOf(contents map[string][]byte) ([]byte, map[string]Member) {
+// memberOf is content as one gzip member.
+func memberOf(content []byte) []byte {
+	var member bytes.Buffer
+	w := gzip.NewWriter(&member)
+	// A bytes.Buffer's writes never fail, so neither can the member's.
+	_, _ = w.Write(content)
+	_ = w.Close()
+	return member.Bytes()
+}
+
+// membersOf returns a file of the gzip members given, each as it's given,
+// one after another in the order given, so the same members make the same
+// file, byte for byte; and where each lies in it, in the same order: an
+// empty file of none.
+func membersOf(members [][]byte) ([]byte, []Member) {
 	var file bytes.Buffer
-	members := make(map[string]Member, len(contents))
-	for _, key := range slices.Sorted(maps.Keys(contents)) {
-		offset := file.Len()
-		w := gzip.NewWriter(&file)
-		// A bytes.Buffer's writes never fail, so neither can the member's.
-		_, _ = w.Write(contents[key])
-		_ = w.Close()
-		written := file.Bytes()[offset:]
-		members[key] = Member{Offset: int64(offset), Length: int64(len(written)), CRC: crc32.ChecksumIEEE(written)}
+	at := make([]Member, len(members))
+	for i, m := range members {
+		at[i] = Member{Offset: int64(file.Len()), Length: int64(len(m)), CRC: crc32.ChecksumIEEE(m)}
+		file.Write(m)
 	}
-	return file.Bytes(), members
+	return file.Bytes(), at
 }
 
 // memberIn returns what the member m points at in the file at path holds,
-// inflated: failing as os.Open fails where the file can't be opened, with
-// fs.ErrNotExist where it's gone, or as File.Stat fails where it can't be
-// looked at; and with errMemberDamaged where the file holds no bytes where m
-// says, as one pointed past its end, told before room is made for them, or
-// not those written there, as their CRC tells, or where they don't inflate
-// as one gzip member, whole, of no more than memberMax bytes either way.
+// inflated: failing as memberBytes fails, and with errMemberDamaged where
+// its bytes don't inflate as one gzip member, whole, of no more than
+// memberMax bytes.
 func memberIn(path string, m Member) ([]byte, error) {
+	data, err := memberBytes(path, m)
+	if err != nil {
+		return nil, err
+	}
+	content, err := inflatedMember(data)
+	if err != nil {
+		return nil, fmt.Errorf("%d bytes at %d of %s: %w: %w", m.Length, m.Offset, path, errMemberDamaged, err)
+	}
+	return content, nil
+}
+
+// memberBytes returns the bytes of the member m points at in the file at
+// path, as they were written, none of them inflated: failing as os.Open
+// fails where the file can't be opened, with fs.ErrNotExist where it's
+// gone, or as File.Stat fails where it can't be looked at; and with
+// errMemberDamaged where the file holds no bytes where m says, as one
+// pointed past its end, told before room is made for them, or more than
+// memberMax of them, or not those written there, as their CRC tells.
+func memberBytes(path string, m Member) ([]byte, error) {
 	if m.Offset < 0 || m.Length <= 0 || m.Length > memberMax {
 		return nil, fmt.Errorf("%d bytes at %d of %s: %w", m.Length, m.Offset, path, errMemberDamaged)
 	}
@@ -98,11 +118,7 @@ func memberIn(path string, m Member) ([]byte, error) {
 	if crc32.ChecksumIEEE(data) != m.CRC {
 		return nil, fmt.Errorf("%d bytes at %d of %s, by their CRC: %w", m.Length, m.Offset, path, errMemberDamaged)
 	}
-	content, err := inflatedMember(data)
-	if err != nil {
-		return nil, fmt.Errorf("%d bytes at %d of %s: %w: %w", m.Length, m.Offset, path, errMemberDamaged, err)
-	}
-	return content, nil
+	return data, nil
 }
 
 // errMemberTooLarge is the error of a member that inflates past memberMax.

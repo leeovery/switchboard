@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"maps"
 	"slices"
@@ -41,26 +42,30 @@ type DigestBuilder interface {
 }
 
 // Folded is a session as a Digester folds it as of a day's end: State, its
-// state, as the day's digest keeps it in its entry; and Part, what the day's
+// state, as the day's digest keeps it in its entry; Part, what the day's
 // fold added to the state it was folded on, as the day's parts file keeps
-// it, nil for none, each a JSON value of the Digester's. Its part is the
-// ledger's to place: it names the day of the state the session was handed
-// resting on, none where it rested on none, as PartRef's On has it.
+// it, nil for none; and Times, what of its part a fold resting on its state
+// needs none of, kept in a member of its own after the part's, so such a
+// fold reads none of it, nil for none: each a JSON value of the Digester's,
+// as RestToFold and RestOnPage hand them back. Its part is the ledger's to
+// place: it names the day of the state the session was handed resting on,
+// none where it rested on none, as PartRef's On has it.
 type Folded struct {
 	State json.RawMessage
 	Part  json.RawMessage
+	Times json.RawMessage
 }
 
 // DigestDay is a finished local day as the ledger hands it to its Digester:
 // Date, its date; Start and End, when it started and ended, in this time
 // zone; and Sessions, the sessions its summary names, as of the day's end,
-// by their ids, as the ledger finds them: each on its page, as RestOnPage
-// rests it, the newest state the digest of an earlier day holds that stands
-// for it whose chain of parts reads, with that chain, or on none, and its
-// lines after that, the day's own among them, read by the days' files. A
-// session whose state can't be kept, as a day it rests on can't be told,
-// isn't among them; nor is one resting on the day's own digest still, whose
-// state and part there are as of the day's end.
+// by their ids, as the ledger finds them: each to fold, as RestToFold rests
+// it, on the newest state the digest of an earlier day holds that stands for
+// it whose chain of parts reads, with that chain, none of its parts' times,
+// or on none, and its lines after that, the day's own among them, read by
+// the days' files. A session whose state can't be kept, as a day it rests on
+// can't be told, isn't among them; nor is one resting on the day's own
+// digest still, whose state and part there are as of the day's end.
 type DigestDay struct {
 	Date       string
 	Start, End time.Time
@@ -392,8 +397,9 @@ func (d *digesting) build(ctx context.Context, dates []string, view writerLook, 
 // them: its head of the day's bounds, its summary, and its lines as its files
 // hold them now, as arrivals counts them; and an entry of each session its
 // summary names, as of the day's end, as sessionsLookup.asOf finds it, whose
-// state can be kept, resting on its page, as RestOnPage has it, as a reader
-// of its page rests it, its state and its part as readFolded gives them. A
+// state can be kept, resting to fold, as RestToFold has it, on the state a
+// reader of its page rests it on, its state and its part as readFolded gives
+// them. A
 // session resting on a state fold gives none of, as one the Digester can't
 // restore, or whose page's points can't take the days since in, is handed
 // again read whole, so a spoiled state is folded past, not rested on day
@@ -410,7 +416,7 @@ func (d *digesting) digestOf(ctx context.Context, dates []string, view writerLoo
 	}
 	named, _ := day.named()
 	lookup := newSessionsLookup(d.days, view)
-	sessions, folded, err := d.readFolded(ctx, lookup, head, dates, named, func(string) Rest { return RestOnPage }, now)
+	sessions, folded, err := d.readFolded(ctx, lookup, head, dates, named, func(string) Rest { return RestToFold }, now)
 	if err != nil {
 		return Digest{}, nil, err
 	}
@@ -451,8 +457,8 @@ func (l *sessionsLookup) foldable(dates, ids []string, rest func(id string) Rest
 }
 
 // sessionFolded is a session folded as of a day's end, as the day's digest
-// and parts file keep it: its state, and its part, none where the part's
-// data is empty.
+// and parts file keep it: its state, and its part, none where it has no
+// member.
 type sessionFolded struct {
 	state json.RawMessage
 	part  builtPart
@@ -461,9 +467,10 @@ type sessionFolded struct {
 // fold returns sessions folded as of the end of the day head is of, by their
 // ids: each build gives of those handed it, all but those resting on the
 // day's own digest still, its part on the date of the state it was handed
-// resting on, none where it rested on none; and each of those as it's folded
-// there, as keptFolded keeps it. It gives none of another, nor of one build
-// gives none of.
+// resting on, none where it rested on none, as builtPartOf makes it; and
+// each of those as it's folded there, as keptFolded keeps it. It gives none
+// of another, nor of one build gives none of. It fails where build fails, or
+// gives a part that isn't JSON.
 func (d *digesting) fold(ctx context.Context, build DigestBuilder, head DigestHead, sessions map[string]SessionFrom) (map[string]sessionFolded, error) {
 	handing := maps.Clone(sessions)
 	maps.DeleteFunc(handing, func(_ string, s SessionFrom) bool { return s.restingOn(head.Day) })
@@ -474,28 +481,39 @@ func (d *digesting) fold(ctx context.Context, build DigestBuilder, head DigestHe
 	folded := make(map[string]sessionFolded, len(sessions))
 	for id, s := range sessions {
 		if s.restingOn(head.Day) {
-			if f, ok := keptFolded(head.Day, s); ok {
+			if f, ok := d.keptFolded(head.Day, s); ok {
 				folded[id] = f
 			}
-		} else if f, ok := given[id]; ok {
-			folded[id] = sessionFolded{state: f.State, part: builtPart{on: s.baseDate(), data: f.Part}}
+			continue
 		}
+		f, ok := given[id]
+		if !ok {
+			continue
+		}
+		part, err := builtPartOf(s.BaseDate(), f.Part, f.Times)
+		if err != nil {
+			return nil, fmt.Errorf("fold %s of %s: %w", id, head.Day, err)
+		}
+		folded[id] = sessionFolded{state: f.State, part: part}
 	}
 	return folded, nil
 }
 
 // keptFolded returns the session s, resting on the state the digest of the
 // local day with the given date holds, as it's folded there, as of that
-// day's end: its state, and its part, on the date its entry names, the last
-// of the chain of parts s rests on with, as the lookup read it, by its CRC.
-// It reports false where s rests on no part of the day's, as one asked to
-// rest otherwise than on its page, for it to be folded afresh.
-func keptFolded(date string, s SessionFrom) (sessionFolded, bool) {
-	n := len(s.Parts)
-	if s.Base.Part == nil || n == 0 || s.Parts[n-1].Date != date {
+// day's end: its state, and its part, on the date its entry names, copied
+// as keptPart copies it, none of it inflated. It reports false where s rests
+// on no part of the day's, as a state whose page was left out, or its part
+// doesn't read as written, by its CRC, for it to be folded afresh.
+func (d *digesting) keptFolded(date string, s SessionFrom) (sessionFolded, bool) {
+	if s.Base.Part == nil {
 		return sessionFolded{}, false
 	}
-	return sessionFolded{state: s.Base.State, part: builtPart{on: s.Base.Part.On, data: s.Parts[n-1].Part}}, true
+	part, err := d.days.keptPart(date, *s.Base.Part)
+	if err != nil {
+		return sessionFolded{}, false
+	}
+	return sessionFolded{state: s.Base.State, part: part}, true
 }
 
 // unfolded returns the ids of those of sessions resting on a state that
@@ -517,9 +535,9 @@ func (s SessionFrom) restingOn(date string) bool {
 	return s.Base != nil && s.Base.Date == date
 }
 
-// baseDate returns the date of the day whose digest holds the state s rests
+// BaseDate returns the date of the day whose digest holds the state s rests
 // on: none where it rests on none.
-func (s SessionFrom) baseDate() string {
+func (s SessionFrom) BaseDate() string {
 	if s.Base == nil {
 		return ""
 	}
@@ -540,11 +558,11 @@ func entriesOf(sessions map[string]SessionFrom, folded map[string]sessionFolded)
 }
 
 // partsOf returns the parts folded holds, by their sessions' ids: none of a
-// session whose part is empty.
+// session whose part has no member, as one given empty.
 func partsOf(folded map[string]sessionFolded) map[string]builtPart {
 	parts := make(map[string]builtPart)
 	for id, f := range folded {
-		if len(f.part.data) > 0 {
+		if f.part.part != nil {
 			parts[id] = f.part
 		}
 	}

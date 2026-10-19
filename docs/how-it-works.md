@@ -238,13 +238,13 @@ to one file a day in `ledger/`.
 - **The day's digest:** once a day's summary is written, the router writes a digest beside it,
   `digest-<date>.json.gz`. It holds each session that ran that day as it stood at the day's end,
   its page among it. Beside it, `parts-<date>.gz` holds what each session's page gained that day:
-  the turns it added to, the subagents it first saw, and when its requests went upstream. The
-  dashboard reads a session from its newest digest and the days after it, and a session's page
-  from its newest digest and the parts before it, so Sessions' list and a session's page open
-  without reading every day a session has run. A digest holds no prices: worth is worked out as
-  it's shown. The day's lines stay the truth. A digest or a parts file that's missing, out of date
-  or damaged is passed over, and an older digest or the lines read instead, which is slower but
-  shows the same.
+  the turns it added to and the subagents it first saw, and apart from them, when its requests
+  went upstream, which only a page being shown reads. The dashboard reads a session from its
+  newest digest and the days after it, and a session's page from its newest digest and the parts
+  before it, so Sessions' list and a session's page open without reading every day a session has
+  run. A digest holds no prices: worth is worked out as it's shown. The day's lines stay the
+  truth. A digest or a parts file that's missing, out of date or damaged is passed over, and an
+  older digest or the lines read instead, which is slower but shows the same.
 - **Reading it back:** [`requests`](commands.md#requests), [`history`](commands.md#history) and
   [`sessions`](commands.md#sessions) read it all back, with or without the router.
 

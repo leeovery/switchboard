@@ -516,10 +516,7 @@ func (f *feed) hold(id string, from ledger.SessionFrom, answers takenAnswers) er
 // as from's state won't restore, or holds sealed what the horizon holds
 // open, for the session to be read whole.
 func (f *feed) heldOf(id string, from ledger.SessionFrom, answers takenAnswers) (*heldSession, error) {
-	if id != f.want.Page {
-		return heldAsOf(from, nil, f.prices, f.fed.day, f.horizonOf(id), false)
-	}
-	return heldAsOf(from, answers.of(id, baseDateOf(from)), f.prices, f.fed.day, f.horizonOf(id), true)
+	return heldAsOf(id, from, answers, f.prices, f.fed.day, f.horizonOf(id), id == f.want.Page)
 }
 
 // readOf is a session held afresh of lines, every line of it read whole,
@@ -530,38 +527,46 @@ func readOf(lines []ledger.Line, answers map[string][]answered, prices ledger.Ta
 	return heldSessionOf(pricedAt(distinct(requestsIn(lines)), prices, d.Date), answers, prices, d, horizon, paged)
 }
 
-// heldAsOf is the session from gives, as the store would hold it on the day
-// d, sealed behind the horizon given, had it read every line of it whole,
-// its page tallied where paged says, its points of answers, every account's
-// on the days read, by date: as heldResting holds it, its page read whole.
-func heldAsOf(from ledger.SessionFrom, answers map[string][]answered, prices ledger.Table, d LedgerDay, horizon instant, paged bool) (*heldSession, error) {
+// heldAsOf is the session with the given id from gives, as the store would
+// hold it on the day d, sealed behind the horizon given, had it read every
+// line of it whole, its page tallied where paged says, its points of the
+// answers taken, every account's on the days read: as heldResting holds it,
+// its page read whole.
+func heldAsOf(id string, from ledger.SessionFrom, answers takenAnswers, prices ledger.Table, d LedgerDay, horizon instant, paged bool) (*heldSession, error) {
 	page := pageNone
 	if paged {
 		page = pageWhole
 	}
-	s, _, err := heldResting(from, answers, prices, d, horizon, page)
+	s, _, err := heldResting(id, from, answers, prices, d, horizon, page)
 	return s, err
 }
 
-// heldResting is the session from gives, as heldAsOf has it, and the tally
-// its page rests on, which its fold added to, none where it rests on no base
-// or isn't paged. Resting on no base, its lines are read whole, as readOf
-// has them, its page tallied unless page reads none of it, its points of
-// answers. Else its base is restored onto d, as much of its page with it as
-// page reads, as restoredFrom has it; where it holds its page, its points
-// take in the answers of each day after its base's, as tookAfter has them;
-// its requests since are told on, each once, as distinct has them, priced at
-// d, as with has it; and it's sealed behind the horizon given. It fails
-// where its base won't decode, or restore onto d, or its page with it; where
-// its points can't place the answers after it, as of a model first reading
-// a window only some models share; or where the horizon given is before its
+// heldResting is the session with the given id from gives, as heldAsOf has
+// it, and the tally its page rests on, which its fold added to, none where
+// it rests on no base or isn't paged. Where page reads any of its page, its
+// points take in the answers taken of the days after its base's alone, as
+// takenAnswers' of gives them, those of its base's day and before folded in
+// its base as it was sealed: every day's, of one resting on no base. Resting
+// on no base, its lines are read whole, as readOf has them, its page tallied
+// unless page reads none of it. Else its base is restored onto d, as much of
+// its page with it as page reads, as restoredFrom has it; where it holds its
+// page, its points take in those answers, as tookDays has them; its
+// requests since are told on, each once, as distinct has them, priced at d,
+// as with has it; and it's sealed behind the horizon given. It fails where
+// its base won't decode, or restore onto d, or its page with it; where its
+// points can't place the answers after it, as of a model first reading a
+// window only some models share; or where the horizon given is before its
 // base's own, the end of its base's day, as the base holds sealed what a
 // whole read would hold open: its caller reads it whole then, every day's
 // answers taken afresh, as it gives no session held otherwise than a whole
 // read holds it.
-func heldResting(from ledger.SessionFrom, answers map[string][]answered, prices ledger.Table, d LedgerDay, horizon instant, page pageRead) (*heldSession, *pageTally, error) {
+func heldResting(id string, from ledger.SessionFrom, answers takenAnswers, prices ledger.Table, d LedgerDay, horizon instant, page pageRead) (*heldSession, *pageTally, error) {
+	var since map[string][]answered
+	if page != pageNone {
+		since = answers.of(id, from.BaseDate())
+	}
 	if from.Base == nil {
-		return readOf(from.Lines, answers, prices, d, horizon, page != pageNone), nil, nil
+		return readOf(from.Lines, since, prices, d, horizon, page != pageNone), nil, nil
 	}
 	s, err := restoredFrom(from, prices, d, page)
 	if err != nil {
@@ -572,7 +577,7 @@ func heldResting(from ledger.SessionFrom, answers map[string][]answered, prices 
 	}
 	base := s.page
 	if page != pageNone {
-		points, ok := base.points.tookAfter(from.Base.Date, answers, d)
+		points, ok := base.points.tookDays(since, d)
 		if !ok {
 			return nil, nil, fmt.Errorf("hold the page of a session of the digest of %s on %s: its points can't place the answers since", from.Base.Date, d.Date)
 		}

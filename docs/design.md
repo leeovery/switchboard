@@ -5029,23 +5029,25 @@ from the first day a router that has it runs, so nothing before then is in it.
     the session runs, so is never carried whole: each turn the day took a request into, or began,
     by its place among the session's turns, as it stands at the day's end; each subagent first
     seen, with its first request's prompt; and when each request it sealed went upstream, oldest
-    first, each as nanoseconds after the one before. Its turns come first and its times last, so a
-    reader wanting its turns alone stops before its times. A part names the day of the state it
-    was folded on, none where it rested on none, as on a session's first day or read whole; so a
-    session's parts chain back from its newest state, part by part, each through the state the one
-    after it was folded on, to one folded on none, whichever days named the session between. The
-    page is its newest state's carried page with the chain's parts laid over it, oldest first:
-    each turn as the newest part holding it has it, every turn up to the count carried given by
-    one, the subagents first seen gathered, and the times taken in one part after another, as the
-    store takes in a session's times. Each session's part is a gzip member of its own, in the
-    order of the sessions' ids, so the same day makes the same file, byte for byte; and its entry
-    in the digest points at it, by where it starts, how long it is and the CRC of its bytes, so a
-    reader reads its own sessions' parts alone, and knows the bytes it read are those written
-    there before it inflates one. Weighed and left: a page's state stored whole each day, which
-    would grow with the square of the days, some 23 MB over 30 days for one session as busy as the
-    soak's long one, and which every reader of a digest's entries would pay for, the List among
-    them; and the parts kept in the digest, for the same reason (settled in the plan, 19 October
-    2026).
+    first, each as nanoseconds after the one before. Its times, most of its bytes, are kept apart
+    from its turns and subagents, after them: a fold resting on its state needs only how many
+    there are, which the state carries, so the router's builder never reads them, and only a
+    reader of the page does. A part names the day of the state it was folded on, none where it
+    rested on none, as on a session's first day or read whole; so a session's parts chain back
+    from its newest state, part by part, each through the state the one after it was folded on,
+    to one folded on none, whichever days named the session between. The page is its newest
+    state's carried page with the chain's parts laid over it, oldest first: each turn as the
+    newest part holding it has it, every turn up to the count carried given by one, the subagents
+    first seen gathered, and the times taken in one part after another, as the store takes in a
+    session's times. Each session's part is a gzip member of its own, its times another after it,
+    one session's after another's in the order of their ids, so the same day makes the same file,
+    byte for byte; and its entry in the digest points at each, by where it starts, how long it is
+    and the CRC of its bytes, so a reader reads its own sessions' parts alone, and their times
+    only where it wants them, and knows the bytes it read are those written there before it
+    inflates one. Weighed and left: a page's state stored whole each day, which would grow with
+    the square of the days, some 23 MB over 30 days for one session as busy as the soak's long
+    one, and which every reader of a digest's entries would pay for, the List among them; and the
+    parts kept in the digest, for the same reason (settled in the plan, 19 October 2026).
   - **What the state rests on:** each day naming the session up to the digest's own, as their
     summaries name it, each with the `lines` its summary counted as the state was built.
   - **Nothing priced:** no worth, no move's cost, nothing a price table gave. A state is restored at
@@ -5068,14 +5070,14 @@ from the first day a router that has it runs, so nothing before then is in it.
   was written beside it, none where none was. It's JSON, gzipped, its keys short and its zeros left
   out, written whole, 0600, beside where it goes and renamed into place, as a summary is, its parts
   file so first, so a digest is never written before the parts it points at. A reader inflates one
-  no further than 64 MiB, a part no further than 64 MiB either, and reads a digest's head first,
-  none of its sessions decoded where the head is all it asks of it, nor where the head is of
-  another version or day, as every digest is after a release raising either. Each stored form is a
-  struct of its own beside the type it stores: the envelope, the parts file, a request's spend,
-  what a page's requests spent and a window's climb the ledger's, a window an answer read the
-  `claude` package's, and a session's state and its part the views', which the ledger carries as
-  it's given and never reads. The envelope's version is 2, and `views.DigestVersion` 2, from phase
-  2 of the digests (see Milestones).
+  no further than 64 MiB, a part, or its times, no further than 64 MiB either, and reads a
+  digest's head first, none of its sessions decoded where the head is all it asks of it, nor where
+  the head is of another version or day, as every digest is after a release raising either. Each
+  stored form is a struct of its own beside the type it stores: the envelope, the parts file, a
+  request's spend, what a page's requests spent and a window's climb the ledger's, a window an
+  answer read the `claude` package's, and a session's state, its part and the part's times the
+  views', which the ledger carries as it's given and never reads. The envelope's version is 2,
+  and `views.DigestVersion` 2, from phase 2 of the digests (see Milestones).
 
   - **Derived and disposable.** The day's lines stay the truth. A digest missing, unreadable, of
     another version or no longer standing is read past: the session's days are read raw, slower,
@@ -5117,8 +5119,11 @@ from the first day a router that has it runs, so nothing before then is in it.
     or, resting on none, the session read whole as the store reads one. Each session is handed
     resting as its page rests (below), on its newest standing state whose chain of parts reads,
     with that chain, and folded with its page, so the day's part is what its fold added over that
-    state's page; the builder restores the page's turns and subagents from the chain, passing over
-    its times, as a fold needs only how many there are, which the state carries. Its points need
+    state's page; the builder restores the page's turns and subagents from the chain, none of its
+    parts' times read, as a fold needs only how many there are, which the state carries. A session
+    resting on the day's own digest still, as one of another session's day built again, keeps its
+    state and its part there, the part and its times copied as they were written, never inflated,
+    or, where they don't read by their CRCs, is handed again read whole. Its points need
     every account's answers of each day read after the session's base, so the builder is handed
     every line the ledger's read reads, each answer made once, small, as it comes, never the line
     held; each session takes in those of the days after its own base, oldest first, through the
@@ -5158,12 +5163,15 @@ from the first day a router that has it runs, so nothing before then is in it.
     share: walking the days naming the session newest first, the first state that stands for it,
     as above, whose chain of parts reads, each link's digest's entry standing for the session with
     the days naming it up to that link's own, and its part reading, by its CRC, down to a part
-    folded on none. A link missing, damaged or no longer standing fails every state whose chain
-    leads through it, and the walk tries an older state; with none, the page is read whole. Each
-    part is read once a lookup, however many chains lead through it. As for a session's state, the
-    base is then dropped where a raw line of the session read after it arrived before the base's
-    day ended (settled in the plan, 19 October 2026). Only the builder and a page's session rest
-    so: the List, the store's other sessions and the digests' judging never open a parts file.
+    folded on none, and for a reader of the page its times too; the builder reads none of them, so
+    times damaged in place are told by a reader alone, which falls back as from any link damaged.
+    A link missing, damaged or no longer standing fails every state whose chain leads through it,
+    and the walk tries an older state; with none, the page is read whole. Each part, and its
+    times, is read once a lookup, however many chains lead through it. As for a session's state,
+    the base is then dropped where a raw line of the session read after it arrived before the
+    base's day ended (settled in the plan, 19 October 2026). Only the builder and a page's session
+    rest so: the List, the store's other sessions and the digests' judging never open a parts
+    file.
   - **What it costs,** accepted (settled in the plan, 18 October 2026): the first pass after a start
     reads every digest kept, to judge it; a router stopping waits for a build's read of a heavy day,
     a second at most; and a prune of the ledger's files, once a day, waits for a build's reads, as

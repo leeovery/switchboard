@@ -164,10 +164,11 @@ func TestADigestIsEncodedAsTheGoldenOfItsVersionsHoldsIt(t *testing.T) {
 
 // golden is the golden of a day's digest: its file's JSON, inflated; and
 // each gzip member of the day's parts file a session's entry there points
-// at, inflated, by the session's id.
+// at, inflated, by the session's id: its part's, and its times'.
 type golden struct {
 	Digest json.RawMessage            `json:"digest"`
 	Parts  map[string]json.RawMessage `json:"parts"`
+	Times  map[string]json.RawMessage `json:"times"`
 }
 
 // goldenDigest is the digest of goldenDay of the golden world, written as a
@@ -184,7 +185,7 @@ func goldenDigest(t *testing.T) []byte {
 		t.Fatal(err)
 	}
 	g := golden{Digest: gunzipped(t, data)}
-	g.Parts = c.partsOf(goldenDay, g.Digest)
+	g.Parts, g.Times = c.partsOf(goldenDay, g.Digest)
 	plain, err := json.Marshal(g)
 	if err != nil {
 		t.Fatal(err)
@@ -197,15 +198,20 @@ func goldenDigest(t *testing.T) []byte {
 }
 
 // partsOf are the parts the digest given, the JSON of the digest of the local
-// day with the given date, points at in the day's parts file, by the ids of
-// their sessions, each member read where its entry says, inflated.
-func (c *digestChain) partsOf(date string, digest json.RawMessage) map[string]json.RawMessage {
+// day with the given date, points at in the day's parts file, and their
+// times, by the ids of their sessions, each member read where its entry
+// says, inflated.
+func (c *digestChain) partsOf(date string, digest json.RawMessage) (parts, times map[string]json.RawMessage) {
 	c.t.Helper()
+	type member struct {
+		Offset int64 `json:"offset"`
+		Length int64 `json:"length"`
+	}
 	var entries struct {
 		Sessions map[string]struct {
 			Part *struct {
-				Offset int64 `json:"offset"`
-				Length int64 `json:"length"`
+				member
+				Times *member `json:"times"`
 			} `json:"part"`
 		} `json:"sessions"`
 	}
@@ -216,13 +222,18 @@ func (c *digestChain) partsOf(date string, digest json.RawMessage) map[string]js
 	if err != nil {
 		c.t.Fatal(err)
 	}
-	parts := make(map[string]json.RawMessage)
+	inflated := func(m member) json.RawMessage { return gunzipped(c.t, file[m.Offset:m.Offset+m.Length]) }
+	parts, times = make(map[string]json.RawMessage), make(map[string]json.RawMessage)
 	for id, e := range entries.Sessions {
-		if e.Part != nil {
-			parts[id] = gunzipped(c.t, file[e.Part.Offset:e.Part.Offset+e.Part.Length])
+		if e.Part == nil {
+			continue
+		}
+		parts[id] = inflated(e.Part.member)
+		if e.Part.Times != nil {
+			times[id] = inflated(*e.Part.Times)
 		}
 	}
-	return parts
+	return parts, times
 }
 
 // envelopeOf is the version of the ledger's envelope a golden's digest's

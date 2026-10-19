@@ -73,11 +73,11 @@ const (
 
 // Every key the stored forms of a day's digest and its parts declare, the
 // ledger's envelope and every struct of the views' body it holds, nested,
-// and of a session's part, holds a value in the golden of the version
-// written, as TestADigestIsEncodedAsTheGoldenOfItsVersionsHoldsIt keeps it:
-// a key the golden left out, as its zero, would be renamed or retyped
-// without the golden failing. But those unwritten has, which it holds none
-// of.
+// and of a session's part and its times, holds a value in the golden of the
+// version written, as TestADigestIsEncodedAsTheGoldenOfItsVersionsHoldsIt
+// keeps it: a key the golden left out, as its zero, would be renamed or
+// retyped without the golden failing. But those unwritten has, which it
+// holds none of.
 func TestTheDigestsGoldenHoldsEveryKeyOfItsStoredForms(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join("testdata", fmt.Sprintf("digest-v%d.json", views.DigestVersion)))
 	if err != nil {
@@ -86,6 +86,7 @@ func TestTheDigestsGoldenHoldsEveryKeyOfItsStoredForms(t *testing.T) {
 	var golden struct {
 		Digest any `json:"digest"`
 		Parts  any `json:"parts"`
+		Times  any `json:"times"`
 	}
 	if err := json.Unmarshal(data, &golden); err != nil {
 		t.Fatal(err)
@@ -94,6 +95,7 @@ func TestTheDigestsGoldenHoldsEveryKeyOfItsStoredForms(t *testing.T) {
 	k := newStoredKeys(t, root, sourcecheck.ModulePath(t, root))
 	k.walk(k.named("ledger.storedDigest"), golden.Digest)
 	k.each(k.named("views.storedPart"), golden.Parts)
+	k.each(k.named("views.storedTimes"), golden.Times)
 	for _, key := range slices.SortedFunc(maps.Keys(k.declared), func(a, b storedKey) int { return strings.Compare(a.String(), b.String()) }) {
 		why, exempt := unwritten[key]
 		switch held := k.held[key]; {

@@ -90,7 +90,8 @@ func (b *foldingDay) Digest(ctx context.Context, day ledger.DigestDay) (map[stri
 
 // digest notes day as handed, with the lines taken before it, does what
 // during does, where it's set, and gives each of its sessions folded, but
-// the one refused resting on a base: its state, and its part.
+// the one refused resting on a base: its state, its part, and its part's
+// times, as timesFrom has them.
 func (f *folding) digest(ctx context.Context, day ledger.DigestDay, taken takenDays) (map[string]ledger.Folded, error) {
 	f.mu.Lock()
 	during, refused := f.during, f.refused
@@ -122,9 +123,22 @@ func (f *folding) digest(ctx context.Context, day ledger.DigestDay, taken takenD
 		if err != nil {
 			return nil, err
 		}
-		folded[id] = ledger.Folded{State: state, Part: part}
+		times, err := json.Marshal(timesFrom(id, day.Date, s))
+		if err != nil {
+			return nil, err
+		}
+		folded[id] = ledger.Folded{State: state, Part: part, Times: times}
 	}
 	return folded, nil
+}
+
+// timesFrom is the times of the part of the session with the given id of
+// the local day with the given date, as partFrom has its part, folded from
+// from: as its part, but told as its times.
+func timesFrom(id, date string, from ledger.SessionFrom) testPart {
+	times := partFrom(id, date, from)
+	times.Of = "times of " + times.Of
+	return times
 }
 
 // testPart is a session's part of a day as the digester's tests fold it: Of
@@ -141,22 +155,14 @@ type testPart struct {
 // with the given date, folded from from, the session as of the start of the
 // day after.
 func partFrom(id, date string, from ledger.SessionFrom) testPart {
-	var base string
-	if from.Base != nil {
-		base = from.Base.Date
-	}
-	return testPart{Of: stateAt(id, date), Base: base, Requests: requestsOf(from.Lines)}
+	return testPart{Of: stateAt(id, date), Base: from.BaseDate(), Requests: requestsOf(from.Lines)}
 }
 
 // handedOf is day as handedDay tells it, handed now.
 func handedOf(day ledger.DigestDay) handedDay {
 	handed := handedDay{at: time.Now(), date: day.Date, sessions: make(map[string]handedSession, len(day.Sessions))}
 	for id, s := range day.Sessions {
-		var base string
-		if s.Base != nil {
-			base = s.Base.Date
-		}
-		handed.sessions[id] = handedSession{base: base, requests: requestsOf(s.Lines)}
+		handed.sessions[id] = handedSession{base: s.BaseDate(), requests: requestsOf(s.Lines)}
 	}
 	return handed
 }
@@ -370,6 +376,30 @@ func (w *lookupWorld) partsIn(days int) map[string]partIn {
 	return parts
 }
 
+// timesIn returns the times of the part of each session the digest of the
+// local day days after the summaries' day points at, by its id, failing the
+// test where they don't read, or it points at a part of none: none of a
+// session it points at no part of.
+func (w *lookupWorld) timesIn(days int) map[string]testPart {
+	w.t.Helper()
+	times := make(map[string]testPart)
+	for id, e := range w.digestOf(days).Sessions {
+		if e.Part == nil {
+			continue
+		}
+		data, err := ledger.ReadTimes(w.dir, dayOf(days), *e.Part)
+		if err != nil {
+			w.t.Fatalf("the times of the part of %s of %s: %v", id, dayOf(days), err)
+		}
+		var t testPart
+		if err := json.Unmarshal(data, &t); err != nil {
+			w.t.Fatal(err)
+		}
+		times[id] = t
+	}
+	return times
+}
+
 // partsPath is the path of the parts file of the local day days after the
 // summaries' day the ledger in dir holds.
 func partsPath(dir string, days int) string {
@@ -399,13 +429,15 @@ func TestALateLineHasItsDayAndThoseRestingOnItDigestedAgain(t *testing.T) {
 
 // A day digested again for one of its sessions has another, resting on the
 // day's own digest still, keep its state there, and its part, on the day it
-// was folded on, not handed to be folded again.
+// was folded on, not handed to be folded again: its part's members and its
+// times', copied as they were written, by their CRCs.
 func TestASessionStandingOnItsDaysOwnDigestKeepsItsStateAndPart(t *testing.T) {
 	w := newLookupWorld(t)
 	sharedDays(w)
 	w.digestEnded()
 	w.fold.days()
-	was, wasPart := unparted(w.digestOf(0)).Sessions["one"], w.partsIn(0)["one"]
+	was, wasPart, wasTimes := unparted(w.digestOf(0)).Sessions["one"], w.partsIn(0)["one"], w.timesIn(0)["one"]
+	wasRef := w.digestOf(0).Sessions["one"].Part
 	w.lateLine()
 
 	w.digestEnded()
@@ -419,6 +451,74 @@ func TestASessionStandingOnItsDaysOwnDigestKeepsItsStateAndPart(t *testing.T) {
 	}
 	if got := w.partsIn(0)["one"]; !reflect.DeepEqual(got, wasPart) {
 		t.Errorf("one's part of %s is %+v, want it kept as it was, %+v", dayOf(0), got, wasPart)
+	}
+	if got := w.timesIn(0)["one"]; !reflect.DeepEqual(got, wasTimes) {
+		t.Errorf("the times of one's part of %s are %+v, want them kept as they were, %+v", dayOf(0), got, wasTimes)
+	}
+	if ref := w.digestOf(0).Sessions["one"].Part; ref.CRC != wasRef.CRC || ref.Times.CRC != wasRef.Times.CRC {
+		t.Errorf("one's part of %s is at %+v, its times at %+v; want each of the CRC it was written with, %d and %d", dayOf(0), ref, ref.Times, wasRef.CRC, wasRef.Times.CRC)
+	}
+}
+
+// A session resting on the day's own digest still, whose part's times there
+// are damaged, its parts file as long, isn't kept, its times copied as they
+// were: it's folded afresh, read whole.
+func TestASessionOnItsDaysOwnDigestWhoseTimesAreDamagedIsFoldedAfresh(t *testing.T) {
+	w := newLookupWorld(t)
+	sharedDays(w)
+	w.digestEnded()
+	w.fold.days()
+	times := w.digestOf(0).Sessions["one"].Part.Times
+	damageAt(t, partsPath(w.dir, 0), times.Offset+times.Length/2)
+	w.lateLine()
+
+	w.digestEnded()
+
+	handed := w.fold.days()
+	i := slices.IndexFunc(handed, func(h handedDay) bool { _, one := h.sessions["one"]; return h.date == dayOf(0) && one })
+	if i < 0 || handed[i].sessions["one"].base != "" {
+		t.Fatalf("%s was handed %+v, want one read whole among it", dayOf(0), handed)
+	}
+	want := testPart{Of: "times of " + stateAt("one", dayOf(0)), Requests: []string{"1", "4"}}
+	if got := w.timesIn(0)["one"]; !reflect.DeepEqual(got, want) {
+		t.Errorf("the times of one's part of %s are %+v, want %+v, folded whole", dayOf(0), got, want)
+	}
+}
+
+// A day's builder is handed each session resting on a state with the chain
+// of parts behind it, none of their times, which a fold resting on the state
+// needs none of; and the parts files hold each session's part's times beside
+// its part, as its builder gave them.
+func TestADaysBuilderIsHandedItsSessionsChainsWithoutTheirTimes(t *testing.T) {
+	w := newLookupWorld(t)
+	sharedDays(w)
+	var chains []ledger.SessionPart
+	w.fold.doing(func(_ context.Context, day ledger.DigestDay) error {
+		for _, s := range day.Sessions {
+			chains = append(chains, s.Parts...)
+		}
+		return nil
+	})
+
+	w.digestEnded()
+
+	untimed := !slices.ContainsFunc(chains, func(p ledger.SessionPart) bool { return p.Part == nil || p.Times != nil })
+	if len(chains) == 0 || !untimed {
+		t.Errorf("the builders were handed the parts %+v; want some, each without its times", chains)
+	}
+	times := func(id string, days int, base string, requests ...string) testPart {
+		return testPart{Of: "times of " + stateAt(id, dayOf(days)), Base: base, Requests: requests}
+	}
+	want := map[int]map[string]testPart{
+		-3: {"one": times("one", -3, "", "1"), "two": times("two", -3, "", "2")},
+		-2: {"two": times("two", -2, dayOf(-3), "3")},
+		0:  {"one": times("one", 0, dayOf(-3), "4"), "two": times("two", 0, dayOf(-2), "5")},
+		1:  {"one": times("one", 1, dayOf(0), "6"), "three": times("three", 1, "", "7")},
+	}
+	for days, times := range want {
+		if got := w.timesIn(days); !reflect.DeepEqual(got, times) {
+			t.Errorf("the times of the parts of %s are\n%+v\nwant\n%+v", dayOf(days), got, times)
+		}
 	}
 }
 
