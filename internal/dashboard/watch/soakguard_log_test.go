@@ -219,12 +219,13 @@ func (g *logGuard) judged(was Model) {
 }
 
 // sameLogAsOneRead judges the Log's Requests of the soak s at now, of the
-// lines it has tabled read by read, those of one read whole at now: each
-// day's lines the ledger holds, from the day the Log spans from, read raw,
-// the store fed them whole, through the same filter, of what the stream
-// tells; the Log reaching nothing of a day before it spans from, by any
-// path, as daysHeld finds; and none of the readers holding what they decode
-// once, as heldRaw has it.
+// lines it has tabled read by read, those of one read whole at now, as
+// shownOf has what each shows, each row's details among it: each day's
+// lines the ledger holds, from the day the Log spans from, read raw, the
+// store fed them whole, through the same filter, of what the stream tells;
+// the Log reaching nothing of a day before it spans from, by any path, as
+// daysHeld finds; and none of the readers holding what they decode once, as
+// heldRaw has it.
 func sameLogAsOneRead(t *testing.T, s *soak, now time.Time) {
 	t.Helper()
 	m := s.h.model
@@ -255,13 +256,15 @@ func sameLogAsOneRead(t *testing.T, s *soak, now time.Time) {
 }
 
 // shownOf is what a table of the Log's Requests shows, line by line: each
-// row, rule and oldest day's line, and what each row's day counts.
+// row, rule and oldest day's line; and of each row, what its day counts and
+// its details, as its card opens on them.
 func shownOf(table views.LogTable) []any {
 	var shown []any
 	for _, l := range table.All() {
 		shown = append(shown, views.LogLine{Row: l.Row, Rule: l.Rule, Oldest: l.Oldest})
 		if l.IsRow() {
-			shown = append(shown, table.Count(views.Today(l.Row.At).Date))
+			details, _ := l.Details()
+			shown = append(shown, table.Count(views.Today(l.Row.At).Date), details)
 		}
 	}
 	return shown

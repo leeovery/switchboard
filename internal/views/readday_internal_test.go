@@ -54,9 +54,8 @@ func rawDay(l Ledger, date string) LogDay {
 // logBack is what the Log's Requests show at now, read through l as the
 // watch reads them: today's lines as it opens, then each day before, newest
 // first, back to the local day with the given date, as read reads it, each
-// taken in as the watch's took takes a day back, the sessions of its
-// requests the store doesn't hold read whole into it, every row told by the
-// store and placed as the stream s tells. What it shows is the table's
+// taken in as TakenBack takes a day back, the store it reads fresh taken
+// into the one held, as the watch takes it in. What it shows is the table's
 // lines, each row with what its day's lines count, as shownLines has them,
 // each day's rule with its figures, as TotalsOn gives them; every row's
 // details; what each day's lines count; and the days its rows await a line
@@ -69,13 +68,10 @@ func logBack(l Ledger, read func(Ledger, string) LogDay, from string, s Stream, 
 	}
 	logRead, held := ReadLog(prices), HoldSessions(prices)
 	for _, day := range days {
-		if ids := held.Unheld(ReadLog(prices).Wanted(day)); len(ids) > 0 {
-			want := StreamWanted(s)
-			want.Log = ids
-			fresh, _ := HoldSessions(prices).Fed(l, Taken{}, want, now)
-			held = held.With(fresh)
+		var fresh *HeldSessions
+		if logRead, fresh = logRead.TakenBack(l, day, held, s, now); fresh != nil {
+			held = held.With(*fresh)
 		}
-		logRead = logRead.Taken(day, true, LogTaking{Held: held, Stream: s, Now: now})
 	}
 	slices.Reverse(dates)
 	start, _, _ := dayfile.Day(from)
@@ -172,11 +168,36 @@ func (c *digestChain) sameLogBack(l Ledger, f *ledger.Follower, from string, s S
 	}
 }
 
-// readBackSeeds is how many seeds of each of the rows' worlds the Log is
-// read back over: fewer than the chained digests', whose rows' tests hold
-// each day's rows to its lines over every one, as the Log is built of the
-// day's records alone.
+// readBackSeeds is how many seeds of each of readBackWorlds the Log is read
+// back over: fewer than the chained digests', whose rows' tests hold each
+// day's rows to its lines over every one, as the Log is built of the day's
+// records alone. Among them, the busy days' of 1 and 2 run to more than one
+// chunk a day.
 const readBackSeeds = 3
+
+// readBackWorlds are the worlds the Log is read back over: the rows', and a
+// generated session's run again three days on, so the Log reads back across
+// a day of no lines, which has no head.
+var readBackWorlds = append(slices.Clip(rowsWorlds), struct {
+	name  string
+	lines func(seed uint64) []ledger.Line
+}{name: "three days apart", lines: threeDaysApart})
+
+// threeDaysApart is a generated session's lines, as generatedSession makes
+// them, and again three days on, as movedOn moves them, each request of its
+// own, in the order the ledger files them: a session runs for less than a
+// day, so a day or more between the two holds no lines.
+func threeDaysApart(seed uint64) []ledger.Line {
+	lines := generatedSession(seed)
+	for _, l := range slices.Clone(lines) {
+		l = movedOn(l, 3)
+		if l.Request != "" {
+			l.Request += "-again"
+		}
+		lines = append(lines, l)
+	}
+	return lines
+}
 
 // The Log read back over a real ledger's days, each past day read as
 // ReadDay reads it, shows what it shows read back over the same days raw,
@@ -187,12 +208,13 @@ const readBackSeeds = 3
 // read back half an hour past the midnight after the last day the worlds
 // file lines on, that day read from its lines, its head yet to be built;
 // and at half past one, read from its rows; every day before it from its
-// rows, never its lines, the busy days' in more than one chunk; each day's
+// rows, never its lines, the busy days' in more than one chunk, but a day
+// of no lines, which has no head, from its lines, as none; each day's
 // records those of its lines read raw. Today, the last day as it runs, is
 // read from its lines.
 func TestTheLogReadBackOverRowsIsTheLogReadRaw(t *testing.T) {
-	var lastRaw, lastRows, cut int
-	for _, w := range rowsWorlds {
+	var lastRaw, lastRows, cut, lineless int
+	for _, w := range readBackWorlds {
 		for seed := range uint64(readBackSeeds) {
 			c := newDigestChain(t, fmt.Sprintf("%s %d", w.name, seed), seed, w.lines(seed))
 			f, filed := c.follower(), filedDates(c.lines)
@@ -214,22 +236,26 @@ func TestTheLogReadBackOverRowsIsTheLogReadRaw(t *testing.T) {
 					continue
 				}
 				c.sameLogBack(f, f, filed[0], toldBack(c.lines, filed))
-				for _, date := range filed {
-					if !c.sameDay(f, f, date, true) {
-						continue
-					}
-					read, _ := f.DayRows(date, RowsVersion)
-					cut += len(read.Chunks) - 1
-					if date == last {
-						lastRows++
+				first, _, _ := dayfile.Day(filed[0])
+				for _, date := range dayfile.Span(first, dayfile.DayStart(day.Start, -1)) {
+					lined := slices.Contains(filed, date)
+					switch rows := c.sameDay(f, f, date, lined); {
+					case !lined:
+						lineless++
+					case rows:
+						read, _ := f.DayRows(date, RowsVersion)
+						cut += len(read.Chunks) - 1
+						if date == last {
+							lastRows++
+						}
 					}
 				}
 			}
 		}
 	}
-	if lastRaw == 0 || lastRows == 0 || cut == 0 {
-		t.Errorf("the last day read back from its lines past midnight %d times and from its rows at half past one %d times, rows cut into another chunk %d times; "+
-			"want some of each", lastRaw, lastRows, cut)
+	if lastRaw == 0 || lastRows == 0 || cut == 0 || lineless == 0 {
+		t.Errorf("the last day read back from its lines past midnight %d times and from its rows at half past one %d times, rows cut into another chunk %d times, "+
+			"a day of no lines read back %d times; want some of each", lastRaw, lastRows, cut, lineless)
 	}
 }
 
