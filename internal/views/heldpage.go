@@ -208,7 +208,7 @@ func (h HeldPage) TurnOf(was HeldPage, read ...[]ledger.Held) HeldPage {
 		}
 	}
 	if len(mine) > 0 {
-		h.turn = h.turn.with(mine)
+		h.turn = h.turn.withHeld(mine, held)
 	}
 	return h
 }
@@ -250,15 +250,21 @@ func (h HeldPage) mine(f turnFacts, early bool) bool {
 	return !early && f.prompt == h.turn.prompt
 }
 
-// with is t with the records given among its own, afresh: each of a request
+// with is t with the records given among its own, afresh, as withHeld has
+// it.
+func (t *turnLines) with(lines []lineRecord) *turnLines {
+	return t.withHeld(lines, t.held())
+}
+
+// withHeld is t with the records given among its own, afresh, held the keys
+// of t's lines, as held counts them, which it uses up: each of a request
 // with an id once, as its key knows it; one without, as often as the records
 // given hold it beyond those t holds alike, as their sums know them, so a
 // line both read and gained is held once, and one the ledger's files hold
 // twice, twice.
-func (t *turnLines) with(lines []lineRecord) *turnLines {
+func (t *turnLines) withHeld(lines []lineRecord, held map[turnKey]int) *turnLines {
 	grown := *t
 	grown.lines = slices.Clip(t.lines)
-	held := t.held()
 	for i := range lines {
 		rec := &lines[i]
 		switch k := turnKeyOf(rec); {
@@ -286,8 +292,8 @@ func (t *turnLines) held() map[turnKey]int {
 
 // heldID reports whether held, the keys of a turn's lines, as held counts
 // them, hold the line of the request that flew as f by its id, as idKey
-// keys it: a line with passes over, and TurnOf never decodes. Never of one
-// without an id, whose key holds its record's sum, as turnKeyOf has it.
+// keys it: a line withHeld passes over, and TurnOf never decodes. Never of
+// one without an id, whose key holds its record's sum, as turnKeyOf has it.
 func heldID(held map[turnKey]int, f flight) bool {
 	k, ok := f.idKey()
 	return ok && held[k] > 0

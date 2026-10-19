@@ -169,14 +169,14 @@ func answersIn(lines []ledger.Held, id string) []answered {
 }
 
 // key is a as a held page's points know it from another answer, as turnKey
-// knows a line: by its request's id and when it arrived, or of one without
-// an id, by the sum of all it holds too.
+// knows a line: by its flight's, as idKey has it, with, where it has no id,
+// the sum of all it holds, as turnKeyOf has it of a line's record.
 func (a *answered) key() turnKey {
-	k, ok := a.flight.key()
-	if ok {
-		return turnKey{lineKey: k}
+	k, ok := a.idKey()
+	if !ok {
+		k.sum = a.sum
 	}
-	return turnKey{lineKey: k, sum: a.sum}
+	return k
 }
 
 // sealedBy reports whether both a's reading and its end came before through,

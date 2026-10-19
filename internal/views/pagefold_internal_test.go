@@ -835,17 +835,55 @@ func TestATurnOpenHoldsOnlyTheLinesThatMayBeItsOwn(t *testing.T) {
 	}
 }
 
-// A turn open holds a request's line once, however many times the lines it
-// takes in at once give it.
-func TestATurnOpenHoldsALineGivenTwiceAtOnceOnce(t *testing.T) {
+// A turn open holds a request's line with an id once, however many times
+// the reads it takes in give it, at once or one after another; one of the
+// same id that arrived at another moment is another request's, as an id is
+// unique only while the router that gave it runs, and is held too. One
+// without an id is held as often as a read gives it beyond those the turn
+// holds alike: a line read again, once; one a read gives twice, as the
+// ledger's files hold it twice, twice.
+func TestATurnOpenHoldsEachLineAsItsKeyKnowsIt(t *testing.T) {
 	at := time.Date(2026, 10, 7, 12, 0, 0, 0, time.Local)
-	l := ledger.Line{Request: "a", At: at, Kind: ledger.KindMessage, Session: "s", Model: foldOpus, Account: "work", Status: 200, Attempts: 1, Prompt: "p1"}
-	now := at.Add(time.Hour)
+	line := func(id string, minutes int) ledger.Line {
+		return ledger.Line{
+			Request: id, At: at.Add(time.Duration(minutes) * time.Minute), Kind: ledger.KindMessage, Session: "s", Model: foldOpus, Account: "work",
+			Status: 200, Attempts: 1, Prompt: "p1",
+		}
+	}
+	a, later, idless := line("a", 0), line("a", 60), line("", 1)
+	tests := []struct {
+		name  string
+		reads [][]ledger.Line
+		want  []string
+	}{
+		{name: "a line given three times at once", reads: [][]ledger.Line{{a, a, a}}, want: []string{`"a" at 0s`}},
+		{name: "a line held, given twice again", reads: [][]ledger.Line{{a}, {a, a}}, want: []string{`"a" at 0s`}},
+		{name: "a line held, then one of its id arriving later", reads: [][]ledger.Line{{a}, {later}}, want: []string{`"a" at 0s`, `"a" at 1h0m0s`}},
+		{name: "two lines of one id arriving apart, at once", reads: [][]ledger.Line{{a, later}}, want: []string{`"a" at 0s`, `"a" at 1h0m0s`}},
+		{name: "a line without an id held, given again", reads: [][]ledger.Line{{idless}, {idless}}, want: []string{`"" at 1m0s`}},
+		{name: "a line without an id given twice at once", reads: [][]ledger.Line{{idless, idless}}, want: []string{`"" at 1m0s`, `"" at 1m0s`}},
+	}
+	now := at.Add(2 * time.Hour)
 	live := PageLive{Now: now}
-	page := ReadPage(filedLedger{lines: []ledger.Line{l}, now: now}, "s", Stream{}, ledger.Pricing, 0, now).Opening(1, live)
-	page = page.TurnOf(page, []ledger.Held{{Line: l}, {Line: l}})
-	if n := len(page.turn.lines); n != 1 {
-		t.Errorf("the turn open holds the line %d times, want once", n)
+	page := ReadPage(filedLedger{lines: []ledger.Line{a}, now: now}, "s", Stream{}, ledger.Pricing, 0, now).Opening(1, live)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := page
+			for _, read := range tt.reads {
+				given := make([]ledger.Held, len(read))
+				for i := range read {
+					given[i] = ledger.Held{Line: read[i]}
+				}
+				p = p.TurnOf(p, given)
+			}
+			var held []string
+			for _, l := range p.turn.lines {
+				held = append(held, fmt.Sprintf("%q at %v", l.request, l.arrived().Sub(at)))
+			}
+			if !slices.Equal(held, tt.want) {
+				t.Errorf("the turn open holds %v, want %v", held, tt.want)
+			}
+		})
 	}
 }
 
