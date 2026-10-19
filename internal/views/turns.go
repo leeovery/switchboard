@@ -20,18 +20,19 @@ const (
 
 // turnsOf returns the turns of a session, newest first, as TURNS has them:
 // of their tallies, the first started first, as pageTally tallies them,
-// inNone saying a request in none is in flight. A turn goes on while it's
-// open, as open says; and, running saying the session runs, not having
-// ended, its newest goes on while its last answer of its own conversation
-// stopped to call a tool, or while a request of the session is in flight
-// that neither its lines nor the stream place in a turn: one the stream told
-// of naming no prompt, or, as unplaced says, one the router lists in flight
-// that the stream hasn't told of.
-func turnsOf(tallies []*turnTally, inNone, running, unplaced bool) []Turn {
+// inNone saying a request in none is in flight, each worth what its requests
+// spent, as priced prices it. A turn goes on while it's open, as open says;
+// and, running saying the session runs, not having ended, its newest goes on
+// while its last answer of its own conversation stopped to call a tool, or
+// while a request of the session is in flight that neither its lines nor the
+// stream place in a turn: one the stream told of naming no prompt, or, as
+// unplaced says, one the router lists in flight that the stream hasn't told
+// of.
+func turnsOf(tallies []*turnTally, inNone, running, unplaced bool, priced pricing) []Turn {
 	turns := make([]Turn, len(tallies))
 	for i, t := range tallies {
 		newest := i == len(tallies)-1
-		turns[len(tallies)-1-i] = t.turn(i+1, t.open() || running && newest && (t.calling() || unplaced || inNone))
+		turns[len(tallies)-1-i] = t.turn(i+1, t.open() || running && newest && (t.calling() || unplaced || inNone), priced)
 	}
 	return turns
 }
@@ -109,7 +110,7 @@ func toldSent(t Told) sent {
 // prompt it serves; when its first came; how its last, and its last of its
 // own conversation, ended; how many there are; how many times each tool was
 // called; the tokens they read from the cache, wrote to it and put out;
-// their worth; the accounts they went to, and those its own conversation's
+// what they spent; the accounts they went to, and those its own conversation's
 // went to, each as withAccount lists them; and whether any of them, and any
 // of its own conversation's, is pending.
 type turnTally struct {
@@ -119,7 +120,7 @@ type turnTally struct {
 	requests               int
 	tools                  map[string]int
 	read, written, out     int
-	worth                  Worth
+	spent                  ledger.Spent
 	accounts, mainAccounts []string
 	pending, mainPending   bool
 }
@@ -167,7 +168,7 @@ func (t *turnTally) add(r *sent) {
 	}
 	tokens, _ := r.line.spend.Tokens()
 	t.read, t.written, t.out = t.read+tokens.CacheRead, t.written+tokens.CacheWrite, t.out+tokens.Output
-	t.worth.add(r.line.worthSaid())
+	r.line.spentInto(&t.spent)
 }
 
 func withAccount(accounts []string, account string) []string {
@@ -196,11 +197,12 @@ func (t *turnTally) calling() bool {
 
 // turn returns the turn, numbered n, following its own conversation: on the
 // accounts its requests went to, and ended with the end of its last one,
-// unless it's going; or, where it has none of them, following its requests.
-func (t *turnTally) turn(n int, going bool) Turn {
+// unless it's going; or, where it has none of them, following its requests;
+// worth what its requests spent, as priced prices it.
+func (t *turnTally) turn(n int, going bool, priced pricing) Turn {
 	turn := Turn{
 		Turn: n, Started: t.started.UTC(), Requests: t.requests, Tools: toolsCalled(t.tools), Read: t.read, Written: t.written, Out: t.out,
-		Worth: t.worth, Accounts: t.accounts,
+		Worth: priced.worth(t.spent), Accounts: t.accounts,
 	}
 	ended := t.last
 	if t.lastMain.set {

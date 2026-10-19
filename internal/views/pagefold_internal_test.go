@@ -312,10 +312,15 @@ func (p *paging) untoldSince(filed []ledger.Line, stream Stream) {
 // whole; the page rolled on to the day, as On has it, its turn open taking
 // the lines in, as TurnOf has it, then its session as the store holds it,
 // as Held has it. The page is held to the page of every line filed, held
-// whole, its turn open of every line of the session, as check has it.
+// whole, its turn open of every line of the session, as check has it; and,
+// where the look comes on a later day than the last, so first, as it's
+// built before the feed, as checkHeldOn has it.
 func (p *paging) look(now time.Time, again bool) {
 	p.t.Helper()
 	today := Today(now)
+	if today.Date > Today(p.fed).Date {
+		p.checkHeldOn(now)
+	}
 	l := filedLedger{lines: p.lines, now: now}
 	was := filedLedger{lines: p.lines, now: p.fed}.filed()
 	var gained []ledger.Held
@@ -448,9 +453,8 @@ func (l filedLedger) dayOf(date string) []ledger.Held {
 // it read the session whole: a request in flight among its lines; a
 // subagent's request in a turn other than its prompt's; an idle gap folded;
 // its stretches told by its own conversation's once a request of it came
-// after others; midnight; and a session read whole as the new day's prices
-// change what its page tallied, or as the stream told late of a request
-// that arrived behind its horizon.
+// after others; midnight; and a session read whole as the stream told late
+// of a request that arrived behind its horizon.
 func (p *paging) note(now time.Time, before *heldSession, stream Stream, whole bool) {
 	if len(stream.Requests) > 0 {
 		p.met["a request in flight"] = true
@@ -477,9 +481,6 @@ func (p *paging) note(now time.Time, before *heldSession, stream Stream, whole b
 	}
 	if Today(now).Date > before.day().Date {
 		p.met["midnight"] = true
-	}
-	if Today(now).Date > before.day().Date && !before.page.pricedAlike(p.prices, before.day().Date, Today(now).Date) {
-		p.met["midnight, its page priced again whole"] = true
 	}
 	for _, pins := range pinsOf(stream) {
 		if slices.ContainsFunc(pins, func(pin time.Time) bool { return instantOf(pin.Add(-arrivesWithin)).compare(before.horizon) < 0 }) {
@@ -513,6 +514,35 @@ func (p *paging) check(now time.Time, l filedLedger, stream Stream) {
 	}
 }
 
+// checkHeldOn holds the page, held across midnight and built at now, before
+// its store's next feed, to the page built whole at now of every line filed
+// by the last feed: priced at once at the new day's prices, as one read
+// whole is, where a model its lines asked for costs otherwise on it, its
+// tally kept in tokens. A page the stream has to be read whole, as
+// joinedLate has it, builds none to hold. Its turn open's requests aren't
+// held to the whole's, as they may hold lines filed since the last feed.
+func (p *paging) checkHeldOn(now time.Time) {
+	p.t.Helper()
+	live := PageLive{Stream: p.streamAt(now), Now: now}
+	if p.page.readsWhole(live) {
+		return
+	}
+	was, day := Today(p.fed).Date, Today(now).Date
+	for model := range p.page.record.page.kept {
+		if !p.prices.SamePrices(model, was, day) {
+			p.met["midnight, its page held across a change of its prices"] = true
+		}
+	}
+	whole := HoldPage("s", filedLedger{lines: p.lines, now: p.fed}.readWhole(now), p.prices, 0, now)
+	got, gotOK := p.page.Page(live)
+	want, wantOK := whole.Page(live)
+	if gotOK != wantOK || !reflect.DeepEqual(got, want) {
+		gotJSON, _ := json.MarshalIndent(got, "", "  ")
+		wantJSON, _ := json.MarshalIndent(want, "", "  ")
+		p.t.Fatalf("session %d's page, held from %v to %v, is\n%s\nwant it built whole\n%s", p.seed, p.fed, now, gotJSON, wantJSON)
+	}
+}
+
 // sentAlike is b, its story's times held as SentAt holds them, so pages
 // sealed apart are held alike by the times they tell.
 func sentAlike(b BuiltPage) BuiltPage {
@@ -527,7 +557,9 @@ func sentAlike(b BuiltPage) BuiltPage {
 // lines, subagents counting in their first request's turn across others,
 // idle gaps folded, its stretches told by its own conversation once one
 // comes after others, across midnight, a model's prices changing on the
-// new day, and a stream row joining late, behind its horizon. The turn it
+// new day, held across it, and a stream row joining late, behind its
+// horizon. Past midnight, it's so before the store's feed too, priced at the
+// new day's prices at once, as one read whole is. The turn it
 // opens, read from the ledger as it opens, its lines taken in as they come,
 // is the turn's every request. Its points, sealed as its requests are, are
 // those of the page built whole: of its accounts' every request, other
@@ -566,7 +598,7 @@ func TestThePageFedLookByLookIsThePageBuiltWhole(t *testing.T) {
 	}
 	for _, moment := range []string{
 		"a request in flight", "a subagent's request naming another turn's prompt", "an idle gap folded",
-		"stretches told by its own conversation after others", "midnight", "midnight, its page priced again whole",
+		"stretches told by its own conversation after others", "midnight", "midnight, its page held across a change of its prices",
 		"a stream row joining late, read whole", "its page fed on of requests sealed", "its turn open taking in lines as they come",
 		"a turn opened between feeds, a line of it filed since", "a subagent's first request, untold, filed since the feed before a turn opened",
 		"its points sealed across midnight", "answers held of a day it made no request on", "a run of its days done as a later one began",

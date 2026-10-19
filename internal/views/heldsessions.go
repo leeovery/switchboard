@@ -282,20 +282,12 @@ func (h HeldSessions) feeding(want SessionsWanted, now time.Time) *feed {
 	for id, s := range f.sessions {
 		if s.day().Date < f.fed.day.Date {
 			f.change(id, s.on(f.fed.day, f.prices))
-			f.whole[id] = f.whole[id] || s.repricedOn(f.prices, f.fed.day)
 		}
 	}
 	if s, held := f.sessions[want.Page]; held && joinedLate(f.now, want.Pins[want.Page], s.horizon) {
 		f.whole[want.Page] = true
 	}
 	return f
-}
-
-// repricedOn reports whether what s's page tallies, priced at its day's
-// prices, is worth otherwise on the day given, as prices have it, a later
-// one than its own: its page is tallied again whole as it rolls on to it.
-func (s *heldSession) repricedOn(prices ledger.Table, day LedgerDay) bool {
-	return s.page != nil && s.day().Date < day.Date && !s.page.pricedAlike(prices, s.day().Date, day.Date)
 }
 
 // joinedLate reports whether the stream tells, at now, of a request of a

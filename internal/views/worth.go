@@ -29,6 +29,23 @@ func summed(prices ledger.Table, l *ledger.Line, date string) Worth {
 	return w
 }
 
+// pricing is how a page prices what its requests spent, as it's built: by
+// the table given, at the prices in effect on the local day with the date
+// given, the day it's built on.
+type pricing struct {
+	prices ledger.Table
+	date   string
+}
+
+// worth is what requests that spent sp were worth, as p prices them, as
+// ledger.Table.SummedSpent gives it: exactly their worths, each priced on
+// its own, summed; no Amount where the table priced none of them.
+func (p pricing) worth(sp ledger.Spent) Worth {
+	var w Worth
+	w.addSummed(p.prices.SummedSpent(sp, p.date))
+	return w
+}
+
 // addSummed adds what a request was worth, as ledger.Table.Summed gives it:
 // its cost, where the table priced it, and what it left unpriced.
 func (w *Worth) addSummed(worth ledger.Worth, priced bool) {

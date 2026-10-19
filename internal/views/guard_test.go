@@ -77,9 +77,10 @@ var (
 		"claude.LimitStatus", "claude.LimitWindows", "claude.WindowsRead",
 		"claude.KeptWindows", "claude.WindowsReadOf",
 		"ledger.Failing", "ledger.Line.Upstream",
-		"ledger.Reply.CacheLife", "ledger.Reply.Tokens", "ledger.Spend.CacheLife", "ledger.Spend.Tokens", "ledger.SpendOf",
+		"ledger.Reply.CacheLife", "ledger.Reply.Tokens", "ledger.Spend.CacheLife", "ledger.Spend.Tokens", "ledger.SpendOf", "ledger.Spent.Add",
 		"ledger.Table.CacheWrite", "ledger.Table.CacheWriteSpend", "ledger.Table.Priced", "ledger.Table.Request", "ledger.Table.Rewrite",
-		"ledger.Table.RewriteSpend", "ledger.Table.SamePrices", "ledger.Table.Summed", "ledger.Table.SummedSpend", "ledger.Table.Worth",
+		"ledger.Table.RewriteSpend", "ledger.Table.SamePrices", "ledger.Table.Summed", "ledger.Table.SummedSpend", "ledger.Table.SummedSpent",
+		"ledger.Table.Worth",
 	}
 	// absorbed are what a rule's one owner took the place of, each with its
 	// owner: a drawing package calls none, but its owner.
