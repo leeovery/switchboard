@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io/fs"
 	"maps"
+	"math/rand/v2"
 	"os"
 	"reflect"
 	"slices"
@@ -42,6 +43,12 @@ func (c datesTaken) taking(take func(string, ledger.Line)) func(string, ledger.L
 	}
 }
 
+// datesRead are the dates of the days whose lines c's reads of its sessions
+// handed on, oldest first.
+func (c datesTaken) datesRead() []string {
+	return slices.Sorted(maps.Keys(c.dates))
+}
+
 // nineDays is a ledger of nine days whose sessions each ran on every one,
 // and made a request on the day after them, digested at half past one that
 // day, once the day before's digest stands: its first day and that day,
@@ -54,8 +61,11 @@ type nineDays struct {
 }
 
 // newNineDays returns the nine days, their sessions those with the given
-// ids, each a generated session of its own.
-func newNineDays(t *testing.T, ids []string) nineDays {
+// ids, each a generated session of its own, each answer reading its
+// account's windows, as limitedOf has them. Those left out are given no
+// state in the day before's digest, as of one the Digests couldn't hold, so
+// each rests on its state of the day before that.
+func newNineDays(t *testing.T, ids []string, leftOut ...string) nineDays {
 	t.Helper()
 	first, today := Today(foldDays[0]), Today(dayfile.DayStart(foldDays[0], 9))
 	var lines []ledger.Line
@@ -66,8 +76,20 @@ func newNineDays(t *testing.T, ids []string) nineDays {
 		lines = append(lines, dayAfterDay(session, 9)...)
 		lines = append(lines, early)
 	}
+	r := rand.New(rand.NewPCG(9, 9))
+	for i := range lines {
+		limitedOf(&lines[i], r, time.Time{})
+	}
 	slices.SortStableFunc(lines, func(a, b ledger.Line) int { return ended(&a).Compare(ended(&b)) })
 	c := newDigestChain(t, "nine days", 0, lines)
+	yesterday := yesterdayOf(today)
+	c.digests.alter = func(date string, folded map[string]ledger.Folded) {
+		if date == yesterday {
+			for _, id := range leftOut {
+				delete(folded, id)
+			}
+		}
+	}
 	now := today.Start.Add(90 * time.Minute)
 	c.at = now
 	c.ledger.SummariseEnded(now)
@@ -123,7 +145,7 @@ func TestAListOverDigestsReadsTheNearDaysFilesAlone(t *testing.T) {
 			if len(list.Sessions) != len(ids) {
 				t.Errorf("the List lists %d sessions, want %d", len(list.Sessions), len(ids))
 			}
-			if dates := slices.Sorted(maps.Keys(l.dates)); !slices.Equal(dates, tt.read) {
+			if dates := l.datesRead(); !slices.Equal(dates, tt.read) {
 				t.Errorf("the List read the lines of %v, want those of %v", dates, tt.read)
 			}
 		})

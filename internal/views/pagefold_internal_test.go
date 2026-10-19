@@ -268,10 +268,10 @@ func (p *paging) checkTurn(now time.Time, l filedLedger, stream Stream) {
 		return
 	}
 	read := l.readWhole(now)
-	p.untoldSince(read.lines["s"], stream)
+	p.untoldSince(read.sessions["s"].Lines, stream)
 	whole := HoldPage("s", read, p.prices, 0, now)
 	whole.turn = &turnLines{prompt: p.page.turn.prompt}
-	whole = whole.Turned(HeldTurn{prompt: p.page.turn.prompt, lines: read.lines["s"]})
+	whole = whole.Turned(HeldTurn{prompt: p.page.turn.prompt, lines: read.sessions["s"].Lines})
 	live := PageLive{Stream: stream, Now: now}
 	rowsOf := func(h HeldPage) []string {
 		w := h.worked(live)
@@ -424,15 +424,23 @@ func readAtOnce(lines []ledger.Line) bool {
 }
 
 // readWhole is a read of every line l files for the page of the session s:
-// its lines, and every account's requests, by the date of the day each is
+// its lines, and every account's answers, by the date of the day each is
 // filed on.
 func (l filedLedger) readWhole(now time.Time) SessionsRead {
-	read := sessionsReadAt(now)
 	filed := l.filed()
-	read.lines = map[string][]ledger.Line{"s": slices.DeleteFunc(slices.Clone(filed), func(line ledger.Line) bool { return line.Session != "s" })}
+	read := linesRead(now, "s", slices.DeleteFunc(slices.Clone(filed), func(line ledger.Line) bool { return line.Session != "s" }))
 	for _, line := range filed {
-		read.take(dayfile.DateOf(line.At), line)
+		read.answers.take(dayfile.DateOf(line.At), line)
 	}
+	return read
+}
+
+// linesRead is a read at now of the session with the given id, of its lines
+// alone, resting on none, as a ledger holding no digest gives them, and of
+// no account's answers.
+func linesRead(now time.Time, id string, lines []ledger.Line) SessionsRead {
+	read := readOn(nil, Today(now))
+	read.sessions = ledger.SessionsWhole(map[string][]ledger.Line{id: lines})
 	return read
 }
 
@@ -499,7 +507,7 @@ func (p *paging) check(now time.Time, l filedLedger, stream Stream) {
 	whole := HoldPage("s", read, p.prices, 0, now)
 	if p.page.turn != nil {
 		whole.turn = &turnLines{prompt: p.page.turn.prompt}
-		whole = whole.Turned(HeldTurn{prompt: p.page.turn.prompt, lines: read.lines["s"]})
+		whole = whole.Turned(HeldTurn{prompt: p.page.turn.prompt, lines: read.sessions["s"].Lines})
 	}
 	live := PageLive{Stream: stream, Now: now}
 	got, gotOK := p.page.Build(live)
@@ -716,7 +724,7 @@ func TestAPageTakesRequestsTiedToTheMillisecondInTheOneOrder(t *testing.T) {
 	}
 	now := at.Add(time.Minute)
 	pageOf := func(lines []ledger.Line) SessionPage {
-		page, _ := HoldPage("s", SessionsRead{day: Today(now), lines: map[string][]ledger.Line{"s": lines}}, ledger.Pricing, 0, now).Page(PageLive{Now: now})
+		page, _ := HoldPage("s", linesRead(now, "s", lines), ledger.Pricing, 0, now).Page(PageLive{Now: now})
 		return page
 	}
 	want := pageOf(tied)
@@ -881,7 +889,7 @@ func TestATurnCountsASubagentWhoseFirstLineLandsLateInIt(t *testing.T) {
 				page, _ = page.TurnOf(page, gained).Held(store)
 			}
 			live = PageLive{Now: landed}
-			whole := HoldPage("s", SessionsRead{day: Today(landed), lines: map[string][]ledger.Line{"s": lines}}, ledger.Pricing, 0, landed)
+			whole := HoldPage("s", linesRead(landed, "s", lines), ledger.Pricing, 0, landed)
 			whole.turn = &turnLines{prompt: "p1"}
 			whole = whole.Turned(HeldTurn{prompt: "p1", lines: lines})
 			if got, want := rowsOf(page, live), rowsOf(whole, live); !slices.Equal(got, want) {
@@ -928,7 +936,7 @@ func TestATurnOpenBetweenFeedsCountsASubagentByAFirstRequestFiledSince(t *testin
 	if want := []string{"a2", "m2", "a1"}; !slices.Equal(held, want) || *counted.read != 6 {
 		t.Errorf("the turn's read holds %v, reading %d lines; want %v, reading 6, the last the first before its horizon", held, *counted.read, want)
 	}
-	whole := HoldPage("s", SessionsRead{day: Today(opened), lines: map[string][]ledger.Line{"s": lines}}, ledger.Pricing, 0, opened)
+	whole := HoldPage("s", linesRead(opened, "s", lines), ledger.Pricing, 0, opened)
 	whole.turn = &turnLines{prompt: "p2"}
 	whole = whole.Turned(HeldTurn{prompt: "p2", lines: lines})
 	rowsOf := func(h HeldPage) []string {

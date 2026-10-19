@@ -161,22 +161,25 @@ type PageSources struct {
 }
 
 // SessionsRead is a read of the ledger for a session's page, as ReadSessions
-// reads it: the lines of the sessions it read, by each one's id, oldest
-// first; and every request of an account on each day it read, every
-// session's, by the date of the day whose files hold it, for the points.
+// reads it: the sessions it read, by each one's id, each resting on its
+// page, as onPage has it, with its lines after it; every account's answers
+// on each day it read, every session's, as takenAnswers holds them, for the
+// points; and the ledger it read them through, to read a session again
+// whole where its page can't be held on what it rests on.
 type SessionsRead struct {
 	day      LedgerDay
-	lines    map[string][]ledger.Line
-	requests map[string][]ledger.Line
+	sessions map[string]ledger.SessionFrom
+	answers  takenAnswers
+	l        LedgerSessions
 }
 
 // ReadSessions reads, through l, at now, the sessions a page may be of, as
-// the ledger's Sessions reads them, each whole: today's, those running
-// gives, as the router lists them, and those with the given ids, as one
-// given in whole, of an earlier day.
+// the ledger's Sessions reads them, each resting on its page: today's,
+// those running gives, as the router lists them, and those with the given
+// ids, as one given in whole, of an earlier day.
 func ReadSessions(l Ledger, running []status.Session, now time.Time, ids ...string) SessionsRead {
-	read := sessionsReadAt(now)
-	read.lines = sessionLines(l.Sessions(append(runningIDs(running), ids...), eachWhole, read.take))
+	read := readOn(l, Today(now))
+	read.sessions = l.Sessions(append(runningIDs(running), ids...), onPage, read.answers.take)
 	return read
 }
 
@@ -185,26 +188,56 @@ func ReadSessions(l Ledger, running []status.Session, now time.Time, ids ...stri
 // reads it, but through the ledger's SessionsOf, so none of today's other
 // sessions' days is read for it.
 func ReadSession(l LedgerSessions, now time.Time, id string) SessionsRead {
-	read := sessionsReadAt(now)
-	read.lines = sessionLines(l.SessionsOf([]string{id}, eachWhole, read.take))
+	read := readOn(l, Today(now))
+	read.sessions = l.SessionsOf([]string{id}, onPage, read.answers.take)
 	return read
 }
 
+// whole is the session with the given id read again alone, through the
+// ledger r read it through, on r's day, resting on nothing, every day's
+// answers taken afresh: as a page that can't be held on what it rests on is
+// read.
+func (r SessionsRead) whole(id string) SessionsRead {
+	read := readOn(r.l, r.day)
+	read.sessions = r.l.SessionsOf([]string{id}, eachWhole, read.answers.take)
+	return read
+}
+
+// readOn is a read, through l, on the day given, holding nothing yet.
+func readOn(l LedgerSessions, day LedgerDay) SessionsRead {
+	return SessionsRead{day: day, answers: make(takenAnswers), l: l}
+}
+
+// heldFrom is the horizon the page of the session with the given id, as r
+// read it, is held behind, each of its requests after it held open, of
+// pins, when each of its requests a stream tells of went upstream: the end
+// of the day of the state it rests on, which holds sealed each of its
+// requests before then, or before every moment, of one resting on none; or
+// earlier, a moment before the earliest pin, as its request may have
+// arrived arrivesWithin before, so each is taken in in its place, the
+// session read whole where its state holds that sealed.
+func (r SessionsRead) heldFrom(id string, pins []time.Time) instant {
+	horizon := unsealed
+	if base := r.sessions[id].Base; base != nil {
+		horizon = endOfDay(dayOf(base.Date))
+	}
+	for _, pin := range pins {
+		if at := instantOf(pin.Add(-arrivesWithin)); at.compare(horizon) < 0 {
+			horizon = at
+		}
+	}
+	return horizon
+}
+
 // eachWhole has a read of the ledger's sessions read each whole, resting on
-// no state a digest holds: every line of each given, as a session's page
-// folds each from its every line, and the store reads again one resting on
-// a state that won't restore.
+// no state a digest holds: every line of each given, as the store reads
+// again one resting on a state that won't restore.
 func eachWhole(string) ledger.Rest { return ledger.RestWhole }
 
-// sessionLines returns the lines of sessions, each read whole, as eachWhole
-// has them read, by its id.
-func sessionLines(sessions map[string]ledger.SessionFrom) map[string][]ledger.Line {
-	lines := make(map[string][]ledger.Line, len(sessions))
-	for id, from := range sessions {
-		lines[id] = from.Lines
-	}
-	return lines
-}
+// onPage has a read of the ledger's sessions rest each on its page, as
+// RestOnPage has it: on the newest state a digest holds of it whose chain
+// of parts reads, as a session's page is restored from them.
+func onPage(string) ledger.Rest { return ledger.RestOnPage }
 
 // AskedPage is the page of the session with the given id as it's drawn
 // asked to open, while its lines are read: its id, and its directory as the
@@ -219,28 +252,15 @@ func AskedPage(id string, running []status.Session) SessionPage {
 	return page
 }
 
-// sessionsReadAt is a read at now, holding nothing yet.
-func sessionsReadAt(now time.Time) SessionsRead {
-	return SessionsRead{day: Today(now), requests: make(map[string][]ledger.Line)}
-}
-
-// take holds the line given, of the day with the given date, where it's an
-// answer the points share rises among, as isAnswer has it.
-func (r SessionsRead) take(date string, line ledger.Line) {
-	if isAnswer(&line) {
-		r.requests[date] = append(r.requests[date], line)
-	}
-}
-
 // Named returns the ids of the sessions one is named among, by as much of its
 // id as is unique: those read with a request today, in the order their first
 // requests today came, then those running gives, as the router lists them,
-// each once.
+// each once. Today's lines are read whatever a session rests on.
 func (r SessionsRead) Named(running []status.Session) []string {
 	first := make(map[string]time.Time)
-	for id, lines := range r.lines {
-		if i := slices.IndexFunc(lines, func(l ledger.Line) bool { return isRequest(&l) && r.day.Holds(l.At) }); i >= 0 {
-			first[id] = lines[i].At
+	for id, from := range r.sessions {
+		if i := slices.IndexFunc(from.Lines, func(l ledger.Line) bool { return isRequest(&l) && r.day.Holds(l.At) }); i >= 0 {
+			first[id] = from.Lines[i].At
 		}
 	}
 	ids := slices.SortedFunc(maps.Keys(first), func(a, b string) int { return cmp.Or(first[a].Compare(first[b]), strings.Compare(a, b)) })
@@ -261,9 +281,11 @@ func (r SessionsRead) Named(running []status.Session) []string {
 // while its last answer called a tool till the session has ended, as its
 // Activity says, so with no router, while the router's own rule keeps it.
 // It reports false where the ledger holds no request of it, and the router
-// doesn't list it. It's the page HoldPage holds, built once.
+// doesn't list it. It's the page HoldPage holds, built once, but held open
+// from before each request the stream tells of, as heldFrom has it.
 func SessionPageOf(id string, src PageSources) (SessionPage, bool) {
-	return HoldPage(id, src.Read, src.Prices, src.Keep, src.Now).Page(PageLive{Routed: src.Routed, Unlisted: src.Unlisted, Stream: src.Stream, Now: src.Now})
+	held := holdPage(id, src.Read, src.Prices, src.Keep, src.Read.heldFrom(id, pinsOf(src.Stream)[id]), src.Now)
+	return held.Page(PageLive{Routed: src.Routed, Unlisted: src.Unlisted, Stream: src.Stream, Now: src.Now})
 }
 
 // KeptUntil says until when the ledger keeps a day's lines, by the date of

@@ -15,20 +15,20 @@ import (
 // its turns as the stream adds to them, and the clock's words. It holds its
 // session as the store holds it, its requests sealed into its story and its
 // page's tally, its points among it, the recent held open, as HeldSessions
-// holds the page's session, read whole as it's held, and as the store holds
-// it from the first feed after; and of its turn open, the lines of its
-// requests, read as it opened, and those the ledger gained since. On rolls
-// it on to a later day; Held takes its session as the store fed it; Build
-// builds the page of what's held, what the router lists and what the stream
-// told. What changes it returns afresh, so a copy holding it never sees it
-// change, sharing what it held before, which nothing changes.
+// holds the page's session, read as it's held, resting on its page, and as
+// the store holds it from the first feed after; and of its turn open, the
+// lines of its requests, read as it opened, and those the ledger gained
+// since. On rolls it on to a later day; Held takes its session as the store
+// fed it; Build builds the page of what's held, what the router lists and
+// what the stream told. What changes it returns afresh, so a copy holding it
+// never sees it change, sharing what it held before, which nothing changes.
 type HeldPage struct {
 	id     string
 	day    LedgerDay
 	prices ledger.Table
 	keep   time.Duration
 	// record is the session as the page holds it, its page tallied, as read
-	// whole at read, or as the store last fed it; joined how many feeds the
+	// at read, or as the store last fed it; joined how many feeds the
 	// store had had as the read joined it, as Joined has it.
 	record *heldSession
 	read   time.Time
@@ -106,9 +106,13 @@ func (l PageLive) Same(o PageLive) bool {
 // holds of it, and of the accounts it ran on, at now: its requests priced by
 // prices at the day now falls on, and keep the ledger's [ledger] keep, as
 // ledgerKept reads it, every one of them held open, as a page built of
-// whatever the stream tells, at whatever now, takes each in in its place.
+// whatever the stream tells, at whatever now, takes each in in its place;
+// but of one read resting on its page, those after the state it rests on,
+// as heldFrom has it, among which a request the stream tells of from before
+// then isn't taken in in its place, as SessionPageOf, given the stream,
+// takes it.
 func HoldPage(id string, read SessionsRead, prices ledger.Table, keep time.Duration, now time.Time) HeldPage {
-	return holdPage(id, read, prices, keep, unsealed, now)
+	return holdPage(id, read, prices, keep, read.heldFrom(id, nil), now)
 }
 
 // unsealed is a horizon before every moment, behind which no request is
@@ -125,15 +129,22 @@ func ReadPage(l LedgerSessions, id string, s Stream, prices ledger.Table, keep t
 }
 
 // holdPage holds the page of the session with the given id, as HoldPage
-// does, sealed behind the horizon given.
+// does, sealed behind the horizon given: on what read rests it on, as
+// heldAsOf holds it, its points of the answers read took; or, where it can't
+// be held so, as its state won't restore or the horizon is before its end,
+// read again whole, as read's whole reads it.
 func holdPage(id string, read SessionsRead, prices ledger.Table, keep time.Duration, horizon instant, now time.Time) HeldPage {
 	day := Today(now)
-	record := readOf(read.lines[id], answersOf(read.requests, id), prices, day, horizon, true)
+	record, err := heldAsOf(read.sessions[id], read.answers.of(id), prices, day, horizon, true)
+	if err != nil {
+		whole := read.whole(id)
+		record = readOf(whole.sessions[id].Lines, whole.answers.of(id), prices, day, horizon, true)
+	}
 	return HeldPage{id: id, day: day, prices: prices, keep: ledgerKept(keep), record: record, read: now}
 }
 
-// Found is the store of h's session alone, as h holds it, read whole as it
-// was held, for the watch's store to take in, as HeldSessions' With has it.
+// Found is the store of h's session alone, as h holds it, read as it was
+// held, for the watch's store to take in, as HeldSessions' With has it.
 func (h HeldPage) Found() HeldSessions {
 	read := fedOn(h.read)
 	return HeldSessions{prices: h.prices, fed: read, unread: read, sessions: map[string]*heldSession{h.id: h.record}}

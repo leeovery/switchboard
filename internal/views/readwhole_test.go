@@ -45,14 +45,15 @@ func restOf(rest func(string) ledger.Rest, id string) ledger.Rest {
 }
 
 // The store reads each session resting on the state a digest holds of it,
-// asking for none whole, but the session whose page is open, whose tally
-// and points take in every one of its days' answers, and one it can't place
-// a line of, which the same state would leave unplaced again; a page reads
-// its sessions each whole.
-func TestReadsOfSessionsReadWholeThePagesAndThoseTheStoreCantPlace(t *testing.T) {
+// but the session whose page is open on its page, the newest state whose
+// chain of parts reads, as its tally and its points are restored from them,
+// and one it can't place a line of whole, which the same state would leave
+// unplaced again; a page reads its sessions each on its page, as any of
+// them may be the one it shows.
+func TestReadsOfSessionsRestThePageOnItsBaseAndReadWholeThoseTheStoreCantPlace(t *testing.T) {
 	lines := []ledger.Line{sessionAsked("o1", older, "work", "new", october(4, 22, 0)), sessionAsked("e1", early, "work", "new", local(12, 0, 0))}
 	behind := sessionAsked("e2", early, "work", "sticky", now.Add(-2*time.Hour))
-	onState, whole := ledger.RestOnState, ledger.RestWhole
+	onState, onPage, whole := ledger.RestOnState, ledger.RestOnPage, ledger.RestWhole
 	tests := []struct {
 		name string
 		read func(l restNoted)
@@ -61,12 +62,17 @@ func TestReadsOfSessionsReadWholeThePagesAndThoseTheStoreCantPlace(t *testing.T)
 		{name: "the store, for the List", read: func(l restNoted) { listHeld(l, nil, now) }, want: map[string]ledger.Rest{early: onState}},
 		{name: "the store, for the List and a session's page", read: func(l restNoted) {
 			views.HoldSessions(ledger.Pricing).Fed(l, views.Taken{}, views.SessionsWanted{List: true, Page: older}, now)
-		}, want: map[string]ledger.Rest{early: onState, older: whole}},
+		}, want: map[string]ledger.Rest{early: onState, older: onPage}},
 		{name: "the store, of a line behind its session's horizon", read: func(l restNoted) {
 			fedList(listHeld(l.fakeLedger, nil, now), l, nil, now, behind)
 		}, want: map[string]ledger.Rest{early: whole}},
-		{name: "a page's sessions", read: func(l restNoted) { views.ReadSessions(l, nil, now, older) }, want: map[string]ledger.Rest{early: whole, older: whole}},
-		{name: "a page's session alone", read: func(l restNoted) { views.ReadSession(l, now, older) }, want: map[string]ledger.Rest{older: whole}},
+		{name: "the store, of a line behind the horizon of the session whose page is open", read: func(l restNoted) {
+			paged := views.SessionsWanted{List: true, Page: early}
+			held, _ := views.HoldSessions(ledger.Pricing).Fed(l.fakeLedger, views.Taken{}, paged, now)
+			held.Fed(l, views.Took(heldOf(behind), nil), paged, now)
+		}, want: map[string]ledger.Rest{early: whole}},
+		{name: "a page's sessions", read: func(l restNoted) { views.ReadSessions(l, nil, now, older) }, want: map[string]ledger.Rest{early: onPage, older: onPage}},
+		{name: "a page's session alone", read: func(l restNoted) { views.ReadSession(l, now, older) }, want: map[string]ledger.Rest{older: onPage}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
