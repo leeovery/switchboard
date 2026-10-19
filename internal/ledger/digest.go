@@ -275,10 +275,12 @@ var errDigestOutdated = errors.New("a digest of another version")
 // given date, its sessions' states of the version body: failing with
 // fs.ErrNotExist where it holds none; with errDigestOutdated where it's of
 // another version, of the envelope or the states; and with
-// errNotTheDaysDigest where it doesn't read as the day's digest. It reads
-// none of the sessions' states.
+// errNotTheDaysDigest where it doesn't read as the day's digest. Its head is
+// judged first, as digestHead judges it, so the sessions' entries of one of
+// another version, as every one is after a release raising either, or of
+// another day, are never read; and it reads none of the sessions' states.
 func (d days) digest(date string, body int) (Digest, error) {
-	return d.digestRead(date, body, storedIn)
+	return d.digestRead(date, body, storedHeadIn, storedIn)
 }
 
 // digestHead returns the head of the digest the ledger holds of the local
@@ -291,23 +293,44 @@ func (d days) digestHead(date string, body int) (DigestHead, error) {
 }
 
 // digestRead returns the digest the ledger holds of the local day with the
-// given date, as read reads its file, judged as digest judges it.
-func (d days) digestRead(date string, body int, read func(io.Reader) (storedDigest, error)) (Digest, error) {
+// given date, as the last of reads reads its file: each reading it from its
+// start in turn, what it read judged, as judged judges it, before the next
+// reads, so one judged otherwise than as the day's of the version asked for
+// is read no further.
+func (d days) digestRead(date string, body int, reads ...func(io.Reader) (storedDigest, error)) (Digest, error) {
 	file, err := os.Open(digestFile(d.files.Dir, date))
 	if err != nil {
 		return Digest{}, err
 	}
 	defer func() { _ = file.Close() }()
-	stored, err := read(file)
-	switch {
-	case err != nil:
-		return Digest{}, fmt.Errorf("%w: %w", errNotTheDaysDigest, err)
-	case stored.Version != digestVersion || stored.Body != body:
-		return Digest{}, fmt.Errorf("%w: version %d, its states' %d", errDigestOutdated, stored.Version, stored.Body)
-	case stored.Day != date:
-		return Digest{}, fmt.Errorf("%w: it's of %q", errNotTheDaysDigest, stored.Day)
+	var stored storedDigest
+	for _, read := range reads {
+		_, err := file.Seek(0, io.SeekStart)
+		if err == nil {
+			stored, err = read(file)
+		}
+		if err := stored.judged(date, body, err); err != nil {
+			return Digest{}, err
+		}
 	}
 	return stored.digest(), nil
+}
+
+// judged returns what's wrong with s, a digest as read of the local day with
+// the given date, its read failing with err, where it's to be of the
+// version body of the sessions' states: errNotTheDaysDigest where it didn't
+// read, or is of another day; errDigestOutdated where it's of another
+// version, of the envelope or the states; nil where nothing is.
+func (s storedDigest) judged(date string, body int, err error) error {
+	switch {
+	case err != nil:
+		return fmt.Errorf("%w: %w", errNotTheDaysDigest, err)
+	case s.Version != digestVersion || s.Body != body:
+		return fmt.Errorf("%w: version %d, its states' %d", errDigestOutdated, s.Version, s.Body)
+	case s.Day != date:
+		return fmt.Errorf("%w: it's of %q", errNotTheDaysDigest, s.Day)
+	}
+	return nil
 }
 
 // errDigestTooLarge is the error of a digest's file that inflates past

@@ -70,10 +70,11 @@ func membersOf(contents map[string][]byte) ([]byte, map[string]Member) {
 
 // memberIn returns what the member m points at in the file at path holds,
 // inflated: failing as os.Open fails where the file can't be opened, with
-// fs.ErrNotExist where it's gone; and with errMemberDamaged where the file
-// holds no bytes where m says, or not those written there, as their CRC
-// tells, or where they don't inflate as one gzip member, whole, of no more
-// than memberMax bytes either way.
+// fs.ErrNotExist where it's gone, or as File.Stat fails where it can't be
+// looked at; and with errMemberDamaged where the file holds no bytes where m
+// says, as one pointed past its end, told before room is made for them, or
+// not those written there, as their CRC tells, or where they don't inflate
+// as one gzip member, whole, of no more than memberMax bytes either way.
 func memberIn(path string, m Member) ([]byte, error) {
 	if m.Offset < 0 || m.Length <= 0 || m.Length > memberMax {
 		return nil, fmt.Errorf("%d bytes at %d of %s: %w", m.Length, m.Offset, path, errMemberDamaged)
@@ -83,6 +84,13 @@ func memberIn(path string, m Member) ([]byte, error) {
 		return nil, err
 	}
 	defer func() { _ = file.Close() }()
+	info, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if m.Length > info.Size()-m.Offset {
+		return nil, fmt.Errorf("%d bytes at %d of %s, of %d: %w", m.Length, m.Offset, path, info.Size(), errMemberDamaged)
+	}
 	data := make([]byte, m.Length)
 	if _, err := file.ReadAt(data, m.Offset); err != nil {
 		return nil, fmt.Errorf("%d bytes at %d of %s: %w: %w", m.Length, m.Offset, path, errMemberDamaged, err)

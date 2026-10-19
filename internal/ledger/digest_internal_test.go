@@ -488,6 +488,40 @@ func TestADigestThatDoesntReadAsTheDaysFailsSoItsReaderCanTell(t *testing.T) {
 	}
 }
 
+// A digest is judged by its head before its sessions' entries are read: one
+// of another version, of the envelope or of the states, as every one is
+// after a release raising either, fails as outdated whatever follows its
+// head, as none of its entries is read; and one of the version asked for
+// then has them read, failing where they don't.
+func TestADigestIsJudgedByItsHeadBeforeItsSessionsAreRead(t *testing.T) {
+	headed := func(version, body int) string {
+		return fmt.Sprintf(`{"version":%d,"body":%d,"day":"2026-10-05","from":1,"to":2,"summary_lines":40,"lines":40,`, version, body)
+	}
+	tests := []struct {
+		name string
+		head string
+		want error
+	}{
+		{name: "of another version of the envelope", head: headed(digestVersion+1, statesVersion), want: errDigestOutdated},
+		{name: "of another version of the states", head: headed(digestVersion, statesVersion+1), want: errDigestOutdated},
+		{name: "of the version asked for", head: headed(digestVersion, statesVersion), want: errNotTheDaysDigest},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := digestDays(t)
+			if err := os.WriteFile(digestFile(d.files.Dir, digested), gzippedText(t, tt.head+`"sessions":not a digest`), 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			_, err := d.digest(digested, statesVersion)
+
+			if !errors.Is(err, tt.want) {
+				t.Errorf("digest(%q, %d) of sessions that don't read failed with %v, want %v", digested, statesVersion, err, tt.want)
+			}
+		})
+	}
+}
+
 // A digest's file that inflates past digestMax, as one made by hand may,
 // fails as one that doesn't read as the day's, inflated no further: its
 // gzip trailer, cut short two megabytes past the most, is never reached.
@@ -499,7 +533,7 @@ func TestADigestInflatingPastItsMostFailsUnread(t *testing.T) {
 		t.Fatal(err)
 	}
 	padding := bytes.Repeat([]byte{'a'}, 1<<20)
-	parts := [][]byte{[]byte(`{"version":1,"body":3,"day":"2026-10-05","from":0,"to":0,"sessions":{"one":{"state":"`)}
+	parts := [][]byte{fmt.Appendf(nil, `{"version":%d,"body":3,"day":"2026-10-05","from":0,"to":0,"sessions":{"one":{"state":"`, digestVersion)}
 	for range digestMax/len(padding) + 2 {
 		parts = append(parts, padding)
 	}

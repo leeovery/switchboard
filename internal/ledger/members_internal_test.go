@@ -9,6 +9,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"testing"
 )
@@ -124,6 +125,23 @@ func TestAMemberNotHeldAsWrittenDoesntRead(t *testing.T) {
 				t.Errorf("memberIn(%+v) = %q, %v; want it failing with %v", tt.member, got, err, tt.want)
 			}
 		})
+	}
+}
+
+// A member pointed past its file's end, as long as a member can be, fails as
+// damaged before room is made for its bytes.
+func TestAMemberPointedPastItsFilesEndIsRefusedBeforeItsRead(t *testing.T) {
+	path := membersPath(t)
+	held(t, path, oneMember(`[1]`))
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+
+	_, err := memberIn(path, Member{Offset: 1, Length: memberMax, CRC: 1})
+
+	runtime.ReadMemStats(&after)
+	if allocated := after.TotalAlloc - before.TotalAlloc; !errors.Is(err, errMemberDamaged) || allocated >= memberMax {
+		t.Errorf("memberIn() of %d bytes past its file's end failed with %v, allocating %d bytes; want it failing with %v, allocating fewer than it points at",
+			memberMax, err, allocated, errMemberDamaged)
 	}
 }
 
