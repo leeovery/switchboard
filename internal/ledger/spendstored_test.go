@@ -167,3 +167,160 @@ func TestASpendsStoredFormIsItsCountsAlone(t *testing.T) {
 		})
 	}
 }
+
+// A Spent read back from its stored form is the Spent written, of every
+// generated set of requests: so it prices as it did, and takes in more
+// alike.
+func TestASpentReadBackFromItsStoredFormIsTheOneWritten(t *testing.T) {
+	for seed := range uint64(spentSeeds) {
+		spent := spentOfLines(spentLines(seed))
+		stored, err := json.Marshal(spent)
+		if err != nil {
+			t.Fatalf("seed %d: writing the Spent: %v", seed, err)
+		}
+		var back ledger.Spent
+		if err := json.Unmarshal(stored, &back); err != nil {
+			t.Fatalf("seed %d: reading back %s: %v", seed, stored, err)
+		}
+		if !reflect.DeepEqual(back, spent) {
+			t.Errorf("seed %d: stored as %s, read back as %#v; want %#v", seed, stored, back, spent)
+		}
+	}
+}
+
+// storedSpentForms are a Spent's stored forms: none; a model and geo
+// holding nothing but a request; each of its keys alone, every key among
+// them; and models and geos side by side, in order.
+var storedSpentForms = []string{
+	`[]`, `[{}]`,
+	`[{"m":"a"}]`, `[{"g":"us"}]`,
+	`[{"i":1}]`, `[{"5m":1}]`, `[{"1h":1}]`, `[{"r":1}]`, `[{"o":1}]`, `[{"s":1}]`, `[{"u":["a"]}]`,
+	`[{"c":true}]`, `[{"n":true}]`,
+	`[{"u":["a","b"]}]`, `[{},{"g":"us"}]`, `[{"m":"a"},{"m":"b"}]`, `[{"m":"a","g":"us"},{"m":"b"}]`,
+}
+
+// Each key of a Spent's stored form reads back into a Spent that writes it
+// again as it was: so nothing stored is lost between the file and the
+// Spent.
+func TestEachKeyOfASpentsStoredFormIsKept(t *testing.T) {
+	for _, stored := range storedSpentForms {
+		var s ledger.Spent
+		if err := json.Unmarshal([]byte(stored), &s); err != nil {
+			t.Errorf("reading %s: %v", stored, err)
+			continue
+		}
+		if again, err := json.Marshal(s); err != nil || string(again) != stored {
+			t.Errorf("%s read back writes as %s, %v, want it as it was", stored, again, err)
+		}
+	}
+}
+
+// Fuzzed, whatever a Spent's stored form holds that reads, it reads as a
+// Spent that writes, and reads back as itself.
+func FuzzASpentsStoredFormReadsAsOneThatReadsBackAsItself(f *testing.F) {
+	for _, stored := range storedSpentForms {
+		f.Add([]byte(stored))
+	}
+	f.Add([]byte(`[{"m":"b"},{"m":"a","u":["b","a","a"]},{"m":"a","i":-1}]`))
+	f.Fuzz(func(t *testing.T, stored []byte) {
+		var s ledger.Spent
+		if json.Unmarshal(stored, &s) != nil {
+			return
+		}
+		again, err := json.Marshal(s)
+		if err != nil {
+			t.Fatalf("%s read back doesn't write: %v", stored, err)
+		}
+		var back ledger.Spent
+		if err := json.Unmarshal(again, &back); err != nil || !reflect.DeepEqual(back, s) {
+			t.Errorf("%s reads back as %#v, which writes as %s and reads back as %#v, %v; want it as it was", stored, s, again, back, err)
+		}
+	})
+}
+
+// A Spent's stored form, of models and geos out of order or named more than
+// once, or naming a path unpriced out of order or more than once, as a file
+// edited by hand could, reads as the Spent Add would have made of the same
+// requests.
+func TestASpentStoredOutOfOrderReadsAsAddWouldHaveMadeIt(t *testing.T) {
+	tests := []struct {
+		name, stored, want string
+	}{
+		{name: "models out of order", stored: `[{"m":"b"},{"m":"a"}]`, want: `[{"m":"a"},{"m":"b"}]`},
+		{name: "geos out of order", stored: `[{"g":"us"},{}]`, want: `[{},{"g":"us"}]`},
+		{name: "a model and geo named twice", stored: `[{"m":"a","i":1,"u":["x"]},{"m":"b"},{"m":"a","i":2,"u":["w"],"n":true}]`,
+			want: `[{"m":"a","i":3,"u":["w","x"],"n":true},{"m":"b"}]`},
+		{name: "paths unpriced out of order and twice", stored: `[{"u":["b","a","b"]}]`, want: `[{"u":["a","b"]}]`},
+		{name: "null, none", stored: `null`, want: `[]`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var s ledger.Spent
+			if err := json.Unmarshal([]byte(tt.stored), &s); err != nil {
+				t.Fatalf("reading %s: %v", tt.stored, err)
+			}
+			if got, err := json.Marshal(s); err != nil || string(got) != tt.want {
+				t.Errorf("%s read back writes as %s, %v; want %s", tt.stored, got, err, tt.want)
+			}
+		})
+	}
+}
+
+// What isn't a list of models' and geos' spends, each count a number and
+// each path a string, isn't read as a Spent.
+func TestWhatIsntASpentsStoredFormIsntReadAsOne(t *testing.T) {
+	for _, stored := range []string{`{}`, `"x"`, `[1]`, `[{"i":"1"}]`, `[{"u":"a"}]`, `[{"m":1}]`, `[`} {
+		t.Run(stored, func(t *testing.T) {
+			var s ledger.Spent
+			if err := json.Unmarshal([]byte(stored), &s); err == nil {
+				t.Errorf("reading %s gave %s, want it refused", stored, spentJSON(s))
+			}
+		})
+	}
+}
+
+// A Spent's stored form is what it holds of each model and geo, in order,
+// each by short keys, every zero left out, and never a price.
+func TestASpentsStoredFormIsItsCountsAlone(t *testing.T) {
+	tests := []struct {
+		name  string
+		lines []ledger.Line
+		want  string
+	}{
+		{name: "none", want: `[]`},
+		{name: "a session's requests", lines: []ledger.Line{
+			spentLine(opus, "", `{"input_tokens":10,"cache_read_input_tokens":100000,"output_tokens":500}`, answered),
+			spentLine(opus, "", `{"input_tokens":5,"output_tokens":20,"server_tool_use":{"web_search_requests":1,"web_fetch_requests":2}}`, answered),
+			spentLine(haiku, "", `{"input_tokens":8,"output_tokens":1}`, checked),
+			spentLine("claude-opus-9", "us", "", cutOff),
+		}, want: `[{"m":"claude-haiku-4-5"},{"m":"claude-opus-5-5","i":15,"r":100000,"o":520,"s":1,"c":true},{"m":"claude-opus-9","g":"us","n":true}]`},
+		{name: "the cache's writes, and a count the prices don't know", lines: []ledger.Line{
+			spentLine(opus, "", `{"cache_creation_input_tokens":3120,"cache_creation":{"ephemeral_5m_input_tokens":120,"ephemeral_1h_input_tokens":3000}}`, answered),
+			spentLine(opus, "", `{"output_tokens":5,"server_tool_use":{"code_execution_requests":1}}`, answered),
+		}, want: `[{"m":"claude-opus-5-5","5m":120,"1h":3000,"o":5,"u":["server_tool_use.code_execution_requests"],"c":true}]`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got, err := json.Marshal(spentOfLines(tt.lines)); err != nil || string(got) != tt.want {
+				t.Errorf("stored as %s, %v; want %s", got, err, tt.want)
+			}
+		})
+	}
+}
+
+// A Spent that holds no request is left out of a stored form that leaves
+// out its zeros, and so is one read back from its own stored form.
+func TestASpentOfNoRequestIsLeftOutWhereZerosAre(t *testing.T) {
+	type holding struct {
+		Spent ledger.Spent `json:"s,omitzero"`
+	}
+	var read ledger.Spent
+	if err := json.Unmarshal([]byte(`[]`), &read); err != nil {
+		t.Fatalf("reading []: %v", err)
+	}
+	for _, spent := range []ledger.Spent{{}, read} {
+		if got, err := json.Marshal(holding{Spent: spent}); err != nil || string(got) != `{}` {
+			t.Errorf("a Spent of no request is stored within as %s, %v; want it left out, {}", got, err)
+		}
+	}
+}

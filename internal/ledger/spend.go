@@ -125,11 +125,7 @@ func (s Spend) worthy() Spend {
 // the prices in effect on the local day with the given date, as Summed gives
 // it of the request's line.
 func (t Table) SummedSpend(model, geo string, s Spend, date string) (Worth, bool) {
-	s = s.worthy()
-	if w, ok := t.priced(model, geo, s.all, s.unmetered, date); ok {
-		return w, true
-	}
-	return Worth{Unpriced: t.wholly(model, geo, s.costly, s.unmetered, date)}, false
+	return t.summedOf(spentOf(model, geo, s), date)
 }
 
 // CacheWriteSpend returns what the writes to the prompt cache of a request
