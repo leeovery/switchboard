@@ -377,8 +377,8 @@ it, such as `week 1.2 of 3 left`.
 
 `a` collapses the labels beside the lanes, to give the lanes more room: each lane keeps its
 account's number, its marks and its use, such as `2 ◆    66%`, and the pool's lane its room short,
-such as `Σ    1.2/3`. COMING UP then puts each account's number before its name, so a lane's number
-finds its name. `a` again expands them. Runway remembers which you left it on.
+such as `Σ    1.2/3`. COMING UP stays as it is, each line naming its account. `a` again expands
+them. Runway remembers which you left it on.
 
 To look back:
 

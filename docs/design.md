@@ -2909,8 +2909,8 @@ and the preferences file keeps it (the owner's call, 17 October 2026).
   use: the room bold `text.secondary` and `/3`, of how many accounts the pool is, in `text.muted`,
   as `Σ    1.2/3`, where the expanded lane says `Σ pool` and `week 1.2 of 3 left`. ` · pinned` is left
   off. Where it has no room to say, as on a day stepped back to, `Σ pool`.
-- **COMING UP** puts each account's number before its name, in `text.subtle`, as the labels draw
-  it, so a lane's number finds its name: `16:30  2 personal's 5-hour resets`; folded too.
+- **COMING UP** is as expanded, open or folded: each line names its account, unnumbered, as in
+  `16:30  personal's 5-hour resets` (the owner's call, 19 October 2026).
 - **On a phone,** the pool's room has no row of its own: its label says it.
 
 **The words under a lane** say where each stretch without room starts, from its column, 24 at the
