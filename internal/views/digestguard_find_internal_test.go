@@ -167,24 +167,24 @@ func (c *digestChain) headBuilt(date string) bool {
 
 // headIn is the JSON of the head the ledger holds of the local day with the
 // given date, inflated, reporting false where it holds none.
-func (w *spread) headIn(date string) ([]byte, bool) {
-	w.t.Helper()
-	data, err := os.ReadFile(w.headPath(date))
+func (c *digestChain) headIn(date string) ([]byte, bool) {
+	c.t.Helper()
+	data, err := os.ReadFile(c.headPath(date))
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, false
 	}
 	if err != nil {
-		w.t.Fatal(err)
+		c.t.Fatal(err)
 	}
-	return gunzipped(w.t, data), true
+	return gunzipped(c.t, data), true
 }
 
 // writeHead writes plain, a head's JSON, as the head of the local day with
 // the given date, gzipped, as the ledger writes one.
-func (w *spread) writeHead(date string, plain []byte) {
-	w.t.Helper()
-	if err := os.WriteFile(w.headPath(date), gzipped(w.t, plain), 0o600); err != nil {
-		w.t.Fatal(err)
+func (c *digestChain) writeHead(date string, plain []byte) {
+	c.t.Helper()
+	if err := os.WriteFile(c.headPath(date), gzipped(c.t, plain), 0o600); err != nil {
+		c.t.Fatal(err)
 	}
 }
 
@@ -257,17 +257,31 @@ func twoBack(now time.Time) string {
 // of a version after the views', as a later release writes one.
 func (w *spread) headOtherVersion(now time.Time) (headUpset, bool) {
 	date := twoBack(now)
-	field := func(v int) []byte { return fmt.Appendf(nil, `"body":%d,`, v) }
-	return headUpset{date: date, moment: foundOtherVersion}, w.rewriteHead(date, [2][]byte{field(RowsVersion), field(RowsVersion + 1)})
+	return headUpset{date: date, moment: foundOtherVersion}, w.headOfOtherVersion(date)
 }
 
 // headOtherZone has the head of the day two before now's hold its day's
 // bounds an hour later, as a head built in another time zone holds them.
 func (w *spread) headOtherZone(now time.Time) (headUpset, bool) {
 	date := twoBack(now)
+	return headUpset{date: date, moment: foundOtherZone}, w.headOfOtherZone(date)
+}
+
+// headOfOtherVersion has the head of the local day with the given date hold
+// its side and rows as of a version after the views', as a later release
+// writes one, reporting false where the ledger holds no head of the day.
+func (c *digestChain) headOfOtherVersion(date string) bool {
+	field := func(v int) []byte { return fmt.Appendf(nil, `"body":%d,`, v) }
+	return c.rewriteHead(date, [2][]byte{field(RowsVersion), field(RowsVersion + 1)})
+}
+
+// headOfOtherZone has the head of the local day with the given date hold its
+// day's bounds an hour later, as a head built in another time zone holds
+// them, reporting false where the ledger holds no head of the day.
+func (c *digestChain) headOfOtherZone(date string) bool {
 	start, end, _ := dayfile.Day(date)
 	field := func(key string, at time.Time) []byte { return fmt.Appendf(nil, `"%s":%d,`, key, at.UnixNano()) }
-	return headUpset{date: date, moment: foundOtherZone}, w.rewriteHead(date,
+	return c.rewriteHead(date,
 		[2][]byte{field("from", start), field("from", start.Add(time.Hour))},
 		[2][]byte{field("to", end), field("to", end.Add(time.Hour))})
 }
@@ -275,19 +289,19 @@ func (w *spread) headOtherZone(now time.Time) (headUpset, bool) {
 // rewriteHead rewrites the head of the local day with the given date, each
 // of replaced's firsts replaced by its second, reporting false where the
 // ledger holds no head of the day.
-func (w *spread) rewriteHead(date string, replaced ...[2][]byte) bool {
-	w.t.Helper()
-	plain, ok := w.headIn(date)
+func (c *digestChain) rewriteHead(date string, replaced ...[2][]byte) bool {
+	c.t.Helper()
+	plain, ok := c.headIn(date)
 	if !ok {
 		return false
 	}
 	for _, r := range replaced {
 		if !bytes.Contains(plain, r[0]) {
-			w.t.Fatalf("%s: the head at %s names no %s:\n%s", w.name, w.headPath(date), r[0], plain)
+			c.t.Fatalf("%s: the head at %s names no %s:\n%s", c.name, c.headPath(date), r[0], plain)
 		}
 		plain = bytes.Replace(plain, r[0], r[1], 1)
 	}
-	w.writeHead(date, plain)
+	c.writeHead(date, plain)
 	return true
 }
 

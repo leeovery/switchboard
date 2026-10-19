@@ -52,6 +52,16 @@ type Ledger interface {
 	// false where it holds none that stands, so the day's lines are read
 	// instead, as Day gives them.
 	DaySide(date string, body int) (json.RawMessage, bool)
+	// DayRows gives the rows of the head the ledger holds of the local day
+	// with the given date, of the version body, as the head points at them
+	// in the day's rows file, its chunks unread, reporting false where it
+	// holds none whose rows stand, so the day's lines are read instead, as
+	// Day gives them.
+	DayRows(date string, body int) (ledger.DayRows, bool)
+	// RowChunk gives the rows chunk holds, a chunk of the rows of the local
+	// day with the given date as DayRows gives them, as their builder gave
+	// them, failing where they don't read as written there, by their CRC.
+	RowChunk(date string, chunk ledger.RowsChunk) ([]byte, error)
 	// FirstLinesDay gives the start of the first local day the ledger holds
 	// lines of, at now: the first Day reads back to, a summary of an earlier
 	// day, whose lines are pruned, aside. It fails with fs.ErrNotExist where

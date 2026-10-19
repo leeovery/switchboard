@@ -63,21 +63,23 @@ type soakGuard interface {
 }
 
 // countingLedger is a ledger that tells of each read of its lines, or of a
-// day's side, as it's made, for the guard to hold the readers to what they
-// read. It hands each read of sessions a take of its own, so the ledger
-// decodes every line of the days it reads whole, with lineIn, never as
-// production's reads without one do, keptLineIn's way, the sessions' own
-// alone: a fault of that decoding alone passes the guard.
+// day's side or rows, or a chunk of them, as it's made, for the guard to
+// hold the readers to what they read. It hands each read of sessions a take
+// of its own, so the ledger decodes every line of the days it reads whole,
+// with lineIn, never as production's reads without one do, keptLineIn's
+// way, the sessions' own alone: a fault of that decoding alone passes the
+// guard.
 type countingLedger struct {
 	views.Ledger
 	read func(ledgerRead)
 }
 
-// ledgerRead is a read of a ledger's lines, or of a day's side: its method,
-// and the ids it asked for, or the date of the day; of a read of sessions,
-// the sessions of the lines it read of each day, by its date, and the date
-// of the digest whose state each session it gave rests on, by its id, "" of
-// one resting on none; and of a read of a day's side, whether it stood.
+// ledgerRead is a read of a ledger's lines, or of a day's side or rows, or a
+// chunk of them: its method, and the ids it asked for, or the date of the
+// day; of a read of sessions, the sessions of the lines it read of each day,
+// by its date, and the date of the digest whose state each session it gave
+// rests on, by its id, "" of one resting on none; and of a read of a day's
+// side or rows, whether they stood.
 type ledgerRead struct {
 	method string
 	asked  []string
@@ -90,6 +92,12 @@ type ledgerRead struct {
 // for, as it begins: none of its days read yet.
 func sessionsRead(method string, asked []string) ledgerRead {
 	return ledgerRead{method: method, asked: asked, days: make(map[string]map[string]bool), rests: make(map[string]string)}
+}
+
+// readsDay reports whether r reads a day whole: its lines, or its rows,
+// where they stood.
+func (r ledgerRead) readsDay() bool {
+	return r.method == "Day" || r.method == "DayRows" && r.stood
 }
 
 // taking is take, where it's given, each line handed it noted among the
@@ -153,6 +161,17 @@ func (c *countingLedger) DaySide(date string, body int) (json.RawMessage, bool) 
 	side, ok := c.Ledger.DaySide(date, body)
 	c.read(ledgerRead{method: "DaySide", asked: []string{date}, stood: ok})
 	return side, ok
+}
+
+func (c *countingLedger) DayRows(date string, body int) (ledger.DayRows, bool) {
+	rows, ok := c.Ledger.DayRows(date, body)
+	c.read(ledgerRead{method: "DayRows", asked: []string{date}, stood: ok})
+	return rows, ok
+}
+
+func (c *countingLedger) RowChunk(date string, chunk ledger.RowsChunk) ([]byte, error) {
+	c.read(ledgerRead{method: "RowChunk", asked: []string{date}})
+	return c.Ledger.RowChunk(date, chunk)
 }
 
 func (c *countingLedger) Session(id string, within ...ledger.Span) iter.Seq[ledger.Held] {

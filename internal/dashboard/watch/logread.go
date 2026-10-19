@@ -216,13 +216,14 @@ func (m Model) refiledFrom(from, now time.Time) (Model, tea.Cmd) {
 	}
 }
 
-// took is the Log's read, through r, taken in the lines of day, a day's
-// every one, as a read of the Log's own reads them, at now: the sessions of
-// their requests the store held doesn't hold read whole into a store of
-// their own, as Fed reads them, wanting them alone, each pinned as the
-// stream s tells, for the watch's to take in; each line placed as s tells
-// and its row told of the stories the two hold.
-func (r logReaders) took(read views.LogRead, day views.LogDay, held views.HeldSessions, s views.Stream, now time.Time) logGrown {
+// took is the Log's read, through r, taken in the lines of the day with the
+// given date, every one, as ReadDay reads them, from its rows where they
+// stand, at now: the sessions of their requests the store held doesn't hold
+// read whole into a store of their own, as Fed reads them, wanting them
+// alone, each pinned as the stream s tells, for the watch's to take in; each
+// line placed as s tells and its row told of the stories the two hold.
+func (r logReaders) took(read views.LogRead, date string, held views.HeldSessions, s views.Stream, now time.Time) logGrown {
+	day := views.ReadDay(r.ledger, date)
 	var found *views.HeldSessions
 	telling := held
 	if ids := held.Unheld(views.ReadLog(r.prices).Wanted(day)); len(ids) > 0 {
@@ -416,7 +417,7 @@ func (m Model) readBack(now time.Time) (Model, tea.Cmd) {
 	m.log.reading = true
 	return m, func() tea.Msg {
 		l, back := r.ledger, t.events.Back(r.filed, day.Start)
-		g := r.took(t.read, views.RecordsOf(l.Day(day.Date)), held, stream, now)
+		g := r.took(t.read, day.Date, held, stream, now)
 		g.from, g.found, g.totals = day, &back, views.TotalsOn(l, []string{day.Date}, now, r.prices)
 		return logReadMsg{grown: g}
 	}

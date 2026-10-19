@@ -215,6 +215,19 @@ func (heldLedger) DaySide(string, int) (json.RawMessage, bool) {
 	return nil, false
 }
 
+// DayRows gives no rows, whatever the day, as a Follower of a ledger that
+// holds no day's head gives them: the Log reads each day's lines, as Day
+// gives them.
+func (heldLedger) DayRows(string, int) (ledger.DayRows, bool) {
+	return ledger.DayRows{}, false
+}
+
+// RowChunk fails with fs.ErrNotExist, whatever the chunk, as a Follower of a
+// ledger that holds no day's rows file fails.
+func (heldLedger) RowChunk(date string, _ ledger.RowsChunk) ([]byte, error) {
+	return nil, fmt.Errorf("a chunk of the rows of %s: %w", date, fs.ErrNotExist)
+}
+
 // Session gives the lines of the session with the given id that arrived by
 // now, newest first, as a Follower orders them, as far as the caller goes on:
 // of each day that names it, as its summary would, as a Follower reads them,
