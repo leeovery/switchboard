@@ -352,8 +352,12 @@ func timesOf(u upstreamTimes) []time.Time {
 }
 
 // pageSaid is what a page's tally holds, as its stored forms put it: what
-// it carries, all of it as a part, and its points' points and shares.
+// it carries, all of it as a part, and its points' points and shares; none
+// of none.
 func pageSaid(p *pageTally) string {
+	if p == nil {
+		return "none"
+	}
 	said, err := json.Marshal(struct {
 		Carried storedPage
 		Part    storedPart
@@ -368,12 +372,13 @@ func pageSaid(p *pageTally) string {
 
 // pinnedPage is a page's tally holding a value of every key its stored
 // forms have: two turns, the first of its own conversation, ended, calling
-// a tool, the second a subagent's, its request pending, as only a tally
-// told on holds one, and its own conversation's none; an agent first seen;
-// a request in none in flight; an idle gap folded and a stretch open; where
-// its model went, why it's kept there, what its account and its totals
-// spent; a request still in flight; and its points, a day's answers let go
-// of. Its times are three, the second a second and a half after the first.
+// a tool, the second its own conversation's request pending, not yet ended,
+// a subagent's ended after it, as only a tally told on holds a request
+// pending; an agent first seen; a request in none in flight; an idle gap
+// folded and a stretch open; where its model went, why it's kept there,
+// what its account and its totals spent; a request still in flight; and
+// its points, a day's answers let go of. Its times are three, the second a
+// second and a half after the first.
 func pinnedPage() *pageTally {
 	at := func(minutes int) time.Time { return time.Date(2026, 10, 7, 12, minutes, 0, 0, time.UTC) }
 	var spent ledger.Spent
@@ -387,7 +392,10 @@ func pinnedPage() *pageTally {
 				prompt: "p1", started: at(0), last: end(1, "tool_use"), lastMain: end(1, "tool_use"), requests: 2, tools: map[string]int{"Read": 2},
 				read: 90000, written: 2000, out: 300, spent: spent, accounts: []string{"work"}, mainAccounts: []string{"work"},
 			},
-			{prompt: "p2", started: at(70), last: end(71, ""), requests: 1, tools: map[string]int{}, accounts: []string{}, mainAccounts: []string{}, pending: true},
+			{
+				prompt: "p2", started: at(70), last: end(71, ""), lastMain: turnEnd{set: true}, requests: 2, tools: map[string]int{}, accounts: []string{},
+				mainAccounts: []string{}, pending: true, mainPending: true,
+			},
 		},
 		prompts: map[string]int{"p1": 0, "p2": 1}, agents: map[string]string{"a1": "p2"}, inNone: true,
 		begun: true, first: at(0), last: at(70), folds: []Fold{{From: at(1), To: at(70)}}, resumed: at(70), byMain: true,
@@ -406,18 +414,20 @@ func pinnedPage() *pageTally {
 }
 
 // What a page's tally carries is all but its turns, agents and times, each
-// by a short key, every zero left out: how many turns it has, and its times
-// in UTC; what its account and its totals spent in ledger.Spent's own
-// stored form, never a worth; and its points in their own stored form. Its
-// part, folded on none, is all its turns, by their indices, its agents, and
-// its times as nanoseconds, each after the first as how many after the one
-// before: its turns first and its times last. Restored, they're the tally,
-// owning nothing a copy of it shares, as told leaves one.
+// by a short key, every zero left out: how many turns, agents and times it
+// has, and its times in UTC; what its account and its totals spent in
+// ledger.Spent's own stored form, never a worth; and its points in their
+// own stored form. Its part, folded on none, is all its turns, by their
+// indices, a request's end not yet come left out, its agents, and its times
+// as nanoseconds, each after the first as how many after the one before:
+// its turns first and its times last. Restored, they're the tally, owning
+// nothing a copy of it shares, as told leaves one.
 func TestAPagesCarriedStateAndPartAreAllItHoldsByShortKeys(t *testing.T) {
 	p := pinnedPage()
 	carried, err := json.Marshal(p.carried())
 	spent := `[{"m":"claude-opus-5-5","g":"us","i":10,"o":300,"c":true}]`
-	want := `{"tn":2,"nn":true,"b":true,"f":{"s":1791374400},"l":{"s":1791378600},"fd":[{"f":{"s":1791374460},"t":{"s":1791378600}}],"rs":{"s":1791378600},` +
+	want := `{"tn":2,"ag":1,"tm":3,"nn":true,"b":true,"f":{"s":1791374400},"l":{"s":1791378600},"fd":[{"f":{"s":1791374460},"t":{"s":1791378600}}],` +
+		`"rs":{"s":1791378600},` +
 		`"bm":true,"st":[{"s":[{"a":"work","f":{"s":1791374400}},{"f":{"s":1791378600}}],"o":true},{"s":[{"a":"work","f":{"s":1791374400}}]}],` +
 		`"g":[{"m":"claude-opus-5-5","a":"work"}],"a":[{"ac":"work","f":{"s":1791374400},"t":{"s":1791374460},"r":2,"sp":` + spent + `}],` +
 		`"k":{"claude-opus-5-5":{"a":"work","c":"new","k":"sticky"}},"tt":{"r":2,"sp":` + spent + `,"rd":90000,"s":92010},` +
@@ -428,7 +438,7 @@ func TestAPagesCarriedStateAndPartAreAllItHoldsByShortKeys(t *testing.T) {
 	part, err := json.Marshal(p.partOver(nil))
 	want = `{"t":[{"p":"p1","s":{"s":1791374400},"l":{"e":{"s":1791374460},"l":true,"s":"tool_use"},"lm":{"e":{"s":1791374460},"l":true,"s":"tool_use"},` +
 		`"r":2,"tl":{"Read":2},"rd":90000,"w":2000,"o":300,"sp":` + spent + `,"a":["work"],"ma":["work"]},` +
-		`{"i":1,"p":"p2","s":{"s":1791378600},"l":{"e":{"s":1791378660}},"r":1,"pn":true}],"a":{"a1":"p2"},` +
+		`{"i":1,"p":"p2","s":{"s":1791378600},"l":{"e":{"s":1791378660}},"lm":{},"r":2,"pn":true,"mp":true}],"a":{"a1":"p2"},` +
 		`"s":{"n":[1791374400000000000,1500000000,4198500000000]}}`
 	if err != nil || string(part) != want {
 		t.Errorf("its part, folded on none, put as\n%s, %v, want\n%s", part, err, want)
@@ -445,7 +455,8 @@ func TestAPagesCarriedStateAndPartAreAllItHoldsByShortKeys(t *testing.T) {
 // A page's part over the tally its fold rested on is what the fold added:
 // the turns it took a request into, as a copy told on makes each its own,
 // and those it began; the agents first seen; and the times after the
-// base's. Its times beyond the years nanoseconds since the epoch hold are
+// base's. Laid over the base's own part, it restores the tally the fold
+// made. Its times beyond the years nanoseconds since the epoch hold are
 // each an instant, as the tally holds them then, the base's passed over.
 func TestAPagesPartIsWhatItsFoldAddedToTheTallyItRestedOn(t *testing.T) {
 	base := pinnedPage()
@@ -455,13 +466,26 @@ func TestAPagesPartIsWhatItsFoldAddedToTheTallyItRestedOn(t *testing.T) {
 	after.turns[1] = base.turns[1].cloned()
 	after.turns[1].requests++
 	after.turns = append(after.turns, &turnTally{prompt: "p3", started: at, tools: map[string]int{}, accounts: []string{}, mainAccounts: []string{}})
+	after.prompts = map[string]int{"p1": 0, "p2": 1, "p3": 2}
 	after.agents = map[string]string{"a1": "p2", "a2": "p3"}
 	after.upstream = base.upstream.with([]time.Time{at, at.Add(2 * time.Second)})
 	part, err := json.Marshal(after.partOver(base))
-	want := `{"t":[{"i":1,"p":"p2","s":{"s":1791378600},"l":{"e":{"s":1791378660}},"r":2,"pn":true},{"i":2,"p":"p3","s":{"s":1791450000}}],` +
+	want := `{"t":[{"i":1,"p":"p2","s":{"s":1791378600},"l":{"e":{"s":1791378660}},"lm":{},"r":3,"pn":true,"mp":true},{"i":2,"p":"p3","s":{"s":1791450000}}],` +
 		`"a":{"a2":"p3"},"s":{"n":[1791450000000000000,2000000000]}}`
 	if err != nil || string(part) != want {
 		t.Errorf("its part over its base put as\n%s, %v, want\n%s", part, err, want)
+	}
+	carried, err := json.Marshal(after.carried())
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := json.Marshal(base.partOver(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	restored, err := (&storedSession{Date: "2026-10-08", Page: carried}).pageOf([]json.RawMessage{root, part})
+	if err != nil || !samePage(restored, &after) {
+		t.Errorf("laid over its base's part, restored with error %v as\n%s\nwant\n%s", err, pageSaid(restored), pageSaid(&after))
 	}
 	far := time.Date(2400, 3, 1, 12, 0, 0, 0, time.UTC)
 	after.upstream = base.upstream.with([]time.Time{far})
@@ -471,13 +495,47 @@ func TestAPagesPartIsWhatItsFoldAddedToTheTallyItRestedOn(t *testing.T) {
 	}
 }
 
+// A page's times that are the zero time, as a page not begun holds, or one
+// never come back after a gap, are left out of what it carries, and read
+// back as the zero time; one at the epoch, which an instant of no seconds
+// stores, is carried, and read back as the epoch, exactly.
+func TestAPagesZeroTimesAreLeftOutAndTheEpochKept(t *testing.T) {
+	epoch := time.Unix(0, 0).UTC()
+	begun := newPageTally()
+	begun.begun, begun.first, begun.last = true, epoch, epoch
+	tests := []struct {
+		name string
+		page *pageTally
+		want string
+	}{
+		{name: "not begun", page: newPageTally(), want: `{"pt":{}}`},
+		{name: "begun at the epoch", page: begun, want: `{"b":true,"f":{},"l":{},"pt":{}}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.page.points = &pointing{}
+			carried, err := json.Marshal(tt.page.carried())
+			if err != nil || string(carried) != tt.want {
+				t.Errorf("carried as %s, %v, want %s", carried, err, tt.want)
+			}
+			restored, err := (&storedSession{Date: "2026-10-07", Page: carried}).pageOf([]json.RawMessage{json.RawMessage(`{}`)})
+			if err != nil || !samePage(restored, tt.page) {
+				t.Errorf("restored with error %v as\n%s\nwant\n%s", err, pageSaid(restored), pageSaid(tt.page))
+			}
+		})
+	}
+}
+
 // A page's chain of parts is laid over what its state carries oldest first:
 // a turn as the newest part holding it has it, every agent any part first
 // saw, and every part's times one after another. It's refused, for the page
 // to be read whole, where the state carries no page, or its page or a part
-// isn't one; a part holds a turn beyond those the state counts, or leaves
-// one below in none; two turns serve one prompt; a part holds its times
-// both as nanoseconds and as instants; or its points won't restore.
+// isn't one; it counts more turns than its parts hold, or fewer than none,
+// however many, before room is made for them; a part holds a turn beyond
+// those the state counts, or leaves one below in none; two turns serve one
+// prompt; its parts give other than as many agents or times as it counts,
+// as a chain without its whole part at its root does; a part holds its
+// times both as nanoseconds and as instants; or its points won't restore.
 func TestAPagesChainOfPartsIsLaidOverWhatItsStateCarries(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -492,16 +550,26 @@ func TestAPagesChainOfPartsIsLaidOverWhatItsStateCarries(t *testing.T) {
 			name: "a turn as its newest part has it", page: `{"tn":2}`,
 			parts: []string{`{"t":[{"p":"p1","r":1},{"i":1,"p":"p2","r":1}]}`, `{"t":[{"p":"p1","r":3}]}`}, turns: []int{3, 1},
 		},
-		{name: "every agent first seen", page: `{}`, parts: []string{`{"a":{"a1":"p1"}}`, `{}`, `{"a":{"a2":"p1"}}`}, agents: []string{"a1", "a2"}},
+		{name: "every agent first seen", page: `{"ag":2}`, parts: []string{`{"a":{"a1":"p1"}}`, `{}`, `{"a":{"a2":"p1"}}`}, agents: []string{"a1", "a2"}},
 		{
-			name: "every part's times in turn", page: `{}`, parts: []string{`{"s":{"n":[1000,5]}}`, `{"s":{"n":[2000]}}`, `{"s":{"f":[{"n":3000}]}}`},
+			name: "every part's times in turn", page: `{"tm":4}`, parts: []string{`{"s":{"n":[1000,5]}}`, `{"s":{"n":[2000]}}`, `{"s":{"f":[{"n":3000}]}}`},
 			times: []int64{1000, 1005, 2000, 3000},
 		},
 		{name: "no page", parts: []string{`{}`}, refused: true},
 		{name: "a page that isn't one", page: `{"tn":"two"}`, parts: []string{`{}`}, refused: true},
 		{name: "a part that isn't one", page: `{}`, parts: []string{`{"t":{}}`}, refused: true},
-		{name: "a turn below the count in no part", page: `{"tn":2}`, parts: []string{`{"t":[{"p":"p1"}]}`}, refused: true},
+		{name: "more turns than any room", page: `{"tn":9000000000000000000}`, parts: []string{`{}`}, refused: true},
+		{name: "more turns than its parts hold", page: `{"tn":2}`, parts: []string{`{"t":[{"p":"p1"}]}`}, refused: true},
+		{name: "fewer turns than none", page: `{"tn":-1}`, parts: []string{`{}`}, refused: true},
+		{name: "a turn below the count in no part", page: `{"tn":2}`, parts: []string{`{"t":[{"p":"p1"}]}`, `{"t":[{"p":"p1"}]}`}, refused: true},
 		{name: "a turn beyond the count", page: `{"tn":1}`, parts: []string{`{"t":[{"p":"p1"},{"i":1,"p":"p2"}]}`}, refused: true},
+		{name: "more agents than its parts give", page: `{"ag":2}`, parts: []string{`{"a":{"a1":"p1"}}`}, refused: true},
+		{name: "fewer agents than its parts give", page: `{"ag":1}`, parts: []string{`{"a":{"a1":"p1"}}`, `{"a":{"a2":"p1"}}`}, refused: true},
+		{name: "more times than its parts give", page: `{"tm":3}`, parts: []string{`{"s":{"n":[1000,5]}}`}, refused: true},
+		{
+			name: "a chain without its whole part, a later one holding every turn", page: `{"tn":1,"ag":1,"tm":3}`,
+			parts: []string{`{"t":[{"p":"p1","r":2}],"s":{"n":[2000]}}`}, refused: true,
+		},
 		{name: "a turn before the first", page: `{"tn":1}`, parts: []string{`{"t":[{"i":-1,"p":"p1"}]}`}, refused: true},
 		{name: "two turns serving one prompt", page: `{"tn":2}`, parts: []string{`{"t":[{"p":"p1"},{"i":1,"p":"p1"}]}`}, refused: true},
 		{name: "times as nanoseconds and instants at once", page: `{}`, parts: []string{`{"s":{"n":[1000],"f":[{"n":2000}]}}`}, refused: true},

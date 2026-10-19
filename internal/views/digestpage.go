@@ -13,26 +13,28 @@ import (
 // storedPage is a page's tally as a day's digest carries it in its session's
 // state, sealed at the end of its day as the store seals it: all of it but
 // its turns, its agents first seen and when its requests went upstream,
-// which its parts hold, as storedPart has them; of its turns, how many
-// there are, for its parts to fill. Each of the rest as the tally holds it:
-// whether a request in none is in flight; whether it's taken one in, its
-// first and last; its idle gaps folded and when it last came back after
-// one; whether its own conversation tells its stretches, and its stretches
-// of every request and of its own conversation's; where its models went
-// last; its accounts, why each model goes where it does, and its totals,
-// each with what it spent in ledger.Spent's own stored form; the requests
-// that may still be in flight as the next arrives; and its points, as
-// storedPointing has them. Not its prompts' turns, worked out of its turns
-// as it's restored, nor what a copy of it takes in. Its keys are short and
-// its zeros left out.
+// which its parts hold, as storedPart has them; of each of those, how many
+// there are, for its parts to give exactly. Each of the rest as the tally
+// holds it: whether a request in none is in flight; whether it's taken one
+// in, its first and last; its idle gaps folded and when it last came back
+// after one; whether its own conversation tells its stretches, and its
+// stretches of every request and of its own conversation's; where its
+// models went last; its accounts, why each model goes where it does, and
+// its totals, each with what it spent in ledger.Spent's own stored form;
+// the requests that may still be in flight as the next arrives; and its
+// points, as storedPointing has them. Not its prompts' turns, worked out of
+// its turns as it's restored, nor what a copy of it takes in. Its times are
+// as storedTime has them. Its keys are short and its zeros left out.
 type storedPage struct {
 	Turns     int                   `json:"tn,omitzero"`
+	Agents    int                   `json:"ag,omitzero"`
+	Times     int                   `json:"tm,omitzero"`
 	InNone    bool                  `json:"nn,omitzero"`
 	Begun     bool                  `json:"b,omitzero"`
-	First     storedInstant         `json:"f,omitzero"`
-	Last      storedInstant         `json:"l,omitzero"`
+	First     *storedInstant        `json:"f,omitempty"`
+	Last      *storedInstant        `json:"l,omitempty"`
 	Folds     []storedFold          `json:"fd,omitempty"`
-	Resumed   storedInstant         `json:"rs,omitzero"`
+	Resumed   *storedInstant        `json:"rs,omitempty"`
 	ByMain    bool                  `json:"bm,omitzero"`
 	Stretched [2]storedStretching   `json:"st,omitzero"`
 	Goes      []storedGo            `json:"g,omitempty"`
@@ -46,8 +48,8 @@ type storedPage struct {
 // storedFold is an idle gap a page's tally folded, as its stored form holds
 // it: from its last request before it to its first after.
 type storedFold struct {
-	From storedInstant `json:"f,omitzero"`
-	To   storedInstant `json:"t,omitzero"`
+	From *storedInstant `json:"f,omitempty"`
+	To   *storedInstant `json:"t,omitempty"`
 }
 
 // storedStretching is a page's stretches as its stored form holds them, and
@@ -60,8 +62,8 @@ type storedStretching struct {
 // storedStretch is a stretch as a page's stored form holds it: its account
 // and when it began.
 type storedStretch struct {
-	Account string        `json:"a,omitempty"`
-	From    storedInstant `json:"f,omitzero"`
+	Account string         `json:"a,omitempty"`
+	From    *storedInstant `json:"f,omitempty"`
 }
 
 // storedGo is where a model of a page's went last, as its stored form holds
@@ -76,11 +78,11 @@ type storedGo struct {
 // its stored form holds them: the account, when the first and the last of
 // them arrived, how many there are, and what they spent.
 type storedAccountSums struct {
-	Account  string        `json:"ac,omitempty"`
-	From     storedInstant `json:"f,omitzero"`
-	To       storedInstant `json:"t,omitzero"`
-	Requests int           `json:"r,omitzero"`
-	Spent    ledger.Spent  `json:"sp,omitzero"`
+	Account  string         `json:"ac,omitempty"`
+	From     *storedInstant `json:"f,omitempty"`
+	To       *storedInstant `json:"t,omitempty"`
+	Requests int            `json:"r,omitzero"`
+	Spent    ledger.Spent   `json:"sp,omitzero"`
 }
 
 // storedKept is what a model's lines tell of why it goes where it does, as
@@ -121,7 +123,7 @@ type storedPart struct {
 type storedTurn struct {
 	Index        int            `json:"i,omitzero"`
 	Prompt       string         `json:"p,omitempty"`
-	Started      storedInstant  `json:"s,omitzero"`
+	Started      *storedInstant `json:"s,omitempty"`
 	Last         *storedEnd     `json:"l,omitempty"`
 	LastMain     *storedEnd     `json:"lm,omitempty"`
 	Requests     int            `json:"r,omitzero"`
@@ -139,9 +141,9 @@ type storedTurn struct {
 // storedEnd is how a turn's request ended as a stored turn holds it, as
 // turnEnd has it: none of a turn none of whose requests set it.
 type storedEnd struct {
-	End   storedInstant `json:"e,omitzero"`
-	Lined bool          `json:"l,omitzero"`
-	Stop  string        `json:"s,omitempty"`
+	End   *storedInstant `json:"e,omitempty"`
+	Lined bool           `json:"l,omitzero"`
+	Stop  string         `json:"s,omitempty"`
 }
 
 // storedTimes are when requests went upstream, oldest first, as a page's
@@ -196,11 +198,12 @@ func (p *pageTally) put() json.RawMessage {
 // put as JSON at once.
 func (p *pageTally) carried() storedPage {
 	st := storedPage{
-		Turns: len(p.turns), InNone: p.inNone, Begun: p.begun, First: instantOf(p.first).stored(), Last: instantOf(p.last).stored(),
-		Resumed: instantOf(p.resumed).stored(), ByMain: p.byMain, Totals: p.totals.stored(), Points: p.points.stored(),
+		Turns: len(p.turns), Agents: len(p.agents), Times: p.upstream.len(), InNone: p.inNone, Begun: p.begun,
+		First: storedTime(p.first), Last: storedTime(p.last), Resumed: storedTime(p.resumed), ByMain: p.byMain, Totals: p.totals.stored(),
+		Points: p.points.stored(),
 	}
 	for _, f := range p.folds {
-		st.Folds = append(st.Folds, storedFold{From: instantOf(f.From).stored(), To: instantOf(f.To).stored()})
+		st.Folds = append(st.Folds, storedFold{From: storedTime(f.From), To: storedTime(f.To)})
 	}
 	for i, s := range p.stretched {
 		st.Stretched[i] = s.stored()
@@ -210,7 +213,7 @@ func (p *pageTally) carried() storedPage {
 	}
 	for _, a := range p.accounts {
 		st.Accounts = append(st.Accounts, storedAccountSums{
-			Account: a.account, From: instantOf(a.from).stored(), To: instantOf(a.to).stored(), Requests: a.requests, Spent: a.spent,
+			Account: a.account, From: storedTime(a.from), To: storedTime(a.to), Requests: a.requests, Spent: a.spent,
 		})
 	}
 	st.Kept = make(map[string]storedKept, len(p.kept))
@@ -299,10 +302,17 @@ func (st *storedSession) restoredPaged(prices ledger.Table, day LedgerDay, parts
 // upstreamTimes' with takes them in, so they're held as a fold of them all
 // at once holds them. Its prompts' turns are worked out of its turns, and
 // it owns nothing a copy of it shares, as told leaves a tally. It's refused
-// where its points won't restore, as storedPointing's restored has it, a
-// part's times won't read, a part holds a turn beyond the count st carries
-// or leaves one below it in none, or two turns serve one prompt.
+// where it counts more turns than its parts hold together, before room is
+// made for them, as a count no fold made may be past any room there is; a
+// part's times won't read; a part holds a turn beyond the count st carries,
+// or leaves one below it in none; two turns serve one prompt; its parts
+// give other than as many agents and times as it counts, as a chain short
+// of a part would; or its points won't restore, as storedPointing's
+// restored has it.
 func (st *storedPage) restored(parts []storedPart) (*pageTally, error) {
+	if held := turnsHeld(parts); st.Turns < 0 || st.Turns > held {
+		return nil, fmt.Errorf("%d turns, of parts holding %d", st.Turns, held)
+	}
 	points, err := st.Points.restored()
 	if err != nil {
 		return nil, err
@@ -320,20 +330,31 @@ func (st *storedPage) restored(parts []storedPart) (*pageTally, error) {
 	if err := p.prompted(); err != nil {
 		return nil, err
 	}
+	if agents, times := len(p.agents), p.upstream.len(); agents != st.Agents || times != st.Times {
+		return nil, fmt.Errorf("%d agents and %d times, of parts giving %d and %d", st.Agents, st.Times, agents, times)
+	}
 	return p, nil
 }
 
-// tally is the tally st carries, without its turns, its points, or its
-// agents and times, which its parts hold: its maps of its own, as a tally
-// told on writes them.
+// turnsHeld is how many turns parts hold together.
+func turnsHeld(parts []storedPart) int {
+	held := 0
+	for i := range parts {
+		held += len(parts[i].Turns)
+	}
+	return held
+}
+
+// tally is the tally st carries, without its turns, its prompts' turns, its
+// points, or its agents and times, which its parts hold: its maps of its
+// own, as a tally told on writes them.
 func (st *storedPage) tally() *pageTally {
 	p := &pageTally{
-		prompts: make(map[string]int, st.Turns), agents: make(map[string]string), kept: make(map[string]keptLines, len(st.Kept)),
-		inNone: st.InNone, begun: st.Begun, first: st.First.instant().time(), last: st.Last.instant().time(), resumed: st.Resumed.instant().time(),
-		byMain: st.ByMain, totals: st.Totals.sums(),
+		agents: make(map[string]string), kept: make(map[string]keptLines, len(st.Kept)), inNone: st.InNone, begun: st.Begun,
+		first: restoredTime(st.First), last: restoredTime(st.Last), resumed: restoredTime(st.Resumed), byMain: st.ByMain, totals: st.Totals.sums(),
 	}
 	for _, f := range st.Folds {
-		p.folds = append(p.folds, Fold{From: f.From.instant().time(), To: f.To.instant().time()})
+		p.folds = append(p.folds, Fold{From: restoredTime(f.From), To: restoredTime(f.To)})
 	}
 	for i := range st.Stretched {
 		p.stretched[i] = st.Stretched[i].stretching()
@@ -343,7 +364,7 @@ func (st *storedPage) tally() *pageTally {
 	}
 	for _, a := range st.Accounts {
 		p.accounts = append(p.accounts, accountSums{
-			account: a.Account, from: a.From.instant().time(), to: a.To.instant().time(), requests: a.Requests, spent: a.Spent,
+			account: a.Account, from: restoredTime(a.From), to: restoredTime(a.To), requests: a.Requests, spent: a.Spent,
 		})
 	}
 	for model, k := range st.Kept {
@@ -378,6 +399,7 @@ func (p *pageTally) overlaid(part *storedPart) error {
 // prompted works out p's prompts' turns of its turns, failing where one is
 // in no part, or two serve one prompt.
 func (p *pageTally) prompted() error {
+	p.prompts = make(map[string]int, len(p.turns))
 	for i, t := range p.turns {
 		if t == nil {
 			return fmt.Errorf("turn %d of %d in no part", i, len(p.turns))
@@ -394,7 +416,7 @@ func (p *pageTally) prompted() error {
 func (s stretching) stored() storedStretching {
 	st := storedStretching{Open: s.open}
 	for _, r := range s.stretches {
-		st.Stretches = append(st.Stretches, storedStretch{Account: r.Account, From: instantOf(r.From).stored()})
+		st.Stretches = append(st.Stretches, storedStretch{Account: r.Account, From: storedTime(r.From)})
 	}
 	return st
 }
@@ -403,7 +425,7 @@ func (s stretching) stored() storedStretching {
 func (st *storedStretching) stretching() stretching {
 	s := stretching{open: st.Open}
 	for _, r := range st.Stretches {
-		s.stretches = append(s.stretches, Stretch{Account: r.Account, From: r.From.instant().time()})
+		s.stretches = append(s.stretches, Stretch{Account: r.Account, From: restoredTime(r.From)})
 	}
 	return s
 }
@@ -421,7 +443,7 @@ func (st storedSums) sums() sessionSums {
 // stored is t as a page's part holds it, at the index given.
 func (t *turnTally) stored(index int) storedTurn {
 	return storedTurn{
-		Index: index, Prompt: t.prompt, Started: instantOf(t.started).stored(), Last: t.last.stored(), LastMain: t.lastMain.stored(), Requests: t.requests,
+		Index: index, Prompt: t.prompt, Started: storedTime(t.started), Last: t.last.stored(), LastMain: t.lastMain.stored(), Requests: t.requests,
 		Tools: t.tools, Read: t.read, Written: t.written, Out: t.out, Spent: t.spent, Accounts: t.accounts, MainAccounts: t.mainAccounts,
 		Pending: t.pending, MainPending: t.mainPending,
 	}
@@ -431,7 +453,7 @@ func (t *turnTally) stored(index int) storedTurn {
 // begun has them, if empty.
 func (st *storedTurn) restored() *turnTally {
 	t := &turnTally{
-		prompt: st.Prompt, started: st.Started.instant().time(), last: st.Last.turnEnd(), lastMain: st.LastMain.turnEnd(), requests: st.Requests,
+		prompt: st.Prompt, started: restoredTime(st.Started), last: st.Last.turnEnd(), lastMain: st.LastMain.turnEnd(), requests: st.Requests,
 		tools: make(map[string]int, len(st.Tools)), read: st.Read, written: st.Written, out: st.Out, spent: st.Spent,
 		accounts: append([]string{}, st.Accounts...), mainAccounts: append([]string{}, st.MainAccounts...), pending: st.Pending, mainPending: st.MainPending,
 	}
@@ -444,7 +466,7 @@ func (e turnEnd) stored() *storedEnd {
 	if !e.set {
 		return nil
 	}
-	return &storedEnd{End: instantOf(e.end).stored(), Lined: e.lined, Stop: e.stop}
+	return &storedEnd{End: storedTime(e.end), Lined: e.lined, Stop: e.stop}
 }
 
 // turnEnd is the end st stores: none set, of none.
@@ -452,7 +474,28 @@ func (st *storedEnd) turnEnd() turnEnd {
 	if st == nil {
 		return turnEnd{}
 	}
-	return turnEnd{end: st.End.instant().time(), lined: st.Lined, stop: st.Stop, set: true}
+	return turnEnd{end: restoredTime(st.End), lined: st.Lined, stop: st.Stop, set: true}
+}
+
+// storedTime is t as a page's stored forms hold a time: none of the zero
+// time, as a page not begun, or never come back after a gap, holds; else the
+// instant it is, the epoch's among them, which an instant of no seconds
+// stores, so none is the zero time alone.
+func storedTime(t time.Time) *storedInstant {
+	if t.IsZero() {
+		return nil
+	}
+	st := instantOf(t).stored()
+	return &st
+}
+
+// restoredTime is the time st stores, as storedTime stores it, in UTC: the
+// zero time of none.
+func restoredTime(st *storedInstant) time.Time {
+	if st == nil {
+		return time.Time{}
+	}
+	return st.instant().time()
 }
 
 // storedFrom are u's times from its ith on as a page's part holds them, as
