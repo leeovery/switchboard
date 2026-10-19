@@ -446,13 +446,14 @@ func headCopied(from *jsontext.Decoder, head *jsontext.Encoder, last string) err
 
 // digestGrounds are what a digest is judged against, as stands judges it,
 // and a day head, as dayHeadStands does, each from its caller's own look at
-// the ledger, the writer's round's and a reader's alike. kept gives how many lines the ledger keeps of a local day,
-// by its date, as the summary of them that stands as held counts them, its
-// Lines; none of a day it keeps no lines of, its lines pruned, or none ever
-// written; and reports false of a day whose lines it keeps without a summary
-// that stands, or with one counting more lines than its files hold. heads gives the head of the digest the ledger holds of a
-// day, by its date, as digest reads it, reporting false where it holds none
-// that reads.
+// the ledger, the writer's round's and a reader's alike. kept gives how many
+// lines the ledger keeps of a local day, by its date, as the summary of them
+// that stands as held counts them, its Lines; none of a day it keeps no
+// lines of, its lines pruned, or none ever written; and reports false of a
+// day whose lines it keeps without a summary that stands, or with one
+// counting more lines than its files hold. heads gives the head of the
+// digest the ledger holds of a day, by its date, as digest reads it,
+// reporting false where it holds none that reads.
 type digestGrounds struct {
 	kept  func(date string) (lines int, known bool)
 	heads func(date string) (DigestHead, bool)
@@ -509,16 +510,22 @@ func (g digestGrounds) current(built builtAgainst) bool {
 // the day reads that day's lines: its digest must be current and hold none
 // that arrived after it ended, unless it keeps no lines at all.
 func (g digestGrounds) alone(date string) bool {
-	start, end, _ := dayfile.Day(date)
-	if after, current := g.currentHead(dayfile.DateOf(end)); current && after.Early > 0 {
+	before, after := beside(date)
+	if head, current := g.currentHead(after); current && head.Early > 0 {
 		return false
 	}
-	before := dayfile.DateOf(dayfile.DayStart(start, -1))
 	if lines, known := g.kept(before); known && lines == 0 {
 		return true
 	}
 	head, current := g.currentHead(before)
 	return current && head.Late == 0
+}
+
+// beside returns the dates of the local days either side of the one with the
+// given date.
+func beside(date string) (before, after string) {
+	start, end, _ := dayfile.Day(date)
+	return dayfile.DateOf(dayfile.DayStart(start, -1)), dayfile.DateOf(end)
 }
 
 // currentHead returns the head of the digest held of the local day with the

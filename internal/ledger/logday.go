@@ -76,10 +76,16 @@ func (h DayHead) against() builtAgainst {
 
 // dayHeadStands reports whether head stands, as g says, and its side with it:
 // so a reader resting on it reads what a read of its day's lines reads. It
-// stands where it's current, as current says, as a digest's head must be;
-// unlike a digest, it rests on no state of another day's.
+// stands as a digest's head does: it's current, as current says; and its day
+// is alone, as alone says, as the day's read takes in the lines of its day
+// that the files of the days either side hold, which its day's summary
+// doesn't count, but the digests of those days tell of. A line filed under a
+// day beside it since it was built, but arrived on it, as two writers in
+// different time zones may file one, is told only once that day's digest is
+// written again: until then, within a day, the head stands without it.
+// Unlike a digest, it rests on no state of another day's.
 func (g digestGrounds) dayHeadStands(head DayHead) bool {
-	return g.current(head.against())
+	return g.current(head.against()) && g.alone(head.Day)
 }
 
 // storedDayHead is a day head as its file holds it, gzipped: the version of
@@ -141,12 +147,27 @@ var errDayHeadOutdated = errors.New("a day head of another version")
 // date, its side of the version body: failing with fs.ErrNotExist where it
 // holds none; with errDayHeadOutdated where it's of another version, of the
 // envelope or the side; and with errNotTheDaysHead where it doesn't read as
-// the day's head. Its fields but its side are judged first, as dayHeadIn
-// reads them, so the side of one of another version, or of another day, is
+// the day's head. Its fields but its side are judged first, as sidelessHead
+// judges them, so the side of one of another version, or of another day, is
 // never read.
 func (d days) dayHead(date string, body int) (DayHead, error) {
-	stored, err := storedRead(logdayFile(d.files.Dir, date), func(s storedDayHead, err error) error { return s.judged(date, body, err) },
-		dayHeadIn, storedIn[storedDayHead])
+	return d.dayHeadRead(date, body, dayHeadIn, storedIn[storedDayHead])
+}
+
+// sidelessHead returns the head the ledger holds of the local day with the
+// given date, as dayHead judges it, its side none, as dayHeadIn reads it, so
+// none of the side is inflated: failing as dayHead fails, but for a file
+// damaged after the fields before its side, as the rest of it isn't read.
+func (d days) sidelessHead(date string, body int) (DayHead, error) {
+	return d.dayHeadRead(date, body, dayHeadIn)
+}
+
+// dayHeadRead returns the head the ledger holds of the local day with the
+// given date, as the last of reads reads its file, as storedRead has them
+// read, each judged as judged judges it, so one judged otherwise than as the
+// day's of the version asked for is read no further.
+func (d days) dayHeadRead(date string, body int, reads ...func(io.Reader) (storedDayHead, error)) (DayHead, error) {
+	stored, err := storedRead(logdayFile(d.files.Dir, date), func(s storedDayHead, err error) error { return s.judged(date, body, err) }, reads...)
 	if err != nil {
 		return DayHead{}, err
 	}
@@ -183,7 +204,8 @@ func (s storedDayHead) judged(date string, body int, err error) error {
 // instead.
 func (f *Follower) DaySide(date string, body int) (json.RawMessage, bool) {
 	head, err := f.days.dayHead(date, body)
-	if err != nil || !(digestGrounds{kept: followerLook{f: f}.kept}).dayHeadStands(head) {
+	look := followerLook{f: f}
+	if err != nil || !(digestGrounds{kept: look.kept, heads: look.head}).dayHeadStands(head) {
 		return nil, false
 	}
 	return head.Side, true
@@ -212,12 +234,41 @@ func (d days) day(date string, now time.Time, take func(Held) bool, faults *dayf
 // side of it, couldn't all be read for now.
 var errDayUnread = errors.New("its files, or those of the days either side of it, can't all be read for now")
 
-// seenHead is the head of a day as the digesting last read it: its file, as
-// it looked then, and the head, its side none, as dayHeadStands judges it
-// afresh at each pass.
+// seenHead is the head of a day as the digesting last read it, or wrote it:
+// its file, as it looked then; the head, its side none, as current judges it
+// afresh at each pass; and settled, the files of the digests beside its day
+// as they looked as it was last built, or found to stand, nil where it's
+// neither, as headDue holds them.
 type seenHead struct {
-	file fs.FileInfo
-	head DayHead
+	file    fs.FileInfo
+	head    DayHead
+	settled *digestsBeside
+}
+
+// digestsBeside is a look at the files of the digests the ledger holds of
+// the local days either side of a day, which read none of them: nil of one
+// it holds none of.
+type digestsBeside struct {
+	before, after fs.FileInfo
+}
+
+// digestsBeside returns a look at the files of the digests the ledger holds
+// of the local days either side of the one with the given date.
+func (d days) digestsBeside(date string) digestsBeside {
+	before, after := beside(date)
+	return digestsBeside{before: d.digestInfo(before), after: d.digestInfo(after)}
+}
+
+// same reports whether b looks as other does, each file as dayfile.SameAs
+// says.
+func (b digestsBeside) same(other digestsBeside) bool {
+	return dayfile.SameAs(b.before, other.before) && dayfile.SameAs(b.after, other.after)
+}
+
+// settledAmong reports whether the head was built, or found to stand, as the
+// digests beside its day look as around does.
+func (s seenHead) settledAmong(around digestsBeside) bool {
+	return s.settled != nil && s.settled.same(around)
 }
 
 // logdayDue builds the head of each of the days with the given dates, those
@@ -240,47 +291,74 @@ func (d *digesting) logdayDue(ctx context.Context, dates []string, now time.Time
 // headDue reports whether the head of the local day with the given date is
 // due, as view finds the day: it has lines, kept as its summary counts them,
 // as kept tells, and no head is held of it that stands, as dayHeadStands
-// says, of the version its Digester gives. A head is read only where its file
-// looks otherwise than it did as the digesting last read it, as seenHead
-// holds it; and a day whose lines can't be told isn't due, as no head built
-// of it would stand.
+// says, of the version its Digester gives. One that's current, as current
+// says, but doesn't stand, as the digests beside its day tell of a line of
+// it their days' files hold, is due once each time one of those digests
+// changes, as building it again takes the line in, but can't have it stand:
+// not at every pass. A head is read only where its file looks otherwise than
+// it did as the digesting last read it, as seenHead holds it, and the
+// digests beside it only where one of their files looks otherwise than it
+// did as the head was last built, or found to stand; and a day whose lines
+// can't be told isn't due, as no head built of it would stand.
 func (d *digesting) headDue(date string, view writerLook) bool {
 	day := view.day(date)
 	if _, known := day.kept(); day.look.none || !known {
 		return false
 	}
-	head, held := d.seen(date)
-	return !held || !(digestGrounds{kept: view.kept}).dayHeadStands(head)
+	seen, held := d.seen(date)
+	grounds := digestGrounds{kept: view.kept, heads: view.head}
+	around := d.days.digestsBeside(date)
+	switch {
+	case !held || !grounds.current(seen.head.against()):
+		return true
+	case seen.settledAmong(around):
+		return false
+	case !grounds.dayHeadStands(seen.head):
+		return true
+	}
+	d.settle(date, around)
+	return false
 }
 
 // seen returns the head the ledger holds of the local day with the given
 // date, of the version its Digester gives, its side none, as it was last
-// read, while its file looks as it did then; else read afresh, and held. It
-// reports false where the ledger holds none that reads.
-func (d *digesting) seen(date string) (DayHead, bool) {
+// read, or written, while its file looks as it did then; else read afresh,
+// its side unread, as sidelessHead reads it, and held. It reports false
+// where the ledger holds none that reads.
+func (d *digesting) seen(date string) (seenHead, bool) {
 	file := d.days.dayHeadInfo(date)
 	if s, ok := d.heads[date]; ok && file != nil && dayfile.SameAs(s.file, file) {
-		return s.head, true
+		return s, true
 	}
 	delete(d.heads, date)
-	head, err := d.days.dayHead(date, d.digester.RowsVersion())
+	head, err := d.days.sidelessHead(date, d.digester.RowsVersion())
 	if err != nil {
-		return DayHead{}, false
+		return seenHead{}, false
 	}
-	d.see(date, file, head)
-	return head, true
+	d.see(date, file, head, nil)
+	return d.heads[date], true
 }
 
 // see holds head, the head of the local day with the given date, as its file
-// looks as given, its side let go of.
-func (d *digesting) see(date string, file fs.FileInfo, head DayHead) {
+// looks as given, its side let go of, settled as the digests beside its day
+// look as given, nil for none.
+func (d *digesting) see(date string, file fs.FileInfo, head DayHead, settled *digestsBeside) {
 	head.Side = nil
-	d.heads[date] = seenHead{file: file, head: head}
+	d.heads[date] = seenHead{file: file, head: head, settled: settled}
+}
+
+// settle holds the head of the local day with the given date, as seen holds
+// it, settled as the digests beside its day look as around does.
+func (d *digesting) settle(date string, around digestsBeside) {
+	s := d.heads[date]
+	s.settled = &around
+	d.heads[date] = s
 }
 
 // buildHead builds the head of the local day with the given date, at now, as
 // headOf does, view finding the day, and writes it, as writeDayHead does,
-// holding it as seen from then on. It writes none where ctx ended first, or
+// holding it as seen from then on, settled as the digests beside its day
+// look as it's written. It writes none where ctx ended first, or
 // the day's summary or its files look otherwise once it's built than as view
 // found them, as they changed while it was built, so it's due again. Where
 // it can't be built, or written, that's warned of, as warnings.warn says,
@@ -300,7 +378,8 @@ func (d *digesting) buildHead(ctx context.Context, date string, view writerLook,
 	}
 	delete(d.headsWarned, date)
 	if file := d.days.dayHeadInfo(date); file != nil {
-		d.see(date, file, head)
+		around := d.days.digestsBeside(date)
+		d.see(date, file, head, &around)
 	}
 	d.days.logger.Info("built the head of a day of the request ledger", "day", date, "lines", head.Lines)
 }

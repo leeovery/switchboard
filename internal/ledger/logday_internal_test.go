@@ -229,10 +229,93 @@ func TestADayHeadIsJudgedBeforeItsSideIsRead(t *testing.T) {
 	}
 }
 
+// A day head's fields but its side are read without its side, which no
+// damage to it or its gzip trailer fails, as the whole read does, as none of
+// it is read: so judging a head inflates none of its side.
+func TestADayHeadsFieldsAreReadWithoutItsSide(t *testing.T) {
+	fields := fmt.Sprintf(`{"version":%d,"body":%d,"day":"2026-10-05","from":1,"to":2,"summary_lines":40,"lines":39,`, logdayVersion, sideVersion)
+	whole := gzippedText(t, fields+`"side":[{"id":"one"}]}`)
+	tests := []struct {
+		name string
+		file []byte
+	}{
+		{name: "its side cut short", file: gzippedText(t, fields+`"side":[{"id":"o`)},
+		{name: "its side not JSON", file: gzippedText(t, fields+`"side":not a side`)},
+		{name: "cut short in its gzip trailer", file: whole[:len(whole)-4]},
+	}
+	want := DayHead{Body: sideVersion, Day: digested, Start: time.Unix(0, 1), End: time.Unix(0, 2), SummaryLines: 40, Lines: 39}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := digestDays(t)
+			if err := os.WriteFile(logdayFile(d.files.Dir, digested), tt.file, 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			got, err := d.sidelessHead(digested, sideVersion)
+
+			if err != nil || !reflect.DeepEqual(got, want) {
+				t.Errorf("sidelessHead(%q) = %+v, %v; want %+v, its side unread", digested, got, err, want)
+			}
+			if _, err := d.dayHead(digested, sideVersion); !errors.Is(err, errNotTheDaysHead) {
+				t.Errorf("dayHead(%q) failed with %v, want %v: the whole read reads its side", digested, err, errNotTheDaysHead)
+			}
+		})
+	}
+}
+
+// A day head's fields read without its side fail as the whole read fails,
+// where they don't read as the day's head's, or read as one of another
+// version.
+func TestADayHeadsFieldsThatDontReadFailAsTheWholeReadDoes(t *testing.T) {
+	stored := dayHeadOf(digested, 40, `[]`).stored()
+	envelope := stored
+	envelope.Version = logdayVersion + 1
+	file := func(s storedDayHead) []byte {
+		data, err := gzippedJSON(s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return data
+	}
+	tests := []struct {
+		name string
+		// file is what the ledger holds as the day's head: nil for none.
+		file []byte
+		body int
+		want error
+	}{
+		{name: "none held", file: nil, body: sideVersion, want: fs.ErrNotExist},
+		{name: "of another version of the envelope", file: file(envelope), body: sideVersion, want: errDayHeadOutdated},
+		{name: "of another version of the side", file: file(stored), body: sideVersion + 1, want: errDayHeadOutdated},
+		{name: "another day's", file: file(dayHeadOf(before, 7, `[]`).stored()), body: sideVersion, want: errNotTheDaysHead},
+		{name: "cut short before its side", file: gzippedText(t, `{"version":1,"body":7,"day":"2026-10-05","from":`), body: sideVersion, want: errNotTheDaysHead},
+		{name: "not gzipped", file: gunzipped(t, file(stored)), body: sideVersion, want: errNotTheDaysHead},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := digestDays(t)
+			if tt.file != nil {
+				if err := os.WriteFile(logdayFile(d.files.Dir, digested), tt.file, 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			_, err := d.sidelessHead(digested, tt.body)
+
+			if !errors.Is(err, tt.want) {
+				t.Errorf("sidelessHead(%q, %d) failed with %v, want %v", digested, tt.body, err, tt.want)
+			}
+			if _, whole := d.dayHead(digested, tt.body); !errors.Is(whole, tt.want) {
+				t.Errorf("dayHead(%q, %d) failed with %v, want %v, as the read without its side fails", digested, tt.body, whole, tt.want)
+			}
+		})
+	}
+}
+
 // A day head stands, and its side with it, while what it was built from
 // does: its day in this time zone, keeping the lines its summary counted as
-// it was built; whatever the days beside it keep, and whatever their digests
-// hold, as it rests on none of them.
+// it was built; and none of the lines of the days either side of it arriving
+// on it, as far as their digests tell, as a digest's day must be alone.
 func TestADayHeadStandsOnlyWhileWhatItWasBuiltFromDoes(t *testing.T) {
 	built := dayHeadOf(digested, 40, `[]`)
 	_, offset := built.Start.Zone()
@@ -250,12 +333,28 @@ func TestADayHeadStandsOnlyWhileWhatItWasBuiltFromDoes(t *testing.T) {
 		want  bool
 	}{
 		{name: "as it was built", head: built, kept: keeping(nil), want: true},
-		{name: "the day before keeping lines, of no digest", head: built, kept: keeping(map[string]int{before: 9}), want: true},
-		{name: "the day before keeping lines of no summary yet", head: built, kept: keeping(nil, before), want: true},
+		{
+			name: "the day after's digest current, none of its lines arriving before it", head: built,
+			kept: keeping(map[string]int{after: 30}), heads: map[string]DigestHead{after: headOf(after, 30)}, want: true,
+		},
+		{
+			name: "the day after's digest not current, as its summary was made again since, though a line of it arrived before it", head: built,
+			kept: keeping(map[string]int{after: 31}), heads: map[string]DigestHead{after: arriving(headOf(after, 30), 1, 0)}, want: true,
+		},
+		{
+			name: "the day before's digest current, none of its lines arriving after it", head: built,
+			kept: keeping(map[string]int{before: 9}), heads: map[string]DigestHead{before: headOf(before, 9)}, want: true,
+		},
 		{
 			name: "the day after's digest current, a line of it arriving before it", head: built,
-			kept: keeping(map[string]int{after: 30}), heads: map[string]DigestHead{after: arriving(headOf(after, 30), 1, 0)}, want: true,
+			kept: keeping(map[string]int{after: 30}), heads: map[string]DigestHead{after: arriving(headOf(after, 30), 1, 0)}, want: false,
 		},
+		{
+			name: "the day before's digest current, a line of it arriving after it", head: built,
+			kept: keeping(map[string]int{before: 9}), heads: map[string]DigestHead{before: arriving(headOf(before, 9), 0, 1)}, want: false,
+		},
+		{name: "the day before keeping lines, of no digest", head: built, kept: keeping(map[string]int{before: 9}), want: false},
+		{name: "the day before keeping lines of no summary yet, of no digest", head: built, kept: keeping(nil, before), want: false},
 		{name: "built in another time zone", head: inZone, kept: keeping(nil), want: false},
 		{name: "built where its day started otherwise", head: started, kept: keeping(nil), want: false},
 		{name: "built where its day ended otherwise", head: ended, kept: keeping(nil), want: false},

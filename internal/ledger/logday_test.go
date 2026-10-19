@@ -2,8 +2,10 @@ package ledger_test
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"errors"
+	"io"
 	"io/fs"
 	"maps"
 	"os"
@@ -87,6 +89,25 @@ func headsIn(t *testing.T, dir string) map[string]ledger.DayHead {
 	return heads
 }
 
+// gunzippedFile is what the gzipped file at path holds, inflated.
+func gunzippedFile(t *testing.T, path string) []byte {
+	t.Helper()
+	file, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = file.Close() }()
+	r, err := gzip.NewReader(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plain, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return plain
+}
+
 // removeHeads removes every head the ledger in dir holds.
 func removeHeads(tb testing.TB, dir string) {
 	tb.Helper()
@@ -106,7 +127,9 @@ func removeHeads(tb testing.TB, dir string) {
 // by their arrival, whenever each was written, and one a change of time zone
 // filed under the day after, which the day after's leaves out. It's of the
 // day's bounds, the lines its summary counts, and as many as the day gave;
-// and a follower reads its side as it was built. A day of no lines has none.
+// and a follower reads its side as it was built, where it stands: not that
+// of the day the day after's digest tells of a line of, as no day head
+// stands whose day isn't alone. A day of no lines has none.
 func TestADaysHeadIsBuiltOfExactlyTheLinesItsDayGives(t *testing.T) {
 	w := newLookupWorld(t)
 	w.file(-3, askedBy("1", "one", on(-3, 9, 0)))
@@ -121,10 +144,11 @@ func TestADaysHeadIsBuiltOfExactlyTheLinesItsDayGives(t *testing.T) {
 		days       int
 		summarised int
 		requests   []string
+		stands     bool
 	}{
-		{days: -3, summarised: 1, requests: []string{"1"}},
+		{days: -3, summarised: 1, requests: []string{"1"}, stands: true},
 		{days: 0, summarised: 2, requests: []string{"2", "3", "4"}},
-		{days: 1, summarised: 2, requests: []string{"5"}},
+		{days: 1, summarised: 2, requests: []string{"5"}, stands: true},
 	}
 	for _, tt := range tests {
 		t.Run(dayOf(tt.days), func(t *testing.T) {
@@ -137,8 +161,8 @@ func TestADaysHeadIsBuiltOfExactlyTheLinesItsDayGives(t *testing.T) {
 			if given := requestsOn(f, date); !slices.Equal(given, tt.requests) {
 				t.Errorf("Day(%s) gives the lines of %q, want %q, as the head was built of", date, given, tt.requests)
 			}
-			if side, ok := f.DaySide(date, sideBody); !ok || !bytes.Equal(side, want.Side) {
-				t.Errorf("DaySide(%s) = %s, %t; want %s, as it was built", date, side, ok, want.Side)
+			if side, ok := f.DaySide(date, sideBody); ok != tt.stands || ok && !bytes.Equal(side, want.Side) {
+				t.Errorf("DaySide(%s) = %s, %t; want %s, as it was built, read %t", date, side, ok, want.Side, tt.stands)
 			}
 		})
 	}
@@ -150,7 +174,8 @@ func TestADaysHeadIsBuiltOfExactlyTheLinesItsDayGives(t *testing.T) {
 }
 
 // A day's side is read only where its head stands, as it was built of the
-// day as the ledger keeps it now, of the version asked for: none where the
+// day as the ledger keeps it now, of the version asked for, and no line of
+// the days either side arrived on it, as their digests tell: none where the
 // day's lines are read instead.
 func TestADaysSideIsReadOnlyWhereItsHeadStands(t *testing.T) {
 	tests := []struct {
@@ -177,6 +202,16 @@ func TestADaysSideIsReadOnlyWhereItsHeadStands(t *testing.T) {
 			w.summarise()
 		}, body: sideBody},
 		{name: "its lines pruned", change: func(t *testing.T, w *lookupWorld) { removeFile(t, w.dir, "requests-"+dayOf(0)+".jsonl") }, body: sideBody},
+		{name: "a line arriving on it filed since under the day after, that day digested again", change: func(_ *testing.T, w *lookupWorld) {
+			w.file(1, askedBy("x", "four", on(0, 23, 0)))
+			w.summarise()
+			w.digestEnded()
+		}, body: sideBody},
+		{name: "a line arriving on it filed since under the day before, that day digested", change: func(_ *testing.T, w *lookupWorld) {
+			w.file(-1, askedBy("x", "four", on(0, 0, 30)))
+			w.summarise()
+			w.digestEnded()
+		}, body: sideBody},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -219,9 +254,11 @@ func TestALateLineHasItsDaysHeadBuiltAgain(t *testing.T) {
 	}
 }
 
-// A day's head built in another time zone is built again in this one, its
-// bounds the day's here, of the lines its day gives here: a line that
-// arrived late in the evening there falls on the day after here.
+// A day's head built in another time zone is built again in this one, by
+// the router started again in it, its bounds the day's here, of the lines
+// its day gives here: a line that arrived late in the evening there falls on
+// the day after here, whose side isn't read, as the digest of the day its
+// file is of tells of it.
 func TestADaysHeadBuiltInAnotherTimeZoneIsBuiltAgain(t *testing.T) {
 	w := newLookupWorld(t)
 	w.file(0, askedBy("night", "one", on(0, 22, 30)))
@@ -237,7 +274,9 @@ func TestADaysHeadBuiltInAnotherTimeZoneIsBuiltAgain(t *testing.T) {
 		t.Errorf("DaySide(%s) = %s in another time zone than its head was built in; want it unread", dayOf(0), side)
 	}
 
-	w.digestEnded()
+	// A process's time zone is the one it starts in, so the router digests
+	// in another only once it starts again there.
+	w.opened(w.fold).DigestEnded(t.Context(), w.at)
 
 	if built := w.fold.sides(); len(built) != 4 {
 		t.Errorf("%d sides were built in another time zone, want 4, of every day of lines", len(built))
@@ -251,8 +290,8 @@ func TestADaysHeadBuiltInAnotherTimeZoneIsBuiltAgain(t *testing.T) {
 		if given := requestsOn(f, date); !slices.Equal(given, want) {
 			t.Errorf("Day(%s) gives the lines of %q, want %q, as the head was built of", date, given, want)
 		}
-		if side, ok := f.DaySide(date, sideBody); !ok || !bytes.Equal(side, sideOf(t, want...)) {
-			t.Errorf("DaySide(%s) = %s, %t; want %s, as it was built again", date, side, ok, sideOf(t, want...))
+		if side, ok := f.DaySide(date, sideBody); ok != (days != 1) || ok && !bytes.Equal(side, sideOf(t, want...)) {
+			t.Errorf("DaySide(%s) = %s, %t; want %s, as it was built again, read %t", date, side, ok, sideOf(t, want...), days != 1)
 		}
 	}
 }
@@ -541,6 +580,60 @@ func TestADayGainingALineAsItsHeadIsBuiltHasNoneWritten(t *testing.T) {
 	}
 }
 
+// A day's head that doesn't stand as the digest of a day beside it tells of
+// a line of it, filed there since it was built, is built again, of the line,
+// once that digest is written again: then not at every pass after, as
+// building it again can't have it stand; and once by a ledger opened afresh,
+// which can't tell what it was built of.
+func TestAHeadNotAloneIsBuiltAgainOnceItsNeighboursDigestChanges(t *testing.T) {
+	w := newLookupWorld(t)
+	sharedDays(w)
+	w.digestEnded()
+	w.fold.sides()
+	w.file(1, askedBy("x", "four", on(0, 23, 0)))
+	w.summarise()
+
+	w.digestEnded()
+
+	if built, want := requestsOfSides(w.fold.sides()), [][]string{{"6", "7"}, {"4", "5", "x"}}; !reflect.DeepEqual(built, want) {
+		t.Errorf("once %s is digested again, sides of %q were built, want %q: its own, as its summary changed, and %s's, of the line", dayOf(1), built, want, dayOf(0))
+	}
+	if side, ok := w.follower().DaySide(dayOf(0), sideBody); ok {
+		t.Errorf("DaySide(%s) = %s, read, though the digest of %s tells of a line of it; want it unread", dayOf(0), side, dayOf(1))
+	}
+	w.digestEnded()
+	if built := requestsOfSides(w.fold.sides()); len(built) > 0 {
+		t.Errorf("a pass after built sides of %q again, want none, nothing changed since", built)
+	}
+	fresh := &folding{}
+	w.opened(fresh).DigestEnded(t.Context(), w.at)
+	if built, want := requestsOfSides(fresh.sides()), [][]string{{"4", "5", "x"}}; !reflect.DeepEqual(built, want) {
+		t.Errorf("a ledger opened afresh built sides of %q, want %q: the one head that doesn't stand", built, want)
+	}
+}
+
+// The first pass of a ledger opened afresh judges each day's head without
+// reading its side: one whose side is damaged, the fields before it as they
+// were written, isn't built again, though a follower reads it not to stand.
+func TestTheFirstPassAfterAStartReadsNoSide(t *testing.T) {
+	w := newLookupWorld(t)
+	sharedDays(w)
+	w.digestEnded()
+	head := w.dayHead(0)
+	fields, _, _ := strings.Cut(string(gunzippedFile(t, logdayPath(w.dir, 0))), `"side":`)
+	writeFile(t, w.dir, filepath.Base(logdayPath(w.dir, 0)), gzipped(t, fields+`"side":not a side`))
+
+	fresh := &folding{}
+	w.opened(fresh).DigestEnded(t.Context(), w.at)
+
+	if built := requestsOfSides(fresh.sides()); len(built) > 0 {
+		t.Errorf("the first pass of a ledger opened afresh built sides of %q, want none: no side read", built)
+	}
+	if side, ok := w.follower().DaySide(dayOf(0), sideBody); ok {
+		t.Errorf("DaySide(%s) = %s, read, of a side damaged after %+v; want it unread", dayOf(0), side, head)
+	}
+}
+
 // A pass that finds nothing changed since the last reads no head: with every
 // head unreadable, none is built again, nor warned of. A ledger opened
 // afresh, holding nothing of the last, reads them, and builds them again.
@@ -581,6 +674,14 @@ func TestBuildingHeadsAsDaysChangeWritesWhatALedgerAfreshDoes(t *testing.T) {
 		}},
 		{name: "a late line under a day of none", change: func(_ *testing.T, w *lookupWorld) {
 			w.file(-1, askedBy("late", "two", on(-1, 12, 0)))
+			w.summarise()
+		}},
+		{name: "a late line under the day after the one it arrived on", change: func(_ *testing.T, w *lookupWorld) {
+			w.file(1, askedBy("late", "four", on(0, 23, 0)))
+			w.summarise()
+		}},
+		{name: "a late line under the day before the one it arrived on", change: func(_ *testing.T, w *lookupWorld) {
+			w.file(-1, askedBy("late", "four", on(0, 0, 30)))
 			w.summarise()
 		}},
 		{name: "the first day pruned", change: func(t *testing.T, w *lookupWorld) {
