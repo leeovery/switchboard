@@ -20,13 +20,16 @@ import (
 // turnWorld are the lines a turn is read from rows over, of the seed given: a
 // page's run, as pagedRun makes it, each of its session's lines dressed as a
 // router's says, one in eight without an id, and of one seed in three, the
-// first of those given twice, as the ledger's files may hold one; among the
-// lines of a crowd of other sessions, as crowdOf has them. In the order the
-// ledger files them.
+// first of those given twice, as the ledger's files may hold one; one in
+// five followed a second on by a quota check of the session, which counts
+// toward none, and a count of its tokens, as checkAndCount has them; among
+// the lines of a crowd of other sessions, as crowdOf has them. In the order
+// the ledger files them.
 func turnWorld(seed uint64) []ledger.Line {
 	lines, _ := pagedRun(seed)
 	r := rand.New(rand.NewPCG(seed, 15))
 	twice := 0
+	var asides []ledger.Line
 	for i := range lines {
 		if l := &lines[i]; l.Session == "s" {
 			dressed(r, l)
@@ -34,14 +37,31 @@ func turnWorld(seed uint64) []ledger.Line {
 				l.Request = ""
 				twice = cmp.Or(twice, i+1)
 			}
+			if r.IntN(5) == 0 {
+				asides = append(asides, checkAndCount(*l)...)
+			}
 		}
 	}
 	if seed%3 == 0 && twice > 0 {
 		lines = append(lines, lines[twice-1])
 	}
-	lines = append(lines, crowdOf(lines)...)
+	lines = append(slices.Concat(lines, asides), crowdOf(lines)...)
 	slices.SortStableFunc(lines, func(a, b ledger.Line) int { return ended(&a).Compare(ended(&b)) })
 	return lines
+}
+
+// checkAndCount are a quota check of the session of l's request, and a count
+// of its tokens, each its own, a second after l arrived: the check counts
+// toward no session, the count toward its own.
+func checkAndCount(l ledger.Line) []ledger.Line {
+	asides := make([]ledger.Line, 2)
+	for i, kind := range []string{ledger.KindCheck, ledger.KindCount} {
+		asides[i] = ledger.Line{
+			At: l.At.Add(time.Second), Request: fmt.Sprintf("%s-%s-%d", kind, l.Request, l.At.UnixMilli()), Kind: kind, Session: l.Session,
+			Model: l.Model, Account: l.Account, Reason: l.Reason, Status: 200, Attempts: 1, TotalMS: 300, Class: l.Class, Prompt: l.Prompt,
+		}
+	}
+	return asides
 }
 
 // crowdOf are the lines of a crowd of other sessions on each day from the
@@ -83,11 +103,12 @@ func turnLater(last time.Time, moments []time.Time) (filed, flying []ledger.Line
 
 // toldInFlight is a stream telling of each of the session's requests lines
 // give that's in flight at now, sent moments after it arrived, as the
-// router's stream tells of one: but the one it never tells of.
+// router's stream tells of one: but the one it never tells of, and none it
+// counts among no requests.
 func toldInFlight(lines []ledger.Line, now time.Time) Stream {
 	s := Stream{Live: true, Requests: make(map[string]Told)}
 	for _, l := range lines {
-		if l.Session != "s" || l.Request == "" || l.Request == unseen || l.At.After(now) || !ended(&l).After(now) {
+		if l.Session != "s" || l.Request == "" || l.Request == unseen || !l.Counted() || l.At.After(now) || !ended(&l).After(now) {
 			continue
 		}
 		s.Requests[l.Request] = Told{
@@ -192,13 +213,15 @@ func (o openedTurn) within(spans []ledger.Span) []lineRecord {
 // turnChecked is a turn of the session s opened at a moment, read through the
 // chain's Follower and raw, as sameTurns reads it: its number; whether it's
 // pending; its span and the horizon's, as turnSpans has them; the reads the
-// Follower noted; and what each read gave and showed.
+// Follower noted; what each read gave and showed; and the records its read
+// gives of the days it reads from their rows, as turnDaysOf restores them.
 type turnChecked struct {
 	n             int
 	pending       bool
 	turn, horizon ledger.Span
 	reads         *turnReads
 	rows, raw     openedTurn
+	restored      []lineRecord
 }
 
 // sameTurns opens every turn of the session s at now, its page read seven
@@ -227,6 +250,7 @@ func (c *digestChain) sameTurns(now time.Time, s Stream, read func(LedgerSession
 		spans := w.turnSpans(turn)
 		tc := turnChecked{n: i + 1, pending: turn.pending, turn: spans[0], horizon: spans[1], reads: readingTurn(l)}
 		tc.rows, tc.raw = openTurn(page, tc.n, tc.reads, live), openTurn(page, tc.n, rawOnly{l: f}, live)
+		tc.restored = turnDaysOf(l, "s", tc.turn, tc.horizon).restored
 		if got, want := tc.rows.shown(), tc.raw.shown(); !reflect.DeepEqual(got, want) {
 			c.t.Errorf("%s at %v: turn %d read from its days' rows shows otherwise than read raw\n%s", c.name, now, tc.n, unlike(got, want))
 		}
@@ -308,10 +332,11 @@ func (c chunkOf) meets(span ledger.Span) bool {
 // heldToItsRows fails the test where tc's turn, opened as sameTurns opens
 // it, read the rows of a day otherwise than the rule says: rows asked of a
 // day of its own, before the horizon's day, alone, every one asked; of each
-// that stood, every chunk read whose rows name the session and meet the
-// turn's span, as chunks has them, and no other; and no raw read given a
-// span meeting a day read from its rows, each of its days read either way.
-// It notes in met the hard moments it meets.
+// that stood, the chunks read as heldToItsChunks has them, and the day never
+// read raw, each of its days read either way; and of those days, its read
+// giving the records of the session's lines of the chunks read alone, its
+// checks and counts among them, newest first, as Session gives a session's
+// lines. It notes in met the hard moments it meets.
 func (c *digestChain) heldToItsRows(tc turnChecked, chunks dayChunks, met map[string]bool) {
 	c.t.Helper()
 	before := dayfile.DateOf(tc.horizon.From)
@@ -325,24 +350,16 @@ func (c *digestChain) heldToItsRows(tc turnChecked, chunks dayChunks, met map[st
 	if !slices.Equal(asked, own) {
 		c.t.Errorf("%s at %v: turn %d asked the rows of %v, want of its own days before the horizon's, %v", c.name, c.at, tc.n, asked, own)
 	}
-	for _, date := range tc.fromRows() {
-		var want []int64
-		for _, chunk := range chunks.of(date) {
-			switch {
-			case chunk.names("s") && chunk.meets(tc.turn):
-				want = append(want, chunk.offset)
-			case chunk.names("s"):
-				met["a chunk of the session's passed over, of none of the turn's span"] = true
-			default:
-				met["a chunk naming none of the session's passed over"] = true
-			}
-		}
-		if got := tc.reads.chunks[date]; !slices.Equal(got, want) {
-			c.t.Errorf("%s at %v: turn %d read the chunks of %s at %v, want those naming its session and meeting its span, %v", c.name, c.at, tc.n, date, got, want)
-		}
+	var restored []lineRecord
+	for _, date := range slices.Backward(tc.fromRows()) {
+		restored = append(restored, c.heldToItsChunks(tc, date, chunks, met)...)
 		if tc.reads.rawMeets(date) {
 			c.t.Errorf("%s at %v: turn %d read %s raw, its rows read, given %v", c.name, c.at, tc.n, date, tc.reads.spans)
 		}
+	}
+	if !reflect.DeepEqual(tc.restored, restored) {
+		c.t.Errorf("%s at %v: turn %d gives of the days it reads from their rows %d records\n%+v\nwant the session's of the chunks read, newest first, %d\n%+v",
+			c.name, c.at, tc.n, len(tc.restored), tc.restored, len(restored), restored)
 	}
 	for _, date := range own {
 		if !tc.reads.asked[date] && !tc.reads.rawMeets(date) {
@@ -350,6 +367,37 @@ func (c *digestChain) heldToItsRows(tc turnChecked, chunks dayChunks, met map[st
 		}
 	}
 	noteTurn(tc, own, met)
+}
+
+// heldToItsChunks fails the test where tc's turn, opened as sameTurns opens
+// it, read other chunks of the rows of the day with the given date, its rows
+// standing, than those whose rows name the session and meet the turn's span,
+// as chunks has them; and gives the records of the session's lines of those
+// chunks, newest first, those of its checks and counts among them. It notes
+// in met the hard moments it meets.
+func (c *digestChain) heldToItsChunks(tc turnChecked, date string, chunks dayChunks, met map[string]bool) []lineRecord {
+	c.t.Helper()
+	var want []int64
+	var session []lineRecord
+	for _, chunk := range chunks.of(date) {
+		switch {
+		case chunk.names("s") && chunk.meets(tc.turn):
+			want = append(want, chunk.offset)
+			session = append(session, slices.DeleteFunc(slices.Clone(chunk.records), func(r lineRecord) bool { return r.session != "s" })...)
+		case chunk.names("s"):
+			met["a chunk of the session's passed over, of none of the turn's span"] = true
+		default:
+			met["a chunk naming none of the session's passed over"] = true
+		}
+	}
+	if got := tc.reads.chunks[date]; !slices.Equal(got, want) {
+		c.t.Errorf("%s at %v: turn %d read the chunks of %s at %v, want those naming its session and meeting its span, %v", c.name, c.at, tc.n, date, got, want)
+	}
+	if slices.ContainsFunc(session, func(r lineRecord) bool { return r.kind == RowCheck }) {
+		met["a check of the session's, which counts toward none, restored of a chunk read"] = true
+	}
+	slices.Reverse(session)
+	return session
 }
 
 // noteTurn notes in met the hard moments tc's turn meets, own the dates of
@@ -428,22 +476,25 @@ func sessionSpan(lines []ledger.Line) (first, last time.Time) {
 // turnSeeds is how many seeds of the turn world turns are read over.
 const turnSeeds = 3
 
-// Every turn of a generated session's page, its days crowded, opened at half
-// past midnight and at half past one on each day from the one after its run
-// began to the one after it ended, and three hours, a week and a month
-// after, as laterLines has its requests then, shows what it shows read raw,
-// read with the days of its own before the horizon's whose rows stand read
-// from them: every row and its details, as sameTurns has it. Of the lines
-// that arrived within its span and the horizon's, the read gives each once,
-// in the order read raw; and it reads the rows of its own days before the
-// horizon's alone, of each the chunks naming its session and meeting its
-// span alone, and never a day raw whose rows it read, as heldToItsRows has
-// it. Among the turns: one across midnight, a subagent's requests on two
-// days, a turn pending, one a week back with a line since the horizon, and
-// lines without an id, one given twice, each read from rows; a day of a
-// turn's own read raw, as yesterday's is till its head is built, beside one
-// read from rows; one the horizon is pinned back over; and chunks passed
-// over, of the session's and of none of its.
+// Every turn of a generated session's page, its days crowded, opened at a
+// minute and at fifty-nine minutes past local midnight, the day before's
+// head yet to be built, and at half past one, on each day from the one after
+// its run began to the one after it ended, and three hours, a week and a
+// month after, as laterLines has its requests then, shows what it shows read
+// raw, read with the days of its own before the horizon's whose rows stand
+// read from them: every row and its details, as sameTurns has it. Of the
+// lines that arrived within its span and the horizon's, the read gives each
+// once, in the order read raw; and it reads the rows of its own days before
+// the horizon's alone, of each the chunks naming its session and meeting
+// its span alone, giving of them the session's lines alone, and never a day
+// raw whose rows it read, as heldToItsRows has it. Among the turns: one
+// across midnight, a subagent's requests on two days, a turn pending, one a
+// week back with a line since the horizon, and lines without an id, one
+// given twice, each read from rows; a day of a turn's own read raw, as
+// yesterday's is till its head is built, beside one read from rows; one the
+// horizon is pinned back over; chunks passed over, of the session's and of
+// none of its; and a check of the session's given of a chunk read, so the
+// session its line is of is told apart from the one it counts toward.
 func TestATurnShowsFromItsDaysRowsWhatItShowsReadRaw(t *testing.T) {
 	met := make(map[string]bool)
 	for seed := range uint64(turnSeeds) {
@@ -454,8 +505,10 @@ func TestATurnShowsFromItsDaysRowsWhatItShowsReadRaw(t *testing.T) {
 		c := newDigestChain(t, fmt.Sprintf("turn world %d", seed), seed, slices.Concat(world, filed))
 		every := slices.Concat(c.lines, flying)
 		moments := slices.Clone(laters)
-		for day := dayfile.DayStart(first, 1); !day.After(dayfile.DayStart(last, 1)); day = dayfile.DayStart(day, 1) {
-			moments = append(moments, day.Add(30*time.Minute), day.Add(90*time.Minute))
+		for day := dayfile.DayStart(first.Local(), 1); !day.After(dayfile.DayStart(last.Local(), 1)); day = dayfile.DayStart(day, 1) {
+			for _, past := range []time.Duration{time.Minute, 59 * time.Minute, 90 * time.Minute} {
+				moments = append(moments, day.Add(past))
+			}
 		}
 		slices.SortFunc(moments, time.Time.Compare)
 		for _, now := range moments {
@@ -472,6 +525,7 @@ func TestATurnShowsFromItsDaysRowsWhatItShowsReadRaw(t *testing.T) {
 		"a line without an id read from its rows", "a line given twice read from its rows",
 		"a day of a turn's own read raw beside one read from its rows", "a day of a turn's own before today's read raw, the horizon pinned back over it",
 		"a chunk of the session's passed over, of none of the turn's span", "a chunk naming none of the session's passed over",
+		"a check of the session's, which counts toward none, restored of a chunk read",
 	} {
 		if !met[moment] {
 			t.Errorf("no turn world meets %s", moment)
@@ -483,12 +537,14 @@ func TestATurnShowsFromItsDaysRowsWhatItShowsReadRaw(t *testing.T) {
 const upsetSeed = 1
 
 // A day of a turn's own whose rows don't stand, or a chunk of which it needs
-// won't restore, is read raw, never from its rows, and the turn shows what it
-// shows read raw, as sameTurns has it: a chunk it needs damaged, its rows
-// file as long; a chunk it needs restoring a row fewer than its head counts;
-// its rows file gone, its head standing; its head of another version; and a
-// late line filed onto it after its head was built. Each is upset a week
-// after the world's run, the router's next pass yet to build it again.
+// won't restore, or whose meta won't read, is read raw, never from its rows,
+// and the turn shows what it shows read raw, as sameTurns has it: a chunk it
+// needs damaged, its rows file as long; a chunk it needs restoring a row
+// fewer than its head counts; its head holding a meta of a chunk it needs
+// that isn't one, its JSON reading still; its rows file gone, its head
+// standing; its head of another version; and a late line filed onto it
+// after its head was built. Each is upset a week after the world's run, the
+// router's next pass yet to build it again.
 func TestATurnReadsADayRawWhoseRowsItNeedsDontStand(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -498,6 +554,7 @@ func TestATurnReadsADayRawWhoseRowsItNeedsDontStand(t *testing.T) {
 	}{
 		{name: "a chunk it needs damaged, its rows file as long", upset: (*digestChain).damageChunk, stood: true},
 		{name: "a chunk it needs restoring a row fewer than its head counts", short: true, stood: true},
+		{name: "its head holding a meta of a chunk it needs that isn't one", upset: (*digestChain).spoilMeta, stood: true},
 		{name: "its rows file gone, its head standing", upset: func(c *digestChain, date string, _ ledger.RowsChunk) { c.removeRows(date) }},
 		{name: "its head of another version", upset: func(c *digestChain, date string, _ ledger.RowsChunk) { c.headOfOtherVersion(date) }},
 		{name: "a late line filed onto it after its head was built", upset: func(c *digestChain, date string, _ ledger.RowsChunk) { c.fileLateOnto(date) }},
@@ -558,6 +615,67 @@ func (c *digestChain) damageChunk(date string, chunk ledger.RowsChunk) {
 	data[chunk.Offset+chunk.Length/2] ^= 0xff
 	if err := os.WriteFile(c.rowsPath(date), data, 0o600); err != nil {
 		c.t.Fatal(err)
+	}
+}
+
+// spoilMeta has the head of the local day with the given date hold the meta
+// of chunk, a chunk of its rows as DayRows gives it, as a word, which is
+// JSON but no chunk's meta, the rest of the head as it was, failing the test
+// where the head holds no such meta.
+func (c *digestChain) spoilMeta(date string, chunk ledger.RowsChunk) {
+	c.t.Helper()
+	if !c.rewriteHead(date, [2][]byte{chunk.Meta, []byte(`"spoiled"`)}) {
+		c.t.Fatalf("%s: the ledger holds no head of %s", c.name, date)
+	}
+}
+
+// A chunk's meta meets a turn of a session where it counts a row toward the
+// session, and its rows arrived from no later than the turn's span's end to
+// no earlier than its start, both held: a chunk whose last row arrived as
+// the span begins meets it, and whose first arrived as it ends, but not a
+// nanosecond outside either; nor one holding only a quota check of the
+// session, which counts toward none, or another session's rows alone,
+// within the span. Its meta is read as the chunk's builder stores it.
+func TestAChunksMetaMeetsATurnsSpanItsEndsHeld(t *testing.T) {
+	from := time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC)
+	span := ledger.Span{From: from, To: from.Add(time.Hour)}
+	line := func(session, kind string, at time.Time) ledger.Line {
+		return ledger.Line{At: at, Request: at.Format(time.RFC3339Nano), Kind: kind, Session: session, Model: foldOpus, Account: "work", Status: 200}
+	}
+	request := func(at time.Time) ledger.Line { return line("s", ledger.KindMessage, at) }
+	tests := []struct {
+		name  string
+		lines []ledger.Line
+		meets bool
+	}{
+		{"its last row arrived as the span begins", []ledger.Line{request(from.Add(-time.Hour)), request(from)}, true},
+		{"its last row arrived a nanosecond before the span begins", []ledger.Line{request(from.Add(-time.Hour)), request(from.Add(-time.Nanosecond))}, false},
+		{"its first row arrived as the span ends", []ledger.Line{request(span.To), request(span.To.Add(time.Hour))}, true},
+		{"its first row arrived a nanosecond after the span ends", []ledger.Line{request(span.To.Add(time.Nanosecond)), request(span.To.Add(time.Hour))}, false},
+		{"its rows within the span", []ledger.Line{request(from.Add(time.Minute))}, true},
+		{"its one row within the span a quota check of the session", []ledger.Line{line("s", ledger.KindCheck, from.Add(time.Minute))}, false},
+		{"its rows within the span another session's", []ledger.Line{line("other", ledger.KindMessage, from.Add(time.Minute))}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var c rowsChunk
+			for _, rec := range recordsOfLines(tt.lines) {
+				if err := c.take(&rec); err != nil {
+					t.Fatal(err)
+				}
+			}
+			built, err := c.built()
+			if err != nil {
+				t.Fatal(err)
+			}
+			meta, err := chunkMetaOf(built.meta)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := meta.meets("s", span); got != tt.meets {
+				t.Errorf("the chunk meets the session s's span from %v to %v %t, want %t", span.From, span.To, got, tt.meets)
+			}
+		})
 	}
 }
 
