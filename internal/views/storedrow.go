@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
 )
 
@@ -133,6 +134,57 @@ func (c *rowsChunk) built() (builtChunk, error) {
 		return builtChunk{}, fmt.Errorf("encode a chunk's meta: %w", err)
 	}
 	return builtChunk{rows: c.rows, count: c.taken(), meta: meta}, nil
+}
+
+// rowsAChunk is how many rows a chunk of a day's rows holds, as dayRows cuts
+// them, its last as many as are left. It's the rows file's own, not
+// chunkRows, a chunked list's in memory, so neither moves the other.
+const rowsAChunk = 256
+
+// dayRows are a day's rows as they're built of its records, taken in the
+// order the day gives them: in chunks of rowsAChunk, as the ledger keeps
+// them, each built as it fills, and the next begun afresh, as built hands a
+// chunk's rows on as it holds them; and the first error encoding them met,
+// after which none is taken.
+type dayRows struct {
+	chunk  rowsChunk
+	chunks []ledger.BuiltChunk
+	err    error
+}
+
+// take encodes r as the next row, its chunk built once it holds rowsAChunk.
+func (d *dayRows) take(r *lineRecord) {
+	if d.err != nil {
+		return
+	}
+	if d.err = d.chunk.take(r); d.err == nil && d.chunk.taken() == rowsAChunk {
+		d.cut()
+	}
+}
+
+// cut builds the chunk being taken, as the ledger keeps it, among d's
+// chunks, and begins the next afresh.
+func (d *dayRows) cut() {
+	built, err := d.chunk.built()
+	if err != nil {
+		d.err = err
+		return
+	}
+	d.chunks = append(d.chunks, ledger.BuiltChunk{Rows: built.rows, Count: built.count, Meta: built.meta})
+	d.chunk = rowsChunk{}
+}
+
+// built are the chunks of the rows taken, in order, the last cut of those
+// left: none of none, failing where a row or a chunk's meta couldn't be
+// encoded.
+func (d *dayRows) built() ([]ledger.BuiltChunk, error) {
+	if d.err == nil && d.chunk.taken() > 0 {
+		d.cut()
+	}
+	if d.err != nil {
+		return nil, d.err
+	}
+	return d.chunks, nil
 }
 
 // restoredRows are records, with the records of a chunk's rows appended,

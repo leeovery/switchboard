@@ -128,10 +128,11 @@ func TestADayHeadsSideAndChunksAreItsStoredFormsLastFields(t *testing.T) {
 
 // A day head's file is its stored form, gzipped, the user's alone: its keys
 // short, its zeros left out, its day's bounds as nanoseconds since the Unix
-// epoch, its rows file's size; then its side, and its rows' chunks, each
-// where it lies in the rows file, how many rows it holds, and its meta, as
-// they were given but for their insignificant spaces, their characters
-// unescaped. Its rows file is the user's alone too.
+// epoch, its rows file's size and how many rows its chunks hold in all;
+// then its side, and its rows' chunks, each where it lies in the rows file,
+// how many rows it holds, and its meta, as they were given but for their
+// insignificant spaces, their characters unescaped. Its rows file is the
+// user's alone too.
 func TestADayHeadIsWrittenGzippedAsItsStoredFormTheUsersAlone(t *testing.T) {
 	d := digestDays(t)
 	head := DayHead{Body: sideVersion, Day: digested, Start: time.Date(2026, 10, 4, 23, 0, 0, 0, time.UTC),
@@ -148,7 +149,7 @@ func TestADayHeadIsWrittenGzippedAsItsStoredFormTheUsersAlone(t *testing.T) {
 	}
 	c := written.Rows.Chunks
 	want := fmt.Sprintf(`{"version":%d,"body":7,"day":"2026-10-05","from":1791154800000000000,"to":1791241200000000000,"summary_lines":40,"lines":39,`+
-		`"rows_size":%d,"side":[{"dir":"~/<api> & co"}],`+
+		`"rows_size":%d,"rows":3,"side":[{"dir":"~/<api> & co"}],`+
 		`"chunks":[{"length":%d,"crc":%d,"count":2,"meta":{"sessions":{"<one>":2}}},{"offset":%d,"length":%d,"crc":%d,"count":1}]}`+"\n",
 		logdayVersion, written.Rows.Size, c[0].Length, c[0].CRC, c[1].Offset, c[1].Length, c[1].CRC)
 	if got := string(gunzipped(t, data)); got != want {

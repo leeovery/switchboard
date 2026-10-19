@@ -788,6 +788,13 @@ func TestBuildingHeadsAsDaysChangeWritesWhatALedgerAfreshDoes(t *testing.T) {
 				t.Fatal(err)
 			}
 		}},
+		{name: "a head of a line more than its rows", change: func(t *testing.T, w *lookupWorld) {
+			head := w.dayHead(0)
+			head.Lines++
+			if err := ledger.WriteDayHead(w.dir, head); err != nil {
+				t.Fatal(err)
+			}
+		}},
 		{name: "a rows file deleted by hand", change: func(t *testing.T, w *lookupWorld) {
 			removeFile(t, w.dir, filepath.Base(rowsPath(w.dir, 0)))
 		}},

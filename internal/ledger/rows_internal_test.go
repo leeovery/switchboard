@@ -38,15 +38,19 @@ func TestARowsFileIsItsChunksMembersOneAfterAnother(t *testing.T) {
 	}
 }
 
-// A day's rows stand only while its head does, and the day's rows file is as
-// long as the head records, as a look at it tells: one gone, or written
-// again since of other rows, as by a build that stopped before its head,
-// doesn't; and a head of no rows has none standing only where the day holds
-// no rows file.
+// A day's rows stand only while its head does, it points at a row of each of
+// the lines it was built of, and the day's rows file is as long as the head
+// records, as a look at it tells: one gone, or written again since of other
+// rows, as by a build that stopped before its head, doesn't; nor does a head
+// of more lines than rows, or fewer, as of a day of lines but no rows; and a
+// head of no lines has none standing only where the day holds no rows file.
 func TestADaysRowsStandOnlyWhileItsHeadDoesAndItsFileIsAsLong(t *testing.T) {
 	built := dayHeadOf(digested, 40, `[]`)
+	built.Lines = 3
 	elsewhere := built
 	elsewhere.Start, elsewhere.End = built.Start.Add(time.Hour), built.End.Add(time.Hour)
+	more, fewer, none := built, built, built
+	more.Lines, fewer.Lines, none.Lines = 4, 2, 0
 	tests := []struct {
 		name string
 		head DayHead
@@ -61,8 +65,11 @@ func TestADaysRowsStandOnlyWhileItsHeadDoesAndItsFileIsAsLong(t *testing.T) {
 		{name: "its rows file gone", head: built, chunks: chunksGiven(), file: []byte{}},
 		{name: "its rows file written again, of other rows", head: built, chunks: chunksGiven(), file: memberOf([]byte("r1\nr2\nr3\n"))},
 		{name: "its head not standing", head: elsewhere, chunks: chunksGiven()},
-		{name: "of no rows, none held", head: built, want: true},
-		{name: "of no rows, a rows file held", head: built, file: memberOf([]byte("r1\n"))},
+		{name: "of more lines than rows", head: more, chunks: chunksGiven()},
+		{name: "of fewer lines than rows", head: fewer, chunks: chunksGiven()},
+		{name: "of lines but no rows", head: built},
+		{name: "of no lines, no rows held", head: none, want: true},
+		{name: "of no lines, a rows file held", head: none, file: memberOf([]byte("r1\n"))},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

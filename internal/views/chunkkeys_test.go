@@ -3,11 +3,8 @@ package views_test
 import (
 	"encoding/json"
 	"fmt"
-	"maps"
 	"os"
 	"path/filepath"
-	"slices"
-	"strings"
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/sourcecheck"
@@ -20,7 +17,7 @@ import (
 // key the golden left out, as its zero, would be renamed or retyped without
 // the golden failing.
 func TestTheChunksGoldenHoldsEveryKeyOfItsStoredForms(t *testing.T) {
-	data, err := os.ReadFile(filepath.Join("testdata", fmt.Sprintf("rows-chunk-v%d.json", views.ChunkVersion)))
+	data, err := os.ReadFile(filepath.Join("testdata", fmt.Sprintf("rows-chunk-v%d.json", views.RowsVersion)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,9 +32,5 @@ func TestTheChunksGoldenHoldsEveryKeyOfItsStoredForms(t *testing.T) {
 	k := newStoredKeys(t, root, sourcecheck.ModulePath(t, root))
 	k.each(k.named("views.storedRow"), golden.Rows)
 	k.walk(k.named("views.storedChunkMeta"), golden.Meta)
-	for _, key := range slices.SortedFunc(maps.Keys(k.declared), func(a, b storedKey) int { return strings.Compare(a.String(), b.String()) }) {
-		if !k.held[key] {
-			t.Errorf("the golden holds no value of %s: give the golden's lines what stores one", key)
-		}
-	}
+	k.everyHeld(nil)
 }

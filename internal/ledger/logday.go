@@ -96,9 +96,10 @@ func (g digestGrounds) dayHeadStands(head DayHead) bool {
 
 // storedDayHead is a day head as its file holds it, gzipped: the version of
 // the envelope it was written in, its fields, its day's bounds as
-// nanoseconds since the Unix epoch, its rows file's size, zeros left out;
-// then its side, and its rows' chunks last, as dayHeadIn reads the rest
-// alone by stopping at whichever of the two comes first.
+// nanoseconds since the Unix epoch, its rows file's size and how many rows
+// its chunks hold in all, zeros left out; then its side, and its rows'
+// chunks last, as dayHeadIn reads the rest alone by stopping at whichever
+// of the two comes first.
 type storedDayHead struct {
 	Version      int             `json:"version"`
 	Body         int             `json:"body"`
@@ -108,6 +109,7 @@ type storedDayHead struct {
 	SummaryLines int             `json:"summary_lines,omitzero"`
 	Lines        int             `json:"lines,omitzero"`
 	RowsSize     int64           `json:"rows_size,omitzero"`
+	Rows         int             `json:"rows,omitzero"`
 	Side         json.RawMessage `json:"side,omitempty"`
 	Chunks       []storedChunk   `json:"chunks,omitempty"`
 }
@@ -117,7 +119,7 @@ type storedDayHead struct {
 func (h DayHead) stored() storedDayHead {
 	return storedDayHead{
 		Version: logdayVersion, Body: h.Body, Day: h.Day, From: h.Start.UnixNano(), To: h.End.UnixNano(),
-		SummaryLines: h.SummaryLines, Lines: h.Lines, RowsSize: h.Rows.Size, Side: h.Side,
+		SummaryLines: h.SummaryLines, Lines: h.Lines, RowsSize: h.Rows.Size, Rows: h.Rows.Count, Side: h.Side,
 		Chunks: listAs(h.Rows.Chunks, RowsChunk.stored),
 	}
 }
@@ -126,7 +128,8 @@ func (h DayHead) stored() storedDayHead {
 func (s storedDayHead) dayHead() DayHead {
 	return DayHead{
 		Body: s.Body, Day: s.Day, Start: time.Unix(0, s.From), End: time.Unix(0, s.To),
-		SummaryLines: s.SummaryLines, Lines: s.Lines, Rows: DayRows{Size: s.RowsSize, Chunks: listAs(s.Chunks, storedChunk.chunk)}, Side: s.Side,
+		SummaryLines: s.SummaryLines, Lines: s.Lines, Rows: DayRows{Size: s.RowsSize, Count: s.Rows, Chunks: listAs(s.Chunks, storedChunk.chunk)},
+		Side: s.Side,
 	}
 }
 
@@ -437,7 +440,9 @@ func (d *digesting) buildHead(ctx context.Context, date string, view writerLook,
 // head holds, and whose chunks it gives, as DayBuilt has them, the head
 // pointing at none of them yet. It stops reading them once ctx ends,
 // failing; and fails where the files of the day, or of a day either side of
-// it, can't all be read for now, or the builder fails.
+// it, can't all be read for now, the builder fails, or its chunks count
+// other than a row of each line it was handed, as no head of them would
+// stand.
 func (d *digesting) headOf(ctx context.Context, date string, day writtenDay, now time.Time) (DayHead, []BuiltChunk, error) {
 	start, end, _ := dayfile.Day(date)
 	summaryLines, _ := day.kept()
@@ -456,8 +461,11 @@ func (d *digesting) headOf(ctx context.Context, date string, day writtenDay, now
 		return DayHead{}, nil, fmt.Errorf("the lines of %s: %w", date, errDayUnread)
 	}
 	built, err := build.Built()
-	if err != nil {
+	switch {
+	case err != nil:
 		return DayHead{}, nil, fmt.Errorf("the side and rows of %s: %w", date, err)
+	case rowsIn(built.Chunks) != head.Lines:
+		return DayHead{}, nil, fmt.Errorf("the rows of %s: %d built of %d lines, want one a line", date, rowsIn(built.Chunks), head.Lines)
 	}
 	head.Side = built.Side
 	return head, built.Chunks, nil

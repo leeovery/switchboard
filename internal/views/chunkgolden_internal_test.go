@@ -70,7 +70,7 @@ type chunkGolden struct {
 
 // The chunk of the records of goldenRows' lines, as rowsChunk encodes it,
 // is what the golden of the version of the days' rows it's written in holds,
-// as goldenChunk has it: testdata/rows-chunk-v<ChunkVersion>.json. A change
+// as goldenChunk has it: testdata/rows-chunk-v<RowsVersion>.json. A change
 // to how a row or a chunk's meta is stored, or to the working behind them,
 // that changes it without a new version fails, as rows already written would
 // be read as they no longer are. A new version has its golden written with
@@ -79,9 +79,9 @@ type chunkGolden struct {
 // ledger's.
 func TestAChunkIsEncodedAsTheGoldenOfItsVersionHoldsIt(t *testing.T) {
 	keptGolden{
-		file: "rows-chunk", what: "a chunk of a day's rows", version: ChunkVersion, test: "TestAChunkIsEncodedAsTheGoldenOfItsVersionHoldsIt",
+		file: "rows-chunk", what: "a chunk of a day's rows", version: RowsVersion, test: "TestAChunkIsEncodedAsTheGoldenOfItsVersionHoldsIt",
 		envelope: func(*testing.T, []byte) int { return 0 },
-		bump:     "the version of the days' rows where how a row or a chunk's meta is stored, or the working behind them, changed",
+		bump:     "RowsVersion where how a row or a chunk's meta is stored, or the working behind them, changed",
 	}.check(t, goldenChunk(t))
 }
 

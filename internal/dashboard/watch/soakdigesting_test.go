@@ -38,10 +38,11 @@ const heapObjects = "/memory/classes/heap/objects:bytes"
 // day's builder, as a session whose points can't take a day in is read
 // whole again; yesterday's built so with every session's; a backfill of
 // every day, as after the release that brings digests in; yesterday's head
-// built, as after the round that summarises it; and a backfill of every
-// day's head, as after the release that brings heads in. Each is reported
-// with the most the heap took above what it held, collected, as it began,
-// and leaves a digest and a head of every day the world's router digested.
+// and rows built, as after the round that summarises it; and a backfill of
+// every day's head and rows, as after the release that brings rows in. Each
+// is reported with the most the heap took above what it held, collected, as
+// it began, and leaves a digest, a head and a rows file of every day the
+// world's router digested.
 func TestTheRoutersDigestingOverASoaksWorld(t *testing.T) {
 	if !*soakDigesting {
 		t.Skip("the digesting's timing runs only as -soak.digesting asks")
@@ -54,6 +55,8 @@ func TestTheRoutersDigestingOverASoaksWorld(t *testing.T) {
 	left, parts, heads := digestsIn(t, dir, "digest-*"), digestsIn(t, dir, "parts-*"), digestsIn(t, dir, "logday-*")
 	t.Logf("%d digests, %.1f KB of them, %d parts files, %.1f KB, and %d heads, %.1f KB", len(left), float64(sizeOf(t, left))/(1<<10),
 		len(parts), float64(sizeOf(t, parts))/(1<<10), len(heads), float64(sizeOf(t, heads))/(1<<10))
+	rows := digestsIn(t, dir, "rows-*")
+	t.Logf("%d rows files, %.1f MB of them, %.2f MB a day", len(rows), mb(sizeOf(t, rows)), mb(sizeOf(t, rows))/float64(max(len(rows), 1)))
 	var l *ledger.Ledger
 	passes := []struct {
 		name   string
@@ -71,8 +74,15 @@ func TestTheRoutersDigestingOverASoaksWorld(t *testing.T) {
 			removeDigests(t, dir, "digest-"+yesterday+"*")
 		}},
 		{"a backfill of every day", func() { removeDigests(t, dir, "digest-*"); l = w.opened() }},
-		{"yesterday's head built", func() { removeDigests(t, dir, "logday-"+yesterday+"*") }},
-		{"a backfill of every head", func() { removeDigests(t, dir, "logday-*"); l = w.opened() }},
+		{"yesterday's head and rows built", func() {
+			removeDigests(t, dir, "logday-"+yesterday+"*")
+			removeDigests(t, dir, "rows-"+yesterday+"*")
+		}},
+		{"a backfill of every head and rows", func() {
+			removeDigests(t, dir, "logday-*")
+			removeDigests(t, dir, "rows-*")
+			l = w.opened()
+		}},
 	}
 	for _, p := range passes {
 		p.before()
@@ -83,6 +93,9 @@ func TestTheRoutersDigestingOverASoaksWorld(t *testing.T) {
 		}
 		if built := digestsIn(t, dir, "logday-*"); len(built) != len(left) {
 			t.Errorf("%s left %d heads, want one of each of the %d days digested", p.name, len(built), len(left))
+		}
+		if built := digestsIn(t, dir, "rows-*"); len(built) != len(left) {
+			t.Errorf("%s left %d rows files, want one of each of the %d days digested", p.name, len(built), len(left))
 		}
 	}
 }

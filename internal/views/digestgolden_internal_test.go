@@ -16,9 +16,10 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 )
 
-// update has the goldens of the digests' and the day heads' encodings
-// kept of the versions the views and the ledger write, as -update asks.
-var update = flag.Bool("update", false, "write the goldens of a day's digest and head, where none is kept of the versions written")
+// update has the goldens of the digests', the day heads' and the rows'
+// encodings kept of the versions the views and the ledger write, as -update
+// asks.
+var update = flag.Bool("update", false, "write the goldens of a day's digest, its head and a chunk of its rows, where none is kept of the versions written")
 
 // goldenDay is the day of the golden world whose digest the golden holds.
 const goldenDay = "2026-10-08"
@@ -141,10 +142,12 @@ func TestADigestIsEncodedAsTheGoldenOfItsVersionsHoldsIt(t *testing.T) {
 }
 
 // keptGolden is the golden of what the views and the ledger write of a day
-// of the golden world, testdata/<file>-v<version>.json: its file's name;
-// what it's of, as a digest; the version of the views' body written; the
-// test that writes it; the version of the ledger's envelope a golden's JSON
-// names, as envelope reads it; and what to bump where it changes.
+// of fixed lines, as a digest and its parts, a day's head, or a chunk of its
+// rows, testdata/<file>-v<version>.json: its file's name; what it's of, as a
+// digest; the version of the views' body written; the test that writes it;
+// the version of the ledger's envelope a golden's JSON names, as envelope
+// reads it, none of what the views write alone; and what to bump where it
+// changes.
 type keptGolden struct {
 	file, what, test, bump string
 	version                int

@@ -332,49 +332,140 @@ func TestADaysRowsBuiltAgainAreTheSameFile(t *testing.T) {
 	}
 }
 
-// A day whose Digester builds no rows of it has no rows file, any held
-// before removed, and its head points at none: its rows read as none,
-// standing.
-func TestADayBuiltOfNoRowsHasNoRowsFile(t *testing.T) {
+// A day of lines whose Digester builds other than a row of each of them, as
+// no rows at all, or chunks counting a row more, or fewer, has no head built:
+// that's warned of once over two passes, and neither its side nor its rows
+// read, a rows file a build before left pointed at by none.
+func TestADayBuiltOfOtherThanARowALineHasNoHead(t *testing.T) {
+	tests := []struct {
+		name string
+		rows func(chunks []ledger.BuiltChunk) []ledger.BuiltChunk
+	}{
+		{name: "no rows", rows: func([]ledger.BuiltChunk) []ledger.BuiltChunk { return nil }},
+		{name: "a row more", rows: func(chunks []ledger.BuiltChunk) []ledger.BuiltChunk {
+			return append(chunks, chunksOf("more")...)
+		}},
+		{name: "a chunk counting a row fewer", rows: func(chunks []ledger.BuiltChunk) []ledger.BuiltChunk {
+			chunks[0].Count--
+			return chunks
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			w := newLookupWorld(t)
+			sharedDays(w)
+			w.digestEnded()
+			removeFile(t, w.dir, filepath.Base(logdayPath(w.dir, 0)))
+
+			l := w.opened(rowsGiven{Digester: &folding{}, rows: tt.rows})
+			l.DigestEnded(t.Context(), w.at)
+			l.DigestEnded(t.Context(), w.at)
+
+			if w.headed(0) {
+				t.Errorf("a head of %s was written, its rows %s; want none", dayOf(0), tt.name)
+			}
+			if warned := warnedOf(log, cantBuildHead, dayOf(0)); warned != 1 {
+				t.Errorf("log reads\n%s\nwant %s warned of once over two passes, not %d times", log, dayOf(0), warned)
+			}
+			f := w.follower()
+			if side, ok := f.DaySide(dayOf(0), sideBody); ok {
+				t.Errorf("DaySide(%s) = %s, read; want it unread, no head written", dayOf(0), side)
+			}
+			if rows, ok := f.DayRows(dayOf(0), sideBody); ok {
+				t.Errorf("DayRows(%s) = %+v, read; want them unread, no head written", dayOf(0), rows)
+			}
+		})
+	}
+}
+
+// A day whose summary counts a line, but whose read gives none, as its one
+// line arrived on the day after, has a head of no rows: no rows file, and
+// its rows read as none, standing.
+func TestADayGivingNoLinesHasAHeadOfNoRows(t *testing.T) {
 	w := newLookupWorld(t)
 	sharedDays(w)
+	w.file(-1, askedBy("early", "four", on(0, 0, 30)))
+	w.summarise()
+
 	w.digestEnded()
-	removeFile(t, w.dir, filepath.Base(logdayPath(w.dir, 0)))
 
-	w.opened(rowless{&folding{}}).DigestEnded(t.Context(), w.at)
-
-	if head := w.dayHead(0); !reflect.DeepEqual(head.Rows, ledger.DayRows{}) {
-		t.Errorf("the head of %s points at rows %+v; want none", dayOf(0), head.Rows)
+	if head := w.dayHead(-1); head.Lines != 0 || !reflect.DeepEqual(head.Rows, ledger.DayRows{}) {
+		t.Errorf("the head of %s is of %d lines, pointing at rows %+v; want none of either", dayOf(-1), head.Lines, head.Rows)
 	}
-	if w.rowed(0) {
-		t.Errorf("the ledger holds a rows file of %s, built of none; want it removed", dayOf(0))
+	if w.rowed(-1) {
+		t.Errorf("the ledger holds a rows file of %s, built of none; want none", dayOf(-1))
 	}
-	if rows, ok := w.follower().DayRows(dayOf(0), sideBody); !ok || len(rows.Chunks) > 0 {
-		t.Errorf("DayRows(%s) = %+v, %t; want none, read", dayOf(0), rows, ok)
+	if rows, ok := w.follower().DayRows(dayOf(-1), sideBody); !ok || len(rows.Chunks) > 0 {
+		t.Errorf("DayRows(%s) = %+v, %t; want none, read", dayOf(-1), rows, ok)
 	}
 }
 
-// rowless is a Digester giving each day's side as the one it wraps gives it,
-// and no rows.
-type rowless struct {
+// A day's rows are read only where its head's chunks count a row of each of
+// the lines it was built of, as built: not where a head changed by hand has
+// one chunk count a row more, as its chunks then count otherwise than its
+// rows in all, nor where it counts a line more than its rows. Its side reads
+// either way, as it stands with the head alone.
+func TestADaysRowsAreReadOnlyWhereItsChunksCountItsLines(t *testing.T) {
+	tests := []struct {
+		name   string
+		change func(head *ledger.DayHead)
+		read   bool
+	}{
+		{name: "as built", change: func(*ledger.DayHead) {}, read: true},
+		{name: "a chunk counting a row more", change: func(head *ledger.DayHead) { head.Rows.Chunks[1].Count++ }},
+		{name: "its chunks and rows counting a row more", change: func(head *ledger.DayHead) {
+			head.Rows.Chunks[1].Count++
+			head.Rows.Count++
+		}},
+		{name: "a line more counted", change: func(head *ledger.DayHead) { head.Lines++ }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newLookupWorld(t)
+			w.file(0, askedBy("1", "one", on(0, 9, 0)), askedBy("2", "two", on(0, 10, 0)), askedBy("3", "one", on(0, 11, 0)))
+			w.summarise()
+			w.digestEnded()
+			head := w.dayHead(0)
+			tt.change(&head)
+			if err := ledger.WriteDayHead(w.dir, head); err != nil {
+				t.Fatal(err)
+			}
+
+			f := w.follower()
+			if rows, ok := f.DayRows(dayOf(0), sideBody); ok != tt.read {
+				t.Errorf("DayRows(%s) = %+v, read %t; want read %t", dayOf(0), rows, ok, tt.read)
+			}
+			if side, ok := f.DaySide(dayOf(0), sideBody); !ok || !bytes.Equal(side, sideOf(t, "1", "2", "3")) {
+				t.Errorf("DaySide(%s) = %s, %t; want it read as built", dayOf(0), side, ok)
+			}
+		})
+	}
+}
+
+// rowsGiven is a Digester giving each day's side as the one it wraps gives
+// it, and its rows as rows gives them of those the wrapped one builds.
+type rowsGiven struct {
 	ledger.Digester
+	rows func(chunks []ledger.BuiltChunk) []ledger.BuiltChunk
 }
 
-// Day gives a builder of a day's side as the wrapped Digester gives one, of
-// no rows, as rowlessDay has it.
-func (r rowless) Day() ledger.DayBuilder {
-	return rowlessDay{r.Digester.Day()}
+// Day gives a builder of a day's side and rows as the wrapped Digester gives
+// one, its rows as rowsGivenDay has them.
+func (r rowsGiven) Day() ledger.DayBuilder {
+	return rowsGivenDay{DayBuilder: r.Digester.Day(), rows: r.rows}
 }
 
-// rowlessDay is a builder of a day's side as the one it wraps builds it, of
-// no rows.
-type rowlessDay struct {
+// rowsGivenDay is a builder of a day's side as the one it wraps builds it,
+// its rows as rows gives them of those the wrapped one builds.
+type rowsGivenDay struct {
 	ledger.DayBuilder
+	rows func(chunks []ledger.BuiltChunk) []ledger.BuiltChunk
 }
 
-// Built gives the side the wrapped builder gives, and no rows.
-func (r rowlessDay) Built() (ledger.DayBuilt, error) {
+// Built gives the side the wrapped builder gives, and the rows rows gives.
+func (r rowsGivenDay) Built() (ledger.DayBuilt, error) {
 	built, err := r.DayBuilder.Built()
-	built.Chunks = nil
+	built.Chunks = r.rows(built.Chunks)
 	return built, err
 }
