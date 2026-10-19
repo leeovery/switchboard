@@ -196,7 +196,8 @@ type golden struct {
 // parts, as golden has them, indented, ending its last line.
 func goldenDigest(t *testing.T) []byte {
 	t.Helper()
-	c := goldenChain(t)
+	lines, zoned := goldenWorld()
+	c := goldenChain(t, lines, zoned)
 	data, err := os.ReadFile(c.digestPath(goldenDay))
 	if err != nil {
 		t.Fatal(err)
@@ -210,12 +211,11 @@ func goldenDigest(t *testing.T) []byte {
 	return indented(t, plain)
 }
 
-// goldenChain is the golden world written as a real ledger, its zoned
-// requests filed under goldenDay, and digested day by day, as digestChain
-// digests it.
-func goldenChain(t *testing.T) *digestChain {
+// goldenChain is the golden world, lines and zoned as goldenWorld gives them,
+// written as a real ledger, its zoned requests filed under goldenDay, and
+// digested day by day, as digestChain digests it.
+func goldenChain(t *testing.T, lines, zoned []ledger.Line) *digestChain {
 	t.Helper()
-	lines, zoned := goldenWorld()
 	c := newDigestChain(t, "the golden world", 0, lines)
 	c.file(goldenDay, zoned...)
 	c.digestDayByDay(func(LedgerDay) {})

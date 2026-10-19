@@ -129,14 +129,14 @@ func (k *storedKeys) everyHeld(exempt map[storedKey]string) {
 		why, exempted := exempt[key]
 		switch held := k.held[key]; {
 		case exempted && held:
-			k.t.Errorf("the golden holds %s, which unwritten says it can't hold, as %s: remove it from unwritten", key, why)
+			k.t.Errorf("the golden holds %s, which is exempt as one it can't hold, as %s: remove it from the exempt keys", key, why)
 		case !exempted && !held:
 			k.t.Errorf("the golden holds no value of %s: give the golden world what stores one", key)
 		}
 	}
 	for key := range exempt {
 		if !k.declared[key] {
-			k.t.Errorf("unwritten names %s, which no stored form declares: remove it", key)
+			k.t.Errorf("the exempt keys name %s, which no stored form declares: remove it", key)
 		}
 	}
 }

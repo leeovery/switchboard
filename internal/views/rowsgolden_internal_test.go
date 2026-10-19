@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -31,11 +32,17 @@ func TestADaysHeadIsEncodedAsTheGoldenOfItsVersionsHoldsIt(t *testing.T) {
 }
 
 // goldenHead is the head of goldenDay of the golden world, written as a real
-// ledger and digested day by day, as goldenChain has it: its file's JSON,
-// inflated, indented, ending its last line.
+// ledger and digested day by day, as goldenChain has it, its session o's last
+// request on the day arriving to the nanosecond, as only a line edited by
+// hand does, so a side kept to the millisecond fails it: its file's JSON,
+// inflated, indented, ending its last line. The digest's golden keeps the
+// world as it is.
 func goldenHead(t *testing.T) []byte {
 	t.Helper()
-	c := goldenChain(t)
+	lines, zoned := goldenWorld()
+	last := slices.IndexFunc(lines, func(l ledger.Line) bool { return l.Request == "o4" })
+	lines[last].At = lines[last].At.Add(123_456 * time.Nanosecond)
+	c := goldenChain(t, lines, zoned)
 	data, err := os.ReadFile(filepath.Join(ledger.Dir(c.state), "logday-"+goldenDay+".json.gz"))
 	if err != nil {
 		t.Fatal(err)

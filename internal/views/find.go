@@ -39,8 +39,8 @@ func DaySessions(day []ledger.Held) []DaySession {
 // DaySessionsOn are the sessions of the past day with the given date, as
 // DaySessions gives them of its lines: read from its side, as l's DaySide
 // gives it, where its head stands; else of its lines, as l's Day gives them,
-// as of a day with no head standing, today's and yesterday's among them, or
-// one whose side won't read.
+// as of a day with no head standing, today's among them, and yesterday's
+// until its head is built, or one whose side won't read.
 func DaySessionsOn(l Ledger, date string) []DaySession {
 	if side, ok := l.DaySide(date, RowsVersion); ok {
 		if sessions, err := daySessionsIn(side); err == nil {
@@ -119,17 +119,14 @@ func (s storedDaySession) daySession() DaySession {
 }
 
 // daySideOf is the side of a day of the given sessions, as DaySessions gives
-// them, as the day's head holds it.
+// them, as the day's head holds it. Its error is the ledger's to wrap, with
+// the day's date.
 func daySideOf(sessions []DaySession) (json.RawMessage, error) {
 	stored := make([]storedDaySession, len(sessions))
 	for i, s := range sessions {
 		stored[i] = s.stored()
 	}
-	side, err := json.Marshal(stored)
-	if err != nil {
-		return nil, fmt.Errorf("a day's side: %w", err)
-	}
-	return side, nil
+	return json.Marshal(stored)
 }
 
 // daySessionsIn are the sessions side holds, as daySideOf gave it, failing

@@ -205,3 +205,32 @@ func (d dayHeld) Day(date string) []ledger.Held {
 	}
 	return d.lines
 }
+
+// A day's session restored from its stored form is the one stored, its last
+// line's arrival to the nanosecond, in UTC, whatever zone it was given in.
+func TestADaysSessionRestoresExactly(t *testing.T) {
+	east := time.FixedZone("east", 5*60*60+30*60)
+	tests := []struct {
+		name string
+		s    DaySession
+	}{
+		{name: "to the nanosecond, in another zone", s: DaySession{ID: "s", Dir: "/code/app", Lines: 3, Last: time.Date(2026, 10, 8, 9, 0, 0, 123_456_789, east)}},
+		{name: "no directory", s: DaySession{ID: "s", Lines: 1, Last: time.Date(2026, 10, 8, 23, 59, 59, 999_999_999, time.UTC)}},
+		{name: "all but its id zero", s: DaySession{ID: "s"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			side, err := daySideOf([]DaySession{tt.s})
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := tt.s
+			if !want.Last.IsZero() {
+				want.Last = want.Last.UTC()
+			}
+			if got, err := daySessionsIn(side); err != nil || !reflect.DeepEqual(got, []DaySession{want}) {
+				t.Errorf("%+v, stored as %s, restores as %+v (%v), want %+v", tt.s, side, got, err, want)
+			}
+		})
+	}
+}

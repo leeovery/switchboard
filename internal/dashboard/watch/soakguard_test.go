@@ -64,11 +64,10 @@ type soakGuard interface {
 
 // countingLedger is a ledger that tells of each read of its lines, or of a
 // day's side, as it's made, for the guard to hold the readers to what they
-// read. It hands each
-// read of sessions a take of its own, so the ledger decodes every line of
-// the days it reads whole, with lineIn, never as production's reads without
-// one do, keptLineIn's way, the sessions' own alone: a fault of that decoding
-// alone passes the guard.
+// read. It hands each read of sessions a take of its own, so the ledger
+// decodes every line of the days it reads whole, with lineIn, never as
+// production's reads without one do, keptLineIn's way, the sessions' own
+// alone: a fault of that decoding alone passes the guard.
 type countingLedger struct {
 	views.Ledger
 	read func(ledgerRead)

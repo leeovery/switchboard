@@ -180,8 +180,9 @@ func movedOn(l ledger.Line, days int) ledger.Line {
 // its files at, those it came to upset its pages' at, and its days' heads',
 // as upset has them, holding the upset made at the moment for its reads to
 // judge, nil where none was, the dates of the days its late lines were
-// filed onto then, and the head upset then, as headUpset has it; and notes
-// the hard moments its reads meet among met.
+// filed onto then, and the head upset then, as headUpset has it; counts the
+// sessions planted in its days' sides, as plant has them; and notes the hard
+// moments its reads meet among met.
 type spread struct {
 	*digestChain
 	early, late ledger.Line
@@ -193,6 +194,7 @@ type spread struct {
 	upsets      int
 	pageUpsets  int
 	headUpsets  int
+	planted     int
 	made        *upsetMade
 	lateOn      []string
 	headMade    *headUpset
