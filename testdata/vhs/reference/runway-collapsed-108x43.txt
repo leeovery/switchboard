@@ -24,14 +24,14 @@ RUNWAY  ────────────────────────
 a column 105 minutes · the past dimmed
 
 COMING UP
-16:30       2 personal's 5-hour resets                         in 1h 48m
-17:10       1 work back from its cap                           in 2h 28m
-18:50       3 side's 5-hour resets                             in 4h 08m
-~Fri 12:20  3 side's week runs out at its pace                in 21h 38m
-~Sat 06:00  2 personal's week runs out at its pace             in 1d 15h
-Sun 02:00   2 personal's week resets                           in 2d 11h
-Sun 21:00   1 work's week resets                                in 3d 6h
-Mon 10:00   3 side's week resets                               in 3d 19h
+16:30       personal's 5-hour resets                           in 1h 48m
+17:10       work back from its cap                             in 2h 28m
+18:50       side's 5-hour resets                               in 4h 08m
+~Fri 12:20  side's week runs out at its pace                  in 21h 38m
+~Sat 06:00  personal's week runs out at its pace               in 1d 15h
+Sun 02:00   personal's week resets                             in 2d 11h
+Sun 21:00   work's week resets                                  in 3d 6h
+Mon 10:00   side's week resets                                 in 3d 19h
 
 
 
