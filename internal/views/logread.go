@@ -131,6 +131,26 @@ func (r LogRead) Taken(day LogDay, whole bool, t LogTaking) LogRead {
 	return grown.changed(retold)
 }
 
+// TakenBack is r with day taken in whole, every one of a day's lines'
+// records, as ReadDay gives the day before those the Log's tables span, at
+// now: the sessions of its requests held doesn't hold read whole through l
+// into a store of their own, as Fed reads them, wanting them alone, each
+// pinned as the stream s tells, at r's prices; each line placed as s tells
+// and its row told of the stories held and that store hold, as Taken takes
+// a day. It gives the store beside it, for the watch's to take in: nil
+// where held holds every one of the day's sessions.
+func (r LogRead) TakenBack(l LedgerSessions, day LogDay, held HeldSessions, s Stream, now time.Time) (LogRead, *HeldSessions) {
+	var found *HeldSessions
+	telling := held
+	if ids := held.Unheld(ReadLog(r.prices).Wanted(day)); len(ids) > 0 {
+		want := StreamWanted(s)
+		want.Log = ids
+		fresh, _ := HoldSessions(r.prices).Fed(l, Taken{}, want, now)
+		found, telling = &fresh, held.With(fresh)
+	}
+	return r.Taken(day, true, LogTaking{Held: telling, Stream: s, Now: now}), found
+}
+
 // From is r holding none of the days before the day given, as the Log no
 // longer shows them.
 func (r LogRead) From(day LedgerDay) LogRead {

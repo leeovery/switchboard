@@ -39,39 +39,30 @@ func busyDays(seed uint64) []ledger.Line {
 	return lines
 }
 
-// rowsRead returns the records of the rows f gives of the local day with the
-// given date, as DayRows points at them, each chunk read as RowChunk reads
-// it and its rows restored, in order, as restoredRows restores them; and
-// each chunk's meta, as chunkMetaOf has it, beside the records of its rows.
-// It reports false where DayRows gives none, failing the test where a chunk
-// doesn't read, or holds other than as many rows as the head counts.
+// rowsRead returns the records the rows f gives of the local day with the
+// given date restore, as restoredDay restores them; and each chunk's meta,
+// as chunkMetaOf has it, as DayRows points at it, beside the records of the
+// chunk's rows, as many as the head counts it, as restoredDay holds them.
+// It reports false where restoredDay reads none, failing the test where a
+// chunk's meta doesn't read.
 func rowsRead(t *testing.T, f *ledger.Follower, date string) ([]lineRecord, []metaRead, bool) {
 	t.Helper()
-	rows, ok := f.DayRows(date, RowsVersion)
+	day, ok := restoredDay(f, date)
 	if !ok {
 		return nil, nil, false
 	}
-	var records []lineRecord
+	rows, _ := f.DayRows(date, RowsVersion)
 	var metas []metaRead
+	from := 0
 	for i, c := range rows.Chunks {
-		data, err := f.RowChunk(date, c)
-		if err != nil {
-			t.Fatalf("chunk %d of %s: %v", i, date, err)
-		}
-		from := len(records)
-		if records, err = restoredRows(records, data); err != nil {
-			t.Fatalf("chunk %d of %s: %v", i, date, err)
-		}
-		if n := len(records) - from; n != c.Count {
-			t.Fatalf("chunk %d of %s holds %d rows, its head counts %d", i, date, n, c.Count)
-		}
 		meta, err := chunkMetaOf(c.Meta)
 		if err != nil {
 			t.Fatalf("chunk %d of %s: %v", i, date, err)
 		}
-		metas = append(metas, metaRead{meta: meta, records: records[from:]})
+		metas = append(metas, metaRead{meta: meta, records: day.records[from : from+c.Count]})
+		from += c.Count
 	}
-	return records, metas, true
+	return day.records, metas, true
 }
 
 // metaRead is a chunk's meta as it's read, beside the records of its rows.
@@ -119,7 +110,7 @@ func TestADaysRowsAreTheRecordsOfItsLinesReadRaw(t *testing.T) {
 			for _, date := range filedDates(c.lines) {
 				records, metas, ok := rowsRead(t, f, date)
 				if !ok {
-					t.Errorf("%s: the rows of %s don't stand at %v, its head built", c.name, date, c.at)
+					t.Errorf("%s: the rows of %s don't stand whole at %v, its head built", c.name, date, c.at)
 					continue
 				}
 				stood++
