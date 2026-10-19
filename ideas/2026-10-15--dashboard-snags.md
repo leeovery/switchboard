@@ -29,7 +29,8 @@ Sorted with the owner on 17 October and built in the snags pass after v0.2.3:
     and the List's summary;
   - the charts' width, and the pool's red limit line as a quarter-cell bar;
   - the Overview on an iPad: narrow charts, and blocks folded with room to spare;
-  - USAGE scrolling as linked boxes.
+  - USAGE scrolling as linked boxes;
+  - the Overview's SESSIONS and Runway's room, from 19 October (below).
 - **To the saved roll-ups for fast opens:** `loading…`.
 - **Left:** `,` `.` as period keys, not asked for.
 
@@ -128,6 +129,24 @@ five-hour limit."
 - **The period keys need shift.** `<` `>` are shifted keys on most keyboards. The owner found it
   out and was content ("that makes sense, I guess"); unshifted `,` `.` as the same keys is a
   possible ease, not asked for.
+
+## On the desktop, 19 October
+
+- **The Overview's SESSIONS folds with room to spare.** With USAGE and GRAPHS up, COMING UP and
+  LATELY hidden, and 28 sessions running, `s` brings SESSIONS in as its heading alone, "no room at
+  50 rows", over a dozen empty rows. COMING UP and LATELY cut to the rows left with an ellipsis;
+  SESSIONS takes them only where every session fits, so it shows only once USAGE is hidden, every
+  session listed. The owner: it "should render into the space that's available", paginated or
+  scrolled, "as long as it can show enough content that it's clear what is actually being shown".
+  So: the rows left, the busiest first, each account's sessions together, and how many more;
+  folded only below a few rows.
+- **`a` on Runway numbers COMING UP's rows.** Collapsing the account column put each account's
+  number on COMING UP's rows, to tie them to the chart's. The owner: "Me pressing the A key
+  shouldn't impact the Coming Up list at all", as each row names its account. Taken out.
+- **Runway's room, to talk through:** whether COMING UP belongs on Runway at all; the empty rows
+  across the bottom and the bottom right; with the names hidden, the room under RUNWAY's heading
+  at the top left; and the chart drawn more compactly with the names hidden, to be spiked, as
+  agreed before.
 
 ## Works well
 
