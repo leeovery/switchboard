@@ -18,16 +18,19 @@ import (
 
 const (
 	// logdayVersion is the version of the day heads' envelope the ledger
-	// writes: every field of a head but its side, whose version is its
-	// builder's. A release that keeps a day head otherwise writes another, so
-	// those written before read as outdated, and their heads are built again.
-	logdayVersion = 1
+	// writes: every field of a head but its side and its chunks' meta, whose
+	// version is their builder's, where its rows lie in the day's rows file
+	// among them. A release that keeps a day head otherwise writes another,
+	// so those written before read as outdated, and their heads are built
+	// again: those of version 1 point at no rows.
+	logdayVersion = 2
 	// logdayPrefix and logdaySuffix begin and end the name of a day's head:
 	// logday-<date>.json.gz.
 	logdayPrefix, logdaySuffix = "logday-", ".json.gz"
-	// logdaySide is the name a day head's file keeps its side under, after
-	// every other field, as storedDayHead declares them.
-	logdaySide = "side"
+	// logdaySide and logdayChunks are the names a day head's file keeps its
+	// side and its rows' chunks under, after every other field, as
+	// storedDayHead declares them.
+	logdaySide, logdayChunks = "side", "chunks"
 )
 
 // logdayFile is where the ledger in dir keeps the head of the local day with
@@ -48,24 +51,27 @@ func (d days) dayHeadInfo(date string) fs.FileInfo {
 }
 
 // DayHead is a finished day's head, beside its lines and its summary: the
-// day's side, each of its sessions as the Log's find reads them, built of
-// exactly the lines Follower.Day gives of the day, in its order, and what it
-// was built from. It's derived and disposable, as the day's lines stay the
-// truth: it stands only while what it was built from does, as dayHeadStands
-// says, and a reader of one that doesn't, or of none, reads the day's lines
-// instead, slower, but alike. Body is the version of its side, its
-// builder's, as the ledger never reads it; Day, the local day's date; Start
-// and End, when the day started and ended, as dayfile.Day gave them in the
-// time zone it was built in; SummaryLines, the Lines of the day's summary it
-// was built against; Lines, how many lines Day gave of the day; and Side,
-// the side, a JSON value of its builder's, carried as it's given, its
-// insignificant spaces aside.
+// day's side, each of its sessions as the Log's find reads them, and where
+// its rows lie in the day's rows file, each built of exactly the lines
+// Follower.Day gives of the day, in its order, and what it was built from.
+// It's derived and disposable, as the day's lines stay the truth: it stands
+// only while what it was built from does, as dayHeadStands says, its rows
+// as rowsStand says, and a reader of one that doesn't, or of none, reads the
+// day's lines instead, slower, but alike. Body is the version of its side
+// and rows, its builder's, as the ledger never reads them; Day, the local
+// day's date; Start and End, when the day started and ended, as dayfile.Day
+// gave them in the time zone it was built in; SummaryLines, the Lines of the
+// day's summary it was built against; Lines, how many lines Day gave of the
+// day; Rows, where its rows lie, as DayRows has them; and Side, the side, a
+// JSON value of its builder's, carried as it's given, its insignificant
+// spaces aside.
 type DayHead struct {
 	Body         int
 	Day          string
 	Start, End   time.Time
 	SummaryLines int
 	Lines        int
+	Rows         DayRows
 	Side         json.RawMessage
 }
 
@@ -90,8 +96,9 @@ func (g digestGrounds) dayHeadStands(head DayHead) bool {
 
 // storedDayHead is a day head as its file holds it, gzipped: the version of
 // the envelope it was written in, its fields, its day's bounds as
-// nanoseconds since the Unix epoch, zeros left out, and its side last, as
-// dayHeadIn reads the rest alone by stopping at it.
+// nanoseconds since the Unix epoch, its rows file's size, zeros left out;
+// then its side, and its rows' chunks last, as dayHeadIn reads the rest
+// alone by stopping at whichever of the two comes first.
 type storedDayHead struct {
 	Version      int             `json:"version"`
 	Body         int             `json:"body"`
@@ -100,7 +107,9 @@ type storedDayHead struct {
 	To           int64           `json:"to"`
 	SummaryLines int             `json:"summary_lines,omitzero"`
 	Lines        int             `json:"lines,omitzero"`
+	RowsSize     int64           `json:"rows_size,omitzero"`
 	Side         json.RawMessage `json:"side,omitempty"`
+	Chunks       []storedChunk   `json:"chunks,omitempty"`
 }
 
 // stored is h as its file holds it, of the envelope's version the ledger
@@ -108,7 +117,8 @@ type storedDayHead struct {
 func (h DayHead) stored() storedDayHead {
 	return storedDayHead{
 		Version: logdayVersion, Body: h.Body, Day: h.Day, From: h.Start.UnixNano(), To: h.End.UnixNano(),
-		SummaryLines: h.SummaryLines, Lines: h.Lines, Side: h.Side,
+		SummaryLines: h.SummaryLines, Lines: h.Lines, RowsSize: h.Rows.Size, Side: h.Side,
+		Chunks: listAs(h.Rows.Chunks, RowsChunk.stored),
 	}
 }
 
@@ -116,22 +126,47 @@ func (h DayHead) stored() storedDayHead {
 func (s storedDayHead) dayHead() DayHead {
 	return DayHead{
 		Body: s.Body, Day: s.Day, Start: time.Unix(0, s.From), End: time.Unix(0, s.To),
-		SummaryLines: s.SummaryLines, Lines: s.Lines, Side: s.Side,
+		SummaryLines: s.SummaryLines, Lines: s.Lines, Rows: DayRows{Size: s.RowsSize, Chunks: listAs(s.Chunks, storedChunk.chunk)}, Side: s.Side,
 	}
 }
 
-// writeDayHead writes head as the head of its day, whole, the user's alone,
-// over any there, as stored keeps it, gzipped. It fails where its day isn't
-// a date, or its side isn't a JSON value, writing nothing.
-func (d days) writeDayHead(head DayHead) error {
-	if _, _, ok := dayfile.Day(head.Day); !ok {
-		return fmt.Errorf("head of %q: not a date", head.Day)
-	}
-	data, err := gzippedJSON(head.stored())
+// writeDay writes head as the head of its day, whole, the user's alone, over
+// any there, as file makes it; and before it chunks, the day's rows in
+// chunks, as the day's rows file, as rowsFileOf makes it and writeRows
+// writes it, the head pointing at each chunk there, and recording the file's
+// size. So a head is never written before the rows it points at: one left
+// beside a rows file written since, as by a build that stopped between the
+// two, is held beside a rows file of another size than it records, so its
+// rows don't stand, and its day is due, or its chunks don't read, by their
+// CRC. It returns the head as written. It fails as file fails, writing
+// nothing; where the rows can't be written, writing no head; and where the
+// head can't be, leaving the rows written, pointed at by no head, as a build
+// that stopped between the two leaves them, to be written again as the day
+// is built again.
+func (d days) writeDay(head DayHead, chunks []BuiltChunk) (DayHead, error) {
+	file, rows := rowsFileOf(chunks)
+	head.Rows = rows
+	data, err := head.file()
 	if err != nil {
-		return fmt.Errorf("head of %s: %w", head.Day, err)
+		return DayHead{}, err
 	}
-	return atomicfile.Write(logdayFile(d.files.Dir, head.Day), data, 0o600)
+	if err := d.writeRows(head.Day, file); err != nil {
+		return DayHead{}, fmt.Errorf("rows of %s: %w", head.Day, err)
+	}
+	return head, atomicfile.Write(logdayFile(d.files.Dir, head.Day), data, 0o600)
+}
+
+// file is h's file, as stored keeps it, gzipped. It fails where its day
+// isn't a date, or its side, or a chunk's meta, isn't a JSON value.
+func (h DayHead) file() ([]byte, error) {
+	if _, _, ok := dayfile.Day(h.Day); !ok {
+		return nil, fmt.Errorf("head of %q: not a date", h.Day)
+	}
+	data, err := gzippedJSON(h.stored())
+	if err != nil {
+		return nil, fmt.Errorf("head of %s: %w", h.Day, err)
+	}
+	return data, nil
 }
 
 // errNotTheDaysHead is the error of a day head held of a day that doesn't
@@ -144,20 +179,21 @@ var errNotTheDaysHead = errors.New("not the day's head")
 var errDayHeadOutdated = errors.New("a day head of another version")
 
 // dayHead returns the head the ledger holds of the local day with the given
-// date, its side of the version body: failing with fs.ErrNotExist where it
-// holds none; with errDayHeadOutdated where it's of another version, of the
-// envelope or the side; and with errNotTheDaysHead where it doesn't read as
-// the day's head. Its fields but its side are judged first, as sidelessHead
-// judges them, so the side of one of another version, or of another day, is
-// never read.
+// date, its side and rows of the version body: failing with fs.ErrNotExist
+// where it holds none; with errDayHeadOutdated where it's of another
+// version, of the envelope or the side; and with errNotTheDaysHead where it
+// doesn't read as the day's head. Its fields but its side and its rows'
+// chunks are judged first, as sidelessHead judges them, so the side and
+// chunks of one of another version, or of another day, are never read.
 func (d days) dayHead(date string, body int) (DayHead, error) {
 	return d.dayHeadRead(date, body, dayHeadIn, storedIn[storedDayHead])
 }
 
 // sidelessHead returns the head the ledger holds of the local day with the
-// given date, as dayHead judges it, its side none, as dayHeadIn reads it, so
-// none of the side is inflated: failing as dayHead fails, but for a file
-// damaged after the fields before its side, as the rest of it isn't read.
+// given date, as dayHead judges it, its side none, and its rows' chunks, as
+// dayHeadIn reads it, so none of either is inflated: failing as dayHead
+// fails, but for a file damaged after the fields before them, as the rest of
+// it isn't read.
 func (d days) sidelessHead(date string, body int) (DayHead, error) {
 	return d.dayHeadRead(date, body, dayHeadIn)
 }
@@ -175,9 +211,10 @@ func (d days) dayHeadRead(date string, body int, reads ...func(io.Reader) (store
 }
 
 // dayHeadIn returns the day head r holds, as its file holds it, its side
-// none, as storedHeadIn reads it, stopping at its side.
+// none, nor its rows' chunks, as storedHeadIn reads it, stopping at
+// whichever of the two comes first.
 func dayHeadIn(r io.Reader) (storedDayHead, error) {
-	return storedHeadIn[storedDayHead](r, logdaySide)
+	return storedHeadIn[storedDayHead](r, logdaySide, logdayChunks)
 }
 
 // judged returns what's wrong with s, a day head as read of the local day
@@ -204,11 +241,17 @@ func (s storedDayHead) judged(date string, body int, err error) error {
 // instead.
 func (f *Follower) DaySide(date string, body int) (json.RawMessage, bool) {
 	head, err := f.days.dayHead(date, body)
-	look := followerLook{f: f}
-	if err != nil || !(digestGrounds{kept: look.kept, heads: look.head}).dayHeadStands(head) {
+	if err != nil || !f.grounds().dayHeadStands(head) {
 		return nil, false
 	}
 	return head.Side, true
+}
+
+// grounds are what a day head is judged against by the follower's own look
+// at the ledger's days, as followerLook has it.
+func (f *Follower) grounds() digestGrounds {
+	look := followerLook{f: f}
+	return digestGrounds{kept: look.kept, heads: look.head}
 }
 
 // day hands take each line of the requests that arrived on the local day
@@ -235,10 +278,11 @@ func (d days) day(date string, now time.Time, take func(Held) bool, faults *dayf
 var errDayUnread = errors.New("its files, or those of the days either side of it, can't all be read for now")
 
 // seenHead is the head of a day as the digesting last read it, or wrote it:
-// its file, as it looked then; the head, its side none, as current judges it
-// afresh at each pass; and settled, the files of the digests beside its day
-// as they looked as it was last built, or found to stand, nil where it's
-// neither, as headDue holds them.
+// its file, as it looked then; the head, its side none, nor its rows'
+// chunks, as current judges it afresh at each pass, and rowsHeld its rows
+// file's size; and settled, the files of the digests beside its day as they
+// looked as it was last built, or found to stand, nil where it's neither, as
+// headDue holds them.
 type seenHead struct {
 	file    fs.FileInfo
 	head    DayHead
@@ -290,16 +334,18 @@ func (d *digesting) logdayDue(ctx context.Context, dates []string, now time.Time
 
 // headDue reports whether the head of the local day with the given date is
 // due, as view finds the day: it has lines, kept as its summary counts them,
-// as kept tells, and no head is held of it that stands, as dayHeadStands
+// as kept tells, and no head is held of it whose rows stand, as rowsStand
 // says, of the version its Digester gives. One that's current, as current
-// says, but doesn't stand, as the digests beside its day tell of a line of
-// it their days' files hold, is due once each time one of those digests
-// changes, as building it again takes the line in, but can't have it stand:
-// not at every pass. A head is read only where its file looks otherwise than
-// it did as the digesting last read it, as seenHead holds it, and the
-// digests beside it only where one of their files looks otherwise than it
-// did as the head was last built, or found to stand; and a day whose lines
-// can't be told isn't due, as no head built of it would stand.
+// says, its rows file as long as it records, but whose rows don't stand, as
+// the digests beside its day tell of a line of it their days' files hold,
+// is due once each time one of those digests changes, as building it again
+// takes the line in, but can't have it stand: not at every pass. A head is
+// read only where its file looks otherwise than it did as the digesting
+// last read it, as seenHead holds it, and the digests beside it only where
+// one of their files looks otherwise than it did as the head was last
+// built, or found to stand; its rows file is looked at, never read, so one
+// damaged but as long leaves it not due; and a day whose lines can't be
+// told isn't due, as no head built of it would stand.
 func (d *digesting) headDue(date string, view writerLook) bool {
 	day := view.day(date)
 	if _, known := day.kept(); day.look.none || !known {
@@ -311,9 +357,9 @@ func (d *digesting) headDue(date string, view writerLook) bool {
 	switch {
 	case !held || !grounds.current(seen.head.against()):
 		return true
-	case seen.settledAmong(around):
+	case seen.settledAmong(around) && d.days.rowsHeld(date, seen.head.Rows.Size):
 		return false
-	case !grounds.dayHeadStands(seen.head):
+	case !d.days.rowsStand(grounds, seen.head):
 		return true
 	}
 	d.settle(date, around)
@@ -321,10 +367,10 @@ func (d *digesting) headDue(date string, view writerLook) bool {
 }
 
 // seen returns the head the ledger holds of the local day with the given
-// date, of the version its Digester gives, its side none, as it was last
-// read, or written, while its file looks as it did then; else read afresh,
-// its side unread, as sidelessHead reads it, and held. It reports false
-// where the ledger holds none that reads.
+// date, of the version its Digester gives, its side none, nor its rows'
+// chunks, as it was last read, or written, while its file looks as it did
+// then; else read afresh, neither read, as sidelessHead reads it, and held.
+// It reports false where the ledger holds none that reads.
 func (d *digesting) seen(date string) (seenHead, bool) {
 	file := d.days.dayHeadInfo(date)
 	if s, ok := d.heads[date]; ok && file != nil && dayfile.SameAs(s.file, file) {
@@ -340,10 +386,10 @@ func (d *digesting) seen(date string) (seenHead, bool) {
 }
 
 // see holds head, the head of the local day with the given date, as its file
-// looks as given, its side let go of, settled as the digests beside its day
-// look as given, nil for none.
+// looks as given, its side and its rows' chunks let go of, settled as the
+// digests beside its day look as given, nil for none.
 func (d *digesting) see(date string, file fs.FileInfo, head DayHead, settled *digestsBeside) {
-	head.Side = nil
+	head.Side, head.Rows.Chunks = nil, nil
 	d.heads[date] = seenHead{file: file, head: head, settled: settled}
 }
 
@@ -355,22 +401,22 @@ func (d *digesting) settle(date string, around digestsBeside) {
 	d.heads[date] = s
 }
 
-// buildHead builds the head of the local day with the given date, at now, as
-// headOf does, view finding the day, and writes it, as writeDayHead does,
-// holding it as seen from then on, settled as the digests beside its day
-// look as it's written. It writes none where ctx ended first, or
-// the day's summary or its files look otherwise once it's built than as view
-// found them, as they changed while it was built, so it's due again. Where
-// it can't be built, or written, that's warned of, as warnings.warn says,
-// and it's built again at the next pass.
+// buildHead builds the head of the local day with the given date and its
+// rows, at now, as headOf does, view finding the day, and writes them, as
+// writeDay does, holding the head as seen from then on, settled as the
+// digests beside its day look as it's written. It writes none where ctx
+// ended first, or the day's summary or its files look otherwise once it's
+// built than as view found them, as they changed while it was built, so it's
+// due again. Where it can't be built, or written, that's warned of, as
+// warnings.warn says, and it's built again at the next pass.
 func (d *digesting) buildHead(ctx context.Context, date string, view writerLook, now time.Time) {
 	day := view.day(date)
-	head, err := d.headOf(ctx, date, day, now)
+	head, chunks, err := d.headOf(ctx, date, day, now)
 	switch {
 	case ctx.Err() != nil || !d.days.lookAt(date).same(day.look):
 		return
 	case err == nil:
-		err = d.days.writeDayHead(head)
+		head, err = d.days.writeDay(head, chunks)
 	}
 	if err != nil {
 		d.headsWarned.warn(d.days.logger, date, day.look, "can't build the request ledger's head of a day", "error", err)
@@ -381,16 +427,18 @@ func (d *digesting) buildHead(ctx context.Context, date string, view writerLook,
 		around := d.days.digestsBeside(date)
 		d.see(date, file, head, &around)
 	}
-	d.days.logger.Info("built the head of a day of the request ledger", "day", date, "lines", head.Lines)
+	d.days.logger.Info("built the head of a day of the request ledger", "day", date, "lines", head.Lines, "chunks", len(head.Rows.Chunks))
 }
 
 // headOf returns the head of the local day with the given date, at now, day
-// as the look found it: of the day's bounds, its summary's lines, and its
-// lines as Follower.Day gives them, as days.day reads them, each handed to a
-// builder of its Digester's, whose side it holds. It stops reading them once
-// ctx ends, failing; and fails where the files of the day, or of a day
-// either side of it, can't all be read for now, or the builder fails.
-func (d *digesting) headOf(ctx context.Context, date string, day writtenDay, now time.Time) (DayHead, error) {
+// as the look found it, and its rows in chunks: of the day's bounds, its
+// summary's lines, and its lines as Follower.Day gives them, as days.day
+// reads them, each handed to a builder of its Digester's, whose side the
+// head holds, and whose chunks it gives, as DayBuilt has them, the head
+// pointing at none of them yet. It stops reading them once ctx ends,
+// failing; and fails where the files of the day, or of a day either side of
+// it, can't all be read for now, or the builder fails.
+func (d *digesting) headOf(ctx context.Context, date string, day writtenDay, now time.Time) (DayHead, []BuiltChunk, error) {
 	start, end, _ := dayfile.Day(date)
 	summaryLines, _ := day.kept()
 	head := DayHead{Body: d.digester.RowsVersion(), Day: date, Start: start, End: end, SummaryLines: summaryLines}
@@ -403,14 +451,14 @@ func (d *digesting) headOf(ctx context.Context, date string, day writtenDay, now
 	}, faults)
 	switch {
 	case ctx.Err() != nil:
-		return DayHead{}, fmt.Errorf("the lines of %s: %w", date, ctx.Err())
+		return DayHead{}, nil, fmt.Errorf("the lines of %s: %w", date, ctx.Err())
 	case faults.Any(dayfile.Dates(start, start)):
-		return DayHead{}, fmt.Errorf("the lines of %s: %w", date, errDayUnread)
+		return DayHead{}, nil, fmt.Errorf("the lines of %s: %w", date, errDayUnread)
 	}
 	built, err := build.Built()
 	if err != nil {
-		return DayHead{}, fmt.Errorf("the side of %s: %w", date, err)
+		return DayHead{}, nil, fmt.Errorf("the side and rows of %s: %w", date, err)
 	}
 	head.Side = built.Side
-	return head, nil
+	return head, built.Chunks, nil
 }

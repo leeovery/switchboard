@@ -7,33 +7,39 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
+	"io/fs"
 	"os"
+
+	"github.com/leeovery/switchboard/internal/atomicfile"
 )
 
 // memberMax is the most a member of one of the ledger's files of gzip
 // members runs to, and inflates to, as it's read: a busy session's part of a
-// day runs to a few hundred kilobytes, and a member pointed at by hand to
-// run, or inflate, past it mustn't be read whole into memory.
+// day runs to a few hundred kilobytes, and a chunk of a day's rows to a few
+// tens of them, and a member pointed at by hand to run, or inflate, past it
+// mustn't be read whole into memory.
 const memberMax = 64 << 20
 
 // Member is where a gzip member lies in one of the ledger's files of them, as
-// a digest points at it: Offset, where its bytes begin in the file; Length,
-// how many there are; and CRC, the CRC-32 (IEEE) of those bytes as they were
-// written, so the bytes read there are known to be the member pointed at,
-// whole, before a byte of them is inflated.
+// a digest points at a session's part, or a day head at a chunk of its rows:
+// Offset, where its bytes begin in the file; Length, how many there are; and
+// CRC, the CRC-32 (IEEE) of those bytes as they were written, so the bytes
+// read there are known to be the member pointed at, whole, before a byte of
+// them is inflated.
 type Member struct {
 	Offset, Length int64
 	CRC            uint32
 }
 
-// storedMember is a member as a digest's file holds it, zeros left out.
+// storedMember is a member as a digest's file, or a day head's, holds it,
+// zeros left out.
 type storedMember struct {
 	Offset int64  `json:"offset,omitzero"`
 	Length int64  `json:"length,omitzero"`
 	CRC    uint32 `json:"crc,omitzero"`
 }
 
-// stored is m as a digest's file holds it.
+// stored is m as a digest's file, or a day head's, holds it.
 func (m Member) stored() storedMember {
 	return storedMember(m)
 }
@@ -70,6 +76,27 @@ func membersOf(members [][]byte) ([]byte, []Member) {
 		file.Write(m)
 	}
 	return file.Bytes(), at
+}
+
+// writeMembers writes file, of gzip members as membersOf makes one, at path,
+// whole, the user's alone, over any there: or, where it's empty, removes any
+// there, so none is held, as membersHeld judges it.
+func writeMembers(path string, file []byte) error {
+	if len(file) == 0 {
+		return removed(path)
+	}
+	return atomicfile.Write(path, file, 0o600)
+}
+
+// membersHeld reports whether the file of gzip members at path is as long as
+// size, as the head pointing at its members records it, by a look at the
+// file alone: where size is 0, that there's none.
+func membersHeld(path string, size int64) bool {
+	info, err := os.Stat(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return size == 0
+	}
+	return err == nil && info.Size() == size
 }
 
 // memberIn returns what the member m points at in the file at path holds,
