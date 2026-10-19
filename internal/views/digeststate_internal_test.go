@@ -57,19 +57,19 @@ type pricedAs struct {
 	built, read ledger.Table
 }
 
-// digestPrices are the tables the round trip runs with: a dated change of
-// Claude Opus 5.5's writes to the cache from the worlds' second day, as
-// changingPrices has it, built and read with; and the built-in table, read
-// with the config's prices of those writes in place of its own, as an
+// digestPrices are the tables the round trip runs with: dated, a dated
+// change of Claude Opus 5.5's writes to the cache, as changingPrices has it
+// from the worlds' second day, built and read with; and the built-in table,
+// read with the config's prices of those writes in place of its own, as an
 // override prices every day alike.
-func digestPrices(t *testing.T) []pricedAs {
+func digestPrices(t *testing.T, dated ledger.Table) []pricedAs {
 	t.Helper()
 	overridden, passed := ledger.Pricing.With(config.Prices{Models: map[string]config.ModelPrices{foldOpus: {CacheWrite5m: new(7.5), CacheWrite1h: new(12.0)}}})
 	if len(passed) > 0 {
 		t.Fatalf("the config's prices pass over %q", passed)
 	}
 	return []pricedAs{
-		{name: "a dated change", built: changingPrices(), read: changingPrices()},
+		{name: "a dated change", built: dated, read: dated},
 		{name: "a config override", built: ledger.Pricing, read: overridden},
 	}
 }
@@ -83,7 +83,7 @@ func digestPrices(t *testing.T) []pricedAs {
 // the hard moments tripMoments names.
 func TestASessionRestoredFromItsStateIsTheSessionReadWhole(t *testing.T) {
 	met := make(map[string]bool)
-	prices := digestPrices(t)
+	prices := digestPrices(t, changingPrices())
 	for _, w := range digestWorlds {
 		for seed := range uint64(digestSeeds) {
 			lines := w.lines(seed)

@@ -33,12 +33,15 @@ const (
 	pagedYesterdayRaw     = "past midnight, a page opened resting on an older state's chain of parts, the day before read raw"
 	pagedOnYesterdayEarly = "at 01:30, a page opened resting on its state at the day before's end and the chain of parts behind it"
 	pagedHeldAcross       = "a page opened at 23:59 on its chain of parts, held open to half past one, its store fed at each moment"
-	pagedRepriced         = "a page held open across a midnight its table's prices change at"
+	pagedRepriced         = "a page held open across a midnight its table's prices change at, resting on its chain of parts"
 	pagedTurnAcross       = "a page resting on a chain of parts two days of which a turn of it ran on"
 	pagedAgentAcross      = "a page resting on a chain of parts a subagent of it was first seen on a day of, its requests going on a day after"
 	pagedPinnedAcross     = "a page pinned by a request in flight across midnight, given its state at the day before's end, read whole"
 	pagedRunResumed       = "a page resting on its state of a run of days broken, its session making requests again since"
 	pagedIdless           = "a page resting on its chain of parts, the days it's read of holding an answer without an id"
+	pagedIdlessOwn        = "a page resting on a chain of parts one of which holds a request of its own without an id"
+	pagedFlightAgain      = "a page resting on a state a request of it was in flight at the end of the day of, a line of that request arriving after it, in its flight"
+	pagedTurnOpened       = "a page resting on its chain of parts, a turn of it open, its requests read"
 	pagedNamedIdle        = "a page resting on a chain of parts of a day naming its session, which made no request of its own on it"
 	pagedZoneEarly        = "a page of a session a zone change's early line of is filed on a near day of, asked on its chain of parts, resting on none"
 	pagedZoneLate         = "a page of a session a zone change's late line of is filed on a day of, arrived the day after, resting on none or an older state"
@@ -50,7 +53,7 @@ const (
 // those of the tables they're read with and those the upsets make.
 var pageMoments = []string{
 	pagedOnYesterdayLate, pagedYesterdayRaw, pagedOnYesterdayEarly, pagedHeldAcross, pagedRepriced, pagedTurnAcross, pagedAgentAcross, pagedPinnedAcross,
-	pagedRunResumed, pagedIdless, pagedZoneEarly, pagedZoneLate, pagedReadWhole, sessionsPrinted,
+	pagedRunResumed, pagedIdless, pagedIdlessOwn, pagedFlightAgain, pagedTurnOpened, pagedZoneEarly, pagedZoneLate, pagedReadWhole, sessionsPrinted,
 }
 
 // pagePricedEither are the moments of a page resting on its chain of parts,
@@ -97,8 +100,9 @@ func (w *spread) checkPages(m moment) map[string]openedPage {
 	pages := make(map[string]openedPage)
 	for _, id := range w.pagesAt(m) {
 		o := w.openPage(m, id)
-		w.alike(m.now, id+"'s page, opened", shownPageOf(o.based, o.live), shownPageOf(o.raw, o.live))
-		w.notePage(m, o)
+		shown := shownPageOf(o.based, o.live)
+		w.alike(m.now, id+"'s page, opened", shown, shownPageOf(o.raw, o.live))
+		w.notePage(m, o, shown)
 		pages[id] = o
 	}
 	w.holdPage(m, pages[pageSession])
@@ -108,9 +112,11 @@ func (w *spread) checkPages(m moment) map[string]openedPage {
 
 // pagesAt are the ids of the sessions whose pages are opened at the moment
 // m, of those of the world's with a request that arrived by then: none at a
-// minute before one, as pagesOpenAt has it; s's at the others; and where the
-// day before's digest stands, as yesterdayStands has it, one other's, each
-// in turn, from the one the world's seed gives.
+// minute before one, as pagesOpenAt has it; s's at the others; where the day
+// before's digest stands, as yesterdayStands has it, one other's, each in
+// turn, from the one the world's seed gives, and the one agentAcrossOf
+// gives; and the one whose page judges the upset made then, as upsetMade's
+// page names it.
 func (w *spread) pagesAt(m moment) []string {
 	if !pagesOpenAt(m.now) {
 		return nil
@@ -120,8 +126,63 @@ func (w *spread) pagesAt(m moment) []string {
 	pages := slices.DeleteFunc(begun, func(id string) bool { return id != pageSession })
 	if len(others) > 0 && yesterdayStands(m.now) {
 		pages = append(pages, others[(m.i+int(w.seed))%len(others)])
+		if id := w.agentAcrossOf(m.now); id != "" && !slices.Contains(pages, id) {
+			pages = append(pages, id)
+		}
+	}
+	if u := w.made; u != nil && u.page != "" && !slices.Contains(pages, u.page) {
+		pages = append(pages, u.page)
 	}
 	return pages
+}
+
+// agentAcrossOf is the id of the first of the world's sessions but s, by
+// id, of which agentToday reports at now: one whose page, resting on its
+// state of the latest day before now's it made a request on, takes its
+// subagent's request in on what an older part holds of it, as agentAcross
+// judges it; "" of none, and once some world has met that moment, as each
+// page opened slows the run. s's own runs of days are too short to hold
+// one.
+func (w *spread) agentAcrossOf(now time.Time) string {
+	if w.met[pagedAgentAcross] {
+		return ""
+	}
+	today := Today(now).Date
+	for _, id := range sessionsIn(w.lines) {
+		if id != pageSession && w.agentToday(id, today, now) {
+			return id
+		}
+	}
+	return ""
+}
+
+// agentToday reports whether a subagent of the session with the given id
+// made a request on the day with the date today, arrived by now, having
+// been first seen before the latest earlier day the session made one on.
+func (w *spread) agentToday(id, today string, now time.Time) bool {
+	last, first, todays := "", make(map[string]string), make(map[string]bool)
+	for _, l := range w.arrivedBy(id, now) {
+		if !isRequest(&l) {
+			continue
+		}
+		date := w.filedUnder(l)
+		if date < today {
+			last = max(last, date)
+		}
+		if l.AgentID == "" {
+			continue
+		}
+		if f, seen := first[l.AgentID]; !seen || date < f {
+			first[l.AgentID] = date
+		}
+		todays[l.AgentID] = todays[l.AgentID] || date == today
+	}
+	for agent, date := range first {
+		if todays[agent] && date < last {
+			return true
+		}
+	}
+	return false
 }
 
 // pagesOpenAt reports whether pages are opened afresh at now, of the moments
@@ -188,8 +249,8 @@ func turnRead(h HeldPage, n int, live PageLive, l LedgerSession) HeldPage {
 
 // notePage notes the hard moments the page o, opened at the moment m, meets,
 // as its reads through the Follower resting on digests were asked and gave
-// it.
-func (w *spread) notePage(m moment, o openedPage) {
+// it, and as it shows, as shown has it.
+func (w *spread) notePage(m moment, o openedPage, shown shownPage) {
 	id, now, got := o.id, m.now, o.got
 	yesterday := yesterdayOf(Today(now))
 	from, rested := got.restedPage(id)
@@ -207,10 +268,13 @@ func (w *spread) notePage(m moment, o openedPage) {
 		{name: pagedYesterdayRaw, met: now.Hour() == 0 && rested && base < yesterday && w.filedBy(id, yesterday, now)},
 		{name: pagedOnYesterdayEarly, met: now.Hour() == 1 && rested && base == yesterday},
 		{name: pagedTurnAcross, met: rested && w.turnAcross(id, chain, now)},
-		{name: pagedAgentAcross, met: rested && w.agentAcross(id, chain, now)},
+		{name: pagedAgentAcross, met: rested && w.agentAcross(id, chain, base, now)},
 		{name: pagedPinnedAcross, met: now.Hour() == 1 && got.refusedPage(id) && given == yesterday && pinnedBy(m.stream, id)},
 		{name: pagedRunResumed, met: rested && w.resumed(id, base, now)},
 		{name: pagedIdless, met: rested && w.idlessOn(slices.Concat(chain, datesAfter(base, now)), now)},
+		{name: pagedIdlessOwn, met: rested && w.idlessOf(id, chain)},
+		{name: pagedFlightAgain, met: rested && w.flightAgain(id, chain, base, now)},
+		{name: pagedTurnOpened, met: rested && shown.Open != 0 && len(shown.Requests) > 0},
 		{name: pagedNamedIdle, met: rested && w.namedIdle(id, chain)},
 		{name: pagedZoneEarly, met: id == w.early.Session && !w.early.At.After(now) && got.paged[id] && got.none[id] && given == "" &&
 			w.digestHolds(dayfile.DateOf(w.early.At), id)},
@@ -277,23 +341,24 @@ func (w *spread) turnAcross(id string, dates []string, now time.Time) bool {
 }
 
 // agentAcross reports whether a subagent of the session with the given id
-// was first seen on a day with one of the given dates, a request of it on a
-// later day arriving by now.
-func (w *spread) agentAcross(id string, dates []string, now time.Time) bool {
-	first, later := make(map[string]string), make(map[string]bool)
+// was first seen on a day of the chain with the given dates before the one
+// with the date base, the chain's newest, a request of it filed after base
+// arriving by now: so the page takes that request in on what an older part
+// holds of the subagent.
+func (w *spread) agentAcross(id string, chain []string, base string, now time.Time) bool {
+	first, after := make(map[string]string), make(map[string]bool)
 	for _, l := range w.arrivedBy(id, now) {
 		if !isRequest(&l) || l.AgentID == "" {
 			continue
 		}
 		date := w.filedUnder(l)
-		if seen, ok := first[l.AgentID]; !ok {
+		if seen, ok := first[l.AgentID]; !ok || date < seen {
 			first[l.AgentID] = date
-		} else if date > seen {
-			later[l.AgentID] = true
 		}
+		after[l.AgentID] = after[l.AgentID] || date > base
 	}
 	for agent, date := range first {
-		if later[agent] && slices.Contains(dates, date) {
+		if after[agent] && date < base && slices.Contains(chain, date) {
 			return true
 		}
 	}
@@ -320,6 +385,33 @@ func (w *spread) resumed(id, date string, now time.Time) bool {
 func (w *spread) idlessOn(dates []string, now time.Time) bool {
 	return slices.ContainsFunc(w.lines, func(l ledger.Line) bool {
 		return l.Request == "" && isAnswer(&l) && !l.At.After(now) && slices.Contains(dates, w.filedUnder(l))
+	})
+}
+
+// idlessOf reports whether a request of the session with the given id
+// without an id, as from before requests had them, is filed under a day with
+// one of the given dates.
+func (w *spread) idlessOf(id string, dates []string) bool {
+	return slices.ContainsFunc(w.lines, func(l ledger.Line) bool {
+		return l.Session == id && l.Request == "" && isRequest(&l) && slices.Contains(dates, w.filedUnder(l))
+	})
+}
+
+// flightAgain reports whether a request of the session with the given id,
+// filed under a day of the chain with the given dates, was in flight at the
+// end of the day with the date base, a line of it of the same id arriving
+// after then, by now, while it was: so the page counts the two as one
+// request on what its state holds in flight.
+func (w *spread) flightAgain(id string, chain []string, base string, now time.Time) bool {
+	_, end, _ := dayfile.Day(base)
+	arrived := w.arrivedBy(id, now)
+	return slices.ContainsFunc(arrived, func(a ledger.Line) bool {
+		if a.Request == "" || !slices.Contains(chain, w.filedUnder(a)) || !inFlightAt(&a, end) {
+			return false
+		}
+		return slices.ContainsFunc(arrived, func(b ledger.Line) bool {
+			return b.Request == a.Request && !b.At.Before(end) && inFlightAt(&a, b.At)
+		})
 	})
 }
 
@@ -387,7 +479,7 @@ func (w *spread) holdPage(m moment, o openedPage) {
 	_, rested := p.got.restedPage(pageSession)
 	repriced := !w.prices.read.SamePrices(foldOpus, Today(p.opened).Date, Today(m.now).Date)
 	w.met[pagedHeldAcross] = w.met[pagedHeldAcross] || m.now.Hour() == 1 && rested
-	w.met[pagedRepriced] = w.met[pagedRepriced] || shown.Built && repriced && w.ranBy(pageSession, foldOpus, p.opened)
+	w.met[pagedRepriced] = w.met[pagedRepriced] || rested && shown.Built && repriced && w.ranBy(pageSession, foldOpus, p.opened)
 }
 
 // heldFrom is the page o, opened at the moment m, held open through each
@@ -504,11 +596,11 @@ func judgedLater(moment, map[string]openedPage) bool { return false }
 // take in a day of its own before yesterday on it, read whole, the List's
 // reads resting s on the day's state, or a later one, as a part spoiled
 // spoils no state.
-func partsSpoiled(spoil func(w *spread, path string, member ledger.Member)) func(w *spread, now time.Time) upsetJudged {
-	return func(w *spread, _ time.Time) upsetJudged {
+func partsSpoiled(spoil func(w *spread, path string, member ledger.Member)) func(w *spread, now time.Time) (upsetJudged, string) {
+	return func(w *spread, _ time.Time) (upsetJudged, string) {
 		from := w.based.SessionsOf([]string{pageSession}, onPage, nil)[pageSession]
 		if len(from.Parts) < 2 {
-			return nil
+			return nil, ""
 		}
 		date := from.Base.Date
 		spoil(w, w.partsPath(date), from.Base.Part.Member)
@@ -519,7 +611,7 @@ func partsSpoiled(spoil func(w *spread, path string, member ledger.Member)) func
 			}
 			fell, listed := baseDateOf(o.got.pages[pageSession]), m.based.got.states[pageSession]
 			return fell != "" && fell < date && listed != nil && listed.Date >= date
-		}
+		}, pageSession
 	}
 }
 
@@ -558,14 +650,17 @@ func damageMember(w *spread, path string, member ledger.Member) {
 // only some models share, which the page's points can't take in on that
 // state. Judged met where the page opened then is given that state, and read
 // whole, the stream pinning none of s's requests, which would refuse it too.
-func (w *spread) takesSplit(now time.Time) upsetJudged {
+// That the day's digest builder reads s's page whole again, and the next
+// day's rests on it again, is held by
+// TestAPageItsPointsCantTakeADayInOnIsFoldedWholeThenRestedOn.
+func (w *spread) takesSplit(now time.Time) (upsetJudged, string) {
 	from := w.based.SessionsOf([]string{pageSession}, onPage, nil)[pageSession]
 	base := baseDateOf(from)
 	i := slices.IndexFunc(w.lines, func(l ledger.Line) bool {
 		return l.Session == pageSession && l.Model == foldSonnet && l.Limits[sonnetWeek+"-reset"] != "" && w.filedUnder(l) == base
 	})
 	if base == "" || i < 0 || !w.ranEach(pageSession, base, yesterdayOf(Today(now)), now) {
-		return nil
+		return nil, ""
 	}
 	l := w.lines[i]
 	l.Request, l.Model, l.At, l.TotalMS, l.FirstMS = "split-"+now.Format("2006-01-02T15:04"), foldOpus, now.Add(-time.Minute).UTC(), 3000, nil
@@ -574,7 +669,7 @@ func (w *spread) takesSplit(now time.Time) upsetJudged {
 	return func(m moment, pages map[string]openedPage) bool {
 		o, opened := pages[pageSession]
 		return opened && o.got.refusedPage(pageSession) && baseDateOf(o.got.pages[pageSession]) == base && !pinnedBy(m.stream, pageSession)
-	}
+	}, pageSession
 }
 
 // countedIdle files a count of s's tokens, arrived a minute before now, on
@@ -585,17 +680,17 @@ func (w *spread) takesSplit(now time.Time) upsetJudged {
 // one the page rests on from the day after. Its moment is judged as the
 // pages opened then rest on that state, as notePage judges them, none at
 // the moment it's made.
-func (w *spread) countedIdle(now time.Time) upsetJudged {
+func (w *spread) countedIdle(now time.Time) (upsetJudged, string) {
 	today := Today(now).Date
 	i := slices.IndexFunc(w.lines, func(l ledger.Line) bool { return l.Session == pageSession && isRequest(&l) })
 	if i < 0 || slices.ContainsFunc(w.lines, func(l ledger.Line) bool { return l.Session == pageSession && w.filedUnder(l) == today }) ||
 		w.namedIdle(pageSession, w.filedDates()) {
-		return nil
+		return nil, ""
 	}
 	l := w.lines[i]
 	l.Request, l.Kind, l.At, l.TotalMS, l.FirstMS, l.Limits = "count-"+now.Format("2006-01-02T15:04"), ledger.KindCount, now.Add(-time.Minute).UTC(), 300, nil, nil
 	w.fileLine(l)
-	return judgedLater
+	return judgedLater, ""
 }
 
 // filedDates are the dates of the days the world's lines are filed under,

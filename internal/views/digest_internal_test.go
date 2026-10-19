@@ -70,7 +70,7 @@ func dayAfterDay(lines []ledger.Line, days int) []ledger.Line {
 // worlds build so, as takesSplits names them. Of the generated worlds, read
 // with tables other than the one the states are built with.
 func TestChainedDigestsAreTheSessionsReadWhole(t *testing.T) {
-	prices := digestPrices(t)
+	prices := digestPrices(t, changingPrices())
 	var restored, paged, followed, pagesFollowed, based, chained int
 	var refused, pagesRefused []string
 	for _, w := range chainWorlds {
@@ -111,7 +111,7 @@ var takesSplits = []string{"pagedRun 6, session s"}
 // after it the session is handed again read whole, so every later day's
 // digest holds its state, the session read whole, and no day stays due.
 func TestADigestPastASpoiledStateHoldsTheSessionReadWhole(t *testing.T) {
-	prices := digestPrices(t)
+	prices := digestPrices(t, changingPrices())
 	var lines []ledger.Line
 	for day := range 5 {
 		lines = append(lines, ledger.Line{

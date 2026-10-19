@@ -34,8 +34,9 @@ func TestThePageHoldsOnlyItsTurns(t *testing.T) {
 	s := newSoak(t, soakSetup{start: begins, days: guardDays, pace: guardPace, guard: g})
 	g.id = s.w.longest()
 	s.show("session")
-	if m := s.h.model; m.session == nil || m.session.shown.Loading || g.wholes != 1 {
-		t.Fatalf("the long session's page is open %t, its session read %d times; want it open, read once", m.session != nil, g.wholes)
+	if m := s.h.model; m.session == nil || m.session.shown.Loading || g.wholes != 1 || g.rested != 1 {
+		t.Fatalf("the long session's page is open %t, its session read %d times, %d of them resting on its state at the end of the day before; want it "+
+			"open, read once, resting on it", m.session != nil, g.wholes, g.rested)
 	}
 	s.schedule = append(s.schedule,
 		soakAction{at: midnight.Add(-30 * time.Second), do: func() { s.keyed(tea.KeyPressMsg{Code: tea.KeyEnter}) }},
@@ -43,9 +44,6 @@ func TestThePageHoldsOnlyItsTurns(t *testing.T) {
 	)
 	s.runUntil(ends)
 	g.judged()
-	if g.rested == 0 {
-		t.Error("no read of sessions gave the page's session resting on a digest's state, want it on its state at the end of the day before")
-	}
 	m := s.h.model
 	switch {
 	case m.session == nil:
@@ -67,11 +65,12 @@ func TestThePageHoldsOnlyItsTurns(t *testing.T) {
 // lines since a read last landed; want what the read of the tail under way
 // wants of the store; checks the moments still to compare the page with
 // one read whole at, the earliest first; wholes how many times the page's
-// session was read, turns how many times a turn's lines were, rested how
-// many reads of sessions gave the page's resting on a digest's state, fed
-// how many reads of the tail fed the store, late how many times the day
-// before was read again; opened whether the page was compared with a turn
-// open; and answers at how many reads its points held answers.
+// session was read alone, turns how many times a turn's lines were, rested
+// how many of the reads of it alone gave it resting on its state at the end
+// of the day before then, fed how many reads of the tail fed the store, late
+// how many times the day before was read again; opened whether the page was
+// compared with a turn open; and answers at how many reads its points held
+// answers.
 type pageGuard struct {
 	t        *testing.T
 	s        *soak
@@ -94,8 +93,9 @@ func (g *pageGuard) reads(s *soak, l views.Ledger) views.Ledger {
 }
 
 // counted counts a read of the ledger's lines as it's made, and holds it to
-// judge once the read it's made for lands; and of a read of the tail, what
-// it wants of the store.
+// judge once the read it's made for lands; of a read of the tail, what it
+// wants of the store; and of a read of the page's session alone, whether it
+// gave it resting on its state at the end of the day before then.
 func (g *pageGuard) counted(r ledgerRead) {
 	m := g.s.h.model
 	switch r.method {
@@ -104,8 +104,11 @@ func (g *pageGuard) counted(r ledgerRead) {
 			g.want = f.want
 		}
 	case "SessionsOf", "Sessions":
-		if len(r.asked) == 1 && r.asked[0] == g.id {
+		if slices.Equal(r.asked, []string{g.id}) {
 			g.wholes++
+			if r.rests[g.id] == dayfile.DateOf(dayfile.DayStart(m.now(), -1)) {
+				g.rested++
+			}
 		}
 	case "Session":
 		g.turns++
@@ -138,11 +141,9 @@ func (g *pageGuard) tailed(msg tailedMsg) {
 }
 
 // judged judges the reads of the ledger's lines since a read last landed: a
-// day before today read only as the day turns; a read of sessions reading no
-// day behind the states the sessions it gave rest on, as readNoneBehind has
-// it, counted where it gave the page's session resting on one; the page's
-// session read by its open alone, as wholes counts it. None are left to
-// judge.
+// day before today read only as the day turns; and a read of sessions
+// reading no day behind the states the sessions it gave rest on, as
+// readNoneBehind has it. None are left to judge.
 func (g *pageGuard) judged() {
 	g.t.Helper()
 	now := g.s.h.model.now()
@@ -156,9 +157,6 @@ func (g *pageGuard) judged() {
 			}
 		case "Sessions", "SessionsOf":
 			readNoneBehind(g.t, r, now)
-			if r.rests[g.id] != "" {
-				g.rested++
-			}
 		}
 	}
 	g.unjudged = nil
