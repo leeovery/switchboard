@@ -360,12 +360,18 @@ func (l *sessionsLookup) namingEach(dates, near []string, wanted map[string]bool
 // rest rests the session asked, with the given id, on the newest state the
 // digest of a day naming it holds that stands for it, as standsFor says: on
 // none where a day naming it can't be told, as told says, as what of its
-// lines that day holds can't be.
+// lines that day holds can't be. A digest's entries are read only where its
+// head, as the lookup holds it, stands, as standing says: one of another
+// version, as every one is after a release raising it, is passed over
+// unread.
 func (l *sessionsLookup) rest(id string, s *sessionAsked) {
 	if !l.told(s.naming) {
 		return
 	}
 	for i, date := range slices.Backward(s.naming) {
+		if !l.standing(date) {
+			continue
+		}
 		digest := l.digest(date)
 		if digest == nil {
 			continue
