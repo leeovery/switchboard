@@ -81,7 +81,7 @@ func TestALookupDecodesNoDigestWhoseHeadDoesntStand(t *testing.T) {
 		for _, tt := range tests {
 			t.Run(name+", "+tt.name, func(t *testing.T) {
 				d := digestDays(t)
-				if err := d.writeDigest(*cmp.Or(tt.older, &older)); err != nil {
+				if _, err := d.writeDigest(*cmp.Or(tt.older, &older), nil); err != nil {
 					t.Fatal(err)
 				}
 				writeNewer(t, d, tt.newer, tt.stored)
@@ -117,7 +117,7 @@ func withDayBeforeRested(kept map[string]int) map[string]int {
 func writeNewer(t *testing.T, d days, digest *Digest, stored *storedDigest) {
 	t.Helper()
 	if digest != nil {
-		if err := d.writeDigest(*digest); err != nil {
+		if _, err := d.writeDigest(*digest, nil); err != nil {
 			t.Fatal(err)
 		}
 		return
