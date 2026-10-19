@@ -122,12 +122,13 @@ func (h answersHeld) given(given []answered, sealedTo instant, whole bool) ([]an
 // countedOnce tells it by their keys, passed over. It's given itself,
 // shared, where it passes none over.
 func (h answersHeld) unheld(given []answered) []answered {
-	read := countedOnceOf(h.count, len(given))
+	read := countedOnceOf(len(given))
 	var unheld []answered
 	copied := false
 	for i := range given {
 		a := &given[i]
-		again := read.again(a.key())
+		k := a.key()
+		again := read.again(k, h.count(k))
 		switch {
 		case again && !copied:
 			unheld, copied = slices.Clone(given[:i]), true

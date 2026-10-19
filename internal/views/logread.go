@@ -225,15 +225,15 @@ func (r LogRead) Unheld(lines []ledger.Held) LogDay {
 
 // holdsFlight reports whether r holds the line of the request that flew as
 // f, as Taken knows one with an id, by its flight's key, among the lines of
-// the day it arrived on: never of one without, which Taken knows by its
-// record's sum.
+// the day it arrived on, as idHeld tells it: never of one without, which
+// Taken knows by its record's sum.
 func (r LogRead) holdsFlight(f flight) bool {
-	k, ok := f.key()
+	k, ok := f.idKey()
 	if !ok {
 		return false
 	}
 	i, found := r.dayAt(Today(f.arrived()).Date)
-	return found && holdsKey(r.days[i].keys, k)
+	return found && idHeld(k, idsHeld(r.days[i].keys, k.lineKey))
 }
 
 // Len is how many lines r holds: it changes only as r grows.
@@ -269,12 +269,12 @@ func (r LogRead) changed(retold []*loggedLine) LogRead {
 // its own, but none of them.
 func (r *LogRead) take(day LogDay, whole bool, t LogTaking) bool {
 	today := Today(t.Now)
-	given := givenLines{ids: make(map[lineKey]bool), idless: make(map[idlessKey]int)}
+	read := countedOnceOf(len(day.records))
 	added := make(map[string]*takenDay)
 	for i := range day.records {
 		rec := &day.records[i]
 		at := r.dayOf(Today(rec.arrived()))
-		if !given.fresh(rec, r.days[at].keys, whole) {
+		if k := turnKeyOf(rec); read.again(k, loggedHeld(r.days[at].keys, rec.session, k, whole)) {
 			continue
 		}
 		r.seq++
@@ -313,42 +313,32 @@ func (d *loggedDay) took(a *takenDay) {
 	d.names = d.names.with(a.names, len(a.names), mergedNames)
 }
 
-// givenLines are the lines a read has given so far: those with ids, by
-// their keys, as their flights' key has them; and those without, by when
-// each arrived and what its record says, counted.
-type givenLines struct {
-	ids    map[lineKey]bool
-	idless map[idlessKey]int
+// loggedHeld is how many lines alike held, the keys of a day's lines held
+// before a read, whole where it's every one of the day's, hold of the line
+// of the session given with the key k, as turnKeyOf has it, as countedOnce
+// counts them: of one with an id, one of its id that arrived at its moment;
+// of one without, those of its session that arrived at its moment, their
+// records saying what its sum says, but none in a read that isn't whole, a
+// tail of lines filed since the last, each new. The record's sum holds its
+// session, so countedOnce, knowing a line without an id by its arrival and
+// sum alone, counts it as the keys held know it.
+func loggedHeld(held *stacked[loggedKeys], session string, k turnKey, whole bool) int {
+	switch {
+	case k.request != "":
+		return idsHeld(held, k.lineKey)
+	case !whole:
+		return 0
+	}
+	return idlessCount(held, idlessAt{session: session, at: k.at}, k.sum)
 }
 
-// idlessKey is a line without an id, as givenLines counts it: its session
-// and when it arrived, as idlessAt has them, and the sum of its record, as
-// its summed has it.
-type idlessKey struct {
-	idlessAt
-	sum uint64
-}
-
-// fresh reports whether the line of the record r, given next in a read,
-// whole where it's every one of a day's, is one held, the keys of its day's
-// lines held before the read, holds none of, as Taken has it, noting it as
-// given: of one with an id, one of the same id that arrived at the same
-// moment, neither held nor given before in the read; of one without, any
-// but in a read whole, where it's fresh only where the read has given more
-// of its session that arrived at its moment, its record saying the same,
-// than held holds.
-func (g givenLines) fresh(r *lineRecord, held *stacked[loggedKeys], whole bool) bool {
-	if k, ok := r.key(); ok {
-		fresh := !g.ids[k] && !holdsKey(held, k)
-		g.ids[k] = true
-		return fresh
+// idsHeld is how many lines with the key k the keys held hold, as Taken
+// takes them in: one at most.
+func idsHeld(s *stacked[loggedKeys], k lineKey) int {
+	if holdsKey(s, k) {
+		return 1
 	}
-	if !whole {
-		return true
-	}
-	k := idlessKey{session: r.session, at: r.at, sum: r.summed()}
-	g.idless[k]++
-	return g.idless[k] > idlessCount(held, k)
+	return 0
 }
 
 // holdsKey reports whether the keys held hold a line with the key k.
@@ -361,13 +351,13 @@ func holdsKey(s *stacked[loggedKeys], k lineKey) bool {
 	return false
 }
 
-// idlessCount is how many lines without ids of k's session that arrived at
-// its moment, saying what its sum says, the keys held hold.
-func idlessCount(s *stacked[loggedKeys], k idlessKey) int {
+// idlessCount is how many lines without ids of the session that arrived at
+// the moment at gives, saying what sum says, the keys held hold.
+func idlessCount(s *stacked[loggedKeys], at idlessAt, sum uint64) int {
 	n := 0
 	for layer := s; layer != nil; layer = layer.under {
-		for _, o := range layer.top.idless[k.idlessAt] {
-			if o.sum == k.sum {
+		for _, o := range layer.top.idless[at] {
+			if o.sum == sum {
 				n++
 			}
 		}

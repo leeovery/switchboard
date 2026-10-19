@@ -271,6 +271,43 @@ func TestUnheldLeavesOutOnlyTheLinesWithIDsTheReadHolds(t *testing.T) {
 	}
 }
 
+// A read takes in a line given again as countedOnce counts it, against the
+// lines of its day it holds: one with an id held, never; one without, of a
+// day read whole, only as often as it's given beyond those alike the read
+// holds; but of a tail of the day's lines, every time, as a tail gives only
+// lines filed since the last, so one alike to one held is filed again.
+func TestTheLogTakesALineGivenAgainAsTheReadCountsIt(t *testing.T) {
+	at := time.Date(2026, 10, 7, 9, 0, 0, 0, time.Local)
+	idless := ledger.Held{At: at, Kind: ledger.KindMessage, Session: "s", Status: 200}
+	id := idless
+	id.Request = "r1"
+	taking := LogTaking{Held: HoldSessions(ledger.Pricing), Now: at.Add(time.Hour)}
+	tests := []struct {
+		name        string
+		held, given []ledger.Held
+		whole       bool
+		want        int
+	}{
+		{name: "one without an id held, given in a tail", held: []ledger.Held{idless}, given: []ledger.Held{idless}, want: 2},
+		{name: "one without an id held, given in the day whole", held: []ledger.Held{idless}, given: []ledger.Held{idless}, whole: true, want: 1},
+		{name: "one without an id held, given twice in the day whole", held: []ledger.Held{idless}, given: []ledger.Held{idless, idless}, whole: true, want: 2},
+		{name: "one without an id held twice, given in the day whole", held: []ledger.Held{idless, idless}, given: []ledger.Held{idless}, whole: true, want: 2},
+		{name: "one with an id held, given in a tail", held: []ledger.Held{id}, given: []ledger.Held{id, id}, want: 1},
+		{name: "one with an id held, given in the day whole", held: []ledger.Held{id}, given: []ledger.Held{id, id}, whole: true, want: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			read := ReadLog(ledger.Pricing).Taken(RecordsOf(tt.held), true, taking)
+
+			got := read.Taken(RecordsOf(tt.given), tt.whole, taking)
+
+			if got.Len() != tt.want {
+				t.Errorf("holding %d lines, given %d, whole %t, the read holds\n%swant %d lines", read.Len(), len(tt.given), tt.whole, readSaid(got), tt.want)
+			}
+		})
+	}
+}
+
 // readSaid is what r holds, a line to each of its lines.
 func readSaid(r LogRead) string {
 	var said strings.Builder

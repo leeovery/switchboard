@@ -66,10 +66,10 @@ func takenOf(lines []ledger.Held) takenLines {
 // the other in a read of its own, reads the session whole to keep it too,
 // as gained has it. Requests without ids are each kept.
 func distinct(requests []heldRequest) []heldRequest {
-	read := countedOnceOf(nil, len(requests))
+	read := countedOnceOf(len(requests))
 	kept := slices.DeleteFunc(requests, func(r heldRequest) bool {
 		k, _ := r.idKey()
-		return read.again(k)
+		return read.again(k, 0)
 	})
 	slices.SortStableFunc(kept, inOrder)
 	return kept

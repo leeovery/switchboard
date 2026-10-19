@@ -264,9 +264,10 @@ func (t *turnLines) with(lines []lineRecord) *turnLines {
 func (t *turnLines) withHeld(lines []lineRecord, held map[turnKey]int) *turnLines {
 	grown := *t
 	grown.lines = slices.Clip(t.lines)
-	read := countedOnceOf(func(k turnKey) int { return held[k] }, len(lines))
+	read := countedOnceOf(len(lines))
 	for i := range lines {
-		if rec := &lines[i]; !read.again(turnKeyOf(rec)) {
+		rec := &lines[i]
+		if k := turnKeyOf(rec); !read.again(k, held[k]) {
 			grown.lines = append(grown.lines, *rec)
 		}
 	}
@@ -284,11 +285,12 @@ func (t *turnLines) held() map[turnKey]int {
 
 // heldID reports whether held, the keys of a turn's lines, as held counts
 // them, hold the line of the request that flew as f by its id, as idKey
-// keys it: a line withHeld passes over, and TurnOf never decodes. Never of
-// one without an id, whose key holds its record's sum, as turnKeyOf has it.
+// keys it and idHeld tells it: a line withHeld passes over, and TurnOf
+// never decodes. Never of one without an id, whose key holds its record's
+// sum, as turnKeyOf has it.
 func heldID(held map[turnKey]int, f flight) bool {
-	k, ok := f.idKey()
-	return ok && held[k] > 0
+	k, _ := f.idKey()
+	return idHeld(k, held[k])
 }
 
 // turnKey is a line as a turn's lines know it from another: as its flight's
