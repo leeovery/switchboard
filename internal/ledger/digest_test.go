@@ -3,6 +3,7 @@ package ledger_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io/fs"
 	"os"
@@ -18,8 +19,8 @@ import (
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 )
 
-// digestsIn returns what each file in dir whose name holds "digest" holds,
-// by its name.
+// digestsIn returns what each file in dir whose name holds "digest" or
+// "parts" holds, by its name.
 func digestsIn(t *testing.T, dir string) map[string][]byte {
 	t.Helper()
 	entries, err := os.ReadDir(dir)
@@ -28,7 +29,7 @@ func digestsIn(t *testing.T, dir string) map[string][]byte {
 	}
 	held := make(map[string][]byte)
 	for _, e := range entries {
-		if strings.Contains(e.Name(), "digest") {
+		if strings.Contains(e.Name(), "digest") || strings.Contains(e.Name(), "parts") {
 			data, err := os.ReadFile(filepath.Join(dir, e.Name()))
 			if err != nil {
 				t.Fatal(err)
@@ -39,12 +40,12 @@ func digestsIn(t *testing.T, dir string) map[string][]byte {
 	return held
 }
 
-// The ledger's reads, and its rounds, pass over the digests beside its days:
-// those it writes, and a stray one, of a day before the first it holds, one
-// named for no day, and one left half written. Where it begins, its days and
-// its lines are as they'd be without them, nothing warned of; and a round
-// summarises, compresses and prunes its days' lines, leaving every digest as
-// it was.
+// The ledger's reads, and its rounds, pass over the digests beside its days,
+// and their parts files: those it writes, and a stray one, of a day before
+// the first it holds, one named for no day, and one left half written.
+// Where it begins, its days and its lines are as they'd be without them,
+// nothing warned of; and a round summarises, compresses and prunes its days'
+// lines, leaving every digest, and parts file, as it was.
 func TestTheLedgersReadsAndRoundsPassOverItsDigests(t *testing.T) {
 	log := logstest.Capture(t)
 	state, dir, history := stateDirs(t)
@@ -59,10 +60,16 @@ func TestTheLedgersReadsAndRoundsPassOverItsDigests(t *testing.T) {
 		if err := ledger.WriteDigest(dir, ledger.Digest{Head: ledger.DigestHead{Body: 1, Day: day, Start: start, End: end, SummaryLines: 1, Lines: 1}}); err != nil {
 			t.Fatal(err)
 		}
+		if err := ledger.WriteParts(dir, day, map[string]json.RawMessage{"one": json.RawMessage(`{}`)}); err != nil {
+			t.Fatal(err)
+		}
 	}
 	writeFile(t, dir, "digest-2026-09-01.json.gz", []byte("not a digest"))
 	writeFile(t, dir, "digest-someday.json.gz", gzipped(t, "{}"))
 	writeFile(t, dir, ".digest-"+date+".json.gz.123456", []byte(`{"version":1,"bo`))
+	writeFile(t, dir, "parts-2026-09-01.gz", []byte("not a parts file"))
+	writeFile(t, dir, "parts-someday.gz", gzipped(t, "{}"))
+	writeFile(t, dir, ".parts-"+date+".gz.123456", []byte(`{"tu`))
 	digests := digestsIn(t, dir)
 
 	follower := followerOf(state, &testClock{at: at}, caps)

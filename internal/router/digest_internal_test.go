@@ -15,7 +15,7 @@ import (
 )
 
 // handedDays is a ledger.Digester that gives each session it's handed an
-// empty state, noting the sessions of each day, by its date.
+// empty state, and no part, noting the sessions of each day, by its date.
 type handedDays map[string][]string
 
 // Version is the version of the states it gives.
@@ -24,13 +24,13 @@ func (handedDays) Version() int {
 }
 
 // Digest notes the sessions of day, giving each an empty state.
-func (h handedDays) Digest(_ context.Context, day ledger.DigestDay) (map[string]json.RawMessage, error) {
-	states := make(map[string]json.RawMessage, len(day.Sessions))
+func (h handedDays) Digest(_ context.Context, day ledger.DigestDay) (map[string]ledger.Folded, error) {
+	folded := make(map[string]ledger.Folded, len(day.Sessions))
 	for id := range day.Sessions {
 		h[day.Date] = append(h[day.Date], id)
-		states[id] = json.RawMessage(`{}`)
+		folded[id] = ledger.Folded{State: json.RawMessage(`{}`)}
 	}
-	return states, nil
+	return folded, nil
 }
 
 // A router given a Digester has its ledger, as it runs, digest each day that

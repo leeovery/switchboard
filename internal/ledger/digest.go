@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"time"
@@ -19,11 +20,12 @@ import (
 
 const (
 	// digestVersion is the version of the digests' envelope the ledger
-	// writes: their head, and how each session's entry is kept, but for the
-	// sessions' states, whose version is their builder's. A release that
-	// keeps a digest otherwise writes another, so the digests written before
-	// it read as outdated, and their days are digested again.
-	digestVersion = 1
+	// writes: their head, and how each session's entry is kept, its part's
+	// place in the day's parts file among it, but for the sessions' states
+	// and parts, whose version is their builder's. A release that keeps a
+	// digest otherwise writes another, so the digests written before it read
+	// as outdated, and their days are digested again.
+	digestVersion = 2
 	// digestPrefix and digestSuffix begin and end the name of a day's digest:
 	// digest-<date>.json.gz.
 	digestPrefix, digestSuffix = "digest-", ".json.gz"
@@ -52,11 +54,12 @@ func (d days) digestInfo(date string) fs.FileInfo {
 
 // Digest is a finished day's digest, beside the day's lines and its summary:
 // each session's state at the day's end, as its builder folded it from the
-// day's lines onto the session's state before them, and what it was built
-// from, as its head says. It's derived and disposable, as the day's lines
-// stay the truth: it stands only while what it was built from does, as
-// digestGrounds.stands says, and a reader of one that doesn't, or of none,
-// reads the day's lines instead, slower, but alike.
+// day's lines onto the session's state before them, where its part of the
+// day lies in the day's parts file, and what it was built from, as its head
+// says. It's derived and disposable, as the day's lines stay the truth: it
+// stands only while what it was built from does, as digestGrounds.stands
+// says, and a reader of one that doesn't, or of none, reads the day's lines
+// instead, slower, but alike.
 type Digest struct {
 	Head DigestHead
 	// Sessions are the sessions' entries, by their ids.
@@ -64,13 +67,15 @@ type Digest struct {
 }
 
 // DigestHead is what a digest says of its day, as it was built: Body, the
-// version of its sessions' states, their builder's, as the ledger never
-// reads them; Day, the local day's date; Start and End, when the day started
-// and ended, as dayfile.Day gave them in the time zone it was built in;
-// SummaryLines, the Lines of the day's summary it was built against; Lines,
-// how many of the day's lines it read; and Early and Late, how many of those
-// arrived before the day started, or after it ended, as a change of time
-// zone files a line under a date beside its own.
+// version of its sessions' states and parts, their builder's, as the ledger
+// never reads them; Day, the local day's date; Start and End, when the day
+// started and ended, as dayfile.Day gave them in the time zone it was built
+// in; SummaryLines, the Lines of the day's summary it was built against;
+// Lines, how many of the day's lines it read; Early and Late, how many of
+// those arrived before the day started, or after it ended, as a change of
+// time zone files a line under a date beside its own; and PartsSize, how
+// long the day's parts file was written beside it, in bytes, none where
+// none was.
 type DigestHead struct {
 	Body         int
 	Day          string
@@ -78,17 +83,30 @@ type DigestHead struct {
 	SummaryLines int
 	Lines        int
 	Early, Late  int
+	PartsSize    int64
 }
 
 // DigestEntry is a session's entry in a digest: RestsOn, each day its state
 // was folded from, by its date, the digest's own day among them, with the
-// Lines of that day's summary as the state was built; and State, the
-// session's state at the day's end, a JSON value of its builder's, carried
-// as it's given, its insignificant spaces aside, and never read: so a reader
-// of a few sessions of a busy day decodes theirs alone.
+// Lines of that day's summary as the state was built; State, the session's
+// state at the day's end, a JSON value of its builder's, carried as it's
+// given, its insignificant spaces aside, and never read: so a reader of a
+// few sessions of a busy day decodes theirs alone; and Part, where its part
+// of the day lies in the day's parts file, nil where it has none.
 type DigestEntry struct {
 	RestsOn map[string]int
 	State   json.RawMessage
+	Part    *PartRef
+}
+
+// PartRef is where a session's part of a day lies in the day's parts file,
+// as the day's digest points at it: On, the date of the state the part was
+// folded on, "" where it was folded on none, as a session's parts chain from
+// one folded on none through the states each was folded on; and the Member,
+// the part's gzip member there.
+type PartRef struct {
+	On string
+	Member
 }
 
 // storedDigest is a digest as its file holds it, gzipped: the version of the
@@ -106,6 +124,7 @@ type storedDigest struct {
 	Lines        int                    `json:"lines,omitzero"`
 	Early        int                    `json:"early,omitzero"`
 	Late         int                    `json:"late,omitzero"`
+	PartsSize    int64                  `json:"parts_size,omitzero"`
 	Sessions     map[string]storedEntry `json:"sessions,omitzero"`
 }
 
@@ -113,6 +132,13 @@ type storedDigest struct {
 type storedEntry struct {
 	RestsOn map[string]int  `json:"rests_on,omitzero"`
 	State   json.RawMessage `json:"state,omitempty"`
+	Part    *storedPart     `json:"part,omitzero"`
+}
+
+// storedPart is where a session's part lies, as a digest's file holds it.
+type storedPart struct {
+	On string `json:"on,omitzero"`
+	storedMember
 }
 
 // storedOf is digest as its file holds it, of the envelope's version the
@@ -121,7 +147,7 @@ func storedOf(digest Digest) storedDigest {
 	h := digest.Head
 	return storedDigest{
 		Version: digestVersion, Body: h.Body, Day: h.Day, From: h.Start.UnixNano(), To: h.End.UnixNano(),
-		SummaryLines: h.SummaryLines, Lines: h.Lines, Early: h.Early, Late: h.Late,
+		SummaryLines: h.SummaryLines, Lines: h.Lines, Early: h.Early, Late: h.Late, PartsSize: h.PartsSize,
 		Sessions: entriesAs(digest.Sessions, DigestEntry.stored),
 	}
 }
@@ -131,7 +157,7 @@ func (s storedDigest) digest() Digest {
 	return Digest{
 		Head: DigestHead{
 			Body: s.Body, Day: s.Day, Start: time.Unix(0, s.From), End: time.Unix(0, s.To),
-			SummaryLines: s.SummaryLines, Lines: s.Lines, Early: s.Early, Late: s.Late,
+			SummaryLines: s.SummaryLines, Lines: s.Lines, Early: s.Early, Late: s.Late, PartsSize: s.PartsSize,
 		},
 		Sessions: entriesAs(s.Sessions, storedEntry.entry),
 	}
@@ -139,12 +165,28 @@ func (s storedDigest) digest() Digest {
 
 // stored is e as a digest's file holds it.
 func (e DigestEntry) stored() storedEntry {
-	return storedEntry(e)
+	return storedEntry{RestsOn: e.RestsOn, State: e.State, Part: e.Part.stored()}
 }
 
 // entry is the entry e holds.
 func (e storedEntry) entry() DigestEntry {
-	return DigestEntry(e)
+	return DigestEntry{RestsOn: e.RestsOn, State: e.State, Part: e.Part.ref()}
+}
+
+// stored is r as a digest's file holds it: none of none.
+func (r *PartRef) stored() *storedPart {
+	if r == nil {
+		return nil
+	}
+	return &storedPart{On: r.On, storedMember: r.Member.stored()}
+}
+
+// ref is where p says a part lies: none of none.
+func (p *storedPart) ref() *PartRef {
+	if p == nil {
+		return nil
+	}
+	return &PartRef{On: p.On, Member: p.member()}
 }
 
 // entriesAs is entries, each as as gives it, by the same ids: none of none,
@@ -161,19 +203,50 @@ func entriesAs[From, To any](entries map[string]From, as func(From) To) map[stri
 }
 
 // writeDigest writes digest as the digest of its day, whole, the user's
-// alone, over any there, as storedOf keeps it, gzipped. It fails where its
-// day isn't a date, or a session's state isn't a JSON value, writing
-// nothing.
-func (d days) writeDigest(digest Digest) error {
+// alone, over any there, as storedOf keeps it, gzipped; and before it parts,
+// the parts of sessions it holds entries of, by their ids, as the day's parts
+// file, as partsFileOf makes it and writeParts writes it: each entry pointing
+// at its session's part there, none at any other, and its head recording the
+// file's size. So a digest is never written before the parts it points at:
+// one left beside a parts file written since, as by a build that stopped
+// between the two, is held beside a parts file of another size than its head
+// records, so its day is due, or its parts don't read, by their CRC. It
+// returns the digest as written. It fails where its day isn't a date, or a
+// session's state or part isn't a JSON value, writing nothing.
+func (d days) writeDigest(digest Digest, parts map[string]builtPart) (Digest, error) {
 	date := digest.Head.Day
 	if _, _, ok := dayfile.Day(date); !ok {
-		return fmt.Errorf("digest of %q: not a date", date)
+		return Digest{}, fmt.Errorf("digest of %q: not a date", date)
 	}
+	file, members, err := partsFileOf(parts)
+	if err != nil {
+		return Digest{}, fmt.Errorf("digest of %s: %w", date, err)
+	}
+	digest = digest.pointedAt(parts, members, int64(len(file)))
 	data, err := gzippedJSON(storedOf(digest))
 	if err != nil {
-		return fmt.Errorf("digest of %s: %w", date, err)
+		return Digest{}, fmt.Errorf("digest of %s: %w", date, err)
 	}
-	return atomicfile.Write(digestFile(d.files.Dir, date), data, 0o600)
+	if err := d.writeParts(date, file); err != nil {
+		return Digest{}, fmt.Errorf("parts of %s: %w", date, err)
+	}
+	return digest, atomicfile.Write(digestFile(d.files.Dir, date), data, 0o600)
+}
+
+// pointedAt returns d with each session's entry pointing at its part where
+// members has it, on the date parts gives it, none where it doesn't, and its
+// head recording the parts file's size as given, d left as it is.
+func (d Digest) pointedAt(parts map[string]builtPart, members map[string]Member, size int64) Digest {
+	d.Head.PartsSize = size
+	d.Sessions = maps.Clone(d.Sessions)
+	for id, e := range d.Sessions {
+		e.Part = nil
+		if m, ok := members[id]; ok {
+			e.Part = &PartRef{On: parts[id].on, Member: m}
+		}
+		d.Sessions[id] = e
+	}
+	return d
 }
 
 // gzippedJSON is v as JSON, a line of its own, its strings as they're given,

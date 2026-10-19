@@ -19,15 +19,15 @@ func (Digests) Version() int {
 	return DigestVersion
 }
 
-// Digest gives the state of each session day hands it at the day's end, by
-// its id, as stateAsOf has it: none of one whose base won't decode or
-// restore, nor of one with a request that arrived after the day, as a change
-// of time zone files one, which stored refuses; its readers read those
-// whole, as they read a session of no state. It fails once ctx ends, looked
-// at between sessions.
-func (Digests) Digest(ctx context.Context, day ledger.DigestDay) (map[string]json.RawMessage, error) {
+// Digest gives each session day hands it folded at the day's end, by its id:
+// its state, as stateAsOf has it, and no part. It gives none of one whose
+// base won't decode or restore, nor of one with a request that arrived after
+// the day, as a change of time zone files one, which stored refuses; its
+// readers read those whole, as they read a session of no state. It fails
+// once ctx ends, looked at between sessions.
+func (Digests) Digest(ctx context.Context, day ledger.DigestDay) (map[string]ledger.Folded, error) {
 	d := LedgerDay{Start: day.Start, Date: day.Date}
-	states := make(map[string]json.RawMessage, len(day.Sessions))
+	folded := make(map[string]ledger.Folded, len(day.Sessions))
 	for id, from := range day.Sessions {
 		if err := ctx.Err(); err != nil {
 			return nil, fmt.Errorf("digest the sessions of %s: %w", day.Date, err)
@@ -35,10 +35,10 @@ func (Digests) Digest(ctx context.Context, day ledger.DigestDay) (map[string]jso
 		// A state left out is no worse than no digest: the session is read
 		// whole, never told otherwise than its lines tell it.
 		if state, err := stateAsOf(from, d); err == nil {
-			states[id] = state
+			folded[id] = ledger.Folded{State: state}
 		}
 	}
-	return states, nil
+	return folded, nil
 }
 
 // stateAsOf is the state of the session from gives at the end of the day d,

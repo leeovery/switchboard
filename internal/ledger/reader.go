@@ -202,7 +202,8 @@ func (d days) first() (time.Time, error) {
 // dayListing is what a listing of the ledger's directory finds, as
 // days.listed gives it: the dates of the local days it holds lines of,
 // oldest first, each once; the date of the first day it holds, of its lines
-// or its summaries; and the dates of the days it holds digests of.
+// or its summaries; and the dates of the days it holds digests of, or parts
+// files, oldest first, each once.
 type dayListing struct {
 	lines   []string
 	first   string
@@ -227,10 +228,12 @@ func (d days) listed() (dayListing, error) {
 			listing.lines = append(listing.lines, date)
 		} else if date, ok := datedName(e.Name(), summaryPrefix, summarySuffix); ok {
 			summaries = append(summaries, date)
-		} else if date, ok := datedName(e.Name(), digestPrefix, digestSuffix); ok {
+		} else if date, ok := digestedName(e.Name()); ok {
 			listing.digests = append(listing.digests, date)
 		}
 	}
+	slices.Sort(listing.digests)
+	listing.digests = slices.Compact(listing.digests)
 	held := append(slices.Clone(listing.lines), summaries...)
 	if len(held) == 0 {
 		return dayListing{digests: listing.digests}, fmt.Errorf("the request ledger holds no day: %w", fs.ErrNotExist)
