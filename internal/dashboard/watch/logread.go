@@ -218,21 +218,11 @@ func (m Model) refiledFrom(from, now time.Time) (Model, tea.Cmd) {
 
 // took is the Log's read, through r, taken in the lines of the day with the
 // given date, every one, as ReadDay reads them, from its rows where they
-// stand, at now: the sessions of their requests the store held doesn't hold
-// read whole into a store of their own, as Fed reads them, wanting them
-// alone, each pinned as the stream s tells, for the watch's to take in; each
-// line placed as s tells and its row told of the stories the two hold.
+// stand, at now, as TakenBack takes them in, beside the store held: the
+// sessions it reads whole, for the watch's to take in.
 func (r logReaders) took(read views.LogRead, date string, held views.HeldSessions, s views.Stream, now time.Time) logGrown {
-	day := views.ReadDay(r.ledger, date)
-	var found *views.HeldSessions
-	telling := held
-	if ids := held.Unheld(views.ReadLog(r.prices).Wanted(day)); len(ids) > 0 {
-		want := views.StreamWanted(s)
-		want.Log = ids
-		fresh, _ := views.HoldSessions(r.prices).Fed(r.ledger, views.Taken{}, want, now)
-		found, telling = &fresh, held.With(fresh)
-	}
-	return logGrown{read: read.Taken(day, true, views.LogTaking{Held: telling, Stream: s, Now: now}), held: found}
+	grown, found := read.TakenBack(r.ledger, views.ReadDay(r.ledger, date), held, s, now)
+	return logGrown{read: grown, held: found}
 }
 
 // logFold is what a read of the ledger's tail does for the Log, as it
