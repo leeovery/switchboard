@@ -171,12 +171,12 @@ type SessionsRead struct {
 }
 
 // ReadSessions reads, through l, at now, the sessions a page may be of, as
-// the ledger's Sessions reads them: today's, those running gives, as the
-// router lists them, and those with the given ids, as one given in whole,
-// of an earlier day.
+// the ledger's Sessions reads them, each whole: today's, those running
+// gives, as the router lists them, and those with the given ids, as one
+// given in whole, of an earlier day.
 func ReadSessions(l Ledger, running []status.Session, now time.Time, ids ...string) SessionsRead {
 	read := sessionsReadAt(now)
-	read.lines = l.Sessions(append(runningIDs(running), ids...), read.take)
+	read.lines = sessionLines(l.Sessions(append(runningIDs(running), ids...), eachWhole, read.take))
 	return read
 }
 
@@ -186,8 +186,24 @@ func ReadSessions(l Ledger, running []status.Session, now time.Time, ids ...stri
 // sessions' days is read for it.
 func ReadSession(l LedgerSessions, now time.Time, id string) SessionsRead {
 	read := sessionsReadAt(now)
-	read.lines = l.SessionsOf([]string{id}, read.take)
+	read.lines = sessionLines(l.SessionsOf([]string{id}, eachWhole, read.take))
 	return read
+}
+
+// eachWhole has a read of the ledger's sessions read each whole, resting on
+// no state a digest holds: every line of each given, as a session's page
+// folds each from its every line, and the store reads again one resting on
+// a state that won't restore.
+func eachWhole(string) bool { return true }
+
+// sessionLines returns the lines of sessions, each read whole, as eachWhole
+// has them read, by its id.
+func sessionLines(sessions map[string]ledger.SessionFrom) map[string][]ledger.Line {
+	lines := make(map[string][]ledger.Line, len(sessions))
+	for id, from := range sessions {
+		lines[id] = from.Lines
+	}
+	return lines
 }
 
 // AskedPage is the page of the session with the given id as it's drawn

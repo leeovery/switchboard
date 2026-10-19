@@ -3,6 +3,7 @@ package ledger
 import (
 	"maps"
 	"slices"
+	"time"
 )
 
 // SetLooked has a round call looked with the date of each day it summarises
@@ -10,6 +11,62 @@ import (
 // what comes between the two.
 func (l *Ledger) SetLooked(looked func(date string)) {
 	l.looked = looked
+}
+
+// WriteDigest writes digest as the ledger in dir holds the digest of its
+// day, for tests of what passes over it.
+func WriteDigest(dir string, digest Digest) error {
+	return days{files: filesIn(dir, nil)}.writeDigest(digest)
+}
+
+// ReadDigest returns the digest the ledger in dir holds of the local day with
+// the given date, its sessions' states of the version body, for tests of
+// what's written.
+func ReadDigest(dir, date string, body int) (Digest, error) {
+	return days{files: filesIn(dir, nil)}.digest(date, body)
+}
+
+// SessionsAsOf returns the sessions with the given ids as of the start of
+// the local day with the given date, as the follower's lookup finds them,
+// handing take each line read, where it's given, for tests of the lookup.
+func (f *Follower) SessionsAsOf(ids []string, date string, take func(date string, l Line)) map[string]SessionFrom {
+	read := newSessionsRead(f.now(), take)
+	return f.lookup().asOf(f.datesBefore(date, read.now), nil, wanting(make(map[string]bool), ids), nil, read)
+}
+
+// SessionsAsOf returns the sessions with the given ids as of the start of
+// the local day with the given date, at now, as the router's digester's
+// lookup finds them, through the look its passes take at the days, held
+// from one to the next, their states of the version its Digester gives, for
+// tests of the lookup. The ledger must be opened Digesting.
+func (l *Ledger) SessionsAsOf(ids []string, date string, now time.Time) map[string]SessionFrom {
+	l.digesting.passing.Lock()
+	defer l.digesting.passing.Unlock()
+	first, err := l.days.first()
+	view := l.digesting.view()
+	return newSessionsLookup(l.days, view).asOf(l.days.datesBefore(date, first, err, now), nil, wanting(make(map[string]bool), ids), nil, newSessionsRead(now, nil))
+}
+
+// RestsOn returns what a state folded from s rests on, as the lookup found
+// it, for tests of the lookup.
+func (s SessionFrom) RestsOn() map[string]int {
+	return s.restsOn
+}
+
+// Kept gives the lines the ledger keeps of the local day with the given
+// date, as the follower's look gives them to the lookup, for tests of its
+// contract.
+func (f *Follower) Kept(date string) (int, bool) {
+	return followerLook{f: f}.kept(date)
+}
+
+// Kept gives the lines the ledger keeps of the local day with the given
+// date, as the router's digester's look gives them to the lookup, for tests
+// of its contract. The ledger must be opened Digesting.
+func (l *Ledger) Kept(date string) (int, bool) {
+	l.digesting.passing.Lock()
+	defer l.digesting.passing.Unlock()
+	return l.digesting.view().kept(date)
 }
 
 // SetHistory has the reader list and read the readings history as history

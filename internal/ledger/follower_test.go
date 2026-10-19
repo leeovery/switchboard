@@ -34,7 +34,7 @@ func (c *testClock) now() time.Time {
 // followerOf returns a follower of the ledger in state, by clock, its days
 // summarised with caps.
 func followerOf(state string, clock *testClock, c ledger.Caps) *ledger.Follower {
-	return ledger.NewFollower(state, clock.now, c, logs.For("cli"))
+	return ledger.NewFollower(state, clock.now, c, digestBody, logs.For("cli"))
 }
 
 // page is what one who reads today's lines with a Follower holds of them:
@@ -193,7 +193,7 @@ func compressFile(t *testing.T, dir, name string) {
 }
 
 // removeFile removes the file with the given name in dir, as a prune does.
-func removeFile(t *testing.T, dir, name string) {
+func removeFile(t testing.TB, dir, name string) {
 	t.Helper()
 	if err := os.Remove(filepath.Join(dir, name)); err != nil {
 		t.Fatal(err)
@@ -994,6 +994,9 @@ func TestAFollowerIsSafeForConcurrentUse(t *testing.T) {
 	}
 }
 
+// eachWhole has a read of sessions read each whole, resting on no base.
+func eachWhole(string) bool { return true }
+
 // requestsOf returns the ids of lines' requests, in their order.
 func requestsOf(lines []ledger.Line) []string {
 	ids := make([]string, len(lines))
@@ -1019,14 +1022,15 @@ func TestSessionsReadsTodaysAndThoseAskedForEachAsSessionReadsOne(t *testing.T) 
 	follower := followerOf(state, clock, caps)
 
 	taken := make(map[string]string)
-	got := follower.Sessions([]string{"old"}, func(date string, l ledger.Line) { taken[l.Request] += date })
+	got := follower.Sessions([]string{"old"}, eachWhole, func(date string, l ledger.Line) { taken[l.Request] += date })
 	want := map[string][]string{"one": {"1", "4", "7"}, "two": {"3", "5", "6"}, "three": {"9"}, "old": {"2"}}
 	if len(got) != len(want) {
 		t.Errorf("Sessions() read %d sessions, want %d: today's, and old, asked for", len(got), len(want))
 	}
 	for id, requests := range want {
-		if !slices.Equal(requestsOf(got[id]), requests) {
-			t.Errorf("Sessions() gave %s's requests %q, want %q, oldest first, each once", id, requestsOf(got[id]), requests)
+		if !slices.Equal(requestsOf(got[id].Lines), requests) || got[id].Base != nil {
+			t.Errorf("Sessions() gave %s resting on %+v, its requests %q; want it on none, read whole, its requests %q, oldest first, each once",
+				id, got[id].Base, requestsOf(got[id].Lines), requests)
 		}
 		var session []ledger.Line
 		for h := range follower.Session(id) {
@@ -1071,11 +1075,11 @@ func TestSessionsOfTakesInTheDaysItReadsSideBySideOldestFirst(t *testing.T) {
 	follower := followerOf(state, &testClock{at: on(0, 12, 0)}, caps)
 
 	var taken []string
-	got := follower.SessionsOf([]string{"one"}, func(_ string, l ledger.Line) { taken = append(taken, l.Request) })
+	got := follower.SessionsOf([]string{"one"}, eachWhole, func(_ string, l ledger.Line) { taken = append(taken, l.Request) })
 	if !slices.Equal(taken, want) {
 		t.Errorf("SessionsOf() handed take %q, want each day's lines in its files' order, the days oldest first, %q", taken, want)
 	}
-	held := requestsOf(got["one"])
+	held := requestsOf(got["one"].Lines)
 	if i := slices.Index(held, "4-4"); i < 0 || i+1 == len(held) || held[i+1] != "5-0" {
 		t.Errorf("SessionsOf() gave the session's requests %q, want 4-4 and 5-0, arriving at once, in their days' order", held)
 	}
@@ -1090,7 +1094,7 @@ func TestSessionsReadsNoDayBeforeYesterdayWhereNoSessionIsRead(t *testing.T) {
 	unopenable(t, dir, "*2026-10-03*")
 	follower := followerOf(state, &testClock{at: on(1, 12, 0)}, caps)
 
-	if got := follower.Sessions(nil, nil); len(got) != 0 || opened(log) != 0 {
+	if got := follower.Sessions(nil, eachWhole, nil); len(got) != 0 || opened(log) != 0 {
 		t.Errorf("log reads\n%s\nSessions() = %v, want no session read, nor a day before yesterday opened", log, got)
 	}
 }
@@ -1141,7 +1145,7 @@ func TestASessionsDaysAreFoundWithoutTheReadingsHistory(t *testing.T) {
 			for range f.Session("one") {
 			}
 		}},
-		{name: "by Sessions", read: func(f *ledger.Follower) { f.Sessions([]string{"one"}, nil) }},
+		{name: "by Sessions", read: func(f *ledger.Follower) { f.Sessions([]string{"one"}, eachWhole, nil) }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

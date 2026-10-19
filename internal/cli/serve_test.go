@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"maps"
 	"net"
 	"net/http"
@@ -23,10 +24,12 @@ import (
 
 	"github.com/leeovery/switchboard/internal/cli"
 	"github.com/leeovery/switchboard/internal/handover"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/service"
 	"github.com/leeovery/switchboard/internal/skill"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 func TestServe(t *testing.T) {
@@ -313,6 +316,31 @@ func TestServeKeepsTheHistoryAndTheLedgerAsLongAsTheConfigSays(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// The router serve runs digests each day of its ledger that has ended with
+// the views' Digests: a reader of the ledger finds a session of such a day
+// resting on its state there, of the version the views read.
+func TestServeDigestsTheLedgersEndedDaysAsTheViewsReadThem(t *testing.T) {
+	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	dir := filepath.Join(srv.state, "ledger")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	day := testNow.AddDate(0, 0, -2)
+	line := `{"at":"` + day.Format(time.RFC3339) + `","request":"3f2a91c4","kind":"message","session":"one","reason":"sticky","status":200,"attempts":1,"total_ms":800}` + "\n"
+	if err := os.WriteFile(filepath.Join(dir, "requests-"+day.Local().Format(time.DateOnly)+".jsonl"), []byte(line), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	stop := srv.start(t)
+	waitUntil(t, "the ledger's reader finds session one resting on a digest", func() bool {
+		follower := ledger.NewFollower(srv.state, func() time.Time { return testNow }, ledger.CapsOf(nil, nil), views.DigestVersion, slog.New(slog.DiscardHandler))
+		return follower.SessionsOf([]string{"one"}, func(string) bool { return false }, nil)["one"].Base != nil
+	})
+	if got := stop(); got.code != 0 {
+		t.Errorf("switchboard serve = %+v, want exit status 0", got)
 	}
 }
 

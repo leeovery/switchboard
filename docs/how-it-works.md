@@ -235,6 +235,12 @@ to one file a day in `ledger/`.
 - **The day's summary:** an hour after each day ends, the router summarises the day beside its
   lines. The hour gives requests still in flight time to end. The summary holds each account's
   requests, sessions, moves, limits and highest use, and is kept for good.
+- **The day's digest:** once a day's summary is written, the router writes a digest beside it,
+  `digest-<date>.json.gz`. It holds each session that ran that day as it stood at the day's end.
+  The dashboard reads a session from its newest digest and the days after it, so Sessions' list
+  opens without reading every day a session has run. A digest holds no prices: worth is worked out
+  as it's shown. The day's lines stay the truth. A digest that's missing, or out of date, is passed over and the
+  lines read instead, which is slower but shows the same.
 - **Reading it back:** [`requests`](commands.md#requests), [`history`](commands.md#history) and
   [`sessions`](commands.md#sessions) read it all back, with or without the router.
 

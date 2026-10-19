@@ -95,7 +95,7 @@ func (w busyWorld) caps() ledger.Caps {
 // readers are the world's readers, as the dashboard's are, by clock.
 func (w busyWorld) readers(clock func() time.Time) (*ledger.Follower, *readings.Reader, *events.Reader) {
 	quiet := slog.New(slog.DiscardHandler)
-	return ledger.NewFollower(w.state, clock, w.caps(), quiet), readings.NewReader(w.state, quiet), events.NewReader(w.state, clock, quiet)
+	return ledger.NewFollower(w.state, clock, w.caps(), views.DigestVersion, quiet), readings.NewReader(w.state, quiet), events.NewReader(w.state, clock, quiet)
 }
 
 // busySeat is the session of the world's dth day's jth seat of those
@@ -125,7 +125,8 @@ func busySession(g int) string {
 // busyOn is the account the world's gth session runs on on its dth day: a
 // day on, another, as it's rescored after a night idle.
 func busyOn(g, d int) string {
-	return busyAccounts[(g+d+len(busyAccounts))%len(busyAccounts)]
+	n := len(busyAccounts)
+	return busyAccounts[((g+d)%n+n)%n]
 }
 
 // running are the sessions the router lists at the world's now: today's,

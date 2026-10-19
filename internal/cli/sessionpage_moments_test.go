@@ -32,7 +32,7 @@ func TestSessionsPrintsWhatItsPageSaysAtEachHardMoment(t *testing.T) {
 			if !hm.Unlisted {
 				serveSessions(t, deps, hm.Sessions)
 			}
-			l := ledger.NewFollower(stateDir(t, deps), deps.Now, ledger.Caps{}, slog.New(slog.DiscardHandler))
+			l := ledger.NewFollower(stateDir(t, deps), deps.Now, ledger.Caps{}, views.DigestVersion, slog.New(slog.DiscardHandler))
 			for _, id := range slices.Sorted(maps.Keys(hm.Page)) {
 				got := run(t, deps, "sessions", id, "--pretty")
 				for _, want := range pageWords(l, hm, id) {

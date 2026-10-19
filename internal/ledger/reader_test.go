@@ -23,7 +23,7 @@ import (
 
 // stateDirs returns a state directory of the test's own, and the ledger's
 // and the readings history's directories in it, both made.
-func stateDirs(t *testing.T) (state, ledgerDir, historyDir string) {
+func stateDirs(t testing.TB) (state, ledgerDir, historyDir string) {
 	t.Helper()
 	state = t.TempDir()
 	ledgerDir, historyDir = ledger.Dir(state), readings.Dir(state)

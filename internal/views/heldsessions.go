@@ -1,6 +1,7 @@
 package views
 
 import (
+	"fmt"
 	"maps"
 	"slices"
 	"time"
@@ -88,14 +89,14 @@ type heldSession struct {
 }
 
 // heldFlights are the flights of a session's requests the store holds, by
-// their ids, each with the sum of what its line says, in layers, as stacked
-// has them, so a session that takes more in shares them with the session it
-// took them from.
+// their ids, each with the sum of all it decodes of its line, in layers, as
+// stacked has them, so a session that takes more in shares them with the
+// session it took them from.
 type heldFlights = *stacked[map[string][]knownLine]
 
-// knownLine is the flight of a request the store holds, and the sum of what
-// its line says of it, as sumOf has it, so a line of the same request given
-// again is known from one that says otherwise of it.
+// knownLine is the flight of a request the store holds, and the sum of all
+// it decodes of its line, as heldRequest's summed has it, so a line of the
+// same request given again is known from one that says otherwise of it.
 type knownLine struct {
 	flight
 	sum uint64
@@ -222,11 +223,12 @@ func HoldSessions(prices ledger.Table) HeldSessions {
 // session's requests on the day counted afresh and its moves priced at its
 // prices; the late days t holds taken in, the oldest first, then today's
 // gain, each line h holds already passed over; the sessions wanted that it
-// doesn't hold, and those whose lines it can't place, read whole through l,
-// in one read, of every one of today's sessions too where the List is wanted
-// and h doesn't hold them yet; each session's requests sealed behind its
-// horizon; and the sessions nobody wants let go. With h, it gives what
-// changed of each session, as SessionGains has it.
+// doesn't hold, and those whose lines it can't place, held afresh of a read
+// through l, and a second of those it can't hold on their states, as read
+// has them, of every one of today's sessions too where the List is wanted
+// and h doesn't hold them yet; each session's
+// requests sealed behind its horizon; and the sessions nobody wants let go.
+// With h, it gives what changed of each session, as SessionGains has it.
 func (h HeldSessions) Fed(l LedgerSessions, t Taken, want SessionsWanted, now time.Time) (HeldSessions, SessionGains) {
 	f := h.feeding(want, now)
 	for _, date := range slices.Sorted(maps.Keys(t.days)) {
@@ -383,47 +385,86 @@ func (f *feed) answer(t Taken) {
 	}
 }
 
-// read reads whole through l, in one read, the sessions wanted that the
-// store doesn't hold, and those it can't place a line of, each held afresh,
-// as hold holds it: every one of today's too, where the List is wanted and
-// the store doesn't hold them yet. Where the session whose page is open is
-// among them, every account's answers on the days read are taken for its
-// points, as answersOf has them.
+// read holds afresh, of one read through l, the sessions wanted that the
+// store doesn't hold, and those it can't place a line of, as hold holds
+// each: every one of today's too, where the List is wanted and the store
+// doesn't hold them yet. Each rests on the newest state a digest holds of it
+// that stands, as the ledger finds it, but those readsWhole reports true of,
+// read whole; and one that can't be held on its state, as heldOf can't hold
+// it, is read again, whole. Where the session whose page is open is among
+// them, every account's answers on the days read are taken for its points,
+// as answering has them.
 func (f *feed) read(l LedgerSessions) {
 	ids := f.unheld()
 	listing := f.want.List && !f.listing
 	if len(ids) == 0 && !listing {
 		return
 	}
-	var answers map[string][]answered
-	var take func(string, ledger.Line)
-	if slices.Contains(ids, f.want.Page) {
-		answers = make(map[string][]answered)
-		take = func(date string, line ledger.Line) {
-			if isAnswer(&line) {
-				answers[date] = append(answers[date], answeredOf(&line, f.want.Page))
-			}
-		}
-	}
-	var read map[string][]ledger.Line
+	answers, take := f.answering(ids)
+	sessions := l.SessionsOf
 	if listing {
-		read, f.listing = l.Sessions(ids, take), true
-	} else {
-		read = l.SessionsOf(ids, take)
+		sessions, f.listing = l.Sessions, true
 	}
-	for _, id := range ids {
-		f.hold(id, read[id], answers)
+	if unrestored := f.holdFound(ids, sessions(ids, f.readsWhole, take), answers); len(unrestored) > 0 {
+		f.holdFound(unrestored, l.SessionsOf(unrestored, eachWhole, nil), answers)
 	}
-	for id, lines := range read {
-		if _, held := f.sessions[id]; !held {
-			f.hold(id, lines, answers)
+}
+
+// readsWhole reports whether a feed reads the session with the given id
+// whole, resting on no state a digest holds: the page's, as its tally and
+// its points take in every one of its days' answers; and one the store can't
+// place a line of, as gained has it, which the same state would leave as
+// unplaced, feed after feed, as a session restored onto the day after its
+// state's holds none of that day's flights.
+func (f *feed) readsWhole(id string) bool {
+	return id == f.want.Page || f.whole[id]
+}
+
+// answering is, where the session whose page is open is among the sessions
+// with the given ids, every account's answers on the days a read of them
+// reads, by date, as answeredOf has each, and what takes them in, each line
+// read handed it: none where it isn't.
+func (f *feed) answering(ids []string) (map[string][]answered, func(string, ledger.Line)) {
+	if !slices.Contains(ids, f.want.Page) {
+		return nil, nil
+	}
+	answers := make(map[string][]answered)
+	return answers, func(date string, line ledger.Line) {
+		if isAnswer(&line) {
+			answers[date] = append(answers[date], answeredOf(&line, f.want.Page))
 		}
 	}
 }
 
-// unheld are the ids of the sessions to read whole, in order: those wanted
-// that the store doesn't hold, the List's today's among those met in the
-// read among them; and those it can't place a line of.
+// holdFound holds afresh, as hold holds each, the sessions with the given
+// ids, each as read gives it, resting on nothing and of none of its lines
+// where it gives none, and those others read gives that the store doesn't
+// hold, of today's; giving the ids of those that can't be held on their
+// states, as heldOf can't hold them, held none of, in order: none where read
+// reads each whole.
+func (f *feed) holdFound(ids []string, read map[string]ledger.SessionFrom, answers map[string][]answered) []string {
+	found := make(map[string]ledger.SessionFrom, len(read))
+	for id, from := range read {
+		if _, held := f.sessions[id]; !held {
+			found[id] = from
+		}
+	}
+	for _, id := range ids {
+		found[id] = read[id]
+	}
+	var unrestored []string
+	for id, from := range found {
+		if f.hold(id, from, answers) != nil {
+			unrestored = append(unrestored, id)
+		}
+	}
+	slices.Sort(unrestored)
+	return unrestored
+}
+
+// unheld are the ids of the sessions to read, in order: those wanted that
+// the store doesn't hold, the List's today's among those met in the read
+// among them; and those it can't place a line of.
 func (f *feed) unheld() []string {
 	var ids []string
 	add := func(id string) {
@@ -446,15 +487,31 @@ func (f *feed) unheld() []string {
 	return slices.Compact(slices.Sorted(slices.Values(ids)))
 }
 
-// hold holds the session with the given id afresh, of lines, every line of
-// it read whole, as readOf has it, sealed behind its horizon, as horizonOf
-// has it, its page tallied, of answers, where it's the page's.
-func (f *feed) hold(id string, lines []ledger.Line, answers map[string][]answered) {
-	s := readOf(lines, answers, f.prices, f.fed.day, f.horizonOf(id), id == f.want.Page)
+// hold holds the session with the given id afresh, as heldOf has it of
+// from, failing where heldOf does, holding nothing.
+func (f *feed) hold(id string, from ledger.SessionFrom, answers map[string][]answered) error {
+	s, err := f.heldOf(id, from, answers)
+	if err != nil {
+		return err
+	}
 	f.sessions[id] = s
 	delete(f.before, id)
 	f.gains[id] = SessionGain{whole: true}
 	f.last.read += s.held()
+	return nil
+}
+
+// heldOf is the session with the given id held afresh, of from, as a read
+// of it found it, on the feed's day, sealed behind its horizon, as horizonOf
+// has it: as heldAsOf holds it, but the page's, read whole, as readOf reads
+// it, its page tallied, of answers. It fails where heldAsOf does, as from's
+// state won't restore, or holds sealed what the horizon holds open, for the
+// session to be read whole.
+func (f *feed) heldOf(id string, from ledger.SessionFrom, answers map[string][]answered) (*heldSession, error) {
+	if id == f.want.Page {
+		return readOf(from.Lines, answers, f.prices, f.fed.day, f.horizonOf(id), true), nil
+	}
+	return heldAsOf(from, f.prices, f.fed.day, f.horizonOf(id))
 }
 
 // readOf is a session held afresh of lines, every line of it read whole,
@@ -462,13 +519,34 @@ func (f *feed) hold(id string, lines []ledger.Line, answers map[string][]answere
 // d, sealed behind the horizon given, its page tallied, its points of
 // answers, every account's on the days read, by date, where paged says.
 func readOf(lines []ledger.Line, answers map[string][]answered, prices ledger.Table, d LedgerDay, horizon instant, paged bool) *heldSession {
-	var read []heldRequest
-	for i := range lines {
-		if isRequest(&lines[i]) {
-			read = append(read, heldRequestOf(&lines[i]))
-		}
+	return heldSessionOf(pricedAt(distinct(requestsIn(lines)), prices, d.Date), answers, prices, d, horizon, paged)
+}
+
+// heldAsOf is the session from gives, as the store would hold it on the day
+// d, sealed behind the horizon given, had it read every line of it whole:
+// resting on no base, its lines read whole, as readOf has them; else its
+// base restored onto d, as restoredFrom has it, and its requests since told
+// on, each once, as distinct has them, priced at d, as with has it, sealed
+// behind the horizon given. It fails where its base won't decode, or restore
+// onto d, or the horizon given is before its base's own, the end of its
+// base's day, as the base holds sealed what a whole read would hold open:
+// its caller reads it whole then, as it gives no session held otherwise than
+// a whole read holds it.
+func heldAsOf(from ledger.SessionFrom, prices ledger.Table, d LedgerDay, horizon instant) (*heldSession, error) {
+	if from.Base == nil {
+		return readOf(from.Lines, nil, prices, d, horizon, false), nil
 	}
-	return heldSessionOf(pricedAt(distinct(read), prices, d.Date), answers, prices, d, horizon, paged)
+	s, err := restoredFrom(from.Base, prices, d)
+	if err != nil {
+		return nil, err
+	}
+	if horizon.compare(s.horizon) < 0 {
+		return nil, fmt.Errorf("hold a session of the digest of %s behind %v: before the end of its day", from.Base.Date, horizon.time())
+	}
+	if since := requestsIn(from.Lines); len(since) > 0 {
+		s = s.with(pricedAt(distinct(since), prices, d.Date))
+	}
+	return s.sealedAt(horizon), nil
 }
 
 // held is how many requests s holds.
@@ -589,12 +667,12 @@ func (s *heldSession) since() string {
 // gained are the requests among requests, the session's of a read, that s
 // doesn't hold, in order, reporting false where it can't place them all,
 // whole where they're a day's read again whole: one with no id, which can't
-// be known from another; one of a request it holds whose line says
-// otherwise of it, which a read whole may hold in its place, as distinct
-// keeps the first of a request's lines it reads; one that arrived behind the
-// horizon, which would change what's sealed; or the requests of a day before
-// those whose flights it holds other than as many as it holds of that day,
-// or not read whole.
+// be known from another; one of a request it holds whose line decodes
+// otherwise of it, as summed has it, which a read whole may hold in its
+// place, as distinct keeps the first of a request's lines it reads; one that
+// arrived behind the horizon, which would change what's sealed; or the
+// requests of a day before those whose flights it holds other than as many
+// as it holds of that day, or not read whole.
 func (s *heldSession) gained(requests []heldRequest, whole bool) ([]heldRequest, bool) {
 	since := s.since()
 	counted := make(map[string]int)
@@ -629,10 +707,10 @@ func dateOf(r *heldRequest) string {
 	return dayfile.DateOf(r.arrived())
 }
 
-// heldSum is the sum of the line s holds of the request r, as sumOf has it,
-// reporting false where it holds none: of the same id, arrived at the same
-// moment, on the day with the given date, one of those it holds the flights
-// of.
+// heldSum is the sum s holds of the request r, as heldRequest's summed has
+// it, reporting false where it holds none: of the same id, arrived at the
+// same moment, on the day with the given date, one of those it holds the
+// flights of.
 func (s *heldSession) heldSum(r *heldRequest, date string) (uint64, bool) {
 	f, held := heldFlight(s.flights[date], r.request, func(f flight) bool { return f.at == r.at })
 	return f.sum, held

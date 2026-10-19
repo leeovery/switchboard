@@ -46,6 +46,7 @@ The state directory holds these files:
 | `history/readings-<date>.jsonl` | The [readings history](#the-readings-history), one file for each day. |
 | `ledger/requests-<date>.jsonl` | The [request ledger](#the-request-ledger)'s lines, one file for each day. |
 | `ledger/day-<date>.json` | Each [day's summary](#the-days-summary). |
+| `ledger/digest-<date>.json.gz` | Each day's digest: every session the day's summary names, as it stood at the day's end, so the dashboard and `sessions` needn't read every day a session ran. Its form is switchboard's own, and can change with any release. Deleting it is safe: until the router writes it again, the day's lines are read instead. |
 | `ledger/events-<date>.jsonl` | The [router's events](#the-routers-events), one file for each day. |
 
 Once a day ended two days ago, its files of lines are compressed to `<name>.jsonl.gz`. To read a

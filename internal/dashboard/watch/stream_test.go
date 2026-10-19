@@ -17,6 +17,7 @@ import (
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // tabKey is tab, as the terminal sends it, and toSessions the tabs that show
@@ -351,7 +352,7 @@ func TestASessionsIdleCountsFromItsAnswersEndOnceItsLineTakesOver(t *testing.T) 
 	h := routedHarness(t, routerDocument(three()...))
 	h.model.sections = dashboard.Sections{}.Toggled(dashboard.SectionRouting).Toggled(dashboard.SectionSessions)
 	h.source.sessions = []status.Session{sessionOn(idD28C, opus, "work", 0)}
-	h.model.cfg.Ledger = ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, logs.For("watch"))
+	h.model.cfg.Ledger = ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, views.DigestVersion, logs.For("watch"))
 	h.deliver(h.update(tea.WindowSizeMsg{Width: 160, Height: 40})...)
 	h.start()
 	h.hear(told(router.StreamSent, "r1", "work", 0), told(router.StreamFirst, "r1", "work", time.Second))

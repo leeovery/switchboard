@@ -13,6 +13,7 @@ import (
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // loadingSaid is what a page says while it loads.
@@ -231,7 +232,7 @@ func TestWhatNamesTheSessionsRunningSaysItsLoadingTillTheListLands(t *testing.T)
 		t.Run(tt.name, func(t *testing.T) {
 			h := routedHarness(t, routerDocument(three()...))
 			h.source.sessions = []status.Session{sessionOn(idD28C, opus, "work", 0)}
-			h.model.cfg.Ledger = ledger.NewFollower(t.TempDir(), h.clock.Now, ledger.Caps{Shared: policy.Shared}, logs.For("watch"))
+			h.model.cfg.Ledger = ledger.NewFollower(t.TempDir(), h.clock.Now, ledger.Caps{Shared: policy.Shared}, views.DigestVersion, logs.For("watch"))
 			tt.shown(h)
 			unread := holdingBack[listReadMsg](h, h.init()...)
 			loading, ok := h.pending(loadingMsg{})
@@ -256,7 +257,7 @@ func TestWhatNamesTheSessionsRunningSaysItsLoadingTillTheListLands(t *testing.T)
 func TestTheLogShownBehindAnotherReadSaysItsLoading(t *testing.T) {
 	h := routedHarness(t, routerDocument(three()...))
 	h.source.sessions = []status.Session{sessionOn(idD28C, opus, "work", 0)}
-	h.model.cfg.Ledger = ledger.NewFollower(t.TempDir(), h.clock.Now, ledger.Caps{Shared: policy.Shared}, logs.For("watch"))
+	h.model.cfg.Ledger = ledger.NewFollower(t.TempDir(), h.clock.Now, ledger.Caps{Shared: policy.Shared}, views.DigestVersion, logs.For("watch"))
 	h.model.sections = dashboard.Sections{}.Toggled(dashboard.SectionSessions)
 	list := holdingBack[listReadMsg](h, h.init()...)
 	if len(list) == 0 {

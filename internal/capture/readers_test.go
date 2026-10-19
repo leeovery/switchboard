@@ -120,7 +120,7 @@ func fileLedger(t *testing.T, r *records, now func() time.Time) *ledger.Follower
 			t.Fatal(err)
 		}
 	}
-	return ledger.NewFollower(state, now, r.caps, slog.New(slog.DiscardHandler))
+	return ledger.NewFollower(state, now, r.caps, views.DigestVersion, slog.New(slog.DiscardHandler))
 }
 
 func TestTheRecordsLedgerGivesTheDaysBeforeTodaysAsHeldAndTodaysSummarised(t *testing.T) {
@@ -295,12 +295,16 @@ func TestTheRecordsLedgerGivesTheSessionsAFollowerReadsAndHandsOnTheirDaysLines(
 	follower := fileLedger(t, r, now)
 
 	var took, wantTook []string
-	got := l.Sessions([]string{sessionAsked}, func(_ string, line ledger.Line) { took = append(took, line.Request) })
-	want := follower.Sessions([]string{sessionAsked}, func(_ string, line ledger.Line) { wantTook = append(wantTook, line.Request) })
-	ids := func(m map[string][]ledger.Line) map[string][]string {
+	whole := func(string) bool { return true }
+	got := l.Sessions([]string{sessionAsked}, whole, func(_ string, line ledger.Line) { took = append(took, line.Request) })
+	want := follower.Sessions([]string{sessionAsked}, whole, func(_ string, line ledger.Line) { wantTook = append(wantTook, line.Request) })
+	ids := func(m map[string]ledger.SessionFrom) map[string][]string {
 		out := make(map[string][]string)
-		for id, lines := range m {
-			for _, line := range lines {
+		for id, from := range m {
+			if from.Base != nil {
+				t.Errorf("Sessions() gave %s resting on the state of %s, want it read whole", id, from.Base.Date)
+			}
+			for _, line := range from.Lines {
 				out[id] = append(out[id], line.Request)
 			}
 		}
@@ -317,7 +321,7 @@ func TestTheRecordsLedgerGivesTheSessionsAFollowerReadsAndHandsOnTheirDaysLines(
 	}
 
 	took = nil
-	if got := l.Sessions(nil, func(_ string, line ledger.Line) { took = append(took, line.Request) }); len(got) != 2 {
+	if got := l.Sessions(nil, whole, func(_ string, line ledger.Line) { took = append(took, line.Request) }); len(got) != 2 {
 		t.Errorf("Sessions(none) = %v, want today's two alone", ids(got))
 	}
 	slices.Sort(took)

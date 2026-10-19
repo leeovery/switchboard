@@ -37,7 +37,7 @@ var guardPace = soakPace{rate: 600, step: 5 * time.Second, listed: 3 * time.Minu
 const guardDays = 2
 
 var (
-	guardStart = time.Date(start.Year(), start.Month(), start.Day(), 23, 58, 0, 0, start.Location())
+	guardStart = soakAt(23, 58)
 	guardEnd   = guardStart.Add(8*time.Minute + 30*time.Second)
 )
 
@@ -63,17 +63,79 @@ type soakGuard interface {
 }
 
 // countingLedger is a ledger that tells of each read of its lines as it's
-// made, for the guard to hold the readers to what they read.
+// made, for the guard to hold the readers to what they read. It hands each
+// read of sessions a take of its own, so the ledger decodes every line of
+// the days it reads whole, with lineIn, never as production's reads without
+// one do, keptLineIn's way, the sessions' own alone: a fault of that decoding
+// alone passes the guard.
 type countingLedger struct {
 	views.Ledger
 	read func(ledgerRead)
 }
 
 // ledgerRead is a read of a ledger's lines: its method, and the ids it asked
-// for, or the date of the day.
+// for, or the date of the day; and, of a read of sessions, the sessions of
+// the lines it read of each day, by its date, and the date of the digest
+// whose state each session it gave rests on, by its id, "" of one resting
+// on none.
 type ledgerRead struct {
 	method string
 	asked  []string
+	days   map[string]map[string]bool
+	rests  map[string]string
+}
+
+// sessionsRead is a read of sessions by the method named, of the ids asked
+// for, as it begins: none of its days read yet.
+func sessionsRead(method string, asked []string) ledgerRead {
+	return ledgerRead{method: method, asked: asked, days: make(map[string]map[string]bool), rests: make(map[string]string)}
+}
+
+// taking is take, where it's given, each line handed it noted among the
+// read's days first.
+func (r ledgerRead) taking(take func(string, ledger.Line)) func(string, ledger.Line) {
+	return func(date string, l ledger.Line) {
+		if r.days[date] == nil {
+			r.days[date] = make(map[string]bool)
+		}
+		r.days[date][l.Session] = true
+		if take != nil {
+			take(date, l)
+		}
+	}
+}
+
+// gave is the read once it gave sessions, each noted with what it rests on.
+func (r ledgerRead) gave(sessions map[string]ledger.SessionFrom) ledgerRead {
+	for id, from := range sessions {
+		r.rests[id] = ""
+		if from.Base != nil {
+			r.rests[id] = from.Base.Date
+		}
+	}
+	return r
+}
+
+// behindBases are the dates of the days the read read whose lines no session
+// it gave needed, oldest first: each it gave with a line there rests on the
+// state of that day, or of a later one, which holds the line already. A day
+// with no line of a session it gave, as a near day, read for every
+// session's lines, can be, is none of them.
+func (r ledgerRead) behindBases() []string {
+	var behind []string
+	for date, sessions := range r.days {
+		given, needed := false, false
+		for id := range sessions {
+			base, ok := r.rests[id]
+			given = given || ok
+			needed = needed || ok && base < date
+		}
+		if given && !needed {
+			behind = append(behind, date)
+		}
+	}
+	slices.Sort(behind)
+	return behind
 }
 
 func (c *countingLedger) Today(mark ledger.Mark) ([]ledger.Held, ledger.Mark, bool) {
@@ -91,14 +153,53 @@ func (c *countingLedger) Session(id string) iter.Seq[ledger.Held] {
 	return c.Ledger.Session(id)
 }
 
-func (c *countingLedger) Sessions(ids []string, take func(string, ledger.Line)) map[string][]ledger.Line {
-	c.read(ledgerRead{method: "Sessions", asked: ids})
-	return c.Ledger.Sessions(ids, take)
+// A read of sessions read a day behind the states the sessions it gave rest
+// on only where each it gave with a line there rests on the state of that
+// day or a later one: not where one rests on none, or on an earlier day's,
+// nor where it gave none with a line there.
+func TestAReadOfSessionsIsBehindItsBasesWhereNoSessionItGaveNeedsTheDay(t *testing.T) {
+	const day = "2026-10-08"
+	tests := []struct {
+		name   string
+		lines  []string
+		rests  map[string]string
+		behind bool
+	}{
+		{name: "a session resting on none", lines: []string{"a"}, rests: map[string]string{"a": ""}},
+		{name: "a session resting on an earlier day's state", lines: []string{"a"}, rests: map[string]string{"a": "2026-10-07"}},
+		{name: "a session resting on the day's own state", lines: []string{"a"}, rests: map[string]string{"a": day}, behind: true},
+		{name: "a session resting on a later day's state", lines: []string{"a"}, rests: map[string]string{"a": "2026-10-09"}, behind: true},
+		{name: "one resting on a later day's, another on none", lines: []string{"a", "b"}, rests: map[string]string{"a": "2026-10-09", "b": ""}},
+		{name: "one resting on a later day's, another not given", lines: []string{"a", "c"}, rests: map[string]string{"a": "2026-10-09"}, behind: true},
+		{name: "none given, as a near day's other sessions", lines: []string{"c"}, rests: map[string]string{"a": "2026-10-09"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := sessionsRead("Sessions", nil)
+			take := r.taking(nil)
+			for _, id := range tt.lines {
+				take(day, ledger.Line{Session: id})
+			}
+			maps.Copy(r.rests, tt.rests)
+			if got := len(r.behindBases()) > 0; got != tt.behind {
+				t.Errorf("reads %s behind its bases %t, want %t", day, got, tt.behind)
+			}
+		})
+	}
 }
 
-func (c *countingLedger) SessionsOf(ids []string, take func(string, ledger.Line)) map[string][]ledger.Line {
-	c.read(ledgerRead{method: "SessionsOf", asked: ids})
-	return c.Ledger.SessionsOf(ids, take)
+func (c *countingLedger) Sessions(ids []string, whole func(string) bool, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	r := sessionsRead("Sessions", ids)
+	sessions := c.Ledger.Sessions(ids, whole, r.taking(take))
+	c.read(r.gave(sessions))
+	return sessions
+}
+
+func (c *countingLedger) SessionsOf(ids []string, whole func(string) bool, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	r := sessionsRead("SessionsOf", ids)
+	sessions := c.Ledger.SessionsOf(ids, whole, r.taking(take))
+	c.read(r.gave(sessions))
+	return sessions
 }
 
 // The store's part: Sessions' List open across midnight, the store fed at
@@ -107,13 +208,15 @@ func (c *countingLedger) SessionsOf(ids []string, take func(string, ledger.Line)
 // it's filed; a session's lines are read whole only of one the store
 // doesn't hold, every one of today's once, by the List's first read; a day
 // before today is read again only as the day turns, for the lines of the
-// requests that ended across midnight; and a feed folds only what it gained
-// and the requests the store held open, none open longer than the store's
-// rule keeps it. As the run starts, once the day before is no longer read
-// again, and at the end, the store holds today's sessions and those running
-// alone, having let go by the end of those that stopped running before
-// midnight; and as the day turns, just after, and at the end, the List of
-// the store as the reads fed it is the List of one read whole.
+// requests that ended across midnight; a read of sessions reads no day
+// behind the digests' states the sessions it gives rest on, and gives some
+// resting on one; and a feed folds only what it gained and the requests the
+// store held open, none open longer than the store's rule keeps it. As the
+// run starts, once the day before is no longer read again, and at the end,
+// the store holds today's sessions and those running alone, having let go
+// by the end of those that stopped running before midnight; and as the day
+// turns, just after, and at the end, the List of the store as the reads fed
+// it is the List of one read whole.
 func TestTheStoreHoldsOnlyWhatTheListShows(t *testing.T) {
 	midnight := dayfile.DayStart(guardStart, 1)
 	last := guardEnd.Add(-2 * lookEvery)
@@ -144,6 +247,9 @@ func TestTheStoreHoldsOnlyWhatTheListShows(t *testing.T) {
 	if !g.letGo {
 		t.Error("the store let go of no session by the end, want those that stopped running before midnight let go")
 	}
+	if g.rested == 0 {
+		t.Error("no read of sessions gave one resting on a digest's state, want the long session on its state at the end of the day before")
+	}
 }
 
 // storeGuard holds the store to what the List shows, read by read: s is the
@@ -155,8 +261,9 @@ func TestTheStoreHoldsOnlyWhatTheListShows(t *testing.T) {
 // each the earliest first, holding the sessions it held then; listed how
 // many times every one of today's sessions was read whole, fed how many
 // reads of the tail fed the store, late how many times the day before was
-// read again, and letGo whether the store let go of a session it held at
-// the moment before; and ids the world's sessions' ids, by their numbers.
+// read again, rested how many sessions its reads of sessions gave resting on
+// a digest's state, and letGo whether the store let go of a session it held
+// at the moment before; and ids the world's sessions' ids, by their numbers.
 type storeGuard struct {
 	t        *testing.T
 	s        *soak
@@ -169,6 +276,7 @@ type storeGuard struct {
 	listed   int
 	fed      int
 	late     int
+	rested   int
 	letGo    bool
 	ids      map[int]string
 }
@@ -255,9 +363,25 @@ func (g *storeGuard) judged(was Model) {
 					g.t.Errorf("at %s %s read %s whole, which the store holds", now.Format(time.DateTime), r.method, id)
 				}
 			}
+			g.restedOn(r, now)
 		}
 	}
 	g.unjudged = nil
+}
+
+// restedOn judges a read of sessions, r, at now: it read no day behind the
+// states the sessions it gave there rest on, as behindBases has them; and
+// counts the sessions it gave resting on a state.
+func (g *storeGuard) restedOn(r ledgerRead, now time.Time) {
+	g.t.Helper()
+	if behind := r.behindBases(); len(behind) > 0 {
+		g.t.Errorf("at %s %s read the lines of %v, each a day the state every session of it given rests on holds, %v", now.Format(time.DateTime), r.method, behind, r.rests)
+	}
+	for _, base := range r.rests {
+		if base != "" {
+			g.rested++
+		}
+	}
 }
 
 // todays judges the lines today's gained, as a read of the tail read them,

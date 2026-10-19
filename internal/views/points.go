@@ -87,7 +87,7 @@ type windowShare struct {
 // windows; its account and model, interned; its tokens, every kind counted
 // alike; whether it's of the session whose share is taken; the windows its
 // answer's limits read, kept small; and the sum of what its line says, as
-// sumOf has it, so a line given again without an id is known.
+// lineSumOf has it, so a line given again without an id is known.
 type answered struct {
 	flight
 	read           instant
@@ -115,7 +115,7 @@ func answeredOf(l *ledger.Line, id string) answered {
 	t, _ := l.Tokens()
 	a := answered{
 		flight: flightOf(l), account: unique.Make(l.Account), model: unique.Make(l.Model), tokens: int64(t.Input + t.Output + t.CacheRead + t.CacheWrite),
-		ours: l.Session == id, windows: claude.KeptWindows(l.Limits), sum: sumOf(l),
+		ours: l.Session == id, windows: claude.KeptWindows(l.Limits), sum: lineSumOf(l),
 	}
 	a.read = a.end
 	if l.FirstMS != nil {

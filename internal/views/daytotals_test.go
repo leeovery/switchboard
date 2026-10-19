@@ -40,7 +40,7 @@ func ledgerIn(t *testing.T, hm viewstest.DayMoment) *ledger.Follower {
 	for _, s := range hm.Summaries {
 		writeIn(t, dir, "day-"+s.Day+".json", jsonLine(t, s))
 	}
-	return ledger.NewFollower(state, func() time.Time { return hm.Now }, viewstest.Caps, unheard)
+	return ledger.NewFollower(state, func() time.Time { return hm.Now }, viewstest.Caps, views.DigestVersion, unheard)
 }
 
 // jsonLine is v as JSON.

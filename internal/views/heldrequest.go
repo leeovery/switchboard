@@ -37,20 +37,45 @@ type heldRequest struct {
 	// is.
 	worth  ledger.Worth
 	priced bool
-	// sum is what its line says of it, summed, as sumOf has it.
+	// sum is all it decodes of its line, summed, as summed has it.
 	sum uint64
+}
+
+// decodedRequest is all a held request decodes of its line, as its line
+// gives it or its stored form holds it: its flight, the names its line gives
+// it, the tools its answer called, whether it went upstream, the accounts it
+// went out on that couldn't serve it, and what it spent.
+type decodedRequest struct {
+	flight
+	dir, model, account, reason, from, class, agentID, geo, prompt, stop string
+	tools                                                                []string
+	upstream                                                             bool
+	tried                                                                []ledger.Tried
+	spend                                                                ledger.Spend
 }
 
 // heldRequestOf returns the request of the line l, decoded once, unpriced.
 func heldRequestOf(l *ledger.Line) heldRequest {
-	spend := ledger.SpendOf(l)
-	life, _ := spend.CacheLife()
-	return heldRequest{
-		flight: flightOf(l), tried: l.Tried, spend: spend, life: life, sum: sumOf(l), upstream: l.Upstream(),
-		dir: unique.Make(l.Dir), model: unique.Make(l.Model), account: unique.Make(l.Account), reason: unique.Make(l.Reason),
-		from: unique.Make(l.From), class: unique.Make(l.Class), agentID: unique.Make(l.AgentID), geo: unique.Make(l.Shape.InferenceGeo),
-		prompt: unique.Make(l.Prompt), stop: unique.Make(l.Answer.Stop), tools: unique.Make(strings.Join(l.Answer.Tools, toolsApart)),
+	return newHeldRequest(decodedRequest{
+		flight: flightOf(l), dir: l.Dir, model: l.Model, account: l.Account, reason: l.Reason, from: l.From, class: l.Class, agentID: l.AgentID,
+		geo: l.Shape.InferenceGeo, prompt: l.Prompt, stop: l.Answer.Stop, tools: l.Answer.Tools, upstream: l.Upstream(), tried: l.Tried, spend: ledger.SpendOf(l),
+	})
+}
+
+// newHeldRequest returns the request d decodes, unpriced: its names
+// interned, how long its writes to the cache last worked out of its spend,
+// and its sum of all it holds. It's the one place a held request is put
+// together, whether of its line or of its stored form.
+func newHeldRequest(d decodedRequest) heldRequest {
+	r := heldRequest{
+		flight: d.flight, upstream: d.upstream, tried: d.tried, spend: d.spend,
+		dir: unique.Make(d.dir), model: unique.Make(d.model), account: unique.Make(d.account), reason: unique.Make(d.reason),
+		from: unique.Make(d.from), class: unique.Make(d.class), agentID: unique.Make(d.agentID), geo: unique.Make(d.geo),
+		prompt: unique.Make(d.prompt), stop: unique.Make(d.stop), tools: unique.Make(strings.Join(d.tools, toolsApart)),
 	}
+	r.life, _ = r.spend.CacheLife()
+	r.sum = r.summed()
+	return r
 }
 
 // toolsApart is what parts the names of the tools an answer called as a
@@ -70,17 +95,49 @@ func (r *heldRequest) calls() iter.Seq[string] {
 	}
 }
 
-// linesSeed seeds every sum of a line, as sumOf has it: one seed for the
-// run, as a sum is held no longer than the run.
-var linesSeed = maphash.MakeSeed()
+// sumsSeed seeds every sum of a line, as lineSumOf has it, and of a held
+// request, as summed has it: one seed for the run, as a sum is held no longer
+// than the run, and worked out again of a request restored from its stored
+// form.
+var sumsSeed = maphash.MakeSeed()
 
-// sumOf is a sum of all heldRequestOf decodes of the line l, its spend as
-// the usage, kind and upstream it's decoded of: two lines whose sums differ
-// say otherwise of their request, and two whose sums are the same say the
-// same of it, but by a chance of one in 2^64.
-func sumOf(l *ledger.Line) uint64 {
+// summed is a sum of all r decodes of its line, as it holds it, its spend as
+// ledger.Spend's Sum has it in place of the usage it's decoded of: two held
+// requests whose sums differ hold otherwise, and two whose sums are the same
+// hold the same, but by a chance of one in 2^64. So a request restored from
+// its stored form sums as the one decoded of its line did, and two lines of
+// a request that say otherwise only of what none of it decodes, as their
+// usages' bytes, sum alike. It's never compared with a line's sum, as
+// lineSumOf has it.
+func (r *heldRequest) summed() uint64 {
 	var h maphash.Hash
-	h.SetSeed(linesSeed)
+	h.SetSeed(sumsSeed)
+	maphash.WriteComparable(&h, struct {
+		flight
+		dir, model, account, reason, from, class, agentID, geo, prompt, stop, tools string
+		upstream                                                                    bool
+		tried                                                                       int
+		spend                                                                       uint64
+	}{
+		r.flight, r.dir.Value(), r.model.Value(), r.account.Value(), r.reason.Value(), r.from.Value(), r.class.Value(), r.agentID.Value(),
+		r.geo.Value(), r.prompt.Value(), r.stop.Value(), r.tools.Value(), r.upstream, len(r.tried), r.spend.Sum(sumsSeed),
+	})
+	for _, t := range r.tried {
+		maphash.WriteComparable(&h, t)
+	}
+	return h.Sum64()
+}
+
+// lineSumOf is a sum of what the line l says of its request: its id, its
+// session, the names it gives, its kind, when it arrived and ended, whether
+// it went upstream, the accounts it went out on that couldn't serve it, the
+// tools its answer called, and its usage, byte for byte: two lines whose
+// sums differ say otherwise of their request, and two whose sums are the
+// same say the same of it, but by a chance of one in 2^64. It's never
+// compared with a held request's sum, as summed has it.
+func lineSumOf(l *ledger.Line) uint64 {
+	var h maphash.Hash
+	h.SetSeed(sumsSeed)
 	maphash.WriteComparable(&h, struct {
 		request, session, dir, model, account, reason, from, class, agentID, geo, kind, prompt, stop string
 		at, end                                                                                      instant
@@ -100,17 +157,29 @@ func sumOf(l *ledger.Line) uint64 {
 	return h.Sum64()
 }
 
-// heldRequestsOf returns the requests among lines, a session's, as isRequest
-// says, each decoded once, unpriced, in the order every story takes them in,
-// as inOrder has it, whatever the order of lines.
+// heldRequestsOf returns the requests among lines, a session's, as
+// requestsIn has them, in the order every story takes them in, as inOrder
+// has it, whatever the order of lines.
 func heldRequestsOf(lines []ledger.Line) []heldRequest {
+	requests := requestsIn(lines)
+	slices.SortStableFunc(requests, inOrder)
+	return requests
+}
+
+// requestsIn returns the requests among lines, as isRequest says, each
+// decoded once, unpriced, in the order of lines: none where none is, else
+// room made at the first for every line from it on, as most lines are
+// requests, so none is copied as they're gathered.
+func requestsIn(lines []ledger.Line) []heldRequest {
 	var requests []heldRequest
 	for i := range lines {
 		if isRequest(&lines[i]) {
+			if requests == nil {
+				requests = make([]heldRequest, 0, len(lines)-i)
+			}
 			requests = append(requests, heldRequestOf(&lines[i]))
 		}
 	}
-	slices.SortStableFunc(requests, inOrder)
 	return requests
 }
 

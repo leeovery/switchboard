@@ -667,7 +667,7 @@ func TestEnterOnASessionInDetailOpensItsPageAndEscComesBackToDetailAsItWas(t *te
 			state := t.TempDir()
 			writeLines(t, state, arrived("0a000001", "work", -5*time.Minute), arrived("0a000002", "work", -4*time.Minute))
 			h := accountsHarness(t, dashboard.AccountsShown{Shown: dashboard.AccountsDetail})
-			h.model.cfg.Ledger = ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, logs.For("watch"))
+			h.model.cfg.Ledger = ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, views.DigestVersion, logs.For("watch"))
 			h.keys(downKey)
 			left, detail := h.model.accounts.shown, h.view()
 			asLeft := func(after string) {

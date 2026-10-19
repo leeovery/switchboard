@@ -76,11 +76,13 @@ func summaryFile(dir, date string) string {
 	return filepath.Join(dir, summaryPrefix+date+summarySuffix)
 }
 
-// summaryDate returns the date of the local day the file with the given name
-// is the summary of, reporting false for a name that isn't a summary's.
-func summaryDate(name string) (string, bool) {
-	date, prefixed := strings.CutPrefix(name, summaryPrefix)
-	date, suffixed := strings.CutSuffix(date, summarySuffix)
+// datedName returns the date of the local day the file with the given name
+// is of, as one named with the given prefix and suffix either side of a date,
+// as a summary's and a digest's are, reporting false for a name that isn't
+// one of those.
+func datedName(name, prefix, suffix string) (string, bool) {
+	date, prefixed := strings.CutPrefix(name, prefix)
+	date, suffixed := strings.CutSuffix(date, suffix)
 	_, _, dated := dayfile.Day(date)
 	return date, prefixed && suffixed && dated
 }
@@ -90,7 +92,8 @@ func summaryDate(name string) (string, bool) {
 // dayfile.Writer says. A line is written as JSON, filed under the local day
 // its request arrived on, and never holds anything shaped like a token. On
 // its writer's round, it summarises the days that have ended, as
-// SummariseEnded says.
+// SummariseEnded says; and, opened Digesting, it digests each finished day,
+// on a goroutine of its own beside the writer's, as digesting says.
 type Ledger struct {
 	writer *dayfile.Writer[*Line]
 	days   days
@@ -119,17 +122,28 @@ type Ledger struct {
 	// unwritable is set once a line couldn't be put as JSON, which is logged
 	// once. Only Run's goroutine touches it.
 	unwritable bool
+	// digesting is the ledger's digesting of its days, nil where it was
+	// opened to digest none.
+	digesting *digesting
 }
 
 // Open returns the ledger in dir, which keeps a day's lines for keep once the
 // day has ended, by now's clock, and longer where its summary isn't written,
 // or doesn't stand, as settled says, and summarises its days with the
 // readings history, and the accounts' caps as caps gives them, logging what
-// can't be done with them to logger.
-func Open(dir string, keep time.Duration, now func() time.Time, history History, caps Caps, logger *slog.Logger) *Ledger {
+// can't be done with them to logger; and digests them as the options given
+// say, none without them.
+func Open(dir string, keep time.Duration, now func() time.Time, history History, caps Caps, logger *slog.Logger, opts ...Option) *Ledger {
 	l := &Ledger{days: days{files: filesIn(dir, logger), history: history, caps: caps, logger: logger}}
 	l.writer = dayfile.NewWriter(l.days.files, l.lines, dayfile.WriterOptions{Queue: queue, Keep: keep, Now: now, Items: "lines", Round: l.SummariseEnded,
 		Spare: func(date string) bool { return !l.days.settled(date) }})
+	var o options
+	for _, opt := range opts {
+		opt(&o)
+	}
+	if o.digester != nil {
+		l.digesting = newDigesting(o.digester, l.days, now)
+	}
 	return l
 }
 
@@ -140,9 +154,27 @@ func (l *Ledger) Note(line *Line) {
 }
 
 // Run writes the lines noted, and keeps the ledger's files, as its writer's
-// Run does, until ctx ends, when it writes what's still queued.
+// Run does, until ctx ends, when it writes what's still queued; and, where
+// the ledger digests its days, digests them beside it, on a goroutine of its
+// own, as digesting.run does, waiting for that to end before it returns.
 func (l *Ledger) Run(ctx context.Context) {
+	var digesting sync.WaitGroup
+	defer digesting.Wait()
+	if l.digesting != nil {
+		digesting.Go(func() { l.digesting.run(ctx) })
+	}
 	l.writer.Run(ctx)
+}
+
+// DigestEnded digests each finished day due at now, as the ledger's
+// goroutine does at each kick, as digesting.pass says, but at once, unpaced,
+// on the caller's goroutine, returning once it has, or ctx has ended: for
+// one who can't wait on the goroutine, as a test. It digests none where the
+// ledger was opened to digest none.
+func (l *Ledger) DigestEnded(ctx context.Context, now time.Time) {
+	if l.digesting != nil {
+		l.digesting.pass(ctx, now, false)
+	}
 }
 
 // lines returns line as the ledger's lines, filed under the local day its
@@ -178,8 +210,10 @@ func (l *Ledger) lines(line *Line) dayfile.Lines {
 // history's before it reads any of its files; and where the history can't be
 // listed, it summarises no day, as listedReadings says. It's safe to call
 // from any goroutine: the readings history's writer calls it before it
-// prunes the readings the summaries need.
+// prunes the readings the summaries need. It kicks the ledger's digesting as
+// it ends, where it digests its days, as digesting.kick says.
 func (l *Ledger) SummariseEnded(now time.Time) {
+	defer l.kickDigesting()
 	l.summarising.Lock()
 	defer l.summarising.Unlock()
 	held, ok := l.listedReadings()
@@ -206,6 +240,14 @@ func (l *Ledger) SummariseEnded(now time.Time) {
 		}
 	}
 	l.left, l.postponed = left, postponed
+}
+
+// kickDigesting kicks the ledger's digesting, where it digests its days, as
+// digesting.kick says, never waiting.
+func (l *Ledger) kickDigesting() {
+	if l.digesting != nil {
+		l.digesting.kick()
+	}
 }
 
 // listedReadings returns one listing of the readings history's files,
@@ -264,22 +306,18 @@ func (l *Ledger) warnLeft(date string, err error) fs.FileInfo {
 // held, one listing of its files, tells, as reach says, requests or not.
 // Those it walks from the first day the history holds readings of, where
 // that's later, as it covers none before. Where the ledger's directory can't
-// be listed, it returns none, which is warned of once, until it can be.
+// be listed, it returns none, which is warned of once, until it can be, as
+// listedNoting says.
 func (l *Ledger) ended(now time.Time, held readingsHeld) []string {
-	lines, first, err := l.days.listed()
-	unlisted := err
-	if errors.Is(err, fs.ErrNotExist) {
-		unlisted = nil
-	}
-	l.unlistedDir.note(l.days.logger, "can't read the request ledger", unlisted, "dir", l.days.files.Dir)
-	if err != nil {
+	listing, ok := l.days.listedNoting(&l.unlistedDir)
+	if !ok {
 		return nil
 	}
 	lastDay := dayfile.DayStart(now.Add(-summariseAfter).Local(), -1)
 	last := dayfile.DateOf(lastDay)
-	dates := slices.DeleteFunc(lines, func(date string) bool { return date > last })
+	dates := slices.DeleteFunc(listing.lines, func(date string) bool { return date > last })
 	if len(held) > 0 {
-		from, _, _ := dayfile.Day(max(first, held[0]))
+		from, _, _ := dayfile.Day(max(listing.first, held[0]))
 		for _, date := range dayfile.Span(from, lastDay) {
 			if held.reach(date).covered {
 				dates = append(dates, date)
@@ -504,17 +542,28 @@ func (d days) holdsSummary(date string) bool {
 // while those are. It fails where the lines can't be counted, as when one of
 // the day's files can't be opened.
 func (d days) stands(held Summary, stat dayfile.DayStat) (bool, error) {
+	stands, _, err := d.counting(held, stat)
+	return stands, err
+}
+
+// counting reports whether held, a summary the ledger holds, stands, as
+// stands says, its day's files as stat looks at them, and whether they hold
+// exactly the lines it counts: as they're as they were when it was marked,
+// as marked says, or as a count of them tells, none of a day whose lines are
+// pruned between the look and the count. Fewer, as to a damaged file,
+// stand, but not exactly. It fails as stands does.
+func (d days) counting(held Summary, stat dayfile.DayStat) (stands, exact bool, err error) {
 	if stands, told := standsUncounted(held, stat); told {
-		return stands, nil
+		return stands, stands, nil
 	}
 	lines, err := d.files.Count(held.Day)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
-		return true, nil
+		return true, held.Lines == 0, nil
 	case err != nil:
-		return false, err
+		return false, false, err
 	}
-	return lines <= held.Lines, nil
+	return lines <= held.Lines, lines == held.Lines, nil
 }
 
 // settled reports whether the summary of the local day with the given date

@@ -6,6 +6,7 @@ import (
 	"go/token"
 	"go/types"
 	"iter"
+	"maps"
 	"path"
 	"slices"
 	"strings"
@@ -57,6 +58,17 @@ func (n Names) Type(named *types.Named) string {
 	return strings.TrimPrefix(obj.Pkg().Path(), n.internal) + "." + obj.Name()
 }
 
+// Declared is the name of obj, declared at its package's level, by its
+// package's, as "status.Account": "" of one of no package under the
+// internal directory, or declared within a function or a type.
+func (n Names) Declared(obj types.Object) string {
+	pkg := obj.Pkg()
+	if pkg == nil || obj.Parent() != pkg.Scope() || !strings.HasPrefix(pkg.Path(), n.internal) {
+		return ""
+	}
+	return strings.TrimPrefix(pkg.Path(), n.internal) + "." + obj.Name()
+}
+
 // StructOf is the struct t is, or points to, and the type it's named by,
 // where it is: nil where it's no struct.
 func StructOf(t types.Type) (*types.Named, *types.Struct) {
@@ -76,9 +88,13 @@ type Rule struct {
 	// the field named, as "status.Account.ID", breaks the rule.
 	Fields []string
 	Read   func(field string) string
-	// Used are the functions none of which may be used, called or not, and
-	// the fields, as "status.Account.ID", none of which may be read, each
-	// with how using it breaks the rule, and where.
+	// Used are the functions none of which may be used, called or not; the
+	// types, constants and package-level variables, as "status.Account",
+	// none of which may be named; and the fields, as "status.Account.ID",
+	// none of which may be read, each with how using it breaks the rule, and
+	// where. A type of Fields or Used is named, and its fields read, through
+	// an alias of it, and through a type defined as it, as
+	// "type Over status.Account" is, wherever they're declared.
 	Used map[string]Ban
 	// Calls are the functions whose calls may break the rule, by what they're
 	// given, each with how and where, by its full name, as
@@ -132,8 +148,9 @@ type Use struct {
 func (r Rule) Breaches(f File) (found []Breach, allowed []Use) {
 	dir := path.Dir(f.Path)
 	unseen := r.unseenIn(f.Pkg, dir)
+	banned := r.structsBanned(reachable(f.Pkg))
 	for _, decl := range f.AST.Decls {
-		w := &walk{r: r, info: f.Info, dir: dir, in: DeclName(decl), judged: make(map[*ast.Ident]bool)}
+		w := &walk{r: r, info: f.Info, dir: dir, in: DeclName(decl), banned: banned, judged: make(map[*ast.Ident]bool)}
 		ast.Inspect(decl, w.visit)
 		for _, lost := range f.LostIn(decl) {
 			if unseen.bans(lost) {
@@ -149,11 +166,12 @@ func (r Rule) Breaches(f File) (found []Breach, allowed []Use) {
 
 // walk is a walk of one of a file's declarations, named in, of the package
 // in dir, for where it breaks the rule r and the calls it makes that r
-// allows.
+// allows, the structs of the types r bans as structsBanned gives them.
 type walk struct {
 	r       Rule
 	info    *types.Info
 	dir, in string
+	banned  map[*types.Struct]string
 	found   []Breach
 	allowed []Use
 	// judged are the identifiers naming a function of Calls judged already:
@@ -187,21 +205,43 @@ func (w *walk) field(sel *ast.SelectorExpr) {
 	if !ok || s.Kind() != types.FieldVal {
 		return
 	}
-	if field := w.r.fieldRead(s); field != "" {
+	if field := w.fieldRead(s); field != "" {
 		w.breach(sel.Sel.Pos(), w.r.Read(field))
 	}
-	if ban, ok := w.r.Used[w.r.fieldNamed(s)]; ok && ban.holdsIn(w.dir) {
+	if ban, ok := w.r.Used[w.fieldNamed(s)]; ok && ban.holdsIn(w.dir) {
 		w.breach(sel.Sel.Pos(), ban.Says)
 	}
 }
 
 // used finds id using a function of Used, or one of Owners' that takes one
-// of Fields, or one the rule allows.
+// of Fields, or one the rule allows; or a type, a constant or a
+// package-level variable of Used, a type by its own name, or that of the
+// type it's an alias of, or defined as, as typeOf names it.
 func (w *walk) used(id *ast.Ident) {
-	fn, ok := w.info.Uses[id].(*types.Func)
-	if !ok {
-		return
+	switch obj := w.info.Uses[id].(type) {
+	case *types.Func:
+		w.usedFunc(id, obj)
+	case *types.TypeName:
+		named, _ := types.Unalias(obj.Type()).(*types.Named)
+		w.usedNamed(id, w.r.Declared(obj), w.typeOf(named))
+	case *types.Const, *types.Var:
+		w.usedNamed(id, w.r.Declared(obj))
 	}
+}
+
+// usedNamed finds id naming, by one of names, what Used bans here.
+func (w *walk) usedNamed(id *ast.Ident, names ...string) {
+	for _, name := range names {
+		if ban, ok := w.r.Used[name]; ok && ban.holdsIn(w.dir) {
+			w.breach(id.Pos(), ban.Says)
+			return
+		}
+	}
+}
+
+// usedFunc finds id using fn, where it's of Used, or one of Owners' that
+// takes one of Fields, or one the rule allows.
+func (w *walk) usedFunc(id *ast.Ident, fn *types.Func) {
 	switch name, says := w.r.called(fn, w.dir); {
 	case says != "":
 		w.breach(id.Pos(), says)
@@ -365,15 +405,16 @@ func typesOf(tuple *types.Tuple) iter.Seq[types.Type] {
 // fieldRead names the field of one of Fields sel reads, as
 // "status.Account.ID": the field it selects, of the first of Fields the
 // selection passes through, from the type it selects from through each field
-// embedded on the way; "" where it passes through none.
-func (r Rule) fieldRead(sel *types.Selection) string {
+// embedded on the way, each named as typeOf names it; "" where it passes
+// through none.
+func (w *walk) fieldRead(sel *types.Selection) string {
 	t := sel.Recv()
 	for _, index := range sel.Index() {
 		named, s := StructOf(t)
 		if s == nil {
 			return ""
 		}
-		if name := r.Type(named); slices.Contains(r.Fields, name) {
+		if name := w.typeOf(named); slices.Contains(w.r.Fields, name) {
 			return name + "." + sel.Obj().Name()
 		}
 		t = s.Field(index).Type()
@@ -382,9 +423,10 @@ func (r Rule) fieldRead(sel *types.Selection) string {
 }
 
 // fieldNamed names the field sel reads by the type that declares it, as
-// "status.Account.ID", through each field embedded on the way: "" where
-// that type is no named struct of the module's internal packages.
-func (r Rule) fieldNamed(sel *types.Selection) string {
+// "status.Account.ID", through each field embedded on the way, named as
+// typeOf names it: "" where that type is no named struct of the module's
+// internal packages.
+func (w *walk) fieldNamed(sel *types.Selection) string {
 	t, path := sel.Recv(), sel.Index()
 	for _, index := range path[:len(path)-1] {
 		_, s := StructOf(t)
@@ -394,10 +436,40 @@ func (r Rule) fieldNamed(sel *types.Selection) string {
 		t = s.Field(index).Type()
 	}
 	named, _ := StructOf(t)
-	if name := r.Type(named); name != "" {
+	if name := w.typeOf(named); name != "" {
 		return name + "." + sel.Obj().Name()
 	}
 	return ""
+}
+
+// typeOf names the named type t as Names.Type does, but one defined as a
+// type of Fields or Used, directly or through others, by that type's name:
+// it's that type's struct, as structsBanned has it, under another name.
+func (w *walk) typeOf(t *types.Named) string {
+	if t != nil {
+		if s, ok := t.Underlying().(*types.Struct); ok && w.banned[s] != "" {
+			return w.banned[s]
+		}
+	}
+	return w.r.Type(t)
+}
+
+// structsBanned are the structs of the types of Fields and Used that pkgs
+// declare, each by its type's name, the first of Fields, then of Used in
+// order, that names it. A type defined as another, as
+// "type Over status.Account" is, has the same struct, as go/types gives it.
+func (r Rule) structsBanned(pkgs map[string]*types.Package) map[*types.Struct]string {
+	banned := make(map[*types.Struct]string)
+	for _, name := range slices.Concat(r.Fields, slices.Sorted(maps.Keys(r.Used))) {
+		obj := r.typeNamed(pkgs, name)
+		if obj == nil {
+			continue
+		}
+		if s, ok := obj.Type().Underlying().(*types.Struct); ok && banned[s] == "" {
+			banned[s] = name
+		}
+	}
+	return banned
 }
 
 // DeclName names the function decl declares, by its name, and of a method,

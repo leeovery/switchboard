@@ -64,19 +64,22 @@ type LedgerSession interface {
 }
 
 // LedgerSessions reads the request ledger's sessions where they lie, with no
-// router, every line of each, whatever day it's of, as a ledger.Follower
-// does.
+// router, as a ledger.Follower does: each resting on the state the digest of
+// an earlier day holds of it, and its lines after it, whatever day each is
+// of; or read whole, every line of it, resting on none.
 type LedgerSessions interface {
-	// Sessions gives the lines of today's sessions, those with a request
-	// today, and of those with the given ids, that arrived by now, by each
-	// one's id, oldest first, as Ledger's Session reads one's, each day's files
-	// read once; and hands take, where it's given, each line it reads, of
+	// Sessions gives today's sessions, those with a request today, and those
+	// with the given ids, by each one's id, as a ledger.SessionFrom: the state
+	// it rests on, none of those whole reports true of, nor of one no digest
+	// holds a state of that stands; and its lines after it that arrived by
+	// now, oldest first, as Ledger's Session reads one's, each day's files
+	// read once. It hands take, where it's given, each line it reads, of
 	// whichever session, with the date of the day whose files hold it.
-	Sessions(ids []string, take func(date string, l ledger.Line)) map[string][]ledger.Line
-	// SessionsOf gives the lines of the sessions with the given ids alone,
-	// as Sessions gives them, but none of today's others, so none of their
-	// days is read; and hands take each line it reads, as Sessions does.
-	SessionsOf(ids []string, take func(date string, l ledger.Line)) map[string][]ledger.Line
+	Sessions(ids []string, whole func(id string) bool, take func(date string, l ledger.Line)) map[string]ledger.SessionFrom
+	// SessionsOf gives the sessions with the given ids alone, as Sessions
+	// gives them, but none of today's others, so none of their days is read;
+	// and hands take each line it reads, as Sessions does.
+	SessionsOf(ids []string, whole func(id string) bool, take func(date string, l ledger.Line)) map[string]ledger.SessionFrom
 }
 
 // Readings reads the readings history where it lies, with no router, as a
