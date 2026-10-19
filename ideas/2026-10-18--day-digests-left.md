@@ -67,6 +67,12 @@ requests of its session are sealed, draws the session's story with folds that ov
 stream tells of whose line arrived before yesterday is counted twice, which needs a request in flight
 for over a day and its page shown within the hour after it ends.
 
+And since a turn reads only its own days and the horizon's: a subagent's request of a turn, made days
+after the turn's last known request and in flight for over a day untold by the stream, as after a
+restart, is filed on its arrival's day, which no read takes in, so the turn opened shows one row
+fewer than it did when it read every day. Carrying a turn's span to now where its session has a line
+never fed would take it in.
+
 ## Smaller
 
 - A restored page's times sent upstream are decoded through a list of times, some 230 B each, before
