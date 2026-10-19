@@ -2,6 +2,8 @@ package ledger
 
 import (
 	"cmp"
+	"encoding/json"
+	"fmt"
 	"math"
 	"slices"
 	"strings"
@@ -269,6 +271,151 @@ func (c *Climb) reset(at time.Time) {
 		c.ended = append(c.ended, c.last.ResetsAt)
 	}
 	c.top = 0
+}
+
+// storedClimb is a climb as a stored form holds it, as MarshalJSON writes it
+// and UnmarshalJSON reads it back: its window's key; the reading it took
+// last, when, and whether it took one; its highest use since its run began,
+// and whether that run's start is known; the latest reset read; its rise; and
+// the resets that ended its runs, with the reset each such run's readings
+// gave. Not how it begins a run whose start isn't known, a function: read
+// back, it begins one at its first reading's use, as NewClimb has it given
+// none, as a page's points begin every climb they follow. Its keys are short
+// and its zeros left out.
+type storedClimb struct {
+	Key    string        `json:"k,omitempty"`
+	Last   storedReading `json:"l,omitzero"`
+	At     storedTime    `json:"t,omitzero"`
+	Read   bool          `json:"r,omitzero"`
+	Top    float64       `json:"tp,omitzero"`
+	Based  bool          `json:"b,omitzero"`
+	Latest storedTime    `json:"lt,omitzero"`
+	Rise   float64       `json:"rs,omitzero"`
+	Resets []storedReset `json:"rr,omitempty"`
+	Ended  []storedTime  `json:"e,omitempty"`
+}
+
+// storedReading is a window's reading as a climb's stored form holds it,
+// every field of it.
+type storedReading struct {
+	Key            string       `json:"k,omitempty"`
+	Label          string       `json:"lb,omitempty"`
+	Utilization    float64      `json:"u,omitzero"`
+	ResetsAt       storedTime   `json:"r,omitzero"`
+	Status         quota.Status `json:"s,omitempty"`
+	RestartedAt    storedTime   `json:"rs,omitzero"`
+	Pace           *float64     `json:"p,omitempty"`
+	AllowanceShare float64      `json:"as,omitzero"`
+	AllowancePer   string       `json:"ap,omitempty"`
+}
+
+// storedReset is a reset as a climb's stored form holds it.
+type storedReset struct {
+	Window string     `json:"w,omitempty"`
+	At     storedTime `json:"t,omitzero"`
+	Before float64    `json:"b,omitzero"`
+}
+
+// storedTime is a time as a climb's stored form holds it, exactly, whatever
+// its year: the seconds since the zero time and the nanoseconds after, so
+// the zero time, as a reading whose reset wasn't said gives, is left out.
+// It's read back in UTC.
+type storedTime struct {
+	Sec  int64 `json:"s,omitzero"`
+	Nsec int32 `json:"n,omitzero"`
+}
+
+// zeroUnix is the zero time, in seconds since the Unix epoch.
+var zeroUnix = time.Time{}.Unix()
+
+// MarshalJSON writes c in its stored form. It refuses a climb holding a time
+// in another zone than UTC, which its stored form would read back otherwise,
+// and one holding a number that isn't finite, which JSON can't carry.
+func (c *Climb) MarshalJSON() ([]byte, error) {
+	if !c.inUTC() {
+		return nil, fmt.Errorf("encode the climb of %s: a time not in UTC", c.key)
+	}
+	b, err := json.Marshal(c.stored())
+	if err != nil {
+		return nil, fmt.Errorf("encode the climb of %s: %w", c.key, err)
+	}
+	return b, nil
+}
+
+// UnmarshalJSON reads c back from its stored form, as MarshalJSON wrote it:
+// the climb it was, but that a run whose start isn't known begins at its
+// first reading's use, as NewClimb has it given none.
+func (c *Climb) UnmarshalJSON(b []byte) error {
+	var stored storedClimb
+	if err := json.Unmarshal(b, &stored); err != nil {
+		return fmt.Errorf("decode a climb: %w", err)
+	}
+	*c = stored.climb()
+	return nil
+}
+
+// inUTC reports whether every time c holds is in UTC.
+func (c *Climb) inUTC() bool {
+	times := append([]time.Time{c.at, c.latest, c.last.ResetsAt, c.last.RestartedAt}, c.ended...)
+	for _, r := range c.resets {
+		times = append(times, r.At)
+	}
+	return !slices.ContainsFunc(times, func(t time.Time) bool { return t.Location() != time.UTC })
+}
+
+// stored is c as its stored form holds it.
+func (c *Climb) stored() storedClimb {
+	stored := storedClimb{
+		Key: c.key, Last: storedReadingOf(c.last), At: storedTimeOf(c.at), Read: c.read, Top: c.top, Based: c.based,
+		Latest: storedTimeOf(c.latest), Rise: c.rise,
+	}
+	for _, r := range c.resets {
+		stored.Resets = append(stored.Resets, storedReset{Window: r.Window, At: storedTimeOf(r.At), Before: r.Before})
+	}
+	for _, t := range c.ended {
+		stored.Ended = append(stored.Ended, storedTimeOf(t))
+	}
+	return stored
+}
+
+// climb is the climb s stores.
+func (s *storedClimb) climb() Climb {
+	c := NewClimb(s.Key, nil)
+	c.last, c.at, c.read, c.top, c.based = s.Last.reading(), s.At.time(), s.Read, s.Top, s.Based
+	c.latest, c.rise = s.Latest.time(), s.Rise
+	for _, r := range s.Resets {
+		c.resets = append(c.resets, Reset{Window: r.Window, At: r.At.time(), Before: r.Before})
+	}
+	for _, t := range s.Ended {
+		c.ended = append(c.ended, t.time())
+	}
+	return *c
+}
+
+// storedReadingOf is w as a climb's stored form holds it.
+func storedReadingOf(w quota.Window) storedReading {
+	return storedReading{
+		Key: w.Key, Label: w.Label, Utilization: w.Utilization, ResetsAt: storedTimeOf(w.ResetsAt), Status: w.Status,
+		RestartedAt: storedTimeOf(w.RestartedAt), Pace: w.Pace, AllowanceShare: w.Allowance.Share, AllowancePer: w.Allowance.Per,
+	}
+}
+
+// reading is the reading s stores.
+func (s storedReading) reading() quota.Window {
+	return quota.Window{
+		Key: s.Key, Label: s.Label, Utilization: s.Utilization, ResetsAt: s.ResetsAt.time(), Status: s.Status,
+		RestartedAt: s.RestartedAt.time(), Pace: s.Pace, Allowance: quota.Allowance{Share: s.AllowanceShare, Per: s.AllowancePer},
+	}
+}
+
+// storedTimeOf is t as a climb's stored form holds it.
+func storedTimeOf(t time.Time) storedTime {
+	return storedTime{Sec: t.Unix() - zeroUnix, Nsec: int32(t.Nanosecond())}
+}
+
+// time is the time s stores, in UTC.
+func (s storedTime) time() time.Time {
+	return time.Unix(s.Sec+zeroUnix, int64(s.Nsec)).UTC()
 }
 
 // beganAt returns the use a window first read as w on the day that starts at

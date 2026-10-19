@@ -95,10 +95,11 @@ func (r *heldRequest) calls() iter.Seq[string] {
 	}
 }
 
-// sumsSeed seeds every sum of a line, as lineSumOf has it, and of a held
-// request, as summed has it: one seed for the run, as a sum is held no longer
-// than the run, and worked out again of a request restored from its stored
-// form.
+// sumsSeed seeds every sum of a line, as lineSumOf has it, of a held
+// request, as summed has it, and of an answer a page's points hold, as its
+// summed has it: one seed for the run, as a sum is held no longer than the
+// run, and worked out again of a request or an answer restored from its
+// stored form.
 var sumsSeed = maphash.MakeSeed()
 
 // summed is a sum of all r decodes of its line, as it holds it, its spend as
