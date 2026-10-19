@@ -14,10 +14,15 @@ This page shows where to look when switchboard doesn't do what you expect, and h
   `status -r`, or press `R` on the dashboard.
 - **Not routed:** some of what Claude Code sends never reaches the router. See
   [What doesn't go through the router](how-it-works.md#what-doesnt-go-through-the-router).
-- **The ledger's digests:** the `ledger/digest-<date>.json.gz` files are safe to delete. They're
-  worked out from the day's lines, and the router writes them again on its next round, or when it
-  next starts. Until then, the dashboard reads the lines instead, which is slower but shows the
-  same.
+- **The ledger's digests:** the `ledger/digest-<date>.json.gz` and `ledger/parts-<date>.gz` files
+  are safe to delete. They're worked out from the day's lines, and the router writes them again on
+  its next round, or when it next starts. Until then, the dashboard reads the lines instead, which
+  is slower but shows the same.
+- **A session's page slow to open:** a damaged parts file whose size hasn't changed isn't noticed
+  until a page reads it. The page then rests on an older digest, or reads the session's days whole,
+  at every open, until the router writes the day again, as after a release that changes the
+  digests' form. To have it written now, delete that day's `digest-<date>.json.gz` and
+  `parts-<date>.gz`: the router writes both again on its next round.
 - **Getting round switchboard:** to start Claude Code on its own login, run
   `switchboard run --direct`, or run the real `claude` by its path. If the switchboard binary itself
   breaks, every `claude` breaks with it, until you take switchboard's directory off `PATH`.
