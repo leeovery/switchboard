@@ -182,24 +182,33 @@ func (h HeldPage) On(date string) (HeldPage, bool) {
 // TurnOf is h with the turn open was has open, as Opening and Turned have
 // it, the lines of its requests among those given, read of the ledger
 // since, taken into it, as mine has them, each decoded into its record only
-// once mine has taken it: so a page grown of a read of the ledger's tail off
-// the event loop, of a copy of the page from before its turn opened, holds
-// the turn open as the page holds it now.
+// once mine has taken it and the turn holds none of its id, as heldID has
+// it, as a read afresh gives again the lines it holds: so a page grown of a
+// read of the ledger's tail off the event loop, of a copy of the page from
+// before its turn opened, holds the turn open as the page holds it now.
 func (h HeldPage) TurnOf(was HeldPage, read ...[]ledger.Held) HeldPage {
 	h.turn = was.turn
 	if h.turn == nil {
 		return h
 	}
+	var held map[turnKey]int
 	var mine []lineRecord
 	for _, lines := range read {
 		for i := range lines {
-			if l := &lines[i].Line; h.mine(turnFactsOf(l), false) {
+			l := &lines[i].Line
+			if !h.mine(turnFactsOf(l), false) {
+				continue
+			}
+			if held == nil {
+				held = h.turn.held()
+			}
+			if !heldID(held, flightOf(l)) {
 				mine = append(mine, lineRecordOf(l))
 			}
 		}
 	}
 	if len(mine) > 0 {
-		h.turn = h.turn.with(mine)
+		h.turn = h.turn.withHeld(mine, held)
 	}
 	return h
 }
@@ -241,32 +250,53 @@ func (h HeldPage) mine(f turnFacts, early bool) bool {
 	return !early && f.prompt == h.turn.prompt
 }
 
-// with is t with the records given among its own, afresh: each of a request
+// with is t with the records given among its own, afresh, as withHeld has
+// it.
+func (t *turnLines) with(lines []lineRecord) *turnLines {
+	return t.withHeld(lines, t.held())
+}
+
+// withHeld is t with the records given among its own, afresh, held the keys
+// of t's lines, as held counts them, which it uses up: each of a request
 // with an id once, as its key knows it; one without, as often as the records
 // given hold it beyond those t holds alike, as their sums know them, so a
 // line both read and gained is held once, and one the ledger's files hold
 // twice, twice.
-func (t *turnLines) with(lines []lineRecord) *turnLines {
+func (t *turnLines) withHeld(lines []lineRecord, held map[turnKey]int) *turnLines {
 	grown := *t
 	grown.lines = slices.Clip(t.lines)
-	held := make(map[turnKey]int, len(t.lines))
-	for i := range t.lines {
-		held[turnKeyOf(&t.lines[i])]++
-	}
 	for i := range lines {
-		k := turnKeyOf(&lines[i])
-		switch {
-		case held[k] > 0 && k.request == "":
-			held[k]--
+		rec := &lines[i]
+		switch k := turnKeyOf(rec); {
+		case heldID(held, rec.flight):
 		case held[k] > 0:
+			held[k]--
 		default:
-			grown.lines = append(grown.lines, lines[i])
+			grown.lines = append(grown.lines, *rec)
 			if k.request != "" {
 				held[k]++
 			}
 		}
 	}
 	return &grown
+}
+
+// held are the keys of t's lines, as turnKeyOf has them, each counted.
+func (t *turnLines) held() map[turnKey]int {
+	held := make(map[turnKey]int, len(t.lines))
+	for i := range t.lines {
+		held[turnKeyOf(&t.lines[i])]++
+	}
+	return held
+}
+
+// heldID reports whether held, the keys of a turn's lines, as held counts
+// them, hold the line of the request that flew as f by its id, as idKey
+// keys it: a line withHeld passes over, and TurnOf never decodes. Never of
+// one without an id, whose key holds its record's sum, as turnKeyOf has it.
+func heldID(held map[turnKey]int, f flight) bool {
+	k, ok := f.idKey()
+	return ok && held[k] > 0
 }
 
 // turnKey is a line as a turn's lines know it from another: as its flight's
@@ -277,13 +307,22 @@ type turnKey struct {
 	sum uint64
 }
 
-// turnKeyOf is the turnKey of the record r.
+// turnKeyOf is the turnKey of the record r: its flight's, as idKey has it,
+// with, where it has no id, its sum.
 func turnKeyOf(r *lineRecord) turnKey {
-	k, ok := r.key()
-	if ok {
-		return turnKey{lineKey: k}
+	k, ok := r.idKey()
+	if !ok {
+		k.sum = r.summed()
 	}
-	return turnKey{lineKey: k, sum: r.summed()}
+	return k
+}
+
+// idKey is the turnKey of the line of the request that flew as f, as its
+// key has it, reporting false where it has no id, whose turnKey holds its
+// record's sum too, as turnKeyOf has it.
+func (f flight) idKey() (turnKey, bool) {
+	k, ok := f.key()
+	return turnKey{lineKey: k}, ok
 }
 
 // Opening is h with its turn numbered n open, from 1 at its first, as live
