@@ -210,14 +210,15 @@ type openedPage struct {
 // day in two, where it's held open from, its turn open, as turnToOpen
 // chooses it, read, as turnRead has it, through the Follower resting on
 // digests, which reads the turn's own days from their rows where they
-// stand, and through the one reading raw, given no rows, as rawOnly has it.
+// stand, and through the one reading raw, given no rows, every line of the
+// session, as everyLine has it.
 func (w *spread) openPage(m moment, id string) openedPage {
 	read := readingThrough(w.based)
 	o := openedPage{id: id, got: read.got, live: PageLive{Routed: Routed(m.running, id), Stream: m.stream.Of(id), Now: m.now}}
 	o.based, o.raw = ReadPage(read, id, m.stream, w.prices.read, 0, m.now), ReadPage(m.raw, id, m.stream, w.prices.read, 0, m.now)
 	if id == pageSession && m.now.Hour() == 23 && Today(m.now).Start.YearDay()%2 == 0 {
 		n := o.turnToOpen()
-		o.based, o.raw = turnRead(o.based, n, o.live, w.based), turnRead(o.raw, n, o.live, rawOnly{l: w.raw})
+		o.based, o.raw = turnRead(o.based, n, o.live, w.based), turnRead(o.raw, n, o.live, everyLine{l: w.raw})
 	}
 	return o
 }

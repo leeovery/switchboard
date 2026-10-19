@@ -21,10 +21,11 @@ import (
 // digests, which reads a day's side where its head stands, held to the same
 // walk through the one reading raw, given no side, which reads every day's
 // lines: as it's shown, what it finds of what's typed. Where a day's side
-// stands, the find never reads its lines; and today's never stands. Wherever
-// the world makes a day's head stop standing, its side is planted with a
-// session no line names, as plant has it, so a find that read that side
-// would show otherwise than one reading the day raw.
+// stands, the find never reads its lines; and today's never stands. Where a
+// head's upset, or a late line filed onto its day, makes it stop standing,
+// its side is planted with a session no line names, as plant has it, so a
+// find that read that side would show otherwise than one reading the day
+// raw.
 
 // The hard moments the find read over sides meets, each met by some spread
 // world, judged from the reads compared: a side read is met by a side read,

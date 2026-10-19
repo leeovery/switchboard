@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io/fs"
+	"iter"
 	"maps"
 	"os"
 	"reflect"
@@ -18,22 +19,23 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 )
 
-// The rows' part of the reads over digests: the Log read back at some
-// moments, as the watch reads it back, each past day as ReadDay reads it,
+// The rows' part of the reads over digests: the Log read back at half past
+// one, as the watch reads it back, each past day as ReadDay reads it,
 // through the Follower resting on digests, which reads a day's rows where
 // they stand, held to the same read over every day's lines, as Day gives
 // them: as it's shown, its table, each row's details, each day's rule and
 // totals, what each day's lines count and the days its rows await a line
-// on. A day an upset makes read raw at another moment is read back alone,
-// its records held to its lines'. And a turn of a page opened then, its
-// lines read as ReadTurn reads them through the Follower resting on digests
-// and through the one reading raw. A read from rows is told by what the
-// ledger was asked, as rowsNoted and chunksRead note it: a day read from its
-// rows alone, never its lines; a fallback to them meets no moment of rows.
-// Wherever the world makes a day's head stop standing, its rows are planted
-// with a row no line has, as plantRows has it, and a chunk upset in place
-// holds one too, so a read of rows that ignored why they don't stand would
-// show otherwise than one reading the day raw.
+// on. A day read at another moment is read back alone, its records held to
+// its lines'. And a turn of a page opened then, its lines read as ReadTurn
+// reads them through the Follower resting on digests and through one
+// reading every line of its session raw. A read from rows is told by what
+// the ledger was asked, as rowsNoted and turnReads note it: a day read from
+// its rows alone, never its lines; a fallback to them meets no moment of
+// rows. Where a head's upset, or a late line filed onto its day, makes it
+// stop standing, its rows are planted with a row no line has, as plantRows
+// has it, and a chunk spoiled in place holds one too, so a read of rows that
+// ignored why they don't stand would show otherwise than one reading the
+// day raw.
 
 // The hard moments the Log read back over rows meets, each met by some
 // spread world, judged from the reads compared: a day read from its rows
@@ -84,23 +86,29 @@ func loggedPriced(prices string) string {
 	return prices + ": a day the Log reads back from its rows holding a request priced otherwise than by the built-in table"
 }
 
-// sameLog fails the test where the Log read back at the moment m, where
-// logReadAt has it read, each past day as ReadDay reads it, shows otherwise
-// than read back over each day's lines, as Day gives them, as logBack has
-// each, through the Follower resting on digests, to the day loggedFrom
-// gives, told what logStream tells. Its store is fed alike, as the stores fed
-// through each Follower are held to each other at each moment, so the two
-// differ only by their days' reads. Each of the days daysBack gives the Log
-// didn't read is read back alone, as sameDayBack has it. It fails the test
-// too where a day's lines are read whose rows stand and every chunk of them
-// reads, or today's rows are; and notes the hard moments the reads meet.
+// sameLog fails the test where the Log read back at the moment m, at half
+// past one, each past day as ReadDay reads it, shows otherwise than read
+// back over each day's lines, as Day gives them, as logBack has each,
+// through the Follower resting on digests, told what logStream tells,
+// today's lines and the days' totals read once for both, as readOnce has
+// them. It's read back to the day two before, so a move made then shows
+// beside the request the next day that settled it, and a day whose head
+// stops standing once the next day's digest tells of a line of it is read.
+// Its store is fed alike, as the stores fed through each Follower are held
+// to each other at each moment, so the two differ only by their days'
+// reads. Each of the days daysBack gives the Log didn't read is read back
+// alone, as sameDayBack has it. It fails the test too where a day's lines
+// are read whose rows stand and hold no chunk spoiled, as stillSpoiled has
+// it, or today's rows are; and notes the hard moments the reads meet. The
+// Log is read at no other moment, as each read slows the run: what the
+// others meet, a day's reads meet alone.
 func (w *spread) sameLog(m moment) {
 	w.t.Helper()
 	var shown []any
-	if logReadAt(m.now) {
-		from, s := loggedFrom(m.now), logStream(m)
-		shown = logBack(m.logged, ReadDay, from, s, w.prices.read, m.now)
-		if want := logBack(w.based, rawDay, from, s, w.prices.read, m.now); !reflect.DeepEqual(shown, want) {
+	if m.now.Hour() == 1 {
+		from, s, once := twoBack(m.now), logStream(m), readingOnce(Today(m.now).Date)
+		shown = logBack(once.through(m.logged), ReadDay, from, s, w.prices.read, m.now)
+		if want := logBack(once.through(w.based), rawDay, from, s, w.prices.read, m.now); !reflect.DeepEqual(shown, want) {
 			w.t.Errorf("%s at %v: the Log read back to %s over rows shows otherwise than read raw\n%s", w.name, m.now, from, unlike(shown, want))
 		}
 	}
@@ -110,7 +118,7 @@ func (w *spread) sameLog(m moment) {
 		}
 	}
 	for date := range m.logged.rows {
-		if m.logged.raw[date] && !w.spoiled[date] {
+		if m.logged.raw[date] && !w.stillSpoiled(date) {
 			w.t.Errorf("%s at %v: the lines of %s were read back, its rows standing, none of them upset", w.name, m.now, date)
 		}
 	}
@@ -120,43 +128,76 @@ func (w *spread) sameLog(m moment) {
 	w.noteLogged(m, shown)
 }
 
-// logReadAt reports whether the Log is read back at now, of the moments the
-// reads are held at: a minute after midnight, the day two before's rows the
-// newest standing, the day before read raw; and half past one, the day
-// before's standing. Not at the others, as each read slows the run: the day
-// a head upset makes read raw then is read back alone, as daysBack has it,
-// and the day before a minute before midnight is read again from the same
-// rows at half past one.
-func logReadAt(now time.Time) bool {
-	return now.Hour() == 1 || rowsUpsetAt(now)
+// readOnce are today's lines and the days' summaries as the Log read back
+// both ways reads them, read once, through whichever ledger reads them
+// first, as both read them alike: each ledger read through it, as through
+// gives it, reads them so.
+type readOnce struct {
+	today string
+	lines []ledger.Held
+	read  bool
+	sums  map[string][]ledger.Summary
 }
 
-// loggedFrom is the date of the oldest day the Log is read back to at now:
-// the day before's, but past midnight the day two before's, the latest
-// whose head is built then.
-func loggedFrom(now time.Time) string {
-	if now.Hour() == 0 {
-		return twoBack(now)
+// readingOnce is readOnce of today, the local day with the given date,
+// nothing read yet.
+func readingOnce(today string) *readOnce {
+	return &readOnce{today: today, sums: make(map[string][]ledger.Summary)}
+}
+
+// through is l, but its reads of today's lines and of the days' summaries,
+// as o reads them once.
+func (o *readOnce) through(l Ledger) Ledger {
+	return onceRead{Ledger: l, o: o}
+}
+
+// onceRead is a ledger read through o, as through gives it.
+type onceRead struct {
+	Ledger
+	o *readOnce
+}
+
+func (r onceRead) Day(date string) []ledger.Held {
+	if date != r.o.today {
+		return r.Ledger.Day(date)
 	}
-	return yesterdayOf(Today(now))
+	if !r.o.read {
+		r.o.lines, r.o.read = r.Ledger.Day(date), true
+	}
+	return r.o.lines
+}
+
+func (r onceRead) DaysOn(dates []string) []ledger.Summary {
+	key := fmt.Sprint(dates)
+	sums, ok := r.o.sums[key]
+	if !ok {
+		sums = r.Ledger.DaysOn(dates)
+		r.o.sums[key] = sums
+	}
+	return sums
 }
 
 // daysBack are the dates of the days read back alone at now, as sameDayBack
-// reads them, where the Log doesn't read them: the day two before's where
-// its head is upset then, as headsUpsetAt has it; and each a late line was
-// filed onto, read from its lines for it, its rows yet to be read again, as
-// relogged holds them.
+// reads them, where the Log doesn't read them, in order: a minute after
+// midnight, the day two before's, the latest whose head is built, its rows
+// upset then, as rowsUpsetAt has it, and the day before's, its head yet to
+// be built; a minute before one, the day two before's, its head or lines
+// upset then, as headsUpsetAt has it, and the day whose head was, as
+// headMade has it; and each a late line was filed onto, read from its lines
+// for it, its rows yet to be read again, as relogged holds them.
 func (w *spread) daysBack(now time.Time) []string {
-	var dates []string
-	if headsUpsetAt(now) {
+	dates := slices.Collect(maps.Keys(w.relogged))
+	switch {
+	case rowsUpsetAt(now):
+		dates = append(dates, twoBack(now), yesterdayOf(Today(now)))
+	case headsUpsetAt(now):
 		dates = append(dates, twoBack(now))
-	}
-	for _, date := range slices.Sorted(maps.Keys(w.relogged)) {
-		if !slices.Contains(dates, date) {
-			dates = append(dates, date)
+		if w.headMade != nil {
+			dates = append(dates, w.headMade.date)
 		}
 	}
-	return dates
+	slices.Sort(dates)
+	return slices.Compact(dates)
 }
 
 // sameDayBack fails the test where the day with the given date, read back at
@@ -203,12 +244,14 @@ func logStream(m moment) Stream {
 // as m.logged noted their reads, shown what the Log showed then, as logBack
 // has it, none where it wasn't read: the days read from their rows alone, a
 // day a late line was filed onto read from its lines at an earlier moment
-// among them, and, of those the Log read, the day before's at half past one,
-// and those holding what the world and the Log's stream give the moments
-// of; and the days read from their lines, the day before's past midnight,
-// its head yet to be built, and those whose heads are built, by why they
-// don't stand, as unstood has it, a late line's day held to be read from
-// its rows again, as relogged holds it.
+// among them, and, of those the Log read, as far back as the day two
+// before, those holding what the world and the Log's stream give the
+// moments of, as noteShown has them; and the days read from their lines,
+// the day before's past midnight, its head yet to be built, and those whose
+// heads are built, by why they don't stand, as unstood has it, where the
+// find read their lines too, so it's the head that doesn't stand, not the
+// rows an upset of them spoiled, a late line's day held to be read from its
+// rows again, as relogged holds it.
 func (w *spread) noteLogged(m moment, shown []any) {
 	yesterday := yesterdayOf(Today(m.now))
 	for date := range m.logged.rows {
@@ -218,7 +261,7 @@ func (w *spread) noteLogged(m moment, shown []any) {
 		w.met[loggedFromRows] = true
 		w.met[loggedRebuilt] = w.met[loggedRebuilt] || w.relogged[date]
 		delete(w.relogged, date)
-		if shown != nil {
+		if shown != nil && date >= twoBack(m.now) {
 			w.noteShown(m, date, shown)
 		}
 	}
@@ -226,7 +269,7 @@ func (w *spread) noteLogged(m moment, shown []any) {
 		if m.logged.rows[date] {
 			continue
 		}
-		if why := w.unstood(date); len(why) == 1 && loggedAs[why[0]] != "" {
+		if why := w.unstood(date); len(why) == 1 && loggedAs[why[0]] != "" && m.found.raw[date] {
 			w.met[loggedAs[why[0]]] = true
 			w.relogged[date] = w.relogged[date] || why[0] == foundLate
 		}
@@ -234,12 +277,13 @@ func (w *spread) noteLogged(m moment, shown []any) {
 	}
 }
 
-// noteShown notes the hard moments the Log read back at the moment m, as
-// shown has what it showed, meets of the day with the given date it read
-// from its rows alone: the day before's at half past one; a request in
+// noteShown notes the hard moments the Log read back at the moment m, at
+// half past one, as shown has what it showed, meets of the day with the
+// given date it read from its rows alone: the day before's; a request in
 // flight across midnight from it, a line awaited on it, as the Log's stream
-// tells; a move made on it settled after midnight; and what the world's
-// lines on it hold, as givenOn and repricedOn have them.
+// tells; a move made on it settled after midnight, as settledAcross has
+// it; and what the world's lines on it hold, as givenOn and repricedOn have
+// them.
 func (w *spread) noteShown(m moment, date string, shown []any) {
 	idless, idlessTwice, idTwice := w.givenOn(date, m.now)
 	awaited := shown[len(shown)-1].([]string)
@@ -247,7 +291,7 @@ func (w *spread) noteShown(m moment, date string, shown []any) {
 		name string
 		met  bool
 	}{
-		{name: loggedYesterdayRows, met: date == yesterdayOf(Today(m.now)) && m.now.Hour() == 1},
+		{name: loggedYesterdayRows, met: date == yesterdayOf(Today(m.now))},
 		{name: loggedInFlight, met: slices.Contains(awaited, date) && placedAcross(m, shown, date)},
 		{name: loggedSettledAfter, met: settledAcross(shown, date)},
 		{name: loggedIdless, met: idless},
@@ -290,19 +334,36 @@ func rowsShown(shown []any) []RequestRow {
 
 // settledAcross reports whether a row the Log shows, as logBack has it, of a
 // request that arrived on the day with the given date tells its session's
-// move, settled, as its routing tells the context written again, by a
-// request of the same session and model the Log shows arrived on a later
-// day: so the move is told live, as no row holds its story.
+// move, not settled by itself, as it didn't write the context again, but
+// after midnight, as settledLater has it: so the move is told live, as no
+// row holds its story.
 func settledAcross(shown []any, date string) bool {
 	rows := rowsShown(shown)
-	return slices.ContainsFunc(rows, func(moved RequestRow) bool {
-		if Today(moved.At).Date != date || moved.Routing.From == "" || !moved.Routing.Rewrote {
-			return false
+	slices.SortStableFunc(rows, func(a, b RequestRow) int { return a.At.Compare(b.At) })
+	for i, moved := range rows {
+		if Today(moved.At).Date == date && moved.Routing.From != "" && !moved.Rewrote && settledLater(moved, rows[i+1:]) {
+			return true
 		}
-		return slices.ContainsFunc(rows, func(r RequestRow) bool {
-			return r.Rewrote && r.Session == moved.Session && r.Model == moved.Model && Today(r.At).Date > date
-		})
-	})
+	}
+	return false
+}
+
+// settledLater reports whether the move moved made was settled on a later
+// day than it was made on, as later, the rows after it, oldest first, tell:
+// none of its session and model followed it that day, and the first of
+// theirs after it that settles a move, writing the context again or making
+// one of its own, is among them.
+func settledLater(moved RequestRow, later []RequestRow) bool {
+	for _, r := range later {
+		switch {
+		case r.Session != moved.Session || r.Model != moved.Model:
+		case Today(r.At).Date == Today(moved.At).Date:
+			return false
+		case r.Rewrote || r.Routing.From != "":
+			return true
+		}
+	}
+	return false
 }
 
 // givenOn reports, of the lines filed under the local day with the given
@@ -345,15 +406,15 @@ func (w *spread) repricedOn(date string, now time.Time) bool {
 const (
 	rowsDamaged = "a chunk of a day's rows damaged, its file as long, the Log reading the whole day back from its lines, the find its side"
 	rowsGone    = "a day's rows file gone, its head standing, the Log reading the day back from its lines, the find its side"
-	rowsLeft    = "a day's head left beside rows a build that stopped before its head wrote, the Log reading the day back from its lines, the find its side"
+	rowsLonger  = "a day's head beside a rows file longer than it records, every chunk it points at whole, the Log reading the day back from its lines, the find its side"
 )
 
 // rowsUpsets are the upsets of a day's rows a spread world's files take,
-// each in turn, as upsetRows has them.
+// each in turn, as upset has them.
 var rowsUpsets = []upsetting{
 	{moment: rowsDamaged, upset: rowsSpoiled((*spread).spoilChunk, (*rowsNoted).wholeRaw)},
 	{moment: rowsGone, upset: rowsSpoiled((*spread).loseRows, (*rowsNoted).rowsAside)},
-	{moment: rowsLeft, upset: rowsSpoiled((*spread).leaveRows, (*rowsNoted).rowsAside)},
+	{moment: rowsLonger, upset: rowsSpoiled((*spread).lengthenRows, (*rowsNoted).rowsAside)},
 }
 
 // rowsUpsetAt reports whether a day's rows are upset at now, of the moments
@@ -361,15 +422,6 @@ var rowsUpsets = []upsetting{
 // head is the latest built, and no other head is upset.
 func rowsUpsetAt(now time.Time) bool {
 	return now.Hour() == 0 && now.Minute() < 30
-}
-
-// upsetRows has the next of rowsUpsets, in turn from the one the world's
-// seed gives, upset a day's rows at now, holding the upset made to judge, as
-// judgeUpset judges it, where the world lets it make it.
-func (w *spread) upsetRows(now time.Time) {
-	u := rowsUpsets[(w.rowsUpsets+int(w.seed))%len(rowsUpsets)]
-	w.rowsUpsets++
-	w.rowsMade = u.made(w, now)
 }
 
 // rowsSpoiled is the upset spoiling, as spoil spoils them, the rows of the
@@ -407,7 +459,8 @@ func (r *rowsNoted) rowsAside(date string) bool {
 // as long, as many rows in it: its first a row no line has, as plantedRecord
 // has it. So it doesn't read, by its CRC, and the day's rows file is as long
 // as its head records, so its day isn't built again; and a read of it that
-// passed over its CRC would show that row.
+// passed over its CRC would show that row. It holds where the member lies,
+// and its CRC, as spoiled, for stillSpoiled.
 func (w *spread) spoilChunk(date string, rows ledger.DayRows) {
 	w.t.Helper()
 	file := w.rowsFile(date)
@@ -421,7 +474,23 @@ func (w *spread) spoilChunk(date string, rows ledger.DayRows) {
 	}
 	copy(file[c.Offset:], member)
 	w.writeRowsFile(date, file)
-	w.spoiled[date] = true
+	w.spoiled[date] = ledger.Member{Offset: c.Offset, Length: c.Length, CRC: crc32.ChecksumIEEE(member)}
+}
+
+// stillSpoiled reports whether the rows file of the local day with the given
+// date holds the member spoilChunk spoiled where it put it, forgetting it
+// once it doesn't, as the day's rows are built again.
+func (w *spread) stillSpoiled(date string) bool {
+	m, ok := w.spoiled[date]
+	if !ok {
+		return false
+	}
+	file, err := os.ReadFile(w.rowsPath(date))
+	if err == nil && int64(len(file)) >= m.Offset+m.Length && crc32.ChecksumIEEE(file[m.Offset:m.Offset+m.Length]) == m.CRC {
+		return true
+	}
+	delete(w.spoiled, date)
+	return false
 }
 
 // loseRows removes the rows file of the local day with the given date, its
@@ -430,13 +499,15 @@ func (w *spread) loseRows(date string, _ ledger.DayRows) {
 	w.removeRows(date)
 }
 
-// leaveRows has the rows file of the local day with the given date hold the
-// rows of the day and one more after them, as a build of the day that
-// stopped between writing them and its head leaves them, its head as it
-// was: the row no line has, as plantedChunk has it, in a member of its own.
-func (w *spread) leaveRows(date string, rows ledger.DayRows) {
-	w.planted++
-	w.rowsAppended(date, w.plantedChunk(date, rows.Chunks[0].Member))
+// lengthenRows has the rows file of the local day with the given date hold
+// its first chunk's member again after the rest, its head as it was. Every
+// chunk its head points at still reads, by its CRC, and a read of them
+// would show what the day's lines do: what's held is that the head's
+// record of the file's size alone has the rows not stand.
+func (w *spread) lengthenRows(date string, rows ledger.DayRows) {
+	file := w.rowsFile(date)
+	m := rows.Chunks[0].Member
+	w.writeRowsFile(date, slices.Concat(file, file[m.Offset:m.Offset+m.Length]))
 }
 
 // plantRows has the rows of the head the ledger holds of the local day with
@@ -596,12 +667,12 @@ func memberAt(content []byte, level int, extra []byte) []byte {
 // turnShape is a hard moment of a turn of a page opened, read over rows,
 // judged from the reads compared: a chunk of the rows of a day of the turn's
 // own read, before today. A turn is of its shape where is reports so, of
-// the turn t of the page of the session with the given id, as it's read raw
-// at the moment m; and, where pends is set, once a request of it the stream
-// tells of is in flight, as pendingOf has it.
+// the turn t of the page o, as it's read raw at the moment m; and, where
+// pends is set, once a request of it the stream tells of is in flight, as
+// pendingOf has it.
 type turnShape struct {
 	moment string
-	is     func(w *spread, m moment, id string, t *turnTally) bool
+	is     func(w *spread, m moment, o openedPage, t *turnTally) bool
 	pends  bool
 }
 
@@ -609,29 +680,37 @@ type turnShape struct {
 // moment's.
 var turnShapes = []turnShape{
 	{
-		moment: "a turn begun on a day before today and ended on the next, its first day's rows read",
-		is: func(_ *spread, m moment, _ string, t *turnTally) bool {
+		moment: "a turn begun on a day before today and ended on the next, a day of its own before today read from its rows",
+		is: func(_ *spread, m moment, _ openedPage, t *turnTally) bool {
 			first := Today(t.started).Date
 			return !t.pending && !t.last.end.IsZero() && first < Today(t.last.end).Date && first < Today(m.now).Date
 		},
 	},
 	{
-		moment: "a turn a subagent of was first seen on a day of, running on into a later one, the first day's rows read",
-		is: func(w *spread, m moment, id string, t *turnTally) bool {
-			return Today(t.started).Date < Today(m.now).Date && w.agentOn(id, t.prompt, m.now)
+		moment: "a turn a subagent of was first seen on a day of, running on into a later one, a day of its own before today read from its rows",
+		is: func(w *spread, m moment, o openedPage, t *turnTally) bool {
+			return Today(t.started).Date < Today(m.now).Date && w.agentOn(o.id, t.prompt, m.now)
 		},
 	},
 	{
-		moment: "a turn still pending, begun on a day before today, that day's rows read",
-		is: func(_ *spread, m moment, _ string, t *turnTally) bool {
+		moment: "a turn still pending, begun on a day before today, a day of its own before today read from its rows",
+		is: func(_ *spread, m moment, _ openedPage, t *turnTally) bool {
 			return !t.pending && Today(t.started).Date < Today(m.now).Date
 		},
 		pends: true,
 	},
 	{
-		moment: "a turn of days back, a day or more between it and today, its session's lines since its horizon read too, its own days' rows read",
-		is: func(w *spread, m moment, id string, t *turnTally) bool {
-			return !t.pending && !t.last.end.IsZero() && Today(t.last.end).Date < yesterdayOf(Today(m.now)) && w.sinceHorizon(id, m.now)
+		moment: "a turn of days back, a day or more between it and today, its session's lines since its horizon read too, a day of its own read from its rows",
+		is: func(w *spread, m moment, o openedPage, t *turnTally) bool {
+			return !t.pending && !t.last.end.IsZero() && Today(t.last.end).Date < yesterdayOf(Today(m.now)) && w.sinceHorizon(o.id, m.now)
+		},
+	},
+	{
+		moment: "a turn whose requests arrived on two days, its page resting on the later's state or after, so its read reads that day's lines, a day of its own read from its rows",
+		is: func(w *spread, m moment, o openedPage, t *turnTally) bool {
+			from, rested := o.got.restedPage(o.id)
+			last := w.lastArrived(o.id, t.prompt, m.now)
+			return !t.pending && rested && Today(t.started).Date < last && last <= from.Base.Date
 		},
 	},
 }
@@ -667,6 +746,19 @@ func (w *spread) agentOn(id, prompt string, now time.Time) bool {
 	return false
 }
 
+// lastArrived is the date of the local day the last request of the session
+// with the given id, in the turn serving the given prompt, arrived on, of
+// those arrived by now: "" where none did.
+func (w *spread) lastArrived(id, prompt string, now time.Time) string {
+	last := ""
+	for _, l := range w.arrivedBy(id, now) {
+		if l.Prompt == prompt && isRequest(&l) {
+			last = max(last, Today(l.At).Date)
+		}
+	}
+	return last
+}
+
 // sinceHorizon reports whether a line of the session with the given id
 // arrived within the hour before now, the horizon a page opened then is
 // held open from.
@@ -674,34 +766,30 @@ func (w *spread) sinceHorizon(id string, now time.Time) bool {
 	return slices.ContainsFunc(w.arrivedBy(id, now), func(l ledger.Line) bool { return l.At.After(now.Add(-time.Hour)) })
 }
 
-// chunksRead is a ledger as a turn's lines are read through it, noting the
-// dates of the days a chunk of whose rows RowChunk gave, read.
-type chunksRead struct {
-	Ledger
-	read, failed map[string]bool
-}
-
-// readingChunks is l read as chunksRead notes it, nothing read yet.
-func readingChunks(l Ledger) *chunksRead {
-	return &chunksRead{Ledger: l, read: make(map[string]bool), failed: make(map[string]bool)}
-}
-
-func (r *chunksRead) RowChunk(date string, chunk ledger.RowsChunk) ([]byte, error) {
-	rows, err := r.Ledger.RowChunk(date, chunk)
-	r.read[date], r.failed[date] = true, r.failed[date] || err != nil
-	return rows, err
-}
-
-// fromRows are the dates of the days chunks of whose rows were read, every
-// one of them read, so none of the day was read from its lines for them.
-func (r *chunksRead) fromRows() []string {
+// daysFromRows are the dates of the days a turn's read, as r notes it, read
+// from their rows: chunks of them read, and none of the spans its session's
+// lines were read within meeting the day.
+func daysFromRows(r *turnReads) []string {
 	var dates []string
-	for date := range r.read {
-		if !r.failed[date] {
+	for date := range r.chunks {
+		if !r.rawMeets(date) {
 			dates = append(dates, date)
 		}
 	}
 	return dates
+}
+
+// everyLine reads through l as a Follower of a ledger holding no day's rows
+// does, but a session's every line, whatever spans it's asked for: so a turn
+// read through it is held to all its session's lines, not those of the
+// spans its read works out, as rawOnly reads them.
+type everyLine struct {
+	noRows
+	l LedgerSession
+}
+
+func (e everyLine) Session(id string, _ ...ledger.Span) iter.Seq[ledger.Held] {
+	return e.l.Session(id)
 }
 
 // checkTurns holds a turn of a page opened at the moment m, read over rows,
@@ -733,7 +821,7 @@ func (w *spread) checkTurns(m moment, pages map[string]openedPage) {
 func (w *spread) turnOf(m moment, o openedPage, shape turnShape) (openedPage, int, *turnTally, bool) {
 	turns := o.raw.worked(o.live).tally.turns
 	i := len(turns) - 1
-	for i >= 0 && !shape.is(w, m, o.id, turns[i]) {
+	for i >= 0 && !shape.is(w, m, o, turns[i]) {
 		i--
 	}
 	if i < 0 {
@@ -768,18 +856,19 @@ func (w *spread) pendingOf(m moment, o openedPage, prompt string) openedPage {
 // sameTurn fails the test where the page o, opened at the moment m, its turn
 // numbered n, t as read raw, open, shows otherwise over rows than read raw,
 // as turnRead reads its lines through the Follower resting on digests and
-// through the one reading raw, given no rows, as rawOnly has it. It reports
-// whether a day of the turn's own, before today, was read from its rows, as
-// chunksRead notes it: from the day arrivesWithin before it began through
-// the one its last request ended on, or today while it's pending.
+// through the one reading raw, given no rows, every line of the session, as
+// everyLine has it. It reports whether a day of the turn's own, before
+// today, was read from its rows, as daysFromRows has it: from the day
+// arrivesWithin before it began through the one its last request ended on,
+// or today while it's pending.
 func (w *spread) sameTurn(m moment, o openedPage, n int, t *turnTally) bool {
 	w.t.Helper()
-	noted := readingChunks(w.based)
-	based, raw := turnRead(o.based, n, o.live, noted), turnRead(o.raw, n, o.live, rawOnly{l: w.raw})
+	noted := readingTurn(w.based)
+	based, raw := turnRead(o.based, n, o.live, noted), turnRead(o.raw, n, o.live, everyLine{l: w.raw})
 	w.alike(m.now, fmt.Sprintf("%s's page, its turn %d open", o.id, n), shownPageOf(based, o.live), shownPageOf(raw, o.live))
 	from, through, today := Today(t.started.Add(-arrivesWithin)).Date, Today(m.now).Date, Today(m.now).Date
 	if !t.pending {
 		through = Today(t.last.end).Date
 	}
-	return slices.ContainsFunc(noted.fromRows(), func(date string) bool { return from <= date && date <= through && date < today })
+	return slices.ContainsFunc(daysFromRows(noted), func(date string) bool { return from <= date && date <= through && date < today })
 }
