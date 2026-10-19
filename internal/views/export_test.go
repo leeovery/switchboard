@@ -9,6 +9,11 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
+// ChunkVersion is the version of the days' rows the golden of a chunk of a
+// day's rows is kept of, for the package's tests outside it too: the first
+// version of a day's head to hold its rows.
+const ChunkVersion = 2
+
 // TakenFacts are an event's facts as eventFacts work them out, for the
 // package's tests outside it, which the shared hard moments' package, itself
 // importing views, keeps out of the package.

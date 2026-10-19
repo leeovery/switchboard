@@ -1,0 +1,236 @@
+{
+  "rows": [
+    {
+      "r": "r1",
+      "a": {
+        "s": 1791450000,
+        "n": 123456789
+      },
+      "e": {
+        "s": 1791450011,
+        "n": 923456789
+      },
+      "d": "/code/app",
+      "m": "claude-opus-5-5",
+      "ac": "side",
+      "rs": "moved: work hit its limit",
+      "f": "work",
+      "c": "subagent",
+      "ag": "a1",
+      "g": "us",
+      "p": "p1",
+      "st": "tool_use",
+      "tl": [
+        "Read",
+        "Edit"
+      ],
+      "u": true,
+      "t": [
+        {
+          "a": "work",
+          "w": "hit its limit"
+        }
+      ],
+      "sp": {
+        "i": 10,
+        "5m": 120,
+        "1h": 3000,
+        "r": 90000,
+        "o": 300,
+        "s": 2,
+        "w": 3120,
+        "b": 3120,
+        "d": true,
+        "c": true
+      },
+      "s": "s",
+      "cs": "s",
+      "sc": 200,
+      "at": 2,
+      "fm": 800,
+      "tm": 11800,
+      "sz": 482000,
+      "ms": 12,
+      "sy": 3,
+      "td": 9,
+      "mx": 32000,
+      "th": 16000,
+      "ef": "high",
+      "sm": true,
+      "ua": "claude-cli/2.1.300",
+      "b": [
+        "claude-code-20250219",
+        "context-1m"
+      ],
+      "id": "msg_01",
+      "sv": "claude-opus-5-5",
+      "bk": [
+        {
+          "k": "thinking",
+          "n": 1
+        },
+        {
+          "k": "text",
+          "n": 1
+        },
+        {
+          "k": "tool_use",
+          "n": 2
+        }
+      ],
+      "w": [
+        {
+          "k": "5h",
+          "s": "allowed_warning",
+          "u": 0.92,
+          "r": 1791378000
+        },
+        {
+          "k": "7d",
+          "u": 0.4
+        }
+      ],
+      "l": "allowed_warning"
+    },
+    {
+      "r": "r2",
+      "a": {
+        "s": 1791450060
+      },
+      "e": {
+        "s": 1791450060,
+        "n": 300000000
+      },
+      "m": "claude-haiku-4-5",
+      "ac": "side",
+      "rs": "sticky",
+      "sp": {
+        "i": 8,
+        "o": 1,
+        "d": true,
+        "c": true,
+        "q": true
+      },
+      "k": "check",
+      "s": "s",
+      "sc": 200,
+      "at": 1,
+      "tm": 300
+    },
+    {
+      "r": "r3",
+      "a": {
+        "s": 1791450120
+      },
+      "e": {
+        "s": 1791450120,
+        "n": 90000000
+      },
+      "m": "claude-opus-5-5",
+      "ac": "side",
+      "rs": "sticky",
+      "k": "count",
+      "s": "s",
+      "cs": "s",
+      "sc": 200,
+      "at": 1,
+      "tm": 90
+    },
+    {
+      "a": {
+        "s": 1791457200
+      },
+      "e": {
+        "s": 1791457204
+      },
+      "m": "claude-sonnet-5-5",
+      "ac": "work",
+      "rs": "new",
+      "c": "main",
+      "u": true,
+      "sp": {
+        "n": true
+      },
+      "s": "o",
+      "cs": "o",
+      "co": true,
+      "at": 1,
+      "tm": 4000
+    },
+    {
+      "r": "o2",
+      "a": {
+        "s": 1791457500
+      },
+      "e": {
+        "s": 1791457509
+      },
+      "m": "claude-unknown-1",
+      "ac": "work",
+      "rs": "sticky",
+      "c": "main",
+      "u": true,
+      "sp": {
+        "5m": 40,
+        "1h": 60,
+        "r": 40,
+        "o": 10,
+        "u": [
+          "Input_Tokens",
+          "cache_creation.unknown",
+          "cache_creation_input_tokens",
+          "server_tool_use.code_execution_requests"
+        ],
+        "w": 100,
+        "b": 60,
+        "d": true,
+        "c": true,
+        "x": {
+          "i": 12,
+          "o": 10,
+          "r": 40,
+          "w": 100,
+          "b": {
+            "1h": 60,
+            "u": [
+              "cache_creation_input_tokens"
+            ]
+          }
+        }
+      },
+      "s": "o",
+      "cs": "o",
+      "sc": 529,
+      "cn": true,
+      "at": 3,
+      "tm": 9000
+    }
+  ],
+  "meta": {
+    "f": {
+      "s": 1791450000,
+      "n": 123456789
+    },
+    "l": {
+      "s": 1791457500
+    },
+    "rq": 3,
+    "ck": 1,
+    "cn": 1,
+    "x": 2,
+    "m": {
+      "claude-haiku-4-5": 1,
+      "claude-opus-5-5": 2,
+      "claude-sonnet-5-5": 1,
+      "claude-unknown-1": 1
+    },
+    "a": {
+      "side": 3,
+      "work": 2
+    },
+    "s": {
+      "o": 2,
+      "s": 2
+    }
+  }
+}

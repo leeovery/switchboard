@@ -191,6 +191,20 @@ func (c LogCount) HiddenBy() []RowKind {
 
 // add counts the row r, the filter hiding it as given.
 func (c *LogCount) add(r *RequestRow, hid hidden) {
+	c.count(r)
+	switch hid {
+	case notHidden:
+		c.Shown++
+	case hiddenKind:
+		c.byKind[r.Kind]++
+	case hiddenChosen:
+		c.chosen++
+	}
+}
+
+// count counts the row r as its day's lines count whatever the filter: by
+// what it asked, whether it failed, and by its model, account and session.
+func (c *LogCount) count(r *RequestRow) {
 	switch r.Kind {
 	case RowCheck:
 		c.Checks++
@@ -203,14 +217,6 @@ func (c *LogCount) add(r *RequestRow, hid hidden) {
 		c.Failed++
 	}
 	c.Models, c.Accounts, c.Sessions = tally(c.Models, r.Model), tally(c.Accounts, r.Account), tally(c.Sessions, r.CountedSession)
-	switch hid {
-	case notHidden:
-		c.Shown++
-	case hiddenKind:
-		c.byKind[r.Kind]++
-	case hiddenChosen:
-		c.chosen++
-	}
 }
 
 // cloned is c, counting as it does, for what counts on to change, sharing
