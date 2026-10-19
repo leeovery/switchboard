@@ -3477,17 +3477,17 @@ keeps, each past day's sessions read from the side its head holds where it stand
 only where none does (see Live updates); `↑↓` and `enter` pick among the sessions it matches, and
 `enter` filters both tables to the one picked, its lines alone, headed `only <id> <name>`, paused
 at its newest line where it has ended, the panel listing it among today's sessions, ticked; `esc`
-cancels the find, and with a filter on and nothing open, `esc` clears the filter (the owner's call, 13 October 2026; see The
-request ledger); `p` opens
-new sessions' routing picker, whatever line is chosen, as the page decides which picker (see Routing
-by hand); `?` help for this page, `HELP · LOG`, listing every key first, `t`, `R` and `j`/`k` among
-them, then explaining the marks, the columns, the kinds, why checks and counts are hidden, worth at
-API prices and what the ledger never keeps (settled in the plan); `q` quits. `j` `k`, PgUp, PgDn and
-the wheel scroll the table; `R` and `t` work as on every page, and aren't listed. A click on a
-sub-tab shows it, on a line chooses it, and on the line chosen opens its details; on `▼ N new` it
-follows again; on the panel's ticks it ticks; and the wheel scrolls (settled in the plan). Each key
-line has each key bold `accent.key` and its word in `text.muted`, three spaces after `tab views`,
-then four after a group and two within one:
+cancels the find, and with a filter on and nothing open, `esc` clears the filter (the owner's call,
+13 October 2026; see The request ledger); `p` opens new sessions' routing picker, whatever line is
+chosen, as the page decides which picker (see Routing by hand); `?` help for this page,
+`HELP · LOG`, listing every key first, `t`, `R` and `j`/`k` among them, then explaining the marks, the
+columns, the kinds, why checks and counts are hidden, worth at API prices and what the ledger never
+keeps (settled in the plan); `q` quits. `j` `k`, PgUp, PgDn and the wheel scroll the table; `R` and
+`t` work as on every page, and aren't listed. A click on a sub-tab shows it, on a line chooses it,
+and on the line chosen opens its details; on `▼ N new` it follows again; on the panel's ticks it
+ticks; and the wheel scrolls (settled in the plan). Each key line has each key bold `accent.key` and
+its word in `text.muted`, three spaces after `tab views`, then four after a group and two within
+one:
 
 - Requests:
 
@@ -3853,10 +3853,11 @@ moving down.
   that day's end and its parts of each day, the days after read raw (see Live updates). A turn
   opened reads its requests' lines of its own days alone, and the horizon's, never the days
   between (see Live updates). Of a line, the page uses `at`, `model`, `account`, `status`,
-  `first_ms` and `total_ms` for a request's row; `usage` for `read`, `written` and `out`, the five-minute and the hour writes priced apart,
-  its input only in worth; `answer`'s `stop` and `tools`; `reason`, `from` and `tried`, for a move
-  and why, in the views' words (see The router's events); `limits`, for the ≈ points, every
-  session's lines of its accounts among them; and `dir`, for the heading.
+  `first_ms` and `total_ms` for a request's row; `usage` for `read`, `written` and `out`, the
+  five-minute and the hour writes priced apart, its input only in worth; `answer`'s `stop` and
+  `tools`; `reason`, `from` and `tried`, for a move and why, in the views' words (see The router's
+  events); `limits`, for the ≈ points, every session's lines of its accounts among them; and `dir`,
+  for the heading.
 - **What's in flight** has no line yet, as a line is written when its request ends: the request
   stream gives it, and with it `↑ asking` or `↓ answering`, as the Overview's SESSIONS reads them.
   The page joins the stream while it shows (see Live updates). Within the motion budget (see What
@@ -5232,12 +5233,13 @@ from the first day a router that has it runs, so nothing before then is in it.
     safe.
   - **Who writes it, and when:** the router's digesting, in each pass, after the digests: each
     finished day with lines whose head is due, from yesterday back, newest first, so yesterday's
-    stands within a second of its digest, paced as digests are, pausing after each build as long as
+    stands a second or two after its digest, paced as digests are, pausing after each build as long as
     it took, and stopped as the router stops. A head is due where none reads, of these versions,
     or it no longer stands; one current but not alone is built again once each time a digest
     beside its day changes, not at every pass. A build that fails is warned of once, until the day's
-    built. After the upgrade that brings heads in, every day kept is given one, newest first, the
-    find reading each day's lines until its head stands.
+    built. After the upgrade that brings heads in, every day kept is given one, newest first, once
+    the digests' own backfill is through, as a pass builds every digest due before any head; the
+    find reads each day's lines until its head stands.
   - **Kept as long as the day's lines,** and pruned with them, as the day's digest and parts file
     are: no keep of its own (the owner's call, 19 October 2026).
   - **What it costs:** a raw read of each finished day, as `Day` reads it, measured on the soak's
@@ -5782,9 +5784,10 @@ hiding it behind the provider would take a wider interface than it's worth:
   was last modified, a second later for each version of the summaries past the first, which a round
   checks before it reads it, or counts the day's lines (see The request ledger). A day's digest is
   written whole, as a summary is, written again while it's due, and removed once its day's lines are
-  gone; its parts file is written whole the same way, just before it, and removed with it; any of
-  either can be deleted, as the router writes them again (see The request ledger). The router leaves
-  anything else in the directory alone.
+  gone; its parts file is written whole the same way, just before it, and removed with it; and its
+  head, `logday-<local date>.json.gz`, is written whole the same way after them, and removed with
+  them; any of them can be deleted, as the router writes them again (see The request ledger). The
+  router leaves anything else in the directory alone.
 - **Events:** `<state dir>/ledger/events-<local date>.jsonl`, the router's events, kept across
   restarts, a file a day beside the request ledger's, and kept as long: see The router's events.
 - **Preferences:** `<state dir>/prefs.json`: the dashboard's theme or pair of themes, and what its

@@ -25,9 +25,12 @@ This page shows where to look when switchboard doesn't do what you expect, and h
   `parts-<date>.gz`: the router writes both again on its next round.
 - **The Log's find slow to go back:** the find reads each past day's head, and a day's lines only
   where its head isn't written yet. After the upgrade that brings heads in, the router writes one
-  for every day kept, yesterday's first, under a second of work a day; until it reaches a day, the
-  find reads that day's lines, half a second or more. Yesterday's head is written about an hour
-  after midnight, with its digest.
+  for every day kept, yesterday's first, under a second of work a day, once it has written every
+  digest due, which on a long ledger takes some minutes; until it reaches a day, the find reads
+  that day's lines, half a second or more. Yesterday's head is written about an hour after
+  midnight, just after its digest. A head damaged where its size hasn't changed is never written
+  again on its own, and the find reads that day's lines at every walk: delete that day's
+  `logday-<date>.json.gz`, and the router writes it again on its next round.
 - **Getting round switchboard:** to start Claude Code on its own login, run
   `switchboard run --direct`, or run the real `claude` by its path. If the switchboard binary itself
   breaks, every `claude` breaks with it, until you take switchboard's directory off `PATH`.
