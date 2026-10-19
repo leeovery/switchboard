@@ -148,8 +148,10 @@ type storedEnd struct {
 
 // storedTimes are when requests went upstream, oldest first, as a page's
 // part holds them: as nanoseconds since the epoch, the first whole and each
-// after as how many after the one before, while its tally holds them as
-// nanoseconds, as upstreamTimes has it; else each as an instant.
+// after as how many after the one before, where every one of them falls in
+// the years those hold, as upstreamTimes has it, however its tally holds
+// those before them; else each as an instant. So a part is put alike of a
+// tally holding every time and of one counting those before it unheld.
 type storedTimes struct {
 	Nanos []int64         `json:"n,omitempty"`
 	Far   []storedInstant `json:"f,omitempty"`
@@ -254,11 +256,11 @@ func (p *pageTally) partOver(base *pageTally) storedPart {
 
 // pageOf is the page st carries, as its stored form put it, restored with
 // parts, the parts of the folds of the states it was folded on, oldest
-// first, from one folded on none, each as partOver put it, as storedPage's
-// restored has it. It's refused where st carries no page, as a session's
-// state whose page was left out, or its page or a part won't read, or won't
-// restore.
-func (st *storedSession) pageOf(parts []json.RawMessage) (*pageTally, error) {
+// first, from one folded on none, each as partOver put it, read as read has
+// it, their times with them where times says, as storedPage's restored has
+// it. It's refused where st carries no page, as a session's state whose page
+// was left out, or its page or a part won't read, or won't restore.
+func (st *storedSession) pageOf(parts []json.RawMessage, times bool) (*pageTally, error) {
 	if st.Page == nil {
 		return nil, fmt.Errorf("restore the page of a session of %s: none stored", st.Date)
 	}
@@ -268,22 +270,41 @@ func (st *storedSession) pageOf(parts []json.RawMessage) (*pageTally, error) {
 	}
 	chain := make([]storedPart, len(parts))
 	for i, part := range parts {
-		if err := json.Unmarshal(part, &chain[i]); err != nil {
+		if err := chain[i].read(part, times); err != nil {
 			return nil, fmt.Errorf("read part %d of %d of the page of a session of %s: %w", i+1, len(parts), st.Date, err)
 		}
 	}
-	p, err := carried.restored(chain)
+	p, err := carried.restored(chain, times)
 	if err != nil {
 		return nil, fmt.Errorf("restore the page of a session of %s: %w", st.Date, err)
 	}
 	return p, nil
 }
 
+// read reads data, a part as partOver put it, into part: all of it where
+// times says; else all but its times, passed over, none of them held, as a
+// fold resting on the page needs only how many there are, which the page's
+// state carries.
+func (part *storedPart) read(data []byte, times bool) error {
+	if times {
+		return json.Unmarshal(data, part)
+	}
+	var timeless struct {
+		storedPart
+		// Less nested than the part's own, this field takes the times' key.
+		Times struct{} `json:"s"`
+	}
+	err := json.Unmarshal(data, &timeless)
+	*part = timeless.storedPart
+	return err
+}
+
 // restoredPaged is the session st stores restored onto the day given, as
 // restored has it, its page tallied as st carries it with parts laid over
-// it, as pageOf has it. It's refused as either refuses it.
-func (st *storedSession) restoredPaged(prices ledger.Table, day LedgerDay, parts []json.RawMessage) (*heldSession, error) {
-	page, err := st.pageOf(parts)
+// it, their times with them where times says, as pageOf has it. It's refused
+// as either refuses it.
+func (st *storedSession) restoredPaged(prices ledger.Table, day LedgerDay, parts []json.RawMessage, times bool) (*heldSession, error) {
+	page, err := st.pageOf(parts, times)
 	if err != nil {
 		return nil, err
 	}
@@ -298,20 +319,25 @@ func (st *storedSession) restoredPaged(prices ledger.Table, day LedgerDay, parts
 // restored is the tally st carries with parts laid over it, the parts of
 // the folds of the states it was folded on, oldest first, from one folded
 // on none: each turn as the newest part holding it has it; each agent first
-// seen as a part gives it; and the times of one part after another's, as
-// upstreamTimes' with takes them in, so they're held as a fold of them all
-// at once holds them. Its prompts' turns are worked out of its turns, and
-// it owns nothing a copy of it shares, as told leaves a tally. It's refused
+// seen as a part gives it; and, where times says, the times of one part
+// after another's, taken in at once, as upstreamTimes' with takes them in,
+// so they're held as a fold of them all at once holds them, and copied once,
+// however many parts give them; else as many as st counts, unheld, its parts
+// read without them. Its prompts' turns are worked out of its turns, and it
+// owns nothing a copy of it shares, as told leaves a tally. It's refused
 // where it counts more turns than its parts hold together, before room is
-// made for them, as a count no fold made may be past any room there is; a
-// part's times won't read; a part holds a turn beyond the count st carries,
-// or leaves one below it in none; two turns serve one prompt; its parts
-// give other than as many agents and times as it counts, as a chain short
-// of a part would; or its points won't restore, as storedPointing's
-// restored has it.
-func (st *storedPage) restored(parts []storedPart) (*pageTally, error) {
+// made for them, as a count no fold made may be past any room there is, or
+// fewer turns or times than none; a part's times won't read; a part holds a
+// turn beyond the count st carries, or leaves one below it in none; two
+// turns serve one prompt; its parts give other than as many agents, or times
+// where it holds them, as it counts, as a chain short of a part would; or
+// its points won't restore, as storedPointing's restored has it.
+func (st *storedPage) restored(parts []storedPart, times bool) (*pageTally, error) {
 	if held := turnsHeld(parts); st.Turns < 0 || st.Turns > held {
 		return nil, fmt.Errorf("%d turns, of parts holding %d", st.Turns, held)
+	}
+	if st.Times < 0 {
+		return nil, fmt.Errorf("%d times", st.Times)
 	}
 	points, err := st.Points.restored()
 	if err != nil {
@@ -319,19 +345,26 @@ func (st *storedPage) restored(parts []storedPart) (*pageTally, error) {
 	}
 	p := st.tally()
 	p.points = points
+	if !times {
+		p.upstream.unheld = st.Times
+	}
 	if st.Turns > 0 {
 		p.turns = make([]*turnTally, st.Turns)
 	}
+	var sent []time.Time
 	for i := range parts {
-		if err := p.overlaid(&parts[i]); err != nil {
+		given, err := p.overlaid(&parts[i])
+		if err != nil {
 			return nil, fmt.Errorf("part %d of %d: %w", i+1, len(parts), err)
 		}
+		sent = append(sent, given...)
 	}
+	p.upstream = p.upstream.with(sent)
 	if err := p.prompted(); err != nil {
 		return nil, err
 	}
-	if agents, times := len(p.agents), p.upstream.len(); agents != st.Agents || times != st.Times {
-		return nil, fmt.Errorf("%d agents and %d times, of parts giving %d and %d", st.Agents, st.Times, agents, times)
+	if agents, given := len(p.agents), p.upstream.len(); agents != st.Agents || given != st.Times {
+		return nil, fmt.Errorf("%d agents and %d times, of parts giving %d and %d", st.Agents, st.Times, agents, given)
 	}
 	return p, nil
 }
@@ -377,23 +410,19 @@ func (st *storedPage) tally() *pageTally {
 }
 
 // overlaid lays part over p, the newer: its turns in place of those p holds
-// at their indices, its agents among p's, and its times after p's. It fails
-// where a turn's index is beyond p's turns, or part's times won't read.
-func (p *pageTally) overlaid(part *storedPart) error {
+// at their indices, and its agents among p's. It gives part's times, for p
+// to take in after those before. It fails where a turn's index is beyond p's
+// turns, or part's times won't read.
+func (p *pageTally) overlaid(part *storedPart) ([]time.Time, error) {
 	for i := range part.Turns {
 		t := &part.Turns[i]
 		if t.Index < 0 || t.Index >= len(p.turns) {
-			return fmt.Errorf("turn %d of %d turns", t.Index, len(p.turns))
+			return nil, fmt.Errorf("turn %d of %d turns", t.Index, len(p.turns))
 		}
 		p.turns[t.Index] = t.restored()
 	}
 	maps.Copy(p.agents, part.Agents)
-	times, err := part.Times.times()
-	if err != nil {
-		return err
-	}
-	p.upstream = p.upstream.with(times)
-	return nil
+	return part.Times.times()
 }
 
 // prompted works out p's prompts' turns of its turns, failing where one is
@@ -498,21 +527,43 @@ func restoredTime(st *storedInstant) time.Time {
 	return st.instant().time()
 }
 
-// storedFrom are u's times from its ith on as a page's part holds them, as
-// storedTimes has them.
+// storedFrom are u's times from its ith on, none of those it counts unheld
+// among them, as a page's part holds them, as storedTimes has them: none
+// where it has none after its ith, however it holds those before.
 func (u upstreamTimes) storedFrom(i int) storedTimes {
-	if u.far != nil {
-		far := make([]storedInstant, 0, len(u.far)-i)
-		for _, t := range u.far[i:] {
-			far = append(far, t.stored())
-		}
-		return storedTimes{Far: far}
+	i -= u.unheld
+	if u.far == nil {
+		return storedTimes{Nanos: deltas(slices.Clone(u.nanos[i:]))}
 	}
-	nanos := slices.Clone(u.nanos[i:])
+	nanos := make([]int64, len(u.far)-i)
+	for k, t := range u.far[i:] {
+		var fits bool
+		if nanos[k], fits = nanosOf(t.time()); !fits {
+			return storedTimes{Far: storedInstants(u.far[i:])}
+		}
+	}
+	return storedTimes{Nanos: deltas(nanos)}
+}
+
+// deltas are nanos, each after the first as how many after the one before,
+// in place: none of none.
+func deltas(nanos []int64) []int64 {
+	if len(nanos) == 0 {
+		return nil
+	}
 	for k := len(nanos) - 1; k > 0; k-- {
 		nanos[k] -= nanos[k-1]
 	}
-	return storedTimes{Nanos: nanos}
+	return nanos
+}
+
+// storedInstants are instants as a page's part holds them.
+func storedInstants(instants []instant) []storedInstant {
+	stored := make([]storedInstant, len(instants))
+	for k, t := range instants {
+		stored[k] = t.stored()
+	}
+	return stored
 }
 
 // times are the times st stores, oldest first, in UTC. They're refused
