@@ -8,12 +8,11 @@ import (
 
 // storedRequest is a held request as a stored form holds it: all it
 // decodes of its line, what it spent in ledger.Spend's own stored form, the
-// tools its answer called as a list, and the accounts it went out on as its
-// line gives them, an empty list kept apart from none, as a line edited by
-// hand may give one. What's worked out of that, how long its writes to the
-// cache last and its sum, is worked out again as it's restored; and it's
-// restored unpriced, as heldRequestOf gives it, for the store to price at
-// its own day. Its keys are short and its zeros left out.
+// tools its answer called as a list, and the accounts it went out on, an
+// empty list none, as decodedOf has it. What's worked out of that, how long
+// its writes to the cache last and its sum, is worked out again as it's
+// restored; and it's restored unpriced, as heldRequestOf gives it, for the
+// store to price at its own day. Its keys are short and its zeros left out.
 type storedRequest struct {
 	storedFlight
 	Dir      string        `json:"d,omitempty"`
@@ -72,10 +71,9 @@ func (s *storedRequest) restored() heldRequest {
 	})
 }
 
-// storedTriedOf is tried as a stored form holds it: none of none, and an
-// empty list of an empty list.
+// storedTriedOf is tried as a stored form holds it: none of none.
 func storedTriedOf(tried []ledger.Tried) []storedTried {
-	if tried == nil {
+	if len(tried) == 0 {
 		return nil
 	}
 	stored := make([]storedTried, len(tried))
@@ -85,10 +83,10 @@ func storedTriedOf(tried []ledger.Tried) []storedTried {
 	return stored
 }
 
-// triedOf is the accounts stored holds: none of none, and an empty list of
-// an empty list.
+// triedOf is the accounts stored holds: none of none, and of an empty list,
+// as a digest an earlier release wrote may hold, as decodedOf has it.
 func triedOf(stored []storedTried) []ledger.Tried {
-	if stored == nil {
+	if len(stored) == 0 {
 		return nil
 	}
 	tried := make([]ledger.Tried, len(stored))

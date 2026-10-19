@@ -35,8 +35,9 @@ func TakeFacts(name func(key string) string, events []status.Event) []TakenFacts
 // first, are those given, its story told from them, at now's prices.
 func RowOfLine(l ledger.Line, session []ledger.Line, prices ledger.Table, now time.Time) RequestRow {
 	today := Today(now)
-	r := lineRow(&l, storyOf(pricedRequestsOf(session, prices, today.Date), prices, today))
-	r.Worth = summed(prices, &l, today.Date)
+	rec := lineRecordOf(&l)
+	r := lineRow(&rec, storyOf(pricedRequestsOf(session, prices, today.Date), prices, today))
+	r.Worth = rec.worth(prices, today.Date)
 	return r
 }
 
@@ -57,7 +58,8 @@ func Retold(r LogRead) []string {
 // LinedDetails are the details of the request whose row is given, its line l
 // come.
 func LinedDetails(row RequestRow, l ledger.Line) RequestDetails {
-	d, _ := LogLine{Row: row, line: &l}.Details()
+	rec := lineRecordOf(&l)
+	d, _ := LogLine{Row: row, record: &rec}.Details()
 	return d
 }
 
@@ -65,9 +67,9 @@ func LinedDetails(row RequestRow, l ledger.Line) RequestDetails {
 // by its request's id and its arrival, as it prices it.
 func CountingPrices(r LogRead, priced map[string]int) LogRead {
 	prices := r.prices
-	r.price = func(l *ledger.Line, date string) Worth {
-		priced[l.Request+" "+l.At.String()]++
-		return summed(prices, l, date)
+	r.price = func(rec *lineRecord, date string) Worth {
+		priced[rec.request+" "+rec.arrived().String()]++
+		return rec.worth(prices, date)
 	}
 	return r
 }

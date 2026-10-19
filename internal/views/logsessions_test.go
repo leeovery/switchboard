@@ -310,7 +310,7 @@ func TestThePanelTheDaysSessionsAndItsSummaryNameTheSameSessionsAtEachHardMoment
 				panel[s.ID] = s.Lines
 			}
 			days := make(map[string]int)
-			for _, s := range views.DaySessions(heldOf(todays...)) {
+			for _, s := range views.DaySessions(views.RecordsOf(heldOf(todays...))) {
 				days[s.ID] = s.Lines
 			}
 			if !maps.Equal(panel, days) {

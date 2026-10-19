@@ -345,7 +345,8 @@ func toldOfLines(s *lineStory, q foldQuery) storyTold {
 		Ends: endsSaid(s.ends), Lives: s.lives,
 	}
 	for _, m := range s.moves {
-		routing := routedOf(m.by, nil).said(m.by.Account, false, nil)
+		by := lineRecordOf(m.by)
+		routing := routedOf(&by, nil).said(m.by.Account, false, nil)
 		routing.Cost, routing.Rewrote = m.cost, m.rewrote != nil
 		told.Moves = append(told.Moves, moveTold{
 			By: lineSaid(m.by), At: m.at.UnixNano(), Model: m.model, From: m.from, To: m.to, Reason: m.reason, Settled: m.settled,

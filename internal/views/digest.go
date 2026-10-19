@@ -47,16 +47,18 @@ func (Digests) Day() ledger.DayBuilder {
 }
 
 // daySide is a builder of a finished day's side by the views' Digests: the
-// day's sessions, folded as DaySessions folds the lines Day gives, of the
-// same lines in the same order, so DaySessionsOn reads from it what it
-// would read of them.
+// day's sessions, folded as DaySessions folds the records of the lines Day
+// gives, of the same lines in the same order, so DaySessionsOn reads from it
+// what it would read of them.
 type daySide struct {
 	sessions daySessions
 }
 
-// Take takes in l, the day's next line, as daySessions takes it.
+// Take takes in l, the day's next line, its record, as daySessions takes
+// it.
 func (b daySide) Take(l ledger.Line) {
-	b.sessions.take(&l)
+	rec := lineRecordOf(&l)
+	b.sessions.take(&rec)
 }
 
 // Built gives the side of the lines taken in, as daySideOf has it.

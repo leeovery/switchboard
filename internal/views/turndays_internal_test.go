@@ -198,7 +198,7 @@ func notePending(turn *turnTally, rows []LogLine, w worked, met map[string]bool)
 	}
 	near := slices.Concat(dayfile.Dates(turn.started, turn.started), dayfile.Dates(w.rec.horizon.time(), w.live.Now))
 	for _, r := range rows {
-		if r.line != nil && !slices.Contains(near, dayfile.DateOf(r.line.At)) {
+		if r.record != nil && !slices.Contains(near, dayfile.DateOf(r.record.arrived())) {
 			met["a turn pending with a line days from its start and the horizon"] = true
 		}
 	}
@@ -212,14 +212,14 @@ func (p *paging) heldToItsDays(n int, turn *turnTally, rows []LogLine, read map[
 	p.t.Helper()
 	end := turn.started
 	for _, r := range rows {
-		if r.line == nil {
+		if r.record == nil {
 			continue
 		}
-		end = later(instantOf(end), instantOf(ended(r.line))).time()
-		if r.line.AgentID != "" && dayfile.DateOf(r.line.At) > dayfile.DateOf(turn.started) {
+		end = later(instantOf(end), r.record.end).time()
+		if r.record.agentID != "" && dayfile.DateOf(r.record.arrived()) > dayfile.DateOf(turn.started) {
 			met["a subagent's request of a turn on a later day than it began"] = true
 		}
-		if !w.rec.linedAt(r.line.Request, r.line.At) && !slices.Contains(dayfile.Dates(turn.started, turn.last.end), dayfile.DateOf(r.line.At)) {
+		if !w.rec.linedAt(r.record.request, r.record.arrived()) && !slices.Contains(dayfile.Dates(turn.started, turn.last.end), dayfile.DateOf(r.record.arrived())) {
 			met["a turn done holding a subagent's request filed since the feed, on the horizon's day"] = true
 		}
 	}

@@ -60,7 +60,7 @@ func takenOf(lines []ledger.Held) takenLines {
 
 // distinct are requests, a session's, as a read gives them, each once, in
 // the order every story takes them in, as inOrder has it: a request is
-// known by its id and when it arrived, as keyOf knows its line, so one of
+// known by its id and when it arrived, as its flight's key has it, so one of
 // the same id that arrived at the same moment as one before it is taken for
 // the same line given again, and passed over, even where it says otherwise
 // of its request: the first given is kept, as the store, given the other

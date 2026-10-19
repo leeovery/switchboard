@@ -272,7 +272,7 @@ func (p *paging) checkTurn(now time.Time, l filedLedger, stream Stream) {
 	p.untoldSince(read.sessions["s"].Lines, stream)
 	whole := HoldPage("s", read, p.prices, 0, now)
 	whole.turn = &turnLines{prompt: p.page.turn.prompt}
-	whole = whole.Turned(HeldTurn{prompt: p.page.turn.prompt, lines: read.sessions["s"].Lines})
+	whole = whole.Turned(HeldTurn{prompt: p.page.turn.prompt, lines: recordsOfLines(read.sessions["s"].Lines)})
 	live := PageLive{Stream: stream, Now: now}
 	rowsOf := func(h HeldPage) []string {
 		w := h.worked(live)
@@ -280,9 +280,9 @@ func (p *paging) checkTurn(now time.Time, l filedLedger, stream Stream) {
 		rows := make([]string, len(lines))
 		for i, r := range lines {
 			rows[i] = r.Row.Request + " told"
-			if r.line != nil {
+			if r.record != nil {
 				rows[i] = r.Row.Request + " lined"
-				if !w.rec.linedAt(r.line.Request, r.line.At) {
+				if !w.rec.linedAt(r.record.request, r.record.arrived()) {
 					p.met["a turn opened between feeds, a line of it filed since"] = true
 				}
 			}
@@ -508,7 +508,7 @@ func (p *paging) check(now time.Time, l filedLedger, stream Stream) {
 	whole := HoldPage("s", read, p.prices, 0, now)
 	if p.page.turn != nil {
 		whole.turn = &turnLines{prompt: p.page.turn.prompt}
-		whole = whole.Turned(HeldTurn{prompt: p.page.turn.prompt, lines: read.sessions["s"].Lines})
+		whole = whole.Turned(HeldTurn{prompt: p.page.turn.prompt, lines: recordsOfLines(read.sessions["s"].Lines)})
 	}
 	live := PageLive{Stream: stream, Now: now}
 	got, gotOK := p.page.Build(live)
@@ -828,7 +828,7 @@ func TestATurnOpenHoldsOnlyTheLinesThatMayBeItsOwn(t *testing.T) {
 	page = page.TurnOf(page, gained)
 	var held []string
 	for _, l := range page.turn.lines {
-		held = append(held, l.Request)
+		held = append(held, l.request)
 	}
 	if want := []string{"d", "g", "h"}; !slices.Equal(held, want) {
 		t.Errorf("the turn open holds the lines %v, want %v", held, want)
@@ -846,6 +846,135 @@ func TestATurnOpenHoldsALineGivenTwiceAtOnceOnce(t *testing.T) {
 	page = page.TurnOf(page, []ledger.Held{{Line: l}, {Line: l}})
 	if n := len(page.turn.lines); n != 1 {
 		t.Errorf("the turn open holds the line %d times, want once", n)
+	}
+}
+
+// A count of a turn's session's tokens is none of its requests, as
+// ledger.Line.Counted counts none, though it names the turn's prompt, or a
+// subagent sent it: the turn read holds none, nor grown by the lines the
+// ledger gains, its rows show none, and the Log wants no session for a count
+// alone.
+func TestACountOfATurnsSessionIsNoneOfItsRequests(t *testing.T) {
+	at := time.Date(2026, 10, 7, 12, 0, 0, 0, time.Local)
+	line := func(id, kind, agent, session string, minutes int) ledger.Line {
+		return ledger.Line{
+			Request: id, At: at.Add(time.Duration(minutes) * time.Minute), Kind: kind, Session: session, Model: foldOpus, Account: "work",
+			Status: 200, Attempts: 1, TotalMS: 1000, Class: ledger.ClassMain, Prompt: "p1", AgentID: agent,
+		}
+	}
+	read := []ledger.Line{line("m1", ledger.KindMessage, "", "s", 0), line("c1", ledger.KindCount, "", "s", 1), line("c2", ledger.KindCount, "x", "s", 2)}
+	gained := []ledger.Held{{Line: line("c3", ledger.KindCount, "", "s", 3)}, {Line: line("c4", ledger.KindCount, "y", "s", 4)}}
+	now := at.Add(time.Hour)
+	live := PageLive{Now: now}
+	page := ReadPage(filedLedger{lines: read, now: now}, "s", Stream{}, ledger.Pricing, 0, now).Opening(1, live)
+	page = page.Turned(page.ReadTurn(filedLedger{lines: read, now: now}, live))
+	page = page.TurnOf(page, gained)
+	var held, rows []string
+	for _, l := range page.turn.lines {
+		held = append(held, l.request)
+	}
+	for _, r := range page.TurnRequests(1, live) {
+		rows = append(rows, r.Row.Request)
+	}
+	if want := []string{"m1"}; !slices.Equal(held, want) || !slices.Equal(rows, want) {
+		t.Errorf("the turn holds %v and shows the rows %v, want %v of each", held, rows, want)
+	}
+	if wanted := ReadLog(ledger.Pricing).Wanted(RecordsOf(gained), RecordsOf([]ledger.Held{{Line: line("c5", ledger.KindCount, "", "k", 5)}})); len(wanted) > 0 {
+		t.Errorf("the Log wants the sessions %v for counts alone, want none", wanted)
+	}
+}
+
+// sessionGiving is a session's lines as a ledger gives them, newest first,
+// given as they are, whatever the session asked for.
+type sessionGiving []ledger.Held
+
+// Session gives g's lines, as they are.
+func (g sessionGiving) Session(string, ...ledger.Span) iter.Seq[ledger.Held] {
+	return slices.Values(g)
+}
+
+// A turn decodes none of the lines it's given that mine passes over,
+// another session's, a check or a count of its own, or its session's
+// request of another turn, reading its lines or taking in those the ledger
+// gains: decoding a line allocates, as its usage and its windows are read,
+// so a turn given a thousand such lines allocates no more than one given
+// none of them, but for less than one allocation a line.
+func TestATurnDecodesOnlyTheLinesThatMayBeItsOwn(t *testing.T) {
+	at := time.Date(2026, 10, 7, 12, 0, 0, 0, time.Local)
+	own := ledger.Line{
+		Request: "m1", At: at, Kind: ledger.KindMessage, Session: "s", Model: foldOpus, Account: "work", Status: 200, Attempts: 1, TotalMS: 1000,
+		Class: ledger.ClassMain, Prompt: "p1", Usage: json.RawMessage(foldUsages[2]), Limits: map[string]string{"5h-utilization": "0.42", "5h-reset": "1791370800"},
+	}
+	passed := make([]ledger.Held, 1000)
+	for i := range passed {
+		l := own
+		l.Request, l.At = fmt.Sprintf("o%04d", i), at.Add(time.Duration(len(passed)-i)*time.Millisecond)
+		switch i % 4 {
+		case 0:
+			l.Session = "elsewhere"
+		case 1:
+			l.Kind = ledger.KindCount
+		case 2:
+			l.Kind = ledger.KindCheck
+		default:
+			l.Prompt = "p2"
+		}
+		passed[i] = ledger.Held{Line: l}
+	}
+	now := at.Add(time.Hour)
+	live := PageLive{Now: now}
+	page := ReadPage(filedLedger{lines: []ledger.Line{own}, now: now}, "s", Stream{}, ledger.Pricing, 0, now).Opening(1, live)
+	alone, given := []ledger.Held{{Line: own}}, append(slices.Clone(passed), ledger.Held{Line: own})
+	reads := map[string]func(given []ledger.Held) []lineRecord{
+		"reading its lines":           func(given []ledger.Held) []lineRecord { return page.ReadTurn(sessionGiving(given), live).lines },
+		"taking in the ledger's gain": func(given []ledger.Held) []lineRecord { return page.TurnOf(page, given).turn.lines },
+	}
+	for name, read := range reads {
+		t.Run(name, func(t *testing.T) {
+			if got := read(given); len(got) != 1 || got[0].request != "m1" {
+				t.Fatalf("the turn holds %d lines, want m1 alone", len(got))
+			}
+			base := testing.AllocsPerRun(20, func() { read(alone) })
+			if more := testing.AllocsPerRun(20, func() { read(given) }) - base; more >= float64(len(passed)) {
+				t.Errorf("given %d lines it passes over, the turn allocates %.0f more, want fewer than one a line", len(passed), more)
+			}
+		})
+	}
+}
+
+// mine answers of a line's facts, read of it undecoded, as of its record's,
+// over generated runs, each line of every kind, of its session and of none:
+// its facts are its record's, and mine takes it alike of both, for a turn
+// open of its session and of another, on its prompt, another of the run's
+// and none, whether it arrived before the turn began or since. So a line is
+// passed over undecoded by the one rule its record is judged by.
+func TestMineJudgesALinesFactsAsItsRecords(t *testing.T) {
+	for seed := range uint64(20) {
+		lines, _ := pagedRun(seed)
+		for i := range lines {
+			for _, kind := range []string{ledger.KindMessage, ledger.KindCheck, ledger.KindCount} {
+				for _, session := range []string{lines[i].Session, ""} {
+					l := lines[i]
+					l.Kind, l.Session = kind, session
+					rec := lineRecordOf(&l)
+					of, recorded := turnFactsOf(&l), rec.turnFacts()
+					if of != recorded {
+						t.Fatalf("run %d, line %d of kind %q, session %q: its facts are %+v, want its record's, %+v", seed, i, kind, session, of, recorded)
+					}
+					for _, id := range []string{lines[i].Session, "elsewhere"} {
+						for _, prompt := range []string{l.Prompt, lines[(i+1)%len(lines)].Prompt, ""} {
+							h := HeldPage{id: id, turn: &turnLines{prompt: prompt}}
+							for _, early := range []bool{false, true} {
+								if got, want := h.mine(of, early), h.mine(recorded, early); got != want {
+									t.Errorf("run %d, line %d, a turn of %q on %q, early %t: mine takes its facts %t, want as its record's, %t",
+										seed, i, id, prompt, early, got, want)
+								}
+							}
+						}
+					}
+				}
+			}
+		}
 	}
 }
 
@@ -871,7 +1000,7 @@ func TestATurnCountsASubagentWhoseFirstLineLandsLateInIt(t *testing.T) {
 		built, _ := h.Build(live)
 		var rows []string
 		for _, r := range built.Requests {
-			rows = append(rows, fmt.Sprintf("%s lined %t", r.Row.Request, r.line != nil))
+			rows = append(rows, fmt.Sprintf("%s lined %t", r.Row.Request, r.record != nil))
 		}
 		return rows
 	}
@@ -892,7 +1021,7 @@ func TestATurnCountsASubagentWhoseFirstLineLandsLateInIt(t *testing.T) {
 			live = PageLive{Now: landed}
 			whole := HoldPage("s", linesRead(landed, "s", lines), ledger.Pricing, 0, landed)
 			whole.turn = &turnLines{prompt: "p1"}
-			whole = whole.Turned(HeldTurn{prompt: "p1", lines: lines})
+			whole = whole.Turned(HeldTurn{prompt: "p1", lines: recordsOfLines(lines)})
 			if got, want := rowsOf(page, live), rowsOf(whole, live); !slices.Equal(got, want) {
 				t.Errorf("turn 1's rows are %v, want %v, as the page read whole has them", got, want)
 			}
@@ -932,14 +1061,14 @@ func TestATurnOpenBetweenFeedsCountsASubagentByAFirstRequestFiledSince(t *testin
 	page = page.Turned(read)
 	var held []string
 	for _, l := range read.lines {
-		held = append(held, l.Request)
+		held = append(held, l.request)
 	}
 	if want := []string{"a2", "m2", "a1"}; !slices.Equal(held, want) || *counted.read != 6 {
 		t.Errorf("the turn's read holds %v, reading %d lines; want %v, reading 6, the last the first before its horizon", held, *counted.read, want)
 	}
 	whole := HoldPage("s", linesRead(opened, "s", lines), ledger.Pricing, 0, opened)
 	whole.turn = &turnLines{prompt: "p2"}
-	whole = whole.Turned(HeldTurn{prompt: "p2", lines: lines})
+	whole = whole.Turned(HeldTurn{prompt: "p2", lines: recordsOfLines(lines)})
 	rowsOf := func(h HeldPage) []string {
 		requests, _ := h.worked(live).turnRequests(3)
 		var rows []string

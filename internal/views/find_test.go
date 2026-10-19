@@ -39,7 +39,7 @@ func walkBack(t *testing.T, l views.Ledger, src views.FindSources, days int) vie
 		if _, held := src.Read[found.Next]; held {
 			t.Fatalf("the find names %s to read next, read before", found.Next)
 		}
-		src.Read[found.Next] = views.DaySessions(l.Day(found.Next))
+		src.Read[found.Next] = views.DaySessions(views.RecordsOf(l.Day(found.Next)))
 	}
 	return views.FindSessions(src)
 }
@@ -291,7 +291,7 @@ func TestASessionFoundByItsIDOnItsDaysSummaryStaysFoundOnceItsDayIsRead(t *testi
 			if found := views.FindSessions(src); !sameFound(foundOf(found), want) || found.Next != "2026-10-03" {
 				t.Fatalf("before its day is read, the find finds %+v, to read %q next; want %+v, its day next", foundOf(found), found.Next, want)
 			}
-			src.Read["2026-10-03"] = views.DaySessions(tt.read)
+			src.Read["2026-10-03"] = views.DaySessions(views.RecordsOf(tt.read))
 			if found := views.FindSessions(src); !sameFound(foundOf(found), want) || !found.Done() {
 				t.Errorf("once its day is read, the find finds %+v, to read %q next; want %+v, done", foundOf(found), found.Next, want)
 			}
@@ -319,7 +319,7 @@ func TestADaysSessionsAreThoseItsSummaryNames(t *testing.T) {
 		{Line: count},
 		{Line: in("~/Code/api-v2", line(older, opus, "work", "sticky", october(6, 10, 50), smallUsage))},
 	}
-	got := views.DaySessions(day)
+	got := views.DaySessions(views.RecordsOf(day))
 	want := []views.DaySession{
 		{ID: early, Dir: "~/Code/web", Lines: 2, Last: october(6, 11, 0)},
 		{ID: older, Dir: "~/Code/api-v2", Lines: 3, Last: october(6, 10, 50)},
