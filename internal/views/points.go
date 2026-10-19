@@ -110,13 +110,19 @@ func isAnswer(l *ledger.Line) bool {
 }
 
 // answeredOf returns the request the line l holds, ours where it's of the
-// session with the given id: its windows read as its answer's first byte
-// passed on, where one did, else as it ended.
+// session with the given id, as answerOf has it.
 func answeredOf(l *ledger.Line, id string) answered {
+	return answerOf(l, l.Session == id)
+}
+
+// answerOf returns the request the line l holds, ours as given: its windows
+// read as its answer's first byte passed on, where one did, else as it
+// ended.
+func answerOf(l *ledger.Line, ours bool) answered {
 	t, _ := l.Tokens()
 	a := answered{
 		flight: flightOf(l), account: unique.Make(l.Account), model: unique.Make(l.Model), tokens: int64(t.Input + t.Output + t.CacheRead + t.CacheWrite),
-		ours: l.Session == id, windows: claude.KeptWindows(l.Limits),
+		ours: ours, windows: claude.KeptWindows(l.Limits),
 	}
 	a.read = a.end
 	if l.FirstMS != nil {
@@ -343,6 +349,24 @@ func (p *pointing) took(date string, given []answered, whole bool, day LedgerDay
 		return q.joining(date)
 	}
 	return q, !q.run.holds(date) || q.run.takes(added)
+}
+
+// tookAfter is p with answers, every account's, by the date of the day whose
+// files hold them, taken in at the day given, of each day after the one with
+// the given date, oldest first, each read whole, as took has them: none of
+// that day or before it, which p took in as it was sealed. It reports false
+// where took can't place a day's, so the session's page is read whole.
+func (p *pointing) tookAfter(date string, answers map[string][]answered, day LedgerDay) (*pointing, bool) {
+	for _, d := range slices.Sorted(maps.Keys(answers)) {
+		if d <= date {
+			continue
+		}
+		var ok bool
+		if p, ok = p.took(d, answers[d], true, day); !ok {
+			return nil, false
+		}
+	}
+	return p, true
 }
 
 // joining is p, its own, with the day with the given date, of yesterday's or
