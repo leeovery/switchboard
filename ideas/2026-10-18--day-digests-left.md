@@ -1,12 +1,14 @@
-# Day digests, phases 1 and 2: what they left
+# Day digests, phases 1, 2 and 3a: what they left
 
 Phase 1 of the day digests has the router digest each finished day and the store of sessions rest
 each session on its newest standing state (see The request ledger and Live updates in the design).
 Its soak, a synthetic world of 25,000 requests a day with its long session every day, race detector
 off, opens the List in about 0.3 s with 9 or 30 days kept, from 1.4 s and 4.0 s. Phase 2 has each
 digest carry each session's page, and a parts file a day hold what grows, so a page rests on its
-newest state too: the long session's page opens in 0.31 s and 0.38 s, from 1.71 s and 5.63 s. What
-they left, each a cost, not a wrong answer, gathered here.
+newest state too: the long session's page opens in 0.31 s and 0.38 s, from 1.71 s and 5.63 s. Phase
+3a has a turn read only its own days and the horizon's, and the router write a head a day holding
+the day's sessions, so the Log's find reads those, not the day's lines. What they left, each a cost
+but for one edge of a session's page, gathered here.
 
 ## The build's peak
 
@@ -47,6 +49,29 @@ to the cache last, so a long session that runs subagents every day keeps every o
 480 KB gzipped, after 30 busy days, and each day's build restores it whole. Trimming those long past
 their cache's life would bound it, but a thread missing reads as one whose cache is warm, so the rule
 needs care.
+
+## A day head reads the days beside it whole
+
+A day's head is built of exactly the lines `Day` gives of the day, which reads the files of the days
+either side of it too, as a change of time zone files a line under a date beside its own; and it
+decodes every line of those files whole to keep the few inside the day. So a head's build takes about
+0.6 s where the day's own file alone takes about 0.2 s, and a day back in the Log pays the same. It
+can't go wrong, as only a line's `at` says whether it's kept. The cut is to read only `at` of the
+neighbours' lines, but `dayfile.Read` counts a decode that reports false as a line unread: it needs a
+skip outcome of its own, or a peek that reads `at` exactly as `lineIn` does.
+
+## A request in flight for hours on a session's page
+
+Decided by `joinedLate` and `pinnedFor`, and left: a request in flight more than 6 hours, while later
+requests of its session are sealed, draws the session's story with folds that overlap; and a row the
+stream tells of whose line arrived before yesterday is counted twice, which needs a request in flight
+for over a day and its page shown within the hour after it ends.
+
+And since a turn reads only its own days and the horizon's: a subagent's request of a turn, made days
+after the turn's last known request and in flight for over a day untold by the stream, as after a
+restart, is filed on its arrival's day, which no read takes in, so the turn opened shows one row
+fewer than it did when it read every day. Carrying a turn's span to now where its session has a line
+never fed would take it in.
 
 ## Smaller
 
