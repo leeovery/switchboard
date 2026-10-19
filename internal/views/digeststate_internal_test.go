@@ -370,7 +370,8 @@ func arrivedBefore(lines []ledger.Line, until time.Time) []ledger.Line {
 
 // A session's state is stored only as it stands at the end of its day:
 // sealed at the start of the day after its own, none of its requests open,
-// its page untallied. Any other is refused, as its caller's fault.
+// its page tallied or not, what the page carries stored where it is. Any
+// other is refused, as its caller's fault.
 func TestASessionsStateIsStoredOnlyAsItStandsAtItsDaysEnd(t *testing.T) {
 	lines := generatedSession(2)
 	day, end := digestDay()
@@ -387,13 +388,18 @@ func TestASessionsStateIsStoredOnlyAsItStandsAtItsDaysEnd(t *testing.T) {
 		{name: "sealed before its day's end", through: end, sealed: end.Add(-time.Nanosecond), refused: true},
 		{name: "sealed after its day's end", through: end, sealed: end.Add(time.Nanosecond), refused: true},
 		{name: "a request of the next day held open", through: end.Add(24 * time.Hour), sealed: end, refused: true},
-		{name: "its page tallied", through: end, sealed: end, paged: true, refused: true},
+		{name: "its page tallied", through: end, sealed: end, paged: true},
+		{name: "its page tallied, sealed before its day's end", through: end, sealed: end.Add(-time.Nanosecond), paged: true, refused: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			held := readOf(arrivedBefore(lines, tt.through), nil, ledger.Pricing, day, instantOf(tt.sealed), tt.paged)
-			if _, err := held.stored(); (err != nil) != tt.refused {
+			st, err := held.stored()
+			if (err != nil) != tt.refused {
 				t.Errorf("stored with error %v, want it refused %t", err, tt.refused)
+			}
+			if paged := st.Page != nil; err == nil && paged != tt.paged {
+				t.Errorf("stored holding what its page carries %t, want %t", paged, tt.paged)
 			}
 		})
 	}
