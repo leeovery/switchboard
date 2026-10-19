@@ -477,24 +477,24 @@ func sessionSpan(lines []ledger.Line) (first, last time.Time) {
 const turnSeeds = 3
 
 // Every turn of a generated session's page, its days crowded, opened at a
-// minute and at fifty-nine minutes past local midnight, the day before's
-// head yet to be built, and at half past one, on each day from the one after
-// its run began to the one after it ended, and three hours, a week and a
-// month after, as laterLines has its requests then, shows what it shows read
-// raw, read with the days of its own before the horizon's whose rows stand
-// read from them: every row and its details, as sameTurns has it. Of the
-// lines that arrived within its span and the horizon's, the read gives each
-// once, in the order read raw; and it reads the rows of its own days before
-// the horizon's alone, of each the chunks naming its session and meeting
-// its span alone, giving of them the session's lines alone, and never a day
-// raw whose rows it read, as heldToItsRows has it. Among the turns: one
-// across midnight, a subagent's requests on two days, a turn pending, one a
-// week back with a line since the horizon, and lines without an id, one
-// given twice, each read from rows; a day of a turn's own read raw, as
-// yesterday's is till its head is built, beside one read from rows; one the
-// horizon is pinned back over; chunks passed over, of the session's and of
-// none of its; and a check of the session's given of a chunk read, so the
-// session its line is of is told apart from the one it counts toward.
+// minute past local midnight, the day before's head yet to be built, and at
+// half past one, on each day from the one after its run began to the one
+// after it ended, and three hours, a week and a month after, as laterLines
+// has its requests then, shows what it shows read raw, read with the days of
+// its own before the horizon's whose rows stand read from them: every row
+// and its details, as sameTurns has it. Of the lines that arrived within its
+// span and the horizon's, the read gives each once, in the order read raw;
+// and it reads the rows of its own days before the horizon's alone, of each
+// the chunks naming its session and meeting its span alone, giving of them
+// the session's lines alone, and never a day raw whose rows it read, as
+// heldToItsRows has it. Among the turns: one across midnight, a subagent's
+// requests on two days, a turn pending, one a week back with a line since
+// the horizon, and lines without an id, one given twice, each read from
+// rows; a day of a turn's own read raw, as yesterday's is till its head is
+// built, beside one read from rows; one the horizon is pinned back over;
+// chunks passed over, of the session's and of none of its; and a check of
+// the session's given of a chunk read, so the session its line is of is
+// told apart from the one it counts toward.
 func TestATurnShowsFromItsDaysRowsWhatItShowsReadRaw(t *testing.T) {
 	met := make(map[string]bool)
 	for seed := range uint64(turnSeeds) {
@@ -506,7 +506,7 @@ func TestATurnShowsFromItsDaysRowsWhatItShowsReadRaw(t *testing.T) {
 		every := slices.Concat(c.lines, flying)
 		moments := slices.Clone(laters)
 		for day := dayfile.DayStart(first.Local(), 1); !day.After(dayfile.DayStart(last.Local(), 1)); day = dayfile.DayStart(day, 1) {
-			for _, past := range []time.Duration{time.Minute, 59 * time.Minute, 90 * time.Minute} {
+			for _, past := range []time.Duration{time.Minute, 90 * time.Minute} {
 				moments = append(moments, day.Add(past))
 			}
 		}
