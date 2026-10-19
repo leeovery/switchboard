@@ -122,20 +122,20 @@ type SessionsWanted struct {
 	Page    string
 	Log     []string
 	Pins    map[string][]time.Time
-	// paged is the session of the page open as its page holds it, read
-	// whole as it opened, or as the store has fed it since, nil where none
-	// is: the store takes it in place of the session it holds without what
-	// its page tallies, as Paging has it.
+	// paged is the session of the page open as its page holds it, read as
+	// it opened, or as the store has fed it since, nil where none is: the
+	// store takes it in place of the session it holds without what its page
+	// tallies, as Paging has it.
 	paged *heldSession
 }
 
 // Paging is w wanting the page h holds too, the session it's of tallied as
 // its page tallies it, pinned as the stream s tells where w isn't pinned.
 // Where the store holds the session but not its page's tally, it takes the
-// session as h holds it: read whole as the page opened, after the ledger's
-// tail was last read, as no read of the tail runs beside the page's, or as
-// the store fed it since, as Held takes it; so the read of the tail it's
-// fed gives it every line since, those it holds passed over.
+// session as h holds it: read as the page opened, after the ledger's tail
+// was last read, as no read of the tail runs beside the page's, or as the
+// store fed it since, as Held takes it; so the read of the tail it's fed
+// gives it every line since, those it holds passed over.
 func (w SessionsWanted) Paging(h HeldPage, s Stream) SessionsWanted {
 	w.Page, w.paged = h.id, h.record
 	if w.Pins == nil {
@@ -292,15 +292,27 @@ func (h HeldSessions) feeding(want SessionsWanted, now time.Time) *feed {
 
 // joinedLate reports whether the stream tells, at now, of a request of a
 // session, a pin of it among its pins, that may have arrived behind the
-// horizon given, as its page takes its requests in by when they were sent,
-// the stream's among its lines: one heard first after the horizon passed
-// it, as the stream joined late, whose page is tallied again whole. One
-// pinned longer than pinnedFor ago may be lost, its line never coming, and
-// is taken in after the requests sealed.
+// horizon given, as pinnedSince has it, as its page takes its requests in by
+// when they were sent, the stream's among its lines: one heard first after
+// the horizon passed it, as the stream joined late, whose page is tallied
+// again whole. One pinned longer ago is taken in after the requests sealed.
 func joinedLate(now time.Time, pins []time.Time, horizon instant) bool {
-	return slices.ContainsFunc(pins, func(pin time.Time) bool {
-		return now.Sub(pin) <= pinnedFor && instantOf(pin.Add(-arrivesWithin)).compare(horizon) < 0
-	})
+	return pinnedSince(now, pins).compare(horizon) < 0
+}
+
+// pinnedSince is the earliest moment a request of a session the stream
+// tells of may have arrived, of its pins at now: arrivesWithin before the
+// earliest pin within pinnedFor before now, as a request may arrive that
+// long before it goes upstream; endless where none is. One pinned longer
+// ago may be lost, its line never coming.
+func pinnedSince(now time.Time, pins []time.Time) instant {
+	since := endless
+	for _, pin := range pins {
+		if now.Sub(pin) <= pinnedFor {
+			since = earlier(since, instantOf(pin.Add(-arrivesWithin)))
+		}
+	}
+	return since
 }
 
 // turnedBack reports whether the clock was set back, or the zone changed,
@@ -381,10 +393,11 @@ func (f *feed) answer(t Taken) {
 // store doesn't hold, and those it can't place a line of, as hold holds
 // each: every one of today's too, where the List is wanted and the store
 // doesn't hold them yet. Each rests on what rest says of it, as the ledger
-// finds it; and one that can't be held on its state, as heldOf can't hold
-// it, is read again, whole. Where the session whose page is open is among
-// them, every account's answers on the days read are taken for its points,
-// as answering has them.
+// finds it; and those that can't be held on what they rest on, as heldOf
+// can't hold them, are read again, whole. Where the session whose page is
+// open is among them, every account's answers on the days each read reads
+// are taken for its points, as answering has them: the second read's
+// afresh, as the first's are of the days after what the page rested on.
 func (f *feed) read(l LedgerSessions) {
 	ids := f.unheld()
 	listing := f.want.List && !f.listing
@@ -397,47 +410,47 @@ func (f *feed) read(l LedgerSessions) {
 		sessions, f.listing = l.Sessions, true
 	}
 	if unrestored := f.holdFound(ids, sessions(ids, f.rest, take), answers); len(unrestored) > 0 {
-		f.holdFound(unrestored, l.SessionsOf(unrestored, eachWhole, nil), answers)
+		answers, take = f.answering(unrestored)
+		f.holdFound(unrestored, l.SessionsOf(unrestored, eachWhole, take), answers)
 	}
 }
 
 // rest returns what a feed rests the session with the given id on: none,
-// read whole, of the page's, as its tally and its points take in every one
-// of its days' answers, and of one the store can't place a line of, as
-// gained has it, which the same state would leave as unplaced, feed after
-// feed, as a session restored onto the day after its state's holds none of
-// that day's flights; and the newest state a digest holds that stands, of
-// any other.
+// read whole, of one the store can't place a line of, as gained has it,
+// which the same state would leave as unplaced, feed after feed, as a
+// session restored onto the day after its state's holds none of that day's
+// flights; of the page's, the newest state a digest holds whose chain of
+// parts reads, as its page is restored from them; and the newest state a
+// digest holds that stands, of any other.
 func (f *feed) rest(id string) ledger.Rest {
-	if id == f.want.Page || f.whole[id] {
+	switch {
+	case f.whole[id]:
 		return ledger.RestWhole
+	case id == f.want.Page:
+		return ledger.RestOnPage
 	}
 	return ledger.RestOnState
 }
 
 // answering is, where the session whose page is open is among the sessions
-// with the given ids, every account's answers on the days a read of them
-// reads, by date, as answeredOf has each, and what takes them in, each line
-// read handed it: none where it isn't.
-func (f *feed) answering(ids []string) (map[string][]answered, func(string, ledger.Line)) {
+// with the given ids, what holds every account's answers on the days a read
+// of them reads, as takenAnswers takes them, and what takes them in, each
+// line read handed it: none where it isn't.
+func (f *feed) answering(ids []string) (takenAnswers, func(string, ledger.Line)) {
 	if !slices.Contains(ids, f.want.Page) {
 		return nil, nil
 	}
-	answers := make(map[string][]answered)
-	return answers, func(date string, line ledger.Line) {
-		if isAnswer(&line) {
-			answers[date] = append(answers[date], answeredOf(&line, f.want.Page))
-		}
-	}
+	answers := make(takenAnswers)
+	return answers, answers.take
 }
 
 // holdFound holds afresh, as hold holds each, the sessions with the given
 // ids, each as read gives it, resting on nothing and of none of its lines
 // where it gives none, and those others read gives that the store doesn't
-// hold, of today's; giving the ids of those that can't be held on their
-// states, as heldOf can't hold them, held none of, in order: none where read
-// reads each whole.
-func (f *feed) holdFound(ids []string, read map[string]ledger.SessionFrom, answers map[string][]answered) []string {
+// hold, of today's, the page's points of the answers taken; giving the ids
+// of those that can't be held on what they rest on, as heldOf can't hold
+// them, held none of, in order: none where read reads each whole.
+func (f *feed) holdFound(ids []string, read map[string]ledger.SessionFrom, answers takenAnswers) []string {
 	found := make(map[string]ledger.SessionFrom, len(read))
 	for id, from := range read {
 		if _, held := f.sessions[id]; !held {
@@ -484,7 +497,7 @@ func (f *feed) unheld() []string {
 
 // hold holds the session with the given id afresh, as heldOf has it of
 // from, failing where heldOf does, holding nothing.
-func (f *feed) hold(id string, from ledger.SessionFrom, answers map[string][]answered) error {
+func (f *feed) hold(id string, from ledger.SessionFrom, answers takenAnswers) error {
 	s, err := f.heldOf(id, from, answers)
 	if err != nil {
 		return err
@@ -498,15 +511,15 @@ func (f *feed) hold(id string, from ledger.SessionFrom, answers map[string][]ans
 
 // heldOf is the session with the given id held afresh, of from, as a read
 // of it found it, on the feed's day, sealed behind its horizon, as horizonOf
-// has it: as heldAsOf holds it, but the page's, read whole, as readOf reads
-// it, its page tallied, of answers. It fails where heldAsOf does, as from's
-// state won't restore, or holds sealed what the horizon holds open, for the
-// session to be read whole.
-func (f *feed) heldOf(id string, from ledger.SessionFrom, answers map[string][]answered) (*heldSession, error) {
-	if id == f.want.Page {
-		return readOf(from.Lines, answers, f.prices, f.fed.day, f.horizonOf(id), true), nil
+// has it, as heldAsOf holds it: the page's tallied, its points of the
+// answers taken, as answers holds them of it. It fails where heldAsOf does,
+// as from's state won't restore, or holds sealed what the horizon holds
+// open, for the session to be read whole.
+func (f *feed) heldOf(id string, from ledger.SessionFrom, answers takenAnswers) (*heldSession, error) {
+	if id != f.want.Page {
+		return heldAsOf(from, nil, f.prices, f.fed.day, f.horizonOf(id), false)
 	}
-	return heldAsOf(from, nil, f.prices, f.fed.day, f.horizonOf(id), false)
+	return heldAsOf(from, answers.of(id, baseDateOf(from)), f.prices, f.fed.day, f.horizonOf(id), true)
 }
 
 // readOf is a session held afresh of lines, every line of it read whole,
@@ -587,18 +600,10 @@ func (f *feed) horizonOf(id string) instant {
 }
 
 // horizonAt is the horizon of a session at now, before a moment it last
-// had: openFor before then, or earlier, where the earliest of its pins
-// within pinnedFor before then is, a moment earlier than it, as its request
-// may have arrived arrivesWithin before. A pin earlier than pinnedFor may be
-// of a request lost, whose line never comes.
+// had: openFor before then, or earlier, where a request its pins tell of may
+// have arrived, as pinnedSince has it.
 func horizonAt(now time.Time, pins []time.Time) instant {
-	horizon := now.Add(-openFor)
-	for _, pin := range pins {
-		if now.Sub(pin) <= pinnedFor && pin.Add(-arrivesWithin).Before(horizon) {
-			horizon = pin.Add(-arrivesWithin)
-		}
-	}
-	return instantOf(horizon)
+	return earlier(instantOf(now.Add(-openFor)), pinnedSince(now, pins))
 }
 
 // seal seals each session's requests behind its horizon, as it moves on at

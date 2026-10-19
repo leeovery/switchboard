@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io/fs"
 	"maps"
+	"math/rand/v2"
 	"os"
 	"reflect"
 	"slices"
@@ -17,18 +18,47 @@ import (
 
 // datesTaken is a ledger as the one it holds reads it that notes the date of
 // each day whose lines a read of its sessions hands on, as a Follower hands
-// on each line it reads, of whichever session.
+// on each line it reads, of whichever session; and the dates of the parts of
+// the chain each session it gives rests on, oldest first, by its id, of those
+// given any.
 type datesTaken struct {
 	Ledger
 	dates map[string]bool
+	parts map[string][]string
+}
+
+// takingDates is l, noting what datesTaken notes, none yet.
+func takingDates(l Ledger) datesTaken {
+	return datesTaken{Ledger: l, dates: make(map[string]bool), parts: make(map[string][]string)}
 }
 
 func (c datesTaken) Sessions(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
-	return c.Ledger.Sessions(ids, rest, c.taking(take))
+	return c.gave(c.Ledger.Sessions(ids, rest, c.taking(take)))
 }
 
 func (c datesTaken) SessionsOf(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
-	return c.Ledger.SessionsOf(ids, rest, c.taking(take))
+	return c.gave(c.Ledger.SessionsOf(ids, rest, c.taking(take)))
+}
+
+// gave is sessions, as a read gave them, the dates of each one's chain of
+// parts noted.
+func (c datesTaken) gave(sessions map[string]ledger.SessionFrom) map[string]ledger.SessionFrom {
+	for id, from := range sessions {
+		if dates := partDates(from); len(dates) > 0 {
+			c.parts[id] = append(c.parts[id], dates...)
+		}
+	}
+	return sessions
+}
+
+// partDates are the dates of the parts of the chain from rests on, oldest
+// first: none where it's given none.
+func partDates(from ledger.SessionFrom) []string {
+	var dates []string
+	for _, p := range from.Parts {
+		dates = append(dates, p.Date)
+	}
+	return dates
 }
 
 // taking is take, where it's given, each line handed it noted by its day's
@@ -40,6 +70,12 @@ func (c datesTaken) taking(take func(string, ledger.Line)) func(string, ledger.L
 			take(date, l)
 		}
 	}
+}
+
+// datesRead are the dates of the days whose lines c's reads of its sessions
+// handed on, oldest first.
+func (c datesTaken) datesRead() []string {
+	return slices.Sorted(maps.Keys(c.dates))
 }
 
 // nineDays is a ledger of nine days whose sessions each ran on every one,
@@ -54,8 +90,11 @@ type nineDays struct {
 }
 
 // newNineDays returns the nine days, their sessions those with the given
-// ids, each a generated session of its own.
-func newNineDays(t *testing.T, ids []string) nineDays {
+// ids, each a generated session of its own, each answer reading its
+// account's windows, as limitedOf has them. Those left out are given no
+// state in the day before's digest, as of one the Digests couldn't hold, so
+// each rests on its state of the day before that.
+func newNineDays(t *testing.T, ids []string, leftOut ...string) nineDays {
 	t.Helper()
 	first, today := Today(foldDays[0]), Today(dayfile.DayStart(foldDays[0], 9))
 	var lines []ledger.Line
@@ -66,8 +105,20 @@ func newNineDays(t *testing.T, ids []string) nineDays {
 		lines = append(lines, dayAfterDay(session, 9)...)
 		lines = append(lines, early)
 	}
+	r := rand.New(rand.NewPCG(9, 9))
+	for i := range lines {
+		limitedOf(&lines[i], r, time.Time{})
+	}
 	slices.SortStableFunc(lines, func(a, b ledger.Line) int { return ended(&a).Compare(ended(&b)) })
 	c := newDigestChain(t, "nine days", 0, lines)
+	yesterday := yesterdayOf(today)
+	c.digests.alter = func(date string, folded map[string]ledger.Folded) {
+		if date == yesterday {
+			for _, id := range leftOut {
+				delete(folded, id)
+			}
+		}
+	}
 	now := today.Start.Add(90 * time.Minute)
 	c.at = now
 	c.ledger.SummariseEnded(now)
@@ -116,14 +167,14 @@ func TestAListOverDigestsReadsTheNearDaysFilesAlone(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			l := datesTaken{Ledger: n.follower(tt.version), dates: make(map[string]bool)}
+			l := takingDates(n.follower(tt.version))
 
 			list := n.list(l)
 
 			if len(list.Sessions) != len(ids) {
 				t.Errorf("the List lists %d sessions, want %d", len(list.Sessions), len(ids))
 			}
-			if dates := slices.Sorted(maps.Keys(l.dates)); !slices.Equal(dates, tt.read) {
+			if dates := l.datesRead(); !slices.Equal(dates, tt.read) {
 				t.Errorf("the List read the lines of %v, want those of %v", dates, tt.read)
 			}
 		})

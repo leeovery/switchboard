@@ -155,23 +155,9 @@ func (a *answered) summed() uint64 {
 	return h.Sum64()
 }
 
-// answersOf returns the answers byDate holds, by the date of the day whose
-// files hold them, each answered as answeredOf has it, those of the session
-// with the given id its own.
-func answersOf(byDate map[string][]ledger.Line, id string) map[string][]answered {
-	answers := make(map[string][]answered, len(byDate))
-	for date, lines := range byDate {
-		for i := range lines {
-			if isAnswer(&lines[i]) {
-				answers[date] = append(answers[date], answeredOf(&lines[i], id))
-			}
-		}
-	}
-	return answers
-}
-
-// answersIn returns the answers among lines, as answersOf has them, of the
-// day they're all filed on.
+// answersIn returns the answers among lines, each answered as answeredOf has
+// it, those of the session with the given id its own, of the day they're all
+// filed on.
 func answersIn(lines []ledger.Held, id string) []answered {
 	var answers []answered
 	for i := range lines {

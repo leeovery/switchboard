@@ -590,10 +590,6 @@ func (c *digestChain) checkFollowed(now time.Time, prices []pricedAs) {
 	}
 }
 
-// onPage has a read of the ledger's sessions rest each on its page, as
-// RestOnPage has it.
-func onPage(string) ledger.Rest { return ledger.RestOnPage }
-
 // samePaged checks from, the session with the given id resting on its page
 // as what names it says, held paged on the day given behind horizon, as
 // heldAsOf holds it, its points of answers, is want, the session read whole,
@@ -701,6 +697,21 @@ func TestASessionAsOfADayIsHeldAsReadWhole(t *testing.T) {
 			})
 		}
 	}
+}
+
+// answersOf returns the answers byDate holds, by the date of the day whose
+// files hold them, each answered as answeredOf has it, those of the session
+// with the given id its own: as a read's takenAnswers give them of a page.
+func answersOf(byDate map[string][]ledger.Line, id string) map[string][]answered {
+	answers := make(map[string][]answered, len(byDate))
+	for date, lines := range byDate {
+		for i := range lines {
+			if isAnswer(&lines[i]) {
+				answers[date] = append(answers[date], answeredOf(&lines[i], id))
+			}
+		}
+	}
+	return answers
 }
 
 // linesByDate are lines by the date of the day each arrived on, as the

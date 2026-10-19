@@ -181,11 +181,11 @@ func (st *storedSession) restored(prices ledger.Table, day LedgerDay) (*heldSess
 	sealed := st.Story.restored(prices, own)
 	counts := make(map[string]int, len(st.Counts))
 	maps.Copy(counts, st.Counts)
-	s := &heldSession{
-		horizon: endOfDay(own), sealed: sealed, story: sealed, flights: make(map[string]heldFlights), counts: counts,
+	s := &heldSession{horizon: endOfDay(own), sealed: sealed, story: sealed, flights: make(map[string]heldFlights), counts: counts}
+	if sealed.begun {
 		// Empty, not none, as sealedAt leaves a session it sealed every
-		// request of.
-		open: []heldRequest{},
+		// request of; a read of no request holds none.
+		s.open = []heldRequest{}
 	}
 	return s.on(day, prices), nil
 }
