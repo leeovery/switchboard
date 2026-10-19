@@ -17,12 +17,12 @@ import (
 )
 
 // Session reads as a Follower does: the session's lines filed by now, the
-// latest arrived first.
-func (l filedLedger) Session(id string) iter.Seq[ledger.Held] {
+// latest arrived first, of the days ledger.Spanning gives of the spans given.
+func (l filedLedger) Session(id string, within ...ledger.Span) iter.Seq[ledger.Held] {
 	return func(yield func(ledger.Held) bool) {
-		filed := linesInOrder(l.filed())
+		filed, spanned := linesInOrder(l.filed()), ledger.Spanning(within)
 		for _, line := range slices.Backward(filed) {
-			if line.Session == id && !yield(ledger.Held{Line: line}) {
+			if line.Session == id && spanned(dayfile.DateOf(line.At)) && !yield(ledger.Held{Line: line}) {
 				return
 			}
 		}
@@ -224,13 +224,14 @@ func untoldOf(lines []ledger.Line, seed uint64) map[string]bool {
 // streamAt is what the stream tells at now of the session's requests: each
 // in flight, sent moments after it arrived, and each ended since the last
 // look, as the stream holds a request till a read of the ledger's tail
-// reads its line; but the one it never tells of, and the one it tells of
-// late, untold for joinsLate after it arrived.
+// reads its line, but an IdleHour after it ended at most, as the watch lets
+// it go by the clock; but the one it never tells of, and the one it tells
+// of late, untold for joinsLate after it arrived.
 func (p *paging) streamAt(now time.Time) Stream {
 	s := Stream{Live: true, Requests: make(map[string]Told)}
 	for _, l := range p.lines {
 		untold := l.Request == "" || l.Request == unseen || p.untold[l.Request] || l.Request == p.late && now.Sub(l.At) < joinsLate
-		if l.At.After(now) || !ended(&l).After(p.fed) || untold || !l.Counted() {
+		if l.At.After(now) || !ended(&l).After(p.fed) || !now.Before(ended(&l).Add(IdleHour)) || untold || !l.Counted() {
 			continue
 		}
 		t := Told{
@@ -959,9 +960,9 @@ type readCounting struct {
 	read *int
 }
 
-func (c readCounting) Session(id string) iter.Seq[ledger.Held] {
+func (c readCounting) Session(id string, within ...ledger.Span) iter.Seq[ledger.Held] {
 	return func(yield func(ledger.Held) bool) {
-		for held := range c.l.Session(id) {
+		for held := range c.l.Session(id, within...) {
 			*c.read++
 			if !yield(held) {
 				return

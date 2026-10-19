@@ -299,7 +299,8 @@ func (h HeldPage) Closing() HeldPage {
 // lines the session as held doesn't hold, as the store has yet to be fed
 // them: a subagent's turn is the one its first request names, which may have
 // arrived before the turn began, and be filed only since, untold by the
-// stream. None where no turn is open.
+// stream. It reads the turn's own days alone, and the horizon's, as
+// turnSpans has them, none between. None where no turn is open.
 func (h HeldPage) ReadTurn(l LedgerSession, live PageLive) HeldTurn {
 	if h.turn == nil {
 		return HeldTurn{}
@@ -311,7 +312,7 @@ func (h HeldPage) ReadTurn(l LedgerSession, live PageLive) HeldTurn {
 		return read
 	}
 	from := instantOf(w.tally.turns[i].started.Add(-arrivesWithin))
-	for held := range l.Session(h.id) {
+	for held := range l.Session(h.id, w.turnSpans(w.tally.turns[i])...) {
 		line := held.Line
 		switch at := instantOf(line.At); {
 		case at.compare(from) >= 0:
@@ -325,6 +326,25 @@ func (h HeldPage) ReadTurn(l LedgerSession, live PageLive) HeldTurn {
 		}
 	}
 	return read
+}
+
+// turnSpans are the stretches of time ReadTurn reads the lines of the turn
+// t of, at w's now: from arrivesWithin before it began to when its last
+// request ended, never before it began, as a line's time taken may be
+// hand-edited below none, or to now while one is pending, as a member's line
+// arrives by when its request ends, and every one the store holds, sealed
+// behind its horizon, is among those it's tallied of; and from the horizon
+// on, as the store has yet to be fed the lines since. None, to read every
+// day, where the horizon is before every moment.
+func (w worked) turnSpans(t *turnTally) []ledger.Span {
+	if w.rec.horizon == unsealed {
+		return nil
+	}
+	turn := ledger.Span{From: t.started.Add(-arrivesWithin), To: w.live.Now}
+	if !t.pending {
+		turn.To = later(instantOf(t.last.end), instantOf(t.started)).time()
+	}
+	return []ledger.Span{turn, {From: w.rec.horizon.time(), To: w.live.Now}}
 }
 
 // Turned is h with the lines of its turn open read, as t read them, among

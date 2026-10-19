@@ -217,7 +217,7 @@ func partsSize(t *testing.T, d days) int64 {
 func TestADigestsSessionsAreItsStoredFormsLastField(t *testing.T) {
 	fields := reflect.VisibleFields(reflect.TypeFor[storedDigest]())
 	if name, _, _ := strings.Cut(fields[len(fields)-1].Tag.Get("json"), ","); name != digestSessions {
-		t.Errorf("storedDigest's last field is stored as %q, want %q: its head's fields come first, as storedHeadIn reads them", name, digestSessions)
+		t.Errorf("storedDigest's last field is stored as %q, want %q: its head's fields come first, as digestHeadIn reads them", name, digestSessions)
 	}
 }
 
@@ -594,7 +594,7 @@ func TestADigestIsJudgedByItsHeadBeforeItsSessionsAreRead(t *testing.T) {
 	}
 }
 
-// A digest's file that inflates past digestMax, as one made by hand may,
+// A digest's file that inflates past storedMax, as one made by hand may,
 // fails as one that doesn't read as the day's, inflated no further: its
 // gzip trailer, cut short two megabytes past the most, is never reached.
 func TestADigestInflatingPastItsMostFailsUnread(t *testing.T) {
@@ -606,7 +606,7 @@ func TestADigestInflatingPastItsMostFailsUnread(t *testing.T) {
 	}
 	padding := bytes.Repeat([]byte{'a'}, 1<<20)
 	parts := [][]byte{fmt.Appendf(nil, `{"version":%d,"body":3,"day":"2026-10-05","from":0,"to":0,"sessions":{"one":{"state":"`, digestVersion)}
-	for range digestMax/len(padding) + 2 {
+	for range storedMax/len(padding) + 2 {
 		parts = append(parts, padding)
 	}
 	for _, part := range append(parts, []byte(`"}}}`)) {
@@ -623,9 +623,9 @@ func TestADigestInflatingPastItsMostFailsUnread(t *testing.T) {
 
 	_, err = d.digest(digested, statesVersion)
 
-	if !errors.Is(err, errNotTheDaysDigest) || !errors.Is(err, errDigestTooLarge) {
-		t.Errorf("digest(%q, %d) of a file inflating past %d bytes failed with %v, want %v, as %v", digested, statesVersion, digestMax, err,
-			errNotTheDaysDigest, errDigestTooLarge)
+	if !errors.Is(err, errNotTheDaysDigest) || !errors.Is(err, errStoredTooLarge) {
+		t.Errorf("digest(%q, %d) of a file inflating past %d bytes failed with %v, want %v, as %v", digested, statesVersion, storedMax, err,
+			errNotTheDaysDigest, errStoredTooLarge)
 	}
 }
 

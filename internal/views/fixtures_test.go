@@ -2,7 +2,6 @@ package views_test
 
 import (
 	"encoding/json"
-	"iter"
 	"strings"
 	"testing"
 	"time"
@@ -43,8 +42,6 @@ type ledgerOf []ledger.Summary
 func (l ledgerOf) Days(time.Time) []ledger.Summary { return l }
 
 func (ledgerOf) Today(mark ledger.Mark) ([]ledger.Held, ledger.Mark, bool) { return nil, mark, false }
-
-func (ledgerOf) Session(string) iter.Seq[ledger.Held] { return func(func(ledger.Held) bool) {} }
 
 // daysFrom are the summaries of each day from the one with the date first
 // to today's, of no requests but those given, by their days.

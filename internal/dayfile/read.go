@@ -73,10 +73,24 @@ func afterTomorrow(day, now time.Time) bool {
 }
 
 // Dates returns the dates of the local days whose files may hold lines of
-// times from from to to: from the day before from's to the day after to's,
-// as a change of time zone can file a line under a date beside its own.
+// times from from to to, as DatesBounds bounds them.
 func Dates(from, to time.Time) []string {
-	return datesFrom(noon(from.Local()).AddDate(0, 0, -1), noon(to.Local()).AddDate(0, 0, 1))
+	return datesFrom(datesBounds(from, to))
+}
+
+// DatesBounds returns the first and last of the dates Dates gives of from
+// and to, as the files' names give them, giving none between: the day
+// before from's and the day after to's, as a change of time zone can file a
+// line under a date beside its own.
+func DatesBounds(from, to time.Time) (first, last string) {
+	f, l := datesBounds(from, to)
+	return f.Format(dateLayout), l.Format(dateLayout)
+}
+
+// datesBounds returns noon of the first and last days Dates gives of from
+// and to.
+func datesBounds(from, to time.Time) (first, last time.Time) {
+	return noon(from.Local()).AddDate(0, 0, -1), noon(to.Local()).AddDate(0, 0, 1)
 }
 
 // Span returns the dates of the local days from first's to last's, oldest

@@ -1211,6 +1211,62 @@ func TestASessionsLinesAreReadOfItsOwnDaysAloneNewestFirst(t *testing.T) {
 	}
 }
 
+// A session's lines read within spans are those of the days whose files may
+// hold lines of the spans alone, from the day before each one's start to the
+// day after its end, newest first: every day between is passed over, never
+// opened, its summary unread.
+func TestASessionsLinesWithinSpansAreReadOfTheSpansDaysAlone(t *testing.T) {
+	log := logstest.Capture(t)
+	state, dir, history := stateDirs(t)
+	dayOf := func(back int) string { return on(-back, 0, 0).Format(time.DateOnly) }
+	for back := 30; back >= 0; back-- {
+		holdLines(t, dir, dayOf(back), askedBy(dayOf(back), "one", on(-back, 9, 0)))
+	}
+	summariseAt(dir, history, on(-1, 1, 10))
+	clock := &testClock{at: on(0, 12, 0)}
+	turn, horizon := ledger.Span{From: on(-20, 8, 0), To: on(-20, 10, 0)}, ledger.Span{From: on(0, 11, 0), To: clock.at}
+	unopenable(t, dir, "requests-2026-09-1[7-9]*")
+	unopenable(t, dir, "requests-2026-09-2*")
+	unopenable(t, dir, "requests-2026-09-30*")
+	unopenable(t, dir, "requests-2026-10-0[1-3]*")
+
+	var got []string
+	for h := range followerOf(state, clock, caps).Session("one", turn, horizon) {
+		got = append(got, h.Request)
+	}
+	if want := []string{dayOf(0), dayOf(1), dayOf(19), dayOf(20), dayOf(21)}; !slices.Equal(got, want) || opened(log) != 0 {
+		t.Errorf("log reads\n%s\nSession() within %v and %v gave %q, want %q, newest first, no day between opened", log, turn, horizon, got, want)
+	}
+}
+
+// Spanning holds a day to the spans given as dayfile.Dates has each: from
+// the day before its start's to the day after its end's; every day where
+// none is given.
+func TestSpanningHoldsTheDaysEitherSideOfEachSpan(t *testing.T) {
+	week := ledger.Span{From: on(-10, 23, 0), To: on(-8, 1, 0)}
+	today := ledger.Span{From: on(0, 9, 0), To: on(0, 10, 0)}
+	tests := []struct {
+		name  string
+		spans []ledger.Span
+		date  string
+		want  bool
+	}{
+		{"none given, a day long ago", nil, "2020-01-01", true},
+		{"the day before a span's start", []ledger.Span{week}, "2026-09-24", true},
+		{"two days before a span's start", []ledger.Span{week}, "2026-09-23", false},
+		{"a day within a span", []ledger.Span{week}, "2026-09-26", true},
+		{"the day after a span's end", []ledger.Span{week}, "2026-09-28", true},
+		{"two days after a span's end", []ledger.Span{week}, "2026-09-29", false},
+		{"between two spans", []ledger.Span{week, today}, "2026-10-01", false},
+		{"the second of two spans", []ledger.Span{week, today}, date, true},
+	}
+	for _, tt := range tests {
+		if got := ledger.Spanning(tt.spans)(tt.date); got != tt.want {
+			t.Errorf("%s: Spanning(%v)(%s) = %v, want %v", tt.name, tt.spans, tt.date, got, tt.want)
+		}
+	}
+}
+
 // DaysOn gives the days asked for as Days gives them, each once, oldest
 // first, but none before the first day the ledger holds or after today's,
 // and looks at the files of those days alone, however far back they are.

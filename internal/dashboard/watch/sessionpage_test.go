@@ -44,11 +44,13 @@ func (l *pageLedger) SessionsOf(ids []string, rest func(string) ledger.Rest, tak
 }
 
 // Session gives the session's lines newest first, as a Follower does, as a
-// turn opened reads them.
-func (l *pageLedger) Session(id string) iter.Seq[ledger.Held] {
+// turn opened reads them: of the days ledger.Spanning gives of the spans
+// given.
+func (l *pageLedger) Session(id string, within ...ledger.Span) iter.Seq[ledger.Held] {
 	return func(yield func(ledger.Held) bool) {
+		spanned := ledger.Spanning(within)
 		for _, line := range slices.Backward(l.lines[id]) {
-			if !yield(ledger.Held{Line: line}) {
+			if spanned(dayfile.DateOf(line.At)) && !yield(ledger.Held{Line: line}) {
 				return
 			}
 		}

@@ -245,6 +245,10 @@ to one file a day in `ledger/`.
   run. A digest holds no prices: worth is worked out as it's shown. The day's lines stay the
   truth. A digest or a parts file that's missing, out of date or damaged is passed over, and an
   older digest or the lines read instead, which is slower but shows the same.
+- **The day's head:** beside the digest, `logday-<date>.json.gz` lists each session that ran that
+  day, with the directory it ran in, so the Log's find goes back a month in a moment, never reading
+  the days' lines. It's kept as long as the day's lines, and where it's missing or out of date, the
+  find reads the day's lines instead.
 - **Reading it back:** [`requests`](commands.md#requests), [`history`](commands.md#history) and
   [`sessions`](commands.md#sessions) read it all back, with or without the router.
 

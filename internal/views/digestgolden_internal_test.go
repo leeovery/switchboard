@@ -16,9 +16,9 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 )
 
-// update has the golden of the digests' encoding written, where none is
+// update has the goldens of the digests' and the day heads' encodings
 // kept of the versions the views and the ledger write, as -update asks.
-var update = flag.Bool("update", false, "write the golden of a day's digest, where none is kept of the versions written")
+var update = flag.Bool("update", false, "write the goldens of a day's digest and head, where none is kept of the versions written")
 
 // goldenDay is the day of the golden world whose digest the golden holds.
 const goldenDay = "2026-10-08"
@@ -134,17 +134,38 @@ func TestADigestIsEncodedAsTheGoldenOfItsVersionsHoldsIt(t *testing.T) {
 	zone := time.Local
 	time.Local = time.UTC
 	t.Cleanup(func() { time.Local = zone })
-	got := goldenDigest(t)
-	path := filepath.Join("testdata", fmt.Sprintf("digest-v%d.json", DigestVersion))
+	keptGolden{
+		file: "digest", what: "a digest", version: DigestVersion, test: "TestADigestIsEncodedAsTheGoldenOfItsVersionsHoldsIt", envelope: envelopeOf,
+		bump: "DigestVersion where how a session's state is stored, or the working behind it, changed, or the ledger's digestVersion where its envelope did",
+	}.check(t, goldenDigest(t))
+}
+
+// keptGolden is the golden of what the views and the ledger write of a day
+// of the golden world, testdata/<file>-v<version>.json: its file's name;
+// what it's of, as a digest; the version of the views' body written; the
+// test that writes it; the version of the ledger's envelope a golden's JSON
+// names, as envelope reads it; and what to bump where it changes.
+type keptGolden struct {
+	file, what, test, bump string
+	version                int
+	envelope               func(t *testing.T, kept []byte) int
+}
+
+// check fails the test where got, what's written now, isn't what the golden
+// of its versions holds; or, as -update asks, writes it where none is kept
+// of them, failing where one is kept of the envelope written that differs.
+func (g keptGolden) check(t *testing.T, got []byte) {
+	t.Helper()
+	path := filepath.Join("testdata", fmt.Sprintf("%s-v%d.json", g.file, g.version))
 	kept, err := os.ReadFile(path)
 	missing := errors.Is(err, fs.ErrNotExist)
 	if err != nil && !missing {
 		t.Fatal(err)
 	}
-	const write = "go test ./internal/views -run TestADigestIsEncodedAsTheGoldenOfItsVersionsHoldsIt -update"
+	write := "go test ./internal/views -run " + g.test + " -update"
 	switch {
 	case bytes.Equal(got, kept):
-	case *update && (missing || envelopeOf(t, kept) != envelopeOf(t, got)):
+	case *update && (missing || g.envelope(t, kept) != g.envelope(t, got)):
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -152,13 +173,12 @@ func TestADigestIsEncodedAsTheGoldenOfItsVersionsHoldsIt(t *testing.T) {
 			t.Fatal(err)
 		}
 	case *update:
-		t.Fatalf("%s holds a digest of version %d of the envelope written: bump DigestVersion, or the ledger's digestVersion, rather than write it again", path, DigestVersion)
+		t.Fatalf("%s holds %s of version %d of the envelope written: bump %s, rather than write it again", path, g.what, g.version, g.bump)
 	case missing:
-		t.Fatalf("no golden of a digest of version %d is kept at %s: write it with %s", DigestVersion, path, write)
+		t.Fatalf("no golden of %s of version %d is kept at %s: write it with %s", g.what, g.version, path, write)
 	default:
-		t.Errorf("the digest of %s is written\n%s\nwant, as %s holds it\n%s\n"+
-			"bump DigestVersion where how a session's state is stored, or the working behind it, changed, or the ledger's digestVersion where its envelope did, "+
-			"then write the new version's golden with %s", goldenDay, got, path, kept, write)
+		t.Errorf("%s of %s is written\n%s\nwant, as %s holds it\n%s\nbump %s, then write the new version's golden with %s",
+			g.what, goldenDay, got, path, kept, g.bump, write)
 	}
 }
 
@@ -177,9 +197,7 @@ type golden struct {
 func goldenDigest(t *testing.T) []byte {
 	t.Helper()
 	lines, zoned := goldenWorld()
-	c := newDigestChain(t, "the golden world", 0, lines)
-	c.file(goldenDay, zoned...)
-	c.digestDayByDay(func(LedgerDay) {})
+	c := goldenChain(t, lines, zoned)
 	data, err := os.ReadFile(c.digestPath(goldenDay))
 	if err != nil {
 		t.Fatal(err)
@@ -190,11 +208,29 @@ func goldenDigest(t *testing.T) []byte {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var indented bytes.Buffer
-	if err := json.Indent(&indented, plain, "", "  "); err != nil {
+	return indented(t, plain)
+}
+
+// goldenChain is the golden world, lines and zoned as goldenWorld gives them,
+// written as a real ledger, its zoned requests filed under goldenDay, and
+// digested day by day, as digestChain digests it.
+func goldenChain(t *testing.T, lines, zoned []ledger.Line) *digestChain {
+	t.Helper()
+	c := newDigestChain(t, "the golden world", 0, lines)
+	c.file(goldenDay, zoned...)
+	c.digestDayByDay(func(LedgerDay) {})
+	return c
+}
+
+// indented is the JSON plain, indented, ending its last line, as a golden
+// keeps it.
+func indented(t *testing.T, plain []byte) []byte {
+	t.Helper()
+	var b bytes.Buffer
+	if err := json.Indent(&b, plain, "", "  "); err != nil {
 		t.Fatal(err)
 	}
-	return append(indented.Bytes(), '\n')
+	return append(b.Bytes(), '\n')
 }
 
 // partsOf are the parts the digest given, the JSON of the digest of the local

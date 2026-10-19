@@ -161,8 +161,9 @@ func (m Model) readFind() (Model, tea.Cmd) {
 
 // walkFind reads for the find, while it's open, one read at a time: the
 // summaries of the days the ledger keeps, once each time it opens, once the
-// oldest is known; then the lines of the next day it names to read, newest
-// first, for its sessions' directories, each day once a run.
+// oldest is known; then the sessions of the next day it names to read,
+// newest first, for their directories, as views.DaySessionsOn reads them,
+// each day once a run.
 func (m Model) walkFind() (Model, tea.Cmd) {
 	l, oldest, next, opening := m.cfg.Ledger, m.log.oldest.Day, m.log.page.Finding.Found.Next, m.log.find.opening
 	if m.log.find.reading || l == nil || oldest.Date == "" {
@@ -173,7 +174,7 @@ func (m Model) walkFind() (Model, tea.Cmd) {
 	case !m.log.find.summed:
 		read = func() tea.Msg { return findReadMsg{summed: true, opening: opening, summaries: l.Days(oldest.Start)} }
 	case next != "":
-		read = func() tea.Msg { return findReadMsg{date: next, sessions: views.DaySessions(l.Day(next))} }
+		read = func() tea.Msg { return findReadMsg{date: next, sessions: views.DaySessionsOn(l, next)} }
 	default:
 		return m, nil
 	}

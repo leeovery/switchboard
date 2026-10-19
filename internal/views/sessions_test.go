@@ -154,6 +154,12 @@ func (f fakeLedger) Day(date string) []ledger.Held {
 	return day
 }
 
+// DaySide reads as a Follower of a ledger that holds no day's head does:
+// no side, whatever the day.
+func (f fakeLedger) DaySide(string, int) (json.RawMessage, bool) {
+	return nil, false
+}
+
 // FirstLinesDay reads as a Follower does: the start of the day its oldest
 // line arrived on, failing where it holds none.
 func (f fakeLedger) FirstLinesDay(time.Time) (time.Time, error) {
@@ -163,10 +169,13 @@ func (f fakeLedger) FirstLinesDay(time.Time) (time.Time, error) {
 	return dayfile.DayStart(f.lines[0].At, 0), nil
 }
 
-func (f fakeLedger) Session(id string) iter.Seq[ledger.Held] {
+// Session reads as a Follower does: the session's lines, the latest first,
+// of the days ledger.Spanning gives of the spans given.
+func (f fakeLedger) Session(id string, within ...ledger.Span) iter.Seq[ledger.Held] {
 	return func(yield func(ledger.Held) bool) {
+		spanned := ledger.Spanning(within)
 		for _, l := range slices.Backward(f.lines) {
-			if l.Session == id && !yield(ledger.Held{Line: l}) {
+			if l.Session == id && spanned(dayfile.DateOf(l.At)) && !yield(ledger.Held{Line: l}) {
 				return
 			}
 		}
@@ -640,9 +649,9 @@ func (c countedLedger) SessionsOf(ids []string, rest func(string) ledger.Rest, t
 	return c.fakeLedger.SessionsOf(ids, rest, take)
 }
 
-func (c countedLedger) Session(id string) iter.Seq[ledger.Held] {
+func (c countedLedger) Session(id string, within ...ledger.Span) iter.Seq[ledger.Held] {
 	c.counts.session++
-	return c.fakeLedger.Session(id)
+	return c.fakeLedger.Session(id, within...)
 }
 
 func (c countedLedger) Today(mark ledger.Mark) ([]ledger.Held, ledger.Mark, bool) {

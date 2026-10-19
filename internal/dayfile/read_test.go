@@ -548,6 +548,9 @@ func TestDatesTakeInTheLocalDayEitherSide(t *testing.T) {
 	if want := []string{"2026-09-27", "2026-09-28", "2026-09-29", "2026-09-30", "2026-10-01"}; !slices.Equal(got, want) {
 		t.Errorf("Dates() = %q, want %q: the local days from the one before from's to the one after to's", got, want)
 	}
+	if first, last := DatesBounds(from.UTC(), to.UTC()); first != "2026-09-27" || last != "2026-10-01" {
+		t.Errorf("DatesBounds() = %s, %s, want the first and last Dates gives, 2026-09-27 and 2026-10-01", first, last)
+	}
 }
 
 func TestASpanIsTheLocalDaysFromTheFirstToTheLast(t *testing.T) {

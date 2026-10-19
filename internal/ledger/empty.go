@@ -1,6 +1,7 @@
 package ledger
 
 import (
+	"encoding/json"
 	"iter"
 	"slices"
 	"time"
@@ -51,6 +52,11 @@ func (Empty) Day(string) []Held {
 	return nil
 }
 
+// DaySide returns no side, whatever the day, as the ledger holds no head.
+func (Empty) DaySide(string, int) (json.RawMessage, bool) {
+	return nil, false
+}
+
 // FirstLinesDay fails with fs.ErrNotExist, as the ledger holds no day's
 // lines.
 func (Empty) FirstLinesDay(time.Time) (time.Time, error) {
@@ -58,7 +64,7 @@ func (Empty) FirstLinesDay(time.Time) (time.Time, error) {
 }
 
 // Session returns no line.
-func (Empty) Session(string) iter.Seq[Held] {
+func (Empty) Session(string, ...Span) iter.Seq[Held] {
 	return func(func(Held) bool) {}
 }
 
