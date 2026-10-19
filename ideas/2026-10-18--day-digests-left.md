@@ -53,8 +53,9 @@ needs care.
 - A restored page's times sent upstream are decoded through a list of times, some 230 B each, before
   they're held as nanoseconds: some 919 MB of garbage for a session running every day of 400.
   Decoding them straight into nanoseconds would make none.
-- A page whose parts are spoiled, and whose next older state to fall back on lies two days back or
-  more, is read whole: the points can't place a session's day after a base older than yesterday.
+- A page whose parts are spoiled, and whose next older state to fall back on lies three days back
+  or more, is read whole: the points can't place a session's own day before yesterday, after its
+  base.
 - The backfill's walk of each session's chain of parts reads each link's part again for every day
   it builds, so it grows with the square of the days. Measure it at 400 days.
 - The stored forms' `nn`, `pn` and `mp`, whether a request in none is in flight and whether a turn's

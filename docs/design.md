@@ -4453,8 +4453,8 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
     again whole holding other than as many of the session's requests as the store counted of it.
     And for the session whose page is open: the stream first telling, after the horizon passed it,
     of a request that may have arrived behind it; or an answer its points can't place. A midnight on
-    which its models' prices change no longer reads it whole, as its page tallies tokens and is
-    priced only as it's built (see The request ledger). A clock set back, or a zone changed, since
+    which its models' prices change doesn't, as its page tallies tokens and is priced only as it's
+    built (see The request ledger). A clock set back, or a zone changed, since
     the last feed drops everything the store held, and the sessions wanted are read again, each
     from its newest standing digest or whole. Each costs time alone: what's shown is what one read
     whole shows.
@@ -4484,7 +4484,7 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
     answer of the days since in, as where a model first reads, mid-run, a window only some of the
     session's models share; the stream joining late, as Read whole again says; and, never from
     digests, a turn's requests, read raw as the turn opens (see A session's page, below) (settled
-    in the plan, 19 October 2026). Read whole, too, as phase 1 has it: a session the store can't
+    in the plan, 19 October 2026). Read whole, too: a session the store can't
     place a line of, as Read whole again says, as one restored onto the day after its base holds
     none of the base day's requests to place a line of that day given again, or a request the
     stream tells of filed on it, so its base would fail alike at every feed; one whose state won't
@@ -5022,8 +5022,8 @@ from the first day a router that has it runs, so nothing before then is in it.
     only where a page is restored, so a reader of the session's story alone never decodes it; and
     a page JSON can't carry, as one whose points hold a share that isn't a finite number, or a
     window's climb holding a time not in UTC, which would read back in another zone, is left out,
-    the session's state standing without it and its page read whole (settled in the plan, 19
-    October 2026).
+    the session's state standing without it and its page resting on an older state, or read whole
+    (settled in the plan, 19 October 2026).
   - **Its part of the day,** in the day's parts file, `parts-<local date>.gz`, beside the digest:
     what the day's fold added to the page of the state it was folded on, which grows with every day
     the session runs, so is never carried whole: each turn the day took a request into, or began,
@@ -5565,7 +5565,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/score` | Pace, projection, a window's rate of use, the allowance, eligibility against the reserve, pressure, perishability, the 5-hour tiebreak and the best-account pick. Pure functions of a snapshot and a clock |
 | `internal/prime` | The priming schedule: each account's slot from the day and the accounts, and when a prime is due. Pure functions of the day, the accounts, the window a request starts, which the `score.Policy` names, the readings and a clock |
 | `internal/status` | The status document, each window's allowance and even pace, the pool's room and COMING UP among what it holds, and building it by probing every account; what the router says of a session; and their words: `status`'s text, the countdowns, clocks, titles and state words the dashboard shares, and one map from the router's reasons to the dashboard's words |
-| `internal/views` | Each view's data, built by one function from what's read, the status document, the router's sessions and what its request stream tells, the ledger's, the readings history's and the events' readers, the price table and a clock: what a page of the dashboard draws, and its data verb prints, so the two never disagree (see The data verbs); and the one store of sessions the dashboard's readers of the ledger share, fed once a read of its tail, each session's story told on as its lines come, from a digest's state or whole (see Live updates); and a session's state as a day's digest stores it, its page's carried state, its points and its part of each day among it, restored by the store's own steps, and `Digests`, the builder the ledger digests its days with, each day's answers taken once, small, as the ledger's read hands their lines, as a page's read takes them too (`takenanswers.go`), each session's page given those of the days after its base (see The request ledger). It opens nothing itself; it reads through the readers it's given |
+| `internal/views` | Each view's data, built by one function from what's read, the status document, the router's sessions and what its request stream tells, the ledger's, the readings history's and the events' readers, the price table and a clock: what a page of the dashboard draws, and its data verb prints, so the two never disagree (see The data verbs); and the one store of sessions the dashboard's readers of the ledger share, fed once a read of its tail, each session's story told on as its lines come, from a digest's state or whole (see Live updates); and a session's state as a day's digest stores it, its page's carried state, its points and its part of each day among it, restored by the store's own steps, and `Digests`, the builder the ledger digests its days with, each day's answers taken once, small, as the ledger's read hands their lines, as a page's read takes them too, each session's page given those of the days after its base (see The request ledger). It opens nothing itself; it reads through the readers it's given |
 | `internal/dashboard` | Rendering the dashboard as frames (Lip Gloss): the page's chrome, its title row, status line, heading row and key line; the Overview, Accounts, History, Sessions, Runway, the Log and a session's page, each drawn from what `internal/views` builds; the usage block, which `usage` prints and the Overview's USAGE draws; the card a routing picker or a line's details is drawn in, over the page faded; the theme picker; and `?`'s help for each page |
 | `internal/dashboard/watch` | The live dashboard (Bubble Tea): when to read the router or probe; the ledger's, the readings history's and the events' files, read as they grow through small interfaces it's given, which its tests and the capture harness fake; the history and the request stream; the pages and the stack `esc` goes back through, their keys and clicks, the routing pickers' orders, scrolling, easing and what moves; the theme picker; the preferences; and its desktop notifications while it probes without the router |
 | `internal/theme` | Themes: the tokens, the built-ins, loading `.theme` files, working out `viz.*`, the families', versions' and days' shades among them, picking the light or dark half by the terminal's background, and the preferences file |
