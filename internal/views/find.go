@@ -30,7 +30,7 @@ func DaySessions(day LogDay) []DaySession {
 	held := make(map[string]*DaySession)
 	for i := range day.records {
 		r := &day.records[i]
-		id := r.countedSession()
+		id := r.countedSession
 		if id == "" {
 			continue
 		}

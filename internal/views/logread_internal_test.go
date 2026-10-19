@@ -38,9 +38,10 @@ type logGrowing struct {
 // filed since the last look as its gain, or where again says, every one of
 // today's, as a read afresh gives them; and each day before today that
 // gained a line read again whole. The store is fed them first, wanting the
-// sessions of the Log's lines, then the read takes them in, the feed's gains
-// told once, as the watch's tail read takes them. The lines tabled are
-// caught up with the read grown, and held to them tabled afresh.
+// sessions of the Log's lines, then the read takes them in, but those it
+// holds, as Unheld has them, the feed's gains told once, as the watch's tail
+// read takes them. The lines tabled are caught up with the read grown, and
+// held to them tabled afresh.
 func (g *logGrowing) look(now time.Time, again bool) {
 	g.t.Helper()
 	today := Today(now)
@@ -63,9 +64,9 @@ func (g *logGrowing) look(now time.Time, again bool) {
 	}
 	maps.DeleteFunc(days, func(date string, _ []ledger.Held) bool { return !late[date] })
 	g.filed = filed
-	lines := []LogDay{RecordsOf(gained)}
+	lines := []LogDay{g.read.Unheld(gained)}
 	for _, date := range slices.Sorted(maps.Keys(days)) {
-		lines = append(lines, RecordsOf(days[date]))
+		lines = append(lines, g.read.Unheld(days[date]))
 	}
 	held, gains := g.held.Fed(filedLedger{lines: g.lines, now: now}, Took(gained, days), SessionsWanted{Log: g.read.Wanted(lines...)}, now)
 	g.held = held
@@ -236,6 +237,47 @@ func TestTheLogGrownLookByLookIsTheLogReadAtOnceOnGeneratedRuns(t *testing.T) {
 			t.Fatalf("run %d: grown look by look, the table is\n%s\nwant it as read at once\n%s\n%s", seed, linesSaid(got), linesSaid(want), unlike(tiesSorted(got), tiesSorted(want)))
 		}
 	}
+}
+
+// A read's Unheld are the lines given, each its record, but those with ids
+// it holds already, on the day each arrived: of an id it holds, one that
+// arrived at another moment is another request's, kept, and so is every
+// line without an id, which Taken knows by its record's sum. So a day read
+// again whole decodes only what it gained, and the read takes in of it what
+// it takes in of every line.
+func TestUnheldLeavesOutOnlyTheLinesWithIDsTheReadHolds(t *testing.T) {
+	at := time.Date(2026, 10, 7, 9, 0, 0, 0, time.Local)
+	line := func(id string, seconds int) ledger.Held {
+		return ledger.Held{At: at.Add(time.Duration(seconds) * time.Second), Request: id, Kind: ledger.KindMessage, Session: "s", Status: 200}
+	}
+	day := []ledger.Held{line("r1", 0), line("", 1), line("r2", 2)}
+	taking := LogTaking{Held: HoldSessions(ledger.Pricing), Now: at.Add(time.Hour)}
+	read := ReadLog(ledger.Pricing).Taken(RecordsOf(day), true, taking)
+	again := append(slices.Clone(day), line("r3", 3), line("r1", 4), line("", 5))
+	unheld := read.Unheld(again)
+	var kept []string
+	for _, r := range unheld.records {
+		kept = append(kept, fmt.Sprintf("%q at %v", r.request, r.arrived().Sub(at)))
+	}
+	if want := []string{`"" at 1s`, `"r3" at 3s`, `"r1" at 4s`, `"" at 5s`}; !slices.Equal(kept, want) {
+		t.Errorf("of the day read again, Unheld keeps %v, want %v", kept, want)
+	}
+	got, want := read.Taken(unheld, true, taking), read.Taken(RecordsOf(again), true, taking)
+	if !reflect.DeepEqual(slices.Collect(got.lines()), slices.Collect(want.lines())) {
+		t.Errorf("the read takes in of Unheld's lines\n%s\nwant what it takes in of every line\n%s", readSaid(got), readSaid(want))
+	}
+	if !read.Taken(read.Unheld(day), true, taking).Same(read) {
+		t.Error("the read takes in a line of Unheld's of the day it holds whole, want none")
+	}
+}
+
+// readSaid is what r holds, a line to each of its lines.
+func readSaid(r LogRead) string {
+	var said strings.Builder
+	for l := range r.lines() {
+		fmt.Fprintf(&said, "%d %q at %v\n", l.seq, l.flight.request, l.flight.arrived().Format(time.TimeOnly))
+	}
+	return said.String()
 }
 
 // A day taken into the Log's read whole copies a chunk of its lines for each

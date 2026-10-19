@@ -406,11 +406,11 @@ func (w *spread) flightAgain(id string, chain []string, base string, now time.Ti
 	_, end, _ := dayfile.Day(base)
 	arrived := w.arrivedBy(id, now)
 	return slices.ContainsFunc(arrived, func(a ledger.Line) bool {
-		if a.Request == "" || !slices.Contains(chain, w.filedUnder(a)) || !inFlightAt(&a, end) {
+		if a.Request == "" || !slices.Contains(chain, w.filedUnder(a)) || !flightOf(&a).inFlightAt(end) {
 			return false
 		}
 		return slices.ContainsFunc(arrived, func(b ledger.Line) bool {
-			return b.Request == a.Request && !b.At.Before(end) && inFlightAt(&a, b.At)
+			return b.Request == a.Request && !b.At.Before(end) && flightOf(&a).inFlightAt(b.At)
 		})
 	})
 }

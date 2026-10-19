@@ -128,11 +128,19 @@ func (s *story) on(day LedgerDay) *story {
 	return c
 }
 
-// isRequest reports whether l is a session's request: one of a session that
-// ledger.Line.Counted counts, as every view counts requests, a line of no
-// session being none of a session's.
+// isRequest reports whether l is a session's request, as sessionsRequest has
+// it of its kind, as kindOf tells it, and its session.
 func isRequest(l *ledger.Line) bool {
-	return l.Counted() && l.Session != ""
+	return sessionsRequest(kindOf(l), l.Session)
+}
+
+// sessionsRequest reports whether a request of the kind given, of the
+// session with the given id, is a session's request: one ledger.Line.Counted
+// counts, as every view counts requests, which kindOf tells as RowRequest, of
+// a session, a line of no session being none of a session's. It's the one
+// rule of a line and of its record alike.
+func sessionsRequest(kind RowKind, session string) bool {
+	return kind == RowRequest && session != ""
 }
 
 // add takes in r, the session's next request.
@@ -273,16 +281,9 @@ func (s *story) toldOf(id string, at time.Time) (first bool, made *move, rewrote
 
 // sameRequest reports whether the line l is of the request with the given
 // id that arrived, or went upstream, at at, as its line or the request
-// stream tells it: the same id, and at while l was in flight, as inFlightAt
-// has it, as an id is unique only while the router that gave it runs.
+// stream tells it, as the flight of its request's is has it.
 func sameRequest(l *ledger.Line, id string, at time.Time) bool {
-	return l.Request == id && inFlightAt(l, at)
-}
-
-// inFlightAt reports whether the request of the line l was in flight at at,
-// as inFlight has it.
-func inFlightAt(l *ledger.Line, at time.Time) bool {
-	return inFlight(at, l.At, ended(l))
+	return flightOf(l).is(id, at)
 }
 
 // inFlight reports whether a request that arrived and ended when given was

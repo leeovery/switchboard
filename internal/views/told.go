@@ -201,10 +201,17 @@ func (t Told) FiledSurely() bool {
 	return ok && Today(t.Sent).Date == day.Date
 }
 
-// FiledAs reports whether l is the request's line: the same request, as
-// sameRequest has it, by when it first went upstream.
+// FiledAs reports whether l is the request's line, as filedAs has it of the
+// flight of its request.
 func (t Told) FiledAs(l *ledger.Line) bool {
-	return sameRequest(l, t.Request, t.Sent)
+	return t.filedAs(flightOf(l))
+}
+
+// filedAs reports whether the line of the request that flew as f is t's
+// request's: the same request, as the flight's is has it, by when it first
+// went upstream.
+func (t Told) filedAs(f flight) bool {
+	return f.is(t.Request, t.Sent)
 }
 
 // Of is what s told of the session with the given id alone: its requests,
@@ -257,13 +264,12 @@ func (s Stream) known() iter.Seq[Told] {
 }
 
 // sentOf is when the request whose line flew as f went upstream, as s told,
-// reporting false where s told of no such request, as FiledAs has it of its
-// line. A request's sending, once told, stands whatever s knows of it now,
-// as known has it, so a row stays where it sat in flight as its line fills
-// it in.
+// reporting false where s told of no such request, as filedAs has it. A
+// request's sending, once told, stands whatever s knows of it now, as known
+// has it, so a row stays where it sat in flight as its line fills it in.
 func (s Stream) sentOf(f flight) (time.Time, bool) {
 	t, told := s.Requests[f.request]
-	if !told || !f.is(t.Request, t.Sent) {
+	if !told || !t.filedAs(f) {
 		return time.Time{}, false
 	}
 	return t.Sent, true

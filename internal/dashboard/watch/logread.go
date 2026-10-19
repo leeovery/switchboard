@@ -268,9 +268,10 @@ func (m Model) logFold(now time.Time) logFold {
 }
 
 // loggedLines are the lines of a read of the ledger's tail the Log takes
-// in, each its record, as views.RecordsOf has it: today's gained, afresh
-// where they're every one of today's; and those of each of its late days,
-// read again whole, by the day's date.
+// in, each its record, but those its read holds already, as LogRead's
+// Unheld has them: of today's gained, afresh where they're every one of
+// today's; and of each of its late days, read again whole, by the day's
+// date.
 type loggedLines struct {
 	gained views.LogDay
 	afresh bool
@@ -283,9 +284,9 @@ func (f *logFold) logged(read tailLines) loggedLines {
 	if f == nil {
 		return loggedLines{}
 	}
-	logged := loggedLines{gained: views.RecordsOf(read.gained), afresh: read.afresh, days: make(map[string]views.LogDay, len(f.late))}
+	logged := loggedLines{gained: f.read.Unheld(read.gained), afresh: read.afresh, days: make(map[string]views.LogDay, len(f.late))}
 	for _, date := range f.late {
-		logged.days[date] = views.RecordsOf(read.days[date])
+		logged.days[date] = f.read.Unheld(read.days[date])
 	}
 	return logged
 }

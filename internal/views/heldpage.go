@@ -181,7 +181,8 @@ func (h HeldPage) On(date string) (HeldPage, bool) {
 
 // TurnOf is h with the turn open was has open, as Opening and Turned have
 // it, the lines of its requests among those given, read of the ledger
-// since, taken into it, as mine has them: so a page grown of a read of the
+// since, taken into it, as mine has them, each decoded into its record only
+// where ofSession doesn't pass it over: so a page grown of a read of the
 // ledger's tail off the event loop, of a copy of the page from before its
 // turn opened, holds the turn open as the page holds it now.
 func (h HeldPage) TurnOf(was HeldPage, read ...[]ledger.Held) HeldPage {
@@ -192,7 +193,11 @@ func (h HeldPage) TurnOf(was HeldPage, read ...[]ledger.Held) HeldPage {
 	var mine []lineRecord
 	for _, lines := range read {
 		for i := range lines {
-			if rec := lineRecordOf(&lines[i].Line); h.mine(&rec) {
+			l := &lines[i].Line
+			if !h.ofSession(l.Session, isRequest(l)) {
+				continue
+			}
+			if rec := lineRecordOf(l); h.mine(&rec) {
 				mine = append(mine, rec)
 			}
 		}
@@ -204,18 +209,27 @@ func (h HeldPage) TurnOf(was HeldPage, read ...[]ledger.Held) HeldPage {
 }
 
 // mine reports whether the record r may be of a request of h's turn open:
-// of its session's requests, every subagent's, as the first request a
-// subagent made, which names its turn, may land after those the page knows
-// of; else one naming the prompt. Which a turn's member is, Build tells, as
-// member has it, of the agents it knows then.
+// of its session's requests, as ofSession has it, every subagent's, as the
+// first request a subagent made, which names its turn, may land after those
+// the page knows of; else one naming the prompt. Which a turn's member is,
+// Build tells, as member has it, of the agents it knows then.
 func (h HeldPage) mine(r *lineRecord) bool {
 	switch {
-	case r.session != h.id || !r.isRequest():
+	case !h.ofSession(r.session, r.isRequest()):
 		return false
 	case r.agentID != "":
 		return true
 	}
 	return r.prompt == h.turn.prompt
+}
+
+// ofSession reports whether a request of the session with the given id, a
+// session's request where request says, may be of a turn of h's: one of h's
+// session's requests. It's mine's first test, asked of a line before its
+// record is decoded, so a line of another session, or a check or a count,
+// is passed over undecoded.
+func (h HeldPage) ofSession(session string, request bool) bool {
+	return session == h.id && request
 }
 
 // with is t with the records given among its own, afresh: each of a request
@@ -294,7 +308,8 @@ func (h HeldPage) Closing() HeldPage {
 // them: a subagent's turn is the one its first request names, which may have
 // arrived before the turn began, and be filed only since, untold by the
 // stream. It reads the turn's own days alone, and the horizon's, as
-// turnSpans has them, none between. None where no turn is open.
+// turnSpans has them, none between; and decodes a line into its record only
+// where ofSession doesn't pass it over. None where no turn is open.
 func (h HeldPage) ReadTurn(l LedgerSession, live PageLive) HeldTurn {
 	if h.turn == nil {
 		return HeldTurn{}
@@ -307,15 +322,20 @@ func (h HeldPage) ReadTurn(l LedgerSession, live PageLive) HeldTurn {
 	}
 	from := instantOf(w.tally.turns[i].started.Add(-arrivesWithin))
 	for held := range l.Session(h.id, w.turnSpans(w.tally.turns[i])...) {
+		at := instantOf(held.At)
+		switch {
+		case at.compare(from) < 0 && at.compare(w.rec.horizon) < 0:
+			return read
+		case !h.ofSession(held.Session, isRequest(&held.Line)):
+			continue
+		}
 		rec := lineRecordOf(&held.Line)
 		switch {
-		case rec.at.compare(from) >= 0:
+		case at.compare(from) >= 0:
 			if h.mine(&rec) {
 				read.lines = append(read.lines, rec)
 			}
-		case rec.at.compare(w.rec.horizon) < 0:
-			return read
-		case rec.agentID != "" && rec.isRequest() && !w.rec.linedAt(rec.request, rec.arrived()):
+		case rec.agentID != "" && !w.rec.linedAt(rec.request, rec.arrived()):
 			read.lines = append(read.lines, rec)
 		}
 	}
@@ -595,10 +615,10 @@ func (w worked) lined(t Told) bool {
 }
 
 // holds reports whether t holds the line of the request r the stream told
-// of: one of the same request, as its flight's is has it.
+// of, as r's filedAs has it of each.
 func (t *turnLines) holds(r Told) bool {
 	for i := range t.lines {
-		if t.lines[i].is(r.Request, r.Sent) {
+		if r.filedAs(t.lines[i].flight) {
 			return true
 		}
 	}

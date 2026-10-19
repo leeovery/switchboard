@@ -10,10 +10,11 @@ import (
 
 // lineRecord is a line as the Log and a turn's rows read it, decoded once:
 // all a held request decodes of it, as decodedRequest has it; and the Log's
-// facts beyond: what it asked; the session it's of; what it was answered,
-// and whether its client went away or the router cut it off; how many
-// times it went upstream; how long after it arrived its answer's first byte
-// came, nil where none did, and its end; its shape's size, messages, system
+// facts beyond: what it asked; the session it's of, and the one it counts
+// toward, as ledger.Line.CountedSession has it; what it was answered, and
+// whether its client went away or the router cut it off; how many times it
+// went upstream; how long after it arrived its answer's first byte came, nil
+// where none did, and its end; its shape's size, messages, system
 // blocks, definitions of tools, max_tokens, thinking budget, effort and
 // whether it asked to stream, nil where it didn't say; the client that sent
 // it, cut to its name and version; its betas, each undated; its answer's id,
@@ -25,7 +26,7 @@ import (
 type lineRecord struct {
 	decodedRequest
 	kind                             RowKind
-	session                          string
+	session, countedSession          string
 	status                           int
 	canceled, cutOff                 bool
 	attempts                         int
@@ -46,10 +47,11 @@ type lineRecord struct {
 // lineRecordOf returns the record of the line l, decoded once.
 func lineRecordOf(l *ledger.Line) lineRecord {
 	r := lineRecord{
-		decodedRequest: decodedOf(l), kind: kindOf(l), session: l.Session, status: l.Status, canceled: l.Canceled, cutOff: l.CutOff,
-		attempts: l.Attempts, firstMS: l.FirstMS, totalMS: l.TotalMS, size: l.Shape.Bytes, messages: l.Shape.Messages, system: l.Shape.System,
-		toolDefs: l.Shape.Tools, effort: l.Shape.OutputConfig.Effort, stream: l.Shape.Stream, agent: agentOf(l.Agent), answer: l.Answer.ID,
-		served: l.Answer.Model, blocks: blocksOf(l.Answer.Blocks), windows: claude.KeptWindows(l.Limits), limit: claude.LimitStatus(l.Limits),
+		decodedRequest: decodedOf(l), kind: kindOf(l), session: l.Session, countedSession: l.CountedSession(), status: l.Status,
+		canceled: l.Canceled, cutOff: l.CutOff, attempts: l.Attempts, firstMS: l.FirstMS, totalMS: l.TotalMS, size: l.Shape.Bytes,
+		messages: l.Shape.Messages, system: l.Shape.System, toolDefs: l.Shape.Tools, effort: l.Shape.OutputConfig.Effort, stream: l.Shape.Stream,
+		agent: agentOf(l.Agent), answer: l.Answer.ID, served: l.Answer.Model, blocks: blocksOf(l.Answer.Blocks), windows: claude.KeptWindows(l.Limits),
+		limit: claude.LimitStatus(l.Limits),
 	}
 	if most := l.Shape.MaxTokens; most != nil {
 		r.maxTokens = int(*most)
@@ -65,17 +67,29 @@ func lineRecordOf(l *ledger.Line) lineRecord {
 
 // decodedOf returns all a held request decodes of the line l: the one
 // decoding of it, both the store's request and the line's record put
-// together of it.
+// together of it. An empty list of the tools its answer called, or of the
+// accounts it went out on, as a line edited by hand may give, is none, so a
+// form restored, which keeps no empty list, holds what it decoded exactly.
 func decodedOf(l *ledger.Line) decodedRequest {
 	return decodedRequest{
 		flight: flightOf(l), dir: l.Dir, model: l.Model, account: l.Account, reason: l.Reason, from: l.From, class: l.Class, agentID: l.AgentID,
-		geo: l.Shape.InferenceGeo, prompt: l.Prompt, stop: l.Answer.Stop, tools: l.Answer.Tools, upstream: l.Upstream(), tried: l.Tried, spend: ledger.SpendOf(l),
+		geo: l.Shape.InferenceGeo, prompt: l.Prompt, stop: l.Answer.Stop, tools: noneIfEmpty(l.Answer.Tools), upstream: l.Upstream(),
+		tried: noneIfEmpty(l.Tried), spend: ledger.SpendOf(l),
 	}
+}
+
+// noneIfEmpty is items, nil where they're none.
+func noneIfEmpty[T any](items []T) []T {
+	if len(items) == 0 {
+		return nil
+	}
+	return items
 }
 
 // LogDay is lines as the Log takes them in, each decoded once into its
 // record, in their order: a day's every one, as Ledger's Day gives them, or
-// today's gained since a mark, as its Today gives them.
+// today's gained since a mark, as its Today gives them, or of either every
+// one but those a read holds already, as LogRead's Unheld has them.
 type LogDay struct {
 	records []lineRecord
 }
@@ -89,19 +103,10 @@ func RecordsOf(lines []ledger.Held) LogDay {
 	return day
 }
 
-// isRequest reports whether r is of a session's request, as isRequest has
-// it of its line.
+// isRequest reports whether r is of a session's request, as sessionsRequest
+// has it, as isRequest has it of its line.
 func (r *lineRecord) isRequest() bool {
-	return r.kind == RowRequest && r.session != ""
-}
-
-// countedSession is the session r's request counts toward, as
-// ledger.Line.CountedSession has it of its line: none for a quota check.
-func (r *lineRecord) countedSession() string {
-	if r.kind == RowCheck {
-		return ""
-	}
-	return r.session
+	return sessionsRequest(r.kind, r.session)
 }
 
 // worth is what r's request was worth, at the prices in effect on the local
@@ -127,7 +132,7 @@ func (r *lineRecord) summed() uint64 {
 	maphash.WriteComparable(&h, struct {
 		flight
 		dir, model, account, reason, from, class, agentID, geo, prompt, stop string
-		session, effort, agent, answer, served                               string
+		session, countedSession, effort, agent, answer, served               string
 		kind                                                                 RowKind
 		limit                                                                quota.Status
 		status, attempts, size, messages, system, toolDefs                   int
@@ -138,7 +143,7 @@ func (r *lineRecord) summed() uint64 {
 		spend                                                                uint64
 	}{
 		r.flight, r.dir, r.model, r.account, r.reason, r.from, r.class, r.agentID, r.geo, r.prompt, r.stop,
-		r.session, r.effort, r.agent, r.answer, r.served, r.kind, r.limit, r.status, r.attempts, r.size, r.messages, r.system, r.toolDefs,
+		r.session, r.countedSession, r.effort, r.agent, r.answer, r.served, r.kind, r.limit, r.status, r.attempts, r.size, r.messages, r.system, r.toolDefs,
 		r.maxTokens, r.thinking, firstMS, r.totalMS, r.upstream, r.canceled, r.cutOff, answered, stream, streamed,
 		len(r.tools), len(r.tried), len(r.betas), len(r.blocks), len(r.windows), r.spend.Sum(sumsSeed),
 	})

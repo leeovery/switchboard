@@ -273,13 +273,17 @@ func (i instant) compare(o instant) int {
 }
 
 // is reports whether f is of the request with the given id that arrived, or
-// went upstream, at at, as sameRequest has it of a line.
+// went upstream, at at, as its line or the request stream tells it: the same
+// id, and at while f's request was in flight, as inFlightAt has it, as an id
+// is unique only while the router that gave it runs. It's every view's
+// telling of one request from another, of a line, as sameRequest has it, and
+// of its record alike.
 func (f flight) is(id string, at time.Time) bool {
 	return f.request == id && f.inFlightAt(at)
 }
 
-// inFlightAt reports whether f's request was in flight at at, as inFlightAt
-// has it of a line.
+// inFlightAt reports whether f's request was in flight at at, as inFlight
+// has it.
 func (f flight) inFlightAt(at time.Time) bool {
 	return inFlight(at, f.arrived(), f.ended())
 }

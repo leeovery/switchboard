@@ -195,6 +195,40 @@ func TestALinesRecordDecodesTheStoresRequestOfIt(t *testing.T) {
 	}
 }
 
+// A line's record counts its request as its line does, of every kind a line
+// may say, of a session or of none: a request where ledger.Line.Counted
+// counts it, a session's where it's of one too, as a line's isRequest has
+// it, toward the session its line's CountedSession gives, and gone upstream
+// as its Upstream says. So no rule of the record's own decides what counts.
+func TestALinesRecordCountsItsRequestAsItsLineDoes(t *testing.T) {
+	for _, kind := range []string{ledger.KindMessage, ledger.KindCheck, ledger.KindCount, "", "batch"} {
+		for _, session := range []string{"", "s"} {
+			l := recordedLine()
+			l.Kind, l.Session = kind, session
+			r := lineRecordOf(&l)
+			got := []any{r.kind == RowRequest, r.isRequest(), r.countedSession, r.upstream}
+			want := []any{l.Counted(), l.Counted() && l.Session != "", l.CountedSession(), l.Upstream()}
+			if !reflect.DeepEqual(got, want) {
+				t.Errorf("of kind %q, session %q: the record's request, session's request, counted session and upstream are %v, want its line's, %v",
+					kind, session, got, want)
+			}
+		}
+	}
+}
+
+// A line's record holds a list its line gives empty as none, as of a line
+// that gives none: the accounts its request went out on that couldn't serve
+// it, and the tools its answer called. So what's restored of it is the
+// record decoded, whichever its line gave.
+func TestALinesRecordHoldsAnEmptyListAsNone(t *testing.T) {
+	none, empty := recordedLine(), recordedLine()
+	none.Tried, none.Answer.Tools = nil, nil
+	empty.Tried, empty.Answer.Tools = []ledger.Tried{}, []string{}
+	if got, want := lineRecordOf(&empty), lineRecordOf(&none); !reflect.DeepEqual(got, want) {
+		t.Errorf("a line whose lists are empty has the record\n%+v\nwant the record of one whose lists are none\n%+v", got, want)
+	}
+}
+
 // recordedLine is a line that says something of every fact a record holds.
 func recordedLine() ledger.Line {
 	at := time.Date(2026, 10, 7, 9, 0, 0, 123_000_000, time.UTC)
@@ -236,27 +270,28 @@ var recordEdits = map[string]func(r *lineRecord){
 	"spend": func(r *lineRecord) {
 		r.spend = ledger.SpendOf(&ledger.Line{Kind: ledger.KindMessage, Usage: json.RawMessage(foldUsages[6])})
 	},
-	"kind":      func(r *lineRecord) { r.kind = RowCount },
-	"session":   func(r *lineRecord) { r.session = "s2" },
-	"status":    func(r *lineRecord) { r.status = 529 },
-	"canceled":  func(r *lineRecord) { r.canceled = !r.canceled },
-	"cutOff":    func(r *lineRecord) { r.cutOff = !r.cutOff },
-	"attempts":  func(r *lineRecord) { r.attempts++ },
-	"firstMS":   func(r *lineRecord) { r.firstMS = nil },
-	"totalMS":   func(r *lineRecord) { r.totalMS++ },
-	"size":      func(r *lineRecord) { r.size++ },
-	"messages":  func(r *lineRecord) { r.messages++ },
-	"system":    func(r *lineRecord) { r.system++ },
-	"toolDefs":  func(r *lineRecord) { r.toolDefs++ },
-	"maxTokens": func(r *lineRecord) { r.maxTokens++ },
-	"thinking":  func(r *lineRecord) { r.thinking++ },
-	"effort":    func(r *lineRecord) { r.effort = "low" },
-	"stream":    func(r *lineRecord) { r.stream = new(false) },
-	"agent":     func(r *lineRecord) { r.agent = "claude-cli/2.2.0" },
-	"betas":     func(r *lineRecord) { r.betas = append(slices.Clone(r.betas), "claude-code") },
-	"answer":    func(r *lineRecord) { r.answer = "msg_2" },
-	"served":    func(r *lineRecord) { r.served = foldSonnet },
-	"blocks":    func(r *lineRecord) { r.blocks = blocksOf(map[string]int{"text": 2}) },
+	"kind":           func(r *lineRecord) { r.kind = RowCount },
+	"session":        func(r *lineRecord) { r.session = "s2" },
+	"countedSession": func(r *lineRecord) { r.countedSession = "" },
+	"status":         func(r *lineRecord) { r.status = 529 },
+	"canceled":       func(r *lineRecord) { r.canceled = !r.canceled },
+	"cutOff":         func(r *lineRecord) { r.cutOff = !r.cutOff },
+	"attempts":       func(r *lineRecord) { r.attempts++ },
+	"firstMS":        func(r *lineRecord) { r.firstMS = nil },
+	"totalMS":        func(r *lineRecord) { r.totalMS++ },
+	"size":           func(r *lineRecord) { r.size++ },
+	"messages":       func(r *lineRecord) { r.messages++ },
+	"system":         func(r *lineRecord) { r.system++ },
+	"toolDefs":       func(r *lineRecord) { r.toolDefs++ },
+	"maxTokens":      func(r *lineRecord) { r.maxTokens++ },
+	"thinking":       func(r *lineRecord) { r.thinking++ },
+	"effort":         func(r *lineRecord) { r.effort = "low" },
+	"stream":         func(r *lineRecord) { r.stream = new(false) },
+	"agent":          func(r *lineRecord) { r.agent = "claude-cli/2.2.0" },
+	"betas":          func(r *lineRecord) { r.betas = append(slices.Clone(r.betas), "claude-code") },
+	"answer":         func(r *lineRecord) { r.answer = "msg_2" },
+	"served":         func(r *lineRecord) { r.served = foldSonnet },
+	"blocks":         func(r *lineRecord) { r.blocks = blocksOf(map[string]int{"text": 2}) },
 	"windows": func(r *lineRecord) {
 		r.windows = claude.KeptWindows(map[string]string{"5h-utilization": "0.43", "5h-reset": "1791370800"})
 	},

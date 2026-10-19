@@ -113,11 +113,13 @@ type LogTaking struct {
 // The lines are a tail of today's, as Ledger's Today gives it, or, whole
 // where they're every one of a day's, as Today gives them afresh, or Day
 // gives a day's, as the tables reach back a day, or a day is read again
-// whole. A line with an id that r holds already is passed over; one with
-// none is taken in as often as it's given, but for one whole, which is taken
-// in only as often as it's given beyond those of its day, arriving at its
-// moment, its record saying the same, that r holds already. So a read costs
-// what the ledger gained, never what r holds.
+// whole; or either but the lines with ids r holds, as Unheld gives them,
+// which leaves every line without one, so whole holds of it still. A line
+// with an id that r holds already is passed over; one with none is taken in
+// as often as it's given, but for one whole, which is taken in only as often
+// as it's given beyond those of its day, arriving at its moment, its record
+// saying the same, that r holds already. So a read costs what the ledger
+// gained, never what r holds.
 func (r LogRead) Taken(day LogDay, whole bool, t LogTaking) LogRead {
 	grown := r
 	grown.days = slices.Clone(r.days)
@@ -180,6 +182,38 @@ func (r LogRead) Wanted(days ...LogDay) []string {
 	}
 	slices.Sort(ids)
 	return slices.Compact(ids)
+}
+
+// Unheld is the LogDay of those of lines r may take in, each its record, in
+// their order: every one but those r holds already, as holdsFlight knows
+// them, which Taken would pass over, so a day read again whole decodes only
+// what it gained. Those it keeps are found first, so the records take only
+// the room they need, as a day read again whole needs little.
+func (r LogRead) Unheld(lines []ledger.Held) LogDay {
+	var unheld []int
+	for i := range lines {
+		if !r.holdsFlight(flightOf(&lines[i].Line)) {
+			unheld = append(unheld, i)
+		}
+	}
+	day := LogDay{records: make([]lineRecord, len(unheld))}
+	for j, i := range unheld {
+		day.records[j] = lineRecordOf(&lines[i].Line)
+	}
+	return day
+}
+
+// holdsFlight reports whether r holds the line of the request that flew as
+// f, as Taken knows one with an id, by its flight's key, among the lines of
+// the day it arrived on: never of one without, which Taken knows by its
+// record's sum.
+func (r LogRead) holdsFlight(f flight) bool {
+	k, ok := f.key()
+	if !ok {
+		return false
+	}
+	i, found := r.dayAt(Today(f.arrived()).Date)
+	return found && holdsKey(r.days[i].keys, k)
 }
 
 // Len is how many lines r holds: it changes only as r grows.
