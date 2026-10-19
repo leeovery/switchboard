@@ -211,6 +211,33 @@ func TestReadGivesTheLinesOldestFirstWhicheverDaysFileTheyreIn(t *testing.T) {
 	}
 }
 
+// ReadDated hands decode each line with the date of the day whose files hold
+// it, plain or compressed, though a change of time zone filed it under a date
+// beside its own, and gives the lines in the order Read does.
+func TestReadDatedTellsTheDayWhoseFilesHoldEachLine(t *testing.T) {
+	f := readingsHistory(t.TempDir())
+	at := func(day, hour int) time.Time { return time.Date(2026, 9, day, hour, 0, 0, 0, time.Local) }
+	writeDay(t, f, plainFile("2026-09-27"), linesOf(timedLine(at(27, 22), "a"), timedLine(at(28, 1), "c")))
+	writeDay(t, f, plainFile("2026-09-28"), linesOf(timedLine(at(27, 23), "b"), timedLine(at(28, 12), "d")))
+	writeDay(t, f, compressedFile("2026-09-29"), linesOf(timedLine(at(28, 23), "e")))
+	dated := func(date string, line []byte) (timed, bool) {
+		l, ok := asTimed(line)
+		l.text += " in " + date
+		return l, ok
+	}
+
+	var got []string
+	ReadDated(f, []string{"2026-09-27", "2026-09-28", "2026-09-29"}, dated, func(l timed) time.Time { return l.at }, every[timed], func(l timed) bool {
+		got = append(got, l.text)
+		return true
+	}, nil)
+
+	want := []string{"a in 2026-09-27", "b in 2026-09-28", "c in 2026-09-27", "d in 2026-09-28", "e in 2026-09-29"}
+	if !slices.Equal(got, want) {
+		t.Errorf("read %q, want %q: each line with the date of the day whose file holds it, oldest first", got, want)
+	}
+}
+
 func TestReadHandsALineOnOnceNoLaterDaysFileCanHoldOneBeforeIt(t *testing.T) {
 	log := logstest.Capture(t)
 	f := readingsHistory(t.TempDir())

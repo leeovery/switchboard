@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -56,7 +57,7 @@ func spacedChunks() []BuiltChunk {
 // of no side, or no rows, reads back of none.
 func TestADayHeadReadsBackAsItWasWritten(t *testing.T) {
 	every := dayHeadOf(digested, 42, `[{"id":"one","dir":"~/Code/<api> & co"},{"id":"two","named":"café"}]`)
-	every.Lines = 41
+	every.Lines, every.RestsOn = 41, map[string]int{before: untold, after: 30}
 	tests := []struct {
 		name   string
 		head   DayHead
@@ -128,15 +129,16 @@ func TestADayHeadsSideAndChunksAreItsStoredFormsLastFields(t *testing.T) {
 
 // A day head's file is its stored form, gzipped, the user's alone: its keys
 // short, its zeros left out, its day's bounds as nanoseconds since the Unix
-// epoch, its rows file's size and how many rows its chunks hold in all;
-// then its side, and its rows' chunks, each where it lies in the rows file,
-// how many rows it holds, and its meta, as they were given but for their
-// insignificant spaces, their characters unescaped. Its rows file is the
-// user's alone too.
+// epoch, the days it rests on, its rows file's size and how many rows its
+// chunks hold in all; then its side, and its rows' chunks, each where it
+// lies in the rows file, how many rows it holds, and its meta, as they were
+// given but for their insignificant spaces, their characters unescaped. Its
+// rows file is the user's alone too.
 func TestADayHeadIsWrittenGzippedAsItsStoredFormTheUsersAlone(t *testing.T) {
 	d := digestDays(t)
 	head := DayHead{Body: sideVersion, Day: digested, Start: time.Date(2026, 10, 4, 23, 0, 0, 0, time.UTC),
-		End: time.Date(2026, 10, 5, 23, 0, 0, 0, time.UTC), SummaryLines: 40, Lines: 39, Side: json.RawMessage(`[ {"dir": "~/<api> & co"} ]`)}
+		End: time.Date(2026, 10, 5, 23, 0, 0, 0, time.UTC), SummaryLines: 40, Lines: 39, RestsOn: map[string]int{after: 30, before: untold},
+		Side: json.RawMessage(`[ {"dir": "~/<api> & co"} ]`)}
 	written, err := d.writeDay(head, spacedChunks())
 	if err != nil {
 		t.Fatal(err)
@@ -149,7 +151,7 @@ func TestADayHeadIsWrittenGzippedAsItsStoredFormTheUsersAlone(t *testing.T) {
 	}
 	c := written.Rows.Chunks
 	want := fmt.Sprintf(`{"version":%d,"body":7,"day":"2026-10-05","from":1791154800000000000,"to":1791241200000000000,"summary_lines":40,"lines":39,`+
-		`"rows_size":%d,"rows":3,"side":[{"dir":"~/<api> & co"}],`+
+		`"rests_on":{"2026-10-04":-1,"2026-10-06":30},"rows_size":%d,"rows":3,"side":[{"dir":"~/<api> & co"}],`+
 		`"chunks":[{"length":%d,"crc":%d,"count":2,"meta":{"sessions":{"<one>":2}}},{"offset":%d,"length":%d,"crc":%d,"count":1}]}`+"\n",
 		logdayVersion, written.Rows.Size, c[0].Length, c[0].CRC, c[1].Offset, c[1].Length, c[1].CRC)
 	if got := string(gunzipped(t, data)); got != want {
@@ -288,7 +290,8 @@ func TestADayHeadIsJudgedBeforeItsSideIsRead(t *testing.T) {
 // read does, as none of them is read: so judging a head inflates none of its
 // side, nor of its chunks, whichever comes first.
 func TestADayHeadsFieldsAreReadWithoutItsSide(t *testing.T) {
-	fields := fmt.Sprintf(`{"version":%d,"body":%d,"day":"2026-10-05","from":1,"to":2,"summary_lines":40,"lines":39,"rows_size":90,`, logdayVersion, sideVersion)
+	fields := fmt.Sprintf(`{"version":%d,"body":%d,"day":"2026-10-05","from":1,"to":2,"summary_lines":40,"lines":39,"rests_on":{"2026-10-04":9},"rows_size":90,`,
+		logdayVersion, sideVersion)
 	whole := gzippedText(t, fields+`"side":[{"id":"one"}],"chunks":[{"length":90,"crc":7,"count":3}]}`)
 	tests := []struct {
 		name string
@@ -300,7 +303,8 @@ func TestADayHeadsFieldsAreReadWithoutItsSide(t *testing.T) {
 		{name: "its chunks not JSON, of no side", file: gzippedText(t, fields+`"chunks":not chunks`)},
 		{name: "cut short in its gzip trailer", file: whole[:len(whole)-4]},
 	}
-	want := DayHead{Body: sideVersion, Day: digested, Start: time.Unix(0, 1), End: time.Unix(0, 2), SummaryLines: 40, Lines: 39, Rows: DayRows{Size: 90}}
+	want := DayHead{Body: sideVersion, Day: digested, Start: time.Unix(0, 1), End: time.Unix(0, 2), SummaryLines: 40, Lines: 39,
+		RestsOn: map[string]int{before: 9}, Rows: DayRows{Size: 90}}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			d := digestDays(t)
@@ -371,8 +375,12 @@ func TestADayHeadsFieldsThatDontReadFailAsTheWholeReadDoes(t *testing.T) {
 
 // A day head stands, and its side with it, while what it was built from
 // does: its day in this time zone, keeping the lines its summary counted as
-// it was built; and none of the lines of the days either side of it arriving
-// on it, as far as their digests tell, as a digest's day must be alone.
+// it was built; none of the lines of the days either side of it arriving on
+// it, as far as their digests tell, as a digest's day must be alone; and
+// each day beside it whose files gave it a line keeping the lines it did as
+// it was built, as a digest's entry rests on its days, which no day whose
+// lines couldn't be told then does. A day it rests on pruned since, which
+// alone passes, gives its day's read none of its lines.
 func TestADayHeadStandsOnlyWhileWhatItWasBuiltFromDoes(t *testing.T) {
 	built := dayHeadOf(digested, 40, `[]`)
 	_, offset := built.Start.Zone()
@@ -380,6 +388,8 @@ func TestADayHeadStandsOnlyWhileWhatItWasBuiltFromDoes(t *testing.T) {
 	inZone, started, ended := built, built, built
 	inZone.Start, inZone.End = time.Date(2026, 10, 5, 0, 0, 0, 0, elsewhere), time.Date(2026, 10, 6, 0, 0, 0, 0, elsewhere)
 	started.Start, ended.End = built.Start.Add(time.Hour), built.End.Add(time.Hour)
+	onBefore, onAfter, onUntold := built, built, built
+	onBefore.RestsOn, onAfter.RestsOn, onUntold.RestsOn = map[string]int{before: 9}, map[string]int{after: 30}, map[string]int{before: untold}
 	tests := []struct {
 		name string
 		head DayHead
@@ -419,6 +429,25 @@ func TestADayHeadStandsOnlyWhileWhatItWasBuiltFromDoes(t *testing.T) {
 		{name: "its day's summary not standing as held, of the lines it was built against", head: built, kept: keeping(nil, digested), want: false},
 		{name: "its day's summary made again since, of more lines", head: built, kept: keeping(map[string]int{digested: 41}), want: false},
 		{name: "its day's lines pruned", head: built, kept: keeping(map[string]int{digested: 0}), want: false},
+		{
+			name: "resting on the day before, keeping the lines it did, its digest current", head: onBefore,
+			kept: keeping(map[string]int{before: 9}), heads: map[string]DigestHead{before: headOf(before, 9)}, want: true,
+		},
+		{name: "resting on the day before, its lines pruned since", head: onBefore, kept: keeping(nil), want: false},
+		{
+			name: "resting on the day before, summarised again since, of a line more, its digest current", head: onBefore,
+			kept: keeping(map[string]int{before: 10}), heads: map[string]DigestHead{before: headOf(before, 10)}, want: false,
+		},
+		{name: "resting on the day after, keeping the lines it did, of no digest", head: onAfter, kept: keeping(map[string]int{after: 30}), want: true},
+		{name: "resting on the day after, its lines pruned since", head: onAfter, kept: keeping(map[string]int{after: 0}), want: false},
+		{name: "resting on the day after, summarised again since, of no digest", head: onAfter, kept: keeping(map[string]int{after: 31}), want: false},
+		{name: "resting on the day after, its lines not told since", head: onAfter, kept: keeping(map[string]int{after: 30}, after), want: false},
+		{
+			name: "resting on the day before, untold as it was built, told since, its digest current", head: onUntold,
+			kept: keeping(map[string]int{before: 9}), heads: map[string]DigestHead{before: headOf(before, 9)}, want: false,
+		},
+		{name: "resting on the day before, untold as it was built, its lines pruned since", head: onUntold, kept: keeping(nil), want: false},
+		{name: "resting on the day before, untold as it was built, nor since", head: onUntold, kept: keeping(map[string]int{before: 9}, before), want: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -426,6 +455,34 @@ func TestADayHeadStandsOnlyWhileWhatItWasBuiltFromDoes(t *testing.T) {
 
 			if got := g.dayHeadStands(tt.head); got != tt.want {
 				t.Errorf("dayHeadStands(%+v) = %t, want %t, the ledger keeping %v, holding digests %+v", tt.head, got, tt.want, tt.kept, tt.heads)
+			}
+		})
+	}
+}
+
+// A day head is built to rest on each day beside its own whose files give it
+// a line, of the lines the ledger keeps of it: the day before untold where
+// they can't be told, so the head doesn't stand once that day is pruned, as
+// alone would have it; the day after not at all, as while it's today, so the
+// head stands meanwhile, as alone has it while that day's digest isn't
+// current.
+func TestAHeadRestsOnTheDaysBesideItsOwnAsTheirLinesAreTold(t *testing.T) {
+	tests := []struct {
+		name string
+		// kept are the lines the ledger keeps of each day, as keeping gives
+		// them.
+		kept map[string]keptDay
+		want map[string]int
+	}{
+		{name: "both told", kept: keeping(map[string]int{before: 9, after: 30}), want: map[string]int{before: 9, after: 30}},
+		{name: "the day before pruned", kept: keeping(map[string]int{after: 30}), want: map[string]int{before: 0, after: 30}},
+		{name: "the day before untold", kept: keeping(map[string]int{before: 9, after: 30}, before), want: map[string]int{before: untold, after: 30}},
+		{name: "the day after untold, as today", kept: keeping(map[string]int{before: 9}), want: map[string]int{before: 9}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := keptBeside(digested, groundsOf(tt.kept, nil).kept); !maps.Equal(got, tt.want) {
+				t.Errorf("keptBeside(%q) = %v, want %v, the ledger keeping %v", digested, got, tt.want, tt.kept)
 			}
 		})
 	}

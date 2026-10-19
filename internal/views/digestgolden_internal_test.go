@@ -200,7 +200,7 @@ type golden struct {
 func goldenDigest(t *testing.T) []byte {
 	t.Helper()
 	lines, zoned := goldenWorld()
-	c := goldenChain(t, lines, zoned)
+	c := goldenChain(t, lines, map[string][]ledger.Line{goldenDay: zoned})
 	data, err := os.ReadFile(c.digestPath(goldenDay))
 	if err != nil {
 		t.Fatal(err)
@@ -214,13 +214,16 @@ func goldenDigest(t *testing.T) []byte {
 	return indented(t, plain)
 }
 
-// goldenChain is the golden world, lines and zoned as goldenWorld gives them,
-// written as a real ledger, its zoned requests filed under goldenDay, and
+// goldenChain is the golden world, lines as goldenWorld gives them, written
+// as a real ledger, the lines zoned holds of each date filed under it,
+// beside the days they arrived on, as a change of time zone files them, and
 // digested day by day, as digestChain digests it.
-func goldenChain(t *testing.T, lines, zoned []ledger.Line) *digestChain {
+func goldenChain(t *testing.T, lines []ledger.Line, zoned map[string][]ledger.Line) *digestChain {
 	t.Helper()
 	c := newDigestChain(t, "the golden world", 0, lines)
-	c.file(goldenDay, zoned...)
+	for date, filed := range zoned {
+		c.file(date, filed...)
+	}
 	c.digestDayByDay(func(LedgerDay) {})
 	return c
 }

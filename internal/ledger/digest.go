@@ -483,7 +483,7 @@ type digestGrounds struct {
 // made again since, or whose lines were pruned, gives a raw read otherwise.
 // The zero entry judges the head alone.
 func (g digestGrounds) stands(head DigestHead, entry DigestEntry) bool {
-	return g.current(head.against()) && head.Early == 0 && head.Late == 0 && g.alone(head.Day) && g.restsOn(entry)
+	return g.current(head.against()) && head.Early == 0 && head.Late == 0 && g.alone(head.Day) && g.restsOn(entry.RestsOn)
 }
 
 // builtAgainst is what a head built of a local day, a digest's or the day's
@@ -550,10 +550,11 @@ func (g digestGrounds) currentHead(date string) (DigestHead, bool) {
 	return head, held && g.current(head.against())
 }
 
-// restsOn reports whether each day entry rests on keeps the lines it did as
-// entry was built.
-func (g digestGrounds) restsOn(entry DigestEntry) bool {
-	for date, built := range entry.RestsOn {
+// restsOn reports whether each day of on, those a digest's entry or a day
+// head rests on, keeps the lines on gives of it, by its date, as it did as
+// what rests on it was built.
+func (g digestGrounds) restsOn(on map[string]int) bool {
+	for date, built := range on {
 		if lines, known := g.kept(date); !known || lines != built {
 			return false
 		}

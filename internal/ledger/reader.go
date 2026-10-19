@@ -117,6 +117,14 @@ type Held struct {
 	JSON json.RawMessage
 }
 
+// filedHeld is a line as the ledger holds it, and under, the date of the day
+// whose files hold it: a date beside the one it arrived on where a change of
+// time zone filed it there.
+type filedHeld struct {
+	Held
+	under string
+}
+
 // Lines returns the lines of the requests that arrived from from on, until
 // now, oldest first, by when each arrived, whichever day's file each is in,
 // plain or compressed, as dayfile.Read reads them, holding none of another
@@ -128,20 +136,25 @@ type Held struct {
 func (r *Reader) Lines(from time.Time) iter.Seq[Held] {
 	return func(yield func(Held) bool) {
 		now := r.now()
-		within := func(h Held) bool { return !h.At.Before(from) && !h.At.After(now) }
-		r.days.lines(dayfile.Dates(r.days.start(from, now), now), heldIn, within, yield, nil)
+		within := func(h filedHeld) bool { return !h.At.Before(from) && !h.At.After(now) }
+		r.days.lines(dayfile.Dates(r.days.start(from, now), now), heldIn, within, func(h filedHeld) bool { return yield(h.Held) }, nil)
 	}
 }
 
 // lines hands take each line of the files of the local days with the given
 // dates, given oldest first, as decode reads it, that within reports true
 // of, oldest first, by when each arrived, whichever day's file it's in, as
-// dayfile.Read hands them, until take reports false, noting in faults, where
-// they're given, the days whose files it couldn't read for now, as
-// dayfile.Faults says; and warns of how many of them couldn't be read, args,
-// attributes before the count, saying of what.
-func (d days) lines(dates []string, decode func([]byte) (Held, bool), within, take func(Held) bool, faults *dayfile.Faults, args ...any) {
-	if unread := dayfile.Read(d.files, dates, decode, arrived, within, take, faults); unread > 0 {
+// dayfile.Read hands them, each with the date of that day, as filedHeld has
+// it, until take reports false, noting in faults, where they're given, the
+// days whose files it couldn't read for now, as dayfile.Faults says; and
+// warns of how many of them couldn't be read, args, attributes before the
+// count, saying of what.
+func (d days) lines(dates []string, decode func([]byte) (Held, bool), within, take func(filedHeld) bool, faults *dayfile.Faults, args ...any) {
+	filed := func(date string, data []byte) (filedHeld, bool) {
+		h, ok := decode(data)
+		return filedHeld{Held: h, under: date}, ok
+	}
+	if unread := dayfile.ReadDated(d.files, dates, filed, arrived, within, take, faults); unread > 0 {
 		d.logger.Warn("request ledger lines unread", slices.Concat(args, []any{"lines", unread})...)
 	}
 }
@@ -270,7 +283,7 @@ func heldIn(data []byte) (Held, bool) {
 }
 
 // arrived is when the request h holds the line of arrived.
-func arrived(h Held) time.Time {
+func arrived(h filedHeld) time.Time {
 	return h.At
 }
 

@@ -134,6 +134,15 @@ func noon(t time.Time) time.Time {
 // couldn't read for now, as Faults says, as it reads them.
 func Read[T any](f *Files, dates []string, decode func(line []byte) (T, bool), at func(T) time.Time, keep, take func(T) bool,
 	faults *Faults) (unread int) {
+	return ReadDated(f, dates, undated(decode), at, keep, take, faults)
+}
+
+// ReadDated reads as Read does, but hands decode, with each line, the date of
+// the day whose files hold it: one beside the day of the time at gives it,
+// where a change of time zone filed it there, so a reader can tell which
+// day's files gave it each line.
+func ReadDated[T any](f *Files, dates []string, decode func(date string, line []byte) (T, bool), at func(T) time.Time, keep, take func(T) bool,
+	faults *Faults) (unread int) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 	lines := inOrder[T]{at: at, keep: keep, take: take}
@@ -160,15 +169,22 @@ func Read[T any](f *Files, dates []string, decode func(line []byte) (T, bool), a
 func ReadFiled[T any](f *Files, dates []string, decode func(line []byte) (T, bool), take func(T) bool, read func(date string) bool) (unread int) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
-	unread, _ = readFiled(f, dates, decode, take, read, nil)
+	unread, _ = readFiled(f, dates, undated(decode), take, read, nil)
 	return unread
 }
 
-// readFiled reads the days as ReadFiled says, its caller holding the files
-// from pruning, noting in faults, where it's given, each day whose files it
+// undated is decode, handed with each line the date of the day whose files
+// hold it, which it has no need of.
+func undated[T any](decode func(line []byte) (T, bool)) func(date string, line []byte) (T, bool) {
+	return func(_ string, line []byte) (T, bool) { return decode(line) }
+}
+
+// readFiled reads the days as ReadFiled says, decode handed with each line
+// the date of the day whose files hold it, its caller holding the files from
+// pruning, noting in faults, where it's given, each day whose files it
 // couldn't read for now, as Faults says, before read is called with its
 // date, and reports whether take and read wanted more.
-func readFiled[T any](f *Files, dates []string, decode func(line []byte) (T, bool), take func(T) bool, read func(date string) bool,
+func readFiled[T any](f *Files, dates []string, decode func(date string, line []byte) (T, bool), take func(T) bool, read func(date string) bool,
 	faults *Faults) (unread int, more bool) {
 	taking := func(v T) bool {
 		more = take(v)
@@ -183,7 +199,7 @@ func readFiled[T any](f *Files, dates []string, decode func(line []byte) (T, boo
 			faults.note(date)
 		}
 		more = true
-		_, skipped := readOpened(f, opened, decode, taking)
+		_, skipped := readOpened(f, opened, func(line []byte) (T, bool) { return decode(date, line) }, taking)
 		unread += skipped
 		if !more || !read(date) {
 			return unread, false
