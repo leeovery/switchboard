@@ -10,8 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-
-	"github.com/leeovery/switchboard/internal/atomicfile"
 )
 
 // partsPrefix and partsSuffix begin and end the name of a day's parts file,
@@ -25,10 +23,10 @@ func partsFile(dir, date string) string {
 }
 
 // builtName returns the date of the local day a file of the given name is
-// built of the lines of, its digest, its parts file or its head, reporting
-// false where it's none of them.
+// built of the lines of, its digest, its parts file, its head or its rows
+// file, reporting false where it's none of them.
 func builtName(name string) (string, bool) {
-	built := []struct{ prefix, suffix string }{{digestPrefix, digestSuffix}, {partsPrefix, partsSuffix}, {logdayPrefix, logdaySuffix}}
+	built := []struct{ prefix, suffix string }{{digestPrefix, digestSuffix}, {partsPrefix, partsSuffix}, {logdayPrefix, logdaySuffix}, {rowsPrefix, rowsSuffix}}
 	for _, b := range built {
 		if date, ok := datedName(name, b.prefix, b.suffix); ok {
 			return date, true
@@ -109,26 +107,18 @@ func partsFileOf(parts map[string]builtPart) ([]byte, map[string]PartRef) {
 }
 
 // writeParts writes file as the parts file of the local day with the given
-// date, whole, the user's alone, over any there: or, where it's empty, as of
-// a day whose sessions have no parts, removes any there, so the day holds
-// none, as partsHeld judges it.
+// date, as writeMembers writes one: removing any there where it's empty, as
+// of a day whose sessions have no parts, so the day holds none, as
+// partsHeld judges it.
 func (d days) writeParts(date string, file []byte) error {
-	path := partsFile(d.files.Dir, date)
-	if len(file) == 0 {
-		return removed(path)
-	}
-	return atomicfile.Write(path, file, 0o600)
+	return writeMembers(partsFile(d.files.Dir, date), file)
 }
 
 // partsHeld reports whether the parts file of the local day with the given
-// date is as long as size, as the head of the day's digest records it, by a
-// look at the file alone: where size is 0, that there's none.
+// date is as long as size, as the head of the day's digest records it, as
+// membersHeld judges it.
 func (d days) partsHeld(date string, size int64) bool {
-	info, err := os.Stat(partsFile(d.files.Dir, date))
-	if errors.Is(err, fs.ErrNotExist) {
-		return size == 0
-	}
-	return err == nil && info.Size() == size
+	return membersHeld(partsFile(d.files.Dir, date), size)
 }
 
 // readMember returns what the member m points at in the parts file of the

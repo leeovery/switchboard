@@ -137,9 +137,23 @@ func WriteDigestWithParts(dir string, digest Digest, parts map[string]json.RawMe
 }
 
 // WriteDayHead writes head as the ledger in dir holds the head of its day,
-// as the router's writer writes it, for tests of what reads it.
+// its file alone, as one written by hand would be, pointing at its rows as
+// given, the day's rows file left as it is, for tests of what reads it.
 func WriteDayHead(dir string, head DayHead) error {
-	return days{files: filesIn(dir, nil)}.writeDayHead(head)
+	data, err := head.file()
+	if err != nil {
+		return err
+	}
+	return atomicfile.Write(logdayFile(dir, head.Day), data, 0o600)
+}
+
+// WriteRows writes the chunks given as the ledger in dir holds the rows file
+// of the local day with the given date, as a build writes it before its
+// head, the head left as it is, for tests of a build that stopped between
+// the two.
+func WriteRows(dir, date string, chunks []BuiltChunk) error {
+	file, _ := rowsFileOf(chunks)
+	return days{files: filesIn(dir, nil)}.writeRows(date, file)
 }
 
 // ReadDayHead returns the head the ledger in dir holds of the local day with

@@ -7,7 +7,10 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
+	"io/fs"
 	"os"
+
+	"github.com/leeovery/switchboard/internal/atomicfile"
 )
 
 // memberMax is the most a member of one of the ledger's files of gzip
@@ -70,6 +73,27 @@ func membersOf(members [][]byte) ([]byte, []Member) {
 		file.Write(m)
 	}
 	return file.Bytes(), at
+}
+
+// writeMembers writes file, of gzip members as membersOf makes one, at path,
+// whole, the user's alone, over any there: or, where it's empty, removes any
+// there, so none is held, as membersHeld judges it.
+func writeMembers(path string, file []byte) error {
+	if len(file) == 0 {
+		return removed(path)
+	}
+	return atomicfile.Write(path, file, 0o600)
+}
+
+// membersHeld reports whether the file of gzip members at path is as long as
+// size, as the head pointing at its members records it, by a look at the
+// file alone: where size is 0, that there's none.
+func membersHeld(path string, size int64) bool {
+	info, err := os.Stat(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return size == 0
+	}
+	return err == nil && info.Size() == size
 }
 
 // memberIn returns what the member m points at in the file at path holds,

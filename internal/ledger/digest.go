@@ -12,6 +12,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/atomicfile"
@@ -216,6 +217,19 @@ func entriesAs[From, To any](entries map[string]From, as func(From) To) map[stri
 	return converted
 }
 
+// listAs is list, each as as gives it, in the same order: none of none, so a
+// day head reads back as it was written.
+func listAs[From, To any](list []From, as func(From) To) []To {
+	if list == nil {
+		return nil
+	}
+	converted := make([]To, len(list))
+	for i, e := range list {
+		converted[i] = as(e)
+	}
+	return converted
+}
+
 // writeDigest writes digest as the digest of its day, whole, the user's
 // alone, over any there, as storedOf keeps it, gzipped; and before it parts,
 // the parts of sessions it holds entries of, by their ids, as the day's parts
@@ -394,18 +408,18 @@ func digestHeadIn(r io.Reader) (storedDigest, error) {
 }
 
 // storedHeadIn returns the head of the S r holds, gzipped JSON, as its file
-// holds it, none of what follows it: reading its fields as far as the one
-// named last, which follows every field of the head, so none of what
-// follows is inflated or read. It fails where the head doesn't read whole,
-// inflating no more than storedMax.
-func storedHeadIn[S any](r io.Reader, last string) (S, error) {
+// holds it, none of what follows it: reading its fields as far as the first
+// of those named rest, which follow every field of the head, so none of
+// what follows is inflated or read. It fails where the head doesn't read
+// whole, inflating no more than storedMax.
+func storedHeadIn[S any](r io.Reader, rest ...string) (S, error) {
 	var stored S
 	members, err := gzip.NewReader(r)
 	if err != nil {
 		return stored, err
 	}
 	var head bytes.Buffer
-	if err := headCopied(jsontext.NewDecoder(io.LimitReader(members, storedMax)), jsontext.NewEncoder(&head), last); err != nil {
+	if err := headCopied(jsontext.NewDecoder(io.LimitReader(members, storedMax)), jsontext.NewEncoder(&head), rest); err != nil {
 		return stored, err
 	}
 	err = json.Unmarshal(head.Bytes(), &stored)
@@ -413,8 +427,8 @@ func storedHeadIn[S any](r io.Reader, last string) (S, error) {
 }
 
 // headCopied writes to head, as an object of its own, the members of the
-// object from reads, as far as the one named last, or its end.
-func headCopied(from *jsontext.Decoder, head *jsontext.Encoder, last string) error {
+// object from reads, as far as the first of those named rest, or its end.
+func headCopied(from *jsontext.Decoder, head *jsontext.Encoder, rest []string) error {
 	begin, err := from.ReadToken()
 	switch {
 	case err != nil:
@@ -430,7 +444,7 @@ func headCopied(from *jsontext.Decoder, head *jsontext.Encoder, last string) err
 		switch {
 		case err != nil:
 			return err
-		case token.Kind() == jsontext.EndObject.Kind(), token.String() == last:
+		case token.Kind() == jsontext.EndObject.Kind(), slices.Contains(rest, token.String()):
 			return head.WriteToken(jsontext.EndObject)
 		}
 		name := jsontext.String(token.String())

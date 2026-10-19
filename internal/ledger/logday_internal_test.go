@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -31,41 +33,71 @@ func dayHeadOf(date string, lines int, side string) DayHead {
 	return head
 }
 
+// chunksGiven are the chunks of a day's rows the day heads' tests write: two,
+// the first's meta holding characters JSON may escape for HTML, and the
+// second of no meta.
+func chunksGiven() []BuiltChunk {
+	return []BuiltChunk{
+		{Rows: []byte("r1\nr2\n"), Count: 2, Meta: json.RawMessage(`{"sessions":{"<one>":2}}`)},
+		{Rows: []byte("r3\n"), Count: 1},
+	}
+}
+
+// spacedChunks are chunksGiven, the first's meta given with spaces.
+func spacedChunks() []BuiltChunk {
+	chunks := chunksGiven()
+	chunks[0].Meta = json.RawMessage(`{ "sessions": {"<one>": 2} }`)
+	return chunks
+}
+
 // A day head reads back as it was written, every field of it, its side byte
-// for byte but for its insignificant spaces, its characters unescaped; and
-// one of no side reads back of none.
+// for byte but for its insignificant spaces, its characters unescaped, and
+// its rows as written beside it, each chunk's meta as its side is; and one
+// of no side, or no rows, reads back of none.
 func TestADayHeadReadsBackAsItWasWritten(t *testing.T) {
 	every := dayHeadOf(digested, 42, `[{"id":"one","dir":"~/Code/<api> & co"},{"id":"two","named":"café"}]`)
 	every.Lines = 41
 	tests := []struct {
-		name string
-		head DayHead
+		name   string
+		head   DayHead
+		chunks []BuiltChunk
 	}{
-		{name: "every field held", head: every},
-		{name: "a side of no sessions", head: dayHeadOf(digested, 0, `[]`)},
-		{name: "no side", head: dayHeadOf(digested, 3, "")},
+		{name: "every field held", head: every, chunks: chunksGiven()},
+		{name: "a side of no sessions", head: dayHeadOf(digested, 0, `[]`), chunks: chunksGiven()},
+		{name: "no side", head: dayHeadOf(digested, 3, ""), chunks: chunksGiven()},
+		{name: "no rows", head: every},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			d := digestDays(t)
-			if err := d.writeDayHead(tt.head); err != nil {
-				t.Fatalf("writeDayHead(%+v): %v", tt.head, err)
+			written, err := d.writeDay(tt.head, tt.chunks)
+			if err != nil {
+				t.Fatalf("writeDay(%+v): %v", tt.head, err)
 			}
 
 			read, err := d.dayHead(digested, sideVersion)
 
-			if err != nil || !reflect.DeepEqual(read, tt.head) {
-				t.Errorf("dayHead(%q) = %+v, %v; want %+v, as it was written", digested, read, err, tt.head)
+			if err != nil || !reflect.DeepEqual(read, written) {
+				t.Errorf("dayHead(%q) = %+v, %v; want %+v, as it was written", digested, read, err, written)
+			}
+			if len(read.Rows.Chunks) != len(tt.chunks) {
+				t.Fatalf("dayHead(%q) points at %d chunks, want %d, as many as were written", digested, len(read.Rows.Chunks), len(tt.chunks))
+			}
+			for i, c := range read.Rows.Chunks {
+				rows, err := memberIn(rowsFile(d.files.Dir, digested), c.Member)
+				if want := tt.chunks[i]; err != nil || !bytes.Equal(rows, want.Rows) || c.Count != want.Count {
+					t.Errorf("chunk %d of %s holds %q, %v, of %d rows; want %q, of %d, as written", i, digested, rows, err, c.Count, want.Rows, want.Count)
+				}
 			}
 		})
 	}
 }
 
 // A day head's side is stored as it was given but for its insignificant
-// spaces, as a JSON value of its builder's.
+// spaces, as a JSON value of its builder's; and so is each chunk's meta.
 func TestADayHeadsSideIsStoredAsItWasGiven(t *testing.T) {
 	d := digestDays(t)
-	if err := d.writeDayHead(dayHeadOf(digested, 1, `{ "sessions": [ "<one>" ] }`)); err != nil {
+	if _, err := d.writeDay(dayHeadOf(digested, 1, `{ "sessions": [ "<one>" ] }`), spacedChunks()); err != nil {
 		t.Fatal(err)
 	}
 
@@ -74,26 +106,38 @@ func TestADayHeadsSideIsStoredAsItWasGiven(t *testing.T) {
 	if want := `{"sessions":["<one>"]}`; err != nil || string(read.Side) != want {
 		t.Errorf("dayHead(%q) has its side read as %s, %v; want %s, as it was given, its spaces left out", digested, read.Side, err, want)
 	}
+	if want := `{"sessions":{"<one>":2}}`; len(read.Rows.Chunks) == 0 || string(read.Rows.Chunks[0].Meta) != want {
+		t.Errorf("dayHead(%q) has its rows read as %+v; want its first chunk's meta %s, as it was given, its spaces left out", digested, read.Rows, want)
+	}
 }
 
-// A day head's fields but its side are read by stopping at the side: so it's
-// its stored form's last field, written after every other.
-func TestADayHeadsSideIsItsStoredFormsLastField(t *testing.T) {
+// A day head's fields but its side and its rows' chunks are read by stopping
+// at the first of those: so they're its stored form's last fields, written
+// after every other.
+func TestADayHeadsSideAndChunksAreItsStoredFormsLastFields(t *testing.T) {
 	fields := reflect.VisibleFields(reflect.TypeFor[storedDayHead]())
-	if name, _, _ := strings.Cut(fields[len(fields)-1].Tag.Get("json"), ","); name != logdaySide {
-		t.Errorf("storedDayHead's last field is stored as %q, want %q: its other fields come first, as dayHeadIn reads them", name, logdaySide)
+	var last []string
+	for _, f := range fields[len(fields)-2:] {
+		name, _, _ := strings.Cut(f.Tag.Get("json"), ",")
+		last = append(last, name)
+	}
+	if want := []string{logdaySide, logdayChunks}; !slices.Equal(last, want) {
+		t.Errorf("storedDayHead's last fields are stored as %q, want %q: its other fields come first, as dayHeadIn reads them", last, want)
 	}
 }
 
 // A day head's file is its stored form, gzipped, the user's alone: its keys
 // short, its zeros left out, its day's bounds as nanoseconds since the Unix
-// epoch, and its side last, as it was given but for its insignificant
-// spaces, its characters unescaped.
+// epoch, its rows file's size; then its side, and its rows' chunks, each
+// where it lies in the rows file, how many rows it holds, and its meta, as
+// they were given but for their insignificant spaces, their characters
+// unescaped. Its rows file is the user's alone too.
 func TestADayHeadIsWrittenGzippedAsItsStoredFormTheUsersAlone(t *testing.T) {
 	d := digestDays(t)
 	head := DayHead{Body: sideVersion, Day: digested, Start: time.Date(2026, 10, 4, 23, 0, 0, 0, time.UTC),
 		End: time.Date(2026, 10, 5, 23, 0, 0, 0, time.UTC), SummaryLines: 40, Lines: 39, Side: json.RawMessage(`[ {"dir": "~/<api> & co"} ]`)}
-	if err := d.writeDayHead(head); err != nil {
+	written, err := d.writeDay(head, spacedChunks())
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -102,39 +146,48 @@ func TestADayHeadIsWrittenGzippedAsItsStoredFormTheUsersAlone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	c := written.Rows.Chunks
 	want := fmt.Sprintf(`{"version":%d,"body":7,"day":"2026-10-05","from":1791154800000000000,"to":1791241200000000000,"summary_lines":40,"lines":39,`+
-		`"side":[{"dir":"~/<api> & co"}]}`+"\n", logdayVersion)
+		`"rows_size":%d,"side":[{"dir":"~/<api> & co"}],`+
+		`"chunks":[{"length":%d,"crc":%d,"count":2,"meta":{"sessions":{"<one>":2}}},{"offset":%d,"length":%d,"crc":%d,"count":1}]}`+"\n",
+		logdayVersion, written.Rows.Size, c[0].Length, c[0].CRC, c[1].Offset, c[1].Length, c[1].CRC)
 	if got := string(gunzipped(t, data)); got != want {
 		t.Errorf("the day head's file holds\n%s\nwant\n%s", got, want)
 	}
-	if info, err := os.Stat(path); err != nil || info.Mode().Perm() != 0o600 {
-		t.Errorf("the day head's file is %v, %v; want it the user's alone, 0600", info.Mode().Perm(), err)
+	for _, path := range []string{path, rowsFile(d.files.Dir, digested)} {
+		if info, err := os.Stat(path); err != nil || info.Mode().Perm() != 0o600 {
+			t.Errorf("%s is %v, %v; want it the user's alone, 0600", filepath.Base(path), info.Mode().Perm(), err)
+		}
 	}
 }
 
-// A day head that can't be written whole, of a day that isn't one, or of a
-// side that isn't JSON, isn't written at all, failing with an error that
-// names the day.
+// A day head that can't be written whole, of a day that isn't one, of a side
+// that isn't JSON, or of a chunk whose meta isn't, isn't written at all, nor
+// its rows, failing with an error that names the day.
 func TestADayHeadThatCantBeWrittenWholeIsntWritten(t *testing.T) {
+	unmeant := chunksGiven()
+	unmeant[1].Meta = json.RawMessage(`{"first":"r`)
 	tests := []struct {
-		name string
-		head DayHead
+		name   string
+		head   DayHead
+		chunks []BuiltChunk
 	}{
-		{name: "of a day that isn't one", head: DayHead{Body: sideVersion, Day: "someday"}},
-		{name: "a side that isn't JSON", head: dayHeadOf(digested, 1, `{"dir":"~/a`)},
+		{name: "of a day that isn't one", head: DayHead{Body: sideVersion, Day: "someday"}, chunks: chunksGiven()},
+		{name: "a side that isn't JSON", head: dayHeadOf(digested, 1, `{"dir":"~/a`), chunks: chunksGiven()},
+		{name: "a chunk's meta that isn't JSON", head: dayHeadOf(digested, 1, `[]`), chunks: unmeant},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			d := digestDays(t)
 
-			err := d.writeDayHead(tt.head)
+			_, err := d.writeDay(tt.head, tt.chunks)
 
 			entries, _ := os.ReadDir(d.files.Dir)
 			if err == nil || len(entries) > 0 {
-				t.Fatalf("writeDayHead(%+v) = %v, leaving %d files; want it failing, writing none", tt.head, err, len(entries))
+				t.Fatalf("writeDay(%+v) = %v, leaving %d files; want it failing, writing none", tt.head, err, len(entries))
 			}
 			if !strings.Contains(err.Error(), tt.head.Day) {
-				t.Errorf("writeDayHead(%+v) failed with %q, want it naming the day, %s", tt.head, err, tt.head.Day)
+				t.Errorf("writeDay(%+v) failed with %q, want it naming the day, %s", tt.head, err, tt.head.Day)
 			}
 		})
 	}
@@ -229,21 +282,24 @@ func TestADayHeadIsJudgedBeforeItsSideIsRead(t *testing.T) {
 	}
 }
 
-// A day head's fields but its side are read without its side, which no
-// damage to it or its gzip trailer fails, as the whole read does, as none of
-// it is read: so judging a head inflates none of its side.
+// A day head's fields but its side and its rows' chunks are read without
+// either, which no damage to them or its gzip trailer fails, as the whole
+// read does, as none of them is read: so judging a head inflates none of its
+// side, nor of its chunks, whichever comes first.
 func TestADayHeadsFieldsAreReadWithoutItsSide(t *testing.T) {
-	fields := fmt.Sprintf(`{"version":%d,"body":%d,"day":"2026-10-05","from":1,"to":2,"summary_lines":40,"lines":39,`, logdayVersion, sideVersion)
-	whole := gzippedText(t, fields+`"side":[{"id":"one"}]}`)
+	fields := fmt.Sprintf(`{"version":%d,"body":%d,"day":"2026-10-05","from":1,"to":2,"summary_lines":40,"lines":39,"rows_size":90,`, logdayVersion, sideVersion)
+	whole := gzippedText(t, fields+`"side":[{"id":"one"}],"chunks":[{"length":90,"crc":7,"count":3}]}`)
 	tests := []struct {
 		name string
 		file []byte
 	}{
 		{name: "its side cut short", file: gzippedText(t, fields+`"side":[{"id":"o`)},
 		{name: "its side not JSON", file: gzippedText(t, fields+`"side":not a side`)},
+		{name: "its chunks not JSON", file: gzippedText(t, fields+`"side":[],"chunks":not chunks`)},
+		{name: "its chunks not JSON, of no side", file: gzippedText(t, fields+`"chunks":not chunks`)},
 		{name: "cut short in its gzip trailer", file: whole[:len(whole)-4]},
 	}
-	want := DayHead{Body: sideVersion, Day: digested, Start: time.Unix(0, 1), End: time.Unix(0, 2), SummaryLines: 40, Lines: 39}
+	want := DayHead{Body: sideVersion, Day: digested, Start: time.Unix(0, 1), End: time.Unix(0, 2), SummaryLines: 40, Lines: 39, Rows: DayRows{Size: 90}}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			d := digestDays(t)
