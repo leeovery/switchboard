@@ -40,8 +40,18 @@ var storedAs = map[string]string{
 // unwritten are the keys a stored form declares that no digest holds, each
 // with why: a golden holding one is told to drop it here.
 var unwritten = map[storedKey]string{
-	{of: "ledger.storedSpend", key: "q"}: "a quota check is never counted, so the store never holds one",
+	{of: "ledger.storedSpend", key: "q"}:           "a quota check is never counted, so the store never holds one",
+	{of: "ledger.storedDigest", key: "parts_size"}: noParts,
+	{of: "ledger.storedEntry", key: "part"}:        noParts,
+	{of: "ledger.storedPart", key: "on"}:           noParts,
+	{of: "ledger.storedMember", key: "offset"}:     noParts,
+	{of: "ledger.storedMember", key: "length"}:     noParts,
+	{of: "ledger.storedMember", key: "crc"}:        noParts,
 }
+
+// noParts is why a digest holds no key of a session's part: the views'
+// Digests give no part yet.
+const noParts = "the views' Digests give no part yet, so no digest points at one"
 
 // Every key the stored forms of a day's digest declare, the ledger's
 // envelope and every struct of the views' body it holds, nested, holds a

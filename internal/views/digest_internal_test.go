@@ -152,21 +152,24 @@ const spoiledState = `{"d":"2000-01-01"}`
 
 // Digest gives what the views' Digests give of day, recording both, or
 // spoiled states, of the day spoiled.
-func (r *recordedDigests) Digest(ctx context.Context, day ledger.DigestDay) (map[string]json.RawMessage, error) {
+func (r *recordedDigests) Digest(ctx context.Context, day ledger.DigestDay) (map[string]ledger.Folded, error) {
 	r.calls++
 	r.handed[day.Date] = day
-	states, err := r.Digests.Digest(ctx, day)
+	folded, err := r.Digests.Digest(ctx, day)
 	if day.Date == r.spoiled {
-		for id := range states {
-			states[id] = json.RawMessage(spoiledState)
+		for id, f := range folded {
+			f.State = json.RawMessage(spoiledState)
+			folded[id] = f
 		}
-		return states, err
+		return folded, err
 	}
 	if r.states[day.Date] == nil {
 		r.states[day.Date] = make(map[string]json.RawMessage)
 	}
-	maps.Copy(r.states[day.Date], states)
-	return states, err
+	for id, f := range folded {
+		r.states[day.Date][id] = f.State
+	}
+	return folded, err
 }
 
 // quiet is a logger of nothing.

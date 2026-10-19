@@ -132,10 +132,13 @@ type writerLook struct {
 
 // digest gives the digest the ledger holds of the local day with the given
 // date, as days.digest reads it, reporting false where it holds none that
-// reads.
+// reads, or its parts file isn't as long as its head records, as partsHeld
+// judges it: a digest whose parts are lost, or written again since, is built
+// again as one gone is, its sessions folded afresh on the states before it,
+// none rested on its own.
 func (l writerLook) digest(date string) (Digest, bool) {
 	digest, err := l.days.digest(date, l.body)
-	return digest, err == nil
+	return digest, err == nil && l.days.partsHeld(date, digest.Head.PartsSize)
 }
 
 // head gives the head of the digest the ledger holds of the local day with

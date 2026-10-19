@@ -1,9 +1,12 @@
 package ledger
 
 import (
+	"encoding/json"
 	"maps"
 	"slices"
 	"time"
+
+	"github.com/leeovery/switchboard/internal/atomicfile"
 )
 
 // SetLooked has a round call looked with the date of each day it summarises
@@ -14,9 +17,31 @@ func (l *Ledger) SetLooked(looked func(date string)) {
 }
 
 // WriteDigest writes digest as the ledger in dir holds the digest of its
-// day, for tests of what passes over it.
+// day, its file alone, as one written by hand would be: its head, and its
+// entries' parts, as given, the day's parts file left as it is, for tests of
+// what passes over it.
 func WriteDigest(dir string, digest Digest) error {
-	return days{files: filesIn(dir, nil)}.writeDigest(digest)
+	data, err := gzippedJSON(storedOf(digest))
+	if err != nil {
+		return err
+	}
+	return atomicfile.Write(digestFile(dir, digest.Head.Day), data, 0o600)
+}
+
+// WriteParts writes the parts given, by their sessions' ids, as the ledger in
+// dir holds the parts file of the local day with the given date, as a build
+// writes it before its digest, the digest left as it is, for tests of a
+// build that stopped between the two.
+func WriteParts(dir, date string, parts map[string]json.RawMessage) error {
+	built := make(map[string]builtPart, len(parts))
+	for id, part := range parts {
+		built[id] = builtPart{data: part}
+	}
+	file, _, err := partsFileOf(built)
+	if err != nil {
+		return err
+	}
+	return days{files: filesIn(dir, nil)}.writeParts(date, file)
 }
 
 // ReadDigest returns the digest the ledger in dir holds of the local day with
@@ -24,6 +49,13 @@ func WriteDigest(dir string, digest Digest) error {
 // what's written.
 func ReadDigest(dir, date string, body int) (Digest, error) {
 	return days{files: filesIn(dir, nil)}.digest(date, body)
+}
+
+// ReadPart returns the part of a session ref points at in the parts file the
+// ledger in dir holds of the local day with the given date, as readPart
+// reads it, for tests of what's written.
+func ReadPart(dir, date string, ref PartRef) (json.RawMessage, error) {
+	return days{files: filesIn(dir, nil)}.readPart(date, ref)
 }
 
 // SessionsAsOf returns the sessions with the given ids as of the start of
