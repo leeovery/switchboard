@@ -385,6 +385,40 @@ func TestAPagesPointsStoredOnADayItMadeNoRequestOnHoldNoneOfItsAnswers(t *testin
 	}
 }
 
+// A page's points seal a day's requests each once, as a request is counted:
+// one with an id once, however often its line is given; one without as
+// often as given. So given the day again whole once they sealed it, they
+// place it on what they sealed, taking nothing in: of the second day of
+// givenTwiceRun's, its four requests of five lines. Folded whole, as a page
+// read raw folds them; and on the first day's, as a day's digest folds
+// them.
+func TestAPagesPointsSealADaysRequestsEachOnceAndPlaceItGivenAgain(t *testing.T) {
+	answers := answersOf(linesByDate(givenTwiceRun()), "s")
+	first, second, third := dayOf(dateOn(0)), dayOf(dateOn(1)), dayOf(dateOn(2))
+	sealed := pointingOf(datesThrough(answers, first.Date), first).sealedAt(endOfDay(first), first)
+	foldedOn, ok := sealed.took(second.Date, answers[second.Date], true, second)
+	if !ok {
+		t.Fatalf("the points sealed at the end of %s can't take %s's answers in, want them taken", first.Date, second.Date)
+	}
+	tests := []struct {
+		name   string
+		points *pointing
+	}{
+		{name: "folded whole", points: pointingOf(answers, second).sealedAt(endOfDay(second), second)},
+		{name: "folded on the first day's", points: foldedOn.sealedAt(endOfDay(second), second)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, placed := tt.points.took(second.Date, answers[second.Date], true, third)
+
+			if folded := tt.points.folded[second.Date]; folded != 4 || !placed || got != tt.points {
+				t.Errorf("sealing %d of %s's %d answers, the points given them again placed them %t, as they were %t; want 4 sealed, placed as they were",
+					folded, second.Date, len(answers[second.Date]), placed, got == tt.points)
+			}
+		})
+	}
+}
+
 // A page's points' stored form is their days; their shares done; their last
 // run, its accounts' windows, each climb in its own stored form; the
 // answers they hold of the session's days, each as its fields, its windows
