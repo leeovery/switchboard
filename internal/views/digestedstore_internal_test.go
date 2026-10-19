@@ -18,18 +18,47 @@ import (
 
 // datesTaken is a ledger as the one it holds reads it that notes the date of
 // each day whose lines a read of its sessions hands on, as a Follower hands
-// on each line it reads, of whichever session.
+// on each line it reads, of whichever session; and the dates of the parts of
+// the chain each session it gives rests on, oldest first, by its id, of those
+// given any.
 type datesTaken struct {
 	Ledger
 	dates map[string]bool
+	parts map[string][]string
+}
+
+// takingDates is l, noting what datesTaken notes, none yet.
+func takingDates(l Ledger) datesTaken {
+	return datesTaken{Ledger: l, dates: make(map[string]bool), parts: make(map[string][]string)}
 }
 
 func (c datesTaken) Sessions(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
-	return c.Ledger.Sessions(ids, rest, c.taking(take))
+	return c.gave(c.Ledger.Sessions(ids, rest, c.taking(take)))
 }
 
 func (c datesTaken) SessionsOf(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
-	return c.Ledger.SessionsOf(ids, rest, c.taking(take))
+	return c.gave(c.Ledger.SessionsOf(ids, rest, c.taking(take)))
+}
+
+// gave is sessions, as a read gave them, the dates of each one's chain of
+// parts noted.
+func (c datesTaken) gave(sessions map[string]ledger.SessionFrom) map[string]ledger.SessionFrom {
+	for id, from := range sessions {
+		if dates := partDates(from); len(dates) > 0 {
+			c.parts[id] = append(c.parts[id], dates...)
+		}
+	}
+	return sessions
+}
+
+// partDates are the dates of the parts of the chain from rests on, oldest
+// first: none where it's given none.
+func partDates(from ledger.SessionFrom) []string {
+	var dates []string
+	for _, p := range from.Parts {
+		dates = append(dates, p.Date)
+	}
+	return dates
 }
 
 // taking is take, where it's given, each line handed it noted by its day's
@@ -138,7 +167,7 @@ func TestAListOverDigestsReadsTheNearDaysFilesAlone(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			l := datesTaken{Ledger: n.follower(tt.version), dates: make(map[string]bool)}
+			l := takingDates(n.follower(tt.version))
 
 			list := n.list(l)
 

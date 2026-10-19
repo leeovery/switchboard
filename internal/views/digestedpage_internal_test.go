@@ -45,85 +45,110 @@ func (n nineDays) opened(l LedgerSessions, id string, s Stream) shown {
 	return shownBy(built)
 }
 
-// printed is the page of the session with the given id as the sessions verb
-// prints it at the nine days' moment, read through l, the router listing
-// the sessions running, or, where it gives none, none listed; the stream s
-// telling.
-func (n nineDays) printed(l Ledger, id string, running []status.Session, s Stream) SessionPage {
-	page, _ := SessionPageOf(id, PageSources{
-		Routed: Routed(running, id), Unlisted: running == nil, Read: ReadSessions(l, running, n.now, id), Stream: s, Prices: ledger.Pricing, Now: n.now,
-	})
+// printed is the page of the session given names as the sessions verb
+// prints it at the nine days' moment, read through l, as NamedAmong names
+// it, the router listing the sessions running, or, where it gives none,
+// none listed; the stream s telling.
+func (n nineDays) printed(l Ledger, given string, running []status.Session, s Stream) SessionPage {
+	read := ReadSessions(l, running, n.now, given)
+	id := NamedAmong(given, read.Named(running)).ID
+	page, _ := SessionPageOf(id, PageSources{Routed: Routed(running, id), Unlisted: running == nil, Read: read, Stream: s, Prices: ledger.Pricing, Now: n.now})
 	return page
 }
 
 // stored is what the page of the session with the given id shows, as the
 // store holds it, first fed at the nine days' moment through l wanting the
-// page, pinned as the stream s tells, the page taken from it as the watch
-// takes it.
-func (n nineDays) stored(l LedgerSessions, id string, s Stream) shown {
-	store, _ := HoldSessions(ledger.Pricing).Fed(l, Taken{}, SessionsWanted{Page: id, Pins: pinsOf(s)}, n.now)
+// page, and where listing says, the List, pinned as the stream s tells, the
+// page taken from it as the watch takes it.
+func (n nineDays) stored(l LedgerSessions, id string, listing bool, s Stream) shown {
+	want := SessionsWanted{Pins: pinsOf(s)}
+	if listing {
+		want = ListWanted(n.running, s)
+	}
+	want.Page = id
+	store, _ := HoldSessions(ledger.Pricing).Fed(l, Taken{}, want, n.now)
 	held, _ := HoldPage(id, SessionsRead{}, ledger.Pricing, 0, n.now).Held(store)
 	built, _ := held.Build(PageLive{Unlisted: true, Stream: s, Now: n.now})
 	return shownBy(built)
 }
 
+// chains are the dates of the parts of the chain each of the sessions with
+// the given ids rests on, resting on its page, as the nine days' digests
+// give them, by its id.
+func (n nineDays) chains(ids ...string) map[string][]string {
+	chains := make(map[string][]string, len(ids))
+	for id, from := range n.follower(DigestVersion).SessionsOf(ids, onPage, nil) {
+		chains[id] = partDates(from)
+	}
+	return chains
+}
+
 // A page at half past one, once the day before's digest stands, over nine
 // days its session ran on every one of, and made a request on today, reads
-// today's file alone, its session resting on its page at the day before's
-// end, and the chain of its parts to it: where the page read raw reads
-// every day's. It shows the page read raw, its points among it. A day is
-// told read by the lines its read hands on.
-func TestAPageOverDigestsReadsTodaysFileAndItsPartsAlone(t *testing.T) {
+// today's file alone, its session given resting on its page at the day
+// before's end, with the chain of its parts to it, and no other session
+// given any: where the page read raw reads every day's. It shows the page
+// read raw, its points among it: opened as the watch opens it, and as the
+// store holds it, for the page alone and for the List too. A day is told
+// read by the lines its read hands on.
+func TestAPageOverDigestsReadsTodaysFileAloneOnItsChainOfParts(t *testing.T) {
 	n := newNineDays(t, []string{"a", "b", "c"})
 	yesterday := yesterdayOf(n.today)
-	from := n.follower(DigestVersion).SessionsOf([]string{"a"}, onPage, nil)["a"]
-	if baseDateOf(from) != yesterday || len(from.Parts) == 0 || from.Parts[len(from.Parts)-1].Date != yesterday {
-		t.Fatalf("a rests on its page of %q, %d parts in its chain; want on the day before's, %s, its chain to it", baseDateOf(from), len(from.Parts), yesterday)
+	chains := n.chains("a")
+	if chain := chains["a"]; len(chain) == 0 || chain[len(chain)-1] != yesterday {
+		t.Fatalf("a rests on its page with the chain of the parts of %v; want a chain to the day before's, %s", chain, yesterday)
 	}
 	tests := []struct {
-		name    string
-		version int
-		read    []string
+		name string
+		read func(l Ledger) shown
 	}{
-		{name: "over digests", version: DigestVersion, read: []string{n.today.Date}},
-		{name: "read raw", version: DigestVersion + 1, read: dayfile.Span(n.first.Start, n.today.Start)},
+		{name: "opened as the watch opens it", read: func(l Ledger) shown { return n.opened(l, "a", Stream{}) }},
+		{name: "held by the store for the page alone", read: func(l Ledger) shown { return n.stored(l, "a", false, Stream{}) }},
+		{name: "held by the store for the List too", read: func(l Ledger) shown { return n.stored(l, "a", true, Stream{}) }},
 	}
-	pages := make([]shown, len(tests))
-	for i, tt := range tests {
+	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			l := datesTaken{Ledger: n.follower(tt.version), dates: make(map[string]bool)}
+			based, raw := takingDates(n.follower(DigestVersion)), takingDates(n.follower(DigestVersion+1))
 
-			pages[i] = n.opened(l, "a", Stream{})
+			got, want := tt.read(based), tt.read(raw)
 
-			if dates := l.datesRead(); !slices.Equal(dates, tt.read) {
-				t.Errorf("the page read the lines of %v, want those of %v", dates, tt.read)
+			if dates := based.datesRead(); !slices.Equal(dates, []string{n.today.Date}) {
+				t.Errorf("over digests, the page read the lines of %v, want those of %s alone", dates, n.today.Date)
+			}
+			if dates, every := raw.datesRead(), dayfile.Span(n.first.Start, n.today.Start); !slices.Equal(dates, every) {
+				t.Errorf("read raw, the page read the lines of %v, want those of every day, %v", dates, every)
+			}
+			if !reflect.DeepEqual(based.parts, chains) {
+				t.Errorf("over digests, the read gave the chains of parts %v, want a's alone, %v", based.parts, chains)
+			}
+			if !reflect.DeepEqual(got, want) || !pointed(want.page) {
+				t.Errorf("over digests, the page shows\n%+v\nwant, as read raw, its points among it\n%+v", got, want)
 			}
 		})
-	}
-	if !reflect.DeepEqual(pages[0], pages[1]) || !pointed(pages[1].page) {
-		t.Errorf("over digests, the page shows\n%+v\nwant, as read raw, its points among it\n%+v", pages[0], pages[1])
 	}
 }
 
 // The sessions verb shows a session over digests as it shows it read raw,
-// each session it reads resting on its own page: one left out of the day
+// named by its whole id or as much of it as is unique: the session named
+// resting on its page, every other the read gives on its state, so the read
+// gives the named session's chain of parts alone. One left out of the day
 // before's digest rests on the state of the day before that, so the read
 // reads the day before's file too, handing on that day's answers, which the
-// others' pages, resting on that day's state, have folded already. So it
-// reads that day's file and today's, no session read whole again. With the
-// router listing the sessions, and with none.
+// others' pages, resting on that day's state, have folded already: it reads
+// that day's file and today's, no session read whole again. With the router
+// listing the sessions, and with none.
 func TestTheSessionsVerbOverDigestsShowsASessionAsReadRaw(t *testing.T) {
-	ids := []string{"a", "b", "c"}
-	n := newNineDays(t, ids, "b")
+	ids := []string{"alpha", "bravo", "charlie"}
+	n := newNineDays(t, ids, "bravo")
 	yesterday := yesterdayOf(n.today)
-	before := yesterdayOf(dayOf(yesterday))
-	for id, from := range n.follower(DigestVersion).SessionsOf(ids, onPage, nil) {
+	chains := n.chains(ids...)
+	for _, id := range ids {
 		want := yesterday
-		if id == "b" {
-			want = before
+		if id == "bravo" {
+			want = yesterdayOf(dayOf(yesterday))
 		}
-		if baseDateOf(from) != want {
-			t.Fatalf("%s rests on its page of %q, want on that of %s", id, baseDateOf(from), want)
+		if chain := chains[id]; len(chain) == 0 || chain[len(chain)-1] != want {
+			t.Fatalf("%s rests on its page with the chain of the parts of %v, want a chain to %s's", id, chain, want)
 		}
 	}
 	tests := []struct {
@@ -135,18 +160,23 @@ func TestTheSessionsVerbOverDigestsShowsASessionAsReadRaw(t *testing.T) {
 	}
 	for _, tt := range tests {
 		for _, id := range ids {
-			t.Run(fmt.Sprintf("%s, %s's page", tt.name, id), func(t *testing.T) {
-				l := datesTaken{Ledger: n.follower(DigestVersion), dates: make(map[string]bool)}
+			for _, given := range []string{id, id[:2]} {
+				t.Run(fmt.Sprintf("%s, %s named as %s", tt.name, id, given), func(t *testing.T) {
+					l := takingDates(n.follower(DigestVersion))
 
-				got := n.printed(l, id, tt.running, Stream{})
+					got := n.printed(l, given, tt.running, Stream{})
 
-				if dates, want := l.datesRead(), []string{yesterday, n.today.Date}; !slices.Equal(dates, want) {
-					t.Errorf("the verb read the lines of %v, want those of %v", dates, want)
-				}
-				if want := n.printed(n.follower(DigestVersion+1), id, tt.running, Stream{}); !reflect.DeepEqual(got, want) || !pointed(want) {
-					t.Errorf("over digests, the verb shows\n%+v\nwant, as read raw, its points among it\n%+v", got, want)
-				}
-			})
+					if dates, want := l.datesRead(), []string{yesterday, n.today.Date}; !slices.Equal(dates, want) {
+						t.Errorf("the verb read the lines of %v, want those of %v", dates, want)
+					}
+					if want := map[string][]string{id: chains[id]}; !reflect.DeepEqual(l.parts, want) {
+						t.Errorf("the verb's read gave the chains of parts %v, want %s's alone, %v", l.parts, id, want)
+					}
+					if want := n.printed(n.follower(DigestVersion+1), given, tt.running, Stream{}); want.Session != id || !reflect.DeepEqual(got, want) || !pointed(want) {
+						t.Errorf("over digests, the verb shows\n%+v\nwant, as read raw, %s's, its points among it\n%+v", got, id, want)
+					}
+				})
+			}
 		}
 	}
 }
@@ -155,11 +185,12 @@ func TestTheSessionsVerbOverDigestsShowsASessionAsReadRaw(t *testing.T) {
 // session sent before the end of the day its page rests on, which its state
 // holds sealed, is read again whole, every day's answers taken afresh, not
 // only those of the days after its base that the first read took: the page
-// the store holds, the page as the watch opens it, and the sessions verb's,
-// each shows the page read raw, its points of every day's answers. The
-// request ended, its line yet to come, sent a minute before the last of the
-// day before's, which a page resting on that day's state would take in after
-// that one, out of its place.
+// the store holds, the page as the watch opens it, the sessions verb's, and
+// the page HoldPage holds, which holds none on a base, each shows the page
+// read raw, its points of every day's answers. The request ended, its line
+// yet to come, sent a minute before the last of the day before's, which a
+// page resting on that day's state would take in after that one, out of its
+// place.
 func TestAPageReadWholeAfterARefusedRestoreTakesEveryDaysAnswers(t *testing.T) {
 	n := newNineDays(t, []string{"a", "b", "c"})
 	var last ledger.Line
@@ -181,13 +212,17 @@ func TestAPageReadWholeAfterARefusedRestoreTakesEveryDaysAnswers(t *testing.T) {
 		name string
 		read func(l Ledger) shown
 	}{
-		{name: "the store's", read: func(l Ledger) shown { return n.stored(l, "a", s) }},
+		{name: "the store's", read: func(l Ledger) shown { return n.stored(l, "a", false, s) }},
 		{name: "as the watch opens it", read: func(l Ledger) shown { return n.opened(l, "a", s) }},
 		{name: "the sessions verb's", read: func(l Ledger) shown { return shown{page: n.printed(l, "a", nil, s)} }},
+		{name: "as HoldPage holds it", read: func(l Ledger) shown {
+			page, _ := HoldPage("a", ReadSessions(l, nil, n.now, "a"), ledger.Pricing, 0, n.now).Page(PageLive{Unlisted: true, Stream: s, Now: n.now})
+			return shown{page: page}
+		}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			l := datesTaken{Ledger: n.follower(DigestVersion), dates: make(map[string]bool)}
+			l := takingDates(n.follower(DigestVersion))
 
 			got := tt.read(l)
 
@@ -196,6 +231,36 @@ func TestAPageReadWholeAfterARefusedRestoreTakesEveryDaysAnswers(t *testing.T) {
 			}
 			if want := tt.read(n.follower(DigestVersion + 1)); !reflect.DeepEqual(got, want) || !pointed(want.page) {
 				t.Errorf("over digests, the page shows\n%+v\nwant, as read raw, its points among it\n%+v", got, want)
+			}
+		})
+	}
+}
+
+// A page's points resting on a state take in the answers of the days after
+// its day alone, which they took in as they were sealed: given the answers
+// of its own day again, or of a day before it, with one more of the
+// session's own, which they'd refuse, as more than they folded that day,
+// they take nothing in, and are as they were.
+func TestAPagesPointsTakeInNoAnswerOfTheDaysThroughTheirBase(t *testing.T) {
+	lines := daily(foldSonnet, foldSonnet, foldSonnet)
+	base := dayOf(dateOn(1))
+	end := endOfDay(base)
+	folded := arrivedBefore(lines, end.time())
+	p := readOf(folded, answersOf(linesByDate(folded), "s"), ledger.Pricing, base, end, true).page.points
+	next := Today(end.time())
+	for i, date := range []string{dateOn(0), dateOn(1)} {
+		t.Run(date, func(t *testing.T) {
+			again := lines[i]
+			again.Request, again.At = "again", again.At.Add(time.Minute)
+			given := []answered{answeredOf(&lines[i], "s"), answeredOf(&again, "s")}
+			if _, ok := p.took(date, given, true, next); ok {
+				t.Fatalf("the points take in %s's answers and one more of the session's own, want them refused", date)
+			}
+
+			got, ok := p.tookAfter(base.Date, map[string][]answered{date: given}, next)
+
+			if !ok || got != p {
+				t.Errorf("resting on the state of %s, given %s's answers, the points took %t, as %p; want them as they were, %p", base.Date, date, ok, got, p)
 			}
 		})
 	}

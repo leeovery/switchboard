@@ -161,11 +161,11 @@ type PageSources struct {
 }
 
 // SessionsRead is a read of the ledger for a session's page, as ReadSessions
-// reads it: the sessions it read, by each one's id, each resting on its
-// page, as onPage has it, with its lines after it; every account's answers
-// on each day it read, every session's, as takenAnswers holds them, for the
-// points; and the ledger it read them through, to read a session again
-// whole where its page can't be held on what it rests on.
+// reads it: the sessions it read, by each one's id, each resting as the read
+// rests it, with its lines after it; every account's answers on each day it
+// read, every session's, as takenAnswers holds them, for the points; and the
+// ledger it read them through, to read a session again whole where its page
+// can't be held on what it rests on.
 type SessionsRead struct {
 	day      LedgerDay
 	sessions map[string]ledger.SessionFrom
@@ -174,13 +174,27 @@ type SessionsRead struct {
 }
 
 // ReadSessions reads, through l, at now, the sessions a page may be of, as
-// the ledger's Sessions reads them, each resting on its page: today's,
-// those running gives, as the router lists them, and those with the given
-// ids, as one given in whole, of an earlier day.
+// the ledger's Sessions reads them: today's, those running gives, as the
+// router lists them, and those with the given ids, as one given in whole, of
+// an earlier day. Those the ids given name, as each starts them, rest on
+// their pages, as onPage has it, the page shown being of one of them; every
+// other on its state.
 func ReadSessions(l Ledger, running []status.Session, now time.Time, ids ...string) SessionsRead {
 	read := readOn(l, Today(now))
-	read.sessions = l.Sessions(append(runningIDs(running), ids...), onPage, read.answers.take)
+	read.sessions = l.Sessions(append(runningIDs(running), ids...), pagedIfNamed(ids), read.answers.take)
 	return read
+}
+
+// pagedIfNamed has a read of the ledger's sessions rest those the ids given
+// name, as startedBy has it of each, on their pages, as onPage has it, and
+// every other on its state.
+func pagedIfNamed(ids []string) func(string) ledger.Rest {
+	return func(id string) ledger.Rest {
+		if slices.ContainsFunc(ids, func(given string) bool { return startedBy(id, given) }) {
+			return ledger.RestOnPage
+		}
+		return ledger.RestOnState
+	}
 }
 
 // ReadSession reads, through l, at now, the session with the given id
@@ -209,24 +223,19 @@ func readOn(l LedgerSessions, day LedgerDay) SessionsRead {
 }
 
 // heldFrom is the horizon the page of the session with the given id, as r
-// read it, is held behind, each of its requests after it held open, of
-// pins, when each of its requests a stream tells of went upstream: the end
+// read it, is held behind at now, each of its requests after it held open,
+// so each a stream tells of, by its pins, is taken in in its place: the end
 // of the day of the state it rests on, which holds sealed each of its
 // requests before then, or before every moment, of one resting on none; or
-// earlier, a moment before the earliest pin, as its request may have
-// arrived arrivesWithin before, so each is taken in in its place, the
-// session read whole where its state holds that sealed.
-func (r SessionsRead) heldFrom(id string, pins []time.Time) instant {
+// earlier, where a request the pins tell of may have arrived, as
+// pinnedSince has it, the session read whole where its state holds that
+// sealed.
+func (r SessionsRead) heldFrom(id string, now time.Time, pins []time.Time) instant {
 	horizon := unsealed
 	if base := r.sessions[id].Base; base != nil {
 		horizon = endOfDay(dayOf(base.Date))
 	}
-	for _, pin := range pins {
-		if at := instantOf(pin.Add(-arrivesWithin)); at.compare(horizon) < 0 {
-			horizon = at
-		}
-	}
-	return horizon
+	return earlier(horizon, pinnedSince(now, pins))
 }
 
 // eachWhole has a read of the ledger's sessions read each whole, resting on
@@ -282,9 +291,11 @@ func (r SessionsRead) Named(running []status.Session) []string {
 // Activity says, so with no router, while the router's own rule keeps it.
 // It reports false where the ledger holds no request of it, and the router
 // doesn't list it. It's the page HoldPage holds, built once, but held open
-// from before each request the stream tells of, as heldFrom has it.
+// from the end of the state its read rests it on, or from before a request
+// the stream tells of, as heldFrom has it, so it's read again whole only
+// where that state holds sealed what the stream tells of.
 func SessionPageOf(id string, src PageSources) (SessionPage, bool) {
-	held := holdPage(id, src.Read, src.Prices, src.Keep, src.Read.heldFrom(id, pinsOf(src.Stream)[id]), src.Now)
+	held := holdPage(id, src.Read, src.Prices, src.Keep, src.Read.heldFrom(id, src.Now, pinsOf(src.Stream)[id]), src.Now)
 	return held.Page(PageLive{Routed: src.Routed, Unlisted: src.Unlisted, Stream: src.Stream, Now: src.Now})
 }
 

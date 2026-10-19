@@ -106,13 +106,11 @@ func (l PageLive) Same(o PageLive) bool {
 // holds of it, and of the accounts it ran on, at now: its requests priced by
 // prices at the day now falls on, and keep the ledger's [ledger] keep, as
 // ledgerKept reads it, every one of them held open, as a page built of
-// whatever the stream tells, at whatever now, takes each in in its place;
-// but of one read resting on its page, those after the state it rests on,
-// as heldFrom has it, among which a request the stream tells of from before
-// then isn't taken in in its place, as SessionPageOf, given the stream,
-// takes it.
+// whatever the stream tells, at whatever now, takes each in in its place:
+// so one read resting on its page, its state holding those before its day's
+// end sealed, is read again whole, as holdPage has it.
 func HoldPage(id string, read SessionsRead, prices ledger.Table, keep time.Duration, now time.Time) HeldPage {
-	return holdPage(id, read, prices, keep, read.heldFrom(id, nil), now)
+	return holdPage(id, read, prices, keep, unsealed, now)
 }
 
 // unsealed is a horizon before every moment, behind which no request is

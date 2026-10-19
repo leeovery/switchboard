@@ -292,15 +292,27 @@ func (h HeldSessions) feeding(want SessionsWanted, now time.Time) *feed {
 
 // joinedLate reports whether the stream tells, at now, of a request of a
 // session, a pin of it among its pins, that may have arrived behind the
-// horizon given, as its page takes its requests in by when they were sent,
-// the stream's among its lines: one heard first after the horizon passed
-// it, as the stream joined late, whose page is tallied again whole. One
-// pinned longer than pinnedFor ago may be lost, its line never coming, and
-// is taken in after the requests sealed.
+// horizon given, as pinnedSince has it, as its page takes its requests in by
+// when they were sent, the stream's among its lines: one heard first after
+// the horizon passed it, as the stream joined late, whose page is tallied
+// again whole. One pinned longer ago is taken in after the requests sealed.
 func joinedLate(now time.Time, pins []time.Time, horizon instant) bool {
-	return slices.ContainsFunc(pins, func(pin time.Time) bool {
-		return now.Sub(pin) <= pinnedFor && instantOf(pin.Add(-arrivesWithin)).compare(horizon) < 0
-	})
+	return pinnedSince(now, pins).compare(horizon) < 0
+}
+
+// pinnedSince is the earliest moment a request of a session the stream
+// tells of may have arrived, of its pins at now: arrivesWithin before the
+// earliest pin within pinnedFor before now, as a request may arrive that
+// long before it goes upstream; endless where none is. One pinned longer
+// ago may be lost, its line never coming.
+func pinnedSince(now time.Time, pins []time.Time) instant {
+	since := endless
+	for _, pin := range pins {
+		if now.Sub(pin) <= pinnedFor {
+			since = earlier(since, instantOf(pin.Add(-arrivesWithin)))
+		}
+	}
+	return since
 }
 
 // turnedBack reports whether the clock was set back, or the zone changed,
@@ -582,18 +594,10 @@ func (f *feed) horizonOf(id string) instant {
 }
 
 // horizonAt is the horizon of a session at now, before a moment it last
-// had: openFor before then, or earlier, where the earliest of its pins
-// within pinnedFor before then is, a moment earlier than it, as its request
-// may have arrived arrivesWithin before. A pin earlier than pinnedFor may be
-// of a request lost, whose line never comes.
+// had: openFor before then, or earlier, where a request its pins tell of may
+// have arrived, as pinnedSince has it.
 func horizonAt(now time.Time, pins []time.Time) instant {
-	horizon := now.Add(-openFor)
-	for _, pin := range pins {
-		if now.Sub(pin) <= pinnedFor && pin.Add(-arrivesWithin).Before(horizon) {
-			horizon = pin.Add(-arrivesWithin)
-		}
-	}
-	return instantOf(horizon)
+	return earlier(instantOf(now.Add(-openFor)), pinnedSince(now, pins))
 }
 
 // seal seals each session's requests behind its horizon, as it moves on at
