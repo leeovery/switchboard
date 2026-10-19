@@ -44,14 +44,20 @@ var foldUsages = []string{
 
 // changingPrices are ledger.Pricing, but Claude Opus 5.5's writes to the
 // cache costing twice as much from 8 October, the generated sessions' second
-// day.
+// day, as changingPricesFrom has them.
 func changingPrices() ledger.Table {
+	return changingPricesFrom("2026-10-08")
+}
+
+// changingPricesFrom are ledger.Pricing, but Claude Opus 5.5's writes to the
+// cache costing twice as much from the day with the given date.
+func changingPricesFrom(date string) ledger.Table {
 	t := ledger.Pricing
 	t.Models = slices.Clone(t.Models)
 	for i, m := range t.Models {
 		if slices.Contains(m.IDs, foldOpus) {
 			later := m.Prices[len(m.Prices)-1]
-			later.From, later.CacheWrite5m, later.CacheWrite1h = "2026-10-08", 2*later.CacheWrite5m, 2*later.CacheWrite1h
+			later.From, later.CacheWrite5m, later.CacheWrite1h = date, 2*later.CacheWrite5m, 2*later.CacheWrite1h
 			t.Models[i].Prices = append(slices.Clone(m.Prices), later)
 		}
 	}
