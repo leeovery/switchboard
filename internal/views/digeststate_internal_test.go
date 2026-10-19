@@ -478,6 +478,39 @@ func TestARestoredSessionGivenALineOfItsDayAgainIsReadWholeOrPlacedByItsCount(t 
 	}
 }
 
+// A session named only by a count of tokens, which is none of its requests,
+// restored from its state onto a later day, its page tallied or not, is the
+// session read whole there: holding none open, as a read of no request
+// holds none, where a session of requests, every one sealed, holds them
+// empty.
+func TestASessionOfNoRequestRestoredFromItsStateIsTheSessionReadWhole(t *testing.T) {
+	day, end := digestDay()
+	counted := generatedSession(2)[0]
+	counted.Kind = ledger.KindCount
+	if !day.Holds(counted.At) {
+		t.Fatalf("the count arrived at %v, want it on %s", counted.At, day.Date)
+	}
+	lines := []ledger.Line{counted}
+	f, err := foldedAsOf(ledger.SessionFrom{Lines: lines}, nil, day)
+	if err != nil {
+		t.Fatal(err)
+	}
+	from := ledger.SessionFrom{Base: baseOf(day.Date, f.State), Parts: []ledger.SessionPart{{Date: day.Date, Part: f.Part}}}
+	on, horizon := Today(end), instantOf(end.Add(9*time.Hour))
+	for _, paged := range []bool{false, true} {
+		t.Run(fmt.Sprintf("its page tallied %t", paged), func(t *testing.T) {
+			got, err := heldAsOf(from, nil, ledger.Pricing, on, horizon, paged)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := readOf(lines, nil, ledger.Pricing, on, horizon, paged)
+			if !sameHeld(unpaged(got, true), unpaged(want, true), day.Date) || paged && !samePage(got.page, want.page) {
+				t.Errorf("restored, it holds open %#v, its page\n%s\nwant, as read whole, %#v, its page\n%s", got.open, pageSaid(got.page), want.open, pageSaid(want.page))
+			}
+		})
+	}
+}
+
 // A session's stored state is the date of its day, its horizon, its story
 // and how many of its requests arrived each day, by short keys, every zero
 // left out: each request its story holds as a stored request holds it, and
