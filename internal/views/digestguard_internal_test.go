@@ -50,11 +50,12 @@ const (
 
 // spreadMoments are the hard moments the reads over digests meet: their
 // own; those of a round trip, as a session resting on its state meets them;
-// those of the pages; those of the find; and those the upsets make.
+// those of the pages; those of the find; those of the Log read back over
+// rows, and of a turn read over them; and those the upsets make.
 var spreadMoments = slices.Concat([]string{
 	onYesterdayLate, yesterdayRaw, onYesterdayEarly, idleThenActive, pageOnState, givenAgain, zoneEarly, zoneLate, pinnedAcross, wantedAgain,
 	fedAcrossOne, settledAfter, flightAcross, agentAcross, idlessStored, idlessLater,
-}, pageMoments, findMoments, upsetMoments())
+}, pageMoments, findMoments, logMoments, turnMoments(), upsetMoments())
 
 // Every view read through the store over digests, of a real ledger digested
 // at each moment as the router digests it, read through a Follower resting
@@ -62,17 +63,19 @@ var spreadMoments = slices.Concat([]string{
 // it is read through a Follower of the same files that reads every line, as
 // of another version, for which none stands: the List, as the sessions verb
 // prints it without the router; the routing card's costs; the Log's
-// sessions, and its find, as sameFind has it; the store as the List's first
-// read holds it, a session's page open, and what the page shows; and the
-// store held across the moments, fed as the dashboard feeds it, the router's
-// sessions and the page wanted at some moments and not at others; each store
-// given the day before's lines again at half past one; and each session's
-// page, as checkPages has them. At a minute before midnight, a minute after,
-// a minute before one, the day before read raw, and half past one, its
-// digest standing; the world's files and its days' heads upset between the
-// router's rounds at some of them, as upset has it; of
-// spread worlds, built with the built-in table and read with another, as
-// digestPrices has them, meeting each of spreadMoments.
+// sessions, its find, as sameFind has it, and its past days read back, as
+// sameLog has it; the store as the List's first read holds it, a session's
+// page open, and what the page shows; and the store held across the moments,
+// fed as the dashboard feeds it, the router's sessions and the page wanted
+// at some moments and not at others; each store given the day before's
+// lines again at half past one; each session's page, as checkPages has
+// them; and a turn of a page opened, as checkTurns has it. At a minute
+// before midnight, a minute after, a minute before one, the day before read
+// raw, and half past one, its digest and head standing; the world's files,
+// its days' heads and its days' rows upset between the router's rounds at
+// some of them, as upset has it; of spread worlds, built with the built-in
+// table and read with another, as digestPrices has them, meeting each of
+// spreadMoments.
 func TestEveryViewOverDigestsIsTheViewReadRaw(t *testing.T) {
 	met := make(map[string]bool)
 	prices := digestPrices(t, changingPricesFrom(spreadRepriced))
@@ -84,7 +87,7 @@ func TestEveryViewOverDigestsIsTheViewReadRaw(t *testing.T) {
 			w.check(i, at)
 		}
 	}
-	for _, moment := range slices.Concat(spreadMoments, costedEither(prices), pagePricedEither(prices)) {
+	for _, moment := range slices.Concat(spreadMoments, costedEither(prices), pagePricedEither(prices), loggedPricedEither(prices)) {
 		if !met[moment] {
 			t.Errorf("no spread world meets %s", moment)
 		}
@@ -106,7 +109,8 @@ func costedEither(prices []pricedAs) []string {
 // its session s among others from the day before s began, a request of s's
 // going upstream again after the midnight after its first while in flight,
 // and s's first request on its second day without an id, as idlessOnce has
-// it; generatedRun's session of the next seed, as k, two days on; and
+// it, given twice, with another of that day's, as twiceGiven has them;
+// generatedRun's session of the next seed, as k, two days on; and
 // generatedSession's of the seed after, as idle, its first half's requests,
 // by when they arrived, on their own days, the rest three days on, idle
 // between. And two requests as a change of time zone files them: early, of
@@ -114,7 +118,7 @@ func costedEither(prices []pricedAs) []string {
 // under the day after; and late, of idle's, arrived half an hour after the
 // last day idle ran on ended, to be filed under that day.
 func spreadWorld(seed uint64) (lines []ledger.Line, early, late ledger.Line) {
-	lines = idlessOnce(againRun(seed))
+	lines = twiceGiven(idlessOnce(againRun(seed)))
 	k := renamed(generatedRun(seed+1), "k")
 	for i := range k {
 		k[i] = movedOn(k[i], 2)
@@ -149,6 +153,28 @@ func idlessOnce(lines []ledger.Line) []ledger.Line {
 	return lines
 }
 
+// twiceGiven is lines, two of s's requests given twice, each again right
+// after itself, as a ledger's files may hold a line twice: its first without
+// an id, and the first with one that arrived on the day it did.
+func twiceGiven(lines []ledger.Line) []ledger.Line {
+	idless := slices.IndexFunc(lines, func(l ledger.Line) bool { return l.Session == pageSession && l.Request == "" && isRequest(&l) })
+	if idless < 0 {
+		return lines
+	}
+	day := dayfile.DateOf(lines[idless].At)
+	twice := []int{idless}
+	if i := slices.IndexFunc(lines, func(l ledger.Line) bool {
+		return l.Session == pageSession && l.Request != "" && isRequest(&l) && dayfile.DateOf(l.At) == day
+	}); i >= 0 {
+		twice = append(twice, i)
+	}
+	slices.Sort(twice)
+	for _, i := range slices.Backward(twice) {
+		lines = slices.Insert(lines, i+1, lines[i])
+	}
+	return lines
+}
+
 // renamed are lines, each of the session with the given id, afresh.
 func renamed(lines []ledger.Line, id string) []ledger.Line {
 	named := slices.Clone(lines)
@@ -177,12 +203,16 @@ func movedOn(l ledger.Line, days int) ledger.Line {
 // the stores the dashboard would, fed through each Follower at each moment,
 // as across has them, and s's page held open across the moments, as
 // pageAcross has it, nil while none is; counts the moments it came to upset
-// its files at, those it came to upset its pages' at, and its days' heads',
-// as upset has them, holding the upset made at the moment for its reads to
-// judge, nil where none was, the dates of the days its late lines were
-// filed onto then, and the head upset then, as headUpset has it; counts the
-// sessions planted in its days' sides, as plant has them; and notes the hard
-// moments its reads meet among met.
+// its files at, those it came to upset its pages' at, its days' heads' and
+// its days' rows', as upset has them, holding the upset made at the moment
+// for its reads to judge, and the one of a day's rows, nil where none was,
+// the dates of the days its late lines were filed onto then, and the head
+// upset then, as headUpset has it; counts the sessions and rows planted in
+// its days' heads and rows, as plant and spoilChunk have them; holds the
+// member of each day's rows it spoiled, as spoilChunk has it, by the day's
+// date; and the dates of the days read back from their lines alone for a
+// late line, their rows yet to be read again; and notes the hard moments
+// its reads meet among met.
 type spread struct {
 	*digestChain
 	early, late ledger.Line
@@ -194,10 +224,14 @@ type spread struct {
 	upsets      int
 	pageUpsets  int
 	headUpsets  int
+	rowsUpsets  int
 	planted     int
 	made        *upsetMade
+	rowsMade    *upsetMade
 	lateOn      []string
 	headMade    *headUpset
+	spoiled     map[string]ledger.Member
+	relogged    map[string]bool
 	met         map[string]bool
 }
 
@@ -228,7 +262,7 @@ func newSpread(t *testing.T, seed uint64, prices pricedAs, met map[string]bool) 
 		based:  ledger.NewFollower(c.state, clock, ledger.CapsOf(nil, nil), DigestVersion, quiet),
 		raw:    ledger.NewFollower(c.state, clock, ledger.CapsOf(nil, nil), DigestVersion+1, quiet),
 		held:   across{based: HoldSessions(prices.read), raw: HoldSessions(prices.read), restsOn: make(map[string]string), ever: make(map[string]bool)},
-		beside: make(map[string]string),
+		beside: make(map[string]string), spoiled: make(map[string]ledger.Member), relogged: make(map[string]bool),
 	}
 	w.fileBeside(dayfile.DateOf(dayfile.DayStart(early.At, 1)), early)
 	w.fileBeside(dayfile.DateOf(dayfile.DayStart(late.At, -1)), late)
@@ -301,6 +335,7 @@ func (w *spread) check(i int, now time.Time) {
 	})
 	w.same(m, "the Log's sessions", func(l Ledger) any { return w.logSessions(l, m) })
 	w.sameFind(m)
+	w.sameLog(m)
 
 	paged := ListWanted(m.running, m.stream)
 	paged.Page = pageSession
@@ -309,6 +344,7 @@ func (w *spread) check(i int, now time.Time) {
 	w.givenAgain(m, "the store, as the List's first read holds it", based, raw, paged)
 	w.feedHeld(m)
 	pages := w.checkPages(m)
+	w.checkTurns(m, pages)
 	w.noteRested(m, raw)
 	w.note(m, listed.got.dates())
 	w.judgeUpset(m, pages)
@@ -321,6 +357,8 @@ func (w *spread) check(i int, now time.Time) {
 // world's sessions as the router lists them then, as running has them; the
 // stream, as pinning has it; the two Followers, as the views read sessions
 // through them at the moment, each read's sessions noted, as reading notes
+// them; the Follower resting on digests as the find reads it, as found
+// notes its reads, and as the Log reads its days back, as logged notes
 // them; today's lines, as a Follower's Day reads them; and at half past
 // one, the day before's lines to be given a store again, as the dashboard's
 // read of the ledger's tail reads a day again whole, none at another
@@ -331,6 +369,8 @@ type moment struct {
 	running    []status.Session
 	stream     Stream
 	based, raw reading
+	found      *sidesRead
+	logged     *rowsNoted
 	today      []ledger.Held
 	again      *Taken
 }
@@ -341,7 +381,7 @@ func (w *spread) momentAt(i int, now time.Time) moment {
 	day := Today(now)
 	m := moment{
 		i: i, now: now, running: w.running(now), stream: w.pinning(now), today: w.raw.Day(day.Date),
-		based: readingThrough(w.based), raw: readingThrough(w.raw),
+		based: readingThrough(w.based), raw: readingThrough(w.raw), found: readingSides(w.based), logged: readingRows(w.based),
 	}
 	if now.Hour() == 1 {
 		yesterday := yesterdayOf(day)
@@ -815,10 +855,11 @@ var upsets = []upsetting{
 	{moment: dayPruned, upset: madeMeets((*spread).dayPruned)},
 }
 
-// upsetMoments are the hard moments the upsets make, the pages' among them.
+// upsetMoments are the hard moments the upsets make, the pages' and the
+// rows' among them.
 func upsetMoments() []string {
 	var moments []string
-	for _, u := range slices.Concat(upsets, pageUpsets) {
+	for _, u := range slices.Concat(upsets, pageUpsets, rowsUpsets) {
 		moments = append(moments, u.moment)
 	}
 	return moments
@@ -828,15 +869,14 @@ func upsetMoments() []string {
 // gives, upset its files at now, at each moment the day before's digest
 // stands, a minute before midnight and half past one, as yesterdayStands
 // has them; and a minute after midnight, before it stands, the pages opened
-// then, as pagesOpenAt has them, the next of pageUpsets the world lets make,
-// in turn alike, of those whose moments no world has met yet, as that's
-// their one moment a day, and each slows every read after it: holding the
-// upset made to judge, as judgeUpset judges it, where the world lets it
-// make it; and a minute before one, the head of a day upset, as upsetHead
-// has it. The router's round at the next moment digests again what it
-// upset.
+// then, as pagesOpenAt has them, the next of pageUpsets, as madeUnmet has
+// it, and beside it, the next of rowsUpsets alike, each upset slowing every
+// read after it: holding the upset made to judge, as judgeUpset judges it,
+// where the world lets it make it; and a minute before one, the head of a
+// day upset, as upsetHead has it. The router's round at the next moment
+// digests again what it upset.
 func (w *spread) upset(now time.Time) {
-	w.made, w.lateOn, w.headMade = nil, nil, nil
+	w.made, w.rowsMade, w.lateOn, w.headMade = nil, nil, nil, nil
 	switch {
 	case headsUpsetAt(now):
 		w.upsetHead(now)
@@ -844,17 +884,27 @@ func (w *spread) upset(now time.Time) {
 		w.made = upsets[(w.upsets+int(w.seed))%len(upsets)].made(w, now)
 		w.upsets++
 	case pagesOpenAt(now):
-		for range pageUpsets {
-			u := pageUpsets[(w.pageUpsets+int(w.seed))%len(pageUpsets)]
-			w.pageUpsets++
-			if w.met[u.moment] {
-				continue
-			}
-			if w.made = u.made(w, now); w.made != nil {
-				return
-			}
+		w.rowsMade = w.madeUnmet(rowsUpsets, &w.rowsUpsets, now)
+		w.made = w.madeUnmet(pageUpsets, &w.pageUpsets, now)
+	}
+}
+
+// madeUnmet is the next of us the world lets make at now, of those whose
+// moments no world has met yet, as each has its one moment a day, in turn
+// from the one the turns n counts and the world's seed give, n counting
+// each turn taken: none where it lets make none.
+func (w *spread) madeUnmet(us []upsetting, n *int, now time.Time) *upsetMade {
+	for range us {
+		u := us[(*n+int(w.seed))%len(us)]
+		*n++
+		if w.met[u.moment] {
+			continue
+		}
+		if made := u.made(w, now); made != nil {
+			return made
 		}
 	}
+	return nil
 }
 
 // made is the upset u makes at now, held to judge: none where the world
@@ -875,12 +925,15 @@ func yesterdayStands(now time.Time) bool {
 	return now.Hour() == 23 || now.Hour() == 1
 }
 
-// judgeUpset notes the moment of the upset made at the moment m, where one
-// was, met where the reads compared then meet it, as it judges them, pages
-// the pages opened among them.
+// judgeUpset notes the moment of each upset made at the moment m, of the
+// world's files and of a day's rows, where one was, met where the reads
+// compared then meet it, as it judges them, pages the pages opened among
+// them.
 func (w *spread) judgeUpset(m moment, pages map[string]openedPage) {
-	if u := w.made; u != nil && u.judged(m, pages) {
-		w.met[u.moment] = true
+	for _, u := range []*upsetMade{w.made, w.rowsMade} {
+		if u != nil && u.judged(m, pages) {
+			w.met[u.moment] = true
+		}
 	}
 }
 
