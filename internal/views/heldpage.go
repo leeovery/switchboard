@@ -356,8 +356,9 @@ func (h HeldPage) Closing() HeldPage {
 // them: a subagent's turn is the one its first request names, which may have
 // arrived before the turn began, and be filed only since, untold by the
 // stream. It reads the turn's own days alone, and the horizon's, as
-// turnSpans has them, none between; and decodes a line into its record only
-// once it's taken it. None where no turn is open.
+// turnSpans has them, none between, each of the turn's whose rows stand
+// from them, as linesOfTurn has it; and decodes a line read raw into its
+// record only once it's taken it. None where no turn is open.
 func (h HeldPage) ReadTurn(l LedgerSession, live PageLive) HeldTurn {
 	if h.turn == nil {
 		return HeldTurn{}
@@ -369,16 +370,15 @@ func (h HeldPage) ReadTurn(l LedgerSession, live PageLive) HeldTurn {
 		return read
 	}
 	from := instantOf(w.tally.turns[i].started.Add(-arrivesWithin))
-	for held := range l.Session(h.id, w.turnSpans(w.tally.turns[i])...) {
-		at := instantOf(held.At)
-		early := at.compare(from) < 0
+	for line := range w.linesOfTurn(l, w.tally.turns[i]) {
+		early := line.at.compare(from) < 0
 		switch {
-		case early && at.compare(w.rec.horizon) < 0:
+		case early && line.at.compare(w.rec.horizon) < 0:
 			return read
-		case !h.mine(turnFactsOf(&held.Line), early), early && w.rec.linedAt(held.Request, held.At):
+		case !h.mine(line.facts, early), early && w.rec.linedAt(line.request, line.arrived()):
 			continue
 		}
-		read.lines = append(read.lines, lineRecordOf(&held.Line))
+		read.lines = append(read.lines, line.record())
 	}
 	return read
 }

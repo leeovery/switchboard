@@ -923,12 +923,16 @@ func TestACountOfATurnsSessionIsNoneOfItsRequests(t *testing.T) {
 }
 
 // sessionGiving is a session's lines as a ledger gives them, newest first,
-// given as they are, whatever the session asked for.
-type sessionGiving []ledger.Held
+// given as they are, whatever the session asked for, of a ledger holding no
+// day's rows.
+type sessionGiving struct {
+	noRows
+	lines []ledger.Held
+}
 
 // Session gives g's lines, as they are.
 func (g sessionGiving) Session(string, ...ledger.Span) iter.Seq[ledger.Held] {
-	return slices.Values(g)
+	return slices.Values(g.lines)
 }
 
 // A turn decodes none of the lines it's given that mine passes over,
@@ -964,7 +968,7 @@ func TestATurnDecodesOnlyTheLinesThatMayBeItsOwn(t *testing.T) {
 	page := ReadPage(filedLedger{lines: []ledger.Line{own}, now: now}, "s", Stream{}, ledger.Pricing, 0, now).Opening(1, live)
 	alone, given := []ledger.Held{{Line: own}}, append(slices.Clone(passed), ledger.Held{Line: own})
 	reads := map[string]func(given []ledger.Held) []lineRecord{
-		"reading its lines":           func(given []ledger.Held) []lineRecord { return page.ReadTurn(sessionGiving(given), live).lines },
+		"reading its lines":           func(given []ledger.Held) []lineRecord { return page.ReadTurn(sessionGiving{lines: given}, live).lines },
 		"taking in the ledger's gain": func(given []ledger.Held) []lineRecord { return page.TurnOf(page, given).turn.lines },
 	}
 	for name, read := range reads {
@@ -1094,7 +1098,7 @@ func TestATurnOpenBetweenFeedsCountsASubagentByAFirstRequestFiledSince(t *testin
 	page = page.Joined(HoldSessions(ledger.Pricing).With(page.Found()))
 	live := PageLive{Now: opened}
 	page = page.Opening(3, live)
-	counted := readCounting{l: filedLedger{lines: lines, now: opened}, read: new(int)}
+	counted := readCounting{LedgerSession: filedLedger{lines: lines, now: opened}, read: new(int)}
 	read := page.ReadTurn(counted, live)
 	page = page.Turned(read)
 	var held []string
@@ -1182,16 +1186,16 @@ func TestATurnOpenDecodesNoLineItHoldsGivenAgain(t *testing.T) {
 	}
 }
 
-// readCounting reads a session's lines through l, counting in read those
-// it gives.
+// readCounting reads a session's lines through the ledger it holds,
+// counting in read those it gives.
 type readCounting struct {
-	l    LedgerSession
+	LedgerSession
 	read *int
 }
 
 func (c readCounting) Session(id string, within ...ledger.Span) iter.Seq[ledger.Held] {
 	return func(yield func(ledger.Held) bool) {
-		for held := range c.l.Session(id, within...) {
+		for held := range c.LedgerSession.Session(id, within...) {
 			*c.read++
 			if !yield(held) {
 				return

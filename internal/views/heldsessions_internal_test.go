@@ -3,6 +3,7 @@ package views
 import (
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"maps"
 	"math/rand/v2"
 	"reflect"
@@ -18,10 +19,24 @@ import (
 // request ends, as a read at now finds them: those of the requests that
 // arrived and ended by then, but for the last short of them, which end at
 // now, as a read part-way through filing requests ending together finds.
+// It holds no day's rows.
 type filedLedger struct {
+	noRows
 	lines []ledger.Line
 	now   time.Time
 	short int
+}
+
+// noRows reads a day's rows as a Follower of a ledger that holds no day's
+// head does: none, whatever the day, so each is read raw.
+type noRows struct{}
+
+func (noRows) DayRows(string, int) (ledger.DayRows, bool) {
+	return ledger.DayRows{}, false
+}
+
+func (noRows) RowChunk(date string, _ ledger.RowsChunk) ([]byte, error) {
+	return nil, fmt.Errorf("a chunk of the rows of %s: %w", date, fs.ErrNotExist)
 }
 
 // filed are the lines l holds by its now, as filed.

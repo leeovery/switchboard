@@ -14,8 +14,10 @@ import (
 )
 
 // readsEveryDay reads a session's lines through l of every day, whatever spans
-// it's asked for: as a turn was read before it read its own days alone.
+// it's asked for, and none of a day's rows: as a turn was read before it read
+// its own days alone.
 type readsEveryDay struct {
+	noRows
 	l LedgerSession
 }
 
@@ -23,16 +25,16 @@ func (e readsEveryDay) Session(id string, _ ...ledger.Span) iter.Seq[ledger.Held
 	return e.l.Session(id)
 }
 
-// datesGiven reads a session's lines through l, noting in dates the date of
-// the day each line it gives arrived on.
+// datesGiven reads a session's lines through the ledger it holds, noting in
+// dates the date of the day each line it gives arrived on.
 type datesGiven struct {
-	l     LedgerSession
+	LedgerSession
 	dates map[string]bool
 }
 
 func (d datesGiven) Session(id string, within ...ledger.Span) iter.Seq[ledger.Held] {
 	return func(yield func(ledger.Held) bool) {
-		for held := range d.l.Session(id, within...) {
+		for held := range d.LedgerSession.Session(id, within...) {
 			d.dates[dayfile.DateOf(held.At)] = true
 			if !yield(held) {
 				return
@@ -129,6 +131,22 @@ func TestATurnReadsItsOwnSpanAndTheHorizons(t *testing.T) {
 // turn is opened, as everyTurn has it.
 func (p *paging) lookLater(i int, now time.Time, pending bool, met map[string]bool) {
 	p.t.Helper()
+	added := laterLines(i, now, p.fed.Add(time.Minute), pending)
+	p.untold[added[2].Request] = true
+	slices.SortStableFunc(added, func(a, b ledger.Line) int { return ended(&a).Compare(ended(&b)) })
+	p.lines = append(p.lines, added...)
+	p.look(now.Add(-7*time.Minute), false)
+	p.everyTurn(now, met)
+}
+
+// laterLines are the lines of a session's requests a look at now finds, the
+// i'th time after its run, as lookLater has them: a subagent's first,
+// naming its first prompt, three days before, or at after where that's
+// later; a request of its own ten minutes before; and five minutes before,
+// another subagent's first, naming its first prompt; and where pending
+// says, the requests of a turn begun five days before, as pendingFor has
+// them.
+func laterLines(i int, now, after time.Time, pending bool) []ledger.Line {
 	own := ledger.Line{
 		Request: fmt.Sprintf("later%d", i), At: now.Add(-10 * time.Minute).Truncate(time.Millisecond).UTC(), Kind: ledger.KindMessage, Session: "s",
 		Model: foldOpus, Account: "work", Reason: "sticky", Status: 200, Attempts: 1, TotalMS: 3000, Class: ledger.ClassMain,
@@ -139,16 +157,11 @@ func (p *paging) lookLater(i int, now time.Time, pending bool, met map[string]bo
 		l.Request, l.At, l.Class, l.AgentID, l.Prompt = fmt.Sprintf("%s%d", name, i), at.Truncate(time.Millisecond).UTC(), "subagent", fmt.Sprintf("a-%s%d", name, i), "p1"
 		return l
 	}
-	fed, untold := agent("fed", later(instantOf(p.fed.Add(time.Minute)), instantOf(now.Add(-72*time.Hour))).time()), agent("untold", now.Add(-5*time.Minute))
-	p.untold[untold.Request] = true
-	added := []ledger.Line{fed, own, untold}
+	lines := []ledger.Line{agent("fed", later(instantOf(after), instantOf(now.Add(-72*time.Hour))).time()), own, agent("untold", now.Add(-5*time.Minute))}
 	if pending {
-		added = append(added, pendingFor(own, i, now.Add(-120*time.Hour))...)
+		lines = append(lines, pendingFor(own, i, now.Add(-120*time.Hour))...)
 	}
-	slices.SortStableFunc(added, func(a, b ledger.Line) int { return ended(&a).Compare(ended(&b)) })
-	p.lines = append(p.lines, added...)
-	p.look(now.Add(-7*time.Minute), false)
-	p.everyTurn(now, met)
+	return lines
 }
 
 // pendingFor are the requests of a turn of the session's own, as own is,
@@ -175,8 +188,8 @@ func (p *paging) everyTurn(now time.Time, met map[string]bool) {
 	l := filedLedger{lines: p.lines, now: now}
 	w := p.page.worked(live)
 	for n, turn := range w.tally.turns {
-		read := datesGiven{l: l, dates: make(map[string]bool)}
-		got, want := p.turnRows(n+1, read, live), p.turnRows(n+1, readsEveryDay{l}, live)
+		read := datesGiven{LedgerSession: l, dates: make(map[string]bool)}
+		got, want := p.turnRows(n+1, read, live), p.turnRows(n+1, readsEveryDay{l: l}, live)
 		if !reflect.DeepEqual(rowsOf(got), rowsOf(want)) {
 			p.t.Fatalf("session %d's turn %d, opened at %v, has the rows\n%+v\nwant\n%+v, as it reads every day", p.seed, n+1, now, rowsOf(got), rowsOf(want))
 		}

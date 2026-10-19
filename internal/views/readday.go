@@ -1,5 +1,7 @@
 package views
 
+import "github.com/leeovery/switchboard/internal/ledger"
+
 // ReadDay is the LogDay of the local day with the given date, as the Log's
 // tables reach back to it: its records restored from its rows where they
 // stand and every chunk of them restores, as restoredDay has it; else of its
@@ -15,29 +17,38 @@ func ReadDay(l Ledger, date string) LogDay {
 }
 
 // restoredDay is the LogDay the rows of the local day with the given date
-// hold, as l's DayRows points at them, each chunk read as its RowChunk reads
-// it, and restored, as restoredRows restores it, in order: whole, or
-// reporting false where they don't stand, or any chunk won't read, won't
-// restore, or restores other than as many records as the head counts it,
-// never part of a day.
+// hold, as l's DayRows points at them, every chunk restored, as
+// restoredChunks restores them: whole, or reporting false where they don't
+// stand, or any chunk won't restore, never part of a day.
 func restoredDay(l Ledger, date string) (LogDay, bool) {
 	rows, ok := l.DayRows(date, RowsVersion)
 	if !ok {
 		return LogDay{}, false
 	}
+	// A day of none holds none, not nil, as RecordsOf has it of no lines.
+	records, ok := restoredChunks(l, date, rows.Chunks, []lineRecord{})
+	return LogDay{records: records}, ok
+}
+
+// restoredChunks are records with the records of the chunks given appended,
+// chunks of the rows of the local day with the given date as l's DayRows
+// points at them, each read as its RowChunk reads it, and restored, as
+// restoredRows restores it, in order: reporting false where any won't read,
+// won't restore, or restores other than as many records as the head counts
+// it, so its reader reads the day's lines instead, never part of them. It's
+// the one read of a day's chunks, of every one or of some.
+func restoredChunks(l LedgerRows, date string, chunks []ledger.RowsChunk, records []lineRecord) ([]lineRecord, bool) {
 	// Room grows with the rows read, never as the head counts them, which a
-	// head edited by hand may count as many as it likes; and a day of none
-	// holds none, not nil, as RecordsOf has it of no lines.
-	records := []lineRecord{}
-	for _, c := range rows.Chunks {
+	// head edited by hand may count as many as it likes.
+	for _, c := range chunks {
 		data, err := l.RowChunk(date, c)
 		if err != nil {
-			return LogDay{}, false
+			return nil, false
 		}
 		from := len(records)
 		if records, err = restoredRows(records, data); err != nil || len(records)-from != c.Count {
-			return LogDay{}, false
+			return nil, false
 		}
 	}
-	return LogDay{records: records}, true
+	return records, true
 }
