@@ -17,12 +17,12 @@ import (
 )
 
 // Session reads as a Follower does: the session's lines filed by now, the
-// latest arrived first.
-func (l filedLedger) Session(id string) iter.Seq[ledger.Held] {
+// latest arrived first, of the days ledger.Spanning gives of the spans given.
+func (l filedLedger) Session(id string, within ...ledger.Span) iter.Seq[ledger.Held] {
 	return func(yield func(ledger.Held) bool) {
-		filed := linesInOrder(l.filed())
+		filed, spanned := linesInOrder(l.filed()), ledger.Spanning(within)
 		for _, line := range slices.Backward(filed) {
-			if line.Session == id && !yield(ledger.Held{Line: line}) {
+			if line.Session == id && spanned(dayfile.DateOf(line.At)) && !yield(ledger.Held{Line: line}) {
 				return
 			}
 		}
@@ -959,9 +959,9 @@ type readCounting struct {
 	read *int
 }
 
-func (c readCounting) Session(id string) iter.Seq[ledger.Held] {
+func (c readCounting) Session(id string, within ...ledger.Span) iter.Seq[ledger.Held] {
 	return func(yield func(ledger.Held) bool) {
-		for held := range c.l.Session(id) {
+		for held := range c.l.Session(id, within...) {
 			*c.read++
 			if !yield(held) {
 				return

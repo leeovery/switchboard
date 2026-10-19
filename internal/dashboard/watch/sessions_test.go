@@ -408,9 +408,9 @@ func (l *sessionsCounted) SessionsOf(ids []string, rest func(string) ledger.Rest
 	return l.Ledger.SessionsOf(ids, rest, take)
 }
 
-func (l *sessionsCounted) Session(id string) iter.Seq[ledger.Held] {
+func (l *sessionsCounted) Session(id string, within ...ledger.Span) iter.Seq[ledger.Held] {
 	l.alone = append(l.alone, id)
-	return l.Ledger.Session(id)
+	return l.Ledger.Session(id, within...)
 }
 
 // The List's first read waits for a read of the ledger's tail under way, and

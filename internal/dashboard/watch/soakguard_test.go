@@ -148,9 +148,9 @@ func (c *countingLedger) Day(date string) []ledger.Held {
 	return c.Ledger.Day(date)
 }
 
-func (c *countingLedger) Session(id string) iter.Seq[ledger.Held] {
+func (c *countingLedger) Session(id string, within ...ledger.Span) iter.Seq[ledger.Held] {
 	c.read(ledgerRead{method: "Session", asked: []string{id}})
-	return c.Ledger.Session(id)
+	return c.Ledger.Session(id, within...)
 }
 
 // A read of sessions read a day behind the states the sessions it gave rest

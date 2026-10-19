@@ -811,8 +811,10 @@ func (t *todaysLines) readAgain(d days) []*placed {
 // having read them, might, as names tells without the readings history, and
 // any after today's, which none summarises, as after a change of time zone,
 // or a clock set back: so a session's quota checks, which a summary counts
-// toward no session, are passed over on a day it made no other request.
-func (f *Follower) Session(id string) iter.Seq[Held] {
+// toward no session, are passed over on a day it made no other request. Of
+// those, it reads the days Spanning gives of the spans given alone, every
+// one where none is given.
+func (f *Follower) Session(id string, within ...Span) iter.Seq[Held] {
 	return func(yield func(Held) bool) {
 		now := f.now()
 		lines := newestFirst{take: yield}
@@ -825,10 +827,10 @@ func (f *Follower) Session(id string) iter.Seq[Held] {
 		f.mu.Lock()
 		dates := f.linesDates(now)
 		f.mu.Unlock()
-		wanted := map[string]bool{id: true}
+		wanted, spanned := map[string]bool{id: true}, Spanning(within)
 		for _, date := range slices.Backward(dates) {
 			start, end, _ := dayfile.Day(date)
-			if start.After(now) || f.namesLocked(date, wanted) {
+			if spanned(date) && (start.After(now) || f.namesLocked(date, wanted)) {
 				unread += f.readSession(date, id, now, &lines)
 			}
 			// No earlier day's file holds a line of a later day than this one.
@@ -837,6 +839,29 @@ func (f *Follower) Session(id string) iter.Seq[Held] {
 			}
 		}
 		lines.handOn(time.Time{})
+	}
+}
+
+// Span is the stretch of time from From to To.
+type Span struct {
+	From, To time.Time
+}
+
+// Spanning returns what reports whether the files of the local day with the
+// given date may hold lines that arrived within any of the spans given, as
+// dayfile.Dates has it of each, from the day before its From's to the day
+// after its To's: of every day where none is given.
+func Spanning(spans []Span) func(date string) bool {
+	if len(spans) == 0 {
+		return func(string) bool { return true }
+	}
+	type dates struct{ first, last string }
+	spanned := make([]dates, len(spans))
+	for i, s := range spans {
+		spanned[i] = dates{dayfile.DateOf(dayfile.DayStart(s.From.Local(), -1)), dayfile.DateOf(dayfile.DayStart(s.To.Local(), 1))}
+	}
+	return func(date string) bool {
+		return slices.ContainsFunc(spanned, func(d dates) bool { return d.first <= date && date <= d.last })
 	}
 }
 

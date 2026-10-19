@@ -210,12 +210,13 @@ func (l heldLedger) Day(date string) []ledger.Held {
 // Session gives the lines of the session with the given id that arrived by
 // now, newest first, as a Follower orders them, as far as the caller goes on:
 // of each day that names it, as its summary would, as a Follower reads them,
-// so none of a day it made only quota checks on.
-func (l heldLedger) Session(id string) iter.Seq[ledger.Held] {
+// so none of a day it made only quota checks on; and of those, the days
+// ledger.Spanning gives of the spans given alone, as a Follower reads them.
+func (l heldLedger) Session(id string, within ...ledger.Span) iter.Seq[ledger.Held] {
 	return func(yield func(ledger.Held) bool) {
 		lines := l.arrived(l.now())
-		named := naming(lines, map[string]bool{id: true})
-		lines = slices.DeleteFunc(lines, func(f filed) bool { return f.Session != id || !named[f.date] })
+		named, spanned := naming(lines, map[string]bool{id: true}), ledger.Spanning(within)
+		lines = slices.DeleteFunc(lines, func(f filed) bool { return f.Session != id || !named[f.date] || !spanned(f.date) })
 		slices.SortStableFunc(lines, func(a, b filed) int { return byArrival(b, a) })
 		for _, f := range lines {
 			if !yield(f.Held) {

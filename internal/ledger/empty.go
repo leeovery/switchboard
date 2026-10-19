@@ -58,7 +58,7 @@ func (Empty) FirstLinesDay(time.Time) (time.Time, error) {
 }
 
 // Session returns no line.
-func (Empty) Session(string) iter.Seq[Held] {
+func (Empty) Session(string, ...Span) iter.Seq[Held] {
 	return func(func(Held) bool) {}
 }
 
