@@ -13,22 +13,25 @@ import (
 )
 
 // The head of a day of the golden world, as the ledger writes it, its side
-// as the views' Digests build it, is what the golden of the versions it's
-// written in holds: testdata/rows-v<RowsVersion>.json, inflated. A change to
-// how a day's side is stored, or to the working behind it, or to the
-// ledger's envelope of a day's head, that changes it without a new version
-// fails, as heads already written would be read as they no longer are. A new
-// version has its golden written with -update, in place of the one before,
-// which is removed; one already kept of the envelope written isn't written
-// again. Its world's times are UTC's, so it encodes alike in every zone the
-// tests run in.
+// and rows as the views' Digests build them, is what the golden of the
+// versions it's written in holds: testdata/rows-v<RowsVersion>.json,
+// inflated. It holds the side, how many rows the day's chunks hold in all,
+// and each chunk as the head points at it, its meta, and the CRC of its
+// member, so of every row's encoding too. A change to how a day's side, its
+// rows or a chunk's meta is stored, or to the working behind them, or to
+// the ledger's envelope of a day's head, that changes it without a new
+// version fails, as heads and rows already written would be read as they no
+// longer are. A new version has its golden written with -update, and the
+// one before removed by hand; one already kept of the envelope written
+// isn't written again. Its world's times are UTC's, so it encodes alike in
+// every zone the tests run in.
 func TestADaysHeadIsEncodedAsTheGoldenOfItsVersionsHoldsIt(t *testing.T) {
 	zone := time.Local
 	time.Local = time.UTC
 	t.Cleanup(func() { time.Local = zone })
 	keptGolden{
 		file: "rows", what: "a day's head", version: RowsVersion, test: "TestADaysHeadIsEncodedAsTheGoldenOfItsVersionsHoldsIt", envelope: headEnvelopeOf,
-		bump: "RowsVersion where how a day's side is stored, or the working behind it, changed, or the ledger's logdayVersion where its envelope did",
+		bump: "RowsVersion where how a day's side, its rows or a chunk's meta is stored, or the working behind them, changed, or the ledger's logdayVersion where its envelope did",
 	}.check(t, goldenHead(t))
 }
 

@@ -143,6 +143,82 @@ func TestADaysRowsAreTheRecordsOfItsLinesReadRaw(t *testing.T) {
 	}
 }
 
+// A day's rows are cut into chunks of rowsAChunk, the last of those left,
+// none empty: none of no records, one of fewer than a chunk holds, or as
+// many, two of one more, and two of twice as many. Restored in order, they
+// are the records taken.
+func TestADaysRowsAreCutIntoChunksNoneEmpty(t *testing.T) {
+	tests := []struct {
+		records, chunks int
+	}{
+		{records: 0, chunks: 0},
+		{records: 1, chunks: 1},
+		{records: rowsAChunk - 1, chunks: 1},
+		{records: rowsAChunk, chunks: 1},
+		{records: rowsAChunk + 1, chunks: 2},
+		{records: 2 * rowsAChunk, chunks: 2},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%d records", tt.records), func(t *testing.T) {
+			lines := make([]ledger.Line, tt.records)
+			at := time.Date(2026, 10, 8, 9, 0, 0, 0, time.UTC)
+			for i := range lines {
+				lines[i] = ledger.Line{At: at.Add(time.Duration(i) * time.Second), Request: fmt.Sprintf("r%d", i), Kind: ledger.KindMessage,
+					Session: "s", Model: foldOpus, Account: "work", Reason: "sticky", Status: 200, Attempts: 1, TotalMS: 3000}
+			}
+			taken := recordsOfLines(lines)
+			var d dayRows
+			for i := range taken {
+				d.take(&taken[i])
+			}
+
+			chunks, err := d.built()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(chunks) != tt.chunks {
+				t.Errorf("%d records are cut into %d chunks, want %d", tt.records, len(chunks), tt.chunks)
+			}
+			var restored []lineRecord
+			for i, c := range chunks {
+				if c.Count == 0 || len(c.Rows) == 0 {
+					t.Errorf("chunk %d of %d holds %d rows, %q; want none empty", i, len(chunks), c.Count, c.Rows)
+				}
+				if restored, err = restoredRows(restored, c.Rows); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if len(restored)+len(taken) > 0 && !reflect.DeepEqual(restored, taken) {
+				t.Errorf("the chunks of %d records restore as %d records, want those taken, in order", tt.records, len(restored))
+			}
+		})
+	}
+}
+
+// A day whose summary counts a line, but whose read gives none, as its one
+// line arrived on the day after, has a head of no rows, as the views'
+// Digests build it of a real ledger's lines: no rows file, and its rows read
+// as none, standing.
+func TestADayGivingNoLinesHasNoRows(t *testing.T) {
+	const date = "2026-10-07"
+	line := func(request string, at time.Time) ledger.Line {
+		return ledger.Line{At: at, Request: request, Kind: ledger.KindMessage, Session: "s", Model: foldOpus, Account: "work", Reason: "sticky",
+			Status: 200, Attempts: 1, TotalMS: 3000}
+	}
+	after := time.Date(2026, 10, 8, 0, 30, 0, 0, time.Local)
+	c := newDigestChain(t, "a day giving no lines", 0, []ledger.Line{line("r1", after)})
+	c.file(date, line("r2", after.Add(time.Minute)))
+	c.digestDayByDay(func(LedgerDay) {})
+
+	if _, err := os.Stat(filepath.Join(ledger.Dir(c.state), "rows-"+date+".gz")); err == nil {
+		t.Errorf("the ledger holds a rows file of %s, built of none; want none", date)
+	}
+	f := ledger.NewFollower(c.state, func() time.Time { return c.at }, ledger.CapsOf(nil, nil), DigestVersion, quiet)
+	if rows, ok := f.DayRows(date, RowsVersion); !ok || len(rows.Chunks) > 0 || rows.Count > 0 {
+		t.Errorf("DayRows(%s) = %+v, %t; want none, read", date, rows, ok)
+	}
+}
+
 // The heads and rows files the views' Digests build of a real ledger's
 // lines day by day, pass by pass, are those a ledger opened afresh builds
 // of the same days, from none, byte for byte.

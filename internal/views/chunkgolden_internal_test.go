@@ -74,8 +74,8 @@ type chunkGolden struct {
 // to how a row or a chunk's meta is stored, or to the working behind them,
 // that changes it without a new version fails, as rows already written would
 // be read as they no longer are. A new version has its golden written with
-// -update, in place of the one before, which is removed; one already kept
-// isn't written again. A chunk is the views' alone, in no envelope of the
+// -update, and the one before removed by hand; one already kept isn't
+// written again. A chunk is the views' alone, in no envelope of the
 // ledger's.
 func TestAChunkIsEncodedAsTheGoldenOfItsVersionHoldsIt(t *testing.T) {
 	keptGolden{
