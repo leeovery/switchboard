@@ -82,7 +82,7 @@ func (r *lineRecord) stored() storedRow {
 func (s *storedRow) restored() (lineRecord, error) {
 	kind := slices.Index(storedKinds[:], s.Kind)
 	if kind < 0 {
-		return lineRecord{}, fmt.Errorf("restore a row: no kind is stored as %q", s.Kind)
+		return lineRecord{}, fmt.Errorf("no kind is stored as %q", s.Kind)
 	}
 	return lineRecord{
 		decodedRequest: s.decoded(), kind: RowKind(kind), session: s.Session, countedSession: s.CountedSession, status: s.Status,
@@ -137,17 +137,19 @@ func (c *rowsChunk) built() (builtChunk, error) {
 
 // restoredRows are records, with the records of a chunk's rows appended,
 // rows as builtChunk has them, each restored exactly as its stored row has
-// it, in order: refused where a line of rows isn't a row stored.
+// it, in order: refused, none given back, where a line of rows isn't a row
+// stored, the error naming which, from 0.
 func restoredRows(records []lineRecord, rows []byte) ([]lineRecord, error) {
 	records = slices.Grow(records, bytes.Count(rows, []byte{'\n'}))
+	from := len(records)
 	for line := range bytes.Lines(rows) {
 		var s storedRow
 		if err := json.Unmarshal(line, &s); err != nil {
-			return nil, fmt.Errorf("decode a row: %w", err)
+			return nil, fmt.Errorf("decode row %d of a chunk: %w", len(records)-from, err)
 		}
 		r, err := s.restored()
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("restore row %d of a chunk: %w", len(records)-from, err)
 		}
 		records = append(records, r)
 	}
@@ -155,12 +157,14 @@ func restoredRows(records []lineRecord, rows []byte) ([]lineRecord, error) {
 }
 
 // chunkMeta is what a chunk of a day's rows says of them without a row
-// read: when the first and the last of them arrived; and what they count, as
-// the Log counts a day's lines whatever its filter, as LogCount's count has
-// it: those of each kind, those that failed, and by the models they asked
-// for, the accounts they're on and the sessions they count toward. So a
-// reader tells which chunks may hold a session's rows, or rows of a time,
-// and sums a day's count, reading none.
+// read: when the first and the last of them arrived; and what they count,
+// each row as LogCount's count counts one whatever the Log's filter: those
+// of each kind, those that failed, and by the models they asked for, the
+// accounts they're on and the sessions they count toward. It counts each
+// row as often as the day gives its line, as the rows hold them, where the
+// Log takes a request's line given twice in once. So a reader tells which
+// chunks may hold a session's rows, or rows of a time, reading none; and of
+// a day that gives no request's id twice, sums the Log's count of it.
 type chunkMeta struct {
 	first, last instant
 	lines       LogCount

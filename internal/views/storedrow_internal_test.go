@@ -350,7 +350,9 @@ func TestEachFactOfARecordIsStoredByItsOwnKey(t *testing.T) {
 // Each kind of what a request asked is stored by its own code, as
 // storedKinds has it, and restored as that kind; a code none is stored by,
 // as a row of a later release may give, is refused, as is a line that isn't
-// a row: so no row is restored as another kind than it was stored.
+// a row: so no row is restored as another kind than it was stored. A chunk
+// refused hands on no records, neither those restored before it nor its
+// rows before the one refused, and names that one.
 func TestEachKindIsStoredByItsOwnCode(t *testing.T) {
 	codes := make(map[string]RowKind)
 	for _, k := range RowKinds() {
@@ -368,9 +370,16 @@ func TestEachKindIsStoredByItsOwnCode(t *testing.T) {
 			t.Errorf("kind %d, stored as %s, is restored as %+v, %v, want of its kind", k, row, restored, err)
 		}
 	}
-	for _, rows := range []string{`{"k":"batch"}` + "\n", `{"k":1}` + "\n", "not a row\n", `{"r":"r1"` + "\n"} {
-		if restored, err := restoredRows(nil, []byte(rows)); err == nil {
-			t.Errorf("%q is restored as %+v, want it refused", rows, restored)
+	restored := recordsOfLines(goldenRows())
+	for _, bad := range []string{`{"k":"batch"}`, `{"k":1}`, "not a row", `{"r":"r1"`} {
+		rows := []byte(`{"r":"r0"}` + "\n" + bad + "\n")
+		switch got, err := restoredRows(restored, rows); {
+		case err == nil:
+			t.Errorf("%q is restored as %+v, want it refused", rows, got)
+		case got != nil:
+			t.Errorf("%q is refused, %v, handing on %d records, want none", rows, err, len(got))
+		case !strings.Contains(err.Error(), "row 1 of a chunk"):
+			t.Errorf("%q is refused as %v, want the error to name row 1 of the chunk", rows, err)
 		}
 	}
 }
@@ -408,12 +417,13 @@ func TestAChunksRowsAreItsRecordsStoredRowsALineEach(t *testing.T) {
 	}
 }
 
-// A chunk's meta counts its rows as the Log counts its day's lines whatever
-// its filter, as LogCount has it: summed over the chunks a day's lines are
-// cut into, of whatever size, it's the count the Log's table gives of the
-// day, but those its filter shows. And it gives when the first and the last
-// of its rows arrived, whatever order it took them in.
-func TestAChunksMetaCountsItsRowsAsTheLogCountsTheirDay(t *testing.T) {
+// Of a day that gives no request's id twice, as the generated days give
+// none, a chunk's meta counts its rows as the Log counts the day's lines
+// whatever its filter, as LogCount has it: summed over the chunks the day's
+// lines are cut into, of whatever size, it's the count the Log's table gives
+// of the day, but those its filter shows. And it gives when the first and
+// the last of its rows arrived, whatever order it took them in.
+func TestAChunksMetaCountsADayGivingNoIdTwiceAsTheLogCountsIt(t *testing.T) {
 	for seed := range uint64(20) {
 		lines, _ := pagedRun(seed)
 		r := rand.New(rand.NewPCG(seed, 14))
@@ -432,6 +442,9 @@ func TestAChunksMetaCountsItsRowsAsTheLogCountsTheirDay(t *testing.T) {
 		size := 1 + r.IntN(20)
 		for _, date := range slices.Sorted(maps.Keys(byDay)) {
 			records := byDay[date]
+			if id, twice := givenTwice(records); twice {
+				t.Fatalf("run %d, %s: the request %s is given twice, want each id once", seed, date, id)
+			}
 			r.Shuffle(len(records), func(i, j int) { records[i], records[j] = records[j], records[i] })
 			var counted LogCount
 			for chunk := range slices.Chunk(records, size) {
@@ -449,6 +462,66 @@ func TestAChunksMetaCountsItsRowsAsTheLogCountsTheirDay(t *testing.T) {
 			}
 		}
 	}
+}
+
+// givenTwice reports the first request's id records give twice, as its key
+// knows it, reporting false where they give none twice.
+func givenTwice(records []lineRecord) (string, bool) {
+	given := make(map[lineKey]bool)
+	for i := range records {
+		k, ok := records[i].key()
+		if ok && given[k] {
+			return k.request, true
+		}
+		given[k] = true
+	}
+	return "", false
+}
+
+// A chunk's meta counts each of its rows as often as the day gives its
+// line, as the rows hold them: a request's line given twice, as a day's file
+// copied into another may give it, twice, though the Log takes it in once.
+// So a day's count summed of its chunks' metas is the Log's only of a day
+// that gives no request's id twice.
+func TestAChunksMetaCountsALineGivenTwiceTwice(t *testing.T) {
+	records := recordsOfLines(goldenRows())
+	_, once := encodedChunk(t, records)
+	_, twice := encodedChunk(t, append(slices.Clone(records), records[0]))
+	if got, want := twice.lines.Requests, once.lines.Requests+1; got != want {
+		t.Errorf("a chunk giving %s twice counts %d requests, want %d", records[0].request, got, want)
+	}
+	if got, want := twice.lines.Sessions[records[0].session], once.lines.Sessions[records[0].session]+1; got != want {
+		t.Errorf("a chunk giving %s twice counts %d of its session's, want %d", records[0].request, got, want)
+	}
+}
+
+// A chunk's meta gives when the first and the last of its rows arrived,
+// whatever year they arrived in: before 1970, as a line edited by hand may
+// say, among them, and at no time at all; and of a chunk of one row, its
+// arrival as both.
+func TestAChunksMetaGivesItsFirstAndLastArrivalsOfAnyYear(t *testing.T) {
+	at := func(year int) lineRecord {
+		return lineRecord{at: instantOf(time.Date(year, 3, 1, 0, 0, 0, 7, time.UTC))}
+	}
+	none := lineRecord{at: instantOf(time.Time{})}
+	for _, records := range [][]lineRecord{
+		{at(1960)}, {none}, {at(1960), at(1950)}, {at(1950), at(1960)}, {at(1960), none, at(1965)}, {at(1960), at(2026)}, {at(2300), at(2026)},
+	} {
+		_, meta := encodedChunk(t, records)
+		if first, last := arrivalsOf(records); meta.first != first || meta.last != last {
+			t.Errorf("a chunk of rows arriving at %v gives its arrivals as %v to %v, want %v to %v",
+				arrivalTimes(records), meta.first.time(), meta.last.time(), first.time(), last.time())
+		}
+	}
+}
+
+// arrivalTimes are when each of records arrived, in order.
+func arrivalTimes(records []lineRecord) []time.Time {
+	times := make([]time.Time, len(records))
+	for i := range records {
+		times[i] = records[i].arrived()
+	}
+	return times
 }
 
 // summedCounts is what a and b count together, as their day's lines count
