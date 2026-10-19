@@ -271,7 +271,7 @@ func (p *paging) checkTurn(now time.Time, l filedLedger, stream Stream) {
 	p.untoldSince(read.sessions["s"].Lines, stream)
 	whole := HoldPage("s", read, p.prices, 0, now)
 	whole.turn = &turnLines{prompt: p.page.turn.prompt}
-	whole = whole.Turned(HeldTurn{prompt: p.page.turn.prompt, lines: read.sessions["s"].Lines})
+	whole = whole.Turned(HeldTurn{prompt: p.page.turn.prompt, lines: recordsOfLines(read.sessions["s"].Lines)})
 	live := PageLive{Stream: stream, Now: now}
 	rowsOf := func(h HeldPage) []string {
 		w := h.worked(live)
@@ -279,9 +279,9 @@ func (p *paging) checkTurn(now time.Time, l filedLedger, stream Stream) {
 		rows := make([]string, len(lines))
 		for i, r := range lines {
 			rows[i] = r.Row.Request + " told"
-			if r.line != nil {
+			if r.record != nil {
 				rows[i] = r.Row.Request + " lined"
-				if !w.rec.linedAt(r.line.Request, r.line.At) {
+				if !w.rec.linedAt(r.record.request, r.record.arrived()) {
 					p.met["a turn opened between feeds, a line of it filed since"] = true
 				}
 			}
@@ -507,7 +507,7 @@ func (p *paging) check(now time.Time, l filedLedger, stream Stream) {
 	whole := HoldPage("s", read, p.prices, 0, now)
 	if p.page.turn != nil {
 		whole.turn = &turnLines{prompt: p.page.turn.prompt}
-		whole = whole.Turned(HeldTurn{prompt: p.page.turn.prompt, lines: read.sessions["s"].Lines})
+		whole = whole.Turned(HeldTurn{prompt: p.page.turn.prompt, lines: recordsOfLines(read.sessions["s"].Lines)})
 	}
 	live := PageLive{Stream: stream, Now: now}
 	got, gotOK := p.page.Build(live)
@@ -827,7 +827,7 @@ func TestATurnOpenHoldsOnlyTheLinesThatMayBeItsOwn(t *testing.T) {
 	page = page.TurnOf(page, gained)
 	var held []string
 	for _, l := range page.turn.lines {
-		held = append(held, l.Request)
+		held = append(held, l.request)
 	}
 	if want := []string{"d", "g", "h"}; !slices.Equal(held, want) {
 		t.Errorf("the turn open holds the lines %v, want %v", held, want)
@@ -870,7 +870,7 @@ func TestATurnCountsASubagentWhoseFirstLineLandsLateInIt(t *testing.T) {
 		built, _ := h.Build(live)
 		var rows []string
 		for _, r := range built.Requests {
-			rows = append(rows, fmt.Sprintf("%s lined %t", r.Row.Request, r.line != nil))
+			rows = append(rows, fmt.Sprintf("%s lined %t", r.Row.Request, r.record != nil))
 		}
 		return rows
 	}
@@ -891,7 +891,7 @@ func TestATurnCountsASubagentWhoseFirstLineLandsLateInIt(t *testing.T) {
 			live = PageLive{Now: landed}
 			whole := HoldPage("s", linesRead(landed, "s", lines), ledger.Pricing, 0, landed)
 			whole.turn = &turnLines{prompt: "p1"}
-			whole = whole.Turned(HeldTurn{prompt: "p1", lines: lines})
+			whole = whole.Turned(HeldTurn{prompt: "p1", lines: recordsOfLines(lines)})
 			if got, want := rowsOf(page, live), rowsOf(whole, live); !slices.Equal(got, want) {
 				t.Errorf("turn 1's rows are %v, want %v, as the page read whole has them", got, want)
 			}
@@ -931,14 +931,14 @@ func TestATurnOpenBetweenFeedsCountsASubagentByAFirstRequestFiledSince(t *testin
 	page = page.Turned(read)
 	var held []string
 	for _, l := range read.lines {
-		held = append(held, l.Request)
+		held = append(held, l.request)
 	}
 	if want := []string{"a2", "m2", "a1"}; !slices.Equal(held, want) || *counted.read != 6 {
 		t.Errorf("the turn's read holds %v, reading %d lines; want %v, reading 6, the last the first before its horizon", held, *counted.read, want)
 	}
 	whole := HoldPage("s", linesRead(opened, "s", lines), ledger.Pricing, 0, opened)
 	whole.turn = &turnLines{prompt: "p2"}
-	whole = whole.Turned(HeldTurn{prompt: "p2", lines: lines})
+	whole = whole.Turned(HeldTurn{prompt: "p2", lines: recordsOfLines(lines)})
 	rowsOf := func(h HeldPage) []string {
 		requests, _ := h.worked(live).turnRequests(3)
 		var rows []string

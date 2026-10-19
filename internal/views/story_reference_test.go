@@ -48,6 +48,15 @@ type request struct {
 	metered bool
 }
 
+// summed is what the line's request was worth, at the prices in effect on
+// the local day with the given date, as ledger.Table.Summed gives it of the
+// line itself: no Amount where the table priced none of it.
+func summed(prices ledger.Table, l *ledger.Line, date string) Worth {
+	var w Worth
+	w.addSummed(prices.Summed(l, date))
+	return w
+}
+
 // requestsOf returns the requests among lines, a session's, oldest first, as
 // isRequest says, each priced by prices at the local day with the given
 // date.

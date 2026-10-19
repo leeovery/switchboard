@@ -7,8 +7,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-
-	"github.com/leeovery/switchboard/internal/ledger"
 )
 
 // LogSources are what the Log's Requests are built from.
@@ -90,11 +88,12 @@ type LogLine struct {
 	Row    RequestRow
 	Rule   *DayRule
 	Oldest *OldestDay
-	// logged is the Log's line the row is of, and line, of a turn's
-	// request, its line, each nil before it comes; day the local day the
-	// row sits on; and place where it sits within it, as placedRow has it.
+	// logged is the Log's line the row is of, and record, of a turn's
+	// request, its line's record, each nil before it comes; day the local
+	// day the row sits on; and place where it sits within it, as placedRow
+	// has it.
 	logged *loggedLine
-	line   *ledger.Line
+	record *lineRecord
 	day    LedgerDay
 	place  time.Time
 }

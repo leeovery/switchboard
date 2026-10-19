@@ -256,13 +256,14 @@ func (s Stream) known() iter.Seq[Told] {
 	}
 }
 
-// sentOf is when the request whose line l is went upstream, as s told,
-// reporting false where s told of no such request, as FiledAs has it. A
-// request's sending, once told, stands whatever s knows of it now, as known
-// has it, so a row stays where it sat in flight as its line fills it in.
-func (s Stream) sentOf(l *ledger.Line) (time.Time, bool) {
-	t, told := s.Requests[l.Request]
-	if !told || !t.FiledAs(l) {
+// sentOf is when the request whose line flew as f went upstream, as s told,
+// reporting false where s told of no such request, as FiledAs has it of its
+// line. A request's sending, once told, stands whatever s knows of it now,
+// as known has it, so a row stays where it sat in flight as its line fills
+// it in.
+func (s Stream) sentOf(f flight) (time.Time, bool) {
+	t, told := s.Requests[f.request]
+	if !told || !f.is(t.Request, t.Sent) {
 		return time.Time{}, false
 	}
 	return t.Sent, true

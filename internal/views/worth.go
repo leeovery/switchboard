@@ -20,15 +20,6 @@ type Worth struct {
 	Unpriced []string            `json:"unpriced,omitempty"`
 }
 
-// summed is what the line's request was worth, at the prices in effect on
-// the local day with the given date, as ledger.Table.Summed gives it: no
-// Amount where the table priced none of it.
-func summed(prices ledger.Table, l *ledger.Line, date string) Worth {
-	var w Worth
-	w.addSummed(prices.Summed(l, date))
-	return w
-}
-
 // pricing is how a page prices what its requests spent, as it's built: by
 // the table given, at the prices in effect on the local day with the date
 // given, the day it's built on.

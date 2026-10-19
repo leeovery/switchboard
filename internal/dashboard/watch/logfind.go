@@ -173,7 +173,9 @@ func (m Model) walkFind() (Model, tea.Cmd) {
 	case !m.log.find.summed:
 		read = func() tea.Msg { return findReadMsg{summed: true, opening: opening, summaries: l.Days(oldest.Start)} }
 	case next != "":
-		read = func() tea.Msg { return findReadMsg{date: next, sessions: views.DaySessions(l.Day(next))} }
+		read = func() tea.Msg {
+			return findReadMsg{date: next, sessions: views.DaySessions(views.RecordsOf(l.Day(next)))}
+		}
 	default:
 		return m, nil
 	}

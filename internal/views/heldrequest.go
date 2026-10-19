@@ -54,12 +54,10 @@ type decodedRequest struct {
 	spend                                                                ledger.Spend
 }
 
-// heldRequestOf returns the request of the line l, decoded once, unpriced.
+// heldRequestOf returns the request of the line l, decoded once, as decodedOf
+// decodes it, unpriced.
 func heldRequestOf(l *ledger.Line) heldRequest {
-	return newHeldRequest(decodedRequest{
-		flight: flightOf(l), dir: l.Dir, model: l.Model, account: l.Account, reason: l.Reason, from: l.From, class: l.Class, agentID: l.AgentID,
-		geo: l.Shape.InferenceGeo, prompt: l.Prompt, stop: l.Answer.Stop, tools: l.Answer.Tools, upstream: l.Upstream(), tried: l.Tried, spend: ledger.SpendOf(l),
-	})
+	return newHeldRequest(decodedOf(l))
 }
 
 // newHeldRequest returns the request d decodes, unpriced: its names
@@ -95,11 +93,10 @@ func (r *heldRequest) calls() iter.Seq[string] {
 	}
 }
 
-// sumsSeed seeds every sum of a line, as lineSumOf has it, of a held
-// request, as summed has it, and of an answer a page's points hold, as its
-// summed has it: one seed for the run, as a sum is held no longer than the
-// run, and worked out again of a request or an answer restored from its
-// stored form.
+// sumsSeed seeds every sum of a line's record, of a held request and of an
+// answer a page's points hold, as each one's summed has it: one seed for the
+// run, as a sum is held no longer than the run, and worked out again of a
+// record, a request or an answer restored from its stored form.
 var sumsSeed = maphash.MakeSeed()
 
 // summed is a sum of all r decodes of its line, as it holds it, its spend as
@@ -108,8 +105,7 @@ var sumsSeed = maphash.MakeSeed()
 // hold the same, but by a chance of one in 2^64. So a request restored from
 // its stored form sums as the one decoded of its line did, and two lines of
 // a request that say otherwise only of what none of it decodes, as their
-// usages' bytes, sum alike. It's never compared with a line's sum, as
-// lineSumOf has it.
+// usages' bytes, sum alike. It's never compared with a line record's sum.
 func (r *heldRequest) summed() uint64 {
 	var h maphash.Hash
 	h.SetSeed(sumsSeed)
@@ -126,35 +122,6 @@ func (r *heldRequest) summed() uint64 {
 	for _, t := range r.tried {
 		maphash.WriteComparable(&h, t)
 	}
-	return h.Sum64()
-}
-
-// lineSumOf is a sum of what the line l says of its request: its id, its
-// session, the names it gives, its kind, when it arrived and ended, whether
-// it went upstream, the accounts it went out on that couldn't serve it, the
-// tools its answer called, and its usage, byte for byte: two lines whose
-// sums differ say otherwise of their request, and two whose sums are the
-// same say the same of it, but by a chance of one in 2^64. It's never
-// compared with a held request's sum, as summed has it.
-func lineSumOf(l *ledger.Line) uint64 {
-	var h maphash.Hash
-	h.SetSeed(sumsSeed)
-	maphash.WriteComparable(&h, struct {
-		request, session, dir, model, account, reason, from, class, agentID, geo, kind, prompt, stop string
-		at, end                                                                                      instant
-		upstream                                                                                     bool
-		tried, tools                                                                                 int
-	}{
-		l.Request, l.Session, l.Dir, l.Model, l.Account, l.Reason, l.From, l.Class, l.AgentID, l.Shape.InferenceGeo, l.Kind, l.Prompt, l.Answer.Stop,
-		instantOf(l.At), instantOf(ended(l)), l.Upstream(), len(l.Tried), len(l.Answer.Tools),
-	})
-	for _, t := range l.Tried {
-		maphash.WriteComparable(&h, t)
-	}
-	for _, tool := range l.Answer.Tools {
-		maphash.WriteComparable(&h, tool)
-	}
-	_, _ = h.Write(l.Usage)
 	return h.Sum64()
 }
 
@@ -317,8 +284,9 @@ func (f flight) inFlightAt(at time.Time) bool {
 	return inFlight(at, f.arrived(), f.ended())
 }
 
-// key is f as a request is known from another, as keyOf has it of its line,
-// reporting false where it has no id.
+// key is f as a request is known from another, reporting false where it has
+// no id, as one from before the router gave requests ids, which is taken as
+// often as it's given.
 func (f flight) key() (lineKey, bool) {
 	return lineKey{request: f.request, at: f.at}, f.request != ""
 }

@@ -512,12 +512,13 @@ func (p LogPage) withStands(was LogPage) LogPage {
 	return p
 }
 
-// timeOf is the time of the line l, to the second: "rule" of a day's rule,
-// and "" of any other line not a row.
+// timeOf is the time of the line l, to the second, in the local time zone,
+// as the Log draws it: "rule" of a day's rule, and "" of any other line not
+// a row.
 func timeOf(l logLine) string {
 	switch {
 	case l.row != nil:
-		return l.row.At.Format(time.TimeOnly)
+		return l.row.At.Local().Format(time.TimeOnly)
 	case l.event != nil:
 		return l.event.At.Format(time.TimeOnly)
 	case l.rule != nil:

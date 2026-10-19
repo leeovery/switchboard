@@ -304,9 +304,9 @@ func (f *feeding) laterTied(l *ledger.Line) bool {
 	return false
 }
 
-// keyOfLine is the line l's key, as keyOf has it.
+// keyOfLine is the line l's key, as its flight's key has it.
 func keyOfLine(l *ledger.Line) lineKey {
-	k, _ := keyOf(l)
+	k, _ := flightOf(l).key()
 	return k
 }
 

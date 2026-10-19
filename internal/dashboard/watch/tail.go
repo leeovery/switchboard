@@ -140,9 +140,10 @@ func (m Model) readTail(now time.Time) (Model, tea.Cmd) {
 	m, t := m.askingTail(now, false)
 	return m, func() tea.Msg {
 		read, next := readLines(t.r.ledger, t.mark, t.late)
-		msg, gains := t.took(read, next, t.log.wants(read))
+		logged := t.log.logged(read)
+		msg, gains := t.took(read, next, t.log.wants(logged))
 		if msg.held != nil && t.log != nil {
-			msg.log = t.log.grown(t.r, read, views.LogTaking{Held: *msg.held, Gains: gains, Stream: t.log.stream, Now: now})
+			msg.log = t.log.grown(t.r, logged, views.LogTaking{Held: *msg.held, Gains: gains, Stream: t.log.stream, Now: now})
 		}
 		return msg
 	}

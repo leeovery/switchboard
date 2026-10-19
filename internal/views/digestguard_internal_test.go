@@ -465,9 +465,9 @@ func (w *spread) fresh(l LedgerSessions, want SessionsWanted, now time.Time) Hel
 // lines, the Log's store fed them through l as the Log's read feeds it,
 // wanting the sessions of its lines.
 func (w *spread) logSessions(l Ledger, m moment) []LogSession {
-	read := ReadLog(w.prices.read)
-	held, gains := HoldSessions(w.prices.read).Fed(l, Took(m.today, nil), SessionsWanted{Log: read.Wanted(m.today)}, m.now)
-	read = read.Taken(m.today, true, LogTaking{Held: held, Gains: gains, Now: m.now})
+	read, today := ReadLog(w.prices.read), RecordsOf(m.today)
+	held, gains := HoldSessions(w.prices.read).Fed(l, Took(m.today, nil), SessionsWanted{Log: read.Wanted(today)}, m.now)
+	read = read.Taken(today, true, LogTaking{Held: held, Gains: gains, Now: m.now})
 	lines := make(map[string]int)
 	for _, h := range m.today {
 		lines[h.Session]++

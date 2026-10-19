@@ -70,7 +70,7 @@ func TestARequestsRowHoldsItsLinesFacts(t *testing.T) {
 	l.Shape = ledger.Shape{Bytes: 482_000, Messages: 12, Tools: 9, Thinking: ledger.Thinking{BudgetTokens: new(int64(16_000))}}
 	got := views.RowOfLine(l, []ledger.Line{l}, ledger.Pricing, now)
 	want := views.RequestRow{
-		Request: "r1", At: l.At, Session: mover, Dir: "~/Code/api", CountedSession: mover, Model: opus, Account: "work", Status: 200, Canceled: true,
+		Request: "r1", At: l.At.UTC(), Session: mover, Dir: "~/Code/api", CountedSession: mover, Model: opus, Account: "work", Status: 200, Canceled: true,
 		First: new(800 * time.Millisecond), Took: new(11800 * time.Millisecond),
 		Read: 100000, Written: 1000, Out: 500, Input: 10, Metered: true, Worth: priced(hourWorth), Stop: "tool_use", Tool: "Bash", More: 2,
 		Attempts: 2, Size: 482_000, Messages: 12, Tools: 9, Thinking: 16_000, Agent: "claude-cli/2.1.0",

@@ -63,14 +63,14 @@ func (g *logGrowing) look(now time.Time, again bool) {
 	}
 	maps.DeleteFunc(days, func(date string, _ []ledger.Held) bool { return !late[date] })
 	g.filed = filed
-	lines := [][]ledger.Held{gained}
+	lines := []LogDay{RecordsOf(gained)}
 	for _, date := range slices.Sorted(maps.Keys(days)) {
-		lines = append(lines, days[date])
+		lines = append(lines, RecordsOf(days[date]))
 	}
 	held, gains := g.held.Fed(filedLedger{lines: g.lines, now: now}, Took(gained, days), SessionsWanted{Log: g.read.Wanted(lines...)}, now)
 	g.held = held
 	t := LogTaking{Held: held, Gains: gains, Now: now}
-	g.read = g.read.Taken(gained, again, t)
+	g.read = g.read.Taken(lines[0], again, t)
 	t.Gains = nil
 	for _, day := range lines[1:] {
 		g.read = g.read.Taken(day, true, t)
@@ -106,9 +106,9 @@ func (g *logGrowing) readAtOnce(now time.Time) LogRead {
 	read := ReadLog(g.prices)
 	held, _ := HoldSessions(g.prices).Fed(filedLedger{lines: g.lines, now: now}, Took(gained, days), SessionsWanted{Log: []string{"s"}}, now)
 	t := LogTaking{Held: held, Now: now}
-	read = read.Taken(gained, true, t)
+	read = read.Taken(RecordsOf(gained), true, t)
 	for _, date := range slices.Backward(slices.Sorted(maps.Keys(days))) {
-		read = read.Taken(days[date], true, t)
+		read = read.Taken(RecordsOf(days[date]), true, t)
 	}
 	return read
 }
@@ -250,11 +250,11 @@ func TestADayTakenInWholeCopiesAChunkForEachChunkOfItsLines(t *testing.T) {
 	}
 	taking := LogTaking{Held: HoldSessions(ledger.Pricing), Now: at.Add(time.Hour)}
 	whole, tail := lines[:2990], lines[2990:]
-	read := ReadLog(ledger.Pricing).Taken(whole, true, taking)
+	read := ReadLog(ledger.Pricing).Taken(RecordsOf(whole), true, taking)
 	if copied, most := read.days[0].lines.copied, (len(whole)+chunkRows-1)/chunkRows; copied > most {
 		t.Errorf("a day of %d lines taken in whole copied %d chunks, want %d at most, one for each %d lines", len(whole), copied, most, chunkRows)
 	}
-	grown := read.Taken(tail, false, taking)
+	grown := read.Taken(RecordsOf(tail), false, taking)
 	if copied := grown.days[0].lines.copied - read.days[0].lines.copied; copied > 1 {
 		t.Errorf("a read of the tail gaining %d lines copied %d chunks, want one at most", len(tail), copied)
 	}
@@ -282,10 +282,10 @@ func TestLinesTakenInEitherSideOfACollectionShareTheirWords(t *testing.T) {
 		return ledger.Held{Line: l}
 	}
 	taking := LogTaking{Held: HoldSessions(ledger.Pricing), Now: at.Add(time.Hour)}
-	read := ReadLog(ledger.Pricing).Taken([]ledger.Held{lineOf("r1", at)}, false, taking)
+	read := ReadLog(ledger.Pricing).Taken(RecordsOf([]ledger.Held{lineOf("r1", at)}), false, taking)
 	runtime.GC()
 	runtime.GC()
-	read = read.Taken([]ledger.Held{lineOf("r2", at.Add(time.Second))}, false, taking)
+	read = read.Taken(RecordsOf([]ledger.Held{lineOf("r2", at.Add(time.Second))}), false, taking)
 	lines := slices.Collect(read.lines())
 	if len(lines) != 2 {
 		t.Fatalf("the read holds %d lines, want 2", len(lines))

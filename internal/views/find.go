@@ -24,13 +24,13 @@ type DaySession struct {
 }
 
 // DaySessions are the sessions of a day's lines, as Ledger's Day gives them,
-// oldest first: those its summary names, each line counting toward the one
-// Line.CountedSession says, the last to arrive first.
-func DaySessions(day []ledger.Held) []DaySession {
+// oldest first, each its record: those its summary names, each line counting
+// toward the one Line.CountedSession says, the last to arrive first.
+func DaySessions(day LogDay) []DaySession {
 	held := make(map[string]*DaySession)
-	for i := range day {
-		l := &day[i].Line
-		id := l.CountedSession()
+	for i := range day.records {
+		r := &day.records[i]
+		id := r.countedSession()
 		if id == "" {
 			continue
 		}
@@ -40,9 +40,9 @@ func DaySessions(day []ledger.Held) []DaySession {
 			held[id] = s
 		}
 		s.Lines++
-		s.Last = score.Later(s.Last, l.At)
-		if l.Dir != "" {
-			s.Dir = l.Dir
+		s.Last = score.Later(s.Last, r.arrived())
+		if r.dir != "" {
+			s.Dir = r.dir
 		}
 	}
 	sessions := make([]DaySession, 0, len(held))
