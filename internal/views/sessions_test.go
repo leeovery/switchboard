@@ -154,6 +154,12 @@ func (f fakeLedger) Day(date string) []ledger.Held {
 	return day
 }
 
+// DaySide reads as a Follower of a ledger that holds no day's head does:
+// no side, whatever the day.
+func (f fakeLedger) DaySide(string, int) (json.RawMessage, bool) {
+	return nil, false
+}
+
 // FirstLinesDay reads as a Follower does: the start of the day its oldest
 // line arrived on, failing where it holds none.
 func (f fakeLedger) FirstLinesDay(time.Time) (time.Time, error) {

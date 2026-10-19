@@ -27,9 +27,11 @@ func (Digests) Builder() ledger.DigestBuilder {
 }
 
 // RowsVersion is the version of what a day's head holds of the day: its
-// side, each of its sessions as the Log's find reads them. A release that
-// keeps a day's side otherwise writes another, and a head of another
-// version doesn't stand: the day's lines are read instead.
+// side, each of its sessions as the Log's find reads them, as
+// storedDaySession stores them. A release that keeps a day's side otherwise
+// writes another, and a head of another version doesn't stand: the day's
+// lines are read instead. Every head of this version holds a side: none was
+// released without one.
 const RowsVersion = 1
 
 // RowsVersion is the version of the sides of the days' heads the Digests
@@ -38,22 +40,32 @@ func (Digests) RowsVersion() int {
 	return RowsVersion
 }
 
-// Day gives a builder of a finished day's side, as daySide has it.
+// Day gives a builder of a finished day's side, as daySide has it, none of
+// the day's lines taken in yet.
 func (Digests) Day() ledger.DayBuilder {
-	return daySide{}
+	return daySide{sessions: make(daySessions)}
 }
 
-// daySide is a builder of a finished day's side by the views' Digests: it
-// builds none yet, as nothing reads one; the Log's find reads each day's
-// lines.
-type daySide struct{}
+// daySide is a builder of a finished day's side by the views' Digests: the
+// day's sessions, folded as DaySessions folds the lines Day gives, of the
+// same lines in the same order, so DaySessionsOn reads from it what it
+// would read of them.
+type daySide struct {
+	sessions daySessions
+}
 
-// Take takes in nothing of the line.
-func (daySide) Take(ledger.Line) {}
+// Take takes in l, the day's next line, as daySessions takes it.
+func (b daySide) Take(l ledger.Line) {
+	b.sessions.take(&l)
+}
 
-// Built gives no side.
-func (daySide) Built() (ledger.DayBuilt, error) {
-	return ledger.DayBuilt{}, nil
+// Built gives the side of the lines taken in, as daySideOf has it.
+func (b daySide) Built() (ledger.DayBuilt, error) {
+	side, err := daySideOf(b.sessions.sessions())
+	if err != nil {
+		return ledger.DayBuilt{}, err
+	}
+	return ledger.DayBuilt{Side: side}, nil
 }
 
 // dayDigest is a builder of a day's digest by the views' Digests, for one

@@ -158,7 +158,7 @@ var (
 	// views declares, or the guard fails, as a ban on a name that's gone
 	// passes whatever the dashboard builds.
 	builtInTheWatch = []string{
-		"views.CallsOf", "views.DaySessions", "views.EventsRead.Back", "views.EventsRead.Look", "views.EventsRead.Refiled",
+		"views.CallsOf", "views.DaySessions", "views.DaySessionsOn", "views.EventsRead.Back", "views.EventsRead.Look", "views.EventsRead.Refiled",
 		"views.EventsRead.Skips", "views.EventsRead.Took", "views.EventsSince", "views.EventsTable.Details",
 		"views.FindSessions", "views.HeldSessions.Awaited", "views.HeldSessions.Fed", "views.HeldSessions.Holding",
 		"views.HeldSessions.List", "views.HeldSessions.Unread", "views.HeldSessions.With", "views.HeldSessions.Without",

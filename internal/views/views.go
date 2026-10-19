@@ -7,6 +7,7 @@
 package views
 
 import (
+	"encoding/json"
 	"iter"
 	"time"
 
@@ -46,6 +47,11 @@ type Ledger interface {
 	// their JSON held, as Today gives them: none of a day the ledger holds no
 	// lines of.
 	Day(date string) []ledger.Held
+	// DaySide gives the side of the head the ledger holds of the local day
+	// with the given date, of the version body, as it was built, reporting
+	// false where it holds none that stands, so the day's lines are read
+	// instead, as Day gives them.
+	DaySide(date string, body int) (json.RawMessage, bool)
 	// FirstLinesDay gives the start of the first local day the ledger holds
 	// lines of, at now: the first Day reads back to, a summary of an earlier
 	// day, whose lines are pruned, aside. It fails with fs.ErrNotExist where

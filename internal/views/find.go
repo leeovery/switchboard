@@ -2,6 +2,8 @@ package views
 
 import (
 	"cmp"
+	"encoding/json"
+	"fmt"
 	"math"
 	"slices"
 	"strings"
@@ -27,30 +29,121 @@ type DaySession struct {
 // oldest first: those its summary names, each line counting toward the one
 // Line.CountedSession says, the last to arrive first.
 func DaySessions(day []ledger.Held) []DaySession {
-	held := make(map[string]*DaySession)
+	sessions := make(daySessions)
 	for i := range day {
-		l := &day[i].Line
-		id := l.CountedSession()
-		if id == "" {
-			continue
-		}
-		s, ok := held[id]
-		if !ok {
-			s = &DaySession{ID: id}
-			held[id] = s
-		}
-		s.Lines++
-		s.Last = score.Later(s.Last, l.At)
-		if l.Dir != "" {
-			s.Dir = l.Dir
+		sessions.take(&day[i].Line)
+	}
+	return sessions.sessions()
+}
+
+// DaySessionsOn are the sessions of the past day with the given date, as
+// DaySessions gives them of its lines: read from its side, as l's DaySide
+// gives it, where its head stands; else of its lines, as l's Day gives them,
+// as of a day with no head standing, today's and yesterday's among them, or
+// one whose side won't read.
+func DaySessionsOn(l Ledger, date string) []DaySession {
+	if side, ok := l.DaySide(date, RowsVersion); ok {
+		if sessions, err := daySessionsIn(side); err == nil {
+			return sessions
 		}
 	}
-	sessions := make([]DaySession, 0, len(held))
-	for _, s := range held {
+	return DaySessions(l.Day(date))
+}
+
+// daySessions are the sessions of a day's lines taken in so far, by their
+// ids: the one fold of a day's sessions, whether of the lines Day gives, as
+// DaySessions folds them, or as the day's side is built of them.
+type daySessions map[string]*DaySession
+
+// take takes in l, the day's next line in Day's order, toward the session it
+// counts toward, as Line.CountedSession says, where it counts toward one:
+// when it arrived in UTC, as the ledger writes it, and a day's side restores
+// it, whatever zone a line edited by hand names.
+func (d daySessions) take(l *ledger.Line) {
+	id := l.CountedSession()
+	if id == "" {
+		return
+	}
+	s, ok := d[id]
+	if !ok {
+		s = &DaySession{ID: id}
+		d[id] = s
+	}
+	s.Lines++
+	s.Last = score.Later(s.Last, l.At.UTC())
+	if l.Dir != "" {
+		s.Dir = l.Dir
+	}
+}
+
+// sessions are the sessions taken in, the last to arrive first, as
+// DaySessions orders them.
+func (d daySessions) sessions() []DaySession {
+	sessions := make([]DaySession, 0, len(d))
+	for _, s := range d {
 		sessions = append(sessions, *s)
 	}
 	slices.SortFunc(sessions, func(a, b DaySession) int { return cmp.Or(b.Last.Compare(a.Last), strings.Compare(a.ID, b.ID)) })
 	return sessions
+}
+
+// storedDaySession is a DaySession as a day's side stores it, the side a
+// list of them in DaySessions' order: when its last line arrived as
+// nanoseconds since the Unix epoch, restored in UTC, as the ledger writes a
+// line's time; zeros left out. A day's head holds its bounds so too, and
+// stands only where they're the day's, so no time a side holds is beyond the
+// years nanoseconds since the epoch hold.
+type storedDaySession struct {
+	ID    string `json:"id"`
+	Dir   string `json:"dir,omitzero"`
+	Lines int    `json:"lines,omitzero"`
+	Last  int64  `json:"last,omitzero"`
+}
+
+// stored is s as a day's side stores it.
+func (s DaySession) stored() storedDaySession {
+	stored := storedDaySession{ID: s.ID, Dir: s.Dir, Lines: s.Lines}
+	if !s.Last.IsZero() {
+		stored.Last = s.Last.UnixNano()
+	}
+	return stored
+}
+
+// daySession is the DaySession s stores.
+func (s storedDaySession) daySession() DaySession {
+	d := DaySession{ID: s.ID, Dir: s.Dir, Lines: s.Lines}
+	if s.Last != 0 {
+		d.Last = time.Unix(0, s.Last).UTC()
+	}
+	return d
+}
+
+// daySideOf is the side of a day of the given sessions, as DaySessions gives
+// them, as the day's head holds it.
+func daySideOf(sessions []DaySession) (json.RawMessage, error) {
+	stored := make([]storedDaySession, len(sessions))
+	for i, s := range sessions {
+		stored[i] = s.stored()
+	}
+	side, err := json.Marshal(stored)
+	if err != nil {
+		return nil, fmt.Errorf("a day's side: %w", err)
+	}
+	return side, nil
+}
+
+// daySessionsIn are the sessions side holds, as daySideOf gave it, failing
+// where it doesn't read as a day's side.
+func daySessionsIn(side json.RawMessage) ([]DaySession, error) {
+	var stored []storedDaySession
+	if err := json.Unmarshal(side, &stored); err != nil {
+		return nil, fmt.Errorf("a day's side: %w", err)
+	}
+	sessions := make([]DaySession, len(stored))
+	for i, s := range stored {
+		sessions[i] = s.daySession()
+	}
+	return sessions, nil
 }
 
 // FindSources are what the Log's find is built from.
