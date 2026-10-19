@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -67,7 +66,7 @@ func (d days) dayHeadInfo(date string) fs.FileInfo {
 // day's summary it was built against; Lines, how many lines Day gave of the
 // day; RestsOn, each day beside it whose files gave it a line, as a change
 // of time zone files one, by its date, with the lines the ledger kept of it
-// as the head was built, as keptBeside gives them, none where none did;
+// as the head was built, as restingOn records them, none where none did;
 // Rows, where its rows lie, as DayRows has them; and Side, the side, a
 // JSON value of its builder's, carried as it's given, its insignificant
 // spaces aside.
@@ -457,7 +456,7 @@ func (d *digesting) buildHead(ctx context.Context, date string, view writerLook,
 // head holds, and whose chunks it gives, as DayBuilt has them, the head
 // pointing at none of them yet; resting on each day beside it whose files
 // gave it a line, of the lines view found the ledger kept of it before any
-// were read, as keptBeside gives them, as a digest's entry rests on the days
+// were read, as restingOn records them, as a digest's entry rests on the days
 // it was folded from. It stops reading them once ctx ends, failing; and
 // fails where the files of the day, or of a day either side of it, can't
 // all be read for now, the builder fails, or its chunks count other than a
@@ -493,12 +492,15 @@ func (d *digesting) headOf(ctx context.Context, date string, view writerLook, no
 	return head, built.Chunks, nil
 }
 
-// untold is what a day head records of the lines of the day before its own,
-// where its files gave it a line, but the ledger's lines of that day
-// couldn't be told as it was built, as kept gave none: a count no day keeps,
+// untold is what a day head records of the lines of a day beside its own
+// whose files gave it a line, where they couldn't be told as it was built:
+// of the day before, as kept gave none; of either, as kept gave none at all,
+// as of a day of no files, or of a summary of none, which gave no line, so
+// its files were written after it was looked at. It's a count no day keeps,
 // so the head doesn't stand, as restsOn judges it, until it's built again.
 // Nor would it while that day can't be told, as alone says; but alone has it
-// stand once that day's lines are pruned, the line with them.
+// stand once that day's lines are pruned, the line with them, where it would
+// otherwise be none, as kept gives a day pruned.
 const untold = -1
 
 // keptBeside returns the lines the ledger keeps of each of the local days
@@ -523,10 +525,19 @@ func keptBeside(date string, kept func(date string) (int, bool)) map[string]int 
 // restingOn returns what a day head rests on, of kept, the lines the ledger
 // keeps of each day beside its own, by its date, as keptBeside gives them:
 // those of the days whose files gave it a line, as gave reports of each
-// date; none where none did.
+// date, untold of one kept gives none, as no day of none gave a line; none
+// where none did.
 func restingOn(kept map[string]int, gave map[string]bool) map[string]int {
-	on := maps.Clone(kept)
-	maps.DeleteFunc(on, func(date string, _ int) bool { return !gave[date] })
+	on := make(map[string]int, len(kept))
+	for date, lines := range kept {
+		switch {
+		case !gave[date]:
+		case lines > 0:
+			on[date] = lines
+		default:
+			on[date] = untold
+		}
+	}
 	if len(on) == 0 {
 		return nil
 	}

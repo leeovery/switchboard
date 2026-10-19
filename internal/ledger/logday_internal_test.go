@@ -487,3 +487,43 @@ func TestAHeadRestsOnTheDaysBesideItsOwnAsTheirLinesAreTold(t *testing.T) {
 		})
 	}
 }
+
+// A day head rests only on the days beside its own whose files gave it a
+// line, of the lines kept of each as it was built, its own day's lines
+// resting it on none; and on one kept at none untold, as a day of no files,
+// or of a summary of none, gave no line: its files were written after it was
+// looked at, and a head resting on none of its lines would stand once it's
+// pruned, kept at none again.
+func TestAHeadRestsOnlyOnTheDaysBesideThatGaveItALine(t *testing.T) {
+	tests := []struct {
+		name string
+		// kept are the lines kept of the days beside the head's, as
+		// keptBeside gives them, and gave the dates of the days whose files
+		// gave it a line.
+		kept map[string]int
+		gave []string
+		want map[string]int
+	}{
+		{name: "its own day alone giving lines", kept: map[string]int{before: 9, after: 30}, gave: []string{digested}},
+		{name: "the day before giving a line", kept: map[string]int{before: 9, after: 30}, gave: []string{digested, before}, want: map[string]int{before: 9}},
+		{name: "both giving lines", kept: map[string]int{before: 9, after: 30}, gave: []string{before, after}, want: map[string]int{before: 9, after: 30}},
+		{name: "the day before untold", kept: map[string]int{before: untold, after: 30}, gave: []string{before}, want: map[string]int{before: untold}},
+		{name: "the day before kept at none", kept: map[string]int{before: 0, after: 30}, gave: []string{before}, want: map[string]int{before: untold}},
+		{name: "the day after kept at none", kept: map[string]int{before: 9, after: 0}, gave: []string{after}, want: map[string]int{after: untold}},
+		{name: "the day after untold, left out", kept: map[string]int{before: 9}, gave: []string{after}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gave := make(map[string]bool)
+			for _, date := range tt.gave {
+				gave[date] = true
+			}
+
+			got := restingOn(tt.kept, gave)
+
+			if !maps.Equal(got, tt.want) || (got == nil) != (tt.want == nil) {
+				t.Errorf("restingOn(%v, %v) = %v, want %v", tt.kept, tt.gave, got, tt.want)
+			}
+		})
+	}
+}

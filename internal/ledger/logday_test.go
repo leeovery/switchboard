@@ -814,6 +814,49 @@ func TestAHeadRestingOnTheDayBeforeUntoldIsBuiltAgainOnceItsPruned(t *testing.T)
 	headRead(t, w.follower(), 0, []string{"4", "5"})
 }
 
+// A day's head rests on the lines the day before kept as the head's own were
+// read, not as it's written: a day whose files are written again while the
+// head is built, the line they gave it gone, and summarised again, of fewer
+// lines, has the head not stand; and once that day's digest is written
+// again, the next pass builds it again without the line, and it stands.
+func TestAHeadRestsOnTheLinesADayBesideKeptBeforeItsRead(t *testing.T) {
+	w := newLookupWorld(t)
+	sharedDays(w)
+	a, x := askedBy("a", "four", on(-1, 9, 0)), askedBy("x", "four", on(0, 0, 30))
+	w.file(-1, a, x)
+	w.summarise()
+	w.digestEnded()
+	removeHeads(t, w.dir)
+	rewritten := false
+	w.fold.takingSides(func(request string) {
+		if request != "x" || rewritten {
+			return
+		}
+		rewritten = true
+		w.damage(-1, a)
+		removeFile(t, w.dir, filepath.Base(summaryFile(w.dir, dayOf(-1))))
+		w.summarise()
+	})
+
+	w.digestEnded()
+
+	head := w.dayHead(0)
+	if !bytes.Equal(head.Side, sideOf(t, "x", "4", "5")) {
+		t.Fatalf("the head of %s is %+v; want it of x, 4 and 5", dayOf(0), head)
+	}
+	if want := map[string]int{dayOf(-1): 2}; !reflect.DeepEqual(head.RestsOn, want) {
+		t.Errorf("the head of %s rests on %v, want %v, as %s kept as its lines were read", dayOf(0), head.RestsOn, want, dayOf(-1))
+	}
+	headRead(t, w.follower(), 0, nil)
+	w.fold.takingSides(nil)
+	w.fold.sides()
+	w.digestEnded()
+	if built, want := requestsOfSides(w.fold.sides()), [][]string{{"4", "5"}, {"a"}}; !reflect.DeepEqual(built, want) {
+		t.Errorf("the pass after built sides of %q, want %q: %s's again, without x, and %s's, summarised again", built, want, dayOf(0), dayOf(-1))
+	}
+	headRead(t, w.follower(), 0, []string{"4", "5"})
+}
+
 // headRead fails t where f reads the side and rows of the local day days
 // after the summaries' day otherwise than as built of the lines of the
 // requests given, none where it's nil, as its head doesn't stand.
