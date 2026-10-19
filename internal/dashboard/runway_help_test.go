@@ -145,7 +145,6 @@ func TestRunwayHelpSaysWhatItsRulesAre(t *testing.T) {
 		{"the use under a name", "its use of the view's window"},
 		{"the labels collapsed", "a collapses the labels, to give the lanes more room"},
 		{"a collapsed label", "its number, its marks and its use alone, as 2 ◆ 66%"},
-		{"COMING UP numbered", "COMING UP numbers each account, so a lane's number finds its name"},
 		{"the pool's room collapsed", "beside Σ, of how many accounts the pool is, as Σ 1.2/3"},
 		{"a stale account", "not read since 14:20"},
 		{"a refused token's use faded", "and the use of one whose token is refused"},

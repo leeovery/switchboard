@@ -44,8 +44,8 @@ func (f Frame) lanesHelp() helpPart {
 				"read failed. A stale account's lane and use are faded, as the Overview fades a stale account, and the use of one " +
 				"whose token is refused."),
 			said("`a` collapses the labels, to give the lanes more room: beside each lane, its number, its marks and its use alone, " +
-				"as 2 ◆ 66%, the window named in the heading, or — where there's no use to show; and COMING UP numbers each account, " +
-				"so a lane's number finds its name. `a` again expands them. It's kept for next time."),
+				"as 2 ◆ 66%, the window named in the heading, or — where there's no use to show. `a` again expands them. " +
+				"It's kept for next time."),
 			said("Under each lane, words say where each stretch without room starts and when room is back: at its cap, at its " +
 				"limit, its token refused, or runs out ~16:05 at its pace, ~ marking a time projected at its pace, as switchboard " +
 				"usage projects it. Where another stretch holds the account on, a stretch says lifts 19:00, when its own hold lifts, " +
