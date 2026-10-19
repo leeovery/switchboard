@@ -892,13 +892,13 @@ func (g sessionGiving) Session(string, ...ledger.Span) iter.Seq[ledger.Held] {
 	return slices.Values(g)
 }
 
-// A turn decodes none of the lines it's given that ofSession passes over,
-// another session's, or a check or a count of its own, reading its lines or
-// taking in those the ledger gains: decoding a line allocates, as its usage
-// and its windows are read, so a turn given a thousand such lines allocates
-// no more than one given none of them, but for less than one allocation a
-// line.
-func TestATurnDecodesNoLineOfAnotherSession(t *testing.T) {
+// A turn decodes none of the lines it's given that mine passes over,
+// another session's, a check or a count of its own, or its session's
+// request of another turn, reading its lines or taking in those the ledger
+// gains: decoding a line allocates, as its usage and its windows are read,
+// so a turn given a thousand such lines allocates no more than one given
+// none of them, but for less than one allocation a line.
+func TestATurnDecodesOnlyTheLinesThatMayBeItsOwn(t *testing.T) {
 	at := time.Date(2026, 10, 7, 12, 0, 0, 0, time.Local)
 	own := ledger.Line{
 		Request: "m1", At: at, Kind: ledger.KindMessage, Session: "s", Model: foldOpus, Account: "work", Status: 200, Attempts: 1, TotalMS: 1000,
@@ -908,13 +908,15 @@ func TestATurnDecodesNoLineOfAnotherSession(t *testing.T) {
 	for i := range passed {
 		l := own
 		l.Request, l.At = fmt.Sprintf("o%04d", i), at.Add(time.Duration(len(passed)-i)*time.Millisecond)
-		switch i % 3 {
+		switch i % 4 {
 		case 0:
 			l.Session = "elsewhere"
 		case 1:
 			l.Kind = ledger.KindCount
-		default:
+		case 2:
 			l.Kind = ledger.KindCheck
+		default:
+			l.Prompt = "p2"
 		}
 		passed[i] = ledger.Held{Line: l}
 	}
@@ -936,6 +938,42 @@ func TestATurnDecodesNoLineOfAnotherSession(t *testing.T) {
 				t.Errorf("given %d lines it passes over, the turn allocates %.0f more, want fewer than one a line", len(passed), more)
 			}
 		})
+	}
+}
+
+// mine answers of a line's facts, read of it undecoded, as of its record's,
+// over generated runs, each line of every kind, of its session and of none:
+// its facts are its record's, and mine takes it alike of both, for a turn
+// open of its session and of another, on its prompt, another of the run's
+// and none, whether it arrived before the turn began or since. So a line is
+// passed over undecoded by the one rule its record is judged by.
+func TestMineJudgesALinesFactsAsItsRecords(t *testing.T) {
+	for seed := range uint64(20) {
+		lines, _ := pagedRun(seed)
+		for i := range lines {
+			for _, kind := range []string{ledger.KindMessage, ledger.KindCheck, ledger.KindCount} {
+				for _, session := range []string{lines[i].Session, ""} {
+					l := lines[i]
+					l.Kind, l.Session = kind, session
+					rec := lineRecordOf(&l)
+					of, recorded := turnFactsOf(&l), rec.turnFacts()
+					if of != recorded {
+						t.Fatalf("run %d, line %d of kind %q, session %q: its facts are %+v, want its record's, %+v", seed, i, kind, session, of, recorded)
+					}
+					for _, id := range []string{lines[i].Session, "elsewhere"} {
+						for _, prompt := range []string{l.Prompt, lines[(i+1)%len(lines)].Prompt, ""} {
+							h := HeldPage{id: id, turn: &turnLines{prompt: prompt}}
+							for _, early := range []bool{false, true} {
+								if got, want := h.mine(of, early), h.mine(recorded, early); got != want {
+									t.Errorf("run %d, line %d, a turn of %q on %q, early %t: mine takes its facts %t, want as its record's, %t",
+										seed, i, id, prompt, early, got, want)
+								}
+							}
+						}
+					}
+				}
+			}
+		}
 	}
 }
 

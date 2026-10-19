@@ -182,9 +182,9 @@ func (h HeldPage) On(date string) (HeldPage, bool) {
 // TurnOf is h with the turn open was has open, as Opening and Turned have
 // it, the lines of its requests among those given, read of the ledger
 // since, taken into it, as mine has them, each decoded into its record only
-// where ofSession doesn't pass it over: so a page grown of a read of the
-// ledger's tail off the event loop, of a copy of the page from before its
-// turn opened, holds the turn open as the page holds it now.
+// once mine has taken it: so a page grown of a read of the ledger's tail off
+// the event loop, of a copy of the page from before its turn opened, holds
+// the turn open as the page holds it now.
 func (h HeldPage) TurnOf(was HeldPage, read ...[]ledger.Held) HeldPage {
 	h.turn = was.turn
 	if h.turn == nil {
@@ -193,12 +193,8 @@ func (h HeldPage) TurnOf(was HeldPage, read ...[]ledger.Held) HeldPage {
 	var mine []lineRecord
 	for _, lines := range read {
 		for i := range lines {
-			l := &lines[i].Line
-			if !h.ofSession(l.Session, isRequest(l)) {
-				continue
-			}
-			if rec := lineRecordOf(l); h.mine(&rec) {
-				mine = append(mine, rec)
+			if l := &lines[i].Line; h.mine(turnFactsOf(l), false) {
+				mine = append(mine, lineRecordOf(l))
 			}
 		}
 	}
@@ -208,28 +204,41 @@ func (h HeldPage) TurnOf(was HeldPage, read ...[]ledger.Held) HeldPage {
 	return h
 }
 
-// mine reports whether the record r may be of a request of h's turn open:
-// of its session's requests, as ofSession has it, every subagent's, as the
-// first request a subagent made, which names its turn, may land after those
-// the page knows of; else one naming the prompt. Which a turn's member is,
-// Build tells, as member has it, of the agents it knows then.
-func (h HeldPage) mine(r *lineRecord) bool {
-	switch {
-	case !h.ofSession(r.session, r.isRequest()):
-		return false
-	case r.agentID != "":
-		return true
-	}
-	return r.prompt == h.turn.prompt
+// turnFacts are what mine reads of a request: the session it's of, whether
+// it's a session's request, as isRequest has it, the subagent that sent it,
+// and the prompt it serves. A line gives them undecoded, as turnFactsOf has
+// them, and its record the same, as its turnFacts has them.
+type turnFacts struct {
+	session, agentID, prompt string
+	request                  bool
 }
 
-// ofSession reports whether a request of the session with the given id, a
-// session's request where request says, may be of a turn of h's: one of h's
-// session's requests. It's mine's first test, asked of a line before its
-// record is decoded, so a line of another session, or a check or a count,
-// is passed over undecoded.
-func (h HeldPage) ofSession(session string, request bool) bool {
-	return session == h.id && request
+// turnFactsOf are the turn facts of the line l, read of it undecoded.
+func turnFactsOf(l *ledger.Line) turnFacts {
+	return turnFacts{session: l.Session, agentID: l.AgentID, prompt: l.Prompt, request: isRequest(l)}
+}
+
+// turnFacts are the turn facts of r, as its line gives them.
+func (r *lineRecord) turnFacts() turnFacts {
+	return turnFacts{session: r.session, agentID: r.agentID, prompt: r.prompt, request: r.isRequest()}
+}
+
+// mine reports whether the request with the facts f may be of h's turn
+// open: of its session's requests, every subagent's, as the first request a
+// subagent made, which names its turn, may land after those the page knows
+// of, and may have arrived before the turn began, as early says it did;
+// else, of one that arrived since, one naming the prompt. It's asked of a
+// line's facts before the line is decoded, so a line it passes over never
+// is. Which a turn's member is, Build tells, as member has it, of the
+// agents it knows then.
+func (h HeldPage) mine(f turnFacts, early bool) bool {
+	switch {
+	case f.session != h.id || !f.request:
+		return false
+	case f.agentID != "":
+		return true
+	}
+	return !early && f.prompt == h.turn.prompt
 }
 
 // with is t with the records given among its own, afresh: each of a request
@@ -309,7 +318,7 @@ func (h HeldPage) Closing() HeldPage {
 // arrived before the turn began, and be filed only since, untold by the
 // stream. It reads the turn's own days alone, and the horizon's, as
 // turnSpans has them, none between; and decodes a line into its record only
-// where ofSession doesn't pass it over. None where no turn is open.
+// once it's taken it. None where no turn is open.
 func (h HeldPage) ReadTurn(l LedgerSession, live PageLive) HeldTurn {
 	if h.turn == nil {
 		return HeldTurn{}
@@ -323,21 +332,14 @@ func (h HeldPage) ReadTurn(l LedgerSession, live PageLive) HeldTurn {
 	from := instantOf(w.tally.turns[i].started.Add(-arrivesWithin))
 	for held := range l.Session(h.id, w.turnSpans(w.tally.turns[i])...) {
 		at := instantOf(held.At)
+		early := at.compare(from) < 0
 		switch {
-		case at.compare(from) < 0 && at.compare(w.rec.horizon) < 0:
+		case early && at.compare(w.rec.horizon) < 0:
 			return read
-		case !h.ofSession(held.Session, isRequest(&held.Line)):
+		case !h.mine(turnFactsOf(&held.Line), early), early && w.rec.linedAt(held.Request, held.At):
 			continue
 		}
-		rec := lineRecordOf(&held.Line)
-		switch {
-		case at.compare(from) >= 0:
-			if h.mine(&rec) {
-				read.lines = append(read.lines, rec)
-			}
-		case rec.agentID != "" && !w.rec.linedAt(rec.request, rec.arrived()):
-			read.lines = append(read.lines, rec)
-		}
+		read.lines = append(read.lines, lineRecordOf(&held.Line))
 	}
 	return read
 }
