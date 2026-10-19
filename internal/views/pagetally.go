@@ -289,10 +289,14 @@ func (p *pageTally) wentUp(r *heldRequest) {
 // upstreamTimes are when requests went upstream, oldest first, each in 8
 // bytes, as nanoseconds since the epoch, while every one falls in the years
 // those hold, 1678 to 2262; else each as an instant, whatever its year, as
-// far holds them. What changes them returns afresh.
+// far holds them. Of a page restored for a fold resting on it, the first of
+// them, as many as unheld counts, are counted and not held, as the fold needs
+// only how many there are, as partOver has it: it holds those after alone.
+// What changes them returns afresh.
 type upstreamTimes struct {
-	nanos []int64
-	far   []instant
+	nanos  []int64
+	far    []instant
+	unheld int
 }
 
 // with is u with times, oldest first, after its own, afresh.
@@ -300,11 +304,11 @@ func (u upstreamTimes) with(times []time.Time) upstreamTimes {
 	if len(times) == 0 {
 		return u
 	}
-	grown := upstreamTimes{nanos: slices.Clip(u.nanos), far: slices.Clip(u.far)}
+	grown := upstreamTimes{nanos: slices.Clip(u.nanos), far: slices.Clip(u.far), unheld: u.unheld}
 	for _, t := range times {
-		n := t.UnixNano()
+		n, fits := nanosOf(t)
 		switch {
-		case grown.far == nil && time.Unix(0, n).Equal(t):
+		case grown.far == nil && fits:
 			grown.nanos = append(grown.nanos, n)
 			continue
 		case grown.far == nil:
@@ -319,15 +323,24 @@ func (u upstreamTimes) with(times []time.Time) upstreamTimes {
 	return grown
 }
 
-func (u upstreamTimes) len() int {
-	if u.far != nil {
-		return len(u.far)
-	}
-	return len(u.nanos)
+// nanosOf is t as nanoseconds since the epoch, reporting whether it falls in
+// the years those hold.
+func nanosOf(t time.Time) (int64, bool) {
+	n := t.UnixNano()
+	return n, time.Unix(0, n).Equal(t)
 }
 
-// at is the ith of u, in UTC.
+// len is how many times u has, those it counts unheld among them.
+func (u upstreamTimes) len() int {
+	if u.far != nil {
+		return u.unheld + len(u.far)
+	}
+	return u.unheld + len(u.nanos)
+}
+
+// at is the ith of u, in UTC, of those it holds: none it counts unheld.
 func (u upstreamTimes) at(i int) time.Time {
+	i -= u.unheld
 	if u.far != nil {
 		return u.far[i].time()
 	}

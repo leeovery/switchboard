@@ -125,10 +125,11 @@ func limited(l *ledger.Line) {
 // A change to how a session's state or its page's part is stored, or to the
 // working behind it, or to the ledger's envelope, that changes them without
 // a new version fails, as digests already written would be read as they no
-// longer are. A new version has its golden written with -update, the ones
-// before kept; one already kept of the envelope written isn't written
-// again, and -update fails where it differs. Its world's times are UTC's, so
-// it encodes alike in every zone the tests run in.
+// longer are. A new version has its golden written with -update, in place
+// of the one before, which is removed, as only the version written is read;
+// one already kept of the envelope written isn't written again, and -update
+// fails where it differs. Its world's times are UTC's, so it encodes alike
+// in every zone the tests run in.
 func TestADigestIsEncodedAsTheGoldenOfItsVersionsHoldsIt(t *testing.T) {
 	zone := time.Local
 	time.Local = time.UTC
