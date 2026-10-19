@@ -136,6 +136,18 @@ func WriteDigestWithParts(dir string, digest Digest, parts map[string]json.RawMe
 	return days{files: filesIn(dir, nil)}.writeDigest(digest, built)
 }
 
+// WriteDayHead writes head as the ledger in dir holds the head of its day,
+// as the router's writer writes it, for tests of what reads it.
+func WriteDayHead(dir string, head DayHead) error {
+	return days{files: filesIn(dir, nil)}.writeDayHead(head)
+}
+
+// ReadDayHead returns the head the ledger in dir holds of the local day with
+// the given date, its side of the version body, for tests of what's written.
+func ReadDayHead(dir, date string, body int) (DayHead, error) {
+	return days{files: filesIn(dir, nil)}.dayHead(date, body)
+}
+
 // RestsOn returns what a state folded from s rests on, as the lookup found
 // it, for tests of the lookup.
 func (s SessionFrom) RestsOn() map[string]int {

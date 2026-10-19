@@ -224,13 +224,14 @@ func untoldOf(lines []ledger.Line, seed uint64) map[string]bool {
 // streamAt is what the stream tells at now of the session's requests: each
 // in flight, sent moments after it arrived, and each ended since the last
 // look, as the stream holds a request till a read of the ledger's tail
-// reads its line; but the one it never tells of, and the one it tells of
-// late, untold for joinsLate after it arrived.
+// reads its line, but an IdleHour after it ended at most, as the watch lets
+// it go by the clock; but the one it never tells of, and the one it tells
+// of late, untold for joinsLate after it arrived.
 func (p *paging) streamAt(now time.Time) Stream {
 	s := Stream{Live: true, Requests: make(map[string]Told)}
 	for _, l := range p.lines {
 		untold := l.Request == "" || l.Request == unseen || p.untold[l.Request] || l.Request == p.late && now.Sub(l.At) < joinsLate
-		if l.At.After(now) || !ended(&l).After(p.fed) || untold || !l.Counted() {
+		if l.At.After(now) || !ended(&l).After(p.fed) || !now.Before(ended(&l).Add(IdleHour)) || untold || !l.Counted() {
 			continue
 		}
 		t := Told{

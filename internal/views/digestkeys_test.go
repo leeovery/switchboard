@@ -39,12 +39,14 @@ var storedAs = map[string]string{
 	"claude.KeptWindow": "claude.storedWindow",
 }
 
-// rawAs are the types a digest's JSON holds in the fields its stored forms
-// declare as JSON of another's, by the field: an entry's state, the views'
-// body, a stored session; and what that carries of its page.
+// rawAs are the types a digest's or a day head's JSON holds in the fields
+// its stored forms declare as JSON of another's, by the field: an entry's
+// state, the views' body, a stored session; what that carries of its page;
+// and a day head's side, a list of the views' stored sessions of the day.
 var rawAs = map[storedKey]string{
-	{of: "ledger.storedEntry", key: "state"}: "views.storedSession",
-	{of: "views.storedSession", key: "p"}:    "views.storedPage",
+	{of: "ledger.storedEntry", key: "state"}:  "views.storedSession",
+	{of: "views.storedSession", key: "p"}:     "views.storedPage",
+	{of: "ledger.storedDayHead", key: "side"}: "[]views.storedDaySession",
 }
 
 // unwritten are the keys a stored form declares that the golden can't hold,
@@ -96,18 +98,45 @@ func TestTheDigestsGoldenHoldsEveryKeyOfItsStoredForms(t *testing.T) {
 	k.walk(k.named("ledger.storedDigest"), golden.Digest)
 	k.each(k.named("views.storedPart"), golden.Parts)
 	k.each(k.named("views.storedTimes"), golden.Times)
+	k.everyHeld(unwritten)
+}
+
+// Every key the stored form of a day's head declares, the ledger's envelope
+// and its side's, holds a value in the golden of the version written, as
+// TestADaysHeadIsEncodedAsTheGoldenOfItsVersionsHoldsIt keeps it: a key the
+// golden left out, as its zero, would be renamed or retyped without the
+// golden failing.
+func TestTheDayHeadsGoldenHoldsEveryKeyOfItsStoredForms(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("testdata", fmt.Sprintf("rows-v%d.json", views.RowsVersion)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var golden any
+	if err := json.Unmarshal(data, &golden); err != nil {
+		t.Fatal(err)
+	}
+	root := sourcecheck.ModuleRoot(t)
+	k := newStoredKeys(t, root, sourcecheck.ModulePath(t, root))
+	k.walk(k.named("ledger.storedDayHead"), golden)
+	k.everyHeld(nil)
+}
+
+// everyHeld fails the test where a key declared holds no value, but those
+// exempt has, with why; or where one of those does, or isn't declared.
+func (k *storedKeys) everyHeld(exempt map[storedKey]string) {
+	k.t.Helper()
 	for _, key := range slices.SortedFunc(maps.Keys(k.declared), func(a, b storedKey) int { return strings.Compare(a.String(), b.String()) }) {
-		why, exempt := unwritten[key]
+		why, exempted := exempt[key]
 		switch held := k.held[key]; {
-		case exempt && held:
-			t.Errorf("the golden holds %s, which unwritten says it can't hold, as %s: remove it from unwritten", key, why)
-		case !exempt && !held:
-			t.Errorf("the golden holds no value of %s: give the golden world what stores one", key)
+		case exempted && held:
+			k.t.Errorf("the golden holds %s, which is exempt as one it can't hold, as %s: remove it from the exempt keys", key, why)
+		case !exempted && !held:
+			k.t.Errorf("the golden holds no value of %s: give the golden world what stores one", key)
 		}
 	}
-	for key := range unwritten {
+	for key := range exempt {
 		if !k.declared[key] {
-			t.Errorf("unwritten names %s, which no stored form declares: remove it", key)
+			k.t.Errorf("the exempt keys name %s, which no stored form declares: remove it", key)
 		}
 	}
 }

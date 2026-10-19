@@ -547,19 +547,14 @@ func (f *Follower) Today(mark Mark) (lines []Held, next Mark, afresh bool) {
 // own, and a request that ends after midnight is its arrival day's. Each is
 // the line it reads as alone, none of its JSON held, as Today gives them. It
 // gives none of a date that isn't one, or of a day whose files hold none.
-// How many lines couldn't be read is warned of.
+// How many lines couldn't be read is warned of. They're the lines the day's
+// head is built of, as days.day reads them for both.
 func (f *Follower) Day(date string) []Held {
-	start, end, ok := dayfile.Day(date)
-	if !ok {
-		return nil
-	}
-	now := f.now()
-	within := func(h Held) bool { return !h.At.Before(start) && h.At.Before(end) && !h.At.After(now) }
 	var lines []Held
-	f.days.lines(dayfile.Dates(start, start), lineHeldIn, within, func(h Held) bool {
+	f.days.day(date, f.now(), func(h Held) bool {
 		lines = append(lines, h)
 		return true
-	}, "day", date)
+	}, nil)
 	return lines
 }
 
@@ -849,8 +844,8 @@ type Span struct {
 
 // Spanning returns what reports whether the files of the local day with the
 // given date may hold lines that arrived within any of the spans given, as
-// dayfile.Dates has it of each, from the day before its From's to the day
-// after its To's: of every day where none is given.
+// dayfile.Dates has it of each, between the bounds dayfile.DatesBounds
+// gives: of every day where none is given.
 func Spanning(spans []Span) func(date string) bool {
 	if len(spans) == 0 {
 		return func(string) bool { return true }
@@ -858,7 +853,7 @@ func Spanning(spans []Span) func(date string) bool {
 	type dates struct{ first, last string }
 	spanned := make([]dates, len(spans))
 	for i, s := range spans {
-		spanned[i] = dates{dayfile.DateOf(dayfile.DayStart(s.From.Local(), -1)), dayfile.DateOf(dayfile.DayStart(s.To.Local(), 1))}
+		spanned[i].first, spanned[i].last = dayfile.DatesBounds(s.From, s.To)
 	}
 	return func(date string) bool {
 		return slices.ContainsFunc(spanned, func(d dates) bool { return d.first <= date && date <= d.last })

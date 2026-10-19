@@ -62,27 +62,28 @@ type soakGuard interface {
 	took(msg tea.Msg, was Model)
 }
 
-// countingLedger is a ledger that tells of each read of its lines as it's
-// made, for the guard to hold the readers to what they read. It hands each
-// read of sessions a take of its own, so the ledger decodes every line of
-// the days it reads whole, with lineIn, never as production's reads without
-// one do, keptLineIn's way, the sessions' own alone: a fault of that decoding
-// alone passes the guard.
+// countingLedger is a ledger that tells of each read of its lines, or of a
+// day's side, as it's made, for the guard to hold the readers to what they
+// read. It hands each read of sessions a take of its own, so the ledger
+// decodes every line of the days it reads whole, with lineIn, never as
+// production's reads without one do, keptLineIn's way, the sessions' own
+// alone: a fault of that decoding alone passes the guard.
 type countingLedger struct {
 	views.Ledger
 	read func(ledgerRead)
 }
 
-// ledgerRead is a read of a ledger's lines: its method, and the ids it asked
-// for, or the date of the day; and, of a read of sessions, the sessions of
-// the lines it read of each day, by its date, and the date of the digest
-// whose state each session it gave rests on, by its id, "" of one resting
-// on none.
+// ledgerRead is a read of a ledger's lines, or of a day's side: its method,
+// and the ids it asked for, or the date of the day; of a read of sessions,
+// the sessions of the lines it read of each day, by its date, and the date
+// of the digest whose state each session it gave rests on, by its id, "" of
+// one resting on none; and of a read of a day's side, whether it stood.
 type ledgerRead struct {
 	method string
 	asked  []string
 	days   map[string]map[string]bool
 	rests  map[string]string
+	stood  bool
 }
 
 // sessionsRead is a read of sessions by the method named, of the ids asked
@@ -146,6 +147,12 @@ func (c *countingLedger) Today(mark ledger.Mark) ([]ledger.Held, ledger.Mark, bo
 func (c *countingLedger) Day(date string) []ledger.Held {
 	c.read(ledgerRead{method: "Day", asked: []string{date}})
 	return c.Ledger.Day(date)
+}
+
+func (c *countingLedger) DaySide(date string, body int) (json.RawMessage, bool) {
+	side, ok := c.Ledger.DaySide(date, body)
+	c.read(ledgerRead{method: "DaySide", asked: []string{date}, stood: ok})
+	return side, ok
 }
 
 func (c *countingLedger) Session(id string, within ...ledger.Span) iter.Seq[ledger.Held] {

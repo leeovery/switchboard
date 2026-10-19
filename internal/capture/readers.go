@@ -2,6 +2,7 @@ package capture
 
 import (
 	"cmp"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"iter"
@@ -205,6 +206,13 @@ func (l heldLedger) Day(date string) []ledger.Held {
 		lines[i] = ledger.Held{Line: f.Line}
 	}
 	return lines
+}
+
+// DaySide gives no side, whatever the day, as a Follower of a ledger that
+// holds no day's head gives it: the find reads each day's lines, as Day
+// gives them.
+func (heldLedger) DaySide(string, int) (json.RawMessage, bool) {
+	return nil, false
 }
 
 // Session gives the lines of the session with the given id that arrived by
