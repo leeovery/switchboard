@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"encoding/json"
 	"maps"
+	"math"
 	"slices"
 	"strings"
 	"testing"
@@ -658,6 +659,90 @@ func TestAClimbsResetsAreThoseItsRunsEndedReadingAboveNothing(t *testing.T) {
 			tt.take(c)
 			if got := c.Resets(); !slices.Equal(got, tt.want) {
 				t.Errorf("Resets() = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+// A climb's stored form is every field of it, the reading it took last as
+// every field of that, each by a short key, every zero left out, each time
+// in seconds since the zero time and the nanoseconds after: never the use a
+// run whose start isn't known begins at, a function.
+func TestAClimbsStoredFormIsEveryFieldOfIt(t *testing.T) {
+	week := func(used float64, resets time.Time) quota.Window {
+		return quota.Window{Key: "7d", Label: "Week", Utilization: used, ResetsAt: resets, Status: quota.StatusAllowed}
+	}
+	monday := time.Date(2026, 10, 5, 21, 0, 0, 0, time.UTC)
+	c := ledger.NewClimb("7d", func(quota.Window) float64 { return 0.25 })
+	c.Take(week(0.5, monday), monday.Add(-2*time.Hour))
+	c.Take(week(0.125, monday.AddDate(0, 0, 7)), monday.Add(time.Minute+123))
+	got, err := json.Marshal(c)
+	want := `{"k":"7d","l":{"k":"7d","lb":"Week","u":0.125,"r":{"s":63927435600},"s":"allowed"},"t":{"s":63926830860,"n":123},"r":true,"tp":0.125,` +
+		`"b":true,"lt":{"s":63927435600},"rs":0.375,"rr":[{"w":"7d","t":{"s":63926830800},"b":0.5}],"e":[{"s":63926830800}]}`
+	if err != nil || string(got) != want {
+		t.Errorf("stored as\n%s, %v, want\n%s", got, err, want)
+	}
+}
+
+// storedClimbs are a climb's stored forms, each holding one of its keys
+// alone, every key among them, a reading's and a reset's each alone too.
+var storedClimbs = []string{
+	`{}`, `{"k":"5h"}`, `{"t":{"s":1}}`, `{"t":{"n":1}}`, `{"r":true}`, `{"tp":0.5}`, `{"b":true}`, `{"lt":{"s":1}}`, `{"rs":0.5}`,
+	`{"l":{"k":"5h"}}`, `{"l":{"lb":"Session"}}`, `{"l":{"u":0.5}}`, `{"l":{"r":{"s":1}}}`, `{"l":{"s":"allowed"}}`, `{"l":{"rs":{"s":1}}}`,
+	`{"l":{"p":0}}`, `{"l":{"p":0.5}}`, `{"l":{"as":0.1}}`, `{"l":{"ap":"hour"}}`,
+	`{"rr":[{}]}`, `{"rr":[{"w":"5h"}]}`, `{"rr":[{"t":{"s":1}}]}`, `{"rr":[{"b":0.5}]}`, `{"rr":[{"b":0.5},{"b":0.25}]}`,
+	`{"e":[{}]}`, `{"e":[{"s":1}]}`, `{"e":[{"s":-1},{"s":1}]}`,
+}
+
+// Each key of a climb's stored form reads back into a climb that writes it
+// again as it was: so nothing stored is lost between the file and the
+// climb.
+func TestEachKeyOfAClimbsStoredFormIsKept(t *testing.T) {
+	for _, stored := range storedClimbs {
+		var c ledger.Climb
+		if err := json.Unmarshal([]byte(stored), &c); err != nil {
+			t.Errorf("reading %s: %v", stored, err)
+			continue
+		}
+		if again, err := json.Marshal(&c); err != nil || string(again) != stored {
+			t.Errorf("%s read back writes as %s, %v, want it as it was", stored, again, err)
+		}
+	}
+}
+
+// A climb holding what its stored form can't read back as it was isn't
+// stored: a time in another zone than UTC, as its stored form reads every
+// time back in UTC, the same instant though it is; or a rise past what a
+// float holds, which JSON can't carry.
+func TestAClimbItsStoredFormCantReadBackIsntStored(t *testing.T) {
+	week := func(used float64, resets time.Time) quota.Window {
+		return quota.Window{Key: "7d", Utilization: used, ResetsAt: resets}
+	}
+	monday := time.Date(2026, 10, 5, 21, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name    string
+		take    func(c *ledger.Climb)
+		refused bool
+	}{
+		{name: "every time in UTC", take: func(c *ledger.Climb) { c.Take(week(0.5, monday), monday.Add(-time.Hour)) }},
+		{name: "read at a time in the local zone", refused: true, take: func(c *ledger.Climb) {
+			c.Take(week(0.5, monday), monday.Add(-time.Hour).Local())
+		}},
+		{name: "resetting at a time in a zone named UTC", refused: true, take: func(c *ledger.Climb) {
+			c.Take(week(0.5, monday.In(time.FixedZone("UTC", 0))), monday.Add(-time.Hour))
+		}},
+		{name: "a rise past what a float holds", refused: true, take: func(c *ledger.Climb) {
+			c.BeginAt(0)
+			c.Take(week(math.MaxFloat64, monday), monday.Add(-time.Hour))
+			c.Take(week(math.MaxFloat64, monday.AddDate(0, 0, 7)), monday.Add(time.Hour))
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := ledger.NewClimb("7d", nil)
+			tt.take(c)
+			if _, err := json.Marshal(c); (err != nil) != tt.refused {
+				t.Errorf("stored with error %v, want it refused %t", err, tt.refused)
 			}
 		})
 	}

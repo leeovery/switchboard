@@ -47,11 +47,16 @@ var unwritten = map[storedKey]string{
 	{of: "ledger.storedMember", key: "offset"}:     noParts,
 	{of: "ledger.storedMember", key: "length"}:     noParts,
 	{of: "ledger.storedMember", key: "crc"}:        noParts,
+	{of: "views.storedSession", key: "p"}:          noPage,
 }
 
-// noParts is why a digest holds no key of a session's part: the views'
-// Digests give no part yet.
-const noParts = "the views' Digests give no part yet, so no digest points at one"
+// noParts is why a digest holds no key of a session's part, and noPage why
+// none of what a session's page carries: the views' Digests give neither
+// yet.
+const (
+	noParts = "the views' Digests give no part yet, so no digest points at one"
+	noPage  = "the views' Digests fold no page yet, so no session's state carries one"
+)
 
 // Every key the stored forms of a day's digest declare, the ledger's
 // envelope and every struct of the views' body it holds, nested, holds a

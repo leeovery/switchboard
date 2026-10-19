@@ -18,17 +18,21 @@ import (
 const DigestVersion = 1
 
 // storedSession is a session the store holds as a day's digest stores it,
-// sealed at the start of the day after its own, none of its requests open
-// and its page untallied: the date of its day; its story of its requests;
-// and how many of them arrived on each day, by date, for a day read again
-// whole. Its horizon isn't stored, as its date says it, nor anything priced,
-// its requests on its day, or the flights of its requests: it's restored
-// onto a later day, to be priced and counted there, as restored has it. Its
-// keys are short and its zeros left out.
+// sealed at the start of the day after its own, none of its requests open:
+// the date of its day; its story of its requests; how many of them arrived
+// on each day, by date, for a day read again whole; and, where its page is
+// tallied, what the page carries, as storedPage has it, put as JSON and
+// read only where the page is restored, as restoredPaged has it, so a
+// reader of its story alone decodes none of it. Its horizon isn't stored,
+// as its date says it, nor anything priced, its requests on its day, or the
+// flights of its requests: it's restored onto a later day, to be priced and
+// counted there, as restored has it. Its keys are short and its zeros left
+// out.
 type storedSession struct {
-	Date   string         `json:"d"`
-	Story  storedStory    `json:"s"`
-	Counts map[string]int `json:"c,omitempty"`
+	Date   string          `json:"d"`
+	Story  storedStory     `json:"s"`
+	Counts map[string]int  `json:"c,omitempty"`
+	Page   json.RawMessage `json:"p,omitempty"`
 }
 
 // storedStory is a story as a session's stored state holds it: whether it
@@ -82,9 +86,11 @@ type storedMove struct {
 }
 
 // stored is s as a day's digest stores it, at the end of its day, its sealed
-// story told of every request it holds. It's refused, as its caller's fault,
-// where s isn't so: sealed elsewhere than at the start of the day after its
-// own, a request of it held open, or its page tallied.
+// story told of every request it holds, and what its page carries, where
+// it's tallied, as pageTally's put puts it: left out where JSON can't carry
+// it, the session's state standing without it. It's refused, as its caller's
+// fault, where s isn't so: sealed elsewhere than at the start of the day
+// after its own, or a request of it held open.
 func (s *heldSession) stored() (storedSession, error) {
 	day := s.day()
 	switch end := endOfDay(day); {
@@ -92,10 +98,8 @@ func (s *heldSession) stored() (storedSession, error) {
 		return storedSession{}, fmt.Errorf("store a session of %s: sealed at %v, not at the day's end, %v", day.Date, s.horizon.time(), end.time())
 	case len(s.open) > 0:
 		return storedSession{}, fmt.Errorf("store a session of %s: %d of its requests open", day.Date, len(s.open))
-	case s.page != nil:
-		return storedSession{}, fmt.Errorf("store a session of %s: its page tallied", day.Date)
 	}
-	return storedSession{Date: day.Date, Story: s.sealed.stored(), Counts: maps.Clone(s.counts)}, nil
+	return storedSession{Date: day.Date, Story: s.sealed.stored(), Counts: maps.Clone(s.counts), Page: s.page.put()}, nil
 }
 
 // state is s as a day's digest holds it: stored, as stored has it, put as
@@ -105,6 +109,11 @@ func (s *heldSession) state() (json.RawMessage, error) {
 	if err != nil {
 		return nil, err
 	}
+	return st.put()
+}
+
+// put is st as JSON.
+func (st *storedSession) put() (json.RawMessage, error) {
 	data, err := json.Marshal(st)
 	if err != nil {
 		return nil, fmt.Errorf("put the state of a session of %s: %w", st.Date, err)
