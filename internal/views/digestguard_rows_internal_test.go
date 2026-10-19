@@ -678,15 +678,30 @@ func (w *spread) sinceHorizon(id string, now time.Time) bool {
 // dates of the days a chunk of whose rows RowChunk gave, read.
 type chunksRead struct {
 	Ledger
-	read map[string]bool
+	read, failed map[string]bool
+}
+
+// readingChunks is l read as chunksRead notes it, nothing read yet.
+func readingChunks(l Ledger) *chunksRead {
+	return &chunksRead{Ledger: l, read: make(map[string]bool), failed: make(map[string]bool)}
 }
 
 func (r *chunksRead) RowChunk(date string, chunk ledger.RowsChunk) ([]byte, error) {
 	rows, err := r.Ledger.RowChunk(date, chunk)
-	if err == nil {
-		r.read[date] = true
-	}
+	r.read[date], r.failed[date] = true, r.failed[date] || err != nil
 	return rows, err
+}
+
+// fromRows are the dates of the days chunks of whose rows were read, every
+// one of them read, so none of the day was read from its lines for them.
+func (r *chunksRead) fromRows() []string {
+	var dates []string
+	for date := range r.read {
+		if !r.failed[date] {
+			dates = append(dates, date)
+		}
+	}
+	return dates
 }
 
 // checkTurns holds a turn of a page opened at the moment m, read over rows,
@@ -752,18 +767,19 @@ func (w *spread) pendingOf(m moment, o openedPage, prompt string) openedPage {
 
 // sameTurn fails the test where the page o, opened at the moment m, its turn
 // numbered n, t as read raw, open, shows otherwise over rows than read raw,
-// as turnRead reads its lines through each Follower. It reports whether a
-// chunk of the rows of a day of the turn's own, before today, was read: from
-// the day arrivesWithin before it began through the one its last request
-// ended on, or today while it's pending.
+// as turnRead reads its lines through the Follower resting on digests and
+// through the one reading raw, given no rows, as rawOnly has it. It reports
+// whether a day of the turn's own, before today, was read from its rows, as
+// chunksRead notes it: from the day arrivesWithin before it began through
+// the one its last request ended on, or today while it's pending.
 func (w *spread) sameTurn(m moment, o openedPage, n int, t *turnTally) bool {
 	w.t.Helper()
-	noted := &chunksRead{Ledger: w.based, read: make(map[string]bool)}
-	based, raw := turnRead(o.based, n, o.live, noted), turnRead(o.raw, n, o.live, w.raw)
+	noted := readingChunks(w.based)
+	based, raw := turnRead(o.based, n, o.live, noted), turnRead(o.raw, n, o.live, rawOnly{l: w.raw})
 	w.alike(m.now, fmt.Sprintf("%s's page, its turn %d open", o.id, n), shownPageOf(based, o.live), shownPageOf(raw, o.live))
 	from, through, today := Today(t.started.Add(-arrivesWithin)).Date, Today(m.now).Date, Today(m.now).Date
 	if !t.pending {
 		through = Today(t.last.end).Date
 	}
-	return slices.ContainsFunc(slices.Collect(maps.Keys(noted.read)), func(date string) bool { return from <= date && date <= through && date < today })
+	return slices.ContainsFunc(noted.fromRows(), func(date string) bool { return from <= date && date <= through && date < today })
 }
