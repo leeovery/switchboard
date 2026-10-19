@@ -124,10 +124,9 @@ func TestATurnReadsItsOwnSpanAndTheHorizons(t *testing.T) {
 // of its own ten minutes before, both fed; and five minutes before, another
 // subagent's first, untold by the stream, naming its first prompt, filed
 // since the feed. Where pending says, a turn begun five days before is
-// still pending, as pendingFor has it. The session is looked
-// at as each line filed since the last look ends, as the watch looks again
-// and again, and seven minutes before now; then every turn is opened, as
-// everyTurn has it.
+// still pending, as pendingFor has it. The session is looked at once,
+// seven minutes before now, hours or days after its last look; then every
+// turn is opened, as everyTurn has it.
 func (p *paging) lookLater(i int, now time.Time, pending bool, met map[string]bool) {
 	p.t.Helper()
 	own := ledger.Line{
@@ -148,21 +147,8 @@ func (p *paging) lookLater(i int, now time.Time, pending bool, met map[string]bo
 	}
 	slices.SortStableFunc(added, func(a, b ledger.Line) int { return ended(&a).Compare(ended(&b)) })
 	p.lines = append(p.lines, added...)
-	last := now.Add(-7 * time.Minute)
-	for _, l := range p.filedBy(last) {
-		if at := ended(&l).Add(time.Second); at.After(p.fed) && at.Before(last) {
-			p.look(at, false)
-		}
-	}
-	p.look(last, false)
+	p.look(now.Add(-7*time.Minute), false)
 	p.everyTurn(now, met)
-}
-
-// filedBy are the session's lines filed by until, in the order they ended.
-func (p *paging) filedBy(until time.Time) []ledger.Line {
-	filed := filedLedger{lines: p.lines, now: until}.filed()
-	slices.SortStableFunc(filed, func(a, b ledger.Line) int { return ended(&a).Compare(ended(&b)) })
-	return filed
 }
 
 // pendingFor are the requests of a turn of the session's own, as own is,
