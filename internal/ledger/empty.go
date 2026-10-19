@@ -2,6 +2,8 @@ package ledger
 
 import (
 	"encoding/json"
+	"fmt"
+	"io/fs"
 	"iter"
 	"slices"
 	"time"
@@ -55,6 +57,17 @@ func (Empty) Day(string) []Held {
 // DaySide returns no side, whatever the day, as the ledger holds no head.
 func (Empty) DaySide(string, int) (json.RawMessage, bool) {
 	return nil, false
+}
+
+// DayRows returns no rows, whatever the day, as the ledger holds no head.
+func (Empty) DayRows(string, int) (DayRows, bool) {
+	return DayRows{}, false
+}
+
+// RowChunk fails with fs.ErrNotExist, whatever the chunk, as the ledger
+// holds no rows file.
+func (Empty) RowChunk(date string, _ RowsChunk) ([]byte, error) {
+	return nil, fmt.Errorf("a chunk of the rows of %s: %w", date, fs.ErrNotExist)
 }
 
 // FirstLinesDay fails with fs.ErrNotExist, as the ledger holds no day's

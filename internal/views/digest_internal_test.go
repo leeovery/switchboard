@@ -295,9 +295,29 @@ func newDigestChain(t *testing.T, name string, seed uint64, lines []ledger.Line)
 	for date, lines := range filed {
 		c.file(date, lines...)
 	}
-	c.ledger = ledger.Open(ledger.Dir(c.state), 400*24*time.Hour, func() time.Time { return c.at }, ledger.HistoryIn(readings.Files(readings.Dir(c.state), quiet)),
-		ledger.CapsOf(nil, nil), quiet, ledger.Digesting(c.digests))
+	c.ledger = c.opened()
 	return c
+}
+
+// opened is the ledger in the chain's state directory, opened as the router
+// opens it, by the chain's clock, digesting with its recordedDigests.
+func (c *digestChain) opened() *ledger.Ledger {
+	return ledger.Open(ledger.Dir(c.state), 400*24*time.Hour, func() time.Time { return c.at }, ledger.HistoryIn(readings.Files(readings.Dir(c.state), quiet)),
+		ledger.CapsOf(nil, nil), quiet, ledger.Digesting(c.digests))
+}
+
+// cloned is a chain of c's lines, as the test given holds it, in a state
+// directory of its own holding a copy of c's files, its ledger opened
+// there afresh, its clock where c's is: so each of several tests upsets
+// the same days, built once.
+func (c *digestChain) cloned(t *testing.T) *digestChain {
+	t.Helper()
+	clone := &digestChain{t: t, name: c.name, seed: c.seed, lines: c.lines, state: t.TempDir(), at: c.at, digests: newRecordedDigests()}
+	if err := os.CopyFS(clone.state, os.DirFS(c.state)); err != nil {
+		t.Fatal(err)
+	}
+	clone.ledger = clone.opened()
+	return clone
 }
 
 // file files lines, in their order, under the local day with the given
@@ -372,6 +392,15 @@ func (c *digestChain) days() []LedgerDay {
 	return days
 }
 
+// by sets the world's clock to at, and has the router's round summarise,
+// and its digester digest, the days that have ended by then, as they would
+// have.
+func (c *digestChain) by(at time.Time) {
+	c.at = at
+	c.ledger.SummariseEnded(at)
+	c.ledger.DigestEnded(c.t.Context(), at)
+}
+
 // digestDayByDay has the ledger, at half past one of each day, summarise
 // and digest the days that have ended, as the router's round and its
 // digester do, so each day's digest is built once, the day after it, on the
@@ -379,9 +408,7 @@ func (c *digestChain) days() []LedgerDay {
 func (c *digestChain) digestDayByDay(then func(day LedgerDay)) {
 	c.t.Helper()
 	for _, day := range c.days() {
-		c.at = day.Start.Add(90 * time.Minute)
-		c.ledger.SummariseEnded(c.at)
-		c.ledger.DigestEnded(c.t.Context(), c.at)
+		c.by(day.Start.Add(90 * time.Minute))
 		yesterday := dayfile.DateOf(dayfile.DayStart(day.Start, -1))
 		if _, built := c.digests.handed[yesterday]; !built && c.filedOn(yesterday) {
 			c.t.Fatalf("%s: %s, its lines filed, isn't digested by %v", c.name, yesterday, c.at)

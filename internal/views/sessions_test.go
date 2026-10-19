@@ -160,6 +160,18 @@ func (f fakeLedger) DaySide(string, int) (json.RawMessage, bool) {
 	return nil, false
 }
 
+// DayRows reads as a Follower of a ledger that holds no day's head does: no
+// rows, whatever the day.
+func (f fakeLedger) DayRows(string, int) (ledger.DayRows, bool) {
+	return ledger.DayRows{}, false
+}
+
+// RowChunk reads as a Follower of a ledger that holds no day's rows file
+// does: failing with fs.ErrNotExist, whatever the chunk.
+func (f fakeLedger) RowChunk(string, ledger.RowsChunk) ([]byte, error) {
+	return nil, fs.ErrNotExist
+}
+
 // FirstLinesDay reads as a Follower does: the start of the day its oldest
 // line arrived on, failing where it holds none.
 func (f fakeLedger) FirstLinesDay(time.Time) (time.Time, error) {

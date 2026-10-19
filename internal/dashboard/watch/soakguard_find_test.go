@@ -23,7 +23,7 @@ const findGuardDays = 4
 // of their lines.
 func TestTheFindReadsNoDayRawWhoseSideStands(t *testing.T) {
 	start := soakAt(21, 0)
-	g := &findGuard{sides: make(map[string]bool)}
+	g := readingHeads("DaySide")
 	s := newSoak(t, soakSetup{start: start, days: findGuardDays, pace: guardPace, guard: g})
 	s.show("log")
 	s.typed("/")
@@ -31,9 +31,9 @@ func TestTheFindReadsNoDayRawWhoseSideStands(t *testing.T) {
 	if found := s.h.model.log.page.Finding.Found; !found.Done() {
 		t.Fatalf("the find still has %s to read a minute after it opened, want it done", found.Next)
 	}
-	read := slices.Sorted(maps.Keys(g.sides))
+	read := slices.Sorted(maps.Keys(g.stood))
 	for back := findGuardDays - 1; back > 0; back-- {
-		if past := dayfile.DateOf(dayfile.DayStart(start, -back)); !g.sides[past] {
+		if past := dayfile.DateOf(dayfile.DayStart(start, -back)); !g.stood[past] {
 			t.Errorf("the find read the sides of %v, want every past day's among them, %s's", read, past)
 		}
 	}
@@ -42,26 +42,32 @@ func TestTheFindReadsNoDayRawWhoseSideStands(t *testing.T) {
 	}
 }
 
-// findGuard holds the find to what it reads: the dates of the days whose
-// sides stood as it read them, and of the days whose lines it read, in
-// turn.
-type findGuard struct {
-	sides map[string]bool
-	raw   []string
+// headsGuard holds a reader to what it reads of the days' heads: the dates
+// of the days whose reads by the method named, of a day's side or its rows,
+// stood as it made them, and of the days whose lines it read, in turn.
+type headsGuard struct {
+	method string
+	stood  map[string]bool
+	raw    []string
 }
 
-func (g *findGuard) reads(_ *soak, l views.Ledger) views.Ledger {
+// readingHeads is a guard of the reads by the method named, none made yet.
+func readingHeads(method string) *headsGuard {
+	return &headsGuard{method: method, stood: make(map[string]bool)}
+}
+
+func (g *headsGuard) reads(_ *soak, l views.Ledger) views.Ledger {
 	return &countingLedger{Ledger: l, read: g.read}
 }
 
-// read notes a read of a day's side that stood, or of a day's lines.
-func (g *findGuard) read(r ledgerRead) {
+// read notes a read by g's method that stood, or of a day's lines.
+func (g *headsGuard) read(r ledgerRead) {
 	switch r.method {
-	case "DaySide":
-		g.sides[r.asked[0]] = g.sides[r.asked[0]] || r.stood
+	case g.method:
+		g.stood[r.asked[0]] = g.stood[r.asked[0]] || r.stood
 	case "Day":
 		g.raw = append(g.raw, r.asked[0])
 	}
 }
 
-func (g *findGuard) took(tea.Msg, Model) {}
+func (g *headsGuard) took(tea.Msg, Model) {}

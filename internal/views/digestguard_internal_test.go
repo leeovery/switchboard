@@ -277,15 +277,6 @@ func (w *spread) moments() []time.Time {
 	return moments
 }
 
-// by sets the world's clock to at, and has the router's round summarise,
-// and its digester digest, the days that have ended by then, as they would
-// have.
-func (w *spread) by(at time.Time) {
-	w.at = at
-	w.ledger.SummariseEnded(at)
-	w.ledger.DigestEnded(w.t.Context(), at)
-}
-
 // check holds each view read at the i-th moment, now, through the Follower
 // resting on digests to the view read through the one reading raw, as the
 // store's test names them, noting the hard moments met. The flights of the
