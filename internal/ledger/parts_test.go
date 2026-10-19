@@ -99,9 +99,10 @@ func TestADayWhosePartsFileIsntAsItsHeadRecordsIsDigestedAgain(t *testing.T) {
 // A part damaged in its parts file, the file as long, doesn't read, but
 // leaves its day not due, as the digesting looks at the file's size alone,
 // for a ledger opened afresh too. Once its day is digested again, for a late
-// line of another session, its session, whose state there stands still, is
-// handed read whole, its part then folded whole.
-func TestAPartDamagedItsFileAsLongIsFoldedWholeOnceItsDayIsDigestedAgain(t *testing.T) {
+// line of another session, its session, whose state there stands still but
+// whose chain of parts no longer reads, rests on its page, on the state
+// before it whose chain does, its part folded afresh on that one.
+func TestAPartDamagedItsFileAsLongIsFoldedOnTheStateBeforeOnceItsDayIsDigestedAgain(t *testing.T) {
 	w := newLookupWorld(t)
 	sharedDays(w)
 	w.digestEnded()
@@ -122,14 +123,15 @@ func TestAPartDamagedItsFileAsLongIsFoldedWholeOnceItsDayIsDigestedAgain(t *test
 	w.lateLine()
 	w.digestEnded()
 	handed := w.fold.days()
-	if dates, want := datesOf(handed), []string{dayOf(-2), dayOf(0), dayOf(0)}; !slices.Equal(dates, want) {
-		t.Fatalf("the days handed are %q, want %q: the late line's, then its day after, of two, and again, of one read whole", dates, want)
+	if dates, want := datesOf(handed), []string{dayOf(-2), dayOf(0)}; !slices.Equal(dates, want) {
+		t.Fatalf("the days handed are %q, want %q: the late line's, then its day after", dates, want)
 	}
-	if got, want := handed[2].sessions, map[string]handedSession{"one": {requests: []string{"1", "4"}}}; !reflect.DeepEqual(got, want) {
-		t.Errorf("%s was handed again %+v, want %+v, one read whole", dayOf(0), got, want)
+	if got, want := handed[1].sessions["one"], (handedSession{base: dayOf(-3), requests: []string{"4"}}); !reflect.DeepEqual(got, want) {
+		t.Errorf("%s was handed one as %+v, want %+v, resting on the state before its own", dayOf(0), got, want)
 	}
-	if got, want := w.partsIn(0)["one"], (partIn{part: testPart{Of: stateAt("one", dayOf(0)), Requests: []string{"1", "4"}}}); !reflect.DeepEqual(got, want) {
-		t.Errorf("one's part of %s is %+v, want %+v, folded whole", dayOf(0), got, want)
+	want := partIn{on: dayOf(-3), part: testPart{Of: stateAt("one", dayOf(0)), Base: dayOf(-3), Requests: []string{"4"}}}
+	if got := w.partsIn(0)["one"]; !reflect.DeepEqual(got, want) {
+		t.Errorf("one's part of %s is %+v, want %+v, folded on the state before", dayOf(0), got, want)
 	}
 }
 

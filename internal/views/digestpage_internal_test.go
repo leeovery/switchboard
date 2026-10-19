@@ -140,10 +140,11 @@ type pageChain struct {
 }
 
 // keptPage is a session's state as a day's digest keeps it: its day; its
-// state, as its bytes read back; and the parts of its page's chain, oldest
-// first, from one folded on none through the day's own.
+// state, as given, and as its bytes read back; and the parts of its page's
+// chain, oldest first, from one folded on none through the day's own.
 type keptPage struct {
 	day    LedgerDay
+	state  json.RawMessage
 	stored storedSession
 	parts  []json.RawMessage
 }
@@ -196,42 +197,46 @@ func (c *pageChain) fold(day LedgerDay) {
 	}
 	c.partExactly(day, held.page, base, f.Part)
 	c.note(day, held.page, base, parts)
-	c.kept = &keptPage{day: day, stored: st, parts: parts}
+	c.kept = &keptPage{day: day, state: f.State, stored: st, parts: parts}
 	c.check(day)
 }
 
 // foldedOn is the session folded at the end of the day given, as a day's
-// digest folds it, and the tally its page was folded on: resting on the
-// state kept last, restored onto the day with its parts, its points taking
-// every account's answers of each day after the state's through the day
-// given, oldest first, each whole, then its requests since told on, each
-// once, sealed at the day's end. Where none is kept yet, or its points
-// can't take the answers in, it's folded whole, on no tally.
+// digest folds it, as heldResting holds it, and the tally its page was
+// folded on: resting on the state kept last, with its chain of parts, its
+// points of every account's answers of each day through the day given, its
+// lines since; or, where none is kept yet, on none, its lines every one that
+// arrived by the day's end. Where its points can't take the answers in, its
+// state and parts restoring all the same, it's folded whole, on no tally.
 func (c *pageChain) foldedOn(day LedgerDay) (*heldSession, *pageTally) {
 	c.t.Helper()
-	if c.kept == nil {
-		return c.whole(day), nil
+	held, base, err := heldResting(c.from(day), datesThrough(c.answers, day.Date), ledger.Pricing, day, endOfDay(day), true)
+	if err == nil {
+		return held, base
 	}
-	s, err := c.kept.stored.restoredPaged(ledger.Pricing, day, c.kept.parts)
-	if err != nil {
+	if c.kept == nil {
+		c.t.Fatalf("%s, folded whole at the end of %s: %v", c.name, day.Date, err)
+	}
+	if _, err := c.kept.stored.restoredPaged(ledger.Pricing, day, c.kept.parts); err != nil {
 		c.t.Fatalf("%s, kept at the end of %s, restored on %s: %v", c.name, c.kept.day.Date, day.Date, err)
 	}
-	base, points := s.page, s.page.points
-	for _, date := range slices.Sorted(maps.Keys(c.answers)) {
-		if date <= c.kept.day.Date || date > day.Date {
-			continue
-		}
-		var ok bool
-		if points, ok = points.took(date, c.answers[date], true, day); !ok {
-			c.met[pageRefused] = true
-			return c.whole(day), nil
-		}
+	c.met[pageRefused] = true
+	return c.whole(day), nil
+}
+
+// from is the session as of the start of the day after the one given, as
+// the ledger hands it a day's builder: resting on the state kept last, with
+// its chain of parts, its lines those since; else on none, its lines every
+// one that arrived by the day's end.
+func (c *pageChain) from(day LedgerDay) ledger.SessionFrom {
+	if c.kept == nil {
+		return ledger.SessionFrom{Lines: arrivedBefore(c.lines, endOfDay(day).time())}
 	}
-	s.page = base.pointed(points)
-	if since := c.since(day); len(since) > 0 {
-		s = s.with(pricedAt(distinct(heldRequestsOf(since)), ledger.Pricing, day.Date))
+	parts := make([]ledger.SessionPart, len(c.kept.parts))
+	for i, part := range c.kept.parts {
+		parts[i] = ledger.SessionPart{Part: part}
 	}
-	return s.sealedAt(endOfDay(day)), base
+	return ledger.SessionFrom{Base: baseOf(c.kept.day.Date, c.kept.state), Parts: parts, Lines: c.since(day)}
 }
 
 // since are the session's lines that arrived after the day kept last ended,

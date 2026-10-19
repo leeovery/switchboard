@@ -26,12 +26,15 @@ import (
 // state folded as foldedFrom folds it, but failing as a Digester fails where
 // its base doesn't read, as it may be asked on the digester's goroutine, and
 // its part as partFrom gives it; first doing what during does, where it's
-// set, failing where that fails; and noting each day it's handed, in the
-// order handed, as handedDay tells it.
+// set, failing where that fails; giving none of the session refused, where
+// it's handed resting on a base, as a Digester gives none of one whose base
+// it can't restore; and noting each day it's handed, in the order handed, as
+// handedDay tells it.
 type folding struct {
-	mu     sync.Mutex
-	during func(ctx context.Context, day ledger.DigestDay) error
-	handed []handedDay
+	mu      sync.Mutex
+	during  func(ctx context.Context, day ledger.DigestDay) error
+	refused string
+	handed  []handedDay
 }
 
 // handedDay is a day as the tests' Digester was handed it: when, by the
@@ -86,11 +89,11 @@ func (b *foldingDay) Digest(ctx context.Context, day ledger.DigestDay) (map[stri
 }
 
 // digest notes day as handed, with the lines taken before it, does what
-// during does, where it's set, and gives each of its sessions folded: its
-// state, and its part.
+// during does, where it's set, and gives each of its sessions folded, but
+// the one refused resting on a base: its state, and its part.
 func (f *folding) digest(ctx context.Context, day ledger.DigestDay, taken takenDays) (map[string]ledger.Folded, error) {
 	f.mu.Lock()
-	during := f.during
+	during, refused := f.during, f.refused
 	handed := handedOf(day)
 	handed.taken = taken
 	f.handed = append(f.handed, handed)
@@ -102,6 +105,9 @@ func (f *folding) digest(ctx context.Context, day ledger.DigestDay, taken takenD
 	}
 	folded := make(map[string]ledger.Folded, len(day.Sessions))
 	for id, s := range day.Sessions {
+		if id == refused && s.Base != nil {
+			continue
+		}
 		var base testState
 		if s.Base != nil {
 			if err := json.Unmarshal(s.Base.State, &base); err != nil {
@@ -180,6 +186,14 @@ func datesOf(handed []handedDay) []string {
 		dates[i] = h.date
 	}
 	return dates
+}
+
+// refuse has the tests' Digester give none of the session with the given
+// id handed resting on a base, from then on.
+func (f *folding) refuse(id string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.refused = id
 }
 
 // failingOn returns what fails the day with the given date, as the tests'
@@ -410,9 +424,9 @@ func TestASessionStandingOnItsDaysOwnDigestKeepsItsStateAndPart(t *testing.T) {
 
 // A day's builder is handed every line the read of the day's sessions reads,
 // once, of whichever session, one of none among them, before it's handed the
-// sessions. A session read again whole, as one resting on its day's own
-// digest whose part there no longer reads, is handed to a builder of its
-// own, handed every line of the days that read reads afresh.
+// sessions. A session read again whole, as one resting on a state its
+// builder gives none of, is handed to a builder of its own, handed every
+// line of the days that read reads afresh.
 func TestADaysBuilderIsHandedEveryLineItsReadReads(t *testing.T) {
 	w := newLookupWorld(t)
 	w.file(0, askedBy("probe", "", on(0, 8, 0)))
@@ -425,19 +439,24 @@ func TestADaysBuilderIsHandedEveryLineItsReadReads(t *testing.T) {
 	if got := takenOf(w.fold.days()); !reflect.DeepEqual(got, want) {
 		t.Errorf("each day's builder, oldest first, was handed\n%v\nwant\n%v", got, want)
 	}
-	ref := w.digestOf(0).Sessions["one"].Part
-	damageAt(t, partsPath(w.dir, 0), ref.Offset+ref.Length/2)
+	w.fold.refuse("two")
 	w.lateLine()
 
 	w.digestEnded()
 
 	handed := w.fold.days()
-	if len(handed) != 3 || !slices.Equal(slices.Sorted(maps.Keys(handed[2].sessions)), []string{"one"}) {
-		t.Fatalf("the pass handed %+v; want the late line's day, then the day after it, of two, and again, of one read whole", handed)
+	if dates, want := datesOf(handed), []string{dayOf(-2), dayOf(-2), dayOf(0), dayOf(0)}; !slices.Equal(dates, want) {
+		t.Fatalf("the days handed are %q, want %q: the late line's, then the day after it, each of two, and each again, of two read whole", dates, want)
 	}
-	whole := takenDays{dayOf(-3): {"1": 1, "2": 1}, dayOf(0): {"probe": 1, "4": 1, "5": 1}}
-	if got, want := takenOf(handed[1:]), []takenDays{day0, whole}; !reflect.DeepEqual(got, want) {
-		t.Errorf("the day after the late line's was handed to builders handed\n%v\nwant\n%v: its own day's lines, then, afresh, every line of one's days", got, want)
+	through2 := takenDays{dayOf(-3): {"1": 1, "2": 1}, dayOf(-2): {"3": 1, "late": 1}}
+	through0 := maps.Clone(through2)
+	maps.Copy(through0, day0)
+	want = []takenDays{{dayOf(-2): {"3": 1, "late": 1}}, through2, day0, through0}
+	if got := takenOf(handed); !reflect.DeepEqual(got, want) {
+		t.Errorf("the builders were handed\n%v\nwant\n%v: each day's own lines, then, afresh, every line of two's days through it", got, want)
+	}
+	if got, want := handed[3].sessions, map[string]handedSession{"two": {requests: []string{"2", "3", "late", "5"}}}; !reflect.DeepEqual(got, want) {
+		t.Errorf("%s was handed again %+v, want %+v, two read whole", dayOf(0), got, want)
 	}
 }
 

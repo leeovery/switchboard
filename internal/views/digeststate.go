@@ -11,11 +11,12 @@ import (
 )
 
 // DigestVersion is the version of what a day's digest holds of each session
-// that ran on the day: its state at the day's end, as storedSession has it.
-// A release that stores a session otherwise, or tells a story otherwise of
-// what's stored, writes another, and a digest of another version doesn't
+// that ran on the day: its state at the day's end, as storedSession has it,
+// and its page's part of the day, as storedPart has it. A release that
+// stores a session otherwise, or tells a story, or tallies a page, otherwise
+// of what's stored, writes another, and a digest of another version doesn't
 // stand: its sessions are read whole from their lines.
-const DigestVersion = 1
+const DigestVersion = 2
 
 // storedSession is a session the store holds as a day's digest stores it,
 // sealed at the start of the day after its own, none of its requests open:
@@ -102,16 +103,6 @@ func (s *heldSession) stored() (storedSession, error) {
 	return storedSession{Date: day.Date, Story: s.sealed.stored(), Counts: maps.Clone(s.counts), Page: s.page.put()}, nil
 }
 
-// state is s as a day's digest holds it: stored, as stored has it, put as
-// JSON. It's refused as stored refuses it.
-func (s *heldSession) state() (json.RawMessage, error) {
-	st, err := s.stored()
-	if err != nil {
-		return nil, err
-	}
-	return st.put()
-}
-
 // put is st as JSON.
 func (st *storedSession) put() (json.RawMessage, error) {
 	data, err := json.Marshal(st)
@@ -121,12 +112,15 @@ func (st *storedSession) put() (json.RawMessage, error) {
 	return data, nil
 }
 
-// restoredFrom is the session whose state base holds, as state puts it,
-// restored onto the day given, as restored has it. It fails where the state
-// doesn't decode as one, or is of another day than the digest holding it,
-// as the lines after it would be others than those it was told of, or where
-// restored refuses it.
-func restoredFrom(base *ledger.SessionBase, prices ledger.Table, day LedgerDay) (*heldSession, error) {
+// restoredFrom is the session whose state from rests on, as folded puts it,
+// restored onto the day given, as restored has it: where paged says, its
+// page with it, from what the state carries and from's chain of parts, as
+// restoredPaged has it. It fails where the state doesn't decode as one, or
+// is of another day than the digest holding it, as the lines after it would
+// be others than those it was told of, or where restored, or restoredPaged,
+// refuses it.
+func restoredFrom(from ledger.SessionFrom, prices ledger.Table, day LedgerDay, paged bool) (*heldSession, error) {
+	base := from.Base
 	var st storedSession
 	if err := json.Unmarshal(base.State, &st); err != nil {
 		return nil, fmt.Errorf("read the state of a session in the digest of %s: %w", base.Date, err)
@@ -134,7 +128,14 @@ func restoredFrom(base *ledger.SessionBase, prices ledger.Table, day LedgerDay) 
 	if st.Date != base.Date {
 		return nil, fmt.Errorf("read the state of a session in the digest of %s: a state of %q", base.Date, st.Date)
 	}
-	return st.restored(prices, day)
+	if !paged {
+		return st.restored(prices, day)
+	}
+	parts := make([]json.RawMessage, len(from.Parts))
+	for i, p := range from.Parts {
+		parts[i] = p.Part
+	}
+	return st.restoredPaged(prices, day, parts)
 }
 
 // endOfDay is the horizon a session's state at the end of the day d is

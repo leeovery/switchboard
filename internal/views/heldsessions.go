@@ -506,7 +506,7 @@ func (f *feed) heldOf(id string, from ledger.SessionFrom, answers map[string][]a
 	if id == f.want.Page {
 		return readOf(from.Lines, answers, f.prices, f.fed.day, f.horizonOf(id), true), nil
 	}
-	return heldAsOf(from, f.prices, f.fed.day, f.horizonOf(id))
+	return heldAsOf(from, nil, f.prices, f.fed.day, f.horizonOf(id), false)
 }
 
 // readOf is a session held afresh of lines, every line of it read whole,
@@ -518,30 +518,51 @@ func readOf(lines []ledger.Line, answers map[string][]answered, prices ledger.Ta
 }
 
 // heldAsOf is the session from gives, as the store would hold it on the day
-// d, sealed behind the horizon given, had it read every line of it whole:
-// resting on no base, its lines read whole, as readOf has them; else its
-// base restored onto d, as restoredFrom has it, and its requests since told
-// on, each once, as distinct has them, priced at d, as with has it, sealed
-// behind the horizon given. It fails where its base won't decode, or restore
-// onto d, or the horizon given is before its base's own, the end of its
-// base's day, as the base holds sealed what a whole read would hold open:
-// its caller reads it whole then, as it gives no session held otherwise than
-// a whole read holds it.
-func heldAsOf(from ledger.SessionFrom, prices ledger.Table, d LedgerDay, horizon instant) (*heldSession, error) {
+// d, sealed behind the horizon given, had it read every line of it whole,
+// its page tallied where paged says, its points of answers, every account's
+// on the days read, by date: as heldResting holds it.
+func heldAsOf(from ledger.SessionFrom, answers map[string][]answered, prices ledger.Table, d LedgerDay, horizon instant, paged bool) (*heldSession, error) {
+	s, _, err := heldResting(from, answers, prices, d, horizon, paged)
+	return s, err
+}
+
+// heldResting is the session from gives, as heldAsOf has it, and the tally
+// its page rests on, which its fold added to, none where it rests on no base
+// or isn't paged. Resting on no base, its lines are read whole, as readOf
+// has them, its points of answers. Else its base is restored onto d, its
+// page with it where paged, as restoredFrom has it; its points take in the
+// answers of each day after its base's, as tookAfter has them; its requests
+// since are told on, each once, as distinct has them, priced at d, as with
+// has it; and it's sealed behind the horizon given. It fails where its base
+// won't decode, or restore onto d, or its page with it; where its points
+// can't place the answers after it, as of a model first reading a window
+// only some models share; or where the horizon given is before its base's
+// own, the end of its base's day, as the base holds sealed what a whole read
+// would hold open: its caller reads it whole then, every day's answers taken
+// afresh, as it gives no session held otherwise than a whole read holds it.
+func heldResting(from ledger.SessionFrom, answers map[string][]answered, prices ledger.Table, d LedgerDay, horizon instant, paged bool) (*heldSession, *pageTally, error) {
 	if from.Base == nil {
-		return readOf(from.Lines, nil, prices, d, horizon, false), nil
+		return readOf(from.Lines, answers, prices, d, horizon, paged), nil, nil
 	}
-	s, err := restoredFrom(from.Base, prices, d)
+	s, err := restoredFrom(from, prices, d, paged)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if horizon.compare(s.horizon) < 0 {
-		return nil, fmt.Errorf("hold a session of the digest of %s behind %v: before the end of its day", from.Base.Date, horizon.time())
+		return nil, nil, fmt.Errorf("hold a session of the digest of %s behind %v: before the end of its day", from.Base.Date, horizon.time())
+	}
+	base := s.page
+	if paged {
+		points, ok := base.points.tookAfter(from.Base.Date, answers, d)
+		if !ok {
+			return nil, nil, fmt.Errorf("hold the page of a session of the digest of %s on %s: its points can't place the answers since", from.Base.Date, d.Date)
+		}
+		s.page = base.pointed(points)
 	}
 	if since := requestsIn(from.Lines); len(since) > 0 {
 		s = s.with(pricedAt(distinct(since), prices, d.Date))
 	}
-	return s.sealedAt(horizon), nil
+	return s.sealedAt(horizon), base, nil
 }
 
 // held is how many requests s holds.
