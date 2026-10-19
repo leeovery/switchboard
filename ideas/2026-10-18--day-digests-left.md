@@ -1,10 +1,12 @@
-# Day digests, phase 1: what it left
+# Day digests, phases 1 and 2: what they left
 
 Phase 1 of the day digests has the router digest each finished day and the store of sessions rest
 each session on its newest standing state (see The request ledger and Live updates in the design).
 Its soak, a synthetic world of 25,000 requests a day with its long session every day, race detector
-off, opens the List in about 0.3 s with 9 or 30 days kept, from 1.4 s and 4.0 s. What it left, each
-a cost, not a wrong answer, gathered here.
+off, opens the List in about 0.3 s with 9 or 30 days kept, from 1.4 s and 4.0 s. Phase 2 has each
+digest carry each session's page, and a parts file a day hold what grows, so a page rests on its
+newest state too: the long session's page opens in 0.31 s and 0.38 s, from 1.71 s and 5.63 s. What
+they left, each a cost, not a wrong answer, gathered here.
 
 ## The build's peak
 
@@ -22,6 +24,22 @@ what's live. Where it comes from, by the build's heap profile:
 - Further down: a build that folds each session as its lines arrive and lets them go, holding no
   day's lines whole; or a memory limit set in the router (`GOMEMLIMIT`).
 
+Phase 2 raised it, with 30 days kept, to some 152 MB and 0.95 s, as each session's points take in
+every account's answers of the day.
+
+## A long page read whole in the router
+
+Where a page's restore is refused, its session is read whole: in the router's build, a chain of
+parts that doesn't read, or a model first reading, mid-run, a window only some of the session's
+models share. For the soak's long session that's 5.9 s and some 1.79 GB more heap with 30 days kept,
+and some 0.6 GB with 9. Most of it is the ledger's read holding the session's lines, some 570 MB:
+the lines kept while the days are read ahead, and a sorted copy of them, some 223 MB. Then the
+whole fold, some 270 MB, and the answers, some 145 MB. Ways out:
+
+- Fold the read day by day, never holding every day's lines at once.
+- Hold only the answers of the days of the session's last run: the runs before it fold at once.
+- Drop the sorted copy.
+
 ## A session's state grows with its subagents
 
 A session's state keeps, for each of its threads, when its last request ended and how long its writes
@@ -32,6 +50,16 @@ needs care.
 
 ## Smaller
 
+- A restored page's times sent upstream are decoded through a list of times, some 230 B each, before
+  they're held as nanoseconds: some 919 MB of garbage for a session running every day of 400.
+  Decoding them straight into nanoseconds would make none.
+- A page whose parts are spoiled, and whose next older state to fall back on lies two days back or
+  more, is read whole: the points can't place a session's day after a base older than yesterday.
+- The backfill's walk of each session's chain of parts reads each link's part again for every day
+  it builds, so it grows with the square of the days. Measure it at 400 days.
+- The stored forms' `nn`, `pn` and `mp`, whether a request in none is in flight and whether a turn's
+  requests are pending, are always false in a digest, as only the stream sets them. Drop them at the
+  next version.
 - At half past one, a session resting on yesterday's state whose request in flight the stream files
   on yesterday has the store read yesterday's files again for it once, then hold it whole, as its
   state holds none of yesterday's requests: a read the store reading raw doesn't make.
