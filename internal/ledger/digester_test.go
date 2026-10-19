@@ -29,12 +29,134 @@ import (
 // set, failing where that fails; giving none of the session refused, where
 // it's handed resting on a base, as a Digester gives none of one whose base
 // it can't restore; and noting each day it's handed, in the order handed, as
-// handedDay tells it.
+// handedDay tells it. Each day's side it builds as sideOf gives it, doing
+// what taking does with each line's request it's handed, where it's set, and
+// what building does as it builds it, failing where that fails; and noting
+// each side built, in the order built, as builtSide tells it.
 type folding struct {
-	mu      sync.Mutex
-	during  func(ctx context.Context, day ledger.DigestDay) error
-	refused string
-	handed  []handedDay
+	mu       sync.Mutex
+	during   func(ctx context.Context, day ledger.DigestDay) error
+	taking   func(request string)
+	building func(requests []string) error
+	refused  string
+	handed   []handedDay
+	built    []builtSide
+}
+
+// sideBody is the version of the days' sides the tests' Digester gives.
+const sideBody = 5
+
+// builtSide is a day's side as the tests' Digester built it: when, by the
+// clock, and the requests of the lines its builder was handed, in the order
+// handed.
+type builtSide struct {
+	at       time.Time
+	requests []string
+}
+
+// testSide is a day's side as the tests' Digester builds it: the requests
+// of the day's lines, in the order its builder was handed them.
+type testSide struct {
+	Requests []string `json:"requests"`
+}
+
+// sideOf is the side the tests' Digester builds of the lines of the
+// requests given, in their order, as the day's head keeps it.
+func sideOf(t testing.TB, requests ...string) json.RawMessage {
+	t.Helper()
+	side, err := json.Marshal(testSide{Requests: requests})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return side
+}
+
+// RowsVersion is the version of the sides the tests' Digester gives.
+func (f *folding) RowsVersion() int {
+	return sideBody
+}
+
+// Day gives a builder of a day's side by the tests' Digester, as foldingSide
+// has it, handed no line yet.
+func (f *folding) Day() ledger.DayBuilder {
+	return &foldingSide{f: f}
+}
+
+// foldingSide is a builder of a day's side by the tests' Digester, f: the
+// requests of the lines it's handed, in the order handed.
+type foldingSide struct {
+	f        *folding
+	requests []string
+}
+
+// Take notes l's request among those handed, and does with it what taking
+// does, where it's set.
+func (b *foldingSide) Take(l ledger.Line) {
+	b.requests = append(b.requests, l.Request)
+	b.f.mu.Lock()
+	taking := b.f.taking
+	b.f.mu.Unlock()
+	if taking != nil {
+		taking(l.Request)
+	}
+}
+
+// Built has the tests' Digester build the side of the requests handed, as
+// side does.
+func (b *foldingSide) Built() (ledger.DayBuilt, error) {
+	return b.f.side(b.requests)
+}
+
+// side notes the side of the requests given built now, does what building
+// does, where it's set, and gives the side, as a testSide of them.
+func (f *folding) side(requests []string) (ledger.DayBuilt, error) {
+	f.mu.Lock()
+	building := f.building
+	f.built = append(f.built, builtSide{at: time.Now(), requests: requests})
+	f.mu.Unlock()
+	if building != nil {
+		if err := building(requests); err != nil {
+			return ledger.DayBuilt{}, err
+		}
+	}
+	side, err := json.Marshal(testSide{Requests: requests})
+	return ledger.DayBuilt{Side: side}, err
+}
+
+// buildingSides has the tests' Digester do what building does, as it
+// builds each day's side from then on.
+func (f *folding) buildingSides(building func(requests []string) error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.building = building
+}
+
+// takingSides has the tests' Digester do what taking does with the request
+// of each line a builder of a day's side is handed, from then on.
+func (f *folding) takingSides(taking func(request string)) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.taking = taking
+}
+
+// sides returns the sides the tests' Digester built, in the order built,
+// letting go of them.
+func (f *folding) sides() []builtSide {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	built := f.built
+	f.built = nil
+	return built
+}
+
+// requestsOfSides returns the requests of each of the sides built, in the
+// order built.
+func requestsOfSides(built []builtSide) [][]string {
+	requests := make([][]string, len(built))
+	for i, b := range built {
+		requests[i] = b.requests
+	}
+	return requests
 }
 
 // handedDay is a day as the tests' Digester was handed it: when, by the

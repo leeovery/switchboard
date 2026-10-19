@@ -36,10 +36,12 @@ const heapObjects = "/memory/classes/heap/objects:bytes"
 // yesterday's built with the long session's parts before it damaged in
 // place, so it rests on none, every line of each day it ran handed the
 // day's builder, as a session whose points can't take a day in is read
-// whole again; yesterday's built so with every session's; and a backfill of
-// every day, as after the release that brings digests in. Each is reported
+// whole again; yesterday's built so with every session's; a backfill of
+// every day, as after the release that brings digests in; yesterday's head
+// built, as after the round that summarises it; and a backfill of every
+// day's head, as after the release that brings heads in. Each is reported
 // with the most the heap took above what it held, collected, as it began,
-// and leaves a digest of every day the world's router digested.
+// and leaves a digest and a head of every day the world's router digested.
 func TestTheRoutersDigestingOverASoaksWorld(t *testing.T) {
 	if !*soakDigesting {
 		t.Skip("the digesting's timing runs only as -soak.digesting asks")
@@ -49,8 +51,9 @@ func TestTheRoutersDigestingOverASoaksWorld(t *testing.T) {
 	t.Logf("%d days at %d requests a day, written and digested in %.1fs", *soakDays, ownersPace.rate, time.Since(began).Seconds())
 	dir := ledger.Dir(w.state)
 	yesterday := dayfile.DateOf(dayfile.DayStart(soakStart, -1))
-	left, parts := digestsIn(t, dir, "digest-*"), digestsIn(t, dir, "parts-*")
-	t.Logf("%d digests, %.1f KB of them, and %d parts files, %.1f KB", len(left), float64(sizeOf(t, left))/(1<<10), len(parts), float64(sizeOf(t, parts))/(1<<10))
+	left, parts, heads := digestsIn(t, dir, "digest-*"), digestsIn(t, dir, "parts-*"), digestsIn(t, dir, "logday-*")
+	t.Logf("%d digests, %.1f KB of them, %d parts files, %.1f KB, and %d heads, %.1f KB", len(left), float64(sizeOf(t, left))/(1<<10),
+		len(parts), float64(sizeOf(t, parts))/(1<<10), len(heads), float64(sizeOf(t, heads))/(1<<10))
 	var l *ledger.Ledger
 	passes := []struct {
 		name   string
@@ -68,6 +71,8 @@ func TestTheRoutersDigestingOverASoaksWorld(t *testing.T) {
 			removeDigests(t, dir, "digest-"+yesterday+"*")
 		}},
 		{"a backfill of every day", func() { removeDigests(t, dir, "digest-*"); l = w.opened() }},
+		{"yesterday's head built", func() { removeDigests(t, dir, "logday-"+yesterday+"*") }},
+		{"a backfill of every head", func() { removeDigests(t, dir, "logday-*"); l = w.opened() }},
 	}
 	for _, p := range passes {
 		p.before()
@@ -75,6 +80,9 @@ func TestTheRoutersDigestingOverASoaksWorld(t *testing.T) {
 		t.Logf("%-32s took %9v, the heap at most %7.1f MB above", p.name, took.Round(100*time.Microsecond), mb(peak))
 		if built := digestsIn(t, dir, "digest-*"); len(built) != len(left) {
 			t.Errorf("%s left %d digests, want the %d the world's router left", p.name, len(built), len(left))
+		}
+		if built := digestsIn(t, dir, "logday-*"); len(built) != len(left) {
+			t.Errorf("%s left %d heads, want one of each of the %d days digested", p.name, len(built), len(left))
 		}
 	}
 }
@@ -114,8 +122,8 @@ func heapNow() uint64 {
 	return sample[0].Value.Uint64()
 }
 
-// removeDigests deletes the digests in the ledger's directory dir whose
-// names match pattern.
+// removeDigests deletes the digests, or the other files built of the days'
+// lines, in the ledger's directory dir whose names match pattern.
 func removeDigests(t *testing.T, dir, pattern string) {
 	t.Helper()
 	for _, path := range digestsIn(t, dir, pattern) {
@@ -217,8 +225,8 @@ func sizeOf(t *testing.T, paths []string) uint64 {
 	return size
 }
 
-// digestsIn returns the paths of the digests in the ledger's directory dir
-// whose names match pattern.
+// digestsIn returns the paths of the digests, or the other files built of
+// the days' lines, in the ledger's directory dir whose names match pattern.
 func digestsIn(t *testing.T, dir, pattern string) []string {
 	t.Helper()
 	paths, err := filepath.Glob(filepath.Join(dir, pattern))

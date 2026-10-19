@@ -129,18 +129,19 @@ func (r *Reader) Lines(from time.Time) iter.Seq[Held] {
 	return func(yield func(Held) bool) {
 		now := r.now()
 		within := func(h Held) bool { return !h.At.Before(from) && !h.At.After(now) }
-		r.days.lines(dayfile.Dates(r.days.start(from, now), now), heldIn, within, yield)
+		r.days.lines(dayfile.Dates(r.days.start(from, now), now), heldIn, within, yield, nil)
 	}
 }
 
 // lines hands take each line of the files of the local days with the given
 // dates, given oldest first, as decode reads it, that within reports true
 // of, oldest first, by when each arrived, whichever day's file it's in, as
-// dayfile.Read hands them, until take reports false; and warns of how many
-// of them couldn't be read, args, attributes before the count, saying of
-// what.
-func (d days) lines(dates []string, decode func([]byte) (Held, bool), within, take func(Held) bool, args ...any) {
-	if unread := dayfile.Read(d.files, dates, decode, arrived, within, take, nil); unread > 0 {
+// dayfile.Read hands them, until take reports false, noting in faults, where
+// they're given, the days whose files it couldn't read for now, as
+// dayfile.Faults says; and warns of how many of them couldn't be read, args,
+// attributes before the count, saying of what.
+func (d days) lines(dates []string, decode func([]byte) (Held, bool), within, take func(Held) bool, faults *dayfile.Faults, args ...any) {
+	if unread := dayfile.Read(d.files, dates, decode, arrived, within, take, faults); unread > 0 {
 		d.logger.Warn("request ledger lines unread", slices.Concat(args, []any{"lines", unread})...)
 	}
 }
@@ -202,20 +203,20 @@ func (d days) first() (time.Time, error) {
 // dayListing is what a listing of the ledger's directory finds, as
 // days.listed gives it: the dates of the local days it holds lines of,
 // oldest first, each once; the date of the first day it holds, of its lines
-// or its summaries; and the dates of the days it holds digests of, or parts
-// files, oldest first, each once.
+// or its summaries; and the dates of the days it holds files built of the
+// lines of, digests, parts files or heads, oldest first, each once.
 type dayListing struct {
-	lines   []string
-	first   string
-	digests []string
+	lines []string
+	first string
+	built []string
 }
 
 // listed returns what one listing of the ledger's directory finds, as
 // dayListing has it: the first day it holds the earliest its files of lines,
 // and its summaries, are of, by the dates their names give. It lists the
 // directory as dayfile.Files.List does, never halfway through a prune. It
-// fails with fs.ErrNotExist where it holds no day, giving the digests it
-// holds all the same, as those are its to delete.
+// fails with fs.ErrNotExist where it holds no day, giving the files built of
+// lines it holds all the same, as those are its to delete.
 func (d days) listed() (dayListing, error) {
 	entries, err := d.files.List()
 	if err != nil {
@@ -228,15 +229,15 @@ func (d days) listed() (dayListing, error) {
 			listing.lines = append(listing.lines, date)
 		} else if date, ok := datedName(e.Name(), summaryPrefix, summarySuffix); ok {
 			summaries = append(summaries, date)
-		} else if date, ok := digestedName(e.Name()); ok {
-			listing.digests = append(listing.digests, date)
+		} else if date, ok := builtName(e.Name()); ok {
+			listing.built = append(listing.built, date)
 		}
 	}
-	slices.Sort(listing.digests)
-	listing.digests = slices.Compact(listing.digests)
+	slices.Sort(listing.built)
+	listing.built = slices.Compact(listing.built)
 	held := append(slices.Clone(listing.lines), summaries...)
 	if len(held) == 0 {
-		return dayListing{digests: listing.digests}, fmt.Errorf("the request ledger holds no day: %w", fs.ErrNotExist)
+		return dayListing{built: listing.built}, fmt.Errorf("the request ledger holds no day: %w", fs.ErrNotExist)
 	}
 	slices.Sort(listing.lines)
 	listing.lines, listing.first = slices.Compact(listing.lines), slices.Min(held)

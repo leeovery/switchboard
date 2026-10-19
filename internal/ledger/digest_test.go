@@ -19,8 +19,8 @@ import (
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 )
 
-// digestsIn returns what each file in dir whose name holds "digest" or
-// "parts" holds, by its name.
+// digestsIn returns what each file in dir whose name holds "digest",
+// "parts" or "logday" holds, by its name.
 func digestsIn(t *testing.T, dir string) map[string][]byte {
 	t.Helper()
 	entries, err := os.ReadDir(dir)
@@ -29,7 +29,7 @@ func digestsIn(t *testing.T, dir string) map[string][]byte {
 	}
 	held := make(map[string][]byte)
 	for _, e := range entries {
-		if strings.Contains(e.Name(), "digest") || strings.Contains(e.Name(), "parts") {
+		if strings.Contains(e.Name(), "digest") || strings.Contains(e.Name(), "parts") || strings.Contains(e.Name(), "logday") {
 			data, err := os.ReadFile(filepath.Join(dir, e.Name()))
 			if err != nil {
 				t.Fatal(err)
@@ -41,11 +41,11 @@ func digestsIn(t *testing.T, dir string) map[string][]byte {
 }
 
 // The ledger's reads, and its rounds, pass over the digests beside its days,
-// and their parts files: those it writes, and a stray one, of a day before
-// the first it holds, one named for no day, and one left half written.
-// Where it begins, its days and its lines are as they'd be without them,
-// nothing warned of; and a round summarises, compresses and prunes its days'
-// lines, leaving every digest, and parts file, as it was.
+// their parts files, and their heads: those it writes, and a stray one, of a
+// day before the first it holds, one named for no day, and one left half
+// written. Where it begins, its days and its lines are as they'd be without
+// them, nothing warned of; and a round summarises, compresses and prunes its
+// days' lines, leaving every digest, parts file, and head, as it was.
 func TestTheLedgersReadsAndRoundsPassOverItsDigests(t *testing.T) {
 	log := logstest.Capture(t)
 	state, dir, history := stateDirs(t)
@@ -63,6 +63,9 @@ func TestTheLedgersReadsAndRoundsPassOverItsDigests(t *testing.T) {
 		if err := ledger.WriteParts(dir, day, map[string]json.RawMessage{"one": json.RawMessage(`{}`)}); err != nil {
 			t.Fatal(err)
 		}
+		if err := ledger.WriteDayHead(dir, ledger.DayHead{Body: 1, Day: day, Start: start, End: end, SummaryLines: 1, Lines: 1, Side: json.RawMessage(`[]`)}); err != nil {
+			t.Fatal(err)
+		}
 	}
 	writeFile(t, dir, "digest-2026-09-01.json.gz", []byte("not a digest"))
 	writeFile(t, dir, "digest-someday.json.gz", gzipped(t, "{}"))
@@ -70,6 +73,9 @@ func TestTheLedgersReadsAndRoundsPassOverItsDigests(t *testing.T) {
 	writeFile(t, dir, "parts-2026-09-01.gz", []byte("not a parts file"))
 	writeFile(t, dir, "parts-someday.gz", gzipped(t, "{}"))
 	writeFile(t, dir, ".parts-"+date+".gz.123456", []byte(`{"tu`))
+	writeFile(t, dir, "logday-2026-09-01.json.gz", []byte("not a head"))
+	writeFile(t, dir, "logday-someday.json.gz", gzipped(t, "{}"))
+	writeFile(t, dir, ".logday-"+date+".json.gz.123456", []byte(`{"version":1,"si`))
 	digests := digestsIn(t, dir)
 
 	follower := followerOf(state, &testClock{at: at}, caps)
