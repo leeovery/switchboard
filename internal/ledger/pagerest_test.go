@@ -10,6 +10,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 )
 
@@ -300,6 +301,26 @@ func TestAPageWhoseBaseFallsRestsOnNoParts(t *testing.T) {
 	isPaged(t, 2, got, map[string]onPage{"one": {requests: []string{"1", "2", "early", "3"}}})
 }
 
+// A session's page resting on an older state, as its newest's chain doesn't
+// hold, falls only where a line read after that older state arrived before
+// its day ended: one that arrived before the newest's day ended, which drops
+// the session's state resting on its state, leaves its page standing.
+func TestAPageFallsAsALineReadAfterItsOwnBaseArrivedEarly(t *testing.T) {
+	w := newLookupWorld(t)
+	oddDays(w)
+	w.file(2, askedBy("4", "one", on(1, 23, 0)))
+	w.summarise()
+	ref := w.digestOf(1).Sessions["one"].Part
+	damageAt(t, partsPath(w.dir, 1), ref.Offset+ref.Length/2)
+
+	got := pagesOf(t, w.pageAsOf(3, "one"))
+
+	isPaged(t, 3, got, map[string]onPage{"one": {base: dayOf(-1), chain: datesOn(-3, -1), requests: []string{"3", "4"}}})
+	if s := w.asOf(3, "one")["one"]; s.base != "" || !slices.Equal(s.requests, []string{"1", "2", "3", "4"}) {
+		t.Errorf("session one rests on the state of %q, its lines %q; want it on none, its lines every one, as its line 4 arrived before %s ended", s.base, s.requests, dayOf(1))
+	}
+}
+
 // upsetParts changes the parts and digests of the ledger since its days were
 // digested, as r draws it: a day's digest gone, a day's parts file gone, and
 // a session's part damaged, its file as long.
@@ -334,17 +355,26 @@ func (g *generatedLedger) parted() []int {
 // of the day two after the summaries', ought to rest on resting on its page,
 // and the dates of its chain of parts, oldest first, as the world's own
 // files tell them, not as the lookup's walk does: the newest state no newer
-// than base, the one it rests on resting on its state, that stands and
-// whose chain of parts holds, each link standing, as stands has it, and its
-// part reading, each folded on the day its part's Base names; none where
-// none's does.
-func (g *generatedLedger) pageBase(id, base string, stands map[string]map[string]bool) (string, []string) {
+// than newest, the state its rest on its state finds before any of its
+// lines is read, that stands and whose chain of parts holds, each link
+// standing, as stands has it, and its part reading, each folded on the day
+// its part's Base names; none where none's does, or where one of lines, the
+// session's every line, filed after that state's day arrived before the day
+// ended, as a lookup drops a base it can't take in.
+func (g *generatedLedger) pageBase(id, newest string, stands map[string]map[string]bool, lines []ledger.Line) (string, []string) {
 	for d := 1; d >= -4; d-- {
-		if date := dayOf(d); date <= base && stands[date][id] {
-			if chain, ok := g.chainOf(id, date, stands); ok {
-				return date, chain
-			}
+		date := dayOf(d)
+		if date > newest || !stands[date][id] {
+			continue
 		}
+		chain, ok := g.chainOf(id, date, stands)
+		if !ok {
+			continue
+		}
+		if _, ended, _ := dayfile.Day(date); slices.ContainsFunc(lines, func(l ledger.Line) bool { return g.filed[l.Request] > date && l.At.Before(ended) }) {
+			return "", nil
+		}
+		return date, chain
 	}
 	return "", nil
 }
@@ -402,10 +432,11 @@ func (g *generatedLedger) standing() map[string]map[string]bool {
 // those filed under the base's day and before, its chain of parts leading
 // to that state, and its lines those filed after; on the newest state that
 // stands whose chain holds, as the world's own files tell it, never newer
-// than the state it rests on resting on its state; the router's writer's
-// lookup and a reader's alike. Lines are filed beside their days more
-// rarely than the lookup's own property has them, so more states stand to
-// be passed over for their chains.
+// than the newest that stands, and none where a line read after it arrived
+// before its day ended; the router's writer's lookup and a reader's alike.
+// Lines are filed beside their days more rarely than the lookup's own
+// property has them, so more states stand to be passed over for their
+// chains.
 func TestALookupRestsAPageAsARawReadHasItOverAGeneratedLedger(t *testing.T) {
 	for seed := range uint64(40) {
 		t.Run(fmt.Sprintf("seed %d", seed), func(t *testing.T) {
@@ -419,11 +450,13 @@ func TestALookupRestsAPageAsARawReadHasItOverAGeneratedLedger(t *testing.T) {
 			g.upsetParts()
 
 			pages := g.w.pageAsOf(2, generatedSessions...)
-			states := followerOf(g.w.state, &testClock{at: g.w.at}, caps).SessionsAsOf(generatedSessions, dayOf(2), nil, nil)
+			follower := followerOf(g.w.state, &testClock{at: g.w.at}, caps)
+			states := follower.RestsAsOf(generatedSessions, dayOf(2), func(string) ledger.Rest { return ledger.RestOnState })
 			stands := g.standing()
 
 			for _, id := range generatedSessions {
-				raw := requestsOf(followerOf(g.w.state, &testClock{at: g.w.at}, caps).SessionsOf([]string{id}, eachWhole, nil)[id].Lines)
+				lines := follower.SessionsOf([]string{id}, eachWhole, nil)[id].Lines
+				raw := requestsOf(lines)
 				from, base := pages[id], ""
 				if from.Base != nil {
 					base = from.Base.Date
@@ -441,13 +474,9 @@ func TestALookupRestsAPageAsARawReadHasItOverAGeneratedLedger(t *testing.T) {
 						seed, id, base, folded, lines, before, after, raw)
 				}
 				chain := chained(t, id, from)
-				stateBase := ""
-				if s := states[id]; s.Base != nil {
-					stateBase = s.Base.Date
-				}
-				if wantBase, wantChain := g.pageBase(id, stateBase, stands); base != wantBase || !slices.Equal(chain, wantChain) {
-					t.Errorf("seed %d: session %s's page rests on its state as of %q, of the chain %q; want it on %q's, of the chain %q, its state resting on %q's",
-						seed, id, base, chain, wantBase, wantChain, stateBase)
+				if wantBase, wantChain := g.pageBase(id, states[id], stands, lines); base != wantBase || !slices.Equal(chain, wantChain) {
+					t.Errorf("seed %d: session %s's page rests on its state as of %q, of the chain %q; want it on %q's, of the chain %q, its newest state standing %q's",
+						seed, id, base, chain, wantBase, wantChain, states[id])
 				}
 			}
 		})

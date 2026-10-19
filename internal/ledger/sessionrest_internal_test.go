@@ -9,6 +9,8 @@ import (
 	"slices"
 	"testing"
 	"time"
+
+	"github.com/leeovery/switchboard/internal/dayfile"
 )
 
 // countingLook is a look at the ledger's days as the look it holds gives the
@@ -206,6 +208,66 @@ func TestALookupReadsASessionsPartOnce(t *testing.T) {
 	if again.base == nil || again.base.Date != digested || !reflect.DeepEqual(again.parts, first.parts) || len(first.parts) != 2 {
 		t.Errorf("rested again, its parts gone, the session rests on %+v, of the parts %q; want it on %s's state, of the parts first read, %q",
 			again.base, partsDated(again.parts), digested, partsDated(first.parts))
+	}
+}
+
+// A lookup resting a session on its page judges each of its states as a link
+// of a chain once, though the chain of every one leads down to a first part
+// that's damaged: a long chain broken at its root costs a judgement a state,
+// not one for each state below each.
+func TestAPagesWalkJudgesEachLinkOnce(t *testing.T) {
+	const length = 40
+	d := digestDays(t)
+	first, _, _ := dayfile.Day(rested)
+	kept := map[string]keptDay{dayfile.DateOf(dayfile.DayStart(first, -1)): {known: true}}
+	var naming []string
+	var root Digest
+	for i := range length {
+		date := dayfile.DateOf(dayfile.DayStart(first, i))
+		naming, kept[date] = append(naming, date), keptDay{lines: 1, known: true}
+		restsOn := make(map[string]int, len(naming))
+		for _, on := range naming {
+			restsOn[on] = 1
+		}
+		part := builtPart{data: json.RawMessage(`["` + date + `"]`)}
+		if i > 0 {
+			part.on = naming[i-1]
+		}
+		written, err := d.writeDigest(Digest{Head: headOf(date, 1), Sessions: map[string]DigestEntry{"work": {RestsOn: restsOn, State: json.RawMessage(`{}`)}}},
+			map[string]builtPart{"work": part})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if i == 0 {
+			root = written
+		}
+	}
+	damaged(t, partsFile(d.files.Dir, rested), root.Sessions["work"].Part.Member)
+	l := newSessionsLookup(d, &countingLook{daysLook: looks()["a reader's"](d), lines: kept})
+	judged := make(map[string]int)
+	l.judged = func(date string) { judged[date]++ }
+	s := &sessionAsked{naming: naming}
+
+	l.rest("work", s, RestOnPage)
+
+	once := !slices.ContainsFunc(naming, func(date string) bool { return judged[date] != 1 })
+	if s.base != nil || !once || len(judged) != length {
+		t.Errorf("over a chain of %d states broken at its root, the session rests on %+v, the states judged as links %v; want it on none, each of the %d judged once",
+			length, s.base, judged, length)
+	}
+}
+
+// damaged flips the bits of a byte in the middle of the member m of the file
+// at path, leaving it as long.
+func damaged(t *testing.T, path string, m Member) {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data[m.Offset+m.Length/2] ^= 0xff
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
 	}
 }
 

@@ -67,6 +67,24 @@ func (f *Follower) SessionsAsOf(ids []string, date string, rest func(id string) 
 	return f.lookup().asOf(f.datesBefore(date, read.now), nil, wanting(make(map[string]bool), ids), rest, read)
 }
 
+// RestsAsOf returns the date of the state each of the sessions with the given
+// ids rests on as of the start of the local day with the given date, as the
+// follower's lookup rests it, as rest says of each, "" for none, by its id:
+// before any of its lines is read, so before a base falls to a line read
+// after it that arrived before the base's day ended, as asOf drops it, for
+// tests of the rest alone.
+func (f *Follower) RestsAsOf(ids []string, date string, rest func(id string) Rest) map[string]string {
+	l := f.lookup()
+	rests := make(map[string]string, len(ids))
+	for id, s := range l.namingEach(f.datesBefore(date, f.now()), nil, wanting(make(map[string]bool), ids)) {
+		l.rest(id, s, rest(id))
+		if s.base != nil {
+			rests[id] = s.base.Date
+		}
+	}
+	return rests
+}
+
 // SessionsAsOf returns the sessions with the given ids as of the start of
 // the local day with the given date, at now, as the router's digester's
 // lookup finds them, resting as rest says of each, through the look its

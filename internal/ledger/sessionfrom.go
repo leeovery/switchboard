@@ -282,10 +282,13 @@ func (w writtenDay) kept() (int, bool) {
 // sessionsLookup is a lookup of sessions as of a local day: the ledger's
 // days, and the asker's look at them; and, held so each day is looked at,
 // its digest read and its digest's head read once, and each session's part
-// of it read once, the lines the ledger kept of each day as the look first
-// gave them, each day's digest, nil where it holds none that reads, each
-// day's digest's head, as the look first gave them, and the sessions' parts
-// read, as part read them.
+// of it read once, and its state there judged as a link of a chain once, the
+// lines the ledger kept of each day as the look first gave them, each day's
+// digest, nil where it holds none that reads, each day's digest's head, as
+// the look first gave them, the sessions' parts read, as part read them, and
+// the sessions' states whose chain of parts doesn't hold, as chainOf found
+// them. judged, where it's set, is called with the date of each state
+// chainOf judges as a link of a chain, as tests count them.
 type sessionsLookup struct {
 	days    days
 	look    daysLook
@@ -293,10 +296,12 @@ type sessionsLookup struct {
 	digests map[string]*Digest
 	heads   map[string]headLooked
 	parts   map[partOf]partRead
+	broken  map[partOf]bool
+	judged  func(date string)
 }
 
-// partOf is a session's part of a day as a lookup reads it: the day's date,
-// and the session's id.
+// partOf is a session's part of a day, or its state there, as a lookup
+// reads it: the day's date, and the session's id.
 type partOf struct {
 	date, id string
 }
@@ -319,7 +324,7 @@ type headLooked struct {
 // the asker's own look at them, having looked at none yet.
 func newSessionsLookup(d days, look daysLook) *sessionsLookup {
 	return &sessionsLookup{days: d, look: look, kept: make(map[string]keptLines), digests: make(map[string]*Digest), heads: make(map[string]headLooked),
-		parts: make(map[partOf]partRead)}
+		parts: make(map[partOf]partRead), broken: make(map[partOf]bool)}
 }
 
 // asOf returns the sessions wanted as of the start of a local day, as
@@ -429,13 +434,17 @@ func (l *sessionsLookup) namingEach(dates, near []string, wanted map[string]bool
 // entryStanding says, and, where on is RestOnPage, whose chain of parts
 // reads, as chainOf gives it, the chain with it; on none where on is
 // RestWhole, or a day naming it can't be told, as told says, as what of its
-// lines that day holds can't be.
+// lines that day holds can't be. Resting on its page, it passes over
+// unjudged each state found broken before, as chainOf notes it.
 func (l *sessionsLookup) rest(id string, s *sessionAsked, on Rest) {
 	if on == RestWhole || !l.told(s.naming) {
 		return
 	}
 	for i, date := range slices.Backward(s.naming) {
 		naming := s.naming[:i+1]
+		if on == RestOnPage && l.broken[partOf{date: date, id: id}] {
+			continue
+		}
 		entry, ended, ok := l.entryStanding(id, naming)
 		if !ok {
 			continue
@@ -475,33 +484,68 @@ func (l *sessionsLookup) entryStanding(id string, naming []string) (DigestEntry,
 // with the given id in the digest of the local day with the last of the
 // given dates, those of the days naming it up to that one, oldest first:
 // from the part of a state folded on none, then that of each state folded
-// on the one before, to entry's own, each state found by the date the part
-// of the one after names, as PartRef's On names it. It reports false where a
-// link doesn't hold: a state with no part, or whose part doesn't read, as
-// part says; or folded on a state not of a day before its own naming the
-// session, or on one whose entry doesn't stand for it, as entryStanding
-// says, of the days naming it up to its own.
+// on the one before, to entry's own, each state found as link finds it. It
+// reports false where a link doesn't hold, as link says, noting each state
+// it judged as broken, as their chains all lead through that link: so the
+// session's older states are never walked through it again, and each of
+// its states is judged once, however many chains lead through it.
 func (l *sessionsLookup) chainOf(id string, naming []string, entry DigestEntry) ([]SessionPart, bool) {
 	var chain []SessionPart
 	for {
 		date := naming[len(naming)-1]
-		part, ok := l.part(date, id, entry.Part)
+		part, below, ok := l.link(id, naming, entry)
 		if !ok {
+			l.broke(id, chain, date)
 			return nil, false
 		}
 		chain = append(chain, SessionPart{Date: date, Part: part})
-		if entry.Part.On == "" {
+		if below == nil {
 			slices.Reverse(chain)
 			return chain, true
 		}
-		on := slices.Index(naming[:len(naming)-1], entry.Part.On)
-		if on < 0 {
-			return nil, false
-		}
-		naming = naming[:on+1]
-		if entry, _, ok = l.entryStanding(id, naming); !ok {
-			return nil, false
-		}
+		naming, entry = below.naming, below.entry
+	}
+}
+
+// stateOf is a session's state as a chain of parts leads to it: the dates
+// of the days naming the session up to the state's own, and its entry there.
+type stateOf struct {
+	naming []string
+	entry  DigestEntry
+}
+
+// link judges the state of the session with the given id whose entry is
+// entry, in the digest of the local day with the last of the given dates,
+// those of the days naming it up to that one, as a link of a chain of parts:
+// giving its part, as part reads it, and the state it was folded on, as its
+// part's On names it, nil for none. It reports false where it has no part,
+// or its part doesn't read; or it was folded on a state not of a day before
+// its own naming the session, or on one found broken before, as chainOf
+// notes it, or whose entry doesn't stand for it, as entryStanding says.
+func (l *sessionsLookup) link(id string, naming []string, entry DigestEntry) (json.RawMessage, *stateOf, bool) {
+	date := naming[len(naming)-1]
+	if l.judged != nil {
+		l.judged(date)
+	}
+	part, ok := l.part(date, id, entry.Part)
+	if !ok || entry.Part.On == "" {
+		return part, nil, ok
+	}
+	on := slices.Index(naming[:len(naming)-1], entry.Part.On)
+	if on < 0 || l.broken[partOf{date: entry.Part.On, id: id}] {
+		return nil, nil, false
+	}
+	below := &stateOf{naming: naming[:on+1]}
+	below.entry, _, ok = l.entryStanding(id, below.naming)
+	return part, below, ok
+}
+
+// broke notes the states of the session with the given id of the days with
+// chain's dates, and the given date, as of no chain of parts that holds.
+func (l *sessionsLookup) broke(id string, chain []SessionPart, date string) {
+	l.broken[partOf{date: date, id: id}] = true
+	for _, p := range chain {
+		l.broken[partOf{date: p.Date, id: id}] = true
 	}
 }
 
