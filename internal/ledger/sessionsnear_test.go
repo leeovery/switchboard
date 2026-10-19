@@ -196,7 +196,7 @@ func TestANearDaysLineArrivingBeforeItsSessionsBaseEndedLeavesItOnNone(t *testin
 	})
 }
 
-// A session whole reports true of is read whole, resting on none, its lines
+// A session asked to rest whole is read whole, resting on none, its lines
 // every one, though a digest holds a state of it that stands; the others
 // rest on theirs.
 func TestASessionAskedWholeRestsOnNone(t *testing.T) {
@@ -204,7 +204,7 @@ func TestASessionAskedWholeRestsOnNone(t *testing.T) {
 	nearDays(w)
 	w.by(on(1, 1, 30))
 
-	got := foundOf(t, w.follower().Sessions([]string{"four"}, func(id string) bool { return id == "one" }, nil))
+	got := foundOf(t, w.follower().Sessions([]string{"four"}, wholeOf("one"), nil))
 
 	isRead(t, w.at, got, map[string]found{
 		"one":   {requests: []string{"1", "2", "3", "4"}},
@@ -261,7 +261,7 @@ func TestYesterdaysLinesAreTakenWhileItsNearOrASessionReadReadsIt(t *testing.T) 
 			w.by(tt.at)
 			taken := takenDays{}
 
-			w.follower().SessionsOf(tt.ids, func(id string) bool { return slices.Contains(tt.whole, id) }, taken.take)
+			w.follower().SessionsOf(tt.ids, wholeOf(tt.whole...), taken.take)
 
 			if dates := taken.dates(); !slices.Equal(dates, tt.read) {
 				t.Errorf("SessionsOf(%q), %q whole, handed take the lines of %q, want those of %q", tt.ids, tt.whole, dates, tt.read)

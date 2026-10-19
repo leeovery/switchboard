@@ -60,23 +60,38 @@ func ReadPart(dir, date string, ref PartRef) (json.RawMessage, error) {
 
 // SessionsAsOf returns the sessions with the given ids as of the start of
 // the local day with the given date, as the follower's lookup finds them,
-// handing take each line read, where it's given, for tests of the lookup.
-func (f *Follower) SessionsAsOf(ids []string, date string, take func(date string, l Line)) map[string]SessionFrom {
+// resting as rest says of each, handing take each line read, where it's
+// given, for tests of the lookup.
+func (f *Follower) SessionsAsOf(ids []string, date string, rest func(id string) Rest, take func(date string, l Line)) map[string]SessionFrom {
 	read := newSessionsRead(f.now(), take)
-	return f.lookup().asOf(f.datesBefore(date, read.now), nil, wanting(make(map[string]bool), ids), nil, read)
+	return f.lookup().asOf(f.datesBefore(date, read.now), nil, wanting(make(map[string]bool), ids), rest, read)
 }
 
 // SessionsAsOf returns the sessions with the given ids as of the start of
 // the local day with the given date, at now, as the router's digester's
-// lookup finds them, through the look its passes take at the days, held
-// from one to the next, their states of the version its Digester gives, for
-// tests of the lookup. The ledger must be opened Digesting.
-func (l *Ledger) SessionsAsOf(ids []string, date string, now time.Time) map[string]SessionFrom {
+// lookup finds them, resting as rest says of each, through the look its
+// passes take at the days, held from one to the next, their states of the
+// version its Digester gives, for tests of the lookup. The ledger must be
+// opened Digesting.
+func (l *Ledger) SessionsAsOf(ids []string, date string, now time.Time, rest func(id string) Rest) map[string]SessionFrom {
 	l.digesting.passing.Lock()
 	defer l.digesting.passing.Unlock()
 	first, err := l.days.first()
 	view := l.digesting.view()
-	return newSessionsLookup(l.days, view).asOf(l.days.datesBefore(date, first, err, now), nil, wanting(make(map[string]bool), ids), nil, newSessionsRead(now, nil))
+	return newSessionsLookup(l.days, view).asOf(l.days.datesBefore(date, first, err, now), nil, wanting(make(map[string]bool), ids), rest, newSessionsRead(now, nil))
+}
+
+// WriteDigestWithParts writes digest as the router's writer writes it, with
+// the parts of its sessions given, by their ids, each folded on the state
+// of the date on gives it, "" for none, as the day's parts file, its
+// entries pointing at them, for tests of what reads them. It returns the
+// digest as written.
+func WriteDigestWithParts(dir string, digest Digest, parts map[string]json.RawMessage, on map[string]string) (Digest, error) {
+	built := make(map[string]builtPart, len(parts))
+	for id, part := range parts {
+		built[id] = builtPart{on: on[id], data: part}
+	}
+	return days{files: filesIn(dir, nil)}.writeDigest(digest, built)
 }
 
 // RestsOn returns what a state folded from s rests on, as the lookup found

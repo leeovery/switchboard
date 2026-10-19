@@ -17,14 +17,26 @@ import (
 // of its end, for the ledger to keep in the day's digest, and their parts of
 // the day, for it to keep in the day's parts file: Version is the version of
 // the states and parts it gives, as a digest of another doesn't stand; and
-// Digest gives each session day hands it as it folds it, by its id, as
-// Folded has it, failing where it can't fold them, or ctx ends first. A
-// session handed resting on a state it gives none of is handed it again read
-// whole, in a call of its own; one it gives no state of then has no entry in
-// the digest, which leaves the day due: it's built again whenever it's
-// judged afresh, as at each start of the router.
+// Builder gives a builder of a day's digest, as DigestBuilder has it, for one
+// read of the days its sessions are read from.
 type Digester interface {
 	Version() int
+	Builder() DigestBuilder
+}
+
+// DigestBuilder builds a finished local day's digest, its Digester's, from one
+// read of the days its sessions are read from: Take is handed each line the
+// read reads, of whichever session, with the date of the day whose files
+// hold it, as sessionsLookup.asOf hands a reader's take them, every one
+// before Digest is called; and Digest gives each session day hands it as it
+// folds it, by its id, as Folded has it, failing where it can't fold them,
+// or ctx ends first. A session handed resting on a state it gives none of is
+// handed again read whole, to a builder of its own, handed each line of
+// that read; one it gives no state of then has no entry in the digest,
+// which leaves the day due: it's built again whenever it's judged afresh,
+// as at each start of the router.
+type DigestBuilder interface {
+	Take(date string, l Line)
 	Digest(ctx context.Context, day DigestDay) (map[string]Folded, error)
 }
 
@@ -381,8 +393,8 @@ func (d *digesting) build(ctx context.Context, dates []string, view writerLook, 
 // hold them now, as arrivals counts them; and an entry of each session its
 // summary names, as of the day's end, as sessionsLookup.asOf finds it, whose
 // state can be kept, resting on what that says, its state and its part as
-// fold gives them. A session resting on a state fold gives none of, as one
-// the Digester can't restore, or one in the day's own digest whose part
+// readFolded gives them. A session resting on a state fold gives none of, as
+// one the Digester can't restore, or one in the day's own digest whose part
 // there doesn't read, is handed again read whole, so a spoiled state, or a
 // damaged part, is folded past, not rested on day after day; one it gives
 // none of then has no entry. It fails where the day's files can't be read,
@@ -398,14 +410,12 @@ func (d *digesting) digestOf(ctx context.Context, dates []string, view writerLoo
 	}
 	named, _ := day.named()
 	lookup := newSessionsLookup(d.days, view)
-	sessions := lookup.foldable(dates, named, nil, now)
-	folded, err := d.fold(ctx, head, sessions)
+	sessions, folded, err := d.readFolded(ctx, lookup, head, dates, named, nil, now)
 	if err != nil {
 		return Digest{}, nil, err
 	}
 	if spoiled := unfolded(sessions, folded); len(spoiled) > 0 {
-		whole := lookup.foldable(dates, spoiled, func(string) bool { return true }, now)
-		again, err := d.fold(ctx, head, whole)
+		whole, again, err := d.readFolded(ctx, lookup, head, dates, spoiled, func(string) Rest { return RestWhole }, now)
 		if err != nil {
 			return Digest{}, nil, err
 		}
@@ -416,12 +426,26 @@ func (d *digesting) digestOf(ctx context.Context, dates []string, view writerLoo
 	return Digest{Head: head, Sessions: entriesOf(sessions, folded)}, partsOf(folded), nil
 }
 
+// readFolded returns the sessions with the given ids as of the end of the
+// day head is of, the last of the local days with the given dates, those
+// from where the ledger begins, at now, as lookup's foldable finds them,
+// resting as rest says of each; and each folded, as fold folds it, by a
+// builder of the day's digest of their own, as the Digester gives one,
+// handed each line their read reads first, so a second read of the day's
+// sessions hands its lines afresh. It fails as fold fails.
+func (d *digesting) readFolded(ctx context.Context, lookup *sessionsLookup, head DigestHead, dates, ids []string, rest func(id string) Rest, now time.Time) (map[string]SessionFrom, map[string]sessionFolded, error) {
+	build := d.digester.Builder()
+	sessions := lookup.foldable(dates, ids, rest, now, build.Take)
+	folded, err := d.fold(ctx, build, head, sessions)
+	return sessions, folded, err
+}
+
 // foldable returns the sessions with the given ids as of the end of the last
 // of the local days with the given dates, those from where the ledger begins,
-// at now, as asOf finds them, those whole reports true of read whole: each
-// whose state can be kept, as restsOn says.
-func (l *sessionsLookup) foldable(dates, ids []string, whole func(id string) bool, now time.Time) map[string]SessionFrom {
-	sessions := l.asOf(dates, nil, wanting(make(map[string]bool), ids), whole, newSessionsRead(now, nil))
+// at now, as asOf finds them, resting as rest says of each, take handed each
+// line read: each whose state can be kept, as restsOn says.
+func (l *sessionsLookup) foldable(dates, ids []string, rest func(id string) Rest, now time.Time, take func(date string, l Line)) map[string]SessionFrom {
+	sessions := l.asOf(dates, nil, wanting(make(map[string]bool), ids), rest, newSessionsRead(now, take))
 	maps.DeleteFunc(sessions, func(_ string, s SessionFrom) bool { return s.restsOn == nil })
 	return sessions
 }
@@ -435,15 +459,15 @@ type sessionFolded struct {
 }
 
 // fold returns sessions folded as of the end of the day head is of, by their
-// ids: each the Digester gives of those handed it, all but those resting on
-// the day's own digest still, its part on the date of the state it was
-// handed resting on, none where it rested on none; and each of those as it's
-// folded there, as keptFolded keeps it, where its part there reads. It gives
-// none of another, nor of one the Digester gives none of.
-func (d *digesting) fold(ctx context.Context, head DigestHead, sessions map[string]SessionFrom) (map[string]sessionFolded, error) {
+// ids: each build gives of those handed it, all but those resting on the
+// day's own digest still, its part on the date of the state it was handed
+// resting on, none where it rested on none; and each of those as it's folded
+// there, as keptFolded keeps it, where its part there reads. It gives none
+// of another, nor of one build gives none of.
+func (d *digesting) fold(ctx context.Context, build DigestBuilder, head DigestHead, sessions map[string]SessionFrom) (map[string]sessionFolded, error) {
 	handing := maps.Clone(sessions)
 	maps.DeleteFunc(handing, func(_ string, s SessionFrom) bool { return s.restingOn(head.Day) })
-	given, err := d.digester.Digest(ctx, DigestDay{Date: head.Day, Start: head.Start, End: head.End, Sessions: handing})
+	given, err := build.Digest(ctx, DigestDay{Date: head.Day, Start: head.Start, End: head.End, Sessions: handing})
 	if err != nil {
 		return nil, err
 	}

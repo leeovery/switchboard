@@ -398,14 +398,14 @@ type sessionsCounted struct {
 	alone []string
 }
 
-func (l *sessionsCounted) Sessions(ids []string, whole func(string) bool, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+func (l *sessionsCounted) Sessions(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
 	l.asked = append(l.asked, slices.Clone(ids))
-	return l.Ledger.Sessions(ids, whole, take)
+	return l.Ledger.Sessions(ids, rest, take)
 }
 
-func (l *sessionsCounted) SessionsOf(ids []string, whole func(string) bool, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+func (l *sessionsCounted) SessionsOf(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
 	l.alone = append(l.alone, ids...)
-	return l.Ledger.SessionsOf(ids, whole, take)
+	return l.Ledger.SessionsOf(ids, rest, take)
 }
 
 func (l *sessionsCounted) Session(id string) iter.Seq[ledger.Held] {

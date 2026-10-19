@@ -19,20 +19,21 @@ import (
 // them, its lines those that arrived by now: today's sessions, those with a
 // request that arrived today, and those with the given ids. It reads the near
 // days' files, every session's, finding today's sessions among them; then
-// gives each session as sessionsLookup.asOf does: resting on the newest state
-// the digest of a day before the near days naming it holds that stands for
-// it, but those whole reports true of, where it's given, read whole, resting
-// on none; its lines those of the days naming it after that one, as their
-// summaries, as Days gives them, name it, or might, as Summary.naming says,
-// and the near days'. Each day's files are read once, the days of each read
-// side by side, as days reads them, and no day before the near days looked
-// at where it reads no session. take, where it's given, is handed each line
-// read that arrived by now, of whichever session, with the date of the day
-// whose files hold it, the near days' first.
-func (f *Follower) Sessions(ids []string, whole func(id string) bool, take func(date string, l Line)) map[string]SessionFrom {
+// gives each session as sessionsLookup.asOf does: resting as rest says of
+// it, by its id, as Rest has it, on a state the digest of a day before the
+// near days naming it holds, or on none, read whole, each on the newest
+// state that stands for it where rest is nil; its lines those of the days
+// naming it after that one, as their summaries, as Days gives them, name it,
+// or might, as Summary.naming says, and the near days'. Each day's files are
+// read once, the days of each read side by side, as days reads them, and no
+// day before the near days looked at where it reads no session. take, where
+// it's given, is handed each line read that arrived by now, of whichever
+// session, with the date of the day whose files hold it, the near days'
+// first.
+func (f *Follower) Sessions(ids []string, rest func(id string) Rest, take func(date string, l Line)) map[string]SessionFrom {
 	read, l, near := f.readingNear(take)
 	read.days(f.days, near, nil)
-	return f.asOf(l, near, wanting(read.today(dayfile.DayStart(read.now.Local(), 0)), ids), whole, read)
+	return f.asOf(l, near, wanting(read.today(dayfile.DayStart(read.now.Local(), 0)), ids), rest, read)
 }
 
 // SessionsOf returns the sessions with the given ids alone, as Sessions gives
@@ -41,9 +42,9 @@ func (f *Follower) Sessions(ids []string, whole func(id string) bool, take func(
 // that might, so a session that ran today for weeks has none of its days
 // read for another's, and no day waits on another. take, where it's given,
 // is handed each line read, as Sessions hands it.
-func (f *Follower) SessionsOf(ids []string, whole func(id string) bool, take func(date string, l Line)) map[string]SessionFrom {
+func (f *Follower) SessionsOf(ids []string, rest func(id string) Rest, take func(date string, l Line)) map[string]SessionFrom {
 	read, l, near := f.readingNear(take)
-	return f.asOf(l, near, wanting(make(map[string]bool), ids), whole, read)
+	return f.asOf(l, near, wanting(make(map[string]bool), ids), rest, read)
 }
 
 // readingNear returns a read of sessions as Sessions reads them, at now,
@@ -57,15 +58,14 @@ func (f *Follower) readingNear(take func(date string, l Line)) (*sessionsRead, *
 
 // asOf returns the sessions wanted as of the first of the near days, as l
 // finds them through read, their lines the near days' after whatever they
-// rest on, and those whole reports true of read whole, as sessionsLookup.asOf
-// gives them: none, and no day before the near days looked at, where none is
-// wanted.
-func (f *Follower) asOf(l *sessionsLookup, near []string, wanted map[string]bool, whole func(id string) bool, read *sessionsRead) map[string]SessionFrom {
+// rest on, as rest says of each, as sessionsLookup.asOf gives them: none, and
+// no day before the near days looked at, where none is wanted.
+func (f *Follower) asOf(l *sessionsLookup, near []string, wanted map[string]bool, rest func(id string) Rest, read *sessionsRead) map[string]SessionFrom {
 	var dates []string
 	if len(wanted) > 0 {
 		dates = f.datesBefore(near[0], read.now)
 	}
-	return l.asOf(dates, near, wanted, whole, read)
+	return l.asOf(dates, near, wanted, rest, read)
 }
 
 // wanting is wanted, the sessions a read wants by their ids, wanting those

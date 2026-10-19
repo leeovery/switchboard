@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"maps"
 	"os"
+	"reflect"
 	"slices"
 	"testing"
 	"time"
@@ -49,12 +50,6 @@ func TestALookupDecodesNoDigestWhoseHeadDoesntStand(t *testing.T) {
 	otherStates.Head.Body, olderStates.Head.Body = statesVersion+1, statesVersion+1
 	envelope := storedOf(newer)
 	envelope.Version = digestVersion + 1
-	looks := map[string]func(d days) daysLook{
-		"the writer's": func(d days) daysLook { return writerLook{days: d, body: statesVersion} },
-		"a reader's": func(d days) daysLook {
-			return followerLook{f: &Follower{days: d, body: statesVersion, heads: make(map[string]heldHead)}}
-		},
-	}
 	tests := []struct {
 		name string
 		// older is the digest of the older day naming the session, nil for
@@ -77,7 +72,7 @@ func TestALookupDecodesNoDigestWhoseHeadDoesntStand(t *testing.T) {
 		{name: "both of another version of the states", older: &olderStates, newer: &otherStates, base: ""},
 		{name: "neither standing, each summary made again since", newer: &newer, kept: map[string]int{rested: 13, digested: 41}, base: ""},
 	}
-	for name, lookOf := range looks {
+	for name, lookOf := range looks() {
 		for _, tt := range tests {
 			t.Run(name+", "+tt.name, func(t *testing.T) {
 				d := digestDays(t)
@@ -88,7 +83,7 @@ func TestALookupDecodesNoDigestWhoseHeadDoesntStand(t *testing.T) {
 				look := &countingLook{daysLook: lookOf(d), lines: keeping(withDayBeforeRested(tt.kept))}
 				s := &sessionAsked{naming: []string{rested, digested}}
 
-				newSessionsLookup(d, look).rest("work", s)
+				newSessionsLookup(d, look).rest("work", s, RestOnState)
 
 				base := ""
 				if s.base != nil {
@@ -100,6 +95,132 @@ func TestALookupDecodesNoDigestWhoseHeadDoesntStand(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// looks are the looks at the ledger's days d a lookup's tests look through,
+// by whose they are: the router's writer's, and a reader's, of the sessions'
+// states of statesVersion.
+func looks() map[string]func(d days) daysLook {
+	return map[string]func(d days) daysLook{
+		"the writer's": func(d days) daysLook { return writerLook{days: d, body: statesVersion} },
+		"a reader's": func(d days) daysLook {
+			return followerLook{f: &Follower{days: d, body: statesVersion, heads: make(map[string]heldHead)}}
+		},
+	}
+}
+
+// pagedDigests writes the digests of the page's lookup tests: older, of
+// rested, its session work folded on none; and the digest of digested, its
+// session folded on rested's state; each with work's part beside it.
+func pagedDigests(t *testing.T, d days, older Digest) {
+	t.Helper()
+	newer := Digest{Head: headOf(digested, 40), Sessions: map[string]DigestEntry{"work": {RestsOn: map[string]int{rested: 12, digested: 40}, State: json.RawMessage(`{}`)}}}
+	for _, written := range []struct {
+		digest Digest
+		part   builtPart
+	}{
+		{digest: older, part: builtPart{data: json.RawMessage(`["` + rested + `"]`)}},
+		{digest: newer, part: builtPart{on: rested, data: json.RawMessage(`["` + digested + `"]`)}},
+	} {
+		if _, err := d.writeDigest(written.digest, map[string]builtPart{"work": written.part}); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// olderPaged is the older digest of the page's lookup tests, of rested, its
+// session work folded on none, of the version of the states given.
+func olderPaged(body int) Digest {
+	head := headOf(rested, 12)
+	head.Body = body
+	return Digest{Head: head, Sessions: map[string]DigestEntry{"work": {RestsOn: map[string]int{rested: 12}, State: json.RawMessage(`{}`)}}}
+}
+
+// partsDated returns the dates of parts, in order.
+func partsDated(parts []SessionPart) []string {
+	dates := make([]string, len(parts))
+	for i, p := range parts {
+		dates[i] = p.Date
+	}
+	return dates
+}
+
+// A lookup resting a session on its page, the router's writer's and a
+// reader's alike, follows the chain of parts behind a state that stands
+// through digests whose heads stand alone, decoding the entries of no link
+// whose head says its digest doesn't stand, as one of another version: the
+// state that chain leads through rests on none.
+func TestAPagesWalkDecodesNoLinkWhoseHeadDoesntStand(t *testing.T) {
+	tests := []struct {
+		name    string
+		older   Digest
+		decoded []string
+		base    string
+		parts   []string
+	}{
+		{name: "each standing", older: olderPaged(statesVersion), decoded: []string{digested, rested}, base: digested, parts: []string{rested, digested}},
+		{name: "the older of another version of the states", older: olderPaged(statesVersion + 1), decoded: []string{digested}, base: ""},
+	}
+	for name, lookOf := range looks() {
+		for _, tt := range tests {
+			t.Run(name+", "+tt.name, func(t *testing.T) {
+				d := digestDays(t)
+				pagedDigests(t, d, tt.older)
+				look := &countingLook{daysLook: lookOf(d), lines: keeping(withDayBeforeRested(nil))}
+				s := &sessionAsked{naming: []string{rested, digested}}
+
+				newSessionsLookup(d, look).rest("work", s, RestOnPage)
+
+				base := ""
+				if s.base != nil {
+					base = s.base.Date
+				}
+				if !slices.Equal(look.decoded, tt.decoded) || base != tt.base || !slices.Equal(partsDated(s.parts), tt.parts) {
+					t.Errorf("rest decoded the digests of %q, resting the session on %q, of the parts of %q; want those of %q decoded, resting it on %q, of the parts of %q",
+						look.decoded, base, partsDated(s.parts), tt.decoded, tt.base, tt.parts)
+				}
+			})
+		}
+	}
+}
+
+// A lookup reads a session's part of a day once, whichever of the session's
+// rests lead through it: a rest after its parts files are gone rests on the
+// parts it read.
+func TestALookupReadsASessionsPartOnce(t *testing.T) {
+	d := digestDays(t)
+	pagedDigests(t, d, olderPaged(statesVersion))
+	l := newSessionsLookup(d, &countingLook{daysLook: looks()["a reader's"](d), lines: keeping(withDayBeforeRested(nil))})
+	first := &sessionAsked{naming: []string{rested, digested}}
+	l.rest("work", first, RestOnPage)
+	for _, date := range []string{rested, digested} {
+		if err := os.Remove(partsFile(d.files.Dir, date)); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	again := &sessionAsked{naming: []string{rested, digested}}
+	l.rest("work", again, RestOnPage)
+
+	if again.base == nil || again.base.Date != digested || !reflect.DeepEqual(again.parts, first.parts) || len(first.parts) != 2 {
+		t.Errorf("rested again, its parts gone, the session rests on %+v, of the parts %q; want it on %s's state, of the parts first read, %q",
+			again.base, partsDated(again.parts), digested, partsDated(first.parts))
+	}
+}
+
+// A lookup resting a session on its state, as the List's and the store's
+// other sessions are rested, reads none of its parts, and gives none.
+func TestALookupRestingASessionOnItsStateReadsNoPart(t *testing.T) {
+	d := digestDays(t)
+	pagedDigests(t, d, olderPaged(statesVersion))
+	l := newSessionsLookup(d, &countingLook{daysLook: looks()["a reader's"](d), lines: keeping(withDayBeforeRested(nil))})
+	s := &sessionAsked{naming: []string{rested, digested}}
+
+	l.rest("work", s, RestOnState)
+
+	if s.base == nil || s.base.Date != digested || len(l.parts) > 0 || s.parts != nil {
+		t.Errorf("the session rests on %+v, of the parts %q, the lookup having read %d; want it on %s's state, none read", s.base, partsDated(s.parts), len(l.parts), digested)
 	}
 }
 

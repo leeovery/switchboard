@@ -380,9 +380,8 @@ func (f *feed) answer(t Taken) {
 // read holds afresh, of one read through l, the sessions wanted that the
 // store doesn't hold, and those it can't place a line of, as hold holds
 // each: every one of today's too, where the List is wanted and the store
-// doesn't hold them yet. Each rests on the newest state a digest holds of it
-// that stands, as the ledger finds it, but those readsWhole reports true of,
-// read whole; and one that can't be held on its state, as heldOf can't hold
+// doesn't hold them yet. Each rests on what rest says of it, as the ledger
+// finds it; and one that can't be held on its state, as heldOf can't hold
 // it, is read again, whole. Where the session whose page is open is among
 // them, every account's answers on the days read are taken for its points,
 // as answering has them.
@@ -397,19 +396,23 @@ func (f *feed) read(l LedgerSessions) {
 	if listing {
 		sessions, f.listing = l.Sessions, true
 	}
-	if unrestored := f.holdFound(ids, sessions(ids, f.readsWhole, take), answers); len(unrestored) > 0 {
+	if unrestored := f.holdFound(ids, sessions(ids, f.rest, take), answers); len(unrestored) > 0 {
 		f.holdFound(unrestored, l.SessionsOf(unrestored, eachWhole, nil), answers)
 	}
 }
 
-// readsWhole reports whether a feed reads the session with the given id
-// whole, resting on no state a digest holds: the page's, as its tally and
-// its points take in every one of its days' answers; and one the store can't
-// place a line of, as gained has it, which the same state would leave as
-// unplaced, feed after feed, as a session restored onto the day after its
-// state's holds none of that day's flights.
-func (f *feed) readsWhole(id string) bool {
-	return id == f.want.Page || f.whole[id]
+// rest returns what a feed rests the session with the given id on: none,
+// read whole, of the page's, as its tally and its points take in every one
+// of its days' answers, and of one the store can't place a line of, as
+// gained has it, which the same state would leave as unplaced, feed after
+// feed, as a session restored onto the day after its state's holds none of
+// that day's flights; and the newest state a digest holds that stands, of
+// any other.
+func (f *feed) rest(id string) ledger.Rest {
+	if id == f.want.Page || f.whole[id] {
+		return ledger.RestWhole
+	}
+	return ledger.RestOnState
 }
 
 // answering is, where the session whose page is open is among the sessions

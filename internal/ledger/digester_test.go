@@ -35,11 +35,14 @@ type folding struct {
 }
 
 // handedDay is a day as the tests' Digester was handed it: when, by the
-// clock; its date; and each session's, by its id, as handedSession tells it.
+// clock; its date; each session's, by its id, as handedSession tells it; and
+// the lines the builder it was handed to was handed before it, as takenDays
+// notes them.
 type handedDay struct {
 	at       time.Time
 	date     string
 	sessions map[string]handedSession
+	taken    takenDays
 }
 
 // handedSession is a session as the tests' Digester was handed it: the date
@@ -58,12 +61,39 @@ func (f *folding) Version() int {
 	return digestBody
 }
 
-// Digest notes day as handed, does what during does, where it's set, and
-// gives each of its sessions folded: its state, and its part.
-func (f *folding) Digest(ctx context.Context, day ledger.DigestDay) (map[string]ledger.Folded, error) {
+// Builder gives a builder of a day's digest by the tests' Digester, as
+// foldingDay has it, handed no line yet.
+func (f *folding) Builder() ledger.DigestBuilder {
+	return &foldingDay{f: f, taken: takenDays{}}
+}
+
+// foldingDay is a builder of a day's digest by the tests' Digester, f: the
+// lines it's handed, as takenDays notes them.
+type foldingDay struct {
+	f     *folding
+	taken takenDays
+}
+
+// Take notes l, a line of the day with the given date, as taken.
+func (b *foldingDay) Take(date string, l ledger.Line) {
+	b.taken.take(date, l)
+}
+
+// Digest has the tests' Digester digest day, as digest does, noting it handed
+// with the lines taken before it.
+func (b *foldingDay) Digest(ctx context.Context, day ledger.DigestDay) (map[string]ledger.Folded, error) {
+	return b.f.digest(ctx, day, b.taken)
+}
+
+// digest notes day as handed, with the lines taken before it, does what
+// during does, where it's set, and gives each of its sessions folded: its
+// state, and its part.
+func (f *folding) digest(ctx context.Context, day ledger.DigestDay, taken takenDays) (map[string]ledger.Folded, error) {
 	f.mu.Lock()
 	during := f.during
-	f.handed = append(f.handed, handedOf(day))
+	handed := handedOf(day)
+	handed.taken = taken
+	f.handed = append(f.handed, handed)
 	f.mu.Unlock()
 	if during != nil {
 		if err := during(ctx, day); err != nil {
@@ -376,6 +406,49 @@ func TestASessionStandingOnItsDaysOwnDigestKeepsItsStateAndPart(t *testing.T) {
 	if got := w.partsIn(0)["one"]; !reflect.DeepEqual(got, wasPart) {
 		t.Errorf("one's part of %s is %+v, want it kept as it was, %+v", dayOf(0), got, wasPart)
 	}
+}
+
+// A day's builder is handed every line the read of the day's sessions reads,
+// once, of whichever session, one of none among them, before it's handed the
+// sessions. A session read again whole, as one resting on its day's own
+// digest whose part there no longer reads, is handed to a builder of its
+// own, handed every line of the days that read reads afresh.
+func TestADaysBuilderIsHandedEveryLineItsReadReads(t *testing.T) {
+	w := newLookupWorld(t)
+	w.file(0, askedBy("probe", "", on(0, 8, 0)))
+	sharedDays(w)
+
+	w.digestEnded()
+
+	day0 := takenDays{dayOf(0): {"probe": 1, "4": 1, "5": 1}}
+	want := []takenDays{{dayOf(-3): {"1": 1, "2": 1}}, {dayOf(-2): {"3": 1}}, day0, {dayOf(1): {"6": 1, "7": 1}}}
+	if got := takenOf(w.fold.days()); !reflect.DeepEqual(got, want) {
+		t.Errorf("each day's builder, oldest first, was handed\n%v\nwant\n%v", got, want)
+	}
+	ref := w.digestOf(0).Sessions["one"].Part
+	damageAt(t, partsPath(w.dir, 0), ref.Offset+ref.Length/2)
+	w.lateLine()
+
+	w.digestEnded()
+
+	handed := w.fold.days()
+	if len(handed) != 3 || !slices.Equal(slices.Sorted(maps.Keys(handed[2].sessions)), []string{"one"}) {
+		t.Fatalf("the pass handed %+v; want the late line's day, then the day after it, of two, and again, of one read whole", handed)
+	}
+	whole := takenDays{dayOf(-3): {"1": 1, "2": 1}, dayOf(0): {"probe": 1, "4": 1, "5": 1}}
+	if got, want := takenOf(handed[1:]), []takenDays{day0, whole}; !reflect.DeepEqual(got, want) {
+		t.Errorf("the day after the late line's was handed to builders handed\n%v\nwant\n%v: its own day's lines, then, afresh, every line of one's days", got, want)
+	}
+}
+
+// takenOf returns the lines each of the days handed was taken with, in the
+// order handed.
+func takenOf(handed []handedDay) []takenDays {
+	taken := make([]takenDays, len(handed))
+	for i, h := range handed {
+		taken[i] = h.taken
+	}
+	return taken
 }
 
 // A day one of whose lines arrived on another, as a change of time zone files

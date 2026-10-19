@@ -23,6 +23,14 @@ func (handedDays) Version() int {
 	return 1
 }
 
+// Builder gives itself, as the builder of a day's digest.
+func (h handedDays) Builder() ledger.DigestBuilder {
+	return h
+}
+
+// Take takes in no line.
+func (handedDays) Take(string, ledger.Line) {}
+
 // Digest notes the sessions of day, giving each an empty state.
 func (h handedDays) Digest(_ context.Context, day ledger.DigestDay) (map[string]ledger.Folded, error) {
 	folded := make(map[string]ledger.Folded, len(day.Sessions))

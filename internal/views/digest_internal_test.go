@@ -150,6 +150,12 @@ type recordedDigests struct {
 // another day than its digest's, so it won't restore.
 const spoiledState = `{"d":"2000-01-01"}`
 
+// Builder gives the recorded Digests themselves, as the builder of a day's
+// digest, so each day the ledger hands them is recorded.
+func (r *recordedDigests) Builder() ledger.DigestBuilder {
+	return r
+}
+
 // Digest gives what the views' Digests give of day, recording both, or
 // spoiled states, of the day spoiled.
 func (r *recordedDigests) Digest(ctx context.Context, day ledger.DigestDay) (map[string]ledger.Folded, error) {
@@ -383,7 +389,7 @@ func (c *digestChain) checkFollowed(now time.Time, prices []pricedAs) {
 	c.t.Helper()
 	ids := sessionsIn(c.lines)
 	follower := ledger.NewFollower(c.state, func() time.Time { return now }, ledger.CapsOf(nil, nil), DigestVersion, quiet)
-	based := follower.SessionsOf(ids, func(string) bool { return false }, nil)
+	based := follower.SessionsOf(ids, nil, nil)
 	whole := follower.SessionsOf(ids, eachWhole, nil)
 	day, horizon := Today(now), horizonAt(now, nil)
 	for _, id := range slices.Sorted(maps.Keys(whole)) {

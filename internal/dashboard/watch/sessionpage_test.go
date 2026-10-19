@@ -34,13 +34,13 @@ type pageLedger struct {
 	asked [][]string
 }
 
-func (l *pageLedger) Sessions(ids []string, _ func(string) bool, _ func(string, ledger.Line)) map[string]ledger.SessionFrom {
+func (l *pageLedger) Sessions(ids []string, _ func(string) ledger.Rest, _ func(string, ledger.Line)) map[string]ledger.SessionFrom {
 	l.asked = append(l.asked, slices.Clone(ids))
 	return ledger.SessionsWhole(l.lines)
 }
 
-func (l *pageLedger) SessionsOf(ids []string, whole func(string) bool, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
-	return l.Sessions(ids, whole, take)
+func (l *pageLedger) SessionsOf(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	return l.Sessions(ids, rest, take)
 }
 
 // Session gives the session's lines newest first, as a Follower does, as a

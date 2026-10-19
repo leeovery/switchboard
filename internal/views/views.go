@@ -70,16 +70,18 @@ type LedgerSession interface {
 type LedgerSessions interface {
 	// Sessions gives today's sessions, those with a request today, and those
 	// with the given ids, by each one's id, as a ledger.SessionFrom: the state
-	// it rests on, none of those whole reports true of, nor of one no digest
-	// holds a state of that stands; and its lines after it that arrived by
-	// now, oldest first, as Ledger's Session reads one's, each day's files
-	// read once. It hands take, where it's given, each line it reads, of
-	// whichever session, with the date of the day whose files hold it.
-	Sessions(ids []string, whole func(id string) bool, take func(date string, l ledger.Line)) map[string]ledger.SessionFrom
+	// it rests on, as rest says of it, by its id, as a ledger.Rest, each on
+	// the newest state a digest holds that stands where rest is nil, none of
+	// one no digest holds a state of that stands; and its lines after it that
+	// arrived by now, oldest first, as Ledger's Session reads one's, each
+	// day's files read once. It hands take, where it's given, each line it
+	// reads, of whichever session, with the date of the day whose files hold
+	// it.
+	Sessions(ids []string, rest func(id string) ledger.Rest, take func(date string, l ledger.Line)) map[string]ledger.SessionFrom
 	// SessionsOf gives the sessions with the given ids alone, as Sessions
 	// gives them, but none of today's others, so none of their days is read;
 	// and hands take each line it reads, as Sessions does.
-	SessionsOf(ids []string, whole func(id string) bool, take func(date string, l ledger.Line)) map[string]ledger.SessionFrom
+	SessionsOf(ids []string, rest func(id string) ledger.Rest, take func(date string, l ledger.Line)) map[string]ledger.SessionFrom
 }
 
 // Readings reads the readings history where it lies, with no router, as a

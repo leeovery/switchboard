@@ -295,7 +295,7 @@ func TestTheRecordsLedgerGivesTheSessionsAFollowerReadsAndHandsOnTheirDaysLines(
 	follower := fileLedger(t, r, now)
 
 	var took, wantTook []string
-	whole := func(string) bool { return true }
+	whole := func(string) ledger.Rest { return ledger.RestWhole }
 	got := l.Sessions([]string{sessionAsked}, whole, func(_ string, line ledger.Line) { took = append(took, line.Request) })
 	want := follower.Sessions([]string{sessionAsked}, whole, func(_ string, line ledger.Line) { wantTook = append(wantTook, line.Request) })
 	ids := func(m map[string]ledger.SessionFrom) map[string][]string {

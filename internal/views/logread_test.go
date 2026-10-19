@@ -28,14 +28,14 @@ type countingLedger struct {
 }
 
 // Sessions reads the lines written by now, as fakeLedger's Sessions does.
-func (c *countingLedger) Sessions(ids []string, whole func(string) bool, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
-	return c.written(ids).Sessions(ids, whole, take)
+func (c *countingLedger) Sessions(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	return c.written(ids).Sessions(ids, rest, take)
 }
 
 // SessionsOf reads the lines written by now, as fakeLedger's SessionsOf
 // does.
-func (c *countingLedger) SessionsOf(ids []string, whole func(string) bool, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
-	return c.written(ids).SessionsOf(ids, whole, take)
+func (c *countingLedger) SessionsOf(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	return c.written(ids).SessionsOf(ids, rest, take)
 }
 
 // written counts a read of the sessions with the given ids, and is the

@@ -228,18 +228,18 @@ func (l heldLedger) Session(id string) iter.Seq[ledger.Held] {
 // Sessions gives today's sessions, those with a request that arrived today,
 // and those with the given ids, by each one's id, as a Follower of a ledger
 // that holds no digest reads them: each read whole, resting on no base,
-// whatever whole says, its lines those that arrived by now, oldest first:
+// whatever rest says, its lines those that arrived by now, oldest first:
 // the days either side of today's, and today's, read whole, then each
 // earlier day that names a session it gives, as its summary would. take,
 // where it's given, is handed each line of every day read, with the day's
 // date, those either side of today's and today's first.
-func (l heldLedger) Sessions(ids []string, _ func(id string) bool, take func(date string, line ledger.Line)) map[string]ledger.SessionFrom {
+func (l heldLedger) Sessions(ids []string, _ func(id string) ledger.Rest, take func(date string, line ledger.Line)) map[string]ledger.SessionFrom {
 	return ledger.SessionsWhole(l.sessions(ids, true, take))
 }
 
 // SessionsOf gives the sessions with the given ids alone, as Sessions gives
 // them, but none of today's others, as a Follower reads them.
-func (l heldLedger) SessionsOf(ids []string, _ func(id string) bool, take func(date string, line ledger.Line)) map[string]ledger.SessionFrom {
+func (l heldLedger) SessionsOf(ids []string, _ func(id string) ledger.Rest, take func(date string, line ledger.Line)) map[string]ledger.SessionFrom {
 	return ledger.SessionsWhole(l.sessions(ids, false, take))
 }
 

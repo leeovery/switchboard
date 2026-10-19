@@ -77,15 +77,15 @@ type idsAsked struct {
 	asked []string
 }
 
-func (l *idsAsked) Sessions(ids []string, whole func(string) bool, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
-	read := l.LedgerSessions.Sessions(ids, whole, take)
+func (l *idsAsked) Sessions(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	read := l.LedgerSessions.Sessions(ids, rest, take)
 	l.asked = slices.Compact(slices.Sorted(slices.Values(slices.Concat(l.asked, ids, slices.Collect(maps.Keys(read))))))
 	return read
 }
 
-func (l *idsAsked) SessionsOf(ids []string, whole func(string) bool, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+func (l *idsAsked) SessionsOf(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
 	l.asked = append(l.asked, ids...)
-	return l.LedgerSessions.SessionsOf(ids, whole, take)
+	return l.LedgerSessions.SessionsOf(ids, rest, take)
 }
 
 // tailed is held fed, through l, at the look, the lines gained since the

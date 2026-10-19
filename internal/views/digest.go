@@ -19,6 +19,16 @@ func (Digests) Version() int {
 	return DigestVersion
 }
 
+// Builder gives the Digests themselves, as the builder of a day's digest:
+// they hold nothing of a read of its sessions' days.
+func (d Digests) Builder() ledger.DigestBuilder {
+	return d
+}
+
+// Take takes in no line: the states Digest gives are folded from each
+// session's own lines alone.
+func (Digests) Take(string, ledger.Line) {}
+
 // Digest gives each session day hands it folded at the day's end, by its id:
 // its state, as stateAsOf has it, and no part. It gives none of one whose
 // base won't decode or restore, nor of one with a request that arrived after

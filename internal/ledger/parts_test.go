@@ -135,7 +135,7 @@ func TestAPartDamagedItsFileAsLongIsFoldedWholeOnceItsDayIsDigestedAgain(t *test
 
 // damageAt flips the bits of the byte of the file at path at the given
 // offset, leaving it as long.
-func damageAt(t *testing.T, path string, offset int64) {
+func damageAt(t testing.TB, path string, offset int64) {
 	t.Helper()
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -172,10 +172,22 @@ type partless struct {
 	ledger.Digester
 }
 
-// Digest gives each session of day the state the wrapped Digester gives it,
+// Builder gives a builder of a day's digest as the wrapped Digester gives
+// one, its parts empty, as partlessDay has them.
+func (p partless) Builder() ledger.DigestBuilder {
+	return partlessDay{p.Digester.Builder()}
+}
+
+// partlessDay is a builder of a day's digest giving each session's state as
+// the one it wraps gives it, and an empty part.
+type partlessDay struct {
+	ledger.DigestBuilder
+}
+
+// Digest gives each session of day the state the wrapped builder gives it,
 // and an empty part.
-func (p partless) Digest(ctx context.Context, day ledger.DigestDay) (map[string]ledger.Folded, error) {
-	folded, err := p.Digester.Digest(ctx, day)
+func (p partlessDay) Digest(ctx context.Context, day ledger.DigestDay) (map[string]ledger.Folded, error) {
+	folded, err := p.DigestBuilder.Digest(ctx, day)
 	for id, f := range folded {
 		folded[id] = ledger.Folded{State: f.State, Part: json.RawMessage{}}
 	}

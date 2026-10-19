@@ -35,10 +35,14 @@ var digestsWired = []string{
 var digestsOwners = []string{"ledger", "views"}
 
 // sessionsAsOf are the ledger's names, beside those that begin Digest, of a
-// session as of a day, as a digest's state it rests on and the lines after
-// it give it. Each is one the ledger declares, or the guard fails, as a ban
-// on a name that's gone passes whatever names it.
-var sessionsAsOf = []string{"ledger.SessionBase", "ledger.SessionFrom", "ledger.SessionsWhole"}
+// session as of a day, as a digest's state it rests on, the chain of parts
+// behind that, and the lines after it give it, and of what it's asked to
+// rest on. Each is one the ledger declares, or the guard fails, as a ban on
+// a name that's gone passes whatever names it.
+var sessionsAsOf = []string{
+	"ledger.SessionBase", "ledger.SessionFrom", "ledger.SessionPart", "ledger.SessionsWhole",
+	"ledger.Rest", "ledger.RestOnPage", "ledger.RestOnState", "ledger.RestWhole",
+}
 
 // The fix each kind of breach gives.
 const (

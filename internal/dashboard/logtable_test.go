@@ -21,11 +21,11 @@ type sessionsHeld []ledger.Line
 
 // SessionsOf reads as Sessions does: the sessions of the lines given are
 // all there are.
-func (s sessionsHeld) SessionsOf(ids []string, whole func(string) bool, take func(date string, l ledger.Line)) map[string]ledger.SessionFrom {
-	return s.Sessions(ids, whole, take)
+func (s sessionsHeld) SessionsOf(ids []string, rest func(string) ledger.Rest, take func(date string, l ledger.Line)) map[string]ledger.SessionFrom {
+	return s.Sessions(ids, rest, take)
 }
 
-func (s sessionsHeld) Sessions(_ []string, _ func(string) bool, take func(date string, l ledger.Line)) map[string]ledger.SessionFrom {
+func (s sessionsHeld) Sessions(_ []string, _ func(string) ledger.Rest, take func(date string, l ledger.Line)) map[string]ledger.SessionFrom {
 	got := make(map[string][]ledger.Line)
 	for _, l := range s {
 		if l.Session == "" {

@@ -42,7 +42,7 @@ func endingWith(lines []ledger.Line, i int) int {
 
 // Sessions reads as a Follower of a ledger that holds no digest does: the
 // sessions with the given ids, and today's, each read whole.
-func (l filedLedger) Sessions(ids []string, whole func(string) bool, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+func (l filedLedger) Sessions(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
 	today := Today(l.now)
 	wanted := slices.Clone(ids)
 	for _, line := range l.filed() {
@@ -50,13 +50,13 @@ func (l filedLedger) Sessions(ids []string, whole func(string) bool, take func(s
 			wanted = append(wanted, line.Session)
 		}
 	}
-	return l.SessionsOf(wanted, whole, take)
+	return l.SessionsOf(wanted, rest, take)
 }
 
 // SessionsOf reads as a Follower of a ledger that holds no digest does: the
 // sessions with the given ids, each read whole, handing take, where it's
 // given, every line filed, by the date of the day it's filed on.
-func (l filedLedger) SessionsOf(ids []string, _ func(string) bool, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+func (l filedLedger) SessionsOf(ids []string, _ func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
 	read := make(map[string][]ledger.Line)
 	for _, line := range l.filed() {
 		if take != nil {

@@ -23,12 +23,12 @@ type datesTaken struct {
 	dates map[string]bool
 }
 
-func (c datesTaken) Sessions(ids []string, whole func(string) bool, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
-	return c.Ledger.Sessions(ids, whole, c.taking(take))
+func (c datesTaken) Sessions(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	return c.Ledger.Sessions(ids, rest, c.taking(take))
 }
 
-func (c datesTaken) SessionsOf(ids []string, whole func(string) bool, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
-	return c.Ledger.SessionsOf(ids, whole, c.taking(take))
+func (c datesTaken) SessionsOf(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	return c.Ledger.SessionsOf(ids, rest, c.taking(take))
 }
 
 // taking is take, where it's given, each line handed it noted by its day's
@@ -101,7 +101,7 @@ func TestAListOverDigestsReadsTheNearDaysFilesAlone(t *testing.T) {
 	ids := []string{"a", "b", "c"}
 	n := newNineDays(t, ids)
 	yesterday := yesterdayOf(n.today)
-	for id, from := range n.follower(DigestVersion).SessionsOf(ids, func(string) bool { return false }, nil) {
+	for id, from := range n.follower(DigestVersion).SessionsOf(ids, nil, nil) {
 		if from.Base == nil || from.Base.Date != yesterday {
 			t.Fatalf("session %s rests on %+v, want its state at the end of %s", id, from.Base, yesterday)
 		}

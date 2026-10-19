@@ -188,16 +188,16 @@ func TestAReadOfSessionsIsBehindItsBasesWhereNoSessionItGaveNeedsTheDay(t *testi
 	}
 }
 
-func (c *countingLedger) Sessions(ids []string, whole func(string) bool, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+func (c *countingLedger) Sessions(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
 	r := sessionsRead("Sessions", ids)
-	sessions := c.Ledger.Sessions(ids, whole, r.taking(take))
+	sessions := c.Ledger.Sessions(ids, rest, r.taking(take))
 	c.read(r.gave(sessions))
 	return sessions
 }
 
-func (c *countingLedger) SessionsOf(ids []string, whole func(string) bool, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+func (c *countingLedger) SessionsOf(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
 	r := sessionsRead("SessionsOf", ids)
-	sessions := c.Ledger.SessionsOf(ids, whole, r.taking(take))
+	sessions := c.Ledger.SessionsOf(ids, rest, r.taking(take))
 	c.read(r.gave(sessions))
 	return sessions
 }
