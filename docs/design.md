@@ -6586,8 +6586,9 @@ own, and measured by the soak:
    SESSIONS at start, the Log's sessions, the routing card's costs and `sessions`. This phase.
 2. **A session's page opens fast:** its tallies kept without prices, and its page's state, its
    parts of each day and its points restored from digests.
-3. **The Log's days from rows** the router files beside each digest, its find among them; whether
-   rows are kept as long as lines is the owner's to settle then.
+3. **The Log's days from rows** the router files beside each digest, its find among them, kept as
+   long as the day's lines (settled 19 October 2026): first the find and a turn's older days, then
+   the Log's days themselves.
 4. **The Log pages by rows,** holding the rows in view and a page or two either side, never every
    day paged through.
 
@@ -6626,6 +6627,22 @@ some 28 s of work, from 19.7 s, paced as before; its first pass after a start, w
 files in the soak's world, whose requests come at even gaps that its times compress to almost
 nothing: with real gaps, the plan reckons some 125 to 140 KB a day of parts. What phase 2 left is
 gathered in [day-digests-left](../ideas/2026-10-18--day-digests-left.md).
+
+**Day digests, phase 3, its first part: the find and a turn's older days.** After phase 2, the Log's
+`/` find still read every past day raw to learn a dozen sessions' directories, and a turn opened on
+a session's page read every day between it and today. The router now writes a head a day beside
+each digest, holding the day's side, each session the day named with its directory, its lines and
+its last request, built newest first and standing while its day's digest grounds do; the find reads
+a past day's side where it stands, else the day's lines. A turn reads only its own days and the
+horizon's, never the days between (see The request ledger, Live updates). The views' guard holds
+the find over sides to the find read raw, at each hard moment of a day's turning.
+
+Measured once it was built (19 October 2026, the soak's world, race detector off): the find walks
+9 days in 0.2 to 0.3 s and 30 days in 0.2 s, from 5.2 s and 18.5 s; a turn opened 7 days back in
+0.97 s, from 1.8 s, and 29 days back in 0.77 s, from 6.2 s; a turn of today or yesterday as before.
+The router builds a day's head in about 0.6 s, its heap rising some 110 MB; a backfill of 30 days,
+once after the release that brings heads in, some 18 s of work, paced as before; and a pass that
+finds nothing new, under 1 ms. On disk, about 0.5 KB a day.
 
 The release, through GoReleaser, a Homebrew tap and mint, follows milestone 3.
 
