@@ -385,37 +385,47 @@ func TestAPagesPointsStoredOnADayItMadeNoRequestOnHoldNoneOfItsAnswers(t *testin
 	}
 }
 
-// A page's points seal a day's requests each once, as a request is counted:
-// one with an id once, however often its line is given; one without as
-// often as given. So given the day again whole once they sealed it, they
-// place it on what they sealed, taking nothing in: of the second day of
-// givenTwiceRun's, its four requests of five lines. Folded whole, as a page
-// read raw folds them; and on the first day's, as a day's digest folds
-// them.
-func TestAPagesPointsSealADaysRequestsEachOnceAndPlaceItGivenAgain(t *testing.T) {
-	answers := answersOf(linesByDate(givenTwiceRun()), "s")
+// A page's points take a day's requests in each once, as a request is
+// counted: one with an id once, however often its line is given, whatever
+// its copies say; one without as often as given. So they place what they
+// took given again, taking nothing in: of the second day of givenTwiceRun's,
+// its four requests of five lines, of each of givenTwiceCopies. Sealed at
+// the day's end, folded whole, as a page read raw folds them, and on the
+// first day's, as a day's digest folds them, given the day again whole; and
+// held open, given the second copy of its line with an id alone, as a read
+// of the day's gain gives it.
+func TestAPagesPointsTakeADaysRequestsEachOnceAndPlaceThemGivenAgain(t *testing.T) {
 	first, second, third := dayOf(dateOn(0)), dayOf(dateOn(1)), dayOf(dateOn(2))
-	sealed := pointingOf(datesThrough(answers, first.Date), first).sealedAt(endOfDay(first), first)
-	foldedOn, ok := sealed.took(second.Date, answers[second.Date], true, second)
-	if !ok {
-		t.Fatalf("the points sealed at the end of %s can't take %s's answers in, want them taken", first.Date, second.Date)
-	}
-	tests := []struct {
-		name   string
-		points *pointing
-	}{
-		{name: "folded whole", points: pointingOf(answers, second).sealedAt(endOfDay(second), second)},
-		{name: "folded on the first day's", points: foldedOn.sealedAt(endOfDay(second), second)},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, placed := tt.points.took(second.Date, answers[second.Date], true, third)
+	for _, copies := range givenTwiceCopies {
+		answers := answersOf(linesByDate(givenTwiceRun(copies.usage)), "s")
+		day := answers[second.Date]
+		sealed := pointingOf(datesThrough(answers, first.Date), first).sealedAt(endOfDay(first), first)
+		foldedOn, ok := sealed.took(second.Date, day, true, second)
+		if !ok {
+			t.Fatalf("%s: the points sealed at the end of %s can't take %s's answers in, want them taken", copies.name, first.Date, second.Date)
+		}
+		again := slices.DeleteFunc(slices.Clone(day), func(a answered) bool { return a.request != "r1" })[1:]
+		tests := []struct {
+			name   string
+			points *pointing
+			given  []answered
+			whole  bool
+			folded int
+		}{
+			{name: "folded whole, given the day again", points: pointingOf(answers, second).sealedAt(endOfDay(second), second), given: day, whole: true, folded: 4},
+			{name: "folded on the first day's, given the day again", points: foldedOn.sealedAt(endOfDay(second), second), given: day, whole: true, folded: 4},
+			{name: "held open, given the second copy again", points: pointingOf(answers, second), given: again},
+		}
+		for _, tt := range tests {
+			t.Run(copies.name+", "+tt.name, func(t *testing.T) {
+				got, placed := tt.points.took(second.Date, tt.given, tt.whole, third)
 
-			if folded := tt.points.folded[second.Date]; folded != 4 || !placed || got != tt.points {
-				t.Errorf("sealing %d of %s's %d answers, the points given them again placed them %t, as they were %t; want 4 sealed, placed as they were",
-					folded, second.Date, len(answers[second.Date]), placed, got == tt.points)
-			}
-		})
+				if folded := tt.points.folded[second.Date]; folded != tt.folded || !placed || got != tt.points {
+					t.Errorf("sealing %d of %s's %d answers, the points given %d again placed them %t, as they were %t; want %d sealed, placed as they were",
+						folded, second.Date, len(day), len(tt.given), placed, got == tt.points, tt.folded)
+				}
+			})
+		}
 	}
 }
 

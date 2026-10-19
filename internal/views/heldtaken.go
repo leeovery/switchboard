@@ -118,19 +118,16 @@ func (h answersHeld) given(given []answered, sealedTo instant, whole bool) ([]an
 }
 
 // unheld are the answers among given, a read of h's day, that h doesn't
-// hold, in their order, as a request is counted: one of a request with an
-// id once, passed over where h holds it or it was given before among them;
-// one without as often as given, passed over as often as h holds it alike,
-// as its key knows it. It's given itself, shared, where it passes none over.
+// hold, in their order: each given again against those h holds, as
+// countedOnce tells it by their keys, passed over. It's given itself,
+// shared, where it passes none over.
 func (h answersHeld) unheld(given []answered) []answered {
-	seen := make(map[turnKey]int)
+	read := countedOnceOf(h.count, len(given))
 	var unheld []answered
 	copied := false
 	for i := range given {
 		a := &given[i]
-		k := a.key()
-		again := seen[k] < h.count(k) || a.request != "" && seen[k] > 0
-		seen[k]++
+		again := read.again(a.key())
 		switch {
 		case again && !copied:
 			unheld, copied = slices.Clone(given[:i]), true

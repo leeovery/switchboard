@@ -257,25 +257,17 @@ func (t *turnLines) with(lines []lineRecord) *turnLines {
 }
 
 // withHeld is t with the records given among its own, afresh, held the keys
-// of t's lines, as held counts them, which it uses up: each of a request
-// with an id once, as its key knows it; one without, as often as the records
-// given hold it beyond those t holds alike, as their sums know them, so a
-// line both read and gained is held once, and one the ledger's files hold
-// twice, twice.
+// of t's lines, as held counts them: each given again against those, as
+// countedOnce tells it by its key, as turnKeyOf has it, passed over, so a
+// line both read and gained is held once, and one without an id the
+// ledger's files hold twice, twice.
 func (t *turnLines) withHeld(lines []lineRecord, held map[turnKey]int) *turnLines {
 	grown := *t
 	grown.lines = slices.Clip(t.lines)
+	read := countedOnceOf(func(k turnKey) int { return held[k] }, len(lines))
 	for i := range lines {
-		rec := &lines[i]
-		switch k := turnKeyOf(rec); {
-		case heldID(held, rec.flight):
-		case held[k] > 0:
-			held[k]--
-		default:
+		if rec := &lines[i]; !read.again(turnKeyOf(rec)) {
 			grown.lines = append(grown.lines, *rec)
-			if k.request != "" {
-				held[k]++
-			}
 		}
 	}
 	return &grown
