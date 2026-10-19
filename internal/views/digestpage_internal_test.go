@@ -1,6 +1,7 @@
 package views
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -96,16 +97,19 @@ const (
 // A session's page folded at the end of each day it's named on, as a day's
 // digests keep it, each fold resting on the state the last such day before
 // it kept, restored from what it carries and the chain of parts behind it, as
-// restoredPaged has it, its points taking every account's answers of each
-// day since, oldest first, each whole, then its requests since told on, as
-// the store tells them, sealed at the day's end: is, restored from the
-// state each day keeps and its chain of parts, the page folded whole of
-// every line by the day's end. Its turns, agents, sums and all else alike,
-// its times as lists, its points' points and shares; and each day's part
-// exactly what its fold added: the turns it took a request into, or began,
-// the agents first seen, and its times. A fold whose points can't take a
-// day's answers in folds whole again, its part whole. Of generated worlds,
-// meeting the hard moments the constants above name.
+// restoredPaged has it, read to fold as pageToFold has it, its points taking
+// every account's answers of each day since, oldest first, each whole, then
+// its requests since told on, as the store tells them, sealed at the day's
+// end: is, restored from the state each day keeps and its chain of parts,
+// the page folded whole of every line by the day's end. Its turns, agents,
+// sums and all else alike, its times as lists, its points' points and
+// shares; and each day's part exactly what its fold added: the turns it
+// took a request into, or began, the agents first seen, and its times. Each
+// day's state and part are exactly those of the fold restoring every time
+// of its chain. A fold is refused only as its points can't take a day's
+// answers in, as takesSince has it, and folds whole again then, its part
+// whole. Of generated worlds, meeting the hard moments the constants above
+// name.
 func TestAPageFoldedDayByDayThroughItsStatesAndPartsIsThePageFoldedWhole(t *testing.T) {
 	met := make(map[string]bool)
 	for _, w := range pageWorlds {
@@ -177,15 +181,18 @@ func (c *pageChain) days() []LedgerDay {
 }
 
 // fold folds the session at the end of the day given, as foldedOn has it,
-// keeps its state and its page's chain of parts as a day's digest would,
-// and holds the part to what the fold added, and the state restored to the
-// page folded whole.
+// its page read to fold, as a day's digest reads it; keeps its state and its
+// page's chain of parts as a day's digest would; and holds them to the fold
+// whose page is read whole, every time of its chain with it, the part to
+// what the fold added, and the state restored to the page folded whole.
 func (c *pageChain) fold(day LedgerDay) {
 	c.t.Helper()
-	held, base := c.foldedOn(day)
-	f, err := held.folded(base)
-	if err != nil {
-		c.t.Fatalf("%s, folded at the end of %s: %v", c.name, day.Date, err)
+	held, base := c.foldedOn(day, pageToFold)
+	f := c.folded(day, held, base)
+	wholeHeld, wholeBase := c.foldedOn(day, pageWhole)
+	if whole := c.folded(day, wholeHeld, wholeBase); !bytes.Equal(f.State, whole.State) || !bytes.Equal(f.Part, whole.Part) {
+		c.t.Errorf("%s, folded at the end of %s, its page read to fold, keeps\n%s\n%s\nwant, as its page read whole\n%s\n%s",
+			c.name, day.Date, f.State, f.Part, whole.State, whole.Part)
 	}
 	var st storedSession
 	if err := json.Unmarshal(f.State, &st); err != nil {
@@ -201,24 +208,38 @@ func (c *pageChain) fold(day LedgerDay) {
 	c.check(day)
 }
 
-// foldedOn is the session folded at the end of the day given, as a day's
-// digest folds it, as heldResting holds it, and the tally its page was
-// folded on: resting on the state kept last, with its chain of parts, its
-// points of every account's answers of each day through the day given, its
-// lines since; or, where none is kept yet, on none, its lines every one that
-// arrived by the day's end. Where its points can't take the answers in, its
-// state and parts restoring all the same, it's folded whole, on no tally.
-func (c *pageChain) foldedOn(day LedgerDay) (*heldSession, *pageTally) {
+// folded is held, the session folded at the end of the day given on base,
+// as a day's digest keeps it, as folded has it.
+func (c *pageChain) folded(day LedgerDay, held *heldSession, base *pageTally) ledger.Folded {
 	c.t.Helper()
-	held, base, err := heldResting(c.from(day), datesThrough(c.answers, day.Date), ledger.Pricing, day, endOfDay(day), true)
+	f, err := held.folded(base)
+	if err != nil {
+		c.t.Fatalf("%s, folded at the end of %s: %v", c.name, day.Date, err)
+	}
+	return f
+}
+
+// foldedOn is the session folded at the end of the day given, as heldResting
+// holds it, its page read as given, and the tally its page was folded on:
+// resting on the state kept last, with its chain of parts, its points of
+// every account's answers of each day through the day given, its lines
+// since; or, where none is kept yet, on none, its lines every one that
+// arrived by the day's end. Where it's refused resting on the state kept
+// last, it's so only as its points can't take the answers since in, as
+// takesSince has it: then it's folded whole, on no tally.
+func (c *pageChain) foldedOn(day LedgerDay, page pageRead) (*heldSession, *pageTally) {
+	c.t.Helper()
+	from, answers := c.from(day), datesThrough(c.answers, day.Date)
+	held, base, err := heldResting(from, answers, ledger.Pricing, day, endOfDay(day), page)
 	if err == nil {
 		return held, base
 	}
 	if c.kept == nil {
 		c.t.Fatalf("%s, folded whole at the end of %s: %v", c.name, day.Date, err)
 	}
-	if _, err := c.kept.stored.restoredPaged(ledger.Pricing, day, c.kept.parts); err != nil {
-		c.t.Fatalf("%s, kept at the end of %s, restored on %s: %v", c.name, c.kept.day.Date, day.Date, err)
+	if takes, restoring := takesSince(from, answers, day); takes || restoring != nil {
+		c.t.Fatalf("%s, folded at the end of %s on the state of %s, refused: %v; its points take the answers since %t, restored with error %v; "+
+			"want it refused only as they can't", c.name, day.Date, c.kept.day.Date, err, takes, restoring)
 	}
 	c.met[pageRefused] = true
 	return c.whole(day), nil
@@ -259,7 +280,7 @@ func (c *pageChain) whole(day LedgerDay) *heldSession {
 // day given, its own.
 func (c *pageChain) check(day LedgerDay) {
 	c.t.Helper()
-	s, err := c.kept.stored.restoredPaged(ledger.Pricing, Today(endOfDay(day).time()), c.kept.parts)
+	s, err := c.kept.stored.restoredPaged(ledger.Pricing, Today(endOfDay(day).time()), c.kept.parts, true)
 	if err != nil {
 		c.t.Fatalf("%s, kept at the end of %s, restored: %v", c.name, day.Date, err)
 	}
@@ -448,7 +469,7 @@ func TestAPagesCarriedStateAndPartAreAllItHoldsByShortKeys(t *testing.T) {
 	if err != nil || string(part) != want {
 		t.Errorf("its part, folded on none, put as\n%s, %v, want\n%s", part, err, want)
 	}
-	restored, err := (&storedSession{Date: "2026-10-07", Page: carried}).pageOf([]json.RawMessage{part})
+	restored, err := (&storedSession{Date: "2026-10-07", Page: carried}).pageOf([]json.RawMessage{part}, true)
 	if err != nil {
 		t.Fatalf("restored with error %v", err)
 	}
@@ -461,8 +482,7 @@ func TestAPagesCarriedStateAndPartAreAllItHoldsByShortKeys(t *testing.T) {
 // the turns it took a request into, as a copy told on makes each its own,
 // and those it began; the agents first seen; and the times after the
 // base's. Laid over the base's own part, it restores the tally the fold
-// made. Its times beyond the years nanoseconds since the epoch hold are
-// each an instant, as the tally holds them then, the base's passed over.
+// made.
 func TestAPagesPartIsWhatItsFoldAddedToTheTallyItRestedOn(t *testing.T) {
 	base := pinnedPage()
 	at := time.Date(2026, 10, 8, 9, 0, 0, 0, time.UTC)
@@ -488,15 +508,65 @@ func TestAPagesPartIsWhatItsFoldAddedToTheTallyItRestedOn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	restored, err := (&storedSession{Date: "2026-10-08", Page: carried}).pageOf([]json.RawMessage{root, part})
+	restored, err := (&storedSession{Date: "2026-10-08", Page: carried}).pageOf([]json.RawMessage{root, part}, true)
 	if err != nil || !samePage(restored, &after) {
 		t.Errorf("laid over its base's part, restored with error %v as\n%s\nwant\n%s", err, pageSaid(restored), pageSaid(&after))
 	}
+}
+
+// A page restored to fold, as pageToFold reads it, its parts read without
+// their times, holds as many times as it carries, counted unheld, and all
+// else as the page restored with every time holds it. A part over either is
+// put alike: its times as nanoseconds where every one of them falls in the
+// years those hold, however its tally holds those before them, each else an
+// instant; none where it adds none.
+func TestAPagesPartIsPutAlikeOverAPageRestoredToFold(t *testing.T) {
+	near := time.Date(2026, 10, 8, 9, 0, 0, 0, time.UTC)
 	far := time.Date(2400, 3, 1, 12, 0, 0, 0, time.UTC)
-	after.upstream = base.upstream.with([]time.Time{far})
-	times, err := json.Marshal(after.partOver(base).Times)
-	if want := `{"f":[{"s":13574692800}]}`; err != nil || string(times) != want {
-		t.Errorf("its times past the nanoseconds' years put as %s, %v, want %s", times, err, want)
+	tests := []struct {
+		name         string
+		before, more []time.Time
+		want         string
+	}{
+		{name: "within the years after within them", before: []time.Time{near}, more: []time.Time{near.Add(time.Second)}, want: `{"n":[1791450001000000000]}`},
+		{name: "within the years after beyond them", before: []time.Time{far}, more: []time.Time{near}, want: `{"n":[1791450000000000000]}`},
+		{name: "beyond the years after within them", before: []time.Time{near}, more: []time.Time{far, near}, want: `{"f":[{"s":13574692800},{"s":1791450000}]}`},
+		{name: "none after within the years", before: []time.Time{near}, want: `{}`},
+		{name: "none after beyond the years", before: []time.Time{far}, want: `{}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			base := pinnedPage()
+			base.upstream = upstreamTimes{}.with(tt.before)
+			carried, err := json.Marshal(base.carried())
+			if err != nil {
+				t.Fatal(err)
+			}
+			root, err := json.Marshal(base.partOver(nil))
+			if err != nil {
+				t.Fatal(err)
+			}
+			restored := make(map[bool]*pageTally)
+			for _, times := range []bool{true, false} {
+				if restored[times], err = (&storedSession{Date: "2026-10-07", Page: carried}).pageOf([]json.RawMessage{root}, times); err != nil {
+					t.Fatalf("restored with every time %t, with error %v", times, err)
+				}
+				after := *restored[times]
+				after.upstream = after.upstream.with(tt.more)
+				got, err := json.Marshal(after.partOver(restored[times]).Times)
+				if err != nil || string(got) != tt.want {
+					t.Errorf("over the page restored with every time %t, its part's times put as %s, %v; want %s", times, got, err, tt.want)
+				}
+			}
+			whole, folding := *restored[true], *restored[false]
+			if held := folding.upstream; held.len() != len(tt.before) || held.nanos != nil || held.far != nil {
+				t.Errorf("restored to fold, its times are %+v; want %d, none held", held, len(tt.before))
+			}
+			whole.upstream, folding.upstream = upstreamTimes{}, upstreamTimes{}
+			if !samePage(&folding, &whole) {
+				t.Errorf("restored to fold, as\n%s\nwant, but its times, as restored with every time\n%s", pageSaid(&folding), pageSaid(&whole))
+			}
+		})
 	}
 }
 
@@ -523,7 +593,7 @@ func TestAPagesZeroTimesAreLeftOutAndTheEpochKept(t *testing.T) {
 			if err != nil || string(carried) != tt.want {
 				t.Errorf("carried as %s, %v, want %s", carried, err, tt.want)
 			}
-			restored, err := (&storedSession{Date: "2026-10-07", Page: carried}).pageOf([]json.RawMessage{json.RawMessage(`{}`)})
+			restored, err := (&storedSession{Date: "2026-10-07", Page: carried}).pageOf([]json.RawMessage{json.RawMessage(`{}`)}, true)
 			if err != nil || !samePage(restored, tt.page) {
 				t.Errorf("restored with error %v as\n%s\nwant\n%s", err, pageSaid(restored), pageSaid(tt.page))
 			}
@@ -536,20 +606,25 @@ func TestAPagesZeroTimesAreLeftOutAndTheEpochKept(t *testing.T) {
 // saw, and every part's times one after another. It's refused, for the page
 // to be read whole, where the state carries no page, or its page or a part
 // isn't one; it counts more turns than its parts hold, or fewer than none,
-// however many, before room is made for them; a part holds a turn beyond
-// those the state counts, or leaves one below in none; two turns serve one
-// prompt; its parts give other than as many agents or times as it counts,
-// as a chain without its whole part at its root does; a part holds its
-// times both as nanoseconds and as instants; or its points won't restore.
+// however many, before room is made for them, or fewer times than none; a
+// part holds a turn beyond those the state counts, or leaves one below in
+// none; two turns serve one prompt; its parts give other than as many
+// agents or times as it counts, as a chain without its whole part at its
+// root does; a part's times aren't any, or are both nanoseconds and
+// instants; or its points won't restore. Restored to fold, as pageToFold
+// reads it, it's all the same but its times, as many as the state counts and
+// none held, its parts' never read: it's refused alike, but for its times
+// alone.
 func TestAPagesChainOfPartsIsLaidOverWhatItsStateCarries(t *testing.T) {
 	tests := []struct {
-		name    string
-		page    string
-		parts   []string
-		turns   []int
-		agents  []string
-		times   []int64
-		refused bool
+		name       string
+		page       string
+		parts      []string
+		turns      []int
+		agents     []string
+		times      []int64
+		refused    bool
+		timesAlone bool
 	}{
 		{
 			name: "a turn as its newest part has it", page: `{"tn":2}`,
@@ -570,14 +645,16 @@ func TestAPagesChainOfPartsIsLaidOverWhatItsStateCarries(t *testing.T) {
 		{name: "a turn beyond the count", page: `{"tn":1}`, parts: []string{`{"t":[{"p":"p1"},{"i":1,"p":"p2"}]}`}, refused: true},
 		{name: "more agents than its parts give", page: `{"ag":2}`, parts: []string{`{"a":{"a1":"p1"}}`}, refused: true},
 		{name: "fewer agents than its parts give", page: `{"ag":1}`, parts: []string{`{"a":{"a1":"p1"}}`, `{"a":{"a2":"p1"}}`}, refused: true},
-		{name: "more times than its parts give", page: `{"tm":3}`, parts: []string{`{"s":{"n":[1000,5]}}`}, refused: true},
+		{name: "more times than its parts give", page: `{"tm":3}`, parts: []string{`{"s":{"n":[1000,5]}}`}, refused: true, timesAlone: true},
+		{name: "fewer times than none", page: `{"tm":-1}`, parts: []string{`{}`}, refused: true},
+		{name: "times that aren't any", page: `{"tm":1}`, parts: []string{`{"s":{"n":["now"]}}`}, refused: true, timesAlone: true},
 		{
 			name: "a chain without its whole part, a later one holding every turn", page: `{"tn":1,"ag":1,"tm":3}`,
 			parts: []string{`{"t":[{"p":"p1","r":2}],"s":{"n":[2000]}}`}, refused: true,
 		},
 		{name: "a turn before the first", page: `{"tn":1}`, parts: []string{`{"t":[{"i":-1,"p":"p1"}]}`}, refused: true},
 		{name: "two turns serving one prompt", page: `{"tn":2}`, parts: []string{`{"t":[{"p":"p1"},{"i":1,"p":"p1"}]}`}, refused: true},
-		{name: "times as nanoseconds and instants at once", page: `{}`, parts: []string{`{"s":{"n":[1000],"f":[{"n":2000}]}}`}, refused: true},
+		{name: "times as nanoseconds and instants at once", page: `{}`, parts: []string{`{"s":{"n":[1000],"f":[{"n":2000}]}}`}, refused: true, timesAlone: true},
 		{name: "points whose days aren't dates", page: `{"pt":{"d":["7 October"]}}`, parts: []string{`{}`}, refused: true},
 	}
 	for _, tt := range tests {
@@ -590,25 +667,44 @@ func TestAPagesChainOfPartsIsLaidOverWhatItsStateCarries(t *testing.T) {
 			for _, part := range tt.parts {
 				parts = append(parts, json.RawMessage(part))
 			}
-			p, err := st.pageOf(parts)
-			if (err != nil) != tt.refused {
-				t.Fatalf("restored with error %v, want it refused %t", err, tt.refused)
-			}
-			if tt.refused {
-				return
-			}
-			var turns []int
-			for _, turn := range p.turns {
-				turns = append(turns, turn.requests)
-			}
-			var times []int64
-			for _, at := range timesOf(p.upstream) {
-				times = append(times, at.UnixNano())
-			}
-			if agents := slices.Sorted(maps.Keys(p.agents)); !slices.Equal(turns, tt.turns) || !slices.Equal(agents, tt.agents) || !slices.Equal(times, tt.times) {
-				t.Errorf("restored with turns of %v requests, the agents %v, the times %v; want %v, %v, %v", turns, agents, times, tt.turns, tt.agents, tt.times)
+			for _, times := range []bool{true, false} {
+				p, err := st.pageOf(parts, times)
+				if refused := tt.refused && (times || !tt.timesAlone); (err != nil) != refused {
+					t.Fatalf("restored with every time %t, with error %v; want it refused %t", times, err, refused)
+				}
+				if err != nil {
+					continue
+				}
+				var turns []int
+				for _, turn := range p.turns {
+					turns = append(turns, turn.requests)
+				}
+				if agents := slices.Sorted(maps.Keys(p.agents)); !slices.Equal(turns, tt.turns) || !slices.Equal(agents, tt.agents) {
+					t.Errorf("restored with every time %t, with turns of %v requests, the agents %v; want %v, %v", times, turns, agents, tt.turns, tt.agents)
+				}
+				if times {
+					checkTimes(t, p.upstream, tt.times)
+					continue
+				}
+				var carried storedPage
+				if err := json.Unmarshal(st.Page, &carried); err != nil || p.upstream.len() != carried.Times || p.upstream.len() != p.upstream.unheld {
+					t.Errorf("restored to fold, its times are %+v; want the %d it carries, none held", p.upstream, carried.Times)
+				}
 			}
 		})
+	}
+}
+
+// checkTimes checks u holds the times given, as nanoseconds since the epoch,
+// oldest first.
+func checkTimes(t *testing.T, u upstreamTimes, want []int64) {
+	t.Helper()
+	var times []int64
+	for _, at := range timesOf(u) {
+		times = append(times, at.UnixNano())
+	}
+	if !slices.Equal(times, want) {
+		t.Errorf("restored with the times %v, want %v", times, want)
 	}
 }
 
@@ -632,7 +728,7 @@ func TestASessionsPageJSONCantCarryIsLeftOutOfItsState(t *testing.T) {
 	if s, err := st.restored(ledger.Pricing, next); err != nil || s.page != nil {
 		t.Errorf("its state restored with error %v, its page tallied %t; want it restored untallied", err, err == nil && s.page != nil)
 	}
-	if _, err := st.restoredPaged(ledger.Pricing, next, nil); err == nil {
+	if _, err := st.restoredPaged(ledger.Pricing, next, nil, true); err == nil {
 		t.Error("its state restored paged, want it refused")
 	}
 }
@@ -650,7 +746,7 @@ func TestASessionsStateRestoredForItsStoryNeverReadsItsPage(t *testing.T) {
 	if _, err := st.restored(ledger.Pricing, Today(end)); err != nil {
 		t.Errorf("restored with error %v, want it restored", err)
 	}
-	if _, err := st.restoredPaged(ledger.Pricing, Today(end), []json.RawMessage{json.RawMessage(`{}`)}); err == nil {
+	if _, err := st.restoredPaged(ledger.Pricing, Today(end), []json.RawMessage{json.RawMessage(`{}`)}, true); err == nil {
 		t.Error("restored paged, want it refused")
 	}
 }

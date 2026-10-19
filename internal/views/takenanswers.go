@@ -37,13 +37,18 @@ func (t takenAnswers) take(date string, l ledger.Line) {
 	d.sessions = append(d.sessions, unique.Make(l.Session))
 }
 
-// of are the answers taken, by date, each as answeredOf has it of the page of
-// the session with the given id, as of a read of its every line.
-func (t takenAnswers) of(id string) map[string][]answered {
+// of are the answers taken of the days after the one with the date after,
+// by date, each as answeredOf has it of the page of the session with the
+// given id, as of a read of its every line: of every day taken, of an after
+// of "", as of a session resting on no base. Those of its base's day and
+// before, its points took in as they were sealed, are never made.
+func (t takenAnswers) of(id, after string) map[string][]answered {
 	session := unique.Make(id)
 	answers := make(map[string][]answered, len(t))
 	for date, d := range t {
-		answers[date] = d.of(session)
+		if date > after {
+			answers[date] = d.of(session)
+		}
 	}
 	return answers
 }

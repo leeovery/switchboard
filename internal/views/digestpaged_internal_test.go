@@ -51,9 +51,9 @@ func dateOn(days int) string {
 func TestAPageItsPointsCantTakeADayInOnIsFoldedWholeThenRestedOn(t *testing.T) {
 	c := newDigestChain(t, "a model first reading a window only some models share", 0, daily(foldSonnet, foldOpus, foldOpus))
 	c.digestDayByDay(func(LedgerDay) {})
-	if refused, again := c.digests.refused[dateOn(1)]["s"]; !again || refused != dateOn(0) || c.digests.bases[dateOn(1)]["s"] != nil {
+	if refused, again := c.digests.refused[dateOn(1)]["s"]; !again || refused.base != dateOn(0) || c.digests.bases[dateOn(1)]["s"] != nil {
 		t.Errorf("s on %s: given no state resting on %q, %t, then folded on %+v; want it given none resting on %s, then folded whole",
-			dateOn(1), refused, again, c.digests.bases[dateOn(1)]["s"], dateOn(0))
+			dateOn(1), refused.base, again, c.digests.bases[dateOn(1)]["s"], dateOn(0))
 	}
 	if base := c.digests.bases[dateOn(2)]["s"]; base == nil || base.Date != dateOn(1) {
 		t.Errorf("s on %s: folded on %+v, want on its whole state of %s", dateOn(2), base, dateOn(1))
@@ -146,11 +146,12 @@ func (c *digestChain) checkRested(now time.Time, rest ledger.Rest, dates ...stri
 }
 
 // The answers a read takes are each answered once of its line, every
-// account's, of no session; given for a session's page, each is as
-// answeredOf makes it of that page, the session's own ours and summed so,
-// whichever page asks first, and a day none of whose answers are its own
-// shares the answers taken. Of generated worlds of a page's, its answers
-// among other sessions'.
+// account's, of no session; given for a session's page, those of the days
+// after the date it asks after, every day's of none, each is as answeredOf
+// makes it of that page, the session's own ours and summed so, whichever
+// page asks first, and a day none of whose answers are its own shares the
+// answers taken. Of generated worlds of a page's, its answers among other
+// sessions'.
 func TestAnswersTakenAreEachAsAnsweredOfThePageAsked(t *testing.T) {
 	for seed := range uint64(20) {
 		lines, _ := pagedRun(seed)
@@ -162,13 +163,17 @@ func TestAnswersTakenAreEachAsAnsweredOfThePageAsked(t *testing.T) {
 			}
 		}
 		for _, id := range append(sessionsIn(lines), "none") {
-			got := taken.of(id)
-			if want := answersOf(byDate, id); !reflect.DeepEqual(got, want) {
-				t.Errorf("seed %d, session %s: the answers taken are\n%v\nwant, as answered of its page\n%v", seed, id, got, want)
-			}
-			for date, answers := range got {
-				if !slices.ContainsFunc(answers, func(a answered) bool { return a.ours }) && &answers[0] != &taken[date].answers[0] {
-					t.Errorf("seed %d, session %s: the answers of %s, none its own, are a copy, want those taken", seed, id, date)
+			for _, after := range append([]string{""}, slices.Sorted(maps.Keys(byDate))...) {
+				got := taken.of(id, after)
+				want := answersOf(byDate, id)
+				maps.DeleteFunc(want, func(date string, _ []answered) bool { return date <= after })
+				if !reflect.DeepEqual(got, want) {
+					t.Errorf("seed %d, session %s, after %q: the answers taken are\n%v\nwant, as answered of its page\n%v", seed, id, after, got, want)
+				}
+				for date, answers := range got {
+					if !slices.ContainsFunc(answers, func(a answered) bool { return a.ours }) && &answers[0] != &taken[date].answers[0] {
+						t.Errorf("seed %d, session %s: the answers of %s, none its own, are a copy, want those taken", seed, id, date)
+					}
 				}
 			}
 		}

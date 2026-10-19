@@ -47,14 +47,17 @@ var rawAs = map[storedKey]string{
 	{of: "views.storedSession", key: "p"}:    "views.storedPage",
 }
 
-// unwritten are the keys a stored form declares that no digest holds, each
-// with why: a golden holding one is told to drop it here.
+// unwritten are the keys a stored form declares that the golden can't hold,
+// each with why: those no digest holds, and storedTimes' instants, written
+// only of a time beyond the years nanoseconds since the epoch hold, 1678 to
+// 2262, which a golden of one day's world can't reach. A golden holding one
+// is told to drop it here.
 var unwritten = map[storedKey]string{
 	{of: "ledger.storedSpend", key: "q"}:    "a quota check is never counted, so the store never holds one",
 	{of: "views.storedPage", key: "nn"}:     unpending,
 	{of: "views.storedTurn", key: "pn"}:     unpending,
 	{of: "views.storedTurn", key: "mp"}:     unpending,
-	{of: "views.storedTimes", key: "f"}:     "a request went upstream in the years nanoseconds since the epoch hold, 1678 to 2262",
+	{of: "views.storedTimes", key: "f"}:     "the golden's requests went upstream within the years nanoseconds since the epoch hold",
 	{of: "ledger.storedReading", key: "rs"}: unsaid,
 	{of: "ledger.storedReading", key: "p"}:  unsaid,
 	{of: "ledger.storedReading", key: "as"}: unsaid,
@@ -95,7 +98,7 @@ func TestTheDigestsGoldenHoldsEveryKeyOfItsStoredForms(t *testing.T) {
 		why, exempt := unwritten[key]
 		switch held := k.held[key]; {
 		case exempt && held:
-			t.Errorf("the golden holds %s, which unwritten says no digest holds, as %s: remove it from unwritten", key, why)
+			t.Errorf("the golden holds %s, which unwritten says it can't hold, as %s: remove it from unwritten", key, why)
 		case !exempt && !held:
 			t.Errorf("the golden holds no value of %s: give the golden world what stores one", key)
 		}

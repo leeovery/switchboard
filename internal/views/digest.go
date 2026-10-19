@@ -40,13 +40,13 @@ func (b *dayDigest) Take(date string, l ledger.Line) {
 }
 
 // Digest gives each session day hands it folded at the day's end, by its id,
-// as foldedAsOf has it, of the answers taken. It gives none of one whose
-// base won't decode or restore, nor whose page's points can't take the days
-// after its base in, nor of one with a request that arrived after the day,
-// as a change of time zone files one, which stored refuses: the ledger hands
-// one resting on a base again, read whole, and its readers read the rest
-// whole, as they read a session of no state. It fails once ctx ends, looked
-// at between sessions.
+// as foldedAsOf has it, of the answers taken of the days after its base's.
+// It gives none of one whose base won't decode or restore, nor whose page's
+// points can't take the days after its base in, nor of one with a request
+// that arrived after the day, as a change of time zone files one, which
+// stored refuses: the ledger hands one resting on a base again, read whole,
+// and its readers read the rest whole, as they read a session of no state.
+// It fails once ctx ends, looked at between sessions.
 func (b *dayDigest) Digest(ctx context.Context, day ledger.DigestDay) (map[string]ledger.Folded, error) {
 	d := LedgerDay{Start: day.Start, Date: day.Date}
 	folded := make(map[string]ledger.Folded, len(day.Sessions))
@@ -56,23 +56,33 @@ func (b *dayDigest) Digest(ctx context.Context, day ledger.DigestDay) (map[strin
 		}
 		// A session left out is no worse than no digest: the session is read
 		// whole, never told otherwise than its lines tell it.
-		if f, err := foldedAsOf(from, b.answers.of(id), d); err == nil {
+		if f, err := foldedAsOf(from, b.answers.of(id, baseDateOf(from)), d); err == nil {
 			folded[id] = f
 		}
 	}
 	return folded, nil
 }
 
+// baseDateOf is the date of the day whose digest holds the state from rests
+// on, "" for none.
+func baseDateOf(from ledger.SessionFrom) string {
+	if from.Base == nil {
+		return ""
+	}
+	return from.Base.Date
+}
+
 // foldedAsOf is the session from gives folded at the end of the day d, as a
 // day's digest keeps it, as folded has it: held as heldResting holds it on
-// d, its page tallied, its points of answers, every account's on the days
-// read, by date, sealed at the day's end; and its part over the tally its
-// page rested on. Nothing priced is stored, so the built-in table prices it,
-// whatever the config's: what's kept is the same whichever does. It fails as
-// heldResting does, and where stored refuses it, as of a line of it arrived
-// after the day.
+// d, its page tallied, read to fold, its times counted unheld, as pageToFold
+// has it, its points of answers, every account's on the days read, by date,
+// sealed at the day's end; and its part over the tally its page rested on.
+// Nothing priced is stored, so the built-in table prices it, whatever the
+// config's: what's kept is the same whichever does. It fails as heldResting
+// does, and where stored refuses it, as of a line of it arrived after the
+// day.
 func foldedAsOf(from ledger.SessionFrom, answers map[string][]answered, d LedgerDay) (ledger.Folded, error) {
-	s, base, err := heldResting(from, answers, ledger.Pricing, d, endOfDay(d), true)
+	s, base, err := heldResting(from, answers, ledger.Pricing, d, endOfDay(d), pageToFold)
 	if err != nil {
 		return ledger.Folded{}, err
 	}

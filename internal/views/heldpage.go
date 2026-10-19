@@ -133,10 +133,11 @@ func ReadPage(l LedgerSessions, id string, s Stream, prices ledger.Table, keep t
 // read again whole, as read's whole reads it.
 func holdPage(id string, read SessionsRead, prices ledger.Table, keep time.Duration, horizon instant, now time.Time) HeldPage {
 	day := Today(now)
-	record, err := heldAsOf(read.sessions[id], read.answers.of(id), prices, day, horizon, true)
+	from := read.sessions[id]
+	record, err := heldAsOf(from, read.answers.of(id, baseDateOf(from)), prices, day, horizon, true)
 	if err != nil {
 		whole := read.whole(id)
-		record = readOf(whole.sessions[id].Lines, whole.answers.of(id), prices, day, horizon, true)
+		record = readOf(whole.sessions[id].Lines, whole.answers.of(id, ""), prices, day, horizon, true)
 	}
 	return HeldPage{id: id, day: day, prices: prices, keep: ledgerKept(keep), record: record, read: now}
 }

@@ -637,7 +637,7 @@ func (w *spread) noteRested(m moment, whole HeldSessions) {
 			continue
 		}
 		start, _, _ := dayfile.Day(base.Date)
-		built, err := restoredFrom(ledger.SessionFrom{Base: base}, ledger.Pricing, Today(dayfile.DayStart(start, 1)), false)
+		built, err := restoredFrom(ledger.SessionFrom{Base: base}, ledger.Pricing, Today(dayfile.DayStart(start, 1)), pageNone)
 		if err != nil {
 			w.t.Fatalf("%s at %v: session %s rests on a state that won't restore: %v", w.name, m.now, id, err)
 		}

@@ -112,14 +112,28 @@ func (st *storedSession) put() (json.RawMessage, error) {
 	return data, nil
 }
 
+// pageRead is how much of its page a session read from its state holds.
+type pageRead uint8
+
+const (
+	// pageNone holds none of it.
+	pageNone pageRead = iota
+	// pageToFold holds all of it but its times, counted unheld, as
+	// upstreamTimes has them: a fold resting on it needs only how many
+	// there are, so its parts are read without them.
+	pageToFold
+	// pageWhole holds all of it.
+	pageWhole
+)
+
 // restoredFrom is the session whose state from rests on, as folded puts it,
-// restored onto the day given, as restored has it: where paged says, its
+// restored onto the day given, as restored has it: where page says, its
 // page with it, from what the state carries and from's chain of parts, as
-// restoredPaged has it. It fails where the state doesn't decode as one, or
-// is of another day than the digest holding it, as the lines after it would
-// be others than those it was told of, or where restored, or restoredPaged,
-// refuses it.
-func restoredFrom(from ledger.SessionFrom, prices ledger.Table, day LedgerDay, paged bool) (*heldSession, error) {
+// restoredPaged has it, its times with it where page reads it whole. It
+// fails where the state doesn't decode as one, or is of another day than the
+// digest holding it, as the lines after it would be others than those it was
+// told of, or where restored, or restoredPaged, refuses it.
+func restoredFrom(from ledger.SessionFrom, prices ledger.Table, day LedgerDay, page pageRead) (*heldSession, error) {
 	base := from.Base
 	var st storedSession
 	if err := json.Unmarshal(base.State, &st); err != nil {
@@ -128,14 +142,14 @@ func restoredFrom(from ledger.SessionFrom, prices ledger.Table, day LedgerDay, p
 	if st.Date != base.Date {
 		return nil, fmt.Errorf("read the state of a session in the digest of %s: a state of %q", base.Date, st.Date)
 	}
-	if !paged {
+	if page == pageNone {
 		return st.restored(prices, day)
 	}
 	parts := make([]json.RawMessage, len(from.Parts))
 	for i, p := range from.Parts {
 		parts[i] = p.Part
 	}
-	return st.restoredPaged(prices, day, parts)
+	return st.restoredPaged(prices, day, parts, page == pageWhole)
 }
 
 // endOfDay is the horizon a session's state at the end of the day d is
