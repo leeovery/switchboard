@@ -330,18 +330,19 @@ func (h HeldPage) ReadTurn(l LedgerSession, live PageLive) HeldTurn {
 
 // turnSpans are the stretches of time ReadTurn reads the lines of the turn
 // t of, at w's now: from arrivesWithin before it began to when its last
-// request ended, or now while one is pending, as a member's line arrives
-// by when its request ends, and every one the store holds, sealed behind
-// its horizon, is among those it's tallied of; and from the horizon on, as
-// the store has yet to be fed the lines since. None, to read every day,
-// where the horizon is before every moment.
+// request ended, never before it began, as a line's time taken may be
+// hand-edited below none, or to now while one is pending, as a member's line
+// arrives by when its request ends, and every one the store holds, sealed
+// behind its horizon, is among those it's tallied of; and from the horizon
+// on, as the store has yet to be fed the lines since. None, to read every
+// day, where the horizon is before every moment.
 func (w worked) turnSpans(t *turnTally) []ledger.Span {
 	if w.rec.horizon == unsealed {
 		return nil
 	}
 	turn := ledger.Span{From: t.started.Add(-arrivesWithin), To: w.live.Now}
 	if !t.pending {
-		turn.To = t.last.end
+		turn.To = later(instantOf(t.last.end), instantOf(t.started)).time()
 	}
 	return []ledger.Span{turn, {From: w.rec.horizon.time(), To: w.live.Now}}
 }

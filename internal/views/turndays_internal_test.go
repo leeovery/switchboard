@@ -45,7 +45,8 @@ func (d datesGiven) Session(id string, within ...ledger.Span) iter.Seq[ledger.He
 // feeds, and again three hours, a week and a month after its last request,
 // as requests of the session's own come then, shows the rows it shows read
 // of every day: a turn across midnight, a subagent's request of it on a
-// later day than it began, a turn still pending, a turn whose last request
+// later day than it began, a turn still pending, one pending with a line
+// days from its start and the horizon, a turn whose last request
 // ended days after it began, and a turn days back holding a subagent's
 // request filed today, since the feed, among them. A turn done reads no
 // line of a day further than one from its own, from arrivesWithin before it
@@ -70,14 +71,15 @@ func TestEveryTurnOpenedShowsTheRowsReadOfEveryDay(t *testing.T) {
 			at = now
 		}
 		last := ended(&lines[len(lines)-1])
-		for i, after := range []time.Duration{3 * time.Hour, 7 * 24 * time.Hour, 30 * 24 * time.Hour} {
-			p.lookLater(i, last.Add(after), met)
+		afters := []time.Duration{3 * time.Hour, 7 * 24 * time.Hour, 30 * 24 * time.Hour}
+		for i, after := range afters {
+			p.lookLater(i, last.Add(after), i == len(afters)-1, met)
 		}
 	}
 	for _, moment := range []string{
 		"a turn across midnight", "a subagent's request of a turn on a later day than it began", "a turn pending",
 		"a turn passing over a day of its session's lines", "a turn done holding a subagent's request filed since the feed, on the horizon's day",
-		"a turn done whose last request ended days after it began",
+		"a turn done whose last request ended days after it began", "a turn pending with a line days from its start and the horizon",
 	} {
 		if !met[moment] {
 			t.Errorf("no generated run meets %s", moment)
@@ -86,8 +88,8 @@ func TestEveryTurnOpenedShowsTheRowsReadOfEveryDay(t *testing.T) {
 }
 
 // A turn reads from arrivesWithin before it began to when its last request
-// ended, or to now while one is pending, and from the horizon to now: every
-// day where the horizon is before every moment.
+// ended, never before it began, or to now while one is pending, and from the
+// horizon to now: every day where the horizon is before every moment.
 func TestATurnReadsItsOwnSpanAndTheHorizons(t *testing.T) {
 	now := time.Date(2026, 10, 19, 15, 0, 0, 0, time.Local)
 	started, ended := now.AddDate(0, 0, -7), now.AddDate(0, 0, -6)
@@ -95,16 +97,21 @@ func TestATurnReadsItsOwnSpanAndTheHorizons(t *testing.T) {
 	tests := []struct {
 		name    string
 		horizon instant
+		ended   time.Time
 		pending bool
 		want    []ledger.Span
 	}{
-		{"done", horizon, false, []ledger.Span{{From: started.Add(-arrivesWithin), To: ended}, {From: horizon.time(), To: now}}},
-		{"pending", horizon, true, []ledger.Span{{From: started.Add(-arrivesWithin), To: now}, {From: horizon.time(), To: now}}},
-		{"its horizon before every moment", unsealed, false, nil},
+		{"done", horizon, ended, false, []ledger.Span{{From: started.Add(-arrivesWithin), To: ended.UTC()}, {From: horizon.time(), To: now}}},
+		{"pending", horizon, ended, true, []ledger.Span{{From: started.Add(-arrivesWithin), To: now}, {From: horizon.time(), To: now}}},
+		{
+			"done, its last request ending days before it began", horizon, started.AddDate(0, 0, -5), false,
+			[]ledger.Span{{From: started.Add(-arrivesWithin), To: started.UTC()}, {From: horizon.time(), To: now}},
+		},
+		{"its horizon before every moment", unsealed, ended, false, nil},
 	}
 	for _, tt := range tests {
 		w := worked{rec: &heldSession{horizon: tt.horizon}, live: PageLive{Now: now}}
-		turn := &turnTally{started: started, last: turnEnd{end: ended, set: true}, pending: tt.pending}
+		turn := &turnTally{started: started, last: turnEnd{end: tt.ended, set: true}, pending: tt.pending}
 		if got := w.turnSpans(turn); !reflect.DeepEqual(got, tt.want) {
 			t.Errorf("%s: a turn reads within %v, want %v", tt.name, got, tt.want)
 		}
@@ -116,8 +123,12 @@ func TestATurnReadsItsOwnSpanAndTheHorizons(t *testing.T) {
 // before, or a minute after the last feed where that's later, and a request
 // of its own ten minutes before, both fed; and five minutes before, another
 // subagent's first, untold by the stream, naming its first prompt, filed
-// since the feed. Then every turn is opened, as everyTurn has it.
-func (p *paging) lookLater(i int, now time.Time, met map[string]bool) {
+// since the feed. Where pending says, a turn begun five days before is
+// still pending, as pendingFor has it. The session is looked
+// at as each line filed since the last look ends, as the watch looks again
+// and again, and seven minutes before now; then every turn is opened, as
+// everyTurn has it.
+func (p *paging) lookLater(i int, now time.Time, pending bool, met map[string]bool) {
 	p.t.Helper()
 	own := ledger.Line{
 		Request: fmt.Sprintf("later%d", i), At: now.Add(-10 * time.Minute).Truncate(time.Millisecond).UTC(), Kind: ledger.KindMessage, Session: "s",
@@ -131,9 +142,41 @@ func (p *paging) lookLater(i int, now time.Time, met map[string]bool) {
 	}
 	fed, untold := agent("fed", later(instantOf(p.fed.Add(time.Minute)), instantOf(now.Add(-72*time.Hour))).time()), agent("untold", now.Add(-5*time.Minute))
 	p.untold[untold.Request] = true
-	p.lines = append(p.lines, fed, own, untold)
-	p.look(now.Add(-7*time.Minute), false)
+	added := []ledger.Line{fed, own, untold}
+	if pending {
+		added = append(added, pendingFor(own, i, now.Add(-120*time.Hour))...)
+	}
+	slices.SortStableFunc(added, func(a, b ledger.Line) int { return ended(&a).Compare(ended(&b)) })
+	p.lines = append(p.lines, added...)
+	last := now.Add(-7 * time.Minute)
+	for _, l := range p.filedBy(last) {
+		if at := ended(&l).Add(time.Second); at.After(p.fed) && at.Before(last) {
+			p.look(at, false)
+		}
+	}
+	p.look(last, false)
 	p.everyTurn(now, met)
+}
+
+// filedBy are the session's lines filed by until, in the order they ended.
+func (p *paging) filedBy(until time.Time) []ledger.Line {
+	filed := filedLedger{lines: p.lines, now: until}.filed()
+	slices.SortStableFunc(filed, func(a, b ledger.Line) int { return ended(&a).Compare(ended(&b)) })
+	return filed
+}
+
+// pendingFor are the requests of a turn of the session's own, as own is,
+// begun at begun, the i'th time: one then, one two and a half days on, and,
+// a minute after that, one in flight for sixty days, so the turn is pending
+// with a line further than a day from its first's day.
+func pendingFor(own ledger.Line, i int, begun time.Time) []ledger.Line {
+	turn := make([]ledger.Line, 3)
+	for j, at := range []time.Time{begun, begun.Add(60 * time.Hour), begun.Add(60*time.Hour + time.Minute)} {
+		turn[j] = own
+		turn[j].Request, turn[j].At, turn[j].Prompt = fmt.Sprintf("pending%d-%d", i, j), at.Truncate(time.Millisecond).UTC(), fmt.Sprintf("ppending%d", i)
+	}
+	turn[2].TotalMS = (60 * 24 * time.Hour).Milliseconds()
+	return turn
 }
 
 // everyTurn holds each turn of the page, opened at now, read of its own days
@@ -153,9 +196,25 @@ func (p *paging) everyTurn(now time.Time, met map[string]bool) {
 		}
 		if turn.pending {
 			met["a turn pending"] = true
+			notePending(turn, want, w, met)
 			continue
 		}
 		p.heldToItsDays(n+1, turn, want, read.dates, w, l, met)
+	}
+}
+
+// notePending notes in met where the turn, pending, with the rows given, holds a
+// line further than a day from both its first's day and the horizon's, as
+// dayfile.Dates has them: one read only as it's read to now.
+func notePending(turn *turnTally, rows []LogLine, w worked, met map[string]bool) {
+	if w.rec.horizon == unsealed {
+		return
+	}
+	near := slices.Concat(dayfile.Dates(turn.started, turn.started), dayfile.Dates(w.rec.horizon.time(), w.live.Now))
+	for _, r := range rows {
+		if r.line != nil && !slices.Contains(near, dayfile.DateOf(r.line.At)) {
+			met["a turn pending with a line days from its start and the horizon"] = true
+		}
 	}
 }
 

@@ -849,8 +849,8 @@ type Span struct {
 
 // Spanning returns what reports whether the files of the local day with the
 // given date may hold lines that arrived within any of the spans given, as
-// dayfile.Dates has it of each, from the day before its From's to the day
-// after its To's: of every day where none is given.
+// dayfile.Dates has it of each, between the bounds dayfile.DatesBounds
+// gives: of every day where none is given.
 func Spanning(spans []Span) func(date string) bool {
 	if len(spans) == 0 {
 		return func(string) bool { return true }
@@ -858,7 +858,7 @@ func Spanning(spans []Span) func(date string) bool {
 	type dates struct{ first, last string }
 	spanned := make([]dates, len(spans))
 	for i, s := range spans {
-		spanned[i] = dates{dayfile.DateOf(dayfile.DayStart(s.From.Local(), -1)), dayfile.DateOf(dayfile.DayStart(s.To.Local(), 1))}
+		spanned[i].first, spanned[i].last = dayfile.DatesBounds(s.From, s.To)
 	}
 	return func(date string) bool {
 		return slices.ContainsFunc(spanned, func(d dates) bool { return d.first <= date && date <= d.last })
