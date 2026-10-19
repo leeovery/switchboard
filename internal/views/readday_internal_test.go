@@ -365,24 +365,15 @@ func (c *digestChain) rowsPath(date string) string {
 	return filepath.Join(ledger.Dir(c.state), "rows-"+date+".gz")
 }
 
-// damageAChunk flips a byte in the middle of the second chunk of the rows
-// of the local day with the given date, as its head points at it, the rows
-// file as long as it was.
+// damageAChunk damages the second chunk of the rows of the local day with
+// the given date, as its head points at it, as damageChunk damages one.
 func (c *digestChain) damageAChunk(date string) {
 	c.t.Helper()
 	rows, ok := c.follower().DayRows(date, RowsVersion)
 	if !ok || len(rows.Chunks) < 2 {
 		c.t.Fatalf("%s: the rows of %s don't stand in more than one chunk", c.name, date)
 	}
-	data, err := os.ReadFile(c.rowsPath(date))
-	if err != nil {
-		c.t.Fatal(err)
-	}
-	m := rows.Chunks[1].Member
-	data[m.Offset+m.Length/2] ^= 0xff
-	if err := os.WriteFile(c.rowsPath(date), data, 0o600); err != nil {
-		c.t.Fatal(err)
-	}
+	c.damageChunk(date, rows.Chunks[1])
 }
 
 // removeRows removes the rows file of the local day with the given date,
