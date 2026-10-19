@@ -156,6 +156,19 @@ func WriteRows(dir, date string, chunks []BuiltChunk) error {
 	return days{files: filesIn(dir, nil)}.writeRows(date, file)
 }
 
+// HeadsHeld returns each day's head the router's digester holds from pass to
+// pass, as seen holds it, by its day's date, for tests of what it holds. The
+// ledger must be opened Digesting.
+func (l *Ledger) HeadsHeld() map[string]DayHead {
+	l.digesting.passing.Lock()
+	defer l.digesting.passing.Unlock()
+	held := make(map[string]DayHead, len(l.digesting.heads))
+	for date, s := range l.digesting.heads {
+		held[date] = s.head
+	}
+	return held
+}
+
 // ReadDayHead returns the head the ledger in dir holds of the local day with
 // the given date, its side of the version body, for tests of what's written.
 func ReadDayHead(dir, date string, body int) (DayHead, error) {

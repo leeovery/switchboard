@@ -139,7 +139,10 @@ func (s storedDayHead) dayHead() DayHead {
 // two, is held beside a rows file of another size than it records, so its
 // rows don't stand, and its day is due, or its chunks don't read, by their
 // CRC. It returns the head as written. It fails as file fails, writing
-// nothing.
+// nothing; where the rows can't be written, writing no head; and where the
+// head can't be, leaving the rows written, pointed at by no head, as a build
+// that stopped between the two leaves them, to be written again as the day
+// is built again.
 func (d days) writeDay(head DayHead, chunks []BuiltChunk) (DayHead, error) {
 	file, rows := rowsFileOf(chunks)
 	head.Rows = rows
@@ -333,16 +336,16 @@ func (d *digesting) logdayDue(ctx context.Context, dates []string, now time.Time
 // due, as view finds the day: it has lines, kept as its summary counts them,
 // as kept tells, and no head is held of it whose rows stand, as rowsStand
 // says, of the version its Digester gives. One that's current, as current
-// says, its rows file as long as it records, but doesn't stand, as the
-// digests beside its day tell of a line of it their days' files hold, is due
-// once each time one of those digests changes, as building it again takes
-// the line in, but can't have it stand: not at every pass. A head is read
-// only where its file looks otherwise than it did as the digesting last read
-// it, as seenHead holds it, and the digests beside it only where one of
-// their files looks otherwise than it did as the head was last built, or
-// found to stand; its rows file is looked at, never read, so one damaged
-// but as long leaves it not due; and a day whose lines can't be told isn't
-// due, as no head built of it would stand.
+// says, its rows file as long as it records, but whose rows don't stand, as
+// the digests beside its day tell of a line of it their days' files hold,
+// is due once each time one of those digests changes, as building it again
+// takes the line in, but can't have it stand: not at every pass. A head is
+// read only where its file looks otherwise than it did as the digesting
+// last read it, as seenHead holds it, and the digests beside it only where
+// one of their files looks otherwise than it did as the head was last
+// built, or found to stand; its rows file is looked at, never read, so one
+// damaged but as long leaves it not due; and a day whose lines can't be
+// told isn't due, as no head built of it would stand.
 func (d *digesting) headDue(date string, view writerLook) bool {
 	day := view.day(date)
 	if _, known := day.kept(); day.look.none || !known {
@@ -352,11 +355,11 @@ func (d *digesting) headDue(date string, view writerLook) bool {
 	grounds := digestGrounds{kept: view.kept, heads: view.head}
 	around := d.days.digestsBeside(date)
 	switch {
-	case !held || !grounds.current(seen.head.against()) || !d.days.rowsHeld(date, seen.head.Rows.Size):
+	case !held || !grounds.current(seen.head.against()):
 		return true
-	case seen.settledAmong(around):
+	case seen.settledAmong(around) && d.days.rowsHeld(date, seen.head.Rows.Size):
 		return false
-	case !grounds.dayHeadStands(seen.head):
+	case !d.days.rowsStand(grounds, seen.head):
 		return true
 	}
 	d.settle(date, around)

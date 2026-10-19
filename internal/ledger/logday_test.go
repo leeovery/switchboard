@@ -674,6 +674,38 @@ func TestTheFirstPassAfterAStartReadsNoSide(t *testing.T) {
 	}
 }
 
+// The digesting holds each day's head it builds, or reads afresh, from pass
+// to pass, of no side, nor its rows' chunks, which it never judges by: its
+// rows file's size kept, which it does. So it holds no day's side, nor the
+// meta of its chunks, from pass to pass.
+func TestTheDigestingHoldsItsHeadsWithoutTheirSidesOrChunks(t *testing.T) {
+	w := newLookupWorld(t)
+	sharedDays(w)
+	w.digestEnded()
+	fresh := w.opened(&folding{})
+
+	fresh.DigestEnded(t.Context(), w.at)
+
+	for _, held := range []struct {
+		name   string
+		ledger *ledger.Ledger
+	}{{name: "as built", ledger: w.writer}, {name: "as read afresh", ledger: fresh}} {
+		heads := held.ledger.HeadsHeld()
+		if len(heads) != 4 {
+			t.Errorf("%s, the digesting holds heads of %q; want those of the 4 days of lines", held.name, slices.Sorted(maps.Keys(heads)))
+		}
+		for date, head := range heads {
+			written, err := ledger.ReadDayHead(w.dir, date, sideBody)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if head.Side != nil || head.Rows.Chunks != nil || written.Rows.Size == 0 || head.Rows.Size != written.Rows.Size {
+				t.Errorf("%s, the head of %s is held as %+v; want it of no side, nor chunks, its rows file's size, %d, kept", held.name, date, head, written.Rows.Size)
+			}
+		}
+	}
+}
+
 // A pass that finds nothing changed since the last reads no head: with every
 // head unreadable, none is built again, nor warned of. A ledger opened
 // afresh, holding nothing of the last, reads them, and builds them again.
