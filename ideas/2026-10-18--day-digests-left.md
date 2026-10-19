@@ -24,8 +24,8 @@ what's live. Where it comes from, by the build's heap profile:
 - Further down: a build that folds each session as its lines arrive and lets them go, holding no
   day's lines whole; or a memory limit set in the router (`GOMEMLIMIT`).
 
-Phase 2 raised it, with 30 days kept, to some 152 MB and 0.95 s, as each session's points take in
-every account's answers of the day.
+Phase 2 raised it, with 30 days kept, to some 140 MB and about 1 s, as each session's points take
+in every account's answers of the day.
 
 ## A long page read whole in the router
 
@@ -56,8 +56,14 @@ needs care.
 - A page whose parts are spoiled, and whose next older state to fall back on lies three days back
   or more, is read whole: the points can't place a session's own day before yesterday, after its
   base.
-- The backfill's walk of each session's chain of parts reads each link's part again for every day
-  it builds, so it grows with the square of the days. Measure it at 400 days.
+- The builder's walk of a session's chain of parts decodes each link's digest, and opens a gzip
+  reader for each member, again for every day it builds: for one session running every day of 400,
+  some 80 ms and 98 MB of garbage a build, 7.6 MB held, and a backfill growing with the square of
+  the days.
+- A whole part's times, of a session busy every day and kept for good, reach the 64 MiB a member may
+  inflate to after some 500 days: past it, the member is refused at every read, so the page never
+  rests and the router reads the session whole every day it runs. A whole part comes only after a
+  refused restore, so it needs that and a very long keep.
 - The stored forms' `nn`, `pn` and `mp`, whether a request in none is in flight and whether a turn's
   requests are pending, are always false in a digest, as only the stream sets them. Drop them at the
   next version.

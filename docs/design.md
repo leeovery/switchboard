@@ -6554,12 +6554,13 @@ each hard moment of a day's turning, over generated worlds.
 
 Measured once phase 2 was built (19 October 2026, the soak's world, race detector off): the long
 session's page opens in 0.31 s with 9 days kept and 0.38 s with 30, from 1.71 s and 5.63 s
-measured before it on the same soak. The router builds a day's digest, with 30 days kept, in
-0.95 s, its heap rising some 152 MB at its peak, from phase 1's 0.65 s and 95 MB, as each
-session's points now take in every account's answers of the day; a backfill of 30 days, once after
-the release that brings phase 2 in, as every digest's version changes, takes some 29 s of work,
-from 19.7 s, paced as before; its first pass after a start, with 30 days kept, 43 ms; and a pass
-that finds nothing new, 0.6 ms. On disk, about 16 KB a day of digests and 43 KB a day of parts
+measured before it on the same soak; the List still opens in some 0.33 s; and the dashboard holds
+38.8 MB live at the soak's end with 30 days kept, from 40.3 MB. The router builds a day's digest,
+with 30 days kept, in about 1 s, its heap rising some 140 MB at its peak, from phase 1's 0.65 s
+and 95 MB, as each session's points now take in every account's answers of the day; a backfill of
+30 days, once after the release that brings phase 2 in, as every digest's version changes, takes
+some 28 s of work, from 19.7 s, paced as before; its first pass after a start, with 30 days kept,
+43 ms; and a pass that finds nothing new, 0.6 ms. On disk, about 16 KB a day of digests and 43 KB a day of parts
 files in the soak's world, whose requests come at even gaps that its times compress to almost
 nothing: with real gaps, the plan reckons some 125 to 140 KB a day of parts. What phase 2 left is
 gathered in [day-digests-left](../ideas/2026-10-18--day-digests-left.md).
