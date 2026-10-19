@@ -95,10 +95,11 @@ func (r *heldRequest) calls() iter.Seq[string] {
 	}
 }
 
-// sumsSeed seeds every sum of a line, as lineSumOf has it, and of a held
-// request, as summed has it: one seed for the run, as a sum is held no longer
-// than the run, and worked out again of a request restored from its stored
-// form.
+// sumsSeed seeds every sum of a line, as lineSumOf has it, of a held
+// request, as summed has it, and of an answer a page's points hold, as its
+// summed has it: one seed for the run, as a sum is held no longer than the
+// run, and worked out again of a request or an answer restored from its
+// stored form.
 var sumsSeed = maphash.MakeSeed()
 
 // summed is a sum of all r decodes of its line, as it holds it, its spend as
@@ -206,12 +207,11 @@ func (r heldRequest) pricedOn(prices ledger.Table, date string) heldRequest {
 	return r
 }
 
-// worthSaid is what r was worth, as a page sums it: as it was priced, none
-// where it wasn't.
-func (r *heldRequest) worthSaid() Worth {
-	var w Worth
-	w.addSummed(r.worth, r.priced)
-	return w
+// spentInto adds what r spent to sp, by the model it asked for and the geo
+// it asked its inference to run in, as a page tallies it, to be priced as
+// the page is built.
+func (r *heldRequest) spentInto(sp *ledger.Spent) {
+	sp.Add(r.model.Value(), r.geo.Value(), r.spend)
 }
 
 // withRequests returns held, a session's requests in order, as inOrder has

@@ -1,9 +1,13 @@
 package ledger
 
 import (
+	"encoding/json"
+	"fmt"
 	"maps"
 	"slices"
 	"time"
+
+	"github.com/leeovery/switchboard/internal/atomicfile"
 )
 
 // SetLooked has a round call looked with the date of each day it summarises
@@ -14,9 +18,43 @@ func (l *Ledger) SetLooked(looked func(date string)) {
 }
 
 // WriteDigest writes digest as the ledger in dir holds the digest of its
-// day, for tests of what passes over it.
+// day, its file alone, as one written by hand would be: its head, and its
+// entries' parts, as given, the day's parts file left as it is, for tests of
+// what passes over it.
 func WriteDigest(dir string, digest Digest) error {
-	return days{files: filesIn(dir, nil)}.writeDigest(digest)
+	data, err := gzippedJSON(storedOf(digest))
+	if err != nil {
+		return err
+	}
+	return atomicfile.Write(digestFile(dir, digest.Head.Day), data, 0o600)
+}
+
+// WriteParts writes the parts given, by their sessions' ids, of no times, as
+// the ledger in dir holds the parts file of the local day with the given
+// date, as a build writes it before its digest, the digest left as it is,
+// for tests of a build that stopped between the two.
+func WriteParts(dir, date string, parts map[string]json.RawMessage) error {
+	built, err := builtParts(parts, nil)
+	if err != nil {
+		return err
+	}
+	file, _ := partsFileOf(built)
+	return days{files: filesIn(dir, nil)}.writeParts(date, file)
+}
+
+// builtParts returns parts, by their sessions' ids, each as builtPartOf
+// builds it of no times, folded on the state of the date on gives it, ""
+// for none.
+func builtParts(parts map[string]json.RawMessage, on map[string]string) (map[string]builtPart, error) {
+	built := make(map[string]builtPart, len(parts))
+	for id, part := range parts {
+		b, err := builtPartOf(on[id], part, nil)
+		if err != nil {
+			return nil, err
+		}
+		built[id] = b
+	}
+	return built, nil
 }
 
 // ReadDigest returns the digest the ledger in dir holds of the local day with
@@ -26,25 +64,76 @@ func ReadDigest(dir, date string, body int) (Digest, error) {
 	return days{files: filesIn(dir, nil)}.digest(date, body)
 }
 
+// ReadPart returns the part of a session ref points at in the parts file the
+// ledger in dir holds of the local day with the given date, as readMember
+// reads it, for tests of what's written.
+func ReadPart(dir, date string, ref PartRef) (json.RawMessage, error) {
+	return days{files: filesIn(dir, nil)}.readMember(date, ref.Member)
+}
+
+// ReadTimes returns the times of the part of a session ref points at in the
+// parts file the ledger in dir holds of the local day with the given date,
+// as readMember reads them, for tests of what's written: failing where ref
+// points at none.
+func ReadTimes(dir, date string, ref PartRef) (json.RawMessage, error) {
+	if ref.Times == nil {
+		return nil, fmt.Errorf("the part of %s at %+v has no times", date, ref.Member)
+	}
+	return days{files: filesIn(dir, nil)}.readMember(date, *ref.Times)
+}
+
 // SessionsAsOf returns the sessions with the given ids as of the start of
 // the local day with the given date, as the follower's lookup finds them,
-// handing take each line read, where it's given, for tests of the lookup.
-func (f *Follower) SessionsAsOf(ids []string, date string, take func(date string, l Line)) map[string]SessionFrom {
+// resting as rest says of each, handing take each line read, where it's
+// given, for tests of the lookup.
+func (f *Follower) SessionsAsOf(ids []string, date string, rest func(id string) Rest, take func(date string, l Line)) map[string]SessionFrom {
 	read := newSessionsRead(f.now(), take)
-	return f.lookup().asOf(f.datesBefore(date, read.now), nil, wanting(make(map[string]bool), ids), nil, read)
+	return f.lookup().asOf(f.datesBefore(date, read.now), nil, wanting(make(map[string]bool), ids), rest, read)
+}
+
+// RestsAsOf returns the date of the state each of the sessions with the given
+// ids rests on as of the start of the local day with the given date, as the
+// follower's lookup rests it, as rest says of each, "" for none, by its id:
+// before any of its lines is read, so before a base falls to a line read
+// after it that arrived before the base's day ended, as asOf drops it, for
+// tests of the rest alone.
+func (f *Follower) RestsAsOf(ids []string, date string, rest func(id string) Rest) map[string]string {
+	l := f.lookup()
+	rests := make(map[string]string, len(ids))
+	for id, s := range l.namingEach(f.datesBefore(date, f.now()), nil, wanting(make(map[string]bool), ids)) {
+		l.rest(id, s, rest(id))
+		if s.base != nil {
+			rests[id] = s.base.Date
+		}
+	}
+	return rests
 }
 
 // SessionsAsOf returns the sessions with the given ids as of the start of
 // the local day with the given date, at now, as the router's digester's
-// lookup finds them, through the look its passes take at the days, held
-// from one to the next, their states of the version its Digester gives, for
-// tests of the lookup. The ledger must be opened Digesting.
-func (l *Ledger) SessionsAsOf(ids []string, date string, now time.Time) map[string]SessionFrom {
+// lookup finds them, resting as rest says of each, through the look its
+// passes take at the days, held from one to the next, their states of the
+// version its Digester gives, for tests of the lookup. The ledger must be
+// opened Digesting.
+func (l *Ledger) SessionsAsOf(ids []string, date string, now time.Time, rest func(id string) Rest) map[string]SessionFrom {
 	l.digesting.passing.Lock()
 	defer l.digesting.passing.Unlock()
 	first, err := l.days.first()
 	view := l.digesting.view()
-	return newSessionsLookup(l.days, view).asOf(l.days.datesBefore(date, first, err, now), nil, wanting(make(map[string]bool), ids), nil, newSessionsRead(now, nil))
+	return newSessionsLookup(l.days, view).asOf(l.days.datesBefore(date, first, err, now), nil, wanting(make(map[string]bool), ids), rest, newSessionsRead(now, nil))
+}
+
+// WriteDigestWithParts writes digest as the router's writer writes it, with
+// the parts of its sessions given, by their ids, each of no times, folded on
+// the state of the date on gives it, "" for none, as the day's parts file,
+// its entries pointing at them, for tests of what reads them. It returns the
+// digest as written.
+func WriteDigestWithParts(dir string, digest Digest, parts map[string]json.RawMessage, on map[string]string) (Digest, error) {
+	built, err := builtParts(parts, on)
+	if err != nil {
+		return Digest{}, err
+	}
+	return days{files: filesIn(dir, nil)}.writeDigest(digest, built)
 }
 
 // RestsOn returns what a state folded from s rests on, as the lookup found

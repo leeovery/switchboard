@@ -24,11 +24,13 @@ import (
 // once, as the traces count them: those it sealed held as upstreamTimes
 // holds them, and those a copy took in since, so a page built of it makes
 // only its open requests' afresh, copying none sealed; with those that may
-// still be in flight as the next arrives, and the models they asked for;
-// and the points it took of its accounts' windows, as pointing has them,
-// sealed as the store seals it, the same of every copy told on. What's
+// still be in flight as the next arrives; and the points it took of its
+// accounts' windows, as pointing has them, sealed as the store seals it,
+// the same of every copy told on. What's
 // taken in tells on a copy of it, as told has it, so a page built of it
-// never changes it.
+// never changes it. What its requests spent it holds as ledger.Spent holds
+// it, never priced, so nothing it holds depends on a price table: a page is
+// priced as it's built of it, at the day it's built on.
 type pageTally struct {
 	turns   []*turnTally
 	prompts map[string]int
@@ -46,13 +48,12 @@ type pageTally struct {
 	stretched [2]stretching
 	goes      []SessionModel
 
-	accounts  []SessionAccount
+	accounts  []accountSums
 	kept      map[string]keptLines
 	totals    sessionSums
 	upstream  upstreamTimes
 	sentSince []time.Time
 	flying    []flight
-	models    map[string]bool
 	points    *pointing
 
 	// own are the turns a copy telling on has made its own, and whether its
@@ -68,20 +69,29 @@ type stretching struct {
 	open      bool
 }
 
-// sessionSums are what a session's totals sum of its lines, as totalsOf sums
-// them: how many there are, their worth, and the tokens they read from the
-// cache, and sent.
+// accountSums are what a session's lines that went to an account sum, as
+// lined takes them in: the account; when the first and the last of them
+// arrived; how many there are; and what they spent.
+type accountSums struct {
+	account  string
+	from, to time.Time
+	requests int
+	spent    ledger.Spent
+}
+
+// sessionSums are what a session's totals sum of its lines, as lined takes
+// them in: how many there are, what they spent, and the tokens they read from
+// the cache, and sent.
 type sessionSums struct {
 	requests   int
-	worth      Worth
+	spent      ledger.Spent
 	read, sent int
 }
 
 // newPageTally is the tally of a session before any of its requests is
 // taken in.
 func newPageTally() *pageTally {
-	return &pageTally{prompts: make(map[string]int), agents: make(map[string]string), kept: make(map[string]keptLines), models: make(map[string]bool),
-		ownMaps: true}
+	return &pageTally{prompts: make(map[string]int), agents: make(map[string]string), kept: make(map[string]keptLines), ownMaps: true}
 }
 
 // told is p told on afresh, the requests sent, its session's next as its
@@ -128,7 +138,7 @@ func (p *pageTally) owningMaps() {
 	if p.ownMaps {
 		return
 	}
-	p.prompts, p.agents, p.kept, p.models = maps.Clone(p.prompts), maps.Clone(p.agents), maps.Clone(p.kept), maps.Clone(p.models)
+	p.prompts, p.agents, p.kept = maps.Clone(p.prompts), maps.Clone(p.agents), maps.Clone(p.kept)
 	p.ownMaps = true
 }
 
@@ -229,31 +239,31 @@ func (p *pageTally) turn(r *sent) {
 // lined takes in r, a line of the session's, as its accounts, what keeps its
 // models where they go, its totals and its traces count it.
 func (p *pageTally) lined(r *heldRequest) {
-	worth := r.worthSaid()
 	model, account, reason := r.model.Value(), r.account.Value(), r.reason.Value()
 	if account != "" {
 		at := r.arrived()
-		i := slices.IndexFunc(p.accounts, func(a SessionAccount) bool { return a.Account == account })
+		i := slices.IndexFunc(p.accounts, func(a accountSums) bool { return a.account == account })
 		if i < 0 {
-			i, p.accounts = len(p.accounts), append(p.accounts, SessionAccount{Account: account, From: at})
+			i, p.accounts = len(p.accounts), append(p.accounts, accountSums{account: account, from: at})
 		}
 		a := &p.accounts[i]
-		a.To, a.Requests = at, a.Requests+1
-		a.add(worth)
+		a.to, a.requests = at, a.requests+1
+		r.spentInto(&a.spent)
 	}
-	k := keptLines{account: account, came: p.kept[model].came}
+	was, known := p.kept[model]
+	k := keptLines{account: account, came: was.came}
 	if status.Kept(reason) {
 		k.kept = reason
 	} else {
 		k.came = reason
 	}
-	if p.kept[model] != k || !p.models[model] {
+	if !known || was != k {
 		p.owningMaps()
-		p.kept[model], p.models[model] = k, true
+		p.kept[model] = k
 	}
 	tokens, _ := r.spend.Tokens()
 	p.totals.requests++
-	p.totals.worth.add(worth)
+	r.spentInto(&p.totals.spent)
 	p.totals.read += tokens.CacheRead
 	p.totals.sent += tokens.Input + tokens.CacheRead + tokens.CacheWrite
 	if r.upstream {
@@ -279,10 +289,14 @@ func (p *pageTally) wentUp(r *heldRequest) {
 // upstreamTimes are when requests went upstream, oldest first, each in 8
 // bytes, as nanoseconds since the epoch, while every one falls in the years
 // those hold, 1678 to 2262; else each as an instant, whatever its year, as
-// far holds them. What changes them returns afresh.
+// far holds them. Of a page restored for a fold resting on it, the first of
+// them, as many as unheld counts, are counted and not held, as the fold needs
+// only how many there are, as partOver has it: it holds those after alone.
+// What changes them returns afresh.
 type upstreamTimes struct {
-	nanos []int64
-	far   []instant
+	nanos  []int64
+	far    []instant
+	unheld int
 }
 
 // with is u with times, oldest first, after its own, afresh.
@@ -290,11 +304,11 @@ func (u upstreamTimes) with(times []time.Time) upstreamTimes {
 	if len(times) == 0 {
 		return u
 	}
-	grown := upstreamTimes{nanos: slices.Clip(u.nanos), far: slices.Clip(u.far)}
+	grown := upstreamTimes{nanos: slices.Clip(u.nanos), far: slices.Clip(u.far), unheld: u.unheld}
 	for _, t := range times {
-		n := t.UnixNano()
+		n, fits := nanosOf(t)
 		switch {
-		case grown.far == nil && time.Unix(0, n).Equal(t):
+		case grown.far == nil && fits:
 			grown.nanos = append(grown.nanos, n)
 			continue
 		case grown.far == nil:
@@ -309,15 +323,24 @@ func (u upstreamTimes) with(times []time.Time) upstreamTimes {
 	return grown
 }
 
-func (u upstreamTimes) len() int {
-	if u.far != nil {
-		return len(u.far)
-	}
-	return len(u.nanos)
+// nanosOf is t as nanoseconds since the epoch, reporting whether it falls in
+// the years those hold.
+func nanosOf(t time.Time) (int64, bool) {
+	n := t.UnixNano()
+	return n, time.Unix(0, n).Equal(t)
 }
 
-// at is the ith of u, in UTC.
+// len is how many times u has, those it counts unheld among them.
+func (u upstreamTimes) len() int {
+	if u.far != nil {
+		return u.unheld + len(u.far)
+	}
+	return u.unheld + len(u.nanos)
+}
+
+// at is the ith of u, in UTC, of those it holds: none it counts unheld.
 func (u upstreamTimes) at(i int) time.Time {
+	i -= u.unheld
 	if u.far != nil {
 		return u.far[i].time()
 	}
@@ -339,18 +362,6 @@ func (p *pageTally) pointed(points *pointing) *pageTally {
 	return &c
 }
 
-// pricedAlike reports whether every model p's lines asked for costs alike
-// on the days with the dates a and b, as ledger.Table.SamePrices has it, so
-// what it tallied priced on one is worth as much on the other.
-func (p *pageTally) pricedAlike(prices ledger.Table, a, b string) bool {
-	for model := range p.models {
-		if !prices.SamePrices(model, a, b) {
-			return false
-		}
-	}
-	return true
-}
-
 // stretches are the session's stretches, as stretchesOf has them: its own
 // conversation's where a request of it was taken in, else every request's.
 func (p *pageTally) stretches() []Stretch {
@@ -361,22 +372,24 @@ func (p *pageTally) stretches() []Stretch {
 	return slices.DeleteFunc(slices.Clone(s.stretches), func(s Stretch) bool { return s.Account == "" })
 }
 
-// accountsSaid are the accounts the session ran on, as accountsOf has them,
-// each with the points it took of its windows, as its points have them.
-func (p *pageTally) accountsSaid() []SessionAccount {
+// accountsSaid are the accounts the session ran on, as lined took them in,
+// each worth what its requests spent, as priced prices it, with the points
+// it took of its windows, as its points have them.
+func (p *pageTally) accountsSaid(priced pricing) []SessionAccount {
 	accounts := make([]SessionAccount, len(p.accounts))
 	for i, a := range p.accounts {
-		a.Points = p.points.of(a.Account)
-		accounts[i] = a
+		accounts[i] = SessionAccount{
+			Account: a.account, From: a.from, To: a.to, Requests: a.requests, Worth: priced.worth(a.spent), Points: p.points.of(a.account),
+		}
 	}
 	return accounts
 }
 
-// totalsOf sums the session, of which it told turns turns, as totalsOf sums
-// its requests.
-func (p *pageTally) totalsOf(turns int) SessionTotals {
+// totalsOf sums the session, of which it told turns turns, as lined took
+// its requests in, worth what they spent, as priced prices it.
+func (p *pageTally) totalsOf(turns int, priced pricing) SessionTotals {
 	t := p.totals
-	totals := SessionTotals{Turns: turns, Requests: t.requests, Worth: t.worth}
+	totals := SessionTotals{Turns: turns, Requests: t.requests, Worth: priced.worth(t.spent)}
 	if t.sent > 0 {
 		totals.FromCache = float64(t.read) / float64(t.sent)
 	}

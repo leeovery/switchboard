@@ -188,16 +188,16 @@ func TestAReadOfSessionsIsBehindItsBasesWhereNoSessionItGaveNeedsTheDay(t *testi
 	}
 }
 
-func (c *countingLedger) Sessions(ids []string, whole func(string) bool, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+func (c *countingLedger) Sessions(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
 	r := sessionsRead("Sessions", ids)
-	sessions := c.Ledger.Sessions(ids, whole, r.taking(take))
+	sessions := c.Ledger.Sessions(ids, rest, r.taking(take))
 	c.read(r.gave(sessions))
 	return sessions
 }
 
-func (c *countingLedger) SessionsOf(ids []string, whole func(string) bool, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+func (c *countingLedger) SessionsOf(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
 	r := sessionsRead("SessionsOf", ids)
-	sessions := c.Ledger.SessionsOf(ids, whole, r.taking(take))
+	sessions := c.Ledger.SessionsOf(ids, rest, r.taking(take))
 	c.read(r.gave(sessions))
 	return sessions
 }
@@ -369,18 +369,25 @@ func (g *storeGuard) judged(was Model) {
 	g.unjudged = nil
 }
 
-// restedOn judges a read of sessions, r, at now: it read no day behind the
-// states the sessions it gave there rest on, as behindBases has them; and
+// restedOn judges a read of sessions, r, at now, as readNoneBehind does; and
 // counts the sessions it gave resting on a state.
 func (g *storeGuard) restedOn(r ledgerRead, now time.Time) {
 	g.t.Helper()
-	if behind := r.behindBases(); len(behind) > 0 {
-		g.t.Errorf("at %s %s read the lines of %v, each a day the state every session of it given rests on holds, %v", now.Format(time.DateTime), r.method, behind, r.rests)
-	}
+	readNoneBehind(g.t, r, now)
 	for _, base := range r.rests {
 		if base != "" {
 			g.rested++
 		}
+	}
+}
+
+// readNoneBehind fails the test where the read of sessions r, at now, read a
+// day behind the states the sessions it gave there rest on, as behindBases
+// has them.
+func readNoneBehind(t *testing.T, r ledgerRead, now time.Time) {
+	t.Helper()
+	if behind := r.behindBases(); len(behind) > 0 {
+		t.Errorf("at %s %s read the lines of %v, each a day the state every session of it given rests on holds, %v", now.Format(time.DateTime), r.method, behind, r.rests)
 	}
 }
 

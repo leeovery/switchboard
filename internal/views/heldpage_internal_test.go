@@ -23,7 +23,7 @@ func TestAHeldPagePastMidnightIsBuiltAsTheFeedThatRollsItGives(t *testing.T) {
 		Request: "r1", At: before, Kind: ledger.KindMessage, Session: "s1", Model: "claude-opus-5-5", Account: "work",
 		Status: 200, Attempts: 1, TotalMS: 4000, Usage: []byte(`{"input_tokens":1000}`),
 	}}
-	h := HoldPage("s1", SessionsRead{day: Today(before), lines: map[string][]ledger.Line{"s1": lines}}, ledger.Pricing, 0, before)
+	h := HoldPage("s1", linesRead(before, "s1", lines), ledger.Pricing, 0, before)
 	looked, _ := h.Build(PageLive{Now: after})
 	fed, _ := h.Found().Fed(filedLedger{lines: lines, now: after}, Taken{}, SessionsWanted{}.Paging(h, Stream{}), after)
 	rolled, _ := h.On(Today(after).Date)

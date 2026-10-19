@@ -337,7 +337,7 @@ func TestServeDigestsTheLedgersEndedDaysAsTheViewsReadThem(t *testing.T) {
 	stop := srv.start(t)
 	waitUntil(t, "the ledger's reader finds session one resting on a digest", func() bool {
 		follower := ledger.NewFollower(srv.state, func() time.Time { return testNow }, ledger.CapsOf(nil, nil), views.DigestVersion, slog.New(slog.DiscardHandler))
-		return follower.SessionsOf([]string{"one"}, func(string) bool { return false }, nil)["one"].Base != nil
+		return follower.SessionsOf([]string{"one"}, nil, nil)["one"].Base != nil
 	})
 	if got := stop(); got.code != 0 {
 		t.Errorf("switchboard serve = %+v, want exit status 0", got)

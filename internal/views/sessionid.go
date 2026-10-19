@@ -107,12 +107,18 @@ func newSessionNaming(given string) *sessionNaming {
 // note notes the session with the given id, reporting whether given starts
 // it, and it hadn't come before.
 func (n *sessionNaming) note(id string) bool {
-	if n.seen[id] || !strings.HasPrefix(id, n.given) {
+	if n.seen[id] || !startedBy(id, n.given) {
 		return false
 	}
 	n.seen[id] = true
 	n.ids = append(n.ids, id)
 	return true
+}
+
+// startedBy reports whether given starts id, a session's, so may name it,
+// as every verb that takes a session names one.
+func startedBy(id, given string) bool {
+	return strings.HasPrefix(id, given)
 }
 
 // named returns the id of the session given names among those noted: given,

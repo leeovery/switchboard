@@ -326,6 +326,62 @@ func TestALedgerLinesWindowsKeptAreTheWindowsItsLimitsGive(t *testing.T) {
 	}
 }
 
+// A window kept is stored as its key, status, use and reset, each by a
+// short key, every zero left out, its reset none where the header said
+// none, apart from one at the epoch; and read back, it's the window kept it
+// was.
+func TestAWindowKeptIsStoredByShortKeysAndReadBackAsItWas(t *testing.T) {
+	tests := []struct {
+		name   string
+		limits map[string]string
+		want   string
+	}{
+		{name: "every field said", limits: map[string]string{"5h-utilization": "0.23", "5h-reset": "1790619000", "5h-status": "allowed"},
+			want: `{"k":"5h","s":"allowed","u":0.23,"r":1790619000}`},
+		{name: "no status said", limits: map[string]string{"7d-utilization": "0.97", "7d-reset": "1790974800"}, want: `{"k":"7d","u":0.97,"r":1790974800}`},
+		{name: "no reset said", limits: map[string]string{"7d_oi-utilization": "0.4", "7d_oi-status": "rejected"}, want: `{"k":"7d_oi","s":"rejected","u":0.4}`},
+		{name: "none used, resetting at the epoch", limits: map[string]string{"5h-utilization": "0", "5h-reset": "0"}, want: `{"k":"5h","r":0}`},
+		{name: "resetting before the epoch", limits: map[string]string{"5h-utilization": "1.5", "5h-reset": "-86400"}, want: `{"k":"5h","u":1.5,"r":-86400}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			kept := claude.KeptWindows(tt.limits)
+			if len(kept) != 1 {
+				t.Fatalf("KeptWindows(%v) keeps %d windows, want one", tt.limits, len(kept))
+			}
+			got, err := json.Marshal(kept[0])
+			if err != nil || string(got) != tt.want {
+				t.Fatalf("stored as %s, %v, want %s", got, err, tt.want)
+			}
+			var back claude.KeptWindow
+			if err := json.Unmarshal(got, &back); err != nil || back != kept[0] {
+				t.Errorf("%s read back as %+v, %v, want %+v", got, back.Window(), err, kept[0].Window())
+			}
+		})
+	}
+}
+
+// Each key of a window kept's stored form reads back into a window kept that
+// writes it again as it was, and each is a window kept otherwise than every
+// other: so nothing stored is lost between the file and the window.
+func TestEachKeyOfAWindowKeptsStoredFormIsKept(t *testing.T) {
+	stored := []string{`{}`, `{"k":"5h"}`, `{"s":"allowed"}`, `{"u":0.5}`, `{"r":0}`, `{"r":1790619000}`}
+	read := make([]claude.KeptWindow, len(stored))
+	for i, s := range stored {
+		if err := json.Unmarshal([]byte(s), &read[i]); err != nil {
+			t.Fatalf("reading %s: %v", s, err)
+		}
+		if again, err := json.Marshal(read[i]); err != nil || string(again) != s {
+			t.Errorf("%s read back writes as %s, %v, want it as it was", s, again, err)
+		}
+		for j := range i {
+			if read[j] == read[i] {
+				t.Errorf("%s reads back as %s does, want each otherwise", s, stored[j])
+			}
+		}
+	}
+}
+
 // A ledger line's limits give each window as its answer read it, in
 // LimitWindows' order: its key, its use, its reset, zero where the answer
 // didn't say, and how far it held its account back, its reserve the one

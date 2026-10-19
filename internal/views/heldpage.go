@@ -15,20 +15,20 @@ import (
 // its turns as the stream adds to them, and the clock's words. It holds its
 // session as the store holds it, its requests sealed into its story and its
 // page's tally, its points among it, the recent held open, as HeldSessions
-// holds the page's session, read whole as it's held, and as the store holds
-// it from the first feed after; and of its turn open, the lines of its
-// requests, read as it opened, and those the ledger gained since. On rolls
-// it on to a later day; Held takes its session as the store fed it; Build
-// builds the page of what's held, what the router lists and what the stream
-// told. What changes it returns afresh, so a copy holding it never sees it
-// change, sharing what it held before, which nothing changes.
+// holds the page's session, read as it's held, resting on its page, and as
+// the store holds it from the first feed after; and of its turn open, the
+// lines of its requests, read as it opened, and those the ledger gained
+// since. On rolls it on to a later day; Held takes its session as the store
+// fed it; Build builds the page of what's held, what the router lists and
+// what the stream told. What changes it returns afresh, so a copy holding it
+// never sees it change, sharing what it held before, which nothing changes.
 type HeldPage struct {
 	id     string
 	day    LedgerDay
 	prices ledger.Table
 	keep   time.Duration
 	// record is the session as the page holds it, its page tallied, as read
-	// whole at read, or as the store last fed it; joined how many feeds the
+	// at read, or as the store last fed it; joined how many feeds the
 	// store had had as the read joined it, as Joined has it.
 	record *heldSession
 	read   time.Time
@@ -106,7 +106,9 @@ func (l PageLive) Same(o PageLive) bool {
 // holds of it, and of the accounts it ran on, at now: its requests priced by
 // prices at the day now falls on, and keep the ledger's [ledger] keep, as
 // ledgerKept reads it, every one of them held open, as a page built of
-// whatever the stream tells, at whatever now, takes each in in its place.
+// whatever the stream tells, at whatever now, takes each in in its place:
+// so one read resting on its page, its state holding those before its day's
+// end sealed, is read again whole, as holdPage has it.
 func HoldPage(id string, read SessionsRead, prices ledger.Table, keep time.Duration, now time.Time) HeldPage {
 	return holdPage(id, read, prices, keep, unsealed, now)
 }
@@ -125,15 +127,22 @@ func ReadPage(l LedgerSessions, id string, s Stream, prices ledger.Table, keep t
 }
 
 // holdPage holds the page of the session with the given id, as HoldPage
-// does, sealed behind the horizon given.
+// does, sealed behind the horizon given: on what read rests it on, as
+// heldAsOf holds it, its points of the answers read took; or, where it can't
+// be held so, as its state won't restore or the horizon is before its end,
+// read again whole, as read's whole reads it.
 func holdPage(id string, read SessionsRead, prices ledger.Table, keep time.Duration, horizon instant, now time.Time) HeldPage {
 	day := Today(now)
-	record := readOf(read.lines[id], answersOf(read.requests, id), prices, day, horizon, true)
+	record, err := heldAsOf(id, read.sessions[id], read.answers, prices, day, horizon, true)
+	if err != nil {
+		whole := read.whole(id)
+		record = readOf(whole.sessions[id].Lines, whole.answers.of(id, ""), prices, day, horizon, true)
+	}
 	return HeldPage{id: id, day: day, prices: prices, keep: ledgerKept(keep), record: record, read: now}
 }
 
-// Found is the store of h's session alone, as h holds it, read whole as it
-// was held, for the watch's store to take in, as HeldSessions' With has it.
+// Found is the store of h's session alone, as h holds it, read as it was
+// held, for the watch's store to take in, as HeldSessions' With has it.
 func (h HeldPage) Found() HeldSessions {
 	read := fedOn(h.read)
 	return HeldSessions{prices: h.prices, fed: read, unread: read, sessions: map[string]*heldSession{h.id: h.record}}
@@ -345,9 +354,8 @@ type BuiltPage struct {
 	RequestsLoading bool
 	// ReadsWhole is set, and nothing else built, where its store's next feed
 	// reads its session whole, as no page built before it of what it holds
-	// stands: it holds what it tallied priced otherwise than on the day it's
-	// built on, or the stream tells of a request that joined late, behind
-	// its horizon, as readsWhole has it.
+	// stands: the stream tells of a request that joined late, behind its
+	// horizon, as readsWhole has it.
 	ReadsWhole bool
 	// Until is the first moment a page built of the same would be built
 	// otherwise, by the clock alone: the next minute, as its story steps on
@@ -383,11 +391,10 @@ func (h HeldPage) Build(live PageLive) (BuiltPage, bool) {
 }
 
 // readsWhole reports whether the store's next feed reads h's session whole,
-// as live gives the page: its day rolling on to one its tally is priced
-// otherwise on, as repricedOn has it, or the stream telling of a request
-// that joined late, as joinedLate has it, as the feed checks both.
+// as live gives the page: the stream telling of a request that joined late,
+// as joinedLate has it, as the feed checks it.
 func (h HeldPage) readsWhole(live PageLive) bool {
-	return h.record.repricedOn(h.prices, Today(live.Now)) || joinedLate(live.Now, pinsOf(live.Stream)[h.id], h.record.horizon)
+	return joinedLate(live.Now, pinsOf(live.Stream)[h.id], h.record.horizon)
 }
 
 // open is the number of the turn open of the page w is built of, as
@@ -478,14 +485,15 @@ func (w worked) page() (SessionPage, bool) {
 	if !rec.story.begun && !running {
 		return SessionPage{}, false
 	}
+	priced := pricing{prices: h.prices, date: rec.day().Date}
 	listed := by.listed(h.id, rec.story)
 	page := SessionPage{
 		Session: listed.Session, Dir: listed.Dir, Account: listed.Account, Model: listed.Model, Running: listed.Running, LastSeen: listed.LastSeen,
 		Models: listed.Models, State: listed.State, MoveCost: listed.MoveCost, Ended: listed.Ended, Started: listed.Started,
-		Resumed: p.resumed, Accounts: p.accountsSaid(), Moves: movesOf(rec.story), Activity: listed.Activity,
+		Resumed: p.resumed, Accounts: p.accountsSaid(priced), Moves: movesOf(rec.story), Activity: listed.Activity,
 	}
 	unplaced := running && by.h.unplaced(routed)
-	page.Turns = turnsOf(p.turns, p.inNone, page.Runs(), unplaced)
+	page.Turns = turnsOf(p.turns, p.inNone, page.Runs(), unplaced, priced)
 	page.Goes = by.goesOf(h.id, live.Stream, p)
 	if running {
 		page.Pin = routed.Pin
@@ -496,7 +504,7 @@ func (w worked) page() (SessionPage, bool) {
 	if !page.Running && rec.story.begun {
 		page.KeptUntil, _ = dayfile.KeptUntil(Today(rec.story.first.arrived()).Date, h.keep)
 	}
-	page.Totals = p.totalsOf(len(page.Turns))
+	page.Totals = p.totalsOf(len(page.Turns), priced)
 	return page, true
 }
 

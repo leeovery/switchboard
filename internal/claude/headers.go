@@ -1,6 +1,8 @@
 package claude
 
 import (
+	"encoding/json"
+	"fmt"
 	"math"
 	"net/http"
 	"regexp"
@@ -151,6 +153,44 @@ func (k KeptWindow) Window() quota.Window {
 // unsaidReset is when a window resets, kept as KeptWindow keeps it, where
 // the header didn't say: the zero time's.
 var unsaidReset = time.Time{}.Unix()
+
+// storedWindow is a window kept as a stored form holds it, as MarshalJSON
+// writes it and UnmarshalJSON reads it back: its key, its status, its share
+// used, and when it resets, in seconds since the epoch, none where the header
+// didn't say. Its keys are short and its zeros left out.
+type storedWindow struct {
+	Key    string       `json:"k,omitempty"`
+	Status quota.Status `json:"s,omitempty"`
+	Use    float64      `json:"u,omitzero"`
+	Resets *int64       `json:"r,omitempty"`
+}
+
+// MarshalJSON writes k in its stored form.
+func (k KeptWindow) MarshalJSON() ([]byte, error) {
+	stored := storedWindow{Key: k.key.Value(), Status: k.status.Value(), Use: k.use}
+	if k.resets != unsaidReset {
+		stored.Resets = &k.resets
+	}
+	b, err := json.Marshal(stored)
+	if err != nil {
+		return nil, fmt.Errorf("encode a window kept: %w", err)
+	}
+	return b, nil
+}
+
+// UnmarshalJSON reads k back from its stored form, as MarshalJSON wrote it:
+// the window kept it was, its key and status interned again.
+func (k *KeptWindow) UnmarshalJSON(b []byte) error {
+	var stored storedWindow
+	if err := json.Unmarshal(b, &stored); err != nil {
+		return fmt.Errorf("decode a window kept: %w", err)
+	}
+	*k = KeptWindow{key: unique.Make(stored.Key), status: unique.Make(stored.Status), use: stored.Use, resets: unsaidReset}
+	if stored.Resets != nil {
+		k.resets = *stored.Resets
+	}
+	return nil
+}
 
 // LimitStatus returns the status a request ledger's line gives in its limits,
 // the answer's usage headers as limitsOf kept them: the API's verdict on the

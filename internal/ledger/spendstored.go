@@ -152,3 +152,48 @@ func (s storedBill) bill() bill {
 	}
 	return b
 }
+
+// storedSpentGroup is what a Spent holds of the requests of a model and a
+// geo as a file stores it, as Spent's MarshalJSON writes it and its
+// UnmarshalJSON reads it back: the model's id and the geo, and the bill of
+// their usage, each by a short key; and whether any held a count that costs
+// anything, and whether any went upstream without usage, by the keys a
+// Spend's stored form gives them. It holds counts alone, never a price, and
+// leaves out every zero.
+type storedSpentGroup struct {
+	Model string `json:"m,omitzero"`
+	Geo   string `json:"g,omitzero"`
+	storedBill
+	Costly    bool `json:"c,omitzero"`
+	Unmetered bool `json:"n,omitzero"`
+}
+
+// MarshalJSON writes sp in its stored form: what it holds of each model and
+// geo, in order, as storedSpentGroup has it.
+func (sp Spent) MarshalJSON() ([]byte, error) {
+	stored := make([]storedSpentGroup, len(sp.groups))
+	for i, g := range sp.groups {
+		stored[i] = storedSpentGroup{Model: g.model, Geo: g.geo, storedBill: storedBillOf(g.billed), Costly: g.costly, Unmetered: g.unmetered}
+	}
+	b, err := json.Marshal(stored)
+	if err != nil {
+		return nil, fmt.Errorf("encode a spent: %w", err)
+	}
+	return b, nil
+}
+
+// UnmarshalJSON reads sp back from its stored form, as MarshalJSON wrote it:
+// the Spent it was, exactly, so it prices as it did and takes in more alike.
+// It takes each model and geo in as Add sums them, so what it reads is a
+// Spent Add could have made, whatever order the form gives them in.
+func (sp *Spent) UnmarshalJSON(b []byte) error {
+	var stored []storedSpentGroup
+	if err := json.Unmarshal(b, &stored); err != nil {
+		return fmt.Errorf("decode a spent: %w", err)
+	}
+	*sp = Spent{}
+	for _, g := range stored {
+		sp.with(spentGroup{model: g.Model, geo: g.Geo, billed: g.bill(), costly: g.Costly, unmetered: g.Unmetered})
+	}
+	return nil
+}

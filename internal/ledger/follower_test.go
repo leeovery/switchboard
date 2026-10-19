@@ -995,7 +995,18 @@ func TestAFollowerIsSafeForConcurrentUse(t *testing.T) {
 }
 
 // eachWhole has a read of sessions read each whole, resting on no base.
-func eachWhole(string) bool { return true }
+func eachWhole(string) ledger.Rest { return ledger.RestWhole }
+
+// wholeOf has a read of sessions read whole those with the given ids,
+// resting on no base, and the others on their states.
+func wholeOf(ids ...string) func(id string) ledger.Rest {
+	return func(id string) ledger.Rest {
+		if slices.Contains(ids, id) {
+			return ledger.RestWhole
+		}
+		return ledger.RestOnState
+	}
+}
 
 // requestsOf returns the ids of lines' requests, in their order.
 func requestsOf(lines []ledger.Line) []string {

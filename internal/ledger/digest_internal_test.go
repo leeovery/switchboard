@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"maps"
@@ -69,54 +70,146 @@ func gunzipped(t *testing.T, data []byte) []byte {
 
 // A digest reads back as it was written, every field of it, a session's
 // state byte for byte, its characters unescaped; each session's entry is the
-// one written, whichever is asked for; and its head, read alone, is the head
-// written.
+// one written, whichever is asked for, pointing at its part, and its times
+// where it was given them, which each read back as they were given, but for
+// their insignificant spaces, on the date it was given, none pointing at one
+// of a session given none, nor at times of a part given none; and its head,
+// read alone, is the head written, recording its parts file's size.
 func TestADigestReadsBackAsItWasWritten(t *testing.T) {
 	every := arriving(headOf(digested, 42), 1, 2)
 	every.Lines = 41
 	tests := []struct {
 		name   string
 		digest Digest
+		parts  map[string]givenPart
 	}{
 		{
 			name: "every field held",
 			digest: Digest{Head: every, Sessions: map[string]DigestEntry{
 				"one": {RestsOn: map[string]int{rested: 12, digested: 42},
 					State: json.RawMessage(`{"story":{"dir":"~/Code/<api> & co","named":"café"},"counts":{"2026-10-05":7}}`)},
-				"two": {RestsOn: map[string]int{digested: 42}, State: json.RawMessage(`[1,"\u00e9",null]`)},
+				"two":   {RestsOn: map[string]int{digested: 42}, State: json.RawMessage(`[1,"\u00e9",null]`)},
+				"three": {RestsOn: map[string]int{digested: 42}, State: json.RawMessage(`{}`)},
 			}},
+			parts: map[string]givenPart{
+				"one":   {on: rested, part: `{"turns":[{"prompt":"<api> & café"}]}`, times: `{"times": [3, 1, 4]}`},
+				"two":   {part: `[1, "\u00e9"]`},
+				"three": {on: rested, part: `{}`, times: `[ ]`},
+			},
 		},
 		{
 			name:   "none of its counts, and no sessions",
 			digest: Digest{Head: headOf(digested, 0)},
 		},
 		{
-			name:   "a session of no state, resting on no day",
+			name:   "a session of no state, resting on no day, of no part",
 			digest: Digest{Head: headOf(digested, 3), Sessions: map[string]DigestEntry{"one": {}}},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			d := digestDays(t)
-			if err := d.writeDigest(tt.digest); err != nil {
+			written, err := d.writeDigest(tt.digest, builtOf(t, tt.parts))
+			if err != nil {
 				t.Fatalf("writeDigest(%+v): %v", tt.digest, err)
 			}
 
 			read, err := d.digest(digested, statesVersion)
 
-			if err != nil || !reflect.DeepEqual(read, tt.digest) {
-				t.Fatalf("digest(%q) = %+v, %v; want %+v, as it was written", digested, read, err, tt.digest)
+			if err != nil || !reflect.DeepEqual(read, written) {
+				t.Fatalf("digest(%q) = %+v, %v; want %+v, as it was written", digested, read, err, written)
 			}
 			for id, want := range tt.digest.Sessions {
-				if got := read.Sessions[id]; !reflect.DeepEqual(got, want) {
+				got := read.Sessions[id]
+				if !reflect.DeepEqual(got.RestsOn, want.RestsOn) || !bytes.Equal(got.State, want.State) {
 					t.Errorf("the entry of %q reads %+v, want %+v", id, got, want)
 				}
+				isPart(t, d, id, got.Part, tt.parts)
 			}
-			if head, err := d.digestHead(digested, statesVersion); err != nil || !reflect.DeepEqual(head, tt.digest.Head) {
-				t.Errorf("digestHead(%q) = %+v, %v; want %+v, as it was written", digested, head, err, tt.digest.Head)
+			head := tt.digest.Head
+			head.PartsSize = partsSize(t, d)
+			if !reflect.DeepEqual(read.Head, head) {
+				t.Errorf("the digest's head reads %+v, want %+v, as it was written, recording its parts file's size", read.Head, head)
+			}
+			if head, err := d.digestHead(digested, statesVersion); err != nil || !reflect.DeepEqual(head, written.Head) {
+				t.Errorf("digestHead(%q) = %+v, %v; want %+v, as it was written", digested, head, err, written.Head)
 			}
 		})
 	}
+}
+
+// givenPart is a session's part as a test gives it, to be built as
+// builtPartOf builds it: on, the date of the state it was folded on; and
+// its part's JSON and its times', "" for none.
+type givenPart struct {
+	on, part, times string
+}
+
+// builtOf returns parts, by their sessions' ids, each as builtPartOf builds
+// it, failing the test where one doesn't build.
+func builtOf(t testing.TB, parts map[string]givenPart) map[string]builtPart {
+	t.Helper()
+	built := make(map[string]builtPart, len(parts))
+	for id, p := range parts {
+		b, err := builtPartOf(p.on, json.RawMessage(p.part), json.RawMessage(p.times))
+		if err != nil {
+			t.Fatalf("the part of %s: %v", id, err)
+		}
+		built[id] = b
+	}
+	return built
+}
+
+// isPart fails t where ref, the part the entry of the session with the given
+// id points at in the digests' day's parts file, isn't of the part parts
+// gives it, and its times, each as it was given, but for its insignificant
+// spaces, on its date: or isn't none, where it gives none; or points at
+// times where it gives none.
+func isPart(t *testing.T, d days, id string, ref *PartRef, parts map[string]givenPart) {
+	t.Helper()
+	want, parted := parts[id]
+	if !parted || ref == nil {
+		if parted || ref != nil {
+			t.Errorf("the entry of %q points at part %+v, want one %t", id, ref, parted)
+		}
+		return
+	}
+	if got, err := d.readMember(digested, ref.Member); err != nil || ref.On != want.on || !bytes.Equal(got, compacted(t, want.part)) {
+		t.Errorf("the part of %q, on %q, reads %s, %v; want %s, on %q", id, ref.On, got, err, compacted(t, want.part), want.on)
+	}
+	if (ref.Times != nil) != (want.times != "") {
+		t.Fatalf("the part of %q points at times %+v, want them %t", id, ref.Times, want.times != "")
+	}
+	if ref.Times == nil {
+		return
+	}
+	if got, err := d.readMember(digested, *ref.Times); err != nil || !bytes.Equal(got, compacted(t, want.times)) {
+		t.Errorf("the times of the part of %q read %s, %v; want %s", id, got, err, compacted(t, want.times))
+	}
+}
+
+// compacted is data, JSON, its insignificant spaces left out.
+func compacted(t *testing.T, data string) []byte {
+	t.Helper()
+	var compact bytes.Buffer
+	if err := json.Compact(&compact, []byte(data)); err != nil {
+		t.Fatal(err)
+	}
+	return compact.Bytes()
+}
+
+// partsSize is the size of the parts file of the digests' day, failing the
+// test where it can't be looked at: none where there's none.
+func partsSize(t *testing.T, d days) int64 {
+	t.Helper()
+	info, err := os.Stat(partsFile(d.files.Dir, digested))
+	if errors.Is(err, fs.ErrNotExist) {
+		return 0
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	return info.Size()
 }
 
 // A digest's head is read by stopping at its sessions' entries: so they're
@@ -132,7 +225,7 @@ func TestADigestsSessionsAreItsStoredFormsLastField(t *testing.T) {
 // them or its gzip trailer fails, as the whole read does, as none of them is
 // read.
 func TestADigestsHeadIsReadWithoutItsSessions(t *testing.T) {
-	head := `{"version":1,"body":3,"day":"2026-10-05","from":1,"to":2,"summary_lines":40,"lines":40,"late":1,`
+	head := fmt.Sprintf(`{"version":%d,"body":3,"day":"2026-10-05","from":1,"to":2,"summary_lines":40,"lines":40,"late":1,"parts_size":300,`, digestVersion)
 	whole := gzippedText(t, head+`"sessions":{"one":{"state":[1]}}}`)
 	tests := []struct {
 		name string
@@ -142,7 +235,7 @@ func TestADigestsHeadIsReadWithoutItsSessions(t *testing.T) {
 		{name: "its sessions not JSON", file: gzippedText(t, head+`"sessions":not a digest`)},
 		{name: "cut short in its gzip trailer", file: whole[:len(whole)-4]},
 	}
-	want := DigestHead{Body: statesVersion, Day: digested, Start: time.Unix(0, 1), End: time.Unix(0, 2), SummaryLines: 40, Lines: 40, Late: 1}
+	want := DigestHead{Body: statesVersion, Day: digested, Start: time.Unix(0, 1), End: time.Unix(0, 2), SummaryLines: 40, Lines: 40, Late: 1, PartsSize: 300}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			d := digestDays(t)
@@ -214,8 +307,10 @@ func TestADigestsHeadThatDoesntReadFailsAsTheWholeReadDoes(t *testing.T) {
 
 // A digest's file is its stored form, gzipped, the user's alone: its keys
 // short, its zeros left out, its day's bounds as nanoseconds since the Unix
-// epoch, its sessions in the order of their ids, and each state as it was
-// given, but for its insignificant spaces, its characters unescaped.
+// epoch, its parts file's size, its sessions in the order of their ids, each
+// state as it was given, but for its insignificant spaces, its characters
+// unescaped, and where each part lies, a first at no offset, a whole one on
+// no day, and its times, where it has them.
 func TestADigestIsWrittenGzippedAsItsStoredFormTheUsersAlone(t *testing.T) {
 	d := digestDays(t)
 	digest := Digest{
@@ -226,7 +321,9 @@ func TestADigestIsWrittenGzippedAsItsStoredFormTheUsersAlone(t *testing.T) {
 			"one": {RestsOn: map[string]int{rested: 12, digested: 40}, State: json.RawMessage(`[1]`)},
 		},
 	}
-	if err := d.writeDigest(digest); err != nil {
+	parts := builtOf(t, map[string]givenPart{"one": {on: rested, part: `[2]`, times: `[4]`}, "two": {part: `[3]`}})
+	written, err := d.writeDigest(digest, parts)
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -235,8 +332,11 @@ func TestADigestIsWrittenGzippedAsItsStoredFormTheUsersAlone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `{"version":1,"body":3,"day":"2026-10-05","from":1791154800000000000,"to":1791241200000000000,"summary_lines":40,"lines":40,` +
-		`"sessions":{"one":{"rests_on":{"2026-10-02":12,"2026-10-05":40},"state":[1]},"two":{"rests_on":{"2026-10-05":40},"state":{"dir":"~/<api> & co"}}}}` + "\n"
+	one, two := written.Sessions["one"].Part, written.Sessions["two"].Part
+	want := fmt.Sprintf(`{"version":%d,"body":3,"day":"2026-10-05","from":1791154800000000000,"to":1791241200000000000,"summary_lines":40,"lines":40,"parts_size":%d,`+
+		`"sessions":{"one":{"rests_on":{"2026-10-02":12,"2026-10-05":40},"state":[1],"part":{"on":"2026-10-02","length":%d,"crc":%d,"times":{"offset":%d,"length":%d,"crc":%d}}},`+
+		`"two":{"rests_on":{"2026-10-05":40},"state":{"dir":"~/<api> & co"},"part":{"offset":%d,"length":%d,"crc":%d}}}}`+"\n",
+		digestVersion, written.Head.PartsSize, one.Length, one.CRC, one.Times.Offset, one.Times.Length, one.Times.CRC, two.Offset, two.Length, two.CRC)
 	if got := string(gunzipped(t, data)); got != want {
 		t.Errorf("the digest's file holds\n%s\nwant\n%s", got, want)
 	}
@@ -245,23 +345,103 @@ func TestADigestIsWrittenGzippedAsItsStoredFormTheUsersAlone(t *testing.T) {
 	}
 }
 
+// A day's parts file is a gzip member of each session's part, then one of
+// its times, where it has them, each as it was given, but for its
+// insignificant spaces, its characters unescaped, one session's after
+// another's in the order of their ids, from its start to its end, the
+// user's alone; and the same parts write the same file, byte for byte,
+// whatever order they're given in.
+func TestAPartsFileIsAMemberOfEachPartInTheOrderOfTheirIdsTheUsersAlone(t *testing.T) {
+	d := digestDays(t)
+	sessions := map[string]DigestEntry{"c": {}, "a": {}, "b": {}, "d": {}}
+	parts := builtOf(t, map[string]givenPart{
+		"c": {on: before, part: `{"turns": [3]}`, times: `{"times": [ 30 ]}`},
+		"a": {on: rested, part: `{"prompt":"<api> & café"}`, times: `[10]`},
+		"b": {part: `[ 2 ]`},
+	})
+	written, err := d.writeDigest(Digest{Head: headOf(digested, 4), Sessions: sessions}, parts)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	path := partsFile(d.files.Dir, digested)
+	file, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := string(gunzipped(t, file)), `{"prompt":"<api> & café"}[10][2]{"turns":[3]}{"times":[30]}`; got != want {
+		t.Errorf("the parts file's members hold %s, want %s, of a and its times, b, and c and its times, in that order", got, want)
+	}
+	var at int64
+	for _, id := range []string{"a", "b", "c"} {
+		ref := written.Sessions[id].Part
+		if ref == nil || ref.Offset != at {
+			t.Fatalf("the part of %q is at %+v, want it at %d, after those of the ids before it", id, ref, at)
+		}
+		at += ref.Length
+		if ref.Times == nil {
+			continue
+		}
+		if ref.Times.Offset != at {
+			t.Fatalf("the times of the part of %q are at %+v, want them at %d, after its part", id, ref.Times, at)
+		}
+		at += ref.Times.Length
+	}
+	if at != int64(len(file)) || written.Head.PartsSize != at {
+		t.Errorf("the parts file is %d bytes, its head records %d; want both %d, the members' bytes, and none besides", len(file), written.Head.PartsSize, at)
+	}
+	if info, err := os.Stat(path); err != nil || info.Mode().Perm() != 0o600 {
+		t.Errorf("the parts file is %v, %v; want it the user's alone, 0600", info.Mode().Perm(), err)
+	}
+	again := digestDays(t)
+	if _, err := again.writeDigest(Digest{Head: headOf(digested, 4), Sessions: maps.Clone(sessions)}, maps.Clone(parts)); err != nil {
+		t.Fatal(err)
+	}
+	if same, err := os.ReadFile(partsFile(again.files.Dir, digested)); err != nil || !bytes.Equal(same, file) {
+		t.Errorf("the same parts written again make a parts file of %d bytes, %v; want it byte for byte the first's", len(same), err)
+	}
+}
+
+// A digest written of no parts leaves its day no parts file, the one there
+// before removed, its head recording none.
+func TestADigestOfNoPartsLeavesItsDayNoPartsFile(t *testing.T) {
+	d := digestDays(t)
+	if _, err := d.writeDigest(Digest{Head: headOf(digested, 1), Sessions: map[string]DigestEntry{"one": {}}},
+		builtOf(t, map[string]givenPart{"one": {part: `[1]`, times: `[2]`}})); err != nil {
+		t.Fatal(err)
+	}
+
+	written, err := d.writeDigest(Digest{Head: headOf(digested, 1), Sessions: map[string]DigestEntry{"one": {}}}, nil)
+
+	if _, statted := os.Stat(partsFile(d.files.Dir, digested)); err != nil || !errors.Is(statted, fs.ErrNotExist) {
+		t.Errorf("writeDigest() = %v, the parts file looked at: %v; want it written, and none there", err, statted)
+	}
+	if written.Head.PartsSize != 0 || written.Sessions["one"].Part != nil {
+		t.Errorf("the digest written is %+v; want its head recording no parts, its entry pointing at none", written)
+	}
+}
+
 // A digest that can't be written whole, of a day that isn't one, or holding
-// a state that isn't JSON, isn't written at all, failing with an error that
-// names the day.
+// a state that isn't JSON, isn't written at all, nor its parts file, failing
+// with an error that names the day.
 func TestADigestThatCantBeWrittenWholeIsntWritten(t *testing.T) {
 	cutShort := map[string]DigestEntry{"one": {State: json.RawMessage(`{"dir":"~/a`)}}
 	tests := []struct {
 		name   string
 		digest Digest
+		parts  map[string]givenPart
 	}{
 		{name: "of a day that isn't one", digest: Digest{Head: DigestHead{Body: statesVersion, Day: "someday"}}},
-		{name: "a session's state that isn't JSON", digest: Digest{Head: headOf(digested, 1), Sessions: cutShort}},
+		{
+			name: "a session's state that isn't JSON", digest: Digest{Head: headOf(digested, 1), Sessions: cutShort},
+			parts: map[string]givenPart{"one": {part: `[1]`, times: `[2]`}},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			d := digestDays(t)
 
-			err := d.writeDigest(tt.digest)
+			_, err := d.writeDigest(tt.digest, builtOf(t, tt.parts))
 
 			entries, _ := os.ReadDir(d.files.Dir)
 			if err == nil || len(entries) > 0 {
@@ -269,6 +449,56 @@ func TestADigestThatCantBeWrittenWholeIsntWritten(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), tt.digest.Head.Day) {
 				t.Errorf("writeDigest(%+v) failed with %q, want it naming the day, %s", tt.digest, err, tt.digest.Head.Day)
+			}
+		})
+	}
+}
+
+// A digest whose parts file can't be written isn't written, as it would
+// point at parts that aren't there: the digest held before is left as it
+// was.
+func TestADigestWhosePartsCantBeWrittenIsntWritten(t *testing.T) {
+	d := digestDays(t)
+	was, err := d.writeDigest(Digest{Head: headOf(digested, 1), Sessions: map[string]DigestEntry{"one": {State: json.RawMessage(`[1]`)}}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A parts file can't be written over a directory standing at its path.
+	if err := os.Mkdir(partsFile(d.files.Dir, digested), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	digest := Digest{Head: headOf(digested, 2), Sessions: map[string]DigestEntry{"one": {State: json.RawMessage(`[1,2]`)}}}
+
+	_, err = d.writeDigest(digest, builtOf(t, map[string]givenPart{"one": {part: `[2]`}}))
+
+	if read, readErr := d.digest(digested, statesVersion); err == nil || readErr != nil || !reflect.DeepEqual(read, was) {
+		t.Errorf("writeDigest() = %v, the digest then reading %+v, %v; want it failing, the digest held before, %+v, left as it was", err, read, readErr, was)
+	}
+}
+
+// A part is built of what its Digester gives: its part and its times each a
+// member of its own, inflating to the JSON given, but for its insignificant
+// spaces; none of its times where they're empty; and nothing at all of a
+// part that's empty, whatever its times. A part, or its times, that isn't
+// JSON doesn't build.
+func TestAPartIsBuiltOfItsPartAndItsTimesEachAMemberOfItsOwn(t *testing.T) {
+	tests := []struct {
+		name, part, times string
+		want              builtPart
+		refused           bool
+	}{
+		{name: "a part and its times", part: `{"turns": [1]}`, times: `[ 2 ]`, want: builtPart{on: rested, part: memberOf([]byte(`{"turns":[1]}`)), times: memberOf([]byte(`[2]`))}},
+		{name: "a part of no times", part: `[1]`, want: builtPart{on: rested, part: memberOf([]byte(`[1]`))}},
+		{name: "an empty part, of times", times: `[2]`},
+		{name: "a part that isn't JSON", part: `{"turns":[1`, times: `[2]`, refused: true},
+		{name: "times that aren't JSON", part: `[1]`, times: `[2`, refused: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := builtPartOf(rested, json.RawMessage(tt.part), json.RawMessage(tt.times))
+
+			if (err != nil) != tt.refused || !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("builtPartOf(%q, %q) = %+v, %v; want %+v, refused %t", tt.part, tt.times, got, err, tt.want, tt.refused)
 			}
 		})
 	}
@@ -330,6 +560,40 @@ func TestADigestThatDoesntReadAsTheDaysFailsSoItsReaderCanTell(t *testing.T) {
 	}
 }
 
+// A digest is judged by its head before its sessions' entries are read: one
+// of another version, of the envelope or of the states, as every one is
+// after a release raising either, fails as outdated whatever follows its
+// head, as none of its entries is read; and one of the version asked for
+// then has them read, failing where they don't.
+func TestADigestIsJudgedByItsHeadBeforeItsSessionsAreRead(t *testing.T) {
+	headed := func(version, body int) string {
+		return fmt.Sprintf(`{"version":%d,"body":%d,"day":"2026-10-05","from":1,"to":2,"summary_lines":40,"lines":40,`, version, body)
+	}
+	tests := []struct {
+		name string
+		head string
+		want error
+	}{
+		{name: "of another version of the envelope", head: headed(digestVersion+1, statesVersion), want: errDigestOutdated},
+		{name: "of another version of the states", head: headed(digestVersion, statesVersion+1), want: errDigestOutdated},
+		{name: "of the version asked for", head: headed(digestVersion, statesVersion), want: errNotTheDaysDigest},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := digestDays(t)
+			if err := os.WriteFile(digestFile(d.files.Dir, digested), gzippedText(t, tt.head+`"sessions":not a digest`), 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			_, err := d.digest(digested, statesVersion)
+
+			if !errors.Is(err, tt.want) {
+				t.Errorf("digest(%q, %d) of sessions that don't read failed with %v, want %v", digested, statesVersion, err, tt.want)
+			}
+		})
+	}
+}
+
 // A digest's file that inflates past digestMax, as one made by hand may,
 // fails as one that doesn't read as the day's, inflated no further: its
 // gzip trailer, cut short two megabytes past the most, is never reached.
@@ -341,7 +605,7 @@ func TestADigestInflatingPastItsMostFailsUnread(t *testing.T) {
 		t.Fatal(err)
 	}
 	padding := bytes.Repeat([]byte{'a'}, 1<<20)
-	parts := [][]byte{[]byte(`{"version":1,"body":3,"day":"2026-10-05","from":0,"to":0,"sessions":{"one":{"state":"`)}
+	parts := [][]byte{fmt.Appendf(nil, `{"version":%d,"body":3,"day":"2026-10-05","from":0,"to":0,"sessions":{"one":{"state":"`, digestVersion)}
 	for range digestMax/len(padding) + 2 {
 		parts = append(parts, padding)
 	}

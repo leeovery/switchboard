@@ -2,6 +2,7 @@ package views
 
 import (
 	"cmp"
+	"hash/maphash"
 	"maps"
 	"math"
 	"slices"
@@ -86,8 +87,8 @@ type windowShare struct {
 // shared out: its flight; when its answer's headers came, reading its
 // windows; its account and model, interned; its tokens, every kind counted
 // alike; whether it's of the session whose share is taken; the windows its
-// answer's limits read, kept small; and the sum of what its line says, as
-// lineSumOf has it, so a line given again without an id is known.
+// answer's limits read, kept small; and the sum of all it holds, as summed
+// has it, so a line given again without an id is known.
 type answered struct {
 	flight
 	read           instant
@@ -109,38 +110,54 @@ func isAnswer(l *ledger.Line) bool {
 }
 
 // answeredOf returns the request the line l holds, ours where it's of the
-// session with the given id: its windows read as its answer's first byte
-// passed on, where one did, else as it ended.
+// session with the given id, as answerOf has it.
 func answeredOf(l *ledger.Line, id string) answered {
+	return answerOf(l, l.Session == id)
+}
+
+// answerOf returns the request the line l holds, ours as given: its windows
+// read as its answer's first byte passed on, where one did, else as it
+// ended.
+func answerOf(l *ledger.Line, ours bool) answered {
 	t, _ := l.Tokens()
 	a := answered{
 		flight: flightOf(l), account: unique.Make(l.Account), model: unique.Make(l.Model), tokens: int64(t.Input + t.Output + t.CacheRead + t.CacheWrite),
-		ours: l.Session == id, windows: claude.KeptWindows(l.Limits), sum: lineSumOf(l),
+		ours: ours, windows: claude.KeptWindows(l.Limits),
 	}
 	a.read = a.end
 	if l.FirstMS != nil {
 		a.read = instantOf(l.At.Add(time.Duration(*l.FirstMS) * time.Millisecond))
 	}
+	a.sum = a.summed()
 	return a
 }
 
-// answersOf returns the answers byDate holds, by the date of the day whose
-// files hold them, each answered as answeredOf has it, those of the session
-// with the given id its own.
-func answersOf(byDate map[string][]ledger.Line, id string) map[string][]answered {
-	answers := make(map[string][]answered, len(byDate))
-	for date, lines := range byDate {
-		for i := range lines {
-			if isAnswer(&lines[i]) {
-				answers[date] = append(answers[date], answeredOf(&lines[i], id))
-			}
-		}
+// summed is a sum of all a holds but its sum: two answers whose sums differ
+// hold otherwise, and two whose sums are the same hold the same, but by a
+// chance of one in 2^64. So an answer restored from its stored form sums as
+// the one taken of its line did, and two lines that say otherwise only of
+// what an answer doesn't hold, as their sessions, when it isn't the page's,
+// or their prompts, sum alike, as the points take them alike.
+func (a *answered) summed() uint64 {
+	var h maphash.Hash
+	h.SetSeed(sumsSeed)
+	maphash.WriteComparable(&h, struct {
+		flight
+		read           instant
+		account, model string
+		tokens         int64
+		ours           bool
+		windows        int
+	}{a.flight, a.read, a.account.Value(), a.model.Value(), a.tokens, a.ours, len(a.windows)})
+	for _, w := range a.windows {
+		maphash.WriteComparable(&h, w)
 	}
-	return answers
+	return h.Sum64()
 }
 
-// answersIn returns the answers among lines, as answersOf has them, of the
-// day they're all filed on.
+// answersIn returns the answers among lines, each answered as answeredOf has
+// it, those of the session with the given id its own, of the day they're all
+// filed on.
 func answersIn(lines []ledger.Held, id string) []answered {
 	var answers []answered
 	for i := range lines {
@@ -153,7 +170,7 @@ func answersIn(lines []ledger.Held, id string) []answered {
 
 // key is a as a held page's points know it from another answer, as turnKey
 // knows a line: by its request's id and when it arrived, or of one without
-// an id, by the sum of what its line says too.
+// an id, by the sum of all it holds too.
 func (a *answered) key() turnKey {
 	k, ok := a.flight.key()
 	if ok {
@@ -170,11 +187,23 @@ func (a *answered) sealedBy(through instant) (both, either bool) {
 }
 
 // readFirst orders answers as their readings are taken: by when each was
-// read, then when it ended, then by its id, then by the sum of what its line
-// says, so readings read at once are taken alike however the lines were
-// read.
+// read, then when it ended, then by its id, then by the windows it read, as
+// keptFirst orders each, so readings read at once are taken alike however
+// the lines were read, and in whichever run: never by a sum, seeded
+// otherwise in each. Two it orders alike read the same, so whichever is
+// taken first, the window climbs alike.
 func readFirst(a, b *answered) int {
-	return cmp.Or(a.read.compare(b.read), a.end.compare(b.end), strings.Compare(a.request, b.request), cmp.Compare(a.sum, b.sum))
+	if c := cmp.Or(a.read.compare(b.read), a.end.compare(b.end), strings.Compare(a.request, b.request)); c != 0 {
+		return c
+	}
+	return slices.CompareFunc(a.windows, b.windows, keptFirst)
+}
+
+// keptFirst orders windows kept by their keys, then their uses, resets and
+// statuses: two it orders alike are the same.
+func keptFirst(x, y claude.KeptWindow) int {
+	v, w := x.Window(), y.Window()
+	return cmp.Or(strings.Compare(v.Key, w.Key), cmp.Compare(v.Utilization, w.Utilization), v.ResetsAt.Compare(w.ResetsAt), strings.Compare(string(v.Status), string(w.Status)))
 }
 
 // pointingOf is what a session's page tallies of its points, read whole of
@@ -308,6 +337,20 @@ func (p *pointing) took(date string, given []answered, whole bool, day LedgerDay
 	return q, !q.run.holds(date) || q.run.takes(added)
 }
 
+// tookDays is p with answers, every account's, by the date of the day whose
+// files hold them, taken in at the day given, one day's after another's,
+// oldest first, each read whole, as took has them. It reports false where
+// took can't place a day's, so the session's page is read whole.
+func (p *pointing) tookDays(answers map[string][]answered, day LedgerDay) (*pointing, bool) {
+	for _, d := range slices.Sorted(maps.Keys(answers)) {
+		var ok bool
+		if p, ok = p.took(d, answers[d], true, day); !ok {
+			return nil, false
+		}
+	}
+	return p, true
+}
+
 // joining is p, its own, with the day with the given date, of yesterday's or
 // later, one of the session's, reporting false where it can't place it: one
 // after its last run, the day after it, extending it, the day's answers
@@ -416,15 +459,9 @@ func (p *pointing) letGo(through instant) {
 	}
 }
 
-// worked is p's points: its shares done, and its last run's, its held
-// answers taken in on what it sealed, together, in whole points.
+// worked is p's points: its shares, as taken has them, in whole points.
 func (p *pointing) worked() map[string]map[string]int {
-	taken := withShares(p.done, nil)
-	if p.run != nil {
-		open := p.run.cloned()
-		open.fold(p.runAnswers(), p.run.through, endless)
-		taken = withShares(taken, open.shares())
-	}
+	taken := p.taken()
 	points := make(map[string]map[string]int, len(taken))
 	for account, shares := range taken {
 		points[account] = make(map[string]int, len(shares))
@@ -433,6 +470,19 @@ func (p *pointing) worked() map[string]map[string]int {
 		}
 	}
 	return points
+}
+
+// taken are p's shares, by account, then by window key, afresh: its shares
+// done, and its last run's, its held answers taken in on what it sealed,
+// together.
+func (p *pointing) taken() map[string]map[string]float64 {
+	taken := withShares(p.done, nil)
+	if p.run != nil {
+		open := p.run.cloned()
+		open.fold(p.runAnswers(), p.run.through, endless)
+		taken = withShares(taken, open.shares())
+	}
+	return taken
 }
 
 // of are the points p took of the windows of the given account, by key:

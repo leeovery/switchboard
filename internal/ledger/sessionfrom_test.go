@@ -82,8 +82,18 @@ func (w *lookupWorld) summarise() {
 // entry of each of the sessions with the given ids, as the writer's lookup
 // finds it as of the start of the day after, which reads the day's own
 // files, of the state folded from it, as foldedFrom folds it, resting on
-// what the lookup says that rests on.
+// what the lookup says that rests on; and beside it the day's parts file,
+// each session's part as partFrom gives it, on the state it was folded on.
 func (w *lookupWorld) digest(days int, ids ...string) {
+	w.t.Helper()
+	w.digestResting(days, nil, ids...)
+}
+
+// digestResting writes the digest of the local day days after the
+// summaries' day, as digest does, each session resting as rest says of it,
+// one read whole folded on none, as the router's digester reads one whose
+// state won't restore.
+func (w *lookupWorld) digestResting(days int, rest func(id string) ledger.Rest, ids ...string) {
 	w.t.Helper()
 	date := dayOf(days)
 	lines, known := w.writer.Kept(date)
@@ -96,7 +106,8 @@ func (w *lookupWorld) digest(days int, ids ...string) {
 		Head:     ledger.DigestHead{Body: digestBody, Day: date, Start: start, End: end, SummaryLines: lines, Lines: lines, Early: early, Late: late},
 		Sessions: make(map[string]ledger.DigestEntry),
 	}
-	sessions := w.writer.SessionsAsOf(ids, dayOf(days+1), w.at)
+	parts, on := make(map[string]json.RawMessage), make(map[string]string)
+	sessions := w.writer.SessionsAsOf(ids, dayOf(days+1), w.at, rest)
 	for _, id := range ids {
 		from, ok := sessions[id]
 		if !ok || from.RestsOn() == nil {
@@ -104,15 +115,25 @@ func (w *lookupWorld) digest(days int, ids ...string) {
 		}
 		folded := foldedFrom(w.t, id, date, from)
 		folded.Filler = fillerOf(w.filler, uint64(len(digest.Sessions)))
-		state, err := json.Marshal(folded)
-		if err != nil {
-			w.t.Fatal(err)
+		digest.Sessions[id] = ledger.DigestEntry{RestsOn: from.RestsOn(), State: marshalled(w.t, folded)}
+		parts[id] = marshalled(w.t, partFrom(id, date, from))
+		if from.Base != nil {
+			on[id] = from.Base.Date
 		}
-		digest.Sessions[id] = ledger.DigestEntry{RestsOn: from.RestsOn(), State: state}
 	}
-	if err := ledger.WriteDigest(w.dir, digest); err != nil {
+	if _, err := ledger.WriteDigestWithParts(w.dir, digest, parts, on); err != nil {
 		w.t.Fatal(err)
 	}
+}
+
+// marshalled is v as JSON, failing the test where it can't be.
+func marshalled(t testing.TB, v any) json.RawMessage {
+	t.Helper()
+	data, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
 }
 
 // arrivals counts the lines the plain file of the local day with the given
@@ -194,8 +215,8 @@ func stateAt(id, date string) string {
 func (w *lookupWorld) sessionsAsOf(days int, ids ...string) map[string]ledger.SessionFrom {
 	w.t.Helper()
 	date := dayOf(days)
-	read := followerOf(w.state, &testClock{at: w.at}, caps).SessionsAsOf(ids, date, nil)
-	if written := w.writer.SessionsAsOf(ids, date, w.at); !reflect.DeepEqual(read, written) {
+	read := followerOf(w.state, &testClock{at: w.at}, caps).SessionsAsOf(ids, date, nil, nil)
+	if written := w.writer.SessionsAsOf(ids, date, w.at, nil); !reflect.DeepEqual(read, written) {
 		w.t.Errorf("as of %s, the follower finds %q as\n%+v\nand the router's writer as\n%+v; want them alike", date, ids, read, written)
 	}
 	return read
@@ -468,7 +489,7 @@ func TestALookupReadsEachDayOnceForEverySessionWantingIt(t *testing.T) {
 		read[date][l.Request]++
 	}
 
-	got := foundOf(t, followerOf(w.state, &testClock{at: w.at}, caps).SessionsAsOf([]string{"one", "two", "three"}, dayOf(2), take))
+	got := foundOf(t, followerOf(w.state, &testClock{at: w.at}, caps).SessionsAsOf([]string{"one", "two", "three"}, dayOf(2), nil, take))
 
 	for date, requests := range read {
 		for request, times := range requests {
@@ -537,27 +558,32 @@ var generatedSessions = []string{"one", "two", "three", "four"}
 
 // generatedLedger is a ledger whose lines r draws, from seed, filed in w: the
 // lines each day's file holds, by the day's offset from the summaries' day,
-// and the date of the day whose file holds each, by its request.
+// and the date of the day whose file holds each, by its request; and shifts,
+// as rarely as a session's day has a line filed beside it, one in shifts
+// half of them.
 type generatedLedger struct {
-	w     *lookupWorld
-	seed  uint64
-	r     *rand.Rand
-	days  map[int][]ledger.Line
-	filed map[string]string
+	w      *lookupWorld
+	seed   uint64
+	r      *rand.Rand
+	days   map[int][]ledger.Line
+	filed  map[string]string
+	shifts int
 }
 
 // newGeneratedLedger returns a ledger of the test's own whose lines are drawn
-// from the given seed, holding none yet.
+// from the given seed, holding none yet, one in three of a session's days
+// having a line filed beside it.
 func newGeneratedLedger(t *testing.T, seed uint64) *generatedLedger {
 	t.Helper()
-	return &generatedLedger{w: newLookupWorld(t), seed: seed, r: rand.New(rand.NewPCG(seed, seed)), days: make(map[int][]ledger.Line), filed: make(map[string]string)}
+	return &generatedLedger{w: newLookupWorld(t), seed: seed, r: rand.New(rand.NewPCG(seed, seed)), days: make(map[int][]ledger.Line), filed: make(map[string]string),
+		shifts: 6}
 }
 
 // generate files the lines of the sessions that run on each local day from
 // four before the summaries' day to the one after it, as r draws them, and
-// summarises them: one to three a session through its day, and now and then
-// one more that arrived just before the day began, or just after it ended,
-// as after a change of time zone.
+// summarises them: one to three a session through its day, and now and then,
+// as shifts has it, one more that arrived just before the day began, or just
+// after it ended, as after a change of time zone.
 func (g *generatedLedger) generate() {
 	for days := -4; days <= 1; days++ {
 		for _, id := range generatedSessions {
@@ -567,7 +593,7 @@ func (g *generatedLedger) generate() {
 			for i := range 1 + g.r.IntN(3) {
 				g.add(days, id, on(days, 8+3*i, g.r.IntN(60)))
 			}
-			switch g.r.IntN(6) {
+			switch g.r.IntN(g.shifts) {
 			case 0:
 				g.add(days, id, on(days-1, 23, g.r.IntN(60)))
 			case 1:

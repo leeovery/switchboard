@@ -11,24 +11,29 @@ import (
 )
 
 // DigestVersion is the version of what a day's digest holds of each session
-// that ran on the day: its state at the day's end, as storedSession has it.
-// A release that stores a session otherwise, or tells a story otherwise of
-// what's stored, writes another, and a digest of another version doesn't
+// that ran on the day: its state at the day's end, as storedSession has it,
+// and its page's part of the day, as storedPart has it. A release that
+// stores a session otherwise, or tells a story, or tallies a page, otherwise
+// of what's stored, writes another, and a digest of another version doesn't
 // stand: its sessions are read whole from their lines.
-const DigestVersion = 1
+const DigestVersion = 2
 
 // storedSession is a session the store holds as a day's digest stores it,
-// sealed at the start of the day after its own, none of its requests open
-// and its page untallied: the date of its day; its story of its requests;
-// and how many of them arrived on each day, by date, for a day read again
-// whole. Its horizon isn't stored, as its date says it, nor anything priced,
-// its requests on its day, or the flights of its requests: it's restored
-// onto a later day, to be priced and counted there, as restored has it. Its
-// keys are short and its zeros left out.
+// sealed at the start of the day after its own, none of its requests open:
+// the date of its day; its story of its requests; how many of them arrived
+// on each day, by date, for a day read again whole; and, where its page is
+// tallied, what the page carries, as storedPage has it, put as JSON and
+// read only where the page is restored, as restoredPaged has it, so a
+// reader of its story alone decodes none of it. Its horizon isn't stored,
+// as its date says it, nor anything priced, its requests on its day, or the
+// flights of its requests: it's restored onto a later day, to be priced and
+// counted there, as restored has it. Its keys are short and its zeros left
+// out.
 type storedSession struct {
-	Date   string         `json:"d"`
-	Story  storedStory    `json:"s"`
-	Counts map[string]int `json:"c,omitempty"`
+	Date   string          `json:"d"`
+	Story  storedStory     `json:"s"`
+	Counts map[string]int  `json:"c,omitempty"`
+	Page   json.RawMessage `json:"p,omitempty"`
 }
 
 // storedStory is a story as a session's stored state holds it: whether it
@@ -82,9 +87,11 @@ type storedMove struct {
 }
 
 // stored is s as a day's digest stores it, at the end of its day, its sealed
-// story told of every request it holds. It's refused, as its caller's fault,
-// where s isn't so: sealed elsewhere than at the start of the day after its
-// own, a request of it held open, or its page tallied.
+// story told of every request it holds, and what its page carries, where
+// it's tallied, as pageTally's put puts it: left out where JSON can't carry
+// it, the session's state standing without it. It's refused, as its caller's
+// fault, where s isn't so: sealed elsewhere than at the start of the day
+// after its own, or a request of it held open.
 func (s *heldSession) stored() (storedSession, error) {
 	day := s.day()
 	switch end := endOfDay(day); {
@@ -92,19 +99,12 @@ func (s *heldSession) stored() (storedSession, error) {
 		return storedSession{}, fmt.Errorf("store a session of %s: sealed at %v, not at the day's end, %v", day.Date, s.horizon.time(), end.time())
 	case len(s.open) > 0:
 		return storedSession{}, fmt.Errorf("store a session of %s: %d of its requests open", day.Date, len(s.open))
-	case s.page != nil:
-		return storedSession{}, fmt.Errorf("store a session of %s: its page tallied", day.Date)
 	}
-	return storedSession{Date: day.Date, Story: s.sealed.stored(), Counts: maps.Clone(s.counts)}, nil
+	return storedSession{Date: day.Date, Story: s.sealed.stored(), Counts: maps.Clone(s.counts), Page: s.page.put()}, nil
 }
 
-// state is s as a day's digest holds it: stored, as stored has it, put as
-// JSON. It's refused as stored refuses it.
-func (s *heldSession) state() (json.RawMessage, error) {
-	st, err := s.stored()
-	if err != nil {
-		return nil, err
-	}
+// put is st as JSON.
+func (st *storedSession) put() (json.RawMessage, error) {
 	data, err := json.Marshal(st)
 	if err != nil {
 		return nil, fmt.Errorf("put the state of a session of %s: %w", st.Date, err)
@@ -112,12 +112,30 @@ func (s *heldSession) state() (json.RawMessage, error) {
 	return data, nil
 }
 
-// restoredFrom is the session whose state base holds, as state puts it,
-// restored onto the day given, as restored has it. It fails where the state
-// doesn't decode as one, or is of another day than the digest holding it,
-// as the lines after it would be others than those it was told of, or where
-// restored refuses it.
-func restoredFrom(base *ledger.SessionBase, prices ledger.Table, day LedgerDay) (*heldSession, error) {
+// pageRead is how much of its page a session read from its state holds.
+type pageRead uint8
+
+const (
+	// pageNone holds none of it.
+	pageNone pageRead = iota
+	// pageToFold holds all of it but its times, counted unheld, as
+	// upstreamTimes has them: a fold resting on it needs only how many
+	// there are, so none of its parts' times is read, as the ledger,
+	// resting a session to fold, as ledger.RestToFold has it, reads none.
+	pageToFold
+	// pageWhole holds all of it.
+	pageWhole
+)
+
+// restoredFrom is the session whose state from rests on, as folded puts it,
+// restored onto the day given, as restored has it: where page says, its
+// page with it, from what the state carries and from's chain of parts, as
+// restoredPaged has it, its times with it where page reads it whole. It
+// fails where the state doesn't decode as one, or is of another day than the
+// digest holding it, as the lines after it would be others than those it was
+// told of, or where restored, or restoredPaged, refuses it.
+func restoredFrom(from ledger.SessionFrom, prices ledger.Table, day LedgerDay, page pageRead) (*heldSession, error) {
+	base := from.Base
 	var st storedSession
 	if err := json.Unmarshal(base.State, &st); err != nil {
 		return nil, fmt.Errorf("read the state of a session in the digest of %s: %w", base.Date, err)
@@ -125,7 +143,10 @@ func restoredFrom(base *ledger.SessionBase, prices ledger.Table, day LedgerDay) 
 	if st.Date != base.Date {
 		return nil, fmt.Errorf("read the state of a session in the digest of %s: a state of %q", base.Date, st.Date)
 	}
-	return st.restored(prices, day)
+	if page == pageNone {
+		return st.restored(prices, day)
+	}
+	return st.restoredPaged(prices, day, from.Parts, page == pageWhole)
 }
 
 // endOfDay is the horizon a session's state at the end of the day d is
@@ -157,11 +178,11 @@ func (st *storedSession) restored(prices ledger.Table, day LedgerDay) (*heldSess
 	sealed := st.Story.restored(prices, own)
 	counts := make(map[string]int, len(st.Counts))
 	maps.Copy(counts, st.Counts)
-	s := &heldSession{
-		horizon: endOfDay(own), sealed: sealed, story: sealed, flights: make(map[string]heldFlights), counts: counts,
+	s := &heldSession{horizon: endOfDay(own), sealed: sealed, story: sealed, flights: make(map[string]heldFlights), counts: counts}
+	if sealed.begun {
 		// Empty, not none, as sealedAt leaves a session it sealed every
-		// request of.
-		open: []heldRequest{},
+		// request of; a read of no request holds none.
+		s.open = []heldRequest{}
 	}
 	return s.on(day, prices), nil
 }

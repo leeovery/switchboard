@@ -57,19 +57,19 @@ type pricedAs struct {
 	built, read ledger.Table
 }
 
-// digestPrices are the tables the round trip runs with: a dated change of
-// Claude Opus 5.5's writes to the cache from the worlds' second day, as
-// changingPrices has it, built and read with; and the built-in table, read
-// with the config's prices of those writes in place of its own, as an
+// digestPrices are the tables the round trip runs with: dated, a dated
+// change of Claude Opus 5.5's writes to the cache, as changingPrices has it
+// from the worlds' second day, built and read with; and the built-in table,
+// read with the config's prices of those writes in place of its own, as an
 // override prices every day alike.
-func digestPrices(t *testing.T) []pricedAs {
+func digestPrices(t *testing.T, dated ledger.Table) []pricedAs {
 	t.Helper()
 	overridden, passed := ledger.Pricing.With(config.Prices{Models: map[string]config.ModelPrices{foldOpus: {CacheWrite5m: new(7.5), CacheWrite1h: new(12.0)}}})
 	if len(passed) > 0 {
 		t.Fatalf("the config's prices pass over %q", passed)
 	}
 	return []pricedAs{
-		{name: "a dated change", built: changingPrices(), read: changingPrices()},
+		{name: "a dated change", built: dated, read: dated},
 		{name: "a config override", built: ledger.Pricing, read: overridden},
 	}
 }
@@ -83,7 +83,7 @@ func digestPrices(t *testing.T) []pricedAs {
 // the hard moments tripMoments names.
 func TestASessionRestoredFromItsStateIsTheSessionReadWhole(t *testing.T) {
 	met := make(map[string]bool)
-	prices := digestPrices(t)
+	prices := digestPrices(t, changingPrices())
 	for _, w := range digestWorlds {
 		for seed := range uint64(digestSeeds) {
 			lines := w.lines(seed)
@@ -370,7 +370,8 @@ func arrivedBefore(lines []ledger.Line, until time.Time) []ledger.Line {
 
 // A session's state is stored only as it stands at the end of its day:
 // sealed at the start of the day after its own, none of its requests open,
-// its page untallied. Any other is refused, as its caller's fault.
+// its page tallied or not, what the page carries stored where it is. Any
+// other is refused, as its caller's fault.
 func TestASessionsStateIsStoredOnlyAsItStandsAtItsDaysEnd(t *testing.T) {
 	lines := generatedSession(2)
 	day, end := digestDay()
@@ -387,13 +388,18 @@ func TestASessionsStateIsStoredOnlyAsItStandsAtItsDaysEnd(t *testing.T) {
 		{name: "sealed before its day's end", through: end, sealed: end.Add(-time.Nanosecond), refused: true},
 		{name: "sealed after its day's end", through: end, sealed: end.Add(time.Nanosecond), refused: true},
 		{name: "a request of the next day held open", through: end.Add(24 * time.Hour), sealed: end, refused: true},
-		{name: "its page tallied", through: end, sealed: end, paged: true, refused: true},
+		{name: "its page tallied", through: end, sealed: end, paged: true},
+		{name: "its page tallied, sealed before its day's end", through: end, sealed: end.Add(-time.Nanosecond), paged: true, refused: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			held := readOf(arrivedBefore(lines, tt.through), nil, ledger.Pricing, day, instantOf(tt.sealed), tt.paged)
-			if _, err := held.stored(); (err != nil) != tt.refused {
+			st, err := held.stored()
+			if (err != nil) != tt.refused {
 				t.Errorf("stored with error %v, want it refused %t", err, tt.refused)
+			}
+			if paged := st.Page != nil; err == nil && paged != tt.paged {
+				t.Errorf("stored holding what its page carries %t, want %t", paged, tt.paged)
 			}
 		})
 	}
@@ -467,6 +473,39 @@ func TestARestoredSessionGivenALineOfItsDayAgainIsReadWholeOrPlacedByItsCount(t 
 			if placed != tt.placed || len(added) > 0 {
 				t.Errorf("restored on %s, given %d of its %d requests of %s again: %d taken in, placed %t; want none taken in, placed %t",
 					on.Date, len(ofDay)-tt.short, len(ofDay), day.Date, len(added), placed, tt.placed)
+			}
+		})
+	}
+}
+
+// A session named only by a count of tokens, which is none of its requests,
+// restored from its state onto a later day, its page tallied or not, is the
+// session read whole there: holding none open, as a read of no request
+// holds none, where a session of requests, every one sealed, holds them
+// empty.
+func TestASessionOfNoRequestRestoredFromItsStateIsTheSessionReadWhole(t *testing.T) {
+	day, end := digestDay()
+	counted := generatedSession(2)[0]
+	counted.Kind = ledger.KindCount
+	if !day.Holds(counted.At) {
+		t.Fatalf("the count arrived at %v, want it on %s", counted.At, day.Date)
+	}
+	lines := []ledger.Line{counted}
+	f, err := foldedAsOf(counted.Session, ledger.SessionFrom{Lines: lines}, nil, day)
+	if err != nil {
+		t.Fatal(err)
+	}
+	from := ledger.SessionFrom{Base: baseOf(day.Date, f.State), Parts: []ledger.SessionPart{{Date: day.Date, Part: f.Part, Times: f.Times}}}
+	on, horizon := Today(end), instantOf(end.Add(9*time.Hour))
+	for _, paged := range []bool{false, true} {
+		t.Run(fmt.Sprintf("its page tallied %t", paged), func(t *testing.T) {
+			got, err := heldAsOf(counted.Session, from, nil, ledger.Pricing, on, horizon, paged)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := readOf(lines, nil, ledger.Pricing, on, horizon, paged)
+			if !sameHeld(unpaged(got, true), unpaged(want, true), day.Date) || paged && !samePage(got.page, want.page) {
+				t.Errorf("restored, it holds open %#v, its page\n%s\nwant, as read whole, %#v, its page\n%s", got.open, pageSaid(got.page), want.open, pageSaid(want.page))
 			}
 		})
 	}

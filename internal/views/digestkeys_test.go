@@ -29,43 +29,78 @@ func (k storedKey) String() string {
 }
 
 // storedAs are the types a digest's JSON holds in place of those its stored
-// forms declare, by the name of the type declared: a spend in its own stored
-// form, as its MarshalJSON writes it; and an entry's state the views' body,
-// a stored session.
+// forms declare, by the name of the type declared, each in its own stored
+// form, as its MarshalJSON writes it: a spend; a spent, a list of what it
+// holds of each model and geo; a climb; and a window kept.
 var storedAs = map[string]string{
-	"ledger.Spend":    "ledger.storedSpend",
-	"json.RawMessage": "views.storedSession",
+	"ledger.Spend":      "ledger.storedSpend",
+	"ledger.Spent":      "[]ledger.storedSpentGroup",
+	"ledger.Climb":      "ledger.storedClimb",
+	"claude.KeptWindow": "claude.storedWindow",
 }
 
-// unwritten are the keys a stored form declares that no digest holds, each
-// with why: a golden holding one is told to drop it here.
+// rawAs are the types a digest's JSON holds in the fields its stored forms
+// declare as JSON of another's, by the field: an entry's state, the views'
+// body, a stored session; and what that carries of its page.
+var rawAs = map[storedKey]string{
+	{of: "ledger.storedEntry", key: "state"}: "views.storedSession",
+	{of: "views.storedSession", key: "p"}:    "views.storedPage",
+}
+
+// unwritten are the keys a stored form declares that the golden can't hold,
+// each with why: those no digest holds, and storedTimes' instants, written
+// only of a time beyond the years nanoseconds since the epoch hold, 1678 to
+// 2262, which a golden of one day's world can't reach. A golden holding one
+// is told to drop it here.
 var unwritten = map[storedKey]string{
-	{of: "ledger.storedSpend", key: "q"}: "a quota check is never counted, so the store never holds one",
+	{of: "ledger.storedSpend", key: "q"}:    "a quota check is never counted, so the store never holds one",
+	{of: "views.storedPage", key: "nn"}:     unpending,
+	{of: "views.storedTurn", key: "pn"}:     unpending,
+	{of: "views.storedTurn", key: "mp"}:     unpending,
+	{of: "views.storedTimes", key: "f"}:     "the golden's requests went upstream within the years nanoseconds since the epoch hold",
+	{of: "ledger.storedReading", key: "rs"}: unsaid,
+	{of: "ledger.storedReading", key: "p"}:  unsaid,
+	{of: "ledger.storedReading", key: "as"}: unsaid,
+	{of: "ledger.storedReading", key: "ap"}: unsaid,
 }
 
-// Every key the stored forms of a day's digest declare, the ledger's
-// envelope and every struct of the views' body it holds, nested, holds a
-// value in the golden of the version written, as
-// TestADigestIsEncodedAsTheGoldenOfItsVersionsHoldsIt keeps it: a key the
-// golden left out, as its zero, would be renamed or retyped without the
-// golden failing. But those unwritten has, which it holds none of.
+// unpending is why a page's stored forms hold no request pending, and
+// unsaid why a climb's holds no reading's restart, pace or allowance.
+const (
+	unpending = "a page sealed of its lines holds no request pending, which the stream alone tells of"
+	unsaid    = "a page's points read their windows from an answer's headers, which never say it"
+)
+
+// Every key the stored forms of a day's digest and its parts declare, the
+// ledger's envelope and every struct of the views' body it holds, nested,
+// and of a session's part and its times, holds a value in the golden of the
+// version written, as TestADigestIsEncodedAsTheGoldenOfItsVersionsHoldsIt
+// keeps it: a key the golden left out, as its zero, would be renamed or
+// retyped without the golden failing. But those unwritten has, which it
+// holds none of.
 func TestTheDigestsGoldenHoldsEveryKeyOfItsStoredForms(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join("testdata", fmt.Sprintf("digest-v%d.json", views.DigestVersion)))
 	if err != nil {
 		t.Fatal(err)
 	}
-	var golden any
+	var golden struct {
+		Digest any `json:"digest"`
+		Parts  any `json:"parts"`
+		Times  any `json:"times"`
+	}
 	if err := json.Unmarshal(data, &golden); err != nil {
 		t.Fatal(err)
 	}
 	root := sourcecheck.ModuleRoot(t)
 	k := newStoredKeys(t, root, sourcecheck.ModulePath(t, root))
-	k.walk(k.named("ledger.storedDigest"), golden)
+	k.walk(k.named("ledger.storedDigest"), golden.Digest)
+	k.each(k.named("views.storedPart"), golden.Parts)
+	k.each(k.named("views.storedTimes"), golden.Times)
 	for _, key := range slices.SortedFunc(maps.Keys(k.declared), func(a, b storedKey) int { return strings.Compare(a.String(), b.String()) }) {
 		why, exempt := unwritten[key]
 		switch held := k.held[key]; {
 		case exempt && held:
-			t.Errorf("the golden holds %s, which unwritten says no digest holds, as %s: remove it from unwritten", key, why)
+			t.Errorf("the golden holds %s, which unwritten says it can't hold, as %s: remove it from unwritten", key, why)
 		case !exempt && !held:
 			t.Errorf("the golden holds no value of %s: give the golden world what stores one", key)
 		}
@@ -88,13 +123,13 @@ type storedKeys struct {
 	walked   map[string]bool
 }
 
-// newStoredKeys are the stored keys of the ledger's and the views' types, of
-// the module at root with the given path, none walked yet.
+// newStoredKeys are the stored keys of the ledger's, claude's and the views'
+// types, of the module at root with the given path, none walked yet.
 func newStoredKeys(t *testing.T, root, module string) *storedKeys {
 	t.Helper()
 	loader := sourcecheck.NewLoader(t, root, module, nil)
 	pkgs := map[string]*types.Package{}
-	for _, name := range []string{"ledger", "views"} {
+	for _, name := range []string{"ledger", "claude", "views"} {
 		pkg, err := loader.Import(module + "/internal/" + name)
 		if err != nil {
 			t.Fatal(err)
@@ -104,10 +139,14 @@ func newStoredKeys(t *testing.T, root, module string) *storedKeys {
 	return &storedKeys{t: t, pkgs: pkgs, declared: map[storedKey]bool{}, held: map[storedKey]bool{}, walked: map[string]bool{}}
 }
 
-// named is the type the ledger or the views declare with the given name, by
-// its package's, as "views.storedSession".
+// named is the type the ledger, claude or the views declare with the given
+// name, by its package's, as "views.storedSession"; or a list of one, as
+// "[]ledger.storedSpentGroup".
 func (k *storedKeys) named(name string) types.Type {
 	k.t.Helper()
+	if elem, list := strings.CutPrefix(name, "[]"); list {
+		return types.NewSlice(k.named(elem))
+	}
 	pkg, local, _ := strings.Cut(name, ".")
 	obj, ok := k.pkgs[pkg].Scope().Lookup(local).(*types.TypeName)
 	if !ok {
@@ -173,7 +212,9 @@ func (k *storedKeys) each(elem types.Type, v any) {
 // fields notes the keys s, the struct named of, declares, and those obj, its
 // JSON object, holds, walking each field beside its value: an untagged
 // embedded struct's keys as its own, in obj, and an untagged field's key its
-// name, as encoding/json gives it. A struct is walked without a value once.
+// name, as encoding/json gives it; and a field of JSON of another's as the
+// type rawAs names, failing the test where it names none. A struct is walked
+// without a value once.
 func (k *storedKeys) fields(of string, s *types.Struct, obj map[string]any) {
 	if obj == nil {
 		if k.walked[of] {
@@ -199,6 +240,20 @@ func (k *storedKeys) fields(of string, s *types.Struct, obj map[string]any) {
 		k.declared[at] = true
 		value, held := obj[key]
 		k.held[at] = k.held[at] || held
-		k.walk(f.Type(), value)
+		k.walk(k.rawAs(at, f.Type()), value)
 	}
+}
+
+// rawAs is t, the type of the field at, as rawAs has it where it's JSON of
+// another's, failing the test where rawAs names none.
+func (k *storedKeys) rawAs(at storedKey, t types.Type) types.Type {
+	if nameOf(t) != "json.RawMessage" {
+		return t
+	}
+	stored, ok := rawAs[at]
+	if !ok {
+		k.t.Errorf("%s is JSON of another's that rawAs names no stored form of", at)
+		return t
+	}
+	return k.named(stored)
 }
