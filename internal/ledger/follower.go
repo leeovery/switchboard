@@ -547,19 +547,14 @@ func (f *Follower) Today(mark Mark) (lines []Held, next Mark, afresh bool) {
 // own, and a request that ends after midnight is its arrival day's. Each is
 // the line it reads as alone, none of its JSON held, as Today gives them. It
 // gives none of a date that isn't one, or of a day whose files hold none.
-// How many lines couldn't be read is warned of.
+// How many lines couldn't be read is warned of. They're the lines the day's
+// head is built of, as days.day reads them for both.
 func (f *Follower) Day(date string) []Held {
-	start, end, ok := dayfile.Day(date)
-	if !ok {
-		return nil
-	}
-	now := f.now()
-	within := func(h Held) bool { return !h.At.Before(start) && h.At.Before(end) && !h.At.After(now) }
 	var lines []Held
-	f.days.lines(dayfile.Dates(start, start), lineHeldIn, within, func(h Held) bool {
+	f.days.day(date, f.now(), func(h Held) bool {
 		lines = append(lines, h)
 		return true
-	}, "day", date)
+	}, nil)
 	return lines
 }
 

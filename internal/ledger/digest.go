@@ -29,10 +29,10 @@ const (
 	// digestPrefix and digestSuffix begin and end the name of a day's digest:
 	// digest-<date>.json.gz.
 	digestPrefix, digestSuffix = "digest-", ".json.gz"
-	// digestMax is the most a digest's file is inflated to as it's read: a
-	// busy day's runs to a few megabytes, and a file made by hand to inflate
-	// past it mustn't be read whole into memory.
-	digestMax = 64 << 20
+	// storedMax is the most a digest's file, or a day head's, is inflated to
+	// as it's read: a busy day's digest runs to a few megabytes, and a file
+	// made by hand to inflate past it mustn't be read whole into memory.
+	storedMax = 64 << 20
 )
 
 // digestFile is where the ledger in dir keeps the digest of the local day
@@ -114,7 +114,7 @@ type PartRef struct {
 // storedDigest is a digest as its file holds it, gzipped: the version of the
 // envelope it was written in, its head, its day's bounds as nanoseconds
 // since the Unix epoch, and its sessions' entries, by their ids, zeros left
-// out. The entries come last, as storedHeadIn reads the head alone by
+// out. The entries come last, as digestHeadIn reads the head alone by
 // stopping at them.
 type storedDigest struct {
 	Version      int                    `json:"version"`
@@ -291,40 +291,52 @@ var errDigestOutdated = errors.New("a digest of another version")
 // another version, as every one is after a release raising either, or of
 // another day, are never read; and it reads none of the sessions' states.
 func (d days) digest(date string, body int) (Digest, error) {
-	return d.digestRead(date, body, storedHeadIn, storedIn)
+	return d.digestRead(date, body, digestHeadIn, storedIn[storedDigest])
 }
 
 // digestHead returns the head of the digest the ledger holds of the local
 // day with the given date, as digest judges it, reading none of its
-// sessions' entries, as storedHeadIn reads it: failing as digest fails,
+// sessions' entries, as digestHeadIn reads it: failing as digest fails,
 // but for a file damaged after its head, as the rest of it isn't read.
 func (d days) digestHead(date string, body int) (DigestHead, error) {
-	digest, err := d.digestRead(date, body, storedHeadIn)
+	digest, err := d.digestRead(date, body, digestHeadIn)
 	return digest.Head, err
 }
 
 // digestRead returns the digest the ledger holds of the local day with the
-// given date, as the last of reads reads its file: each reading it from its
-// start in turn, what it read judged, as judged judges it, before the next
-// reads, so one judged otherwise than as the day's of the version asked for
-// is read no further.
+// given date, as the last of reads reads its file, as storedRead has them
+// read, each judged as judged judges it, so one judged otherwise than as the
+// day's of the version asked for is read no further.
 func (d days) digestRead(date string, body int, reads ...func(io.Reader) (storedDigest, error)) (Digest, error) {
-	file, err := os.Open(digestFile(d.files.Dir, date))
+	stored, err := storedRead(digestFile(d.files.Dir, date), func(s storedDigest, err error) error { return s.judged(date, body, err) }, reads...)
 	if err != nil {
 		return Digest{}, err
 	}
+	return stored.digest(), nil
+}
+
+// storedRead returns what the file at path holds, as the last of reads reads
+// it: each reading it from its start in turn, what it read judged, as judged
+// judges it with the read's failure, before the next reads, so one judged
+// wanting is read no further. It fails as os.Open fails where the file can't
+// be opened, with fs.ErrNotExist where there's none, and as judged fails.
+func storedRead[S any](path string, judged func(S, error) error, reads ...func(io.Reader) (S, error)) (S, error) {
+	var stored S
+	file, err := os.Open(path)
+	if err != nil {
+		return stored, err
+	}
 	defer func() { _ = file.Close() }()
-	var stored storedDigest
 	for _, read := range reads {
 		_, err := file.Seek(0, io.SeekStart)
 		if err == nil {
 			stored, err = read(file)
 		}
-		if err := stored.judged(date, body, err); err != nil {
-			return Digest{}, err
+		if err := judged(stored, err); err != nil {
+			return stored, err
 		}
 	}
-	return stored.digest(), nil
+	return stored, nil
 }
 
 // judged returns what's wrong with s, a digest as read of the local day with
@@ -344,28 +356,28 @@ func (s storedDigest) judged(date string, body int, err error) error {
 	return nil
 }
 
-// errDigestTooLarge is the error of a digest's file that inflates past
-// digestMax.
-var errDigestTooLarge = fmt.Errorf("inflates past %d bytes", digestMax)
+// errStoredTooLarge is the error of a digest's file, or a day head's, that
+// inflates past storedMax.
+var errStoredTooLarge = fmt.Errorf("inflates past %d bytes", storedMax)
 
-// storedIn returns the digest r holds, as its file holds it: read to its
-// end, so a file cut short, or damaged, fails as its gzip trailer is
-// checked, whatever its JSON reads as; and failing with errDigestTooLarge,
-// having inflated no more than digestMax and a byte, where it inflates past
+// storedIn returns the S r holds, gzipped JSON, as its file holds it: read to
+// its end, so a file cut short, or damaged, fails as its gzip trailer is
+// checked, whatever its JSON reads as; and failing with errStoredTooLarge,
+// having inflated no more than storedMax and a byte, where it inflates past
 // that.
-func storedIn(r io.Reader) (storedDigest, error) {
+func storedIn[S any](r io.Reader) (S, error) {
+	var stored S
 	members, err := gzip.NewReader(r)
 	if err != nil {
-		return storedDigest{}, err
+		return stored, err
 	}
-	data, err := io.ReadAll(io.LimitReader(members, digestMax+1))
+	data, err := io.ReadAll(io.LimitReader(members, storedMax+1))
 	switch {
 	case err != nil:
-		return storedDigest{}, err
-	case len(data) > digestMax:
-		return storedDigest{}, errDigestTooLarge
+		return stored, err
+	case len(data) > storedMax:
+		return stored, errStoredTooLarge
 	}
-	var stored storedDigest
 	err = json.Unmarshal(data, &stored)
 	return stored, err
 }
@@ -374,28 +386,35 @@ func storedIn(r io.Reader) (storedDigest, error) {
 // under, after every field of its head, as storedDigest declares them.
 const digestSessions = "sessions"
 
-// storedHeadIn returns the head of the digest r holds, as its file holds it,
-// its sessions none: reading its fields as far as its sessions' entries,
-// which follow every field of the head, so none of them is inflated or
-// read. It fails where the head doesn't read whole, inflating no more than
-// digestMax.
-func storedHeadIn(r io.Reader) (storedDigest, error) {
+// digestHeadIn returns the head of the digest r holds, as its file holds it,
+// its sessions none, as storedHeadIn reads it, stopping at its sessions'
+// entries.
+func digestHeadIn(r io.Reader) (storedDigest, error) {
+	return storedHeadIn[storedDigest](r, digestSessions)
+}
+
+// storedHeadIn returns the head of the S r holds, gzipped JSON, as its file
+// holds it, none of what follows it: reading its fields as far as the one
+// named last, which follows every field of the head, so none of what
+// follows is inflated or read. It fails where the head doesn't read whole,
+// inflating no more than storedMax.
+func storedHeadIn[S any](r io.Reader, last string) (S, error) {
+	var stored S
 	members, err := gzip.NewReader(r)
 	if err != nil {
-		return storedDigest{}, err
+		return stored, err
 	}
 	var head bytes.Buffer
-	if err := headCopied(jsontext.NewDecoder(io.LimitReader(members, digestMax)), jsontext.NewEncoder(&head)); err != nil {
-		return storedDigest{}, err
+	if err := headCopied(jsontext.NewDecoder(io.LimitReader(members, storedMax)), jsontext.NewEncoder(&head), last); err != nil {
+		return stored, err
 	}
-	var stored storedDigest
 	err = json.Unmarshal(head.Bytes(), &stored)
 	return stored, err
 }
 
 // headCopied writes to head, as an object of its own, the members of the
-// object from reads, as far as its sessions' entries, or its end.
-func headCopied(from *jsontext.Decoder, head *jsontext.Encoder) error {
+// object from reads, as far as the one named last, or its end.
+func headCopied(from *jsontext.Decoder, head *jsontext.Encoder, last string) error {
 	begin, err := from.ReadToken()
 	switch {
 	case err != nil:
@@ -411,7 +430,7 @@ func headCopied(from *jsontext.Decoder, head *jsontext.Encoder) error {
 		switch {
 		case err != nil:
 			return err
-		case token.Kind() == jsontext.EndObject.Kind(), token.String() == digestSessions:
+		case token.Kind() == jsontext.EndObject.Kind(), token.String() == last:
 			return head.WriteToken(jsontext.EndObject)
 		}
 		name := jsontext.String(token.String())
@@ -426,8 +445,8 @@ func headCopied(from *jsontext.Decoder, head *jsontext.Encoder) error {
 }
 
 // digestGrounds are what a digest is judged against, as stands judges it,
-// each from its caller's own look at the ledger, the writer's round's and a
-// reader's alike. kept gives how many lines the ledger keeps of a local day,
+// and a day head, as dayHeadStands does, each from its caller's own look at
+// the ledger, the writer's round's and a reader's alike. kept gives how many lines the ledger keeps of a local day,
 // by its date, as the summary of them that stands as held counts them, its
 // Lines; none of a day it keeps no lines of, its lines pruned, or none ever
 // written; and reports false of a day whose lines it keeps without a summary
@@ -449,17 +468,32 @@ type digestGrounds struct {
 // made again since, or whose lines were pruned, gives a raw read otherwise.
 // The zero entry judges the head alone.
 func (g digestGrounds) stands(head DigestHead, entry DigestEntry) bool {
-	return g.current(head) && head.Early == 0 && head.Late == 0 && g.alone(head.Day) && g.restsOn(entry)
+	return g.current(head.against()) && head.Early == 0 && head.Late == 0 && g.alone(head.Day) && g.restsOn(entry)
 }
 
-// current reports whether head is of its day as the ledger keeps it now: its
-// bounds the day's in this time zone, as a digest built in another counted
-// its lines into other days, and the lines it was built against those the
-// day keeps.
-func (g digestGrounds) current(head DigestHead) bool {
-	start, end, ok := dayfile.Day(head.Day)
-	lines, known := g.kept(head.Day)
-	return ok && head.Start.Equal(start) && head.End.Equal(end) && known && lines == head.SummaryLines
+// builtAgainst is what a head built of a local day, a digest's or the day's
+// own, was built against, as current judges it: day, the day's date; start
+// and end, when it started and ended, as dayfile.Day gave them in the time
+// zone it was built in; and summaryLines, the Lines of the day's summary.
+type builtAgainst struct {
+	day          string
+	start, end   time.Time
+	summaryLines int
+}
+
+// against is what h was built against.
+func (h DigestHead) against() builtAgainst {
+	return builtAgainst{day: h.Day, start: h.Start, end: h.End, summaryLines: h.SummaryLines}
+}
+
+// current reports whether a head built against built is of its day as the
+// ledger keeps it now: its bounds the day's in this time zone, as one built
+// in another counted its lines into other days, and the lines it was built
+// against those the day keeps.
+func (g digestGrounds) current(built builtAgainst) bool {
+	start, end, ok := dayfile.Day(built.day)
+	lines, known := g.kept(built.day)
+	return ok && built.start.Equal(start) && built.end.Equal(end) && known && lines == built.summaryLines
 }
 
 // alone reports whether no line the days either side of the local day with
@@ -492,7 +526,7 @@ func (g digestGrounds) alone(date string) bool {
 // current says.
 func (g digestGrounds) currentHead(date string) (DigestHead, bool) {
 	head, held := g.heads(date)
-	return head, held && g.current(head)
+	return head, held && g.current(head.against())
 }
 
 // restsOn reports whether each day entry rests on keeps the lines it did as

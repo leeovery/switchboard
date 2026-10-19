@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"maps"
 	"slices"
 	"sync"
@@ -16,13 +17,35 @@ import (
 
 // Digester folds the sessions of a finished local day into their states as
 // of its end, for the ledger to keep in the day's digest, and their parts of
-// the day, for it to keep in the day's parts file: Version is the version of
-// the states and parts it gives, as a digest of another doesn't stand; and
-// Builder gives a builder of a day's digest, as DigestBuilder has it, for one
-// read of the days its sessions are read from.
+// the day, for it to keep in the day's parts file; and builds the day's side,
+// for it to keep in the day's head. Version is the version of the states and
+// parts it gives, as a digest of another doesn't stand; Builder gives a
+// builder of a day's digest, as DigestBuilder has it, for one read of the
+// days its sessions are read from; RowsVersion is the version of the sides
+// it gives, as a day head of another doesn't stand; and Day gives a builder
+// of a day's side, as DayBuilder has it, for one read of the day's lines.
 type Digester interface {
 	Version() int
 	Builder() DigestBuilder
+	RowsVersion() int
+	Day() DayBuilder
+}
+
+// DayBuilder builds a finished local day's side, its Digester's, from the
+// day's lines: Take is handed each line Follower.Day gives of the day, in
+// its order, as days.day reads them for both, every one before Built is
+// called; and Built gives what it built of them, as DayBuilt has it, failing
+// where it can't.
+type DayBuilder interface {
+	Take(l Line)
+	Built() (DayBuilt, error)
+}
+
+// DayBuilt is what a DayBuilder builds of a day's lines: Side, the day's
+// sessions as the Log's find reads them, a JSON value of its Digester's, as
+// the day's head keeps it.
+type DayBuilt struct {
+	Side json.RawMessage
 }
 
 // DigestBuilder builds a finished local day's digest, its Digester's, from one
@@ -87,12 +110,13 @@ func Digesting(digester Digester) Option {
 	return func(o *options) { o.digester = digester }
 }
 
-// digesting is the ledger's digesting of its days with its Digester: a pass
-// over them at each kick, on a goroutine of Run's, as run makes it, or at
-// once, on DigestEnded's caller's, as pass says. It holds, from pass to
-// pass, each day as it last found it, the digests it judged not due, and the
-// days whose digests couldn't be built, so a pass that finds nothing changed
-// reads no digest, and a failure is warned of once.
+// digesting is the ledger's digesting of its days with its Digester, and the
+// building of their heads: a pass over them at each kick, on a goroutine of
+// Run's, as run makes it, or at once, on DigestEnded's caller's, as pass
+// says. It holds, from pass to pass, each day as it last found it, the
+// digests it judged not due, the heads it read, and the days whose digests
+// or heads couldn't be built, so a pass that finds nothing changed reads no
+// digest, nor head, and a failure is warned of once.
 type digesting struct {
 	digester Digester
 	days     days
@@ -103,21 +127,27 @@ type digesting struct {
 	// passing is held while a pass is made, as Run's goroutine and
 	// DigestEnded's caller may each make one. Only a pass touches what
 	// follows: held, each day as find last found it, by its date; judged,
-	// each day's digest last judged not due; warned, each day whose digest
-	// couldn't be built, or pruned, as it looked then; and unlisted, how the
-	// passes' listings of the ledger's directory went.
-	passing  sync.Mutex
-	held     map[string]writtenDay
-	judged   map[string]judgement
-	warned   map[string]look
-	unlisted failing
+	// each day's digest last judged not due; heads, each day's head as a
+	// pass last read it, as seen holds it; warned, each day whose digest
+	// couldn't be built, or whose files built of its lines couldn't be
+	// pruned, and headsWarned, each day whose head couldn't be built, as it
+	// looked then; and unlisted, how the passes' listings of the ledger's
+	// directory went.
+	passing     sync.Mutex
+	held        map[string]writtenDay
+	judged      map[string]judgement
+	heads       map[string]seenHead
+	warned      warnings
+	headsWarned warnings
+	unlisted    failing
 }
 
 // newDigesting returns the digesting of the ledger's days d with digester,
 // by now's clock, having made no pass yet.
 func newDigesting(digester Digester, d days, now func() time.Time) *digesting {
 	return &digesting{digester: digester, days: d, now: now, kicks: make(chan struct{}, 1),
-		held: make(map[string]writtenDay), judged: make(map[string]judgement), warned: make(map[string]look)}
+		held: make(map[string]writtenDay), judged: make(map[string]judgement), heads: make(map[string]seenHead),
+		warned: make(warnings), headsWarned: make(warnings)}
 }
 
 // run makes a pass as it starts, paced, at the clock's now, and again at
@@ -143,12 +173,13 @@ func (d *digesting) kick() {
 }
 
 // pass makes a pass over the ledger's days at now, but none once ctx has
-// ended: it deletes the digests of days without lines, as prune does, even
-// where the ledger holds no day; lets go of what it holds of the days before
-// where the ledger begins, as letGoBefore does; then digests each finished
-// day that's due, as digestDue does, pausing after each, where paced, as
-// long as it took to build. Where the ledger's directory can't be listed, it
-// does none of these, as listedNoting says.
+// ended: it deletes the files built of the lines of days without lines, as
+// prune does, even where the ledger holds no day; lets go of what it holds
+// of the days before where the ledger begins, as letGoBefore does; then
+// digests each finished day that's due, as digestDue does, and builds the
+// head of each that's due, as logdayDue does, pausing after each build,
+// where paced, as long as it took. Where the ledger's directory can't be
+// listed, it does none of these, as listedNoting says.
 func (d *digesting) pass(ctx context.Context, now time.Time, paced bool) {
 	d.passing.Lock()
 	defer d.passing.Unlock()
@@ -162,18 +193,21 @@ func (d *digesting) pass(ctx context.Context, now time.Time, paced bool) {
 	}
 	d.letGoBefore(listing.first)
 	first, _, _ := dayfile.Day(listing.first)
-	d.digestDue(ctx, d.days.datesBefore(dayfile.DateOf(now), first, nil, now), now, paced)
+	dates := d.days.datesBefore(dayfile.DateOf(now), first, nil, now)
+	d.digestDue(ctx, dates, now, paced)
+	d.logdayDue(ctx, dates, now, paced)
 }
 
 // letGoBefore lets go of the days before the one with the given date, where
-// the ledger begins, its earliest summary or file of lines, and of the
-// judgements of the digests resting on one of them. A prune leaves a day's
-// summary, so where the ledger begins moves only where a day's summary and
-// files are removed alike; forget lets go of the judgements resting on a
+// the ledger begins, its earliest summary or file of lines, their heads, and
+// the judgements of the digests resting on one of them. A prune leaves a
+// day's summary, so where the ledger begins moves only where a day's summary
+// and files are removed alike; forget lets go of the judgements resting on a
 // pruned day's lines. No other judgement is on a day before where the ledger
 // begins, as holds judges none that rests on one due.
 func (d *digesting) letGoBefore(first string) {
 	maps.DeleteFunc(d.held, func(date string, _ writtenDay) bool { return date < first })
+	maps.DeleteFunc(d.heads, func(date string, _ seenHead) bool { return date < first })
 	maps.DeleteFunc(d.judged, func(_ string, j judgement) bool {
 		for date := range j.on {
 			if date < first {
@@ -184,21 +218,24 @@ func (d *digesting) letGoBefore(first string) {
 	})
 }
 
-// prune deletes the digests listing finds of days it finds no lines of, their
-// lines pruned, or never written, as a digest stands only beside its day's
-// lines, and their parts files with them. One it can't delete is warned of,
-// as warn says.
+// prune deletes the digests, parts files and heads listing finds of days it
+// finds no lines of, their lines pruned, or never written, as each is kept
+// only beside its day's lines. A day's it can't delete are warned of, as
+// warnings.warn says.
 func (d *digesting) prune(listing dayListing) {
-	for _, date := range listing.digests {
+	dir := d.days.files.Dir
+	for _, date := range listing.built {
 		if _, lined := slices.BinarySearch(listing.lines, date); lined {
 			continue
 		}
-		if err := errors.Join(removed(digestFile(d.days.files.Dir, date)), removed(partsFile(d.days.files.Dir, date))); err != nil {
-			d.warn(date, d.days.lookAt(date), "can't prune the request ledger's digest of a day", "error", err)
+		if err := errors.Join(removed(digestFile(dir, date)), removed(partsFile(dir, date)), removed(logdayFile(dir, date))); err != nil {
+			d.warned.warn(d.days.logger, date, d.days.lookAt(date), "can't prune what the request ledger built of a day's lines", "error", err)
 			continue
 		}
 		delete(d.judged, date)
+		delete(d.heads, date)
 		delete(d.warned, date)
+		delete(d.headsWarned, date)
 	}
 }
 
@@ -208,12 +245,11 @@ func (d *digesting) prune(listing dayListing) {
 // due, as due says, so long as it's told, as kept tells, its summary standing
 // for exactly the lines its files hold. It stops at a day that can't be
 // told, as a day that might name any session leaves no state after it one
-// to keep; that's warned of where days after it go undigested, as warn says,
-// as it may last, as a day whose files can't be looked at. It looks at each
-// day once, as find finds it, so it judges and builds each on the one look
-// at the days before it. Where paced, it pauses after each build as long as
-// the build took, so it never takes more than half a core. It digests none
-// once ctx has ended.
+// to keep; that's warned of where days after it go undigested, as
+// warnings.warn says, as it may last, as a day whose files can't be looked
+// at. It looks at each day once, as find finds it, so it judges and builds
+// each on the one look at the days before it. Where paced, it pauses after
+// each build as long as the build took. It digests none once ctx has ended.
 func (d *digesting) digestDue(ctx context.Context, dates []string, now time.Time, paced bool) {
 	view := d.view()
 	for i, date := range dates {
@@ -223,18 +259,24 @@ func (d *digesting) digestDue(ctx context.Context, dates []string, now time.Time
 		day := view.day(date)
 		if _, known := day.kept(); !known {
 			if i < len(dates)-1 {
-				d.warn(date, day.look, "can't digest the request ledger's days after one whose lines can't be told against its summary")
+				d.warned.warn(d.days.logger, date, day.look, "can't digest the request ledger's days after one whose lines can't be told against its summary")
 			}
 			return
 		}
-		if day.look.none || !d.due(dates[:i+1], view) {
-			continue
+		if !day.look.none && d.due(dates[:i+1], view) {
+			builtPaced(ctx, paced, func() { d.build(ctx, dates[:i+1], view, now) })
 		}
-		began := time.Now()
-		d.build(ctx, dates[:i+1], view, now)
-		if paced {
-			pause(ctx, time.Since(began))
-		}
+	}
+}
+
+// builtPaced builds as build does, then, where paced, pauses as long as the
+// build took, or until ctx ends, so the builds never take more than half a
+// core.
+func builtPaced(ctx context.Context, paced bool, build func()) {
+	began := time.Now()
+	build()
+	if paced {
+		pause(ctx, time.Since(began))
 	}
 }
 
@@ -283,7 +325,7 @@ func (d *digesting) due(dates []string, view writerLook) bool {
 func holds(digest Digest, dates []string, view writerLook) bool {
 	grounds := digestGrounds{kept: view.kept}
 	named, _ := view.day(digest.Head.Day).named()
-	if !grounds.current(digest.Head) || !digest.entering(named) {
+	if !grounds.current(digest.Head.against()) || !digest.entering(named) {
 		return false
 	}
 	asked := newSessionsLookup(view.days, view).namingEach(dates, nil, wanting(make(map[string]bool), slices.Collect(maps.Keys(digest.Sessions))))
@@ -368,8 +410,8 @@ func (d *digesting) forget(date string, was, is writtenDay) {
 // does, judging the digest not due from then on. It writes none where ctx
 // ended first, or the day's summary or its files look otherwise once it's
 // built than as view found them, as they changed while it was built, so it's
-// due again. Where it can't be built, or written, that's warned of, as warn
-// says, and it's built again at the next pass.
+// due again. Where it can't be built, or written, that's warned of, as
+// warnings.warn says, and it's built again at the next pass.
 func (d *digesting) build(ctx context.Context, dates []string, view writerLook, now time.Time) {
 	date := dates[len(dates)-1]
 	looked := view.day(date).look
@@ -381,7 +423,7 @@ func (d *digesting) build(ctx context.Context, dates []string, view writerLook, 
 		digest, err = d.days.writeDigest(digest, parts)
 	}
 	if err != nil {
-		d.warn(date, looked, "can't digest a day of the request ledger", "error", err)
+		d.warned.warn(d.days.logger, date, looked, "can't digest a day of the request ledger", "error", err)
 		return
 	}
 	delete(d.warned, date)
@@ -569,14 +611,19 @@ func partsOf(folded map[string]sessionFolded) map[string]builtPart {
 	return parts
 }
 
-// warn warns of the local day with the given date as msg and args, its
-// attributes after the day's, say, once until its digest is built, or
-// pruned, or the day looks otherwise than l does, as look.same says.
-func (d *digesting) warn(date string, l look, msg string, args ...any) {
-	if was, warned := d.warned[date]; !warned || !was.same(l) {
-		d.days.logger.Warn(msg, append([]any{"day", date}, args...)...)
+// warnings are the local days the digesting warned of, by their dates, each
+// as it looked as it was warned of: held so each is warned of once while it
+// looks so, and let go of once what was warned of is built, or pruned.
+type warnings map[string]look
+
+// warn warns of the local day with the given date to logger as msg and
+// args, its attributes after the day's, say, once until it's let go of, or
+// the day looks otherwise than l does, as look.same says.
+func (w warnings) warn(logger *slog.Logger, date string, l look, msg string, args ...any) {
+	if was, warned := w[date]; !warned || !was.same(l) {
+		logger.Warn(msg, append([]any{"day", date}, args...)...)
 	}
-	d.warned[date] = l
+	w[date] = l
 }
 
 // pause waits as long as given, or until ctx ends, whichever comes first.

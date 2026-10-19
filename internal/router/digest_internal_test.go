@@ -15,7 +15,8 @@ import (
 )
 
 // handedDays is a ledger.Digester that gives each session it's handed an
-// empty state, and no part, noting the sessions of each day, by its date.
+// empty state, and no part, noting the sessions of each day, by its date;
+// and each day an empty side.
 type handedDays map[string][]string
 
 // Version is the version of the states it gives.
@@ -26,6 +27,28 @@ func (handedDays) Version() int {
 // Builder gives itself, as the builder of a day's digest.
 func (h handedDays) Builder() ledger.DigestBuilder {
 	return h
+}
+
+// RowsVersion is the version of the sides it gives.
+func (handedDays) RowsVersion() int {
+	return 1
+}
+
+// Day gives a builder of a day's side, as emptySide has it.
+func (handedDays) Day() ledger.DayBuilder {
+	return emptySide{}
+}
+
+// emptySide is a builder of a day's side that gives an empty one, whatever
+// it's handed.
+type emptySide struct{}
+
+// Take takes in no line.
+func (emptySide) Take(ledger.Line) {}
+
+// Built gives an empty side.
+func (emptySide) Built() (ledger.DayBuilt, error) {
+	return ledger.DayBuilt{Side: json.RawMessage(`[]`)}, nil
 }
 
 // Take takes in no line.
@@ -42,8 +65,8 @@ func (h handedDays) Digest(_ context.Context, day ledger.DigestDay) (map[string]
 }
 
 // A router given a Digester has its ledger, as it runs, digest each day that
-// has ended with it, once the day is summarised, and keep the digest beside
-// the day's lines.
+// has ended with it, once the day is summarised, and build its head, and
+// keep both beside the day's lines.
 func TestTheRoutersLedgerDigestsEachEndedDayWithItsDigester(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		day := time.Date(2026, 9, 8, 10, 0, 0, 0, time.Local)
@@ -82,8 +105,10 @@ func TestTheRoutersLedgerDigestsEachEndedDayWithItsDigester(t *testing.T) {
 		if !slices.Equal(handed[date], []string{"one"}) {
 			t.Errorf("the digester was handed sessions %v, want of %s its session one", handed, date)
 		}
-		if _, err := os.Stat(filepath.Join(ledgerDir, "digest-"+date+".json.gz")); err != nil {
-			t.Errorf("the ledger holds no digest of %s: %v", date, err)
+		for _, name := range []string{"digest-" + date + ".json.gz", "logday-" + date + ".json.gz"} {
+			if _, err := os.Stat(filepath.Join(ledgerDir, name)); err != nil {
+				t.Errorf("the ledger holds no %s: %v", name, err)
+			}
 		}
 	})
 }

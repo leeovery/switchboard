@@ -24,13 +24,17 @@ func partsFile(dir, date string) string {
 	return filepath.Join(dir, partsPrefix+date+partsSuffix)
 }
 
-// digestedName returns the date of the local day a file of the given name is
-// the digest of, or the parts file of, reporting false where it's neither.
-func digestedName(name string) (string, bool) {
-	if date, ok := datedName(name, digestPrefix, digestSuffix); ok {
-		return date, true
+// builtName returns the date of the local day a file of the given name is
+// built of the lines of, its digest, its parts file or its head, reporting
+// false where it's none of them.
+func builtName(name string) (string, bool) {
+	built := []struct{ prefix, suffix string }{{digestPrefix, digestSuffix}, {partsPrefix, partsSuffix}, {logdayPrefix, logdaySuffix}}
+	for _, b := range built {
+		if date, ok := datedName(name, b.prefix, b.suffix); ok {
+			return date, true
+		}
 	}
-	return datedName(name, partsPrefix, partsSuffix)
+	return "", false
 }
 
 // builtPart is a session's part of a day as it's built, to be written to the

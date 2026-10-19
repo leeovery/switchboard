@@ -26,6 +26,36 @@ func (Digests) Builder() ledger.DigestBuilder {
 	return &dayDigest{answers: make(takenAnswers)}
 }
 
+// RowsVersion is the version of what a day's head holds of the day: its
+// side, each of its sessions as the Log's find reads them. A release that
+// keeps a day's side otherwise writes another, and a head of another
+// version doesn't stand: the day's lines are read instead.
+const RowsVersion = 1
+
+// RowsVersion is the version of the sides of the days' heads the Digests
+// give, RowsVersion.
+func (Digests) RowsVersion() int {
+	return RowsVersion
+}
+
+// Day gives a builder of a finished day's side, as daySide has it.
+func (Digests) Day() ledger.DayBuilder {
+	return daySide{}
+}
+
+// daySide is a builder of a finished day's side by the views' Digests: it
+// builds none yet, as nothing reads one; the Log's find reads each day's
+// lines.
+type daySide struct{}
+
+// Take takes in nothing of the line.
+func (daySide) Take(ledger.Line) {}
+
+// Built gives no side.
+func (daySide) Built() (ledger.DayBuilt, error) {
+	return ledger.DayBuilt{}, nil
+}
+
 // dayDigest is a builder of a day's digest by the views' Digests, for one
 // read of the days its sessions are read from: every account's answers that
 // read took, for its sessions' pages' points, as takenAnswers holds them.
