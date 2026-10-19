@@ -259,7 +259,7 @@ func (w *spread) notePage(m moment, o openedPage, shown shownPage) {
 	if rested {
 		base, chain = from.Base.Date, partDates(from)
 	}
-	given := baseDateOf(got.pages[id])
+	given := got.pages[id].BaseDate()
 	for _, moment := range []struct {
 		name string
 		met  bool
@@ -609,7 +609,7 @@ func partsSpoiled(spoil func(w *spread, path string, member ledger.Member)) func
 			if !opened {
 				return false
 			}
-			fell, listed := baseDateOf(o.got.pages[pageSession]), m.based.got.states[pageSession]
+			fell, listed := o.got.pages[pageSession].BaseDate(), m.based.got.states[pageSession]
 			return fell != "" && fell < date && listed != nil && listed.Date >= date
 		}, pageSession
 	}
@@ -655,7 +655,7 @@ func damageMember(w *spread, path string, member ledger.Member) {
 // TestAPageItsPointsCantTakeADayInOnIsFoldedWholeThenRestedOn.
 func (w *spread) takesSplit(now time.Time) (upsetJudged, string) {
 	from := w.based.SessionsOf([]string{pageSession}, onPage, nil)[pageSession]
-	base := baseDateOf(from)
+	base := from.BaseDate()
 	i := slices.IndexFunc(w.lines, func(l ledger.Line) bool {
 		return l.Session == pageSession && l.Model == foldSonnet && l.Limits[sonnetWeek+"-reset"] != "" && w.filedUnder(l) == base
 	})
@@ -668,7 +668,7 @@ func (w *spread) takesSplit(now time.Time) (upsetJudged, string) {
 	w.fileLine(l)
 	return func(m moment, pages map[string]openedPage) bool {
 		o, opened := pages[pageSession]
-		return opened && o.got.refusedPage(pageSession) && baseDateOf(o.got.pages[pageSession]) == base && !pinnedBy(m.stream, pageSession)
+		return opened && o.got.refusedPage(pageSession) && o.got.pages[pageSession].BaseDate() == base && !pinnedBy(m.stream, pageSession)
 	}, pageSession
 }
 
