@@ -69,7 +69,11 @@ type LedgerSession interface {
 	// Session gives the lines of the session with the given id, newest
 	// first, read as far back as the caller goes on: of the days whose files
 	// may hold lines that arrived within the spans given alone, as
-	// ledger.Spanning has them, of every day where none is given.
+	// ledger.Spanning has them, each day's lines that arrived from its stop
+	// on, as ledger.Follower.Session has it, those within the spans among
+	// them, and perhaps some that arrived before it, as a day's file may be
+	// read back from its end only so far; of every day, whole, where none is
+	// given.
 	Session(id string, within ...ledger.Span) iter.Seq[ledger.Held]
 	LedgerRows
 }

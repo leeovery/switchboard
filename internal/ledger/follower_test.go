@@ -1,11 +1,13 @@
 package ledger_test
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
 	"maps"
+	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"slices"
@@ -1236,6 +1238,511 @@ func TestASessionsLinesWithinSpansAreReadOfTheSpansDaysAlone(t *testing.T) {
 	}
 	if want := []string{dayOf(0), dayOf(1), dayOf(19), dayOf(20), dayOf(21)}; !slices.Equal(got, want) || opened(log) != 0 {
 		t.Errorf("log reads\n%s\nSession() within %v and %v gave %q, want %q, newest first, no day between opened", log, turn, horizon, got, want)
+	}
+}
+
+// othersAt are n requests of session two's that arrived at at and took a
+// second, as the ledger holds them, each one's id prefix and its number.
+func othersAt(prefix string, n int, at time.Time) []ledger.Line {
+	lines := make([]ledger.Line, n)
+	for i := range lines {
+		lines[i] = askedBy(fmt.Sprintf("%s%d", prefix, i), "two", at)
+	}
+	return lines
+}
+
+// tookFor is l, its request taking took.
+func tookFor(l ledger.Line, took time.Duration) ledger.Line {
+	l.TotalMS = took.Milliseconds()
+	return l
+}
+
+// A session's lines read within spans are read back from the end of a day's
+// plain file only as far as the day's stop: the earliest From of the spans
+// whose dates take it in. The read stops once it has read 1,000 lines in a
+// row each of a request that ended before the stop, when it arrived or that
+// and the time it took where that's later, or at the file's start: so it
+// reads every line filed after such a run, and the lines that arrived from
+// the stop on are filed after it, as the ledger files each as its request
+// ends. Those it reads it gives as a forward read gives them, those that
+// arrived by the clock's time, at it among them, and warns of how many of
+// them it couldn't read; and it reads a day forward that has a compressed
+// file, as where a span runs from the zero time. A line filed before such a
+// run, out of the ledger's order, as by a clock stepped back, goes unread:
+// the gap it accepts.
+func TestASessionsLinesWithinSpansAreReadBackAsFarAsTheirDaysStop(t *testing.T) {
+	// span is the span from 09:00 today to noon, the clock's time.
+	span := []ledger.Span{{From: on(0, 9, 0), To: on(0, 12, 0)}}
+	tests := []struct {
+		name  string
+		now   time.Time
+		spans []ledger.Span
+		// lay lays the ledger out in dir.
+		lay  func(t *testing.T, dir string)
+		want []string
+		// unread is how many lines Session warns it couldn't read.
+		unread int
+	}{
+		{
+			name: "a line filed before 999 lines in a row that ended before the stop", spans: span,
+			lay: func(t *testing.T, dir string) {
+				holdLines(t, dir, date, slices.Concat([]ledger.Line{askedBy("a", "one", on(0, 9, 10))}, othersAt("x", 999, on(0, 8, 0)),
+					[]ledger.Line{askedBy("c", "one", on(0, 11, 30))})...)
+			},
+			want: []string{"c", "a"},
+		},
+		{
+			name: "one filed before runs of 999 broken by a line that ended after the stop", spans: span,
+			lay: func(t *testing.T, dir string) {
+				holdLines(t, dir, date, slices.Concat([]ledger.Line{askedBy("a", "one", on(0, 9, 10))}, othersAt("x", 999, on(0, 8, 0)),
+					othersAt("b", 1, on(0, 10, 0)), othersAt("y", 999, on(0, 8, 0)), []ledger.Line{askedBy("c", "one", on(0, 11, 30))})...)
+			},
+			want: []string{"c", "a"},
+		},
+		{
+			name: "the gap accepted: one filed before 1,000 lines in a row that ended before the stop, out of the ledger's order", spans: span,
+			lay: func(t *testing.T, dir string) {
+				holdLines(t, dir, date, slices.Concat([]ledger.Line{askedBy("a", "one", on(0, 9, 10))}, othersAt("x", 1000, on(0, 8, 0)),
+					[]ledger.Line{askedBy("c", "one", on(0, 11, 30))})...)
+			},
+			want: []string{"c"},
+		},
+		{
+			name: "one filed before 1,000 lines that arrived after the stop, each taking time below none", spans: span,
+			lay: func(t *testing.T, dir string) {
+				before := othersAt("x", 1000, on(0, 9, 30))
+				for i := range before {
+					before[i] = tookFor(before[i], -45*time.Minute)
+				}
+				holdLines(t, dir, date, slices.Concat([]ledger.Line{askedBy("a", "one", on(0, 9, 10))}, before, []ledger.Line{askedBy("c", "one", on(0, 11, 30))})...)
+			},
+			want: []string{"c", "a"},
+		},
+		{
+			name: "one filed before 1,000 lines whose requests ended at the stop", spans: span,
+			lay: func(t *testing.T, dir string) {
+				holdLines(t, dir, date, slices.Concat([]ledger.Line{askedBy("a", "one", on(0, 9, 10))}, othersAt("x", 1000, on(0, 8, 59).Add(59*time.Second)),
+					[]ledger.Line{askedBy("c", "one", on(0, 11, 30))})...)
+			},
+			want: []string{"c", "a"},
+		},
+		{
+			name: "one filed before runs of 999 broken by a line whose arrival won't read, which a forward read reads", spans: span,
+			lay: func(t *testing.T, dir string) {
+				holdLines(t, dir, date, slices.Concat([]ledger.Line{askedBy("a", "one", on(0, 9, 10))}, othersAt("x", 999, on(0, 8, 0)))...)
+				appendTo(t, dir, "requests-"+date+".jsonl", `{"at":"soon","request":"b","kind":"message","session":"two","reason":"sticky"}`+"\n")
+				holdLines(t, dir, date, slices.Concat(othersAt("y", 999, on(0, 8, 0)), []ledger.Line{askedBy("c", "one", on(0, 11, 30))})...)
+			},
+			want: []string{"c", "a"},
+		},
+		{
+			name:  "one filed before 1,000 lines that ended before a span's start, its day's stop an earlier span's",
+			spans: []ledger.Span{{From: on(0, 9, 0), To: on(0, 9, 30)}, {From: on(0, 11, 0), To: on(0, 12, 0)}},
+			lay: func(t *testing.T, dir string) {
+				holdLines(t, dir, date, slices.Concat([]ledger.Line{askedBy("a", "one", on(0, 9, 10))}, othersAt("x", 1000, on(0, 10, 0)),
+					[]ledger.Line{askedBy("c", "one", on(0, 11, 30))})...)
+			},
+			want: []string{"c", "a"},
+		},
+		{
+			name:  "one filed before 1,000 lines that ended before the stop, a span days before taking its day in none",
+			spans: []ledger.Span{{From: on(-5, 9, 0), To: on(-5, 10, 0)}, {From: on(0, 11, 0), To: on(0, 12, 0)}},
+			lay: func(t *testing.T, dir string) {
+				holdLines(t, dir, date, slices.Concat([]ledger.Line{askedBy("o", "one", on(0, 8, 0))}, othersAt("x", 1000, on(0, 10, 0)),
+					[]ledger.Line{askedBy("c", "one", on(0, 11, 30))})...)
+			},
+			want: []string{"c"},
+		},
+		{
+			name: "one in flight across midnight, filed under the day before as it ended after it", now: on(0, 0, 30),
+			spans: []ledger.Span{{From: on(-1, 23, 30), To: on(0, 0, 30)}},
+			lay: func(t *testing.T, dir string) {
+				holdLines(t, dir, "2026-10-04", slices.Concat([]ledger.Line{askedBy("o", "one", on(-1, 21, 0))}, othersAt("x", 1000, on(-1, 22, 0)),
+					[]ledger.Line{tookFor(askedBy("a", "one", on(-1, 23, 50)), 20*time.Minute)})...)
+				holdLines(t, dir, date, askedBy("b", "one", on(0, 0, 5)))
+			},
+			want: []string{"b", "a"},
+		},
+		{
+			name: "one a change of time zone filed under the day before, behind 1,000 of that day's", spans: span,
+			lay: func(t *testing.T, dir string) {
+				holdLines(t, dir, "2026-10-04", slices.Concat(othersAt("x", 1000, on(-1, 10, 0)), []ledger.Line{askedBy("z", "one", on(0, 9, 30))})...)
+				holdLines(t, dir, date, askedBy("c", "one", on(0, 11, 30)))
+			},
+			want: []string{"c", "z"},
+		},
+		{
+			name: "one in the compressed file of a day with both, read forward", spans: span,
+			lay: func(t *testing.T, dir string) {
+				holdLines(t, dir, date, askedBy("a", "one", on(0, 9, 10)))
+				compressFile(t, dir, "requests-"+date+".jsonl")
+				holdLines(t, dir, date, slices.Concat(othersAt("x", 1000, on(0, 8, 0)), []ledger.Line{askedBy("c", "one", on(0, 11, 30))})...)
+			},
+			want: []string{"c", "a"},
+		},
+		{
+			name:  "one filed before 1,000 lines that ended before the stop, a span from the zero time read forward",
+			spans: []ledger.Span{{To: on(0, 12, 0)}},
+			lay: func(t *testing.T, dir string) {
+				holdLines(t, dir, date, slices.Concat([]ledger.Line{askedBy("a", "one", on(0, 9, 10))}, othersAt("x", 1000, on(0, 8, 0)),
+					[]ledger.Line{askedBy("c", "one", on(0, 11, 30))})...)
+			},
+			want: []string{"c", "a"},
+		},
+		{
+			name: "lines that arrived together, given as a forward read gives them", spans: span,
+			lay: func(t *testing.T, dir string) {
+				holdLines(t, dir, date, askedBy("t1", "one", on(0, 11, 0)), askedBy("t2", "one", on(0, 11, 0)), askedBy("t3", "one", on(0, 11, 0)))
+			},
+			want: []string{"t3", "t2", "t1"},
+		},
+		{
+			name: "one that arrived at the clock's time, and one a second after, read back", spans: span,
+			lay:  arrivedAtNow,
+			want: []string{"n", "a"},
+		},
+		{
+			name: "one that arrived at the clock's time, and one a second after, read forward", spans: []ledger.Span{{To: on(0, 12, 0)}},
+			lay:  arrivedAtNow,
+			want: []string{"n", "a"},
+		},
+		{
+			name: "lines that won't read, read back: those after 1,000 lines in a row that ended before the stop alone", spans: span,
+			lay: unreadAroundARun, want: []string{"c"}, unread: 2,
+		},
+		{
+			name: "lines that won't read, read forward: every one", spans: []ledger.Span{{To: on(0, 12, 0)}},
+			lay: unreadAroundARun, want: []string{"c", "a"}, unread: 5,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			state, dir, _ := stateDirs(t)
+			tt.lay(t, dir)
+			now := cmp.Or(tt.now, on(0, 12, 0))
+
+			var got []string
+			for h := range followerOf(state, &testClock{at: now}, caps).Session("one", tt.spans...) {
+				got = append(got, h.Request)
+			}
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("Session() within %v gave %q, want %q", tt.spans, got, tt.want)
+			}
+			if unread := sessionUnread(log); unread != tt.unread {
+				t.Errorf("log reads\n%s\nSession() warned of %d lines unread, want %d", log, unread, tt.unread)
+			}
+		})
+	}
+}
+
+// arrivedAtNow lays out in dir lines of session one's that arrived at 09:10
+// today, at noon, the clock's time, and a second after, as a, n and l.
+func arrivedAtNow(t *testing.T, dir string) {
+	holdLines(t, dir, date, askedBy("a", "one", on(0, 9, 10)), askedBy("n", "one", on(0, 12, 0)), askedBy("l", "one", on(0, 12, 0).Add(time.Second)))
+}
+
+// unreadAroundARun lays out in dir a line of session one's that arrived at
+// 09:10 today, a, filed before three lines that won't read, then 1,000
+// lines that ended before 09:00, then two more that won't read and one of
+// session one's that arrived at 11:30, c.
+func unreadAroundARun(t *testing.T, dir string) {
+	name := "requests-" + date + ".jsonl"
+	holdLines(t, dir, date, askedBy("a", "one", on(0, 9, 10)))
+	appendTo(t, dir, name, strings.Repeat("not a line\n", 3))
+	holdLines(t, dir, date, othersAt("x", 1000, on(0, 8, 0))...)
+	appendTo(t, dir, name, strings.Repeat("not a line\n", 2))
+	holdLines(t, dir, date, askedBy("c", "one", on(0, 11, 30)))
+}
+
+// sessionUnread is how many lines log says Session couldn't read, as it
+// warns of them, unlike a read of a day's, with no day.
+func sessionUnread(log *logstest.Log) int {
+	unread := 0
+	for _, line := range log.Lines() {
+		if !strings.Contains(line, `msg="request ledger lines unread"`) || strings.Contains(line, " day=") {
+			continue
+		}
+		_, count, _ := strings.Cut(line, " lines=")
+		var n int
+		_, _ = fmt.Sscan(count, &n)
+		unread += n
+	}
+	return unread
+}
+
+// backReadSeeds is how many generated ledgers a session's lines read back
+// within spans are held to a forward read's over.
+const backReadSeeds = 24
+
+// backLine is a line of a generated ledger: when its request arrived, how
+// long it took in milliseconds, whose session it is, none of some, and the
+// date of the day whose file holds it, as its request's id names it with its
+// number; how much later than it ended the jittered order files it; and
+// whether it's cut short, read as none.
+type backLine struct {
+	at      time.Time
+	took    int64
+	session string
+	date    string
+	n       int
+	jitter  time.Duration
+	torn    bool
+}
+
+// text is l as the ledger writes it, or cut short.
+func (l backLine) text() string {
+	at := l.at.UTC().Format(time.RFC3339Nano)
+	if l.torn {
+		return fmt.Sprintf(`{"at":"%s","request":"%s/%d","ki`, at, l.date, l.n)
+	}
+	session := ""
+	if l.session != "" {
+		session = `,"session":"` + l.session + `"`
+	}
+	return fmt.Sprintf(`{"at":"%s","request":"%s/%d","kind":"message"%s,"reason":"sticky","status":200,"attempts":1,"total_ms":%d}`, at, l.date, l.n, session,
+		l.took)
+}
+
+// ended is when l's request ended: when it arrived, or that and the time it
+// took where that's later.
+func (l backLine) ended() time.Time {
+	return l.at.Add(time.Duration(max(l.took, 0)) * time.Millisecond)
+}
+
+// backWorld is a generated ledger in state, as newBackWorld writes it: the
+// clock's time, the spans its session one is read within, and the order
+// each day's file is filed in, by its date.
+type backWorld struct {
+	seed   uint64
+	state  string
+	now    time.Time
+	spans  []ledger.Span
+	orders map[string]string
+}
+
+func (w backWorld) String() string {
+	return fmt.Sprintf("seed %d at %s within %v, its files in %v", w.seed, w.now.Format(time.DateTime), w.spans, w.orders)
+}
+
+// newBackWorld writes the generated ledger of the seed given: one to three
+// days to the clock's time, of up to 4,000 lines each, three in ten of
+// session one's, half of session two's, the rest of none; their arrivals
+// tied now and then, a few after the clock's time; their times taken up to
+// a minute, some up to two hours, across midnight, some below none; one in
+// a hundred filed under a day beside its own, as a change of time zone files
+// it, and a few cut short. Each day's file is filed in the order its
+// requests ended, jittered by up to a minute; or the order they arrived in;
+// or the order they ended in with up to 999 lines filed late, each further
+// on than its place. It's read within one to three spans, as generatedSpan
+// gives them.
+func newBackWorld(t *testing.T, seed uint64) backWorld {
+	t.Helper()
+	r := rand.New(rand.NewPCG(seed, 0xbac4))
+	state, dir, _ := stateDirs(t)
+	w := backWorld{seed: seed, state: state, now: on(0, 0, 0).Add(time.Duration(r.Int64N(int64(24 * time.Hour)))), orders: make(map[string]string)}
+	days := 1 + r.IntN(3)
+	filed := make(map[string][]backLine)
+	n := 0
+	for back := days - 1; back >= 0; back-- {
+		start, until := on(-back, 0, 0), on(1-back, 0, 0)
+		if back == 0 {
+			until = w.now
+		}
+		var at time.Time
+		for range r.IntN(4000) {
+			at = generatedArrival(r, start, until, at)
+			l := generatedBackLine(r, at, n)
+			filed[l.date] = append(filed[l.date], l)
+			n++
+		}
+	}
+	for _, date := range slices.Sorted(maps.Keys(filed)) {
+		var text strings.Builder
+		var order string
+		for _, l := range filedInOrder(r, filed[date], &order) {
+			text.WriteString(l.text() + "\n")
+		}
+		w.orders[date] = order
+		appendTo(t, dir, "requests-"+date+".jsonl", text.String())
+	}
+	for range 1 + r.IntN(3) {
+		w.spans = append(w.spans, generatedSpan(r, on(-days, 0, 0), w.now))
+	}
+	return w
+}
+
+// generatedSpan is a span a generated ledger is read within, of times from
+// first to now: half of them from up to six hours before now, as a turn's
+// horizon is, the rest from any time, each to a time up to now; now and then
+// from the zero time.
+func generatedSpan(r *rand.Rand, first, now time.Time) ledger.Span {
+	from := first.Add(time.Duration(r.Int64N(int64(now.Sub(first)))))
+	if r.IntN(2) == 0 {
+		from = now.Add(-time.Duration(r.Int64N(int64(6 * time.Hour))))
+	}
+	s := ledger.Span{From: from, To: from.Add(time.Duration(r.Int64N(int64(now.Sub(from)) + 1)))}
+	if r.IntN(30) == 0 {
+		s.From = time.Time{}
+	}
+	return s
+}
+
+// generatedArrival is when a generated request arrived, to the second, from
+// start until until, a few up to an hour after: one in ten when the request
+// before it, last, did.
+func generatedArrival(r *rand.Rand, start, until, last time.Time) time.Time {
+	if !last.IsZero() && r.IntN(10) == 0 {
+		return last
+	}
+	if r.IntN(50) == 0 {
+		return until.Add(time.Duration(r.Int64N(int64(time.Hour)))).Truncate(time.Second)
+	}
+	return start.Add(time.Duration(r.Int64N(int64(until.Sub(start)) + 1))).Truncate(time.Second)
+}
+
+// generatedBackLine is a generated line, the nth, of a request that arrived
+// at at, as newBackWorld generates them.
+func generatedBackLine(r *rand.Rand, at time.Time, n int) backLine {
+	l := backLine{at: at, date: dayfile.DateOf(at), n: n, jitter: time.Duration(r.Int64N(int64(time.Minute))), torn: r.IntN(300) == 0}
+	switch p := r.IntN(10); {
+	case p < 3:
+		l.session = "one"
+	case p < 8:
+		l.session = "two"
+	}
+	switch p := r.IntN(100); {
+	case p < 85:
+		l.took = r.Int64N(time.Minute.Milliseconds())
+	case p < 95:
+		l.took = r.Int64N((2 * time.Hour).Milliseconds())
+	default:
+		l.took = -1 - r.Int64N(time.Hour.Milliseconds())
+	}
+	if r.IntN(100) == 0 {
+		l.date = dayfile.DateOf(dayfile.DayStart(at.Local(), []int{-1, 1}[r.IntN(2)]))
+	}
+	return l
+}
+
+// filedInOrder is lines in an order newBackWorld files a day's in, named in
+// order.
+func filedInOrder(r *rand.Rand, lines []backLine, order *string) []backLine {
+	byKey := func(key func(l backLine) time.Time) {
+		slices.SortStableFunc(lines, func(a, b backLine) int { return key(a).Compare(key(b)) })
+	}
+	switch r.IntN(3) {
+	case 0:
+		*order = "ended, jittered"
+		byKey(func(l backLine) time.Time { return l.ended().Add(l.jitter) })
+	case 1:
+		*order = "arrived"
+		byKey(func(l backLine) time.Time { return l.at })
+	default:
+		byKey(backLine.ended)
+		late := r.IntN(min(1000, len(lines)+1))
+		*order = fmt.Sprintf("ended, %d late", late)
+		for range late {
+			i := r.IntN(len(lines))
+			j := i + r.IntN(len(lines)-i)
+			l := lines[i]
+			lines = slices.Insert(slices.Delete(lines, i, i+1), j, l)
+		}
+	}
+	return lines
+}
+
+// filedOn is the date of the day whose file holds h, as its request's id
+// names it.
+func filedOn(h ledger.Held) string {
+	date, _, _ := strings.Cut(h.Request, "/")
+	return date
+}
+
+// stopOf is the stop of the local day with the given date within spans: the
+// earliest From of those whose dates, as dayfile.DatesBounds bounds them,
+// take it in.
+func stopOf(spans []ledger.Span, date string) time.Time {
+	var stop time.Time
+	found := false
+	for _, s := range spans {
+		first, last := dayfile.DatesBounds(s.From, s.To)
+		if first <= date && date <= last && (!found || s.From.Before(stop)) {
+			stop, found = s.From, true
+		}
+	}
+	return stop
+}
+
+// fromStop is the JSON of those of held filed on the day with the given
+// date that arrived from stop on, in the order given.
+func fromStop(held []ledger.Held, date string, stop time.Time) []string {
+	var lines []string
+	for _, h := range held {
+		if filedOn(h) == date && !h.At.Before(stop) {
+			lines = append(lines, string(h.JSON))
+		}
+	}
+	return lines
+}
+
+// unlikeForward returns the first line forward gives, newest first, that
+// back doesn't give in its place, though it arrived from its day's stop on,
+// as stopOf gives it of spans; else the first line back gives that forward
+// doesn't give in its place: none where back gives forward's, in its order,
+// but for some that arrived before their days' stops.
+func unlikeForward(back, forward []ledger.Held, spans []ledger.Span) (missed, extra string) {
+	j := 0
+	for _, h := range forward {
+		switch {
+		case j < len(back) && string(back[j].JSON) == string(h.JSON):
+			j++
+		case !h.At.Before(stopOf(spans, filedOn(h))):
+			return string(h.JSON), ""
+		}
+	}
+	if j < len(back) {
+		return "", string(back[j].JSON)
+	}
+	return "", ""
+}
+
+// A session's lines read within spans, over generated ledgers whose files
+// are filed in the order the ledger files them in, or the order their
+// requests arrived, or with up to 999 lines filed late, are a forward
+// read's, each day read back only as far as its stop says. Of each day, the
+// lines that arrived from its stop on are exactly those a forward read
+// gives, in its order; and newest first, every line a forward read gives
+// that arrived from its day's stop on is given in its place, and none a
+// forward read doesn't give. And some reads stop short of the files' start.
+func TestASessionsLinesReadBackWithinSpansAreAForwardReadsFromEachDaysStop(t *testing.T) {
+	stoppedShort := 0
+	for seed := range uint64(backReadSeeds) {
+		w := newBackWorld(t, seed)
+		f := followerOf(w.state, &testClock{at: w.now}, caps)
+		back := slices.Collect(f.Session("one", w.spans...))
+		spanned := ledger.Spanning(w.spans)
+		forward := slices.DeleteFunc(slices.Collect(f.Session("one")), func(h ledger.Held) bool { return !spanned(filedOn(h)) })
+		for _, date := range slices.Sorted(maps.Keys(w.orders)) {
+			stop := stopOf(w.spans, date)
+			if got, want := fromStop(back, date, stop), fromStop(forward, date, stop); !slices.Equal(got, want) {
+				t.Errorf("%s: of %s, Session() gave %d lines that arrived from its stop, %s, on, want the %d a forward read gives, in its order",
+					w, date, len(got), stop.Format(time.DateTime), len(want))
+			}
+		}
+		missed, extra := unlikeForward(back, forward, w.spans)
+		if missed != "" {
+			t.Errorf("%s: Session() didn't give, in its place newest first, %s, a forward read's that arrived from its day's stop on", w, missed)
+		}
+		if extra != "" {
+			t.Errorf("%s: Session() gave %s, newest first, where a forward read gives no such line", w, extra)
+		}
+		if len(back) < len(forward) {
+			stoppedShort++
+		}
+	}
+	if stoppedShort == 0 {
+		t.Errorf("no read of %d ledgers stopped short of a forward read, want some to: none met its stop", backReadSeeds)
 	}
 }
 
