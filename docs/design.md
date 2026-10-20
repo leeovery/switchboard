@@ -2642,7 +2642,8 @@ extra. Narrower, the bends' room gives way first, the lines keeping their 74 col
 at 145 columns; below that, it keeps 9 columns at least, and the calls and the lines' bars narrow
 instead, a cell for each column lost. A step that frees several cells at once is taken where the
 bends' room would otherwise fall below 9, and what it frees beyond that goes to the bends' room,
-which gives it back a column at a time (settled in the plan):
+which gives it back a column at a time (settled in the plan). Each is a part, declared once with the
+order it gives way in, and laid by the dashboard's one layout of parts, `flex`:
 
 | Columns | What gives |
 |---|---|
@@ -2659,8 +2660,8 @@ which gives it back a column at a time (settled in the plan):
 Each part keeps its distance from the part before it: at 100 columns, what a call is doing is at 12,
 `▸` at 25 and the plug at 35, the jacks are at 56, and the lines run from 58, 42 columns. A line's
 state words that don't fit take the short form, as on a phone, then lose whole clauses from the end.
-Under 100 columns, or wherever the bent cords outnumber the bends' room's columns, the Switchboard
-draws lanes.
+Where its parts don't fit with every turn taken, as under 100 columns, or wherever the bent cords
+outnumber the bends' room's columns, the Switchboard draws lanes.
 
 **Lanes,** as on a phone, where cords would need width the terminal hasn't got: each account's line
 with its sessions under it, in The page's phone frame under 100 columns (settled in the plan).
