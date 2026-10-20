@@ -433,10 +433,11 @@ func detailWords(w status.Words) DetailWords {
 
 // onAccount are the lines read of requests that went out on the account
 // with the given id, there or tried there, that arrived at or before at, in
-// the order they arrived.
+// the order they arrived: of the days the Events read alone, as the read's
+// wholeFrom has them, so no card tells of a day held through a filter.
 func (d detailing) onAccount(id string, at time.Time) []*loggedLine {
 	var on []*loggedLine
-	for l := range d.read.lines() {
+	for l := range d.read.linesFrom(d.read.wholeFrom()) {
 		if !l.row.At.After(at) && (l.row.Account == id || triedOn(l, id, "")) {
 			on = append(on, l)
 		}

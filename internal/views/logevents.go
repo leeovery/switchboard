@@ -73,6 +73,11 @@ type LogEventSources struct {
 	// directory, as its session's story, as the Log's Requests and the List
 	// tell them.
 	Held HeldSessions
+	// Read is the Log's read, beside which the store is fed: a day it holds
+	// through a filter is to the Events a day not yet read, and so is each
+	// before it, so they show none from such a day back, whatever From says,
+	// as its wholeFrom has it. The zero LogRead holds every day whole.
+	Read LogRead
 	// Filter is which events it shows.
 	Filter EventFilter
 	// Names name a window by its key, as the moment's NameOf does: nil names
@@ -138,13 +143,17 @@ type toldEvent struct {
 }
 
 // LogEvents builds the Log's Events from src: a row of each event that
-// happened from the local day From falls on that the filter shows, each
-// told as Telling tells it, over every event read, those before that day
-// among them; and today's count, every event of the day the filter shows or
-// hides. A move's row says what its move came to as its request's row says
-// it, both its session's story's.
+// happened from the local day From falls on, or the first day the Events
+// read of src's Read, as its wholeFrom has it, where that's later, that the
+// filter shows, each told as Telling tells it, over every event read, those
+// before that day among them; and today's count, every event of the day the
+// filter shows or hides. A move's row says what its move came to as its
+// request's row says it, both its session's story's.
 func LogEvents(src LogEventSources) EventsTable {
 	first, today := Today(src.From), Today(src.Now)
+	if whole := src.Read.wholeFrom(); whole.Start.After(first.Start) {
+		first = whole
+	}
 	telling, held := NewTelling(src.Names), src.Held.at(src.Now)
 	table := EventsTable{names: src.Names, filed: src.Filed, first: first}
 	for _, e := range src.Events.Events() {
