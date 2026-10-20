@@ -7,7 +7,6 @@ import (
 	"io/fs"
 	"maps"
 	"os"
-	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -51,11 +50,12 @@ const (
 // spreadMoments are the hard moments the reads over digests meet: their
 // own; those of a round trip, as a session resting on its state meets them;
 // those of the pages; those of the find; those of the Log read back over
-// rows, and of a turn read over them; and those the upsets make.
+// rows, and through filters; those of a turn read over rows, and read back
+// short; and those the upsets make.
 var spreadMoments = slices.Concat([]string{
 	onYesterdayLate, yesterdayRaw, onYesterdayEarly, idleThenActive, pageOnState, givenAgain, zoneEarly, zoneLate, pinnedAcross, wantedAgain,
-	fedAcrossOne, settledAfter, flightAcross, agentAcross, idlessStored, idlessLater,
-}, pageMoments, findMoments, logMoments, turnMoments(), upsetMoments())
+	fedAcrossOne, settledAfter, flightAcross, agentAcross, idlessStored, idlessLater, turnStoppedShort,
+}, pageMoments, findMoments, logMoments, filteredMoments, turnMoments(), upsetMoments())
 
 // Every view read through the store over digests, of a real ledger digested
 // at each moment as the router digests it, read through a Follower resting
@@ -64,12 +64,14 @@ var spreadMoments = slices.Concat([]string{
 // of another version, for which none stands: the List, as the sessions verb
 // prints it without the router; the routing card's costs; the Log's
 // sessions, its find, as sameFind has it, and its past days read back, as
-// sameLog has it; the store as the List's first read holds it, a session's
-// page open, and what the page shows; and the store held across the moments,
-// fed as the dashboard feeds it, the router's sessions and the page wanted
-// at some moments and not at others; each store given the day before's
-// lines again at half past one; each session's page, as checkPages has
-// them; and a turn of a page opened, as checkTurns has it. At a minute
+// sameLog has it, and read back through filters, as sameFiltered has it;
+// the store as the List's first read holds it, a session's page open, and
+// what the page shows; and the store held across the moments, fed as the
+// dashboard feeds it, the router's sessions and the page wanted at some
+// moments and not at others; each store given the day before's lines again
+// at half past one; each session's page, as checkPages has them; and a turn
+// of a page opened, as checkTurns has it, and one read back short of a
+// crowded day's start, as checkStopped has it. At a minute
 // before midnight, a minute after, a minute before one, the day before read
 // raw, and half past one, its digest and head standing; the world's files,
 // its days' heads and its days' rows upset between the router's rounds at
@@ -116,7 +118,8 @@ func costedEither(prices []pricedAs) []string {
 // between. And two requests as a change of time zone files them: early, of
 // k's, arrived half an hour before the day k began on ended, to be filed
 // under the day after; and late, of idle's, arrived half an hour after the
-// last day idle ran on ended, to be filed under that day.
+// last day idle ran on ended, to be filed under that day. Of crowdedSeed,
+// that day is crowded besides, as crowded has it.
 func spreadWorld(seed uint64) (lines []ledger.Line, early, late ledger.Line) {
 	lines = twiceGiven(idlessOnce(againRun(seed)))
 	k := renamed(generatedRun(seed+1), "k")
@@ -132,6 +135,9 @@ func spreadWorld(seed uint64) (lines []ledger.Line, early, late ledger.Line) {
 	}
 	lines = slices.Concat(lines, k, idle)
 	slices.SortStableFunc(lines, func(a, b ledger.Line) int { return ended(&a).Compare(ended(&b)) })
+	if seed == crowdedSeed {
+		lines = crowded(lines, dayfile.DateOf(idle[arrivalOrder(idle)[len(idle)-1]].At))
+	}
 	early = k[arrivalOrder(k)[0]]
 	early.Request, early.At = "zone-early", dayfile.DayStart(early.At.Local(), 1).Add(-30*time.Minute)
 	late = idle[arrivalOrder(idle)[len(idle)-1]]
@@ -175,6 +181,80 @@ func twiceGiven(lines []ledger.Line) []ledger.Line {
 	return lines
 }
 
+// crowdedSeed is the seed of the spread world whose last day idle runs on is
+// crowded, as crowded has it: of spreadSeeds, one whose idle ends its run
+// on that day early enough for the crowd to be done by the evening.
+const crowdedSeed = 11
+
+// crowdRun is how many requests of no session crowd a day, as crowded has
+// them: with the two of them crowded gives twice, readBackRun less one, the
+// lines in a row a session's read back from a day's end reads before it
+// stops, each ended before what it wants, so the line filed before them is
+// the last read; and more than three chunks of rows, of which a filter
+// skips some. Each slows every read of the day's file, so they're no more.
+const crowdRun = readBackRun - 3
+
+// crowded is lines, in the order the ledger files them, the local day with
+// the given date crowded after them: a turn of a session of its own,
+// crowded, a minute after the last of that day's lines ended, a quota check
+// of it filed just before, its first turn two days before, at noon; then
+// crowdRun requests of no session, each its own, of no model or account,
+// arriving twenty seconds apart from a minute after that, each taking a
+// second, so they're filed after the day's others, as each ends, and done
+// by the evening. A turn of crowded's first, opened that night, reads the
+// day back to its second request, the check unread. Two of the crowd
+// failed, each given twice across an edge of the day's chunks of rows, as
+// givenAcross has them: one with an id, at the second chunk's end; one
+// without, at the third's.
+func crowded(lines []ledger.Line, date string) []ledger.Line {
+	var last time.Time
+	for _, l := range lines {
+		if end := ended(&l); dayfile.DateOf(l.At) == date && end.After(last) {
+			last = end
+		}
+	}
+	first := ledger.Line{
+		At: dayfile.DayStart(last, -2).Add(12 * time.Hour).UTC(), Request: "crowded-1", Kind: ledger.KindMessage, Session: "crowded", Model: foldOpus,
+		Account: "work", Reason: "new", Status: 200, Attempts: 1, TotalMS: 3000, Class: ledger.ClassMain, Prompt: "c1",
+	}
+	again := first
+	again.At, again.Request, again.Reason, again.Prompt = last.Add(time.Minute).UTC(), "crowded-2", "sticky", "c2"
+	check := ledger.Line{
+		At: last.Add(30 * time.Second).UTC(), Request: "crowded-check", Kind: ledger.KindCheck, Session: "crowded", Model: foldOpus, Account: "work",
+		Status: 200, TotalMS: 500,
+	}
+	lines = append(lines, first, check, again)
+	for i := range crowdRun {
+		lines = append(lines, ledger.Line{
+			At: ended(&again).Add(time.Minute + time.Duration(i)*20*time.Second).UTC(), Request: fmt.Sprintf("crowd-%04d", i), Kind: ledger.KindMessage,
+			Status: 200, TotalMS: 1000,
+		})
+	}
+	slices.SortStableFunc(lines, func(a, b ledger.Line) int { return ended(&a).Compare(ended(&b)) })
+	return givenAcross(givenAcross(lines, date, 2, false), date, 3, true)
+}
+
+// givenAcross is lines, in the order the ledger files them, the last row of
+// the chunk numbered chunk, from 1, of the rows of the local day with the
+// given date failed, without an id where idless says, and given twice,
+// right after itself: so its copy is the next chunk's first row, as the
+// day's rows are its lines in the order they're filed, where no other day's
+// file holds a line of it.
+func givenAcross(lines []ledger.Line, date string, chunk int, idless bool) []ledger.Line {
+	var on []int
+	for i := range lines {
+		if dayfile.DateOf(lines[i].At) == date {
+			on = append(on, i)
+		}
+	}
+	i := on[chunk*rowsAChunk-1]
+	lines[i].Status = 500
+	if idless {
+		lines[i].Request = ""
+	}
+	return slices.Insert(lines, i+1, lines[i])
+}
+
 // renamed are lines, each of the session with the given id, afresh.
 func renamed(lines []ledger.Line, id string) []ledger.Line {
 	named := slices.Clone(lines)
@@ -206,7 +286,7 @@ func movedOn(l ledger.Line, days int) ledger.Line {
 // its files at, those it came to upset its pages' at, its days' heads' and
 // its days' rows', as upset has them, holding the upset made at the moment
 // for its reads to judge, and the one of a day's rows, nil where none was,
-// the dates of the days its late lines were filed onto then, and the head
+// the late lines filed then, as fileLate files them, and the head
 // upset then, as headUpset has it; counts the sessions and rows planted in
 // its days' heads and rows, as plant and spoilChunk have them; holds the
 // member of each day's rows it spoiled, as spoilChunk has it, by the day's
@@ -228,7 +308,7 @@ type spread struct {
 	planted     int
 	made        *upsetMade
 	rowsMade    *upsetMade
-	lateOn      []string
+	filedLate   []ledger.Line
 	headMade    *headUpset
 	spoiled     map[string]ledger.Member
 	relogged    map[string]bool
@@ -336,6 +416,7 @@ func (w *spread) check(i int, now time.Time) {
 	w.same(m, "the Log's sessions", func(l Ledger) any { return w.logSessions(l, m) })
 	w.sameFind(m)
 	w.sameLog(m)
+	w.sameFiltered(m)
 
 	paged := ListWanted(m.running, m.stream)
 	paged.Page = pageSession
@@ -345,6 +426,7 @@ func (w *spread) check(i int, now time.Time) {
 	w.feedHeld(m)
 	pages := w.checkPages(m)
 	w.checkTurns(m, pages)
+	w.checkStopped(m)
 	w.noteRested(m, raw)
 	w.note(m, listed.got.dates())
 	w.judgeUpset(m, pages)
@@ -876,7 +958,7 @@ func upsetMoments() []string {
 // day upset, as upsetHead has it. The router's round at the next moment
 // digests again what it upset.
 func (w *spread) upset(now time.Time) {
-	w.made, w.rowsMade, w.lateOn, w.headMade = nil, nil, nil, nil
+	w.made, w.rowsMade, w.filedLate, w.headMade = nil, nil, nil, nil
 	switch {
 	case headsUpsetAt(now):
 		w.upsetHead(now)
@@ -1113,7 +1195,7 @@ func (w *spread) dayPruned(time.Time) bool {
 	if !slices.ContainsFunc(slices.Collect(maps.Values(w.restingOn())), func(b *ledger.SessionBase) bool { _, rests := b.RestsOn[date]; return rests }) {
 		return false
 	}
-	if err := os.Remove(filepath.Join(ledger.Dir(w.state), "requests-"+date+".jsonl")); err != nil {
+	if err := os.Remove(w.dayPath(date)); err != nil {
 		w.t.Fatal(err)
 	}
 	w.lines = slices.DeleteFunc(w.lines, func(l ledger.Line) bool { return w.filedUnder(l) == date })

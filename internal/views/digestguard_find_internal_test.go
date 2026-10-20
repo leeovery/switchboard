@@ -108,7 +108,7 @@ func (w *spread) unstood(date string) []string {
 		return nil
 	}
 	var why []string
-	if slices.Contains(w.lateOn, date) {
+	if slices.ContainsFunc(w.filedLate, func(l ledger.Line) bool { return w.filedUnder(l) == date }) {
 		why = append(why, foundLate)
 	}
 	if w.headMade != nil && w.headMade.date == date {
@@ -143,14 +143,13 @@ func (w *spread) dirChanged(date string) bool {
 	return slices.ContainsFunc(sessionsIn(w.lines), func(id string) bool { return len(dirs[id]) > 1 })
 }
 
-// fileLate files l, a late line, as fileLine files it, noting the date of
-// the day it's filed under among those late lines were filed onto at the
-// moment, and planting that day's side, as plant has it.
+// fileLate files l, a late line, as fileLine files it, noting it among the
+// late lines filed at the moment, and planting the side of the day it's
+// filed under, as plant has it.
 func (w *spread) fileLate(l ledger.Line) {
-	date := w.filedUnder(l)
-	w.lateOn = append(w.lateOn, date)
+	w.filedLate = append(w.filedLate, l)
 	w.fileLine(l)
-	w.plant(date)
+	w.plant(w.filedUnder(l))
 }
 
 // headPath is where the ledger keeps the head of the local day with the
