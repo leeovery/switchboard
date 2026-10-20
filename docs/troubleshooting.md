@@ -15,9 +15,10 @@ This page shows where to look when switchboard doesn't do what you expect, and h
 - **Not routed:** some of what Claude Code sends never reaches the router. See
   [What doesn't go through the router](how-it-works.md#what-doesnt-go-through-the-router).
 - **The ledger's digests:** the `ledger/digest-<date>.json.gz`, `ledger/parts-<date>.gz`,
-  `ledger/logday-<date>.json.gz` and `ledger/rows-<date>.gz` files are safe to delete. They're worked out from the day's lines,
-  and the router writes them again on its next round, or when it next starts. Until then, the
-  dashboard reads the lines instead, which is slower but shows the same.
+  `ledger/logday-<date>.json.gz` and `ledger/rows-<date>.gz` files are safe to delete. They're
+  worked out from the day's lines, and the router writes them again on its next round, or when it
+  next starts. Until then, the dashboard reads the lines instead, which is slower but shows the
+  same.
 - **A session's page slow to open:** a damaged parts file whose size hasn't changed isn't noticed
   until a page reads it. The page then rests on an older digest, or reads the session's days whole,
   at every open, until the router writes the day again, as after a release that changes the
@@ -25,20 +26,21 @@ This page shows where to look when switchboard doesn't do what you expect, and h
   `parts-<date>.gz`: the router writes both again on its next round.
 - **The Log's find slow to go back:** the find reads each past day's head, and a day's lines only
   where its head isn't written yet. After the upgrade that brings heads in, the router writes one
-  for every day kept, yesterday's first, under a second of work a day, once it has written every
-  digest due, which on a long ledger takes some minutes; until it reaches a day, the find reads
-  that day's lines, half a second or more. Yesterday's head is written about an hour after
+  for every day kept, yesterday's first, 1 to 1.5 s of work a day with its rows, once it has written
+  every digest due, which on a long ledger takes some minutes; until it reaches a day, the find
+  reads that day's lines, half a second or more. Yesterday's head is written about an hour after
   midnight, just after its digest. A head damaged where its size hasn't changed is never written
   again on its own, and the find reads that day's lines at every walk: delete that day's
   `logday-<date>.json.gz`, and the router writes it again on its next round.
 - **The Log slow to go back a day, or a turn slow to open:** the Log reads each past day from its
   rows, and a turn its own past days, all but yesterday until about an hour after midnight, which
-  read the day's lines, as today's do. A day whose rows file or head is damaged or deleted is
-  safe: that day reads its lines instead, half a second or more, never showing otherwise, until
-  the router writes both again on its next round. After the upgrade that brings rows in, the router writes them for every day kept, yesterday
-  first, as it writes heads. A rows file damaged where its size hasn't changed isn't noticed, and
-  that day reads its lines at every day back: delete that day's `rows-<date>.gz`, and the router
-  writes it again on its next round.
+  read the day's lines, as today's do. A day whose rows file or head is deleted, or damaged so its
+  size changed, is safe: that day reads its lines instead, half a second or more, never showing
+  otherwise, until the router writes both again on its next round. After the upgrade that brings
+  rows in, the router writes them for every day kept, yesterday first, as it writes heads. A rows
+  file damaged where its size hasn't changed isn't noticed by the router, and that day reads its
+  lines at every day back: delete that day's `rows-<date>.gz`, and the router writes it again on its
+  next round.
 - **Getting round switchboard:** to start Claude Code on its own login, run
   `switchboard run --direct`, or run the real `claude` by its path. If the switchboard binary itself
   breaks, every `claude` breaks with it, until you take switchboard's directory off `PATH`.

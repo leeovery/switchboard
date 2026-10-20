@@ -31,6 +31,10 @@ what's live. Where it comes from, by the build's heap profile:
 Phase 2 raised it, with 30 days kept, to some 140 MB and about 1 s, as each session's points take
 in every account's answers of the day.
 
+Phase 3b's head and rows lift it some 145 MB a day built, for 1 to 1.5 s. After the upgrade that
+brings them in, every day kept is built again, up to 400 in the backfill, one at a time, so the
+peak comes once a day built, never all at once, but for as long as the backfill runs.
+
 ## A long page read whole in the router
 
 Where a page's restore is refused, its session is read whole: in the router's build, a chain of
@@ -58,9 +62,16 @@ A day's head is built of exactly the lines `Day` gives of the day, which reads t
 either side of it too, as a change of time zone files a line under a date beside its own; and it
 decodes every line of those files whole to keep the few inside the day. So a head's build takes about
 0.6 s where the day's own file alone takes about 0.2 s, as does a day back in the Log where the
-day's rows don't stand. It can't go wrong, as only a line's `at` says whether it's kept. The cut is to read only `at` of the
-neighbours' lines, but `dayfile.Read` counts a decode that reports false as a line unread: it needs a
-skip outcome of its own, or a peek that reads `at` exactly as `lineIn` does.
+day's rows don't stand. It can't go wrong, as only a line's `at` says whether it's kept. The cut is
+to read only `at` of the neighbours' lines, but `dayfile.Read` counts a decode that reports false as
+a line unread: it needs a skip outcome of its own, or a peek that reads `at` exactly as `lineIn`
+does.
+
+Where a day's side doesn't stand, the find's fallback, `DaySessionsOn`, builds a whole record of
+each line of the day only to fold its session's facts: about 6 µs more a line, some 0.13 s more,
+a fifth, on a raw day of the soak. It bites yesterday until about 01:00, and every day through the
+backfill after this release, as `logdayVersion` 3 outdates every head written before. A fold of
+the facts the find reads alone would cut it.
 
 ## A request in flight for hours on a session's page
 
@@ -105,6 +116,14 @@ never fed would take it in.
 - `Holding`'s count of sessions read whole counts one restored from its state too.
 - How many lines the ledger keeps of a day, by its look, is worked out twice, by the reader's look
   and the writer's, each from a count of its own; a test holds them alike. One helper could own it.
+- The Log's first open makes the record of each of today's lines, about 22,000 of some 656 B in
+  the soak, beside the lines, before `Taken` takes them in: some 14 MB at once. Feeding each
+  record through as it's made would cut that passing peak.
+- `heldRequest.summed` has no test that it sums every field, as the line record's sum has; the two
+  share `decodedRequest`, so a fact added there is held only by the record's.
+- The watch's soak guard still passes over a turn's `turnLines` as it walks for lines held, but a
+  turn now holds records: without the exemption, `TestThePageHoldsOnlyItsTurns` and
+  `TestTheLogHoldsOnlyWhatItShows` still pass, so the guard could walk a turn too.
 
 ## A day's rows
 
@@ -120,6 +139,12 @@ never fed would take it in.
 - `Spend`'s and `KeptWindow`'s stored forms could decode through `json.UnmarshalerFrom`, straight
   from a row's decoder, rather than through `UnmarshalJSON` and a copy of their bytes.
 - An idless line in a tail is summed twice, once for its key and once for its row.
+- `rowsIn`, as the writer counts a day's rows, and `DayRows.counted`, as a reader holds a head's
+  chunks to its count, each sum the chunks' counts. One helper could own it.
+- A head damaged after its fields, its size unchanged, is read without its side by the writer,
+  judged current and settled, and never built again, while each reader of it reads the day raw.
+  It's phase 3a's gap, and now covers the rows' table too. The writer reading a head whole once,
+  as it first settles it, would close it.
 
 ## A turn's read
 

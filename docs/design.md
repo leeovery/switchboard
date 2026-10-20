@@ -3505,13 +3505,14 @@ one:
 
 - **Requests:** the request ledger's lines, read where they lie through `internal/ledger`, with no
   router (see The request ledger), a day at a time as the table reaches it, each past day from its
-  rows where they stand, today's followed as its file grows; and, while the dashboard runs, the request stream, `GET /stream`, for what's in
-  flight (see Control API), as a line is written only as its request ends. A request in flight takes
-  its time from `sent`, or `inflight`'s `sent_at`; its session's directory from the stream's `dir`;
-  `first` from `first`, or `first_at`; and its characters from `progress`. A line arriving for a
-  request already shown fills in its row, which keeps the place it took as it was sent, though the
-  line's `at`, its arrival, is a moment earlier. Requests the router answers itself, never sent
-  upstream, are never on the stream, and appear as their lines are written.
+  rows where they stand, today's followed as its file grows; and, while the dashboard runs, the
+  request stream, `GET /stream`, for what's in flight (see Control API), as a line is written only
+  as its request ends. A request in flight takes its time from `sent`, or `inflight`'s `sent_at`;
+  its session's directory from the stream's `dir`; `first` from `first`, or `first_at`; and its
+  characters from `progress`. A line arriving for a request already shown fills in its row, which
+  keeps the place it took as it was sent, though the line's `at`, its arrival, is a moment earlier.
+  Requests the router answers itself, never sent upstream, are never on the stream, and appear as
+  their lines are written.
 - **Worth** is worked out as it's read, at today's prices, from the dated price table, never stored;
   a model the table doesn't know is unpriced, never free (see The request ledger).
 - **Counts,** today's: the heading's hidden, the panel's kinds and failed, and the state line's,
@@ -3852,12 +3853,12 @@ moving down.
   out from them as they're read, or, for the days a day's digest holds, from the page's state at
   that day's end and its parts of each day, the days after read raw (see Live updates). A turn
   opened reads its requests' lines of its own days alone, from their rows where they stand, and
-  the horizon's, never the days between (see Live updates). Of a line, the page uses `at`, `model`, `account`, `status`,
-  `first_ms` and `total_ms` for a request's row; `usage` for `read`, `written` and `out`, the
-  five-minute and the hour writes priced apart, its input only in worth; `answer`'s `stop` and
-  `tools`; `reason`, `from` and `tried`, for a move and why, in the views' words (see The router's
-  events); `limits`, for the ≈ points, every session's lines of its accounts among them; and `dir`,
-  for the heading.
+  the horizon's, never the days between (see Live updates). Of a line, the page uses `at`, `model`,
+  `account`, `status`, `first_ms` and `total_ms` for a request's row; `usage` for `read`, `written`
+  and `out`, the five-minute and the hour writes priced apart, its input only in worth; `answer`'s
+  `stop` and `tools`; `reason`, `from` and `tried`, for a move and why, in the views' words (see The
+  router's events); `limits`, for the ≈ points, every session's lines of its accounts among them;
+  and `dir`, for the heading.
 - **What's in flight** has no line yet, as a line is written when its request ends: the request
   stream gives it, and with it `↑ asking` or `↓ answering`, as the Overview's SESSIONS reads them.
   The page joins the stream while it shows (see Live updates). Within the motion budget (see What
@@ -4433,7 +4434,8 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
     its worth. Neither its raw usage nor its limits are held: the Log's line keeps its windows
     small, a key, a share used, a reset and a status each, rebuilt into windows only as a card draws
     them. A test walks what the store, the Log and the page hold, and fails on a raw usage, a
-    limits map or a whole line held beyond a turn's.
+    limits map or a whole line held, passing over a turn opened, which holds its requests'
+    records, never their lines.
   - **A story told on, never afresh:** a session's requests that arrived more than an hour before
     a feed are sealed into its story, which never changes after; those since are held open, and
     told again on the sealed story at each feed, so a line that comes late, as a long request's does
@@ -4554,11 +4556,11 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
     whose meta names its session and whose rows arrived within the turn's span, the day's lines
     where they don't; the horizon's days, today's among them, it reads raw, and a line of a day
     read from its rows that a raw read meets too, as the file of a day beside it holds it, is
-    passed over, so each line is read once (settled in the plan, 19 October 2026). Where the page holds nothing
-    sealed, its horizon before every moment, it reads every day. Where the read takes longer than
-    150 ms, the turn's foot says `loading…` till it lands (settled in the plan). They're let go of
-    as the turn closes; the page's tallies as the page closes, and its session at the store's next
-    feed, where no other reader wants it.
+    passed over, so each line is read once (settled in the plan, 19 October 2026). Where the page
+    holds nothing sealed, its horizon before every moment, it reads every day. Where the read takes
+    longer than 150 ms, the turn's foot says `loading…` till it lands (settled in the plan). They're
+    let go of as the turn closes; the page's tallies as the page closes, and its session at the
+    store's next feed, where no other reader wants it.
   - **A request sent just after midnight,** in the minute after, may have arrived before it, its
     line filed on the day before. Its end no longer has every reader awaiting its line read the
     whole day before again at once, as nearly every such line is filed with the new day's: the day
@@ -5236,9 +5238,10 @@ from the first day a router that has it runs, so nothing before then is in it.
     then its chunks last, written whole, 0600, beside where it goes and renamed into place, and
     read head first, its side and chunks never inflated where the head is all that's asked of it.
     Its own file and its own version, never the digest's: a digest's body changed would make every
-    digest due, the List and pages reading raw through the backfill; and a head rests on no other
-    day's head or digest, so it's built newest first, where digests are built oldest first for
-    their chains. No digest's version changed for it.
+    digest due, the List and pages reading raw through the backfill; and a head is built of no
+    other day's head, so it's built newest first, where digests are built oldest first for their
+    chains, though it stands on its neighbours' digests and the lines they keep, as below. No
+    digest's version changed for it.
   - **When it stands,** for the find and the writer alike, by the digests' own rule in
     `internal/ledger`: its versions those read; its day's start and end the day's in this time
     zone; its day's summary standing, counting the `lines` it was built against, the day's files
@@ -5257,14 +5260,14 @@ from the first day a router that has it runs, so nothing before then is in it.
     a head is safe.
   - **Who writes it, and when:** the router's digesting, in each pass, after the digests: each
     finished day with lines whose head is due, from yesterday back, newest first, so yesterday's
-    stands a second or two after its digest, paced as digests are, pausing after each build as long as
-    it took, and stopped as the router stops. A head is due where none reads, of these versions,
-    or it no longer stands, or its rows don't, as below; one current but not alone, or resting on a day beside it whose lines
-    have changed, is built again once each time a digest beside its day changes, or is pruned
-    with its day's lines, not at every pass. A build that fails is warned of once, until the day's
-    built. After the upgrade that brings heads in, every day kept is given one, newest first, once
-    the digests' own backfill is through, as a pass builds every digest due before any head; the
-    find reads each day's lines until its head stands.
+    stands a second or two after its digest, paced as digests are, pausing after each build as long
+    as it took, and stopped as the router stops. A head is due where none reads, of these versions,
+    or it no longer stands, or its rows don't, as below; one current but not alone, or resting on a
+    day beside it whose lines have changed, is built again once each time a digest beside its day
+    changes, or is pruned with its day's lines, not at every pass. A build that fails is warned of
+    once, until the day's built. After the upgrade that brings heads in, every day kept is given
+    one, newest first, once the digests' own backfill is through, as a pass builds every digest due
+    before any head; the find reads each day's lines until its head stands.
   - **Kept as long as the day's lines,** and pruned with them, as the day's digest and parts file
     are: no keep of its own (the owner's call, 19 October 2026).
   - **What it costs:** a raw read of each finished day, as `Day` reads it, its side and its rows
@@ -5282,15 +5285,19 @@ from the first day a router that has it runs, so nothing before then is in it.
     a parts file holds its parts, so a chunk reads alone. The head holds each chunk's place, its
     offset, length and CRC, how many rows it holds, and its meta: when its first and last rows
     arrived; how many it holds of each kind, requests, checks and counts, and how many failed; and
-    how many of them each session, model and account counts, as the Log's counts count them. Phase
-    3 reads a chunk's sessions and its span alone; the rest is written now for the Log's paging by
-    rows (see Milestones), so that phase needn't have every day's rows built again.
+    how many of them each session, model and account counts, each row counted as it's held, so a
+    line given twice counts twice, where the Log's counts take one with an id once. Phase 3 reads a
+    chunk's sessions and its span alone; the rest is written now for the Log's paging by rows (see
+    Milestones), so that phase needn't have every day's rows built again.
   - **When they stand,** for the Log, a turn and the writer alike, by one rule in
     `internal/ledger`: the head stands, as above; it counts a row of each line it was built of; and
     the rows file is as long as the head records, looked at, never read. Each chunk is held to its
-    CRC as it's read, so a chunk damaged in a file as long reads as none. A day's rows are read
-    whole or not at all: a chunk that doesn't read, or restores other than as many rows as the
-    head counts it, has the day's lines read instead, never part of a day.
+    CRC as it's read, so a chunk damaged in a file as long reads as none; the writer judges the file
+    by its size alone, so that day isn't due, and reads its lines at every read until its rows file
+    is deleted. A head whose chunks' counts were changed by hand is the same: only a reader holds
+    the counts to the head's, as the writer holds a head without its chunks. A day's rows are read
+    whole or not at all: a chunk that doesn't read, or restores other than as many rows as the head
+    counts it, has the day's lines read instead, never part of a day.
   - **Who reads them:** the Log reading a day back reads the day's rows where they stand, and its
     lines where they don't, by one read, `views.ReadDay`, a day's rows being exactly its lines'
     records in the Log's order, so the table is the same either way. A turn opened reads, of each
@@ -5852,20 +5859,21 @@ hiding it behind the provider would take a wider interface than it's worth:
 - **Request ledger:** `<state dir>/ledger/`, 0700: `requests-<local date>.jsonl`, a line a request,
   `day-<local date>.json`, a day's summary, `digest-<local date>.json.gz`, a day's digest,
   `parts-<local date>.gz`, its sessions' parts of the day, `logday-<local date>.json.gz`, a day's
-  head, `rows-<local date>.gz`, a day's rows, and `events-<local date>.jsonl`, a line for each version of the router's events, each
-  0600 (see The request ledger, The router's events).
-  The lines are appended, compressed and removed as the readings history's are, by the same rules,
-  but kept as long as `[ledger] keep` says, 400 days unless it's set, or for good where it says
-  `forever` (see Config). A day's summary is written whole, beside where it goes and renamed into
-  place, written again while lines come to be filed under its day, and never removed; it holds the
-  sizes of its day's files, and its modification time is its stamp, when the day's compressed file
-  was last modified, a second later for each version of the summaries past the first, which a round
-  checks before it reads it, or counts the day's lines (see The request ledger). A day's digest is
-  written whole, as a summary is, written again while it's due, and removed once its day's lines are
-  gone; its parts file is written whole the same way, just before it, and removed with it; and its
-  head, `logday-<local date>.json.gz`, is written whole the same way after them, its rows file,
-  `rows-<local date>.gz`, just before the head, and both removed with them; any of them can be deleted, as the router writes them again (see The request ledger). The
-  router leaves anything else in the directory alone.
+  head, `rows-<local date>.gz`, a day's rows, and `events-<local date>.jsonl`, a line for each
+  version of the router's events, each 0600 (see The request ledger, The router's events). The lines
+  are appended, compressed and removed as the readings history's are, by the same rules, but kept as
+  long as `[ledger] keep` says, 400 days unless it's set, or for good where it says `forever` (see
+  Config). A day's summary is written whole, beside where it goes and renamed into place, written
+  again while lines come to be filed under its day, and never removed; it holds the sizes of its
+  day's files, and its modification time is its stamp, when the day's compressed file was last
+  modified, a second later for each version of the summaries past the first, which a round checks
+  before it reads it, or counts the day's lines (see The request ledger). A day's digest is written
+  whole, as a summary is, written again while it's due, and removed once its day's lines are gone;
+  its parts file is written whole the same way, just before it, and removed with it; and its head,
+  `logday-<local date>.json.gz`, is written whole the same way after them, its rows file,
+  `rows-<local date>.gz`, just before the head, and both removed with them; any of them can be
+  deleted, as the router writes them again (see The request ledger). The router leaves anything else
+  in the directory alone.
 - **Events:** `<state dir>/ledger/events-<local date>.jsonl`, the router's events, kept across
   restarts, a file a day beside the request ledger's, and kept as long: see The router's events.
 - **Preferences:** `<state dir>/prefs.json`: the dashboard's theme or pair of themes, and what its
@@ -6743,12 +6751,14 @@ to 40 on 10 cores): a day back in the Log in 0.37 to 0.39 s, up to 0.9 s as the 
 1.0 to 2.2 s, and a week back in 2.6 s, up to 4.4 s, from 7.5 to 10 s, with 9 days kept and with
 30; a turn opened 1, 7 or 29 days back in 0.34 to 0.41 s, up to 0.8 s, from phase 3's first part's
 0.97 s and 0.77 s, today's file read raw for its horizon now most of it; the find, as before, 0.2 to
-0.5 s over 9 or 30 days. Unchanged, as phase 4's: the Log's first open, today read raw, 0.9 s; and
-the dashboard's heap after paging back a week, 248 MB, some 30 MB a day held. The router builds a
-day's head and rows in 1 to 1.5 s, its heap rising some 145 MB; a backfill of 30 days, once after
-the release, some 35 s of work, paced as before. On disk, 1.25 MB a day of rows in the soak's
-world, and by the plan's reckoning about 1.8 MB with real values, about as much as the lines. What
-phase 3 left is gathered in [day-digests-left](../ideas/2026-10-18--day-digests-left.md).
+0.5 s over 9 or 30 days. Left to phase 4, as before: the Log's first open, today read raw,
+unchanged or a little faster, 0.85 to 0.87 s against 0.91 to 0.94 s with phase 3's first part,
+the two measured in turn at a load of 5 to 13; and the dashboard's heap after paging back a week,
+248 MB, some 30 MB a day held. The router builds a day's head and rows in 1 to 1.5 s, its heap
+rising some 145 MB; a backfill of 30 days, once after the release, some 35 s of work, paced as
+before. On disk, 1.25 MB a day of rows in the soak's world, and by the plan's reckoning about 1.8 MB
+with real values, about as much as the lines. What phase 3 left is gathered in
+[day-digests-left](../ideas/2026-10-18--day-digests-left.md).
 
 The release, through GoReleaser, a Homebrew tap and mint, follows milestone 3.
 
