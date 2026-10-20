@@ -1,6 +1,9 @@
 package sourcecheck_test
 
 import (
+	"go/ast"
+	"go/token"
+	"go/types"
 	"slices"
 	"strings"
 	"testing"
@@ -380,6 +383,30 @@ func shapes() {
 	data.Visited(nil, nil)
 }
 `,
+}
+
+// A rule's Node judges every node of a file's declarations; and a loader's
+// check judges the very objects worked out of what it loaded beforehand.
+func TestALoadersCheckJudgesNodesByWhatItLoaded(t *testing.T) {
+	root := sourcecheck.WriteModule(t, map[string]string{
+		"go.mod": "module example.com/fixture\n",
+		"internal/reader/reader.go": "package reader\n\nconst limit = 3\n\nfunc over(n int) bool { return n > limit }\n\n" +
+			"func under(n int) bool { return n < limit }\n\nfunc also(n int) bool { return n > 3 }\n",
+	})
+	l := sourcecheck.NewLoader(t, root, "example.com/fixture", []string{"internal/reader"})
+	limit := l.Load("internal/reader")[0].Pkg.Scope().Lookup("limit")
+	rule := sourcecheck.Rule{Names: sourcecheck.NamesIn("example.com/fixture"), Node: func(n ast.Node, info *types.Info) string {
+		if b, ok := n.(*ast.BinaryExpr); ok && b.Op == token.GTR {
+			if id, ok := b.Y.(*ast.Ident); ok && info.Uses[id] == limit {
+				return "over the limit"
+			}
+		}
+		return ""
+	}}
+	got := l.Check(rule, []string{"internal/reader"}, fixtureAllowance())
+	if want := []string{"internal/reader/reader.go:5: over the limit"}; !slices.Equal(got, want) {
+		t.Errorf("found\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
 }
 
 // A check judges every file, whatever platform it's built for, each once:

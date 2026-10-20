@@ -110,6 +110,10 @@ type Rule struct {
 	Takes  func(fn, field string) string
 	// Allowed are the calls allowed all the same.
 	Allowed []string
+	// Node says how a node of a file's declarations breaks the rule, by what
+	// the type checker knows of it, as a comparison by what it compares: ""
+	// where it doesn't. Nil judges none.
+	Node func(n ast.Node, info *types.Info) string
 }
 
 // Ban is how using a function breaks a rule, and where it does: in the
@@ -181,6 +185,11 @@ type walk struct {
 
 // visit finds where n breaks the rule, and walks on into it.
 func (w *walk) visit(n ast.Node) bool {
+	if n != nil && w.r.Node != nil {
+		if says := w.r.Node(n, w.info); says != "" {
+			w.breach(n.Pos(), says)
+		}
+	}
 	switch n := n.(type) {
 	case *ast.CallExpr:
 		w.call(n)

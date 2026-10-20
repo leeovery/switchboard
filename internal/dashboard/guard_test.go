@@ -14,39 +14,51 @@ import (
 )
 
 // These tests read the module's source, so a view can't choose how it's laid
-// out by the frame's width against the phone's, or cut a name to a constant
-// width, rather than lay its parts out by flex, without failing here.
+// out by the frame's width against the phone's, or any width or height
+// against a constant, or cut a name to a constant width, rather than lay its
+// parts out by flex, without failing here.
 
 // drawingPackages are the packages that draw the dashboard, by directory from
-// the module's root: each cuts a name to the width flex lays its column out
-// at. Every package keeps to the chrome's breakpoint.
+// the module's root: each lays its views out by flex. Every package keeps to
+// the chrome's breakpoint.
 var drawingPackages = []string{"internal/dashboard", "internal/dashboard/watch"}
 
-// chrome are the files of the page's chrome, by path from the module's root:
-// the frame, which holds the one breakpoint of its own, and the title row,
-// the status line, the view's heading row and the key line, which change at
-// it. Each is a file of the chrome that calls Phone, so the list only shrinks
-// as the breakpoint does: a file it names must still be there, and still
-// call it.
-var chrome = []string{
-	"internal/dashboard/frame.go",
-	"internal/dashboard/headingrow.go",
-	"internal/dashboard/keyline.go",
-	"internal/dashboard/statusline.go",
-	"internal/dashboard/title.go",
-}
+// chrome are the functions of the page's chrome that choose by its one
+// breakpoint, Phone, by path from the module's root, a colon and the
+// function's name, a method's its receiver's type's then its own: the frame,
+// and the title row, the status line, the view's heading row and the key
+// line, which change at it. chromeSized is the breakpoint itself, which
+// compares the width with the phone's. Each list only shrinks as the
+// breakpoint does: an entry must still be there, and still choose by it.
+var (
+	chrome = []string{
+		"internal/dashboard/frame.go:Frame.phone",
+		"internal/dashboard/frame.go:Frame.top",
+		"internal/dashboard/headingrow.go:Frame.headingPieces",
+		"internal/dashboard/keyline.go:Frame.keysAt",
+		"internal/dashboard/statusline.go:Frame.routerStatus",
+		"internal/dashboard/title.go:Frame.tabsAt",
+		"internal/dashboard/title.go:Frame.title",
+		"internal/dashboard/title.go:Frame.titleRows",
+	}
+	chromeSized = []string{
+		"internal/dashboard/frame.go:Phone",
+	}
+)
 
 // phoneAllowed are the functions outside the chrome allowed to choose by
-// Phone all the same, by path, a colon and the function's name, a method's
-// its receiver's type's then its own, each under the slice of the fluid pass
-// that moves it to its parts. The list only shrinks: an entry must still be
-// there, and still call it.
+// Phone all the same, or to hand it on to a view to choose by, named as
+// chrome names them, each under the slice of the fluid pass that moves it to
+// its parts. The list only shrinks: an entry must still be there, and still
+// use it.
 var phoneAllowed = []string{
 	// S5: the Switchboard's lanes.
 	"internal/dashboard/sessionslanes.go:Frame.lanesOf",
-	// S6: the Log's columns, Requests' and Events'.
+	// S6: the Log's columns, Requests' and Events', and its heading, which
+	// the heading row hands the phone's breakpoint.
 	"internal/dashboard/logcolumns.go:logColumns",
 	"internal/dashboard/logevents.go:Frame.eventColumns",
+	"internal/dashboard/headingrow.go:Frame.tabHeading",
 	// S7: the List's columns.
 	"internal/dashboard/sessionslist.go:Frame.listColumns",
 	// S8: Runway's label column, and the form it's drawn in.
@@ -62,7 +74,7 @@ var phoneAllowed = []string{
 	"internal/dashboard/overview_usage.go:Frame.roomLeft",
 	// S13: GRAPHS.
 	"internal/dashboard/graphs.go:Frame.graphsOf",
-	// S14: USAGE's key, spaced apart.
+	// S14: USAGE's key, its parts spaced apart by the width.
 	"internal/dashboard/usage.go:keyApart",
 	// S15: Compare's form, its focus, the help that tells of it, and the
 	// watch that keeps it.
@@ -82,14 +94,70 @@ var phoneAllowed = []string{
 	"internal/dashboard/routingcard.go:RoutingCard.card",
 }
 
+// sizedAllowed are the functions of drawingPackages, outside the chrome,
+// allowed to compare a width or a height with a constant all the same, named
+// as chrome names them, each under the slice of the fluid pass that moves it
+// to its parts. The list only shrinks: an entry must still be there, and
+// still compare one.
+var sizedAllowed = []string{
+	// S4: the Switchboard's narrowing, and its lanes where no part has more
+	// to give.
+	"internal/dashboard/sessionslaid.go:boardColumnsOf",
+	"internal/dashboard/sessionslaid.go:sessionsLaid",
+	// S6: the Log's cost kept where two cells are left.
+	"internal/dashboard/logtable.go:costKept",
+	// S7: the List's routing column.
+	"internal/dashboard/sessionslist.go:Frame.listColumns",
+	// S10: ROUTING's rows, routingRows, and SESSIONS' form by it.
+	"internal/dashboard/overview_sessions.go:Frame.runningForm",
+	"internal/dashboard/routing.go:Frame.routingSection",
+	"internal/dashboard/routing.go:Frame.drawRouting",
+	"internal/dashboard/routing.go:Frame.accountRows",
+	"internal/dashboard/routing.go:besideRows",
+	"internal/dashboard/traces.go:Frame.accountTraceCells",
+	// S12: USAGE paged at short heights.
+	"internal/dashboard/overview_usage.go:usageViews.paged",
+	// S14: USAGE's matrix, matrixWidth, its names' column, roomyNames, its
+	// accounts' labels, wideAccounts, and its words, fullWords; and what
+	// sits beside it by the matrix.
+	"internal/dashboard/graphsbeside.go:Frame.graphsBeside",
+	"internal/dashboard/overview_usage.go:Frame.overviewBlock",
+	"internal/dashboard/overview_usage.go:usageBlock.enlarges",
+	"internal/dashboard/routing.go:Frame.routingBesideUsage",
+	"internal/dashboard/usage.go:nameColumn",
+	"internal/dashboard/usage.go:usageBlock.wordCells",
+	"internal/dashboard/usage.go:usageBlock.matrixed",
+	"internal/dashboard/usage.go:usageBlock.byAccount",
+	"internal/dashboard/usage.go:usageBlock.labels",
+	"internal/dashboard/usage.go:usageBlock.key",
+	"internal/dashboard/usagewords.go:usageWords.pick",
+	// S19 and S20: Days and Weeks scrolling whole under historyRows.
+	"internal/dashboard/historypage.go:Frame.shortOfHistory",
+	// S21: Tokens' footnote, left off short of leastPaged.
+	"internal/dashboard/historytokens.go:Frame.tokensPlaced",
+	// S22 and S23: a session's page, its turns' form, sessionWideFrom, and
+	// its rows.
+	"internal/dashboard/sessionlayout.go:Frame.sessionLayout",
+	// S25: the Log's panel and the theme picker, cards of a kind; usage's
+	// printout's header; and a bar's cells along it, a quotient's guard
+	// rather than an arrangement.
+	"internal/dashboard/logpanelcard.go:LogPanel.laidOut",
+	"internal/dashboard/picker.go:PickerWidth",
+	"internal/dashboard/printout.go:Printout.header",
+	"internal/dashboard/bar.go:along",
+}
+
 // cutAllowed are the functions of drawingPackages allowed to cut a name to a
-// constant width all the same, named as phoneAllowed names them, each under
-// the slice of the fluid pass that gives it its width from flex. The list
-// only shrinks: an entry must still be there, and still give one.
+// constant width all the same, named as chrome names them, each under the
+// slice of the fluid pass that gives it its width from flex. The list only
+// shrinks: an entry must still be there, and still give one.
 var cutAllowed = []string{
+	// S5: the lanes' calls, their columns laneCall's, and the Switchboard's
+	// lines' window labels.
+	"internal/dashboard/sessionslanes.go:lanesBoard.callRow",
+	"internal/dashboard/switchboardlines.go:linesDrawn.window",
 	// S6: the Log's sessions' directories and accounts.
 	"internal/dashboard/logpage.go:sessionNamed",
-	"internal/dashboard/logpanel.go:LogPanel.sessionWords",
 	"internal/dashboard/logtable.go:sessionCell",
 	// S11: SESSIONS' model families.
 	"internal/dashboard/overview_sessions.go:Frame.wideRunning",
@@ -103,21 +171,24 @@ var cutAllowed = []string{
 	// S22: a session's page, its accounts' stays and the account it's on.
 	"internal/dashboard/sessionpage.go:sessionDrawn.account",
 	"internal/dashboard/sessionpage.go:sessionDrawn.phoneOn",
-	// S25: the routing card's choices.
+	// S25: the routing card's choices, and the Log's panel's sessions, a
+	// card's of a kind, opened over the page.
 	"internal/dashboard/routingcard.go:RoutingCard.choice",
+	"internal/dashboard/logpanel.go:LogPanel.sessionWords",
 }
 
 // What breaks the rules: the phone's breakpoint, each by its package's name
 // under the module's internal directory, then its type's, where it's a
-// method, then its own; and the cutters of names, each by its path under the
-// module's, as a cut's width is the argument at index widthArg.
+// method, then its own; the cutters of names, each by its full name, its
+// package's path under the module's, or of a package of another module, by
+// its path in full, each its width the argument at index 1; and what a width
+// or height is called, as a variable or a field.
 var (
-	breakpoints = []string{"dashboard.Phone", "dashboard.Frame.phone"}
-	cutters     = []string{"/internal/status.DirName", "/internal/prose.Cut"}
+	breakpoints  = []string{"dashboard.Phone", "dashboard.Frame.phone"}
+	cutters      = []string{"/internal/status.DirName", "/internal/prose.Cut", "/internal/prose.CutShort", "/internal/prose.CutFront"}
+	otherCutters = []string{"github.com/charmbracelet/x/ansi.Truncate"}
+	sizeNames    = []string{"Width", "Height", "width", "height", "room", "rows", "cols"}
 )
-
-// widthArg is the index of a cutter's width among its arguments.
-const widthArg = 1
 
 // whole is the one constant width a name may be given: the most there is, so
 // it's cut to none, as a name is measured whole.
@@ -126,14 +197,21 @@ var whole = constant.MakeInt64(math.MaxInt)
 // The fix each kind of breach gives.
 const (
 	phoneFix        = "declare the view's parts and let flex.Lay say where its arrangement shifts; Phone is the chrome's breakpoint alone"
+	sizedFix        = "declare the view's parts and let flex.Lay say where its arrangement shifts"
 	cutFix          = "give the name the width flex lays its column out at"
-	phoneAllowedFix = "remove it from phoneAllowed, or the file from chrome, in internal/dashboard/guard_test.go"
+	phoneAllowedFix = "remove it from phoneAllowed, or from chrome, in internal/dashboard/guard_test.go"
+	sizedAllowedFix = "remove it from sizedAllowed, or from chromeSized, in internal/dashboard/guard_test.go"
 	cutAllowedFix   = "remove it from cutAllowed in internal/dashboard/guard_test.go"
 )
 
-// phoneSays and cutSays say how a use of what's named breaks the rule.
+// phoneSays, sizedSays and cutSays say how a use of what's named breaks the
+// rule.
 func phoneSays(name string) string {
 	return name + " chooses by the phone's width outside the chrome; " + phoneFix
+}
+
+func sizedSays(compared string) string {
+	return compared + " compares a width or a height with a constant; " + sizedFix
 }
 
 func cutSays(name string) string {
@@ -142,133 +220,182 @@ func cutSays(name string) string {
 
 func TestViewsLayTheirPartsOutByFlex(t *testing.T) {
 	root := sourcecheck.ModuleRoot(t)
-	module := sourcecheck.ModulePath(t, root)
-	sourcecheck.ReportEach(t, slices.Concat(
-		phoneBreaches(t, root, module, sourcecheck.Packages(t, root), slices.Concat(chrome, phoneAllowed)),
-		cutBreaches(t, root, module, drawingPackages, cutAllowed),
-	))
+	sourcecheck.ReportEach(t, flexBreaches(t, root, sourcecheck.ModulePath(t, root), sourcecheck.Packages(t, root), drawingPackages, allowed{
+		phone: slices.Concat(chrome, phoneAllowed),
+		sized: slices.Concat(chromeSized, sizedAllowed),
+		cut:   cutAllowed,
+	}))
 }
 
-// phoneBreaches are where the non-test files of the packages in dirs, of the
-// module at root with the given path, use the phone's breakpoint, called or
-// not, but in the files and functions allowed. Then each allowed that's gone,
-// or uses none.
-func phoneBreaches(t *testing.T, root, module string, dirs, allowed []string) []string {
+// allowed are the functions each of the guard's rules allows to break it.
+type allowed struct {
+	phone, sized, cut []string
+}
+
+// flexBreaches are where the non-test files of the packages of the module at
+// root with the given path break the guard's rules, but in the functions
+// allowed: those in every use the phone's breakpoint, called or not; and
+// those in drawing compare a width or a height with a constant, as sized has
+// it, or give a cutter a constant width, as cutBreaches has it. Then each
+// allowed that's gone, or keeps its rule. One loader reads them all, once.
+func flexBreaches(t *testing.T, root, module string, every, drawing []string, a allowed) []string {
 	t.Helper()
+	l := sourcecheck.NewLoader(t, root, module, every)
 	used := make(map[string]sourcecheck.Ban)
 	for _, name := range breakpoints {
 		used[name] = sourcecheck.Ban{Says: phoneSays(name)}
 	}
-	return sourcecheck.Check(t, root, module, sourcecheck.Rule{Names: sourcecheck.NamesIn(module), Used: used}, dirs, sourcecheck.Allowance{
-		Entries: allowed, List: "phoneAllowed", Fix: phoneAllowedFix,
-	})
+	names := sourcecheck.NamesIn(module)
+	return slices.Concat(
+		l.Check(sourcecheck.Rule{Names: names, Used: used}, every, sourcecheck.Allowance{Entries: a.phone, List: "phoneAllowed", Fix: phoneAllowedFix}),
+		l.Check(sourcecheck.Rule{Names: names, Node: sized}, drawing, sourcecheck.Allowance{Entries: a.sized, List: "sizedAllowed", Fix: sizedAllowedFix}),
+		cutBreaches(l, module, drawing, a.cut),
+	)
 }
 
-// cutBreaches are where the non-test files of the packages in dirs, of the
-// module at root with the given path, give a cutter a constant width other
-// than whole, or use one as a value, but in the functions allowed. Then each
-// allowed that's gone, or gives none.
-func cutBreaches(t *testing.T, root, module string, dirs, allowed []string) []string {
-	t.Helper()
-	calls := make(map[string]sourcecheck.CallBan)
-	for _, cutter := range cutters {
-		name := module + cutter
-		calls[name] = sourcecheck.CallBan{Says: cutSays(name), Breaks: constantWidth}
+// sized says how n compares a width or a height with a constant: an ordered
+// comparison of a constant with what reads a whole number sizeNames names, a
+// variable or a field, as f.Width < phoneUnder or room < 110, but with 0, as
+// whether there's any, or with 1 as with 0, as room < 1 is room <= 0. A size
+// held under another name, as cells, or worked out by a function, as a
+// canvas's width(), passes unseen.
+func sized(n ast.Node, info *types.Info) string {
+	b, ok := n.(*ast.BinaryExpr)
+	if !ok || !slices.Contains([]token.Token{token.LSS, token.LEQ, token.GTR, token.GEQ}, b.Op) {
+		return ""
 	}
-	return sourcecheck.Check(t, root, module, sourcecheck.Rule{Names: sourcecheck.NamesIn(module), Calls: calls}, dirs, sourcecheck.Allowance{
-		Entries: allowed, List: "cutAllowed", Fix: cutAllowedFix,
-	})
+	for i, sides := range [][2]ast.Expr{{b.X, b.Y}, {b.Y, b.X}} {
+		if tv := info.Types[sides[0]]; tv.Value != nil && !withNone(tv.Value, b.Op, i == 0) && readsASize(sides[1], info) {
+			return sizedSays(types.ExprString(b))
+		}
+	}
+	return ""
 }
 
-// constantWidth breaks a cutter's call whose width is a constant other than
-// whole, as sourcecheck's Breaks judges a call: one known only at run time
-// isn't judged; nor is one whose type the loader lost, where it names a
-// variable, so it's no constant; any other whose type is lost can't be.
-// sourcecheck.ConstantOtherThan judges strings alone.
-func constantWidth(call *ast.CallExpr, info *types.Info) (bool, ast.Expr) {
-	if widthArg >= len(call.Args) {
-		return false, nil
+// withNone reports whether comparing a whole number with the constant c, by
+// op, the constant first where first says, asks whether there's any: c is 0,
+// or 1 where the comparison is one with 0, as n < 1 or 1 <= n.
+func withNone(c constant.Value, op token.Token, first bool) bool {
+	if constant.Sign(c) == 0 {
+		return true
 	}
-	width := call.Args[widthArg]
-	tv, seen := info.Types[width]
-	switch {
-	case seen && tv.Type.Underlying() != types.Typ[types.Invalid]:
-		return tv.Value != nil && !constant.Compare(tv.Value, token.EQL, whole), nil
-	case namesAVariable(width, info):
-		return false, nil
+	if first {
+		op = map[token.Token]token.Token{token.LSS: token.GTR, token.LEQ: token.GEQ, token.GTR: token.LSS, token.GEQ: token.LEQ}[op]
 	}
-	return false, width
+	return constant.Compare(c, token.EQL, constant.MakeInt64(1)) && (op == token.LSS || op == token.GEQ)
 }
 
-// namesAVariable reports whether e names a variable, so it's no constant, as
-// the Go spec has a constant expression: but within len, cap or unsafe's,
-// which may make a constant of an array.
-func namesAVariable(e ast.Expr, info *types.Info) bool {
+// readsASize reports whether e reads a whole number sizeNames names, a
+// variable or a field.
+func readsASize(e ast.Expr, info *types.Info) bool {
 	found := false
 	ast.Inspect(e, func(n ast.Node) bool {
-		if call, ok := n.(*ast.CallExpr); ok && measures(call, info) {
-			return false
-		}
-		if id, ok := n.(*ast.Ident); ok {
-			_, isVar := info.Uses[id].(*types.Var)
-			found = found || isVar
+		if id, ok := n.(*ast.Ident); ok && slices.Contains(sizeNames, id.Name) {
+			v, isVar := info.Uses[id].(*types.Var)
+			found = found || isVar && isWhole(v.Type())
 		}
 		return !found
 	})
 	return found
 }
 
-// measures reports whether the call is of len, cap or unsafe's, which may
-// make a constant of what it's given.
-func measures(call *ast.CallExpr, info *types.Info) bool {
-	switch fn := ast.Unparen(call.Fun).(type) {
-	case *ast.Ident:
-		b, ok := info.Uses[fn].(*types.Builtin)
-		return ok && (b.Name() == "len" || b.Name() == "cap")
-	case *ast.SelectorExpr:
-		_, ok := info.Uses[fn.Sel].(*types.Builtin)
-		return ok
+// isWhole reports whether t is a whole number's type.
+func isWhole(t types.Type) bool {
+	basic, ok := t.Underlying().(*types.Basic)
+	return ok && basic.Info()&types.IsInteger != 0
+}
+
+// cutBreaches are where the non-test files of the packages in dirs, as l
+// loads them, give a cutter a constant width other than whole, or use one as
+// a value, but in the functions allowed: each of cutters, and each function
+// or method of those packages that hands a width it's given on to one
+// unchanged, as widths' wrapped works them out. Then each allowed that's
+// gone, or gives none.
+func cutBreaches(l *sourcecheck.Loader, module string, dirs, allowed []string) []string {
+	var files []sourcecheck.File
+	for _, dir := range dirs {
+		files = append(files, l.Load(dir)...)
 	}
-	return false
+	w := widthsOf(files)
+	given := make(map[string][]widthAt)
+	for _, cutter := range cutters {
+		given[module+cutter] = []widthAt{{arg: 1}}
+	}
+	for _, cutter := range otherCutters {
+		given[cutter] = []widthAt{{arg: 1}}
+	}
+	calls := make(map[string]sourcecheck.CallBan)
+	for name, at := range w.wrapped(files, given) {
+		_, base := given[name]
+		calls[name] = sourcecheck.CallBan{Says: cutSays(name), Breaks: w.constantWidth(at), Seen: !base}
+	}
+	return l.Check(sourcecheck.Rule{Names: sourcecheck.NamesIn(module), Calls: calls}, dirs, sourcecheck.Allowance{
+		Entries: allowed, List: "cutAllowed", Fix: cutAllowedFix,
+	})
 }
 
 func TestTheFlexGuardFindsWhatItGuardsAgainst(t *testing.T) {
 	root := sourcecheck.WriteModule(t, flexFixture)
 	module := "example.com/fixture"
 	dirs := []string{"internal/dashboard", "internal/dashboard/watch"}
-	got := slices.Concat(
-		phoneBreaches(t, root, module, dirs, []string{
-			"internal/dashboard/chrome.go",
-			"internal/dashboard/gone.go",
+	got := flexBreaches(t, root, module, dirs, dirs, allowed{
+		phone: []string{
+			"internal/dashboard/chrome.go:Frame.phone",
+			"internal/dashboard/chrome.go:Frame.title",
+			"internal/dashboard/gone.go:gone",
 			"internal/dashboard/views.go:Frame.allowed",
 			"internal/dashboard/views.go:Frame.kept",
-		}),
-		cutBreaches(t, root, module, dirs, []string{
+		},
+		sized: []string{
+			"internal/dashboard/chrome.go:Phone",
+			"internal/dashboard/sizes.go:allowedSize",
+			"internal/dashboard/sizes.go:keptSize",
+		},
+		cut: []string{
 			"internal/dashboard/names.go:allowedCut",
 			"internal/dashboard/names.go:keptCut",
 			"internal/dashboard/names.go:goneCut",
-		}),
-	)
+		},
+	})
 	unjudged := func(width string) string {
 		return module + "/internal/prose.Cut can't be judged, as the type of its argument " + width +
 			" is lost to a package the loader stubs; give the guard a type it can see, as a variable declared with one"
 	}
 	want := []string{
+		"internal/dashboard/chrome.go:17: " + phoneSays("dashboard.Frame.phone"),
 		"internal/dashboard/views.go:8: " + phoneSays("dashboard.Frame.phone"),
 		"internal/dashboard/views.go:14: " + phoneSays("dashboard.Phone"),
 		"internal/dashboard/views.go:16: " + phoneSays("dashboard.Frame.phone"),
 		"internal/dashboard/watch/watch.go:5: " + phoneSays("dashboard.Phone"),
-		"internal/dashboard/gone.go: phoneAllowed allows it, but it's gone; " + phoneAllowedFix,
+		"internal/dashboard/gone.go:gone: phoneAllowed allows it, but it's gone; " + phoneAllowedFix,
 		"internal/dashboard/views.go:Frame.kept: phoneAllowed allows it, but it keeps the rule; " + phoneAllowedFix,
-		"internal/dashboard/names.go:21: " + cutSays(module+"/internal/prose.Cut"),
-		"internal/dashboard/names.go:22: " + cutSays(module+"/internal/prose.Cut"),
-		"internal/dashboard/names.go:23: " + cutSays(module+"/internal/status.DirName"),
-		"internal/dashboard/names.go:24: " + cutSays(module+"/internal/prose.Cut"),
-		"internal/dashboard/names.go:25: " + cutSays(module+"/internal/prose.Cut"),
-		"internal/dashboard/names.go:26: " + unjudged("cells.Most"),
-		"internal/dashboard/names.go:27: " + unjudged("len(marks) + cells.Most"),
-		"internal/dashboard/names.go:28: " + unjudged("int(unsafe.Sizeof(room)) + cells.Most"),
-		"internal/dashboard/names.go:37: " + cutSays(module+"/internal/status.DirName"),
+		"internal/dashboard/sizes.go:13: " + sizedSays("width >= wideCells"),
+		"internal/dashboard/sizes.go:14: " + sizedSays("110 > room"),
+		"internal/dashboard/sizes.go:15: " + sizedSays("f.Width - 2 <= 80"),
+		"internal/dashboard/sizes.go:16: " + sizedSays("f.Height > 24"),
+		"internal/dashboard/sizes.go:20: " + sizedSays("width <= 1"),
+		"internal/dashboard/sizes.go:keptSize: sizedAllowed allows it, but it keeps the rule; " + sizedAllowedFix,
+		"internal/dashboard/columns.go:31: " + cutSays(module+"/internal/dashboard.drawCall"),
+		"internal/dashboard/columns.go:32: " + cutSays(module+"/internal/dashboard.label"),
+		"internal/dashboard/columns.go:33: " + cutSays("("+module+"/internal/dashboard.columns).name"),
+		"internal/dashboard/columns.go:34: " + cutSays(module+"/internal/prose.Cut"),
+		"internal/dashboard/names.go:26: " + cutSays(module+"/internal/prose.Cut"),
+		"internal/dashboard/names.go:27: " + cutSays(module+"/internal/prose.Cut"),
+		"internal/dashboard/names.go:28: " + cutSays(module+"/internal/status.DirName"),
+		"internal/dashboard/names.go:29: " + cutSays(module+"/internal/prose.Cut"),
+		"internal/dashboard/names.go:30: " + cutSays(module+"/internal/prose.Cut"),
+		"internal/dashboard/names.go:31: " + unjudged("cells.Most"),
+		"internal/dashboard/names.go:32: " + unjudged("len(marks) + cells.Most"),
+		"internal/dashboard/names.go:33: " + unjudged("int(unsafe.Sizeof(room)) + cells.Most"),
+		"internal/dashboard/names.go:38: " + cutSays(module+"/internal/prose.CutShort"),
+		"internal/dashboard/names.go:39: " + cutSays(module+"/internal/prose.CutFront"),
+		"internal/dashboard/names.go:40: " + cutSays("github.com/charmbracelet/x/ansi.Truncate"),
+		"internal/dashboard/names.go:44: " + cutSays(module+"/internal/prose.Cut"),
+		"internal/dashboard/names.go:45: " + cutSays(module+"/internal/prose.Cut"),
+		"internal/dashboard/names.go:47: " + cutSays(module+"/internal/prose.Cut"),
+		"internal/dashboard/names.go:48: " + cutSays(module+"/internal/prose.Cut"),
+		"internal/dashboard/names.go:50: " + cutSays(module+"/internal/prose.Cut"),
+		"internal/dashboard/names.go:56: " + cutSays(module+"/internal/status.DirName"),
 		"internal/dashboard/names.go:keptCut: cutAllowed allows it, but it keeps the rule; " + cutAllowedFix,
 		"internal/dashboard/names.go:goneCut: cutAllowed allows it, but it's gone; " + cutAllowedFix,
 	}
@@ -278,19 +405,28 @@ func TestTheFlexGuardFindsWhatItGuardsAgainst(t *testing.T) {
 }
 
 // flexFixture is a module of prose and status, whose cutters cut a name to a
-// width; and the dashboard, with its breakpoint in a file of its chrome, a
-// view that chooses by it, called and as a value, in functions allowed and
-// not, and one allowed that keeps the rule, and names cut to constant widths,
-// named, sums, bare and an array's length, and to one of a package the loader
-// stubs, beside widths known only at run time, one of them through what the
-// loader stubs, the most there is, and a function allowed; and the watch,
-// which chooses by it too.
+// width; and the dashboard, with its breakpoint in its chrome, chosen by in a
+// function of the chrome's and one that isn't; a view that chooses by it,
+// called and as a value, in functions allowed and not, and one allowed that
+// keeps the rule; sizes compared with constants, a sum's, either side, and
+// with 1 as with another, beside sizes compared with 0, and with 1 as with
+// 0, a count, a function's and a cell's; names cut to constant widths,
+// named, sums, bare and an array's length, followed back a step to a local,
+// a package-level variable and a literal's field, keyed or not, through a
+// literal within it, and to one of a package the loader stubs, beside widths
+// known only at run time, one of them through what the loader stubs, the
+// most there is, locals and literals written after, by assignment, address
+// and a method taking a pointer, one first given a variable, a constant two steps back, and a function allowed; cutters that
+// hand their width on, a parameter or its field, called with constants,
+// beside one that changes it first; and the watch, which chooses by the
+// breakpoint too.
 var flexFixture = map[string]string{
 	"go.mod": "module example.com/fixture\n",
 	"internal/prose/prose.go": `package prose
 
 func Cut(text string, cells int) string      { return text }
 func CutShort(text string, cells int) string { return text }
+func CutFront(text string, cells int) string { return text }
 `,
 	"internal/status/status.go": `package status
 
@@ -300,13 +436,20 @@ func DirName(dir string, cells int) string { return prose.Cut(dir, cells) }
 `,
 	"internal/dashboard/chrome.go": `package dashboard
 
-type Frame struct{ Width int }
+type Frame struct{ Width, Height int }
 
 func (f Frame) phone() bool { return Phone(f.Width) }
 
 func Phone(width int) bool { return width < 100 }
 
 func (f Frame) title() int {
+	if f.phone() {
+		return 2
+	}
+	return 1
+}
+
+func (f Frame) heading() int {
 	if f.phone() {
 		return 2
 	}
@@ -330,6 +473,33 @@ var choose = Phone
 
 func (f Frame) later() func() bool { return f.phone }
 `,
+	"internal/dashboard/sizes.go": `package dashboard
+
+const wideCells = 120
+
+func allowedSize(width int) bool { return width < wideCells }
+
+func keptSize(width int) bool { return width > 0 }
+
+func measured() int { return 3 }
+
+func sized(f Frame, width, room, cells, count int, rows []string) []bool {
+	return []bool{
+		width >= wideCells,
+		110 > room,
+		f.Width-2 <= 80,
+		f.Height > 24,
+		width > 0,
+		room < 1,
+		1 <= room,
+		width <= 1,
+		count < 3,
+		cells < 8,
+		len(rows) > 2,
+		measured() > 4,
+	}
+}
+`,
 	"internal/dashboard/names.go": `package dashboard
 
 import (
@@ -337,6 +507,8 @@ import (
 	"unsafe"
 
 	"example.org/cells"
+
+	"github.com/charmbracelet/x/ansi"
 
 	"example.com/fixture/internal/prose"
 	"example.com/fixture/internal/status"
@@ -349,6 +521,9 @@ func allowedCut(name string) string { return prose.Cut(name, labelCells) }
 func keptCut(name string) string { return name }
 
 func cut(name, dir string, room int, marks [3]string) []string {
+	w, written, from, addressed := 8, 8, room, 8
+	written++
+	_ = &addressed
 	return []string{
 		prose.Cut(name, labelCells),
 		prose.Cut(name, labelCells-1),
@@ -363,10 +538,83 @@ func cut(name, dir string, room int, marks [3]string) []string {
 		prose.Cut(name, max(room-cells.Width(name), 1)),
 		status.DirName(dir, math.MaxInt),
 		prose.CutShort(name, labelCells),
+		prose.CutFront(name, labelCells),
+		ansi.Truncate(name, labelCells, ""),
+		ansi.Truncate(name, room, ""),
+		prose.Cut(name, written),
+		prose.Cut(name, from),
+		prose.Cut(name, outer),
+		prose.Cut(name, w),
+		prose.Cut(name, twice),
+		prose.Cut(name, laneColumns.dir),
+		prose.Cut(name, unkeyed.account),
+		prose.Cut(name, boardColumns.dir),
+		prose.Cut(name, nested.inner.dir),
+		prose.Cut(name, addressed),
+		prose.Cut(name, pointed.dir),
 	}
 }
 
 var cutter = status.DirName
+
+var outer = labelCells
+
+var twice = outer
+`,
+	"internal/dashboard/columns.go": `package dashboard
+
+import (
+	"example.com/fixture/internal/prose"
+	"example.com/fixture/internal/status"
+)
+
+type columns struct{ dir, account int }
+
+type holder struct{ inner columns }
+
+var laneColumns = columns{dir: 11, account: labelCells}
+
+var boardColumns = columns{11, 8}
+
+var unkeyed = columns{7, 8}
+
+var nested = holder{inner: columns{dir: 6}}
+
+var pointed = columns{dir: 5}
+
+func init() {
+	boardColumns.dir = 9
+	pointed.widen()
+}
+
+func (c *columns) widen() { c.dir++ }
+
+func lanes(dir, name string, room int) []string {
+	return []string{
+		drawCall(dir, name, laneColumns),
+		label(name, labelCells),
+		columns{}.name(name, labelCells),
+		prose.Cut(name, laneColumns.account),
+		drawCall(dir, name, columns{dir: room}),
+		label(name, room),
+		changed(name, labelCells),
+	}
+}
+
+func drawCall(dir, name string, k columns) string {
+	return status.DirName(dir, k.dir) + from(name, k)
+}
+
+func from(name string, k columns) string { return prose.Cut(name, k.account) }
+
+func label(name string, cells int) string { return columns{}.name(name, cells) }
+
+func (c columns) name(name string, cells int) string { return prose.Cut(name, cells) }
+
+func changed(name string, cells int) string {
+	cells--
+	return prose.Cut(name, cells)
+}
 `,
 	"internal/dashboard/watch/watch.go": `package watch
 

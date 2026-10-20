@@ -18,10 +18,10 @@ import (
 
 // ownersSizes are the terminals the fluid sweep draws every view at, as the
 // owner uses them: a phone upright, tall and short, and on its side, tall and
-// short; an iPad, tall and short; and a desktop's side screen.
+// short; an iPad, tall and short; a desktop; and a MacBook's side screen.
 var ownersSizes = []watch.Size{
 	{Width: 73, Height: 61}, {Width: 73, Height: 36}, {Width: 138, Height: 30}, {Width: 138, Height: 15},
-	{Width: 108, Height: 44}, {Width: 108, Height: 24}, {Width: 173, Height: 53},
+	{Width: 108, Height: 44}, {Width: 108, Height: 24}, {Width: 173, Height: 53}, {Width: 109, Height: 53},
 }
 
 // longNamesViews are the world of long names on each view no fixture draws
@@ -72,8 +72,9 @@ const leastView = 6
 
 // natural are the views whose parts are all at their natural widths, so
 // short of two thirds of the width is no waste, each by name, as viewOf
-// names it, with why. The cards are never judged: the sweep closes what's
-// open over the page.
+// names it, with why. As the plan has it, the slice that makes a view so
+// adds it here, with its reason: that's the rule working, not a loosening.
+// The cards are never judged: the sweep closes what's open over the page.
 var natural = map[string]string{}
 
 // known is a rule the views of the fixtures named are known to break at the
@@ -94,11 +95,7 @@ var knownBreaks = []known{
 	// name in a phone's lanes, cut with room; at 15 rows, an account out of view
 	// over blank rows.
 	{
-		slice: "S5", rule: cutWithRoom, sizes: []string{"108x44"},
-		fixtures: []string{"sessions-pinned-160"},
-	},
-	{
-		slice: "S5", rule: cutWithRoom, sizes: []string{"108x44", "108x24"},
+		slice: "S5", rule: cutWithRoom, sizes: []string{"108x44", "108x24", "109x53"},
 		fixtures: []string{
 			"page-sessions-120x30", "page-sessions-chosen", "page-sessions-not-answering",
 			"page-sessions-short", "sessions-108x44", "sessions-moved-160", "sessions-phone-52",
@@ -106,11 +103,15 @@ var knownBreaks = []known{
 		},
 	},
 	{
+		slice: "S5", rule: cutWithRoom, sizes: []string{"108x44", "109x53"},
+		fixtures: []string{"sessions-pinned-160"},
+	},
+	{
 		slice: "S5", rule: cutWithRoom, sizes: []string{"73x61", "73x36", "108x24"},
 		fixtures: []string{"sessions-ten-accounts-160"},
 	},
 	{
-		slice: "S5", rule: cutWithRoom, sizes: []string{"73x61", "73x36", "138x30", "138x15", "108x44", "108x24", "173x53"},
+		slice: "S5", rule: cutWithRoom, sizes: []string{"73x61", "73x36", "138x30", "138x15", "108x44", "108x24", "173x53", "109x53"},
 		fixtures: []string{"sessions-switchboard-long-names-108x44"},
 	},
 	{
@@ -126,14 +127,14 @@ var knownBreaks = []known{
 		},
 	},
 	{
-		slice: "S6", rule: cutWithRoom, sizes: []string{"73x61", "73x36", "138x30", "138x15", "108x44", "108x24", "173x53"},
+		slice: "S6", rule: cutWithRoom, sizes: []string{"73x61", "73x36", "138x30", "138x15", "108x44", "108x24", "173x53", "109x53"},
 		fixtures: []string{
 			"log-requests-long-names-108x44", "long-names-log-events",
 		},
 	},
 	// S7, the List on flex (F21): its sessions' directories cut with room.
 	{
-		slice: "S7", rule: cutWithRoom, sizes: []string{"73x61", "73x36", "138x30", "138x15", "108x44", "108x24", "173x53"},
+		slice: "S7", rule: cutWithRoom, sizes: []string{"73x61", "73x36", "138x30", "138x15", "108x44", "108x24", "173x53", "109x53"},
 		fixtures: []string{"sessions-list-long-names-108x44"},
 	},
 	// S9, Runway's rows (F23, F24): COMING UP folded whole with rows spare, and
@@ -150,7 +151,7 @@ var knownBreaks = []known{
 		},
 	},
 	{
-		slice: "S9", rule: foldWithRowsSpare, sizes: []string{"73x61", "108x44", "173x53"},
+		slice: "S9", rule: foldWithRowsSpare, sizes: []string{"73x61", "108x44", "173x53", "109x53"},
 		fixtures: []string{"runway-ten-accounts-160"},
 	},
 	{
@@ -173,7 +174,7 @@ var knownBreaks = []known{
 	{
 		slice: "S10", rule: foldWithRowsSpare, sizes: []string{"73x61"},
 		fixtures: []string{
-			"overview-model-nearing-160", "overview-models-160", "overview-six-accounts-160",
+			"overview-model-nearing-160", "overview-models-160",
 		},
 	},
 	{
@@ -183,18 +184,22 @@ var knownBreaks = []known{
 			"overview-pool-burn-down-160",
 		},
 	},
+	{
+		slice: "S10", rule: foldWithRowsSpare, sizes: []string{"73x61", "109x53"},
+		fixtures: []string{"overview-six-accounts-160"},
+	},
 	// S11, SESSIONS takes the rows left (F2): it folds unless every session
 	// fits.
 	{
-		slice: "S11", rule: foldWithRowsSpare, sizes: []string{"73x61"},
-		fixtures: []string{"overview-sessions-216"},
-	},
-	{
-		slice: "S11", rule: foldWithRowsSpare, sizes: []string{"73x61", "108x44"},
+		slice: "S11", rule: foldWithRowsSpare, sizes: []string{"73x61", "108x44", "109x53"},
 		fixtures: []string{
 			"long-names-overview", "overview-burn-down-160x39", "overview-everything-160x39",
 			"overview-everything-216x106", "overview-sessions-graphs-216",
 		},
+	},
+	{
+		slice: "S11", rule: foldWithRowsSpare, sizes: []string{"73x61", "109x53"},
+		fixtures: []string{"overview-sessions-216"},
 	},
 	// S12, USAGE at short heights (F3): no account at 15 rows.
 	{
@@ -225,7 +230,7 @@ var knownBreaks = []known{
 	// S14, USAGE's parts, its names' column at its natural width, at most 24, at
 	// every width, as the plan's rule of labels has it.
 	{
-		slice: "S14", rule: cutWithRoom, sizes: []string{"73x61", "138x30", "108x44", "108x24", "173x53"},
+		slice: "S14", rule: cutWithRoom, sizes: []string{"73x61", "138x30", "108x44", "108x24", "173x53", "109x53"},
 		fixtures: []string{"long-names-overview"},
 	},
 	{
@@ -234,26 +239,27 @@ var knownBreaks = []known{
 	},
 	// S15, Compare fluid (F9, F10): its names cut with room.
 	{
-		slice: "S15", rule: cutWithRoom, sizes: []string{"73x61", "73x36", "108x44", "108x24"},
+		slice: "S15", rule: cutWithRoom, sizes: []string{"73x61", "73x36", "108x44", "108x24", "109x53"},
 		fixtures: []string{"long-names-accounts-compare"},
 	},
 	// S16, Detail's stack fluid (F11, F13): its parts 52-column constants.
 	{
-		slice: "S16", rule: cutWithRoom, sizes: []string{"73x61", "73x36", "108x44"},
+		slice: "S16", rule: cutWithRoom, sizes: []string{"73x61", "73x36", "108x44", "109x53"},
 		fixtures: []string{"long-names-accounts-detail"},
 	},
-	{
-		slice: "S16", rule: wastedThird, sizes: []string{"138x15"},
-		fixtures: []string{"accounts-detail-one-160"},
-	},
-	// S17, Detail's wide form from where it fits (F12): its names cut with room.
+	// S17, Detail's wide form from where it fits (F11, F12): its names cut with
+	// room, and its stack drawn at 138 columns.
 	{
 		slice: "S17", rule: cutWithRoom, sizes: []string{"173x53"},
 		fixtures: []string{"long-names-accounts-detail"},
 	},
+	{
+		slice: "S17", rule: wastedThird, sizes: []string{"138x15"},
+		fixtures: []string{"accounts-detail-one-160"},
+	},
 	// S18, the Year (F14): 22 weeks at every width to 159.
 	{
-		slice: "S18", rule: wastedThird, sizes: []string{"138x30", "138x15", "108x44", "108x24"},
+		slice: "S18", rule: wastedThird, sizes: []string{"138x30", "138x15", "108x44", "108x24", "109x53"},
 		fixtures: []string{
 			"history-phone-year-52", "history-year-138x30", "history-year-160", "history-year-opus-160",
 			"history-year-plan-unknown-160", "long-names-history-year", "page-year-160x24",
@@ -277,7 +283,7 @@ var knownBreaks = []known{
 	},
 	// S21, Tokens (F17): its names' column natural.
 	{
-		slice: "S21", rule: cutWithRoom, sizes: []string{"73x61", "73x36", "138x30", "138x15", "108x44", "108x24", "173x53"},
+		slice: "S21", rule: cutWithRoom, sizes: []string{"73x61", "73x36", "138x30", "138x15", "108x44", "108x24", "173x53", "109x53"},
 		fixtures: []string{"long-names-history-tokens"},
 	},
 	// S22, a session's turns on flex (F31): its accounts cut with room.
@@ -288,7 +294,7 @@ var knownBreaks = []known{
 	// S23, a session's page at short heights (F32): nothing at 15 rows; and an
 	// opened turn's requests out of view over blank rows.
 	{
-		slice: "S23", rule: foldWithRowsSpare, sizes: []string{"73x61", "173x53"},
+		slice: "S23", rule: foldWithRowsSpare, sizes: []string{"73x61", "173x53", "109x53"},
 		fixtures: []string{"session-turn-opened-160"},
 	},
 	{

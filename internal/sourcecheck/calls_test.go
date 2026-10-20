@@ -1,6 +1,8 @@
 package sourcecheck_test
 
 import (
+	"fmt"
+	"go/ast"
 	"slices"
 	"strings"
 	"testing"
@@ -172,4 +174,43 @@ func words(f float64, text string) []any {
 	return []any{cells.Cut(text, 4), strconv.FormatFloat(f, 'f', 1, 64)}
 }
 `,
+}
+
+// Callee names each function called, a method by its receiver's type, and
+// gives its arguments as Breaks judges them: of a method expression, less
+// the receiver; of what's no function, as a conversion, no name.
+func TestCalleeNamesWhatsCalledAndItsArguments(t *testing.T) {
+	root := sourcecheck.WriteModule(t, map[string]string{
+		"go.mod": "module example.com/fixture\n",
+		"internal/reader/reader.go": `package reader
+
+type T struct{}
+
+func (T) m(a, b int) int { return a + b }
+
+func f(a int) int { return a }
+
+func calls(t T) []int { return []int{f(1), t.m(2, 3), T.m(t, 4, 5), int(6)} }
+`,
+	})
+	l := sourcecheck.NewLoader(t, root, "example.com/fixture", []string{"internal/reader"})
+	var got []string
+	for _, file := range l.Load("internal/reader") {
+		ast.Inspect(file.AST, func(n ast.Node) bool {
+			if call, ok := n.(*ast.CallExpr); ok {
+				name, args := sourcecheck.Callee(call, file.Info)
+				got = append(got, fmt.Sprintf("%q %d", name, len(args)))
+			}
+			return true
+		})
+	}
+	want := []string{
+		`"example.com/fixture/internal/reader.f" 1`,
+		`"(example.com/fixture/internal/reader.T).m" 2`,
+		`"(example.com/fixture/internal/reader.T).m" 2`,
+		`"" 1`,
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("found\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
 }

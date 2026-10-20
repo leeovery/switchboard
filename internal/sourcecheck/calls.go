@@ -107,6 +107,13 @@ func funcNamed(e ast.Expr, info *types.Info) (string, *ast.Ident) {
 	return "", nil
 }
 
+// Callee is the full name of the function call calls, as Calls names it, and
+// the arguments Breaks judges it by: "" where it calls no function.
+func Callee(call *ast.CallExpr, info *types.Info) (string, []ast.Expr) {
+	name, _ := funcNamed(call.Fun, info)
+	return name, argued(call, info).Args
+}
+
 // argued is call as Breaks judges it: of a method expression, its arguments
 // less the receiver.
 func argued(call *ast.CallExpr, info *types.Info) *ast.CallExpr {
