@@ -681,6 +681,23 @@ func (p LogPage) KeptFrom(rows int) (views.LedgerDay, bool) {
 	return kept, kept.Date > p.From.Date
 }
 
+// Unfilled is p as the Log lets go of the days before the one given: each
+// table unfilled, as it stood as it first opened, that filled its view from
+// a day before it, or can't fill it from what it holds, as filledFrom has
+// it, so it reads back through its filter to fill it again, as
+// WantsDayBefore has it, once shown. It changes nothing drawn.
+func (p LogPage) Unfilled(from views.LedgerDay) LogPage {
+	for v, s := range p.Stands {
+		if s.filledAt == 0 {
+			continue
+		}
+		if day, ok := p.filledFrom(LogView(v), s.filledAt); !ok || day.Date < from.Date {
+			p.Stands[v].filledAt = 0
+		}
+	}
+	return p
+}
+
 // filledFrom is the latest day the table given could span from and still
 // fill a view rows rows tall, as its FilledFrom has it, the words saying
 // Requests has nothing today among its lines.

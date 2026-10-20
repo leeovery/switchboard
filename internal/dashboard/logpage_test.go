@@ -438,3 +438,44 @@ func TestATableWantsTheDayBeforeTillItFillsItsView(t *testing.T) {
 		})
 	}
 }
+
+// A table that filled its view from a day the Log lets go of is unfilled,
+// so, following, short of its view without that day, it reads back to fill
+// it again; as is one that can't fill it from what it holds, as one
+// reaching as far back as it reads marks it filled; one that filled it from
+// a day kept stands filled, reading back nothing. Unfilled, the page draws
+// as it did.
+func TestATableThatFilledItsViewFromADayLetGoIsUnfilled(t *testing.T) {
+	before := []ledger.Line{asked("0", theDayBefore)}
+	today := []ledger.Line{asked("1", logDay), asked("2", logDay.Add(time.Minute)), asked("3", logDay.Add(2*time.Minute))}
+	spanned := requestsOf(views.LogSources{From: theDayBefore, Now: logDayNoon}, slices.Concat(before, today))
+	tests := []struct {
+		name string
+		rows int
+		// atReach is whether the table reaches as far back as it reads, as
+		// AtReach says, before the day before is let go.
+		atReach bool
+		wants   bool
+	}{
+		{name: "filled from the day before", rows: 4, wants: true},
+		{name: "reaching as far back as it reads, short of its view", rows: 10, atReach: true, wants: true},
+		{name: "filled from today", rows: 3},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reaching := spanned
+			reaching.AtReach = tt.atReach
+			filled := reaching.Filling(tt.rows)
+			unfilled := filled.Unfilled(views.Today(logDay))
+			doc := routerDoc("side", 0)
+			if drawn, was := logFrameOf(unfilled, 160, 24).Draw(doc, logDayNoon), logFrameOf(filled, 160, 24).Draw(doc, logDayNoon); !slices.Equal(drawn, was) {
+				t.Errorf("unfilled, the page draws\n%s\nwant it drawn as before\n%s", strings.Join(drawn, "\n"), strings.Join(was, "\n"))
+			}
+			letGo := unfilled
+			letGo.Requests, letGo.From, letGo.AtReach = requestsOf(views.LogSources{From: logDay, Now: logDayNoon}, today).Requests, views.Today(logDay), false
+			if got := letGo.WantsDayBefore(tt.rows); got != tt.wants {
+				t.Errorf("the day before let go, the table in a view of %d rows wants the day before: %t, want %t", tt.rows, got, tt.wants)
+			}
+		})
+	}
+}

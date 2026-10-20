@@ -744,6 +744,36 @@ func TestTheLogsEventsReadOnlyTheDaysItsReadHoldsWhole(t *testing.T) {
 	}
 }
 
+// A read serves a filter from the day after the newest day it holds that
+// doesn't serve it, whatever it holds before it or after, as a read part-way
+// refiltered holds them: of every line, the day after the newest held
+// through a filter; of a filter every day serves, no day.
+func TestAReadServesAFilterFromTheDayAfterTheNewestDayThatDoesnt(t *testing.T) {
+	now := time.Date(2026, 10, 9, 9, 0, 0, 0, time.Local)
+	ofA, ofB, failed, whole := LogFilter{Sessions: []string{"a"}}, LogFilter{Sessions: []string{"b"}}, LogFilter{Failed: true}, LogFilter{}
+	tests := []struct {
+		name string
+		days map[string]LogFilter
+		f    LogFilter
+		from string
+	}{
+		{"every day whole, a's", map[string]LogFilter{"2026-10-07": whole, "2026-10-08": whole}, ofA, ""},
+		{"yesterday through a's, a's", map[string]LogFilter{"2026-10-07": whole, "2026-10-08": ofA}, ofA, ""},
+		{"yesterday through a's, every line", map[string]LogFilter{"2026-10-07": whole, "2026-10-08": ofA}, whole, "2026-10-09"},
+		{"a's either side of a whole day, b's", map[string]LogFilter{"2026-10-06": ofA, "2026-10-07": whole, "2026-10-08": ofA}, ofB, "2026-10-09"},
+		{"a's before a whole day, b's", map[string]LogFilter{"2026-10-06": ofA, "2026-10-07": ofA, "2026-10-08": whole}, ofB, "2026-10-08"},
+		{"the failed alone between whole days, a's", map[string]LogFilter{"2026-10-06": whole, "2026-10-07": failed, "2026-10-08": whole}, ofA, "2026-10-08"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			day, ok := heldThrough(now, tt.days).ServedFrom(tt.f)
+			if day.Date != tt.from || ok != (tt.from != "") {
+				t.Errorf("a read holding %v serves %+v from %q, %t; want from %q", tt.days, tt.f, day.Date, ok, tt.from)
+			}
+		})
+	}
+}
+
 // The Log's Events show from the day after the newest the Log's read holds
 // through a filter, whatever it holds before it or after, as a read part-way
 // refiltered holds them; else from the day the table starts on.
