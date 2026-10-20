@@ -202,6 +202,12 @@ never fed would take it in.
   write would close it.
 - **A told row after its take.** A request the stream first tells of after its day was read through
   a filter hiding its line shows that line only at the next read awaiting it.
+- **A late line before its day is read again.** A day read again while the Requests are paused
+  counts none of its lines as come since, past the seq it was read back at. So a line taken in late
+  onto a past day held through a filter, after the pause and before the day is read again, stops
+  counting once it is, where one read whole counts it if the stream never told of its request: a
+  request crossing midnight the stream missed. Closing it means the read remembering each late line
+  it drops.
 - **A move row at midnight.** A move row reads its session's story from the store, and the store
   isn't fed the sessions of the lines a filter dropped. A move at 00:00:00.001 whose request's line
   arrived at 23:59:59.999 on a day held through a filter, of a session with no other line kept,

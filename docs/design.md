@@ -4633,9 +4633,12 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
     it; while today has no lines and the newest past lines were passed over unread through a
     filter, the state line's time, not live, can be older than the ledger's last write; the find's
     pick lands paused on its session's newest line the filter keeps, the Log spanning from that
-    line's day; and widening a filter while paused far back reads again every day between,
-    costing what the find's pick cost before: some 3.3 s and 280 MB 8 days back, 8.4 s and 706 MB
-    22 days back.
+    line's day; a line taken in late onto a past day held through a filter, after the Requests
+    paused and before that day is read again, no longer counts as new once it is, where one read
+    whole counts it if the stream never told of its request, which needs a request crossing
+    midnight the stream missed; and widening a filter while paused far back
+    reads again every day between, costing what the find's pick cost before: some 3.3 s and 280 MB
+    8 days back, 8.4 s and 706 MB 22 days back.
 - **Events:** live, the status document's `events`, the newest 50, read at each look, each new one
   known by its `id`; the past, the events' files, read as the Log's Events, LATELY or a session's
   page reach back past them (see The router's events). A router restarted tells its events afresh,
@@ -6843,8 +6846,8 @@ filter keeps held; a filter its days don't serve has them read again through the
 read (see The Log's Where it reads). The window the plan was first built around, the read held as
 the view and a page or two either side, was cut, as the realistic ways back are the find and
 filters: the Log stays contiguous by days. Nothing stored changed, no file, field or version, so
-nothing is built again; the dashboard package changed by one method and its helper, `LogPage.Unfilled`, nothing
-drawn, and the frames are unchanged. The views' guard holds a filtered read, and one read again
+nothing is built again; the dashboard package gained two methods, `LogPage.Unfilled` and
+`LogPage.RequestsNew`, nothing drawn changed, and the frames are unchanged. The views' guard holds a filtered read, and one read again
 through a join, to every day read whole, at each hard moment, and a turn read back to the same
 read raw.
 
