@@ -286,8 +286,9 @@ func heldRequests(read LogRead) []string {
 // the first is dropped, as the day held whole holds the first, which the
 // filter hides. A line read late onto the day, as a read of it again whole
 // gives, is kept as the day keeps one. Every line counted, kept or dropped,
-// tells when the ledger last wrote, so a line read late that the filter
-// drops changes the read where it ended after every line before it.
+// tells when the ledger last wrote, and none passed over as given again
+// does, so a line read late that the filter drops changes the read where it
+// ended after every line before it.
 func TestADayHeldThroughAFilterKeepsWhatItKeepsAndToldLinesEachCountedFirst(t *testing.T) {
 	at := time.Date(2026, 10, 7, 9, 0, 0, 0, time.Local)
 	date, now := dayfile.DateOf(at), at.Add(48*time.Hour)
@@ -297,14 +298,9 @@ func TestADayHeldThroughAFilterKeepsWhatItKeepsAndToldLinesEachCountedFirst(t *t
 			TotalMS: 1500,
 		}
 	}
-	lastEnd := func(lines ...ledger.Held) time.Time {
-		var last time.Time
-		for _, l := range lines {
-			if end := l.At.Add(time.Duration(l.TotalMS) * time.Millisecond); end.After(last) {
-				last = end
-			}
-		}
-		return last
+	lasting := func(l ledger.Held, ms int64) ledger.Held {
+		l.TotalMS = ms
+		return l
 	}
 	told := func(l ledger.Held) Stream {
 		return Stream{Requests: map[string]Told{l.Request: {Request: l.Request, Session: l.Session, Sent: l.At, Ended: l.At.Add(time.Second)}}}
@@ -317,22 +313,28 @@ func TestADayHeldThroughAFilterKeepsWhatItKeepsAndToldLinesEachCountedFirst(t *t
 		late        []ledger.Held
 		want        []string
 		lateChanged bool
+		// last is the line counted that ended last, when the ledger last
+		// wrote.
+		last ledger.Held
 	}{
-		{name: "the lines its filter keeps", read: []ledger.Held{line("r1", "work", 0), line("r2", "personal", 2)}, want: []string{"r1"}},
+		{name: "the lines its filter keeps", read: []ledger.Held{line("r1", "work", 0), line("r2", "personal", 2)}, want: []string{"r1"},
+			last: line("r2", "personal", 2)},
 		{name: "a line its filter keeps not, of a request the stream tells of", read: []ledger.Held{line("r1", "work", 0), line("r2", "personal", 2)},
-			stream: told(line("r2", "personal", 2)), want: []string{"r1", "r2"}},
-		{name: "a line with an id given twice", read: []ledger.Held{line("r1", "work", 0), line("r1", "work", 0)}, want: []string{"r1"}},
+			stream: told(line("r2", "personal", 2)), want: []string{"r1", "r2"}, last: line("r2", "personal", 2)},
+		{name: "a line with an id given twice", read: []ledger.Held{line("r1", "work", 0), line("r1", "work", 0)}, want: []string{"r1"}, last: line("r1", "work", 0)},
 		{name: "a line without an id given twice", read: []ledger.Held{line("", "work", 0), line("", "work", 0), line("", "personal", 1), line("", "personal", 1)},
-			want: []string{"-", "-"}},
-		{name: "two copies of a request, the first of an account its filter keeps not", read: []ledger.Held{line("r1", "personal", 0), line("r1", "work", 0)}},
+			want: []string{"-", "-"}, last: line("", "personal", 1)},
+		{name: "two copies of a request, the first of an account its filter keeps not, the second ending later",
+			read: []ledger.Held{line("r1", "personal", 0), lasting(line("r1", "work", 0), 3000)}, last: line("r1", "personal", 0)},
 		{name: "a line read late onto it, its filter keeping it", read: []ledger.Held{line("r1", "work", 0)},
-			late: []ledger.Held{line("r1", "work", 0), line("r3", "work", 3)}, want: []string{"r1", "r3"}, lateChanged: true},
+			late: []ledger.Held{line("r1", "work", 0), line("r3", "work", 3)}, want: []string{"r1", "r3"}, lateChanged: true, last: line("r3", "work", 3)},
 		{name: "a line read late onto it, its filter keeping it not", read: []ledger.Held{line("r1", "work", 0)},
-			late: []ledger.Held{line("r1", "work", 0), line("r4", "personal", 4)}, want: []string{"r1"}, lateChanged: true},
+			late: []ledger.Held{line("r1", "work", 0), line("r4", "personal", 4)}, want: []string{"r1"}, lateChanged: true, last: line("r4", "personal", 4)},
 		{name: "a line read late onto it, its filter keeping it not, ending before the last", read: []ledger.Held{line("r1", "work", 0)},
-			late: []ledger.Held{line("r4", "personal", -1)}, want: []string{"r1"}},
+			late: []ledger.Held{line("r4", "personal", -1)}, want: []string{"r1"}, last: line("r1", "work", 0)},
 		{name: "a line read late onto it, its filter keeping it not, of a request the stream tells of", read: []ledger.Held{line("r1", "work", 0)},
-			stream: told(line("r4", "personal", 4)), late: []ledger.Held{line("r4", "personal", 4)}, want: []string{"r1", "r4"}, lateChanged: true},
+			stream: told(line("r4", "personal", 4)), late: []ledger.Held{line("r4", "personal", 4)}, want: []string{"r1", "r4"}, lateChanged: true,
+			last: line("r4", "personal", 4)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -345,7 +347,7 @@ func TestADayHeldThroughAFilterKeepsWhatItKeepsAndToldLinesEachCountedFirst(t *t
 					t.Errorf("read late onto the day, the read changed %t, want %t", changed, tt.lateChanged)
 				}
 			}
-			if wrote, want := got.WrittenTo(), lastEnd(slices.Concat(tt.read, tt.late)...); !wrote.Equal(want) {
+			if wrote, want := got.WrittenTo(), tt.last.At.Add(time.Duration(tt.last.TotalMS)*time.Millisecond); !wrote.Equal(want) {
 				t.Errorf("the ledger last wrote at %v, the read says, want %v, the end of the last line counted", wrote, want)
 			}
 			if ids := heldRequests(got); !slices.Equal(ids, tt.want) {
@@ -739,5 +741,33 @@ func TestTheLogsEventsReadOnlyTheDaysItsReadHoldsWhole(t *testing.T) {
 	}
 	if card := want[len(want)-2].(EventDetails); len(want[0].([]LogEvent)) != len(files) || card.Then == nil || card.Then.Sessions != 3 {
 		t.Errorf("of the read whole, the Events show %+v, the cap's card %+v; want every event, its card counting a, b and c", want[0], card)
+	}
+}
+
+// The Log's Events show from the day after the newest the Log's read holds
+// through a filter, whatever it holds before it or after, as a read part-way
+// refiltered holds them; else from the day the table starts on.
+func TestTheEventsShowFromTheDayAfterTheNewestHeldThroughAFilter(t *testing.T) {
+	now := time.Date(2026, 10, 9, 9, 0, 0, 0, time.Local)
+	from, _, _ := dayfile.Day("2026-10-06")
+	ofA, whole := LogFilter{Sessions: []string{"a"}}, LogFilter{}
+	tests := []struct {
+		name  string
+		days  map[string]LogFilter
+		first string
+	}{
+		{"every day whole", map[string]LogFilter{"2026-10-06": whole, "2026-10-07": whole, "2026-10-08": whole}, "2026-10-06"},
+		{"yesterday through a filter", map[string]LogFilter{"2026-10-06": whole, "2026-10-07": whole, "2026-10-08": ofA}, "2026-10-09"},
+		{"two days through a filter, a whole day newer than both", map[string]LogFilter{"2026-10-06": ofA, "2026-10-07": ofA, "2026-10-08": whole}, "2026-10-08"},
+		{"days through a filter either side of a whole day", map[string]LogFilter{"2026-10-06": ofA, "2026-10-07": whole, "2026-10-08": ofA}, "2026-10-09"},
+		{"a day through the failed alone between whole days", map[string]LogFilter{"2026-10-06": whole, "2026-10-07": {Failed: true}, "2026-10-08": whole}, "2026-10-08"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			table := LogEvents(LogEventSources{From: from, Read: heldThrough(now, tt.days), Now: now})
+			if table.first.Date != tt.first {
+				t.Errorf("the Events of a read holding %v show from %s, want %s", tt.days, table.first.Date, tt.first)
+			}
+		})
 	}
 }

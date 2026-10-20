@@ -152,9 +152,7 @@ func (r LogRead) Taken(day LogDay, whole bool, t LogTaking) LogRead {
 func (r LogRead) TakenBack(l LedgerSessions, day LogDay, held HeldSessions, s Stream, now time.Time) (LogRead, *HeldSessions) {
 	var found *HeldSessions
 	telling := held
-	kept := r.keptSessions(s, day)
-	slices.Sort(kept)
-	if ids := held.Unheld(slices.Compact(kept)); len(ids) > 0 {
+	if ids := held.Unheld(r.keptSessions(s, day)); len(ids) > 0 {
 		want := StreamWanted(s)
 		want.Log = ids
 		fresh, _ := HoldSessions(r.prices).Fed(l, Taken{}, want, now)
@@ -704,14 +702,13 @@ func (r LogRead) linesFrom(day LedgerDay) iter.Seq[*loggedLine] {
 }
 
 // wholeFrom is the first of the days the Log's Events read of r's: the day
-// after the newest r holds through a filter, as a day held through a filter
-// is to them a day not yet read, and so is each before it; the zero
-// LedgerDay, before every one, where r holds every day whole.
+// after the newest r holds that doesn't serve every line, as Unserved has
+// it, as a day held through a filter is to them a day not yet read, and so
+// is each before it; the zero LedgerDay, before every one, where r holds
+// every day whole.
 func (r LogRead) wholeFrom() LedgerDay {
-	for _, d := range slices.Backward(r.days) {
-		if !d.through.whole() {
-			return Today(dayfile.DayStart(d.day.Start, 1))
-		}
+	if through := r.Unserved(LogFilter{}); len(through) > 0 {
+		return Today(dayfile.DayStart(through[0].Start, 1))
 	}
 	return LedgerDay{}
 }
