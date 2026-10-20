@@ -34,7 +34,7 @@ func (c *countedOnce) again(k turnKey, held int) bool {
 		return false
 	}
 	if c.idless == nil {
-		c.idless = make(map[turnKey]int, c.size)
+		c.idless = make(map[turnKey]int)
 	}
 	given := c.idless[k]
 	c.idless[k] = given + 1
