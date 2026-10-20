@@ -97,8 +97,9 @@ type logReadMsg struct {
 // and of the Events through some kinds or accounts, the router's files, as
 // wantsFiledReach has it; or as the event its details card is open on does,
 // or the find's pick, of an earlier day, as reaching has it, or a row its
-// Requests show awaits a line filed on it, as awaitsBefore has it. While
-// it doesn't show, it lets go as keptHidden has it.
+// Requests show awaits a line filed on it, as awaitsBefore has it, each read
+// back as readBack reads it. While it doesn't show, it lets go as
+// keptHidden has it.
 func (m Model) readLog() (Model, tea.Cmd) {
 	if m.cfg.Ledger == nil {
 		return m, nil
@@ -214,16 +215,6 @@ func (m Model) refiledFrom(from, now time.Time) (Model, tea.Cmd) {
 		refiled := t.events.Refiled(filed, from, now)
 		return logReadMsg{grown: logGrown{read: t.read, found: &refiled}}
 	}
-}
-
-// took is the Log's read, through r, taken in the lines of the day with the
-// given date, every one, as ReadDay reads them through the zero LogFilter,
-// whole, from its rows where they stand, at now, as TakenBack takes them
-// in, beside the store held: the sessions it reads whole, for the watch's to
-// take in.
-func (r logReaders) took(read views.LogRead, date string, held views.HeldSessions, s views.Stream, now time.Time) logGrown {
-	grown, found := read.TakenBack(r.ledger, views.ReadDay(r.ledger, date, views.LogFilter{}), held, s, now)
-	return logGrown{read: grown, held: found}
 }
 
 // logFold is what a read of the ledger's tail does for the Log, as it
@@ -394,24 +385,100 @@ func foldedTotals(held, read []views.DayTotals) []views.DayTotals {
 	return folded
 }
 
-// readBack reads the day before those the Log's tables span, at now, as the
-// oldest day the ledger keeps allows, once known: its lines, as took takes
-// them in, its events and its figures alone, those of the days after it
-// held already.
+// readBack reads back, at now, from the day before those the Log's tables
+// span, as the oldest day the ledger keeps allows, once known: as logBack's
+// from reads back, reading on past each day that adds nothing to the
+// Requests where readsOn says.
 func (m Model) readBack(now time.Time) (Model, tea.Cmd) {
 	t := m.log
 	day, ok := t.oldest.DayBefore(t.from)
 	if !ok {
 		return m, nil
 	}
-	r, held, stream := m.logReaders(), m.held, m.logStream(now)
+	b := logBack{readers: m.logReaders(), tab: t, held: m.held, stream: m.logStream(now), readsOn: m.readsOn(), now: now}
 	m.log.reading = true
 	return m, func() tea.Msg {
-		l, back := r.ledger, t.events.Back(r.filed, day.Start)
-		g := r.took(t.read, day.Date, held, stream, now)
-		g.from, g.found, g.totals = day, &back, views.TotalsOn(l, []string{day.Date}, now, r.prices)
-		return logReadMsg{grown: g}
+		return logReadMsg{grown: b.from(day)}
 	}
+}
+
+// readsOn reports whether a read back of the Log's reads on past a day that
+// adds nothing to the Requests: while they show, wanting the day before for
+// themselves, as wantsDayBefore has it, or reaching back to the find's
+// pick, as reaching has it. A day that adds nothing to them leaves them
+// wanting the one before it, so the days before the next line their filter
+// keeps come in one read, those their summaries rule out unread.
+func (m Model) readsOn() bool {
+	return m.log.page.Shown == dashboard.LogRequests && (m.log.wantsDayBefore(m.logRows()) || m.reaching())
+}
+
+// logBack is a read back of the Log's, as it's asked: what it reads; the
+// Log as it stands; the store held, which tells the rows of the lines it
+// takes in; what the stream tells; whether it reads on past a day that adds
+// nothing to the Requests, as readsOn has it; and now.
+type logBack struct {
+	readers logReaders
+	tab     logTab
+	held    views.HeldSessions
+	stream  views.Stream
+	readsOn bool
+	now     time.Time
+}
+
+// from is the Log grown by a read back from the day given: the day's lines,
+// as took takes them in; and where b reads on, while a day it takes in
+// keeps none of its lines and reads no session whole, the day before it
+// too, as far as pastDay allows; the events from the last day it read, and
+// the figures of the days it read alone, those of the days after held
+// already.
+func (b logBack) from(day views.LedgerDay) logGrown {
+	g := logGrown{read: b.tab.read}
+	var dates []string
+	for {
+		was := g.read.Len()
+		g, dates = b.took(g.read, day), append(dates, day.Date)
+		before, ok := b.tab.pastDay(day)
+		if !b.readsOn || !ok || g.held != nil || g.read.Len() > was {
+			break
+		}
+		day = before
+	}
+	back := b.tab.events.Back(b.readers.filed, day.Start)
+	g.from, g.found, g.totals = day, &back, views.TotalsOn(b.readers.ledger, dates, b.now, b.readers.prices)
+	return g
+}
+
+// took is read taken in the lines of the day given: read, as ReadDay reads
+// them, through the filter the Log's read serves, as serving has it, made
+// the day's as ThroughOn has it, b's stream telling what's under way; and
+// taken in as TakenBack takes them, at b's now, beside the store b holds.
+// It holds the sessions the take reads whole, for the watch's to take in.
+func (b logBack) took(read views.LogRead, day views.LedgerDay) logGrown {
+	l := b.readers.ledger
+	through := b.tab.serving().ThroughOn(b.stream, day.Date)
+	grown, found := read.TakenBack(l, views.ReadDay(l, day.Date, through), b.held, b.stream, b.now)
+	return logGrown{read: grown, held: found}
+}
+
+// pastDay is the day before the one given, where a read back reading on
+// past it may read it: one the ledger keeps, as the oldest day kept allows,
+// the tables spanning from the day given short of the reach of the page's
+// Reach, as atReach has it.
+func (t logTab) pastDay(day views.LedgerDay) (views.LedgerDay, bool) {
+	t.from = day
+	before, ok := t.oldest.DayBefore(day)
+	return before, ok && !t.atReach()
+}
+
+// serving is the filter the Log's read serves, as its page shows: the
+// Requests', while they show; every line, the zero LogFilter, while the
+// Events show, as an event's card reads the lines held, and a move row its
+// session's story, as of every day whole.
+func (t logTab) serving() views.LogFilter {
+	if t.page.Shown == dashboard.LogEvents {
+		return views.LogFilter{}
+	}
+	return t.page.Filter
 }
 
 // bounds are how far back the Log's tables read at now: the oldest day the

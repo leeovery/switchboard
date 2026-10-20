@@ -42,5 +42,5 @@ func TestTheLogsDayBackReadsNoDayRawWhoseRowsStand(t *testing.T) {
 	if len(g.raw) > 0 {
 		t.Errorf("the Log read back the lines of %v, want none, every past day's rows standing", g.raw)
 	}
-	sameLogAsOneRead(t, s, s.h.model.now())
+	sameLogAsOneRead(t, s.h.model, s.follower, s.h.model.now())
 }

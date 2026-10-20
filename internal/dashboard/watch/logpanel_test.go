@@ -1,6 +1,7 @@
 package watch
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -9,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -53,6 +55,40 @@ func TestTheLogsPanelPicksWhatItShowsAndEnterAppliesIt(t *testing.T) {
 	h.keyed("esc f right down space enter")
 	if got := h.model.log.page.Filter.Accounts; !slices.Equal(got, []string{"side"}) || prefs.updates != 1 {
 		t.Errorf("personal unticked and applied, the filter keeps %v and the preferences were kept %d times; want side's, kept once still, as no column changed", got, prefs.updates)
+	}
+}
+
+// The panel's preview through a filter wider than the one the day before
+// is held through tables today alone, which is held whole: none of the day
+// before's rows, which it holds through the narrower filter, and today's
+// lines counted as a whole read counts them.
+func TestThePanelsPreviewTablesTodayAlone(t *testing.T) {
+	state := t.TempDir()
+	var lines []ledger.Held
+	for i := range 60 {
+		lines = append(lines, arrived(fmt.Sprintf("0c%06d", i), "work", -time.Duration(70-i)*time.Minute))
+	}
+	writeLines(t, state, slices.Concat(lines, []ledger.Held{arrived("0b000001", "side", -day), arrived("0b000002", "work", -day+time.Minute)})...)
+	h := newHarness(t, probedWithoutTheRouter())
+	onTheLog(h, state)
+	h.start()
+	appliedLog(h, func(f *views.LogFilter) { f.Accounts = []string{"side"} })
+	yesterday := dayfile.DateOf(past(-day))
+	if from := h.model.log.from.Date; from != yesterday {
+		t.Fatalf("filtered to side, the Log spans from %s, want %s, read back through the filter", from, yesterday)
+	}
+
+	now := h.clock.now
+	preview := h.model.requestsThrough(views.LogFilter{Kinds: views.RowKinds()}, now)
+	var before []string
+	for _, l := range preview.All() {
+		if l.IsRow() && views.Today(l.Row.At).Date != views.Today(now).Date {
+			before = append(before, l.Row.Request)
+		}
+	}
+	if count := preview.Count(views.Today(now).Date); len(before) > 0 || count.Lines() != 60 || count.Shown != 60 {
+		t.Errorf("the preview of every line tables %v of the days before today, counting %d of today's %d lines shown; want none, and today's 60 shown",
+			before, count.Shown, count.Lines())
 	}
 }
 
