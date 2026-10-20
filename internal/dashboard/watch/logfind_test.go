@@ -234,9 +234,11 @@ func TestEnterOnARunningSessionReadsBackItsEarlierLinesToFillTheView(t *testing.
 }
 
 // A session found, its lines fewer than the view, reads back no further
-// than the days' summaries say its lines reach: to its first day, every day
-// after it read, as the tables hold every day from the first they span; not
-// to the oldest day the ledger keeps.
+// than the days' summaries say its lines reach: to its first day, not to
+// the oldest day the ledger keeps. The tables span every day from it, but
+// read the lines of those days alone whose summaries, their own or a
+// neighbour's, may hold one of its lines, as a day's lines are read of its
+// neighbours' files too: the rest go unread.
 func TestAFoundSessionReadsBackNoFurtherThanItsFirstDay(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -270,12 +272,19 @@ func TestAFoundSessionReadsBackNoFurtherThanItsFirstDay(t *testing.T) {
 			found := len(l.days)
 
 			h.keys(enter)
+			ran := append([]int{0}, tt.ran...)
 			var want []string
 			for d := 1; d <= tt.reach; d++ {
-				want = append(want, dayfile.DateOf(past(-time.Duration(d)*day)))
+				if slices.ContainsFunc(ran, func(r int) bool { return r >= d-1 && r <= d+1 }) {
+					want = append(want, dayfile.DateOf(past(-time.Duration(d)*day)))
+				}
 			}
 			if got := l.days[found:]; !slices.Equal(got, want) {
-				t.Errorf("found api, the Log read back the days %v, want %v: to api's first day, and no further", got, want)
+				t.Errorf("found api, the Log read the lines of the days %v, want %v: those to api's first day whose summaries or their neighbours' name it", got, want)
+			}
+			first := dayfile.DateOf(past(-time.Duration(tt.reach) * day))
+			if from, days := h.model.log.from.Date, held(h.model.log.read, "days"); from != first || days != tt.reach+1 {
+				t.Errorf("found api, the Log spans from %s, its read holding %d days; want from %s, api's first day, holding each day since", from, days, first)
 			}
 		})
 	}

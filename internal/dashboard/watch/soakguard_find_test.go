@@ -3,6 +3,7 @@ package watch
 import (
 	"maps"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -71,3 +72,120 @@ func (g *headsGuard) read(r ledgerRead) {
 }
 
 func (g *headsGuard) took(tea.Msg, Model) {}
+
+// pickGuardDays are the days the find's pick's guarded world has run as it
+// starts, in the evening, every past day's rows standing; and pickBack how
+// many days back the session picked last ran: the day after it is beside
+// it, its summary naming none of its lines but its neighbour's naming some,
+// and none of those of the days between that and today name any.
+const (
+	pickGuardDays = 6
+	pickBack      = 4
+)
+
+// The find's pick's part: the Log's find opened in the evening, enter on a
+// session that last ran pickBack days back lands the Log on its newest line
+// in one read of the Log's own. It reads the rows of no day the summaries
+// rule out, as theirs and their neighbours' name none of its lines; no
+// chunk of a day it has no line on, whose metas each rule it out, as the
+// day beside its newest has, whose rows it reads; and no day's lines raw
+// whose rows stand. Landed, its Requests are those of one read whole, as
+// sameRequestsAsOneRead has it.
+func TestTheFindsPickReadsOnlyWhatMayHoldItsSession(t *testing.T) {
+	start := soakAt(21, 0)
+	g := &pickGuard{}
+	s := newSoak(t, soakSetup{start: start, days: pickGuardDays, pace: guardPace, guard: g})
+	s.show("log")
+	n := busySeat(busyDays-1-pickBack, busyStarting)
+	id := busySession(n)
+	s.typed("/")
+	s.typed(strings.Split(id[:8], "")...)
+	if found := s.h.model.log.page.Finding.Found; len(found.Sessions) != 1 || found.Sessions[0].ID != id {
+		t.Fatalf("the find found %+v for %s, want %s alone", found.Sessions, id[:8], id)
+	}
+
+	g.picking = true
+	s.keyed(enter)
+	m, now := s.h.model, s.h.model.now()
+	newest, beside := dayfile.DateOf(dayfile.DayStart(start, -pickBack)), dayfile.DateOf(dayfile.DayStart(start, 1-pickBack))
+	row, _, chosen := m.log.page.Chosen()
+	if g.landed != 1 || !chosen || !m.log.page.Paused() || row.Session != id || m.log.find.landing != nil || m.log.from.Date != newest {
+		t.Errorf("the pick landed in %d reads, paused %t at %t a line of %s, spanning from %s; want it landed in one, paused at the line of %s, from %s, its newest day",
+			g.landed, m.log.page.Paused(), chosen, row.Session, m.log.from.Date, id, newest)
+	}
+	ran := daysRan(s.w, n)
+	var rows []string
+	for _, r := range g.rows {
+		date := r.asked[0]
+		rows = append(rows, date)
+		bounds, _ := dayfile.DayBounds(date)
+		if !slices.ContainsFunc(bounds.FileDates(), func(d string) bool { return ran[d] }) {
+			t.Errorf("the pick read the rows of %s, whose summary and its neighbours' name none of %s's lines", date, id)
+		}
+		if !r.stood {
+			t.Errorf("the rows of %s don't stand, want every past day's standing in the evening", date)
+		}
+	}
+	if want := []string{beside, newest}; !slices.Equal(rows, want) {
+		t.Errorf("the pick read the rows of %v, want %v alone: the day beside its newest, then its newest", rows, want)
+	}
+	for _, date := range g.chunks {
+		if !ran[date] {
+			t.Errorf("the pick read a chunk of %s, which holds none of %s's lines, its meta ruling it out", date, id)
+		}
+	}
+	if len(g.raw) > 0 {
+		t.Errorf("the pick read the lines of %v raw, want none, every past day's rows standing", g.raw)
+	}
+	sameRequestsAsOneRead(t, m, s.follower, now)
+}
+
+// daysRan are the dates of the days the world's nth session has a line
+// filed on, as its lines arrived.
+func daysRan(w *soakWorld, n int) map[string]bool {
+	ran := make(map[string]bool)
+	for _, r := range w.filedFrom(w.origin) {
+		if r.g == n {
+			ran[dayfile.DateOf(r.arrived())] = true
+		}
+	}
+	return ran
+}
+
+// pickGuard holds the find's pick to what it reads: once picking, the reads
+// of the days' rows, in turn; the dates of the chunks of them it read, and
+// of the days whose lines it read raw; and how many reads of the Log's own
+// landed.
+type pickGuard struct {
+	picking bool
+	rows    []ledgerRead
+	chunks  []string
+	raw     []string
+	landed  int
+}
+
+func (g *pickGuard) reads(_ *soak, l views.Ledger) views.Ledger {
+	return &countingLedger{Ledger: l, read: g.read}
+}
+
+// read notes a read of a day's rows, a chunk of them, or its lines, once
+// picking.
+func (g *pickGuard) read(r ledgerRead) {
+	if !g.picking {
+		return
+	}
+	switch r.method {
+	case "DayRows":
+		g.rows = append(g.rows, r)
+	case "RowChunk":
+		g.chunks = append(g.chunks, r.asked[0])
+	case "Day":
+		g.raw = append(g.raw, r.asked[0])
+	}
+}
+
+func (g *pickGuard) took(msg tea.Msg, _ Model) {
+	if _, ok := msg.(logReadMsg); ok && g.picking {
+		g.landed++
+	}
+}
