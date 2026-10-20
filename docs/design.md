@@ -7026,7 +7026,6 @@ why.
 
 | Idea | Status | File |
 |---|---|---|
-| The graphs redone: a burn-down for every account on a page of graphs, at a scale read at a glance | next, after the fluid layout pass, the owner's call on 20 October 2026 | [graphs-page](../ideas/2026-10-20--graphs-page.md) |
 | A reserve spent as a last resort, when no account has room outside one | next, a fast follow | [reserve-last-resort](../ideas/2026-10-03--reserve-last-resort.md) |
 | The plain text the data verbs print, `status`'s and the first cuts of `requests`, `history`, `sessions` and `events`, designed to match the dashboard | next, to design with its owner | [dashboard-layout](../ideas/2026-09-30--dashboard-layout.md) |
 | Releases signed with a Developer ID, so macOS stops noticing each upgrade | next, once the certificate is in hand | [developer-id-signing](../ideas/2026-10-01--developer-id-signing.md) |
