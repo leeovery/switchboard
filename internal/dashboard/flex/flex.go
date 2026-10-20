@@ -12,12 +12,13 @@ import (
 )
 
 // Part is a part of a row's cells or a column's rows. Narrows and Leaves
-// count in one sequence of turns, the lowest taken first.
+// count in one sequence of turns, the lowest taken first. A number under 0
+// counts as 0.
 type Part struct {
 	Least   int  // the fewest it's still readable at
 	Natural int  // what it takes whole: a label's widest, a figure's width; held within Least and Most
-	Most    int  // the most it takes; 0 for none
-	Grows   bool // whether it takes room past its natural
+	Most    int  // the most it takes, no less than its least; 0 for none
+	Grows   bool // whether it takes room past its natural; never where it narrows in a turn
 	Narrows int  // the turn it narrows in, from its natural to its least: 0 freely, before any turn
 	Leaves  int  // the turn it gives way in: 0 never
 	Kept    int  // what it keeps where it gives way, no more than its least: 0 for a column, 1 for a section's heading
@@ -26,8 +27,10 @@ type Part struct {
 }
 
 // Span is where a part lies: from At, Size long; Left where it gave way. A
-// part that gave way keeping nothing isn't shown: it lies where it would have,
-// no cells long, with no gap before it.
+// part that gave way keeping nothing isn't shown: it lies where the part
+// before it ends, no cells long, with no gap before it. Any other part shows,
+// its gap kept, even at no cells, so a part that grows takes a least of 1 or
+// more where a gap before nothing would show.
 type Span struct {
 	At, Size int
 	Left     bool
@@ -78,15 +81,17 @@ func Lay(room int, parts ...Part) ([]Span, bool) {
 	return l.spans(), true
 }
 
-// held is the part with its natural within its least and its most, and what
-// it keeps where it gives way no more than its least.
+// held is the part with no number under 0, its most no less than its least,
+// its natural within the two, and what it keeps where it gives way no more
+// than its least.
 func (p Part) held() Part {
+	p.Least, p.Most, p.Narrows, p.Gap = max(p.Least, 0), max(p.Most, 0), max(p.Narrows, 0), max(p.Gap, 0)
 	if p.Most > 0 {
 		p.Most = max(p.Most, p.Least)
 		p.Natural = min(p.Natural, p.Most)
 	}
 	p.Natural = max(p.Natural, p.Least)
-	p.Kept = min(p.Kept, p.Least)
+	p.Kept = min(max(p.Kept, 0), p.Least)
 	return p
 }
 

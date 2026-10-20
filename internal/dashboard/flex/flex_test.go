@@ -30,13 +30,70 @@ func TestLay(t *testing.T) {
 			fits: true,
 		},
 		{
-			name: "a natural is held within its least and its most",
-			room: 40,
+			name:  "a natural past the most is held at the most",
+			room:  40,
+			parts: []flex.Part{{Least: 2, Natural: 30, Most: 10}},
+			want:  []flex.Span{{At: 0, Size: 10}},
+			fits:  true,
+		},
+		{
+			name:  "a natural under the least is held at the least",
+			room:  10,
+			parts: []flex.Part{{Least: 8, Natural: 3}},
+			want:  []flex.Span{{At: 0, Size: 8}},
+			fits:  true,
+		},
+		{
+			name:  "a most under the least is held at the least",
+			room:  20,
+			parts: []flex.Part{{Least: 6, Natural: 8, Most: 3, Grows: true}},
+			want:  []flex.Span{{At: 0, Size: 6}},
+			fits:  true,
+		},
+		{
+			name: "a least under 0 counts as 0",
+			room: 4,
 			parts: []flex.Part{
-				{Least: 8, Natural: 3},
-				{Least: 2, Natural: 30, Most: 10, Gap: 1},
+				{Least: -3, Natural: 4},
+				{Least: 5, Natural: 5, Gap: 1},
 			},
-			want: []flex.Span{{At: 0, Size: 8}, {At: 9, Size: 10}},
+			want: []flex.Span{{At: 0}, {At: 1, Size: 5}},
+		},
+		{
+			name:  "a most under 0 counts as none",
+			room:  5,
+			parts: []flex.Part{{Most: -3, Grows: true}},
+			want:  []flex.Span{{At: 0, Size: 5}},
+			fits:  true,
+		},
+		{
+			name: "a turn to narrow in under 0 counts as narrowing freely",
+			room: 5,
+			parts: []flex.Part{
+				{Least: 2, Natural: 6, Narrows: -1},
+				{Least: 1, Natural: 1, Grows: true, Gap: 1},
+			},
+			want: []flex.Span{{At: 0, Size: 3}, {At: 4, Size: 1}},
+			fits: true,
+		},
+		{
+			name: "a Kept under 0 counts as keeping nothing",
+			room: 3,
+			parts: []flex.Part{
+				{Least: 4, Natural: 4, Leaves: 1, Kept: -2},
+				{Least: 3, Natural: 3, Gap: 1},
+			},
+			want: []flex.Span{{At: 0, Left: true}, {At: 0, Size: 3}},
+			fits: true,
+		},
+		{
+			name: "a gap under 0 counts as none",
+			room: 10,
+			parts: []flex.Part{
+				{Least: 2, Natural: 2},
+				{Least: 3, Natural: 3, Gap: -2},
+			},
+			want: []flex.Span{{At: 0, Size: 2}, {At: 2, Size: 3}},
 			fits: true,
 		},
 		{
@@ -103,7 +160,7 @@ func TestLay(t *testing.T) {
 			fits: true,
 		},
 		{
-			name: "parts that share a turn give way together, the next shown then the first",
+			name: "parts that share a turn give way together, and the first part still shown takes no gap",
 			room: 12,
 			parts: []flex.Part{
 				{Least: 5, Natural: 5, Leaves: 1},
@@ -155,7 +212,7 @@ func TestLay(t *testing.T) {
 			fits: true,
 		},
 		{
-			name: "a part keeps no more than its least where it gives way",
+			name: "a Kept past the least is held at the least",
 			room: 6,
 			parts: []flex.Part{
 				{Least: 3, Natural: 3},
@@ -221,22 +278,36 @@ func TestLay(t *testing.T) {
 	}
 }
 
+// The Switchboard's parts, in switchboard's order.
+const (
+	callIDPart = iota
+	callDirPart
+	callDoingPart
+	callFromPart
+	callAccountPart
+	bendsPart
+	toLinesPart
+	barsPastPart
+	barsPart
+	wordsPart
+)
+
 // switchboard are the Switchboard's columns as the design's narrowing table
 // has them: a call's id, its directory, what it's doing, ▸'s from and the
 // account; the bends' room, after the plugs' gap; the jacks, the gap to the
 // lines and the lines' label and percentage; the lines' bars past 16 cells,
 // and their first 16; and the lines' words, or usage's short form.
 var switchboard = []flex.Part{
-	{Least: 4, Natural: 4},
-	{Least: 6, Natural: 12, Narrows: 2, Gap: 1},
-	{Least: 13, Natural: 13, Gap: 1},
-	{Least: 7, Natural: 7, Leaves: 3, Kept: 2},
-	{Least: 6, Natural: 8, Narrows: 6},
-	{Least: 9, Natural: 9, Grows: true, Gap: 2},
-	{Least: 34, Natural: 34},
-	{Natural: 16, Narrows: 1},
-	{Least: 8, Natural: 16, Narrows: 5},
-	{Least: 22, Natural: 22, Leaves: 4, Kept: 14},
+	callIDPart:      {Least: 4, Natural: 4},
+	callDirPart:     {Least: 6, Natural: 12, Narrows: 2, Gap: 1},
+	callDoingPart:   {Least: 13, Natural: 13, Gap: 1},
+	callFromPart:    {Least: 7, Natural: 7, Leaves: 3, Kept: 2},
+	callAccountPart: {Least: 6, Natural: 8, Narrows: 6},
+	bendsPart:       {Least: 9, Natural: 9, Grows: true, Gap: 2},
+	toLinesPart:     {Least: 34, Natural: 34},
+	barsPastPart:    {Natural: 16, Narrows: 1},
+	barsPart:        {Least: 8, Natural: 16, Narrows: 5},
+	wordsPart:       {Least: 22, Natural: 22, Leaves: 4, Kept: 14},
 }
 
 func TestLayNarrowsTheSwitchboardAsTheDesignsTableDoes(t *testing.T) {
@@ -250,14 +321,17 @@ func TestLayNarrowsTheSwitchboardAsTheDesignsTableDoes(t *testing.T) {
 		fits  bool
 	}{
 		{width: 160, want: columns{room: 24, bars: 32, dir: 12, account: 8}, fits: true},
+		{width: 159, want: columns{room: 23, bars: 32, dir: 12, account: 8}, fits: true},
 		{width: 145, want: columns{room: 9, bars: 32, dir: 12, account: 8}, fits: true},
 		{width: 144, want: columns{room: 9, bars: 31, dir: 12, account: 8}, fits: true},
 		{width: 129, want: columns{room: 9, bars: 16, dir: 12, account: 8}, fits: true},
 		{width: 128, want: columns{room: 9, bars: 16, dir: 11, account: 8}, fits: true},
 		{width: 123, want: columns{room: 9, bars: 16, dir: 6, account: 8}, fits: true},
 		{width: 122, want: columns{room: 13, bars: 16, dir: 6, account: 8, shortFrom: true}, fits: true},
+		{width: 121, want: columns{room: 12, bars: 16, dir: 6, account: 8, shortFrom: true}, fits: true},
 		{width: 118, want: columns{room: 9, bars: 16, dir: 6, account: 8, shortFrom: true}, fits: true},
 		{width: 117, want: columns{room: 16, bars: 16, dir: 6, account: 8, shortFrom: true, shortWords: true}, fits: true},
+		{width: 116, want: columns{room: 15, bars: 16, dir: 6, account: 8, shortFrom: true, shortWords: true}, fits: true},
 		{width: 110, want: columns{room: 9, bars: 16, dir: 6, account: 8, shortFrom: true, shortWords: true}, fits: true},
 		{width: 109, want: columns{room: 9, bars: 15, dir: 6, account: 8, shortFrom: true, shortWords: true}, fits: true},
 		{width: 102, want: columns{room: 9, bars: 8, dir: 6, account: 8, shortFrom: true, shortWords: true}, fits: true},
@@ -266,16 +340,31 @@ func TestLayNarrowsTheSwitchboardAsTheDesignsTableDoes(t *testing.T) {
 		{width: 99, want: columns{room: 9, bars: 8, dir: 6, account: 6, shortFrom: true, shortWords: true}},
 	}
 	for _, tt := range tests {
-		spans, fits := flex.Lay(tt.width, switchboard...)
-		got := columns{
-			room: spans[5].Size, bars: spans[7].Size + spans[8].Size, dir: spans[1].Size, account: spans[4].Size,
-			shortFrom: spans[3].Left, shortWords: spans[9].Left,
-		}
-		if got != tt.want || fits != tt.fits {
-			t.Errorf("at %d columns: %+v, %v; want %+v, %v", tt.width, got, fits, tt.want, tt.fits)
-		}
+		t.Run(fmt.Sprint(tt.width), func(t *testing.T) {
+			spans, fits := flex.Lay(tt.width, switchboard...)
+			got := columns{
+				room:       spans[bendsPart].Size,
+				bars:       spans[barsPastPart].Size + spans[barsPart].Size,
+				dir:        spans[callDirPart].Size,
+				account:    spans[callAccountPart].Size,
+				shortFrom:  spans[callFromPart].Left,
+				shortWords: spans[wordsPart].Left,
+			}
+			if got != tt.want || fits != tt.fits {
+				t.Errorf("at %d columns: %+v, %v; want %+v, %v", tt.width, got, fits, tt.want, tt.fits)
+			}
+		})
 	}
 }
+
+// The Log's tail's parts, in logTail's order.
+const (
+	beforePart = iota
+	extraPart
+	stoppedPart
+	routingPart
+	shortPart
+)
 
 // logTail are the Log's Requests' last columns as its spread has them: the
 // columns before, from its left; an extra, which leaves first; stopped;
@@ -283,14 +372,16 @@ func TestLayNarrowsTheSwitchboardAsTheDesignsTableDoes(t *testing.T) {
 // cell where the two share; and the cells short of the last column it ends,
 // once whole, which fold with it.
 var logTail = []flex.Part{
-	{Least: 100, Natural: 100},
-	{Least: 6, Natural: 6, Leaves: 1, Gap: 2},
-	{Least: 27, Natural: 27, Grows: true, Gap: 2},
-	{Least: 24, Natural: 30, Grows: true, Leaves: 2, Odd: true, Gap: 2},
-	{Most: 2, Grows: true, Leaves: 2},
+	beforePart:  {Least: 100, Natural: 100},
+	extraPart:   {Least: 6, Natural: 6, Leaves: 1, Gap: 2},
+	stoppedPart: {Least: 27, Natural: 27, Grows: true, Gap: 2},
+	routingPart: {Least: 24, Natural: 30, Grows: true, Leaves: 2, Odd: true, Gap: 2},
+	shortPart:   {Most: 2, Grows: true, Leaves: 2},
 }
 
 func TestLaySharesTheLogsTailAsItsSpreadDoes(t *testing.T) {
+	// Each row's spans are logTail's parts', in its order: the columns before,
+	// the extra, stopped, routing and the cells short.
 	tests := []struct {
 		width int
 		want  []flex.Span
@@ -307,20 +398,22 @@ func TestLaySharesTheLogsTailAsItsSpreadDoes(t *testing.T) {
 		{width: 128, want: []flex.Span{{At: 0, Size: 100}, {At: 100, Left: true}, {At: 102, Size: 27}, {At: 129, Left: true}, {At: 129, Left: true}}},
 	}
 	for _, tt := range tests {
-		got, fits := flex.Lay(tt.width, logTail...)
-		if !slices.Equal(got, tt.want) || fits != tt.fits {
-			t.Errorf("at %d columns:\n got %+v, %v\nwant %+v, %v", tt.width, got, fits, tt.want, tt.fits)
-		}
+		t.Run(fmt.Sprint(tt.width), func(t *testing.T) {
+			got, fits := flex.Lay(tt.width, logTail...)
+			if !slices.Equal(got, tt.want) || fits != tt.fits {
+				t.Errorf("at %d columns:\n got %+v, %v\nwant %+v, %v", tt.width, got, fits, tt.want, tt.fits)
+			}
+		})
 	}
 }
 
-// laid is what Lay made of the parts in room: their spans, and whether they
-// fit.
+// laid is what Lay made of the parts given in room: the parts as it holds
+// them, their spans, and whether they fit.
 type laid struct {
-	parts []flex.Part
-	room  int
-	spans []flex.Span
-	fits  bool
+	given, parts []flex.Part
+	room         int
+	spans        []flex.Span
+	fits         bool
 }
 
 // layRules are what Lay holds to, whatever it's given, each saying how a
@@ -343,22 +436,23 @@ var layRules = []struct {
 func TestLayHoldsItsRulesWhateverItsGiven(t *testing.T) {
 	for seed := range uint64(5000) {
 		r := rand.New(rand.NewPCG(seed, 0xf1e8))
-		parts := drawnParts(r)
+		given := drawnParts(r)
 		room := r.IntN(120)
-		spans, fits := flex.Lay(room, parts...)
-		l := laid{parts: parts, room: room, spans: spans, fits: fits}
+		spans, fits := flex.Lay(room, given...)
+		l := laid{given: given, parts: heldParts(given), room: room, spans: spans, fits: fits}
 		for _, rule := range layRules {
 			if broke := rule.broke(l); broke != "" {
-				t.Errorf("seed %d: %s: %s\nroom %d, parts %+v\nspans %+v, %v", seed, rule.name, broke, room, parts, spans, fits)
+				t.Errorf("seed %d: %s: %s\nroom %d, parts %+v\nspans %+v, %v", seed, rule.name, broke, room, given, spans, fits)
 			}
 		}
 	}
 }
 
-// drawnParts are as many as seven parts r draws, each already held within its
-// least and its most, of every kind Lay is given: fixed and narrowing, growing
-// to a most and with none, narrowing in a turn or freely, giving way to
-// nothing or keeping some, with gaps and odd cells.
+// drawnParts are as many as seven parts r draws, of every kind Lay is given:
+// fixed and narrowing, growing to a most and with none, narrowing in a turn
+// or freely, giving way to nothing or keeping some, with gaps and odd cells;
+// and now and then one with a number past what Lay holds it to, as unheld
+// draws it.
 func drawnParts(r *rand.Rand) []flex.Part {
 	parts := make([]flex.Part, r.IntN(8))
 	for i := range parts {
@@ -373,9 +467,44 @@ func drawnParts(r *rand.Rand) []flex.Part {
 		if r.IntN(3) == 0 {
 			p.Leaves, p.Kept = 1+r.IntN(4), r.IntN(2)*r.IntN(least+1)
 		}
+		if r.IntN(4) == 0 {
+			unheld[r.IntN(len(unheld))](r, &p)
+		}
 		parts[i] = p
 	}
 	return parts
+}
+
+// unheld are the ways a part's numbers pass what Lay holds them to: a natural
+// past its most or under its least; a most under its least; what it keeps
+// past its least; and a least, most, turn to narrow in, Kept or gap under 0.
+var unheld = []func(r *rand.Rand, p *flex.Part){
+	func(r *rand.Rand, p *flex.Part) { p.Natural = p.Most + 1 + r.IntN(10) },
+	func(r *rand.Rand, p *flex.Part) { p.Natural = p.Least - 1 - r.IntN(10) },
+	func(r *rand.Rand, p *flex.Part) { p.Most = 1 + r.IntN(max(p.Least, 1)) },
+	func(r *rand.Rand, p *flex.Part) { p.Kept = p.Least + 1 + r.IntN(5) },
+	func(r *rand.Rand, p *flex.Part) { p.Least = -1 - r.IntN(5) },
+	func(r *rand.Rand, p *flex.Part) { p.Most = -1 - r.IntN(5) },
+	func(r *rand.Rand, p *flex.Part) { p.Narrows = -1 - r.IntN(3) },
+	func(r *rand.Rand, p *flex.Part) { p.Kept = -1 - r.IntN(5) },
+	func(r *rand.Rand, p *flex.Part) { p.Gap = -1 - r.IntN(3) },
+}
+
+// heldParts are the parts as Lay holds them: no number under 0, a most no
+// less than the least, a natural within the two, and what a part keeps no
+// more than its least.
+func heldParts(parts []flex.Part) []flex.Part {
+	held := make([]flex.Part, len(parts))
+	for i, p := range parts {
+		p.Least, p.Most, p.Narrows, p.Kept, p.Gap = max(p.Least, 0), max(p.Most, 0), max(p.Narrows, 0), max(p.Kept, 0), max(p.Gap, 0)
+		p.Natural, p.Kept = max(p.Natural, p.Least), min(p.Kept, p.Least)
+		if p.Most > 0 {
+			p.Most = max(p.Most, p.Least)
+			p.Natural = min(p.Natural, p.Most)
+		}
+		held[i] = p
+	}
+	return held
 }
 
 // free reports whether the part narrows freely and hasn't given way.
@@ -586,7 +715,7 @@ func gaveWayWrongly(l laid) string {
 }
 
 func tookMoreWithMore(l laid) string {
-	wider, fits := flex.Lay(l.room+1, l.parts...)
+	wider, fits := flex.Lay(l.room+1, l.given...)
 	if l.fits && !fits {
 		return "it fits in room, but not in a cell more"
 	}
