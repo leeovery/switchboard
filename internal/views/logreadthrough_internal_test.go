@@ -21,9 +21,17 @@ import (
 // each day before, newest first, back to the local day with the given date,
 // read as ReadDay reads it through the filter through gives of its date,
 // each taken in as TakenBack takes it, s telling what's under way, the store
-// it reads taken into the one held.
+// it reads taken into the one held, holding none as it begins.
 func readHeldBack(l Ledger, through func(date string) LogFilter, from string, s Stream, prices ledger.Table, now time.Time) (LogRead, HeldSessions) {
-	read, held := ReadLog(prices), HoldSessions(prices)
+	return readBeside(l, HoldSessions(prices), through, from, s, now)
+}
+
+// readBeside is the Log's read at now through l, and the store its rows are
+// told by, as readHeldBack has them, but beside the store held as it
+// begins, as the dashboard's store holds sessions a read before read, at
+// its prices: so only those it doesn't hold are read into it.
+func readBeside(l Ledger, held HeldSessions, through func(date string) LogFilter, from string, s Stream, now time.Time) (LogRead, HeldSessions) {
+	read := ReadLog(held.prices)
 	take := func(day LogDay) {
 		var fresh *HeldSessions
 		if read, fresh = read.TakenBack(l, day, held, s, now); fresh != nil {

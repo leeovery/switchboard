@@ -112,10 +112,7 @@ func toldBack(lines []ledger.Line, dates []string) Stream {
 			}
 		}
 		if last != nil {
-			s.Requests[last.Request] = Told{
-				Request: last.Request, Session: last.Session, Model: last.Model, Account: last.Account, Class: last.Class, Sent: last.At, Ended: ended(last),
-				Status: last.Status, Heard: ended(last),
-			}
+			s.Requests[last.Request] = toldOf(last)
 		}
 	}
 	_, end, _ := dayfile.Day(dates[0])
@@ -125,6 +122,15 @@ func toldBack(lines []ledger.Line, dates []string) Stream {
 		Status: 200, Heard: sent.Add(time.Millisecond),
 	}
 	return s
+}
+
+// toldOf is what the stream tells of l's request, ended, its line held: sent
+// as it arrived, and heard as it ended.
+func toldOf(l *ledger.Line) Told {
+	return Told{
+		Request: l.Request, Session: l.Session, Model: l.Model, Account: l.Account, Class: l.Class, Sent: l.At, Ended: ended(l), Status: l.Status,
+		Heard: ended(l),
+	}
 }
 
 // follower is a Follower of the chain's ledger, by its clock, resting on
