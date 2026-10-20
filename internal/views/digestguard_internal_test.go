@@ -205,8 +205,10 @@ const crowdRun = readBackRun - 4
 // day back to its second request, the check unread. Two of the crowd
 // failed, each given twice across an edge of the day's chunks of rows, as
 // givenAcross has them: one with an id, at the second chunk's end; one
-// without, at the third's. And one in the fourth chunk is given twice
-// within it, on work and then on personal, as givenElsewhere has it.
+// without, at the third's. One in the fourth chunk is given twice within
+// it, on work and then on personal, as givenElsewhere has it. And the day
+// ends with one more given twice, its copy ending days on, as givenLater
+// has it.
 func crowded(lines []ledger.Line, date string) []ledger.Line {
 	var last time.Time
 	for _, l := range lines {
@@ -232,7 +234,7 @@ func crowded(lines []ledger.Line, date string) []ledger.Line {
 		})
 	}
 	slices.SortStableFunc(lines, func(a, b ledger.Line) int { return ended(&a).Compare(ended(&b)) })
-	return givenElsewhere(givenAcross(givenAcross(lines, date, 2, false), date, 3, true), date, 4, "work", "personal")
+	return givenLater(givenElsewhere(givenAcross(givenAcross(lines, date, 2, false), date, 3, true), date, 4, "work", "personal"), date)
 }
 
 // givenAcross is lines, in the order the ledger files them, the last row of
@@ -261,6 +263,21 @@ func givenElsewhere(lines []ledger.Line, date string, chunk int, first, again st
 	copied := lines[i]
 	copied.Account = again
 	return slices.Insert(lines, i+1, copied)
+}
+
+// givenLater is lines, in the order the ledger files them, the local day
+// with the given date ended with a request of no session of its own at
+// half past eleven that night, taking a second, given twice, right after
+// itself, its copy saying it took three days: as two copies of a request may
+// say otherwise of when it ended. The copy is passed over as given again, so
+// a read that counted it would tell the ledger last wrote days on.
+func givenLater(lines []ledger.Line, date string) []ledger.Line {
+	start, _, _ := dayfile.Day(date)
+	late := ledger.Line{At: start.Add(23*time.Hour + 30*time.Minute).UTC(), Request: "crowd-late", Kind: ledger.KindMessage, Status: 200, TotalMS: 1000}
+	copied := late
+	copied.TotalMS = (72 * time.Hour).Milliseconds()
+	i, _ := slices.BinarySearchFunc(lines, ended(&late), func(l ledger.Line, end time.Time) int { return ended(&l).Compare(end) })
+	return slices.Insert(lines, i, late, copied)
 }
 
 // onDay are the indexes of lines of those that arrived on the local day

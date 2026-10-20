@@ -41,6 +41,7 @@ const (
 	filteredBeside        = "a past day read through a filter its own summary rules out but one beside it doesn't, read of its rows, none of their chunks"
 	filteredToldHidden    = "a past day read whole through a filter hiding the line of a request the stream tells of, filed there, the line held"
 	filteredToldElsewhere = "a past day read whole through a filter of an account, the stream telling of a request filed there on another account than its line's"
+	filteredToldAcross    = "a past day read whole through a filter hiding the line of a request the stream tells of as sent half a minute into the next, on another account, the next read whole too"
 	filteredLate          = "a late line filed onto a day the Log holds through a filter, the day read again whole and taken in through it"
 	filteredLateTold      = "a late line of a request the stream tells of, filed onto a day the Log holds through a filter keeping none like it"
 	filteredYesterdayRaw  = "at 00:01, the day before read through a filter from its lines, its head yet to be built"
@@ -60,9 +61,9 @@ const (
 // and today whole becoming yesterday whole, which the watch's tests hold;
 // and 23:59 and prices changed, at which every spread world reads.
 var filteredMoments = []string{
-	filteredSkipped, filteredRuledOut, filteredBeside, filteredToldHidden, filteredToldElsewhere, filteredLate, filteredLateTold, filteredYesterdayRaw,
-	filteredYesterdayLate, filteredRowsAside, filteredOtherZone, filteredDamaged, filteredFacetsApart, filteredFailedAlone, filteredIDAcross,
-	filteredIdlessAcross, filteredCopyElsewhere,
+	filteredSkipped, filteredRuledOut, filteredBeside, filteredToldHidden, filteredToldElsewhere, filteredToldAcross, filteredLate, filteredLateTold,
+	filteredYesterdayRaw, filteredYesterdayLate, filteredRowsAside, filteredOtherZone, filteredDamaged, filteredFacetsApart, filteredFailedAlone,
+	filteredIDAcross, filteredIdlessAcross, filteredCopyElsewhere,
 }
 
 // throughKind is a kind of filter the Log is read through: the filter
@@ -93,16 +94,19 @@ var (
 )
 
 // throughPairs are the pairs of kinds of filter the Log is read through, a
-// pair a spread world, by its seed: each of a pair ticks what the other
-// doesn't, so neither serves the other, whatever ids they tick, and a read
-// through either is read again through their join for the other. An
-// account and the failed alone are crowdedSeed's, as its crowded day's
-// failures alone are read of its chunks through the latter, and a line of
-// it given again on another account through the former.
+// pair a spread world, in spreadSeeds' order: each of a pair ticks what the
+// other doesn't, so neither serves the other, as crossingOf draws them, and
+// a read through either is read again through their join for the other.
+// Two sessions join ticking both, so a day is read again through a join
+// that keeps fewer than every line. An account and the failed alone are
+// crowdedSeed's, as its crowded day's failures alone are read of its
+// chunks through the latter, and a line of it given again on another
+// account through the former.
 var throughPairs = [][2]throughKind{
+	{ofASession, ofASession},
+	{ofAnAccount, failedAlone},
 	{ofASession, ofAModel},
 	{ofAnAccountsModel, failedOfASession},
-	{ofAnAccount, failedAlone},
 }
 
 // oneOf is a choice ticking one of the ids given, as r draws it.
@@ -116,6 +120,22 @@ func (k throughKind) drawn(r *rand.Rand, ids filterIDs) LogFilter {
 	f := k(r, ids)
 	f.Kinds = slices.DeleteFunc(RowKinds(), func(RowKind) bool { return r.IntN(2) == 0 })
 	return f
+}
+
+// crossingOf is a filter of the kind given, as r draws it of the world's
+// ids, that crosses f: f doesn't serve it, nor it f, as serves has it.
+// It's drawn again till it is one, failing the test where a hundred draws
+// give none.
+func (b backThrough) crossingOf(r *rand.Rand, k throughKind, f LogFilter) LogFilter {
+	b.w.t.Helper()
+	ids := idsOf(b.w.lines)
+	for range 100 {
+		if c := k.drawn(r, ids); !f.through().serves(c) && !c.through().serves(f) {
+			return c
+		}
+	}
+	b.w.t.Fatalf("%s at %v: of a hundred filters drawn, none crosses %+v", b.w.name, b.now, f)
+	return LogFilter{}
 }
 
 // widerThan is a filter r draws that serves f, as widened draws one, but
@@ -134,21 +154,23 @@ func (b backThrough) widerThan(r *rand.Rand, f LogFilter, ids filterIDs) LogFilt
 }
 
 // sameFiltered fails the test where the Log read back at the moment m
-// through the filters of the world's pair, as throughPairs has it, each
-// drawn of the ids that ids gives, shows through either otherwise than with
-// every day read whole from its lines, as Day gives them, as shownThrough
-// has it, or tells otherwise when the ledger last wrote, as sameWritten has
-// it: read back to the day three before, as threeBack has it, told what
-// throughStream tells, each day's lines, summaries and rows read once for
-// every read, as readOnce has them. One of the pair, in turn, is shown, the
-// other crossing it. The one shown is read three ways: its past days
-// through it, its store holding none as it begins; through a filter wider
-// than it; and through the one crossing it, which then serves it not, as
+// through the filters of the world's pair, as throughPairs has it, shows
+// through either otherwise than with every day read whole from its lines,
+// as Day gives them, as shownThrough has it, or tells otherwise when the
+// ledger last wrote, as sameWritten has it: read back to the day three
+// before, as threeBack has it, told what throughStream tells, each day's
+// lines, summaries and rows read once for every read, as readOnce has
+// them. One of the pair, in turn, is shown, drawn of the ids that ids
+// gives; the other crosses it, as crossingOf draws it. The one shown is
+// read three ways: its past days through it, its store holding none as it
+// begins; through a filter wider than it; and through the one crossing it,
+// which then serves it not, as
 // unserved holds it, then read again where they don't serve it through the
 // join of the two, as refiltered reads them, holding each day read again;
 // and where a late line was filed at m, read as before it was, then taken
 // in, as sameLate has it. Of its past days read through it, the Events are
-// held as sameEvents holds them. The first read begins with a store holding
+// held as sameEvents holds them, and the days a request told as sent just
+// after a midnight may be filed on, as toldHeld holds them. The first read begins with a store holding
 // none; the read with every day whole beside the store it fed, and the rest
 // beside the whole read's, as the dashboard's store holds what a read
 // before fed it. It notes the hard moments the reads through each of the
@@ -158,11 +180,13 @@ func (w *spread) sameFiltered(m moment) {
 	r := rand.New(rand.NewPCG(w.seed, uint64(m.i)))
 	b := backThrough{w: w, l: readingOnce().through(w.based), now: m.now, from: threeBack(m.now), s: w.throughStream(m)}
 	ids, turn := b.ids(), (m.i+m.i/4)%2
-	pair := throughPairs[w.seed%uint64(len(throughPairs))]
-	f, crossing := pair[turn].drawn(r, ids), pair[1-turn].drawn(r, ids)
+	pair := throughPairs[slices.Index(spreadSeeds, w.seed)]
+	f := pair[turn].drawn(r, ids)
+	crossing := b.crossingOf(r, pair[1-turn], f)
 	read := b.read(HoldSessions(w.prices.read), f)
 	var held HeldSessions
 	b.whole, held = readBeside(readRaw{b.l}, read.held, wholly, b.from, b.s, m.now)
+	b.toldHeld(read, f)
 	across := b.read(held, crossing)
 	w.noteThrough(m, b, f, read)
 	w.noteThrough(m, b, crossing, across)
@@ -236,11 +260,13 @@ func (b backThrough) filteredOn(f LogFilter) []string {
 	return dates
 }
 
-// ids are the ids the filters b reads through are drawn of: of the first
-// chunk of a past day's rows that b reads back to, spoiled, as spoilChunk
-// spoils one, those its meta counts, each choice of one or more, so a
-// filter of any kind but the failed alone chooses the chunk; else the
-// world's, as idsOf has them.
+// ids are the ids the filter shown is drawn of: of the first chunk of a
+// past day's rows that b reads back to, spoiled, as spoilChunk spoils one,
+// those its meta counts, each choice of one or more, so a filter of any
+// kind but the failed alone chooses the chunk; else, where b's stream tells
+// of the request acrossMidnight gives, those of the row it tells of, so a
+// filter of its account chooses the row and rules out every past day; else
+// the world's, as idsOf has them.
 func (b backThrough) ids() filterIDs {
 	w := b.w
 	for _, date := range slices.Sorted(maps.Keys(w.spoiled)) {
@@ -260,6 +286,9 @@ func (b backThrough) ids() filterIDs {
 		if len(ids.accounts) > 0 && len(ids.models) > 0 && len(ids.sessions) > 0 {
 			return ids
 		}
+	}
+	if _, t, ok := b.toldAcrossMidnight(); ok {
+		return filterIDs{accounts: []string{t.Account}, models: []string{t.Model}, sessions: []string{t.Session}}
 	}
 	return idsOf(w.lines)
 }
@@ -421,29 +450,146 @@ func threeBack(now time.Time) string {
 }
 
 // throughStream is what the stream tells the Log read through filters at
-// the moment m: on alternate days, by the world's seed, nothing, so the day
-// before is read through the filter as any other; else what the Log's
-// stream tells, as logStream has it, which reads the day before whole, and
-// of the newest request with an id that arrived on the day three before,
-// ended, its line held, and one sent as that day ended, its line yet to
-// come, as toldBack tells of them: so that day is read whole too, whatever
-// the filter. It tells of each on the next of the world's accounts after
-// the one toldBack tells, as of a request moved after its line was filed.
+// the moment m. On alternate days, by the world's seed, it tells only of a
+// request sent half a minute after a past day's midnight, its line filed
+// the day before, as acrossMidnight has it, where there's one: so the day
+// before now's is read through the filter as any other, unless it's one of
+// those two. Else it tells what the Log's stream tells, as logStream has
+// it, which reads the day before whole, and of the newest request with an
+// id that arrived on the day three before, ended, its line held, and one
+// sent as that day ended, its line yet to come, as toldBack tells of them:
+// so that day is read whole too, whatever the filter. It tells of each on
+// the next of the world's accounts after the one toldBack tells, as
+// nextAccount has it, as of a request moved after its line was filed.
 func (w *spread) throughStream(m moment) Stream {
 	if (m.i/4+int(w.seed))%2 == 0 {
+		if _, t, ok := w.acrossMidnight(m.now); ok {
+			return Stream{Requests: map[string]Told{t.Request: t}}
+		}
 		return Stream{}
 	}
 	s, told := logStream(m), toldBack(w.lines, []string{threeBack(m.now)})
-	accounts := idsOf(w.lines).accounts
 	for id, t := range told.Requests {
-		if i := slices.Index(accounts, t.Account); i >= 0 {
-			t.Account = accounts[(i+1)%len(accounts)]
-			told.Requests[id] = t
-		}
+		t.Account = w.nextAccount(t.Account)
+		told.Requests[id] = t
 	}
 	maps.Copy(told.Requests, s.Requests)
 	s.Requests = told.Requests
 	return s
+}
+
+// acrossMidnight is the line of a request with an id that arrived in the
+// ten minutes before a midnight and was in flight half a minute after it,
+// as again's is, and the stream's telling of it as sent then, ended, as
+// toldOf tells it, on spareAccount: as one sent within arrivesWithin after
+// midnight,
+// whose line may be filed on either day, as linedOn has them. It's the
+// first such that arrived from the day three before now's on, sent before
+// now's day, reporting false where none is.
+func (w *spread) acrossMidnight(now time.Time) (ledger.Line, Told, bool) {
+	from, today := threeBack(now), Today(now)
+	for _, l := range w.lines {
+		midnight := dayfile.DayStart(l.At, 1)
+		sent := midnight.Add(30 * time.Second)
+		if l.Request == "" || !isRequest(&l) || midnight.Sub(l.At) > 10*time.Minute || !ended(&l).After(sent) || Today(l.At).Date < from ||
+			!sent.Before(today.Start) {
+			continue
+		}
+		t := toldOf(&l)
+		t.Sent, t.Account = sent, spareAccount
+		return l, t, true
+	}
+	return ledger.Line{}, Told{}, false
+}
+
+// toldHeld fails the test, where b's stream tells of the request
+// acrossMidnight gives, where fr's read, its past days read through f,
+// holds through a filter either day its line may be filed on, of those it
+// spans: the day before the one it was sent on, as it was sent within
+// arrivesWithin after midnight, and that day; or where the read with every
+// day whole holds its line, yet shows the row the stream tells of it as
+// though it held none, as ShowsTold has it.
+func (b backThrough) toldHeld(fr filteredRead, f LogFilter) {
+	w := b.w
+	w.t.Helper()
+	_, t, ok := b.toldAcrossMidnight()
+	if !ok {
+		return
+	}
+	said := fmt.Sprintf("%s at %v: %s, told as sent at %v", w.name, b.now, t.Request, t.Sent)
+	for _, day := range []LedgerDay{Today(t.Sent.Add(-arrivesWithin)), Today(t.Sent)} {
+		if i, held := fr.read.dayAt(day.Date); held && !fr.read.days[i].through.whole() {
+			w.t.Errorf("%s, the Log through %+v holds %s through %+v", said, f, day.Date, fr.read.days[i].through)
+		}
+	}
+	held := false
+	for l := range b.whole.lines() {
+		held = held || t.filedAs(l.flight)
+	}
+	if held && b.whole.ShowsTold(t, dayOf(b.from)) {
+		w.t.Errorf("%s, the Log read with every day whole holds its line, yet shows the row the stream tells of it", said)
+	}
+}
+
+// spareAccount is the account the stream tells of the request
+// acrossMidnight gives on, as of one moved to an account added since: one
+// no line of a spread world's names, so a filter of it rules out every
+// day by its summaries.
+const spareAccount = "spare"
+
+// toldAcrossMidnight is the request acrossMidnight gives at b's moment, its
+// line and the stream's telling of it, reporting false where b's stream
+// doesn't tell of it so.
+func (b backThrough) toldAcrossMidnight() (ledger.Line, Told, bool) {
+	l, t, ok := b.w.acrossMidnight(b.now)
+	told, tells := b.s.Requests[t.Request]
+	return l, t, ok && tells && told.Sent.Equal(t.Sent)
+}
+
+// nextAccount is the next of the world's accounts after the one given, as
+// idsOf orders them, the first after the last: the one given where the
+// world has none of it.
+func (w *spread) nextAccount(account string) string {
+	accounts := idsOf(w.lines).accounts
+	if i := slices.Index(accounts, account); i >= 0 {
+		return accounts[(i+1)%len(accounts)]
+	}
+	return account
+}
+
+// toldAcross reports whether, of the request acrossMidnight gives, where
+// b's stream tells of it, the line, filed the day before it was sent, is
+// held among that day's lines, f hiding it, that day and the next both
+// read whole, neither read so through f were the stream to tell of the
+// rest alone, as ThroughOn has it; and the former, read through f so, as
+// ReadDay reads it, would pass the line over, so it's the day read whole
+// that keeps it, f choosing the row the stream tells of, which would show
+// were the line passed over.
+func (b backThrough) toldAcross(read LogRead, f LogFilter) bool {
+	l, t, ok := b.toldAcrossMidnight()
+	if !ok {
+		return false
+	}
+	rest := b.s
+	rest.Requests = maps.Clone(b.s.Requests)
+	delete(rest.Requests, t.Request)
+	filed := Today(l.At).Date
+	for _, date := range []string{filed, Today(t.Sent).Date} {
+		if i, held := read.dayAt(date); !held || !read.days[i].through.whole() || f.ThroughOn(rest, date).whole() {
+			return false
+		}
+	}
+	if slices.ContainsFunc(ReadDay(b.l, filed, f.ThroughOn(rest, filed)).records, func(r lineRecord) bool { return t.filedAs(r.flight) }) {
+		return false
+	}
+	i, _ := read.dayAt(filed)
+	told := rowChoice{account: t.Account, model: t.Model, session: t.Session}
+	for _, line := range read.days[i].lines.all() {
+		if t.filedAs(line.flight) && t.Account != line.row.Account && !f.chose(&line.row) && f.chosen(told) {
+			return true
+		}
+	}
+	return false
 }
 
 // sameLate fails the test where the Log read back through the filter f, as
@@ -534,6 +680,7 @@ func (w *spread) noteThrough(m moment, b backThrough, f LogFilter, fr filteredRe
 	}
 	w.met[filteredToldHidden] = w.met[filteredToldHidden] || toldHidden(fr.read, f, b.s, today)
 	w.met[filteredToldElsewhere] = w.met[filteredToldElsewhere] || toldElsewhere(fr.read, f, b.s, today)
+	w.met[filteredToldAcross] = w.met[filteredToldAcross] || b.toldAcross(fr.read, f)
 }
 
 // noteDayThrough notes the hard moments the past day with the given date,
@@ -709,12 +856,21 @@ func (a *daysAsked) fromRows(date string) (map[int64][]lineRecord, bool) {
 // handedEnd is when the ledger last wrote of what a read through a was
 // handed, as WrittenTo has it: the latest end of the records of each day
 // it read, those of the day's lines where it read them, else those of the
-// chunks of its rows it read, as fromRows has them; zero where it was
-// handed none.
+// chunks of its rows it read, as fromRows has them, in order, but a copy of
+// one with an id given before it, which countedOnce passes over as given
+// again; zero where it was handed none. A copy without an id is counted as
+// it's given, as each ends as its first does in every world.
 func (a *daysAsked) handedEnd() time.Time {
 	var last time.Time
 	later := func(records []lineRecord) {
+		given := make(map[lineKey]bool)
 		for i := range records {
+			if k, id := records[i].key(); id {
+				if given[k] {
+					continue
+				}
+				given[k] = true
+			}
 			last = score.Later(last, records[i].ended())
 		}
 	}
@@ -723,9 +879,11 @@ func (a *daysAsked) handedEnd() time.Time {
 	}
 	for date := range a.chunks {
 		chunks, _ := a.fromRows(date)
-		for _, records := range chunks {
-			later(records)
+		var records []lineRecord
+		for _, offset := range slices.Sorted(maps.Keys(chunks)) {
+			records = append(records, chunks[offset]...)
 		}
+		later(records)
 	}
 	return last
 }
