@@ -206,14 +206,36 @@ func (f LogFilter) hiding(r *RequestRow) hidden {
 
 // chose reports whether the filter's choices but its kinds keep the row r.
 func (f LogFilter) chose(r *RequestRow) bool {
-	return ticked(f.Accounts, r.Account) && ticked(f.Models, r.Model) && ticked(f.Sessions, r.CountedSession) && (!f.Failed || r.Failed)
+	return f.chosen(rowChoice{account: r.Account, model: r.Model, session: r.CountedSession, failed: r.Failed})
 }
 
 // keeps reports whether the filter's choices but its kinds keep the row of
-// the record rec, as chose keeps the row lineFacts makes of it, without
-// making the row: every one where f keeps every line, as whole has it.
+// the record rec, as chose keeps the row lineFacts makes of it, judging its
+// choice alone, as choice has it: every one where f keeps every line, as
+// whole has it.
 func (f LogFilter) keeps(rec *lineRecord) bool {
-	return f.whole() || f.chose(&RequestRow{Account: rec.account, Model: rec.model, CountedSession: rec.countedSession, Failed: ledger.Failing(rec.status)})
+	return f.whole() || f.chosen(rec.choice())
+}
+
+// chosen reports whether the filter's choices but its kinds keep a row of
+// the choice c.
+func (f LogFilter) chosen(c rowChoice) bool {
+	return ticked(f.Accounts, c.account) && ticked(f.Models, c.model) && ticked(f.Sessions, c.session) && (!f.Failed || c.failed)
+}
+
+// rowChoice is what of a row a filter's choices judge: the account it's on,
+// the model it asked for, the session it counts toward, and whether it
+// failed.
+type rowChoice struct {
+	account, model, session string
+	failed                  bool
+}
+
+// choice is what of the row of the record r a filter's choices judge, as
+// rowChoice has it: the one making of those facts, which lineFacts makes
+// the row of, and LogFilter's keeps judges a record by.
+func (r *rowRecord) choice() rowChoice {
+	return rowChoice{account: r.account, model: r.model, session: r.countedSession, failed: ledger.Failing(r.status)}
 }
 
 // hidden is what of a filter hides a row.

@@ -462,9 +462,9 @@ func (d *digesting) buildHead(ctx context.Context, date string, view writerLook,
 // all be read for now, the builder fails, or its chunks count other than a
 // row of each line it was handed, as no head of them would stand.
 func (d *digesting) headOf(ctx context.Context, date string, view writerLook, now time.Time) (DayHead, []BuiltChunk, error) {
-	start, end, _ := dayfile.Day(date)
+	day, _ := dayfile.DayBounds(date)
 	summaryLines, _ := view.kept(date)
-	head := DayHead{Body: d.digester.RowsVersion(), Day: date, Start: start, End: end, SummaryLines: summaryLines}
+	head := DayHead{Body: d.digester.RowsVersion(), Day: date, Start: day.Start, End: day.End, SummaryLines: summaryLines}
 	kept := keptBeside(date, view.kept)
 	gave := make(map[string]bool)
 	build := d.digester.Day()
@@ -478,7 +478,7 @@ func (d *digesting) headOf(ctx context.Context, date string, view writerLook, no
 	switch {
 	case ctx.Err() != nil:
 		return DayHead{}, nil, fmt.Errorf("the lines of %s: %w", date, ctx.Err())
-	case faults.Any(dayfile.Dates(start, start)):
+	case faults.Any(day.FileDates()):
 		return DayHead{}, nil, fmt.Errorf("the lines of %s: %w", date, errDayUnread)
 	}
 	built, err := build.Built()

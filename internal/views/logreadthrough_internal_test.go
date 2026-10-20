@@ -3,6 +3,7 @@ package views
 import (
 	"cmp"
 	"fmt"
+	"iter"
 	"math/rand/v2"
 	"reflect"
 	"slices"
@@ -10,7 +11,9 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
+	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // readHeldBack is the Log's read at now through l, as the watch reads it,
@@ -248,7 +251,7 @@ func refilteredAll(l Ledger, read LogRead, held HeldSessions, f LogFilter, s Str
 	for _, day := range read.Unserved(f) {
 		through[day.Date] = read.RefilterThrough(day.Date, f, s)
 		var fresh *HeldSessions
-		if read, fresh = read.Refiltered(l, ReadDay(l, day.Date, through[day.Date]), held, s, now); fresh != nil {
+		if read, fresh, _ = read.Refiltered(l, ReadDay(l, day.Date, through[day.Date]), held, s, now); fresh != nil {
 			held = held.With(*fresh)
 		}
 	}
@@ -282,26 +285,38 @@ func heldRequests(read LogRead) []string {
 // copies of a request saying otherwise of its account hold neither where
 // the first is dropped, as the day held whole holds the first, which the
 // filter hides. A line read late onto the day, as a read of it again whole
-// gives, is kept as the day keeps one.
+// gives, is kept as the day keeps one. Every line counted, kept or dropped,
+// tells when the ledger last wrote, so a line read late that the filter
+// drops changes the read where it ended after every line before it.
 func TestADayHeldThroughAFilterKeepsWhatItKeepsAndToldLinesEachCountedFirst(t *testing.T) {
 	at := time.Date(2026, 10, 7, 9, 0, 0, 0, time.Local)
 	date, now := dayfile.DateOf(at), at.Add(48*time.Hour)
 	line := func(id, account string, seconds int) ledger.Held {
 		return ledger.Held{
 			At: at.Add(time.Duration(seconds) * time.Second), Request: id, Kind: ledger.KindMessage, Session: "s", Model: foldOpus, Account: account, Status: 200,
+			TotalMS: 1500,
 		}
+	}
+	lastEnd := func(lines ...ledger.Held) time.Time {
+		var last time.Time
+		for _, l := range lines {
+			if end := l.At.Add(time.Duration(l.TotalMS) * time.Millisecond); end.After(last) {
+				last = end
+			}
+		}
+		return last
 	}
 	told := func(l ledger.Held) Stream {
 		return Stream{Requests: map[string]Told{l.Request: {Request: l.Request, Session: l.Session, Sent: l.At, Ended: l.At.Add(time.Second)}}}
 	}
 	ofWork := LogFilter{Accounts: []string{"work"}}
 	tests := []struct {
-		name      string
-		read      []ledger.Held
-		stream    Stream
-		late      []ledger.Held
-		want      []string
-		lateTaken bool
+		name        string
+		read        []ledger.Held
+		stream      Stream
+		late        []ledger.Held
+		want        []string
+		lateChanged bool
 	}{
 		{name: "the lines its filter keeps", read: []ledger.Held{line("r1", "work", 0), line("r2", "personal", 2)}, want: []string{"r1"}},
 		{name: "a line its filter keeps not, of a request the stream tells of", read: []ledger.Held{line("r1", "work", 0), line("r2", "personal", 2)},
@@ -311,11 +326,13 @@ func TestADayHeldThroughAFilterKeepsWhatItKeepsAndToldLinesEachCountedFirst(t *t
 			want: []string{"-", "-"}},
 		{name: "two copies of a request, the first of an account its filter keeps not", read: []ledger.Held{line("r1", "personal", 0), line("r1", "work", 0)}},
 		{name: "a line read late onto it, its filter keeping it", read: []ledger.Held{line("r1", "work", 0)},
-			late: []ledger.Held{line("r1", "work", 0), line("r3", "work", 3)}, want: []string{"r1", "r3"}, lateTaken: true},
+			late: []ledger.Held{line("r1", "work", 0), line("r3", "work", 3)}, want: []string{"r1", "r3"}, lateChanged: true},
 		{name: "a line read late onto it, its filter keeping it not", read: []ledger.Held{line("r1", "work", 0)},
-			late: []ledger.Held{line("r1", "work", 0), line("r4", "personal", 4)}, want: []string{"r1"}},
+			late: []ledger.Held{line("r1", "work", 0), line("r4", "personal", 4)}, want: []string{"r1"}, lateChanged: true},
+		{name: "a line read late onto it, its filter keeping it not, ending before the last", read: []ledger.Held{line("r1", "work", 0)},
+			late: []ledger.Held{line("r4", "personal", -1)}, want: []string{"r1"}},
 		{name: "a line read late onto it, its filter keeping it not, of a request the stream tells of", read: []ledger.Held{line("r1", "work", 0)},
-			stream: told(line("r4", "personal", 4)), late: []ledger.Held{line("r4", "personal", 4)}, want: []string{"r1", "r4"}, lateTaken: true},
+			stream: told(line("r4", "personal", 4)), late: []ledger.Held{line("r4", "personal", 4)}, want: []string{"r1", "r4"}, lateChanged: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -324,9 +341,12 @@ func TestADayHeldThroughAFilterKeepsWhatItKeepsAndToldLinesEachCountedFirst(t *t
 			got := read
 			if tt.late != nil {
 				got = read.Taken(RecordsOf(tt.late), true, taking)
-				if taken := !got.Same(read); taken != tt.lateTaken {
-					t.Errorf("read late onto the day, the read took a line %t, want %t", taken, tt.lateTaken)
+				if changed := !got.Same(read); changed != tt.lateChanged {
+					t.Errorf("read late onto the day, the read changed %t, want %t", changed, tt.lateChanged)
 				}
+			}
+			if wrote, want := got.WrittenTo(), lastEnd(slices.Concat(tt.read, tt.late)...); !wrote.Equal(want) {
+				t.Errorf("the ledger last wrote at %v, the read says, want %v, the end of the last line counted", wrote, want)
 			}
 			if ids := heldRequests(got); !slices.Equal(ids, tt.want) {
 				t.Errorf("held through %+v, the day holds %v, want %v", ofWork, ids, tt.want)
@@ -359,16 +379,16 @@ func (a sessionsAsked) SessionsOf(ids []string, rest func(string) ledger.Rest, t
 // a day held through a filter keeping those the filter keeps and those of
 // the requests the stream tells of, never the sessions of the lines it
 // drops: of a day read through a filter, and of a line read late onto it.
-// A day read back feeds the store only the sessions it keeps lines of.
+// A day read back feeds the store only the sessions it keeps lines of,
+// whether the read holds no day yet, or today whole, as the watch's read
+// back finds it.
 func TestTheLogWantsOnlyTheSessionsOfTheLinesItsReadKeeps(t *testing.T) {
 	at := time.Date(2026, 10, 7, 9, 0, 0, 0, time.Local)
 	date, now := dayfile.DateOf(at), at.Add(48*time.Hour)
-	line := func(id, session string, seconds int) ledger.Line {
-		return ledger.Line{
-			At: at.Add(time.Duration(seconds) * time.Second), Request: id, Kind: ledger.KindMessage, Session: session, Model: foldOpus, Account: "work", Status: 200,
-		}
+	line := func(id, session string, at time.Time) ledger.Line {
+		return ledger.Line{At: at, Request: id, Kind: ledger.KindMessage, Session: session, Model: foldOpus, Account: "work", Status: 200}
 	}
-	a1, b1, c1 := line("a1", "a", 0), line("b1", "b", 1), line("c1", "c", 2)
+	a1, b1, c1, d1 := line("a1", "a", at), line("b1", "b", at.Add(time.Second)), line("c1", "c", at.Add(2*time.Second)), line("d1", "d", now.Add(-time.Hour))
 	tellsOf := func(l ledger.Line) Stream {
 		return Stream{Requests: map[string]Told{l.Request: {Request: l.Request, Session: l.Session, Sent: l.At}}}
 	}
@@ -384,21 +404,28 @@ func TestTheLogWantsOnlyTheSessionsOfTheLinesItsReadKeeps(t *testing.T) {
 		{name: "telling of a request of c, its line read late", stream: tellsOf(c1), back: []string{"a"}, late: []string{"a", "c"}},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var asks []string
-			l := sessionsAsked{lines: []ledger.Line{a1, b1, c1}, now: now, ids: &asks}
-			day := throughDay(date, ofA, ledger.Held{Line: a1}, ledger.Held{Line: b1})
-			read, fresh := ReadLog(ledger.Pricing).TakenBack(l, day, HoldSessions(ledger.Pricing), tt.stream, now)
-			if fresh == nil || !slices.Equal(asks, tt.back) {
-				t.Errorf("a day read back through %+v reads the store the sessions %v, want %v", ofA, asks, tt.back)
-			}
-			if got := read.Wanted(tt.stream); !slices.Equal(got, tt.back) {
-				t.Errorf("a day held through %+v wants %v, want %v", ofA, got, tt.back)
-			}
-			if got := read.Wanted(tt.stream, late); !slices.Equal(got, tt.late) {
-				t.Errorf("a line of c read late onto a day held through %+v, the Log wants %v, want %v", ofA, got, tt.late)
-			}
-		})
+		for _, today := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s, today held %t", tt.name, today), func(t *testing.T) {
+				var asks, also []string
+				l := sessionsAsked{lines: []ledger.Line{a1, b1, c1, d1}, now: now, ids: &asks}
+				read, held := ReadLog(ledger.Pricing), HoldSessions(ledger.Pricing)
+				if today {
+					var fresh *HeldSessions
+					read, fresh = read.TakenBack(l, RecordsOf([]ledger.Held{{Line: d1}}), held, tt.stream, now)
+					held, also, asks = held.With(*fresh), []string{"d"}, nil
+				}
+				read, fresh := read.TakenBack(l, throughDay(date, ofA, ledger.Held{Line: a1}, ledger.Held{Line: b1}), held, tt.stream, now)
+				if fresh == nil || !slices.Equal(asks, tt.back) {
+					t.Errorf("a day read back through %+v reads the store the sessions %v, want %v", ofA, asks, tt.back)
+				}
+				if got, want := read.Wanted(tt.stream), append(slices.Clone(tt.back), also...); !slices.Equal(got, want) {
+					t.Errorf("a day held through %+v wants %v, want %v", ofA, got, want)
+				}
+				if got, want := read.Wanted(tt.stream, late), append(slices.Clone(tt.late), also...); !slices.Equal(got, want) {
+					t.Errorf("a line of c read late onto a day held through %+v, the Log wants %v, want %v", ofA, got, want)
+				}
+			})
+		}
 	}
 }
 
@@ -467,7 +494,8 @@ func TestAReadServesAFilterEachDayItHoldsServes(t *testing.T) {
 // filter and the one shown, as joined has it; whole where the stream tells
 // of a request whose line may be filed on it, as ThroughOn has it; and of a
 // day held whole, whole. A day the read holds none of is read through the
-// one shown, as ThroughOn has it.
+// one shown, as ThroughOn has it: whole, too, where the stream tells of a
+// request on it.
 func TestADayIsRefilteredThroughTheJoinOfItsFilterAndTheOneShown(t *testing.T) {
 	now := time.Date(2026, 10, 9, 9, 0, 0, 0, time.Local)
 	work, personal := []string{"work"}, []string{"personal"}
@@ -484,6 +512,8 @@ func TestADayIsRefilteredThroughTheJoinOfItsFilterAndTheOneShown(t *testing.T) {
 		{"a day held through an account's, the stream telling of a request on it", "2026-10-07", told, LogFilter{}},
 		{"today, held whole", "2026-10-09", Stream{}, LogFilter{}},
 		{"a day not held", "2026-10-08", Stream{}, LogFilter{Accounts: personal}},
+		{"a day not held, the stream telling of a request on it", "2026-10-08", Stream{Requests: map[string]Told{"r2": {Request: "r2", Session: "s", Sent: start.Add(36 * time.Hour)}}},
+			LogFilter{}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -526,7 +556,10 @@ func TestARefilteredReadHoldsTheDayReadAgainInPlaceOfTheDayItHeld(t *testing.T) 
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, _ := read.Refiltered(l, tt.day, HoldSessions(ledger.Pricing), Stream{}, now)
+			got, _, ok := read.Refiltered(l, tt.day, HoldSessions(ledger.Pricing), Stream{}, now)
+			if !ok {
+				t.Fatal("refiltering a day the read holds, it refused")
+			}
 			var through []LogFilter
 			for _, d := range got.days {
 				through = append(through, d.through)
@@ -543,6 +576,24 @@ func TestARefilteredReadHoldsTheDayReadAgainInPlaceOfTheDayItHeld(t *testing.T) 
 				t.Errorf("the lines tabled of the read before, caught up with it refiltered, are\n%+v\nwant them tabled afresh\n%+v", caught, afresh)
 			}
 		})
+	}
+}
+
+// A read refuses to refilter a day it doesn't hold, which only a read back
+// adds: it's the read it was, reading no store, whatever the day gives.
+func TestARefilteredReadRefusesADayItDoesntHold(t *testing.T) {
+	now := time.Date(2026, 10, 9, 9, 0, 0, 0, time.Local)
+	start, _, _ := dayfile.Day("2026-10-06")
+	line := ledger.Line{At: start.Add(12 * time.Hour), Request: "r0", Kind: ledger.KindMessage, Session: "s", Model: foldOpus, Account: "work", Status: 200}
+	var asks []string
+	l := sessionsAsked{lines: []ledger.Line{line}, now: now, ids: &asks}
+	read := heldThrough(now, map[string]LogFilter{"2026-10-08": {Accounts: []string{"work"}}})
+	for _, day := range []LogDay{throughDay("2026-10-06", LogFilter{}, ledger.Held{Line: line}), RecordsOf([]ledger.Held{{Line: line}})} {
+		got, fresh, ok := read.Refiltered(l, day, HoldSessions(ledger.Pricing), Stream{}, now)
+		if ok || !got.Same(read) || fresh != nil || len(asks) > 0 || !slices.Equal(heldRequests(got), heldRequests(read)) {
+			t.Errorf("refiltering a day of %q it doesn't hold, the read took it %t, is the same read %t, read the store %v, holds %v; want it refused, as it was",
+				day.date, ok, got.Same(read), asks, heldRequests(got))
+		}
 	}
 }
 
@@ -574,5 +625,119 @@ func TestLinesTabledSayTheFilterTheyreTabledThrough(t *testing.T) {
 	}
 	if got := (LogLines{}).Filter(); !got.Equal(LogFilter{}) {
 		t.Errorf("lines never tabled say %+v, want the zero LogFilter", got)
+	}
+}
+
+// eventFiles are the router's files of events holding those given, oldest
+// first, each as it was last filed.
+type eventFiles []events.Line
+
+func (f eventFiles) Between(from, to time.Time) iter.Seq[events.Line] {
+	return func(yield func(events.Line) bool) {
+		for _, l := range f {
+			if !l.At.Before(from) && l.At.Before(to) && !yield(l) {
+				return
+			}
+		}
+	}
+}
+
+func (f eventFiles) FirstDay() (time.Time, error) {
+	return Today(f[0].At).Start, nil
+}
+
+// eventsShown is what the Log's Events built of src show: their rows, their
+// lines and today's count; then the card of each event they read, those
+// the filter hides among them, as src's Read tells it.
+func eventsShown(src LogEventSources) []any {
+	table := LogEvents(src)
+	shown := []any{table.Rows, table.Lines, table.Today}
+	for _, e := range table.told {
+		details, _ := table.Details(e.row.Key, src.Read)
+		shown = append(shown, details)
+	}
+	return shown
+}
+
+// The Log's Events read only the days the Log's read holds whole after the
+// newest it holds through a filter, as its wholeFrom has them: of a read
+// holding yesterday through a filter, they show, cards and all, what they
+// show of the read without yesterday or any day before; and once yesterday
+// is refiltered whole, what they show of the read with every day whole. A
+// move's row on a day held whole tells of its session's story.
+func TestTheLogsEventsReadOnlyTheDaysItsReadHoldsWhole(t *testing.T) {
+	now := time.Date(2026, 10, 9, 9, 0, 0, 0, time.Local)
+	today, yesterday, before := Today(now), Today(dayfile.DayStart(now, -1)), Today(dayfile.DayStart(now, -2))
+	capped := today.Start.Add(30 * time.Minute)
+	line := func(id, session string, at time.Time) ledger.Line {
+		return ledger.Line{
+			At: at, Request: id, Kind: ledger.KindMessage, Session: session, Model: foldOpus, Account: "work", Status: 200, Dir: "/work/" + session,
+		}
+	}
+	lines := []ledger.Line{
+		line("a5", "a", before.Start.Add(12*time.Hour)),
+		line("a7", "a", capped.Add(-55*time.Minute)), line("b7", "b", capped.Add(-50*time.Minute)),
+		line("c9", "c", capped.Add(-20*time.Minute)),
+	}
+	event := func(id int, e status.Event) events.Line {
+		e.ID = id
+		return events.Line{Event: e, Run: before.Start}
+	}
+	files := eventFiles{
+		event(1, status.Event{At: before.Start.Add(13 * time.Hour), Kind: status.EventPressure, Account: "work"}),
+		event(2, status.Event{At: yesterday.Start.Add(20 * time.Hour), Kind: status.EventLimit, Account: "personal"}),
+		event(3, status.Event{At: capped, Kind: status.EventCap, Account: "work"}),
+		event(4, status.Event{At: capped.Add(5 * time.Minute), Kind: status.EventMoved, Session: "c", From: "work", To: "personal"}),
+	}
+	l := filedLedger{lines: lines, now: now}
+	on := func(day LedgerDay, f LogFilter) LogDay {
+		var held []ledger.Held
+		for _, line := range lines {
+			if day.Holds(line.At) {
+				held = append(held, ledger.Held{Line: line})
+			}
+		}
+		return throughDay(day.Date, f, held...)
+	}
+	readBack := func(days ...LogDay) (LogRead, HeldSessions) {
+		read, held := ReadLog(ledger.Pricing), HoldSessions(ledger.Pricing)
+		for _, day := range days {
+			var fresh *HeldSessions
+			if read, fresh = read.TakenBack(l, day, held, Stream{}, now); fresh != nil {
+				held = held.With(*fresh)
+			}
+		}
+		return read, held
+	}
+	read := ReadEvents(files, before.Start, now)
+	shown := func(from LedgerDay, r LogRead, held HeldSessions) []any {
+		return eventsShown(LogEventSources{
+			From: from.Start, Events: read, Held: held, Read: r, Oldest: OldestDay{Day: before, Keep: 30 * 24 * time.Hour}, Now: now,
+		})
+	}
+	ofA := LogFilter{Sessions: []string{"a"}}
+	through, throughHeld := readBack(on(today, LogFilter{}), on(yesterday, ofA), on(before, LogFilter{}))
+	todays, todaysHeld := readBack(on(today, LogFilter{}))
+	whole, wholeHeld := readBack(on(today, LogFilter{}), on(yesterday, LogFilter{}), on(before, LogFilter{}))
+	got := shown(before, through, throughHeld)
+	if want := shown(today, todays, todaysHeld); !reflect.DeepEqual(got, want) {
+		t.Errorf("of a read holding yesterday through %+v, the Events show otherwise than of the read without it\n%s", ofA, unlike(got, want))
+	}
+	if rows := got[0].([]LogEvent); len(rows) != 2 || rows[1].Dir != "/work/c" {
+		t.Errorf("of a read holding yesterday through %+v, the Events show %+v, want the cap and the move of c, its directory told", ofA, rows)
+	}
+	refiltered, fresh, ok := through.Refiltered(l, on(yesterday, LogFilter{}), throughHeld, Stream{}, now)
+	if !ok {
+		t.Fatalf("refiltering yesterday, the read held through %+v refused it", ofA)
+	}
+	if fresh != nil {
+		throughHeld = throughHeld.With(*fresh)
+	}
+	got, want := shown(before, refiltered, throughHeld), shown(before, whole, wholeHeld)
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("yesterday refiltered whole, the Events show otherwise than of the read whole\n%s", unlike(got, want))
+	}
+	if card := want[len(want)-2].(EventDetails); len(want[0].([]LogEvent)) != len(files) || card.Then == nil || card.Then.Sessions != 3 {
+		t.Errorf("of the read whole, the Events show %+v, the cap's card %+v; want every event, its card counting a, b and c", want[0], card)
 	}
 }

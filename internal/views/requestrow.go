@@ -346,9 +346,10 @@ func lineRow(r *rowRecord, s *story) RequestRow {
 // tells the rest, as toldBy has it, the words it names a request by interned
 // by n, as a session's requests name the same again and again.
 func lineFacts(r *rowRecord, n interning) RequestRow {
+	c := r.choice()
 	row := RequestRow{
-		Request: r.request, At: r.arrived(), Kind: r.kind, Session: n.of(r.session), Dir: n.of(r.dir), CountedSession: n.of(r.countedSession),
-		Model: n.of(r.model), Account: n.of(r.account), Status: r.status, Canceled: r.canceled, CutOff: r.cutOff, Failed: ledger.Failing(r.status),
+		Request: r.request, At: r.arrived(), Kind: r.kind, Session: n.of(r.session), Dir: n.of(r.dir), CountedSession: n.of(c.session),
+		Model: n.of(c.model), Account: n.of(c.account), Status: r.status, Canceled: r.canceled, CutOff: r.cutOff, Failed: c.failed,
 		Took: millis(r.totalMS), Stop: n.of(r.stop), Attempts: r.attempts, Size: r.size, Messages: r.messages, Tools: r.toolDefs,
 		Thinking: r.thinking, Agent: n.of(r.agent),
 	}

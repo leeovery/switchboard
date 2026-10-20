@@ -8,6 +8,7 @@ import (
 	"time"
 	"unique"
 
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/score"
 )
@@ -29,7 +30,7 @@ type LogRead struct {
 	price func(r *lineRecord, date string) Worth
 	// days are the days it holds lines of, the oldest first; seq is how many
 	// lines it has taken in, the last's seq; and written the latest end of
-	// its lines.
+	// its lines, those it counted and dropped among them.
 	days    []loggedDay
 	seq     int
 	written time.Time
@@ -139,19 +140,21 @@ func (r LogRead) Taken(day LogDay, whole bool, t LogTaking) LogRead {
 	return grown.changed(retold)
 }
 
-// TakenBack is r with day taken in whole, the records of a day's lines, as
-// ReadDay gives the day before those the Log's tables span, at now: the
-// sessions of the requests whose lines it keeps, as keptSessions has them,
-// that held doesn't hold read whole through l into a store of their own, as
-// Fed reads them, wanting them alone, each pinned as the stream s tells, at
-// r's prices; each line placed as s tells and its row told of the stories
-// held and that store hold, as Taken takes a day. It gives the store beside
-// it, for the watch's to take in: nil where held holds every one of the
-// sessions it keeps lines of.
+// TakenBack is r with day taken in, the records of a day's lines, as ReadDay
+// gives the day before those the Log's tables span, whole or through a
+// filter, at now: the sessions of the requests whose lines it keeps, as
+// keptSessions has them, that held doesn't hold read whole through l into a
+// store of their own, as Fed reads them, wanting them alone, each pinned as
+// the stream s tells, at r's prices; each line placed as s tells and its row
+// told of the stories held and that store hold, as Taken takes a day. It
+// gives the store beside it, for the watch's to take in: nil where held
+// holds every one of the sessions it keeps lines of.
 func (r LogRead) TakenBack(l LedgerSessions, day LogDay, held HeldSessions, s Stream, now time.Time) (LogRead, *HeldSessions) {
 	var found *HeldSessions
 	telling := held
-	if ids := held.Unheld(r.keptSessions(s, day)); len(ids) > 0 {
+	kept := r.keptSessions(s, day)
+	slices.Sort(kept)
+	if ids := held.Unheld(slices.Compact(kept)); len(ids) > 0 {
 		want := StreamWanted(s)
 		want.Log = ids
 		fresh, _ := HoldSessions(r.prices).Fed(l, Taken{}, want, now)
@@ -224,13 +227,17 @@ func (r LogRead) RefilterThrough(date string, f LogFilter, s Stream) LogFilter {
 // taken in as TakenBack takes it, through l, beside the store held, s
 // telling what's under way, at now, giving the store it reads as TakenBack
 // does. It's another read than r, as Same knows it, so what was tabled of r
-// is tabled of it afresh.
-func (r LogRead) Refiltered(l LedgerSessions, day LogDay, held HeldSessions, s Stream, now time.Time) (LogRead, *HeldSessions) {
-	if i, found := r.dayAt(day.date); found {
-		r.days = slices.Delete(slices.Clone(r.days), i, i+1)
+// is tabled of it afresh. It reports false, r as it was, no store read,
+// where r holds no day of day's date, which only a read back adds.
+func (r LogRead) Refiltered(l LedgerSessions, day LogDay, held HeldSessions, s Stream, now time.Time) (LogRead, *HeldSessions, bool) {
+	i, found := r.dayAt(day.date)
+	if !found {
+		return r, nil, false
 	}
+	r.days = slices.Delete(slices.Clone(r.days), i, i+1)
 	r.grew, r.gen, r.changes = new(int), 0, nil
-	return r.TakenBack(l, day, held, s, now)
+	grown, fresh := r.TakenBack(l, day, held, s, now)
+	return grown, fresh, true
 }
 
 // Same reports whether r and o are the same read: o grown into r, or r into
@@ -268,8 +275,8 @@ func (r LogRead) Wanted(s Stream, days ...LogDay) []string {
 
 // keptSessions are the ids of the sessions of the requests among the days'
 // lines given whose lines r's take keeps, as dayKeeps has it of the through
-// throughsOf finds, the stream s telling what's under way, in order, each
-// once.
+// throughsOf finds, the stream s telling what's under way: each as often
+// as given, in no order.
 func (r LogRead) keptSessions(s Stream, days ...LogDay) []string {
 	var ids []string
 	for _, given := range days {
@@ -280,8 +287,7 @@ func (r LogRead) keptSessions(s Stream, days ...LogDay) []string {
 			}
 		}
 	}
-	slices.Sort(ids)
-	return slices.Compact(ids)
+	return ids
 }
 
 // throughsOf finds the filter r's take judges each line of those read
@@ -361,8 +367,11 @@ func (r LogRead) Len() int {
 }
 
 // WrittenTo is when the ledger last wrote of what r holds: the latest end of
-// its lines, every kind's, each its arrival and its total_ms after; zero
-// where it holds none. The Log not live is to it.
+// its lines, every kind's, each its arrival and its total_ms after, those
+// a day held through a filter counted and dropped among them; zero where it
+// holds none. It knows nothing of the lines ReadDay passes over unread, of
+// a day or a chunk its through may keep none of, which no file stores the
+// end of. The Log not live is to it.
 func (r LogRead) WrittenTo() time.Time {
 	return r.written
 }
@@ -380,14 +389,16 @@ func (r LogRead) changed(retold []*loggedLine) LogRead {
 
 // take takes in the lines of day r doesn't hold, as Taken has it, each
 // priced at t's now, placed as t's stream tells, and told of its session's
-// story as t's store holds it, reporting whether it took any, or made a
-// day: of a day read through a filter, the day, though it keeps none of its
-// lines. Each line is counted, as countedOnce counts it, before the filter
-// the day it arrived on is held through drops it, as dayKeeps has it, so of
-// lines given again it keeps those the day held whole would hold that the
-// filter keeps. r's days are its own, but none of them.
+// story as t's store holds it, reporting whether it took any, made a day,
+// as of a day read through a filter though it keeps none of its lines, or
+// moved when the ledger last wrote. Each line is counted, as countedOnce
+// counts it, before the filter the day it arrived on is held through drops
+// it, as dayKeeps has it, so of lines given again it keeps those the day
+// held whole would hold that the filter keeps; and each counted tells when
+// the ledger last wrote, as WrittenTo has it, kept or not. r's days are its
+// own, but none of them.
 func (r *LogRead) take(day LogDay, whole bool, t LogTaking) bool {
-	held := len(r.days)
+	held, wrote := len(r.days), r.written
 	if !day.through.whole() {
 		r.dayOf(dayOf(day.date), day.through)
 	}
@@ -397,7 +408,11 @@ func (r *LogRead) take(day LogDay, whole bool, t LogTaking) bool {
 	for i := range day.records {
 		rec := &day.records[i]
 		at := r.dayOf(Today(rec.arrived()), day.through)
-		if k := turnKeyOf(rec); read.again(k, loggedHeld(r.days[at].keys, rec.session, k, whole)) || !dayKeeps(r.days[at].through, rec, t.Stream) {
+		if k := turnKeyOf(rec); read.again(k, loggedHeld(r.days[at].keys, rec.session, k, whole)) {
+			continue
+		}
+		r.written = score.Later(r.written, rec.ended())
+		if !dayKeeps(r.days[at].through, rec, t.Stream) {
 			continue
 		}
 		r.seq++
@@ -409,14 +424,13 @@ func (r *LogRead) take(day LogDay, whole bool, t LogTaking) bool {
 		logged := loggedLineOf(rec, r.seq, placeOf(rec, t.Stream), r.worthOf(rec, today.Date), r.storyOf(rec, t.Held), a.names)
 		a.lines = append(a.lines, logged)
 		a.keys.add(logged)
-		r.written = score.Later(r.written, rec.ended())
 	}
 	for i := range r.days {
 		if a := added[r.days[i].day.Date]; a != nil {
 			r.days[i].took(a)
 		}
 	}
-	return len(r.days) > held || len(added) > 0
+	return len(r.days) > held || len(added) > 0 || !r.written.Equal(wrote)
 }
 
 // takenDay is what a read took in of a day's lines: the Log's lines, in the
@@ -669,8 +683,17 @@ func (r LogRead) dayAt(date string) (int, bool) {
 // lines are r's lines, the oldest day's first, each day's in the order
 // taken in.
 func (r LogRead) lines() iter.Seq[*loggedLine] {
+	return r.linesFrom(LedgerDay{})
+}
+
+// linesFrom are r's lines of the days from the one given on, as lines has
+// them.
+func (r LogRead) linesFrom(day LedgerDay) iter.Seq[*loggedLine] {
 	return func(yield func(*loggedLine) bool) {
 		for _, d := range r.days {
+			if d.day.Date < day.Date {
+				continue
+			}
 			for _, l := range d.lines.all() {
 				if !yield(l) {
 					return
@@ -678,6 +701,19 @@ func (r LogRead) lines() iter.Seq[*loggedLine] {
 			}
 		}
 	}
+}
+
+// wholeFrom is the first of the days the Log's Events read of r's: the day
+// after the newest r holds through a filter, as a day held through a filter
+// is to them a day not yet read, and so is each before it; the zero
+// LedgerDay, before every one, where r holds every day whole.
+func (r LogRead) wholeFrom() LedgerDay {
+	for _, d := range slices.Backward(r.days) {
+		if !d.through.whole() {
+			return Today(dayfile.DayStart(d.day.Start, 1))
+		}
+	}
+	return LedgerDay{}
 }
 
 // firstsOn are when each session's first line filed on the day d arrived,
