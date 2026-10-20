@@ -213,7 +213,7 @@ func TestD28CsTurnTwelveOpensOnTheRequestsItsFrameDraws(t *testing.T) {
 		t.Errorf("turn 12 opens on %d requests, the first\n%+v, want 37, the first\n%+v", len(turn12), got, want)
 	}
 	move := turn12[2]
-	worth, _ := drawnPrices.Request(&move, move.At.Format(time.DateOnly))
+	worth, _ := drawnPrices.SummedSpend(move.Model, move.Shape.InferenceGeo, ledger.SpendOf(&move), move.At.Format(time.DateOnly))
 	if move.Request != "3f2a91c4" || worth.Cost.Cents() != "$1.85" {
 		t.Errorf("the move's request is %s, worth %s, want 3f2a91c4, worth $1.85, as its details in the Log draw it", move.Request, worth.Cost.Cents())
 	}

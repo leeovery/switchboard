@@ -175,6 +175,33 @@ func TestADaysDateGivesWhenItStartsAndEnds(t *testing.T) {
 	}
 }
 
+// A day's bounds are Day's, and hold every instant from its start to the
+// last before its end, the next day's start, which they don't hold.
+func TestADaysBoundsHoldFromItsStartToBeforeItsEnd(t *testing.T) {
+	day, ok := DayBounds("2026-09-28")
+	if start, end, _ := Day("2026-09-28"); !ok || !day.Start.Equal(start) || !day.End.Equal(end) {
+		t.Fatalf("DayBounds(2026-09-28) = %v, %v; want Day's start and end", day, ok)
+	}
+	tests := []struct {
+		name string
+		at   time.Time
+		want bool
+	}{
+		{"its start", day.Start, true},
+		{"an instant before its start", day.Start.Add(-time.Nanosecond), false},
+		{"an instant before its end", day.End.Add(-time.Nanosecond), true},
+		{"its end, the next day's start", day.End, false},
+	}
+	for _, tt := range tests {
+		if got := day.Holds(tt.at); got != tt.want {
+			t.Errorf("the bounds of 2026-09-28 hold %s, %v: %t, want %t", tt.name, tt.at, got, tt.want)
+		}
+	}
+	if _, ok := DayBounds("2026-09-31"); ok {
+		t.Error("DayBounds(2026-09-31) reports a day, want none: it isn't a date")
+	}
+}
+
 // A date parses as a day in UTC, its midnight, whatever the local zone, the
 // one parse every reader of a date shares; and a date that isn't one is no
 // day.

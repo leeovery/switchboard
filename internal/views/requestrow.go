@@ -332,39 +332,36 @@ func (l *ListedSession) cameBy(m *move) {
 	}
 }
 
-// lineRow is the row of the request l, a line of the session s tells, nil
-// for one of no session, its worth unpriced and left zero, as the Log's read
-// prices it.
-func lineRow(l *ledger.Line, s *story) RequestRow {
-	r := lineFacts(l, nil)
-	r.toldBy(routedOf(l, nil), s)
-	return r
+// lineRow is the row of the request of the record r, a line of the session
+// s tells, nil for one of no session, its worth unpriced and left zero, as
+// the Log's read prices it.
+func lineRow(r *rowRecord, s *story) RequestRow {
+	row := lineFacts(r, nil)
+	row.toldBy(routedOf(r, nil), s)
+	return row
 }
 
-// lineFacts is the row of the request l as its line alone tells it, its
-// worth unpriced and left zero, before its session's story tells the rest,
-// as toldBy has it, the words it names a request by interned by n, as a
-// session's requests name the same again and again.
-func lineFacts(l *ledger.Line, n interning) RequestRow {
-	r := RequestRow{
-		Request: l.Request, At: l.At, Kind: kindOf(l), Session: n.of(l.Session), Dir: n.of(l.Dir), CountedSession: n.of(l.CountedSession()),
-		Model: n.of(l.Model), Account: n.of(l.Account), Status: l.Status, Canceled: l.Canceled, CutOff: l.CutOff, Failed: l.Failed(),
-		Took: millis(l.TotalMS), Stop: n.of(l.Answer.Stop), Attempts: l.Attempts, Size: l.Shape.Bytes, Messages: l.Shape.Messages,
-		Tools: l.Shape.Tools, Agent: n.of(agentOf(l.Agent)),
+// lineFacts is the row of the request of the record r as its line alone
+// tells it, its worth unpriced and left zero, before its session's story
+// tells the rest, as toldBy has it, the words it names a request by interned
+// by n, as a session's requests name the same again and again.
+func lineFacts(r *rowRecord, n interning) RequestRow {
+	row := RequestRow{
+		Request: r.request, At: r.arrived(), Kind: r.kind, Session: n.of(r.session), Dir: n.of(r.dir), CountedSession: n.of(r.countedSession),
+		Model: n.of(r.model), Account: n.of(r.account), Status: r.status, Canceled: r.canceled, CutOff: r.cutOff, Failed: ledger.Failing(r.status),
+		Took: millis(r.totalMS), Stop: n.of(r.stop), Attempts: r.attempts, Size: r.size, Messages: r.messages, Tools: r.toolDefs,
+		Thinking: r.thinking, Agent: n.of(r.agent),
 	}
-	if l.FirstMS != nil {
-		r.First = millis(*l.FirstMS)
+	if r.firstMS != nil {
+		row.First = millis(*r.firstMS)
 	}
-	if budget := l.Shape.Thinking.BudgetTokens; budget != nil {
-		r.Thinking = int(*budget)
+	if tokens, ok := r.spend.Tokens(); ok {
+		row.Read, row.Written, row.Out, row.Input, row.Metered = tokens.CacheRead, tokens.CacheWrite, tokens.Output, tokens.Input, true
 	}
-	if tokens, ok := l.Tokens(); ok {
-		r.Read, r.Written, r.Out, r.Input, r.Metered = tokens.CacheRead, tokens.CacheWrite, tokens.Output, tokens.Input, true
+	if tools := r.tools; len(tools) > 0 {
+		row.Tool, row.More = n.of(tools[0]), len(tools)-1
 	}
-	if tools := l.Answer.Tools; len(tools) > 0 {
-		r.Tool, r.More = n.of(tools[0]), len(tools)-1
-	}
-	return r
+	return row
 }
 
 // toldBy has r, the row of a request the router routed as how says, as
@@ -388,15 +385,17 @@ func agentOf(agent string) string {
 	return name
 }
 
-// kindOf is what the request l asked, as its row tells it.
+// kindOf is what the request l asked, as its row tells it: a request where
+// ledger.Line.Counted counts it among the requests; else a quota check, or
+// a count of tokens, which Counted counts apart.
 func kindOf(l *ledger.Line) RowKind {
-	switch l.Kind {
-	case ledger.KindCheck:
+	switch {
+	case l.Counted():
+		return RowRequest
+	case l.Kind == ledger.KindCheck:
 		return RowCheck
-	case ledger.KindCount:
-		return RowCount
 	}
-	return RowRequest
+	return RowCount
 }
 
 // millis is a duration of n milliseconds.

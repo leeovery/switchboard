@@ -21,10 +21,11 @@ import (
 // digests, which reads a day's side where its head stands, held to the same
 // walk through the one reading raw, given no side, which reads every day's
 // lines: as it's shown, what it finds of what's typed. Where a day's side
-// stands, the find never reads its lines; and today's never stands. Wherever
-// the world makes a day's head stop standing, its side is planted with a
-// session no line names, as plant has it, so a find that read that side
-// would show otherwise than one reading the day raw.
+// stands, the find never reads its lines; and today's never stands. Where a
+// head's upset, or a late line filed onto its day, makes it stop standing,
+// its side is planted with a session no line names, as plant has it, so a
+// find that read that side would show otherwise than one reading the day
+// raw.
 
 // The hard moments the find read over sides meets, each met by some spread
 // world, judged from the reads compared: a side read is met by a side read,
@@ -51,13 +52,13 @@ var findMoments = []string{
 
 // sameFind fails the test where the find walked back at the moment m through
 // the Follower resting on digests, reading each day's side where its head
-// stands, finds otherwise than walked through the one reading raw, given no
-// side, as findWalked walks it, of each of findTyped; where it reads a day's
-// lines whose side stands; or where today's side stands. It notes the hard
-// moments the walk meets.
+// stands, as m.found notes its reads, finds otherwise than walked through
+// the one reading raw, given no side, as findWalked walks it, of each of
+// findTyped; where it reads a day's lines whose side stands; or where
+// today's side stands. It notes the hard moments the walk meets.
 func (w *spread) sameFind(m moment) {
 	w.t.Helper()
-	sides := readingSides(w.based)
+	sides := m.found
 	src := findWalked(sides, m.now)
 	w.alike(m.now, "the Log's find", foundTyped(src), foundTyped(findWalked(noSides{w.raw}, m.now)))
 	if both := sidesRaw(sides); len(both) > 0 {
@@ -167,24 +168,24 @@ func (c *digestChain) headBuilt(date string) bool {
 
 // headIn is the JSON of the head the ledger holds of the local day with the
 // given date, inflated, reporting false where it holds none.
-func (w *spread) headIn(date string) ([]byte, bool) {
-	w.t.Helper()
-	data, err := os.ReadFile(w.headPath(date))
+func (c *digestChain) headIn(date string) ([]byte, bool) {
+	c.t.Helper()
+	data, err := os.ReadFile(c.headPath(date))
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, false
 	}
 	if err != nil {
-		w.t.Fatal(err)
+		c.t.Fatal(err)
 	}
-	return gunzipped(w.t, data), true
+	return gunzipped(c.t, data), true
 }
 
 // writeHead writes plain, a head's JSON, as the head of the local day with
 // the given date, gzipped, as the ledger writes one.
-func (w *spread) writeHead(date string, plain []byte) {
-	w.t.Helper()
-	if err := os.WriteFile(w.headPath(date), gzipped(w.t, plain), 0o600); err != nil {
-		w.t.Fatal(err)
+func (c *digestChain) writeHead(date string, plain []byte) {
+	c.t.Helper()
+	if err := os.WriteFile(c.headPath(date), gzipped(c.t, plain), 0o600); err != nil {
+		c.t.Fatal(err)
 	}
 }
 
@@ -192,8 +193,15 @@ func (w *spread) writeHead(date string, plain []byte) {
 // given date hold a session no line of the day names, in a directory none
 // does, its grounds left as they are: so a find that read that side, where
 // the head doesn't stand, would find it. It plants none where the ledger
-// holds no head of the day.
+// holds no head of the day. Its rows are planted too, as plantRows has it.
 func (w *spread) plant(date string) {
+	w.plantSide(date)
+	w.plantRows(date)
+}
+
+// plantSide plants the side of the head of the local day with the given
+// date, as plant has it.
+func (w *spread) plantSide(date string) {
 	w.t.Helper()
 	plain, ok := w.headIn(date)
 	if !ok {
@@ -257,17 +265,31 @@ func twoBack(now time.Time) string {
 // of a version after the views', as a later release writes one.
 func (w *spread) headOtherVersion(now time.Time) (headUpset, bool) {
 	date := twoBack(now)
-	field := func(v int) []byte { return fmt.Appendf(nil, `"body":%d,`, v) }
-	return headUpset{date: date, moment: foundOtherVersion}, w.rewriteHead(date, [2][]byte{field(RowsVersion), field(RowsVersion + 1)})
+	return headUpset{date: date, moment: foundOtherVersion}, w.headOfOtherVersion(date)
 }
 
 // headOtherZone has the head of the day two before now's hold its day's
 // bounds an hour later, as a head built in another time zone holds them.
 func (w *spread) headOtherZone(now time.Time) (headUpset, bool) {
 	date := twoBack(now)
+	return headUpset{date: date, moment: foundOtherZone}, w.headOfOtherZone(date)
+}
+
+// headOfOtherVersion has the head of the local day with the given date hold
+// its side and rows as of a version after the views', as a later release
+// writes one, reporting false where the ledger holds no head of the day.
+func (c *digestChain) headOfOtherVersion(date string) bool {
+	field := func(v int) []byte { return fmt.Appendf(nil, `"body":%d,`, v) }
+	return c.rewriteHead(date, [2][]byte{field(RowsVersion), field(RowsVersion + 1)})
+}
+
+// headOfOtherZone has the head of the local day with the given date hold its
+// day's bounds an hour later, as a head built in another time zone holds
+// them, reporting false where the ledger holds no head of the day.
+func (c *digestChain) headOfOtherZone(date string) bool {
 	start, end, _ := dayfile.Day(date)
 	field := func(key string, at time.Time) []byte { return fmt.Appendf(nil, `"%s":%d,`, key, at.UnixNano()) }
-	return headUpset{date: date, moment: foundOtherZone}, w.rewriteHead(date,
+	return c.rewriteHead(date,
 		[2][]byte{field("from", start), field("from", start.Add(time.Hour))},
 		[2][]byte{field("to", end), field("to", end.Add(time.Hour))})
 }
@@ -275,20 +297,28 @@ func (w *spread) headOtherZone(now time.Time) (headUpset, bool) {
 // rewriteHead rewrites the head of the local day with the given date, each
 // of replaced's firsts replaced by its second, reporting false where the
 // ledger holds no head of the day.
-func (w *spread) rewriteHead(date string, replaced ...[2][]byte) bool {
-	w.t.Helper()
-	plain, ok := w.headIn(date)
+func (c *digestChain) rewriteHead(date string, replaced ...[2][]byte) bool {
+	c.t.Helper()
+	plain, ok := c.headIn(date)
 	if !ok {
 		return false
 	}
+	c.writeHead(date, c.replacedIn(date, plain, replaced...))
+	return true
+}
+
+// replacedIn is plain, the JSON of the head of the local day with the given
+// date, each of replaced's firsts replaced by its second, the first of each
+// alone, failing the test where it names none.
+func (c *digestChain) replacedIn(date string, plain []byte, replaced ...[2][]byte) []byte {
+	c.t.Helper()
 	for _, r := range replaced {
 		if !bytes.Contains(plain, r[0]) {
-			w.t.Fatalf("%s: the head at %s names no %s:\n%s", w.name, w.headPath(date), r[0], plain)
+			c.t.Fatalf("%s: the head at %s names no %s:\n%s", c.name, c.headPath(date), r[0], plain)
 		}
 		plain = bytes.Replace(plain, r[0], r[1], 1)
 	}
-	w.writeHead(date, plain)
-	return true
+	return plain
 }
 
 // lateSession files a late line onto the day two before now's, its head

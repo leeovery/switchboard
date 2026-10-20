@@ -26,12 +26,12 @@ type DaySession struct {
 }
 
 // DaySessions are the sessions of a day's lines, as Ledger's Day gives them,
-// oldest first: those its summary names, each line counting toward the one
-// Line.CountedSession says, the last to arrive first.
-func DaySessions(day []ledger.Held) []DaySession {
+// oldest first, each its record: those its summary names, each line counting
+// toward the one Line.CountedSession says, the last to arrive first.
+func DaySessions(day LogDay) []DaySession {
 	sessions := make(daySessions)
-	for i := range day {
-		sessions.take(&day[i].Line)
+	for i := range day.records {
+		sessions.take(&day.records[i])
 	}
 	return sessions.sessions()
 }
@@ -47,20 +47,21 @@ func DaySessionsOn(l Ledger, date string) []DaySession {
 			return sessions
 		}
 	}
-	return DaySessions(l.Day(date))
+	return DaySessions(RecordsOf(l.Day(date)))
 }
 
 // daySessions are the sessions of a day's lines taken in so far, by their
-// ids: the one fold of a day's sessions, whether of the lines Day gives, as
-// DaySessions folds them, or as the day's side is built of them.
+// ids, each line its record: the one fold of a day's sessions, whether of
+// the lines Day gives, as DaySessions folds them, or as the day's side is
+// built of them.
 type daySessions map[string]*DaySession
 
-// take takes in l, the day's next line in Day's order, toward the session it
-// counts toward, as Line.CountedSession says, where it counts toward one:
-// when it arrived in UTC, as the ledger writes it, and a day's side restores
-// it, whatever zone a line edited by hand names.
-func (d daySessions) take(l *ledger.Line) {
-	id := l.CountedSession()
+// take takes in r, the record of the day's next line in Day's order, toward
+// the session it counts toward, as its countedSession has it, where it
+// counts toward one: when it arrived in UTC, as the ledger writes it, and a
+// day's side restores it, whatever zone a line edited by hand names.
+func (d daySessions) take(r *lineRecord) {
+	id := r.countedSession
 	if id == "" {
 		return
 	}
@@ -70,9 +71,9 @@ func (d daySessions) take(l *ledger.Line) {
 		d[id] = s
 	}
 	s.Lines++
-	s.Last = score.Later(s.Last, l.At.UTC())
-	if l.Dir != "" {
-		s.Dir = l.Dir
+	s.Last = score.Later(s.Last, r.arrived())
+	if r.dir != "" {
+		s.Dir = r.dir
 	}
 }
 

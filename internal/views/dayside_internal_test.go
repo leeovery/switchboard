@@ -1,6 +1,7 @@
 package views
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/score"
 )
 
 // sidesRead is a ledger as the find reads it through DaySessionsOn, noting
@@ -118,7 +120,7 @@ func TestADaysSideIsItsSessionsReadRaw(t *testing.T) {
 				}
 				stood++
 				got, err := daySessionsIn(side)
-				if want := DaySessions(f.Day(date)); err != nil || !reflect.DeepEqual(got, want) {
+				if want := DaySessions(RecordsOf(f.Day(date))); err != nil || !reflect.DeepEqual(got, want) {
 					t.Errorf("%s: the side of %s holds\n%+v (%v)\nwant, as its lines read raw give\n%+v", c.name, date, got, err, want)
 				}
 			}
@@ -134,6 +136,71 @@ func TestADaysSideIsItsSessionsReadRaw(t *testing.T) {
 	if stood == 0 {
 		t.Error("no day's side stood, want every day's")
 	}
+}
+
+// A day's side built of its lines' records, as the views' Digests build it
+// line by line, is byte for byte the side of the lines themselves, as
+// sessionsOfLines folds them: over the generated worlds' days, and a day of
+// lines edited by hand, one in another zone to the nanosecond, one at no
+// time at all, a quota check, a count of tokens and a line of no kind.
+func TestADaysSideOfItsRecordsIsTheSideOfItsLines(t *testing.T) {
+	var days [][]ledger.Held
+	for _, w := range chainWorlds {
+		for seed := range uint64(chainSeeds) {
+			byDay := make(map[string][]ledger.Held)
+			for _, l := range w.lines(seed) {
+				byDay[dayfile.DateOf(l.At)] = append(byDay[dayfile.DateOf(l.At)], ledger.Held{Line: l})
+			}
+			for _, date := range slices.Sorted(maps.Keys(byDay)) {
+				days = append(days, byDay[date])
+			}
+		}
+	}
+	at := time.Date(2026, 10, 8, 9, 0, 0, 0, time.UTC)
+	days = append(days, []ledger.Held{
+		{At: at.In(time.FixedZone("east", 5*60*60+30*60)).Add(123_456_789), Session: "s", Kind: ledger.KindMessage, Dir: "/code/app"},
+		{At: at.Add(time.Minute), Session: "s", Kind: ledger.KindCheck, Dir: "/code/check"},
+		{At: at.Add(2 * time.Minute), Session: "s", Kind: ledger.KindCount},
+		{At: at.Add(3 * time.Minute), Session: "t", Dir: "/code/other"},
+		{Session: "u", Kind: ledger.KindMessage},
+	})
+	for i, day := range days {
+		b := Digests{}.Day()
+		for _, held := range day {
+			b.Take(held.Line)
+		}
+		got, err := b.Built()
+		want, wantErr := daySideOf(sessionsOfLines(day))
+		if err != nil || wantErr != nil || !bytes.Equal(got.Side, want) {
+			t.Errorf("day %d: the side of its records is\n%s (%v)\nwant the side of its lines\n%s (%v)", i, got.Side, err, want, wantErr)
+		}
+	}
+}
+
+// sessionsOfLines are the sessions of a day's lines, as DaySessions gives
+// them, folded of each line as it is, its record undecoded: the find's fold
+// before it folded records, kept as the reference a side of records is held
+// to.
+func sessionsOfLines(day []ledger.Held) []DaySession {
+	sessions := make(daySessions)
+	for i := range day {
+		l := &day[i].Line
+		id := l.CountedSession()
+		if id == "" {
+			continue
+		}
+		s, ok := sessions[id]
+		if !ok {
+			s = &DaySession{ID: id}
+			sessions[id] = s
+		}
+		s.Lines++
+		s.Last = score.Later(s.Last, l.At.UTC())
+		if l.Dir != "" {
+			s.Dir = l.Dir
+		}
+	}
+	return sessions.sessions()
 }
 
 // filedDates are the dates of the local days lines arrived on, oldest first.
@@ -152,7 +219,7 @@ func filedDates(lines []ledger.Line) []string {
 func TestTheFindReadsADaysSideOnlyWhereItStands(t *testing.T) {
 	const date = "2026-10-08"
 	lines := []ledger.Held{{At: time.Date(2026, 10, 8, 9, 0, 0, 0, time.UTC), Session: "s", Kind: ledger.KindMessage, Dir: "/code/app"}}
-	raw := DaySessions(lines)
+	raw := DaySessions(RecordsOf(lines))
 	stale := []DaySession{{ID: "s", Dir: "/code/old", Lines: 7, Last: time.Date(2026, 10, 8, 8, 0, 0, 0, time.UTC)}}
 	staleSide, err := daySideOf(stale)
 	if err != nil {

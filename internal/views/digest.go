@@ -26,46 +26,61 @@ func (Digests) Builder() ledger.DigestBuilder {
 	return &dayDigest{answers: make(takenAnswers)}
 }
 
-// RowsVersion is the version of what a day's head holds of the day: its
-// side, each of its sessions as the Log's find reads them, as
-// storedDaySession stores them. A release that keeps a day's side otherwise
-// writes another, and a head of another version doesn't stand: the day's
-// lines are read instead. Every head of this version holds a side: none was
-// released without one.
-const RowsVersion = 1
+// RowsVersion is the version of what a day's head holds of the day, and its
+// rows file: its side, each of its sessions as the Log's find reads them, as
+// storedDaySession stores them; and its rows, the record of each line Day
+// gives of it, in its order, as storedRow stores one, in chunks, each with
+// its meta, as storedChunkMeta stores it. A release that keeps either
+// otherwise writes another, and a head of another version doesn't stand,
+// nor its rows: the day's lines are read instead. Every head of this
+// version holds a side, and a row of each of its lines: none was released
+// without them.
+const RowsVersion = 2
 
-// RowsVersion is the version of the sides of the days' heads the Digests
-// give, RowsVersion.
+// RowsVersion is the version of the sides and rows of the days' heads the
+// Digests give, RowsVersion.
 func (Digests) RowsVersion() int {
 	return RowsVersion
 }
 
-// Day gives a builder of a finished day's side, as daySide has it, none of
-// the day's lines taken in yet.
+// Day gives a builder of a finished day's side and rows, as dayBuild has it,
+// none of the day's lines taken in yet.
 func (Digests) Day() ledger.DayBuilder {
-	return daySide{sessions: make(daySessions)}
+	return &dayBuild{sessions: make(daySessions)}
 }
 
-// daySide is a builder of a finished day's side by the views' Digests: the
-// day's sessions, folded as DaySessions folds the lines Day gives, of the
-// same lines in the same order, so DaySessionsOn reads from it what it
-// would read of them.
-type daySide struct {
+// dayBuild is a builder of a finished day's side and rows by the views'
+// Digests, of the record of each line Day gives, in its order: the day's
+// sessions, folded as DaySessions folds them, so DaySessionsOn reads from
+// its side what it would read of the lines; and its rows, as rowsBuild
+// builds them, so a reader of them restores the records of those lines, in
+// order.
+type dayBuild struct {
 	sessions daySessions
+	rows     rowsBuild
 }
 
-// Take takes in l, the day's next line, as daySessions takes it.
-func (b daySide) Take(l ledger.Line) {
-	b.sessions.take(&l)
+// Take takes in l, the day's next line, its record, as daySessions and
+// rowsBuild take it.
+func (b *dayBuild) Take(l ledger.Line) {
+	rec := lineRecordOf(&l)
+	b.sessions.take(&rec)
+	b.rows.take(&rec)
 }
 
-// Built gives the side of the lines taken in, as daySideOf has it.
-func (b daySide) Built() (ledger.DayBuilt, error) {
+// Built gives the side of the lines taken in, as daySideOf has it, and
+// their rows, as rowsBuild builds them: failing where either can't be
+// encoded.
+func (b *dayBuild) Built() (ledger.DayBuilt, error) {
+	chunks, err := b.rows.built()
+	if err != nil {
+		return ledger.DayBuilt{}, err
+	}
 	side, err := daySideOf(b.sessions.sessions())
 	if err != nil {
 		return ledger.DayBuilt{}, err
 	}
-	return ledger.DayBuilt{Side: side}, nil
+	return ledger.DayBuilt{Side: side, Chunks: chunks}, nil
 }
 
 // dayDigest is a builder of a day's digest by the views' Digests, for one

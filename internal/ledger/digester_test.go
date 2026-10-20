@@ -29,10 +29,11 @@ import (
 // set, failing where that fails; giving none of the session refused, where
 // it's handed resting on a base, as a Digester gives none of one whose base
 // it can't restore; and noting each day it's handed, in the order handed, as
-// handedDay tells it. Each day's side it builds as sideOf gives it, doing
-// what taking does with each line's request it's handed, where it's set, and
-// what building does as it builds it, failing where that fails; and noting
-// each side built, in the order built, as builtSide tells it.
+// handedDay tells it. Each day's side it builds as sideOf gives it, and its
+// rows as chunksOf gives them, doing what taking does with each line's
+// request it's handed, where it's set, and what building does as it builds
+// them, failing where that fails; and noting each side built, in the order
+// built, as builtSide tells it.
 type folding struct {
 	mu       sync.Mutex
 	during   func(ctx context.Context, day ledger.DigestDay) error
@@ -71,19 +72,40 @@ func sideOf(t testing.TB, requests ...string) json.RawMessage {
 	return side
 }
 
-// RowsVersion is the version of the sides the tests' Digester gives.
+// rowsAChunk is how many rows the tests' Digester cuts a day's rows into a
+// chunk at.
+const rowsAChunk = 2
+
+// chunksOf is the rows the tests' Digester builds of the lines of the
+// requests given, in their order, as the day's rows file keeps them: each
+// row a line of its request's, rowsAChunk of them a chunk, each chunk's meta
+// naming its first and last request: none of none.
+func chunksOf(requests ...string) []ledger.BuiltChunk {
+	var chunks []ledger.BuiltChunk
+	for rows := range slices.Chunk(requests, rowsAChunk) {
+		chunks = append(chunks, ledger.BuiltChunk{
+			Rows:  []byte(strings.Join(rows, "\n") + "\n"),
+			Count: len(rows),
+			Meta:  json.RawMessage(`{"first":"` + rows[0] + `","last":"` + rows[len(rows)-1] + `"}`),
+		})
+	}
+	return chunks
+}
+
+// RowsVersion is the version of the sides and rows the tests' Digester
+// gives.
 func (f *folding) RowsVersion() int {
 	return sideBody
 }
 
-// Day gives a builder of a day's side by the tests' Digester, as foldingSide
-// has it, handed no line yet.
+// Day gives a builder of a day's side and rows by the tests' Digester, as
+// foldingSide has it, handed no line yet.
 func (f *folding) Day() ledger.DayBuilder {
 	return &foldingSide{f: f}
 }
 
-// foldingSide is a builder of a day's side by the tests' Digester, f: the
-// requests of the lines it's handed, in the order handed.
+// foldingSide is a builder of a day's side and rows by the tests' Digester,
+// f: the requests of the lines it's handed, in the order handed.
 type foldingSide struct {
 	f        *folding
 	requests []string
@@ -101,14 +123,15 @@ func (b *foldingSide) Take(l ledger.Line) {
 	}
 }
 
-// Built has the tests' Digester build the side of the requests handed, as
-// side does.
+// Built has the tests' Digester build the side and rows of the requests
+// handed, as side does.
 func (b *foldingSide) Built() (ledger.DayBuilt, error) {
 	return b.f.side(b.requests)
 }
 
 // side notes the side of the requests given built now, does what building
-// does, where it's set, and gives the side, as a testSide of them.
+// does, where it's set, and gives the side, as a testSide of them, and the
+// rows, as chunksOf has them.
 func (f *folding) side(requests []string) (ledger.DayBuilt, error) {
 	f.mu.Lock()
 	building := f.building
@@ -120,7 +143,7 @@ func (f *folding) side(requests []string) (ledger.DayBuilt, error) {
 		}
 	}
 	side, err := json.Marshal(testSide{Requests: requests})
-	return ledger.DayBuilt{Side: side}, err
+	return ledger.DayBuilt{Side: side, Chunks: chunksOf(requests...)}, err
 }
 
 // buildingSides has the tests' Digester do what building does, as it
@@ -1112,7 +1135,14 @@ func digestsRead(t *testing.T, dir string) map[string]ledger.Digest {
 // its name.
 func partsFilesIn(t *testing.T, dir string) map[string][]byte {
 	t.Helper()
-	paths, err := filepath.Glob(filepath.Join(dir, "parts-*.gz"))
+	return filesMatching(t, dir, "parts-*.gz")
+}
+
+// filesMatching returns what each file in dir whose name matches pattern
+// holds, by its name.
+func filesMatching(t *testing.T, dir, pattern string) map[string][]byte {
+	t.Helper()
+	paths, err := filepath.Glob(filepath.Join(dir, pattern))
 	if err != nil {
 		t.Fatal(err)
 	}

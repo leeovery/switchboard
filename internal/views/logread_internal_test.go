@@ -38,9 +38,10 @@ type logGrowing struct {
 // filed since the last look as its gain, or where again says, every one of
 // today's, as a read afresh gives them; and each day before today that
 // gained a line read again whole. The store is fed them first, wanting the
-// sessions of the Log's lines, then the read takes them in, the feed's gains
-// told once, as the watch's tail read takes them. The lines tabled are
-// caught up with the read grown, and held to them tabled afresh.
+// sessions of the Log's lines, then the read takes them in, but those it
+// holds, as RecordsToTake has them, the feed's gains told once, as the
+// watch's tail read takes them. The lines tabled are caught up with the read grown, and
+// held to them tabled afresh.
 func (g *logGrowing) look(now time.Time, again bool) {
 	g.t.Helper()
 	today := Today(now)
@@ -63,14 +64,14 @@ func (g *logGrowing) look(now time.Time, again bool) {
 	}
 	maps.DeleteFunc(days, func(date string, _ []ledger.Held) bool { return !late[date] })
 	g.filed = filed
-	lines := [][]ledger.Held{gained}
+	lines := []LogDay{g.read.RecordsToTake(gained)}
 	for _, date := range slices.Sorted(maps.Keys(days)) {
-		lines = append(lines, days[date])
+		lines = append(lines, g.read.RecordsToTake(days[date]))
 	}
 	held, gains := g.held.Fed(filedLedger{lines: g.lines, now: now}, Took(gained, days), SessionsWanted{Log: g.read.Wanted(lines...)}, now)
 	g.held = held
 	t := LogTaking{Held: held, Gains: gains, Now: now}
-	g.read = g.read.Taken(gained, again, t)
+	g.read = g.read.Taken(lines[0], again, t)
 	t.Gains = nil
 	for _, day := range lines[1:] {
 		g.read = g.read.Taken(day, true, t)
@@ -106,9 +107,9 @@ func (g *logGrowing) readAtOnce(now time.Time) LogRead {
 	read := ReadLog(g.prices)
 	held, _ := HoldSessions(g.prices).Fed(filedLedger{lines: g.lines, now: now}, Took(gained, days), SessionsWanted{Log: []string{"s"}}, now)
 	t := LogTaking{Held: held, Now: now}
-	read = read.Taken(gained, true, t)
+	read = read.Taken(RecordsOf(gained), true, t)
 	for _, date := range slices.Backward(slices.Sorted(maps.Keys(days))) {
-		read = read.Taken(days[date], true, t)
+		read = read.Taken(RecordsOf(days[date]), true, t)
 	}
 	return read
 }
@@ -238,6 +239,84 @@ func TestTheLogGrownLookByLookIsTheLogReadAtOnceOnGeneratedRuns(t *testing.T) {
 	}
 }
 
+// A read's RecordsToTake are the lines given, each its record, but those
+// with ids it holds already, on the day each arrived: of an id it holds, one
+// that arrived at another moment is another request's, kept, and so is
+// every line without an id, which Taken knows by its record's sum. So a day
+// read again whole decodes only what it gained, and the read takes in of it
+// what it takes in of every line.
+func TestTheRecordsToTakeLeaveOutOnlyTheLinesWithIDsTheReadHolds(t *testing.T) {
+	at := time.Date(2026, 10, 7, 9, 0, 0, 0, time.Local)
+	line := func(id string, seconds int) ledger.Held {
+		return ledger.Held{At: at.Add(time.Duration(seconds) * time.Second), Request: id, Kind: ledger.KindMessage, Session: "s", Status: 200}
+	}
+	day := []ledger.Held{line("r1", 0), line("", 1), line("r2", 2)}
+	taking := LogTaking{Held: HoldSessions(ledger.Pricing), Now: at.Add(time.Hour)}
+	read := ReadLog(ledger.Pricing).Taken(RecordsOf(day), true, taking)
+	again := append(slices.Clone(day), line("r3", 3), line("r1", 4), line("", 5))
+	unheld := read.RecordsToTake(again)
+	var kept []string
+	for _, r := range unheld.records {
+		kept = append(kept, fmt.Sprintf("%q at %v", r.request, r.arrived().Sub(at)))
+	}
+	if want := []string{`"" at 1s`, `"r3" at 3s`, `"r1" at 4s`, `"" at 5s`}; !slices.Equal(kept, want) {
+		t.Errorf("of the day read again, RecordsToTake keeps %v, want %v", kept, want)
+	}
+	got, want := read.Taken(unheld, true, taking), read.Taken(RecordsOf(again), true, taking)
+	if !reflect.DeepEqual(slices.Collect(got.lines()), slices.Collect(want.lines())) {
+		t.Errorf("the read takes in of RecordsToTake's lines\n%s\nwant what it takes in of every line\n%s", readSaid(got), readSaid(want))
+	}
+	if !read.Taken(read.RecordsToTake(day), true, taking).Same(read) {
+		t.Error("the read takes in a line of RecordsToTake's of the day it holds whole, want none")
+	}
+}
+
+// A read takes in a line given again as countedOnce counts it, against the
+// lines of its day it holds: one with an id held, never; one without, of a
+// day read whole, only as often as it's given beyond those alike the read
+// holds; but of a tail of the day's lines, every time, as a tail gives only
+// lines filed since the last, so one alike to one held is filed again.
+func TestTheLogTakesALineGivenAgainAsTheReadCountsIt(t *testing.T) {
+	at := time.Date(2026, 10, 7, 9, 0, 0, 0, time.Local)
+	idless := ledger.Held{At: at, Kind: ledger.KindMessage, Session: "s", Status: 200}
+	id := idless
+	id.Request = "r1"
+	taking := LogTaking{Held: HoldSessions(ledger.Pricing), Now: at.Add(time.Hour)}
+	tests := []struct {
+		name        string
+		held, given []ledger.Held
+		whole       bool
+		want        int
+	}{
+		{name: "one without an id held, given in a tail", held: []ledger.Held{idless}, given: []ledger.Held{idless}, want: 2},
+		{name: "one without an id held, given in the day whole", held: []ledger.Held{idless}, given: []ledger.Held{idless}, whole: true, want: 1},
+		{name: "one without an id held, given twice in the day whole", held: []ledger.Held{idless}, given: []ledger.Held{idless, idless}, whole: true, want: 2},
+		{name: "one without an id held twice, given in the day whole", held: []ledger.Held{idless, idless}, given: []ledger.Held{idless}, whole: true, want: 2},
+		{name: "one with an id held, given in a tail", held: []ledger.Held{id}, given: []ledger.Held{id, id}, want: 1},
+		{name: "one with an id held, given in the day whole", held: []ledger.Held{id}, given: []ledger.Held{id, id}, whole: true, want: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			read := ReadLog(ledger.Pricing).Taken(RecordsOf(tt.held), true, taking)
+
+			got := read.Taken(RecordsOf(tt.given), tt.whole, taking)
+
+			if got.Len() != tt.want {
+				t.Errorf("holding %d lines, given %d, whole %t, the read holds\n%swant %d lines", read.Len(), len(tt.given), tt.whole, readSaid(got), tt.want)
+			}
+		})
+	}
+}
+
+// readSaid is what r holds, a line to each of its lines.
+func readSaid(r LogRead) string {
+	var said strings.Builder
+	for l := range r.lines() {
+		fmt.Fprintf(&said, "%d %q at %v\n", l.seq, l.flight.request, l.flight.arrived().Format(time.TimeOnly))
+	}
+	return said.String()
+}
+
 // A day taken into the Log's read whole copies a chunk of its lines for each
 // chunkRows of them, as a day built whole has them, never one for each line;
 // and a read of the tail gaining a few lines after copies one. Each line is
@@ -250,11 +329,11 @@ func TestADayTakenInWholeCopiesAChunkForEachChunkOfItsLines(t *testing.T) {
 	}
 	taking := LogTaking{Held: HoldSessions(ledger.Pricing), Now: at.Add(time.Hour)}
 	whole, tail := lines[:2990], lines[2990:]
-	read := ReadLog(ledger.Pricing).Taken(whole, true, taking)
+	read := ReadLog(ledger.Pricing).Taken(RecordsOf(whole), true, taking)
 	if copied, most := read.days[0].lines.copied, (len(whole)+chunkRows-1)/chunkRows; copied > most {
 		t.Errorf("a day of %d lines taken in whole copied %d chunks, want %d at most, one for each %d lines", len(whole), copied, most, chunkRows)
 	}
-	grown := read.Taken(tail, false, taking)
+	grown := read.Taken(RecordsOf(tail), false, taking)
 	if copied := grown.days[0].lines.copied - read.days[0].lines.copied; copied > 1 {
 		t.Errorf("a read of the tail gaining %d lines copied %d chunks, want one at most", len(tail), copied)
 	}
@@ -282,10 +361,10 @@ func TestLinesTakenInEitherSideOfACollectionShareTheirWords(t *testing.T) {
 		return ledger.Held{Line: l}
 	}
 	taking := LogTaking{Held: HoldSessions(ledger.Pricing), Now: at.Add(time.Hour)}
-	read := ReadLog(ledger.Pricing).Taken([]ledger.Held{lineOf("r1", at)}, false, taking)
+	read := ReadLog(ledger.Pricing).Taken(RecordsOf([]ledger.Held{lineOf("r1", at)}), false, taking)
 	runtime.GC()
 	runtime.GC()
-	read = read.Taken([]ledger.Held{lineOf("r2", at.Add(time.Second))}, false, taking)
+	read = read.Taken(RecordsOf([]ledger.Held{lineOf("r2", at.Add(time.Second))}), false, taking)
 	lines := slices.Collect(read.lines())
 	if len(lines) != 2 {
 		t.Fatalf("the read holds %d lines, want 2", len(lines))

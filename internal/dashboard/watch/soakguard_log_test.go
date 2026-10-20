@@ -183,22 +183,23 @@ func (g *logGuard) took(msg tea.Msg, was Model) {
 	}
 	g.judged(was)
 	if len(g.checks) > 0 && !now.Before(g.checks[0]) && !m.log.reading {
-		g.sameAsOneRead(now)
+		sameLogAsOneRead(g.t, g.s, now)
 		g.checks, g.underPage = g.checks[1:], g.underPage || m.session != nil
 	}
 }
 
 // judged judges the reads of the ledger's lines since a read last landed,
-// the model as it was before: a day read whole only before those the Log
-// spans, or the day before today in the first guardLateFor of the day; and
-// no session read whole that the store holds.
+// the model as it was before: a day read whole, of its lines or its rows
+// that stood, only before those the Log spans, or the day before today in
+// the first guardLateFor of the day; and no session read whole that the
+// store holds.
 func (g *logGuard) judged(was Model) {
 	g.t.Helper()
 	now := g.s.h.model.now()
 	held := was.held.Holding().Open
 	for _, r := range g.unjudged {
-		switch r.method {
-		case "Day":
+		switch {
+		case r.readsDay():
 			date := r.asked[0]
 			g.daysRead = append(g.daysRead, date)
 			late := date == dayfile.DateOf(dayfile.DayStart(now, -1)) && now.Sub(dayfile.DayStart(now, 0)) < guardLateFor
@@ -206,7 +207,7 @@ func (g *logGuard) judged(was Model) {
 				g.t.Errorf("at %s the day %s was read whole, the Log spanning from %s, want only a day before it, or the day before today late", now.Format(time.DateTime), date,
 					was.log.from.Date)
 			}
-		case "SessionsOf", "Session":
+		case r.method == "SessionsOf" || r.method == "Session":
 			for _, id := range r.asked {
 				if _, ok := held[id]; ok {
 					g.t.Errorf("at %s %s read %s whole, which the store holds", now.Format(time.DateTime), r.method, id)
@@ -217,23 +218,25 @@ func (g *logGuard) judged(was Model) {
 	g.unjudged = nil
 }
 
-// sameAsOneRead judges the Log's Requests at now, of the lines it has
-// tabled read by read, those of one read whole at now: each day's lines the
-// ledger holds, from the day the Log spans from, the store fed them whole,
-// through the same filter, of what the stream tells; the Log reaching
-// nothing of a day before it spans from, by any path, as daysHeld finds;
-// and none of the readers holding what they decode once, as heldRaw has it.
-func (g *logGuard) sameAsOneRead(now time.Time) {
-	g.t.Helper()
-	m := g.s.h.model
-	heldRaw(g.t, m, now)
+// sameLogAsOneRead judges the Log's Requests of the soak s at now, of the
+// lines it has tabled read by read, those of one read whole at now, as
+// shownOf has what each shows, each row's details among it: each day's
+// lines the ledger holds, from the day the Log spans from, read raw, the
+// store fed them whole, through the same filter, of what the stream tells;
+// the Log reaching nothing of a day before it spans from, by any path, as
+// daysHeld finds; and none of the readers holding what they decode once, as
+// heldRaw has it.
+func sameLogAsOneRead(t *testing.T, s *soak, now time.Time) {
+	t.Helper()
+	m := s.h.model
+	heldRaw(t, m, now)
 	if held := daysHeld(m.log, m.log.from.Date); len(held) > 0 {
-		g.t.Errorf("at %s the Log, spanning from %s, still reaches %v", now.Format(time.DateTime), m.log.from.Date, held)
+		t.Errorf("at %s the Log, spanning from %s, still reaches %v", now.Format(time.DateTime), m.log.from.Date, held)
 	}
 	stream := m.logStream(now)
 	read := viewstest.ReadingLog(m.cfg.Prices)
 	for day := views.Today(now); !day.Start.Before(m.log.from.Start); day = views.Today(day.Start.Add(-time.Hour)) {
-		read = read.Took(g.s.follower, g.s.follower.Day(day.Date), true, stream, now)
+		read = read.Took(s.follower, s.follower.Day(day.Date), true, stream, now)
 	}
 	src := m.logSources(m.log.page.Filter, now)
 	tabled := m.log.lines.Rows(src)
@@ -249,17 +252,19 @@ func (g *logGuard) sameAsOneRead(now time.Time) {
 			break
 		}
 	}
-	g.t.Errorf("at %s the Log's Requests, read by read, show %d lines, want the %d of one read whole, alike%s", now.Format(time.DateTime), len(got), len(want), first)
+	t.Errorf("at %s the Log's Requests, read by read, show %d lines, want the %d of one read whole, alike%s", now.Format(time.DateTime), len(got), len(want), first)
 }
 
 // shownOf is what a table of the Log's Requests shows, line by line: each
-// row, rule and oldest day's line, and what each row's day counts.
+// row, rule and oldest day's line; and of each row, what its day counts and
+// its details, as its card opens on them.
 func shownOf(table views.LogTable) []any {
 	var shown []any
 	for _, l := range table.All() {
 		shown = append(shown, views.LogLine{Row: l.Row, Rule: l.Rule, Oldest: l.Oldest})
 		if l.IsRow() {
-			shown = append(shown, table.Count(views.Today(l.Row.At).Date))
+			details, _ := l.Details()
+			shown = append(shown, table.Count(views.Today(l.Row.At).Date), details)
 		}
 	}
 	return shown

@@ -24,9 +24,9 @@ import (
 // it doesn't change, so a frame holding it never sees it change.
 type LogRead struct {
 	prices ledger.Table
-	// price, where it's set, prices a line's request in place of worthOf's
-	// summed, as a test counts the lines priced.
-	price func(l *ledger.Line, date string) Worth
+	// price, where it's set, prices a line's request in place of its
+	// record's worth, as a test counts the lines priced.
+	price func(r *lineRecord, date string) Worth
 	// days are the days it holds lines of, the oldest first; seq is how many
 	// lines it has taken in, the last's seq; and written the latest end of
 	// its lines.
@@ -55,8 +55,8 @@ type loggedDay struct {
 // loggedKeys are the keys of a day's lines, as loggedDay holds them: those
 // with ids, by id, each with its flight, and its seq; those without, by
 // their session and when they arrived, as idlessAt has them, each with the
-// sum of what its line says, as lineSumOf has it, and its seq; and the seqs
-// of each session's requests, by its id.
+// sum of its record, as its summed has it, and its seq; and the seqs of each
+// session's requests, by its id.
 type loggedKeys struct {
 	byID      map[string][]loggedKey
 	idless    map[idlessAt][]loggedKey
@@ -107,26 +107,49 @@ type LogTaking struct {
 	Now    time.Time
 }
 
-// Taken is r with lines taken in, as t says, and the rows of r's lines told
-// again whose sessions' stories the store's feed changed, as t's Gains
-// have them: of a session read whole, every one. The lines are a tail of
-// today's, as Ledger's Today gives it, or, whole where they're every one of
-// a day's, as Today gives them afresh, or Day gives a day's, as the tables
-// reach back a day, or a day is read again whole. A line with an id that r
-// holds already is passed over; one with none is taken in as often as it's
-// given, but for one whole, which is taken in only as often as it's given
-// beyond those of its day, arriving at its moment and saying the same,
-// that r holds already. So a read costs what the ledger gained, never what
-// r holds.
-func (r LogRead) Taken(lines []ledger.Held, whole bool, t LogTaking) LogRead {
+// Taken is r with the lines of day taken in, each of its record, as t says,
+// and the rows of r's lines told again whose sessions' stories the store's
+// feed changed, as t's Gains have them: of a session read whole, every one.
+// The lines are a tail of today's, as Ledger's Today gives it, or, whole
+// where they're every one of a day's, as Today gives them afresh, or Day
+// gives a day's, as the tables reach back a day, or a day is read again
+// whole; or either but the lines with ids r holds, as RecordsToTake gives
+// them, which leaves every line without one, so whole holds of it still. A
+// line with an id that r holds already is passed over, and one given twice
+// that r holds none of is taken in once; one with none is taken in
+// as often as it's given, but for one whole, which is taken in only as often
+// as it's given beyond those of its day, arriving at its moment, its record
+// saying the same, that r holds already. So a read costs what the ledger
+// gained, never what r holds.
+func (r LogRead) Taken(day LogDay, whole bool, t LogTaking) LogRead {
 	grown := r
 	grown.days = slices.Clone(r.days)
-	took := grown.take(lines, whole, t)
+	took := grown.take(day, whole, t)
 	retold := grown.retell(t, r.seq)
 	if !took && len(retold) == 0 {
 		return r
 	}
 	return grown.changed(retold)
+}
+
+// TakenBack is r with day taken in whole, every one of a day's lines'
+// records, as ReadDay gives the day before those the Log's tables span, at
+// now: the sessions of its requests held doesn't hold read whole through l
+// into a store of their own, as Fed reads them, wanting them alone, each
+// pinned as the stream s tells, at r's prices; each line placed as s tells
+// and its row told of the stories held and that store hold, as Taken takes
+// a day. It gives the store beside it, for the watch's to take in: nil
+// where held holds every one of the day's sessions.
+func (r LogRead) TakenBack(l LedgerSessions, day LogDay, held HeldSessions, s Stream, now time.Time) (LogRead, *HeldSessions) {
+	var found *HeldSessions
+	telling := held
+	if ids := held.Unheld(ReadLog(r.prices).Wanted(day)); len(ids) > 0 {
+		want := StreamWanted(s)
+		want.Log = ids
+		fresh, _ := HoldSessions(r.prices).Fed(l, Taken{}, want, now)
+		found, telling = &fresh, held.With(fresh)
+	}
+	return r.Taken(day, true, LogTaking{Held: telling, Stream: s, Now: now}), found
 }
 
 // From is r holding none of the days before the day given, as the Log no
@@ -163,23 +186,56 @@ func (r LogRead) Gen() LogGen {
 
 // Wanted are the ids of the sessions the Log wants the store to hold, in
 // order, each once: those of the requests r holds lines of, and of those
-// among the lines given.
-func (r LogRead) Wanted(lines ...[]ledger.Held) []string {
+// among the days' lines given.
+func (r LogRead) Wanted(days ...LogDay) []string {
 	var ids []string
 	for _, d := range r.days {
 		for layer := d.keys; layer != nil; layer = layer.under {
 			ids = slices.AppendSeq(ids, maps.Keys(layer.top.bySession))
 		}
 	}
-	for _, given := range lines {
-		for i := range given {
-			if l := &given[i].Line; isRequest(l) {
-				ids = append(ids, l.Session)
+	for _, given := range days {
+		for i := range given.records {
+			if rec := &given.records[i]; rec.isRequest() {
+				ids = append(ids, rec.session)
 			}
 		}
 	}
 	slices.Sort(ids)
 	return slices.Compact(ids)
+}
+
+// RecordsToTake is the LogDay of those of lines r may take in, each its
+// record, in their order: every one but those r holds already, as
+// holdsFlight knows them, which Taken would pass over, so a day read again
+// whole decodes only what it gained. Those it keeps are found first, so the
+// records take only the room they need, as a day read again whole needs
+// little.
+func (r LogRead) RecordsToTake(lines []ledger.Held) LogDay {
+	var unheld []int
+	for i := range lines {
+		if !r.holdsFlight(flightOf(&lines[i].Line)) {
+			unheld = append(unheld, i)
+		}
+	}
+	day := LogDay{records: make([]lineRecord, len(unheld))}
+	for j, i := range unheld {
+		day.records[j] = lineRecordOf(&lines[i].Line)
+	}
+	return day
+}
+
+// holdsFlight reports whether r holds the line of the request that flew as
+// f, as Taken knows one with an id, by its flight's key, among the lines of
+// the day it arrived on, as idHeld tells it: never of one without, which
+// Taken knows by its record's sum.
+func (r LogRead) holdsFlight(f flight) bool {
+	k, ok := f.idKey()
+	if !ok {
+		return false
+	}
+	i, found := r.dayAt(Today(f.arrived()).Date)
+	return found && idHeld(k, idsHeld(r.days[i].keys, k.lineKey))
 }
 
 // Len is how many lines r holds: it changes only as r grows.
@@ -209,18 +265,18 @@ func (r LogRead) changed(retold []*loggedLine) LogRead {
 	return r
 }
 
-// take takes in the lines r doesn't hold, as Taken has it, each priced at
-// t's now, placed as t's stream tells, and told of its session's story as
-// t's store holds it, reporting whether it took any. r's days are its own,
-// but none of them.
-func (r *LogRead) take(lines []ledger.Held, whole bool, t LogTaking) bool {
+// take takes in the lines of day r doesn't hold, as Taken has it, each
+// priced at t's now, placed as t's stream tells, and told of its session's
+// story as t's store holds it, reporting whether it took any. r's days are
+// its own, but none of them.
+func (r *LogRead) take(day LogDay, whole bool, t LogTaking) bool {
 	today := Today(t.Now)
-	given := givenLines{ids: make(map[lineKey]bool), idless: make(map[idlessKey]int)}
+	read := countedOnceOf(len(day.records))
 	added := make(map[string]*takenDay)
-	for i := range lines {
-		l := &lines[i].Line
-		at := r.dayOf(Today(l.At))
-		if !given.fresh(l, r.days[at].keys, whole) {
+	for i := range day.records {
+		rec := &day.records[i]
+		at := r.dayOf(Today(rec.arrived()))
+		if k := turnKeyOf(rec); read.again(k, loggedHeld(r.days[at].keys, rec.session, k, whole)) {
 			continue
 		}
 		r.seq++
@@ -229,10 +285,10 @@ func (r *LogRead) take(lines []ledger.Held, whole bool, t LogTaking) bool {
 			added[date] = &takenDay{names: make(interning)}
 		}
 		a := added[date]
-		logged := loggedLineOf(l, r.seq, placeOf(l, t.Stream), r.worthOf(l, today.Date), r.storyOf(l, t.Held), a.names)
+		logged := loggedLineOf(rec, r.seq, placeOf(rec, t.Stream), r.worthOf(rec, today.Date), r.storyOf(rec, t.Held), a.names)
 		a.lines = append(a.lines, logged)
 		a.keys.add(logged)
-		r.written = score.Later(r.written, ended(l))
+		r.written = score.Later(r.written, rec.ended())
 	}
 	for i := range r.days {
 		if a := added[r.days[i].day.Date]; a != nil {
@@ -259,41 +315,32 @@ func (d *loggedDay) took(a *takenDay) {
 	d.names = d.names.with(a.names, len(a.names), mergedNames)
 }
 
-// givenLines are the lines a read has given so far: those with ids, by
-// their keys, as keyOf has them; and those without, by when each arrived
-// and what it says, counted.
-type givenLines struct {
-	ids    map[lineKey]bool
-	idless map[idlessKey]int
+// loggedHeld is how many lines alike held, the keys of a day's lines held
+// before a read, whole where it's every one of the day's, hold of the line
+// of the session given with the key k, as turnKeyOf has it, as countedOnce
+// counts them: of one with an id, one of its id that arrived at its moment;
+// of one without, those of its session that arrived at its moment, their
+// records saying what its sum says, but none in a read that isn't whole, a
+// tail of lines filed since the last, each new. The record's sum holds its
+// session, so countedOnce, knowing a line without an id by its arrival and
+// sum alone, counts it as the keys held know it.
+func loggedHeld(held *stacked[loggedKeys], session string, k turnKey, whole bool) int {
+	switch {
+	case k.request != "":
+		return idsHeld(held, k.lineKey)
+	case !whole:
+		return 0
+	}
+	return idlessCount(held, idlessAt{session: session, at: k.at}, k.sum)
 }
 
-// idlessKey is a line without an id, as givenLines counts it: its session
-// and when it arrived, as idlessAt has them, and the sum of what its line
-// says, as lineSumOf has it.
-type idlessKey struct {
-	idlessAt
-	sum uint64
-}
-
-// fresh reports whether the line l, given next in a read, whole where it's
-// every one of a day's, is one held, the keys of its day's lines held
-// before the read, holds none of, as Taken has it, noting it as given: of
-// one with an id, one of the same id that arrived at the same moment,
-// neither held nor given before in the read; of one without, any but in a
-// read whole, where it's fresh only where the read has given more of its
-// session that arrived at its moment, saying the same, than held holds.
-func (g givenLines) fresh(l *ledger.Line, held *stacked[loggedKeys], whole bool) bool {
-	if k, ok := keyOf(l); ok {
-		fresh := !g.ids[k] && !holdsKey(held, k)
-		g.ids[k] = true
-		return fresh
+// idsHeld is how many lines with the key k the keys held hold, as Taken
+// takes them in: one at most.
+func idsHeld(s *stacked[loggedKeys], k lineKey) int {
+	if holdsKey(s, k) {
+		return 1
 	}
-	if !whole {
-		return true
-	}
-	k := idlessKey{session: l.Session, at: instantOf(l.At), sum: lineSumOf(l)}
-	g.idless[k]++
-	return g.idless[k] > idlessCount(held, k)
+	return 0
 }
 
 // holdsKey reports whether the keys held hold a line with the key k.
@@ -306,13 +353,13 @@ func holdsKey(s *stacked[loggedKeys], k lineKey) bool {
 	return false
 }
 
-// idlessCount is how many lines without ids of k's session that arrived at
-// its moment, saying what its sum says, the keys held hold.
-func idlessCount(s *stacked[loggedKeys], k idlessKey) int {
+// idlessCount is how many lines without ids of the session that arrived at
+// the moment at gives, saying what sum says, the keys held hold.
+func idlessCount(s *stacked[loggedKeys], at idlessAt, sum uint64) int {
 	n := 0
 	for layer := s; layer != nil; layer = layer.under {
-		for _, o := range layer.top.idless[k.idlessAt] {
-			if o.sum == k.sum {
+		for _, o := range layer.top.idless[at] {
+			if o.sum == sum {
 				n++
 			}
 		}
@@ -380,24 +427,24 @@ func (r *LogRead) dayOf(day LedgerDay) int {
 	return i
 }
 
-// storyOf is the story of the session of the request l, as held holds it:
-// nil where l is no session's request.
-func (r *LogRead) storyOf(l *ledger.Line, held HeldSessions) *story {
-	if !isRequest(l) {
+// storyOf is the story of the session of the request of the record rec, as
+// held holds it: nil where rec is of no session's request.
+func (r *LogRead) storyOf(rec *lineRecord, held HeldSessions) *story {
+	if !rec.isRequest() {
 		return nil
 	}
-	return held.storyOf(l.Session)
+	return held.storyOf(rec.session)
 }
 
-// placeOf is where the row of the line l sits within its day, as placedRow
+// placeOf is where the row of the record r sits within its day, as placedRow
 // has it: where it was sent, where s told that, as sentOf has it, so a row
 // stays where it sat in flight as its line fills it in; else where it
 // arrived.
-func placeOf(l *ledger.Line, s Stream) time.Time {
-	if sent, told := s.sentOf(l); told {
+func placeOf(r *lineRecord, s Stream) time.Time {
+	if sent, told := s.sentOf(r.flight); told {
 		return sent
 	}
-	return l.At
+	return r.arrived()
 }
 
 // retell tells again the rows of r's lines, those taken in before the seq
@@ -447,13 +494,13 @@ func (d *loggedDay) retelling(id string, gain SessionGain) []int {
 	return slices.Compact(seqs)
 }
 
-// worthOf is what the request l was worth at the prices of the local day
-// with the given date, as summed has it.
-func (r LogRead) worthOf(l *ledger.Line, date string) Worth {
+// worthOf is what the request of the record rec was worth at the prices of
+// the local day with the given date, as its worth has it.
+func (r LogRead) worthOf(rec *lineRecord, date string) Worth {
 	if r.price != nil {
-		return r.price(l, date)
+		return r.price(rec, date)
 	}
-	return summed(r.prices, l, date)
+	return rec.worth(r.prices, date)
 }
 
 // holdsLineOf reports whether r holds the line of the request t among the

@@ -16,9 +16,10 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 )
 
-// update has the goldens of the digests' and the day heads' encodings
-// kept of the versions the views and the ledger write, as -update asks.
-var update = flag.Bool("update", false, "write the goldens of a day's digest and head, where none is kept of the versions written")
+// update has the goldens of the digests', the day heads' and the rows'
+// encodings kept of the versions the views and the ledger write, as -update
+// asks.
+var update = flag.Bool("update", false, "write the goldens of a day's digest, its head and a chunk of its rows, where none is kept of the versions written")
 
 // goldenDay is the day of the golden world whose digest the golden holds.
 const goldenDay = "2026-10-08"
@@ -125,9 +126,9 @@ func limited(l *ledger.Line) {
 // A change to how a session's state or its page's part is stored, or to the
 // working behind it, or to the ledger's envelope, that changes them without
 // a new version fails, as digests already written would be read as they no
-// longer are. A new version has its golden written with -update, in place
-// of the one before, which is removed, as only the version written is read;
-// one already kept of the envelope written isn't written again, and -update
+// longer are. A new version has its golden written with -update, and the
+// one before removed by hand, as only the version written is read; one
+// already kept of the envelope written isn't written again, and -update
 // fails where it differs. Its world's times are UTC's, so it encodes alike
 // in every zone the tests run in.
 func TestADigestIsEncodedAsTheGoldenOfItsVersionsHoldsIt(t *testing.T) {
@@ -141,10 +142,12 @@ func TestADigestIsEncodedAsTheGoldenOfItsVersionsHoldsIt(t *testing.T) {
 }
 
 // keptGolden is the golden of what the views and the ledger write of a day
-// of the golden world, testdata/<file>-v<version>.json: its file's name;
-// what it's of, as a digest; the version of the views' body written; the
-// test that writes it; the version of the ledger's envelope a golden's JSON
-// names, as envelope reads it; and what to bump where it changes.
+// of fixed lines, as a digest and its parts, a day's head, or a chunk of its
+// rows, testdata/<file>-v<version>.json: its file's name; what it's of, as a
+// digest; the version of the views' body written; the test that writes it;
+// the version of the ledger's envelope a golden's JSON names, as envelope
+// reads it, none of what the views write alone; and what to bump where it
+// changes.
 type keptGolden struct {
 	file, what, test, bump string
 	version                int
@@ -197,7 +200,7 @@ type golden struct {
 func goldenDigest(t *testing.T) []byte {
 	t.Helper()
 	lines, zoned := goldenWorld()
-	c := goldenChain(t, lines, zoned)
+	c := goldenChain(t, lines, map[string][]ledger.Line{goldenDay: zoned})
 	data, err := os.ReadFile(c.digestPath(goldenDay))
 	if err != nil {
 		t.Fatal(err)
@@ -211,13 +214,16 @@ func goldenDigest(t *testing.T) []byte {
 	return indented(t, plain)
 }
 
-// goldenChain is the golden world, lines and zoned as goldenWorld gives them,
-// written as a real ledger, its zoned requests filed under goldenDay, and
+// goldenChain is the golden world, lines as goldenWorld gives them, written
+// as a real ledger, the lines zoned holds of each date filed under it,
+// beside the days they arrived on, as a change of time zone files them, and
 // digested day by day, as digestChain digests it.
-func goldenChain(t *testing.T, lines, zoned []ledger.Line) *digestChain {
+func goldenChain(t *testing.T, lines []ledger.Line, zoned map[string][]ledger.Line) *digestChain {
 	t.Helper()
 	c := newDigestChain(t, "the golden world", 0, lines)
-	c.file(goldenDay, zoned...)
+	for date, filed := range zoned {
+		c.file(date, filed...)
+	}
 	c.digestDayByDay(func(LedgerDay) {})
 	return c
 }

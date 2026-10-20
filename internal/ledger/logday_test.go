@@ -108,16 +108,19 @@ func gunzippedFile(t *testing.T, path string) []byte {
 	return plain
 }
 
-// removeHeads removes every head the ledger in dir holds.
+// removeHeads removes every head the ledger in dir holds, and every rows
+// file.
 func removeHeads(tb testing.TB, dir string) {
 	tb.Helper()
-	held, err := filepath.Glob(filepath.Join(dir, "logday-*"))
-	if err != nil {
-		tb.Fatal(err)
-	}
-	for _, path := range held {
-		if err := os.Remove(path); err != nil {
+	for _, pattern := range []string{"logday-*", "rows-*"} {
+		held, err := filepath.Glob(filepath.Join(dir, pattern))
+		if err != nil {
 			tb.Fatal(err)
+		}
+		for _, path := range held {
+			if err := os.Remove(path); err != nil {
+				tb.Fatal(err)
+			}
 		}
 	}
 }
@@ -126,10 +129,12 @@ func removeHeads(tb testing.TB, dir string) {
 // Follower.Day gives them, in its order: those its file holds, oldest first
 // by their arrival, whenever each was written, and one a change of time zone
 // filed under the day after, which the day after's leaves out. It's of the
-// day's bounds, the lines its summary counts, and as many as the day gave;
-// and a follower reads its side as it was built, where it stands: not that
-// of the day the day after's digest tells of a line of, as no day head
-// stands whose day isn't alone. A day of no lines has none.
+// day's bounds, the lines its summary counts, and as many as the day gave,
+// and so are its rows; it rests on the day after, whose files gave it a line,
+// of the lines that day keeps; and a follower reads its side and rows as
+// they were built, where it stands: not those of the day the day after's
+// digest tells of a line of, as no day head stands whose day isn't alone. A
+// day of no lines has none, nor rows.
 func TestADaysHeadIsBuiltOfExactlyTheLinesItsDayGives(t *testing.T) {
 	w := newLookupWorld(t)
 	w.file(-3, askedBy("1", "one", on(-3, 9, 0)))
@@ -144,19 +149,26 @@ func TestADaysHeadIsBuiltOfExactlyTheLinesItsDayGives(t *testing.T) {
 		days       int
 		summarised int
 		requests   []string
+		restsOn    map[string]int
 		stands     bool
 	}{
 		{days: -3, summarised: 1, requests: []string{"1"}, stands: true},
-		{days: 0, summarised: 2, requests: []string{"2", "3", "4"}},
+		{days: 0, summarised: 2, requests: []string{"2", "3", "4"}, restsOn: map[string]int{dayOf(1): 2}},
 		{days: 1, summarised: 2, requests: []string{"5"}, stands: true},
 	}
 	for _, tt := range tests {
 		t.Run(dayOf(tt.days), func(t *testing.T) {
 			date := dayOf(tt.days)
 			start, end, _ := dayfile.Day(date)
-			want := ledger.DayHead{Body: sideBody, Day: date, Start: start, End: end, SummaryLines: tt.summarised, Lines: len(tt.requests), Side: sideOf(t, tt.requests...)}
-			if got := w.dayHead(tt.days); !reflect.DeepEqual(got, want) {
-				t.Errorf("the head of %s is\n%+v\nwant\n%+v", date, got, want)
+			want := ledger.DayHead{Body: sideBody, Day: date, Start: start, End: end, SummaryLines: tt.summarised, Lines: len(tt.requests),
+				RestsOn: tt.restsOn, Side: sideOf(t, tt.requests...)}
+			head := w.dayHead(tt.days)
+			wantRows := builtRead(chunksOf(tt.requests...))
+			if rows := rowsRead(t, f, date, head.Rows); !reflect.DeepEqual(rows, wantRows) {
+				t.Errorf("the rows of %s are %+v, want %+v", date, rows, wantRows)
+			}
+			if head.Rows = (ledger.DayRows{}); !reflect.DeepEqual(head, want) {
+				t.Errorf("the head of %s is\n%+v\nwant\n%+v", date, head, want)
 			}
 			if given := requestsOn(f, date); !slices.Equal(given, tt.requests) {
 				t.Errorf("Day(%s) gives the lines of %q, want %q, as the head was built of", date, given, tt.requests)
@@ -164,20 +176,23 @@ func TestADaysHeadIsBuiltOfExactlyTheLinesItsDayGives(t *testing.T) {
 			if side, ok := f.DaySide(date, sideBody); ok != tt.stands || ok && !bytes.Equal(side, want.Side) {
 				t.Errorf("DaySide(%s) = %s, %t; want %s, as it was built, read %t", date, side, ok, want.Side, tt.stands)
 			}
+			if rows, ok := dayRows(t, f, date); ok != tt.stands || ok && !reflect.DeepEqual(rows, wantRows) {
+				t.Errorf("DayRows(%s) = %+v, %t; want %+v, as they were built, read %t", date, rows, ok, wantRows, tt.stands)
+			}
 		})
 	}
 	for _, days := range []int{-2, -1, 2} {
-		if w.headed(days) {
-			t.Errorf("the ledger holds a head of %s, a day of no lines; want none", dayOf(days))
+		if w.headed(days) || w.rowed(days) {
+			t.Errorf("the ledger holds a head of %s %t, its rows %t, a day of no lines; want neither", dayOf(days), w.headed(days), w.rowed(days))
 		}
 	}
 }
 
-// A day's side is read only where its head stands, as it was built of the
-// day as the ledger keeps it now, of the version asked for, and no line of
-// the days either side arrived on it, as their digests tell: none where the
-// day's lines are read instead.
-func TestADaysSideIsReadOnlyWhereItsHeadStands(t *testing.T) {
+// A day's side, and its rows, are read only where its head stands, as it was
+// built of the day as the ledger keeps it now, of the version asked for, and
+// no line of the days either side arrived on it, as their digests tell: none
+// where the day's lines are read instead.
+func TestADaysSideAndRowsAreReadOnlyWhereItsHeadStands(t *testing.T) {
 	tests := []struct {
 		name   string
 		change func(t *testing.T, w *lookupWorld)
@@ -220,18 +235,24 @@ func TestADaysSideIsReadOnlyWhereItsHeadStands(t *testing.T) {
 			w.digestEnded()
 			tt.change(t, w)
 
-			side, ok := w.follower().DaySide(dayOf(0), tt.body)
+			f := w.follower()
+			side, ok := f.DaySide(dayOf(0), tt.body)
+			rows, rowsOK := f.DayRows(dayOf(0), tt.body)
 
 			if want := sideOf(t, "4", "5"); ok != tt.stands || ok && !bytes.Equal(side, want) {
 				t.Errorf("DaySide(%s, %d) = %s, %t; want %s read %t", dayOf(0), tt.body, side, ok, want, tt.stands)
+			}
+			if want := builtRead(chunksOf("4", "5")); rowsOK != tt.stands || rowsOK && !reflect.DeepEqual(rowsRead(t, f, dayOf(0), rows), want) {
+				t.Errorf("DayRows(%s, %d) = %+v, %t; want %+v read %t", dayOf(0), tt.body, rows, rowsOK, want, tt.stands)
 			}
 		})
 	}
 }
 
-// A line filed late under a day whose head is built has the day's head built
-// again, of the line, once the day is summarised again with it, and none
-// other: until then its lines can't be told, so it isn't.
+// A line filed late under a day whose head is built has the day's head and
+// rows built again, of the line, once the day is summarised again with it,
+// and none other: until then its lines can't be told, so it isn't, and
+// neither its side nor its rows are read.
 func TestALateLineHasItsDaysHeadBuiltAgain(t *testing.T) {
 	w := newLookupWorld(t)
 	sharedDays(w)
@@ -244,6 +265,13 @@ func TestALateLineHasItsDaysHeadBuiltAgain(t *testing.T) {
 	if built := requestsOfSides(w.fold.sides()); len(built) > 0 {
 		t.Errorf("with %s not summarised again, sides of %q were built, want none", dayOf(-2), built)
 	}
+	f := w.follower()
+	if _, ok := f.DaySide(dayOf(-2), sideBody); ok {
+		t.Errorf("DaySide(%s) is read, a line filed under it since its head was built; want it unread", dayOf(-2))
+	}
+	if rows, ok := f.DayRows(dayOf(-2), sideBody); ok {
+		t.Errorf("DayRows(%s) = %+v, read, a line filed under it since its head was built; want them unread", dayOf(-2), rows)
+	}
 	w.summarise()
 	w.digestEnded()
 	if built, want := requestsOfSides(w.fold.sides()), [][]string{{"3", "late"}}; !reflect.DeepEqual(built, want) {
@@ -251,6 +279,9 @@ func TestALateLineHasItsDaysHeadBuiltAgain(t *testing.T) {
 	}
 	if head := w.dayHead(-2); head.SummaryLines != 2 || head.Lines != 2 || !bytes.Equal(head.Side, sideOf(t, "3", "late")) {
 		t.Errorf("the head of %s is %+v; want it of the two lines its summary counts, the late one among them", dayOf(-2), head)
+	}
+	if rows, ok := dayRows(t, f, dayOf(-2)); !ok || !reflect.DeepEqual(rows, builtRead(chunksOf("3", "late"))) {
+		t.Errorf("DayRows(%s) = %+v, %t; want them of 3 and the late line, read", dayOf(-2), rows, ok)
 	}
 }
 
@@ -296,9 +327,9 @@ func TestADaysHeadBuiltInAnotherTimeZoneIsBuiltAgain(t *testing.T) {
 	}
 }
 
-// The head of a day whose lines are pruned is deleted, with its digest and
-// parts file, as is a stray one of a day never written; those of the days
-// either side are kept as they were.
+// The head of a day whose lines are pruned is deleted, with its rows file,
+// its digest and its parts file, as are a stray head and rows file of a day
+// never written; those of the days either side are kept as they were.
 func TestTheHeadOfADayWithoutLinesIsDeleted(t *testing.T) {
 	w := newLookupWorld(t)
 	sharedDays(w)
@@ -308,17 +339,22 @@ func TestTheHeadOfADayWithoutLinesIsDeleted(t *testing.T) {
 		if err := ledger.WriteDayHead(w.dir, ledger.DayHead{Body: sideBody, Day: dayOf(days), Start: start, End: end}); err != nil {
 			t.Fatal(err)
 		}
+		if err := ledger.WriteRows(w.dir, dayOf(days), chunksOf("stray")); err != nil {
+			t.Fatal(err)
+		}
 	}
 	kept := map[string]os.FileInfo{}
 	for _, days := range []int{-3, 0, 1} {
-		kept[logdayPath(w.dir, days)] = fileInfo(t, logdayPath(w.dir, days))
+		for _, path := range []string{logdayPath(w.dir, days), rowsPath(w.dir, days)} {
+			kept[path] = fileInfo(t, path)
+		}
 	}
 	removeFile(t, w.dir, "requests-"+dayOf(-2)+".jsonl")
 
 	w.digestEnded()
 
 	for _, days := range []int{-2, -1, 2} {
-		for _, path := range []string{logdayPath(w.dir, days), digestPath(w.dir, days), partsPath(w.dir, days)} {
+		for _, path := range []string{logdayPath(w.dir, days), rowsPath(w.dir, days), digestPath(w.dir, days), partsPath(w.dir, days)} {
 			if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
 				t.Errorf("%s, of a day without lines, is kept, looked at: %v; want it deleted", filepath.Base(path), err)
 			}
@@ -331,18 +367,25 @@ func TestTheHeadOfADayWithoutLinesIsDeleted(t *testing.T) {
 	}
 }
 
-// A ledger whose directory holds heads, but no day, has them deleted.
+// A ledger whose directory holds heads and rows files, but no day, has them
+// deleted: a rows file of a day of no head among them.
 func TestTheHeadsOfALedgerHoldingNoDayAreDeleted(t *testing.T) {
 	w := newLookupWorld(t)
 	start, end, _ := dayfile.Day(dayOf(-1))
 	if err := ledger.WriteDayHead(w.dir, ledger.DayHead{Body: sideBody, Day: dayOf(-1), Start: start, End: end}); err != nil {
 		t.Fatal(err)
 	}
+	for _, days := range []int{-1, -2} {
+		if err := ledger.WriteRows(w.dir, dayOf(days), chunksOf("stray")); err != nil {
+			t.Fatal(err)
+		}
+	}
 
 	w.digestEnded()
 
-	if w.headed(-1) {
-		t.Errorf("the head of %s is kept, the ledger holding no day; want it deleted", dayOf(-1))
+	if w.headed(-1) || w.rowed(-1) || w.rowed(-2) {
+		t.Errorf("the head of %s is kept %t, its rows %t, and the rows of %s %t, the ledger holding no day; want each deleted",
+			dayOf(-1), w.headed(-1), w.rowed(-1), dayOf(-2), w.rowed(-2))
 	}
 }
 
@@ -401,8 +444,8 @@ func TestRunPausesAfterEachHeadBuiltAsLongAsItTook(t *testing.T) {
 	})
 }
 
-// A head built as Run's context ends is written of none, and no other is
-// begun: Run returns once its builder is done.
+// A head built as Run's context ends is written of none, nor its rows, and no
+// other is begun: Run returns once its builder is done.
 func TestRunStopsBuildingHeadsAsItsContextEnds(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		w := runWorld(t)
@@ -422,8 +465,8 @@ func TestRunStopsBuildingHeadsAsItsContextEnds(t *testing.T) {
 		if ran, built := time.Since(began), len(w.fold.sides()); ran != time.Minute || built != 1 {
 			t.Errorf("Run returned after %v, having built %d sides; want it returned once its builder was done, at a minute, having built one", ran, built)
 		}
-		if heads := headsIn(t, w.dir); len(heads) > 0 {
-			t.Errorf("the ledger holds heads of %q, want none written", slices.Sorted(maps.Keys(heads)))
+		if heads, rows := headsIn(t, w.dir), filesMatching(t, w.dir, "rows-*"); len(heads)+len(rows) > 0 {
+			t.Errorf("the ledger holds heads of %q, and rows files %q, want none written", slices.Sorted(maps.Keys(heads)), slices.Sorted(maps.Keys(rows)))
 		}
 	})
 }
@@ -612,6 +655,222 @@ func TestAHeadNotAloneIsBuiltAgainOnceItsNeighboursDigestChanges(t *testing.T) {
 	}
 }
 
+// A day's head built of a line a change of time zone filed under the day
+// before, or the day after, rests on that day, of the lines it keeps. Once
+// that day's lines are pruned, its summary kept, as the ledger's keep prunes
+// them, the day's read gives the line no more, and the head doesn't stand,
+// though the day is alone then, as a day of no lines is: it's due, and the
+// next pass builds it again, of its own lines alone, resting on none, and it
+// stands.
+func TestAHeadRestingOnADayPrunedIsBuiltAgainWithoutItsLine(t *testing.T) {
+	tests := []struct {
+		name string
+		// beside is the day after the summaries' day the line x is filed
+		// under, at when it arrived on the day before it, or after it; kept,
+		// the lines that day keeps then; and built, the requests of the
+		// lines the day's head is built of then, in its order.
+		beside, kept int
+		at           time.Time
+		built        []string
+	}{
+		{name: "the day before", beside: -1, kept: 1, at: on(0, 0, 30), built: []string{"x", "4", "5"}},
+		{name: "the day after", beside: 1, kept: 3, at: on(0, 23, 0), built: []string{"4", "5", "x"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newLookupWorld(t)
+			sharedDays(w)
+			w.file(tt.beside, askedBy("x", "four", tt.at))
+			w.summarise()
+			w.digestEnded()
+			w.fold.sides()
+			if head, want := w.dayHead(0), map[string]int{dayOf(tt.beside): tt.kept}; !bytes.Equal(head.Side, sideOf(t, tt.built...)) || !reflect.DeepEqual(head.RestsOn, want) {
+				t.Fatalf("the head of %s is %+v; want it of %q, resting on %v", dayOf(0), head, tt.built, want)
+			}
+
+			removeFile(t, w.dir, "requests-"+dayOf(tt.beside)+".jsonl")
+
+			if given := requestsOn(w.follower(), dayOf(0)); !slices.Equal(given, []string{"4", "5"}) {
+				t.Errorf("Day(%s) gives the lines of %q, want 4 and 5 alone, x pruned", dayOf(0), given)
+			}
+			headRead(t, w.follower(), 0, nil)
+			w.digestEnded()
+			if built, want := requestsOfSides(w.fold.sides()), [][]string{{"4", "5"}}; !reflect.DeepEqual(built, want) {
+				t.Errorf("the pass after the prune built sides of %q, want %q: %s's again, without x", built, want, dayOf(0))
+			}
+			if head := w.dayHead(0); head.RestsOn != nil {
+				t.Errorf("the head of %s built again rests on %v, want none", dayOf(0), head.RestsOn)
+			}
+			headRead(t, w.follower(), 0, []string{"4", "5"})
+		})
+	}
+}
+
+// A day's head none of whose lines came from the files of a day beside it
+// rests on neither, so it stands as they change, and isn't built again: the
+// day after gaining a line of its own, summarised and digested again, or the
+// day before pruned.
+func TestAHeadRestingOnNoDayBesideStandsAsTheyChange(t *testing.T) {
+	tests := []struct {
+		name   string
+		change func(t *testing.T, w *lookupWorld)
+		// days is the day after the summaries' day whose head stands, of the
+		// lines given; built, the lines of the sides built again of the change.
+		days     int
+		requests []string
+		built    [][]string
+	}{
+		{name: "the day after gaining a line of its own", change: func(_ *testing.T, w *lookupWorld) {
+			w.file(1, askedBy("8", "one", on(1, 12, 0)))
+			w.summarise()
+		}, days: 0, requests: []string{"4", "5"}, built: [][]string{{"6", "7", "8"}}},
+		{name: "the day before pruned", change: func(t *testing.T, w *lookupWorld) {
+			removeFile(t, w.dir, "requests-"+dayOf(-3)+".jsonl")
+		}, days: -2, requests: []string{"3"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newLookupWorld(t)
+			sharedDays(w)
+			w.digestEnded()
+			w.fold.sides()
+			headRead(t, w.follower(), tt.days, tt.requests)
+
+			tt.change(t, w)
+			w.digestEnded()
+
+			if built := requestsOfSides(w.fold.sides()); !slices.EqualFunc(built, tt.built, slices.Equal) {
+				t.Errorf("the pass after the change built sides of %q, want %q: none of %s's", built, tt.built, dayOf(tt.days))
+			}
+			if head := w.dayHead(tt.days); head.RestsOn != nil {
+				t.Errorf("the head of %s rests on %v, want none", dayOf(tt.days), head.RestsOn)
+			}
+			headRead(t, w.follower(), tt.days, tt.requests)
+		})
+	}
+}
+
+// A day's head built of a line filed under today, whose lines can't be told
+// yet, rests on none: it stands, as its day is alone while today's digest
+// isn't written, and isn't built again at a pass after. Once today is told,
+// and its digest tells of the line, it's built again, resting on today's
+// lines then, and doesn't stand, as its day isn't alone.
+func TestAHeadOfALineFiledUnderTodayRestsOnItOnceItsTold(t *testing.T) {
+	w := newLookupWorld(t)
+	sharedDays(w)
+	w.file(2, askedBy("y", "one", on(2, 9, 0)))
+	w.file(3, askedBy("z", "two", on(2, 23, 0)))
+	w.summarise()
+	w.digestEnded()
+	w.fold.sides()
+	if head := w.dayHead(2); !bytes.Equal(head.Side, sideOf(t, "y", "z")) || head.RestsOn != nil {
+		t.Fatalf("the head of %s is %+v; want it of y and z, resting on none", dayOf(2), head)
+	}
+	headRead(t, w.follower(), 2, []string{"y", "z"})
+
+	w.digestEnded()
+
+	if built := requestsOfSides(w.fold.sides()); len(built) > 0 {
+		t.Errorf("a pass after built sides of %q again, want none, nothing changed since", built)
+	}
+	w.at = on(4, 10, 0)
+	w.summarise()
+	w.digestEnded()
+	if built := requestsOfSides(w.fold.sides()); !slices.ContainsFunc(built, func(requests []string) bool { return slices.Equal(requests, []string{"y", "z"}) }) {
+		t.Errorf("once %s is told, sides of %q were built, want %s's of y and z among them", dayOf(3), built, dayOf(2))
+	}
+	if head, want := w.dayHead(2), map[string]int{dayOf(3): 1}; !reflect.DeepEqual(head.RestsOn, want) {
+		t.Errorf("the head of %s built again rests on %v, want %v", dayOf(2), head.RestsOn, want)
+	}
+	headRead(t, w.follower(), 2, nil)
+}
+
+// A day's head built of a line filed under the day before, whose lines
+// can't be told then, its file holding fewer than its summary counts, as
+// after damage, rests on it untold, as -1: it doesn't stand, nor once that
+// day's lines are pruned, the line with them, though its day is alone then.
+// The next pass builds it again, of its own lines alone, and it stands.
+func TestAHeadRestingOnTheDayBeforeUntoldIsBuiltAgainOnceItsPruned(t *testing.T) {
+	w := newLookupWorld(t)
+	sharedDays(w)
+	x := askedBy("x", "four", on(0, 0, 30))
+	w.file(-1, askedBy("a", "four", on(-1, 9, 0)), x)
+	w.summarise()
+	w.damage(-1, x)
+	w.digestEnded()
+	w.fold.sides()
+	if head, want := w.dayHead(0), map[string]int{dayOf(-1): -1}; !bytes.Equal(head.Side, sideOf(t, "x", "4", "5")) || !reflect.DeepEqual(head.RestsOn, want) {
+		t.Fatalf("the head of %s is %+v; want it of x, 4 and 5, resting on %v", dayOf(0), head, want)
+	}
+	headRead(t, w.follower(), 0, nil)
+
+	removeFile(t, w.dir, "requests-"+dayOf(-1)+".jsonl")
+
+	headRead(t, w.follower(), 0, nil)
+	w.digestEnded()
+	if built, want := requestsOfSides(w.fold.sides()), [][]string{{"4", "5"}}; !reflect.DeepEqual(built, want) {
+		t.Errorf("the pass after the prune built sides of %q, want %q: %s's again, without x", built, want, dayOf(0))
+	}
+	headRead(t, w.follower(), 0, []string{"4", "5"})
+}
+
+// A day's head rests on the lines the day before kept as the head's own were
+// read, not as it's written: a day whose files are written again while the
+// head is built, the line they gave it gone, and summarised again, of fewer
+// lines, has the head not stand; and once that day's digest is written
+// again, the next pass builds it again without the line, and it stands.
+func TestAHeadRestsOnTheLinesADayBesideKeptBeforeItsRead(t *testing.T) {
+	w := newLookupWorld(t)
+	sharedDays(w)
+	a, x := askedBy("a", "four", on(-1, 9, 0)), askedBy("x", "four", on(0, 0, 30))
+	w.file(-1, a, x)
+	w.summarise()
+	w.digestEnded()
+	removeHeads(t, w.dir)
+	rewritten := false
+	w.fold.takingSides(func(request string) {
+		if request != "x" || rewritten {
+			return
+		}
+		rewritten = true
+		w.damage(-1, a)
+		removeFile(t, w.dir, filepath.Base(summaryFile(w.dir, dayOf(-1))))
+		w.summarise()
+	})
+
+	w.digestEnded()
+
+	head := w.dayHead(0)
+	if !bytes.Equal(head.Side, sideOf(t, "x", "4", "5")) {
+		t.Fatalf("the head of %s is %+v; want it of x, 4 and 5", dayOf(0), head)
+	}
+	if want := map[string]int{dayOf(-1): 2}; !reflect.DeepEqual(head.RestsOn, want) {
+		t.Errorf("the head of %s rests on %v, want %v, as %s kept as its lines were read", dayOf(0), head.RestsOn, want, dayOf(-1))
+	}
+	headRead(t, w.follower(), 0, nil)
+	w.fold.takingSides(nil)
+	w.fold.sides()
+	w.digestEnded()
+	if built, want := requestsOfSides(w.fold.sides()), [][]string{{"4", "5"}, {"a"}}; !reflect.DeepEqual(built, want) {
+		t.Errorf("the pass after built sides of %q, want %q: %s's again, without x, and %s's, summarised again", built, want, dayOf(0), dayOf(-1))
+	}
+	headRead(t, w.follower(), 0, []string{"4", "5"})
+}
+
+// headRead fails t where f reads the side and rows of the local day days
+// after the summaries' day otherwise than as built of the lines of the
+// requests given, none where it's nil, as its head doesn't stand.
+func headRead(t *testing.T, f *ledger.Follower, days int, requests []string) {
+	t.Helper()
+	date, stands := dayOf(days), requests != nil
+	if side, ok := f.DaySide(date, sideBody); ok != stands || ok && !bytes.Equal(side, sideOf(t, requests...)) {
+		t.Errorf("DaySide(%s) = %s, %t; want the side of %q read %t", date, side, ok, requests, stands)
+	}
+	if rows, ok := dayRows(t, f, date); ok != stands || ok && !reflect.DeepEqual(rows, builtRead(chunksOf(requests...))) {
+		t.Errorf("DayRows(%s) = %+v, %t; want the rows of %q read %t", date, rows, ok, requests, stands)
+	}
+}
+
 // The first pass of a ledger opened afresh judges each day's head without
 // reading its side: one whose side is damaged, the fields before it as they
 // were written, isn't built again, though a follower reads it not to stand.
@@ -631,6 +890,38 @@ func TestTheFirstPassAfterAStartReadsNoSide(t *testing.T) {
 	}
 	if side, ok := w.follower().DaySide(dayOf(0), sideBody); ok {
 		t.Errorf("DaySide(%s) = %s, read, of a side damaged after %+v; want it unread", dayOf(0), side, head)
+	}
+}
+
+// The digesting holds each day's head it builds, or reads afresh, from pass
+// to pass, of no side, nor its rows' chunks, which it never judges by: its
+// rows file's size kept, which it does. So it holds no day's side, nor the
+// meta of its chunks, from pass to pass.
+func TestTheDigestingHoldsItsHeadsWithoutTheirSidesOrChunks(t *testing.T) {
+	w := newLookupWorld(t)
+	sharedDays(w)
+	w.digestEnded()
+	fresh := w.opened(&folding{})
+
+	fresh.DigestEnded(t.Context(), w.at)
+
+	for _, held := range []struct {
+		name   string
+		ledger *ledger.Ledger
+	}{{name: "as built", ledger: w.writer}, {name: "as read afresh", ledger: fresh}} {
+		heads := held.ledger.HeadsHeld()
+		if len(heads) != 4 {
+			t.Errorf("%s, the digesting holds heads of %q; want those of the 4 days of lines", held.name, slices.Sorted(maps.Keys(heads)))
+		}
+		for date, head := range heads {
+			written, err := ledger.ReadDayHead(w.dir, date, sideBody)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if head.Side != nil || head.Rows.Chunks != nil || written.Rows.Size == 0 || head.Rows.Size != written.Rows.Size {
+				t.Errorf("%s, the head of %s is held as %+v; want it of no side, nor chunks, its rows file's size, %d, kept", held.name, date, head, written.Rows.Size)
+			}
+		}
 	}
 }
 
@@ -660,9 +951,10 @@ func TestAPassFindingNothingChangedReadsNoHead(t *testing.T) {
 	}
 }
 
-// Building the days' heads as they change, pass by pass, leaves the heads a
-// ledger opened afresh builds of them, from none: each day's head judged
-// again where a change may have made it due, and none passed over.
+// Building the days' heads as they change, pass by pass, leaves the heads and
+// rows files a ledger opened afresh builds of them, from none, byte for byte:
+// each day's head judged again where a change may have made it due, and none
+// passed over.
 func TestBuildingHeadsAsDaysChangeWritesWhatALedgerAfreshDoes(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -708,6 +1000,34 @@ func TestBuildingHeadsAsDaysChangeWritesWhatALedgerAfreshDoes(t *testing.T) {
 				t.Fatal(err)
 			}
 		}},
+		{name: "a head pointing at rows of another size", change: func(t *testing.T, w *lookupWorld) {
+			head := w.dayHead(0)
+			head.Rows.Size++
+			if err := ledger.WriteDayHead(w.dir, head); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{name: "a head of a line more than its rows", change: func(t *testing.T, w *lookupWorld) {
+			head := w.dayHead(0)
+			head.Lines++
+			if err := ledger.WriteDayHead(w.dir, head); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{name: "a rows file deleted by hand", change: func(t *testing.T, w *lookupWorld) {
+			removeFile(t, w.dir, filepath.Base(rowsPath(w.dir, 0)))
+		}},
+		{name: "a rows file written again by a build that stopped before its head", change: func(t *testing.T, w *lookupWorld) {
+			if err := ledger.WriteRows(w.dir, dayOf(0), chunksOf("4", "5", "late")); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{name: "a stray rows file of a day of lines but no head", change: func(t *testing.T, w *lookupWorld) {
+			removeFile(t, w.dir, filepath.Base(logdayPath(w.dir, 0)))
+			if err := ledger.WriteRows(w.dir, dayOf(0), chunksOf("stray")); err != nil {
+				t.Fatal(err)
+			}
+		}},
 		{name: "every day compressed and summarised again", change: func(t *testing.T, w *lookupWorld) {
 			compressAll(t, w.dir)
 			w.summarise()
@@ -723,11 +1043,14 @@ func TestBuildingHeadsAsDaysChangeWritesWhatALedgerAfreshDoes(t *testing.T) {
 			w.digestEnded()
 			w.digestEnded()
 
-			built := headsIn(t, w.dir)
+			built, rows := headsIn(t, w.dir), filesMatching(t, w.dir, "rows-*")
 			removeHeads(t, w.dir)
 			w.opened(&folding{}).DigestEnded(t.Context(), w.at)
 			if afresh := headsIn(t, w.dir); !reflect.DeepEqual(built, afresh) {
 				t.Errorf("built pass by pass, the heads are\n%+v\nwant\n%+v\nas a ledger opened afresh builds them", built, afresh)
+			}
+			if afresh := filesMatching(t, w.dir, "rows-*"); !reflect.DeepEqual(rows, afresh) {
+				t.Errorf("built pass by pass, the rows files are\n%x\nwant\n%x\nas a ledger opened afresh builds them", rows, afresh)
 			}
 		})
 	}

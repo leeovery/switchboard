@@ -169,14 +169,14 @@ func answersIn(lines []ledger.Held, id string) []answered {
 }
 
 // key is a as a held page's points know it from another answer, as turnKey
-// knows a line: by its request's id and when it arrived, or of one without
-// an id, by the sum of all it holds too.
+// knows a line: by its flight's, as idKey has it, with, where it has no id,
+// the sum of all it holds, as turnKeyOf has it of a line's record.
 func (a *answered) key() turnKey {
-	k, ok := a.flight.key()
-	if ok {
-		return turnKey{lineKey: k}
+	k, ok := a.idKey()
+	if !ok {
+		k.sum = a.sum
 	}
-	return turnKey{lineKey: k, sum: a.sum}
+	return k
 }
 
 // sealedBy reports whether both a's reading and its end came before through,
@@ -208,10 +208,12 @@ func keptFirst(x, y claude.KeptWindow) int {
 
 // pointingOf is what a session's page tallies of its points, read whole of
 // answers, every account's, by the date of the day whose files hold them,
-// at the day given: every run of its days but the last done; the last's
-// answers, and today's and yesterday's, held, none sealed yet, as sealedAt
-// seals them.
+// each day's counted as took counts a read of it, as distinctAnswers has
+// them, at the day given: every run of its days but the last done; the
+// last's answers, and today's and yesterday's, held, none sealed yet, as
+// sealedAt seals them.
 func pointingOf(answers map[string][]answered, day LedgerDay) *pointing {
+	answers = distinctAnswers(answers)
 	p := &pointing{days: daysOf(answers), held: make(map[string]answersHeld), folded: make(map[string]int)}
 	runs := runsOf(p.days)
 	for i, dates := range runs {
@@ -235,6 +237,19 @@ func pointingOf(answers map[string][]answered, day LedgerDay) *pointing {
 		}
 	}
 	return p
+}
+
+// distinctAnswers are answers, by the date of the day whose files hold them,
+// each day's counted as a read of it holding none of it, as unheld has
+// them: a request with an id once, however often its line is given, and
+// one without as often as given. Each day's that passes none over is
+// shared.
+func distinctAnswers(answers map[string][]answered) map[string][]answered {
+	distinct := make(map[string][]answered, len(answers))
+	for date, given := range answers {
+		distinct[date] = answersHeld{}.unheld(given)
+	}
+	return distinct
 }
 
 // daysOf returns the dates of the days answers holds a request of the

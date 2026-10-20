@@ -1,4 +1,4 @@
-# Day digests, phases 1, 2 and 3a: what they left
+# Day digests, phases 1 to 3: what they left
 
 Phase 1 of the day digests has the router digest each finished day and the store of sessions rest
 each session on its newest standing state (see The request ledger and Live updates in the design).
@@ -7,8 +7,10 @@ off, opens the List in about 0.3 s with 9 or 30 days kept, from 1.4 s and 4.0 s.
 digest carry each session's page, and a parts file a day hold what grows, so a page rests on its
 newest state too: the long session's page opens in 0.31 s and 0.38 s, from 1.71 s and 5.63 s. Phase
 3a has a turn read only its own days and the horizon's, and the router write a head a day holding
-the day's sessions, so the Log's find reads those, not the day's lines. What they left, each a cost
-but for one edge of a session's page, gathered here.
+the day's sessions, so the Log's find reads those, not the day's lines. Phase 3b has the router
+write the day's rows beside its head, in chunks of 256, so the Log reads a day back from them, and
+a turn only the chunks naming its session. What they left, each a cost but for a few edges, gathered
+here.
 
 ## The build's peak
 
@@ -28,6 +30,10 @@ what's live. Where it comes from, by the build's heap profile:
 
 Phase 2 raised it, with 30 days kept, to some 140 MB and about 1 s, as each session's points take
 in every account's answers of the day.
+
+Phase 3b's head and rows lift it some 145 MB a day built, for 1 to 1.5 s. After the upgrade that
+brings them in, every day kept is built again, 400 by default, one at a time, so the
+peak comes once a day built, never all at once, but for as long as the backfill runs.
 
 ## A long page read whole in the router
 
@@ -55,10 +61,17 @@ needs care.
 A day's head is built of exactly the lines `Day` gives of the day, which reads the files of the days
 either side of it too, as a change of time zone files a line under a date beside its own; and it
 decodes every line of those files whole to keep the few inside the day. So a head's build takes about
-0.6 s where the day's own file alone takes about 0.2 s, and a day back in the Log pays the same. It
-can't go wrong, as only a line's `at` says whether it's kept. The cut is to read only `at` of the
-neighbours' lines, but `dayfile.Read` counts a decode that reports false as a line unread: it needs a
-skip outcome of its own, or a peek that reads `at` exactly as `lineIn` does.
+0.6 s where the day's own file alone takes about 0.2 s, as does a day back in the Log where the
+day's rows don't stand. It can't go wrong, as only a line's `at` says whether it's kept. The cut is
+to read only `at` of the neighbours' lines, but `dayfile.Read` counts a decode that reports false as
+a line unread: it needs a skip outcome of its own, or a peek that reads `at` exactly as `lineIn`
+does.
+
+Where a day's side doesn't stand, the find's fallback, `DaySessionsOn`, builds a whole record of
+each line of the day only to fold its session's facts: about 6 µs more a line, some 0.13 s more,
+a fifth, on a raw day of the soak. It bites yesterday until about 01:00, and every day through the
+backfill after this release, as `logdayVersion` 3 outdates every head written before. A fold of
+the facts the find reads alone would cut it.
 
 ## A request in flight for hours on a session's page
 
@@ -103,3 +116,66 @@ never fed would take it in.
 - `Holding`'s count of sessions read whole counts one restored from its state too.
 - How many lines the ledger keeps of a day, by its look, is worked out twice, by the reader's look
   and the writer's, each from a count of its own; a test holds them alike. One helper could own it.
+- The Log's first open makes the record of each of today's lines, about 22,000 of some 656 B in
+  the soak, beside the lines, before `Taken` takes them in: some 14 MB at once. Feeding each
+  record through as it's made would cut that passing peak.
+- `heldRequest.summed` has no test that it sums every field, as the line record's sum has; the two
+  share `decodedRequest`, so a fact added there is held only by the record's.
+- The watch's soak guard still passes over a turn's `turnLines` as it walks for lines held, but a
+  turn now holds records: without the exemption, `TestThePageHoldsOnlyItsTurns` and
+  `TestTheLogHoldsOnlyWhatItShows` still pass, so the guard could walk a turn too.
+
+## A day's rows
+
+- A chunk that doesn't read, as one damaged in a rows file as long, is dropped without a word:
+  `restoredDay` logs nothing, so its day reads raw at every day back, and a turn of it reads the
+  day raw, until it's built again for another reason, as the digesting looks at the file's size
+  alone. A debug line a day, the first time a day's chunk fails, would make it visible.
+- `RowChunk` opens the rows file once a chunk, some 98 times for a busy day read back. One open a
+  day read would trim that; the Log's paging by rows, phase 4, may reshape the read anyway.
+- A chunk's meta counts a line given twice as often as it's given, where the Log counts one with an
+  id once. Phase 4 sums a finished day's `LogCount` from the metas, so it must count as the Log
+  does first.
+- `Spend`'s and `KeptWindow`'s stored forms could decode through `json.UnmarshalerFrom`, straight
+  from a row's decoder, rather than through `UnmarshalJSON` and a copy of their bytes.
+- An idless line in a tail is summed twice, once for its key and once for its row.
+- `rowsIn`, as the writer counts a day's rows, and `DayRows.counted`, as a reader holds a head's
+  chunks to its count, each sum the chunks' counts. One helper could own it.
+- A head damaged after its fields, its size unchanged, is read without its side by the writer,
+  judged current and settled, and never built again, while each reader of it reads the day raw.
+  It's phase 3a's gap, and now covers the rows' table too. The writer reading a head whole once,
+  as it first settles it, would close it.
+- A line's record prices its usage through `ledger.SpendOf`, some 7 µs and 76 allocations for a
+  typical answer, most of it the decode of the usage into a map of any. So the `requests` verb's
+  rows, which took 1.8 µs a line before the record, take some 5.8 µs, and each record the Log, the
+  find's raw fallback and the builder make pays it. Working the tokens out of that map, as one
+  decode, saves only some 1 µs, and can't keep `odd` exact: the map sees no case-folded or repeated
+  key as the tokens' own decode does. A fast path would: for a usage of lowercase ASCII keys alone,
+  no escapes, decode once into a typed struct of the known counts, unknown fields refused, and fall
+  back to today's two reads on any doubt; its catch is the bill, which comes of the counts' map.
+
+## A turn's read
+
+A turn a day back reads its own day from its rows, but the horizon's span, from an hour ago to now,
+reads a day either side of it, so yesterday's file is read raw for it anyway, its lines of the
+turn's day passed over. Narrowing that margin to the hour after midnight, where a change of time
+zone can file a line under yesterday, is the next saving. Phase 4's E1, today's file read back from
+its end to the horizon, removes the raw horizon read altogether.
+
+## Edges of a line given twice
+
+- An idless line given twice, whose second copy comes in a tail's gain, is counted once by a page
+  held open and twice by the same page opened afresh. It needs idless lines, which only old or
+  hand-edited ledgers hold.
+- A day head whose day after was counted at none as it was built, then given a line of the head's
+  day by a writer in another time zone, reads raw until that day's digest is written.
+
+## The guard
+
+- It never meets a standing day of more than one chunk: the spread worlds' days are small, so a
+  turn's chunk choice and a day's whole-or-nothing read over several chunks are held only by the
+  ledger's and the views' own tests.
+- It doesn't compare the Log at 23:59, where a day's rows and its tail meet.
+- It runs some 35 s with the race detector on, past the plan's 25 s. Its biggest costs are the
+  store's feed, the find and the stores' comparisons; reading the extra day only while its moments
+  are unmet would save about 1 s.

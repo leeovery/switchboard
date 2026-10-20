@@ -39,20 +39,21 @@ type HeldPage struct {
 // turnLines are the lines of the requests of a session's turn open, as its
 // page holds them: the prompt the turn serves, by which it's known however
 // its number changes, as one of a request sent before it comes later;
-// whether its lines have been read; and the lines, of those read and those
-// the ledger gained since it opened, of its requests, as mine has them.
+// whether its lines have been read; and the records of the lines, of those
+// read and those the ledger gained since it opened, of its requests, as
+// mine has them.
 type turnLines struct {
 	prompt string
 	read   bool
-	lines  []ledger.Line
+	lines  []lineRecord
 }
 
 // HeldTurn is a read of the lines of the requests of a session's turn, as
-// ReadTurn reads them: the prompt the turn serves, and the lines, newest
-// first.
+// ReadTurn reads them: the prompt the turn serves, and the records of the
+// lines, newest first.
 type HeldTurn struct {
 	prompt string
-	lines  []ledger.Line
+	lines  []lineRecord
 }
 
 // lineKey is a line as a held page knows it from another: its request's id,
@@ -60,13 +61,6 @@ type HeldTurn struct {
 type lineKey struct {
 	request string
 	at      instant
-}
-
-// keyOf is the line l's key, reporting false where it has no id, as a line
-// from before the router gave requests ids, which is taken as often as it's
-// given.
-func keyOf(l *ledger.Line) (lineKey, bool) {
-	return lineKey{request: l.Request, at: instantOf(l.At)}, l.Request != ""
 }
 
 // PageLive is what a session's page is built of beside its lines: the
@@ -187,86 +181,142 @@ func (h HeldPage) On(date string) (HeldPage, bool) {
 
 // TurnOf is h with the turn open was has open, as Opening and Turned have
 // it, the lines of its requests among those given, read of the ledger
-// since, taken into it, as mine has them: so a page grown of a read of the
-// ledger's tail off the event loop, of a copy of the page from before its
-// turn opened, holds the turn open as the page holds it now.
+// since, taken into it, as mine has them, each decoded into its record only
+// once mine has taken it and the turn holds none of its id, as heldID has
+// it, as a read afresh gives again the lines it holds: so a page grown of a
+// read of the ledger's tail off the event loop, of a copy of the page from
+// before its turn opened, holds the turn open as the page holds it now.
 func (h HeldPage) TurnOf(was HeldPage, read ...[]ledger.Held) HeldPage {
 	h.turn = was.turn
 	if h.turn == nil {
 		return h
 	}
-	var mine []ledger.Line
+	var held map[turnKey]int
+	var mine []lineRecord
 	for _, lines := range read {
 		for i := range lines {
-			if l := &lines[i].Line; h.mine(l) {
-				mine = append(mine, *l)
+			l := &lines[i].Line
+			if !h.mine(turnFactsOf(l), false) {
+				continue
+			}
+			if held == nil {
+				held = h.turn.held()
+			}
+			if !heldID(held, flightOf(l)) {
+				mine = append(mine, lineRecordOf(l))
 			}
 		}
 	}
 	if len(mine) > 0 {
-		h.turn = h.turn.with(mine)
+		h.turn = h.turn.withHeld(mine, held)
 	}
 	return h
 }
 
-// mine reports whether l may be the line of a request of h's turn open: of
-// its session's requests, every subagent's, as the first request a subagent
-// made, which names its turn, may land after those the page knows of; else
-// one naming the prompt. Which a turn's member is, Build tells, as member
-// has it, of the agents it knows then.
-func (h HeldPage) mine(l *ledger.Line) bool {
-	switch {
-	case l.Session != h.id || !isRequest(l):
-		return false
-	case l.AgentID != "":
-		return true
-	}
-	return l.Prompt == h.turn.prompt
+// turnFacts are what mine reads of a request: the session it's of, whether
+// it's a session's request, as isRequest has it, the subagent that sent it,
+// and the prompt it serves. A line gives them undecoded, as turnFactsOf has
+// them, and its record the same, as its turnFacts has them.
+type turnFacts struct {
+	session, agentID, prompt string
+	request                  bool
 }
 
-// with is t with the lines given among its own, afresh: each of a request
-// with an id once, as keyOf knows it; one without, as often as the lines
-// given hold it beyond those t holds alike, as lineSumOf knows them, so a
-// line both read and gained is held once, and one the ledger's files hold
-// twice, twice.
-func (t *turnLines) with(lines []ledger.Line) *turnLines {
+// turnFactsOf are the turn facts of the line l, read of it undecoded.
+func turnFactsOf(l *ledger.Line) turnFacts {
+	return turnFacts{session: l.Session, agentID: l.AgentID, prompt: l.Prompt, request: isRequest(l)}
+}
+
+// turnFacts are the turn facts of r, as its line gives them.
+func (r *lineRecord) turnFacts() turnFacts {
+	return turnFacts{session: r.session, agentID: r.agentID, prompt: r.prompt, request: r.isRequest()}
+}
+
+// mine reports whether the request with the facts f may be of h's turn
+// open: of its session's requests, every subagent's, as the first request a
+// subagent made, which names its turn, may land after those the page knows
+// of, and may have arrived before the turn began, as early says it did;
+// else, of one that arrived since, one naming the prompt. It's asked of a
+// line's facts before the line is decoded, so a line it passes over never
+// is. Which a turn's member is, Build tells, as member has it, of the
+// agents it knows then.
+func (h HeldPage) mine(f turnFacts, early bool) bool {
+	switch {
+	case f.session != h.id || !f.request:
+		return false
+	case f.agentID != "":
+		return true
+	}
+	return !early && f.prompt == h.turn.prompt
+}
+
+// with is t with the records given among its own, afresh, as withHeld has
+// it.
+func (t *turnLines) with(lines []lineRecord) *turnLines {
+	return t.withHeld(lines, t.held())
+}
+
+// withHeld is t with the records given among its own, afresh, held the keys
+// of t's lines, as held counts them: each given again against those, as
+// countedOnce tells it by its key, as turnKeyOf has it, passed over, so a
+// line both read and gained is held once, and one without an id the
+// ledger's files hold twice, twice.
+func (t *turnLines) withHeld(lines []lineRecord, held map[turnKey]int) *turnLines {
 	grown := *t
 	grown.lines = slices.Clip(t.lines)
-	held := make(map[turnKey]int, len(t.lines))
-	for i := range t.lines {
-		held[turnKeyOf(&t.lines[i])]++
-	}
+	read := countedOnceOf(len(lines))
 	for i := range lines {
-		k := turnKeyOf(&lines[i])
-		switch {
-		case held[k] > 0 && k.request == "":
-			held[k]--
-		case held[k] > 0:
-		default:
-			grown.lines = append(grown.lines, lines[i])
-			if k.request != "" {
-				held[k]++
-			}
+		rec := &lines[i]
+		if k := turnKeyOf(rec); !read.again(k, held[k]) {
+			grown.lines = append(grown.lines, *rec)
 		}
 	}
 	return &grown
 }
 
-// turnKey is a line as a turn's lines know it from another: as keyOf has
-// it, and, of a request without an id, the sum of what it says, as lineSumOf
-// has it.
+// held are the keys of t's lines, as turnKeyOf has them, each counted.
+func (t *turnLines) held() map[turnKey]int {
+	held := make(map[turnKey]int, len(t.lines))
+	for i := range t.lines {
+		held[turnKeyOf(&t.lines[i])]++
+	}
+	return held
+}
+
+// heldID reports whether held, the keys of a turn's lines, as held counts
+// them, hold the line of the request that flew as f by its id, as idKey
+// keys it and idHeld tells it: a line withHeld passes over, and TurnOf
+// never decodes. Never of one without an id, whose key holds its record's
+// sum, as turnKeyOf has it.
+func heldID(held map[turnKey]int, f flight) bool {
+	k, _ := f.idKey()
+	return idHeld(k, held[k])
+}
+
+// turnKey is a line as a turn's lines know it from another: as its flight's
+// key has it, and, of a request without an id, the sum of its record, as its
+// summed has it.
 type turnKey struct {
 	lineKey
 	sum uint64
 }
 
-// turnKeyOf is l's turnKey.
-func turnKeyOf(l *ledger.Line) turnKey {
-	k, ok := keyOf(l)
-	if ok {
-		return turnKey{lineKey: k}
+// turnKeyOf is the turnKey of the record r: its flight's, as idKey has it,
+// with, where it has no id, its sum.
+func turnKeyOf(r *lineRecord) turnKey {
+	k, ok := r.idKey()
+	if !ok {
+		k.sum = r.summed()
 	}
-	return turnKey{lineKey: k, sum: lineSumOf(l)}
+	return k
+}
+
+// idKey is the turnKey of the line of the request that flew as f, as its
+// key has it, reporting false where it has no id, whose turnKey holds its
+// record's sum too, as turnKeyOf has it.
+func (f flight) idKey() (turnKey, bool) {
+	k, ok := f.key()
+	return turnKey{lineKey: k}, ok
 }
 
 // Opening is h with its turn numbered n open, from 1 at its first, as live
@@ -300,7 +350,9 @@ func (h HeldPage) Closing() HeldPage {
 // them: a subagent's turn is the one its first request names, which may have
 // arrived before the turn began, and be filed only since, untold by the
 // stream. It reads the turn's own days alone, and the horizon's, as
-// turnSpans has them, none between. None where no turn is open.
+// turnSpans has them, none between, each of the turn's whose rows stand
+// from them, as linesOfTurn has it; and decodes a line read raw into its
+// record only once it's taken it. None where no turn is open.
 func (h HeldPage) ReadTurn(l LedgerSession, live PageLive) HeldTurn {
 	if h.turn == nil {
 		return HeldTurn{}
@@ -312,18 +364,15 @@ func (h HeldPage) ReadTurn(l LedgerSession, live PageLive) HeldTurn {
 		return read
 	}
 	from := instantOf(w.tally.turns[i].started.Add(-arrivesWithin))
-	for held := range l.Session(h.id, w.turnSpans(w.tally.turns[i])...) {
-		line := held.Line
-		switch at := instantOf(line.At); {
-		case at.compare(from) >= 0:
-			if h.mine(&line) {
-				read.lines = append(read.lines, line)
-			}
-		case at.compare(w.rec.horizon) < 0:
+	for line := range w.linesOfTurn(l, w.tally.turns[i]) {
+		early := line.at.compare(from) < 0
+		switch {
+		case early && line.at.compare(w.rec.horizon) < 0:
 			return read
-		case line.AgentID != "" && isRequest(&line) && !w.rec.linedAt(line.Request, line.At):
-			read.lines = append(read.lines, line)
+		case !h.mine(line.facts, early), early && w.rec.linedAt(line.request, line.arrived()):
+			continue
 		}
+		read.lines = append(read.lines, line.record())
 	}
 	return read
 }
@@ -558,13 +607,13 @@ func (w worked) turnRequests(n int) ([]LogLine, bool) {
 	}
 	tally := w.membership()
 	prompt := t.prompt
-	var lines []ledger.Line
-	for _, l := range t.lines {
-		if isRequest(&l) && tally.member(l.AgentID, l.Prompt, prompt) {
-			lines = append(lines, l)
+	var lines []*lineRecord
+	for i := range t.lines {
+		if rec := &t.lines[i]; rec.isRequest() && tally.member(rec.agentID, rec.prompt, prompt) {
+			lines = append(lines, rec)
 		}
 	}
-	slices.SortStableFunc(lines, func(a, b ledger.Line) int { return flightOf(&a).compare(flightOf(&b)) })
+	slices.SortStableFunc(lines, func(a, b *lineRecord) int { return a.compare(b.flight) })
 	var told []Told
 	for _, r := range w.told {
 		if !w.lined(r) && tally.member(r.AgentID, r.Prompt, prompt) {
@@ -583,8 +632,8 @@ func (w worked) turnRequests(n int) ([]LogLine, bool) {
 func (w worked) membership() *pageTally {
 	var unfed []heldRequest
 	for i := range w.h.turn.lines {
-		if l := &w.h.turn.lines[i]; isRequest(l) && instantOf(l.At).compare(w.rec.horizon) >= 0 && !w.rec.linedAt(l.Request, l.At) {
-			unfed = append(unfed, heldRequestOf(l))
+		if rec := &w.h.turn.lines[i]; rec.isRequest() && rec.at.compare(w.rec.horizon) >= 0 && !w.rec.linedAt(rec.request, rec.arrived()) {
+			unfed = append(unfed, newHeldRequest(rec.decodedRequest))
 		}
 	}
 	if len(unfed) == 0 {
@@ -596,27 +645,38 @@ func (w worked) membership() *pageTally {
 // lined reports whether a line of the request t the stream told of is held
 // by what the turn open's rows show: the session as w holds it, as its
 // lined has it, or the turn's own lines, read of the ledger past what the
-// store has been fed, as sameRequest has it of each.
+// store has been fed, as holds has it.
 func (w worked) lined(t Told) bool {
-	return w.rec.lined(t) || w.h.turn != nil && slices.ContainsFunc(w.h.turn.lines, func(l ledger.Line) bool { return sameRequest(&l, t.Request, t.Sent) })
+	return w.rec.lined(t) || w.h.turn != nil && w.h.turn.holds(t)
+}
+
+// holds reports whether t holds the line of the request r the stream told
+// of, as r's filedAs has it of each.
+func (t *turnLines) holds(r Told) bool {
+	for i := range t.lines {
+		if r.filedAs(t.lines[i].flight) {
+			return true
+		}
+	}
+	return false
 }
 
 // rowsOf are the Log's lines of a turn's requests, as turnRequests has
-// them: of its lines, in order, as inOrder has it, and of told, the
-// requests the stream told of whose lines haven't come, the first sent
-// first, each after the lines that arrived by when it was sent.
-func (w worked) rowsOf(lines []ledger.Line, told []Told) []LogLine {
+// them: of the records of its lines, in order, as inOrder has it, and of
+// told, the requests the stream told of whose lines haven't come, the first
+// sent first, each after the lines that arrived by when it was sent.
+func (w worked) rowsOf(lines []*lineRecord, told []Told) []LogLine {
 	rows := make([]LogLine, 0, len(lines)+len(told))
 	date := Today(w.live.Now).Date
 	next := 0
 	line := func() {
-		l := &lines[next]
-		row := LogLine{Row: lineRow(l, w.rec.story), line: l}
-		row.Row.Worth = summed(w.h.prices, l, date)
+		rec := lines[next]
+		row := LogLine{Row: lineRow(&rec.rowRecord, w.rec.story), record: rec}
+		row.Row.Worth = rec.worth(w.h.prices, date)
 		rows, next = append(rows, row), next+1
 	}
 	for _, t := range told {
-		for next < len(lines) && !lines[next].At.After(t.Sent) {
+		for next < len(lines) && !lines[next].arrived().After(t.Sent) {
 			line()
 		}
 		rows = append(rows, LogLine{Row: toldRow(t, w.live.Now)})

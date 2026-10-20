@@ -190,13 +190,13 @@ func (l heldLedger) Today(ledger.Mark) (lines []ledger.Held, next ledger.Mark, a
 // Follower gives them: whichever day's files hold them, as a Follower reads
 // the day's files and its neighbours'.
 func (l heldLedger) Day(date string) []ledger.Held {
-	start, end, ok := dayfile.Day(date)
+	bounds, ok := dayfile.DayBounds(date)
 	if !ok {
 		return nil
 	}
 	var day []filed
 	for _, f := range l.arrived(l.now()) {
-		if !f.At.Before(start) && f.At.Before(end) {
+		if bounds.Holds(f.At) {
 			day = append(day, f)
 		}
 	}
@@ -213,6 +213,19 @@ func (l heldLedger) Day(date string) []ledger.Held {
 // gives them.
 func (heldLedger) DaySide(string, int) (json.RawMessage, bool) {
 	return nil, false
+}
+
+// DayRows gives no rows, whatever the day, as a Follower of a ledger that
+// holds no day's head gives them: the Log reads each day's lines, as Day
+// gives them.
+func (heldLedger) DayRows(string, int) (ledger.DayRows, bool) {
+	return ledger.DayRows{}, false
+}
+
+// RowChunk fails with fs.ErrNotExist, whatever the chunk, as a Follower of a
+// ledger that holds no day's rows file fails.
+func (heldLedger) RowChunk(date string, _ ledger.RowsChunk) ([]byte, error) {
+	return nil, fmt.Errorf("a chunk of the rows of %s: %w", date, fs.ErrNotExist)
 }
 
 // Session gives the lines of the session with the given id that arrived by

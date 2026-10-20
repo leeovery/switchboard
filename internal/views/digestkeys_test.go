@@ -42,11 +42,13 @@ var storedAs = map[string]string{
 // rawAs are the types a digest's or a day head's JSON holds in the fields
 // its stored forms declare as JSON of another's, by the field: an entry's
 // state, the views' body, a stored session; what that carries of its page;
-// and a day head's side, a list of the views' stored sessions of the day.
+// a day head's side, a list of the views' stored sessions of the day; and
+// each of its chunks' meta.
 var rawAs = map[storedKey]string{
 	{of: "ledger.storedEntry", key: "state"}:  "views.storedSession",
 	{of: "views.storedSession", key: "p"}:     "views.storedPage",
 	{of: "ledger.storedDayHead", key: "side"}: "[]views.storedDaySession",
+	{of: "ledger.storedChunk", key: "meta"}:   "views.storedChunkMeta",
 }
 
 // unwritten are the keys a stored form declares that the golden can't hold,
@@ -101,11 +103,11 @@ func TestTheDigestsGoldenHoldsEveryKeyOfItsStoredForms(t *testing.T) {
 	k.everyHeld(unwritten)
 }
 
-// Every key the stored form of a day's head declares, the ledger's envelope
-// and its side's, holds a value in the golden of the version written, as
-// TestADaysHeadIsEncodedAsTheGoldenOfItsVersionsHoldsIt keeps it: a key the
-// golden left out, as its zero, would be renamed or retyped without the
-// golden failing.
+// Every key the stored form of a day's head declares, the ledger's envelope,
+// its side's and its chunks' meta's, holds a value in the golden of the
+// version written, as TestADaysHeadIsEncodedAsTheGoldenOfItsVersionsHoldsIt
+// keeps it: a key the golden left out, as its zero, would be renamed or
+// retyped without the golden failing.
 func TestTheDayHeadsGoldenHoldsEveryKeyOfItsStoredForms(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join("testdata", fmt.Sprintf("rows-v%d.json", views.RowsVersion)))
 	if err != nil {
@@ -131,7 +133,7 @@ func (k *storedKeys) everyHeld(exempt map[storedKey]string) {
 		case exempted && held:
 			k.t.Errorf("the golden holds %s, which is exempt as one it can't hold, as %s: remove it from the exempt keys", key, why)
 		case !exempted && !held:
-			k.t.Errorf("the golden holds no value of %s: give the golden world what stores one", key)
+			k.t.Errorf("the golden holds no value of %s: give the golden's lines what stores one", key)
 		}
 	}
 	for key := range exempt {

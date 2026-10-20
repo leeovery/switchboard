@@ -18,12 +18,14 @@ import (
 // Digester folds the sessions of a finished local day into their states as
 // of its end, for the ledger to keep in the day's digest, and their parts of
 // the day, for it to keep in the day's parts file; and builds the day's side,
-// for it to keep in the day's head. Version is the version of the states and
-// parts it gives, as a digest of another doesn't stand; Builder gives a
-// builder of a day's digest, as DigestBuilder has it, for one read of the
-// days its sessions are read from; RowsVersion is the version of the sides
-// it gives, as a day head of another doesn't stand; and Day gives a builder
-// of a day's side, as DayBuilder has it, for one read of the day's lines.
+// for it to keep in the day's head, and its rows, for it to keep in the
+// day's rows file. Version is the version of the states and parts it gives,
+// as a digest of another doesn't stand; Builder gives a builder of a day's
+// digest, as DigestBuilder has it, for one read of the days its sessions are
+// read from; RowsVersion is the version of the sides and rows it gives, as a
+// day head of another doesn't stand, nor its rows; and Day gives a builder
+// of a day's side and rows, as DayBuilder has it, for one read of the day's
+// lines.
 type Digester interface {
 	Version() int
 	Builder() DigestBuilder
@@ -31,11 +33,11 @@ type Digester interface {
 	Day() DayBuilder
 }
 
-// DayBuilder builds a finished local day's side, its Digester's, from the
-// day's lines: Take is handed each line Follower.Day gives of the day, in
-// its order, as days.day reads them for both, every one before Built is
-// called; and Built gives what it built of them, as DayBuilt has it, failing
-// where it can't.
+// DayBuilder builds a finished local day's side and rows, its Digester's,
+// from the day's lines: Take is handed each line Follower.Day gives of the
+// day, in its order, as days.day reads them for both, every one before Built
+// is called; and Built gives what it built of them, as DayBuilt has it,
+// failing where it can't.
 type DayBuilder interface {
 	Take(l Line)
 	Built() (DayBuilt, error)
@@ -43,9 +45,26 @@ type DayBuilder interface {
 
 // DayBuilt is what a DayBuilder builds of a day's lines: Side, the day's
 // sessions as the Log's find reads them, a JSON value of its Digester's, as
-// the day's head keeps it.
+// the day's head keeps it; and Chunks, the day's rows, in chunks, in the
+// order of the lines they're built of, as BuiltChunk has each, each kept as
+// a gzip member of its own in the day's rows file, the day's head pointing
+// at it there: none of a day it builds no rows of.
 type DayBuilt struct {
-	Side json.RawMessage
+	Side   json.RawMessage
+	Chunks []BuiltChunk
+}
+
+// BuiltChunk is a chunk of a day's rows as a DayBuilder builds it: Rows, its
+// rows, in its Digester's encoding, carried as they're given and never read,
+// as the day's rows file keeps them; Count, how many rows they are; and
+// Meta, what the chunk holds, as its Digester tells it, a JSON value of its
+// own, carried as it's given, its insignificant spaces aside, as the day's
+// head keeps it beside where the chunk lies, so a reader can tell what a
+// chunk holds without reading it: none where it's nil.
+type BuiltChunk struct {
+	Rows  []byte
+	Count int
+	Meta  json.RawMessage
 }
 
 // DigestBuilder builds a finished local day's digest, its Digester's, from one
@@ -218,17 +237,17 @@ func (d *digesting) letGoBefore(first string) {
 	})
 }
 
-// prune deletes the digests, parts files and heads listing finds of days it
-// finds no lines of, their lines pruned, or never written, as each is kept
-// only beside its day's lines. A day's it can't delete are warned of, as
-// warnings.warn says.
+// prune deletes the digests, parts files, heads and rows files listing finds
+// of days it finds no lines of, their lines pruned, or never written, as
+// each is kept only beside its day's lines. A day's it can't delete are
+// warned of, as warnings.warn says.
 func (d *digesting) prune(listing dayListing) {
 	dir := d.days.files.Dir
 	for _, date := range listing.built {
 		if _, lined := slices.BinarySearch(listing.lines, date); lined {
 			continue
 		}
-		if err := errors.Join(removed(digestFile(dir, date)), removed(partsFile(dir, date)), removed(logdayFile(dir, date))); err != nil {
+		if err := errors.Join(removed(digestFile(dir, date)), removed(partsFile(dir, date)), removed(logdayFile(dir, date)), removed(rowsFile(dir, date))); err != nil {
 			d.warned.warn(d.days.logger, date, d.days.lookAt(date), "can't prune what the request ledger built of a day's lines", "error", err)
 			continue
 		}
@@ -330,7 +349,7 @@ func holds(digest Digest, dates []string, view writerLook) bool {
 	}
 	asked := newSessionsLookup(view.days, view).namingEach(dates, nil, wanting(make(map[string]bool), slices.Collect(maps.Keys(digest.Sessions))))
 	for id, entry := range digest.Sessions {
-		if !grounds.restsOn(entry) || !restsOnEach(entry, asked[id].naming) {
+		if !grounds.restsOn(entry.RestsOn) || !restsOnEach(entry, asked[id].naming) {
 			return false
 		}
 	}

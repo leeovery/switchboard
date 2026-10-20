@@ -11,15 +11,15 @@ import (
 )
 
 // loggedLine is a line of the Log's, as its read holds it in place of the
-// line, decoded once as it's taken in: its row, told once of its session's
+// line, of its record, as it's taken in: its row, told once of its session's
 // story and told again only as the store says the story changed, its words
 // sharing the strings the store's requests name; when it was taken in among
 // the read's lines, and where its row sits within its day, as placedRow has
-// it; its request's flight, and the sum of what its line says, as lineSumOf
-// has it; how the router routed it, as its routing is told again; and what
-// its details give beyond its row. The table's lines point at it, so a row
-// is held once. Its day holds the handles of its words, as interning has
-// them.
+// it; its request's flight, and, of one without an id, the sum of its
+// record, as its summed has it; how the router routed it, as its routing is
+// told again; and what its details give beyond its row. The table's lines
+// point at it, so a row is held once. Its day holds the handles of its
+// words, as interning has them.
 type loggedLine struct {
 	row    RequestRow
 	seq    int
@@ -38,10 +38,10 @@ type routed struct {
 	from, reason string
 }
 
-// routedOf is how the router routed the request of the line l, its words
+// routedOf is how the router routed the request of the record r, its words
 // interned by n.
-func routedOf(l *ledger.Line, n interning) routed {
-	return routed{tried: l.Tried, from: n.of(l.From), reason: n.of(l.Reason)}
+func routedOf(r *rowRecord, n interning) routed {
+	return routed{tried: r.tried, from: n.of(r.from), reason: n.of(r.reason)}
 }
 
 // lineDetails are what a request's details give beyond its row, as its line
@@ -63,21 +63,17 @@ type lineDetails struct {
 	status            quota.Status
 }
 
-// detailsOf are what the details of the request of the line l give beyond
-// its row, their words interned by n.
-func detailsOf(l *ledger.Line, n interning) *lineDetails {
+// detailsOf are what the details of the request of the record r give
+// beyond its row, their words interned by n.
+func detailsOf(r *lineRecord, n interning) *lineDetails {
 	d := &lineDetails{
-		answer: l.Answer.ID, served: n.of(l.Answer.Model), system: l.Shape.System, effort: n.of(l.Shape.OutputConfig.Effort),
-		stream: l.Shape.Stream, blocks: blocksOf(l.Answer.Blocks), status: claude.LimitStatus(l.Limits),
+		answer: r.answer, served: n.of(r.served), system: r.system, maxTokens: r.maxTokens, effort: n.of(r.effort), stream: r.stream,
+		blocks: r.blocks, windows: r.windows, status: r.limit,
 	}
-	for _, beta := range l.Betas {
-		d.betas = append(d.betas, n.of(undated(beta)))
+	for _, beta := range r.betas {
+		d.betas = append(d.betas, n.of(beta))
 	}
-	if most := l.Shape.MaxTokens; most != nil {
-		d.maxTokens = int(*most)
-	}
-	d.life, _ = l.CacheLife()
-	d.windows = claude.KeptWindows(l.Limits)
+	d.life, _ = r.spend.CacheLife()
 	return d
 }
 
@@ -87,11 +83,14 @@ func (d *lineDetails) windowsRead(reserve float64) []claude.WindowRead {
 	return claude.WindowsReadOf(d.windows, reserve)
 }
 
-// loggedLineOf is the Log's line of l, taken in as the read's seqth,
-// placed at place, its request worth what's given, its row told of the
-// story s of its session, nil for none, and its words interned by n.
-func loggedLineOf(l *ledger.Line, seq int, place time.Time, worth Worth, s *story, n interning) *loggedLine {
-	logged := &loggedLine{row: lineFacts(l, n), seq: seq, place: place, flight: flightOf(l), sum: lineSumOf(l), routed: routedOf(l, n), shown: detailsOf(l, n)}
+// loggedLineOf is the Log's line of the record r, taken in as the read's
+// seqth, placed at place, its request worth what's given, its row told of
+// the story s of its session, nil for none, and its words interned by n.
+func loggedLineOf(r *lineRecord, seq int, place time.Time, worth Worth, s *story, n interning) *loggedLine {
+	logged := &loggedLine{row: lineFacts(&r.rowRecord, n), seq: seq, place: place, flight: r.flight, routed: routedOf(&r.rowRecord, n), shown: detailsOf(r, n)}
+	if r.request == "" {
+		logged.sum = r.summed()
+	}
 	logged.row.Worth = worth
 	logged.row.toldBy(logged.routed, s)
 	return logged

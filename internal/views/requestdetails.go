@@ -62,7 +62,7 @@ type DetailBlock struct {
 
 // Details are the details of the request the line's row is of, built from
 // its row and, once it has come, its line, as the Log's read holds it or a
-// turn's lines give it: false for a day's rule or the oldest day's line.
+// turn's records give it: false for a day's rule or the oldest day's line.
 func (l LogLine) Details() (RequestDetails, bool) {
 	if !l.IsRow() {
 		return RequestDetails{}, false
@@ -71,8 +71,8 @@ func (l LogLine) Details() (RequestDetails, bool) {
 	switch {
 	case l.logged != nil:
 		d.lined(l.logged)
-	case l.line != nil:
-		d.lined(&loggedLine{routed: routedOf(l.line, nil), shown: detailsOf(l.line, nil)})
+	case l.record != nil:
+		d.lined(&loggedLine{routed: routedOf(&l.record.rowRecord, nil), shown: detailsOf(l.record, nil)})
 	}
 	return d, true
 }
