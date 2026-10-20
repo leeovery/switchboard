@@ -100,10 +100,6 @@ var phoneAllowed = []string{
 // to its parts. The list only shrinks: an entry must still be there, and
 // still compare one.
 var sizedAllowed = []string{
-	// S4: the Switchboard's narrowing, and its lanes where no part has more
-	// to give.
-	"internal/dashboard/sessionslaid.go:boardColumnsOf",
-	"internal/dashboard/sessionslaid.go:sessionsLaid",
 	// S6: the Log's cost kept where two cells are left.
 	"internal/dashboard/logtable.go:costKept",
 	// S7: the List's routing column.
