@@ -332,7 +332,7 @@ func (c *digestChain) file(date string, lines ...ledger.Line) {
 		}
 		data = append(append(data, line...), '\n')
 	}
-	f, err := os.OpenFile(filepath.Join(ledger.Dir(c.state), "requests-"+date+".jsonl"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	f, err := os.OpenFile(c.dayPath(date), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		c.t.Fatal(err)
 	}
@@ -343,6 +343,12 @@ func (c *digestChain) file(date string, lines ...ledger.Line) {
 	if err != nil {
 		c.t.Fatal(err)
 	}
+}
+
+// dayPath is where the ledger files the lines of the local day with the
+// given date, as it names its plain file.
+func (c *digestChain) dayPath(date string) string {
+	return filepath.Join(ledger.Dir(c.state), "requests-"+date+".jsonl")
 }
 
 // digestPath is where the ledger keeps the digest of the local day with the
