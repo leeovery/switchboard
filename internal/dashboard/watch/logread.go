@@ -86,9 +86,10 @@ type logReadMsg struct {
 }
 
 // dropped reports whether the Log, holding the read given, drops what msg
-// found: a refilter's, of a read it no longer holds, as a tail that took
-// lines meanwhile, or a day let go, grew it into another, which what was
-// found would undo.
+// found: a refilter's, of a read it no longer holds, which what was found
+// would undo. It's a guard alone: no read of the tail, nor a day let go,
+// changes the read while a read for the Log is under way, as each waits on
+// it, so only a message held by hand, as a test holds one, reaches it.
 func (msg logReadMsg) dropped(read views.LogRead) bool {
 	return msg.refiltered != nil && *msg.refiltered != read.Gen()
 }
@@ -409,7 +410,7 @@ func (m Model) readBack(now time.Time) (Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
-	b := logBack{readers: m.logReaders(), tab: t, held: m.held, stream: m.logStream(now), readsOn: m.readsOn(), now: now}
+	b := logBack{readers: m.logReaders(), tab: t, held: m.held, stream: m.logStream(now), readsOn: m.readsOn(), whole: m.cfg.readsWhole, now: now}
 	m.log.reading = true
 	return m, func() tea.Msg {
 		return logReadMsg{grown: b.from(day)}
@@ -429,13 +430,15 @@ func (m Model) readsOn() bool {
 // logBack is a read back of the Log's, as it's asked: what it reads; the
 // Log as it stands; the store held, which tells the rows of the lines it
 // takes in; what the stream tells; whether it reads on past a day that adds
-// nothing to the Requests, as readsOn has it; and now.
+// nothing to the Requests, as readsOn has it; whether it reads each day
+// whole, as Config's readsWhole has it; and now.
 type logBack struct {
 	readers logReaders
 	tab     logTab
 	held    views.HeldSessions
 	stream  views.Stream
 	readsOn bool
+	whole   bool
 	now     time.Time
 }
 
@@ -463,15 +466,23 @@ func (b logBack) from(day views.LedgerDay) logGrown {
 }
 
 // took is read taken in the lines of the day given: read, as ReadDay reads
-// them, through the filter the Log's read serves, as serving has it, made
-// the day's as ThroughOn has it, b's stream telling what's under way; and
-// taken in as TakenBack takes them, at b's now, beside the store b holds.
-// It holds the sessions the take reads whole, for the watch's to take in.
+// them, through the filter through gives; and taken in as TakenBack takes
+// them, at b's now, beside the store b holds. It holds the sessions the take
+// reads whole, for the watch's to take in.
 func (b logBack) took(read views.LogRead, day views.LedgerDay) logGrown {
 	l := b.readers.ledger
-	through := b.tab.serving().ThroughOn(b.stream, day.Date)
-	grown, found := read.TakenBack(l, views.ReadDay(l, day.Date, through), b.held, b.stream, b.now)
+	grown, found := read.TakenBack(l, views.ReadDay(l, day.Date, b.through(day.Date)), b.held, b.stream, b.now)
 	return logGrown{read: grown, held: found}
+}
+
+// through is the filter b reads the day with the given date through: the
+// one the Log's read serves, as serving has it, made the day's as ThroughOn
+// has it, b's stream telling what's under way; whole where b reads whole.
+func (b logBack) through(date string) views.LogFilter {
+	if b.whole {
+		return views.LogFilter{}
+	}
+	return b.tab.serving().ThroughOn(b.stream, date)
 }
 
 // pastDay is the day before the one given, where a read back reading on

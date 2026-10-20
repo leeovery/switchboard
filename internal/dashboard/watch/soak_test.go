@@ -96,13 +96,17 @@ type soak struct {
 }
 
 // soakSetup is how a soak runs: from start, over a world run for days to
-// it at pace, its frames fired or let lapse, held by guard where it's set.
+// it at pace, its frames fired or let lapse, held by guard where it's set;
+// and, where whole is set, its Log reading each past day whole, as
+// Config's readsWhole has it, the twin of a soak of the same world and
+// history.
 type soakSetup struct {
 	start  time.Time
 	days   int
 	pace   soakPace
 	frames bool
 	guard  soakGuard
+	whole  bool
 }
 
 // soakWait is a wait on the request stream the model armed, and the stream
@@ -137,7 +141,7 @@ func newSoak(t *testing.T, setup soakSetup) *soak {
 	}
 	cfg := h.model.cfg
 	cfg.Ledger, cfg.Readings, cfg.Events, cfg.Accounts = read, history, filed, configured
-	cfg.After, cfg.Await = s.arm, s.await
+	cfg.After, cfg.Await, cfg.readsWhole = s.arm, s.await, setup.whole
 	h.model = New(t.Context(), cfg)
 	s.h, s.follower = h, follower
 	s.stands()

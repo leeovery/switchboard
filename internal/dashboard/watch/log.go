@@ -99,54 +99,78 @@ func (m Model) builtLog(now time.Time) Model {
 		m.log.page = m.log.page.Filling(rows)
 	}
 	m = m.followedByLogCard().builtLogPanel(now)
-	if day, ok := m.log.lettingGo(m.logRows()); ok {
+	if day, ok := m.log.lettingGo(rows); ok {
 		m.log = m.log.spanningFrom(day)
 		return m.builtLog(now)
 	}
 	return m
 }
 
-// lettingGo is the latest day the Log could span from: where its read holds
-// a day that doesn't serve the filter it serves, as serving has it, the
-// first from which every day does, as ServedFrom has it, so following, it
-// lets every such day go before reading one again, a table that filled its
-// view from one reading back through its own filter to fill it again, as
-// spanningFrom unfills it; else the day its tables, showing in a view rows
-// rows tall all they show now, span from, as the page's KeptFrom has it.
-// It's false while either table is paused, a card or the find is open, or
-// a read for it is under way; of KeptFrom's, while the find lands, as its
-// landing may reach back past that day; or where a row of its Requests
-// awaits a line filed before the day, or the read holds before it the line
-// of a request the stream tells of, as HoldsTold has it, whose row would
-// await it there, reading it back again.
+// lettingGo is the latest day the Log could span from, as goingFrom has it.
+// It's false while either table is paused, a card or the find is open, or a
+// read for it is under way; or where what the stream tells of holds the
+// Log's days back as of that day, as holdsBack has it.
 func (t logTab) lettingGo(rows int) (views.LedgerDay, bool) {
 	p := t.page
 	if t.reading || p.Stands[dashboard.LogRequests].Paused() || p.Stands[dashboard.LogEvents].Paused() || t.card.request != nil || t.card.event != nil ||
 		p.Finding.Open {
 		return views.LedgerDay{}, false
 	}
-	day, ok := t.read.ServedFrom(t.serving())
-	if !ok && t.find.landing == nil {
-		day, ok = p.KeptFrom(rows)
+	day, ok := t.goingFrom(rows)
+	return day, ok && !t.holdsBack(day)
+}
+
+// goingFrom is the day the Log would span from, letting go of those before
+// it. Where its read holds a day that doesn't serve the filter it serves, as
+// serving has it, it's the first from which every day does, as ServedFrom
+// has it, so following, it lets every such day go before reading one again,
+// a table that filled its view from one reading back to fill it again, as
+// spanningFrom unfills it: but only where one read whole would let go of
+// them too, as it would of every day before the one its tables fill from.
+// That's where the Requests' filter has reach, as views' Reach has it, as
+// they then read back through it to where one read whole holds; and where
+// nothing the stream tells of holds the days back as of today, as holdsBack
+// has it, as it would hold one read whole from letting go of any. Else it's
+// false, each such day read again, as readRefiltered reads them, as one read
+// whole holds them still. Where every day serves it, it's the day the Log's
+// tables, showing in a view rows rows tall all they show now, span from, as
+// the page's KeptFrom has it: false while the find lands, as its landing
+// may reach back past it.
+func (t logTab) goingFrom(rows int) (views.LedgerDay, bool) {
+	if day, unserved := t.read.ServedFrom(t.serving()); unserved {
+		_, reaches := t.page.Filter.Reach()
+		return day, reaches && !t.holdsBack(t.page.Today)
 	}
-	return day, ok && len(p.Requests.Awaited(day)) == 0 && !t.read.HoldsTold(p.Stream, day)
+	if t.find.landing != nil {
+		return views.LedgerDay{}, false
+	}
+	return t.page.KeptFrom(rows)
+}
+
+// holdsBack reports whether what the stream tells of holds the Log's days
+// back as of the day given, so it lets go of none before it: where a row of
+// its Requests awaits a line filed before the day, or the read holds before
+// it the line of a request the stream tells of, as HoldsTold has it, whose
+// row would await it there, reading it back again.
+func (t logTab) holdsBack(day views.LedgerDay) bool {
+	return len(t.page.Requests.Awaited(day)) > 0 || t.read.HoldsTold(t.page.Stream, day)
 }
 
 // fills reports whether the table shown is built as the page shows it, so
 // filling its view marks it filled, as Filling has it: the Events, built
 // through their own filter; the Requests where every day the Log's read
-// holds serves theirs, as requestsFilter then builds them through it. A
-// table built through a filter no longer shown never marks the view filled
-// for the one that is.
+// holds serves the filter it serves, theirs, as requestsFilter then builds
+// them through it. A table built through a filter no longer shown never
+// marks the view filled for the one that is.
 func (t logTab) fills() bool {
-	return t.page.Shown != dashboard.LogRequests || t.read.Serves(t.page.Filter)
+	return t.page.Shown != dashboard.LogRequests || t.served()
 }
 
 // spanningFrom is the Log spanning the days from the one given, a later one than
 // it spans from: its read, its events and the figures of its days holding
 // none of those before, as From has it, what each holds counted changed;
-// and each of its tables that filled its view from one of those unfilled,
-// as Unfilled has it, so it reads back to fill it again.
+// and each of its tables unfilled that, as it will show, filled its view
+// from one of those, as Unfilled has it, so it reads back to fill it again.
 func (t logTab) spanningFrom(day views.LedgerDay) logTab {
 	t.page = t.page.Unfilled(day)
 	t.from, t.read, t.events = day, t.read.From(day), t.events.From(day)

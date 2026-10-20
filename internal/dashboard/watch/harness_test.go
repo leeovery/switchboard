@@ -2,6 +2,7 @@ package watch
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"slices"
 	"strings"
@@ -182,8 +183,37 @@ func (h *harness) update(msg tea.Msg) []tea.Msg {
 // all delivered.
 func (h *harness) deliver(msgs ...tea.Msg) {
 	h.t.Helper()
+	d := delivery{h: h}
 	for len(msgs) > 0 {
+		d.took(msgs[0])
 		msgs = append(msgs[1:], h.update(msgs[0])...)
+	}
+}
+
+// deliveringMost is the most messages one delivery gives the model before
+// it's taken for a cycle, each message it gives sending back another
+// without end, as a read and a day let go each asking the other: far more
+// than any test's delivery settles in.
+const deliveringMost = 1000
+
+// delivery counts the messages a delivery gives h's model, by their types.
+type delivery struct {
+	h     *harness
+	n     int
+	kinds map[string]int
+}
+
+// took counts msg given, failing the test where the delivery has given more
+// than deliveringMost, naming how many of each type it gave.
+func (d *delivery) took(msg tea.Msg) {
+	d.h.t.Helper()
+	if d.kinds == nil {
+		d.kinds = make(map[string]int)
+	}
+	d.n++
+	d.kinds[fmt.Sprintf("%T", msg)]++
+	if d.n > deliveringMost {
+		d.h.t.Fatalf("a delivery gave the model %d messages without settling, a cycle: %v", d.n, d.kinds)
 	}
 }
 
@@ -201,11 +231,13 @@ func (h *harness) holdingReads(msgs ...tea.Msg) []tea.Msg {
 func holdingBack[T tea.Msg](h *harness, msgs ...tea.Msg) []tea.Msg {
 	h.t.Helper()
 	var held []tea.Msg
+	d := delivery{h: h}
 	for ; len(msgs) > 0; msgs = msgs[1:] {
 		if _, ok := msgs[0].(T); ok {
 			held = append(held, msgs[0])
 			continue
 		}
+		d.took(msgs[0])
 		msgs = append(msgs, h.update(msgs[0])...)
 	}
 	return held

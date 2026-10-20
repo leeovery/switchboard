@@ -46,42 +46,36 @@ const logGuardDays = 1
 // page, paged back, and at the end, following again, its Requests are those
 // of one read whole, from the day they span from, the store fed it whole,
 // through the filter shown, and nothing of the Log's reaches a day before
-// it.
+// it; at the end, it spans from the day the same history read whole spans
+// from.
 func TestTheLogHoldsOnlyWhatItShows(t *testing.T) {
 	midnight := dayfile.DayStart(guardStart, 1)
-	covered, uncovered := midnight.Add(3*time.Minute+10*time.Second), midnight.Add(3*time.Minute+40*time.Second)
-	paged, followed, end := midnight.Add(4*time.Minute), midnight.Add(4*time.Minute+20*time.Second), midnight.Add(5*time.Minute)
+	at := logGuardAtOf(midnight)
+	covered, paged, end := at.covered, at.paged, at.end
 	g := &logGuard{t: t, midnight: midnight, checks: []time.Time{covered.Add(20 * time.Second), paged.Add(10 * time.Second), end.Add(-2 * lookEvery)}}
 	s := newSoak(t, soakSetup{start: guardStart, days: logGuardDays, pace: logGuardPace, guard: g})
 	s.resized(logGuardSize)
 	s.show("log")
 	page := &pageGuard{t: t, s: s, checks: []time.Time{covered.Add(20 * time.Second)}}
 	through := 0
-	s.schedule = append(s.schedule,
-		soakAction{at: covered, do: func() {
-			s.keyed(tea.KeyPressMsg{Code: tea.KeyUp})
+	s.schedule = append(s.schedule, logGuardSchedule(s, at, func(when time.Time) {
+		switch when {
+		case at.covered:
 			page.id, g.page = s.h.model.log.page.ChosenSession(), page
-			s.typed("s")
-		}},
-		soakAction{at: uncovered, do: func() {
-			s.keyed(tea.KeyPressMsg{Code: tea.KeyEscape})
-			s.keyed(tea.KeyPressMsg{Code: tea.KeyEnd})
-		}},
-		soakAction{at: paged, do: func() {
+		case at.paged:
 			g.pagedFrom = len(g.daysRead)
-			s.filtered(func(f *views.LogFilter) { f.Sessions = []string{s.w.longest()} })
-			s.pagedBack()
-		}},
-		soakAction{at: paged.Add(15 * time.Second), do: func() {
+		case at.held:
 			through = heldThrough(t, s.h.model, dayfile.DateOf(guardStart), s.h.model.now())
-		}},
-		soakAction{at: followed, do: func() {
+		case at.followed:
 			g.followedFrom = len(g.daysRead)
-			s.keyed(tea.KeyPressMsg{Code: tea.KeyEnd})
-			s.keyed(tea.KeyPressMsg{Code: tea.KeyEscape})
-		}},
-	)
+		}
+	})...)
 	s.runUntil(end)
+	whole := newSoak(t, soakSetup{start: guardStart, days: logGuardDays, pace: logGuardPace, whole: true})
+	whole.resized(logGuardSize)
+	whole.show("log")
+	whole.schedule = append(whole.schedule, logGuardSchedule(whole, at, func(time.Time) {})...)
+	whole.runUntil(end)
 	today, yesterday := dayfile.DateOf(midnight), dayfile.DateOf(guardStart)
 	m := s.h.model
 	if filed := s.w.filedOn[yesterday]; through == 0 || through >= filed {
@@ -112,6 +106,55 @@ func TestTheLogHoldsOnlyWhatItShows(t *testing.T) {
 	}
 	if unwanted := unwantedHeld(m); len(unwanted) > 0 {
 		t.Errorf("following again, its page closed, the store holds %v, which neither the Log's days nor the sessions running want", unwanted)
+	}
+	sameLogAsReadWhole(t, m, whole.h.model, s.follower, m.now())
+}
+
+// logGuardAt are the times the Log's guard acts at, of the midnight given:
+// as the page opens over the Log, and closes; as the Requests are filtered
+// and paged back, and a while after, as what's held is judged; as they
+// follow again; and the end.
+type logGuardAt struct {
+	covered, uncovered, paged, held, followed, end time.Time
+}
+
+// logGuardAtOf are the Log's guard's times of the midnight given.
+func logGuardAtOf(midnight time.Time) logGuardAt {
+	paged := midnight.Add(4 * time.Minute)
+	return logGuardAt{
+		covered: midnight.Add(3*time.Minute + 10*time.Second), uncovered: midnight.Add(3*time.Minute + 40*time.Second),
+		paged: paged, held: paged.Add(15 * time.Second), followed: midnight.Add(4*time.Minute + 20*time.Second), end: midnight.Add(5 * time.Minute),
+	}
+}
+
+// logGuardSchedule is what the Log's guard has s's schedule do, at the times
+// at gives: at covered, ↑, then the page of the line chosen's session opened
+// over the Log; at uncovered, esc and end; at paged, the Requests filtered
+// to the long session and paged back; at followed, end and esc. marked is
+// called with the time at covered after ↑, at paged and followed first, and
+// at held alone, for the guard to mark what it does then.
+func logGuardSchedule(s *soak, at logGuardAt, marked func(time.Time)) []soakAction {
+	return []soakAction{
+		{at: at.covered, do: func() {
+			s.keyed(tea.KeyPressMsg{Code: tea.KeyUp})
+			marked(at.covered)
+			s.typed("s")
+		}},
+		{at: at.uncovered, do: func() {
+			s.keyed(tea.KeyPressMsg{Code: tea.KeyEscape})
+			s.keyed(tea.KeyPressMsg{Code: tea.KeyEnd})
+		}},
+		{at: at.paged, do: func() {
+			marked(at.paged)
+			s.filtered(func(f *views.LogFilter) { f.Sessions = []string{s.w.longest()} })
+			s.pagedBack()
+		}},
+		{at: at.held, do: func() { marked(at.held) }},
+		{at: at.followed, do: func() {
+			marked(at.followed)
+			s.keyed(tea.KeyPressMsg{Code: tea.KeyEnd})
+			s.keyed(tea.KeyPressMsg{Code: tea.KeyEscape})
+		}},
 	}
 }
 
@@ -287,6 +330,40 @@ func (g *logGuard) judged(was Model) {
 func sameLogAsOneRead(t *testing.T, m Model, l views.Ledger, now time.Time) {
 	t.Helper()
 	sameLogThrough(t, m, l, m.log.page.Filter, now)
+}
+
+// sameLogAsReadWhole judges the Log of the model m at now as
+// sameLogAsOneRead does, and the day it spans from, which that judges them
+// from: whole's, the Log of the same history, each past day read whole, as
+// Config's readsWhole has it, but where the find's pick landed later, as
+// pickLandedLater has it. So a Log that lets go of a day one read whole
+// holds, or reads back past one it doesn't, through what it read through
+// its filters, is caught, however its tables show from that day.
+func sameLogAsReadWhole(t *testing.T, m, whole Model, l views.Ledger, now time.Time) {
+	t.Helper()
+	if !whole.cfg.readsWhole {
+		t.Fatal("the Log is held to a twin that reads through its filters, want one that reads each past day whole")
+	}
+	if m.log.from.Date != whole.log.from.Date && !pickLandedLater(m, whole) {
+		t.Errorf("at %s the Log spans from %s, want %s, as the same history read whole does", now.Format(time.DateTime), m.log.from.Date, whole.log.from.Date)
+	}
+	sameLogAsOneRead(t, m, l, now)
+}
+
+// pickLandedLater reports whether the Log of m spans from a later day than
+// whole, the same history read whole, as the find's pick landed: each
+// paused at the same line, the newest of the session the find picked, m
+// from that line's day. A pick lets go first of the days held through the
+// last pick's filter, as goingFrom has it, then reads back through its own
+// to its line; read whole, the Log holds those days still, landing among
+// them. The one day from which the Log spans that one read whole doesn't
+// share.
+func pickLandedLater(m, whole Model) bool {
+	row, _, chosen := m.log.page.Chosen()
+	held, _, holds := whole.log.page.Chosen()
+	picked := m.log.find.picked
+	return chosen && holds && m.log.page.Paused() && whole.log.page.Paused() && picked != nil && row.Session == picked.ID && row.Request == held.Request &&
+		m.log.from.Date == views.Today(row.At).Date && whole.log.from.Date < m.log.from.Date
 }
 
 // servedAsOneRead judges the Log's Requests of the model m at now as

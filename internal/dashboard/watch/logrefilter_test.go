@@ -83,30 +83,40 @@ func writeRefilterWorld(t *testing.T, state string, beside []ledger.Held, filed 
 	writeEvents(t, state, filed...)
 }
 
-// filledAsOneRead are the requests a Log opened afresh on the world written
-// to the state directory given shows, following, the ledger keeping its
-// lines refilterBack days, once the filter given is applied, as it reads
-// back to fill its view through it; and the day it spans from: those of
-// one read whole, as its days are read through that filter alone.
-func filledAsOneRead(t *testing.T, state string, filter views.LogFilter) ([]string, string) {
+// refilterTwins are refilterLogKeeping's Log, and its twin, as readWholeOn
+// opens it on the same world, for the same history to be taken through
+// both.
+func refilterTwins(t *testing.T, state string, keep time.Duration, beside []ledger.Held, filed ...events.Line) (h, whole *harness, l *daysCounted) {
 	t.Helper()
-	h := newHarness(t, probedWithoutTheRouter())
-	refilterLogOn(h, state, refilterBack*day)
-	appliedLog(h, func(f *views.LogFilter) { *f = filter })
-	return shownRequests(h), h.model.log.from.Date
+	h, l = refilterLogKeeping(t, state, keep, beside, filed...)
+	return h, readWholeOn(newHarness(t, probedWithoutTheRouter()), state, keep), l
+}
+
+// readWholeOn is h showing the Log of the world written to the state
+// directory given, as refilterLogOn has it, but reading each past day
+// whole, as Config's readsWhole has it: the twin of a Log of the same world
+// and keep that reads through its filters, the same history taken through
+// both, so what that one shows is held to what the same history shows read
+// whole, as sameLogAsReadWhole holds it.
+func readWholeOn(h *harness, state string, keep time.Duration) *harness {
+	h.t.Helper()
+	h.model.cfg.readsWhole = true
+	refilterLogOn(h, state, keep)
+	return h
 }
 
 // pickedAPI has the Log's find pick api, as / and enter do: it lands
 // paused at api's line, every day back to it held through the find's
-// filter, the days between ruled out by their summaries.
+// filter, the days between ruled out by their summaries; or, read whole,
+// each held whole.
 func pickedAPI(t testing.TB, h *harness) {
 	t.Helper()
 	h.typed("/", "a", "p", "i")
 	h.keys(enter)
-	p := h.model.log.page
-	if row, _, chosen := p.Chosen(); !chosen || !p.Paused() || row.Request != refilterLine || h.model.log.read.Serves(views.LogFilter{}) {
-		t.Fatalf("the find's pick of api is paused %t at %t a line, %s, its read serving every line %t; want it paused at api's, %s, its days back held through the find's filter",
-			p.Paused(), chosen, row.Request, h.model.log.read.Serves(views.LogFilter{}), refilterLine)
+	p, whole := h.model.log.page, h.model.log.read.Serves(views.LogFilter{})
+	if row, _, chosen := p.Chosen(); !chosen || !p.Paused() || row.Request != refilterLine || whole != h.model.cfg.readsWhole {
+		t.Fatalf("the find's pick of api is paused %t at %t a line, %s, its read serving every line %t; want it paused at api's, %s, its days back held through the find's filter, "+
+			"or whole, read whole", p.Paused(), chosen, row.Request, whole, refilterLine)
 	}
 }
 
@@ -147,9 +157,13 @@ func daysBack(back ...int) []string {
 // would read back the day before, no day is read back before every day
 // serves every line, nor after, api's line no longer atop them. The panel,
 // opened meanwhile, counts today's lines through every line from the first,
-// as it does once every day serves it.
+// as it does once every day serves it. Its tables span from the day the
+// same history read whole has them span from.
 func TestAFilterLetGoWhilePausedReadsEachDayAgainThenShowsEveryLineAtItsLine(t *testing.T) {
-	h, l := refilterLogKeeping(t, t.TempDir(), 6*day, nil)
+	h, whole, l := refilterTwins(t, t.TempDir(), 6*day, nil)
+	pickedAPI(t, whole)
+	whole.deliver(applyingLog(whole, func(f *views.LogFilter) { f.Sessions = nil })...)
+	whole.keyed("f")
 	pickedAPI(t, h)
 	before := len(l.days)
 
@@ -175,7 +189,7 @@ func TestAFilterLetGoWhilePausedReadsEachDayAgainThenShowsEveryLineAtItsLine(t *
 		t.Errorf("every day read again, the Log is paused %t at %t a line, %s, showing %d lines; want it paused at api's, %s, showing every line",
 			p.Paused(), chosen, row.Request, len(shownRequests(h)), refilterLine)
 	}
-	sameLogAsOneRead(t, h.model, l.Ledger, h.clock.now)
+	sameLogAsReadWhole(t, h.model, whole.model, l.Ledger, h.clock.now)
 }
 
 // The Log's Requests are built through no filter the days its read holds
@@ -203,59 +217,100 @@ func TestTheRequestsAreBuiltThroughNoFilterTheirDaysDontServe(t *testing.T) {
 // that don't serve it, reading none of them again: the find's filter let
 // go by esc, as it follows again, then clears it; or by the panel, as it
 // follows. Every line shown is today's, as one read whole of today shows
-// them, today's lines filling the view.
+// them, today's lines filling the view. But where the stream tells of a
+// request web ran the day before, ended, its line yet to come, whose row
+// would await its line there, one read whole lets go of none of its days,
+// and nor does the Log: it reads each day again before it lets go of one,
+// the newest first, so the day before is read again, never let go.
 func TestAFilterWidenedWhileFollowingLetsGoOfTheDaysThatDontServeIt(t *testing.T) {
+	escEsc := func(h *harness) []tea.Msg {
+		return append(h.holdingReads(h.update(escape)...), h.holdingReads(h.update(escape)...)...)
+	}
 	tests := []struct {
 		name string
-		// widened widens the filter, returning how many reads of the Log's
-		// own it made.
-		widened func(h *harness) int
+		// widened widens the filter, returning the Log's reads of its own it
+		// asks, held undelivered.
+		widened func(h *harness) []tea.Msg
+		// told is whether the stream tells of web's request the day before.
+		told bool
+		// read are the days back read again, in turn, and from the day back
+		// the Log spans from once they're read.
+		read []int
+		from int
 	}{
-		{
-			name: "esc after the find's pick, following again, then clearing the filter",
-			widened: func(h *harness) int {
-				return deliveredOf[logReadMsg](h, h.update(escape)...) + deliveredOf[logReadMsg](h, h.update(escape)...)
-			},
-		},
+		{name: "esc after the find's pick, following again, then clearing the filter", widened: escEsc},
 		{
 			name: "the panel letting api go, following",
-			widened: func(h *harness) int {
+			widened: func(h *harness) []tea.Msg {
 				h.keys(escape)
-				return appliedLog(h, func(f *views.LogFilter) { f.Sessions = nil })
+				return applyingLog(h, func(f *views.LogFilter) { f.Sessions = nil })
 			},
 		},
+		{name: "esc twice, the stream telling of a line yet to come the day before", widened: escEsc, told: true, read: []int{1, 2, 3, 4}, from: refilterBack},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, l := refilterLog(t, t.TempDir(), nil)
-			pickedAPI(t, h)
+			state := t.TempDir()
+			writeRefilterWorld(t, state, nil)
+			opened := func() *harness {
+				if tt.told {
+					return routedHarness(t, routerDocument(three()...))
+				}
+				return newHarness(t, probedWithoutTheRouter())
+			}
+			h, whole := opened(), readWholeOn(opened(), state, refilterBack*day)
+			l := refilterLogOn(h, state, refilterBack*day)
+			sent := alter(told(router.StreamSent, "0e000099", "work", 0), func(e *router.StreamEvent) { e.At, e.Session = past(-day+25*time.Minute).UTC(), webSession })
+			for _, h := range []*harness{whole, h} {
+				pickedAPI(t, h)
+				if tt.told {
+					h.hear(sent, alter(sent, func(e *router.StreamEvent) { e.Kind, e.At, e.Status = router.StreamDone, past(0), 200 }))
+				}
+			}
+			whole.deliver(tt.widened(whole)...)
 			before := len(l.days)
 
 			reads := tt.widened(h)
-			m := h.model
-			whole := m.log.page.Filter.Equal(views.LogOpening())
-			if today := dayfile.DateOf(past(0)); reads > 0 || len(l.days) > before || m.log.from.Date != today || m.log.page.Paused() || !whole {
-				t.Errorf("widened, the Log made %d reads, reading the days %v, spanning from %s, paused %t, its Requests through every line %t; "+
-					"want no read, from today, %s, following, through every line", reads, l.days[before:], m.log.from.Date, m.log.page.Paused(), whole, today)
+			if was := daysBack(refilterBack)[0]; len(tt.read) > 0 && h.model.log.from.Date != was {
+				t.Errorf("widened, a read under way, the Log spans from %s, want it holding every day, from %s, till each is read again", h.model.log.from.Date, was)
 			}
-			sameLogAsOneRead(t, m, l.Ledger, h.clock.now)
+			h.deliver(reads...)
+			m := h.model
+			opening := m.log.page.Filter.Equal(views.LogOpening())
+			if got, want, from := l.days[before:], daysBack(tt.read...), daysBack(tt.from)[0]; !slices.Equal(got, want) || m.log.from.Date != from || m.log.page.Paused() || !opening {
+				t.Errorf("widened, the Log read again the days %v, spanning from %s, paused %t, its Requests through every line %t; "+
+					"want %v read again, from %s, following, through every line", got, m.log.from.Date, m.log.page.Paused(), opening, want, from)
+			}
+			sameLogAsReadWhole(t, m, whole.model, l.Ledger, h.clock.now)
 		})
 	}
 }
 
 // A filter the days the Log's read holds don't serve, applied as it
-// follows, or as it follows again while they're read again, has it let go
-// of each such day, the Requests that filled their view from one reading
-// back through their own filter to fill it again, as one built through a
-// filter not theirs never marks it filled: so they show what one read whole
-// shows, from the day it spans from, as filledAsOneRead has it, though today
-// alone fills none of them but every line. The find's pick of api widened
-// by docs', which ran two days back; crossed by side's; and let go while
-// paused, the Log following again before a day is read again. web's, paused
-// at the Requests' top, the day before read back through it, crossed by
-// side's, the Log following again before the day is read again: built
-// through web's meanwhile, today's lines fill the view.
+// follows, or as it follows again while they're read again, has it show
+// what the same history shows read whole, from the same day, as
+// sameLogAsReadWhole has it, though today alone fills none of its views but
+// every line's. Where the filter has reach, the Log lets go of each such
+// day, the Requests that filled their view from one reading back through
+// their filter to fill it again, as one built through a filter not theirs
+// never marks it filled: the find's pick of api widened by docs', which ran
+// two days back; crossed by side's; let go while paused, the Log following
+// again before a day is read again; and web's, paused at the Requests' top,
+// the day before read back through it, crossed by side's, the Log following
+// again before the day is read again, built through web's meanwhile, today's
+// lines filling the view. Where it has none, as the failed alone have none,
+// it lets go of none of them, reading each again: web's paged back six days
+// let go while paused for the failed alone, the Log following again before
+// a day is read again; api's pick let go for them, following; and api's
+// failed widened to them, following.
 func TestALogLettingGoOfItsDaysFillsItsViewAsOneReadWhole(t *testing.T) {
+	web := func(f *views.LogFilter) { f.Sessions = []string{webSession} }
+	failedAlone := func(f *views.LogFilter) { f.Sessions, f.Failed = nil, true }
+	failed := func(at time.Duration, request string) ledger.Held {
+		l := ranIn(request, webSession, "~/Code/web", at)
+		l.Status = 500
+		return l
+	}
 	tests := []struct {
 		name string
 		// changed changes the filter of the Log, following, as it opened.
@@ -289,27 +344,59 @@ func TestALogLettingGoOfItsDaysFillsItsViewAsOneReadWhole(t *testing.T) {
 		{
 			name: "web's crossed by side's while paused at their top, following again as the day is read again",
 			changed: func(h *harness) {
-				appliedLog(h, func(f *views.LogFilter) { f.Sessions = []string{webSession} })
+				appliedLog(h, web)
 				h.keys(tea.KeyPressMsg{Code: tea.KeyPgUp})
 				reads := applyingLog(h, func(f *views.LogFilter) { f.Sessions, f.Accounts = nil, []string{"side"} })
 				h.keys(escape)
 				h.deliver(reads...)
 			},
 		},
+		{
+			name: "web's paged back six days, the failed alone while paused, following again as the days are read again",
+			changed: func(h *harness) {
+				appliedLog(h, web)
+				for range 8 {
+					h.keys(tea.KeyPressMsg{Code: tea.KeyPgUp})
+				}
+				if from := daysBack(6)[0]; h.model.log.from.Date != from {
+					h.t.Fatalf("paged back, the Log spans from %s, want from %s, every day it keeps", h.model.log.from.Date, from)
+				}
+				reads := applyingLog(h, failedAlone)
+				h.keys(escape)
+				h.deliver(reads...)
+			},
+		},
+		{
+			name: "api's pick let go for the failed alone, following",
+			changed: func(h *harness) {
+				pickedAPI(h.t, h)
+				h.keys(escape)
+				appliedLog(h, failedAlone)
+			},
+		},
+		{
+			name: "api's failed widened to the failed alone, following",
+			changed: func(h *harness) {
+				pickedAPI(h.t, h)
+				h.keys(escape)
+				appliedLog(h, func(f *views.LogFilter) { f.Failed = true })
+				appliedLog(h, func(f *views.LogFilter) { f.Sessions = nil })
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			state := t.TempDir()
-			h, l := refilterLog(t, state, []ledger.Held{ranIn("0f000002", docsSession, "~/Code/docs", -2*day+3*time.Hour)})
+			beside := []ledger.Held{ranIn("0f000002", docsSession, "~/Code/docs", -2*day+3*time.Hour), failed(-3*day+5*time.Hour, "0e000500"),
+				failed(-6*day+5*time.Hour, "0e000600")}
+			h, whole, l := refilterTwins(t, t.TempDir(), 6*day, beside)
+			tt.changed(whole)
 
 			tt.changed(h)
 			m := h.model
-			want, from := filledAsOneRead(t, state, m.log.page.Filter)
-			if got := shownRequests(h); !slices.Equal(got, want) || m.log.from.Date != from || m.log.page.Paused() {
-				t.Errorf("the Log shows %d lines, from %s, paused %t; want the %d of one read whole, from %s, following", len(got), m.log.from.Date,
-					m.log.page.Paused(), len(want), from)
+			if got, want := shownRequests(h), shownRequests(whole); !slices.Equal(got, want) || m.log.page.Paused() {
+				t.Errorf("the Log shows %v, paused %t; want %v, as the same history read whole shows, following", got, m.log.page.Paused(), want)
 			}
-			sameLogAsOneRead(t, m, l.Ledger, h.clock.now)
+			sameLogAsReadWhole(t, m, whole.model, l.Ledger, h.clock.now)
 		})
 	}
 }
@@ -317,16 +404,19 @@ func TestALogLettingGoOfItsDaysFillsItsViewAsOneReadWhole(t *testing.T) {
 // The Events shown, the Requests following through a filter their days are
 // held through, the Log lets go of those days, reading none of them again,
 // the Events filling their view from today; then the Requests shown again,
-// they read back through their filter to fill theirs, as one read whole
-// does, as filledAsOneRead has it.
+// they read back through their filter to fill theirs, as the same history
+// read whole shows them, from the same day, as sameLogAsReadWhole has it.
 func TestTheEventsShownLetGoOfTheDaysHeldThroughTheRequestsFilter(t *testing.T) {
 	var pins []events.Line
 	for i := range 60 {
 		pins = append(pins, events.Line{ID: 100 + i, At: past(-time.Duration(70-i) * time.Minute), Kind: status.EventPin, Accounts: []string{"work"}, Run: past(-40 * day)})
 	}
-	state := t.TempDir()
-	h, l := refilterLog(t, state, nil, pins...)
-	appliedLog(h, func(f *views.LogFilter) { f.Sessions = []string{apiSession} })
+	api := func(f *views.LogFilter) { f.Sessions = []string{apiSession} }
+	h, whole, l := refilterTwins(t, t.TempDir(), refilterBack*day, nil, pins...)
+	appliedLog(whole, api)
+	whole.deliver(whole.press("]")...)
+	whole.deliver(whole.press("[")...)
+	appliedLog(h, api)
 	if unserved := h.model.log.read.Unserved(views.LogFilter{}); len(unserved) == 0 || h.model.log.page.Paused() {
 		t.Fatalf("api's filter applied, the Log holds through it the days %v, paused %t; want it following, the days back held through api's", datesOf(unserved),
 			h.model.log.page.Paused())
@@ -340,11 +430,10 @@ func TestTheEventsShownLetGoOfTheDaysHeldThroughTheRequestsFilter(t *testing.T) 
 	}
 
 	h.deliver(h.press("[")...)
-	want, from := filledAsOneRead(t, state, h.model.log.page.Filter)
-	if got := shownRequests(h); !slices.Equal(got, want) || h.model.log.from.Date != from {
-		t.Errorf("the Requests shown again, they show %v, from %s; want %v, from %s, as one read whole", got, h.model.log.from.Date, want, from)
+	if got, want := shownRequests(h), shownRequests(whole); !slices.Equal(got, want) {
+		t.Errorf("the Requests shown again, they show %v; want %v, as the same history read whole shows", got, want)
 	}
-	sameLogAsOneRead(t, h.model, l.Ledger, h.clock.now)
+	sameLogAsReadWhole(t, h.model, whole.model, l.Ledger, h.clock.now)
 }
 
 // A filter narrowed, or of other kinds, every day the Log's read holds
@@ -362,7 +451,9 @@ func TestAFilterNarrowedOrOfOtherKindsIsShownAtOnceReadingNoDay(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, l := refilterLog(t, t.TempDir(), nil)
+			h, whole, l := refilterTwins(t, t.TempDir(), refilterBack*day, nil)
+			pickedAPI(t, whole)
+			whole.deliver(applyingLog(whole, tt.tick)...)
 			pickedAPI(t, h)
 			before := len(l.days)
 
@@ -372,7 +463,7 @@ func TestAFilterNarrowedOrOfOtherKindsIsShownAtOnceReadingNoDay(t *testing.T) {
 				t.Errorf("narrowed, the Log asked %d reads, reading the days %v, its Requests tabled through %+v; want none, through %+v at once",
 					len(reads), l.days[before:], tabled, m.log.page.Filter)
 			}
-			sameLogAsOneRead(t, m, l.Ledger, h.clock.now)
+			sameLogAsReadWhole(t, m, whole.model, l.Ledger, h.clock.now)
 		})
 	}
 }
@@ -398,7 +489,13 @@ func TestFiltersAppliedWhileADayIsReadAgainAreJudgedAsItLands(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, l := refilterLog(t, t.TempDir(), nil)
+			h, whole, l := refilterTwins(t, t.TempDir(), refilterBack*day, nil)
+			pickedAPI(t, whole)
+			held := applyingLog(whole, func(f *views.LogFilter) { f.Sessions = nil })
+			for _, tick := range tt.during {
+				held = append(held, applyingLog(whole, tick)...)
+			}
+			whole.deliver(held...)
 			pickedAPI(t, h)
 			before := len(l.days)
 
@@ -416,7 +513,7 @@ func TestFiltersAppliedWhileADayIsReadAgainAreJudgedAsItLands(t *testing.T) {
 			if got, want := l.days[before:], daysBack(tt.read...); !slices.Equal(got, want) {
 				t.Errorf("the Log read again the days %v, want %v", got, want)
 			}
-			sameLogAsOneRead(t, h.model, l.Ledger, h.clock.now)
+			sameLogAsReadWhole(t, h.model, whole.model, l.Ledger, h.clock.now)
 		})
 	}
 }
@@ -427,11 +524,15 @@ func TestFiltersAppliedWhileADayIsReadAgainAreJudgedAsItLands(t *testing.T) {
 // account and the account's no session. So the session's filter applied
 // again is served at once, no day read.
 func TestACrossingFilterReadsEachDayAgainThroughBothJoined(t *testing.T) {
-	h, l := refilterLog(t, t.TempDir(), nil)
+	side := func(f *views.LogFilter) { f.Sessions, f.Accounts = nil, []string{"side"} }
+	api := func(f *views.LogFilter) { f.Sessions, f.Accounts = []string{apiSession}, nil }
+	h, whole, l := refilterTwins(t, t.TempDir(), refilterBack*day, nil)
+	pickedAPI(t, whole)
+	whole.deliver(applyingLog(whole, side)...)
 	pickedAPI(t, h)
 	before := len(l.days)
 
-	reads := applyingLog(h, func(f *views.LogFilter) { f.Sessions, f.Accounts = nil, []string{"side"} })
+	reads := applyingLog(h, side)
 	for len(reads) > 0 {
 		servedAsOneRead(t, h.model, l.Ledger, h.clock.now)
 		reads = landedOne(h, reads)
@@ -440,20 +541,23 @@ func TestACrossingFilterReadsEachDayAgainThroughBothJoined(t *testing.T) {
 		t.Errorf("crossed by side's filter, the Log read again the days %v, serving every line %t; want %v, each held whole, api's and side's joined",
 			got, h.model.log.read.Serves(views.LogFilter{}), want)
 	}
-	sameLogAsOneRead(t, h.model, l.Ledger, h.clock.now)
+	sameLogAsReadWhole(t, h.model, whole.model, l.Ledger, h.clock.now)
 
+	appliedLog(whole, api)
 	again := len(l.days)
-	if reads := appliedLog(h, func(f *views.LogFilter) { f.Sessions, f.Accounts = []string{apiSession}, nil }); reads > 0 || len(l.days) > again {
+	if reads := appliedLog(h, api); reads > 0 || len(l.days) > again {
 		t.Errorf("api's filter applied again, the Log made %d reads, reading the days %v; want none, its days served", reads, l.days[again:])
 	}
-	sameLogAsOneRead(t, h.model, l.Ledger, h.clock.now)
+	sameLogAsReadWhole(t, h.model, whole.model, l.Ledger, h.clock.now)
 }
 
 // The find picking again, the days back held through api's pick's filter,
 // lets go of every such day first, reading none of them again, as a pick
 // afresh reads: web, running today, has the Log follow from today, reading
 // nothing; docs, which ran last two days back, has the days back to it read
-// through its filter in one read, landing paused at docs' line.
+// through its filter in one read, landing paused at docs' line, from its
+// day, where the same history read whole holds api's days still, as
+// pickLandedLater has it.
 func TestPickingAgainLetsGoOfThePreviousPicksDaysFirst(t *testing.T) {
 	docs := ranIn("0f000002", docsSession, "~/Code/docs", -2*day+3*time.Hour)
 	tests := []struct {
@@ -473,7 +577,10 @@ func TestPickingAgainLetsGoOfThePreviousPicksDaysFirst(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, l := refilterLog(t, t.TempDir(), []ledger.Held{docs})
+			h, whole, l := refilterTwins(t, t.TempDir(), refilterBack*day, []ledger.Held{docs})
+			pickedAPI(t, whole)
+			whole.typed(append([]string{"/"}, tt.typed...)...)
+			whole.keys(enter)
 			pickedAPI(t, h)
 			before := len(l.days)
 			h.typed(append([]string{"/"}, tt.typed...)...)
@@ -487,7 +594,7 @@ func TestPickingAgainLetsGoOfThePreviousPicksDaysFirst(t *testing.T) {
 			if row, _, _ := p.Chosen(); p.Paused() != (tt.at != "") || row.Request != tt.at {
 				t.Errorf("picked, the Log is paused %t at %q; want it at %q", p.Paused(), row.Request, tt.at)
 			}
-			sameLogAsOneRead(t, h.model, l.Ledger, h.clock.now)
+			sameLogAsReadWhole(t, h.model, whole.model, l.Ledger, h.clock.now)
 		})
 	}
 }
@@ -678,17 +785,21 @@ func TestADayReadAgainIsReadWholeWhereTheStreamTellsOfALineFiledOnIt(t *testing.
 	state := t.TempDir()
 	ran := took(ranIn("0e000001", webSession, "~/Code/web", -day+25*time.Minute), day-25*time.Minute)
 	writeRefilterWorld(t, state, []ledger.Held{ran})
-	h := routedHarness(t, routerDocument(three()...))
+	h, whole := routedHarness(t, routerDocument(three()...)), readWholeOn(routedHarness(t, routerDocument(three()...)), state, refilterBack*day)
 	l := refilterLogOn(h, state, refilterBack*day)
-	pickedAPI(t, h)
 	sent := alter(told(router.StreamSent, ran.Request, "work", 0), func(e *router.StreamEvent) { e.At, e.Session = ran.At.Add(time.Second).UTC(), webSession })
-	h.hear(sent, alter(sent, func(e *router.StreamEvent) { e.Kind, e.At, e.Status = router.StreamDone, past(0), 200 }))
+	widened := func(f *views.LogFilter) { f.Sessions = []string{apiSession, webSession} }
+	for _, h := range []*harness{whole, h} {
+		pickedAPI(t, h)
+		h.hear(sent, alter(sent, func(e *router.StreamEvent) { e.Kind, e.At, e.Status = router.StreamDone, past(0), 200 }))
+	}
+	whole.deliver(applyingLog(whole, widened)...)
 	yesterday := daysBack(1)[0]
 	if unserved := datesOf(h.model.log.read.Unserved(views.LogFilter{})); !slices.Contains(unserved, yesterday) {
 		t.Fatalf("the stream told of web's request, the Log holds through api's filter the days %v; want the day before, %s, among them", unserved, yesterday)
 	}
 
-	h.deliver(applyingLog(h, func(f *views.LogFilter) { f.Sessions = []string{apiSession, webSession} })...)
+	h.deliver(applyingLog(h, widened)...)
 	if unserved := datesOf(h.model.log.read.Unserved(views.LogFilter{})); slices.Contains(unserved, yesterday) {
 		t.Errorf("widened by web's, the Log holds through a filter the days %v; want the day before, %s, held whole", unserved, yesterday)
 	}
@@ -702,6 +813,7 @@ func TestADayReadAgainIsReadWholeWhereTheStreamTellsOfALineFiledOnIt(t *testing.
 		t.Errorf("widened by web's, the Requests show %d rows of web's request, %+v; want one, told of its line, arrived at %s", len(rows), rows, ran.At)
 	}
 	servedAsOneRead(t, h.model, l.Ledger, h.clock.now)
+	sameLogAsReadWhole(t, h.model, whole.model, l.Ledger, h.clock.now)
 }
 
 // datesOf are the dates of the days given.

@@ -682,20 +682,30 @@ func (p LogPage) KeptFrom(rows int) (views.LedgerDay, bool) {
 }
 
 // Unfilled is p as the Log lets go of the days before the one given: each
-// table unfilled, as it stood as it first opened, that filled its view from
-// a day before it, or can't fill it from what it holds, as filledFrom has
-// it, so it reads back through its filter to fill it again, as
-// WantsDayBefore has it, once shown. It changes nothing drawn.
+// table unfilled, as it stood as it first opened, that as it will show
+// doesn't fill the view it filled from that day on, as fillsFrom has it, so
+// it reads back through its filter to fill it again, as WantsDayBefore has
+// it, once shown. It changes nothing drawn.
 func (p LogPage) Unfilled(from views.LedgerDay) LogPage {
 	for v, s := range p.Stands {
-		if s.filledAt == 0 {
-			continue
-		}
-		if day, ok := p.filledFrom(LogView(v), s.filledAt); !ok || day.Date < from.Date {
+		if s.filledAt > 0 && !p.fillsFrom(LogView(v), s.filledAt, from) {
 			p.Stands[v].filledAt = 0
 		}
 	}
 	return p
+}
+
+// fillsFrom reports whether the table given, as it will show, fills a view
+// rows rows tall from the day given on: where it could span from no earlier
+// a day and fill it, as filledFrom has it. Never the Requests built through
+// a filter other than the page's, which show through the page's once built
+// again, whatever the table built through the other fills.
+func (p LogPage) fillsFrom(v LogView, rows int, from views.LedgerDay) bool {
+	if v == LogRequests && !p.Requests.Filter().Equal(p.Filter) {
+		return false
+	}
+	day, ok := p.filledFrom(v, rows)
+	return ok && day.Date >= from.Date
 }
 
 // filledFrom is the latest day the table given could span from and still
