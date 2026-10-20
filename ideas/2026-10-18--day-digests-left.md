@@ -145,6 +145,14 @@ never fed would take it in.
   judged current and settled, and never built again, while each reader of it reads the day raw.
   It's phase 3a's gap, and now covers the rows' table too. The writer reading a head whole once,
   as it first settles it, would close it.
+- A line's record prices its usage through `ledger.SpendOf`, some 7 µs and 76 allocations for a
+  typical answer, most of it the decode of the usage into a map of any. So the `requests` verb's
+  rows, which took 1.8 µs a line before the record, take some 5.8 µs, and each record the Log, the
+  find's raw fallback and the builder make pays it. Working the tokens out of that map, as one
+  decode, saves only some 1 µs, and can't keep `odd` exact: the map sees no case-folded or repeated
+  key as the tokens' own decode does. A fast path would: for a usage of lowercase ASCII keys alone,
+  no escapes, decode once into a typed struct of the known counts, unknown fields refused, and fall
+  back to today's two reads on any doubt; its catch is the bill, which comes of the counts' map.
 
 ## A turn's read
 
