@@ -876,14 +876,10 @@ const readBackRun = 1000
 // former's read of the session's lines, as each of the turn's spans asks
 // for them, leaves unread, as unreadWithin counts them, those the stop rule
 // leaves behind, as leftBehind counts them, no more and no fewer. It notes
-// its moment met where some were left; and holds none once some world has
-// met it, as each turn read slows the run.
+// its moment met where some were left.
 func (w *spread) checkStopped(m moment) {
 	w.t.Helper()
 	for _, id := range w.crowdedSessions(m.now) {
-		if w.met[turnStoppedShort] {
-			return
-		}
 		o := w.openPage(m, id)
 		noted := readingTurn(w.based)
 		based, raw := turnRead(o.based, 1, o.live, noted), turnRead(o.raw, 1, o.live, everyLine{l: w.raw})

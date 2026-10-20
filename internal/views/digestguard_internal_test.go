@@ -187,12 +187,12 @@ func twiceGiven(lines []ledger.Line) []ledger.Line {
 const crowdedSeed = 11
 
 // crowdRun is how many requests of no session crowd a day, as crowded has
-// them: with the two of them crowded gives twice, readBackRun less one, the
+// them: with the three of them crowded gives twice, readBackRun less one, the
 // lines in a row a session's read back from a day's end reads before it
 // stops, each ended before what it wants, so the line filed before them is
 // the last read; and more than three chunks of rows, of which a filter
 // skips some. Each slows every read of the day's file, so they're no more.
-const crowdRun = readBackRun - 3
+const crowdRun = readBackRun - 4
 
 // crowded is lines, in the order the ledger files them, the local day with
 // the given date crowded after them: a turn of a session of its own,
@@ -205,7 +205,8 @@ const crowdRun = readBackRun - 3
 // day back to its second request, the check unread. Two of the crowd
 // failed, each given twice across an edge of the day's chunks of rows, as
 // givenAcross has them: one with an id, at the second chunk's end; one
-// without, at the third's.
+// without, at the third's. And one in the fourth chunk is given twice
+// within it, on work and then on personal, as givenElsewhere has it.
 func crowded(lines []ledger.Line, date string) []ledger.Line {
 	var last time.Time
 	for _, l := range lines {
@@ -231,7 +232,7 @@ func crowded(lines []ledger.Line, date string) []ledger.Line {
 		})
 	}
 	slices.SortStableFunc(lines, func(a, b ledger.Line) int { return ended(&a).Compare(ended(&b)) })
-	return givenAcross(givenAcross(lines, date, 2, false), date, 3, true)
+	return givenElsewhere(givenAcross(givenAcross(lines, date, 2, false), date, 3, true), date, 4, "work", "personal")
 }
 
 // givenAcross is lines, in the order the ledger files them, the last row of
@@ -241,18 +242,37 @@ func crowded(lines []ledger.Line, date string) []ledger.Line {
 // day's rows are its lines in the order they're filed, where no other day's
 // file holds a line of it.
 func givenAcross(lines []ledger.Line, date string, chunk int, idless bool) []ledger.Line {
+	i := onDay(lines, date)[chunk*rowsAChunk-1]
+	lines[i].Status = 500
+	if idless {
+		lines[i].Request = ""
+	}
+	return slices.Insert(lines, i+1, lines[i])
+}
+
+// givenElsewhere is lines, in the order the ledger files them, the row in
+// the middle of the chunk numbered chunk, from 1, of the rows of the local
+// day with the given date on the account first, and given again right after
+// itself on the account again, both in that chunk: as two copies of a
+// request say otherwise of its account.
+func givenElsewhere(lines []ledger.Line, date string, chunk int, first, again string) []ledger.Line {
+	i := onDay(lines, date)[(chunk-1)*rowsAChunk+rowsAChunk/2]
+	lines[i].Account = first
+	copied := lines[i]
+	copied.Account = again
+	return slices.Insert(lines, i+1, copied)
+}
+
+// onDay are the indexes of lines of those that arrived on the local day
+// with the given date, in order.
+func onDay(lines []ledger.Line, date string) []int {
 	var on []int
 	for i := range lines {
 		if dayfile.DateOf(lines[i].At) == date {
 			on = append(on, i)
 		}
 	}
-	i := on[chunk*rowsAChunk-1]
-	lines[i].Status = 500
-	if idless {
-		lines[i].Request = ""
-	}
-	return slices.Insert(lines, i+1, lines[i])
+	return on
 }
 
 // renamed are lines, each of the session with the given id, afresh.
