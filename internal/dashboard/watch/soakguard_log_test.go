@@ -38,12 +38,15 @@ const logGuardDays = 1
 // over it, and closed, the Log following again: the page's session is read
 // whole once, as it opens, and at every read of the tail while it's open
 // the page holds what the page's part holds it to, once compared with a
-// page read whole. Paged back, the Log reads the day before again;
-// following again, it lets go of it again, its read holding today's lines
+// page read whole. Filtered to the long session and paged back, the Log
+// reads the day before again through the filter, holding of its lines
+// those alone the filter keeps, or the stream tells of; following again,
+// the filter let go, it lets go of it again, its read holding today's lines
 // alone, its Events none before today's reach. As it lets go, under the
 // page, paged back, and at the end, following again, its Requests are those
 // of one read whole, from the day they span from, the store fed it whole,
-// and nothing of the Log's reaches a day before it.
+// through the filter shown, and nothing of the Log's reaches a day before
+// it.
 func TestTheLogHoldsOnlyWhatItShows(t *testing.T) {
 	midnight := dayfile.DayStart(guardStart, 1)
 	covered, uncovered := midnight.Add(3*time.Minute+10*time.Second), midnight.Add(3*time.Minute+40*time.Second)
@@ -53,6 +56,7 @@ func TestTheLogHoldsOnlyWhatItShows(t *testing.T) {
 	s.resized(logGuardSize)
 	s.show("log")
 	page := &pageGuard{t: t, s: s, checks: []time.Time{covered.Add(20 * time.Second)}}
+	through := 0
 	s.schedule = append(s.schedule,
 		soakAction{at: covered, do: func() {
 			s.keyed(tea.KeyPressMsg{Code: tea.KeyUp})
@@ -65,16 +69,24 @@ func TestTheLogHoldsOnlyWhatItShows(t *testing.T) {
 		}},
 		soakAction{at: paged, do: func() {
 			g.pagedFrom = len(g.daysRead)
+			s.filtered(func(f *views.LogFilter) { f.Sessions = []string{s.w.longest()} })
 			s.pagedBack()
+		}},
+		soakAction{at: paged.Add(15 * time.Second), do: func() {
+			through = heldThrough(t, s.h.model, dayfile.DateOf(guardStart), s.h.model.now())
 		}},
 		soakAction{at: followed, do: func() {
 			g.followedFrom = len(g.daysRead)
 			s.keyed(tea.KeyPressMsg{Code: tea.KeyEnd})
+			s.keyed(tea.KeyPressMsg{Code: tea.KeyEscape})
 		}},
 	)
 	s.runUntil(end)
 	today, yesterday := dayfile.DateOf(midnight), dayfile.DateOf(guardStart)
 	m := s.h.model
+	if filed := s.w.filedOn[yesterday]; through == 0 || through >= filed {
+		t.Errorf("filtered to the long session and paged back, the Log holds %d of the day before's %d lines, want those of the long session alone", through, filed)
+	}
 	if g.letGo.IsZero() || !g.letGo.Before(paged) {
 		t.Errorf("the Log let go of the day before at %v, want it let go once today's rows filled its view, before %v", g.letGo, paged)
 	}
@@ -101,6 +113,52 @@ func TestTheLogHoldsOnlyWhatItShows(t *testing.T) {
 	if unwanted := unwantedHeld(m); len(unwanted) > 0 {
 		t.Errorf("following again, its page closed, the store holds %v, which neither the Log's days nor the sessions running want", unwanted)
 	}
+}
+
+// filtered applies the Log's panel, as f and enter do, its filter of the
+// Requests changed as tick changes it, and takes in what it has the Log
+// read.
+func (s *soak) filtered(tick func(*views.LogFilter)) {
+	s.typed("f")
+	tick(&s.h.model.log.panel.Filter)
+	s.keyed(enter)
+}
+
+// heldThrough judges what the Log of m holds at now of the day with the
+// given date, read back through its Requests' filter: of its lines, those
+// alone the filter keeps, whatever their kind, or of a request the stream
+// tells of. It's how many it holds.
+func heldThrough(t *testing.T, m Model, date string, now time.Time) int {
+	t.Helper()
+	through := m.log.page.Filter
+	through.Kinds = views.RowKinds()
+	kept := make(map[string]bool)
+	for _, row := range rowsOn(m, through, date, now) {
+		kept[row.Request] = true
+	}
+	held, told := rowsOn(m, views.LogFilter{}, date, now), m.logStream(now).Requests
+	for _, row := range held {
+		if _, ok := told[row.Request]; !ok && !kept[row.Request] {
+			t.Errorf("at %s the Log holds %s of %s, of %s on %s, which neither its filter keeps nor the stream tells of", now.Format(time.DateTime), row.Request, date,
+				row.Session, row.Account)
+		}
+	}
+	return len(held)
+}
+
+// rowsOn are the rows of the lines the Log of m holds of the day with the
+// given date, as its Requests table them at now through the filter given:
+// none the stream tells of alone.
+func rowsOn(m Model, filter views.LogFilter, date string, now time.Time) []views.RequestRow {
+	src := m.logSources(filter, now)
+	src.Stream = views.Stream{}
+	var rows []views.RequestRow
+	for _, l := range views.LogRows(src).All() {
+		if l.IsRow() && views.Today(l.Row.At).Date == date {
+			rows = append(rows, l.Row)
+		}
+	}
+	return rows
 }
 
 // unwantedHeld are the sessions the store m holds that nothing wants it to:
@@ -183,7 +241,7 @@ func (g *logGuard) took(msg tea.Msg, was Model) {
 	}
 	g.judged(was)
 	if len(g.checks) > 0 && !now.Before(g.checks[0]) && !m.log.reading {
-		sameLogAsOneRead(g.t, g.s, now)
+		sameLogAsOneRead(g.t, m, g.s.follower, now)
 		g.checks, g.underPage = g.checks[1:], g.underPage || m.session != nil
 	}
 }
@@ -218,17 +276,16 @@ func (g *logGuard) judged(was Model) {
 	g.unjudged = nil
 }
 
-// sameLogAsOneRead judges the Log's Requests of the soak s at now, of the
+// sameLogAsOneRead judges the Log's Requests of the model m at now, of the
 // lines it has tabled read by read, those of one read whole at now, as
 // shownOf has what each shows, each row's details among it: each day's
-// lines the ledger holds, from the day the Log spans from, read raw, the
-// store fed them whole, through the same filter, of what the stream tells;
-// the Log reaching nothing of a day before it spans from, by any path, as
-// daysHeld finds; and none of the readers holding what they decode once, as
-// heldRaw has it.
-func sameLogAsOneRead(t *testing.T, s *soak, now time.Time) {
+// lines the ledger l holds, from the day the Log spans from, read raw, the
+// store fed them whole, through the same filter, of what the stream tells,
+// whatever filter the Log's read holds each day through; the Log reaching
+// nothing of a day before it spans from, by any path, as daysHeld finds;
+// and none of the readers holding what they decode once, as heldRaw has it.
+func sameLogAsOneRead(t *testing.T, m Model, l views.Ledger, now time.Time) {
 	t.Helper()
-	m := s.h.model
 	heldRaw(t, m, now)
 	if held := daysHeld(m.log, m.log.from.Date); len(held) > 0 {
 		t.Errorf("at %s the Log, spanning from %s, still reaches %v", now.Format(time.DateTime), m.log.from.Date, held)
@@ -236,12 +293,13 @@ func sameLogAsOneRead(t *testing.T, s *soak, now time.Time) {
 	stream := m.logStream(now)
 	read := viewstest.ReadingLog(m.cfg.Prices)
 	for day := views.Today(now); !day.Start.Before(m.log.from.Start); day = views.Today(day.Start.Add(-time.Hour)) {
-		read = read.Took(s.follower, s.follower.Day(day.Date), true, stream, now)
+		read = read.Took(l, l.Day(day.Date), true, stream, now)
 	}
 	src := m.logSources(m.log.page.Filter, now)
 	tabled := m.log.lines.Rows(src)
 	src.Read = read.Read
-	got, want := shownOf(tabled), shownOf(views.LogRows(src))
+	today := views.Today(now).Date
+	got, want := shownOf(tabled, today), shownOf(views.LogRows(src), today)
 	if reflect.DeepEqual(got, want) {
 		return
 	}
@@ -256,16 +314,18 @@ func sameLogAsOneRead(t *testing.T, s *soak, now time.Time) {
 }
 
 // shownOf is what a table of the Log's Requests shows, line by line: each
-// row, rule and oldest day's line; and of each row, what its day counts and
-// its details, as its card opens on them.
-func shownOf(table views.LogTable) []any {
+// row, rule and oldest day's line, and of each row its details, as its card
+// opens on them; then what the lines of today, the day with the given date,
+// count, the one day's count drawn. A day before it held through a filter
+// counts the lines it holds alone, which none draws.
+func shownOf(table views.LogTable, today string) []any {
 	var shown []any
 	for _, l := range table.All() {
 		shown = append(shown, views.LogLine{Row: l.Row, Rule: l.Rule, Oldest: l.Oldest})
 		if l.IsRow() {
 			details, _ := l.Details()
-			shown = append(shown, table.Count(views.Today(l.Row.At).Date), details)
+			shown = append(shown, details)
 		}
 	}
-	return shown
+	return append(shown, table.Count(today))
 }

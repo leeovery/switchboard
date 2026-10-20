@@ -701,6 +701,58 @@ func TestADayAwaitingALineIsReadAgainOnlyAsItsLineCouldHaveCome(t *testing.T) {
 	}
 }
 
+// A line the Requests await on a day read back through their filter, of a
+// request the stream told was sent just after midnight, filed on the day
+// before as it arrived before it, comes as that day is read again whole for
+// it, taken in through the filter the day is held through: the read keeps
+// the line, as the stream told of its request, and of the day's others
+// those alone the filter keeps, so the Requests are those of every day read
+// whole through it; and the day, awaiting the line no more, isn't read
+// again for it.
+func TestALineAwaitedOnADayReadThroughTheFilterComesThroughIt(t *testing.T) {
+	state := t.TempDir()
+	midnight := onTheDay(24, 0, 0)
+	var lines []ledger.Held
+	for i := range 60 {
+		lines = append(lines, arrivedAt(fmt.Sprintf("0c%06d", i), midnight.Add(time.Duration(i)*400*time.Millisecond)))
+	}
+	api := arrivedAt("0b000001", onTheDay(23, 50, 0))
+	api.Session, api.Dir = apiSession, "~/Code/api"
+	writeLines(t, state, slices.Concat(lines, []ledger.Held{api, arrivedAt("0b000002", onTheDay(23, 51, 0)), arrivedAt("0b000003", onTheDay(23, 52, 0))})...)
+	h := routedHarness(t, routerDocument(three()...))
+	l := onTheLog(h, state)
+	h.clock.now = midnight.Add(30 * time.Second)
+	h.start()
+	appliedLog(h, func(f *views.LogFilter) { f.Sessions = []string{apiSession} })
+	yesterday := dayfile.DateOf(api.At)
+	if from, held := h.model.log.from.Date, h.model.log.read.Len(); from != yesterday || held != 61 {
+		t.Fatalf("filtered to api, the Log spans from %s holding %d lines, want from %s, holding today's 60 and api's alone of the day before", from, held, yesterday)
+	}
+
+	at := func(kind string, when time.Time) router.StreamEvent {
+		return alter(told(kind, "0a000002", "work", 0), func(e *router.StreamEvent) { e.At = when.UTC() })
+	}
+	h.hear(at(router.StreamSent, midnight.Add(time.Second)))
+	line := took(arrivedAt("0a000002", onTheDay(23, 59, 58)), 20*time.Second)
+	writeLines(t, state, line)
+	h.hear(alter(at(router.StreamDone, line.At.Add(20*time.Second)), func(e *router.StreamEvent) { e.Status = 200 }))
+	read := len(l.days)
+	for _, look := range []time.Time{midnight.Add(35 * time.Second), midnight.Add(40 * time.Second)} {
+		h.clock.now = look
+		h.read(routerDocument(three()...))
+	}
+	if got, held := l.days[read:], h.model.log.read.Len(); !slices.Equal(got, []string{yesterday}) || held != 62 {
+		t.Errorf("as its line was awaited, the days %v were read whole, the Log holding %d lines; want the day before read once, the Log holding the line beside the 61", got, held)
+	}
+	sameLogAsOneRead(t, h.model, l.Ledger, h.clock.now)
+
+	h.clock.now = midnight.Add(3 * time.Minute)
+	h.read(routerDocument(three()...))
+	if got := l.days[read:]; len(got) != 1 {
+		t.Errorf("the line taken in, the days %v were read whole, want the day before no more", got)
+	}
+}
+
 // madeAt is where the slice s begins, which a slice made afresh begins
 // elsewhere than: nil where it's empty.
 func madeAt[T any](s []T) *T {
@@ -929,6 +981,238 @@ func TestTheLogReadsBackADayAtATimeToTheOldestDayKept(t *testing.T) {
 
 	if want := []string{dayfile.DateOf(past(-day)), dayfile.DateOf(past(-2 * day))}; !slices.Equal(l.days, want) {
 		t.Errorf("short of its view, the Log read back the days %v, want %v, a day at a time, no further than the oldest its keep of 2 days keeps", l.days, want)
+	}
+}
+
+// deliveredOf delivers msgs and all they send back, as deliver does,
+// returning how many of them were of type T.
+func deliveredOf[T tea.Msg](h *harness, msgs ...tea.Msg) int {
+	h.t.Helper()
+	n := 0
+	for ; len(msgs) > 0; msgs = msgs[1:] {
+		if _, ok := msgs[0].(T); ok {
+			n++
+		}
+		msgs = append(msgs, h.update(msgs[0])...)
+	}
+	return n
+}
+
+// appliedLog applies the Log's panel, as f and enter do, its filter of the
+// Requests changed as tick changes it, returning how many reads of the
+// Log's own the change made.
+func appliedLog(h *harness, tick func(*views.LogFilter)) int {
+	h.t.Helper()
+	h.keyed("f")
+	tick(&h.model.log.panel.Filter)
+	return deliveredOf[logReadMsg](h, h.update(enter)...)
+}
+
+// A day read back is read through the Requests' filter while they show,
+// the read holding of its lines those the filter keeps alone; and whole
+// while the Events show, whatever the Requests' filter, as an event's card
+// reads the lines held, and a move row its session's story, as of every day
+// whole. While the Requests show, a day that adds nothing to them is read
+// in the one read with the day before it; while the Events show, each day
+// is a read of its own.
+func TestADayReadBackIsReadThroughTheRequestsFilterOrWholeForTheEvents(t *testing.T) {
+	tests := []struct {
+		name string
+		// shown shows the table the test reads back for, returning how many
+		// reads of the Log's own it made.
+		shown func(h *harness) int
+		holds int
+		reads int
+	}{
+		{
+			name:  "the Requests through an account",
+			shown: func(h *harness) int { return appliedLog(h, func(f *views.LogFilter) { f.Accounts = []string{"side"} }) },
+			holds: 2, reads: 1,
+		},
+		{
+			name: "the Events, the Requests through an account",
+			shown: func(h *harness) int {
+				if reads := appliedLog(h, func(f *views.LogFilter) { f.Accounts = []string{"work"} }); reads > 0 {
+					h.t.Fatalf("filtered to today's account alone, the Requests made %d reads, want none, as today's lines fill the view", reads)
+				}
+				return deliveredOf[logReadMsg](h, h.press("]")...)
+			},
+			holds: 3, reads: 2,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := t.TempDir()
+			var lines []ledger.Held
+			for i := range 60 {
+				lines = append(lines, arrived(fmt.Sprintf("0c%06d", i), "work", -time.Duration(70-i)*time.Minute))
+			}
+			lines = append(lines, arrived("0b000001", "work", -2*day), arrived("0b000002", "side", -2*day+time.Minute), arrived("0b000003", "side", -2*day+2*time.Minute))
+			writeLines(t, state, lines...)
+			writeEvents(t, state, events.Line{ID: 1, At: past(-2 * day), Kind: status.EventPin, Accounts: []string{"work"}, Run: past(-3 * day)})
+			h := newHarness(t, probedWithoutTheRouter())
+			onTheLog(h, state)
+			h.model.cfg.Events = events.NewReader(state, h.clock.Now, logs.For("watch"))
+			h.model.cfg.LedgerKeep = 2 * day
+			h.start()
+			if from, today := h.model.log.from.Date, dayfile.DateOf(past(0)); from != today {
+				t.Fatalf("the Log spans from %s as it opens, want today, %s, its view filled", from, today)
+			}
+
+			reads := tt.shown(h)
+			held, from, oldest := h.model.log.read.Len()-60, h.model.log.from.Date, dayfile.DateOf(past(-2*day))
+			if held != tt.holds || reads != tt.reads || from != oldest {
+				t.Errorf("read back, the Log holds %d lines before today's in %d reads, spanning from %s; want %d in %d, from %s, the oldest day kept",
+					held, reads, from, tt.holds, tt.reads, oldest)
+			}
+		})
+	}
+}
+
+// A day read back through the Requests' filter is held through its choices
+// with every kind, whatever kinds they show: the day's quota checks the
+// filter's account keeps are held, though the Requests hide them, as a kind
+// changed never asks a read. A day the stream tells of a request filed on,
+// still in flight, is read whole whatever the filter, so its line is read
+// as it comes.
+func TestADayReadBackIsHeldWithEveryKindOrWholeWhereTheStreamTellsOfIt(t *testing.T) {
+	tests := []struct {
+		name  string
+		told  bool
+		holds int
+	}{
+		{name: "the Requests through an account, hiding checks", holds: 2},
+		{name: "the stream telling of a request in flight filed on it", told: true, holds: 3},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := t.TempDir()
+			midnight := onTheDay(24, 0, 0)
+			var lines []ledger.Held
+			for i := range 60 {
+				lines = append(lines, arrivedAt(fmt.Sprintf("0c%06d", i), midnight.Add(time.Duration(i)*400*time.Millisecond)))
+			}
+			asked, check := arrivedAt("0b000001", onTheDay(23, 50, 0)), arrivedAt("0b000002", onTheDay(23, 51, 0))
+			asked.Account, check.Account, check.Kind = "side", "side", ledger.KindCheck
+			writeLines(t, state, slices.Concat(lines, []ledger.Held{asked, check, arrivedAt("0b000003", onTheDay(23, 52, 0))})...)
+			h := routedHarness(t, routerDocument(three()...))
+			onTheLog(h, state)
+			h.clock.now = midnight.Add(30 * time.Second)
+			h.start()
+			if tt.told {
+				h.hear(alter(told(router.StreamSent, "0a000009", "work", 0), func(e *router.StreamEvent) { e.At = onTheDay(23, 59, 0).UTC() }))
+			}
+
+			appliedLog(h, func(f *views.LogFilter) { f.Accounts = []string{"side"} })
+			yesterday := dayfile.DateOf(asked.At)
+			held, from := h.model.log.read.Len()-60, h.model.log.from.Date
+			if held != tt.holds || from != yesterday {
+				t.Errorf("read back, the Log holds %d lines of the day before, spanning from %s; want %d, from %s", held, from, tt.holds, yesterday)
+			}
+			if got := shownRequests(h); !slices.Equal(got, []string{"0b000001"}) {
+				t.Errorf("the Requests show %v, want the side account's request alone, its check hidden", got)
+			}
+		})
+	}
+}
+
+// While the Requests show, wanting the day before, a read back reads on in
+// the one read past each day that adds nothing to them, read through their
+// filter, taking in the events and the figures of every day it reads: the
+// find's pick lands in one read, the days between it and today whose
+// summaries, and their neighbours', name none of its lines never read; the
+// failed of a session, none failing, are read back to its first day and no
+// further, though the ledger keeps the day before it; and the failed alone,
+// paused at the top of today's, which reads the day before whole first, on
+// to the oldest day kept, as no summary rules out a day of the failed.
+func TestAReadBackReadsOnPastTheDaysThatAddNothingToTheRequests(t *testing.T) {
+	tests := []struct {
+		name string
+		// api are the days back api ran on.
+		api []int
+		// ready readies the Log, as the find typed or the table paused; and
+		// shown has the Requests read back, returning how many reads of the
+		// Log's own it made.
+		ready func(h *harness)
+		shown func(h *harness) int
+		// read are the days back whose lines were read, and from the day back
+		// the Log spans from once read.
+		read []int
+		from int
+	}{
+		{
+			name: "the find's pick, api ran four days back", api: []int{4},
+			ready: func(h *harness) { h.typed("/", "a", "p", "i") },
+			shown: func(h *harness) int { return deliveredOf[logReadMsg](h, h.update(enter)...) },
+			read:  []int{3, 4}, from: 4,
+		},
+		{
+			name: "the failed of api, api ran first three days back", api: []int{1, 3},
+			ready: func(*harness) {},
+			shown: func(h *harness) int {
+				return appliedLog(h, func(f *views.LogFilter) { f.Sessions, f.Failed = []string{apiSession}, true })
+			},
+			read: []int{1, 2, 3}, from: 3,
+		},
+		{
+			name:  "the failed alone, paused at the top of today's, the day before read whole as it paused",
+			ready: func(h *harness) { h.keys(tea.KeyPressMsg{Code: tea.KeyPgUp}) },
+			shown: func(h *harness) int { return appliedLog(h, func(f *views.LogFilter) { f.Failed = true }) },
+			read:  []int{2, 3, 4}, from: 4,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := t.TempDir()
+			var lines []ledger.Held
+			for i := range 60 {
+				lines = append(lines, ranIn(fmt.Sprintf("0c%06d", i), webSession, "~/Code/web", -time.Duration(70-i)*time.Minute))
+			}
+			for d := 1; d <= 6; d++ {
+				for i := range 20 {
+					lines = append(lines, ranIn(fmt.Sprintf("0d%02d%04d", d, i), webSession, "~/Code/web", -time.Duration(d)*day+time.Duration(i)*time.Minute))
+				}
+			}
+			for _, d := range tt.api {
+				lines = append(lines, ranIn(fmt.Sprintf("0b%06d", d), apiSession, "~/Code/api", -time.Duration(d)*day+time.Hour))
+			}
+			writeLines(t, state, lines...)
+			for d := 1; d <= 6; d++ {
+				at := past(-time.Duration(d)*day + 30*time.Minute)
+				writeEvents(t, state, events.Line{ID: d, At: at, Kind: status.EventPin, Accounts: []string{"work"}, Run: past(-40 * day)})
+			}
+			h := newHarness(t, probedWithoutTheRouter())
+			l := onTheLog(h, state)
+			h.model.cfg.Events = events.NewReader(state, h.clock.Now, logs.For("watch"))
+			h.model.cfg.LedgerKeep = 4 * day
+			h.start()
+			tt.ready(h)
+			before := len(l.days)
+
+			reads := tt.shown(h)
+			var want []string
+			for _, d := range tt.read {
+				want = append(want, dayfile.DateOf(past(-time.Duration(d)*day)))
+			}
+			from := dayfile.DateOf(past(-time.Duration(tt.from) * day))
+			if got := l.days[before:]; reads != 1 || !slices.Equal(got, want) || h.model.log.from.Date != from {
+				t.Errorf("the Log read the lines of the days %v in %d reads, spanning from %s; want %v in one read, from %s", got, reads, h.model.log.from.Date, want, from)
+			}
+			var spanned, figured []string
+			var pins, held []int
+			for d := tt.from; d >= 1; d-- {
+				spanned, pins = append(spanned, dayfile.DateOf(past(-time.Duration(d)*day))), append(pins, d)
+			}
+			for _, d := range h.model.log.totals {
+				figured = append(figured, d.Date)
+			}
+			for _, e := range h.model.log.events.Events() {
+				held = append(held, e.Key.ID)
+			}
+			if !slices.Equal(figured, spanned) || !slices.Equal(held, pins) {
+				t.Errorf("the Log holds the figures of %v and the events %v, want those of every day it spans before today, %v, and %v", figured, held, spanned, pins)
+			}
+		})
 	}
 }
 
