@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.6] - 2026-10-20
+
+✨ Added
+- Finished days are now digested into small per-day files (session states, a day head, and rows) — the router builds them in the background so the dashboard no longer replays whole days of raw requests.
+- Session pages open fast by resting on a stored session state instead of re-reading every line, and a turn's older days read from stored rows.
+- The Log's find reads each past day's sessions from its stored day head when one is available.
+
+🔧 Changed
+- The Log reads past days back through its active filter, skipping days and chunks that can't hold a match, and re-reads days when the filter widens.
+- Session pages and Log rows are built from compact stored records, and request costs are summed as token counts and priced when shown.
+- Runway's COMING UP no longer numbers accounts in the collapsed view; the name alone is shown.
+- Reading a session's recent lines reads each day back from its end, stopping early once it passes the span asked for.
+
+🐛 Fixed
+- Request lines given twice by the ledger's files are now counted once consistently across session pages, turns and the Log.
+- The Log's new-line count no longer counts rows from days read back again after a filter change.
+- Closing the Log's find now drops its day summaries, so a late read no longer lands after it closes.
+
 ## [0.2.5] - 2026-10-18
 
 ✨ Added
