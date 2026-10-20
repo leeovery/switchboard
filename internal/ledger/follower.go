@@ -2,6 +2,7 @@ package ledger
 
 import (
 	"cmp"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -808,7 +809,12 @@ func (t *todaysLines) readAgain(d days) []*placed {
 // or a clock set back: so a session's quota checks, which a summary counts
 // toward no session, are passed over on a day it made no other request. Of
 // those, it reads the days Spanning gives of the spans given alone, every
-// one where none is given.
+// one where none is given: each whose plain file is its only one back from
+// that file's end, only as far as the day's stop, as stopping gives it, as
+// readSessionBack reads it; the rest forward, whole. So it gives every line
+// of the session that arrived within the spans, and perhaps some that
+// arrived before them: but none filed before stopRun lines in a row filed
+// out of the ledger's order, as by a clock stepped back.
 func (f *Follower) Session(id string, within ...Span) iter.Seq[Held] {
 	return func(yield func(Held) bool) {
 		now := f.now()
@@ -822,11 +828,11 @@ func (f *Follower) Session(id string, within ...Span) iter.Seq[Held] {
 		f.mu.Lock()
 		dates := f.linesDates(now)
 		f.mu.Unlock()
-		wanted, spanned := map[string]bool{id: true}, Spanning(within)
+		wanted, stopOf := map[string]bool{id: true}, stopping(within)
 		for _, date := range slices.Backward(dates) {
 			start, end, _ := dayfile.Day(date)
-			if spanned(date) && (start.After(now) || f.namesLocked(date, wanted)) {
-				unread += f.readSession(date, id, now, &lines)
+			if stop, spanned := stopOf(date); spanned && (start.After(now) || f.namesLocked(date, wanted)) {
+				unread += f.readSession(date, id, now, stop, &lines)
 			}
 			// No earlier day's file holds a line of a later day than this one.
 			if !lines.handOn(end) {
@@ -847,16 +853,39 @@ type Span struct {
 // dayfile.Dates has it of each, between the bounds dayfile.DatesBounds
 // gives: of every day where none is given.
 func Spanning(spans []Span) func(date string) bool {
-	if len(spans) == 0 {
-		return func(string) bool { return true }
+	stopOf := stopping(spans)
+	return func(date string) bool {
+		_, spanned := stopOf(date)
+		return spanned
 	}
-	type dates struct{ first, last string }
-	spanned := make([]dates, len(spans))
+}
+
+// stopping returns what gives the stop of the local day with the given date
+// within the spans given, as Session reads a day back to: the earliest From
+// of those whose dates, as dayfile.DatesBounds bounds them, take it in;
+// reporting false of a day none takes in. Where none is given, it reports
+// every day, its stop the zero time, as a span from the zero time gives it,
+// so the day is read forward, whole.
+func stopping(spans []Span) func(date string) (stop time.Time, spanned bool) {
+	if len(spans) == 0 {
+		return func(string) (time.Time, bool) { return time.Time{}, true }
+	}
+	type dated struct {
+		first, last string
+		from        time.Time
+	}
+	spanned := make([]dated, len(spans))
 	for i, s := range spans {
 		spanned[i].first, spanned[i].last = dayfile.DatesBounds(s.From, s.To)
+		spanned[i].from = s.From
 	}
-	return func(date string) bool {
-		return slices.ContainsFunc(spanned, func(d dates) bool { return d.first <= date && date <= d.last })
+	return func(date string) (stop time.Time, ok bool) {
+		for _, d := range spanned {
+			if d.first <= date && date <= d.last && (!ok || d.from.Before(stop)) {
+				stop, ok = d.from, true
+			}
+		}
+		return stop, ok
 	}
 }
 
@@ -920,20 +949,70 @@ func namingAmong(wanted map[string]bool, ids []string, every bool) map[string]bo
 
 // readSession holds in lines those of the local day with the given date
 // that are of the session with the given id, and arrived by now, as ReadDay
-// reads them, and returns how many lines of the day couldn't be read: none
-// of a day pruned, and those of the files that could be read of one whose
-// other can't be, which is warned of.
-func (f *Follower) readSession(date, id string, now time.Time, lines *newestFirst) (unread int) {
-	_, unread, err := dayfile.ReadDay(f.days.files, date, sessionHeldIn(id), func(h Held) bool {
-		if h.Session == id && !h.At.After(now) {
-			lines.hold(h, date)
-		}
-		return true
-	})
+// reads them, and returns how many lines of the day it read couldn't be:
+// none of a day pruned, and those of the files that could be read of one
+// whose other can't be, which is warned of. It reads the day back from the
+// end of its plain file, as far as stop says, as readSessionBack reads it;
+// else, where stop is the zero time, or the day can't be read back, every
+// line, forward.
+func (f *Follower) readSession(date, id string, now, stop time.Time, lines *newestFirst) (unread int) {
+	read, unread, back, err := f.readSessionBack(date, id, now, stop)
+	if back {
+		lines.hold(date, read...)
+	} else {
+		_, unread, err = dayfile.ReadDay(f.days.files, date, sessionHeldIn(id), func(h Held) bool {
+			if ofSession(&h, id, now) {
+				lines.hold(date, h)
+			}
+			return true
+		})
+	}
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		f.days.logger.Warn("can't read the request ledger", "day", date, "error", err)
 	}
 	return unread
+}
+
+// stopRun is how many lines in a row, each of a request that ended before
+// the stop, a read of a session back from a day's end reads before it stops.
+// The ledger files each line as its request ends, so a line of a request
+// that arrived from the stop on lies after any such run, but where as many in
+// a row are filed out of that order, as by a clock stepped back, or a hand:
+// one filed before them goes unread.
+const stopRun = 1000
+
+// readSessionBack returns those lines of the local day with the given date
+// that are of the session with the given id, and arrived by now, in the
+// order ReadDay reads them, read back from the end of the day's plain file,
+// as dayfile.ReadBack reads it, until it has read stopRun lines in a row,
+// each of a request that ended before stop, as peeked has it, or the file's
+// start; and how many of the lines it read couldn't be. It fails as ReadDay
+// does. It reports false, reading none, where stop is the zero time, or the
+// day can't be read back, as ReadBack says.
+func (f *Follower) readSessionBack(date, id string, now, stop time.Time) (read []Held, unread int, back bool, err error) {
+	if stop.IsZero() {
+		return nil, 0, false, nil
+	}
+	run := 0
+	_, unread, back, err = dayfile.ReadBack(f.days.files, date, sessionPeekedIn(id), func(p peeked) bool {
+		if ofSession(&p.Held, id, now) {
+			read = append(read, p.Held)
+		}
+		if p.endedBefore(stop) {
+			run++
+		} else {
+			run = 0
+		}
+		return run < stopRun
+	})
+	slices.Reverse(read)
+	return read, unread, back, err
+}
+
+// ofSession reports whether h is a line of the session with the given id
+// that arrived by now.
+func ofSession(h *Held, id string, now time.Time) bool {
+	return h.Session == id && !h.At.After(now)
 }
 
 // sessionHeldIn returns what reads a line of the ledger as the line it
@@ -953,6 +1032,51 @@ func sessionHeldIn(id string) func(data []byte) (Held, bool) {
 	}
 }
 
+// peeked is a line of the ledger as a read of a session back from a day's
+// end peeks at it: the line, as sessionHeldIn reads it; and when its request
+// ended, where when it arrived and the time it took read, as timed says.
+type peeked struct {
+	Held
+	end   time.Time
+	timed bool
+}
+
+// endedBefore reports whether p's request ended before stop: never where
+// when it ended can't be told.
+func (p peeked) endedBefore(stop time.Time) bool {
+	return p.timed && p.end.Before(stop)
+}
+
+// sessionPeekedIn returns what reads a line of the ledger as sessionHeldIn
+// reads it, reporting false for the same lines, and peeks at when its
+// request ended, whosever it is: when it arrived, or that and the time it
+// took where that's later, so a time taken below none never has it end
+// before it arrived. A line of another session than the one with the given
+// id is read for that alone, without being read whole.
+func sessionPeekedIn(id string) func(data []byte) (peeked, bool) {
+	held := sessionHeldIn(id)
+	return func(data []byte) (peeked, bool) {
+		var of struct {
+			At      time.Time `json:"at"`
+			TotalMS int64     `json:"total_ms"`
+			Session string    `json:"session"`
+		}
+		if json.Unmarshal(data, &of) != nil {
+			// Its arrival or time taken won't read, or it won't read at all:
+			// read as sessionHeldIn reads it, untimed.
+			h, ok := held(data)
+			return peeked{Held: h}, ok
+		}
+		p := peeked{end: of.At.Add(time.Duration(max(of.TotalMS, 0)) * time.Millisecond), timed: true}
+		if of.Session != id {
+			return p, true
+		}
+		var ok bool
+		p.Held, ok = heldIn(data)
+		return p, ok
+	}
+}
+
 // newestFirst hands take, newest first, as Session orders them, the lines
 // held, each once no line read after it can come before it. held counts
 // every line held, its place among them.
@@ -962,11 +1086,13 @@ type newestFirst struct {
 	held  int
 }
 
-// hold holds h, a line of the day's file with the given date, after those
-// held before.
-func (n *newestFirst) hold(h Held, date string) {
-	n.lines = append(n.lines, &placed{Held: h, date: date, place: n.held})
-	n.held++
+// hold holds read, lines of the day's file with the given date, in the
+// order they're given, as ReadDay reads them, after those held before.
+func (n *newestFirst) hold(date string, read ...Held) {
+	for _, h := range read {
+		n.lines = append(n.lines, &placed{Held: h, date: date, place: n.held})
+		n.held++
+	}
 }
 
 // handOn hands take, newest first, those held that arrived from until on,
