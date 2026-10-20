@@ -286,6 +286,27 @@ func (g *logGuard) judged(was Model) {
 // and none of the readers holding what they decode once, as heldRaw has it.
 func sameLogAsOneRead(t *testing.T, m Model, l views.Ledger, now time.Time) {
 	t.Helper()
+	sameLogThrough(t, m, l, m.log.page.Filter, now)
+}
+
+// servedAsOneRead judges the Log's Requests of the model m at now as
+// sameLogAsOneRead does, through the filter their lines are tabled through,
+// whatever the page's: a filter every day the Log's read holds serves, so
+// no table is drawn through one its days don't.
+func servedAsOneRead(t *testing.T, m Model, l views.Ledger, now time.Time) {
+	t.Helper()
+	tabled := m.log.lines.Filter()
+	if !m.log.read.Serves(tabled) {
+		t.Errorf("at %s the Log's Requests are tabled through %+v, which the days its read holds don't all serve, its days unserved %v", now.Format(time.DateTime),
+			tabled, m.log.read.Unserved(tabled))
+	}
+	sameLogThrough(t, m, l, tabled, now)
+}
+
+// sameLogThrough judges the Log's Requests of the model m at now as
+// sameLogAsOneRead does, through the filter given.
+func sameLogThrough(t *testing.T, m Model, l views.Ledger, filter views.LogFilter, now time.Time) {
+	t.Helper()
 	heldRaw(t, m, now)
 	if held := daysHeld(m.log, m.log.from.Date); len(held) > 0 {
 		t.Errorf("at %s the Log, spanning from %s, still reaches %v", now.Format(time.DateTime), m.log.from.Date, held)
@@ -295,7 +316,7 @@ func sameLogAsOneRead(t *testing.T, m Model, l views.Ledger, now time.Time) {
 	for day := views.Today(now); !day.Start.Before(m.log.from.Start); day = views.Today(day.Start.Add(-time.Hour)) {
 		read = read.Took(l, l.Day(day.Date), true, stream, now)
 	}
-	src := m.logSources(m.log.page.Filter, now)
+	src := m.logSources(filter, now)
 	tabled := m.log.lines.Rows(src)
 	src.Read = read.Read
 	today := views.Today(now).Date

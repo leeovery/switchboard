@@ -60,8 +60,14 @@ func onTheLog(h *harness, state string) *daysCounted {
 // shownRequests are the ids of the requests the Log's Requests show, the
 // oldest first.
 func shownRequests(h *harness) []string {
+	return shownRequestsOf(h.model)
+}
+
+// shownRequestsOf are the ids of the requests the Log's Requests of m show,
+// the oldest first.
+func shownRequestsOf(m Model) []string {
 	var ids []string
-	for _, l := range h.model.log.page.Requests.All() {
+	for _, l := range m.log.page.Requests.All() {
 		if l.IsRow() {
 			ids = append(ids, l.Row.Request)
 		}

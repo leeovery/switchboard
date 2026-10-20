@@ -241,13 +241,15 @@ func (m Model) reaching() bool {
 
 // landed is m with the table shown paused at the newest line of the session
 // the find picked, chosen, as ↑ pauses it from following, once the tables
-// reach its day, no read for them under way; or with it let go, the filter
-// no longer keeping it alone.
+// reach its day, no read for them under way, and every day the Log's read
+// holds serves the filter it serves, as served has it, so the table is
+// built through it; or with it let go, the filter no longer keeping it
+// alone.
 func (m Model) landed() Model {
 	switch {
 	case m.landingOn() == nil:
 		m.log.find.landing = nil
-	case !m.reaching() && !m.log.reading:
+	case !m.reaching() && !m.log.reading && m.log.served():
 		m.log.page = m.log.page.Chose(-1, m.logRows())
 		m.log.find.landing = nil
 	}
