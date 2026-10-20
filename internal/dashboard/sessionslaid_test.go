@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"fmt"
+	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -142,6 +143,53 @@ func TestUnder100ColumnsTheSwitchboardDrawsLanes(t *testing.T) {
 			t.Errorf("at %d, the Switchboard draws cords, want lanes", width)
 		}
 	}
+}
+
+// The Switchboard's columns at every width from 100 to 399 are as they were
+// before flex laid them, one line a width in testdata/switchboard-columns.txt,
+// written once from the hand-rolled narrowing flex replaced.
+func TestEveryWidthFrom100To399LaysTheSwitchboardsColumnsAsBefore(t *testing.T) {
+	data, err := os.ReadFile("testdata/switchboard-columns.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := strings.Split(strings.TrimSuffix(string(data), "\n"), "\n")
+	if len(want) != 300 {
+		t.Fatalf("the file holds %d widths, want 300, from 100 to 399", len(want))
+	}
+	for i, line := range want {
+		width := 100 + i
+		k, fits := boardColumnsOf(width)
+		if got := boardColumnsLine(width, k); got != line || !fits {
+			t.Errorf("at %d, fits %t:\n got %s\nwant %s", width, fits, got, line)
+		}
+	}
+}
+
+// Under 100 columns the Switchboard's parts don't fit, each narrowed or
+// given way as far as it goes, as before flex laid them. The bends' room,
+// and the jacks and lines after it, aren't held: no cord is drawn there.
+func TestUnder100ColumnsTheSwitchboardsPartsDontFit(t *testing.T) {
+	for _, width := range []int{99, 90, 80, 73, 52} {
+		k, fits := boardColumnsOf(width)
+		k.room, k.jacks, k.lines = 0, 0, 0
+		want := boardColumns{
+			dir: 6, doing: 12, from: 25, account: 6, fromShort: true,
+			plug: 35, bar: 8, words: 14, shortWords: true,
+		}
+		if fits || k != want {
+			t.Errorf("at %d, fits %t with %+v, want they don't, with %+v", width, fits, k, want)
+		}
+	}
+}
+
+// boardColumnsLine is the Switchboard's columns at width as
+// testdata/switchboard-columns.txt writes them, a line a width: each part's
+// cells, whether ▸ and the words are short, then the columns they sit at.
+func boardColumnsLine(width int, k boardColumns) string {
+	form := map[bool]string{false: "long", true: "short"}
+	return fmt.Sprintf("%3d  dir %2d  account %d  ▸ %-5s  bar %2d  words %2d %-5s  room %3d  |  id %d  doing %2d  ▸ %2d  plug %2d  jacks %3d  lines %3d",
+		width, k.dir, k.account, form[k.fromShort], k.bar, k.words, form[k.shortWords], k.room, k.id, k.doing, k.from, k.plug, k.jacks, k.lines)
 }
 
 // bentOn is a board of n sessions on the second of two accounts, each its

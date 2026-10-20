@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"slices"
 
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -65,70 +66,85 @@ type boardColumns struct {
 	shortWords        bool
 }
 
-// boardColumnsOf are the Switchboard's columns at width, as the narrowing
-// table has them: at their widest, the bends' room taking what's left; and
-// where that leaves it short of leastRoom, each part in turn giving way, as
-// narrowing has them, until it has its leastRoom, or no part has more to
-// give, as under 100 columns, which draws lanes.
-func boardColumnsOf(width int) boardColumns {
-	k := boardColumns{dir: callDir, account: fromAccount, bar: lineBar, words: lineWords}
-	k.room = width - k.fixed()
-	for _, give := range narrowing {
-		if k.room >= leastRoom {
-			break
-		}
-		give(&k, leastRoom-k.room)
-		k.room = width - k.fixed()
-	}
-	return k.placed()
+// The turns the Switchboard's parts give way in as it narrows, in the order
+// the design's narrowing table has them: the lines' bars to leastWideBar, the
+// calls' directory to leastDir, ▸'s from dropped, the lines' words in usage's
+// short form, the lines' bars to leastBar, and the account after ▸ to
+// leastAccount.
+const (
+	barsToLeastWide = iota + 1
+	dirToLeast
+	fromDropped
+	wordsShortened
+	barsToLeast
+	accountToLeast
+)
+
+// The Switchboard's parts across a frame, in boardParts' order.
+const (
+	boardID = iota
+	boardDir
+	boardDoing
+	boardFrom
+	boardAccount
+	boardRoom
+	boardToJacks
+	boardBeside
+	boardBarsPast
+	boardBars
+	boardWords
+)
+
+// boardParts are the Switchboard's parts across a frame, as flex lays them:
+// a call's id, its directory a cell on, what it's doing a cell on, ▸ and its
+// from, and the account it came from; the bends' room, plugGap cells on,
+// which takes what's left; the bendFromJacks cells to the jacks; and the
+// lines, lineGap cells on: their label, percentage and gaps, their bars,
+// those past leastWideBar and those up to it each narrowing in a turn of its
+// own, and their words.
+//
+// A part that keeps its cells sets its least and natural alike, as flex holds
+// a part that narrows freely at its least while the turns are taken. The
+// lines' parts aren't in the screen's order: boardBeside, their label,
+// percentage and gaps together, comes before the bars it sits among.
+var boardParts = []flex.Part{
+	boardID:       {Least: callID, Natural: callID},
+	boardDir:      {Least: leastDir, Natural: callDir, Narrows: dirToLeast, Gap: 1},
+	boardDoing:    {Least: callDoing, Natural: callDoing, Gap: 1},
+	boardFrom:     {Least: fromLong, Natural: fromLong, Leaves: fromDropped, Kept: fromShort},
+	boardAccount:  {Least: leastAccount, Natural: fromAccount, Narrows: accountToLeast},
+	boardRoom:     {Least: leastRoom, Natural: leastRoom, Grows: true, Gap: plugGap},
+	boardToJacks:  {Least: bendFromJacks, Natural: bendFromJacks},
+	boardBeside:   {Least: lineBeside, Natural: lineBeside, Gap: lineGap},
+	boardBarsPast: {Natural: lineBar - leastWideBar, Narrows: barsToLeastWide},
+	boardBars:     {Least: leastBar, Natural: leastWideBar, Narrows: barsToLeast},
+	boardWords:    {Least: lineWords, Natural: lineWords, Leaves: wordsShortened, Kept: lineShortWords},
 }
 
-// narrowing are the parts that give way as the Switchboard narrows, in the
-// order the design's table has them, each given the cells the bends' room
-// lacks: the lines' bars to leastWideBar, a cell for each column lost; the
-// calls' directory to leastDir; ▸'s from dropped, freeing its cells at once;
-// the lines' words in usage's short form, freeing theirs at once; the lines'
-// bars to leastBar; and the account after ▸ to leastAccount. What a part
-// frees at once beyond what's lacking goes to the bends' room, which gives it
-// back a column at a time, as each next part waits till it falls short again.
-var narrowing = []func(k *boardColumns, lacking int){
-	func(k *boardColumns, lacking int) { k.bar = narrowed(k.bar, leastWideBar, lacking) },
-	func(k *boardColumns, lacking int) { k.dir = narrowed(k.dir, leastDir, lacking) },
-	func(k *boardColumns, _ int) { k.fromShort = true },
-	func(k *boardColumns, _ int) { k.shortWords, k.words = true, lineShortWords },
-	func(k *boardColumns, lacking int) { k.bar = narrowed(k.bar, leastBar, lacking) },
-	func(k *boardColumns, lacking int) { k.account = narrowed(k.account, leastAccount, lacking) },
-}
-
-// narrowed is cells less what's lacking, but no fewer than least.
-func narrowed(cells, least, lacking int) int {
-	return max(cells-lacking, least)
-}
-
-// fixed are the columns every part but the bends' room takes: the calls to
-// their plugs, the jacks' bendFromJacks, the gap to the lines, and the lines.
-func (k boardColumns) fixed() int {
-	return k.plugAt() + bendFromJacks + lineGap + lineBeside + k.bar + k.words
-}
-
-// plugAt is the plugs' column: after the id, its directory, what it's doing
-// and where it came from, plugGap cells on.
-func (k boardColumns) plugAt() int {
-	from := fromLong
-	if k.fromShort {
-		from = fromShort
-	}
-	return callID + 1 + k.dir + 1 + callDoing + from + k.account + plugGap
-}
-
-// placed is k with its parts' columns worked out from their cells.
-func (k boardColumns) placed() boardColumns {
-	k.doing = callID + 1 + k.dir + 1
-	k.from = k.doing + callDoing
-	k.plug = k.plugAt()
-	k.jacks = k.plug + k.room + bendFromJacks
-	k.lines = k.jacks + lineGap
-	return k
+// boardColumnsOf are the Switchboard's columns at width, its parts laid as
+// boardParts declares them, and whether they fit: under 100 columns they
+// don't. Three columns are read off a neighbour's span, not their own: the
+// plugs' column is where the bends' room starts, the jacks' where the stretch
+// to them ends, and the lines' where their label starts. Where the parts
+// don't fit, the columns past the bends' room lie as the turns left them;
+// nothing reads them, as the Switchboard draws lanes there.
+func boardColumnsOf(width int) (boardColumns, bool) {
+	s, fits := flex.Lay(width, boardParts...)
+	return boardColumns{
+		id:         s[boardID].At,
+		dir:        s[boardDir].Size,
+		doing:      s[boardDoing].At,
+		from:       s[boardFrom].At,
+		account:    s[boardAccount].Size,
+		fromShort:  s[boardFrom].Left,
+		plug:       s[boardRoom].At,
+		room:       s[boardRoom].Size,
+		jacks:      s[boardToJacks].At + s[boardToJacks].Size,
+		lines:      s[boardBeside].At,
+		bar:        s[boardBarsPast].Size + s[boardBars].Size,
+		words:      s[boardWords].Size,
+		shortWords: s[boardWords].Left,
+	}, fits
 }
 
 // firstBend is the column the first bent cord turns down at: the bends'
@@ -230,11 +246,11 @@ const compactedStep = 5
 // cords turn down in the order of their jacks' rows, then their calls', the
 // first at the bends' room's last column, each next bendsApart further left,
 // or 2, or 1, where the room holds them no further apart. It draws lanes in
-// place of cords where no part has more to give, as under 100 columns, and
+// place of cords where its parts don't fit, as under 100 columns, and
 // wherever the bent cords outnumber the bends' room's columns.
 func sessionsLaid(width, rows int, patched views.Patched, lines boardLines) boardLayout {
-	k := boardColumnsOf(width)
-	l := boardLayout{columns: k, lanes: k.room < leastRoom, keyAt: -1}
+	k, fits := boardColumnsOf(width)
+	l := boardLayout{columns: k, lanes: !fits, keyAt: -1}
 	for l.step = 1; l.step < compactedStep; l.step++ {
 		l.layLines(patched, lines)
 		if l.rows+boardKeyGap+boardKeyRows <= rows {
