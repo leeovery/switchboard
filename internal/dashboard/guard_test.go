@@ -148,9 +148,10 @@ var sizedAllowed = []string{
 }
 
 // cutAllowed are the functions of drawingPackages allowed to cut a name to a
-// constant width all the same, named as chrome names them, each under the
-// slice of the fluid pass that gives it its width from flex. The list only
-// shrinks: an entry must still be there, and still give one.
+// constant width all the same, named as chrome names them, or the file, where
+// a cutter is a value outside any function, each under the slice of the
+// fluid pass that gives it its width from flex. The list only shrinks: an
+// entry must still be there, and still give one.
 var cutAllowed = []string{
 	// S5: the lanes' calls, their columns laneCall's, and the Switchboard's
 	// lines' window labels.
@@ -159,36 +160,81 @@ var cutAllowed = []string{
 	// S6: the Log's sessions' directories and accounts.
 	"internal/dashboard/logpage.go:sessionNamed",
 	"internal/dashboard/logtable.go:sessionCell",
+	// S7: the List's routing column, its words a value of a package-level
+	// column.
+	"internal/dashboard/sessionslist.go",
 	// S11: SESSIONS' model families.
 	"internal/dashboard/overview_sessions.go:Frame.wideRunning",
 	// S15: Compare's BY MODEL names.
 	"internal/dashboard/accountscompare.go:compared.byModel",
-	// S16: the stacked Detail's window names.
+	// S16: the stacked Detail's window names and its LATELY's words.
 	"internal/dashboard/accountsphone.go:stacked.usage",
-	// S17: Detail's window names and its sessions' model families.
+	"internal/dashboard/accountsphone.go:stacked.whole",
+	// S17: Detail's window names, its sessions' model families and how many
+	// more, and its LATELY's words.
 	"internal/dashboard/accountsdetail.go:detailDrawn.usage",
 	"internal/dashboard/accountsdetail.go:detailDrawn.session",
+	"internal/dashboard/accountsdetail.go:detailDrawn.sessions",
+	"internal/dashboard/accountsdetail.go:detailDrawn.panel",
+	// S19: Days' weeks' heads, and its strips' names, a cutter as a value.
+	"internal/dashboard/historydays.go:Frame.daysWeeks",
+	"internal/dashboard/historydays.go:Frame.daysStrips",
 	// S22: a session's page, its accounts' stays and the account it's on.
 	"internal/dashboard/sessionpage.go:sessionDrawn.account",
 	"internal/dashboard/sessionpage.go:sessionDrawn.phoneOn",
-	// S25: the routing card's choices, and the Log's panel's sessions, a
-	// card's of a kind, opened over the page.
+	// S25: the routing card's choices, the Log's panel's sessions and a
+	// card's items' names, cards of a kind, opened over the page.
 	"internal/dashboard/routingcard.go:RoutingCard.choice",
 	"internal/dashboard/logpanel.go:LogPanel.sessionWords",
+	"internal/dashboard/logcard.go:cardItem.row",
 }
 
 // What breaks the rules: the phone's breakpoint, each by its package's name
 // under the module's internal directory, then its type's, where it's a
-// method, then its own; the cutters of names, each by its full name, its
-// package's path under the module's, or of a package of another module, by
-// its path in full, each its width the argument at index 1; and what a width
+// method, then its own; what cuts a name or a line to the cells it's given,
+// line.go's entry points among them, as it owns every cut; and what a width
 // or height is called, as a variable or a field.
 var (
-	breakpoints  = []string{"dashboard.Phone", "dashboard.Frame.phone"}
-	cutters      = []string{"/internal/status.DirName", "/internal/prose.Cut", "/internal/prose.CutShort", "/internal/prose.CutFront"}
-	otherCutters = []string{"github.com/charmbracelet/x/ansi.Truncate"}
-	sizeNames    = []string{"Width", "Height", "width", "height", "room", "rows", "cols"}
+	breakpoints = []string{"dashboard.Phone", "dashboard.Frame.phone"}
+	cutters     = []cutter{
+		{pkg: "/internal/status", name: "DirName", width: 1},
+		{pkg: "/internal/prose", name: "Cut", width: 1},
+		{pkg: "/internal/prose", name: "CutShort", width: 1},
+		{pkg: "/internal/prose", name: "CutFront", width: 1},
+		{pkg: "github.com/charmbracelet/x/ansi", name: "Truncate", width: 1},
+		{pkg: "/internal/dashboard", recv: "line", name: "fit"},
+		{pkg: "/internal/dashboard", recv: "line", name: "fitWhole"},
+		{pkg: "/internal/dashboard", recv: "line", name: "fitItems"},
+		{pkg: "/internal/dashboard", recv: "line", name: "wrap"},
+		{pkg: "/internal/dashboard", name: "firstFit"},
+		{pkg: "/internal/dashboard", name: "fitParts"},
+		{pkg: "/internal/dashboard", name: "wrapParts"},
+		{pkg: "/internal/dashboard", name: "spread", width: 2},
+	}
+	sizeNames = []string{"Width", "Height", "width", "height", "room", "rows", "cols"}
 )
+
+// cutter is a function or method that cuts what it's given to a width: by
+// its package's path, under the module's where it starts with a slash, or in
+// full; its receiver's type, where it's a method; its name; and the index of
+// the argument that's its width.
+type cutter struct {
+	pkg, recv, name string
+	width           int
+}
+
+// fullName is the cutter's name as the type checker gives it, in the module
+// named.
+func (c cutter) fullName(module string) string {
+	pkg := c.pkg
+	if strings.HasPrefix(pkg, "/") {
+		pkg = module + pkg
+	}
+	if c.recv != "" {
+		return "(" + pkg + "." + c.recv + ")." + c.name
+	}
+	return pkg + "." + c.name
+}
 
 // whole is the one constant width a name may be given: the most there is, so
 // it's cut to none, as a name is measured whole.
@@ -318,16 +364,18 @@ func cutBreaches(l *sourcecheck.Loader, module string, dirs, allowed []string) [
 	}
 	w := widthsOf(files)
 	given := make(map[string][]widthAt)
-	for _, cutter := range cutters {
-		given[module+cutter] = []widthAt{{arg: 1}}
-	}
-	for _, cutter := range otherCutters {
-		given[cutter] = []widthAt{{arg: 1}}
+	// A cutter that's a method, as a line's, or a wrapper is judged only where
+	// the type checker sees the call: a fit of what the loader stubs isn't a
+	// line's.
+	function := make(map[string]bool)
+	for _, c := range cutters {
+		name := c.fullName(module)
+		given[name] = []widthAt{{arg: c.width}}
+		function[name] = c.recv == ""
 	}
 	calls := make(map[string]sourcecheck.CallBan)
 	for name, at := range w.wrapped(files, given) {
-		_, base := given[name]
-		calls[name] = sourcecheck.CallBan{Says: cutSays(name), Breaks: w.constantWidth(at), Seen: !base}
+		calls[name] = sourcecheck.CallBan{Says: cutSays(name), Breaks: w.constantWidth(at), Seen: !function[name]}
 	}
 	return l.Check(sourcecheck.Rule{Names: sourcecheck.NamesIn(module), Calls: calls}, dirs, sourcecheck.Allowance{
 		Entries: allowed, List: "cutAllowed", Fix: cutAllowedFix,
@@ -379,6 +427,11 @@ func TestTheFlexGuardFindsWhatItGuardsAgainst(t *testing.T) {
 		"internal/dashboard/columns.go:32: " + cutSays(module+"/internal/dashboard.label"),
 		"internal/dashboard/columns.go:33: " + cutSays("("+module+"/internal/dashboard.columns).name"),
 		"internal/dashboard/columns.go:34: " + cutSays(module+"/internal/prose.Cut"),
+		"internal/dashboard/line.go:17: " + cutSays("("+module+"/internal/dashboard.line).fit"),
+		"internal/dashboard/line.go:19: " + cutSays("("+module+"/internal/dashboard.line).fit"),
+		"internal/dashboard/line.go:21: " + cutSays(module+"/internal/dashboard.firstFit"),
+		"internal/dashboard/line.go:23: " + cutSays(module+"/internal/dashboard.spread"),
+		"internal/dashboard/line.go:25: " + cutSays(module+"/internal/dashboard.fitted"),
 		"internal/dashboard/names.go:26: " + cutSays(module+"/internal/prose.Cut"),
 		"internal/dashboard/names.go:27: " + cutSays(module+"/internal/prose.Cut"),
 		"internal/dashboard/names.go:28: " + cutSays(module+"/internal/status.DirName"),
@@ -416,10 +469,13 @@ func TestTheFlexGuardFindsWhatItGuardsAgainst(t *testing.T) {
 // literal within it, and to one of a package the loader stubs, beside widths
 // known only at run time, one of them through what the loader stubs, the
 // most there is, locals and literals written after, by assignment, address
-// and a method taking a pointer, one first given a variable, a constant two steps back, and a function allowed; cutters that
-// hand their width on, a parameter or its field, called with constants,
-// beside one that changes it first; and the watch, which chooses by the
-// breakpoint too.
+// and a method taking a pointer, one first given a variable, a constant two
+// steps back, and a function allowed; cutters that hand their width on, a
+// parameter or its field, called with constants, beside one that changes it
+// first; line.go's cutters, a method and functions with their widths first
+// and last, given constants and run-time widths, one as a value, one wrapped,
+// beside a method of the same name on what the loader stubs; and the watch,
+// which chooses by the breakpoint too.
 var flexFixture = map[string]string{
 	"go.mod": "module example.com/fixture\n",
 	"internal/prose/prose.go": `package prose
@@ -614,6 +670,36 @@ func (c columns) name(name string, cells int) string { return prose.Cut(name, ce
 func changed(name string, cells int) string {
 	cells--
 	return prose.Cut(name, cells)
+}
+`,
+	"internal/dashboard/line.go": `package dashboard
+
+import "example.org/cells"
+
+type line []string
+
+func (l line) fit(width int) line { return l }
+
+func firstFit(width int, forms ...line) line { return forms[0].fit(width) }
+
+func spread(left, right line, width int) line { return left.fit(width - len(right)) }
+
+func fitted(l line, cells int) line { return l.fit(cells) }
+
+func lines(name string, room int) []line {
+	l := line{name}
+	cut := l.fit
+	return []line{
+		l.fit(labelCells),
+		l.fit(room),
+		firstFit(labelCells, l),
+		firstFit(room, l),
+		spread(l, l, labelCells),
+		spread(l, l, room),
+		fitted(l, 4),
+		cut(room),
+		cells.Of(name).fit(labelCells),
+	}
 }
 `,
 	"internal/dashboard/watch/watch.go": `package watch
