@@ -32,7 +32,7 @@ Phase 2 raised it, with 30 days kept, to some 140 MB and about 1 s, as each sess
 in every account's answers of the day.
 
 Phase 3b's head and rows lift it some 145 MB a day built, for 1 to 1.5 s. After the upgrade that
-brings them in, every day kept is built again, up to 400 in the backfill, one at a time, so the
+brings them in, every day kept is built again, 400 by default, one at a time, so the
 peak comes once a day built, never all at once, but for as long as the backfill runs.
 
 ## A long page read whole in the router

@@ -534,8 +534,8 @@ func (g *storeGuard) holds(now time.Time) {
 // rawHeld are what v holds, by any path, that the readers keep decoded once
 // in its place, each by its type: a line's raw JSON, its usage among it; a
 // map of a line's limits, but a page's tally's map of its agents' prompts,
-// of the same type; and a line itself, but for the open turn's, as its page
-// holds them, read as it opened.
+// of the same type; and a line itself, but for the open turn's records, as
+// its page holds them, read as it opened.
 func rawHeld(v any) []string {
 	var held []string
 	prompts := make(map[uintptr]bool)
