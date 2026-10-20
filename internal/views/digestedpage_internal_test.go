@@ -1,10 +1,12 @@
 package views
 
 import (
+	"encoding/json"
 	"fmt"
 	"math/rand/v2"
 	"reflect"
 	"slices"
+	"strconv"
 	"testing"
 	"time"
 
@@ -368,5 +370,114 @@ func TestAPageHeldAcrossFeedsOverDigestsIsThePageHeldRaw(t *testing.T) {
 	}
 	if _, built := n.chain.digests.handed[n.today.Date]; !built {
 		t.Errorf("%s isn't digested by %v", n.today.Date, at)
+	}
+}
+
+// givenTwiceRun is a run of two days of s's and o's on work, each page's
+// points shared with the other's: on the first, a request of o's reading no
+// window, then one of s's reading work's week; on the second, two of s's
+// reading no window, one without an id and one with, each given twice, as a
+// ledger's files may hold a line twice, the second copy of the one with an
+// id saying the tokens of foldUsages' usage given; then one of o's reading
+// the week climbed, its climb shared out by tokens among the requests that
+// ended since. o's own lines are each given once.
+func givenTwiceRun(again int) []ledger.Line {
+	reset := strconv.FormatInt(time.Date(2026, 10, 12, 10, 0, 0, 0, time.Local).Unix(), 10)
+	line := func(request, session string, at time.Time, usage int, used string) ledger.Line {
+		l := ledger.Line{
+			Request: request, At: at.UTC(), Kind: ledger.KindMessage, Session: session, Model: foldOpus, Account: "work", Reason: "sticky",
+			Status: 200, Attempts: 1, TotalMS: 3000, Class: ledger.ClassMain, Prompt: "p", Usage: json.RawMessage(foldUsages[usage]),
+		}
+		if used != "" {
+			l.Limits = map[string]string{"7d-utilization": used, "7d-reset": reset}
+		}
+		return l
+	}
+	first, second := time.Date(2026, 10, 7, 12, 0, 0, 0, time.Local), time.Date(2026, 10, 8, 12, 0, 0, 0, time.Local)
+	idless := line("", "s", second, 4, "")
+	twice := func(usage int) ledger.Line { return line("r1", "s", second.Add(10*time.Minute), usage, "") }
+	return []ledger.Line{
+		line("o0", "o", first.Add(-time.Hour), 7, ""), line("r0", "s", first, 7, "0.05"),
+		idless, idless, twice(5), twice(again), line("o1", "o", second.Add(20*time.Minute), 5, "0.95"),
+	}
+}
+
+// givenTwiceCopies are what the second copy of givenTwiceRun's line with an
+// id says, as the usage of foldUsages it's given: the first's tokens, and
+// others, which a line known by its sum alone would count apart.
+var givenTwiceCopies = []struct {
+	name  string
+	usage int
+}{
+	{name: "its copies alike", usage: 5},
+	{name: "its second copy saying other tokens", usage: 2},
+}
+
+// followerOf is a Follower of the chain's ledger, by its clock, of the given
+// version of the sessions' states: DigestVersion's rests each on its
+// digests, and another's reads every line.
+func (c *digestChain) followerOf(version int) *ledger.Follower {
+	return ledger.NewFollower(c.state, func() time.Time { return c.at }, ledger.CapsOf(nil, nil), version, quiet)
+}
+
+// A page over digests counts lines given twice as the page read raw counts
+// them, as a request is counted: one with an id once, the one request it
+// is, the first given kept, whatever the second says; one without as often
+// as given, as nothing tells it from another alike. The 90 points work's
+// week climbs on the second day are shared out by tokens among the requests
+// that ended before: s's without an id twice, its with an id once, and o's,
+// 58 of them s's and 32 o's, whose own lines are each given once. Each page
+// opened a minute before midnight on the second day, resting on the first's
+// state, the second's answers taken in on it; and at half past one the day
+// after, resting on the second's, folded on the first's: neither reading
+// the first day's lines, as a page read whole would. Of each of
+// givenTwiceCopies.
+func TestAPageOverDigestsCountsLinesGivenTwiceAsReadRaw(t *testing.T) {
+	third := dayOf(dateOn(2)).Start
+	moments := []struct {
+		name  string
+		now   time.Time
+		chain []string
+	}{
+		{name: "resting on the first day's state", now: third.Add(-time.Minute), chain: []string{dateOn(0)}},
+		{name: "resting on the second day's state", now: third.Add(90 * time.Minute), chain: []string{dateOn(0), dateOn(1)}},
+	}
+	for _, copies := range givenTwiceCopies {
+		c := newDigestChain(t, "lines given twice, "+copies.name, 0, givenTwiceRun(copies.usage))
+		for _, m := range moments {
+			c.by(m.now)
+			for id, points := range map[string]int{"s": 58, "o": 32} {
+				t.Run(fmt.Sprintf("%s, %s's page, %s", copies.name, id, m.name), func(t *testing.T) {
+					c.checkGivenTwice(t, id, m.chain, points)
+				})
+			}
+		}
+	}
+}
+
+// checkGivenTwice fails the test where the page of the session with the
+// given id, opened at the chain's clock as the watch opens it, over digests,
+// rests on other than the chain of parts given, reads the first day's lines,
+// or shows otherwise than read raw; or where it shows, read raw, other than
+// work's account alone, the given points of its week.
+func (c *digestChain) checkGivenTwice(t *testing.T, id string, chain []string, points int) {
+	t.Helper()
+	based := takingDates(c.followerOf(DigestVersion))
+	opened := func(l LedgerSessions) shown {
+		built, _ := ReadPage(l, id, Stream{}, ledger.Pricing, 0, c.at).Build(PageLive{Unlisted: true, Now: c.at})
+		return shownBy(built)
+	}
+
+	got, want := opened(based), opened(c.followerOf(DigestVersion+1))
+
+	if rested := based.parts[id]; !slices.Equal(rested, chain) || slices.Contains(based.datesRead(), dateOn(0)) {
+		t.Fatalf("over digests, the page rested on the chain of parts %v, reading the lines of %v; want it resting on %v, reading none of %s's",
+			rested, based.datesRead(), chain, dateOn(0))
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("over digests, the page shows\n%+v\nwant, as read raw\n%+v", got, want)
+	}
+	if accounts := want.page.Accounts; len(accounts) != 1 || accounts[0].Points["7d"] != points {
+		t.Errorf("read raw, the page's accounts are %+v; want work's alone, %d points of its week", accounts, points)
 	}
 }

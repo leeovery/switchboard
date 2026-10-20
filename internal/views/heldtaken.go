@@ -90,27 +90,20 @@ func (h answersHeld) count(k turnKey) int {
 }
 
 // given are the answers among given, a read of h's day, that h doesn't hold,
-// in their order, and how many of the others were sealed, both read and
-// ended before sealedTo, as the points took them in, where the read is of
-// the day whole: one of a request with an id h holds, or given before among
-// them, passed over; one without, as often as h holds it alike, as its key
-// knows it. Of a read of the day's gain, one sealed is passed over too: a
-// line is filed as its request ends, so one the gain gives that ended before
-// what was sealed, a while before the read, is one given again, as a read
-// of today afresh gives every one of its lines. It reports false where one
-// it doesn't hold was read before sealedTo but ended after, which would
+// as unheld has them, but those sealed, both read and ended before sealedTo,
+// as the points took them in, and how many of those were, where the read is
+// of the day whole. Of a read of the day's gain, one sealed is passed over
+// too: a line is filed as its request ends, so one the gain gives that ended
+// before what was sealed, a while before the read, is one given again, as a
+// read of today afresh gives every one of its lines. It reports false where
+// one it doesn't hold was read before sealedTo but ended after, which would
 // change what's sealed: the points can't place it.
 func (h answersHeld) given(given []answered, sealedTo instant, whole bool) ([]answered, int, bool) {
 	var added []answered
 	sealed := 0
-	seen := make(map[turnKey]int)
-	for i := range given {
-		a := &given[i]
-		k := a.key()
-		if seen[k] < h.count(k) || a.request != "" && seen[k] > 0 {
-			seen[k]++
-			continue
-		}
+	unheld := h.unheld(given)
+	for i := range unheld {
+		a := &unheld[i]
 		switch both, either := a.sealedBy(sealedTo); {
 		case both && whole:
 			sealed++
@@ -119,8 +112,32 @@ func (h answersHeld) given(given []answered, sealedTo instant, whole bool) ([]an
 			return nil, 0, false
 		default:
 			added = append(added, *a)
-			seen[k]++
 		}
 	}
 	return added, sealed, true
+}
+
+// unheld are the answers among given, a read of h's day, that h doesn't
+// hold, in their order: each given again against those h holds, as
+// countedOnce tells it by their keys, passed over. It's given itself,
+// shared, where it passes none over.
+func (h answersHeld) unheld(given []answered) []answered {
+	read := countedOnceOf(len(given))
+	var unheld []answered
+	copied := false
+	for i := range given {
+		a := &given[i]
+		k := a.key()
+		again := read.again(k, h.count(k))
+		switch {
+		case again && !copied:
+			unheld, copied = slices.Clone(given[:i]), true
+		case !again && copied:
+			unheld = append(unheld, *a)
+		}
+	}
+	if !copied {
+		return given
+	}
+	return unheld
 }

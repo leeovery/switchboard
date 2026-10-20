@@ -257,25 +257,18 @@ func (t *turnLines) with(lines []lineRecord) *turnLines {
 }
 
 // withHeld is t with the records given among its own, afresh, held the keys
-// of t's lines, as held counts them, which it uses up: each of a request
-// with an id once, as its key knows it; one without, as often as the records
-// given hold it beyond those t holds alike, as their sums know them, so a
-// line both read and gained is held once, and one the ledger's files hold
-// twice, twice.
+// of t's lines, as held counts them: each given again against those, as
+// countedOnce tells it by its key, as turnKeyOf has it, passed over, so a
+// line both read and gained is held once, and one without an id the
+// ledger's files hold twice, twice.
 func (t *turnLines) withHeld(lines []lineRecord, held map[turnKey]int) *turnLines {
 	grown := *t
 	grown.lines = slices.Clip(t.lines)
+	read := countedOnceOf(len(lines))
 	for i := range lines {
 		rec := &lines[i]
-		switch k := turnKeyOf(rec); {
-		case heldID(held, rec.flight):
-		case held[k] > 0:
-			held[k]--
-		default:
+		if k := turnKeyOf(rec); !read.again(k, held[k]) {
 			grown.lines = append(grown.lines, *rec)
-			if k.request != "" {
-				held[k]++
-			}
 		}
 	}
 	return &grown
@@ -292,11 +285,12 @@ func (t *turnLines) held() map[turnKey]int {
 
 // heldID reports whether held, the keys of a turn's lines, as held counts
 // them, hold the line of the request that flew as f by its id, as idKey
-// keys it: a line withHeld passes over, and TurnOf never decodes. Never of
-// one without an id, whose key holds its record's sum, as turnKeyOf has it.
+// keys it and idHeld tells it: a line withHeld passes over, and TurnOf
+// never decodes. Never of one without an id, whose key holds its record's
+// sum, as turnKeyOf has it.
 func heldID(held map[turnKey]int, f flight) bool {
-	k, ok := f.idKey()
-	return ok && held[k] > 0
+	k, _ := f.idKey()
+	return idHeld(k, held[k])
 }
 
 // turnKey is a line as a turn's lines know it from another: as its flight's
