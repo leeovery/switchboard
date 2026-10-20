@@ -89,8 +89,9 @@ const (
 // rule out, as theirs and their neighbours' name none of its lines; no
 // chunk of a day it has no line on, whose metas each rule it out, as the
 // day beside its newest has, whose rows it reads; and no day's lines raw
-// whose rows stand. Landed, its Requests are those of one read whole, as
-// sameRequestsAsOneRead has it.
+// whose rows stand. Landed, its Requests are those of one read whole, and
+// no reader holds what it decodes once, the find, closed, holding none of
+// the days' summaries, as sameLogAsOneRead has it.
 func TestTheFindsPickReadsOnlyWhatMayHoldItsSession(t *testing.T) {
 	start := soakAt(21, 0)
 	g := &pickGuard{}
@@ -137,7 +138,7 @@ func TestTheFindsPickReadsOnlyWhatMayHoldItsSession(t *testing.T) {
 	if len(g.raw) > 0 {
 		t.Errorf("the pick read the lines of %v raw, want none, every past day's rows standing", g.raw)
 	}
-	sameRequestsAsOneRead(t, m, s.follower, now)
+	sameLogAsOneRead(t, m, s.follower, now)
 }
 
 // daysRan are the dates of the days the world's nth session has a line

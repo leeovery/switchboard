@@ -104,27 +104,25 @@ func (m Model) panelFigures(p dashboard.LogPanel, now time.Time) dashboard.LogPa
 		p.Events = views.LogEvents(m.logEventSources(p.Shows, now)).Today
 		src.Events = p.Events.Sessions
 	} else {
-		p.Lines = m.todayThrough(p.Filter, now)
+		p.Lines = m.requestsThrough(p.Filter, now).Count(views.Today(now).Date)
 		src.Lines = p.Lines.Sessions
 	}
 	p.Sessions, p.Now = views.LogSessions(src), now
 	return p
 }
 
-// todayThrough is what today's lines count at now through the filter given,
-// as the Log's Requests count them: as those built count them, where it's
-// the page's, as requestsBuilt built them at now; else as today's alone,
-// tabled of what the Log holds, count them. Today is held whole, so it
-// counts alike through any filter, whatever the days before it are held
-// through.
-func (m Model) todayThrough(filter views.LogFilter, now time.Time) views.LogCount {
-	today := views.Today(now)
+// requestsThrough are the Log's Requests at now through the filter given,
+// as the panel counts today's lines of them: those built, where it's the
+// page's, as requestsBuilt built them at now; else today's alone, tabled of
+// what the Log holds. Today is held whole, so it tables alike through any
+// filter, whatever the days before it are held through.
+func (m Model) requestsThrough(filter views.LogFilter, now time.Time) views.LogTable {
 	if p := m.log.page; filter.Equal(p.Filter) {
-		return p.Requests.Count(today.Date)
+		return p.Requests
 	}
 	src := m.logSources(filter, now)
-	src.From = today.Start
-	return views.LogRows(src).Count(today.Date)
+	src.From = views.Today(now).Start
+	return views.LogRows(src)
 }
 
 // logPanel is the Log's panel, as it was built last.

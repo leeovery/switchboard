@@ -101,6 +101,41 @@ func TestTheFindWalksBackADayAtATimeWhileOpenOnceARun(t *testing.T) {
 	}
 }
 
+// The find holds the days' summaries while it's open alone: esc lets them
+// go, as enter's pick does, and a read of them landing once it has closed
+// is dropped; opened again, it reads them afresh, finding as before.
+func TestTheFindHoldsTheDaysSummariesWhileOpenAlone(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state, ranIn("0a000001", apiSession, "~/Code/api", -3*day), ranIn("0a000002", webSession, "~/Code/web", -time.Minute))
+	h := newHarness(t, probedWithoutTheRouter())
+	onTheLog(h, state)
+	h.start()
+	summaries := func() int { return len(h.model.log.find.summaries) }
+
+	reading := h.press("/")
+	h.keys(escape)
+	h.deliver(reading...)
+	if held := summaries(); held > 0 {
+		t.Errorf("closed as its read of the days' summaries was under way, the find holds %d of them once it lands, want none", held)
+	}
+	h.typed("/", "a", "p", "i")
+	if summaries() == 0 {
+		t.Fatal("open, the find holds none of the days' summaries, want them read")
+	}
+	h.keys(escape)
+	if held := summaries(); held > 0 {
+		t.Errorf("closed by esc, the find holds %d of the days' summaries, want none", held)
+	}
+	h.typed("/", "a", "p", "i")
+	if got, want := foundIDs(h), []string{apiSession + " ~/Code/api"}; !slices.Equal(got, want) {
+		t.Errorf("open again, api finds %q, want %q, the days' summaries read afresh", got, want)
+	}
+	h.keys(enter)
+	if held := summaries(); held > 0 {
+		t.Errorf("closed by enter's pick, the find holds %d of the days' summaries, want none", held)
+	}
+}
+
 // The find reads the days' summaries afresh each time it opens: a session
 // of a day that has turned since it was last open, whose summary then named
 // none, is found.

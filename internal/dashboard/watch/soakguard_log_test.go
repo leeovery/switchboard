@@ -276,25 +276,17 @@ func (g *logGuard) judged(was Model) {
 	g.unjudged = nil
 }
 
-// sameLogAsOneRead judges the Log of the model m at now as
-// sameRequestsAsOneRead does, the ledger l read whole, and none of the
-// readers holding what they decode once, as heldRaw has it.
-func sameLogAsOneRead(t *testing.T, m Model, l views.Ledger, now time.Time) {
-	t.Helper()
-	heldRaw(t, m, now)
-	sameRequestsAsOneRead(t, m, l, now)
-}
-
-// sameRequestsAsOneRead judges the Log's Requests of the model m at now, of
-// the lines it has tabled read by read, those of one read whole at now, as
+// sameLogAsOneRead judges the Log's Requests of the model m at now, of the
+// lines it has tabled read by read, those of one read whole at now, as
 // shownOf has what each shows, each row's details among it: each day's
 // lines the ledger l holds, from the day the Log spans from, read raw, the
 // store fed them whole, through the same filter, of what the stream tells,
-// whatever filter the Log's read holds each day through; and the Log
-// reaching nothing of a day before it spans from, by any path, as daysHeld
-// finds.
-func sameRequestsAsOneRead(t *testing.T, m Model, l views.Ledger, now time.Time) {
+// whatever filter the Log's read holds each day through; the Log reaching
+// nothing of a day before it spans from, by any path, as daysHeld finds;
+// and none of the readers holding what they decode once, as heldRaw has it.
+func sameLogAsOneRead(t *testing.T, m Model, l views.Ledger, now time.Time) {
 	t.Helper()
+	heldRaw(t, m, now)
 	if held := daysHeld(m.log, m.log.from.Date); len(held) > 0 {
 		t.Errorf("at %s the Log, spanning from %s, still reaches %v", now.Format(time.DateTime), m.log.from.Date, held)
 	}
