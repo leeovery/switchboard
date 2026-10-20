@@ -14,8 +14,8 @@ This page shows where to look when switchboard doesn't do what you expect, and h
   `status -r`, or press `R` on the dashboard.
 - **Not routed:** some of what Claude Code sends never reaches the router. See
   [What doesn't go through the router](how-it-works.md#what-doesnt-go-through-the-router).
-- **The ledger's digests:** the `ledger/digest-<date>.json.gz`, `ledger/parts-<date>.gz` and
-  `ledger/logday-<date>.json.gz` files are safe to delete. They're worked out from the day's lines,
+- **The ledger's digests:** the `ledger/digest-<date>.json.gz`, `ledger/parts-<date>.gz`,
+  `ledger/logday-<date>.json.gz` and `ledger/rows-<date>.gz` files are safe to delete. They're worked out from the day's lines,
   and the router writes them again on its next round, or when it next starts. Until then, the
   dashboard reads the lines instead, which is slower but shows the same.
 - **A session's page slow to open:** a damaged parts file whose size hasn't changed isn't noticed
@@ -31,6 +31,14 @@ This page shows where to look when switchboard doesn't do what you expect, and h
   midnight, just after its digest. A head damaged where its size hasn't changed is never written
   again on its own, and the find reads that day's lines at every walk: delete that day's
   `logday-<date>.json.gz`, and the router writes it again on its next round.
+- **The Log slow to go back a day, or a turn slow to open:** the Log reads each past day from its
+  rows, and a turn its own past days, all but yesterday until about an hour after midnight, which
+  read the day's lines, as today's do. A day whose rows file or head is damaged or deleted is
+  safe: that day reads its lines instead, half a second or more, never showing otherwise, until
+  the router writes both again on its next round. After the upgrade that brings rows in, the router writes them for every day kept, yesterday
+  first, as it writes heads. A rows file damaged where its size hasn't changed isn't noticed, and
+  that day reads its lines at every day back: delete that day's `rows-<date>.gz`, and the router
+  writes it again on its next round.
 - **Getting round switchboard:** to start Claude Code on its own login, run
   `switchboard run --direct`, or run the real `claude` by its path. If the switchboard binary itself
   breaks, every `claude` breaks with it, until you take switchboard's directory off `PATH`.

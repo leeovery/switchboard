@@ -1,4 +1,4 @@
-# Day digests, phases 1, 2 and 3a: what they left
+# Day digests, phases 1 to 3: what they left
 
 Phase 1 of the day digests has the router digest each finished day and the store of sessions rest
 each session on its newest standing state (see The request ledger and Live updates in the design).
@@ -7,8 +7,10 @@ off, opens the List in about 0.3 s with 9 or 30 days kept, from 1.4 s and 4.0 s.
 digest carry each session's page, and a parts file a day hold what grows, so a page rests on its
 newest state too: the long session's page opens in 0.31 s and 0.38 s, from 1.71 s and 5.63 s. Phase
 3a has a turn read only its own days and the horizon's, and the router write a head a day holding
-the day's sessions, so the Log's find reads those, not the day's lines. What they left, each a cost
-but for one edge of a session's page, gathered here.
+the day's sessions, so the Log's find reads those, not the day's lines. Phase 3b has the router
+write the day's rows beside its head, in chunks of 256, so the Log reads a day back from them, and
+a turn only the chunks naming its session. What they left, each a cost but for a few edges, gathered
+here.
 
 ## The build's peak
 
@@ -55,8 +57,8 @@ needs care.
 A day's head is built of exactly the lines `Day` gives of the day, which reads the files of the days
 either side of it too, as a change of time zone files a line under a date beside its own; and it
 decodes every line of those files whole to keep the few inside the day. So a head's build takes about
-0.6 s where the day's own file alone takes about 0.2 s, and a day back in the Log pays the same. It
-can't go wrong, as only a line's `at` says whether it's kept. The cut is to read only `at` of the
+0.6 s where the day's own file alone takes about 0.2 s, as does a day back in the Log where the
+day's rows don't stand. It can't go wrong, as only a line's `at` says whether it's kept. The cut is to read only `at` of the
 neighbours' lines, but `dayfile.Read` counts a decode that reports false as a line unread: it needs a
 skip outcome of its own, or a peek that reads `at` exactly as `lineIn` does.
 
@@ -103,3 +105,44 @@ never fed would take it in.
 - `Holding`'s count of sessions read whole counts one restored from its state too.
 - How many lines the ledger keeps of a day, by its look, is worked out twice, by the reader's look
   and the writer's, each from a count of its own; a test holds them alike. One helper could own it.
+
+## A day's rows
+
+- A chunk that doesn't read, as one damaged in a rows file as long, is dropped without a word:
+  `restoredDay` logs nothing, so its day reads raw at every day back, and a turn of it reads the
+  day raw, until it's built again for another reason, as the digesting looks at the file's size
+  alone. A debug line a day, the first time a day's chunk fails, would make it visible.
+- `RowChunk` opens the rows file once a chunk, some 98 times for a busy day read back. One open a
+  day read would trim that; the Log's paging by rows, phase 4, may reshape the read anyway.
+- A chunk's meta counts a line given twice as often as it's given, where the Log counts one with an
+  id once. Phase 4 sums a finished day's `LogCount` from the metas, so it must count as the Log
+  does first.
+- `Spend`'s and `KeptWindow`'s stored forms could decode through `json.UnmarshalerFrom`, straight
+  from a row's decoder, rather than through `UnmarshalJSON` and a copy of their bytes.
+- An idless line in a tail is summed twice, once for its key and once for its row.
+
+## A turn's read
+
+A turn a day back reads its own day from its rows, but the horizon's span, from an hour ago to now,
+reads a day either side of it, so yesterday's file is read raw for it anyway, its lines of the
+turn's day passed over. Narrowing that margin to the hour after midnight, where a change of time
+zone can file a line under yesterday, is the next saving. Phase 4's E1, today's file read back from
+its end to the horizon, removes the raw horizon read altogether.
+
+## Edges of a line given twice
+
+- An idless line given twice, whose second copy comes in a tail's gain, is counted once by a page
+  held open and twice by the same page opened afresh. It needs idless lines, which only old or
+  hand-edited ledgers hold.
+- A day head whose day after was counted at none as it was built, then given a line of the head's
+  day by a writer in another time zone, reads raw until that day's digest is written.
+
+## The guard
+
+- It never meets a standing day of more than one chunk: the spread worlds' days are small, so a
+  turn's chunk choice and a day's whole-or-nothing read over several chunks are held only by the
+  ledger's and the views' own tests.
+- It doesn't compare the Log at 23:59, where a day's rows and its tail meet.
+- It runs some 35 s with the race detector on, past the plan's 25 s. Its biggest costs are the
+  store's feed, the find and the stores' comparisons; reading the extra day only while its moments
+  are unmet would save about 1 s.
