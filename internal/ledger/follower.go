@@ -811,10 +811,11 @@ func (t *todaysLines) readAgain(d days) []*placed {
 // those, it reads the days Spanning gives of the spans given alone, every
 // one where none is given: each whose plain file is its only one back from
 // that file's end, only as far as the day's stop, as stopping gives it, as
-// readSessionBack reads it; the rest forward, whole. So it gives every line
-// of the session that arrived within the spans, and perhaps some that
-// arrived before them: but none filed before stopRun lines in a row filed
-// out of the ledger's order, as by a clock stepped back.
+// readSessionBack reads it; the rest forward, whole. So of each day it
+// reads, it gives every line of the session that arrived from the day's stop
+// on, those that arrived within the spans among them, and perhaps some that
+// arrived before it: but none filed before stopRun lines in a row filed out
+// of the ledger's order, as by a clock stepped back.
 func (f *Follower) Session(id string, within ...Span) iter.Seq[Held] {
 	return func(yield func(Held) bool) {
 		now := f.now()
