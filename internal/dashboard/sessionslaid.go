@@ -72,7 +72,7 @@ type boardColumns struct {
 // short form, the lines' bars to leastBar, and the account after ▸ to
 // leastAccount.
 const (
-	barsToWide = iota + 1
+	barsToLeastWide = iota + 1
 	dirToLeast
 	fromDropped
 	wordsShortened
@@ -88,7 +88,7 @@ const (
 	boardFrom
 	boardAccount
 	boardRoom
-	boardJacks
+	boardToJacks
 	boardBeside
 	boardBarsPast
 	boardBars
@@ -98,10 +98,15 @@ const (
 // boardParts are the Switchboard's parts across a frame, as flex lays them:
 // a call's id, its directory a cell on, what it's doing a cell on, ▸ and its
 // from, and the account it came from; the bends' room, plugGap cells on,
-// which takes what's left; the jacks' bendFromJacks; and the lines, lineGap
-// cells on: their label, percentage and gaps, their bars, those past
-// leastWideBar and those up to it each narrowing in a turn of its own, and
-// their words.
+// which takes what's left; the bendFromJacks cells to the jacks; and the
+// lines, lineGap cells on: their label, percentage and gaps, their bars,
+// those past leastWideBar and those up to it each narrowing in a turn of its
+// own, and their words.
+//
+// A part that keeps its cells sets its least and natural alike, as flex holds
+// a part that narrows freely at its least while the turns are taken. The
+// lines' parts aren't in the screen's order: boardBeside, their label,
+// percentage and gaps together, comes before the bars it sits among.
 var boardParts = []flex.Part{
 	boardID:       {Least: callID, Natural: callID},
 	boardDir:      {Least: leastDir, Natural: callDir, Narrows: dirToLeast, Gap: 1},
@@ -109,16 +114,20 @@ var boardParts = []flex.Part{
 	boardFrom:     {Least: fromLong, Natural: fromLong, Leaves: fromDropped, Kept: fromShort},
 	boardAccount:  {Least: leastAccount, Natural: fromAccount, Narrows: accountToLeast},
 	boardRoom:     {Least: leastRoom, Natural: leastRoom, Grows: true, Gap: plugGap},
-	boardJacks:    {Least: bendFromJacks, Natural: bendFromJacks},
+	boardToJacks:  {Least: bendFromJacks, Natural: bendFromJacks},
 	boardBeside:   {Least: lineBeside, Natural: lineBeside, Gap: lineGap},
-	boardBarsPast: {Natural: lineBar - leastWideBar, Narrows: barsToWide},
+	boardBarsPast: {Natural: lineBar - leastWideBar, Narrows: barsToLeastWide},
 	boardBars:     {Least: leastBar, Natural: leastWideBar, Narrows: barsToLeast},
 	boardWords:    {Least: lineWords, Natural: lineWords, Leaves: wordsShortened, Kept: lineShortWords},
 }
 
 // boardColumnsOf are the Switchboard's columns at width, its parts laid as
 // boardParts declares them, and whether they fit: under 100 columns they
-// don't.
+// don't. Three columns are read off a neighbour's span, not their own: the
+// plugs' column is where the bends' room starts, the jacks' where the stretch
+// to them ends, and the lines' where their label starts. Where the parts
+// don't fit, the columns past the bends' room lie as the turns left them;
+// nothing reads them, as the Switchboard draws lanes there.
 func boardColumnsOf(width int) (boardColumns, bool) {
 	s, fits := flex.Lay(width, boardParts...)
 	return boardColumns{
@@ -130,7 +139,7 @@ func boardColumnsOf(width int) (boardColumns, bool) {
 		fromShort:  s[boardFrom].Left,
 		plug:       s[boardRoom].At,
 		room:       s[boardRoom].Size,
-		jacks:      s[boardJacks].At + s[boardJacks].Size,
+		jacks:      s[boardToJacks].At + s[boardToJacks].Size,
 		lines:      s[boardBeside].At,
 		bar:        s[boardBarsPast].Size + s[boardBars].Size,
 		words:      s[boardWords].Size,

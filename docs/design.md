@@ -2642,8 +2642,9 @@ extra. Narrower, the bends' room gives way first, the lines keeping their 74 col
 at 145 columns; below that, it keeps 9 columns at least, and the calls and the lines' bars narrow
 instead, a cell for each column lost. A step that frees several cells at once is taken where the
 bends' room would otherwise fall below 9, and what it frees beyond that goes to the bends' room,
-which gives it back a column at a time (settled in the plan). Each is a part, declared once with the
-order it gives way in, and laid by the dashboard's one layout of parts, `flex`:
+which gives it back a column at a time (settled in the plan). The bends' room,
+the calls' parts and the lines' are each a part, declared once with the turn it gives way in, and
+laid by the dashboard's one layout of parts, `flex`:
 
 | Columns | What gives |
 |---|---|
