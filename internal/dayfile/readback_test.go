@@ -367,15 +367,24 @@ func TestReadBackReadsNothingOfADayWithACompressedFile(t *testing.T) {
 	tests := []struct {
 		name  string
 		files []dayFile
+		// locked are those of the files that can't be opened.
+		locked []dayFile
 	}{
 		{name: "alone", files: []dayFile{compressedFile(date)}},
 		{name: "beside its plain one, as after the clock was set back to it", files: []dayFile{compressedFile(date), plainFile(date)}},
+		{name: "beside its plain one, which can't be opened", files: []dayFile{compressedFile(date), plainFile(date)}, locked: []dayFile{plainFile(date)}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := requestLedger(t.TempDir())
 			for _, file := range tt.files {
 				writeDay(t, f, file, linesOf(`{"n":1}`))
+			}
+			for _, file := range tt.locked {
+				if err := os.Chmod(f.path(file), 0o000); err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { _ = os.Chmod(f.path(file), 0o600) })
 			}
 
 			got, lines, unread, ok, err := backTo(f, date, asText, math.MaxInt)
@@ -495,9 +504,9 @@ func TestAFileCutShortUnderAReadBackIsWarnedOfAndNoneOfItsLinesCutHandedOn(t *te
 	const date = "2026-09-25"
 	f := requestLedger(t.TempDir())
 	text := numbered(0, 20000)
-	// The file was as long as text as it was opened, and lost its last bytes
-	// since, as no writer leaves one.
-	cut := strings.NewReader(text[:len(text)-5])
+	// The file was as long as text as it was opened, and lost its last byte
+	// since, as no writer leaves one: the least a read can fall short by.
+	cut := strings.NewReader(text[:len(text)-1])
 
 	var got []string
 	f.readBack(plainFile(date), cut, int64(len(text)), func(line []byte) bool {
