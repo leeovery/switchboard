@@ -80,6 +80,12 @@ func TestADaysLinesAreThoseThatArrivedOnIt(t *testing.T) {
 			},
 		},
 		{
+			name:  "lines arriving at midnight exactly, each the day it starts",
+			filed: onArrival(asked("1", on(0, 0, 0)), asked("2", on(1, 0, 0))),
+			now:   on(1, 12, 0),
+			want:  filedUnder{date: {asked("1", on(0, 0, 0))}, "2026-10-06": {asked("2", on(1, 0, 0))}},
+		},
+		{
 			name:  "the day the clocks go back, as long as it is",
 			filed: fallingBack,
 			now:   dayfile.DayStart(firstHalfPast, 2),

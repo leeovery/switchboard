@@ -165,7 +165,8 @@ func (t Table) Worth(model, geo string, usage json.RawMessage, date string) (Wor
 // the prices in effect on the local day with the given date, as Worth says,
 // of the usage worth prices, as worthUsage gives it, so a quota check is
 // worth nothing: one that went upstream whose answer gave no usage unpriced,
-// never free. Only tests call it, the reference SummedSpend is held to.
+// never free. Only tests reach it, directly or through Summed, the reference
+// SummedSpend is held to.
 func (t Table) Request(l *Line, date string) (Worth, bool) {
 	return t.priced(l.Model, l.Shape.InferenceGeo, billOf(countsOf(l.worthUsage())), l.unmetered(), date)
 }
