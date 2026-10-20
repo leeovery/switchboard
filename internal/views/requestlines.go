@@ -23,7 +23,7 @@ type RequestLine struct {
 func RequestLines(lines iter.Seq[ledger.Held]) iter.Seq[RequestLine] {
 	return func(yield func(RequestLine) bool) {
 		for h := range lines {
-			rec := lineRecordOf(&h.Line)
+			rec := rowRecordOf(&h.Line)
 			r := RequestLine{RequestRow: lineRow(&rec, nil)}
 			if tokens, ok := rec.spend.Tokens(); ok {
 				r.In = tokens.Input + tokens.CacheRead + tokens.CacheWrite

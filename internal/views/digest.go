@@ -43,34 +43,35 @@ func (Digests) RowsVersion() int {
 	return RowsVersion
 }
 
-// Day gives a builder of a finished day's side and rows, as dayHead has it,
+// Day gives a builder of a finished day's side and rows, as dayBuild has it,
 // none of the day's lines taken in yet.
 func (Digests) Day() ledger.DayBuilder {
-	return &dayHead{sessions: make(daySessions)}
+	return &dayBuild{sessions: make(daySessions)}
 }
 
-// dayHead is a builder of a finished day's side and rows by the views'
+// dayBuild is a builder of a finished day's side and rows by the views'
 // Digests, of the record of each line Day gives, in its order: the day's
 // sessions, folded as DaySessions folds them, so DaySessionsOn reads from
-// its side what it would read of the lines; and its rows, as dayRows builds
-// them, so a reader of them restores the records of those lines, in order.
-type dayHead struct {
+// its side what it would read of the lines; and its rows, as rowsBuild
+// builds them, so a reader of them restores the records of those lines, in
+// order.
+type dayBuild struct {
 	sessions daySessions
-	rows     dayRows
+	rows     rowsBuild
 }
 
 // Take takes in l, the day's next line, its record, as daySessions and
-// dayRows take it.
-func (b *dayHead) Take(l ledger.Line) {
+// rowsBuild take it.
+func (b *dayBuild) Take(l ledger.Line) {
 	rec := lineRecordOf(&l)
 	b.sessions.take(&rec)
 	b.rows.take(&rec)
 }
 
 // Built gives the side of the lines taken in, as daySideOf has it, and
-// their rows, as dayRows builds them: failing where either can't be
+// their rows, as rowsBuild builds them: failing where either can't be
 // encoded.
-func (b *dayHead) Built() (ledger.DayBuilt, error) {
+func (b *dayBuild) Built() (ledger.DayBuilt, error) {
 	chunks, err := b.rows.built()
 	if err != nil {
 		return ledger.DayBuilt{}, err

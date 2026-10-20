@@ -134,6 +134,24 @@ func Day(date string) (start, end time.Time, ok bool) {
 	return dayIn(date, time.Local)
 }
 
+// Bounds are when a local day starts and ends, as Day gives them.
+type Bounds struct {
+	Start, End time.Time
+}
+
+// DayBounds returns the bounds of the local day with the given date, as Day
+// gives them. It reports false for a date that isn't one.
+func DayBounds(date string) (Bounds, bool) {
+	start, end, ok := Day(date)
+	return Bounds{Start: start, End: end}, ok
+}
+
+// Holds reports whether t falls on the day b bounds: at its start or after,
+// and before its end, the next day's start, which falls on the next day.
+func (b Bounds) Holds(t time.Time) bool {
+	return !t.Before(b.Start) && t.Before(b.End)
+}
+
 // dayIn returns when the day with the given date starts and ends in loc, as
 // Day says.
 func dayIn(date string, loc *time.Location) (start, end time.Time, ok bool) {

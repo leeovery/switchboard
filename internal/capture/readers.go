@@ -190,13 +190,13 @@ func (l heldLedger) Today(ledger.Mark) (lines []ledger.Held, next ledger.Mark, a
 // Follower gives them: whichever day's files hold them, as a Follower reads
 // the day's files and its neighbours'.
 func (l heldLedger) Day(date string) []ledger.Held {
-	start, end, ok := dayfile.Day(date)
+	bounds, ok := dayfile.DayBounds(date)
 	if !ok {
 		return nil
 	}
 	var day []filed
 	for _, f := range l.arrived(l.now()) {
-		if !f.At.Before(start) && f.At.Before(end) {
+		if bounds.Holds(f.At) {
 			day = append(day, f)
 		}
 	}

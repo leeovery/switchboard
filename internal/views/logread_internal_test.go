@@ -39,8 +39,8 @@ type logGrowing struct {
 // today's, as a read afresh gives them; and each day before today that
 // gained a line read again whole. The store is fed them first, wanting the
 // sessions of the Log's lines, then the read takes them in, but those it
-// holds, as Unheld has them, the feed's gains told once, as the watch's tail
-// read takes them. The lines tabled are caught up with the read grown, and
+// holds, as RecordsToTake has them, the feed's gains told once, as the
+// watch's tail read takes them. The lines tabled are caught up with the read grown, and
 // held to them tabled afresh.
 func (g *logGrowing) look(now time.Time, again bool) {
 	g.t.Helper()
@@ -64,9 +64,9 @@ func (g *logGrowing) look(now time.Time, again bool) {
 	}
 	maps.DeleteFunc(days, func(date string, _ []ledger.Held) bool { return !late[date] })
 	g.filed = filed
-	lines := []LogDay{g.read.Unheld(gained)}
+	lines := []LogDay{g.read.RecordsToTake(gained)}
 	for _, date := range slices.Sorted(maps.Keys(days)) {
-		lines = append(lines, g.read.Unheld(days[date]))
+		lines = append(lines, g.read.RecordsToTake(days[date]))
 	}
 	held, gains := g.held.Fed(filedLedger{lines: g.lines, now: now}, Took(gained, days), SessionsWanted{Log: g.read.Wanted(lines...)}, now)
 	g.held = held
@@ -239,13 +239,13 @@ func TestTheLogGrownLookByLookIsTheLogReadAtOnceOnGeneratedRuns(t *testing.T) {
 	}
 }
 
-// A read's Unheld are the lines given, each its record, but those with ids
-// it holds already, on the day each arrived: of an id it holds, one that
-// arrived at another moment is another request's, kept, and so is every
-// line without an id, which Taken knows by its record's sum. So a day read
-// again whole decodes only what it gained, and the read takes in of it what
-// it takes in of every line.
-func TestUnheldLeavesOutOnlyTheLinesWithIDsTheReadHolds(t *testing.T) {
+// A read's RecordsToTake are the lines given, each its record, but those
+// with ids it holds already, on the day each arrived: of an id it holds, one
+// that arrived at another moment is another request's, kept, and so is
+// every line without an id, which Taken knows by its record's sum. So a day
+// read again whole decodes only what it gained, and the read takes in of it
+// what it takes in of every line.
+func TestTheRecordsToTakeLeaveOutOnlyTheLinesWithIDsTheReadHolds(t *testing.T) {
 	at := time.Date(2026, 10, 7, 9, 0, 0, 0, time.Local)
 	line := func(id string, seconds int) ledger.Held {
 		return ledger.Held{At: at.Add(time.Duration(seconds) * time.Second), Request: id, Kind: ledger.KindMessage, Session: "s", Status: 200}
@@ -254,20 +254,20 @@ func TestUnheldLeavesOutOnlyTheLinesWithIDsTheReadHolds(t *testing.T) {
 	taking := LogTaking{Held: HoldSessions(ledger.Pricing), Now: at.Add(time.Hour)}
 	read := ReadLog(ledger.Pricing).Taken(RecordsOf(day), true, taking)
 	again := append(slices.Clone(day), line("r3", 3), line("r1", 4), line("", 5))
-	unheld := read.Unheld(again)
+	unheld := read.RecordsToTake(again)
 	var kept []string
 	for _, r := range unheld.records {
 		kept = append(kept, fmt.Sprintf("%q at %v", r.request, r.arrived().Sub(at)))
 	}
 	if want := []string{`"" at 1s`, `"r3" at 3s`, `"r1" at 4s`, `"" at 5s`}; !slices.Equal(kept, want) {
-		t.Errorf("of the day read again, Unheld keeps %v, want %v", kept, want)
+		t.Errorf("of the day read again, RecordsToTake keeps %v, want %v", kept, want)
 	}
 	got, want := read.Taken(unheld, true, taking), read.Taken(RecordsOf(again), true, taking)
 	if !reflect.DeepEqual(slices.Collect(got.lines()), slices.Collect(want.lines())) {
-		t.Errorf("the read takes in of Unheld's lines\n%s\nwant what it takes in of every line\n%s", readSaid(got), readSaid(want))
+		t.Errorf("the read takes in of RecordsToTake's lines\n%s\nwant what it takes in of every line\n%s", readSaid(got), readSaid(want))
 	}
-	if !read.Taken(read.Unheld(day), true, taking).Same(read) {
-		t.Error("the read takes in a line of Unheld's of the day it holds whole, want none")
+	if !read.Taken(read.RecordsToTake(day), true, taking).Same(read) {
+		t.Error("the read takes in a line of RecordsToTake's of the day it holds whole, want none")
 	}
 }
 

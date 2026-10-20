@@ -136,24 +136,24 @@ func (c *rowsChunk) built() (builtChunk, error) {
 	return builtChunk{rows: c.rows, count: c.taken(), meta: meta}, nil
 }
 
-// rowsAChunk is how many rows a chunk of a day's rows holds, as dayRows cuts
-// them, its last as many as are left. It's the rows file's own, not
+// rowsAChunk is how many rows a chunk of a day's rows holds, as rowsBuild
+// cuts them, its last as many as are left. It's the rows file's own, not
 // chunkRows, a chunked list's in memory, so neither moves the other.
 const rowsAChunk = 256
 
-// dayRows are a day's rows as they're built of its records, taken in the
+// rowsBuild is a day's rows as they're built of its records, taken in the
 // order the day gives them: in chunks of rowsAChunk, as the ledger keeps
 // them, each built as it fills, and the next begun afresh, as built hands a
 // chunk's rows on as it holds them; and the first error encoding them met,
 // after which none is taken.
-type dayRows struct {
+type rowsBuild struct {
 	chunk  rowsChunk
 	chunks []ledger.BuiltChunk
 	err    error
 }
 
 // take encodes r as the next row, its chunk built once it holds rowsAChunk.
-func (d *dayRows) take(r *lineRecord) {
+func (d *rowsBuild) take(r *lineRecord) {
 	if d.err != nil {
 		return
 	}
@@ -164,7 +164,7 @@ func (d *dayRows) take(r *lineRecord) {
 
 // cut builds the chunk being taken, as the ledger keeps it, among d's
 // chunks, and begins the next afresh.
-func (d *dayRows) cut() {
+func (d *rowsBuild) cut() {
 	built, err := d.chunk.built()
 	if err != nil {
 		d.err = err
@@ -177,7 +177,7 @@ func (d *dayRows) cut() {
 // built are the chunks of the rows taken, in order, the last cut of those
 // left: none of none, failing where a row or a chunk's meta couldn't be
 // encoded.
-func (d *dayRows) built() ([]ledger.BuiltChunk, error) {
+func (d *rowsBuild) built() ([]ledger.BuiltChunk, error) {
 	if d.err == nil && d.chunk.taken() > 0 {
 		d.cut()
 	}
@@ -232,7 +232,7 @@ func (m *chunkMeta) take(r *lineRecord) {
 	if none || r.at.compare(m.last) > 0 {
 		m.last = r.at
 	}
-	row := lineFacts(r, nil)
+	row := lineFacts(&r.rowRecord, nil)
 	m.lines.count(&row)
 }
 

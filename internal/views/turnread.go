@@ -57,19 +57,8 @@ func (w worked) linesOfTurn(l LedgerSession, t *turnTally) iter.Seq[readLine] {
 // hold, newest first, as Session gives a session's lines.
 type turnDays struct {
 	turn, horizon ledger.Span
-	rowDays       []dayBounds
+	rowDays       []dayfile.Bounds
 	restored      []lineRecord
-}
-
-// dayBounds are when a local day starts and ends: at its first instant, and
-// the next day's.
-type dayBounds struct {
-	start, end time.Time
-}
-
-// holds reports whether at falls on the day.
-func (d dayBounds) holds(at time.Time) bool {
-	return !at.Before(d.start) && at.Before(d.end)
 }
 
 // turnDaysOf are the days the lines of a turn of the session with the given
@@ -85,8 +74,8 @@ func turnDaysOf(l LedgerRows, id string, turn, horizon ledger.Span) turnDays {
 			continue
 		}
 		if records, ok := rowsOfTurn(l, id, date, turn); ok {
-			start, end, _ := dayfile.Day(date)
-			d.rowDays, d.restored = append(d.rowDays, dayBounds{start: start, end: end}), append(d.restored, records...)
+			day, _ := dayfile.DayBounds(date)
+			d.rowDays, d.restored = append(d.rowDays, day), append(d.restored, records...)
 		}
 	}
 	return d
@@ -129,12 +118,12 @@ func (d turnDays) rawSpans() []ledger.Span {
 	var spans []ledger.Span
 	from := d.turn.From
 	for _, day := range slices.Backward(d.rowDays) {
-		if from.Before(day.start) {
+		if from.Before(day.Start) {
 			// A span holds the instant it runs to, so this one ends an
 			// instant before the day starts.
-			spans = append(spans, ledger.Span{From: from, To: day.start.Add(-time.Nanosecond)})
+			spans = append(spans, ledger.Span{From: from, To: day.Start.Add(-time.Nanosecond)})
 		}
-		from = day.end
+		from = day.End
 	}
 	if !from.After(d.turn.To) {
 		spans = append(spans, ledger.Span{From: from, To: d.turn.To})
@@ -177,7 +166,7 @@ func (d turnDays) read(raw iter.Seq[ledger.Held]) iter.Seq[readLine] {
 // from its rows.
 func (d turnDays) fromRows(at time.Time) bool {
 	for _, day := range d.rowDays {
-		if day.holds(at) {
+		if day.Holds(at) {
 			return true
 		}
 	}

@@ -165,7 +165,7 @@ func (t Table) Worth(model, geo string, usage json.RawMessage, date string) (Wor
 // the prices in effect on the local day with the given date, as Worth says,
 // of the usage worth prices, as worthUsage gives it, so a quota check is
 // worth nothing: one that went upstream whose answer gave no usage unpriced,
-// never free.
+// never free. Only tests call it, the reference SummedSpend is held to.
 func (t Table) Request(l *Line, date string) (Worth, bool) {
 	return t.priced(l.Model, l.Shape.InferenceGeo, billOf(countsOf(l.worthUsage())), l.unmetered(), date)
 }
@@ -185,7 +185,8 @@ func (t Table) CacheWrite(l *Line, date string) (Worth, bool) {
 // whether the table priced it: its worth, as Request gives it; or, where the
 // table can't price it, as of a model it doesn't know, none, naming what it
 // leaves unpriced as a summary's model's day names it, as wholly says, so the
-// sum names what it leaves out.
+// sum names what it leaves out. Only tests call it, the reference
+// SummedSpend is held to.
 func (t Table) Summed(l *Line, date string) (Worth, bool) {
 	if w, ok := t.Request(l, date); ok {
 		return w, true
@@ -235,7 +236,8 @@ const (
 // Claude Code has a subscription's last, writes it doesn't break down by how
 // long they last counting as an hour's. It reports false where the reply
 // wrote nothing to the cache, as one that only read from it, which says
-// nothing of how long its writes last.
+// nothing of how long its writes last. Only tests call it, the reference
+// Spend's CacheLife is held to.
 func (r Reply) CacheLife() (time.Duration, bool) {
 	held := countsOf(r.Usage)
 	written, _ := held[cacheWrites].(int64)

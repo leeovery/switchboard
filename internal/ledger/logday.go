@@ -22,9 +22,7 @@ const (
 	// version is their builder's, where its rows lie in the day's rows file
 	// among them. A release that keeps a day head otherwise writes another,
 	// so those written before read as outdated, and their heads are built
-	// again: those of version 1 point at no rows, and those of version 2 rest
-	// on no day beside theirs, so one built of a line of a day since pruned
-	// would stand without it.
+	// again.
 	logdayVersion = 3
 	// logdayPrefix and logdaySuffix begin and end the name of a day's head:
 	// logday-<date>.json.gz.
@@ -151,8 +149,10 @@ func (s storedDayHead) dayHead() DayHead {
 // size. So a head is never written before the rows it points at: one left
 // beside a rows file written since, as by a build that stopped between the
 // two, is held beside a rows file of another size than it records, so its
-// rows don't stand, and its day is due, or its chunks don't read, by their
-// CRC. It returns the head as written. It fails as file fails, writing
+// rows don't stand, and its day is due; or, the file as long, its chunks
+// don't read, by their CRC, and its day isn't due, as headDue judges the
+// file by its size, so each reader reads the day's lines till the rows file
+// is deleted. It returns the head as written. It fails as file fails, writing
 // nothing; where the rows can't be written, writing no head; and where the
 // head can't be, leaving the rows written, pointed at by no head, as a build
 // that stopped between the two leaves them, to be written again as the day
@@ -280,12 +280,12 @@ func (f *Follower) grounds() digestGrounds {
 // read of a day's lines that both Day and a day's head take, so the head is
 // built of exactly the lines Day gives, in its order.
 func (d days) day(date string, now time.Time, take func(filedHeld) bool, faults *dayfile.Faults) {
-	start, end, ok := dayfile.Day(date)
+	day, ok := dayfile.DayBounds(date)
 	if !ok {
 		return
 	}
-	within := func(h filedHeld) bool { return !h.At.Before(start) && h.At.Before(end) && !h.At.After(now) }
-	d.lines(dayfile.Dates(start, start), lineHeldIn, within, take, faults, "day", date)
+	within := func(h filedHeld) bool { return day.Holds(h.At) && !h.At.After(now) }
+	d.lines(dayfile.Dates(day.Start, day.Start), lineHeldIn, within, take, faults, "day", date)
 }
 
 // errDayUnread is the error of a day whose lines, or those of a day either

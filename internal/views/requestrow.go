@@ -335,7 +335,7 @@ func (l *ListedSession) cameBy(m *move) {
 // lineRow is the row of the request of the record r, a line of the session
 // s tells, nil for one of no session, its worth unpriced and left zero, as
 // the Log's read prices it.
-func lineRow(r *lineRecord, s *story) RequestRow {
+func lineRow(r *rowRecord, s *story) RequestRow {
 	row := lineFacts(r, nil)
 	row.toldBy(routedOf(r, nil), s)
 	return row
@@ -345,7 +345,7 @@ func lineRow(r *lineRecord, s *story) RequestRow {
 // tells it, its worth unpriced and left zero, before its session's story
 // tells the rest, as toldBy has it, the words it names a request by interned
 // by n, as a session's requests name the same again and again.
-func lineFacts(r *lineRecord, n interning) RequestRow {
+func lineFacts(r *rowRecord, n interning) RequestRow {
 	row := RequestRow{
 		Request: r.request, At: r.arrived(), Kind: r.kind, Session: n.of(r.session), Dir: n.of(r.dir), CountedSession: n.of(r.countedSession),
 		Model: n.of(r.model), Account: n.of(r.account), Status: r.status, Canceled: r.canceled, CutOff: r.cutOff, Failed: ledger.Failing(r.status),

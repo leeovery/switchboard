@@ -113,10 +113,10 @@ type LogTaking struct {
 // The lines are a tail of today's, as Ledger's Today gives it, or, whole
 // where they're every one of a day's, as Today gives them afresh, or Day
 // gives a day's, as the tables reach back a day, or a day is read again
-// whole; or either but the lines with ids r holds, as Unheld gives them,
-// which leaves every line without one, so whole holds of it still. A line
-// with an id that r holds already is passed over, and one given twice that
-// r holds none of is taken in once; one with none is taken in
+// whole; or either but the lines with ids r holds, as RecordsToTake gives
+// them, which leaves every line without one, so whole holds of it still. A
+// line with an id that r holds already is passed over, and one given twice
+// that r holds none of is taken in once; one with none is taken in
 // as often as it's given, but for one whole, which is taken in only as often
 // as it's given beyond those of its day, arriving at its moment, its record
 // saying the same, that r holds already. So a read costs what the ledger
@@ -205,12 +205,13 @@ func (r LogRead) Wanted(days ...LogDay) []string {
 	return slices.Compact(ids)
 }
 
-// Unheld is the LogDay of those of lines r may take in, each its record, in
-// their order: every one but those r holds already, as holdsFlight knows
-// them, which Taken would pass over, so a day read again whole decodes only
-// what it gained. Those it keeps are found first, so the records take only
-// the room they need, as a day read again whole needs little.
-func (r LogRead) Unheld(lines []ledger.Held) LogDay {
+// RecordsToTake is the LogDay of those of lines r may take in, each its
+// record, in their order: every one but those r holds already, as
+// holdsFlight knows them, which Taken would pass over, so a day read again
+// whole decodes only what it gained. Those it keeps are found first, so the
+// records take only the room they need, as a day read again whole needs
+// little.
+func (r LogRead) RecordsToTake(lines []ledger.Held) LogDay {
 	var unheld []int
 	for i := range lines {
 		if !r.holdsFlight(flightOf(&lines[i].Line)) {

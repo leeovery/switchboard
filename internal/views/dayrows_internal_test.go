@@ -158,7 +158,7 @@ func TestADaysRowsAreCutIntoChunksNoneEmpty(t *testing.T) {
 					Session: "s", Model: foldOpus, Account: "work", Reason: "sticky", Status: 200, Attempts: 1, TotalMS: 3000}
 			}
 			taken := recordsOfLines(lines)
-			var d dayRows
+			var d rowsBuild
 			for i := range taken {
 				d.take(&taken[i])
 			}

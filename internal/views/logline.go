@@ -40,7 +40,7 @@ type routed struct {
 
 // routedOf is how the router routed the request of the record r, its words
 // interned by n.
-func routedOf(r *lineRecord, n interning) routed {
+func routedOf(r *rowRecord, n interning) routed {
 	return routed{tried: r.tried, from: n.of(r.from), reason: n.of(r.reason)}
 }
 
@@ -87,7 +87,7 @@ func (d *lineDetails) windowsRead(reserve float64) []claude.WindowRead {
 // seqth, placed at place, its request worth what's given, its row told of
 // the story s of its session, nil for none, and its words interned by n.
 func loggedLineOf(r *lineRecord, seq int, place time.Time, worth Worth, s *story, n interning) *loggedLine {
-	logged := &loggedLine{row: lineFacts(r, n), seq: seq, place: place, flight: r.flight, routed: routedOf(r, n), shown: detailsOf(r, n)}
+	logged := &loggedLine{row: lineFacts(&r.rowRecord, n), seq: seq, place: place, flight: r.flight, routed: routedOf(&r.rowRecord, n), shown: detailsOf(r, n)}
 	if r.request == "" {
 		logged.sum = r.summed()
 	}

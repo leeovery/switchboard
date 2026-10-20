@@ -31,7 +31,10 @@ type DayRows struct {
 
 // counted reports whether r's chunks count as many rows as r does in all,
 // as a head written whole points at them: not where one's count was changed
-// since, as by hand.
+// since, as by hand. Only a reader judges it, as the writer holds a head
+// without its chunks, so a head whose chunks' counts were changed reads as
+// its day's lines till its rows file is deleted, as a chunk damaged in a
+// file as long does.
 func (r DayRows) counted() bool {
 	n := 0
 	for _, c := range r.Chunks {
@@ -116,8 +119,10 @@ func (d days) rowsHeld(date string, size int64) bool {
 // of lines but no rows doesn't; and the day's rows file is as long as the
 // head records, as rowsHeld judges it by a look at it alone, as one gone
 // isn't, nor one written again since by a build that stopped before its
-// head, of other lines. Each chunk is judged as it's read, by its CRC, as
-// RowChunk reads it, so one damaged in a file as long reads as none.
+// head, of other lines. It judges neither the chunks' counts, as counted
+// does for a reader alone, nor the chunks themselves, each judged as it's
+// read, by its CRC, as RowChunk reads it, so one damaged in a file as long
+// reads as none.
 func (d days) rowsStand(g digestGrounds, head DayHead) bool {
 	return g.dayHeadStands(head) && head.Rows.Count == head.Lines && d.rowsHeld(head.Day, head.Rows.Size)
 }

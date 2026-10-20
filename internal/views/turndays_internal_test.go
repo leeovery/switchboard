@@ -120,6 +120,28 @@ func TestATurnReadsItsOwnSpanAndTheHorizons(t *testing.T) {
 	}
 }
 
+// A turn open across midnight, its first day read from its rows and the
+// next raw, gives a raw line that arrived at the next day's first instant,
+// the rows' day's end, and passes over one of the rows' day that raw gives
+// as well, giving its record restored in its place.
+func TestATurnGivesARawLineArrivingAsItsRowsDayEnds(t *testing.T) {
+	day, _ := dayfile.DayBounds("2026-10-12")
+	line := func(request string, at time.Time) ledger.Line {
+		return ledger.Line{At: at, Request: request, Kind: ledger.KindMessage, Session: "s", Model: foldOpus, Account: "work"}
+	}
+	restored := line("restored", day.End.Add(-time.Nanosecond))
+	d := turnDays{rowDays: []dayfile.Bounds{day}, restored: []lineRecord{lineRecordOf(&restored)}}
+	raw := []ledger.Held{{Line: line("midnight", day.End)}, {Line: restored}, {Line: line("before", day.Start.Add(-time.Nanosecond))}}
+	var got []string
+	for l := range d.read(slices.Values(raw)) {
+		r := l.record()
+		got = append(got, fmt.Sprintf("%s restored %t", r.request, l.rec != nil))
+	}
+	if want := []string{"midnight restored false", "restored restored true", "before restored false"}; !slices.Equal(got, want) {
+		t.Errorf("a turn across the end of a day read from its rows gives %q, want %q", got, want)
+	}
+}
+
 // lookLater looks at the session at now, the i'th time after its run: a
 // subagent's first request, naming its first prompt, came three days
 // before, or a minute after the last feed where that's later, and a request

@@ -671,7 +671,7 @@ func (w worked) rowsOf(lines []*lineRecord, told []Told) []LogLine {
 	next := 0
 	line := func() {
 		rec := lines[next]
-		row := LogLine{Row: lineRow(rec, w.rec.story), record: rec}
+		row := LogLine{Row: lineRow(&rec.rowRecord, w.rec.story), record: rec}
 		row.Row.Worth = rec.worth(w.h.prices, date)
 		rows, next = append(rows, row), next+1
 	}
