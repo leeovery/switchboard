@@ -335,35 +335,112 @@ func sameLogAsOneRead(t *testing.T, m Model, l views.Ledger, now time.Time) {
 // sameLogAsReadWhole judges the Log of the model m at now as
 // sameLogAsOneRead does, and the day it spans from, which that judges them
 // from: whole's, the Log of the same history, each past day read whole, as
-// Config's readsWhole has it, but where the find's pick landed later, as
-// pickLandedLater has it. So a Log that lets go of a day one read whole
+// Config's readsWhole has it. So a Log that lets go of a day one read whole
 // holds, or reads back past one it doesn't, through what it read through
-// its filters, is caught, however its tables show from that day.
+// its filters, is caught, however its tables show from that day. Two
+// divergences are its own, each named: the find's pick landing later, as
+// pickLandedLater has it; and the Events showing letting go of the days
+// held through the Requests' filter, as eventsLetRequestsDaysGo has it.
 func sameLogAsReadWhole(t *testing.T, m, whole Model, l views.Ledger, now time.Time) {
 	t.Helper()
 	if !whole.cfg.readsWhole {
 		t.Fatal("the Log is held to a twin that reads through its filters, want one that reads each past day whole")
 	}
-	if m.log.from.Date != whole.log.from.Date && !pickLandedLater(m, whole) {
+	if m.log.from.Date != whole.log.from.Date && !pickLandedLater(m, whole) && !eventsLetRequestsDaysGo(m, whole) {
 		t.Errorf("at %s the Log spans from %s, want %s, as the same history read whole does", now.Format(time.DateTime), m.log.from.Date, whole.log.from.Date)
 	}
 	sameLogAsOneRead(t, m, l, now)
 }
 
 // pickLandedLater reports whether the Log of m spans from a later day than
-// whole, the same history read whole, as the find's pick landed: each
-// paused at the same line, the newest of the session the find picked, m
-// from that line's day. A pick lets go first of the days held through the
-// last pick's filter, as goingFrom has it, then reads back through its own
-// to its line; read whole, the Log holds those days still, landing among
-// them. The one day from which the Log spans that one read whole doesn't
-// share.
+// whole, the same history read whole, as the find's pick landed: the page's
+// filter, in both, still keeping the session the find picked alone, as the
+// pick sets it; each paused at the same line, the newest of that session's
+// either holds, its Requests' last row; and m from that line's day. A pick
+// lets go first of the days held through the last pick's filter, as
+// goingFrom has it, then reads back through its own to its line; read
+// whole, the Log holds those days still, landing among them.
 func pickLandedLater(m, whole Model) bool {
+	picked := m.log.find.picked
+	if picked == nil || !slices.Equal(m.log.page.Filter.Sessions, []string{picked.ID}) || !m.log.page.Filter.Equal(whole.log.page.Filter) ||
+		!m.log.page.Paused() || !whole.log.page.Paused() {
+		return false
+	}
 	row, _, chosen := m.log.page.Chosen()
 	held, _, holds := whole.log.page.Chosen()
-	picked := m.log.find.picked
-	return chosen && holds && m.log.page.Paused() && whole.log.page.Paused() && picked != nil && row.Session == picked.ID && row.Request == held.Request &&
+	newest, last := lastRequest(m)
+	heldNewest, heldLast := lastRequest(whole)
+	return chosen && holds && last && heldLast && row.Request == newest.Request && held.Request == heldNewest.Request && row.Request == held.Request &&
 		m.log.from.Date == views.Today(row.At).Date && whole.log.from.Date < m.log.from.Date
+}
+
+// lastRequest is the last row of the Log's Requests of m, the newest it
+// shows, reporting false where they show none.
+func lastRequest(m Model) (views.RequestRow, bool) {
+	var last views.RequestRow
+	found := false
+	for _, l := range m.log.page.Requests.All() {
+		if l.IsRow() {
+			last, found = l.Row, true
+		}
+	}
+	return last, found
+}
+
+// eventsLetRequestsDaysGo reports whether the Log of m spans from a later
+// day than whole, the same history read whole, as the Events showing let
+// go of the days its read held through the Requests' filter, as goingFrom
+// has it, where read whole the Log keeps them for the Requests hidden: the
+// Events shown in both, both following, through the same filters; m's
+// Events filling their view from its day on, their rows whole's from that
+// day on, as eventsFrom has them; whole holding every day between, as
+// heldBetween has it, and its tables spanning from a day before m's, as
+// KeptFrom has them, as its Requests need those days, its Events filling
+// theirs from m's; and the Requests' filter having reach and keeping some
+// lines alone, as keepsSome has it. Whether m held those days through that
+// filter is known no more once they're let go: those are the closest the
+// guard can say, as a day m held is held through the filter it served.
+func eventsLetRequestsDaysGo(m, whole Model) bool {
+	p, w := m.log.page, whole.log.page
+	if p.Shown != dashboard.LogEvents || w.Shown != dashboard.LogEvents || !followingLog(m) || !followingLog(whole) || !p.Filter.Equal(w.Filter) ||
+		!p.Shows.Equal(w.Shows) || whole.log.from.Date >= m.log.from.Date {
+		return false
+	}
+	from := m.log.from
+	filled, fills := p.Events.FilledFrom(m.logRows())
+	kept, _ := w.KeptFrom(whole.logRows())
+	_, reaches := p.Filter.Reach()
+	return fills && filled.Date >= from.Date && reflect.DeepEqual(p.Events.Rows, eventsFrom(w.Events.Rows, from)) && heldBetween(whole, from) &&
+		kept.Date < from.Date && reaches && keepsSome(p.Filter)
+}
+
+// followingLog reports whether both of the Log's tables of m follow.
+func followingLog(m Model) bool {
+	return !m.log.page.Stands[dashboard.LogRequests].Paused() && !m.log.page.Stands[dashboard.LogEvents].Paused()
+}
+
+// eventsFrom are the events among rows that happened on the day given or
+// after, in order.
+func eventsFrom(rows []views.LogEvent, day views.LedgerDay) []views.LogEvent {
+	return slices.DeleteFunc(slices.Clone(rows), func(e views.LogEvent) bool { return e.At.Before(day.Start) })
+}
+
+// heldBetween reports whether the Log's read of m holds every day from the
+// one it spans from to the one before the day given.
+func heldBetween(m Model, before views.LedgerDay) bool {
+	held := daysHeld(m.log.read, before.Date)
+	for day := m.log.from; day.Date < before.Date; day = views.Today(dayfile.DayStart(day.Start, 1)) {
+		if !slices.Contains(held, "loggedDay "+day.Date) {
+			return false
+		}
+	}
+	return true
+}
+
+// keepsSome reports whether the filter f keeps some lines alone: of some
+// sessions, accounts or models, or those that failed.
+func keepsSome(f views.LogFilter) bool {
+	return len(f.Sessions)+len(f.Accounts)+len(f.Models) > 0 || f.Failed
 }
 
 // servedAsOneRead judges the Log's Requests of the model m at now as

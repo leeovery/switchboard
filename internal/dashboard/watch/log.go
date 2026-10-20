@@ -125,17 +125,18 @@ func (t logTab) lettingGo(rows int) (views.LedgerDay, bool) {
 // serving has it, it's the first from which every day does, as ServedFrom
 // has it, so following, it lets every such day go before reading one again,
 // a table that filled its view from one reading back to fill it again, as
-// spanningFrom unfills it: but only where one read whole would let go of
-// them too, as it would of every day before the one its tables fill from.
-// That's where the Requests' filter has reach, as views' Reach has it, as
-// they then read back through it to where one read whole holds; and where
-// nothing the stream tells of holds the days back as of today, as holdsBack
-// has it, as it would hold one read whole from letting go of any. Else it's
-// false, each such day read again, as readRefiltered reads them, as one read
-// whole holds them still. Where every day serves it, it's the day the Log's
-// tables, showing in a view rows rows tall all they show now, span from, as
-// the page's KeptFrom has it: false while the find lands, as its landing
-// may reach back past it.
+// spanningFrom unfills it. That's only where the Requests' filter has
+// reach, as views' Reach has it, as they then read back through it to where
+// one read whole holds them; and where nothing the stream tells of holds the
+// days back as of today, as holdsBack has it, as it would hold one read
+// whole from letting go of any. Else it's false, each such day read again,
+// as readRefiltered reads them, as one read whole holds them still. While
+// the Events show, one read whole keeps the days the Requests hidden filled
+// from, where the Log lets them go, its Events filling their view alike,
+// and reads them back through the Requests' filter once they show again.
+// Where every day serves it, it's the day the Log's tables, showing in a
+// view rows rows tall all they show now, span from, as the page's KeptFrom
+// has it: false while the find lands, as its landing may reach back past it.
 func (t logTab) goingFrom(rows int) (views.LedgerDay, bool) {
 	if day, unserved := t.read.ServedFrom(t.serving()); unserved {
 		_, reaches := t.page.Filter.Reach()

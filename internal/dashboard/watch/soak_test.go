@@ -165,9 +165,11 @@ func (s *soak) await(wait tea.Cmd) tea.Cmd {
 
 // deliver has the model take in msgs, and what they send back, till all are
 // taken in, each Update timed by the message it takes, and told the guard
-// of, where it's set.
+// of, where it's set; failing the soak where they cycle, as delivery has it.
 func (s *soak) deliver(msgs ...tea.Msg) {
+	d := delivery{h: s.h}
 	for len(msgs) > 0 {
+		d.took(msgs[0])
 		was, began := s.h.model, time.Now()
 		next, cmd := s.h.model.Update(msgs[0])
 		s.updates.add(msgs[0], time.Since(began))

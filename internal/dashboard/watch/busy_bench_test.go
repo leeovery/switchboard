@@ -503,10 +503,11 @@ func (w busyWorld) onDetail(tb testing.TB, id string) *harness {
 // what the update that shows it starts runs after it's on screen.
 func (h *harness) entered(id string) {
 	h.t.Helper()
-	cmds := []tea.Cmd{h.updated(tea.KeyPressMsg{Code: tea.KeyEnter})}
+	cmds, d := []tea.Cmd{h.updated(tea.KeyPressMsg{Code: tea.KeyEnter})}, delivery{h: h}
 	for ; len(cmds) > 0 && !h.pageShows(id); cmds = cmds[1:] {
 		for _, msg := range h.run(cmds[0]) {
 			if !h.pageShows(id) {
+				d.took(msg)
 				cmds = append(cmds, h.updated(msg))
 			}
 		}

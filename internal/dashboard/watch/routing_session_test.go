@@ -134,7 +134,9 @@ func TestASessionsCardClosesOnceItsSessionEnds(t *testing.T) {
 	for asked := len(h.source.asked); len(h.source.asked) == asked; {
 		tick := h.lastTick()
 		h.clock.now, tick.fired = tick.due, true
+		d := delivery{h: h}
 		for msgs := []tea.Msg{tick.msg}; len(msgs) > 0; {
+			d.took(msgs[0])
 			msgs = append(msgs[1:], h.update(msgs[0])...)
 			if views.Routed(h.model.sessions, pagedID) == nil && h.model.open != nothingOpen {
 				t.Fatalf("the router listing it no more, the Update taking that in left its card open, want it closed")
