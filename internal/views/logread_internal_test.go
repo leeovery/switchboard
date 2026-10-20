@@ -68,7 +68,7 @@ func (g *logGrowing) look(now time.Time, again bool) {
 	for _, date := range slices.Sorted(maps.Keys(days)) {
 		lines = append(lines, g.read.RecordsToTake(days[date]))
 	}
-	held, gains := g.held.Fed(filedLedger{lines: g.lines, now: now}, Took(gained, days), SessionsWanted{Log: g.read.Wanted(lines...)}, now)
+	held, gains := g.held.Fed(filedLedger{lines: g.lines, now: now}, Took(gained, days), SessionsWanted{Log: g.read.Wanted(Stream{}, lines...)}, now)
 	g.held = held
 	t := LogTaking{Held: held, Gains: gains, Now: now}
 	g.read = g.read.Taken(lines[0], again, t)

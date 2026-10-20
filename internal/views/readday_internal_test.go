@@ -47,9 +47,12 @@ func (r *rowsNoted) fromRows(date string) bool {
 }
 
 // rawDay is the LogDay of the local day with the given date read raw,
-// through l: of its lines, as Day gives them.
+// through l, as ReadDay reads a day whose rows don't stand: of its lines, as
+// Day gives them, holding the day's date.
 func rawDay(l Ledger, date string) LogDay {
-	return RecordsOf(l.Day(date))
+	day := RecordsOf(l.Day(date))
+	day.date = date
+	return day
 }
 
 // wholeDay is the LogDay of the local day with the given date read back

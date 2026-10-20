@@ -108,10 +108,14 @@ func noneIfEmpty[T any](items []T) []T {
 // one but those a read holds already, as LogRead's RecordsToTake has them;
 // or of a past day those a filter may keep, as ReadDay reads them. Its
 // through is the filter it's read through, as LogFilter's through has it:
-// whole, the zero LogFilter, of every read but one through a filter.
+// whole, the zero LogFilter, of every read but one through a filter. Its
+// date is that of the day ReadDay reads, "" of lines of no one day's read:
+// so the Log's read holds a day read through a filter though it gives none
+// of its lines, and knows the day a read again gives.
 type LogDay struct {
 	records []lineRecord
 	through LogFilter
+	date    string
 }
 
 // RecordsOf is the LogDay of lines, each its record, in their order.

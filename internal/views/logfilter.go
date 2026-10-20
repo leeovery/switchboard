@@ -209,6 +209,13 @@ func (f LogFilter) chose(r *RequestRow) bool {
 	return ticked(f.Accounts, r.Account) && ticked(f.Models, r.Model) && ticked(f.Sessions, r.CountedSession) && (!f.Failed || r.Failed)
 }
 
+// keeps reports whether the filter's choices but its kinds keep the row of
+// the record rec, as chose keeps the row lineFacts makes of it, without
+// making the row: every one where f keeps every line, as whole has it.
+func (f LogFilter) keeps(rec *lineRecord) bool {
+	return f.whole() || f.chose(&RequestRow{Account: rec.account, Model: rec.model, CountedSession: rec.countedSession, Failed: ledger.Failing(rec.status)})
+}
+
 // hidden is what of a filter hides a row.
 type hidden int
 

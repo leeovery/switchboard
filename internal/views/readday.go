@@ -14,11 +14,12 @@ import "github.com/leeovery/switchboard/internal/ledger"
 // other, it's none where the day's summaries say it may hold none the
 // through keeps; else it's read as the day whole is, of those chunks of its
 // rows alone whose meta may keep one. So it gives every record of the day
-// whole that its through keeps, in order, among others it drops none of.
+// whole that its through keeps, in order, among others it drops none of,
+// and holds the day's date.
 func ReadDay(l Ledger, date string, through LogFilter) LogDay {
 	through = through.through()
 	day := readThrough(l, date, through)
-	day.through = through
+	day.through, day.date = through, date
 	return day
 }
 

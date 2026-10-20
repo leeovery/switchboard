@@ -314,6 +314,12 @@ func LogLinesOf(was LogLines, src LogSources) LogLines {
 	return was.caughtUp(src.Read, first)
 }
 
+// Filter is the filter l tables its read through: the zero LogFilter of
+// lines never tabled.
+func (l LogLines) Filter() LogFilter {
+	return l.filter
+}
+
 // Copied is how many chunks l's days' rows have had copied, as they were
 // tabled since l was first tabled afresh: a read that gained k lines copies
 // no more than a chunk for each, and one for each it told again.

@@ -161,7 +161,7 @@ func (m Model) openLog(now time.Time) (Model, tea.Cmd) {
 		read, next := readLines(r.ledger, t.mark, t.late)
 		read.afresh = true
 		today, opened := views.RecordsOf(read.gained), views.ReadLog(r.prices)
-		tailed, _ := t.took(read, next, opened.Wanted(today))
+		tailed, _ := t.took(read, next, opened.Wanted(stream, today))
 		events := views.ReadEvents(r.filed, t.today.Start, now)
 		g := logGrown{
 			read: opened.Taken(today, true, views.LogTaking{Held: *tailed.held, Stream: stream, Now: now}), from: t.today, events: &events,
@@ -284,9 +284,9 @@ func (f *logFold) logged(read tailLines) loggedLines {
 }
 
 // wants are the sessions the Log wants the store to hold as a read of the
-// ledger's tail folds read, as LogRead's Wanted has them: of the lines it
-// holds, and those it takes in of the read, as logged has them. None where
-// it doesn't fold it.
+// ledger's tail folds read, as LogRead's Wanted has them, the fold's
+// stream telling what's under way: of the lines it holds, and those it
+// takes in of the read, as logged has them. None where it doesn't fold it.
 func (f *logFold) wants(read loggedLines) []string {
 	if f == nil {
 		return nil
@@ -295,7 +295,7 @@ func (f *logFold) wants(read loggedLines) []string {
 	for _, date := range f.late {
 		days = append(days, read.days[date])
 	}
-	return f.read.Wanted(days...)
+	return f.read.Wanted(f.stream, days...)
 }
 
 // spanned are those of the dates given of the days the Log's tables span.

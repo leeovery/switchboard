@@ -107,7 +107,7 @@ func TestTheLogHoldsOnlyWhatItShows(t *testing.T) {
 // none of the Log's days' lines, nor running, as the router lists them. The
 // List isn't open, to want today's.
 func unwantedHeld(m Model) []string {
-	wanted := m.log.read.Wanted()
+	wanted := m.log.read.Wanted(views.Stream{})
 	for _, s := range m.sessions {
 		wanted = append(wanted, s.ID)
 	}
