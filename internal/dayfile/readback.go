@@ -39,33 +39,45 @@ func ReadBack[T any](f *Files, date string, decode func(line []byte) (T, bool), 
 	if !ok || err != nil {
 		return 0, 0, ok, err
 	}
-	var read tally
-	read.add(f.readBack(plain.dayFile, plain.src, size, decoding(&read, decode, take)))
-	lines, unread = read.counts()
+	lines, unread = readBackOpened(f, plain.dayFile, plain.src, size, decode, take)
 	return lines, unread, true, nil
 }
 
 // plainAlone returns how long the plain file of the local day with the given
 // date was as it was opened, as plain, nil where it isn't there, failed
 // saying why where it couldn't be. It reports false where the day has a
-// compressed file too, or one that can't be looked at; and fails where the
-// plain file couldn't be opened, or looked at once opened, and with
-// fs.ErrNotExist where the day has no files. It looks for the compressed file
-// once the plain file is opened, as openDay opens them, so a day another
-// process compresses meanwhile is never taken for one without files.
+// compressed file too, or one that can't be looked at, or the plain file
+// can't be looked at once opened, which ReadDay has no need to: the day is
+// read forward then. It fails where the plain file couldn't be opened, as
+// ReadDay does, and with fs.ErrNotExist where the day has no files. It looks
+// for the compressed file once the plain file is opened, as openDay opens
+// them, so a day another process compresses meanwhile is never taken for one
+// without files.
 func (f *Files) plainAlone(date string, plain *openFile, failed []fileError) (size int64, ok bool, err error) {
-	info, failed := openedInfo(plain, failed)
 	compressed, err := f.stat(compressedFile(date))
-	if compressed != nil || err != nil {
-		return 0, false, nil
-	}
 	switch {
+	case compressed != nil || err != nil:
+		return 0, false, nil
 	case len(failed) > 0:
 		return 0, true, f.failure(failed)
 	case plain == nil:
 		return 0, true, f.noLines(date)
 	}
+	info, err := plain.src.Stat()
+	if err != nil {
+		return 0, false, nil
+	}
 	return info.Size(), true, nil
+}
+
+// readBackOpened hands take each line the file r reads holds up to size that
+// decode makes a T of, the last first, until take reports false, and returns
+// how many lines it holds, as far back as it read, and how many of those were
+// unread, as readOpened counts them.
+func readBackOpened[T any](f *Files, file dayFile, r io.ReaderAt, size int64, decode func(line []byte) (T, bool), take func(T) bool) (lines, unread int) {
+	var read tally
+	read.add(f.readBack(file, r, size, decoding(&read, decode, take)))
+	return read.counts()
 }
 
 // readBack hands take each line the file r reads holds up to size, the last
@@ -114,12 +126,11 @@ func (s *stretch) readBefore(r io.ReaderAt, end int64, most int) (start int64, e
 	if err != nil {
 		return start, err
 	}
-	lines := &measured{r: io.NewSectionReader(r, start, end-start)}
+	lines := measuredSection(r, start, end)
 	if err := s.read(lines, most); err != nil {
 		return start, err
 	}
-	if lines.n < end-start {
-		// The file is shorter than it was, cut short under the read.
+	if lines.short() {
 		return start, io.ErrUnexpectedEOF
 	}
 	return start, nil

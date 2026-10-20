@@ -3,14 +3,17 @@ package dayfile
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"math"
 	"math/rand/v2"
 	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 )
@@ -115,46 +118,52 @@ type backShape struct {
 	// before is how much of a file comes before the line too long to hold
 	// planted across the edge of the stretch its last lines fill, at least.
 	before int
+	// whole is how many files of the shape the property tests generate to read
+	// whole, by the seeds from none up, each ending as endings has it in turn;
+	// and stepped how many of those they read to each line in turn, which
+	// takes far longer.
+	whole, stepped uint64
 }
 
 // backShapes are the shapes of the plain files the property tests generate:
 // of lines as long as a request's; and of lines longer than a stretch, those
-// as long as can be held among them, held across a stretch's edge.
+// as long as can be held among them, held across a stretch's edge, which take
+// longer to read, so fewer.
 var backShapes = []backShape{
-	{name: "lines as long as a request's", most: 4096, longest: 1500, before: backStretch},
-	{name: "lines longer than a stretch", most: 80 << 10, longest: 72 << 10, before: 2 * backStretch},
+	{name: "lines as long as a request's", most: 4096, longest: 1500, before: backStretch, whole: 6 * uint64(len(endings)), stepped: 2 * uint64(len(endings))},
+	{name: "lines longer than a stretch", most: 80 << 10, longest: 72 << 10, before: backStretch, whole: 2 * uint64(len(endings)), stepped: uint64(len(endings))},
 }
 
-// backSeeds are how many seeds the property tests generate files of: one
-// for every ending of every shape.
-var backSeeds = uint64(len(backShapes) * len(endings))
-
-// backShapeOf returns the shape of the file backFile generates of the seed
-// given: each in turn.
-func backShapeOf(seed uint64) backShape {
-	return backShapes[seed%uint64(len(backShapes))]
+// eachBackFile runs test with the files of each shape the property tests
+// generate, as many as files says, by shape and seed, each in a test of its
+// own named for them.
+func eachBackFile(t *testing.T, files func(backShape) uint64, test func(t *testing.T, shape backShape, seed uint64)) {
+	t.Helper()
+	for _, shape := range backShapes {
+		t.Run(shape.name, func(t *testing.T) {
+			for seed := range files(shape) {
+				t.Run(fmt.Sprintf("seed %d", seed), func(t *testing.T) { test(t, shape, seed) })
+			}
+		})
+	}
 }
 
-// backDay writes the plain file of the day with the given date, as backFile
-// generates it of the seed given, to files read with the LineMax its shape
-// has, and returns them.
-func backDay(t *testing.T, date string, seed uint64) *Files {
+// backFiles returns files read with the LineMax of the shape given.
+func backFiles(t *testing.T, shape backShape) *Files {
 	t.Helper()
 	f := requestLedger(t.TempDir())
-	f.LineMax = backShapeOf(seed).most
-	writeDay(t, f, plainFile(date), backFile(seed))
+	f.LineMax = shape.most
 	return f
 }
 
-// backFile returns a day's plain file as the seed given generates it, of the
-// shape it has: every kind of line once, among lines of JSON mostly, now and
+// backFile returns a day's plain file of the shape given, as the seed given
+// generates it: every kind of line once, among lines of JSON mostly, now and
 // then another kind, in an order of their own; then a line too long to hold,
 // across the edge of the stretch the lines after it fill, read back, or,
 // where an ending as long as can be held fills one alone, the next; then
 // lines and an ending as the seed has them.
-func backFile(seed uint64) string {
-	shape := backShapeOf(seed)
-	rng := rand.New(rand.NewPCG(seed, 47))
+func backFile(shape backShape, seed uint64) string {
+	rng := rand.New(rand.NewPCG(seed, uint64(shape.most)))
 	n := 0
 	line := func(kind func(n, length, most int) string) string {
 		n++
@@ -196,12 +205,32 @@ func lineLength(rng *rand.Rand, longest int) int {
 	return rng.IntN(longest)
 }
 
-// asBraced is a line as the text it holds, where it's between braces, as a
-// line of JSON written whole is, and a blank line, one cut short, or one
-// ending in a carriage return kept, isn't: as cheap to tell as can be, for
-// reads again and again.
+// braced reports whether line is between braces, as a line of JSON written
+// whole is, and a blank line, one cut short, or one ending in a carriage
+// return kept, isn't: as cheap to tell as can be, for reads again and again.
+func braced(line []byte) bool {
+	return len(line) > 1 && line[0] == '{' && line[len(line)-1] == '}'
+}
+
+// asBraced is a line as the text it holds, where it's braced.
 func asBraced(line []byte) (string, bool) {
-	return string(line), len(line) > 1 && line[0] == '{' && line[len(line)-1] == '}'
+	return string(line), braced(line)
+}
+
+// mark is a line as the property tests tell one from another without
+// holding it: by how long it is, and its first and last bytes, which number
+// a line of the tests and end it.
+type mark struct {
+	length      int
+	first, last [12]byte
+}
+
+// asMarked is a line as its mark, where it's braced.
+func asMarked(line []byte) (mark, bool) {
+	m := mark{length: len(line)}
+	copy(m.first[:], line)
+	copy(m.last[:], line[max(len(line)-len(m.last), 0):])
+	return m, braced(line)
 }
 
 func TestReadBackReadingWholeHandsWhatReadDayHandsTurnedAbout(t *testing.T) {
@@ -211,52 +240,66 @@ func TestReadBackReadingWholeHandsWhatReadDayHandsTurnedAbout(t *testing.T) {
 		decode func(line []byte) (string, bool)
 	}{
 		{name: "every line, as its text", decode: asText},
-		{name: "lines of JSON alone", decode: asJSONLine},
+		{name: "braced lines alone", decode: asBraced},
 	}
-	for seed := range backSeeds {
-		t.Run(fmt.Sprintf("seed %d, %s", seed, backShapeOf(seed).name), func(t *testing.T) {
-			f := backDay(t, date, seed)
-			for _, d := range decodes {
-				t.Run(d.name, func(t *testing.T) {
-					forward, lines, unread, err := forwardTo(f, date, d.decode, math.MaxInt)
-					if err != nil {
-						t.Fatalf("seed %d: ReadDay() failed: %v", seed, err)
-					}
+	eachBackFile(t, func(s backShape) uint64 { return s.whole }, func(t *testing.T, shape backShape, seed uint64) {
+		f := backFiles(t, shape)
+		writeDay(t, f, plainFile(date), backFile(shape, seed))
+		for _, d := range decodes {
+			t.Run(d.name, func(t *testing.T) {
+				forward, lines, unread, err := forwardTo(f, date, d.decode, math.MaxInt)
+				if err != nil {
+					t.Fatalf("%s, seed %d: ReadDay() failed: %v", shape.name, seed, err)
+				}
 
-					back, backLines, backUnread, ok, err := backTo(f, date, d.decode, math.MaxInt)
-					if !slices.Equal(back, turnedAbout(forward)) || backLines != lines || backUnread != unread || !ok || err != nil {
-						t.Errorf("seed %d: ReadBack() handed on %d lines, = %d, %d, %v, %v; want ReadDay's %d turned about, %d, %d, true, nil",
-							seed, len(back), backLines, backUnread, ok, err, len(forward), lines, unread)
-					}
-				})
-			}
-		})
-	}
+				back, backLines, backUnread, ok, err := backTo(f, date, d.decode, math.MaxInt)
+				if !slices.Equal(back, turnedAbout(forward)) || backLines != lines || backUnread != unread || !ok || err != nil {
+					t.Errorf("%s, seed %d: ReadBack() handed on %d lines, = %d, %d, %v, %v; want ReadDay's %d turned about, %d, %d, true, nil",
+						shape.name, seed, len(back), backLines, backUnread, ok, err, len(forward), lines, unread)
+				}
+			})
+		}
+	})
 }
 
-func TestReadBackToAnyLineReadsWhatReadDayReadsOfTheLastLines(t *testing.T) {
-	const date = "2026-09-25"
-	for seed := range backSeeds {
-		t.Run(fmt.Sprintf("seed %d, %s", seed, backShapeOf(seed).name), func(t *testing.T) {
-			f := backDay(t, date, seed)
-			forward, lines, unread, err := forwardTo(f, date, asBraced, math.MaxInt)
-			if err != nil {
-				t.Fatalf("seed %d: ReadDay() failed: %v", seed, err)
-			}
+// heldForward returns what readOpened, which reads a plain day's file for
+// ReadDay, hands on of a file holding text, as asMarked makes it, up to the
+// n-th, and what it returns.
+func heldForward(f *Files, text string, n int) (got []mark, lines, unread int) {
+	file := openFile{dayFile: plainFile("2026-09-25"), ReadCloser: io.NopCloser(strings.NewReader(text))}
+	lines, unread = readOpened(f, []openFile{file}, asMarked, upTo(&got, n))
+	return got, lines, unread
+}
 
-			for k := 1; k <= len(forward); k++ {
-				back, backLines, backUnread, _, _ := backTo(f, date, asBraced, k)
-				_, forwardLines, forwardUnread, _ := forwardTo(f, date, asBraced, len(forward)-k+1)
-				// Read forward to the line, and back to it, every line is read, that
-				// one twice.
-				wantLines, wantUnread := lines-forwardLines+1, unread-forwardUnread
-				if !slices.Equal(back, turnedAbout(forward[len(forward)-k:])) || backLines != wantLines || backUnread != wantUnread {
-					t.Fatalf("seed %d: ReadBack() to the %d-th line handed on = %d, %d; want ReadDay's last %d turned about, %d, %d: the file's, less those read forward before them",
-						seed, k, backLines, backUnread, k, wantLines, wantUnread)
-				}
+// heldBack returns what readBackOpened, which reads a plain day's file for
+// ReadBack, hands on of a file holding text, as asMarked makes it, up to the
+// n-th, and what it returns.
+func heldBack(f *Files, text string, n int) (got []mark, lines, unread int) {
+	lines, unread = readBackOpened(f, plainFile("2026-09-25"), strings.NewReader(text), int64(len(text)), asMarked, upTo(&got, n))
+	return got, lines, unread
+}
+
+// The reads read files held in memory, through what ReadDay and ReadBack read
+// a plain day's file with: a file's lines read every way twice over, from
+// disk, take too long.
+func TestReadBackToAnyLineReadsWhatReadDayReadsOfTheLastLines(t *testing.T) {
+	eachBackFile(t, func(s backShape) uint64 { return s.stepped }, func(t *testing.T, shape backShape, seed uint64) {
+		f := backFiles(t, shape)
+		text := backFile(shape, seed)
+		forward, lines, unread := heldForward(f, text, math.MaxInt)
+
+		for k := 1; k <= len(forward); k++ {
+			back, backLines, backUnread := heldBack(f, text, k)
+			_, forwardLines, forwardUnread := heldForward(f, text, len(forward)-k+1)
+			// Read forward to the line, and back to it, every line is read, that
+			// one twice.
+			wantLines, wantUnread := lines-forwardLines+1, unread-forwardUnread
+			if !slices.Equal(back, turnedAbout(forward[len(forward)-k:])) || backLines != wantLines || backUnread != wantUnread {
+				t.Fatalf("%s, seed %d: read back to the %d-th line handed on = %d, %d; want the last %d read forward turned about, %d, %d: the file's, "+
+					"less those read forward before them", shape.name, seed, k, backLines, backUnread, k, wantLines, wantUnread)
 			}
-		})
-	}
+		}
+	})
 }
 
 func TestReadBackReadsAFileAsFarAsItWasLongAsItOpenedIt(t *testing.T) {
@@ -362,6 +405,40 @@ func TestReadBackReadsNothingOfADayCompressedAsItOpensItsPlainFile(t *testing.T)
 	}
 }
 
+func TestADayWhoseCompressedFileCantBeLookedAtIsLeftToBeReadForward(t *testing.T) {
+	const date = "2026-09-25"
+	f := requestLedger(t.TempDir())
+	writeDay(t, f, plainFile(date), linesOf(`{"n":1}`))
+	// A link to itself, which can't be looked at.
+	compressed := f.path(compressedFile(date))
+	if err := os.Symlink(filepath.Base(compressed), compressed); err != nil {
+		t.Fatal(err)
+	}
+
+	got, lines, unread, ok, err := backTo(f, date, asText, math.MaxInt)
+	if ok || err != nil || len(got) > 0 || lines != 0 || unread != 0 {
+		t.Errorf("ReadBack() handed on %q, = %d, %d, %v, %v; want none, 0, 0, false, nil: the day read forward", got, lines, unread, ok, err)
+	}
+}
+
+func TestADayWhosePlainFileCantBeLookedAtOnceOpenedIsLeftToBeReadForward(t *testing.T) {
+	const date = "2026-09-25"
+	f := requestLedger(t.TempDir())
+	writeDay(t, f, plainFile(date), linesOf(`{"n":1}`))
+	plain, failed := f.openOne(plainFile(date), nil)
+	if plain == nil {
+		t.Fatalf("the plain file couldn't be opened: %+v", failed)
+	}
+	// Closed, it can't be looked at, as an open file now and then can't be.
+	if err := plain.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	if size, ok, err := f.plainAlone(date, plain, failed); ok || err != nil {
+		t.Errorf("plainAlone() = %d, %v, %v; want false, nil: the day read forward, as ReadDay, which never looks at it, reads it", size, ok, err)
+	}
+}
+
 func TestReadBackOfADayWithoutFilesFailsAsReadDayDoes(t *testing.T) {
 	f := requestLedger(t.TempDir())
 	writeDay(t, f, plainFile("2026-09-26"), linesOf(`{"n":1}`))
@@ -451,6 +528,46 @@ func TestReadBackReadsNoFurtherBackThanTakeWants(t *testing.T) {
 	})
 	if !slices.Equal(got, []string{`{"n":19999}`}) || handed != 1 || log.Has("level=WARN") {
 		t.Errorf("read back %q, %d handed on, logging\n%s\nwant the last line alone, and nothing warned of", got, handed, log)
+	}
+}
+
+func TestADamagedFileReadShortOfTheDamageIsWarnedOfOnceStill(t *testing.T) {
+	const date = "2026-09-25"
+	text := numbered(0, 20000)
+	reads := []struct {
+		name string
+		// read reads the day's plain file, damaged where the read reaches last,
+		// handing take its lines until it reports false.
+		read func(f *Files, take func(line []byte) bool)
+	}{
+		{
+			name: "back, the file damaged at its start",
+			read: func(f *Files, take func(line []byte) bool) {
+				f.readBack(plainFile(date), badSector{data: []byte(text), from: 0, to: 1}, int64(len(text)), take)
+			},
+		},
+		{
+			name: "forward, the file damaged at its end",
+			read: func(f *Files, take func(line []byte) bool) {
+				damaged := io.MultiReader(strings.NewReader(text), iotest.ErrReader(errBadSector))
+				f.readFile(openFile{dayFile: plainFile(date), ReadCloser: io.NopCloser(damaged)}, take)
+			},
+		},
+	}
+	for _, tt := range reads {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			f := requestLedger(t.TempDir())
+
+			// Read whole, which reaches the damage; then stopped short of it, which
+			// never reads to the file's end; then whole again.
+			tt.read(f, every[[]byte])
+			tt.read(f, func([]byte) bool { return false })
+			tt.read(f, every[[]byte])
+			if warned := linesWith(log, "file="+plainFile(date).name(f.Prefix)); len(warned) != 1 {
+				t.Errorf("log reads\n%s\nwant the file warned of once: a read stopped short of the damage never read to its end", log)
+			}
+		})
 	}
 }
 
