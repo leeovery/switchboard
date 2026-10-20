@@ -84,23 +84,14 @@ func turnDaysOf(l LedgerRows, id string, turn, horizon ledger.Span) turnDays {
 // rowsOfTurn are the records of the session with the given id the rows of
 // the local day with the given date hold, newest first, read of the chunks
 // whose meta says they may hold a line of the turn whose span is given, as
-// meets has it, and no other: reporting false, for the day to be read raw,
-// where its rows don't stand, as l's DayRows says, a chunk's meta won't
-// read, or a chunk read won't restore, as restoredChunks has it.
+// chunksMeeting chooses them by meets, and no other: reporting false, for
+// the day to be read raw, where its rows don't stand, as l's DayRows says, a
+// chunk's meta won't read, or a chunk read won't restore, as restoredChunks
+// has it.
 func rowsOfTurn(l LedgerRows, id, date string, turn ledger.Span) ([]lineRecord, bool) {
-	rows, ok := l.DayRows(date, RowsVersion)
+	meeting, ok := chunksMeeting(l, date, func(m *chunkMeta) bool { return m.meets(id, turn) })
 	if !ok {
 		return nil, false
-	}
-	var meeting []ledger.RowsChunk
-	for _, c := range rows.Chunks {
-		meta, err := chunkMetaOf(c.Meta)
-		if err != nil {
-			return nil, false
-		}
-		if meta.meets(id, turn) {
-			meeting = append(meeting, c)
-		}
 	}
 	records, ok := restoredChunks(l, date, meeting, nil)
 	if !ok {

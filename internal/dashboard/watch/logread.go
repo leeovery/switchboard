@@ -217,11 +217,12 @@ func (m Model) refiledFrom(from, now time.Time) (Model, tea.Cmd) {
 }
 
 // took is the Log's read, through r, taken in the lines of the day with the
-// given date, every one, as ReadDay reads them, from its rows where they
-// stand, at now, as TakenBack takes them in, beside the store held: the
-// sessions it reads whole, for the watch's to take in.
+// given date, every one, as ReadDay reads them through the zero LogFilter,
+// whole, from its rows where they stand, at now, as TakenBack takes them
+// in, beside the store held: the sessions it reads whole, for the watch's to
+// take in.
 func (r logReaders) took(read views.LogRead, date string, held views.HeldSessions, s views.Stream, now time.Time) logGrown {
-	grown, found := read.TakenBack(r.ledger, views.ReadDay(r.ledger, date), held, s, now)
+	grown, found := read.TakenBack(r.ledger, views.ReadDay(r.ledger, date, views.LogFilter{}), held, s, now)
 	return logGrown{read: grown, held: found}
 }
 

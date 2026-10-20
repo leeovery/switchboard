@@ -495,6 +495,56 @@ func TestAChunksMetaCountsALineGivenTwiceTwice(t *testing.T) {
 	}
 }
 
+// A chunk's meta may keep a row a filter keeps where each of the filter's
+// choices ticks none, or an id it counts a row of, and of those that failed
+// alone, it counts a failure, whatever kinds the filter ticks: each choice
+// judged apart, so it may keep where no row is of both an account and a
+// model ticked, or of a session ticked and failed; and never where a choice
+// ticks only ids it counts none of, as of a session whose one row is a
+// quota check, which counts toward none. Its meta is read as the chunk's
+// builder stores it.
+func TestAChunksMetaMayKeepWhereEachChoiceCountsARowOfOne(t *testing.T) {
+	at := time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC)
+	line := func(request, kind, session, account, model string, status int) ledger.Line {
+		return ledger.Line{At: at, Request: request, Kind: kind, Session: session, Model: model, Account: account, Status: status}
+	}
+	mixed := []ledger.Line{
+		line("r1", ledger.KindMessage, "s", "work", foldOpus, 200), line("r2", ledger.KindMessage, "t", "side", foldHaiku, 529),
+		line("r3", ledger.KindCheck, "u", "work", foldOpus, 200),
+	}
+	tests := []struct {
+		name  string
+		lines []ledger.Line
+		f     LogFilter
+		want  bool
+	}{
+		{"ticking none", mixed, LogFilter{}, true},
+		{"an account it counts a row of", mixed, LogFilter{Accounts: []string{"side"}}, true},
+		{"an account it counts none of", mixed, LogFilter{Accounts: []string{"personal"}}, false},
+		{"an account it counts none of and one it counts", mixed, LogFilter{Accounts: []string{"personal", "side"}}, true},
+		{"an account of one row and a model of another", mixed, LogFilter{Accounts: []string{"work"}, Models: []string{foldHaiku}}, true},
+		{"a model it counts none of, on an account it counts", mixed, LogFilter{Accounts: []string{"work"}, Models: []string{foldSonnet}}, false},
+		{"a session it counts a row of", mixed, LogFilter{Sessions: []string{"t"}}, true},
+		{"a session whose one row is a quota check", mixed, LogFilter{Sessions: []string{"u"}}, false},
+		{"the failed, of a chunk one of whose rows failed", mixed, LogFilter{Failed: true}, true},
+		{"the failed, of a chunk none of whose rows failed", mixed[:1], LogFilter{Failed: true}, false},
+		{"the failed of a session none of whose rows failed, another's having", mixed, LogFilter{Sessions: []string{"s"}, Failed: true}, true},
+		{"a kind it holds none of", mixed[:1], LogFilter{Kinds: []RowKind{RowCount}}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			built, _ := encodedChunk(t, recordsOfLines(tt.lines))
+			meta, err := chunkMetaOf(built.meta)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := meta.mayKeep(tt.f); got != tt.want {
+				t.Errorf("the meta of a chunk counting %+v may keep a row %+v keeps %t, want %t", meta.lines, tt.f, got, tt.want)
+			}
+		})
+	}
+}
+
 // A chunk's meta gives when the first and the last of its rows arrived,
 // whatever year they arrived in: before 1970, as a line edited by hand may
 // say, among them, and at no time at all; and of a chunk of one row, its

@@ -107,7 +107,7 @@ func (w *spread) sameLog(m moment) {
 	var shown []any
 	if m.now.Hour() == 1 {
 		from, s, once := twoBack(m.now), logStream(m), readingOnce(Today(m.now).Date)
-		shown = logBack(once.through(m.logged), ReadDay, from, s, w.prices.read, m.now)
+		shown = logBack(once.through(m.logged), wholeDay, from, s, w.prices.read, m.now)
 		if want := logBack(once.through(w.based), rawDay, from, s, w.prices.read, m.now); !reflect.DeepEqual(shown, want) {
 			w.t.Errorf("%s at %v: the Log read back to %s over rows shows otherwise than read raw\n%s", w.name, m.now, from, unlike(shown, want))
 		}
@@ -206,7 +206,7 @@ func (w *spread) daysBack(now time.Time) []string {
 // gives them.
 func (w *spread) sameDayBack(m moment, date string) {
 	w.t.Helper()
-	if got, want := ReadDay(m.logged, date), rawDay(w.based, date); !reflect.DeepEqual(got, want) {
+	if got, want := wholeDay(m.logged, date), rawDay(w.based, date); !reflect.DeepEqual(got, want) {
 		w.t.Errorf("%s at %v: %s, read from its rows %t, reads back as\n%s", w.name, m.now, date, m.logged.fromRows(date), recordsUnlike(got.records, want.records))
 	}
 }
