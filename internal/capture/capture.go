@@ -363,7 +363,15 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // Then Runway's frames, each reached from the Overview with tab four times:
 // the week, which it opens on, wide and on a phone; the 5-hour view, with >;
 // Wednesday, > then ← twice, today and the day before; all over the auto
-// world; and the week of ten accounts.
+// world; and the week of ten accounts. Among each view's, at the owner's
+// sizes, each named for its size, the frames a fluid layout is checked by:
+// the Overview on a phone, an iPad and a phone on its side; Accounts'
+// Compare on a phone and Detail of work on its side; History's Year and
+// Days on its side; Runway's week on its side and on a desktop; Sessions'
+// Switchboard on an iPad and its List at 90 × 40; the Log's Requests at 90 ×
+// 40; and d28c's page on an iPad. And over the world of long names, so a
+// cut name shows, the Switchboard, the List and the Log's Requests on an
+// iPad.
 var pages = []page{
 	{name: "overview-default-160", size: wide(37), world: accountWorlds.auto},
 	{name: "overview-pinned-160", size: wide(37), world: accountWorlds.pinned},
@@ -387,6 +395,9 @@ var pages = []page{
 	{name: "overview-pool-burn-down-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("b", "g", "v")},
 	{name: "overview-pool-220x50", size: watch.Size{Width: 220, Height: 50}, world: accountWorlds.auto, keys: keysOf("b", "g", "w")},
 	{name: "overview-phone-burn-down-52", size: watch.Size{Width: 52, Height: 72}, world: accountWorlds.auto, keys: keysOf("g", "v", "r", "c", "l", "w")},
+	{name: "overview-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto},
+	{name: "overview-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.auto},
+	{name: "overview-138x15", size: watch.Size{Width: 138, Height: 15}, world: accountWorlds.auto},
 	{name: "routing-auto-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("p")},
 	{name: "routing-two-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("p", "2", "3")},
 	{name: "routing-move-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("p", "2", "m")},
@@ -403,6 +414,8 @@ var pages = []page{
 	{name: "history-tokens-models-160", size: wide(37), world: accountWorlds.auto, keys: toHistory("]", "]", "]", "v")},
 	{name: "history-tokens-plan-unknown-160", size: wide(37), world: accountWorlds.sidesPlanUnknown, keys: toHistory("]", "]", "]")},
 	{name: "history-phone-year-52", size: watch.Size{Width: 52, Height: 35}, world: accountWorlds.auto, keys: toHistory()},
+	{name: "history-year-138x30", size: watch.Size{Width: 138, Height: 30}, world: accountWorlds.auto, keys: toHistory()},
+	{name: "history-days-138x30", size: watch.Size{Width: 138, Height: 30}, world: accountWorlds.auto, keys: toHistory("]", "]")},
 	{name: "page-year-160x24", size: wide(24), world: accountWorlds.auto, keys: toHistory("j", "j", "j")},
 	{name: "page-routing", size: watch.Size{Width: 160, Height: 40}, world: accountWorlds.auto, keys: keysOf("p", "2", "3", "m")},
 	{name: "page-routing-phone", size: watch.Size{Width: 52, Height: 36}, world: accountWorlds.auto, keys: keysOf("p", "2", "m")},
@@ -413,6 +426,8 @@ var pages = []page{
 	{name: "log-requests-160", size: wide(37), world: accountWorlds.auto, keys: toLog()},
 	{name: "log-not-live-160", size: wide(37), world: accountWorlds.notLive, keys: toLog(), gone: true, goneFor: notLiveGone},
 	{name: "log-requests-phone-52", size: watch.Size{Width: 52, Height: 33}, world: accountWorlds.auto, keys: toLog()},
+	{name: "log-requests-90x40", size: watch.Size{Width: 90, Height: 40}, world: accountWorlds.auto, keys: toLog()},
+	{name: "log-requests-long-names-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.longNames, keys: toLog()},
 	{name: "log-event-details-160", size: wide(37), world: accountWorlds.auto, keys: slices.Concat(toLog("]"), repeated(upKey, 5), []tea.KeyPressMsg{enterKey})},
 	{
 		name: "log-request-details-160", size: wide(37), world: accountWorlds.auto, keys: []tea.KeyPressMsg{enterKey},
@@ -435,6 +450,7 @@ var pages = []page{
 	{name: "session-resumed-160", size: wide(37), world: accountWorlds.resumed, keys: toSession("f41a"), scale: storyScale},
 	{name: "session-turn-opened-160", size: wide(37), world: accountWorlds.auto, keys: toSession("d28c", downKey, enterKey), scale: storyScale},
 	{name: "session-phone-52", size: watch.Size{Width: 52, Height: 32}, world: accountWorlds.auto, keys: toSession("d28c"), scale: storyScale},
+	{name: "session-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.auto, keys: toSession("d28c"), scale: storyScale},
 	{name: "routing-session-160", size: wide(37), world: accountWorlds.auto, keys: toSession("9c2e", keysOf("p", "3")...), scale: storyScale},
 	{name: "page-session-loading", size: wide(37), world: accountWorlds.auto, keys: toSession("d28c"), scale: storyScale, loading: true},
 	{name: "accounts-compare-160", size: wide(37), world: accountWorlds.auto, keys: toAccounts()},
@@ -462,10 +478,16 @@ var pages = []page{
 	{name: "accounts-phone-detail-52", size: watch.Size{Width: 52, Height: 41}, world: accountWorlds.auto, keys: toDetail(downKey)},
 	{name: "accounts-phone-compare-plan-unknown-52", size: watch.Size{Width: 52, Height: 48}, world: accountWorlds.sidesPlanUnknown, keys: toAccounts()},
 	{name: "accounts-phone-detail-plan-unknown-52", size: watch.Size{Width: 52, Height: 41}, world: accountWorlds.sidesPlanUnknown, keys: toDetail()},
+	{name: "accounts-compare-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto, keys: toAccounts()},
+	{name: "accounts-detail-138x30", size: watch.Size{Width: 138, Height: 30}, world: accountWorlds.auto, keys: toDetail(downKey)},
 	{name: "sessions-switchboard-160", size: wide(37), world: accountWorlds.scene, keys: toSessions()},
 	{name: "sessions-list-160", size: wide(37), world: accountWorlds.scene, keys: toSessions("]")},
 	{name: "sessions-phone-52", size: phone(33), world: accountWorlds.scene, keys: toSessions()},
 	{name: "sessions-list-phone-52", size: phone(33), world: accountWorlds.scene, keys: toSessions("]")},
+	{name: "sessions-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.scene, keys: toSessions()},
+	{name: "sessions-list-90x40", size: watch.Size{Width: 90, Height: 40}, world: accountWorlds.scene, keys: toSessions("]")},
+	{name: "sessions-switchboard-long-names-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.longNames, keys: toSessions()},
+	{name: "sessions-list-long-names-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.longNames, keys: toSessions("]")},
 	{
 		name: "sessions-ten-accounts-160", size: wide(37), world: accountWorlds.ten, before: lookedAway(time.Minute), keys: cameBack,
 		looked: &looked{listed: inTheFramesOrder(tenSessions)},
@@ -498,6 +520,8 @@ var pages = []page{
 	{name: "runway-collapsed-160", size: wide(37), world: accountWorlds.auto, keys: toRunway("a")},
 	{name: "runway-collapsed-108x43", size: watch.Size{Width: 108, Height: 43}, world: accountWorlds.auto, keys: toRunway("a")},
 	{name: "runway-phone-collapsed-52", size: phone(33), world: accountWorlds.auto, keys: toRunway("a")},
+	{name: "runway-138x15", size: watch.Size{Width: 138, Height: 15}, world: accountWorlds.auto, keys: toRunway()},
+	{name: "runway-173x53", size: watch.Size{Width: 173, Height: 53}, world: accountWorlds.auto, keys: toRunway()},
 }
 
 // lookedAway are the keys a look at Sessions' Switchboard by before a page's
