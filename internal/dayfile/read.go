@@ -222,10 +222,16 @@ func ReadDay[T any](f *Files, date string, decode func(line []byte) (T, bool), t
 	defer f.mu.RUnlock()
 	opened, failed := f.openDay(date)
 	if len(opened) == 0 && len(failed) == 0 {
-		return 0, 0, fmt.Errorf("the %s holds no lines of %s: %w", f.Name, date, fs.ErrNotExist)
+		return 0, 0, f.noLines(date)
 	}
 	lines, unread = readOpened(f, opened, decode, take)
 	return lines, unread, f.failure(failed)
+}
+
+// noLines is the error of the local day with the given date having no files,
+// its lines pruned, or never written.
+func (f *Files) noLines(date string) error {
+	return fmt.Errorf("the %s holds no lines of %s: %w", f.Name, date, fs.ErrNotExist)
 }
 
 // Count returns how many lines the files of the local day with the given
@@ -261,7 +267,7 @@ func (f *Files) Stat(date string) (DayStat, error) {
 	case err != nil:
 		return DayStat{}, err
 	case plain == nil && compressed == nil:
-		return DayStat{}, fmt.Errorf("the %s holds no lines of %s: %w", f.Name, date, fs.ErrNotExist)
+		return DayStat{}, f.noLines(date)
 	}
 	var s DayStat
 	if plain != nil {
@@ -288,23 +294,48 @@ func (f *Files) stat(file dayFile) (fs.FileInfo, error) {
 // files.
 func readOpened[T any](f *Files, opened []openFile, decode func(line []byte) (T, bool), take func(T) bool) (lines, unread int) {
 	defer closeAll(opened)
-	undecoded := 0
+	var read tally
+	taking := decoding(&read, decode, take)
 	for _, file := range opened {
-		handed, long, more := f.readFile(file, func(line []byte) bool {
-			v, ok := decode(line)
-			if !ok {
-				undecoded++
-				return true
-			}
-			return take(v)
-		})
-		lines += handed + long
-		unread += long
+		handed, long, more := f.readFile(file, taking)
+		read.add(handed, long)
 		if !more {
 			break
 		}
 	}
-	return lines, unread + undecoded
+	return read.counts()
+}
+
+// tally counts the lines a read reads: those it handed decode, those it
+// skipped as too long to hold, and those decode made nothing of.
+type tally struct {
+	handed, long, undecoded int
+}
+
+// add counts handed lines handed decode, and long skipped as too long to
+// hold.
+func (t *tally) add(handed, long int) {
+	t.handed += handed
+	t.long += long
+}
+
+// counts returns how many lines the read read, and how many of those were
+// unread: too long to hold, or made nothing of.
+func (t *tally) counts() (lines, unread int) {
+	return t.handed + t.long, t.long + t.undecoded
+}
+
+// decoding returns what hands take each line decode makes a T of, passing
+// over, counted in t, each it makes nothing of.
+func decoding[T any](t *tally, decode func(line []byte) (T, bool), take func(T) bool) func(line []byte) bool {
+	return func(line []byte) bool {
+		v, ok := decode(line)
+		if !ok {
+			t.undecoded++
+			return true
+		}
+		return take(v)
+	}
 }
 
 // readFile hands take each line the file holds, in order, without its line
@@ -320,12 +351,19 @@ func (f *Files) readFile(file openFile, take func(line []byte) bool) (handed, lo
 			return handed, lines.Long(), false
 		}
 	}
-	if err := lines.Err(); err != nil {
-		f.warn(f.Name+" read short", file.dayFile, err)
-	} else {
-		f.warned.forget(file.name(f.Prefix))
-	}
+	f.readEnded(file.dayFile, lines.Err())
 	return handed, lines.Long(), true
+}
+
+// readEnded notes how a read of the file that went on to its end ended: one
+// that read short, saying why, is warned of, as Read says, and one that read
+// to its end is warned of afresh should a read of it fail again.
+func (f *Files) readEnded(file dayFile, err error) {
+	if err != nil {
+		f.warn(f.Name+" read short", file, err)
+		return
+	}
+	f.warned.forget(file.name(f.Prefix))
 }
 
 // Faults are the dates of the local days whose files a read couldn't read
