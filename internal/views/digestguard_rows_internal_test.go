@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 )
 
@@ -106,8 +107,8 @@ func (w *spread) sameLog(m moment) {
 	w.t.Helper()
 	var shown []any
 	if m.now.Hour() == 1 {
-		from, s, once := twoBack(m.now), logStream(m), readingOnce(Today(m.now).Date)
-		shown = logBack(once.through(m.logged), ReadDay, from, s, w.prices.read, m.now)
+		from, s, once := twoBack(m.now), logStream(m), readingOnce()
+		shown = logBack(once.through(m.logged), wholeDay, from, s, w.prices.read, m.now)
 		if want := logBack(once.through(w.based), rawDay, from, s, w.prices.read, m.now); !reflect.DeepEqual(shown, want) {
 			w.t.Errorf("%s at %v: the Log read back to %s over rows shows otherwise than read raw\n%s", w.name, m.now, from, unlike(shown, want))
 		}
@@ -128,25 +129,53 @@ func (w *spread) sameLog(m moment) {
 	w.noteLogged(m, shown)
 }
 
-// readOnce are today's lines and the days' summaries as the Log read back
-// both ways reads them, read once, through whichever ledger reads them
-// first, as both read them alike: each ledger read through it, as through
-// gives it, reads them so.
+// readOnce are the days' lines, their summaries, their rows and the chunks
+// of them, as the Log's reads back at a moment read them, each read once,
+// through whichever ledger reads it first, as all read them alike and
+// nothing's filed while they read: each ledger read through it, as through
+// gives it, reads them so. Lines given are shared, so none is changed.
 type readOnce struct {
-	today string
-	lines []ledger.Held
-	read  bool
-	sums  map[string][]ledger.Summary
+	lines  map[string][]ledger.Held
+	sums   map[string][]ledger.Summary
+	rows   map[rowsAt]givenRows
+	chunks map[chunkAt]givenChunk
 }
 
-// readingOnce is readOnce of today, the local day with the given date,
-// nothing read yet.
-func readingOnce(today string) *readOnce {
-	return &readOnce{today: today, sums: make(map[string][]ledger.Summary)}
+// rowsAt is which rows DayRows is asked for: the date of their day, and the
+// version of their body.
+type rowsAt struct {
+	date string
+	body int
 }
 
-// through is l, but its reads of today's lines and of the days' summaries,
-// as o reads them once.
+// givenRows are a day's rows as DayRows gave them, and whether they stood.
+type givenRows struct {
+	rows ledger.DayRows
+	ok   bool
+}
+
+// chunkAt is which chunk of a day's rows RowChunk is asked for: the date of
+// their day, and the offset of its member.
+type chunkAt struct {
+	date   string
+	offset int64
+}
+
+// givenChunk is a chunk's rows as RowChunk gave them, and why it gave none.
+type givenChunk struct {
+	rows []byte
+	err  error
+}
+
+// readingOnce is readOnce, nothing read yet.
+func readingOnce() *readOnce {
+	return &readOnce{
+		lines: make(map[string][]ledger.Held), sums: make(map[string][]ledger.Summary), rows: make(map[rowsAt]givenRows), chunks: make(map[chunkAt]givenChunk),
+	}
+}
+
+// through is l, but its reads of the days' lines, summaries, rows and chunks
+// of them, as o reads them once.
 func (o *readOnce) through(l Ledger) Ledger {
 	return onceRead{Ledger: l, o: o}
 }
@@ -158,23 +187,38 @@ type onceRead struct {
 }
 
 func (r onceRead) Day(date string) []ledger.Held {
-	if date != r.o.today {
-		return r.Ledger.Day(date)
-	}
-	if !r.o.read {
-		r.o.lines, r.o.read = r.Ledger.Day(date), true
-	}
-	return r.o.lines
+	return once(r.o.lines, date, func() []ledger.Held { return r.Ledger.Day(date) })
 }
 
 func (r onceRead) DaysOn(dates []string) []ledger.Summary {
-	key := fmt.Sprint(dates)
-	sums, ok := r.o.sums[key]
+	return once(r.o.sums, fmt.Sprint(dates), func() []ledger.Summary { return r.Ledger.DaysOn(dates) })
+}
+
+func (r onceRead) DayRows(date string, body int) (ledger.DayRows, bool) {
+	given := once(r.o.rows, rowsAt{date: date, body: body}, func() givenRows {
+		rows, ok := r.Ledger.DayRows(date, body)
+		return givenRows{rows: rows, ok: ok}
+	})
+	return given.rows, given.ok
+}
+
+func (r onceRead) RowChunk(date string, chunk ledger.RowsChunk) ([]byte, error) {
+	given := once(r.o.chunks, chunkAt{date: date, offset: chunk.Offset}, func() givenChunk {
+		rows, err := r.Ledger.RowChunk(date, chunk)
+		return givenChunk{rows: rows, err: err}
+	})
+	return given.rows, given.err
+}
+
+// once is what read gives, held in read under key the first time it's
+// asked for, as held there after.
+func once[K comparable, V any](held map[K]V, key K, read func() V) V {
+	v, ok := held[key]
 	if !ok {
-		sums = r.Ledger.DaysOn(dates)
-		r.o.sums[key] = sums
+		v = read()
+		held[key] = v
 	}
-	return sums
+	return v
 }
 
 // daysBack are the dates of the days read back alone at now, as sameDayBack
@@ -206,7 +250,7 @@ func (w *spread) daysBack(now time.Time) []string {
 // gives them.
 func (w *spread) sameDayBack(m moment, date string) {
 	w.t.Helper()
-	if got, want := ReadDay(m.logged, date), rawDay(w.based, date); !reflect.DeepEqual(got, want) {
+	if got, want := wholeDay(m.logged, date), rawDay(w.based, date); !reflect.DeepEqual(got, want) {
 		w.t.Errorf("%s at %v: %s, read from its rows %t, reads back as\n%s", w.name, m.now, date, m.logged.fromRows(date), recordsUnlike(got.records, want.records))
 	}
 }
@@ -811,6 +855,160 @@ func (w *spread) checkTurns(m moment, pages map[string]openedPage) {
 			}
 		}
 	}
+}
+
+// turnStoppedShort is the hard moment of a turn of a page opened, its
+// session's lines since the horizon read of a day's file back from its end,
+// stopping short of its start after a run of lines in a row each ended
+// before the day's stop, as unreadWithin counts the lines left unread.
+const turnStoppedShort = "a turn of a page opened, its session's lines since the horizon read of a day's file back from its end, stopping short of its start"
+
+// readBackRun is how many lines in a row, each ended before what's wanted, a
+// session's lines read back from the end of a day's file stop after, as the
+// Follower reads them.
+const readBackRun = 1000
+
+// checkStopped holds the first turn of the page of each session with a
+// request filed on a crowded day, by the moment m, as crowdedSessions has
+// them, opened then, as checkTurns holds a turn: read as turnRead reads its
+// lines through the Follower resting on digests, and through the one
+// reading raw, given every line of the session, as everyLine has it. The
+// former's read of the session's lines, as each of the turn's spans asks
+// for them, leaves unread, as unreadWithin counts them, those the stop rule
+// leaves behind, as leftBehind counts them, no more and no fewer. It notes
+// its moment met where some were left.
+func (w *spread) checkStopped(m moment) {
+	w.t.Helper()
+	for _, id := range w.crowdedSessions(m.now) {
+		o := w.openPage(m, id)
+		noted := readingTurn(w.based)
+		based, raw := turnRead(o.based, 1, o.live, noted), turnRead(o.raw, 1, o.live, everyLine{l: w.raw})
+		w.alike(m.now, id+"'s page, its first turn open", shownPageOf(based, o.live), shownPageOf(raw, o.live))
+		for _, spans := range noted.spans {
+			unread := w.unreadWithin(id, spans)
+			if left := w.leftBehind(m.now, id, spans); unread != left {
+				w.t.Errorf("%s at %v: %s's lines read within %+v left %d unread, want %d, as the stop rule leaves them", w.name, m.now, id, spans, unread, left)
+			}
+			w.met[turnStoppedShort] = w.met[turnStoppedShort] || unread > 0
+		}
+	}
+}
+
+// crowdedSessions are the ids of the sessions with a request that arrived
+// by now filed on a crowded day, in order: one of more lines than
+// readBackRun, of those whose files a page's horizon an hour before now may
+// read, as dayfile.DatesBounds has them, so a read of its lines back from
+// the day's end may stop short.
+func (w *spread) crowdedSessions(now time.Time) []string {
+	first, last := dayfile.DatesBounds(now.Add(-time.Hour), now)
+	filed := make(map[string]int)
+	for _, l := range w.lines {
+		filed[w.filedUnder(l)]++
+	}
+	var ids []string
+	for _, l := range w.lines {
+		if date := w.filedUnder(l); isRequest(&l) && !l.At.After(now) && first <= date && date <= last && filed[date] > readBackRun {
+			ids = append(ids, l.Session)
+		}
+	}
+	slices.Sort(ids)
+	return slices.Compact(ids)
+}
+
+// unreadWithin is how many of the lines of the session with the given id
+// the Follower resting on digests gives as it reads every day, filed on a
+// day the spans given take in, as ledger.Spanning has them, it doesn't give
+// as it reads them within the spans: those it read none of, reading a day's
+// file back from its end, as a run of lines in a row ended before the day's
+// stop stopped it; a line given twice counted as often as it's left.
+func (w *spread) unreadWithin(id string, spans []ledger.Span) int {
+	within := make(map[string]int)
+	for h := range w.based.Session(id, spans...) {
+		within[string(h.JSON)]++
+	}
+	spanned, unread := ledger.Spanning(spans), 0
+	for h := range w.based.Session(id) {
+		switch key := string(h.JSON); {
+		case within[key] > 0:
+			within[key]--
+		case spanned(w.filedUnder(h.Line)):
+			unread++
+		}
+	}
+	return unread
+}
+
+// leftBehind is how many lines of the session with the given id that
+// arrived by now the stop rule leaves unread of a read of them within the
+// spans given: of each day the spans take in whose plain file holds a
+// request of it, as a summary names its sessions, that file's lines before
+// the one where, read from its end, readBackRun lines in a row have ended
+// before the day's stop, as stopOn gives it, each ended as it arrived, or
+// that and the time it took where that's later.
+func (w *spread) leftBehind(now time.Time, id string, spans []ledger.Span) int {
+	left := 0
+	for _, date := range w.filedDates() {
+		stop, spanned := stopOn(spans, date)
+		if !spanned {
+			continue
+		}
+		lines := w.filedLines(date)
+		if !slices.ContainsFunc(lines, func(l ledger.Line) bool { return l.Session == id && isRequest(&l) }) {
+			continue
+		}
+		run := 0
+		for i, l := range slices.Backward(lines) {
+			run++
+			if !endedBy(&l).Before(stop) {
+				run = 0
+			}
+			if run == readBackRun {
+				left += len(slices.DeleteFunc(slices.Clone(lines[:i]), func(l ledger.Line) bool { return l.Session != id || l.At.After(now) }))
+				break
+			}
+		}
+	}
+	return left
+}
+
+// endedBy is when l's request ended, as the ledger's rule has it: when it
+// arrived, or that and the time it took where that's later.
+func endedBy(l *ledger.Line) time.Time {
+	return l.At.Add(time.Duration(max(l.TotalMS, 0)) * time.Millisecond)
+}
+
+// stopOn is the stop of the local day with the given date within the spans
+// given: the earliest From of those whose dates, as dayfile.DatesBounds
+// bounds them, take it in; reporting false of a day none takes in.
+func stopOn(spans []ledger.Span, date string) (stop time.Time, spanned bool) {
+	for _, s := range spans {
+		if first, last := dayfile.DatesBounds(s.From, s.To); first <= date && date <= last && (!spanned || s.From.Before(stop)) {
+			stop, spanned = s.From, true
+		}
+	}
+	return stop, spanned
+}
+
+// filedLines are the lines of the plain file of the local day with the
+// given date, in the order filed: none where it's gone.
+func (w *spread) filedLines(date string) []ledger.Line {
+	w.t.Helper()
+	data, err := os.ReadFile(w.dayPath(date))
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		w.t.Fatal(err)
+	}
+	var lines []ledger.Line
+	for row := range bytes.Lines(data) {
+		var l ledger.Line
+		if err := json.Unmarshal(row, &l); err != nil {
+			w.t.Fatalf("%s: a line filed on %s won't read: %v", w.name, date, err)
+		}
+		lines = append(lines, l)
+	}
+	return lines
 }
 
 // turnOf is the newest turn of the page o, opened at the moment m, of the

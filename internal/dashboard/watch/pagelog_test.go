@@ -237,7 +237,7 @@ func asFedWhole(t *testing.T, h *harness, l views.Ledger) {
 	t.Helper()
 	now := h.clock.now
 	want := h.model.heldFold(now).want
-	want.Log = h.model.log.read.Wanted()
+	want.Log = h.model.log.read.Wanted(views.Stream{})
 	whole, _ := views.HoldSessions(h.model.cfg.Prices).Fed(l, views.Taken{}, want, now)
 	live := h.model.listLive(now, h.model.traffic.stream(now))
 	if got, want := h.model.held.List(live), whole.List(live); !reflect.DeepEqual(got, want) {

@@ -1,4 +1,4 @@
-# Day digests, phases 1 to 3: what they left
+# Day digests, phases 1 to 4: what they left
 
 Phase 1 of the day digests has the router digest each finished day and the store of sessions rest
 each session on its newest standing state (see The request ledger and Live updates in the design).
@@ -9,8 +9,11 @@ newest state too: the long session's page opens in 0.31 s and 0.38 s, from 1.71 
 3a has a turn read only its own days and the horizon's, and the router write a head a day holding
 the day's sessions, so the Log's find reads those, not the day's lines. Phase 3b has the router
 write the day's rows beside its head, in chunks of 256, so the Log reads a day back from them, and
-a turn only the chunks naming its session. What they left, each a cost but for a few edges, gathered
-here.
+a turn only the chunks naming its session. Phase 4 has the Log read each past day through its
+filter, holding only the lines it keeps, so the find's pick lands 8 or 22 days back in some 0.4 s
+and 37 MB, from 4.6 to 16 s and 277 to 701 MB; and a turn's horizon read back from the end of
+today's file, so a turn opens at any age in some 0.03 s, from 0.4 to 1.3 s and 70 MB. What they
+left, each a cost but for a few edges, gathered here.
 
 ## The build's peak
 
@@ -119,6 +122,9 @@ never fed would take it in.
 - The Log's first open makes the record of each of today's lines, about 22,000 of some 656 B in
   the soak, beside the lines, before `Taken` takes them in: some 14 MB at once. Feeding each
   record through as it's made would cut that passing peak.
+- `dayfile` and `linescan` read 4 KiB at a time, beside a `Stat`: in the views' guard, those reads
+  and `Stat` calls take most of its time. A bigger read buffer would cut them, there and in every
+  raw read.
 - `heldRequest.summed` has no test that it sums every field, as the line record's sum has; the two
   share `decodedRequest`, so a fact added there is held only by the record's.
 - The watch's soak guard still passes over a turn's `turnLines` as it walks for lines held, but a
@@ -132,10 +138,7 @@ never fed would take it in.
   day raw, until it's built again for another reason, as the digesting looks at the file's size
   alone. A debug line a day, the first time a day's chunk fails, would make it visible.
 - `RowChunk` opens the rows file once a chunk, some 98 times for a busy day read back. One open a
-  day read would trim that; the Log's paging by rows, phase 4, may reshape the read anyway.
-- A chunk's meta counts a line given twice as often as it's given, where the Log counts one with an
-  id once. Phase 4 sums a finished day's `LogCount` from the metas, so it must count as the Log
-  does first.
+  day read would trim that.
 - `Spend`'s and `KeptWindow`'s stored forms could decode through `json.UnmarshalerFrom`, straight
   from a row's decoder, rather than through `UnmarshalJSON` and a copy of their bytes.
 - An idless line in a tail is summed twice, once for its key and once for its row.
@@ -154,13 +157,100 @@ never fed would take it in.
   no escapes, decode once into a typed struct of the known counts, unknown fields refused, and fall
   back to today's two reads on any doubt; its catch is the bill, which comes of the counts' map.
 
+## The Log's read
+
+- **The window.** The Log holds every line it reads from the first day it spans to today: today's
+  some 25 MB in the soak, and some 30.5 MB more for each day back unfiltered, 249 MB a week back.
+  Holding the read as the view and a page or two either side, addressed by date, chunk and index,
+  would hold a few MB however far back it's paged. It would also make widening a filter while paused
+  far back cheap: that reads again every day held through the narrower filter, some 3.3 s and
+  280 MB 8 days back, 8.4 s and 706 MB 22 days back, what the find's pick cost before phase 4.
+  Phase 4 cut it, as a day back unfiltered is minutes of PgUp, and the find and filters, the ways
+  back, now hold only what they keep. It's some 12 to 15 hours in the page model the frames hold:
+  `LineKey`, `Find`, `KeptFrom`, the wants of a day before and the letting go, all by rows, and a
+  paging guard.
+- **Thinning the held row.** Each line held is some 1.13 KB with its chunks and keys: its
+  `RequestRow` 424 B, `lineDetails` 168 B, each kept window 32 B and each key 64 B. Holding the
+  details only as a card opens, and the row's fields the table draws alone, would cut some 45% of
+  today's held.
+- **The open's second read of today.** The Log's first open reads today's file whole, then feeds the
+  store every session of today, which reads it again: some 0.4 s of the open's 0.9 s. Feeding the
+  store from the open's own read would save it.
+- **A peek decode of a row's session.** A chunk read for a turn or through a filter restores every
+  row of it whole, then drops those the turn or the filter doesn't keep. Peeking at a row's
+  session, account, model and status first, and restoring only those kept, would save most of the
+  decode where a chunk holds a few of a session's rows among many.
+- **Late reads decode again the lines they drop.** Every late or awaited read of a day held through
+  a filter, as of yesterday just after midnight, decodes again every line the filter dropped, as
+  `RecordsToTake` passes over only the ids held: there, its "decodes only what it gained" no longer
+  holds. Remembering the ids dropped, or the lines read, would make it so again.
+- **A refilter prices its day at the day it's taken on.** A day read again through the join prices
+  its lines at the prices of the day it's read again on, so across a change of the price table, a
+  day refiltered prices otherwise than its first read did.
+- **The failed alone, read back.** No summary counts failures, so a filter of the failed alone,
+  of no session, rules out no day, and a read back while the Requests want more reads on, a day's
+  metas at a time, to the oldest day kept, as one command: some 1.4 ms a day in the soak, 43 ms for
+  30 days, but some 0.6 s for 400 at the long keep, and a ledger kept `forever` longer. And `Len`,
+  by which the read back judges whether a day added to the Requests, counts the lines held, never a
+  row the stream tells of.
+- **The find's summaries, held while it's open.** The find holds every day's summary it walked,
+  raw usage and all (`findWalk.summaries`), till it closes. Holding only what it reads of them would
+  slim it.
+- **The not-live time.** While today has no lines and the newest past lines were passed over
+  unread through a filter, the state line's time, not live, can be older than the ledger's last
+  write, as it's taken from the lines the read was handed. Taking it from the ledger's own last
+  write would close it.
+- **A told row after its take.** A request the stream first tells of after its day was read through
+  a filter hiding its line shows that line only at the next read awaiting it.
+- **A late line before its day is read again.** A day read again while the Requests are paused
+  counts none of its lines as come since, past the seq it was read back at. So a line taken in late
+  onto a past day held through a filter, after the pause and before the day is read again, stops
+  counting once it is, where one read whole counts it if the stream never told of its request: a
+  request crossing midnight the stream missed. Closing it means the read remembering each late line
+  it drops.
+- **A move row at midnight.** A move row reads its session's story from the store, and the store
+  isn't fed the sessions of the lines a filter dropped. A move at 00:00:00.001 whose request's line
+  arrived at 23:59:59.999 on a day held through a filter, of a session with no other line kept,
+  would show no cost. The refilter to whole as the Events show, and the Events reading only the
+  days held whole, cover it but for that race at midnight.
+- **`keptSessions` over-wants.** Of copies of an id that differ, as only a hand edit makes, it may
+  want a session the read holds no line of kept: the store holds it for nothing, and nothing shown
+  changes.
+- **A body longer than `arrivesWithin` across midnight.** The stream tells when a request went
+  upstream, not when it arrived, so its line is taken as filed on the day it was sent or the day a
+  minute before, `arrivesWithin`. One that arrived before midnight and went upstream more than a
+  minute after it, its body that long in coming, has its line filed on a day `ThroughOn` doesn't
+  read whole for it, as it escapes `holdsLineOf`: through a filter hiding it, its line isn't held.
+- **An event card's figures depend on how far back the Log holds days.** A cap's or limit's card,
+  "sessions N" over the hour before and "known from", reads the lines held: an event in today's
+  first hour counts yesterday's lines only where yesterday happens to be held. Following with the
+  Requests filtered, `]` lets go of the days held through their filter, so the Events show what a
+  fresh open shows, where a Log reading every day whole, holding those days for the hidden
+  Requests, shows other figures. A card reading back what it needs itself would make it one answer.
+- **Near midnight, the stream holds the days back.** Where what the stream tells of holds the days
+  back as of today, as near midnight it may, `holdsBack(today)` has a following Log read again
+  every day that doesn't serve before it lets any go, where one reading whole would let go of the
+  days before its tables' fill: the same end, with extra reads.
+- **`dashboard.LogPage.Filtered`** restates part of the views' `whole()`, which choices keep some
+  lines alone: two owners of one fact.
+- **A guard over `LogFilter`'s fields.** Six places read every field of a filter. A field added
+  later and missed in one would pass every test; a guard that each handles every field would catch
+  it.
+
 ## A turn's read
 
-A turn a day back reads its own day from its rows, but the horizon's span, from an hour ago to now,
-reads a day either side of it, so yesterday's file is read raw for it anyway, its lines of the
-turn's day passed over. Narrowing that margin to the hour after midnight, where a change of time
-zone can file a line under yesterday, is the next saving. Phase 4's E1, today's file read back from
-its end to the horizon, removes the raw horizon read altogether.
+The horizon's span, from an hour ago to now, takes in a day either side of it, as a change of time
+zone can file a line under a date beside its own. Today's and yesterday's plain files are read back
+from their ends, stopping once nothing older is wanted. What's left is the margin after midnight: in
+the hour after it, the horizon falls on yesterday, so the day before yesterday is spanned too, and
+read wherever its summary names the session. Its file is still plain then, so it's read back, and
+stops after its first 1,000 lines, each ending before the stop: some 7 ms, for a margin few lines
+ever fall in, and forward whole where the day has a compressed file. Reading the margin day only for
+the lines a change of zone could file there would save it.
+
+`sessionHeldIn` clones each of its session's lines' JSON as it holds it, though a turn's read takes
+only the line: some of the read's peak. A decode that holds the JSON only for the readers that read
+it would save it.
 
 ## Edges of a line given twice
 
@@ -172,10 +262,17 @@ its end to the horizon, removes the raw horizon read altogether.
 
 ## The guard
 
-- It never meets a standing day of more than one chunk: the spread worlds' days are small, so a
-  turn's chunk choice and a day's whole-or-nothing read over several chunks are held only by the
-  ledger's and the views' own tests.
+- Since phase 4 it meets a standing day of more than one chunk, the crowded day, of which a filter
+  reads some chunks and skips the rest; the other spread worlds' days are small.
 - It doesn't compare the Log at 23:59, where a day's rows and its tail meet.
-- It runs some 35 s with the race detector on, past the plan's 25 s. Its biggest costs are the
-  store's feed, the find and the stores' comparisons; reading the extra day only while its moments
-  are unmet would save about 1 s.
+- It runs some 67 s with the race detector on, from 35 s before phase 4, as it now reads the Log
+  back through filters, each read again through a join, and a turn read back, each held to every
+  day read whole. Its biggest costs are the store's feed, the find, the stores' comparisons and the
+  reads through filters; reading the extra day only while its moments are unmet would save about
+  1 s. A bigger read buffer would save more (see Smaller).
+- `pickLandedLater`, in the watch's Log guard, excuses the Log spanning from a later day than read
+  whole by comparing the day it spans from alone: comparing the windows shown would hold it
+  tighter.
+- No test counts the reads a let-go costs: `goingFrom` letting go of every day to today, rather than
+  to the day after the newest that doesn't serve, passes every test, as the days that do serve and
+  it drops too are read back after.

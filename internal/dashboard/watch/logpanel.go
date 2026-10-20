@@ -111,15 +111,20 @@ func (m Model) panelFigures(p dashboard.LogPanel, now time.Time) dashboard.LogPa
 	return p
 }
 
-// requestsThrough are the Log's Requests at now through the filter given:
-// those built, where it's the page's, as requestsBuilt built them at now;
-// else made of what the Log holds.
+// requestsThrough are the Log's Requests at now through the filter given,
+// as the panel counts today's lines of them: those built, where it's the
+// one they're built through, as requestsBuilt built them at now; else
+// today's alone, tabled of what the Log holds, as of the page's filter while
+// the days that don't serve it are read again. Today is held whole, so it
+// tables alike through any filter, whatever the days before it are held
+// through.
 func (m Model) requestsThrough(filter views.LogFilter, now time.Time) views.LogTable {
-	if p := m.log.page; filter.Equal(p.Filter) {
-		return p.Requests
+	if filter.Equal(m.log.lines.Filter()) {
+		return m.log.page.Requests
 	}
 	src := m.logSources(filter, now)
-	return views.LogLinesOf(m.log.lines, src).Rows(src)
+	src.From = views.Today(now).Start
+	return views.LogRows(src)
 }
 
 // logPanel is the Log's panel, as it was built last.

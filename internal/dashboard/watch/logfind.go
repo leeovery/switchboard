@@ -18,9 +18,10 @@ import (
 // sessions of each past day whose lines it has read, by the day's date,
 // held for the run, so it walks back through the days once a run; the
 // summaries of the days the ledger keeps, which name the sessions of each
-// before its lines are read, and whether they're read since the find last
-// opened, its openings counted, so a read of them as it opened before is
-// dropped; whether a read for it is under way, one at a time; the session
+// before its lines are read, held while it's open alone, and whether
+// they're read since the find last opened, its openings counted, so a read
+// of them as it opened before, or landing once it has closed, is dropped;
+// whether a read for it is under way, one at a time; the session
 // enter picked, once it has ended, for the table shown to pause at its
 // newest line once the tables reach its day; and the session enter picked
 // last, which joins the panel's sessions while the filter keeps it.
@@ -78,6 +79,7 @@ func (m Model) logFindKey(key string) (tea.Model, tea.Cmd) {
 	switch key {
 	case "esc":
 		f, m = dashboard.LogFinding{}, m.unasked()
+		m.log.find = m.log.find.closed()
 	case "enter":
 		return m.foundPicked(), nil
 	case "up":
@@ -122,11 +124,20 @@ func (m Model) foundPicked() Model {
 		return m
 	}
 	m.log.page = m.log.page.FoundOnly(s.ID)
+	m.log.find = m.log.find.closed()
 	m.log.find.picked, m.log.find.landing = &s, nil
 	if s.Ended {
 		m.log.find.landing = &s
 	}
 	return m
+}
+
+// closed is w as the find closes: holding none of the days' summaries,
+// which it reads afresh as it opens, and which no landing nor its reach
+// reads.
+func (w findWalk) closed() findWalk {
+	w.summaries, w.summed = nil, false
+	return w
 }
 
 // foundSessions are the sessions the find picked, which tell the panel what
@@ -183,13 +194,13 @@ func (m Model) walkFind() (Model, tea.Cmd) {
 }
 
 // findRead takes in what a read for the find found: the summaries of the
-// days, read as it last opened, else dropped; or a day's sessions, held for
-// the run; each read made afresh, so the find built of what was held never
-// sees it change.
+// days, read as it last opened, while it's open still, else dropped; or a
+// day's sessions, held for the run; each read made afresh, so the find
+// built of what was held never sees it change.
 func (m Model) findRead(msg findReadMsg) Model {
 	m.log.find.reading = false
 	switch {
-	case msg.summed && msg.opening != m.log.find.opening:
+	case msg.summed && (msg.opening != m.log.find.opening || !m.log.page.Finding.Open):
 		return m
 	case msg.summed:
 		m.log.find.summaries, m.log.find.summed = msg.summaries, true
@@ -230,13 +241,15 @@ func (m Model) reaching() bool {
 
 // landed is m with the table shown paused at the newest line of the session
 // the find picked, chosen, as ↑ pauses it from following, once the tables
-// reach its day, no read for them under way; or with it let go, the filter
-// no longer keeping it alone.
+// reach its day, no read for them under way, and every day the Log's read
+// holds serves the filter it serves, as served has it, so the table is
+// built through it; or with it let go, the filter no longer keeping it
+// alone.
 func (m Model) landed() Model {
 	switch {
 	case m.landingOn() == nil:
 		m.log.find.landing = nil
-	case !m.reaching() && !m.log.reading:
+	case !m.reaching() && !m.log.reading && m.log.served():
 		m.log.page = m.log.page.Chose(-1, m.logRows())
 		m.log.find.landing = nil
 	}

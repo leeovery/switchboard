@@ -201,6 +201,21 @@ func (t Told) FiledSurely() bool {
 	return ok && Today(t.Sent).Date == day.Date
 }
 
+// linedOn are the local days the request's line may be filed on, the one
+// FiledOn gives first: that day alone where it's surely filed there, as
+// FiledSurely has it; else that and the day it was sent on, as toldOn places
+// its row; none where the stream told of no sending.
+func (t Told) linedOn() []LedgerDay {
+	filed, ok := t.FiledOn()
+	switch {
+	case !ok:
+		return nil
+	case t.FiledSurely():
+		return []LedgerDay{filed}
+	}
+	return []LedgerDay{filed, toldOn(t)}
+}
+
 // FiledAs reports whether l is the request's line, as filedAs has it of the
 // flight of its request.
 func (t Told) FiledAs(l *ledger.Line) bool {

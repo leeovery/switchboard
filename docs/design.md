@@ -3504,15 +3504,45 @@ one:
 **Where it reads.**
 
 - **Requests:** the request ledger's lines, read where they lie through `internal/ledger`, with no
-  router (see The request ledger), a day at a time as the table reaches it, each past day from its
-  rows where they stand, today's followed as its file grows; and, while the dashboard runs, the
-  request stream, `GET /stream`, for what's in flight (see Control API), as a line is written only
-  as its request ends. A request in flight takes its time from `sent`, or `inflight`'s `sent_at`;
-  its session's directory from the stream's `dir`; `first` from `first`, or `first_at`; and its
-  characters from `progress`. A line arriving for a request already shown fills in its row, which
-  keeps the place it took as it was sent, though the line's `at`, its arrival, is a moment earlier.
-  Requests the router answers itself, never sent upstream, are never on the stream, and appear as
-  their lines are written.
+  router (see The request ledger), a day at a time as the table reaches it, each past day through
+  the page's filter, from its rows where they stand, today's whole and followed as its file grows;
+  and, while the dashboard runs, the request stream, `GET /stream`, for what's in flight (see
+  Control API), as a line is written only as its request ends. A request in flight takes its time
+  from `sent`, or `inflight`'s `sent_at`; its session's directory from the stream's `dir`; `first`
+  from `first`, or `first_at`; and its characters from `progress`. A line arriving for a request
+  already shown fills in its row, which keeps the place it took as it was sent, though the line's
+  `at`, its arrival, is a moment earlier. Requests the router answers itself, never sent upstream,
+  are never on the stream, and appear as their lines are written.
+- **A past day through the filter:** a past day is read through the filter the read serves, with
+  every kind, as kinds choose little and a kind changed asks no read: a day its summaries rule out
+  is passed over unread; of a day whose rows stand, only the chunks whose meta may keep a line are
+  read; and of the lines read, only those the filter keeps are held, each counted once before any
+  is dropped. One rule says what may keep a line, at three grains, each erring toward keeping: a
+  row, as the filter chooses it; a chunk, where its meta counts a row of something each choice
+  ticks, and a failure where the filter keeps only the failed; a day, where its own summary or
+  either neighbour's may hold one, as `Day` reads the files beside a day too. A row kept means its
+  chunk's meta may keep it, and the summary of the day it's filed under may: a test holds the
+  chain. No summary counts failures, so a day is never ruled out for the failed alone, only its
+  chunks by their metas. A day is read whole where the filter keeps every line, or where the stream
+  tells of a request whose line may be filed on it, and holds every line of a request the stream
+  tells of. While the Requests show, the days that add nothing to them come in one read, those the
+  summaries rule out unread: so the find's pick, reading back through its session's filter, lands
+  in one read, however far back (settled in the plan, 20 October 2026).
+- **Serving the filter:** the read serves the Requests' filter while they show, and every line while
+  the Events show, as an event's card reads the lines held and a move row its session's story; a day
+  read back while the Events show is read whole. A day held through one filter serves another where
+  each of the other's choices is within its own, ticking none keeping all, and the other keeps only
+  the failed where its own does. The Requests are built through the page's filter only where every
+  day held serves it, else through the filter they were last built through, showing what they
+  showed; and the Events only of the days held whole, a day held through a filter being to them as
+  one not yet read. Widening a filter, or turning to the Events, reads again each day held that
+  doesn't serve it, through the join of the two, a day a read, the newest first, before any read
+  back, the Events extending back as each is read whole: so no table is ever drawn through a filter
+  its days don't serve. Following, where the Requests' filter has a reach and nothing the stream
+  tells of holds the days back, the Log lets go of every day that doesn't serve it, first, and a
+  table that filled its view from them is unfilled, reading back through its own filter to fill it
+  again; else each is read again. The panel's preview counts today alone (settled in the plan,
+  20 October 2026).
 - **Worth** is worked out as it's read, at today's prices, from the dated price table, never stored;
   a model the table doesn't know is unpriced, never free (see The request ledger).
 - **Counts,** today's: the heading's hidden, the panel's kinds and failed, and the state line's,
@@ -4513,8 +4543,15 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
     outdated, no longer standing or damaged (see The request ledger). A day's rows are its lines'
     records, in the order the Log reads its lines, so the table, each row's details, each day's
     rule and totals are the same either way: the views' guard holds them read through rows to read
-    raw, at each hard moment of a day's turning (settled in the plan, 19 October 2026). It reads
-    the whole day still, and holds it while it's held, as before.
+    raw, at each hard moment of a day's turning (settled in the plan, 19 October 2026). Through a
+    filter, it reads only what may hold a line the filter keeps, and holds only those it keeps: a
+    day its summaries rule out unread, a standing day's chunks only where their meta may keep one
+    (see The Log's Where it reads). So the find's pick lands 8 or 22 days back in some 0.4 s,
+    holding 37 MB, where it read and held every day between whole; and a filter that keeps none
+    of a week back reads it in 14 to 45 ms. Unfiltered, it reads and holds the whole day, as
+    before. The views' guard holds the Log read back through filters, and read again through their
+    join, to every day read whole, as each shows through the filter, at each hard moment, a day
+    ruled out unread and a chunk skipped among them (settled in the plan, 20 October 2026).
   - **At midnight,** the first feed of the day rolls each session on: its requests on the day
     counted afresh, from none, and each settled move's cost priced at the new day's prices only
     where its model's prices differ from the day before's, else carried, as the price table's dated
@@ -4530,8 +4567,12 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
     it shows or another tab does: so yesterday goes a few minutes after midnight, once today fills
     the view. Not a day holding the line of a request the stream still tells of, sent on a later
     day, whose row would await it there, nor one awaited. Scrolling back reads a day in again, which
-    goes again once it follows. A paused table holds a mark of where it paused, and counts the lines
-    come since by it, never a copy of the table.
+    goes again once it follows. A day held through a filter that doesn't serve the one the read
+    serves goes first as it follows, where the Requests' filter has a reach and nothing the stream
+    tells of holds the days back; else, and while paused, it's read again through the join of the
+    two, a day a read, the newest first, before any read back (see The Log's Where it reads). A
+    paused table holds a mark of where it paused, and counts the lines come since by it, never a
+    copy of the table.
   - **A session's page** holds its session as the store does: its turns tallied as the store seals
     its requests, without their requests; its totals, accounts, idle folds and stretches, each
     turn, account and total keeping what its requests spent in tokens, priced only as the page is
@@ -4556,11 +4597,20 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
     whose meta names its session and whose rows arrived within the turn's span, the day's lines
     where they don't; the horizon's days, today's among them, it reads raw, and a line of a day
     read from its rows that a raw read meets too, as the file of a day beside it holds it, is
-    passed over, so each line is read once (settled in the plan, 19 October 2026). Where the page
-    holds nothing sealed, its horizon before every moment, it reads every day. Where the read takes
-    longer than 150 ms, the turn's foot says `loading…` till it lands (settled in the plan). They're
-    let go of as the turn closes; the page's tallies as the page closes, and its session at the
-    store's next feed, where no other reader wants it.
+    passed over, so each line is read once (settled in the plan, 19 October 2026). A day it reads
+    raw through `Follower.Session` whose plain file is its only one, as today's, yesterday's and
+    the day before yesterday's are, is read back from the file's end, by `dayfile.ReadBack`, exactly the forward read turned
+    about, its lines held in their forward order; any other, forward and whole. The read back stops
+    at the file's start, or once it has read 1,000 lines in a row each ending before the day's
+    stop: the earliest start of the spans taking the day in, a line ending at its `at`, or its `at`
+    plus `total_ms` where later. The ledger writes each line as its request ends, so a line that
+    arrived from the stop on lies after any such run. So a turn opens at any age in some 0.03 s,
+    its read rising 9 to 13 MB at its peak, where reading today's and yesterday's files whole for
+    the horizon's hour took 0.4 to 1.3 s and 70 MB (settled in the plan, 20 October 2026). Where
+    the page holds nothing sealed, its horizon before every moment, it reads every day, forward.
+    Where the read takes longer than 150 ms, the turn's foot says `loading…` till it lands (settled
+    in the plan). They're let go of as the turn closes; the page's tallies as the page closes, and
+    its session at the store's next feed, where no other reader wants it.
   - **A request sent just after midnight,** in the minute after, may have arrived before it, its
     line filed on the day before. Its end no longer has every reader awaiting its line read the
     whole day before again at once, as nearly every such line is filed with the new day's: the day
@@ -4574,6 +4624,21 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
     next had a line; an event's row may tell a story of a session the store holds for the List,
     which the Log's own lines didn't; a turn's requests may say `loading…` as it opens; and the
     line of a request sent just after midnight, filed on the day before, comes a look later.
+  - **What reading through filters and back leaves,** each accepted (settled in the plan,
+    20 October 2026): two copies of a request's line that differ, as only a hand edit makes them,
+    in two chunks of a day's rows, may show the other copy through a filter; a run of 1,000 lines
+    filed out of the order their requests ended in, as by a clock stepped back or a hand edit, can
+    hide a turn's older rows that a raw read would show; a request the stream first tells of after
+    its day was read through a filter hiding its line shows that line at the next read awaiting
+    it; while today has no lines and the newest past lines were passed over unread through a
+    filter, the state line's time, not live, can be older than the ledger's last write; the find's
+    pick lands paused on its session's newest line the filter keeps, the Log spanning from that
+    line's day; a line taken in late onto a past day held through a filter, after the Requests
+    paused and before that day is read again, no longer counts as new once it is, where one read
+    whole counts it if the stream never told of its request, which needs a request crossing
+    midnight the stream missed; and widening a filter while paused far back
+    reads again every day between, costing what the find's pick cost before: some 3.3 s and 280 MB
+    8 days back, 8.4 s and 706 MB 22 days back.
 - **Events:** live, the status document's `events`, the newest 50, read at each look, each new one
   known by its `id`; the past, the events' files, read as the Log's Events, LATELY or a session's
   page reach back past them (see The router's events). A router restarted tells its events afresh,
@@ -5286,9 +5351,10 @@ from the first day a router that has it runs, so nothing before then is in it.
     offset, length and CRC, how many rows it holds, and its meta: when its first and last rows
     arrived; how many it holds of each kind, requests, checks and counts, and how many failed; and
     how many of them each session, model and account counts, each row counted as it's held, so a
-    line given twice counts twice, where the Log's counts take one with an id once. Phase 3 reads a
-    chunk's sessions and its span alone; the rest is written now for the Log's paging by rows (see
-    Milestones), so that phase needn't have every day's rows built again.
+    line given twice counts twice, where the Log's counts take one with an id once. A meta is read
+    for presence alone, whether its chunk may hold a line wanted, never summed: so its counting a
+    line given twice twice never skips a chunk wrongly. A turn reads its sessions and its span; a
+    filter its sessions, models, accounts and failures; its kinds are read by none.
   - **When they stand,** for the Log, a turn and the writer alike, by one rule in
     `internal/ledger`: the head stands, as above; it counts a row of each line it was built of; and
     the rows file is as long as the head records, looked at, never read. Each chunk is held to its
@@ -5298,14 +5364,19 @@ from the first day a router that has it runs, so nothing before then is in it.
     the counts to the head's, as the writer holds a head without its chunks. A day's rows are read
     whole or not at all: a chunk that doesn't read, or restores other than as many rows as the head
     counts it, has the day's lines read instead, never part of a day.
-  - **Who reads them:** the Log reading a day back reads the day's rows where they stand, and its
-    lines where they don't, by one read, `views.ReadDay`, a day's rows being exactly its lines'
-    records in the Log's order, so the table is the same either way. A turn opened reads, of each
-    of its own days before the day its horizon falls on, only the chunks whose meta names its
-    session and whose span meets the turn's (see Live updates). The views' guard holds the Log's
-    table and each row's details read from rows, and a turn opened over them, to the same read
-    raw, at each hard moment of a day's turning, a chunk damaged, a rows file gone or of another
-    length, and a head of another version or zone among them.
+  - **Who reads them:** the Log reading a day back, or reading a day again through another filter,
+    reads the day's rows where they stand, and its lines where they don't, by one read,
+    `views.ReadDay`, a day's rows being exactly its lines' records in the Log's order, so the table
+    is the same either way. Through a filter, it reads first the summaries of the day and the days
+    either side of it, and none of the day where none may hold a line the filter keeps; else its
+    head, and only the chunks whose meta may keep one, every chunk where the filter keeps every
+    line (see The Log's Where it reads). A turn opened reads, of each of its own days before the
+    day its horizon falls on, only the chunks whose meta names its session and whose span meets the
+    turn's (see Live updates). The two share one choice of a day's chunks by their metas. The
+    views' guard holds the Log's table and each row's details read from rows, read through filters
+    and read again through their join, and a turn opened over them, to the same read raw, at each
+    hard moment of a day's turning, a chunk damaged, a rows file gone or of another length, and a
+    head of another version or zone among them.
   - **What stays raw:** today; yesterday until its head stands, as in the hour or so after
     midnight; a day read again whole for a line it awaits, as of a request sent before midnight;
     and a day whose head or rows don't stand, as where they're missing, outdated, damaged or built
@@ -6678,8 +6749,10 @@ own, and measured by the soak:
 3. **The Log's days from rows** the router files beside each digest, its find among them, kept as
    long as the day's lines (settled 19 October 2026): first the find and a turn's older days, then
    the Log's days themselves.
-4. **The Log pages by rows,** holding the rows in view and a page or two either side, never every
-   day paged through.
+4. **The Log reads through its filter,** each past day read and held only for the lines its filter
+   keeps, and a turn's horizon read back from the end of today's file. Planned as the Log paging by
+   rows, holding the rows in view and a page or two either side; the plan cut that window
+   (20 October 2026).
 
 Measured once phase 1 was built (18 October 2026, the same soak, race detector off, the Mac shared,
 at a load of 5 to 7 on 10 cores): the List opens in 0.34 s with 9 days kept and with 30, however
@@ -6758,6 +6831,37 @@ the two measured in turn at a load of 5 to 13; and the dashboard's heap after pa
 rising some 145 MB; a backfill of 30 days, once after the release, some 35 s of work, paced as
 before. On disk, 1.25 MB a day of rows in the soak's world, and by the plan's reckoning about 1.8 MB
 with real values, about as much as the lines. What phase 3 left is gathered in
+[day-digests-left](../ideas/2026-10-18--day-digests-left.md).
+
+**Day digests, phase 4: past days through the filter, and a turn's horizon read back.** After
+phase 3, two waits were left: a turn opened, at any age, read today's and yesterday's files whole
+for its horizon's hour, 0.4 to 1.3 s and some 70 MB; and the find's pick read and held every day
+between today and its session's, whole, though its filter showed none of them, 4.6 to 8.3 s and
+277 MB landing 8 days back, 13 to 16 s and 701 MB 22 days back. A turn's spanned day whose plain
+file is its only one is now read back from its end, by `dayfile.ReadBack` under
+`Follower.Session`, stopping once nothing older is wanted (see Live updates). The Log reads each
+past day through its filter, by `views.ReadDay`: a day its summaries and its neighbours' rule out
+unread, a standing day's chunks only where their meta may keep a line, and only the lines the
+filter keeps held; a filter its days don't serve has them read again through the join, a day a
+read (see The Log's Where it reads). The window the plan was first built around, the read held as
+the view and a page or two either side, was cut, as the realistic ways back are the find and
+filters: the Log stays contiguous by days. Nothing stored changed, no file, field or version, so
+nothing is built again; the dashboard package gained two methods, `LogPage.Unfilled` and
+`LogPage.RequestsNew`, nothing drawn changed, and the frames are unchanged. The views' guard holds a filtered read, and one read again
+through a join, to every day read whole, at each hard moment, and a turn read back to the same
+read raw.
+
+Measured once it was built (20 October 2026, the soak's world, race detector off, at a load of 10
+to 52 on 10 cores, each the median of three runs): a turn opened today, a day back or 7 days back
+in 0.025 to 0.033 s, its read rising 9 to 13 MB at its peak and holding 0.1 to 0.2 MB once done,
+from 0.37 to 1.27 s and some 70 MB; the find's pick in 0.38 to 0.42 s landing 8 days back and
+0.39 s landing 22 days back, from 4.6 to 16 s, the dashboard holding 37 MB landed, from 277 and
+701 MB; `esc` after it, following, reads nothing, and a second, clearing the filter, takes 3 ms;
+a filter of the failed alone, a week back while paused, 14 ms with 9 days kept and 43 ms with 30,
+from 2.5 s, as it reads back to the oldest day kept in one read; a week back unfiltered, 2.1 s
+and 249 MB, as before; and the Log's first open, 0.92 to 0.93 s, unchanged. The one cost moved:
+widening a filter while paused far back reads every day between again, 3.3 s and 280 MB 8 days
+back, 8.4 s and 706 MB 22 days back, what the pick cost before. What phase 4 left is gathered in
 [day-digests-left](../ideas/2026-10-18--day-digests-left.md).
 
 The release, through GoReleaser, a Homebrew tap and mint, follows milestone 3.
@@ -6937,7 +7041,7 @@ why.
 | Usage limits for agents, read and watched as their own work moves them | open: to discuss with its owner | [usage-for-agents](../ideas/2026-10-14--usage-for-agents.md) |
 | Signing in, one account, and a first setup: setup tokens or logins, switchboard's worth with one account, onboarding, each account's plan, and managing accounts | next, after milestone 7's release: the owner, 15 October 2026 | [auth-and-onboarding](../ideas/2026-10-14--auth-and-onboarding.md) |
 | The dashboard's memory the fix after v0.2.1 left: the Log's line, a request in flight across midnight, and smaller costs | open: any time | [dashboard-memory-left](../ideas/2026-10-17--dashboard-memory-left.md) |
-| What the day digests' first three phases left: the build's peak, a session's state growing with its subagents, a long page read whole in the router, a day head's read of the days beside it, a session's page with a request in flight for hours, a day's rows read with a chunk damaged unseen, a turn's read of yesterday through the horizon, the guard's reach, and smaller costs | open: any time | [day-digests-left](../ideas/2026-10-18--day-digests-left.md) |
+| What the day digests' four phases left: the build's peak, a session's state growing with its subagents, a long page read whole in the router, a day head's read of the days beside it, a session's page with a request in flight for hours, a day's rows read with a chunk damaged unseen, the Log's read as a window, thinning the held row, the edges of reading through filters, a turn's read of the day before yesterday after midnight, the guard's reach, and smaller costs | open: any time | [day-digests-left](../ideas/2026-10-18--day-digests-left.md) |
 | Watching switchboard's CPU and memory for a week after milestone 7's release, against v0.1.6's baseline | next, after milestone 7's release, the owner's choice on 14 October 2026 | [performance-watch](../ideas/2026-10-14--performance-watch.md) |
 | Money in a chosen currency, such as pounds sterling, wherever money shows, with a rate for API prices | open: raised by the owner on 15 October 2026 | [currencies](../ideas/2026-10-15--currencies.md) |
 | Snags the owner meets using v0.2.0's dashboard, gathered as found | done in the release after v0.2.3, 17 October 2026; the layout snags to the phone, iPad and desktop rounds | [dashboard-snags](../ideas/2026-10-15--dashboard-snags.md) |

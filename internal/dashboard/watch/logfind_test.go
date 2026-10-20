@@ -101,6 +101,41 @@ func TestTheFindWalksBackADayAtATimeWhileOpenOnceARun(t *testing.T) {
 	}
 }
 
+// The find holds the days' summaries while it's open alone: esc lets them
+// go, as enter's pick does, and a read of them landing once it has closed
+// is dropped; opened again, it reads them afresh, finding as before.
+func TestTheFindHoldsTheDaysSummariesWhileOpenAlone(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state, ranIn("0a000001", apiSession, "~/Code/api", -3*day), ranIn("0a000002", webSession, "~/Code/web", -time.Minute))
+	h := newHarness(t, probedWithoutTheRouter())
+	onTheLog(h, state)
+	h.start()
+	summaries := func() int { return len(h.model.log.find.summaries) }
+
+	reading := h.press("/")
+	h.keys(escape)
+	h.deliver(reading...)
+	if held := summaries(); held > 0 {
+		t.Errorf("closed as its read of the days' summaries was under way, the find holds %d of them once it lands, want none", held)
+	}
+	h.typed("/", "a", "p", "i")
+	if summaries() == 0 {
+		t.Fatal("open, the find holds none of the days' summaries, want them read")
+	}
+	h.keys(escape)
+	if held := summaries(); held > 0 {
+		t.Errorf("closed by esc, the find holds %d of the days' summaries, want none", held)
+	}
+	h.typed("/", "a", "p", "i")
+	if got, want := foundIDs(h), []string{apiSession + " ~/Code/api"}; !slices.Equal(got, want) {
+		t.Errorf("open again, api finds %q, want %q, the days' summaries read afresh", got, want)
+	}
+	h.keys(enter)
+	if held := summaries(); held > 0 {
+		t.Errorf("closed by enter's pick, the find holds %d of the days' summaries, want none", held)
+	}
+}
+
 // The find reads the days' summaries afresh each time it opens: a session
 // of a day that has turned since it was last open, whose summary then named
 // none, is found.
@@ -234,9 +269,11 @@ func TestEnterOnARunningSessionReadsBackItsEarlierLinesToFillTheView(t *testing.
 }
 
 // A session found, its lines fewer than the view, reads back no further
-// than the days' summaries say its lines reach: to its first day, every day
-// after it read, as the tables hold every day from the first they span; not
-// to the oldest day the ledger keeps.
+// than the days' summaries say its lines reach: to its first day, not to
+// the oldest day the ledger keeps. The tables span every day from it, but
+// read the lines of those days alone whose summaries, their own or a
+// neighbour's, may hold one of its lines, as a day's lines are read of its
+// neighbours' files too: the rest go unread.
 func TestAFoundSessionReadsBackNoFurtherThanItsFirstDay(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -270,12 +307,19 @@ func TestAFoundSessionReadsBackNoFurtherThanItsFirstDay(t *testing.T) {
 			found := len(l.days)
 
 			h.keys(enter)
+			ran := append([]int{0}, tt.ran...)
 			var want []string
 			for d := 1; d <= tt.reach; d++ {
-				want = append(want, dayfile.DateOf(past(-time.Duration(d)*day)))
+				if slices.ContainsFunc(ran, func(r int) bool { return r >= d-1 && r <= d+1 }) {
+					want = append(want, dayfile.DateOf(past(-time.Duration(d)*day)))
+				}
 			}
 			if got := l.days[found:]; !slices.Equal(got, want) {
-				t.Errorf("found api, the Log read back the days %v, want %v: to api's first day, and no further", got, want)
+				t.Errorf("found api, the Log read the lines of the days %v, want %v: those to api's first day whose summaries or their neighbours' name it", got, want)
+			}
+			first := dayfile.DateOf(past(-time.Duration(tt.reach) * day))
+			if from, days := h.model.log.from.Date, held(h.model.log.read, "days"); from != first || days != tt.reach+1 {
+				t.Errorf("found api, the Log spans from %s, its read holding %d days; want from %s, api's first day, holding each day since", from, days, first)
 			}
 		})
 	}

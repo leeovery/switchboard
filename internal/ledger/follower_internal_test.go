@@ -94,6 +94,51 @@ func TestASessionsLinesAloneAreHeldWithTheirJSON(t *testing.T) {
 	}
 }
 
+// A read of a session back from a day's end reads each line as a read of it
+// forward does, passing over the same lines, so a run of lines it counts is
+// the lines a forward read reads; and peeks at when the request of each it
+// reads ended, whosever it is: when it arrived, or that and the time it took
+// where that's later. A line whose arrival or time taken won't read, but a
+// forward read reads, is read with no end told.
+func TestALineReadBackIsReadAsAForwardReadReadsItAndPeekedAtForItsEnd(t *testing.T) {
+	at := time.Date(2026, 10, 5, 9, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name, line string
+		// timed is whether its end is told, and end when it is.
+		timed bool
+		end   time.Time
+	}{
+		{name: "the session's", line: `{"at":"2026-10-05T09:00:00Z","request":"1","kind":"message","session":"one","reason":"sticky","total_ms":1500}`,
+			timed: true, end: at.Add(1500 * time.Millisecond)},
+		{name: "another session's", line: `{"at":"2026-10-05T09:00:00Z","request":"2","kind":"message","session":"two","reason":"sticky","total_ms":2000}`,
+			timed: true, end: at.Add(2 * time.Second)},
+		{name: "one of no session, taking no time", line: `{"at":"2026-10-05T09:00:00Z","request":"3","kind":"count","reason":"sticky"}`, timed: true, end: at},
+		{name: "another session's, its time taken below none", line: `{"at":"2026-10-05T09:00:00Z","request":"4","kind":"message","session":"two","total_ms":-60000}`,
+			timed: true, end: at},
+		{name: "another session's whose arrival won't read", line: `{"at":"soon","request":"5","kind":"message","session":"two","reason":"sticky"}`},
+		{name: "another session's whose time taken won't read", line: `{"at":"2026-10-05T09:00:00Z","request":"6","kind":"message","session":"two","total_ms":"long"}`},
+		{name: "another session's whose status won't read", line: `{"at":"2026-10-05T09:00:00Z","request":"7","kind":"message","session":"two","status":"ok"}`,
+			timed: true, end: at},
+		{name: "the session's whose arrival won't read", line: `{"at":"soon","request":"8","kind":"message","session":"one","reason":"sticky"}`},
+		{name: "the session's whose status won't read", line: `{"at":"2026-10-05T09:00:00Z","request":"9","kind":"message","session":"one","status":"ok"}`},
+		{name: "one cut short", line: `{"at":"2026-10-05T09:00:00Z","requ`},
+		{name: "one whose session isn't one", line: `{"at":"2026-10-05T09:00:00Z","request":"10","kind":"message","session":2}`},
+	}
+	peek, forward := sessionPeekedIn("one"), sessionHeldIn("one")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, read := peek([]byte(tt.line))
+			want, wantRead := forward([]byte(tt.line))
+			if read != wantRead || !reflect.DeepEqual(got.Held, want) {
+				t.Errorf("read %v, giving %+v; want read %v, giving %+v, as a forward read reads it", read, got.Held, wantRead, want)
+			}
+			if read && (got.timed != tt.timed || !got.end.Equal(tt.end)) {
+				t.Errorf("its end told %v, %v; want told %v, %v", got.timed, got.end, tt.timed, tt.end)
+			}
+		})
+	}
+}
+
 // A read of a few sessions reads the lines of those it keeps whole, and of
 // any other its session alone, giving none of it, but tells a line that
 // doesn't read as one as lineIn does, whosever it is.

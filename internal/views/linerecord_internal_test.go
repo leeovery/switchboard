@@ -150,7 +150,7 @@ func shownOfLines(lines []ledger.Line, prices ledger.Table, now time.Time) []any
 			shown = append(shown, s)
 		}
 	}
-	return append(shown, ReadLog(prices).Wanted(RecordsOf(held)))
+	return append(shown, ReadLog(prices).Wanted(Stream{}, RecordsOf(held)))
 }
 
 // Two lines alike in all their records hold, as a line is to its twin,

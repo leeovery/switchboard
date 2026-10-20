@@ -244,6 +244,23 @@ func (m *chunkMeta) meets(id string, span ledger.Span) bool {
 	return m.lines.Sessions[id] > 0 && m.first.compare(instantOf(span.To)) <= 0 && m.last.compare(instantOf(span.From)) >= 0
 }
 
+// mayKeep reports whether the chunk m tells of may hold a row f keeps, as
+// chose keeps one, whatever its kind: each of f's choices ticks none, or an
+// id it counts a row of, as countsAny has it; and of f keeping only those
+// that failed, it counts a failure. It judges each choice apart, so it may
+// keep where no row is of both an account and a model ticked.
+func (m *chunkMeta) mayKeep(f LogFilter) bool {
+	c := &m.lines
+	return countsAny(c.Accounts, f.Accounts) && countsAny(c.Models, f.Models) && countsAny(c.Sessions, f.Sessions) && (!f.Failed || c.Failed > 0)
+}
+
+// countsAny reports whether counted, rows by an id, counts a row of any of
+// those a filter's choice ticks, as ticked keeps them: every one where it
+// ticks none.
+func countsAny(counted map[string]int, choice []string) bool {
+	return len(choice) == 0 || slices.ContainsFunc(choice, func(id string) bool { return counted[id] > 0 })
+}
+
 // storedChunkMeta is a chunk's meta as its stored form holds it: when the
 // first and the last of its rows arrived, exactly; how many of them asked
 // what each kind asks; how many failed; and how many are of each model,

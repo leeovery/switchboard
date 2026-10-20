@@ -100,6 +100,7 @@ func (h *harness) readingTheTail() tea.Cmd {
 func (h *harness) deliverHolding(hold func(tea.Msg) bool, msgs ...tea.Msg) []tea.Msg {
 	h.t.Helper()
 	var held []tea.Msg
+	d := delivery{h: h}
 	for len(msgs) > 0 {
 		msg := msgs[0]
 		msgs = msgs[1:]
@@ -107,6 +108,7 @@ func (h *harness) deliverHolding(hold func(tea.Msg) bool, msgs ...tea.Msg) []tea
 			held = append(held, msg)
 			continue
 		}
+		d.took(msg)
 		msgs = append(msgs, h.update(msg)...)
 	}
 	return held

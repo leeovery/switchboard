@@ -3,6 +3,7 @@ package views
 import (
 	"bytes"
 	"fmt"
+	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -46,9 +47,18 @@ func (r *rowsNoted) fromRows(date string) bool {
 }
 
 // rawDay is the LogDay of the local day with the given date read raw,
-// through l: of its lines, as Day gives them.
+// through l, as ReadDay reads a day whose rows don't stand: of its lines, as
+// Day gives them, holding the day's date.
 func rawDay(l Ledger, date string) LogDay {
-	return RecordsOf(l.Day(date))
+	day := RecordsOf(l.Day(date))
+	day.date = date
+	return day
+}
+
+// wholeDay is the LogDay of the local day with the given date read back
+// whole through l, as ReadDay reads it through the zero LogFilter.
+func wholeDay(l Ledger, date string) LogDay {
+	return ReadDay(l, date, LogFilter{})
 }
 
 // logBack is what the Log's Requests show at now, read through l as the
@@ -102,10 +112,7 @@ func toldBack(lines []ledger.Line, dates []string) Stream {
 			}
 		}
 		if last != nil {
-			s.Requests[last.Request] = Told{
-				Request: last.Request, Session: last.Session, Model: last.Model, Account: last.Account, Class: last.Class, Sent: last.At, Ended: ended(last),
-				Status: last.Status, Heard: ended(last),
-			}
+			s.Requests[last.Request] = toldOf(last)
 		}
 	}
 	_, end, _ := dayfile.Day(dates[0])
@@ -115,6 +122,15 @@ func toldBack(lines []ledger.Line, dates []string) Stream {
 		Status: 200, Heard: sent.Add(time.Millisecond),
 	}
 	return s
+}
+
+// toldOf is what the stream tells of l's request, ended, its line held: sent
+// as it arrived, and heard as it ended.
+func toldOf(l *ledger.Line) Told {
+	return Told{
+		Request: l.Request, Session: l.Session, Model: l.Model, Account: l.Account, Class: l.Class, Sent: l.At, Ended: ended(l), Status: l.Status,
+		Heard: ended(l),
+	}
 }
 
 // follower is a Follower of the chain's ledger, by its clock, resting on
@@ -131,7 +147,7 @@ func (c *digestChain) follower() *ledger.Follower {
 func (c *digestChain) sameDay(l Ledger, f *ledger.Follower, date string, rows bool) bool {
 	c.t.Helper()
 	noted := readingRows(l)
-	if got, want := ReadDay(noted, date), rawDay(f, date); !reflect.DeepEqual(got, want) {
+	if got, want := wholeDay(noted, date), rawDay(f, date); !reflect.DeepEqual(got, want) {
 		c.t.Errorf("%s at %v: %s reads back as\n%+v\nwant, as its lines read raw give\n%+v", c.name, c.at, date, got.records, want.records)
 	}
 	if noted.fromRows(date) != rows || !rows && !noted.raw[date] {
@@ -159,7 +175,7 @@ func (c *digestChain) sameDayBack(l Ledger, f *ledger.Follower, date string, row
 // as toldBack tells it, has them.
 func (c *digestChain) sameLogBack(l Ledger, f *ledger.Follower, from string, s Stream) {
 	c.t.Helper()
-	got, want := logBack(l, ReadDay, from, s, changingPrices(), c.at), logBack(f, rawDay, from, s, changingPrices(), c.at)
+	got, want := logBack(l, wholeDay, from, s, changingPrices(), c.at), logBack(f, rawDay, from, s, changingPrices(), c.at)
 	if !reflect.DeepEqual(got, want) {
 		c.t.Errorf("%s at %v: the Log read back to %s over rows shows otherwise than over the days read raw\n%s", c.name, c.at, from, unlike(got, want))
 	}
@@ -435,8 +451,244 @@ func TestADayOfNoLinesReadsBackFromItsRowsAsOfItsLines(t *testing.T) {
 	if rows, ok := f.DayRows(empty, RowsVersion); !ok || rows.Count != 0 {
 		t.Fatalf("the rows of %s are %+v, standing %t; want them standing, of no rows", empty, rows, ok)
 	}
-	if day := ReadDay(f, empty); day.records == nil {
+	if day := wholeDay(f, empty); day.records == nil {
 		t.Errorf("%s reads back as no records, nil; want none, not nil, as RecordsOf gives of no lines", empty)
 	}
 	c.sameDayBack(f, f, empty, true)
+}
+
+// readsCounted is a ledger as a day read back reads it, counting its reads,
+// as reads has them.
+type readsCounted struct {
+	Ledger
+	reads
+}
+
+// reads count a day's reads: of the days' summaries, of its rows, of their
+// chunks, and of its lines.
+type reads struct {
+	summaries, rows, chunks, raw int
+}
+
+func (r *readsCounted) DaysOn(dates []string) []ledger.Summary {
+	r.summaries++
+	return r.Ledger.DaysOn(dates)
+}
+
+func (r *readsCounted) DayRows(date string, body int) (ledger.DayRows, bool) {
+	r.rows++
+	return r.Ledger.DayRows(date, body)
+}
+
+func (r *readsCounted) RowChunk(date string, chunk ledger.RowsChunk) ([]byte, error) {
+	r.chunks++
+	return r.Ledger.RowChunk(date, chunk)
+}
+
+func (r *readsCounted) Day(date string) []ledger.Held {
+	r.raw++
+	return r.Ledger.Day(date)
+}
+
+// keptBy are those of records f keeps, as chose keeps their rows, in order.
+func keptBy(records []lineRecord, f LogFilter) []lineRecord {
+	var kept []lineRecord
+	for i := range records {
+		row := lineFacts(&records[i].rowRecord, nil)
+		if f.chose(&row) {
+			kept = append(kept, records[i])
+		}
+	}
+	return kept
+}
+
+// among reports whether records are some of all, in all's order.
+func among(records, all []lineRecord) bool {
+	for i := range all {
+		if len(records) > 0 && reflect.DeepEqual(records[0], all[i]) {
+			records = records[1:]
+		}
+	}
+	return len(records) == 0
+}
+
+// throughWorlds are the worlds a day is read back through filters over: the
+// busy days', whose rows run to more than one chunk a day, their sessions
+// beginning hours apart; spread worlds, their sessions on days of their own,
+// a zone change's lines filed under days beside those they arrived on, as
+// newSpread files them; and a session run again three days on, so the days
+// between hold no lines.
+var throughWorlds = []struct {
+	name  string
+	chain func(t *testing.T) *digestChain
+}{
+	{name: "busy days", chain: func(t *testing.T) *digestChain {
+		return newDigestChain(t, fmt.Sprintf("busy days %d", busySeed), busySeed, busyDays(busySeed))
+	}},
+	{name: "spread world 8", chain: func(t *testing.T) *digestChain { return spreadChain(t, 8) }},
+	{name: "spread world 12", chain: func(t *testing.T) *digestChain { return spreadChain(t, 12) }},
+	{name: "three days apart", chain: func(t *testing.T) *digestChain { return newDigestChain(t, "three days apart 0", 0, threeDaysApart(0)) }},
+}
+
+// spreadChain is the chain of the spread world of the seed given, as
+// newSpread writes it.
+func spreadChain(t *testing.T, seed uint64) *digestChain {
+	t.Helper()
+	return newSpread(t, seed, pricedAs{name: "the built-in table", built: ledger.Pricing, read: ledger.Pricing}, make(map[string]bool)).digestChain
+}
+
+// The moments a day read back through a filter meets, each met by some of
+// throughWorlds.
+const (
+	throughRuledOut = "a day its summaries and those beside it rule out, unread"
+	throughSkipped  = "a day whose rows stand, read of some of their chunks, others skipped"
+	throughRaw      = "a day whose rows don't stand, its lines read"
+)
+
+// throughFilters is how many filters each day is read back through at each
+// moment, as drawnFilter draws them.
+const throughFilters = 6
+
+// A past day read back through a filter, as ReadDay reads it, gives every
+// record of the day's lines read raw that the filter keeps, as chose keeps
+// its row, in order, among others of them alone, in their order; and holds
+// the filter with every kind as its through. Of throughWorlds, through
+// throughFilters filters a day, as drawnFilter draws them, half an hour past
+// the midnight after the last day lines arrived on, that day's head yet to
+// be built, and at half past one, its head built: of days ruled out by their
+// summaries and those beside them, unread; of days whose rows stand, read
+// of the chunks whose meta may keep a line alone, some skipped; and of days
+// read raw. Through the Log's opening filter, which keeps every line of its
+// kinds, it's the day read whole, reading no summary.
+func TestADayReadBackThroughAFilterGivesEveryRecordItKeeps(t *testing.T) {
+	met := make(map[string]bool)
+	for _, w := range throughWorlds {
+		c := w.chain(t)
+		f, filed := c.follower(), filedDates(c.lines)
+		last := filed[len(filed)-1]
+		r := rand.New(rand.NewPCG(c.seed, 0x7d))
+		for _, day := range c.days() {
+			after := yesterdayOf(day) == last
+			if after {
+				c.by(day.Start.Add(30 * time.Minute))
+				c.readBackThrough(f, r, met)
+			}
+			c.by(day.Start.Add(90 * time.Minute))
+			if after {
+				c.readBackThrough(f, r, met)
+				break
+			}
+		}
+	}
+	for _, moment := range []string{throughRuledOut, throughSkipped, throughRaw} {
+		if !met[moment] {
+			t.Errorf("no world meets %s", moment)
+		}
+	}
+}
+
+// readBackThrough reads each past day of the chain's lines back through f, at
+// the chain's clock, through throughFilters filters r draws of the ids its
+// lines give, as sameThrough has each; and through the Log's opening
+// filter, failing the test where that's otherwise than the day read whole,
+// or reads a summary. It notes in met the moments the reads meet.
+func (c *digestChain) readBackThrough(f *ledger.Follower, r *rand.Rand, met map[string]bool) {
+	c.t.Helper()
+	first, _, _ := dayfile.Day(filedDates(c.lines)[0])
+	ids := idsOf(c.lines)
+	for _, date := range dayfile.Span(first, dayfile.DayStart(c.at, -1)) {
+		raw := rawDay(f, date)
+		for range throughFilters {
+			c.sameThrough(f, date, drawnFilter(r, ids), raw, met)
+		}
+		counted := &readsCounted{Ledger: f}
+		if got := ReadDay(counted, date, LogOpening()); !reflect.DeepEqual(got, wholeDay(f, date)) || counted.summaries > 0 {
+			c.t.Errorf("%s at %v: %s read back through the Log's opening filter, reading %+v, as\n%+v\nwant it read whole, reading no summary",
+				c.name, c.at, date, counted.reads, got.records)
+		}
+	}
+}
+
+// sameThrough fails the test where the day with the given date, read back
+// through f as ReadDay reads it through the filter given, at the chain's
+// clock, gives otherwise than raw, its lines read raw, of the records the
+// filter keeps; gives a record raw doesn't, or out of raw's order; or holds
+// other than the filter with every kind as its through. It notes in met the
+// moments the read meets.
+func (c *digestChain) sameThrough(f *ledger.Follower, date string, filter LogFilter, raw LogDay, met map[string]bool) {
+	c.t.Helper()
+	counted := &readsCounted{Ledger: f}
+	got := ReadDay(counted, date, filter)
+	if kept, want := keptBy(got.records, filter), keptBy(raw.records, filter); !reflect.DeepEqual(kept, want) {
+		c.t.Errorf("%s at %v: %s read back through %+v, reading %+v, keeps\n%s", c.name, c.at, date, filter, counted.reads, recordsUnlike(kept, want))
+	}
+	if !among(got.records, raw.records) {
+		c.t.Errorf("%s at %v: %s read back through %+v, reading %+v, gives %d records not all of its %d read raw, in their order",
+			c.name, c.at, date, filter, counted.reads, len(got.records), len(raw.records))
+	}
+	if !reflect.DeepEqual(got.through, filter.through()) {
+		c.t.Errorf("%s at %v: %s read back through %+v holds %+v as its through, want %+v", c.name, c.at, date, filter, got.through, filter.through())
+	}
+	rows, standing := f.DayRows(date, RowsVersion)
+	switch {
+	case filter.whole():
+	case counted.rows == 0 && counted.raw == 0:
+		met[throughRuledOut] = true
+	case counted.raw > 0:
+		met[throughRaw] = true
+	case standing && counted.chunks > 0 && counted.chunks < len(rows.Chunks):
+		met[throughSkipped] = true
+	}
+}
+
+// A day read back through a filter its own summary rules out, but not that
+// of a day beside it, as Day reads a day's lines of those days' files too,
+// is read of its rows, of none of their chunks, as no meta meets the
+// filter, nor of its lines: of a session's, the day after the last it ran
+// on. The day after that, the summaries of it and the days beside it ruling
+// it out, is never read. And as no summary counts a day's failures, the
+// failed alone rule out no day of lines, whose rows are read of the chunks
+// counting a failure alone: none, of a day none failed on.
+func TestADayBesideOneAFilterKeepsALineOnIsReadOfItsRowsAlone(t *testing.T) {
+	at := func(day, hour int) time.Time { return time.Date(2026, 10, 7+day, hour, 0, 0, 0, time.Local) }
+	line := func(request, session string, at time.Time, status int) ledger.Line {
+		return ledger.Line{
+			At: at, Request: request, Kind: ledger.KindMessage, Session: session, Model: foldOpus, Account: "work", Reason: "sticky", Status: status,
+			Attempts: 1, TotalMS: 1000, Class: ledger.ClassMain,
+		}
+	}
+	c := newDigestChain(t, "a session beside another's", 0, []ledger.Line{
+		line("a1", "a", at(0, 10), 200), line("b1", "b", at(0, 11), 500),
+		line("b2", "b", at(1, 11), 200), line("b3", "b", at(2, 11), 200), line("b4", "b", at(3, 11), 200),
+	})
+	c.digestDayByDay(func(LedgerDay) {})
+	f := c.follower()
+	ofA, failed := LogFilter{Sessions: []string{"a"}}, LogFilter{Failed: true}
+	tests := []struct {
+		name  string
+		f     LogFilter
+		day   int
+		reads reads
+		kept  int
+	}{
+		{"a session's, of the day it ran on", ofA, 0, reads{summaries: 1, rows: 1, chunks: 1}, 1},
+		{"a session's, of the day after the last it ran on", ofA, 1, reads{summaries: 1, rows: 1}, 0},
+		{"a session's, of two days after the last it ran on", ofA, 2, reads{summaries: 1}, 0},
+		{"the failed alone, of a day one failed on", failed, 0, reads{summaries: 1, rows: 1, chunks: 1}, 1},
+		{"the failed alone, of a day none failed on", failed, 2, reads{summaries: 1, rows: 1}, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			date := dayfile.DateOf(at(tt.day, 12))
+			counted := &readsCounted{Ledger: f}
+			got := ReadDay(counted, date, tt.f)
+			if counted.reads != tt.reads {
+				t.Errorf("%s read back through %+v reads %+v, want %+v", date, tt.f, counted.reads, tt.reads)
+			}
+			kept, want := keptBy(got.records, tt.f), keptBy(rawDay(f, date).records, tt.f)
+			if len(kept) != tt.kept || !reflect.DeepEqual(kept, want) {
+				t.Errorf("%s read back through %+v keeps\n%+v\nwant, of its lines read raw, %d\n%+v", date, tt.f, kept, tt.kept, want)
+			}
+		})
+	}
 }

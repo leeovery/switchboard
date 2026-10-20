@@ -47,7 +47,7 @@ func (r LogReading) Took(l views.LedgerSessions, lines []ledger.Held, whole bool
 	}
 	recorded := views.RecordsOf(lines)
 	want := views.StreamWanted(s)
-	want.Log = r.Read.Wanted(recorded)
+	want.Log = r.Read.Wanted(s, recorded)
 	held, gains := r.Held.Fed(l, views.Took(gained, days), want, now)
 	return LogReading{Read: r.Read.Taken(recorded, whole, views.LogTaking{Held: held, Gains: gains, Stream: s, Now: now}), Held: held}
 }

@@ -206,9 +206,9 @@ func (t *Tail[T]) follow(file io.ReaderAt, info fs.FileInfo, take func(T)) bool 
 		t.read = false
 		return false
 	}
-	whole := &measured{r: io.NewSectionReader(file, t.end, end-t.end)}
+	whole := measuredSection(file, t.end, end)
 	lines, unread := readOpened(t.files, []openFile{t.section(whole)}, t.decode, handing(take))
-	if whole.n < end-t.end {
+	if whole.short() {
 		t.read = false
 		return false
 	}
@@ -229,16 +229,29 @@ func (t *Tail[T]) section(r io.Reader) openFile {
 	return openFile{dayFile: plainFile(t.date), ReadCloser: io.NopCloser(r)}
 }
 
-// measured reads what r reads, counting in n how many bytes it read.
+// measured reads what r reads of a section of a file, counting in n how many
+// bytes it read.
 type measured struct {
-	r io.Reader
+	r *io.SectionReader
 	n int64
+}
+
+// measuredSection returns what reads file from from up to to, measured.
+func measuredSection(file io.ReaderAt, from, to int64) *measured {
+	return &measured{r: io.NewSectionReader(file, from, to-from)}
 }
 
 func (m *measured) Read(p []byte) (int, error) {
 	n, err := m.r.Read(p)
 	m.n += int64(n)
 	return n, err
+}
+
+// short reports whether a read of the section that went on to its end ended
+// short of it: the file is shorter than it was as the section was measured,
+// cut short under the read.
+func (m *measured) short() bool {
+	return m.n < m.r.Size()
 }
 
 // handing has take, which wants every line, take each as Read's do.

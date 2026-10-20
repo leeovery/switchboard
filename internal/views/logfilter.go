@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 )
 
@@ -90,6 +91,107 @@ func (f LogFilter) keepsKindOf(m ledger.ModelDay) bool {
 	return m.Requests() > 0 && ticked(f.Kinds, RowRequest) || m.Checks > 0 && ticked(f.Kinds, RowCheck) || m.Counts > 0 && ticked(f.Kinds, RowCount)
 }
 
+// ThroughOn is the filter the Log reads the local day with the given date
+// back through, as f shows the Requests, s telling what's under way: f with
+// every kind, as through has it; but whole, the zero LogFilter, where s
+// tells of a request whose line may be filed on the day, as tellsOfLineOn
+// has it, so its line is read whatever f keeps.
+func (f LogFilter) ThroughOn(s Stream, date string) LogFilter {
+	if tellsOfLineOn(s, date) {
+		return LogFilter{}
+	}
+	return f.through()
+}
+
+// tellsOfLineOn reports whether s tells of a request whose line may be
+// filed on the local day with the given date, as Told's linedOn has the
+// days of one.
+func tellsOfLineOn(s Stream, date string) bool {
+	for _, t := range s.Requests {
+		if slices.ContainsFunc(t.linedOn(), func(day LedgerDay) bool { return day.Date == date }) {
+			return true
+		}
+	}
+	return false
+}
+
+// through is the filter a past day the Log reads back through f is held
+// through: f with every kind, as kinds choose little, and a kind changed
+// never asks a read; whole, the zero LogFilter, where it keeps every line,
+// as whole has it.
+func (f LogFilter) through() LogFilter {
+	if f.whole() {
+		return LogFilter{}
+	}
+	f.Kinds = nil
+	return f
+}
+
+// whole reports whether f keeps every line, whatever its kind, as chose
+// keeps them: it ticks no account, model or session, and keeps more than
+// those that failed.
+func (f LogFilter) whole() bool {
+	return len(f.Accounts) == 0 && len(f.Models) == 0 && len(f.Sessions) == 0 && !f.Failed
+}
+
+// serves reports whether a day held through f, as through has it, holds
+// every line o keeps, as chose keeps them, whatever its kind: each of o's
+// choices within f's, as choiceWithin has it, and o keeping only those
+// that failed where f does.
+func (f LogFilter) serves(o LogFilter) bool {
+	return choiceWithin(o.Accounts, f.Accounts) && choiceWithin(o.Models, f.Models) && choiceWithin(o.Sessions, f.Sessions) && (!f.Failed || o.Failed)
+}
+
+// choiceWithin reports whether a filter's choice keeps none another's
+// doesn't, as ticked keeps them: where the other ticks none, which keeps
+// every one; else where the choice ticks some, each among the other's.
+func choiceWithin[T comparable](choice, other []T) bool {
+	return len(other) == 0 || len(choice) > 0 && !slices.ContainsFunc(choice, func(one T) bool { return !slices.Contains(other, one) })
+}
+
+// joined is the filter a day held through f, as through has it, is read
+// again through to serve o as well, as serves has it: each choice the two
+// tick together, as choicesJoined joins them, and only those that failed
+// where both keep only those, with every kind.
+func (f LogFilter) joined(o LogFilter) LogFilter {
+	return LogFilter{
+		Accounts: choicesJoined(f.Accounts, o.Accounts), Models: choicesJoined(f.Models, o.Models), Sessions: choicesJoined(f.Sessions, o.Sessions),
+		Failed: f.Failed && o.Failed,
+	}.through()
+}
+
+// choicesJoined is the choice keeping every one either of two keeps, as
+// ticked keeps them: none, which keeps every one, where either ticks none;
+// else those choice ticks, then those other ticks that it doesn't.
+func choicesJoined[T comparable](choice, other []T) []T {
+	if len(choice) == 0 || len(other) == 0 {
+		return nil
+	}
+	joined := slices.Clone(choice)
+	for _, one := range other {
+		if !slices.Contains(joined, one) {
+			joined = append(joined, one)
+		}
+	}
+	return joined
+}
+
+// mayKeepOn reports whether the local day with the given date may hold a
+// line f keeps, whatever its kind, as the days' summaries l gives say: any
+// day where f keeps every line, as whole has it, reading none; else where
+// the summary of any day whose files may hold its lines, as dayfile's
+// FileDates has them, the files Day reads them of, its own and those either
+// side of it, may hold one, as mayKeep has it of f with every kind. No
+// summary counts a day's failures, so of those that failed it says what it
+// says of every line. A date that isn't one holds none.
+func (f LogFilter) mayKeepOn(l LedgerDates, date string) bool {
+	if f.whole() {
+		return true
+	}
+	day, ok := dayfile.DayBounds(date)
+	return ok && slices.ContainsFunc(l.DaysOn(day.FileDates()), f.through().mayKeep)
+}
+
 // hiding is what of the filter f hides the row r: none; its kind alone; or
 // a choice of another, its kind kept or not.
 func (f LogFilter) hiding(r *RequestRow) hidden {
@@ -104,7 +206,36 @@ func (f LogFilter) hiding(r *RequestRow) hidden {
 
 // chose reports whether the filter's choices but its kinds keep the row r.
 func (f LogFilter) chose(r *RequestRow) bool {
-	return ticked(f.Accounts, r.Account) && ticked(f.Models, r.Model) && ticked(f.Sessions, r.CountedSession) && (!f.Failed || r.Failed)
+	return f.chosen(rowChoice{account: r.Account, model: r.Model, session: r.CountedSession, failed: r.Failed})
+}
+
+// keeps reports whether the filter's choices but its kinds keep the row of
+// the record rec, as chose keeps the row lineFacts makes of it, judging its
+// choice alone, as choice has it: every one where f keeps every line, as
+// whole has it.
+func (f LogFilter) keeps(rec *lineRecord) bool {
+	return f.whole() || f.chosen(rec.choice())
+}
+
+// chosen reports whether the filter's choices but its kinds keep a row of
+// the choice c.
+func (f LogFilter) chosen(c rowChoice) bool {
+	return ticked(f.Accounts, c.account) && ticked(f.Models, c.model) && ticked(f.Sessions, c.session) && (!f.Failed || c.failed)
+}
+
+// rowChoice is what of a row a filter's choices judge: the account it's on,
+// the model it asked for, the session it counts toward, and whether it
+// failed.
+type rowChoice struct {
+	account, model, session string
+	failed                  bool
+}
+
+// choice is what of the row of the record r a filter's choices judge, as
+// rowChoice has it: the one making of those facts, which lineFacts makes
+// the row of, and LogFilter's keeps judges a record by.
+func (r *rowRecord) choice() rowChoice {
+	return rowChoice{account: r.account, model: r.model, session: r.countedSession, failed: ledger.Failing(r.status)}
 }
 
 // hidden is what of a filter hides a row.

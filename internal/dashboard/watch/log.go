@@ -76,10 +76,11 @@ func openingLog(columns dashboard.LogTicks) logTab {
 // answers, what the stream tells, which a row in flight is drawn as, and
 // to when the ledger wrote; whether the table shown is at its reach, as
 // atReach has it; on opening, the table shown filled once it fills its
-// view; the details card, where it's open, of what it holds; and
-// while it's open, the panel of what a table shows, as builtLogPanel has
-// it. Built, it lets go of the days its tables no longer show, as
-// lettingGo has it, and is built again of what it holds then.
+// view, built as the page shows it, as fills has it; the details card,
+// where it's open, of what it holds; and while it's open, the panel of what
+// a table shows, as builtLogPanel has it. Built, it lets go of the days its
+// tables no longer show, as lettingGo has it, and is built again of what it
+// holds then.
 func (m Model) builtLog(now time.Time) Model {
 	if !m.log.opened {
 		return m
@@ -92,36 +93,87 @@ func (m Model) builtLog(now time.Time) Model {
 	if basis := m.eventsBasis(p.Shows, now); !t.built.events.same(basis) {
 		p.Events, m.log.built.events = views.LogEvents(m.logEventSources(p.Shows, now)), &basis
 	}
-	m.log.page = p.Lined().Filling(m.logRows())
+	rows := m.logRows()
+	m.log.page = p.Lined()
+	if m.log.fills() {
+		m.log.page = m.log.page.Filling(rows)
+	}
 	m = m.followedByLogCard().builtLogPanel(now)
-	if day, ok := m.log.lettingGo(m.logRows()); ok {
+	if day, ok := m.log.lettingGo(rows); ok {
 		m.log = m.log.spanningFrom(day)
 		return m.builtLog(now)
 	}
 	return m
 }
 
-// lettingGo is the latest day the Log could span from, its tables showing
-// in a view rows rows tall all they show now, as the page's KeptFrom has
-// it: false while either table is paused, a card or the find is open, or
-// lands, a read for it is under way, or a row of its Requests awaits a line
-// filed before that day, each of which may reach back past it; or the read
-// holds before it the line of a request the stream tells of, as HoldsTold
-// has it, whose row would await it there, reading it back again.
+// lettingGo is the latest day the Log could span from, as goingFrom has it.
+// It's false while either table is paused, a card or the find is open, or a
+// read for it is under way; or where what the stream tells of holds the
+// Log's days back as of that day, as holdsBack has it.
 func (t logTab) lettingGo(rows int) (views.LedgerDay, bool) {
 	p := t.page
 	if t.reading || p.Stands[dashboard.LogRequests].Paused() || p.Stands[dashboard.LogEvents].Paused() || t.card.request != nil || t.card.event != nil ||
-		p.Finding.Open || t.find.landing != nil {
+		p.Finding.Open {
 		return views.LedgerDay{}, false
 	}
-	day, ok := p.KeptFrom(rows)
-	return day, ok && len(p.Requests.Awaited(day)) == 0 && !t.read.HoldsTold(p.Stream, day)
+	day, ok := t.goingFrom(rows)
+	return day, ok && !t.holdsBack(day)
+}
+
+// goingFrom is the day the Log would span from, letting go of those before
+// it. Where its read holds a day that doesn't serve the filter it serves, as
+// serving has it, it's the first from which every day does, as ServedFrom
+// has it, so following, it lets every such day go before reading one again,
+// a table that filled its view from one reading back to fill it again, as
+// spanningFrom unfills it. That's only where the Requests' filter has
+// reach, as views' Reach has it, as they then read back through it to where
+// one read whole holds them; and where nothing the stream tells of holds the
+// days back as of today, as holdsBack has it, as it would hold one read
+// whole from letting go of any. Else it's false, each such day read again,
+// as readRefiltered reads them, as one read whole holds them still. While
+// the Events show, one read whole keeps the days the Requests hidden filled
+// from, where the Log lets them go, its Events filling their view alike,
+// and reads them back through the Requests' filter once they show again.
+// Where every day serves it, it's the day the Log's tables, showing in a
+// view rows rows tall all they show now, span from, as the page's KeptFrom
+// has it: false while the find lands, as its landing may reach back past it.
+func (t logTab) goingFrom(rows int) (views.LedgerDay, bool) {
+	if day, unserved := t.read.ServedFrom(t.serving()); unserved {
+		_, reaches := t.page.Filter.Reach()
+		return day, reaches && !t.holdsBack(t.page.Today)
+	}
+	if t.find.landing != nil {
+		return views.LedgerDay{}, false
+	}
+	return t.page.KeptFrom(rows)
+}
+
+// holdsBack reports whether what the stream tells of holds the Log's days
+// back as of the day given, so it lets go of none before it: where a row of
+// its Requests awaits a line filed before the day, or the read holds before
+// it the line of a request the stream tells of, as HoldsTold has it, whose
+// row would await it there, reading it back again.
+func (t logTab) holdsBack(day views.LedgerDay) bool {
+	return len(t.page.Requests.Awaited(day)) > 0 || t.read.HoldsTold(t.page.Stream, day)
+}
+
+// fills reports whether the table shown is built as the page shows it, so
+// filling its view marks it filled, as Filling has it: the Events, built
+// through their own filter; the Requests where every day the Log's read
+// holds serves the filter it serves, theirs, as requestsFilter then builds
+// them through it. A table built through a filter no longer shown never
+// marks the view filled for the one that is.
+func (t logTab) fills() bool {
+	return t.page.Shown != dashboard.LogRequests || t.served()
 }
 
 // spanningFrom is the Log spanning the days from the one given, a later one than
 // it spans from: its read, its events and the figures of its days holding
-// none of those before, as From has it, what each holds counted changed.
+// none of those before, as From has it, what each holds counted changed;
+// and each of its tables unfilled that, as it will show, filled its view
+// from one of those, as Unfilled has it, so it reads back to fill it again.
 func (t logTab) spanningFrom(day views.LedgerDay) logTab {
+	t.page = t.page.Unfilled(day)
 	t.from, t.read, t.events = day, t.read.From(day), t.events.From(day)
 	t.totals = slices.DeleteFunc(slices.Clone(t.totals), func(d views.DayTotals) bool { return d.Date < day.Date })
 	t.lined++
@@ -133,24 +185,44 @@ func (t logTab) spanningFrom(day views.LedgerDay) logTab {
 // shown or hidden: of the lines read, placed and tabled as views.LogLinesOf
 // has them, each where it was placed before; and, while the router answers,
 // the rows of what the stream tells of those whose lines are yet to come,
-// taken in among them as views.LogLines' Rows has it; each as its filter
-// has them, and made again only as what it's made of changes, as logBuilt
-// has it, so what the stream tells builds nothing of the lines afresh.
+// taken in among them as views.LogLines' Rows has it; each through the
+// filter requestsFilter gives, and made again only as what it's made of
+// changes, as logBuilt has it, so what the stream tells builds nothing of
+// the lines afresh. Where it gives none, nothing's built.
 func (m Model) requestsBuilt(now time.Time) Model {
-	m = m.linesPlaced(now)
+	filter, ok := m.log.requestsFilter()
+	if !ok {
+		return m
+	}
+	m = m.linesPlaced(filter, now)
 	p := &m.log.page
-	if basis := m.requestsBasis(p.Filter, now); !m.log.built.requests.same(basis) {
-		p.Requests, m.log.built.requests = m.log.lines.Rows(m.logSources(p.Filter, now)), &basis
+	if basis := m.requestsBasis(filter, now); !m.log.built.requests.same(basis) {
+		p.Requests, m.log.built.requests = m.log.lines.Rows(m.logSources(filter, now)), &basis
 	}
 	return m
 }
 
-// linesPlaced is m with the Log's lines placed and tabled at now, as
-// views.LogLinesOf has them, each where it was placed before, those it
-// hasn't placed where the stream tells their requests were sent: only as
-// they, or the filter, change.
-func (m Model) linesPlaced(now time.Time) Model {
-	filter := m.log.page.Filter
+// requestsFilter is the filter the Log's Requests are built through, as
+// Through has it: the page's, where every day its read holds serves it;
+// else the one their lines were last tabled through, which each still
+// serves, till those that don't are read again, as readRefiltered reads
+// them, so the Requests show what they showed meanwhile, and never a table
+// through a filter its days don't serve. It's false where their lines were
+// never tabled and the read doesn't serve the page's, as no filter it
+// serves is known.
+func (t logTab) requestsFilter() (views.LogFilter, bool) {
+	f := t.page.Filter
+	if t.built.lines == nil && !t.read.Serves(f) {
+		return views.LogFilter{}, false
+	}
+	return t.read.Through(f, t.lines.Filter()), true
+}
+
+// linesPlaced is m with the Log's lines placed and tabled at now through
+// the filter given, as views.LogLinesOf has them, each where it was placed
+// before, those it hasn't placed where the stream tells their requests were
+// sent: only as they, or the filter, change.
+func (m Model) linesPlaced(filter views.LogFilter, now time.Time) Model {
 	if basis := m.linesBasis(filter, now); !m.log.built.lines.same(basis) {
 		m.log.lines, m.log.built.lines = views.LogLinesOf(m.log.lines, m.logSources(filter, now)), &basis
 	}
@@ -168,12 +240,13 @@ func (m Model) logSources(filter views.LogFilter, now time.Time) views.LogSource
 }
 
 // logEventSources are what the Log's Events are built from at now, through
-// the filter given.
+// the filter given: of the days its read holds whole alone, as a day held
+// through a filter is to them a day not yet read, as their cards read it.
 func (m Model) logEventSources(filter views.EventFilter, now time.Time) views.LogEventSources {
 	t := m.log
 	return views.LogEventSources{
-		From: t.from.Start, Events: t.events, Held: m.held, Filter: filter, Names: m.cfg.WindowName, Totals: t.totals, Oldest: t.oldest, Filed: t.filed,
-		Now: now,
+		From: t.from.Start, Events: t.events, Held: m.held, Read: t.read, Filter: filter, Names: m.cfg.WindowName, Totals: t.totals, Oldest: t.oldest,
+		Filed: t.filed, Now: now,
 	}
 }
 

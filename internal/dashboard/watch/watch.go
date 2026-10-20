@@ -192,6 +192,11 @@ type Config struct {
 	// Home is the user's home directory, which a session's page shows a
 	// directory under as ~: "" shows it whole.
 	Home string
+	// readsWhole has the Log read each past day whole, through no filter, as
+	// it read them before it read them through its filters. Only the
+	// package's tests set it, for a Log of the same history read whole that
+	// they hold one read through its filters to.
+	readsWhole bool
 }
 
 // Size is a terminal's size in cells.

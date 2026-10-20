@@ -917,7 +917,7 @@ func TestACountOfATurnsSessionIsNoneOfItsRequests(t *testing.T) {
 	if want := []string{"m1"}; !slices.Equal(held, want) || !slices.Equal(rows, want) {
 		t.Errorf("the turn holds %v and shows the rows %v, want %v of each", held, rows, want)
 	}
-	if wanted := ReadLog(ledger.Pricing).Wanted(RecordsOf(gained), RecordsOf([]ledger.Held{{Line: line("c5", ledger.KindCount, "", "k", 5)}})); len(wanted) > 0 {
+	if wanted := ReadLog(ledger.Pricing).Wanted(Stream{}, RecordsOf(gained), RecordsOf([]ledger.Held{{Line: line("c5", ledger.KindCount, "", "k", 5)}})); len(wanted) > 0 {
 		t.Errorf("the Log wants the sessions %v for counts alone, want none", wanted)
 	}
 }
