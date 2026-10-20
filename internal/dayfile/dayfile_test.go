@@ -202,6 +202,31 @@ func TestADaysBoundsHoldFromItsStartToBeforeItsEnd(t *testing.T) {
 	}
 }
 
+// The files that may hold a day's lines are its own and those of the days
+// either side of it, as a change of time zone files a line under a date
+// beside its own: across a month's end and a year's alike.
+func TestADaysLinesMayBeInItsFilesAndThoseOfTheDaysEitherSide(t *testing.T) {
+	tests := []struct {
+		date string
+		want []string
+	}{
+		{"2026-09-28", []string{"2026-09-27", "2026-09-28", "2026-09-29"}},
+		{"2026-10-01", []string{"2026-09-30", "2026-10-01", "2026-10-02"}},
+		{"2026-12-31", []string{"2026-12-30", "2026-12-31", "2027-01-01"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.date, func(t *testing.T) {
+			day, ok := DayBounds(tt.date)
+			if !ok {
+				t.Fatalf("DayBounds(%s) reports no day", tt.date)
+			}
+			if got := day.FileDates(); !slices.Equal(got, tt.want) {
+				t.Errorf("the bounds of %s give file dates %q, want %q", tt.date, got, tt.want)
+			}
+		})
+	}
+}
+
 // A date parses as a day in UTC, its midnight, whatever the local zone, the
 // one parse every reader of a date shares; and a date that isn't one is no
 // day.

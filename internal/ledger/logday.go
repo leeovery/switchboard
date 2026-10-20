@@ -285,7 +285,7 @@ func (d days) day(date string, now time.Time, take func(filedHeld) bool, faults 
 		return
 	}
 	within := func(h filedHeld) bool { return day.Holds(h.At) && !h.At.After(now) }
-	d.lines(dayfile.Dates(day.Start, day.Start), lineHeldIn, within, take, faults, "day", date)
+	d.lines(day.FileDates(), lineHeldIn, within, take, faults, "day", date)
 }
 
 // errDayUnread is the error of a day whose lines, or those of a day either

@@ -104,12 +104,11 @@ func (f LogFilter) ThroughOn(s Stream, date string) LogFilter {
 }
 
 // tellsOfLineOn reports whether s tells of a request whose line may be
-// filed on the local day with the given date, as holdsLineOf looks for
-// one: the day it was sent on, or the one FiledOn gives, the day before of
-// one sent just after midnight.
+// filed on the local day with the given date, as Told's linedOn has the
+// days of one.
 func tellsOfLineOn(s Stream, date string) bool {
 	for _, t := range s.Requests {
-		if filed, ok := t.FiledOn(); ok && (filed.Date == date || toldOn(t).Date == date) {
+		if slices.ContainsFunc(t.linedOn(), func(day LedgerDay) bool { return day.Date == date }) {
 			return true
 		}
 	}
@@ -180,18 +179,17 @@ func choicesJoined[T comparable](choice, other []T) []T {
 // mayKeepOn reports whether the local day with the given date may hold a
 // line f keeps, whatever its kind, as the days' summaries l gives say: any
 // day where f keeps every line, as whole has it, reading none; else where
-// the day's own summary, or that of a day either side of it, may hold one,
-// as mayKeep has it of f with every kind, as Day reads a day's lines of
-// those days' files too, a change of time zone filing a line under a date
-// beside its own. No summary counts a day's failures, so of those that
-// failed it says what it says of every line. A date that isn't one holds
-// none.
+// the summary of any day whose files may hold its lines, as dayfile's
+// FileDates has them, the files Day reads them of, its own and those either
+// side of it, may hold one, as mayKeep has it of f with every kind. No
+// summary counts a day's failures, so of those that failed it says what it
+// says of every line. A date that isn't one holds none.
 func (f LogFilter) mayKeepOn(l LedgerDates, date string) bool {
 	if f.whole() {
 		return true
 	}
 	day, ok := dayfile.DayBounds(date)
-	return ok && slices.ContainsFunc(l.DaysOn(dayfile.Dates(day.Start, day.Start)), f.through().mayKeep)
+	return ok && slices.ContainsFunc(l.DaysOn(day.FileDates()), f.through().mayKeep)
 }
 
 // hiding is what of the filter f hides the row r: none; its kind alone; or

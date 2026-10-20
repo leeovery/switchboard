@@ -504,11 +504,10 @@ func (r LogRead) worthOf(rec *lineRecord, date string) Worth {
 }
 
 // holdsLineOf reports whether r holds the line of the request t among the
-// table's, as t.FiledAs knows it: on the day it was sent on, or the day its
-// line is filed on, as FiledOn has it, which may be the day before.
+// table's, as t.FiledAs knows it, on any day its line may be filed on, as
+// linedOn has them.
 func (r LogRead) holdsLineOf(t Told) bool {
-	filed, ok := t.FiledOn()
-	return r.holdsLineOn(t, toldOn(t)) || ok && r.holdsLineOn(t, filed)
+	return slices.ContainsFunc(t.linedOn(), func(day LedgerDay) bool { return r.holdsLineOn(t, day) })
 }
 
 // holdsLineOn reports whether r holds the line of the request t among the

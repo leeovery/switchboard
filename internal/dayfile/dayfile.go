@@ -152,6 +152,14 @@ func (b Bounds) Holds(t time.Time) bool {
 	return !t.Before(b.Start) && t.Before(b.End)
 }
 
+// FileDates returns the dates of the days whose files may hold lines of the
+// day b bounds, as Dates gives them of its start: its own, and those of the
+// days either side of it, as a change of time zone can file a line under a
+// date beside its own.
+func (b Bounds) FileDates() []string {
+	return Dates(b.Start, b.Start)
+}
+
 // dayIn returns when the day with the given date starts and ends in loc, as
 // Day says.
 func dayIn(date string, loc *time.Location) (start, end time.Time, ok bool) {
