@@ -619,12 +619,12 @@ func (p LogPage) pausedTime(lines logLines, s LogStand, rows int) time.Time {
 }
 
 // fresh is how many lines have come since the table shown, of lines,
-// paused: of Requests', its rows of requests the table as it paused held
-// none of, as its filter shows them, as its mark says; of Events', those
-// after its paused foot.
+// paused: of Requests', as RequestsNew has them; of Events', those after
+// its paused foot.
 func (p LogPage) fresh(lines logLines, s LogStand) int {
 	if p.Shown == LogRequests {
-		return p.Requests.NewSince(s.mark)
+		n, _ := p.RequestsNew()
+		return n
 	}
 	n := 0
 	for i := p.footOf(lines, s) + 1; i < lines.len(); i++ {
@@ -633,6 +633,19 @@ func (p LogPage) fresh(lines logLines, s LogStand) int {
 		}
 	}
 	return n
+}
+
+// RequestsNew is how many of the Requests' rows have come since they
+// paused, as the state line counts them while they're shown: rows of
+// requests the table as it paused held none of, as its filter shows them,
+// as their mark says, as views.LogTable's NewSince has it. It reports false
+// where they follow.
+func (p LogPage) RequestsNew() (int, bool) {
+	s := p.Stands[LogRequests]
+	if !s.Paused() {
+		return 0, false
+	}
+	return p.Requests.NewSince(s.mark), true
 }
 
 // sessionAlone is the session the Requests' filter keeps alone, by its id

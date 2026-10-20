@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -204,6 +205,72 @@ func TestAFilterLetGoWhilePausedReadsEachDayAgainThenShowsEveryLineAtItsLine(t *
 			p.Paused(), chosen, row.Request, len(shownRequests(h)), refilterLine)
 	}
 	sameLogAsReadWhole(t, h.model, whole.model, l.Ledger, h.clock.now)
+}
+
+// The Requests paused at the find's pick, each day held through its filter
+// read again counts none of its lines as come since: the filter let go, as
+// the panel lets api go; widened by web's; or the Events shown and the
+// Requests again, as ] and [ show them, each day read again whole for the
+// Events. Each stays paused at api's line, drawn as the same history read
+// whole draws it, saying as many rows come since as that says: none, till a
+// line of api's comes today, then one.
+func TestADayReadAgainWhilePausedCountsNoneOfItsLinesAsComeSince(t *testing.T) {
+	tests := []struct {
+		name    string
+		changed func(h *harness)
+	}{
+		{name: "the find's filter let go", changed: func(h *harness) {
+			landedAll(h, applyingLog(h, func(f *views.LogFilter) { f.Sessions = nil }), func(int) {})
+		}},
+		{name: "the find's filter widened by web's", changed: func(h *harness) {
+			landedAll(h, applyingLog(h, func(f *views.LogFilter) { f.Sessions = []string{apiSession, webSession} }), func(int) {})
+		}},
+		{name: "the Events shown and the Requests again", changed: func(h *harness) {
+			h.deliver(h.press("]")...)
+			h.deliver(h.press("[")...)
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := t.TempDir()
+			h, whole, l := refilterTwins(t, state, 6*day, nil)
+			before := len(l.days)
+			for _, h := range []*harness{whole, h} {
+				pickedAPI(t, h)
+				tt.changed(h)
+			}
+			if len(l.days) == before {
+				t.Fatal("no day was read again, want each held through the find's filter read again")
+			}
+			comeSince(t, h, whole, 0)
+
+			writeLines(t, state, ranIn("0b000005", apiSession, "~/Code/api", -30*time.Second))
+			whole.read(probedWithoutTheRouter())
+			h.read(probedWithoutTheRouter())
+			comeSince(t, h, whole, 1)
+			sameLogAsReadWhole(t, h.model, whole.model, l.Ledger, h.clock.now)
+		})
+	}
+}
+
+// comeSince fails the test where the Log of h, or of whole, the same
+// history read whole, isn't paused at api's line, or says other than want
+// rows come since, as its state line says them; or where h draws otherwise
+// than whole.
+func comeSince(t *testing.T, h, whole *harness, want int) {
+	t.Helper()
+	said := fmt.Sprintf("▼ %d new", want)
+	for _, h := range []*harness{h, whole} {
+		p := h.model.log.page
+		row, _, chosen := p.Chosen()
+		if n, paused := p.RequestsNew(); !paused || n != want || !chosen || row.Request != refilterLine || want > 0 && !strings.Contains(h.view(), said) {
+			t.Errorf("read whole %t, the Requests are paused %t at %s, %t, %d rows come since; want paused at api's line, %s, %d come since, %q said",
+				h.model.cfg.readsWhole, paused, row.Request, chosen, n, refilterLine, want, said)
+		}
+	}
+	if got, want := h.view(), whole.view(); got != want {
+		t.Errorf("the Log draws\n%s\nwant\n%s\nas the same history read whole draws it", got, want)
+	}
 }
 
 // The Log's Requests are built through no filter the days its read holds

@@ -197,6 +197,7 @@ func (w *spread) sameFiltered(m moment) {
 	b.unserved(across, f, crossing)
 	refiltered := b.refiltered(across, f, crossing)
 	b.alike(fmt.Sprintf("its past days read through %+v, then again through their join", crossing), f, filteredRead{read: refiltered, asked: across.asked}, want)
+	b.sameNewSince(across.read, refiltered, f, crossing)
 	w.sameLate(b, held, f, want)
 	b.sameEvents(read, f, held)
 }
@@ -245,6 +246,25 @@ func (b backThrough) refiltered(fr filteredRead, f, crossing LogFilter) LogRead 
 		}
 	}
 	return read
+}
+
+// sameNewSince fails the test where the Requests built of across, the read
+// with its past days read through the filter crossing, paused as they show
+// it, then built of refiltered, its days read again where they don't serve
+// f, through f, count rows come since they paused, as NewSince counts them,
+// other than those of the read with every day whole, paused and shown
+// alike: the days read again add none, as no line was taken in since.
+func (b backThrough) sameNewSince(across, refiltered LogRead, f, crossing LogFilter) {
+	b.w.t.Helper()
+	start, _, _ := dayfile.Day(b.from)
+	table := func(read LogRead, f LogFilter) LogTable {
+		return LogRows(LogSources{From: start, Read: read, Stream: b.s, Filter: f, Now: b.now})
+	}
+	got := table(refiltered, f).NewSince(table(across, crossing).Mark())
+	if want := table(b.whole, f).NewSince(table(b.whole, crossing).Mark()); got != want {
+		b.w.t.Errorf("%s at %v: the Log paused through %+v, its past days read through it, then again for %+v, counts %d rows come since; want %d, as with every day whole",
+			b.w.name, b.now, crossing, f, got, want)
+	}
 }
 
 // filteredOn are the dates of the past days the Log read back through the

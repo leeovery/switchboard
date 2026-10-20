@@ -154,16 +154,23 @@ func (t LogTable) Mark() LogMark {
 // among those of the table as it stood at the mark m, shown or hidden, on
 // the days it spanned: those come since, as t's filter shows them. A row
 // filling in as its line comes isn't new, nor is one of a day before m's
-// first, read back since as the table's top was reached. The rows of lines
-// it counts are those of the lines taken in since m, each day's found as
-// they were taken in, so it reads none it held then.
+// first, read back since as the table's top was reached, nor one of a day
+// read back again since, as a day held through a filter is read again for
+// another, whose lines the day held then, shown or hidden, or would have
+// but for its filter. The rows of lines it counts are those of the lines
+// taken in since m, and since their day was last read back, as its backTo
+// has it, each day's found as they were taken in, so it reads none it held
+// then. Of a day read back again since m it so passes over a line taken in
+// late onto it between: of a request under way as m was made, which m
+// holds as told where the stream told of it.
 func (t LogTable) NewSince(m LogMark) int {
 	n := 0
 	for _, d := range t.lines.read.days {
 		if d.day.Date < m.first.Date || d.day.Date < t.lines.first.Date {
 			continue
 		}
-		from := d.lines.search(func(l *loggedLine) bool { return l.seq > m.seq })
+		since := max(m.seq, d.backTo)
+		from := d.lines.search(func(l *loggedLine) bool { return l.seq > since })
 		for _, l := range d.lines.from(from) {
 			k := LineKey{id: l.row.Request, ran: runSpanOf(l.row)}
 			if t.lines.filter.hiding(&l.row) == notHidden && !m.toldOf(k) {

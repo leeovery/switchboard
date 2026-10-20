@@ -340,7 +340,9 @@ func sameLogAsOneRead(t *testing.T, m Model, l views.Ledger, now time.Time) {
 // its filters, is caught, however its tables show from that day. Two
 // divergences are its own, each named: the find's pick landing later, as
 // pickLandedLater has it; and the Events showing letting go of the days
-// held through the Requests' filter, as eventsLetRequestsDaysGo has it.
+// held through the Requests' filter, as eventsLetRequestsDaysGo has it. Its
+// Requests paused, they're held to whole's too in how many rows have come
+// since, as sameNewSince has it.
 func sameLogAsReadWhole(t *testing.T, m, whole Model, l views.Ledger, now time.Time) {
 	t.Helper()
 	if !whole.cfg.readsWhole {
@@ -349,7 +351,23 @@ func sameLogAsReadWhole(t *testing.T, m, whole Model, l views.Ledger, now time.T
 	if m.log.from.Date != whole.log.from.Date && !pickLandedLater(m, whole) && !eventsLetRequestsDaysGo(m, whole) {
 		t.Errorf("at %s the Log spans from %s, want %s, as the same history read whole does", now.Format(time.DateTime), m.log.from.Date, whole.log.from.Date)
 	}
+	sameNewSince(t, m, whole, now)
 	sameLogAsOneRead(t, m, l, now)
+}
+
+// sameNewSince fails the test where the Log's Requests of the model m at
+// now, paused, say a count of rows come since they paused other than
+// whole's, the same history read whole, as the state line counts them, as
+// LogPage's RequestsNew has it; or where either's are paused and the
+// other's follow.
+func sameNewSince(t *testing.T, m, whole Model, now time.Time) {
+	t.Helper()
+	got, paused := m.log.page.RequestsNew()
+	want, wholePaused := whole.log.page.RequestsNew()
+	if paused != wholePaused || got != want {
+		t.Errorf("at %s the Log's Requests are paused %t, %d rows come since; want paused %t, %d, as the same history read whole has them",
+			now.Format(time.DateTime), paused, got, wholePaused, want)
+	}
 }
 
 // pickLandedLater reports whether the Log of m spans from a later day than

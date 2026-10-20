@@ -45,17 +45,20 @@ type LogRead struct {
 // loggedDay is a day of the Log's read: its lines, in the order taken in,
 // as their seqs have them; their keys, by which a line given again is
 // known, and a session's lines found; the handles of their words, as
-// interning holds them, in layers, as stacked has them; and the filter it's
+// interning holds them, in layers, as stacked has them; the filter it's
 // held through: that of the day read through one that made it, as LogDay's
-// through has it, else whole, the zero LogFilter. A day held through a
-// filter keeps of its lines those the filter keeps, and every one of a
-// request the stream tells of, as dayKeeps has it.
+// through has it, else whole, the zero LogFilter; and backTo, the read's
+// seq once the day was last read back, as TakenBack reads one, the lines
+// read then being those of seqs up to it: 0 of a day never read back. A day
+// held through a filter keeps of its lines those the filter keeps, and
+// every one of a request the stream tells of, as dayKeeps has it.
 type loggedDay struct {
 	day     LedgerDay
 	lines   chunked[*loggedLine]
 	keys    *stacked[loggedKeys]
 	names   *stacked[interning]
 	through LogFilter
+	backTo  int
 }
 
 // loggedKeys are the keys of a day's lines, as loggedDay holds them: those
@@ -105,12 +108,14 @@ func ReadLog(prices ledger.Table) LogRead {
 // them, as HeldSessions holds it, which tells each row's story; what the
 // feed changed of each session, as SessionGains has it, whose rows the read
 // tells again; what the request stream told, which places each row as
-// LogLinesOf has it; and now, its day's prices pricing each line.
+// LogLinesOf has it; and now, its day's prices pricing each line. back is
+// set of a day read back alone, as TakenBack takes one.
 type LogTaking struct {
 	Held   HeldSessions
 	Gains  SessionGains
 	Stream Stream
 	Now    time.Time
+	back   bool
 }
 
 // Taken is r with the lines of day taken in, each of its record, as t says,
@@ -158,7 +163,7 @@ func (r LogRead) TakenBack(l LedgerSessions, day LogDay, held HeldSessions, s St
 		fresh, _ := HoldSessions(r.prices).Fed(l, Taken{}, want, now)
 		found, telling = &fresh, held.With(fresh)
 	}
-	return r.Taken(day, true, LogTaking{Held: telling, Stream: s, Now: now}), found
+	return r.Taken(day, true, LogTaking{Held: telling, Stream: s, Now: now, back: true}), found
 }
 
 // From is r holding none of the days before the day given, as the Log no
@@ -393,8 +398,10 @@ func (r LogRead) changed(retold []*loggedLine) LogRead {
 // counts it, before the filter the day it arrived on is held through drops
 // it, as dayKeeps has it, so of lines given again it keeps those the day
 // held whole would hold that the filter keeps; and each counted tells when
-// the ledger last wrote, as WrittenTo has it, kept or not. r's days are its
-// own, but none of them.
+// the ledger last wrote, as WrittenTo has it, kept or not. Of a day read
+// back, as t's back says, each day it takes lines onto is read back to the
+// last, as loggedDay's backTo has it. r's days are its own, but none of
+// them.
 func (r *LogRead) take(day LogDay, whole bool, t LogTaking) bool {
 	held, wrote := len(r.days), r.written
 	if !day.through.whole() {
@@ -426,6 +433,9 @@ func (r *LogRead) take(day LogDay, whole bool, t LogTaking) bool {
 	for i := range r.days {
 		if a := added[r.days[i].day.Date]; a != nil {
 			r.days[i].took(a)
+			if t.back {
+				r.days[i].backTo = r.seq
+			}
 		}
 	}
 	return len(r.days) > held || len(added) > 0 || !r.written.Equal(wrote)

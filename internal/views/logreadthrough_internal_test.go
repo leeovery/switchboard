@@ -809,3 +809,80 @@ func TestTheEventsShowFromTheDayAfterTheNewestHeldThroughAFilter(t *testing.T) {
 		})
 	}
 }
+
+// A day read again since the Requests paused, as a refilter reads one, adds
+// none of its lines to those come since: of the read with its past days
+// held through a filter, read again whole a day at a time, the Requests
+// through every line count as many rows come since they paused, through
+// the filter, as those of the read with every day whole: none, yesterday
+// read again; one, a line of today taken in, and still, the day before read
+// again; then two, a line taken in late onto yesterday.
+func TestADayReadAgainSincePausedAddsNoneOfItsLinesToThoseComeSince(t *testing.T) {
+	now := time.Date(2026, 10, 9, 9, 0, 0, 0, time.Local)
+	today, yesterday, before := Today(now), Today(dayfile.DayStart(now, -1)), Today(dayfile.DayStart(now, -2))
+	line := func(id, session string, at time.Time) ledger.Line {
+		return ledger.Line{At: at, Request: id, Kind: ledger.KindMessage, Session: session, Model: foldOpus, Account: "work", Status: 200}
+	}
+	lines := []ledger.Line{
+		line("a2", "a", before.Start.Add(12*time.Hour)), line("b2", "b", before.Start.Add(13*time.Hour)),
+		line("a1", "a", yesterday.Start.Add(12*time.Hour)), line("b1", "b", yesterday.Start.Add(13*time.Hour)),
+		line("a0", "a", today.Start.Add(8*time.Hour)),
+	}
+	l := filedLedger{lines: lines, now: now}
+	on := func(day LedgerDay, f LogFilter) LogDay {
+		var held []ledger.Held
+		for _, line := range lines {
+			if Today(line.At).Date == day.Date {
+				held = append(held, ledger.Held{Line: line})
+			}
+		}
+		return throughDay(day.Date, f, held...)
+	}
+	ofA := LogFilter{Sessions: []string{"a"}}
+	readBack := func(through LogFilter) LogRead {
+		read, held := ReadLog(ledger.Pricing), HoldSessions(ledger.Pricing)
+		for _, day := range []LogDay{on(today, LogFilter{}), on(yesterday, through), on(before, through)} {
+			var fresh *HeldSessions
+			if read, fresh = read.TakenBack(l, day, held, Stream{}, now); fresh != nil {
+				held = held.With(*fresh)
+			}
+		}
+		return read
+	}
+	table := func(read LogRead, f LogFilter) LogTable {
+		return LogRows(LogSources{From: before.Start, Read: read, Filter: f, Now: now})
+	}
+	read, whole := readBack(ofA), readBack(LogFilter{})
+	marked, wholeMarked := table(read, ofA).Mark(), table(whole, ofA).Mark()
+	readAgain := func(day LedgerDay) func() {
+		return func() {
+			read, _, _ = read.Refiltered(l, on(day, LogFilter{}), HoldSessions(ledger.Pricing), Stream{}, now)
+		}
+	}
+	came := func(c ledger.Line) func() {
+		taking := LogTaking{Held: HoldSessions(ledger.Pricing), Now: now}
+		return func() {
+			read = read.Taken(RecordsOf([]ledger.Held{{Line: c}}), true, taking)
+			whole = whole.Taken(RecordsOf([]ledger.Held{{Line: c}}), true, taking)
+		}
+	}
+	steps := []struct {
+		name string
+		step func()
+		want int
+	}{
+		{"yesterday read again whole", readAgain(yesterday), 0},
+		{"a line of today taken in", came(line("a9", "a", now.Add(-time.Minute))), 1},
+		{"the day before read again whole", readAgain(before), 1},
+		{"a line taken in late onto yesterday", came(line("c1", "c", yesterday.Start.Add(23*time.Hour))), 2},
+	}
+	for _, s := range steps {
+		s.step()
+		if got, want := table(read, LogFilter{}).NewSince(marked), table(whole, LogFilter{}).NewSince(wholeMarked); got != s.want || want != s.want {
+			t.Errorf("%s since the Requests paused, %d rows come since, %d read whole; want %d", s.name, got, want, s.want)
+		}
+	}
+	if !read.Serves(LogFilter{}) {
+		t.Error("each past day read again whole, the read serves not every line")
+	}
+}
