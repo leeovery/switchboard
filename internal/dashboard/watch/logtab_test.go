@@ -60,8 +60,14 @@ func onTheLog(h *harness, state string) *daysCounted {
 // shownRequests are the ids of the requests the Log's Requests show, the
 // oldest first.
 func shownRequests(h *harness) []string {
+	return shownRequestsOf(h.model)
+}
+
+// shownRequestsOf are the ids of the requests the Log's Requests of m show,
+// the oldest first.
+func shownRequestsOf(m Model) []string {
 	var ids []string
-	for _, l := range h.model.log.page.Requests.All() {
+	for _, l := range m.log.page.Requests.All() {
 		if l.IsRow() {
 			ids = append(ids, l.Row.Request)
 		}
@@ -719,11 +725,16 @@ func TestALineAwaitedOnADayReadThroughTheFilterComesThroughIt(t *testing.T) {
 	api := arrivedAt("0b000001", onTheDay(23, 50, 0))
 	api.Session, api.Dir = apiSession, "~/Code/api"
 	writeLines(t, state, slices.Concat(lines, []ledger.Held{api, arrivedAt("0b000002", onTheDay(23, 51, 0)), arrivedAt("0b000003", onTheDay(23, 52, 0))})...)
-	h := routedHarness(t, routerDocument(three()...))
+	h, whole := routedHarness(t, routerDocument(three()...)), routedHarness(t, routerDocument(three()...))
+	whole.model.cfg.readsWhole = true
 	l := onTheLog(h, state)
-	h.clock.now = midnight.Add(30 * time.Second)
-	h.start()
-	appliedLog(h, func(f *views.LogFilter) { f.Sessions = []string{apiSession} })
+	onTheLog(whole, state)
+	both := []*harness{whole, h}
+	for _, h := range both {
+		h.clock.now = midnight.Add(30 * time.Second)
+		h.start()
+		appliedLog(h, func(f *views.LogFilter) { f.Sessions = []string{apiSession} })
+	}
 	yesterday := dayfile.DateOf(api.At)
 	if from, held := h.model.log.from.Date, h.model.log.read.Len(); from != yesterday || held != 61 {
 		t.Fatalf("filtered to api, the Log spans from %s holding %d lines, want from %s, holding today's 60 and api's alone of the day before", from, held, yesterday)
@@ -732,19 +743,25 @@ func TestALineAwaitedOnADayReadThroughTheFilterComesThroughIt(t *testing.T) {
 	at := func(kind string, when time.Time) router.StreamEvent {
 		return alter(told(kind, "0a000002", "work", 0), func(e *router.StreamEvent) { e.At = when.UTC() })
 	}
-	h.hear(at(router.StreamSent, midnight.Add(time.Second)))
+	for _, h := range both {
+		h.hear(at(router.StreamSent, midnight.Add(time.Second)))
+	}
 	line := took(arrivedAt("0a000002", onTheDay(23, 59, 58)), 20*time.Second)
 	writeLines(t, state, line)
-	h.hear(alter(at(router.StreamDone, line.At.Add(20*time.Second)), func(e *router.StreamEvent) { e.Status = 200 }))
+	for _, h := range both {
+		h.hear(alter(at(router.StreamDone, line.At.Add(20*time.Second)), func(e *router.StreamEvent) { e.Status = 200 }))
+	}
 	read := len(l.days)
 	for _, look := range []time.Time{midnight.Add(35 * time.Second), midnight.Add(40 * time.Second)} {
-		h.clock.now = look
-		h.read(routerDocument(three()...))
+		for _, h := range both {
+			h.clock.now = look
+			h.read(routerDocument(three()...))
+		}
 	}
 	if got, held := l.days[read:], h.model.log.read.Len(); !slices.Equal(got, []string{yesterday}) || held != 62 {
 		t.Errorf("as its line was awaited, the days %v were read whole, the Log holding %d lines; want the day before read once, the Log holding the line beside the 61", got, held)
 	}
-	sameLogAsOneRead(t, h.model, l.Ledger, h.clock.now)
+	sameLogAsReadWhole(t, h.model, whole.model, l.Ledger, h.clock.now)
 
 	h.clock.now = midnight.Add(3 * time.Minute)
 	h.read(routerDocument(three()...))
@@ -988,11 +1005,12 @@ func TestTheLogReadsBackADayAtATimeToTheOldestDayKept(t *testing.T) {
 // returning how many of them were of type T.
 func deliveredOf[T tea.Msg](h *harness, msgs ...tea.Msg) int {
 	h.t.Helper()
-	n := 0
+	n, d := 0, delivery{h: h}
 	for ; len(msgs) > 0; msgs = msgs[1:] {
 		if _, ok := msgs[0].(T); ok {
 			n++
 		}
+		d.took(msgs[0])
 		msgs = append(msgs, h.update(msgs[0])...)
 	}
 	return n

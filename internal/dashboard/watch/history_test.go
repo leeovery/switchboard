@@ -388,11 +388,12 @@ func TestProbingTheChartsDrawTheReadingsHistorysFilesReadAsProbingBegins(t *test
 func TestProbingWithNoReadingsHistoryReadsNoFiles(t *testing.T) {
 	h := newHarness(t, probedWithoutTheRouter())
 	h.model.cfg.Readings = nil
-	msgs := h.init()
+	msgs, d := h.init(), delivery{h: h}
 	for len(msgs) > 0 {
 		if _, filed := msgs[0].(filedMsg); filed {
 			t.Errorf("with no readings history, the watch read its files, want nothing asked")
 		}
+		d.took(msgs[0])
 		msgs = append(msgs[1:], h.update(msgs[0])...)
 	}
 	if h.source.reads != 1 || len(h.model.doc.Accounts) != 3 {

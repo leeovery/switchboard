@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"iter"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -434,6 +435,65 @@ func TestATableWantsTheDayBeforeTillItFillsItsView(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := tt.page.WantsDayBefore(tt.rows); got != tt.want {
 				t.Errorf("WantsDayBefore(%d) = %v, want %v", tt.rows, got, tt.want)
+			}
+		})
+	}
+}
+
+// A table that, as it will show, doesn't fill the view it filled from the
+// day the Log lets go of the days before on is unfilled, so, following,
+// short of its view without them, it reads back through its filter to fill
+// it again: one that filled it from a day before; one that can't fill it
+// from what it holds, as one reaching as far back as it reads marks it
+// filled; and the Requests built through a filter not the page's, whatever
+// they fill. One that filled it from that day or after stands as it stood,
+// reading back nothing. Unfilled, the page draws as it did.
+func TestATableThatFilledItsViewFromADayLetGoIsUnfilled(t *testing.T) {
+	before := []ledger.Line{asked("0", theDayBefore)}
+	today := []ledger.Line{asked("1", logDay), asked("2", logDay.Add(time.Minute)), asked("3", logDay.Add(2*time.Minute))}
+	spanned := requestsOf(views.LogSources{From: theDayBefore, Now: logDayNoon}, slices.Concat(before, today))
+	tests := []struct {
+		name string
+		rows int
+		// atReach is whether the table reaches as far back as it reads, as
+		// AtReach says, as it fills.
+		atReach bool
+		// from is in the day the Log lets go of the days before.
+		from time.Time
+		// failed is whether the page's filter keeps the failed alone, its
+		// Requests built through every line.
+		failed   bool
+		unfilled bool
+	}{
+		{name: "filled from the day before, let go", rows: 4, from: logDay, unfilled: true},
+		{name: "reaching as far back as it reads, short of its view", rows: 10, atReach: true, from: logDay, unfilled: true},
+		{name: "the Requests built through a filter not the page's", rows: 3, from: logDay, failed: true, unfilled: true},
+		{name: "filled from today", rows: 3, from: logDay},
+		{name: "filled from the day before, kept", rows: 4, from: theDayBefore},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reaching := spanned
+			reaching.AtReach = tt.atReach
+			filled := reaching.Filling(tt.rows)
+			filled.Filter.Failed = tt.failed
+			from := views.Today(tt.from)
+			unfilled := filled.Unfilled(from)
+			doc := routerDoc("side", 0)
+			if drawn, was := logFrameOf(unfilled, 160, 24).Draw(doc, logDayNoon), logFrameOf(filled, 160, 24).Draw(doc, logDayNoon); !slices.Equal(drawn, was) {
+				t.Errorf("unfilled, the page draws\n%s\nwant it drawn as before\n%s", strings.Join(drawn, "\n"), strings.Join(was, "\n"))
+			}
+			if !tt.unfilled {
+				if !reflect.DeepEqual(unfilled.Stands, filled.Stands) {
+					t.Errorf("the days before %s let go, the tables stand %+v, want them as they stood, %+v", from.Date, unfilled.Stands, filled.Stands)
+				}
+				return
+			}
+			letGo := unfilled
+			letGo.From, letGo.AtReach = from, false
+			letGo.Requests = requestsOf(views.LogSources{From: tt.from, Now: logDayNoon, Filter: letGo.Filter}, today).Requests
+			if !letGo.WantsDayBefore(tt.rows) {
+				t.Errorf("the days before %s let go, the table in a view of %d rows wants the day before: false, want true", from.Date, tt.rows)
 			}
 		})
 	}

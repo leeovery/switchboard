@@ -89,9 +89,10 @@ const (
 // rule out, as theirs and their neighbours' name none of its lines; no
 // chunk of a day it has no line on, whose metas each rule it out, as the
 // day beside its newest has, whose rows it reads; and no day's lines raw
-// whose rows stand. Landed, its Requests are those of one read whole, and
-// no reader holds what it decodes once, the find, closed, holding none of
-// the days' summaries, as sameLogAsOneRead has it.
+// whose rows stand. Landed, it spans from the day the same history read
+// whole spans from, its Requests are those of one read whole, and no reader
+// holds what it decodes once, the find, closed, holding none of the days'
+// summaries, as sameLogAsReadWhole has it.
 func TestTheFindsPickReadsOnlyWhatMayHoldItsSession(t *testing.T) {
 	start := soakAt(21, 0)
 	g := &pickGuard{}
@@ -138,7 +139,92 @@ func TestTheFindsPickReadsOnlyWhatMayHoldItsSession(t *testing.T) {
 	if len(g.raw) > 0 {
 		t.Errorf("the pick read the lines of %v raw, want none, every past day's rows standing", g.raw)
 	}
-	sameLogAsOneRead(t, m, s.follower, now)
+	sameLogAsReadWhole(t, m, pickedWhole(t, start, id, func(*soak) {}), s.follower, now)
+}
+
+// pickedWhole is the model of a soak of the find's guarded world from start,
+// each past day read whole, as soakSetup's whole has it, the Log shown, the
+// find's pick made of the session with the given id, then as after has it:
+// the same history as a guarded soak's, read whole, for sameLogAsReadWhole
+// to hold that soak's Log to.
+func pickedWhole(t *testing.T, start time.Time, id string, after func(s *soak)) Model {
+	t.Helper()
+	s := newSoak(t, soakSetup{start: start, days: pickGuardDays, pace: guardPace, whole: true})
+	s.show("log")
+	s.typed("/")
+	s.typed(strings.Split(id[:8], "")...)
+	s.keyed(enter)
+	after(s)
+	return s.h.model
+}
+
+// The find's pick's filter let go while the Log is paused on the line it
+// landed on, pickBack days back, as the panel lets it go: each day held
+// through the filter is read again whole, from its rows, a day a read, the
+// newest first. At every read landed, the Requests are those of one read
+// whole through the filter they're tabled through, which every day serves,
+// so no table is drawn through a filter its days don't serve; once every
+// day is read again, they're every line's, as one read whole has them,
+// paused still at the line the pick landed on, from the day the same
+// history read whole spans from.
+func TestLettingThePicksFilterGoWhilePausedReadsBackToOneReadWhole(t *testing.T) {
+	start := soakAt(21, 0)
+	g := &refilterGuard{t: t}
+	s := newSoak(t, soakSetup{start: start, days: pickGuardDays, pace: guardPace, guard: g})
+	s.show("log")
+	id := busySession(busySeat(busyDays-1-pickBack, busyStarting))
+	s.typed("/")
+	s.typed(strings.Split(id[:8], "")...)
+	s.keyed(enter)
+	landed, _, chosen := s.h.model.log.page.Chosen()
+	if !chosen || !s.h.model.log.page.Paused() || landed.Session != id {
+		t.Fatalf("the pick is paused %t at %t a line of %s, want it paused at the newest line of %s", s.h.model.log.page.Paused(), chosen, landed.Session, id)
+	}
+
+	g.s = s
+	s.filtered(func(f *views.LogFilter) { f.Sessions = nil })
+	var want []string
+	for back := 1; back <= pickBack; back++ {
+		want = append(want, dayfile.DateOf(dayfile.DayStart(start, -back)))
+	}
+	if !slices.Equal(g.rows, want) || g.landed != pickBack {
+		t.Errorf("the filter let go, the Log read again the rows of %v in %d reads, want %v, a day a read, the newest first", g.rows, g.landed, want)
+	}
+	m := s.h.model
+	if row, _, chosen := m.log.page.Chosen(); !m.log.page.Paused() || !chosen || row.Request != landed.Request {
+		t.Errorf("every day read again, the Log is paused %t at %t a line, %s; want it paused at the line the pick landed on, %s", m.log.page.Paused(), chosen,
+			row.Request, landed.Request)
+	}
+	whole := pickedWhole(t, start, id, func(s *soak) { s.filtered(func(f *views.LogFilter) { f.Sessions = nil }) })
+	sameLogAsReadWhole(t, m, whole, s.follower, m.now())
+}
+
+// refilterGuard holds the Log, once s is set, to what each read of its own
+// lands: the dates of the days whose rows it read, in turn, and how many
+// reads landed, each judged as servedAsOneRead has it.
+type refilterGuard struct {
+	t      *testing.T
+	s      *soak
+	rows   []string
+	landed int
+}
+
+func (g *refilterGuard) reads(_ *soak, l views.Ledger) views.Ledger {
+	return &countingLedger{Ledger: l, read: func(r ledgerRead) {
+		if g.s != nil && r.method == "DayRows" {
+			g.rows = append(g.rows, r.asked[0])
+		}
+	}}
+}
+
+func (g *refilterGuard) took(msg tea.Msg, _ Model) {
+	g.t.Helper()
+	if _, ok := msg.(logReadMsg); !ok || g.s == nil {
+		return
+	}
+	g.landed++
+	m := g.s.h.model
+	servedAsOneRead(g.t, m, g.s.follower, m.now())
 }
 
 // daysRan are the dates of the days the world's nth session has a line

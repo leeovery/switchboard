@@ -216,6 +216,12 @@ func (s tableSection) placeOf(i int) int {
 	return o
 }
 
+// Filter is the filter t's lines are tabled through, as LogLines' Filter
+// has it: the zero LogFilter of a table never built.
+func (t LogTable) Filter() LogFilter {
+	return t.lines.Filter()
+}
+
 // Awaited are the dates of the days before the day given that the line is
 // filed on, as Told.FiledOn has it, of a row the table holds, shown or
 // hidden, of a request whose end the stream told, its line yet to come, each

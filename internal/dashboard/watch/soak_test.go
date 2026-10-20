@@ -96,13 +96,17 @@ type soak struct {
 }
 
 // soakSetup is how a soak runs: from start, over a world run for days to
-// it at pace, its frames fired or let lapse, held by guard where it's set.
+// it at pace, its frames fired or let lapse, held by guard where it's set;
+// and, where whole is set, its Log reading each past day whole, as
+// Config's readsWhole has it, the twin of a soak of the same world and
+// history.
 type soakSetup struct {
 	start  time.Time
 	days   int
 	pace   soakPace
 	frames bool
 	guard  soakGuard
+	whole  bool
 }
 
 // soakWait is a wait on the request stream the model armed, and the stream
@@ -137,7 +141,7 @@ func newSoak(t *testing.T, setup soakSetup) *soak {
 	}
 	cfg := h.model.cfg
 	cfg.Ledger, cfg.Readings, cfg.Events, cfg.Accounts = read, history, filed, configured
-	cfg.After, cfg.Await = s.arm, s.await
+	cfg.After, cfg.Await, cfg.readsWhole = s.arm, s.await, setup.whole
 	h.model = New(t.Context(), cfg)
 	s.h, s.follower = h, follower
 	s.stands()
@@ -161,9 +165,11 @@ func (s *soak) await(wait tea.Cmd) tea.Cmd {
 
 // deliver has the model take in msgs, and what they send back, till all are
 // taken in, each Update timed by the message it takes, and told the guard
-// of, where it's set.
+// of, where it's set; failing the soak where they cycle, as delivery has it.
 func (s *soak) deliver(msgs ...tea.Msg) {
+	d := delivery{h: s.h}
 	for len(msgs) > 0 {
+		d.took(msgs[0])
 		was, began := s.h.model, time.Now()
 		next, cmd := s.h.model.Update(msgs[0])
 		s.updates.add(msgs[0], time.Since(began))

@@ -701,16 +701,26 @@ func (r LogRead) linesFrom(day LedgerDay) iter.Seq[*loggedLine] {
 	}
 }
 
-// wholeFrom is the first of the days the Log's Events read of r's: the day
-// after the newest r holds that doesn't serve every line, as Unserved has
+// ServedFrom is the day after the newest r holds that doesn't serve the
+// filter f, as Unserved has them: the first of r's days that serve f with
+// every one after it, as a read letting go of every day before it would
+// span from. It reports false where every day r holds serves f.
+func (r LogRead) ServedFrom(f LogFilter) (LedgerDay, bool) {
+	unserved := r.Unserved(f)
+	if len(unserved) == 0 {
+		return LedgerDay{}, false
+	}
+	return Today(dayfile.DayStart(unserved[0].Start, 1)), true
+}
+
+// wholeFrom is the first of the days the Log's Events read of r's: the
+// first from which every day r holds serves every line, as ServedFrom has
 // it, as a day held through a filter is to them a day not yet read, and so
 // is each before it; the zero LedgerDay, before every one, where r holds
 // every day whole.
 func (r LogRead) wholeFrom() LedgerDay {
-	if through := r.Unserved(LogFilter{}); len(through) > 0 {
-		return Today(dayfile.DayStart(through[0].Start, 1))
-	}
-	return LedgerDay{}
+	day, _ := r.ServedFrom(LogFilter{})
+	return day
 }
 
 // firstsOn are when each session's first line filed on the day d arrived,
