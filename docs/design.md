@@ -4598,8 +4598,8 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
     where they don't; the horizon's days, today's among them, it reads raw, and a line of a day
     read from its rows that a raw read meets too, as the file of a day beside it holds it, is
     passed over, so each line is read once (settled in the plan, 19 October 2026). A day it reads
-    raw through `Follower.Session` whose plain file is its only one, as today's and yesterday's
-    are, is read back from the file's end, by `dayfile.ReadBack`, exactly the forward read turned
+    raw through `Follower.Session` whose plain file is its only one, as today's, yesterday's and
+    the day before yesterday's are, is read back from the file's end, by `dayfile.ReadBack`, exactly the forward read turned
     about, its lines held in their forward order; any other, forward and whole. The read back stops
     at the file's start, or once it has read 1,000 lines in a row each ending before the day's
     stop: the earliest start of the spans taking the day in, a line ending at its `at`, or its `at`
@@ -6843,7 +6843,7 @@ filter keeps held; a filter its days don't serve has them read again through the
 read (see The Log's Where it reads). The window the plan was first built around, the read held as
 the view and a page or two either side, was cut, as the realistic ways back are the find and
 filters: the Log stays contiguous by days. Nothing stored changed, no file, field or version, so
-nothing is built again; the dashboard package changed by one method, `LogPage.Unfilled`, nothing
+nothing is built again; the dashboard package changed by one method and its helper, `LogPage.Unfilled`, nothing
 drawn, and the frames are unchanged. The views' guard holds a filtered read, and one read again
 through a join, to every day read whole, at each hard moment, and a turn read back to the same
 read raw.

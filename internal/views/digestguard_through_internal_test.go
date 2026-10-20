@@ -170,11 +170,11 @@ func (b backThrough) widerThan(r *rand.Rand, f LogFilter, ids filterIDs) LogFilt
 // and where a late line was filed at m, read as before it was, then taken
 // in, as sameLate has it. Of its past days read through it, the Events are
 // held as sameEvents holds them, and the days a request told as sent just
-// after a midnight may be filed on, as toldHeld holds them. The first read begins with a store holding
-// none; the read with every day whole beside the store it fed, and the rest
-// beside the whole read's, as the dashboard's store holds what a read
-// before fed it. It notes the hard moments the reads through each of the
-// pair meet.
+// after a midnight may be filed on, as toldHeld holds them. The first read
+// begins with a store holding none; the read with every day whole beside the
+// store it fed, and the rest beside the whole read's, as the dashboard's
+// store holds what a read before fed it. It notes the hard moments the reads
+// through each of the pair meet.
 func (w *spread) sameFiltered(m moment) {
 	w.t.Helper()
 	r := rand.New(rand.NewPCG(w.seed, uint64(m.i)))
