@@ -18,7 +18,8 @@ var longLabels = map[string]string{
 
 // longDirs are the directories the world of long names runs the frames'
 // sessions in, by the frames' own: their names 23 to 31 cells, longer than
-// any view gives a directory at the owner's sizes.
+// the Log gives a directory, so its cuts show; the List shows the 23-cell
+// ones whole and cuts the rest at its most.
 var longDirs = map[string]string{
 	"~/Code/switchboard": "~/Code/switchboard-dashboard-fluid",
 	"~/Code/mobile":      "~/Code/mobile-app-offline-sync",

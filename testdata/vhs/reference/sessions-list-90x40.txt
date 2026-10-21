@@ -5,22 +5,22 @@
 
 SESSIONS   Switchboard  List
 
-  session             on        model      state        started          requests    worth
-▸ db8a infra          side      opus-5-5   idle 50s     yesterday 15:08       126   $11.37
-  9c2e website        personal  opus-5-5   idle 9m      11:55                 267   $27.15
-↑ d28c switchboard    side      opus-5-5   asking       12:02                 445   $48.20
-  41e0 docs           personal  opus-5-5   idle 34s     12:47                 158   $17.86
-↓ 7f3a api            side      opus-5-5   answering    14:12                  84    $8.94
-↓ c61b mobile         side      opus-5-5   answering    14:41                   4    $0.22
+  session                        on        model      state        requests
+▸ db8a infra                     side      opus-5-5   idle 50s          126
+  9c2e website                   personal  opus-5-5   idle 9m           267
+↑ d28c switchboard               side      opus-5-5   asking            445
+  41e0 docs                      personal  opus-5-5   idle 34s          158
+↓ 7f3a api                       side      opus-5-5   answering          84
+↓ c61b mobile                    side      opus-5-5   answering           4
   ended today  ───────────────────────────────────────────────────────────────────────────
-  5b19 mobile         personal  opus-5-5   ended 11:21  10:02                  38    $3.12
-  3d7a docs           work      opus-5-5   ended 10:15  09:40                  12    $0.84
-  e0c4 infra          work      opus-5-5   ended 10:02  09:12                  19    $1.47
-  a8f1 website        side      opus-5-5   ended 09:28  08:31                  24    $1.95
-  2b6d api            work      opus-5-5   ended 09:05  07:58                  31    $2.61
-  5e7d api            side      opus-5-5   ended 00:41  yesterday 23:47        17    $1.28
-  4b0e infra          work      opus-5-5   ended 00:31  yesterday 15:52         5    $0.31
-  8a2c docs           side      opus-5-5   ended 00:18  yesterday 16:55         9    $0.63
+  5b19 mobile                    personal  opus-5-5   ended 11:21        38
+  3d7a docs                      work      opus-5-5   ended 10:15        12
+  e0c4 infra                     work      opus-5-5   ended 10:02        19
+  a8f1 website                   side      opus-5-5   ended 09:28        24
+  2b6d api                       work      opus-5-5   ended 09:05        31
+  5e7d api                       side      opus-5-5   ended 00:41        17
+  4b0e infra                     work      opus-5-5   ended 00:31         5
+  8a2c docs                      side      opus-5-5   ended 00:18         9
 
 
 

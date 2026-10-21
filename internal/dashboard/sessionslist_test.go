@@ -121,7 +121,8 @@ var d28cMoved = listedSession{"d28c5e17", "~/Code/switchboard", "side", asking, 
 // The List's columns narrow in one narrowing, from column 2, 2 cells apart:
 // routing, cut as the Log cuts it, its cost kept whole, to the last column
 // down to 24 cells, at 127 columns beside the session whole, and left below;
-// then, as the leasts don't fit, worth, started and model leave in turn.
+// worth, at 101, and started, at 92, beside the session whole; and model as
+// the leasts don't fit.
 // What's past the leasts goes to the session, to its id and 24 cells of its
 // directory, then to on, its natural the widest account's name; nothing but
 // routing grows past its natural, so where routing's left the spare lies at
@@ -129,6 +130,8 @@ var d28cMoved = listedSession{"d28c5e17", "~/Code/switchboard", "side", asking, 
 func TestTheListsColumnsByWidth(t *testing.T) {
 	whole := "  session                        on        model      state        started          requests    worth"
 	moved := "↑ d28c switchboard               side      opus-5-5   asking       12:02                 445   $48.20"
+	started := "  session                        on        model      state        started          requests"
+	movedStarted := "↑ d28c switchboard               side      opus-5-5   asking       12:02                 445"
 	tests := []struct {
 		width      int
 		heads, row string
@@ -138,15 +141,13 @@ func TestTheListsColumnsByWidth(t *testing.T) {
 		{width: 127, heads: whole + "  routing", row: moved + "  from work, at it…  $1.82"},
 		{width: 126, heads: whole, row: moved},
 		{width: 108, heads: whole, row: moved},
+		{width: 101, heads: whole, row: moved},
+		{width: 100, heads: started, row: movedStarted},
+		{width: 92, heads: started, row: movedStarted},
 		{
-			width: 90,
-			heads: "  session             on        model      state        started          requests    worth",
-			row:   "↑ d28c switchboard    side      opus-5-5   asking       12:02                 445   $48.20",
-		},
-		{
-			width: 80,
-			heads: "  session            on        model      state        started          requests",
-			row:   "↑ d28c switchboard   side      opus-5-5   asking       12:02                 445",
+			width: 91,
+			heads: "  session                        on        model      state        requests",
+			row:   "↑ d28c switchboard               side      opus-5-5   asking            445",
 		},
 		{
 			width: 73,
@@ -188,36 +189,47 @@ func listLeasts(on int) map[listPart]int {
 }
 
 // At every width from 52 to 220, of short names and long, the List's
-// columns are laid out as listLaidAsDesigned has them; and once the session
-// is whole, on never narrows as the width grows.
+// columns are laid out as listLaidAsDesigned has them, and widen as
+// listWidensSteadily has them.
 func TestTheListsColumnsLeaveInTheirOrder(t *testing.T) {
 	for _, on := range []int{8, 14, 22} {
-		widest := 0
+		before := listColumnsOf(51, on)
 		for width := 52; width <= 220; width++ {
-			for _, wrong := range listLaidAsDesigned(width, on) {
-				t.Errorf("on %d at %d, %s: %+v", on, width, wrong, listColumnsOf(width, on))
-			}
 			columns := listColumnsOf(width, on)
-			if columns[listSession].width != 29 {
-				continue
+			for _, wrong := range slices.Concat(listLaidAsDesigned(width, on), listWidensSteadily(before, columns)) {
+				t.Errorf("on %d at %d, %s: %+v", on, width, wrong, columns)
 			}
-			if cells := columns[listOn].width; cells < widest {
-				t.Errorf("on %d at %d, on narrows to %d cells from %d", on, width, cells, widest)
-			}
-			widest = max(widest, columns[listOn].width)
+			before = columns
 		}
 	}
+}
+
+// listWidensSteadily says how the List's columns, a cell wider than before,
+// narrow a name: the session never, but where model comes back; and on
+// never, once the session's whole. The session and on are its first two
+// columns, as they never leave.
+func listWidensSteadily(before, after []listColumn) []string {
+	var wrong []string
+	modelBack := len(after) > len(before) && after[2].part == listModel && before[2].part != listModel
+	if after[listSession].width < before[listSession].width && !modelBack {
+		wrong = append(wrong, fmt.Sprintf("the session narrows from %d cells to %d", before[listSession].width, after[listSession].width))
+	}
+	if before[listSession].width == 29 && after[listOn].width < before[listOn].width {
+		wrong = append(wrong, fmt.Sprintf("on narrows from %d cells to %d", before[listOn].width, after[listOn].width))
+	}
+	return wrong
 }
 
 // listLaidAsDesigned says how the List's columns at width, on's natural on,
 // break the design: they start at column 2, 2 cells apart, each at least its
 // least; they leave in the order routing, worth, started, model, the
 // session, on, state and requests never; routing only while the leasts and
-// the session and on whole don't fit, and the others only while the leasts
-// don't; what's past the leasts goes to the session, to 29, before on takes
-// a cell past its least; and routing, where it shows, ends at the last
-// column, beside the session and on whole, and where it's left, no column is
-// past its natural.
+// the session and on whole don't fit, worth and started while the leasts
+// and the session whole don't, and model while the leasts don't; what's
+// past the leasts goes to the session, to 29, before on takes a cell past
+// its least; neither worth nor started shows beside a session cut short;
+// and routing, where it shows, ends at the last column, beside the session
+// and on whole, and where it's left, no column is past its natural.
 func listLaidAsDesigned(width, on int) []string {
 	leasts, columns := listLeasts(on), listColumnsOf(width, on)
 	shown := map[listPart]listColumn{}
@@ -247,6 +259,8 @@ func listLaidAsDesigned(width, on int) []string {
 	switch {
 	case shown[listOn].width > leasts[listOn] && session.width != 29:
 		wrong = append(wrong, "on takes cells past its least before the session's whole")
+	case (hasPart(shown, listWorth) || hasPart(shown, listStarted)) && session.width != 29:
+		wrong = append(wrong, "worth or started shows beside a session cut short")
 	case hasPart(shown, listRouting) && (routing.x+routing.width != width || session.width != 29 || shown[listOn].width != on):
 		wrong = append(wrong, "routing shows short of the last column, or beside a session or on cut short")
 	case !hasPart(shown, listRouting) && (session.width > 29 || shown[listOn].width > on || last.x+last.width > width):
@@ -256,11 +270,14 @@ func listLaidAsDesigned(width, on int) []string {
 }
 
 // listReturns are the cells a column that left needs to show again, on's
-// natural on: its least, and routing the session's and on's wholes past
-// their leasts too.
+// natural on: its least; worth and started the session's whole past its
+// least too; and routing on's whole as well.
 func listReturns(leasts map[listPart]int, p listPart, on int) int {
-	if p == listRouting {
+	switch p {
+	case listRouting:
 		return leasts[p] + 29 - leasts[listSession] + on - leasts[listOn]
+	case listWorth, listStarted:
+		return leasts[p] + 29 - leasts[listSession]
 	}
 	return leasts[p]
 }

@@ -2761,7 +2761,7 @@ order, each at least its least and at most its natural:
 
 | Column | Least | Natural | Shows |
 |---|---|---|---|
-| `session` | 11 | 29 | The id, cut to 4, in `text.secondary`; a space and the directory, cut with `…` to the rest, in `text.muted`: at its least 6 of the directory, at its natural a name's most, 24 |
+| `session` | 11 | 29 | The id, cut to 4, in `text.secondary`; a space and the directory, cut with `…` to the rest, in `text.muted`: at its least 6 of the directory, at its natural its most, 24 |
 | `on` | Its natural, 14 at the most | The widest account's name configured, 24 at the most | The account its latest request went to, in `text.primary` |
 | `model` | 9 | 9 | The model of its latest request, its id less `claude-`, as `opus-5-5`, in `text.muted` |
 | `state` | 11 | 11 | `asking` or `answering`, bold `accent.key`; `✕ 429`, bold `state.destructive`; `idle 34s` in `text.muted`; once over, `ended 11:21` in `text.muted` |
@@ -2772,19 +2772,27 @@ order, each at least its least and at most its natural:
 
 - **One narrowing,** from the widest to a phone's 52, with no phone list (the owner's call on the
   spike, 21 October 2026), laid out in two passes, as the Log's Requests are. The first decides
-  what shows: columns leave in the order `routing`, `worth`, `started`, `model`. `routing` leaves
-  while the leasts and `session` and `on` whole don't fit, so it never takes cells from a name cut
-  short, and neither name narrows as the frame widens; `session` and `on` are then cut toward their
-  leasts; and the others leave each only while the leasts still don't fit, so `model` leaves before
-  `on` is cut below 14. `session`, `on`, `state` and `requests` never leave. The second lays out
-  what shows: what's past the leasts goes to `session` first, to its natural, then to `on`, in the
-  row's order; then, where it shows, to `routing`, to the last column. Nothing else grows, so where
-  `routing` has left, the spare lies at the row's end until its 24 fit beside `session` and `on`
-  whole: from 127 columns with names of 8 cells, and 141 with the frames' long names, `on` 22.
-  With those: at 108 columns `routing` leaves, `session` takes 29 and `on` 15; at 73 `worth` and
-  `started` leave too, `session` takes 21 and `on` holds its 14; at 138 both are whole.
+  what shows, giving way in this order as the frame narrows, so no column shows beside a name it
+  cuts short:
+  1. `routing` leaves, while the leasts and `session` and `on` whole don't fit;
+  2. `on` is cut toward its least;
+  3. `worth`, then `started`, leave, while the leasts and `session` whole don't fit;
+  4. `session` is cut toward its least;
+  5. `model` leaves, only while the leasts don't fit, so before `on` is cut below 14.
+
+  `session`, `on`, `state` and `requests` never leave. The second lays out what shows: what's past
+  the leasts goes to `session` first, to its natural, then to `on`, never past what the first left
+  it; then, where it shows, to `routing`, to the last column. Nothing else grows, so the spare lies
+  at the row's end until the next column fits. So, as the frame widens, `on` never narrows, and
+  `session` narrows once alone, where `model` comes back: at 57 columns with names of 8 cells, from
+  21 cells to 11, and at 63 with names of 14 or more, likewise. From where `started` comes back,
+  `session` is whole: at 92 with names of 8 cells, `worth` at 101 and `routing` at 127; with the
+  frames' long names, `on` 22, `started` at 98, `worth` at 107 and `routing` at 141. With those:
+  at 108 columns `routing` has left, `session` takes 29 and `on` 15; at 73 `worth` and `started`
+  have too, `session` takes 21 and `on` holds its 14; at 138 both are whole.
 - **No natural comes from the rows shown,** so the columns hold still as the List scrolls and as
-  sessions come and go: the session's is a name's most, and `on`'s the accounts configured.
+  sessions come and go: the session's is the directory's most, 24, and `on`'s the accounts
+  configured.
 - **What doesn't fit its cells** is cut with `…`: the directory to the cells after the id, the
   account to `on`'s, and `routing` as the Log cuts it, `…` in the colour of what it cuts and a
   move's cost kept whole.
@@ -2804,8 +2812,9 @@ order, each at least its least and at most its natural:
   counts in `text.secondary`, the worth bold `text.secondary`, and the rest in `text.muted`. It sums
   today's sessions, running and ended, their requests today and their worth, so it carries the
   day's worth where `worth` has left. Where it doesn't fit its row, it breaks after `requests`, the
-  worth on the row over the key line and the rest on the row above. The rows left over lie between
-  the last session and it: every session shows, and nothing folds.
+  worth on the row over the key line and the rest on the row above. Where the sessions fit their
+  rows, the rows left over lie between the last session and it: every session shows, and nothing
+  folds. Where they don't, the table scrolls (below).
 - **Past a screen,** the table scrolls, its heads held, the row above the `today` line blank and the
   line held, as the Log's table does (settled in the plan).
 

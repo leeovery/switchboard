@@ -14,6 +14,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -176,11 +177,10 @@ var knownBreaks = []known{
 		byDesign: "on's share at 109", cuts: []string{"personal-resea…", "side-hustle-co…"}, rule: cutWithRoom,
 		sizes: []string{"109x53"}, fixtures: []string{"log-requests-long-names-108x44"},
 	},
-	// The List's directories at their most, 24 cells, where the session's
-	// column is whole and the rows end blank.
+	// The List's directories at their most, where the session's column is
+	// whole and the rows end blank.
 	{
-		byDesign: "the List's directories at their most",
-		cuts:     []string{"docs-site-getting-start…", "switchboard-dashboard-f…", "website-marketing-redes…"}, rule: cutWithRoom,
+		byDesign: "the List's directories at their most", cuts: listDirCuts(), rule: cutWithRoom,
 		sizes: []string{"138x30", "138x15", "173x53"}, fixtures: []string{"sessions-list-long-names-108x44"},
 	},
 	// S9, Runway's rows (F23, F24): COMING UP folded whole with rows spare, and
@@ -410,6 +410,19 @@ func logDirCuts() []string {
 	var cuts []string
 	for _, dir := range longDirs {
 		cuts = append(cuts, views.SessionDirName(dir))
+	}
+	slices.Sort(cuts)
+	return cuts
+}
+
+// listDirCuts are the long-names world's directories the List draws cut at
+// their most, views.SessionDirMost, as status.DirName cuts them.
+func listDirCuts() []string {
+	var cuts []string
+	for _, dir := range longDirs {
+		if cut := status.DirName(dir, views.SessionDirMost); cut != path.Base(dir) {
+			cuts = append(cuts, cut)
+		}
 	}
 	slices.Sort(cuts)
 	return cuts

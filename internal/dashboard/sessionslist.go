@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"cmp"
 	"slices"
 	"time"
 
@@ -21,15 +22,14 @@ const (
 )
 
 // The List's columns' widths, in cells: the session's least, its id and
-// listDirLeast cells of its directory, and its natural, its id and a
-// directory at a name's most; the most on's least takes, where the widest
-// name is wider; and routing's least.
+// listDirLeast cells of its directory, and its natural, its id and its
+// directory at its most; and the most on's least takes, where the widest
+// name is wider.
 const (
 	listDirLeast     = 6
 	listSessionLeast = status.IDShown + 1 + listDirLeast
-	listSessionWhole = status.IDShown + 1 + labelMost
+	listSessionWhole = status.IDShown + 1 + views.SessionDirMost
 	listOnLeast      = 14
-	listRoutingLeast = 24
 )
 
 // The List's words where it has no session to list: where its rows would
@@ -54,54 +54,57 @@ const (
 	listRouting
 )
 
-// The turns the List's columns give way in as it narrows: routing leaves
-// while the leasts and the session and on whole don't fit, so it never
-// takes cells from a name cut short; the session and on narrow toward their
-// leasts; then worth, started and model leave, each only while the leasts
-// don't fit, so model leaves before on is cut below listOnLeast.
+// The turns the List's columns give way in as it narrows, in this order, so
+// no column shows beside a name it cuts short: routing leaves while the
+// leasts and the session and on whole don't fit; on narrows toward its
+// least; worth, then started, leave while the leasts and the session whole
+// don't fit; the session narrows toward its least; and model leaves only
+// while the leasts don't fit, so it leaves before on is cut below
+// listOnLeast.
 const (
 	routingLeaves = iota + 1
-	namesNarrow
+	onNarrows
 	worthLeaves
 	startedLeaves
+	sessionNarrows
 	modelLeaves
 )
 
-// listPartFacts are each column's head; its cells, where they're fixed, and
-// routing's least; how its words sit; and the turn it leaves in, 0 never.
+// listPartFacts are each column's head; its least and its natural, 0 for
+// its least, on's both placeholders for the widest name, as listParts gives
+// them; how its words sit; and the turns it narrows and leaves in, 0 never.
 var listPartFacts = [...]struct {
-	head    string
-	cells   int
-	aligned alignment
-	leaves  int
+	head            string
+	least, natural  int
+	aligned         alignment
+	narrows, leaves int
 }{
-	listSession:  {"session", listSessionLeast, alignLeft, 0},
-	listOn:       {"on", 0, alignLeft, 0},
-	listModel:    {"model", 9, alignLeft, modelLeaves},
-	listState:    {"state", 11, alignLeft, 0},
-	listStarted:  {"started", 15, alignLeft, startedLeaves},
-	listRequests: {"requests", 8, alignRight, 0},
-	listWorth:    {"worth", 7, alignRight, worthLeaves},
-	listRouting:  {"routing", listRoutingLeast, alignLeft, routingLeaves},
+	listSession:  {"session", listSessionLeast, listSessionWhole, alignLeft, sessionNarrows, 0},
+	listOn:       {"on", 0, 0, alignLeft, onNarrows, 0},
+	listModel:    {"model", 9, 0, alignLeft, 0, modelLeaves},
+	listState:    {"state", 11, 0, alignLeft, 0, 0},
+	listStarted:  {"started", 15, 0, alignLeft, 0, startedLeaves},
+	listRequests: {"requests", 8, 0, alignRight, 0, 0},
+	listWorth:    {"worth", 7, 0, alignRight, 0, worthLeaves},
+	listRouting:  {"routing", routingLeast, 0, alignLeft, 0, routingLeaves},
 }
 
-// listParts are the List's columns as flex lays them, listGap apart, on's
-// natural the cells given:
-//   - the session, from listSessionLeast to listSessionWhole, and on, from
-//     its natural, listOnLeast at the most, to its natural, each holding its
-//     whole until their turn;
-//   - the others at their cells, leaving in their turns;
-//   - and routing, from its least, taking what's left to the last column.
+// listParts are the List's columns as flex lays them, listGap apart, each
+// from its least to its natural, holding its natural until it narrows in its
+// turn: on's natural the cells given, its least that, listOnLeast at the
+// most; and routing taking what's left to the last column.
 //
 // No natural comes from the rows shown, so the columns hold still as the
 // List scrolls and as sessions come and go.
 func listParts(on int) []flex.Part {
 	parts := make([]flex.Part, len(listPartFacts))
 	for p, facts := range listPartFacts {
-		parts[p] = flex.Part{Least: facts.cells, Natural: facts.cells, Leaves: facts.leaves, Gap: listGap}
+		parts[p] = flex.Part{
+			Least: facts.least, Natural: cmp.Or(facts.natural, facts.least),
+			Narrows: facts.narrows, Leaves: facts.leaves, Gap: listGap,
+		}
 	}
-	parts[listSession].Natural, parts[listSession].Narrows = listSessionWhole, namesNarrow
-	parts[listOn].Least, parts[listOn].Natural, parts[listOn].Narrows = min(on, listOnLeast), on, namesNarrow
+	parts[listOn].Least, parts[listOn].Natural = min(on, listOnLeast), on
 	parts[listRouting].Grows = true
 	return parts
 }
@@ -116,7 +119,7 @@ type listColumn struct {
 // listColumnsOf are the List's columns shown across a frame width cells
 // wide, on's natural the cells given, at least its head's, in two passes of
 // flex, as the Log's Requests are: the first decides which of listParts
-// show; the second lays out only those, each free from its least, so
+// show; the second lays out only those, as flex's Decided has them, so
 // what's past the leasts goes to the session first, then on, in the row's
 // order. Nothing grows but routing, so where it's left, the spare lies at
 // the row's end.
@@ -127,11 +130,16 @@ func listColumnsOf(width, on int) []listColumn {
 	var shown []listPart
 	var kept []flex.Part
 	for p, span := range decided {
-		if !span.Left {
-			part := parts[p]
-			part.Leaves, part.Narrows = 0, 0
-			shown, kept = append(shown, listPart(p)), append(kept, part)
+		part, ok := parts[p].Decided(span)
+		if !ok {
+			continue
 		}
+		if listPart(p) == listOn {
+			// What on gave up in the first pass, to keep worth or started, it
+			// never takes back, so it never narrows as the frame widens.
+			part.Natural = span.Size
+		}
+		shown, kept = append(shown, listPart(p)), append(kept, part)
 	}
 	spans, _ := flex.Lay(room, kept...)
 	columns := make([]listColumn, len(shown))
