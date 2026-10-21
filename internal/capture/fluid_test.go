@@ -248,14 +248,6 @@ var knownBreaks = []known{
 		slice: "S17", rule: wastedThird, sizes: []string{"138x15"},
 		fixtures: []string{"accounts-detail-one-160"},
 	},
-	// S18, the Year (F14): 22 weeks at every width to 159.
-	{
-		slice: "S18", rule: wastedThird, sizes: []string{"138x30", "138x15", "108x44", "108x24", "109x53"},
-		fixtures: []string{
-			"history-phone-year-52", "history-year-138x30", "history-year-160", "history-year-opus-160",
-			"history-year-plan-unknown-160", "long-names-history-year", "page-year-160x24",
-		},
-	},
 	// S19, Days (F15): its weeks at 15 rows, and its names cut with room.
 	{
 		slice: "S19", rule: cutWithRoom, sizes: []string{"173x53"},

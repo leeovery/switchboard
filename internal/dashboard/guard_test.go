@@ -73,7 +73,7 @@ var phoneAllowed = []string{
 	// S16, S17 and S25: the form Accounts draws its views in, Compare's
 	// turned or wide.
 	"internal/dashboard/accounts.go:Frame.buildAccountsForm",
-	// S18, S19 and S20: the form History draws its views in.
+	// S19, S20 and S21: the form Days, Weeks and Tokens are drawn in.
 	"internal/dashboard/historypage.go:Frame.phoneForm",
 	// S20: whether Weeks' cycles show.
 	"internal/dashboard/historyasks.go:Frame.weeksCycles",

@@ -9,6 +9,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
@@ -16,39 +17,336 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// Where the Year is drawn, as the design lays it out at 160 columns, and on
-// a phone.
+// The Year's parts, as the design lays them out, wide and on a phone.
 const (
-	// yearGridX is the grid's first column, and the key's; yearPhoneGridX a
-	// phone's, and yearPhoneWeeks the latest weeks it shows.
+	// yearGridX is the grid's first column, and the wide key's; a phone's is
+	// yearPhoneGridX. The grid shows the weeks that fit, two cells a week.
 	yearGridX      = 14
 	yearPhoneGridX = 4
-	yearPhoneWeeks = 22
-	// yearNumbersX is the numbers' column, their labels yearLabelCells wide;
-	// a phone's are in two columns, the second at yearPhoneSecondX, their
-	// labels yearPhoneLabelCells wide, three to a column.
-	yearNumbersX        = 126
+	// The numbers' labels are yearLabelCells wide, or on a phone
+	// yearPhoneLabelCells. Beside the grid, they're yearNumbersGap cells after
+	// the most weeks a span holds, views.MostYearWeeks, so a span of fewer
+	// ends further short of them; under the key, in columns of
+	// yearFiguresDown, yearColumnsApart cells apart.
 	yearLabelCells      = 13
-	yearPhoneSecondX    = 26
 	yearPhoneLabelCells = 10
-	yearPhoneFigures    = 3
-	// The rows under the view's top the key, the numbers on a phone, and BY
-	// MONTH start at, on a wide screen and on a phone.
-	yearKeyRow          = 9
-	yearByMonthRow      = 11
-	yearPhoneNumbersRow = 11
-	yearPhoneByMonthRow = 16
+	yearNumbersGap      = 6
+	yearFiguresDown     = 3
+	yearColumnsApart    = 4
+	// The rows under the view's top the key is on, and the numbers' heading
+	// under it, or where they're beside the grid, BY MONTH's.
+	yearKeyRow     = 9
+	yearNumbersRow = 11
 	// byMonthNameX is the column a month's name is at, and byMonthBarX its
-	// bar's, byMonthBarCells long at most; and on a phone, the last
-	// byMonthPhoneMonths months'.
-	byMonthNameX         = 2
-	byMonthBarX          = 60
-	byMonthBarCells      = 30
-	byMonthPhoneNameX    = 1
-	byMonthPhoneBarX     = 32
-	byMonthPhoneBarCells = 18
-	byMonthPhoneMonths   = 6
+	// bar's; a phone's are byMonthPhoneNameX and byMonthPhoneBarX. A bar takes
+	// byMonthBarMost cells at most, the house's most for a bar beside words,
+	// and a part month's note follows it byMonthNoteGap cells on.
+	byMonthNameX      = 2
+	byMonthBarX       = 60
+	byMonthPhoneNameX = 1
+	byMonthPhoneBarX  = 32
+	byMonthBarMost    = 40
+	byMonthNoteGap    = 2
 )
+
+// yearForm is a form the Year is drawn in: wide, as the design lays it out,
+// or as a phone lays it out, its words shorter. Its grid's column and its
+// days' names; its key's form; its numbers' labels' cells, a phone's labels
+// short; and BY MONTH's heads on its heading's row, as a phone has them,
+// and its months' names' column and its bars'.
+type yearForm struct {
+	phone       bool
+	gridX       int
+	dayName     func(time.Weekday) string
+	key         keyForm
+	labelCells  int
+	nameX, barX int
+}
+
+// The Year's forms, wide and on a phone.
+var (
+	yearWide = yearForm{
+		gridX: yearGridX, dayName: prose.Weekday, key: keyWide, labelCells: yearLabelCells,
+		nameX: byMonthNameX, barX: byMonthBarX,
+	}
+	yearPhone = yearForm{
+		phone: true, gridX: yearPhoneGridX, dayName: prose.WeekdayInitial, key: keyPhone, labelCells: yearPhoneLabelCells,
+		nameX: byMonthPhoneNameX, barX: byMonthPhoneBarX,
+	}
+)
+
+// label is the figure's label in the form: a phone's short.
+func (f yearForm) label(figure yearFigure) string {
+	if f.phone {
+		return figure.short
+	}
+	return figure.label
+}
+
+// yearLaid is where the Year's parts lie in the frame: how many of the
+// latest weeks the grid shows; the numbers' heading's column and row, their
+// columns, and whether they're beside the grid; where BY MONTH's rows are;
+// and the most cells its bars take.
+type yearLaid struct {
+	weeks                int
+	numbersX, numbersRow int
+	columns              []figureColumn
+	beside               bool
+	byMonth              byMonthPlaced
+	bar                  int
+}
+
+// figureColumn is a column of the numbers: its figures, a row each from
+// row, at column x, in cells cells.
+type figureColumn struct {
+	figures       []yearFigure
+	x, row, cells int
+}
+
+// yearDrawn is the Year as the frame draws it: its page, what it was asked
+// to show, its form and where its parts lie.
+type yearDrawn struct {
+	Frame
+	page views.YearPage
+	ask  views.YearAsk
+	form yearForm
+	laid yearLaid
+}
+
+// yearDrawn is the Year as the frame draws it, wide where the wide form's
+// parts fit, else as a phone lays it out, reporting false before its page is
+// built.
+func (f Frame) yearDrawn() (yearDrawn, bool) {
+	page := f.History.Year
+	if page == nil {
+		return yearDrawn{}, false
+	}
+	y := yearDrawn{Frame: f, page: *page, ask: f.History.YearAsk, form: yearWide}
+	if !y.wideFits() {
+		y.form = yearPhone
+	}
+	return y.laidOut(), true
+}
+
+// laidOut is the Year with its parts laid out in the frame, in its form.
+func (y yearDrawn) laidOut() yearDrawn {
+	y.laid = y.layOut()
+	return y
+}
+
+// wideFits reports whether the wide form's parts fit the frame, as flex
+// lays them: its key whole after the days' names, the widest of its rows
+// that never narrow. So the form never hangs on the data, the key is
+// reckoned with every cut at reckonedCut, and its unit without the use
+// shown, which may name an account by its label; a key wider than that is
+// cut at the frame's width. The grid shows the weeks that fit, the numbers'
+// columns narrow and leave, and BY MONTH's bars take what its row leaves.
+func (y yearDrawn) wideFits() bool {
+	key := partsWidth(y.keyParts(keyWide, []int{reckonedCut, reckonedCut, reckonedCut}, "requests a day"))
+	_, fits := flex.Lay(y.Width, flex.Part{Least: yearGridX, Natural: yearGridX}, flex.Part{Least: key, Natural: key})
+	return fits
+}
+
+// barParts are a BY MONTH row's parts across the frame, in the form given:
+// its columns to the bars, and the bars, a cell at least, which grow to
+// their most.
+func barParts(f yearForm) []flex.Part {
+	return []flex.Part{
+		{Least: f.barX, Natural: f.barX},
+		{Least: 1, Natural: 1, Most: byMonthBarMost, Grows: true},
+	}
+}
+
+// noteParts are a part month's row across the frame, in the form given:
+// its columns to its bar; its bar, bar cells; and its note, note cells,
+// byMonthNoteGap cells on, which leaves where it doesn't fit.
+func noteParts(f yearForm, bar, note int) []flex.Part {
+	return []flex.Part{
+		{Least: f.barX, Natural: f.barX},
+		{Least: bar, Natural: bar},
+		{Least: note, Natural: note, Gap: byMonthNoteGap, Leaves: 1},
+	}
+}
+
+// layOut lays the Year's parts out in the frame, in its form: the weeks
+// that fit; the numbers beside the grid where the most weeks a span holds
+// and they fit there, else under the key, and BY MONTH under them; and BY
+// MONTH's bars.
+func (y yearDrawn) layOut() yearLaid {
+	l := yearLaid{weeks: y.weeksShown(), bar: y.barCells()}
+	if beside, ok := y.besideAt(); ok {
+		l.numbersX, l.beside = beside.At, true
+		l.columns = []figureColumn{{figures: y.figures(), x: beside.At, row: 1, cells: beside.Size}}
+	} else {
+		l.numbersRow, l.columns = yearNumbersRow, y.figureColumns()
+	}
+	l.byMonth = y.placed(l.beside)
+	return l
+}
+
+// weeksShown is how many of the latest weeks the grid shows, at most all
+// the page's: as many as end, with their months' names over them, short of
+// the frame's margin.
+func (y yearDrawn) weeksShown() int {
+	for w := len(y.page.Weeks); w > 0; w-- {
+		if y.gridReach(w) <= y.edge() {
+			return w
+		}
+	}
+	return 0
+}
+
+// gridReach is the column the grid of the latest weeks given ends before:
+// its last week's, or the name of a month over them.
+func (y yearDrawn) gridReach(weeks int) int {
+	x, first := y.form.gridX, len(y.page.Weeks)-weeks
+	end := x + 2*(weeks-1) + 1
+	for _, l := range y.page.Months {
+		if l.Week >= first {
+			end = max(end, x+2*(l.Week-first)+ansi.StringWidth(monthName(l.Month, false)))
+		}
+	}
+	return end
+}
+
+// besideAt is where the numbers lie beside the grid, and whether they fit
+// there, as flex lays them after the days' names and the most weeks a
+// year's span holds, at their reckoned width, growing to the frame's: only
+// wide. Beside the grid, a figure longer than reckoned takes its shorter
+// forms, or is an ellipsis.
+func (y yearDrawn) besideAt() (flex.Span, bool) {
+	if y.form.phone {
+		return flex.Span{}, false
+	}
+	numbers := y.reckonedNumbers()
+	s, fits := flex.Lay(y.Width,
+		flex.Part{Least: yearGridX, Natural: yearGridX},
+		flex.Part{Least: 2 * views.MostYearWeeks, Natural: 2 * views.MostYearWeeks},
+		flex.Part{Least: numbers, Natural: numbers, Gap: yearNumbersGap, Grows: true},
+	)
+	return s[2], fits
+}
+
+// reckonedLimit is a count of limits hit of four figures, at which limits
+// beside the grid are reckoned.
+const reckonedLimit = 9_999
+
+// reckonedNumbers is the width the numbers beside the grid are reckoned at,
+// the same whatever's shown, so where they sit holds still as the data
+// changes and as v and < > step through all use, the versions and the
+// accounts: their wide labels, then the widest any kind's figures' formats
+// draw, as each figure declares it, of all use, an account's alike, and of a
+// version, or limits hit in two windows, each reckonedLimit.
+func (y yearDrawn) reckonedNumbers() int {
+	widest := y.limitsFigure(map[string]int{"5h": reckonedLimit, "7d": reckonedLimit}).value.width()
+	for _, version := range []bool{false, true} {
+		for _, figure := range y.figuresOf(version) {
+			widest = max(widest, figure.widest)
+		}
+	}
+	return yearLabelCells + widest
+}
+
+// figureColumns are the numbers under the key, yearFiguresDown to a column,
+// as flex lays them across the frame, each as wide as its widest figure
+// whole. Where the room is short, a figure takes its shorter forms before
+// any whole figure leaves: the second column narrows to its figures'
+// shortest forms; then the columns past it leave, the last first; then the
+// first narrows; then the second leaves. The row's spare cells go to a part
+// after them that grows, and the last column shown reads to its end, so its
+// figures take their longest forms that fit.
+func (y yearDrawn) figureColumns() []figureColumn {
+	figures := slices.Collect(slices.Chunk(y.figures(), yearFiguresDown))
+	n := len(figures)
+	parts := make([]flex.Part, n, n+1)
+	for i, column := range figures {
+		parts[i] = y.columnPart(column)
+		switch i {
+		case 0:
+			parts[i].Narrows = n
+		case 1:
+			parts[i].Narrows, parts[i].Leaves = 1, n+1
+		default:
+			parts[i].Leaves = n + 1 - i
+		}
+		if i > 0 {
+			parts[i].Gap = yearColumnsApart
+		}
+	}
+	s, _ := flex.Lay(y.Width, append(parts, flex.Part{Grows: true})...)
+	end := s[n].At + s[n].Size
+	var columns []figureColumn
+	for i, column := range figures {
+		if !s[i].Left {
+			columns = append(columns, figureColumn{figures: column, x: s[i].At, row: yearNumbersRow + 1, cells: min(s[i].Size, y.Width-s[i].At)})
+		}
+	}
+	last := &columns[len(columns)-1]
+	// Where even the first column's least doesn't fit, flex lays the row past
+	// the frame, and the clamp holds the column to it.
+	last.cells = min(end, y.Width) - last.x
+	return columns
+}
+
+// columnPart is a column of the figures given as a part: least, their
+// labels and their shortest forms; natural, their labels and all they say.
+// A figure whose length is bounded is reckoned at the widest its format
+// draws in both, so where a column narrows or leaves never hangs on it.
+func (y yearDrawn) columnPart(figures []yearFigure) flex.Part {
+	var p flex.Part
+	for _, figure := range figures {
+		label := max(y.form.labelCells, ansi.StringWidth(y.form.label(figure)))
+		shortest := figure.value
+		if n := len(figure.shorter); n > 0 {
+			shortest = figure.shorter[n-1]
+		}
+		p.Least = max(p.Least, label+max(shortest.width(), figure.widest))
+		p.Natural = max(p.Natural, label+max(figure.value.width(), figure.widest))
+	}
+	return p
+}
+
+// barCells is the most cells BY MONTH's bars take: what a month's row
+// leaves after its columns, at most byMonthBarMost, never past the frame's
+// width. Where a part month's note doesn't fit after its bar, the most is
+// lowered till it does, so a part month never reads as a whole one and each
+// bar stays its month's share of the largest month's; but never below half
+// of it, as a note isn't worth every bar: past that, the note leaves.
+func (y yearDrawn) barCells() int {
+	s, _ := flex.Lay(y.Width, barParts(y.form)...)
+	most := max(min(s[1].Size, y.Width-y.form.barX), 0)
+	least := (most + 1) / 2
+	largest := largestWorth(y.page.ByMonth)
+	for _, m := range y.page.ByMonth {
+		lowered := most
+		for lowered > least && !y.noteFits(m, largest, lowered) {
+			lowered--
+		}
+		if y.noteFits(m, largest, lowered) {
+			most = lowered
+		}
+	}
+	return most
+}
+
+// noteAt is the column a part month's note is at after its bar, against the
+// largest month's worth with the bars' most given, as flex lays its row;
+// false where the month has no note, or it doesn't fit.
+func (y yearDrawn) noteAt(m views.MonthRow, largest ledger.Picodollars, most int) (int, bool) {
+	note := monthNote(m)
+	if note == nil {
+		return 0, false
+	}
+	s, _ := flex.Lay(y.Width, noteParts(y.form, barCells(amountOf(m.Worth), largest, most), partsWidth(note))...)
+	return s[2].At, !s[2].Left
+}
+
+// noteFits reports whether a month's bar leaves its note room, where it has
+// one, with the bars' most given.
+func (y yearDrawn) noteFits(m views.MonthRow, largest ledger.Picodollars, most int) bool {
+	_, fits := y.noteAt(m, largest, most)
+	return fits || monthNote(m) == nil
+}
 
 // whole is the Year drawn whole on a canvas of its own, from its first row,
 // as tall as height lays it out.
@@ -58,149 +356,43 @@ func (y yearDrawn) whole() *canvas {
 	return c
 }
 
-// draw draws the Year from row top in its form: wide, or as a phone lays it
-// out.
+// draw draws the Year from row top in its form: the latest weeks that fit
+// under their months' names; the key; the numbers, beside the grid or under
+// the key; BY MONTH; and the bars' key under it.
 func (y yearDrawn) draw(c *canvas, top int) {
-	if y.form.phone {
-		y.phone(c, top)
-		return
-	}
-	y.wide(c, top)
-}
-
-// wide draws the Year as the design lays it out at 160 columns: the grid,
-// the key under it, the numbers at its right, each cut at the frame's width,
-// BY MONTH and the bars' key.
-func (y yearDrawn) wide(c *canvas, top int) {
-	y.grid(c, yearGridX, top, y.page.Weeks, 0, prose.Weekday)
-	y.key(c, top+yearKeyRow, keyWide)
-	y.heading(c, yearNumbersX, top)
-	for i, figure := range y.figures() {
-		c.line(yearNumbersX, top+1+i, figure.drawn(figure.label, yearLabelCells, y.Width-yearNumbersX))
-	}
+	f, weeks := y.form, y.page.Weeks
+	first := len(weeks) - y.laid.weeks
+	y.grid(c, f.gridX, top, weeks[first:], first, f.dayName)
+	y.key(c, top+yearKeyRow, f.key)
+	y.numbers(c, top)
 	y.byMonth(c, top)
-	y.dots(c, byMonthBarX, top+y.dotsRow())
+	y.dots(c, f.barX, top+y.dotsRow())
 }
 
-// reach is the width the Year's wide form takes, drawn to the frame's width:
-// where its widest row ends, the grid's, a number's whose length is bounded,
-// at the widest its format draws, so the form never hangs on the data, BY
-// MONTH's or the bars' key's. The rest of the numbers, the heading over
-// them, which may name an account by its label, and the shades' key are cut
-// at the frame's width, so they're left out.
-func (y yearDrawn) reach() int {
-	ends := []int{y.gridReach(), y.byMonthReach(), byMonthBarX + y.familyDots().width()}
-	for _, figure := range y.figures() {
-		if figure.widest > 0 {
-			ends = append(ends, yearNumbersX+ansi.StringWidth(padded(figure.label, yearLabelCells))+figure.widest)
+// numbers draws the numbers' heading and their columns, where they're laid
+// out, each figure labelled as the form labels it.
+func (y yearDrawn) numbers(c *canvas, top int) {
+	y.heading(c, y.laid.numbersX, top+y.laid.numbersRow)
+	for _, column := range y.laid.columns {
+		for i, figure := range column.figures {
+			c.line(column.x, top+column.row+i, figure.drawn(y.form.label(figure), y.form.labelCells, column.cells))
 		}
 	}
-	return slices.Max(ends)
-}
-
-// gridReach is the column the wide grid ends before: its last week's, or
-// the name of a month over the weeks.
-func (y yearDrawn) gridReach() int {
-	end := 0
-	if weeks := len(y.page.Weeks); weeks > 0 {
-		end = yearGridX + 2*(weeks-1) + 1
-	}
-	for _, l := range y.page.Months {
-		end = max(end, yearGridX+2*l.Week+ansi.StringWidth(monthName(l.Month, false)))
-	}
-	return end
-}
-
-// byMonthReach is the column BY MONTH, wide, ends before: its heading's, its
-// heads', the row before a version's months', or a month's, its note after
-// its bar, which is byMonthBarCells long at most. A month's figures, before
-// its bar, are left out: each is in a column, short of the bars.
-func (y yearDrawn) byMonthReach() int {
-	end := max(groupHead("BY MONTH", y.byMonthSays(), false).width(), byMonthBarX+ansi.StringWidth(y.barHead()))
-	for _, col := range y.monthColumns(byMonthWide) {
-		end = max(end, col.x+ansi.StringWidth(col.head))
-	}
-	if b := y.page.Before; b != nil {
-		months, then := beforeSaid(*b)
-		end = max(end, byMonthNameX+ansi.StringWidth(months), byMonthWorthX+ansi.StringWidth(then))
-	}
-	largest := largestWorth(y.page.ByMonth)
-	for _, m := range y.page.ByMonth {
-		bar := byMonthBarX + y.monthBar(m, largest, byMonthBarCells).width()
-		if note := monthNote(m); note != nil {
-			bar += 2 + partsWidth(note)
-		}
-		end = max(end, bar)
-	}
-	return end
-}
-
-// phone draws the Year as a phone has it: the latest weeks that fit, 22 at
-// most, under their months' names; the key cut short; the numbers, the
-// first six, in two columns of three, the first's cut a cell before the
-// second's, as limits of two windows run past it; and BY MONTH, the last six
-// months, its heads on its own row.
-func (y yearDrawn) phone(c *canvas, top int) {
-	weeks := y.page.Weeks
-	first := max(len(weeks)-y.phoneWeeks(), 0)
-	y.grid(c, yearPhoneGridX, top, weeks[first:], first, prose.WeekdayInitial)
-	y.key(c, top+yearKeyRow, keyPhone)
-	y.heading(c, 0, top+yearPhoneNumbersRow)
-	figures := y.figures()
-	for i, figure := range figures[:min(len(figures), 2*yearPhoneFigures)] {
-		if row := top + yearPhoneNumbersRow + 1 + i; i < yearPhoneFigures {
-			c.line(0, row, figure.drawn(figure.short, yearPhoneLabelCells, min(yearPhoneSecondX-1, y.Width)))
-		} else {
-			c.line(yearPhoneSecondX, row-yearPhoneFigures, figure.drawn(figure.short, yearPhoneLabelCells, y.Width-yearPhoneSecondX))
-		}
-	}
-	y.byMonth(c, top)
-}
-
-// phoneWeeks is how many weeks a phone's grid shows: as many as fit, 22 at
-// most, two cells apart from its column.
-func (y yearDrawn) phoneWeeks() int {
-	return max(min(yearPhoneWeeks, (y.Width-yearPhoneGridX+1)/2), 0)
-}
-
-// yearDrawn is the Year as the frame draws it: its page, what it was asked
-// to show, and how it's laid out, on a phone or wide, as BY MONTH's form
-// gives it.
-type yearDrawn struct {
-	Frame
-	page views.YearPage
-	ask  views.YearAsk
-	form byMonthForm
-}
-
-// yearDrawn is the Year as the frame draws it, wide where its widest row
-// fits, else as a phone lays it out, reporting false before its page is
-// built.
-func (f Frame) yearDrawn() (yearDrawn, bool) {
-	page := f.History.Year
-	if page == nil {
-		return yearDrawn{}, false
-	}
-	y := yearDrawn{Frame: f, page: *page, ask: f.History.YearAsk, form: byMonthWide}
-	if f.phoneForm(y.reach) {
-		y.form = byMonthPhone
-	}
-	return y, true
 }
 
 // height is how many rows the Year takes under its top: to BY MONTH's last
-// month, and wide, to the bars' key under it, where there are bars to key.
+// month, and to the bars' key under it, where there are bars to key.
 func (y yearDrawn) height() int {
-	if y.form.phone || len(y.page.Families) == 0 {
-		return y.placed().last() + 1
+	if dots := len(y.familyDots()); dots > 0 {
+		return y.dotsRow() + dots
 	}
-	return y.dotsRow() + 1
+	return y.laid.byMonth.last() + 1
 }
 
-// dotsRow is the row under the Year's top the bars' key is on, wide: two
-// under BY MONTH's last month.
+// dotsRow is the row under the Year's top the bars' key is on: two under BY
+// MONTH's last month.
 func (y yearDrawn) dotsRow() int {
-	return y.placed().last() + 2
+	return y.laid.byMonth.last() + 2
 }
 
 // ofVersion reports whether the Year shows a version alone.
@@ -277,19 +469,28 @@ var (
 	keyPhone = keyForm{gap: " ", number: prose.Thousands, none: "0", under: "<", over: ">"}
 )
 
-// key draws the shades' key along row row, as the form lays it out: each
-// shade's square and its bounds in requests a day, a figure, then what they
-// count, cut at the frame's edge.
+// key draws the shades' key along row row, as the form lays it out, its unit
+// naming the use shown, cut at the frame's edge.
 func (y yearDrawn) key(c *canvas, row int, form keyForm) {
+	c.line(form.x, row, fitParts(y.Width-form.x, y.keyParts(form, y.page.KeyCuts, y.unit("requests a day"))...))
+}
+
+// reckonedCut is a cut of four figures, the widest the wide form's key is
+// reckoned at.
+const reckonedCut = 9_950
+
+// keyParts are the shades' key as the form lays it out, of the cuts given:
+// each shade's square and its bounds in requests a day, a figure, then what
+// they count, unit.
+func (y yearDrawn) keyParts(form keyForm, cuts []int, unit string) []part {
 	var parts []part
-	for level, bound := range form.bounds(y.page.KeyCuts) {
+	for level, bound := range form.bounds(cuts) {
 		if level > 0 {
 			parts = append(parts, wordsIn(form.gap, dimInk))
 		}
 		parts = append(parts, wordsPart(line{y.square(level), {" ", dimInk}}), figureIn(bound, dimInk))
 	}
-	parts = append(parts, wordsIn("  "+y.unit("requests a day"), faintInk))
-	c.line(form.x, row, fitParts(y.Width-form.x, parts...))
+	return append(parts, wordsIn("  "+unit, faintInk))
 }
 
 // bounds are each level's bounds in requests a day, as cuts, the key's, give
@@ -322,23 +523,34 @@ func (y yearDrawn) unit(what string) string {
 
 // heading draws the numbers' heading at x along row row, cut at the frame's
 // width: the period, LAST 12 MONTHS or the year, as 2025; or after the use
-// shown, OPUS 5.5 · 12 MONTHS or WORK · 2025.
+// shown, OPUS 5.5 · 12 MONTHS or WORK · 2025. As flex lays them, the
+// period is never cut while any name before it shows: the use's name cut,
+// as THE-RESEARCH-TE… · 12 MONTHS, while its ellipsis fits, and LAST whole;
+// else the period alone.
 func (y yearDrawn) heading(c *canvas, x, row int) {
 	period := "12 MONTHS"
 	if y.ask.Year != 0 {
 		period = strconv.Itoa(y.ask.Year)
 	}
-	lead := ""
+	name, apart, least := "", "", 0
 	switch {
 	case y.shown() != "":
-		lead = strings.ToUpper(y.shown()) + " · "
+		name, apart, least = strings.ToUpper(y.shown()), " · ", 1
 	case y.ask.Year == 0:
-		lead = "LAST "
+		name, apart, least = "LAST", " ", ansi.StringWidth("LAST")
 	}
-	c.line(x, row, fitParts(y.Width-x, wordsIn(lead, dimInk), figureIn(period, dimInk)))
+	width, lead, tail := y.Width-x, line{{name, dimInk}}, line{{apart, dimInk}, {period, dimInk}}
+	if name != "" {
+		s, _ := flex.Lay(width, flex.Part{Least: least, Natural: lead.width(), Leaves: 1}, flex.Part{Least: tail.width(), Natural: tail.width()})
+		if !s[0].Left {
+			c.line(x, row, append(lead.fit(s[0].Size), tail...))
+			return
+		}
+	}
+	c.line(x, row, fitParts(width, figureIn(period, dimInk)))
 }
 
-// yearFigure is a number beside the grid: its label, and a phone's, what it
+// yearFigure is one of the Year's numbers: its label, and a phone's, what it
 // says, and its shorter forms, each leaving off more of it whole, as limits
 // of more than one window have; whether a look can change it, and the
 // number it is where one can; and where what it is bounds how long it runs,
@@ -369,7 +581,7 @@ func (figure yearFigure) drawn(label string, labelCells, width int) line {
 	return fitParts(width, wordsIn(padded(label, labelCells), dimInk), figurePart(said, figure.number))
 }
 
-// figures are the numbers beside the grid, in order: of all use, or an
+// figures are the Year's numbers, in order: of all use, or an
 // account's, its requests, sessions, limits hit, worth, what the plans cost
 // and the worth against it, its busiest day and its longest run; of a
 // version, its requests, sessions, worth, share of all use's worth, the day
@@ -377,12 +589,18 @@ func (figure yearFigure) drawn(label string, labelCells, width int) line {
 // is a dash. Each a look can change, all but what the plans cost, is
 // numbered as the Year's, by its label.
 func (y yearDrawn) figures() []yearFigure {
+	return y.figuresOf(y.ofVersion())
+}
+
+// figuresOf are the Year's numbers, as figures has them, of a version where
+// version says, else of all use or an account, its page's numbers in them.
+func (y yearDrawn) figuresOf(version bool) []yearFigure {
 	n := y.page.Numbers
 	figures := []yearFigure{
 		{label: "requests", short: "requests", value: line{{prose.Grouped(n.Requests), secondaryInk}}, changes: true},
 		{label: "sessions", short: "sessions", value: line{{prose.Grouped(n.Sessions), secondaryInk}}, changes: true},
 	}
-	if y.ofVersion() {
+	if version {
 		figures = append(figures,
 			yearFigure{label: "worth", short: "worth", value: worthSaid(n.Worth, secondaryInk), changes: true},
 			yearFigure{label: "of all use", short: "share", value: shareSaid(n.Share, secondaryInk), changes: true, widest: widestShare},
@@ -437,10 +655,9 @@ func (y yearDrawn) number(of string) Number {
 }
 
 // limitsFigure is the limits hit, by window, in state.destructive, those of
-// more than one window joined by a faint ·, as "5-hour ×402 · week ×3": none
+// more than one window joined by a faint ·, as "week ×3 · 5-hour ×412": none
 // where none was. Its shorter forms leave off its last windows whole, one
-// at a time, as history-phone-year-52 draws "5-hour ×402" where both don't
-// fit.
+// at a time, as "week ×3" where both don't fit.
 func (y yearDrawn) limitsFigure(limits map[string]int) yearFigure {
 	figure := yearFigure{label: "limits hit", short: "limits", value: line{{"none", secondaryInk}}, changes: true}
 	if len(limits) == 0 {
@@ -514,51 +731,32 @@ func ordinal(day int) string {
 	return strconv.Itoa(day) + suffix
 }
 
-// byMonthForm is how BY MONTH is laid out: wide, or on a phone, its heads on
-// its own row, its last months alone and none of its notes; the row under
-// the Year's top it starts at; the column its months' names are at, and its
-// bars', the most cells a bar takes, and how many of the last months it
-// shows, 0 for all.
-type byMonthForm struct {
-	phone                 bool
-	row                   int
-	nameX, barX, barCells int
-	months                int
-}
-
-// BY MONTH's forms, wide and on a phone.
-var (
-	byMonthWide  = byMonthForm{row: yearByMonthRow, nameX: byMonthNameX, barX: byMonthBarX, barCells: byMonthBarCells}
-	byMonthPhone = byMonthForm{
-		phone: true, row: yearPhoneByMonthRow, nameX: byMonthPhoneNameX, barX: byMonthPhoneBarX, barCells: byMonthPhoneBarCells, months: byMonthPhoneMonths,
-	}
-)
-
 // byMonthPlaced is where BY MONTH's rows are under the Year's top: its
-// heads', on a phone its heading's, else the one under it; whether the row
-// under them is the one for the months before a version was first used, as
-// it is wide where there are any; and the months it shows, oldest first, on
-// a phone the last of them alone, a row each from first.
+// heading's; its heads', on a phone its heading's, else the one under it;
+// whether the row under them is the one for the months before a version was
+// first used, as it is wide where there are any; and its months, oldest
+// first, a row each from first.
 type byMonthPlaced struct {
-	heads  int
-	before bool
-	first  int
-	months []views.MonthRow
+	heading, heads int
+	before         bool
+	first          int
+	months         []views.MonthRow
 }
 
 // placed is where BY MONTH's rows are under the Year's top, as its form lays
-// them out.
-func (y yearDrawn) placed() byMonthPlaced {
+// them out: under the key where the numbers are beside the grid, else under
+// them.
+func (y yearDrawn) placed(beside bool) byMonthPlaced {
 	f := y.form
-	p := byMonthPlaced{heads: f.row + 1, before: y.page.Before != nil && !f.phone, months: y.page.ByMonth}
-	if f.phone {
-		p.heads = f.row
+	p := byMonthPlaced{heading: yearNumbersRow, before: y.page.Before != nil && !f.phone, months: y.page.ByMonth}
+	if !beside {
+		p.heading += yearFiguresDown + 2
+	}
+	if p.heads = p.heading; !f.phone {
+		p.heads++
 	}
 	if p.first = p.heads + 1; p.before {
 		p.first++
-	}
-	if f.months > 0 {
-		p.months = p.months[max(len(p.months)-f.months, 0):]
 	}
 	return p
 }
@@ -593,13 +791,13 @@ const (
 // requests, worth and against, then its limits, or filtered to a version,
 // its share of the month's worth in against's place; on a phone, its worth
 // and against, or share.
-func (y yearDrawn) monthColumns(f byMonthForm) []monthColumn {
+func (y yearDrawn) monthColumns() []monthColumn {
 	third := monthColumn{head: "against", of: monthAgainst}
 	if y.ofVersion() {
 		third = monthColumn{head: "share", of: func(m views.MonthRow) line { return shareSaid(m.Share, secondaryInk) }, changes: true}
 	}
 	worth := monthColumn{head: "worth", of: func(m views.MonthRow) line { return worthSaid(m.Worth, secondaryInk) }, changes: true}
-	if f.phone {
+	if y.form.phone {
 		worth.x, third.x = byMonthPhoneWorthX, byMonthPhoneThirdX
 		return []monthColumn{worth, third}
 	}
@@ -611,15 +809,15 @@ func (y yearDrawn) monthColumns(f byMonthForm) []monthColumn {
 	return columns
 }
 
-// byMonth draws BY MONTH under the Year's top, where placed puts its rows:
-// its heading, wide with what it shows after it, as byMonthHead says it;
-// its heads, and over its bars, by model, or a version's worth; then a row a
-// month, oldest first, the first with its year, wide, and filtered to a
-// version, a row before them for the months before it was used.
+// byMonth draws BY MONTH under the Year's top, where it's placed: its
+// heading, wide with what it shows after it, as byMonthHead says it; its
+// heads, and over its bars, by model, or a version's worth; then a row a
+// month, oldest first, the first with its year, and filtered to a version,
+// wide, a row before them for the months before it was used.
 func (y yearDrawn) byMonth(c *canvas, top int) {
-	f, at := y.form, y.placed()
-	c.line(0, top+f.row, y.byMonthHead(f.phone).fit(y.Width))
-	columns := y.monthColumns(f)
+	f, at := y.form, y.laid.byMonth
+	c.line(0, top+at.heading, y.byMonthHead(f.phone).fit(y.Width))
+	columns := y.monthColumns()
 	for i := range columns {
 		c.line(columns[i].x, top+at.heads, line{{columns[i].head, dimInk}}.fit(y.columnCells(columns, i)))
 	}
@@ -629,7 +827,7 @@ func (y yearDrawn) byMonth(c *canvas, top int) {
 	}
 	largest := largestWorth(y.page.ByMonth)
 	for i, m := range at.months {
-		y.month(c, top+at.first+i, m, i == 0 && !f.phone && !at.before, columns, f, largest)
+		y.month(c, top+at.first+i, m, i == 0 && !at.before, columns, largest)
 	}
 }
 
@@ -645,9 +843,8 @@ func (y yearDrawn) barHead() string {
 // every account's use where some plans aren't known, that each month's
 // against is over those known, once for the table, in the longest of
 // knownForms' forms that fits the frame, else none: "... the plans cost
-// that month · 2 of 3 plans known", "· 2 of 3 plans" or "· 2/3".
-// byMonthReach leaves those words out, so
-// the form never hangs on the plans.
+// that month · 2 of 3 plans known", "· 2 of 3 plans" or "· 2/3". The form
+// is chosen without those words, so it never hangs on the plans.
 func (y yearDrawn) byMonthHead(phone bool) line {
 	head := groupHead("BY MONTH", y.byMonthSays(), phone)
 	if phone || y.ofVersion() {
@@ -673,9 +870,11 @@ func (y yearDrawn) byMonthSays() string {
 // month draws a month's row along row: its name, bold for the month so far;
 // its columns, those a look can change numbered in the month so far, each a
 // figure fitParts fits a cell short of the next, or of the bars; its bar,
-// against the largest month's worth; and, wide, two cells after it, so far,
-// or from the day the ledger began, or the version was first used.
-func (y yearDrawn) month(c *canvas, row int, m views.MonthRow, withYear bool, columns []monthColumn, f byMonthForm, largest ledger.Picodollars) {
+// against the largest month's worth, in the cells laid out for the bars; and
+// after it, where noteAt lays it, so far, or from the day the ledger began,
+// or the version was first used.
+func (y yearDrawn) month(c *canvas, row int, m views.MonthRow, withYear bool, columns []monthColumn, largest ledger.Picodollars) {
+	f := y.form
 	name := secondaryInk
 	if m.SoFar {
 		name = strongInk
@@ -688,13 +887,12 @@ func (y yearDrawn) month(c *canvas, row int, m views.MonthRow, withYear bool, co
 		}
 		c.line(col.x, row, fitParts(y.columnCells(columns, i), figurePart(col.of(m), n)))
 	}
-	cells := min(f.barCells, y.Width-f.barX)
-	if cells < 1 {
+	if y.laid.bar < 1 {
 		return
 	}
-	end := c.line(f.barX, row, y.monthBar(m, largest, cells))
-	if note := monthNote(m); note != nil && !f.phone {
-		c.line(end+2, row, fitParts(y.Width-end-2, note...))
+	c.line(f.barX, row, y.monthBar(m, largest, y.laid.bar))
+	if at, fits := y.noteAt(m, largest, y.laid.bar); fits {
+		c.line(at, row, fitParts(y.Width-at, monthNote(m)...))
 	}
 }
 
@@ -850,20 +1048,21 @@ func amountOf(w views.Worth) ledger.Picodollars {
 	return *w.Amount
 }
 
-// dots draws the bars' key along row from x, cut at the frame's width.
+// dots draws the bars' key from row row, from x, each of its rows cut at the
+// frame's width.
 func (y yearDrawn) dots(c *canvas, x, row int) {
-	c.line(x, row, y.familyDots().fit(y.Width-x))
+	for i, l := range y.familyDots() {
+		c.line(x, row+i, l.fit(y.Width-x))
+	}
 }
 
-// familyDots is the bars' key: each family's dot in its colour, and its
-// name.
-func (y yearDrawn) familyDots() line {
-	var l line
+// familyDots are the bars' key, from the bars' column: each family's dot in
+// its colour, and its name, three cells apart, flowed onto as many rows as
+// they take, a family never broken.
+func (y yearDrawn) familyDots() []line {
+	dots := make([]line, len(y.page.Families))
 	for i, family := range y.page.Families {
-		if i > 0 {
-			l = append(l, span{"   ", dimInk})
-		}
-		l = append(l, familyDot(family, dimInk)...)
+		dots[i] = familyDot(family, dimInk)
 	}
-	return l
+	return wrapped(span{"   ", dimInk}, y.Width-y.form.barX, dots)
 }

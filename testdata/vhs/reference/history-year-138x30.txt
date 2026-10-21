@@ -4,27 +4,27 @@
 
 HISTORY    Year  Weeks  Days  Tokens  [ ]  ───────────────────────────────────────────────────────────────────────────  < last 12 months >
 
-    May     Jun     Jul       Aug     Sep     Oct
-M   ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
-    ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
-W   ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
-    ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
-F   ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
-    ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
-    ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
+              Oct       Nov     Dec     Jan       Feb     Mar     Apr       May     Jun     Jul       Aug     Sep     Oct
+Mon           ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
+              ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
+Wed           ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
+              ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
+Fri           ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
+              ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
+              ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
 
-■ 0 ■ <350 ■ 350–650 ■ 650–950 ■ >950  requests a day
+              ■ none   ■ under 350   ■ 350–650   ■ 650–950   ■ over 950  requests a day
 
 LAST 12 MONTHS
-requests  212,885         worth     $24,736
-sessions  1,688           plans     $7,200
-limits    week ×3         against   3.4×
+requests     212,885                  worth        $24,736    busiest day  Wed 30 Sep
+sessions     1,688                    plans cost   $7,200     longest run  20 days
+limits hit   week ×3 · 5-hour ×412    against it   3.4×
 
-BY MONTH    worth     against   by model
- May        $2,330    3.9×      ▅▅▅▅▅▅▅▅▅▅▅▅▅
- Jun        $2,470    4.1×      ▅▅▅▅▅▅▅▅▅▅▅▅▅▅
- Jul        $2,690    4.5×      ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
- Aug        $2,860    4.8×      ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
-▼ 2 more below   ·   j/k to scroll
+BY MONTH  worth at API prices; against what the plans cost that month
+              requests    worth       against   limits      by model
+  Oct 2025    10,148      $1,180      2.0×      23          ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
+  Nov         11,524      $1,340      2.2×      26          ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
+  Dec         10,406      $1,210      2.0×      23          ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
+▼ 12 more below   ·   j/k to scroll
 
 tab views   [ ] view    < > period: last 12 months    v split: all    p pin    ? help  q quit

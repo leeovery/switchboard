@@ -119,11 +119,16 @@ type MonthsBefore struct {
 	Then     string
 }
 
+// MostYearWeeks is the most weeks the Year's grid holds, of any span it
+// shows: a calendar year of 366 days whose 1 January falls on its weeks'
+// last day, as 2028's does with weeks from Sunday, reaches into 54.
+const MostYearWeeks = 54
+
 // The Year's grid and its key.
 const (
-	// yearWeeks are the weeks the grid shows of the last 12 months: this
-	// week and the 52 before it.
-	yearWeeks = 53
+	// twelveMonthsWeeks are the weeks the grid shows of the last 12 months:
+	// this week and the 52 before it.
+	twelveMonthsWeeks = 53
 	// labelDays are how many of a month's days a week holds for the month's
 	// name to sit over it, the first such week; and labelWeeks the fewest
 	// weeks apart two months' names sit, as a name runs past the week after
@@ -193,7 +198,7 @@ func yearSpanOf(year int, today time.Time, weekStarts time.Weekday) yearSpan {
 	s := yearSpan{today: today.Format(time.DateOnly)}
 	if year == 0 {
 		s.first, s.last, s.end = yearAfter(today).Format(time.DateOnly), s.today, s.today
-		s.grid, s.weeks = weeksTo(today, weekStarts, yearWeeks), yearWeeks
+		s.grid, s.weeks = weeksTo(today, weekStarts, twelveMonthsWeeks), twelveMonthsWeeks
 		s.from, s.to = s.gridFirst(), s.gridLast()
 		return s
 	}

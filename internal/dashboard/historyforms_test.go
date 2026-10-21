@@ -17,26 +17,17 @@ import (
 // margin Weeks and Days keep clear; what of it its wide form draws, and
 // what it draws where that doesn't fit, its phone form, but Weeks' columns,
 // whose table is drawn there where it fits, each drawn as that form lays it
-// out; and its wide form drawn whole on the canvas given, where the Year's
-// isn't cut at the frame's width as History's own canvas for it is.
+// out. The Year, whose arrangements are its parts', not a reach, has tests
+// of its own.
 type formCase struct {
 	name           string
 	frame          func(t *testing.T, width int) Frame
 	reach, widest  func(f Frame) int
 	narrower, wide func(f Frame) *canvas
-	whole          func(c *canvas, f Frame)
 }
 
 // formCases are each sub-tab of the pages the frames draw.
 func formCases() []formCase {
-	year := func(ask views.YearAsk, page func() views.YearPage) func(t *testing.T, width int) Frame {
-		return func(t *testing.T, width int) Frame { return yearFrame(t, width, 50, ask, page()) }
-	}
-	opusBefore := func() views.YearPage {
-		page := opusYear()
-		page.Before = &views.MonthsBefore{From: "2025-10", To: "2026-05", Then: "Opus 5"}
-		return page
-	}
 	weeks := func(page func() views.WeeksPage, shape WeeksShape) func(t *testing.T, width int) Frame {
 		return func(_ *testing.T, width int) Frame { return weeksFrame(page(), shape, width, 40, NoColour()) }
 	}
@@ -52,8 +43,6 @@ func formCases() []formCase {
 	}
 	var cases []formCase
 	for name, frame := range map[string]func(*testing.T, int) Frame{
-		"the year":                    year(views.YearAsk{}, plainYear),
-		"the year of a version":       year(views.YearAsk{Version: "Opus 5.5"}, opusBefore),
 		"weeks of three in columns":   weeks(threeWeeks, WeeksColumns),
 		"weeks of ten in columns":     weeks(tenWeeks, WeeksColumns),
 		"weeks of three as a table":   weeks(threeWeeks, WeeksTable),
@@ -68,11 +57,7 @@ func formCases() []formCase {
 		cases = append(cases, formCase{name: name, frame: frame})
 	}
 	for i, c := range cases {
-		cases[i].whole = func(c *canvas, f Frame) { f.history(c, f.top()) }
 		switch {
-		case strings.HasPrefix(c.name, "the year"):
-			cases[i].reach, cases[i].widest, cases[i].narrower, cases[i].wide = yearReach, yearReach, yearForm(yearDrawn.phone, byMonthPhone), yearForm(yearDrawn.wide, byMonthWide)
-			cases[i].whole = func(c *canvas, f Frame) { yearOf(f, byMonthWide).wide(c, f.top()) }
 		case strings.HasPrefix(c.name, "weeks"):
 			cases[i].reach, cases[i].widest, cases[i].narrower, cases[i].wide = weeksReach, weeksWidest, weeksForm(true), weeksForm(false)
 			if strings.HasSuffix(c.name, "in columns") {
@@ -91,27 +76,6 @@ func formCases() []formCase {
 // ends, as the frame works it out.
 func tokensReach(Frame) int {
 	return wideTokens.reach()
-}
-
-// yearOf is the Year the frame shows, as the form given lays it out.
-func yearOf(f Frame, form byMonthForm) yearDrawn {
-	return yearDrawn{Frame: f, page: *f.History.Year, ask: f.History.YearAsk, form: form}
-}
-
-// yearReach is the width the Year's wide form takes, and where its widest
-// row ends, as the frame works it out.
-func yearReach(f Frame) int {
-	return yearOf(f, byMonthWide).reach()
-}
-
-// yearForm is the Year of the frame as draw draws it, in the form given, from
-// the view's top.
-func yearForm(draw func(yearDrawn, *canvas, int), form byMonthForm) func(f Frame) *canvas {
-	return func(f Frame) *canvas {
-		c := newCanvas(f.Width, f.Height)
-		draw(yearOf(f, form), c, f.top())
-		return c
-	}
 }
 
 // weeksReach and weeksWidest are the width Weeks' wide form takes, in its
@@ -243,7 +207,7 @@ func TestEachSubTabsWidestRowEndsWhereItsWorkedOutToEnd(t *testing.T) {
 			reach, widest := tt.reach(tt.frame(t, 160)), tt.widest(tt.frame(t, 160))
 			f := tt.frame(t, max(reach, phoneUnder))
 			c := newCanvas(f.Width+40, f.Height)
-			tt.whole(c, f)
+			f.history(c, f.top())
 			drawn := 0
 			for _, row := range textOf(c.rows(Look{})) {
 				drawn = max(drawn, ansi.StringWidth(row))
@@ -255,31 +219,6 @@ func TestEachSubTabsWidestRowEndsWhereItsWorkedOutToEnd(t *testing.T) {
 				t.Errorf("its widest row ends before column %d, worked out as %d", drawn, widest)
 			}
 		})
-	}
-}
-
-// The Year's numbers run as long as the ledger makes them, so they're cut at
-// the frame's width rather than reckoned in its widest row: at 160 columns,
-// a Year of a world of many limits still draws its wide form, its limits as
-// many windows whole as fit.
-func TestTheYearsNumbersAreCutAtTheWidthNotDrawnOnAPhone(t *testing.T) {
-	page := plainYear()
-	page.Numbers.Limits = map[string]int{"5h": 4120, "7d": 3, "7d_oi": 2}
-	f := yearFrame(t, 160, 50, views.YearAsk{}, page)
-	named := f.WindowName
-	f.WindowName = func(key string) string {
-		if key == "7d_oi" {
-			return "Fable week"
-		}
-		return named(key)
-	}
-	if differs := drawsAsTheForm(f, yearForm(yearDrawn.wide, byMonthWide)(f)); differs != "" {
-		t.Errorf("at 160 columns, its wide form isn't drawn:\n%s", differs)
-	}
-	rows := textOf(historyDrawn(f).rows(Look{}))
-	limits := slices.IndexFunc(rows, func(row string) bool { return strings.Contains(row, "limits hit") })
-	if want := "limits hit   week ×3"; limits < 0 || !strings.HasSuffix(rows[limits], want) {
-		t.Errorf("the limits row reads %q, want it to end %q", rows[max(limits, 0)], want)
 	}
 }
 
@@ -337,20 +276,13 @@ func TestASubTabInItsPhoneFormScrollsWhatThatFormDraws(t *testing.T) {
 
 // A sub-tab's form never hangs on its data: each row whose length is
 // bounded is reckoned at the widest its format draws, not at the width it's
-// drawn, so at the one width, the Year of a period with use and of one
-// without, and Days of accounts that hit one 5-hour limit each and of
-// accounts that hit more, each take the one form.
+// drawn, so at the one width, Days of accounts that hit one 5-hour limit
+// each and of accounts that hit more take the one form.
 func TestASubTabsFormNeverHangsOnItsData(t *testing.T) {
-	unused := plainYear()
-	unused.Numbers = views.YearNumbers{}
 	oneEach := daysWorld(workDays, personalDays, sideDays)
 	oneEach.ByAccount = slices.Clone(oneEach.ByAccount)
 	for i := range oneEach.ByAccount {
 		oneEach.ByAccount[i].Limits = 1
-	}
-	yearPhone := func(f Frame) bool {
-		y, _ := f.yearDrawn()
-		return y.form.phone
 	}
 	daysPhone := func(f Frame) bool { return f.layOutDays(*f.History.Days, f.top()).phone }
 	tests := []struct {
@@ -359,13 +291,6 @@ func TestASubTabsFormNeverHangsOnItsData(t *testing.T) {
 		phone  func(f Frame) bool
 		frames map[string]Frame
 	}{
-		{
-			name: "the year", width: 145, phone: yearPhone,
-			frames: map[string]Frame{
-				"with use":    yearFrame(t, 145, 50, views.YearAsk{}, plainYear()),
-				"without use": yearFrame(t, 145, 50, views.YearAsk{}, unused),
-			},
-		},
 		{
 			name: "days", width: 154, phone: daysPhone,
 			frames: map[string]Frame{
@@ -432,7 +357,7 @@ func TestAPhoneSaysWhatsOutOfViewInALineThatFits(t *testing.T) {
 
 // Nothing History draws is left to the canvas to clip: each sub-tab, in
 // either form, at any width, its accounts scrolled to the middle, draws
-// nothing past its edge, the frame's width for the Year and Tokens, and a
+// nothing past its edge, the frame's width for Tokens, and a
 // margin short of it for Weeks and Days, as each cuts what it draws to fit.
 func TestHistoryDrawsNothingPastItsEdge(t *testing.T) {
 	for _, tt := range formCases() {
@@ -445,11 +370,7 @@ func TestHistoryDrawsNothingPastItsEdge(t *testing.T) {
 				edge = f.edge()
 			}
 			c := newCanvas(width+80, f.Height)
-			if y, ok := f.yearDrawn(); ok && strings.HasPrefix(tt.name, "the year") {
-				y.draw(c, f.top())
-			} else {
-				f.history(c, f.top())
-			}
+			f.history(c, f.top())
 			for row, cells := range c.cells {
 				if x := slices.IndexFunc(cells[max(edge, 0):], func(here cell) bool { return here != blank }); x >= 0 {
 					t.Errorf("%s at %d columns draws %q past its edge, at column %d of row %d:\n%q",
