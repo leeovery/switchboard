@@ -4,20 +4,32 @@ import (
 	"slices"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
 // The List's places, in cells: where its rows' words start, its mark two
-// cells before them; where routing starts, wide; the fewest cells routing
-// is cut to before it's left out, as at 115 columns; and how far the ended
+// cells before them; the cells between two columns; and how far the ended
 // rule's rule is from its words.
 const (
-	listFrom         = 2
-	listRouting      = 91
+	listFrom   = 2
+	listGap    = 2
+	endedApart = 2
+)
+
+// The List's columns' widths, in cells: the session's least, its id and
+// listDirLeast cells of its directory, and its natural, its id and a
+// directory at a name's most; the most on's least takes, where the widest
+// name is wider; and routing's least.
+const (
+	listDirLeast     = 6
+	listSessionLeast = status.IDShown + 1 + listDirLeast
+	listSessionWhole = status.IDShown + 1 + labelMost
+	listOnLeast      = 14
 	listRoutingLeast = 24
-	endedApart       = 2
 )
 
 // The List's words where it has no session to list: where its rows would
@@ -27,36 +39,112 @@ var (
 	endedToday      = line{{"ended today", dimInk}}
 )
 
-// listColumn is a column of the List: its head; from column x, width cells
-// wide, routing's to the last column; how its words sit; and what it says
-// of a session, in its cells, as the List has it laid out.
-type listColumn struct {
-	head     string
-	x, width int
-	aligned  alignment
-	says     func(l listed, s views.ListedSession, cells int) line
+// listPart is one of the List's columns.
+type listPart int
+
+// The List's columns, in the row's order.
+const (
+	listSession listPart = iota
+	listOn
+	listModel
+	listState
+	listStarted
+	listRequests
+	listWorth
+	listRouting
+)
+
+// The turns the List's columns give way in as it narrows: routing leaves
+// while the leasts and the session whole don't fit, so it never takes cells
+// from a session cut short; the session narrows toward its least; then
+// worth, started and model leave, each only while the leasts don't fit, so
+// model leaves before on is cut below listOnLeast.
+const (
+	routingLeaves = iota + 1
+	sessionNarrows
+	worthLeaves
+	startedLeaves
+	modelLeaves
+)
+
+// listPartFacts are each column's head; its cells, where they're fixed, and
+// routing's least; how its words sit; and the turn it leaves in, 0 never.
+var listPartFacts = [...]struct {
+	head    string
+	cells   int
+	aligned alignment
+	leaves  int
+}{
+	listSession:  {"session", listSessionLeast, alignLeft, 0},
+	listOn:       {"on", 0, alignLeft, 0},
+	listModel:    {"model", 9, alignLeft, modelLeaves},
+	listState:    {"state", 11, alignLeft, 0},
+	listStarted:  {"started", 15, alignLeft, startedLeaves},
+	listRequests: {"requests", 8, alignRight, 0},
+	listWorth:    {"worth", 7, alignRight, worthLeaves},
+	listRouting:  {"routing", listRoutingLeast, alignLeft, routingLeaves},
 }
 
-// The List's columns, wide and, under 100 columns, on a phone, as its frames
-// lay them out; and routing, wide, where it has room.
-var (
-	wideList = []listColumn{
-		{"session", listFrom, 17, alignLeft, sessionSays},
-		{"on", 21, 8, alignLeft, onSays},
-		{"model", 31, 9, alignLeft, modelSays},
-		{"state", 42, 11, alignLeft, stateSays},
-		{"started", 55, 15, alignLeft, startedSays},
-		{"requests", 72, 8, alignRight, requestsSays},
-		{"worth", 82, 7, alignRight, worthSays},
+// listParts are the List's columns as flex lays them, listGap apart, on's
+// natural the cells given:
+//   - the session, from listSessionLeast to listSessionWhole, holding its
+//     whole until its turn;
+//   - on, from its natural, listOnLeast at the most, to its natural;
+//   - the others at their cells, leaving in their turns;
+//   - and routing, from its least, taking what's left to the last column.
+//
+// No natural comes from the rows shown, so the columns hold still as the
+// List scrolls and as sessions come and go.
+func listParts(on int) []flex.Part {
+	parts := make([]flex.Part, len(listPartFacts))
+	for p, facts := range listPartFacts {
+		parts[p] = flex.Part{Least: facts.cells, Natural: facts.cells, Leaves: facts.leaves, Gap: listGap}
 	}
-	phoneList = []listColumn{
-		{"session", listFrom, 16, alignLeft, sessionSays},
-		{"on", 19, 8, alignLeft, onSays},
-		{"state", 29, 11, alignLeft, stateSays},
-		{"requests", 44, 8, alignRight, requestsSays},
+	parts[listSession].Natural, parts[listSession].Narrows = listSessionWhole, sessionNarrows
+	parts[listOn].Least, parts[listOn].Natural = min(on, listOnLeast), on
+	parts[listRouting].Grows = true
+	return parts
+}
+
+// listColumn is a column of the List as it's laid out: which it is, from
+// column x, width cells wide.
+type listColumn struct {
+	part     listPart
+	x, width int
+}
+
+// listColumnsOf are the List's columns shown across a frame width cells
+// wide, on's natural the cells given, at least its head's, in two passes of
+// flex, as the Log's Requests are: the first decides which of listParts
+// show; the second lays out only those, each free from its least, so
+// what's past the leasts goes to the session first, then on, in the row's
+// order. Nothing grows but routing, so where it's left, the spare lies at
+// the row's end.
+func listColumnsOf(width, on int) []listColumn {
+	room := width - listFrom
+	parts := listParts(max(on, ansi.StringWidth(listPartFacts[listOn].head)))
+	decided, _ := flex.Lay(room, parts...)
+	var shown []listPart
+	var kept []flex.Part
+	for p, span := range decided {
+		if !span.Left {
+			part := parts[p]
+			part.Leaves, part.Narrows = 0, 0
+			shown, kept = append(shown, listPart(p)), append(kept, part)
+		}
 	}
-	routingColumn = listColumn{head: "routing", x: listRouting, aligned: alignLeft, says: routingSays}
-)
+	spans, _ := flex.Lay(room, kept...)
+	columns := make([]listColumn, len(shown))
+	for i, p := range shown {
+		columns[i] = listColumn{part: p, x: listFrom + spans[i].At, width: spans[i].Size}
+	}
+	return columns
+}
+
+// head is the column's head.
+func (c listColumn) head() string {
+	return listPartFacts[c.part].head
+}
 
 // listLine is a line of the List's table: a session's row; the rule over
 // those that ended today; or, with neither, the words saying it has none.
@@ -93,28 +181,13 @@ func (f Frame) listForm(doc status.Document, now time.Time) sessionsForm {
 // lines from the row under its heads to the one before the blank row over
 // its today line.
 func (f Frame) listing(doc status.Document, now time.Time) listed {
+	m := f.Moment(doc, now)
 	l := listed{
-		f: f, m: f.Moment(doc, now), now: now, columns: f.listColumns(),
+		f: f, m: m, now: now, columns: listColumnsOf(f.Width, widestLabel(m)),
 		lines: listLines(f.SessionsTab.List.Sessions), today: todayLine(f.SessionsTab.List.Today, f.Width), top: f.top(),
 	}
 	l.rows = max(l.todayAt()-l.top-2, 0)
 	return l
-}
-
-// listColumns are the List's columns at the frame's width: a phone's four
-// under 100 columns; else the wide ones, and routing to the last column,
-// where it has listRoutingLeast cells.
-func (f Frame) listColumns() []listColumn {
-	if f.phone() {
-		return phoneList
-	}
-	room := f.Width - listRouting
-	if room < listRoutingLeast {
-		return wideList
-	}
-	routing := routingColumn
-	routing.width = room
-	return slices.Concat(wideList, []listColumn{routing})
 }
 
 // listLines are the List's lines of its sessions, in the order it lists
@@ -164,7 +237,7 @@ func todayWorth(w views.Worth) line {
 
 // draw draws the List from row top: its heads; its lines in view, as far as
 // the frame has them scrolled, the session chosen lit across the width; and
-// its today line, right-aligned to the last column, held over the key line.
+// its today line from column 0, as the key line is, held over it.
 func (l listed) draw(c *canvas, top int) {
 	l.heads(c, top)
 	first, last := l.shown()
@@ -172,7 +245,7 @@ func (l listed) draw(c *canvas, top int) {
 		l.drawLine(c, top+1+i-first, l.lines[i])
 	}
 	for i, said := range l.today {
-		c.right(l.f.Width, l.todayAt()+i, said)
+		c.line(0, l.todayAt()+i, said)
 	}
 }
 
@@ -186,13 +259,13 @@ func (l listed) todayAt() int {
 // column's start, or ending at its end where it's right-aligned.
 func (l listed) heads(c *canvas, y int) {
 	for _, col := range l.columns {
-		l.cell(c, y, col, line{{col.head, dimInk}})
+		l.cell(c, y, col, line{{col.head(), dimInk}})
 	}
 }
 
 // cell draws what a column says along row y, in its cells.
 func (l listed) cell(c *canvas, y int, col listColumn, said line) {
-	if col.aligned == alignRight {
+	if listPartFacts[col.part].aligned == alignRight {
 		c.right(col.x+col.width, y, said)
 		return
 	}
@@ -244,7 +317,7 @@ func (l listed) row(c *canvas, y int, s views.ListedSession) {
 	}
 	c.line(0, y, line{{s.Mark.String(), mark}})
 	for _, col := range l.columns {
-		l.cell(c, y, col, col.says(l, s, col.width).fit(col.width))
+		l.cell(c, y, col, l.says(col, s).fit(col.width))
 	}
 	if l.f.SessionsTab.Chosen.Session == s.Session {
 		c.surface(0, y, l.f.Width, litInk)
@@ -276,9 +349,34 @@ func (l listed) targets() []Target {
 	return targets
 }
 
-// sessionSays names the session: its id in text.secondary, a space and its
-// directory, cut to the rest of the cells, in text.muted.
-func sessionSays(_ listed, s views.ListedSession, cells int) line {
+// says is what the column says of the session, in its cells: the model of
+// its latest request, its id less claude-, and its requests today counted,
+// in text.muted; its routing in the Log's routing words, cut as the Log cuts
+// them, a move's cost kept whole; and the rest as their own say them.
+func (l listed) says(col listColumn, s views.ListedSession) line {
+	switch col.part {
+	case listSession:
+		return sessionSays(s, col.width)
+	case listOn:
+		return l.onSays(s)
+	case listModel:
+		return line{{modelNamed(s.Model), mutedInk}}
+	case listState:
+		return l.stateSays(s)
+	case listStarted:
+		return l.startedSays(s)
+	case listRequests:
+		return line{{prose.Grouped(s.Requests), mutedInk}}
+	case listWorth:
+		return worthSays(s)
+	default:
+		return rowWordsIn(s.Routing.Said(), col.width)
+	}
+}
+
+// sessionSays names the session in the cells given: its id in
+// text.secondary, a space and its directory, cut to the rest, in text.muted.
+func sessionSays(s views.ListedSession, cells int) line {
 	said := line{{status.ShownID(s.Session), secondaryInk}}
 	if dir := status.DirName(s.Dir, cells-status.IDShown-1); dir != "" {
 		said = append(said, span{" " + dir, mutedInk})
@@ -287,17 +385,11 @@ func sessionSays(_ listed, s views.ListedSession, cells int) line {
 }
 
 // onSays names the account its latest request went to, in text.primary.
-func onSays(l listed, s views.ListedSession, _ int) line {
+func (l listed) onSays(s views.ListedSession) line {
 	if s.Account == "" {
 		return nil
 	}
 	return line{{named(l.m, s.Account), accountInk}}
-}
-
-// modelSays is the model of its latest request, its id less claude-, in
-// text.muted.
-func modelSays(_ listed, s views.ListedSession, _ int) line {
-	return line{{modelNamed(s.Model), mutedInk}}
 }
 
 // listStateInks are the inks of what a session's doing, as the List's state
@@ -311,35 +403,24 @@ var listStateInks = map[views.Doing]ink{
 
 // stateSays is what it's doing at now, as its Activity's State says it, as
 // last known where asKnown says.
-func stateSays(l listed, s views.ListedSession, _ int) line {
+func (l listed) stateSays(s views.ListedSession) line {
 	return line{{s.Activity.State(l.now), asKnown(s.Activity, listStateInks[s.Activity.Doing])}}
 }
 
 // startedSays is when its first request came, as prose.Past says it, in
 // text.muted: nothing where that isn't known.
-func startedSays(l listed, s views.ListedSession, _ int) line {
+func (l listed) startedSays(s views.ListedSession) line {
 	if s.Started.IsZero() {
 		return nil
 	}
 	return line{{prose.Past(l.now, s.Started), mutedInk}}
 }
 
-// requestsSays counts its requests today, in text.muted.
-func requestsSays(_ listed, s views.ListedSession, _ int) line {
-	return line{{prose.Grouped(s.Requests), mutedInk}}
-}
-
 // worthSays is what its requests today were worth, to the cent, as the Log
 // says a worth, in text.muted: — in text.faint where it made none today.
-func worthSays(_ listed, s views.ListedSession, _ int) line {
+func worthSays(s views.ListedSession) line {
 	if s.Requests == 0 {
 		return line{{"—", faintInk}}
 	}
 	return line{{s.Cents(), mutedInk}}
-}
-
-// routingSays is how it came to the account it's on, in the Log's routing
-// words, cut to the cells as the Log cuts them, a move's cost kept whole.
-func routingSays(_ listed, s views.ListedSession, cells int) line {
-	return rowWordsIn(s.Routing.Said(), cells)
 }
