@@ -2460,31 +2460,56 @@ drop, one fewer being short on no more weeks than now; otherwise its form for fe
   `j/k` or the wheel.
 - **On a phone,** Weeks shows the verdict and the table's last four weeks (settled in the plan).
 
-**Days** is eight weeks, the week so far and the seven before it, a day at a time.
+**Days** is eight weeks, the week so far and the seven before it, a day at a time. It's drawn in its
+wide form, laid out below, where that form's parts fit short of the frame's margin: a strip's row,
+its label column and a week at least, and its key whole on one row, so the form never hangs on the
+data, as from 118 columns. Narrower, each strip's name takes the row over it (On a phone, below).
 
-- **The weeks:** from column 14, 2 cells a day and a cell between weeks, so a week is 15 cells; on
-  row 6, each week's first day, `10 Aug`, in `text.faint`, this week's bold `text.secondary`; on row
-  7, over this week's days, their initials, `M T W T F S S`, in `text.faint`. A day still to come is
-  `··`, in `text.faint`.
+- **A strip's row** is laid out as parts, across the width, the same for every strip, so its
+  columns come from the width and the accounts alone, never from the strips in view:
+  - **the label column,** its widest name, a family's or any account's with its marks, not only
+    those shown, and a gap of 2: at least 8 and at most 24, the house's label rule; 12 in the frames
+    (`personal ◆`). It narrows only once every week but the last has given way, so its names read
+    whole before another week shows;
+  - **the weeks,** 15 cells each, a day's 2 cells and the cell after a week's days: the latest that
+    fit, up to the eight, the oldest giving way first, the last never, as seven at 138 columns and
+    all eight from 153;
+  - **the count,** 4 cells after the last week's last day, so it reads with its strip, never at the
+    edge: its number right-aligned in 4, then its words, as wide as the widest, ` 5-hour limits`.
+- **The weeks:** on row 6, each week shown headed by its first day, `10 Aug`, in `text.faint`, this
+  week's bold `text.secondary`; on row 7, over this week's days, their initials, `M T W T F S S`, in
+  `text.faint`. A day still to come is `··`, in `text.faint`. The heading row's `eight weeks` names
+  the period Days reads, however many weeks fit; the dates over the weeks say which are shown.
 - **BY MODEL,** row 8, `every account, weighed at API prices, on one scale` after it in
   `text.faint`: from row 10, two rows apart, a strip a family used in the eight weeks, never a
   version (settled in the plan), `●` in its colour and its name in `text.secondary` at column 0,
   each day the family's worth that day, every account's, in the family's own steps, the strips on
-  one scale; at column 136, its share of the eight weeks' worth, right-aligned in 4, bold
-  `text.secondary`, then ` of use` in `text.subtle`, `59% of use`.
+  one scale; its count its share of the eight weeks' worth, bold `text.secondary`, then ` of use` in
+  `text.subtle`, `59% of use`.
 - **BY ACCOUNT,** three rows after the last family,
   `the share of its week each day used, on one scale` after it: two rows apart, a strip an account,
   its name and marks at column 0, each day the points of its week it used that day, in `viz.day.1`
   to `viz.day.4`, every account on one scale, and a red `▪`, `state.destructive`, in the middle of a
-  day it hit a 5-hour limit; at column 136, how many it hit, right-aligned in 4, bold
-  `state.destructive`, or `text.faint` at none, then ` 5-hour limits` in `text.subtle`. Past six
-  accounts it scrolls within itself, with `j/k` or the wheel, and row 33 says what's out of view:
+  day it hit a 5-hour limit; its count how many it hit, bold `state.destructive`, or `text.faint`
+  at none, then ` 5-hour limits` in `text.subtle`. Past six accounts it scrolls within itself, with
+  `j/k` or the wheel, and the row over the key says what's out of view:
   `▼ 4 more accounts below   ·   j/k or the wheel to scroll them`, `▼` in `accent.key`, the words in
-  `text.muted`, `j/k` bold `accent.key`.
-- **The key,** row 34: `less `, the five shades as 2-cell swatches 3 apart, `more`, in
-  `text.subtle`, then `  each shade a quarter of the active days` in `text.faint`; then a swatch of
-  `viz.day.2` holding the red `▪`, and `a day it hit a 5-hour limit`; then `··` and ` days to come`.
-- **On a phone,** Days shows the last three weeks (settled in the plan).
+  `text.muted`, `j/k` bold `accent.key`. Shorter than History's frames, 37 rows, Days is drawn whole
+  and scrolls a row at a time over its key; where everything fits, as at 138 by 30, nothing scrolls.
+- **The key,** on the view's last row: `less `, the five shades as 2-cell swatches 3 apart, `more`,
+  in `text.subtle`, then `  each shade a quarter of the active days` in `text.faint`; then a swatch
+  of `viz.day.2` holding the red `▪`, and `a day it hit a 5-hour limit`; then `··` and
+  ` days to come`.
+- **On a phone,** and wherever the wide form doesn't fit, each strip's name and its count share
+  the row over its days. The days are the latest weeks that fit the whole width, from column 0, the
+  blank after the last week's days needing no room: two from 30 columns, three from 45, four from
+  60 and seven from 105. The count, as wide as the widest, ends where the last week shown ends its
+  days, so it reads with its strip; the name takes what's left before it, a blank cell between, and
+  is cut where the two don't fit, not the count. The name keeps two cells at least, of the name as
+  drawn, its marks among them: `w…`, `●…`, or for the primary its mark alone, ` ◆`. Where that
+  doesn't fit before the weeks' end, narrower than 30 columns, the count ends at the frame's edge
+  instead, and narrower than 22 it's cut there, `33 5-hour lim…`. The headings drop their words, and
+  the key takes two rows, the shades on the first with nothing said of them.
 
 **Tokens** is ccusage's weekly report, inside switchboard, split by what ccusage can't split by: the
 account.
