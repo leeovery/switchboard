@@ -20,6 +20,13 @@ const (
 // oneRowStep is the compaction step from which a line takes one row.
 const oneRowStep = 4
 
+// leastStanding is the fewest cells a line's state words take: the widest of
+// the short leads standingLeads has, ● under pressure, so a name narrows
+// before any lead is cut, and the name column holds still as states change.
+// A model's own lead, as Fable wk at its cap, takes its window's label and
+// may be wider: it's cut where the names leave it no more.
+const leastStanding = 16
+
 // The parts of a line's row its name heads, in nameParts' order.
 const (
 	lineNamePart = iota
@@ -72,8 +79,9 @@ func (d linesDrawn) nameColumn() int {
 // labelLeast, at its natural the widest, as labelColumnCells counts them,
 // with their numbers, their marks and nameGap; from oneRowStep, where the
 // line takes one row, its week's bar, oneRowBar cells, and afterBar on to its
-// words; and its words, which take the rest. So a name is whole wherever it
-// fits beside them.
+// words; and its words, at least leastStanding, which take the rest. So a
+// name is whole wherever it fits beside them, and narrows toward its least
+// before the words' lead is cut.
 func (d linesDrawn) nameParts() []flex.Part {
 	least, natural := 0, 0
 	for _, n := range d.names {
@@ -87,7 +95,7 @@ func (d linesDrawn) nameParts() []flex.Part {
 	return []flex.Part{
 		lineNamePart:  {Least: least, Natural: natural},
 		lineMeterPart: {Least: meter, Natural: meter},
-		lineWordsPart: {Grows: true},
+		lineWordsPart: {Least: leastStanding, Grows: true},
 	}
 }
 

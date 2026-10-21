@@ -2648,10 +2648,13 @@ where the parts lay it, as Narrower and wider says.
   - its name row: the number, name and marks; from the name column, its state in the Overview's
     ROUTING words. The name column is a column of names: its labels at least 8 cells, at their
     natural the widest name configured, 24 at the most, with their numbers, their marks and two
-    cells after them, laid by `flex` across the lines' width, before the state words, so every name
-    is whole wherever it fits (16 cells, column 102, for `2 personal ◆`; 28 for
-    `3 side-hustle-consulting ▲`, at every width the board draws a line of more than one row). The
-    state words:
+    cells after them, laid by `flex` across the lines' width, before the state words. The words
+    take at least 16 cells, the widest short lead, `● under pressure`, so a name is whole wherever
+    it fits beside them, and narrows toward its least before any lead is cut, and the column holds
+    still as states change (16 cells, column 102, for `2 personal ◆`; with a call moved, 26 of
+    the 28 `3 side-hustle-consulting ▲` takes whole at 108, and all 28 from 136). A model's own
+    lead, as `Fable wk at its cap`, takes its window's label and may be wider: it's cut where the
+    names leave it no more. The state words:
     `● open`, ` · new sessions come here` added on the account new sessions go to,
     `● at its cap · back 17:10 · new sessions go elsewhere`, `● under pressure · out ~16:05`,
     `■ limit reached · back 16:30`, `■ refused (401) · its token needs renewing` or `○ not read yet`
@@ -2759,9 +2762,11 @@ line and the key:
    `Week` at 87, its bar from 98, 21 cells, a cell and its percentage; three cells on, `5-hour` at
    127, its bar from 134, 21 cells, a cell and its percentage, ending at the last column. The
    even-pace mark stays; the words and the model windows go, as `usage` and the Overview show them.
-4. One row a line: the number, name and marks, the name column whole where the lines' width holds
-   it beside the bar, else cut to what it leaves; from it, the week's bar, 14 cells, a cell and its
-   percentage; and 21 cells after it, the state words (settled in the plan).
+4. One row a line: the number, name and marks, the name column laid as on the name row, the
+   bar between it and the words; from it, the week's bar, 14 cells, a cell and its percentage; and
+   21 cells after it, the state words (settled in the plan). Where the lines are too narrow for the
+   names at their least, the bar and the words' 16, the words are cut: with a call moved, from
+   100 columns to 135 with names of 8 cells, to 141 with 14 and to 149 with 22.
 5. Step 4's lines, scrolling, the calls with them, as Accounts scrolls (see Accounts): the key gives
    way, and the row over the key line says what's out of view, right-aligned: `▼ 3 more accounts`
    (settled in the plan). An account's rows run from its first, its line's row or its group's

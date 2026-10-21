@@ -775,35 +775,67 @@ func TestACallsNamesAreWholeWhereTheyFit(t *testing.T) {
 	}
 }
 
+// namedOf has the world's accounts named cells long: work-team-plan…,
+// personal-research…, side-hustle-consulting…, each cut to cells.
+func namedOf(cells int) func(*status.Document) {
+	long := map[string]string{
+		"work": "work-team-plan-ledger-ops", "personal": "personal-research-notes", "side": "side-hustle-consulting-co",
+	}
+	return func(d *status.Document) {
+		for i := range d.Accounts {
+			d.Accounts[i].Label = long[d.Accounts[i].ID][:cells]
+		}
+	}
+}
+
 // The lines' names are a column of names, at least 8 cells of label, at
-// their natural the widest, whole wherever they fit, as the sweep can't see
-// a cut beside the cords: on a line of more than one row, at every width the
-// board draws, 3 side-hustle-consulting ▲ whole with its gap, 28 cells; on
-// a line of one row, beside its week's bar, 21 cells to its words, each name
-// whole where the lines' width holds it and the bar, else cut to what the
-// bar leaves it.
-func TestTheLinesNamesAreWholeWhereTheyFit(t *testing.T) {
-	const meter = oneRowBar + afterBar
-	doc := usageWorld(longNamed)
-	names := map[string]int{"1 work-team-plan": 20, "2 personal-research ◆": 25, "3 side-hustle-consulting ▲": 28}
-	seen := map[[2]bool]bool{}
-	for width := 100; width <= 220; width++ {
-		for _, height := range []int{44, 24, 15, 14} {
-			f := boardFrame(width, height, Look{}, boardOf(boardLook{calls: longCalls()}), Traffic{})
-			laid := f.switchboardLaid(doc, routedAt)
-			lines, oneRow := width-laid.columns.lines, laid.step >= oneRowStep
-			text := strings.Join(textOf(f.Draw(doc, routedAt)), "\n")
-			for name, cells := range names {
-				whole := !oneRow || lines >= cells+meter
-				seen[[2]bool{oneRow, whole}] = true
-				if strings.Contains(text, name) != whole {
-					t.Fatalf("at %dx%d, step %d, the lines %d wide: %q whole %t, want %t", width, height, laid.step, lines, name, !whole, whole)
+// their natural the widest, beside the state words, at least leastStanding,
+// as the sweep can't see a cut beside the cords: each name is whole wherever
+// the lines' row holds it, what follows it, and the words' least, else
+// narrowed toward its least, the name column's 16 with personal's number
+// and marks; and each account's lead, ● at its cap, ■ limit reached and
+// ● open, is whole wherever the names' least leaves it room. A line of one
+// row has its week's bar, 21 cells to its words, between. Of names of 8, 14
+// and 22 cells, at every width from 100 to 220, at each step.
+func TestTheLinesNamesAndStateLeadsAreWholeWhereTheyFit(t *testing.T) {
+	const namesLeast = 16
+	leads := []string{"● at its cap", "■ limit reached", "● open"}
+	seen := map[string]bool{}
+	for _, cells := range []int{8, 14, 22} {
+		doc := usageWorld(namedOf(cells), personalAtItsLimit(atClock(14, 12, 0), atClock(15, 54, 0), 0))
+		named := map[string]int{"1 ": cells + 6, "2 ": cells + 8, "3 ": cells + 6}
+		for width := 100; width <= 220; width++ {
+			for _, height := range []int{44, 24, 15, 14} {
+				f := boardFrame(width, height, Look{}, boardOf(boardLook{calls: longCalls()}), Traffic{})
+				laid := f.switchboardLaid(doc, routedAt)
+				row := width - laid.columns.lines
+				if laid.step >= oneRowStep {
+					row -= oneRowBar + afterBar
+				}
+				text := strings.Join(textOf(f.Draw(doc, routedAt)), "\n")
+				column := max(namesLeast, row-leastStanding)
+				for i, a := range doc.Accounts {
+					number := strconv.Itoa(i+1) + " "
+					whole := named[number] <= column
+					seen[fmt.Sprintf("names whole %t", whole)] = true
+					if strings.Contains(text, number+a.Label) != whole {
+						t.Fatalf("at %dx%d, step %d, names of %d, %d cells for name and words: %q whole %t, want %t", width, height, laid.step, cells, row, a.Label, !whole, whole)
+					}
+				}
+				if row < namesLeast+leastStanding {
+					continue
+				}
+				seen["leads whole"] = true
+				for _, lead := range leads {
+					if !strings.Contains(text, lead) {
+						t.Fatalf("at %dx%d, step %d, names of %d, %d cells for name and words: %q cut, want it whole", width, height, laid.step, cells, row, lead)
+					}
 				}
 			}
 		}
 	}
 	if len(seen) != 3 {
-		t.Errorf("the lines drawn as %v, want lines of more than one row, and of one row with names whole and cut", seen)
+		t.Errorf("the lines drawn %v, want names whole and cut, and leads whole", seen)
 	}
 }
 

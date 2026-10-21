@@ -28,11 +28,11 @@ const (
 )
 
 // The fewest cells each part narrows to, as the narrowing has them: the
-// bends' room short of a loose cord's cells, and the lines' bars, first and
-// last. Bent cords turn down bendsApart apart, or closer; a stub is
+// bends' room, a loose cord's looseCells among them, and the lines' bars,
+// first and last. Bent cords turn down bendsApart apart, or closer; a stub is
 // stubCells long, each next a cell shorter, down to stubLeast.
 const (
-	leastRoom    = 9
+	leastRoom    = 18
 	leastWideBar = 16
 	leastBar     = 8
 	bendsApart   = 3
@@ -95,7 +95,7 @@ const (
 // percentage and gaps together, comes before the bars it sits among.
 func boardParts(from int) []flex.Part {
 	parts := append(callParts(1, from), make([]flex.Part, boardPartsCount-callPartsCount)...)
-	parts[boardRoom] = flex.Part{Least: leastRoom + looseCells, Natural: leastRoom + looseCells, Grows: true, Gap: plugGap}
+	parts[boardRoom] = flex.Part{Least: leastRoom, Natural: leastRoom, Grows: true, Gap: plugGap}
 	parts[boardClear] = flex.Part{Least: bendClear, Natural: bendClear}
 	parts[boardBeside] = flex.Part{Least: lineBeside, Natural: lineBeside, Gap: lineGap}
 	parts[boardBarsPast] = flex.Part{Natural: lineBar - leastWideBar, Narrows: barsToLeastWide}
@@ -144,7 +144,7 @@ func steadyRoom(width, labels int) int {
 	s, _ := flex.Lay(width, parts...)
 	for i, p := range parts {
 		if s[i].Left || s[i].Size < p.Natural {
-			return leastRoom + looseCells
+			return parts[boardRoom].Least
 		}
 	}
 	return s[boardRoom].Size
