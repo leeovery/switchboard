@@ -110,7 +110,9 @@ func pooledRooms(f Frame, doc status.Document, now time.Time) Frame {
 }
 
 func TestByAccountThePoolsChartsSitBesideItsBlock(t *testing.T) {
-	f := pooledRooms(besideOf(173), trio(), printNow)
+	f := besideOf(173)
+	f.Models = false
+	f = pooledRooms(f, trio(), printNow)
 	rows, _ := usageBody(f, trio(), printNow, 40)
 	i := slices.IndexFunc(rows, func(row string) bool { return strings.HasPrefix(row, "Σ pool") })
 	if i < 0 {
@@ -140,9 +142,9 @@ func TestThePoolsChartsAreThoseDrawnBesideItsBlock(t *testing.T) {
 		doc   status.Document
 		want  []PoolChart
 	}{
-		{name: "by account at 173 columns", frame: besideOf(173), doc: trio(), want: []PoolChart{{Key: "7d", Columns: 31}, {Key: "5h", Columns: 31}}},
-		{name: "by account at 160 columns", frame: besideOf(160), doc: trio(), want: []PoolChart{{Key: "7d", Columns: 52}}},
-		{name: "by account at 150 columns", frame: besideOf(150), doc: trio(), want: []PoolChart{{Key: "7d", Columns: 42}}},
+		{name: "by account at 173 columns, two a row", frame: besideOf(173), doc: trio(), want: []PoolChart{{Key: "7d", Columns: 31}, {Key: "5h", Columns: 31}, {Key: "7d_oi", Columns: 31}}},
+		{name: "by account at 160 columns, one a row", frame: besideOf(160), doc: trio(), want: []PoolChart{{Key: "7d", Columns: 52}, {Key: "5h", Columns: 52}, {Key: "7d_oi", Columns: 52}}},
+		{name: "by account at 150 columns, one a row", frame: besideOf(150), doc: trio(), want: []PoolChart{{Key: "7d", Columns: 42}, {Key: "5h", Columns: 42}, {Key: "7d_oi", Columns: 42}}},
 		{name: "by window", frame: byWindow, doc: trio()},
 		{name: "under 150 columns", frame: besideOf(149), doc: trio()},
 		{name: "GRAPHS hidden", frame: hidden, doc: trio()},

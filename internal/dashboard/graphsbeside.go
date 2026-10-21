@@ -4,12 +4,17 @@ import (
 	"sync"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
 // besideGap are the cells between two charts beside USAGE's blocks by
-// account.
-const besideGap = 2
+// account, and leastBeside the rows of chart each has at USAGE's least where
+// they're stacked.
+const (
+	besideGap   = 2
+	leastBeside = 2
+)
 
 // graphsBeside reports whether GRAPHS is drawn beside USAGE's blocks rather
 // than as a section of its own: by account, from matrixWidth columns, while
@@ -53,17 +58,30 @@ type besideChart interface {
 
 // chartsBeside draws the charts of doc at m's moment beside each block of
 // USAGE's by account, as at says the blocks lie, from its column to the
-// frame's edge, as chartsOfBlock has them: as many as fit, side by side, as
-// chartsFitting lays them out, besideGap cells apart; each from the block's
-// first row to the rows under its last that at gives what's beside it, its
-// axis on the last of them.
+// frame's edge, as chartsOfBlock has them, every one: as many side by side as
+// fit, as chartsFitting lays them out, besideGap cells apart, the rest on the
+// rows under, as besideAcross has them; from the block's first row to the
+// rows under its last that at gives what's beside it, the rows of charts
+// sharing them, the last's axis on the last of them.
 func (f Frame) chartsBeside(c *canvas, doc status.Document, m status.Moment, at blocksBeside) {
 	for _, block := range at.blocks {
 		charts := f.chartsOfBlock(doc, m, block.id)
-		for i, s := range chartsFitting(len(charts), f.edge()-at.x, besideGap) {
-			charts[i].draw(c, f.Look, bounds{x: at.x + s.At, y: block.y, width: s.Size, rows: block.rows + at.under})
+		across := besideAcross(len(charts), f.edge()-at.x)
+		if len(across.spans) == 0 {
+			continue
+		}
+		area := bounds{x: at.x, y: block.y, rows: block.rows + at.under}
+		for i, ch := range charts {
+			ch.draw(c, f.Look, across.placed(i, area, across.rowsFor(len(charts)), flex.Part{Grows: true}))
 		}
 	}
+}
+
+// besideAcross lays k charts across room cells beside a block of USAGE's by
+// account: as many side by side as fit, as chartsFitting has them, besideGap
+// cells apart, the rest on the rows under.
+func besideAcross(k, room int) chartsAcross {
+	return chartsAcross{spans: chartsFitting(k, room, besideGap)}
 }
 
 // PoolChart is a chart of the pool's room in a window GRAPHS draws beside
@@ -83,9 +101,13 @@ func (f Frame) PoolCharts(doc status.Document, now time.Time) []PoolChart {
 		return nil
 	}
 	windows := f.overviewWindows(doc, now)
-	var charts []PoolChart
-	for i, s := range chartsFitting(len(windows), f.edge()-f.overviewBlock(doc, now).besideAt(), besideGap) {
-		charts = append(charts, PoolChart{Key: windows[i].key, Columns: s.Size})
+	across := besideAcross(len(windows), f.edge()-f.overviewBlock(doc, now).besideAt())
+	if len(across.spans) == 0 {
+		return nil
+	}
+	charts := make([]PoolChart, len(windows))
+	for i, w := range windows {
+		charts[i] = PoolChart{Key: w.key, Columns: across.spans[i%len(across.spans)].Size}
 	}
 	return charts
 }

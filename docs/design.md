@@ -1619,19 +1619,24 @@ first (the owner's call, 15 October 2026).
   USAGE's bars, from `hx`, where ROUTING's blocks would be (see By account, below), to a cell short
   of the edge, as v0.1.6's cards had every account show at once (the owner's call, 15 October
   2026):
-  - **as many of its windows as fit,** in USAGE's order, each 30 cells at the least, as every
-    chart is, 2 apart, and as wide as they share the room: `⌊(w − 1 − hx + 2) / k⌋ − 2` for `k`
-    that fit, one at 160 columns, 52 cells wide, two from 170, 31 wide at 173, and three from 202,
-    36 wide at 220;
-  - **each from the block's first row,** its top row on it, to its axis row under the block's
-    last. At USAGE's least, the axis is on the row after the block, so a block of two windows has
-    `h = 2` and one of three `h = 4`: USAGE's blocks are two rows apart here, the axis on the
-    first, where everywhere else they're one, the phone's among them (the owner's call, 17 October
-    2026). At USAGE's most, each block grows apart for its charts to take the least of 5 rows,
-    `h = 5`, as many rows under it as that needs, the axis on the last, and a blank row before the
-    next block, or after the pool's, before the key line: three rows under a block of two windows,
-    one under a block of three (the owner's call, 20 October 2026);
-  - **the pool's charts beside `Σ pool`,** as many of its windows as fit, as each account's: the
+  - **every one of its windows,** in USAGE's order, by Placement's rule: as many side by side as
+    are 30 cells or more, 2 apart, as wide as they share the room, `⌊(w − 1 − hx + 2) / k⌋ − 2`
+    for `k` to a row, and the rest on the rows under, still beside the block, in the same
+    columns: a chart a row at 150 and 160 columns, 42 and 52 cells; two a row from 170, 31 wide at
+    173; three from 202, 36 wide at 220. No window's chart is left off for want of width (the
+    owner's call, 21 October 2026);
+  - **each row of charts from the block's first row,** one under another, none between them, the
+    last's axis on the last row under the block they take. At USAGE's least, a chart a row has
+    the block's rows and the row after, or 2 rows of chart where that's more: so beside one row,
+    a block of two windows has `h = 2` and one of three `h = 4`, and its blocks are two rows
+    apart, the axis on the first, where everywhere else they're one, the phone's among them (the
+    owner's call, 17 October 2026); stacked, `h = 2` each, the block's next a blank row after the
+    last axis. At USAGE's most, each row of charts takes the least of 5 rows, `h = 5`, the block
+    growing apart for them, a blank row before the next block, or after the pool's, before the
+    key line: 3 rows under a block of two windows side by side at 173, 11 under two stacked at
+    160 (the owner's call, 20 October 2026). The rows of charts share what they're given evenly,
+    the odd row to the first. Where USAGE's least doesn't fit, it scrolls, as it does by window;
+  - **the pool's charts beside `Σ pool`,** every one of its windows, laid as each account's: the
     pool's room in each window over its length back from now, from its left edge to now at its
     right, a column a cell, each column the room at its end's moment, a share of all its accounts'
     (the owner's call, 15 October 2026). That room is each of the pool's accounts' room then,
@@ -1828,8 +1833,9 @@ remembered").
   `50 − (n − 14)` cells wide: the number and name at column 0; the window labels at the name column,
   10 cells; the bars 10 cells on; the percentage a cell after a bar, and the words two cells after
   the percentage: 26, 48 cells, 75 and 81 for the sample. Its blocks are a blank row apart, as
-  `usage`'s are, but two while GRAPHS' charts sit beside them, and at its most as far apart as the
-  charts' least of 5 rows takes (see GRAPHS, above).
+  `usage`'s are, but while GRAPHS' charts sit beside them, as far apart as their rows of charts
+  take, two at the least, and at its most as far as the charts' least of 5 rows takes (see GRAPHS,
+  above).
 - **ROUTING moves beside each block,** at column `hx = n + 10 + bar + 7 + 22 + 4`, 107 for the
   sample, but while GRAPHS shows, when GRAPHS' charts are there instead and ROUTING keeps a section
   of its own (see GRAPHS, above; the owner's call, 15 October 2026). USAGE's heading is `hx − 3`

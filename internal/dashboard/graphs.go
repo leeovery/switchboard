@@ -154,11 +154,10 @@ func (g graphs) rows(h int) int {
 	return sectionHead + g.chartRows()*(h+chartEnds)
 }
 
-// chartRows are how many rows of charts GRAPHS lays out, as many to a row
-// as layAcross has, one at the least.
+// chartRows are how many rows of charts GRAPHS lays out, as rowsFor has
+// them.
 func (g graphs) chartRows() int {
-	per := len(g.across.spans)
-	return max((len(g.charts)+per-1)/per, 1)
+	return g.across.rowsFor(len(g.charts))
 }
 
 // draw draws each chart in the body's bounds, as placed places it.
@@ -168,25 +167,11 @@ func (g graphs) draw(c *canvas, body bounds) {
 	}
 }
 
-// placed is where the body puts chart i: across, as layAcross lays it out, in
-// its row of charts; down, as heights lays the rows of charts out.
+// placed is where the body puts chart i, as the charts across place it, the
+// rows of charts each a chart's ends and leastChart to mostChart rows of
+// chart, what's past their mosts blank.
 func (g graphs) placed(i int, body bounds) bounds {
-	per := len(g.across.spans)
-	at, row := g.across.spans[i%per], g.heights(body.rows)[i/per]
-	return bounds{x: body.x + g.across.x + at.At, y: body.y + row.At, width: at.Size, rows: row.Size}
-}
-
-// heights lay GRAPHS' rows of charts down rows rows, one under another, each
-// a chart's ends and leastChart to mostChart rows of chart, sharing what's
-// past their leasts, the odd row to the first; what's past their mosts stays
-// blank.
-func (g graphs) heights(rows int) []flex.Span {
-	parts := make([]flex.Part, g.chartRows())
-	for i := range parts {
-		parts[i] = flex.Part{Least: leastChart + chartEnds, Most: mostChart + chartEnds, Grows: true}
-	}
-	spans, _ := flex.Lay(rows, parts...)
-	return spans
+	return g.across.placed(i, body, g.chartRows(), flex.Part{Least: leastChart + chartEnds, Most: mostChart + chartEnds, Grows: true})
 }
 
 // chartsAcross is how GRAPHS lays its charts across: a row of them from
@@ -195,6 +180,28 @@ func (g graphs) heights(rows int) []flex.Span {
 type chartsAcross struct {
 	x     int
 	spans []flex.Span
+}
+
+// rowsFor is how many rows of charts k charts take, as many to a row as the
+// row has, one at the least.
+func (a chartsAcross) rowsFor(k int) int {
+	per := max(len(a.spans), 1)
+	return max((k+per-1)/per, 1)
+}
+
+// placed is where chart i lies in area: across, in its column of the row,
+// from area's x; down, in its row of charts, the n rows of them one under
+// another, each as row has it, sharing what's past their leasts evenly, the
+// odd row to the first.
+func (a chartsAcross) placed(i int, area bounds, n int, row flex.Part) bounds {
+	parts := make([]flex.Part, n)
+	for j := range parts {
+		parts[j] = row
+	}
+	down, _ := flex.Lay(area.rows, parts...)
+	per := len(a.spans)
+	at, in := a.spans[i%per], down[i/per]
+	return bounds{x: area.x + a.x + at.At, y: area.y + in.At, width: at.Size, rows: in.Size}
 }
 
 // layAcross lays k windows' charts across a frame width columns wide, its name

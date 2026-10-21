@@ -607,17 +607,21 @@ func (b usageBlock) blocksApart() int {
 }
 
 // under are the rows under a block by account's last that what's beside it
-// takes: none; but where GRAPHS' charts sit beside them, their axis row, and
-// with the block at its most, as enlarged has it, as many more as give each
-// chart leastChart rows, from the block's first row.
+// takes: none; but where GRAPHS' charts sit beside them, from the block's
+// first row, as many as give each row of charts, as besideAcross lays them
+// out, leastBeside rows of chart, or with the block at its most, as enlarged
+// has it, leastChart; and the axis row under the block at the least.
 func (b usageBlock) under() int {
-	switch {
-	case !b.charted:
+	if !b.charted {
 		return 0
-	case b.big:
-		return max(leastChart+chartEnds-b.blockRows(), 1)
 	}
-	return 1
+	h := leastBeside
+	if b.big {
+		h = leastChart
+	}
+	k := len(b.windows)
+	rows := besideAcross(k, b.width-margin-b.besideAt()).rowsFor(k)
+	return max(rows*(h+chartEnds), b.blockRows()+1) - b.blockRows()
 }
 
 // blockRows are the rows of a block by account wide, a window's every other
