@@ -336,7 +336,7 @@ func (d detailDrawn) panel() *canvas {
 		d.byModel(c, at)
 		d.rule(c, at+ruleUnder)
 		c.heading(at+ruleUnder, at+byDayUnder)
-		d.byDay(c, at+byDayUnder, sixWeeks)
+		d.byDay(c, at+byDayUnder, d.l.weeksIn(d.l.edge()-d.l.cx(), sixWeeks))
 		d.weeks(c, at+weeksUnder)
 		d.verdict(c, at+verdictUnder)
 	}

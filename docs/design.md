@@ -2176,17 +2176,22 @@ top half is now and the period; a rule, `the last six weeks`, heads the rest.
   week's; the verdict, and under it `limit hit 3 of 7 weeks · 9% left at a reset`, its two rows;
   and LATELY. No rule. Its parts are laid across the width by flex, the same at every width it's
   drawn at, a phone's or the wide chrome's where Detail's wide form doesn't fit:
-  - USAGE's row: the windows' names at their widest whole, at least 8 cells and at most 24; a cell
-    on, the bars, all one width; a cell on, the percentage, in 4; and two cells on, `usage`'s
-    words, in the cells of their form, 22 in full from 70 columns and 14 short below. The names
-    and words take their cells first; the bars take what's left, at least 18 and at most 40, the
-    one most of a bar beside words: 21 at 52 columns, 34 at 73 and 40 from 79.
+  - USAGE's row: the windows' names, as wide as the widest of every window listed, shown or not,
+    at least 8 cells and at most 24; a cell on, the bars, all one width; a cell on, the
+    percentage, in 4; and two cells on, `usage`'s words, in the cells of their form at its widest:
+    short, 14, under 70 columns; in full, the widest any window's words say, with their time
+    (`not read since 22 Sep 14:20`, 27), so the words never lose their time and nothing moves as
+    they change. The bars take their least of 18 first, then the names are raised toward their
+    widest, then the bars grow into what's left, at most 40, the one most of a bar beside words:
+    21 at 52 columns, 29 at 73 and 40 from 84. That's five cells short of the spike's 34 at 73,
+    which kept only 22 for the words (accuracy first, 21 October 2026).
   - BY MODEL's bar runs on the heading's row from column 10 to the frame's edge, 62 at 73: a share
     across the row, not a bar beside words, so the most of 40 doesn't hold it.
   - BY DAY shows the latest weeks that fit from column 10 to the frame's edge, a week 14 cells and
     a cell between: two at 52 columns, four at 73, all six from 100.
-  - WEEKS shows the latest peaks the account has that fit from column 10, every one of the six from
-    52 columns. They aren't aligned to BY DAY's weeks.
+  - WEEKS shows the latest peaks the account has that fit from column 10, keeping a cell at the
+    edge for this week's `…`, every one of the six from 47 columns. This week's `%` is in line with
+    the others', its `…` a cell past. They aren't aligned to BY DAY's weeks.
   - LATELY's lines are whole where they fit, cut at the frame's edge where they don't.
   - Bars stay one row; the stack ends where its parts end, and the rows to spare stay blank above
     the key line.

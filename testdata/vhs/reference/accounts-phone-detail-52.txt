@@ -26,7 +26,7 @@ BY MODEL
 BY DAY    ▪ ▪ ▪ ▪ ▪        ▪ ▪   ······
           21 Sep         28 Sep
 
-WEEKS      100%   94%  100%   81%  100%  34%…
+WEEKS      100%   94%  100%   81%  100%   34%…
 hits its limit most weeks
 limit hit 3 of 7 weeks · 9% left at a reset
 

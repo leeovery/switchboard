@@ -89,6 +89,34 @@ func TestWordsAreInFullFrom70ColumnsWhereTheyFitTheirRoom(t *testing.T) {
 	}
 }
 
+// The widest words in full are as wide as the widest any window's words say,
+// a reading over a week back, by its date, so every full form fits them,
+// with its time: a cap's or a limit's end on another day, and an allowance
+// of the whole window a day, among them. Short, a block draws its words in
+// shortCells.
+func TestTheWidestWordsHoldEveryFullForm(t *testing.T) {
+	widest := wordsOf(status.WindowNow{Kind: status.WindowStale, At: on(1, 14, 20).AddDate(0, 0, -9)}, printNow).full
+	if got := fullWidest(); got != widest.width() {
+		t.Errorf("the widest words in full are %d cells, want %d, of %q", got, widest.width(), widest.plain())
+	}
+	for _, w := range []status.WindowNow{
+		{Kind: status.WindowCapped, At: on(4, 21, 0)},
+		{Kind: status.WindowLimited, At: on(4, 21, 0)},
+		{Kind: status.WindowRunsOut, At: on(4, 21, 0)},
+		{Kind: status.WindowStale, At: on(30, 22, 10).AddDate(0, -1, 0)},
+		{Kind: status.WindowOpen, At: on(4, 21, 0), Allowance: quota.Allowance{Share: 1, Per: quota.PerDay}},
+	} {
+		if full := wordsOf(w, printNow).full; full.width() > fullWidest() {
+			t.Errorf("%q is wider than the widest words in full, %d cells", full.plain(), fullWidest())
+		}
+	}
+	for _, tt := range []struct{ width, want int }{{fullWords, fullWidest()}, {fullWords - 1, shortCells}} {
+		if got := (usageBlock{width: tt.width}).widestWords(); got != tt.want {
+			t.Errorf("a block %d columns wide draws its words in %d cells at their widest, want %d", tt.width, got, tt.want)
+		}
+	}
+}
+
 func TestAnAllowancesTillAndDotAreSubtlerThanItsRateAndTime(t *testing.T) {
 	w := wordsOf(status.WindowNow{Kind: status.WindowOpen, At: on(4, 21, 0), Allowance: quota.Allowance{Share: 0.19, Per: quota.PerDay}}, printNow)
 	for _, l := range []line{w.full, w.short} {
