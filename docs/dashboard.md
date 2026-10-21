@@ -256,7 +256,7 @@ for each week.
 - A day with nothing on it has a shade of its own. The active days fall into quarters by how much
   each did.
 
-Beside the squares, Year shows the 12 months':
+Beside the grid where the width allows, and under the key otherwise, Year shows the 12 months':
 
 - requests, sessions and limits hit
 - worth, what the plans cost, and the worth against it

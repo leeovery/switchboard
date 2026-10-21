@@ -255,8 +255,8 @@ func TestHistoryScrollingIsAsFarAsItScrollsAtTheOffsetAsked(t *testing.T) {
 	}
 }
 
-// At the frames' size, the Year fits, and says nothing of what's out of
-// view: its frames don't change.
+// A Year that fits says nothing of what's out of view: 37 rows tall with
+// its numbers beside the grid, and on a phone 61 rows tall.
 func TestAYearThatFitsSaysNothingOutOfView(t *testing.T) {
 	for _, size := range []struct{ width, height int }{{besideFrom, 37}, {73, 61}} {
 		rows := textOf(historyDrawn(yearFrame(t, size.width, size.height, views.YearAsk{}, plainYear())).rows(Look{}))

@@ -149,12 +149,12 @@ func opusYear() views.YearPage {
 }
 
 // numbersBesideX is the column the numbers are at beside the grid, as the
-// design lays them out: six cells after the whole year's weeks; and
-// besideFrom the width they're beside it from, their labels and limits
-// reckoned at two windows of four figures, "week ×9,999 · 5-hour ×9,999",
-// after it.
+// design lays them out: six cells after the 54 weeks a year's span can
+// hold; and besideFrom the width they're beside it from, their labels and
+// limits reckoned at two windows of four figures, "week ×9,999 · 5-hour
+// ×9,999", after it.
 const (
-	numbersBesideX = 126
+	numbersBesideX = 128
 	besideFrom     = numbersBesideX + yearLabelCells + 27
 )
 
@@ -909,15 +909,64 @@ func TestAPartMonthsNoteLeavesWhereItDoesntFit(t *testing.T) {
 	}
 }
 
+// A year's span can fall across 54 weeks, as 2028's does with weeks from
+// Sunday; beside the grid, all 54 show, and the gap before the numbers
+// holds: every row's cells from the last week to the numbers' column are
+// blank, and the numbers start there.
+func TestA54WeekYearKeepsTheGapBeforeTheNumbers(t *testing.T) {
+	page := plainYear()
+	week := page.Weeks[0]
+	earlier := views.GridWeek{First: framesFirstWeek.AddDate(0, 0, -7).Format(time.DateOnly), Days: week.Days}
+	page.Weeks = append([]views.GridWeek{earlier}, page.Weeks...)
+	page.Months = slices.Clone(page.Months)
+	for i := range page.Months {
+		page.Months[i].Week++
+	}
+	f := yearFrame(t, besideFrom, 60, views.YearAsk{}, page)
+	y, _ := f.yearDrawn()
+	if y.laid.weeks != 54 || !y.laid.beside {
+		t.Fatalf("at %d columns, the grid shows %d weeks, the numbers beside it %t; want 54, true", besideFrom, y.laid.weeks, y.laid.beside)
+	}
+	rows, top := textOf(historyDrawn(f).rows(Look{})), f.top()
+	lastWeek := yearGridX + 2*53
+	for i := 1; i <= 7; i++ {
+		row := []rune(rows[top+i])
+		if gap := string(row[lastWeek+1 : numbersBesideX]); strings.TrimSpace(gap) != "" || row[numbersBesideX] == ' ' {
+			t.Errorf("row %d reads %q, want the cells from column %d to %d blank and the numbers from %d", i, string(row), lastWeek+1, numbersBesideX, numbersBesideX)
+		}
+	}
+}
+
 // The numbers' heading cuts the name of the use shown, never its period: an
-// account of a label longer than the column beside the grid has.
+// account of a label longer than the column beside the grid has. In any
+// width from 8 columns, of a long label or a version, the period follows
+// the name whole, the name down to its ellipsis alone; narrower than that,
+// the period shows alone, whole where it fits.
 func TestTheNumbersHeadingCutsItsNameNeverItsPeriod(t *testing.T) {
+	long := config.Accounts{{ID: "acct-2", Label: "the-research-team-with-a-label-longer-than-its-column"}}
 	f := yearFrame(t, besideFrom, 60, views.YearAsk{Account: "acct-2"}, plainYear())
-	f.History.Accounts = config.Accounts{{ID: "acct-2", Label: "the-research-team-with-a-label-longer-than-its-column"}}
+	f.History.Accounts = long
 	rows, top := textOf(historyDrawn(f).rows(Look{})), f.top()
 	heading := string([]rune(rows[top])[numbersBesideX:])
 	if want := "THE-RESEARCH-TEAM-WITH-A-LA… · 12 MONTHS"; heading != want {
 		t.Errorf("the numbers' heading reads %q, want %q", heading, want)
+	}
+	for width := 8; width <= 30; width++ {
+		account := yearFrame(t, width, 60, views.YearAsk{Account: "acct-2"}, plainYear())
+		account.History.Accounts = long
+		for _, f := range []Frame{account, yearFrame(t, width, 60, views.YearAsk{Version: "Opus 5.5"}, opusYear())} {
+			y, _ := f.yearDrawn()
+			c := newCanvas(width, 1)
+			y.heading(c, 0, 0)
+			got := textOf(c.rows(Look{}))[0]
+			named := strings.HasSuffix(got, " · 12 MONTHS") && !strings.HasPrefix(got, " ")
+			if !named && got != "12 MONTHS" && (width >= 9 || got != "…") {
+				t.Errorf("at %d columns, the heading reads %q, want a name, cut, then · 12 MONTHS, or the period alone", width, got)
+			}
+			if named != (width >= 13) {
+				t.Errorf("at %d columns, the heading reads %q: the name shown %t, want it from 13 columns", width, got, named)
+			}
+		}
 	}
 }
 
@@ -1029,7 +1078,6 @@ func TestTheYearsFiguresAreDrawnWholeOrAsAnEllipsis(t *testing.T) {
 		{name: "a month's worth, a cell short", width: 17, page: plainYear(), lead: " May", want: " May        …"},
 		{name: "a bound in the key", width: 19, page: plainYear(), lead: "■ 0", want: "■ 0 ■ <450 ■ …"},
 		{name: "the period after a version, its name cut", width: 16, ask: views.YearAsk{Version: "Opus 5.5"}, page: opusYear(), lead: "OPU", want: "OPU… · 12 MONTHS"},
-		{name: "the period after a version, too narrow for it", width: 13, ask: views.YearAsk{Version: "Opus 5.5"}, page: opusYear(), lead: "OPUS", want: "OPUS 5.5 · …"},
 		{name: "a bar in the room left", width: 40, page: plainYear(), lead: " May", want: " May        $2,330    3.9×      ▅▅▅▅▅▅"},
 	}
 	for _, tt := range tests {
