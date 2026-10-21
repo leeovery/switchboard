@@ -165,7 +165,7 @@ var knownBreaks = []known{
 		sizes: []string{"138x30", "138x15", "173x53"}, fixtures: []string{"long-names-log-events"},
 	},
 	{
-		byDesign: "on's share at 73", cuts: []string{"personal-res…", "side-hustle-…"}, rule: cutWithRoom,
+		byDesign: "on's share at 73", cuts: []string{"personal-res…"}, rule: cutWithRoom,
 		sizes: []string{"73x61", "73x36"}, fixtures: []string{"log-requests-long-names-108x44"},
 	},
 	{
