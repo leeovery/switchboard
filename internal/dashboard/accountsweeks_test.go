@@ -72,7 +72,7 @@ func TestBYDAYDotsTheDaysToCome(t *testing.T) {
 	doc := usageWorld(extraOff)
 	page := detailsPage(t)
 	f := detailFrame(Look{}, framedAccounts, "work", "", page, nil)
-	d := f.detailDrawn(doc, routedAt, f.detailLayout())
+	d := f.detailDrawn(doc, routedAt, laidIn(f, doc))
 	c := d.panel()
 	y := d.underModels() + byDayUnder
 	for day := range 7 {

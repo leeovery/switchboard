@@ -6,12 +6,12 @@ ACCOUNTS    Detail   ───────────────────�
 
 1 work ◆   ● under pressure · new sessions still come here
 
-USAGE                                                                                                                                     THIS WEEK
-Week                  ▋       ┃                ╎   34%  19%/day till Sun 21:00                                                            requests  612
-                                                                                                                                          limits    5-hour ×2
-5-hour                       ┃  ▎              ╎   58%  out ~16:05                                                                        plan      Max 20x
-                                                                                                                                          worth     $127  2.8×
-                                                                                                                                          extra use off
+USAGE                                                                                                                                  THIS WEEK
+Week                  ▋       ┃                ╎   34%  19%/day till Sun 21:00                                                         requests  612
+                                                                                                                                       limits    5-hour ×2
+5-hour                       ┃  ▎              ╎   58%  out ~16:05                                                                     plan      Max 20x
+                                                                                                                                       worth     $127  2.8×
+                                                                                                                                       extra use off
 
 BY MODEL
             ● Opus 5.5 35%  ● Opus 5 10%  ● Sonnet 5.5 41%  ● Sonnet 5 4%  ● Fable 5.1 7%  ● Haiku 4.5 3%

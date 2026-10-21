@@ -86,12 +86,12 @@ func peakSaid(p views.WeekPeak) line {
 }
 
 // verdict draws the verdict on the account's weeks along row y, from the
-// panel's column, cut short of the frame's edge: as verdictParts says it, or
-// where that doesn't fit, as verdictShort does, its parts on the one row,
-// three cells apart.
+// panel's column to the weeks' edge: as verdictParts says it, or where that
+// doesn't fit, as verdictShort does, its parts on the one row, three cells
+// apart, cut there.
 func (d detailDrawn) verdict(c *canvas, y int) {
 	full := verdictParts(*d.page, d.row)
 	short := joinedParts(span{"   ", mutedInk}, verdictShort(d.row)...)
-	cells := d.f.edge() - d.l.panel
+	cells := d.l.edge() - d.l.panel
 	c.line(d.l.panel, y, firstFit(cells, fitParts(partsWidth(full), full...), fitParts(cells, short...)))
 }

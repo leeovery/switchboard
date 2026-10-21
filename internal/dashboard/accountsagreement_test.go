@@ -79,7 +79,7 @@ func detailAt(doc status.Document, now time.Time, id string) detailDrawn {
 	}
 	f := frameOf(160, 40).At(doc, now)
 	f.View, f.Accounts = Accounts, AccountsShown{Shown: AccountsDetail, Accounts: configured, Chosen: id}
-	return f.detailDrawn(doc, now, f.detailLayout())
+	return f.detailDrawn(doc, now, laidAt(f, doc, now))
 }
 
 // clauseApart is what sets a standing's clauses apart.
@@ -165,4 +165,10 @@ func (b usageBlock) poolGauge(key string) (gauge, bool) {
 		}
 	}
 	return gauge{}, false
+}
+
+// laidAt is Detail's wide layout in the frame of doc at now.
+func laidAt(f Frame, doc status.Document, now time.Time) detailLayout {
+	l, _ := f.detailLaid(f.Moment(doc, now))
+	return l
 }

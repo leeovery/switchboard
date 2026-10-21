@@ -2115,21 +2115,32 @@ where it fits** says, and where they don't fit, it's stacked, as **On a phone** 
   percentage, right-aligned in 4 and bold in its level's colour; and two cells on, `usage`'s full
   words (see `usage`, the printout). For `all accounts`, every account's window together, its
   words its room, `1.2 of 3 left`. Its row is laid by flex as the stack's is (see On a phone):
-  the names as wide as the widest of every window listed, at least 8 cells; a cell on, the bars,
-  at least 16, two fewer than the stack's, so four weeks still fit at 108 columns; and the
-  percentage and the words, in the cells of their form at its widest, ending a cell before THIS
-  WEEK. The bars take what's left, at most 40: 16 at 108 columns, 40 from 131.
-- **THIS WEEK,** on USAGE's row, rows 8 to 13, so its last row is level with the last window's:
-  `requests`, `limits`, `plan`, `worth` with its ratio, `$184  4.0×`, `all accounts`' saying it's
-  over the plans known where any isn't, `$635  4.3× · 2 of 3 plans known`, and `extra use`, labels 10
-  wide in `text.subtle`; for `all accounts`, `limits` is how many and `plan` the plans summed,
-  `$600/mo`. Its column is its labels and its widest figure the configured accounts bound, at
-  least 10 cells: `all accounts`' extra use on for one fewer than every account, `on for 2 of 3`,
-  13 cells, so 23 with three accounts. It's the same whichever account is chosen, so nothing
-  moves as the choice does, and it ends at the weeks' edge, column 140 at 160. The requests, the
-  plans' summed price, the plan's name, from the price table, and the worth have no such bound:
-  where one is wider, it's cut there with `…`. Its title names the period: `THIS WEEK`, or `LAST
-  30 DAYS`.
+  the names as wide as the widest of every window listed in its shortest whole form, `Sonnet
+  wk`, never cut, and at least 8 cells; a cell on, the bars, at least 16, two fewer than the
+  stack's, so four weeks still fit at 108 columns; and the percentage and the words, in the
+  cells of their form at its widest, ending a cell before THIS WEEK. The bars take what's left,
+  at most 40: 16 at 108 columns, 40 from 131.
+- **THIS WEEK,** on USAGE's row, from row 8, its title, then an item a row, labels 10 wide in
+  `text.subtle`: `requests`; `limits`, each window's hits, `week ×1 · 5-hour ×2`, or for `all
+  accounts`, how many; `plan`, by its name, or for `all accounts`, the plans summed, `$600/mo`;
+  `worth` with its ratio, `$184  4.0×`, and for `all accounts`, where some plans aren't known,
+  the plans known, `$635  4.3× · 2 of 3 plans known`; and `extra use`.
+  - Its column is its labels and its figures' cells, at least 10, and as many as its widest
+    bounded part takes, so each reads whole on a row of its own: a limit's hits of any window
+    listed, by its short name and counted as often as twelve weeks of 5-hour windows allow,
+    `Fable wk ×403`, 13 cells; and `all accounts`' extra use on for one fewer than every
+    account, `on for 2 of 3`, 13 cells. So 23 with three accounts and Fable's week. It's the
+    same whichever account is chosen, so nothing moves as the choice does, and it ends at the
+    weeks' edge, column 140 at 160.
+  - A figure's parts, between its ` · `, go on one row where they fit; where they don't, each
+    part goes on a row of its own, under the one before, in full where it fits, else short: a
+    limit's window by its short name, `5h ×2`, and the plans known as `2 of 3 plans`, or `2/3`.
+    BY MODEL and all under it move down a row for each row past five, as for BY MODEL's second
+    row.
+  - The requests, the plan's name, from the price table, the plans' summed price, and the worth
+    and its ratio have no bound: where one is wider than its cells, it's cut at the weeks' edge
+    with `…`.
+  - Its title names the period: `THIS WEEK`, or `LAST 30 DAYS`.
 - **BY MODEL,** row 15: the period's share of use as a stacked bar, from `cx`, 12 cells into the
   panel, at column 36, to the weeks' edge below, 104 cells at 160; from row 16, from `cx`, each
   version with a share, `● Opus 5.5 55%`, two cells apart, as many as fit the row, the rest on the
@@ -2151,9 +2162,10 @@ where it fits** says, and where they don't fit, it's stacked, as **On a phone** 
   peak, `7 × dw − 5` wide, 9 cells at 160, and a cell on, the peak, `text.muted`, or at 100 bold
   `state.destructive`; for `all accounts`, each week the mean of the accounts' peaks. On row 25,
   from the panel's left, the verdict, as History's Weeks gives it (see History), bold in its colour,
-  then `   limit hit 3 of the last 7 weeks · 9% left at a reset, on average` in `text.muted`; where
-  that doesn't fit, as at 108 columns, the stack's shorter words on its one row,
-  `   limit hit 3 of 7 weeks · 9% left at a reset`. For
+  then `   limit hit 3 of the last 7 weeks · 9% left at a reset, on average` in `text.muted`, to the
+  weeks' edge; where that doesn't fit, as at 108 columns, the stack's shorter words on its one
+  row, `   limit hit 3 of 7 weeks · 9% left at a reset`. As it fits to the weeks' edge, never the
+  frame's, its form follows the width alone, whatever the list's names. For
   `all accounts`, `room to spare together`, in `state.positive`, or `little to spare together`, in
   `accent.attention`, the first where its weeks left 25% or more at a reset on average
   (settled in the plan), then
@@ -2186,14 +2198,20 @@ where it fits** says, and where they don't fit, it's stacked, as **On a phone** 
   with the list. At 160 its days are 3 cells, so `step` is 25, and the weeks, BY MODEL and THIS
   WEEK end at column 158.
 - **Wide, from where it fits.** Flex lays the wide form's parts across the frame, and where their
-  leasts don't fit, Detail is stacked: from 105 columns with the list, whatever its names, and
-  under 100, where the phone's chrome takes the frame, always. The parts, in order:
+  leasts don't fit, Detail is stacked; and under 100 columns, where the phone's chrome takes the
+  frame, always, with one account too, whose leasts fit from 78. The wide form's start follows
+  from the weeks' least, which THIS WEEK sets: from 105 columns with the list, whatever its
+  names, where THIS WEEK is 23 cells, as with up to nine accounts and Fable's week; from 115
+  where it's 24, as with ten accounts or more, `on for 9 of 10`, or a window named `Sonnet wk`,
+  as four weeks at their widest gap, 68 cells, no longer reach past it, and five at a gap of 2
+  take 78. The parts, in order:
   - with more than one account, the list: a cell, the name column, from 14 cells to 24, narrowing
     first, and 9 cells past it to the panel;
   - the panel's headings' column, 12 cells, to `cx`;
   - the weeks, at their natural, six at a gap of 4, 104 cells, narrowing after the names, to the
-    fewest cells whose weeks end where USAGE's row at its leasts and THIS WEEK after it reach: 68
-    cells, four weeks at a gap of 4;
+    fewest cells whose weeks, as they're laid, end where USAGE's row at its leasts, a cell, and
+    THIS WEEK after it reach: 68 cells, four weeks at a gap of 4, with THIS WEEK 23 cells; 78,
+    five at a gap of 2, with 24;
   - past their natural, the weeks growing into what's left once the names have 24.
   - In the weeks' room, as many weeks as fit, six at most, the latest kept: their gap 4, narrowing
     to 3 and then 2 before a week leaves. So six at 138 columns, a gap of 3, and four at 108, a gap

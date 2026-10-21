@@ -180,11 +180,11 @@ var knownBreaks = []known{
 	// leaves them, down to 14 cells, before its weeks narrow (the owner's call,
 	// 15 October 2026); and its names at their most, 24 cells.
 	{
-		byDesign: "Detail's list giving way at 138", cuts: []string{"work-team-p…", "personal-…", "side-hustle…"}, rule: cutWithRoom,
+		byDesign: "Detail's list giving way at 138", cuts: []string{"work-team-p…"}, rule: cutWithRoom,
 		sizes: []string{"138x30", "138x15"}, fixtures: []string{"long-names-accounts-detail"},
 	},
 	{
-		byDesign: "Detail's list giving way at 108", cuts: []string{"work-team-pl…", "personal-r…", "side-hustle-…"}, rule: cutWithRoom,
+		byDesign: "Detail's list giving way at 108", cuts: []string{"work-team-pl…"}, rule: cutWithRoom,
 		sizes: []string{"108x44", "108x24"}, fixtures: []string{"long-names-accounts-detail"},
 	},
 	{

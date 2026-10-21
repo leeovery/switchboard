@@ -516,34 +516,39 @@ func rowStarting(t *testing.T, rows []string, prefix string) string {
 	return rows[at]
 }
 
-// Detail's USAGE row, stacked or wide, lays its bars at their least, then its
-// windows' names toward their widest whole, at least 8 and at most 24, the
-// bars a cell after them, then its percentage and words in their cells; the
-// bars grow into what's left, at most 40. Where even their leasts don't fit,
-// it says so.
+// Detail's USAGE row, stacked or wide, lays its bars at their least, the
+// stack's 18 or the wide form's 16, then its windows' names toward their
+// widest whole, at least 8, or wide, the widest name's shortest whole form,
+// and at most 24, the bars a cell after them, then its percentage and words
+// in their cells; the bars grow into what's left, at most 40. Where even
+// their leasts don't fit, it says so.
 func TestDetailsUSAGERowIsLaidByFlex(t *testing.T) {
 	const full = 24
 	tests := []struct {
-		name               string
-		room, names, words int
-		want               detailUsage
-		fits               bool
+		name                           string
+		room, bar, least, names, words int
+		fits                           bool
+		want                           detailUsage
 	}{
-		{name: "the short words at 52", room: 51, names: 6, words: shortCells, fits: true, want: detailUsage{names: 8, at: 9, bar: 21}},
-		{name: "the full words at 73", room: 72, names: 6, words: full, fits: true, want: detailUsage{names: 8, at: 9, bar: 32}},
-		{name: "at its most at 108", room: 107, names: 6, words: full, fits: true, want: detailUsage{names: 8, at: 9, bar: 40}},
-		{name: "a long name whole", room: 72, names: 11, words: full, fits: true, want: detailUsage{names: 11, at: 12, bar: 29}},
-		{name: "a name past the room, the bars at their least", room: 72, names: 30, words: full, fits: true, want: detailUsage{names: 22, at: 23, bar: 18}},
-		{name: "a name past the most", room: 107, names: 30, words: full, fits: true, want: detailUsage{names: 24, at: 25, bar: 40}},
-		{name: "a long name before the bars", room: 51, names: 11, words: shortCells, fits: true, want: detailUsage{names: 11, at: 12, bar: 18}},
-		{name: "wide at 108, before THIS WEEK", room: 59, names: 6, words: full, fits: true, want: detailUsage{names: 8, at: 9, bar: 19}},
-		{name: "its leasts", room: 58, names: 6, words: full, fits: true, want: detailUsage{names: 8, at: 9, bar: 18}},
-		{name: "a cell short of its leasts", room: 57, names: 6, words: full, want: detailUsage{names: 8, at: 9, bar: 18}},
+		{name: "the short words at 52", room: 51, bar: 18, names: 6, words: shortCells, fits: true, want: detailUsage{names: 8, at: 9, bar: 21}},
+		{name: "the full words at 73", room: 72, bar: 18, names: 6, words: full, fits: true, want: detailUsage{names: 8, at: 9, bar: 32}},
+		{name: "at its most at 108", room: 107, bar: 18, names: 6, words: full, fits: true, want: detailUsage{names: 8, at: 9, bar: 40}},
+		{name: "a long name whole", room: 72, bar: 18, names: 11, words: full, fits: true, want: detailUsage{names: 11, at: 12, bar: 29}},
+		{name: "a name past the room, the bars at their least", room: 72, bar: 18, names: 30, words: full, fits: true, want: detailUsage{names: 22, at: 23, bar: 18}},
+		{name: "a name past the most", room: 107, bar: 18, names: 30, words: full, fits: true, want: detailUsage{names: 24, at: 25, bar: 40}},
+		{name: "a long name before the bars", room: 51, bar: 18, names: 11, words: shortCells, fits: true, want: detailUsage{names: 11, at: 12, bar: 18}},
+		{name: "the stack's leasts", room: 58, bar: 18, names: 6, words: full, fits: true, want: detailUsage{names: 8, at: 9, bar: 18}},
+		{name: "a cell short of the stack's leasts", room: 57, bar: 18, names: 6, words: full, want: detailUsage{names: 8, at: 9, bar: 18}},
+		{name: "wide at 108, before THIS WEEK", room: 56, bar: 16, names: 6, words: full, fits: true, want: detailUsage{names: 8, at: 9, bar: 16}},
+		{name: "a cell short of the wide leasts", room: 55, bar: 16, names: 6, words: full, want: detailUsage{names: 8, at: 9, bar: 16}},
+		{name: "wide, a name of 9 at its least", room: 57, bar: 16, least: 9, names: 9, words: full, fits: true, want: detailUsage{names: 9, at: 10, bar: 16}},
+		{name: "wide, a name of 9 never cut", room: 56, bar: 16, least: 9, names: 9, words: full, want: detailUsage{names: 9, at: 10, bar: 16}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got, fits := detailUsageLaid(tt.room, stackBarLeast, tt.names, tt.words); got != tt.want || fits != tt.fits {
-				t.Errorf("detailUsageLaid(%d, %d, %d) is %+v, fitting %v, want %+v, fitting %v", tt.room, tt.names, tt.words, got, fits, tt.want, tt.fits)
+			row := detailUsageRow{bar: tt.bar, least: tt.least, names: tt.names, words: tt.words}
+			if got, fits := row.laid(tt.room); got != tt.want || fits != tt.fits {
+				t.Errorf("%+v laid in %d is %+v, fitting %v, want %+v, fitting %v", row, tt.room, got, fits, tt.want, tt.fits)
 			}
 		})
 	}

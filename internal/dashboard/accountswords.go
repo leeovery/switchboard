@@ -268,20 +268,6 @@ func againstOnPhone(row views.AccountsRow) []part {
 	return said
 }
 
-// worthAgainst say an account's worth as Detail's THIS WEEK does, as
-// worthParts says it, then two cells on, its worth against its price, as
-// againstShort says it, "$184  4.0×", and of every account's, as knownParts
-// says it in the cells given that are left, "$635  4.3× · 2 of 3 plans
-// known"; the worth alone where no plan is known.
-func worthAgainst(row views.AccountsRow, k ink, cells int) []part {
-	worth := worthParts(row, k)
-	if row.Plan.Ratio == nil {
-		return worth
-	}
-	said := append(append(worth, wordsIn("  ", k)), againstShort(row)...)
-	return append(said, knownParts(row.Plan.Plans, cells-partsWidth(said))...)
-}
-
 // verdictParts say Weeks' verdict on a row of Detail's, as WEEKS' verdict
 // line does: the verdict, bold in its colour, as verdictInk has it, then
 // three cells on, in text.muted, its record, as verdictRecord says it; "not
