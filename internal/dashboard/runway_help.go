@@ -43,9 +43,9 @@ func (f Frame) lanesHelp() helpPart {
 				"since 14:20 where its last read failed; and not read yet before its first, its lane blank, saying why where that " +
 				"read failed. A stale account's lane and use are faded, as the Overview fades a stale account, and the use of one " +
 				"whose token is refused."),
-			said("`a` collapses the labels, to give the lanes more room: beside each lane, its number, its marks and its use alone, " +
-				"as 2 ◆ 66%, the window named in the heading, or — where there's no use to show. `a` again expands them. " +
-				"It's kept for next time."),
+			said("`a` collapses the labels, to give the lanes more room: beside each lane, its number and its marks alone, as 2 ◆, " +
+				"and under them its use, as 66%, the window named in the heading, or — where there's no use to show. `a` again " +
+				"expands them. It's kept for next time."),
 			said("Under each lane, words say where each stretch without room starts and when room is back: at its cap, at its " +
 				"limit, its token refused, or runs out ~16:05 at its pace, ~ marking a time projected at its pace, as switchboard " +
 				"usage projects it. Where another stretch holds the account on, a stretch says lifts 19:00, when its own hold lifts, " +
@@ -71,7 +71,7 @@ func (f Frame) lanesHelp() helpPart {
 }
 
 // poolHelp is the pool's lane as help explains it: its columns, how they're
-// counted and coloured; its room under Σ pool, or collapsed, beside Σ; and
+// counted and coloured; its room under Σ pool, or collapsed, under Σ; and
 // which accounts the pool is.
 func poolHelp() helpPart {
 	return helpPart{
@@ -82,7 +82,7 @@ func poolHelp() helpPart {
 				"its last from 90%, and where none has room, ─ along its foot, as a lane at its limit draws it. An account at its " +
 				"cap or its limit counts without room, one running out at its pace with room until it does, and one not known " +
 				"then without. Under Σ pool, the pool's room in the view's window, as switchboard usage gives it; with the labels " +
-				"collapsed, beside Σ, of how many accounts the pool is, as Σ 1.2/3."),
+				"collapsed, under Σ, of how many accounts the pool is, as 1.2/3."),
 			said("The pool is every account on auto, and the pin's while one holds, as pinned says after its room where it fits; " +
 				"an account out of it is faded, the words under its lane not."),
 		},

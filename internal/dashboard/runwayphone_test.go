@@ -67,13 +67,12 @@ func TestOnAPhoneTheLegendsKeysThenWhatAColumnIsTakeALineEach(t *testing.T) {
 }
 
 // On a phone, Runway takes the first step of its compaction whose last row
-// is two above the key line or higher, its room on a row of its own under
-// the pool's lane and no blank row before its legend of two: three accounts
-// with three lines of COMING UP, as the phone's frame, a row at a time from
-// 37 to 15: three rows each to 32; (a) to 29; (b) at 28; (c) to 25; (d) at
-// 24; then their lanes scrolling, two in view to 22 and one to 20, and none
-// under it; and ten, seven in view at 33, its lanes scrolling an account at a
-// time as the phone's form says.
+// is two above the key line or higher, as it does at every width, its legend
+// of two: three accounts with three lines of COMING UP, as the phone's
+// frame, a row at a time from 37 to 15: three rows each to 33; (a) to 30;
+// (b) to 28; (c) to 25; (d) at 24; then their lanes scrolling, two in view
+// to 22 and one to 20, and none under it; and ten, seven in view at 33, its
+// lanes scrolling an account at a time.
 func TestOnAPhoneRunwayTakesTheFirstOfItsStepsThatFits(t *testing.T) {
 	type fitted struct {
 		step  runwayStep
@@ -83,9 +82,9 @@ func TestOnAPhoneRunwayTakesTheFirstOfItsStepsThatFits(t *testing.T) {
 	at := func(step runwayStep, shown int) fitted { return fitted{step, shown, true} }
 	three := map[int]fitted{
 		37: at(runwayRoomy, 3), 36: at(runwayRoomy, 3), 35: at(runwayRoomy, 3), 34: at(runwayRoomy, 3),
-		33: at(runwayRoomy, 3), 32: at(runwayRoomy, 3),
-		31: at(runwayTwoRows, 3), 30: at(runwayTwoRows, 3), 29: at(runwayTwoRows, 3),
-		28: at(runwayNoGaps, 3),
+		33: at(runwayRoomy, 3),
+		32: at(runwayTwoRows, 3), 31: at(runwayTwoRows, 3), 30: at(runwayTwoRows, 3),
+		29: at(runwayNoGaps, 3), 28: at(runwayNoGaps, 3),
 		27: at(runwayFolded, 3), 26: at(runwayFolded, 3), 25: at(runwayFolded, 3),
 		24: at(runwayAxisClose, 3),
 		23: at(runwayScrolled, 2), 22: at(runwayScrolled, 2), 21: at(runwayScrolled, 1), 20: at(runwayScrolled, 1),
@@ -106,7 +105,7 @@ func TestOnAPhoneRunwayTakesTheFirstOfItsStepsThatFits(t *testing.T) {
 			shown := phoneRunwayLive(views.RunwayFiveHour, 52)
 			shown.Lanes, shown.Coming = lanes, thingsComing(3)
 			f := Frame{Width: 52, Height: tt.rows, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claudeLike, Runway: shown}
-			fit := f.phoneRunwayFitted(f.top())
+			fit := f.runwayFitted(f.top())
 			if got := (fitted{fit.step, fit.shown, fit.fits}); got != tt.want {
 				t.Errorf("at %d rows, Runway fits %+v, want %+v", tt.rows, got, tt.want)
 			}

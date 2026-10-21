@@ -2824,11 +2824,11 @@ in `text.faint`, the rule starting a cell after it.
 view's window under its name:
 
 - **week,** the first the dashboard shows (the owner's call, 17 October 2026): from a day before
-  now, for a week: 136 columns of 74.1 minutes, its 10,080 minutes shared among them (settled in
-  the plan).
+  now, for a week, its 10,080 minutes shared among the lanes' columns (settled in the plan): 146 at
+  160, about 69 minutes a column.
 - **5-hour:** from the hour before now, taken back to its ten minutes, 13:40 at 14:42, for 22 hours
-  40 minutes: 136 columns of 10 minutes.
-- At other widths, the lanes keep their span, and the minutes a column scale with their width.
+  40 minutes: about 9.3 minutes a column at 160.
+- At every width, the lanes keep their span, and the minutes a column scale with their width.
 
 The window shown is kept in the preferences file, as is the account column collapsed or not (see
 The account column collapsed); a step back never is, so the dashboard opens live (settled in the
@@ -2844,12 +2844,19 @@ kept for good (settled in the plan; see The request ledger).
 
 **The lanes and the axis.**
 
-- **The lanes** run from column 24 to the edge, 136 columns.
-- **The labels,** in the 22 cells before them: on a lane's row, the account's number, name and
-  marks, cut with `…` to fit, the number and marks kept (see `usage`, the printout); on the row
-  under it, from column 2, `5-hour ` or `week ` in `text.subtle`, and the account's use of that
-  window, `95%`, bold in its level's colour, as `usage` colours it: red from 90%, yellow from 70%,
-  else green.
+- **The row's parts,** laid as every view's are (see The page): the label column, then the lanes,
+  which take the rest to the edge, at every width, a phone's too.
+- **The label column** takes the widest of its labels whole and the two cells after it, from 8
+  cells to 24 (the owner's call, 21 October 2026): the widest name, its number, label and the marks
+  it carries, as `2 personal ◆`; or the widest use under a name in either window, `5-hour 100%`
+  from column 2 and a cell, 14, so the lanes hold still as `<` and `>` step and as the figures
+  change. Of the frames' accounts it's 14 at every width, the lanes 146 at 160 and 38 at 52; ten
+  accounts, ` 2 personal ◆`, 15.
+- **The labels:** on a lane's row, the account's number, name and marks, cut with `…` only where the
+  column is at its most, the number and marks kept (see `usage`, the printout); on the row under
+  it, from column 2, `5-hour ` or `week ` in `text.subtle`, and the account's use of that window,
+  `95%`, bold in its level's colour, as `usage` colours it: red from 90%, yellow from 70%, else
+  green.
 - **The axis:** on row 6, `now`, bold `text.primary`, starting a cell left of now's column; on row
   7, the labels; on row 8, the ticks, on a rule of `─` in `border`.
   - **5-hour:** hours ticked `┬` in `border`, on the first of 1, 2, 3, 6, 12 and 24 hours that puts
@@ -2886,7 +2893,7 @@ kept for good (settled in the plan; see The request ledger).
   resets, on now's column or after it: each account's 5-hour window's reset in the 5-hour view, its
   week's in the week view. An account without a usable token has no room all along, and one not read
   yet is left blank (settled in the plan). An account whose first read failed is left blank, as not
-  read yet: its label says `not read yet`, and from column 24, in `text.subtle`,
+  read yet: its label says `not read yet`, and from the lanes' first column, in `text.subtle`,
   `can't read it: HTTP 529 · Overloaded` (the owner's call, 13 October 2026). An account whose
   token is refused has the windows' use under its name faded as stale (the owner's call, 13 October
   2026).
@@ -2895,29 +2902,27 @@ kept for good (settled in the plan; see The request ledger).
 to give the lanes more room, at every width, and `a` again expands them; expanded is the default,
 and the preferences file keeps it (the owner's call, 17 October 2026).
 
-- **The lanes** run from two cells after the labels to the edge, at every width alike: from column
-  12 where an account is the primary, 148 columns at 160, 96 at an iPad's 108 and 40 at 52; from
-  column 11, the least, where none is.
-- **The labels,** in the cells before them, on the lane's row alone: the account's number in
-  `text.subtle`, its marks, `◆` and `▲`, as the expanded label carries them, and its use of the
-  view's window, the figure the expanded label gives, in its colour, right-aligned to the label's
-  end, a cell after the marks at the least, as `2 ◆    66%`. The labels are as wide as the widest
-  a lane's can be, so every figure ends in one column, and the lanes hold still as `▲` moves: the
-  widest number, `◆` where an account is the primary, `▲`, a space and `100%`, 10 cells with a
-  primary and fewer than ten accounts, 9 the least. The window's name goes: the heading's
-  `< week >` names it. Where the expanded label words why there's no use, stale, not read yet or
-  without a token, the figure is `—` in `text.faint`; out of the pool, the whole label is faint. No
-  row under it holds a use; the words under the lane are as expanded.
-- **The pool's lane,** `Σ` in its numbers' column, and its room short, right-aligned as the lanes'
-  use: the room bold `text.secondary` and `/3`, of how many accounts the pool is, in `text.muted`,
-  as `Σ    1.2/3`, where the expanded lane says `Σ pool` and `week 1.2 of 3 left`. ` · pinned` is left
-  off. Where it has no room to say, as on a day stepped back to, `Σ pool`.
+- **The label column** is the widest of its labels beside a lane, a number and its marks or a use of
+  `100%`, and a cell, whatever the width, with no least (the owner's call, 21 October 2026): 5 of
+  the frames' accounts, the lanes 155 at 160, 103 at an iPad's 108 and 47 at 52; `2 ◆ ▲`, 6; ten
+  accounts with both marks on one, 7. The lanes take the rest.
+- **The labels,** stacked (the owner's call, 21 October 2026): on the lane's row, the account's
+  number in `text.subtle` and its marks, `◆` and `▲`, as the expanded label carries them, as `2 ◆`;
+  on the row under it, from column 0, its use of the view's window, the figure the expanded label
+  gives, in its colour, as `66%`. The window's name goes: the heading's `< week >` names it. Where
+  the expanded label words why there's no use, stale, not read yet or without a token, the figure
+  is `—` in `text.faint`; out of the pool, the whole label is faint. The words under the lane are as
+  expanded.
+- **The pool's lane,** `Σ` in its numbers' column on its first row, and on the row of its own under
+  the lane, from column 0, its room short: the room bold `text.secondary` and `/3`, of how many
+  accounts the pool is, in `text.muted`, as `1.2/3`, where the expanded lane says `Σ pool` and
+  `week 1.2 of 3 left`; it may run past the column, as nothing else is on its row. ` · pinned` is
+  left off. Where it has no room to say, as on a day stepped back to, `Σ` alone.
 - **COMING UP** is as expanded, open or folded: each line names its account, unnumbered, as in
   `16:30  personal's 5-hour resets` (the owner's call, 19 October 2026).
-- **On a phone,** the pool's room has no row of its own: its label says it.
 
-**The words under a lane** say where each stretch without room starts, from its column, 24 at the
-least, or two cells after the words before:
+**The words under a lane** say where each stretch without room starts, from its column, the lanes'
+first at the least, or two cells after the words before:
 
 - at a cap: `at its cap 14:31` bold `accent.attention`, then `  ·  back 17:10` in `text.muted`;
 - running out ahead: `runs out ~16:05 at its pace` bold `accent.attention`, then `  ·  back 16:55`
@@ -2953,25 +2958,25 @@ blank row; with two, on the row after its words.
   state is known is blank.
 - **`Σ pool`** on its first row, as an account's name heads its lane: `Σ` in `text.subtle` in the
   numbers' column, and `pool` in `text.secondary`.
-- **Its room,** on its second row, from column 2, as an account's use is under its name: the pool's
-  room in the view's window, in `usage`'s words for the pool: `5-hour ` or `week ` in
-  `text.subtle`, `1.5` bold `text.secondary`, and ` of 3 left` in `text.muted`; whole parts left
-  off its end that don't fit before the lanes' column, as ` · pinned` doesn't at 160 columns. No
-  words follow it: the pool's columns say when fewer than all of it have room (the owner's call,
-  17 October 2026).
+- **Its room,** on a row of its own under the lane, from column 2, at every width, as the label
+  column isn't widened for it (the owner's call, 21 October 2026): the pool's room in the view's
+  window, in `usage`'s words for the pool: `5-hour ` or `week ` in `text.subtle`, `1.5` bold
+  `text.secondary`, and ` of 3 left` in `text.muted`; whole parts left off its end that don't fit
+  before the frame's edge. No words follow it: the pool's columns say when fewer than all of it
+  have room (the owner's call, 17 October 2026).
 - **The pool's accounts** are every account on auto, and the pin's while one holds: its room is then
   `of 2`, the room's words add ` · pinned`, as `usage`'s pool row does, and an account out of the
   pool has its lane, label and use faded as Sessions fades its line (see Sessions), the words under
   its lane not (settled in the plan).
 
-**The legend,** on the row after the pool's lane and a blank row, from column 0, keys only what the
+**The legend,** on the row after the pool's room and a blank row, from column 0, keys only what the
 view draws, four spaces apart: `█` and ` room`; `█` in `accent.attention` and
 ` room, but it runs out at its pace`; `─` in `accent.attention` and ` at its cap`; `─` in
 `state.destructive` and ` at its limit`; and `│` and ` its 5-hour resets`, or ` its week resets`;
 each glyph in its colour, its words in `text.muted`. Four spaces on, in `text.subtle`, a column's
-length and what's dimmed: `a column 10 minutes · the past dimmed`; in the week,
-`a column ≈ 74 minutes · the past dimmed`; stepped back,
-`a column ≈ 10.6 minutes · under each name, the day's highest`. A column's length is in whole
+length and what's dimmed: `a column ≈ 9.3 minutes · the past dimmed` at 160; in the week,
+`a column ≈ 69 minutes · the past dimmed`; stepped back,
+`a column ≈ 9.9 minutes · under each name, the day's highest`. A column's length is in whole
 minutes where it's whole, else after `≈`, to a tenth of a minute under 20 minutes and to the minute
 from 20 (settled in the plan). Where the look can't blend, the past isn't dimmed, and the legend
 doesn't say it is (settled in the plan).
@@ -2992,8 +2997,8 @@ The 5-hour view lists the 5-hour windows'; the week view adds each week's run-ou
 prime is listed (settled in the plan). The lines aren't capped: where they don't fit, Runway
 compacts.
 
-**A day stepped back to** is a calendar day, midnight to midnight across the 136 columns, about 10.6
-minutes a column.
+**A day stepped back to** is a calendar day, midnight to midnight across the lanes' columns, about
+9.9 minutes a column at 160.
 
 - Its hours are ticked and labelled by the rule above, every hour ticked and every other hour
   labelled at 160 columns; its first label is the day's name at its midnight, `Wed`, bold
@@ -3001,14 +3006,14 @@ minutes a column.
 - No `now`, nothing dimmed and no COMING UP, as all three are about now; no room line either, as the
   room is about now.
 - Each lane is as the day had it, with `│` wherever its window reset that day, and the words of its
-  stretches from column 24 at the least: `room all day` from column 24.
+  stretches from the lanes' first column at the least: `room all day` from it.
 - Under each name, the day's highest use of the view's window, `5-hour 100%`, as the legend says.
 - The pool's lane counts the pool as it is now.
 - The key line is the live view's.
 - **Today, from its midnight,** the first step back, is drawn as a day stepped back to, but with
   now's column picked out, what's past dimmed, and the room line kept; still with no COMING UP.
 - **A week stepped back to** runs from its first day, as `week_starts` begins it, to its last,
-  across the 136 columns, ticked and named as the week view is, under each name the week's highest
+  across the lanes' columns, ticked and named as the week view is, under each name the week's highest
   use; this week, the first step back, has now picked out, as today does (settled in the plan).
 
 **Compaction.** As rows run short, Runway takes the first layout whose last row is two rows above
@@ -3017,17 +3022,17 @@ key line never go. For N accounts and K lines of COMING UP, on a terminal h rows
 
 | Step | What changes | Holds if | At 160 by 37 |
 |---|---|---|---|
-| — | Three rows an account, its lane, its words and a blank row; blank rows under the axis and round the legend and COMING UP | 3N + K ≤ h − 18 | 4 accounts |
-| (a) | Two rows an account (settled in the plan) | 2N + K ≤ h − 18 | 6 |
-| (b) | No blank rows round the legend and COMING UP (settled in the plan) | 2N + K ≤ h − 16 | 6 |
-| (c) | COMING UP folded to its heading (settled in the plan) | 2N ≤ h − 16 | 10 |
-| (d) | No blank row between the axis and the lanes | 2N ≤ h − 15 | 11 |
-| (e) | The lanes scroll (settled in the plan) | | 12 and up |
+| — | Three rows an account, its lane, its words and a blank row; blank rows under the axis and round the legend and COMING UP | 3N + K ≤ h − 19 | 4 accounts |
+| (a) | Two rows an account (settled in the plan) | 2N + K ≤ h − 19 | 5 |
+| (b) | No blank rows round the legend and COMING UP (settled in the plan) | 2N + K ≤ h − 17 | 6 |
+| (c) | COMING UP folded to its heading (settled in the plan) | 2N ≤ h − 17 | 10 |
+| (d) | No blank row between the axis and the lanes | 2N ≤ h − 16 | 11 at 38 rows |
+| (e) | The lanes scroll (settled in the plan) | | 11 and up |
 
-The counts at 160 by 37 hold with a line of COMING UP an account, or one more. Ten accounts take
-(c): the lanes on rows 10 to 29, the pool's lane on 30 and 31, its room on 31, the legend on 32,
-and COMING UP, folded, on 33. With a pool's lane, (e) shows a lane from 17 rows; with one account,
-from 15.
+The counts at 160 by 37 hold with a line of COMING UP an account, or one more, and the pool's room
+on its row. Ten accounts take (c): the lanes on rows 10 to 29, the pool's lane on 30 and 31, its
+room on 32, the legend on 33, and COMING UP, folded, on 34. With a pool's lane, (e) shows a lane
+from 18 rows; with one account, from 15.
 
 - **COMING UP folded,** as the Overview folds a section, keeps its heading, saying what it holds, on
   the row under the legend: `COMING UP` in `text.subtle`, three spaces, the soonest's time in
@@ -3039,15 +3044,14 @@ from 15.
 **One account:** its lane alone, with no pool's lane, `Σ pool` or room line, as they'd only
 repeat the account (settled in the plan).
 
-**Under 100 columns,** in The page's phone frame (settled in the plan):
+**On a phone,** in The page's phone frame (settled in the plan), the lanes and their labels are as
+at every width:
 
-- the label column is 14 cells: names cut to 12, as `2 perso… ◆`, their use under them;
+- the label column takes its widest label, `2 personal ◆` whole in 14 cells;
 - the lanes take the other columns, 38 at 52: the 5-hour view's 22 hours 40 minutes at about 35.8
   minutes a column, ticked every 2 hours and labelled every 6, `18:00`, `Fri`, `06:00`, by the rule
   above;
 - the words are cut by the rule above, as `at its cap 14:31  ·  back 17:10`;
-- the pool's lane, `Σ pool` on its first row, and its room on a row of its own under it, from
-  column 2, whole, as the label column is too narrow for it beside the lane;
 - the legend on two lines, the keyed glyphs, then `a column ≈ 36 minutes · the past dimmed`;
 - COMING UP, the full width, after a blank row;
 - the heading keeps its rule and the window at the right.

@@ -20,9 +20,9 @@ func runwayComingDrawn(t *testing.T, width, height int, coming []status.Upcoming
 	r.Timeline, r.Coming = views.LiveTimeline(views.RunwayFiveHour, routedAt, RunwayShown{}.Columns(width)), coming
 	f := Frame{Width: width, Height: height, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claudeLike, Runway: r}
 	f.WindowName = func(key string) string { return map[string]string{"5h": "5-hour", "7d": "week"}[key] }
-	shape := runwayShape{legendGap: true, legend: 1}
+	shape := runwayShape{legend: 1}
 	if f.phone() {
-		shape = runwayShape{roomRow: true, legend: 2}
+		shape = runwayShape{legend: 2}
 	}
 	fit := f.runwayFittedAs(f.top(), shape)
 	c := newCanvas(width, height)

@@ -58,9 +58,6 @@ var phoneAllowed = []string{
 	"internal/dashboard/headingrow.go:Frame.tabHeading",
 	// S7: the List's columns.
 	"internal/dashboard/sessionslist.go:Frame.listColumns",
-	// S8: Runway's label column, and the form it's drawn in.
-	"internal/dashboard/runway.go:RunwayShown.lanesFrom",
-	"internal/dashboard/runway.go:Frame.runwayForm",
 	// S9: Runway's legend and COMING UP.
 	"internal/dashboard/runwaycoming.go:Frame.runwayComing",
 	"internal/dashboard/runwaylegend.go:Frame.runwayLegendLines",

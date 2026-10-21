@@ -10,11 +10,12 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// runwayPool draws the pool's lane, as laid out: its columns, Σ pool beside
-// them on its first row, as an account's name heads its lane; and its room,
-// where it has one, as poolRoom draws it, or with the account column
-// collapsed, in Σ pool's place, as poolShort has it. With one account,
-// there's none, nor for a moment of none, whatever the lanes hold.
+// runwayPool draws the pool's lane, as laid out: its columns, and Σ pool
+// beside them on its first row, as an account's name heads its lane, or with
+// the account column collapsed, Σ alone; and on the row of its own under it,
+// its room, where it has one, as poolRoom draws it, or collapsed, as
+// poolShort has it. With one account, there's none, nor for a moment of
+// none, whatever the lanes hold.
 func (f Frame) runwayPool(c *canvas, laid runwayLaid) {
 	fit := laid.fit
 	if !fit.draws(fit.pool) || len(laid.m.Accounts) == 0 {
@@ -24,14 +25,19 @@ func (f Frame) runwayPool(c *canvas, laid runwayLaid) {
 	f.poolColumns(c, laid, pool)
 	names := namesOf(laid.m)
 	label := poolNamed(names)
-	if room, ok := runwayRoom(laid.m, pool.Key); ok && fit.draws(fit.room) {
-		if f.Runway.Collapsed {
-			label = poolShort(names, room, laid.x-nameGap)
-		} else {
-			f.poolRoom(c, laid, room)
-		}
+	if f.Runway.Collapsed {
+		label = line{poolSigma(names)}
 	}
 	c.line(0, fit.pool, label)
+	room, ok := runwayRoom(laid.m, pool.Key)
+	if !ok || !fit.draws(fit.room) {
+		return
+	}
+	if f.Runway.Collapsed {
+		c.line(0, fit.room, poolShort(room))
+		return
+	}
+	f.poolRoom(c, laid, room)
 }
 
 // runwayPoolRoom is the pool's room in a window, as the moment has it: the
@@ -56,17 +62,14 @@ func runwayRoom(m status.Moment, key string) (runwayPoolRoom, bool) {
 	return runwayPoolRoom{key: key, room: pool.Windows[i].Room, accounts: len(pool.Accounts), pinned: pool.Pinned}, true
 }
 
-// poolShort is the pool's lane's label with the account column collapsed,
-// under the lanes' labels named as names has them, in the cells given, as in
-// "Σ    1.2/3": Σ, as poolSigma has it, and the pool's room of how many
-// accounts it is, the room bold text.secondary, brightening as it changes,
-// and "/3" in text.muted, as collapsedLabelled lays them out.
-func poolShort(names []accountName, r runwayPoolRoom, cells int) line {
-	figure := line{
+// poolShort is the pool's room r as the collapsed account column says it,
+// as in "1.2/3": the room of how many accounts the pool is, the room bold
+// text.secondary, brightening as it changes, and "/3" in text.muted.
+func poolShort(r runwayPoolRoom) line {
+	return line{
 		span{prose.Tenths(r.room), strongInk}.numbered(Number{Kind: NumberRoom, Of: r.key}),
 		{"/" + strconv.Itoa(r.accounts), mutedInk},
 	}
-	return collapsedLabelled(line{poolSigma(names)}, figure, cells)
 }
 
 // poolColumns draws the pool's columns on its lane's rows, from the lanes'
@@ -98,9 +101,9 @@ func (f Frame) poolColumns(c *canvas, laid runwayLaid, pool views.Pool) {
 // runwayUseFrom, as usage words the pool's: the window's name, as in
 // "5-hour ", in text.subtle, then as poolWords has it, as in "1.5 of 3 left
 // · pinned", its figure brightening as it changes, as many whole parts as
-// fit before the column roomEnds gives.
+// fit before the frame's edge.
 func (f Frame) poolRoom(c *canvas, laid runwayLaid, r runwayPoolRoom) {
 	g := gauge{of: Ref{Window: r.key}, words: poolWords(r.room, r.accounts, r.pinned)}
 	x := c.text(runwayUseFrom, laid.fit.room, runwayNames[f.Runway.Window]+" ", dimInk)
-	c.line(x, laid.fit.room, g.said(f.Width, laid.fit.roomEnds(laid.x, f.Width)-x))
+	c.line(x, laid.fit.room, g.said(f.Width, f.Width-x))
 }
