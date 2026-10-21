@@ -283,7 +283,8 @@ func TestASubTabInItsPhoneFormScrollsWhatThatFormDraws(t *testing.T) {
 // A sub-tab's form never hangs on its data: each row whose length is
 // bounded is reckoned at the widest its format draws, not at the width it's
 // drawn, so at the one width, Days of accounts that hit one 5-hour limit
-// each and of accounts that hit more take the one form.
+// each and of accounts that hit more take the one form, on either side of
+// where it changes form.
 func TestASubTabsFormNeverHangsOnItsData(t *testing.T) {
 	oneEach := daysWorld(workDays, personalDays, sideDays)
 	oneEach.ByAccount = slices.Clone(oneEach.ByAccount)
@@ -291,19 +292,21 @@ func TestASubTabsFormNeverHangsOnItsData(t *testing.T) {
 		oneEach.ByAccount[i].Limits = 1
 	}
 	daysPhone := func(f Frame) bool { return f.layOutDays(*f.History.Days, f.top()).phone }
-	tests := []struct {
+	type hangCase struct {
 		name   string
 		width  int
 		phone  func(f Frame) bool
 		frames map[string]Frame
-	}{
-		{
-			name: "days", width: 154, phone: daysPhone,
+	}
+	var tests []hangCase
+	for _, width := range []int{117, 118} {
+		tests = append(tests, hangCase{
+			name: "days", width: width, phone: daysPhone,
 			frames: map[string]Frame{
-				"of limits hit many times": daysFrame(t, daysWorld(workDays, personalDays, sideDays), 154, 40),
-				"of a limit hit once each": daysFrame(t, oneEach, 154, 40),
+				"of limits hit many times": daysFrame(t, daysWorld(workDays, personalDays, sideDays), width, 40),
+				"of a limit hit once each": daysFrame(t, oneEach, width, 40),
 			},
-		},
+		})
 	}
 	for _, tt := range tests {
 		forms := map[bool][]string{}

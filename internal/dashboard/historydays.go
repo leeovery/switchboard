@@ -128,10 +128,12 @@ type daysLayout struct {
 }
 
 // daysRow is where a strip's row lays its parts: its label column, none on
-// a phone; the weeks shown, the oldest first; and its count, on a phone on
-// the row of its name.
+// a phone; the cells its name is drawn in, the label column's less nameGap,
+// or on a phone, those before its count; the weeks shown, the oldest first;
+// and its count, on a phone on the row of its name.
 type daysRow struct {
 	labels flex.Span
+	name   flex.Span
 	weeks  []flex.Span
 	count  flex.Span
 }
@@ -180,49 +182,59 @@ func (f Frame) daysLaidOut(p views.DaysPage, top int, phone bool) daysLayout {
 }
 
 // daysRowOf is where a strip's row of the page lays its parts in the frame,
-// in its phone form or wide, as flex lays them short of the edge, but where
-// even the last week alone doesn't fit, only one whose days end short of it;
-// on a phone, its count as phoneCount lays it.
+// in its phone form or wide, as flex lays them short of the edge: the weeks
+// that didn't give way, none where even the last alone doesn't fit; on a
+// phone, in a cell more, as nothing follows the blank after the last week's
+// days, and its name and count as phoneNamed lays them.
 func (f Frame) daysRowOf(p views.DaysPage, phone bool) daysRow {
-	spans, _ := flex.Lay(f.edge(), daysParts(p, phone)...)
 	if phone {
-		weeks := f.daysWeeksShown(spans)
-		return daysRow{weeks: weeks, count: f.phoneCount(weeks)}
+		spans, fits := flex.Lay(f.edge()+1, daysParts(p, true)...)
+		weeks := daysWeeksShown(spans, fits)
+		name, count := f.phoneNamed(weeks)
+		return daysRow{name: name, weeks: weeks, count: count}
 	}
+	spans, fits := flex.Lay(f.edge(), daysParts(p, false)...)
 	last := len(spans) - 1
-	return daysRow{labels: spans[0], weeks: f.daysWeeksShown(spans[1:last]), count: spans[last]}
+	return daysRow{
+		labels: spans[0], name: flex.Span{Size: spans[0].Size - nameGap},
+		weeks: daysWeeksShown(spans[1:last], fits), count: spans[last],
+	}
 }
 
-// daysWeeksShown are the weeks of those laid out given that didn't give way,
-// and whose days end short of the edge.
-func (f Frame) daysWeeksShown(weeks []flex.Span) []flex.Span {
-	return slices.DeleteFunc(slices.Clone(weeks), func(week flex.Span) bool {
-		return week.Left || week.At+week.Size-1 > f.edge()
-	})
+// daysWeeksShown are the weeks of those laid out given that didn't give
+// way, where they fit; none where they don't.
+func daysWeeksShown(weeks []flex.Span, fit bool) []flex.Span {
+	if !fit {
+		return nil
+	}
+	return slices.DeleteFunc(slices.Clone(weeks), func(week flex.Span) bool { return week.Left })
 }
 
-// phoneCount is where a phone lays a strip's count on the row of its name,
-// a cell after the name, which takes what's left, at least phoneNameLeast:
-// ending where the last of the weeks given ends its days, so it reads with
-// its strip; or where that leaves the name too few cells, at the edge.
-func (f Frame) phoneCount(weeks []flex.Span) flex.Span {
+// phoneNamed is where a phone lays a strip's name and its count on the row
+// over its days: the count ending where the last of the weeks given ends its
+// days, so it reads with its strip, the name a cell before it taking what's
+// left, at least phoneNameLeast; or where that doesn't fit, the count ending
+// at the edge, and cut there where even that doesn't.
+func (f Frame) phoneNamed(weeks []flex.Span) (name, count flex.Span) {
 	end := 0
 	if len(weeks) > 0 {
 		last := weeks[len(weeks)-1]
 		end = last.At + last.Size - 1
 	}
-	count := daysCount()
-	count.Gap = 1
-	parts := []flex.Part{{Least: phoneNameLeast, Natural: phoneNameLeast, Grows: true}, count}
+	counted := daysCount()
+	counted.Gap = 1
+	parts := []flex.Part{{Least: phoneNameLeast, Natural: phoneNameLeast, Grows: true}, counted}
 	s, fits := flex.Lay(end, parts...)
 	if !fits {
 		s, _ = flex.Lay(f.edge(), parts...)
 	}
-	return s[1]
+	s[0].Size = min(s[0].Size, max(f.edge(), 0))
+	return s[0], s[1]
 }
 
 // phoneNameLeast are the fewest cells a phone keeps for a strip's name
-// before its count: its first letter and an ellipsis.
+// before its count: two of the name as drawn, its marks among them, as w…,
+// ●… or … ◆ cut to them.
 const phoneNameLeast = 2
 
 // daysParts are a strip's row's parts across the frame, of the page given:
@@ -404,16 +416,15 @@ func initials(c *canvas, from time.Time, x, y int) {
 
 // daysStrip draws a strip along row y, or on a phone, its name and count on
 // row y and the strip under it: its name at column 0, as name gives it in
-// the label column's cells less nameGap, or on a phone those before its
-// count less one, short of the edge; each of its days shown, in the ink
+// the cells the row lays it out in; each of its days shown, in the ink
 // shade gives at the day's level, those to come ··; and its count, its
 // number a figure, cut short of the edge.
 func (f Frame) daysStrip(c *canvas, l daysLayout, y int, name func(room int) line, count []part, shade func(level int) ink, days []views.StripDay) {
-	strip, room := y, l.row.labels.Size-nameGap
+	strip := y
 	if l.phone {
-		strip, room = y+1, min(l.row.count.At-1, f.edge())
+		strip++
 	}
-	c.line(0, y, name(room))
+	c.line(0, y, name(l.row.name.Size))
 	at := l.row.count.At + daysCountCells - partsWidth(count[:1])
 	c.line(at, y, fitParts(f.edge()-at, count...))
 	coming := len(days) - l.page.ToCome

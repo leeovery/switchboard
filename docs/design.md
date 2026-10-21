@@ -2480,13 +2480,15 @@ data, as from 118 columns. Narrower, each strip's name takes the row over it (On
   of `viz.day.2` holding the red `▪`, and `a day it hit a 5-hour limit`; then `··` and
   ` days to come`.
 - **On a phone,** and wherever the wide form doesn't fit, each strip's name and its count share
-  the row over its days. The days are the latest weeks that fit the whole width, from column 0, as
-  three at 52 columns, four at 73 and seven at 108. The count, as wide as the widest, ends where the
-  last week shown ends its days, so it reads with its strip; the name takes what's left before it, a
-  blank cell between, and is cut where the two don't fit, never the count. Only where that would
-  leave the name less than a letter and `…`, as narrower than 31 columns, the count ends at the
-  frame's edge instead. The headings drop their
-  words, and the key takes two rows, the shades on the first with nothing said of them.
+  the row over its days. The days are the latest weeks that fit the whole width, from column 0, the
+  blank after the last week's days needing no room: two from 30 columns, three from 45, four from
+  60 and seven from 105. The count, as wide as the widest, ends where the last week shown ends its
+  days, so it reads with its strip; the name takes what's left before it, a blank cell between, and
+  is cut where the two don't fit, not the count. The name keeps two cells at least, of the name as
+  drawn, its marks among them: `w…`, `●…` or `… ◆`. Where that doesn't fit before the weeks'
+  end, narrower than 30 columns, the count ends at the frame's edge instead, and narrower than 22
+  it's cut there, `33 5-hour lim…`. The headings drop their words, and the key takes two rows, the
+  shades on the first with nothing said of them.
 
 **Tokens** is ccusage's weekly report, inside switchboard, split by what ccusage can't split by: the
 account.

@@ -393,8 +393,9 @@ func TestDaysNamesEachFamily(t *testing.T) {
 // text.tertiary, and never ▲, which is routing. A name too long for its room
 // is cut, keeping ◆: wide, in the label column at its most, less the two
 // blank cells before its strip; on a phone, a blank cell before its count,
-// which is never cut for it, and which moves to the edge where it would
-// leave the name less than a letter and an ellipsis.
+// which isn't cut for it: the name keeps two cells, as drawn, the count
+// moving to the edge where they don't fit before the weeks' end, and cut
+// there where they don't fit the width.
 func TestDaysNamesEachAccount(t *testing.T) {
 	long := views.DaysStrip{Of: "a-long-account-name-for-days", Limits: 12, Days: stripOf(busy)}
 	tests := []struct {
@@ -411,6 +412,7 @@ func TestDaysNamesEachAccount(t *testing.T) {
 		{name: "on a phone, cut before its count", account: long, width: 52, want: "a-long-account-name-for-…   12 5-hour limits", whole: true},
 		{name: "on a narrower phone, its count kept", account: long, width: 40, want: "a-long-ac…   12 5-hour limits", whole: true},
 		{name: "narrower than its count and a letter, the count at the edge", account: long, width: 22, want: "a…   12 5-hour limits", whole: true},
+		{name: "narrower still, the count cut at the edge", account: long, width: 20, want: "a…   12 5-hour lim…", whole: true},
 		{name: "on a phone, whole where it fits", account: views.DaysStrip{Of: "work", Label: "Work", Primary: true, Limits: 3, Days: stripOf(busy)}, width: 52, want: textsAt(52, map[int]string{0: "Work ◆", 29: "3 5-hour limits"}), whole: true},
 	}
 	for _, tt := range tests {
@@ -427,9 +429,8 @@ func TestDaysNamesEachAccount(t *testing.T) {
 
 // Narrower than a phone, Days shows the latest of its weeks that fit, each
 // headed by its first day, and none where even the last's days don't end
-// short of the edge; and a strip's count, wider than the weeks shown, starts
-// at column 0 and is cut at the edge, its share a figure, numbered only where
-// it's drawn whole.
+// short of the edge; and a strip's count, after its name's two cells, is cut
+// at the edge, its share a figure, numbered only where it's drawn whole.
 func TestDaysOnANarrowPhoneFitsItsWeeksAndCounts(t *testing.T) {
 	for width, want := range map[int]string{40: "21 Sep         28 Sep", 15: "28 Sep", 14: ""} {
 		f := daysFrame(t, daysWorld(workDays, personalDays, sideDays), width, 40)
@@ -459,8 +460,12 @@ func TestDaysShowsTheWeeksThatFitWithEachCountAfterThem(t *testing.T) {
 		from, counts int
 		first        string
 	}{
+		{width: 30, weeks: 2, phone: true, counts: 11, first: "21 Sep"},
+		{width: 45, weeks: 3, phone: true, counts: 26, first: "14 Sep"},
 		{width: 52, weeks: 3, phone: true, counts: 26, first: "14 Sep"},
+		{width: 60, weeks: 4, phone: true, counts: 41, first: "7 Sep"},
 		{width: 73, weeks: 4, phone: true, counts: 41, first: "7 Sep"},
+		{width: 105, weeks: 7, phone: true, counts: 86, first: "17 Aug"},
 		{width: 108, weeks: 7, phone: true, counts: 86, first: "17 Aug"},
 		{width: 138, weeks: 7, from: 12, counts: 119, first: "17 Aug"},
 		{width: 152, weeks: 7, from: 12, counts: 119, first: "17 Aug"},
