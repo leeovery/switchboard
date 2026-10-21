@@ -43,8 +43,8 @@ type NewAccount struct {
 	Primary bool
 }
 
-// check fails, saying why, unless the account's id is one an account can
-// have, and its label holds nothing that looks like a token.
+// check fails, saying why, unless the account's id and label are ones an
+// account can have.
 func (a NewAccount) check() error {
 	name := accountNamed(a.ID)
 	return errors.Join(checkID(name, a.ID), checkLabel(name, a.Label))

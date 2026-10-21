@@ -524,6 +524,12 @@ func TestAddAccountRefuses(t *testing.T) {
 			wantErr: `account "side": label looks like a token, which a label mustn't, as it shows wherever the account does`,
 		},
 		{
+			name:    "a label past the longest a label may be, never quoted",
+			config:  commented,
+			account: config.NewAccount{ID: "side", Label: strings.Repeat("s", 101)},
+			wantErr: `account "side": label is 101 characters: must be at most 100`,
+		},
+		{
 			name:    "accounts listed inline, which a table can't follow",
 			config:  "account = [{ id = \"work\" }]\n",
 			account: config.NewAccount{ID: "side"},
