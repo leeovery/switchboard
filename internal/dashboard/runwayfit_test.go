@@ -71,10 +71,10 @@ func fittedWhole(step runwayStep, shown int) runwayFitted {
 	return runwayFitted{step: step, shown: shown, legend: true, coming: true, fits: true}
 }
 
-// fittedNoLegend is Runway fitted at (d), shown lanes shown, the legend given
+// fittedNoLegend is Runway fitted at (c), shown lanes shown, the legend given
 // way and COMING UP shown.
 func fittedNoLegend(shown int) runwayFitted {
-	return runwayFitted{step: runwayGivingWay, shown: shown, coming: true, fits: true}
+	return runwayFitted{step: runwayComingCut, shown: shown, coming: true, fits: true}
 }
 
 // fittedBare is Runway fitted at the step given, shown lanes shown, neither
@@ -131,10 +131,10 @@ func TestRunwayTakesTheFirstOfItsStepsThatFits(t *testing.T) {
 		{name: "six with nine lines, at (b)", accounts: 6, lines: 9, rows: 37, width: 120, want: fittedWhole(runwayNoGaps, 6)},
 		{name: "six with ten lines, COMING UP cut at (c)", accounts: 6, lines: 10, rows: 37, width: 120, want: fittedWhole(runwayComingCut, 6)},
 		{name: "ten, the legend given way at (d)", accounts: 10, lines: 11, rows: 37, width: 120, want: fittedNoLegend(10)},
-		{name: "eleven, COMING UP given way too", accounts: 11, lines: 12, rows: 37, width: 120, want: fittedBare(runwayGivingWay, 11)},
-		{name: "twelve, at (e)", accounts: 12, lines: 12, rows: 37, width: 120, want: fittedBare(runwayAxisClose, 12)},
+		{name: "eleven, COMING UP given way too", accounts: 11, lines: 12, rows: 37, width: 120, want: fittedBare(runwayComingCut, 11)},
+		{name: "twelve, at (e)", accounts: 12, lines: 12, rows: 37, width: 120, want: fittedBare(runwayComingCut, 12)},
 		{name: "thirteen, scrolling at (f)", accounts: 13, lines: 12, rows: 37, width: 120, want: fittedBare(runwayScrolled, 12)},
-		{name: "ten at 34, every lane", accounts: 10, lines: 3, rows: 34, width: 120, want: fittedBare(runwayGivingWay, 10)},
+		{name: "ten at 34, every lane", accounts: 10, lines: 3, rows: 34, width: 120, want: fittedBare(runwayComingCut, 10)},
 		{name: "ten at 31, nine in view", accounts: 10, lines: 3, rows: 31, width: 120, want: fittedBare(runwayScrolled, 9)},
 		{name: "ten at 27, seven in view", accounts: 10, lines: 3, rows: 27, width: 120, want: fittedBare(runwayScrolled, 7)},
 		{name: "ten at 22, four in view", accounts: 10, lines: 3, rows: 22, width: 120, want: fittedBare(runwayScrolled, 4)},
@@ -174,8 +174,8 @@ func TestRunwayFitsAtEveryHeightDownTo14Rows(t *testing.T) {
 		29: fittedWhole(runwayTwoRows, 3), 28: fittedWhole(runwayTwoRows, 3), 27: fittedWhole(runwayTwoRows, 3),
 		26: fittedWhole(runwayNoGaps, 3), 25: fittedWhole(runwayNoGaps, 3),
 		24: fittedWhole(runwayComingCut, 3),
-		23: fittedNoLegend(3), 22: fittedBare(runwayGivingWay, 3), 21: fittedBare(runwayGivingWay, 3), 20: fittedBare(runwayGivingWay, 3),
-		19: fittedBare(runwayAxisClose, 3),
+		23: fittedNoLegend(3), 22: fittedBare(runwayComingCut, 3), 21: fittedBare(runwayComingCut, 3), 20: fittedBare(runwayComingCut, 3),
+		19: fittedBare(runwayComingCut, 3),
 		18: fittedBare(runwayScrolled, 2), 17: fittedBare(runwayScrolled, 2), 16: fittedBare(runwayScrolled, 1), 15: fittedBare(runwayScrolled, 1),
 		14: {},
 	}
@@ -439,8 +439,8 @@ func TestOnAPhoneRunwayTakesTheFirstOfItsStepsThatFits(t *testing.T) {
 		31: fittedWhole(runwayTwoRows, 3), 30: fittedWhole(runwayTwoRows, 3), 29: fittedWhole(runwayTwoRows, 3),
 		28: fittedWhole(runwayNoGaps, 3), 27: fittedWhole(runwayNoGaps, 3),
 		26: fittedWhole(runwayComingCut, 3),
-		25: fittedNoLegend(3), 24: fittedNoLegend(3), 23: fittedBare(runwayGivingWay, 3), 22: fittedBare(runwayGivingWay, 3), 21: fittedBare(runwayGivingWay, 3),
-		20: fittedBare(runwayAxisClose, 3),
+		25: fittedNoLegend(3), 24: fittedNoLegend(3), 23: fittedBare(runwayComingCut, 3), 22: fittedBare(runwayComingCut, 3), 21: fittedBare(runwayComingCut, 3),
+		20: fittedBare(runwayComingCut, 3),
 		19: fittedBare(runwayScrolled, 2), 18: fittedBare(runwayScrolled, 2), 17: fittedBare(runwayScrolled, 1), 16: fittedBare(runwayScrolled, 1),
 		15: {},
 	}

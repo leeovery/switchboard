@@ -157,6 +157,7 @@ func TestRunwayHelpSaysWhatItsRulesAre(t *testing.T) {
 		{"the lanes scrolling", "the lanes scroll with j and k"},
 		{"the pool's columns", "filled to how many of the pool's accounts have room then"},
 		{"the pool's columns at none", "where none has room, ▂ along its foot, in a limit's red"},
+		{"the pool's least fill", "▃ at the least where any has room"},
 		{"the legend at the foot", "The legend sits at the foot, over the key line"},
 		{"what's out of view", "what's out of view said beside the pool's room"},
 		{"the legend and COMING UP giving way", "then the legend gives way, then COMING UP, then the blank row under the axis; only then do the lanes scroll"},

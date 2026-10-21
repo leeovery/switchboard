@@ -2961,8 +2961,9 @@ blank row; with two, on the row after its words.
   its pace has room until it does. A column where none has room, the pool at its limit, is `▂`, a
   quarter-cell, in `state.destructive` along its lower row, so it steps down from a half-cell column
   beside it, where a lane's `─` would sit level with its top; the past dimmed alike (the owner's
-  call, 21 October 2026). The accounts' lanes keep `─`. A column where no account's state is known
-  is blank.
+  call, 21 October 2026). The accounts' lanes keep `─`. So `▂` on the floor means the limit alone,
+  a column where any has room fills three eighths at the least, `▃`, however small its share, as
+  one of ten. A column where no account's state is known is blank.
 - **`Σ pool`** on its first row, as an account's name heads its lane: `Σ` in `text.subtle` in the
   numbers' column, and `pool` in `text.secondary`.
 - **Its room,** on a row of its own under the lane, from column 2, at every width, as the label
@@ -3051,13 +3052,16 @@ parts fit (the owner's call, 21 October 2026):
 | (a) | Two rows an account (settled in the plan) |
 | (b) | No blank rows under the pool's lane or over the legend (settled in the plan) |
 | (c) | COMING UP shows the lines it can, from two rows of them, its first row always lines |
-| (d) | The legend gives way, then COMING UP, heading and all |
-| (e) | No blank row between the axis and the lanes |
+| (d) | The legend gives way, then COMING UP, heading and all: (c)'s layout, its parts' turns |
+| (e) | No blank row between the axis and the lanes: (c)'s last turn |
 | (f) | The lanes scroll, as many shown as fit, down to one over the pool's lane (settled in the plan) |
 
 The lanes are what Runway is for, so no lane scrolls while the legend or COMING UP shows; a shorter
 terminal never shows more lanes than a taller one, nor the legend or COMING UP where the taller
-doesn't. The bars stay one row and the pool's lane two at every step, and no part grows into spare
+doesn't. Two things follow, both accepted (21 October 2026): a row or two can stay blank over the
+key line once COMING UP has left, as at 173 by 22 or 108 by 22, as a shorter frame never shows a
+legend a taller one doesn't; and COMING UP can show as many more lines as the legend had rows, at
+the row the legend leaves. The bars stay one row and the pool's lane two at every step, and no part grows into spare
 rows. With a pool's lane, a lane shows from 8 rows of view, 15 rows on a terminal with the title on
 one row: the axis, the lane and its words, the pool's lane and its room, with no blank rows; with
 one account, from 5. At (f), the lanes scroll as Accounts' do (see Accounts): the axis and the

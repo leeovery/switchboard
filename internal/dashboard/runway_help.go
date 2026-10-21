@@ -81,7 +81,8 @@ func poolHelp() helpPart {
 		says: []line{
 			said("Beside Σ pool, under the lanes: a column for each of the lanes', filled to how many of the pool's accounts have " +
 				"room then, and coloured as switchboard usage colours the pool's use, the ramp's second colour from 70% used and " +
-				"its last from 90%, and where none has room, ▂ along its foot, in a limit's red. An account at its " +
+				"its last from 90%, ▃ at the least where any has room, and where none has room, ▂ along its foot, in a " +
+				"limit's red. An account at its " +
 				"cap or its limit counts without room, one running out at its pace with room until it does, and one not known " +
 				"then without. Under Σ pool, the pool's room in the view's window, as switchboard usage gives it; with the labels " +
 				"collapsed, under Σ, of how many accounts the pool is, as 1.2/3."),

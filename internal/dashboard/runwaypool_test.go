@@ -43,9 +43,10 @@ func framesDoc() status.Document {
 // full cells a background, the top cell part-filled, as GRAPHS fills its
 // columns; coloured as usage colours the pool's use, the share without
 // room, its ramp's first stop under 70%, its second from 70%, its last from
-// 90%; ▂ in state.destructive on its lower row where none of its accounts
-// has room, a limit's ink, a quarter-cell along its floor; and blank where
-// none of their states is known.
+// 90%, and with any room, ▃ at the least; ▂ in state.destructive on its
+// lower row where none of its accounts has room, a limit's ink, a
+// quarter-cell along its floor; and blank where none of their states is
+// known.
 func TestThePoolsColumnsAreAsHighAsTheShareOfItsAccountsWithRoom(t *testing.T) {
 	full := func(tok theme.Token) seenCell { return seenCell{" ", ink{on: hue{token: tok}}} }
 	part := func(glyph string, tok theme.Token) seenCell { return seenCell{glyph, ink{token: tok}} }
@@ -61,7 +62,7 @@ func TestThePoolsColumnsAreAsHighAsTheShareOfItsAccountsWithRoom(t *testing.T) {
 		{name: "nine of ten", col: views.PoolColumn{With: 9, Known: true}, of: 10, top: part("▆", theme.VizRamp1), bottom: full(theme.VizRamp1)},
 		{name: "eight of ten", col: views.PoolColumn{With: 8, Known: true}, of: 10, top: part("▅", theme.VizRamp1), bottom: full(theme.VizRamp1)},
 		{name: "three of ten, 70% without", col: views.PoolColumn{With: 3, Known: true}, of: 10, top: blankCell, bottom: part("▅", theme.VizRamp2)},
-		{name: "one of ten, 90% without", col: views.PoolColumn{With: 1, Known: true}, of: 10, top: blankCell, bottom: part("▂", theme.VizRamp4)},
+		{name: "one of ten, 90% without", col: views.PoolColumn{With: 1, Known: true}, of: 10, top: blankCell, bottom: part("▃", theme.VizRamp4)},
 		{name: "none of three", col: views.PoolColumn{Known: true}, of: 3, top: blankCell, bottom: seenCell{"▂", errorInk}},
 		{name: "none known", col: views.PoolColumn{}, of: 3, top: blankCell, bottom: blankCell},
 	}
@@ -132,6 +133,28 @@ func TestThePoolsPastIsDimmed(t *testing.T) {
 	}
 	if got, want := mixed(t, pastFade, theme.VizRamp1), "#637262"; got != want {
 		t.Errorf("the past's green is %s, want %s, as the frames dim it", got, want)
+	}
+}
+
+// ▂ on the lane's floor means the pool at its limit alone: a column of the
+// pool's with any of its accounts with room, in any share, fills ▃ at the
+// least, never ▂, on its lower row. On its upper row, ▂ stands on a full
+// cell, so it can't be read as the limit.
+func TestAPoolsColumnWithRoomIsNeverDrawnAsItsLimit(t *testing.T) {
+	look := Screen(builtin(t, "nord"))
+	for of := 2; of <= 24; of++ {
+		doc := runwayDoc(of)
+		columns := make([]views.PoolColumn, RunwayShown{}.Columns(160))
+		for i := range columns {
+			columns[i] = views.PoolColumn{With: 1 + i%of, Known: true}
+		}
+		c, top := poolDrawn(poolShown(doc, views.Pool{Of: of, Key: "5h", Columns: columns}), doc, look)
+		x := RunwayShown{}.lanesFrom(160)
+		for i, col := range columns {
+			if got := c.at(x+i, top+1).glyph; got == poolLimitCell {
+				t.Errorf("%d of %d with room, the column's lower row is %q, the pool's limit", col.With, of, got)
+			}
+		}
 	}
 }
 

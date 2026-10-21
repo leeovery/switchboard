@@ -17,24 +17,23 @@ const (
 	// legend.
 	runwayNoGaps
 	// runwayComingCut is step (c): COMING UP showing the lines it can, from
-	// two rows of them, its last place saying how many more.
+	// two rows of them, its last place saying how many more; and as rows run
+	// shorter still, in the turns below, the legend giving way, then COMING
+	// UP, then the blank row under the axis.
 	runwayComingCut
-	// runwayGivingWay is step (d): the legend giving way, then COMING UP, in
-	// the turns below.
-	runwayGivingWay
-	// runwayAxisClose is step (e): neither the legend nor COMING UP, and no
-	// blank row between the axis and the lanes.
-	runwayAxisClose
-	// runwayScrolled is step (f): (e)'s layout, its lanes scrolling, as many
-	// shown as fit, down to one over the pool's lane.
+	// runwayScrolled is step (f): neither the legend, COMING UP nor the blank
+	// row under the axis, its lanes scrolling, as many shown as fit, down to
+	// one over the pool's lane.
 	runwayScrolled
 )
 
-// The turns Runway's parts give way in at (d): the legend, then COMING UP,
-// heading and all.
+// The turns Runway's parts give way in at (c), the design's (d) and (e): the
+// legend, then COMING UP, heading and all, then the blank row under the
+// axis.
 const (
 	legendGivesWay = iota + 1
 	comingGivesWay
+	axisGapGivesWay
 )
 
 // The rows Runway's parts take: the axis's, now, its labels and its ticks;
@@ -45,10 +44,11 @@ const (
 )
 
 // Runway's parts down a frame, in runwayShape.parts' order: the axis; the
-// lanes shown; the pool's lane, the row under it its room's, or what's out
+// blank row under it; the lanes shown; the pool's lane, the row under it its room's, or what's out
 // of view's; COMING UP; the rows spare; and the legend, over the key line.
 const (
 	runwayAxisPart = iota
+	runwayAxisGapPart
 	runwayLanesPart
 	runwayPoolPart
 	runwayComingPart
@@ -174,59 +174,53 @@ func (s runwayShape) laidOut(step runwayStep, top, rows int, holds runwayHolds, 
 	if !fits {
 		return runwayFit{}, false
 	}
-	pool, coming, legend := top+at[runwayPoolPart].At, at[runwayComingPart], at[runwayLegendPart]
-	under := pool
-	if holds.pool {
-		under += runwayPoolRows
-	}
-	foot := step.keepsFoot()
+	pool, coming, legend := at[runwayPoolPart], at[runwayComingPart], at[runwayLegendPart]
+	under := top + pool.At + pool.Size - 1
 	return runwayFit{
 		step: step, fits: true, axis: top + at[runwayAxisPart].At,
 		lanes: top + at[runwayLanesPart].At, apart: step.apart(), shown: shown, accounts: holds.lanes,
-		pool:   rowWhere(holds.pool, pool),
+		pool:   rowWhere(holds.pool, top+pool.At),
 		room:   rowWhere(holds.room, under),
 		out:    rowWhere(shown < holds.lanes, under),
-		coming: rowWhere(foot && holds.coming && !coming.Left, top+coming.At), lines: max(coming.Size-1, 0),
-		legend: rowWhere(foot && !legend.Left, top+legend.At),
+		coming: rowWhere(coming.Size > 0, top+coming.At), lines: max(coming.Size-1, 0),
+		legend: rowWhere(legend.Size > 0, top+legend.At),
 	}, true
 }
 
 // parts are Runway's parts down a frame at the step given, in the shape, of
 // what holds says it holds, shown of its lanes shown, as flex lays them: the
-// axis; the lanes, a blank row before them before (e); the pool's lane, its
-// room and what's out of view, as poolRows has them; COMING UP, as
-// comingPart has it; the rows spare, which take what's left; and the
-// legend, over the key line, a blank row before it before (b), and with no
-// COMING UP, the blank row under the pool's lane. At (d), the legend gives
-// way, then COMING UP; from (e), neither takes a row.
+// axis; the blank row under it; the lanes; the pool's lane, its room and
+// what's out of view, as poolRows has them; COMING UP, as comingPart has it;
+// the rows spare, which take what's left; and the legend, over the key line,
+// a blank row before it before (b), and with no COMING UP, the blank row
+// under the pool's lane. At (c), the legend gives way, then COMING UP, then
+// the blank row under the axis; at (f), none of them is there, so no lane
+// scrolls while the legend or COMING UP shows.
 func (s runwayShape) parts(step runwayStep, holds runwayHolds, shown int) []flex.Part {
 	lanes, pool := shown*step.apart(), holds.poolRows(shown)
 	parts := []flex.Part{
-		runwayAxisPart:   {Least: runwayAxisRows, Natural: runwayAxisRows},
-		runwayLanesPart:  {Least: lanes, Natural: lanes, Gap: step.gap(runwayAxisClose)},
-		runwayPoolPart:   {Least: pool, Natural: pool},
-		runwaySparePart:  {Grows: true},
-		runwayLegendPart: {},
+		runwayAxisPart:    {Least: runwayAxisRows, Natural: runwayAxisRows},
+		runwayAxisGapPart: {},
+		runwayLanesPart:   {Least: lanes, Natural: lanes},
+		runwayPoolPart:    {Least: pool, Natural: pool},
+		runwaySparePart:   {Grows: true},
+		runwayLegendPart:  {},
 	}
-	if !step.keepsFoot() {
+	if step == runwayScrolled {
 		return parts
 	}
+	parts[runwayAxisGapPart] = flex.Part{Least: 1, Natural: 1}
 	parts[runwayComingPart] = s.comingPart(step, holds)
 	parts[runwayLegendPart] = flex.Part{Least: s.legend, Natural: s.legend, Gap: step.gap(runwayNoGaps)}
 	if !holds.coming {
 		parts[runwayLegendPart].Gap = step.underPool(holds)
 	}
-	if step == runwayGivingWay {
+	if step == runwayComingCut {
 		parts[runwayLegendPart].Leaves = legendGivesWay
 		parts[runwayComingPart].Leaves = comingGivesWay
+		parts[runwayAxisGapPart].Leaves = axisGapGivesWay
 	}
 	return parts
-}
-
-// keepsFoot reports whether the legend and COMING UP may show at the step:
-// before (e), so no lane scrolls while either shows.
-func (s runwayStep) keepsFoot() bool {
-	return s < runwayAxisClose
 }
 
 // comingPart is COMING UP as a part at the step, in the shape, of what holds
@@ -311,15 +305,34 @@ var lanesOut = []outForm{{noun: "account", gap: " · ", inks: subtleOut}, {gap: 
 
 // runwayOut draws, where Runway's lanes scroll, how many are out of view
 // above and below, as in "▼ 1 more account", right-aligned along the row
-// under the pool's lane, in the cells its room leaves, nameGap after it.
+// under the pool's lane, in the cells its room leaves, as runwayOutParts lays
+// them.
 func (f Frame) runwayOut(c *canvas, laid runwayLaid) {
 	fit := laid.fit
 	if !fit.draws(fit.out) {
 		return
 	}
-	width := f.Width
+	at, _ := flex.Lay(f.Width, f.runwayOutParts(laid)...)
+	c.right(f.Width, fit.out, outOfView(fit.first, fit.accounts-fit.first-fit.shown, at[runwayOutWords].Size, lanesOut...))
+}
+
+// The parts of the row under the pool's lane, in runwayOutParts' order: its
+// room, from column 0, and what's out of view.
+const (
+	runwayOutRoom = iota
+	runwayOutWords
+)
+
+// runwayOutParts are the parts of the row under the pool's lane, as flex
+// lays them: the room as roomSaid has it, from column 0 to its words' end,
+// where it says any; and what's out of view, nameGap after it, taking the
+// rest.
+func (f Frame) runwayOutParts(laid runwayLaid) []flex.Part {
+	parts := []flex.Part{runwayOutRoom: {}, runwayOutWords: {Grows: true}}
 	if x, room := f.roomSaid(laid); room != nil {
-		width -= x + room.width() + nameGap
+		cells := x + room.width()
+		parts[runwayOutRoom] = flex.Part{Least: cells, Natural: cells}
+		parts[runwayOutWords].Gap = nameGap
 	}
-	c.right(f.Width, fit.out, outOfView(fit.first, fit.accounts-fit.first-fit.shown, width, lanesOut...))
+	return parts
 }

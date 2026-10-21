@@ -87,8 +87,9 @@ func poolShort(r runwayPoolRoom) line {
 // poolColumns draws the pool's columns on its lane's rows, from the lanes'
 // column, as fillUp fills a column: each as high as the share of the pool's
 // accounts with room at the column's moment, of its rows, in eighths of a
-// cell, in the colour usage gives the pool's use, the share without room,
-// faded as the past is before now's column. A column where the pool is at
+// cell, as poolFill has it, in the colour usage gives the pool's use, the
+// share without room, faded as the past is before now's column. A column
+// where the pool is at
 // its limit is poolLimitMark's on its lower row, faded as the past is
 // likewise; one where none's state is known is left blank.
 func (f Frame) poolColumns(c *canvas, laid runwayLaid, pool views.Pool) {
@@ -104,8 +105,22 @@ func (f Frame) poolColumns(c *canvas, laid runwayLaid, pool views.Pool) {
 		if i < now {
 			tone.fade = pastFade
 		}
-		fillUp(c, f.Look, laid.x+i, floor, halfEven(share*8*runwayPoolRows), func(int) ink { return tone })
+		fillUp(c, f.Look, laid.x+i, floor, poolFill(share), func(int) ink { return tone })
 	}
+}
+
+// leastPoolFill is the fewest eighths a pool's column with any room fills,
+// a cell's ▃, so it never reads as poolLimitCell's ▂, the pool at its limit.
+const leastPoolFill = 3
+
+// poolFill is how many eighths of its rows a pool's column fills with the
+// share given of its accounts with room: the share of them, rounded half to
+// even, but leastPoolFill at the least with any room, and none with none.
+func poolFill(share float64) int {
+	if share <= 0 {
+		return 0
+	}
+	return max(halfEven(share*8*runwayPoolRows), leastPoolFill)
 }
 
 // poolLimitCell is a column of the pool's lane where the pool is at its
