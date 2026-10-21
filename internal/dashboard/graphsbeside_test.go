@@ -307,6 +307,9 @@ func TestWithFourWindowsUSAGEsLeastDrawsTodaysChartsNotTheStackedForm(t *testing
 			t.Errorf("at %d × 52, the charts beside USAGE's blocks are drawn in form %d, want today's, %d", width, got, besideToday)
 		}
 		rows, _ := usageBody(f, four, printNow, f.usageSection(four, printNow).least-sectionHead)
+		if got := colAt(rows[3], 107, 9); got == "Sun 21:00" {
+			t.Errorf("at %d columns, row 3 beside work's block reads %q, the stacked form's axis, want the week's chart", width, got)
+		}
 		if got := colAt(rows[7], 107, 9); got != "Sun 21:00" {
 			t.Errorf("at %d columns, row 7 beside work's block reads %q, want the week's axis under 6 rows of chart", width, got)
 		}

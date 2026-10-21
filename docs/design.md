@@ -1649,7 +1649,9 @@ first (the owner's call, 15 October 2026).
        block, in the same columns: a chart a row at 150 and 160 columns, 42 and 52 cells; two a row
        from 170, 31 wide at 173; three from 202, 36 wide at 220. Each row of charts has `h = 2`, one
        under another, none between them, the block's next a blank row after the last axis. Where
-       the charts fit one row, it's the least's own rows, and no step of its own.
+       its rows of charts take no more rows than the least's, it's no step of its own, and USAGE
+       at its least draws the first form: where the charts fit one row, and with four windows from
+       170 to 233 columns, or five from 202 to 233, whose two rows fit the block's rows and the row after.
     3. **At USAGE's most:** as stacked, each row of charts the least of 5 rows, `h = 5`, the block
        growing apart for them: the rows under a block's last that its charts take, the last of
        them their axis, are 4 under a block of two windows side by side at 173, and 11 under two
