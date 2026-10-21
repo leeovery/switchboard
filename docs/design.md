@@ -2227,9 +2227,10 @@ section holds.
 fit: its key whole after the days' names, reckoned with every cut at four figures and its unit
 without the use shown, so the form never hangs on the data or a label's length, as from 99
 columns. Narrower, it's drawn as a phone lays it out (On a phone, below). In the wide form, the
-numbers sit beside the grid only where the whole year and every figure whole fit beside it, else
-under the key (the owner's call, 21 October 2026, over fewer weeks with the numbers beside); on a
-phone, they're always under the key.
+numbers sit beside the grid only where the whole year and the numbers, at their reckoned width,
+fit beside it, else under the key (the owner's call, 21 October 2026, over fewer weeks with the
+numbers beside); on a phone, they're always under the key. Where they sit is decided by the width
+alone, never by what's shown, so `v` and `<` `>` never move BY MONTH (settled 21 October 2026).
 
 - **The grid:** the latest weeks that fit, the whole year's 53 at most, the last 12 months to this
   week: as many as end, with their months' names over them, short of the frame's margin, as all 53
@@ -2243,10 +2244,12 @@ phone, they're always under the key.
 - **The key,** row 15, from column 14: each shade's `■` and its bounds in requests a day, the cuts
   rounded to 50, in `text.subtle`, `■ none   ■ under 450   ■ 450–750   ■ 750–1,000   ■ over 1,000`,
   then two spaces and `requests a day` in `text.faint`.
-- **The numbers,** beside the grid, 6 cells after the whole year's weeks, at column 126, where every
-  figure fits there whole, those whose length is bounded reckoned at the widest their format draws,
-  so a wider frame never shows less of them than a narrower one: as from 160 columns where limits
-  read `week ×3 · 5-hour ×412`. There, `LAST 12 MONTHS` on row 6, then from row 7 a row each.
+- **The numbers,** beside the grid, 6 cells after the whole year's weeks, at column 126, where they
+  fit there at their reckoned width, whatever's shown: their labels, then the widest of a day, a run
+  of days and a share as their formats draw them, and of limits hit in two windows of four figures,
+  `week ×9,999 · 5-hour ×9,999`; from 166 columns. There, `LAST 12 MONTHS` on row 6, or after the
+  use shown, its name cut, never the period, `THE-RESEARCH-TE… · 12 MONTHS`; then from row 7 a row
+  each, a figure longer than its column takes its shorter forms, limits leaving off windows whole.
   Where they don't fit there, `LAST 12 MONTHS` on row 17, under the key, at column 0, and under it
   the numbers in columns of three, 4 cells apart, each as wide as its widest figure whole: the
   counts, the money, then the busiest day and the longest run. Where the room is short, a figure
@@ -2277,14 +2280,14 @@ phone, they're always under the key.
   2026), and `—` in `text.faint` for the month so far; `limits` in `state.destructive`. At column
   60, a bar as long as the month's worth against the largest month's, the bars taking the room
   after the columns, 40 cells at most, the house's most for a bar beside words, and 1 at
-  least, fewer where a part month's bar would leave its note no room beside it, so a part month
-  never reads as a whole one and each bar stays its share of the largest; split by family, each
+  least. Where a part month's bar would leave its note no room after it, the most is lowered till
+  it does, so a part month never reads as a whole one and each bar stays its share of the largest;
+  but to half of it at least, past which the note leaves and the most holds. Split by family, each
   cell `▅`
   in its family's colour, or in `text.muted` for a family with no colour of its own, as one the
   version table doesn't know (settled in the plan), so bars on neighbouring rows don't merge; two
   cells after a part month's bar, `so far`, or `from the 16th` for the month the ledger began
-  recording in, in `text.faint`, the note leaving only where it doesn't fit beside a bar of one
-  cell. Two rows under the last month, from column 60, the families' dots, each with its name in
+  recording in, in `text.faint`, where it fits. Two rows under the last month, from column 60, the families' dots, each with its name in
   `text.subtle`, `● Opus   ● Sonnet   ● Fable   ● Haiku`: the bars' key, headed by its column's
   `by model`, flowed onto as many rows as it takes from that column, a family never cut.
 - **`v`** cycles what the grid and its numbers show: all use, the default; then each model version

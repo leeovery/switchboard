@@ -170,8 +170,8 @@ func TestHistoryScrollsAsItsSubTabShownDoes(t *testing.T) {
 		// doesn't.
 		over, past int
 	}{
-		{name: "the Year, below 37 rows", f: yearFrame(t, 160, 30, views.YearAsk{}, plainYear()), want: Scrolling{Most: 7, Page: 21}, rows: true, over: 6, past: 28},
-		{name: "the Year, at 37 rows", f: yearFrame(t, 160, 37, views.YearAsk{}, plainYear()), want: Scrolling{Page: 29}, rows: true, over: 34, past: 35},
+		{name: "the Year, below 37 rows", f: yearFrame(t, besideFrom, 30, views.YearAsk{}, plainYear()), want: Scrolling{Most: 7, Page: 21}, rows: true, over: 6, past: 28},
+		{name: "the Year, at 37 rows", f: yearFrame(t, besideFrom, 37, views.YearAsk{}, plainYear()), want: Scrolling{Page: 29}, rows: true, over: 34, past: 35},
 		{name: "Weeks", f: weeksFrame(manyWeeks(25), WeeksTable, 160, 37, Look{}), want: Scrolling{Most: 6, Page: 19}, over: 14, past: 6},
 		{name: "Days", f: daysFrame(t, daysWorld(tenDays...), 160, 37), want: Scrolling{Most: 4, Page: 6}, over: 21, past: 12},
 		{name: "Tokens", f: tokens, want: Scrolling{Most: 6, Page: 6}, over: 8, past: 6},
@@ -202,7 +202,7 @@ func TestHistoryScrollsAsItsSubTabShownDoes(t *testing.T) {
 // call, 15 October 2026), the rows under it left to the key line; scrolled
 // past its end, as far as it goes; at its top, nothing above.
 func TestAScrolledYearShowsItsRowsFromWhereItsScrolledTo(t *testing.T) {
-	whole := textOf(historyDrawn(yearFrame(t, 160, 37, views.YearAsk{}, plainYear())).rows(Look{}))[6:]
+	whole := textOf(historyDrawn(yearFrame(t, besideFrom, 37, views.YearAsk{}, plainYear())).rows(Look{}))[6:]
 	tests := []struct {
 		scroll, from int
 		out          string
@@ -212,7 +212,7 @@ func TestAScrolledYearShowsItsRowsFromWhereItsScrolledTo(t *testing.T) {
 		{scroll: 99, from: 7, out: "▲ 7 more above   ·   j/k to scroll"},
 	}
 	for _, tt := range tests {
-		f := yearFrame(t, 160, 30, views.YearAsk{}, plainYear())
+		f := yearFrame(t, besideFrom, 30, views.YearAsk{}, plainYear())
 		f.Scroll = tt.scroll
 		rows := textOf(historyDrawn(f).rows(Look{}))
 		if !slices.Equal(rows[6:27], whole[tt.from:tt.from+21]) || rows[27] != tt.out || rows[28] != "" || rows[29] != "" {
@@ -230,7 +230,7 @@ func TestHistoryScrollingIsAsFarAsItScrollsAtTheOffsetAsked(t *testing.T) {
 		name string
 		f    Frame
 	}{
-		{name: "the Year", f: yearFrame(t, 160, 21, views.YearAsk{}, plainYear())},
+		{name: "the Year", f: yearFrame(t, besideFrom, 21, views.YearAsk{}, plainYear())},
 		{name: "Weeks drawn whole", f: weeksFrame(tenWeeks(), WeeksTable, 160, 16, Look{})},
 		{name: "Days drawn whole", f: daysFrame(t, daysWorld(tenDays...), 160, 24)},
 	}
@@ -258,7 +258,7 @@ func TestHistoryScrollingIsAsFarAsItScrollsAtTheOffsetAsked(t *testing.T) {
 // At the frames' size, the Year fits, and says nothing of what's out of
 // view: its frames don't change.
 func TestAYearThatFitsSaysNothingOutOfView(t *testing.T) {
-	for _, size := range []struct{ width, height int }{{160, 37}, {73, 61}} {
+	for _, size := range []struct{ width, height int }{{besideFrom, 37}, {73, 61}} {
 		rows := textOf(historyDrawn(yearFrame(t, size.width, size.height, views.YearAsk{}, plainYear())).rows(Look{}))
 		if i := slices.IndexFunc(rows, func(r string) bool { return strings.Contains(r, "more below") }); i >= 0 {
 			t.Errorf("at %d × %d, row %d reads %q, want nothing out of view", size.width, size.height, i+1, rows[i])
@@ -276,8 +276,8 @@ func TestAScrolledYearShowsNoHeadingWithoutItsFirstRow(t *testing.T) {
 		heading       string
 		want          Scrolling
 	}{
-		{name: "BY MONTH, its heading the page's last row", width: 160, height: 21, heading: "BY MONTH", want: Scrolling{Most: 16, Page: 11}},
-		{name: "BY MONTH, its heads the page's last row", width: 160, height: 22, heading: "BY MONTH", want: Scrolling{Most: 15, Page: 11}},
+		{name: "BY MONTH, its heading the page's last row", width: besideFrom, height: 21, heading: "BY MONTH", want: Scrolling{Most: 16, Page: 11}},
+		{name: "BY MONTH, its heads the page's last row", width: besideFrom, height: 22, heading: "BY MONTH", want: Scrolling{Most: 15, Page: 11}},
 		{name: "a phone's numbers, their heading the page's last row", width: 52, height: 23, heading: "LAST 12 MONTHS", want: Scrolling{Most: 21, Page: 11}},
 	}
 	for _, tt := range tests {

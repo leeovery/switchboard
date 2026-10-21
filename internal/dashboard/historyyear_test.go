@@ -109,7 +109,9 @@ func yearFrame(t *testing.T, width, height int, ask views.YearAsk, page views.Ye
 	f := frameOf(width, height)
 	f.View, f.Look = History, Screen(builtin(t, "nord"))
 	f.History = HistoryPage{Read: true, YearAsk: ask, Year: &page}
-	f.WindowName = func(key string) string { return map[string]string{"5h": "5-hour", "7d": "Week"}[key] }
+	f.WindowName = func(key string) string {
+		return map[string]string{"5h": "5-hour", "7d": "Week", "7d_oi": "Fable week"}[key]
+	}
 	return f
 }
 
@@ -147,8 +149,14 @@ func opusYear() views.YearPage {
 }
 
 // numbersBesideX is the column the numbers are at beside the grid, as the
-// design lays them out: six cells after the whole year's weeks.
-const numbersBesideX = 126
+// design lays them out: six cells after the whole year's weeks; and
+// besideFrom the width they're beside it from, their labels and limits
+// reckoned at two windows of four figures, "week ×9,999 · 5-hour ×9,999",
+// after it.
+const (
+	numbersBesideX = 126
+	besideFrom     = numbersBesideX + yearLabelCells + 27
+)
 
 // yearOf is the Year the frame shows, laid out in the form given.
 func yearOf(f Frame, form yearForm) yearDrawn {
@@ -165,7 +173,7 @@ func TestTheCurrentMonthIsLitOverTheGridAndBoldInByMonth(t *testing.T) {
 		october, september, name   int
 		septembersRow, octobersRow int
 	}{
-		{width: 160, october: 118, september: 110, name: byMonthNameX, septembersRow: 24, octobersRow: 25},
+		{width: besideFrom, october: 118, september: 110, name: byMonthNameX, septembersRow: 24, octobersRow: 25},
 		{width: 52, october: 48, september: 40, name: byMonthPhoneNameX, septembersRow: 28, octobersRow: 29},
 	}
 	for _, tt := range tests {
@@ -200,7 +208,7 @@ func TestWithoutShadesADaysLevelIsToldByItsGlyph(t *testing.T) {
 		}
 	}
 	for _, look := range []Look{Screen(builtin(t, "terminal")), NoColour()} {
-		f := yearFrame(t, 160, 37, views.YearAsk{}, page)
+		f := yearFrame(t, besideFrom, 37, views.YearAsk{}, page)
 		f.Look = look
 		rows, top := textOf(historyDrawn(f).rows(Look{})), f.top()
 		if got, want := []rune(rows[top+1])[yearGridX], '·'; got != want {
@@ -209,7 +217,7 @@ func TestWithoutShadesADaysLevelIsToldByItsGlyph(t *testing.T) {
 		if got, want := []rune(rows[top+5])[yearGridX], '█'; got != want {
 			t.Errorf("a day at level 4 is %q, want %q", got, want)
 		}
-		if got, want := rows[top+yearKeyRow], textsAt(160, map[int]string{yearGridX: "· none   ░ under 450   ▒ 450–750   ▓ 750–1,000   █ over 1,000  requests a day"}); got != want {
+		if got, want := rows[top+yearKeyRow], textsAt(besideFrom, map[int]string{yearGridX: "· none   ░ under 450   ▒ 450–750   ▓ 750–1,000   █ over 1,000  requests a day"}); got != want {
 			t.Errorf("the key reads\n%q\nwant\n%q", got, want)
 		}
 	}
@@ -255,7 +263,7 @@ func TestTheYearsFiguresAreNumbered(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := yearFrame(t, 160, 37, tt.ask, tt.page)
+			f := yearFrame(t, besideFrom, 37, tt.ask, tt.page)
 			got := make(map[Number]string)
 			for n, drawn := range f.Numbers(threeRouted(), now) {
 				if n.Kind == NumberYear {
@@ -281,18 +289,18 @@ func TestTheYearsFiguresAreNumbered(t *testing.T) {
 func TestAnEmptyYearsNumbersAreDashes(t *testing.T) {
 	page := plainYear()
 	page.Numbers, page.KeyCuts = views.YearNumbers{Cost: usd(7200)}, nil
-	f := yearFrame(t, 160, 37, views.YearAsk{}, page)
+	f := yearFrame(t, besideFrom, 37, views.YearAsk{}, page)
 	c, top := historyDrawn(f), f.top()
 	rows := textOf(c.rows(Look{}))
 	for i, label := range []string{"requests", "sessions", "limits hit", "worth", "plans cost", "against it", "busiest day", "longest run"} {
-		if got, want := rows[top+1+i], textsAt(160, map[int]string{numbersBesideX: padded(label, yearLabelCells) + "—"}); !strings.HasSuffix(got, want[numbersBesideX:]) {
+		if got, want := rows[top+1+i], textsAt(besideFrom, map[int]string{numbersBesideX: padded(label, yearLabelCells) + "—"}); !strings.HasSuffix(got, want[numbersBesideX:]) {
 			t.Errorf("%s reads %q, want a dash", label, got)
 		}
 		if got := c.at(numbersBesideX+yearLabelCells, top+1+i).ink; got != faintInk {
 			t.Errorf("%s's dash is in %+v, want text.faint", label, got)
 		}
 	}
-	if got, want := rows[top+yearKeyRow], textsAt(160, map[int]string{yearGridX: "■ none  requests a day"}); got != want {
+	if got, want := rows[top+yearKeyRow], textsAt(besideFrom, map[int]string{yearGridX: "■ none  requests a day"}); got != want {
 		t.Errorf("the key reads %q, want %q", got, want)
 	}
 }
@@ -311,7 +319,7 @@ func TestTheNumbersAndTheKeyNameWhatsShown(t *testing.T) {
 		{ask: views.YearAsk{Account: "work"}, heading: "WORK · 12 MONTHS", unit: "work requests a day"},
 	}
 	for _, tt := range tests {
-		f := yearFrame(t, 160, 37, tt.ask, plainYear())
+		f := yearFrame(t, besideFrom, 37, tt.ask, plainYear())
 		rows, top := textOf(historyDrawn(f).rows(Look{})), f.top()
 		if got := strings.TrimSpace(string([]rune(rows[top])[numbersBesideX:])); got != tt.heading {
 			t.Errorf("%+v: the numbers are headed %q, want %q", tt.ask, got, tt.heading)
@@ -325,7 +333,7 @@ func TestTheNumbersAndTheKeyNameWhatsShown(t *testing.T) {
 // An account shown alone is named by its label, not its id, wherever the
 // Year names it: the heading row, the numbers' heading and the key.
 func TestTheYearNamesAnAccountShownAloneByItsLabel(t *testing.T) {
-	f := yearFrame(t, 160, 37, views.YearAsk{Account: "acct-2"}, plainYear())
+	f := yearFrame(t, besideFrom, 37, views.YearAsk{Account: "acct-2"}, plainYear())
 	f.History.Accounts = config.Accounts{{ID: "work", Label: "Work"}, {ID: "acct-2", Label: "Studio"}}
 	rows, top := textOf(f.page(threeRouted(), now).rows(Look{})), f.top()
 
@@ -433,10 +441,10 @@ func TestTheYearsHeightIsTheRowsItDraws(t *testing.T) {
 		page  views.YearPage
 		want  int
 	}{
-		{name: "all use", width: 160, page: plainYear(), want: 28},
-		{name: "no bars to key", width: 160, page: unpriced, want: 26},
-		{name: "a version", width: 160, ask: opus, page: opusYear(), want: 18},
-		{name: "a version, with the months before it", width: 160, ask: opus, page: before, want: 19},
+		{name: "all use", width: besideFrom, page: plainYear(), want: 28},
+		{name: "no bars to key", width: besideFrom, page: unpriced, want: 26},
+		{name: "a version", width: besideFrom, ask: opus, page: opusYear(), want: 18},
+		{name: "a version, with the months before it", width: besideFrom, ask: opus, page: before, want: 19},
 		{name: "a phone, its bars' key on two rows", width: 52, page: plainYear(), want: 33},
 		{name: "the numbers under the key", width: 120, page: plainYear(), want: 33},
 	}
@@ -563,32 +571,62 @@ func TestTheGridShowsTheLatestWeeksThatFit(t *testing.T) {
 	}
 }
 
-// The Year takes its wide form where its parts fit, its key whole,
-// reckoned at cuts of four figures: from 99 columns; narrower, a phone's.
-// Its numbers are beside the grid only where the whole year and every
-// figure whole fit beside it, at column 126, from 150 columns for all use,
-// its limits "5-hour ×402", and 149 for a version; else under the key, as
-// they always are on a phone.
-func TestTheYearsArrangementIsWhereItsPartsFit(t *testing.T) {
-	pages := []struct {
-		name       string
-		ask        views.YearAsk
-		page       func() views.YearPage
-		besideFrom int
-	}{
-		{name: "all use", page: plainYear, besideFrom: 150},
-		{name: "a version's", ask: views.YearAsk{Version: "Opus 5.5"}, page: opusYear, besideFrom: 149},
+// yearPages are the Year of each kind of use, with its data at its
+// widest: all use, a version, an account, all use with some plans
+// unknown, and all use that hit limits in three windows.
+func yearPages(t *testing.T) map[string]func(width int) Frame {
+	t.Helper()
+	unknown := plainYear()
+	unknown.Numbers.Plans = views.PlansKnown{Known: 2, Of: 3}
+	three := plainYear()
+	three.Numbers.Limits = map[string]int{"5h": 4120, "7d": 3, "7d_oi": 2}
+	return map[string]func(width int) Frame{
+		"all use":            func(width int) Frame { return yearFrame(t, width, 60, views.YearAsk{}, plainYear()) },
+		"a version":          func(width int) Frame { return yearFrame(t, width, 60, views.YearAsk{Version: "Opus 5.5"}, opusYear()) },
+		"an account":         func(width int) Frame { return yearFrame(t, width, 60, views.YearAsk{Account: "work"}, plainYear()) },
+		"some plans unknown": func(width int) Frame { return yearFrame(t, width, 60, views.YearAsk{}, unknown) },
+		"three windows hit":  func(width int) Frame { return yearFrame(t, width, 60, views.YearAsk{}, three) },
 	}
-	for _, p := range pages {
-		for _, width := range []int{73, 98, 99, 138, p.besideFrom - 1, p.besideFrom, 220} {
-			y, _ := yearFrame(t, width, 60, p.ask, p.page()).yearDrawn()
-			phone, beside := width < 99, width >= p.besideFrom
+}
+
+// The Year takes its wide form where its key fits whole, reckoned at cuts
+// of four figures: from 99 columns; narrower, a phone's. Its numbers are
+// beside the grid, at column 126, from one width, whatever's shown:
+// besideFrom, their labels and limits of two windows of four figures fitting
+// after the whole year's weeks; narrower, and always on a phone, they're
+// under the key.
+func TestTheYearsArrangementIsWhereItsPartsFit(t *testing.T) {
+	for name, frame := range yearPages(t) {
+		for _, width := range []int{73, 98, 99, 138, besideFrom - 1, besideFrom, 220} {
+			y, _ := frame(width).yearDrawn()
+			phone, beside := width < 99, width >= besideFrom
 			if y.form.phone != phone || y.laid.beside != beside {
-				t.Errorf("%s at %d columns: a phone's form %t, the numbers beside the grid %t; want %t, %t", p.name, width, y.form.phone, y.laid.beside, phone, beside)
+				t.Errorf("%s at %d columns: a phone's form %t, the numbers beside the grid %t; want %t, %t", name, width, y.form.phone, y.laid.beside, phone, beside)
 			}
 			if beside && y.laid.numbersX != numbersBesideX {
-				t.Errorf("%s at %d columns: the numbers are beside the grid at column %d, want %d", p.name, width, y.laid.numbersX, numbersBesideX)
+				t.Errorf("%s at %d columns: the numbers are beside the grid at column %d, want %d", name, width, y.laid.numbersX, numbersBesideX)
 			}
+		}
+	}
+}
+
+// Where the numbers sit never hangs on the data, so v and < > never move BY
+// MONTH: at every width, all use, a version, an account, some plans unknown,
+// three windows hit and a period without use take the one arrangement.
+func TestTheYearsArrangementNeverHangsOnItsData(t *testing.T) {
+	unused := plainYear()
+	unused.Numbers, unused.KeyCuts = views.YearNumbers{}, nil
+	pages := yearPages(t)
+	pages["without use"] = func(width int) Frame { return yearFrame(t, width, 60, views.YearAsk{}, unused) }
+	for width := 52; width <= 220; width++ {
+		arrangements := map[[2]bool][]string{}
+		for name, frame := range pages {
+			y, _ := frame(width).yearDrawn()
+			key := [2]bool{y.form.phone, y.laid.beside}
+			arrangements[key] = append(arrangements[key], name)
+		}
+		if len(arrangements) > 1 {
+			t.Errorf("at %d columns, the Year takes more than one arrangement, by its data: %v", width, arrangements)
 		}
 	}
 }
@@ -789,21 +827,25 @@ func TestTheYearDrawsNothingPastItsEdge(t *testing.T) {
 	}
 }
 
-// The numbers go beside the grid only where every figure fits there whole,
-// so a wider frame never shows less of them than a narrower one: limits of
-// two windows, "week ×3 · 5-hour ×412", read whole under the key a column
-// short of fitting beside it, and whole beside it from 160.
-func TestTheNumbersGoBesideTheGridOnlyWhole(t *testing.T) {
-	page := plainYear()
-	page.Numbers.Limits = map[string]int{"5h": 412, "7d": 3}
-	for width, beside := range map[int]bool{159: false, 160: true} {
-		f := yearFrame(t, width, 60, views.YearAsk{}, page)
-		if y, _ := f.yearDrawn(); y.laid.beside != beside {
-			t.Errorf("at %d columns, the numbers beside the grid: %t, want %t", width, y.laid.beside, beside)
-		}
+// Beside the grid, a figure longer than reckoned takes its shorter forms,
+// never cut part-way: from besideFrom, limits of two windows read whole, and
+// of three, their last window left off whole; against it over the plans
+// known, short.
+func TestAFigureBesideTheGridTakesItsShorterForms(t *testing.T) {
+	pages := yearPages(t)
+	tests := []struct {
+		page, label, want string
+	}{
+		{page: "all use", label: "limits hit", want: "limits hit   5-hour ×402"},
+		{page: "three windows hit", label: "limits hit", want: "limits hit   week ×3 · 5-hour ×4,120"},
+		{page: "some plans unknown", label: "against it", want: "against it   3.8× · 2 of 3 plans known"},
+	}
+	for _, tt := range tests {
+		f := pages[tt.page](besideFrom)
 		rows := textOf(historyDrawn(f).rows(Look{}))
-		if rowWith(rows, "limits hit   week ×3 · 5-hour ×412") < 0 {
-			t.Errorf("at %d columns, the limits aren't whole:\n%s", width, strings.Join(rows, "\n"))
+		i := rowWith(rows, tt.label)
+		if i < 0 || !strings.HasSuffix(rows[i], tt.want) || ansi.StringWidth(rows[i]) > f.Width {
+			t.Errorf("%s at %d columns, %s reads %q, want it to end %q", tt.page, besideFrom, tt.label, rows[max(i, 0)], tt.want)
 		}
 	}
 }
@@ -842,6 +884,54 @@ func TestAPartMonthsBarLeavesItsNoteRoom(t *testing.T) {
 		if got := strings.Count(rows[y.laid.byMonth.last()-1], "▅"); got != tt.september {
 			t.Errorf("%s: September's bar is %d cells, want %d", tt.name, got, tt.september)
 		}
+	}
+}
+
+// A part month's note leaves where it doesn't fit after its bar with the
+// bars at half their most or more, and then the bars keep their most: of
+// Opus 5.5 on a phone at 48 and 47 columns, June, from the 22nd, has no note
+// and September its 16 or 15 cells; and a part month that isn't the
+// largest, the month so far, keeps its note beside its bar.
+func TestAPartMonthsNoteLeavesWhereItDoesntFit(t *testing.T) {
+	for _, width := range []int{47, 48} {
+		y, _ := yearFrame(t, width, 60, views.YearAsk{Version: "Opus 5.5"}, opusYear()).yearDrawn()
+		c := newCanvas(width, y.height())
+		y.draw(c, 0)
+		rows := textOf(c.rows(Look{}))
+		at := y.laid.byMonth
+		june, september, october := rows[at.first], rows[at.last()-1], rows[at.last()]
+		if strings.Contains(june, "from") || strings.Count(september, "▅") != width-byMonthPhoneBarX {
+			t.Errorf("at %d columns, June reads %q and September %q; want June without its note, September's bar %d cells", width, june, september, width-byMonthPhoneBarX)
+		}
+		if !strings.HasSuffix(october, "▅  so far") {
+			t.Errorf("at %d columns, the month so far reads %q, want its note after its bar", width, october)
+		}
+	}
+}
+
+// The numbers' heading cuts the name of the use shown, never its period: an
+// account of a label longer than the column beside the grid has.
+func TestTheNumbersHeadingCutsItsNameNeverItsPeriod(t *testing.T) {
+	f := yearFrame(t, besideFrom, 60, views.YearAsk{Account: "acct-2"}, plainYear())
+	f.History.Accounts = config.Accounts{{ID: "acct-2", Label: "the-research-team-with-a-label-longer-than-its-column"}}
+	rows, top := textOf(historyDrawn(f).rows(Look{})), f.top()
+	heading := string([]rune(rows[top])[numbersBesideX:])
+	if want := "THE-RESEARCH-TEAM-WITH-A-LA… · 12 MONTHS"; heading != want {
+		t.Errorf("the numbers' heading reads %q, want %q", heading, want)
+	}
+}
+
+// The last column of numbers shown takes the row to the frame's width, so
+// its figures take their longest forms that fit: on a phone at 60 columns,
+// some plans unknown, the third column gone, against it reads "3.8× · 2/3",
+// where the second column's own width would leave it "3.8×".
+func TestTheLastColumnOfNumbersShownTakesTheRow(t *testing.T) {
+	page := plainYear()
+	page.Numbers.Limits, page.Numbers.Plans = map[string]int{"5h": 412, "7d": 3}, views.PlansKnown{Known: 2, Of: 3}
+	f := yearFrame(t, 60, 60, views.YearAsk{}, page)
+	rows := textOf(historyDrawn(f).rows(Look{}))
+	if got, want := rows[f.top()+yearNumbersRow+3], "limits    week ×3 · 5-hour ×412    against   3.8× · 2/3"; got != want {
+		t.Errorf("the limits row reads %q, want %q", got, want)
 	}
 }
 
@@ -938,7 +1028,8 @@ func TestTheYearsFiguresAreDrawnWholeOrAsAnEllipsis(t *testing.T) {
 		{name: "requests, a cell short", width: 16, page: plainYear(), lead: "requests", want: "requests  …"},
 		{name: "a month's worth, a cell short", width: 17, page: plainYear(), lead: " May", want: " May        …"},
 		{name: "a bound in the key", width: 19, page: plainYear(), lead: "■ 0", want: "■ 0 ■ <450 ■ …"},
-		{name: "the period after a version", width: 16, ask: views.YearAsk{Version: "Opus 5.5"}, page: opusYear(), lead: "OPUS", want: "OPUS 5.5 · …"},
+		{name: "the period after a version, its name cut", width: 16, ask: views.YearAsk{Version: "Opus 5.5"}, page: opusYear(), lead: "OPU", want: "OPU… · 12 MONTHS"},
+		{name: "the period after a version, too narrow for it", width: 13, ask: views.YearAsk{Version: "Opus 5.5"}, page: opusYear(), lead: "OPUS", want: "OPUS 5.5 · …"},
 		{name: "a bar in the room left", width: 40, page: plainYear(), lead: " May", want: " May        $2,330    3.9×      ▅▅▅▅▅▅"},
 	}
 	for _, tt := range tests {

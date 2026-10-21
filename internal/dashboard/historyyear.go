@@ -148,18 +148,24 @@ func (y yearDrawn) wideFits() bool {
 }
 
 // barParts are a BY MONTH row's parts across the frame, in the form given:
-// its columns to the bars; its bar, a cell at least, which grows to its
-// most; and where a note of note cells follows it, the note, which leaves
-// where it doesn't fit beside a bar's least.
-func barParts(f yearForm, note int) []flex.Part {
-	parts := []flex.Part{
+// its columns to the bars, and the bars, a cell at least, which grow to
+// their most.
+func barParts(f yearForm) []flex.Part {
+	return []flex.Part{
 		{Least: f.barX, Natural: f.barX},
 		{Least: 1, Natural: 1, Most: byMonthBarMost, Grows: true},
 	}
-	if note > 0 {
-		parts = append(parts, flex.Part{Least: note, Natural: note, Gap: byMonthNoteGap, Leaves: 1})
+}
+
+// noteParts are a part month's row across the frame, in the form given:
+// its columns to its bar; its bar, bar cells; and its note, note cells,
+// byMonthNoteGap cells on, which leaves where it doesn't fit.
+func noteParts(f yearForm, bar, note int) []flex.Part {
+	return []flex.Part{
+		{Least: f.barX, Natural: f.barX},
+		{Least: bar, Natural: bar},
+		{Least: note, Natural: note, Gap: byMonthNoteGap, Leaves: 1},
 	}
-	return parts
 }
 
 // layOut lays the Year's parts out in the frame, in its form: the weeks
@@ -204,14 +210,13 @@ func (y yearDrawn) gridReach(weeks int) int {
 
 // besideAt is the column the numbers start at beside the grid, and whether
 // they fit there, as flex lays them after the days' names and the whole
-// year's weeks: only wide, and only where every figure fits whole, as
-// columnPart reckons it, so a wider frame never shows less of them than a
-// narrower one does under the key.
+// year's weeks, at their reckoned width: only wide. Beside the grid, a
+// figure longer than reckoned takes its shorter forms, or is an ellipsis.
 func (y yearDrawn) besideAt() (int, bool) {
 	if y.form.phone {
 		return 0, false
 	}
-	numbers := y.columnPart(y.figures()).Natural
+	numbers := y.reckonedNumbers()
 	s, fits := flex.Lay(y.Width,
 		flex.Part{Least: yearGridX, Natural: yearGridX},
 		flex.Part{Least: 2 * yearWeeks, Natural: 2 * yearWeeks},
@@ -220,12 +225,29 @@ func (y yearDrawn) besideAt() (int, bool) {
 	return s[2].At, fits
 }
 
+// reckonedLimit is a count of limits hit of four figures, at which limits
+// beside the grid are reckoned.
+const reckonedLimit = 9_999
+
+// reckonedNumbers is the width the numbers beside the grid are reckoned at,
+// whatever's shown, so where they sit holds still as the data changes,
+// across all use, a version and an account, as v and < > step through them:
+// their wide labels, then the widest of a day, a run of days and a share,
+// as their formats draw them, and limits hit in two windows, each
+// reckonedLimit.
+func (y yearDrawn) reckonedNumbers() int {
+	limits := y.limitsFigure(map[string]int{"5h": reckonedLimit, "7d": reckonedLimit}).value.width()
+	return yearLabelCells + max(limits, widestDay, widestRun, widestShare)
+}
+
 // figureColumns are the numbers under the key, yearFiguresDown to a column,
 // as flex lays them across the frame, each as wide as its widest figure
 // whole. Where the room is short, a figure takes its shorter forms before
 // any whole figure leaves: the second column narrows to its figures'
 // shortest forms; then the columns past it leave, the last first; then the
-// first narrows; then the second leaves.
+// first narrows; then the second leaves. The last column shown then grows
+// to the frame's width, so its figures take their longest forms that fit:
+// laid again, those shown alone, it's free to grow where it narrowed.
 func (y yearDrawn) figureColumns() []figureColumn {
 	figures := slices.Collect(slices.Chunk(y.figures(), yearFiguresDown))
 	n := len(figures)
@@ -245,22 +267,27 @@ func (y yearDrawn) figureColumns() []figureColumn {
 		}
 	}
 	s, _ := flex.Lay(y.Width, parts...)
-	var columns []figureColumn
+	var shown [][]yearFigure
+	var kept []flex.Part
 	for i, column := range figures {
 		if !s[i].Left {
-			columns = append(columns, figureColumn{figures: column, x: s[i].At, row: yearNumbersRow + 1, cells: min(s[i].Size, y.Width-s[i].At)})
+			shown, kept = append(shown, column), append(kept, parts[i])
 		}
 	}
-	if n := len(columns); n > 0 {
-		columns[n-1].cells = y.Width - columns[n-1].x
+	last := &kept[len(kept)-1]
+	last.Narrows, last.Leaves, last.Grows = 0, 0, true
+	s, _ = flex.Lay(y.Width, kept...)
+	columns := make([]figureColumn, len(shown))
+	for i, column := range shown {
+		columns[i] = figureColumn{figures: column, x: s[i].At, row: yearNumbersRow + 1, cells: min(s[i].Size, y.Width-s[i].At)}
 	}
 	return columns
 }
 
 // columnPart is a column of the figures given as a part: least, their
-// labels and their shortest forms; natural, their labels and all they say,
-// a figure whose length is bounded at the widest its format draws, so the
-// arrangement never hangs on it.
+// labels and their shortest forms; natural, their labels and all they say.
+// A figure whose length is bounded is reckoned at the widest its format
+// draws in both, so where a column narrows or leaves never hangs on it.
 func (y yearDrawn) columnPart(figures []yearFigure) flex.Part {
 	var p flex.Part
 	for _, figure := range figures {
@@ -269,37 +296,52 @@ func (y yearDrawn) columnPart(figures []yearFigure) flex.Part {
 		if n := len(figure.shorter); n > 0 {
 			shortest = figure.shorter[n-1]
 		}
-		p.Least = max(p.Least, label+shortest.width())
+		p.Least = max(p.Least, label+max(shortest.width(), figure.widest))
 		p.Natural = max(p.Natural, label+max(figure.value.width(), figure.widest))
 	}
 	return p
 }
 
-// barCells is the most cells BY MONTH's bars take: what each month's row
+// barCells is the most cells BY MONTH's bars take: what a month's row
 // leaves after its columns, at most byMonthBarMost, never past the frame's
-// width; and fewer where a part month's bar would leave its note no room
-// beside it, so each bar stays its month's share of the largest month's.
+// width. Where a part month's note doesn't fit after its bar, the most is
+// lowered till it does, so a part month never reads as a whole one and each
+// bar stays its month's share of the largest month's; but never below half
+// of it, as a note isn't worth every bar: past that, the note leaves.
 func (y yearDrawn) barCells() int {
-	most := y.barRoom(nil)
+	s, _ := flex.Lay(y.Width, barParts(y.form)...)
+	most := max(min(s[1].Size, y.Width-y.form.barX), 0)
+	least := (most + 1) / 2
 	largest := largestWorth(y.page.ByMonth)
 	for _, m := range y.page.ByMonth {
-		note := monthNote(m)
-		if note == nil {
-			continue
+		lowered := most
+		for lowered > least && !y.noteFits(m, largest, lowered) {
+			lowered--
 		}
-		room := y.barRoom(note)
-		for most > 0 && barCells(amountOf(m.Worth), largest, most) > room {
-			most--
+		if y.noteFits(m, largest, lowered) {
+			most = lowered
 		}
 	}
 	return most
 }
 
-// barRoom is the cells a BY MONTH row leaves its bar, as flex lays it, its
-// note after it where it has one, never past the frame's width.
-func (y yearDrawn) barRoom(note []part) int {
-	s, _ := flex.Lay(y.Width, barParts(y.form, partsWidth(note))...)
-	return max(min(s[1].Size, y.Width-y.form.barX), 0)
+// noteAt is the column a part month's note is at after its bar, against the
+// largest month's worth with the bars' most given, as flex lays its row;
+// false where the month has no note, or it doesn't fit.
+func (y yearDrawn) noteAt(m views.MonthRow, largest ledger.Picodollars, most int) (int, bool) {
+	note := monthNote(m)
+	if note == nil {
+		return 0, false
+	}
+	s, _ := flex.Lay(y.Width, noteParts(y.form, barCells(amountOf(m.Worth), largest, most), partsWidth(note))...)
+	return s[2].At, !s[2].Left
+}
+
+// noteFits reports whether a month's bar leaves its note room, where it has
+// one, with the bars' most given.
+func (y yearDrawn) noteFits(m views.MonthRow, largest ledger.Picodollars, most int) bool {
+	_, fits := y.noteAt(m, largest, most)
+	return fits || monthNote(m) == nil
 }
 
 // whole is the Year drawn whole on a canvas of its own, from its first row,
@@ -477,20 +519,29 @@ func (y yearDrawn) unit(what string) string {
 
 // heading draws the numbers' heading at x along row row, cut at the frame's
 // width: the period, LAST 12 MONTHS or the year, as 2025; or after the use
-// shown, OPUS 5.5 · 12 MONTHS or WORK · 2025.
+// shown, OPUS 5.5 · 12 MONTHS or WORK · 2025, the use's name cut, never the
+// period, as THE-RESEARCH-TE… · 12 MONTHS, as flex lays them, where a cell
+// of the name and its ellipsis fit before it; else cut as words.
 func (y yearDrawn) heading(c *canvas, x, row int) {
 	period := "12 MONTHS"
 	if y.ask.Year != 0 {
 		period = strconv.Itoa(y.ask.Year)
 	}
-	lead := ""
+	width := y.Width - x
 	switch {
 	case y.shown() != "":
-		lead = strings.ToUpper(y.shown()) + " · "
+		name, tail := line{{strings.ToUpper(y.shown()), dimInk}}, line{{" · ", dimInk}, {period, dimInk}}
+		s, fits := flex.Lay(width, flex.Part{Least: 2, Natural: name.width()}, flex.Part{Least: tail.width(), Natural: tail.width()})
+		if fits {
+			c.line(x, row, append(name.fit(s[0].Size), tail...))
+			return
+		}
+		c.line(x, row, fitParts(width, wordsPart(append(name, tail[0])), figureIn(period, dimInk)))
 	case y.ask.Year == 0:
-		lead = "LAST "
+		c.line(x, row, fitParts(width, wordsIn("LAST ", dimInk), figureIn(period, dimInk)))
+	default:
+		c.line(x, row, fitParts(width, figureIn(period, dimInk)))
 	}
-	c.line(x, row, fitParts(y.Width-x, wordsIn(lead, dimInk), figureIn(period, dimInk)))
 }
 
 // yearFigure is one of the Year's numbers: its label, and a phone's, what it
@@ -808,8 +859,8 @@ func (y yearDrawn) byMonthSays() string {
 // its columns, those a look can change numbered in the month so far, each a
 // figure fitParts fits a cell short of the next, or of the bars; its bar,
 // against the largest month's worth, in the cells laid out for the bars; and
-// two cells after it, so far, or from the day the ledger began, or the
-// version was first used, in what's left.
+// after it, where noteAt lays it, so far, or from the day the ledger began,
+// or the version was first used.
 func (y yearDrawn) month(c *canvas, row int, m views.MonthRow, withYear bool, columns []monthColumn, largest ledger.Picodollars) {
 	f := y.form
 	name := secondaryInk
@@ -827,9 +878,9 @@ func (y yearDrawn) month(c *canvas, row int, m views.MonthRow, withYear bool, co
 	if y.laid.bar < 1 {
 		return
 	}
-	end := c.line(f.barX, row, y.monthBar(m, largest, y.laid.bar))
-	if note := monthNote(m); note != nil {
-		c.line(end+2, row, fitParts(y.Width-end-2, note...))
+	c.line(f.barX, row, y.monthBar(m, largest, y.laid.bar))
+	if at, fits := y.noteAt(m, largest, y.laid.bar); fits {
+		c.line(at, row, fitParts(y.Width-at, monthNote(m)...))
 	}
 }
 
