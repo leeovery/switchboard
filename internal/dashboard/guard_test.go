@@ -129,13 +129,8 @@ var sizedAllowed = []string{
 	"internal/dashboard/usagewords.go:usageWords.pick",
 	// S19 and S20: Days and Weeks scrolling whole under historyRows.
 	"internal/dashboard/historypage.go:Frame.shortOfHistory",
-	// S21: Tokens' footnote, left off short of leastPaged, and a period's
-	// headings, none under two rows.
+	// S21: Tokens' footnote, left off short of leastPaged.
 	"internal/dashboard/historytokens.go:Frame.tokensPlaced",
-	"internal/dashboard/historytokens.go:periodHeads",
-	// S22: a session's page, the accounts it's been on, the whole run where
-	// it fits phoneOnCells.
-	"internal/dashboard/sessionpage.go:sessionDrawn.phoneOn",
 	// S22 and S23: a session's page, its turns' form, sessionWideFrom, and
 	// its rows.
 	"internal/dashboard/sessionlayout.go:Frame.sessionLayout",
@@ -301,8 +296,8 @@ func flexBreaches(t *testing.T, root, module string, every, drawing []string, a 
 		files = append(files, l.Load(dir)...)
 	}
 	w := widthsOf(files)
-	sizes := sizesOf(files, w)
 	names := sourcecheck.NamesIn(module)
+	sizes := sizesOf(files, w, names)
 	return slices.Concat(
 		l.Check(sourcecheck.Rule{Names: names, Used: used}, every, sourcecheck.Allowance{Entries: a.phone, List: "phoneAllowed", Fix: phoneAllowedFix}),
 		l.Check(sourcecheck.Rule{Names: names, Node: sizes.sized}, drawing, sourcecheck.Allowance{Entries: a.sized, List: "sizedAllowed", Fix: sizedAllowedFix}),
@@ -390,8 +385,11 @@ func TestTheFlexGuardFindsWhatItGuardsAgainst(t *testing.T) {
 		"internal/dashboard/measured.go:19: " + sizedSays("s.Width < 80"),
 		"internal/dashboard/measured.go:20: " + sizedSays("cells.Of(name).Width < 90"),
 		"internal/dashboard/measured.go:21: " + sourcecheck.LostSays("width < cells.Most", "the type of cells.Most"),
-		"internal/dashboard/measured.go:27: " + sizedSays("switch width case 80"),
-		"internal/dashboard/measured.go:33: " + sizedSays("switch f.Height case 24"),
+		"internal/dashboard/measured.go:24: " + sizedSays("frameWidth[int](f, 0) < 81"),
+		"internal/dashboard/measured.go:25: " + sizedSays("frameWidth(f, 0) < 82"),
+		"internal/dashboard/measured.go:26: " + sourcecheck.LostSays("lostLimit > width", "the type of cells.Most"),
+		"internal/dashboard/measured.go:35: " + sizedSays("switch width case 80"),
+		"internal/dashboard/measured.go:41: " + sizedSays("switch f.Height case 24"),
 		"internal/dashboard/sizes.go:13: " + sizedSays("width >= wideCells"),
 		"internal/dashboard/sizes.go:14: " + sizedSays("110 > room"),
 		"internal/dashboard/sizes.go:15: " + sizedSays("f.Width - 2 <= 80"),
@@ -655,7 +653,8 @@ func changed(name string, cells int) string {
 `,
 	// line.go's cutters, a method and functions with their widths first and
 	// last, given constants and run-time widths, one as a value, one
-	// wrapped; beside a method of the same name on what the loader stubs.
+	// wrapped; beside a method of the same name on what the loader stubs;
+	// and a line's width, a measure of content.
 	"internal/dashboard/line.go": `package dashboard
 
 import "example.org/cells"
@@ -685,6 +684,8 @@ func lines(name string, room int) []line {
 		cells.Of(name).fit(labelCells),
 	}
 }
+
+func (l line) width() int { return len(l) }
 `,
 	// Sizes compared with constants followed a step back, a local's and a
 	// package-level variable's; by equality, but with 0; named by a size
@@ -760,10 +761,12 @@ var (
 )
 `,
 	// Sizes read through calls of the dashboard's own, beside a measure
-	// from outside and a count; sizes of fields the loader lost, by their
-	// names, beside one named otherwise; a constant the loader lost; and
-	// switches on sizes, each case by equality, but 0, beside a switch with
-	// no tag, its cases comparisons.
+	// from outside, a count and a line's width, a measure of content; sizes
+	// of fields the loader lost, by their names, beside one named otherwise;
+	// a generic function's, called instantiated and not; a constant the
+	// loader lost, written and through a variable; and switches on sizes,
+	// each case by equality, but 0, beside a switch with no tag, its cases
+	// comparisons.
 	"internal/dashboard/measured.go": `package dashboard
 
 import (
@@ -786,8 +789,16 @@ func readThrough(f Frame, s cells.Box, name string, width int) []bool {
 		cells.Of(name).Width < 90,
 		width < cells.Most,
 		s.Count > 3,
+		line{name}.width() <= 9,
+		frameWidth[int](f, 0) < 81,
+		frameWidth(f, 0) < 82,
+		lostLimit > width,
 	}
 }
+
+func frameWidth[T any](f Frame, _ T) int { return f.Width }
+
+var lostLimit = cells.Most
 
 func switched(f Frame, width int) int {
 	switch width {

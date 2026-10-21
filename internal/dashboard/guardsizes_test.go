@@ -31,17 +31,39 @@ var comparisons = []token.Token{token.LSS, token.LEQ, token.GTR, token.GEQ, toke
 // room < 80.
 var flipped = map[token.Token]token.Token{token.LSS: token.GTR, token.LEQ: token.GEQ, token.GTR: token.LSS, token.GEQ: token.LEQ}
 
+// contentMeasures are the functions and methods of the drawing packages,
+// each by its name as sourcecheck.Names has it, that measure what's drawn
+// rather than read the frame, so a call of one reads no size, as
+// ansi.StringWidth reads none: a fit of what's measured to a constant is a
+// cut's, Rule 2's, not an arrangement's.
+var contentMeasures = []string{
+	// A line's cells, its spans' widths summed.
+	"dashboard.line.width",
+	// Parts' cells, as drawn on a line.
+	"dashboard.partsWidth",
+	// A token period's own rows.
+	"dashboard.tokensHeight",
+	// The rows sentences take wrapped to a width.
+	"dashboard.wrappedRows",
+	// The rows a pane's puts take.
+	"dashboard.pane.height",
+	// The rows a lane's calls take.
+	"dashboard.boardLane.rows",
+}
+
 // sizes judge what's compared with a size in the drawing packages, by the
 // widths worked out of them, and the packages' paths, whose functions giving
-// a size read one.
+// a size read one, but contentMeasures, named as names names them.
 type sizes struct {
 	widths
 	drawing map[string]bool
+	names   sourcecheck.Names
 }
 
-// sizesOf are the sizes of the files given, by their widths w.
-func sizesOf(files []sourcecheck.File, w widths) sizes {
-	s := sizes{widths: w, drawing: make(map[string]bool)}
+// sizesOf are the sizes of the files given, by their widths w, named as
+// names names them.
+func sizesOf(files []sourcecheck.File, w widths, names sourcecheck.Names) sizes {
+	s := sizes{widths: w, drawing: make(map[string]bool), names: names}
 	for _, f := range files {
 		s.drawing[f.Pkg.Path()] = true
 	}
@@ -95,19 +117,20 @@ func (s sizes) switched(sw *ast.SwitchStmt, info *types.Info) string {
 // as readsASize has it, and c is a number constant, written as one or
 // followed a step back as widths' valueOf follows it, as f.Width <
 // phoneUnder, width < limit or bodyRows == 3; but 0, as whether there's any,
-// or, ordered, 1 as 0, as room < 1 is room <= 0. Where c names no variable
-// and its type is lost, it can't be judged.
+// or, ordered, 1 as 0, as room < 1 is room <= 0. Where c, so followed,
+// names no variable and its type is lost, it can't be judged.
 func (s sizes) against(c, size ast.Expr, op token.Token, first bool, compared string, info *types.Info) string {
 	if !s.readsASize(size, info) {
 		return ""
 	}
+	value := s.valueOf(c, nil, info, false)
 	switch v := s.constantOf(c, info); {
 	case v != nil && withNone(v, op, first):
 		return ""
 	case v != nil:
 		return sizedSays(compared)
-	case typeLost(c, info) && !namesAVariable(c, info):
-		return sourcecheck.LostSays(compared, "the type of "+types.ExprString(c))
+	case value != nil && typeLost(value, info) && !namesAVariable(value, info):
+		return sourcecheck.LostSays(compared, "the type of "+types.ExprString(value))
 	}
 	return ""
 }
@@ -129,10 +152,14 @@ func withNone(c constant.Value, op token.Token, first bool) bool {
 // variable or a field of a whole number, or of a type the loader lost; a
 // field of what the loader lost, by its name alone; or a call of a function
 // or method of the drawing packages giving a whole number, as d.width() or
-// f.viewRows(). It reads through a conversion, as int(width), but not into
-// a call's arguments, as len(f.rowsOf(width)) counts what the call gives;
-// and a measure from outside, as ansi.StringWidth, measures a string, not
-// the frame.
+// f.viewRows(), but contentMeasures. It reads through a conversion, as
+// int(width), but not into a call's arguments, as len(f.rowsOf(width))
+// counts what the call gives; and a measure from outside, as
+// ansi.StringWidth, measures a string, not the frame.
+//
+// It can't read a size through a method value or a function value held in
+// a variable, as rows := f.viewRows then rows() < 20; or within min or max,
+// as min(f.viewRows(), 30) < 20.
 func (s sizes) readsASize(e ast.Expr, info *types.Info) bool {
 	found := false
 	ast.Inspect(e, func(n ast.Node) bool {
@@ -158,17 +185,28 @@ func (s sizes) readsASize(e ast.Expr, info *types.Info) bool {
 }
 
 // givesASize reports whether call calls a function or method of the drawing
-// packages a size word names, giving a whole number.
+// packages a size word names, giving a whole number, but one of
+// contentMeasures: called as it is, or instantiated, as frameWidth[int](f).
 func (s sizes) givesASize(call *ast.CallExpr, info *types.Info) bool {
-	var id *ast.Ident
-	switch fn := ast.Unparen(call.Fun).(type) {
+	fn, ok := info.Uses[calledIdent(call.Fun)].(*types.Func)
+	return ok && fn.Pkg() != nil && s.drawing[fn.Pkg().Path()] && namesASize(fn.Name()) &&
+		!slices.Contains(contentMeasures, s.names.Func(fn)) && isWhole(info.Types[call].Type)
+}
+
+// calledIdent is the identifier naming the function fun calls, through
+// parentheses, a selector and type arguments: nil where it names none.
+func calledIdent(fun ast.Expr) *ast.Ident {
+	switch fn := ast.Unparen(fun).(type) {
 	case *ast.Ident:
-		id = fn
+		return fn
 	case *ast.SelectorExpr:
-		id = fn.Sel
+		return fn.Sel
+	case *ast.IndexExpr:
+		return calledIdent(fn.X)
+	case *ast.IndexListExpr:
+		return calledIdent(fn.X)
 	}
-	fn, ok := info.Uses[id].(*types.Func)
-	return ok && fn.Pkg() != nil && s.drawing[fn.Pkg().Path()] && namesASize(fn.Name()) && isWhole(info.Types[call].Type)
+	return nil
 }
 
 // typeLost reports whether the loader lost e's type to a package it stubs.
