@@ -404,7 +404,7 @@ func TestAPhonesDetailLaysItsPartsAcrossTheWidth(t *testing.T) {
 		weeks               []string
 	}{
 		{width: 52, bar: 21, byModel: 41, weeks: []string{"21 Sep", "28 Sep"}},
-		{width: 73, bar: 29, byModel: 62, weeks: []string{"7 Sep", "14 Sep", "21 Sep", "28 Sep"}},
+		{width: 73, bar: 32, byModel: 62, weeks: []string{"7 Sep", "14 Sep", "21 Sep", "28 Sep"}},
 		{width: 108, bar: 40, byModel: 97, weeks: []string{"24 Aug", "31 Aug", "7 Sep", "14 Sep", "21 Sep", "28 Sep"}},
 		{width: 138, bar: 40, byModel: 127, weeks: []string{"24 Aug", "31 Aug", "7 Sep", "14 Sep", "21 Sep", "28 Sep"}},
 	}
@@ -478,7 +478,7 @@ func TestAPhonesStretchHasNoCellsPastTheEdge(t *testing.T) {
 // that window shows or not.
 func TestAPhonesUSAGEHoldsStillAsWindowsComeAndGo(t *testing.T) {
 	names := map[string]string{"7d": "Week", "5h": "5-hour", "7d_oi": "Sonnet long week"}
-	want := "Week           ███████▉"
+	want := "Week           ████████▉"
 	for _, models := range []bool{true, false} {
 		f := phoneText(t, 73, 60, AccountsDetail, "work", phonePage(t), nil)
 		f.Models, f.WindowName = models, func(key string) string { return names[key] }
@@ -521,17 +521,17 @@ func rowStarting(t *testing.T, rows []string, prefix string) string {
 // after them, then its percentage and words in their cells; the bars grow
 // into what's left, at most 40.
 func TestAPhonesUSAGERowIsLaidByFlex(t *testing.T) {
-	const full = 27
+	const full = 24
 	tests := []struct {
 		name               string
 		room, names, words int
 		want               stackUsage
 	}{
 		{name: "the short words at 52", room: 51, names: 6, words: shortCells, want: stackUsage{names: 8, at: 9, bar: 21}},
-		{name: "the full words at 73", room: 72, names: 6, words: full, want: stackUsage{names: 8, at: 9, bar: 29}},
+		{name: "the full words at 73", room: 72, names: 6, words: full, want: stackUsage{names: 8, at: 9, bar: 32}},
 		{name: "at its most at 108", room: 107, names: 6, words: full, want: stackUsage{names: 8, at: 9, bar: 40}},
-		{name: "a long name whole", room: 72, names: 11, words: full, want: stackUsage{names: 11, at: 12, bar: 26}},
-		{name: "a name past the room, the bars at their least", room: 72, names: 30, words: full, want: stackUsage{names: 19, at: 20, bar: 18}},
+		{name: "a long name whole", room: 72, names: 11, words: full, want: stackUsage{names: 11, at: 12, bar: 29}},
+		{name: "a name past the room, the bars at their least", room: 72, names: 30, words: full, want: stackUsage{names: 22, at: 23, bar: 18}},
 		{name: "a name past the most", room: 107, names: 30, words: full, want: stackUsage{names: 24, at: 25, bar: 40}},
 		{name: "a long name before the bars", room: 51, names: 11, words: shortCells, want: stackUsage{names: 11, at: 12, bar: 18}},
 	}

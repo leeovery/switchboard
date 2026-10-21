@@ -89,15 +89,21 @@ func TestWordsAreInFullFrom70ColumnsWhereTheyFitTheirRoom(t *testing.T) {
 	}
 }
 
-// The widest words in full are as wide as the widest any window's words say,
-// a reading over a week back, by its date, so every full form fits them,
-// with its time: a cap's or a limit's end on another day, and an allowance
-// of the whole window a day, among them. Short, a block draws its words in
-// shortCells.
+// The widest words in full are as wide as the widest any window's words say
+// within the week, a reading on another day by its weekday, so every full
+// form that names a weekday fits them, with its time: a cap's or a limit's
+// end on another day, and an allowance of the whole window a day, among
+// them. A reading over a week back, by its date, is wider, and takes its
+// short form there, which says the date still. Short, a block draws its
+// words in shortCells.
 func TestTheWidestWordsHoldEveryFullForm(t *testing.T) {
-	widest := wordsOf(status.WindowNow{Kind: status.WindowStale, At: on(1, 14, 20).AddDate(0, 0, -9)}, printNow).full
-	if got := fullWidest(); got != widest.width() {
-		t.Errorf("the widest words in full are %d cells, want %d, of %q", got, widest.width(), widest.plain())
+	widest := wordsOf(status.WindowNow{Kind: status.WindowStale, At: on(30, 22, 10).AddDate(0, -1, 0)}, printNow).full
+	if got := fullWidest(); got != 24 || got != widest.width() {
+		t.Errorf("the widest words in full are %d cells, want 24, of %q", got, widest.plain())
+	}
+	weekOld := wordsOf(status.WindowNow{Kind: status.WindowStale, At: on(1, 14, 20).AddDate(0, 0, -9)}, printNow)
+	if got := weekOld.pick(fullWords, fullWidest()).plain(); got != "read 22 Sep" {
+		t.Errorf("a reading over a week back reads %q in the widest words' cells, want its short form, read 22 Sep", got)
 	}
 	for _, w := range []status.WindowNow{
 		{Kind: status.WindowCapped, At: on(4, 21, 0)},

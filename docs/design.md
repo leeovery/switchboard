@@ -2179,12 +2179,14 @@ top half is now and the period; a rule, `the last six weeks`, heads the rest.
   - USAGE's row: the windows' names, as wide as the widest of every window listed, shown or not,
     at least 8 cells and at most 24; a cell on, the bars, all one width; a cell on, the
     percentage, in 4; and two cells on, `usage`'s words, in the cells of their form at its widest:
-    short, 14, under 70 columns; in full, the widest any window's words say, with their time
-    (`not read since 22 Sep 14:20`, 27), so the words never lose their time and nothing moves as
-    they change. The bars take their least of 18 first, then the names are raised toward their
-    widest, then the bars grow into what's left, at most 40, the one most of a bar beside words:
-    21 at 52 columns, 29 at 73 and 40 from 84. That's five cells short of the spike's 34 at 73,
-    which kept only 22 for the words (accuracy first, 21 October 2026).
+    short, 14, under 70 columns; in full, the widest any window's words say within the week, a
+    time on another day named by its weekday (`not read since Wed 14:20`, 24), so the words never
+    lose their time and nothing moves as they change. A reading over a week back, said by its
+    date, is wider, and takes its short form, `read 22 Sep`, which says when still. The bars take
+    their least of 18 first, then the names are raised toward their widest, then the bars grow
+    into what's left, at most 40, the one most of a bar beside words: 21 at 52 columns, 32 at 73
+    and 40 from 81. That's two cells short of the spike's 34 at 73, which kept only 22 for the
+    words (accuracy first, 21 October 2026).
   - BY MODEL's bar runs on the heading's row from column 10 to the frame's edge, 62 at 73: a share
     across the row, not a bar beside words, so the most of 40 doesn't hold it.
   - BY DAY shows the latest weeks that fit from column 10 to the frame's edge, a week 14 cells and
