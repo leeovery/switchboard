@@ -1,7 +1,6 @@
 package dashboard
 
 import (
-	"maps"
 	"slices"
 
 	"github.com/leeovery/switchboard/internal/prose"
@@ -43,9 +42,7 @@ func (f Frame) thisWeekCells(m status.Moment) int {
 func (f Frame) limitedWindows(m status.Moment) []string {
 	keys := m.Listed(true)
 	if page := f.Accounts.Page; page != nil {
-		for _, row := range append(slices.Clone(page.Rows), page.All) {
-			keys = append(keys, slices.Collect(maps.Keys(row.Totals.Limits))...)
-		}
+		keys = append(keys, page.LimitedWindows()...)
 	}
 	slices.Sort(keys)
 	return slices.Compact(keys)

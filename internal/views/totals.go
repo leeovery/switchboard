@@ -51,6 +51,17 @@ type AccountTotals struct {
 	Partial    []string     `json:"partial,omitempty"`
 }
 
+// LimitedWindows are the windows any row of the page records a limit of,
+// every account's among them, by their keys, each once, sorted.
+func (p AccountsPage) LimitedWindows() []string {
+	var keys []string
+	for _, row := range append(slices.Clone(p.Rows), p.All) {
+		keys = append(keys, slices.Collect(maps.Keys(row.Totals.Limits))...)
+	}
+	slices.Sort(keys)
+	return slices.Compact(keys)
+}
+
 // LimitCount is how many limits the account reached, every window's
 // together, as every account's are counted.
 func (t AccountTotals) LimitCount() int {
