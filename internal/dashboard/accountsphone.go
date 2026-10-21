@@ -12,6 +12,7 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // Accounts on a phone: Compare turned, a group at a time and an account a
@@ -100,25 +101,49 @@ func largestIn(used versionUsed, cells int) line {
 	return fitParts(cells, named...)
 }
 
-// A phone's Detail's columns: USAGE's bars, stackUsageBar cells, from
-// stackUsageAt; THIS WEEK's two columns stackHalf apart, their labels
-// stackLabels cells; BY MODEL's bar, stackModelBar cells, BY DAY's last
-// stackWeeks weeks, and WEEKS' last stackPeaks peaks, each right-aligned in
-// stackPeakCells stackPeakApart apart, from stackAt; and LATELY's words cut
-// to stackLatelyWords.
+// A phone's Detail's columns: USAGE's bars at least stackBarLeast cells;
+// THIS WEEK's two columns stackHalf apart, their labels stackLabels cells;
+// and from stackAt, BY MODEL's bar, BY DAY's weeks and WEEKS' peaks, the
+// peaks each right-aligned in stackPeakCells, stackPeakGap between.
 const (
-	stackUsageAt     = 9
-	stackUsageBar    = 18
-	stackHalf        = 26
-	stackLabels      = 10
-	stackAt          = 10
-	stackModelBar    = 40
-	stackWeeks       = 3
-	stackPeaks       = 4
-	stackPeakCells   = 5
-	stackPeakApart   = 6
-	stackLatelyWords = 44
+	stackBarLeast  = 18
+	stackHalf      = 26
+	stackLabels    = 10
+	stackAt        = 10
+	stackPeakCells = 5
+	stackPeakGap   = 1
 )
+
+// The parts of a phone's USAGE row across a frame, in stackUsageLaid's order.
+const (
+	stackNames = iota
+	stackBar
+	stackAfterBar
+	stackWords
+)
+
+// stackUsage is where a phone's USAGE row's parts sit: its names' cells, and
+// where its bars start and their cells.
+type stackUsage struct {
+	names, at, bar int
+}
+
+// stackUsageLaid is a phone's USAGE row laid out in room cells, as flex lays
+// it: its windows' names, names cells at their widest, between
+// compareNameLeast and compareNameMost; a cell on, its bars, at least
+// stackBarLeast; then afterBar's cells, their percentages among them; and
+// their words, in words cells. The bars take their least first, then the
+// names are raised toward their widest, then the bars grow into what's left,
+// at most barMost, as every bar beside words does.
+func stackUsageLaid(room, names, words int) stackUsage {
+	s, _ := flex.Lay(room, []flex.Part{
+		stackNames:    {Least: compareNameLeast, Natural: names, Most: compareNameMost},
+		stackBar:      {Least: stackBarLeast, Natural: stackBarLeast, Grows: true, Most: barMost, Gap: 1},
+		stackAfterBar: {Least: afterBar, Natural: afterBar},
+		stackWords:    {Least: words, Natural: words},
+	}...)
+	return stackUsage{names: s[stackNames].Size, at: s[stackBar].At, bar: s[stackBar].Size}
+}
 
 // partsApart is how far a phone's part is from the row before it, a blank
 // row between.
@@ -381,9 +406,9 @@ func (f Frame) stackedOf(doc status.Document, now time.Time) stacked {
 // whole is the phone's Detail drawn whole, each part under its heading, a
 // blank row between: the picker, and under it how the account stands, short,
 // as stands has it; USAGE; once the period's page is read, THIS WEEK, BY
-// MODEL, BY DAY's last stackWeeks weeks, and WEEKS with the verdict under
-// it; SESSIONS, as Detail draws it, where sessions run on the account; and
-// LATELY, its words cut to stackLatelyWords.
+// MODEL, BY DAY, and WEEKS with the verdict under it; SESSIONS, as Detail
+// draws it, where sessions run on the account; and LATELY, its words uncut,
+// each line cut at the frame's edge.
 func (s stacked) whole() stack {
 	c := growing(s.f.Width)
 	s.picker(c, 0)
@@ -392,7 +417,7 @@ func (s stacked) whole() stack {
 	if s.page != nil {
 		y = s.thisWeek(c, y+partsApart)
 		y = s.byModel(c, y+partsApart) + partsApart
-		s.byDay(c, y, stackWeeks)
+		s.byDay(c, y, s.daysWeeks())
 		y = s.weeks(c, y+1+partsApart)
 	}
 	var targets []Target
@@ -402,7 +427,7 @@ func (s stacked) whole() stack {
 	y += partsApart
 	c.line(0, y, line{{"LATELY", dimInk}})
 	c.heading(y, y+1)
-	s.lately(c, y+1, 0, stackLatelyWords)
+	s.lately(c, y+1, 0, s.f.edge())
 	return stack{c: c, targets: targets}
 }
 
@@ -432,17 +457,25 @@ func (s stacked) named(cells int) line {
 
 // usage draws USAGE from row y, and returns the row its last window is on:
 // its heading, then every window, windowsApart rows apart, named in
-// text.subtle, then as Detail's gauge has it, its bar stackUsageBar cells
-// from stackUsageAt, its words ending at the frame's edge.
+// text.subtle, then as Detail's gauge has it, laid out as stackUsageLaid lays
+// its row across the frame: its names as wide as the widest of every window
+// listed, shown or not, and its words the cells of their form at their
+// widest, so neither moves as the windows shown or their words change; its
+// words ending at the frame's edge.
 func (s stacked) usage(c *canvas, y int) int {
 	c.line(0, y, line{{"USAGE", dimInk}})
 	c.heading(y, y+1)
 	b := usageBlock{width: s.f.Width, look: s.f.Look}
+	names := 0
+	for _, w := range usageWindows(s.m.Listed(true), s.f.windowNamer(s.m)) {
+		names = max(names, ansi.StringWidth(status.Short(w.name)))
+	}
+	l := stackUsageLaid(s.f.edge(), names, b.widestWords())
 	last := y
 	for i, w := range s.windows() {
 		last = y + 1 + i*windowsApart
-		c.line(0, last, line{{prose.Cut(status.Short(w.name), stackUsageAt-1), dimInk}})
-		b.gauge(c, s.gauge(w.key), stackUsageAt, last, stackUsageBar, s.f.edge())
+		c.line(0, last, line{{prose.Cut(status.Short(w.name), l.names), dimInk}})
+		b.gauge(c, s.gauge(w.key), l.at, last, l.bar, s.f.edge())
 	}
 	return last
 }
@@ -492,13 +525,14 @@ func (s stacked) thisWeekItems() [][]thisWeekItem {
 }
 
 // byModel draws BY MODEL from row y, and returns its last row: its heading,
-// and on its row the period's share of use as a stacked bar stackModelBar
-// cells from cx, as Detail's; then the versions it used, each with its
+// and on its row the period's share of use as a stacked bar across the
+// stretch, as Detail's; then the versions it used, each with its
 // share, over the rows under it, as versionsOver has them.
 func (s stacked) byModel(c *canvas, y int) int {
 	c.line(0, y, line{{"BY MODEL", dimInk}})
 	versions := s.page.Versions
-	stackedBar(c, s.f.Look, s.l.cx(), y, splitCells(shareAmounts(s.row, versions), stackModelBar), versionHues(versions))
+	stretch := s.stretch()
+	stackedBar(c, s.f.Look, stretch.At, y, splitCells(shareAmounts(s.row, versions), stretch.Size), versionHues(versions))
 	for _, l := range versionsOver(versionsUsed(s.row, versions), s.f.edge()) {
 		y++
 		c.line(0, y, l)
@@ -519,16 +553,42 @@ func versionsOver(used []versionUsed, width int) []line {
 	return slices.DeleteFunc(rows, func(l line) bool { return len(l) == 0 })
 }
 
+// stretch is where the row runs from cx to the frame's edge, after the
+// headings' column, as flex lays it: BY MODEL's bar, and the room BY DAY's
+// weeks and WEEKS' peaks lie in; no cells where the frame is narrower.
+func (s stacked) stretch() flex.Span {
+	spans, _ := flex.Lay(s.f.edge(), flex.Part{Least: s.l.cx(), Natural: s.l.cx()}, flex.Part{Grows: true})
+	return spans[1]
+}
+
+// daysWeeks are BY DAY's weeks shown, the latest that fit the stretch, as
+// weeksIn lays them.
+func (s stacked) daysWeeks() []flex.Span {
+	return s.l.weeksIn(s.stretch().Size, len(s.page.Weeks))
+}
+
+// openHang are the cells an open week's peak says past a closed one's, its
+// … of a week still running, which hangs past its peak's cells so its % is
+// in line with the others'.
+var openHang = ansi.StringWidth(views.Peak(0, true)) - ansi.StringWidth(views.Peak(0, false))
+
 // weeks draws WEEKS along row y, and returns the verdict's last row: its
-// heading; from cx, the last stackPeaks weeks' peaks, as peakPart has them,
-// this week's bold text.secondary, each right-aligned in stackPeakCells,
-// stackPeakApart apart; and under it the verdict, as verdictShort has it, a
-// row each of its parts.
+// heading; across the stretch, keeping openHang cells at its end, the latest
+// weeks' peaks that fit, as latestFitting lays them, each as peakPart has
+// it, this week's bold text.secondary, right-aligned in stackPeakCells,
+// stackPeakGap between, an open week's … past them; and under it the
+// verdict, as verdictShort has it, a row each of its parts.
 func (s stacked) weeks(c *canvas, y int) int {
 	c.line(0, y, line{{"WEEKS", dimInk}})
-	peaks := s.row.Peaks[max(len(s.row.Peaks)-stackPeaks, 0):]
+	stretch := s.stretch()
+	spans := latestFitting(stretch.Size-openHang, len(s.row.Peaks), stackPeakCells, stackPeakGap)
+	peaks := s.row.Peaks[len(s.row.Peaks)-len(spans):]
 	for i, p := range peaks {
-		c.rightFit(s.l.cx()+i*stackPeakApart+stackPeakCells, s.f.edge(), y, peakPart(p, strongInk, Number{}))
+		end := stretch.At + spans[i].At + spans[i].Size
+		if p.Open && p.Share != nil {
+			end += openHang
+		}
+		c.rightFit(end, s.f.edge(), y, peakPart(p, strongInk, Number{}))
 	}
 	for _, parts := range verdictShort(s.row) {
 		y++

@@ -3,6 +3,7 @@ package dashboard
 import (
 	"maps"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -10,14 +11,16 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// phoneDays are each row's last three weeks of days on the phone's Detail:
-// each day's level, and whether a limit was reached on it.
+// phoneDays are the days of each row's last three weeks on the phone's
+// Detail, of which its stack shows as many weeks as fit, two to six: each
+// day's level, and whether a limit was reached on it.
 var phoneDays = []views.StripDay{
 	{Level: 3, Limit: true}, {Level: 3, Limit: true}, {Level: 4, Limit: true}, {Level: 4}, {Level: 2, Limit: true}, {Level: 1}, {Level: 1},
 	{Level: 4, Limit: true}, {Level: 3, Limit: true}, {Level: 3, Limit: true}, {Level: 4, Limit: true}, {Level: 4, Limit: true}, {Level: 1}, {Level: 1},
@@ -33,7 +36,7 @@ func phonePage(t *testing.T) *views.AccountsPage {
 	page := comparedPage(views.AccountsThisWeek, comparedVersions(t), compareWork, comparePersonal, compareSide, compareAll)
 	page.Weeks = []string{"2026-08-24", "2026-08-31", "2026-09-07", "2026-09-14", "2026-09-21", "2026-09-28"}
 	page.ToCome = 3
-	days := slices.Concat(make([]views.StripDay, 7*stackWeeks), phoneDays)
+	days := slices.Concat(make([]views.StripDay, 7*len(page.Weeks)-len(phoneDays)), phoneDays)
 	var peaks []views.WeekPeak
 	for i, p := range []float64{1, 0.94, 1, 0.81, 1, 0.34} {
 		peaks = append(peaks, views.WeekPeak{Share: new(p), Open: i == 5})
@@ -199,7 +202,7 @@ func TestAPhonesDetailOfAllAccounts(t *testing.T) {
 	for y, want := range map[int]string{
 		8:  "◂ 0 all accounts ▸             ↑↓ an account, or all",
 		9:  "2 open · 1 at cap",
-		14: "5-hour   ████████┃           49%  1.5 of 3 left",
+		14: "5-hour   █████████┃▎            49%  1.5 of 3 left",
 		19: "requests  5,410           worth     $635",
 		20: "limits    3               extra use off",
 		21: "plan      $600/mo         against   4.6×",
@@ -384,6 +387,160 @@ func TestDetailsPhoneBodyFollowsTheWidth(t *testing.T) {
 	}
 	if !strings.HasPrefix(rows[top+15], "BY MODEL  ") {
 		t.Errorf("row %d is %q, want BY MODEL, as on a phone", top+15, rows[top+15])
+	}
+}
+
+// A phone's Detail lays its parts across the width, at every width it's
+// drawn at: USAGE's bars from a cell after the windows' names, growing past
+// their least of 18 once their words have the cells of their form at its
+// widest, to 40 at most, their names and words whole beside them; BY MODEL's
+// bar from column 10 to the frame's edge, as it's no bar beside words; the
+// latest of BY DAY's weeks that fit, from column 10; and WEEKS' peaks, every
+// one, this week's % in line with the others' and its … a cell past.
+func TestAPhonesDetailLaysItsPartsAcrossTheWidth(t *testing.T) {
+	const peaks = "WEEKS      100%   94%  100%   81%  100%   34%…"
+	tests := []struct {
+		width, bar, byModel int
+		weeks               []string
+	}{
+		{width: 52, bar: 21, byModel: 41, weeks: []string{"21 Sep", "28 Sep"}},
+		{width: 73, bar: 32, byModel: 62, weeks: []string{"7 Sep", "14 Sep", "21 Sep", "28 Sep"}},
+		{width: 108, bar: 40, byModel: 97, weeks: []string{"24 Aug", "31 Aug", "7 Sep", "14 Sep", "21 Sep", "28 Sep"}},
+		{width: 138, bar: 40, byModel: 127, weeks: []string{"24 Aug", "31 Aug", "7 Sep", "14 Sep", "21 Sep", "28 Sep"}},
+	}
+	for _, tt := range tests {
+		t.Run(strconv.Itoa(tt.width), func(t *testing.T) {
+			f, rows := stackRows(t, tt.width)
+			for _, name := range []string{"Week", "5-hour"} {
+				row := rowStarting(t, rows, name+" ")
+				percent := columnOf(row, "%") + 1
+				if want := compareNameLeast + 1 + tt.bar + 1 + percentCells; percent != want {
+					t.Errorf("%s's percentage ends at column %d, want %d, in %q", name, percent, want, row)
+				}
+				if words := strings.TrimLeft(ansi.Cut(row, percent, f.Width), " "); columnOf(row, words) != percent+2 || strings.Contains(row, "…") {
+					t.Errorf("%s's words are %q, want them whole two cells after its percentage, in %q", name, words, row)
+				}
+			}
+			byModel := rowStarting(t, rows, "BY MODEL")
+			if at, cells := columnOf(byModel, "█"), strings.Count(byModel, "█"); at != stackAt || cells != tt.byModel {
+				t.Errorf("BY MODEL's bar is %d cells from column %d, want %d from %d, in %q", cells, at, tt.byModel, stackAt, byModel)
+			}
+			byDay := rowStarting(t, rows, "BY DAY")
+			heads := rows[slices.Index(rows, byDay)+1]
+			var got []string
+			for head := range strings.SplitSeq(heads, "  ") {
+				if head = strings.TrimSpace(head); head != "" {
+					got = append(got, head)
+				}
+			}
+			if !slices.Equal(got, tt.weeks) || columnOf(heads, tt.weeks[0]) != stackAt || ansi.StringWidth(byDay) > f.edge() {
+				t.Errorf("BY DAY shows\n%s\n%s\nwant the weeks %v from column %d, within the frame's edge", byDay, heads, tt.weeks, stackAt)
+			}
+			if got := rowStarting(t, rows, "WEEKS"); got != peaks {
+				t.Errorf("WEEKS is %q, want %q", got, peaks)
+			}
+		})
+	}
+}
+
+// WEEKS shows the latest peaks that fit, the earliest giving way first,
+// keeping a cell for this week's … at the frame's edge: all six from 47
+// columns, five at 46.
+func TestAPhonesWEEKSKeepsTheLatestPeaksThatFit(t *testing.T) {
+	for _, tt := range []struct {
+		width int
+		want  string
+	}{
+		{width: 46, want: "WEEKS       94%  100%   81%  100%   34%…"},
+		{width: 47, want: "WEEKS      100%   94%  100%   81%  100%   34%…"},
+	} {
+		if _, rows := stackRows(t, tt.width); rowStarting(t, rows, "WEEKS") != tt.want {
+			t.Errorf("at %d columns, WEEKS is %q, want %q", tt.width, rowStarting(t, rows, "WEEKS"), tt.want)
+		}
+	}
+}
+
+// The stack's stretch, BY MODEL's bar and the room of BY DAY and WEEKS,
+// runs from column 10 to the frame's edge, with no cells where the frame is
+// narrower, and the stack draws there all the same.
+func TestAPhonesStretchHasNoCellsPastTheEdge(t *testing.T) {
+	for width := 1; width <= stackAt+3; width++ {
+		f, _ := stackRows(t, width)
+		if got, want := f.stackedOf(phoneDoc(), routedAt).stretch(), (flex.Span{At: stackAt, Size: max(f.edge()-stackAt, 0)}); got != want {
+			t.Errorf("at %d columns, the stretch is %+v, want %+v", width, got, want)
+		}
+	}
+}
+
+// USAGE's names column is as wide as the widest of every window listed,
+// shown or not, so the bars hold still as a model's window comes and goes:
+// with Sonnet's week named long, Week's bar starts after its name whether
+// that window shows or not.
+func TestAPhonesUSAGEHoldsStillAsWindowsComeAndGo(t *testing.T) {
+	names := map[string]string{"7d": "Week", "5h": "5-hour", "7d_oi": "Sonnet long week"}
+	want := "Week           ████████▉"
+	for _, models := range []bool{true, false} {
+		f := phoneText(t, 73, 60, AccountsDetail, "work", phonePage(t), nil)
+		f.Models, f.WindowName = models, func(key string) string { return names[key] }
+		f = f.At(phoneDoc(), routedAt)
+		c := newCanvas(f.Width, f.Height)
+		f.detailPhoneBody(phoneDoc(), routedAt).draw(c, 0)
+		rows := textOf(c.rows(Look{}))
+		if week := rowStarting(t, rows, "Week "); !strings.HasPrefix(week, want) {
+			t.Errorf("with the models' windows shown %v, Week's row is %q, want it to start %q", models, week, want)
+		}
+		if shown := slices.ContainsFunc(rows, func(r string) bool { return strings.HasPrefix(r, "Sonnet long wk ") }); shown != models {
+			t.Errorf("with the models' windows shown %v, Sonnet's week shows %v", models, shown)
+		}
+	}
+}
+
+// stackRows are work's Detail stacked at the width given, as text, each row
+// trimmed at its right, and the frame it's drawn in.
+func stackRows(t *testing.T, width int) (Frame, []string) {
+	t.Helper()
+	f := phoneText(t, width, 60, AccountsDetail, "work", phonePage(t), nil).At(phoneDoc(), routedAt)
+	c := newCanvas(f.Width, f.Height)
+	f.detailPhoneBody(phoneDoc(), routedAt).draw(c, 0)
+	return f, textOf(c.rows(Look{}))
+}
+
+// rowStarting is the first of the rows that starts as given, failing the
+// test where none does.
+func rowStarting(t *testing.T, rows []string, prefix string) string {
+	t.Helper()
+	at := slices.IndexFunc(rows, func(r string) bool { return strings.HasPrefix(r, prefix) })
+	if at < 0 {
+		t.Fatalf("no row starts %q among\n%s", prefix, strings.Join(rows, "\n"))
+	}
+	return rows[at]
+}
+
+// A phone's USAGE row lays its bars at their least, then its windows' names
+// toward their widest whole, at least 8 and at most 24, the bars a cell
+// after them, then its percentage and words in their cells; the bars grow
+// into what's left, at most 40.
+func TestAPhonesUSAGERowIsLaidByFlex(t *testing.T) {
+	const full = 24
+	tests := []struct {
+		name               string
+		room, names, words int
+		want               stackUsage
+	}{
+		{name: "the short words at 52", room: 51, names: 6, words: shortCells, want: stackUsage{names: 8, at: 9, bar: 21}},
+		{name: "the full words at 73", room: 72, names: 6, words: full, want: stackUsage{names: 8, at: 9, bar: 32}},
+		{name: "at its most at 108", room: 107, names: 6, words: full, want: stackUsage{names: 8, at: 9, bar: 40}},
+		{name: "a long name whole", room: 72, names: 11, words: full, want: stackUsage{names: 11, at: 12, bar: 29}},
+		{name: "a name past the room, the bars at their least", room: 72, names: 30, words: full, want: stackUsage{names: 22, at: 23, bar: 18}},
+		{name: "a name past the most", room: 107, names: 30, words: full, want: stackUsage{names: 24, at: 25, bar: 40}},
+		{name: "a long name before the bars", room: 51, names: 11, words: shortCells, want: stackUsage{names: 11, at: 12, bar: 18}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := stackUsageLaid(tt.room, tt.names, tt.words); got != tt.want {
+				t.Errorf("stackUsageLaid(%d, %d, %d) is %+v, want %+v", tt.room, tt.names, tt.words, got, tt.want)
+			}
+		})
 	}
 }
 
@@ -730,10 +887,10 @@ func TestAPhonesCompareCutsEachFigureACellShortOfTheNext(t *testing.T) {
 }
 
 // On a phone, Detail's LATELY tells an account's events in their full words,
-// never the short words the Overview's LATELY tells there, cut to 44 cells,
-// or short of the frame's edge, where that comes first: work's cap that
-// moved its sessions to other accounts, 51 cells in full.
-func TestAPhonesDetailTellsLATELYInFullCutTo44(t *testing.T) {
+// never the short words the Overview's LATELY tells there, whole where they
+// fit and cut at the frame's edge where they don't: work's cap that moved its
+// sessions to other accounts, 51 cells in full.
+func TestAPhonesDetailTellsLATELYInFullToTheEdge(t *testing.T) {
 	doc := eventsOf(
 		status.Event{At: now.Add(-time.Minute).UTC(), Kind: status.EventMoved, Session: "d28c0b1e", From: "work", To: "side", Reason: "moved: work is at its reserve", ForcedBy: 1},
 		status.Event{At: now.Add(-time.Minute).UTC(), Kind: status.EventMoved, Session: "9e21d4a8", From: "work", To: "personal", Reason: "moved: work is at its reserve", ForcedBy: 1},
@@ -744,7 +901,8 @@ func TestAPhonesDetailTellsLATELYInFullCutTo44(t *testing.T) {
 		want  string
 	}{
 		{width: 52, want: "13:11  ╎ reached its cap: 2 sessions moved to othe…"},
-		{width: 60, want: "13:11  ╎ reached its cap: 2 sessions moved to other…"},
+		{width: 60, want: "13:11  ╎ reached its cap: 2 sessions moved to other accoun…"},
+		{width: 73, want: "13:11  ╎ reached its cap: 2 sessions moved to other accounts"},
 	}
 	for _, tt := range tests {
 		rows := textOf(phoneText(t, tt.width, 41, AccountsDetail, "work", phonePage(t), nil).Draw(doc, now))

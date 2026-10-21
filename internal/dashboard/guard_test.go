@@ -152,9 +152,6 @@ var cutAllowed = []string{
 	"internal/dashboard/sessionslist.go:routingColumn",
 	// S11: SESSIONS' model families.
 	"internal/dashboard/overview_sessions.go:Frame.wideRunning",
-	// S16: the stacked Detail's window names and its LATELY's words.
-	"internal/dashboard/accountsphone.go:stacked.usage",
-	"internal/dashboard/accountsphone.go:stacked.whole",
 	// S17: Detail's window names, its sessions' model families and how many
 	// more, and its LATELY's words.
 	"internal/dashboard/accountsdetail.go:detailDrawn.usage",

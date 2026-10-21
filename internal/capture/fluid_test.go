@@ -277,11 +277,6 @@ var knownBreaks = []known{
 		slice: "S14", rule: cutWithRoom, sizes: []string{"73x61", "73x36"},
 		fixtures: []string{"overview-ten-accounts-160"},
 	},
-	// S16, Detail's stack fluid (F11, F13): its parts 52-column constants.
-	{
-		slice: "S16", rule: cutWithRoom, sizes: []string{"73x61", "73x36", "108x44", "109x53"},
-		fixtures: []string{"long-names-accounts-detail"},
-	},
 	// S17, Detail's wide form from where it fits (F11, F12): its names cut with
 	// room, and its stack drawn at 138 columns.
 	{

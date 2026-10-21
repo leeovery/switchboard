@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/prose"
@@ -27,6 +28,34 @@ const (
 	fullCells  = 22
 	shortCells = 14
 )
+
+// widestWords are the most cells the block's words take in the form it
+// draws them in, as wordCells chooses it: in full, as fullWidest has them;
+// short, shortCells.
+func (b usageBlock) widestWords() int {
+	if b.wordCells() == fullCells {
+		return fullWidest()
+	}
+	return shortCells
+}
+
+// fullWidest are the most cells a window's words take in full: the widest of
+// every kind wordsOf words, each with its time at its widest, on another day
+// within the week, as Dated shows it with its weekday, and an allowance at
+// its most, the whole window in a day. A reading over a week back, said by
+// its date, is wider: where its words don't fit, they're short, which says
+// the date still.
+var fullWidest = sync.OnceValue(func() int {
+	now := time.Date(2026, time.September, 28, 12, 0, 0, 0, time.UTC)
+	widest := 0
+	for kind := status.WindowTokenless; kind <= status.WindowOpen; kind++ {
+		for _, at := range []time.Time{now.AddDate(0, 0, 2).Add(9 * time.Hour), now.AddDate(0, 0, -6)} {
+			w := status.WindowNow{Kind: kind, At: at, Allowance: quota.Allowance{Share: 1, Per: quota.PerDay}}
+			widest = max(widest, wordsOf(w, now).full.width())
+		}
+	}
+	return widest
+})
 
 // alike is words that read the same in either form, in one ink.
 func alike(words string, k ink) usageWords {
