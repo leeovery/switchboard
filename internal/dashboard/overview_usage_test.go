@@ -654,7 +654,9 @@ func TestUSAGEHasItsBigBarsWhereTheyFitByWindowFrom150Columns(t *testing.T) {
 // On the Overview, as in the printout, USAGE's blocks are a blank row apart,
 // by window and by account, at every width, as its key line is from the
 // last; but two where GRAPHS' charts sit beside its blocks by account, each
-// chart's axis on the first, beside the cells of USAGE's own.
+// chart's axis on the first, beside the cells of USAGE's own; and with USAGE
+// at its most, as many more as give the charts 5 rows, as under each block
+// before the key line.
 func TestUSAGEsBlocksAreABlankRowApartButTwoBesideGRAPHSCharts(t *testing.T) {
 	at := func(width int, by By) Frame {
 		f := frameOf(width, 60)
@@ -662,18 +664,20 @@ func TestUSAGEsBlocksAreABlankRowApartButTwoBesideGRAPHSCharts(t *testing.T) {
 		return f
 	}
 	tests := []struct {
-		name  string
-		f     Frame
-		apart int
+		name       string
+		f          Frame
+		least      bool
+		apart, key int
 	}{
-		{name: "the big bars", f: at(160, ByWindow), apart: 1},
-		{name: "stacked at 120", f: at(120, ByWindow), apart: 1},
-		{name: "stacked at 80", f: at(80, ByWindow), apart: 1},
-		{name: "stacked on a phone", f: at(52, ByWindow), apart: 1},
-		{name: "by account, ROUTING beside", f: at(160, ByAccount), apart: 1},
-		{name: "by account at 120", f: at(120, ByAccount), apart: 1},
-		{name: "by account on a phone", f: at(52, ByAccount), apart: 1},
-		{name: "by account, GRAPHS' charts beside", f: besideOf(160), apart: 2},
+		{name: "the big bars", f: at(160, ByWindow), apart: 1, key: 1},
+		{name: "stacked at 120", f: at(120, ByWindow), apart: 1, key: 1},
+		{name: "stacked at 80", f: at(80, ByWindow), apart: 1, key: 1},
+		{name: "stacked on a phone", f: at(52, ByWindow), apart: 1, key: 1},
+		{name: "by account, ROUTING beside", f: at(160, ByAccount), apart: 1, key: 1},
+		{name: "by account at 120", f: at(120, ByAccount), apart: 1, key: 1},
+		{name: "by account on a phone", f: at(52, ByAccount), apart: 1, key: 1},
+		{name: "by account, GRAPHS' charts beside, at USAGE's least", f: besideOf(160), least: true, apart: 2, key: 1},
+		{name: "by account, GRAPHS' charts beside, at USAGE's most", f: besideOf(160), apart: 3, key: 2},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -684,10 +688,14 @@ func TestUSAGEsBlocksAreABlankRowApartButTwoBesideGRAPHSCharts(t *testing.T) {
 			if tt.f.Width >= matrixWidth && tt.f.By == ByAccount {
 				cells = tt.f.overviewBlock(usageWorld(), now).besideAt()
 			}
-			rows, _ := usageBody(tt.f, usageWorld(), now, 60)
+			height := 60
+			if tt.least {
+				height = tt.f.usageSection(usageWorld(), now).least - sectionHead
+			}
+			rows, _ := usageBody(tt.f, usageWorld(), now, height)
 			blocks, key := gapsOver(rows, cells, starts)
-			if want := slices.Repeat([]int{tt.apart}, len(blocks)); len(blocks) < 2 || !slices.Equal(blocks, want) || key != 1 {
-				t.Errorf("the blank rows over each block but the first are %v, and over the key line %d; want %d over each, and 1:\n%s", blocks, key, tt.apart, strings.Join(rows, "\n"))
+			if want := slices.Repeat([]int{tt.apart}, len(blocks)); len(blocks) < 2 || !slices.Equal(blocks, want) || key != tt.key {
+				t.Errorf("the blank rows over each block but the first are %v, and over the key line %d; want %d over each, and %d:\n%s", blocks, key, tt.apart, tt.key, strings.Join(rows, "\n"))
 			}
 		})
 	}

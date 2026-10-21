@@ -7,12 +7,9 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-// The charts beside USAGE's blocks by account: each leastBeside cells wide at
-// the least, besideGap cells apart.
-const (
-	leastBeside = 24
-	besideGap   = 2
-)
+// besideGap are the cells between two charts beside USAGE's blocks by
+// account.
+const besideGap = 2
 
 // graphsBeside reports whether GRAPHS is drawn beside USAGE's blocks rather
 // than as a section of its own: by account, from matrixWidth columns, while
@@ -57,15 +54,14 @@ type besideChart interface {
 // chartsBeside draws the charts of doc at m's moment beside each block of
 // USAGE's by account, as at says the blocks lie, from its column to the
 // frame's edge, as chartsOfBlock has them: as many as fit, side by side, as
-// wide as besideLayout has them, besideGap cells apart; each from the
-// block's first row to the row after its last, its axis on that row, so a
-// block of three windows has four rows of chart.
+// chartsFitting lays them out, besideGap cells apart; each from the block's
+// first row to the rows under its last that at gives what's beside it, its
+// axis on the last of them.
 func (f Frame) chartsBeside(c *canvas, doc status.Document, m status.Moment, at blocksBeside) {
 	for _, block := range at.blocks {
 		charts := f.chartsOfBlock(doc, m, block.id)
-		n, width := besideLayout(len(charts), f.edge()-at.x)
-		for i, ch := range charts[:n] {
-			ch.draw(c, f.Look, bounds{x: at.x + i*(width+besideGap), y: block.y, width: width, rows: block.rows + 1})
+		for i, s := range chartsFitting(len(charts), f.edge()-at.x, besideGap) {
+			charts[i].draw(c, f.Look, bounds{x: at.x + s.At, y: block.y, width: s.Size, rows: block.rows + at.under})
 		}
 	}
 }
@@ -87,10 +83,9 @@ func (f Frame) PoolCharts(doc status.Document, now time.Time) []PoolChart {
 		return nil
 	}
 	windows := f.overviewWindows(doc, now)
-	n, width := besideLayout(len(windows), f.edge()-f.overviewBlock(doc, now).besideAt())
-	charts := make([]PoolChart, n)
-	for i, w := range windows[:n] {
-		charts[i] = PoolChart{Key: w.key, Columns: width}
+	var charts []PoolChart
+	for i, s := range chartsFitting(len(windows), f.edge()-f.overviewBlock(doc, now).besideAt(), besideGap) {
+		charts = append(charts, PoolChart{Key: windows[i].key, Columns: s.Size})
 	}
 	return charts
 }
@@ -113,15 +108,4 @@ func (f Frame) chartsOfBlock(doc status.Document, m status.Moment, id string) []
 		}
 	}
 	return charts
-}
-
-// besideLayout is how many of k charts fit side by side in room cells, each
-// leastBeside cells at the least, besideGap cells apart, and how wide each is
-// as they share the room.
-func besideLayout(k, room int) (n, width int) {
-	n = max(min(k, (room+besideGap)/(leastBeside+besideGap)), 0)
-	if n == 0 {
-		return 0, 0
-	}
-	return n, (room+besideGap)/n - besideGap
 }

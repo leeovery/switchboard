@@ -70,7 +70,7 @@ type usageBlock struct {
 	// names is the name column's cells.
 	names int
 	// The rest are the Overview's alone, the printout's being their zero
-	// values: big stacks its windows from 150 columns, as its big bars;
+	// values: big is the block at its most, as enlarged has it;
 	// accountBar is its bars' cells by account, where it sets them; focus is
 	// the account whose number and name the matrix picks out; marks are the
 	// marks the key line names after the cap's; above and below are how
@@ -567,7 +567,9 @@ func (b usageBlock) split() ([]usageRow, *usageRow) {
 // line of its own above, and the labels a cell in. Its bars take what the
 // block's width leaves them, and its words end a cell before the edge, but
 // where the Overview sets its bars: then its words end besideCells before
-// besideAt, the gap before ROUTING's blocks beside them.
+// besideAt, the gap before ROUTING's blocks beside them. After the last
+// block come the rows under it what's beside it takes, as under has them,
+// the first of them the blank line before the key line.
 func (b usageBlock) byAccount(c *canvas, y int) laid {
 	labelAt, cells := b.labels()
 	bar, end := b.bar(), b.width-afterWords
@@ -593,17 +595,35 @@ func (b usageBlock) byAccount(c *canvas, y int) laid {
 			l.heads = append(l.heads, headed{at: p.y, first: p.y + 1})
 		}
 	}
+	l.end += max(b.under()-1, 0)
 	return l
 }
 
 // blocksApart is how far a block by account's first row is from the last
-// of the block before: a blank line between them, as before the key line;
-// two where GRAPHS' charts sit beside them, each chart's axis on the first.
+// of the block before: a blank line between them, as before the key line,
+// after the rows under it what's beside it takes, as under has them.
 func (b usageBlock) blocksApart() int {
-	if b.charted {
-		return 3
+	return b.under() + 2
+}
+
+// under are the rows under a block by account's last that what's beside it
+// takes: none; but where GRAPHS' charts sit beside them, their axis row, and
+// with the block at its most, as enlarged has it, as many more as give each
+// chart leastChart rows, from the block's first row.
+func (b usageBlock) under() int {
+	switch {
+	case !b.charted:
+		return 0
+	case b.big:
+		return max(leastChart+chartEnds-b.blockRows(), 1)
 	}
-	return 2
+	return 1
+}
+
+// blockRows are the rows of a block by account wide, a window's every other
+// row, as byAccount draws them where charts sit beside them.
+func (b usageBlock) blockRows() int {
+	return 2*len(b.windows) - 1
 }
 
 // labels are the column a block by account's window labels start at, and the

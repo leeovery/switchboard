@@ -231,9 +231,10 @@ var knownBreaks = []known{
 		slice: "S12", rule: wastedThird, sizes: []string{"138x15"},
 		fixtures: []string{"overview-phone-burn-down-52"},
 	},
-	// S13, GRAPHS fluid (F7): no room for its charts with rows spare.
+	// S14, USAGE's matrix where it fits (F8): GRAPHS folded on an iPad with rows
+	// spare, under USAGE's windows stacked.
 	{
-		slice: "S13", rule: foldWithRowsSpare, sizes: []string{"73x61", "108x44"},
+		slice: "S14", rule: foldWithRowsSpare, sizes: []string{"108x44"},
 		fixtures: []string{
 			"overview-by-account-graphs-140", "overview-phone-burn-down-52",
 		},

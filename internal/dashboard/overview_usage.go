@@ -209,8 +209,10 @@ func (b usageBlock) besideAt() int {
 	return b.names + windowLabelCells + b.accountBar + afterBar + fullCells + besideCells
 }
 
-// enlarged is the block with its big bars, where it has them, as enlarges
-// says. Otherwise it's as it is.
+// enlarged is the block at its most, where it grows, as enlarges says:
+// with its big bars; or with its blocks by account far enough apart for the
+// charts beside them to take their least, as under has it. Otherwise it's as
+// it is.
 func (b usageBlock) enlarged() usageBlock {
 	if b.enlarges() {
 		b.big = true
@@ -218,10 +220,11 @@ func (b usageBlock) enlarged() usageBlock {
 	return b
 }
 
-// enlarges reports whether the block has big bars: by window from 150
-// columns, its windows stacked as sections at the full width.
+// enlarges reports whether the block grows: by window from 150 columns, to
+// its big bars, its windows stacked as sections at the full width; and by
+// account, where GRAPHS' charts sit beside its blocks, apart for them.
 func (b usageBlock) enlarges() bool {
-	return b.by == ByWindow && b.width >= matrixWidth
+	return b.by == ByWindow && b.width >= matrixWidth || b.charted
 }
 
 // usageViews are the block's views, as USAGE shows it in however many rows
@@ -465,7 +468,7 @@ func (b usageBlock) placed() []rowAt {
 // beside is where the block draws its rows shown in body, for ROUTING to be
 // drawn beside them from column x.
 func (s usageShown) beside(x int, body bounds) blocksBeside {
-	at := blocksBeside{x: x}
+	at := blocksBeside{x: x, under: s.block.under()}
 	for _, p := range s.block.placed() {
 		p.y += body.y - s.from
 		at.blocks = append(at.blocks, p)

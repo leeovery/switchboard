@@ -366,12 +366,14 @@ func sessionsSpan(n int) span {
 	return span{prose.Counted(n, "session"), k}
 }
 
-// blocksBeside are where USAGE draws its blocks by account, for ROUTING to be
-// drawn beside them: from column x, each block in view where USAGE placed it,
-// an account's, or the pool's, of no id.
+// blocksBeside are where USAGE draws its blocks by account, for ROUTING or
+// GRAPHS' charts to be drawn beside them: from column x, each block in view
+// where USAGE placed it, an account's, or the pool's, of no id; and the rows
+// under each block's last that what's beside it takes, as under has them.
 type blocksBeside struct {
 	x      int
 	blocks []rowAt
+	under  int
 }
 
 // routingBeside draws ROUTING's table t beside USAGE's blocks by account, as

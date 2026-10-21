@@ -110,17 +110,17 @@ func pooledRooms(f Frame, doc status.Document, now time.Time) Frame {
 }
 
 func TestByAccountThePoolsChartsSitBesideItsBlock(t *testing.T) {
-	f := pooledRooms(besideOf(160), trio(), printNow)
+	f := pooledRooms(besideOf(173), trio(), printNow)
 	rows, _ := usageBody(f, trio(), printNow, 40)
 	i := slices.IndexFunc(rows, func(row string) bool { return strings.HasPrefix(row, "Σ pool") })
 	if i < 0 {
 		t.Fatalf("USAGE by account reads\n%s\nwant the pool's block", strings.Join(rows, "\n"))
 	}
-	if got, want := colAt(rows[i], 107, 53), titlesRow(25, besideGap, "WEEK", "5-HOUR"); got != want {
+	if got, want := colAt(rows[i], 107, 64), titlesRow(31, besideGap, "WEEK", "5-HOUR"); got != want {
 		t.Errorf("beside the pool's block, the charts' top row reads\n%q\nwant\n%q", got, want)
 	}
-	if got := colAt(rows[i+5], 107, 6); got != "24 Sep" {
-		t.Errorf("the row under the pool's block reads %q beside it, want the week's axis, from a week back, 24 Sep", got)
+	if got := colAt(rows[i+6], 107, 6); got != "24 Sep" {
+		t.Errorf("the second row under the pool's block reads %q beside it, want the week's axis, from a week back, 24 Sep, under its 5 rows of chart", got)
 	}
 }
 
@@ -140,7 +140,8 @@ func TestThePoolsChartsAreThoseDrawnBesideItsBlock(t *testing.T) {
 		doc   status.Document
 		want  []PoolChart
 	}{
-		{name: "by account at 160 columns", frame: besideOf(160), doc: trio(), want: []PoolChart{{Key: "7d", Columns: 25}, {Key: "5h", Columns: 25}}},
+		{name: "by account at 173 columns", frame: besideOf(173), doc: trio(), want: []PoolChart{{Key: "7d", Columns: 31}, {Key: "5h", Columns: 31}}},
+		{name: "by account at 160 columns", frame: besideOf(160), doc: trio(), want: []PoolChart{{Key: "7d", Columns: 52}}},
 		{name: "by account at 150 columns", frame: besideOf(150), doc: trio(), want: []PoolChart{{Key: "7d", Columns: 42}}},
 		{name: "by window", frame: byWindow, doc: trio()},
 		{name: "under 150 columns", frame: besideOf(149), doc: trio()},
