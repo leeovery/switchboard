@@ -168,14 +168,14 @@ func (f Frame) wholePaged(rows, foot int, heads []headed) rowsPaged {
 }
 
 // paged is how the Year, drawn whole, pages in the view's rows: its
-// numbers' heading on a phone, and BY MONTH's, with their first rows; and
-// where it doesn't fit, its last row saying how many rows are out of view,
-// as Weeks and Days say it where they're drawn whole.
+// numbers' heading where they're under the key, and BY MONTH's, with their
+// first rows; and where it doesn't fit, its last row saying how many rows
+// are out of view, as Weeks and Days say it where they're drawn whole.
 func (y yearDrawn) paged() rowsPaged {
-	p := y.placed()
-	heads := []headed{{at: y.form.row, first: p.first}}
-	if y.form.phone {
-		heads = []headed{{at: yearPhoneNumbersRow, first: yearPhoneNumbersRow + 1}, heads[0]}
+	p := y.laid.byMonth
+	heads := []headed{{at: p.heading, first: p.first}}
+	if !y.laid.beside {
+		heads = []headed{{at: yearNumbersRow, first: yearNumbersRow + 1}, heads[0]}
 	}
 	return rowsPaged{rows: y.viewRows(), content: y.height(), heads: heads, says: true}
 }

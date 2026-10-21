@@ -2223,9 +2223,17 @@ section holds.
 - **The Year shades requests,** how busy a day was, never its worth, which shifts with the models
   used and their prices. A request is a ledger line, so the grid needs nothing priced.
 
-**Year** is the default view.
+**Year** is the default view. It's drawn in its wide form, laid out below, where that form's parts
+fit: its key whole after the days' names, reckoned with every cut at four figures and its unit
+without the use shown, so the form never hangs on the data or a label's length; and BY MONTH's
+columns with its bars at their least, 18 cells. Today that's from 99 columns. Narrower, it's drawn
+as a phone lays it out (On a phone, below). In either form, the numbers sit beside the grid only
+where the whole year and they fit beside it, else under the key (the owner's call, 21 October 2026,
+over fewer weeks with the numbers beside).
 
-- **The grid:** 53 weeks, the last 12 months to this week, a column a week, 2 cells apart, from
+- **The grid:** the latest weeks that fit, the whole year's 53 at most, the last 12 months to this
+  week: as many as end, with their months' names over them, short of the frame's margin, all 53
+  from 122 columns. A column a week, 2 cells apart, from
   column 14; a row a day, rows 7 to 13, from the week's first day as `week_starts` sets it (see
   Config), each day `■` in its level's shade; days still to come this week left out. A day before
   the ledger recorded anything is an empty square like any other, with no line saying when it began.
@@ -2235,7 +2243,14 @@ section holds.
 - **The key,** row 15, from column 14: each shade's `■` and its bounds in requests a day, the cuts
   rounded to 50, in `text.subtle`, `■ none   ■ under 450   ■ 450–750   ■ 750–1,000   ■ over 1,000`,
   then two spaces and `requests a day` in `text.faint`.
-- **The numbers,** at column 126: `LAST 12 MONTHS` on row 6, then from row 7 a row each, labels 13
+- **The numbers,** beside the grid, 6 cells after the whole year's weeks, at column 126, where they
+  fit there, those whose length is bounded reckoned at the widest their format draws, the rest cut
+  at the frame's width: from 149 columns. There, `LAST 12 MONTHS` on row 6, then from row 7 a row
+  each. Where they don't fit there, `LAST 12 MONTHS` on row 17, under the key, at column 0, and
+  under it the numbers in columns of three, 4 cells apart, each as wide as its widest figure whole:
+  the counts, the money, then the busiest day and the longest run. Where the room is short, the
+  columns past the second leave, the last first; then the first narrows to its figures' shortest
+  forms, limits leaving off their windows whole; then the second leaves. Labels 13
   wide in `text.subtle` and values in `text.secondary`: `requests`, `236,410`; `sessions`, `1,688`,
   each counted once; `limits hit`, `5-hour ×402`, in `state.destructive`, those of more than one
   window joined by ` · `, `week ×3 · 5-hour ×402` (settled in the plan; in the order of care); `worth`, `$27,480`;
@@ -2246,17 +2261,19 @@ section holds.
   Against its price says it, ` · 2 of 3 plans` where that doesn't fit, ` · 2/3` where neither does,
   and the ratio alone where none does; `busiest day`, the day of the most requests, `Tue 22 Sep`;
   and `longest run`, the most days in a row with any request, `58 days`.
-- **BY MONTH,** row 17, `worth at API prices; against what the plans cost that month` after it in
+- **BY MONTH,** row 17, or where the numbers are under the key, row 22,
+  `worth at API prices; against what the plans cost that month` after it in
   `text.faint`, and, where any account's plan isn't known, ` · 2 of 3 plans known` after that, once
   for the table, short where only that fits, `· 2 of 3 plans`, compact where only that does,
-  `· 2/3`, and none where none does, left out of the room the Year's form takes. On row 18, its
-  columns' heads in `text.subtle`: `requests` at 14, `worth` at 26, `against` at 38, `limits` at 48
-  and `by model` at 60. From row 19, a row a month, oldest first, its name at column 2, the first
-  with its year, `Oct 2025`, the current month's bold; values in
+  `· 2/3`, and none where none does, left out of the room the Year's form takes. On the row under,
+  its columns' heads in `text.subtle`: `requests` at 14, `worth` at 26, `against` at 38, `limits`
+  at 48 and `by model` at 60. From the row under that, a row a month, oldest first, its name at
+  column 2, the first with its year, `Oct 2025`, the current month's bold; values in
   `text.secondary`; `against` bold, coloured as against its price is, the month the ledger began
   recording in priced from its first day, as the numbers price it (the owner's call, 15 October
   2026), and `—` in `text.faint` for the month so far; `limits` in `state.destructive`. At column
-  60, a bar as long as the month's worth against the largest month's, 30 cells at most and 1 at
+  60, a bar as long as the month's worth against the largest month's, the bars taking the room
+  after the columns, 40 cells at most, the house's most for a bar beside words, and 1 at
   least, split by family, each cell `▅`
   in its family's colour, or in `text.muted` for a family with no colour of its own, as one the
   version table doesn't know (settled in the plan), so bars on neighbouring rows don't merge; two
@@ -2275,8 +2292,9 @@ section holds.
     the 12 months, `Mon 22 Jun`, and `busiest day`. BY MONTH,
     `Opus 5.5 only: its worth at API prices, and its share of the month`, heads `requests` at 14,
     `worth` at 26 and `share` at 38, with `worth` over the bars at 60; a row a month it was used,
-    its bar in its shade, 30 cells at most against its largest month, and `from the 22nd` after the
-    bar of the month it was first used in, where that was part-way through; and above them a row for
+    its bar in its shade, as long as the room allows, 40 cells at most, against its largest
+    month, and `from the 22nd` after the bar of the month it was first used in, where that was
+    part-way through; and above them a row for
     the months before it, `Oct 2025 – May` at column 2 and `none: Opus 5 then` at 26, naming its
     family's version used before it, both in `text.faint`.
   - Filtered to an account, `work only, every model`, the numbers, BY MONTH and the shades are the
@@ -2291,13 +2309,17 @@ section holds.
   `▲ 3 more above   ·   ▼ 10 more below   ·   j/k to scroll`, shorter where the width is, as Tokens
   says it where a period doesn't fit; a Year that fits says nothing (the owner's call, 15 October
   2026).
-- **On a phone:** under the period's row, the latest 22 weeks that fit, from column 4 under their
-  months' names, `M`, `W` and `F` at column 0; a blank row, and the key cut short,
-  `■ 0 ■ <450 ■ 450–750 ■ 750–1k ■ >1k  requests a day`; a blank row, `LAST 12 MONTHS` and its
-  numbers in two columns of three, 26 apart, labels 10 wide: `requests`, `sessions` and `limits`,
-  then `worth`, `plans` and `against`; then a blank row and BY MONTH, its heads on its own row,
-  `worth` at 12, `against` at 22 and `by model` at 32, and the last six months under them, their
-  names at column 1 and their bars from column 32, 18 cells at most.
+- **On a phone:** under the period's row, the latest weeks that fit, as wide, from column 4 under
+  their months' names, `M`, `W` and `F` at column 0: 33 at 73 columns; a blank row, and the key cut
+  short, `■ 0 ■ <450 ■ 450–750 ■ 750–1k ■ >1k  requests a day`; a blank row, `LAST 12 MONTHS` and
+  its numbers under it in columns, as wide, labels 10 wide and short: `requests`, `sessions` and
+  `limits`, then `worth`, `plans` and `against`, then `busiest` and `run`, the first column its
+  natural width, so limits read whole, and the third only where it fits, from 76 columns; then a
+  blank row and BY MONTH, its heads on its heading's row, `worth` at 12, `against` at 22 and
+  `by model` at 32, and every month under them, the first with its year, their names at column 1
+  and their bars from column 32, taking the room to 40 cells at most, with `so far` or
+  `from the 16th` after a part month's bar, as wide; and two rows under the last month, from column
+  32, the families' dots, as wide.
 
 **Weeks** is how full each account's week got, and whether there are as many accounts as the use
 needs. **Short** is a week in which some account hit its week's limit, its peak at 100%. Weeks takes

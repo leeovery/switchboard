@@ -258,7 +258,7 @@ func TestHistoryScrollingIsAsFarAsItScrollsAtTheOffsetAsked(t *testing.T) {
 // At the frames' size, the Year fits, and says nothing of what's out of
 // view: its frames don't change.
 func TestAYearThatFitsSaysNothingOutOfView(t *testing.T) {
-	for _, size := range []struct{ width, height int }{{160, 37}, {52, 35}} {
+	for _, size := range []struct{ width, height int }{{160, 37}, {73, 61}} {
 		rows := textOf(historyDrawn(yearFrame(t, size.width, size.height, views.YearAsk{}, plainYear())).rows(Look{}))
 		if i := slices.IndexFunc(rows, func(r string) bool { return strings.Contains(r, "more below") }); i >= 0 {
 			t.Errorf("at %d × %d, row %d reads %q, want nothing out of view", size.width, size.height, i+1, rows[i])
@@ -268,7 +268,7 @@ func TestAYearThatFitsSaysNothingOutOfView(t *testing.T) {
 
 // A Year too tall for the view shows a heading with its first row under it,
 // or ends its page over the heading: BY MONTH with its heads and first
-// month, and on a phone, its numbers' heading with its first figures.
+// month, and its numbers' heading, under the key, with its first figures.
 func TestAScrolledYearShowsNoHeadingWithoutItsFirstRow(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -278,7 +278,7 @@ func TestAScrolledYearShowsNoHeadingWithoutItsFirstRow(t *testing.T) {
 	}{
 		{name: "BY MONTH, its heading the page's last row", width: 160, height: 21, heading: "BY MONTH", want: Scrolling{Most: 16, Page: 11}},
 		{name: "BY MONTH, its heads the page's last row", width: 160, height: 22, heading: "BY MONTH", want: Scrolling{Most: 15, Page: 11}},
-		{name: "a phone's numbers, their heading the page's last row", width: 52, height: 23, heading: "LAST 12 MONTHS", want: Scrolling{Most: 11, Page: 11}},
+		{name: "a phone's numbers, their heading the page's last row", width: 52, height: 23, heading: "LAST 12 MONTHS", want: Scrolling{Most: 20, Page: 11}},
 	}
 	for _, tt := range tests {
 		f := yearFrame(t, tt.width, tt.height, views.YearAsk{}, plainYear())
