@@ -113,9 +113,9 @@ remembers which:
 
 `↑` and `↓` move the focus between accounts. USAGE lights the focused account.
 
-By account, from 150 columns, GRAPHS draws every account's charts beside its block instead, every
-one of its windows, as many side by side as fit and the rest under them, and there's no focus to
-move. Beside `Σ pool`, the pool's charts show
+By account, from 150 columns, GRAPHS draws every account's charts beside its block instead: as
+many of its windows as fit side by side, and with rows to spare, every one, the rest under them,
+taller as the rows allow. There's no focus to move. Beside `Σ pool`, the pool's charts show
 the room its accounts had left over each window's length back to now, each to its cap, summed, as
 Runway judges how each stood: one held back from every request counts none of its 5-hour window.
 Each account's reset shows as a step up. Narrower, and on a phone, GRAPHS charts the focused

@@ -70,35 +70,40 @@ func TestGRAPHSByAccountChartsEveryWindowBesideEachBlockAsManyToARowAsFitTheRest
 	}
 }
 
-func TestTheChartsBesideABlockTake5RowsWhereTheRowsAllowElseTodays2StackedOrItsRowsAndTheRowAfter(t *testing.T) {
+// usageRowsIn are the rows USAGE takes by account, f's charts beside its
+// blocks in the form given: at its least, stacked, or at its most.
+func usageRowsIn(f Frame, form besideForm) int {
+	v := f.overviewBlock(trio(), printNow).views()
+	return [...]int{besideToday: v.all, besideStacked: v.stacked, besideTall: v.big}[form]
+}
+
+func TestTheChartsBesideABlockAreTodaysAtUSAGEsLeastThenStackedThen5RowsAChartAsTheRowsAllow(t *testing.T) {
 	tests := []struct {
 		name           string
 		width, windows int
-		roomy          bool
+		form           besideForm
 		// axis is the week chart's axis row; under, where the 5-hour's chart
 		// is stacked under it, true; blank, the row parting work's charts
 		// from personal's block, on the row after.
 		axis, blank int
 		under       bool
 	}{
-		{name: "220, two windows, rows to spare: 5 rows of chart", width: 220, windows: 2, roomy: true, axis: 6, blank: 7},
-		{name: "220, two windows, rows short: 2 rows of chart", width: 220, windows: 2, axis: 3, blank: 4},
-		{name: "220, three windows, rows to spare: 5 rows of chart", width: 220, windows: 3, roomy: true, axis: 6, blank: 7},
-		{name: "220, three windows, rows short: 4 rows of chart, its block's rows and one", width: 220, windows: 3, axis: 5, blank: 6},
-		{name: "160, two windows stacked, rows to spare: 5 rows a chart", width: 160, windows: 2, roomy: true, axis: 6, under: true, blank: 14},
-		{name: "160, two windows stacked, rows short: 2 rows a chart", width: 160, windows: 2, axis: 3, under: true, blank: 8},
-		{name: "160, three windows stacked, rows short: 2 rows a chart", width: 160, windows: 3, axis: 3, under: true, blank: 12},
+		{name: "220, two windows, least: 2 rows of chart", width: 220, windows: 2, axis: 3, blank: 4},
+		{name: "220, two windows, most: 5 rows of chart", width: 220, windows: 2, form: besideTall, axis: 6, blank: 7},
+		{name: "220, three windows, least: 4 rows of chart, its block's rows and one", width: 220, windows: 3, axis: 5, blank: 6},
+		{name: "220, three windows, most: 5 rows of chart", width: 220, windows: 3, form: besideTall, axis: 6, blank: 7},
+		{name: "160, two windows, least: as before, side by side, 2 rows of chart", width: 160, windows: 2, axis: 3, blank: 4},
+		{name: "160, two windows, stacked: 2 rows a chart", width: 160, windows: 2, form: besideStacked, axis: 3, under: true, blank: 8},
+		{name: "160, two windows, most: stacked, 5 rows a chart", width: 160, windows: 2, form: besideTall, axis: 6, under: true, blank: 14},
+		{name: "160, three windows, least: as before, two side by side, 4 rows of chart", width: 160, windows: 3, axis: 5, blank: 6},
+		{name: "160, three windows, stacked: 2 rows a chart", width: 160, windows: 3, form: besideStacked, axis: 3, under: true, blank: 12},
+		{name: "160, three windows, most: stacked, 5 rows a chart", width: 160, windows: 3, form: besideTall, axis: 6, under: true, blank: 21},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := besideOf(tt.width)
 			f.Burn, f.Models = BurnDown, tt.windows == 3
-			usage := f.usageSection(trio(), printNow)
-			rows := usage.least - sectionHead
-			if tt.roomy {
-				rows = usage.most - sectionHead
-			}
-			drawn, _ := usageBody(f, trio(), printNow, rows)
+			drawn, _ := usageBody(f, trio(), printNow, usageRowsIn(f, tt.form))
 			if got := colAt(drawn[tt.axis], 107, 9); got != "Sun 21:00" {
 				t.Errorf("row %d beside work's block reads %q, want the week's axis, from its start, Sun 21:00", tt.axis, got)
 			}
@@ -112,6 +117,67 @@ func TestTheChartsBesideABlockTake5RowsWhereTheRowsAllowElseTodays2StackedOrItsR
 				t.Errorf("row %d reads %q, want personal's block", tt.blank+1, drawn[tt.blank+1])
 			}
 		})
+	}
+}
+
+func TestByAccountAt160USAGEsLeastIsAsBeforeAndItGrowsWholeToTheChartsStackedThenTo5RowsAChart(t *testing.T) {
+	tests := []struct {
+		name    string
+		windows int
+		height  int
+		form    besideForm
+		folds   []Section
+		pool    []PoolChart
+	}{
+		{name: "two windows, 37 rows: as before the slice, every account and ROUTING", windows: 2, height: 37,
+			folds: []Section{SectionComing, SectionLately}, pool: []PoolChart{{Key: "7d", Columns: 25}, {Key: "5h", Columns: 25}}},
+		{name: "two windows, 60 rows: stacked", windows: 2, height: 60, form: besideStacked,
+			pool: []PoolChart{{Key: "7d", Columns: 52}, {Key: "5h", Columns: 52}}},
+		{name: "two windows, 90 rows: 5 rows a chart", windows: 2, height: 90, form: besideTall,
+			pool: []PoolChart{{Key: "7d", Columns: 52}, {Key: "5h", Columns: 52}}},
+		{name: "three windows, 50 rows: as before, two side by side", windows: 3, height: 50,
+			pool: []PoolChart{{Key: "7d", Columns: 25}, {Key: "5h", Columns: 25}}},
+		{name: "three windows, 75 rows: stacked, every window", windows: 3, height: 75, form: besideStacked,
+			pool: []PoolChart{{Key: "7d", Columns: 52}, {Key: "5h", Columns: 52}, {Key: "7d_oi", Columns: 52}}},
+		{name: "three windows, 110 rows: 5 rows a chart", windows: 3, height: 110, form: besideTall,
+			pool: []PoolChart{{Key: "7d", Columns: 52}, {Key: "5h", Columns: 52}, {Key: "7d_oi", Columns: 52}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := besideOf(160)
+			f.Height, f.Models = tt.height, tt.windows == 3
+			laid := f.laidOut(trio(), printNow, f.top())
+			if got := folds(laid); !slices.Equal(got, tt.folds) {
+				t.Errorf("%v fold, want %v", got, tt.folds)
+			}
+			if got, want := rowsGiven(laid)[SectionUsage], sectionHead+usageRowsIn(f, tt.form); got != want {
+				t.Errorf("USAGE takes %d rows, want %d, whole, its form %d", got, want, tt.form)
+			}
+			if got := f.usageDrawn(trio(), printNow).beside; got != tt.form {
+				t.Errorf("the charts beside USAGE's blocks are drawn in form %d, want %d", got, tt.form)
+			}
+			if got := f.PoolCharts(trio(), printNow); !slices.Equal(got, tt.pool) {
+				t.Errorf("the pool's charts are %v, want %v", got, tt.pool)
+			}
+		})
+	}
+}
+
+func TestByAccountScrolledTheChartsOfTheLastBlockShownEndBeforeHowManyMoreAreBelow(t *testing.T) {
+	f := besideOf(160)
+	rows, _ := usageBody(f, manyRead(6), now, 20)
+	below := slices.IndexFunc(rows, func(row string) bool { return strings.HasPrefix(row, "▼") })
+	rule := slices.IndexFunc(rows, func(row string) bool { return strings.HasPrefix(row, "────") })
+	if below < 1 || rule < below {
+		t.Fatalf("USAGE scrolled reads\n%s\nwant ▼ and how many more below, then the pool's rule", strings.Join(rows, "\n"))
+	}
+	if got := colAt(rows[below-1], 107, 5); strings.TrimSpace(got) == "" {
+		t.Errorf("the row over ▼ reads nothing beside it, want the last block's charts' axis there:\n%s", strings.Join(rows, "\n"))
+	}
+	for y := below; y < rule; y++ {
+		if got := colAt(rows[y], 107, 53); strings.TrimSpace(got) != "" {
+			t.Errorf("row %d, from ▼ to the pool's rule, reads %q beside the blocks, want nothing: the charts end before ▼\n%s", y, got, strings.Join(rows, "\n"))
+		}
 	}
 }
 
@@ -165,7 +231,7 @@ func TestGRAPHSBesideUSAGEChartsEveryAccountShownAsItsBlocksScroll(t *testing.T)
 	}{
 		{accounts: 1, rows: 40, shown: map[string]int{"a1": 0}},
 		{accounts: 4, rows: 40, shown: map[string]int{"a1": 0, "a2": 8, "a3": 16, "a4": 24}},
-		{accounts: 10, scroll: 2, rows: 22, shown: map[string]int{"a3": 1, "a4": 6, "a5": 11}},
+		{accounts: 10, scroll: 2, rows: 22, shown: map[string]int{"a3": 1, "a4": 6}},
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("%d accounts", tt.accounts), func(t *testing.T) {
@@ -183,20 +249,31 @@ func TestGRAPHSBesideUSAGEChartsEveryAccountShownAsItsBlocksScroll(t *testing.T)
 	}
 }
 
-func TestBesideAreAsManyChartsAsTakeTheirLeastSideBySideSharingTheRoom(t *testing.T) {
-	for _, tt := range []struct{ k, room, want, width int }{
-		{k: 3, room: 29, want: 0}, {k: 3, room: 30, want: 1, width: 30}, {k: 3, room: 61, want: 1, width: 61},
-		{k: 3, room: 62, want: 2, width: 30}, {k: 3, room: 93, want: 2, width: 45}, {k: 3, room: 94, want: 3, width: 30},
-		{k: 3, room: 200, want: 3, width: 65}, {k: 0, room: 200, want: 0},
-	} {
-		spans := chartsFitting(tt.k, tt.room, besideGap)
-		for i, s := range spans {
-			if s.Size != tt.width || s.At != i*(tt.width+besideGap) {
-				t.Errorf("of %d charts in %d cells, chart %d lies %+v, want %d wide, %d apart", tt.k, tt.room, i, s, tt.width, besideGap)
+func TestBesideAreAsManyChartsAsTakeTheirLeastSideBySideSharingTheRoomTheRestUnderOrLeftOffAtTheLeast(t *testing.T) {
+	type fit struct{ k, room, perRow, width, shown int }
+	tests := []struct {
+		form besideForm
+		fits []fit
+	}{
+		{form: besideToday, fits: []fit{
+			{3, 23, 0, 0, 0}, {3, 24, 1, 24, 1}, {3, 49, 1, 49, 1}, {3, 50, 2, 24, 2}, {3, 75, 2, 36, 2}, {3, 76, 3, 24, 3}, {3, 200, 3, 65, 3}, {0, 200, 0, 0, 0},
+		}},
+		{form: besideStacked, fits: []fit{
+			{3, 30, 1, 30, 3}, {3, 61, 1, 61, 3}, {3, 62, 2, 30, 3}, {3, 93, 2, 45, 3}, {3, 94, 3, 30, 3}, {3, 200, 3, 65, 3}, {0, 200, 0, 0, 0},
+		}},
+		{form: besideTall, fits: []fit{{3, 62, 2, 30, 3}}},
+	}
+	for _, tt := range tests {
+		for _, f := range tt.fits {
+			across := tt.form.across(f.k, f.room)
+			for i, s := range across.spans {
+				if s.Size != f.width || s.At != i*(f.width+besideGap) {
+					t.Errorf("form %d: of %d charts in %d cells, chart %d lies %+v, want %d wide, %d apart", tt.form, f.k, f.room, i, s, f.width, besideGap)
+				}
 			}
-		}
-		if len(spans) != tt.want {
-			t.Errorf("of %d charts, %d fit in %d cells, want %d", tt.k, len(spans), tt.room, tt.want)
+			if len(across.spans) != f.perRow || across.shown(f.k) != f.shown {
+				t.Errorf("form %d: of %d charts in %d cells, %d to a row and %d shown, want %d and %d", tt.form, f.k, f.room, len(across.spans), across.shown(f.k), f.perRow, f.shown)
+			}
 		}
 	}
 }

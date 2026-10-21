@@ -70,15 +70,15 @@ type usageBlock struct {
 	// names is the name column's cells.
 	names int
 	// The rest are the Overview's alone, the printout's being their zero
-	// values: big is the block at its most, as enlarged has it;
+	// values: big stacks its windows from 150 columns, as its big bars;
 	// accountBar is its bars' cells by account, where it sets them; focus is
 	// the account whose number and name the matrix picks out; marks are the
 	// marks the key line names after the cap's; above and below are how
 	// many accounts' rows are scrolled out of view above those shown, and
 	// below; spare are the rows those shown leave blank under them, over
 	// the pool's, so the pool and the key line keep their rows however far
-	// the block's scrolled; and charted is whether GRAPHS' charts sit beside
-	// its blocks by account.
+	// the block's scrolled; charted is whether GRAPHS' charts sit beside its
+	// blocks by account, and beside the form they take there.
 	big          bool
 	accountBar   int
 	focus        string
@@ -86,6 +86,7 @@ type usageBlock struct {
 	above, below int
 	spare        int
 	charted      bool
+	beside       besideForm
 }
 
 // shownWindow is a window the block shows: its key, and its name, as in
@@ -515,7 +516,8 @@ func (b usageBlock) stacked(c *canvas, y int) laid {
 // given, returning its last, a row's first apart rows on from the last of
 // the row before. Where accounts' rows are scrolled out of view, ▲ and how
 // many are above comes over the first row shown, and ▼ and how many below
-// under the last, from column x, then the block's spare rows. The pool's row
+// under the last, past the rows under it what's beside it takes, as under
+// has them, from column x, then the block's spare rows. The pool's row
 // comes last, its rule in the row above it.
 func (b usageBlock) each(c *canvas, x, y, apart int, draw func(r usageRow, y int) int) laid {
 	accounts, pool := b.split()
@@ -531,7 +533,7 @@ func (b usageBlock) each(c *canvas, x, y, apart int, draw func(r usageRow, y int
 		next = last + apart
 	}
 	if b.below > 0 {
-		last++
+		last += b.under() + 1
 		c.line(x, last, outOfView(0, b.below, b.width-x, usageOut))
 		next = last + apart
 	}
@@ -608,20 +610,16 @@ func (b usageBlock) blocksApart() int {
 
 // under are the rows under a block by account's last that what's beside it
 // takes: none; but where GRAPHS' charts sit beside them, from the block's
-// first row, as many as give each row of charts, as besideAcross lays them
-// out, leastBeside rows of chart, or with the block at its most, as enlarged
-// has it, leastChart; and the axis row under the block at the least.
+// first row, the axis row under it at the least, or as many as give each row
+// of charts, as the block's form lays them out, the rows of chart its form
+// has.
 func (b usageBlock) under() int {
 	if !b.charted {
 		return 0
 	}
-	h := leastBeside
-	if b.big {
-		h = leastChart
-	}
 	k := len(b.windows)
-	rows := besideAcross(k, b.width-margin-b.besideAt()).rowsFor(k)
-	return max(rows*(h+chartEnds), b.blockRows()+1) - b.blockRows()
+	rows := b.beside.across(k, b.width-margin-b.besideAt()).rowsFor(k)
+	return max(rows*(b.beside.chartRows()+chartEnds), b.blockRows()+1) - b.blockRows()
 }
 
 // blockRows are the rows of a block by account wide, a window's every other

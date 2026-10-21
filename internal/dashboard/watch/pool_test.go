@@ -12,8 +12,7 @@ import (
 )
 
 // byAccountWithGraphs has the Overview group its windows by account, GRAPHS
-// shown, so the pool's charts sit beside Σ pool: at 160 columns, one a row,
-// 52 cells each.
+// shown, so the pool's charts sit beside Σ pool.
 func byAccountWithGraphs(_ *runwayed, cfg *Config) {
 	cfg.By, cfg.Sections = dashboard.ByAccount, dashboard.Sections{}.Toggled(dashboard.SectionGraphs)
 }
@@ -26,22 +25,22 @@ func byAccountWithGraphs(_ *runwayed, cfg *Config) {
 func TestThePoolsChartsAreJudgedByTheReadingsHistorysLiveTail(t *testing.T) {
 	readAt := start.Add(-2 * time.Hour)
 	r := runwayHarness(t, dashboard.Overview, byAccountWithGraphs, filedOn("work", "5h", readAt, 0.3))
-	if want := []dashboard.PoolChart{{Key: "7d", Columns: 52}, {Key: "5h", Columns: 52}}; !slices.Equal(r.model.pool.charts, want) {
+	if want := []dashboard.PoolChart{{Key: "7d", Columns: 25}, {Key: "5h", Columns: 25}}; !slices.Equal(r.model.pool.charts, want) {
 		t.Fatalf("the pool's charts are %v, want %v", r.model.pool.charts, want)
 	}
 	if !r.model.runwayTab.live.span.is(liveSpan(start)) || r.filed.tails == 0 {
 		t.Fatalf("the live tail spans %+v, read %d times, want it over %+v, read", r.model.runwayTab.live.span, r.filed.tails, liveSpan(start))
 	}
 	room := r.model.pool.rooms["5h"]
-	step := 5 * time.Hour / (52 - 1)
+	step := 5 * time.Hour / (25 - 1)
 	end := start.Truncate(step)
-	for c, col := range room.Columns[:51] {
-		at := end.Add(-time.Duration(50-c) * step)
+	for c, col := range room.Columns[:24] {
+		at := end.Add(-time.Duration(23-c) * step)
 		if want := !at.Before(readAt); col.Known != want {
 			t.Errorf("the pool's 5-hour column %d, at %s, is known %t, want %t", c, at.Format("15:04"), col.Known, want)
 		}
 	}
-	if now, want := room.Columns[51], poolRoomAt(r, "5h"); !now.Known || now.Room != want {
+	if now, want := room.Columns[24], poolRoomAt(r, "5h"); !now.Known || now.Room != want {
 		t.Errorf("the pool's 5-hour room at now is %v, known %t, want Σ pool's, %v", now.Room, now.Known, want)
 	}
 
@@ -122,8 +121,8 @@ func TestThePoolsRoomInAWindowNoLongerChartedIsLetGo(t *testing.T) {
 // of what the read gained once it has.
 func TestThePoolsChartsReadTheTailAgainOnlyAsTheirPastMovesOn(t *testing.T) {
 	r := runwayHarness(t, dashboard.Overview, byAccountWithGraphs, filedOn("work", "5h", start.Add(-2*time.Hour), 0.3))
-	next := views.PoolRoomThrough("5h", 52, start).Add(5 * time.Hour / (52 - 1))
-	if views.PoolRoomThrough("7d", 52, next).After(start) {
+	next := views.PoolRoomThrough("5h", 25, start).Add(5 * time.Hour / (25 - 1))
+	if views.PoolRoomThrough("7d", 25, next).After(start) {
 		t.Fatalf("the week's chart moves on by %s, before the 5-hour's", next.Format("15:04"))
 	}
 	read := filedOn("work", "5h", next.Add(-time.Minute), 0.6)
@@ -141,7 +140,7 @@ func TestThePoolsChartsReadTheTailAgainOnlyAsTheirPastMovesOn(t *testing.T) {
 		t.Fatalf("R read nothing of the router: %#v", msgs)
 	}
 	landing := r.update(msgs[i])
-	if col := r.model.pool.rooms["5h"].Columns[50]; col.Known {
+	if col := r.model.pool.rooms["5h"].Columns[23]; col.Known {
 		t.Errorf("before the tail's read landed, the 5-hour chart's last column before now's, at %s, holds %v; want it not known till the read lands", next.Format("15:04"), col.Room)
 	}
 	r.deliver(slices.Concat(msgs[:i], msgs[i+1:], landing)...)
@@ -149,7 +148,7 @@ func TestThePoolsChartsReadTheTailAgainOnlyAsTheirPastMovesOn(t *testing.T) {
 		t.Errorf("the look as the 5-hour chart moved on read the live tail %d times, want once", r.filed.tails-tails)
 	}
 	columns := r.model.pool.rooms["5h"].Columns
-	if col, before := columns[50], columns[49]; !col.Known || math.Abs(before.Room-col.Room-0.3) > 1e-9 {
+	if col, before := columns[23], columns[22]; !col.Known || math.Abs(before.Room-col.Room-0.3) > 1e-9 {
 		t.Errorf("once the read landed, the 5-hour chart's column at %s holds %v, known %t, the one before %v; want work's reading at %s judged, 0.3 less",
 			next.Format("15:04"), col.Room, col.Known, before.Room, read.At.Format("15:04"))
 	}

@@ -368,12 +368,14 @@ func sessionsSpan(n int) span {
 
 // blocksBeside are where USAGE draws its blocks by account, for ROUTING or
 // GRAPHS' charts to be drawn beside them: from column x, each block in view
-// where USAGE placed it, an account's, or the pool's, of no id; and the rows
-// under each block's last that what's beside it takes, as under has them.
+// where USAGE placed it, an account's, or the pool's, of no id; the rows
+// under each block's last that what's beside it takes, as under has them;
+// and the form GRAPHS' charts take there.
 type blocksBeside struct {
 	x      int
 	blocks []rowAt
 	under  int
+	form   besideForm
 }
 
 // routingBeside draws ROUTING's table t beside USAGE's blocks by account, as

@@ -175,18 +175,28 @@ func (g graphs) placed(i int, body bounds) bounds {
 }
 
 // chartsAcross is how GRAPHS lays its charts across: a row of them from
-// column x, each where its span has it; the charts past the row's go on the
-// rows under, in the same columns.
+// column x, each where its span has it; where it stacks, the charts past the
+// row's go on the rows under, in the same columns, else they're left off.
 type chartsAcross struct {
-	x     int
-	spans []flex.Span
+	x      int
+	spans  []flex.Span
+	stacks bool
+}
+
+// shown is how many of k charts show: all where the charts stack, else as
+// many as the row has.
+func (a chartsAcross) shown(k int) int {
+	if a.stacks {
+		return k
+	}
+	return min(k, len(a.spans))
 }
 
 // rowsFor is how many rows of charts k charts take, as many to a row as the
 // row has, one at the least.
 func (a chartsAcross) rowsFor(k int) int {
 	per := max(len(a.spans), 1)
-	return max((k+per-1)/per, 1)
+	return max((a.shown(k)+per-1)/per, 1)
 }
 
 // placed is where chart i lies in area: across, in its column of the row,
@@ -215,21 +225,22 @@ func (a chartsAcross) placed(i int, area bounds, n int, row flex.Part) bounds {
 func layAcross(k, width, names int) chartsAcross {
 	k = max(k, 1)
 	every := (width-matrixNames+chartGap)/k - (names-matrixNames+k-1)/k
-	if spans, ok := chartRow(k, k*every-chartGap, chartGap); ok {
-		return chartsAcross{x: names, spans: spans}
+	if spans, ok := chartRow(k, k*every-chartGap, chartGap, leastChartCells); ok {
+		return chartsAcross{x: names, spans: spans, stacks: true}
 	}
 	room := width - margin
-	if spans := chartsFitting(k, room, chartGap); len(spans) > 0 {
-		return chartsAcross{spans: spans}
+	if spans := chartsFitting(k, room, chartGap, leastChartCells); len(spans) > 0 {
+		return chartsAcross{spans: spans, stacks: true}
 	}
-	return chartsAcross{spans: []flex.Span{{Size: room}}}
+	return chartsAcross{spans: []flex.Span{{Size: room}}, stacks: true}
 }
 
 // chartsFitting lays as many of k charts as fit side by side in room cells,
-// gap cells apart, as chartRow lays them out: none where not one does.
-func chartsFitting(k, room, gap int) []flex.Span {
+// gap cells apart, each least cells or more, as chartRow lays them out: none
+// where not one does.
+func chartsFitting(k, room, gap, least int) []flex.Span {
 	for n := k; n > 0; n-- {
-		if spans, ok := chartRow(n, room, gap); ok {
+		if spans, ok := chartRow(n, room, gap, least); ok {
 			return spans
 		}
 	}
@@ -238,12 +249,12 @@ func chartsFitting(k, room, gap int) []flex.Span {
 
 // chartRow lays n charts side by side in room cells, gap cells apart, each as
 // wide as the others, ⌊(room + gap) ÷ n⌋ − gap, the odd cells left at the
-// end, and reports whether each is leastChartCells or more.
-func chartRow(n, room, gap int) ([]flex.Span, bool) {
+// end, and reports whether each is least cells or more.
+func chartRow(n, room, gap, least int) ([]flex.Span, bool) {
 	each := (room+gap)/n - gap
 	parts := make([]flex.Part, n)
 	for i := range parts {
-		parts[i] = flex.Part{Least: leastChartCells, Natural: each, Gap: gap}
+		parts[i] = flex.Part{Least: least, Natural: each, Gap: gap}
 	}
 	return flex.Lay(room, parts...)
 }

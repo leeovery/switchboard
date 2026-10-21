@@ -667,6 +667,7 @@ func TestUSAGEsBlocksAreABlankRowApartButTwoBesideGRAPHSCharts(t *testing.T) {
 		name        string
 		f           Frame
 		least, most bool
+		stacked     bool
 		apart, key  int
 	}{
 		{name: "the big bars", f: at(160, ByWindow), apart: 1, key: 1},
@@ -678,7 +679,8 @@ func TestUSAGEsBlocksAreABlankRowApartButTwoBesideGRAPHSCharts(t *testing.T) {
 		{name: "by account on a phone", f: at(52, ByAccount), apart: 1, key: 1},
 		{name: "by account, GRAPHS' charts beside, at USAGE's least", f: besideOf(220), least: true, apart: 2, key: 1},
 		{name: "by account, GRAPHS' charts beside, at USAGE's most", f: besideOf(220), most: true, apart: 3, key: 2},
-		{name: "by account, GRAPHS' charts stacked beside, at USAGE's least", f: besideOf(160), least: true, apart: 8, key: 7},
+		{name: "by account at 160, GRAPHS' charts beside, at USAGE's least, side by side as before", f: besideOf(160), least: true, apart: 2, key: 1},
+		{name: "by account, GRAPHS' charts stacked beside", f: besideOf(160), stacked: true, apart: 8, key: 7},
 		{name: "by account, GRAPHS' charts stacked beside, at USAGE's most", f: besideOf(160), most: true, apart: 17, key: 16},
 	}
 	for _, tt := range tests {
@@ -696,6 +698,8 @@ func TestUSAGEsBlocksAreABlankRowApartButTwoBesideGRAPHSCharts(t *testing.T) {
 				height = usage.least - sectionHead
 			case tt.most:
 				height = usage.most - sectionHead
+			case tt.stacked:
+				height = usage.between[0] - sectionHead
 			}
 			rows, _ := usageBody(tt.f, usageWorld(), now, height)
 			blocks, key := gapsOver(rows, cells, starts)

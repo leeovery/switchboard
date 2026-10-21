@@ -307,9 +307,14 @@ func TestNoChartIsUnder30CellsAcrossNorPastTheFramesEdge(t *testing.T) {
 					}
 				}
 			}
-			for _, s := range chartsFitting(k, width, besideGap) {
-				if s.Size < leastChartCells || s.At+s.Size > width {
-					t.Fatalf("of %d windows beside USAGE's blocks in %d cells, a chart lies from %d, %d cells: want 30 or more, within them", k, width, s.At, s.Size)
+			// besideToday, USAGE's least by account, is excused: it's the
+			// drawing before every chart showed, its charts 24 cells at the
+			// least, the owner's call of 21 October 2026.
+			for _, form := range []besideForm{besideStacked, besideTall} {
+				for _, s := range form.across(k, width).spans {
+					if s.Size < leastChartCells || s.At+s.Size > width {
+						t.Fatalf("of %d windows beside USAGE's blocks in %d cells, a chart lies from %d, %d cells: want 30 or more, within them", k, width, s.At, s.Size)
+					}
 				}
 			}
 		}
