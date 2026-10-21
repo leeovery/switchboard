@@ -40,7 +40,8 @@ func (f Frame) lanesHelp() helpPart {
 				"own window not, but the 5-hour view leaves out a week running out: its lane has room until the week's limit."),
 			said("Beside each lane, the account's number, name and marks, as switchboard usage prints them, and under them its use " +
 				"of the view's window, its percentage taking the ramp's second colour from 70% and its last from 90%; read 14:20 " +
-				"where its last read failed; and not read before its first, its lane blank, saying why where that read failed. A stale account's lane and use are faded, as the Overview fades a stale account, and the use of one " +
+				"where its last read failed; and not read before its first, its lane blank, saying why where that read failed. " +
+				"A stale account's lane and use are faded, as the Overview fades a stale account, and the use of one " +
 				"whose token is refused."),
 			said("`a` collapses the labels, to give the lanes more room: beside each lane, its number and its marks alone, as 2 ◆, " +
 				"and under them its use, as 66%, the window named in the heading, or — where there's no use to show. `a` again " +

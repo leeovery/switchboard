@@ -200,8 +200,8 @@ func TestRunwayHelpSaysThePastIsDimmedWhereTheLookBlends(t *testing.T) {
 
 // How long a column is follows the width, as the lanes keep their span: at
 // 160 columns, the lanes' 146 after a label column of 14, ≈ 9.3 minutes,
-// ≈ 69 and ≈ 9.9; on a phone's 38, about 36 minutes, as the phone's legend
-// says.
+// ≈ 69 and ≈ 9.9; at 52, the lanes' 38 after the same column, about 36
+// minutes.
 func TestRunwayHelpSaysHowLongAColumnIsAtTheWidth(t *testing.T) {
 	tests := []struct {
 		width               int

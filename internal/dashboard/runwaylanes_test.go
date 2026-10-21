@@ -19,7 +19,7 @@ func laneCells(cells ...views.Cell) []views.Cell {
 }
 
 // drawnLane is the canvas f draws the lane ln on, as runwayLanes draws it,
-// its lanes from column 24.
+// its lanes from framesLanesFrom.
 func drawnLane(f Frame, ln laidLane) *canvas {
 	c := newCanvas(f.Width, 20)
 	f.runwayLanes(c, runwayLaid{m: status.Moment{Now: routedAt}, x: framesLanesFrom, lanes: []laidLane{ln}})

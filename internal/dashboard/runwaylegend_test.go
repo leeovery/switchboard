@@ -179,7 +179,7 @@ func TestOnAPhoneTheLegendsKeysThenWhatAColumnIsTakeALineEach(t *testing.T) {
 		want  []string
 	}{
 		{
-			name: "the frame's, at 52", shown: phoneRunwayLive(views.RunwayFiveHour, 52), width: 52,
+			name: "its keys, then what a column is, at 52", shown: phoneRunwayLive(views.RunwayFiveHour, 52), width: 52,
 			drawn: views.Drawn{Cells: []views.Cell{views.CellRoom, views.CellCapped}, Resets: true},
 			want:  []string{"█ room    ─ at its cap    │ its 5-hour resets", "a column ≈ 36 minutes · the past dimmed"},
 		},
