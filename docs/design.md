@@ -1117,11 +1117,13 @@ period sits at the right of row 5 wherever the name, the sub-tabs, the state at 
 period fit whole there; where they don't, the period goes to row 6, right-aligned, the view then
 starting at row 8. Whether they fit is decided by the width, the period's widest form, as
 `< last 12 months >` for the Year, and the state's least: `loading…` whole, whether it shows or not,
-as a read can start at any moment, or the state's shortest form where that's wider, as the Year's
-filter, `Opus 5.5 only`. Neither stepping the period nor a read moves the heading between one row
-and two; only a filter changed by `v` can. Beside the period, the state takes the room left, two
-cells short of it, in the first of its forms that fits. Runway, without sub-tabs, keeps its rule and
-its window on row 5.
+as a read can start at any moment, or the state's shortest form where that's wider: the Year's
+filter to a version, `Opus 5.5 only`, whether the year is read yet or not, and to an account, the
+widest configured account's, `personal only`, as `←` `→` step through them. Only `v` moves the
+heading between one row and two, as it turns a filter on, off, or from one kind to the other;
+neither a read, nor stepping the period, nor stepping the account does. Beside the period, the state
+takes the room left, two cells short of it, in the first of its forms that fits. Runway, without
+sub-tabs, keeps its rule and its window on row 5.
 
 **The key line** (the last row) lists the keys that work where they are, each key in bold
 `accent.key` and its word in `text.muted`: `tab views` first, then the page's own keys in groups,

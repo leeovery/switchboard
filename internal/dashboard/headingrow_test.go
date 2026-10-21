@@ -92,13 +92,18 @@ func TestTheHeadingRow(t *testing.T) {
 			want:    []string{"HISTORY   Year  Weeks  Days  Tokens    Work only", blanks(34) + "< last 12 months >"},
 		},
 		{
-			name: "on a phone, the Year's filter in its short form beside the period", width: 68, phone: true,
+			name: "on a phone, the Year's filter in its short form beside the period, where the widest configured account's would fit", width: 72, phone: true,
 			heading: HistoryPage{Shown: HistoryYear, YearAsk: views.YearAsk{Account: "work"}, Accounts: threeConfigured}.heading(),
-			want:    []string{"HISTORY   Year  Weeks  Days  Tokens    Work only  < last 12 months >"},
+			want:    []string{"HISTORY   Year  Weeks  Days  Tokens    Work only" + blanks(6) + "< last 12 months >"},
 		},
 		{
 			name: "History's sub-tabs wider than a phone", heading: yearHistory, width: 160,
 			want: []string{"HISTORY    Year  Weeks  Days  Tokens  [ ]  " + rule(97) + "  < last 12 months >"},
+		},
+		{
+			name: "wider than a phone, the Year's filter in its short form where its full form doesn't fit, then the rule", width: 108,
+			heading: HistoryPage{Shown: HistoryYear, YearAsk: views.YearAsk{Account: "work"}, Accounts: threeConfigured}.heading(),
+			want:    []string{"HISTORY    Year  Weeks  Days  Tokens  [ ]   Work only " + rule(34) + "  < last 12 months >"},
 		},
 		{
 			name: "on a phone, the sub-tabs two cells after the name, padded, and a line at the right on their row, as log-requests-phone-52 draws them", width: 52, phone: true,
@@ -276,21 +281,20 @@ func historyAt(page HistoryPage) func(*Frame) {
 // longLabelled are the accounts configured, side's label long.
 var longLabelled = config.Accounts{{ID: "work", Label: "Work"}, {ID: "personal"}, {ID: "side", Label: "side-hustle-consulting"}}
 
-// The Year's filters: none; an account, by a short label and a long one; and
-// a version.
+// The Year's filters: none; an account; and a version, Opus 5.5 or the wider
+// Sonnet 5.5.
 var (
-	yearAll      = views.YearAsk{}
-	yearWork     = views.YearAsk{Account: "work"}
-	yearSide     = views.YearAsk{Account: "side"}
-	yearVersion  = views.YearAsk{Version: "Opus 5.5"}
-	yearFiltered = []views.YearAsk{yearAll, yearWork, yearSide, yearVersion}
+	yearAll    = views.YearAsk{}
+	yearWork   = views.YearAsk{Account: "work"}
+	yearOpus   = views.YearAsk{Version: "Opus 5.5"}
+	yearSonnet = views.YearAsk{Version: "Sonnet 5.5"}
 )
 
 // yearAt has a frame show the Year over the year given, filtered as ask
-// says.
-func yearAt(ask views.YearAsk, year int) func(*Frame) {
+// says, of the accounts configured, its last 12 months read where read says.
+func yearAt(accounts config.Accounts, ask views.YearAsk, year int, read bool) func(*Frame) {
 	ask.Year = year
-	return historyAt(HistoryPage{Shown: HistoryYear, YearAsk: ask, Accounts: longLabelled, Read: true})
+	return historyAt(HistoryPage{Shown: HistoryYear, YearAsk: ask, Accounts: accounts, Read: read})
 }
 
 // tokensAt has a frame show Tokens by the period given.
@@ -313,11 +317,14 @@ func TestAPhonesPeriodSitsBesideTheHeadingWhereItFits(t *testing.T) {
 		{name: "Accounts' Detail", view: Accounts, shown: accountsAt(threeConfigured, AccountsDetail, views.AccountsToday), edge: 53},
 		{name: "Accounts with one account", view: Accounts, shown: accountsAt(threeConfigured[:1], AccountsDetail, views.AccountsThisWeek), edge: 44},
 		{name: "History's Tokens", view: History, shown: tokensAt(views.TokensByWeek), edge: 61},
-		{name: "History's Year", view: History, shown: yearAt(yearAll, 0), edge: 67},
-		{name: "History's Year over a calendar year", view: History, shown: yearAt(yearAll, 2025), edge: 67},
-		{name: "History's Year, Work's alone", view: History, shown: yearAt(yearWork, 0), edge: 68},
-		{name: "History's Year, a version's alone", view: History, shown: yearAt(yearVersion, 0), edge: 72},
-		{name: "History's Year, a long label's alone", view: History, shown: yearAt(yearSide, 0), edge: 86},
+		{name: "History's Year", view: History, shown: yearAt(threeConfigured, yearAll, 0, true), edge: 67},
+		{name: "History's Year over a calendar year", view: History, shown: yearAt(threeConfigured, yearAll, 2025, true), edge: 67},
+		{name: "History's Year, Work's alone, personal only the widest", view: History, shown: yearAt(threeConfigured, yearWork, 0, true), edge: 72},
+		{name: "History's Year, Work's alone, a label configured long", view: History, shown: yearAt(longLabelled, yearWork, 0, true), edge: 86},
+		{name: "History's Year, Opus 5.5's alone", view: History, shown: yearAt(threeConfigured, yearOpus, 0, true), edge: 72},
+		{name: "History's Year, Opus 5.5's alone, not read yet", view: History, shown: yearAt(threeConfigured, yearOpus, 0, false), edge: 72},
+		{name: "History's Year, Sonnet 5.5's alone", view: History, shown: yearAt(threeConfigured, yearSonnet, 0, true), edge: 74},
+		{name: "History's Year, Sonnet 5.5's alone, not read yet", view: History, shown: yearAt(threeConfigured, yearSonnet, 0, false), edge: 74},
 	}
 	for _, tt := range tests {
 		for _, width := range []int{tt.edge - 1, tt.edge} {
@@ -351,11 +358,12 @@ func TestAPhonesPeriodSitsBesideTheHeadingWhereItFits(t *testing.T) {
 }
 
 // Whether the period sits beside the name is the width's, the period's
-// widest form's and the state's least's to say, never the period shown's nor
-// a read's: stepping through every period a view has, loading or not, never
-// moves its heading between one row and two, at any width; and where the
-// period sits beside, the state shows its least form whole, and the period
-// clears it.
+// widest form's and the state's least's to say: only v moves the heading
+// between one row and two, as it turns a filter on, off, or from one kind to
+// the other. Neither a read, the page's loading or its last 12 months', nor
+// stepping the period with < and >, nor stepping the Year's account with ←
+// and →, moves it, at any width; and where the period sits beside, the state
+// shows its least form whole, and the period clears it.
 func TestSteppingThePeriodNeverMovesTheHeadingsRows(t *testing.T) {
 	type sweep struct {
 		view  View
@@ -372,9 +380,17 @@ func TestSteppingThePeriodNeverMovesTheHeadingsRows(t *testing.T) {
 		add("Accounts' Detail", Accounts, accountsAt(threeConfigured, AccountsDetail, period))
 		add("Accounts with one account", Accounts, accountsAt(threeConfigured[:1], AccountsDetail, period))
 	}
-	for _, ask := range yearFiltered {
-		for _, year := range []int{0, 2025} {
-			add(fmt.Sprintf("History's Year, %+v", ask), History, yearAt(ask, year))
+	for _, year := range []int{0, 2025} {
+		for _, read := range []bool{false, true} {
+			add("History's Year", History, yearAt(threeConfigured, yearAll, year, read))
+			for _, ask := range []views.YearAsk{yearOpus, yearSonnet} {
+				add("History's Year, "+ask.Version+"'s alone", History, yearAt(threeConfigured, ask, year, read))
+			}
+			for name, accounts := range map[string]config.Accounts{"short": threeConfigured, "long": longLabelled} {
+				for _, id := range accounts.IDs() {
+					add("History's Year, an account's alone, labels "+name, History, yearAt(accounts, views.YearAsk{Account: id}, year, read))
+				}
+			}
 		}
 	}
 	for _, period := range tokensPeriods {
@@ -394,7 +410,7 @@ func TestSteppingThePeriodNeverMovesTheHeadingsRows(t *testing.T) {
 				}
 			}
 			if slices.Min(rows) != slices.Max(rows) {
-				t.Errorf("%s at %d: its periods' headings, loading and not, take %v rows, want the same for each", name, width, rows)
+				t.Errorf("%s at %d: its headings, read, loading and stepped, take %v rows, want the same for each", name, width, rows)
 			}
 		}
 	}
