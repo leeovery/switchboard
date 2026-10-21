@@ -684,7 +684,8 @@ accounts:
   npm's `claude`, run by `env node`, finds a `node` installed beside it under launchd's `PATH`,
   which holds the system's directories alone.
 - `accounts add <id>` registers an account. It refuses an id, or a `--label`, holding anything
-  shaped like a token before it asks for the token, saving nothing, and shows the id as
+  shaped like a token, or a `--label` over 100 characters, before it asks for the token, saving
+  nothing, and shows the id as
   `[redacted]`. When the account's token file holds no usable token, it asks for the token, hidden,
   pointing to `claude setup-token` run while signed in to that subscription, or reads it from stdin
   when stdin isn't a terminal, and writes it in place of whatever the file held. An interrupt while
@@ -6063,7 +6064,8 @@ fails as it is; one that parses has every problem reported at once:
   so no two ids differ only in case, as `work` and `Work` do, which macOS, ignoring case in file
   names, would give one token file. Neither the `id` nor the `label` may hold anything shaped like a
   token, as both show wherever the account does: the error never quotes it, and names an account
-  whose id holds one by its place, as `account #2`.
+  whose id holds one by its place, as `account #2`. A `label` is at most 100 characters, counted
+  as runes; the error gives its length, never the label.
 - **`primary`** is true on one account at most.
 - **`reserve`** is 0, or more than 0 and less than 1.
 - **`[prime]`**: `day` is two times of day, `HH:MM`, joined by `-`, and not the same time twice.

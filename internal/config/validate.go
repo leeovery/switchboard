@@ -210,8 +210,7 @@ func checkID(account, id string) error {
 	return nil
 }
 
-// mostLabelCharacters is the longest a label may be, in characters as its
-// user counts them.
+// mostLabelCharacters is the longest a label may be, in runes.
 const mostLabelCharacters = 100
 
 // checkLabel keeps anything that looks like a token out of a label, and keeps
