@@ -211,36 +211,13 @@ var knownBreaks = []known{
 		byDesign: "the List's directories at their most", cuts: dirCuts(views.SessionDirMost), rule: cutWithRoom,
 		sizes: []string{"138x30", "138x15", "173x53"}, fixtures: []string{"sessions-list-long-names-108x44"},
 	},
-	// S10, the Overview's rows on flex (F1): sections folded with rows spare.
+	// S12, USAGE at short heights (F3, F4): at 108x44, USAGE's three windows
+	// stacked leave 3 rows under GRAPHS, ROUTING, COMING UP and LATELY
+	// folded, short of any of them unfolding, until its blank rows and key
+	// give way.
 	{
-		slice: "S10", rule: foldWithRowsSpare, sizes: []string{"73x61"},
-		fixtures: []string{
-			"overview-model-nearing-160", "overview-models-160",
-		},
-	},
-	{
-		slice: "S10", rule: foldWithRowsSpare, sizes: []string{"73x61", "108x44"},
-		fixtures: []string{
-			"overview-by-account-burn-down-220x50", "overview-by-account-graphs-160", "overview-pool-220x50",
-			"overview-pool-burn-down-160",
-		},
-	},
-	{
-		slice: "S10", rule: foldWithRowsSpare, sizes: []string{"73x61", "109x53"},
-		fixtures: []string{"overview-six-accounts-160"},
-	},
-	// S11, SESSIONS takes the rows left (F2): it folds unless every session
-	// fits.
-	{
-		slice: "S11", rule: foldWithRowsSpare, sizes: []string{"73x61", "108x44", "109x53"},
-		fixtures: []string{
-			"long-names-overview", "overview-burn-down-160x39", "overview-everything-160x39",
-			"overview-everything-216x106", "overview-sessions-graphs-216",
-		},
-	},
-	{
-		slice: "S11", rule: foldWithRowsSpare, sizes: []string{"73x61", "109x53"},
-		fixtures: []string{"overview-sessions-216"},
+		slice: "S12", rule: foldWithRowsSpare, sizes: []string{"108x44"},
+		fixtures: []string{"overview-by-account-burn-down-220x50", "overview-pool-220x50"},
 	},
 	// S12, USAGE at short heights (F3): no account at 15 rows.
 	{

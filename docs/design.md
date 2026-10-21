@@ -1907,24 +1907,36 @@ remembered").
 | COMING UP and LATELY | 3 lines | 12 | Its lines and 2 |
 
 Rows 0 to 3 (0 to 4 on a phone) hold the title row and the status line, and the last two the blank
-row and the key line. The planner:
+row and the key line. The planner works in units, the sections that share rows: a section alone,
+USAGE with what sits beside it, or COMING UP and LATELY side by side. Each arrangement it tries is
+laid down the rows by flex (`overview.go`, `layUnits`): each unit a part of the rows it takes, its
+heading's alone where it folds, and the blank row before it a gap, as the rule above has it; flex
+says whether they fit. The order in which units fold, unfold and grow is the Overview's own, as
+below, not flex's even share:
 
 1. Every section shown starts at its least.
 2. **Rows short:** sections fold, in turn, until the page fits: SESSIONS; then COMING UP and LATELY
    together; then GRAPHS; then ROUTING. USAGE never folds; with many accounts it scrolls within the
    rows left to it.
-3. **While anything is folded, nothing grows,** and the rows over stay empty at the foot.
-4. **Rows to spare,** while nothing is folded, go in turn: to GRAPHS, a row at a time to 19; to
-   USAGE's big bars, if they fit; to ROUTING's two rows of trace, if they fit; then to COMING UP and
-   LATELY, a line at a time to 12; by account, at the big bars' turn, so ahead of COMING UP and
-   LATELY, USAGE grows to the most of its forms that fits whole: GRAPHS' charts at 5 rows, or
-   stacked at 2. GRAPHS comes before the big bars, so that GRAPHS never shrinks as
-   they come; at a few heights, one row more brings the big bars or ROUTING's trace in, and ROUTING,
-   or COMING UP and LATELY, give up rows to make room.
-5. **Past every most,** the rest is empty at the foot, the key line on the last row.
-6. **The layout changes only on a key or a resize,** never on its own. SESSIONS keeps the rows it
-   was given: more sessions than fit show as many as fit, the last row saying `+2 more`
-   (settled in the plan).
+3. **What folds unfolds where it fits,** at its least: those folded last first, and of those
+   folded together, unit by unit in the page's order. So on a phone, where LATELY is a unit of its
+   own under COMING UP, COMING UP unfolds alone where LATELY can't, and LATELY alone where it fits
+   and COMING UP doesn't, as under a folded heading, where COMING UP's would bring a blank row
+   back. A section left folded never fits at its least with every other at its own.
+4. **Rows to spare go out even while a section is folded,** to the units that aren't, in turn: to
+   GRAPHS, a row at a time to 19; to USAGE's big bars, if they fit; to ROUTING's two rows of trace,
+   if they fit; then to COMING UP and LATELY, a line at a time to 12; by account, at the big bars'
+   turn, so ahead of COMING UP and LATELY, USAGE grows to the most of its forms that fits whole:
+   GRAPHS' charts at 5 rows, or stacked at 2. A folded unit never grows: what can't unfold leaves
+   rows the others use. GRAPHS comes before the big bars, so that GRAPHS never shrinks as they
+   come; at a few heights, one row more brings the big bars or ROUTING's trace in, and ROUTING, or
+   COMING UP and LATELY, give up rows to make room.
+5. **Past every most,** or where no unit's next step fits, the rest is empty at the foot, the key
+   line on the last row.
+6. **The layout changes only on a key or a resize,** or a section's shape changing, never on its
+   own. SESSIONS keeps the rows it was given as sessions start and end, and COMING UP and LATELY
+   theirs as lines come and go: more sessions than fit show as many as fit, the last row saying
+   `+2 more` (settled in the plan).
 
 **A folded section keeps its heading,** saying what it holds, with no blank row between two folded
 ones:

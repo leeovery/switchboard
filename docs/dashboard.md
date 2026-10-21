@@ -71,7 +71,9 @@ gets:
 - Sections fold in this order: SESSIONS first, then COMING UP and LATELY, then GRAPHS, then
   ROUTING.
 - USAGE never folds. With many accounts, it scrolls within itself.
-- Spare rows grow the sections shown, up to their full size.
+- A folded section opens again wherever it fits, the last folded first.
+- Spare rows grow the sections that aren't folded, up to their full size, even while others are
+  folded.
 
 ### USAGE
 
