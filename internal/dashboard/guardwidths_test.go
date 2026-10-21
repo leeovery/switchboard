@@ -191,6 +191,21 @@ func elementOf(lit *ast.CompositeLit, field string, info *types.Info) ast.Expr {
 	return nil
 }
 
+// constantOf is the number constant e gives, written as one or followed a
+// step back, as valueOf follows it: nil where it gives none.
+func (w widths) constantOf(e ast.Expr, info *types.Info) constant.Value {
+	value := w.valueOf(e, nil, info, false)
+	if value == nil {
+		return nil
+	}
+	switch c := info.Types[value].Value; {
+	case c == nil, c.Kind() != constant.Int && c.Kind() != constant.Float:
+		return nil
+	default:
+		return c
+	}
+}
+
 // constantWidth breaks a call of a cutter whose widths lie where at says,
 // where one is a constant other than whole, as Breaks judges a call: written
 // as one, or followed a step back, as widths' valueOf follows it. One known
@@ -293,7 +308,11 @@ func (w widths) wraps(fd *ast.FuncDecl, info *types.Info, cutters map[string][]w
 			if p == nil || i < 0 || w.written[p] {
 				continue
 			}
-			mine := widthAt{arg: i, fields: strings.Join(append(fields, at.path()...), ".")}
+			path := append(fields, at.path()...)
+			if recurs(p.Type(), path) {
+				continue
+			}
+			mine := widthAt{arg: i, fields: strings.Join(path, ".")}
 			if !slices.Contains(cutters[name], mine) {
 				cutters[name] = append(cutters[name], mine)
 				added = true
@@ -302,6 +321,40 @@ func (w widths) wraps(fd *ast.FuncDecl, info *types.Info, cutters map[string][]w
 		return true
 	})
 	return added
+}
+
+// recurs reports whether the fields' path from a value of type t passes
+// through a struct it has passed through already, as a list's next.w does:
+// a wrapper handing on such a path, as one walking the list, would have the
+// fixpoint follow it without end, next.next.w and on, so it's refused.
+func recurs(t types.Type, path []string) bool {
+	seen := make(map[*types.Struct]bool)
+	for _, name := range path {
+		_, s := sourcecheck.StructOf(t)
+		if s == nil {
+			return false
+		}
+		if seen[s] {
+			return true
+		}
+		seen[s] = true
+		field := fieldNamed(s, name)
+		if field == nil {
+			return false
+		}
+		t = field.Type()
+	}
+	return false
+}
+
+// fieldNamed is the struct's field named: nil where it has none.
+func fieldNamed(s *types.Struct, name string) *types.Var {
+	for f := range s.Fields() {
+		if f.Name() == name {
+			return f
+		}
+	}
+	return nil
 }
 
 // paramsOf are fd's parameters, in order, but its receiver.

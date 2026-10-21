@@ -110,9 +110,10 @@ type Rule struct {
 	Takes  func(fn, field string) string
 	// Allowed are the calls allowed all the same.
 	Allowed []string
-	// Node says how a node of a file's declarations breaks the rule, by what
-	// the type checker knows of it, as a comparison by what it compares: ""
-	// where it doesn't. Nil judges none.
+	// Node says how a node of a file's declarations breaks the rule, judged
+	// by the node and what the type checker knows of it, as a guard might
+	// judge a comparison by its operands' types: "" where it doesn't. Nil
+	// judges none.
 	Node func(n ast.Node, info *types.Info) string
 }
 
@@ -130,7 +131,7 @@ func (b Ban) holdsIn(dir string) bool {
 }
 
 // Breach is where a file breaks a rule: in which of its declarations, as
-// DeclName names it, and how.
+// NameAt names it, and how.
 type Breach struct {
 	At   token.Pos
 	In   string
@@ -138,7 +139,7 @@ type Breach struct {
 }
 
 // Use is where a file uses a function, by its name, as Names.Func has it: in
-// which of its declarations, as DeclName names it.
+// which of its declarations, as NameAt names it.
 type Use struct {
 	At   token.Pos
 	In   string
@@ -154,7 +155,7 @@ func (r Rule) Breaches(f File) (found []Breach, allowed []Use) {
 	unseen := r.unseenIn(f.Pkg, dir)
 	banned := r.structsBanned(reachable(f.Pkg))
 	for _, decl := range f.AST.Decls {
-		w := &walk{r: r, info: f.Info, dir: dir, in: DeclName(decl), banned: banned, judged: make(map[*ast.Ident]bool)}
+		w := &walk{r: r, info: f.Info, dir: dir, decl: decl, banned: banned, judged: make(map[*ast.Ident]bool)}
 		ast.Inspect(decl, w.visit)
 		for _, lost := range f.LostIn(decl) {
 			if unseen.bans(lost) {
@@ -168,13 +169,14 @@ func (r Rule) Breaches(f File) (found []Breach, allowed []Use) {
 	return found, allowed
 }
 
-// walk is a walk of one of a file's declarations, named in, of the package
-// in dir, for where it breaks the rule r and the calls it makes that r
-// allows, the structs of the types r bans as structsBanned gives them.
+// walk is a walk of one of a file's declarations, decl, of the package in
+// dir, for where it breaks the rule r and the calls it makes that r allows,
+// the structs of the types r bans as structsBanned gives them.
 type walk struct {
 	r       Rule
 	info    *types.Info
-	dir, in string
+	dir     string
+	decl    ast.Decl
 	banned  map[*types.Struct]string
 	found   []Breach
 	allowed []Use
@@ -204,7 +206,7 @@ func (w *walk) visit(n ast.Node) bool {
 }
 
 func (w *walk) breach(at token.Pos, says string) {
-	w.found = append(w.found, Breach{At: at, In: w.in, Says: says})
+	w.found = append(w.found, Breach{At: at, In: NameAt(w.decl, at), Says: says})
 }
 
 // field finds sel reading a field of one of Fields, or a field of Used
@@ -255,7 +257,7 @@ func (w *walk) usedFunc(id *ast.Ident, fn *types.Func) {
 	case says != "":
 		w.breach(id.Pos(), says)
 	case slices.Contains(w.r.Allowed, name):
-		w.allowed = append(w.allowed, Use{At: id.Pos(), In: w.in, Name: name})
+		w.allowed = append(w.allowed, Use{At: id.Pos(), In: NameAt(w.decl, id.Pos()), Name: name})
 	}
 }
 
@@ -284,7 +286,7 @@ func (w *walk) value(e ast.Expr) {
 		return
 	}
 	w.judged[id] = true
-	w.breach(id.Pos(), ban.Says)
+	w.breach(id.Pos(), cmp.Or(ban.AsValue, ban.Says))
 }
 
 // callBan is the full name of the function e names, the identifier naming
@@ -493,6 +495,51 @@ func DeclName(decl ast.Decl) string {
 		return fd.Name.Name
 	}
 	return receiverName(fd.Recv.List[0].Type) + "." + fd.Name.Name
+}
+
+// NameAt names what of decl is at the position: the function decl declares,
+// as DeclName names it; or the package-level variable or constant whose
+// declaration it's in, by its name, as "routingColumn", where the
+// declaration names one alone or it's in the value given that one: "" of
+// anything else.
+func NameAt(decl ast.Decl, at token.Pos) string {
+	gen, ok := decl.(*ast.GenDecl)
+	if !ok {
+		return DeclName(decl)
+	}
+	for _, spec := range gen.Specs {
+		v, ok := spec.(*ast.ValueSpec)
+		if !ok || at < v.Pos() || at >= v.End() {
+			continue
+		}
+		if len(v.Names) == 1 {
+			return v.Names[0].Name
+		}
+		for i, value := range v.Values {
+			if len(v.Values) == len(v.Names) && at >= value.Pos() && at < value.End() {
+				return v.Names[i].Name
+			}
+		}
+	}
+	return ""
+}
+
+// DeclNames name what decl declares, each as NameAt names it: the function,
+// or each package-level variable and constant.
+func DeclNames(decl ast.Decl) []string {
+	gen, ok := decl.(*ast.GenDecl)
+	if !ok {
+		return []string{DeclName(decl)}
+	}
+	var names []string
+	for _, spec := range gen.Specs {
+		if v, ok := spec.(*ast.ValueSpec); ok {
+			for _, name := range v.Names {
+				names = append(names, name.Name)
+			}
+		}
+	}
+	return names
 }
 
 // receiverName is the name of a method's receiver's type, as its declaration

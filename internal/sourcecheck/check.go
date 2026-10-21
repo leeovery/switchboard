@@ -13,9 +13,9 @@ import (
 // lets, for an allowance that no longer stands to say what to remove.
 type Allowance struct {
 	// Entries are the files allowed to break the rule, by path from the
-	// module's root, and the functions, by their file's path, a colon and
-	// their name, as DeclName names it, as
-	// "internal/cli/requests.go:requestRow".
+	// module's root, and the functions and package-level variables and
+	// constants, by their file's path, a colon and their name, as NameAt
+	// names it, as "internal/cli/requests.go:requestRow".
 	Entries []string
 	// List names the list of Entries, as "readsAllowed", and Fix says how to
 	// fix one that's gone, or keeps the rule.
@@ -46,7 +46,9 @@ func (l *Loader) Check(r Rule, dirs []string, a Allowance) []string {
 	for _, dir := range dirs {
 		for _, f := range l.Load(dir) {
 			for _, decl := range f.AST.Decls {
-				declared[f.Path+":"+DeclName(decl)] = true
+				for _, name := range DeclNames(decl) {
+					declared[f.Path+":"+name] = true
+				}
 			}
 			found, calls := r.Breaches(f)
 			for _, b := range found {
@@ -93,7 +95,7 @@ func (a Allowance) entryOf(path, in string) (string, bool) {
 }
 
 // exists reports whether the entry is there: a file, under the module's root;
-// a function, among those declared.
+// a function, a variable or a constant, among those declared.
 func exists(t *testing.T, root, entry string, declared map[string]bool) bool {
 	t.Helper()
 	if strings.Contains(entry, ":") {

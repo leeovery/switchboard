@@ -93,11 +93,10 @@ const moveArrow = " → "
 // "pers… → side"; and with less room than an ellipsis each, the arrow and
 // the account moved to alone, as a phone has a move, "→si…".
 func moveNames(from, to string, cells int, k ink) line {
-	room := cells - ansi.StringWidth(moveArrow)
-	if room < 2 {
+	if cells < ansi.StringWidth(prose.Ellipsis+moveArrow+prose.Ellipsis) {
 		return line{{strings.TrimSpace(moveArrow), mutedInk}, {prose.Cut(to, cells-1), k}}.fit(cells)
 	}
-	f, t := movedCells(ansi.StringWidth(from), ansi.StringWidth(to), room)
+	f, t := movedCells(ansi.StringWidth(from), ansi.StringWidth(to), cells-ansi.StringWidth(moveArrow))
 	return line{{prose.Cut(from, f), k}, {moveArrow, mutedInk}, {prose.Cut(to, t), k}}
 }
 

@@ -51,6 +51,10 @@ func TestACheckFindsEachBreachButWhereItsAllowed(t *testing.T) {
 		"internal/reader/fns.go:keptFn",
 		"internal/reader/fns.go:goneFn",
 		"internal/reader/fns.go:holder.allowedMethod",
+		"internal/reader/fns.go:allowedVar",
+		"internal/reader/fns.go:keptVar",
+		"internal/reader/fns.go:goneVar",
+		"internal/reader/fns.go:also",
 	))
 	want := []string{
 		"internal/reader/breaches.go:14: data.Record.ID reads raw fields; " + readFix,
@@ -62,6 +66,8 @@ func TestACheckFindsEachBreachButWhereItsAllowed(t *testing.T) {
 		"internal/reader/breaches.go:19: data.Record.Tag takes data.Record; " + takesFix,
 		"internal/reader/breaches.go:24: data.Record.ID reads raw fields; " + readFix,
 		"internal/reader/fns.go:13: data.Record.ID reads raw fields; " + readFix,
+		"internal/reader/fns.go:17: data.Record.ID reads raw fields; " + readFix,
+		"internal/reader/fns.go:21: data.Record.ID reads raw fields; " + readFix,
 		"internal/other/other.go:5: data.Scoped is absorbed in other; " + usedFix,
 		"internal/other/other.go:7: data.Other.Name is absorbed in other; " + usedFix,
 		"internal/other/other.go:9: data.Other.Name is absorbed in other; " + usedFix,
@@ -69,6 +75,8 @@ func TestACheckFindsEachBreachButWhereItsAllowed(t *testing.T) {
 		"internal/reader/gone.go: allowed allows it, but it's gone; " + listFix,
 		"internal/reader/fns.go:keptFn: allowed allows it, but it keeps the rule; " + listFix,
 		"internal/reader/fns.go:goneFn: allowed allows it, but it's gone; " + listFix,
+		"internal/reader/fns.go:keptVar: allowed allows it, but it keeps the rule; " + listFix,
+		"internal/reader/fns.go:goneVar: allowed allows it, but it's gone; " + listFix,
 		"data.Keyed: calls allows it, but no reader calls it; " + callFix,
 	}
 	if !slices.Equal(got, want) {
@@ -80,9 +88,10 @@ func TestACheckFindsEachBreachButWhereItsAllowed(t *testing.T) {
 // one embedding another and one wrapping them, a function absorbed, one
 // absorbed in another package alone, as is a field of a type it doesn't
 // guard, and functions and methods taking a guarded type; a reader package
-// with a file of breaches, a file and functions allowed to break the rule, a
-// file and a function allowed that keep it, and a test file, which a check
-// passes over; and that other package, using what's absorbed in it, the
+// with a file of breaches, a file, functions and package-level variables
+// allowed to break the rule, each variable by its name, two declared
+// together by the value given each, a file, a function and a variable
+// allowed that keep it, and a test file, which a check passes over; and that other package, using what's absorbed in it, the
 // field read directly and through a type embedding its own. The reader imports a module the
 // fixture doesn't have, as the source loader stubs it.
 var checkFixture = map[string]string{
@@ -158,6 +167,14 @@ func keptFn() int { return 0 }
 func (h holder) allowedMethod() string { return h.r.ID }
 
 func unallowed(r data.Record) string { return r.ID }
+
+var (
+	allowedVar = data.Record{}.ID
+	otherVar   = data.Record{}.ID
+	keptVar    = 0
+)
+
+var two, also = data.Record{}.ID, data.Record{}.ID
 `,
 	"internal/reader/allowed.go": `package reader
 
@@ -527,6 +544,8 @@ type single[T any] struct{}
 
 var declared = 1
 
+var pair, kept = 2, 3
+
 func function() {}
 
 func (plain) value()            {}
@@ -542,8 +561,18 @@ func (*single[T]) one()         {}
 			got = append(got, sourcecheck.DeclName(decl))
 		}
 	}
-	want := []string{"", "", "", "", "function", "plain.value", "plain.pointer", "generic.two", "single.one"}
+	want := []string{"", "", "", "", "", "function", "plain.value", "plain.pointer", "generic.two", "single.one"}
 	if !slices.Equal(got, want) {
 		t.Errorf("DeclName() named %q, want %q", got, want)
+	}
+	got = nil
+	for _, f := range files {
+		for _, decl := range f.AST.Decls {
+			got = append(got, sourcecheck.DeclNames(decl)...)
+		}
+	}
+	want = []string{"declared", "pair", "kept", "function", "plain.value", "plain.pointer", "generic.two", "single.one"}
+	if !slices.Equal(got, want) {
+		t.Errorf("DeclNames() named %q, want %q", got, want)
 	}
 }
