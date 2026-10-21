@@ -118,14 +118,20 @@ func weeksTableForm(f Frame) *canvas {
 	return weeksForm(false)(f)
 }
 
-// daysReachOf and daysWidestOf are the width Days' wide form takes, and the
-// column its widest row ends before, as the frame works them out.
+// daysReachOf is the width Days' wide form takes, the narrowest frame it
+// fits, as flex lays it; and daysWidestOf the column its widest row ends
+// before there, a margin short of it.
 func daysReachOf(f Frame) int {
-	return f.daysReach(*f.History.Days)
+	for width := 1; ; width++ {
+		f.Width = width
+		if f.daysWideFits(*f.History.Days) {
+			return width
+		}
+	}
 }
 
 func daysWidestOf(f Frame) int {
-	return f.daysWidest(*f.History.Days)
+	return daysReachOf(f) - margin
 }
 
 // daysForm is what of Days, laid out in its phone form or wide, tells the

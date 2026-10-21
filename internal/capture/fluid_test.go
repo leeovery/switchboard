@@ -248,17 +248,6 @@ var knownBreaks = []known{
 		slice: "S17", rule: wastedThird, sizes: []string{"138x15"},
 		fixtures: []string{"accounts-detail-one-160"},
 	},
-	// S19, Days (F15): its weeks at 15 rows, and its names cut with room.
-	{
-		slice: "S19", rule: cutWithRoom, sizes: []string{"173x53"},
-		fixtures: []string{"long-names-history-days"},
-	},
-	{
-		slice: "S19", rule: wastedThird, sizes: []string{"138x15"},
-		fixtures: []string{
-			"history-days-138x30", "history-days-160", "history-days-ten-160", "long-names-history-days",
-		},
-	},
 	// S20, Weeks (F16): its names cut with room.
 	{
 		slice: "S20", rule: cutWithRoom, sizes: []string{"73x61", "73x36", "173x53"},

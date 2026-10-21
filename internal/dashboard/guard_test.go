@@ -73,7 +73,7 @@ var phoneAllowed = []string{
 	// S16, S17 and S25: the form Accounts draws its views in, Compare's
 	// turned or wide.
 	"internal/dashboard/accounts.go:Frame.buildAccountsForm",
-	// S19, S20 and S21: the form Days, Weeks and Tokens are drawn in.
+	// S20 and S21: the form Weeks and Tokens are drawn in.
 	"internal/dashboard/historypage.go:Frame.phoneForm",
 	// S20: whether Weeks' cycles show.
 	"internal/dashboard/historyasks.go:Frame.weeksCycles",
@@ -171,9 +171,6 @@ var cutAllowed = []string{
 	"internal/dashboard/accountsdetail.go:detailDrawn.session",
 	"internal/dashboard/accountsdetail.go:detailDrawn.sessions",
 	"internal/dashboard/accountsdetail.go:detailDrawn.panel",
-	// S19: Days' weeks' heads, and its strips' names, a cutter as a value.
-	"internal/dashboard/historydays.go:Frame.daysWeeks",
-	"internal/dashboard/historydays.go:Frame.daysStrips",
 	// S22: a session's page, its accounts' stays and the account it's on.
 	"internal/dashboard/sessionpage.go:sessionDrawn.account",
 	"internal/dashboard/sessionpage.go:sessionDrawn.phoneOn",
