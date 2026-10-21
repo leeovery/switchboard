@@ -1989,12 +1989,12 @@ holds.
 
 **Compare** sets the accounts side by side, a column each, with `all accounts` last.
 
-- **Columns,** laid by flex: the labels' column, fixed at 24 cells, its widest label's,
-  `left at its last reset` indented 2, the most a column of labels takes; then, 2 cells on, a
-  column an account and one for `all accounts`, last. Each column is at least 19 cells, or the
-  widest account's head and a cell where that's more, its name whole at most 24 cells with its
-  marks, so no name is cut where another
-  account's column would show it whole. As many accounts show as fit, at least one, the last
+- **Columns,** laid by flex: the labels' column, fixed, as wide as the widest label it holds,
+  whatever the page, `left at its last reset` indented 2, 24 cells; then, 2 cells on, a column an
+  account and one for `all accounts`, last. Each column is at least 19 cells, or the widest
+  account's head and a cell where that's more, its name whole at most 24 cells with its marks, so
+  no name is cut where another account's column would show it whole. As many accounts show as
+  fit, at least one, the last
   giving way first: six of ten at 160 columns, every one of three at 108, two of three with long
   names. The columns shown share the rest alike, the odd cells `all accounts`' and then the
   first's, `all accounts`' values running to the frame's edge. Past them, `←` and `→` move the
@@ -2051,12 +2051,17 @@ holds.
   `▼ 2 more below · j/k` (settled in the plan).
   - Its parts, laid by flex across the width: the names at their widest whole, at least 8 and at
     most 24 cells, its marks among them; 2 cells on, the bars, at least 20 and at most 40; and a
-    cell after them, the figures' column, at least a percentage, and whole the widest largest
-    version any version in the version table can show at 100%, `● Sonnet 5.5 100%`. It reads no
-    page, so nothing moves as the period's page is read or the period changes. The names and bars
-    take their cells first and the figures last, so at 52 columns, from column 13, the bars are 20
-    and a 100% largest version loses its last cell; from 73 the bars are 40, the rest of the row
-    blank past the figures.
+    cell after them, the figures' column. It holds the widest largest version at a share of two
+    digits, `● Sonnet 5.5 55%`, of the widest name the pages give a version of a model the price
+    table prices, as `views.VersionNameCells` has it, a version's name or, for a model the config
+    prices, its id; and it takes the cell more a share of 100% needs last. It reads no page, so
+    nothing moves as the period's page is read or the period changes. The names give way before
+    the figures do: at 52 columns, long names are cut and the figures whole, the bars 20 from
+    column 13; from 73 the bars are 40, the rest of the row blank past the figures. Only where the
+    names' and bars' leasts leave too little, as a long id the config prices, does the figures'
+    column narrow.
+  - A largest version that doesn't fit its cells cuts its name, never its share: `● Sonnet 5…
+    100%` at 52, `● sonnet-4-20… 55%` for a model the version table doesn't name.
   - WEEK USED and BY MODEL: a blank row under the heading and between rows, so the bars don't merge;
     the bars one width, WEEK USED's percentage right-aligned in the figures' first 4 cells, and BY
     MODEL's account's largest version and its share a cell further in, `● Opus 5.5 55%`, so their

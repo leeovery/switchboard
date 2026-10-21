@@ -12,6 +12,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
@@ -172,7 +173,7 @@ var threeFramed = config.Accounts{{ID: "work"}, {ID: "personal", Primary: true},
 // accounts configured and the period's page given.
 func compareFrame(t *testing.T, configured config.Accounts, page views.AccountsPage) Frame {
 	f := frameOf(160, 37)
-	f.View, f.Look, f.WeekWindow = Accounts, Screen(builtin(t, "nord")), "7d"
+	f.View, f.Look, f.WeekWindow, f.VersionNames = Accounts, Screen(builtin(t, "nord")), "7d", views.VersionNameCells(ledger.Pricing)
 	f.Accounts = AccountsShown{Period: page.Period, Accounts: configured, Page: &page}
 	return f
 }
@@ -838,18 +839,29 @@ func TestComparesBarsGrowWithTheirColumnsToTheMost(t *testing.T) {
 	}
 }
 
-// The labels' column is fixed at 24 cells, its widest label's, left at its
-// last reset indented 2, and the columns start 2 cells after it: a version's
-// name past it is cut to it.
+// The labels' column holds every group's rows' labels whole, the columns
+// starting 2 cells after it; a version's name past it is cut to it.
 func TestComparesLabelsColumnHoldsItsLabelsAndCutsAVersionsName(t *testing.T) {
-	f, doc := threeCompared(t, 160, 37)
+	f, doc := threeCompared(t, 160, 60)
 	f.Accounts.Page.Versions[0].Name = "Opus 5.5 with a name long past the most"
 	rows := f.Draw(doc, routedAt)
-	if got, want := strings.TrimRight(ansi.Cut(rows[12], 0, 26), " "), "  ● Opus 5.5 with a nam…"; got != want {
+	labels := compareLabels()
+	drawn := make([]string, len(rows))
+	for i, row := range rows {
+		drawn[i] = strings.TrimRight(ansi.Cut(row, 0, labels), " ")
+	}
+	for _, g := range (compared{page: f.Accounts.Page}).groups() {
+		for _, r := range g.rows {
+			if !slices.Contains(drawn, "  "+r.label) {
+				t.Errorf("%s's %q isn't drawn whole in the labels' column, %d cells", g.name, r.label, labels)
+			}
+		}
+	}
+	if got, want := drawn[12], "  ● "+prose.Cut("Opus 5.5 with a name long past the most", labels-versionAt); got != want {
 		t.Errorf("the version's name reads %q, want %q", got, want)
 	}
-	if got := columnOf(rows[6], "1 work"); got != 26 {
-		t.Errorf("work's column starts at %d, want 26, after the widest label, left at its last reset, and 2 cells", got)
+	if got := columnOf(rows[6], "1 work"); got != labels+labelsGap {
+		t.Errorf("work's column starts at %d, want %d, 2 cells after the labels'", got, labels+labelsGap)
 	}
 }
 

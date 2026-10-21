@@ -25,15 +25,11 @@ const (
 	// a column of names or labels takes, its widest whole between them.
 	compareNameLeast, compareNameMost = 8, 24
 	// labelIndent is where the groups' rows' labels and BY MODEL's ● start,
-	// and versionAt where a version's name does. compareLabels are the
-	// labels' column's cells, fixed: its widest label, left at its last
-	// reset, indented, is the most a column of labels takes, and a version's
-	// name past it is cut to it. labelsGap are the cells between it and the
-	// first account's column.
-	labelIndent   = 2
-	versionAt     = labelIndent + 2
-	compareLabels = compareNameMost
-	labelsGap     = 2
+	// and versionAt where a version's name does; labelsGap are the cells
+	// between the labels' column and the first account's.
+	labelIndent = 2
+	versionAt   = labelIndent + 2
+	labelsGap   = 2
 	// leastColumn are the fewest cells a column takes, as many accounts
 	// showing as fit at it, less all accounts'.
 	leastColumn = 19
@@ -50,6 +46,21 @@ const (
 	compareByModel = 2
 	groupApart     = 2
 )
+
+// compareLabels are the cells of Compare's labels' column, fixed, as it holds
+// the same labels whatever the page: its widest whole, of WEEK USED's, now
+// and all, BY MODEL's heading, and the groups' names and their rows'
+// labels, indented. A version's name past it is cut to it.
+var compareLabels = sync.OnceValue(func() int {
+	widest := max(weekLabel(views.AccountsThirtyDays).width(), groupHead("BY MODEL", "share of use", false).width())
+	for _, g := range (compared{page: &views.AccountsPage{}}).groups() {
+		widest = max(widest, ansi.StringWidth(g.name))
+		for _, r := range g.rows {
+			widest = max(widest, labelIndent+ansi.StringWidth(r.label))
+		}
+	}
+	return widest
+})
 
 // compareLayout is where Compare's parts sit across a frame, as flex lays
 // them: the labels' column's cells; each column's span, the accounts' shown,
@@ -76,7 +87,8 @@ func (l compareLayout) shown() int {
 // compareBars has them in the narrowest column.
 func (f Frame) compareLaid() compareLayout {
 	n, least := len(f.Accounts.Accounts), f.leastCompared()
-	parts := []flex.Part{{Least: compareLabels, Natural: compareLabels}}
+	labels := compareLabels()
+	parts := []flex.Part{{Least: labels, Natural: labels}}
 	for i := range n {
 		slot := flex.Part{Least: least, Natural: least, Grows: true, Leaves: n - i}
 		if i == 0 {

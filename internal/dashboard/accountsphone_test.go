@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
@@ -49,7 +50,7 @@ func phonePage(t *testing.T) *views.AccountsPage {
 // shown, the account chosen and the page given.
 func phoneFrame(t *testing.T, height int, shown AccountsView, chosen string, page *views.AccountsPage) Frame {
 	f := frameOf(52, height)
-	f.View, f.Look, f.WeekWindow = Accounts, Screen(builtin(t, "nord")), "7d"
+	f.View, f.Look, f.WeekWindow, f.VersionNames = Accounts, Screen(builtin(t, "nord")), "7d", views.VersionNameCells(ledger.Pricing)
 	f.Accounts = AccountsShown{Shown: shown, Accounts: threeFramed, Chosen: chosen, Page: page}
 	return f
 }
@@ -538,6 +539,9 @@ func TestAPhonesCompareLaysItsPartsAcrossTheWidth(t *testing.T) {
 		{name: "at 73, its bars at their most", width: 73, at: 13, bar: 40, groups: []int{13, 33, 53}, named: " side        "},
 		{name: "at 99, its bars held at their most", width: 99, at: 13, bar: 40, groups: []int{13, 42, 70}, named: " side        "},
 		{name: "at 73, long names whole", width: 73, labels: long, at: 25, bar: 28, groups: []int{25, 41, 57}, named: " side-hustle-consulting  "},
+		{name: "at 52, long names cut, the figures whole", width: 52, labels: long, at: 13, bar: 20, groups: []int{13, 26, 39}, named: " side-hust…  "},
+		{name: "at 60, long names cut, the figures whole", width: 60, labels: long, at: 21, bar: 20, groups: []int{21, 34, 47}, named: " side-hustle-consu…  "},
+		{name: "at 66, long names whole, the figures whole", width: 66, labels: long, at: 25, bar: 21, groups: []int{25, 39, 52}, named: " side-hustle-consulting  "},
 		{
 			name: "at 73, a name past the most cut to it", width: 73,
 			labels: map[string]string{"side": "a-label-well-past-the-most-of-them"}, at: 27, bar: 26, groups: []int{27, 42, 57},
@@ -568,6 +572,11 @@ func TestAPhonesCompareLaysItsPartsAcrossTheWidth(t *testing.T) {
 			}
 			if got := columnOf(byModel, "●"); got != tt.at+tt.bar+2 {
 				t.Errorf("BY MODEL's largest version is at column %d, want %d, in %q", got, tt.at+tt.bar+2, byModel)
+			}
+			for y, want := range map[int]string{20: "● Opus 5.5 55%", 22: "● Sonnet 5.5 60%"} {
+				if !strings.HasSuffix(rows[y], want) {
+					t.Errorf("row %d is %q, want its largest version whole, %q", y, rows[y], want)
+				}
 			}
 			if got := ansi.Cut(rows[14], 0, ansi.StringWidth(tt.named)); got != tt.named {
 				t.Errorf("side's row starts %q, want %q", got, tt.named)
@@ -612,6 +621,71 @@ func TestAPhonesCompareHoldsStillAsItsPageIsRead(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+// A largest version that doesn't fit its cells cuts its name, never its
+// share: a share of 100%, and a model the version table doesn't name, by its
+// id.
+func TestALargestVersionThatDoesntFitCutsItsNameNeverItsShare(t *testing.T) {
+	sonnet, ok := ledger.Pricing.Version("claude-sonnet-5-5")
+	if !ok {
+		t.Fatal("the version table names no claude-sonnet-5-5")
+	}
+	unnamed := ledger.Version{IDs: []string{"claude-sonnet-4-20250514"}, Name: ledger.ShortModelID("claude-sonnet-4-20250514"), Family: "sonnet"}
+	tests := []struct {
+		name    string
+		version ledger.Version
+		share   float64
+		cells   int
+		want    string
+	}{
+		{name: "whole where it fits", version: sonnet, share: 1, cells: 17, want: "● Sonnet 5.5 100%"},
+		{name: "a share of 100% a cell over", version: sonnet, share: 1, cells: 16, want: "● Sonnet 5… 100%"},
+		{name: "a model the table doesn't name", version: unnamed, share: 0.55, cells: 16, want: "● sonnet-4-… 55%"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got strings.Builder
+			for _, s := range largestIn(versionUsed{version: tt.version, share: &tt.share}, tt.cells) {
+				got.WriteString(s.text)
+			}
+			if got.String() != tt.want {
+				t.Errorf("it reads %q in %d cells, want %q", got.String(), tt.cells, tt.want)
+			}
+		})
+	}
+}
+
+// At 52 columns, a 100% share of the widest version keeps its share whole,
+// its name cut a cell short to make room.
+func TestAPhonesCompareKeepsAHundredPercentShareWhole(t *testing.T) {
+	page := phonePage(t)
+	sonnet := slices.Index(comparedIDs, "claude-sonnet-5-5")
+	page.Rows[0].Totals.ByModel = []views.ModelShare{{Model: comparedIDs[sonnet], Share: new(1.0), Amount: usd(100)}}
+	rows := textOf(phoneText(t, 52, 60, AccountsCompare, "", page, nil).Draw(phoneDoc(), routedAt))
+	if want := "● Sonnet 5… 100%"; !strings.HasSuffix(rows[20], want) {
+		t.Errorf("work's BY MODEL row is %q, want it to end %q", rows[20], want)
+	}
+}
+
+// Where the config prices a model the version table doesn't name, its id,
+// wider than any version's name, sizes the figures' column; on the narrowest
+// phone the names keep their least, the bars theirs, and the figures narrow
+// to what's left, a model's id cut, its share whole.
+func TestAPhonesCompareFitsAConfigPricedModelsIDCutToItsShare(t *testing.T) {
+	const id = "claude-sonnet-4-20250514"
+	page := phonePage(t)
+	page.Versions = append(slices.Clone(page.Versions), ledger.Version{IDs: []string{id}, Name: ledger.ShortModelID(id), Family: "sonnet"})
+	page.Rows[0].Totals.ByModel = []views.ModelShare{{Model: id, Share: new(0.55), Amount: usd(55)}}
+	f := phoneText(t, 52, 60, AccountsCompare, "", page, nil)
+	f.VersionNames = len(ledger.ShortModelID(id))
+	rows := textOf(f.Draw(phoneDoc(), routedAt))
+	if got := columnOf(rows[20], "█"); got != 11 {
+		t.Errorf("work's bar starts at column %d, want 11, its name at its least of 8, in %q", got, rows[20])
+	}
+	if want := "● sonnet-4-20… 55%"; !strings.HasSuffix(rows[20], want) {
+		t.Errorf("work's BY MODEL row is %q, want it to end %q", rows[20], want)
 	}
 }
 

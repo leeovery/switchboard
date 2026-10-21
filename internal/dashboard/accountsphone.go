@@ -2,8 +2,11 @@ package dashboard
 
 import (
 	"slices"
+	"strings"
 	"sync"
 	"time"
+
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/ledger"
@@ -25,13 +28,22 @@ const (
 	turnedBar    = 20
 )
 
-// The turned parts across a frame, in the order turnedLaid lays them.
+// The turned parts across a frame, in the order turnedLaid lays them. The
+// figures' column is two parts: turnedFigures, a cell and the widest largest
+// version at a share of two digits, and turnedHundred, the cell more a share
+// of 100% takes.
 const (
 	turnedIndent = iota
 	turnedNames
 	turnedBars
 	turnedFigures
+	turnedHundred
 )
+
+// figuresNarrowed is the turn the figures' column narrows in, toward a cell
+// of a version's name, where the names' least and the bars' don't leave it
+// the widest version: only as a model the config prices names it by its id.
+const figuresNarrowed = 1
 
 // turnedLayout is where a phone's Compare's parts sit across a frame, as flex
 // lays them: its names' cells, from turnedNameAt; where its bars start, as
@@ -46,34 +58,44 @@ type turnedLayout struct {
 // turnedLaid is a phone's Compare's columns laid out across the frame: its
 // names at their widest whole, at least compareNameLeast and at most
 // compareNameMost; its bars at least turnedBar, growing to barMost; and its
-// figures at least a percentage, and whole the widest largest version any
-// version can show, as widestLargest has it. The figures read no page, so
-// nothing moves as it's read, or as the period changes: where the row is
-// short, the names and bars take their cells first, the figures' last.
+// figures holding the widest largest version the table can name, as the
+// frame's VersionNames has it, at a share of two digits, and taking the cell
+// more a share of 100% needs last. The names give way before the figures do.
+// The figures read no page, so nothing moves as it's read, or as the period
+// changes.
 func (cp compared) turnedLaid(columns []compareColumn) turnedLayout {
 	names := 0
 	for _, col := range columns {
 		names = max(names, wholeName(turnedNamed(col)))
 	}
+	figures := largestCells(cp.f.VersionNames, 0.55)
 	s, _ := flex.Lay(cp.f.edge(), []flex.Part{
 		turnedIndent:  {Least: turnedNameAt, Natural: turnedNameAt},
 		turnedNames:   {Least: compareNameLeast, Natural: names, Most: compareNameMost},
 		turnedBars:    {Least: turnedBar, Natural: turnedBar, Grows: true, Most: barMost, Gap: turnedApart},
-		turnedFigures: {Least: percentCells, Natural: 1 + widestLargest(), Gap: 1},
+		turnedFigures: {Least: 1 + largestCells(1, 0.55), Natural: 1 + figures, Narrows: figuresNarrowed, Gap: 1},
+		turnedHundred: {Natural: largestCells(cp.f.VersionNames, 1) - figures},
 	}...)
 	return turnedLayout{names: s[turnedNames].Size, at: s[turnedBars].At, bar: s[turnedBars].Size, figures: s[turnedFigures].At}
 }
 
-// widestLargest are the cells of the widest largest version a phone's
-// Compare can show, as versionsNamed names it: each version the version
-// table names, at a share of 100%.
-func widestLargest() int {
-	whole := 1.0
-	widest := 0
-	for _, v := range ledger.Pricing.Versions {
-		widest = max(widest, partsWidth(versionsNamed([]versionUsed{{version: v, share: &whole}}, 0)))
+// largestCells are the cells a largest version takes, as versionsNamed names
+// it, of a name the cells given at the share given.
+func largestCells(name int, share float64) int {
+	v := ledger.Version{Name: strings.Repeat("x", name)}
+	return partsWidth(versionsNamed([]versionUsed{{version: v, share: &share}}, 0))
+}
+
+// largestIn is the largest version used given, as versionsNamed names it, in
+// the cells given: where it doesn't fit, its name is cut, never its share.
+func largestIn(used versionUsed, cells int) line {
+	named := versionsNamed([]versionUsed{used}, 0)
+	if over := partsWidth(named) - cells; over > 0 {
+		name := prose.Clean(used.version.Name)
+		used.version.Name = prose.Cut(name, max(ansi.StringWidth(name)-over, 1))
+		named = versionsNamed([]versionUsed{used}, 0)
 	}
-	return widest
+	return fitParts(cells, named...)
 }
 
 // A phone's Detail's columns: USAGE's bars, stackUsageBar cells, from
@@ -211,20 +233,6 @@ func turnedName(col compareColumn, cells int) line {
 	return named.labelIn(cells - named.marks().width())
 }
 
-// turnedLargest is the version the column used most, as versionsNamed names
-// it, "● Opus 5.5 55%": none before the period's page is read, or where it
-// used none.
-func (cp compared) turnedLargest(col compareColumn) []part {
-	if cp.page == nil {
-		return nil
-	}
-	most, ok := largestVersion(versionsUsed(col.row, cp.page.Versions))
-	if !ok {
-		return nil
-	}
-	return versionsNamed([]versionUsed{most}, 0)
-}
-
 // turnedWeek draws WEEK USED from row y, and returns the row its last column
 // is on: its label, as weekLabel has it; then each column, a blank row before
 // it, its name, its week's bar, as weekGauge has it, and its percentage, as
@@ -246,7 +254,8 @@ func (cp compared) turnedWeek(c *canvas, y int, l turnedLayout, columns []compar
 // turnedByModel draws BY MODEL from row y, and returns the row its last
 // column is on: its heading; then each column, a blank row before it, its
 // name, its share of use as a stacked bar, as Compare's, and the version it
-// used most, as turnedLargest has it, as the layout places them.
+// used most, "● Opus 5.5 55%", as largestIn fits it to the frame's edge, as
+// the layout places them.
 func (cp compared) turnedByModel(c *canvas, y int, l turnedLayout, columns []compareColumn) int {
 	c.line(0, y, line{{"BY MODEL", dimInk}})
 	c.heading(y, y+partsApart)
@@ -256,7 +265,9 @@ func (cp compared) turnedByModel(c *canvas, y int, l turnedLayout, columns []com
 		y += partsApart
 		c.line(turnedNameAt, y, turnedName(col, l.names))
 		stackedBar(c, cp.f.Look, l.at, y, splitCells(shareAmounts(col.row, versions), l.bar), hues)
-		c.line(l.figures+1, y, fitParts(cp.f.edge()-l.figures-1, cp.turnedLargest(col)...))
+		if most, ok := largestVersion(versionsUsed(col.row, versions)); ok {
+			c.line(l.figures+1, y, largestIn(most, cp.f.edge()-l.figures-1))
+		}
 	}
 	return y
 }

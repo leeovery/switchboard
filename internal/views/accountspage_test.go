@@ -326,3 +326,26 @@ func TestLeftAtItsLastResetIsOfAWeekEndedInTheSixWeeksOrTheWeekBefore(t *testing
 		})
 	}
 }
+
+// The widest name a version is given is the version table's widest, or the
+// id of a model the table prices and doesn't name, claude- taken off, as one
+// the config prices.
+func TestTheWidestVersionNameIsOfEveryModelTheTablePrices(t *testing.T) {
+	configured := ledger.Pricing
+	configured.Models = append(slices.Clone(ledger.Pricing.Models), ledger.Model{IDs: []string{"claude-sonnet-4-20250514"}})
+	tests := []struct {
+		name  string
+		table ledger.Table
+		want  int
+	}{
+		{name: "the version table's, Sonnet 5.5", table: ledger.Pricing, want: len("Sonnet 5.5")},
+		{name: "a model the config prices, by its id", table: configured, want: len("sonnet-4-20250514")},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := views.VersionNameCells(tt.table); got != tt.want {
+				t.Errorf("the widest version name is %d cells, want %d", got, tt.want)
+			}
+		})
+	}
+}
