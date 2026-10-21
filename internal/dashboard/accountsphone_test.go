@@ -86,7 +86,7 @@ func TestAPhonesCompareScrollsByRows(t *testing.T) {
 	}{
 		{name: "at the top", want: map[int]string{8: "WEEK USED", 10: " work        ██████▊    ┃       ╎  34%", 28: "▼ 17 more below · j/k"}},
 		{name: "part-way", scroll: 4, want: map[int]string{8: " personal ◆  █████████████┃        66%", 28: "▲ 4 more above · ▼ 13 more below · j/k"}},
-		{name: "past the foot, as far as it goes", scroll: 40, want: map[int]string{27: " all         $600/mo      $635      4.6×", 28: "▲ 17 more above · j/k"}},
+		{name: "past the foot, as far as it goes", scroll: 40, want: map[int]string{27: " all         $600/mo      $635         4.6×", 28: "▲ 17 more above · j/k"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -167,10 +167,10 @@ func TestAPhonesAccountsSayADashForEachFigureOfAPeriodWithNothingRecorded(t *tes
 		want  map[int]string
 	}{
 		{shown: AccountsCompare, want: map[int]string{
-			29: " work        —         —           —",
-			35: " work        —            —         0%",
-			41: " work        $200/mo      —         —",
-			44: " all         $600/mo      —         —",
+			29: " work        —            —            —",
+			35: " work        —            —            0%",
+			41: " work        $200/mo      —            —",
+			44: " all         $600/mo      —            —",
 		}},
 		{shown: AccountsDetail, want: map[int]string{
 			19: "requests  —               worth     —",
@@ -212,8 +212,9 @@ func TestAPhonesDetailOfAllAccounts(t *testing.T) {
 	}
 }
 
-// Where an account's plan isn't known, a phone's against it, on Compare, and
-// against, on Detail, 15 cells from column 36 at 52 columns, say every
+// Where an account's plan isn't known, a phone's against it, on Compare, 12
+// cells from column 39 at 52 columns, and against, on Detail, 15 cells from
+// column 36, say every
 // account's ratio over the plans known, compact, the plans known over the
 // accounts: "4.6× · 2/3"; with every plan known, the ratio alone (the
 // owner's call, 15 October 2026).
@@ -230,7 +231,7 @@ func TestAPhonesAgainstSaysTheRatioOverThePlansKnownCompact(t *testing.T) {
 			page := phonePage(t)
 			page.All.Plan.Plans = tt.known
 			compare := textOf(phoneText(t, 52, 60, AccountsCompare, "", page, nil).Draw(phoneDoc(), routedAt))
-			if want := " all         $600/mo      $635      " + tt.want; !slices.Contains(compare, want) {
+			if want := " all         $600/mo      $635         " + tt.want; !slices.Contains(compare, want) {
 				t.Errorf("Compare reads\n%s\nwant a row %q", strings.Join(compare, "\n"), want)
 			}
 			detail := textOf(phoneText(t, 52, 60, AccountsDetail, "", page, nil).Draw(phoneDoc(), routedAt))
@@ -517,14 +518,83 @@ func TestTheVersionARowUsedMostIsItsLargestShares(t *testing.T) {
 	}
 }
 
+// A phone's Compare lays its parts across the width: its names at their
+// widest whole, at most 24 cells, the bars turnedApart after them; WEEK
+// USED's and BY MODEL's bars one width, from 20 growing with the room to 40
+// at most; their figures in one column, WEEK USED's percentage right-aligned
+// in the 4 cells after its bar and BY MODEL's largest version two cells
+// after it; and each group's columns a third of the room from the bars to
+// the frame's edge, every group alike.
+func TestAPhonesCompareLaysItsPartsAcrossTheWidth(t *testing.T) {
+	long := map[string]string{"work": "work-team-plan", "personal": "personal-research", "side": "side-hustle-consulting"}
+	tests := []struct {
+		name         string
+		width        int
+		labels       map[string]string
+		at, bar      int
+		groups       []int
+		named, would string
+	}{
+		{name: "at 52, its bars at their least", width: 52, at: 13, bar: 20, groups: []int{13, 26, 39}, named: " side        "},
+		{name: "at 73, its bars at their most", width: 73, at: 13, bar: 40, groups: []int{13, 33, 53}, named: " side        "},
+		{name: "at 99, its bars held at their most", width: 99, at: 13, bar: 40, groups: []int{13, 42, 70}, named: " side        "},
+		{name: "at 73, long names whole", width: 73, labels: long, at: 25, bar: 29, groups: []int{25, 41, 57}, named: " side-hustle-consulting  "},
+		{
+			name: "at 73, a name past the most cut to it", width: 73,
+			labels: map[string]string{"side": "a-label-well-past-the-most-of-them"}, at: 27, bar: 27, groups: []int{27, 42, 57},
+			named: " a-label-well-past-the-m…  ",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := phoneText(t, tt.width, 60, AccountsCompare, "", phonePage(t), nil)
+			f.Accounts.Accounts = slices.Clone(threeFramed)
+			doc := phoneDoc()
+			for i, a := range f.Accounts.Accounts {
+				if label, ok := tt.labels[a.ID]; ok {
+					f.Accounts.Accounts[i].Label = label
+					account(a.ID, func(a *status.Account) { a.Label = label })(&doc)
+				}
+			}
+			rows := textOf(f.Draw(doc, routedAt))
+			week, byModel := rows[10], rows[20]
+			if got := columnOf(week, "34%") + len("34%"); got != tt.at+tt.bar+1+percentCells {
+				t.Errorf("WEEK USED's percentage ends at column %d, want %d, in %q", got, tt.at+tt.bar+1+percentCells, week)
+			}
+			if got := columnOf(byModel, "█"); got != tt.at {
+				t.Errorf("BY MODEL's bar starts at column %d, want %d, in %q", got, tt.at, byModel)
+			}
+			if got := strings.Count(byModel, "█"); got != tt.bar {
+				t.Errorf("BY MODEL's bar is %d cells, want %d, in %q", got, tt.bar, byModel)
+			}
+			if got := columnOf(byModel, "●"); got != tt.at+tt.bar+2 {
+				t.Errorf("BY MODEL's largest version is at column %d, want %d, in %q", got, tt.at+tt.bar+2, byModel)
+			}
+			if got := ansi.Cut(rows[14], 0, ansi.StringWidth(tt.named)); got != tt.named {
+				t.Errorf("side's row starts %q, want %q", got, tt.named)
+			}
+			for _, group := range []struct {
+				row   int
+				heads []string
+			}{{28, []string{"reqs", "sessions", "moved"}}, {34, []string{"hit", "at cap", "left"}}, {40, []string{"plan", "worth", "against it"}}} {
+				for i, head := range group.heads {
+					if got := columnOf(rows[group.row], head); got != tt.groups[i] {
+						t.Errorf("%s is at column %d, want %d, in %q", head, got, tt.groups[i], rows[group.row])
+					}
+				}
+			}
+		})
+	}
+}
+
 // A phone's Compare cuts each figure a cell short of the next column, and
 // the last at the frame's edge.
 func TestAPhonesCompareCutsEachFigureACellShortOfTheNext(t *testing.T) {
 	page := phonePage(t)
-	page.Rows[0].Totals.Requests = 12345678
+	page.Rows[0].Totals.Requests = 1234567890
 	rows := textOf(phoneText(t, 52, 48, AccountsCompare, "", page, nil).Draw(phoneDoc(), routedAt))
-	if got, want := rows[29], " work        …         9           3 out"; got != want {
-		t.Errorf("work's requests are %q, want %q, 12,345,678 a cell too wide", got, want)
+	if got, want := rows[29], " work        …            9            3 out"; got != want {
+		t.Errorf("work's requests are %q, want %q, 1,234,567,890 a cell too wide", got, want)
 	}
 }
 

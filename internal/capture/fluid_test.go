@@ -237,11 +237,6 @@ var knownBreaks = []known{
 		slice: "S14", rule: cutWithRoom, sizes: []string{"73x61", "73x36"},
 		fixtures: []string{"overview-ten-accounts-160"},
 	},
-	// S15, Compare fluid (F9, F10): its names cut with room.
-	{
-		slice: "S15", rule: cutWithRoom, sizes: []string{"73x61", "73x36", "108x44", "108x24", "109x53"},
-		fixtures: []string{"long-names-accounts-compare"},
-	},
 	// S16, Detail's stack fluid (F11, F13): its parts 52-column constants.
 	{
 		slice: "S16", rule: cutWithRoom, sizes: []string{"73x61", "73x36", "108x44", "109x53"},

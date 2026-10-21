@@ -8,41 +8,41 @@ ACCOUNTS   Compare  Detail
 
 WEEK USED
 
- work              ▊    ┃       ╎  34%
+ work                     ▋       ┃                ╎   34%
 
- personal ◆               ┃        66%
+ personal ◆                            ┃               66%
 
- side                 ┃     ▋      78%
+ side                          ┃            ▎          78%
 
- all                    ┃          59%
+ all                               ┃▊                  59%
 
 BY MODEL
 
- work                              ● Opus 5.5 55%
+ work                                                  ● Opus 5.5 55%
 
- personal ◆                        ● Sonnet 5.5 60%
+ personal ◆                                            ● Sonnet 5.5 60%
 
- side                              ● Opus 5.5 82%
+ side                                                  ● Opus 5.5 82%
 
- all                               ● Opus 5.5 56%
+ all                                                   ● Opus 5.5 56%
 
-ACTIVITY     reqs      sessions    moved
- work        1,204     9           1 in · 3 out
- personal ◆  2,330     10          2 out
- side        1,876     14          4 in
- all         5,410     27          5 moves
+ACTIVITY     reqs                sessions            moved
+ work        1,204               9                   1 in · 3 out
+ personal ◆  2,330               10                  2 out
+ side        1,876               14                  4 in
+ all         5,410               27                  5 moves
 
-LIMITS       hit          at cap    left
- work        5h ×2        3h 10m    0%
- personal ◆  5h ×1        4h 45m    15%
- side        5h ×1        52m       40%
- all         4            8h 47m    —
+LIMITS       hit                 at cap              left
+ work        5h ×2               3h 10m              0%
+ personal ◆  5h ×1               4h 45m              15%
+ side        5h ×1               52m                 40%
+ all         4                   8h 47m              —
 
-VALUE        plan         worth     against it
- work        $200/mo      $184      4.0×
- personal ◆  $200/mo      $212      4.6×
- side        $200/mo      $239      5.2×
- all         $600/mo      $635      4.6×
+VALUE        plan                worth               against it
+ work        $200/mo             $184                4.0×
+ personal ◆  $200/mo             $212                4.6×
+ side        $200/mo             $239                5.2×
+ all         $600/mo             $635                4.6×
 
 
 

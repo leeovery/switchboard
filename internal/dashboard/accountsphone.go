@@ -5,9 +5,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
-	"github.com/leeovery/switchboard/internal/views"
 )
 
 // Accounts on a phone: Compare turned, a group at a time and an account a
@@ -16,15 +16,50 @@ import (
 // form. Each is drawn whole, then scrolled a row at a time, as History's
 // Year is.
 
-// A phone's Compare's columns: its names from turnedNameAt; WEEK USED's and
-// BY MODEL's bars, turnedBar cells, and its groups' first figures, from
-// turnedAt; and BY MODEL's largest version at turnedLargestAt.
+// A phone's Compare's columns: its names from turnedNameAt, turnedApart
+// before its bars; and its bars at least turnedBar cells.
 const (
-	turnedNameAt    = 1
-	turnedAt        = 13
-	turnedBar       = 20
-	turnedLargestAt = 35
+	turnedNameAt = 1
+	turnedApart  = 2
+	turnedBar    = 20
 )
+
+// The turned parts across a frame, in the order turnedLaid lays them.
+const (
+	turnedIndent = iota
+	turnedNames
+	turnedBars
+	turnedFigures
+)
+
+// turnedLayout is where a phone's Compare's parts sit across a frame, as flex
+// lays them: its names' cells, from turnedNameAt; where its bars start, as
+// its groups' first columns do, and their cells; and where its figures'
+// column starts, a cell after the bars: WEEK USED's percentages right-aligned
+// in its first 4 cells, and BY MODEL's largest versions a cell in, so their
+// figures line up.
+type turnedLayout struct {
+	names, at, bar, figures int
+}
+
+// turnedLaid is a phone's Compare's columns laid out across the frame: its
+// names at their widest whole, at least compareNameLeast and at most
+// compareNameMost; its bars at least turnedBar, growing to barMost; and its
+// figures at the widest of a percentage and the columns' largest versions.
+func (cp compared) turnedLaid(columns []compareColumn) turnedLayout {
+	names, figures := 0, percentCells
+	for _, col := range columns {
+		names = max(names, wholeName(turnedNamed(col)))
+		figures = max(figures, 1+partsWidth(cp.turnedLargest(col)))
+	}
+	s, _ := flex.Lay(cp.f.edge(), []flex.Part{
+		turnedIndent:  {Least: turnedNameAt, Natural: turnedNameAt},
+		turnedNames:   {Least: compareNameLeast, Natural: names, Most: compareNameMost},
+		turnedBars:    {Least: turnedBar, Natural: turnedBar, Grows: true, Most: barMost, Gap: turnedApart},
+		turnedFigures: {Least: figures, Natural: figures, Gap: 1},
+	}...)
+	return turnedLayout{names: s[turnedNames].Size, at: s[turnedBars].At, bar: s[turnedBars].Size, figures: s[turnedFigures].At}
+}
 
 // A phone's Detail's columns: USAGE's bars, stackUsageBar cells, from
 // stackUsageAt; THIS WEEK's two columns stackHalf apart, their labels
@@ -125,73 +160,88 @@ func (f Frame) turned(doc status.Document, now time.Time) compared {
 	return compared{f: f, m: m, now: now, page: f.Accounts.Page, shown: len(f.Accounts.Accounts), week: f.WeekWindow}
 }
 
-// turnedWhole is a phone's Compare drawn whole: WEEK USED; then, once the
-// period's page is read, BY MODEL, ACTIVITY, LIMITS and VALUE, a blank row
-// before each.
+// turnedWhole is a phone's Compare drawn whole, laid out as turnedLaid lays
+// it: WEEK USED; then, once the period's page is read, BY MODEL, ACTIVITY,
+// LIMITS and VALUE, a blank row before each.
 func (cp compared) turnedWhole() stack {
 	c := growing(cp.f.Width)
 	columns := cp.columns()
-	y := cp.turnedWeek(c, 0, columns)
+	l := cp.turnedLaid(columns)
+	y := cp.turnedWeek(c, 0, l, columns)
 	if cp.page != nil {
-		y = cp.turnedByModel(c, y+partsApart, columns)
+		y = cp.turnedByModel(c, y+partsApart, l, columns)
 		for _, g := range cp.turnedGroups() {
-			y = cp.turnedGroup(c, y+partsApart, g, columns)
+			y = cp.turnedGroup(c, y+partsApart, l, g, columns)
 		}
 	}
 	return stack{c: c}
 }
 
-// turnedName is the column's name as a phone's row heads it, from
-// turnedNameAt to a cell before turnedAt: an account's label and marks, but
-// ▲, as Accounts shows no routing, its label cut short to keep its marks;
-// or all, unnumbered, bold text.secondary.
-func turnedName(col compareColumn) line {
+// turnedNamed is the column's name as a phone's row heads it: an account's
+// label and marks, but ▲, as Accounts shows no routing; or all, unnumbered.
+func turnedNamed(col compareColumn) accountName {
+	if col.all {
+		return accountName{label: "all"}
+	}
+	return accountName{label: name(col.account), primary: col.account.Primary}
+}
+
+// turnedName is the column's name, as turnedNamed has it, in the cells
+// given, its label cut short to keep its marks; all bold text.secondary.
+func turnedName(col compareColumn, cells int) line {
 	if col.all {
 		return line{{"all", strongInk}}
 	}
-	named := accountName{label: name(col.account), primary: col.account.Primary}
-	return named.labelIn(turnedAt - turnedNameAt - 1 - named.marks().width())
+	named := turnedNamed(col)
+	return named.labelIn(cells - named.marks().width())
+}
+
+// turnedLargest is the version the column used most, as versionsNamed names
+// it, "● Opus 5.5 55%": none before the period's page is read, or where it
+// used none.
+func (cp compared) turnedLargest(col compareColumn) []part {
+	if cp.page == nil {
+		return nil
+	}
+	most, ok := largestVersion(versionsUsed(col.row, cp.page.Versions))
+	if !ok {
+		return nil
+	}
+	return versionsNamed([]versionUsed{most}, 0)
 }
 
 // turnedWeek draws WEEK USED from row y, and returns the row its last column
-// is on: its label, and now after it where the period is another than this
-// week, as the week is always as it stands; then each column, a blank row
-// before it, its week's bar turnedBar cells from turnedAt, as weekGauge has
-// it, a cell, and its percentage, right-aligned in 4.
-func (cp compared) turnedWeek(c *canvas, y int, columns []compareColumn) int {
-	label := line{{"WEEK USED", dimInk}}
-	if cp.f.Accounts.Period != views.AccountsThisWeek {
-		label = append(label, span{"  now", faintInk})
-	}
-	c.line(0, y, label)
+// is on: its label, as weekLabel has it; then each column, a blank row before
+// it, its name, its week's bar, as weekGauge has it, and its percentage, as
+// the layout places them.
+func (cp compared) turnedWeek(c *canvas, y int, l turnedLayout, columns []compareColumn) int {
+	c.line(0, y, weekLabel(cp.f.Accounts.Period))
 	c.heading(y, y+partsApart)
 	for _, col := range columns {
 		y += partsApart
-		c.line(turnedNameAt, y, turnedName(col))
+		c.line(turnedNameAt, y, turnedName(col, l.names))
 		g := cp.weekGauge(col)
-		g.bar.draw(c, cp.f.Look, turnedAt, y, turnedBar)
-		c.barred(turnedAt, y, turnedBar, g.of)
-		c.right(turnedAt+turnedBar+1+percentCells, y, g.percentage())
+		g.bar.draw(c, cp.f.Look, l.at, y, l.bar)
+		c.barred(l.at, y, l.bar, g.of)
+		c.right(l.figures+percentCells, y, g.percentage())
 	}
 	return y
 }
 
 // turnedByModel draws BY MODEL from row y, and returns the row its last
 // column is on: its heading; then each column, a blank row before it, its
-// share of use as a stacked bar turnedBar cells from turnedAt, as Compare's,
-// and at turnedLargestAt the version it used most, as versionsNamed names it.
-func (cp compared) turnedByModel(c *canvas, y int, columns []compareColumn) int {
+// name, its share of use as a stacked bar, as Compare's, and the version it
+// used most, as turnedLargest has it, as the layout places them.
+func (cp compared) turnedByModel(c *canvas, y int, l turnedLayout, columns []compareColumn) int {
 	c.line(0, y, line{{"BY MODEL", dimInk}})
 	c.heading(y, y+partsApart)
 	versions := cp.page.Versions
 	hues := versionHues(versions)
 	for _, col := range columns {
 		y += partsApart
-		c.line(turnedNameAt, y, turnedName(col))
-		stackedBar(c, cp.f.Look, turnedAt, y, splitCells(shareAmounts(col.row, versions), turnedBar), hues)
-		if most, ok := largestVersion(versionsUsed(col.row, versions)); ok {
-			c.line(turnedLargestAt, y, fitParts(cp.f.edge()-turnedLargestAt, versionsNamed([]versionUsed{most}, 0)...))
-		}
+		c.line(turnedNameAt, y, turnedName(col, l.names))
+		stackedBar(c, cp.f.Look, l.at, y, splitCells(shareAmounts(col.row, versions), l.bar), hues)
+		c.line(l.figures+1, y, fitParts(cp.f.edge()-l.figures-1, cp.turnedLargest(col)...))
 	}
 	return y
 }
@@ -215,64 +265,69 @@ type turnedGroup struct {
 	columns []turnedColumn
 }
 
-// turnedColumn is a column of a phone's group: from column at, its head, and
-// what it says of each of Compare's columns.
+// turnedColumn is a column of a phone's group: its head, and what it says of
+// each of Compare's columns.
 type turnedColumn struct {
-	at   int
 	head string
 	said func(col compareColumn) []part
 }
 
 // turnedGroups are a phone's Compare's groups under BY MODEL, ACTIVITY,
-// LIMITS and VALUE, each column at its place, as Accounts' words say each
-// figure in their short forms, a window of hours named by them, as 5h. A
-// period with nothing recorded, as on a fresh install, says a dash in each
-// of its own figures, as period has it; left and the plan are none of them.
+// LIMITS and VALUE, as Accounts' words say each figure in their short forms,
+// a window of hours named by them, as 5h. A period with nothing recorded, as
+// on a fresh install, says a dash in each of its own figures, as period has
+// it; left and the plan are none of them.
 func (cp compared) turnedGroups() []turnedGroup {
 	limits := shortWindows(cp.f.windowNamer(cp.m))
 	return []turnedGroup{
 		{name: "ACTIVITY", columns: []turnedColumn{
-			{turnedAt, "reqs", cp.period(func(col compareColumn) []part {
+			{"reqs", cp.period(func(col compareColumn) []part {
 				return []part{figureIn(prose.Grouped(col.row.Totals.Requests), col.ink())}
 			})},
-			{23, "sessions", cp.period(func(col compareColumn) []part {
+			{"sessions", cp.period(func(col compareColumn) []part {
 				return []part{figureIn(prose.Grouped(col.row.Totals.Sessions), col.ink())}
 			})},
-			{35, "moved", cp.period(func(col compareColumn) []part { return movedParts(col.row.Totals, col.ink()) })},
+			{"moved", cp.period(func(col compareColumn) []part { return movedParts(col.row.Totals, col.ink()) })},
 		}},
 		{name: "LIMITS", columns: []turnedColumn{
-			{turnedAt, "hit", cp.period(func(col compareColumn) []part { return limitsParts(col.row.Totals, limits, col.ink()) })},
-			{26, "at cap", cp.period(func(col compareColumn) []part { return atCapParts(col.row.Totals, col.ink()) })},
-			{36, "left", func(col compareColumn) []part { return leftShort(col.row, col.ink()) }},
+			{"hit", cp.period(func(col compareColumn) []part { return limitsParts(col.row.Totals, limits, col.ink()) })},
+			{"at cap", cp.period(func(col compareColumn) []part { return atCapParts(col.row.Totals, col.ink()) })},
+			{"left", func(col compareColumn) []part { return leftShort(col.row, col.ink()) }},
 		}},
 		{name: "VALUE", columns: []turnedColumn{
-			{turnedAt, "plan", func(col compareColumn) []part { return planPriced(col.row, col.ink()) }},
-			{26, "worth", cp.period(func(col compareColumn) []part { return worthParts(col.row, col.ink()) })},
-			{36, "against it", cp.period(func(col compareColumn) []part { return againstOnPhone(col.row) })},
+			{"plan", func(col compareColumn) []part { return planPriced(col.row, col.ink()) }},
+			{"worth", cp.period(func(col compareColumn) []part { return worthParts(col.row, col.ink()) })},
+			{"against it", cp.period(func(col compareColumn) []part { return againstOnPhone(col.row) })},
 		}},
 	}
 }
 
 // turnedGroup draws the group from row y, and returns the row its last
 // column is on: its name, and on its row each of its columns' heads, in
-// text.subtle; then a row each of Compare's columns, no blank between, each
-// figure cut a cell short of the next column, the last's at the frame's
-// edge.
-func (cp compared) turnedGroup(c *canvas, y int, g turnedGroup, columns []compareColumn) int {
+// text.subtle; then a row each of Compare's columns, no blank between. Its
+// columns share the room from the layout's bars to the frame's edge alike,
+// as flex lays them, so every group's line up; each figure is cut a cell
+// short of the next column, the last's at the frame's edge.
+func (cp compared) turnedGroup(c *canvas, y int, l turnedLayout, g turnedGroup, columns []compareColumn) int {
+	shared := make([]flex.Part, len(g.columns))
+	for i := range shared {
+		shared[i] = flex.Part{Grows: true}
+	}
+	spans, _ := flex.Lay(cp.f.edge()-l.at, shared...)
 	c.line(0, y, line{{g.name, dimInk}})
 	c.heading(y, y+1)
-	for _, head := range g.columns {
-		c.line(head.at, y, line{{head.head, dimInk}})
+	for i, head := range g.columns {
+		c.line(l.at+spans[i].At, y, line{{head.head, dimInk}})
 	}
 	for _, col := range columns {
 		y++
-		c.line(turnedNameAt, y, turnedName(col))
+		c.line(turnedNameAt, y, turnedName(col, l.names))
 		for i, figure := range g.columns {
-			end := cp.f.edge()
-			if i+1 < len(g.columns) {
-				end = g.columns[i+1].at - 1
+			at, cells := l.at+spans[i].At, spans[i].Size-1
+			if i+1 == len(g.columns) {
+				cells = cp.f.edge() - at
 			}
-			c.line(figure.at, y, fitParts(end-figure.at, periodNumbered(figure.said(col), col.id, figure.head)...))
+			c.line(at, y, fitParts(cells, periodNumbered(figure.said(col), col.id, figure.head)...))
 		}
 	}
 	return y
