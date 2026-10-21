@@ -668,45 +668,50 @@ func TestAPhonesCompareCutsALargestVersionsNameNeverItsShare(t *testing.T) {
 	const unnamed = "claude-sonnet-4-20250514"
 	configured := ledger.Pricing
 	configured.Models = append(slices.Clone(ledger.Pricing.Models), ledger.Model{IDs: []string{unnamed}})
+	type shown struct {
+		share     float64
+		end, said string
+	}
 	tests := []struct {
-		name   string
-		table  ledger.Table
-		model  string
-		barAt  int
-		shares []float64
-		ends   []string
+		name  string
+		table ledger.Table
+		model string
+		barAt int
+		shown []shown
 	}{
 		{
 			name: "the widest version, at 99% and 100%", table: ledger.Pricing, model: "claude-sonnet-5-5", barAt: 13,
-			shares: []float64{0.99, 1}, ends: []string{"● Sonnet 5.5 99%", "● Sonnet 5… 100%"},
+			shown: []shown{{0.99, "● Sonnet 5.5 99%", "99%"}, {1, "● Sonnet 5… 100%", "100%"}},
 		},
 		{
 			name: "a model the config prices, at 9% and 10%", table: configured, model: unnamed, barAt: 11,
-			shares: []float64{0.09, 0.1}, ends: []string{"● sonnet-4-202… 9%", "● sonnet-4-20… 10%"},
+			shown: []shown{{0.09, "● sonnet-4-202… 9%", "9%"}, {0.1, "● sonnet-4-20… 10%", "10%"}},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			version, ok := tt.table.Version(tt.model)
-			if !ok {
+			version, named := tt.table.Version(tt.model)
+			if !named {
 				version = ledger.Version{IDs: []string{tt.model}, Name: ledger.ShortModelID(tt.model), Family: "sonnet"}
 			}
 			key := Number{Kind: NumberPeriod, Account: "work", Of: shareNamed(version)}
-			for i, share := range tt.shares {
+			for _, s := range tt.shown {
 				page := phonePage(t)
-				page.Versions = append(slices.Clone(page.Versions), version)
-				page.Rows[0].Totals.ByModel = []views.ModelShare{{Model: tt.model, Share: new(share), Amount: usd(100 * share)}}
+				if !named {
+					page.Versions = append(slices.Clone(page.Versions), version)
+				}
+				page.Rows[0].Totals.ByModel = []views.ModelShare{{Model: tt.model, Share: new(s.share), Amount: usd(100 * s.share)}}
 				f := phoneText(t, 52, 60, AccountsCompare, "", page, nil)
 				f.VersionNameCells = views.VersionNameCells(tt.table)
 				rows := textOf(f.Draw(phoneDoc(), routedAt))
 				if got := columnOf(rows[20], "█"); got != tt.barAt {
-					t.Errorf("at %v, work's bar starts at column %d, want %d, in %q", share, got, tt.barAt, rows[20])
+					t.Errorf("at %v, work's bar starts at column %d, want %d, in %q", s.share, got, tt.barAt, rows[20])
 				}
-				if !strings.HasSuffix(rows[20], tt.ends[i]) {
-					t.Errorf("at %v, work's BY MODEL row is %q, want it to end %q", share, rows[20], tt.ends[i])
+				if !strings.HasSuffix(rows[20], s.end) {
+					t.Errorf("at %v, work's BY MODEL row is %q, want it to end %q", s.share, rows[20], s.end)
 				}
-				if said, want := f.Numbers(phoneDoc(), routedAt)[key], strings.Fields(tt.ends[i])[len(strings.Fields(tt.ends[i]))-1]; said != want {
-					t.Errorf("at %v, %+v reads %q, want %q", share, key, said, want)
+				if said := f.Numbers(phoneDoc(), routedAt)[key]; said != s.said {
+					t.Errorf("at %v, %+v reads %q, want %q", s.share, key, said, s.said)
 				}
 			}
 		})

@@ -343,7 +343,14 @@ func TestTheWidestVersionNameIsOfEveryModelTheTablePrices(t *testing.T) {
 	}{
 		{name: "an empty table, none", table: ledger.Table{}, want: 0},
 		{name: "the version table's, Sonnet 5.5", table: ledger.Pricing, want: len("Sonnet 5.5")},
-		{name: "a model the config prices and the version table names, by its name", table: pricing("claude-sonnet-5-5"), want: len("Sonnet 5.5")},
+		{
+			name: "a model priced and named by the version table, by its name, not its id",
+			table: ledger.Table{
+				Models:   []ledger.Model{{IDs: []string{"claude-a-long-dated-id-20990101"}}},
+				Versions: []ledger.Version{{IDs: []string{"claude-a-long-dated-id-20990101"}, Name: "Short"}},
+			},
+			want: len("Short"),
+		},
 		{name: "a model the config prices, by its id", table: pricing("claude-sonnet-4-20250514"), want: len("sonnet-4-20250514")},
 	}
 	for _, tt := range tests {

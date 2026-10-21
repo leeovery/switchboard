@@ -52,7 +52,7 @@ const (
 // and all, BY MODEL's heading, and the groups' names and their rows'
 // labels, indented. A version's name past it is cut to it.
 var compareLabels = sync.OnceValue(func() int {
-	widest := max(weekLabel(views.AccountsThirtyDays).width(), byModelHead().width())
+	widest := max(weekLabel(views.AccountsThirtyDays).width(), compareByModelHead(false).width())
 	for _, g := range (compared{page: &views.AccountsPage{}}).groups() {
 		widest = max(widest, ansi.StringWidth(g.name))
 		for _, r := range g.rows {
@@ -65,10 +65,11 @@ var compareLabels = sync.OnceValue(func() int {
 // compareByModelSays is what Compare's BY MODEL shows, after its name.
 const compareByModelSays = "share of use"
 
-// byModelHead is Compare's BY MODEL heading, as groupHead words it: the one
-// the view draws and its labels' column holds.
-func byModelHead() line {
-	return groupHead("BY MODEL", compareByModelSays, false)
+// compareByModelHead is Compare's BY MODEL heading, as groupHead words it,
+// turned where turned is set: the one either form draws, and the wide
+// form's labels' column holds.
+func compareByModelHead(turned bool) line {
+	return groupHead("BY MODEL", compareByModelSays, turned)
 }
 
 // compareLayout is where Compare's parts sit across a frame, as flex lays
@@ -507,7 +508,7 @@ func (cp compared) weekGauge(col compareColumn) gauge {
 // shade and its name, cut to the labels' column, and each column's share of
 // use of it, right-aligned in 4.
 func (cp compared) byModel(c *canvas, y int, columns []compareColumn) int {
-	c.line(0, y, byModelHead())
+	c.line(0, y, compareByModelHead(false))
 	versions := cp.page.Versions
 	hues := versionHues(versions)
 	for _, col := range columns {

@@ -2062,8 +2062,10 @@ holds.
     and 40 from 85; past that the rest of the row is blank past the figures. Only where the
     names' and bars' leasts leave too little does the figures' column narrow: under 50 columns
     with the version table's names, and wider where the config prices a model named by a long id.
-  - A largest version that doesn't fit its cells cuts its name, never its share: `● Sonnet 5…
-    100%` at 52, `● sonnet-4-20… 55%` for a model the version table doesn't name.
+  - A largest version that doesn't fit its cells cuts its name, never its share, at every width
+    the design draws, from 52 columns: `● Sonnet 5… 100%` at 52; for a model the version table
+    doesn't name, shown by its id, `● sonnet-4-20… 55%` where the config prices it, its id
+    widening the figures' column, and `● sonnet-4-… 55%` where nothing prices it.
   - WEEK USED and BY MODEL: a blank row under the heading and between rows, so the bars don't merge;
     the bars one width, WEEK USED's percentage right-aligned in the figures' first 4 cells, and BY
     MODEL's account's largest version and its share a cell further in, `● Opus 5.5 55%`, so their

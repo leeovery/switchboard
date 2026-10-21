@@ -61,10 +61,10 @@ type turnedLayout struct {
 // names at their widest whole, at least compareNameLeast and at most
 // compareNameMost; its bars at least turnedBar, growing to barMost; and its
 // figures holding the widest largest version the table can name, as the
-// frame's VersionNameCells has it, at a share of two digits, and taking the cell
-// more a share of 100% needs last. The names give way before the figures do.
-// The figures read no page, so nothing moves as it's read, or as the period
-// changes.
+// frame's VersionNameCells has it, at a share of two digits, and taking the
+// cell more a share of 100% needs last. The names give way before the figures
+// do. The figures read no page, so nothing moves as it's read, or as the
+// period changes.
 func (cp compared) turnedLaid(columns []compareColumn) turnedLayout {
 	names := 0
 	for _, col := range columns {
@@ -259,7 +259,7 @@ func (cp compared) turnedWeek(c *canvas, y int, l turnedLayout, columns []compar
 // used most, "● Opus 5.5 55%", as largestIn fits it to the frame's edge, as
 // the layout places them.
 func (cp compared) turnedByModel(c *canvas, y int, l turnedLayout, columns []compareColumn) int {
-	c.line(0, y, line{{"BY MODEL", dimInk}})
+	c.line(0, y, compareByModelHead(true))
 	c.heading(y, y+partsApart)
 	versions := cp.page.Versions
 	hues := versionHues(versions)
