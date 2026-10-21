@@ -140,18 +140,16 @@ func (f Frame) cueState(c *canvas, id string, x, y, width int) {
 // accountsForm is Accounts' view shown as its form draws it: what it draws
 // from row top; how far it scrolls, scrolled to each offset; what of it
 // scrolls, from column x along row y, width cells wide and rows tall; the
-// zones a click acts on; how much of each bar it draws it fills, as Filled
-// has them; and, of Detail, the cells it draws a day of BY DAY in. Each is
-// nothing where it's nil: it draws nothing, never scrolls, its view scrolls
-// whole, nothing takes a click, it fills no bar, and its days are the
-// fewest cells.
+// zones a click acts on; and how much of each bar it draws it fills, as
+// Filled has them. Each is nothing where it's nil: it draws nothing, never
+// scrolls, its view scrolls whole, nothing takes a click, and it fills no
+// bar.
 type accountsForm struct {
 	draw      func(c *canvas, top int)
 	scrolling func(offset int) Scrolling
 	scrolls   func() (x, y, width, rows int)
 	targets   func() []Target
 	filled    func() map[Ref]float64
-	days      func() int
 }
 
 // accountsForm is the form Accounts' view shown is drawn in, of doc at now:
@@ -207,20 +205,6 @@ func (form accountsForm) scrolled(f Frame) (x, y, width, rows int) {
 		return form.scrolls()
 	}
 	return 0, f.top(), f.Width, f.viewRows()
-}
-
-// detailDays are the cells Detail draws a day of BY DAY in, as the form it's
-// built in has them, so help and Detail read the one choice of its form;
-// dayCellsLeast, the stack's, where the frame isn't built, or its form
-// doesn't say.
-func (f Frame) detailDays() int {
-	if f.built == nil {
-		return dayCellsLeast
-	}
-	if form := f.built.accounts(); form.days != nil {
-		return form.days()
-	}
-	return dayCellsLeast
 }
 
 // accountsTargets are the zones of Accounts' view shown of doc at now a

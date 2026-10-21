@@ -2127,16 +2127,18 @@ where it fits** says, and where they don't fit, it's stacked, as **On a phone** 
   the plans known, `$635  4.3× · 2 of 3 plans known`; and `extra use`.
   - Its column is its labels and its figures' cells, at least 10, and as many as its widest
     bounded part takes, so each reads whole on a row of its own: a limit's hits of any window
-    listed, by its short name and counted as often as twelve weeks of 5-hour windows allow,
-    `Fable wk ×403`, 13 cells; and `all accounts`' extra use on for one fewer than every
-    account, `on for 2 of 3`, 13 cells. So 23 with three accounts and Fable's week. It's the
-    same whichever account is chosen, so nothing moves as the choice does, and it ends at the
-    weeks' edge, column 140 at 160.
+    the moment lists, or any the period's page records a limit of, by its short name and
+    counted as often as the window can be hit over the longest period, twelve weeks, once a
+    window, `5h ×403`, `Fable wk ×12`, 12 cells; and `all accounts`' extra use on for one fewer
+    than every account, `on for 2 of 3`, 13 cells. So 23 with three accounts. It's the same
+    whichever account is chosen, so nothing moves as the choice does, and it ends at the weeks'
+    edge, column 140 at 160.
   - A figure's parts, between its ` · `, go on one row where they fit; where they don't, each
     part goes on a row of its own, under the one before, in full where it fits, else short: a
     limit's window by its short name, `5h ×2`, and the plans known as `2 of 3 plans`, or `2/3`.
-    BY MODEL and all under it move down a row for each row past five, as for BY MODEL's second
-    row.
+    BY MODEL sits two rows under the lower of USAGE's last window and THIS WEEK's last row, so
+    where THIS WEEK's rows reach past the windows', BY MODEL and all under it move down with
+    them.
   - The requests, the plan's name, from the price table, the plans' summed price, and the worth
     and its ratio have no bound: where one is wider than its cells, it's cut at the weeks' edge
     with `…`.
@@ -2199,12 +2201,14 @@ where it fits** says, and where they don't fit, it's stacked, as **On a phone** 
   WEEK end at column 158.
 - **Wide, from where it fits.** Flex lays the wide form's parts across the frame, and where their
   leasts don't fit, Detail is stacked; and under 100 columns, where the phone's chrome takes the
-  frame, always, with one account too, whose leasts fit from 78. The wide form's start follows
-  from the weeks' least, which THIS WEEK sets: from 105 columns with the list, whatever its
-  names, where THIS WEEK is 23 cells, as with up to nine accounts and Fable's week; from 115
-  where it's 24, as with ten accounts or more, `on for 9 of 10`, or a window named `Sonnet wk`,
-  as four weeks at their widest gap, 68 cells, no longer reach past it, and five at a gap of 2
-  take 78. The parts, in order:
+  frame, always, one account's too, though its leasts fit narrower. The wide form's start
+  follows from the weeks' least: the fewest cells of weeks, as they're laid, that reach as far
+  past `cx` as USAGE's row at its leasts, a cell, and THIS WEEK. Where that's 68 or fewer, four
+  weeks at a gap of 4 reach it, and with the list Detail is wide from 105 columns, whatever its
+  names: so with up to nine accounts and the windows' names within 8 cells, THIS WEEK 23. Where
+  it's 69 to 78, five weeks at a gap of 2 do, and it's from 115: so with ten accounts or more,
+  `on for 9 of 10` making THIS WEEK 24, or a window named past 8 cells, `Sonnet wk`, widening
+  USAGE's names. The parts, in order:
   - with more than one account, the list: a cell, the name column, from 14 cells to 24, narrowing
     first, and 9 cells past it to the panel;
   - the panel's headings' column, 12 cells, to `cx`;
@@ -2221,8 +2225,9 @@ where it fits** says, and where they don't fit, it's stacked, as **On a phone** 
     they're cut.
   - THIS WEEK, the rule and BY MODEL's bar end at the weeks' edge, and USAGE's row ends a cell
     before THIS WEEK, its bars at most 40, so they don't grow past that.
-  - The layout follows the width and the configured accounts and windows alone, never the rows or
-    figures in view; only BY MODEL's second row moves the rows under it.
+  - The layout follows the width, the configured accounts, the windows the moment lists and the
+    limits the period's page records alone, never the figures in view. The rows under BY MODEL
+    move down with its second row, and with THIS WEEK's rows where they reach past USAGE's.
 - **On a phone,** stacked, each part under its heading, a blank row between: on row 8, `◂ 1 work ▸`,
   `◂` and `▸` bold `accent.key`, a picker that takes any number of accounts (settled in the plan),
   and at the right `↑↓ an account, or all` in `text.subtle`; under it, the state, its glyph and

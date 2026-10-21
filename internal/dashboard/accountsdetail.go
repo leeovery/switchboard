@@ -45,19 +45,19 @@ const (
 
 // Detail's panel's rows, from its top: the head; USAGE's heading, its
 // windows from the row after, windowsApart rows apart, and THIS WEEK's
-// title on its row, its items under it, thisWeekItems rows at the fewest;
-// BY MODEL, byModelGap rows under the lower of the two; and the parts under BY MODEL, each the
-// rows given under it.
+// title on its row, its items under it, thisWeekLeastRows rows at the
+// fewest; BY MODEL, byModelGap rows under the lower of the two; and the
+// parts under BY MODEL, each the rows given under it.
 const (
-	usageAt       = 2
-	windowsApart  = 2
-	thisWeekItems = 5
-	byModelGap    = 2
-	ruleUnder     = 3
-	byDayUnder    = 5
-	weeksUnder    = 8
-	verdictUnder  = 10
-	latelyUnder   = 12
+	usageAt           = 2
+	windowsApart      = 2
+	thisWeekLeastRows = 5
+	byModelGap        = 2
+	ruleUnder         = 3
+	byDayUnder        = 5
+	weeksUnder        = 8
+	verdictUnder      = 10
+	latelyUnder       = 12
 )
 
 // THIS WEEK's labels' cells and its figures' fewest, ending at the weeks'
@@ -93,7 +93,7 @@ const (
 	sixWeeks      = 6
 	weeksGapMost  = 4
 	weeksGapLeast = 2
-	dayCellsLeast = 2
+	dayCellsLeast = swatchCells
 )
 
 // The wide form's parts across a frame, in the order detailLaid lays them:
@@ -274,21 +274,30 @@ func (l detailLayout) weekBar() int {
 	return l.step() - l.gap - 5
 }
 
-// detailForm is Detail of doc at now, under the wide chrome: drawn wide
-// where its wide form's leasts fit the frame, as detailLaid has it;
-// narrower, as a phone's body draws it, as detailPhoneBody has it. The form
-// is chosen once, the first time a look that draws asks; how much of each
-// bar it fills is alike in either, so filling chooses none.
+// detailIn is the layout Detail is drawn in under the wide chrome, of the
+// moment m: its wide layout, where its leasts fit the frame, as detailLaid
+// has it; else the stack's, as a phone's body draws it; and whether it's
+// wide. Detail's form and help's key to it both choose by it.
+func (f Frame) detailIn(m status.Moment) (detailLayout, bool) {
+	if l, wide := f.detailLaid(m); wide {
+		return l, true
+	}
+	return stackLayout, false
+}
+
+// detailForm is Detail of doc at now, under the wide chrome, in the layout
+// detailIn chooses: drawn wide, or as a phone's body draws it, as
+// detailPhoneBody has it. The form is chosen once, the first time a look
+// that draws asks; how much of each bar it fills is alike in either, so
+// filling chooses none.
 func (f Frame) detailForm(doc status.Document, now time.Time) accountsForm {
 	chosen := sync.OnceValue(func() accountsForm {
-		l, wide := f.detailLaid(f.Moment(doc, now))
+		l, wide := f.detailIn(f.Moment(doc, now))
 		if !wide {
-			form := f.detailPhoneBody(doc, now)
-			form.days = func() int { return stackLayout.dw }
-			return form
+			return f.detailPhoneBody(doc, now)
 		}
 		d := f.detailDrawn(doc, now, l)
-		return accountsForm{draw: d.draw, scrolling: d.scrolling, scrolls: d.scrolls, targets: d.targets, days: func() int { return l.dw }}
+		return accountsForm{draw: d.draw, scrolling: d.scrolling, scrolls: d.scrolls, targets: d.targets}
 	})
 	return accountsForm{
 		draw:      func(c *canvas, top int) { chosen().draw(c, top) },
@@ -296,8 +305,18 @@ func (f Frame) detailForm(doc status.Document, now time.Time) accountsForm {
 		scrolls:   func() (x, y, width, rows int) { return chosen().scrolled(f) },
 		targets:   func() []Target { return chosen().targets() },
 		filled:    func() map[Ref]float64 { return f.detailDrawn(doc, now, detailLayout{}).filled() },
-		days:      func() int { return chosen().days() },
 	}
+}
+
+// detailDays are the cells Detail draws a day of BY DAY in, of the moment
+// the frame holds, as detailIn lays it, whatever's built or shown; the
+// stack's where it holds none, as it's drawn of none.
+func (f Frame) detailDays() int {
+	if f.held == nil {
+		return stackLayout.dw
+	}
+	l, _ := f.detailIn(f.held.Moment())
+	return l.dw
 }
 
 // detailDrawn is Detail of a moment as it's drawn wide: the frame and its
@@ -560,13 +579,6 @@ func allGauge(m status.Moment, key string) gauge {
 		g.words = poolWords(w.Room, w.Of, false)
 	}
 	return g
-}
-
-// thisWeekItem is an item of THIS WEEK, as a phone's has it: its label, and
-// its figure.
-type thisWeekItem struct {
-	label string
-	parts []part
 }
 
 // extra is the extra usage of what Detail shows, as ExtraOf takes it: the

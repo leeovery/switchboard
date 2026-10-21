@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"maps"
 	"slices"
 
 	"github.com/leeovery/switchboard/internal/prose"
@@ -11,33 +12,43 @@ import (
 // Detail's THIS WEEK, wide: its column's width, and its items, each figure's
 // parts over the rows they need.
 
-// limitHitsMost are the most times a window's limit can be hit in the
-// longest period Accounts shows, twelve weeks of 5-hour windows: the widest
-// count a limit is said with.
-const limitHitsMost = 12 * 7 * 24 / 5
-
 // thisWeekCells are the cells of THIS WEEK's column: its labels, and its
 // figures' cells, at least thisWeekFigures, and as many as the widest
 // bounded part of a figure takes, so each such part reads whole on a row of
-// its own: a limit hit, of any window listed, as its short name says it and
-// counted as often as limitHitsMost; and all accounts' extra use, on for one
-// fewer than every configured account, "on for 2 of 3". The same for every
-// choice in the list, so nothing moves as the choice does. Of every account,
-// the plans known, the other bounded part, says it shortest in fewer cells,
-// "2/3". The requests, the plan's name, from the price table, or the plans'
-// summed price, and the worth and its ratio have no bound, and are cut at
-// the weeks' edge with ….
+// its own: a limit hit, of any window limitedWindows has, as its short name
+// says it and counted as often as views.LimitsHitMost has it, "5h ×403",
+// "Fable wk ×12"; and all accounts' extra use, on for one fewer than every
+// configured account, "on for 2 of 3". The same for every choice in the
+// list, so nothing moves as the choice does. Of every account, the plans known, the
+// other bounded part, says it shortest in fewer cells, "2/3"; and all
+// accounts' limits, how many, in fewer still. The requests, the plan's name,
+// from the price table, or the plans' summed price, and the worth and its
+// ratio have no bound, and are cut at the weeks' edge with ….
 func (f Frame) thisWeekCells(m status.Moment) int {
 	figures, n := thisWeekFigures, len(f.Accounts.Accounts)
 	if n > 1 {
 		figures = max(figures, partsWidth(extraShort(status.AllExtra{State: status.ExtraOn, On: n - 1, Of: n})))
 	}
 	short := shortWindows(f.windowNamer(m))
-	for _, key := range m.Listed(true) {
-		hit := views.LimitsHit(map[string]int{key: limitHitsMost}, short)
+	for _, key := range f.limitedWindows(m) {
+		hit := views.LimitsHit(map[string]int{key: views.LimitsHitMost(key)}, short)
 		figures = max(figures, partsWidth([]part{figureIn(hit[0], errorInk)}))
 	}
 	return thisWeekLabels + figures
+}
+
+// limitedWindows are the windows a limit may be named of in THIS WEEK, by
+// their keys: every one the moment m lists, and every one any row of the
+// period's page records a limit of, listed or not.
+func (f Frame) limitedWindows(m status.Moment) []string {
+	keys := m.Listed(true)
+	if page := f.Accounts.Page; page != nil {
+		for _, row := range append(slices.Clone(page.Rows), page.All) {
+			keys = append(keys, slices.Collect(maps.Keys(row.Totals.Limits))...)
+		}
+	}
+	slices.Sort(keys)
+	return slices.Compact(keys)
 }
 
 // thisWeekForms are a part of a THIS WEEK figure in its forms, the full first,
@@ -149,11 +160,11 @@ func (d detailDrawn) worthSaid() thisWeekSaid {
 }
 
 // thisWeekRows are the rows THIS WEEK's items take under its title, each
-// figure's as its rows have them: thisWeekItems, a row an item, where the
+// figure's as its rows have them: thisWeekLeastRows, a row an item, where the
 // period's page isn't read.
 func (d detailDrawn) thisWeekRows() int {
 	if d.page == nil {
-		return thisWeekItems
+		return thisWeekLeastRows
 	}
 	rows, cells := 0, d.thisWeekFigureCells()
 	for _, item := range d.thisWeekSaid() {

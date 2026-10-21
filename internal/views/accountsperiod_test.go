@@ -123,3 +123,14 @@ func TestAPeriodsPlansArePricedWhole(t *testing.T) {
 		})
 	}
 }
+
+// A window's limit is hit at most once a window, so over the longest period
+// Accounts shows, twelve weeks, a 5-hour window's at most 403 times, a week's
+// 12, a day's 84; a key that names no length counts as an hour's window.
+func TestLimitsAreHitAtMostOnceAWindowOverTheLongestPeriod(t *testing.T) {
+	for key, want := range map[string]int{"5h": 403, "7d": 12, "7d_oi": 12, "1d": 84, "session": 2016} {
+		if got := views.LimitsHitMost(key); got != want {
+			t.Errorf("LimitsHitMost(%q) = %d, want %d", key, got, want)
+		}
+	}
+}

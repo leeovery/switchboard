@@ -744,7 +744,7 @@ func TestDetailsTHISWEEKNamesThePeriod(t *testing.T) {
 // THIS WEEK is 23 cells and that's 68 cells of weeks, four at a gap of 4, so
 // from 105 columns; with ten, "on for 9 of 10" makes it 24, four weeks no
 // longer reach, five at a gap of 2 take 78, and it's from 115; and a window
-// named past 8 cells, as "Sonnet wk", whole, as "Sonnet wk ×403" in THIS WEEK,
+// named past 8 cells, as "Sonnet wk", whole, a cell more of USAGE's row,
 // takes it to 115 too. Narrower, as the phone's body draws it. Drawn wide,
 // its widest row ends at the weeks' edge.
 func TestDetailDrawsWideFromWhereItsLeastsFit(t *testing.T) {
@@ -813,6 +813,14 @@ func TestOneAccountsDetailIsWideFrom100(t *testing.T) {
 		if got := accountsDrawn(f, doc); !slices.Equal(got, want) {
 			t.Errorf("at %d columns, drawn wide %v isn't what's drawn", tt.width, tt.wide)
 		}
+	}
+}
+
+// withoutFable takes Fable's week from every account, so the moment lists
+// it for none.
+func withoutFable(d *status.Document) {
+	for i, a := range d.Accounts {
+		d.Accounts[i].Windows = slices.DeleteFunc(slices.Clone(a.Windows), func(w quota.Window) bool { return w.Key == "7d_oi" })
 	}
 }
 
@@ -924,15 +932,10 @@ func TestDetailsWideFormKeepsItsWordsWhole(t *testing.T) {
 
 // THIS WEEK is as wide as its labels and the widest bounded part of its
 // figures, at least 20 cells: a limit hit of any window listed, by its short
-// name, counted 403 times, "Fable wk ×403"; and all accounts' extra use on
-// for one fewer than every account. Alike whichever account is chosen, or
-// all of them.
+// name, counted as often as its window can be hit in twelve weeks, "Fable wk
+// ×12", "5h ×403"; and all accounts' extra use on for one fewer than every
+// account. Alike whichever account is chosen, or all of them.
 func TestDetailsTHISWEEKIsAsWideAsItsWidestBoundedPart(t *testing.T) {
-	withoutFable := func(d *status.Document) {
-		for i, a := range d.Accounts {
-			d.Accounts[i].Windows = slices.DeleteFunc(slices.Clone(a.Windows), func(w quota.Window) bool { return w.Key == "7d_oi" })
-		}
-	}
 	tests := []struct {
 		name     string
 		doc      status.Document
@@ -940,10 +943,10 @@ func TestDetailsTHISWEEKIsAsWideAsItsWidestBoundedPart(t *testing.T) {
 		cells    int
 	}{
 		{name: "one account, its windows' limits within 10", doc: usageWorld(withoutFable), accounts: 1, cells: 20},
-		{name: "one account, Fable wk ×403", doc: usageWorld(), accounts: 1, cells: 23},
+		{name: "one account, Fable wk ×12", doc: usageWorld(), accounts: 1, cells: 22},
 		{name: "three accounts, on for 2 of 3", doc: usageWorld(withoutFable), accounts: 3, cells: 23},
 		{name: "ten accounts, on for 9 of 10", doc: usageWorld(withoutFable), accounts: 10, cells: 24},
-		{name: "a Sonnet week, Sonnet wk ×403", doc: usageWorld(sonnetWeek), accounts: 3, cells: 24},
+		{name: "a Sonnet week, Sonnet wk ×12", doc: usageWorld(sonnetWeek), accounts: 1, cells: 23},
 	}
 	for _, tt := range tests {
 		configured := make(config.Accounts, tt.accounts)
@@ -973,10 +976,13 @@ func TestDetailsTHISWEEKReadsEveryBoundedPartWhole(t *testing.T) {
 	unknown.All.Plan.Plans = views.PlansKnown{Known: 2, Of: 3}
 	tests := []struct {
 		name, chosen, label string
+		unlisted            bool
 		page                *views.AccountsPage
 		rows                []string
 	}{
 		{name: "limits of two windows", chosen: "work", label: "limits", page: limited(map[string]int{"5h": 2, "7d": 1}), rows: []string{"week ×1", "5-hour ×2"}},
+		{name: "a limit of a window the moment doesn't list", chosen: "work", label: "limits", unlisted: true,
+			page: limited(map[string]int{"5h": 2, "7d_oi": 1}), rows: []string{"5-hour ×2", "Fable week ×1"}},
 		{name: "limits of three windows, a model's among them", chosen: "work", label: "limits",
 			page: limited(map[string]int{"5h": 2, "7d": 1, "7d_oi": 1}), rows: []string{"week ×1", "5-hour ×2", "Fable week ×1"}},
 		{name: "every account's worth over the plans known", label: "worth", page: unknown, rows: []string{"$635  4.6×", "2 of 3 plans"}},
@@ -984,6 +990,10 @@ func TestDetailsTHISWEEKReadsEveryBoundedPartWhole(t *testing.T) {
 	for _, width := range []int{105, 108, 138, 160, 220} {
 		for _, tt := range tests {
 			t.Run(fmt.Sprintf("%s at %d", tt.name, width), func(t *testing.T) {
+				doc := doc
+				if tt.unlisted {
+					doc = usageWorld(extraOff, withoutFable)
+				}
 				f := detailFrame(Look{}, framedAccounts, tt.chosen, "", tt.page, nil)
 				f.Width, f.Height = width, 44
 				l := laidIn(f, doc)

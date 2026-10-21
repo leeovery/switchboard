@@ -414,7 +414,7 @@ type stacked struct {
 // stackLayout is Detail on a phone: no list; BY MODEL, BY DAY and WEEKS from
 // stackAt; and its days swatchCells wide, as History's, its weeks a cell
 // apart.
-var stackLayout = detailLayout{into: stackAt, dw: swatchCells, gap: 1}
+var stackLayout = detailLayout{into: stackAt, dw: dayCellsLeast, gap: 1}
 
 // stackedOf is a phone's Detail of doc at now: of the account the frame's
 // Accounts shows, else all accounts, as detailDrawn has it.
@@ -477,10 +477,10 @@ func (s stacked) named(cells int) line {
 // usage draws USAGE from row y, and returns the row its last window is on:
 // its heading, then every window, windowsApart rows apart, named in
 // text.subtle, then as Detail's gauge has it, laid out as detailUsageRow
-// lays its row across the frame, the names at least compareNameLeast: its names as wide as windowNames has them,
-// and its words the cells of their form at their widest, so neither moves as
-// the windows shown or their words change; its words ending at the frame's
-// edge.
+// lays its row across the frame: its names as wide as windowNames has them,
+// at least compareNameLeast, and its words the cells of their form at their
+// widest, so neither moves as the windows shown or their words change; its
+// words ending at the frame's edge.
 func (s stacked) usage(c *canvas, y int) int {
 	c.line(0, y, line{{"USAGE", dimInk}})
 	c.heading(y, y+1)
@@ -514,6 +514,12 @@ func (s stacked) thisWeek(c *canvas, y int) int {
 		}
 	}
 	return y + len(halves[0])
+}
+
+// thisWeekItem is an item of a phone's THIS WEEK: its label, and its figure.
+type thisWeekItem struct {
+	label string
+	parts []part
 }
 
 // thisWeekItems are THIS WEEK's items in its two columns, as the words of
