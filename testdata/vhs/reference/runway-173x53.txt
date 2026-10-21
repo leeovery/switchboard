@@ -21,8 +21,6 @@ RUNWAY  ────────────────────────
                                                                            ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
   week 1.2 of 3 left
 
-█ room    █ room, but it runs out at its pace    ─ at its cap    ─ at its limit    │ its week resets    a column ≈ 64 minutes · the past dimmed
-
 COMING UP
 16:30       personal's 5-hour resets                           in 1h 48m
 17:10       work back from its cap                             in 2h 28m
@@ -50,4 +48,6 @@ Mon 10:00   side's week resets                                 in 3d 19h
 
 
 
+
+█ room    █ room, but it runs out at its pace    ─ at its cap    ─ at its limit    │ its week resets    a column ≈ 64 minutes · the past dimmed
 tab views   < > window  ←→ week    a names    p pin    ? help  q quit

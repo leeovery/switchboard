@@ -57,8 +57,10 @@ func (f Frame) lanesHelp() helpPart {
 				"counted reset. A column with no reading of its account by then is blank, as an account not read yet. A cap is " +
 				"drawn by the reserve the config gives now, as the readings keep none: change a reserve, and the caps of days gone " +
 				"are drawn again by it."),
-			said("As rows run short, an account takes two rows, the blank rows go and COMING UP folds; past that, the lanes " +
-				"scroll with `j` and `k`, the axis and the pool's lane holding."),
+			said("The legend sits at the foot, over the key line. As rows run short, an account takes two rows, the blank rows " +
+				"go and COMING UP shows the lines it can; past that, the lanes scroll with `j` and `k`, the axis and the pool's " +
+				"lane holding, and what's out of view said beside the pool's room; and with one lane left, the legend gives way, " +
+				"then COMING UP."),
 		},
 		glyphs: []glyph{
 			{drawn: line{f.Look.laneMark(views.CellRoom)}, means: "room"},
@@ -79,7 +81,7 @@ func poolHelp() helpPart {
 		says: []line{
 			said("Beside Σ pool, under the lanes: a column for each of the lanes', filled to how many of the pool's accounts have " +
 				"room then, and coloured as switchboard usage colours the pool's use, the ramp's second colour from 70% used and " +
-				"its last from 90%, and where none has room, ─ along its foot, as a lane at its limit draws it. An account at its " +
+				"its last from 90%, and where none has room, ▂ along its foot, in a limit's red. An account at its " +
 				"cap or its limit counts without room, one running out at its pace with room until it does, and one not known " +
 				"then without. Under Σ pool, the pool's room in the view's window, as switchboard usage gives it; with the labels " +
 				"collapsed, under Σ, of how many accounts the pool is, as 1.2/3."),
@@ -139,8 +141,8 @@ func columnLengths(columns int) (fiveHour, week, day string) {
 }
 
 // runwayComingHelp is Runway's COMING UP as help explains it: what it lists,
-// in each view, and what it leaves out; how it folds; and that a step back
-// shows none.
+// in each view, and what it leaves out; where it sits and how it cuts its
+// lines; and that a step back shows none.
 func runwayComingHelp() helpPart {
 	return helpPart{
 		heading: SectionComing.heading(),
@@ -148,8 +150,8 @@ func runwayComingHelp() helpPart {
 			said("What happens next, soonest first, as the Overview's COMING UP has it: an account back from its cap, its limit or " +
 				"its refused token, whichever lifts last, a window running out at its pace, ~ marking it projected, and each " +
 				"other reset of the view's window, where its │ stands. The 5-hour view lists the 5-hour windows'; the week view " +
-				"adds each week's run-out and reset. No prime is listed. As rows run short, it folds to its heading, which names " +
-				"the soonest; stepped back, there's none."),
+				"adds each week's run-out and reset. No prime is listed. It sits under the pool's lane and takes the rows left; " +
+				"where its lines don't all fit, its last says how many more. Stepped back, there's none."),
 		},
 	}
 }

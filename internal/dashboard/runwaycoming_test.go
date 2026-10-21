@@ -20,14 +20,10 @@ func runwayComingDrawn(t *testing.T, width, height int, coming []status.Upcoming
 	r.Timeline, r.Coming = views.LiveTimeline(views.RunwayFiveHour, routedAt, RunwayShown{}.Columns(width)), coming
 	f := Frame{Width: width, Height: height, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claudeLike, Runway: r}
 	f.WindowName = func(key string) string { return map[string]string{"5h": "5-hour", "7d": "week"}[key] }
-	shape := runwayShape{legend: 1}
-	if f.phone() {
-		shape = runwayShape{legend: 2}
-	}
-	fit := f.runwayFittedAs(f.top(), shape)
+	fit := f.runwayFitted(f.top())
 	c := newCanvas(width, height)
 	f.runwayComing(c, runwayLaid{x: framesLanesFrom, fit: fit, m: f.Moment(doc, routedAt)})
-	return textOf(c.rows(Look{}))[fit.coming:fit.end]
+	return textOf(c.rows(Look{}))[fit.coming : fit.coming+1+fit.lines]
 }
 
 // The frames' world's things coming up in the 5-hour view: personal's
@@ -112,33 +108,75 @@ func TestRunwaysComingUpNamesTheFiveHourWindowRunningOut(t *testing.T) {
 	}
 }
 
-// Folded, at (c) and after, COMING UP keeps its heading alone, saying what's
-// soonest three cells on, its time unpadded, and two cells on an ellipsis
-// where more follow, as the Overview folds a section; nothing after it where
-// nothing's coming up.
-func TestRunwaysComingUpFoldsToItsHeading(t *testing.T) {
+// Where its lines don't all fit the rows it's given, COMING UP shows the
+// lines it can, each whole, and its last place says how many more, in
+// text.subtle, as what's out of view of the lanes is: never folding whole.
+func TestRunwaysComingUpShowsTheLinesItCanAndHowManyMore(t *testing.T) {
+	five := append(slices.Clone(fiveHourComing),
+		status.Upcoming{At: routedClock(1, 19, 30), Account: "work", Kind: status.UpcomingReset, Window: "5h"},
+		status.Upcoming{At: routedClock(1, 21, 0), Account: "personal", Kind: status.UpcomingReset, Window: "5h"},
+	)
 	tests := []struct {
 		name   string
 		coming []status.Upcoming
-		want   string
+		lines  int
+		want   []string
 	}{
-		{name: "three coming up", coming: fiveHourComing, want: "COMING UP   16:30  personal's 5-hour resets  …"},
-		{name: "one", coming: fiveHourComing[1:2], want: "COMING UP   17:10  work back from its cap"},
-		{name: "none", want: "COMING UP"},
+		{
+			name: "every line where they fit", coming: fiveHourComing, lines: 3,
+			want: []string{
+				"COMING UP",
+				"16:30  personal's 5-hour resets                                in 1h 48m",
+				"17:10  work back from its cap                                  in 2h 28m",
+				"18:50  side's 5-hour resets                                    in 4h 08m",
+			},
+		},
+		{
+			name: "a line and two more", coming: fiveHourComing, lines: 2,
+			want: []string{"COMING UP", "16:30  personal's 5-hour resets                                in 1h 48m", "▼ 2 more"},
+		},
+		{
+			name: "three lines of five and two more", coming: five, lines: 4,
+			want: []string{
+				"COMING UP",
+				"16:30  personal's 5-hour resets                                in 1h 48m",
+				"17:10  work back from its cap                                  in 2h 28m",
+				"18:50  side's 5-hour resets                                    in 4h 08m",
+				"▼ 2 more",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := runwayComingDrawn(t, 160, 22, tt.coming)
-			if !slices.Equal(got, []string{tt.want}) {
-				t.Errorf("folded, COMING UP reads %q, want %q alone", got, tt.want)
+			doc := framesDoc()
+			r := poolShown(doc, views.Pool{Of: 3, Key: "5h"})
+			r.Coming = tt.coming
+			f := Frame{Width: 160, Height: 37, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claudeLike, Runway: r}
+			f.WindowName = func(key string) string { return map[string]string{"5h": "5-hour", "7d": "week"}[key] }
+			c := newCanvas(f.Width, f.Height)
+			fit := runwayFit{fits: true, coming: 10, lines: tt.lines}
+			f.runwayComing(c, runwayLaid{x: framesLanesFrom, fit: fit, m: f.Moment(doc, routedAt)})
+			if got := textOf(c.rows(Look{}))[10 : 11+tt.lines]; !slices.Equal(got, tt.want) {
+				t.Errorf("COMING UP reads\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(tt.want, "\n"))
+			}
+			if got := textOf(c.rows(Look{}))[11+tt.lines]; got != "" {
+				t.Errorf("the row after COMING UP's last reads %q, want nothing", got)
+			}
+			if !strings.HasPrefix(tt.want[tt.lines], "▼") {
+				return
+			}
+			for x := range len([]rune("▼ 2 more")) {
+				if got := c.at(x, 10+tt.lines).ink; got != dimInk {
+					t.Errorf("cell %d of how many more is in %+v, want text.subtle", x, got)
+				}
 			}
 		})
 	}
 }
 
-// Collapsing the account column leaves COMING UP as it is, open or folded,
-// in its words and its inks: each line names its account alone, never by
-// its lane's number.
+// Collapsing the account column leaves COMING UP as it is, every line of it
+// or cut, in its words and its inks: each line names its account alone,
+// never by its lane's number.
 func TestCollapsingRunwaysAccountColumnLeavesComingUpAsItIs(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -153,7 +191,7 @@ func TestCollapsingRunwaysAccountColumnLeavesComingUpAsItIs(t *testing.T) {
 				"18:50  side's 5-hour resets                                    in 4h 08m",
 			},
 		},
-		{name: "folded", height: 21, want: []string{"COMING UP   16:30  personal's 5-hour resets  …"}},
+		{name: "cut", height: 24, want: []string{"16:30  personal's 5-hour resets                                in 1h 48m", "▼ 2 more"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -164,11 +202,7 @@ func TestCollapsingRunwaysAccountColumnLeavesComingUpAsItIs(t *testing.T) {
 				r.Timeline = r.TimelineAt(routedAt, time.Monday, 160)
 				f := Frame{Width: 160, Height: tt.height, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claudeLike, Runway: r}
 				f.WindowName = func(key string) string { return map[string]string{"5h": "5-hour", "7d": "week"}[key] }
-				fit := f.runwayFitted(f.top())
-				first := fit.coming + 1
-				if fit.folded {
-					first = fit.coming
-				}
+				first := f.runwayFitted(f.top()).coming + 1
 				return runwayDrawn(f, doc).rows(f.Look)[first : first+len(tt.want)]
 			}
 			expanded, collapsed := coming(false), coming(true)

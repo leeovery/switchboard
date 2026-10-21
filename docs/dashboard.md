@@ -371,9 +371,14 @@ straight into another, the first says when it lifts, and only the last says when
 back: `at its limit 14:00  ·  lifts 19:00  at its cap 14:00  ·  back Mon 21:00`.
 
 With more than one account, the pool's lane sits under the others. It shows how many accounts have
-room, a column at a time, and draws a line, as a lane at its limit does, where none has. `Σ pool`
-names it, as an account's name heads its lane, with the pool's room in the view's window under
-it, such as `week 1.2 of 3 left`.
+room, a column at a time, and draws a low red bar along its foot where none has. `Σ pool` names
+it, as an account's name heads its lane, with the pool's room in the view's window under it, such
+as `week 1.2 of 3 left`.
+
+COMING UP sits under the pool's lane and lists what happens next, soonest first. Where its lines don't all fit, its last says how many more, such as `▼ 3 more`.
+The legend sits at the foot, over the key line. On a short screen, as with a phone's keyboard up,
+the lanes scroll with `j` and `k`; at the shortest, one lane shows, with the pool's lane, and the
+legend and COMING UP give way.
 
 The labels beside the lanes take as many columns as the widest needs, up to 24, and the lanes take
 the rest. `a` collapses the labels, to give the lanes more room: each lane keeps its account's

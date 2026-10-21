@@ -7,7 +7,6 @@ RUNWAY  ────────────────────────
                                     now
                         Thu                  Fri                 Sat                  Sun                 Mon                  Tue                 Wed
                  ──╵────┬─────╵────╵────╵────┬────╵────╵────╵────┬────╵─────╵────╵────┬────╵────╵────╵────┬────╵────╵────╵─────┬────╵────╵────╵────┬────╵────╵──
-
  1 work          ──██████████████████───████████████████████████████████████████████████████████████████│███████████████████████████████████████████████████████
   week 34%                           at its cap 14:31  ·  back 17:10                     resets Sun 21:00
  2 personal ◆    ████────██████████████████████████████████████████████────────────────│████████████████████████████████████████████████████████████████████████
@@ -31,7 +30,8 @@ RUNWAY  ────────────────────────
  Σ pool          ▆▆  ▆▆▆▆            ▅▆▆                ▆▅▅▅▅▅▅▅▅▅▅▅▅▅▅▃▃▃▃▃▃▃▃▃▃▃▃▃▃▅▃▃▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▆▆
 
   week 5.4 of 10 left
+COMING UP
+15:30  team back from its limit                                   in 48m
+▼ 23 more
 █ room    █ room, but it runs out at its pace    ─ at its cap    ─ at its limit    │ its week resets    a column ≈ 70 minutes · the past dimmed
-COMING UP   15:30  team back from its limit  …
-
 tab views   < > window  ←→ week    a names    p pin    ? help  q quit

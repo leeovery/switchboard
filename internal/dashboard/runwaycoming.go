@@ -1,22 +1,22 @@
 package dashboard
 
-import (
-	"slices"
-	"time"
+import "github.com/leeovery/switchboard/internal/dashboard/flex"
 
-	"github.com/leeovery/switchboard/internal/prose"
-)
-
-// runwayComingWidth is how wide COMING UP's lines are on Runway from a
-// phone's width, from column 0, as the Overview's: its countdowns end at
-// column 71. On a phone they take the frame's width.
+// runwayComingWidth is how wide COMING UP's lines are on Runway at their
+// natural, from column 0, as the Overview's: its countdowns end at column
+// 71. A narrower frame has them take its width.
 const runwayComingWidth = 72
 
+// comingOut is the form of COMING UP's last place where its lines don't all
+// fit, in the inks of what's out of view of Runway's lanes, as in "▼ 3 more".
+var comingOut = outForm{inks: subtleOut}
+
 // runwayComing draws COMING UP, as laid out: its heading, in text.subtle,
-// and under it a line for each thing Runway's COMING UP lists, as
-// comingLines draws the Overview's, the window a request starts named, the
-// same with the account column collapsed or not; or folded, its heading
-// saying what's soonest, as comingFolded has it. Stepped back, there's none.
+// and under it, on the rows it's given, the things Runway's COMING UP lists,
+// as comingLines draws the Overview's, the window a request starts named,
+// the same with the account column collapsed or not, as wide as
+// comingColumn has them. Where they don't all fit, the last place says how
+// many more, as comingOut has it. Stepped back, there's none.
 func (f Frame) runwayComing(c *canvas, laid runwayLaid) {
 	fit := laid.fit
 	if !fit.draws(fit.coming) {
@@ -25,31 +25,27 @@ func (f Frame) runwayComing(c *canvas, laid runwayLaid) {
 	m := laid.m
 	teller := comingTeller{moment: m, names: overviewNames(m), window: f.windowNamer(m), namesStarted: true}
 	things := teller.happenings(f.Runway.Coming)
-	heading := line{{SectionComing.heading(), dimInk}}
-	if fit.folded {
-		c.line(0, fit.coming, slices.Concat(heading, comingFolded(things, m.Now)).fit(f.Width))
-		return
-	}
-	c.line(0, fit.coming, heading)
-	width := runwayComingWidth
-	if f.phone() {
-		width = f.Width
-	}
-	comingLines(c, things, m.Now, bounds{y: fit.coming + 1, width: width, rows: fit.lines})
+	c.line(0, fit.coming, line{{SectionComing.heading(), dimInk}})
+	width := f.comingColumn()
+	shown, more := comingPlaced(len(things), fit.lines)
+	comingLines(c, things[:shown], m.Now, bounds{y: fit.coming + 1, width: width, rows: fit.lines})
+	c.line(0, fit.coming+1+shown, outOfView(0, more, width, comingOut))
 }
 
-// comingFolded is what COMING UP folded says after its heading of the things
-// coming up at now, as the Overview's folded heading says it: headingGap
-// cells on, the soonest, as its line says it, its time unpadded; and two
-// cells on, where more follow it, an ellipsis in text.subtle. It says nothing
-// where nothing's coming up.
-func comingFolded(things []happening, now time.Time) line {
-	if len(things) == 0 {
-		return nil
+// comingPlaced is how many of the things given show in the places given,
+// and how many more there are: all where they fit, else all but the last
+// place, which says how many more.
+func comingPlaced(things, places int) (shown, more int) {
+	if things <= places {
+		return things, 0
 	}
-	said := slices.Concat(line{spaces(headingGap)}, things[0].said(now, 0))
-	if len(things) > 1 {
-		said = append(said, span{"  " + prose.Ellipsis, dimInk})
-	}
-	return said
+	shown = max(places-1, 0)
+	return shown, things - shown
+}
+
+// comingColumn is how wide COMING UP's lines are on the frame: at their
+// natural, runwayComingWidth, or the frame's width where that's narrower.
+func (f Frame) comingColumn() int {
+	at, _ := flex.Lay(f.Width, flex.Part{Natural: runwayComingWidth, Most: runwayComingWidth})
+	return at[0].Size
 }
