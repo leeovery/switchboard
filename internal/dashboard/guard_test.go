@@ -51,8 +51,6 @@ var (
 var phoneAllowed = []string{
 	// S5: the Switchboard's lanes.
 	"internal/dashboard/sessionslanes.go:Frame.lanesOf",
-	// S7: the List's columns.
-	"internal/dashboard/sessionslist.go:Frame.listColumns",
 	// S10: the Overview's sections, side by side or not.
 	"internal/dashboard/overview.go:Frame.joins",
 	// S12: USAGE's key, and the room it says is left.
@@ -90,8 +88,6 @@ var sizedAllowed = []string{
 	// S5: the Switchboard's lines, on one row where they're narrower than
 	// widestLines.
 	"internal/dashboard/switchboardlines.go:linesDrawn.oneRow",
-	// S7: the List's routing column.
-	"internal/dashboard/sessionslist.go:Frame.listColumns",
 	// S10: ROUTING's rows, routingRows, and SESSIONS' form by it.
 	"internal/dashboard/overview_sessions.go:Frame.runningForm",
 	"internal/dashboard/routing.go:Frame.routingSection",
@@ -145,8 +141,6 @@ var cutAllowed = []string{
 	// lines' window labels.
 	"internal/dashboard/sessionslanes.go:lanesBoard.callRow",
 	"internal/dashboard/switchboardlines.go:linesDrawn.window",
-	// S7: the List's routing column, its words a cutter as a value.
-	"internal/dashboard/sessionslist.go:routingColumn",
 	// S11: SESSIONS' model families.
 	"internal/dashboard/overview_sessions.go:Frame.wideRunning",
 	// S17: Detail's window names, its sessions' model families and how many

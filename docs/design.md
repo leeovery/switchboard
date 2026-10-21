@@ -2777,18 +2777,46 @@ with its sessions under it, in The page's phone frame under 100 columns (settled
 **The List.** Today's sessions in one table, a row each, even one whose models are on two accounts
 (settled in the plan); an earlier day's are found through the Log's `/` (see The Log). Its heads are
 on row 6 in `text.subtle`, each at its column's start, or right-aligned where its column is, and its
-rows run from row 7 (settled in the plan):
+rows run from row 7 (settled in the plan). Its columns run from column 2, two cells apart, in this
+order, each at least its least and at most its natural:
 
-| Column | From | Width | Shows |
+| Column | Least | Natural | Shows |
 |---|---|---|---|
-| `session` | 2 | 17 | The id, cut to 4, in `text.secondary`; a space and the directory, cut with `…` to 12, in `text.muted` |
-| `on` | 21 | 8 | The account its latest request went to, in `text.primary` |
-| `model` | 31 | 9 | The model of its latest request, its id less `claude-`, as `opus-5-5`, in `text.muted` |
-| `state` | 42 | 11 | `asking` or `answering`, bold `accent.key`; `✕ 429`, bold `state.destructive`; `idle 34s` in `text.muted`; once over, `ended 11:21` in `text.muted` |
-| `started` | 55 | 15 | When its first request came: `12:47` today, `yesterday 15:08`, `Tue 15:08` within the week, `28 Sep 15:08` before it (settled in the plan), in `text.muted` |
-| `requests` | 72 | 8, right-aligned | Its requests today, as `1,240`, in `text.muted` |
-| `worth` | 82 | 7, right-aligned | Theirs at API prices, as `$17.86`, in `text.muted`; unpriced as the Log shows it |
-| `routing` | 91 | To the last column | How it came to the account it's on, in the Log's routing words: `from ` in `text.muted`, the account it left in `text.secondary`, `, at its cap` in `text.muted`, two spaces, and in `accent.attention` what writing its context again cost, `$1.82`; `pinned here` in `text.muted` for a session pinned on its own (settled in the plan); blank where it started there |
+| `session` | 11 | 29 | The id, cut to 4, in `text.secondary`; a space and the directory, cut with `…` to the rest, in `text.muted`: at its least 6 of the directory, at its natural its most, 24 |
+| `on` | Its natural, 14 at the most | The widest account's name configured, 24 at the most | The account its latest request went to, in `text.primary` |
+| `model` | 9 | 9 | The model of its latest request, its id less `claude-`, as `opus-5-5`, in `text.muted` |
+| `state` | 11 | 11 | `asking` or `answering`, bold `accent.key`; `✕ 429`, bold `state.destructive`; `idle 34s` in `text.muted`; once over, `ended 11:21` in `text.muted` |
+| `started` | 15 | 15 | When its first request came: `12:47` today, `yesterday 15:08`, `Tue 15:08` within the week, `28 Sep 15:08` before it (settled in the plan), in `text.muted` |
+| `requests` | 8 | 8, right-aligned | Its requests today, as `1,240`, in `text.muted` |
+| `worth` | 7 | 7, right-aligned | Theirs at API prices, as `$17.86`, in `text.muted`; unpriced as the Log shows it |
+| `routing` | 24 | To the last column | How it came to the account it's on, in the Log's routing words: `from ` in `text.muted`, the account it left in `text.secondary`, `, at its cap` in `text.muted`, two spaces, and in `accent.attention` what writing its context again cost, `$1.82`; `pinned here` in `text.muted` for a session pinned on its own (settled in the plan); blank where it started there |
+
+- **One narrowing,** from the widest to a phone's 52, with no phone list (the owner's call on the
+  spike, 21 October 2026), laid out in two passes, as the Log's Requests are. The first decides
+  what shows, giving way in this order as the frame narrows, so no column shows beside a name it
+  cuts short:
+  1. `routing` leaves, while the leasts and `session` and `on` whole don't fit;
+  2. `on` is cut toward its least;
+  3. `worth`, then `started`, leave, while the leasts and `session` whole don't fit;
+  4. `session` is cut toward its least;
+  5. `model` leaves, only while the leasts don't fit, so before `on` is cut below 14.
+
+  `session`, `on`, `state` and `requests` never leave. The second lays out what shows: what's past
+  the leasts goes to `session` first, to its natural, then to `on`, never past what the first left
+  it; then, where it shows, to `routing`, to the last column. Nothing else grows, so the spare lies
+  at the row's end until the next column fits. So, as the frame widens, `on` never narrows, and
+  `session` narrows once alone, where `model` comes back: at 57 columns with names of 8 cells, from
+  21 cells to 11, and at 63 with names of 14 or more, likewise. From where `started` comes back,
+  `session` is whole: at 92 with names of 8 cells, `worth` at 101 and `routing` at 127; with the
+  frames' long names, `on` 22, `started` at 98, `worth` at 107 and `routing` at 141. With those:
+  at 108 columns `routing` has left, `session` takes 29 and `on` 15; at 73 `worth` and `started`
+  have too, `session` takes 21 and `on` holds its 14; at 138 both are whole.
+- **No natural comes from the rows shown,** so the columns hold still as the List scrolls and as
+  sessions come and go: the session's is the directory's most, 24, and `on`'s the accounts
+  configured.
+- **What doesn't fit its cells** is cut with `…`: the directory to the cells after the id, the
+  account to `on`'s, and `routing` as the Log cuts it, `…` in the colour of what it cuts and a
+  move's cost kept whole.
 
 - **The marks,** at column 0, bold, the first that applies, as the Log's: `↑` in `accent.key` while
   it asks; `↓` in `accent.key` while it's answering; `▸` in `accent.key` where it moved to the
@@ -2799,18 +2827,17 @@ rows run from row 7 (settled in the plan):
   order stays still, never reshuffled by activity, as rows would slide from under the cursor: a row
   moves only as its session ends, from running to the top of ended, or as it asks again, back to its
   place by start among the running.
-- **The `today` line,** on the row over the key line, right-aligned to the last column:
+- **The `today` line,** on the row over the key line, from column 0, as the key line and the Log's
+  state line are, so it reads as words, not keys (the owner's call on the spike, 21 October 2026):
   `today  14 sessions · 1,240 requests · $126.02 at API prices`, `today` in `text.subtle`, the
   counts in `text.secondary`, the worth bold `text.secondary`, and the rest in `text.muted`. It sums
-  today's sessions, running and ended, their requests today and their worth.
+  today's sessions, running and ended, their requests today and their worth, so it carries the
+  day's worth where `worth` has left. Where it doesn't fit its row, it breaks after `requests`, the
+  worth on the row over the key line and the rest on the row above. Where the sessions fit their
+  rows, the rows left over lie between the last session and it: every session shows, and nothing
+  folds. Where they don't, the table scrolls (below).
 - **Past a screen,** the table scrolls, its heads held, the row above the `today` line blank and the
   line held, as the Log's table does (settled in the plan).
-- **Narrower,** `routing` is cut to the room left, as the Log cuts it, `…` in the colour of what it
-  cuts and a move's cost kept whole, down to 24 cells, at 115 columns, and left out below that.
-  Under 100 columns, as on a phone, the List keeps its mark and four columns: `session` from 2, 16
-  wide, the directory cut to 11; `on` from 19, 8 wide; `state` from 29, 11 wide; and `requests` from
-  44, 8 wide, right-aligned. Where the `today` line doesn't fit its row, it breaks after `requests`,
-  the worth on the row over the key line and the rest on the row above, each right-aligned.
 
 **Keys.** Where a reference's key row differs from these, these hold:
 

@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -117,23 +118,47 @@ func listOf(sessions ...listedSession) views.SessionList {
 // brought there for $1.82.
 var d28cMoved = listedSession{"d28c5e17", "~/Code/switchboard", "side", asking, routedClock(1, 12, 2), 445, 4820, views.MarkAsking, 182}
 
-// The List's columns are its frames' at 100 columns and wider, routing
-// running from 91 to the last column, cut as the Log cuts it, its cost kept
-// whole, down to 24 cells, at 115 columns, and left out below; under 100,
-// as on a phone, its mark and four columns, the directory cut to 11.
+// The List's columns narrow in one narrowing, from column 2, 2 cells apart:
+// routing, cut as the Log cuts it, its cost kept whole, to the last column
+// down to 24 cells, at 127 columns beside the session whole, and left below;
+// worth, at 101, and started, at 92, beside the session whole; and model as
+// the leasts don't fit.
+// What's past the leasts goes to the session, to its id and 24 cells of its
+// directory, then to on, its natural the widest account's name; nothing but
+// routing grows past its natural, so where routing's left the spare lies at
+// the row's end.
 func TestTheListsColumnsByWidth(t *testing.T) {
-	wide := "  session            on        model      state        started          requests    worth"
+	whole := "  session                        on        model      state        started          requests    worth"
+	moved := "↑ d28c switchboard               side      opus-5-5   asking       12:02                 445   $48.20"
+	started := "  session                        on        model      state        started          requests"
+	movedStarted := "↑ d28c switchboard               side      opus-5-5   asking       12:02                 445"
 	tests := []struct {
 		width      int
 		heads, row string
 	}{
-		{width: 200, heads: wide + "  routing", row: "↑ d28c switchboard   side      opus-5-5   asking       12:02                 445   $48.20  from work, at its cap  $1.82"},
-		{width: 160, heads: wide + "  routing", row: "↑ d28c switchboard   side      opus-5-5   asking       12:02                 445   $48.20  from work, at its cap  $1.82"},
-		{width: 115, heads: wide + "  routing", row: "↑ d28c switchboard   side      opus-5-5   asking       12:02                 445   $48.20  from work, at it…  $1.82"},
-		{width: 114, heads: wide, row: "↑ d28c switchboard   side      opus-5-5   asking       12:02                 445   $48.20"},
-		{width: 100, heads: wide, row: "↑ d28c switchboard   side      opus-5-5   asking       12:02                 445   $48.20"},
-		{width: 99, heads: "  session          on        state          requests", row: "↑ d28c switchboard side      asking              445"},
-		{width: 52, heads: "  session          on        state          requests", row: "↑ d28c switchboard side      asking              445"},
+		{width: 220, heads: whole + "  routing", row: moved + "  from work, at its cap  $1.82"},
+		{width: 160, heads: whole + "  routing", row: moved + "  from work, at its cap  $1.82"},
+		{width: 127, heads: whole + "  routing", row: moved + "  from work, at it…  $1.82"},
+		{width: 126, heads: whole, row: moved},
+		{width: 108, heads: whole, row: moved},
+		{width: 101, heads: whole, row: moved},
+		{width: 100, heads: started, row: movedStarted},
+		{width: 92, heads: started, row: movedStarted},
+		{
+			width: 91,
+			heads: "  session                        on        model      state        requests",
+			row:   "↑ d28c switchboard               side      opus-5-5   asking            445",
+		},
+		{
+			width: 73,
+			heads: "  session                      on        model      state        requests",
+			row:   "↑ d28c switchboard             side      opus-5-5   asking            445",
+		},
+		{
+			width: 52,
+			heads: "  session            on        state        requests",
+			row:   "↑ d28c switchboard   side      asking            445",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(strconv.Itoa(tt.width), func(t *testing.T) {
@@ -145,6 +170,196 @@ func TestTheListsColumnsByWidth(t *testing.T) {
 			}
 			if got := rowOf(c, top+1); got != tt.row {
 				t.Errorf("d28c's row reads\n%q\nwant\n%q", got, tt.row)
+			}
+		})
+	}
+}
+
+// listLeaving are the List's columns that leave, in the order they leave.
+var listLeaving = []listPart{listRouting, listWorth, listStarted, listModel}
+
+// listLeasts are the List's columns' leasts as the design gives them, on's
+// natural on: the session its id and 6 of its directory; on its natural, 14
+// at the most; and the others their widths.
+func listLeasts(on int) map[listPart]int {
+	return map[listPart]int{
+		listSession: 11, listOn: min(on, 14), listModel: 9, listState: 11,
+		listStarted: 15, listRequests: 8, listWorth: 7, listRouting: 24,
+	}
+}
+
+// At every width from 52 to 220, of short names and long, the List's
+// columns are laid out as listLaidAsDesigned has them, and widen as
+// listWidensSteadily has them.
+func TestTheListsColumnsLeaveInTheirOrder(t *testing.T) {
+	for _, on := range []int{8, 14, 22} {
+		before := listColumnsOf(51, on)
+		for width := 52; width <= 220; width++ {
+			columns := listColumnsOf(width, on)
+			for _, wrong := range slices.Concat(listLaidAsDesigned(width, on), listWidensSteadily(before, columns)) {
+				t.Errorf("on %d at %d, %s: %+v", on, width, wrong, columns)
+			}
+			before = columns
+		}
+	}
+}
+
+// listWidensSteadily says how the List's columns, a cell wider than before,
+// narrow a name: the session never, but where model comes back; and on
+// never, once the session's whole. The session and on are its first two
+// columns, as they never leave.
+func listWidensSteadily(before, after []listColumn) []string {
+	var wrong []string
+	modelBack := len(after) > len(before) && after[2].part == listModel && before[2].part != listModel
+	if after[listSession].width < before[listSession].width && !modelBack {
+		wrong = append(wrong, fmt.Sprintf("the session narrows from %d cells to %d", before[listSession].width, after[listSession].width))
+	}
+	if before[listSession].width == 29 && after[listOn].width < before[listOn].width {
+		wrong = append(wrong, fmt.Sprintf("on narrows from %d cells to %d", before[listOn].width, after[listOn].width))
+	}
+	return wrong
+}
+
+// listLaidAsDesigned says how the List's columns at width, on's natural on,
+// break the design: they start at column 2, 2 cells apart, each at least its
+// least; they leave in the order routing, worth, started, model, the
+// session, on, state and requests never; routing only while the leasts and
+// the session and on whole don't fit, worth and started while the leasts
+// and the session whole don't, and model while the leasts don't; what's
+// past the leasts goes to the session, to 29, before on takes a cell past
+// its least; neither worth nor started shows beside a session cut short;
+// and routing, where it shows, ends at the last column, beside the session
+// and on whole, and where it's left, no column is past its natural.
+func listLaidAsDesigned(width, on int) []string {
+	leasts, columns := listLeasts(on), listColumnsOf(width, on)
+	shown := map[listPart]listColumn{}
+	var wrong []string
+	taken, x := -listGap, listFrom
+	for _, col := range columns {
+		if col.x != x || col.width < leasts[col.part] {
+			wrong = append(wrong, fmt.Sprintf("%s is from %d, %d cells, want from %d, at least %d", col.head(), col.x, col.width, x, leasts[col.part]))
+		}
+		shown[col.part] = col
+		taken += leasts[col.part] + listGap
+		x = col.x + col.width + listGap
+	}
+	left := 0
+	for left < len(listLeaving) && !hasPart(shown, listLeaving[left]) {
+		left++
+	}
+	for _, p := range slices.Concat(listLeaving[left:], []listPart{listSession, listOn, listState, listRequests}) {
+		if !hasPart(shown, p) {
+			wrong = append(wrong, listPartFacts[p].head+" left out of turn")
+		}
+	}
+	if room := width - listFrom; taken > room || left > 0 && taken+listGap+listReturns(leasts, listLeaving[left-1], on) <= room {
+		wrong = append(wrong, fmt.Sprintf("the leasts shown take %d of %d cells, %d columns left", taken, room, left))
+	}
+	session, routing, last := shown[listSession], shown[listRouting], columns[len(columns)-1]
+	switch {
+	case shown[listOn].width > leasts[listOn] && session.width != 29:
+		wrong = append(wrong, "on takes cells past its least before the session's whole")
+	case (hasPart(shown, listWorth) || hasPart(shown, listStarted)) && session.width != 29:
+		wrong = append(wrong, "worth or started shows beside a session cut short")
+	case hasPart(shown, listRouting) && (routing.x+routing.width != width || session.width != 29 || shown[listOn].width != on):
+		wrong = append(wrong, "routing shows short of the last column, or beside a session or on cut short")
+	case !hasPart(shown, listRouting) && (session.width > 29 || shown[listOn].width > on || last.x+last.width > width):
+		wrong = append(wrong, "with routing left, a column grows past its natural")
+	}
+	return wrong
+}
+
+// listReturns are the cells a column that left needs to show again, on's
+// natural on: its least; worth and started the session's whole past its
+// least too; and routing on's whole as well.
+func listReturns(leasts map[listPart]int, p listPart, on int) int {
+	switch p {
+	case listRouting:
+		return leasts[p] + 29 - leasts[listSession] + on - leasts[listOn]
+	case listWorth, listStarted:
+		return leasts[p] + 29 - leasts[listSession]
+	}
+	return leasts[p]
+}
+
+// hasPart reports whether the column is among those shown.
+func hasPart(shown map[listPart]listColumn, p listPart) bool {
+	_, ok := shown[p]
+	return ok
+}
+
+// longListDoc is framedDoc, its accounts named at length: work-team-plan,
+// personal-research and side-hustle-consulting.
+func longListDoc() status.Document {
+	doc := framedDoc(nil, nil)
+	long := map[string]string{"work": "work-team-plan", "personal": "personal-research", "side": "side-hustle-consulting"}
+	for i := range doc.Accounts {
+		doc.Accounts[i].Label = long[doc.Accounts[i].ID]
+	}
+	return doc
+}
+
+// Of long names, the List draws the spike's rows: at 108, routing left, the
+// 19 cells past the leasts give the session its 29, a directory of 23
+// whole, and on one more, 15, so work-team-plan is whole; at 73, worth and
+// started left too, the session takes the 10 cells left, and on holds its
+// 14, work-team-plan still whole; and at 138, routing still left, and 173,
+// on as wide as the widest name, every name whole.
+func TestTheListHoldsLongNamesWholeWhereTheyFit(t *testing.T) {
+	infra := listedSession{"db8a71e3", "~/Code/infra-terraform-modules", "side", idleFor(50 * time.Second), yesterdayClock(15, 8), 126, 1137, views.MarkMoved, 0}
+	docs := listedSession{"3d7a8e12", "~/Code/docs-site-getting-started", "work", endedAt(10, 15), routedClock(1, 9, 40), 12, 84, views.NoMark, 0}
+	tests := []struct {
+		width int
+		rows  []string
+	}{
+		{width: 108, rows: []string{
+			"▸ db8a infra-terraform-modules   side-hustle-co…  opus-5-5   idle 50s     yesterday 15:08       126   $11.37",
+			"  3d7a docs-site-getting-start…  work-team-plan   opus-5-5   ended 10:15  09:40                  12    $0.84",
+		}},
+		{width: 73, rows: []string{
+			"▸ db8a infra-terraform…  side-hustle-c…  opus-5-5   idle 50s          126",
+			"  3d7a docs-site-getti…  work-team-plan  opus-5-5   ended 10:15        12",
+		}},
+		{width: 138, rows: []string{
+			"▸ db8a infra-terraform-modules   side-hustle-consulting  opus-5-5   idle 50s     yesterday 15:08       126   $11.37",
+			"  3d7a docs-site-getting-start…  work-team-plan          opus-5-5   ended 10:15  09:40                  12    $0.84",
+		}},
+		{width: 173, rows: []string{
+			"▸ db8a infra-terraform-modules   side-hustle-consulting  opus-5-5   idle 50s     yesterday 15:08       126   $11.37",
+			"  3d7a docs-site-getting-start…  work-team-plan          opus-5-5   ended 10:15  09:40                  12    $0.84",
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(strconv.Itoa(tt.width), func(t *testing.T) {
+			f := listFrame(t, tt.width, 30, listOf(infra, docs))
+			c := f.page(longListDoc(), routedAt)
+			for _, want := range tt.rows {
+				id := string([]rune(want)[2:6])
+				if got := rowOf(c, rowSaying(c, 2, id)); !strings.HasPrefix(got, want) {
+					t.Errorf("%s's row reads\n%q\nwant it to start\n%q", id, got, want)
+				}
+			}
+		})
+	}
+}
+
+// The List's columns hold still: no natural comes from the rows shown, so
+// they're the same scrolled as not, and as a session with a longer
+// directory, on an account of a longer name, arrives.
+func TestTheListsColumnsHoldStill(t *testing.T) {
+	doc := longListDoc()
+	arrives := listedSession{"f00d4e21", "~/Code/a-directory-named-at-great-length", "an-account-named-at-great-length", answering, routedClock(1, 14, 40), 3, 21, views.MarkAnswering, 0}
+	for _, width := range []int{52, 73, 108, 160} {
+		t.Run(strconv.Itoa(width), func(t *testing.T) {
+			f := listFrame(t, width, 17, framedList())
+			still := f.listing(doc, routedAt).columns
+			f.Scroll = 6
+			if got := f.listing(doc, routedAt).columns; !slices.Equal(got, still) {
+				t.Errorf("scrolled, its columns are\n%+v\nwant\n%+v", got, still)
+			}
+			f.SessionsTab.List.Sessions = slices.Concat([]views.ListedSession{arrives.listed()}, f.SessionsTab.List.Sessions)
+			if got := f.listing(doc, routedAt).columns; !slices.Equal(got, still) {
+				t.Errorf("with %s arrived, its columns are\n%+v\nwant\n%+v", arrives.dir, got, still)
 			}
 		})
 	}
@@ -187,11 +402,11 @@ func TestTheListsStateIsInkedByWhatItsDoing(t *testing.T) {
 			}
 			f := listFrame(t, 160, 37, listOf(s))
 			c := f.page(framedDoc(nil, nil), routedAt)
-			y := rowSaying(c, 2, "d28c")
-			if got := strings.TrimSpace(glyphsAt(c, 42, y, 11)); got != tt.said {
+			y, x := rowSaying(c, 2, "d28c"), strings.Index(rowOf(c, f.top()), "state")
+			if got := strings.TrimSpace(glyphsAt(c, x, y, 11)); got != tt.said {
 				t.Errorf("its state reads %q, want %q", got, tt.said)
 			}
-			if got := c.at(42, y).ink; got != tt.ink {
+			if got := c.at(x, y).ink; got != tt.ink {
 				t.Errorf("its state is in %+v, want %+v", got, tt.ink)
 			}
 			if mark := c.at(0, y); tt.mark != views.NoMark && (mark.glyph != tt.mark.String() || mark.ink != tt.ink) {
@@ -267,11 +482,11 @@ func TestTheEndedRuleAndTheEmptyListsInks(t *testing.T) {
 	}
 }
 
-// The today line sums today's sessions, right-aligned to the last column on
-// the row over the key line: on one row where it fits, as at 80 columns;
-// else broken after the requests, the worth on the row over the key line,
-// the rest on the row above, each right-aligned; the row above it blank.
-// Where none of the worth is priced, it says so, with no "at API prices".
+// The today line sums today's sessions from column 0, as the key line is, on
+// the row over it: on one row where it fits, as at 80 columns; else broken
+// after the requests, the worth on the row over the key line, the rest on the
+// row above; the row above it blank. Where none of the worth is priced, it
+// says so, with no "at API prices".
 func TestTheTodayLine(t *testing.T) {
 	unpriced := listOf(d28cMoved)
 	unpriced.Today.Worth = views.Worth{Unpriced: []string{"no_usage"}}
@@ -282,16 +497,16 @@ func TestTheTodayLine(t *testing.T) {
 		rows          map[int]string
 	}{
 		{name: "wide", width: 160, height: 37, list: framedList(), rows: map[int]string{
-			34: "", 35: strings.Repeat(" ", 101) + "today  14 sessions · 1,240 requests · $126.02 at API prices",
+			34: "", 35: "today  14 sessions · 1,240 requests · $126.02 at API prices",
 		}},
 		{name: "at 80 columns, a row", width: 80, height: 30, list: framedList(), rows: map[int]string{
-			27: "", 28: strings.Repeat(" ", 21) + "today  14 sessions · 1,240 requests · $126.02 at API prices",
+			27: "", 28: "today  14 sessions · 1,240 requests · $126.02 at API prices",
 		}},
 		{name: "on a phone, two rows", width: 52, height: 33, list: framedList(), rows: map[int]string{
-			29: "", 30: strings.Repeat(" ", 17) + "today  14 sessions · 1,240 requests", 31: strings.Repeat(" ", 31) + "$126.02 at API prices",
+			29: "", 30: "today  14 sessions · 1,240 requests", 31: "$126.02 at API prices",
 		}},
 		{name: "unpriced", width: 160, height: 37, list: unpriced, rows: map[int]string{
-			35: strings.Repeat(" ", 118) + "today  1 session · 445 requests · unpriced",
+			35: "today  1 session · 445 requests · unpriced",
 		}},
 	}
 	for _, tt := range tests {
@@ -313,7 +528,7 @@ func TestTheTodayLine(t *testing.T) {
 func TestTheTodayLinesInks(t *testing.T) {
 	f := listFrame(t, 160, 37, framedList())
 	c := f.page(framedDoc(nil, nil), routedAt)
-	for x, want := range map[int]ink{101: dimInk, 108: secondaryInk, 110: mutedInk, 122: secondaryInk, 128: mutedInk, 139: strongInk, 147: mutedInk} {
+	for x, want := range map[int]ink{0: dimInk, 7: secondaryInk, 9: mutedInk, 21: secondaryInk, 27: mutedInk, 38: strongInk, 46: mutedInk} {
 		if got := c.at(x, 35).ink; got != want {
 			t.Errorf("column %d of the today line is in %+v, want %+v", x+1, got, want)
 		}
@@ -328,24 +543,25 @@ func TestASessionOfNoRequestsTodayAndOfNoKnownStart(t *testing.T) {
 	f := listFrame(t, 160, 37, listOf(quiet))
 	c := f.page(framedDoc(nil, nil), routedAt)
 	y := f.top() + 1
-	if got, want := rowOf(c, y), "  db8a infra         side      opus-5-5   idle 9m"+strings.Repeat(" ", 30)+"0        —"; got != want {
+	if got, want := rowOf(c, y), "  db8a infra"+strings.Repeat(" ", 21)+"side      opus-5-5   idle 9m"+strings.Repeat(" ", 30)+"0        —"; got != want {
 		t.Errorf("its row reads\n%q\nwant\n%q", got, want)
 	}
-	if got := c.at(88, y).ink; got != faintInk {
+	if got := c.at(100, y).ink; got != faintInk {
 		t.Errorf("its worth is in %+v, want %+v", got, faintInk)
 	}
 }
 
 // The List's session and account are cut with … to their cells: the
-// directory to 12 cells, 11 on a phone, the account to 8.
+// directory to 24 cells at its most, and to 12 at 52 columns; an account to
+// the widest name configured, so one not configured is cut to it.
 func TestTheListCutsItsCellsToTheirWidths(t *testing.T) {
 	long := listedSession{"d28c5e17", "~/Code/a-directory-named-at-length", "an-account-named-at-length", asking, routedClock(1, 12, 2), 445, 4820, views.MarkAsking, 0}
 	tests := []struct {
 		width int
 		row   string
 	}{
-		{width: 160, row: "↑ d28c a-directory…  an-acco…  opus-5-5   asking       12:02                 445   $48.20"},
-		{width: 52, row: "↑ d28c a-director… an-acco…  asking              445"},
+		{width: 160, row: "↑ d28c a-directory-named-at-le…  an-acco…  opus-5-5   asking       12:02                 445   $48.20"},
+		{width: 52, row: "↑ d28c a-directory…  an-acco…  asking            445"},
 	}
 	for _, tt := range tests {
 		t.Run(strconv.Itoa(tt.width), func(t *testing.T) {
@@ -374,7 +590,7 @@ func TestTheListScrollsUnderItsHeads(t *testing.T) {
 	for _, scroll := range []int{1, 5} {
 		f.Scroll = scroll
 		c := f.page(doc, routedAt)
-		rows := map[int]string{6: "  session", 7: "  9c2e", 12: "  ended today", 13: "  5b19", 20: "  8a2c", 21: "", 22: strings.Repeat(" ", 101) + "today  14"}
+		rows := map[int]string{6: "  session", 7: "  9c2e", 12: "  ended today", 13: "  5b19", 20: "  8a2c", 21: "", 22: "today  14"}
 		for y, want := range rows {
 			if got := rowOf(c, y); !strings.HasPrefix(got, want) || want == "" && got != "" {
 				t.Errorf("scrolled %d, row %d reads %q, want it to start %q", scroll, y+1, got, want)

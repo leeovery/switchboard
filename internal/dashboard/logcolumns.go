@@ -236,19 +236,13 @@ func (s requestsSpread) decided(width int, shown []LogColumn, on int) (logLayout
 }
 
 // secondPass is the part as the second pass lays it, of where the first
-// left it, giving way and narrowing no more: gone where it gave way keeping
-// nothing; at what it kept where it gave way; and any other as it is, so on
-// is free from its least to its natural, and takes what's past the leasts
-// before any other. It reports false where the part is gone.
+// left it, as flex's Decided has it, so on is free from its least to its
+// natural, and takes what's past the leasts before any other. It reports
+// false where the part is gone.
 func (p logPart) secondPass(span flex.Span) (logPart, bool) {
-	switch {
-	case span.Left && span.Size == 0:
-		return p, false
-	case span.Left:
-		p.Part = flex.Part{Least: span.Size, Natural: span.Size, Gap: p.Gap}
-	}
-	p.Leaves, p.Narrows = 0, 0
-	return p, true
+	part, shown := p.Decided(span)
+	p.Part = part
+	return p, shown
 }
 
 // flexed are the parts as flex has them.
