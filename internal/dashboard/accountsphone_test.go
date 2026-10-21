@@ -284,7 +284,7 @@ func TestAPhonesDetailOfAnAccountNotReadYet(t *testing.T) {
 func TestAPhonesDetailOfOneAccountNamesItAlone(t *testing.T) {
 	f := phoneText(t, 52, 41, AccountsDetail, "", nil, nil)
 	f.Accounts.Accounts = threeFramed[:1]
-	if got := textOf(f.Draw(phoneDoc(), routedAt))[8]; got != "1 work" {
+	if got := textOf(f.Draw(phoneDoc(), routedAt))[f.top()]; got != "1 work" {
 		t.Errorf("the picker is %q, want %q", got, "1 work")
 	}
 }
@@ -303,7 +303,7 @@ func TestAPhonesPickerSaysItsKeysWhereTheyFit(t *testing.T) {
 	}
 	for _, tt := range tests {
 		f := phoneText(t, tt.width, 41, AccountsDetail, "personal", nil, nil)
-		if got := textOf(f.Draw(phoneDoc(), routedAt))[8]; got != tt.want {
+		if got := textOf(f.Draw(phoneDoc(), routedAt))[f.top()]; got != tt.want {
 			t.Errorf("at %d columns, the picker is %q, want %q", tt.width, got, tt.want)
 		}
 	}
@@ -716,8 +716,8 @@ func TestAPhonesCompareLaysItsPartsAcrossTheWidth(t *testing.T) {
 					account(a.ID, func(a *status.Account) { a.Label = label })(&doc)
 				}
 			}
-			rows := textOf(f.Draw(doc, routedAt))
-			week, byModel := rows[10], rows[20]
+			rows := textOf(f.Draw(doc, routedAt))[f.top():]
+			week, byModel := rows[2], rows[12]
 			if got := columnOf(week, "34%") + len("34%"); got != tt.at+tt.bar+1+percentCells {
 				t.Errorf("WEEK USED's percentage ends at column %d, want %d, in %q", got, tt.at+tt.bar+1+percentCells, week)
 			}
@@ -730,18 +730,18 @@ func TestAPhonesCompareLaysItsPartsAcrossTheWidth(t *testing.T) {
 			if got := columnOf(byModel, "●"); got != tt.at+tt.bar+2 {
 				t.Errorf("BY MODEL's largest version is at column %d, want %d, in %q", got, tt.at+tt.bar+2, byModel)
 			}
-			for y, want := range map[int]string{20: "● Opus 5.5 55%", 22: "● Sonnet 5.5 60%"} {
+			for y, want := range map[int]string{12: "● Opus 5.5 55%", 14: "● Sonnet 5.5 60%"} {
 				if !strings.HasSuffix(rows[y], want) {
 					t.Errorf("row %d is %q, want its largest version whole, %q", y, rows[y], want)
 				}
 			}
-			if got := ansi.Cut(rows[14], 0, ansi.StringWidth(tt.named)); got != tt.named {
+			if got := ansi.Cut(rows[6], 0, ansi.StringWidth(tt.named)); got != tt.named {
 				t.Errorf("side's row starts %q, want %q", got, tt.named)
 			}
 			for _, group := range []struct {
 				row   int
 				heads []string
-			}{{28, []string{"reqs", "sessions", "moved"}}, {34, []string{"hit", "at cap", "left"}}, {40, []string{"plan", "worth", "against it"}}} {
+			}{{20, []string{"reqs", "sessions", "moved"}}, {26, []string{"hit", "at cap", "left"}}, {32, []string{"plan", "worth", "against it"}}} {
 				for i, head := range group.heads {
 					if got := columnOf(rows[group.row], head); got != tt.groups[i] {
 						t.Errorf("%s is at column %d, want %d, in %q", head, got, tt.groups[i], rows[group.row])

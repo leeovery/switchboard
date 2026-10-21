@@ -345,7 +345,7 @@ func (f Frame) top() int {
 	if f.Shown() == Overview {
 		return f.headingY()
 	}
-	return f.headingY() + f.heading().rows(f.phone()) + 1
+	return f.headingY() + f.heading().rows(f.Width, f.phone()) + 1
 }
 
 // body is the rows between the status line and the key line, across the
