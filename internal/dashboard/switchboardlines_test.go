@@ -21,7 +21,9 @@ func TestEveryWidthDrawsTheSwitchboardsPartsWhereItsColumnsPutThem(t *testing.T)
 	doc := usageWorld()
 	for width := 100; width <= 200; width++ {
 		f := sceneFrame(width, 37, Look{})
-		k := f.switchboardLaid(doc, routedAt).columns
+		laid := f.switchboardLaid(doc, routedAt)
+		ln, _ := laid.line("personal")
+		k, personal := laid.columns, f.top()+ln.top
 		c := f.page(doc, routedAt)
 		from, words, runsOut := "▸ from work", "19%/day till Sun 21:00", "out ~Sat 06:00"
 		if k.fromShort {
@@ -36,12 +38,12 @@ func TestEveryWidthDrawsTheSwitchboardsPartsWhereItsColumnsPutThem(t *testing.T)
 			{"what d28c's doing", textFrom(c, k.doing, k.doing+8, 10), "↑ asking"},
 			{"where it came from", textFrom(c, k.from, k.from+len([]rune(from)), 10), from},
 			{"its plug", c.at(k.plug, 10).glyph, plugGlyph},
-			{"41e0's jack", c.at(k.jacks, 14).glyph, pluggedJack},
+			{"41e0's jack", c.at(k.jacks, personal).glyph, pluggedJack},
 			{"work's name", textFrom(c, k.lines, k.lines+6, 6), "1 work"},
 			{"its week's label", textFrom(c, k.lines+1, k.lines+7, 7), "Week  "},
 			{"its percentage", textFrom(c, bar+k.bar+1, bar+k.bar+1+percentCells, 7), " 34%"},
 			{"its words", strings.TrimRight(textFrom(c, bar+k.bar+afterBar, width, 7), " "), words},
-			{"personal's week's words, which fit in full", strings.TrimRight(textFrom(c, bar+k.bar+afterBar, width, 15), " "), runsOut},
+			{"personal's week's words, which fit in full", strings.TrimRight(textFrom(c, bar+k.bar+afterBar, width, personal+1), " "), runsOut},
 		}
 		for _, check := range checks {
 			if check.got != check.want {
@@ -53,9 +55,11 @@ func TestEveryWidthDrawsTheSwitchboardsPartsWhereItsColumnsPutThem(t *testing.T)
 
 // The scene's lines compact as rows run short, each a step on: at 160 by 37,
 // each line as usage draws it; by 29, no blank rows within a line; by 24,
-// two rows a line, its week and 5-hour side by side; by 19, one row a line,
-// its name, its week and how it stands; the key under each, two blank rows
-// after the last line.
+// two rows a line, its week and 5-hour side by side; by 18, one row a line,
+// its name, its week and how it stands. The lines are 3 blank rows apart
+// where the rows hold them so, else as few as the step's gap: 2 at step 1, 1
+// at step 2, none from step 3. The key is over the key line at each, from
+// column 0.
 func TestTheLinesCompactAsRowsRunShort(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -65,16 +69,19 @@ func TestTheLinesCompactAsRowsRunShort(t *testing.T) {
 	}{
 		{name: "step 1", height: 37, step: 1, rows: map[int]string{
 			6: "1 work          ● at its cap · back 17:10 · new sessions go elsewhere", 7: " Week", 9: " 5-hour", 11: " Fable wk",
-			14: "2 personal ◆    ● open", 22: "3 side ▲        ● open · new sessions come here", 30: " ┃ even pace",
+			15: "2 personal ◆    ● open", 24: "3 side ▲        ● open · new sessions come here",
+		}},
+		{name: "step 1, the lines 2 apart", height: 33, step: 1, rows: map[int]string{
+			6: "1 work ", 14: "2 personal ◆", 22: "3 side ▲",
 		}},
 		{name: "step 2", height: 29, step: 2, rows: map[int]string{
-			6: "1 work ", 7: " Week", 8: " 5-hour", 9: " Fable wk", 11: "2 personal ◆", 16: "3 side ▲", 22: " ┃ even pace",
+			6: "1 work ", 7: " Week", 8: " 5-hour", 9: " Fable wk", 13: "2 personal ◆", 20: "3 side ▲",
 		}},
 		{name: "step 3", height: 24, step: 3, rows: map[int]string{
-			6: "1 work ", 7: " Week", 8: "2 personal ◆", 9: " Week", 10: "3 side ▲", 11: " Week", 16: " ┃ even pace",
+			6: "1 work ", 7: " Week", 10: "2 personal ◆", 11: " Week", 14: "3 side ▲", 15: " Week",
 		}},
-		{name: "step 4", height: 19, step: 4, rows: map[int]string{
-			6: "1 work      ", 7: "2 personal ◆", 9: "3 side ▲    ", 15: " ┃ even pace",
+		{name: "step 4", height: 18, step: 4, rows: map[int]string{
+			6: "1 work      ", 7: "2 personal ◆", 9: "3 side ▲    ",
 		}},
 	}
 	for _, tt := range tests {
@@ -88,6 +95,9 @@ func TestTheLinesCompactAsRowsRunShort(t *testing.T) {
 				if got := textFrom(c, 86, 86+len([]rune(want)), row); got != want {
 					t.Errorf("row %d reads %q from the lines' column, want %q", row+1, got, want)
 				}
+			}
+			if got := rowOf(c, tt.height-3); !strings.HasPrefix(got, "┃ even pace") {
+				t.Errorf("row %d, two over the key line, reads %q, want the key's first", tt.height-2, got)
 			}
 		})
 	}
@@ -108,8 +118,8 @@ func TestTheCompactLinesSitSideBySideThenOnOneRow(t *testing.T) {
 	}{
 		{name: "step 3, 74 columns", width: 160, height: 24, row: 7, want: map[int]string{87: "Week ", 120: " 34%", 127: "5-hour", 156: " 95%"}},
 		{name: "step 3, 59 columns", width: 142, height: 24, row: 7, want: map[int]string{84: "Week ", 109: " 34%", 116: "5-hour", 137: " 95%"}},
-		{name: "step 4, 74 columns", width: 160, height: 19, row: 6, want: map[int]string{86: "1 work", 117: " 34%", 123: "● at its cap · back 17:10 "}},
-		{name: "step 4, 59 columns, short", width: 142, height: 19, row: 6, want: map[int]string{83: "1 work", 114: " 34%", 120: "● at its cap · 17:10"}},
+		{name: "step 4, 74 columns", width: 160, height: 18, row: 6, want: map[int]string{86: "1 work", 117: " 34%", 123: "● at its cap · back 17:10 "}},
+		{name: "step 4, 59 columns, short", width: 142, height: 18, row: 6, want: map[int]string{83: "1 work", 114: " 34%", 120: "● at its cap · 17:10"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -137,7 +147,7 @@ func TestTheBarsEasedAreTheLinesBarsAtTheirStep(t *testing.T) {
 		{height: 37, keys: []string{"5h", "7d", "7d_oi"}},
 		{height: 29, keys: []string{"5h", "7d", "7d_oi"}},
 		{height: 24, keys: []string{"7d", "5h"}},
-		{height: 19, keys: []string{"7d"}},
+		{height: 18, keys: []string{"7d"}},
 	}
 	for _, tt := range tests {
 		t.Run(strconv.Itoa(tt.height), func(t *testing.T) {

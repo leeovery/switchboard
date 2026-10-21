@@ -39,18 +39,19 @@ func (f Frame) boardDrawn(m status.Moment, laid boardLayout) boardDrawn {
 // draw draws the Switchboard from row top, as much of it as the view shows,
 // scrolled as the frame has it, as shownAt has it, and what's out of view,
 // each right-aligned: over the rows shown, what shownAt says is above them,
-// and on the row over the key line, what it says is below.
+// and on the row over the key line, what it says is below; and its key.
 func (d boardDrawn) draw(c *canvas, top int) {
 	s := d.shownAt(d.f.Scroll)
 	c.right(d.f.Width, top, s.over)
 	c.paste(d.board(), s.first, top+s.lead, s.rows)
 	c.right(d.f.Width, d.f.Height-underView, s.under)
+	d.key(c, top)
 }
 
 // board is the whole Switchboard drawn, its rows counted from its first: its
 // lines and their jacks, the stubs a limit hangs and the cords moves let go,
-// each call and its cord, or, with none, a row saying so in text.faint, the
-// key, and the row chosen picked out.
+// each call and its cord, or, with none, a row saying so in text.faint, and
+// the row chosen picked out.
 func (d boardDrawn) board() *canvas {
 	c := growing(d.f.Width)
 	d.lines.draw(c)
@@ -63,7 +64,6 @@ func (d boardDrawn) board() *canvas {
 	for _, call := range d.laid.calls {
 		d.call(c, call)
 	}
-	d.key(c)
 	d.chosen(c)
 	return c
 }
@@ -131,25 +131,21 @@ func (d boardDrawn) cord(c *canvas, lc laidCall, works bool) {
 	travel(c, path, theme.AccentKey, d.f.Traffic.On(plug.Session, plug.Account))
 }
 
-// key draws the key, the Overview's, on its two rows, where the layout gives
-// them, a cell after the lines' column: even pace's on the first; the cap's,
-// on the bars the layout draws, and the marks the accounts carry on the
-// second. A row that would pass the last column starts at column 0. With
+// key draws the key, the Overview's, on its two rows from the row of the
+// view from top the layout gives it, the last over the key line, from
+// column 0: even pace's on the first, and the marks the accounts carry on
+// the second; never the cap's, as no bar of the Switchboard draws one. With
 // no lines, it has nothing to key, and draws none.
-func (d boardDrawn) key(c *canvas) {
+func (d boardDrawn) key(c *canvas, top int) {
 	if d.laid.keyAt < 0 || len(d.laid.lines) == 0 {
 		return
 	}
 	m := d.lines.m
-	b := blockOf(m, d.f.Width, d.f.Look, ByAccount, d.lines.windows, d.lines.names)
+	b := blockOf(m, d.f.Width, d.f.Look, ByAccount, d.lines.windows, d.lines.names).uncapped()
 	b.marks = keyMarks(d.lines.names, false)
 	pace, after := b.keyParts(d.lines.barDrawn())
 	for i, l := range []line{pace, joined(keyGap(d.f.Width), after...)} {
-		x := d.laid.columns.lines + 1
-		if x+l.width() > d.f.Width {
-			x = 0
-		}
-		c.line(x, d.laid.keyAt+i, l.fit(d.f.Width))
+		c.line(0, top+d.laid.keyAt+i, l.fit(d.f.Width))
 	}
 }
 

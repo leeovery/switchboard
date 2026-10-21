@@ -6,7 +6,7 @@
 SESSIONS   Switchboard  List
 
 1 work          ● at its cap · 17:10
- Week       ▏ ┃    ╎  34%   5-hour       ┃    ╎  95%
+ Week       ▏ ┃       34%   5-hour       ┃    ▍  95%
 
 2 personal ◆    ● open
  Week          ▉┃     66%   5-hour     ▋   ┃     39%
@@ -24,7 +24,7 @@ SESSIONS   Switchboard  List
  Week 1.2 of 3 left   5-hour 1.5 of 3 left
 
 ┃ even pace: where you would be now, used evenly
-╎ cap: work at 95%   ◆ primary   ▲ new
+◆ primary   ▲ new
 
 
 

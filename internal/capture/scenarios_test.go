@@ -95,8 +95,8 @@ func TestEachTapePlaysItsScenarioAsItsCuesAreTimedFor(t *testing.T) {
 			shows: []shows{
 				{at: 2, says: []string{"SESSIONS    Switchboard", "2 personal ◆    ● under pressure"}},
 				{at: 15.5, says: []string{"■ limit reached · back 16:30", "100%  limit · back 16:30"}, not: []string{"╌"}},
-				{at: 20.5, says: []string{" ╌╌╌╌╌╌╌○"}, not: []string{" ╌╌╌╌╌╌○"}},
-				{at: 25.5, says: []string{" ╌╌╌╌╌╌╌○", " ╌╌╌╌╌╌○"}},
+				{at: 20.5, says: []string{"╌╌○ 2 personal"}, not: []string{"╌╌○  Week"}},
+				{at: 25.5, says: []string{"╌╌○ 2 personal", "╌╌○  Week"}},
 			},
 		},
 		{

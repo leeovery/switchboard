@@ -8,8 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/charmbracelet/x/ansi"
-
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -410,7 +408,7 @@ func TestWithNoSessionRunningTheLinesStandAlone(t *testing.T) {
 const (
 	restingRow = 6
 	workingRow = 9
-	restingEnd = 14
+	restingEnd = 15
 )
 
 func TestACordsColourSaysWhatsHappeningNeverWhichAccount(t *testing.T) {
@@ -433,14 +431,15 @@ func TestACordsColourSaysWhatsHappeningNeverWhichAccount(t *testing.T) {
 				look = Screen(builtin(t, tt.slug))
 			}
 			f := boardFrame(160, 37, look, boardOf(boardLook{calls: sceneCalls()}), Traffic{})
-			plug := f.switchboardLaid(usageWorld(), routedAt).columns.plug
+			k := f.switchboardLaid(usageWorld(), routedAt).columns
+			plug := k.plug
 			c := f.page(usageWorld(), routedAt)
 			for row, want := range map[int]string{restingRow: tt.resting, workingRow: tt.works} {
 				if got := textFrom(c, plug, plug+4, row); got != want {
 					t.Errorf("the cord on row %d reads %q, want %q", row+1, got, want)
 				}
 			}
-			if got := textFrom(c, 72, 73, restingRow); got != tt.turn {
+			if got := textFrom(c, k.jacks-bendClear, k.jacks-bendClear+1, restingRow); got != tt.turn {
 				t.Errorf("the idle cord turns down as %q, want %q", got, tt.turn)
 			}
 			for row, want := range map[int]ink{restingRow: cordInk(false), workingRow: cordInk(true)} {
@@ -448,7 +447,7 @@ func TestACordsColourSaysWhatsHappeningNeverWhichAccount(t *testing.T) {
 					t.Errorf("the cord on row %d is in %+v, want %+v", row+1, got, want)
 				}
 			}
-			if got := c.at(84, restingEnd); got.glyph != pluggedJack || got.ink != cordInk(false) {
+			if got := c.at(k.jacks, restingEnd); got.glyph != pluggedJack || got.ink != cordInk(false) {
 				t.Errorf("the idle cord's jack is %q in %+v, want %s in its cord's ink", got.glyph, got.ink, pluggedJack)
 			}
 			if tt.slug == "" || !look.blends() {
@@ -498,17 +497,20 @@ func TestStubsHangForEachSessionTheLimitMoved(t *testing.T) {
 }
 
 // letGo is the Switchboard after d28c moved from work to side with no
-// limit forcing it, what travels its cords as traffic tells.
+// limit forcing it, what travels its cords as traffic tells: 7f3a, on work
+// before it, keeps work's first jack, so d28c's cord, from the row under
+// work's group, crosses no row of work's but its own.
 func letGo(look Look, traffic Traffic) Frame {
-	before := []views.Call{boardCall(idD28C, "work", "~/Code/api", idleSince(routedAt.Add(-time.Minute)), "")}
-	after := []views.Call{boardCall(idD28C, "side", "~/Code/api", inFlight(views.Asking, routedAt, 0), "work")}
+	stays := boardCall(id7F3A, "work", "~/Code/web", idleSince(routedAt.Add(-time.Minute)), "")
+	before := []views.Call{stays, boardCall(idD28C, "work", "~/Code/api", idleSince(routedAt.Add(-time.Minute)), "")}
+	after := []views.Call{stays, boardCall(idD28C, "side", "~/Code/api", inFlight(views.Asking, routedAt, 0), "work")}
 	return boardFrame(160, 37, look, boardOf(boardLook{calls: before}, boardLook{calls: after}), traffic)
 }
 
 // A cord a move no limit forced let go hangs 9 cells from the jack its
-// session left, in text.subtle, as far faded as the stream tells, and marked
-// as hanging loose, for its fading to move frames on; gone once it has faded,
-// or halfway where the look can't fade it.
+// session left, work's second, in text.subtle, as far faded as the stream
+// tells, and marked as hanging loose, for its fading to move frames on; gone
+// once it has faded, or halfway where the look can't fade it.
 func TestALooseCordHangsFromTheJackItsSessionLeftFading(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -530,18 +532,42 @@ func TestALooseCordHangsFromTheJackItsSessionLeftFading(t *testing.T) {
 			if tt.hangs {
 				want = strings.Repeat(hangingGlyph, looseCells) + freeJack
 			}
-			if got := textFrom(c, 84-looseCells, 85, 6); got != want {
-				t.Fatalf("work's first jack reads %q, want %q", got, want)
+			if got := textFrom(c, 84-looseCells, 85, 7); got != want {
+				t.Fatalf("work's second jack reads %q, want %q", got, want)
 			}
 			if !tt.hangs {
 				return
 			}
 			k := dimInk
 			k.fade = tt.fade
-			if here := c.at(84-looseCells, 6); here.ink != k || !here.mark.Value().loose {
+			if here := c.at(84-looseCells, 7); here.ink != k || !here.mark.Value().loose {
 				t.Errorf("the loose cord is in %+v, marked %+v, want text.subtle faded %.1f, marked loose", here.ink, here.mark.Value(), tt.fade)
 			}
 		})
+	}
+}
+
+// The bends run to 3 cells before the jacks, over the cells a loose cord
+// hangs in: a bent cord crossing a loose cord's row is drawn over it while
+// it fades. 7f3a and d28c left work's first and second jacks for personal
+// and side; 7f3a's cord runs along its own loose cord's row and turns down
+// 3 cells before the jacks, through d28c's, the rest of each still hanging,
+// marked loose.
+func TestABentCordIsDrawnOverALooseCordItCrosses(t *testing.T) {
+	idle := idleSince(routedAt.Add(-time.Minute))
+	before := []views.Call{boardCall(id7F3A, "work", "~/Code/web", idle, ""), boardCall(idD28C, "work", "~/Code/api", idle, "")}
+	after := []views.Call{boardCall(id7F3A, "personal", "~/Code/web", idle, "work"), boardCall(idD28C, "side", "~/Code/api", idle, "work")}
+	loose := []Loose{{Session: id7F3A, From: "work", Fade: 0.3}, {Session: idD28C, From: "work", Fade: 0.3}}
+	f := boardFrame(160, 37, Look{}, boardOf(boardLook{calls: before}, boardLook{calls: after}), Traffic{Loose: loose})
+	jacks := f.switchboardLaid(usageWorld(), routedAt).columns.jacks
+	c := f.page(usageWorld(), routedAt)
+	for row, want := range map[int]string{6: "──────┐╌╌○", 7: "╌╌╌╌╌╌│╌╌○"} {
+		if got := textFrom(c, jacks-looseCells, jacks+1, row); got != want {
+			t.Errorf("work's jack on row %d reads %q, want %q", row+1, got, want)
+		}
+		if !c.at(jacks-1, row).mark.Value().loose {
+			t.Errorf("row %d's loose cord past the bend isn't marked loose", row+1)
+		}
 	}
 }
 
@@ -631,40 +657,44 @@ func TestWhatTravelsTheCordsDrawnMovesFrames(t *testing.T) {
 	})
 }
 
-// The key is the Overview's, on its two rows under two blank rows after the
-// last line, a cell after the lines' column; a row that would pass the last
-// column starts at column 0. It names the cap where the bars draw its mark.
-func TestTheKeyIsTheOverviewsACellAfterTheLines(t *testing.T) {
+// The key is the Overview's, on its two rows directly over the key line,
+// from column 0, as Runway's legend sits, the rows left over between the
+// lines and it, two blank rows at the least: even pace's, then the marks the
+// accounts carry, never the cap's, though work's cap is on its bars' range.
+func TestTheKeySitsOverTheKeyLineFromColumnZero(t *testing.T) {
 	const pace = "┃ even pace: where you would be now, used evenly"
 	const marks = "◆ primary    ▲ new sessions go here"
-	const capped = "╎ cap: work at 95%    " + marks
-	tests := []struct {
-		width         int
-		first, second int
-		marks         string
-	}{
-		{width: 160, first: 87, second: 87, marks: capped},
-		{width: 200, first: 127, second: 127, marks: capped},
-		{width: 140, first: 83, second: 83, marks: capped},
-		{width: 110, first: 0, second: 69, marks: marks},
-		{width: 100, first: 0, second: 59, marks: marks},
+	for _, width := range []int{100, 110, 140, 160, 200} {
+		for _, height := range []int{37, 24, 18} {
+			t.Run(fmt.Sprintf("%dx%d", width, height), func(t *testing.T) {
+				f := sceneFrame(width, height, Look{})
+				laid := f.switchboardLaid(usageWorld(), routedAt)
+				c := f.page(usageWorld(), routedAt)
+				for i, want := range []string{pace, marks} {
+					if got := rowOf(c, height-3+i); got != want {
+						t.Errorf("row %d reads %q, want the key's %q", height-2+i, got, want)
+					}
+				}
+				if f.top()+laid.keyAt != height-3 || laid.keyAt < laid.rows+boardKeyGap {
+					t.Errorf("the key from row %d of the view, the lines' %d rows over it, want it from %d, two blank rows at the least over it", laid.keyAt, laid.rows, height-3-f.top())
+				}
+			})
+		}
 	}
-	for _, tt := range tests {
-		t.Run(strconv.Itoa(tt.width), func(t *testing.T) {
-			f := sceneFrame(tt.width, 37, Look{})
-			laid := f.switchboardLaid(usageWorld(), routedAt)
-			c := f.page(usageWorld(), routedAt)
-			y := f.top() + laid.keyAt
-			for i, want := range []struct {
-				x    int
-				text string
-			}{{tt.first, pace}, {tt.second, tt.marks}} {
-				row := rowOf(c, y+i)
-				if got := strings.TrimLeft(row, " "); got != want.text || ansi.StringWidth(row)-ansi.StringWidth(got) != want.x {
-					t.Errorf("the key's row %d reads %q, want %q from column %d", i+1, row, want.text, want.x)
+}
+
+// No bar of the Switchboard draws the cap's mark, at any width, on the board
+// or its lanes, nor does its key name the cap: work's state words say it.
+func TestTheSwitchboardsBarsNeverDrawTheCap(t *testing.T) {
+	for width := 52; width <= 220; width++ {
+		for _, height := range []int{37, 18} {
+			c := sceneFrame(width, height, Look{}).page(usageWorld(), routedAt)
+			for y := range height {
+				if row := rowOf(c, y); strings.Contains(row, capMark) {
+					t.Fatalf("at %dx%d, row %d draws the cap's mark: %q", width, height, y+1, row)
 				}
 			}
-		})
+		}
 	}
 }
 
@@ -742,6 +772,38 @@ func TestACallsNamesAreWholeWhereTheyFit(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// The lines' names are a column of names, at least 8 cells of label, at
+// their natural the widest, whole wherever they fit, as the sweep can't see
+// a cut beside the cords: on a line of more than one row, at every width the
+// board draws, 3 side-hustle-consulting ▲ whole with its gap, 28 cells; on
+// a line of one row, beside its week's bar, 21 cells to its words, each name
+// whole where the lines' width holds it and the bar, else cut to what the
+// bar leaves it.
+func TestTheLinesNamesAreWholeWhereTheyFit(t *testing.T) {
+	const meter = oneRowBar + afterBar
+	doc := usageWorld(longNamed)
+	names := map[string]int{"1 work-team-plan": 20, "2 personal-research ◆": 25, "3 side-hustle-consulting ▲": 28}
+	seen := map[[2]bool]bool{}
+	for width := 100; width <= 220; width++ {
+		for _, height := range []int{44, 24, 15, 14} {
+			f := boardFrame(width, height, Look{}, boardOf(boardLook{calls: longCalls()}), Traffic{})
+			laid := f.switchboardLaid(doc, routedAt)
+			lines, oneRow := width-laid.columns.lines, laid.step >= oneRowStep
+			text := strings.Join(textOf(f.Draw(doc, routedAt)), "\n")
+			for name, cells := range names {
+				whole := !oneRow || lines >= cells+meter
+				seen[[2]bool{oneRow, whole}] = true
+				if strings.Contains(text, name) != whole {
+					t.Fatalf("at %dx%d, step %d, the lines %d wide: %q whole %t, want %t", width, height, laid.step, lines, name, !whole, whole)
+				}
+			}
+		}
+	}
+	if len(seen) != 3 {
+		t.Errorf("the lines drawn as %v, want lines of more than one row, and of one row with names whole and cut", seen)
 	}
 }
 
