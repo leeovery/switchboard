@@ -2182,7 +2182,8 @@ top half is now and the period; a rule, `the last six weeks`, heads the rest.
     short, 14, under 70 columns; in full, the widest any window's words say within the week, a
     time on another day named by its weekday (`not read since Wed 14:20`, 24), so the words never
     lose their time and nothing moves as they change. A reading over a week back, said by its
-    date, is wider, and takes its short form, `read 22 Sep`, which says when still. The bars take
+    date, is wider: where it doesn't fit, as at 73, it takes its short form, `read 22 Sep`, which
+    says when still, and from about 84 columns it reads in full. The bars take
     their least of 18 first, then the names are raised toward their widest, then the bars grow
     into what's left, at most 40, the one most of a bar beside words: 21 at 52 columns, 32 at 73
     and 40 from 81. That's two cells short of the spike's 34 at 73, which kept only 22 for the
