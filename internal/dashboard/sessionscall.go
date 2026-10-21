@@ -81,14 +81,25 @@ func callColumnsOf(s []flex.Span, at int) callColumns {
 }
 
 // fromCells are the natural of the account a call's from column names, in
-// the moment m: the widest of its accounts' names, as widestLabel has it,
-// where any call the frame holds has moved; none where none has, so no from
-// column is laid.
+// the moment m, as fromOf has it: the widest of its accounts' names, as
+// widestLabel has it, where any call the frame holds has moved.
 func (f Frame) fromCells(m status.Moment) int {
-	if !slices.ContainsFunc(f.SessionsTab.Calls, func(c views.Call) bool { return c.From != "" }) {
+	return fromOf(widestLabel(m), f.moved())
+}
+
+// moved reports whether any call the frame holds has moved.
+func (f Frame) moved() bool {
+	return slices.ContainsFunc(f.SessionsTab.Calls, func(c views.Call) bool { return c.From != "" })
+}
+
+// fromOf is the natural of the account a call's from column names, of names
+// labels cells at the widest: labels where a call has moved, as moved says;
+// none where none has, so no from column is laid.
+func fromOf(labels int, moved bool) int {
+	if !moved {
 		return 0
 	}
-	return widestLabel(m)
+	return labels
 }
 
 // drawCall draws call along row y, its parts where k places them, in m, the

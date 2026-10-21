@@ -2767,12 +2767,14 @@ is doing is at 12, `▸` at 25 and the plug at 35, the jacks are at 56, and the 
 columns. A line's state words that don't fit take the short form, as on a phone, then lose whole
 clauses from the end. The Switchboard draws lanes where its parts don't fit with every turn taken,
 as under 100 columns, or wherever the bent cords outnumber the columns of the steady bends' room.
-Neither hangs on a move, so cords or lanes is the width's and the bent cords' alone:
+Neither hangs on a move, so cords or lanes is the width's, the names configured's and the bent
+cords' alone:
 - whether the parts fit is reckoned with the from column at its least, `▸ ` and 6 of the account,
   as though a call had moved, so the board starts at 100 columns whatever the moves;
 - the steady room is the lesser of the bends' rooms laid with no from column and with one at its
-  natural, as the from column's coming can narrow the room, or, where it frees cells as `▸` drops
-  its from, widen it. The bent cords turn down in the room laid, which is never narrower.
+  natural. The from column's arrival narrows the room, or, where a turn it brings on frees more
+  than is lacking, widens it: `▸` dropping its from, or the lines' words going short. The bent
+  cords turn down in the room laid, which is never narrower.
 
 **Lanes,** as on a phone, where cords would need width the terminal hasn't got: each account's line
 with its sessions under it, in The page's phone frame under 100 columns (settled in the plan).

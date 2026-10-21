@@ -108,7 +108,8 @@ func boardParts(from int) []flex.Part {
 // boardParts declares them, the from column's natural from cells, and
 // whether they fit: with every turn taken, they don't under 100 columns.
 // Whether they fit is reckoned with the from column at its least, as though
-// a call had moved, so a move never turns the board to lanes, nor back.
+// a call had moved, so a move never changes whether they fit; steadyRoom
+// holds the bent cords' half.
 // Three columns are read off a neighbour's span, not their own: the plugs'
 // column is where the bends' room starts, the jacks' where the stretch to
 // them ends, and the lines' where their label starts. Where the parts don't
@@ -130,11 +131,12 @@ func boardColumnsOf(width, from int) (boardColumns, bool) {
 }
 
 // steadyRoom is the bends' room at width that never hangs on a move: the
-// lesser of the rooms laid with no from column and with one, its natural
-// labels cells, the widest name configured.
+// lesser of the rooms laid with no from column and with one, as fromOf has
+// its natural of names labels cells at the widest, whether or not a call
+// has moved.
 func steadyRoom(width, labels int) int {
-	without, _ := boardColumnsOf(width, 0)
-	with, _ := boardColumnsOf(width, labels)
+	without, _ := boardColumnsOf(width, fromOf(labels, false))
+	with, _ := boardColumnsOf(width, fromOf(labels, true))
 	return min(without.room, with.room)
 }
 
@@ -146,14 +148,18 @@ func (k boardColumns) firstBend() int {
 
 // boardLines are the Switchboard's lines as its layout reads them: the
 // accounts', by their ids, in the config's order; how many windows each
-// draws a row of, as usage --by account draws them; the from column's
-// natural, as fromCells has it; and the cells of the widest name
-// configured, as widestLabel has them, whether or not a call has moved.
+// draws a row of, as usage --by account draws them; the cells of the widest
+// name configured, as widestLabel has them; and whether any call has moved.
 type boardLines struct {
 	accounts []string
 	windows  int
-	from     int
 	labels   int
+	moved    bool
+}
+
+// from is the from column's natural, as fromOf has it.
+func (b boardLines) from() int {
+	return fromOf(b.labels, b.moved)
 }
 
 // boardLayout is the Switchboard laid out at a frame's size, as sessionsLaid
@@ -247,7 +253,7 @@ const compactedStep = 5
 // wherever the bent cords outnumber the columns of the steady room, as
 // steadyRoom has it, so neither turns on a move.
 func sessionsLaid(width, rows int, patched views.Patched, lines boardLines) boardLayout {
-	k, fits := boardColumnsOf(width, lines.from)
+	k, fits := boardColumnsOf(width, lines.from())
 	l := boardLayout{columns: k, steady: steadyRoom(width, lines.labels), lanes: !fits, keyAt: -1}
 	for l.step = 1; l.step < compactedStep; l.step++ {
 		l.layLines(patched, lines)

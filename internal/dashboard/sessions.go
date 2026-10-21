@@ -209,10 +209,10 @@ func (f Frame) switchboardLaid(doc status.Document, now time.Time) boardLayout {
 
 // boardLines are the Switchboard's lines of the moment m: its accounts', in
 // their order, each drawing a row for each window the live views list, as
-// listedWindows has them; the from column's natural, as fromCells has it;
-// and the widest name configured.
+// listedWindows has them; the widest name configured, as widestLabel has
+// it; and whether any call has moved.
 func (f Frame) boardLines(m status.Moment) boardLines {
-	lines := boardLines{windows: len(f.listedWindows(m)), from: f.fromCells(m), labels: widestLabel(m)}
+	lines := boardLines{windows: len(f.listedWindows(m)), labels: widestLabel(m), moved: f.moved()}
 	for _, a := range m.Accounts {
 		lines.accounts = append(lines.accounts, a.ID)
 	}

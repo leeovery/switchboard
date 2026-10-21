@@ -222,16 +222,52 @@ func TestAsTheLanesWidenNoNameNarrowsAndNamesComeFirst(t *testing.T) {
 	}
 }
 
+// Wherever the board draws cords, every bent cord turns down inside the
+// bends' room, after the plugs and no further right than its last column,
+// each on a column of its own: at every width from 100 to 220, of names of
+// 8, 14 and 22 cells, with no call moved and with one, and 0 to 40 bent
+// cords. So the steady room that decides they fit is never wider than the
+// room laid, whichever way the from column's arrival moves it.
+func TestEveryBentCordTurnsDownInsideTheRoomOnAColumnOfItsOwn(t *testing.T) {
+	for _, labels := range []int{8, 14, 22} {
+		for _, moved := range []bool{false, true} {
+			for width := 100; width <= 220; width++ {
+				for n := range 41 {
+					l := bentIn(width, n, boardLines{accounts: []string{"a", "b"}, windows: 3, labels: labels, moved: moved})
+					if l.lanes {
+						continue
+					}
+					bends, k := l.bends(), l.columns
+					seen := make(map[int]bool, len(bends))
+					for _, bend := range bends {
+						if bend <= k.plug || bend > k.plug+k.room || seen[bend] {
+							t.Fatalf("names of %d, moved %t, at %d with %d bent: the cords bend at %v, want each on its own column in (%d, %d]", labels, moved, width, n, bends, k.plug, k.plug+k.room)
+						}
+						seen[bend] = true
+					}
+				}
+			}
+		}
+	}
+}
+
 // bentOn is a board of n sessions on the second of two accounts, each its
 // cord bent, as the first account's line, of three windows, stands over
 // them all: laid width wide in a view tall enough for step 1.
 func bentOn(width, n int) boardLayout {
+	return bentIn(width, n, boardLines{accounts: []string{"a", "b"}, windows: 3})
+}
+
+// bentIn is a board of n sessions on the second of the lines given, each
+// its cord bent, as the first line stands over them all: laid width wide in
+// a view tall enough for step 1.
+func bentIn(width, n int, lines boardLines) boardLayout {
 	ids := make([]string, n)
 	for i := range ids {
 		ids[i] = fmt.Sprintf("s%02d", i)
 	}
-	p := patchedBy(sat{on: []string{"b: " + strings.Join(ids, " ")}})
-	return sessionsLaid(width, 100, p, boardLines{accounts: []string{"a", "b"}, windows: 3})
+	p := patchedBy(sat{on: []string{lines.accounts[1] + ": " + strings.Join(ids, " ")}})
+	return sessionsLaid(width, 100, p, lines)
 }
 
 // bends are the columns the layout's bent cords turn down at, top to bottom.

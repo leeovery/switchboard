@@ -832,10 +832,11 @@ func onSide(n int) []views.Call {
 
 // The board's form never hangs on a move: whether its bent cords fit is
 // reckoned on a bends' room that's the lesser of the rooms with and without
-// the from column, so cords or lanes is the width's and the bent cords'
-// alone. Ten accounts' calls, and 20 calls bent on side of accounts named up
-// to 22 cells, draw the same form with no call moved as with one, where the
-// from column's arrival would narrow the room laid past them.
+// the from column, so cords or lanes is the width's, the names configured's
+// and the bent cords' alone. Ten accounts' calls, and 20 calls bent on side
+// of accounts named up to 22 cells, draw the same form with no call moved as
+// with one, where the from column's arrival would narrow or widen the room
+// laid past them.
 func TestTheBoardsBentCordsNeverTurnItToLanesOnAMove(t *testing.T) {
 	worlds := []struct {
 		name  string
