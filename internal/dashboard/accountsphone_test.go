@@ -50,7 +50,7 @@ func phonePage(t *testing.T) *views.AccountsPage {
 // shown, the account chosen and the page given.
 func phoneFrame(t *testing.T, height int, shown AccountsView, chosen string, page *views.AccountsPage) Frame {
 	f := frameOf(52, height)
-	f.View, f.Look, f.WeekWindow, f.VersionNames = Accounts, Screen(builtin(t, "nord")), "7d", views.VersionNameCells(ledger.Pricing)
+	f.View, f.Look, f.WeekWindow, f.VersionNameCells = Accounts, Screen(builtin(t, "nord")), "7d", views.VersionNameCells(ledger.Pricing)
 	f.Accounts = AccountsShown{Shown: shown, Accounts: threeFramed, Chosen: chosen, Page: page}
 	return f
 }
@@ -528,12 +528,12 @@ func TestTheVersionARowUsedMostIsItsLargestShares(t *testing.T) {
 func TestAPhonesCompareLaysItsPartsAcrossTheWidth(t *testing.T) {
 	long := map[string]string{"work": "work-team-plan", "personal": "personal-research", "side": "side-hustle-consulting"}
 	tests := []struct {
-		name         string
-		width        int
-		labels       map[string]string
-		at, bar      int
-		groups       []int
-		named, would string
+		name    string
+		width   int
+		labels  map[string]string
+		at, bar int
+		groups  []int
+		named   string
 	}{
 		{name: "at 52, its bars at their least", width: 52, at: 13, bar: 20, groups: []int{13, 26, 39}, named: " side        "},
 		{name: "at 73, its bars at their most", width: 73, at: 13, bar: 40, groups: []int{13, 33, 53}, named: " side        "},
@@ -657,35 +657,59 @@ func TestALargestVersionThatDoesntFitCutsItsNameNeverItsShare(t *testing.T) {
 	}
 }
 
-// At 52 columns, a 100% share of the widest version keeps its share whole,
-// its name cut a cell short to make room.
-func TestAPhonesCompareKeepsAHundredPercentShareWhole(t *testing.T) {
-	page := phonePage(t)
-	sonnet := slices.Index(comparedIDs, "claude-sonnet-5-5")
-	page.Rows[0].Totals.ByModel = []views.ModelShare{{Model: comparedIDs[sonnet], Share: new(1.0), Amount: usd(100)}}
-	rows := textOf(phoneText(t, 52, 60, AccountsCompare, "", page, nil).Draw(phoneDoc(), routedAt))
-	if want := "● Sonnet 5… 100%"; !strings.HasSuffix(rows[20], want) {
-		t.Errorf("work's BY MODEL row is %q, want it to end %q", rows[20], want)
+// At 52 columns, a phone's Compare keeps a largest version's share whole,
+// cutting its name to make room, and numbers the share by the name whole, so
+// a change of share brightens however the name is cut: a 100% share of the
+// widest version, and a model the config prices that the version table
+// doesn't name, by its id, which sizes the figures' column from the table
+// the pages are built with. There the names keep their least, the bars
+// theirs, and the figures narrow to what's left.
+func TestAPhonesCompareCutsALargestVersionsNameNeverItsShare(t *testing.T) {
+	const unnamed = "claude-sonnet-4-20250514"
+	configured := ledger.Pricing
+	configured.Models = append(slices.Clone(ledger.Pricing.Models), ledger.Model{IDs: []string{unnamed}})
+	tests := []struct {
+		name   string
+		table  ledger.Table
+		model  string
+		barAt  int
+		shares []float64
+		ends   []string
+	}{
+		{
+			name: "the widest version, at 99% and 100%", table: ledger.Pricing, model: "claude-sonnet-5-5", barAt: 13,
+			shares: []float64{0.99, 1}, ends: []string{"● Sonnet 5.5 99%", "● Sonnet 5… 100%"},
+		},
+		{
+			name: "a model the config prices, at 9% and 10%", table: configured, model: unnamed, barAt: 11,
+			shares: []float64{0.09, 0.1}, ends: []string{"● sonnet-4-202… 9%", "● sonnet-4-20… 10%"},
+		},
 	}
-}
-
-// Where the config prices a model the version table doesn't name, its id,
-// wider than any version's name, sizes the figures' column; on the narrowest
-// phone the names keep their least, the bars theirs, and the figures narrow
-// to what's left, a model's id cut, its share whole.
-func TestAPhonesCompareFitsAConfigPricedModelsIDCutToItsShare(t *testing.T) {
-	const id = "claude-sonnet-4-20250514"
-	page := phonePage(t)
-	page.Versions = append(slices.Clone(page.Versions), ledger.Version{IDs: []string{id}, Name: ledger.ShortModelID(id), Family: "sonnet"})
-	page.Rows[0].Totals.ByModel = []views.ModelShare{{Model: id, Share: new(0.55), Amount: usd(55)}}
-	f := phoneText(t, 52, 60, AccountsCompare, "", page, nil)
-	f.VersionNames = len(ledger.ShortModelID(id))
-	rows := textOf(f.Draw(phoneDoc(), routedAt))
-	if got := columnOf(rows[20], "█"); got != 11 {
-		t.Errorf("work's bar starts at column %d, want 11, its name at its least of 8, in %q", got, rows[20])
-	}
-	if want := "● sonnet-4-20… 55%"; !strings.HasSuffix(rows[20], want) {
-		t.Errorf("work's BY MODEL row is %q, want it to end %q", rows[20], want)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			version, ok := tt.table.Version(tt.model)
+			if !ok {
+				version = ledger.Version{IDs: []string{tt.model}, Name: ledger.ShortModelID(tt.model), Family: "sonnet"}
+			}
+			key := Number{Kind: NumberPeriod, Account: "work", Of: shareNamed(version)}
+			for i, share := range tt.shares {
+				page := phonePage(t)
+				page.Versions = append(slices.Clone(page.Versions), version)
+				page.Rows[0].Totals.ByModel = []views.ModelShare{{Model: tt.model, Share: new(share), Amount: usd(100 * share)}}
+				f := phoneText(t, 52, 60, AccountsCompare, "", page, nil)
+				f.VersionNameCells = views.VersionNameCells(tt.table)
+				rows := textOf(f.Draw(phoneDoc(), routedAt))
+				if got := columnOf(rows[20], "█"); got != tt.barAt {
+					t.Errorf("at %v, work's bar starts at column %d, want %d, in %q", share, got, tt.barAt, rows[20])
+				}
+				if !strings.HasSuffix(rows[20], tt.ends[i]) {
+					t.Errorf("at %v, work's BY MODEL row is %q, want it to end %q", share, rows[20], tt.ends[i])
+				}
+				if said, want := f.Numbers(phoneDoc(), routedAt)[key], strings.Fields(tt.ends[i])[len(strings.Fields(tt.ends[i]))-1]; said != want {
+					t.Errorf("at %v, %+v reads %q, want %q", share, key, said, want)
+				}
+			}
+		})
 	}
 }
 

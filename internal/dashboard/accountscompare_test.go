@@ -173,7 +173,7 @@ var threeFramed = config.Accounts{{ID: "work"}, {ID: "personal", Primary: true},
 // accounts configured and the period's page given.
 func compareFrame(t *testing.T, configured config.Accounts, page views.AccountsPage) Frame {
 	f := frameOf(160, 37)
-	f.View, f.Look, f.WeekWindow, f.VersionNames = Accounts, Screen(builtin(t, "nord")), "7d", views.VersionNameCells(ledger.Pricing)
+	f.View, f.Look, f.WeekWindow, f.VersionNameCells = Accounts, Screen(builtin(t, "nord")), "7d", views.VersionNameCells(ledger.Pricing)
 	f.Accounts = AccountsShown{Period: page.Period, Accounts: configured, Page: &page}
 	return f
 }
@@ -839,10 +839,13 @@ func TestComparesBarsGrowWithTheirColumnsToTheMost(t *testing.T) {
 	}
 }
 
-// The labels' column holds every group's rows' labels whole, the columns
-// starting 2 cells after it; a version's name past it is cut to it.
+// The labels' column holds every label it's drawn with whole, WEEK USED's
+// with now, BY MODEL's heading, and the groups' names and their rows'
+// labels, and is no wider than the widest of them; the columns start 2
+// cells after it, and a version's name past it is cut to it.
 func TestComparesLabelsColumnHoldsItsLabelsAndCutsAVersionsName(t *testing.T) {
 	f, doc := threeCompared(t, 160, 60)
+	f.Accounts.Period = views.AccountsThirtyDays
 	f.Accounts.Page.Versions[0].Name = "Opus 5.5 with a name long past the most"
 	rows := f.Draw(doc, routedAt)
 	labels := compareLabels()
@@ -850,12 +853,22 @@ func TestComparesLabelsColumnHoldsItsLabelsAndCutsAVersionsName(t *testing.T) {
 	for i, row := range rows {
 		drawn[i] = strings.TrimRight(ansi.Cut(row, 0, labels), " ")
 	}
+	want := []string{"WEEK USED  now", "BY MODEL  " + compareByModelSays}
 	for _, g := range (compared{page: f.Accounts.Page}).groups() {
+		want = append(want, g.name)
 		for _, r := range g.rows {
-			if !slices.Contains(drawn, "  "+r.label) {
-				t.Errorf("%s's %q isn't drawn whole in the labels' column, %d cells", g.name, r.label, labels)
-			}
+			want = append(want, "  "+r.label)
 		}
+	}
+	widest := 0
+	for _, label := range want {
+		widest = max(widest, ansi.StringWidth(label))
+		if !slices.Contains(drawn, label) {
+			t.Errorf("%q isn't drawn whole in the labels' column, %d cells", label, labels)
+		}
+	}
+	if labels != widest {
+		t.Errorf("the labels' column is %d cells, want %d, its widest label's", labels, widest)
 	}
 	if got, want := drawn[12], "  ● "+prose.Cut("Opus 5.5 with a name long past the most", labels-versionAt); got != want {
 		t.Errorf("the version's name reads %q, want %q", got, want)

@@ -104,8 +104,7 @@ func versionsNamed(used []versionUsed, more int) []part {
 		if parts != nil {
 			parts = append(parts, wordsIn(versionsApart, ink{}))
 		}
-		named := line{{"●", versionHue(u.version).ink()}, {" " + prose.Clean(u.version.Name) + " ", secondaryInk}}
-		parts = append(append(parts, wordsPart(named)), periodNumbered(shareParts(u.share, secondaryInk), u.of, shareNamed(u.version))...)
+		parts = append(parts, versionNamed(u, prose.Clean(u.version.Name))...)
 	}
 	if more > 0 {
 		if parts != nil {
@@ -114,4 +113,12 @@ func versionsNamed(used []versionUsed, more int) []part {
 		parts = append(parts, wordsIn("+"+strconv.Itoa(more)+" more", dimInk))
 	}
 	return parts
+}
+
+// versionNamed is the version used given as versionsNamed names it, but
+// shown by the name given, as one cut short: its share numbered by the
+// version's own name, however it's shown.
+func versionNamed(u versionUsed, shown string) []part {
+	named := line{{"●", versionHue(u.version).ink()}, {" " + shown + " ", secondaryInk}}
+	return append([]part{wordsPart(named)}, periodNumbered(shareParts(u.share, secondaryInk), u.of, shareNamed(u.version))...)
 }

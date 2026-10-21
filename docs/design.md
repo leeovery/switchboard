@@ -2056,10 +2056,12 @@ holds.
     table prices, as `views.VersionNameCells` has it, a version's name or, for a model the config
     prices, its id; and it takes the cell more a share of 100% needs last. It reads no page, so
     nothing moves as the period's page is read or the period changes. The names give way before
-    the figures do: at 52 columns, long names are cut and the figures whole, the bars 20 from
-    column 13; from 73 the bars are 40, the rest of the row blank past the figures. Only where the
-    names' and bars' leasts leave too little, as a long id the config prices, does the figures'
-    column narrow.
+    the figures do: at 52 columns the bars are 20 from column 13 and long names are cut, the
+    figures whole. The bars take what the names and figures leave, to 40: with names of 10 cells,
+    as `personal ◆`, 40 from 73 columns; with names of 22, as `side-hustle-consulting`, 28 at 73
+    and 40 from 85; past that the rest of the row is blank past the figures. Only where the
+    names' and bars' leasts leave too little does the figures' column narrow: under 50 columns
+    with the version table's names, and wider where the config prices a model named by a long id.
   - A largest version that doesn't fit its cells cuts its name, never its share: `● Sonnet 5…
     100%` at 52, `● sonnet-4-20… 55%` for a model the version table doesn't name.
   - WEEK USED and BY MODEL: a blank row under the heading and between rows, so the bars don't merge;

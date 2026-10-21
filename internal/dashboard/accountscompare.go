@@ -22,7 +22,7 @@ import (
 // Compare's columns and rows, in cells.
 const (
 	// compareNameLeast and compareNameMost are the fewest and the most cells
-	// a column of names or labels takes, its widest whole between them.
+	// a column of names takes, its widest whole between them.
 	compareNameLeast, compareNameMost = 8, 24
 	// labelIndent is where the groups' rows' labels and BY MODEL's ● start,
 	// and versionAt where a version's name does; labelsGap are the cells
@@ -52,7 +52,7 @@ const (
 // and all, BY MODEL's heading, and the groups' names and their rows'
 // labels, indented. A version's name past it is cut to it.
 var compareLabels = sync.OnceValue(func() int {
-	widest := max(weekLabel(views.AccountsThirtyDays).width(), groupHead("BY MODEL", "share of use", false).width())
+	widest := max(weekLabel(views.AccountsThirtyDays).width(), byModelHead().width())
 	for _, g := range (compared{page: &views.AccountsPage{}}).groups() {
 		widest = max(widest, ansi.StringWidth(g.name))
 		for _, r := range g.rows {
@@ -61,6 +61,15 @@ var compareLabels = sync.OnceValue(func() int {
 	}
 	return widest
 })
+
+// compareByModelSays is what Compare's BY MODEL shows, after its name.
+const compareByModelSays = "share of use"
+
+// byModelHead is Compare's BY MODEL heading, as groupHead words it: the one
+// the view draws and its labels' column holds.
+func byModelHead() line {
+	return groupHead("BY MODEL", compareByModelSays, false)
+}
 
 // compareLayout is where Compare's parts sit across a frame, as flex lays
 // them: the labels' column's cells; each column's span, the accounts' shown,
@@ -498,7 +507,7 @@ func (cp compared) weekGauge(col compareColumn) gauge {
 // shade and its name, cut to the labels' column, and each column's share of
 // use of it, right-aligned in 4.
 func (cp compared) byModel(c *canvas, y int, columns []compareColumn) int {
-	c.line(0, y, groupHead("BY MODEL", "share of use", false))
+	c.line(0, y, byModelHead())
 	versions := cp.page.Versions
 	hues := versionHues(versions)
 	for _, col := range columns {

@@ -42,7 +42,9 @@ const (
 
 // figuresNarrowed is the turn the figures' column narrows in, toward a cell
 // of a version's name, where the names' least and the bars' don't leave it
-// the widest version: only as a model the config prices names it by its id.
+// the widest version at a two-digit share: under 50 columns with the version
+// table's names, and wider where the config prices a model named by a long
+// id.
 const figuresNarrowed = 1
 
 // turnedLayout is where a phone's Compare's parts sit across a frame, as flex
@@ -59,7 +61,7 @@ type turnedLayout struct {
 // names at their widest whole, at least compareNameLeast and at most
 // compareNameMost; its bars at least turnedBar, growing to barMost; and its
 // figures holding the widest largest version the table can name, as the
-// frame's VersionNames has it, at a share of two digits, and taking the cell
+// frame's VersionNameCells has it, at a share of two digits, and taking the cell
 // more a share of 100% needs last. The names give way before the figures do.
 // The figures read no page, so nothing moves as it's read, or as the period
 // changes.
@@ -68,13 +70,13 @@ func (cp compared) turnedLaid(columns []compareColumn) turnedLayout {
 	for _, col := range columns {
 		names = max(names, wholeName(turnedNamed(col)))
 	}
-	figures := largestCells(cp.f.VersionNames, 0.55)
+	figures := largestCells(cp.f.VersionNameCells, 0.55)
 	s, _ := flex.Lay(cp.f.edge(), []flex.Part{
 		turnedIndent:  {Least: turnedNameAt, Natural: turnedNameAt},
 		turnedNames:   {Least: compareNameLeast, Natural: names, Most: compareNameMost},
 		turnedBars:    {Least: turnedBar, Natural: turnedBar, Grows: true, Most: barMost, Gap: turnedApart},
 		turnedFigures: {Least: 1 + largestCells(1, 0.55), Natural: 1 + figures, Narrows: figuresNarrowed, Gap: 1},
-		turnedHundred: {Natural: largestCells(cp.f.VersionNames, 1) - figures},
+		turnedHundred: {Natural: largestCells(cp.f.VersionNameCells, 1) - figures},
 	}...)
 	return turnedLayout{names: s[turnedNames].Size, at: s[turnedBars].At, bar: s[turnedBars].Size, figures: s[turnedFigures].At}
 }
@@ -86,14 +88,14 @@ func largestCells(name int, share float64) int {
 	return partsWidth(versionsNamed([]versionUsed{{version: v, share: &share}}, 0))
 }
 
-// largestIn is the largest version used given, as versionsNamed names it, in
-// the cells given: where it doesn't fit, its name is cut, never its share.
+// largestIn is the largest version used given, as versionNamed names it, in
+// the cells given: where it doesn't fit, its name is cut, never its share,
+// which is numbered by the name whole however it's shown.
 func largestIn(used versionUsed, cells int) line {
-	named := versionsNamed([]versionUsed{used}, 0)
+	name := prose.Clean(used.version.Name)
+	named := versionNamed(used, name)
 	if over := partsWidth(named) - cells; over > 0 {
-		name := prose.Clean(used.version.Name)
-		used.version.Name = prose.Cut(name, max(ansi.StringWidth(name)-over, 1))
-		named = versionsNamed([]versionUsed{used}, 0)
+		named = versionNamed(used, prose.Cut(name, max(ansi.StringWidth(name)-over, 1)))
 	}
 	return fitParts(cells, named...)
 }
