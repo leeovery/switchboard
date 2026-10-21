@@ -4,29 +4,29 @@
 
 SESSIONS    Switchboard  List  [ ]  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-41e0 docs         idle 34s                      ●━━━━━━━━━━━━━━━━━━━━━━━┓           ○  1 work          ● at its cap · back 17:10 · new sessions go elsewhere
-9c2e website      idle 9m                       ●━━━━━━━━━━━━━━━━━━━━━┓ ┃           ○  Week              ▏   ┃        ╎  34%   5-hour            ┃        ╎  95%
-                                                                      ┃ ┗━━━━━━━━━━━◉  2 personal ◆    ● open
-c61b mobile       ↓ answering                   ●━━━━━━━━━━━━━━━━━━━┓ ┗━━━━━━━━━━━━━◉  Week                    ▉┃        66%   5-hour         ▎    ┃         39%
-d28c switchboard  ↑ asking     ▸ from work      ●━━━━━━━━━━━━━━━━━┓ ┗━━━━━━━━━━━━━━━◉  3 side ▲        ● open · new sessions come here
-7f3a api          ↓ answering  ▸ from work      ●━━━━━━━━━━━━━━━┓ ┗━━━━━━━━━━━━━━━━━◉  Week                 ┃     ▍      78%   5-hour   ▊ ┃                  13%
-db8a infra        idle 50s     ▸ from work      ●━━━━━━━━━━━━━┓ ┗━━━━━━━━━━━━━━━━━━━◉
-                                                              ┗━━━━━━━━━━━━━━━━━━━━━◉
-1f9a billing      idle 2m                       ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━◉  4 client        ● open
-6c2e ios-app      idle 14m                      ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━◉  Week                ▉ ┃           47%   5-hour          ┃▉            52%
-0d4b scraper      idle 41s                      ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━◉
+41e0 docs                     idle 34s                      ●━━━━━━━━━━━┓           ○  1 work          ● at its cap · back 17:10 · new sessions go elsewhere
+9c2e website                  idle 9m                       ●━━━━━━━━━━┓┃           ○  Week              ▏   ┃        ╎  34%   5-hour            ┃        ╎  95%
+                                                                       ┃┗━━━━━━━━━━━◉  2 personal ◆    ● open
+c61b mobile                   ↓ answering                   ●━━━━━━━━━┓┗━━━━━━━━━━━━◉  Week                    ▉┃        66%   5-hour         ▎    ┃         39%
+d28c switchboard              ↑ asking     ▸ from work      ●━━━━━━━━┓┗━━━━━━━━━━━━━◉  3 side ▲        ● open · new sessions come here
+7f3a api                      ↓ answering  ▸ from work      ●━━━━━━━┓┗━━━━━━━━━━━━━━◉  Week                 ┃     ▍      78%   5-hour   ▊ ┃                  13%
+db8a infra                    idle 50s     ▸ from work      ●━━━━━━┓┗━━━━━━━━━━━━━━━◉
+                                                                   ┗━━━━━━━━━━━━━━━━◉
+1f9a billing                  idle 2m                       ●━━━━━━━━━━━━━━━━━━━━━━━◉  4 client        ● open
+6c2e ios-app                  idle 14m                      ●━━━━━━━━━━━━━━━━━━━━━━━◉  Week                ▉ ┃           47%   5-hour          ┃▉            52%
+0d4b scraper                  idle 41s                      ●━━━━━━━━━━━━━━━━━━━━━━━◉
                                                                                     ○  5 spare         ● open
-b7e5 notebooks    idle 6m                       ●━━━━━━━━━━━┓                       ○  Week             ┃                 5%   5-hour ┃                       4%
-93fa evals        idle 1m                       ●━━━━━━━━━┓ ┗━━━━━━━━━━━━━━━━━━━━━━━◉  6 lab           ● under pressure · out ~16:05
-                                                          ┗━━━━━━━━━━━━━━━━━━━━━━━━━◉  Week                 ┃ ▏          58%   5-hour             ┃ ▉        71%
-4ae8 blog         idle 22m                      ●━━━━━━━┓                           ○  7 team          ■ limit reached · back 15:30
-                                                        ┃                           ○  Week                     ┃  ▍     83%   5-hour                   ┃   100%
-c0d1 design       idle 3m                       ●━━━━━┓ ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━◉  8 extra         ● open
-f3b1 site-v2      idle 8s                       ●━━━┓ ┃                             ○  Week         ▌ ┃                  12%   5-hour     ▋  ┃               22%
-                                                    ┃ ┃                             ○  9 ops           ● open
-                                                    ┃ ┃                             ○  Week             ▏  ┃             29%   5-hour  ▎┃                     6%
-                                                    ┃ ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━◉ 10 studio        ● open
-                                                    ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━◉  Week               ▋    ┃         41%   5-hour       ▉       ┃        33%
+b7e5 notebooks                idle 6m                       ●━━━━━┓                 ○  Week             ┃                 5%   5-hour ┃                       4%
+93fa evals                    idle 1m                       ●━━━━┓┗━━━━━━━━━━━━━━━━━◉  6 lab           ● under pressure · out ~16:05
+                                                                 ┗━━━━━━━━━━━━━━━━━━◉  Week                 ┃ ▏          58%   5-hour             ┃ ▉        71%
+4ae8 blog                     idle 22m                      ●━━━┓                   ○  7 team          ■ limit reached · back 15:30
+                                                                ┃                   ○  Week                     ┃  ▍     83%   5-hour                   ┃   100%
+c0d1 design                   idle 3m                       ●━━┓┗━━━━━━━━━━━━━━━━━━━◉  8 extra         ● open
+f3b1 site-v2                  idle 8s                       ●━┓┃                    ○  Week         ▌ ┃                  12%   5-hour     ▋  ┃               22%
+                                                              ┃┃                    ○  9 ops           ● open
+                                                              ┃┃                    ○  Week             ▏  ┃             29%   5-hour  ▎┃                     6%
+                                                              ┃┗━━━━━━━━━━━━━━━━━━━━◉ 10 studio        ● open
+                                                              ┗━━━━━━━━━━━━━━━━━━━━━◉  Week               ▋    ┃         41%   5-hour       ▉       ┃        33%
 
 
                                                                                        ┃ even pace: where you would be now, used evenly

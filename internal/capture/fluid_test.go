@@ -125,27 +125,40 @@ func (k known) breaking() []string {
 // what it clears, as a fixture named at a size where it no longer breaks the
 // rule fails the sweep.
 var knownBreaks = []known{
-	// S5, the Switchboard's calls (F18, F19): its directories, and an account's
-	// name in a phone's lanes, cut with room; at 15 rows, an account out of view
+	// The Switchboard's directories at their most, as the List's; and at 108
+	// and 109, where the cells past the leasts go to the directory alone, the
+	// directory at 14 and 15 and the account a call came from at its least,
+	// as the spike draws them at 108.
+	{
+		byDesign: "the Switchboard's directories at their most", cuts: dirCuts(views.SessionDirMost), rule: cutWithRoom,
+		sizes:    []string{"73x61", "73x36", "138x30", "138x15", "173x53"},
+		fixtures: []string{"sessions-switchboard-long-names-108x44"},
+	},
+	{
+		byDesign: "the Switchboard's names past its leasts at 108", cuts: append(dirCuts(14), "work-…"), rule: cutWithRoom,
+		sizes: []string{"108x44", "108x24"}, fixtures: []string{"sessions-switchboard-long-names-108x44"},
+	},
+	{
+		byDesign: "the Switchboard's names past its leasts at 109", cuts: append(dirCuts(15), "work-…"), rule: cutWithRoom,
+		sizes: []string{"109x53"}, fixtures: []string{"sessions-switchboard-long-names-108x44"},
+	},
+	{
+		byDesign: "the account a call came from at its least", cuts: []string{"perso…"}, rule: cutWithRoom,
+		sizes: []string{"108x24"}, fixtures: []string{"sessions-moved-160"},
+	},
+	{
+		byDesign: "the account a call came from at its least", cuts: []string{"perso…"}, rule: cutWithRoom,
+		sizes: []string{"108x44", "109x53"}, fixtures: []string{"sessions-pinned-160"},
+	},
+	// S5, the Switchboard (F19): an account's name in a phone's lanes, and
+	// the lines' headings, cut with room; at 15 rows, an account out of view
 	// over blank rows.
 	{
-		slice: "S5", rule: cutWithRoom, sizes: []string{"108x44", "108x24", "109x53"},
-		fixtures: []string{
-			"page-sessions-120x30", "page-sessions-chosen", "page-sessions-not-answering",
-			"page-sessions-short", "sessions-108x44", "sessions-moved-160", "sessions-phone-52",
-			"sessions-refused-160", "sessions-switchboard-160",
-		},
-	},
-	{
-		slice: "S5", rule: cutWithRoom, sizes: []string{"108x44", "109x53"},
-		fixtures: []string{"sessions-pinned-160"},
-	},
-	{
-		slice: "S5", rule: cutWithRoom, sizes: []string{"73x61", "73x36", "108x24"},
+		slice: "S5", rule: cutWithRoom, sizes: []string{"73x61", "73x36"},
 		fixtures: []string{"sessions-ten-accounts-160"},
 	},
 	{
-		slice: "S5", rule: cutWithRoom, sizes: []string{"73x61", "73x36", "138x30", "138x15", "108x44", "108x24", "173x53", "109x53"},
+		slice: "S5", rule: cutWithRoom, sizes: []string{"73x61", "73x36", "138x30", "108x44", "108x24", "173x53", "109x53"},
 		fixtures: []string{"sessions-switchboard-long-names-108x44"},
 	},
 	{
@@ -180,7 +193,7 @@ var knownBreaks = []known{
 	// The List's directories at their most, where the session's column is
 	// whole and the rows end blank.
 	{
-		byDesign: "the List's directories at their most", cuts: listDirCuts(), rule: cutWithRoom,
+		byDesign: "the List's directories at their most", cuts: dirCuts(views.SessionDirMost), rule: cutWithRoom,
 		sizes: []string{"138x30", "138x15", "173x53"}, fixtures: []string{"sessions-list-long-names-108x44"},
 	},
 	// S10, the Overview's rows on flex (F1): sections folded with rows spare.
@@ -370,12 +383,13 @@ func logDirCuts() []string {
 	return cuts
 }
 
-// listDirCuts are the long-names world's directories the List draws cut at
-// their most, views.SessionDirMost, as status.DirName cuts them.
-func listDirCuts() []string {
+// dirCuts are the long-names world's directories cut to cells, as
+// status.DirName cuts them, those it cuts: at views.SessionDirMost, as the
+// List and the Switchboard draw them at their most.
+func dirCuts(cells int) []string {
 	var cuts []string
 	for _, dir := range longDirs {
-		if cut := status.DirName(dir, views.SessionDirMost); cut != path.Base(dir) {
+		if cut := status.DirName(dir, cells); cut != path.Base(dir) {
 			cuts = append(cuts, cut)
 		}
 	}

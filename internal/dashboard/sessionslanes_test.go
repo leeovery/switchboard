@@ -48,9 +48,10 @@ func lanesText(f Frame, doc status.Document) []string {
 	return textOf(f.Draw(doc, routedAt))
 }
 
-// A session's row says what it's doing at column 20, in a session's page's
-// words, bold accent.key while it asks or answers, bold state.destructive
-// while refused, text.subtle while throttled, and text.faint while idle;
+// A session's row says what it's doing where a lane's columns put it, in a
+// session's page's words, bold accent.key while it asks or answers, bold
+// state.destructive while refused, text.subtle while throttled, and
+// text.faint while idle;
 // and its id is bold text.primary while it works, refused or throttled
 // included, as its request is to be sent again, else text.muted.
 func TestALanesSessionSaysWhatItsDoingAndIsBoldWhileItWorks(t *testing.T) {
@@ -75,13 +76,14 @@ func TestALanesSessionSaysWhatItsDoingAndIsBoldWhileItWorks(t *testing.T) {
 			if y < 0 {
 				t.Fatalf("no row says c61b; drew\n%s", strings.Join(lanesText(f, doc), "\n"))
 			}
-			if got := strings.TrimRight(c.rows(Look{})[y][laneCall.doing:], " "); got != tt.said {
-				t.Errorf("c61b's row says %q at column %d, want %q", got, laneCall.doing, tt.said)
+			k := laneColumnsOf(f.Width, 0)
+			if got := strings.TrimRight(c.rows(Look{})[y][k.doing:], " "); got != tt.said {
+				t.Errorf("c61b's row says %q at column %d, want %q", got, k.doing, tt.said)
 			}
-			if got := c.at(laneCall.doing, y).ink; got.token != tt.doing.token || got.bold != tt.doing.bold {
+			if got := c.at(k.doing, y).ink; got.token != tt.doing.token || got.bold != tt.doing.bold {
 				t.Errorf("what c61b's doing is in %+v, want %+v", got, tt.doing)
 			}
-			if got := c.at(laneCall.id, y).ink; got.token != tt.id.token || got.bold != tt.id.bold {
+			if got := c.at(k.id, y).ink; got.token != tt.id.token || got.bold != tt.id.bold {
 				t.Errorf("c61b's id is in %+v, want %+v", got, tt.id)
 			}
 		})
@@ -190,7 +192,7 @@ func TestWithOneAccountTheLanesHaveNoPool(t *testing.T) {
 	f := lanesFrame(52, 33, Look{}, []views.Call{sceneCall("work", idC61B, "mobile", "", idleFor(time.Minute))})
 	rows := lanesText(f, doc)
 	top := f.top()
-	want := []string{"1 work ▲    ● at its cap · 17:10", "", "  c61b mobile       idle 1m", "", "┃ even pace: where you would be now, used evenly"}
+	want := []string{"1 work ▲    ● at its cap · 17:10", "", fmt.Sprintf("%-33sidle 1m", "  c61b mobile"), "", "┃ even pace: where you would be now, used evenly"}
 	got := slices.Clone(rows[top : top+len(want)])
 	got[1] = "" // the windows' row, held by the test of a lane's windows
 	if !slices.Equal(got, want) {
@@ -235,13 +237,13 @@ func TestWithNoSessionRunningTheLanesSaySo(t *testing.T) {
 // width leaves, and the wide key, its marks four cells apart.
 func TestWhereBentCordsOutnumberTheRoomTheSwitchboardDrawsLanes(t *testing.T) {
 	var calls []views.Call
-	for i := range 25 {
+	for i := range 28 {
 		calls = append(calls, sceneCall("side", fmt.Sprintf("s%03d-session", i), "api", "", idleFor(time.Minute)))
 	}
 	doc := phoneDoc()
 	f := lanesFrame(160, 60, Look{}, calls)
 	if !f.switchboardLaid(doc, routedAt).lanes {
-		t.Fatalf("25 bent cords at 160 columns are drawn as cords, want lanes")
+		t.Fatalf("28 bent cords at 160 columns are drawn as cords, want lanes")
 	}
 	rows := lanesText(f, doc)
 	top := f.top()
@@ -250,7 +252,7 @@ func TestWhereBentCordsOutnumberTheRoomTheSwitchboardDrawsLanes(t *testing.T) {
 		says string
 	}{
 		{y: top, says: "1 work          ● at its cap · 17:10"},
-		{y: top + 8, says: "  s000 api          idle 1m"},
+		{y: top + 8, says: fmt.Sprintf("%-33sidle 1m", "  s000 api")},
 	} {
 		if got := rows[want.y]; got != want.says {
 			t.Errorf("row %d reads %q, want %q", want.y+1, got, want.says)

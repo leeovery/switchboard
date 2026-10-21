@@ -20,8 +20,8 @@ const (
 // by side.
 var stepThreeLabels = []int{firstLabelCells, secondLabelCells}
 
-// widestLines are the columns the lines take at their widest, from 145
-// columns: narrower, step 4's state words take the short form.
+// widestLines are the columns the lines take at their widest, their bars
+// and words whole: narrower, step 4's state words take the short form.
 const widestLines = lineBeside + lineBar + lineWords
 
 // outOfPoolSpan ends the name row of an account the global pin leaves out
@@ -248,10 +248,9 @@ func meter(c *canvas, look Look, g gauge, x, y, bar int) int {
 
 // wordsBlock is the block a line's windows are drawn by, in the frame's look,
 // their words in full, or in usage's short form where the columns say, as
-// the narrowing table gives them: never as a block of the lines' own width
-// would pick them, as their words go short at 117 columns, where usage's
-// own rule would take them short under 140. A block of no width draws
-// usage's short words.
+// the board's turns take them: never as a block of the lines' own width
+// would pick them, as their words go short in their own turn, not by usage's
+// rule of width. A block of no width draws usage's short words.
 func (d linesDrawn) wordsBlock() usageBlock {
 	b := usageBlock{look: d.f.Look, width: fullWords}
 	if d.laid.columns.shortWords {

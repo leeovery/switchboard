@@ -278,7 +278,7 @@ func TestLay(t *testing.T) {
 	}
 }
 
-// The Switchboard's parts, in switchboard's order.
+// An example row's parts, in switchboard's order.
 const (
 	callIDPart = iota
 	callDirPart
@@ -292,11 +292,12 @@ const (
 	wordsPart
 )
 
-// switchboard are the Switchboard's columns as the design's narrowing table
-// has them: a call's id, its directory, what it's doing, ▸'s from and the
+// switchboard is an example row of parts, shaped as the Switchboard's once
+// were: a call's id, its directory, what it's doing, ▸'s from and the
 // account; the bends' room, after the plugs' gap; the jacks, the gap to the
 // lines and the lines' label and percentage; the lines' bars past 16 cells,
-// and their first 16; and the lines' words, or usage's short form.
+// and their first 16; and the lines' words, or usage's short form. Its
+// turns interleave narrowing, leaving and a part that grows.
 var switchboard = []flex.Part{
 	callIDPart:      {Least: 4, Natural: 4},
 	callDirPart:     {Least: 6, Natural: 12, Narrows: 2, Gap: 1},
@@ -310,7 +311,10 @@ var switchboard = []flex.Part{
 	wordsPart:       {Least: 22, Natural: 22, Leaves: 4, Kept: 14},
 }
 
-func TestLayNarrowsTheSwitchboardAsTheDesignsTableDoes(t *testing.T) {
+// Lay takes an example row's turns in order, each only while the parts pass
+// the room, and gives what a leaving frees past what's lacking to the part
+// that grows.
+func TestLayTakesAnExampleRowsTurnsInOrder(t *testing.T) {
 	type columns struct {
 		room, bars, dir, account int
 		shortFrom, shortWords    bool
