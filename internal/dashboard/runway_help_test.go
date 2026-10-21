@@ -146,7 +146,7 @@ func TestRunwayHelpSaysWhatItsRulesAre(t *testing.T) {
 		{"the labels collapsed", "a collapses the labels, to give the lanes more room"},
 		{"a collapsed label", "its number and its marks alone, as 2 ◆, and under them its use, as 66%"},
 		{"the pool's room collapsed", "under Σ, of how many accounts the pool is, as 1.2/3"},
-		{"a stale account", "not read since 14:20"},
+		{"a stale account", "read 14:20 where its last read failed; and not read before its first"},
 		{"a refused token's use faded", "and the use of one whose token is refused"},
 		{"a run of stretches", "a stretch says lifts 19:00, when its own hold lifts, and only the last says back"},
 		{"a time as the view's window resets", "A cap's or a run-out's time adds as its 5-hour resets"},

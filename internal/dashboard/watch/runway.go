@@ -244,8 +244,8 @@ func (m Model) runwaySaw(look status.Moment) Model {
 
 // runwayBuilt is m with Runway built afresh at the moment of the message
 // taken in, while it shows with no session's page over it, once a moment:
-// its collapsed labels' cells, as Labelled sizes them, which its timeline's
-// columns are counted after; its timeline; its lanes, as views.Lanes builds
+// its labels' cells, expanded and collapsed, as Labelled sizes them, which
+// its timeline's columns are counted after; its timeline; its lanes, as views.Lanes builds
 // them from the last look's, of the readings and the ledger's days they're
 // judged by, as readingsOf and runwayDays have them; and COMING UP, as
 // views.RunwayComing has it.

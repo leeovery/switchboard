@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -176,10 +177,9 @@ func TestRunwayDrawsThePagesChromeAloneWhereNotOneLaneFits(t *testing.T) {
 // the view's top: three rows an account, the pool's lane after the last
 // one's blank row, no rule over it, its room on a row of its own under it,
 // a blank row round the legend and COMING UP, as the 5-hour frame lays them
-// out; a day
-// stepped back to with neither COMING UP nor the room; ten at (c), the
-// pool's lane under the last one's words; one account, its blank row the
-// legend's; and on a phone alike, its legend of two rows.
+// out; a day stepped back to with neither COMING UP nor the room; ten at
+// (c), the pool's lane under the last one's words; one account, its blank
+// row the legend's; and on a phone alike, its legend of two rows.
 func TestRunwaysPartsLieOnTheRowsItsStepGivesThem(t *testing.T) {
 	type rows struct{ lanes, apart, pool, room, legend, coming, lines int }
 	tests := []struct {
@@ -312,4 +312,69 @@ func TestRunwaysPoolsFootHoldsUnderTheLanesShownAtE(t *testing.T) {
 		t.Errorf("at (e), the last lane shown's words are on row %d, the pool's lane on %d, its room on %d, the legend on %d and COMING UP on %d, folded %t; want the lane after the words, its room under it, and each after on the row after the one before, folded",
 			last+1, fit.pool, fit.room, fit.legend, fit.coming, fit.folded)
 	}
+}
+
+// On a phone, Runway takes the first step of its compaction whose last row
+// is two above the key line or higher, as it does at every width, its legend
+// of two: three accounts with three lines of COMING UP, as the phone's
+// frame, a row at a time from 37 to 15: three rows each to 33; (a) to 30;
+// (b) to 28; (c) to 25; (d) at 24; then their lanes scrolling, two in view
+// to 22 and one to 20, and none under it; and ten, seven in view at 33, its
+// lanes scrolling an account at a time.
+func TestOnAPhoneRunwayTakesTheFirstOfItsStepsThatFits(t *testing.T) {
+	type fitted struct {
+		step  runwayStep
+		shown int
+		fits  bool
+	}
+	at := func(step runwayStep, shown int) fitted { return fitted{step, shown, true} }
+	three := map[int]fitted{
+		37: at(runwayRoomy, 3), 36: at(runwayRoomy, 3), 35: at(runwayRoomy, 3), 34: at(runwayRoomy, 3),
+		33: at(runwayRoomy, 3),
+		32: at(runwayTwoRows, 3), 31: at(runwayTwoRows, 3), 30: at(runwayTwoRows, 3),
+		29: at(runwayNoGaps, 3), 28: at(runwayNoGaps, 3),
+		27: at(runwayFolded, 3), 26: at(runwayFolded, 3), 25: at(runwayFolded, 3),
+		24: at(runwayAxisClose, 3),
+		23: at(runwayScrolled, 2), 22: at(runwayScrolled, 2), 21: at(runwayScrolled, 1), 20: at(runwayScrolled, 1),
+		19: {}, 18: {}, 17: {}, 16: {}, 15: {},
+	}
+	type fitting struct {
+		accounts, rows int
+		want           fitted
+	}
+	tests := []fitting{{accounts: 10, rows: 33, want: at(runwayScrolled, 7)}}
+	for rows := 37; rows >= 15; rows-- {
+		tests = append(tests, fitting{accounts: 3, rows: rows, want: three[rows]})
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%d at %d", tt.accounts, tt.rows), func(t *testing.T) {
+			lanes := lanesOf(tt.accounts)
+			lanes.Drawn = views.Drawn{Cells: []views.Cell{views.CellRoom, views.CellCapped}, Resets: true}
+			shown := phoneRunwayLive(views.RunwayFiveHour, 52)
+			shown.Lanes, shown.Coming = lanes, thingsComing(3)
+			f := Frame{Width: 52, Height: tt.rows, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claudeLike, Runway: shown}
+			fit := f.runwayFitted(f.top())
+			if got := (fitted{fit.step, fit.shown, fit.fits}); got != tt.want {
+				t.Errorf("at %d rows, Runway fits %+v, want %+v", tt.rows, got, tt.want)
+			}
+			if !fit.fits {
+				return
+			}
+			if fit.end > tt.rows-underView {
+				t.Errorf("its last row is %d, past row %d, two above the key line", fit.end-1, tt.rows-underView-1)
+			}
+			if below := fit.pool + runwayPoolRows; fit.room != below {
+				t.Errorf("the pool's room is on row %d, want the row under its lane, %d", fit.room, below)
+			}
+			if got, want := f.Scrolling(runwayDoc(tt.accounts), routedAt), (Scrolling{Most: tt.accounts - tt.want.shown, Page: tt.want.shown}); got != want {
+				t.Errorf("Runway on a phone scrolls %+v, want %+v", got, want)
+			}
+		})
+	}
+}
+
+// phoneRunwayLive is Runway's live view of the window given at routedAt on a
+// phone width columns wide.
+func phoneRunwayLive(w views.RunwayWindow, width int) RunwayShown {
+	return RunwayShown{Window: w, Timeline: views.LiveTimeline(w, routedAt, RunwayShown{}.Columns(width))}
 }

@@ -20,8 +20,9 @@ const (
 )
 
 // The live views' spans: the 5-hour's, from the hour before now, 22 hours
-// 40 minutes, as 136 columns of 10 minutes; the week's, from a day before
-// now, a week of 10,080 minutes; each start taken back to its ten minutes.
+// 40 minutes, shared among the lanes' columns; the week's, from a day
+// before now, a week of 10,080 minutes; each start taken back to its ten
+// minutes.
 const (
 	fiveHourBefore = time.Hour
 	fiveHourSpan   = 22*time.Hour + 40*time.Minute

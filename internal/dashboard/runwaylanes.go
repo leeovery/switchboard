@@ -66,7 +66,7 @@ func (f Frame) laidLanes(m status.Moment, fit runwayFit) []laidLane {
 }
 
 // runwayLanes draws the lanes, as laid out, each on its row: its account's
-// name in the label column before it, cut to fit as fitted has it, and its
+// name in the label column before it, cut to fit as line has it, and its
 // use of the view's window from runwayUseFrom on the row under, as useLine
 // has it; or with the account column collapsed, its number and marks, and
 // its use under them, as collapsedUse has it; then the lane itself, as
@@ -78,8 +78,8 @@ func (f Frame) runwayLanes(c *canvas, laid runwayLaid) {
 			c.line(0, ln.row, ln.name.head())
 			c.line(0, ln.row+1, line{ln.collapsedUse()})
 		} else {
-			c.line(0, ln.row, ln.name.fitted(laid.x))
-			c.line(runwayUseFrom, ln.row+1, ln.useLine(window, laid.m.Now, f.Width, laid.x-runwayUseFrom-1))
+			c.line(0, ln.row, ln.name.line(laid.x))
+			c.line(runwayUseFrom, ln.row+1, ln.useLine(window, laid.m.Now, laid.x-runwayUseFrom-1))
 		}
 		f.drawLane(c, ln, laid.x)
 	}
@@ -92,15 +92,14 @@ func (n accountName) head() line {
 }
 
 // runwayLabelsOf are the cells the widest labels of lanes named as names has
-// them take whole, the marks each carries and no more, so the label column
-// is no wider than the labels drawn: expanded, its number, label and marks,
+// them take whole, ▲'s cells kept on every account, as headCells keeps them,
+// so the lanes hold still as ▲ moves: expanded, its number, label and marks,
 // as "2 personal ◆"; collapsed, its number and marks, as head has them.
 func runwayLabelsOf(names []accountName) runwayLabels {
 	var widest runwayLabels
 	for _, n := range names {
-		head := n.head().width()
-		widest.collapsed = max(widest.collapsed, head)
-		widest.expanded = max(widest.expanded, head+1+ansi.StringWidth(n.label))
+		widest.collapsed = max(widest.collapsed, n.headCells())
+		widest.expanded = max(widest.expanded, n.cells(ansi.StringWidth(n.label)))
 	}
 	return widest
 }
@@ -198,15 +197,16 @@ func (ln laidLane) fade() float64 {
 }
 
 // useLine is what the row under the lane's name says of its account's use of
-// the view's window, named as given, at now, on a frame width columns wide,
-// in cells cells: in full where it fits, else short, as pick picks them; in
-// text.faint, every part, where the pool leaves its account out.
-func (ln laidLane) useLine(window string, now time.Time, width, cells int) line {
+// the view's window, named as given, at now, in cells cells: always short,
+// as the label column is never widened for the full words, so it holds
+// still as an account goes stale; in text.faint, every part, where the pool
+// leaves its account out.
+func (ln laidLane) useLine(window string, now time.Time, cells int) line {
 	words := ln.useWords(window, now)
 	if ln.account.OutOfPool {
 		words = words.faint()
 	}
-	return words.pick(width, cells)
+	return words.short.fitWhole(cells)
 }
 
 // useWords are what's said of the lane's use, as useLine has it: where it's

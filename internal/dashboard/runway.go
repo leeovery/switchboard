@@ -126,9 +126,9 @@ func (r RunwayShown) runwayParts() []flex.Part {
 // labelColumn is Runway's label column shown as r, its gap after it: with
 // the account column collapsed, the widest of its labels beside a lane, a
 // number and its marks or the widest use, 100%, and collapsedGap, whatever
-// the width; else from leastRunwayLabels to mostRunwayLabels, taking whole
-// the widest of its accounts' names and nameGap, or the widest use under
-// one, as runwayUseCells has it.
+// the width; else the widest of its accounts' names and nameGap, or the
+// widest use under one, as runwayUseCells has it, up to mostRunwayLabels,
+// and leastRunwayLabels only on a frame narrower than that.
 func (r RunwayShown) labelColumn() flex.Part {
 	if r.Collapsed {
 		cells := max(r.labels.collapsed, widestFigure) + collapsedGap

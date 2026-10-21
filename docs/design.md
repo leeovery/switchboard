@@ -2824,10 +2824,10 @@ in `text.faint`, the rule starting a cell after it.
 view's window under its name:
 
 - **week,** the first the dashboard shows (the owner's call, 17 October 2026): from a day before
-  now, for a week, its 10,080 minutes shared among the lanes' columns (settled in the plan): 146 at
-  160, about 69 minutes a column.
+  now, for a week, its 10,080 minutes shared among the lanes' columns (settled in the plan): 144 at
+  160, 70 minutes a column.
 - **5-hour:** from the hour before now, taken back to its ten minutes, 13:40 at 14:42, for 22 hours
-  40 minutes: about 9.3 minutes a column at 160.
+  40 minutes: about 9.4 minutes a column at 160.
 - At every width, the lanes keep their span, and the minutes a column scale with their width.
 
 The window shown is kept in the preferences file, as is the account column collapsed or not (see
@@ -2846,17 +2846,21 @@ kept for good (settled in the plan; see The request ledger).
 
 - **The row's parts,** laid as every view's are (see The page): the label column, then the lanes,
   which take the rest to the edge, at every width, a phone's too.
-- **The label column** takes the widest of its labels whole and the two cells after it, from 8
-  cells to 24 (the owner's call, 21 October 2026): the widest name, its number, label and the marks
-  it carries, as `2 personal ◆`; or the widest use under a name in either window, `5-hour 100%`
-  from column 2 and a cell, 14, so the lanes hold still as `<` and `>` step and as the figures
-  change. Of the frames' accounts it's 14 at every width, the lanes 146 at 160 and 38 at 52; ten
-  accounts, ` 2 personal ◆`, 15.
+- **The label column** takes its natural width at every width a frame has, up to 24 cells (the
+  owner's call, 21 October 2026): the widest name whole and the two cells after it, its number,
+  label and marks, `▲`'s cells kept on every account, as `usage` keeps them, so the lanes hold still
+  as `▲` moves; or the widest use under a name in either window, `5-hour 100%` from column 2 and a
+  cell, 14, so they hold still as `<` and `>` step, as the figures change and as an account goes
+  stale. Only on a frame narrower than its natural does it narrow, to 8 at the least. Of the
+  frames' accounts it's 16 at every width, the lanes 144 at 160 and 36 at 52; ten accounts,
+  ` 2 personal ◆`, 17.
 - **The labels:** on a lane's row, the account's number, name and marks, cut with `…` only where the
   column is at its most, the number and marks kept (see `usage`, the printout); on the row under
   it, from column 2, `5-hour ` or `week ` in `text.subtle`, and the account's use of that window,
   `95%`, bold in its level's colour, as `usage` colours it: red from 90%, yellow from 70%, else
-  green.
+  green. Where there's no use, the words are always `usage`'s short forms, as the column is never
+  widened for the full: `read 14:20` where its last read failed, `not read` before its first, and
+  `no token`.
 - **The axis:** on row 6, `now`, bold `text.primary`, starting a cell left of now's column; on row
   7, the labels; on row 8, the ticks, on a rule of `─` in `border`.
   - **5-hour:** hours ticked `┬` in `border`, on the first of 1, 2, 3, 6, 12 and 24 hours that puts
@@ -2893,7 +2897,7 @@ kept for good (settled in the plan; see The request ledger).
   resets, on now's column or after it: each account's 5-hour window's reset in the 5-hour view, its
   week's in the week view. An account without a usable token has no room all along, and one not read
   yet is left blank (settled in the plan). An account whose first read failed is left blank, as not
-  read yet: its label says `not read yet`, and from the lanes' first column, in `text.subtle`,
+  read yet: its label says `not read`, and from the lanes' first column, in `text.subtle`,
   `can't read it: HTTP 529 · Overloaded` (the owner's call, 13 October 2026). An account whose
   token is refused has the windows' use under its name faded as stale (the owner's call, 13 October
   2026).
@@ -2902,10 +2906,11 @@ kept for good (settled in the plan; see The request ledger).
 to give the lanes more room, at every width, and `a` again expands them; expanded is the default,
 and the preferences file keeps it (the owner's call, 17 October 2026).
 
-- **The label column** is the widest of its labels beside a lane, a number and its marks or a use of
-  `100%`, and a cell, whatever the width, with no least (the owner's call, 21 October 2026): 5 of
-  the frames' accounts, the lanes 155 at 160, 103 at an iPad's 108 and 47 at 52; `2 ◆ ▲`, 6; ten
-  accounts with both marks on one, 7. The lanes take the rest.
+- **The label column** is the widest of its labels beside a lane, a number and its marks, `▲`'s
+  cells kept on every account, or a use of `100%`, and a cell, whatever the width, with no least
+  (the owner's call, 21 October 2026). The lanes take the rest, and hold still as `▲` moves. Of the
+  frames' accounts, `2 ◆` and `▲`'s cells, it's 6, the lanes 154 at 160, 102 at an iPad's 108 and
+  46 at 52; with no primary, `100%` the widest, 5; ten accounts with a primary, 7.
 - **The labels,** stacked (the owner's call, 21 October 2026): on the lane's row, the account's
   number in `text.subtle` and its marks, `◆` and `▲`, as the expanded label carries them, as `2 ◆`;
   on the row under it, from column 0, its use of the view's window, the figure the expanded label
@@ -2974,9 +2979,9 @@ view draws, four spaces apart: `█` and ` room`; `█` in `accent.attention` an
 ` room, but it runs out at its pace`; `─` in `accent.attention` and ` at its cap`; `─` in
 `state.destructive` and ` at its limit`; and `│` and ` its 5-hour resets`, or ` its week resets`;
 each glyph in its colour, its words in `text.muted`. Four spaces on, in `text.subtle`, a column's
-length and what's dimmed: `a column ≈ 9.3 minutes · the past dimmed` at 160; in the week,
-`a column ≈ 69 minutes · the past dimmed`; stepped back,
-`a column ≈ 9.9 minutes · under each name, the day's highest`. A column's length is in whole
+length and what's dimmed: `a column ≈ 9.4 minutes · the past dimmed` at 160; in the week,
+`a column 70 minutes · the past dimmed`; stepped back,
+`a column 10 minutes · under each name, the day's highest`. A column's length is in whole
 minutes where it's whole, else after `≈`, to a tenth of a minute under 20 minutes and to the minute
 from 20 (settled in the plan). Where the look can't blend, the past isn't dimmed, and the legend
 doesn't say it is (settled in the plan).
@@ -2997,8 +3002,8 @@ The 5-hour view lists the 5-hour windows'; the week view adds each week's run-ou
 prime is listed (settled in the plan). The lines aren't capped: where they don't fit, Runway
 compacts.
 
-**A day stepped back to** is a calendar day, midnight to midnight across the lanes' columns, about
-9.9 minutes a column at 160.
+**A day stepped back to** is a calendar day, midnight to midnight across the lanes' columns, 10
+minutes a column at 160.
 
 - Its hours are ticked and labelled by the rule above, every hour ticked and every other hour
   labelled at 160 columns; its first label is the day's name at its midnight, `Wed`, bold
@@ -3047,12 +3052,12 @@ repeat the account (settled in the plan).
 **On a phone,** in The page's phone frame (settled in the plan), the lanes and their labels are as
 at every width:
 
-- the label column takes its widest label, `2 personal ◆` whole in 14 cells;
-- the lanes take the other columns, 38 at 52: the 5-hour view's 22 hours 40 minutes at about 35.8
-  minutes a column, ticked every 2 hours and labelled every 6, `18:00`, `Fri`, `06:00`, by the rule
-  above;
+- the label column takes its widest label, `2 personal ◆` whole in 16 cells;
+- the lanes take the other columns, 36 at 52: the 5-hour view's 22 hours 40 minutes at about 38
+  minutes a column, ticked every 2 hours and labelled by the rule above, `Fri` alone at 52;
 - the words are cut by the rule above, as `at its cap 14:31  ·  back 17:10`;
-- the legend on two lines, the keyed glyphs, then `a column ≈ 36 minutes · the past dimmed`;
+- a blank row before the legend while the step keeps blank rows round it, as at every width;
+- the legend on two lines, the keyed glyphs, then `a column ≈ 38 minutes · the past dimmed`;
 - COMING UP, the full width, after a blank row;
 - the heading keeps its rule and the window at the right.
 
@@ -3077,7 +3082,7 @@ stepping back and how far it reaches, the minutes a column, and COMING UP.
 
 - **A stale account:** its lane faded as the Overview fades a stale account, keeping 35% of its
   colour, which is 65% toward the canvas (see The Overview), its use under its name
-  `not read since 14:20` (settled in the plan).
+  `read 14:20` (settled in the plan).
 - **The router not answering:** Runway draws from the last document, its projections going from its
   `generated_at` (settled in the plan).
 

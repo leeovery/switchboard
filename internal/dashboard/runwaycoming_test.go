@@ -26,7 +26,7 @@ func runwayComingDrawn(t *testing.T, width, height int, coming []status.Upcoming
 	}
 	fit := f.runwayFittedAs(f.top(), shape)
 	c := newCanvas(width, height)
-	f.runwayComing(c, runwayLaid{x: runwayLanesFrom, fit: fit, m: f.Moment(doc, routedAt)})
+	f.runwayComing(c, runwayLaid{x: framesLanesFrom, fit: fit, m: f.Moment(doc, routedAt)})
 	return textOf(c.rows(Look{}))[fit.coming:fit.end]
 }
 

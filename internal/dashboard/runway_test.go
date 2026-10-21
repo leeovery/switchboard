@@ -196,16 +196,18 @@ func TestRunwaysHeadingNamesItsWindowAndTheDaysSteppedBackTo(t *testing.T) {
 	}
 }
 
-// runwayLanesFrom is the column the tests draw Runway's lanes from: after
-// the label column at its most.
-const runwayLanesFrom = mostRunwayLabels
+// framesLanesFrom is the column the tests draw Runway's lanes from, as the
+// screen lays it for the frames' accounts: after "2 personal ◆", ▲'s cells
+// kept, and nameGap.
+const framesLanesFrom = 16
 
 // Runway's label column takes the widest of its labels whole, and its gap,
 // at every width, and the lanes take the rest to the edge. Expanded, the
-// widest of the names, the marks each carries and no more, then nameGap, or
-// of the uses under them, as wide as "5-hour 100%" in either window, from
-// 8 cells to 24, a name past that cut; collapsed, the widest number and
-// marks or a use of 100%, then a cell, whatever the width.
+// widest of the names, ▲'s cells kept on every account, then nameGap, or of
+// the uses under them, as wide as "5-hour 100%" in either window, up to 24,
+// a name past that cut, and 8 only where the frame is narrower; collapsed,
+// the widest number and marks, ▲'s cells kept, or a use of 100%, then a
+// cell, whatever the width.
 func TestRunwaysLabelColumnTakesItsWidestLabelAndTheLanesTheRest(t *testing.T) {
 	work := accountName{number: "1", label: "work"}
 	personal := accountName{number: "2", label: "personal", primary: true}
@@ -222,20 +224,22 @@ func TestRunwaysLabelColumnTakesItsWidestLabelAndTheLanesTheRest(t *testing.T) {
 		width     int
 		from      int
 	}{
-		{name: "the frames' on a phone, personal whole", names: frames, width: 73, from: 14},
-		{name: "the frames' on an iPad", names: frames, width: 108, from: 14},
-		{name: "the frames' on a desktop", names: frames, width: 173, from: 14},
-		{name: "the 5-hour's, alike", names: frames, window: views.RunwayFiveHour, width: 108, from: 14},
+		{name: "the frames' on a phone, personal whole", names: frames, width: 73, from: framesLanesFrom},
+		{name: "the frames' on an iPad", names: frames, width: 108, from: framesLanesFrom},
+		{name: "the frames' on a desktop", names: frames, width: 173, from: framesLanesFrom},
+		{name: "the 5-hour's, alike", names: frames, window: views.RunwayFiveHour, width: 108, from: framesLanesFrom},
 		{name: "a short name, the widest use", names: []accountName{work}, width: 108, from: 14},
 		{name: "a short name in the 5-hour, alike", names: []accountName{work}, window: views.RunwayFiveHour, width: 108, from: 14},
-		{name: "long names, whole", names: long, width: 108, from: 23},
+		{name: "long names, whole", names: long, width: 108, from: 24},
+		{name: "a long name, whole with ▲'s cells", names: long[:1], width: 108, from: 20},
 		{name: "a name past the most", names: append(long, accountName{number: "3", label: "side-hustle-consulting", best: true}), width: 108, from: 24},
 		{name: "none labelled yet, the widest use", width: 108, from: 14},
 		{name: "narrower than its labels, the column first", names: frames, width: 10, from: 10},
 		{name: "narrower than the least", names: frames, width: 6, from: 8},
-		{name: "collapsed, the frames' on an iPad", names: frames, collapsed: true, width: 108, from: 5},
-		{name: "collapsed, on a phone, alike", names: frames, collapsed: true, width: 52, from: 5},
-		{name: "collapsed, both marks on one", names: both, collapsed: true, width: 108, from: 6},
+		{name: "collapsed, the frames' on an iPad", names: frames, collapsed: true, width: 108, from: 6},
+		{name: "collapsed, on a phone, alike", names: frames, collapsed: true, width: 52, from: 6},
+		{name: "collapsed, both marks on one, alike", names: both, collapsed: true, width: 108, from: 6},
+		{name: "collapsed, no primary, the widest use", names: []accountName{work, side}, collapsed: true, width: 108, from: 5},
 		{name: "collapsed, numbered from ten", names: ten, collapsed: true, width: 108, from: 7},
 		{name: "collapsed, none labelled yet, a use of 100%", collapsed: true, width: 108, from: 5},
 	}
@@ -249,6 +253,29 @@ func TestRunwaysLabelColumnTakesItsWidestLabelAndTheLanesTheRest(t *testing.T) {
 				t.Errorf("the lanes take %d columns, want %d, to the edge", got, want)
 			}
 		})
+	}
+}
+
+// The lanes hold still as ▲ moves between the accounts, as routing picks
+// another for new sessions, expanded and collapsed, at every width: the label
+// column keeps ▲'s cells on every account.
+func TestRunwaysLanesHoldStillAsTheMarkOfNewSessionsMoves(t *testing.T) {
+	named := func(best int) []accountName {
+		names := []accountName{{number: "1", label: "work"}, {number: "2", label: "personal", primary: true}, {number: "3", label: "side"}}
+		if best >= 0 {
+			names[best].best = true
+		}
+		return names
+	}
+	for _, collapsed := range []bool{false, true} {
+		for _, width := range []int{52, 73, 108, 173} {
+			from := RunwayShown{Collapsed: collapsed, labels: runwayLabelsOf(named(-1))}.lanesFrom(width)
+			for best := range 3 {
+				if got := (RunwayShown{Collapsed: collapsed, labels: runwayLabelsOf(named(best))}).lanesFrom(width); got != from {
+					t.Errorf("collapsed %t at %d, with ▲ on account %d the lanes start at column %d, want %d, as with ▲ on none", collapsed, width, best+1, got, from)
+				}
+			}
+		}
 	}
 }
 
