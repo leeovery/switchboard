@@ -1495,7 +1495,7 @@ never changes, a section hidden taking no room:
 | Section | Key | Shown at first | What it is |
 |---|---|---|---|
 | USAGE | `u` | yes | Every account's windows, `usage`'s block |
-| GRAPHS | `g` | no | The focused account's use so far in each window, under USAGE's columns; by account, every account's, beside its block, and the pool's room, beside `Σ pool` |
+| GRAPHS | `g` | no | The focused account's use so far in each window, under USAGE's bars where they fit there, else from the left edge; by account, every account's, beside its block, and the pool's room, beside `Σ pool` |
 | ROUTING | `r` | yes | How each account stands with the router, and its requests over the last 30 minutes |
 | SESSIONS | `s` | no | The sessions running, by account |
 | COMING UP | `c` | yes | What happens next, soonest first |
@@ -1550,19 +1550,30 @@ Then, as only the Overview has them:
   accounts` over the first while some are above. `j`/`k`, PgUp, PgDn and the wheel scroll it, and
   moving the focus to an account out of view scrolls to it (settled in the plan).
 
-**GRAPHS** draws the focused account's windows, a chart a window, each under its window's column
-in USAGE. `↑` and `↓` move the focus between the accounts, in the config's order. `v`, while GRAPHS
+**GRAPHS** draws the focused account's windows, a chart a window, under USAGE's bars where they
+fit there. `↑` and `↓` move the focus between the accounts, in the config's order. `v`, while GRAPHS
 shows, flips every chart between its burn-up, the use so far rising from empty, and its burn-down,
 the room left falling from full and where it's heading; the preferences keep which, the burn-up at
 first (the owner's call, 15 October 2026).
 
-- **Placement:** from the name column, a chart every `gw = ⌊(w − 14 + 3) / k⌋ − ⌈(n − 14) / k⌉`
-  columns for `k` windows, each `gw − 3` wide: 45 cells every 48 at 160 columns, 64 every 67 at 216.
-- **Its rows:** under the heading's blank row, the charts' top row: each chart's window, `5-HOUR`,
-  `WEEK`, `FABLE WEEK`, in `text.subtle` and a space, then the limit's line along the rest of the
-  chart's width, `┄` in `text.faint`, which on the burn-down marks full; then the chart's `h` rows;
-  then its axis row. GRAPHS takes `h + 4` rows, `h` from 5 to 19, as "Room", below, gives them;
-  taller distorts.
+- **Placement,** laid by flex (`graphs.go`), from the width and the windows shown alone, never
+  from what the charts hold. A chart is 30 cells across at the least, the charts 3 apart, each as
+  wide as the others, the odd cells left at the end:
+  - **under USAGE's bars,** where every window's chart is 30 or more there: from the name column, a
+    chart every `gw = ⌊(w − 14 + 3) / k⌋ − ⌈(n − 14) / k⌉` columns for `k` windows, as USAGE's matrix
+    has its groups, each `gw − 3` wide: 44 cells every 47 at 108 columns with two windows, 45 every
+    48 at 160 with three, 64 every 67 at 216;
+  - **else from column 0,** to a cell short of the edge, as many side by side as are 30 or more,
+    the rest on the rows under, in the same columns: two windows at 73 columns are two charts of
+    34; three are two, and the third under the first; three at 108 are 33 each; at 52, a chart a
+    row, 51 cells (the owner's call, 20 October 2026).
+- **Its rows:** under the heading's blank row, each row of charts: the charts' top row, each
+  chart's window, `5-HOUR`, `WEEK`, `FABLE WEEK`, in `text.subtle` and a space, then the limit's
+  line along the rest of the chart's width, `┄` in `text.faint`, which on the burn-down marks full;
+  then the chart's `h` rows; then its axis row. The rows of charts come one under another, none
+  between them, each `h` from 5 to 19, taller distorts; they share the rows "Room", below, gives
+  GRAPHS, a row at a time, the odd row to the first, and what's past their most stays blank.
+  GRAPHS takes `r(h + 2) + 2` rows for `r` rows of charts.
 - **A column a cell,** over the window's whole length, from its start to its reset; now's column is
   `min(round(pace × width), width − 1)`.
 - **The burn-up:** each column to now is filled to the use read at its middle, or at now for now's
@@ -1618,14 +1629,41 @@ first (the owner's call, 15 October 2026).
   USAGE's bars, from `hx`, where ROUTING's blocks would be (see By account, below), to a cell short
   of the edge, as v0.1.6's cards had every account show at once (the owner's call, 15 October
   2026):
-  - **as many of its windows as fit,** in USAGE's order, each 24 cells at the least, 2 apart, and
-    as wide as they share the room: `⌊(w − 1 − hx + 2) / k⌋ − 2` for `k` that fit, two at 160
-    columns, 25 cells wide, and three from 184, 36 wide at 220;
-  - **each from the block's first row to the row after its last,** its top row on the block's
-    first and its axis on the row after, so a block of three windows has `h = 4`; for the axis,
-    USAGE's blocks are two rows apart here, the axis on the first, where everywhere else they're
-    one, the phone's among them (the owner's call, 17 October 2026);
-  - **the pool's charts beside `Σ pool`,** as many of its windows as fit, as each account's: the
+  - **three forms, from USAGE's least to its most,** each a step USAGE grows to whole, ahead of
+    COMING UP and LATELY, as the rows it's given allow, never as what it holds; so USAGE's least,
+    and everything the planner folds or shows by it, is the drawing before every chart showed,
+    and the fluid forms come only from rows to spare (the owner's call, 21 October 2026):
+    1. **At USAGE's least, as before:** in USAGE's order, as many side by side as are 24 cells or
+       more, 2 apart, as wide as they share the room, `⌊(w − 1 − hx + 2) / k⌋ − 2` for `k` that
+       fit, the rest left off: two of 25 at 160 columns, two of 31 at 173, three of 36 at 220.
+       Each from the block's first row to the row after its last, its top row on the first and its
+       axis on the row after, so a block of two windows has `h = 2` and one of three `h = 4`; for
+       the axis, USAGE's blocks are two rows apart here, the axis on the first, where everywhere
+       else they're one, the phone's among them (the owner's call, 17 October 2026). A block of one
+       window has `h = 2` too, its blocks four rows apart, where before it had no rows of chart at
+       all, only its top and axis rows: new with the fluid pass, so every chart beside a block has
+       rows to draw in. Where every chart is 30 cells or more side by side, this is the same as
+       the next form's first row, from 170 columns with two windows.
+    2. **Stacked:** every one of its windows, by Placement's rule: as many side by side as are 30
+       cells or more, as wide as they share the room, the rest on the rows under, still beside the
+       block, in the same columns: a chart a row at 150 and 160 columns, 42 and 52 cells; two a row
+       from 170, 31 wide at 173; three from 202, 36 wide at 220. Each row of charts has `h = 2`, one
+       under another, none between them, the block's next a blank row after the last axis. Where
+       the charts fit one row, it's the least's own rows, and no step of its own.
+    3. **At USAGE's most:** as stacked, each row of charts the least of 5 rows, `h = 5`, the block
+       growing apart for them: the rows under a block's last that its charts take, the last of
+       them their axis, are 4 under a block of two windows side by side at 173, and 11 under two
+       stacked at 160. A blank row comes before the next block; under the pool's, the key line
+       sits directly under its charts' axis (the owner's call, 20 October 2026).
+
+    The rows of charts share what they're given evenly, the odd row to the first. At 160 columns
+    with two windows, the stacked step comes from 57 rows and 5 rows a chart from 81; with three,
+    from 73 and 109. Where USAGE's least doesn't fit, it scrolls, as it does by
+    window, showing as many accounts as it did before every chart showed: `▼` and how many more
+    keep the row after the last block shown, and that block's charts are cut short to end on its
+    last row, a row above `▼`, nothing drawn over it, as the accounts are the data and a chart's
+    last row at the scroll's edge isn't (the owner's call, 21 October 2026);
+  - **the pool's charts beside `Σ pool`,** its windows in the same form as each account's: the
     pool's room in each window over its length back from now, from its left edge to now at its
     right, a column a cell, each column the room at its end's moment, a share of all its accounts'
     (the owner's call, 15 October 2026). That room is each of the pool's accounts' room then,
@@ -1663,9 +1701,10 @@ first (the owner's call, 15 October 2026).
     focus:** `↑↓ focus` leaves the key line, and `↑` and `↓` do nothing.
   - Under 150 columns, where by account has no room beside its blocks, GRAPHS falls back to the
     focused account's charts, as by window.
-- **On a phone,** its charts stack, a window's under another's, each from the name column to the
-  edge, the burn-down as the burn-up (settled in the plan); by account, as by window, the focused
-  account's charts, stacked.
+- **At every width,** the charts lie as Placement has them: under USAGE's bars where every
+  window's chart is 30 cells or more there, as with two windows from 79 columns, else from column
+  0, as on a phone at 52 and 73. The burn-down lies as the burn-up (settled in the plan); by
+  account under 150 columns, the focused account's charts, as by window.
 
 **ROUTING** says how each account stands with the router, and how busy it's been.
 
@@ -1822,7 +1861,8 @@ remembered").
   `50 − (n − 14)` cells wide: the number and name at column 0; the window labels at the name column,
   10 cells; the bars 10 cells on; the percentage a cell after a bar, and the words two cells after
   the percentage: 26, 48 cells, 75 and 81 for the sample. Its blocks are a blank row apart, as
-  `usage`'s are, but two while GRAPHS' charts sit beside them (see GRAPHS, above).
+  `usage`'s are, but two while GRAPHS' charts sit beside them at USAGE's least, and further, as
+  far as their rows of charts take, as USAGE grows (see GRAPHS, above).
 - **ROUTING moves beside each block,** at column `hx = n + 10 + bar + 7 + 22 + 4`, 107 for the
   sample, but while GRAPHS shows, when GRAPHS' charts are there instead and ROUTING keeps a section
   of its own (see GRAPHS, above; the owner's call, 15 October 2026). USAGE's heading is `hx − 3`
@@ -1858,8 +1898,8 @@ remembered").
 
 | Section | Least | Most | Rows |
 |---|---|---|---|
-| USAGE | The compact matrix | The big bars, by window from 150 columns | Compact: `2a + 7` for `a` accounts and the pool, 7 for one account |
-| GRAPHS | 5 rows of chart | 19 | `h + 4`; beside USAGE's blocks by account, none of its own (the owner's call, 15 October 2026) |
+| USAGE | The compact matrix | The big bars, by window from 150 columns; by account with GRAPHS' charts beside, every chart, its blocks apart for 5 rows of chart, and on the way, the charts stacked at 2 rows | Compact: `2a + 7` for `a` accounts and the pool, 7 for one account |
+| GRAPHS | 5 rows of chart | 19 | `r(h + 2) + 2` for `r` rows of charts; beside USAGE's blocks by account, none of its own (the owner's call, 15 October 2026) |
 | ROUTING | A row an account | Two rows of trace an account, a blank row between | `a + 3`; `3a + 2` |
 | SESSIONS | A row a session | The same | Its sessions and 2 |
 | COMING UP and LATELY | 3 lines | 12 | Its lines and 2 |
@@ -1874,7 +1914,9 @@ row and the key line. The planner:
 3. **While anything is folded, nothing grows,** and the rows over stay empty at the foot.
 4. **Rows to spare,** while nothing is folded, go in turn: to GRAPHS, a row at a time to 19; to
    USAGE's big bars, if they fit; to ROUTING's two rows of trace, if they fit; then to COMING UP and
-   LATELY, a line at a time to 12. GRAPHS comes before the big bars, so that GRAPHS never shrinks as
+   LATELY, a line at a time to 12; by account, at the big bars' turn, so ahead of COMING UP and
+   LATELY, USAGE grows to the most of its forms that fits whole: GRAPHS' charts at 5 rows, or
+   stacked at 2. GRAPHS comes before the big bars, so that GRAPHS never shrinks as
    they come; at a few heights, one row more brings the big bars or ROUTING's trace in, and ROUTING,
    or COMING UP and LATELY, give up rows to make room.
 5. **Past every most,** the rest is empty at the foot, the key line on the last row.

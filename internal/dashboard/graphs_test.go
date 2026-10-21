@@ -217,38 +217,128 @@ func TestOnTheTickASessionLapsesItsChartIsAsTheRoutersNextDocumentHasIt(t *testi
 	}
 }
 
-func TestGRAPHSPutsAChartUnderEachWindowOfUSAGEOrStacksThemOnAPhone(t *testing.T) {
+// chartsOn are the bounds of each chart a row of charts starting on row y
+// lays out at the columns given, a chart a column and its width, rows tall.
+func chartsOn(y, rows int, columns ...[2]int) []bounds {
+	var on []bounds
+	for _, c := range columns {
+		on = append(on, bounds{x: c[0], y: y, width: c[1], rows: rows})
+	}
+	return on
+}
+
+func TestGRAPHSPutsItsChartsUnderUSAGEsBarsWhereEveryOneFitsElseFromColumn0AsManyToARowAsFit(t *testing.T) {
 	doc := trio()
+	two := func(columns ...[2]int) []bounds { return chartsOn(0, 7, columns...) }
 	tests := []struct {
-		name        string
-		width, rows int
-		want        []bounds
-		least, most int
+		name    string
+		width   int
+		windows int
+		want    []bounds
+		least   int
 	}{
-		{name: "160 columns: 45 cells every 48", width: 160, rows: 7,
-			want: []bounds{{16, 0, 45, 7}, {64, 0, 45, 7}, {112, 0, 45, 7}}, least: 9, most: 23},
-		{name: "216 columns: 64 cells every 67", width: 216, rows: 21,
-			want: []bounds{{16, 0, 64, 21}, {83, 0, 64, 21}, {150, 0, 64, 21}}, least: 9, most: 23},
-		{name: "under 150 columns, still side by side", width: 120, rows: 7,
-			want: []bounds{{16, 0, 32, 7}, {51, 0, 32, 7}, {86, 0, 32, 7}}, least: 9, most: 23},
-		{name: "a phone: stacked, from the name column to the edge", width: 52, rows: 21,
-			want: []bounds{{16, 0, 35, 7}, {16, 7, 35, 7}, {16, 14, 35, 7}}, least: 2 + 3*7, most: 2 + 3*21},
+		{name: "52, two: a chart a row, from column 0", width: 52, windows: 2,
+			want: slices.Concat(chartsOn(0, 7, [2]int{0, 51}), chartsOn(7, 7, [2]int{0, 51})), least: 2 + 2*7},
+		{name: "73, two: side by side from column 0", width: 73, windows: 2, want: two([2]int{0, 34}, [2]int{37, 34}), least: 2 + 7},
+		{name: "108, two: from the name column", width: 108, windows: 2, want: two([2]int{16, 44}, [2]int{63, 44}), least: 2 + 7},
+		{name: "120, two", width: 120, windows: 2, want: two([2]int{16, 50}, [2]int{69, 50}), least: 2 + 7},
+		{name: "138, two", width: 138, windows: 2, want: two([2]int{16, 59}, [2]int{78, 59}), least: 2 + 7},
+		{name: "160, two", width: 160, windows: 2, want: two([2]int{16, 70}, [2]int{89, 70}), least: 2 + 7},
+		{name: "173, two", width: 173, windows: 2, want: two([2]int{16, 77}, [2]int{96, 77}), least: 2 + 7},
+		{name: "220, two", width: 220, windows: 2, want: two([2]int{16, 100}, [2]int{119, 100}), least: 2 + 7},
+		{name: "52, three: a chart a row, from column 0", width: 52, windows: 3,
+			want: slices.Concat(chartsOn(0, 7, [2]int{0, 51}), chartsOn(7, 7, [2]int{0, 51}), chartsOn(14, 7, [2]int{0, 51})), least: 2 + 3*7},
+		{name: "73, three: two from column 0, the third under them", width: 73, windows: 3,
+			want: slices.Concat(chartsOn(0, 7, [2]int{0, 34}, [2]int{37, 34}), chartsOn(7, 7, [2]int{0, 34})), least: 2 + 2*7},
+		{name: "108, three: under 30 from the name column, so from column 0", width: 108, windows: 3,
+			want: two([2]int{0, 33}, [2]int{36, 33}, [2]int{72, 33}), least: 2 + 7},
+		{name: "120, three: from the name column", width: 120, windows: 3, want: two([2]int{16, 32}, [2]int{51, 32}, [2]int{86, 32}), least: 2 + 7},
+		{name: "138, three", width: 138, windows: 3, want: two([2]int{16, 38}, [2]int{57, 38}, [2]int{98, 38}), least: 2 + 7},
+		{name: "160, three: 45 cells every 48", width: 160, windows: 3, want: two([2]int{16, 45}, [2]int{64, 45}, [2]int{112, 45}), least: 2 + 7},
+		{name: "173, three", width: 173, windows: 3, want: two([2]int{16, 50}, [2]int{69, 50}, [2]int{122, 50}), least: 2 + 7},
+		{name: "220, three", width: 220, windows: 3, want: two([2]int{16, 65}, [2]int{84, 65}, [2]int{152, 65}), least: 2 + 7},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := Frame{Width: tt.width, Height: 70, Focus: "work", Policy: claudeLike, Models: true}
+			f := Frame{Width: tt.width, Height: 70, Focus: "work", Policy: claudeLike, Models: tt.windows == 3}
 			g := f.graphsOf(doc, printNow)
 			var got []bounds
 			for i := range g.charts {
-				got = append(got, g.placed(i, bounds{width: tt.width, rows: tt.rows}))
+				got = append(got, g.placed(i, bounds{width: tt.width, rows: tt.least - sectionHead}))
 			}
 			if !slices.Equal(got, tt.want) {
 				t.Errorf("the charts are placed %v, want %v", got, tt.want)
 			}
-			if s := f.graphsSection(doc, printNow); s.least != tt.least || s.most != tt.most {
-				t.Errorf("GRAPHS takes %d to %d rows, want %d to %d", s.least, s.most, tt.least, tt.most)
+			s := f.graphsSection(doc, printNow)
+			rowsOfCharts := (tt.least - sectionHead) / (leastChart + chartEnds)
+			if most := sectionHead + rowsOfCharts*(mostChart+chartEnds); s.least != tt.least || s.most != most {
+				t.Errorf("GRAPHS takes %d to %d rows, want %d to %d: its rows of charts, each from 5 rows of chart to 19 and its two ends", s.least, s.most, tt.least, most)
 			}
 		})
+	}
+}
+
+func TestGRAPHSRowsOfChartsGrowARowAtATimeTheOddRowToTheFirstEachTo19RowsOfChart(t *testing.T) {
+	g := Frame{Width: 73, Height: 70, Focus: "work", Policy: claudeLike, Models: true}.graphsOf(trio(), printNow)
+	tests := []struct{ rows, first, second int }{
+		{rows: 14, first: 7, second: 7},
+		{rows: 15, first: 8, second: 7},
+		{rows: 16, first: 8, second: 8},
+		{rows: 42, first: 21, second: 21},
+		{rows: 50, first: 21, second: 21},
+	}
+	for _, tt := range tests {
+		first, third := g.placed(0, bounds{rows: tt.rows}), g.placed(2, bounds{rows: tt.rows})
+		if first.rows != tt.first || third.y != tt.first || third.rows != tt.second {
+			t.Errorf("in %d rows, the first row of charts takes %d and the second %d from row %d, want %d and %d from row %d",
+				tt.rows, first.rows, third.rows, third.y, tt.first, tt.second, tt.first)
+		}
+	}
+}
+
+func TestNoChartIsUnder30CellsAcrossNorPastTheFramesEdge(t *testing.T) {
+	for width := 31; width <= 300; width++ {
+		for k := 1; k <= 4; k++ {
+			for _, names := range []int{12, 16, 24} {
+				laid := layAcross(k, width, names)
+				for _, s := range laid.spans {
+					if s.Size < leastChartCells || laid.x+s.At+s.Size > width {
+						t.Fatalf("of %d windows at %d columns, names %d cells, a chart lies from %d, %d cells: want 30 or more, within the frame", k, width, names, laid.x+s.At, s.Size)
+					}
+				}
+			}
+			// besideToday, USAGE's least by account, is excused: it's the
+			// drawing before every chart showed, its charts 24 cells at the
+			// least, the owner's call of 21 October 2026.
+			for _, form := range []besideForm{besideStacked, besideTall} {
+				for _, s := range form.across(k, width).spans {
+					if s.Size < leastChartCells || s.At+s.Size > width {
+						t.Fatalf("of %d windows beside USAGE's blocks in %d cells, a chart lies from %d, %d cells: want 30 or more, within them", k, width, s.At, s.Size)
+					}
+				}
+			}
+		}
+	}
+}
+
+func TestGRAPHSChartsAcrossHangOnTheWidthAndTheWindowsAloneNeverOnWhatTheyHold(t *testing.T) {
+	for _, width := range []int{52, 73, 108, 160} {
+		work := Frame{Width: width, Height: 70, Focus: "work", Policy: claudeLike, Models: true}
+		side := work
+		side.Focus = "side"
+		now, later := work.graphsOf(trio(), printNow), side.graphsOf(trio(), printNow.Add(3*time.Hour))
+		if !slices.Equal(now.across.spans, later.across.spans) || now.across.x != later.across.x {
+			t.Errorf("at %d columns, the charts lie %+v of work now and %+v of side three hours on, want them alike", width, now.across, later.across)
+		}
+	}
+}
+
+func TestGRAPHSShowsOnAPhoneOfItsOwnRowsWithGRAPHSOn(t *testing.T) {
+	f := Frame{Width: 73, Height: 61, View: Overview, Policy: claudeLike, Sections: Sections{}.Toggled(SectionGraphs)}
+	for _, p := range f.laidOut(trio(), printNow, f.top()) {
+		if p.Section == SectionGraphs && (p.fold || p.body.rows < leastChart+chartEnds) {
+			t.Errorf("at 73 × 61, GRAPHS folds: %v, with %d rows of body, want it shown, its charts at 5 rows at least", p.fold, p.body.rows)
+		}
 	}
 }
 

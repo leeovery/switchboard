@@ -77,8 +77,8 @@ type usageBlock struct {
 	// many accounts' rows are scrolled out of view above those shown, and
 	// below; spare are the rows those shown leave blank under them, over
 	// the pool's, so the pool and the key line keep their rows however far
-	// the block's scrolled; and charted is whether GRAPHS' charts sit beside
-	// its blocks by account.
+	// the block's scrolled; charted is whether GRAPHS' charts sit beside its
+	// blocks by account, and beside the form they take there.
 	big          bool
 	accountBar   int
 	focus        string
@@ -86,6 +86,7 @@ type usageBlock struct {
 	above, below int
 	spare        int
 	charted      bool
+	beside       besideForm
 }
 
 // shownWindow is a window the block shows: its key, and its name, as in
@@ -430,7 +431,7 @@ func (b usageBlock) bar() int {
 	case b.by == ByAccount && b.accountBar > 0:
 		return b.accountBar
 	case b.by == ByAccount:
-		labelAt, cells := b.labels()
+		labelAt, cells, _ := b.labels()
 		return max(b.width-labelAt-cells-afterBar-b.wordCells()-afterWords, 0)
 	case b.matrixed():
 		return b.matrixBar()
@@ -570,53 +571,90 @@ func (b usageBlock) split() ([]usageRow, *usageRow) {
 // line of its own above, and the labels a cell in. Its bars take what the
 // block's width leaves them, and its words end a cell before the edge, but
 // where the Overview sets its bars: then its words end besideCells before
-// besideAt, the gap before ROUTING's blocks beside them.
+// besideAt, the gap before ROUTING's blocks beside them. After the last
+// block come the rows under it what's beside it takes, as under has them,
+// the first of them the blank line before the key line.
 func (b usageBlock) byAccount(c *canvas, y int) laid {
-	labelAt, cells := b.labels()
+	labelAt, cells, above := b.labels()
 	bar, end := b.bar(), b.width-afterWords
 	if b.accountBar > 0 {
 		end = b.besideAt() - besideCells
 	}
 	l := b.each(c, 0, y, b.blocksApart(), func(r usageRow, y int) int {
 		c.line(0, y, r.name)
-		if b.width < wideAccounts {
-			y++
-		}
 		for j, g := range r.gauges {
-			if j > 0 {
-				y += 2
-			}
-			c.line(labelAt, y, line{{prose.Cut(status.Short(b.windows[j].name), cells-1), dimInk}})
-			b.gauge(c, g, labelAt+cells, y, bar, end)
+			at := y + b.windowRow(j)
+			c.line(labelAt, at, line{{prose.Cut(status.Short(b.windows[j].name), cells-1), dimInk}})
+			b.gauge(c, g, labelAt+cells, at, bar, end)
 		}
-		return y
+		return y + b.blockRows() - 1
 	})
-	if b.width < wideAccounts {
+	if above {
 		for _, p := range l.placed {
 			l.heads = append(l.heads, headed{at: p.y, first: p.y + 1})
 		}
 	}
+	l.end += max(b.under()-1, 0)
 	return l
 }
 
 // blocksApart is how far a block by account's first row is from the last
-// of the block before: a blank line between them, as before the key line;
-// two where GRAPHS' charts sit beside them, each chart's axis on the first.
+// of the block before: a blank line between them, as before the key line,
+// after the rows under it what's beside it takes, as under has them.
 func (b usageBlock) blocksApart() int {
-	if b.charted {
-		return 3
-	}
-	return 2
+	return b.under() + 2
 }
 
-// labels are the column a block by account's window labels start at, and the
-// cells they take: wide, from 110 columns, the name column and 10 cells;
-// else a cell in, and a cell more.
-func (b usageBlock) labels() (at, cells int) {
-	if b.width < wideAccounts {
-		return 1, windowLabelCells + 1
+// under are the rows under a block by account's last that what's beside it
+// takes: none; but where GRAPHS' charts sit beside them, from the block's
+// first row, the axis row under it at the least, or as many as give each row
+// of charts, as the block's form lays them out, the rows of chart its form
+// has.
+func (b usageBlock) under() int {
+	if !b.charted {
+		return 0
 	}
-	return b.names, windowLabelCells
+	rows := b.besideCharts().rowsFor(len(b.windows))
+	return max(rows*(b.beside.chartRows()+chartEnds), b.blockRows()+1) - b.blockRows()
+}
+
+// besideCharts are how GRAPHS' charts lie across beside the block's blocks by
+// account, from besideAt to the frame's edge, as its form lays its windows'
+// out: every block's in the same columns.
+func (b usageBlock) besideCharts() chartsAcross {
+	return b.beside.across(len(b.windows), b.width-margin-b.besideAt())
+}
+
+// windowApart are the rows from one window's row of a block by account to
+// the next's.
+const windowApart = 2
+
+// windowRow is the row of window j in a block by account, from its first:
+// after the name's line, where it has one of its own, as labels says, a
+// window's every other row.
+func (b usageBlock) windowRow(j int) int {
+	row := windowApart * j
+	if _, _, above := b.labels(); above {
+		row++
+	}
+	return row
+}
+
+// blockRows are the rows a block by account takes, from its first to its
+// last window's, as windowRow places them.
+func (b usageBlock) blockRows() int {
+	return b.windowRow(len(b.windows)-1) + 1
+}
+
+// labels are the column a block by account's window labels start at, the
+// cells they take, and whether its name is on a line of its own above them:
+// wide, from 110 columns, the name column and 10 cells, the name beside the
+// first; else a cell in, and a cell more, the name above.
+func (b usageBlock) labels() (at, cells int, above bool) {
+	if b.width < wideAccounts {
+		return 1, windowLabelCells + 1, true
+	}
+	return b.names, windowLabelCells, false
 }
 
 // gauge draws g from x along row y: its bar, bar cells long, marked as its

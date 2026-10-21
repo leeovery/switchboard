@@ -100,9 +100,10 @@ The key line under the block names the marks:
 
 ### GRAPHS
 
-GRAPHS charts the focused account's windows, one chart a window, each under its window's column
-and running from the window's start to its reset. `v` flips between two charts, and the dashboard
-remembers which:
+GRAPHS charts the focused account's windows, one chart a window, running from the window's start
+to its reset. Where every chart fits under USAGE's bars, each sits under its window's column;
+narrower, they start at the left edge, as many side by side as fit, the rest on the rows under.
+`v` flips between two charts, and the dashboard remembers which:
 
 - **The burn-up** fills with the use so far, and shows the window's cap, even pace and now.
 - **The burn-down** falls from full as the room is used. A dotted line heads on from now at the
@@ -112,8 +113,9 @@ remembers which:
 
 `↑` and `↓` move the focus between accounts. USAGE lights the focused account.
 
-By account, from 150 columns, GRAPHS draws every account's charts beside its block instead, as
-many of its windows as fit, and there's no focus to move. Beside `Σ pool`, the pool's charts show
+By account, from 150 columns, GRAPHS draws every account's charts beside its block instead: as
+many of its windows as fit side by side, and with rows to spare, every one, the rest under them,
+taller as the rows allow. There's no focus to move. Beside `Σ pool`, the pool's charts show
 the room its accounts had left over each window's length back to now, each to its cap, summed, as
 Runway judges how each stood: one held back from every request counts none of its 5-hour window.
 Each account's reset shows as a step up. Narrower, and on a phone, GRAPHS charts the focused

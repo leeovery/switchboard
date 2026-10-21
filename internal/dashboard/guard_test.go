@@ -56,8 +56,6 @@ var phoneAllowed = []string{
 	// S12: USAGE's key, and the room it says is left.
 	"internal/dashboard/overview_usage.go:Frame.overviewBlock",
 	"internal/dashboard/overview_usage.go:Frame.roomLeft",
-	// S13: GRAPHS.
-	"internal/dashboard/graphs.go:Frame.graphsOf",
 	// S14: USAGE's key, its parts spaced apart by the width.
 	"internal/dashboard/usage.go:keyApart",
 	// S16, S17 and S25: the form Accounts draws its views in, Compare's
@@ -107,7 +105,6 @@ var sizedAllowed = []string{
 	"internal/dashboard/usage.go:nameColumn",
 	"internal/dashboard/usage.go:usageBlock.wordCells",
 	"internal/dashboard/usage.go:usageBlock.matrixed",
-	"internal/dashboard/usage.go:usageBlock.byAccount",
 	"internal/dashboard/usage.go:usageBlock.labels",
 	"internal/dashboard/usage.go:usageBlock.key",
 	"internal/dashboard/usagewords.go:usageWords.pick",

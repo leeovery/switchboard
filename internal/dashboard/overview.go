@@ -189,8 +189,10 @@ type section struct {
 	Section
 	// least and most are the fewest rows the section takes and the most,
 	// but for one that lists lines, whose most lines tells, as mostRows has
-	// it.
+	// it; between are the rows past its least and short of its most it may
+	// grow to whole, as whole grows it, the fewest first.
 	least, most int
+	between     []int
 	// aside is the column a section of no rows of its own is drawn from
 	// beside this one, in its rows, as ROUTING is beside USAGE's blocks by
 	// account: 0 where none can be.
@@ -473,12 +475,19 @@ func rowByRow(units []*unit, spare int) int {
 }
 
 // whole grows each unit to its most where that fits whole in the rows to
-// spare, and returns how many are left.
+// spare, else to the most of its sections' steps between that does, and
+// returns how many are left.
 func whole(units []*unit, spare int) int {
 	for _, u := range units {
-		if need := u.most() - u.rows; need > 0 && need <= spare {
-			u.rows, spare = u.rows+need, spare-need
+		to := u.rows
+		for _, s := range u.sections {
+			for _, step := range slices.Concat(s.between, []int{u.most()}) {
+				if step > to && step-u.rows <= spare {
+					to = step
+				}
+			}
 		}
+		u.rows, spare = to, spare-(to-u.rows)
 	}
 	return spare
 }
