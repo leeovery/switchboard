@@ -53,9 +53,6 @@ var phoneAllowed = []string{
 	"internal/dashboard/sessionslanes.go:Frame.lanesOf",
 	// S7: the List's columns.
 	"internal/dashboard/sessionslist.go:Frame.listColumns",
-	// S9: Runway's legend and COMING UP.
-	"internal/dashboard/runwaycoming.go:Frame.runwayComing",
-	"internal/dashboard/runwaylegend.go:Frame.runwayLegendLines",
 	// S10: the Overview's sections, side by side or not.
 	"internal/dashboard/overview.go:Frame.joins",
 	// S12: USAGE's key, and the room it says is left.

@@ -181,35 +181,6 @@ var knownBreaks = []known{
 		slice: "S7", rule: cutWithRoom, sizes: []string{"73x61", "73x36", "138x30", "138x15", "108x44", "108x24", "173x53", "109x53"},
 		fixtures: []string{"sessions-list-long-names-108x44"},
 	},
-	// S9, Runway's rows (F23, F24): COMING UP folded whole with rows spare, and
-	// no lane at 15 rows.
-	{
-		slice: "S9", rule: foldWithRowsSpare, sizes: []string{"138x30"},
-		fixtures: []string{
-			"long-names-runway", "runway-138x15", "runway-173x53", "runway-collapsed-108x43",
-			"runway-collapsed-160", "runway-phone-52", "runway-phone-collapsed-52", "runway-week-160",
-		},
-	},
-	{
-		slice: "S9", rule: foldWithRowsSpare, sizes: []string{"73x61", "108x44", "173x53", "109x53"},
-		fixtures: []string{"runway-ten-accounts-160"},
-	},
-	{
-		slice: "S9", rule: nothingDrawn, sizes: []string{"138x15"},
-		fixtures: []string{
-			"long-names-runway", "runway-138x15", "runway-173x53", "runway-5-hour-160",
-			"runway-collapsed-108x43", "runway-collapsed-160", "runway-phone-52", "runway-phone-collapsed-52",
-			"runway-stepped-back-160", "runway-ten-accounts-160", "runway-week-160",
-		},
-	},
-	{
-		slice: "S9", rule: wastedThird, sizes: []string{"138x15"},
-		fixtures: []string{
-			"long-names-runway", "runway-138x15", "runway-173x53", "runway-5-hour-160",
-			"runway-collapsed-108x43", "runway-collapsed-160", "runway-phone-52", "runway-phone-collapsed-52",
-			"runway-stepped-back-160", "runway-ten-accounts-160", "runway-week-160",
-		},
-	},
 	// S10, the Overview's rows on flex (F1): sections folded with rows spare.
 	{
 		slice: "S10", rule: foldWithRowsSpare, sizes: []string{"73x61"},

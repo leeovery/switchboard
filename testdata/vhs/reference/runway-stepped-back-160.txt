@@ -20,18 +20,18 @@ RUNWAY   Wed 30 Sep ────────────────────
 Σ pool                                                                                                    ▃▃▃▃▃▃▃▃▃▃▃▃▃            ▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
 █ room    ─ at its limit    │ its 5-hour resets    a column 10 minutes · under each name, the day's highest
-
-
-
-
-
-
-
-
-
-
-
-
-
 tab views   < > window  ←→ day    a names    p pin    ? help  q quit

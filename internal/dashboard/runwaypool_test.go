@@ -43,9 +43,10 @@ func framesDoc() status.Document {
 // full cells a background, the top cell part-filled, as GRAPHS fills its
 // columns; coloured as usage colours the pool's use, the share without
 // room, its ramp's first stop under 70%, its second from 70%, its last from
-// 90%; ─ in state.destructive on its lower row where none of its accounts
-// has room, as a lane held back from every request is drawn; and blank where
-// none of their states is known.
+// 90%, and with any room, ▃ at the least; ▂ in state.destructive on its
+// lower row where none of its accounts has room, a limit's ink, a
+// quarter-cell along its floor; and blank where none of their states is
+// known.
 func TestThePoolsColumnsAreAsHighAsTheShareOfItsAccountsWithRoom(t *testing.T) {
 	full := func(tok theme.Token) seenCell { return seenCell{" ", ink{on: hue{token: tok}}} }
 	part := func(glyph string, tok theme.Token) seenCell { return seenCell{glyph, ink{token: tok}} }
@@ -61,8 +62,8 @@ func TestThePoolsColumnsAreAsHighAsTheShareOfItsAccountsWithRoom(t *testing.T) {
 		{name: "nine of ten", col: views.PoolColumn{With: 9, Known: true}, of: 10, top: part("▆", theme.VizRamp1), bottom: full(theme.VizRamp1)},
 		{name: "eight of ten", col: views.PoolColumn{With: 8, Known: true}, of: 10, top: part("▅", theme.VizRamp1), bottom: full(theme.VizRamp1)},
 		{name: "three of ten, 70% without", col: views.PoolColumn{With: 3, Known: true}, of: 10, top: blankCell, bottom: part("▅", theme.VizRamp2)},
-		{name: "one of ten, 90% without", col: views.PoolColumn{With: 1, Known: true}, of: 10, top: blankCell, bottom: part("▂", theme.VizRamp4)},
-		{name: "none of three", col: views.PoolColumn{Known: true}, of: 3, top: blankCell, bottom: seenCell{"─", errorInk}},
+		{name: "one of ten, 90% without", col: views.PoolColumn{With: 1, Known: true}, of: 10, top: blankCell, bottom: part("▃", theme.VizRamp4)},
+		{name: "none of three", col: views.PoolColumn{Known: true}, of: 3, top: blankCell, bottom: seenCell{"▂", errorInk}},
 		{name: "none known", col: views.PoolColumn{}, of: 3, top: blankCell, bottom: blankCell},
 	}
 	for _, tt := range tests {
@@ -135,9 +136,41 @@ func TestThePoolsPastIsDimmed(t *testing.T) {
 	}
 }
 
+// ▂ on the lane's floor means the pool at its limit alone: a column of the
+// pool's with any of its accounts with room, in any share, down to 1 of 40,
+// fills ▃ at the least on its lower row, or the whole cell. On its upper
+// row, ▂ stands on a full cell, so it can't be read as the limit.
+func TestAPoolsColumnWithRoomFillsThreeEighthsAtTheLeast(t *testing.T) {
+	look := Screen(builtin(t, "nord"))
+	pools := []int{40}
+	for of := 2; of <= 24; of++ {
+		pools = append(pools, of)
+	}
+	for _, of := range pools {
+		doc := runwayDoc(of)
+		columns := make([]views.PoolColumn, RunwayShown{}.Columns(160))
+		for i := range columns {
+			columns[i] = views.PoolColumn{With: 1 + i%of, Known: true}
+		}
+		c, top := poolDrawn(poolShown(doc, views.Pool{Of: of, Key: "5h", Columns: columns}), doc, look)
+		x := RunwayShown{}.lanesFrom(160)
+		for i, col := range columns {
+			if lower := cellAt(c, x+i, top+1); !atLeastThreeEighths(lower) {
+				t.Errorf("%d of %d with room, the column's lower row is %+v, want ▃ or fuller", col.With, of, lower)
+			}
+		}
+	}
+}
+
+// atLeastThreeEighths reports whether the cell is filled three eighths of
+// the way up or more: ▃ to ▇, or a full cell, its ground.
+func atLeastThreeEighths(cell seenCell) bool {
+	return slices.Contains([]string{"▃", "▄", "▅", "▆", "▇"}, cell.glyph) || cell.glyph == " " && cell.ink.on != (hue{})
+}
+
 // A column of the pool's where none of its accounts has room is dimmed
 // before now's column as the past is, and where the look has no colour, its
-// ─ is bold, as a lane's held back from every request is.
+// ▂ is bold, as a lane's held back from every request is.
 func TestThePoolsColumnsWithNoRoomAreDrawnAsALanesHeldBack(t *testing.T) {
 	doc := runwayDoc(3)
 	columns := slices.Repeat([]views.PoolColumn{{Known: true}}, RunwayShown{}.Columns(160))
@@ -149,9 +182,9 @@ func TestThePoolsColumnsWithNoRoomAreDrawnAsALanesHeldBack(t *testing.T) {
 		column int
 		want   seenCell
 	}{
-		{name: "before now's column", look: func(t *testing.T) Look { return Screen(builtin(t, "nord")) }, column: now - 1, want: seenCell{"─", ink{token: errorInk.token, fade: pastFade}}},
-		{name: "after now's column", look: func(t *testing.T) Look { return Screen(builtin(t, "nord")) }, column: now + 1, want: seenCell{"─", errorInk}},
-		{name: "without colour", look: func(*testing.T) Look { return NoColour() }, column: now + 1, want: seenCell{"─", exhaustedInk}},
+		{name: "before now's column", look: func(t *testing.T) Look { return Screen(builtin(t, "nord")) }, column: now - 1, want: seenCell{"▂", ink{token: errorInk.token, fade: pastFade}}},
+		{name: "after now's column", look: func(t *testing.T) Look { return Screen(builtin(t, "nord")) }, column: now + 1, want: seenCell{"▂", errorInk}},
+		{name: "without colour", look: func(*testing.T) Look { return NoColour() }, column: now + 1, want: seenCell{"▂", exhaustedInk}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

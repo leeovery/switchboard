@@ -21,12 +21,9 @@ RUNWAY  ────────────────────────
 
   5-hour 1.5 of 3 left
 
-█ room    ─ at its cap    │ its 5-hour resets    a column ≈ 9.4 minutes · the past dimmed
-
 COMING UP
-16:30  personal's 5-hour resets                                in 1h 48m
-17:10  work back from its cap                                  in 2h 28m
-18:50  side's 5-hour resets                                    in 4h 08m
+16:30  personal's 5-hour resets                                      in 1h 48m    18:50  side's 5-hour resets                                          in 4h 08m
+17:10  work back from its cap                                        in 2h 28m
 
 
 
@@ -34,4 +31,7 @@ COMING UP
 
 
 
+
+
+█ room    ─ at its cap    │ its 5-hour resets    a column ≈ 9.4 minutes · the past dimmed
 tab views   < > window  ←→ day    a names    p pin    ? help  q quit
