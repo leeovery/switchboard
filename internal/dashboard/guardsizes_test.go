@@ -35,7 +35,7 @@ var flipped = map[token.Token]token.Token{token.LSS: token.GTR, token.LEQ: token
 // each by its name as sourcecheck.Names has it, that measure what's drawn
 // rather than read the frame, so a call of one reads no size, as
 // ansi.StringWidth reads none: a fit of what's measured to a constant is a
-// cut's, Rule 2's, not an arrangement's.
+// cut's, Rule 2's, not an arrangement's. Each must still be there.
 var contentMeasures = []string{
 	// A line's cells, its spans' widths summed.
 	"dashboard.line.width",
@@ -53,17 +53,18 @@ var contentMeasures = []string{
 
 // sizes judge what's compared with a size in the drawing packages, by the
 // widths worked out of them, and the packages' paths, whose functions giving
-// a size read one, but contentMeasures, named as names names them.
+// a size read one, but the measures of content, named as names names them.
 type sizes struct {
 	widths
-	drawing map[string]bool
-	names   sourcecheck.Names
+	drawing  map[string]bool
+	names    sourcecheck.Names
+	measures []string
 }
 
-// sizesOf are the sizes of the files given, by their widths w, named as
-// names names them.
-func sizesOf(files []sourcecheck.File, w widths, names sourcecheck.Names) sizes {
-	s := sizes{widths: w, drawing: make(map[string]bool), names: names}
+// sizesOf are the sizes of the files given, by their widths w, passing over
+// the measures, as contentMeasures names them, named as names names them.
+func sizesOf(files []sourcecheck.File, w widths, names sourcecheck.Names, measures []string) sizes {
+	s := sizes{widths: w, drawing: make(map[string]bool), names: names, measures: measures}
 	for _, f := range files {
 		s.drawing[f.Pkg.Path()] = true
 	}
@@ -190,7 +191,30 @@ func (s sizes) readsASize(e ast.Expr, info *types.Info) bool {
 func (s sizes) givesASize(call *ast.CallExpr, info *types.Info) bool {
 	fn, ok := info.Uses[calledIdent(call.Fun)].(*types.Func)
 	return ok && fn.Pkg() != nil && s.drawing[fn.Pkg().Path()] && namesASize(fn.Name()) &&
-		!slices.Contains(contentMeasures, s.names.Func(fn)) && isWhole(info.Types[call].Type)
+		!slices.Contains(s.measures, s.names.Func(fn)) && isWhole(info.Types[call].Type)
+}
+
+// goneMeasures say of each measure no function or method of the files
+// declares that it's gone, so a measure renamed fails the guard rather than
+// passing over nothing.
+func (s sizes) goneMeasures(files []sourcecheck.File) []string {
+	declared := make(map[string]bool)
+	for _, f := range files {
+		for _, decl := range f.AST.Decls {
+			if fd, ok := decl.(*ast.FuncDecl); ok {
+				if fn, ok := f.Info.Defs[fd.Name].(*types.Func); ok {
+					declared[s.names.Func(fn)] = true
+				}
+			}
+		}
+	}
+	var gone []string
+	for _, measure := range s.measures {
+		if !declared[measure] {
+			gone = append(gone, measure+": contentMeasures names it, but it's gone; "+measuresFix)
+		}
+	}
+	return gone
 }
 
 // calledIdent is the identifier naming the function fun calls, through
