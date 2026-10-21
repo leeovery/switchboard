@@ -114,35 +114,49 @@ const (
 	stackPeakGap   = 1
 )
 
-// The parts of a phone's USAGE row across a frame, in stackUsageLaid's order.
+// The parts of Detail's USAGE row, stacked or wide, in detailUsageLaid's
+// order.
 const (
-	stackNames = iota
-	stackBar
-	stackAfterBar
-	stackWords
+	detailUsageNames = iota
+	detailUsageBar
+	detailUsageAfter
+	detailUsageWords
 )
 
-// stackUsage is where a phone's USAGE row's parts sit: its names' cells, and
-// where its bars start and their cells.
-type stackUsage struct {
+// detailUsage is where Detail's USAGE row's parts sit, stacked or wide: its
+// names' cells, and where its bars start and their cells.
+type detailUsage struct {
 	names, at, bar int
 }
 
-// stackUsageLaid is a phone's USAGE row laid out in room cells, as flex lays
-// it: its windows' names, names cells at their widest, between
-// compareNameLeast and compareNameMost; a cell on, its bars, at least
-// stackBarLeast; then afterBar's cells, their percentages among them; and
-// their words, in words cells. The bars take their least first, then the
-// names are raised toward their widest, then the bars grow into what's left,
-// at most barMost, as every bar beside words does.
-func stackUsageLaid(room, names, words int) stackUsage {
-	s, _ := flex.Lay(room, []flex.Part{
-		stackNames:    {Least: compareNameLeast, Natural: names, Most: compareNameMost},
-		stackBar:      {Least: stackBarLeast, Natural: stackBarLeast, Grows: true, Most: barMost, Gap: 1},
-		stackAfterBar: {Least: afterBar, Natural: afterBar},
-		stackWords:    {Least: words, Natural: words},
-	}...)
-	return stackUsage{names: s[stackNames].Size, at: s[stackBar].At, bar: s[stackBar].Size}
+// detailUsageLaid is Detail's USAGE row laid out in room cells, as flex lays
+// it, and whether its parts' leasts fit: its windows' names, names cells at
+// their widest, between compareNameLeast and compareNameMost; a cell on, its
+// bars, at least stackBarLeast; then afterBar's cells, their percentages
+// among them; and their words, in words cells. The bars take their least
+// first, then the names are raised toward their widest, then the bars grow
+// into what's left, at most barMost, as every bar beside words does.
+func detailUsageLaid(room, names, words int) (detailUsage, bool) {
+	s, ok := flex.Lay(room, detailUsageParts(names, words)...)
+	return detailUsage{names: s[detailUsageNames].Size, at: s[detailUsageBar].At, bar: s[detailUsageBar].Size}, ok
+}
+
+// detailUsageLeast are the fewest cells Detail's USAGE row takes, its words
+// words cells: its parts at their leasts.
+func detailUsageLeast(words int) int {
+	s, _ := flex.Lay(0, detailUsageParts(0, words)...)
+	return s[detailUsageWords].At + s[detailUsageWords].Size
+}
+
+// detailUsageParts are Detail's USAGE row's parts, as detailUsageLaid lays
+// them.
+func detailUsageParts(names, words int) []flex.Part {
+	return []flex.Part{
+		detailUsageNames: {Least: compareNameLeast, Natural: names, Most: compareNameMost},
+		detailUsageBar:   {Least: stackBarLeast, Natural: stackBarLeast, Grows: true, Most: barMost, Gap: 1},
+		detailUsageAfter: {Least: afterBar, Natural: afterBar},
+		detailUsageWords: {Least: words, Natural: words},
+	}
 }
 
 // partsApart is how far a phone's part is from the row before it, a blank
@@ -457,20 +471,16 @@ func (s stacked) named(cells int) line {
 
 // usage draws USAGE from row y, and returns the row its last window is on:
 // its heading, then every window, windowsApart rows apart, named in
-// text.subtle, then as Detail's gauge has it, laid out as stackUsageLaid lays
-// its row across the frame: its names as wide as the widest of every window
-// listed, shown or not, and its words the cells of their form at their
-// widest, so neither moves as the windows shown or their words change; its
-// words ending at the frame's edge.
+// text.subtle, then as Detail's gauge has it, laid out as detailUsageLaid
+// lays its row across the frame: its names as wide as windowNames has them,
+// and its words the cells of their form at their widest, so neither moves as
+// the windows shown or their words change; its words ending at the frame's
+// edge.
 func (s stacked) usage(c *canvas, y int) int {
 	c.line(0, y, line{{"USAGE", dimInk}})
 	c.heading(y, y+1)
 	b := usageBlock{width: s.f.Width, look: s.f.Look}
-	names := 0
-	for _, w := range usageWindows(s.m.Listed(true), s.f.windowNamer(s.m)) {
-		names = max(names, ansi.StringWidth(status.Short(w.name)))
-	}
-	l := stackUsageLaid(s.f.edge(), names, b.widestWords())
+	l, _ := detailUsageLaid(s.f.edge(), s.windowNames(), b.widestWords())
 	last := y
 	for i, w := range s.windows() {
 		last = y + 1 + i*windowsApart

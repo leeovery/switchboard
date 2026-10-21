@@ -277,16 +277,6 @@ var knownBreaks = []known{
 		slice: "S14", rule: cutWithRoom, sizes: []string{"73x61", "73x36"},
 		fixtures: []string{"overview-ten-accounts-160"},
 	},
-	// S17, Detail's wide form from where it fits (F11, F12): its names cut with
-	// room, and its stack drawn at 138 columns.
-	{
-		slice: "S17", rule: cutWithRoom, sizes: []string{"173x53"},
-		fixtures: []string{"long-names-accounts-detail"},
-	},
-	{
-		slice: "S17", rule: wastedThird, sizes: []string{"138x15"},
-		fixtures: []string{"accounts-detail-one-160"},
-	},
 	// S19, Days (F15): its weeks at 15 rows, and its names cut with room.
 	{
 		slice: "S19", rule: cutWithRoom, sizes: []string{"173x53"},

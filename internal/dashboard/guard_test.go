@@ -152,12 +152,9 @@ var cutAllowed = []string{
 	"internal/dashboard/sessionslist.go:routingColumn",
 	// S11: SESSIONS' model families.
 	"internal/dashboard/overview_sessions.go:Frame.wideRunning",
-	// S17: Detail's window names, its sessions' model families and how many
-	// more, and its LATELY's words.
-	"internal/dashboard/accountsdetail.go:detailDrawn.usage",
+	// S17: Detail's sessions' model families and how many more.
 	"internal/dashboard/accountsdetail.go:detailDrawn.session",
 	"internal/dashboard/accountsdetail.go:detailDrawn.sessions",
-	"internal/dashboard/accountsdetail.go:detailDrawn.panel",
 	// S19: Days' weeks' heads, and its strips' names, a cutter as a value.
 	"internal/dashboard/historydays.go:Frame.daysWeeks",
 	"internal/dashboard/historydays.go:Frame.daysStrips",

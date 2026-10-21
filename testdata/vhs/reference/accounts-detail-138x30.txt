@@ -4,27 +4,27 @@
 
 ACCOUNTS    Compare  Detail  [ ]  ─────────────────────────────────────────────────────────────────────────────────────────  < this week >
 
-◂ 1 work ▸                                                                                                           ↑↓ an account, or all
-● at its cap
-
-USAGE
-Week                  ▋       ┃                ╎   34%  19%/day till Sun 21:00
-
-5-hour                       ┃                 ╎   95%  at cap · back 17:10
-
-THIS WEEK
-requests  1,204           worth     $184
-limits    5-hour ×2       extra use off
-plan      Max 20x         against   4.0×
-
-BY MODEL
-● Opus 5.5 55%  ● Opus 5 7%  ● Sonnet 5.5 28%  ● Sonnet 5 3%  ● Fable 5.1 5%  ● Haiku 4.5 2%
-
-BY DAY    ▪ ▪ ▪ ▪ ▪      ▪ ▪ ▪ ▪ ▪      ▪ ▪ ▪ ▪ ▪      ▪ ▪ ▪   ▪      ▪ ▪ ▪ ▪ ▪        ▪ ▪   ······
-          24 Aug         31 Aug         7 Sep          14 Sep         21 Sep         28 Sep
-
-WEEKS      100%   94%  100%   81%  100%   34%…
-hits its limit most weeks
-limit hit 3 of 7 weeks · 9% left at a reset
-▼ 5 more below · j/k
+ 0 all accounts     │   1 work   ● at its cap · new sessions go elsewhere
+                    │
+ 1 work        ●    │   USAGE                                                                                      THIS WEEK
+                    │   Week                  ▋       ┃                ╎   34%  19%/day till Sun 21:00             requests  1,204
+ 2 personal ◆  ●    │                                                                                              limits    5-hour ×2
+                    │   5-hour                       ┃                 ╎   95%  at cap · back 17:10                plan      Max 20x
+ 3 side        ●    │                                                                                              worth     $184  4.0×
+                    │                                                                                              extra use off
+                    │
+ ↑↓ choose          │   BY MODEL
+                    │               ● Opus 5.5 55%  ● Opus 5 7%  ● Sonnet 5.5 28%  ● Sonnet 5 3%  ● Fable 5.1 5%  ● Haiku 4.5 2%
+                    │
+                    │   ┄┄ the last six weeks ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+                    │
+                    │   BY DAY      ▪ ▪ ▪ ▪ ▪        ▪ ▪ ▪ ▪ ▪        ▪ ▪ ▪ ▪ ▪        ▪ ▪ ▪   ▪        ▪ ▪ ▪ ▪ ▪          ▪ ▪   ······
+                    │               24 Aug           31 Aug           7 Sep            14 Sep           21 Sep           28 Sep
+                    │
+                    │   WEEKS                 100            ▌ 94               100           ▎  81               100              34
+                    │
+                    │   hits its limit most weeks   limit hit 3 of the last 7 weeks · 9% left at a reset, on average
+                    │
+                    │   LATELY      14:31  ╎ reached its cap: 3 sessions moved to side
+                        ▼ 2 more below · j/k
 tab views   [ ] view    < > period: this week    ↑↓ account  enter its page    p pin    ? help  q quit

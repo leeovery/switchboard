@@ -139,8 +139,8 @@ func (f Frame) detailHelp() helpPart {
 			said("The head says how the account stands with the router, and where new sessions go. Above the rule, USAGE "+
 				"is now, every window read as switchboard usage reads them; THIS WEEK, named for the period, and BY MODEL "+
 				"are the period's, THIS WEEK counting its requests and the limits it hit, by window, beside its plan, its "+
-				"worth against its price, and whether its extra usage is on. Below the rule, BY DAY and WEEKS always cover "+
-				"the last six weeks."),
+				"worth against its price, and whether its extra usage is on. Below the rule, BY DAY and WEEKS cover the "+
+				"weeks it names, the last six where they fit."),
 			said("BY DAY shades each day by how much of its week the account used that day, in History's five shades, on "+
 				"the account's own scale: each a quarter of its active days."),
 			said("WEEKS gives each week's peak, the use read just before the reset that ended it, and this week's, its "+

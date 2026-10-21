@@ -108,7 +108,7 @@ func headSays(d detailDrawn) string {
 // listSays is the glyph Detail's list draws beside account a, laid out with
 // its list, as with more than one account, its names fitted.
 func listSays(d detailDrawn, a status.AccountNow) string {
-	d.l = listedIn(d.f.listNames())
+	d.l.list, d.l.names = true, d.f.listNames()
 	c := growing(d.f.Width)
 	d.list(c, 0, d.f.viewRows())
 	return string([]rune(textOf(c.rows(Look{}))[a.Place*listApart])[d.l.dotAt()])
