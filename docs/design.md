@@ -1485,7 +1485,7 @@ never changes, a section hidden taking no room:
 | Section | Key | Shown at first | What it is |
 |---|---|---|---|
 | USAGE | `u` | yes | Every account's windows, `usage`'s block |
-| GRAPHS | `g` | no | The focused account's use so far in each window, under USAGE's columns; by account, every account's, beside its block, and the pool's room, beside `Σ pool` |
+| GRAPHS | `g` | no | The focused account's use so far in each window, under USAGE's bars where they fit there, else from the left edge; by account, every account's, beside its block, and the pool's room, beside `Σ pool` |
 | ROUTING | `r` | yes | How each account stands with the router, and its requests over the last 30 minutes |
 | SESSIONS | `s` | no | The sessions running, by account |
 | COMING UP | `c` | yes | What happens next, soonest first |
@@ -1641,13 +1641,14 @@ first (the owner's call, 15 October 2026).
        under another, none between them, the block's next a blank row after the last axis. Where
        the charts fit one row, it's the least's own rows, and no step of its own.
     3. **At USAGE's most:** as stacked, each row of charts the least of 5 rows, `h = 5`, the block
-       growing apart for them, a blank row before the next block, or after the pool's, before the
-       key line: 3 rows under a block of two windows side by side at 173, 11 under two stacked at
-       160 (the owner's call, 20 October 2026).
+       growing apart for them: the rows under a block's last that its charts take, the last of
+       them their axis, are 4 under a block of two windows side by side at 173, and 11 under two
+       stacked at 160. A blank row comes before the next block; under the pool's, the key line
+       sits directly under its charts' axis (the owner's call, 20 October 2026).
 
     The rows of charts share what they're given evenly, the odd row to the first. At 160 columns
-    with two windows, the stacked step comes from about 60 rows and 5 rows a chart from about 90;
-    with three, from about 75 and 110. Where USAGE's least doesn't fit, it scrolls, as it does by
+    with two windows, the stacked step comes from 57 rows and 5 rows a chart from 81; with three,
+    from 73 and 109. Where USAGE's least doesn't fit, it scrolls, as it does by
     window, showing as many accounts as it did before every chart showed: `▼` and how many more
     keep the row after the last block shown, and that block's charts are cut short to end on its
     last row, a row above `▼`, nothing drawn over it, as the accounts are the data and a chart's
@@ -1690,9 +1691,10 @@ first (the owner's call, 15 October 2026).
     focus:** `↑↓ focus` leaves the key line, and `↑` and `↓` do nothing.
   - Under 150 columns, where by account has no room beside its blocks, GRAPHS falls back to the
     focused account's charts, as by window.
-- **On a phone,** as everywhere, the charts lie as Placement has them, from column 0, the
-  burn-down as the burn-up (settled in the plan); by account, as by window, the focused account's
-  charts.
+- **At every width,** the charts lie as Placement has them: under USAGE's bars where every
+  window's chart is 30 cells or more there, as with two windows from 79 columns, else from column
+  0, as on a phone at 52 and 73. The burn-down lies as the burn-up (settled in the plan); by
+  account under 150 columns, the focused account's charts, as by window.
 
 **ROUTING** says how each account stands with the router, and how busy it's been.
 

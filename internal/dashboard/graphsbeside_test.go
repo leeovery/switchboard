@@ -5,6 +5,9 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // besideOf is a frame width columns wide, tall enough for USAGE by account
@@ -284,6 +287,28 @@ func TestBesideAreAsManyChartsAsTakeTheirLeastSideBySideSharingTheRoomTheRestUnd
 			if len(across.spans) != f.perRow || across.shown(f.k) != f.shown {
 				t.Errorf("form %d: of %d charts in %d cells, %d to a row and %d shown, want %d and %d", tt.form, f.k, f.room, len(across.spans), across.shown(f.k), f.perRow, f.shown)
 			}
+		}
+	}
+}
+
+// Where the charts stacked take no more rows than today's, the stacked form
+// is no step of its own, so USAGE at its least draws today's: with four
+// windows, side by side at 202 and 220 columns, as many rows of chart as the
+// block's 7 rows and the row after give, 6, not the stacked form's 2.
+func TestWithFourWindowsUSAGEsLeastDrawsTodaysChartsNotTheStackedForm(t *testing.T) {
+	sonnet := func(a *status.Account) {
+		a.Windows = append(a.Windows, quota.Window{Key: "7d_sonnet", Label: "Sonnet week", Utilization: 0.1, ResetsAt: on(4, 21, 0).UTC()})
+	}
+	four := trio(account("work", sonnet), account("personal", sonnet), account("side", sonnet))
+	for _, width := range []int{202, 220} {
+		f := besideOf(width)
+		f.Height, f.Burn = 52, BurnDown
+		if got := f.usageDrawn(four, printNow).beside; got != besideToday {
+			t.Errorf("at %d × 52, the charts beside USAGE's blocks are drawn in form %d, want today's, %d", width, got, besideToday)
+		}
+		rows, _ := usageBody(f, four, printNow, f.usageSection(four, printNow).least-sectionHead)
+		if got := colAt(rows[7], 107, 9); got != "Sun 21:00" {
+			t.Errorf("at %d columns, row 7 beside work's block reads %q, want the week's axis under 6 rows of chart", width, got)
 		}
 	}
 }

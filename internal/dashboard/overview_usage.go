@@ -385,13 +385,14 @@ func (v usageViews) shown(rows, offset int) usageShown {
 
 // fitted is the block as USAGE draws it in rows rows, scrolled offset
 // accounts' rows down: at its most, as enlarged has it, where that fits; else
-// stacked beside, where that fits; else as it's laid out, scrolled within the
-// rows where it doesn't fit. Only the rows given choose, never what it holds.
+// stacked beside, where that's a step of its own, as between has it, and
+// fits; else as it's laid out, scrolled within the rows where it doesn't
+// fit. Only the rows given choose, never what it holds.
 func (v usageViews) fitted(rows, offset int) usageBlock {
 	switch {
 	case v.big <= rows:
 		return v.block.enlarged()
-	case v.stacked <= rows:
+	case v.all < v.stacked && v.stacked <= rows:
 		return v.block.stackedBeside()
 	}
 	return v.scrolled(rows, offset)
@@ -515,7 +516,7 @@ func (b usageBlock) placed() []rowAt {
 // out of view below, what's beside the last shown is cut at the row after
 // its last, where ▼ and how many sit.
 func (s usageShown) beside(x int, body bounds) blocksBeside {
-	at := blocksBeside{x: x, under: s.block.under(), form: s.block.beside}
+	at := blocksBeside{x: x, under: s.block.under(), across: s.block.besideCharts()}
 	for _, p := range s.block.placed() {
 		p.y += body.y - s.from
 		at.blocks = append(at.blocks, p)

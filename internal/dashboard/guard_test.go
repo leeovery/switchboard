@@ -109,7 +109,6 @@ var sizedAllowed = []string{
 	"internal/dashboard/usage.go:nameColumn",
 	"internal/dashboard/usage.go:usageBlock.wordCells",
 	"internal/dashboard/usage.go:usageBlock.matrixed",
-	"internal/dashboard/usage.go:usageBlock.byAccount",
 	"internal/dashboard/usage.go:usageBlock.labels",
 	"internal/dashboard/usage.go:usageBlock.key",
 	"internal/dashboard/usagewords.go:usageWords.pick",

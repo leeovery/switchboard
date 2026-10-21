@@ -97,7 +97,7 @@ type besideChart interface {
 
 // chartsBeside draws the charts of doc at m's moment beside each block of
 // USAGE's by account, as at says the blocks lie, from its column to the
-// frame's edge, as chartsOfBlock has them, laid across as at's form has them;
+// frame's edge, as chartsOfBlock has them, laid across as at has them;
 // from the block's first row to the rows under its last that at gives what's
 // beside it, the rows of charts sharing them, the last's axis on the last of
 // them; but never on or past the row at cuts them at, so the last block
@@ -105,8 +105,7 @@ type besideChart interface {
 // end on its own last row.
 func (f Frame) chartsBeside(c *canvas, doc status.Document, m status.Moment, at blocksBeside) {
 	for _, block := range at.blocks {
-		charts := f.chartsOfBlock(doc, m, block.id)
-		across := at.form.across(len(charts), f.edge()-at.x)
+		charts, across := f.chartsOfBlock(doc, m, block.id), at.across
 		if len(across.spans) == 0 {
 			continue
 		}
@@ -138,8 +137,7 @@ func (f Frame) PoolCharts(doc status.Document, now time.Time) []PoolChart {
 		return nil
 	}
 	windows := f.overviewWindows(doc, now)
-	block := f.usageDrawn(doc, now)
-	across := block.beside.across(len(windows), f.edge()-block.besideAt())
+	across := f.usageDrawn(doc, now).besideCharts()
 	if len(across.spans) == 0 {
 		return nil
 	}

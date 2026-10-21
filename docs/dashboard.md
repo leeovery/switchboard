@@ -102,8 +102,8 @@ The key line under the block names the marks:
 
 GRAPHS charts the focused account's windows, one chart a window, running from the window's start
 to its reset. Where every chart fits under USAGE's bars, each sits under its window's column;
-narrower, they start at the left edge, as many side by side as fit, the rest on the rows under. `v` flips between two charts, and the dashboard
-remembers which:
+narrower, they start at the left edge, as many side by side as fit, the rest on the rows under.
+`v` flips between two charts, and the dashboard remembers which:
 
 - **The burn-up** fills with the use so far, and shows the window's cap, even pace and now.
 - **The burn-down** falls from full as the room is used. A dotted line heads on from now at the
