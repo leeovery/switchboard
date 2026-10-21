@@ -149,8 +149,8 @@ func (s Sections) none() bool {
 }
 
 // lists reports whether the section lists lines, as COMING UP and LATELY
-// do: side by side, but on a phone, they fold together, each to its first
-// line, and grow a line at a time.
+// do: side by side, where listsBeside says, they fold together, each to its
+// first line, and grow a line at a time.
 func (s Section) lists() bool {
 	return s == SectionComing || s == SectionLately
 }
@@ -397,8 +397,8 @@ func unitsFit(units []unit, room int) bool {
 
 // unitsOf are the units the sections are laid out in, in their order: a
 // section of no rows of its own beside the one that leaves room for it, as
-// aside says, and where none does, nowhere; LATELY beside COMING UP, but on
-// a phone, where it's under it; and each other section alone.
+// aside says, and where none does, nowhere; LATELY beside COMING UP, where
+// listsBeside says, else under it; and each other section alone.
 func (f Frame) unitsOf(sections []section) []unit {
 	var units []unit
 	for _, s := range sections {
@@ -416,14 +416,21 @@ func (f Frame) unitsOf(sections []section) []unit {
 // joins is which of the units laid out so far the section shares rows with,
 // reporting false where it takes rows of its own: for a section of no rows of
 // its own, the one that leaves room beside it; for one that lists lines, the
-// last, where it lists them too, but on a phone.
+// last, where it lists them too, and listsBeside says they sit side by side.
 func (f Frame) joins(units []unit, s section) (int, bool) {
 	if s.least == 0 {
 		i := slices.IndexFunc(units, func(u unit) bool { return u.sections[0].aside > 0 })
 		return i, i >= 0
 	}
 	last := len(units) - 1
-	return last, s.lists() && !f.phone() && last >= 0 && units[last].sections[0].lists()
+	return last, s.lists() && f.listsBeside() && last >= 0 && units[last].sections[0].lists()
+}
+
+// listsBeside reports whether COMING UP and LATELY sit side by side: where
+// each one's least fits in the columns columns gives it beside the other,
+// COMING UP comingWidth wide, and LATELY from latelyAt to the edge.
+func (f Frame) listsBeside() bool {
+	return comingLeast() <= comingWidth(f.Width) && latelyLeast() <= f.Width-latelyAt(f.Width)
 }
 
 // allot gives each unit its rows in room rows, and returns them: its least,

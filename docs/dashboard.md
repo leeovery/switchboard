@@ -164,7 +164,8 @@ session shows:
 
 ### COMING UP and LATELY
 
-COMING UP and LATELY sit side by side.
+COMING UP and LATELY sit side by side where both fit, and LATELY goes under COMING UP where they
+don't, as on a phone.
 
 - **COMING UP** is what happens next, soonest first, such as
   `16:30  personal's 5-hour resets  in 1h 48m`. A run-out's row is in the theme's attention colour.

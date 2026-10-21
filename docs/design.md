@@ -1806,8 +1806,20 @@ account in the config's order, a session whose models go to two accounts on each
 
 **COMING UP and LATELY** sit side by side: COMING UP from column 0, `round(w × 0.45)` wide, and
 LATELY from column `⌊w / 2⌋ + 2` to the edge, so 72 wide and from 82 at 160 columns, and 97 wide
-and from 110 at 216. Either alone takes the full width; on a phone, COMING UP comes first, then
-LATELY under it, each the full width, in their short words.
+and from 110 at 216. Either alone takes the full width. They sit side by side where each one's
+least fits in its column beside the other (`overview.go`, `listsBeside`), never by a width written
+down; else COMING UP comes first, then LATELY under it, each the full width. Each least is its
+line's fixed parts with an account's name at its least of 8, cut as the labels' rule allows, so the
+names configured never move the switch:
+
+- **COMING UP, 42 cells** (`comingLeast`): its time at its widest, `~Sat 06:00`, 10; the two blanks
+  after it; the name, 8; what befalls it at its shortest, ` is primed`, 10; and its countdown with
+  the gap before it, 12. It fits in `round(w × 0.45)` from 93 columns, so the two sit side by side
+  from 93, and from 100 are drawn as they were before.
+- **LATELY, 21 cells** (`latelyLeast`): its time at its widest, `Sun 02:00`, 9; the two blanks; its
+  mark and a blank, 2; and the name, 8. It fits beside COMING UP wherever COMING UP's does.
+
+Under 100 columns, on a phone's chrome, their words are the short ones.
 
 - **COMING UP,** soonest first: the time, padded to the longest, as `16:30`, `~Sat 06:00` or
   `Sun 02:00`, in `text.secondary`; two spaces; the account in bold `text.primary`, then what

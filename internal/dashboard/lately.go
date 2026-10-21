@@ -182,6 +182,17 @@ func (f Frame) latelyLines(m status.Moment, sentences []views.Sentence) []line {
 	return lines
 }
 
+// latelyMark are the cells a LATELY line's mark takes, with the blank after
+// it, as latelyLeads leads it.
+const latelyMark = 2
+
+// latelyLeast is the fewest cells LATELY is read in, beside COMING UP: a
+// line's time at its widest; the blanks after it; its mark; and an
+// account's name at labelLeast.
+func latelyLeast() int {
+	return prose.DatedWidth() + len(afterTime) + latelyMark + labelLeast
+}
+
 // latelyLeads are the leads of LATELY's lines, the Overview's and Detail's
 // alike, of the sentences given at m's moment: each its time, in a column as
 // wide as the widest, in text.subtle; then its mark.

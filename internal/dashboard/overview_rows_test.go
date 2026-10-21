@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"slices"
 	"testing"
+
+	"github.com/leeovery/switchboard/internal/quota"
 )
 
 // rowsDown is how many rows the units take laid out in turn: each its rows,
@@ -35,6 +37,32 @@ func nextStep(u unit) int {
 		}
 	}
 	return next - u.rows
+}
+
+// COMING UP and LATELY sit side by side where each one's least fits beside
+// the other, COMING UP's 42 cells in round(w × 0.45) from 93 columns, a name
+// counted at its least of 8 whatever its width, so the switch falls at 93
+// for a name of 8 cells, 14 or 22 alike; under it, LATELY is under COMING UP.
+func TestCOMINGUPAndLATELYSitSideBySideWhereTheirLeastsFitWhateverTheNames(t *testing.T) {
+	if got := comingLeast(); got != 42 {
+		t.Fatalf("COMING UP's least is %d cells, want 42: ~Sat 06:00, two blanks, a name at 8, is primed and its countdown's 12", got)
+	}
+	if got := latelyLeast(); got != 21 {
+		t.Fatalf("LATELY's least is %d cells, want 21: Sun 02:00, two blanks, its mark and a blank, and a name at 8", got)
+	}
+	for _, name := range []string{"personal", "work-team-plan", "side-hustle-consulting"} {
+		named := readAccount("work", weekOf(0.33, 5*quota.Day))
+		named.Label = name
+		doc := routerDoc("work", 1, named)
+		for width, beside := range map[int]bool{52: false, 73: false, 92: false, 93: true, 100: true, 160: true} {
+			f := frameOf(width, 60)
+			units := f.unitsOf(f.sectionsOf(doc, now))
+			last := units[len(units)-1]
+			if got := len(last.sections) == 2; got != beside {
+				t.Errorf("named %q at %d columns, COMING UP and LATELY side by side %v, want %v", name, width, got, beside)
+			}
+		}
+	}
 }
 
 // Every height from 10 to 120 at the phone's widths, the iPad's, the

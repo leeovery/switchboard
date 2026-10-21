@@ -485,13 +485,16 @@ func TestRowsToSpareGoToGRAPHSThenTheBigBarsThenROUTINGWhereEachFitsThenCOMINGUP
 	}
 }
 
-func TestCOMINGUPAndLATELYSitSideBySideButOnAPhoneWhereLATELYIsUnderCOMINGUP(t *testing.T) {
+func TestCOMINGUPAndLATELYSitSideBySideAsTheyDidFrom100AndWhereTheirLeastsDontFitLATELYIsUnderCOMINGUP(t *testing.T) {
 	tests := []struct {
 		name           string
 		width          int
 		shown          []Section
 		coming, lately bounds
 	}{
+		{name: "at 92 columns", width: 92, shown: []Section{SectionComing, SectionLately}, coming: bounds{width: 92}, lately: bounds{y: 6, width: 92}},
+		{name: "at 93 columns", width: 93, shown: []Section{SectionComing, SectionLately}, coming: bounds{width: 42}, lately: bounds{x: 48, width: 45}},
+		{name: "at 100 columns", width: 100, shown: []Section{SectionComing, SectionLately}, coming: bounds{width: 45}, lately: bounds{x: 52, width: 48}},
 		{name: "at 160 columns", width: 160, shown: []Section{SectionComing, SectionLately}, coming: bounds{width: 72}, lately: bounds{x: 82, width: 78}},
 		{name: "at 216 columns", width: 216, shown: []Section{SectionComing, SectionLately}, coming: bounds{width: 97}, lately: bounds{x: 110, width: 106}},
 		{name: "COMING UP alone, at the full width", width: 160, shown: []Section{SectionComing}, coming: bounds{width: 160}},
