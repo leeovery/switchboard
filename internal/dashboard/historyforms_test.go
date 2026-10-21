@@ -282,39 +282,26 @@ func TestASubTabInItsPhoneFormScrollsWhatThatFormDraws(t *testing.T) {
 
 // A sub-tab's form never hangs on its data: each row whose length is
 // bounded is reckoned at the widest its format draws, not at the width it's
-// drawn, so at the one width, Days of accounts that hit one 5-hour limit
-// each and of accounts that hit more take the one form, on either side of
-// where it changes form.
+// drawn, so Days of accounts that hit one 5-hour limit each and of accounts
+// that hit more take the one form at each width, on either side of where it
+// changes: its phone form at 117 columns, its wide form from 118, where its
+// key fits on a row.
 func TestASubTabsFormNeverHangsOnItsData(t *testing.T) {
 	oneEach := daysWorld(workDays, personalDays, sideDays)
 	oneEach.ByAccount = slices.Clone(oneEach.ByAccount)
 	for i := range oneEach.ByAccount {
 		oneEach.ByAccount[i].Limits = 1
 	}
-	daysPhone := func(f Frame) bool { return f.layOutDays(*f.History.Days, f.top()).phone }
-	type hangCase struct {
-		name   string
-		width  int
-		phone  func(f Frame) bool
-		frames map[string]Frame
+	pages := map[string]views.DaysPage{
+		"of limits hit many times": daysWorld(workDays, personalDays, sideDays),
+		"of a limit hit once each": oneEach,
 	}
-	var tests []hangCase
-	for _, width := range []int{117, 118} {
-		tests = append(tests, hangCase{
-			name: "days", width: width, phone: daysPhone,
-			frames: map[string]Frame{
-				"of limits hit many times": daysFrame(t, daysWorld(workDays, personalDays, sideDays), width, 40),
-				"of a limit hit once each": daysFrame(t, oneEach, width, 40),
-			},
-		})
-	}
-	for _, tt := range tests {
-		forms := map[bool][]string{}
-		for name, f := range tt.frames {
-			forms[tt.phone(f)] = append(forms[tt.phone(f)], name)
-		}
-		if len(forms) > 1 {
-			t.Errorf("at %d columns, %s draws its phone form %v, and its wide form %v; want the one form", tt.width, tt.name, forms[true], forms[false])
+	for width, phone := range map[int]bool{117: true, 118: false} {
+		for name, page := range pages {
+			f := daysFrame(t, page, width, 40)
+			if got := f.layOutDays(page, f.top()).phone; got != phone {
+				t.Errorf("at %d columns, Days %s draws its phone form: %t, want %t", width, name, got, phone)
+			}
 		}
 	}
 }

@@ -233,8 +233,8 @@ func (f Frame) phoneNamed(weeks []flex.Span) (name, count flex.Span) {
 }
 
 // phoneNameLeast are the fewest cells a phone keeps for a strip's name
-// before its count: two of the name as drawn, its marks among them, as w…,
-// ●… or … ◆ cut to them.
+// before its count: two of the name as drawn, its marks among them, as w…
+// and ●…, or for the primary its mark alone, " ◆".
 const phoneNameLeast = 2
 
 // daysParts are a strip's row's parts across the frame, of the page given:
