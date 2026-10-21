@@ -1,7 +1,6 @@
 package dashboard
 
 import (
-	"iter"
 	"slices"
 	"strconv"
 	"time"
@@ -63,31 +62,6 @@ func (p LogPage) requestsEmpty() bool {
 	return p.today().Shown == 0
 }
 
-// linesInView are the lines of the Log's table shown, and the places among
-// them of the first and the last in view, as it stands.
-type linesInView struct {
-	lines       logLines
-	first, last int
-}
-
-// logInView are the lines of the Log's table shown in view, as it stands.
-func (f Frame) logInView() linesInView {
-	lines := f.Log.lines()
-	first, last := f.Log.window(lines, f.Log.stand(), f.LogRows())
-	return linesInView{lines: lines, first: first, last: last}
-}
-
-// each are the lines in view, the oldest first.
-func (v linesInView) each() iter.Seq[logLine] {
-	return func(yield func(logLine) bool) {
-		for i := v.first; i <= v.last; i++ {
-			if !yield(v.lines.at(i)) {
-				return
-			}
-		}
-	}
-}
-
 // log draws the Log's table shown from row top, once its first read lands:
 // its heads, then its lines in view, as it stands, the line chosen lit
 // across the width.
@@ -97,21 +71,22 @@ func (f Frame) log(c *canvas, doc status.Document, now time.Time, top int) {
 		return
 	}
 	m := f.Moment(doc, now)
-	v := f.logInView()
 	var draw func(c *canvas, y int, l logLine)
 	if p.Shown == LogRequests {
-		layout := f.requestsLayout(m, now, v)
+		layout := f.requestsLayout(m)
 		logHeads(c, top, layout, dimInk)
 		draw = f.logRequest(m, now, layout)
 	} else {
-		columns := f.eventColumns(m, v)
+		columns := eventsLaid(f.Width, widestLabel(m))
 		eventsHeads(c, top, columns)
 		draw = logEvent(m, now, columns)
 	}
-	lit, isLit := p.lit(v.lines, p.stand())
-	for i := v.first; i <= v.last; i++ {
-		y := top + 1 + i - v.first
-		f.logLine(c, y, v.lines.at(i), draw)
+	lines, s := p.lines(), p.stand()
+	first, last := p.window(lines, s, f.LogRows())
+	lit, isLit := p.lit(lines, s)
+	for i := first; i <= last; i++ {
+		y := top + 1 + i - first
+		f.logLine(c, y, lines.at(i), draw)
 		if isLit && i == lit {
 			c.surface(0, y, f.Width, litInk)
 		}
@@ -151,17 +126,10 @@ func logHeads(c *canvas, y int, l logLayout, k ink) {
 }
 
 // requestsLayout are the Requests' columns laid out across the frame, as
-// logColumns lays them out, those that name as wide as the rows in view
-// need, as logNaturals has them, each row as it stands at now, each account
-// named as the moment m names it.
-func (f Frame) requestsLayout(m status.Moment, now time.Time, v linesInView) logLayout {
-	var n logNaturals
-	for l := range v.each() {
-		if l.row != nil {
-			n = n.with(l.row.Live(f.Log.Stream, now), func(id string) string { return named(m, id) })
-		}
-	}
-	return logColumns(f.Width, f.Log.Columns, n)
+// logColumns lays them out, on's natural the widest account the moment m
+// knows, as widestLabel has it.
+func (f Frame) requestsLayout(m status.Moment) logLayout {
+	return logColumns(f.Width, f.Log.Columns, widestLabel(m))
 }
 
 // logRequest draws a request's row along a row, its columns laid out as

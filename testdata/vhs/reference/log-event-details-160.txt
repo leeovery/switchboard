@@ -4,17 +4,17 @@
 
 LOG    Requests  Events  [ ]  ──────────────────────────────────────────────────────────────────────────────────────────────────────  20 today   f what it shows
 
-  at        session           event     account          what happened
-● 17:20:15                    pin       personal         new sessions go there, set from the command line
-↩ 18:02:40                    auto                       new sessions back from personal to the router's choice, set from the dashboard
-■ 19:12:40                    limit     personal         its 5-hour window, till 23:58: its session moves to side
-▸ 19:12:52  8a2c docs         moved     personal → side  personal reached its limit   61k cached again, $0.61
-▲ 23:47:30  5e7d api          started   side
-✓ 23:58:40                    open      personal         its 5-hour window reset
+  at        session            event     account              what happened
+● 17:20:15                     pin       personal             new sessions go there, set from the command line
+↩ 18:02:40                     auto                           new sessions back from personal to the router's choice, set from the dashboard
+■ 19:12:40                     limit     personal             its 5-hour window, till 23:58: its session moves to side
+▸ 19:12:52  8a2c docs          moved     personal → side      personal reached its limit   61k cached again, $0.61
+▲ 23:47:30  5e7d api           started   side
+✓ 23:58:40                     open      personal             its 5-hour window reset
   Wed 30 Sep   1,912 requests · 17 sessions · 2 limits reached · $212 at API prices  ────────────────────────────────────────────────────────────────  Thu 1 Oct
-◇ 07:05:12                    primed    work             its 5-hour window started, resets at 12:05
-▲ 07:58:30  2b6d api          started   work
-▲ 08:31:02  a8f1 website      started   side
+◇ 07:05:12                     primed    work                 its 5-hour window started, resets at 12:05
+▲ 07:58:30  2b6d api           started   work
+▲ 08:31:02  a8f1 website       started   side
 ◇ 08:47:00      ╭─ EVENT · 14:31:03 · work reached its cap ────────────────────────────────────────────────────────────────────────────────────╮
 ▲ 09:12:40  e0c4│                                                                                                                              │
 ▲ 09:40:05  3d7a│  WHAT HAPPENED                                     WORK THEN                WHAT FOLLOWED                                    │
@@ -26,12 +26,12 @@ LOG    Requests  Events  [ ]  ────────────────�
 ▲ 12:47:12  41e0│                                                                                                                              │
 ▸ 13:22:40  db8a│                                                                          ↑↓ previous/next event   g in Requests   esc close  │
 ◇ 13:50:00      ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
-▲ 14:12:30  7f3a api          started   work
-╎ 14:31:03                    cap       work             95% of its 5-hour window: its 3 sessions move to side as their next requests come
-▸ 14:31:13  d28c switchboard  moved     work → side      work reached its cap   182k cached again, $1.82
-▸ 14:31:20  7f3a api          moved     work → side      work reached its cap   98k cached again, $0.98
-▸ 14:31:40  db8a infra        moved     work → side      work reached its cap   66k cached again, $0.66
-▲ 14:41:11  c61b mobile       started   side
+▲ 14:12:30  7f3a api           started   work
+╎ 14:31:03                     cap       work                 95% of its 5-hour window: its 3 sessions move to side as their next requests come
+▸ 14:31:13  d28c switchboard   moved     work → side          work reached its cap   182k cached again, $1.82
+▸ 14:31:20  7f3a api           moved     work → side          work reached its cap   98k cached again, $0.98
+▸ 14:31:40  db8a infra         moved     work → side          work reached its cap   66k cached again, $0.66
+▲ 14:41:11  c61b mobile        started   side
 
 ‖ paused at 14:31:03   end to follow                                                                                                             20 events today
 tab views   [ ] view    ↑↓ event  enter open  end follow    f what it shows  / find    p pin    ? help  q quit

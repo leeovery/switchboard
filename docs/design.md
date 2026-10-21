@@ -3160,9 +3160,9 @@ apart, each a part flex lays out (`logcolumns.go`):
 | Column | Cells | Aligned |
 |---|---|---|
 | `at` | 8 | left |
-| `session` | its id's 4, and a cell and its directory, as wide as the widest the rows in view name, 12 at the most (`views.SessionDirCells`); never fewer than its head's 7 | left |
+| `session` | 17: its id's 4, and a cell and its directory's 12 (`views.SessionDirCells`); 7, its head's, with the directory gone | left |
 | `model` | 9 | left |
-| `on` | at least 8; its natural the widest account the rows in view are on, each counted 24 at the most, as a label's column is | left |
+| `on` | at least 8; its natural the widest label of the accounts configured, 24 at the most, as a label's column is | left |
 | `status` | 6 | left |
 | `first` | 5 | right |
 | `took` | 6 | right |
@@ -3174,8 +3174,8 @@ apart, each a part flex lays out (`logcolumns.go`):
 
 - **`at`:** when it arrived. **`session`:** its id cut to 4 in `text.secondary`, a space, and the
   last part of its directory, the ledger's `dir`, cut with `…` to 12, keeping its start (settled in
-  the plan), in `text.muted`: `d28c switchboard`. The directory is whole or gone: its column is as
-  wide as the widest the rows in view name, so it's never cut below 12. **`model`:** its id less
+  the plan), in `text.muted`: `d28c switchboard`. The directory is whole or gone: its column is
+  always 12 wide while it shows, so it's never cut below 12. **`model`:** its id less
   `claude-`, in `text.muted`. **`on`:** the account whose answer the client got, in
   `text.primary`, as account names are white wherever they're named, cut with `…` to the cells its
   column has.
@@ -3202,16 +3202,19 @@ apart, each a part flex lays out (`logcolumns.go`):
   doesn't know, in `text.muted`. Shown, it goes between `out` and `stopped`, as the other extras
   do, each at its fixed cells.
 - **One narrowing, to the last column:** the table runs to the last column at every width, from
-  the widest to a phone's 52, and nothing runs past it. Each column takes its fewest cells; then
-  `on` takes what's past them, to its natural, before any other; then `routing` to its 30 and the
-  2 short of the last column; and `stopped` and `routing` share the rest evenly, the odd cell
-  `routing`'s, or `stopped` takes it alone. Where the fewest don't fit, columns give way in this
-  order, a step at a time, each only while they still don't: the extras, the last first, so
-  `worth` leaves last of them; `routing` folds into `stopped`, which then says the row's routing
-  where it has words; `first`, `read`, `written` and `out`; `stopped` is cut to 11 cells and says
-  its words as a phone's do (below); `model`, then `status`; and last the session's directory, its
-  id kept (the owner's call on the spike, 21 October 2026). With `stopped` hidden, `routing` alone
-  is the last column, cut to 11 cells in the same step, its words whole. What doesn't fit its
+  the widest to a phone's 52, and nothing runs past it. It's laid out in two passes. The first
+  decides what shows: where the columns' fewest cells, `on` at its natural, don't fit, columns give
+  way in this order, a step at a time, each only while they still don't: the extras, the last
+  first, so `worth` leaves last of them; `routing` folds into `stopped`, which then says the row's
+  routing where it has words; `first`, `read` and `written`; `on` is cut toward its 8; `out`;
+  `stopped` is cut to 11 cells and says its words as a phone's do (below); `model`, then `status`;
+  and last the session's directory, its id kept (the owner's call on the spike, 21 October 2026).
+  So `on` is whole from 116 columns with long names. The second lays out only what the first kept:
+  each column takes its fewest cells; then `on` takes what's past them, to its natural, before any
+  other, as a phone's 73 columns and an iPad's 108 show it; then `routing` to its 30 and the 2
+  short of the last column; and `stopped` and `routing` share the rest evenly, the odd cell
+  `routing`'s, or `stopped` takes it alone. With `stopped` hidden, `routing` alone is the last
+  column, cut to 11 cells in `stopped`'s step, its words whole. What doesn't fit its
   cells is cut with `…` in the colour of what it cuts, a move's cost kept whole where the words
   before it keep a cell and the ellipsis: `from work, at it…  $1.82`.
 - **The marks,** bold, the first that applies: `↑` in `accent.key`, in flight and asking, before its
@@ -3376,10 +3379,11 @@ pickers' 82, and 22 tall, centred: columns 18 to 141, rows 7 to 28. Its title, i
 
 **Events.** A line an event, as a table with heads, from column 2, its columns two cells apart,
 each a part flex lays out (`logevents.go`): `at`, 8; `session`, as Requests' is; `event`, 8;
-`account`, at least 8, its natural the widest the rows in view say there, each account counted 24
-at the most; and `what happened`, 40 at the least, and the room left. Where they don't fit, they
-give way in this order: the session, whole; `what happened` cut to 20; then `account` toward its 8,
-so a phone's 52 columns show `at`, `event`, `account` and `what happened`.
+`account`, at least 8, its natural and its most a move's of the widest configured label, two of it
+and ` → ` between, each counted 24 at the most, a pin of several cut to it; and `what happened`,
+40 at the least, and the room left. Where they don't fit, they give way in this order: the
+session, whole; `what happened` cut to 20; then `account` toward its 8, so a phone's 52 columns
+show `at`, `event`, `account` and `what happened`.
 
 - **`at` and `session`** as Requests' are; `session` is blank for an account's event, and holds a
   session's own pin's id (settled in the plan).

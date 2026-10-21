@@ -4,7 +4,7 @@
 
 LOG    Requests  Events  [ ]  ──────────────────────────────────────────────────────────────────────────────────  35 hidden: checks and counts   f what it shows
 
-  at        session           model      on        status  first    took    read  written    out  stopped                      routing
+  at        session            model      on        status  first    took    read  written    out  stopped                      routing
   14:40:13  d28c s╭─ LOG · REQUESTS · WHAT IT SHOWS ─────────────────────────────────────────────────────────────────────────────────────────╮
   14:40:18  db8a i│                                                                                                                          │
   14:40:24  41e0 d│  Pick the columns it shows, and which of today's 1,277 lines.                                                            │
@@ -27,11 +27,11 @@ LOG    Requests  Events  [ ]  ────────────────�
   14:41:35  d28c s│                                                                                                                          │
   14:41:38  c61b m│                                                               ←→ side   ↑↓ move   space tick   enter apply   esc cancel  │
   14:41:39  c61b m╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
-  14:41:41  7f3a api          opus-5-5   side      200      1.0s   11.9s    117k     1.4k   1.1k  tool_use · Read
-  14:41:51  d28c switchboard  opus-5-5   side      200      1.2s    4.8s    192k     3.6k   1.1k  tool_use · Read
-↓ 14:41:58  41e0              sonnet-5…  personal           0.9s    9.0s                          answering · 3.4k characters
-↓ 14:42:01  c61b              opus-5-5   side               0.5s    6.0s                          answering · 4.8k characters
-↑ 14:42:06  d28c              opus-5-5   side                       0.4s                          asking
+  14:41:41  7f3a api           opus-5-5   side      200      1.0s   11.9s    117k     1.4k   1.1k  tool_use · Read
+  14:41:51  d28c switchboard   opus-5-5   side      200      1.2s    4.8s    192k     3.6k   1.1k  tool_use · Read
+↓ 14:41:58  41e0               sonnet-5…  personal           0.9s    9.0s                          answering · 3.4k characters
+↓ 14:42:01  c61b               opus-5-5   side               0.5s    6.0s                          answering · 4.8k characters
+↑ 14:42:06  d28c               opus-5-5   side                       0.4s                          asking
 
 ● following                                                                                                                                    1,242 lines today
 tab views   [ ] view    ↑↓ request  enter open  f what it shows  / find    p pin    ? help  q quit

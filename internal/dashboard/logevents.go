@@ -36,11 +36,10 @@ type eventColumn struct {
 	x, width int
 }
 
-// The Events' fixed columns' cells, at's and event's; the fewest cells what
-// happened is cut to before the session leaves; and the fewest it's cut to
-// after, as a phone's 52 columns leave it.
+// The Events' event column's cells; the fewest cells what happened is cut
+// to before the session leaves; and the fewest it's cut to after, as a
+// phone's 52 columns leave it.
 const (
-	eventsAtCells   = 8
 	eventsKindCells = 8
 	eventsWhatLeast = 40
 	eventsWhatBrief = 20
@@ -49,31 +48,6 @@ const (
 // eventsWhatPast is the part of a row of events past its columns' own: what
 // happened's cells past eventsWhatBrief, to its least.
 const eventsWhatPast = eventsWhat + 1
-
-// eventsNaturals are the natural cells of the Events' columns that name: of
-// the session's directory, the widest the rows shown name, as
-// views.SessionDirName names it, none where none names one; and of account,
-// the widest the rows shown say there, each account's name as labelColumnCells
-// counts it.
-type eventsNaturals struct {
-	dir, account int
-}
-
-// with is n widened to the event e's, its accounts named as the moment m
-// names them.
-func (n eventsNaturals) with(e views.LogEvent, m status.Moment) eventsNaturals {
-	n.dir = max(n.dir, ansi.StringWidth(views.SessionDirName(e.Dir)))
-	cells := 0
-	for _, p := range e.Line.Account {
-		if p.Kind == status.PartAccount {
-			cells += labelColumnCells(named(m, p.Text))
-			continue
-		}
-		cells += ansi.StringWidth(p.Text)
-	}
-	n.account = max(n.account, cells)
-	return n
-}
 
 // The turns the Events' parts give way in as the row narrows: the session,
 // whole; then what happened, to eventsWhatBrief; then the account, toward
@@ -84,42 +58,37 @@ const (
 	accountNarrows
 )
 
+// eventsAccountCells are the Events' account column's cells, of the widest
+// label given: a move's, from one account to another, each the widest. A
+// pin naming several is cut to them.
+func eventsAccountCells(widest int) int {
+	return 2*widest + ansi.StringWidth(moveArrow)
+}
+
 // eventsParts are the Events' parts across a row, by what each holds, each
-// column two cells after the one before, as the Requests' are: at; the
-// session, as sessionPart has it, its directory n.dir cells; event;
-// account, a column of names, at its natural n.account until its turn, then
-// at least labelLeast cells; and what happened, as two parts, its first
-// eventsWhatBrief cells, which take the room left, and those past them to
-// eventsWhatLeast.
-func eventsParts(n eventsNaturals) []flex.Part {
+// column two cells after the one before, as the Requests' are: at, as
+// Requests' is; the session, as sessionPart has it; event; account, a
+// column of names, at eventsAccountCells of the widest label given until
+// its turn, then at least labelLeast cells; and what happened, as two
+// parts, its first eventsWhatBrief cells, which take the room left, and
+// those past them to eventsWhatLeast.
+func eventsParts(widest int) []flex.Part {
+	at := logColumnFacts[LogAt].width
 	return []flex.Part{
-		eventsAt:       {Least: eventsAtCells, Natural: eventsAtCells},
-		eventsSession:  sessionPart(n.dir, sessionLeaves, 0),
+		eventsAt:       {Least: at, Natural: at},
+		eventsSession:  sessionPart(sessionLeaves, 0),
 		eventsKind:     {Least: eventsKindCells, Natural: eventsKindCells, Gap: logColumnGap},
-		eventsAccount:  {Least: labelLeast, Natural: n.account, Narrows: accountNarrows, Gap: logColumnGap},
+		eventsAccount:  {Least: labelLeast, Natural: eventsAccountCells(widest), Narrows: accountNarrows, Gap: logColumnGap},
 		eventsWhat:     {Least: eventsWhatBrief, Natural: eventsWhatBrief, Grows: true, Gap: logColumnGap},
 		eventsWhatPast: {Least: eventsWhatLeast - eventsWhatBrief, Natural: eventsWhatLeast - eventsWhatBrief, Leaves: whatShortened},
 	}
 }
 
-// eventColumns are the Events' columns laid out across the frame, as
-// eventsLaid lays them out, those that name as wide as the rows in view
-// need, each account named as the moment m names it.
-func (f Frame) eventColumns(m status.Moment, v linesInView) []eventColumn {
-	var n eventsNaturals
-	for l := range v.each() {
-		if l.event != nil {
-			n = n.with(*l.event, m)
-		}
-	}
-	return eventsLaid(f.Width, n)
-}
-
 // eventsLaid are the Events' columns laid out across a terminal width cells
-// wide, from logLeft, as flex lays eventsParts out, those that name at the
-// naturals given, what happened its two parts together.
-func eventsLaid(width int, n eventsNaturals) []eventColumn {
-	spans, _ := flex.Lay(width-logLeft, eventsParts(n)...)
+// wide, from logLeft, as flex lays eventsParts out, of the widest label
+// given, as widestLabel has it, what happened its two parts together.
+func eventsLaid(width, widest int) []eventColumn {
+	spans, _ := flex.Lay(width-logLeft, eventsParts(widest)...)
 	spans[eventsWhat].Size += spans[eventsWhatPast].Size
 	var columns []eventColumn
 	for part, s := range spans[:eventsWhatPast] {

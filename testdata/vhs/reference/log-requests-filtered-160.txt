@@ -4,34 +4,34 @@
 
 LOG    Requests  Events  [ ]   only d28c switchboard ─────────────────────────────────────────────────────────────────────────────  831 hidden   f what it shows
 
-  at        session           model      on        status  first    took    read  written    out   worth  stopped                      routing
-  14:33:57  d28c switchboard  opus-5-5   side      200      1.2s    5.3s    184k     3.7k   1.0k   $0.15  tool_use · Read
-  14:34:06  d28c switchboard  opus-5-5   side      200      1.2s    5.4s    184k     3.7k   1.0k   $0.15  tool_use · Bash
-  14:34:15  d28c switchboard  opus-5-5   side      200      1.2s    5.4s    184k     3.7k   1.0k   $0.15  tool_use · Edit
-  14:34:24  d28c switchboard  opus-5-5   side      200      1.2s    5.4s       —        —     90  <$0.01  end_turn
-  14:34:33  d28c switchboard  opus-5-5   side      200      1.2s    5.4s    184k     3.7k   1.0k   $0.15  tool_use · Read
-  14:34:42  d28c switchboard  opus-5-5   side      200      1.2s    5.4s    184k     3.7k   1.0k   $0.15  tool_use · Bash
-  14:34:51  d28c switchboard  opus-5-5   side      200      1.2s    5.5s    184k     3.7k   1.0k   $0.15  tool_use · Edit
-  14:35:00  d28c switchboard  opus-5-5   side      200      1.2s    6.3s    184k     3.7k   1.0k   $0.15  tool_use · Read
-  14:35:11  d28c switchboard  opus-5-5   side      200      1.2s    6.3s    184k     3.7k   1.0k   $0.15  tool_use · Bash
-  14:35:21  d28c switchboard  opus-5-5   side      200      1.2s    6.3s    184k     3.7k   1.0k   $0.15  tool_use · Edit
-  14:35:32  d28c switchboard  opus-5-5   side      200      1.2s    6.3s    184k     3.7k   1.0k   $0.15  tool_use · Read
-  14:35:42  d28c switchboard  opus-5-5   side      200      1.2s    6.3s       —        —     30  <$0.01  end_turn
-  14:35:53  d28c switchboard  opus-5-5   side      200      1.2s    7.0s    184k     3.7k   1.0k   $0.15  tool_use · Bash
-  14:36:04  d28c switchboard  opus-5-5   side      200      1.2s    8.4s    184k     3.7k   1.0k   $0.15  tool_use · Edit
-  14:36:18  d28c switchboard  opus-5-5   side      200      1.2s    8.4s    184k     3.7k   1.0k   $0.15  tool_use · Read
-  14:36:32  d28c switchboard  opus-5-5   side      200      1.2s    8.4s    184k     3.7k   1.0k   $0.15  tool_use · Bash
-  14:36:46  d28c switchboard  opus-5-5   side      200      1.2s    8.6s    184k     3.7k   1.0k   $0.15  tool_use · Bash
-  14:37:01  d28c switchboard  opus-5-5   side      200      1.2s   14.2s    184k     3.7k   1.0k   $0.15  tool_use · Bash
-  14:37:24  d28c switchboard  opus-5-5   side      200      1.2s   14.2s       —        —     30  <$0.01  end_turn
-  14:37:48  d28c switchboard  opus-5-5   side      200      1.2s    7.1s    184k     3.7k   1.0k   $0.15  end_turn
-  14:40:13  d28c switchboard  opus-5-5   side      200      1.2s   15.8s    192k     3.6k   1.1k   $0.16  tool_use · Read
-  14:40:39  d28c switchboard  opus-5-5   side      200      1.2s   14.5s    192k     3.6k   1.1k   $0.16  tool_use · Bash
-  14:41:03  d28c switchboard  opus-5-5   side      200      1.2s    9.7s    192k     3.6k   1.1k   $0.16  tool_use · Read
-  14:41:19  d28c switchboard  opus-5-5   side      200      1.2s    9.7s    192k     3.6k   1.1k   $0.16  tool_use · Bash
-  14:41:35  d28c switchboard  opus-5-5   side      200      1.2s    9.7s       —        —     70  <$0.01  end_turn
-  14:41:51  d28c switchboard  opus-5-5   side      200      1.2s    4.8s    192k     3.6k   1.1k   $0.16  tool_use · Read
-↑ 14:42:06  d28c              opus-5-5   side                       0.4s                                  asking
+  at        session            model      on        status  first    took    read  written    out   worth  stopped                      routing
+  14:33:57  d28c switchboard   opus-5-5   side      200      1.2s    5.3s    184k     3.7k   1.0k   $0.15  tool_use · Read
+  14:34:06  d28c switchboard   opus-5-5   side      200      1.2s    5.4s    184k     3.7k   1.0k   $0.15  tool_use · Bash
+  14:34:15  d28c switchboard   opus-5-5   side      200      1.2s    5.4s    184k     3.7k   1.0k   $0.15  tool_use · Edit
+  14:34:24  d28c switchboard   opus-5-5   side      200      1.2s    5.4s       —        —     90  <$0.01  end_turn
+  14:34:33  d28c switchboard   opus-5-5   side      200      1.2s    5.4s    184k     3.7k   1.0k   $0.15  tool_use · Read
+  14:34:42  d28c switchboard   opus-5-5   side      200      1.2s    5.4s    184k     3.7k   1.0k   $0.15  tool_use · Bash
+  14:34:51  d28c switchboard   opus-5-5   side      200      1.2s    5.5s    184k     3.7k   1.0k   $0.15  tool_use · Edit
+  14:35:00  d28c switchboard   opus-5-5   side      200      1.2s    6.3s    184k     3.7k   1.0k   $0.15  tool_use · Read
+  14:35:11  d28c switchboard   opus-5-5   side      200      1.2s    6.3s    184k     3.7k   1.0k   $0.15  tool_use · Bash
+  14:35:21  d28c switchboard   opus-5-5   side      200      1.2s    6.3s    184k     3.7k   1.0k   $0.15  tool_use · Edit
+  14:35:32  d28c switchboard   opus-5-5   side      200      1.2s    6.3s    184k     3.7k   1.0k   $0.15  tool_use · Read
+  14:35:42  d28c switchboard   opus-5-5   side      200      1.2s    6.3s       —        —     30  <$0.01  end_turn
+  14:35:53  d28c switchboard   opus-5-5   side      200      1.2s    7.0s    184k     3.7k   1.0k   $0.15  tool_use · Bash
+  14:36:04  d28c switchboard   opus-5-5   side      200      1.2s    8.4s    184k     3.7k   1.0k   $0.15  tool_use · Edit
+  14:36:18  d28c switchboard   opus-5-5   side      200      1.2s    8.4s    184k     3.7k   1.0k   $0.15  tool_use · Read
+  14:36:32  d28c switchboard   opus-5-5   side      200      1.2s    8.4s    184k     3.7k   1.0k   $0.15  tool_use · Bash
+  14:36:46  d28c switchboard   opus-5-5   side      200      1.2s    8.6s    184k     3.7k   1.0k   $0.15  tool_use · Bash
+  14:37:01  d28c switchboard   opus-5-5   side      200      1.2s   14.2s    184k     3.7k   1.0k   $0.15  tool_use · Bash
+  14:37:24  d28c switchboard   opus-5-5   side      200      1.2s   14.2s       —        —     30  <$0.01  end_turn
+  14:37:48  d28c switchboard   opus-5-5   side      200      1.2s    7.1s    184k     3.7k   1.0k   $0.15  end_turn
+  14:40:13  d28c switchboard   opus-5-5   side      200      1.2s   15.8s    192k     3.6k   1.1k   $0.16  tool_use · Read
+  14:40:39  d28c switchboard   opus-5-5   side      200      1.2s   14.5s    192k     3.6k   1.1k   $0.16  tool_use · Bash
+  14:41:03  d28c switchboard   opus-5-5   side      200      1.2s    9.7s    192k     3.6k   1.1k   $0.16  tool_use · Read
+  14:41:19  d28c switchboard   opus-5-5   side      200      1.2s    9.7s    192k     3.6k   1.1k   $0.16  tool_use · Bash
+  14:41:35  d28c switchboard   opus-5-5   side      200      1.2s    9.7s       —        —     70  <$0.01  end_turn
+  14:41:51  d28c switchboard   opus-5-5   side      200      1.2s    4.8s    192k     3.6k   1.1k   $0.16  tool_use · Read
+↑ 14:42:06  d28c               opus-5-5   side                       0.4s                                  asking
 
 ● following                                                                                                                                  446 of d28c's today
 tab views   [ ] view    ↑↓ request  enter open  f what it shows  / find    p pin    ? help  q quit

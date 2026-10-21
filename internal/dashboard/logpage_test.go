@@ -193,23 +193,23 @@ var workAtItsCap = status.Event{
 func TestTheEventsDrawTheirDaysInTheirColumns(t *testing.T) {
 	pinned := status.Event{ID: 1, At: theDayBefore, Kind: status.EventPin, Accounts: []string{"personal"}}
 	p := eventsShown(pinned, workAtItsCap)
-	wide := textOf(logFrameOf(p, 160, 24).Draw(routerDoc("side", 0), logDayNoon))
+	wide := textOf(logFrameOf(p, 160, 24).Draw(logAccounts(), logDayNoon))
 	want := []string{
-		"  at        session  event     account   what happened",
-		"● 23:50:00           pin       personal  new sessions go there",
+		"  at        session            event     account              what happened",
+		"● 23:50:00                     pin       personal             new sessions go there",
 		"  Wed 30 Sep  " + rule(135) + "  Thu 1 Oct",
-		"╎ 09:30:00           cap       work      95% of its 5-hour window: its 3 sessions move to side as their next requests come",
+		"╎ 09:30:00                     cap       work                 95% of its 5-hour window: its 3 sessions move to side as their next requests come",
 	}
 	if got := wide[6:10]; !slices.Equal(got, want) {
 		t.Errorf("the Events read\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 	phone := logFrameOf(p, 52, 24)
-	if got, want := textOf(phone.Draw(routerDoc("side", 0), logDayNoon))[phone.top()], "  at        event     account   what happened"; got != want {
+	if got, want := textOf(phone.Draw(logAccounts(), logDayNoon))[phone.top()], "  at        event     account   what happened"; got != want {
 		t.Errorf("on a phone, the heads read %q, want %q", got, want)
 	}
 
-	c := logFrameOf(p, 160, 24).page(routerDoc("side", 0), logDayNoon)
-	if use := c.at(41, 9).ink; use.token != theme.VizRamp4 || !use.bold {
+	c := logFrameOf(p, 160, 24).page(logAccounts(), logDayNoon)
+	if use := c.at(62, 9).ink; use.token != theme.VizRamp4 || !use.bold {
 		t.Errorf("the cap's 95%% is inked %+v, want bold in the ramp's last stop", use)
 	}
 	numbers := logFrameOf(p, 160, 24).Numbers(routerDoc("side", 0), logDayNoon)
@@ -228,11 +228,11 @@ func TestATableWithNothingTodaySaysSo(t *testing.T) {
 		want []string
 	}{
 		{name: "requests", page: requestsOf(views.LogSources{From: theDayBefore, Now: logDayNoon}, []ledger.Line{asked("1", theDayBefore)}), want: []string{
-			"▲ 23:50:00  d28c     opus-5-5   side      200",
+			"▲ 23:50:00  d28c               opus-5-5   side      200",
 			"  no requests today",
 		}},
 		{name: "events", page: eventsShown(pinned), want: []string{
-			"● 23:50:00           pin       personal  new sessions go there",
+			"● 23:50:00                     pin       personal  new sessions go there",
 			"  no events today",
 		}},
 	}

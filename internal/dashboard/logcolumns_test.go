@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/leeovery/switchboard/internal/views"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // logWidths are the widths the Requests' layout is held at: a phone's, each
@@ -14,11 +14,6 @@ import (
 var logWidths = []int{
 	52, 59, 60, 67, 68, 78, 79, 94, 95, 99, 100, 101, 102, 110, 111, 118, 119, 125, 126, 151, 152, 159, 160, 161, 200, 240,
 }
-
-// wholeNames are the naturals of a table whose rows name a directory of
-// SessionDirCells cells or more and accounts of labelLeast cells or fewer,
-// as the design's 160 columns draw it.
-var wholeNames = logNaturals{dir: 12, on: labelLeast}
 
 // layoutSaid says a layout as the tests hold it: each column's name and the
 // cells it takes, from its first to its last; then whether routing folds
@@ -164,7 +159,7 @@ func TestTheLogsRequestsAreLaidOutAtEveryWidth(t *testing.T) {
 	for _, tt := range tests {
 		for i, width := range logWidths {
 			t.Run(fmt.Sprintf("%s at %d", tt.name, width), func(t *testing.T) {
-				if got := layoutSaid(logColumns(width, tt.ticked, wholeNames)); got != tt.want[i] {
+				if got := layoutSaid(logColumns(width, tt.ticked, labelLeast)); got != tt.want[i] {
 					t.Errorf("logColumns(%d, %s) =\n%s\nwant\n%s", width, tt.name, got, tt.want[i])
 				}
 			})
@@ -248,93 +243,111 @@ func TestTheLogsRequestsNarrowWhateverIsTicked(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := layoutSaid(logColumns(tt.width, tt.ticked, wholeNames)); got != tt.want {
+			if got := layoutSaid(logColumns(tt.width, tt.ticked, labelLeast)); got != tt.want {
 				t.Errorf("logColumns(%d) =\n%s\nwant\n%s", tt.width, got, tt.want)
 			}
 		})
 	}
 }
 
-// The session's directory and on at their natural widths: the directory
-// whole or gone, at as many cells as the widest shown needs, and the
-// session's column no narrower than its head; on at least labelLeast, and
-// taking what's past the columns' leasts before any other, so it's cut
-// where they leave too little, as the spike's 73 and 108 columns draw a
-// table of long names.
-func TestTheLogsNamesAreLaidOutAtTheirNaturalWidths(t *testing.T) {
-	long := logNaturals{dir: 12, on: 22}
+// on at its natural width, the widest configured account's: at least
+// labelLeast; in the first pass, whole until first, read and written have
+// left, then cut before out leaves; in the second, taking what's past the
+// leasts of the columns the first kept before any other, as the spike's 73
+// and 108 columns draw a table of long names.
+func TestTheLogsOnIsLaidOutAtItsNaturalWidth(t *testing.T) {
 	tests := []struct {
-		name  string
-		width int
-		n     logNaturals
-		want  string
+		name      string
+		width, on int
+		want      string
 	}{
 		{
-			name: "long names at 73, on taking the 5 cells left", width: 73, n: long,
+			name: "long names at 73, on taking the 5 cells left", width: 73, on: 22,
 			want: "brief: at 2–9 · session 12–28 · on 31–43 · status 46–51 · took 54–59 · stopped 62–72, folded",
 		},
 		{
-			name: "long names at 108, on taking the 6 cells past stopped's 27", width: 108, n: long,
+			name: "long names at 108, on taking the 6 cells past stopped's 27", width: 108, on: 22,
 			want: "at 2–9 · session 12–28 · model 31–39 · on 42–55 · status 58–63 · took 66–71 · out 74–78 · stopped 81–107, folded",
 		},
 		{
-			name: "long names at 173, on whole", width: 173, n: long,
+			name: "long names at 116, on whole", width: 116, on: 22,
+			want: "at 2–9 · session 12–28 · model 31–39 · on 42–63 · status 66–71 · took 74–79 · out 82–86 · stopped 89–115, folded",
+		},
+		{
+			name: "long names at 173, on whole", width: 173, on: 22,
 			want: "at 2–9 · session 12–28 · model 31–39 · on 42–63 · status 66–71 · first 74–78 · took 81–86 · read 89–94 · " +
 				"written 97–103 · out 106–110 · stopped 113–139 · routing 142–171",
 		},
-		{
-			name: "a directory of 5 cells at 160", width: 160, n: logNaturals{dir: 5, on: labelLeast},
-			want: "at 2–9 · session 12–21 · model 24–32 · on 35–42 · status 45–50 · first 53–57 · took 60–65 · read 68–73 · " +
-				"written 76–82 · out 85–89 · stopped 92–121 · routing 124–157",
-		},
-		{
-			name: "no directory at 160, the session as wide as its head", width: 160, n: logNaturals{on: labelLeast},
-			want: "at 2–9 · session 12–18 · model 21–29 · on 32–39 · status 42–47 · first 50–54 · took 57–62 · read 65–70 · " +
-				"written 73–79 · out 82–86 · stopped 89–120 · routing 123–157, its id alone",
-		},
-		{name: "accounts shorter than on's least", width: 160, n: logNaturals{dir: 12, on: 3}, want: log160},
+		{name: "accounts shorter than on's least", width: 160, on: 3, want: log160},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := layoutSaid(logColumns(tt.width, LogTicks{}, tt.n)); got != tt.want {
-				t.Errorf("logColumns(%d, %+v) =\n%s\nwant\n%s", tt.width, tt.n, got, tt.want)
+			if got := layoutSaid(logColumns(tt.width, LogTicks{}, tt.on)); got != tt.want {
+				t.Errorf("logColumns(%d, on %d) =\n%s\nwant\n%s", tt.width, tt.on, got, tt.want)
 			}
 		})
 	}
 }
 
-// The naturals are the widest the rows shown need: the directory's as
-// views.SessionDirName names it, so no more than SessionDirCells, none
-// without one; and the account's as a column of names counts it, labelMost
-// at the most.
-func TestTheLogsNaturalsAreTheWidestTheRowsShowNeed(t *testing.T) {
-	name := func(id string) string { return id }
+// From 116 columns, a table of long names has on whole at every width,
+// whatever's ticked: first, read and written leave before it's cut.
+func TestTheLogsOnIsWholeFrom116Columns(t *testing.T) {
+	for _, ticked := range []LogTicks{{}, ticks(LogRouting), ticks(LogStopped), everyExtra()} {
+		for width := 116; width <= 220; width++ {
+			l := logColumns(width, ticked, 22)
+			i := slices.IndexFunc(l.places, func(p logPlace) bool { return p.column == LogOn })
+			if i < 0 || l.places[i].width != 22 {
+				t.Errorf("at %d, ticked %v, the layout is %s, want on whole, 22 cells", width, ticked, layoutSaid(l))
+			}
+		}
+	}
+}
+
+// The second pass lays out the columns the first kept and no others, and
+// the row runs to the last column and no further, at every width from a
+// phone's, of names short and long, whatever's ticked.
+func TestTheLogsSecondPassKeepsTheFirstsColumnsWithinTheRow(t *testing.T) {
+	for _, ticked := range []LogTicks{{}, ticks(LogRouting), ticks(LogStopped), ticks(LogStopped, LogRouting), everyExtra()} {
+		for _, on := range []int{labelLeast, 15, labelMost} {
+			for width := 52; width <= 240; width++ {
+				_, kept := logSpread.decided(width, ticked.shown(), on)
+				var want []LogColumn
+				for _, p := range kept {
+					if p.role != routingMargin && !slices.Contains(want, p.column) {
+						want = append(want, p.column)
+					}
+				}
+				l := logColumns(width, ticked, on)
+				got := make([]LogColumn, len(l.places))
+				for i, p := range l.places {
+					got[i] = p.column
+				}
+				last := l.places[len(l.places)-1]
+				if !slices.Equal(got, want) || last.x+last.width > width {
+					t.Errorf("at %d, on %d, ticked %v, the layout is %s, want the columns the first pass kept, %v, within the row", width, on, ticked, layoutSaid(l), want)
+				}
+			}
+		}
+	}
+}
+
+// A column of names' natural is the widest name of the accounts configured,
+// as the dashboard names them, labelMost at the most.
+func TestTheWidestLabelIsTheWidestConfiguredAccounts(t *testing.T) {
 	tests := []struct {
-		name string
-		rows []views.RequestRow
-		want logNaturals
+		name     string
+		accounts []status.Account
+		want     int
 	}{
-		{name: "none", want: logNaturals{}},
-		{
-			name: "the widest of each",
-			rows: []views.RequestRow{{Dir: "~/Code/docs", Account: "work"}, {Dir: "~/Code/api", Account: "personal"}},
-			want: logNaturals{dir: 4, on: 8},
-		},
-		{
-			name: "a directory past SessionDirCells and an account past labelMost",
-			rows: []views.RequestRow{{Dir: "~/Code/a-directory-named-at-length", Account: "an-account-named-at-great-length"}},
-			want: logNaturals{dir: views.SessionDirCells, on: labelMost},
-		},
-		{name: "no directory", rows: []views.RequestRow{{Account: "side"}}, want: logNaturals{on: 4}},
+		{name: "none", want: 0},
+		{name: "by label, else id", accounts: []status.Account{{ID: "work", Label: "personal-research"}, {ID: "side"}}, want: 17},
+		{name: "a label past labelMost", accounts: []status.Account{{ID: "work", Label: "an-account-named-at-great-length"}}, want: labelMost},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var got logNaturals
-			for _, r := range tt.rows {
-				got = got.with(r, name)
-			}
-			if got != tt.want {
-				t.Errorf("the naturals are %+v, want %+v", got, tt.want)
+			m := frameOf(160, 24).Moment(routerDoc("side", 0, tt.accounts...), now)
+			if got := widestLabel(m); got != tt.want {
+				t.Errorf("widestLabel = %d, want %d", got, tt.want)
 			}
 		})
 	}

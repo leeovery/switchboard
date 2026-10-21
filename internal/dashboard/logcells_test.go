@@ -64,7 +64,7 @@ func everyExtra() LogTicks {
 // drawnLayout is the Requests' layout as the frame draws it, with the
 // document given, at now.
 func drawnLayout(f Frame, doc status.Document, now time.Time) logLayout {
-	return f.requestsLayout(f.Moment(doc, now), now, f.logInView())
+	return f.requestsLayout(f.Moment(doc, now))
 }
 
 // rowsHold holds the rows of the Requests drawn on the canvas c from row top,

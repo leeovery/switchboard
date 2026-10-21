@@ -78,18 +78,30 @@ const leastView = 6
 var natural = map[string]string{}
 
 // known is a rule the views of the fixtures named are known to break at the
-// owner's sizes given, as "73x61", and the slice of the fluid pass, as the
-// plan numbers them, that clears it.
+// owner's sizes given, as "73x61", and either the slice of the fluid pass,
+// as the plan numbers them, that clears it; or, where none will, byDesign:
+// the design's own cut at a most, which the sweep can't tell from a cut with
+// room, and what it is.
 type known struct {
 	slice    string
+	byDesign string
 	rule     fluidRule
 	sizes    []string
 	fixtures []string
 }
 
+// owner is who answers for the break: its slice, else the design.
+func (k known) owner() string {
+	if k.byDesign != "" {
+		return "the design"
+	}
+	return k.slice
+}
+
 // knownBreaks are what the views break today, by the slice that clears
-// them. The list only shrinks: a slice deletes what it clears, as a fixture
-// named at a size where it no longer breaks the rule fails the sweep.
+// them, or the design that cuts them. The list only shrinks: a slice deletes
+// what it clears, as a fixture named at a size where it no longer breaks the
+// rule fails the sweep.
 var knownBreaks = []known{
 	// S5, the Switchboard's calls (F18, F19): its directories, and an account's
 	// name in a phone's lanes, cut with room; at 15 rows, an account out of view
@@ -118,15 +130,16 @@ var knownBreaks = []known{
 		slice: "S5", rule: foldWithRowsSpare, sizes: []string{"138x15"},
 		fixtures: []string{"page-sessions-short"},
 	},
-	// S6, the Log on flex (F30): its sessions' directories cut to
-	// views.SessionDirCells, their most, with room; and the Requests' on, which
-	// takes only what's past the columns' leasts, cut with room.
+	// The Log's sessions' directories, cut to views.SessionDirCells, their
+	// most, with room at every size they show at; and the Requests' on, its
+	// share past the columns' leasts at 73 and 108, as the spike draws it.
 	{
-		slice: "S6", rule: cutWithRoom, sizes: []string{"73x61", "73x36", "138x30", "138x15", "108x44", "108x24", "173x53", "109x53"},
+		byDesign: "the Log's directories at views.SessionDirCells, and on past the leasts", rule: cutWithRoom,
+		sizes:    []string{"73x61", "73x36", "138x30", "138x15", "108x44", "108x24", "173x53", "109x53"},
 		fixtures: []string{"log-requests-long-names-108x44"},
 	},
 	{
-		slice: "S6", rule: cutWithRoom, sizes: []string{"138x30", "138x15", "173x53"},
+		byDesign: "the Log's directories at views.SessionDirCells", rule: cutWithRoom, sizes: []string{"138x30", "138x15", "173x53"},
 		fixtures: []string{"long-names-log-events"},
 	},
 	// S7, the List on flex (F21): its sessions' directories cut with room.
@@ -367,7 +380,8 @@ func judged(breaks []fluidBreak, known []fluidRule) (unknown []fluidBreak, clear
 	return unknown, cleared
 }
 
-// Each of knownBreaks names the slice that clears it, a rule, and fixtures
+// Each of knownBreaks names the slice that clears it, or the design's cut
+// that stands, and not both, a rule, and fixtures
 // the sweep draws at the owner's sizes, each fixture, rule and size once.
 func TestEveryKnownBreakIsOfAViewTheSweepDraws(t *testing.T) {
 	swept := make(map[string]bool)
@@ -380,19 +394,19 @@ func TestEveryKnownBreakIsOfAViewTheSweepDraws(t *testing.T) {
 	}
 	named := make(map[string]bool)
 	for _, k := range knownBreaks {
-		if !planSlice.MatchString(k.slice) {
-			t.Errorf("knownBreaks names %q, not a slice of the plan", k.slice)
+		if (k.byDesign == "") != planSlice.MatchString(k.slice) {
+			t.Errorf("knownBreaks names %q and %q: want a slice of the plan, or the design's cut, alone", k.slice, k.byDesign)
 		}
 		if !slices.Contains([]fluidRule{cutWithRoom, foldWithRowsSpare, nothingDrawn, wastedThird}, k.rule) {
-			t.Errorf("%s's knownBreaks name %q, not a rule the sweep holds", k.slice, k.rule)
+			t.Errorf("%s's knownBreaks name %q, not a rule the sweep holds", k.owner(), k.rule)
 		}
 		for _, name := range k.fixtures {
 			if !swept[name] {
-				t.Errorf("%s's knownBreaks name %s, which the sweep doesn't draw", k.slice, name)
+				t.Errorf("%s's knownBreaks name %s, which the sweep doesn't draw", k.owner(), name)
 			}
 			for _, at := range k.sizes {
 				if !slices.Contains(sizes, at) {
-					t.Errorf("%s's knownBreaks name %s at %s, not one of the owner's sizes", k.slice, name, at)
+					t.Errorf("%s's knownBreaks name %s at %s, not one of the owner's sizes", k.owner(), name, at)
 				}
 				if once := name + " " + string(k.rule) + " " + at; named[once] {
 					t.Errorf("knownBreaks name %s at %s breaking the rule of %s twice", name, at, k.rule)
