@@ -143,7 +143,9 @@ type detailLayout struct {
 // takes what its names need of that, and of what the weeks, as wideWeeks
 // lays them, leave of their room, and the panel sits after it. The weeks'
 // least follows from USAGE's row, its window names as usageWide has them,
-// and THIS WEEK, as thisWeekCells has it, of the windows the moment m lists.
+// and THIS WEEK, as thisWeekCells has it, of the windows the moment m lists
+// and the limits the page records. The layout follows the width, the
+// accounts configured, the windows listed and the limits recorded.
 func (f Frame) detailLaid(m status.Moment) (detailLayout, bool) {
 	l := detailLayout{into: panelCX, thisWeek: f.thisWeekCells(m)}
 	natural := detailLayout{dw: dayCellsLeast, gap: weeksGapMost, weeks: sixWeeks}.weeksCells()
@@ -277,7 +279,9 @@ func (l detailLayout) weekBar() int {
 // detailIn is the layout Detail is drawn in under the wide chrome, of the
 // moment m: its wide layout, where its leasts fit the frame, as detailLaid
 // has it; else the stack's, as a phone's body draws it; and whether it's
-// wide. Detail's form and help's key to it both choose by it.
+// wide. Detail's form and help's key to it both choose by it. Under a
+// phone's chrome, buildAccountsForm stacks Detail before detailIn is asked;
+// help agrees there, as the days can't grow before 159 columns.
 func (f Frame) detailIn(m status.Moment) (detailLayout, bool) {
 	if l, wide := f.detailLaid(m); wide {
 		return l, true

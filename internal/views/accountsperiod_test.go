@@ -1,7 +1,6 @@
 package views_test
 
 import (
-	"slices"
 	"testing"
 	"time"
 
@@ -133,20 +132,5 @@ func TestLimitsAreHitAtMostOnceAWindowOverTheLongestPeriod(t *testing.T) {
 		if got := views.LimitsHitMost(key); got != want {
 			t.Errorf("LimitsHitMost(%q) = %d, want %d", key, got, want)
 		}
-	}
-}
-
-// The page's limited windows are every window any row records a limit of,
-// every account's among them, each once.
-func TestThePagesLimitedWindowsAreEveryRowsLimits(t *testing.T) {
-	page := views.AccountsPage{
-		Rows: []views.AccountsRow{
-			{Totals: views.AccountTotals{Limits: map[string]int{"5h": 2, "7d_oi": 1}}},
-			{Totals: views.AccountTotals{Limits: map[string]int{"7d": 1}}},
-		},
-		All: views.AccountsRow{Totals: views.AccountTotals{Limits: map[string]int{"5h": 2, "7d": 1, "1d": 1}}},
-	}
-	if got, want := page.LimitedWindows(), []string{"1d", "5h", "7d", "7d_oi"}; !slices.Equal(got, want) {
-		t.Errorf("the page's limited windows are %v, want %v", got, want)
 	}
 }

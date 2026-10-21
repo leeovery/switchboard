@@ -796,7 +796,7 @@ func TestDetailDrawsWideFromWhereItsLeastsFit(t *testing.T) {
 
 // With one account, the wide form's leasts fit under 100 columns, but the
 // phone's chrome takes the frame there, and Detail is stacked: it's drawn
-// wide from 100, and help draws a day as wide as each form draws its days.
+// wide from 100.
 func TestOneAccountsDetailIsWideFrom100(t *testing.T) {
 	doc := aloneDoc()
 	f := detailFrame(Look{}, framedAccounts[:1], "work", "", alonePage(t), nil)
@@ -1011,6 +1011,28 @@ func TestDetailsTHISWEEKReadsEveryBoundedPartWhole(t *testing.T) {
 					t.Errorf("BY MODEL is on row %d, want %d, %d under THIS WEEK's %d rows", got, want, byModelGap, items)
 				}
 			})
+		}
+	}
+}
+
+// THIS WEEK's width bounds the limits the page records as well as the
+// windows the moment lists: one account's limit of a window it no longer
+// lists, Fable's week twelve times, reads whole, "Fable wk ×12", where the
+// listed windows alone would bound it at 10 cells.
+func TestDetailsTHISWEEKBoundsTheLimitsThePageRecords(t *testing.T) {
+	doc := usageWorld(extraOff, withoutFable)
+	work := detailWork
+	work.accountsFramed.limits = map[string]int{"7d_oi": 12}
+	f := detailFrame(Look{}, framedAccounts[:1], "work", "", detailPage(t, work, detailAll), nil)
+	const want = "Fable wk ×12"
+	for width := 100; width <= 230; width++ {
+		f.Width, f.Height = width, 44
+		l := laidIn(f, doc)
+		rows := accountsDrawn(f, doc)
+		row := []rune(rows[rowWith(rows, padded("limits", thisWeekLabels))])
+		x := l.thisWeekAt() + thisWeekLabels
+		if got := strings.TrimRight(string(row[x:min(len(row), l.edge())]), " "); got != want || len(row) > l.edge() {
+			t.Errorf("at %d, limits reads %q, want %q, within the weeks' edge, %d", width, got, want, l.edge())
 		}
 	}
 }
