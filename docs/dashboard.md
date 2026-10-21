@@ -218,7 +218,7 @@ Detail shows one account, or all of them, chosen from a list at its left. It sho
 - the account's windows now
 - the period's requests, limits, plan, worth and extra usage
 - its use by model
-- the last six weeks, a day and a week at a time
+- the last weeks, six where they fit, as its rule names them, a day and a week at a time
 - its verdict, as History's Weeks gives it
 - its SESSIONS now
 - its LATELY.

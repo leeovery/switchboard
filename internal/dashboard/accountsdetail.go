@@ -93,14 +93,26 @@ const (
 
 // The wide form's parts across a frame, in the order detailLaid lays them:
 // the list's, its indent, its name column and the cells from it to the
-// panel; then the panel's headings' column, to cx; and its weeks.
+// panel; then the panel's headings' column, to cx; and its weeks, two parts,
+// to their natural, and past it.
 const (
 	detailIndent = iota
 	detailNames
 	detailToPanel
 	detailHeadings
 	detailWeeks
+	detailWeeksPast
 )
+
+// The turns the wide form narrows in: the list's names first, toward their
+// least, then the weeks, toward theirs.
+const (
+	namesNarrowed = 1 + iota
+	weeksNarrowed
+)
+
+// listNamesMost are the most cells the list's name column takes.
+const listNamesMost = 24
 
 // detailLayout is Detail laid out wide, or on a phone, as stackLayout: with
 // its list at its left, its name column names cells wide, the panel beside
@@ -122,29 +134,41 @@ func (f Frame) detailLayout() detailLayout {
 }
 
 // detailLaid is Detail's wide layout, as flex lays its parts across the
-// frame, and whether their leasts fit: the list, where there's more than one
-// account, its name column as wide as listNames has it, its names never cut
-// shorter; the panel's headings' column; and its weeks, taking what's left,
-// at least weeksLeast, as wideWeeks lays them.
+// frame, and whether their leasts fit. The parts: the list, where there's
+// more than one account, its name column from leastNames to listNamesMost;
+// the panel's headings' column; and its weeks, at their natural, six at the
+// widest gap, at least weeksLeast, and past it, growing. The list gives way
+// first: its names narrow toward their least before the weeks narrow, and
+// past the weeks' natural, they take their most before the weeks grow (the
+// owner's call, 15 October 2026). The names are laid at their most whatever
+// the labels, so the panel's layout follows the width alone; the list then
+// takes what its names need of that, and of what the weeks, as wideWeeks
+// lays them, leave of their room, and the panel sits after it.
 func (f Frame) detailLaid() (detailLayout, bool) {
 	l := detailLayout{into: panelCX}
+	natural := detailLayout{dw: dayCellsLeast, gap: weeksGapMost, weeks: sixWeeks}.weeksCells()
 	parts := []flex.Part{
-		detailIndent:   {},
-		detailNames:    {},
-		detailToPanel:  {},
-		detailHeadings: {Least: panelCX, Natural: panelCX},
-		detailWeeks:    {Least: weeksLeast(usageWide(f.Width)), Grows: true},
+		detailIndent:    {},
+		detailNames:     {},
+		detailToPanel:   {},
+		detailHeadings:  {Least: panelCX, Natural: panelCX},
+		detailWeeks:     {Least: weeksLeast(usageWide(f.Width)), Natural: natural, Narrows: weeksNarrowed},
+		detailWeeksPast: {Grows: true},
 	}
 	if !f.Accounts.Alone() {
 		l.list = true
 		parts[detailIndent] = flex.Part{Least: listAt, Natural: listAt}
-		names := f.listNames()
-		parts[detailNames] = flex.Part{Least: names, Natural: names}
+		parts[detailNames] = flex.Part{Least: leastNames, Natural: listNamesMost, Narrows: namesNarrowed}
 		parts[detailToPanel] = flex.Part{Least: panelPastDot, Natural: panelPastDot}
 	}
 	s, ok := flex.Lay(f.edge(), parts...)
-	l.names, l.panel = s[detailNames].Size, s[detailHeadings].At
-	return l.wideWeeks(s[detailWeeks].Size), ok
+	room := s[detailWeeks].Size + s[detailWeeksPast].Size
+	l = l.wideWeeks(room)
+	if l.list {
+		l.names = min(f.listNames(), s[detailNames].Size+room-l.weeksCells())
+		l.panel = l.dotAt() + panelPastDot
+	}
+	return l, ok
 }
 
 // usageWide are the cells USAGE's row takes wide, its parts at their leasts,
@@ -180,19 +204,17 @@ func (l detailLayout) wideWeeks(room int) detailLayout {
 	return l
 }
 
-// listNames is the cells of Detail's list's name column: its accounts'
-// names whole, the widest of them, its number and a space, then its label
-// and ◆ at most compareNameMost cells, as Compare's heads take them; and a
-// gap; at least leastNames.
+// listNames is the cells of the name column Detail's list fits its accounts'
+// names to, as nameColumn fits USAGE's: the widest, number, label and ◆, and
+// a gap, within its least and its most.
 func (f Frame) listNames() int {
 	configured := f.Accounts.Accounts
 	digits := len(strconv.Itoa(len(configured)))
-	widest := 0
+	names := make([]accountName, len(configured))
 	for i, a := range configured {
-		n := listName(status.AccountNow{ID: a.ID, Label: a.Label, Primary: a.Primary, Place: i + 1}, digits)
-		widest = max(widest, len(n.number)+1+min(wholeName(n), compareNameMost))
+		names[i] = listName(status.AccountNow{ID: a.ID, Label: a.Label, Primary: a.Primary, Place: i + 1}, digits)
 	}
-	return max(widest+nameGap, leastNames)
+	return nameColumn(names, f.Width)
 }
 
 // dotAt is the column of each account's state's dot or square in the list.
@@ -531,12 +553,13 @@ func allGauge(m status.Moment, key string) gauge {
 
 // thisWeek draws THIS WEEK from row y, at its column: its title, naming the
 // period, then each item, its label thisWeekLabels cells wide in
-// text.subtle, and its figure, which runs on past the weeks' edge where it's
-// longer than thisWeekFigures, cut short of the frame's edge.
+// text.subtle, and its figure cut at the weeks' edge, as fitParts cuts it.
+// Its figures' cells are fixed as the requests, the plans' summed price and
+// the worth have no widest.
 func (d detailDrawn) thisWeek(c *canvas, y int) {
 	x := d.l.thisWeekAt()
 	c.line(x, y, line{{d.page.Period.Title(), dimInk}})
-	cells := d.f.edge() - x - thisWeekLabels
+	cells := d.l.edge() - x - thisWeekLabels
 	for i, item := range d.thisWeekItems(cells) {
 		c.line(x, y+1+i, line{{padded(item.label, thisWeekLabels), dimInk}})
 		c.line(x+thisWeekLabels, y+1+i, fitParts(cells, periodNumbered(item.parts, d.id, item.label)...))

@@ -2092,14 +2092,16 @@ where it fits** says, and where they don't fit, it's stacked, as **On a phone** 
   `↑↓ choose`, `↑↓` bold `accent.key` and `choose` in `text.subtle`. A `│` in `border` at column 20,
   rows 6 to 32, or 33 with sessions; the panel starts at column 24. More accounts than it holds
   scroll with the choice (settled in the plan).
-- **The list's name column fits the names:** the widest number, label and `◆`, with no cells kept
-  for `▲`, which the list doesn't draw, the label and `◆` at most 24 cells, as Compare's heads take
-  them, a longer label cut with `…`; and a gap of two cells; at least 14 cells. The dot, the lit
-  row, the `│` and the panel move right with it. The names are never cut shorter to make room:
-  where the wide form's parts don't fit beside them, Detail is stacked, and the list goes, as the
-  rule of labels has it (see The page). This replaces the owner's call of 15 October 2026, that
-  the list gave way first, its names cut to 14 cells, which was made for a wide form fixed at 141
-  columns.
+- **The list's name column fits the names,** as USAGE's does (see `usage`, the printout): the widest
+  number, label and `◆`, with no cells kept for `▲`, which the list doesn't draw, and a gap of two
+  cells; at least 14 cells and at most 24. The dot, the lit row, the `│` and the panel move right
+  with it, and the list gives way first (the owner's call, 15 October 2026): it takes what the
+  panel leaves it, a long label cut with `…` to that. The panel takes its natural, six weeks at a
+  gap of 4 and 2-cell days, before the names take more than 14 cells, at 141 columns; the names
+  narrow to 14 before the panel narrows; and past 141 they take up to 24 before the days grow.
+  Cells the weeks leave at their edge, as the 2 at 138 columns, go to the names before they're
+  cut. As the panel is laid with the names at 24, whatever the labels, its layout follows the
+  width alone.
 - **The panel's head,** row 6: the account's number, name and marks, three spaces, then its state in
   ROUTING's words without its `back …` time, saying where new sessions go (see The Overview): `● at
   its cap · new sessions go elsewhere`, `■ limit reached · new sessions go elsewhere`, `■ refused
@@ -2122,8 +2124,9 @@ where it fits** says, and where they don't fit, it's stacked, as **On a phone** 
   over the plans known where any isn't, `$635  4.3× · 2 of 3 plans known`, and `extra use`, labels 10
   wide in `text.subtle`; for `all accounts`, `limits` is how many and `plan` the plans summed,
   `$600/mo`. Its column is 20 cells, the labels and 10 for their figures, ending at the weeks'
-  edge, column 140 at 160; a longer figure runs on past it, cut short of the frame's edge. Its
-  title names the period: `THIS WEEK`, or `LAST 30 DAYS`.
+  edge, column 140 at 160, a longer figure cut there with `…`, as `on for 1…`: the requests, the
+  plans' summed price and the worth are counts and sums with no widest the column could be sized
+  to. Its title names the period: `THIS WEEK`, or `LAST 30 DAYS`.
 - **BY MODEL,** row 15: the period's share of use as a stacked bar, from `cx`, 12 cells into the
   panel, at column 36, to the weeks' edge below, 104 cells at 160; from row 16, from `cx`, each
   version with a share, `● Opus 5.5 55%`, two cells apart, as many as fit the row, the rest on the
@@ -2180,19 +2183,21 @@ where it fits** says, and where they don't fit, it's stacked, as **On a phone** 
   with the list. At 160 its days are 3 cells, so `step` is 25, and the weeks, BY MODEL and THIS
   WEEK end at column 158.
 - **Wide, from where it fits.** Flex lays the wide form's parts across the frame, and where their
-  leasts don't fit, Detail is stacked: from 105 columns with the list and the frames' names, and
+  leasts don't fit, Detail is stacked: from 105 columns with the list, whatever its names, and
   under 100, where the phone's chrome takes the frame, always. The parts, in order:
-  - with more than one account, the list: a cell, the name column at its width, never cut, and 9
-    cells past it to the panel;
+  - with more than one account, the list: a cell, the name column, from 14 cells to 24, narrowing
+    first, and 9 cells past it to the panel;
   - the panel's headings' column, 12 cells, to `cx`;
-  - the weeks, taking what's left to the frame's edge, at least the fewest cells whose weeks end
-    where USAGE's row at its leasts and THIS WEEK after it reach: 68 cells, four weeks at a gap of
-    4.
+  - the weeks, at their natural, six at a gap of 4, 104 cells, narrowing after the names, to the
+    fewest cells whose weeks end where USAGE's row at its leasts and THIS WEEK after it reach: 68
+    cells, four weeks at a gap of 4;
+  - past their natural, the weeks growing into what's left once the names have 24.
   - In the weeks' room, as many weeks as fit, six at most, the latest kept: their gap 4, narrowing
     to 3 and then 2 before a week leaves. So six at 138 columns, a gap of 3, and four at 108, a gap
-    of 4. Past six at a gap of 4, from 141 columns, the days' cells grow, a whole cell at a time,
-    where six weeks at a gap of 4 have room for them: 3 cells from 183 columns. What's left past
-    the weeks, less than a cell more for each of their 42 days, stays blank at the right.
+    of 4. Past six at a gap of 4, the days' cells grow, a whole cell at a time, where six weeks at
+    a gap of 4 have room for them: 3 cells from 193 columns. What's left past the weeks, less than
+    a cell more for each of their 42 days, stays blank at the right, or goes to the names where
+    they're cut.
   - THIS WEEK, the rule and BY MODEL's bar end at the weeks' edge, and USAGE's row ends a cell
     before THIS WEEK, its bars at most 40, so they don't grow past that.
   - The layout follows the width and the configured accounts and windows alone, never the rows or

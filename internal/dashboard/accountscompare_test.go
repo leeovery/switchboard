@@ -427,8 +427,8 @@ func TestAllAccountsCountsTheConfiguredAccountsStates(t *testing.T) {
 
 // All accounts' extra usage counts every configured account, as its states
 // counted do: one the document lacks yet among them, not read, so with work's
-// on, it's on for 1 of 4, in Compare's column, in Detail's THIS WEEK and in a
-// phone's.
+// on, it's on for 1 of 4, in Compare's column and in a phone's; in Detail's
+// THIS WEEK, wide, cut at the weeks' edge to its figures' 10 cells.
 func TestAllAccountsExtraUsageCountsTheConfiguredAccounts(t *testing.T) {
 	added := append(slices.Clone(threeFramed), config.Account{ID: "added"})
 	workOn := func(d *status.Document) { d.Accounts[0].Extra = quota.ExtraUsage{Status: quota.StatusAllowed} }
@@ -448,8 +448,8 @@ func TestAllAccountsExtraUsageCountsTheConfiguredAccounts(t *testing.T) {
 
 	detail := detailFrame(Look{}, added, "", "", detailsPage(t), nil)
 	rows = textOf(detail.Draw(usageWorld(extraOff, workOn), routedAt))
-	if got := after(rows[rowWith(rows, "extra use")], "extra use"); got != want {
-		t.Errorf("Detail's all accounts' extra use reads %q, want %q", got, want)
+	if got, cut := after(rows[rowWith(rows, "extra use")], "extra use"), "on for 1…"; got != cut {
+		t.Errorf("Detail's all accounts' extra use reads %q, want %q", got, cut)
 	}
 
 	phone := phoneText(t, 52, 60, AccountsDetail, "", phonePage(t), nil)

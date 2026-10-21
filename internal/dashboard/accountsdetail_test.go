@@ -738,9 +738,10 @@ func TestDetailsTHISWEEKNamesThePeriod(t *testing.T) {
 }
 
 // Detail draws wide where flex finds its wide form's leasts fit the frame:
-// with the list, its name column at its least, the headings' column, and the
-// weeks at the fewest cells that leave USAGE's row its leasts and THIS WEEK
-// beside it, from 105 columns; with one account, no list, from 81, though
+// with the list, its name column at its least, 14 cells whatever its names,
+// the headings' column, and the weeks at the fewest cells that leave USAGE's
+// row its leasts and THIS WEEK beside it, from 105 columns; with one
+// account, no list, from 81, though
 // the phone's chrome takes the frame under 100. Narrower, as the phone's
 // body draws it. Drawn wide, its widest row ends at the weeks' edge.
 func TestDetailDrawsWideFromWhereItsLeastsFit(t *testing.T) {
@@ -753,6 +754,7 @@ func TestDetailDrawsWideFromWhereItsLeastsFit(t *testing.T) {
 		drawn      bool
 	}{
 		{name: "with the list", doc: usageWorld(extraOff, happened(onAuto()...)), configured: framedAccounts, page: detailsPage(t), from: 105, drawn: true},
+		{name: "with the list of long names", configured: config.Accounts{{ID: "work", Label: "work-team-plan"}, {ID: "side", Label: "side-hustle-consulting"}}, from: 105},
 		{name: "one account", doc: aloneDoc(), configured: framedAccounts[:1], page: alonePage(t), from: 81},
 	}
 	for _, tt := range tests {
@@ -794,8 +796,9 @@ func TestDetailDrawsWideFromWhereItsLeastsFit(t *testing.T) {
 // at most, their gap 4, then 3, then 2, before a week leaves; past six at a
 // gap of 4, their days' cells grow, a whole cell at a time. The rule names
 // the weeks shown and ends at their edge, as BY DAY's last week does, and
-// THIS WEEK ends there too. USAGE's bar takes what's left before THIS WEEK,
-// its words at their widest a cell short of it, at most 40.
+// THIS WEEK ends there too, its figures cut there. USAGE's bar takes what's
+// left before THIS WEEK, its words at their widest a cell short of it, at
+// most 40.
 func TestDetailsWideFormFitsItsWeeksToTheWidth(t *testing.T) {
 	doc := usageWorld(extraOff, happened(onAuto()...))
 	tests := []struct {
@@ -834,6 +837,11 @@ func TestDetailsWideFormFitsItsWeeksToTheWidth(t *testing.T) {
 			worth := rows[rowWith(rows, "worth ")]
 			if columnOf(title, "THIS WEEK") != tt.edge-thisWeekLabels-thisWeekFigures || ansi.StringWidth(worth) != tt.edge {
 				t.Errorf("THIS WEEK is at %d, its worth ending at %d, want it %d cells before the weeks' edge, %d, ending there", columnOf(title, "THIS WEEK"), ansi.StringWidth(worth), thisWeekLabels+thisWeekFigures, tt.edge)
+			}
+			for _, label := range []string{"requests", "limits", "plan", "worth", "extra use"} {
+				if row := rows[rowWith(rows, padded(label, thisWeekLabels))]; ansi.StringWidth(row) > tt.edge {
+					t.Errorf("THIS WEEK's %s reads %q, past the weeks' edge, %d", label, row, tt.edge)
+				}
 			}
 			week := rows[rowWith(rows, "Week ")]
 			if bar := columnOf(week, "34%") - l.panel - 9 - 2; bar != tt.bar {
@@ -885,11 +893,11 @@ func TestDetailsWideFormKeepsItsWordsWhole(t *testing.T) {
 	}
 }
 
-// Detail's list fits its name column to the names: the widest, number,
-// label and ◆, the label and ◆ at most 24 cells, as Compare's heads take
-// them, and a gap, at least 14 cells; its dots, its light, its │ and the
-// panel moving over with it. Its names are never cut shorter: where the wide
-// form's leasts don't fit beside them, Detail is stacked.
+// Detail's list fits its name column to the names by the rule USAGE fits
+// its own by, nameColumn: the widest, number, label and ◆, and a gap, at
+// least 14 cells and at most 24, its dots, its light, its │ and the panel
+// moving over with it. A long label is cut with … to what the panel leaves
+// the list, as the list gives way first.
 func TestDetailsListFitsItsNameColumnToTheNames(t *testing.T) {
 	const long, longest = "personal-account", "personal-account-of-many-letters"
 	tests := []struct {
@@ -897,14 +905,14 @@ func TestDetailsListFitsItsNameColumnToTheNames(t *testing.T) {
 		width        int
 		label        string
 		names        int
-		stacked      bool
 		listed, head string
 	}{
 		{name: "the frames' names", width: 160, names: 14, listed: "2 personal ◆", head: "2 personal ◆"},
 		{name: "a long name, room to spare", width: 200, label: long, names: 22, listed: "2 personal-account ◆", head: "2 personal-account ◆"},
-		{name: "a long name, the weeks at their least", width: 113, label: long, names: 22, listed: "2 personal-account ◆", head: "2 personal-account ◆"},
-		{name: "a long name, a cell short", width: 112, label: long, names: 22, stacked: true},
-		{name: "a name past the most", width: 200, label: longest, names: 28, listed: "2 personal-account-of-m… ◆", head: "2 " + longest + " ◆"},
+		{name: "a long name, 4 cells past the panel's natural", width: 145, label: long, names: 18, listed: "2 personal-ac… ◆", head: "2 personal-account ◆"},
+		{name: "a long name, the panel at its natural", width: 141, label: long, names: 14, listed: "2 persona… ◆", head: "2 personal-account ◆"},
+		{name: "a long name, the cells the weeks leave", width: 138, label: long, names: 16, listed: "2 personal-… ◆", head: "2 personal-account ◆"},
+		{name: "a name past the most", width: 200, label: longest, names: 24, listed: "2 personal-account-… ◆", head: "2 " + longest + " ◆"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -914,11 +922,8 @@ func TestDetailsListFitsItsNameColumnToTheNames(t *testing.T) {
 			f := detailFrame(Look{}, configured, "personal", "", detailsPage(t), nil)
 			f.Width = tt.width
 			l, wide := f.detailLaid()
-			if l.names != tt.names || wide == tt.stacked {
-				t.Fatalf("its list's name column is %d cells, its wide form fitting %v, want %d cells, fitting %v", l.names, wide, tt.names, !tt.stacked)
-			}
-			if tt.stacked {
-				return
+			if l.names != tt.names || !wide {
+				t.Fatalf("its list's name column is %d cells, its wide form fitting %v, want %d cells, wide", l.names, wide, tt.names)
 			}
 			if l.panel != l.dotAt()+panelPastDot {
 				t.Errorf("the panel is at %d, want it %d past the name column's dots, at %d", l.panel, panelPastDot, l.dotAt())
@@ -933,6 +938,53 @@ func TestDetailsListFitsItsNameColumnToTheNames(t *testing.T) {
 			}
 			if got := string([]rune(rows[f.top()])[l.panel:]); !strings.HasPrefix(got, tt.head) {
 				t.Errorf("the panel's head reads %q from column %d, want it to start %q", got, l.panel, tt.head)
+			}
+		})
+	}
+}
+
+// The list gives way first (the owner's call, 15 October 2026): the panel
+// takes its natural, six weeks at a gap of 4, before the names take more than
+// 14 cells; the names narrow to 14 before the panel narrows; and past the
+// panel's natural the names take up to 24 before the days grow. The names
+// take what the weeks leave too. So the panel, its weeks, their gap and days,
+// is laid alike whatever the labels, the list's width alone differing.
+func TestDetailsListGivesWayBeforeThePanel(t *testing.T) {
+	long := config.Accounts{
+		{ID: "work", Label: "work-team-plan"}, {ID: "personal", Label: "personal-research", Primary: true},
+		{ID: "side", Label: "side-hustle-consulting"},
+	}
+	tests := []struct {
+		width               int
+		short, long         int
+		weeks, gap, dw, end int
+	}{
+		{width: 105, short: 14, long: 14, weeks: 4, gap: 4, dw: 2, end: 68},
+		{width: 108, short: 14, long: 17, weeks: 4, gap: 4, dw: 2, end: 68},
+		{width: 120, short: 14, long: 15, weeks: 5, gap: 3, dw: 2, end: 82},
+		{width: 138, short: 14, long: 16, weeks: 6, gap: 3, dw: 2, end: 99},
+		{width: 141, short: 14, long: 14, weeks: 6, gap: 4, dw: 2, end: 104},
+		{width: 151, short: 14, long: 24, weeks: 6, gap: 4, dw: 2, end: 104},
+		{width: 160, short: 14, long: 24, weeks: 6, gap: 4, dw: 2, end: 104},
+		{width: 220, short: 14, long: 24, weeks: 6, gap: 4, dw: 3, end: 146},
+	}
+	for _, tt := range tests {
+		t.Run(strconv.Itoa(tt.width), func(t *testing.T) {
+			for _, world := range []struct {
+				name       string
+				configured config.Accounts
+				names      int
+			}{{"8-cell names", framedAccounts, tt.short}, {"long names", long, tt.long}} {
+				f := detailFrame(Look{}, world.configured, "work", "", nil, nil)
+				f.Width = tt.width
+				l, wide := f.detailLaid()
+				if !wide || l.names != world.names {
+					t.Errorf("%s: the list's names are %d cells, wide %v, want %d, wide", world.name, l.names, wide, world.names)
+				}
+				if l.weeks != tt.weeks || l.gap != tt.gap || l.dw != tt.dw || l.weeksCells() != tt.end || l.edge() > f.edge() {
+					t.Errorf("%s: its weeks are %d, %d apart, their days %d cells, %d cells in all to %d; want %d, %d apart, %d cells, %d cells, within %d",
+						world.name, l.weeks, l.gap, l.dw, l.weeksCells(), l.edge(), tt.weeks, tt.gap, tt.dw, tt.end, f.edge())
+				}
 			}
 		})
 	}

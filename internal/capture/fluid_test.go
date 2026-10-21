@@ -176,6 +176,21 @@ var knownBreaks = []known{
 		byDesign: "on's share at 109", cuts: []string{"personal-resea…", "side-hustle-co…"}, rule: cutWithRoom,
 		sizes: []string{"109x53"}, fixtures: []string{"log-requests-long-names-108x44"},
 	},
+	// Detail's list, which gives way first, its names cut to what the panel
+	// leaves them, down to 14 cells, before its weeks narrow (the owner's call,
+	// 15 October 2026); and its names at their most, 24 cells.
+	{
+		byDesign: "Detail's list giving way at 138", cuts: []string{"work-team-p…", "personal-…", "side-hustle…"}, rule: cutWithRoom,
+		sizes: []string{"138x30", "138x15"}, fixtures: []string{"long-names-accounts-detail"},
+	},
+	{
+		byDesign: "Detail's list giving way at 108", cuts: []string{"work-team-pl…", "personal-r…", "side-hustle-…"}, rule: cutWithRoom,
+		sizes: []string{"108x44", "108x24"}, fixtures: []string{"long-names-accounts-detail"},
+	},
+	{
+		byDesign: "Detail's list's names at their most", cuts: []string{"side-hustle-consult…"}, rule: cutWithRoom,
+		sizes: []string{"173x53"}, fixtures: []string{"long-names-accounts-detail"},
+	},
 	// S7, the List on flex (F21): its sessions' directories cut with room.
 	{
 		slice: "S7", rule: cutWithRoom, sizes: []string{"73x61", "73x36", "138x30", "138x15", "108x44", "108x24", "173x53", "109x53"},
