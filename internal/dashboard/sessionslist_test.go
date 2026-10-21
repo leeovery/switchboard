@@ -188,13 +188,23 @@ func listLeasts(on int) map[listPart]int {
 }
 
 // At every width from 52 to 220, of short names and long, the List's
-// columns are laid out as listLaidAsDesigned has them.
+// columns are laid out as listLaidAsDesigned has them; and once the session
+// is whole, on never narrows as the width grows.
 func TestTheListsColumnsLeaveInTheirOrder(t *testing.T) {
-	for _, on := range []int{8, 22} {
+	for _, on := range []int{8, 14, 22} {
+		widest := 0
 		for width := 52; width <= 220; width++ {
 			for _, wrong := range listLaidAsDesigned(width, on) {
 				t.Errorf("on %d at %d, %s: %+v", on, width, wrong, listColumnsOf(width, on))
 			}
+			columns := listColumnsOf(width, on)
+			if columns[listSession].width != 29 {
+				continue
+			}
+			if cells := columns[listOn].width; cells < widest {
+				t.Errorf("on %d at %d, on narrows to %d cells from %d", on, width, cells, widest)
+			}
+			widest = max(widest, columns[listOn].width)
 		}
 	}
 }
@@ -203,10 +213,11 @@ func TestTheListsColumnsLeaveInTheirOrder(t *testing.T) {
 // break the design: they start at column 2, 2 cells apart, each at least its
 // least; they leave in the order routing, worth, started, model, the
 // session, on, state and requests never; routing only while the leasts and
-// the session whole don't fit, and the others only while the leasts don't;
-// what's past the leasts goes to the session, to 29, before on takes a cell
-// past its least; and routing, where it shows, ends at the last column, and
-// where it's left, no column is past its natural.
+// the session and on whole don't fit, and the others only while the leasts
+// don't; what's past the leasts goes to the session, to 29, before on takes
+// a cell past its least; and routing, where it shows, ends at the last
+// column, beside the session and on whole, and where it's left, no column is
+// past its natural.
 func listLaidAsDesigned(width, on int) []string {
 	leasts, columns := listLeasts(on), listColumnsOf(width, on)
 	shown := map[listPart]listColumn{}
@@ -229,26 +240,27 @@ func listLaidAsDesigned(width, on int) []string {
 			wrong = append(wrong, listPartFacts[p].head+" left out of turn")
 		}
 	}
-	if room := width - listFrom; taken > room || left > 0 && taken+listGap+listReturns(leasts, listLeaving[left-1]) <= room {
+	if room := width - listFrom; taken > room || left > 0 && taken+listGap+listReturns(leasts, listLeaving[left-1], on) <= room {
 		wrong = append(wrong, fmt.Sprintf("the leasts shown take %d of %d cells, %d columns left", taken, room, left))
 	}
 	session, routing, last := shown[listSession], shown[listRouting], columns[len(columns)-1]
 	switch {
 	case shown[listOn].width > leasts[listOn] && session.width != 29:
 		wrong = append(wrong, "on takes cells past its least before the session's whole")
-	case hasPart(shown, listRouting) && (routing.x+routing.width != width || session.width != 29):
-		wrong = append(wrong, "routing shows short of the last column, or beside a session cut short")
+	case hasPart(shown, listRouting) && (routing.x+routing.width != width || session.width != 29 || shown[listOn].width != on):
+		wrong = append(wrong, "routing shows short of the last column, or beside a session or on cut short")
 	case !hasPart(shown, listRouting) && (session.width > 29 || shown[listOn].width > on || last.x+last.width > width):
 		wrong = append(wrong, "with routing left, a column grows past its natural")
 	}
 	return wrong
 }
 
-// listReturns are the cells a column that left needs to show again: its
-// least, and routing the session's whole past its least too.
-func listReturns(leasts map[listPart]int, p listPart) int {
+// listReturns are the cells a column that left needs to show again, on's
+// natural on: its least, and routing the session's and on's wholes past
+// their leasts too.
+func listReturns(leasts map[listPart]int, p listPart, on int) int {
 	if p == listRouting {
-		return leasts[p] + 29 - leasts[listSession]
+		return leasts[p] + 29 - leasts[listSession] + on - leasts[listOn]
 	}
 	return leasts[p]
 }
@@ -274,8 +286,8 @@ func longListDoc() status.Document {
 // 19 cells past the leasts give the session its 29, a directory of 23
 // whole, and on one more, 15, so work-team-plan is whole; at 73, worth and
 // started left too, the session takes the 10 cells left, and on holds its
-// 14, work-team-plan still whole; and at 138 and 173, on as wide as the
-// widest name it's given, every name whole at 173.
+// 14, work-team-plan still whole; and at 138, routing still left, and 173,
+// on as wide as the widest name, every name whole.
 func TestTheListHoldsLongNamesWholeWhereTheyFit(t *testing.T) {
 	infra := listedSession{"db8a71e3", "~/Code/infra-terraform-modules", "side", idleFor(50 * time.Second), yesterdayClock(15, 8), 126, 1137, views.MarkMoved, 0}
 	docs := listedSession{"3d7a8e12", "~/Code/docs-site-getting-started", "work", endedAt(10, 15), routedClock(1, 9, 40), 12, 84, views.NoMark, 0}
@@ -292,8 +304,8 @@ func TestTheListHoldsLongNamesWholeWhereTheyFit(t *testing.T) {
 			"  3d7a docs-site-getti…  work-team-plan  opus-5-5   ended 10:15        12",
 		}},
 		{width: 138, rows: []string{
-			"▸ db8a infra-terraform-modules   side-hustle-consul…  opus-5-5   idle 50s     yesterday 15:08       126   $11.37",
-			"  3d7a docs-site-getting-start…  work-team-plan       opus-5-5   ended 10:15  09:40                  12    $0.84",
+			"▸ db8a infra-terraform-modules   side-hustle-consulting  opus-5-5   idle 50s     yesterday 15:08       126   $11.37",
+			"  3d7a docs-site-getting-start…  work-team-plan          opus-5-5   ended 10:15  09:40                  12    $0.84",
 		}},
 		{width: 173, rows: []string{
 			"▸ db8a infra-terraform-modules   side-hustle-consulting  opus-5-5   idle 50s     yesterday 15:08       126   $11.37",

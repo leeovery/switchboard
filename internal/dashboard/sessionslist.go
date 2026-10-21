@@ -55,13 +55,13 @@ const (
 )
 
 // The turns the List's columns give way in as it narrows: routing leaves
-// while the leasts and the session whole don't fit, so it never takes cells
-// from a session cut short; the session narrows toward its least; then
-// worth, started and model leave, each only while the leasts don't fit, so
-// model leaves before on is cut below listOnLeast.
+// while the leasts and the session and on whole don't fit, so it never
+// takes cells from a name cut short; the session and on narrow toward their
+// leasts; then worth, started and model leave, each only while the leasts
+// don't fit, so model leaves before on is cut below listOnLeast.
 const (
 	routingLeaves = iota + 1
-	sessionNarrows
+	namesNarrow
 	worthLeaves
 	startedLeaves
 	modelLeaves
@@ -87,9 +87,9 @@ var listPartFacts = [...]struct {
 
 // listParts are the List's columns as flex lays them, listGap apart, on's
 // natural the cells given:
-//   - the session, from listSessionLeast to listSessionWhole, holding its
-//     whole until its turn;
-//   - on, from its natural, listOnLeast at the most, to its natural;
+//   - the session, from listSessionLeast to listSessionWhole, and on, from
+//     its natural, listOnLeast at the most, to its natural, each holding its
+//     whole until their turn;
 //   - the others at their cells, leaving in their turns;
 //   - and routing, from its least, taking what's left to the last column.
 //
@@ -100,8 +100,8 @@ func listParts(on int) []flex.Part {
 	for p, facts := range listPartFacts {
 		parts[p] = flex.Part{Least: facts.cells, Natural: facts.cells, Leaves: facts.leaves, Gap: listGap}
 	}
-	parts[listSession].Natural, parts[listSession].Narrows = listSessionWhole, sessionNarrows
-	parts[listOn].Least, parts[listOn].Natural = min(on, listOnLeast), on
+	parts[listSession].Natural, parts[listSession].Narrows = listSessionWhole, namesNarrow
+	parts[listOn].Least, parts[listOn].Natural, parts[listOn].Narrows = min(on, listOnLeast), on, namesNarrow
 	parts[listRouting].Grows = true
 	return parts
 }

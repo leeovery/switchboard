@@ -2773,15 +2773,16 @@ order, each at least its least and at most its natural:
 - **One narrowing,** from the widest to a phone's 52, with no phone list (the owner's call on the
   spike, 21 October 2026), laid out in two passes, as the Log's Requests are. The first decides
   what shows: columns leave in the order `routing`, `worth`, `started`, `model`. `routing` leaves
-  while the leasts and `session` whole don't fit, so it never takes cells from a session cut short;
-  `session` is then cut toward its least; and the others leave each only while the leasts still
-  don't fit, so `model` leaves before `on` is cut below 14. `session`, `on`, `state` and `requests`
-  never leave. The second lays out what shows: what's past the leasts goes to `session` first, to
-  its natural, then to `on`, in the row's order; then, where it shows, to `routing`, to the last
-  column. Nothing else grows, so where `routing` has left, the spare lies at the row's end until its
-  24 fit beside `session` whole: from 127 columns with names of 8 cells, and 133 with names of 14 or
-  more. With the frames' long names: at 108 columns `routing` leaves, `session` takes 29 and `on`
-  15; at 73 `worth` and `started` leave too, `session` takes 21 and `on` holds its 14.
+  while the leasts and `session` and `on` whole don't fit, so it never takes cells from a name cut
+  short, and neither name narrows as the frame widens; `session` and `on` are then cut toward their
+  leasts; and the others leave each only while the leasts still don't fit, so `model` leaves before
+  `on` is cut below 14. `session`, `on`, `state` and `requests` never leave. The second lays out
+  what shows: what's past the leasts goes to `session` first, to its natural, then to `on`, in the
+  row's order; then, where it shows, to `routing`, to the last column. Nothing else grows, so where
+  `routing` has left, the spare lies at the row's end until its 24 fit beside `session` and `on`
+  whole: from 127 columns with names of 8 cells, and 141 with the frames' long names, `on` 22.
+  With those: at 108 columns `routing` leaves, `session` takes 29 and `on` 15; at 73 `worth` and
+  `started` leave too, `session` takes 21 and `on` holds its 14; at 138 both are whole.
 - **No natural comes from the rows shown,** so the columns hold still as the List scrolls and as
   sessions come and go: the session's is a name's most, and `on`'s the accounts configured.
 - **What doesn't fit its cells** is cut with `…`: the directory to the cells after the id, the

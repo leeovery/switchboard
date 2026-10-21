@@ -177,16 +177,11 @@ var knownBreaks = []known{
 		sizes: []string{"109x53"}, fixtures: []string{"log-requests-long-names-108x44"},
 	},
 	// The List's directories at their most, 24 cells, where the session's
-	// column is whole and the rows without routing's words end blank; and its
-	// on, its share past the leasts at 138, routing at its least.
+	// column is whole and the rows end blank.
 	{
 		byDesign: "the List's directories at their most",
 		cuts:     []string{"docs-site-getting-start…", "switchboard-dashboard-f…", "website-marketing-redes…"}, rule: cutWithRoom,
 		sizes: []string{"138x30", "138x15", "173x53"}, fixtures: []string{"sessions-list-long-names-108x44"},
-	},
-	{
-		byDesign: "the List's on's share at 138", cuts: []string{"side-hustle-consul…"}, rule: cutWithRoom,
-		sizes: []string{"138x30"}, fixtures: []string{"sessions-list-long-names-108x44"},
 	},
 	// S9, Runway's rows (F23, F24): COMING UP folded whole with rows spare, and
 	// no lane at 15 rows.
