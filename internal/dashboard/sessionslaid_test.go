@@ -127,6 +127,19 @@ func TestACallsNamesAreRaisedBeforeTheLinesBars(t *testing.T) {
 	}
 }
 
+// fromColumnCells are the cells the from column takes in the columns given,
+// its account's natural from cells: none with none; "▸ " and the account
+// where ▸ drops its from; else "▸ from " and the account.
+func fromColumnCells(k callColumns, from int) int {
+	switch {
+	case from == 0:
+		return 0
+	case k.fromShort:
+		return 2 + k.account
+	}
+	return 7 + k.account
+}
+
 // keepsItsDistances is an error where a part of the columns given isn't its
 // distance from the part before it, the from column's natural from cells,
 // none with none: on a lane, its lines 0, from column 2, what it's doing two
@@ -138,13 +151,7 @@ func keepsItsDistances(k boardColumns, from, width int) error {
 	if k.lines == 0 {
 		id, doingGap = 2, 2
 	}
-	fromCells := 0
-	switch {
-	case from > 0 && k.fromShort:
-		fromCells = 2 + k.account
-	case from > 0:
-		fromCells = 7 + k.account
-	}
+	fromCells := fromColumnCells(k.callColumns, from)
 	switch {
 	case k.id != id, k.doing != id+4+1+k.dir+doingGap, k.from != k.doing+13:
 		return fmt.Errorf("id at %d, doing at %d, ▸ at %d, want each its distance from the part before it", k.id, k.doing, k.from)
@@ -180,6 +187,34 @@ func TestAsTheBoardWidensNoNameNarrowsAndNamesComeFirst(t *testing.T) {
 				t.Errorf("with %d, at %d the names are %d and %d with the bars %d, words short %t, ▸ short %t: want the names whole first", from, width, k.dir, k.account, k.bar, k.shortWords, k.fromShort)
 			}
 			if width > 100 && (k.dir < before.dir || k.account < before.account || k.fromShort && !before.fromShort) {
+				t.Errorf("with %d, at %d the names are %d and %d, ▸ short %t; a cell narrower, %d and %d, ▸ short %t", from, width, k.dir, k.account, k.fromShort, before.dir, before.account, before.fromShort)
+			}
+			before = k
+		}
+	}
+}
+
+// At every width from 52 to 99, of names of each width, a lane's call keeps
+// its parts' distances, and gives way in the board's turns: ▸ drops its
+// from before the account narrows, and the account reaches its least before
+// the directory narrows. A name cut leaves no cell spare at the row's end,
+// and as the frame widens a cell, no name narrows, nor does ▸ drop its from.
+func TestAsTheLanesWidenNoNameNarrowsAndNamesComeFirst(t *testing.T) {
+	for _, from := range []int{0, 8, 14, 22} {
+		var before callColumns
+		for width := 52; width < 100; width++ {
+			k := laneColumnsOf(width, from)
+			if err := keepsItsDistances(boardColumns{callColumns: k}, from, width); err != nil {
+				t.Errorf("with %d, at %d: %v", from, width, err)
+			}
+			fromCells, accountCut := fromColumnCells(k, from), k.account < from
+			if accountCut && !k.fromShort || k.dir < views.SessionDirMost && k.account > min(from, leastAccount) {
+				t.Errorf("with %d, at %d the names are %d and %d, ▸ short %t: want ▸'s from, then the account, then the directory to give", from, width, k.dir, k.account, k.fromShort)
+			}
+			if end := k.from + fromCells; (accountCut || k.dir < views.SessionDirMost) && max(end, k.doing+callDoing) != width {
+				t.Errorf("with %d, at %d a name is cut with the row ending at %d", from, width, max(end, k.doing+callDoing))
+			}
+			if width > 52 && (k.dir < before.dir || k.account < before.account || k.fromShort && !before.fromShort) {
 				t.Errorf("with %d, at %d the names are %d and %d, ▸ short %t; a cell narrower, %d and %d, ▸ short %t", from, width, k.dir, k.account, k.fromShort, before.dir, before.account, before.fromShort)
 			}
 			before = k

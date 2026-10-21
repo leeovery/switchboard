@@ -37,12 +37,14 @@ const (
 // directory, a cell on, from leastDir to views.SessionDirMost; what it's
 // doing, doingGap cells on; and, where from gives the account's natural,
 // ▸ and its from, and the account it came from, from cells at its natural,
-// leastAccount at its least. With no from, there's no from column. The
-// directory and the account narrow in the last turns, so a call's names are
-// the last of the Switchboard's parts to give, and the first raised.
+// the lesser of from and leastAccount at its least. With no from, there's
+// no from column. The directory and the account narrow in the last turns, so
+// a call's names are the last of the Switchboard's parts to give, and the
+// first raised.
 //
 // No natural comes from the calls shown, so the columns hold still as calls
-// come and go and as they move.
+// come and go and as they move. Only the from column's presence comes from
+// the calls: it's laid where any of them has moved, as fromCells has it.
 func callParts(doingGap, from int) []flex.Part {
 	parts := make([]flex.Part, callPartsCount)
 	parts[callIDPart] = flex.Part{Least: callID, Natural: callID}

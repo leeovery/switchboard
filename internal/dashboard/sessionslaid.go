@@ -108,11 +108,12 @@ func boardParts(from int) []flex.Part {
 // boardParts declares them, the from column's natural from cells, and
 // whether they fit: with every turn taken, they don't under 100 columns.
 // Whether they fit is reckoned with the from column at its least, as though
-// a call had moved, so the first move never turns the board to lanes. Three columns are read off a neighbour's span, not
-// their own: the plugs' column is where the bends' room starts, the jacks'
-// where the stretch to them ends, and the lines' where their label starts.
-// Where the parts don't fit, the columns past the bends' room lie as the
-// turns left them; nothing reads them, as the Switchboard draws lanes there.
+// a call had moved, so a move never turns the board to lanes, nor back.
+// Three columns are read off a neighbour's span, not their own: the plugs'
+// column is where the bends' room starts, the jacks' where the stretch to
+// them ends, and the lines' where their label starts. Where the parts don't
+// fit, the columns past the bends' room lie as the turns left them; nothing
+// reads them, as the Switchboard draws lanes there.
 func boardColumnsOf(width, from int) (boardColumns, bool) {
 	s, _ := flex.Lay(width, boardParts(from)...)
 	_, fits := flex.Lay(width, boardParts(leastAccount)...)
@@ -128,6 +129,15 @@ func boardColumnsOf(width, from int) (boardColumns, bool) {
 	}, fits
 }
 
+// steadyRoom is the bends' room at width that never hangs on a move: the
+// lesser of the rooms laid with no from column and with one, its natural
+// labels cells, the widest name configured.
+func steadyRoom(width, labels int) int {
+	without, _ := boardColumnsOf(width, 0)
+	with, _ := boardColumnsOf(width, labels)
+	return min(without.room, with.room)
+}
+
 // firstBend is the column the first bent cord turns down at: the bends'
 // room's last.
 func (k boardColumns) firstBend() int {
@@ -136,22 +146,26 @@ func (k boardColumns) firstBend() int {
 
 // boardLines are the Switchboard's lines as its layout reads them: the
 // accounts', by their ids, in the config's order; how many windows each
-// draws a row of, as usage --by account draws them; and the from column's
-// natural, as fromCells has it.
+// draws a row of, as usage --by account draws them; the from column's
+// natural, as fromCells has it; and the cells of the widest name
+// configured, as widestLabel has them, whether or not a call has moved.
 type boardLines struct {
 	accounts []string
 	windows  int
 	from     int
+	labels   int
 }
 
 // boardLayout is the Switchboard laid out at a frame's size, as sessionsLaid
-// lays it: its columns; whether it draws lanes in place of cords; the
+// lays it: its columns; the bends' room that decides whether its bent cords
+// fit, as steadyRoom has it; whether it draws lanes in place of cords; the
 // compaction step its lines take, 1 to 5; its lines, in the config's order;
 // its calls, top to bottom; the row its key starts on, -1 where it gives way,
 // at step 5; and the rows its calls and lines take. Rows count from the
 // view's top.
 type boardLayout struct {
 	columns boardColumns
+	steady  int
 	lanes   bool
 	step    int
 	lines   []laidLine
@@ -230,10 +244,11 @@ const compactedStep = 5
 // first at the bends' room's last column, each next bendsApart further left,
 // or 2, or 1, where the room holds them no further apart. It draws lanes in
 // place of cords where its parts don't fit, as under 100 columns, and
-// wherever the bent cords outnumber the bends' room's columns.
+// wherever the bent cords outnumber the columns of the steady room, as
+// steadyRoom has it, so neither turns on a move.
 func sessionsLaid(width, rows int, patched views.Patched, lines boardLines) boardLayout {
 	k, fits := boardColumnsOf(width, lines.from)
-	l := boardLayout{columns: k, lanes: !fits, keyAt: -1}
+	l := boardLayout{columns: k, steady: steadyRoom(width, lines.labels), lanes: !fits, keyAt: -1}
 	for l.step = 1; l.step < compactedStep; l.step++ {
 		l.layLines(patched, lines)
 		if l.rows+boardKeyGap+boardKeyRows <= rows {
@@ -335,8 +350,10 @@ func (l *boardLayout) plugged() {
 	}
 }
 
-// bend is l with its bent cords' bends set, as sessionsLaid has them, or
-// drawing lanes, where the bends' room can't hold them a column apart.
+// bend is l with its bent cords' bends set in its bends' room, as
+// sessionsLaid has them, or drawing lanes, where its steady room can't hold
+// them a column apart. The steady room is never wider than the room laid,
+// so where it holds them, the room laid does.
 func (l boardLayout) bend() boardLayout {
 	var bent []int
 	for i, c := range l.calls {
@@ -347,11 +364,11 @@ func (l boardLayout) bend() boardLayout {
 	slices.SortStableFunc(bent, func(a, b int) int {
 		return cmp.Or(cmp.Compare(l.calls[a].cord.to, l.calls[b].cord.to), cmp.Compare(l.calls[a].cord.from, l.calls[b].cord.from))
 	})
-	apart, ok := bendsApartIn(l.columns.room, len(bent))
-	if !ok {
+	if _, ok := bendsApartIn(l.steady, len(bent)); !ok {
 		l.lanes = true
 		return l
 	}
+	apart, _ := bendsApartIn(l.columns.room, len(bent))
 	for j, i := range bent {
 		l.calls[i].cord.bend = l.columns.firstBend() - j*apart
 	}

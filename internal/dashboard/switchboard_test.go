@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -756,11 +757,13 @@ func columnsDrawn(f Frame, doc status.Document) boardColumns {
 
 // No natural comes from the calls shown, so the Switchboard's columns hold
 // still as calls come and go and move: with side, of the widest name,
-// running none, as a call with a longer directory than any arrives, as a
-// call moves from side, once one has moved, and as one goes. In lanes too.
+// running none, as a call with a longer directory than any arrives, as one
+// arrives on side, as a call moves from side, once one has moved, and as one
+// goes. In lanes too.
 func TestTheSwitchboardsColumnsHoldStillAsCallsComeGoAndMove(t *testing.T) {
 	doc := usageWorld(longNamed)
 	arrives := boardCall(id9C2E, "personal", "~/Code/a-directory-named-at-great-length", idleSince(routedAt), "")
+	side := boardCall(idC61B, "side", "~/Code/mobile", idleSince(routedAt), "")
 	moves := longCalls()
 	moves[0].From = "side"
 	for _, width := range []int{52, 73, 108, 160, 220} {
@@ -768,6 +771,7 @@ func TestTheSwitchboardsColumnsHoldStillAsCallsComeGoAndMove(t *testing.T) {
 			still := columnsDrawn(boardFrame(width, 44, Look{}, boardOf(boardLook{calls: longCalls()}), Traffic{}), doc)
 			for what, calls := range map[string][]views.Call{
 				"a call with a longer directory arrived": append(longCalls(), arrives),
+				"a call arrived on side":                 append(longCalls(), side),
 				"41e0 moved from side":                   moves,
 				"7f3a gone":                              longCalls()[:2],
 			} {
@@ -806,15 +810,58 @@ func TestTheFromColumnIsTheWidestNameWhereACallHasMovedElseNone(t *testing.T) {
 	}
 }
 
+// stripped are the calls given with no move bringing any of them.
+func stripped(calls []views.Call) []views.Call {
+	calls = slices.Clone(calls)
+	for i := range calls {
+		calls[i].From = ""
+	}
+	return calls
+}
+
+// onSide are n idle calls on side, each its cord bent, the first come from
+// work.
+func onSide(n int) []views.Call {
+	calls := make([]views.Call, n)
+	for i := range calls {
+		calls[i] = boardCall(fmt.Sprintf("s%03d-session", i), "side", "~/Code/api", idleSince(routedAt), "")
+	}
+	calls[0].From = "work"
+	return calls
+}
+
+// The board's form never hangs on a move: whether its bent cords fit is
+// reckoned on a bends' room that's the lesser of the rooms with and without
+// the from column, so cords or lanes is the width's and the bent cords'
+// alone. Ten accounts' calls, and 20 calls bent on side of accounts named up
+// to 22 cells, draw the same form with no call moved as with one, where the
+// from column's arrival would narrow the room laid past them.
+func TestTheBoardsBentCordsNeverTurnItToLanesOnAMove(t *testing.T) {
+	worlds := []struct {
+		name  string
+		doc   status.Document
+		calls []views.Call
+	}{
+		{name: "ten accounts", doc: boardOfTen(), calls: tenCalls()},
+		{name: "names of 22 cells", doc: usageWorld(longNamed), calls: onSide(20)},
+	}
+	for _, w := range worlds {
+		for _, width := range []int{120, 138, 140, 145, 160, 180} {
+			still := boardFrame(width, 60, Look{}, boardOf(boardLook{calls: stripped(w.calls)}), Traffic{})
+			moved := boardFrame(width, 60, Look{}, boardOf(boardLook{calls: w.calls}), Traffic{})
+			if a, b := still.switchboardLaid(w.doc, routedAt).lanes, moved.switchboardLaid(w.doc, routedAt).lanes; a != b {
+				t.Errorf("%s at %d: lanes %t with no call moved, %t with calls moved; want the same form", w.name, width, a, b)
+			}
+		}
+	}
+}
+
 // The board's form never hangs on its data: under 100 columns it's lanes and
 // from 100 cords, with no call moved as with one, so the first move never
 // turns the whole view.
 func TestTheBoardsFormNeverHangsOnAMove(t *testing.T) {
 	doc := usageWorld(longNamed)
-	moved, still := longCalls(), longCalls()
-	for i := range still {
-		still[i].From = ""
-	}
+	moved, still := longCalls(), stripped(longCalls())
 	for _, width := range []int{99, 100} {
 		for what, calls := range map[string][]views.Call{"no call moved": still, "calls moved": moved} {
 			f := boardFrame(width, 44, Look{}, boardOf(boardLook{calls: calls}), Traffic{})

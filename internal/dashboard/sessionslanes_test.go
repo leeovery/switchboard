@@ -48,9 +48,10 @@ func lanesText(f Frame, doc status.Document) []string {
 	return textOf(f.Draw(doc, routedAt))
 }
 
-// A session's row says what it's doing where a lane's columns put it, in a session's page's
-// words, bold accent.key while it asks or answers, bold state.destructive
-// while refused, text.subtle while throttled, and text.faint while idle;
+// A session's row says what it's doing where a lane's columns put it, in a
+// session's page's words, bold accent.key while it asks or answers, bold
+// state.destructive while refused, text.subtle while throttled, and
+// text.faint while idle;
 // and its id is bold text.primary while it works, refused or throttled
 // included, as its request is to be sent again, else text.muted.
 func TestALanesSessionSaysWhatItsDoingAndIsBoldWhileItWorks(t *testing.T) {

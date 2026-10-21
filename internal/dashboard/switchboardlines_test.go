@@ -12,12 +12,12 @@ import (
 )
 
 // At every width from 100 to 200, the scene's Switchboard draws each part
-// where the narrowing table puts it: each call's directory cut to its cells,
+// where its columns put it: each call's directory cut to its cells,
 // what it's doing, where it came from, short where ▸ drops its from, and its
 // plug; the jacks; and each line, its name, its window's label, its bar's
 // cells, its percentage after them, and its words, in usage's short form
-// where the table takes it.
-func TestEveryWidthDrawsTheSwitchboardsPartsWhereTheNarrowingTableHasThem(t *testing.T) {
+// where the board's turns take it.
+func TestEveryWidthDrawsTheSwitchboardsPartsWhereItsColumnsPutThem(t *testing.T) {
 	doc := usageWorld()
 	for width := 100; width <= 200; width++ {
 		f := sceneFrame(width, 37, Look{})

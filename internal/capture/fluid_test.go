@@ -125,9 +125,6 @@ func (k known) breaking() []string {
 // what it clears, as a fixture named at a size where it no longer breaks the
 // rule fails the sweep.
 var knownBreaks = []known{
-	// S5, the Switchboard's calls (F18, F19): its directories, and an account's
-	// name in a phone's lanes, cut with room; at 15 rows, an account out of view
-	// over blank rows.
 	// The Switchboard's directories at their most, as the List's; and at 108
 	// and 109, where the cells past the leasts go to the directory alone, the
 	// directory at 14 and 15 and the account a call came from at its least,
@@ -153,6 +150,9 @@ var knownBreaks = []known{
 		byDesign: "the account a call came from at its least", cuts: []string{"perso…"}, rule: cutWithRoom,
 		sizes: []string{"108x44", "109x53"}, fixtures: []string{"sessions-pinned-160"},
 	},
+	// S5, the Switchboard (F19): an account's name in a phone's lanes, and
+	// the lines' headings, cut with room; at 15 rows, an account out of view
+	// over blank rows.
 	{
 		slice: "S5", rule: cutWithRoom, sizes: []string{"73x61", "73x36"},
 		fixtures: []string{"sessions-ten-accounts-160"},

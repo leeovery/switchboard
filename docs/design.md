@@ -2645,8 +2645,8 @@ where the parts lay it, as Narrower and wider says.
   cells, and each next 3 cells further left; where the last would then fall outside the bends' room,
   they bend 2 apart, or failing that, 1. The bends' room runs from the column after the plugs to the
   first bend, 61 to 72 at 160 columns with a call moved: 12 columns, so 3 apart holds 4 bent cords,
-  2 apart 6, and 1 apart 12. Where 1 apart can't hold them all, the view draws lanes (see Lanes,
-  below).
+  2 apart 6, and 1 apart 12. Where 1 apart can't hold them all in the steady room (see Narrower
+  and wider), the view draws lanes (see Lanes, below).
 
 **What moves.** The cords' motion stays on this tab alone (see What moves). Its steps fall on the
 clock's 80-millisecond marks, every cord in step, at up to 30 frames a second, and a frame is drawn
@@ -2765,11 +2765,14 @@ the last.
 Each part keeps its distance from the part before it: at 100 columns, with a call moved, what a call
 is doing is at 12, `▸` at 25 and the plug at 35, the jacks are at 56, and the lines run from 58, 42
 columns. A line's state words that don't fit take the short form, as on a phone, then lose whole
-clauses from the end. Where its parts don't fit with every turn taken, as under 100 columns, or
-wherever the bent cords outnumber the bends' room's columns, the Switchboard draws lanes. Whether
-they fit is reckoned with the from column at its least, `▸ ` and 6 of the account, as though a call
-had moved, so the board starts at 100 columns whatever the moves, and the first move never turns
-the view to lanes.
+clauses from the end. The Switchboard draws lanes where its parts don't fit with every turn taken,
+as under 100 columns, or wherever the bent cords outnumber the columns of the steady bends' room.
+Neither hangs on a move, so cords or lanes is the width's and the bent cords' alone:
+- whether the parts fit is reckoned with the from column at its least, `▸ ` and 6 of the account,
+  as though a call had moved, so the board starts at 100 columns whatever the moves;
+- the steady room is the lesser of the bends' rooms laid with no from column and with one at its
+  natural, as the from column's coming can narrow the room, or, where it frees cells as `▸` drops
+  its from, widen it. The bent cords turn down in the room laid, which is never narrower.
 
 **Lanes,** as on a phone, where cords would need width the terminal hasn't got: each account's line
 with its sessions under it, in The page's phone frame under 100 columns (settled in the plan).
