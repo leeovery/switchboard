@@ -1120,8 +1120,9 @@ starting at row 8. Whether they fit is decided by the width, the period's widest
 as a read can start at any moment, or the state's shortest form where that's wider: the Year's
 filter to a version, `Opus 5.5 only`, whether the year is read yet or not, and to an account, the
 widest configured account's, `personal only`, as `←` `→` step through them. Only `v` moves the
-heading between one row and two, as it turns a filter on, off, or from one kind to the other;
-neither a read, nor stepping the period, nor stepping the account does. Beside the period, the state
+heading between one row and two, as it changes what the Year is filtered to; neither stepping the
+period nor stepping the account does, nor a read, save one that finds a kept version or account the
+last 12 months didn't use, which drops the filter as `v` would. Beside the period, the state
 takes the room left, two cells short of it, in the first of its forms that fits. Runway, without
 sub-tabs, keeps its rule and its window on row 5.
 

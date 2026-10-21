@@ -359,11 +359,11 @@ func TestAPhonesPeriodSitsBesideTheHeadingWhereItFits(t *testing.T) {
 
 // Whether the period sits beside the name is the width's, the period's
 // widest form's and the state's least's to say: only v moves the heading
-// between one row and two, as it turns a filter on, off, or from one kind to
-// the other. Neither a read, the page's loading or its last 12 months', nor
-// stepping the period with < and >, nor stepping the Year's account with ←
-// and →, moves it, at any width; and where the period sits beside, the state
-// shows its least form whole, and the period clears it.
+// between one row and two, as it changes what the Year is filtered to.
+// Neither the page's loading, nor a read of a filter the last 12 months
+// used, nor stepping the period with < and >, nor stepping the Year's
+// account with ← and →, moves it, at any width; and where the period sits
+// beside, the state shows its least form whole, and the period clears it.
 func TestSteppingThePeriodNeverMovesTheHeadingsRows(t *testing.T) {
 	type sweep struct {
 		view  View

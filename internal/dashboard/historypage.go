@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/leeovery/switchboard/internal/config"
-	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -138,7 +137,7 @@ func (p HistoryPage) leastFiltered() string {
 		}
 		return widestOf(forms)
 	case p.YearAsk.Version != "":
-		return onlyForm(prose.Clean(p.YearAsk.Version))
+		return onlyForm(versionShown(p.YearAsk.Version))
 	}
 	return ""
 }

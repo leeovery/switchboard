@@ -186,9 +186,14 @@ func (p HistoryPage) yearShown() string {
 	case p.YearAsk.Account != "":
 		return p.label(p.YearAsk.Account)
 	case p.Read:
-		return prose.Clean(p.YearAsk.Version)
+		return versionShown(p.YearAsk.Version)
 	}
 	return ""
+}
+
+// versionShown names a version as the Year's filter says it, as Opus 5.5.
+func versionShown(version string) string {
+	return prose.Clean(version)
 }
 
 // label is the account with the given id as History names it: by its label

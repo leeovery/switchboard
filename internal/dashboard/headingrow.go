@@ -112,7 +112,7 @@ func (h heading) stateForms() []line {
 }
 
 // leastState is the fewest cells the state must have whole beside a compact
-// heading's period, so neither a read nor a step moves the heading between
+// heading's period, so neither loading nor a step moves the heading between
 // one row and two: loading… whole, whether it shows or not, as a read can
 // start at any moment; or the widest the state's least form takes as it
 // steps, or the least form shown, where that's wider.
