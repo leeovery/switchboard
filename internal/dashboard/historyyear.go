@@ -39,14 +39,14 @@ const (
 	yearNumbersRow = 11
 	// byMonthNameX is the column a month's name is at, and byMonthBarX its
 	// bar's; a phone's are byMonthPhoneNameX and byMonthPhoneBarX. A bar takes
-	// byMonthBarLeast cells at least and byMonthBarMost at most, the house's
-	// most for a bar beside words.
+	// byMonthBarMost cells at most, the house's most for a bar beside words,
+	// and a part month's note follows it byMonthNoteGap cells on.
 	byMonthNameX      = 2
 	byMonthBarX       = 60
 	byMonthPhoneNameX = 1
 	byMonthPhoneBarX  = 32
-	byMonthBarLeast   = 18
 	byMonthBarMost    = 40
+	byMonthNoteGap    = 2
 )
 
 // yearForm is a form the Year is drawn in: wide, as the design lays it out,
@@ -135,26 +135,31 @@ func (y yearDrawn) laidOut() yearDrawn {
 }
 
 // wideFits reports whether the wide form's parts fit the frame, as flex
-// lays them: its key whole after the days' names, and BY MONTH's columns
-// with its bars at their least. So the form never hangs on the data, the
-// key is reckoned with every cut at reckonedCut, and its unit without the
-// use shown, which may name an account by its label; a key wider than that
-// is cut at the frame's width. The grid shows the weeks that fit, and the
-// numbers' columns narrow and leave.
+// lays them: its key whole after the days' names, the widest of its rows
+// that never narrow. So the form never hangs on the data, the key is
+// reckoned with every cut at reckonedCut, and its unit without the use
+// shown, which may name an account by its label; a key wider than that is
+// cut at the frame's width. The grid shows the weeks that fit, the numbers'
+// columns narrow and leave, and BY MONTH's bars take what its row leaves.
 func (y yearDrawn) wideFits() bool {
 	key := partsWidth(y.keyParts(keyWide, []int{reckonedCut, reckonedCut, reckonedCut}, "requests a day"))
-	_, keyFits := flex.Lay(y.Width, flex.Part{Least: yearGridX, Natural: yearGridX}, flex.Part{Least: key, Natural: key})
-	_, barsFit := flex.Lay(y.Width, barParts(yearWide)...)
-	return keyFits && barsFit
+	_, fits := flex.Lay(y.Width, flex.Part{Least: yearGridX, Natural: yearGridX}, flex.Part{Least: key, Natural: key})
+	return fits
 }
 
-// barParts are BY MONTH's parts across the frame, in the form given: its
-// columns to the bars, and the bars, which grow to their most.
-func barParts(f yearForm) []flex.Part {
-	return []flex.Part{
+// barParts are a BY MONTH row's parts across the frame, in the form given:
+// its columns to the bars; its bar, a cell at least, which grows to its
+// most; and where a note of note cells follows it, the note, which leaves
+// where it doesn't fit beside a bar's least.
+func barParts(f yearForm, note int) []flex.Part {
+	parts := []flex.Part{
 		{Least: f.barX, Natural: f.barX},
-		{Least: byMonthBarLeast, Natural: byMonthBarLeast, Most: byMonthBarMost, Grows: true},
+		{Least: 1, Natural: 1, Most: byMonthBarMost, Grows: true},
 	}
+	if note > 0 {
+		parts = append(parts, flex.Part{Least: note, Natural: note, Gap: byMonthNoteGap, Leaves: 1})
+	}
+	return parts
 }
 
 // layOut lays the Year's parts out in the frame, in its form: the weeks
@@ -199,19 +204,14 @@ func (y yearDrawn) gridReach(weeks int) int {
 
 // besideAt is the column the numbers start at beside the grid, and whether
 // they fit there, as flex lays them after the days' names and the whole
-// year's weeks: only wide. Those whose length is bounded are reckoned at the
-// widest their format draws, so the form never hangs on the data; the rest
-// run as long as the ledger makes them, so they're cut at the frame's width.
+// year's weeks: only wide, and only where every figure fits whole, as
+// columnPart reckons it, so a wider frame never shows less of them than a
+// narrower one does under the key.
 func (y yearDrawn) besideAt() (int, bool) {
 	if y.form.phone {
 		return 0, false
 	}
-	numbers := 0
-	for _, figure := range y.figures() {
-		if figure.widest > 0 {
-			numbers = max(numbers, ansi.StringWidth(padded(figure.label, yearLabelCells))+figure.widest)
-		}
-	}
+	numbers := y.columnPart(y.figures()).Natural
 	s, fits := flex.Lay(y.Width,
 		flex.Part{Least: yearGridX, Natural: yearGridX},
 		flex.Part{Least: 2 * yearWeeks, Natural: 2 * yearWeeks},
@@ -222,25 +222,26 @@ func (y yearDrawn) besideAt() (int, bool) {
 
 // figureColumns are the numbers under the key, yearFiguresDown to a column,
 // as flex lays them across the frame, each as wide as its widest figure
-// whole. Where the room is short, the columns past the second leave, the
-// last first; then the first narrows to its figures' shortest forms; then
-// the second leaves.
+// whole. Where the room is short, a figure takes its shorter forms before
+// any whole figure leaves: the second column narrows to its figures'
+// shortest forms; then the columns past it leave, the last first; then the
+// first narrows; then the second leaves.
 func (y yearDrawn) figureColumns() []figureColumn {
 	figures := slices.Collect(slices.Chunk(y.figures(), yearFiguresDown))
-	last := len(figures)
-	parts := make([]flex.Part, last)
+	n := len(figures)
+	parts := make([]flex.Part, n)
 	for i, column := range figures {
 		parts[i] = y.columnPart(column)
 		switch i {
 		case 0:
-			parts[i].Narrows = last - 1
+			parts[i].Narrows = n
 		case 1:
-			parts[i].Leaves = last
+			parts[i].Narrows, parts[i].Leaves = 1, n+1
 		default:
-			parts[i].Leaves = last - i
+			parts[i].Leaves = n + 1 - i
 		}
 		if i > 0 {
-			parts[i].Least, parts[i].Gap = parts[i].Natural, yearColumnsApart
+			parts[i].Gap = yearColumnsApart
 		}
 	}
 	s, _ := flex.Lay(y.Width, parts...)
@@ -250,11 +251,16 @@ func (y yearDrawn) figureColumns() []figureColumn {
 			columns = append(columns, figureColumn{figures: column, x: s[i].At, row: yearNumbersRow + 1, cells: min(s[i].Size, y.Width-s[i].At)})
 		}
 	}
+	if n := len(columns); n > 0 {
+		columns[n-1].cells = y.Width - columns[n-1].x
+	}
 	return columns
 }
 
 // columnPart is a column of the figures given as a part: least, their
-// labels and their shortest forms; natural, their labels and all they say.
+// labels and their shortest forms; natural, their labels and all they say,
+// a figure whose length is bounded at the widest its format draws, so the
+// arrangement never hangs on it.
 func (y yearDrawn) columnPart(figures []yearFigure) flex.Part {
 	var p flex.Part
 	for _, figure := range figures {
@@ -264,15 +270,35 @@ func (y yearDrawn) columnPart(figures []yearFigure) flex.Part {
 			shortest = figure.shorter[n-1]
 		}
 		p.Least = max(p.Least, label+shortest.width())
-		p.Natural = max(p.Natural, label+figure.value.width())
+		p.Natural = max(p.Natural, label+max(figure.value.width(), figure.widest))
 	}
 	return p
 }
 
-// barCells is the most cells BY MONTH's bars take, as flex lays them after
-// its columns, never past the frame's width.
+// barCells is the most cells BY MONTH's bars take: what each month's row
+// leaves after its columns, at most byMonthBarMost, never past the frame's
+// width; and fewer where a part month's bar would leave its note no room
+// beside it, so each bar stays its month's share of the largest month's.
 func (y yearDrawn) barCells() int {
-	s, _ := flex.Lay(y.Width, barParts(y.form)...)
+	most := y.barRoom(nil)
+	largest := largestWorth(y.page.ByMonth)
+	for _, m := range y.page.ByMonth {
+		note := monthNote(m)
+		if note == nil {
+			continue
+		}
+		room := y.barRoom(note)
+		for most > 0 && barCells(amountOf(m.Worth), largest, most) > room {
+			most--
+		}
+	}
+	return most
+}
+
+// barRoom is the cells a BY MONTH row leaves its bar, as flex lays it, its
+// note after it where it has one, never past the frame's width.
+func (y yearDrawn) barRoom(note []part) int {
+	s, _ := flex.Lay(y.Width, barParts(y.form, partsWidth(note))...)
 	return max(min(s[1].Size, y.Width-y.form.barX), 0)
 }
 
@@ -311,10 +337,10 @@ func (y yearDrawn) numbers(c *canvas, top int) {
 // height is how many rows the Year takes under its top: to BY MONTH's last
 // month, and to the bars' key under it, where there are bars to key.
 func (y yearDrawn) height() int {
-	if len(y.page.Families) == 0 {
-		return y.laid.byMonth.last() + 1
+	if dots := len(y.familyDots()); dots > 0 {
+		return y.dotsRow() + dots
 	}
-	return y.dotsRow() + 1
+	return y.laid.byMonth.last() + 1
 }
 
 // dotsRow is the row under the Year's top the bars' key is on: two under BY
@@ -467,7 +493,7 @@ func (y yearDrawn) heading(c *canvas, x, row int) {
 	c.line(x, row, fitParts(y.Width-x, wordsIn(lead, dimInk), figureIn(period, dimInk)))
 }
 
-// yearFigure is a number beside the grid: its label, and a phone's, what it
+// yearFigure is one of the Year's numbers: its label, and a phone's, what it
 // says, and its shorter forms, each leaving off more of it whole, as limits
 // of more than one window have; whether a look can change it, and the
 // number it is where one can; and where what it is bounds how long it runs,
@@ -498,7 +524,7 @@ func (figure yearFigure) drawn(label string, labelCells, width int) line {
 	return fitParts(width, wordsIn(padded(label, labelCells), dimInk), figurePart(said, figure.number))
 }
 
-// figures are the numbers beside the grid, in order: of all use, or an
+// figures are the Year's numbers, in order: of all use, or an
 // account's, its requests, sessions, limits hit, worth, what the plans cost
 // and the worth against it, its busiest day and its longest run; of a
 // version, its requests, sessions, worth, share of all use's worth, the day
@@ -566,10 +592,9 @@ func (y yearDrawn) number(of string) Number {
 }
 
 // limitsFigure is the limits hit, by window, in state.destructive, those of
-// more than one window joined by a faint ·, as "5-hour ×402 · week ×3": none
+// more than one window joined by a faint ·, as "week ×3 · 5-hour ×412": none
 // where none was. Its shorter forms leave off its last windows whole, one
-// at a time, as history-phone-year-52 draws "5-hour ×402" where both don't
-// fit.
+// at a time, as "week ×3" where both don't fit.
 func (y yearDrawn) limitsFigure(limits map[string]int) yearFigure {
 	figure := yearFigure{label: "limits hit", short: "limits", value: line{{"none", secondaryInk}}, changes: true}
 	if len(limits) == 0 {
@@ -960,20 +985,21 @@ func amountOf(w views.Worth) ledger.Picodollars {
 	return *w.Amount
 }
 
-// dots draws the bars' key along row from x, cut at the frame's width.
+// dots draws the bars' key from row row, from x, each of its rows cut at the
+// frame's width.
 func (y yearDrawn) dots(c *canvas, x, row int) {
-	c.line(x, row, y.familyDots().fit(y.Width-x))
+	for i, l := range y.familyDots() {
+		c.line(x, row+i, l.fit(y.Width-x))
+	}
 }
 
-// familyDots is the bars' key: each family's dot in its colour, and its
-// name.
-func (y yearDrawn) familyDots() line {
-	var l line
+// familyDots are the bars' key, from the bars' column: each family's dot in
+// its colour, and its name, three cells apart, flowed onto as many rows as
+// they take, a family never broken.
+func (y yearDrawn) familyDots() []line {
+	dots := make([]line, len(y.page.Families))
 	for i, family := range y.page.Families {
-		if i > 0 {
-			l = append(l, span{"   ", dimInk})
-		}
-		l = append(l, familyDot(family, dimInk)...)
+		dots[i] = familyDot(family, dimInk)
 	}
-	return l
+	return wrapped(span{"   ", dimInk}, y.Width-y.form.barX, dots)
 }

@@ -278,7 +278,7 @@ func TestAScrolledYearShowsNoHeadingWithoutItsFirstRow(t *testing.T) {
 	}{
 		{name: "BY MONTH, its heading the page's last row", width: 160, height: 21, heading: "BY MONTH", want: Scrolling{Most: 16, Page: 11}},
 		{name: "BY MONTH, its heads the page's last row", width: 160, height: 22, heading: "BY MONTH", want: Scrolling{Most: 15, Page: 11}},
-		{name: "a phone's numbers, their heading the page's last row", width: 52, height: 23, heading: "LAST 12 MONTHS", want: Scrolling{Most: 20, Page: 11}},
+		{name: "a phone's numbers, their heading the page's last row", width: 52, height: 23, heading: "LAST 12 MONTHS", want: Scrolling{Most: 21, Page: 11}},
 	}
 	for _, tt := range tests {
 		f := yearFrame(t, tt.width, tt.height, views.YearAsk{}, plainYear())
