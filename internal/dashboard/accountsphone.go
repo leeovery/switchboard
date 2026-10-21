@@ -132,28 +132,28 @@ type detailUsage struct {
 // detailUsageLaid is Detail's USAGE row laid out in room cells, as flex lays
 // it, and whether its parts' leasts fit: its windows' names, names cells at
 // their widest, between compareNameLeast and compareNameMost; a cell on, its
-// bars, at least stackBarLeast; then afterBar's cells, their percentages
-// among them; and their words, in words cells. The bars take their least
-// first, then the names are raised toward their widest, then the bars grow
-// into what's left, at most barMost, as every bar beside words does.
-func detailUsageLaid(room, names, words int) (detailUsage, bool) {
-	s, ok := flex.Lay(room, detailUsageParts(names, words)...)
+// bars, at least bar cells; then afterBar's cells, their percentages among
+// them; and their words, in words cells. The bars take their least first,
+// then the names are raised toward their widest, then the bars grow into
+// what's left, at most barMost, as every bar beside words does.
+func detailUsageLaid(room, bar, names, words int) (detailUsage, bool) {
+	s, ok := flex.Lay(room, detailUsageParts(bar, names, words)...)
 	return detailUsage{names: s[detailUsageNames].Size, at: s[detailUsageBar].At, bar: s[detailUsageBar].Size}, ok
 }
 
-// detailUsageLeast are the fewest cells Detail's USAGE row takes, its words
-// words cells: its parts at their leasts.
-func detailUsageLeast(words int) int {
-	s, _ := flex.Lay(0, detailUsageParts(0, words)...)
+// detailUsageLeast are the fewest cells Detail's USAGE row takes, its bars
+// at least bar cells and its words words cells: its parts at their leasts.
+func detailUsageLeast(bar, words int) int {
+	s, _ := flex.Lay(0, detailUsageParts(bar, 0, words)...)
 	return s[detailUsageWords].At + s[detailUsageWords].Size
 }
 
 // detailUsageParts are Detail's USAGE row's parts, as detailUsageLaid lays
 // them.
-func detailUsageParts(names, words int) []flex.Part {
+func detailUsageParts(bar, names, words int) []flex.Part {
 	return []flex.Part{
 		detailUsageNames: {Least: compareNameLeast, Natural: names, Most: compareNameMost},
-		detailUsageBar:   {Least: stackBarLeast, Natural: stackBarLeast, Grows: true, Most: barMost, Gap: 1},
+		detailUsageBar:   {Least: bar, Natural: bar, Grows: true, Most: barMost, Gap: 1},
 		detailUsageAfter: {Least: afterBar, Natural: afterBar},
 		detailUsageWords: {Least: words, Natural: words},
 	}
@@ -480,7 +480,7 @@ func (s stacked) usage(c *canvas, y int) int {
 	c.line(0, y, line{{"USAGE", dimInk}})
 	c.heading(y, y+1)
 	b := usageBlock{width: s.f.Width, look: s.f.Look}
-	l, _ := detailUsageLaid(s.f.edge(), s.windowNames(), b.widestWords())
+	l, _ := detailUsageLaid(s.f.edge(), stackBarLeast, s.windowNames(), b.widestWords())
 	last := y
 	for i, w := range s.windows() {
 		last = y + 1 + i*windowsApart

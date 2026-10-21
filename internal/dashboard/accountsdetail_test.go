@@ -741,7 +741,7 @@ func TestDetailsTHISWEEKNamesThePeriod(t *testing.T) {
 // with the list, its name column at its least, 14 cells whatever its names,
 // the headings' column, and the weeks at the fewest cells that leave USAGE's
 // row its leasts and THIS WEEK beside it, from 105 columns; with one
-// account, no list, from 81, though
+// account, no list, from 78, though
 // the phone's chrome takes the frame under 100. Narrower, as the phone's
 // body draws it. Drawn wide, its widest row ends at the weeks' edge.
 func TestDetailDrawsWideFromWhereItsLeastsFit(t *testing.T) {
@@ -755,7 +755,7 @@ func TestDetailDrawsWideFromWhereItsLeastsFit(t *testing.T) {
 	}{
 		{name: "with the list", doc: usageWorld(extraOff, happened(onAuto()...)), configured: framedAccounts, page: detailsPage(t), from: 105, drawn: true},
 		{name: "with the list of long names", configured: config.Accounts{{ID: "work", Label: "work-team-plan"}, {ID: "side", Label: "side-hustle-consulting"}}, from: 105},
-		{name: "one account", doc: aloneDoc(), configured: framedAccounts[:1], page: alonePage(t), from: 81},
+		{name: "one account", doc: aloneDoc(), configured: framedAccounts[:1], page: alonePage(t), from: 78},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -796,9 +796,9 @@ func TestDetailDrawsWideFromWhereItsLeastsFit(t *testing.T) {
 // at most, their gap 4, then 3, then 2, before a week leaves; past six at a
 // gap of 4, their days' cells grow, a whole cell at a time. The rule names
 // the weeks shown and ends at their edge, as BY DAY's last week does, and
-// THIS WEEK ends there too, its figures cut there. USAGE's bar takes what's
-// left before THIS WEEK, its words at their widest a cell short of it, at
-// most 40.
+// THIS WEEK ends there too, 23 cells with three accounts, its figures cut
+// there. USAGE's bar takes what's left before THIS WEEK, its words at their
+// widest a cell short of it, at least 16 and at most 40.
 func TestDetailsWideFormFitsItsWeeksToTheWidth(t *testing.T) {
 	doc := usageWorld(extraOff, happened(onAuto()...))
 	tests := []struct {
@@ -808,9 +808,9 @@ func TestDetailsWideFormFitsItsWeeksToTheWidth(t *testing.T) {
 		edge, bar      int
 		first          string
 	}{
-		{width: 105, rule: "the last four weeks", weeks: 4, gap: 4, dw: 2, edge: 104, bar: 19, first: "7 Sep"},
-		{width: 108, rule: "the last four weeks", weeks: 4, gap: 4, dw: 2, edge: 104, bar: 19, first: "7 Sep"},
-		{width: 120, rule: "the last five weeks", weeks: 5, gap: 3, dw: 2, edge: 118, bar: 33, first: "31 Aug"},
+		{width: 105, rule: "the last four weeks", weeks: 4, gap: 4, dw: 2, edge: 104, bar: 16, first: "7 Sep"},
+		{width: 108, rule: "the last four weeks", weeks: 4, gap: 4, dw: 2, edge: 104, bar: 16, first: "7 Sep"},
+		{width: 120, rule: "the last five weeks", weeks: 5, gap: 3, dw: 2, edge: 118, bar: 30, first: "31 Aug"},
 		{width: 138, rule: "the last six weeks", weeks: 6, gap: 3, dw: 2, edge: 135, bar: 40, first: "24 Aug"},
 		{width: 141, rule: "the last six weeks", weeks: 6, gap: 4, dw: 2, edge: 140, bar: 40, first: "24 Aug"},
 		{width: 160, rule: "the last six weeks", weeks: 6, gap: 4, dw: 2, edge: 140, bar: 40, first: "24 Aug"},
@@ -833,10 +833,8 @@ func TestDetailsWideFormFitsItsWeeksToTheWidth(t *testing.T) {
 			if columnOf(heads, tt.first) != l.cx() || columnOf(heads, "28 Sep") != l.cx()+(tt.weeks-1)*l.step() {
 				t.Errorf("BY DAY's weeks are headed %q, want %s at %d and 28 Sep a step of %d apart after", heads, tt.first, l.cx(), l.step())
 			}
-			title := rows[rowWith(rows, "THIS WEEK")]
-			worth := rows[rowWith(rows, "worth ")]
-			if columnOf(title, "THIS WEEK") != tt.edge-thisWeekLabels-thisWeekFigures || ansi.StringWidth(worth) != tt.edge {
-				t.Errorf("THIS WEEK is at %d, its worth ending at %d, want it %d cells before the weeks' edge, %d, ending there", columnOf(title, "THIS WEEK"), ansi.StringWidth(worth), thisWeekLabels+thisWeekFigures, tt.edge)
+			if at := columnOf(rows[rowWith(rows, "THIS WEEK")], "THIS WEEK"); at != tt.edge-23 {
+				t.Errorf("THIS WEEK is at %d, want it 23 cells before the weeks' edge, %d", at, tt.edge)
 			}
 			for _, label := range []string{"requests", "limits", "plan", "worth", "extra use"} {
 				if row := rows[rowWith(rows, padded(label, thisWeekLabels))]; ansi.StringWidth(row) > tt.edge {
@@ -890,6 +888,26 @@ func TestDetailsWideFormKeepsItsWordsWhole(t *testing.T) {
 				t.Errorf("the verdict reads %q, want %q from column %d", verdict, want, l.panel)
 			}
 		})
+	}
+}
+
+// THIS WEEK is as wide as its labels and the widest figure the configured
+// accounts bound, all accounts' extra use on for one fewer than every one, at
+// least 20 cells: alike whichever account is chosen, or all of them.
+func TestDetailsTHISWEEKIsAsWideAsItsWidestBoundedFigure(t *testing.T) {
+	for _, tt := range []struct {
+		accounts, cells int
+	}{{1, 20}, {2, 23}, {3, 23}, {10, 24}} {
+		configured := make(config.Accounts, tt.accounts)
+		for i := range configured {
+			configured[i] = config.Account{ID: fmt.Sprintf("account-%d", i)}
+		}
+		for _, chosen := range []string{"", "account-0"} {
+			f := detailFrame(Look{}, configured, chosen, "", nil, nil)
+			if l := f.detailLayout(); l.thisWeek != tt.cells {
+				t.Errorf("%d accounts, %q chosen: THIS WEEK is %d cells, want %d", tt.accounts, chosen, l.thisWeek, tt.cells)
+			}
+		}
 	}
 }
 

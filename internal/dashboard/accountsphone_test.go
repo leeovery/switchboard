@@ -542,7 +542,7 @@ func TestDetailsUSAGERowIsLaidByFlex(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got, fits := detailUsageLaid(tt.room, tt.names, tt.words); got != tt.want || fits != tt.fits {
+			if got, fits := detailUsageLaid(tt.room, stackBarLeast, tt.names, tt.words); got != tt.want || fits != tt.fits {
 				t.Errorf("detailUsageLaid(%d, %d, %d) is %+v, fitting %v, want %+v, fitting %v", tt.room, tt.names, tt.words, got, fits, tt.want, tt.fits)
 			}
 		})

@@ -2116,17 +2116,20 @@ where it fits** says, and where they don't fit, it's stacked, as **On a phone** 
   words (see `usage`, the printout). For `all accounts`, every account's window together, its
   words its room, `1.2 of 3 left`. Its row is laid by flex as the stack's is (see On a phone):
   the names as wide as the widest of every window listed, at least 8 cells; a cell on, the bars,
-  at least 18; and the percentage and the words, in the cells of their form at its widest, ending
-  a cell before THIS WEEK. The bars take what's left, at most 40: 19 at 108 columns, 40 from
-  131.
+  at least 16, two fewer than the stack's, so four weeks still fit at 108 columns; and the
+  percentage and the words, in the cells of their form at its widest, ending a cell before THIS
+  WEEK. The bars take what's left, at most 40: 16 at 108 columns, 40 from 131.
 - **THIS WEEK,** on USAGE's row, rows 8 to 13, so its last row is level with the last window's:
   `requests`, `limits`, `plan`, `worth` with its ratio, `$184  4.0×`, `all accounts`' saying it's
   over the plans known where any isn't, `$635  4.3× · 2 of 3 plans known`, and `extra use`, labels 10
   wide in `text.subtle`; for `all accounts`, `limits` is how many and `plan` the plans summed,
-  `$600/mo`. Its column is 20 cells, the labels and 10 for their figures, ending at the weeks'
-  edge, column 140 at 160, a longer figure cut there with `…`, as `on for 1…`: the requests, the
-  plans' summed price and the worth are counts and sums with no widest the column could be sized
-  to. Its title names the period: `THIS WEEK`, or `LAST 30 DAYS`.
+  `$600/mo`. Its column is its labels and its widest figure the configured accounts bound, at
+  least 10 cells: `all accounts`' extra use on for one fewer than every account, `on for 2 of 3`,
+  13 cells, so 23 with three accounts. It's the same whichever account is chosen, so nothing
+  moves as the choice does, and it ends at the weeks' edge, column 140 at 160. The requests, the
+  plans' summed price, the plan's name, from the price table, and the worth have no such bound:
+  where one is wider, it's cut there with `…`. Its title names the period: `THIS WEEK`, or `LAST
+  30 DAYS`.
 - **BY MODEL,** row 15: the period's share of use as a stacked bar, from `cx`, 12 cells into the
   panel, at column 36, to the weeks' edge below, 104 cells at 160; from row 16, from `cx`, each
   version with a share, `● Opus 5.5 55%`, two cells apart, as many as fit the row, the rest on the

@@ -60,15 +60,20 @@ const (
 	latelyUnder  = 12
 )
 
-// THIS WEEK's labels' cells and its figures', ending at the weeks' edge,
-// and the cells before it past USAGE's words; and how far after its name the
-// head says how the account stands.
+// THIS WEEK's labels' cells and its figures' fewest, ending at the weeks'
+// edge, and the cells before it past USAGE's words; and how far after its
+// name the head says how the account stands.
 const (
 	thisWeekLabels  = 10
 	thisWeekFigures = 10
 	thisWeekApart   = 1
 	headApart       = 3
 )
+
+// wideBarLeast are the fewest cells USAGE's bars take wide, two fewer than
+// the stack's, so the wide form keeps four weeks at 108 columns beside the
+// widest extra use THIS WEEK says of three accounts.
+const wideBarLeast = 16
 
 // SESSIONS: as many rows as sessionRows show at once, the one selected
 // picked out across sessionLit cells from a cell before its ▸; and its
@@ -125,6 +130,7 @@ type detailLayout struct {
 	panel, into int
 	dw, gap     int
 	weeks       int
+	thisWeek    int
 }
 
 // detailLayout is Detail's wide layout, as detailLaid lays it.
@@ -145,14 +151,14 @@ func (f Frame) detailLayout() detailLayout {
 // takes what its names need of that, and of what the weeks, as wideWeeks
 // lays them, leave of their room, and the panel sits after it.
 func (f Frame) detailLaid() (detailLayout, bool) {
-	l := detailLayout{into: panelCX}
+	l := detailLayout{into: panelCX, thisWeek: f.thisWeekCells()}
 	natural := detailLayout{dw: dayCellsLeast, gap: weeksGapMost, weeks: sixWeeks}.weeksCells()
 	parts := []flex.Part{
 		detailIndent:    {},
 		detailNames:     {},
 		detailToPanel:   {},
 		detailHeadings:  {Least: panelCX, Natural: panelCX},
-		detailWeeks:     {Least: weeksLeast(usageWide(f.Width)), Natural: natural, Narrows: weeksNarrowed},
+		detailWeeks:     {Least: weeksLeast(usageWide(f.Width) + l.thisWeek), Natural: natural, Narrows: weeksNarrowed},
 		detailWeeksPast: {Grows: true},
 	}
 	if !f.Accounts.Alone() {
@@ -172,10 +178,25 @@ func (f Frame) detailLaid() (detailLayout, bool) {
 }
 
 // usageWide are the cells USAGE's row takes wide, its parts at their leasts,
-// on a frame width cells wide, its words in their form at their widest; and
-// THIS WEEK after it: the reach the weeks must have past the panel's left.
+// on a frame width cells wide, its words in their form at their widest, and
+// the cell after it before THIS WEEK.
 func usageWide(width int) int {
-	return detailUsageLeast(usageBlock{width: width}.widestWords()) + thisWeekApart + thisWeekLabels + thisWeekFigures
+	return detailUsageLeast(wideBarLeast, usageBlock{width: width}.widestWords()) + thisWeekApart
+}
+
+// thisWeekCells are the cells of THIS WEEK's column: its labels, and its
+// figures' widest form that the configured accounts bound, at least
+// thisWeekFigures: all accounts' extra use, as extraShort says it on for one
+// fewer than every account, "on for 2 of 3". The same for every choice in
+// the list, so nothing moves as the choice does. The requests, the plans'
+// summed price, the plan's name from the price table and the worth have no
+// such bound, and are cut at the weeks' edge.
+func (f Frame) thisWeekCells() int {
+	figures, n := thisWeekFigures, len(f.Accounts.Accounts)
+	if n > 1 {
+		figures = max(figures, partsWidth(extraShort(status.AllExtra{State: status.ExtraOn, On: n - 1, Of: n})))
+	}
+	return thisWeekLabels + figures
 }
 
 // weeksLeast are the fewest cells the wide form's weeks take: the least room
@@ -263,7 +284,7 @@ func (l detailLayout) shownWeeks() []flex.Span {
 // thisWeekAt is the column THIS WEEK starts at, its figures ending at the
 // weeks' edge.
 func (l detailLayout) thisWeekAt() int {
-	return l.edge() - thisWeekFigures - thisWeekLabels
+	return l.edge() - l.thisWeek
 }
 
 // weekBar is the cells of a week's peak's bar in WEEKS: a week's step, less
@@ -514,7 +535,7 @@ func (d detailDrawn) usage(c *canvas, y int) {
 	c.heading(y, y+1)
 	b := usageBlock{width: d.f.Width, look: d.f.Look}
 	end := d.l.thisWeekAt() - thisWeekApart
-	l, _ := detailUsageLaid(end-d.l.panel, d.windowNames(), b.widestWords())
+	l, _ := detailUsageLaid(end-d.l.panel, wideBarLeast, d.windowNames(), b.widestWords())
 	for i, w := range d.windows() {
 		row := y + 1 + i*windowsApart
 		c.line(d.l.panel, row, line{{prose.Cut(status.Short(w.name), l.names), dimInk}})
@@ -553,9 +574,8 @@ func allGauge(m status.Moment, key string) gauge {
 
 // thisWeek draws THIS WEEK from row y, at its column: its title, naming the
 // period, then each item, its label thisWeekLabels cells wide in
-// text.subtle, and its figure cut at the weeks' edge, as fitParts cuts it.
-// Its figures' cells are fixed as the requests, the plans' summed price and
-// the worth have no widest.
+// text.subtle, and its figure cut at the weeks' edge, as fitParts cuts it,
+// in the cells thisWeekCells gives them.
 func (d detailDrawn) thisWeek(c *canvas, y int) {
 	x := d.l.thisWeekAt()
 	c.line(x, y, line{{d.page.Period.Title(), dimInk}})
