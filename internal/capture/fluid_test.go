@@ -146,12 +146,6 @@ var knownBreaks = []known{
 		byDesign: "the account a call came from at its least", cuts: []string{"perso…"}, rule: cutWithRoom,
 		sizes: []string{"108x24", "108x44", "109x53"}, fixtures: []string{"sessions-moved-160", "sessions-pinned-160"},
 	},
-	// S5, the Switchboard: an account's name in a phone's lanes, cut with
-	// room.
-	{
-		slice: "S5", rule: cutWithRoom, sizes: []string{"73x61", "73x36"},
-		fixtures: []string{"sessions-ten-accounts-160", "sessions-switchboard-long-names-108x44"},
-	},
 	// The Log's sessions' directories, as views.SessionDirName cuts them, with
 	// room at every size they show at with room; and the Requests' on, its
 	// share past the columns' leasts at 73, 108 and 109, as the spike draws

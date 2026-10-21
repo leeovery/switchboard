@@ -85,22 +85,17 @@ const (
 // a call's, as callParts has them, what it's doing a cell after its
 // directory, ▸'s from from cells at its natural; the bends' room, plugGap
 // cells on, which takes what's left, over a loose cord's looseCells; the
-// bendClear cells to the jacks; and the lines, lineGap cells on: their
-// label, percentage and gaps, their bars, those past leastWideBar and those
-// up to it each narrowing in a turn of its own, and their words.
+// bendClear cells to the jacks; and the lines, lineGap cells on, as
+// lineParts has them.
 //
 // A part that keeps its cells sets its least and natural alike, as flex holds
-// a part that narrows freely at its least while the turns are taken. The
-// lines' parts aren't in the screen's order: boardBeside, their label,
-// percentage and gaps together, comes before the bars it sits among.
+// a part that narrows freely at its least while the turns are taken.
 func boardParts(from int) []flex.Part {
 	parts := append(callParts(1, from), make([]flex.Part, boardPartsCount-callPartsCount)...)
 	parts[boardRoom] = flex.Part{Least: leastRoom, Natural: leastRoom, Grows: true, Gap: plugGap}
 	parts[boardClear] = flex.Part{Least: bendClear, Natural: bendClear}
-	parts[boardBeside] = flex.Part{Least: lineBeside, Natural: lineBeside, Gap: lineGap}
-	parts[boardBarsPast] = flex.Part{Natural: lineBar - leastWideBar, Narrows: barsToLeastWide}
-	parts[boardBars] = flex.Part{Least: leastBar, Natural: leastWideBar, Narrows: barsToLeast}
-	parts[boardWords] = flex.Part{Least: lineWords, Natural: lineWords, Leaves: wordsShortened, Kept: lineShortWords}
+	copy(parts[boardBeside:], lineParts(lineBeside))
+	parts[boardBeside].Gap = lineGap
 	return parts
 }
 

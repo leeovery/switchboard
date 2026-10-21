@@ -49,8 +49,6 @@ var (
 // its parts. The list only shrinks: an entry must still be there, and still
 // use it.
 var phoneAllowed = []string{
-	// S5: the Switchboard's lanes.
-	"internal/dashboard/sessionslanes.go:Frame.lanesOf",
 	// S10: the Overview's sections, side by side or not.
 	"internal/dashboard/overview.go:Frame.joins",
 	// S12: USAGE's key, and the room it says is left.
