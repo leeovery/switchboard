@@ -630,7 +630,7 @@ accounts:
 ## Accounts and tokens
 
 - Accounts are declared in the config file: an id, a label, which is the primary, and each one's
-  reserve. See Config.
+  reserve. See Config. A label is free text, at most 100 characters, cut to fit wherever it shows.
 - Each account's token is a file of its own, holding the token alone: `<state dir>/tokens/<id>`.
   Whitespace around the token is ignored. Switchboard keeps the directory 0700, creating it or
   tightening it, and the router tightens it as it starts. A token file must be the user's, and

@@ -103,6 +103,32 @@ output = 12.5
 	}
 }
 
+func TestLoadTakesALabelUpToTheLongestALabelMayBe(t *testing.T) {
+	tests := []struct {
+		name  string
+		label string
+		want  string
+	}{
+		{name: "100 characters", label: strings.Repeat("w", 100), want: strings.Repeat("w", 100)},
+		{name: "100 characters of two bytes each", label: strings.Repeat("é", 100), want: strings.Repeat("é", 100)},
+		{name: "100 characters of three bytes each", label: strings.Repeat("仕", 100), want: strings.Repeat("仕", 100)},
+		{name: "none, which shows the account by its id", label: "", want: "work"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := writeConfig(t, "[[account]]\nid = \"work\"\nlabel = \""+tt.label+"\"\n")
+
+			got, err := config.Load(path)
+			if err != nil {
+				t.Fatalf("Load() error = %v", err)
+			}
+			if label := got.Accounts[0].Label; label != tt.want {
+				t.Errorf("Load() label = %q, want %q", label, tt.want)
+			}
+		})
+	}
+}
+
 func TestLoadFillsDefaults(t *testing.T) {
 	path := writeConfig(t, `
 [[account]]
@@ -925,6 +951,21 @@ func TestLoadReportsProblems(t *testing.T) {
 		{
 			name:   "a label that looks like a token",
 			config: work + "label = \"Work " + tokenShaped + "\"\n",
+			want:   []string{`account "work": label looks like a token, which a label mustn't, as it shows wherever the account does`},
+		},
+		{
+			name:   "a label past the longest a label may be, never quoted",
+			config: work + "label = \"" + strings.Repeat("w", 101) + "\"\n",
+			want:   []string{`account "work": label is 101 characters: must be at most 100`},
+		},
+		{
+			name:   "a label past the longest a label may be, counted in characters, not bytes",
+			config: work + "label = \"" + strings.Repeat("é", 101) + "\"\n",
+			want:   []string{`account "work": label is 101 characters: must be at most 100`},
+		},
+		{
+			name:   "a label that looks like a token and is too long, told only that it looks like a token",
+			config: work + "label = \"" + tokenShaped + strings.Repeat("w", 101) + "\"\n",
 			want:   []string{`account "work": label looks like a token, which a label mustn't, as it shows wherever the account does`},
 		},
 		{

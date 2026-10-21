@@ -377,7 +377,7 @@ The subcommands do the following:
   - When the account's token file holds no usable token, `add` takes one, and writes it over
     whatever the file held.
   - An id or a `--label` that holds anything shaped like a token is refused, before `add` asks for
-    the token.
+    the token, and so is a `--label` over 100 characters.
 - **`token`** replaces an account's token.
 - **`remove`** removes an account's table from the config, with the comments directly above it,
   and deletes its token file.

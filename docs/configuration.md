@@ -108,7 +108,7 @@ The config has one `[[account]]` table for each subscription, and at least one.
 | Key | Default | Description |
 |---|---|---|
 | `id` | Required | The account's permanent name. It's also the name of the account's token file. |
-| `label` | The id | What the account is shown as. It can't hold anything shaped like a token. |
+| `label` | The id | What the account is shown as, at most 100 characters. It can't hold anything shaped like a token. |
 | `primary` | The first account | Marks the account the browser and the Claude apps are signed into: [the primary](how-it-works.md#the-primary). At most one account can set it. |
 | `reserve` | `0` | The share of every window the router leaves unused: `0`, or more than `0` and less than `1`. See [Reserves](how-it-works.md#reserves). |
 | `plan` | None (unknown) | The plan the account's subscription is on: `pro`, `max5x` or `max20x`. |

@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/BurntSushi/toml"
 
@@ -209,10 +210,19 @@ func checkID(account, id string) error {
 	return nil
 }
 
-// checkLabel keeps anything that looks like a token out of a label.
+// mostLabelCharacters is the longest a label may be, in characters as its
+// user counts them.
+const mostLabelCharacters = 100
+
+// checkLabel keeps anything that looks like a token out of a label, and keeps
+// a label to mostLabelCharacters. It never quotes the label, which could be
+// anything.
 func checkLabel(account, label string) error {
-	if redact.HoldsToken(label) {
+	switch length := utf8.RuneCountInString(label); {
+	case redact.HoldsToken(label):
 		return fmt.Errorf("%s: label looks like a token, which a label mustn't, as it shows wherever the account does", account)
+	case length > mostLabelCharacters:
+		return fmt.Errorf("%s: label is %d characters: must be at most %d", account, length, mostLabelCharacters)
 	}
 	return nil
 }
