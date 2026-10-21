@@ -5,36 +5,36 @@
 
 LOG   Requests  Events                                                        35 hidden  f
 
-  at       session  on        took   stopped
-  14:40:05 db8a     side      5.6s   Read
-  14:40:06 7f3a     side     13.8s   Read
-  14:40:13 d28c     side     15.8s   Read
-  14:40:18 db8a     side      3.4s   Bash
-  14:40:24 41e0     personal  0.6s   end_turn
-  14:40:26 41e0     personal 17.6s   Bash
-  14:40:26 db8a     side     11.8s   Bash
-  14:40:28 7f3a     side      8.3s   Bash
-  14:40:39 db8a     side     14.3s   Edit
-  14:40:39 d28c     side     14.5s   Bash
-  14:40:40 7f3a     side     13.9s   TodoWrite
-  14:40:49 41e0     personal 17.7s   TodoWrite
-  14:40:59 db8a     side     18.0s   end_turn
-  14:41:00 7f3a     side     17.3s   Read
-  14:41:03 d28c     side      9.7s   Read
-▲ 14:41:11 c61b     side      7.0s   new session
-  14:41:14 41e0     personal 11.0s   Read
-  14:41:19 c61b     side     14.8s   Write
-  14:41:19 d28c     side      9.7s   Bash
-  14:41:25 7f3a     side      7.2s   Edit
-  14:41:29 41e0     personal  3.8s   end_turn
-  14:41:35 d28c     side      9.7s   end_turn
-  14:41:38 c61b     side      0.6s   end_turn
-  14:41:39 c61b     side     11.5s   Bash
-  14:41:41 7f3a     side     11.9s   Read
-  14:41:51 d28c     side      4.8s   Read
-↓ 14:41:58 41e0     personal  9.0s   answering
-↓ 14:42:01 c61b     side      6.0s   answering
-↑ 14:42:06 d28c     side      0.4s   asking
+  at        session           model      on        status    took  stopped
+  14:40:05  db8a infra        opus-5-5   side      200       5.6s  Read
+  14:40:06  7f3a api          opus-5-5   side      200      13.8s  Read
+  14:40:13  d28c switchboard  opus-5-5   side      200      15.8s  Read
+  14:40:18  db8a infra        opus-5-5   side      200       3.4s  Bash
+  14:40:24  41e0 docs         haiku-4-5  personal  200       0.6s  end_turn
+  14:40:26  41e0 docs         opus-5-5   personal  200      17.6s  Bash
+  14:40:26  db8a infra        opus-5-5   side      200      11.8s  Bash
+  14:40:28  7f3a api          opus-5-5   side      200       8.3s  Bash
+  14:40:39  db8a infra        opus-5-5   side      200      14.3s  Edit
+  14:40:39  d28c switchboard  opus-5-5   side      200      14.5s  Bash
+  14:40:40  7f3a api          opus-5-5   side      200      13.9s  TodoWrite
+  14:40:49  41e0 docs         opus-5-5   personal  200      17.7s  TodoWrite
+  14:40:59  db8a infra        opus-5-5   side      200      18.0s  end_turn
+  14:41:00  7f3a api          opus-5-5   side      200      17.3s  Read
+  14:41:03  d28c switchboard  opus-5-5   side      200       9.7s  Read
+▲ 14:41:11  c61b mobile       opus-5-5   side      200       7.0s  new session
+  14:41:14  41e0 docs         opus-5-5   personal  200      11.0s  Read
+  14:41:19  c61b mobile       opus-5-5   side      200      14.8s  Write
+  14:41:19  d28c switchboard  opus-5-5   side      200       9.7s  Bash
+  14:41:25  7f3a api          opus-5-5   side      200       7.2s  Edit
+  14:41:29  41e0 docs         opus-5-5   personal  200       3.8s  end_turn
+  14:41:35  d28c switchboard  opus-5-5   side      200       9.7s  end_turn
+  14:41:38  c61b mobile       haiku-4-5  side      200       0.6s  end_turn
+  14:41:39  c61b mobile       opus-5-5   side      200      11.5s  Bash
+  14:41:41  7f3a api          opus-5-5   side      200      11.9s  Read
+  14:41:51  d28c switchboard  opus-5-5   side      200       4.8s  Read
+↓ 14:41:58  41e0              sonnet-5…  personal            9.0s  answering
+↓ 14:42:01  c61b              opus-5-5   side                6.0s  answering
+↑ 14:42:06  d28c              opus-5-5   side                0.4s  asking
 
 ● following                                                              1,242 lines today
 tab views   ↑↓ request   enter open   [ ] view   ? keys   q quit

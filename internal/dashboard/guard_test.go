@@ -51,11 +51,6 @@ var (
 var phoneAllowed = []string{
 	// S5: the Switchboard's lanes.
 	"internal/dashboard/sessionslanes.go:Frame.lanesOf",
-	// S6: the Log's columns, Requests' and Events', and its heading, which
-	// the heading row hands the phone's breakpoint.
-	"internal/dashboard/logcolumns.go:logColumns",
-	"internal/dashboard/logevents.go:Frame.eventColumns",
-	"internal/dashboard/headingrow.go:Frame.tabHeading",
 	// S7: the List's columns.
 	"internal/dashboard/sessionslist.go:Frame.listColumns",
 	// S8: Runway's label column, and the form it's drawn in.
@@ -100,8 +95,6 @@ var sizedAllowed = []string{
 	// S5: the Switchboard's lines, on one row where they're narrower than
 	// widestLines.
 	"internal/dashboard/switchboardlines.go:linesDrawn.oneRow",
-	// S6: the Log's cost kept where two cells are left.
-	"internal/dashboard/logtable.go:costKept",
 	// S7: the List's routing column.
 	"internal/dashboard/sessionslist.go:Frame.listColumns",
 	// S10: ROUTING's rows, routingRows, and SESSIONS' form by it.
@@ -157,9 +150,6 @@ var cutAllowed = []string{
 	// lines' window labels.
 	"internal/dashboard/sessionslanes.go:lanesBoard.callRow",
 	"internal/dashboard/switchboardlines.go:linesDrawn.window",
-	// S6: the Log's sessions' directories and accounts.
-	"internal/dashboard/logpage.go:sessionNamed",
-	"internal/dashboard/logtable.go:sessionCell",
 	// S7: the List's routing column, its words a cutter as a value.
 	"internal/dashboard/sessionslist.go:routingColumn",
 	// S11: SESSIONS' model families.

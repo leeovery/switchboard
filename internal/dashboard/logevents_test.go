@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -31,6 +32,63 @@ func TestAnEventsCardNamesItsSessionAsTheTablesDo(t *testing.T) {
 	j := slices.IndexFunc(d.Happened, func(it views.DetailItem) bool { return it.Name == "session" })
 	if want := sessionNamed(lines[1].Session, dir); j < 0 || d.Happened[j].Value.String() != want {
 		t.Errorf("the move's card names its session %q, want %q, as the tables name it", d.Happened[max(j, 0)].Value.String(), want)
+	}
+}
+
+// eventsSaid says the Events' columns as a test holds them: each's head and
+// the cells it takes, from its first to its last.
+func eventsSaid(columns []eventColumn) string {
+	said := make([]string, len(columns))
+	for i, c := range columns {
+		said[i] = fmt.Sprintf("%s %d–%d", eventHeads[c.part], c.x, c.x+c.width-1)
+	}
+	return strings.Join(said, " · ")
+}
+
+// The Events' columns at every width, two cells apart: the session, whole,
+// leaving first, where what happened would fall short of its 40 cells; then
+// what happened cut toward 20; then the account toward its least, 8. The
+// account at its natural till its turn, and what happened taking the rest.
+func TestTheEventsColumnsAreLaidOutAtEveryWidth(t *testing.T) {
+	names := eventsNaturals{dir: 12, account: 15}
+	tests := []struct {
+		width int
+		n     eventsNaturals
+		want  string
+	}{
+		{width: 52, n: names, want: "at 2–9 · event 12–19 · account 22–29 · what happened 32–51"},
+		{width: 59, n: names, want: "at 2–9 · event 12–19 · account 22–36 · what happened 39–58"},
+		{width: 78, n: names, want: "at 2–9 · event 12–19 · account 22–36 · what happened 39–77"},
+		{width: 97, n: names, want: "at 2–9 · event 12–19 · account 22–36 · what happened 39–96"},
+		{width: 98, n: names, want: "at 2–9 · session 12–28 · event 31–38 · account 41–55 · what happened 58–97"},
+		{width: 160, n: names, want: "at 2–9 · session 12–28 · event 31–38 · account 41–55 · what happened 58–159"},
+		{width: 160, n: eventsNaturals{account: 4}, want: "at 2–9 · session 12–18 · event 21–28 · account 31–38 · what happened 41–159"},
+		{width: 73, n: eventsNaturals{dir: 12, account: 42}, want: "at 2–9 · event 12–19 · account 22–50 · what happened 53–72"},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%d with %+v", tt.width, tt.n), func(t *testing.T) {
+			if got := eventsSaid(eventsLaid(tt.width, tt.n)); got != tt.want {
+				t.Errorf("eventsLaid(%d, %+v) =\n%s\nwant\n%s", tt.width, tt.n, got, tt.want)
+			}
+		})
+	}
+}
+
+// The Events' naturals are the widest the rows shown need: the directory's
+// as views.SessionDirName names it; and the account's as its words say it,
+// each account's name as a column of names counts it, labelMost at the most.
+func TestTheEventsNaturalsAreTheWidestTheRowsShowNeed(t *testing.T) {
+	long := "an-account-named-at-great-length"
+	moved := views.LogEvent{Dir: "~/Code/a-directory-named-at-length"}
+	moved.Line.Account = status.Words{status.Named(long), status.Plain(" → "), status.Named("side")}
+	capped := views.LogEvent{Dir: "~/Code/api"}
+	capped.Line.Account = status.Words{status.Named("personal")}
+	var got eventsNaturals
+	for _, e := range []views.LogEvent{capped, moved} {
+		got = got.with(e, status.Moment{})
+	}
+	if want := (eventsNaturals{dir: views.SessionDirCells, account: labelMost + 3 + 4}); got != want {
+		t.Errorf("the naturals are %+v, want %+v", got, want)
 	}
 }
 
@@ -68,50 +126,50 @@ func TestTheEventsDrawEachKindOfRowAtEachWidth(t *testing.T) {
 		{
 			width: 52,
 			want: []string{
-				"● 23:50:00 pin      personal  new sessions go there",
+				"● 23:50:00  pin       personal  new sessions go the…",
 				"  Wed 30 Sep  ───────────────────────────  Thu 1 Oct",
-				"╎ 09:30:00 cap      work      95% of its 5-hour win…",
-				"▸ 14:35:00 moved    w… → si…  work reached its limi…",
+				"╎ 09:30:00  cap       work      95% of its 5-hour w…",
+				"▸ 14:35:00  moved     w… → si…  work reached its li…",
 			},
 			last: "…",
 		},
 		{
 			width: 80,
 			want: []string{
-				"● 23:50:00 pin      personal  new sessions go there",
+				"● 23:50:00  pin       personal     new sessions go there",
 				"  Wed 30 Sep  ───────────────────────────────────────────────────────  Thu 1 Oct",
-				"╎ 09:30:00 cap      work      95% of its 5-hour window: its 3 sessions move to …",
-				"▸ 14:35:00 moved    w… → si…  work reached its limit   1.0M cached again, $8.00",
+				"╎ 09:30:00  cap       work         95% of its 5-hour window: its 3 sessions mov…",
+				"▸ 14:35:00  moved     work → side  work reached its…   1.0M cached again, $8.00",
 			},
 			costs: true, last: "…",
 		},
 		{
 			width: 100,
 			want: []string{
-				"● 23:50:00                     pin       personal          new sessions go there",
+				"● 23:50:00           pin       personal     new sessions go there",
 				"  Wed 30 Sep  ───────────────────────────────────────────────────────────────────────────  Thu 1 Oct",
-				"╎ 09:30:00                     cap       work              95% of its 5-hour window: its 3 sessions…",
-				"▸ 14:35:00  d28c               moved     work → side       work reached…   1.0M cached again, $8.00",
+				"╎ 09:30:00           cap       work         95% of its 5-hour window: its 3 sessions move to side a…",
+				"▸ 14:35:00  d28c     moved     work → side  work reached its limit   1.0M cached again, $8.00",
 			},
 			costs: true, last: "…",
 		},
 		{
 			width: 120,
 			want: []string{
-				"● 23:50:00                     pin       personal          new sessions go there",
+				"● 23:50:00           pin       personal     new sessions go there",
 				"  Wed 30 Sep  " + rule(95) + "  Thu 1 Oct",
-				"╎ 09:30:00                     cap       work              95% of its 5-hour window: its 3 sessions move to side as the…",
-				"▸ 14:35:00  d28c               moved     work → side       work reached its limit   1.0M cached again, $8.00",
+				"╎ 09:30:00           cap       work         95% of its 5-hour window: its 3 sessions move to side as their next request…",
+				"▸ 14:35:00  d28c     moved     work → side  work reached its limit   1.0M cached again, $8.00",
 			},
 			costs: true, last: "…",
 		},
 		{
 			width: 200,
 			want: []string{
-				"● 23:50:00                     pin       personal          new sessions go there",
+				"● 23:50:00           pin       personal     new sessions go there",
 				"  Wed 30 Sep  " + rule(175) + "  Thu 1 Oct",
-				"╎ 09:30:00                     cap       work              95% of its 5-hour window: its 3 sessions move to side as their next requests come",
-				"▸ 14:35:00  d28c               moved     work → side       work reached its limit   1.0M cached again, $8.00",
+				"╎ 09:30:00           cap       work         95% of its 5-hour window: its 3 sessions move to side as their next requests come",
+				"▸ 14:35:00  d28c     moved     work → side  work reached its limit   1.0M cached again, $8.00",
 			},
 			costs: true,
 		},

@@ -4,34 +4,34 @@
 
 LOG    Requests  Events  [ ]  ──────────────────────────────────────────────────────────────────────────────────  35 hidden: checks and counts   f what it shows
 
-  at        session            model      on        status  first    took    read  written    out  stopped                      routing
-  14:40:13  d28c switchboard   opus-5-5   side      200      1.2s   15.8s    192k     3.6k   1.1k  tool_use · Read
-  14:40:18  db8a infra         opus-5-5   side      200      1.0s    3.4s     68k     1.5k   1.4k  tool_use · Bash
-  14:40:24  41e0 docs          haiku-4-5  personal  200      0.2s    0.6s       —        —     58  end_turn
-  14:40:26  41e0 docs          opus-5-5   personal  200      1.3s   17.6s    142k      884    152  tool_use · Bash
-  14:40:26  db8a infra         opus-5-5   side      200      1.0s   11.8s     70k     1.2k   1.1k  tool_use · Bash
-  14:40:28  7f3a api           opus-5-5   side      200      0.8s    8.3s    109k     1.1k   1.3k  tool_use · Bash
-  14:40:39  db8a infra         opus-5-5   side      200      1.0s   14.3s     72k     2.2k    154  tool_use · Edit
-  14:40:39  d28c switchboard   opus-5-5   side      200      1.2s   14.5s    192k     3.6k   1.1k  tool_use · Bash
-  14:40:40  7f3a api           opus-5-5   side      200      0.7s   13.9s    111k      693    205  tool_use · TodoWrite
-  14:40:49  41e0 docs          opus-5-5   personal  200      0.8s   17.7s    145k     2.3k   1.7k  tool_use · TodoWrite
-  14:40:59  db8a infra         opus-5-5   side      200      1.3s   18.0s     73k     3.1k   1.0k  end_turn
-  14:41:00  7f3a api           opus-5-5   side      200      1.3s   17.3s    113k     1.6k    430  tool_use · Read
-  14:41:03  d28c switchboard   opus-5-5   side      200      1.2s    9.7s    192k     3.6k   1.1k  tool_use · Read
-▲ 14:41:11  c61b mobile        opus-5-5   side      200      0.7s    7.0s     21k     2.7k    745  tool_use · Bash              new session
-  14:41:14  41e0 docs          opus-5-5   personal  200      1.1s   11.0s    147k     1.5k   1.3k  tool_use · Read
-  14:41:19  c61b mobile        opus-5-5   side      200      0.9s   14.8s     22k     2.9k   1.5k  tool_use · Write
-  14:41:19  d28c switchboard   opus-5-5   side      200      1.2s    9.7s    192k     3.6k   1.1k  tool_use · Bash
-  14:41:25  7f3a api           opus-5-5   side      200      1.3s    7.2s    115k     2.8k    973  tool_use · Edit
-  14:41:29  41e0 docs          opus-5-5   personal  200      0.8s    3.8s    149k     3.1k    778  end_turn
-  14:41:35  d28c switchboard   opus-5-5   side      200      1.2s    9.7s       —        —     70  end_turn
-  14:41:38  c61b mobile        haiku-4-5  side      200      0.2s    0.6s       —        —     65  end_turn
-  14:41:39  c61b mobile        opus-5-5   side      200      0.7s   11.5s     24k     2.3k   1.9k  tool_use · Bash
-  14:41:41  7f3a api           opus-5-5   side      200      1.0s   11.9s    117k     1.4k   1.1k  tool_use · Read
-  14:41:51  d28c switchboard   opus-5-5   side      200      1.2s    4.8s    192k     3.6k   1.1k  tool_use · Read
-↓ 14:41:58  41e0               sonnet-5…  personal           0.9s    9.0s                          answering · 3.4k characters
-↓ 14:42:01  c61b               opus-5-5   side               0.5s    6.0s                          answering · 4.8k characters
-↑ 14:42:06  d28c               opus-5-5   side                       0.4s                          asking
+  at        session           model      on        status  first    took    read  written    out  stopped                      routing
+  14:40:13  d28c switchboard  opus-5-5   side      200      1.2s   15.8s    192k     3.6k   1.1k  tool_use · Read
+  14:40:18  db8a infra        opus-5-5   side      200      1.0s    3.4s     68k     1.5k   1.4k  tool_use · Bash
+  14:40:24  41e0 docs         haiku-4-5  personal  200      0.2s    0.6s       —        —     58  end_turn
+  14:40:26  41e0 docs         opus-5-5   personal  200      1.3s   17.6s    142k      884    152  tool_use · Bash
+  14:40:26  db8a infra        opus-5-5   side      200      1.0s   11.8s     70k     1.2k   1.1k  tool_use · Bash
+  14:40:28  7f3a api          opus-5-5   side      200      0.8s    8.3s    109k     1.1k   1.3k  tool_use · Bash
+  14:40:39  db8a infra        opus-5-5   side      200      1.0s   14.3s     72k     2.2k    154  tool_use · Edit
+  14:40:39  d28c switchboard  opus-5-5   side      200      1.2s   14.5s    192k     3.6k   1.1k  tool_use · Bash
+  14:40:40  7f3a api          opus-5-5   side      200      0.7s   13.9s    111k      693    205  tool_use · TodoWrite
+  14:40:49  41e0 docs         opus-5-5   personal  200      0.8s   17.7s    145k     2.3k   1.7k  tool_use · TodoWrite
+  14:40:59  db8a infra        opus-5-5   side      200      1.3s   18.0s     73k     3.1k   1.0k  end_turn
+  14:41:00  7f3a api          opus-5-5   side      200      1.3s   17.3s    113k     1.6k    430  tool_use · Read
+  14:41:03  d28c switchboard  opus-5-5   side      200      1.2s    9.7s    192k     3.6k   1.1k  tool_use · Read
+▲ 14:41:11  c61b mobile       opus-5-5   side      200      0.7s    7.0s     21k     2.7k    745  tool_use · Bash              new session
+  14:41:14  41e0 docs         opus-5-5   personal  200      1.1s   11.0s    147k     1.5k   1.3k  tool_use · Read
+  14:41:19  c61b mobile       opus-5-5   side      200      0.9s   14.8s     22k     2.9k   1.5k  tool_use · Write
+  14:41:19  d28c switchboard  opus-5-5   side      200      1.2s    9.7s    192k     3.6k   1.1k  tool_use · Bash
+  14:41:25  7f3a api          opus-5-5   side      200      1.3s    7.2s    115k     2.8k    973  tool_use · Edit
+  14:41:29  41e0 docs         opus-5-5   personal  200      0.8s    3.8s    149k     3.1k    778  end_turn
+  14:41:35  d28c switchboard  opus-5-5   side      200      1.2s    9.7s       —        —     70  end_turn
+  14:41:38  c61b mobile       haiku-4-5  side      200      0.2s    0.6s       —        —     65  end_turn
+  14:41:39  c61b mobile       opus-5-5   side      200      0.7s   11.5s     24k     2.3k   1.9k  tool_use · Bash
+  14:41:41  7f3a api          opus-5-5   side      200      1.0s   11.9s    117k     1.4k   1.1k  tool_use · Read
+  14:41:51  d28c switchboard  opus-5-5   side      200      1.2s    4.8s    192k     3.6k   1.1k  tool_use · Read
+↓ 14:41:58  41e0              sonnet-5…  personal           0.9s    9.0s                          answering · 3.4k characters
+↓ 14:42:01  c61b              opus-5-5   side               0.5s    6.0s                          answering · 4.8k characters
+↑ 14:42:06  d28c              opus-5-5   side                       0.4s                          asking
 
 ● following                                                                                                                                    1,242 lines today
 tab views   [ ] view    ↑↓ request  enter open  f what it shows  / find    p pin    ? help  q quit

@@ -118,19 +118,16 @@ var knownBreaks = []known{
 		slice: "S5", rule: foldWithRowsSpare, sizes: []string{"138x15"},
 		fixtures: []string{"page-sessions-short"},
 	},
-	// S6, the Log on flex (F30): its sessions' directories and accounts cut with
-	// room.
-	{
-		slice: "S6", rule: cutWithRoom, sizes: []string{"73x61", "73x36"},
-		fixtures: []string{
-			"log-event-details-160", "log-events-160", "log-events-filter-160",
-		},
-	},
+	// S6, the Log on flex (F30): its sessions' directories cut to
+	// views.SessionDirCells, their most, with room; and the Requests' on, which
+	// takes only what's past the columns' leasts, cut with room.
 	{
 		slice: "S6", rule: cutWithRoom, sizes: []string{"73x61", "73x36", "138x30", "138x15", "108x44", "108x24", "173x53", "109x53"},
-		fixtures: []string{
-			"log-requests-long-names-108x44", "long-names-log-events",
-		},
+		fixtures: []string{"log-requests-long-names-108x44"},
+	},
+	{
+		slice: "S6", rule: cutWithRoom, sizes: []string{"138x30", "138x15", "173x53"},
+		fixtures: []string{"long-names-log-events"},
 	},
 	// S7, the List on flex (F21): its sessions' directories cut with room.
 	{

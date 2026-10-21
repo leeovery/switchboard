@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -28,30 +30,104 @@ var eventHeads = [...]string{
 }
 
 // eventColumn is one of the Events' columns as it's laid out: what it
-// holds, where it starts, and how many cells it takes, none for the last,
-// which runs to the last column.
+// holds, where it starts, and how many cells it takes.
 type eventColumn struct {
 	part     eventsPart
 	x, width int
 }
 
-// The Events' columns as the design lays them out, and on a phone, the
-// session leaving, as the phone keeps one over the directory.
-var (
-	eventColumns = []eventColumn{
-		{eventsAt, 2, 8}, {eventsSession, 12, 17}, {eventsKind, 31, 8}, {eventsAccount, 41, 16}, {eventsWhat, 59, 0},
-	}
-	phoneEventColumns = []eventColumn{
-		{eventsAt, 2, 8}, {eventsKind, 11, 8}, {eventsAccount, 20, 8}, {eventsWhat, 30, 0},
-	}
+// The Events' fixed columns' cells, at's and event's; the fewest cells what
+// happened is cut to before the session leaves; and the fewest it's cut to
+// after, as a phone's 52 columns leave it.
+const (
+	eventsAtCells   = 8
+	eventsKindCells = 8
+	eventsWhatLeast = 40
+	eventsWhatBrief = 20
 )
 
-// eventColumns are the Events' columns as the frame lays them out.
-func (f Frame) eventColumns() []eventColumn {
-	if f.phone() {
-		return phoneEventColumns
+// eventsWhatPast is the part of a row of events past its columns' own: what
+// happened's cells past eventsWhatBrief, to its least.
+const eventsWhatPast = eventsWhat + 1
+
+// eventsNaturals are the natural cells of the Events' columns that name: of
+// the session's directory, the widest the rows shown name, as
+// views.SessionDirName names it, none where none names one; and of account,
+// the widest the rows shown say there, each account's name as labelColumnCells
+// counts it.
+type eventsNaturals struct {
+	dir, account int
+}
+
+// with is n widened to the event e's, its accounts named as the moment m
+// names them.
+func (n eventsNaturals) with(e views.LogEvent, m status.Moment) eventsNaturals {
+	n.dir = max(n.dir, ansi.StringWidth(views.SessionDirName(e.Dir)))
+	cells := 0
+	for _, p := range e.Line.Account {
+		if p.Kind == status.PartAccount {
+			cells += labelColumnCells(named(m, p.Text))
+			continue
+		}
+		cells += ansi.StringWidth(p.Text)
 	}
-	return eventColumns
+	n.account = max(n.account, cells)
+	return n
+}
+
+// The turns the Events' parts give way in as the row narrows: the session,
+// whole; then what happened, to eventsWhatBrief; then the account, toward
+// labelLeast.
+const (
+	sessionLeaves = iota + 1
+	whatShortened
+	accountNarrows
+)
+
+// eventsParts are the Events' parts across a row, by what each holds, each
+// column two cells after the one before, as the Requests' are: at; the
+// session, as sessionPart has it, its directory n.dir cells; event;
+// account, a column of names, at its natural n.account until its turn, then
+// at least labelLeast cells; and what happened, as two parts, its first
+// eventsWhatBrief cells, which take the room left, and those past them to
+// eventsWhatLeast.
+func eventsParts(n eventsNaturals) []flex.Part {
+	return []flex.Part{
+		eventsAt:       {Least: eventsAtCells, Natural: eventsAtCells},
+		eventsSession:  sessionPart(n.dir, sessionLeaves, 0),
+		eventsKind:     {Least: eventsKindCells, Natural: eventsKindCells, Gap: logColumnGap},
+		eventsAccount:  {Least: labelLeast, Natural: n.account, Narrows: accountNarrows, Gap: logColumnGap},
+		eventsWhat:     {Least: eventsWhatBrief, Natural: eventsWhatBrief, Grows: true, Gap: logColumnGap},
+		eventsWhatPast: {Least: eventsWhatLeast - eventsWhatBrief, Natural: eventsWhatLeast - eventsWhatBrief, Leaves: whatShortened},
+	}
+}
+
+// eventColumns are the Events' columns laid out across the frame, as
+// eventsLaid lays them out, those that name as wide as the rows in view
+// need, each account named as the moment m names it.
+func (f Frame) eventColumns(m status.Moment, v linesInView) []eventColumn {
+	var n eventsNaturals
+	for l := range v.each() {
+		if l.event != nil {
+			n = n.with(*l.event, m)
+		}
+	}
+	return eventsLaid(f.Width, n)
+}
+
+// eventsLaid are the Events' columns laid out across a terminal width cells
+// wide, from logLeft, as flex lays eventsParts out, those that name at the
+// naturals given, what happened its two parts together.
+func eventsLaid(width int, n eventsNaturals) []eventColumn {
+	spans, _ := flex.Lay(width-logLeft, eventsParts(n)...)
+	spans[eventsWhat].Size += spans[eventsWhatPast].Size
+	var columns []eventColumn
+	for part, s := range spans[:eventsWhatPast] {
+		if !s.Left {
+			columns = append(columns, eventColumn{part: eventsPart(part), x: logLeft + s.At, width: s.Size})
+		}
+	}
+	return columns
 }
 
 // movedApart is the cells between why a session moved and what writing its
@@ -84,38 +160,34 @@ func (p LogPage) eventsEmpty() bool {
 	return p.Events.Today.Shown == 0
 }
 
-// eventsHeads draws the Events' heads along row y, in text.subtle, each at
-// its column's start.
-func (f Frame) eventsHeads(c *canvas, y int) {
-	for _, col := range f.eventColumns() {
+// eventsHeads draws the heads of the Events' columns given along row y, in
+// text.subtle, each at its column's start.
+func eventsHeads(c *canvas, y int, columns []eventColumn) {
+	for _, col := range columns {
 		c.line(col.x, y, line{{eventHeads[col.part], dimInk}})
 	}
 }
 
-// logEvent draws an event's row along a row, of the moment m at now, as
-// eventRow draws it.
-func (f Frame) logEvent(m status.Moment, now time.Time) func(c *canvas, y int, l logLine) {
+// logEvent draws an event's row along a row, in the columns given, of the
+// moment m at now, as eventRow draws it.
+func logEvent(m status.Moment, now time.Time, columns []eventColumn) func(c *canvas, y int, l logLine) {
 	return func(c *canvas, y int, l logLine) {
-		f.eventRow(c, y, *l.event, m, now)
+		eventRow(c, y, *l.event, columns, m, now)
 	}
 }
 
-// eventRow draws the event e's row along row y, of the moment m at now:
-// its mark, as eventMark gives it, bold, at column 0; then in its columns,
-// when it happened, to the second; its session, as Requests' names one,
-// blank for an account's event; its kind's word, in text.secondary; the
-// account it befell, white, a move's two as moveNames cuts them; and what
-// happened, in text.muted, cut as whatHappened has it.
-func (f Frame) eventRow(c *canvas, y int, e views.LogEvent, m status.Moment, now time.Time) {
+// eventRow draws the event e's row along row y, in the columns given, of
+// the moment m at now: its mark, as eventMark gives it, bold, at column 0;
+// then in its columns, when it happened, to the second; its session, as
+// Requests' names one, blank for an account's event; its kind's word, in
+// text.secondary; the account it befell, white, a move's two as moveNames
+// cuts them; and what happened, in text.muted, cut as whatHappened has it.
+func eventRow(c *canvas, y int, e views.LogEvent, columns []eventColumn, m status.Moment, now time.Time) {
 	mark := eventMark(e.Kind, e.Well)
 	mark.ink.bold = true
 	c.line(0, y, line{mark})
-	for _, col := range f.eventColumns() {
-		width := col.width
-		if width == 0 {
-			width = f.Width - col.x
-		}
-		c.line(col.x, y, eventCell(e, col.part, width, m, now))
+	for _, col := range columns {
+		c.line(col.x, y, eventCell(e, col.part, col.width, m, now))
 	}
 }
 
@@ -129,7 +201,7 @@ func eventCell(e views.LogEvent, part eventsPart, width int, m status.Moment, no
 		if prose.Clean(e.Session) == "" {
 			return nil
 		}
-		return sessionCell(e.Session, e.Dir, false).fit(width)
+		return sessionCell(e.Session, e.Dir, true).fit(width)
 	case eventsKind:
 		return line{{e.Line.Kind, secondaryInk}}.fit(width)
 	case eventsAccount:

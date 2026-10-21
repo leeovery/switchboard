@@ -26,15 +26,17 @@ var shownSubTabInk = ink{token: theme.TextPrimary, on: hue{token: theme.BgSubtle
 // the screen can't otherwise show, in text.faint, a key within it in bold
 // accent.key, where there's any, and its shorter forms, each a clause fewer,
 // for less room; and at its right, its period or window, which < and > step,
-// or another line, as the Log's count and its f.
+// or another line, as the Log's count and its f, and that line where the
+// heading is compact, where it has one of its own.
 type heading struct {
-	name    string
-	subTabs []string
-	shown   int
-	state   line
-	shorter []line
-	period  string
-	right   line
+	name         string
+	subTabs      []string
+	shown        int
+	state        line
+	shorter      []line
+	period       string
+	right        line
+	compactRight line
 }
 
 // piece is a part of the heading row as it's laid out: a line, from x along
@@ -98,7 +100,7 @@ func (f Frame) tabHeading() heading {
 	case Runway:
 		return f.Runway.heading()
 	case Log:
-		return f.Log.heading(f.phone(), f.Width, func(id string) string { return named(f.heldMoment(), id) })
+		return f.Log.heading(f.Width, func(id string) string { return named(f.heldMoment(), id) })
 	}
 	return heading{name: strings.ToUpper(f.Shown().Title())}
 }
@@ -156,7 +158,7 @@ func (h heading) ownPeriod(phone bool) bool {
 func (h heading) pieces(y, width int, phone bool) []piece {
 	var laid laying
 	x := h.named(&laid, y, phone)
-	right, rightY, end := h.rightPieces(), y, width
+	right, rightY, end := h.rightPieces(h.compact(phone)), y, width
 	switch {
 	case h.ownPeriod(phone):
 		rightY++
@@ -226,8 +228,9 @@ func (h heading) subTab(i int) line {
 
 // rightPieces are what sits at the heading's right, in order, where they
 // are yet to be placed: its period, with < before it and > after, each a
-// step back and on; else its line; else nothing.
-func (h heading) rightPieces() []piece {
+// step back and on; else, where compact says, its compact line, where it has
+// one; else its line; else nothing.
+func (h heading) rightPieces(compact bool) []piece {
 	switch {
 	case h.period != "":
 		return []piece{
@@ -235,6 +238,8 @@ func (h heading) rightPieces() []piece {
 			{line: line{{" " + h.period + " ", mutedInk}}},
 			{line: line{{">", keyInk}}, click: Target{On: OnStep, Step: 1}},
 		}
+	case compact && h.compactRight != nil:
+		return []piece{{line: h.compactRight}}
 	case h.right != nil:
 		return []piece{{line: h.right}}
 	default:

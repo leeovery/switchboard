@@ -159,7 +159,7 @@ func (p LogPage) findLine(width int) (line, bool) {
 	typed := line{{"/", keyInk}, {" " + f.Typed, typedInk}, {"▏", cursorInk}}
 	named, day := typed, typed
 	if s, ok := f.Pick(); ok {
-		named = slices.Concat(typed, line{spaces(findMatchGap)}, sessionCell(s.ID, s.Dir, false))
+		named = slices.Concat(typed, line{spaces(findMatchGap)}, sessionCell(s.ID, s.Dir, true))
 		day = slices.Concat(named, line{spaces(findDayGap), {foundOn(s, p.Today), mutedInk}})
 	}
 	count, keyed := f.counted()
