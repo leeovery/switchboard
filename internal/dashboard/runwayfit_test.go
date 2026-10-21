@@ -51,36 +51,50 @@ func runwayDrawn(f Frame, doc status.Document) *canvas {
 }
 
 // runwayFitted is what of Runway a fit draws, for a test to hold: the step
-// it takes, how many lanes it shows, whether the legend and COMING UP show,
-// and whether anything does.
+// it takes, how many lanes it shows, the blank rows between the axis and the
+// lanes, whether the legend and COMING UP show, and whether anything does.
 type runwayFitted struct {
 	step           runwayStep
-	shown          int
+	shown, axisGap int
 	legend, coming bool
 	fits           bool
 }
 
 // fittedOf is what of Runway the fit draws, as runwayFitted has it.
 func fittedOf(fit runwayFit) runwayFitted {
-	return runwayFitted{fit.step, fit.shown, fit.draws(fit.legend), fit.draws(fit.coming), fit.fits}
+	if !fit.fits {
+		return runwayFitted{}
+	}
+	return runwayFitted{fit.step, fit.shown, fit.lanes - fit.axis - runwayAxisRows, fit.draws(fit.legend), fit.draws(fit.coming), fit.fits}
 }
 
 // fittedWhole is Runway fitted at the step given, shown lanes shown, the
-// legend and COMING UP both shown.
+// blank row under the axis, and the legend and COMING UP both shown.
 func fittedWhole(step runwayStep, shown int) runwayFitted {
-	return runwayFitted{step: step, shown: shown, legend: true, coming: true, fits: true}
+	return runwayFitted{step: step, shown: shown, axisGap: 1, legend: true, coming: true, fits: true}
 }
 
-// fittedNoLegend is Runway fitted at (c), shown lanes shown, the legend given
-// way and COMING UP shown.
+// fittedNoLegend is Runway fitted at (c), shown lanes shown, the blank row
+// under the axis, the legend given way and COMING UP shown.
 func fittedNoLegend(shown int) runwayFitted {
-	return runwayFitted{step: runwayComingCut, shown: shown, coming: true, fits: true}
+	return runwayFitted{step: runwayComingCut, shown: shown, axisGap: 1, coming: true, fits: true}
 }
 
 // fittedBare is Runway fitted at the step given, shown lanes shown, neither
-// the legend nor COMING UP shown.
+// the legend nor COMING UP shown: at (c), the blank row under the axis
+// kept, and at (f), not.
 func fittedBare(step runwayStep, shown int) runwayFitted {
-	return runwayFitted{step: step, shown: shown, fits: true}
+	fitted := runwayFitted{step: step, shown: shown, fits: true}
+	if step == runwayComingCut {
+		fitted.axisGap = 1
+	}
+	return fitted
+}
+
+// fittedClosed is Runway fitted at (c), shown lanes shown, the legend,
+// COMING UP and the blank row under the axis all given way.
+func fittedClosed(shown int) runwayFitted {
+	return runwayFitted{step: runwayComingCut, shown: shown, fits: true}
 }
 
 // holdsTheLegendOverTheKeyLine fails the test where the fit draws the legend
@@ -132,7 +146,7 @@ func TestRunwayTakesTheFirstOfItsStepsThatFits(t *testing.T) {
 		{name: "six with ten lines, COMING UP cut at (c)", accounts: 6, lines: 10, rows: 37, width: 120, want: fittedWhole(runwayComingCut, 6)},
 		{name: "ten, the legend given way at (d)", accounts: 10, lines: 11, rows: 37, width: 120, want: fittedNoLegend(10)},
 		{name: "eleven, COMING UP given way too", accounts: 11, lines: 12, rows: 37, width: 120, want: fittedBare(runwayComingCut, 11)},
-		{name: "twelve, at (e)", accounts: 12, lines: 12, rows: 37, width: 120, want: fittedBare(runwayComingCut, 12)},
+		{name: "twelve, at (e)", accounts: 12, lines: 12, rows: 37, width: 120, want: fittedClosed(12)},
 		{name: "thirteen, scrolling at (f)", accounts: 13, lines: 12, rows: 37, width: 120, want: fittedBare(runwayScrolled, 12)},
 		{name: "ten at 34, every lane", accounts: 10, lines: 3, rows: 34, width: 120, want: fittedBare(runwayComingCut, 10)},
 		{name: "ten at 31, nine in view", accounts: 10, lines: 3, rows: 31, width: 120, want: fittedBare(runwayScrolled, 9)},
@@ -175,7 +189,7 @@ func TestRunwayFitsAtEveryHeightDownTo14Rows(t *testing.T) {
 		26: fittedWhole(runwayNoGaps, 3), 25: fittedWhole(runwayNoGaps, 3),
 		24: fittedWhole(runwayComingCut, 3),
 		23: fittedNoLegend(3), 22: fittedBare(runwayComingCut, 3), 21: fittedBare(runwayComingCut, 3), 20: fittedBare(runwayComingCut, 3),
-		19: fittedBare(runwayComingCut, 3),
+		19: fittedClosed(3),
 		18: fittedBare(runwayScrolled, 2), 17: fittedBare(runwayScrolled, 2), 16: fittedBare(runwayScrolled, 1), 15: fittedBare(runwayScrolled, 1),
 		14: {},
 	}
@@ -440,7 +454,7 @@ func TestOnAPhoneRunwayTakesTheFirstOfItsStepsThatFits(t *testing.T) {
 		28: fittedWhole(runwayNoGaps, 3), 27: fittedWhole(runwayNoGaps, 3),
 		26: fittedWhole(runwayComingCut, 3),
 		25: fittedNoLegend(3), 24: fittedNoLegend(3), 23: fittedBare(runwayComingCut, 3), 22: fittedBare(runwayComingCut, 3), 21: fittedBare(runwayComingCut, 3),
-		20: fittedBare(runwayComingCut, 3),
+		20: fittedClosed(3),
 		19: fittedBare(runwayScrolled, 2), 18: fittedBare(runwayScrolled, 2), 17: fittedBare(runwayScrolled, 1), 16: fittedBare(runwayScrolled, 1),
 		15: {},
 	}

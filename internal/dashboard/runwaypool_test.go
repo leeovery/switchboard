@@ -137,12 +137,16 @@ func TestThePoolsPastIsDimmed(t *testing.T) {
 }
 
 // ▂ on the lane's floor means the pool at its limit alone: a column of the
-// pool's with any of its accounts with room, in any share, fills ▃ at the
-// least, never ▂, on its lower row. On its upper row, ▂ stands on a full
-// cell, so it can't be read as the limit.
-func TestAPoolsColumnWithRoomIsNeverDrawnAsItsLimit(t *testing.T) {
+// pool's with any of its accounts with room, in any share, down to 1 of 40,
+// fills ▃ at the least on its lower row, or the whole cell. On its upper
+// row, ▂ stands on a full cell, so it can't be read as the limit.
+func TestAPoolsColumnWithRoomFillsThreeEighthsAtTheLeast(t *testing.T) {
 	look := Screen(builtin(t, "nord"))
+	pools := []int{40}
 	for of := 2; of <= 24; of++ {
+		pools = append(pools, of)
+	}
+	for _, of := range pools {
 		doc := runwayDoc(of)
 		columns := make([]views.PoolColumn, RunwayShown{}.Columns(160))
 		for i := range columns {
@@ -151,11 +155,17 @@ func TestAPoolsColumnWithRoomIsNeverDrawnAsItsLimit(t *testing.T) {
 		c, top := poolDrawn(poolShown(doc, views.Pool{Of: of, Key: "5h", Columns: columns}), doc, look)
 		x := RunwayShown{}.lanesFrom(160)
 		for i, col := range columns {
-			if got := c.at(x+i, top+1).glyph; got == poolLimitCell {
-				t.Errorf("%d of %d with room, the column's lower row is %q, the pool's limit", col.With, of, got)
+			if lower := cellAt(c, x+i, top+1); !atLeastThreeEighths(lower) {
+				t.Errorf("%d of %d with room, the column's lower row is %+v, want ▃ or fuller", col.With, of, lower)
 			}
 		}
 	}
+}
+
+// atLeastThreeEighths reports whether the cell is filled three eighths of
+// the way up or more: ▃ to ▇, or a full cell, its ground.
+func atLeastThreeEighths(cell seenCell) bool {
+	return slices.Contains([]string{"▃", "▄", "▅", "▆", "▇"}, cell.glyph) || cell.glyph == " " && cell.ink.on != (hue{})
 }
 
 // A column of the pool's where none of its accounts has room is dimmed

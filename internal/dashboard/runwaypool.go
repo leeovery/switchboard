@@ -89,9 +89,8 @@ func poolShort(r runwayPoolRoom) line {
 // accounts with room at the column's moment, of its rows, in eighths of a
 // cell, as poolFill has it, in the colour usage gives the pool's use, the
 // share without room, faded as the past is before now's column. A column
-// where the pool is at
-// its limit is poolLimitMark's on its lower row, faded as the past is
-// likewise; one where none's state is known is left blank.
+// where the pool is at its limit is poolLimitMark's on its lower row, faded
+// as the past is likewise; one where none's state is known is left blank.
 func (f Frame) poolColumns(c *canvas, laid runwayLaid, pool views.Pool) {
 	now, floor := f.Runway.Timeline.NowColumn(), laid.fit.pool+runwayPoolRows-1
 	for i, col := range pool.Columns {

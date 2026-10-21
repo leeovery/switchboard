@@ -44,8 +44,9 @@ const (
 )
 
 // Runway's parts down a frame, in runwayShape.parts' order: the axis; the
-// blank row under it; the lanes shown; the pool's lane, the row under it its room's, or what's out
-// of view's; COMING UP; the rows spare; and the legend, over the key line.
+// blank row under it; the lanes shown; the pool's lane, the row under it its
+// room's, or what's out of view's; COMING UP; the rows spare; and the
+// legend, over the key line.
 const (
 	runwayAxisPart = iota
 	runwayAxisGapPart
