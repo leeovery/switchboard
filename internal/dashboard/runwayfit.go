@@ -19,18 +19,18 @@ const (
 	// runwayComingCut is step (c): COMING UP showing the lines it can, from
 	// two rows of them, its last place saying how many more.
 	runwayComingCut
-	// runwayAxisClose is step (d): no blank row between the axis and the
-	// lanes.
+	// runwayGivingWay is step (d): the legend giving way, then COMING UP, in
+	// the turns below.
+	runwayGivingWay
+	// runwayAxisClose is step (e): neither the legend nor COMING UP, and no
+	// blank row between the axis and the lanes.
 	runwayAxisClose
-	// runwayScrolled is step (e): (d)'s layout, its lanes scrolling, as many
-	// shown as fit.
+	// runwayScrolled is step (f): (e)'s layout, its lanes scrolling, as many
+	// shown as fit, down to one over the pool's lane.
 	runwayScrolled
-	// runwayOneLane is step (f): (e)'s layout, one lane shown, the legend
-	// and then COMING UP giving way in the turns below.
-	runwayOneLane
 )
 
-// The turns Runway's parts give way in at (f): the legend, then COMING UP,
+// The turns Runway's parts give way in at (d): the legend, then COMING UP,
 // heading and all.
 const (
 	legendGivesWay = iota + 1
@@ -137,9 +137,10 @@ func (f Frame) runwayFitted(top int) runwayFit {
 
 // runwayFittedAs is how Runway fits the rows from row top to the one over
 // the key line in the shape given: the first of its compaction's steps whose
-// parts fit there, every lane shown; else (e), as many lanes as fit shown;
-// else (f), one; each from the one the frame's Scroll scrolls to; else, where
-// not even (f) fits, as before the lanes are built, nothing.
+// parts fit there, every lane shown; else (f), as many lanes as fit shown,
+// down to one, from the one the frame's Scroll scrolls to; else, where not
+// even one fits, as before the lanes are built, nothing. So no lane is out of
+// view while the legend or COMING UP shows.
 func (f Frame) runwayFittedAs(top int, shape runwayShape) runwayFit {
 	holds, rows := f.Runway.holds(), f.Height-underView+1-top
 	if holds.lanes == 0 {
@@ -154,9 +155,6 @@ func (f Frame) runwayFittedAs(top int, shape runwayShape) runwayFit {
 		if fit, ok := shape.laidOut(runwayScrolled, top, rows, holds, shown); ok {
 			return f.scrolledTo(fit)
 		}
-	}
-	if fit, ok := shape.laidOut(runwayOneLane, top, rows, holds, 1); ok {
-		return f.scrolledTo(fit)
 	}
 	return runwayFit{}
 }
@@ -181,43 +179,54 @@ func (s runwayShape) laidOut(step runwayStep, top, rows int, holds runwayHolds, 
 	if holds.pool {
 		under += runwayPoolRows
 	}
+	foot := step.keepsFoot()
 	return runwayFit{
 		step: step, fits: true, axis: top + at[runwayAxisPart].At,
 		lanes: top + at[runwayLanesPart].At, apart: step.apart(), shown: shown, accounts: holds.lanes,
 		pool:   rowWhere(holds.pool, pool),
 		room:   rowWhere(holds.room, under),
 		out:    rowWhere(shown < holds.lanes, under),
-		coming: rowWhere(holds.coming && !coming.Left, top+coming.At), lines: max(coming.Size-1, 0),
-		legend: rowWhere(!legend.Left, top+legend.At),
+		coming: rowWhere(foot && holds.coming && !coming.Left, top+coming.At), lines: max(coming.Size-1, 0),
+		legend: rowWhere(foot && !legend.Left, top+legend.At),
 	}, true
 }
 
 // parts are Runway's parts down a frame at the step given, in the shape, of
 // what holds says it holds, shown of its lanes shown, as flex lays them: the
-// axis; the lanes, a blank row before them before (d); the pool's lane, its
+// axis; the lanes, a blank row before them before (e); the pool's lane, its
 // room and what's out of view, as poolRows has them; COMING UP, as
 // comingPart has it; the rows spare, which take what's left; and the
 // legend, over the key line, a blank row before it before (b), and with no
-// COMING UP, the blank row under the pool's lane. At (f), the legend gives
-// way, then COMING UP.
+// COMING UP, the blank row under the pool's lane. At (d), the legend gives
+// way, then COMING UP; from (e), neither takes a row.
 func (s runwayShape) parts(step runwayStep, holds runwayHolds, shown int) []flex.Part {
 	lanes, pool := shown*step.apart(), holds.poolRows(shown)
 	parts := []flex.Part{
 		runwayAxisPart:   {Least: runwayAxisRows, Natural: runwayAxisRows},
 		runwayLanesPart:  {Least: lanes, Natural: lanes, Gap: step.gap(runwayAxisClose)},
 		runwayPoolPart:   {Least: pool, Natural: pool},
-		runwayComingPart: s.comingPart(step, holds),
 		runwaySparePart:  {Grows: true},
-		runwayLegendPart: {Least: s.legend, Natural: s.legend, Gap: step.gap(runwayNoGaps)},
+		runwayLegendPart: {},
 	}
+	if !step.keepsFoot() {
+		return parts
+	}
+	parts[runwayComingPart] = s.comingPart(step, holds)
+	parts[runwayLegendPart] = flex.Part{Least: s.legend, Natural: s.legend, Gap: step.gap(runwayNoGaps)}
 	if !holds.coming {
 		parts[runwayLegendPart].Gap = step.underPool(holds)
 	}
-	if step == runwayOneLane {
+	if step == runwayGivingWay {
 		parts[runwayLegendPart].Leaves = legendGivesWay
 		parts[runwayComingPart].Leaves = comingGivesWay
 	}
 	return parts
+}
+
+// keepsFoot reports whether the legend and COMING UP may show at the step:
+// before (e), so no lane scrolls while either shows.
+func (s runwayStep) keepsFoot() bool {
+	return s < runwayAxisClose
 }
 
 // comingPart is COMING UP as a part at the step, in the shape, of what holds

@@ -58,9 +58,9 @@ func (f Frame) lanesHelp() helpPart {
 				"drawn by the reserve the config gives now, as the readings keep none: change a reserve, and the caps of days gone " +
 				"are drawn again by it."),
 			said("The legend sits at the foot, over the key line. As rows run short, an account takes two rows, the blank rows " +
-				"go and COMING UP shows the lines it can; past that, the lanes scroll with `j` and `k`, the axis and the pool's " +
-				"lane holding, and what's out of view said beside the pool's room; and with one lane left, the legend gives way, " +
-				"then COMING UP."),
+				"go and COMING UP shows the lines it can; then the legend gives way, then COMING UP, then the blank row under " +
+				"the axis; only then do the lanes scroll with `j` and `k`, the axis and the pool's lane holding, and what's out " +
+				"of view said beside the pool's room."),
 		},
 		glyphs: []glyph{
 			{drawn: line{f.Look.laneMark(views.CellRoom)}, means: "room"},

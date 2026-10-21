@@ -761,9 +761,10 @@ func TestASinceReadOnRunwayBrightensTodaysHighestAsItChanges(t *testing.T) {
 // than the last lane, nor above the first.
 func TestRunwaysLanesScrollAnAccountAtATimeByTheKeysAndTheWheel(t *testing.T) {
 	h := runwayKeysHarness(t, twelve(), 160, "")
+	h.deliver(h.update(scrolledSize)...)
 	s := h.model.scrolling()
 	if s.Most == 0 || s.Page == 0 {
-		t.Fatalf("Runway's twelve lanes scroll %+v at 160x37, want some out of view", s)
+		t.Fatalf("Runway's twelve lanes scroll %+v at 160x30, want some out of view", s)
 	}
 	x, y := 10, h.overTheView()
 	steps := []struct {

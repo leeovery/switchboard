@@ -3051,14 +3051,16 @@ parts fit (the owner's call, 21 October 2026):
 | (a) | Two rows an account (settled in the plan) |
 | (b) | No blank rows under the pool's lane or over the legend (settled in the plan) |
 | (c) | COMING UP shows the lines it can, from two rows of them, its first row always lines |
-| (d) | No blank row between the axis and the lanes |
-| (e) | The lanes scroll, as many shown as fit (settled in the plan) |
-| (f) | One lane, the pool's under it: the legend gives way, then COMING UP, heading and all |
+| (d) | The legend gives way, then COMING UP, heading and all |
+| (e) | No blank row between the axis and the lanes |
+| (f) | The lanes scroll, as many shown as fit, down to one over the pool's lane (settled in the plan) |
 
-So the bars stay one row and the pool's lane two at every step, and no part grows into spare rows.
-With a pool's lane, a lane shows from 8 rows of view, 15 rows on a terminal with the title on one
-row: the axis, the lane and its words, the pool's lane and its room, with no blank rows; with one
-account, from 5. At (e) and (f), the lanes scroll as Accounts' do (see Accounts): the axis and the
+The lanes are what Runway is for, so no lane scrolls while the legend or COMING UP shows; a shorter
+terminal never shows more lanes than a taller one, nor the legend or COMING UP where the taller
+doesn't. The bars stay one row and the pool's lane two at every step, and no part grows into spare
+rows. With a pool's lane, a lane shows from 8 rows of view, 15 rows on a terminal with the title on
+one row: the axis, the lane and its words, the pool's lane and its room, with no blank rows; with
+one account, from 5. At (f), the lanes scroll as Accounts' do (see Accounts): the axis and the
 pool's foot hold, and the row under the pool's lane says what's out of view, right-aligned, in
 the cells its room leaves: `▼ 2 more accounts`, or for less room, the counts alone, `▼ 2 more`.
 
@@ -3089,7 +3091,7 @@ at every width:
 holds it whole from 100 columns; a phone's line leaves it to `?`, as it would cost its `tab views`.
 `<` and `>` step between the week and the 5-hour views; `←` steps back and `→` forward; `a`
 collapses the account column and expands it again; `j`, `k`,
-PgUp, PgDn and the wheel scroll the lanes at (e); `p`, `R`, `t`, `?` and `q` are as on every page
+PgUp, PgDn and the wheel scroll the lanes at (f); `p`, `R`, `t`, `?` and `q` are as on every page
 (see Keys). `?` help (see The page), `HELP · RUNWAY`, lists the page's keys first, `t`, `R` and
 `j`/`k` among them; then it explains the lanes' marks and colours, the pool's lane and its room,
 stepping back and how far it reaches, the minutes a column, and COMING UP.

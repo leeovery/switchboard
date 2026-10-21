@@ -65,10 +65,22 @@ func fittedOf(fit runwayFit) runwayFitted {
 	return runwayFitted{fit.step, fit.shown, fit.draws(fit.legend), fit.draws(fit.coming), fit.fits}
 }
 
-// fittedWhole is Runway fitted at the step given, shown lanes shown, the legend
-// and COMING UP both shown.
+// fittedWhole is Runway fitted at the step given, shown lanes shown, the
+// legend and COMING UP both shown.
 func fittedWhole(step runwayStep, shown int) runwayFitted {
 	return runwayFitted{step: step, shown: shown, legend: true, coming: true, fits: true}
+}
+
+// fittedNoLegend is Runway fitted at (d), shown lanes shown, the legend given
+// way and COMING UP shown.
+func fittedNoLegend(shown int) runwayFitted {
+	return runwayFitted{step: runwayGivingWay, shown: shown, coming: true, fits: true}
+}
+
+// fittedBare is Runway fitted at the step given, shown lanes shown, neither
+// the legend nor COMING UP shown.
+func fittedBare(step runwayStep, shown int) runwayFitted {
+	return runwayFitted{step: step, shown: shown, fits: true}
 }
 
 // holdsTheLegendOverTheKeyLine fails the test where the fit draws the legend
@@ -81,50 +93,66 @@ func holdsTheLegendOverTheKeyLine(t *testing.T, fit runwayFit, rows, legend int)
 	}
 }
 
+// holdsTheOrder fails the test where a lane of the accounts given is out of
+// view while the legend or COMING UP shows, or where a frame a row shorter
+// than the one before it, fitted as taller was, shows more lanes, or the
+// legend or COMING UP where the taller doesn't.
+func holdsTheOrder(t *testing.T, rows, accounts int, fit runwayFitted, taller *runwayFitted) {
+	t.Helper()
+	if fit.fits && fit.shown < accounts && (fit.legend || fit.coming) {
+		t.Errorf("at %d rows, %d lanes are shown while the legend or COMING UP shows: %+v", rows, fit.shown, fit)
+	}
+	if taller.fits && (fit.shown > taller.shown || fit.legend && !taller.legend || fit.coming && !taller.coming) {
+		t.Errorf("at %d rows, Runway shows %+v, more than a row taller, %+v", rows, fit, *taller)
+	}
+	*taller = fit
+}
+
 // Runway takes the first step of its compaction whose parts fit, its legend
 // over the key line, at 120 by 37 with N accounts and K lines of COMING UP,
 // in one column: three rows an account while 3N + K ≤ 19; (a) while
 // 2N + K ≤ 19; (b) while 2N + K ≤ 21; (c), COMING UP cut to a line and how
-// many more, while 2N + 2 ≤ 21; (d) a row on; then its lanes scrolling, as
-// many shown as fit; and the week frame's three as rows run short. At 160,
-// COMING UP's lines in two columns take half the rows, so the same accounts
-// keep roomier steps.
+// many more, while 2N ≤ 19; (d), the legend given way while 2N ≤ 20, and
+// COMING UP too while 2N ≤ 23; (e) a row on; and only then its lanes
+// scrolling, as many shown as fit; and the week frame's three as rows run
+// short. At 160, COMING UP's lines in two columns take half the rows, so the
+// same accounts keep roomier steps.
 func TestRunwayTakesTheFirstOfItsStepsThatFits(t *testing.T) {
 	tests := []struct {
 		name                         string
 		accounts, lines, rows, width int
-		want                         runwayStep
-		shown                        int
+		want                         runwayFitted
 	}{
-		{name: "four with twelve lines in two columns", accounts: 4, lines: 12, rows: 37, width: 160, want: runwayRoomy, shown: 4},
-		{name: "four with twelve lines in one", accounts: 4, lines: 12, rows: 37, width: 120, want: runwayNoGaps, shown: 4},
-		{name: "six with twenty lines in two columns, at (c)", accounts: 6, lines: 20, rows: 37, width: 160, want: runwayComingCut, shown: 6},
-		{name: "four accounts, three rows each", accounts: 4, lines: 5, rows: 37, width: 120, want: runwayRoomy, shown: 4},
-		{name: "five, at (a)", accounts: 5, lines: 6, rows: 37, width: 120, want: runwayTwoRows, shown: 5},
-		{name: "six with nine lines, at (b)", accounts: 6, lines: 9, rows: 37, width: 120, want: runwayNoGaps, shown: 6},
-		{name: "six with ten lines, COMING UP cut at (c)", accounts: 6, lines: 10, rows: 37, width: 120, want: runwayComingCut, shown: 6},
-		{name: "ten, at (d)", accounts: 10, lines: 11, rows: 37, width: 120, want: runwayAxisClose, shown: 10},
-		{name: "eleven at 39, at (d)", accounts: 11, lines: 12, rows: 39, width: 120, want: runwayAxisClose, shown: 11},
-		{name: "eleven, scrolling at (e)", accounts: 11, lines: 12, rows: 37, width: 120, want: runwayScrolled, shown: 10},
-		{name: "ten at 34, eight in view", accounts: 10, lines: 3, rows: 34, width: 120, want: runwayScrolled, shown: 8},
-		{name: "ten at 31, seven in view", accounts: 10, lines: 3, rows: 31, width: 120, want: runwayScrolled, shown: 7},
-		{name: "ten at 27, five in view", accounts: 10, lines: 3, rows: 27, width: 120, want: runwayScrolled, shown: 5},
-		{name: "ten at 22, two in view", accounts: 10, lines: 3, rows: 22, width: 120, want: runwayScrolled, shown: 2},
-		{name: "ten at 19, one in view", accounts: 10, lines: 3, rows: 19, width: 120, want: runwayScrolled, shown: 1},
-		{name: "the 5-hour frame's three", accounts: 3, lines: 3, rows: 37, width: 120, want: runwayRoomy, shown: 3},
-		{name: "the week frame's three", accounts: 3, lines: 7, rows: 37, width: 120, want: runwayRoomy, shown: 3},
-		{name: "the week's three at 33", accounts: 3, lines: 7, rows: 33, width: 120, want: runwayTwoRows, shown: 3},
-		{name: "the week's three at 31", accounts: 3, lines: 7, rows: 31, width: 120, want: runwayTwoRows, shown: 3},
-		{name: "the week's three at 30", accounts: 3, lines: 7, rows: 30, width: 120, want: runwayNoGaps, shown: 3},
-		{name: "the week's three at 28", accounts: 3, lines: 7, rows: 28, width: 120, want: runwayComingCut, shown: 3},
+		{name: "four with twelve lines in two columns", accounts: 4, lines: 12, rows: 37, width: 160, want: fittedWhole(runwayRoomy, 4)},
+		{name: "four with twelve lines in one", accounts: 4, lines: 12, rows: 37, width: 120, want: fittedWhole(runwayNoGaps, 4)},
+		{name: "six with twenty lines in two columns, at (c)", accounts: 6, lines: 20, rows: 37, width: 160, want: fittedWhole(runwayComingCut, 6)},
+		{name: "four accounts, three rows each", accounts: 4, lines: 5, rows: 37, width: 120, want: fittedWhole(runwayRoomy, 4)},
+		{name: "five, at (a)", accounts: 5, lines: 6, rows: 37, width: 120, want: fittedWhole(runwayTwoRows, 5)},
+		{name: "six with nine lines, at (b)", accounts: 6, lines: 9, rows: 37, width: 120, want: fittedWhole(runwayNoGaps, 6)},
+		{name: "six with ten lines, COMING UP cut at (c)", accounts: 6, lines: 10, rows: 37, width: 120, want: fittedWhole(runwayComingCut, 6)},
+		{name: "ten, the legend given way at (d)", accounts: 10, lines: 11, rows: 37, width: 120, want: fittedNoLegend(10)},
+		{name: "eleven, COMING UP given way too", accounts: 11, lines: 12, rows: 37, width: 120, want: fittedBare(runwayGivingWay, 11)},
+		{name: "twelve, at (e)", accounts: 12, lines: 12, rows: 37, width: 120, want: fittedBare(runwayAxisClose, 12)},
+		{name: "thirteen, scrolling at (f)", accounts: 13, lines: 12, rows: 37, width: 120, want: fittedBare(runwayScrolled, 12)},
+		{name: "ten at 34, every lane", accounts: 10, lines: 3, rows: 34, width: 120, want: fittedBare(runwayGivingWay, 10)},
+		{name: "ten at 31, nine in view", accounts: 10, lines: 3, rows: 31, width: 120, want: fittedBare(runwayScrolled, 9)},
+		{name: "ten at 27, seven in view", accounts: 10, lines: 3, rows: 27, width: 120, want: fittedBare(runwayScrolled, 7)},
+		{name: "ten at 22, four in view", accounts: 10, lines: 3, rows: 22, width: 120, want: fittedBare(runwayScrolled, 4)},
+		{name: "ten at 15, one in view", accounts: 10, lines: 3, rows: 15, width: 120, want: fittedBare(runwayScrolled, 1)},
+		{name: "the 5-hour frame's three", accounts: 3, lines: 3, rows: 37, width: 120, want: fittedWhole(runwayRoomy, 3)},
+		{name: "the week frame's three", accounts: 3, lines: 7, rows: 37, width: 120, want: fittedWhole(runwayRoomy, 3)},
+		{name: "the week's three at 33", accounts: 3, lines: 7, rows: 33, width: 120, want: fittedWhole(runwayTwoRows, 3)},
+		{name: "the week's three at 31", accounts: 3, lines: 7, rows: 31, width: 120, want: fittedWhole(runwayTwoRows, 3)},
+		{name: "the week's three at 30", accounts: 3, lines: 7, rows: 30, width: 120, want: fittedWhole(runwayNoGaps, 3)},
+		{name: "the week's three at 28", accounts: 3, lines: 7, rows: 28, width: 120, want: fittedWhole(runwayComingCut, 3)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := runwayFrame(t, tt.rows, lanesOf(tt.accounts), thingsComing(tt.lines))
 			f.Width = tt.width
 			fit := f.runwayFitted(f.top())
-			if got, want := fittedOf(fit), fittedWhole(tt.want, tt.shown); got != want {
-				t.Errorf("at %d rows, Runway fits %+v, want %+v", tt.rows, got, want)
+			if got := fittedOf(fit); got != tt.want {
+				t.Errorf("at %d rows, Runway fits %+v, want %+v", tt.rows, got, tt.want)
 			}
 			holdsTheLegendOverTheKeyLine(t, fit, tt.rows, 1)
 		})
@@ -133,35 +161,34 @@ func TestRunwayTakesTheFirstOfItsStepsThatFits(t *testing.T) {
 
 // The 5-hour frame's three accounts, with three lines of COMING UP in one
 // column at 120, take each step as rows run short, a row at a time from 37
-// to 14: three rows each to 30; (a) to 27; (b) to 25; (c) at 24; (d) at 23;
-// then their lanes scrolling, two in view to 21 and one to 19; then one
-// lane, the legend given way at 18, and COMING UP too from 17 to 15, where
+// to 14: three rows each to 30; (a) to 27; (b) to 25; (c) at 24; (d), the
+// legend given way at 23, and COMING UP too from 22 to 20; (e) at 19; and
+// only then their lanes scrolling, two in view to 17 and one to 15, where
 // the axis, the lane and the pool's lane and room fill the view; and under
-// that, nothing but the page's chrome.
+// that, nothing but the page's chrome. No lane is ever out of view while the
+// legend or COMING UP shows, and no row less shows more.
 func TestRunwayFitsAtEveryHeightDownTo14Rows(t *testing.T) {
-	noLegend := runwayFitted{step: runwayOneLane, shown: 1, coming: true, fits: true}
-	bare := runwayFitted{step: runwayOneLane, shown: 1, fits: true}
 	want := map[int]runwayFitted{
 		37: fittedWhole(runwayRoomy, 3), 36: fittedWhole(runwayRoomy, 3), 35: fittedWhole(runwayRoomy, 3), 34: fittedWhole(runwayRoomy, 3),
 		33: fittedWhole(runwayRoomy, 3), 32: fittedWhole(runwayRoomy, 3), 31: fittedWhole(runwayRoomy, 3), 30: fittedWhole(runwayRoomy, 3),
 		29: fittedWhole(runwayTwoRows, 3), 28: fittedWhole(runwayTwoRows, 3), 27: fittedWhole(runwayTwoRows, 3),
 		26: fittedWhole(runwayNoGaps, 3), 25: fittedWhole(runwayNoGaps, 3),
 		24: fittedWhole(runwayComingCut, 3),
-		23: fittedWhole(runwayAxisClose, 3),
-		22: fittedWhole(runwayScrolled, 2), 21: fittedWhole(runwayScrolled, 2), 20: fittedWhole(runwayScrolled, 1), 19: fittedWhole(runwayScrolled, 1),
-		18: noLegend, 17: bare, 16: bare, 15: bare,
+		23: fittedNoLegend(3), 22: fittedBare(runwayGivingWay, 3), 21: fittedBare(runwayGivingWay, 3), 20: fittedBare(runwayGivingWay, 3),
+		19: fittedBare(runwayAxisClose, 3),
+		18: fittedBare(runwayScrolled, 2), 17: fittedBare(runwayScrolled, 2), 16: fittedBare(runwayScrolled, 1), 15: fittedBare(runwayScrolled, 1),
 		14: {},
 	}
+	taller := fittedWhole(runwayRoomy, 3)
 	for rows := 37; rows >= 14; rows-- {
-		t.Run(strconv.Itoa(rows), func(t *testing.T) {
-			f := runwayFrame(t, rows, lanesOf(3), thingsComing(3))
-			f.Width = 120
-			fit := f.runwayFitted(f.top())
-			if got := fittedOf(fit); got != want[rows] {
-				t.Errorf("at %d rows, Runway fits %+v, want %+v", rows, got, want[rows])
-			}
-			holdsTheLegendOverTheKeyLine(t, fit, rows, 1)
-		})
+		f := runwayFrame(t, rows, lanesOf(3), thingsComing(3))
+		f.Width = 120
+		fit := f.runwayFitted(f.top())
+		if got := fittedOf(fit); got != want[rows] {
+			t.Errorf("at %d rows, Runway fits %+v, want %+v", rows, got, want[rows])
+		}
+		holdsTheLegendOverTheKeyLine(t, fit, rows, 1)
+		holdsTheOrder(t, rows, 3, fittedOf(fit), &taller)
 	}
 }
 
@@ -213,9 +240,10 @@ func TestRunwayDrawsThePagesChromeAloneWhereNotOneLaneFits(t *testing.T) {
 // one's blank row, no rule over it, its room on a row of its own under it,
 // COMING UP after a blank row, every line of it, and the legend over the key
 // line, the rows spare between them, as the 5-hour frame lays them out; a
-// day stepped back to with neither COMING UP nor the room; ten at (d),
-// COMING UP cut to a line and how many more; one account, its last blank
-// row the one before COMING UP; and on a phone alike, its legend of two.
+// day stepped back to with neither COMING UP nor the room; ten at (d), the
+// legend given way, COMING UP cut to a line and how many more; one account,
+// its last blank row the one before COMING UP; and on a phone alike, its
+// legend of two.
 func TestRunwaysPartsLieOnTheRowsItsStepGivesThem(t *testing.T) {
 	type rows struct{ lanes, apart, pool, room, legend, coming, lines int }
 	tests := []struct {
@@ -236,7 +264,7 @@ func TestRunwaysPartsLieOnTheRowsItsStepGivesThem(t *testing.T) {
 		},
 		{
 			name: "the ten frame's ten", shown: RunwayShown{Window: views.RunwayFiveHour, Lanes: lanesOf(10), Coming: thingsComing(9)}, width: 160, height: 37,
-			shape: runwayShape{legend: 1, columns: 1}, want: rows{9, 2, 29, 31, 35, 32, 2},
+			shape: runwayShape{legend: 1, columns: 1}, want: rows{10, 2, 30, 32, noRow, 33, 2},
 		},
 		{
 			name: "one account", shown: RunwayShown{Window: views.RunwayFiveHour, Lanes: lanesOf(1), Coming: thingsComing(2)}, width: 160, height: 37,
@@ -303,7 +331,7 @@ func TestComingUpTakesEveryLineThenFromTwoRowsOfThem(t *testing.T) {
 	}
 }
 
-// At (e), Runway's lanes scroll an account at a time, no further than shows
+// At (f), Runway's lanes scroll an account at a time, no further than shows
 // the last, the axis and the pool's foot holding; and on the pool's room's
 // row, it says what's out of view, right-aligned, in text.subtle, as a
 // scroll line is: above and below, or where that doesn't fit beside the
@@ -316,11 +344,11 @@ func TestRunwaysLanesScrollAnAccountAtATimeAndSayWhatsOutOfView(t *testing.T) {
 		first        int
 		says         string
 	}{
-		{name: "ten at 34, at the top", width: 160, rows: 34, first: 0, says: "▼ 2 more accounts"},
-		{name: "ten at 34, scrolled to the last", width: 160, rows: 34, scroll: 2, first: 2, says: "▲ 2 more accounts"},
-		{name: "ten at 34, scrolled past it", width: 160, rows: 34, scroll: 5, first: 2, says: "▲ 2 more accounts"},
-		{name: "ten at 27, scrolled by two", width: 160, rows: 27, scroll: 2, first: 2, says: "▲ 2 more accounts · ▼ 3 more accounts"},
-		{name: "ten at 27 on 60 columns, the counts alone", width: 60, rows: 27, scroll: 2, first: 2, says: "▲ 2 more · ▼ 4 more"},
+		{name: "ten at 30, at the top", width: 160, rows: 30, first: 0, says: "▼ 2 more accounts"},
+		{name: "ten at 30, scrolled to the last", width: 160, rows: 30, scroll: 2, first: 2, says: "▲ 2 more accounts"},
+		{name: "ten at 30, scrolled past it", width: 160, rows: 30, scroll: 5, first: 2, says: "▲ 2 more accounts"},
+		{name: "ten at 27, scrolled by two", width: 160, rows: 27, scroll: 2, first: 2, says: "▲ 2 more accounts · ▼ 1 more account"},
+		{name: "ten at 27 on 60 columns, the counts alone", width: 60, rows: 27, scroll: 2, first: 2, says: "▲ 2 more · ▼ 2 more"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -359,7 +387,7 @@ func TestRunwaysLanesScrollAnAccountAtATimeAndSayWhatsOutOfView(t *testing.T) {
 	}
 }
 
-// Short of (e), nothing's out of view, so nothing says so.
+// Short of (f), nothing's out of view, so nothing says so.
 func TestRunwaySaysNothingIsOutOfViewWhereEveryLaneShows(t *testing.T) {
 	f := runwayFrame(t, 37, lanesOf(10), thingsComing(3))
 	if fit := f.runwayFitted(f.top()); fit.draws(fit.out) {
@@ -382,50 +410,49 @@ func runwayDoc(n int) status.Document {
 	return status.Document{GeneratedAt: routedAt, Source: status.SourceRouter, Best: "a1", Router: status.Health{Healthy: true}, Accounts: accounts}.WorkedOut(claudeLike)
 }
 
-// At (e), the axis and the pool's foot hold, the lanes shown between them:
+// At (f), the axis and the pool's foot hold, the lanes shown between them:
 // the pool's lane on the row after the last lane shown's words, its room on
-// the row under it, COMING UP on the row after that, at its least, a line
-// and how many more, and the legend over the key line.
-func TestRunwaysPoolsFootHoldsUnderTheLanesShownAtE(t *testing.T) {
+// the row under it; and neither the legend nor COMING UP.
+func TestRunwaysPoolsFootHoldsUnderTheLanesShownAtF(t *testing.T) {
 	f := runwayFrame(t, 27, lanesOf(10), thingsComing(3))
 	f.Scroll = 2
 	fit := f.runwayFitted(f.top())
 	last, _ := fit.laneRow(fit.first + fit.shown - 1)
-	if fit.pool != last+2 || fit.room != fit.pool+runwayPoolRows || fit.coming != fit.room+1 || fit.lines != 2 || fit.legend != 27-underView {
-		t.Errorf("at (e), the last lane shown's words are on row %d, the pool's lane on %d, its room on %d, COMING UP on %d with %d rows of lines, and the legend on %d; want the lane after the words, its room under it, COMING UP after it with 2, and the legend over the key line",
-			last+1, fit.pool, fit.room, fit.coming, fit.lines, fit.legend)
+	if fit.step != runwayScrolled || fit.pool != last+2 || fit.room != fit.pool+runwayPoolRows || fit.draws(fit.coming) || fit.draws(fit.legend) {
+		t.Errorf("at step %d, the last lane shown's words are on row %d, the pool's lane on %d, its room on %d, COMING UP on %d and the legend on %d; want (f), the lane after the words, its room under it, and neither COMING UP nor the legend",
+			fit.step, last+1, fit.pool, fit.room, fit.coming, fit.legend)
 	}
 }
 
 // On a phone, Runway takes the first step of its compaction whose parts fit,
 // as it does at every width, its legend of two: three accounts with three
 // lines of COMING UP, as the phone's frame, a row at a time from 37 to 15:
-// three rows each to 32; (a) to 29; (b) to 27; (c) at 26; (d) at 25; then
-// their lanes scrolling, two in view to 23 and one to 21; then one lane, the
-// legend given way to 19, and COMING UP too to 16; and none under it; and
-// ten, seven in view at 33, its lanes scrolling an account at a time.
+// three rows each to 32; (a) to 29; (b) to 27; (c) at 26; (d), the legend
+// given way to 24, and COMING UP too to 21; (e) at 20; then their lanes
+// scrolling, two in view to 18 and one to 16; and none under it; and ten,
+// nine in view at 33, its lanes scrolling an account at a time. No lane is
+// ever out of view while the legend or COMING UP shows.
 func TestOnAPhoneRunwayTakesTheFirstOfItsStepsThatFits(t *testing.T) {
-	noLegend := runwayFitted{step: runwayOneLane, shown: 1, coming: true, fits: true}
-	bare := runwayFitted{step: runwayOneLane, shown: 1, fits: true}
 	three := map[int]runwayFitted{
 		37: fittedWhole(runwayRoomy, 3), 36: fittedWhole(runwayRoomy, 3), 35: fittedWhole(runwayRoomy, 3), 34: fittedWhole(runwayRoomy, 3),
 		33: fittedWhole(runwayRoomy, 3), 32: fittedWhole(runwayRoomy, 3),
 		31: fittedWhole(runwayTwoRows, 3), 30: fittedWhole(runwayTwoRows, 3), 29: fittedWhole(runwayTwoRows, 3),
 		28: fittedWhole(runwayNoGaps, 3), 27: fittedWhole(runwayNoGaps, 3),
 		26: fittedWhole(runwayComingCut, 3),
-		25: fittedWhole(runwayAxisClose, 3),
-		24: fittedWhole(runwayScrolled, 2), 23: fittedWhole(runwayScrolled, 2), 22: fittedWhole(runwayScrolled, 1), 21: fittedWhole(runwayScrolled, 1),
-		20: noLegend, 19: noLegend, 18: bare, 17: bare, 16: bare,
+		25: fittedNoLegend(3), 24: fittedNoLegend(3), 23: fittedBare(runwayGivingWay, 3), 22: fittedBare(runwayGivingWay, 3), 21: fittedBare(runwayGivingWay, 3),
+		20: fittedBare(runwayAxisClose, 3),
+		19: fittedBare(runwayScrolled, 2), 18: fittedBare(runwayScrolled, 2), 17: fittedBare(runwayScrolled, 1), 16: fittedBare(runwayScrolled, 1),
 		15: {},
 	}
 	type fitting struct {
 		accounts, rows int
 		want           runwayFitted
 	}
-	tests := []fitting{{accounts: 10, rows: 33, want: fittedWhole(runwayScrolled, 7)}}
+	tests := []fitting{{accounts: 10, rows: 33, want: fittedBare(runwayScrolled, 9)}}
 	for rows := 37; rows >= 15; rows-- {
 		tests = append(tests, fitting{accounts: 3, rows: rows, want: three[rows]})
 	}
+	taller := fittedWhole(runwayRoomy, 3)
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("%d at %d", tt.accounts, tt.rows), func(t *testing.T) {
 			lanes := lanesOf(tt.accounts)
@@ -436,6 +463,9 @@ func TestOnAPhoneRunwayTakesTheFirstOfItsStepsThatFits(t *testing.T) {
 			fit := f.runwayFitted(f.top())
 			if got := fittedOf(fit); got != tt.want {
 				t.Errorf("at %d rows, Runway fits %+v, want %+v", tt.rows, got, tt.want)
+			}
+			if tt.accounts == 3 {
+				holdsTheOrder(t, tt.rows, 3, fittedOf(fit), &taller)
 			}
 			if !fit.fits {
 				return

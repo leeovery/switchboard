@@ -159,7 +159,7 @@ func TestRunwayHelpSaysWhatItsRulesAre(t *testing.T) {
 		{"the pool's columns at none", "where none has room, ▂ along its foot, in a limit's red"},
 		{"the legend at the foot", "The legend sits at the foot, over the key line"},
 		{"what's out of view", "what's out of view said beside the pool's room"},
-		{"the legend and COMING UP giving way", "with one lane left, the legend gives way, then COMING UP"},
+		{"the legend and COMING UP giving way", "then the legend gives way, then COMING UP, then the blank row under the axis; only then do the lanes scroll"},
 		{"COMING UP's room", "It sits under the pool's lane and takes the rows left"},
 		{"COMING UP cut", "where its lines don't all fit, its last says how many more"},
 		{"what counts without room", "An account at its cap or its limit counts without room"},
