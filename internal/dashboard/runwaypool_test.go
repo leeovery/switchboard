@@ -121,7 +121,7 @@ func TestThePoolsPastIsDimmed(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c, top := poolDrawn(tt.shown, doc, Screen(builtin(t, "nord")))
-			x := runwayLanesFrom + tt.column
+			x := RunwayShown{}.lanesFrom(160) + tt.column
 			if got := c.at(x, top).ink.fade; got != tt.fade {
 				t.Errorf("column %d's top cell fades %v, want %v", tt.column, got, tt.fade)
 			}
@@ -156,7 +156,7 @@ func TestThePoolsColumnsWithNoRoomAreDrawnAsALanesHeldBack(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c, top := poolDrawn(shown, doc, tt.look(t))
-			x := runwayLanesFrom + tt.column
+			x := RunwayShown{}.lanesFrom(160) + tt.column
 			if got := cellAt(c, x, top+1); got != tt.want {
 				t.Errorf("column %d's lower cell is %+v, want %+v", tt.column, got, tt.want)
 			}
@@ -180,10 +180,10 @@ func TestThePoolsFullCellsAreBlocksWhereTheLookBlendsNothing(t *testing.T) {
 	doc := runwayDoc(3)
 	columns := slices.Repeat([]views.PoolColumn{{With: 2, Known: true}}, RunwayShown{}.Columns(160))
 	c, top := poolDrawn(poolShown(doc, views.Pool{Of: 3, Key: "5h", Columns: columns}), doc, NoColour())
-	if got := string([]rune(rowOf(c, top+1))[runwayLanesFrom:]); got != strings.Repeat("█", RunwayShown{}.Columns(160)) {
+	if got := string([]rune(rowOf(c, top+1))[RunwayShown{}.lanesFrom(160):]); got != strings.Repeat("█", RunwayShown{}.Columns(160)) {
 		t.Errorf("the pool's bottom row reads %q, want █ in every column", got)
 	}
-	if got := string([]rune(rowOf(c, top))[runwayLanesFrom:]); got != strings.Repeat("▃", RunwayShown{}.Columns(160)) {
+	if got := string([]rune(rowOf(c, top))[RunwayShown{}.lanesFrom(160):]); got != strings.Repeat("▃", RunwayShown{}.Columns(160)) {
 		t.Errorf("the pool's top row reads %q, want its part-filled cells", got)
 	}
 }
@@ -247,14 +247,13 @@ func TestThePoolsLaneIsntDrawnForAMomentOfNoAccounts(t *testing.T) {
 	}
 }
 
-// With the account column collapsed, the pool's label says its room short in
-// Σ pool's place, the room the expanded lane words, of how many accounts
-// the pool is: Σ in text.subtle, the room bold text.secondary, brightening
-// as it changes, and "/3" in text.muted, right-aligned to the label's 9
-// cells as the lanes' use is; nothing under it, on a phone too, which gives
-// it no row of its own; and Σ pool where it has no room to say, as on a day
-// stepped back to.
-func TestCollapsedThePoolsLabelSaysItsRoomShort(t *testing.T) {
+// With the account column collapsed, the pool's lane is headed Σ alone, in
+// text.subtle, and on the row of its own under the lane, its room short,
+// the room the expanded lane words, of how many accounts the pool is: the
+// room bold text.secondary, brightening as it changes, and "/3" in
+// text.muted, at every width; and where it has no room to say, as on a day
+// stepped back to, nothing under it.
+func TestCollapsedThePoolsRoomIsSaidShortUnderItsLane(t *testing.T) {
 	doc, pinned := framesDoc(), framesDoc()
 	pinned.Pin = status.Pin{Accounts: []string{"personal", "side"}, Since: routedClock(1, 13, 40)}
 	pinned = pinned.WorkedOut(claudeLike)
@@ -273,44 +272,41 @@ func TestCollapsedThePoolsLabelSaysItsRoomShort(t *testing.T) {
 		doc   status.Document
 		shown RunwayShown
 		width int
-		want  string
+		room  string
 	}{
-		{name: "the 5-hour", doc: doc, shown: collapsed(live, 160), width: 160, want: "Σ   1.5/3"},
-		{name: "the week", doc: doc, shown: collapsed(week, 160), width: 160, want: "Σ   1.2/3"},
-		{name: "pinned to two", doc: pinned, shown: collapsed(live, 160), width: 160, want: "Σ   1.5/2"},
-		{name: "on a phone", doc: doc, shown: collapsed(live, 52), width: 52, want: "Σ   1.5/3"},
-		{name: "a day stepped back to", doc: doc, shown: collapsed(gone, 160), width: 160, want: "Σ pool"},
+		{name: "the 5-hour", doc: doc, shown: collapsed(live, 160), width: 160, room: "1.5/3"},
+		{name: "the week", doc: doc, shown: collapsed(week, 160), width: 160, room: "1.2/3"},
+		{name: "pinned to two", doc: pinned, shown: collapsed(live, 160), width: 160, room: "1.5/2"},
+		{name: "on a phone", doc: doc, shown: collapsed(live, 52), width: 52, room: "1.5/3"},
+		{name: "a day stepped back to", doc: doc, shown: collapsed(gone, 160), width: 160},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := Frame{Width: tt.width, Height: 37, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claudeLike, Runway: tt.shown}
 			c := runwayDrawn(f, tt.doc)
-			fitted := f.runwayFitted
-			if f.phone() {
-				fitted = f.phoneRunwayFitted
+			fit := f.runwayFitted(f.top())
+			x := f.Runway.lanesFrom(f.Width)
+			if got := textAt(c, 0, fit.pool, x); got != "Σ" || c.at(0, fit.pool).ink != dimInk {
+				t.Errorf("the pool's lane is headed %q in %+v, want Σ in text.subtle", got, c.at(0, fit.pool).ink)
 			}
-			fit := fitted(f.top())
-			if got := textAt(c, 0, fit.pool, collapsedLanesFrom); got != tt.want {
-				t.Errorf("the pool's label reads %q, want %q", got, tt.want)
+			if got := textAt(c, 0, fit.pool+1, x); got != "" {
+				t.Errorf("the lane's second row is headed %q, want nothing", got)
 			}
-			if over := fit.pool + runwayPoolRows; fit.room >= over {
-				t.Errorf("the pool's room is laid on row %d, a row of its own; want none past its lane's, %d", fit.room, over-1)
+			under := fit.pool + runwayPoolRows
+			if got := rowOf(c, under); got != tt.room {
+				t.Errorf("the row under the pool's lane reads %q, want %q", got, tt.room)
 			}
-			for y := fit.pool + 1; y <= fit.pool+runwayPoolRows; y++ {
-				if got := textAt(c, 0, y, f.Width); strings.Contains(got, "left") {
-					t.Errorf("row %d reads %q, want no room in words", y, got)
-				}
-			}
-			figure := strings.TrimLeft(strings.TrimPrefix(tt.want, "Σ"), " ")
-			if !strings.Contains(figure, "/") {
+			if tt.room == "" {
 				return
 			}
-			room := collapsedLanesFrom - nameGap - len(figure)
-			if sigma, k, of := c.at(0, fit.pool).ink, c.at(room, fit.pool).ink, c.at(room+3, fit.pool).ink; sigma != dimInk || k.token != theme.TextSecondary || !k.bold || of != mutedInk {
-				t.Errorf("Σ is in %+v, the room in %+v and its accounts in %+v; want text.subtle, bold text.secondary and text.muted", sigma, k, of)
+			if fit.room != under {
+				t.Errorf("the pool's room is laid on row %d, want the row under its lane, %d", fit.room, under)
+			}
+			if k, of := c.at(0, under).ink, c.at(3, under).ink; k.token != theme.TextSecondary || !k.bold || of != mutedInk {
+				t.Errorf("the room is in %+v and its accounts in %+v; want bold text.secondary and text.muted", k, of)
 			}
 			key := tt.shown.Lanes.Pool.Key
-			if got, want := f.Numbers(tt.doc, routedAt)[Number{Kind: NumberRoom, Of: key}], figure[:3]; got != want {
+			if got, want := f.Numbers(tt.doc, routedAt)[Number{Kind: NumberRoom, Of: key}], tt.room[:3]; got != want {
 				t.Errorf("the room brightens as %q, want %q", got, want)
 			}
 		})
@@ -322,10 +318,9 @@ func TestCollapsedThePoolsLabelSaysItsRoomShort(t *testing.T) {
 // text.secondary, brightening as it changes, and " of 3 left" in
 // text.muted, " · pinned" after where a pin holds; drawn while the timeline
 // holds now, live and on today stepped back to, never on a day gone. It's
-// on the pool's lane's second row, under Σ pool, as an account's use is
-// under its name, whole parts left off its end that don't fit before the
-// lanes' column, as " · pinned" doesn't at 160; and on a phone, on a row of
-// its own under the lane, whole; nothing after it either way.
+// on a row of its own under the pool's lane, at every width, whole parts
+// left off its end that don't fit before the frame's edge; nothing after
+// it.
 func TestThePoolsRoomIsUsagesWordsForThePoolInTheViewsWindow(t *testing.T) {
 	doc, pinned := framesDoc(), framesDoc()
 	pinned.Pin = status.Pin{Accounts: []string{"personal", "side"}, Since: routedClock(1, 13, 40)}
@@ -349,11 +344,11 @@ func TestThePoolsRoomIsUsagesWordsForThePoolInTheViewsWindow(t *testing.T) {
 		width, row int
 		want       string
 	}{
-		{name: "the 5-hour", doc: doc, shown: live, width: 160, row: 20, want: "  5-hour 1.5 of 3 left"},
-		{name: "the week", doc: doc, shown: week, width: 160, row: 20, want: "  week 1.2 of 3 left"},
-		{name: "pinned to two, beside the lane", doc: pinned, shown: live, width: 160, row: 20, want: "  5-hour 1.5 of 2 left"},
-		{name: "today stepped back to", doc: doc, shown: today, width: 160, row: 20, want: "  5-hour 1.5 of 3 left"},
-		{name: "a day stepped back to", doc: doc, shown: gone, width: 160, row: 20, want: ""},
+		{name: "the 5-hour", doc: doc, shown: live, width: 160, row: 21, want: "  5-hour 1.5 of 3 left"},
+		{name: "the week", doc: doc, shown: week, width: 160, row: 21, want: "  week 1.2 of 3 left"},
+		{name: "pinned to two", doc: pinned, shown: live, width: 160, row: 21, want: "  5-hour 1.5 of 2 left · pinned"},
+		{name: "today stepped back to", doc: doc, shown: today, width: 160, row: 21, want: "  5-hour 1.5 of 3 left"},
+		{name: "a day stepped back to", doc: doc, shown: gone, width: 160, row: 21, want: ""},
 		{name: "on a phone", doc: doc, shown: phone, width: 52, row: 22, want: "  5-hour 1.5 of 3 left"},
 		{name: "pinned to two, on a phone", doc: pinned, shown: phone, width: 52, row: 22, want: "  5-hour 1.5 of 2 left · pinned"},
 	}

@@ -375,10 +375,11 @@ room, a column at a time, and draws a line, as a lane at its limit does, where n
 names it, as an account's name heads its lane, with the pool's room in the view's window under
 it, such as `week 1.2 of 3 left`.
 
-`a` collapses the labels beside the lanes, to give the lanes more room: each lane keeps its
-account's number, its marks and its use, such as `2 ◆    66%`, and the pool's lane its room short,
-such as `Σ    1.2/3`. COMING UP stays as it is, each line naming its account. `a` again expands
-them. Runway remembers which you left it on.
+The labels beside the lanes take as many columns as the widest needs, up to 24, and the lanes take
+the rest. `a` collapses the labels, to give the lanes more room: each lane keeps its account's
+number and its marks, such as `2 ◆`, with its use under them, such as `66%`, and the pool's lane
+`Σ`, with its room short under it, such as `1.2/3`. COMING UP stays as it is, each line naming its
+account. `a` again expands them. Runway remembers which you left it on.
 
 To look back:
 

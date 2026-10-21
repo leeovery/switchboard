@@ -140,10 +140,6 @@ var knownBreaks = []known{
 	// S9, Runway's rows (F23, F24): COMING UP folded whole with rows spare, and
 	// no lane at 15 rows.
 	{
-		slice: "S9", rule: foldWithRowsSpare, sizes: []string{"108x24"},
-		fixtures: []string{"runway-5-hour-160"},
-	},
-	{
 		slice: "S9", rule: foldWithRowsSpare, sizes: []string{"138x30"},
 		fixtures: []string{
 			"long-names-runway", "runway-138x15", "runway-173x53", "runway-collapsed-108x43",

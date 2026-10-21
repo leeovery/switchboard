@@ -144,9 +144,9 @@ func TestRunwayHelpSaysWhatItsRulesAre(t *testing.T) {
 		{"the 5-hour leaving out a week running out", "the 5-hour view leaves out a week running out"},
 		{"the use under a name", "its use of the view's window"},
 		{"the labels collapsed", "a collapses the labels, to give the lanes more room"},
-		{"a collapsed label", "its number, its marks and its use alone, as 2 ◆ 66%"},
-		{"the pool's room collapsed", "beside Σ, of how many accounts the pool is, as Σ 1.2/3"},
-		{"a stale account", "not read since 14:20"},
+		{"a collapsed label", "its number and its marks alone, as 2 ◆, and under them its use, as 66%"},
+		{"the pool's room collapsed", "under Σ, of how many accounts the pool is, as 1.2/3"},
+		{"a stale account", "read 14:20 where its last read failed; and not read before its first"},
 		{"a refused token's use faded", "and the use of one whose token is refused"},
 		{"a run of stretches", "a stretch says lifts 19:00, when its own hold lifts, and only the last says back"},
 		{"a time as the view's window resets", "A cap's or a run-out's time adds as its 5-hour resets"},
@@ -199,15 +199,16 @@ func TestRunwayHelpSaysThePastIsDimmedWhereTheLookBlends(t *testing.T) {
 }
 
 // How long a column is follows the width, as the lanes keep their span: at
-// 160 columns, the design's 10 minutes, ≈ 74 and ≈ 10.6; on a phone's 38,
-// about 36 minutes, as the phone's legend says.
+// 160 columns, the lanes' 146 after a label column of 14, ≈ 9.3 minutes,
+// ≈ 69 and ≈ 9.9; on a phone's 38, about 36 minutes, as the phone's legend
+// says.
 func TestRunwayHelpSaysHowLongAColumnIsAtTheWidth(t *testing.T) {
 	tests := []struct {
 		width               int
 		fiveHour, week, day string
 	}{
-		{width: 160, fiveHour: "10 minutes", week: "≈ 74 minutes", day: "≈ 10.6 minutes"},
-		{width: 216, fiveHour: "≈ 7.1 minutes", week: "≈ 53 minutes", day: "≈ 7.5 minutes"},
+		{width: 160, fiveHour: "≈ 9.3 minutes", week: "≈ 69 minutes", day: "≈ 9.9 minutes"},
+		{width: 216, fiveHour: "≈ 6.7 minutes", week: "≈ 50 minutes", day: "≈ 7.1 minutes"},
 		{width: 52, fiveHour: "≈ 36 minutes", week: "≈ 265 minutes", day: "≈ 38 minutes"},
 	}
 	for _, tt := range tests {

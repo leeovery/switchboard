@@ -5,22 +5,22 @@
 
 RUNWAY  ──────────────────────────────────  < week >
 
-                  now
-                Thu  Fri  Sat   Sun  Mon   Tue  Wed
-              ──┬────┬────┬─────┬────┬─────┬────┬───
+                    now
+                  Thu  Fri  Sat  Sun  Mon  Tue  Wed
+                ──┬────┬────┬────┬────┬────┬────┬───
 
-1 work        ─████─█████████████████│██████████████
-  week 34%         at its cap 14:31  ·  back 17:10
-2 perso… ◆    █─████████████────│███████████████████
+1 work          ─████─███████████████│██████████████
+  week 34%           at its cap 14:31  ·  back 17:10
+2 personal ◆    █─████████████───│██████████████████
   week 66%
-3 side ▲      ██████████────────────────│███████████
+3 side ▲        ██████████──────────────│███████████
   week 78%
-Σ pool        ▃▃   ▃    ▃▃▃▃     ▃▃▃▃▃▃▃
-                            ▅▅▅▅▅
+Σ pool          ▃▃   ▃    ▃▃▃▃    ▃▃▃▃▃▃▃
+                              ▅▅▅▅
   week 1.2 of 3 left
 █ room    █ room, but it runs out at its pace
 ─ at its cap    ─ at its limit    │ its week resets
-a column ≈ 265 minutes · the past dimmed
+a column 280 minutes · the past dimmed
 COMING UP   16:30  personal's 5-hour resets  …
 
 

@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"cmp"
 	"reflect"
 	"slices"
 	"testing"
@@ -195,27 +196,85 @@ func TestRunwaysHeadingNamesItsWindowAndTheDaysSteppedBackTo(t *testing.T) {
 	}
 }
 
-// Runway's lanes run from their labels to the edge: from column 24, or 14 on
-// a phone; and with the account column collapsed, from column 11 at every
-// width, the chart wider by the cells its labels give up.
-func TestRunwaysLanesRunFromTheirLabelsToTheEdge(t *testing.T) {
+// framesLanesFrom is the column the tests draw Runway's lanes from, as the
+// screen lays it for the frames' accounts: after "2 personal ◆", ▲'s cells
+// kept, and nameGap.
+const framesLanesFrom = 16
+
+// Runway's label column takes the widest of its labels whole, and its gap,
+// at every width, and the lanes take the rest to the edge. Expanded, the
+// widest of the names, ▲'s cells kept on every account, then nameGap, or of
+// the uses under them, as wide as "5-hour 100%" in either window, up to 24,
+// a name past that cut, and 8 only where the frame is narrower; collapsed,
+// the widest number and marks, ▲'s cells kept, or a use of 100%, then a
+// cell, whatever the width.
+func TestRunwaysLabelColumnTakesItsWidestLabelAndTheLanesTheRest(t *testing.T) {
+	work := accountName{number: "1", label: "work"}
+	personal := accountName{number: "2", label: "personal", primary: true}
+	side := accountName{number: "3", label: "side", best: true}
+	frames := []accountName{work, personal, side}
+	long := []accountName{{number: "1", label: "work-team-plan"}, {number: "2", label: "personal-research", primary: true}}
+	both := []accountName{work, {number: "2", label: "personal", primary: true, best: true}, {number: "3", label: "side"}}
+	ten := []accountName{{number: " 1", label: "work"}, {number: "10", label: "spare", primary: true, best: true}}
 	tests := []struct {
-		width     int
+		name      string
+		names     []accountName
+		window    views.RunwayWindow
 		collapsed bool
-		want      int
+		width     int
+		from      int
 	}{
-		{width: 160, want: 136},
-		{width: 108, want: 84},
-		{width: 52, want: 38},
-		{width: 10, want: 0},
-		{width: 160, collapsed: true, want: 149},
-		{width: 108, collapsed: true, want: 97},
-		{width: 52, collapsed: true, want: 41},
-		{width: 10, collapsed: true, want: 0},
+		{name: "the frames' on a phone, personal whole", names: frames, width: 73, from: framesLanesFrom},
+		{name: "the frames' on an iPad", names: frames, width: 108, from: framesLanesFrom},
+		{name: "the frames' on a desktop", names: frames, width: 173, from: framesLanesFrom},
+		{name: "the 5-hour's, alike", names: frames, window: views.RunwayFiveHour, width: 108, from: framesLanesFrom},
+		{name: "a short name, the widest use", names: []accountName{work}, width: 108, from: 14},
+		{name: "a short name in the 5-hour, alike", names: []accountName{work}, window: views.RunwayFiveHour, width: 108, from: 14},
+		{name: "long names, whole", names: long, width: 108, from: 24},
+		{name: "a long name, whole with ▲'s cells", names: long[:1], width: 108, from: 20},
+		{name: "a name past the most", names: append(long, accountName{number: "3", label: "side-hustle-consulting", best: true}), width: 108, from: 24},
+		{name: "none labelled yet, the widest use", width: 108, from: 14},
+		{name: "narrower than its labels, the column first", names: frames, width: 10, from: 10},
+		{name: "narrower than the least", names: frames, width: 6, from: 8},
+		{name: "collapsed, the frames' on an iPad", names: frames, collapsed: true, width: 108, from: 6},
+		{name: "collapsed, on a phone, alike", names: frames, collapsed: true, width: 52, from: 6},
+		{name: "collapsed, both marks on one, alike", names: both, collapsed: true, width: 108, from: 6},
+		{name: "collapsed, no primary, the widest use", names: []accountName{work, side}, collapsed: true, width: 108, from: 5},
+		{name: "collapsed, numbered from ten", names: ten, collapsed: true, width: 108, from: 7},
+		{name: "collapsed, none labelled yet, a use of 100%", collapsed: true, width: 108, from: 5},
 	}
 	for _, tt := range tests {
-		if got := (RunwayShown{Collapsed: tt.collapsed}).Columns(tt.width); got != tt.want {
-			t.Errorf("Columns(%d), collapsed %v, = %d, want %d", tt.width, tt.collapsed, got, tt.want)
+		t.Run(tt.name, func(t *testing.T) {
+			r := RunwayShown{Window: cmp.Or(tt.window, views.RunwayWeek), Collapsed: tt.collapsed, labels: runwayLabelsOf(tt.names)}
+			if got := r.lanesFrom(tt.width); got != tt.from {
+				t.Errorf("the lanes start at column %d, want %d", got, tt.from)
+			}
+			if got, want := r.Columns(tt.width), max(tt.width-tt.from, 0); got != want {
+				t.Errorf("the lanes take %d columns, want %d, to the edge", got, want)
+			}
+		})
+	}
+}
+
+// The lanes hold still as ▲ moves between the accounts, as routing picks
+// another for new sessions, expanded and collapsed, at every width: the label
+// column keeps ▲'s cells on every account.
+func TestRunwaysLanesHoldStillAsTheMarkOfNewSessionsMoves(t *testing.T) {
+	named := func(best int) []accountName {
+		names := []accountName{{number: "1", label: "work"}, {number: "2", label: "personal", primary: true}, {number: "3", label: "side"}}
+		if best >= 0 {
+			names[best].best = true
+		}
+		return names
+	}
+	for _, collapsed := range []bool{false, true} {
+		for _, width := range []int{52, 73, 108, 173} {
+			from := RunwayShown{Collapsed: collapsed, labels: runwayLabelsOf(named(-1))}.lanesFrom(width)
+			for best := range 3 {
+				if got := (RunwayShown{Collapsed: collapsed, labels: runwayLabelsOf(named(best))}).lanesFrom(width); got != from {
+					t.Errorf("collapsed %t at %d, with ▲ on account %d the lanes start at column %d, want %d, as with ▲ on none", collapsed, width, best+1, got, from)
+				}
+			}
 		}
 	}
 }
@@ -226,10 +285,10 @@ func TestRunwaysTimelineIsTheLiveViewsOrTheDaySteppedBacksAcrossItsColumns(t *te
 		shown RunwayShown
 		want  views.Timeline
 	}{
-		{name: "the 5-hour, live", shown: RunwayShown{Window: views.RunwayFiveHour}, want: views.LiveTimeline(views.RunwayFiveHour, runwayAt(), 136)},
-		{name: "the week, live", shown: RunwayShown{Window: views.RunwayWeek}, want: views.LiveTimeline(views.RunwayWeek, runwayAt(), 136)},
-		{name: "a day stepped back to", shown: RunwayShown{Window: views.RunwayFiveHour, Back: civilDay(9, 30)}, want: views.Stepped(views.RunwayFiveHour, civilDay(9, 30), runwayAt(), time.Monday, 136)},
-		{name: "a week stepped back to", shown: RunwayShown{Window: views.RunwayWeek, Back: civilDay(9, 21)}, want: views.Stepped(views.RunwayWeek, civilDay(9, 21), runwayAt(), time.Monday, 136)},
+		{name: "the 5-hour, live", shown: RunwayShown{Window: views.RunwayFiveHour}, want: views.LiveTimeline(views.RunwayFiveHour, runwayAt(), 146)},
+		{name: "the week, live", shown: RunwayShown{Window: views.RunwayWeek}, want: views.LiveTimeline(views.RunwayWeek, runwayAt(), 146)},
+		{name: "a day stepped back to", shown: RunwayShown{Window: views.RunwayFiveHour, Back: civilDay(9, 30)}, want: views.Stepped(views.RunwayFiveHour, civilDay(9, 30), runwayAt(), time.Monday, 146)},
+		{name: "a week stepped back to", shown: RunwayShown{Window: views.RunwayWeek, Back: civilDay(9, 21)}, want: views.Stepped(views.RunwayWeek, civilDay(9, 21), runwayAt(), time.Monday, 146)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

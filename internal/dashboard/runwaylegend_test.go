@@ -3,6 +3,7 @@ package dashboard
 import (
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
@@ -161,5 +162,62 @@ func TestTheLegendIsDrawnFromItsRowALineARow(t *testing.T) {
 		if got := textAt(c, 0, y, f.Width); got != want {
 			t.Errorf("row %d reads %q, want %q", y, got, want)
 		}
+	}
+}
+
+// On a phone, the legend's keys take a line, wrapping whole keys where they
+// don't fit one, and what a column is the line after them, though both would
+// fit one line; and what a column is wraps too, at its " · ", a part never
+// broken.
+func TestOnAPhoneTheLegendsKeysThenWhatAColumnIsTakeALineEach(t *testing.T) {
+	nord := Screen(builtin(t, "nord"))
+	tests := []struct {
+		name  string
+		shown RunwayShown
+		width int
+		drawn views.Drawn
+		want  []string
+	}{
+		{
+			name: "the frame's, at 52", shown: phoneRunwayLive(views.RunwayFiveHour, 52), width: 52,
+			drawn: views.Drawn{Cells: []views.Cell{views.CellRoom, views.CellCapped}, Resets: true},
+			want:  []string{"█ room    ─ at its cap    │ its 5-hour resets", "a column ≈ 36 minutes · the past dimmed"},
+		},
+		{
+			name: "one key, that would fit beside what a column is", shown: phoneRunwayLive(views.RunwayFiveHour, 52), width: 52,
+			drawn: views.Drawn{Cells: []views.Cell{views.CellRoom}},
+			want:  []string{"█ room", "a column ≈ 36 minutes · the past dimmed"},
+		},
+		{
+			name: "every key, wrapped whole", shown: phoneRunwayLive(views.RunwayFiveHour, 52), width: 52, drawn: everyCell,
+			want: []string{
+				"█ room    █ room, but it runs out at its pace", "─ at its cap    ─ at its limit    ─ token refused",
+				"─ no token    │ its 5-hour resets", "a column ≈ 36 minutes · the past dimmed",
+			},
+		},
+		{
+			name: "today stepped back to, what a column is wrapped at its parts", width: 52,
+			shown: RunwayShown{Window: views.RunwayFiveHour, Back: civilDay(10, 1), Timeline: views.Stepped(views.RunwayFiveHour, civilDay(10, 1), routedAt, time.Monday, RunwayShown{}.Columns(52))},
+			drawn: views.Drawn{Cells: []views.Cell{views.CellRoom}},
+			want:  []string{"█ room", "a column ≈ 38 minutes · the past dimmed", "under each name, the day's highest"},
+		},
+		{
+			name: "a week gone, at 99", width: 99,
+			shown: RunwayShown{Window: views.RunwayWeek, Back: civilDay(9, 21), Timeline: views.Stepped(views.RunwayWeek, civilDay(9, 21), routedAt, time.Monday, RunwayShown{}.Columns(99))},
+			drawn: views.Drawn{Cells: []views.Cell{views.CellRoom}},
+			want:  []string{"█ room", "a column ≈ 119 minutes · under each name, the week's highest"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := legendOf(tt.shown, tt.width, nord, tt.drawn); !slices.Equal(got, tt.want) {
+				t.Errorf("the legend reads\n%q, want\n%q", got, tt.want)
+			}
+			f := runwayShowing(tt.shown)
+			f.Width, f.Look, f.Runway.Lanes = tt.width, nord, &views.Lanes{Drawn: tt.drawn}
+			if rows := f.runwayLegendRows(); rows != len(tt.want) {
+				t.Errorf("the fit counts the legend %d rows, want %d", rows, len(tt.want))
+			}
+		})
 	}
 }
