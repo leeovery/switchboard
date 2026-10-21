@@ -17,7 +17,7 @@ const (
 	// legend.
 	runwayNoGaps
 	// runwayComingCut is step (c): COMING UP showing the lines it can, from
-	// one and how many more.
+	// two rows of them, its last place saying how many more.
 	runwayComingCut
 	// runwayAxisClose is step (d): no blank row between the axis and the
 	// lanes.
@@ -60,9 +60,9 @@ const (
 const noRow = -1
 
 // runwayShape is how Runway's rows go on a frame: how many rows the legend
-// takes.
+// takes, and how many columns COMING UP's lines take.
 type runwayShape struct {
-	legend int
+	legend, columns int
 }
 
 // runwayHolds are what Runway lays out: how many lanes; whether the pool's
@@ -129,9 +129,10 @@ type runwayFit struct {
 
 // runwayFitted is how Runway fits the rows from row top to the one over the
 // key line, as runwayFittedAs fits them: the legend as many rows as
-// runwayLegend draws.
+// runwayLegend draws, and COMING UP's lines in as many columns as
+// comingColumns lays.
 func (f Frame) runwayFitted(top int) runwayFit {
-	return f.runwayFittedAs(top, runwayShape{legend: f.runwayLegendRows()})
+	return f.runwayFittedAs(top, runwayShape{legend: f.runwayLegendRows(), columns: len(f.comingColumns())})
 }
 
 // runwayFittedAs is how Runway fits the rows from row top to the one over
@@ -205,7 +206,7 @@ func (s runwayShape) parts(step runwayStep, holds runwayHolds, shown int) []flex
 		runwayAxisPart:   {Least: runwayAxisRows, Natural: runwayAxisRows},
 		runwayLanesPart:  {Least: lanes, Natural: lanes, Gap: step.gap(runwayAxisClose)},
 		runwayPoolPart:   {Least: pool, Natural: pool},
-		runwayComingPart: step.comingPart(holds),
+		runwayComingPart: s.comingPart(step, holds),
 		runwaySparePart:  {Grows: true},
 		runwayLegendPart: {Least: s.legend, Natural: s.legend, Gap: step.gap(runwayNoGaps)},
 	}
@@ -219,19 +220,21 @@ func (s runwayShape) parts(step runwayStep, holds runwayHolds, shown int) []flex
 	return parts
 }
 
-// comingPart is COMING UP as a part at the step, of what holds says it
-// holds, where it shows: its heading and every line; from (c), from its
-// heading, a line and how many more, to every line; the blank row under the
-// pool's lane before it.
-func (s runwayStep) comingPart(holds runwayHolds) flex.Part {
+// comingPart is COMING UP as a part at the step, in the shape, of what holds
+// says it holds, where it shows: its heading and every line, in the shape's
+// columns, as comingRows fills them; from (c), from its heading and two rows
+// of lines, the last place saying how many more, so its first row is always
+// lines, to every line; the blank row under the pool's lane before it.
+func (s runwayShape) comingPart(step runwayStep, holds runwayHolds) flex.Part {
 	if !holds.coming {
 		return flex.Part{}
 	}
-	natural, least := 1+holds.lines, 1+min(holds.lines, 2)
-	if s < runwayComingCut {
+	rows := comingRows(holds.lines, s.columns)
+	natural, least := 1+rows, 1+min(rows, 2)
+	if step < runwayComingCut {
 		least = natural
 	}
-	return flex.Part{Least: least, Natural: natural, Gap: s.underPool(holds)}
+	return flex.Part{Least: least, Natural: natural, Gap: step.underPool(holds)}
 }
 
 // underPool is the blank rows under the pool's lane at the step, of what

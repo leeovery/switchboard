@@ -2994,14 +2994,22 @@ what a column is on the lines after them, wrapped at its ` · `.
 **COMING UP,** in `text.subtle` at column 0, under the pool's lane after a blank row, taking the
 rows left, a blank row kept over the legend; any rows still over stay blank between its end and the
 legend (the owner's call, 21 October 2026). Under its heading, its lines, the Overview's COMING UP
-rows, 72 wide at their natural, the frame's width where that's narrower (see The Overview): the
-time, padded to the longest shown, in `text.secondary`; two spaces, the account bold
-`text.primary` and what happens in `text.muted`; and, right-aligned to end at the column's last,
-71, how long until it, `in 1h 48m`, in `text.subtle`; a run-out's row all `accent.attention`, its
-time and countdown included. Where its lines don't all fit, it shows those it can, and its last
-place says how many more, `▼ 3 more`, in `text.subtle`, as what's out of view of the lanes is; it
-never folds whole while rows are spare. Its lines are the accounts' spans and resets, soonest
-first:
+rows (see The Overview): the time, padded to the longest shown in its column, in
+`text.secondary`; two spaces, the account bold `text.primary` and what happens in `text.muted`;
+and, right-aligned to end at its column's last cell, how long until it, `in 1h 48m`, in
+`text.subtle`; a run-out's row all `accent.attention`, its time and countdown included.
+
+- **Its columns,** laid as every view's are (see The page): two, four cells apart, where both fit
+  at the lines' natural width, 72, so from 148 columns; each takes half of what's left after the
+  gap, the odd cell the second's, so it ends at the frame's edge: 84 and 85 at 173. The lines run
+  in time order down the first, then across into the second. Else one, at its natural, 72, its
+  countdowns ending at column 71, or the frame's width where that's narrower (the owner's call,
+  21 October 2026).
+- **Where its lines don't all fit,** it shows those it can, and its last place says how many
+  more, `▼ 3 more`, in `text.subtle`, as what's out of view of the lanes is; it never folds whole
+  while rows are spare.
+
+Its lines are the accounts' spans and resets, soonest first:
 
 - an account back from its cap, its limit or its refused token, where one holds it now, as the
   last of them to lift: `17:10  work back from its cap`;
@@ -3033,7 +3041,7 @@ minutes a column at 160.
 
 **The rows,** laid as every view's are (see The page), from the view's top to the row over the key
 line, as parts in this order: the axis, its three rows; the lanes; the pool's lane and the row under
-it, its room's; COMING UP, from its heading, a line and how many more, to every line; the rows
+it, its room's; COMING UP, from its heading and two rows of lines, to every line; the rows
 spare, which take what's left; and the legend. As rows run short, Runway takes the first step whose
 parts fit (the owner's call, 21 October 2026):
 
@@ -3042,7 +3050,7 @@ parts fit (the owner's call, 21 October 2026):
 | — | Three rows an account, its lane, its words and a blank row; blank rows under the axis, under the pool's lane and over the legend; every line of COMING UP |
 | (a) | Two rows an account (settled in the plan) |
 | (b) | No blank rows under the pool's lane or over the legend (settled in the plan) |
-| (c) | COMING UP shows the lines it can, from a line and how many more |
+| (c) | COMING UP shows the lines it can, from two rows of them, its first row always lines |
 | (d) | No blank row between the axis and the lanes |
 | (e) | The lanes scroll, as many shown as fit (settled in the plan) |
 | (f) | One lane, the pool's under it: the legend gives way, then COMING UP, heading and all |

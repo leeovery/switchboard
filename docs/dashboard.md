@@ -375,7 +375,8 @@ room, a column at a time, and draws a low red bar along its foot where none has.
 it, as an account's name heads its lane, with the pool's room in the view's window under it, such
 as `week 1.2 of 3 left`.
 
-COMING UP sits under the pool's lane and lists what happens next, soonest first. Where its lines don't all fit, its last says how many more, such as `▼ 3 more`.
+COMING UP sits under the pool's lane and lists what happens next, soonest first, in two columns
+on a wide screen. Where its lines don't all fit, its last says how many more, such as `▼ 3 more`.
 The legend sits at the foot, over the key line. On a short screen, as with a phone's keyboard up,
 the lanes scroll with `j` and `k`; at the shortest, one lane shows, with the pool's lane, and the
 legend and COMING UP give way.
