@@ -1,14 +1,20 @@
 package dashboard
 
-import "slices"
+import (
+	"slices"
+
+	"github.com/charmbracelet/x/ansi"
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
+	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views"
+)
 
 // LogColumn is one of the Log's Requests' columns.
 type LogColumn int
 
 // The Log's Requests' columns, in the table's order: at, which always
 // shows; those shown at first, to out; the extras f shows, worth first, in
-// the panel's order; then stopped and routing, which take the room past 160
-// columns.
+// the panel's order; then stopped and routing, which take the room left.
 const (
 	LogAt LogColumn = iota
 	LogSession
@@ -44,17 +50,18 @@ const (
 )
 
 // logColumnFacts are each column's name, as its head, the f panel and the
-// preferences have it; its width, the most stopped and routing take until
-// the room past 160 columns is shared; and its alignment.
+// preferences have it; its cells: where they're fixed, them, the session's
+// its directory whole; of on, its least; of stopped, the fewest it takes
+// whole; and of routing, its natural; and its alignment.
 var logColumnFacts = [...]struct {
 	name    string
 	width   int
 	aligned alignment
 }{
 	LogAt:        {"at", 8, alignLeft},
-	LogSession:   {"session", 17, alignLeft},
+	LogSession:   {"session", sessionColumnCells, alignLeft},
 	LogModel:     {"model", 9, alignLeft},
-	LogOn:        {"on", 8, alignLeft},
+	LogOn:        {"on", labelLeast, alignLeft},
 	LogStatus:    {"status", 6, alignLeft},
 	LogFirst:     {"first", 5, alignRight},
 	LogTook:      {"took", 6, alignRight},
@@ -95,14 +102,18 @@ func (c LogColumn) extra() bool {
 	return LogWorth <= c && c <= LogRequestID
 }
 
-// least is the fewest cells the column is cut to before the table narrows
-// further: routing's routingLeast, and every other's width, stopped's as at
-// 160 columns.
+// least is the fewest cells the column takes whole, before it gives way:
+// routing's routingLeast, and every other's cells.
 func (c LogColumn) least() int {
 	if c == LogRouting {
 		return routingLeast
 	}
 	return logColumnFacts[c].width
+}
+
+// headCells are the cells the column's head takes.
+func (c LogColumn) headCells() int {
+	return ansi.StringWidth(c.Name())
 }
 
 // placed is the column placed from x, width cells wide.
@@ -112,20 +123,23 @@ func (c LogColumn) placed(x, width int) logPlace {
 
 // The Requests' spacing, as log-requests-160 draws it: the column at starts
 // at; the cells between two columns; the fewest cells routing is cut to, as
-// with worth shown at 160 columns, from 136; and how far short of the last
-// column routing ends once it's whole, as at 160 columns, at 157.
+// with worth shown at 160 columns, from 136; how far short of the last
+// column routing ends once it's whole, as at 160 columns, at 157; and the
+// fewest cells the table's last column, stopped or routing alone, is cut to,
+// stopped then saying its words as a phone's do, as new session's.
 const (
 	logLeft      = 2
 	logColumnGap = 2
 	routingLeast = 24
 	routingShort = 2
+	tailLeast    = 11
 )
 
 // requestsSpread is where a table of requests' rows lies across the
-// terminal: on a wide one, from column left, its routing, once whole, ending
-// short cells short of the last column; on a phone's, its columns before
-// stopped at the places given, and stopped, or routing alone, from tail to
-// the last column.
+// terminal: from column left, its routing, once whole, ending short cells
+// short of the last column; and, of a session's turn opened on a phone, its
+// columns before stopped at the places given, and stopped, or routing alone,
+// from tail to the last column.
 type requestsSpread struct {
 	left, short int
 	phone       []logPlace
@@ -133,19 +147,13 @@ type requestsSpread struct {
 }
 
 var (
-	// logSpread is the Log's Requests', as log-requests-160 and
-	// log-requests-phone-52 draw them: on a phone, at; the session's id
-	// alone; on; and took, ending at 33; stopped from 37.
-	logSpread = requestsSpread{
-		left: logLeft, short: routingShort,
-		phone: []logPlace{LogAt.placed(2, 8), LogSession.placed(11, 4), LogOn.placed(20, 8), LogTook.placed(28, 6)},
-		tail:  37,
-	}
+	// logSpread is the Log's Requests', as log-requests-160 draws them.
+	logSpread = requestsSpread{left: logLeft, short: routingShort}
 	// turnSpread is a session's turn opened's, its requests' rows without
 	// their session, as session-turn-opened-160 draws them: from 5, routing
-	// whole from 112 to 141 at 160 columns; and on a phone, as the Log's less
-	// the session (call 57), at 5, on 14, took ending at 27, stopped from
-	// 31.
+	// whole from 112 to 141 at 160 columns; and on a phone, as the Log's
+	// was, less the session (call 57), at 5, on 14, took ending at 27,
+	// stopped from 31.
 	turnSpread = requestsSpread{
 		left: 5, short: 18,
 		phone: []logPlace{LogAt.placed(5, 8), LogOn.placed(14, 8), LogTook.placed(22, 6)},
@@ -155,11 +163,12 @@ var (
 
 // logLayout is the Log's Requests laid out across the terminal: the columns
 // shown, in the table's order; whether routing folds into stopped, which
-// then says the row's routing where it has words; and whether it's a
-// phone's, its session the id alone and its stopped as PhoneStopped says it.
+// then says the row's routing where it has words; whether stopped says its
+// words briefly, as PhoneStopped says them; and whether the session names
+// its directory after its id.
 type logLayout struct {
-	places        []logPlace
-	folded, phone bool
+	places               []logPlace
+	folded, brief, named bool
 }
 
 // logPlace is a column as it's laid out: from column x, width cells wide,
@@ -171,47 +180,188 @@ type logPlace struct {
 }
 
 // logColumns lays the Log's Requests out across a terminal width cells wide,
-// the columns ticked shown as they fit. The table runs to its last column,
-// the width's last, not a margin short of it.
-//
-// From 100 columns, each sits two cells after the one before, at its width,
-// but stopped and routing, which tailed lays out. Where they don't all fit,
-// the table narrows as logNarrowing orders, a step at a time, until they
-// do: an extra leaves where routing would be cut under its least; then,
-// with the columns shown at first, routing is cut to the room left under
-// 158 columns, to its least at 152; under that it folds into stopped, and
-// first, read, written and out leave, each where stopped, run to the last
-// column, would have fewer than its 27 cells. On a phone, as Phone tells
-// one, the columns are at a phone's places, those ticked, and stopped, or
-// routing alone, runs from 37 to the last column, as logSpread has them.
-func logColumns(width int, ticked LogTicks) logLayout {
-	if Phone(width) {
-		return logSpread.phoned(width, ticked)
-	}
-	return logSpread.wide(width, ticked)
+// the columns ticked shown as they fit, on's natural the cells given, as the
+// spread lays them out.
+func logColumns(width int, ticked LogTicks, on int) logLayout {
+	return logSpread.laid(width, ticked.shown(), on)
 }
 
 // wide lays the columns ticked out across a terminal width cells wide as
-// the spread has them, from its left, narrowing as logColumns says.
+// the spread has them, as logColumns does, on at its least.
 func (s requestsSpread) wide(width int, ticked LogTicks) logLayout {
-	shown, folded := ticked.shown(), false
-	layout, fits := s.laid(width, shown, folded)
-	for _, leaving := range logNarrowing(shown) {
-		if fits {
-			break
+	return s.laid(width, ticked.shown(), labelLeast)
+}
+
+// laid lays the columns shown out across width cells from the spread's left,
+// on's natural the cells given, the table running to the last column, in two
+// passes of flex, as decided and secondPass have them: the first decides
+// what shows, and the second lays out only that. Each column takes its
+// parts' cells together, from where its first starts: stopped's, or routing
+// alone's, two where its cells past its tailLeast stay.
+func (s requestsSpread) laid(width int, shown []LogColumn, on int) logLayout {
+	layout, kept := s.decided(width, shown, on)
+	spans, _ := flex.Lay(width-s.left, flexed(kept)...)
+	for i, p := range kept {
+		if p.role == routingMargin {
+			continue
 		}
-		folded = folded || leaving == LogRouting
-		shown = slices.DeleteFunc(shown, func(c LogColumn) bool { return c == leaving })
-		layout, fits = s.laid(width, shown, folded)
+		if last := len(layout.places) - 1; last >= 0 && layout.places[last].column == p.column {
+			layout.places[last].width += spans[i].Size
+			continue
+		}
+		layout.places = append(layout.places, p.column.placed(s.left+spans[i].At, spans[i].Size))
 	}
 	return layout
 }
 
-// logNarrowing is the order the columns shown leave in as the table
-// narrows: the extras, the last first, so worth leaves last of them; then
-// routing, folding into stopped, where both show; then first, read,
-// written and out. From 100 columns, model, status and the session's
-// directory, which the design has leave next, always fit.
+// decided is the first pass: logParts laid across width cells from the
+// spread's left, giving way as logNarrowing orders them, a turn at a time,
+// until they fit, on holding its natural until its turn. It returns the
+// layout as what gave way leaves it, with no columns placed yet, and the
+// parts that show, each as secondPass has it.
+func (s requestsSpread) decided(width int, shown []LogColumn, on int) (logLayout, []logPart) {
+	parts := logParts(shown, on, s.short)
+	spans, _ := flex.Lay(width-s.left, flexed(parts)...)
+	layout := logLayout{named: true}
+	var kept []logPart
+	for i, p := range parts {
+		if spans[i].Left {
+			layout = layout.gaveWay(p)
+		}
+		if k, ok := p.secondPass(spans[i]); ok {
+			kept = append(kept, k)
+		}
+	}
+	return layout, kept
+}
+
+// secondPass is the part as the second pass lays it, of where the first
+// left it, giving way and narrowing no more: gone where it gave way keeping
+// nothing; at what it kept where it gave way; and any other as it is, so on
+// is free from its least to its natural, and takes what's past the leasts
+// before any other. It reports false where the part is gone.
+func (p logPart) secondPass(span flex.Span) (logPart, bool) {
+	switch {
+	case span.Left && span.Size == 0:
+		return p, false
+	case span.Left:
+		p.Part = flex.Part{Least: span.Size, Natural: span.Size, Gap: p.Gap}
+	}
+	p.Leaves, p.Narrows = 0, 0
+	return p, true
+}
+
+// flexed are the parts as flex has them.
+func flexed(parts []logPart) []flex.Part {
+	flexed := make([]flex.Part, len(parts))
+	for i, p := range parts {
+		flexed[i] = p.Part
+	}
+	return flexed
+}
+
+// gaveWay is l once the part given gave way: routing folded into stopped;
+// stopped saying its words briefly; or the session naming its id alone.
+func (l logLayout) gaveWay(p logPart) logLayout {
+	switch {
+	case p.column == LogRouting && p.role == wholeColumn:
+		l.folded = true
+	case p.column == LogStopped && p.role == tailPast:
+		l.brief = true
+	case p.column == LogSession:
+		l.named = false
+	}
+	return l
+}
+
+// logRole is what of its column a part of a row of requests is.
+type logRole int
+
+const (
+	// wholeColumn is the whole of it.
+	wholeColumn logRole = iota
+	// tailWords are the table's last column's first tailLeast cells, which
+	// grow to the last column.
+	tailWords
+	// tailPast are its cells past them to its least, which give way.
+	tailPast
+	// routingMargin are the cells routing, whole, ends short of the last
+	// column, of no column.
+	routingMargin
+)
+
+// logPart is a part of a row of requests as flex lays it out, and what of
+// its column it is.
+type logPart struct {
+	column LogColumn
+	role   logRole
+	flex.Part
+}
+
+// logParts are the parts of a row of the columns shown, in the table's
+// order, each column two cells after the one before, giving way in turn as
+// logNarrowing orders them:
+//   - a column of fixed cells, as logColumnFacts has them, at them, giving
+//     way to what it keeps, as keeps has it;
+//   - on, a column of names, at least labelLeast cells, holding its natural
+//     on until its turn;
+//   - the last column, stopped, or routing alone, as two parts: its
+//     tailLeast cells, which take the room left, and those past them to its
+//     least, which give way;
+//   - and routing beside stopped, from routingLeast to its natural, ending
+//     short cells short of the last column once whole, and sharing the room
+//     left with stopped, the odd cell its.
+func logParts(shown []LogColumn, on, short int) []logPart {
+	turns := logNarrowing(shown)
+	turn := func(c LogColumn) int { return slices.Index(turns, c) + 1 }
+	tail := LogStopped
+	if !slices.Contains(shown, tail) {
+		tail = LogRouting
+	}
+	var parts []logPart
+	for _, c := range shown {
+		cells := logColumnFacts[c].width
+		switch c {
+		case tail:
+			past := c.least() - tailLeast
+			parts = append(parts,
+				logPart{c, tailWords, flex.Part{Least: tailLeast, Natural: tailLeast, Grows: true, Gap: logColumnGap}},
+				logPart{c, tailPast, flex.Part{Least: past, Natural: past, Leaves: turn(c)}},
+			)
+		case LogRouting:
+			parts = append(parts,
+				logPart{c, wholeColumn, flex.Part{Least: c.least(), Natural: cells, Grows: true, Odd: true, Leaves: turn(c), Gap: logColumnGap}},
+				logPart{c, routingMargin, flex.Part{Natural: short, Leaves: turn(c)}},
+			)
+		case LogOn:
+			parts = append(parts, logPart{c, wholeColumn, flex.Part{Least: cells, Natural: on, Narrows: turn(c), Gap: logColumnGap}})
+		default:
+			parts = append(parts, logPart{c, wholeColumn, flex.Part{Least: cells, Natural: cells, Leaves: turn(c), Kept: c.keeps(), Gap: logColumnGap}})
+		}
+	}
+	return parts
+}
+
+// sessionColumnCells are the cells a session's column takes, its directory
+// whole: its id, and a cell on, its directory, views.SessionDirCells at the
+// most, as views.SessionDirName names it.
+const sessionColumnCells = status.IDShown + 1 + views.SessionDirCells
+
+// keeps are the cells the column keeps where it gives way: the session its
+// id alone, in no fewer cells than its head; any other none.
+func (c LogColumn) keeps() int {
+	if c == LogSession {
+		return max(status.IDShown, c.headCells())
+	}
+	return 0
+}
+
+// logNarrowing is the order the columns shown give way in as the table
+// narrows, as the design has it: the extras, the last first, so worth
+// leaves last of them; then routing, folding into stopped, where both show;
+// then first, read and written; on, toward its least; out; the last column,
+// stopped, or routing alone, cut to its tailLeast cells; model and status;
+// and last, the session's directory, its id kept.
 func logNarrowing(shown []LogColumn) []LogColumn {
 	var order []LogColumn
 	for _, c := range slices.Backward(shown) {
@@ -219,65 +369,27 @@ func logNarrowing(shown []LogColumn) []LogColumn {
 			order = append(order, c)
 		}
 	}
-	if slices.Contains(shown, LogStopped) && slices.Contains(shown, LogRouting) {
+	stopped, routing := slices.Contains(shown, LogStopped), slices.Contains(shown, LogRouting)
+	if stopped && routing {
 		order = append(order, LogRouting)
 	}
-	for _, c := range []LogColumn{LogFirst, LogRead, LogWritten, LogOut} {
-		if slices.Contains(shown, c) {
-			order = append(order, c)
-		}
+	order = append(order, LogFirst, LogRead, LogWritten, LogOn, LogOut)
+	switch {
+	case stopped:
+		order = append(order, LogStopped)
+	case routing:
+		order = append(order, LogRouting)
 	}
-	return order
-}
-
-// laid lays the columns shown out across width cells, routing folded into
-// stopped where folded says: each before stopped at its width, two cells
-// after the one before, from the spread's left; then stopped and routing,
-// as tailed lays them out. It reports whether they fit.
-func (s requestsSpread) laid(width int, shown []LogColumn, folded bool) (logLayout, bool) {
-	layout := logLayout{folded: folded}
-	x := s.left
-	var tail []LogColumn
-	for _, c := range shown {
-		if c == LogStopped || c == LogRouting {
-			tail = append(tail, c)
-			continue
-		}
-		layout.places = append(layout.places, c.placed(x, logColumnFacts[c].width))
-		x += logColumnFacts[c].width + logColumnGap
-	}
-	places, fits := s.tailed(width, x, tail)
-	layout.places = append(layout.places, places...)
-	return layout, fits
-}
-
-// tailed lays the tail of a table width cells wide out from x, stopped and
-// routing, those of them shown, and reports whether each has its least.
-// Both shown sit side by side: stopped at its width and routing at its,
-// where that leaves routing the spread's short cells short of the last
-// column; with less room, routing cut to the room to the last column; with
-// more, the two sharing what's past that evenly, the odd cell routing's.
-// One alone, as stopped is with routing folded into it, runs to the last
-// column. With neither, it reports whether the columns before them fit.
-func (s requestsSpread) tailed(width, x int, tail []LogColumn) ([]logPlace, bool) {
-	switch len(tail) {
-	case 0:
-		return nil, x-logColumnGap <= width
-	case 1:
-		return []logPlace{tail[0].placed(x, width-x)}, width-x >= tail[0].least()
-	}
-	stopped := logColumnFacts[LogStopped].width
-	room := width - x - stopped - logColumnGap
-	past := max(room-logColumnFacts[LogRouting].width-s.short, 0)
-	routing := min(room, logColumnFacts[LogRouting].width) + past - past/2
-	stopped += past / 2
-	return []logPlace{LogStopped.placed(x, stopped), LogRouting.placed(x+stopped+logColumnGap, routing)}, routing >= routingLeast
+	order = append(order, LogModel, LogStatus, LogSession)
+	return slices.DeleteFunc(order, func(c LogColumn) bool { return !slices.Contains(shown, c) })
 }
 
 // phoned lays the columns ticked out across a phone's width cells as the
-// spread has them, as logColumns does under 100 columns.
+// spread has them, as a session's turn opened does on a phone: its places,
+// those ticked, and stopped, or routing alone, from its tail to the last
+// column, briefly, routing folded into it where both are ticked.
 func (s requestsSpread) phoned(width int, ticked LogTicks) logLayout {
-	layout := logLayout{phone: true, folded: ticked.Shows(LogStopped) && ticked.Shows(LogRouting)}
+	layout := logLayout{brief: true, folded: ticked.Shows(LogStopped) && ticked.Shows(LogRouting)}
 	for _, p := range s.phone {
 		if ticked.Shows(p.column) {
 			layout.places = append(layout.places, p)

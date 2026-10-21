@@ -334,7 +334,7 @@ func (d detailing) sessionWords() DetailWords {
 		return nil
 	}
 	w := valued(id)
-	if dir := status.DirName(d.row.Dir, SessionDirCells); dir != "" {
+	if dir := SessionDirName(d.row.Dir); dir != "" {
 		w = append(w, DetailPart{Text: " " + dir})
 	}
 	return w

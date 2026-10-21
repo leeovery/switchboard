@@ -224,6 +224,25 @@ func TestARequestsRowIsDrawnInTheColumnsItsLayoutGives(t *testing.T) {
 	}
 }
 
+// Words ending in a cost keep the cost whole as they're cut, where the words
+// before it keep a cell and the ellipsis; with less room, they're cut as any
+// words are.
+func TestACostIsKeptWholeWhereTheWordsBeforeItKeepACell(t *testing.T) {
+	said := line{{"from work, at its cap", mutedInk}, {"  ", mutedInk}, {"$1.82", warningInk}}
+	for cells, want := range map[int]string{
+		28: "from work, at its cap  $1.82",
+		16: "from wor…  $1.82",
+		9:  "f…  $1.82",
+		8:  "from wo…",
+	} {
+		c := newCanvas(cells, 1)
+		c.line(0, 0, costKept(said, true, cells))
+		if got := textOf(c.rows(Look{}))[0]; got != want {
+			t.Errorf("in %d cells, the words read %q, want %q", cells, got, want)
+		}
+	}
+}
+
 // A row in flight is drawn as it stands at the moment it's drawn, its table
 // made once: its took counting on to that moment, and answering, its
 // characters as the stream the page holds then counts them.

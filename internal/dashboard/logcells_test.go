@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -60,6 +61,12 @@ func everyExtra() LogTicks {
 	return ticks
 }
 
+// drawnLayout is the Requests' layout as the frame draws it, with the
+// document given, at now.
+func drawnLayout(f Frame, doc status.Document, now time.Time) logLayout {
+	return f.requestsLayout(f.Moment(doc, now))
+}
+
 // rowsHold holds the rows of the Requests drawn on the canvas c from row top,
 // laid out as layout, to want, a row each: each cell want names, its text and
 // its ink.
@@ -94,7 +101,7 @@ func TestTheRequestsDrawTheExtrasAndWorthAsTheDesignSays(t *testing.T) {
 	p.Columns = everyExtra()
 
 	f := logFrameOf(p, 300, 24)
-	layout := logColumns(f.Width, p.Columns)
+	layout := drawnLayout(f, routerDoc("side", 0), at.Add(time.Minute))
 	rowsHold(t, f.page(routerDoc("side", 0), at.Add(time.Minute)), f.top()+1, layout, []map[LogColumn]columnCell{
 		{
 			LogWorth: {"$0.07", mutedCell}, LogInput: {"3", mutedCell}, LogAttempts: {"2", mutedCell}, LogSize: {"482 KB", mutedCell},
@@ -128,7 +135,7 @@ func TestTheRequestsDrawEachFailureAsTheDesignSays(t *testing.T) {
 	f := logFrameOf(p, 200, 24)
 	c := f.page(routerDoc("side", 0), at.Add(time.Minute))
 	failed := columnCell{"0", ink{token: theme.StateDestructive, bold: true}}
-	rowsHold(t, c, f.top()+1, logColumns(f.Width, p.Columns), []map[LogColumn]columnCell{
+	rowsHold(t, c, f.top()+1, drawnLayout(f, routerDoc("side", 0), at.Add(time.Minute)), []map[LogColumn]columnCell{
 		{LogStatus: failed, LogSession: {"d28c", secondaryCell}},
 		{LogStatus: failed},
 		{LogSession: {"—", faintCell}, LogStatus: {"200", mutedCell}},
@@ -156,7 +163,7 @@ func TestChecksAndCountsShownAreMarkedAndCountedAsTheyAre(t *testing.T) {
 	f := logFrameOf(p, 160, 24)
 	c := f.page(routerDoc("side", 0), at.Add(time.Minute))
 	none := columnCell{"—", faintCell}
-	rowsHold(t, c, f.top()+1, logColumns(f.Width, p.Columns), []map[LogColumn]columnCell{
+	rowsHold(t, c, f.top()+1, drawnLayout(f, routerDoc("side", 0), at.Add(time.Minute)), []map[LogColumn]columnCell{
 		{LogRead: none, LogWritten: none, LogOut: {"1", mutedCell}, LogInput: {"8", mutedCell}, LogStopped: {}},
 		{LogRead: none, LogWritten: none, LogOut: none, LogInput: {"5.4k", mutedCell}, LogStopped: {}},
 	})
@@ -179,7 +186,7 @@ func TestAPhonesStoppedNamesTheToolAlone(t *testing.T) {
 	p := requestsOf(views.LogSources{From: at, Now: at.Add(time.Minute)}, []ledger.Line{first, tool, ended})
 
 	f := logFrameOf(p, 52, 33)
-	rowsHold(t, f.page(routerDoc("side", 0), at.Add(time.Minute)), f.top()+2, logColumns(f.Width, p.Columns), []map[LogColumn]columnCell{
+	rowsHold(t, f.page(routerDoc("side", 0), at.Add(time.Minute)), f.top()+2, drawnLayout(f, routerDoc("side", 0), at.Add(time.Minute)), []map[LogColumn]columnCell{
 		{LogStopped: {"Bash", secondaryCell}},
 		{LogStopped: {"end_turn", mutedCell}},
 	})

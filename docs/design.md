@@ -3228,28 +3228,31 @@ foot. The Log is drawn in the Paper file *Switchboard · Session and Log*, on it
   line says how long the ledger keeps its lines, or that it keeps them for good
   (settled in the plan).
 
-**Requests.** A line a request, its columns two cells apart:
+**Requests.** A line a request: one table at every width, from column 2, its columns two cells
+apart, each a part flex lays out (`logcolumns.go`):
 
-| Column | From | Width | Aligned |
-|---|---|---|---|
-| `at` | 2 | 8 | left |
-| `session` | 12 | 17 | left |
-| `model` | 31 | 9 | left |
-| `on` | 42 | 8 | left |
-| `status` | 52 | 6 | left |
-| `first` | 60 | 5 | right |
-| `took` | 67 | 6 | right |
-| `read` | 75 | 6 | right |
-| `written` | 83 | 7 | right |
-| `out` | 92 | 5 | right |
-| `stopped` | 99 | 27 | left |
-| `routing` | 128 | 30 | left |
+| Column | Cells | Aligned |
+|---|---|---|
+| `at` | 8 | left |
+| `session` | 17: its id's 4, and a cell and its directory's 12 (`views.SessionDirCells`); 7, its head's, with the directory gone | left |
+| `model` | 9 | left |
+| `on` | at least 8; its natural the widest label of the accounts configured, 24 at the most, as a label's column is | left |
+| `status` | 6 | left |
+| `first` | 5 | right |
+| `took` | 6 | right |
+| `read` | 6 | right |
+| `written` | 7 | right |
+| `out` | 5 | right |
+| `stopped` | 27, and the room left | left |
+| `routing` | 24 to 30, ending 2 short of the last column once whole, and the room left | left |
 
 - **`at`:** when it arrived. **`session`:** its id cut to 4 in `text.secondary`, a space, and the
-  last part of its directory, the ledger's `dir`, cut with `…` to 12, keeping its start
-  (settled in the plan), in `text.muted`: `d28c switchboard`. **`model`:** its id less `claude-`, in
-  `text.muted`. **`on`:** the account whose answer the client got, in `text.primary`, cut with `…`
-  past 8 cells (settled in the plan), as account names are white wherever they're named.
+  last part of its directory, the ledger's `dir`, cut with `…` to 12, keeping its start (settled in
+  the plan), in `text.muted`: `d28c switchboard`. The directory is whole or gone: its column is
+  always 12 wide while it shows, so it's never cut below 12. **`model`:** its id less
+  `claude-`, in `text.muted`. **`on`:** the account whose answer the client got, in
+  `text.primary`, as account names are white wherever they're named, cut with `…` to the cells its
+  column has.
 - **`status`:** as answered, in `text.muted`; 400 and over bold `state.destructive`. **`first`:**
   the time to its answer's first byte, `0.8s`; **`took`:** its whole time, `11.8s`, from a minute
   `1m 05s`; both in `text.muted`.
@@ -3270,14 +3273,25 @@ foot. The Log is drawn in the Paper file *Switchboard · Session and Log*, on it
   request: `new session` in `text.muted`.
 - **`worth`,** 6 wide, right-aligned, off until `f` shows it: what the request would have cost
   through the API, `$0.15`, `<$0.01` under half a cent, `unpriced` for a model the price table
-  doesn't know, in `text.muted`. Shown, it goes between `out` and `stopped`, moving the two after it
-  along by 8.
-- **Nothing past the last column:** a column that would run past it is cut to the room left, as
-  `routing` is with `worth` shown, to 24 cells from 136. What doesn't fit is cut with `…` in the
-  colour of what it cuts, a move's cost kept whole: `from work, at it…  $1.82`. Below 160 columns,
-  columns leave in this order: `routing` folds into `stopped`, as the phone's `new session` does;
-  then `first`, `read`, `written`, `out`, `model` and `status`, a session's directory going before
-  its id. Past 160, `stopped` and `routing` take the room (settled in the plan).
+  doesn't know, in `text.muted`. Shown, it goes between `out` and `stopped`, as the other extras
+  do, each at its fixed cells.
+- **One narrowing, to the last column:** the table runs to the last column at every width, from
+  the widest to a phone's 52, and nothing runs past it. It's laid out in two passes. The first
+  decides what shows: where the columns' fewest cells, `on` at its natural, don't fit, columns give
+  way in this order, a step at a time, each only while they still don't: the extras, the last
+  first, so `worth` leaves last of them; `routing` folds into `stopped`, which then says the row's
+  routing where it has words; `first`, `read` and `written`; `on` is cut toward its 8; `out`;
+  `stopped` is cut to 11 cells and says its words as a phone's do (below); `model`, then `status`;
+  and last the session's directory, its id kept (the owner's call on the spike, 21 October 2026).
+  So `on` is whole from 94 columns past its natural, whatever's shown: 116 with the frames' long
+  names, 22 cells, and 118 with a label at its 24. The second lays out only what the first kept:
+  each column takes its fewest cells; then `on` takes what's past them, to its natural, before any
+  other, as a phone's 73 columns and an iPad's 108 show it; then `routing` to its 30 and the 2
+  short of the last column; and `stopped` and `routing` share the rest evenly, the odd cell
+  `routing`'s, or `stopped` takes it alone. With `stopped` hidden, `routing` alone is the last
+  column, cut to 11 cells in `stopped`'s step, its words whole. What doesn't fit its
+  cells is cut with `…` in the colour of what it cuts, a move's cost kept whole where the words
+  before it keep a cell and the ellipsis: `from work, at it…  $1.82`.
 - **The marks,** bold, the first that applies: `↑` in `accent.key`, in flight and asking, before its
   answer's first byte; `↓` in `accent.key`, in flight and answering; `■` in `state.destructive`,
   failed, 400 and over; `▸` in `accent.key`, it moved its session (its line has a `from`); `▲` in
@@ -3438,16 +3452,23 @@ pickers' 82, and 22 tall, centred: columns 18 to 141, rows 7 to 28. Its title, i
 - **What's remembered:** the columns shown, in the preferences file (see Themes). The filters are
   not, so the Log opens on everything.
 
-**Events.** A line an event, as a table with heads: `at` from 2, 8 wide; `session` from 12, 17
-wide; `event` from 31, 8 wide; `account` from 41, 16 wide; and `what happened` from 59 to the edge.
+**Events.** A line an event, as a table with heads, from column 2, its columns two cells apart,
+each a part flex lays out (`logevents.go`): `at`, 8; `session`, as Requests' is; `event`, 8;
+`account`, at least 8, its natural and its most the longest line a move can make: the widest
+configured label, ` → `, and the second widest, each counted 24 at the most, or the widest alone
+with one account configured, a pin of several cut to it; and `what happened`, 40 at the least, and
+the room left. Where they don't fit, they give way in this order: the session, whole; `what
+happened` cut to 20; then `account` toward its 8. So with the frames' accounts, their move 15
+cells, the session shows down to 98 columns, and a phone's 52 show `at`, `event`, `account` and
+`what happened`.
 
 - **`at` and `session`** as Requests' are; `session` is blank for an account's event, and holds a
   session's own pin's id (settled in the plan).
 - **`event`:** its kind, in `text.secondary`.
-- **`account`:** the account, in `text.primary`, cut with `…` past 16 cells (settled in the plan);
-  for a move, from and to, `personal → side`, with ` → ` in `text.muted`; for a pin, the accounts it
-  names, joined with `, ` (settled in the plan); blank for routing given back to the router, a
-  restart and the router's health, which name none.
+- **`account`:** the account, in `text.primary`, cut with `…` to the cells its column has; for a
+  move, from and to, `personal → side`, with ` → ` in `text.muted`, the two cut as they share them;
+  for a pin, the accounts it names, joined with `, ` (settled in the plan); blank for routing given
+  back to the router, a restart and the router's health, which name none.
 - **`what happened`,** in `text.muted`: what the kind adds. Account names stay `text.muted` here,
   the table's own `account` column carrying the white: a details column is the one place names
   aren't white. A window's use is bold in its level's colour, and a move's cost in
@@ -3528,20 +3549,20 @@ files hold, to its last event filed.
 - rows 0, 1 and 3: the title, the tabs and the status line, as every page's phone has them;
 - row 5, the heading: `LOG` in `text.subtle`, two spaces, the sub-tabs as wide; at the right `35
   hidden` in `text.muted`, two spaces, `f` bold `accent.key`; no `[ ]` and no rule;
-- row 7, the heads, in `text.subtle`: `at` 2, `session` 11, `on` 20, `took` ending at column 33,
-  `stopped` 37;
-- rows 8 to 29, the newest 22 lines: the mark at 0; the time at 2, in `text.muted`; the session's id
-  at 11, in `text.secondary`, without its directory; the account at 20, in `text.primary`; `took`
-  ending at column 33, in `text.muted`, counting in `accent.key` in flight; and at 37 how it
-  stopped: the tool alone in `text.secondary` for `tool_use` (`Bash`), else why in `text.muted`
-  (`end_turn`); `new session` in `text.muted` on a session's first; `asking` or `answering`, bold
-  `accent.key`, in flight;
+- row 7, the heads, in `text.subtle`, and rows 8 to 29, the newest 22 lines: the table at its
+  narrowest, as the one narrowing leaves it (above), its columns two cells apart: the mark at 0;
+  the time, in `text.muted`; the session's id, in `text.secondary`, its directory gone; the
+  account, in `text.primary`; `took`, in `text.muted`, counting in `accent.key` in flight; and how
+  it stopped, to the last column;
+- `stopped` says its words briefly wherever it's cut to 11 cells, on a phone and under about 95
+  columns: the tool alone in `text.secondary` for `tool_use` (`Bash`), else why in `text.muted`
+  (`end_turn`); `new session` in `text.muted` on a session's first; `from work` for a request that
+  moved its session; `asking` or `answering`, bold `accent.key`, in flight;
 - row 31: the state line, `● following`, and at the right `1,240 lines today`;
 - row 32, the keys: `↑↓ request   enter open   [ ] view   ? keys   q quit`, by the phone's rule for
   key lines (see The page).
-- Events, the panel, paused and filtered take the wide page's rules in the phone's columns; a
-  request that moved its session says `from work` at 37; and the card stacks its columns one under
-  another, scrolling within it (settled in the plan).
+- Events, the panel, paused and filtered take the wide page's rules, the Events at their narrowest;
+  and the card stacks its columns one under another, scrolling within it (settled in the plan).
 
 **Keys.** `tab` the next tab; `[` `]` between Requests and Events; `↑↓` chooses a line, lit across
 the width, the table scrolling to keep it in view, and from following, `↑` choosing the newest line

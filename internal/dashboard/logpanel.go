@@ -375,7 +375,7 @@ func (p LogPanel) sessionWords(s views.LogSession) line {
 		count = countedSaid(s.Events, "event", secondaryInk, mutedInk)
 	}
 	words := line{{status.ShownID(s.ID), secondaryInk}}
-	words = padTo(words, sessionDirAt-tickBox, line{{status.DirName(s.Dir, views.SessionDirCells), mutedInk}})
+	words = padTo(words, sessionDirAt-tickBox, line{{views.SessionDirName(s.Dir), mutedInk}})
 	words = padTo(words, sessionAccountAt-tickBox, line{{prose.Cut(p.named(s.Account), logAccountCells), accountInk}})
 	words = padTo(words, sessionCountEnd-tickBox-count[:1].width(), count)
 	if doing := sessionDoing(s, p.Now); doing.text != "" {
