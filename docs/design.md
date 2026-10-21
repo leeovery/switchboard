@@ -3129,8 +3129,8 @@ minutes a column at 160.
 **The rows,** laid as every view's are (see The page), from the view's top to the row over the key
 line, as parts in this order: the axis, its three rows; the blank row under the axis; the lanes;
 the pool's lane and the row under it, its room's; COMING UP, from its heading and two rows of
-lines, to every line; the rows spare, which take what's left; and the legend. As rows run short, Runway takes the first step whose
-parts fit (the owner's call, 21 October 2026):
+lines, to every line; the rows spare, which take what's left; and the legend. As rows run short,
+Runway takes the first step whose parts fit (the owner's call, 21 October 2026):
 
 | Step | What changes |
 |---|---|
@@ -3150,9 +3150,10 @@ legend a taller one doesn't; and COMING UP can show as many more lines as the le
 the row the legend leaves. The bars stay one row and the pool's lane two at every step, and no
 part grows into spare rows. With a pool's lane, a lane shows from 8 rows of view, 15 rows on a
 terminal with the title on one row: the axis, the lane and its words, the pool's lane and its
-room, with no blank rows; with one account, from 5. At (f), the lanes scroll as Accounts' do (see Accounts): the axis and the
-pool's foot hold, and the row under the pool's lane says what's out of view, right-aligned, in
-the cells its room leaves: `▼ 2 more accounts`, or for less room, the counts alone, `▼ 2 more`.
+room, with no blank rows; with one account, from 5. At (f), the lanes scroll as Accounts' do (see
+Accounts): the axis and the pool's foot hold, and the row under the pool's lane says what's out of
+view, right-aligned, in the cells its room leaves: `▼ 2 more accounts`, or for less room, the
+counts alone, `▼ 2 more`.
 
 **One account:** its lane alone, with no pool's lane, `Σ pool` or room line, as they'd only
 repeat the account (settled in the plan).
