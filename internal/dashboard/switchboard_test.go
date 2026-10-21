@@ -805,3 +805,22 @@ func TestTheFromColumnIsTheWidestNameWhereACallHasMovedElseNone(t *testing.T) {
 		}
 	}
 }
+
+// The board's form never hangs on its data: under 100 columns it's lanes and
+// from 100 cords, with no call moved as with one, so the first move never
+// turns the whole view.
+func TestTheBoardsFormNeverHangsOnAMove(t *testing.T) {
+	doc := usageWorld(longNamed)
+	moved, still := longCalls(), longCalls()
+	for i := range still {
+		still[i].From = ""
+	}
+	for _, width := range []int{99, 100} {
+		for what, calls := range map[string][]views.Call{"no call moved": still, "calls moved": moved} {
+			f := boardFrame(width, 44, Look{}, boardOf(boardLook{calls: calls}), Traffic{})
+			if lanes := f.switchboardLaid(doc, routedAt).lanes; lanes != (width < 100) {
+				t.Errorf("at %d with %s, lanes %t, want %t", width, what, lanes, width < 100)
+			}
+		}
+	}
+}

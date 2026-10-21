@@ -106,14 +106,16 @@ func boardParts(from int) []flex.Part {
 
 // boardColumnsOf are the Switchboard's columns at width, its parts laid as
 // boardParts declares them, the from column's natural from cells, and
-// whether they fit: with every turn taken, they don't under 100 columns
-// where a call has moved. Three columns are read off a neighbour's span, not
+// whether they fit: with every turn taken, they don't under 100 columns.
+// Whether they fit is reckoned with the from column at its least, as though
+// a call had moved, so the first move never turns the board to lanes. Three columns are read off a neighbour's span, not
 // their own: the plugs' column is where the bends' room starts, the jacks'
 // where the stretch to them ends, and the lines' where their label starts.
 // Where the parts don't fit, the columns past the bends' room lie as the
 // turns left them; nothing reads them, as the Switchboard draws lanes there.
 func boardColumnsOf(width, from int) (boardColumns, bool) {
-	s, fits := flex.Lay(width, boardParts(from)...)
+	s, _ := flex.Lay(width, boardParts(from)...)
+	_, fits := flex.Lay(width, boardParts(leastAccount)...)
 	return boardColumns{
 		callColumns: callColumnsOf(s, 0),
 		plug:        s[boardRoom].At,

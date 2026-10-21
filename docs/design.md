@@ -2765,9 +2765,11 @@ the last.
 Each part keeps its distance from the part before it: at 100 columns, with a call moved, what a call
 is doing is at 12, `▸` at 25 and the plug at 35, the jacks are at 56, and the lines run from 58, 42
 columns. A line's state words that don't fit take the short form, as on a phone, then lose whole
-clauses from the end. Where its parts don't fit with every turn taken, as under 100 columns with a
-call moved and under 92 with none, or wherever the bent cords outnumber the bends' room's columns,
-the Switchboard draws lanes.
+clauses from the end. Where its parts don't fit with every turn taken, as under 100 columns, or
+wherever the bent cords outnumber the bends' room's columns, the Switchboard draws lanes. Whether
+they fit is reckoned with the from column at its least, `▸ ` and 6 of the account, as though a call
+had moved, so the board starts at 100 columns whatever the moves, and the first move never turns
+the view to lanes.
 
 **Lanes,** as on a phone, where cords would need width the terminal hasn't got: each account's line
 with its sessions under it, in The page's phone frame under 100 columns (settled in the plan).

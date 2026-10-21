@@ -75,9 +75,9 @@ func boardWidths(k boardColumns) callWidths {
 // of 8, 14 or 22 cells, none where no call has moved; then the bars, the
 // lines' words whole, ▸'s from, the bars to 32 and the bends' room the rest.
 // At 108, the 8 cells past the leasts go to the directory alone. Where the
-// leasts don't fit, as under 100 columns where a call has moved, it draws
-// lanes, which lay a call's parts by the same rule, from column 2, what it's
-// doing two cells after the directory, the spare at the row's end.
+// leasts don't fit, as under 100 columns whether or not a call has moved,
+// it draws lanes, which lay a call's parts by the same rule, from column 2,
+// what it's doing two cells after the directory, the spare at the row's end.
 func TestACallsNamesAreRaisedBeforeTheLinesBars(t *testing.T) {
 	tests := []struct {
 		width, from int
@@ -98,8 +98,8 @@ func TestACallsNamesAreRaisedBeforeTheLinesBars(t *testing.T) {
 		{width: 108, from: 14, want: callWidths{dir: 14, account: 6, fromShort: true, bar: 8, room: 9, shortWords: true}},
 		{width: 108, from: 22, want: callWidths{dir: 14, account: 6, fromShort: true, bar: 8, room: 9, shortWords: true}},
 		{width: 100, from: 22, want: callWidths{dir: 6, account: 6, fromShort: true, bar: 8, room: 9, shortWords: true}},
-		{width: 92, from: 0, want: callWidths{dir: 6, bar: 8, room: 9, shortWords: true}},
-		{width: 91, from: 0, want: callWidths{dir: 24, lanes: true}},
+		{width: 100, from: 0, want: callWidths{dir: 14, bar: 8, room: 9, shortWords: true}},
+		{width: 99, from: 0, want: callWidths{dir: 24, lanes: true}},
 		{width: 99, from: 22, want: callWidths{dir: 24, account: 22, lanes: true}},
 		{width: 73, from: 8, want: callWidths{dir: 24, account: 8, lanes: true}},
 		{width: 73, from: 14, want: callWidths{dir: 24, account: 14, lanes: true}},
