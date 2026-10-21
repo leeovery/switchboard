@@ -73,17 +73,18 @@ var phoneAllowed = []string{
 	"internal/dashboard/graphs.go:Frame.graphsOf",
 	// S14: USAGE's key, its parts spaced apart by the width.
 	"internal/dashboard/usage.go:keyApart",
-	// S15: Compare's form, its focus, the help that tells of it, and the
-	// watch that keeps it.
-	"internal/dashboard/accountscompare.go:Frame.compareState",
-	"internal/dashboard/accounts_help.go:Frame.compareHelp",
-	"internal/dashboard/watch/accounts.go:Model.comparing",
-	// S15, S16 and S17: the form Accounts draws its views in.
+	// S16, S17 and S25: the form Accounts draws its views in, Compare's
+	// turned or wide.
 	"internal/dashboard/accounts.go:Frame.buildAccountsForm",
 	// S18, S19 and S20: the form History draws its views in.
 	"internal/dashboard/historypage.go:Frame.phoneForm",
 	// S20: whether Weeks' cycles show.
 	"internal/dashboard/historyasks.go:Frame.weeksCycles",
+	// S25: Compare's form, turned or wide, its focus, the help that tells of
+	// it, and the watch that keeps it.
+	"internal/dashboard/accountscompare.go:Frame.compareState",
+	"internal/dashboard/accounts_help.go:Frame.compareHelp",
+	"internal/dashboard/watch/accounts.go:Model.comparing",
 	// S25: what's left, LATELY's sentences, ROUTING's mode, and the cards.
 	"internal/dashboard/lately.go:Frame.latelySaid",
 	"internal/dashboard/routing.go:Frame.routingSection",

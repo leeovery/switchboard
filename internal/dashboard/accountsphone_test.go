@@ -214,10 +214,9 @@ func TestAPhonesDetailOfAllAccounts(t *testing.T) {
 
 // Where an account's plan isn't known, a phone's against it, on Compare, 12
 // cells from column 39 at 52 columns, and against, on Detail, 15 cells from
-// column 36, say every
-// account's ratio over the plans known, compact, the plans known over the
-// accounts: "4.6× · 2/3"; with every plan known, the ratio alone (the
-// owner's call, 15 October 2026).
+// column 36, say every account's ratio over the plans known, compact, the
+// plans known over the accounts: "4.6× · 2/3"; with every plan known, the
+// ratio alone (the owner's call, 15 October 2026).
 func TestAPhonesAgainstSaysTheRatioOverThePlansKnownCompact(t *testing.T) {
 	for _, tt := range []struct {
 		name  string
@@ -538,10 +537,10 @@ func TestAPhonesCompareLaysItsPartsAcrossTheWidth(t *testing.T) {
 		{name: "at 52, its bars at their least", width: 52, at: 13, bar: 20, groups: []int{13, 26, 39}, named: " side        "},
 		{name: "at 73, its bars at their most", width: 73, at: 13, bar: 40, groups: []int{13, 33, 53}, named: " side        "},
 		{name: "at 99, its bars held at their most", width: 99, at: 13, bar: 40, groups: []int{13, 42, 70}, named: " side        "},
-		{name: "at 73, long names whole", width: 73, labels: long, at: 25, bar: 29, groups: []int{25, 41, 57}, named: " side-hustle-consulting  "},
+		{name: "at 73, long names whole", width: 73, labels: long, at: 25, bar: 28, groups: []int{25, 41, 57}, named: " side-hustle-consulting  "},
 		{
 			name: "at 73, a name past the most cut to it", width: 73,
-			labels: map[string]string{"side": "a-label-well-past-the-most-of-them"}, at: 27, bar: 27, groups: []int{27, 42, 57},
+			labels: map[string]string{"side": "a-label-well-past-the-most-of-them"}, at: 27, bar: 26, groups: []int{27, 42, 57},
 			named: " a-label-well-past-the-m…  ",
 		},
 	}
@@ -584,6 +583,35 @@ func TestAPhonesCompareLaysItsPartsAcrossTheWidth(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// A phone's Compare holds every column still as the period's page is read:
+// its figures' column is sized for the widest largest version any version
+// can show, not those the page names, so WEEK USED's names, bars and
+// percentages are where they were before it.
+func TestAPhonesCompareHoldsStillAsItsPageIsRead(t *testing.T) {
+	long := map[string]string{"work": "work-team-plan", "personal": "personal-research", "side": "side-hustle-consulting"}
+	for _, width := range []int{52, 60, 66, 73} {
+		for _, labels := range []map[string]string{nil, long} {
+			f := phoneText(t, width, 60, AccountsCompare, "", nil, nil)
+			f.Accounts.Accounts = slices.Clone(threeFramed)
+			doc := phoneDoc()
+			for i, a := range f.Accounts.Accounts {
+				if label, ok := labels[a.ID]; ok {
+					f.Accounts.Accounts[i].Label = label
+					account(a.ID, func(a *status.Account) { a.Label = label })(&doc)
+				}
+			}
+			before := textOf(f.Draw(doc, routedAt))
+			f.Accounts.Page = phonePage(t)
+			after := textOf(f.Draw(doc, routedAt))
+			for _, y := range []int{10, 12, 14, 16} {
+				if before[y] != after[y] {
+					t.Errorf("at %d, long names %v, row %d reads %q before the page and %q after", width, labels != nil, y, before[y], after[y])
+				}
+			}
+		}
 	}
 }
 

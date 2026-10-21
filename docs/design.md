@@ -1989,10 +1989,11 @@ holds.
 
 **Compare** sets the accounts side by side, a column each, with `all accounts` last.
 
-- **Columns,** laid by flex: the labels' column at its widest label whole, at most 24 cells
-  (`left at its last reset`, indented 2, makes it 24); then, 2 cells on, a column an account and
-  one for `all accounts`, last. Each column is at least 19 cells, or the widest account's head and
-  a cell where that's more, its name whole at most 24 cells, so no name is cut where another
+- **Columns,** laid by flex: the labels' column, fixed at 24 cells, its widest label's,
+  `left at its last reset` indented 2, the most a column of labels takes; then, 2 cells on, a
+  column an account and one for `all accounts`, last. Each column is at least 19 cells, or the
+  widest account's head and a cell where that's more, its name whole at most 24 cells with its
+  marks, so no name is cut where another
   account's column would show it whole. As many accounts show as fit, at least one, the last
   giving way first: six of ten at 160 columns, every one of three at 108, two of three with long
   names. The columns shown share the rest alike, the odd cells `all accounts`' and then the
@@ -2005,8 +2006,9 @@ holds.
   state: `● open`, the dot `state.positive` and the word `text.secondary`; `● pressure` and
   `● at cap`, in `accent.attention`; `■ limit` and `■ refused`, in `state.destructive`;
   `○ not read`, in `text.subtle`. `all accounts`' head is `0`, in `text.subtle`, and `all accounts`,
-  bold in `text.secondary`, with its accounts' states counted under it. A name past 24 cells is cut
-  with `…` to the column less a cell, keeping its number and marks, as `usage` cuts a name
+  bold in `text.secondary`, with its accounts' states counted under it. A name is at most 24 cells
+  with its marks, however wide its column: one past it, or past the column less a cell, is cut
+  with `…`, keeping its number and marks, as `usage` cuts a name
   (settled in the plan). No column is focused until `←` or `→`; then the focused column's heads are
   `bg.selection` across its width, less a cell, and `enter` opens that account, or `all accounts`,
   in Detail (settled in the plan).
@@ -2048,10 +2050,13 @@ holds.
   `all` last, unnumbered. More accounts than its height holds scroll with `j/k`, the last row saying
   `▼ 2 more below · j/k` (settled in the plan).
   - Its parts, laid by flex across the width: the names at their widest whole, at least 8 and at
-    most 24 cells, its marks among them; 2 cells on, the bars; and a cell after them, the figures'
-    column, as wide as the widest of a percentage and the accounts' largest versions. The bars take
-    what's left, at least 20 and at most 40: from column 13, 20 at 52 columns and 40 from 72, the
-    rest of the row blank past the figures.
+    most 24 cells, its marks among them; 2 cells on, the bars, at least 20 and at most 40; and a
+    cell after them, the figures' column, at least a percentage, and whole the widest largest
+    version any version in the version table can show at 100%, `● Sonnet 5.5 100%`. It reads no
+    page, so nothing moves as the period's page is read or the period changes. The names and bars
+    take their cells first and the figures last, so at 52 columns, from column 13, the bars are 20
+    and a 100% largest version loses its last cell; from 73 the bars are 40, the rest of the row
+    blank past the figures.
   - WEEK USED and BY MODEL: a blank row under the heading and between rows, so the bars don't merge;
     the bars one width, WEEK USED's percentage right-aligned in the figures' first 4 cells, and BY
     MODEL's account's largest version and its share a cell further in, `● Opus 5.5 55%`, so their

@@ -25,11 +25,15 @@ const (
 	// a column of names or labels takes, its widest whole between them.
 	compareNameLeast, compareNameMost = 8, 24
 	// labelIndent is where the groups' rows' labels and BY MODEL's ● start,
-	// and versionAt where a version's name does; labelsGap are the cells
-	// between the labels' column and the first account's.
-	labelIndent = 2
-	versionAt   = labelIndent + 2
-	labelsGap   = 2
+	// and versionAt where a version's name does. compareLabels are the
+	// labels' column's cells, fixed: its widest label, left at its last
+	// reset, indented, is the most a column of labels takes, and a version's
+	// name past it is cut to it. labelsGap are the cells between it and the
+	// first account's column.
+	labelIndent   = 2
+	versionAt     = labelIndent + 2
+	compareLabels = compareNameMost
+	labelsGap     = 2
 	// leastColumn are the fewest cells a column takes, as many accounts
 	// showing as fit at it, less all accounts'.
 	leastColumn = 19
@@ -64,15 +68,15 @@ func (l compareLayout) shown() int {
 	return len(l.slots) - 1
 }
 
-// compareLaid is Compare laid out across the frame: the labels' column at its
-// natural width, then, labelsGap on, a column an account, and all accounts'
+// compareLaid is Compare laid out across the frame: the labels' column,
+// fixed, then, labelsGap on, a column an account, and all accounts'
 // last, each at least leastCompared cells. Where they don't all fit, the
 // accounts' columns give way from the last, the first never; those left
 // share the rest alike, the odd cell all accounts'. The bars are as
 // compareBars has them in the narrowest column.
 func (f Frame) compareLaid() compareLayout {
-	n, least, labels := len(f.Accounts.Accounts), f.leastCompared(), f.compareLabels()
-	parts := []flex.Part{{Least: labels, Natural: labels}}
+	n, least := len(f.Accounts.Accounts), f.leastCompared()
+	parts := []flex.Part{{Least: compareLabels, Natural: compareLabels}}
 	for i := range n {
 		slot := flex.Part{Least: least, Natural: least, Grows: true, Leaves: n - i}
 		if i == 0 {
@@ -99,26 +103,6 @@ func compareBars(column int) (share, week int) {
 	bars, _ := flex.Lay(column, flex.Part{Grows: true, Most: barMost}, flex.Part{Least: shareSpare, Natural: shareSpare})
 	weekly, _ := flex.Lay(bars[0].Size, flex.Part{Grows: true}, flex.Part{Least: percentCells, Natural: percentCells, Gap: 1})
 	return bars[0].Size, weekly[0].Size
-}
-
-// compareLabels are the cells of Compare's labels' column: its widest label
-// whole, at most compareNameMost. Its labels are WEEK USED's, BY MODEL's
-// heading, each version's name, and the groups' names and their rows'
-// labels, from where each is drawn.
-func (f Frame) compareLabels() int {
-	widest := max(weekLabel(f.Accounts.Period).width(), groupHead("BY MODEL", "share of use", false).width())
-	if f.Accounts.Page != nil {
-		for _, v := range f.Accounts.Page.Versions {
-			widest = max(widest, versionAt+ansi.StringWidth(prose.Clean(v.Name)))
-		}
-	}
-	for _, g := range (compared{f: f}).groups() {
-		widest = max(widest, ansi.StringWidth(g.name))
-		for _, r := range g.rows {
-			widest = max(widest, labelIndent+ansi.StringWidth(r.label))
-		}
-	}
-	return min(widest, compareNameMost)
 }
 
 // leastCompared are the fewest cells a column of Compare takes: leastColumn,
@@ -390,14 +374,15 @@ func (cp compared) heads(c *canvas, top int, columns []compareColumn) {
 }
 
 // named is the column's head in the cells given: an account's number, its
-// name, cut short to keep its number and marks, and its marks but ▲; all
-// accounts', 0 and its name.
+// name, at most compareNameMost cells with its marks however wide its column,
+// cut short to keep its number and marks, and its marks but ▲; all accounts',
+// 0 and its name.
 func (cp compared) named(col compareColumn, cells int) line {
 	if col.all {
 		return line{{"0", dimInk}, {" all accounts", strongInk}}.fit(cells)
 	}
 	named := accountName{number: strconv.Itoa(col.place), label: name(col.account), primary: col.account.Primary}
-	return named.labelIn(cells - len(named.number) - 1 - named.marks().width())
+	return named.labelIn(min(cells-len(named.number)-1, compareNameMost) - named.marks().width())
 }
 
 // stands is how the column's account stands, in the cells given: its state
@@ -563,9 +548,9 @@ type compareRow struct {
 // groups are Compare's groups under BY MODEL: ACTIVITY, LIMITS and VALUE, as
 // Accounts' words say each figure. A period with nothing recorded, as on a
 // fresh install, says a dash in each of its own figures, as period has it;
-// left at its last reset, the plan and extra usage are none of them. Its
-// names and labels read no page, so they're known before it is.
+// left at its last reset, the plan and extra usage are none of them.
 func (cp compared) groups() []compareGroup {
+	page := *cp.page
 	names := cp.f.windowNamer(cp.m)
 	return []compareGroup{
 		{name: "ACTIVITY", rows: []compareRow{
@@ -586,7 +571,7 @@ func (cp compared) groups() []compareGroup {
 			{"plan", func(col compareColumn) []part { return planParts(col.row, col.ink()) }},
 			{"extra usage", cp.extra},
 			{"worth at API prices", cp.period(func(col compareColumn) []part { return worthParts(col.row, col.ink()) })},
-			{"against its price", cp.period(func(col compareColumn) []part { return againstParts(*cp.page, col.row, col.width) })},
+			{"against its price", cp.period(func(col compareColumn) []part { return againstParts(page, col.row, col.width) })},
 		}},
 	}
 }

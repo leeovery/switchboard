@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/dashboard/flex"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -45,20 +46,34 @@ type turnedLayout struct {
 // turnedLaid is a phone's Compare's columns laid out across the frame: its
 // names at their widest whole, at least compareNameLeast and at most
 // compareNameMost; its bars at least turnedBar, growing to barMost; and its
-// figures at the widest of a percentage and the columns' largest versions.
+// figures at least a percentage, and whole the widest largest version any
+// version can show, as widestLargest has it. The figures read no page, so
+// nothing moves as it's read, or as the period changes: where the row is
+// short, the names and bars take their cells first, the figures' last.
 func (cp compared) turnedLaid(columns []compareColumn) turnedLayout {
-	names, figures := 0, percentCells
+	names := 0
 	for _, col := range columns {
 		names = max(names, wholeName(turnedNamed(col)))
-		figures = max(figures, 1+partsWidth(cp.turnedLargest(col)))
 	}
 	s, _ := flex.Lay(cp.f.edge(), []flex.Part{
 		turnedIndent:  {Least: turnedNameAt, Natural: turnedNameAt},
 		turnedNames:   {Least: compareNameLeast, Natural: names, Most: compareNameMost},
 		turnedBars:    {Least: turnedBar, Natural: turnedBar, Grows: true, Most: barMost, Gap: turnedApart},
-		turnedFigures: {Least: figures, Natural: figures, Gap: 1},
+		turnedFigures: {Least: percentCells, Natural: 1 + widestLargest(), Gap: 1},
 	}...)
 	return turnedLayout{names: s[turnedNames].Size, at: s[turnedBars].At, bar: s[turnedBars].Size, figures: s[turnedFigures].At}
+}
+
+// widestLargest are the cells of the widest largest version a phone's
+// Compare can show, as versionsNamed names it: each version the version
+// table names, at a share of 100%.
+func widestLargest() int {
+	whole := 1.0
+	widest := 0
+	for _, v := range ledger.Pricing.Versions {
+		widest = max(widest, partsWidth(versionsNamed([]versionUsed{{version: v, share: &whole}}, 0)))
+	}
+	return widest
 }
 
 // A phone's Detail's columns: USAGE's bars, stackUsageBar cells, from

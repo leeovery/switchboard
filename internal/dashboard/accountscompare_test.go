@@ -340,11 +340,30 @@ func TestComparesHeadsKeepToTheirColumns(t *testing.T) {
 			t.Errorf("row %d from column %d reads %q, want %q", tt.row, tt.column, got, tt.want)
 		}
 	}
-	configured[1].Label = "personal-account-of-mine-and-then-some"
-	account("personal", func(a *status.Account) { a.Label = configured[1].Label })(&doc)
-	f.Accounts.First = 0
-	if got, want := ansi.Cut(f.Draw(doc.WorkedOut(claudeLike), routedAt)[6], 60, 93), "2 personal-account-of-mine-an… ◆ "; got != want {
-		t.Errorf("personal's head reads %q, want %q", got, want)
+}
+
+// A name is at most 24 cells, its marks among them, however wide its column:
+// one past it is cut with …, keeping its number and marks, as a phone's is.
+func TestComparesNamesAreCutToTheMostHoweverWideTheirColumn(t *testing.T) {
+	const long = "personal-account-of-mine-and-then-some"
+	tests := []struct {
+		name  string
+		frame func(t *testing.T) (Frame, status.Document)
+	}{
+		{name: "ten at 160", frame: func(t *testing.T) (Frame, status.Document) { return tenOnCompare(t, 160, 37, 0) }},
+		{name: "three at 220", frame: func(t *testing.T) (Frame, status.Document) { return threeCompared(t, 220, 37) }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f, doc := tt.frame(t)
+			f.Accounts.Accounts = slices.Clone(f.Accounts.Accounts)
+			f.Accounts.Accounts[1].Label = long
+			account("personal", func(a *status.Account) { a.Label = long })(&doc)
+			heads := f.Draw(doc.WorkedOut(claudeLike), routedAt)[6]
+			if at := columnOf(heads, "2 personal-account-of-m… ◆ "); at < 0 {
+				t.Errorf("personal's head isn't cut to 24 cells with its marks, in %q", heads)
+			}
+		})
 	}
 }
 
@@ -819,9 +838,10 @@ func TestComparesBarsGrowWithTheirColumnsToTheMost(t *testing.T) {
 	}
 }
 
-// The labels' column is as wide as its widest label, at most 24 cells, and
-// the columns start 2 cells after it: a version's name past it is cut to it.
-func TestComparesLabelsTakeTheirWidestToTheMost(t *testing.T) {
+// The labels' column is fixed at 24 cells, its widest label's, left at its
+// last reset indented 2, and the columns start 2 cells after it: a version's
+// name past it is cut to it.
+func TestComparesLabelsColumnHoldsItsLabelsAndCutsAVersionsName(t *testing.T) {
 	f, doc := threeCompared(t, 160, 37)
 	f.Accounts.Page.Versions[0].Name = "Opus 5.5 with a name long past the most"
 	rows := f.Draw(doc, routedAt)
