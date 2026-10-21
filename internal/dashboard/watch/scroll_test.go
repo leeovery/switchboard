@@ -25,8 +25,9 @@ func twelve() status.Document {
 	return document(accounts...)
 }
 
-// yearSize is a terminal History's Year of a month's requests scrolls in: 8
-// rows at most, a page of 18.
+// yearSize is a terminal History's Year of a month's requests scrolls in, its
+// numbers under the key: 31 rows in a view of 17, so 14 rows at most, and a
+// page of 16 from the top, where BY MONTH's heading is kept off its foot.
 var yearSize = tea.WindowSizeMsg{Width: 150, Height: 26}
 
 // yearHarness is a model of the router of three, showing History's Year of
@@ -51,8 +52,8 @@ func (h *harness) scrolled() string {
 
 func TestScrollKeysScrollTheViewNoFurtherThanItGoes(t *testing.T) {
 	h := yearHarness(t, yearSize)
-	if got := h.model.scrolling(); got.Most != 9 || got.Page != 17 {
-		t.Fatalf("scrolling() = %+v, want 9 rows at most, a page of 17, its last row saying what's out of view", got)
+	if got := h.model.scrolling(); got.Most != 14 || got.Page != 16 {
+		t.Fatalf("scrolling() = %+v, want 14 rows at most, a page of 16, its last row saying what's out of view", got)
 	}
 	steps := []struct {
 		name string
@@ -62,8 +63,8 @@ func TestScrollKeysScrollTheViewNoFurtherThanItGoes(t *testing.T) {
 		{name: "j, a row down", key: tea.KeyPressMsg{Code: 'j', Text: "j"}, want: 1},
 		{name: "j again", key: tea.KeyPressMsg{Code: 'j', Text: "j"}, want: 2},
 		{name: "k, a row up", key: tea.KeyPressMsg{Code: 'k', Text: "k"}, want: 1},
-		{name: "PgDn, a page, but no further than it goes", key: tea.KeyPressMsg{Code: tea.KeyPgDown}, want: 9},
-		{name: "j at the foot, nowhere", key: tea.KeyPressMsg{Code: 'j', Text: "j"}, want: 9},
+		{name: "PgDn, a page, but no further than it goes", key: tea.KeyPressMsg{Code: tea.KeyPgDown}, want: 14},
+		{name: "j at the foot, nowhere", key: tea.KeyPressMsg{Code: 'j', Text: "j"}, want: 14},
 		{name: "PgUp, a page, but no further than the top", key: tea.KeyPressMsg{Code: tea.KeyPgUp}, want: 0},
 		{name: "k at the top, nowhere", key: tea.KeyPressMsg{Code: 'k', Text: "k"}, want: 0},
 	}
@@ -141,15 +142,15 @@ func TestTheWheelScrollsTheViewNoFurtherThanItGoes(t *testing.T) {
 	h := yearHarness(t, yearSize)
 	x, y := 10, h.overTheView()
 
-	for range 4 {
+	for range 5 {
 		h.wheel(tea.MouseWheelDown, x, y)
 	}
-	if h.model.scroll != 9 {
-		t.Errorf("four turns down scrolled %d rows, want 9, as far as the Year goes", h.model.scroll)
+	if h.model.scroll != 14 {
+		t.Errorf("five turns down scrolled %d rows, want 14, as far as the Year goes", h.model.scroll)
 	}
 	h.wheel(tea.MouseWheelUp, x, y)
-	if h.model.scroll != 9-wheelRows {
-		t.Errorf("a turn up scrolled to %d rows, want %d", h.model.scroll, 9-wheelRows)
+	if h.model.scroll != 14-wheelRows {
+		t.Errorf("a turn up scrolled to %d rows, want %d", h.model.scroll, 14-wheelRows)
 	}
 }
 
@@ -353,13 +354,13 @@ func TestAScrollTheScreenNoLongerTakesIsDrawnAsFarAsItGoes(t *testing.T) {
 	h := yearHarness(t, yearSize)
 	h.update(tea.KeyPressMsg{Code: tea.KeyPgDown})
 	h.update(tea.WindowSizeMsg{Width: yearSize.Width, Height: yearSize.Height + 1})
-	if most := h.model.scrolling().Most; most != 8 {
-		t.Fatalf("a taller terminal scrolls %d rows at most, want 8", most)
+	if most := h.model.scrolling().Most; most != 13 {
+		t.Fatalf("a taller terminal scrolls %d rows at most, want 13", most)
 	}
 	at := h.scrolled()
 	h.press("k")
-	if h.model.scroll != 7 || h.scrolled() == at {
-		t.Errorf("k, from as far as the Year goes, scrolled to %d, showing %q; want 7, a row up from where it was drawn", h.model.scroll, h.scrolled())
+	if h.model.scroll != 12 || h.scrolled() == at {
+		t.Errorf("k, from as far as the Year goes, scrolled to %d, showing %q; want 12, a row up from where it was drawn", h.model.scroll, h.scrolled())
 	}
 }
 

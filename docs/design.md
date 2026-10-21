@@ -2227,8 +2227,8 @@ section holds.
 fit: its key whole after the days' names, reckoned with every cut at four figures and its unit
 without the use shown, so the form never hangs on the data or a label's length, as from 99
 columns. Narrower, it's drawn as a phone lays it out (On a phone, below). In the wide form, the
-numbers sit beside the grid only where the whole year and the numbers, at their reckoned width,
-fit beside it, else under the key (the owner's call, 21 October 2026, over fewer weeks with the
+numbers sit beside the grid only where the most weeks a span holds and the numbers, at their
+reckoned width, fit beside it, else under the key (the owner's call, 21 October 2026, over fewer weeks with the
 numbers beside); on a phone, they're always under the key. Where they sit is decided by the width
 alone, never by what's shown, so `v` and `<` `>` never move BY MONTH (settled 21 October 2026).
 
@@ -2249,15 +2249,17 @@ alone, never by what's shown, so `v` and `<` `>` never move BY MONTH (settled 21
   any figure's format draws, as a day, a run of days or a share, or limits hit in two windows of
   four figures, `week ×9,999 · 5-hour ×9,999`; from 168 columns. There, `LAST 12 MONTHS` on row 6,
   or after the use shown, its name cut, never the period, `THE-RESEARCH-TE… · 12 MONTHS`, the
-  period alone where not even the name's ellipsis fits before it; then from row 7 a row each, a
-  figure longer than its column takes its shorter forms, limits leaving off windows whole. Where
-  they don't fit there, `LAST 12 MONTHS` on row 17, under the key, at column 0, and under it the
-  numbers in columns of three, 4 cells apart, each as wide as its widest figure whole: the counts,
-  the money, then the busiest day and the longest run. Where the room is short, a figure takes its
-  shorter forms before any whole figure leaves: the second column narrows to its figures' shortest
-  forms, against it over the plans known compact, then alone; then the columns past the second
-  leave, the last first; then the first narrows, limits leaving off their windows whole; then the
-  second leaves. The last column shown takes the row's cells to the frame's width. Labels 13
+  period alone where not even the name's ellipsis fits before it; with all use shown, `LAST` is
+  never cut and leaves whole, so it reads `12 MONTHS` from 9 to 13 columns and `LAST 12 MONTHS`
+  from 14; then from row 7 a row each, a figure longer than its column takes its shorter forms,
+  limits leaving off windows whole. Where they don't fit there, `LAST 12 MONTHS` on row 17, under
+  the key, at column 0, and under it the numbers in columns of three, 4 cells apart, each as wide
+  as its widest figure whole: the counts, the money, then the busiest day and the longest run.
+  Where the room is short, a figure takes its shorter forms before any whole figure leaves: the
+  second column narrows to its figures' shortest forms, against it over the plans known compact,
+  then alone; then the columns past the second leave, the last first; then the first narrows,
+  limits leaving off their windows whole; then the second leaves. The last column shown takes the
+  row's cells to the frame's width. Labels 13
   wide in `text.subtle` and values in `text.secondary`: `requests`, `236,410`; `sessions`, `1,688`,
   each counted once; `limits hit`, `5-hour ×402`, in `state.destructive`, those of more than one
   window joined by ` · `, `week ×3 · 5-hour ×402` (settled in the plan; in the order of care); `worth`, `$27,480`;
