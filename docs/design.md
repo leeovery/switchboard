@@ -2232,15 +2232,15 @@ fit beside it, else under the key (the owner's call, 21 October 2026, over fewer
 numbers beside); on a phone, they're always under the key. Where they sit is decided by the width
 alone, never by what's shown, so `v` and `<` `>` never move BY MONTH (settled 21 October 2026).
 
-- **The grid:** the latest weeks that fit, the whole year's at most, up to 54, as the year's span
-  falls across the weeks, the last 12 months to this week: as many as end, with their months' names
-  over them, short of the frame's margin, as all 53 from 122 columns. A column a week, 2 cells
-  apart, from column 14; a row a day, rows 7 to 13, from the week's first day as `week_starts` sets
-  it (see Config), each day `■` in its level's shade; days still to come this week left out. A day
-  before the ledger recorded anything is an empty square like any other, with no line saying when
-  it began. The first, third and fifth days' names, `Mon`, `Wed` and `Fri`, at column 0 in
-  `text.subtle`; on row 6, each month's name over the column of its first week, in `text.faint`,
-  the current month's in `text.secondary`.
+- **The grid:** the latest weeks that fit, the period's at most: the last 12 months' 53, to this
+  week, or a calendar year's 53 or 54, as its span falls across the weeks: as many as end, with
+  their months' names over them, short of the frame's margin, as all 53 from 122 columns. A column
+  a week, 2 cells apart, from column 14; a row a day, rows 7 to 13, from the week's first day as
+  `week_starts` sets it (see Config), each day `■` in its level's shade; days still to come this
+  week left out. A day before the ledger recorded anything is an empty square like any other, with
+  no line saying when it began. The first, third and fifth days' names, `Mon`, `Wed` and `Fri`, at
+  column 0 in `text.subtle`; on row 6, each month's name over the column of its first week, in
+  `text.faint`, the current month's in `text.secondary`.
 - **The key,** row 15, from column 14: each shade's `■` and its bounds in requests a day, the cuts
   rounded to 50, in `text.subtle`, `■ none   ■ under 450   ■ 450–750   ■ 750–1,000   ■ over 1,000`,
   then two spaces and `requests a day` in `text.faint`.

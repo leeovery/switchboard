@@ -591,10 +591,10 @@ func yearPages(t *testing.T) map[string]func(width int) Frame {
 
 // The Year takes its wide form where its key fits whole, reckoned at cuts
 // of four figures: from 99 columns; narrower, a phone's. Its numbers are
-// beside the grid, at column 126, from one width, whatever's shown:
+// beside the grid, at column 128, from one width, whatever's shown:
 // besideFrom, their labels and limits of two windows of four figures fitting
-// after the whole year's weeks; narrower, and always on a phone, they're
-// under the key.
+// after the 54 weeks a span can hold; narrower, and always on a phone,
+// they're under the key.
 func TestTheYearsArrangementIsWhereItsPartsFit(t *testing.T) {
 	for name, frame := range yearPages(t) {
 		for _, width := range []int{73, 98, 99, 138, besideFrom - 1, besideFrom, 220} {
@@ -938,10 +938,11 @@ func TestA54WeekYearKeepsTheGapBeforeTheNumbers(t *testing.T) {
 }
 
 // The numbers' heading cuts the name of the use shown, never its period: an
-// account of a label longer than the column beside the grid has. In any
-// width from 8 columns, of a long label or a version, the period follows
-// the name whole, the name down to its ellipsis alone; narrower than that,
-// the period shows alone, whole where it fits.
+// account of a label longer than the column beside the grid has. At every
+// width from 8 columns, the period follows any name before it whole: a use's
+// name down to its ellipsis alone, from 13 columns for 12 MONTHS and from 8
+// for a year, as 2025; LAST whole, from 14. Narrower, the period shows
+// alone, whole where it fits, else as an ellipsis.
 func TestTheNumbersHeadingCutsItsNameNeverItsPeriod(t *testing.T) {
 	long := config.Accounts{{ID: "acct-2", Label: "the-research-team-with-a-label-longer-than-its-column"}}
 	f := yearFrame(t, besideFrom, 60, views.YearAsk{Account: "acct-2"}, plainYear())
@@ -951,20 +952,30 @@ func TestTheNumbersHeadingCutsItsNameNeverItsPeriod(t *testing.T) {
 	if want := "THE-RESEARCH-TEAM-WITH-A-LA… · 12 MONTHS"; heading != want {
 		t.Errorf("the numbers' heading reads %q, want %q", heading, want)
 	}
-	for width := 8; width <= 30; width++ {
-		account := yearFrame(t, width, 60, views.YearAsk{Account: "acct-2"}, plainYear())
-		account.History.Accounts = long
-		for _, f := range []Frame{account, yearFrame(t, width, 60, views.YearAsk{Version: "Opus 5.5"}, opusYear())} {
+	tests := []struct {
+		name          string
+		ask           views.YearAsk
+		page          func() views.YearPage
+		apart, period string
+		namedFrom     int
+	}{
+		{name: "an account of a long label", ask: views.YearAsk{Account: "acct-2"}, page: plainYear, apart: " · ", period: "12 MONTHS", namedFrom: 13},
+		{name: "a version", ask: views.YearAsk{Version: "Opus 5.5"}, page: opusYear, apart: " · ", period: "12 MONTHS", namedFrom: 13},
+		{name: "an account's calendar year", ask: views.YearAsk{Account: "acct-2", Year: 2025}, page: plainYear, apart: " · ", period: "2025", namedFrom: 8},
+		{name: "all use", ask: views.YearAsk{}, page: plainYear, apart: " ", period: "12 MONTHS", namedFrom: 14},
+	}
+	for _, tt := range tests {
+		for width := 8; width <= 30; width++ {
+			f := yearFrame(t, width, 60, tt.ask, tt.page())
+			f.History.Accounts = long
 			y, _ := f.yearDrawn()
 			c := newCanvas(width, 1)
 			y.heading(c, 0, 0)
 			got := textOf(c.rows(Look{}))[0]
-			named := strings.HasSuffix(got, " · 12 MONTHS") && !strings.HasPrefix(got, " ")
-			if !named && got != "12 MONTHS" && (width >= 9 || got != "…") {
-				t.Errorf("at %d columns, the heading reads %q, want a name, cut, then · 12 MONTHS, or the period alone", width, got)
-			}
-			if named != (width >= 13) {
-				t.Errorf("at %d columns, the heading reads %q: the name shown %t, want it from 13 columns", width, got, named)
+			named := strings.HasSuffix(got, tt.apart+tt.period) && !strings.HasPrefix(got, " ")
+			alone := got == tt.period || (ansi.StringWidth(tt.period) > width && got == "…")
+			if named != (width >= tt.namedFrom) || !named && !alone {
+				t.Errorf("%s at %d columns, the heading reads %q; want a name before%s%s from %d columns, else the period alone", tt.name, width, got, tt.apart, tt.period, tt.namedFrom)
 			}
 		}
 	}

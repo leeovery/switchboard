@@ -20,15 +20,14 @@ import (
 // The Year's parts, as the design lays them out, wide and on a phone.
 const (
 	// yearGridX is the grid's first column, and the wide key's; a phone's is
-	// yearPhoneGridX. A year's span holds yearWeeks at most, as it falls
-	// across the weeks; the grid shows those that fit, two cells a week.
+	// yearPhoneGridX. The grid shows the weeks that fit, two cells a week.
 	yearGridX      = 14
 	yearPhoneGridX = 4
-	yearWeeks      = 54
 	// The numbers' labels are yearLabelCells wide, or on a phone
 	// yearPhoneLabelCells. Beside the grid, they're yearNumbersGap cells after
-	// the whole year's weeks; under the key, in columns of yearFiguresDown,
-	// yearColumnsApart cells apart.
+	// the most weeks a span holds, views.MostYearWeeks, so a span of fewer
+	// ends further short of them; under the key, in columns of
+	// yearFiguresDown, yearColumnsApart cells apart.
 	yearLabelCells      = 13
 	yearPhoneLabelCells = 10
 	yearNumbersGap      = 6
@@ -170,8 +169,9 @@ func noteParts(f yearForm, bar, note int) []flex.Part {
 }
 
 // layOut lays the Year's parts out in the frame, in its form: the weeks
-// that fit; the numbers beside the grid where the whole year and they fit
-// there, else under the key, and BY MONTH under them; and BY MONTH's bars.
+// that fit; the numbers beside the grid where the most weeks a span holds
+// and they fit there, else under the key, and BY MONTH under them; and BY
+// MONTH's bars.
 func (y yearDrawn) layOut() yearLaid {
 	l := yearLaid{weeks: y.weeksShown(), bar: y.barCells()}
 	if beside, ok := y.besideAt(); ok {
@@ -221,7 +221,7 @@ func (y yearDrawn) besideAt() (flex.Span, bool) {
 	numbers := y.reckonedNumbers()
 	s, fits := flex.Lay(y.Width,
 		flex.Part{Least: yearGridX, Natural: yearGridX},
-		flex.Part{Least: 2 * yearWeeks, Natural: 2 * yearWeeks},
+		flex.Part{Least: 2 * views.MostYearWeeks, Natural: 2 * views.MostYearWeeks},
 		flex.Part{Least: numbers, Natural: numbers, Gap: yearNumbersGap, Grows: true},
 	)
 	return s[2], fits
@@ -232,14 +232,17 @@ func (y yearDrawn) besideAt() (flex.Span, bool) {
 const reckonedLimit = 9_999
 
 // reckonedNumbers is the width the numbers beside the grid are reckoned at,
-// whatever's shown, so where they sit holds still as the data changes,
-// across all use, a version and an account, as v and < > step through them:
-// their wide labels, then the widest the figures' formats draw, as each
-// figure declares it, or limits hit in two windows, each reckonedLimit.
+// the same whatever's shown, so where they sit holds still as the data
+// changes and as v and < > step through all use, the versions and the
+// accounts: their wide labels, then the widest any kind's figures' formats
+// draw, as each figure declares it, of all use, an account's alike, and of a
+// version, or limits hit in two windows, each reckonedLimit.
 func (y yearDrawn) reckonedNumbers() int {
 	widest := y.limitsFigure(map[string]int{"5h": reckonedLimit, "7d": reckonedLimit}).value.width()
-	for _, figure := range y.figures() {
-		widest = max(widest, figure.widest)
+	for _, version := range []bool{false, true} {
+		for _, figure := range y.figuresOf(version) {
+			widest = max(widest, figure.widest)
+		}
 	}
 	return yearLabelCells + widest
 }
@@ -279,6 +282,8 @@ func (y yearDrawn) figureColumns() []figureColumn {
 		}
 	}
 	last := &columns[len(columns)-1]
+	// Where even the first column's least doesn't fit, flex lays the row past
+	// the frame, and the clamp holds the column to it.
 	last.cells = min(end, y.Width) - last.x
 	return columns
 }
@@ -518,27 +523,31 @@ func (y yearDrawn) unit(what string) string {
 
 // heading draws the numbers' heading at x along row row, cut at the frame's
 // width: the period, LAST 12 MONTHS or the year, as 2025; or after the use
-// shown, OPUS 5.5 · 12 MONTHS or WORK · 2025, the use's name cut, never the
-// period, as THE-RESEARCH-TE… · 12 MONTHS, as flex lays them, while its
-// ellipsis fits before it; else the period alone.
+// shown, OPUS 5.5 · 12 MONTHS or WORK · 2025. As flex lays them, the
+// period is never cut while any name before it shows: the use's name cut,
+// as THE-RESEARCH-TE… · 12 MONTHS, while its ellipsis fits, and LAST whole;
+// else the period alone.
 func (y yearDrawn) heading(c *canvas, x, row int) {
 	period := "12 MONTHS"
 	if y.ask.Year != 0 {
 		period = strconv.Itoa(y.ask.Year)
 	}
-	width, said := y.Width-x, []part{figureIn(period, dimInk)}
+	name, apart, least := "", "", 0
 	switch {
 	case y.shown() != "":
-		name, tail := line{{strings.ToUpper(y.shown()), dimInk}}, line{{" · ", dimInk}, {period, dimInk}}
-		s, fits := flex.Lay(width, flex.Part{Least: 1, Natural: name.width()}, flex.Part{Least: tail.width(), Natural: tail.width()})
-		if fits {
-			c.line(x, row, append(name.fit(s[0].Size), tail...))
+		name, apart, least = strings.ToUpper(y.shown()), " · ", 1
+	case y.ask.Year == 0:
+		name, apart, least = "LAST", " ", ansi.StringWidth("LAST")
+	}
+	width, lead, tail := y.Width-x, line{{name, dimInk}}, line{{apart, dimInk}, {period, dimInk}}
+	if name != "" {
+		s, _ := flex.Lay(width, flex.Part{Least: least, Natural: lead.width(), Leaves: 1}, flex.Part{Least: tail.width(), Natural: tail.width()})
+		if !s[0].Left {
+			c.line(x, row, append(lead.fit(s[0].Size), tail...))
 			return
 		}
-	case y.ask.Year == 0:
-		said = append([]part{wordsIn("LAST ", dimInk)}, said...)
 	}
-	c.line(x, row, fitParts(width, said...))
+	c.line(x, row, fitParts(width, figureIn(period, dimInk)))
 }
 
 // yearFigure is one of the Year's numbers: its label, and a phone's, what it
@@ -580,12 +589,18 @@ func (figure yearFigure) drawn(label string, labelCells, width int) line {
 // is a dash. Each a look can change, all but what the plans cost, is
 // numbered as the Year's, by its label.
 func (y yearDrawn) figures() []yearFigure {
+	return y.figuresOf(y.ofVersion())
+}
+
+// figuresOf are the Year's numbers, as figures has them, of a version where
+// version says, else of all use or an account, its page's numbers in them.
+func (y yearDrawn) figuresOf(version bool) []yearFigure {
 	n := y.page.Numbers
 	figures := []yearFigure{
 		{label: "requests", short: "requests", value: line{{prose.Grouped(n.Requests), secondaryInk}}, changes: true},
 		{label: "sessions", short: "sessions", value: line{{prose.Grouped(n.Sessions), secondaryInk}}, changes: true},
 	}
-	if y.ofVersion() {
+	if version {
 		figures = append(figures,
 			yearFigure{label: "worth", short: "worth", value: worthSaid(n.Worth, secondaryInk), changes: true},
 			yearFigure{label: "of all use", short: "share", value: shareSaid(n.Share, secondaryInk), changes: true, widest: widestShare},
