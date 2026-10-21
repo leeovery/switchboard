@@ -246,7 +246,7 @@ const (
 	phoneAllowedFix = "remove it from phoneAllowed, or from chrome, in internal/dashboard/guard_test.go"
 	sizedAllowedFix = "remove it from sizedAllowed, or from chromeSized, in internal/dashboard/guard_test.go"
 	cutAllowedFix   = "remove it from cutAllowed in internal/dashboard/guard_test.go"
-	measuresFix     = "remove it from contentMeasures in internal/dashboard/guardsizes_test.go, or name it as it's called now"
+	measuresFix     = "remove it from contentMeasures in internal/dashboard/guardsizes_test.go"
 )
 
 // phoneSays, sizedSays, cutSays and cutValueSays say how a use of what's
@@ -286,8 +286,8 @@ type allowed struct {
 // flexBreaches are where the module's packages break the guard's rules but
 // where a allows: every package by the phone's breakpoint, and drawing's by
 // sizes, as sizes judges them, and cuts, as cutBreaches does. Then each
-// allowed that's gone, or keeps its rule, and each measure that's gone. One
-// loader reads them all, once.
+// allowed that's gone, or keeps its rule, and each measure that's gone, or
+// passes over no comparison. One loader reads them all, once.
 func flexBreaches(t *testing.T, root, module string, every, drawing []string, a allowed) []string {
 	t.Helper()
 	l := sourcecheck.NewLoader(t, root, module, every)
@@ -302,10 +302,11 @@ func flexBreaches(t *testing.T, root, module string, every, drawing []string, a 
 	w := widthsOf(files)
 	names := sourcecheck.NamesIn(module)
 	sizes := sizesOf(files, w, names, a.measures)
+	sized := l.Check(sourcecheck.Rule{Names: names, Node: sizes.sized}, drawing, sourcecheck.Allowance{Entries: a.sized, List: "sizedAllowed", Fix: sizedAllowedFix})
 	return slices.Concat(
 		l.Check(sourcecheck.Rule{Names: names, Used: used}, every, sourcecheck.Allowance{Entries: a.phone, List: "phoneAllowed", Fix: phoneAllowedFix}),
-		l.Check(sourcecheck.Rule{Names: names, Node: sizes.sized}, drawing, sourcecheck.Allowance{Entries: a.sized, List: "sizedAllowed", Fix: sizedAllowedFix}),
-		sizes.goneMeasures(files),
+		sized,
+		sizes.idleMeasures(files),
 		cutBreaches(l, module, drawing, files, w, a.cut),
 	)
 }
@@ -364,7 +365,7 @@ func TestTheFlexGuardFindsWhatItGuardsAgainst(t *testing.T) {
 			"internal/dashboard/values.go:allowedValue",
 			"internal/dashboard/values.go:keptValue",
 		},
-		measures: []string{"dashboard.line.width", "dashboard.line.height"},
+		measures: []string{"dashboard.line.width", "dashboard.line.rows", "dashboard.line.height"},
 	})
 	unjudged := func(width string) string {
 		return module + "/internal/prose.Cut can't be judged, as the type of its argument " + width +
@@ -402,7 +403,8 @@ func TestTheFlexGuardFindsWhatItGuardsAgainst(t *testing.T) {
 		"internal/dashboard/sizes.go:16: " + sizedSays("f.Height > 24"),
 		"internal/dashboard/sizes.go:20: " + sizedSays("width <= 1"),
 		"internal/dashboard/sizes.go:keptSize: sizedAllowed allows it, but it keeps the rule; " + sizedAllowedFix,
-		"dashboard.line.height: contentMeasures names it, but it's gone; " + measuresFix,
+		"dashboard.line.rows: contentMeasures names it, but it's gone; " + measuresFix,
+		"dashboard.line.height: contentMeasures names it, but it passes over no comparison with a constant; " + measuresFix,
 		"internal/dashboard/boxes.go:10: " + cutSays("("+module+"/internal/dashboard.box[T]).fit"),
 		"internal/dashboard/columns.go:31: " + cutSays(module+"/internal/dashboard.drawCall"),
 		"internal/dashboard/columns.go:32: " + cutSays(module+"/internal/dashboard.label"),
@@ -693,6 +695,8 @@ func lines(name string, room int) []line {
 }
 
 func (l line) width() int { return len(l) }
+
+func (l line) height() int { return 1 }
 `,
 	// Sizes compared with constants followed a step back, a local's and a
 	// package-level variable's; by equality, but with 0; named by a size
@@ -771,9 +775,10 @@ var (
 	// from outside, a count and a line's width, a measure of content; sizes
 	// of fields the loader lost, by their names, beside one named otherwise;
 	// a generic function's, called instantiated and not; a constant the
-	// loader lost, written and through a variable; and switches on sizes,
-	// each case by equality, but 0, beside a switch with no tag, its cases
-	// comparisons.
+	// loader lost, written and through a variable, beside a field of a
+	// parameter whose type it lost, a variable's; switches on sizes, each
+	// case by equality, but 0, beside a switch with no tag, its cases
+	// comparisons; and a measure compared with a variable alone.
 	"internal/dashboard/measured.go": `package dashboard
 
 import (
@@ -824,6 +829,10 @@ func switched(f Frame, width int) int {
 	}
 	return 4
 }
+
+type bounds struct{ limit cells.Size }
+
+func bounded(o bounds, l line, width int) bool { return width < o.limit || l.height() <= width }
 `,
 	// The watch, which chooses by the breakpoint too.
 	"internal/dashboard/watch/watch.go": `package watch

@@ -35,36 +35,33 @@ var flipped = map[token.Token]token.Token{token.LSS: token.GTR, token.LEQ: token
 // each by its name as sourcecheck.Names has it, that measure what's drawn
 // rather than read the frame, so a call of one reads no size, as
 // ansi.StringWidth reads none: a fit of what's measured to a constant is a
-// cut's, Rule 2's, not an arrangement's. Each must still be there.
+// cut's, Rule 2's, not an arrangement's. A measure laid out by the frame, or
+// given a width by its caller, reads one. The list only shrinks: each must
+// still be there, and still pass over a comparison with a constant; a slice
+// that needs another adds it, with its reason.
 var contentMeasures = []string{
-	// A line's cells, its spans' widths summed.
+	// A line's cells, its spans' widths summed: phoneOn's fit.
 	"dashboard.line.width",
-	// Parts' cells, as drawn on a line.
-	"dashboard.partsWidth",
-	// A token period's own rows.
+	// A token period's own rows: periodHeads'.
 	"dashboard.tokensHeight",
-	// The rows sentences take wrapped to a width.
-	"dashboard.wrappedRows",
-	// The rows a pane's puts take.
-	"dashboard.pane.height",
-	// The rows a lane's calls take.
-	"dashboard.boardLane.rows",
 }
 
 // sizes judge what's compared with a size in the drawing packages, by the
 // widths worked out of them, and the packages' paths, whose functions giving
-// a size read one, but the measures of content, named as names names them.
+// a size read one, but the measures of content, named as names names them;
+// and note each measure that passes over a comparison with a constant.
 type sizes struct {
 	widths
-	drawing  map[string]bool
-	names    sourcecheck.Names
-	measures []string
+	drawing    map[string]bool
+	names      sourcecheck.Names
+	measures   []string
+	passedOver map[string]bool
 }
 
 // sizesOf are the sizes of the files given, by their widths w, passing over
 // the measures, as contentMeasures names them, named as names names them.
 func sizesOf(files []sourcecheck.File, w widths, names sourcecheck.Names, measures []string) sizes {
-	s := sizes{widths: w, drawing: make(map[string]bool), names: names, measures: measures}
+	s := sizes{widths: w, drawing: make(map[string]bool), names: names, measures: measures, passedOver: make(map[string]bool)}
 	for _, f := range files {
 		s.drawing[f.Pkg.Path()] = true
 	}
@@ -119,17 +116,25 @@ func (s sizes) switched(sw *ast.SwitchStmt, info *types.Info) string {
 // followed a step back as widths' valueOf follows it, as f.Width <
 // phoneUnder, width < limit or bodyRows == 3; but 0, as whether there's any,
 // or, ordered, 1 as 0, as room < 1 is room <= 0. Where c, so followed,
-// names no variable and its type is lost, it can't be judged.
+// names no variable and its type is lost, it can't be judged. Where size
+// reads one only through a measure of content, and c would break the rule,
+// the measure is noted as passing over the comparison.
 func (s sizes) against(c, size ast.Expr, op token.Token, first bool, compared string, info *types.Info) string {
-	if !s.readsASize(size, info) {
+	reads, measured := s.readsASize(size, info)
+	v := s.constantOf(c, info)
+	breaks := v != nil && !withNone(v, op, first)
+	if !reads {
+		for _, measure := range measured {
+			s.passedOver[measure] = s.passedOver[measure] || breaks
+		}
 		return ""
 	}
 	value := s.valueOf(c, nil, info, false)
-	switch v := s.constantOf(c, info); {
-	case v != nil && withNone(v, op, first):
-		return ""
-	case v != nil:
+	switch {
+	case breaks:
 		return sizedSays(compared)
+	case v != nil:
+		return ""
 	case value != nil && typeLost(value, info) && !namesAVariable(value, info):
 		return sourcecheck.LostSays(compared, "the type of "+types.ExprString(value))
 	}
@@ -153,23 +158,27 @@ func withNone(c constant.Value, op token.Token, first bool) bool {
 // variable or a field of a whole number, or of a type the loader lost; a
 // field of what the loader lost, by its name alone; or a call of a function
 // or method of the drawing packages giving a whole number, as d.width() or
-// f.viewRows(), but contentMeasures. It reads through a conversion, as
-// int(width), but not into a call's arguments, as len(f.rowsOf(width))
-// counts what the call gives; and a measure from outside, as
-// ansi.StringWidth, measures a string, not the frame.
+// f.viewRows(), but the measures of content, each it passes over measured.
+// It reads through a conversion, as int(width), but not into a call's
+// arguments, as len(f.rowsOf(width)) counts what the call gives; and a
+// measure from outside, as ansi.StringWidth, measures a string, not the
+// frame.
 //
 // It can't read a size through a method value or a function value held in
 // a variable, as rows := f.viewRows then rows() < 20; or within min or max,
 // as min(f.viewRows(), 30) < 20.
-func (s sizes) readsASize(e ast.Expr, info *types.Info) bool {
-	found := false
+func (s sizes) readsASize(e ast.Expr, info *types.Info) (found bool, measured []string) {
 	ast.Inspect(e, func(n ast.Node) bool {
 		switch n := n.(type) {
 		case *ast.CallExpr:
 			if info.Types[n.Fun].IsType() {
 				return true
 			}
-			found = found || s.givesASize(n, info)
+			gives, measure := s.givesASize(n, info)
+			found = found || gives
+			if measure != "" {
+				measured = append(measured, measure)
+			}
 			return false
 		case *ast.SelectorExpr:
 			if info.Selections[n] == nil && info.Uses[n.Sel] == nil {
@@ -182,22 +191,30 @@ func (s sizes) readsASize(e ast.Expr, info *types.Info) bool {
 		}
 		return !found
 	})
-	return found
+	return found, measured
 }
 
 // givesASize reports whether call calls a function or method of the drawing
-// packages a size word names, giving a whole number, but one of
-// contentMeasures: called as it is, or instantiated, as frameWidth[int](f).
-func (s sizes) givesASize(call *ast.CallExpr, info *types.Info) bool {
+// packages a size word names, giving a whole number, called as it is, or
+// instantiated, as frameWidth[int](f); but of a measure of content, it
+// gives none, and names the measure.
+func (s sizes) givesASize(call *ast.CallExpr, info *types.Info) (gives bool, measure string) {
 	fn, ok := info.Uses[calledIdent(call.Fun)].(*types.Func)
-	return ok && fn.Pkg() != nil && s.drawing[fn.Pkg().Path()] && namesASize(fn.Name()) &&
-		!slices.Contains(s.measures, s.names.Func(fn)) && isWhole(info.Types[call].Type)
+	if !ok || fn.Pkg() == nil || !s.drawing[fn.Pkg().Path()] || !namesASize(fn.Name()) || !isWhole(info.Types[call].Type) {
+		return false, ""
+	}
+	if name := s.names.Func(fn); slices.Contains(s.measures, name) {
+		return false, name
+	}
+	return true, ""
 }
 
-// goneMeasures say of each measure no function or method of the files
-// declares that it's gone, so a measure renamed fails the guard rather than
-// passing over nothing.
-func (s sizes) goneMeasures(files []sourcecheck.File) []string {
+// idleMeasures say of each measure no function or method of the files
+// declares that it's gone, and of each that passed over no comparison with
+// a constant as sized judged them that it passes over none, so a measure
+// renamed, or no longer needed, fails the guard. Called after sized has
+// judged every comparison.
+func (s sizes) idleMeasures(files []sourcecheck.File) []string {
 	declared := make(map[string]bool)
 	for _, f := range files {
 		for _, decl := range f.AST.Decls {
@@ -208,13 +225,16 @@ func (s sizes) goneMeasures(files []sourcecheck.File) []string {
 			}
 		}
 	}
-	var gone []string
+	var idle []string
 	for _, measure := range s.measures {
-		if !declared[measure] {
-			gone = append(gone, measure+": contentMeasures names it, but it's gone; "+measuresFix)
+		switch {
+		case !declared[measure]:
+			idle = append(idle, measure+": contentMeasures names it, but it's gone; "+measuresFix)
+		case !s.passedOver[measure]:
+			idle = append(idle, measure+": contentMeasures names it, but it passes over no comparison with a constant; "+measuresFix)
 		}
 	}
-	return gone
+	return idle
 }
 
 // calledIdent is the identifier naming the function fun calls, through
