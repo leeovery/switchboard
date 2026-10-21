@@ -2088,7 +2088,9 @@ holds.
     it, with no blank rows.
 
 **Detail** shows one account in full, or all of them, chosen from a list at its left. The panel's
-top half is now and the period; a rule, `the last six weeks`, heads the rest.
+top half is now and the period; a rule, `the last six weeks`, heads the rest. The rows and columns
+below are the frames' at 160 columns; its parts across the width are laid by flex, as **Wide, from
+where it fits** says, and where they don't fit, it's stacked, as **On a phone** says.
 
 - **The list,** columns 0 to 19 with the sample's names, a chooser and nothing else: from row 6, 2
   rows apart and from column 1, `0 all accounts`, `0` in `text.subtle` and the name bold
@@ -2103,10 +2105,13 @@ top half is now and the period; a rule, `the last six weeks`, heads the rest.
 - **The list's name column fits the names,** as USAGE's does (see `usage`, the printout): the widest
   number, label and `◆`, with no cells kept for `▲`, which the list doesn't draw, and a gap of two
   cells; at least 14 cells and at most 24. The dot, the lit row, the `│` and the panel move right
-  with it, the panel's parts keeping their widths, and the list gives way first: it widens only
-  into the cells the frame has past the panel's widest rows, 141 columns with the least column, a
-  long label cut with `…` to what's left: from 151 columns the column takes all 24 cells it may
-  (the owner's call, 15 October 2026).
+  with it, and the list gives way first (the owner's call, 15 October 2026): it takes what the
+  panel leaves it, a long label cut with `…` to that. The panel takes its natural, six weeks at a
+  gap of 4 and 2-cell days, before the names take more than 14 cells, at 141 columns; the names
+  narrow to 14 before the panel narrows; and past 141 they take up to 24 before the days grow.
+  Cells the weeks leave at their edge, as the 2 at 138 columns, go to the names before they're
+  cut. As the panel is laid with the names at 24, whatever the labels, its layout follows the
+  width alone.
 - **The panel's head,** row 6: the account's number, name and marks, three spaces, then its state in
   ROUTING's words without its `back …` time, saying where new sessions go (see The Overview): `● at
   its cap · new sessions go elsewhere`, `■ limit reached · new sessions go elsewhere`, `■ refused
@@ -2116,35 +2121,63 @@ top half is now and the period; a rule, `the last six weeks`, heads the rest.
   other models still come here`, in `accent.attention`, its USAGE row as `usage` draws a limit,
   while Compare's word stays the account's own (settled in the plan).
 - **USAGE,** row 8, then every window, used or not, from row 9, 2 rows apart: the window's name in
-  `text.subtle` (`5-hour`, `Week`, `Fable wk`); `usage`'s bar from 9 cells in, 40 wide; a cell on,
-  its percentage, right-aligned in 4 and bold in its level's colour; and two cells on, `usage`'s
-  full words (see `usage`, the printout). For `all accounts`, every account's window together, its
-  words its room, `1.2 of 3 left`.
-- **THIS WEEK,** on USAGE's row, rows 8 to 13, so its last row is level with the last window's:
-  `requests`, `limits`, `plan`, `worth` with its ratio, `$184  4.0×`, `all accounts`' saying it's
-  over the plans known where any isn't, `$635  4.3× · 2 of 3 plans known`, and `extra use`, labels 10
-  wide in `text.subtle`; for `all accounts`, `limits` is how many and `plan` the plans summed,
-  `$600/mo`. It starts at the fifth week's column of BY DAY below, `cx + 4 × step`, column 108. Its
-  title names the period: `THIS WEEK`, or `LAST 30 DAYS`.
+  `text.subtle` (`5-hour`, `Week`, `Fable wk`); `usage`'s bar, 40 wide at 160; a cell on, its
+  percentage, right-aligned in 4 and bold in its level's colour; and two cells on, `usage`'s full
+  words (see `usage`, the printout). For `all accounts`, every account's window together, its
+  words its room, `1.2 of 3 left`. Its row is laid by flex as the stack's is (see On a phone):
+  the names as wide as the widest of every window listed in its shortest whole form, `Sonnet
+  wk`, never cut, and at least 8 cells; a cell on, the bars, at least 16, two fewer than the
+  stack's, so four weeks still fit at 108 columns; and the percentage and the words, in the
+  cells of their form at its widest, ending a cell before THIS WEEK. The bars take what's left,
+  at most 40: 16 at 108 columns, 40 from 131.
+- **THIS WEEK,** on USAGE's row, from row 8, its title, then an item a row, labels 10 wide in
+  `text.subtle`: `requests`; `limits`, each window's hits, `week ×1 · 5-hour ×2`, or for `all
+  accounts`, how many; `plan`, by its name, or for `all accounts`, the plans summed, `$600/mo`;
+  `worth` with its ratio, `$184  4.0×`, and for `all accounts`, where some plans aren't known,
+  the plans known, `$635  4.3× · 2 of 3 plans known`; and `extra use`.
+  - Its column is its labels and its figures' cells, at least 10, and as many as its widest
+    bounded part takes, so each reads whole on a row of its own: a limit's hits of any window
+    the moment lists, or any the period's page records a limit of, by its short name and
+    counted as often as the window can be hit over the longest period, twelve weeks, once a
+    window, `5h ×403`, `Fable wk ×12`, 12 cells; and `all accounts`' extra use on for one fewer
+    than every account, `on for 2 of 3`, 13 cells. So 23 with three accounts. It's the same
+    whichever account is chosen, so nothing moves as the choice does, and it ends at the weeks'
+    edge, column 140 at 160.
+  - A figure's parts, between its ` · `, go on one row where they fit; where they don't, each
+    part goes on a row of its own, under the one before, in full where it fits, else short: a
+    limit's window by its short name, `5h ×2`, and the plans known as `2 of 3 plans`, or `2/3`.
+    BY MODEL sits two rows under the lower of USAGE's last window and THIS WEEK's last row, so
+    where THIS WEEK's rows reach past the windows', BY MODEL and all under it move down with
+    them.
+  - The requests, the plan's name, from the price table, the plans' summed price, and the worth
+    and its ratio have no bound: where one is wider than its cells, it's cut at the weeks' edge
+    with `…`.
+  - Its title names the period: `THIS WEEK`, or `LAST 30 DAYS`.
 - **BY MODEL,** row 15: the period's share of use as a stacked bar, from `cx`, 12 cells into the
-  panel, at column 36, to the six weeks' right edge below, `6 × step − gap` wide, 104 cells; on row
-  16, from `cx`, each version with a share, `● Opus 5.5 55%`, two cells apart, the smallest that
-  don't fit the row left out and `+2 more` in `text.subtle` ending it (settled in the plan).
-- **The rule,** row 18: `┄┄ ` in `border`, `the last six weeks` in `text.faint`, then `┄` in
-  `border` to BY MODEL's right edge. Above it, the windows are now, and THIS WEEK and BY MODEL the
-  period; below it, BY DAY and WEEKS always cover the last six weeks.
-- **BY DAY,** row 20: the last six weeks of days, from `cx`, `dw` cells a day and `gap` cells
-  between weeks, 2 and 4, so `step = 7 × dw + gap` is 18: each day the points of its week the
-  account used, in History's five shades on the account's own scale (see History); a red `▪`, in
+  panel, at column 36, to the weeks' edge below, 104 cells at 160; from row 16, from `cx`, each
+  version with a share, `● Opus 5.5 55%`, two cells apart, as many as fit the row, the rest on the
+  row under it, as the stack's, the smallest that don't fit that row left out and `+2 more` in
+  `text.subtle` ending it (settled in the plan). A second row moves the rule and all under it down
+  a row.
+- **The rule,** row 18: `┄┄ ` in `border`, the weeks shown, counted, `the last six weeks`, or `the
+  last four weeks`, in `text.faint`, then `┄` in `border` to the weeks' edge. Above it, the windows
+  are now, and THIS WEEK and BY MODEL the period; below it, BY DAY and WEEKS cover the weeks it
+  names.
+- **BY DAY,** row 20: the weeks' days, from `cx`, `dw` cells a day and `gap` cells between weeks, 2
+  and 4 at 160, so `step = 7 × dw + gap` is 18: each day the points of its week the account used,
+  in History's five shades on the account's own scale (see History); a red `▪`, in
   `state.destructive`, in the middle of a day it hit a 5-hour limit; and `··` in `text.faint` for
   days still to come. On row 21, under each week, its first day, `24 Aug`, a `step` apart, this
   week's bold `text.secondary` and the rest `text.faint`. For `all accounts`, every account's days
   together, marked where any hit a limit.
-- **WEEKS,** row 23: the last six weeks, a `step` apart from `cx`, each `usage`'s bar of the week's
-  peak, `step − gap − 5` wide, 9 cells, and a cell on, the peak, `text.muted`, or at 100 bold
+- **WEEKS,** row 23: the weeks' peaks, a `step` apart from `cx`, each `usage`'s bar of the week's
+  peak, `7 × dw − 5` wide, 9 cells at 160, and a cell on, the peak, `text.muted`, or at 100 bold
   `state.destructive`; for `all accounts`, each week the mean of the accounts' peaks. On row 25,
   from the panel's left, the verdict, as History's Weeks gives it (see History), bold in its colour,
-  then `   limit hit 3 of the last 7 weeks · 9% left at a reset, on average` in `text.muted`. For
+  then `   limit hit 3 of the last 7 weeks · 9% left at a reset, on average` in `text.muted`, to the
+  weeks' edge; where that doesn't fit, as at 108 columns, the stack's shorter words on its one
+  row, `   limit hit 3 of 7 weeks · 9% left at a reset`. As it fits to the weeks' edge, never the
+  frame's, its form follows the width alone, whatever the list's names. For
   `all accounts`, `room to spare together`, in `state.positive`, or `little to spare together`, in
   `accent.attention`, the first where its weeks left 25% or more at a reset on average
   (settled in the plan), then
@@ -2172,10 +2205,39 @@ top half is now and the period; a rule, `the last six weeks`, heads the rest.
   page). `→` takes the selection from the list into them, and `←` back; there `↑` `↓` select a
   session, and `enter` opens its page; more sessions than rows 28 to 31 hold end with `+2 more`
   (settled in the plan). LATELY moves beside them, 48 columns into the panel, at column 72, its rows
-  from row 28 and its words cut to 52.
-- **With one account,** there's no list and no Compare, and the stack grows into the width: the
-  panel from column 0, `cx` 12, the windows' bars 50 wide, days 3 cells and weeks 1 apart, so `step`
-  is 22, BY MODEL 131 wide, and THIS WEEK at column 100, over the fifth week as with the list.
+  from row 28 and its words cut short of the frame's edge.
+- **With one account,** there's no list and no Compare: the panel from column 0, `cx` 12, laid as
+  with the list. At 160 its days are 3 cells, so `step` is 25, and the weeks, BY MODEL and THIS
+  WEEK end at column 158.
+- **Wide, from where it fits.** Flex lays the wide form's parts across the frame, and where their
+  leasts don't fit, Detail is stacked; and under 100 columns, where the phone's chrome takes the
+  frame, always, one account's too, though its leasts fit narrower. The wide form's start
+  follows from the weeks' least: the fewest cells of weeks, as they're laid, that reach as far
+  past `cx` as USAGE's row at its leasts, a cell, and THIS WEEK. Where that's 68 or fewer, four
+  weeks at a gap of 4 reach it, and with the list Detail is wide from 105 columns, whatever its
+  names: so with up to nine accounts and the windows' names within 8 cells, THIS WEEK 23. Where
+  it's 69 to 78, five weeks at a gap of 2 do, and it's from 115: so with ten accounts or more,
+  `on for 9 of 10` making THIS WEEK 24, or a window named past 8 cells, `Sonnet wk`, widening
+  USAGE's names. The parts, in order:
+  - with more than one account, the list: a cell, the name column, from 14 cells to 24, narrowing
+    first, and 9 cells past it to the panel;
+  - the panel's headings' column, 12 cells, to `cx`;
+  - the weeks, at their natural, six at a gap of 4, 104 cells, narrowing after the names, to the
+    fewest cells whose weeks, as they're laid, end where USAGE's row at its leasts, a cell, and
+    THIS WEEK after it reach: 68 cells, four weeks at a gap of 4, with THIS WEEK 23 cells; 78,
+    five at a gap of 2, with 24;
+  - past their natural, the weeks growing into what's left once the names have 24.
+  - In the weeks' room, as many weeks as fit, six at most, the latest kept: their gap 4, narrowing
+    to 3 and then 2 before a week leaves. So six at 138 columns, a gap of 3, and four at 108, a gap
+    of 4. Past six at a gap of 4, the days' cells grow, a whole cell at a time, where six weeks at
+    a gap of 4 have room for them: 3 cells from 193 columns. What's left past the weeks, less than
+    a cell more for each of their 42 days, stays blank at the right, or goes to the names where
+    they're cut.
+  - THIS WEEK, the rule and BY MODEL's bar end at the weeks' edge, and USAGE's row ends a cell
+    before THIS WEEK, its bars at most 40, so they don't grow past that.
+  - The layout follows the width, the configured accounts, the windows the moment lists and the
+    limits the period's page records alone, never the figures in view. The rows under BY MODEL
+    move down with its second row, and with THIS WEEK's rows where they reach past USAGE's.
 - **On a phone,** stacked, each part under its heading, a blank row between: on the view's first
   row, `◂ 1 work ▸`, `◂` and `▸` bold `accent.key`, a picker that takes any number of accounts
   (settled in the plan), and at the right `↑↓ an account, or all` in `text.subtle`; under it, the

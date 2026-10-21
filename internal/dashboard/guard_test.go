@@ -141,12 +141,9 @@ var cutAllowed = []string{
 	"internal/dashboard/switchboardlines.go:linesDrawn.window",
 	// S11: SESSIONS' model families.
 	"internal/dashboard/overview_sessions.go:Frame.wideRunning",
-	// S17: Detail's window names, its sessions' model families and how many
-	// more, and its LATELY's words.
-	"internal/dashboard/accountsdetail.go:detailDrawn.usage",
+	// S17: Detail's sessions' model families and how many more.
 	"internal/dashboard/accountsdetail.go:detailDrawn.session",
 	"internal/dashboard/accountsdetail.go:detailDrawn.sessions",
-	"internal/dashboard/accountsdetail.go:detailDrawn.panel",
 	// S22: a session's page, its accounts' stays and the account it's on.
 	"internal/dashboard/sessionpage.go:sessionDrawn.account",
 	"internal/dashboard/sessionpage.go:sessionDrawn.phoneOn",

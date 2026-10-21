@@ -190,6 +190,21 @@ var knownBreaks = []known{
 		byDesign: "on's share at 109", cuts: []string{"personal-resea…", "side-hustle-co…"}, rule: cutWithRoom,
 		sizes: []string{"109x53"}, fixtures: []string{"log-requests-long-names-108x44"},
 	},
+	// Detail's list, which gives way first, its names cut to what the panel
+	// leaves them, down to 14 cells, before its weeks narrow (the owner's call,
+	// 15 October 2026); and its names at their most, 24 cells.
+	{
+		byDesign: "Detail's list giving way at 138", cuts: []string{"work-team-p…"}, rule: cutWithRoom,
+		sizes: []string{"138x30", "138x15"}, fixtures: []string{"long-names-accounts-detail"},
+	},
+	{
+		byDesign: "Detail's list giving way at 108", cuts: []string{"work-team-pl…"}, rule: cutWithRoom,
+		sizes: []string{"108x44", "108x24"}, fixtures: []string{"long-names-accounts-detail"},
+	},
+	{
+		byDesign: "Detail's list's names at their most", cuts: []string{"side-hustle-consult…"}, rule: cutWithRoom,
+		sizes: []string{"173x53"}, fixtures: []string{"long-names-accounts-detail"},
+	},
 	// The List's directories at their most, where the session's column is
 	// whole and the rows end blank.
 	{
@@ -262,16 +277,6 @@ var knownBreaks = []known{
 	{
 		slice: "S14", rule: cutWithRoom, sizes: []string{"73x61", "73x36"},
 		fixtures: []string{"overview-ten-accounts-160"},
-	},
-	// S17, Detail's wide form from where it fits (F11, F12): its names cut with
-	// room, and its stack drawn at 138 columns.
-	{
-		slice: "S17", rule: cutWithRoom, sizes: []string{"173x53"},
-		fixtures: []string{"long-names-accounts-detail"},
-	},
-	{
-		slice: "S17", rule: wastedThird, sizes: []string{"138x15"},
-		fixtures: []string{"accounts-detail-one-160"},
 	},
 	// S20, Weeks (F16): its names cut with room.
 	{

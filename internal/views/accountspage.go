@@ -1,6 +1,8 @@
 package views
 
 import (
+	"maps"
+	"slices"
 	"time"
 
 	"github.com/charmbracelet/x/ansi"
@@ -189,6 +191,17 @@ func (p AccountsPage) Ends() (most, least AccountsRow, ok bool) {
 		}
 	}
 	return most, least, ok
+}
+
+// LimitedWindows are the windows any row of the page records a limit of,
+// every account's among them, by their keys, each once, sorted.
+func (p AccountsPage) LimitedWindows() []string {
+	var keys []string
+	for _, row := range append(slices.Clone(p.Rows), p.All) {
+		keys = append(keys, slices.Collect(maps.Keys(row.Totals.Limits))...)
+	}
+	slices.Sort(keys)
+	return slices.Compact(keys)
 }
 
 // named are the versions of the shares given, in their order, each as the

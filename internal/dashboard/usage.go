@@ -345,16 +345,19 @@ func (n accountName) inked(k ink) ink {
 	return k
 }
 
-// leastNames are the fewest cells the name column takes from roomyNames
-// columns.
-const leastNames = 14
+// leastNames and mostNames are the fewest and the most cells the name
+// column takes from roomyNames columns.
+const (
+	leastNames = 14
+	mostNames  = 24
+)
 
 // nameColumn is the cells of the name column of a block width columns wide:
 // the widest of the names, and a gap, at least 14 cells, or 12 under 80
 // columns, and at most 24, or 16 under 80. Accounts' Detail fits its list
 // to the names by it too.
 func nameColumn(names []accountName, width int) int {
-	least, most := leastNames, 24
+	least, most := leastNames, mostNames
 	if width < roomyNames {
 		least, most = 12, 16
 	}

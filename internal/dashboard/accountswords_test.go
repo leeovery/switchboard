@@ -160,13 +160,6 @@ func TestAccountsFiguresSayEachForm(t *testing.T) {
 			want: line{{"4.6×", boldPositiveInk}, {" · 2/3", dimInk}}},
 		{name: "every account's ratio on a phone, every plan known", parts: againstOnPhone(framedAll.row()),
 			want: line{{"4.6×", boldPositiveInk}}},
-		{name: "a worth without a plan known", parts: worthAgainst(twoOfThree.Rows[2], k, 200), want: line{{"$12", k}}},
-		{name: "every account's worth, its ratio over the plans known", parts: worthAgainst(twoOfThree.All, k, 200),
-			want: line{{"$635  ", k}, {"4.6×", boldPositiveInk}, {" · 2 of 3 plans known", dimInk}}},
-		{name: "every account's worth, its ratio over the plans known, short where that doesn't fit", parts: worthAgainst(twoOfThree.All, k, 30),
-			want: line{{"$635  ", k}, {"4.6×", boldPositiveInk}, {" · 2 of 3 plans", dimInk}}},
-		{name: "every account's worth, its ratio over the plans known, compact where neither fits", parts: worthAgainst(twoOfThree.All, k, 20),
-			want: line{{"$635  ", k}, {"4.6×", boldPositiveInk}, {" · 2/3", dimInk}}},
 		{name: "a ratio under 1×", parts: againstParts(twoOfThree, accountsFramed{id: "spare", worth: 20, ratio: 0.4, planKnown: true}.row(), 200),
 			want: line{{"0.4×", alertInk}, {" its $46 week", dimInk}}},
 	}
