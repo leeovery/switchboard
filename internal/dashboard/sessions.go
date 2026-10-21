@@ -209,9 +209,9 @@ func (f Frame) switchboardLaid(doc status.Document, now time.Time) boardLayout {
 
 // boardLines are the Switchboard's lines of the moment m: its accounts', in
 // their order, each drawing a row for each window the live views list, as
-// listedWindows has them.
+// listedWindows has them; and the from column's natural, as fromCells has it.
 func (f Frame) boardLines(m status.Moment) boardLines {
-	lines := boardLines{windows: len(f.listedWindows(m))}
+	lines := boardLines{windows: len(f.listedWindows(m)), from: f.fromCells(m)}
 	for _, a := range m.Accounts {
 		lines.accounts = append(lines.accounts, a.ID)
 	}

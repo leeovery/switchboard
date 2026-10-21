@@ -137,9 +137,7 @@ var sizedAllowed = []string{
 // from flex. The list only shrinks: an entry must still be there, and still
 // give one.
 var cutAllowed = []string{
-	// S5: the lanes' calls, their columns laneCall's, and the Switchboard's
-	// lines' window labels.
-	"internal/dashboard/sessionslanes.go:lanesBoard.callRow",
+	// S5: the Switchboard's lines' window labels.
 	"internal/dashboard/switchboardlines.go:linesDrawn.window",
 	// S11: SESSIONS' model families.
 	"internal/dashboard/overview_sessions.go:Frame.wideRunning",

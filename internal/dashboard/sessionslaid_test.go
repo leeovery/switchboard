@@ -2,7 +2,6 @@ package dashboard
 
 import (
 	"fmt"
-	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -54,142 +53,138 @@ func viewRows(height int) int {
 	return Frame{Width: 160, Height: height, View: Sessions}.viewRows()
 }
 
-func TestTheSwitchboardsColumnsAreTheNarrowingTables(t *testing.T) {
+// callWidths are what a width gives a call's names, and, on the board, the
+// lines' parts: the directory's cells and the account's after ▸, whether ▸
+// drops its from; the bars' cells, whether the words are short, and the
+// bends' room; and whether it's laid on a lane.
+type callWidths struct {
+	dir, account      int
+	fromShort         bool
+	bar, room         int
+	shortWords, lanes bool
+}
+
+// boardWidths are what the board's columns give as callWidths.
+func boardWidths(k boardColumns) callWidths {
+	return callWidths{dir: k.dir, account: k.account, fromShort: k.fromShort, bar: k.bar, room: k.room, shortWords: k.shortWords}
+}
+
+// The Switchboard's parts at their leasts, then a call's names raised to
+// their naturals before the lines' bars: the directory to
+// views.SessionDirMost, the account after ▸ to the widest name configured,
+// of 8, 14 or 22 cells, none where no call has moved; then the bars, the
+// lines' words whole, ▸'s from, the bars to 32 and the bends' room the rest.
+// At 108, the 8 cells past the leasts go to the directory alone. Where the
+// leasts don't fit, as under 100 columns where a call has moved, it draws
+// lanes, which lay a call's parts by the same rule, from column 2, what it's
+// doing two cells after the directory, the spare at the row's end.
+func TestACallsNamesAreRaisedBeforeTheLinesBars(t *testing.T) {
 	tests := []struct {
-		width                          int
-		doing, from, plug, room, jacks int
-		lines, bar, words              int
-		fromShort, shortWords, lanes   bool
-		dir, account                   int
+		width, from int
+		want        callWidths
 	}{
-		{width: 200, doing: 18, from: 31, plug: 48, room: 64, jacks: 124, lines: 126, bar: 32, words: 22, dir: 12, account: 8},
-		{width: 160, doing: 18, from: 31, plug: 48, room: 24, jacks: 84, lines: 86, bar: 32, words: 22, dir: 12, account: 8},
-		{width: 145, doing: 18, from: 31, plug: 48, room: 9, jacks: 69, lines: 71, bar: 32, words: 22, dir: 12, account: 8},
-		{width: 129, doing: 18, from: 31, plug: 48, room: 9, jacks: 69, lines: 71, bar: 16, words: 22, dir: 12, account: 8},
-		{width: 123, doing: 12, from: 25, plug: 42, room: 9, jacks: 63, lines: 65, bar: 16, words: 22, dir: 6, account: 8},
-		{width: 122, doing: 12, from: 25, plug: 37, room: 13, jacks: 62, lines: 64, bar: 16, words: 22, dir: 6, account: 8, fromShort: true},
-		{width: 118, doing: 12, from: 25, plug: 37, room: 9, jacks: 58, lines: 60, bar: 16, words: 22, dir: 6, account: 8, fromShort: true},
-		{width: 117, doing: 12, from: 25, plug: 37, room: 16, jacks: 65, lines: 67, bar: 16, words: 14, dir: 6, account: 8, fromShort: true, shortWords: true},
-		{width: 110, doing: 12, from: 25, plug: 37, room: 9, jacks: 58, lines: 60, bar: 16, words: 14, dir: 6, account: 8, fromShort: true, shortWords: true},
-		{width: 102, doing: 12, from: 25, plug: 37, room: 9, jacks: 58, lines: 60, bar: 8, words: 14, dir: 6, account: 8, fromShort: true, shortWords: true},
-		{width: 100, doing: 12, from: 25, plug: 35, room: 9, jacks: 56, lines: 58, bar: 8, words: 14, dir: 6, account: 6, fromShort: true, shortWords: true},
+		{width: 220, from: 0, want: callWidths{dir: 24, bar: 32, room: 87}},
+		{width: 220, from: 8, want: callWidths{dir: 24, account: 8, bar: 32, room: 72}},
+		{width: 220, from: 14, want: callWidths{dir: 24, account: 14, bar: 32, room: 66}},
+		{width: 220, from: 22, want: callWidths{dir: 24, account: 22, bar: 32, room: 58}},
+		{width: 160, from: 8, want: callWidths{dir: 24, account: 8, bar: 32, room: 12}},
+		{width: 160, from: 14, want: callWidths{dir: 24, account: 14, bar: 29, room: 9}},
+		{width: 160, from: 22, want: callWidths{dir: 24, account: 22, bar: 21, room: 9}},
+		{width: 138, from: 8, want: callWidths{dir: 24, account: 8, fromShort: true, bar: 16, room: 11}},
+		{width: 138, from: 14, want: callWidths{dir: 24, account: 14, fromShort: true, bar: 16, room: 13, shortWords: true}},
+		{width: 138, from: 22, want: callWidths{dir: 24, account: 22, fromShort: true, bar: 12, room: 9, shortWords: true}},
+		{width: 108, from: 0, want: callWidths{dir: 22, bar: 8, room: 9, shortWords: true}},
+		{width: 108, from: 8, want: callWidths{dir: 14, account: 6, fromShort: true, bar: 8, room: 9, shortWords: true}},
+		{width: 108, from: 14, want: callWidths{dir: 14, account: 6, fromShort: true, bar: 8, room: 9, shortWords: true}},
+		{width: 108, from: 22, want: callWidths{dir: 14, account: 6, fromShort: true, bar: 8, room: 9, shortWords: true}},
+		{width: 100, from: 22, want: callWidths{dir: 6, account: 6, fromShort: true, bar: 8, room: 9, shortWords: true}},
+		{width: 92, from: 0, want: callWidths{dir: 6, bar: 8, room: 9, shortWords: true}},
+		{width: 91, from: 0, want: callWidths{dir: 24, lanes: true}},
+		{width: 99, from: 22, want: callWidths{dir: 24, account: 22, lanes: true}},
+		{width: 73, from: 8, want: callWidths{dir: 24, account: 8, lanes: true}},
+		{width: 73, from: 14, want: callWidths{dir: 24, account: 14, lanes: true}},
+		{width: 73, from: 22, want: callWidths{dir: 24, account: 22, fromShort: true, lanes: true}},
+		{width: 52, from: 0, want: callWidths{dir: 24, lanes: true}},
+		{width: 52, from: 8, want: callWidths{dir: 22, account: 6, fromShort: true, lanes: true}},
+		{width: 52, from: 14, want: callWidths{dir: 22, account: 6, fromShort: true, lanes: true}},
+		{width: 52, from: 22, want: callWidths{dir: 22, account: 6, fromShort: true, lanes: true}},
 	}
 	for _, tt := range tests {
-		t.Run(fmt.Sprint(tt.width), func(t *testing.T) {
-			l := sessionsLaid(tt.width, viewRows(37), views.Patched{}, threeLines)
-			k := l.columns
-			got := []int{k.doing, k.from, k.plug, k.room, k.jacks, k.lines, k.bar, k.words, k.dir, k.account}
-			want := []int{tt.doing, tt.from, tt.plug, tt.room, tt.jacks, tt.lines, tt.bar, tt.words, tt.dir, tt.account}
-			if !slices.Equal(got, want) {
-				t.Errorf("doing, ▸, plug, room, jacks, lines, bar, words, dir, account are %v, want %v", got, want)
+		t.Run(fmt.Sprintf("%d with %d", tt.width, tt.from), func(t *testing.T) {
+			k, fits := boardColumnsOf(tt.width, tt.from)
+			got := boardWidths(k)
+			if !fits {
+				k = boardColumns{callColumns: laneColumnsOf(tt.width, tt.from)}
+				got = callWidths{dir: k.dir, account: k.account, fromShort: k.fromShort, lanes: true}
 			}
-			if k.fromShort != tt.fromShort || k.shortWords != tt.shortWords || l.lanes {
-				t.Errorf("▸ short %t, words short %t, lanes %t; want %t, %t, cords", k.fromShort, k.shortWords, l.lanes, tt.fromShort, tt.shortWords)
+			if got != tt.want {
+				t.Errorf("laid %+v, want %+v", got, tt.want)
+			}
+			if err := keepsItsDistances(k, tt.from, tt.width); err != nil {
+				t.Error(err)
 			}
 		})
 	}
 }
 
-// narrowingTable is what the design's narrowing table gives at each width
-// from 100 to 160: from 160's columns, the part each row names giving a cell
-// for each column lost, and a step that frees several cells at once giving
-// what it frees beyond what's lacking to the bends' room.
-func narrowingTable(width int) boardColumns {
-	k := boardColumns{dir: 12, account: 8, bar: 32, words: 22, room: width - 136}
+// keepsItsDistances is an error where a part of the columns given isn't its
+// distance from the part before it, the from column's natural from cells,
+// none with none: on a lane, its lines 0, from column 2, what it's doing two
+// cells after the directory; on the board, from column 0, a cell after it,
+// the plugs two cells after the from column, and the lines ending at the
+// last column.
+func keepsItsDistances(k boardColumns, from, width int) error {
+	id, doingGap := 0, 1
+	if k.lines == 0 {
+		id, doingGap = 2, 2
+	}
+	fromCells := 0
 	switch {
-	case width >= 145:
-	case width >= 129:
-		k.room, k.bar = 9, 32-(145-width)
-	case width >= 123:
-		k.room, k.bar, k.dir = 9, 16, 12-(129-width)
-	case width >= 118:
-		k.bar, k.dir, k.fromShort, k.room = 16, 6, true, 13-(122-width)
-	case width >= 110:
-		k.bar, k.dir, k.fromShort, k.shortWords, k.words, k.room = 16, 6, true, true, 14, 16-(117-width)
-	case width >= 102:
-		k.dir, k.fromShort, k.shortWords, k.words, k.room, k.bar = 6, true, true, 14, 9, 16-(110-width)
-	default:
-		k.dir, k.fromShort, k.shortWords, k.words, k.room, k.bar, k.account = 6, true, true, 14, 9, 8, 8-(102-width)
+	case from > 0 && k.fromShort:
+		fromCells = 2 + k.account
+	case from > 0:
+		fromCells = 7 + k.account
 	}
-	return k
+	switch {
+	case k.id != id, k.doing != id+4+1+k.dir+doingGap, k.from != k.doing+13:
+		return fmt.Errorf("id at %d, doing at %d, ▸ at %d, want each its distance from the part before it", k.id, k.doing, k.from)
+	case from == 0 && k.account != 0:
+		return fmt.Errorf("with no call moved, the from column has %d cells, want none", k.account)
+	case k.lines == 0:
+		return nil
+	case k.plug != k.from+fromCells+2, k.jacks != k.plug+k.room+12, k.lines != k.jacks+2:
+		return fmt.Errorf("the plugs at %d, the jacks at %d and the lines at %d, want each its distance from the part before it", k.plug, k.jacks, k.lines)
+	case k.lines+1+11+k.bar+1+4+2+k.words+1 != width:
+		return fmt.Errorf("the lines from %d, bars %d and words %d, want them ending at the last column", k.lines, k.bar, k.words)
+	}
+	return nil
 }
 
-func TestEveryWidthFrom100To200NarrowsAsTheDesignsTableHasIt(t *testing.T) {
-	for width := 100; width <= 200; width++ {
-		k := sessionsLaid(width, viewRows(37), views.Patched{}, threeLines).columns
-		want := narrowingTable(width)
-		got := boardColumns{dir: k.dir, account: k.account, bar: k.bar, words: k.words, room: k.room, fromShort: k.fromShort, shortWords: k.shortWords}
-		if got != want {
-			t.Errorf("at %d, the parts are %+v, want %+v", width, got, want)
-		}
-		fromCells := 7 + k.account
-		if k.fromShort {
-			fromCells = 2 + k.account
-		}
-		switch {
-		case k.doing != 5+k.dir+1, k.from != k.doing+13, k.plug != k.from+fromCells+2:
-			t.Errorf("at %d, doing at %d, ▸ at %d, the plugs at %d, want each its distance from the part before it", width, k.doing, k.from, k.plug)
-		case k.jacks != k.plug+k.room+12, k.lines != k.jacks+2:
-			t.Errorf("at %d, the jacks at %d and the lines at %d, want the jacks 12 past the bends' room, the lines 2 past them", width, k.jacks, k.lines)
-		case k.lines+1+11+k.bar+1+4+2+k.words+1 != width:
-			t.Errorf("at %d, the lines from %d, bars %d and words %d, want them ending at the last column", width, k.lines, k.bar, k.words)
-		}
-	}
-}
-
-func TestUnder100ColumnsTheSwitchboardDrawsLanes(t *testing.T) {
-	for _, width := range []int{99, 80, 52} {
-		if l := sessionsLaid(width, viewRows(37), patchedBy(sat{on: []string{"side: c61b"}}), threeLines); !l.lanes {
-			t.Errorf("at %d, the Switchboard draws cords, want lanes", width)
+// At every width from 100 to 220, of names of each width, the board's parts
+// fit and keep their distances; the lines' bars pass their least, their
+// words are whole and ▸ keeps its from only where a call's names are whole;
+// and as the frame widens a cell, no name narrows, nor does ▸ drop its from.
+func TestAsTheBoardWidensNoNameNarrowsAndNamesComeFirst(t *testing.T) {
+	for _, from := range []int{0, 8, 14, 22} {
+		var before boardColumns
+		for width := 100; width <= 220; width++ {
+			k, fits := boardColumnsOf(width, from)
+			if !fits {
+				t.Fatalf("with %d, at %d the parts don't fit", from, width)
+			}
+			if err := keepsItsDistances(k, from, width); err != nil {
+				t.Errorf("with %d, at %d: %v", from, width, err)
+			}
+			namesWhole := k.dir == views.SessionDirMost && k.account == from
+			if !namesWhole && (k.bar > leastBar || !k.shortWords || from > 0 && !k.fromShort) {
+				t.Errorf("with %d, at %d the names are %d and %d with the bars %d, words short %t, ▸ short %t: want the names whole first", from, width, k.dir, k.account, k.bar, k.shortWords, k.fromShort)
+			}
+			if width > 100 && (k.dir < before.dir || k.account < before.account || k.fromShort && !before.fromShort) {
+				t.Errorf("with %d, at %d the names are %d and %d, ▸ short %t; a cell narrower, %d and %d, ▸ short %t", from, width, k.dir, k.account, k.fromShort, before.dir, before.account, before.fromShort)
+			}
+			before = k
 		}
 	}
-}
-
-// The Switchboard's columns at every width from 100 to 399 are as they were
-// before flex laid them, one line a width in testdata/switchboard-columns.txt,
-// written once from the hand-rolled narrowing flex replaced.
-func TestEveryWidthFrom100To399LaysTheSwitchboardsColumnsAsBefore(t *testing.T) {
-	data, err := os.ReadFile("testdata/switchboard-columns.txt")
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := strings.Split(strings.TrimSuffix(string(data), "\n"), "\n")
-	if len(want) != 300 {
-		t.Fatalf("the file holds %d widths, want 300, from 100 to 399", len(want))
-	}
-	for i, line := range want {
-		width := 100 + i
-		k, fits := boardColumnsOf(width)
-		if got := boardColumnsLine(width, k); got != line || !fits {
-			t.Errorf("at %d, fits %t:\n got %s\nwant %s", width, fits, got, line)
-		}
-	}
-}
-
-// Under 100 columns the Switchboard's parts don't fit, each narrowed or
-// given way as far as it goes, as before flex laid them. The bends' room,
-// and the jacks and lines after it, aren't held: no cord is drawn there.
-func TestUnder100ColumnsTheSwitchboardsPartsDontFit(t *testing.T) {
-	for _, width := range []int{99, 90, 80, 73, 52} {
-		k, fits := boardColumnsOf(width)
-		k.room, k.jacks, k.lines = 0, 0, 0
-		want := boardColumns{
-			dir: 6, doing: 12, from: 25, account: 6, fromShort: true,
-			plug: 35, bar: 8, words: 14, shortWords: true,
-		}
-		if fits || k != want {
-			t.Errorf("at %d, fits %t with %+v, want they don't, with %+v", width, fits, k, want)
-		}
-	}
-}
-
-// boardColumnsLine is the Switchboard's columns at width as
-// testdata/switchboard-columns.txt writes them, a line a width: each part's
-// cells, whether ▸ and the words are short, then the columns they sit at.
-func boardColumnsLine(width int, k boardColumns) string {
-	form := map[bool]string{false: "long", true: "short"}
-	return fmt.Sprintf("%3d  dir %2d  account %d  ▸ %-5s  bar %2d  words %2d %-5s  room %3d  |  id %d  doing %2d  ▸ %2d  plug %2d  jacks %3d  lines %3d",
-		width, k.dir, k.account, form[k.fromShort], k.bar, k.words, form[k.shortWords], k.room, k.id, k.doing, k.from, k.plug, k.jacks, k.lines)
 }
 
 // bentOn is a board of n sessions on the second of two accounts, each its
@@ -215,24 +210,29 @@ func (l boardLayout) bends() []int {
 	return bends
 }
 
+// Bent cords sit 3 apart where the bends' room holds them so, else 2, else
+// 1, else the Switchboard draws lanes: with no call moved, the room is 27
+// columns at 160, 12 at 145 and 67 at 200.
 func TestBentCordsSitThreeTwoOrOneApartElseTheSwitchboardDrawsLanes(t *testing.T) {
 	tests := []struct {
 		width, bent int
 		apart       int
 	}{
-		{width: 160, bent: 8, apart: 3},
-		{width: 160, bent: 9, apart: 2},
-		{width: 160, bent: 12, apart: 2},
-		{width: 160, bent: 13, apart: 1},
-		{width: 160, bent: 24, apart: 1},
-		{width: 160, bent: 25},
-		{width: 145, bent: 3, apart: 3},
+		{width: 160, bent: 9, apart: 3},
+		{width: 160, bent: 10, apart: 2},
+		{width: 160, bent: 14, apart: 2},
+		{width: 160, bent: 15, apart: 1},
+		{width: 160, bent: 27, apart: 1},
+		{width: 160, bent: 28},
+		{width: 145, bent: 4, apart: 3},
 		{width: 145, bent: 5, apart: 2},
-		{width: 145, bent: 9, apart: 1},
-		{width: 145, bent: 10},
+		{width: 145, bent: 6, apart: 2},
+		{width: 145, bent: 7, apart: 1},
+		{width: 145, bent: 12, apart: 1},
+		{width: 145, bent: 13},
 		{width: 200, bent: 13, apart: 3},
-		{width: 200, bent: 22, apart: 3},
-		{width: 200, bent: 23, apart: 2},
+		{width: 200, bent: 23, apart: 3},
+		{width: 200, bent: 24, apart: 2},
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("%d bent at %d", tt.bent, tt.width), func(t *testing.T) {

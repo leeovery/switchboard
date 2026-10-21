@@ -2579,26 +2579,30 @@ the last column. `SESSIONS` takes 0–7, `Switchboard` with its spaces 11–23, 
 key line holds its state line, where it has one (see The page). The sub-tab shown is kept in the
 preferences file (settled in the plan).
 
-**The Switchboard.** A call's session id is at column 0, what it's doing at 18, where it moved from
-at 31, and its cord's plug at 48; the jacks are at 84, and the lines run from 86, 74 columns to the
-edge.
+**The Switchboard.** A call's parts run from column 0: its session id and directory, what it's
+doing, and where it moved from; then its cord's plug. At 160 columns, of the accounts `work`,
+`personal` and `side` with a call moved, what it's doing is at 30, where it moved from at 43, and the
+plug at 60; the jacks are at 84, and the lines run from 86, 74 columns to the edge. Each column is
+where the parts lay it, as Narrower and wider says.
 
 - **The calls:** a row a running session, grouped by the account it's on, the accounts in config
   order, a blank row after each group, from row 6. A session whose models are on two accounts has a
   row in each group (settled in the plan). Rows keep their places from look to look: a new session,
   or one a move brings, joins the foot of its group. Each row:
   - the session's id, cut to 4, bold `text.primary` while the session works, else `text.muted`; a
-    space, and its directory's last part, cut with `…` to 12 cells, in `text.muted`, as in
-    `d28c switchboard`;
-  - at 18, what it's doing, in a session's page's words: `↑ asking` or `↓ answering`, bold
-    `accent.key`; `✕ 429` or `✕ 403`, bold `state.destructive`, while a refusal shows; `… 429` in
-    `text.subtle` while a 429 is sent again on the account; else `idle 34s` in `text.faint`, the
-    time since its last answer ended, in seconds under a minute, then as the dashboard writes spans,
-    `9m`, `1h 05m`, `1d 3h`;
-  - at 31, while the move that brought it to the account is its latest, `▸ from work`: `▸` in
-    `accent.key`, `from` in `text.muted`, and the account it left in `text.secondary`, cut with `…`
-    to 8 cells;
-  - at 48, its cord's plug, `●`.
+    space, and its directory's last part, cut with `…` to the directory's cells, in `text.muted`,
+    as in `d28c switchboard`;
+  - a cell after the directory's cells, what it's doing, in a session's page's words: `↑ asking` or
+    `↓ answering`, bold `accent.key`; `✕ 429` or `✕ 403`, bold `state.destructive`, while a refusal
+    shows; `… 429` in `text.subtle` while a 429 is sent again on the account; else `idle 34s` in
+    `text.faint`, the time since its last answer ended, in seconds under a minute, then as the
+    dashboard writes spans, `9m`, `1h 05m`, `1d 3h`;
+  - 13 cells on, the from column: while the move that brought it to the account is its latest,
+    `▸ from work`: `▸` in `accent.key`, `from` in `text.muted`, and the account it left in
+    `text.secondary`, cut with `…` to the account's cells. Where no call has moved, there's no from
+    column;
+  - two cells after the from column, or after what it's doing's 13 cells where there's none, its
+    cord's plug, `●`.
 
   A session works while it asks, while it's answering, and while a refused request of its is
   retried. Claude Code's quota check is never drawn.
@@ -2640,8 +2644,9 @@ edge.
   call's. The first bends 12 cells left of the jacks, at 72, clear of a 9-cell loose cord by 3
   cells, and each next 3 cells further left; where the last would then fall outside the bends' room,
   they bend 2 apart, or failing that, 1. The bends' room runs from the column after the plugs to the
-  first bend, 49 to 72: 24 columns, so 3 apart holds 8 bent cords, 2 apart 12, and 1 apart 24. Where
-  1 apart can't hold them all, the view draws lanes (see Lanes, below).
+  first bend, 61 to 72 at 160 columns with a call moved: 12 columns, so 3 apart holds 4 bent cords,
+  2 apart 6, and 1 apart 12. Where 1 apart can't hold them all, the view draws lanes (see Lanes,
+  below).
 
 **What moves.** The cords' motion stays on this tab alone (see What moves). Its steps fall on the
 clock's 80-millisecond marks, every cord in step, at up to 30 frames a second, and a frame is drawn
@@ -2724,32 +2729,45 @@ and step 4's state words take the short form, then lose whole clauses, as they m
 **One account** stays a switchboard: each cord ends at a jack of its own, a jack a row, the line
 growing a row for each session past its rows. There's no pool row.
 
-**Narrower and wider.** The lines stay at the right edge. Wider than 160 columns, the cords take the
-extra. Narrower, the bends' room gives way first, the lines keeping their 74 columns, until it's 9,
-at 145 columns; below that, it keeps 9 columns at least, and the calls and the lines' bars narrow
-instead, a cell for each column lost. A step that frees several cells at once is taken where the
-bends' room would otherwise fall below 9, and what it frees beyond that goes to the bends' room,
-which gives it back a column at a time (settled in the plan). The bends' room,
-the calls' parts and the lines' are each a part, declared once with the turn it gives way in, and
-laid by the dashboard's one layout of parts, `flex`:
+**Narrower and wider.** The lines stay at the right edge. Each of the Switchboard's parts is
+declared once, with its least, its natural and the turn it gives way in, and laid by the dashboard's
+one layout of parts, `flex`, in the row's order:
 
-| Columns | What gives |
-|---|---|
-| 159 to 145 | The bends' room, from 23 columns to 9 |
-| 144 to 129 | The lines' bars, from 31 cells to 16 |
-| 128 to 123 | The calls' directory, from 11 cells to 6 |
-| 122 | `▸ from personal` becomes `▸ personal`, freeing 5 cells: the bends' room has 13 |
-| 121 to 118 | The bends' room, from 12 columns to 9 |
-| 117 | The lines' words take `usage`'s short form, 14 cells, freeing 8: the bends' room has 16 |
-| 116 to 110 | The bends' room, from 15 columns to 9 |
-| 109 to 102 | The lines' bars, from 15 cells to 8 |
-| 101 and 100 | The account after `▸`, from 7 cells to 6 |
+| Part | Least | Natural | Gives way |
+|---|---|---|---|
+| A call's id | 4 | 4 | Never |
+| Its directory, a cell on | 6 | `views.SessionDirMost`, 24, cut by `status.DirName` | Last, toward its least |
+| What it's doing, a cell on | 13, with the gap after it | 13 | Never |
+| `▸ from ` | 7 | 7 | Second, to `▸ ` |
+| The account after it | 6, or the widest name where that's narrower | The widest account's name configured, 24 at the most | Fifth, toward its least |
+| The bends' room, two cells on | 9 | 9, then growing with no most | Never |
+| To the jacks | 12 | 12 | Never |
+| The lines' label, percentage and gaps, two cells on | 20 | 20 | Never |
+| The lines' bars | 8 | 32 | First, to 16; fourth, to 8 |
+| The lines' words | 22 | 22 | Third, to `usage`'s short form, 14 |
 
-Each part keeps its distance from the part before it: at 100 columns, what a call is doing is at 12,
-`▸` at 25 and the plug at 35, the jacks are at 56, and the lines run from 58, 42 columns. A line's
-state words that don't fit take the short form, as on a phone, then lose whole clauses from the end.
-Where its parts don't fit with every turn taken, as under 100 columns, or wherever the bent cords
-outnumber the bends' room's columns, the Switchboard draws lanes.
+Where no call has moved, there's no from column: neither `▸ from ` nor the account is laid. Where
+the naturals pass the width, the turns are taken in order, each only while they still pass it,
+narrowing a cell for each column lost; a turn that frees several cells at once gives what it frees
+beyond what's lacking to the bends' room, which gives it back a column at a time (settled in the
+plan). So as the frame widens from the leasts, a call's names are raised first, before the lines'
+bars: the directory to 24, then the account; then the bars to 16, the words whole, `▸ from`, the
+bars to 32, and past every natural the bends' room takes the rest. At 108 columns, the 8 cells past
+the leasts all go to the directory, 6 to 14 cells; the account stays at 6, `▸ work-…`, and the bars
+at 8 (the owner's call, 21 October 2026). A directory longer than 24 is cut at its most even with
+room, `docs-site-getting-start…`, as the List cuts it.
+
+No natural comes from the calls shown, so the columns hold still as calls come, go and move, and
+while the account of the widest name has no call: a directory of 6 cells still has a column of 24
+where the frame has the room. The from column alone comes and goes, with the first call moved and
+the last.
+
+Each part keeps its distance from the part before it: at 100 columns, with a call moved, what a call
+is doing is at 12, `▸` at 25 and the plug at 35, the jacks are at 56, and the lines run from 58, 42
+columns. A line's state words that don't fit take the short form, as on a phone, then lose whole
+clauses from the end. Where its parts don't fit with every turn taken, as under 100 columns with a
+call moved and under 92 with none, or wherever the bent cords outnumber the bends' room's columns,
+the Switchboard draws lanes.
 
 **Lanes,** as on a phone, where cords would need width the terminal hasn't got: each account's line
 with its sessions under it, in The page's phone frame under 100 columns (settled in the plan).
@@ -2762,9 +2780,12 @@ with its sessions under it, in The page's phone frame under 100 columns (settled
   - its windows on one row, as step 3 draws them: `5-hour` at column 1, its bar from 8, a cell and
     its percentage; three cells on, `Week`, its bar 5 cells after it, a cell and its percentage,
     ending at the last column; each bar `⌊(width − 26) ÷ 2⌋` cells, 13 at 52;
-  - its sessions, a row each: the id at column 2, bold `text.primary` while the session works, else
-    `text.muted`; a space and the directory, cut with `…` to 11 cells; what it's doing at column 20;
-    and `▸ from work` at 33;
+  - its sessions, a row each, their parts laid by the board's rule from column 2, alike in every
+    lane so their columns align, what's spare at the row's end: the id, bold `text.primary` while
+    the session works, else `text.muted`; a space and the directory, 6 to 24 cells, cut with `…`;
+    two cells after it, what it's doing; and 13 cells on, where a call has moved, `▸ from work`,
+    whole where it fits, else its from dropped, then the account cut, as the board's turns take
+    them;
   - a blank row, which the pool's rule takes after the last account.
 - **The foot:** the pool's rule across the whole row; `Σ pool` under it; on the row under that, from
   column 1, the room in each window, `5-hour 1.5 of 3 left   Week 1.2 of 3 left`; then, after a

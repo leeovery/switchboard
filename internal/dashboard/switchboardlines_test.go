@@ -107,9 +107,9 @@ func TestTheCompactLinesSitSideBySideThenOnOneRow(t *testing.T) {
 		want          map[int]string
 	}{
 		{name: "step 3, 74 columns", width: 160, height: 24, row: 7, want: map[int]string{87: "Week ", 120: " 34%", 127: "5-hour", 156: " 95%"}},
-		{name: "step 3, 59 columns", width: 130, height: 24, row: 7, want: map[int]string{72: "Week ", 97: " 34%", 104: "5-hour", 125: " 95%"}},
+		{name: "step 3, 59 columns", width: 142, height: 24, row: 7, want: map[int]string{84: "Week ", 109: " 34%", 116: "5-hour", 137: " 95%"}},
 		{name: "step 4, 74 columns", width: 160, height: 19, row: 6, want: map[int]string{86: "1 work", 117: " 34%", 123: "● at its cap · back 17:10 "}},
-		{name: "step 4, 59 columns, short", width: 130, height: 19, row: 6, want: map[int]string{71: "1 work", 102: " 34%", 108: "● at its cap · 17:10"}},
+		{name: "step 4, 59 columns, short", width: 142, height: 19, row: 6, want: map[int]string{83: "1 work", 114: " 34%", 120: "● at its cap · 17:10"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -154,14 +154,14 @@ func TestTheBarsEasedAreTheLinesBarsAtTheirStep(t *testing.T) {
 // On a line of one row, the pin's mark ends the row where it clears the
 // percentage before it and leaves the account's words their first clause
 // whole, and is left out where it doesn't: the meter is never drawn over,
-// and how the account stands is never given up for the mark. At 120
+// and how the account stands is never given up for the mark. At 140
 // columns, side's ● open leaves its mark room, and personal's ■ limit
 // reached and work's ● at its cap leave theirs none.
 func TestThePinsMarkNeverDrawsOverALinesMeterOrItsFirstWords(t *testing.T) {
 	doc := pinnedWorld()
 	marks := map[string]string{"personal": "● pinned", "side": "● pinned", "work": "✕ out of the pool"}
 	leads := map[string]string{"personal": "■ limit reached", "side": "● open", "work": "● at its cap"}
-	for width := 100; width <= 120; width++ {
+	for width := 100; width <= 140; width++ {
 		for height := 15; height <= 20; height++ {
 			f := boardFrame(width, height, Look{}, boardOf(boardLook{calls: pinnedCalls()}), Traffic{})
 			laid := f.switchboardLaid(doc, routedAt)
@@ -187,7 +187,7 @@ func TestThePinsMarkNeverDrawsOverALinesMeterOrItsFirstWords(t *testing.T) {
 				shown := strings.HasSuffix(row, marks[ln.account])
 				if !shown && (strings.Contains(row, "pinned") || strings.Contains(row, "✕")) {
 					t.Errorf("at %d×%d, %s's row reads %q, want its mark whole at its end, or none", width, height, ln.account, row)
-				} else if width == 120 && shown != (ln.account == "side") {
+				} else if width == 140 && shown != (ln.account == "side") {
 					t.Errorf("at %d×%d, %s's row reads %q, its mark shown %v, want it shown on side's alone", width, height, ln.account, row, shown)
 				}
 				if shown && !strings.Contains(row, leads[ln.account]) {

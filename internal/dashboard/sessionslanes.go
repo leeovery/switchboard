@@ -4,6 +4,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
@@ -14,10 +15,21 @@ import (
 // it, a row each, then the pool and the key. Nothing travels them: what a
 // session's doing says what moves.
 
-// laneCall is where a lane puts a call's parts, at every width: its id at
-// column 2, its directory cut to 11 cells, what it's doing at 20, and
-// ▸ from at 33, the account cut to fromAccount.
-var laneCall = callColumns{id: 2, dir: 11, doing: 20, from: 33, account: fromAccount}
+// A lane's call starts laneIndent cells in, what it's doing laneDoingGap
+// cells after its directory.
+const (
+	laneIndent   = 2
+	laneDoingGap = 2
+)
+
+// laneColumnsOf are where a lane puts a call's parts, width cells wide, the
+// from column's natural from cells: its parts laid as callParts declares
+// them, laneIndent cells in, alike in every lane, so its columns align. What
+// it has spare lies at the row's end.
+func laneColumnsOf(width, from int) callColumns {
+	s, _ := flex.Lay(width-laneIndent, callParts(laneDoingGap, from)...)
+	return callColumnsOf(s, laneIndent)
+}
 
 // A lane's windows' row: the first's label at laneWindowsAt, its bar
 // laneFirstBar cells after it; the second's bar laneNextBar cells after its
@@ -36,7 +48,8 @@ var laneBarsAfter = []int{laneFirstBar, laneNextBar}
 
 // lanesBoard is the Switchboard of a moment drawn in lanes: the frame, the
 // moment and the time it's drawn at; the usage block its lines are drawn
-// from, of the windows a lane shows, its bars a lane's; its lanes, an
+// from, of the windows a lane shows, its bars a lane's; where its calls'
+// parts sit, as laneColumnsOf has them; its lanes, an
 // account's each, in the config's order; the pool's row, nil where there's
 // no pool, as with one account; and the rows it takes drawn whole, the foot
 // under its lanes.
@@ -45,6 +58,7 @@ type lanesBoard struct {
 	m     status.Moment
 	now   time.Time
 	block usageBlock
+	calls callColumns
 	lanes []boardLane
 	pool  *usageRow
 	whole int
@@ -100,7 +114,7 @@ func (f Frame) lanesOf(doc status.Document, now time.Time, laid boardLayout) lan
 		found[Plug{Session: c.Session, Account: c.Account}] = c
 	}
 	accounts, pool := block.split()
-	b := lanesBoard{f: f, m: m, now: now, block: block, pool: pool}
+	b := lanesBoard{f: f, m: m, now: now, block: block, calls: laneColumnsOf(f.Width, f.fromCells(m)), pool: pool}
 	for i, a := range m.Accounts {
 		l := boardLane{account: a, row: accounts[i]}
 		for j, g := range l.row.gauges {
@@ -297,7 +311,7 @@ func (b lanesBoard) drawLane(s *lanesShown, y int, l boardLane) int {
 	b.windowsRow(s, y+1, l.row)
 	y += 2
 	if l.saysNone {
-		s.c.line(laneCall.id, y, line{{noSessionsRunning, faintInk}})
+		s.c.line(b.calls.id, y, line{{noSessionsRunning, faintInk}})
 		y++
 	}
 	for _, call := range l.calls {
@@ -338,7 +352,7 @@ func (b lanesBoard) windowsRow(s *lanesShown, y int, row usageRow) {
 // callRow draws the call along row y, as drawCall draws it at a lane's
 // columns, all on bg.selection across the row where it's the row chosen.
 func (b lanesBoard) callRow(c *canvas, y int, call views.Call) {
-	drawCall(c, y, call, laneCall, b.m, b.now)
+	drawCall(c, y, call, b.calls, b.m, b.now)
 	if b.f.SessionsTab.Chosen == (Plug{Session: call.Session, Account: call.Account}) {
 		c.surface(0, y, b.f.Width, hue{token: theme.BgSelection})
 	}

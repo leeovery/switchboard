@@ -1,12 +1,59 @@
 package dashboard
 
 import (
+	"slices"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
+
+// A call's parts' cells: its id, cut to callID; the fewest of its
+// directory's, leastDir; what it's doing, callDoing with the gap after it;
+// "▸ from ", fromLong, or "▸ " alone, fromShort; and the fewest of the
+// account after it, leastAccount.
+const (
+	callID       = 4
+	leastDir     = 6
+	callDoing    = 13
+	fromLong     = 7
+	fromShort    = 2
+	leastAccount = 6
+)
+
+// A call's parts across a row, in callParts' order, and how many they are.
+const (
+	callIDPart = iota
+	callDirPart
+	callDoingPart
+	callFromPart
+	callAccountPart
+	callPartsCount
+)
+
+// callParts are a call's parts across a row, as flex lays them: its id; its
+// directory, a cell on, from leastDir to views.SessionDirMost; what it's
+// doing, doingGap cells on; and, where from gives the account's natural,
+// ▸ and its from, and the account it came from, from cells at its natural,
+// leastAccount at its least. With no from, there's no from column. The
+// directory and the account narrow in the last turns, so a call's names are
+// the last of the Switchboard's parts to give, and the first raised.
+//
+// No natural comes from the calls shown, so the columns hold still as calls
+// come and go and as they move.
+func callParts(doingGap, from int) []flex.Part {
+	parts := make([]flex.Part, callPartsCount)
+	parts[callIDPart] = flex.Part{Least: callID, Natural: callID}
+	parts[callDirPart] = flex.Part{Least: leastDir, Natural: views.SessionDirMost, Narrows: dirToLeast, Gap: 1}
+	parts[callDoingPart] = flex.Part{Least: callDoing, Natural: callDoing, Gap: doingGap}
+	if from > 0 {
+		parts[callFromPart] = flex.Part{Least: fromLong, Natural: fromLong, Leaves: fromDropped, Kept: fromShort}
+		parts[callAccountPart] = flex.Part{Least: min(from, leastAccount), Natural: from, Narrows: accountToLeast}
+	}
+	return parts
+}
 
 // callColumns are where a call's row puts its parts, as the Switchboard and
 // a lane each place them: its session's id at id, a cell, and its
@@ -16,6 +63,30 @@ import (
 type callColumns struct {
 	id, dir, doing, from, account int
 	fromShort                     bool
+}
+
+// callColumnsOf are a call's columns as its parts' spans place them, laid
+// as callParts declares them, from column at.
+func callColumnsOf(s []flex.Span, at int) callColumns {
+	return callColumns{
+		id:        at + s[callIDPart].At,
+		dir:       s[callDirPart].Size,
+		doing:     at + s[callDoingPart].At,
+		from:      at + s[callFromPart].At,
+		account:   s[callAccountPart].Size,
+		fromShort: s[callFromPart].Left,
+	}
+}
+
+// fromCells are the natural of the account a call's from column names, in
+// the moment m: the widest of its accounts' names, as widestLabel has it,
+// where any call the frame holds has moved; none where none has, so no from
+// column is laid.
+func (f Frame) fromCells(m status.Moment) int {
+	if !slices.ContainsFunc(f.SessionsTab.Calls, func(c views.Call) bool { return c.From != "" }) {
+		return 0
+	}
+	return widestLabel(m)
 }
 
 // drawCall draws call along row y, its parts where k places them, in m, the

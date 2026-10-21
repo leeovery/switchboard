@@ -144,8 +144,7 @@ func pointerReceiver(s *types.Selection) bool {
 
 // valueOf is what e gives at the fields' path, as the widths have it: e
 // itself, else a field of a composite literal, through a variable's first
-// value once, as laneCall's dir is its literal's 11; nil where it can't be
-// followed there.
+// value once; nil where it can't be followed there.
 func (w widths) valueOf(e ast.Expr, fields []string, info *types.Info, followed bool) ast.Expr {
 	switch e := ast.Unparen(e).(type) {
 	case *ast.SelectorExpr:

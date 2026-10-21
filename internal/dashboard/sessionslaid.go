@@ -8,24 +8,14 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// The Switchboard's columns as the design fixes them at their widest, at 160
-// columns and wider: a call's id at the first column, cut to callID, a cell,
-// and its directory, cut to callDir; a cell, then what it's doing, in
-// callDoing with the gap after it; then where it came from, "▸ from ", in
-// fromLong cells, or "▸ " alone, in fromShort, and the account, cut to
-// fromAccount; plugGap cells, then the plugs. The bends' room runs from the
-// column after the plugs to the first bend, bendFromJacks left of the jacks,
-// clear by bendClear of a cord hanging loose looseCells long; and the lines
-// start lineGap after the jacks, their bars lineBar and their words
-// lineWords, or lineShortWords in usage's short form, besides lineBeside of label,
-// percentage and gaps.
+// The Switchboard's columns as the design fixes them at their widest: a
+// call's parts, as callParts lays them; plugGap cells, then the plugs. The
+// bends' room runs from the column after the plugs to the first bend,
+// bendFromJacks left of the jacks, clear by bendClear of a cord hanging loose
+// looseCells long; and the lines start lineGap after the jacks, their bars
+// lineBar and their words lineWords, or lineShortWords in usage's short form,
+// besides lineBeside of label, percentage and gaps.
 const (
-	callID         = 4
-	callDir        = 12
-	callDoing      = 13
-	fromLong       = 7
-	fromShort      = 2
-	fromAccount    = 8
 	plugGap        = 2
 	looseCells     = 9
 	bendClear      = 3
@@ -37,23 +27,21 @@ const (
 	lineBeside     = 20
 )
 
-// The fewest cells each part narrows to, as the narrowing table has them:
-// the bends' room, the lines' bars, first and last, the calls' directory, and
-// the account after ▸. Bent cords turn down bendsApart apart, or closer; a
-// stub is stubCells long, each next a cell shorter, down to stubLeast.
+// The fewest cells each part narrows to, as the narrowing has them: the
+// bends' room, and the lines' bars, first and last. Bent cords turn down
+// bendsApart apart, or closer; a stub is stubCells long, each next a cell
+// shorter, down to stubLeast.
 const (
 	leastRoom    = 9
 	leastWideBar = 16
-	leastDir     = 6
 	leastBar     = 8
-	leastAccount = 6
 	bendsApart   = 3
 	stubCells    = 7
 	stubLeast    = 1
 )
 
-// boardColumns are where the Switchboard's parts sit across a frame, as the
-// narrowing table gives them for its width: a call's parts, its id at the
+// boardColumns are where the Switchboard's parts sit across a frame, as
+// boardColumnsOf lays them for its width: a call's parts, its id at the
 // first column; the plugs' column, the bends' room's columns after it, the
 // jacks' column and the column the lines start at; and the cells of the
 // lines' bars and words, the words in usage's short form where shortWords
@@ -66,84 +54,75 @@ type boardColumns struct {
 	shortWords        bool
 }
 
-// The turns the Switchboard's parts give way in as it narrows, in the order
-// the design's narrowing table has them: the lines' bars to leastWideBar, the
-// calls' directory to leastDir, ▸'s from dropped, the lines' words in usage's
-// short form, the lines' bars to leastBar, and the account after ▸ to
-// leastAccount.
+// The turns the Switchboard's parts give way in as it narrows, in this
+// order, so a call's names are the last to give: the lines' bars to
+// leastWideBar, ▸'s from dropped, the lines' words in usage's short form,
+// the lines' bars to leastBar, the account after ▸ to its least, and the
+// calls' directory to its least.
 const (
 	barsToLeastWide = iota + 1
-	dirToLeast
 	fromDropped
 	wordsShortened
 	barsToLeast
 	accountToLeast
+	dirToLeast
 )
 
-// The Switchboard's parts across a frame, in boardParts' order.
+// The Switchboard's parts across a frame, in boardParts' order: a call's,
+// as callParts has them, then the bends' room and the lines'; and how many
+// they are.
 const (
-	boardID = iota
-	boardDir
-	boardDoing
-	boardFrom
-	boardAccount
-	boardRoom
+	boardRoom = iota + callPartsCount
 	boardToJacks
 	boardBeside
 	boardBarsPast
 	boardBars
 	boardWords
+	boardPartsCount
 )
 
 // boardParts are the Switchboard's parts across a frame, as flex lays them:
-// a call's id, its directory a cell on, what it's doing a cell on, ▸ and its
-// from, and the account it came from; the bends' room, plugGap cells on,
-// which takes what's left; the bendFromJacks cells to the jacks; and the
-// lines, lineGap cells on: their label, percentage and gaps, their bars,
-// those past leastWideBar and those up to it each narrowing in a turn of its
-// own, and their words.
+// a call's, as callParts has them, what it's doing a cell after its
+// directory, ▸'s from from cells at its natural; the bends' room, plugGap
+// cells on, which takes what's left; the bendFromJacks cells to the jacks;
+// and the lines, lineGap cells on: their label, percentage and gaps, their
+// bars, those past leastWideBar and those up to it each narrowing in a turn
+// of its own, and their words.
 //
 // A part that keeps its cells sets its least and natural alike, as flex holds
 // a part that narrows freely at its least while the turns are taken. The
 // lines' parts aren't in the screen's order: boardBeside, their label,
 // percentage and gaps together, comes before the bars it sits among.
-var boardParts = []flex.Part{
-	boardID:       {Least: callID, Natural: callID},
-	boardDir:      {Least: leastDir, Natural: callDir, Narrows: dirToLeast, Gap: 1},
-	boardDoing:    {Least: callDoing, Natural: callDoing, Gap: 1},
-	boardFrom:     {Least: fromLong, Natural: fromLong, Leaves: fromDropped, Kept: fromShort},
-	boardAccount:  {Least: leastAccount, Natural: fromAccount, Narrows: accountToLeast},
-	boardRoom:     {Least: leastRoom, Natural: leastRoom, Grows: true, Gap: plugGap},
-	boardToJacks:  {Least: bendFromJacks, Natural: bendFromJacks},
-	boardBeside:   {Least: lineBeside, Natural: lineBeside, Gap: lineGap},
-	boardBarsPast: {Natural: lineBar - leastWideBar, Narrows: barsToLeastWide},
-	boardBars:     {Least: leastBar, Natural: leastWideBar, Narrows: barsToLeast},
-	boardWords:    {Least: lineWords, Natural: lineWords, Leaves: wordsShortened, Kept: lineShortWords},
+func boardParts(from int) []flex.Part {
+	parts := append(callParts(1, from), make([]flex.Part, boardPartsCount-callPartsCount)...)
+	parts[boardRoom] = flex.Part{Least: leastRoom, Natural: leastRoom, Grows: true, Gap: plugGap}
+	parts[boardToJacks] = flex.Part{Least: bendFromJacks, Natural: bendFromJacks}
+	parts[boardBeside] = flex.Part{Least: lineBeside, Natural: lineBeside, Gap: lineGap}
+	parts[boardBarsPast] = flex.Part{Natural: lineBar - leastWideBar, Narrows: barsToLeastWide}
+	parts[boardBars] = flex.Part{Least: leastBar, Natural: leastWideBar, Narrows: barsToLeast}
+	parts[boardWords] = flex.Part{Least: lineWords, Natural: lineWords, Leaves: wordsShortened, Kept: lineShortWords}
+	return parts
 }
 
 // boardColumnsOf are the Switchboard's columns at width, its parts laid as
-// boardParts declares them, and whether they fit: under 100 columns they
-// don't. Three columns are read off a neighbour's span, not their own: the
-// plugs' column is where the bends' room starts, the jacks' where the stretch
-// to them ends, and the lines' where their label starts. Where the parts
-// don't fit, the columns past the bends' room lie as the turns left them;
-// nothing reads them, as the Switchboard draws lanes there.
-func boardColumnsOf(width int) (boardColumns, bool) {
-	s, fits := flex.Lay(width, boardParts...)
+// boardParts declares them, the from column's natural from cells, and
+// whether they fit: with every turn taken, they don't under 100 columns
+// where a call has moved. Three columns are read off a neighbour's span, not
+// their own: the plugs' column is where the bends' room starts, the jacks'
+// where the stretch to them ends, and the lines' where their label starts.
+// Where the parts don't fit, the columns past the bends' room lie as the
+// turns left them; nothing reads them, as the Switchboard draws lanes there.
+func boardColumnsOf(width, from int) (boardColumns, bool) {
+	s, fits := flex.Lay(width, boardParts(from)...)
 	return boardColumns{
-		id:         s[boardID].At,
-		dir:        s[boardDir].Size,
-		doing:      s[boardDoing].At,
-		from:       s[boardFrom].At,
-		account:    s[boardAccount].Size,
-		fromShort:  s[boardFrom].Left,
-		plug:       s[boardRoom].At,
-		room:       s[boardRoom].Size,
-		jacks:      s[boardToJacks].At + s[boardToJacks].Size,
-		lines:      s[boardBeside].At,
-		bar:        s[boardBarsPast].Size + s[boardBars].Size,
-		words:      s[boardWords].Size,
-		shortWords: s[boardWords].Left,
+		callColumns: callColumnsOf(s, 0),
+		plug:        s[boardRoom].At,
+		room:        s[boardRoom].Size,
+		jacks:       s[boardToJacks].At + s[boardToJacks].Size,
+		lines:       s[boardBeside].At,
+		bar:         s[boardBarsPast].Size + s[boardBars].Size,
+		words:       s[boardWords].Size,
+		shortWords:  s[boardWords].Left,
 	}, fits
 }
 
@@ -154,11 +133,13 @@ func (k boardColumns) firstBend() int {
 }
 
 // boardLines are the Switchboard's lines as its layout reads them: the
-// accounts', by their ids, in the config's order; and how many windows each
-// draws a row of, as usage --by account draws them.
+// accounts', by their ids, in the config's order; how many windows each
+// draws a row of, as usage --by account draws them; and the from column's
+// natural, as fromCells has it.
 type boardLines struct {
 	accounts []string
 	windows  int
+	from     int
 }
 
 // boardLayout is the Switchboard laid out at a frame's size, as sessionsLaid
@@ -249,7 +230,7 @@ const compactedStep = 5
 // place of cords where its parts don't fit, as under 100 columns, and
 // wherever the bent cords outnumber the bends' room's columns.
 func sessionsLaid(width, rows int, patched views.Patched, lines boardLines) boardLayout {
-	k, fits := boardColumnsOf(width)
+	k, fits := boardColumnsOf(width, lines.from)
 	l := boardLayout{columns: k, lanes: !fits, keyAt: -1}
 	for l.step = 1; l.step < compactedStep; l.step++ {
 		l.layLines(patched, lines)
