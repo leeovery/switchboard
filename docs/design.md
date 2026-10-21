@@ -1819,7 +1819,8 @@ names configured never move the switch:
 - **LATELY, 21 cells** (`latelyLeast`): its time at its widest, `Sun 02:00`, 9; the two blanks; its
   mark and a blank, 2; and the name, 8. It fits beside COMING UP wherever COMING UP's does.
 
-Under 100 columns, on a phone's chrome, their words are the short ones.
+Under 100 columns, on a phone's chrome, LATELY's words are its short ones; COMING UP's are the same
+at every width.
 
 - **COMING UP,** soonest first: the time, padded to the longest, as `16:30`, `~Sat 06:00` or
   `Sun 02:00`, in `text.secondary`; two spaces; the account in bold `text.primary`, then what
@@ -1931,8 +1932,9 @@ below, not flex's even share:
    together; then GRAPHS; then ROUTING. USAGE never folds; with many accounts it scrolls within the
    rows left to it.
 3. **What folds unfolds where it fits,** at its least: those folded last first, and of those
-   folded together, unit by unit in the page's order. So on a phone, where LATELY is a unit of its
-   own under COMING UP, COMING UP unfolds alone where LATELY can't, and LATELY alone where it fits
+   folded together, unit by unit in the page's order. So where the two don't fit side by side,
+   under 93 columns, and LATELY is a unit of its own under COMING UP, COMING UP unfolds alone where
+   LATELY can't, and LATELY alone where it fits
    and COMING UP doesn't, as under a folded heading, where COMING UP's would bring a blank row
    back. A section left folded never fits at its least with every other at its own.
 4. **Rows to spare go out even while a section is folded,** to the units that aren't, in turn: to

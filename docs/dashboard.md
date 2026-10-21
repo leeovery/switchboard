@@ -164,8 +164,8 @@ session shows:
 
 ### COMING UP and LATELY
 
-COMING UP and LATELY sit side by side where both fit, and LATELY goes under COMING UP where they
-don't, as on a phone.
+COMING UP and LATELY sit side by side where both fit, from 93 columns, and LATELY goes under
+COMING UP where they don't.
 
 - **COMING UP** is what happens next, soonest first, such as
   `16:30  personal's 5-hour resets  in 1h 48m`. A run-out's row is in the theme's attention colour.
@@ -516,7 +516,8 @@ Under 100 columns, the dashboard lays itself out for a phone.
 - The tabs sit on a row of their own, under the clock.
 - The Overview's USAGE stacks its windows in short words.
 - ROUTING takes two rows for each account, and SESSIONS two rows for each session.
-- LATELY comes under COMING UP.
+- LATELY comes under COMING UP, as it does wherever the two don't fit side by side, under 93
+  columns.
 - Accounts' `against it` and `against` give `all accounts`' ratio alone, but where an account has
   no `plan`, they add how many of the plans it's over, compact: `4.4× · 2/3`.
 

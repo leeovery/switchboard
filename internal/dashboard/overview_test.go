@@ -399,6 +399,38 @@ func TestRowsShortSectionsFoldInTurnThenWhatFitsUnfoldsTheLastFoldedFirstAndUSAG
 	}
 }
 
+// Two groups folded early, each fitting again alone but not together, tell
+// the group folded last from the first: with SESSIONS at 3 rows, in 30 or 31,
+// SESSIONS, COMING UP and LATELY, then GRAPHS fold; COMING UP and LATELY,
+// folded after SESSIONS, unfold before it, and leave it no room. So with
+// every section shown, at 73x46 and 108x44, GRAPHS, folded after COMING UP
+// and LATELY, unfolds where they then can't.
+func TestTheGroupFoldedLastUnfoldsFirst(t *testing.T) {
+	sections := shortOfRows()
+	sections[3] = sized(SectionSessions, 3, 3)
+	for _, rows := range []int{30, 31} {
+		want := []Section{SectionGraphs, SectionSessions}
+		if got := folds(planOf(frameOf(160, 50), sections, 0, rows)); !slices.Equal(got, want) {
+			t.Errorf("in %d rows, %v fold, want %v: COMING UP and LATELY, folded after SESSIONS, unfold first", rows, got, want)
+		}
+	}
+
+	tests := []struct {
+		width, height int
+		folds         []Section
+	}{
+		{width: 73, height: 46, folds: []Section{SectionRouting, SectionSessions, SectionComing, SectionLately}},
+		{width: 108, height: 44, folds: []Section{SectionRouting, SectionSessions, SectionComing, SectionLately}},
+	}
+	for _, tt := range tests {
+		f := frameOf(tt.width, tt.height)
+		f.Sections, f.Sessions = every, flippingSessions()
+		if got := folds(f.laidOut(threeRouted(), now, f.top())); !slices.Equal(got, tt.folds) {
+			t.Errorf("at %dx%d with every section, %v fold, want %v", tt.width, tt.height, got, tt.folds)
+		}
+	}
+}
+
 func TestRowsToSpareGrowTheSectionsNotFoldedWhileOthersAreAndNeverOneFolded(t *testing.T) {
 	tests := []struct {
 		name string

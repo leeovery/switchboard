@@ -182,15 +182,23 @@ func (f Frame) latelyLines(m status.Moment, sentences []views.Sentence) []line {
 	return lines
 }
 
-// latelyMark are the cells a LATELY line's mark takes, with the blank after
-// it, as latelyLeads leads it.
-const latelyMark = 2
+// afterMark is the blank between a LATELY line's mark and its words.
+const afterMark = " "
 
 // latelyLeast is the fewest cells LATELY is read in, beside COMING UP: a
-// line's time at its widest; the blanks after it; its mark; and an
-// account's name at labelLeast.
+// line's lead, as latelyLeads leads it, its time at its widest and its
+// widest mark; and an account's name at labelLeast.
 func latelyLeast() int {
-	return prose.DatedWidth() + len(afterTime) + latelyMark + labelLeast
+	return prose.DatedWidth() + len(afterTime) + widestMark() + len(afterMark) + labelLeast
+}
+
+// widestMark is how many cells the widest of the kinds' marks takes.
+func widestMark() int {
+	widest := 0
+	for _, k := range eventKinds {
+		widest = max(widest, line{k.mark}.width())
+	}
+	return widest
 }
 
 // latelyLeads are the leads of LATELY's lines, the Overview's and Detail's
@@ -203,7 +211,7 @@ func latelyLeads(m status.Moment, sentences []views.Sentence) []line {
 	}
 	leads := make([]line, len(sentences))
 	for i, s := range sentences {
-		leads[i] = line{{padded(prose.Dated(m.Now, s.At), column) + afterTime, dimInk}, eventMark(s.Kind, s.Well), spaces(1)}
+		leads[i] = line{{padded(prose.Dated(m.Now, s.At), column) + afterTime, dimInk}, eventMark(s.Kind, s.Well), {text: afterMark}}
 	}
 	return leads
 }

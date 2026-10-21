@@ -470,8 +470,8 @@ func fold(units []unit, room int) [][]Section {
 
 // unfold unfolds each of the units folded where it fits in room rows at its
 // least: the group folded last first, and within a group, unit by unit, in
-// the page's order, so on a phone COMING UP unfolds alone where LATELY,
-// under it, can't.
+// the page's order, so where LATELY is under COMING UP, COMING UP unfolds
+// alone where LATELY can't.
 func unfold(units []unit, room int, folded [][]Section) {
 	for _, group := range slices.Backward(folded) {
 		for i := range units {
