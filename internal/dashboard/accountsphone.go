@@ -100,25 +100,62 @@ func largestIn(used versionUsed, cells int) line {
 	return fitParts(cells, named...)
 }
 
-// A phone's Detail's columns: USAGE's bars, stackUsageBar cells, from
-// stackUsageAt; THIS WEEK's two columns stackHalf apart, their labels
-// stackLabels cells; BY MODEL's bar, stackModelBar cells, BY DAY's last
-// stackWeeks weeks, and WEEKS' last stackPeaks peaks, each right-aligned in
-// stackPeakCells stackPeakApart apart, from stackAt; and LATELY's words cut
-// to stackLatelyWords.
+// A phone's Detail's columns: USAGE's names at least stackNamesLeast cells,
+// its bars at least stackBarLeast; THIS WEEK's two columns stackHalf apart,
+// their labels stackLabels cells; and from stackAt, BY MODEL's bar, BY DAY's
+// weeks and WEEKS' peaks, the peaks each right-aligned in stackPeakCells,
+// stackPeakGap between.
 const (
-	stackUsageAt     = 9
-	stackUsageBar    = 18
-	stackHalf        = 26
-	stackLabels      = 10
-	stackAt          = 10
-	stackModelBar    = 40
-	stackWeeks       = 3
-	stackPeaks       = 4
-	stackPeakCells   = 5
-	stackPeakApart   = 6
-	stackLatelyWords = 44
+	stackNamesLeast = 8
+	stackBarLeast   = 18
+	stackHalf       = 26
+	stackLabels     = 10
+	stackAt         = 10
+	stackPeakCells  = 5
+	stackPeakGap    = 1
 )
+
+// The parts of a phone's USAGE row across a frame, in stackUsageLaid's order.
+const (
+	stackNames = iota
+	stackBar
+	stackPercent
+	stackWords
+)
+
+// stackUsage is where a phone's USAGE row's parts sit: its names' cells, and
+// where its bars start and their cells.
+type stackUsage struct {
+	names, at, bar int
+}
+
+// stackUsageLaid is a phone's USAGE row laid out in room cells, as flex lays
+// it: its windows' names at their widest whole, names cells, at least
+// stackNamesLeast and at most compareNameMost; a cell on, its bars, at least
+// stackBarLeast; a cell on, their percentages; and two cells on, their
+// words, in the cells of their form, words. The bars take what's left, at
+// most barMost, as every bar beside words does.
+func stackUsageLaid(room, names, words int) stackUsage {
+	s, _ := flex.Lay(room, []flex.Part{
+		stackNames:   {Least: stackNamesLeast, Natural: names, Most: compareNameMost},
+		stackBar:     {Least: stackBarLeast, Natural: stackBarLeast, Grows: true, Most: barMost, Gap: 1},
+		stackPercent: {Least: percentCells, Natural: percentCells, Gap: 1},
+		stackWords:   {Least: words, Natural: words, Gap: 2},
+	}...)
+	return stackUsage{names: s[stackNames].Size, at: s[stackBar].At, bar: s[stackBar].Size}
+}
+
+// latestFitting are where the latest of count runs, each cells wide and gap
+// apart, lie in room cells, as flex lays them: as many as fit, the earliest
+// giving way first, the latest last.
+func latestFitting(room, count, cells, gap int) []flex.Span {
+	runs := make([]flex.Part, count)
+	for i := range runs {
+		runs[i] = flex.Part{Least: cells, Natural: cells, Leaves: i + 1, Gap: gap}
+	}
+	spans, _ := flex.Lay(room, runs...)
+	return slices.DeleteFunc(spans, func(s flex.Span) bool { return s.Left })
+}
 
 // partsApart is how far a phone's part is from the row before it, a blank
 // row between.
@@ -381,9 +418,9 @@ func (f Frame) stackedOf(doc status.Document, now time.Time) stacked {
 // whole is the phone's Detail drawn whole, each part under its heading, a
 // blank row between: the picker, and under it how the account stands, short,
 // as stands has it; USAGE; once the period's page is read, THIS WEEK, BY
-// MODEL, BY DAY's last stackWeeks weeks, and WEEKS with the verdict under
-// it; SESSIONS, as Detail draws it, where sessions run on the account; and
-// LATELY, its words cut to stackLatelyWords.
+// MODEL, BY DAY, and WEEKS with the verdict under it; SESSIONS, as Detail
+// draws it, where sessions run on the account; and LATELY, its lines cut at
+// the frame's edge.
 func (s stacked) whole() stack {
 	c := growing(s.f.Width)
 	s.picker(c, 0)
@@ -392,7 +429,7 @@ func (s stacked) whole() stack {
 	if s.page != nil {
 		y = s.thisWeek(c, y+partsApart)
 		y = s.byModel(c, y+partsApart) + partsApart
-		s.byDay(c, y, stackWeeks)
+		s.byDay(c, y, s.daysWeeks())
 		y = s.weeks(c, y+1+partsApart)
 	}
 	var targets []Target
@@ -402,7 +439,7 @@ func (s stacked) whole() stack {
 	y += partsApart
 	c.line(0, y, line{{"LATELY", dimInk}})
 	c.heading(y, y+1)
-	s.lately(c, y+1, 0, stackLatelyWords)
+	s.lately(c, y+1, 0, s.f.edge())
 	return stack{c: c, targets: targets}
 }
 
@@ -432,17 +469,23 @@ func (s stacked) named(cells int) line {
 
 // usage draws USAGE from row y, and returns the row its last window is on:
 // its heading, then every window, windowsApart rows apart, named in
-// text.subtle, then as Detail's gauge has it, its bar stackUsageBar cells
-// from stackUsageAt, its words ending at the frame's edge.
+// text.subtle, then as Detail's gauge has it, laid out as stackUsageLaid lays
+// its row across the frame, its words ending at the frame's edge.
 func (s stacked) usage(c *canvas, y int) int {
 	c.line(0, y, line{{"USAGE", dimInk}})
 	c.heading(y, y+1)
 	b := usageBlock{width: s.f.Width, look: s.f.Look}
+	windows := s.windows()
+	names := 0
+	for _, w := range windows {
+		names = max(names, ansi.StringWidth(status.Short(w.name)))
+	}
+	l := stackUsageLaid(s.f.edge(), names, b.wordCells())
 	last := y
-	for i, w := range s.windows() {
+	for i, w := range windows {
 		last = y + 1 + i*windowsApart
-		c.line(0, last, line{{prose.Cut(status.Short(w.name), stackUsageAt-1), dimInk}})
-		b.gauge(c, s.gauge(w.key), stackUsageAt, last, stackUsageBar, s.f.edge())
+		c.line(0, last, line{{prose.Cut(status.Short(w.name), l.names), dimInk}})
+		b.gauge(c, s.gauge(w.key), l.at, last, l.bar, s.f.edge())
 	}
 	return last
 }
@@ -492,13 +535,13 @@ func (s stacked) thisWeekItems() [][]thisWeekItem {
 }
 
 // byModel draws BY MODEL from row y, and returns its last row: its heading,
-// and on its row the period's share of use as a stacked bar stackModelBar
-// cells from cx, as Detail's; then the versions it used, each with its
+// and on its row the period's share of use as a stacked bar from cx to the
+// frame's edge, as Detail's; then the versions it used, each with its
 // share, over the rows under it, as versionsOver has them.
 func (s stacked) byModel(c *canvas, y int) int {
 	c.line(0, y, line{{"BY MODEL", dimInk}})
 	versions := s.page.Versions
-	stackedBar(c, s.f.Look, s.l.cx(), y, splitCells(shareAmounts(s.row, versions), stackModelBar), versionHues(versions))
+	stackedBar(c, s.f.Look, s.l.cx(), y, splitCells(shareAmounts(s.row, versions), s.fromCX()), versionHues(versions))
 	for _, l := range versionsOver(versionsUsed(s.row, versions), s.f.edge()) {
 		y++
 		c.line(0, y, l)
@@ -519,16 +562,30 @@ func versionsOver(used []versionUsed, width int) []line {
 	return slices.DeleteFunc(rows, func(l line) bool { return len(l) == 0 })
 }
 
+// fromCX are the cells from cx to the frame's edge, none where the frame is
+// narrower.
+func (s stacked) fromCX() int {
+	return max(s.f.edge()-s.l.cx(), 0)
+}
+
+// daysWeeks are how many of BY DAY's weeks show: the latest that fit from cx
+// to the frame's edge, as latestFitting lays them, a week's days and the gap
+// after it a step.
+func (s stacked) daysWeeks() int {
+	return len(latestFitting(s.fromCX(), len(s.page.Weeks), s.l.step()-s.l.gap, s.l.gap))
+}
+
 // weeks draws WEEKS along row y, and returns the verdict's last row: its
-// heading; from cx, the last stackPeaks weeks' peaks, as peakPart has them,
-// this week's bold text.secondary, each right-aligned in stackPeakCells,
-// stackPeakApart apart; and under it the verdict, as verdictShort has it, a
-// row each of its parts.
+// heading; from cx, the latest weeks' peaks that fit, as latestFitting lays
+// them, each as peakPart has it, this week's bold text.secondary,
+// right-aligned in stackPeakCells, stackPeakGap between; and under it the
+// verdict, as verdictShort has it, a row each of its parts.
 func (s stacked) weeks(c *canvas, y int) int {
 	c.line(0, y, line{{"WEEKS", dimInk}})
-	peaks := s.row.Peaks[max(len(s.row.Peaks)-stackPeaks, 0):]
+	spans := latestFitting(s.fromCX(), len(s.row.Peaks), stackPeakCells, stackPeakGap)
+	peaks := s.row.Peaks[len(s.row.Peaks)-len(spans):]
 	for i, p := range peaks {
-		c.rightFit(s.l.cx()+i*stackPeakApart+stackPeakCells, s.f.edge(), y, peakPart(p, strongInk, Number{}))
+		c.rightFit(s.l.cx()+spans[i].At+spans[i].Size, s.f.edge(), y, peakPart(p, strongInk, Number{}))
 	}
 	for _, parts := range verdictShort(s.row) {
 		y++

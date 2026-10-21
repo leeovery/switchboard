@@ -2169,14 +2169,27 @@ top half is now and the period; a rule, `the last six weeks`, heads the rest.
 - **On a phone,** stacked, each part under its heading, a blank row between: on row 8, `◂ 1 work ▸`,
   `◂` and `▸` bold `accent.key`, a picker that takes any number of accounts (settled in the plan),
   and at the right `↑↓ an account, or all` in `text.subtle`; under it, the state, its glyph and
-  words; USAGE, every window, its bar 18 wide from column 9, the percentage at 28 and `usage`'s
-  short words at 34, a blank row between windows; THIS WEEK in two columns of three, 26 apart,
-  labels 10 wide: `requests`, `limits` and `plan`, then `worth`, `extra use` and `against`; BY
-  MODEL, its bar 40 wide from column 10 on the heading's row, and its versions over two rows; BY
-  DAY, the last three weeks from column 10, 2 cells a day, with their first days under them, 15
-  apart; WEEKS, the last four peaks as percentages from column 10, 6 apart, `34%…` this week's; the
-  verdict, and under it `limit hit 3 of 7 weeks · 9% left at a reset`; and LATELY, its words cut
-  to 44. No rule.
+  words; USAGE, every window, a blank row between windows; THIS WEEK in two columns of three, 26
+  apart, labels 10 wide: `requests`, `limits` and `plan`, then `worth`, `extra use` and `against`;
+  BY MODEL, its versions over two rows; BY DAY, 2 cells a day, with their first days under them,
+  15 apart; WEEKS, its peaks as percentages, right-aligned in 5 cells, 6 apart, `34%…` this
+  week's; the verdict, and under it `limit hit 3 of 7 weeks · 9% left at a reset`, its two rows;
+  and LATELY. No rule. Its parts are laid across the width by flex, the same at every width it's
+  drawn at, a phone's or the wide chrome's where Detail's wide form doesn't fit:
+  - USAGE's row: the windows' names at their widest whole, at least 8 cells and at most 24; a cell
+    on, the bars, all one width; a cell on, the percentage, in 4; and two cells on, `usage`'s
+    words, in the cells of their form, 22 in full from 70 columns and 14 short below. The names
+    and words take their cells first; the bars take what's left, at least 18 and at most 40, the
+    one most of a bar beside words: 21 at 52 columns, 34 at 73 and 40 from 79.
+  - BY MODEL's bar runs on the heading's row from column 10 to the frame's edge, 62 at 73: a share
+    across the row, not a bar beside words, so the most of 40 doesn't hold it.
+  - BY DAY shows the latest weeks that fit from column 10 to the frame's edge, a week 14 cells and
+    a cell between: two at 52 columns, four at 73, all six from 100.
+  - WEEKS shows the latest peaks the account has that fit from column 10, every one of the six from
+    52 columns. They aren't aligned to BY DAY's weeks.
+  - LATELY's lines are whole where they fit, cut at the frame's edge where they don't.
+  - Bars stay one row; the stack ends where its parts end, and the rows to spare stay blank above
+    the key line.
 
 **Keys.** `tab` views; `[ ]` view; `<` `>` the period, on both views; `←` `→` the focus along
 Compare's accounts; `↑` `↓` the account in Detail's list, or the session in its SESSIONS; `enter`

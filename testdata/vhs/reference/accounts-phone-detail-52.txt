@@ -10,9 +10,9 @@ ACCOUNTS   Compare  Detail
 ● at its cap
 
 USAGE
-Week           ▏   ┃      ╎  34%  19%/day · Sun
+Week            ▏   ┃        ╎  34%  19%/day · Sun
 
-5-hour            ┃       ╎  95%  back 17:10
+5-hour              ┃        ╎  95%  back 17:10
 
 THIS WEEK
 requests  1,204           worth     $184
@@ -23,10 +23,10 @@ BY MODEL
 ● Opus 5.5 55%  ● Opus 5 7%  ● Sonnet 5.5 28%
 ● Sonnet 5 3%  ● Fable 5.1 5%  ● Haiku 4.5 2%
 
-BY DAY    ▪ ▪ ▪   ▪      ▪ ▪ ▪ ▪ ▪        ▪ ▪   ····
-          14 Sep         21 Sep         28 Sep
+BY DAY    ▪ ▪ ▪ ▪ ▪        ▪ ▪   ······
+          21 Sep         28 Sep
 
-WEEKS      100%   81%  100%  34%…
+WEEKS      100%   94%  100%   81%  100%  34%…
 hits its limit most weeks
 limit hit 3 of 7 weeks · 9% left at a reset
 
