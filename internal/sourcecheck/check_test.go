@@ -84,18 +84,15 @@ func TestACheckFindsEachBreachButWhereItsAllowed(t *testing.T) {
 	}
 }
 
-// checkFixture is a module whose data package has the types a rule guards,
-// one embedding another and one wrapping them, a function absorbed, one
-// absorbed in another package alone, as is a field of a type it doesn't
-// guard, and functions and methods taking a guarded type; a reader package
-// with a file of breaches, a file, functions and package-level variables
-// allowed to break the rule, each variable by its name, two declared
-// together by the value given each, a file, a function and a variable
-// allowed that keep it, and a test file, which a check passes over; and that other package, using what's absorbed in it, the
-// field read directly and through a type embedding its own. The reader imports a module the
-// fixture doesn't have, as the source loader stubs it.
+// checkFixture is a module whose packages break a rule and keep it, each
+// file as its comment says. The reader imports a module the fixture doesn't
+// have, as the source loader stubs it.
 var checkFixture = map[string]string{
 	"go.mod": "module example.com/fixture\n",
+	// The types the rule guards, one embedding another and one wrapping
+	// them; a function absorbed, and one absorbed in other alone, as is a
+	// field of a type the rule doesn't guard; and functions and methods
+	// taking a guarded type.
 	"internal/data/data.go": `package data
 
 type Meta struct{ Note string }
@@ -119,6 +116,8 @@ func Banned() string                   { return "" }
 func Scoped() string                   { return "" }
 func Named(o Other) string             { return o.Name }
 `,
+	// What's absorbed in other, used there, the field read directly and
+	// through a type embedding its own.
 	"internal/other/other.go": `package other
 
 import "example.com/fixture/internal/data"
@@ -129,6 +128,7 @@ func named(o data.Other) string { return o.Name }
 
 func through(e data.Embeds) string { return e.Name }
 `,
+	// The reader's breaches.
 	"internal/reader/breaches.go": `package reader
 
 import (
@@ -154,6 +154,9 @@ func breaches(r data.Record, w data.Wrapper, o data.Other) string {
 
 var first = data.Record{}.ID
 `,
+	// Functions and package-level variables allowed, each variable by its
+	// name, two declared together by the value given each; and a function
+	// and a variable allowed that keep the rule.
 	"internal/reader/fns.go": `package reader
 
 import "example.com/fixture/internal/data"
@@ -176,16 +179,19 @@ var (
 
 var two, also = data.Record{}.ID, data.Record{}.ID
 `,
+	// A file allowed.
 	"internal/reader/allowed.go": `package reader
 
 import "example.com/fixture/internal/data"
 
 func allowed(r data.Record) string { return r.ID + data.Banned() }
 `,
+	// A file allowed that keeps the rule.
 	"internal/reader/kept.go": `package reader
 
 func kept() {}
 `,
+	// A test file, which a check passes over.
 	"internal/reader/reader_test.go": `package reader
 
 import "example.com/fixture/internal/data"

@@ -1,10 +1,7 @@
 package dashboard_test
 
 import (
-	"go/ast"
 	"go/constant"
-	"go/token"
-	"go/types"
 	"math"
 	"slices"
 	"strings"
@@ -100,6 +97,9 @@ var phoneAllowed = []string{
 // to its parts. The list only shrinks: an entry must still be there, and
 // still compare one.
 var sizedAllowed = []string{
+	// S5: the Switchboard's lines, on one row where they're narrower than
+	// widestLines.
+	"internal/dashboard/switchboardlines.go:linesDrawn.oneRow",
 	// S6: the Log's cost kept where two cells are left.
 	"internal/dashboard/logtable.go:costKept",
 	// S7: the List's routing column.
@@ -129,14 +129,21 @@ var sizedAllowed = []string{
 	"internal/dashboard/usagewords.go:usageWords.pick",
 	// S19 and S20: Days and Weeks scrolling whole under historyRows.
 	"internal/dashboard/historypage.go:Frame.shortOfHistory",
-	// S21: Tokens' footnote, left off short of leastPaged.
+	// S21: Tokens' footnote, left off short of leastPaged, and a period's
+	// headings, none under two rows.
 	"internal/dashboard/historytokens.go:Frame.tokensPlaced",
+	"internal/dashboard/historytokens.go:periodHeads",
+	// S22: a session's page, the accounts it's been on, the whole run where
+	// it fits phoneOnCells.
+	"internal/dashboard/sessionpage.go:sessionDrawn.phoneOn",
 	// S22 and S23: a session's page, its turns' form, sessionWideFrom, and
 	// its rows.
 	"internal/dashboard/sessionlayout.go:Frame.sessionLayout",
-	// S25: the Log's panel and card, and the theme picker, cards of a kind;
+	// S25: the frame cramped short of leastView, which many views choose
+	// by; the Log's panel and card, and the theme picker, cards of a kind;
 	// usage's printout's header; and a glyph's width as the canvas puts it,
 	// whether it's wide.
+	"internal/dashboard/frame.go:Frame.cramped",
 	"internal/dashboard/logpanelcard.go:LogPanel.laidOut",
 	"internal/dashboard/logcard.go:Frame.logCardForm",
 	"internal/dashboard/picker.go:PickerWidth",
@@ -209,19 +216,6 @@ var (
 	}
 )
 
-// sizeWords are the words a size is called by, a width or a height, as a
-// variable or a field. namesASize holds a name to them: the word alone, in
-// either case, as width or Width, or the last word of a name in camel case,
-// as innerWidth or bodyRows. A size held under any other name, as cells or
-// phoneUnder, passes unseen.
-var sizeWords = []string{"Width", "Height", "Rows", "Cols", "Room"}
-
-func namesASize(name string) bool {
-	return slices.ContainsFunc(sizeWords, func(word string) bool {
-		return strings.EqualFold(name, word) || strings.HasSuffix(name, word)
-	})
-}
-
 // cutter is a function or method that cuts what it's given to a width: by
 // its package's path, under the module's where it starts with a slash, or in
 // full; its receiver's type, where it's a method; its name; and the index of
@@ -291,13 +285,10 @@ type allowed struct {
 	phone, sized, cut []string
 }
 
-// flexBreaches are where the non-test files of the packages of the module at
-// root with the given path break the guard's rules, but in the functions
-// allowed: those in every use the phone's breakpoint, called or not; and
-// those in drawing compare a width or a height with a constant, as sized has
-// it, or give a cutter a constant width, as cutBreaches has it, each as
-// widths works them out of drawing. Then each allowed that's gone, or keeps
-// its rule. One loader reads them all, once.
+// flexBreaches are where the module's packages break the guard's rules but
+// where a allows: every package by the phone's breakpoint, and drawing's by
+// sizes, as sizes judges them, and cuts, as cutBreaches does. Then each
+// allowed that's gone, or keeps its rule. One loader reads them all, once.
 func flexBreaches(t *testing.T, root, module string, every, drawing []string, a allowed) []string {
 	t.Helper()
 	l := sourcecheck.NewLoader(t, root, module, every)
@@ -310,99 +301,25 @@ func flexBreaches(t *testing.T, root, module string, every, drawing []string, a 
 		files = append(files, l.Load(dir)...)
 	}
 	w := widthsOf(files)
+	sizes := sizesOf(files, w)
 	names := sourcecheck.NamesIn(module)
 	return slices.Concat(
 		l.Check(sourcecheck.Rule{Names: names, Used: used}, every, sourcecheck.Allowance{Entries: a.phone, List: "phoneAllowed", Fix: phoneAllowedFix}),
-		l.Check(sourcecheck.Rule{Names: names, Node: w.sized}, drawing, sourcecheck.Allowance{Entries: a.sized, List: "sizedAllowed", Fix: sizedAllowedFix}),
+		l.Check(sourcecheck.Rule{Names: names, Node: sizes.sized}, drawing, sourcecheck.Allowance{Entries: a.sized, List: "sizedAllowed", Fix: sizedAllowedFix}),
 		cutBreaches(l, module, drawing, files, w, a.cut),
 	)
 }
 
-// comparisons are the operators a size is compared with a constant by.
-var comparisons = []token.Token{token.LSS, token.LEQ, token.GTR, token.GEQ, token.EQL, token.NEQ}
-
-// flipped is each ordered comparison with its sides swapped, as 80 > room is
-// room < 80.
-var flipped = map[token.Token]token.Token{token.LSS: token.GTR, token.LEQ: token.GEQ, token.GTR: token.LSS, token.GEQ: token.LEQ}
-
-// sized says how n compares a width or a height with a constant: a
-// comparison, ordered or not, of a number constant, written as one or
-// followed a step back as widths' valueOf follows it, with what reads a
-// size, as readsASize has it, as f.Width < phoneUnder, width < limit or
-// bodyRows == 3; but with 0, as whether there's any, or, ordered, with 1 as
-// with 0, as room < 1 is room <= 0.
-func (w widths) sized(n ast.Node, info *types.Info) string {
-	b, ok := n.(*ast.BinaryExpr)
-	if !ok || !slices.Contains(comparisons, b.Op) {
-		return ""
-	}
-	for i, sides := range [][2]ast.Expr{{b.X, b.Y}, {b.Y, b.X}} {
-		if c := w.constantOf(sides[0], info); c != nil && !withNone(c, b.Op, i == 0) && readsASize(sides[1], info) {
-			return sizedSays(types.ExprString(b))
-		}
-	}
-	return ""
-}
-
-// withNone reports whether comparing a whole number with the number constant
-// c, by op, the constant first where first says, asks whether there's any: c
-// is 0, or 1 where the comparison is one with 0, as n < 1 or 1 <= n.
-func withNone(c constant.Value, op token.Token, first bool) bool {
-	if constant.Sign(c) == 0 {
-		return true
-	}
-	if swapped, ordered := flipped[op]; first && ordered {
-		op = swapped
-	}
-	return constant.Compare(c, token.EQL, constant.MakeInt64(1)) && (op == token.LSS || op == token.GEQ)
-}
-
-// readsASize reports whether e reads a size: a variable or a field a size
-// word names, as namesASize has it, of a whole number, or of a type the
-// loader lost, judged by its name alone. It reads through a conversion, as
-// int(width), but not into a call's arguments, as len(f.rowsOf(width))
-// counts what the call gives; so a size worked out by a function, as a
-// canvas's width(), passes unseen.
-func readsASize(e ast.Expr, info *types.Info) bool {
-	found := false
-	ast.Inspect(e, func(n ast.Node) bool {
-		switch n := n.(type) {
-		case *ast.CallExpr:
-			return info.Types[n.Fun].IsType()
-		case *ast.Ident:
-			v, isVar := info.Uses[n].(*types.Var)
-			found = found || isVar && namesASize(n.Name) && (isWhole(v.Type()) || isLost(v.Type()))
-		}
-		return !found
-	})
-	return found
-}
-
-// isLost reports whether t is lost to a package the loader stubs.
-func isLost(t types.Type) bool {
-	return t.Underlying() == types.Typ[types.Invalid]
-}
-
-// isWhole reports whether t is a whole number's type.
-func isWhole(t types.Type) bool {
-	basic, ok := t.Underlying().(*types.Basic)
-	return ok && basic.Info()&types.IsInteger != 0
-}
-
-// cutBreaches are where the non-test files of the packages in dirs, as l
-// loads them, give a cutter a constant width other than whole, or use one as
-// a value, but in the functions allowed: each of cutters, and each function
-// or method of those packages that hands a width it's given on to one
-// unchanged, as w's wrapped works them out of the files, those packages'.
-// Then each allowed that's gone, or gives none.
+// cutBreaches are where the packages in dirs give a cutter, or a wrapper of
+// one as w's wrapped finds them in files, a constant width other than whole,
+// or use one as a value, but where allowed. Then each allowed that's gone,
+// or gives none.
 //
-// What it can't follow passes unseen: a width held on a receiver, as
-// c.width; a package-level literal taken by its address, as &columns{dir:
-// 8}; a field promoted from one embedded; a wrapper's local copy of its
-// width, or a closure handing it on; a package-level variable written from
-// another package, as the watch might write an exported one; and anything
-// of a file built for another platform, which another loader reads apart.
-// None occurs in the code today.
+// It can't follow a width held on a receiver; a literal's address; a
+// promoted field; a wrapper's local copy of its width, or a closure; a
+// package-level variable written from another package, as the watch; or a
+// file built for another platform, read by another loader. None occurs
+// today.
 func cutBreaches(l *sourcecheck.Loader, module string, dirs []string, files []sourcecheck.File, w widths, allowed []string) []string {
 	given := make(map[string][]widthAt)
 	// A cutter that's a method, as a line's, or a wrapper is judged only where
@@ -468,6 +385,13 @@ func TestTheFlexGuardFindsWhatItGuardsAgainst(t *testing.T) {
 		"internal/dashboard/compared.go:20: " + sizedSays("cols == 1"),
 		"internal/dashboard/compared.go:21: " + sizedSays("room < 2"),
 		"internal/dashboard/compared.go:23: " + sizedSays("int(width) > 90"),
+		"internal/dashboard/measured.go:15: " + sizedSays("f.viewRows() < 20"),
+		"internal/dashboard/measured.go:16: " + sizedSays("f.width() >= 100"),
+		"internal/dashboard/measured.go:19: " + sizedSays("s.Width < 80"),
+		"internal/dashboard/measured.go:20: " + sizedSays("cells.Of(name).Width < 90"),
+		"internal/dashboard/measured.go:21: " + sourcecheck.LostSays("width < cells.Most", "the type of cells.Most"),
+		"internal/dashboard/measured.go:27: " + sizedSays("switch width case 80"),
+		"internal/dashboard/measured.go:33: " + sizedSays("switch f.Height case 24"),
 		"internal/dashboard/sizes.go:13: " + sizedSays("width >= wideCells"),
 		"internal/dashboard/sizes.go:14: " + sizedSays("110 > room"),
 		"internal/dashboard/sizes.go:15: " + sizedSays("f.Width - 2 <= 80"),
@@ -515,12 +439,14 @@ func TestTheFlexGuardFindsWhatItGuardsAgainst(t *testing.T) {
 // and keeps them, each file as its comment says.
 var flexFixture = map[string]string{
 	"go.mod": "module example.com/fixture\n",
-	// prose's and status's cutters, each cutting a name to a width.
+	// prose's and status's cutters, each cutting a name to a width; and
+	// prose's measure of a name.
 	"internal/prose/prose.go": `package prose
 
 func Cut(text string, cells int) string      { return text }
 func CutShort(text string, cells int) string { return text }
 func CutFront(text string, cells int) string { return text }
+func Width(text string) int                  { return len(text) }
 `,
 	"internal/status/status.go": `package status
 
@@ -832,6 +758,54 @@ var (
 	otherValue   = prose.CutShort
 	keptValue    = 0
 )
+`,
+	// Sizes read through calls of the dashboard's own, beside a measure
+	// from outside and a count; sizes of fields the loader lost, by their
+	// names, beside one named otherwise; a constant the loader lost; and
+	// switches on sizes, each case by equality, but 0, beside a switch with
+	// no tag, its cases comparisons.
+	"internal/dashboard/measured.go": `package dashboard
+
+import (
+	"example.org/cells"
+
+	"example.com/fixture/internal/prose"
+)
+
+func (f Frame) viewRows() int { return f.Height - 2 }
+
+func (f Frame) width() int { return f.Width }
+
+func readThrough(f Frame, s cells.Box, name string, width int) []bool {
+	return []bool{
+		f.viewRows() < 20,
+		f.width() >= 100,
+		prose.Width(name)+cells.Width(name) > 8,
+		len(prose.Cut(name, width)) > 3,
+		s.Width < 80,
+		cells.Of(name).Width < 90,
+		width < cells.Most,
+		s.Count > 3,
+	}
+}
+
+func switched(f Frame, width int) int {
+	switch width {
+	case 0:
+		return 0
+	case 80:
+		return 1
+	}
+	switch f.Height {
+	case 24, 30:
+		return 2
+	}
+	switch {
+	case width > 0:
+		return 3
+	}
+	return 4
+}
 `,
 	// The watch, which chooses by the breakpoint too.
 	"internal/dashboard/watch/watch.go": `package watch

@@ -24,10 +24,10 @@ type Lost struct {
 // Says says how what's lost breaks a rule that would judge it.
 func (l Lost) Says() string {
 	if l.Of == nil {
-		return lostSays(l.Name.Name, "its type")
+		return LostSays(l.Name.Name, "its type")
 	}
 	of := types.ExprString(l.Of)
-	return lostSays(of+"."+l.Name.Name, "the type of "+of)
+	return LostSays(of+"."+l.Name.Name, "the type of "+of)
 }
 
 // LostIn are the identifiers in n the type checker never resolved, in the
@@ -81,9 +81,9 @@ func (f File) resolved(id *ast.Ident) bool {
 // lostFix says how to give a guard what the loader lost.
 const lostFix = "give the guard a type it can see, as a variable declared with one"
 
-// lostSays says how what breaks a rule that can't judge it, as of, its type,
+// LostSays says how what breaks a rule that can't judge it, as of, its type,
 // is lost to a package the loader stubs.
-func lostSays(what, of string) string {
+func LostSays(what, of string) string {
 	return what + " can't be judged, as " + of + " is lost to a package the loader stubs; " + lostFix
 }
 
@@ -124,8 +124,9 @@ func (u unseen) function(name string, method bool) {
 // may break the rule: the fields of each of Fields, through any field
 // embedded in it, that pkg can read; each function and field of Used, a
 // field selected as a method is, and each function of Calls, whose ban holds
-// in dir, but where it judges only what it sees; and each function and method of Owners that takes one of Fields,
-// that pkg can use, but those allowed.
+// in dir, but where it judges only what it sees; and each function and
+// method of Owners that takes one of Fields, that pkg can use, but those
+// allowed.
 func (r Rule) unseenIn(pkg *types.Package, dir string) unseen {
 	u := unseen{selected: make(map[string]bool), bare: make(map[string]bool)}
 	for name, ban := range r.Used {

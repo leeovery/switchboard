@@ -273,7 +273,7 @@ func (w *walk) call(call *ast.CallExpr) {
 	case breaks:
 		w.breach(id.Pos(), ban.Says)
 	case lost != nil:
-		w.breach(id.Pos(), lostSays(name, "the type of its argument "+types.ExprString(lost)))
+		w.breach(id.Pos(), LostSays(name, "the type of its argument "+types.ExprString(lost)))
 	}
 }
 
