@@ -1648,7 +1648,10 @@ first (the owner's call, 15 October 2026).
     The rows of charts share what they're given evenly, the odd row to the first. At 160 columns
     with two windows, the stacked step comes from about 60 rows and 5 rows a chart from about 90;
     with three, from about 75 and 110. Where USAGE's least doesn't fit, it scrolls, as it does by
-    window, and `▼` and how many more come under the last block's charts, never over them;
+    window, showing as many accounts as it did before every chart showed: `▼` and how many more
+    keep the row after the last block shown, and that block's charts are cut short to end on its
+    last row, a row above `▼`, nothing drawn over it, as the accounts are the data and a chart's
+    last row at the scroll's edge isn't (the owner's call, 21 October 2026);
   - **the pool's charts beside `Σ pool`,** its windows in the same form as each account's: the
     pool's room in each window over its length back from now, from its left edge to now at its
     right, a column a cell, each column the room at its end's moment, a share of all its accounts'

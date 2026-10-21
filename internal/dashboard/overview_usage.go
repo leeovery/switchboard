@@ -510,13 +510,18 @@ func (b usageBlock) placed() []rowAt {
 	return b.lay(growing(b.width), 0).placed
 }
 
-// beside is where the block draws its rows shown in body, for ROUTING to be
-// drawn beside them from column x.
+// beside is where the block draws its rows shown in body, for ROUTING or
+// GRAPHS' charts to be drawn beside them from column x: where accounts are
+// out of view below, what's beside the last shown is cut at the row after
+// its last, where ▼ and how many sit.
 func (s usageShown) beside(x int, body bounds) blocksBeside {
 	at := blocksBeside{x: x, under: s.block.under(), form: s.block.beside}
 	for _, p := range s.block.placed() {
 		p.y += body.y - s.from
 		at.blocks = append(at.blocks, p)
+		if p.id != "" && s.block.below > 0 {
+			at.cut = p.y + p.rows
+		}
 	}
 	return at
 }

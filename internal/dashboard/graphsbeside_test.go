@@ -165,14 +165,24 @@ func TestByAccountAt160USAGEsLeastIsAsBeforeAndItGrowsWholeToTheChartsStackedThe
 
 func TestByAccountScrolledTheChartsOfTheLastBlockShownEndBeforeHowManyMoreAreBelow(t *testing.T) {
 	f := besideOf(160)
-	rows, _ := usageBody(f, manyRead(6), now, 20)
+	f.Scroll = 2
+	rows, _ := usageBody(f, manyRead(10), now, 22)
 	below := slices.IndexFunc(rows, func(row string) bool { return strings.HasPrefix(row, "▼") })
 	rule := slices.IndexFunc(rows, func(row string) bool { return strings.HasPrefix(row, "────") })
 	if below < 1 || rule < below {
 		t.Fatalf("USAGE scrolled reads\n%s\nwant ▼ and how many more below, then the pool's rule", strings.Join(rows, "\n"))
 	}
+	shown := 0
+	for _, row := range rows[:below] {
+		if strings.Contains(row, "Week") {
+			shown++
+		}
+	}
+	if shown != 3 {
+		t.Errorf("in 22 rows, scrolled 2, USAGE shows %d accounts, want 3, as before every chart showed:\n%s", shown, strings.Join(rows, "\n"))
+	}
 	if got := colAt(rows[below-1], 107, 5); strings.TrimSpace(got) == "" {
-		t.Errorf("the row over ▼ reads nothing beside it, want the last block's charts' axis there:\n%s", strings.Join(rows, "\n"))
+		t.Errorf("the row over ▼ reads nothing beside it, want the last block's charts cut short to their axis there:\n%s", strings.Join(rows, "\n"))
 	}
 	for y := below; y < rule; y++ {
 		if got := colAt(rows[y], 107, 53); strings.TrimSpace(got) != "" {
@@ -231,7 +241,7 @@ func TestGRAPHSBesideUSAGEChartsEveryAccountShownAsItsBlocksScroll(t *testing.T)
 	}{
 		{accounts: 1, rows: 40, shown: map[string]int{"a1": 0}},
 		{accounts: 4, rows: 40, shown: map[string]int{"a1": 0, "a2": 8, "a3": 16, "a4": 24}},
-		{accounts: 10, scroll: 2, rows: 22, shown: map[string]int{"a3": 1, "a4": 6}},
+		{accounts: 10, scroll: 2, rows: 22, shown: map[string]int{"a3": 1, "a4": 6, "a5": 11}},
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("%d accounts", tt.accounts), func(t *testing.T) {

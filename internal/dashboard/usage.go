@@ -516,8 +516,7 @@ func (b usageBlock) stacked(c *canvas, y int) laid {
 // given, returning its last, a row's first apart rows on from the last of
 // the row before. Where accounts' rows are scrolled out of view, ▲ and how
 // many are above comes over the first row shown, and ▼ and how many below
-// under the last, past the rows under it what's beside it takes, as under
-// has them, from column x, then the block's spare rows. The pool's row
+// under the last, from column x, then the block's spare rows. The pool's row
 // comes last, its rule in the row above it.
 func (b usageBlock) each(c *canvas, x, y, apart int, draw func(r usageRow, y int) int) laid {
 	accounts, pool := b.split()
@@ -533,7 +532,7 @@ func (b usageBlock) each(c *canvas, x, y, apart int, draw func(r usageRow, y int
 		next = last + apart
 	}
 	if b.below > 0 {
-		last += b.under() + 1
+		last++
 		c.line(x, last, outOfView(0, b.below, b.width-x, usageOut))
 		next = last + apart
 	}
