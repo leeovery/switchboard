@@ -31,14 +31,16 @@ var shownSubTabInk = ink{token: theme.TextPrimary, on: hue{token: theme.BgSubtle
 // accent.key, where there's any, and its shorter forms, each a clause fewer,
 // for less room; and at its right, its period or window, which < and > step,
 // or another line, as the Log's count and its f, and that line where the
-// heading is compact, where it has one of its own; and the widest form its
-// period takes as < and > step it, the period itself where it's not given.
+// heading is compact, where it has one of its own; the widest form its
+// period takes as < and > step it, the period itself where it's not given;
+// and whether it says its page is loading.
 type heading struct {
 	name         string
 	subTabs      []string
 	shown        int
 	state        line
 	shorter      []line
+	reading      bool
 	period       string
 	widest       string
 	right        line
@@ -75,21 +77,49 @@ func (f Frame) heading() heading {
 	return h
 }
 
-// loading is h saying its page is loading: loading…, in text.subtle,
-// leading what it says of its state, three cells before it, in each of its
-// forms, and alone, for the least room.
+// loading is h saying its page is loading, as stateForms words it.
 func (h heading) loading() heading {
-	said := line{{loadingWord, dimInk}}
-	if h.state == nil {
-		h.state = said
-		return h
-	}
-	shorter := make([]line, 0, len(h.shorter)+1)
-	for _, s := range h.shorter {
-		shorter = append(shorter, slices.Concat(said, line{spaces(headingGap)}, s))
-	}
-	h.state, h.shorter = slices.Concat(said, line{spaces(headingGap)}, h.state), append(shorter, said)
+	h.reading = true
 	return h
+}
+
+// quietForms are the forms the heading's state is said in while its page
+// isn't loading, the fullest first: the state, then its shorter forms.
+func (h heading) quietForms() []line {
+	if h.state == nil {
+		return nil
+	}
+	return slices.Concat([]line{h.state}, h.shorter)
+}
+
+// stateForms are the forms the heading's state is said in, the fullest
+// first, as firstFit tries them: its quiet forms; and while its page is
+// loading, loading…, in text.subtle, leading each, three cells before it,
+// then alone, for the least room.
+func (h heading) stateForms() []line {
+	forms := h.quietForms()
+	if !h.reading {
+		return forms
+	}
+	said := line{{loadingWord, dimInk}}
+	loading := make([]line, 0, len(forms)+1)
+	for _, form := range forms {
+		loading = append(loading, slices.Concat(said, line{spaces(headingGap)}, form))
+	}
+	return append(loading, said)
+}
+
+// leastState is the fewest cells the state must have whole beside a compact
+// heading's period, whether it shows or not, so neither its showing nor the
+// page loading moves the heading between one row and two: loading… whole,
+// as a read can start at any moment, or the state's least quiet form, where
+// that's wider.
+func (h heading) leastState() int {
+	least := ansi.StringWidth(loadingWord)
+	if forms := h.quietForms(); forms != nil {
+		least = max(least, forms[len(forms)-1].width())
+	}
+	return least
 }
 
 // tabHeading is the heading row of the tab shown: Accounts', as
@@ -146,27 +176,30 @@ func (h heading) compact(phone bool) bool {
 }
 
 // The heading's parts as a compact heading lays them out, deciding where its
-// period goes: the name and the sub-tabs, whole; and two cells on, the
-// period at its widest between its keys, which gives way to a row of its
-// own.
+// period goes: the name and the sub-tabs, whole; three cells on, the state at
+// its least; and two cells on, the period at its widest between its keys,
+// which gives way to a row of its own.
 const (
 	periodNamed = iota
+	periodState
 	periodBeside
 )
 
 // ownPeriod reports whether the heading's period takes the row under it, as
-// a compact heading has it where the name, the sub-tabs and the period at
-// its widest don't fit a frame width cells wide, so stepping the period never
-// moves the heading between one row and two. A tab without sub-tabs, as
-// Runway, keeps its rule and its window on its row.
+// a compact heading has it where the name, the sub-tabs, the state at its
+// least and the period at its widest don't fit a frame width cells wide, so
+// stepping the period never moves the heading between one row and two. A tab
+// without sub-tabs, as Runway, keeps its rule and its window on its row.
 func (h heading) ownPeriod(width int, phone bool) bool {
 	if !h.compact(phone) || h.period == "" {
 		return false
 	}
 	var laid laying
 	named, widest := h.named(&laid, 0, phone), ends(periodPieces(cmp.Or(h.widest, h.period)))
+	state := h.leastState()
 	spans, fits := flex.Lay(width, []flex.Part{
 		periodNamed:  {Least: named, Natural: named},
+		periodState:  {Least: state, Natural: state, Gap: headingGap},
 		periodBeside: {Least: widest, Natural: widest, Leaves: 1, Gap: ruleGap},
 	}...)
 	return !fits || spans[periodBeside].Left
@@ -195,8 +228,8 @@ func (h heading) pieces(y, width int, phone bool) []piece {
 		end = width - ends(right) - ruleGap
 	}
 	ruled := x + ruleGap
-	if h.state != nil {
-		ruled = laid.put(x+headingGap, y, firstFit(end-x-headingGap, slices.Concat([]line{h.state}, h.shorter)...), Target{}) + 1
+	if forms := h.stateForms(); forms != nil {
+		ruled = laid.put(x+headingGap, y, firstFit(end-x-headingGap, forms...), Target{}) + 1
 	}
 	if !h.compact(phone) {
 		laid.put(ruled, y, line{{rule(end - ruled), borderInk}}, Target{})

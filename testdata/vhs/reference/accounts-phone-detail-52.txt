@@ -3,7 +3,8 @@
 
 ● healthy · auto · 6 sessions · new → ▲ side
 
-ACCOUNTS   Compare  Detail             < this week >
+ACCOUNTS   Compare  Detail
+                                       < this week >
 
 ◂ 1 work ▸                     ↑↓ an account, or all
 ● at its cap
@@ -33,7 +34,6 @@ LATELY
 14:31  ╎ reached its cap: 3 sessions moved to side
 14:12  ▲ 7f3a started here, the best
 13:22  ▸ db8a came from personal: personal came un…
-
 
 
 

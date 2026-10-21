@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -60,12 +61,16 @@ func TestTheHeadingRow(t *testing.T) {
 			want: []string{"ACCOUNTS    Compare  Detail  [ ]  " + rule(111) + "  < this week >"},
 		},
 		{
-			name: "on a phone, the sub-tabs two cells after the name, without [ ] or a rule, the period at the right where it fits", heading: comparing, width: 52, phone: true,
-			want: []string{"ACCOUNTS   Compare  Detail" + blanks(13) + "< this week >"},
+			name: "on a phone, the sub-tabs two cells after the name, without [ ] or a rule, the period at the right where it fits beside them and loading…", heading: comparing, width: 53, phone: true,
+			want: []string{"ACCOUNTS   Compare  Detail" + blanks(14) + "< this week >"},
 		},
 		{
-			name: "on a phone, the period on the row under the sub-tabs where it doesn't fit beside them", heading: comparing, width: 40, phone: true,
-			want: []string{"ACCOUNTS   Compare  Detail", blanks(27) + "< this week >"},
+			name: "on a phone, the period on the row under the sub-tabs where it doesn't fit beside them and loading…", heading: comparing, width: 52, phone: true,
+			want: []string{"ACCOUNTS   Compare  Detail", blanks(39) + "< this week >"},
+		},
+		{
+			name: "on a phone, loading… whole between the sub-tabs and the period, where they fit", heading: comparing.loading(), width: 53, phone: true,
+			want: []string{"ACCOUNTS   Compare  Detail    loading…  < this week >"},
 		},
 		{
 			name:    "on a phone, History's sub-tabs two cells after the name, padded, as Accounts' are",
@@ -82,9 +87,14 @@ func TestTheHeadingRow(t *testing.T) {
 			want:    []string{"HISTORY   Year  Weeks  Days  Tokens    loading…", blanks(34) + "< last 12 months >"},
 		},
 		{
-			name: "on a phone, the Year's filter cut to the room History's padded sub-tabs leave", width: 52, phone: true,
+			name: "on a phone, the Year's filter in its short form, where its full form doesn't fit the room History's padded sub-tabs leave", width: 52, phone: true,
 			heading: HistoryPage{Shown: HistoryYear, YearAsk: views.YearAsk{Account: "work"}, Accounts: threeConfigured}.heading(),
-			want:    []string{"HISTORY   Year  Weeks  Days  Tokens    Work only, e…", blanks(34) + "< last 12 months >"},
+			want:    []string{"HISTORY   Year  Weeks  Days  Tokens    Work only", blanks(34) + "< last 12 months >"},
+		},
+		{
+			name: "on a phone, the Year's filter in its short form beside the period", width: 68, phone: true,
+			heading: HistoryPage{Shown: HistoryYear, YearAsk: views.YearAsk{Account: "work"}, Accounts: threeConfigured}.heading(),
+			want:    []string{"HISTORY   Year  Weeks  Days  Tokens    Work only  < last 12 months >"},
 		},
 		{
 			name: "History's sub-tabs wider than a phone", heading: yearHistory, width: 160,
@@ -243,17 +253,19 @@ func pickedOut(t *testing.T, c *canvas, tt Target) {
 	}
 }
 
-// headingFrame is a frame width cells wide showing view, as shown sets it.
-func headingFrame(width int, view View, shown func(*Frame)) Frame {
+// headingFrame is a frame width cells wide showing view, as shown sets it,
+// loading where loading says.
+func headingFrame(width int, view View, shown func(*Frame), loading bool) Frame {
 	f := frameOf(width, 61)
-	f.View = view
+	f.View, f.Loading = view, loading
 	shown(&f)
 	return f
 }
 
-// accountsAt has a frame show Accounts' sub-tab given over the period given.
-func accountsAt(sub AccountsView, period views.AccountsPeriod) func(*Frame) {
-	return func(f *Frame) { f.Accounts = AccountsShown{Shown: sub, Accounts: threeConfigured, Period: period} }
+// accountsAt has a frame show Accounts' sub-tab given over the period given,
+// of the accounts given.
+func accountsAt(accounts config.Accounts, sub AccountsView, period views.AccountsPeriod) func(*Frame) {
+	return func(f *Frame) { f.Accounts = AccountsShown{Shown: sub, Accounts: accounts, Period: period} }
 }
 
 // historyAt has a frame show History's page given.
@@ -261,112 +273,154 @@ func historyAt(page HistoryPage) func(*Frame) {
 	return func(f *Frame) { f.History = page }
 }
 
-// A phone's period sits at the right of the heading's name and sub-tabs
-// wherever they fit whole beside it at its widest, and takes the row under
-// them where they don't, the view starting a row on.
+// longLabelled are the accounts configured, side's label long.
+var longLabelled = config.Accounts{{ID: "work", Label: "Work"}, {ID: "personal"}, {ID: "side", Label: "side-hustle-consulting"}}
+
+// The Year's filters: none; an account, by a short label and a long one; and
+// a version.
+var (
+	yearAll      = views.YearAsk{}
+	yearWork     = views.YearAsk{Account: "work"}
+	yearSide     = views.YearAsk{Account: "side"}
+	yearVersion  = views.YearAsk{Version: "Opus 5.5"}
+	yearFiltered = []views.YearAsk{yearAll, yearWork, yearSide, yearVersion}
+)
+
+// yearAt has a frame show the Year over the year given, filtered as ask
+// says.
+func yearAt(ask views.YearAsk, year int) func(*Frame) {
+	ask.Year = year
+	return historyAt(HistoryPage{Shown: HistoryYear, YearAsk: ask, Accounts: longLabelled, Read: true})
+}
+
+// tokensAt has a frame show Tokens by the period given.
+func tokensAt(period views.TokensPeriod) func(*Frame) {
+	return historyAt(HistoryPage{Shown: HistoryTokens, TokensAsk: views.TokensAsk{Period: period}})
+}
+
+// A phone's period sits at the right of the heading's row from the width its
+// name, its sub-tabs, three cells on loading… whole, or the state's least
+// form where that's wider, and two cells on the period at its widest fit,
+// and takes the row under them a cell narrower, the view starting a row on.
 func TestAPhonesPeriodSitsBesideTheHeadingWhereItFits(t *testing.T) {
-	compare, detail := accountsAt(AccountsCompare, views.AccountsThisWeek), accountsAt(AccountsDetail, views.AccountsToday)
-	year, calendar := historyAt(HistoryPage{Shown: HistoryYear}), historyAt(HistoryPage{Shown: HistoryYear, YearAsk: views.YearAsk{Year: 2025}})
-	tokens := historyAt(HistoryPage{Shown: HistoryTokens})
 	tests := []struct {
-		name   string
-		view   View
-		shown  func(*Frame)
-		width  int
-		beside bool
+		name  string
+		view  View
+		shown func(*Frame)
+		edge  int
 	}{
-		{name: "Accounts' Compare", view: Accounts, shown: compare, width: 73, beside: true},
-		{name: "Accounts' Compare", view: Accounts, shown: compare, width: 52, beside: true},
-		{name: "Accounts' Compare", view: Accounts, shown: compare, width: 40},
-		{name: "Accounts' Detail", view: Accounts, shown: detail, width: 73, beside: true},
-		{name: "Accounts' Detail", view: Accounts, shown: detail, width: 52, beside: true},
-		{name: "Accounts' Detail", view: Accounts, shown: detail, width: 40},
-		{name: "History's Year", view: History, shown: year, width: 73, beside: true},
-		{name: "History's Year", view: History, shown: year, width: 52},
-		{name: "History's Year, over a calendar year", view: History, shown: calendar, width: 52},
-		{name: "History's Tokens", view: History, shown: tokens, width: 73, beside: true},
-		{name: "History's Tokens", view: History, shown: tokens, width: 52, beside: true},
-		{name: "History's Tokens", view: History, shown: tokens, width: 40},
+		{name: "Accounts' Compare", view: Accounts, shown: accountsAt(threeConfigured, AccountsCompare, views.AccountsThisWeek), edge: 53},
+		{name: "Accounts' Detail", view: Accounts, shown: accountsAt(threeConfigured, AccountsDetail, views.AccountsToday), edge: 53},
+		{name: "Accounts with one account", view: Accounts, shown: accountsAt(threeConfigured[:1], AccountsDetail, views.AccountsThisWeek), edge: 44},
+		{name: "History's Tokens", view: History, shown: tokensAt(views.TokensByWeek), edge: 61},
+		{name: "History's Year", view: History, shown: yearAt(yearAll, 0), edge: 67},
+		{name: "History's Year over a calendar year", view: History, shown: yearAt(yearAll, 2025), edge: 67},
+		{name: "History's Year, Work's alone", view: History, shown: yearAt(yearWork, 0), edge: 68},
+		{name: "History's Year, a version's alone", view: History, shown: yearAt(yearVersion, 0), edge: 72},
+		{name: "History's Year, a long label's alone", view: History, shown: yearAt(yearSide, 0), edge: 86},
 	}
 	for _, tt := range tests {
-		t.Run(fmt.Sprintf("%s at %d", tt.name, tt.width), func(t *testing.T) {
-			f := headingFrame(tt.width, tt.view, tt.shown)
-			rows := 2
-			if tt.beside {
-				rows = 1
+		for _, width := range []int{tt.edge - 1, tt.edge} {
+			for _, loading := range []bool{false, true} {
+				t.Run(fmt.Sprintf("%s at %d, loading: %t", tt.name, width, loading), func(t *testing.T) {
+					f := headingFrame(width, tt.view, tt.shown, loading)
+					rows := 1
+					if width < tt.edge {
+						rows = 2
+					}
+					var steps []int
+					for _, p := range f.headingPieces() {
+						if p.click.On == OnStep {
+							steps = append(steps, p.y)
+						}
+					}
+					periodRow := f.headingY() + rows - 1
+					if want := []int{periodRow, periodRow}; !slices.Equal(steps, want) {
+						t.Errorf("< and > are on rows %v, want %v", steps, want)
+					}
+					if got := f.heading().rows(f.Width, f.phone()); got != rows {
+						t.Errorf("the heading takes %d rows, want %d", got, rows)
+					}
+					if got, want := f.top(), f.headingY()+rows+1; got != want {
+						t.Errorf("the view starts at row %d, want %d", got, want)
+					}
+				})
 			}
-			var steps []int
-			for _, p := range f.headingPieces() {
-				if p.click.On == OnStep {
-					steps = append(steps, p.y)
-				}
-			}
-			periodRow := f.headingY() + rows - 1
-			if want := []int{periodRow, periodRow}; !slices.Equal(steps, want) {
-				t.Errorf("< and > are on rows %v, want %v", steps, want)
-			}
-			if got := f.heading().rows(f.Width, f.phone()); got != rows {
-				t.Errorf("the heading takes %d rows, want %d", got, rows)
-			}
-			if got, want := f.top(), f.headingY()+rows+1; got != want {
-				t.Errorf("the view starts at row %d, want %d", got, want)
-			}
-		})
+		}
 	}
 }
 
-// Whether the period sits beside the name is the width's and the period's
-// widest form's to say, never the period shown's: stepping through every
-// period a view has never moves its heading between one row and two, at any
-// width, and where the period sits beside, each form clears the sub-tabs.
+// Whether the period sits beside the name is the width's, the period's
+// widest form's and the state's least's to say, never the period shown's nor
+// a read's: stepping through every period a view has, loading or not, never
+// moves its heading between one row and two, at any width; and where the
+// period sits beside, the state shows its least form whole, and the period
+// clears it.
 func TestSteppingThePeriodNeverMovesTheHeadingsRows(t *testing.T) {
-	forms := map[string][]func(*Frame){}
-	for _, period := range views.AccountsPeriods() {
-		forms["Accounts' Compare"] = append(forms["Accounts' Compare"], accountsAt(AccountsCompare, period))
-		forms["Accounts' Detail"] = append(forms["Accounts' Detail"], accountsAt(AccountsDetail, period))
+	type sweep struct {
+		view  View
+		forms []func(*Frame)
 	}
-	for _, year := range []int{0, 2025} {
-		forms["History's Year"] = append(forms["History's Year"], historyAt(HistoryPage{Shown: HistoryYear, YearAsk: views.YearAsk{Year: year}}))
+	sweeps := map[string]sweep{}
+	add := func(name string, view View, form func(*Frame)) {
+		s := sweeps[name]
+		s.view, s.forms = view, append(s.forms, form)
+		sweeps[name] = s
+	}
+	for _, period := range views.AccountsPeriods() {
+		add("Accounts' Compare", Accounts, accountsAt(threeConfigured, AccountsCompare, period))
+		add("Accounts' Detail", Accounts, accountsAt(threeConfigured, AccountsDetail, period))
+		add("Accounts with one account", Accounts, accountsAt(threeConfigured[:1], AccountsDetail, period))
+	}
+	for _, ask := range yearFiltered {
+		for _, year := range []int{0, 2025} {
+			add(fmt.Sprintf("History's Year, %+v", ask), History, yearAt(ask, year))
+		}
 	}
 	for _, period := range tokensPeriods {
-		forms["History's Tokens"] = append(forms["History's Tokens"], historyAt(HistoryPage{Shown: HistoryTokens, TokensAsk: views.TokensAsk{Period: period}}))
+		add("History's Tokens", History, tokensAt(period))
 	}
-	for name, shown := range forms {
-		view := Accounts
-		if strings.HasPrefix(name, "History") {
-			view = History
-		}
-		for width := 40; width <= 120; width++ {
+	for name, s := range sweeps {
+		for width := 30; width <= 140; width++ {
 			var rows []int
-			for _, form := range shown {
-				f := headingFrame(width, view, form)
-				h := f.heading()
-				rows = append(rows, h.rows(width, f.phone()))
-				if h.compact(f.phone()) && h.rows(width, f.phone()) == 1 {
-					cleared(t, f, name)
+			for _, form := range s.forms {
+				for _, loading := range []bool{false, true} {
+					f := headingFrame(width, s.view, form, loading)
+					h := f.heading()
+					rows = append(rows, h.rows(width, f.phone()))
+					if h.compact(f.phone()) && h.rows(width, f.phone()) == 1 {
+						besideWhole(t, f, name)
+					}
 				}
 			}
 			if slices.Min(rows) != slices.Max(rows) {
-				t.Errorf("%s at %d: its periods' headings take %v rows, want the same for each", name, width, rows)
+				t.Errorf("%s at %d: its periods' headings, loading and not, take %v rows, want the same for each", name, width, rows)
 			}
 		}
 	}
 }
 
-// cleared fails t unless the period on the frame's heading row starts two
-// cells or more after the last sub-tab.
-func cleared(t *testing.T, f Frame, name string) {
+// besideWhole fails t unless the frame's heading row says the state's least
+// form whole, where it has a state, and < starts two cells or more after
+// what's before it.
+func besideWhole(t *testing.T, f Frame, name string) {
 	t.Helper()
-	var subTabsEnd, stepAt int
+	var said strings.Builder
+	var before, stepAt int
 	for _, p := range f.headingPieces() {
-		switch {
-		case p.click.On == OnSubTab:
-			subTabsEnd = p.x + p.line.width()
-		case p.click.On == OnStep && p.click.Step < 0:
+		if p.click.On == OnStep {
 			stepAt = p.x
+			break
+		}
+		said.WriteString(p.line.plain())
+		before = p.x + p.line.width()
+	}
+	if forms := f.heading().stateForms(); forms != nil {
+		if least := forms[len(forms)-1].plain(); !strings.Contains(said.String(), least) {
+			t.Errorf("%s at %d, loading: %t: the heading row says %q, want %q whole in it", name, f.Width, f.Loading, said.String(), least)
 		}
 	}
-	if stepAt < subTabsEnd+ruleGap {
-		t.Errorf("%s at %d: < is at column %d, want it two cells or more after the sub-tabs, which end at %d", name, f.Width, stepAt, subTabsEnd)
+	if stepAt < before+ruleGap {
+		t.Errorf("%s at %d, loading: %t: < is at column %d, want it two cells or more after column %d", name, f.Width, f.Loading, stepAt, before)
 	}
 }

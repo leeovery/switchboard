@@ -442,9 +442,9 @@ func TestTokensFootnoteGoesWhereItWouldLeaveThePeriodsNoRow(t *testing.T) {
 	}{
 		{width: 160, height: 14, noted: true},
 		{width: 160, height: 13},
-		{width: 52, height: 16, noted: true},
-		{width: 52, height: 15},
-		{width: 50, height: 14},
+		{width: 52, height: 17, noted: true},
+		{width: 52, height: 16},
+		{width: 50, height: 15},
 		{width: 40, height: 13},
 		{width: 22, height: 15},
 		{width: 160, height: 11},

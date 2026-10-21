@@ -1016,11 +1016,11 @@ Every tab, and a session's page, is drawn in one frame, so the eye learns where 
 | The last | The key line |
 
 On a phone, under 100 columns, the tabs take row 1 of their own, the status line row 3 and the
-heading row 5, the view starting at row 7, or at row 8 where a period takes row 6 of its own. **The breathing
-room,** the blank row under the heading row and the row over the key line, never goes as rows run
-short: the view gives up its rows instead, and scrolls within those it keeps where it must. The row
-over the key line holds a state line only where a view has one, as the Log's following or paused,
-the List's `today` line, or, while a view scrolls, what's out of view; else it's blank
+heading row 5, the view starting at row 7, or at row 8 where a period takes row 6 of its own. **The
+breathing room,** the blank row under the heading row and the row over the key line, never goes as
+rows run short: the view gives up its rows instead, and scrolls within those it keeps where it must.
+The row over the key line holds a state line only where a view has one, as the Log's following or
+paused, the List's `today` line, or, while a view scrolls, what's out of view; else it's blank
 (settled in the plan). A terminal too short for the fixed rows and three of the view's draws the
 title row, the status line and the key line alone (settled in the plan).
 
@@ -1113,13 +1113,15 @@ heading there, ending in `esc back` (see A session's page). From column 0:
   `< 5-hour >`; or the Log's count and its `f` (see The Log).
 
 On a phone, as every phone frame draws it, a tab with sub-tabs has no `[ ]` and no rule, and its
-period sits at the right of row 5 wherever the name, the sub-tabs and the period fit whole there,
-two cells apart; where they don't, it goes to row 6, right-aligned, the view then starting at row 8.
-Whether it fits is the width's and the period's widest form's to say, as `< last 12 months >` for
-the Year, never the period shown's, so stepping the period never moves the heading between one row
-and two. What's after the
-sub-tabs, as `loading…`, takes what room is left before the period. Runway keeps its rule and its
-window on row 5.
+period sits at the right of row 5 wherever the name, the sub-tabs, the state at its least and the
+period fit whole there; where they don't, the period goes to row 6, right-aligned, the view then
+starting at row 8. Whether they fit is decided by the width, the period's widest form, as
+`< last 12 months >` for the Year, and the state's least: `loading…` whole, whether it shows or not,
+as a read can start at any moment, or the state's shortest form where that's wider, as the Year's
+filter, `Opus 5.5 only`. Neither stepping the period nor a read moves the heading between one row
+and two; only a filter changed by `v` can. Beside the period, the state takes the room left, two
+cells short of it, in the first of its forms that fits. Runway, without sub-tabs, keeps its rule and
+its window on row 5.
 
 **The key line** (the last row) lists the keys that work where they are, each key in bold
 `accent.key` and its word in `text.muted`: `tab views` first, then the page's own keys in groups,
@@ -1920,8 +1922,8 @@ holds.
   screen can't show otherwise, as which accounts Compare shows of more than fit, or what History's
   Year is filtered to. On a phone, the sub-tabs follow the tab's name after two spaces, each
   ` Name ` with a space either side, as wider, so the highlight sits centred on its name (the
-  owner's call, 17 October 2026), with no `[ ]` or rule, and the period at the right of the heading row where it fits
-  beside, else on row 6 (see The page).
+  owner's call, 17 October 2026), with no `[ ]` or rule, and the period at the right of the heading
+  row where it fits beside, else on row 6 (see The page).
 - **No description after a heading,** a tab's or a group's: the tab and the sub-tab name the view,
   and what a view is, and how to read it, is for `?` help. A dim line says only what the screen
   can't: a key to an encoding, as to the shades or the dots; a rule the eye can't see, as that worth
@@ -2171,16 +2173,17 @@ top half is now and the period; a rule, `the last six weeks`, heads the rest.
 - **With one account,** there's no list and no Compare, and the stack grows into the width: the
   panel from column 0, `cx` 12, the windows' bars 50 wide, days 3 cells and weeks 1 apart, so `step`
   is 22, BY MODEL 131 wide, and THIS WEEK at column 100, over the fifth week as with the list.
-- **On a phone,** stacked, each part under its heading, a blank row between: on the view's first row, `◂ 1 work ▸`,
-  `◂` and `▸` bold `accent.key`, a picker that takes any number of accounts (settled in the plan),
-  and at the right `↑↓ an account, or all` in `text.subtle`; under it, the state, its glyph and
-  words; USAGE, every window, a blank row between windows; THIS WEEK in two columns of three, 26
-  apart, labels 10 wide: `requests`, `limits` and `plan`, then `worth`, `extra use` and `against`;
-  BY MODEL, its versions over two rows; BY DAY, 2 cells a day, with their first days under them,
-  15 apart; WEEKS, its peaks as percentages, right-aligned in 5 cells, 6 apart, `34%…` this
-  week's; the verdict, and under it `limit hit 3 of 7 weeks · 9% left at a reset`, its two rows;
-  and LATELY. No rule. Its parts are laid across the width by flex, the same at every width it's
-  drawn at, a phone's or the wide chrome's where Detail's wide form doesn't fit:
+- **On a phone,** stacked, each part under its heading, a blank row between: on the view's first
+  row, `◂ 1 work ▸`, `◂` and `▸` bold `accent.key`, a picker that takes any number of accounts
+  (settled in the plan), and at the right `↑↓ an account, or all` in `text.subtle`; under it, the
+  state, its glyph and words; USAGE, every window, a blank row between windows; THIS WEEK in two
+  columns of three, 26 apart, labels 10 wide: `requests`, `limits` and `plan`, then `worth`,
+  `extra use` and `against`; BY MODEL, its versions over two rows; BY DAY, 2 cells a day, with their
+  first days under them, 15 apart; WEEKS, its peaks as percentages, right-aligned in 5 cells, 6
+  apart, `34%…` this week's; the verdict, and under it
+  `limit hit 3 of 7 weeks · 9% left at a reset`, its two rows; and LATELY. No rule. Its parts are
+  laid across the width by flex, the same at every width it's drawn at, a phone's or the wide
+  chrome's where Detail's wide form doesn't fit:
   - USAGE's row: the windows' names, as wide as the widest of every window listed, shown or not,
     at least 8 cells and at most 24; a cell on, the bars, all one width; a cell on, the
     percentage, in 4; and two cells on, `usage`'s words, in the cells of their form at its widest:
@@ -2352,7 +2355,8 @@ alone, never by what's shown, so `v` and `<` `>` never move BY MONTH (settled 21
 - **`v`** cycles what the grid and its numbers show: all use, the default; then each model version
   used in the 12 months, in the version table's order (see The request ledger); then each account;
   and round. The heading's state names it,
-  `Opus 5.5 only, every account  ·  v for all, a model or an account`, with `v` bold `accent.key`.
+  `Opus 5.5 only, every account  ·  v for all, a model or an account`, with `v` bold `accent.key`,
+  and where that doesn't fit, `Opus 5.5 only`.
   The shades and their key re-scale to what's shown, the key's unit naming it,
   `Opus 5.5 requests a day`, and a version's grid takes its shade in four steps.
   - Filtered to a version, the numbers are headed `OPUS 5.5 · 12 MONTHS`: `requests`, `sessions`,

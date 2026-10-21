@@ -83,22 +83,26 @@ type HistoryPage struct {
 
 // heading is History's heading row: its name and its sub-tabs, the one shown
 // picked out; after [ ], what the Year is shown for, where it's shown for one
-// version or account; and at its right, the period of the sub-tab shown, as
-// Period names it, between < and >; else eight weeks, which Weeks and Days
-// keep to.
+// version or account, in the forms filtered says it in; and at its right,
+// the period of the sub-tab shown, as Period names it, between < and >; else
+// eight weeks, which Weeks and Days keep to.
 func (p HistoryPage) heading() heading {
-	h := heading{name: strings.ToUpper(History.Title()), subTabs: historyViews, shown: int(p.Shown), state: p.state(), widest: widestOf(p.periods())}
+	h := heading{name: strings.ToUpper(History.Title()), subTabs: historyViews, shown: int(p.Shown), widest: widestOf(p.periods())}
+	if forms := p.filtered(); forms != nil {
+		h.state, h.shorter = forms[0], forms[1:]
+	}
 	if h.period = p.Period(); h.period == "" {
 		h.right = line{{"eight weeks", mutedInk}}
 	}
 	return h
 }
 
-// state is what the heading says after [ ] that the screen can't otherwise
-// show: on the Year shown for one version, or one account, which it shows,
-// and that v shows the rest, as "Opus 5.5 only, every account  ·  v for all,
-// a model or an account"; and nothing otherwise.
-func (p HistoryPage) state() line {
+// filtered is what the heading says after [ ] that the screen can't
+// otherwise show: on the Year shown for one version, or one account, which
+// it shows, and that v shows the rest, as "Opus 5.5 only, every account  ·
+// v for all, a model or an account", then for less room, which it shows
+// alone, "Opus 5.5 only"; and nothing otherwise.
+func (p HistoryPage) filtered() []line {
 	shown := p.yearShown()
 	if p.Shown != HistoryYear || shown == "" {
 		return nil
@@ -107,7 +111,10 @@ func (p HistoryPage) state() line {
 	if p.YearAsk.Account != "" {
 		every = "every model"
 	}
-	return line{{shown + " only, " + every + "  ·  ", faintInk}, {"v", keyInk}, {" for all, a model or an account", faintInk}}
+	return []line{
+		{{shown + " only, " + every + "  ·  ", faintInk}, {"v", keyInk}, {" for all, a model or an account", faintInk}},
+		{{shown + " only", faintInk}},
+	}
 }
 
 // widestYear is a calendar year at its widest, as the heading names it.
