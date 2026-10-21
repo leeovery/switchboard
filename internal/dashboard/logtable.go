@@ -77,7 +77,7 @@ func (f Frame) log(c *canvas, doc status.Document, now time.Time, top int) {
 		logHeads(c, top, layout, dimInk)
 		draw = f.logRequest(m, now, layout)
 	} else {
-		columns := eventsLaid(f.Width, widestLabel(m))
+		columns := eventsLaid(f.Width, eventsAccountCells(m))
 		eventsHeads(c, top, columns)
 		draw = logEvent(m, now, columns)
 	}

@@ -14,6 +14,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // ownersSizes are the terminals the fluid sweep draws every view at, as the
@@ -80,11 +81,13 @@ var natural = map[string]string{}
 // known is a rule the views of the fixtures named are known to break at the
 // owner's sizes given, as "73x61", and either the slice of the fluid pass,
 // as the plan numbers them, that clears it; or, where none will, byDesign:
-// the design's own cut at a most, which the sweep can't tell from a cut with
-// room, and what it is.
+// what the design draws cut, which the sweep can't tell from a cut with
+// room, and cuts, those cuts as drawn, as "switchboard…", the only cuts it
+// passes over.
 type known struct {
 	slice    string
 	byDesign string
+	cuts     []string
 	rule     fluidRule
 	sizes    []string
 	fixtures []string
@@ -96,6 +99,24 @@ func (k known) owner() string {
 		return "the design"
 	}
 	return k.slice
+}
+
+// ownedOnce reports whether the break is a slice's of the plan, with no
+// cuts, or the design's, as cuts with room it names and no slice.
+func (k known) ownedOnce() bool {
+	if k.byDesign == "" {
+		return planSlice.MatchString(k.slice) && len(k.cuts) == 0
+	}
+	return k.slice == "" && k.rule == cutWithRoom && len(k.cuts) > 0
+}
+
+// breaking is what the break passes over: its rule, or the design's cuts,
+// each.
+func (k known) breaking() []string {
+	if k.byDesign == "" {
+		return []string{"the rule of " + string(k.rule)}
+	}
+	return k.cuts
 }
 
 // knownBreaks are what the views break today, by the slice that clears
@@ -130,17 +151,30 @@ var knownBreaks = []known{
 		slice: "S5", rule: foldWithRowsSpare, sizes: []string{"138x15"},
 		fixtures: []string{"page-sessions-short"},
 	},
-	// The Log's sessions' directories, cut to views.SessionDirCells, their
-	// most, with room at every size they show at; and the Requests' on, its
-	// share past the columns' leasts at 73 and 108, as the spike draws it.
+	// The Log's sessions' directories, as views.SessionDirName cuts them, with
+	// room at every size they show at with room; and the Requests' on, its
+	// share past the columns' leasts at 73, 108 and 109, as the spike draws
+	// it.
 	{
-		byDesign: "the Log's directories at views.SessionDirCells, and on past the leasts", rule: cutWithRoom,
-		sizes:    []string{"73x61", "73x36", "138x30", "138x15", "108x44", "108x24", "173x53", "109x53"},
+		byDesign: "the Log's directories at their most", cuts: logDirCuts(), rule: cutWithRoom,
+		sizes:    []string{"138x30", "138x15", "108x44", "108x24", "173x53", "109x53"},
 		fixtures: []string{"log-requests-long-names-108x44"},
 	},
 	{
-		byDesign: "the Log's directories at views.SessionDirCells", rule: cutWithRoom, sizes: []string{"138x30", "138x15", "173x53"},
-		fixtures: []string{"long-names-log-events"},
+		byDesign: "the Log's directories at their most", cuts: logDirCuts(), rule: cutWithRoom,
+		sizes: []string{"138x30", "138x15", "173x53"}, fixtures: []string{"long-names-log-events"},
+	},
+	{
+		byDesign: "on's share at 73", cuts: []string{"personal-res…", "side-hustle-…"}, rule: cutWithRoom,
+		sizes: []string{"73x61", "73x36"}, fixtures: []string{"log-requests-long-names-108x44"},
+	},
+	{
+		byDesign: "on's share at 108", cuts: []string{"personal-rese…", "side-hustle-c…"}, rule: cutWithRoom,
+		sizes: []string{"108x44", "108x24"}, fixtures: []string{"log-requests-long-names-108x44"},
+	},
+	{
+		byDesign: "on's share at 109", cuts: []string{"personal-resea…", "side-hustle-co…"}, rule: cutWithRoom,
+		sizes: []string{"109x53"}, fixtures: []string{"log-requests-long-names-108x44"},
 	},
 	// S7, the List on flex (F21): its sessions' directories cut with room.
 	{
@@ -330,7 +364,8 @@ var knownBreaks = []known{
 // end; no part out of view with rows blank at its foot; Runway, a session's
 // page and the Overview drawing a lane, a turn and an account; and the view
 // reaching two thirds of the width, but where it's natural. What
-// knownBreaks names is passed over, and fails where it no longer breaks.
+// knownBreaks names is passed over, and fails where it no longer breaks: a
+// rule, or a cut the design draws.
 func TestEveryViewIsFluidAtTheOwnersSizes(t *testing.T) {
 	for _, f := range sweptFixtures(t) {
 		t.Run(f.Name, func(t *testing.T) {
@@ -340,24 +375,67 @@ func TestEveryViewIsFluidAtTheOwnersSizes(t *testing.T) {
 			names := knownNames(f)
 			for _, size := range ownersSizes {
 				d, at := fluidAt(m, size), sizeName(size)
-				unknown, cleared := judged(d.breaks(view, names), brokenAt(knownBreaks, f.Name, at))
+				designed := designedAt(knownBreaks, f.Name, at)
+				unknown, cleared := judged(d.breaks(view, names, cutsOf(designed)), brokenAt(knownBreaks, f.Name, at))
 				for _, b := range unknown {
 					t.Errorf("%s at %s breaks the rule of %s, as %s:\n%s", view, at, b.rule, b.shown, strings.Join(d.rows, "\n"))
 				}
 				for _, rule := range cleared {
 					t.Errorf("%s at %s no longer breaks the rule of %s: delete it from knownBreaks", view, at, rule)
 				}
+				for _, k := range undrawn(designed, d.cutsWithRoom(names)) {
+					t.Errorf("%s at %s no longer draws %s, any of %q, with room: delete it from knownBreaks", view, at, k.byDesign, k.cuts)
+				}
 			}
 		})
 	}
 }
 
+// designedAt are the cuts the design draws that breaks has the fixture named
+// cut with room at the size named.
+func designedAt(breaks []known, name, at string) []known {
+	var designed []known
+	for _, k := range breaks {
+		if k.byDesign != "" && slices.Contains(k.fixtures, name) && slices.Contains(k.sizes, at) {
+			designed = append(designed, k)
+		}
+	}
+	return designed
+}
+
+// cutsOf are the cuts of each of the design's given.
+func cutsOf(designed []known) []string {
+	var cuts []string
+	for _, k := range designed {
+		cuts = append(cuts, k.cuts...)
+	}
+	return cuts
+}
+
+// undrawn are the design's cuts given none of whose cuts is of those drawn.
+func undrawn(designed []known, drawn []fluidCut) []known {
+	return slices.DeleteFunc(slices.Clone(designed), func(k known) bool {
+		return slices.ContainsFunc(drawn, func(d fluidCut) bool { return slices.Contains(k.cuts, d.cut) })
+	})
+}
+
+// logDirCuts are the long-names world's directories as the Log draws them,
+// views.SessionDirName's cut of each.
+func logDirCuts() []string {
+	var cuts []string
+	for _, dir := range longDirs {
+		cuts = append(cuts, views.SessionDirName(dir))
+	}
+	slices.Sort(cuts)
+	return cuts
+}
+
 // brokenAt are the rules known has the fixture named break at the size
-// named.
+// named, by the slice that clears them.
 func brokenAt(known []known, name, at string) []fluidRule {
 	var rules []fluidRule
 	for _, k := range known {
-		if slices.Contains(k.fixtures, name) && slices.Contains(k.sizes, at) {
+		if k.byDesign == "" && slices.Contains(k.fixtures, name) && slices.Contains(k.sizes, at) {
 			rules = append(rules, k.rule)
 		}
 	}
@@ -380,9 +458,9 @@ func judged(breaks []fluidBreak, known []fluidRule) (unknown []fluidBreak, clear
 	return unknown, cleared
 }
 
-// Each of knownBreaks names the slice that clears it, or the design's cut
-// that stands, and not both, a rule, and fixtures
-// the sweep draws at the owner's sizes, each fixture, rule and size once.
+// Each of knownBreaks names the slice that clears it, with a rule, or the
+// design's cuts, as a cut with room, and fixtures the sweep draws at the
+// owner's sizes, each fixture and size once a rule, or a cut.
 func TestEveryKnownBreakIsOfAViewTheSweepDraws(t *testing.T) {
 	swept := make(map[string]bool)
 	for _, f := range sweptFixtures(t) {
@@ -394,8 +472,8 @@ func TestEveryKnownBreakIsOfAViewTheSweepDraws(t *testing.T) {
 	}
 	named := make(map[string]bool)
 	for _, k := range knownBreaks {
-		if (k.byDesign == "") != planSlice.MatchString(k.slice) {
-			t.Errorf("knownBreaks names %q and %q: want a slice of the plan, or the design's cut, alone", k.slice, k.byDesign)
+		if !k.ownedOnce() {
+			t.Errorf("knownBreaks names %q, %q and the cuts %q: want a slice of the plan, or the design's cuts, alone", k.slice, k.byDesign, k.cuts)
 		}
 		if !slices.Contains([]fluidRule{cutWithRoom, foldWithRowsSpare, nothingDrawn, wastedThird}, k.rule) {
 			t.Errorf("%s's knownBreaks name %q, not a rule the sweep holds", k.owner(), k.rule)
@@ -408,10 +486,12 @@ func TestEveryKnownBreakIsOfAViewTheSweepDraws(t *testing.T) {
 				if !slices.Contains(sizes, at) {
 					t.Errorf("%s's knownBreaks name %s at %s, not one of the owner's sizes", k.owner(), name, at)
 				}
-				if once := name + " " + string(k.rule) + " " + at; named[once] {
-					t.Errorf("knownBreaks name %s at %s breaking the rule of %s twice", name, at, k.rule)
-				} else {
-					named[once] = true
+				for _, what := range k.breaking() {
+					if once := name + " " + what + " " + at; named[once] {
+						t.Errorf("knownBreaks name %s at %s breaking %s twice", name, at, what)
+					} else {
+						named[once] = true
+					}
 				}
 			}
 		}
@@ -491,12 +571,14 @@ type fluidBreak struct {
 	shown string
 }
 
-// breaks are the rules the view named breaks as drawn, of the names given:
-// one still loading draws nothing and so wastes no width.
-func (d fluidFrame) breaks(view string, names []string) []fluidBreak {
+// breaks are the rules the view named breaks as drawn, of the names given,
+// but for the cuts excused: one still loading draws nothing and so wastes no
+// width.
+func (d fluidFrame) breaks(view string, names, excused []string) []fluidBreak {
 	var breaks []fluidBreak
-	if cut := d.cutWithRoom(names); cut != "" {
-		breaks = append(breaks, fluidBreak{cutWithRoom, cut})
+	cuts := slices.DeleteFunc(d.cutsWithRoom(names), func(c fluidCut) bool { return slices.Contains(excused, c.cut) })
+	if len(cuts) > 0 {
+		breaks = append(breaks, fluidBreak{cutWithRoom, cuts[0].shown})
 	}
 	if out := d.outOfView(); out != "" && d.footBlank() >= foldSpare {
 		breaks = append(breaks, fluidBreak{foldWithRowsSpare, fmt.Sprintf("%q over %d blank rows", out, d.footBlank())})
@@ -519,12 +601,19 @@ func (d fluidFrame) loading() bool {
 	return strings.Contains(d.view()[0], "loading…")
 }
 
-// cutWithRoom says where a row of the view cuts one of the names given, as
-// "work-tea…", with more blank cells at its end than the cut took, of the
-// names a cut may be of, the longest's: "" where none does. An ellipsis
-// after anything but a name's start, as a running turn's "3m…", or words
-// cut, is no name cut.
-func (d fluidFrame) cutWithRoom(names []string) string {
+// fluidCut is a name cut short as drawn, as "work-tea…", and what shows it
+// had room.
+type fluidCut struct {
+	cut   string
+	shown string
+}
+
+// cutsWithRoom are where the rows of the view cut one of the names given,
+// with more blank cells at its row's end than the cut took, of the names a
+// cut may be of, the longest's. An ellipsis after anything but a name's
+// start, as a running turn's "3m…", or words cut, is no name cut.
+func (d fluidFrame) cutsWithRoom(names []string) []fluidCut {
+	var cuts []fluidCut
 	for _, row := range d.view() {
 		spare := d.size.Width - ansi.StringWidth(strings.TrimRight(row, " "))
 		for _, cut := range cutsIn(row) {
@@ -535,11 +624,11 @@ func (d fluidFrame) cutWithRoom(names []string) string {
 				}
 			}
 			if took > 0 && spare > took {
-				return fmt.Sprintf("%q, %d cells cut, with %d blank at its row's end", cut+"…", took, spare)
+				cuts = append(cuts, fluidCut{cut + "…", fmt.Sprintf("%q, %d cells cut, with %d blank at its row's end", cut+"…", took, spare)})
 			}
 		}
 	}
-	return ""
+	return cuts
 }
 
 // cutText is what's left of a word cut short, as a name is: what runs
@@ -711,15 +800,28 @@ func TestTheFluidSweepFindsWhatItSweepsFor(t *testing.T) {
 	names := []string{"personal", "side", "work", "work-team-plan"}
 	across := strings.Repeat("■", 120)
 	for _, tt := range []struct {
-		name string
-		view string
-		rows []string
-		want []fluidRule
+		name    string
+		view    string
+		rows    []string
+		excused []string
+		want    []fluidRule
 	}{
 		{name: "a view across the width", view: "Log Requests", rows: []string{"LOG", "", across}},
 		{
 			name: "a name cut with more blank cells than the cut took", view: "Log Requests",
 			rows: []string{"LOG", "", across, "14:40  d28c  work-tea…"}, want: []fluidRule{cutWithRoom},
+		},
+		{
+			name: "a name cut with room as the design draws it", view: "Log Requests",
+			rows: []string{"LOG", "", across, "14:40  d28c  work-tea…"}, excused: []string{"work-tea…"},
+		},
+		{
+			name: "a name cut with room beside one the design draws", view: "Log Requests",
+			rows: []string{"LOG", "", across, "14:40  d28c  work-tea…  perso…"}, excused: []string{"work-tea…"}, want: []fluidRule{cutWithRoom},
+		},
+		{
+			name: "a name cut with room, where the design draws another", view: "Log Requests",
+			rows: []string{"LOG", "", across, "14:40  d28c  work-te…"}, excused: []string{"work-tea…"}, want: []fluidRule{cutWithRoom},
 		},
 		{
 			name: "a name cut with no more blank cells than the cut took", view: "Log Requests",
@@ -769,7 +871,7 @@ func TestTheFluidSweepFindsWhatItSweepsFor(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			var got []fluidRule
-			for _, b := range sweptView(120, tt.rows...).breaks(tt.view, names) {
+			for _, b := range sweptView(120, tt.rows...).breaks(tt.view, names, tt.excused) {
 				got = append(got, b.rule)
 			}
 			if !slices.Equal(got, tt.want) {
@@ -791,6 +893,7 @@ func TestAKnownBreakPassesWhereItBreaksAndFailsWhereItsCleared(t *testing.T) {
 	known := []known{
 		{slice: "S9", rule: nothingDrawn, sizes: []string{"138x15"}, fixtures: []string{"runway-week-160", "runway-phone-52"}},
 		{slice: "S9", rule: foldWithRowsSpare, sizes: []string{"138x30"}, fixtures: []string{"runway-week-160"}},
+		{byDesign: "work at its most", cuts: []string{"work-tea…"}, rule: cutWithRoom, sizes: []string{"138x30"}, fixtures: []string{"runway-week-160"}},
 	}
 	cut, fold, none := fluidBreak{rule: cutWithRoom}, fluidBreak{rule: foldWithRowsSpare}, fluidBreak{rule: nothingDrawn}
 	for _, tt := range []struct {
@@ -809,6 +912,64 @@ func TestAKnownBreakPassesWhereItBreaksAndFailsWhereItsCleared(t *testing.T) {
 			unknown, cleared := judged(tt.breaks, brokenAt(known, tt.fixture, tt.at))
 			if !slices.Equal(unknown, tt.unknown) || !slices.Equal(cleared, tt.cleared) {
 				t.Errorf("judged %v unknown and %q cleared, want %v and %q", unknown, cleared, tt.unknown, tt.cleared)
+			}
+		})
+	}
+}
+
+// The design's cuts are passed over at the sizes it names them at alone,
+// and fail where none of them is drawn with room any longer.
+func TestADesignedCutPassesWhereItsDrawnAndFailsWhereItsNot(t *testing.T) {
+	designed := known{byDesign: "names at their most", cuts: []string{"work-tea…", "perso…"}, rule: cutWithRoom, sizes: []string{"138x30"}, fixtures: []string{"log-requests-160"}}
+	known := []known{designed, {slice: "S9", rule: cutWithRoom, sizes: []string{"138x30"}, fixtures: []string{"log-requests-160"}}}
+	drawn := func(cuts ...string) []fluidCut {
+		var drawn []fluidCut
+		for _, c := range cuts {
+			drawn = append(drawn, fluidCut{cut: c})
+		}
+		return drawn
+	}
+	for _, tt := range []struct {
+		name, at string
+		drawn    []fluidCut
+		excused  []string
+		cleared  int
+	}{
+		{name: "both drawn", at: "138x30", drawn: drawn("perso…", "work-tea…"), excused: designed.cuts},
+		{name: "one drawn", at: "138x30", drawn: drawn("work-tea…", "side…"), excused: designed.cuts},
+		{name: "neither drawn", at: "138x30", drawn: drawn("side…"), excused: designed.cuts, cleared: 1},
+		{name: "at a size it names none", at: "73x61", drawn: drawn("work-tea…")},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			at := designedAt(known, "log-requests-160", tt.at)
+			if got, cleared := cutsOf(at), undrawn(at, tt.drawn); !slices.Equal(got, tt.excused) || len(cleared) != tt.cleared {
+				t.Errorf("excused %q and %d cleared, want %q and %d", got, len(cleared), tt.excused, tt.cleared)
+			}
+		})
+	}
+}
+
+// A known break is a slice's, with no cuts, or the design's, with cuts and
+// no slice.
+func TestAKnownBreakIsOwnedOnce(t *testing.T) {
+	cuts := []string{"work-tea…"}
+	for _, tt := range []struct {
+		name string
+		k    known
+		want bool
+	}{
+		{name: "a slice's", k: known{slice: "S9", rule: nothingDrawn}, want: true},
+		{name: "the design's", k: known{byDesign: "at its most", cuts: cuts, rule: cutWithRoom}, want: true},
+		{name: "a slice's, with cuts", k: known{slice: "S9", cuts: cuts, rule: cutWithRoom}},
+		{name: "the design's, with a slice", k: known{slice: "S9", byDesign: "at its most", cuts: cuts, rule: cutWithRoom}},
+		{name: "the design's, with a slice of none", k: known{slice: "later", byDesign: "at its most", cuts: cuts, rule: cutWithRoom}},
+		{name: "the design's, without cuts", k: known{byDesign: "at its most", rule: cutWithRoom}},
+		{name: "the design's, of another rule", k: known{byDesign: "at its most", cuts: cuts, rule: nothingDrawn}},
+		{name: "neither", k: known{rule: nothingDrawn}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.k.ownedOnce(); got != tt.want {
+				t.Errorf("ownedOnce = %t, want %t", got, tt.want)
 			}
 		})
 	}

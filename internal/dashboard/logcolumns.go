@@ -50,17 +50,16 @@ const (
 )
 
 // logColumnFacts are each column's name, as its head, the f panel and the
-// preferences have it; its cells: where they're fixed, them; of on, its
-// least; of stopped, the fewest it takes whole; of routing, its natural; and
-// of the session, none, as its directory sizes it, as sessionPart has it;
-// and its alignment.
+// preferences have it; its cells: where they're fixed, them, the session's
+// its directory whole; of on, its least; of stopped, the fewest it takes
+// whole; and of routing, its natural; and its alignment.
 var logColumnFacts = [...]struct {
 	name    string
 	width   int
 	aligned alignment
 }{
 	LogAt:        {"at", 8, alignLeft},
-	LogSession:   {"session", 0, alignLeft},
+	LogSession:   {"session", sessionColumnCells, alignLeft},
 	LogModel:     {"model", 9, alignLeft},
 	LogOn:        {"on", labelLeast, alignLeft},
 	LogStatus:    {"status", 6, alignLeft},
@@ -195,9 +194,10 @@ func (s requestsSpread) wide(width int, ticked LogTicks) logLayout {
 
 // laid lays the columns shown out across width cells from the spread's left,
 // on's natural the cells given, the table running to the last column, in two
-// passes of flex, as decided and kept have them: the first decides what
-// shows, and the second lays out only that. Each column takes its parts'
-// cells together, from where its first starts.
+// passes of flex, as decided and secondPass have them: the first decides
+// what shows, and the second lays out only that. Each column takes its
+// parts' cells together, from where its first starts: stopped's, or routing
+// alone's, two where its cells past its tailLeast stay.
 func (s requestsSpread) laid(width int, shown []LogColumn, on int) logLayout {
 	layout, kept := s.decided(width, shown, on)
 	spans, _ := flex.Lay(width-s.left, flexed(kept)...)
@@ -218,7 +218,7 @@ func (s requestsSpread) laid(width int, shown []LogColumn, on int) logLayout {
 // spread's left, giving way as logNarrowing orders them, a turn at a time,
 // until they fit, on holding its natural until its turn. It returns the
 // layout as what gave way leaves it, with no columns placed yet, and the
-// parts that show, each as kept has it.
+// parts that show, each as secondPass has it.
 func (s requestsSpread) decided(width int, shown []LogColumn, on int) (logLayout, []logPart) {
 	parts := logParts(shown, on, s.short)
 	spans, _ := flex.Lay(width-s.left, flexed(parts)...)
@@ -228,27 +228,24 @@ func (s requestsSpread) decided(width int, shown []LogColumn, on int) (logLayout
 		if spans[i].Left {
 			layout = layout.gaveWay(p)
 		}
-		if k, ok := p.kept(spans[i], on); ok {
+		if k, ok := p.secondPass(spans[i]); ok {
 			kept = append(kept, k)
 		}
 	}
 	return layout, kept
 }
 
-// kept is the part as the second pass lays it, of where the first left it,
-// on's natural the cells given, giving way no more: gone where it gave way
-// keeping nothing, as on's cells past its least are, on being free; at
-// what it kept where it gave way; on free from its least to its natural, so
-// it takes what's past the leasts before any other; and any other as it
-// is. It reports false where the part is gone.
-func (p logPart) kept(span flex.Span, on int) (logPart, bool) {
+// secondPass is the part as the second pass lays it, of where the first
+// left it, giving way and narrowing no more: gone where it gave way keeping
+// nothing; at what it kept where it gave way; and any other as it is, so on
+// is free from its least to its natural, and takes what's past the leasts
+// before any other. It reports false where the part is gone.
+func (p logPart) secondPass(span flex.Span) (logPart, bool) {
 	switch {
-	case p.role == onPast || span.Left && span.Size == 0:
+	case span.Left && span.Size == 0:
 		return p, false
 	case span.Left:
 		p.Part = flex.Part{Least: span.Size, Natural: span.Size, Gap: p.Gap}
-	case p.column == LogOn:
-		p.Natural = on
 	}
 	p.Leaves, p.Narrows = 0, 0
 	return p, true
@@ -291,9 +288,6 @@ const (
 	// routingMargin are the cells routing, whole, ends short of the last
 	// column, of no column.
 	routingMargin
-	// onPast are on's cells past its least to its natural, which it holds in
-	// the first pass while columns leave, until its turn.
-	onPast
 )
 
 // logPart is a part of a row of requests as flex lays it out, and what of
@@ -307,11 +301,10 @@ type logPart struct {
 // logParts are the parts of a row of the columns shown, in the table's
 // order, each column two cells after the one before, giving way in turn as
 // logNarrowing orders them:
-//   - a column of fixed cells, as logColumnFacts has them, at them;
-//   - the session, as sessionPart has it, giving way to its id alone, in as
-//     many cells as its head;
-//   - on, a column of names, at least labelLeast cells, and its cells past
-//     them to its natural on, which it holds until its turn;
+//   - a column of fixed cells, as logColumnFacts has them, at them, giving
+//     way to what it keeps, as keeps has it;
+//   - on, a column of names, at least labelLeast cells, holding its natural
+//     on until its turn;
 //   - the last column, stopped, or routing alone, as two parts: its
 //     tailLeast cells, which take the room left, and those past them to its
 //     least, which give way;
@@ -340,16 +333,10 @@ func logParts(shown []LogColumn, on, short int) []logPart {
 				logPart{c, wholeColumn, flex.Part{Least: c.least(), Natural: cells, Grows: true, Odd: true, Leaves: turn(c), Gap: logColumnGap}},
 				logPart{c, routingMargin, flex.Part{Natural: short, Leaves: turn(c)}},
 			)
-		case LogSession:
-			parts = append(parts, logPart{c, wholeColumn, sessionPart(turn(c), max(status.IDShown, c.headCells()))})
 		case LogOn:
-			past := max(on-cells, 0)
-			parts = append(parts,
-				logPart{c, wholeColumn, flex.Part{Least: cells, Natural: cells, Gap: logColumnGap}},
-				logPart{c, onPast, flex.Part{Natural: past, Narrows: turn(c)}},
-			)
+			parts = append(parts, logPart{c, wholeColumn, flex.Part{Least: cells, Natural: on, Narrows: turn(c), Gap: logColumnGap}})
 		default:
-			parts = append(parts, logPart{c, wholeColumn, flex.Part{Least: cells, Natural: cells, Leaves: turn(c), Gap: logColumnGap}})
+			parts = append(parts, logPart{c, wholeColumn, flex.Part{Least: cells, Natural: cells, Leaves: turn(c), Kept: c.keeps(), Gap: logColumnGap}})
 		}
 	}
 	return parts
@@ -360,20 +347,21 @@ func logParts(shown []LogColumn, on, short int) []logPart {
 // most, as views.SessionDirName names it.
 const sessionColumnCells = status.IDShown + 1 + views.SessionDirCells
 
-// sessionPart is a session's column as flex lays it out, two cells after
-// the one before, at sessionColumnCells, giving way in the turn given to the
-// cells kept.
-func sessionPart(leaves, kept int) flex.Part {
-	return flex.Part{Least: sessionColumnCells, Natural: sessionColumnCells, Leaves: leaves, Kept: kept, Gap: logColumnGap}
+// keeps are the cells the column keeps where it gives way: the session its
+// id alone, in no fewer cells than its head; any other none.
+func (c LogColumn) keeps() int {
+	if c == LogSession {
+		return max(status.IDShown, c.headCells())
+	}
+	return 0
 }
 
 // logNarrowing is the order the columns shown give way in as the table
 // narrows, as the design has it: the extras, the last first, so worth
 // leaves last of them; then routing, folding into stopped, where both show;
-// then first, read and written; on, toward its least; out; then the last
-// column, stopped, or
-// routing alone, cut to its tailLeast cells; then model and status; and
-// last, the session's directory, its id kept.
+// then first, read and written; on, toward its least; out; the last column,
+// stopped, or routing alone, cut to its tailLeast cells; model and status;
+// and last, the session's directory, its id kept.
 func logNarrowing(shown []LogColumn) []LogColumn {
 	var order []LogColumn
 	for _, c := range slices.Backward(shown) {

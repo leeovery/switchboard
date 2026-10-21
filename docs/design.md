@@ -3209,7 +3209,8 @@ apart, each a part flex lays out (`logcolumns.go`):
   routing where it has words; `first`, `read` and `written`; `on` is cut toward its 8; `out`;
   `stopped` is cut to 11 cells and says its words as a phone's do (below); `model`, then `status`;
   and last the session's directory, its id kept (the owner's call on the spike, 21 October 2026).
-  So `on` is whole from 116 columns with long names. The second lays out only what the first kept:
+  So `on` is whole from 94 columns past its natural, whatever's shown: 116 with the frames' long
+  names, 22 cells, and 118 with a label at its 24. The second lays out only what the first kept:
   each column takes its fewest cells; then `on` takes what's past them, to its natural, before any
   other, as a phone's 73 columns and an iPad's 108 show it; then `routing` to its 30 and the 2
   short of the last column; and `stopped` and `routing` share the rest evenly, the odd cell
@@ -3379,11 +3380,13 @@ pickers' 82, and 22 tall, centred: columns 18 to 141, rows 7 to 28. Its title, i
 
 **Events.** A line an event, as a table with heads, from column 2, its columns two cells apart,
 each a part flex lays out (`logevents.go`): `at`, 8; `session`, as Requests' is; `event`, 8;
-`account`, at least 8, its natural and its most a move's of the widest configured label, two of it
-and ` → ` between, each counted 24 at the most, a pin of several cut to it; and `what happened`,
-40 at the least, and the room left. Where they don't fit, they give way in this order: the
-session, whole; `what happened` cut to 20; then `account` toward its 8, so a phone's 52 columns
-show `at`, `event`, `account` and `what happened`.
+`account`, at least 8, its natural and its most the longest line a move can make: the widest
+configured label, ` → `, and the second widest, each counted 24 at the most, or the widest alone
+with one account configured, a pin of several cut to it; and `what happened`, 40 at the least, and
+the room left. Where they don't fit, they give way in this order: the session, whole; `what
+happened` cut to 20; then `account` toward its 8. So with the frames' accounts, their move 15
+cells, the session shows down to 98 columns, and a phone's 52 show `at`, `event`, `account` and
+`what happened`.
 
 - **`at` and `session`** as Requests' are; `session` is blank for an account's event, and holds a
   session's own pin's id (settled in the plan).

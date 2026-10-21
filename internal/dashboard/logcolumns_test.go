@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -289,31 +290,39 @@ func TestTheLogsOnIsLaidOutAtItsNaturalWidth(t *testing.T) {
 	}
 }
 
-// From 116 columns, a table of long names has on whole at every width,
-// whatever's ticked: first, read and written leave before it's cut.
-func TestTheLogsOnIsWholeFrom116Columns(t *testing.T) {
-	for _, ticked := range []LogTicks{{}, ticks(LogRouting), ticks(LogStopped), everyExtra()} {
-		for width := 116; width <= 220; width++ {
-			l := logColumns(width, ticked, 22)
-			i := slices.IndexFunc(l.places, func(p logPlace) bool { return p.column == LogOn })
-			if i < 0 || l.places[i].width != 22 {
-				t.Errorf("at %d, ticked %v, the layout is %s, want on whole, 22 cells", width, ticked, layoutSaid(l))
+// on is whole from 94 columns past its natural, whatever's ticked: first,
+// read and written leave before it's cut. So with the frames' 22-cell
+// names, from 116, and at labelMost, from 118.
+func TestTheLogsOnIsWholeFrom94ColumnsPastItsNatural(t *testing.T) {
+	for _, on := range []int{22, labelMost} {
+		for _, ticked := range []LogTicks{{}, ticks(LogRouting), ticks(LogStopped), ticks(LogStopped, LogRouting), everyExtra()} {
+			for width := 94 + on; width <= 220; width++ {
+				l := logColumns(width, ticked, on)
+				i := slices.IndexFunc(l.places, func(p logPlace) bool { return p.column == LogOn })
+				if i < 0 || l.places[i].width != on {
+					t.Errorf("at %d, ticked %v, the layout is %s, want on whole, %d cells", width, ticked, layoutSaid(l), on)
+				}
 			}
 		}
 	}
 }
 
 // The second pass lays out the columns the first kept and no others, and
-// the row runs to the last column and no further, at every width from a
-// phone's, of names short and long, whatever's ticked.
+// the row runs to the last column and no further, where stopped or routing
+// shows to take the room left, routing beside stopped as much as
+// routingShort short of it, at every width from a phone's, of names
+// short and long, whatever's ticked.
 func TestTheLogsSecondPassKeepsTheFirstsColumnsWithinTheRow(t *testing.T) {
 	for _, ticked := range []LogTicks{{}, ticks(LogRouting), ticks(LogStopped), ticks(LogStopped, LogRouting), everyExtra()} {
+		shown := ticked.shown()
+		tailed := slices.Contains(shown, LogStopped) || slices.Contains(shown, LogRouting)
 		for _, on := range []int{labelLeast, 15, labelMost} {
+			parts := logParts(shown, on, routingShort)
 			for width := 52; width <= 240; width++ {
-				_, kept := logSpread.decided(width, ticked.shown(), on)
+				spans, _ := flex.Lay(width-logLeft, flexed(parts)...)
 				var want []LogColumn
-				for _, p := range kept {
-					if p.role != routingMargin && !slices.Contains(want, p.column) {
+				for i, p := range parts {
+					if p.role != routingMargin && (!spans[i].Left || spans[i].Size > 0) && !slices.Contains(want, p.column) {
 						want = append(want, p.column)
 					}
 				}
@@ -323,8 +332,12 @@ func TestTheLogsSecondPassKeepsTheFirstsColumnsWithinTheRow(t *testing.T) {
 					got[i] = p.column
 				}
 				last := l.places[len(l.places)-1]
-				if !slices.Equal(got, want) || last.x+last.width > width {
-					t.Errorf("at %d, on %d, ticked %v, the layout is %s, want the columns the first pass kept, %v, within the row", width, on, ticked, layoutSaid(l), want)
+				ends, margin := last.x+last.width, 0
+				if last.column == LogRouting && slices.Contains(got, LogStopped) {
+					margin = routingShort
+				}
+				if !slices.Equal(got, want) || ends > width || tailed && ends < width-margin {
+					t.Errorf("at %d, on %d, ticked %v, the layout is %s, want the columns the first pass kept, %v, to the last column", width, on, ticked, layoutSaid(l), want)
 				}
 			}
 		}
@@ -341,6 +354,11 @@ func TestTheWidestLabelIsTheWidestConfiguredAccounts(t *testing.T) {
 	}{
 		{name: "none", want: 0},
 		{name: "by label, else id", accounts: []status.Account{{ID: "work", Label: "personal-research"}, {ID: "side"}}, want: 17},
+		{
+			name:     "an account unlabelled, its id the widest",
+			accounts: []status.Account{{ID: "work", Label: "work-team"}, {ID: "an-unlabelled-account"}},
+			want:     21,
+		},
 		{name: "a label past labelMost", accounts: []status.Account{{ID: "work", Label: "an-account-named-at-great-length"}}, want: labelMost},
 	}
 	for _, tt := range tests {

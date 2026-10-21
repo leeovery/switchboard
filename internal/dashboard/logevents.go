@@ -58,37 +58,45 @@ const (
 	accountNarrows
 )
 
-// eventsAccountCells are the Events' account column's cells, of the widest
-// label given: a move's, from one account to another, each the widest. A
-// pin naming several is cut to them.
-func eventsAccountCells(widest int) int {
-	return 2*widest + ansi.StringWidth(moveArrow)
+// eventsAccountCells are the Events' account column's cells, of the moment
+// m: the longest line a move can make, from one account to another, the two
+// widest names, as labelsCells has them, and the arrow between; the widest
+// alone where it knows one. A pin naming several is cut to them.
+func eventsAccountCells(m status.Moment) int {
+	cells := labelsCells(m)
+	switch len(cells) {
+	case 0:
+		return 0
+	case 1:
+		return cells[0]
+	}
+	return cells[0] + ansi.StringWidth(moveArrow) + cells[1]
 }
 
 // eventsParts are the Events' parts across a row, by what each holds, each
-// column two cells after the one before, as the Requests' are: at, as
-// Requests' is; the session, as sessionPart has it; event; account, a
-// column of names, at eventsAccountCells of the widest label given until
-// its turn, then at least labelLeast cells; and what happened, as two
-// parts, its first eventsWhatBrief cells, which take the room left, and
-// those past them to eventsWhatLeast.
-func eventsParts(widest int) []flex.Part {
-	at := logColumnFacts[LogAt].width
+// column two cells after the one before, as the Requests' are: at and the
+// session, as Requests' are, the session leaving whole; event; account, a
+// column of names, at the account cells given until its turn, then at least
+// labelLeast; and what happened, as two parts, its first eventsWhatBrief
+// cells, which take the room left, and those past them to eventsWhatLeast.
+func eventsParts(account int) []flex.Part {
+	at, session := logColumnFacts[LogAt].width, logColumnFacts[LogSession].width
 	return []flex.Part{
 		eventsAt:       {Least: at, Natural: at},
-		eventsSession:  sessionPart(sessionLeaves, 0),
+		eventsSession:  {Least: session, Natural: session, Leaves: sessionLeaves, Gap: logColumnGap},
 		eventsKind:     {Least: eventsKindCells, Natural: eventsKindCells, Gap: logColumnGap},
-		eventsAccount:  {Least: labelLeast, Natural: eventsAccountCells(widest), Narrows: accountNarrows, Gap: logColumnGap},
+		eventsAccount:  {Least: labelLeast, Natural: account, Narrows: accountNarrows, Gap: logColumnGap},
 		eventsWhat:     {Least: eventsWhatBrief, Natural: eventsWhatBrief, Grows: true, Gap: logColumnGap},
 		eventsWhatPast: {Least: eventsWhatLeast - eventsWhatBrief, Natural: eventsWhatLeast - eventsWhatBrief, Leaves: whatShortened},
 	}
 }
 
 // eventsLaid are the Events' columns laid out across a terminal width cells
-// wide, from logLeft, as flex lays eventsParts out, of the widest label
-// given, as widestLabel has it, what happened its two parts together.
-func eventsLaid(width, widest int) []eventColumn {
-	spans, _ := flex.Lay(width-logLeft, eventsParts(widest)...)
+// wide, from logLeft, as flex lays eventsParts out, the account at the cells
+// given, as eventsAccountCells has them, what happened its two parts
+// together.
+func eventsLaid(width, account int) []eventColumn {
+	spans, _ := flex.Lay(width-logLeft, eventsParts(account)...)
 	spans[eventsWhat].Size += spans[eventsWhatPast].Size
 	var columns []eventColumn
 	for part, s := range spans[:eventsWhatPast] {
