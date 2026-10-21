@@ -297,9 +297,9 @@ func TestDaysScrollsWholeWhereItsFramesDontFit(t *testing.T) {
 	}
 }
 
-// On a phone, Days is the last of its weeks that fit with a strip's count
-// after them, two at 52 columns, each strip under its name, its count four
-// cells after its last week, as the wide form has it, and the key over two
+// On a phone, Days is the last of its weeks that fit the width, three at 52
+// columns, each strip under its name and its count, the count ending where
+// the last week's days end, so it reads with its strip; and the key over two
 // rows.
 func TestDaysOnAPhone(t *testing.T) {
 	page := daysWorld(views.DaysStrip{Of: "work", Limits: 2, Days: stripOf(strings.Repeat("2", 53), 35, 52)}, views.DaysStrip{Of: "side", Limits: 1, Days: stripOf("", 50)})
@@ -309,21 +309,21 @@ func TestDaysOnAPhone(t *testing.T) {
 	top := f.top()
 	rows := textOf(historyDrawn(f).rows(Look{}))
 	wantFrom := []string{
-		"21 Sep         28 Sep",
-		"               M T W T F S S",
+		"14 Sep         21 Sep         28 Sep",
+		"                              M T W T F S S",
 		"BY MODEL",
 		"",
-		"● Opus",
-		textsAt(52, map[int]string{0: "▓▓▓▓▓▓▓▓▓▓▓▓▓▓ ▓▓▓▓▓▓▓▓······", 33: "80% of use"}),
-		"● Sonnet",
-		textsAt(52, map[int]string{0: "··░░··░░··░░·· ░░··░░········", 33: "20% of use"}),
+		textsAt(52, map[int]string{0: "● Opus", 27: "80% of use"}),
+		"▓▓▓▓▓▓▓▓▓▓▓▓▓▓ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓ ▓▓▓▓▓▓▓▓······",
+		textsAt(52, map[int]string{0: "● Sonnet", 27: "20% of use"}),
+		"░░··░░··░░··░░ ··░░··░░··░░·· ░░··░░········",
 		"",
 		"BY ACCOUNT",
 		"",
-		"work",
-		textsAt(52, map[int]string{0: "▒▒▒▒▒▒▒▒▒▒▒▒▒▒ ▒▒▒▒▒▒▪▒······", 35: "2 5-hour limits"}),
-		"side",
-		textsAt(52, map[int]string{0: "·············· ··▪···········", 35: "1 5-hour limit"}),
+		textsAt(52, map[int]string{0: "work", 29: "2 5-hour limits"}),
+		"▪▒▒▒▒▒▒▒▒▒▒▒▒▒ ▒▒▒▒▒▒▒▒▒▒▒▒▒▒ ▒▒▒▒▒▒▪▒······",
+		textsAt(52, map[int]string{0: "side", 29: "1 5-hour limit"}),
+		"·············· ·············· ··▪···········",
 	}
 	for i, want := range wantFrom {
 		if got := rows[top+i]; got != want {
@@ -392,8 +392,9 @@ func TestDaysNamesEachFamily(t *testing.T) {
 // An account is named by its label, the primary's ◆ after it in
 // text.tertiary, and never ▲, which is routing. A name too long for its room
 // is cut, keeping ◆: wide, in the label column at its most, less the two
-// blank cells before its strip; on a phone, on a row of its own, at the
-// edge.
+// blank cells before its strip; on a phone, a blank cell before its count,
+// which is never cut for it, and which moves to the edge where it would
+// leave the name less than a letter and an ellipsis.
 func TestDaysNamesEachAccount(t *testing.T) {
 	long := views.DaysStrip{Of: "a-long-account-name-for-days", Limits: 12, Days: stripOf(busy)}
 	tests := []struct {
@@ -401,41 +402,43 @@ func TestDaysNamesEachAccount(t *testing.T) {
 		account views.DaysStrip
 		width   int
 		want    string
-		alone   bool
+		whole   bool
 	}{
 		{name: "by its label", account: views.DaysStrip{Of: "work", Label: "Work", Days: stripOf(busy)}, width: 160, want: "Work "},
 		{name: "the primary marked", account: views.DaysStrip{Of: "work", Label: "Work", Primary: true, Days: stripOf(busy)}, width: 160, want: "Work ◆ "},
 		{name: "cut beside its strip", account: long, width: 160, want: "a-long-account-name-f…  "},
 		{name: "cut, keeping its ◆", account: views.DaysStrip{Of: long.Of, Primary: true, Days: long.Days}, width: 160, want: "a-long-account-name… ◆  "},
-		{name: "on a phone, whole on its row", account: long, width: 52, want: "a-long-account-name-for-days", alone: true},
-		{name: "on a narrower phone, cut at the edge", account: long, width: 20, want: "a-long-account-nam…", alone: true},
+		{name: "on a phone, cut before its count", account: long, width: 52, want: "a-long-account-name-for-…   12 5-hour limits", whole: true},
+		{name: "on a narrower phone, its count kept", account: long, width: 40, want: "a-long-ac…   12 5-hour limits", whole: true},
+		{name: "narrower than its count and a letter, the count at the edge", account: long, width: 22, want: "a…   12 5-hour limits", whole: true},
+		{name: "on a phone, whole where it fits", account: views.DaysStrip{Of: "work", Label: "Work", Primary: true, Limits: 3, Days: stripOf(busy)}, width: 52, want: textsAt(52, map[int]string{0: "Work ◆", 29: "3 5-hour limits"}), whole: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := daysFrame(t, daysWorld(tt.account), tt.width, 37)
 			row := f.layOutDays(*f.History.Days, f.top()).accountRow(0)
 			got := textOf(historyDrawn(f).rows(f.Look))[row]
-			if !strings.HasPrefix(got, tt.want) || tt.alone && got != tt.want {
-				t.Errorf("the account's row reads %q, want it to start %q, on its own row: %t", got, tt.want, tt.alone)
+			if !strings.HasPrefix(got, tt.want) || tt.whole && got != tt.want {
+				t.Errorf("the account's row reads %q, want it to start %q, or read it whole: %t", got, tt.want, tt.whole)
 			}
 		})
 	}
 }
 
-// Narrower than a phone, where not even its last week and a strip's count
-// fit, Days shows that week alone, headed by its first day, where its days
-// end short of the edge, and none where they don't; and a strip's count,
-// past the edge, is cut there, its share a figure, numbered only where it's
-// drawn whole.
+// Narrower than a phone, Days shows the latest of its weeks that fit, each
+// headed by its first day, and none where even the last's days don't end
+// short of the edge; and a strip's count, wider than the weeks shown, starts
+// at column 0 and is cut at the edge, its share a figure, numbered only where
+// it's drawn whole.
 func TestDaysOnANarrowPhoneFitsItsWeeksAndCounts(t *testing.T) {
-	for width, want := range map[int]string{22: "28 Sep", 15: "28 Sep", 14: ""} {
+	for width, want := range map[int]string{40: "21 Sep         28 Sep", 15: "28 Sep", 14: ""} {
 		f := daysFrame(t, daysWorld(workDays, personalDays, sideDays), width, 40)
 		if rows := textOf(historyDrawn(f).rows(Look{})); rows[f.top()] != want {
 			t.Errorf("at %d columns, Days' weeks read %q, want %q", width, rows[f.top()], want)
 		}
 	}
 	opus := Number{Kind: NumberShareOfUse, Of: "opus"}
-	for width, want := range map[int]string{22: "59%", 21: ""} {
+	for width, want := range map[int]string{8: "59%", 7: ""} {
 		f := daysFrame(t, daysWorld(workDays, personalDays, sideDays), width, 40)
 		if got := f.Numbers(threeRouted(), now)[opus]; got != want {
 			t.Errorf("at %d columns, Opus's share is numbered %q, want %q", width, got, want)
@@ -444,9 +447,11 @@ func TestDaysOnANarrowPhoneFitsItsWeeksAndCounts(t *testing.T) {
 }
 
 // Days shows as many of its weeks as fit, up to eight, the latest, in either
-// form, and each strip's count four cells after its last week, never at the
-// edge: wide, after its label column, where its key fits on a row; else each
-// strip under its name.
+// form, and each strip's count with them, never at the edge: wide, after its
+// label column, where its key fits on a row, the count four cells after the
+// last week's last day; else each strip under its name, the weeks the whole
+// width's, and the count beside the name, ending where the last week's days
+// end.
 func TestDaysShowsTheWeeksThatFitWithEachCountAfterThem(t *testing.T) {
 	tests := []struct {
 		width, weeks int
@@ -454,9 +459,9 @@ func TestDaysShowsTheWeeksThatFitWithEachCountAfterThem(t *testing.T) {
 		from, counts int
 		first        string
 	}{
-		{width: 52, weeks: 2, phone: true, counts: 32, first: "21 Sep"},
-		{width: 73, weeks: 3, phone: true, counts: 47, first: "14 Sep"},
-		{width: 108, weeks: 5, phone: true, counts: 77, first: "31 Aug"},
+		{width: 52, weeks: 3, phone: true, counts: 26, first: "14 Sep"},
+		{width: 73, weeks: 4, phone: true, counts: 41, first: "7 Sep"},
+		{width: 108, weeks: 7, phone: true, counts: 86, first: "17 Aug"},
 		{width: 138, weeks: 7, from: 12, counts: 119, first: "17 Aug"},
 		{width: 152, weeks: 7, from: 12, counts: 119, first: "17 Aug"},
 		{width: 153, weeks: 8, from: 12, counts: 134, first: "10 Aug"},
@@ -471,21 +476,21 @@ func TestDaysShowsTheWeeksThatFitWithEachCountAfterThem(t *testing.T) {
 				t.Fatalf("phone: %t, %d weeks from column %d, the counts at %d; want phone: %t, %d weeks from %d, the counts at %d",
 					l.phone, len(r.weeks), r.weeks[0].At, r.count.At, tt.phone, tt.weeks, tt.from, tt.counts)
 			}
-			lastDay := r.weeks[len(r.weeks)-1].At + 7*swatchCells - 1
-			if gap := r.count.At - lastDay; gap != 4 {
+			lastDay, ends := r.weeks[len(r.weeks)-1].At+7*swatchCells-1, r.count.At+r.count.Size
+			if gap := r.count.At - lastDay; !tt.phone && gap != 4 {
 				t.Errorf("the counts start %d cells after the last week's last day, want 4", gap)
+			}
+			if tt.phone && ends != lastDay+1 {
+				t.Errorf("the counts end before column %d, want where the last week's days end, %d", ends, lastDay+1)
 			}
 			rows := textOf(historyDrawn(f).rows(Look{}))
 			if heads := strings.Fields(rows[f.top()]); len(heads) != 2*tt.weeks || heads[0]+" "+heads[1] != tt.first {
 				t.Errorf("the weeks read %q, want %d from %s", rows[f.top()], tt.weeks, tt.first)
 			}
-			strip := l.accountRow(0)
-			if l.phone {
-				strip++
-			}
-			row := []rune(rows[strip])
+			named := l.accountRow(0)
+			row := []rune(rows[named])
 			if at := slices.Index(row, '3'); at != r.count.At+2 || !strings.HasPrefix(string(row[max(at, 0):]), "33 5-hour limits") {
-				t.Errorf("work's strip reads %q, want 33 5-hour limits from column %d", rows[strip], r.count.At+2)
+				t.Errorf("work's row reads %q, want 33 5-hour limits from column %d", rows[named], r.count.At+2)
 			}
 		})
 	}

@@ -2479,11 +2479,14 @@ data, as from 118 columns. Narrower, each strip's name takes the row over it (On
   in `text.subtle`, then `  each shade a quarter of the active days` in `text.faint`; then a swatch
   of `viz.day.2` holding the red `▪`, and `a day it hit a 5-hour limit`; then `··` and
   ` days to come`.
-- **On a phone,** and wherever the wide form doesn't fit, each strip's name, cut at the edge, takes
-  the row over its days, and the row is the wide form's without the label column: the latest weeks
-  that fit with the count after them, from column 0, as two at 52 columns, three at 73 and five at
-  108. The headings drop their words, and the key takes two rows, the shades on the first with
-  nothing said of them.
+- **On a phone,** and wherever the wide form doesn't fit, each strip's name and its count share
+  the row over its days. The days are the latest weeks that fit the whole width, from column 0, as
+  three at 52 columns, four at 73 and seven at 108. The count, as wide as the widest, ends where the
+  last week shown ends its days, so it reads with its strip; the name takes what's left before it, a
+  blank cell between, and is cut where the two don't fit, never the count. Only where that would
+  leave the name less than a letter and `…`, as narrower than 31 columns, the count ends at the
+  frame's edge instead. The headings drop their
+  words, and the key takes two rows, the shades on the first with nothing said of them.
 
 **Tokens** is ccusage's weekly report, inside switchboard, split by what ccusage can't split by: the
 account.

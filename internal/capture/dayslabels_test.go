@@ -9,9 +9,9 @@ import (
 // Days' accounts read whole beside their strips at every one of the owner's
 // sizes, as the sweep can't see a cut beside strips that fill the row: the
 // label column as wide as the widest, ◆ with it, up to its most; or on a
-// phone, each on a row of its own. Every row an account's name starts is
-// that name whole, then its strip or nothing; and where the frame is tall
-// enough to show them all, each heads one.
+// phone, each over its strip, beside its count. Every row an account's name
+// starts is that name whole, then two blank cells or nothing; and where the
+// frame is tall enough to show them all, each heads one.
 func TestDaysLabelsReadWholeAtTheOwnersSizes(t *testing.T) {
 	tests := []struct {
 		name  string
