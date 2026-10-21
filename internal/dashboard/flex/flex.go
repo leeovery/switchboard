@@ -98,8 +98,9 @@ func (p Part) held() Part {
 // Decided is the part as a second pass lays it, once a first pass has
 // decided what shows, of the span the first left it at: gone where it gave
 // way keeping nothing; at what it kept where it gave way; and any other as
-// it is, giving way and narrowing no more, so it's free from its least to
-// its natural. It reports false where the part is gone.
+// it is, giving way and narrowing no more, so it's laid from its least, to
+// its natural or, where it grows, past it. It reports false where the part
+// is gone.
 func (p Part) Decided(span Span) (Part, bool) {
 	switch {
 	case span.Left && span.Size == 0:

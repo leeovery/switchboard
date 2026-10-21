@@ -55,12 +55,12 @@ const (
 )
 
 // The turns the List's columns give way in as it narrows, in this order, so
-// no column shows beside a name it cuts short: routing leaves while the
-// leasts and the session and on whole don't fit; on narrows toward its
-// least; worth, then started, leave while the leasts and the session whole
-// don't fit; the session narrows toward its least; and model leaves only
-// while the leasts don't fit, so it leaves before on is cut below
-// listOnLeast.
+// routing never shows beside either name cut short, nor worth or started
+// beside the session cut short: routing leaves while the leasts and the
+// session and on whole don't fit; on narrows toward its least; worth, then
+// started, leave while the leasts and the session whole don't fit; the
+// session narrows toward its least; and model leaves only while the leasts
+// don't fit, so it leaves before on is cut below listOnLeast.
 const (
 	routingLeaves = iota + 1
 	onNarrows

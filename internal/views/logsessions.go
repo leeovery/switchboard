@@ -17,7 +17,7 @@ const SessionDirCells = 12
 
 // SessionDirMost are the most cells a session's directory takes where a
 // column of sessions grows to name it whole, as status.DirName cuts it:
-// Sessions' List's, and its Switchboard's calls'.
+// Sessions' List's.
 const SessionDirMost = 24
 
 // SessionDirName names the directory a session runs in as the Log names a
