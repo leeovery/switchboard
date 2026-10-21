@@ -3,8 +3,7 @@
 
 ● healthy · auto · 6 sessions · new → ▲ side
 
-ACCOUNTS   Compare  Detail
-                                       < this week >
+ACCOUNTS   Compare  Detail             < this week >
 
 WEEK USED
 
@@ -43,6 +42,7 @@ VALUE        plan         worth        against it
  personal ◆  $200/mo      $212         4.6×
  side        $200/mo      $239         5.2×
  all         $600/mo      $635         4.6×
+
 
 
 tab views   [ ] view   ? keys   q quit

@@ -1,9 +1,13 @@
 package dashboard
 
 import (
+	"cmp"
 	"slices"
 	"strings"
 
+	"github.com/charmbracelet/x/ansi"
+
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/theme"
 )
@@ -27,7 +31,8 @@ var shownSubTabInk = ink{token: theme.TextPrimary, on: hue{token: theme.BgSubtle
 // accent.key, where there's any, and its shorter forms, each a clause fewer,
 // for less room; and at its right, its period or window, which < and > step,
 // or another line, as the Log's count and its f, and that line where the
-// heading is compact, where it has one of its own.
+// heading is compact, where it has one of its own; and the widest form its
+// period takes as < and > step it, the period itself where it's not given.
 type heading struct {
 	name         string
 	subTabs      []string
@@ -35,6 +40,7 @@ type heading struct {
 	state        line
 	shorter      []line
 	period       string
+	widest       string
 	right        line
 	compactRight line
 }
@@ -123,10 +129,11 @@ func (f Frame) headingPieces() []piece {
 	return f.heading().pieces(f.headingY(), f.Width, f.phone())
 }
 
-// rows is how many rows the heading takes, on a phone where phone says: two
-// where its period takes the row under it, as ownPeriod has it; else one.
-func (h heading) rows(phone bool) int {
-	if h.ownPeriod(phone) {
+// rows is how many rows the heading takes in a frame width cells wide, on a
+// phone where phone says: two where its period takes the row under it, as
+// ownPeriod has it; else one.
+func (h heading) rows(width int, phone bool) int {
+	if h.ownPeriod(width, phone) {
 		return 2
 	}
 	return 1
@@ -138,11 +145,31 @@ func (h heading) compact(phone bool) bool {
 	return phone && len(h.subTabs) > 0
 }
 
+// The heading's parts as a compact heading lays them out, deciding where its
+// period goes: the name and the sub-tabs, whole; and two cells on, the
+// period at its widest between its keys, which gives way to a row of its
+// own.
+const (
+	periodNamed = iota
+	periodBeside
+)
+
 // ownPeriod reports whether the heading's period takes the row under it, as
-// a phone has it where the heading is compact. A tab without sub-tabs, as
+// a compact heading has it where the name, the sub-tabs and the period at
+// its widest don't fit a frame width cells wide, so stepping the period never
+// moves the heading between one row and two. A tab without sub-tabs, as
 // Runway, keeps its rule and its window on its row.
-func (h heading) ownPeriod(phone bool) bool {
-	return h.compact(phone) && h.period != ""
+func (h heading) ownPeriod(width int, phone bool) bool {
+	if !h.compact(phone) || h.period == "" {
+		return false
+	}
+	var laid laying
+	named, widest := h.named(&laid, 0, phone), ends(periodPieces(cmp.Or(h.widest, h.period)))
+	spans, fits := flex.Lay(width, []flex.Part{
+		periodNamed:  {Least: named, Natural: named},
+		periodBeside: {Least: widest, Natural: widest, Leaves: 1, Gap: ruleGap},
+	}...)
+	return !fits || spans[periodBeside].Left
 }
 
 // pieces are the heading's parts, laid out along row y of a frame width
@@ -160,7 +187,7 @@ func (h heading) pieces(y, width int, phone bool) []piece {
 	x := h.named(&laid, y, phone)
 	right, rightY, end := h.rightPieces(h.compact(phone)), y, width
 	switch {
-	case h.ownPeriod(phone):
+	case h.ownPeriod(width, phone):
 		rightY++
 	case width-ends(right) < x+ruleGap:
 		right = nil
@@ -233,17 +260,35 @@ func (h heading) subTab(i int) line {
 func (h heading) rightPieces(compact bool) []piece {
 	switch {
 	case h.period != "":
-		return []piece{
-			{line: line{{"<", keyInk}}, click: Target{On: OnStep, Step: -1}},
-			{line: line{{" " + h.period + " ", mutedInk}}},
-			{line: line{{">", keyInk}}, click: Target{On: OnStep, Step: 1}},
-		}
+		return periodPieces(h.period)
 	case compact && h.compactRight != nil:
 		return []piece{{line: h.compactRight}}
 	case h.right != nil:
 		return []piece{{line: h.right}}
 	default:
 		return nil
+	}
+}
+
+// widestOf is the form that takes the most cells, the first of those that
+// tie; "" where there are none.
+func widestOf(forms []string) string {
+	widest := ""
+	for _, form := range forms {
+		if ansi.StringWidth(form) > ansi.StringWidth(widest) {
+			widest = form
+		}
+	}
+	return widest
+}
+
+// periodPieces are the period given between < and >, each a step back and
+// on.
+func periodPieces(period string) []piece {
+	return []piece{
+		{line: line{{"<", keyInk}}, click: Target{On: OnStep, Step: -1}},
+		{line: line{{" " + period + " ", mutedInk}}},
+		{line: line{{">", keyInk}}, click: Target{On: OnStep, Step: 1}},
 	}
 }
 

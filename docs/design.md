@@ -1016,7 +1016,7 @@ Every tab, and a session's page, is drawn in one frame, so the eye learns where 
 | The last | The key line |
 
 On a phone, under 100 columns, the tabs take row 1 of their own, the status line row 3 and the
-heading row 5, the view starting at row 7, or at row 8 where a period takes row 6. **The breathing
+heading row 5, the view starting at row 7, or at row 8 where a period takes row 6 of its own. **The breathing
 room,** the blank row under the heading row and the row over the key line, never goes as rows run
 short: the view gives up its rows instead, and scrolls within those it keeps where it must. The row
 over the key line holds a state line only where a view has one, as the Log's following or paused,
@@ -1112,8 +1112,13 @@ heading there, ending in `esc back` (see A session's page). From column 0:
   bold `accent.key`, the period in `text.muted` with a space either side, `< this week >`,
   `< 5-hour >`; or the Log's count and its `f` (see The Log).
 
-On a phone, as every phone frame draws it, a tab with sub-tabs has no `[ ]` and no rule; a period
-goes to row 6, right-aligned, the view then starting at row 8; and Runway keeps its rule and its
+On a phone, as every phone frame draws it, a tab with sub-tabs has no `[ ]` and no rule, and its
+period sits at the right of row 5 wherever the name, the sub-tabs and the period fit whole there,
+two cells apart; where they don't, it goes to row 6, right-aligned, the view then starting at row 8.
+Whether it fits is the width's and the period's widest form's to say, as `< last 12 months >` for
+the Year, never the period shown's, so stepping the period never moves the heading between one row
+and two. What's after the
+sub-tabs, as `loading…`, takes what room is left before the period. Runway keeps its rule and its
 window on row 5.
 
 **The key line** (the last row) lists the keys that work where they are, each key in bold
@@ -1915,8 +1920,8 @@ holds.
   screen can't show otherwise, as which accounts Compare shows of more than fit, or what History's
   Year is filtered to. On a phone, the sub-tabs follow the tab's name after two spaces, each
   ` Name ` with a space either side, as wider, so the highlight sits centred on its name (the
-  owner's call, 17 October 2026), with no `[ ]` or rule, and the period goes to row 6, at the right,
-  the view then starting at row 8.
+  owner's call, 17 October 2026), with no `[ ]` or rule, and the period at the right of the heading row where it fits
+  beside, else on row 6 (see The page).
 - **No description after a heading,** a tab's or a group's: the tab and the sub-tab name the view,
   and what a view is, and how to read it, is for `?` help. A dim line says only what the screen
   can't: a key to an encoding, as to the shades or the dots; a rule the eye can't see, as that worth
@@ -2166,7 +2171,7 @@ top half is now and the period; a rule, `the last six weeks`, heads the rest.
 - **With one account,** there's no list and no Compare, and the stack grows into the width: the
   panel from column 0, `cx` 12, the windows' bars 50 wide, days 3 cells and weeks 1 apart, so `step`
   is 22, BY MODEL 131 wide, and THIS WEEK at column 100, over the fifth week as with the list.
-- **On a phone,** stacked, each part under its heading, a blank row between: on row 8, `◂ 1 work ▸`,
+- **On a phone,** stacked, each part under its heading, a blank row between: on the view's first row, `◂ 1 work ▸`,
   `◂` and `▸` bold `accent.key`, a picker that takes any number of accounts (settled in the plan),
   and at the right `↑↓ an account, or all` in `text.subtle`; under it, the state, its glyph and
   words; USAGE, every window, a blank row between windows; THIS WEEK in two columns of three, 26

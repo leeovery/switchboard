@@ -87,7 +87,7 @@ type HistoryPage struct {
 // Period names it, between < and >; else eight weeks, which Weeks and Days
 // keep to.
 func (p HistoryPage) heading() heading {
-	h := heading{name: strings.ToUpper(History.Title()), subTabs: historyViews, shown: int(p.Shown), state: p.state()}
+	h := heading{name: strings.ToUpper(History.Title()), subTabs: historyViews, shown: int(p.Shown), state: p.state(), widest: widestOf(p.periods())}
 	if h.period = p.Period(); h.period == "" {
 		h.right = line{{"eight weeks", mutedInk}}
 	}
@@ -109,6 +109,9 @@ func (p HistoryPage) state() line {
 	}
 	return line{{shown + " only, " + every + "  ·  ", faintInk}, {"v", keyInk}, {" for all, a model or an account", faintInk}}
 }
+
+// widestYear is a calendar year at its widest, as the heading names it.
+const widestYear = 9999
 
 // yearPeriod is the Year's period as the heading names it: the calendar year
 // given, or where it's 0, the last 12 months.

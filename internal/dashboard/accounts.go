@@ -105,11 +105,23 @@ func (s AccountsShown) Account() string {
 // picked out, Detail alone where there's one account; and at its right, the
 // period between < and >.
 func (s AccountsShown) heading() heading {
-	h := heading{name: strings.ToUpper(Accounts.Title()), subTabs: accountsViews, shown: int(s.View()), period: s.Period.Name()}
+	h := heading{
+		name: strings.ToUpper(Accounts.Title()), subTabs: accountsViews, shown: int(s.View()),
+		period: s.Period.Name(), widest: widestOf(accountsPeriodNames()),
+	}
 	if s.Alone() {
 		h.subTabs, h.shown = accountsViews[AccountsDetail:], 0
 	}
 	return h
+}
+
+// accountsPeriodNames are the names of the periods Accounts steps through.
+func accountsPeriodNames() []string {
+	var names []string
+	for _, period := range views.AccountsPeriods() {
+		names = append(names, period.Name())
+	}
+	return names
 }
 
 // accountsHeading is the frame's heading row on Accounts, as its heading has

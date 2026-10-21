@@ -44,6 +44,12 @@ var accountsPeriodsAre = map[AccountsPeriod]accountsPeriod{
 	AccountsTwelveWeeks: {name: "12 weeks", title: "LAST 12 WEEKS", unit: "12 weeks", share: twelveWeeks},
 }
 
+// AccountsPeriods are the periods in the order < and > step through them,
+// the shortest first.
+func AccountsPeriods() []AccountsPeriod {
+	return slices.Clone(accountsPeriods)
+}
+
 // Known reports whether p is one of the periods, as a preference read back
 // may not be.
 func (p AccountsPeriod) Known() bool {

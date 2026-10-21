@@ -103,9 +103,32 @@ func (p HistoryPage) Period() string {
 	case HistoryYear:
 		return yearPeriod(p.YearAsk.Year)
 	case HistoryTokens:
-		return "by " + p.TokensAsk.Period.Name()
+		return tokensPeriodName(p.TokensAsk.Period)
 	}
 	return ""
+}
+
+// periods are the forms the period of the sub-tab shown takes as < and >
+// step it, as Period names them: the last 12 months and a calendar year on
+// the Year; each of Tokens' periods; and none for Weeks and Days.
+func (p HistoryPage) periods() []string {
+	switch p.Shown {
+	case HistoryYear:
+		return []string{yearPeriod(0), yearPeriod(widestYear)}
+	case HistoryTokens:
+		names := make([]string, 0, len(tokensPeriods))
+		for _, period := range tokensPeriods {
+			names = append(names, tokensPeriodName(period))
+		}
+		return names
+	}
+	return nil
+}
+
+// tokensPeriodName is Tokens' period as the heading names it: by week, by day
+// or by month.
+func tokensPeriodName(period views.TokensPeriod) string {
+	return "by " + period.Name()
 }
 
 // Split is what v has the sub-tab shown show, as the key line names it: the
