@@ -2642,7 +2642,9 @@ extra. Narrower, the bends' room gives way first, the lines keeping their 74 col
 at 145 columns; below that, it keeps 9 columns at least, and the calls and the lines' bars narrow
 instead, a cell for each column lost. A step that frees several cells at once is taken where the
 bends' room would otherwise fall below 9, and what it frees beyond that goes to the bends' room,
-which gives it back a column at a time (settled in the plan):
+which gives it back a column at a time (settled in the plan). The bends' room,
+the calls' parts and the lines' are each a part, declared once with the turn it gives way in, and
+laid by the dashboard's one layout of parts, `flex`:
 
 | Columns | What gives |
 |---|---|
@@ -2659,8 +2661,8 @@ which gives it back a column at a time (settled in the plan):
 Each part keeps its distance from the part before it: at 100 columns, what a call is doing is at 12,
 `▸` at 25 and the plug at 35, the jacks are at 56, and the lines run from 58, 42 columns. A line's
 state words that don't fit take the short form, as on a phone, then lose whole clauses from the end.
-Under 100 columns, or wherever the bent cords outnumber the bends' room's columns, the Switchboard
-draws lanes.
+Where its parts don't fit with every turn taken, as under 100 columns, or wherever the bent cords
+outnumber the bends' room's columns, the Switchboard draws lanes.
 
 **Lanes,** as on a phone, where cords would need width the terminal hasn't got: each account's line
 with its sessions under it, in The page's phone frame under 100 columns (settled in the plan).
@@ -7026,6 +7028,7 @@ why.
 
 | Idea | Status | File |
 |---|---|---|
+| The graphs reimagined: a burn-down for every account, on a page of graphs or in GRAPHS reworked, at a scale read at a glance | next, after the fluid layout pass, to discuss with its owner (20 October 2026) | [graphs-page](../ideas/2026-10-20--graphs-page.md) |
 | A reserve spent as a last resort, when no account has room outside one | next, a fast follow | [reserve-last-resort](../ideas/2026-10-03--reserve-last-resort.md) |
 | The plain text the data verbs print, `status`'s and the first cuts of `requests`, `history`, `sessions` and `events`, designed to match the dashboard | next, to design with its owner | [dashboard-layout](../ideas/2026-09-30--dashboard-layout.md) |
 | Releases signed with a Developer ID, so macOS stops noticing each upgrade | next, once the certificate is in hand | [developer-id-signing](../ideas/2026-10-01--developer-id-signing.md) |

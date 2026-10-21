@@ -12,10 +12,7 @@ const (
 )
 
 // along is how far along a bar width cells long its cell i sits, from 0 at
-// the first cell to 1 at the last.
+// the first cell to 1 at the last: a bar of one cell, at 0.
 func along(i, width int) float64 {
-	if width < 2 {
-		return 0
-	}
-	return float64(i) / float64(width-1)
+	return float64(i) / float64(max(width-1, 1))
 }

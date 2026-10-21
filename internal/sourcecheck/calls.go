@@ -15,6 +15,9 @@ import (
 // judged.
 type CallBan struct {
 	Ban
+	// AsValue says how using the function as a value breaks the rule: Says
+	// where it's "".
+	AsValue string
 	// Breaks judges a call by its arguments, each at its parameter's index:
 	// a method expression's, as time.Time.Format(t, layout), less the
 	// receiver. It reports whether the call breaks the rule, else the
@@ -83,19 +86,21 @@ func typeName(t types.Type) string {
 }
 
 // funcNamed is the full name of the function e names, as
-// (*types.Func).FullName has it, or, of a package the loader stubs, its path
-// and the function's name, and the identifier naming it: "" and nil where e
-// names no function.
+// (*types.Func).FullName has it of the function declared, a generic type's
+// method by its type parameters, as "(example.com/fixture.box[T]).fit", not
+// the type arguments it's called with; or, of a package the loader stubs,
+// its path and the function's name; and the identifier naming it: "" and nil
+// where e names no function.
 func funcNamed(e ast.Expr, info *types.Info) (string, *ast.Ident) {
 	switch e := ast.Unparen(e).(type) {
 	case *ast.Ident:
 		if fn, ok := info.Uses[e].(*types.Func); ok {
-			return fn.FullName(), e
+			return fn.Origin().FullName(), e
 		}
 	case *ast.SelectorExpr:
 		switch obj := info.Uses[e.Sel].(type) {
 		case *types.Func:
-			return obj.FullName(), e.Sel
+			return obj.Origin().FullName(), e.Sel
 		case nil:
 			if x, ok := e.X.(*ast.Ident); ok {
 				if pkg, ok := info.Uses[x].(*types.PkgName); ok {
@@ -105,6 +110,13 @@ func funcNamed(e ast.Expr, info *types.Info) (string, *ast.Ident) {
 		}
 	}
 	return "", nil
+}
+
+// Callee is the full name of the function call calls, as Calls names it, and
+// the arguments Breaks judges it by: "" where it calls no function.
+func Callee(call *ast.CallExpr, info *types.Info) (string, []ast.Expr) {
+	name, _ := funcNamed(call.Fun, info)
+	return name, argued(call, info).Args
 }
 
 // argued is call as Breaks judges it: of a method expression, its arguments

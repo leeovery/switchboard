@@ -1,0 +1,44 @@
+ SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Log   tab ⇥          Thu 1 Oct  14:42:07
+
+● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
+
+USAGE  ─────────────────────────────────────────────────────────────────────────────────────────────────── u
+
+WEEK
+
+ 1 work                              ▏           ┃                         ╎    34%  19%/day till Sun 21:00
+
+ 2 personal ◆                                           ┃                       66%  out ~Sat 06:00
+
+ 3 side ▲                                   ┃                   ▍               78%  out ~Fri 12:20
+────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Σ pool                                           ┃ ▊                           59%  1.2 of 3 left
+
+5-HOUR
+
+ 1 work                                        ┃                          ▉╎    95%  at cap · back 17:10
+
+ 2 personal ◆                           ▏               ┃                       39%  34%/h till 16:30
+
+ 3 side ▲                  ┃                                                    13%  21%/h till 18:50
+────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Σ pool                                    ┃  ▍                                 49%  1.5 of 3 left
+
+┃ even pace: where you would be now, used evenly
+╎ cap: work at 95%    ◆ primary    ▲ new sessions go here
+
+ROUTING   auto ─────────────────────────────────────────────────────────────────────────────────────────── r
+
+ 1 work         ● at its cap · 17:10
+                ▂▃▄▄▅▅▃▁▂▂▂▂▃▃▂▂▃▄▅▆▆▆▄▄▃▃▃▃▂▂▂▂▂▂▂▂▂▂▁▁▂▁▁▂▂▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0 sessions  0/min
+
+ 2 personal ◆   ● open
+                ▁▁▂▂▂▂▂▂▂▁▁▁▁▁▁▁▁▁▁▁▁▂▂▂▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂▄▅▆▅▄▃▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂▂▂▁▂   2 sessions  3/min
+
+ 3 side ▲       ● open · next
+                ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▃▄▆▇ ▇      ▇▇ ▇▆▅▅▄▄▅▅▅▆▆  4 sessions  11/min
+
+COMING UP   16:30  personal's 5-hour resets… ── c       LATELY   14:41  ▲ c61b started on side  … ──────── l
+
+
+tab views   ? keys and toggles   q quit

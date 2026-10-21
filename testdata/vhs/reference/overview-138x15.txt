@@ -1,0 +1,15 @@
+ SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Log   tab ⇥                                        Thu 1 Oct  14:42:07
+
+● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
+
+USAGE  ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── u
+
+WEEK
+▼ 18 more below
+┃ even pace: where you would be now, used evenly
+╎ cap: work at 95%    ◆ primary    ▲ new sessions go here
+
+ROUTING   auto   no room at 15 rows ──────────────────────────────────────────────────────────────────────────────────────────────────── r
+COMING UP   16:30  personal's 5-hour resets  … ───────────── c         LATELY   14:41  ▲ c61b started on side  … ─────────────────────── l
+
+tab views     u usage  g graphs  r routing  s sessions  c coming up  l lately  b by: window     ↑↓ focus  p pin  ? help  q quit

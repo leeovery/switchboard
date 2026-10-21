@@ -1,0 +1,44 @@
+ SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Log   tab ⇥          Thu 1 Oct  14:42:07
+
+● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
+
+SESSION  d28c  switchboard                                                                          esc back
+
+↑ asking  on side ▲ since 14:31
+moved from work: its cap                                                                              2h 39m
+
+                                                                       its cap → side, $1.82  14:31 ┊
+                           ▁                         ▃                                              ┊ ▂
+        ▄ ▇▂             ▇▇ ▇       ▂▃            ▂▇▅ ▇▇▃         ▄▄      ▃      ▁▇  ▃      ▂▄▆▅▄   ┊▅
+  ▁    ▆    ▄          ▆      ▆    ▁  ▄         ▃         ▆     ▁   ▇    ▃ ▅    ▃     ▆    ▄      ▂▂┊   ▇  ▂
+   ▁▁▁       ▄▁▁▁▄ ▅▁▁▆        ▆▁▁▁    ▁▁▁▁▇▇▁▁▆            ▁▁▁▁     ▄▁▁▁   ▂▁▁▃       ▆▁▂          ▇    ▄▃
+├────────────────────────────────────────────── work ──────────────────────────────────────────────┤├ side ┤
+12:02             12:30                13:00               13:30               14:00                     now
+
+1 work                                                                                                $41.09
+3 side ▲                                                                                               $7.11
+
+TURNS    ───────────────────────────────────────────────────────────────────────────────────────────  $48.20
+
+13 14:40   3m…   6 req                                                                      $0.79  side
+12 14:29   9m   37 req                                                                      $6.61  work→side
+11 14:15  15m   58 req                                                                      $7.26  work
+10 14:00  12m   52 req                                                                      $6.19  work
+ 9 13:50   5m   17 req                                                                      $1.94  work
+ 8 13:37   8m   31 req                                                                      $3.40  work
+ 7 13:12  19m   83 req                                                                      $8.49  work
+ 6 13:06   2m    5 req                                                                      $0.48  work
+ 5 12:54   6m   22 req                                                                      $2.05  work
+ 4 12:35  14m   61 req                                                                      $5.34  work
+ 3 12:28   3m    9 req                                                                      $0.75  work
+ 2 12:11  11m   46 req                                                                      $3.59  work
+ 1 12:02   4m   18 req                                                                      $1.32  work
+
+
+
+
+
+
+
+
+esc back    ↑↓ turn  enter its requests    p pin    ? help  q quit

@@ -1,6 +1,9 @@
 package sourcecheck_test
 
 import (
+	"go/ast"
+	"go/token"
+	"go/types"
 	"slices"
 	"strings"
 	"testing"
@@ -48,6 +51,10 @@ func TestACheckFindsEachBreachButWhereItsAllowed(t *testing.T) {
 		"internal/reader/fns.go:keptFn",
 		"internal/reader/fns.go:goneFn",
 		"internal/reader/fns.go:holder.allowedMethod",
+		"internal/reader/fns.go:allowedVar",
+		"internal/reader/fns.go:keptVar",
+		"internal/reader/fns.go:goneVar",
+		"internal/reader/fns.go:also",
 	))
 	want := []string{
 		"internal/reader/breaches.go:14: data.Record.ID reads raw fields; " + readFix,
@@ -59,6 +66,8 @@ func TestACheckFindsEachBreachButWhereItsAllowed(t *testing.T) {
 		"internal/reader/breaches.go:19: data.Record.Tag takes data.Record; " + takesFix,
 		"internal/reader/breaches.go:24: data.Record.ID reads raw fields; " + readFix,
 		"internal/reader/fns.go:13: data.Record.ID reads raw fields; " + readFix,
+		"internal/reader/fns.go:17: data.Record.ID reads raw fields; " + readFix,
+		"internal/reader/fns.go:21: data.Record.ID reads raw fields; " + readFix,
 		"internal/other/other.go:5: data.Scoped is absorbed in other; " + usedFix,
 		"internal/other/other.go:7: data.Other.Name is absorbed in other; " + usedFix,
 		"internal/other/other.go:9: data.Other.Name is absorbed in other; " + usedFix,
@@ -66,6 +75,8 @@ func TestACheckFindsEachBreachButWhereItsAllowed(t *testing.T) {
 		"internal/reader/gone.go: allowed allows it, but it's gone; " + listFix,
 		"internal/reader/fns.go:keptFn: allowed allows it, but it keeps the rule; " + listFix,
 		"internal/reader/fns.go:goneFn: allowed allows it, but it's gone; " + listFix,
+		"internal/reader/fns.go:keptVar: allowed allows it, but it keeps the rule; " + listFix,
+		"internal/reader/fns.go:goneVar: allowed allows it, but it's gone; " + listFix,
 		"data.Keyed: calls allows it, but no reader calls it; " + callFix,
 	}
 	if !slices.Equal(got, want) {
@@ -73,17 +84,15 @@ func TestACheckFindsEachBreachButWhereItsAllowed(t *testing.T) {
 	}
 }
 
-// checkFixture is a module whose data package has the types a rule guards,
-// one embedding another and one wrapping them, a function absorbed, one
-// absorbed in another package alone, as is a field of a type it doesn't
-// guard, and functions and methods taking a guarded type; a reader package
-// with a file of breaches, a file and functions allowed to break the rule, a
-// file and a function allowed that keep it, and a test file, which a check
-// passes over; and that other package, using what's absorbed in it, the
-// field read directly and through a type embedding its own. The reader imports a module the
-// fixture doesn't have, as the source loader stubs it.
+// checkFixture is a module whose packages break a rule and keep it, each
+// file as its comment says. The reader imports a module the fixture doesn't
+// have, as the source loader stubs it.
 var checkFixture = map[string]string{
 	"go.mod": "module example.com/fixture\n",
+	// The types the rule guards, one embedding another and one wrapping
+	// them; a function absorbed, and one absorbed in other alone, as is a
+	// field of a type the rule doesn't guard; and functions and methods
+	// taking a guarded type.
 	"internal/data/data.go": `package data
 
 type Meta struct{ Note string }
@@ -107,6 +116,8 @@ func Banned() string                   { return "" }
 func Scoped() string                   { return "" }
 func Named(o Other) string             { return o.Name }
 `,
+	// What's absorbed in other, used there, the field read directly and
+	// through a type embedding its own.
 	"internal/other/other.go": `package other
 
 import "example.com/fixture/internal/data"
@@ -117,6 +128,7 @@ func named(o data.Other) string { return o.Name }
 
 func through(e data.Embeds) string { return e.Name }
 `,
+	// The reader's breaches.
 	"internal/reader/breaches.go": `package reader
 
 import (
@@ -142,6 +154,9 @@ func breaches(r data.Record, w data.Wrapper, o data.Other) string {
 
 var first = data.Record{}.ID
 `,
+	// Functions and package-level variables allowed, each variable by its
+	// name, two declared together by the value given each; and a function
+	// and a variable allowed that keep the rule.
 	"internal/reader/fns.go": `package reader
 
 import "example.com/fixture/internal/data"
@@ -155,17 +170,28 @@ func keptFn() int { return 0 }
 func (h holder) allowedMethod() string { return h.r.ID }
 
 func unallowed(r data.Record) string { return r.ID }
+
+var (
+	allowedVar = data.Record{}.ID
+	otherVar   = data.Record{}.ID
+	keptVar    = 0
+)
+
+var two, also = data.Record{}.ID, data.Record{}.ID
 `,
+	// A file allowed.
 	"internal/reader/allowed.go": `package reader
 
 import "example.com/fixture/internal/data"
 
 func allowed(r data.Record) string { return r.ID + data.Banned() }
 `,
+	// A file allowed that keeps the rule.
 	"internal/reader/kept.go": `package reader
 
 func kept() {}
 `,
+	// A test file, which a check passes over.
 	"internal/reader/reader_test.go": `package reader
 
 import "example.com/fixture/internal/data"
@@ -382,6 +408,30 @@ func shapes() {
 `,
 }
 
+// A rule's Node judges every node of a file's declarations; and a loader's
+// check judges the very objects worked out of what it loaded beforehand.
+func TestALoadersCheckJudgesNodesByWhatItLoaded(t *testing.T) {
+	root := sourcecheck.WriteModule(t, map[string]string{
+		"go.mod": "module example.com/fixture\n",
+		"internal/reader/reader.go": "package reader\n\nconst limit = 3\n\nfunc over(n int) bool { return n > limit }\n\n" +
+			"func under(n int) bool { return n < limit }\n\nfunc also(n int) bool { return n > 3 }\n",
+	})
+	l := sourcecheck.NewLoader(t, root, "example.com/fixture", []string{"internal/reader"})
+	limit := l.Load("internal/reader")[0].Pkg.Scope().Lookup("limit")
+	rule := sourcecheck.Rule{Names: sourcecheck.NamesIn("example.com/fixture"), Node: func(n ast.Node, info *types.Info) string {
+		if b, ok := n.(*ast.BinaryExpr); ok && b.Op == token.GTR {
+			if id, ok := b.Y.(*ast.Ident); ok && info.Uses[id] == limit {
+				return "over the limit"
+			}
+		}
+		return ""
+	}}
+	got := l.Check(rule, []string{"internal/reader"}, fixtureAllowance())
+	if want := []string{"internal/reader/reader.go:5: over the limit"}; !slices.Equal(got, want) {
+		t.Errorf("found\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}
+
 // A check judges every file, whatever platform it's built for, each once:
 // one built for this platform as it's built here, and one built for
 // another alone as that platform builds it.
@@ -500,6 +550,8 @@ type single[T any] struct{}
 
 var declared = 1
 
+var pair, kept = 2, 3
+
 func function() {}
 
 func (plain) value()            {}
@@ -515,8 +567,18 @@ func (*single[T]) one()         {}
 			got = append(got, sourcecheck.DeclName(decl))
 		}
 	}
-	want := []string{"", "", "", "", "function", "plain.value", "plain.pointer", "generic.two", "single.one"}
+	want := []string{"", "", "", "", "", "function", "plain.value", "plain.pointer", "generic.two", "single.one"}
 	if !slices.Equal(got, want) {
 		t.Errorf("DeclName() named %q, want %q", got, want)
+	}
+	got = nil
+	for _, f := range files {
+		for _, decl := range f.AST.Decls {
+			got = append(got, sourcecheck.DeclNames(decl)...)
+		}
+	}
+	want = []string{"declared", "pair", "kept", "function", "plain.value", "plain.pointer", "generic.two", "single.one"}
+	if !slices.Equal(got, want) {
+		t.Errorf("DeclNames() named %q, want %q", got, want)
 	}
 }
