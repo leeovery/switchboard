@@ -8,7 +8,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
@@ -18,16 +21,22 @@ import (
 
 // Compare's columns and rows, in cells.
 const (
-	// compareLabels are the labels' columns, 0 to 25: the first column
-	// starts after them.
-	compareLabels = 26
+	// compareNameLeast and compareNameMost are the fewest and the most cells
+	// a column of names takes, its widest whole between them.
+	compareNameLeast, compareNameMost = 8, 24
+	// labelIndent is where the groups' rows' labels and BY MODEL's ● start,
+	// and versionAt where a version's name does; labelsGap are the cells
+	// between the labels' column and the first account's.
+	labelIndent = 2
+	versionAt   = labelIndent + 2
+	labelsGap   = 2
 	// leastColumn are the fewest cells a column takes, as many accounts
 	// showing as fit at it, less all accounts'.
 	leastColumn = 19
-	// weekBar and shareBar are WEEK USED's bar and BY MODEL's at their
-	// widest; a column keeps weekSpare and shareSpare cells beside them.
-	weekBar, weekSpare   = 18, 8
-	shareBar, shareSpare = 24, 4
+	// barMost are the most cells a bar beside words takes, so none reads as
+	// a rule; and shareSpare the cells a column keeps beside BY MODEL's.
+	barMost    = 40
+	shareSpare = 4
 	// compareHeads are the rows the heads take, held however far the rest
 	// scrolls: the names, the states, and a blank row.
 	compareHeads = 3
@@ -38,15 +47,125 @@ const (
 	groupApart     = 2
 )
 
+// compareLabels are the cells of Compare's labels' column, fixed, as it holds
+// the same labels whatever the page: its widest whole, of WEEK USED's, now
+// and all, BY MODEL's heading, and the groups' names and their rows'
+// labels, indented. A version's name past it is cut to it.
+var compareLabels = sync.OnceValue(func() int {
+	widest := max(weekLabel(views.AccountsThirtyDays).width(), compareByModelHead(false).width())
+	for _, g := range (compared{page: &views.AccountsPage{}}).groups() {
+		widest = max(widest, ansi.StringWidth(g.name))
+		for _, r := range g.rows {
+			widest = max(widest, labelIndent+ansi.StringWidth(r.label))
+		}
+	}
+	return widest
+})
+
+// compareByModelSays is what Compare's BY MODEL shows, after its name.
+const compareByModelSays = "share of use"
+
+// compareByModelHead is Compare's BY MODEL heading, as groupHead words it,
+// turned where turned is set: the one either form draws, and the wide
+// form's labels' column holds.
+func compareByModelHead(turned bool) line {
+	return groupHead("BY MODEL", compareByModelSays, turned)
+}
+
+// compareLayout is where Compare's parts sit across a frame, as flex lays
+// them: the labels' column's cells; each column's span, the accounts' shown,
+// from the first, then all accounts'; and the cells of BY MODEL's bars, and
+// of WEEK USED's, which ends with them, its percentage a cell on.
+type compareLayout struct {
+	labels int
+	slots  []flex.Span
+	share  int
+	week   int
+}
+
+// shown is how many accounts the layout shows a column of, beside all
+// accounts'.
+func (l compareLayout) shown() int {
+	return len(l.slots) - 1
+}
+
+// compareLaid is Compare laid out across the frame: the labels' column,
+// fixed, then, labelsGap on, a column an account, and all accounts'
+// last, each at least leastCompared cells. Where they don't all fit, the
+// accounts' columns give way from the last, the first never; those left
+// share the rest alike, the odd cell all accounts'. The bars are as
+// compareBars has them in the narrowest column.
+func (f Frame) compareLaid() compareLayout {
+	n, least := len(f.Accounts.Accounts), f.leastCompared()
+	labels := compareLabels()
+	parts := []flex.Part{{Least: labels, Natural: labels}}
+	for i := range n {
+		slot := flex.Part{Least: least, Natural: least, Grows: true, Leaves: n - i}
+		if i == 0 {
+			slot.Leaves, slot.Gap = 0, labelsGap
+		}
+		parts = append(parts, slot)
+	}
+	parts = append(parts, flex.Part{Least: least, Natural: least, Grows: true, Odd: true})
+	spans, _ := flex.Lay(f.Width, parts...)
+	l := compareLayout{labels: spans[0].Size}
+	for _, s := range spans[1:] {
+		if !s.Left {
+			l.slots = append(l.slots, s)
+		}
+	}
+	l.share, l.week = compareBars(slices.MinFunc(l.slots, func(a, b flex.Span) int { return a.Size - b.Size }).Size)
+	return l
+}
+
+// compareBars are the cells of BY MODEL's bars and of WEEK USED's in a
+// column the cells given: BY MODEL's the column less shareSpare, at most
+// barMost; WEEK USED's ending with it, a cell and its percentage after.
+func compareBars(column int) (share, week int) {
+	bars, _ := flex.Lay(column, flex.Part{Grows: true, Most: barMost}, flex.Part{Least: shareSpare, Natural: shareSpare})
+	weekly, _ := flex.Lay(bars[0].Size, flex.Part{Grows: true}, flex.Part{Least: percentCells, Natural: percentCells, Gap: 1})
+	return bars[0].Size, weekly[0].Size
+}
+
+// leastCompared are the fewest cells a column of Compare takes: leastColumn,
+// or, where it's more, the widest account's head and a cell: its number and
+// a space, then its name whole, at most compareNameMost; so no account's
+// name is cut where another's column would show it whole.
+func (f Frame) leastCompared() int {
+	widest := 0
+	for i, a := range f.Accounts.Accounts {
+		number := strconv.Itoa(i + 1)
+		named := accountName{label: labelled(a.Label, a.ID), primary: a.Primary}
+		widest = max(widest, len(number)+1+min(wholeName(named), compareNameMost))
+	}
+	return max(leastColumn, widest+1)
+}
+
+// wholeName are the cells the name takes unnumbered, its label whole and its
+// marks: a name's natural width.
+func wholeName(n accountName) int {
+	return ansi.StringWidth(n.label) + n.marks().width()
+}
+
+// weekLabel is WEEK USED's label, and now after it where the period is
+// another than this week, as the week is always as it stands.
+func weekLabel(period views.AccountsPeriod) line {
+	label := line{{"WEEK USED", dimInk}}
+	if period != views.AccountsThisWeek {
+		label = append(label, span{"  now", faintInk})
+	}
+	return label
+}
+
 // compareOut is the line saying how many of Compare's rows are out of view,
 // and how to scroll to them: "▼ 3 more below · j/k".
 var compareOut = outForm{above: " above", below: " below", gap: " · ", keys: "j/k", inks: keyedOut}
 
 // compared is Compare as a frame lays it out of a moment: the accounts its
-// columns show, from the first shown, then all accounts'; each colw cells
-// wide; the key of the accounts' own week, as the frame names it, which
-// WEEK USED shows; and its rows drawn whole, once, for every look to share,
-// where it's laid out to draw wide, as comparing lays it out.
+// columns show, from the first shown, then all accounts'; the key of the
+// accounts' own week, as the frame names it, which WEEK USED shows; and,
+// where it's laid out to draw wide, as comparing lays it out, where its
+// parts sit, and its rows drawn whole, once, for every look to share.
 type compared struct {
 	f     Frame
 	m     status.Moment
@@ -54,23 +173,24 @@ type compared struct {
 	page  *views.AccountsPage
 	first int
 	shown int
-	colw  int
 	week  string
+	laid  compareLayout
 	rows  func() *canvas
 }
 
 // compareColumn is a column of Compare: from column x, its values cut to
-// width cells, its heads' width cells less a cell; of an account, by its id
-// and place in the config, as it stands, where the moment has it, and its
-// row of the period's page; or, of all accounts, every account's.
+// width cells and its heads to head cells, its column's less a cell, but
+// all accounts' values, to the frame's edge; of an account, by its id and
+// place in the config, as it stands, where the moment has it, and its row of
+// the period's page; or, of all accounts, every account's.
 type compareColumn struct {
-	x, width int
-	all      bool
-	id       string
-	place    int
-	account  status.AccountNow
-	known    bool
-	row      views.AccountsRow
+	x, width, head int
+	all            bool
+	id             string
+	place          int
+	account        status.AccountNow
+	known          bool
+	row            views.AccountsRow
 }
 
 // compareForm is Compare as it's drawn wide, of doc at now: its heads,
@@ -87,21 +207,19 @@ func (f Frame) compareForm(doc status.Document, now time.Time) accountsForm {
 // comparing is Compare of doc at now, laid out as the frame has it, its rows
 // drawn whole once, the first time a look asks.
 func (f Frame) comparing(doc status.Document, now time.Time) compared {
-	m := f.Moment(doc, now)
-	shown := f.compareShows()
+	m, laid := f.Moment(doc, now), f.compareLaid()
 	cp := compared{
-		f: f, m: m, now: now, page: f.Accounts.Page, first: f.compareFirst(), shown: shown,
-		colw: (f.Width - compareLabels) / (shown + 1), week: f.WeekWindow,
+		f: f, m: m, now: now, page: f.Accounts.Page, first: f.compareFirst(), shown: laid.shown(),
+		week: f.WeekWindow, laid: laid,
 	}
 	cp.rows = sync.OnceValue(func() *canvas { return cp.body(cp.columns()) })
 	return cp
 }
 
 // compareShows is how many accounts Compare shows a column of, beside all
-// accounts': as many as fit leastColumn cells each, at least one, and no
-// more than there are.
+// accounts', as compareLaid lays them out.
 func (f Frame) compareShows() int {
-	return min(max(1, (f.Width-compareLabels)/leastColumn-1), len(f.Accounts.Accounts))
+	return f.compareLaid().shown()
 }
 
 // compareFirst is the place among the accounts, from 0, of the first Compare
@@ -142,15 +260,21 @@ func (f Frame) compareState() []line {
 }
 
 // columns are Compare's columns: each account's shown, from the first, then
-// all accounts', the last running to the frame's edge.
+// all accounts', each in its place where it's laid out to draw wide, all
+// accounts' values running to the frame's edge.
 func (cp compared) columns() []compareColumn {
 	columns := make([]compareColumn, 0, cp.shown+1)
 	for i := range cp.shown {
-		col := cp.column(cp.first + i)
-		col.x = compareLabels + i*cp.colw
-		columns = append(columns, col)
+		columns = append(columns, cp.column(cp.first+i))
 	}
-	return append(columns, cp.allColumn(compareLabels+cp.shown*cp.colw))
+	columns = append(columns, cp.allColumn())
+	for i, s := range cp.laid.slots {
+		columns[i].x, columns[i].head, columns[i].width = s.At, s.Size-1, s.Size-1
+	}
+	if last := len(cp.laid.slots) - 1; last >= 0 {
+		columns[last].width = cp.f.Width - columns[last].x
+	}
+	return columns
 }
 
 // column is the column of the configured account at the place given among
@@ -158,7 +282,7 @@ func (cp compared) columns() []compareColumn {
 // config names it, and its row of the period's page.
 func (cp compared) column(i int) compareColumn {
 	configured := cp.f.Accounts.Accounts[i]
-	col := compareColumn{width: cp.colw - 1, id: configured.ID, place: i + 1}
+	col := compareColumn{id: configured.ID, place: i + 1}
 	col.account, col.known = cp.m.Account(configured.ID)
 	if !col.known {
 		col.account = status.AccountNow{ID: configured.ID, Label: configured.Label, Primary: configured.Primary}
@@ -171,9 +295,9 @@ func (cp compared) column(i int) compareColumn {
 	return col
 }
 
-// allColumn is all accounts' column, from column x to the frame's edge.
-func (cp compared) allColumn(x int) compareColumn {
-	all := compareColumn{x: x, width: cp.f.Width - x, all: true}
+// allColumn is all accounts' column.
+func (cp compared) allColumn() compareColumn {
+	all := compareColumn{all: true}
 	if cp.page != nil {
 		all.row = cp.page.All
 	}
@@ -219,13 +343,13 @@ func (cp compared) scrolls() (x, y, width, rows int) {
 }
 
 // targets are Compare's heads, each column's, a click on which moves the
-// focus to it: its name and its state, each across the column less a cell.
+// focus to it: its name and its state, each across its heads' cells.
 func (cp compared) targets() []Target {
 	top := cp.f.top()
 	var targets []Target
 	for _, col := range cp.columns() {
 		for y := range compareHeads - 1 {
-			targets = append(targets, Target{X: col.x, Y: top + y, Width: cp.colw - 1, On: OnColumn, Account: col.id})
+			targets = append(targets, Target{X: col.x, Y: top + y, Width: col.head, On: OnColumn, Account: col.id})
 		}
 	}
 	return targets
@@ -238,7 +362,7 @@ func (cp compared) targets() []Target {
 // accounts', by the key alone; none drawn empty.
 func (cp compared) filled() map[Ref]float64 {
 	filled := make(map[Ref]float64)
-	columns := []compareColumn{cp.allColumn(0)}
+	columns := []compareColumn{cp.allColumn()}
 	for i := range cp.f.Accounts.Accounts {
 		columns = append(columns, cp.column(i))
 	}
@@ -257,14 +381,14 @@ func (cp compared) filled() map[Ref]float64 {
 // bg.selection, and over it, a state cued as it changes, a warning showing
 // through the focus.
 func (cp compared) heads(c *canvas, top int, columns []compareColumn) {
-	s, head := cp.f.Accounts, cp.colw-1
+	s := cp.f.Accounts
 	for _, col := range columns {
-		c.line(col.x, top, cp.named(col, head))
-		stands := cp.stands(col, head)
+		c.line(col.x, top, cp.named(col, col.head))
+		stands := cp.stands(col, col.head)
 		c.line(col.x, top+1, stands)
 		if s.Focused && s.Focus == col.id {
 			for y := range compareHeads - 1 {
-				c.surface(col.x, top+y, head, hue{token: theme.BgSelection})
+				c.surface(col.x, top+y, col.head, hue{token: theme.BgSelection})
 			}
 		}
 		cp.f.cueState(c, col.id, col.x, top+1, stands.width())
@@ -272,14 +396,15 @@ func (cp compared) heads(c *canvas, top int, columns []compareColumn) {
 }
 
 // named is the column's head in the cells given: an account's number, its
-// name, cut short to keep its number and marks, and its marks but ▲; all
-// accounts', 0 and its name.
+// name, at most compareNameMost cells with its marks however wide its column,
+// cut short to keep its number and marks, and its marks but ▲; all accounts',
+// 0 and its name.
 func (cp compared) named(col compareColumn, cells int) line {
 	if col.all {
 		return line{{"0", dimInk}, {" all accounts", strongInk}}.fit(cells)
 	}
 	named := accountName{number: strconv.Itoa(col.place), label: name(col.account), primary: col.account.Primary}
-	return named.labelIn(cells - len(named.number) - 1 - named.marks().width())
+	return named.labelIn(min(cells-len(named.number)-1, compareNameMost) - named.marks().width())
 }
 
 // stands is how the column's account stands, in the cells given: its state
@@ -335,7 +460,7 @@ func (cp compared) body(columns []compareColumn) *canvas {
 		c.heading(y, y+1)
 		for _, r := range g.rows {
 			y++
-			c.line(2, y, line{{r.label, secondaryInk}})
+			c.line(labelIndent, y, line{{r.label, secondaryInk}})
 			for _, col := range columns {
 				c.line(col.x, y, fitParts(col.width, periodNumbered(r.said(col), col.id, r.label)...))
 			}
@@ -344,17 +469,12 @@ func (cp compared) body(columns []compareColumn) *canvas {
 	return c
 }
 
-// weekUsed draws WEEK USED along row y: its label, and now after it, where
-// the period is another than this week, as the week is always as it stands;
-// and each column's week, as weekGauge has it, its bar min(18, colw − 8)
-// cells, a cell, and its percentage, right-aligned in 4.
+// weekUsed draws WEEK USED along row y: its label, as weekLabel has it; and
+// each column's week, as weekGauge has it, its bar as the layout has it, a
+// cell, and its percentage, right-aligned in 4, ending with BY MODEL's bar.
 func (cp compared) weekUsed(c *canvas, y int, columns []compareColumn) {
-	label := line{{"WEEK USED", dimInk}}
-	if cp.f.Accounts.Period != views.AccountsThisWeek {
-		label = append(label, span{"  now", faintInk})
-	}
-	c.line(0, y, label)
-	bar := min(weekBar, cp.colw-weekSpare)
+	c.line(0, y, weekLabel(cp.f.Accounts.Period))
+	bar := cp.laid.week
 	for _, col := range columns {
 		g := cp.weekGauge(col)
 		g.bar.draw(c, cp.f.Look, col.x, y, bar)
@@ -382,29 +502,28 @@ func (cp compared) weekGauge(col compareColumn) gauge {
 }
 
 // byModel draws BY MODEL from row y, and returns the row its last version is
-// on: its heading, and on it each column's share of use as a stacked bar,
-// min(24, colw − 4) cells, each version's part in its shade; then a row a
-// version any account used in the period, in the version table's order, its
-// ● in its shade and its name, and each column's share of use of it,
-// right-aligned in 4.
+// on: its heading, and on it each column's share of use as a stacked bar, as
+// the layout has it, each version's part in its shade; then a row a version
+// any account used in the period, in the version table's order, its ● in its
+// shade and its name, cut to the labels' column, and each column's share of
+// use of it, right-aligned in 4.
 func (cp compared) byModel(c *canvas, y int, columns []compareColumn) int {
-	c.line(0, y, groupHead("BY MODEL", "share of use", false))
+	c.line(0, y, compareByModelHead(false))
 	versions := cp.page.Versions
 	hues := versionHues(versions)
-	bar := min(shareBar, cp.colw-shareSpare)
 	for _, col := range columns {
-		stackedBar(c, cp.f.Look, col.x, y, splitCells(shareAmounts(col.row, versions), bar), hues)
+		stackedBar(c, cp.f.Look, col.x, y, splitCells(shareAmounts(col.row, versions), cp.laid.share), hues)
 	}
 	for i, v := range versions {
 		y++
-		c.text(2, y, "●", hues[i].ink())
-		c.line(4, y, line{{prose.Cut(v.Name, compareLabels-5), secondaryInk}})
+		c.text(labelIndent, y, "●", hues[i].ink())
+		c.line(versionAt, y, line{{prose.Cut(v.Name, cp.laid.labels-versionAt), secondaryInk}})
 		for _, col := range columns {
 			var share *float64
 			if s, ok := shareOf(col.row, v); ok {
 				share = s.Share
 			}
-			c.right(col.x+percentCells, y, fitParts(percentCells, periodNumbered(shareParts(share, col.ink()), col.id, shareNamed(v))...))
+			c.rightFit(col.x+percentCells, col.x+col.width, y, periodNumbered(shareParts(share, col.ink()), col.id, shareNamed(v))...)
 		}
 	}
 	return y

@@ -3,8 +3,11 @@ package views
 import (
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/prose"
 )
 
 // AccountsPage is Accounts as the dashboard draws it, Compare and Detail
@@ -201,4 +204,22 @@ func (v versions) named(shares []ModelShare) []ledger.Version {
 		named[i] = version
 	}
 	return named
+}
+
+// VersionNameCells are the cells of the widest name the pages built with the
+// table give a version of a model it prices, as named names them: a row of
+// its version table, or a model it prices and doesn't name, as one the
+// config prices, by its id, claude- taken off. A model priced nowhere is
+// named by its id too, and may be wider still.
+func VersionNameCells(table ledger.Table) int {
+	widest := 0
+	for _, v := range table.Versions {
+		widest = max(widest, ansi.StringWidth(prose.Clean(v.Name)))
+	}
+	for _, m := range table.Models {
+		for _, id := range m.IDs {
+			widest = max(widest, ansi.StringWidth(table.VersionName(id)))
+		}
+	}
+	return widest
 }

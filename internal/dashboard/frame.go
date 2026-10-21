@@ -135,6 +135,11 @@ type Frame struct {
 	// the accounts' own week, as the config names it: the week Accounts'
 	// WEEK USED shows, and its page reads the weeks of.
 	WeekWindow string
+	// VersionNameCells are the cells of the widest name a version is given, as
+	// views.VersionNameCells has it of the table the pages are built with:
+	// known before any page is read, so a phone's Compare sizes its figures
+	// by it and holds still as its page is read.
+	VersionNameCells int
 	// Accounts is Accounts' sub-tab shown, its period, what's chosen in it,
 	// and its page.
 	Accounts AccountsShown

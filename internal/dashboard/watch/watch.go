@@ -344,6 +344,10 @@ type Model struct {
 	stored      int
 	merged      views.HeldSessions
 	mergedAny   bool
+	// versionNameCells are the cells of the widest name a version is given,
+	// as views.VersionNameCells has it of the prices, worked out as New
+	// makes the model: the prices don't change while it runs.
+	versionNameCells int
 	// runwayTab is what the watch holds of Runway: what it shows, its lanes
 	// as the last look built them, and the readings history's tail they're
 	// judged by; and pool what it holds of the pool's charts GRAPHS draws
@@ -458,7 +462,7 @@ func New(ctx context.Context, cfg Config) Model {
 		choice: cfg.Choice, pair: cfg.Pair, view: opening(cfg.View), sections: cfg.Sections, by: cfg.By, burn: cfg.Burn, models: cfg.Models,
 		accounts: accountsTab{shown: cfg.AccountsShown}, past: historyTab{page: cfg.History, starts: cfg.WeekStarts},
 		sessionsTab: sessionsTab{shown: cfg.SessionsShown}, runwayTab: runwayTab{shown: cfg.RunwayShown}, log: openingLog(cfg.Log),
-		traffic: traffic{heard: new(views.Hearing)}, held: views.HoldSessions(cfg.Prices),
+		traffic: traffic{heard: new(views.Hearing)}, held: views.HoldSessions(cfg.Prices), versionNameCells: views.VersionNameCells(cfg.Prices),
 	}
 	m.accounts.shown.Accounts, m.past.page.Accounts = cfg.Accounts, cfg.Accounts
 	if m.after == nil {
@@ -906,16 +910,17 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 		Lost: m.lostShown(), Failed: m.failure(), Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), StateChanged: m.changes.wordFaded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails, PoolRooms: m.pool.rooms,
 		Brightened: m.numbers.brightened(now), Sections: m.sections, By: m.by, Burn: m.burn, Models: m.models, Traces: m.traces, TraceScale: m.cfg.TraceScale, Layout: m.layout,
 		Sessions: m.sessions, Unlisted: m.unlisted(), Stream: m.traffic.stream(now), Held: m.held, Traffic: m.traffic.at(now), Scroll: m.scroll, SessionsTab: m.sessionsTab.shown,
-		Focus:      m.focus,
-		Policy:     m.cfg.Policy,
-		WindowName: m.cfg.WindowName,
-		WeekWindow: m.cfg.WeekWindow,
-		Accounts:   m.accounts.shown,
-		Runway:     m.runwayTab.shown,
-		History:    m.past.page,
-		Session:    m.session.frame(),
-		Loading:    m.loading(now),
-		Log:        m.log.page,
+		Focus:            m.focus,
+		Policy:           m.cfg.Policy,
+		WindowName:       m.cfg.WindowName,
+		WeekWindow:       m.cfg.WeekWindow,
+		VersionNameCells: m.versionNameCells,
+		Accounts:         m.accounts.shown,
+		Runway:           m.runwayTab.shown,
+		History:          m.past.page,
+		Session:          m.session.frame(),
+		Loading:          m.loading(now),
+		Log:              m.log.page,
 	}.Holding(m.taking.moment).At(m.doc, now)
 	if m.view == dashboard.Accounts {
 		f.Accounts = m.accounts.standing(f)
