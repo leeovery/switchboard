@@ -1573,10 +1573,14 @@ Then, as only the Overview has them:
     apart, a row a press. A click on an account's row where it's drawn moves the focus there; the
     heading kept on the first row is no account's.
   - **The scroll holds** within one form, as reads change what USAGE shows and a resize keeps the
-    form, going no further than USAGE then goes. Where the form changes, as `b` groups it the
-    other way, or a resize, a section's key or a read takes another step, an offset into rows laid
-    out otherwise means nothing, so USAGE scrolls to show the account the focus is on, as `↑` and
-    `↓` do; at its top, which is its top in any form, it stays.
+    form, going no further than USAGE then goes. The form is how the rows over its key line are
+    laid out: grouped by window or by account, the step it takes, as a matrix or not, names on rows
+    of their own or not, and how many rows they take. The key line's rows are its last, so a read
+    that gives it a second row or takes one away moves nothing over it, and the scroll holds.
+    Where the form changes, as `b` groups it the other way, a resize or a section's key takes
+    another step, or a read changes the rows over the key line, an offset into rows laid out
+    otherwise means nothing, so USAGE scrolls to show the account the focus is on, as `↑` and `↓`
+    do; at its top, which is its top in any form, it stays.
   - **The accounts shown never fall as the rows grow:** each step shows its accounts from its top,
     so a row more shows as many or more, and the most any step shows never falls.
 
@@ -1692,10 +1696,10 @@ first (the owner's call, 15 October 2026).
     with two windows, the stacked step comes from 57 rows and 5 rows a chart from 81; with three,
     from 73 and 109. Where USAGE's least doesn't fit, it scrolls whole, a row at a time, as it
     does by window (see Many accounts), each block's charts with it: a block shown in part has its
-    charts drawn in its rows shown, its accounts' and those under them its charts take. The last
-    row says what's out of view, nothing drawn over it, as the accounts are the data and a chart's
-    last row at the scroll's edge isn't (the owner's call, 21 October 2026); the same call cut a
-    block's charts short to end above `▼`, which scrolling whole replaced;
+    charts drawn in its rows shown, its accounts' and those under them its charts take. The charts
+    end above the row saying what's out of view, nothing drawn over it, as the accounts are the
+    data and a chart's last row at the scroll's edge isn't (the owner's call, 21 October 2026); the
+    same call cut a block's charts short to end above `▼`, which scrolling whole replaced;
   - **the pool's charts beside `Σ pool`,** its windows in the same form as each account's: the
     pool's room in each window over its length back from now, from its left edge to now at its
     right, a column a cell, each column the room at its end's moment, a share of all its accounts'

@@ -723,8 +723,8 @@ Scrolled a row at a time, a page down starts at the first row the page didn't sh
 ends just above the first row it showed, so paging either way passes over nothing.
 
 When a resize or what's read turns a view from one kind of scrolling to the other, the view goes
-back to its top. Where USAGE is laid out another way, as `b` groups it the other way or a resize
-gives it more room or less, it scrolls to show the focused account.
+back to its top. Where `b` groups USAGE the other way, or a resize changes how it's laid out, it
+scrolls to show the focused account.
 
 ## The routing card
 

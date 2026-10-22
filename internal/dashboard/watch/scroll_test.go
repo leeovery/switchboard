@@ -285,22 +285,55 @@ func (h *harness) scrollForm() dashboard.ScrollForm {
 	return f.ScrollForm(h.model.doc, at)
 }
 
-// tallerInForm is the first height past the screen's, at its width, up to
-// 40 rows, where USAGE still scrolls, keeps its form or changes it as same
-// says, and scrolls a row less far than now or more, failing the test where
-// none does.
-func (h *harness) tallerInForm(same bool) int {
-	h.t.Helper()
+// resized is the screen's frame resized to width by height, laid out
+// afresh for it, as the watch lays out a resize.
+func (h *harness) resized(width, height int) (dashboard.Frame, time.Time) {
 	f, at := h.model.onScreen()
+	f.Width, f.Height = width, height
+	f.Layout = f.LayoutOf(h.model.doc, at)
+	return f, at
+}
+
+// tallerInForm is the first height past the screen's, at its width, up to
+// 40 rows, where USAGE still scrolls, in the form it's read in now, and
+// scrolls a row less far than now or more, failing the test where none
+// does.
+func (h *harness) tallerInForm() int {
+	h.t.Helper()
+	f, _ := h.model.onScreen()
 	form, most := h.scrollForm(), h.model.scrolling().Most
-	for g := f; g.Height < 40; {
-		g.Height++
-		if s := g.Scrolling(h.model.doc, at); s.Most > 0 && s.Most != most && (g.ScrollForm(h.model.doc, at) == form) == same {
-			return g.Height
+	for height := f.Height + 1; height < 40; height++ {
+		g, at := h.resized(f.Width, height)
+		if s := g.Scrolling(h.model.doc, at); s.Most > 0 && s.Most != most && g.ScrollForm(h.model.doc, at) == form {
+			return height
 		}
 	}
-	h.t.Fatalf("no height past %d, up to 40, scrolls USAGE in its form kept %t", f.Height, same)
+	h.t.Fatalf("no height past %d, up to 40, scrolls USAGE in the form it's read in", f.Height)
 	return 0
+}
+
+// acrossAStep is a resize of the screen, at 160 columns or under, where
+// USAGE still scrolls, in another form, and shows the account with the
+// given id neither where it's scrolled now nor at its top, failing the test
+// where none does.
+func (h *harness) acrossAStep(id string) tea.WindowSizeMsg {
+	h.t.Helper()
+	form, held := h.scrollForm(), h.model.scroll
+	for _, width := range []int{160, 120, 100, 73} {
+		for height := 14; height < 40; height++ {
+			g, at := h.resized(width, height)
+			if g.ScrollForm(h.model.doc, at) == form || g.Scrolling(h.model.doc, at).Most == 0 {
+				continue
+			}
+			top := g
+			g.Scroll, top.Scroll = held, 0
+			if g.Revealing(h.model.doc, at, id) != held && top.Revealing(h.model.doc, at, id) != 0 {
+				return tea.WindowSizeMsg{Width: width, Height: height}
+			}
+		}
+	}
+	h.t.Fatalf("no resize scrolls USAGE in another form, %s out of view both scrolled %d and at its top", id, held)
+	return tea.WindowSizeMsg{}
 }
 
 // Within one form, USAGE's scroll, in rows, holds across a read that changes
@@ -320,11 +353,53 @@ func TestUSAGEsScrollHoldsWithinItsFormAcrossAReadAndAResize(t *testing.T) {
 	}
 
 	h.keys(tea.KeyPressMsg{Code: tea.KeyPgDown}, tea.KeyPressMsg{Code: tea.KeyPgDown}, tea.KeyPressMsg{Code: tea.KeyPgDown})
-	h.update(tea.WindowSizeMsg{Width: 160, Height: h.tallerInForm(true)})
+	h.update(tea.WindowSizeMsg{Width: 160, Height: h.tallerInForm()})
 	most := h.model.scrolling().Most
 	h.press("k")
 	if h.model.scroll != most-1 {
 		t.Errorf("as far as it went, then a taller terminal and k, USAGE is scrolled %d rows, want %d, a row up from as far as it now goes", h.model.scroll, most-1)
+	}
+}
+
+// Below 150 columns, USAGE's key line takes a second row while a mark it
+// names shows, as a read can bring or take away; the rows over it are as
+// they were, and so is the scroll into them.
+func TestUSAGEsScrollHoldsAsAReadChangesItsKeyLine(t *testing.T) {
+	tests := []struct {
+		name         string
+		width, moves int
+		read         func(status.Document) status.Document
+	}{
+		{name: "the best account marked", width: 120, moves: 4, read: func(doc status.Document) status.Document {
+			doc.Best = "c"
+			return doc
+		}},
+		{name: "an account reserving", width: 73, moves: 9, read: func(doc status.Document) status.Document {
+			doc.Accounts[3] = reserving(doc.Accounts[3], 0.05)
+			return doc
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := routedHarness(t, tenRouted())
+			h.update(tea.WindowSizeMsg{Width: tt.width, Height: 18})
+			h.start()
+			for range tt.moves {
+				h.press("j")
+			}
+			before := h.view()
+			if h.model.scroll != tt.moves {
+				t.Fatalf("j %d times, USAGE is scrolled %d rows, the screen\n%s\nwant %d", tt.moves, h.model.scroll, before, tt.moves)
+			}
+			h.startRouter(tt.read(tenRouted()))
+			h.tickUntilAsked()
+			if h.view() == before {
+				t.Fatalf("the read changed nothing on the screen\n%s\nwant its key line changed", before)
+			}
+			if h.model.scroll != tt.moves {
+				t.Errorf("after the read, USAGE is scrolled %d rows, the screen\n%s\nwant it as it was, %d rows down", h.model.scroll, h.view(), tt.moves)
+			}
+		})
 	}
 }
 
@@ -338,9 +413,7 @@ func TestWhereUSAGEsFormChangesItScrollsToTheFocusedAccount(t *testing.T) {
 		changed func(*harness)
 	}{
 		{name: "b", changed: func(h *harness) { h.press("b") }},
-		{name: "a resize to another step", changed: func(h *harness) {
-			h.update(tea.WindowSizeMsg{Width: 160, Height: h.tallerInForm(false)})
-		}},
+		{name: "a resize to another step", changed: func(h *harness) { h.update(h.acrossAStep("h")) }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

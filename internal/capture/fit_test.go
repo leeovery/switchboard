@@ -164,9 +164,10 @@ var (
 // fits, paged down from the top, and but for the Switchboard's lanes, which
 // page a lane at a time, up from the foot, so the frame cuts nothing short
 // that they can't scroll to; and say on their first page that more lies
-// below, where they page, but the Year, as its frames draw it. The Log's tables are passed over: they hold no
-// heading, say where they are on their own status line, and paging a day's
-// lines at every size would take the sweep's time many times over.
+// below, where they page, but the Year, as its frames draw it. The Log's
+// tables are passed over: they hold no heading, say where they are on their
+// own status line, and paging a day's lines at every size would take the
+// sweep's time many times over.
 func TestNoViewCutsWhatItCantScrollTo(t *testing.T) {
 	for _, name := range Names() {
 		f := fixture(t, name)
@@ -387,8 +388,8 @@ func saysMore(rows []string, mark string) bool {
 // reachOf is what of the fixture's view, by name, at the width given, the
 // sweep holds paged to reach every row of, from its rows as drawn: History's
 // views, from the row under the view's heading, but for their footnote;
-// the Overview's USAGE, from its heading to the next section's, but for its
-// key line, where nothing is drawn beside it; Accounts' views, but for
+// the Overview's USAGE, from its heading to its key line, where nothing is
+// drawn beside it, or the next section's heading; Accounts' views, but for
 // Detail's list; a phone's Switchboard in lanes, from the row under the
 // view's heading to the foot, which gives way where they scroll. Elsewhere
 // it's nil: the rest of the views fold and drop what they show by the room
@@ -411,7 +412,7 @@ func reachOf(name string, width int) func(rows []string) []string {
 				return nil
 			}
 			view := rows[from+1:]
-			if to := slices.IndexFunc(view, func(r string) bool { return strings.Contains(r, "─") || strings.HasPrefix(r, "┃ even pace") }); to >= 0 {
+			if to := slices.IndexFunc(view, func(r string) bool { return sectionHeading.MatchString(r) || strings.HasPrefix(r, "┃ even pace") }); to >= 0 {
 				view = view[:to]
 			}
 			return shownRows(view)

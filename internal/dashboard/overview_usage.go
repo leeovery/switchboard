@@ -67,7 +67,7 @@ func (f Frame) usageIn(s section, form usageViews, beside func(*canvas, blocksBe
 		return form.shown(body.rows, f.Scroll).targets(body)
 	}
 	s.scrolling, s.revealing = form.scrolling, form.revealing
-	s.scrollForm = func(rows int) usageForm { return form.shown(rows, 0).form() }
+	s.scrollForm = form.scrollForm
 	return s
 }
 
@@ -268,8 +268,9 @@ func (b usageBlock) enlarges() bool {
 // it's given, scrolled however far: the block; the rows it takes with its big
 // bars, by account with GRAPHS' charts beside its blocks stacked, and as it's
 // laid out; and, worked out only once it's asked for, the block laid out
-// whole and drawn so, as paged pages it. Where it's short of rows, its leaner views are
-// the block as it gives way, a step at a time, as giving has them.
+// whole and drawn so, as paged pages it. Where it's short of rows, its
+// leaner views are the block as it gives way, a step at a time, as giving
+// has them.
 type usageViews struct {
 	block             usageBlock
 	big, stacked, all int
@@ -403,22 +404,27 @@ type usageShown struct {
 // usageForm is the form USAGE's rows are laid out in where it scrolls, which
 // an offset into them is read in: grouped by window or by account; how far
 // it has given way; as a matrix, or by account with each block's name on a
-// row of its own, or neither; and how many rows it takes. The zero
-// usageForm where it fits, and doesn't scroll.
+// row of its own, or neither; and how many rows it takes over its key line.
+// Those under them, the key line's, are its last, and as many as the marks
+// it names have, so a read can change them without changing what any offset
+// into the rows over them shows. The zero usageForm where it fits, and
+// doesn't scroll.
 type usageForm struct {
 	by            By
 	given         giving
 	matrix, above bool
-	rows          int
+	over          int
 }
 
-// form is the form the block's rows are laid out in, as shown.
-func (s usageShown) form() usageForm {
-	if s.paged.content == 0 {
+// scrollForm is the form the block's rows are laid out in, shown in rows
+// rows.
+func (v usageViews) scrollForm(rows int) usageForm {
+	if v.all <= rows {
 		return usageForm{}
 	}
-	_, _, above := s.block.labels()
-	return usageForm{by: s.block.by, given: s.block.given, matrix: s.block.matrixed(), above: above, rows: s.paged.content}
+	l, _ := v.whole()
+	_, _, above := v.block.labels()
+	return usageForm{by: v.block.by, given: v.block.given, matrix: v.block.matrixed(), above: above, over: l.end}
 }
 
 // shown is the block as USAGE shows it in rows rows, scrolled offset rows
