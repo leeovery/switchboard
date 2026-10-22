@@ -164,8 +164,8 @@ func (m Model) overviewListings() []keyListing {
 // SESSIONS listing the sessions running given: [ ] view, where
 // there are sub-tabs; < > and the period; on Compare, ←→ along the
 // accounts, enter opening the one focused in Detail, faint till one is, and
-// esc ending the focus while there is one, none of them on a phone, whose
-// Compare draws no focus; on Detail's list, ↑↓ through the accounts, → into
+// esc ending the focus while there is one, none of them where Compare is
+// turned, drawing no focus; on Detail's list, ↑↓ through the accounts, → into
 // the chosen one's SESSIONS, which the key line leaves to help, and enter
 // opening the session selected there, faint where none is; in its SESSIONS,
 // ↑↓ through them, ← back to the list and enter; with one account, which

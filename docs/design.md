@@ -989,7 +989,7 @@ Every view speaks as `usage` does:
 - **Percentages are coloured by level,** along the theme's ramp: its first stop below 70%, its
   second from 70%, its last from 90%.
 - **Every account is numbered** by its place in the config, wherever its name heads a row, but on
-  History and a phone's Compare, which number nothing: the number that picks it in the routing card.
+  History and turned Compare, which number nothing: the number that picks it in the routing card.
   `◆` marks the primary, and `▲` the account new sessions go to now.
 - **The pool** is the accounts new sessions can go to now: every account on auto, only those the
   global pin names when pinned. `Σ pool` totals them on the Overview, in `usage` and on Runway;
@@ -2166,7 +2166,7 @@ holds.
 - **Numbers:** wherever the accounts are numbered, as in Compare's heads and Detail's list and
   panel, each account's number, its place in the config, is before its name in `text.subtle`, and
   `0` before `all accounts`: the numbers are the routing picker's keys, and `0` is auto, which
-  routes to every account (see Routing by hand). History and a phone's Compare number nothing.
+  routes to every account (see Routing by hand). History and turned Compare number nothing.
 - **`all accounts`,** never a count, is every configured account, always, whatever is pinned, at its
   limit or refused. Its totals count them all; a window's use is the mean of theirs and its pace the
   mean of their paces; and its room, `1.2 of 3 left`, is the sum of what each has left of it, to its
@@ -2235,9 +2235,8 @@ holds.
   account and one for `all accounts`, last. Each column is at least 19 cells, or the widest
   account's head and a cell where that's more, its name whole at most 24 cells with its marks, so
   no name is cut where another account's column would show it whole. As many accounts show as
-  fit, at least one, the last
-  giving way first: six of ten at 160 columns, every one of three at 108, two of three with long
-  names. The columns shown share the rest alike, the odd cells `all accounts`' and then the
+  fit, at least two, as a comparison needs two, the last giving way first: six of ten at 160
+  columns, every one of three at 108, two of three with long names. The columns shown share the rest alike, the odd cells `all accounts`' and then the
   first's, `all accounts`' values running to the frame's edge. Past them, `←` and `→` move the
   focus along the accounts, the columns scrolling to keep it in view and `all accounts` staying put
   at the right, and the heading's state says which show:
@@ -2287,7 +2286,13 @@ holds.
     `worth at API prices`, `$184`; and `against its price`, `4.0× its $46 week`.
 - **With one account,** Compare goes, being Detail with one column: the heading shows ` Detail `
   alone.
-- **On a phone,** Compare turns: a group at a time, an account a row, its name from column 1, and
+- **Wide, from where it fits.** Compare is drawn wide wherever its wide parts fit at their
+  leasts, as flex lays them: the labels' column, its gap, and the first two accounts' columns and
+  `all accounts`', which never give way. Narrower, it turns. Its parts are the config's alone,
+  the accounts and their labels, so its form switches once as the width grows, never as the data
+  or the period changes; its focus, help and the key line follow the form drawn, so where it's
+  turned they have no focus. The phone's chrome takes no part in it.
+- **Turned,** Compare is a group at a time, an account a row, its name from column 1, and
   `all` last, unnumbered. More accounts than its height holds scroll with `j/k`, the last row saying
   `▼ 2 more below · j/k` (settled in the plan).
   - Its parts, laid by flex across the width: the names at their widest whole, at least 8 and at
@@ -2441,8 +2446,8 @@ where it fits** says, and where they don't fit, it's stacked, as **On a phone** 
   with the list. At 160 its days are 3 cells, so `step` is 25, and the weeks, BY MODEL and THIS
   WEEK end at column 158.
 - **Wide, from where it fits.** Flex lays the wide form's parts across the frame, and where their
-  leasts don't fit, Detail is stacked; and under 100 columns, where the phone's chrome takes the
-  frame, always, one account's too, though its leasts fit narrower. The wide form's start
+  leasts don't fit, Detail is stacked, under the phone's chrome as under the wide: one account's,
+  with no list, is wide from 81 columns. The wide form's start
   follows from the weeks' least: the fewest cells of weeks, as they're laid, that reach as far
   past `cx` as USAGE's row at its leasts, a cell, and THIS WEEK. Where that's 68 or fewer, four
   weeks at a gap of 4 reach it, and with the list Detail is wide from 105 columns, whatever its

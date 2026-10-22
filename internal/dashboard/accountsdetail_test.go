@@ -794,16 +794,17 @@ func TestDetailDrawsWideFromWhereItsLeastsFit(t *testing.T) {
 	}
 }
 
-// With one account, the wide form's leasts fit under 100 columns, but the
-// phone's chrome takes the frame there, and Detail is stacked: it's drawn
-// wide from 100.
-func TestOneAccountsDetailIsWideFrom100(t *testing.T) {
+// With one account, which has no list, the wide form's leasts fit from 81
+// columns, under the phone's chrome as under the wide, and Detail is drawn
+// wide from there, stacked narrower: the chrome's breakpoint chooses nothing
+// of it.
+func TestOneAccountsDetailIsWideFromWhereItsLeastsFit(t *testing.T) {
 	doc := aloneDoc()
 	f := detailFrame(Look{}, framedAccounts[:1], "work", "", alonePage(t), nil)
 	for _, tt := range []struct {
 		width int
 		wide  bool
-	}{{100, true}, {99, false}} {
+	}{{100, true}, {99, true}, {81, true}, {80, false}} {
 		f.Width = tt.width
 		l, _ := laidOf(f, doc)
 		want := formDrawn(f, f.detailPhoneBody(doc, routedAt))

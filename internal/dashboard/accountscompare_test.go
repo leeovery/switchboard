@@ -251,9 +251,9 @@ func TestCompareShowsAColumnAnAccountAsManyAsFitAllAccountsLast(t *testing.T) {
 
 // Where Compare shows fewer accounts than there are, the heading says which,
 // that ←→ moves along them and that all accounts stays put, dropping its
-// last clause where it hasn't the room, as at 100 columns, the narrowest
-// Compare is drawn at, which holds the rest at the widest it reads; where it
-// shows every account, nothing.
+// last clause where it hasn't the room, as at 100 columns and at 83, the
+// narrowest ten accounts' Compare is drawn wide at, its period on a row of
+// its own under a phone's chrome; where it shows every account, nothing.
 func TestComparesHeadingSaysWhichAccountsItShowsOfMoreThanFit(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -276,13 +276,19 @@ func TestComparesHeadingSaysWhichAccountsItShowsOfMoreThanFit(t *testing.T) {
 			frame: func(t *testing.T) (Frame, status.Document) { return tenOnCompare(t, 100, 37, 8) },
 			want:  "accounts 9–10 of 10  ·  ←→ moves along them",
 		},
+		{
+			name:  "ten at 83, the narrowest wide, from the ninth",
+			frame: func(t *testing.T) (Frame, status.Document) { return tenOnCompare(t, 83, 37, 8) },
+			want:  "accounts 9–10 of 10  ·  ←→ moves along them",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f, doc := tt.frame(t)
-			heading := f.Draw(doc, routedAt)[4]
-			state := heading[strings.Index(heading, "[ ]")+len("[ ]") : strings.Index(heading, "<")]
-			if got := strings.Trim(state, "─ "); got != tt.want {
+			heading := f.Draw(doc, routedAt)[f.headingY()]
+			_, state, _ := strings.Cut(heading, "Detail")
+			state, _, _ = strings.Cut(state, "<")
+			if got := strings.Trim(state, "─ []"); got != tt.want {
 				t.Errorf("the heading's state is %q, want %q, in %q", got, tt.want, heading)
 			}
 		})

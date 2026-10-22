@@ -714,7 +714,27 @@ func TestEnterOnASessionInDetailOpensItsPageAndEscComesBackToDetailAsItWas(t *te
 	}
 }
 
-// On a phone, whose Compare draws no focus, its focus keys, ←→, enter and
+// Compare's focus keys take a focus at every width where the frame drawn
+// draws Compare wide, as its CompareWide has it, and nowhere it's turned,
+// with short names and long.
+func TestComparesFocusKeysActWhereTheFrameDrawsItWide(t *testing.T) {
+	long := config.Accounts{{ID: "work", Label: "research-consulting-0001"}, {ID: "personal"}, {ID: "side"}}
+	for _, configured := range []config.Accounts{threeConfigured, long} {
+		h := accountsHarness(t, dashboard.AccountsShown{})
+		h.model.accounts.shown.Accounts = configured
+		for width := 40; width <= 220; width++ {
+			h.update(tea.WindowSizeMsg{Width: width, Height: 37})
+			h.keys(rightKey)
+			wide := h.model.frame(h.clock.now).CompareWide()
+			if got := h.model.accounts.shown.Focused; got != wide {
+				t.Errorf("at %d columns, → focused %v, the frame drawn wide %v", width, got, wide)
+			}
+			h.keys(escKey)
+		}
+	}
+}
+
+// Where Compare is turned, drawing no focus, its focus keys, ←→, enter and
 // esc, do nothing there, nor say anything, though a wider frame left a
 // column focused; Detail takes its keys as ever.
 func TestOnAPhoneComparesFocusKeysDoNothing(t *testing.T) {

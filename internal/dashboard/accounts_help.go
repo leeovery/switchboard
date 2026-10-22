@@ -21,12 +21,13 @@ func (f Frame) accountsHelp() []helpPart {
 }
 
 // compareHelp is Compare as help explains it: its columns and heads, and
-// their focus, but on a phone, whose Compare draws none; each group and how
-// each row is counted; and a key to the states its heads say.
+// their focus, but where Compare is turned, as CompareWide has it, drawing
+// none; each group and how each row is counted; and a key to the states its
+// heads say.
 func (f Frame) compareHelp() helpPart {
 	focus := " `←` and `→` move the focus along the columns, scrolling them past as many as fit, all accounts staying " +
 		"put at the right; `enter` opens the account focused in Detail, and `esc` ends the focus."
-	if f.phone() {
+	if !f.CompareWide() {
 		focus = ""
 	}
 	return helpPart{

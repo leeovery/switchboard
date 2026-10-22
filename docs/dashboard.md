@@ -245,6 +245,9 @@ Compare has a column for each account, and one for `all accounts`. Each column s
 `←` and `→` move a focus along the columns, scrolling them where they don't all fit. `enter`
 opens the focused account in Detail.
 
+Where two accounts' columns and `all accounts`' don't fit side by side, as on a phone, Compare
+turns: a group at a time, an account a row. Turned, it has no focus.
+
 ### Detail
 
 Detail shows one account, or all of them, chosen from a list at its left. It shows:

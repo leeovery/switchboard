@@ -89,25 +89,46 @@ func (l compareLayout) shown() int {
 	return len(l.slots) - 1
 }
 
-// compareLaid is Compare laid out across the frame: the labels' column,
-// fixed, then, labelsGap on, a column an account, and all accounts'
-// last, each at least leastCompared cells. Where they don't all fit, the
-// accounts' columns give way from the last, the first never; those left
-// share the rest alike, the odd cell all accounts'. The bars are as
-// compareBars has them in the narrowest column.
-func (f Frame) compareLaid() compareLayout {
+// comparedAlways are the accounts' columns, from the first, that never give
+// way to the frame's width: a comparison needs two.
+const comparedAlways = 2
+
+// compareParts are Compare's parts across the frame, wide: the labels'
+// column, fixed, then, labelsGap on, a column an account, and all accounts'
+// last, each at least leastCompared cells. The accounts' columns past the
+// first comparedAlways give way from the last; those left share the rest
+// alike, the odd cell all accounts'.
+func (f Frame) compareParts() []flex.Part {
 	n, least := len(f.Accounts.Accounts), f.leastCompared()
 	labels := compareLabels()
 	parts := []flex.Part{{Least: labels, Natural: labels}}
 	for i := range n {
 		slot := flex.Part{Least: least, Natural: least, Grows: true, Leaves: n - i}
+		if i < comparedAlways {
+			slot.Leaves = 0
+		}
 		if i == 0 {
-			slot.Leaves, slot.Gap = 0, labelsGap
+			slot.Gap = labelsGap
 		}
 		parts = append(parts, slot)
 	}
-	parts = append(parts, flex.Part{Least: least, Natural: least, Grows: true, Odd: true})
-	spans, _ := flex.Lay(f.Width, parts...)
+	return append(parts, flex.Part{Least: least, Natural: least, Grows: true, Odd: true})
+}
+
+// CompareWide reports whether Compare is drawn wide in the frame, a column
+// an account: where its parts, as compareParts has them, fit at their
+// leasts; else it's turned, a row an account. Its form, its focus, help and
+// the watch all choose by it. Its parts are the config's alone, so it never
+// changes as the data does.
+func (f Frame) CompareWide() bool {
+	_, wide := flex.Lay(f.Width, f.compareParts()...)
+	return wide
+}
+
+// compareLaid is Compare laid out across the frame, as compareParts has its
+// parts, the bars as compareBars has them in the narrowest column.
+func (f Frame) compareLaid() compareLayout {
+	spans, _ := flex.Lay(f.Width, f.compareParts()...)
 	l := compareLayout{labels: spans[0].Size}
 	for _, s := range spans[1:] {
 		if !s.Left {
@@ -193,12 +214,17 @@ type compareColumn struct {
 	row            views.AccountsRow
 }
 
-// compareForm is Compare as it's drawn wide, of doc at now: its heads,
-// held, then its rows, scrolled as the frame has them, as compared lays them
-// out.
+// compareForm is Compare of doc at now in the form CompareWide chooses:
+// wide, its heads held, then its rows, scrolled as the frame has them, as
+// compared lays them out; or turned, as turnedWhole draws it. It's nothing
+// where no account is configured.
 func (f Frame) compareForm(doc status.Document, now time.Time) accountsForm {
-	if len(f.Accounts.Accounts) == 0 {
+	switch {
+	case len(f.Accounts.Accounts) == 0:
 		return accountsForm{}
+	case !f.CompareWide():
+		cp := f.turned(doc, now)
+		return f.stackForm(cp.turnedWhole, cp.filled)
 	}
 	cp := f.comparing(doc, now)
 	return accountsForm{draw: cp.draw, scrolling: cp.scrolling, scrolls: cp.scrolls, targets: cp.targets, filled: cp.filled}
@@ -243,12 +269,11 @@ func (f Frame) CompareFirst(id string) int {
 // compareState is what Compare's heading says after [ ] where it shows fewer
 // accounts than there are: which it shows, as "accounts 1–6 of 10", that ←→
 // moves along them, and that all accounts stays put; and, a clause shorter,
-// for less room, without the last. The heading's room at 100 columns holds
-// the shorter form, so none shorter is needed. It says nothing on a phone,
-// whose Compare shows every account a row.
+// for less room, without the last. It says nothing where Compare is turned,
+// as CompareWide has it, showing every account a row.
 func (f Frame) compareState() []line {
 	n, shown := len(f.Accounts.Accounts), f.compareShows()
-	if f.phone() || shown >= n {
+	if !f.CompareWide() || shown >= n {
 		return nil
 	}
 	first := f.compareFirst()

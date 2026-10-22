@@ -284,12 +284,10 @@ func (l detailLayout) weekBar() int {
 	return l.step() - l.gap - 5
 }
 
-// detailIn is the layout Detail is drawn in under the wide chrome, of the
-// moment m: its wide layout, where its leasts fit the frame, as detailLaid
-// has it; else the stack's, as a phone's body draws it; and whether it's
-// wide. Detail's form and help's key to it both choose by it. Under a
-// phone's chrome, buildAccountsForm stacks Detail before detailIn is asked;
-// help agrees there, as the days can't grow before 159 columns.
+// detailIn is the layout Detail is drawn in, of the moment m: its wide
+// layout, where its leasts fit the frame, as detailLaid has it; else the
+// stack's; and whether it's wide. Detail's form and help's key to it both
+// choose by it.
 func (f Frame) detailIn(m status.Moment) (detailLayout, bool) {
 	if l, wide := f.detailLaid(m); wide {
 		return l, true
@@ -297,9 +295,8 @@ func (f Frame) detailIn(m status.Moment) (detailLayout, bool) {
 	return stackLayout, false
 }
 
-// detailForm is Detail of doc at now, under the wide chrome, in the layout
-// detailIn chooses: drawn wide, or as a phone's body draws it, as
-// detailPhoneBody has it. The form is chosen once, the first time a look
+// detailForm is Detail of doc at now, in the layout detailIn chooses: drawn
+// wide, or stacked, as detailPhoneBody has it. The form is chosen once, the first time a look
 // that draws asks; how much of each bar it fills is alike in either, so
 // filling chooses none.
 func (f Frame) detailForm(doc status.Document, now time.Time) accountsForm {
