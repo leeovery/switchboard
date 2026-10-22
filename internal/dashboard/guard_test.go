@@ -54,7 +54,7 @@ var phoneAllowed = []string{
 	// S16, S17 and S25: the form Accounts draws its views in, Compare's
 	// turned or wide.
 	"internal/dashboard/accounts.go:Frame.buildAccountsForm",
-	// S20 and S21: the form Weeks and Tokens are drawn in.
+	// S20: the form Weeks is drawn in.
 	"internal/dashboard/historypage.go:Frame.phoneForm",
 	// S20: whether Weeks' cycles show.
 	"internal/dashboard/historyasks.go:Frame.weeksCycles",
@@ -94,8 +94,6 @@ var sizedAllowed = []string{
 	"internal/dashboard/usagewords.go:usageWords.pick",
 	// S19 and S20: Days and Weeks scrolling whole under historyRows.
 	"internal/dashboard/historypage.go:Frame.shortOfHistory",
-	// S21: Tokens' footnote, left off short of leastPaged.
-	"internal/dashboard/historytokens.go:Frame.tokensPlaced",
 	// S22 and S23: a session's page, its turns' form, sessionWideFrom, and
 	// its rows.
 	"internal/dashboard/sessionlayout.go:Frame.sessionLayout",

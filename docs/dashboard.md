@@ -332,6 +332,9 @@ at API prices against what its plans cost.
 
 - `<` and `>` set the period each row is: a day, a week or a month.
 - `v` splits each period by account, by model, by both, or not at all.
+- On a narrower screen, the columns give way one at a time: the model count first, then cache
+  write, input, output, the worth against the price and cache read. Total and worth always show,
+  and the names stay whole until every other column has gone.
 
 ## Sessions
 

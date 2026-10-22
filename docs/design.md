@@ -2765,10 +2765,25 @@ data, as from 118 columns. Narrower, each strip's name takes the row over it (On
 **Tokens** is ccusage's weekly report, inside switchboard, split by what ccusage can't split by: the
 account.
 
-- **Columns,** their heads on row 6 in `text.subtle`: `week` at 0, `models` (or `on`) at 14, then
-  right-aligned in 10 cells `input` from 32, `output` from 44, `cache write` from 56, `cache read`
-  from 70 and `total` from 84, then `worth` at 96 and `against its price` at 106. `cache write` is
-  both lifetimes' writes together, and `total` the four kinds.
+- **Columns,** their heads on the view's first row in `text.subtle`, laid out as parts by flex, in
+  this order: the names, under `week`; two cells on, `models` (or `on`), 18 cells, to the first
+  count's; the counts, each right-aligned in its cells, those to its left keeping it apart from the
+  column before, `input` in 10, `output` and `cache write` in 12, `cache read` and `total` in 14;
+  two cells on, `worth`, in 9; and a cell on, `against its price`, which takes the rest of the row,
+  cut at the frame's width. `cache write` is both lifetimes' writes together, and `total` the four
+  kinds. So at 160 columns, of short labels, `models` is at 14 and `against its price` at 106.
+- **The names** are a column of labels, as every view's are: at least 8 cells; their
+  natural the widest account configured, after its `└ `, each at 24 cells at the most, and never
+  under 12, which holds a period's name and a version's id, `└ sonnet-5-5`; split by account and
+  model, 2 more, for a version nested under its account. It's worked out from the config, never the
+  rows shown, so the columns don't move with the data.
+- **Narrower, the columns leave one at a time,** never all at once, and never by a switch at a
+  width: `models` first, then `cache write`, `input`, `output`, `against its price` and `cache
+  read`; `total` and `worth` stay. The names hold their natural until every one of those has left,
+  so a detail column leaves before a name is cut, and only then narrow to their least. A wider frame
+  never shows fewer columns, nor a shorter name. Where `against its price` has left, worth runs to
+  the frame's width. So at 108 and 120 every column shows but `models`, of short labels; at 73,
+  `cache read`, `total`, `worth` and `against its price`.
 - **A period a row,** newest first, from row 8, a blank row between periods: named by its first day,
   `28 Sep`, by day its day, `Thu 1 Oct`, and by month its month, `Oct 2026` (settled in the plan),
   this week as any other, bold `text.primary`; how many model versions it used, `6 models`, in
@@ -2794,8 +2809,9 @@ account.
   `worth: what the same tokens would cost through the API, at its prices as of 7 Oct 2026`, the
   price table's date, 7 Oct 2026 for the built-in table and 1 Oct 2026 in the frames, whose fixtures
   inject a table dated as they were drawn, and split by model, `, each version at its own price`
-  after it.
-- **On a phone,** Tokens shows each period's `total` and `worth` alone (settled in the plan).
+  after it. The heads, the periods a row under them and the footnote a row under the periods are
+  laid down the view as parts by flex: where the periods would have fewer than 2 rows, a period's
+  first and the line saying what's below, the footnote gives way.
 
 **Keys.** `tab` views; `[ ]` view; `<` `>` the period, on Year and Tokens; `v` the shape or split,
 on Year, Weeks and Tokens; `j/k` and the wheel scroll, where a view runs past the screen; `p` new

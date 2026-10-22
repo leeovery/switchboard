@@ -7,67 +7,136 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// tokensCount is a column of Tokens' counts: its head, the column it ends
-// before, its counts right-aligned in the ten cells before it, and the count
-// of a row's tokens it shows.
+// Tokens' parts across a row, in their order: what names the row; the
+// split's column, the row's versions' count or the accounts it ran on; its
+// counts, as tokensCounts has them; its worth; and its worth against its
+// price; and how many they are.
+const (
+	tokensName = iota
+	tokensOf
+	tokensInput
+	tokensOutput
+	tokensCacheWrite
+	tokensCacheRead
+	tokensTotal
+	tokensWorth
+	tokensAgainst
+	tokensPartsCount
+)
+
+// The turns Tokens' parts give way in as the frame narrows, in this order,
+// one at a time, so its names are the last to give: the split's column; the
+// counts of cache write, input and output; against its price; the count of
+// cache read; and then the names, to their least. Total and worth stay.
+const (
+	ofLeaves = iota + 1
+	cacheWriteLeaves
+	inputLeaves
+	outputLeaves
+	againstLeaves
+	cacheReadLeaves
+	namesNarrow
+)
+
+// The cells of Tokens' fixed parts and the gaps before them: the names'
+// natural at the least, which holds a period's name and a version's id after
+// its branch, └ sonnet-5-5; the split's column, two cells after them,
+// running to the first count's cells; worth, two cells after the counts; and
+// against its price a cell after worth, its least its head's.
+const (
+	tokensNamesCells = 12
+	tokensOfCells    = 18
+	tokensWorthCells = 9
+	tokensOfGap      = 2
+	tokensWorthGap   = 2
+	tokensAgainstGap = 1
+)
+
+// The branches before a row's name under its period: an account's or a
+// version's, and a version's nested under its account.
+const (
+	tokensBranch = "└ "
+	tokensNested = "  └ "
+)
+
+// tokensCount is a column of Tokens' counts: its head; its part, whose cells
+// its head and counts are right-aligned in, those to their left keeping it
+// apart from the column before; how many cells that is; the count of a
+// row's tokens it shows; and the turn it leaves in, 0 for never.
 type tokensCount struct {
-	head  string
-	end   int
-	count func(views.Tokens) int
+	head   string
+	part   int
+	cells  int
+	count  func(views.Tokens) int
+	leaves int
 }
 
-// tokensCountCells is how many cells a column of counts is, its head and
-// counts right-aligned in them.
-const tokensCountCells = 10
+// tokensCounts are the columns of counts: input, output, cache write, both
+// lifetimes' writes together, cache read and total, the four kinds.
+var tokensCounts = []tokensCount{
+	{"input", tokensInput, 10, func(t views.Tokens) int { return t.Input }, inputLeaves},
+	{"output", tokensOutput, 12, func(t views.Tokens) int { return t.Output }, outputLeaves},
+	{"cache write", tokensCacheWrite, 12, func(t views.Tokens) int { return t.CacheWrite }, cacheWriteLeaves},
+	{"cache read", tokensCacheRead, 14, func(t views.Tokens) int { return t.CacheRead }, cacheReadLeaves},
+	{"total", tokensTotal, 14, func(t views.Tokens) int { return t.Total }, 0},
+}
 
-// The columns of counts: input, output, cache write, both lifetimes' writes
-// together, cache read and total, the four kinds.
-var (
-	inputCount      = tokensCount{"input", 42, func(t views.Tokens) int { return t.Input }}
-	outputCount     = tokensCount{"output", 54, func(t views.Tokens) int { return t.Output }}
-	cacheWriteCount = tokensCount{"cache write", 66, func(t views.Tokens) int { return t.CacheWrite }}
-	cacheReadCount  = tokensCount{"cache read", 80, func(t views.Tokens) int { return t.CacheRead }}
-	totalCount      = tokensCount{"total", 94, func(t views.Tokens) int { return t.Total }}
-)
-
-// tokensColumns are where Tokens' columns are: the column a row's split
-// names its versions' count or the accounts it ran on at, its counts, and
-// the columns worth and against its price start at, a column at 0 not shown;
-// and the width, the frame's, a row's worth and against its price are cut at.
+// tokensColumns are where Tokens' parts lie across the frame, each by its
+// part, as flex lays them; and the frame's width, where every row is cut.
 type tokensColumns struct {
-	of      int
-	counts  []tokensCount
-	worth   int
-	against int
-	width   int
+	spans []flex.Span
+	width int
 }
 
-var (
-	// wideTokens are Tokens' columns as history-tokens-160 draws them.
-	wideTokens = tokensColumns{
-		of:      14,
-		counts:  []tokensCount{inputCount, outputCount, cacheWriteCount, cacheReadCount, totalCount},
-		worth:   96,
-		against: 106,
-	}
-	// phoneTokens are a phone's: each row's total and worth alone.
-	phoneTokens = tokensColumns{counts: []tokensCount{{"total", 30, totalCount.count}}, worth: 32}
-)
-
-// tokensColumns are the frame's columns of Tokens, cut at its width: the wide
-// ones where their heads fit, else a phone's.
+// tokensColumns are Tokens' parts, as tokensParts has them, laid out across
+// the frame's width.
 func (f Frame) tokensColumns() tokensColumns {
-	cols := wideTokens
-	if f.phoneForm(wideTokens.reach) {
-		cols = phoneTokens
+	spans, _ := flex.Lay(f.Width, f.tokensParts()...)
+	return tokensColumns{spans: spans, width: f.Width}
+}
+
+// tokensParts are Tokens' parts, in their order: the names, from their least,
+// labelLeast, holding their natural, as tokensNamesNatural has it, until
+// every column that leaves has left; the split's column; each count's;
+// worth; and against its price, which takes the rest of the row.
+func (f Frame) tokensParts() []flex.Part {
+	parts := make([]flex.Part, tokensPartsCount)
+	parts[tokensName] = flex.Part{Least: labelLeast, Natural: f.tokensNamesNatural(), Most: tokensNamesMost(), Narrows: namesNarrow}
+	parts[tokensOf] = flex.Part{Least: tokensOfCells, Natural: tokensOfCells, Leaves: ofLeaves, Gap: tokensOfGap}
+	for _, count := range tokensCounts {
+		parts[count.part] = flex.Part{Least: count.cells, Natural: count.cells, Leaves: count.leaves}
 	}
-	cols.width = f.Width
-	return cols
+	parts[tokensWorth] = flex.Part{Least: tokensWorthCells, Natural: tokensWorthCells, Gap: tokensWorthGap}
+	against := ansi.StringWidth(againstHead)
+	parts[tokensAgainst] = flex.Part{Least: against, Natural: against, Grows: true, Leaves: againstLeaves, Gap: tokensAgainstGap}
+	return parts
+}
+
+// tokensNamesNatural is the names' natural, of what's configured, never of
+// the rows shown: tokensNamesCells; split by account and model, a version's
+// id nested under its account; and each account configured, as Tokens names
+// it, after its branch, at labelMost cells at the most.
+func (f Frame) tokensNamesNatural() int {
+	natural := tokensNamesCells
+	if f.History.TokensSplit == TokensByAccountAndModel {
+		natural += ansi.StringWidth(tokensNested) - ansi.StringWidth(tokensBranch)
+	}
+	for _, a := range f.History.Accounts {
+		natural = max(natural, ansi.StringWidth(tokensBranch)+labelColumnCells(labelled(a.Label, a.ID)))
+	}
+	return natural
+}
+
+// tokensNamesMost is the most the names take: an account's name at
+// labelMost, after its branch.
+func tokensNamesMost() int {
+	return ansi.StringWidth(tokensBranch) + labelMost
 }
 
 // tokensRow is a row of Tokens, a period's, or one it's split into: what it
@@ -173,20 +242,20 @@ func (f Frame) tokensByRows(c *canvas, cols tokensColumns, placed tokensPlaced) 
 // the row under it is: the period, then models, or split by model, on; each
 // count's; worth; and against its price.
 func (f Frame) tokensHeads(c *canvas, y int, cols tokensColumns) {
-	c.line(0, y, line{{f.History.TokensAsk.Period.Name(), dimInk}}.fit(cols.nameCells(cols.of > 0)))
-	if cols.of > 0 {
+	c.line(0, y, line{{f.History.TokensAsk.Period.Name(), dimInk}}.fit(cols.cells(tokensName)))
+	if cols.shows(tokensOf) {
 		of := "models"
 		if f.History.TokensSplit == TokensByModel {
 			of = "on"
 		}
-		c.line(cols.of, y, line{{of, dimInk}}.fit(cols.ofCells()))
+		c.line(cols.at(tokensOf), y, line{{of, dimInk}}.fit(cols.cells(tokensOf)))
 	}
-	for _, count := range cols.counts {
-		c.rightFit(count.end, cols.width, y, wordsIn(count.head, dimInk))
+	for _, count := range cols.counts() {
+		c.rightFit(cols.end(count.part), cols.width, y, wordsIn(count.head, dimInk))
 	}
-	c.line(cols.worth, y, line{{worthHead, dimInk}}.fit(cols.worthCells()))
-	if cols.against > 0 {
-		c.line(cols.against, y, line{{againstHead, dimInk}}.fit(cols.width-cols.against))
+	c.line(cols.at(tokensWorth), y, line{{worthHead, dimInk}}.fit(cols.worthCells()))
+	if cols.shows(tokensAgainst) {
+		c.line(cols.at(tokensAgainst), y, line{{againstHead, dimInk}}.fit(cols.cells(tokensAgainst)))
 	}
 }
 
@@ -195,22 +264,6 @@ const (
 	worthHead   = "worth"
 	againstHead = "against its price"
 )
-
-// reach is the width Tokens, at the columns, takes, drawn to the frame's
-// width: where its widest row ends, its heads', or the counts', each
-// right-aligned to its column's end. A row's worth and against its price
-// are cut at the frame's width, what names it and its split short of the
-// counts, and the footnote wraps, so they're left out.
-func (cols tokensColumns) reach() int {
-	end := cols.worth + ansi.StringWidth(worthHead)
-	for _, count := range cols.counts {
-		end = max(end, count.end)
-	}
-	if cols.against > 0 {
-		end = max(end, cols.against+ansi.StringWidth(againstHead))
-	}
-	return end
-}
 
 // tokensFootnote says what worth is, as of the price table's date, and
 // where the rows are split by model, that each version is at its own price:
@@ -234,49 +287,52 @@ func pricesDated(asOf string) string {
 
 // draw draws the row along row y, each column cut to its cells.
 func (cols tokensColumns) draw(c *canvas, y int, r tokensRow) {
-	of := cols.of > 0 && r.of != nil
-	if of {
-		c.line(cols.of, y, fitParts(cols.ofCells(), r.numbered(r.ofIs, r.of...)...))
+	if cols.shows(tokensOf) && r.of != nil {
+		c.line(cols.at(tokensOf), y, fitParts(cols.cells(tokensOf), r.numbered(r.ofIs, r.of...)...))
 	}
-	c.line(0, y, fitParts(cols.nameCells(of), r.name...))
-	for _, count := range cols.counts {
-		c.rightFit(count.end, cols.width, y, figurePart(line{{prose.Millions(count.count(r.tokens)), r.ink}}, r.number(count.head)))
+	c.line(0, y, fitParts(cols.cells(tokensName), r.name...))
+	for _, count := range cols.counts() {
+		c.rightFit(cols.end(count.part), cols.width, y, figurePart(line{{prose.Millions(count.count(r.tokens)), r.ink}}, r.number(count.head)))
 	}
-	c.line(cols.worth, y, fitParts(cols.worthCells(), r.numbered("worth", worthPart(r.worth, r.ink))...))
-	if cols.against > 0 && r.against != nil {
-		c.line(cols.against, y, fitParts(cols.againstCells(), r.numbered("against", r.against...)...))
+	c.line(cols.at(tokensWorth), y, fitParts(cols.worthCells(), r.numbered("worth", worthPart(r.worth, r.ink))...))
+	if cols.shows(tokensAgainst) && r.against != nil {
+		c.line(cols.at(tokensAgainst), y, fitParts(cols.cells(tokensAgainst), r.numbered("against", r.against...)...))
 	}
 }
 
-// againstCells is how many cells a row's against its price has: to the
-// frame's width.
-func (cols tokensColumns) againstCells() int {
-	return cols.width - cols.against
+// shows reports whether the part shows: all but one that left.
+func (cols tokensColumns) shows(part int) bool {
+	return !cols.spans[part].Left
 }
 
-// nameCells is how many cells what names a row has: to a cell before the
-// split's column, where of says the row has something there, else before
-// the first count's cells; and never past the frame's width.
-func (cols tokensColumns) nameCells(of bool) int {
-	if of {
-		return min(cols.of-1, cols.width)
-	}
-	return min(cols.counts[0].end-tokensCountCells-1, cols.width)
+// at is the column the part starts at.
+func (cols tokensColumns) at(part int) int {
+	return cols.spans[part].At
 }
 
-// ofCells is how many cells the split's column has: to the first count's
-// cells, and never past the frame's width.
-func (cols tokensColumns) ofCells() int {
-	return min(cols.counts[0].end-tokensCountCells, cols.width) - cols.of
+// end is the column the part ends before.
+func (cols tokensColumns) end(part int) int {
+	return cols.spans[part].At + cols.spans[part].Size
 }
 
-// worthCells is how many cells a row's worth has: to a cell before against
-// its price, where it's shown, else to the frame's width.
+// cells is how many cells the part has: its own, never past the frame's
+// width.
+func (cols tokensColumns) cells(part int) int {
+	return max(min(cols.end(part), cols.width)-cols.at(part), 0)
+}
+
+// worthCells is how many cells a row's worth has: its own, where against its
+// price shows after it, else to the frame's width.
 func (cols tokensColumns) worthCells() int {
-	if cols.against > 0 {
-		return cols.against - cols.worth - 1
+	if cols.shows(tokensAgainst) {
+		return cols.cells(tokensWorth)
 	}
-	return cols.width - cols.worth
+	return max(cols.width-cols.at(tokensWorth), 0)
+}
+
+// counts are the columns of counts that show.
+func (cols tokensColumns) counts() []tokensCount {
+	return slices.DeleteFunc(slices.Clone(tokensCounts), func(count tokensCount) bool { return !cols.shows(count.part) })
 }
 
 // numbered are the parts with the row's number in the column named, which
@@ -295,7 +351,7 @@ func (f Frame) tokensRows(t views.TokenPeriod) []tokensRow {
 	split := tokensRow{ink: mutedInk, lit: t.SoFar, split: true}
 	rows := []tokensRow{{
 		name: []part{figureIn(periodName(t.First, f.History.TokensAsk.Period), titleInk)}, of: countedParts(t.Versions, "model", mutedInk), ofIs: "models",
-		tokens: t.Tokens, worth: t.Worth, ink: titleInk, against: againstItsPrice(t.Against, f.History.TokensAsk.Period.Name(), f.tokensColumns().againstCells()), lit: t.SoFar,
+		tokens: t.Tokens, worth: t.Worth, ink: titleInk, against: againstItsPrice(t.Against, f.History.TokensAsk.Period.Name(), f.tokensColumns().cells(tokensAgainst)), lit: t.SoFar,
 	}}
 	switch f.History.TokensSplit {
 	case TokensByAccount:
@@ -305,7 +361,7 @@ func (f Frame) tokensRows(t views.TokenPeriod) []tokensRow {
 	case TokensByModel:
 		named := tokensAccounts(t.ByAccount)
 		for _, m := range t.ByModel {
-			rows = append(rows, split.ofModel(m, "└ ").on(m.On, named))
+			rows = append(rows, split.ofModel(m, tokensBranch).on(m.On, named))
 		}
 	case TokensByAccountAndModel:
 		for _, a := range t.ByAccount {
@@ -313,7 +369,7 @@ func (f Frame) tokensRows(t views.TokenPeriod) []tokensRow {
 			nested.account = a.Account
 			rows = append(rows, split.ofAccount(a))
 			for _, m := range a.ByModel {
-				rows = append(rows, nested.ofModel(m, "  └ "))
+				rows = append(rows, nested.ofModel(m, tokensNested))
 			}
 		}
 	}
@@ -323,7 +379,7 @@ func (f Frame) tokensRows(t views.TokenPeriod) []tokensRow {
 // ofAccount is the row, as split, of an account: its name, its versions'
 // count, its counts and its worth.
 func (r tokensRow) ofAccount(a views.AccountTokens) tokensRow {
-	r.name = []part{wordsPart(line{{"└ ", faintInk}, {tokensAccount(a), secondaryInk}})}
+	r.name = []part{wordsPart(line{{tokensBranch, faintInk}, {tokensAccount(a), secondaryInk}})}
 	r.of, r.ofIs = countedParts(len(a.ByModel), "model", dimInk), "models"
 	r.tokens, r.worth, r.account = a.Tokens, a.Worth, a.Account
 	return r
@@ -439,21 +495,27 @@ type tokensPlaced struct {
 
 // tokensPlaced is the frame's periods of Tokens, its view from row top,
 // placed from two rows under its heads to two over its footnote, and the
-// footnote, wrapped to the frame's width, which ends on the view's last row.
-// Where that leaves the periods fewer than leastPaged rows, a period's first
-// and the line saying what's below, the footnote goes, as it would soon reach
-// the heads, and the periods run to the view's last row.
+// footnote, wrapped to the frame's width, which ends on the view's last row,
+// as flex lays them down the view. Where that leaves the periods fewer than
+// leastPaged rows, a period's first and the line saying what's below, the
+// footnote goes, as it would soon reach the heads, and the periods run to the
+// view's last row.
 func (f Frame) tokensPlaced(top int) (tokensPlaced, []line) {
 	page := f.History.Tokens
 	if page == nil {
 		return tokensPlaced{}, nil
 	}
 	note := wrapParts(f.Width, f.tokensFootnote(page.PricesAsOf)...)
-	p := tokensPlaced{first: top + 2}
-	if p.rows = p.over(top+f.viewRows(), note); p.rows < leastPaged {
+	rows, _ := flex.Lay(f.viewRows(),
+		flex.Part{Least: 1, Natural: 1},
+		flex.Part{Least: leastPaged, Natural: leastPaged, Grows: true, Gap: 1},
+		flex.Part{Least: len(note), Natural: len(note), Leaves: 1, Gap: min(len(note), 1)},
+	)
+	if rows[2].Left {
 		note = nil
-		p.rows = p.over(top+f.viewRows(), note)
 	}
+	periods := rows[1]
+	p := tokensPlaced{first: top + periods.At, rows: min(periods.Size, f.viewRows()-periods.At)}
 	y := 0
 	for _, t := range page.Periods {
 		height := tokensHeight(t, f.History.TokensSplit)
@@ -510,13 +572,6 @@ func periodHeads(t views.TokenPeriod, split TokensSplit, y int) []headed {
 		y += len(a.ByModel)
 	}
 	return heads
-}
-
-// over is how many rows the periods have from their first to end, the row
-// the view ends before, over the footnote given and the blank row over it,
-// where there's one.
-func (p tokensPlaced) over(end int, note []line) int {
-	return end - len(note) - min(len(note), 1) - p.first
 }
 
 // tokensHeight is how many rows a period takes, split as given, as

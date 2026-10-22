@@ -17,8 +17,8 @@ import (
 // margin Weeks and Days keep clear; what of it its wide form draws, and
 // what it draws where that doesn't fit, its phone form, but Weeks' columns,
 // whose table is drawn there where it fits, each drawn as that form lays it
-// out. The Year, whose arrangements are its parts', not a reach, has tests
-// of its own.
+// out. The Year and Tokens, whose arrangements are their parts', not a
+// reach, have tests of their own.
 type formCase struct {
 	name           string
 	frame          func(t *testing.T, width int) Frame
@@ -38,21 +38,14 @@ func formCases() []formCase {
 			return f
 		}
 	}
-	tokens := func(split TokensSplit) func(t *testing.T, width int) Frame {
-		return func(_ *testing.T, width int) Frame { return tokensFrame(width, 40, split) }
-	}
 	var cases []formCase
 	for name, frame := range map[string]func(*testing.T, int) Frame{
-		"weeks of three in columns":   weeks(threeWeeks, WeeksColumns),
-		"weeks of ten in columns":     weeks(tenWeeks, WeeksColumns),
-		"weeks of three as a table":   weeks(threeWeeks, WeeksTable),
-		"weeks of ten as a table":     weeks(tenWeeks, WeeksTable),
-		"days of three":               days(daysWorld(workDays, personalDays, sideDays)),
-		"days of ten":                 days(daysShared([4]float64{0.57, 0.39, 0.01, 0.03}, tenDays...)),
-		"tokens by account":           tokens(TokensByAccount),
-		"tokens by model":             tokens(TokensByModel),
-		"tokens by account and model": tokens(TokensByAccountAndModel),
-		"tokens unsplit":              tokens(TokensUnsplit),
+		"weeks of three in columns": weeks(threeWeeks, WeeksColumns),
+		"weeks of ten in columns":   weeks(tenWeeks, WeeksColumns),
+		"weeks of three as a table": weeks(threeWeeks, WeeksTable),
+		"weeks of ten as a table":   weeks(tenWeeks, WeeksTable),
+		"days of three":             days(daysWorld(workDays, personalDays, sideDays)),
+		"days of ten":               days(daysShared([4]float64{0.57, 0.39, 0.01, 0.03}, tenDays...)),
 	} {
 		cases = append(cases, formCase{name: name, frame: frame})
 	}
@@ -63,19 +56,11 @@ func formCases() []formCase {
 			if strings.HasSuffix(c.name, "in columns") {
 				cases[i].narrower = weeksTableForm
 			}
-		case strings.HasPrefix(c.name, "days"):
-			cases[i].reach, cases[i].widest, cases[i].narrower, cases[i].wide = daysReachOf, daysWidestOf, daysForm(true), daysForm(false)
 		default:
-			cases[i].reach, cases[i].widest, cases[i].narrower, cases[i].wide = tokensReach, tokensReach, tokensForm(phoneTokens), tokensForm(wideTokens)
+			cases[i].reach, cases[i].widest, cases[i].narrower, cases[i].wide = daysReachOf, daysWidestOf, daysForm(true), daysForm(false)
 		}
 	}
 	return cases
-}
-
-// tokensReach is the width Tokens' wide form takes, and where its widest row
-// ends, as the frame works it out.
-func tokensReach(Frame) int {
-	return wideTokens.reach()
 }
 
 // weeksReach and weeksWidest are the width Weeks' wide form takes, in its
@@ -142,18 +127,6 @@ func daysForm(phone bool) func(f Frame) *canvas {
 		l := f.daysLaidOut(*f.History.Days, f.top(), phone)
 		f.daysWeeks(c, l)
 		f.daysKey(c, l)
-		return c
-	}
-}
-
-// tokensForm is what of Tokens, at the columns given, cut at the frame's
-// width, tells the forms apart: its heads and its newest period's first row.
-func tokensForm(cols tokensColumns) func(f Frame) *canvas {
-	return func(f Frame) *canvas {
-		cols.width = f.Width
-		c := newCanvas(f.Width, f.Height)
-		f.tokensHeads(c, f.top(), cols)
-		cols.draw(c, f.top()+2, f.tokensRows(f.History.Tokens.Periods[0])[0])
 		return c
 	}
 }
@@ -225,18 +198,6 @@ func TestEachSubTabsWidestRowEndsWhereItsWorkedOutToEnd(t *testing.T) {
 				t.Errorf("its widest row ends before column %d, worked out as %d", drawn, widest)
 			}
 		})
-	}
-}
-
-// Tokens' worth against its price runs as long as the plans' cost makes it,
-// so it's cut at the frame's width, with an ellipsis, rather than reckoned in
-// its widest row: as wide as its heads, Tokens draws its wide form, its
-// newest week's against its price cut short.
-func TestTokensAgainstItsPriceIsCutAtTheWidth(t *testing.T) {
-	f := tokensFrame(wideTokens.reach(), 37, TokensByAccount)
-	row := tokensRowsOf(f)[2]
-	if want := "4.6× its $138 we…"; !strings.HasSuffix(row, want) || ansi.StringWidth(row) != f.Width {
-		t.Errorf("the newest week's row reads %q, want it to end %q at column %d", row, want, f.Width)
 	}
 }
 
@@ -353,26 +314,29 @@ func TestAPhoneSaysWhatsOutOfViewInALineThatFits(t *testing.T) {
 
 // Nothing History draws is left to the canvas to clip: each sub-tab, in
 // either form, at any width, its accounts scrolled to the middle, draws
-// nothing past its edge, the frame's width for Tokens, and a
-// margin short of it for Weeks and Days, as each cuts what it draws to fit.
+// nothing past its edge, a margin short of the frame's width for Weeks and
+// Days, as each cuts what it draws to fit.
 func TestHistoryDrawsNothingPastItsEdge(t *testing.T) {
 	for _, tt := range formCases() {
 		reach := tt.reach(tt.frame(t, 160))
 		for _, width := range []int{1, 4, 12, 20, 28, 36, 44, 52, 60, 80, 100, reach - 1, reach} {
 			f := tt.frame(t, width)
 			f.Scroll = 2
-			edge := f.Width
-			if strings.HasPrefix(tt.name, "weeks") || strings.HasPrefix(tt.name, "days") {
-				edge = f.edge()
-			}
-			c := newCanvas(width+80, f.Height)
-			f.history(c, f.top())
-			for row, cells := range c.cells {
-				if x := slices.IndexFunc(cells[max(edge, 0):], func(here cell) bool { return here != blank }); x >= 0 {
-					t.Errorf("%s at %d columns draws %q past its edge, at column %d of row %d:\n%q",
-						tt.name, width, cells[max(edge, 0)+x].glyph, max(edge, 0)+x, row, textOf(c.rows(Look{}))[row])
-				}
-			}
+			historyPastItsEdge(t, tt.name, f, f.edge())
+		}
+	}
+}
+
+// historyPastItsEdge fails the test named where the sub-tab f shows, drawn on
+// a canvas wider than the frame, draws anything from the column edge.
+func historyPastItsEdge(t *testing.T, name string, f Frame, edge int) {
+	t.Helper()
+	c := newCanvas(f.Width+80, f.Height)
+	f.history(c, f.top())
+	for row, cells := range c.cells {
+		if x := slices.IndexFunc(cells[max(edge, 0):], func(here cell) bool { return here != blank }); x >= 0 {
+			t.Errorf("%s at %d columns draws %q past its edge, at column %d of row %d:\n%q",
+				name, f.Width, cells[max(edge, 0)+x].glyph, max(edge, 0)+x, row, textOf(c.rows(Look{}))[row])
 		}
 	}
 }
