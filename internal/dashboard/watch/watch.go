@@ -315,11 +315,12 @@ type Model struct {
 	// acts on, a key, a click or the wheel, a resize, or a section's shape
 	// changing.
 	layout dashboard.Layout
-	// scroll is how many rows the view shown is scrolled down by, where it
-	// doesn't fit, or on the Overview, how many accounts USAGE is, within its
-	// section; and counts what it counted, as rescrolled noted it.
+	// scroll is how far the view shown is scrolled down, where it doesn't
+	// fit, as the frame's Scroll has it: rows, or things, as History's
+	// accounts, where it scrolls a thing at a time; and readIn the form it
+	// was read in, as rescrolled noted it.
 	scroll int
-	counts scrollUnit
+	readIn scrollRead
 	// focus is the account the Overview's focus is on, which GRAPHS follows:
 	// the first, in the config's order, till ↑ and ↓ move it, and "" while
 	// the document has none.
@@ -562,41 +563,40 @@ func (m Model) keepLayout(page dashboard.Frame, now time.Time) Model {
 	return m
 }
 
-// scrollUnit is what the view's scroll counts, as the watch noted it last:
-// things, as USAGE's accounts, or rows; or nothing noted, at the view's top.
-type scrollUnit int
+// scrollRead is the form the view's scroll was read in, as the watch noted
+// it last, where noted: nothing noted at the view's top, which is its top in
+// any form.
+type scrollRead struct {
+	form  dashboard.ScrollForm
+	noted bool
+}
 
-const (
-	unnoted scrollUnit = iota
-	countsThings
-	countsRows
-)
-
-// rescrolled is m, and page, built at now, with the view scrolled back to
-// its top where what its scroll counts has changed since the last message
-// noted it: rows where it counted things, or things where it counted rows,
-// as b, a section's key, a resize or a read can change it; so an offset is
-// never read in the other's unit, the view going back to its top, its page
-// built afresh, as History's does on any change. At its top, an offset
-// reads alike in either, so nothing is noted there. A session's page open
-// over the tab scrolls its own, leaving the tab's as it is.
+// rescrolled is m, and page, built at now, with the view's scroll read
+// afresh where the form it's read in has changed since the last message
+// noted it, as b, a section's key, a resize or a read can change it, so an
+// offset is never read in a form it wasn't taken in: on the Overview,
+// USAGE scrolled to show the account the focus is on, as ↑ and ↓ scroll it;
+// elsewhere, as where History's Weeks turn from accounts to rows, the view
+// back to its top; and its page built afresh. A session's page open over
+// the tab scrolls its own, leaving the tab's as it is.
 func (m Model) rescrolled(page dashboard.Frame, now time.Time) (Model, dashboard.Frame) {
 	switch {
 	case m.session != nil:
 		return m, page
 	case m.scroll == 0:
-		m.counts = unnoted
+		m.readIn = scrollRead{}
 		return m, page
 	}
-	counts := countsThings
-	if m.laidOut(page, now).ScrollsRows(m.doc, now) {
-		counts = countsRows
-	}
-	if m.counts != unnoted && counts != m.counts {
-		m.scroll, m.counts = 0, unnoted
+	laid := m.laidOut(page, now)
+	form := laid.ScrollForm(m.doc, now)
+	if m.readIn.noted && form != m.readIn.form {
+		m.readIn, m.scroll = scrollRead{}, 0
+		if m.view == dashboard.Overview {
+			m.scroll = laid.Revealing(m.doc, now, m.focus)
+		}
 		return m, m.frame(now).Built(m.doc, now)
 	}
-	m.counts = counts
+	m.readIn = scrollRead{form: form, noted: true}
 	return m, page
 }
 

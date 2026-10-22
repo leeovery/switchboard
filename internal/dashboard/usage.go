@@ -74,21 +74,16 @@ type usageBlock struct {
 	// accountBar is its bars' cells by account, where it sets them; focus is
 	// the account whose number and name the matrix picks out; marks are the
 	// marks the key line names after the cap's, in their forms, the widest
-	// first; above and below are how many accounts' rows are scrolled out
-	// of view above those shown, and below; spare are the rows those shown
-	// leave blank under them, over the pool's, so the pool and the key line
-	// keep their rows however far the block's scrolled; charted is whether
-	// GRAPHS' charts sit beside its blocks by account, and beside the form
-	// they take there; and given is how far it has given way to rows short.
-	big          bool
-	accountBar   int
-	focus        string
-	marks        [][]line
-	above, below int
-	spare        int
-	charted      bool
-	beside       besideForm
-	given        giving
+	// first; charted is whether GRAPHS' charts sit beside its blocks by
+	// account, and beside the form they take there; and given is how far it
+	// has given way to rows short.
+	big        bool
+	accountBar int
+	focus      string
+	marks      [][]line
+	charted    bool
+	beside     besideForm
+	given      giving
 }
 
 // giving is how far USAGE's block has given way where the Overview's rows
@@ -400,13 +395,15 @@ func (b usageBlock) draw(c *canvas, y int) int {
 }
 
 // laid is the block's rows as drawn: the row after the last; where each row
-// is; and its heads, each window's heading, a block's name on a row of its
-// own and the pool's rule, over the first row under each, in the order of
-// their rows.
+// is; its heads, each window's heading, a block's name on a row of its own
+// and the pool's rule, over the first row under each, in the order of their
+// rows; and its windows' headings, each kept over the rows under it as they
+// scroll, to the end of its window's.
 type laid struct {
 	end    int
 	placed []rowAt
 	heads  []headed
+	kept   []keptHeading
 }
 
 // rowAt is where the block drew a row: its account's id, "" for the pool's,
@@ -478,7 +475,7 @@ func (b usageBlock) matrix(c *canvas, y int) laid {
 		c.line(b.names+i*group, y, line{{strings.ToUpper(w.name), dimInk}})
 	}
 	first := y + b.underHeading()
-	l := b.each(c, 0, first, 2, func(r usageRow, y int) int {
+	l := b.each(c, first, 2, func(r usageRow, y int) int {
 		c.line(0, y, r.name)
 		if b.focus != "" && r.id == b.focus {
 			c.surface(0, y, b.focusCells(), hue{token: theme.BgSelection})
@@ -490,6 +487,7 @@ func (b usageBlock) matrix(c *canvas, y int) laid {
 		return y
 	})
 	l.heads = append(l.heads, headed{at: y, first: first})
+	l.kept = []keptHeading{{at: y, end: l.end}}
 	return l
 }
 
@@ -512,10 +510,7 @@ func (b usageBlock) focusCells() int {
 
 // stacked draws the block's windows one under another, each a section, its
 // heading, then a row an account, the pool last, from row y, a blank line
-// between sections, as before the key line. The block's spare rows are shared
-// out among its sections, each's over the pool it ends with, the last's the
-// rows left over too: as every section shows the same accounts, each is then
-// as tall however far the block's scrolled, and every heading keeps its row.
+// between sections, as before the key line.
 func (b usageBlock) stacked(c *canvas, y int) laid {
 	bar := b.bar()
 	all := laid{end: y}
@@ -524,13 +519,8 @@ func (b usageBlock) stacked(c *canvas, y int) laid {
 			y++
 		}
 		c.line(0, y, line{{strings.ToUpper(w.name), dimInk}})
-		in := b
-		in.spare = b.spare / len(b.windows)
-		if i == len(b.windows)-1 {
-			in.spare = b.spare - i*in.spare
-		}
 		first := y + b.underHeading()
-		section := in.each(c, 1, first, 2, func(r usageRow, y int) int {
+		section := b.each(c, first, 2, func(r usageRow, y int) int {
 			c.line(1, y, r.name)
 			b.gauge(c, r.gauges[i], b.names, y, bar, b.width-afterWords)
 			return y
@@ -538,40 +528,31 @@ func (b usageBlock) stacked(c *canvas, y int) laid {
 		all.placed = append(all.placed, section.placed...)
 		all.heads = append(all.heads, headed{at: y, first: first})
 		all.heads = append(all.heads, section.heads...)
+		all.kept = append(all.kept, keptHeading{at: y, end: section.end})
 		y, all.end = section.end, section.end
 	}
 	return all
 }
 
-// each draws the rows in view from row y, each as draw draws it from the row
+// each draws the block's rows from row y, each as draw draws it from the row
 // given, returning its last, a row's first apart rows on from the last of
 // the row before, or a row fewer where the block has given way the blank
-// rows between its accounts. Where accounts' rows are scrolled out of view,
-// ▲ and how many are above comes over the first row shown, and ▼ and how
-// many below under the last, from column x, then the block's spare rows. The
-// pool's row comes last, apart rows on, its rule in the row above it.
-func (b usageBlock) each(c *canvas, x, y, apart int, draw func(r usageRow, y int) int) laid {
+// rows between its accounts. The pool's row comes last, apart rows on, its
+// rule in the row above it.
+func (b usageBlock) each(c *canvas, y, apart int, draw func(r usageRow, y int) int) laid {
 	accounts, pool := b.split()
 	between := apart
 	if b.given >= givenApart {
 		between--
 	}
 	var l laid
-	if b.above > 0 {
-		c.line(x, y, outOfView(b.above, 0, b.width-x, usageOut))
-		y++
-	}
 	last, next := y, y
-	for _, r := range accounts[b.above : len(accounts)-b.below] {
+	for _, r := range accounts {
 		last = draw(r, next)
 		l.placed = append(l.placed, rowAt{id: r.id, y: next, rows: last - next + 1})
 		next = last + between
 	}
-	if b.below > 0 {
-		last++
-		c.line(x, last, outOfView(0, b.below, b.width-x, usageOut))
-	}
-	last, next = last+b.spare, last+apart+b.spare
+	next = last + apart
 	if pool != nil {
 		c.line(0, next-1, line{{rule(b.width), borderInk}})
 		last = draw(*pool, next)
@@ -581,11 +562,6 @@ func (b usageBlock) each(c *canvas, x, y, apart int, draw func(r usageRow, y int
 	l.end = last + 1
 	return l
 }
-
-// usageOut is the form of the line saying how many accounts' rows are
-// scrolled out of view, over the first shown or under the last, as in "▼ 4
-// more accounts".
-var usageOut = outForm{noun: "account", inks: subtleOut}
 
 // split is the block's rows: the accounts', and the pool's, nil where it has
 // none.
@@ -612,7 +588,7 @@ func (b usageBlock) byAccount(c *canvas, y int) laid {
 	if b.accountBar > 0 {
 		end = b.besideAt() - besideCells
 	}
-	l := b.each(c, 0, y, b.blocksApart(), func(r usageRow, y int) int {
+	l := b.each(c, y, b.blocksApart(), func(r usageRow, y int) int {
 		c.line(0, y, r.name)
 		for j, g := range r.gauges {
 			at := y + b.windowRow(j)

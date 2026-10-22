@@ -7,7 +7,7 @@ WEEK
  1 work                                        ▎                 ┃                                     ╎      34%  19%/day till Sun 21:00
  2 personal ◆                                                               ┃                                 66%  out ~Sat 06:00
  3 side ▲                                                 ┃                            ▊                      78%  out ~Fri 12:20
-▼ 9 more below
+▼ 12 more below
 
 ROUTING   auto   no room at 15 rows ──────────────────────────────────────────────────────────────────────────────────────────────────── r
 COMING UP   16:30  personal's 5-hour resets  … ───────────── c         LATELY   14:41  ▲ c61b started on side  … ─────────────────────── l

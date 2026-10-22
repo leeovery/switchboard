@@ -166,31 +166,21 @@ func TestByAccountAt160USAGEsLeastIsAsBeforeAndItGrowsWholeToTheChartsStackedThe
 	}
 }
 
-func TestByAccountScrolledTheChartsOfTheLastBlockShownEndBeforeHowManyMoreAreBelow(t *testing.T) {
+// Scrolled, the charts beside USAGE's blocks by account are drawn in the
+// rows it shows alone: a block shown in part has its charts in its rows
+// shown, and the row saying what's out of view under them has none beside
+// it. Ten accounts' blocks, five rows apart from row 0, in 22 rows,
+// scrolled 2: a5's first row on the page's 18th, its charts' titles beside
+// it, the page's last two rows its own, cut there.
+func TestByAccountScrolledTheChartsBesideAreDrawnInTheRowsShownAlone(t *testing.T) {
 	f := besideOf(160)
 	f.Scroll = 2
 	rows, _ := usageBody(f, manyRead(10), now, 22)
-	below := slices.IndexFunc(rows, func(row string) bool { return strings.HasPrefix(row, "▼") })
-	rule := slices.IndexFunc(rows, func(row string) bool { return strings.HasPrefix(row, "────") })
-	if below < 1 || rule < below {
-		t.Fatalf("USAGE scrolled reads\n%s\nwant ▼ and how many more below, then the pool's rule", strings.Join(rows, "\n"))
+	if !strings.Contains(rows[18], "5 a5") || strings.TrimSpace(colAt(rows[18], 107, 53)) == "" {
+		t.Errorf("row 18 reads %q, want a5's first row, its charts beside it:\n%s", rows[18], strings.Join(rows, "\n"))
 	}
-	shown := 0
-	for _, row := range rows[:below] {
-		if strings.Contains(row, "Week") {
-			shown++
-		}
-	}
-	if shown != 3 {
-		t.Errorf("in 22 rows, scrolled 2, USAGE shows %d accounts, want 3, as before every chart showed:\n%s", shown, strings.Join(rows, "\n"))
-	}
-	if got := colAt(rows[below-1], 107, 5); strings.TrimSpace(got) == "" {
-		t.Errorf("the row over ▼ reads nothing beside it, want the last block's charts cut short to their axis there:\n%s", strings.Join(rows, "\n"))
-	}
-	for y := below; y < rule; y++ {
-		if got := colAt(rows[y], 107, 53); strings.TrimSpace(got) != "" {
-			t.Errorf("row %d, from ▼ to the pool's rule, reads %q beside the blocks, want nothing: the charts end before ▼\n%s", y, got, strings.Join(rows, "\n"))
-		}
+	if !strings.HasPrefix(rows[21], "▲ 2 more above") || strings.TrimSpace(colAt(rows[21], 107, 53)) != "" {
+		t.Errorf("the last row reads %q, want what's out of view said, and nothing beside it:\n%s", rows[21], strings.Join(rows, "\n"))
 	}
 }
 
@@ -244,7 +234,7 @@ func TestGRAPHSBesideUSAGEChartsEveryAccountShownAsItsBlocksScroll(t *testing.T)
 	}{
 		{accounts: 1, rows: 40, shown: map[string]int{"a1": 0}},
 		{accounts: 4, rows: 40, shown: map[string]int{"a1": 0, "a2": 8, "a3": 16, "a4": 24}},
-		{accounts: 10, scroll: 2, rows: 22, shown: map[string]int{"a3": 1, "a4": 6, "a5": 11}},
+		{accounts: 10, scroll: 10, rows: 22, shown: map[string]int{"a3": 0, "a4": 5, "a5": 10, "a6": 15}},
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("%d accounts", tt.accounts), func(t *testing.T) {

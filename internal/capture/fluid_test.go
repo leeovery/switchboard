@@ -213,17 +213,6 @@ var knownBreaks = []known{
 		byDesign: "2 rows under ROUTING, short of every folded section's least", rule: foldWithRowsSpare,
 		sizes: []string{"73x61"}, fixtures: []string{"overview-six-running-173x53"},
 	},
-	// And on a phone of 36 rows, every other section folded, under USAGE at
-	// the step that shows every account, short of the step before it, which
-	// would scroll and show fewer.
-	{
-		byDesign: "the rows under USAGE at the step that shows every account, short of the step before and every folded section's least", rule: foldWithRowsSpare,
-		sizes: []string{"73x36"},
-		fixtures: []string{
-			"long-names-overview", "overview-burn-down-160x39", "overview-everything-160x39", "overview-everything-216x106",
-			"overview-sessions-graphs-216", "overview-six-accounts-160",
-		},
-	},
 	// S14, USAGE's matrix where it fits (F8): GRAPHS folded on an iPad with rows
 	// spare, under USAGE's windows stacked, which hold the rows GRAPHS' least
 	// needs until S14 puts them side by side, as in the spike's frame 12.

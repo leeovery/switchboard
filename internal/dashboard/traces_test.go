@@ -400,11 +400,12 @@ func TestABusyAccountScrolledOutOfUSAGEDoesNotSetTheScale(t *testing.T) {
 	doc = doc.WorkedOut(claudeLike)
 	// Work, out of the pool, sends 40 at once, its busiest column 30, 45
 	// cells wide; the pool's trace sums personal's and side's alone. At 21
-	// rows, USAGE scrolls an account at a time.
+	// rows, USAGE scrolls, as far as takes work's block out of view.
 	f := frameOf(160, 21)
 	f.By, f.Sessions, f.Traces = ByAccount, listed, burst("work-0", "work", 40)
-	if got := f.Scrolling(doc, routedAt); got.Most != 1 {
-		t.Fatalf("USAGE scrolls %+v, want an account", got)
+	most := f.Scrolling(doc, routedAt).Most
+	if most == 0 {
+		t.Fatal("USAGE scrolls nowhere, want it to scroll past work's block")
 	}
 	tests := []struct {
 		name   string
@@ -412,7 +413,7 @@ func TestABusyAccountScrolledOutOfUSAGEDoesNotSetTheScale(t *testing.T) {
 		want   float64
 	}{
 		{name: "work in view", want: 30},
-		{name: "work scrolled out of view", scroll: 1, want: leastScale},
+		{name: "work scrolled out of view", scroll: most, want: leastScale},
 	}
 	for _, tt := range tests {
 		f.Scroll = tt.scroll

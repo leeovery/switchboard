@@ -161,11 +161,13 @@ var (
 // paging changes says more lies beyond either end. History's views, the
 // Overview's USAGE, Accounts' views and a phone's Switchboard, once they
 // have two rows to page, reach every row they draw as tall as everything
-// fits, so the frame cuts nothing short that they can't scroll to, and say
-// on their first page that more lies below, where they page, but the Year,
-// as its frames draw it. The Log's tables are passed over: they hold no
-// heading, say where they are on their own status line, and paging a day's
-// lines at every size would take the sweep's time many times over.
+// fits, paged down from the top, and but for the Switchboard's lanes, which
+// page a lane at a time, up from the foot, so the frame cuts nothing short
+// that they can't scroll to; and say on their first page that more lies
+// below, where they page, but the Year, as its frames draw it. The Log's
+// tables are passed over: they hold no heading, say where they are on their
+// own status line, and paging a day's lines at every size would take the
+// sweep's time many times over.
 func TestNoViewCutsWhatItCantScrollTo(t *testing.T) {
 	for _, name := range Names() {
 		f := fixture(t, name)
@@ -195,6 +197,12 @@ func TestNoViewCutsWhatItCantScrollTo(t *testing.T) {
 					}
 					if missing := unreached(reached, pages, tall, width); len(missing) > 0 {
 						t.Errorf("at %d×%d, paged as far as it goes, the view never shows %d of the rows it draws at %d rows:\n%s", width, height, len(missing), tallest, strings.Join(missing, "\n"))
+					}
+					if strings.HasPrefix(name, "sessions-") {
+						continue
+					}
+					if missing := unreached(reached, pagesUp(m, width, height), tall, width); len(missing) > 0 {
+						t.Errorf("at %d×%d, paged up from as far down as it goes, the view never shows %d of the rows it draws at %d rows:\n%s", width, height, len(missing), tallest, strings.Join(missing, "\n"))
 					}
 				}
 			}
@@ -239,6 +247,20 @@ func pagesOf(m watch.Model, width, height int) []paged {
 	up := pagedBy(m, height, tea.KeyPgUp)
 	slices.Reverse(up)
 	return append(up, pagedBy(m, height, tea.KeyPgDown)[1:]...)
+}
+
+// pagesUp are the pages of m drawn at the size given, paged up with PgUp
+// from as far down as PgDn takes it.
+func pagesUp(m watch.Model, width, height int) []paged {
+	m = deliver(m, tea.WindowSizeMsg{Width: width, Height: height})
+	for range mostPages {
+		next := deliver(m, tea.KeyPressMsg{Code: tea.KeyPgDown})
+		if next.View().Content == m.View().Content {
+			break
+		}
+		m = next
+	}
+	return pagedBy(m, height, tea.KeyPgUp)
 }
 
 // pagedBy are the pages of m, drawn height rows tall, as the key given pages
@@ -366,12 +388,13 @@ func saysMore(rows []string, mark string) bool {
 // reachOf is what of the fixture's view, by name, at the width given, the
 // sweep holds paged to reach every row of, from its rows as drawn: History's
 // views, from the row under the view's heading, but for their footnote;
-// the Overview's USAGE, from its heading to the next section's, but for its
-// key line, where nothing is drawn beside it; Accounts' views, but for
-// Detail's list; a phone's Switchboard in lanes, from the row under the
-// view's heading to the foot, which gives way where they scroll. Elsewhere
-// it's nil: the rest of the views fold and drop what they show by the room
-// they have, as the design lays them out.
+// the Overview's USAGE under 150 columns, where the key line starts at the
+// margin, from its heading to its key line, where nothing is drawn beside
+// it, or where the page doesn't show that, to the next section's heading;
+// Accounts' views, but for Detail's list; a phone's Switchboard in lanes,
+// from the row under the view's heading to the foot, which gives way where
+// they scroll. Elsewhere it's nil: the rest of the views fold and drop what
+// they show by the room they have, as the design lays them out.
 func reachOf(name string, width int) func(rows []string) []string {
 	chrome := chromeOf(width)
 	switch {
@@ -390,7 +413,7 @@ func reachOf(name string, width int) func(rows []string) []string {
 				return nil
 			}
 			view := rows[from+1:]
-			if to := slices.IndexFunc(view, func(r string) bool { return strings.Contains(r, "─") || strings.HasPrefix(r, "┃ even pace") }); to >= 0 {
+			if to := slices.IndexFunc(view, func(r string) bool { return sectionHeading.MatchString(r) || strings.HasPrefix(r, "┃ even pace") }); to >= 0 {
 				view = view[:to]
 			}
 			return shownRows(view)

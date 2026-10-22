@@ -79,8 +79,6 @@ var sizedAllowed = []string{
 	// S5: the Switchboard's lines, on one row where they're narrower than
 	// widestLines.
 	"internal/dashboard/switchboardlines.go:linesDrawn.oneRow",
-	// S12: USAGE paged at short heights.
-	"internal/dashboard/overview_usage.go:usageViews.paged",
 	// S14: USAGE's matrix, matrixWidth, its names' column, roomyNames, its
 	// accounts' labels, wideAccounts, and its words, fullWords; and what
 	// sits beside it by the matrix.

@@ -194,20 +194,25 @@ func (d boardDrawn) byRows() bool {
 	return false
 }
 
+// boardOut is the form of the line saying how many of the Switchboard's
+// accounts are scrolled out of view, its lines' or its lanes', over the
+// first shown or under the last, as in "▼ 4 more accounts".
+var boardOut = outForm{noun: "account", inks: subtleOut}
+
 // accountsShown is what of the Switchboard the view shows, scrolled offset
 // accounts down, no further than mostScrolled: the accounts from that one
 // that show whole, each from its first row to its last, and no part of the
 // next, so no call is ever cut; scrolled down, how many accounts are above,
 // on the view's first row; and how many are below, on the row over the key
-// line, as usage says them.
+// line, as boardOut says them.
 func (d boardDrawn) accountsShown(offset int) boardShown {
 	o := min(max(offset, 0), d.mostScrolled())
 	from := d.laid.lines[o]
 	s := boardShown{first: from.first, lead: min(o, 1)}
 	n := d.wholeFrom(o, d.f.viewRows()-s.lead)
 	s.rows = d.laid.lines[o+n-1].end() - s.first
-	s.over = outOfView(o, 0, d.f.Width, usageOut)
-	s.under = outOfView(0, len(d.laid.lines)-o-n, d.f.Width, usageOut)
+	s.over = outOfView(o, 0, d.f.Width, boardOut)
+	s.under = outOfView(0, len(d.laid.lines)-o-n, d.f.Width, boardOut)
 	return s
 }
 

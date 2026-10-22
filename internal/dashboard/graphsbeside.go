@@ -100,9 +100,7 @@ type besideChart interface {
 // frame's edge, as chartsOfBlock has them, laid across as at has them;
 // from the block's first row to the rows under its last that at gives what's
 // beside it, the rows of charts sharing them, the last's axis on the last of
-// them; but never on or past the row at cuts them at, so the last block
-// shown, where accounts are out of view below, has its charts cut short to
-// end on its own last row.
+// them.
 func (f Frame) chartsBeside(c *canvas, doc status.Document, m status.Moment, at blocksBeside) {
 	for _, block := range at.blocks {
 		charts, across := f.chartsOfBlock(doc, m, block.id), at.across
@@ -110,9 +108,6 @@ func (f Frame) chartsBeside(c *canvas, doc status.Document, m status.Moment, at 
 			continue
 		}
 		area := bounds{x: at.x, y: block.y, rows: block.rows + at.under}
-		if at.cut > block.y {
-			area.rows = min(area.rows, at.cut-block.y)
-		}
 		for i, ch := range charts[:across.shown(len(charts))] {
 			ch.draw(c, f.Look, across.placed(i, area, across.rowsFor(len(charts)), flex.Part{Grows: true}))
 		}

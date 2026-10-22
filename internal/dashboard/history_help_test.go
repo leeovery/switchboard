@@ -191,7 +191,7 @@ func TestHelpSaysAViewGoesBackToItsTopAsItsScrollTurns(t *testing.T) {
 		heading, said string
 		want          []string
 	}{
-		{heading: "USAGE", said: saying(overviewHelp(), SectionUsage.heading()), want: []string{"an account at a time, or a row at a time", "what's read can turn it", "it goes back to its top"}},
+		{heading: "USAGE", said: saying(overviewHelp(), SectionUsage.heading()), want: []string{"whole, a row at a time", "each window's heading kept", "how many rows are out of view above and below"}},
 		{heading: "CORDS", said: saying(sessions, "CORDS"), want: []string{"an account at a time, or a row at a time", "they go back to their top"}},
 		{heading: "LINES", said: saying(sessions, "LINES"), want: []string{"an account at a time, each shown whole", "they go back to their top"}},
 		{heading: "YEAR", said: saying(history, "YEAR"), want: []string{"scrolls a row at a time", "how many rows are out of view above and below"}},

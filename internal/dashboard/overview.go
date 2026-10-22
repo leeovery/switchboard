@@ -225,14 +225,16 @@ type section struct {
 	folded  func() line
 	targets func(body bounds) []Target
 	// scrolling is how far the body scrolls in rows rows, scrolled offset
-	// down, as USAGE's does where its accounts are many: Most, the furthest,
-	// and Page, how many show at once from the offset, in accounts, or where
-	// rowsAtATime says it scrolls a row at a time, in rows; and revealing, how
-	// far it's scrolled from offset to show the account with the given id.
+	// down, a row at a time, as USAGE's does where its accounts are many:
+	// Most, the furthest, and Page, how many show at once from the offset;
+	// and revealing, how far it's scrolled from offset to show the account
+	// with the given id. Nil where it doesn't scroll.
+	scrolling func(rows, offset int) Scrolling
+	revealing func(rows, offset int, id string) int
+	// scrollForm is the form its body's rows are laid out in, in rows rows,
+	// which an offset into them is read in, as USAGE's usageForm has it.
 	// Nil where it doesn't scroll.
-	scrolling   func(rows, offset int) Scrolling
-	rowsAtATime func(rows int) bool
-	revealing   func(rows, offset int, id string) int
+	scrollForm func(rows int) usageForm
 	// order is the order of the rows SESSIONS lists, which a layout made
 	// keeps; and steady is SESSIONS listing them in the order a layout kept,
 	// as give gives it. Nil for any other section.
@@ -725,18 +727,20 @@ func latelyAt(width int) int {
 
 // Layout is the Overview's layout as it was made: the rows each section shown
 // was given, its heading's among them, and which fold; the rows SESSIONS
-// listed, in their order; and what it was made for, as layoutFor says. The
-// watch keeps it from look to look, as LayoutOf gives it, so the layout
-// changes only on a key or a resize, or a section's shape changing, never as
-// sessions start and lines come: SESSIONS keeps the rows it was given
-// however many sessions run, and the order it listed them in, as
-// views.Steady keeps it, and COMING UP and LATELY theirs however many lines
-// they have. A frame lays the Overview out afresh where its Layout is the
-// zero Layout, or one made for another frame or shape.
+// listed, in their order; the form USAGE's rows were laid out in, in the
+// rows it was given, as usageFormOf has it; and what it was made for, as
+// layoutFor says. The watch keeps it from look to look, as LayoutOf gives
+// it, so the layout changes only on a key or a resize, or a section's shape
+// changing, never as sessions start and lines come: SESSIONS keeps the rows
+// it was given however many sessions run, and the order it listed them in,
+// as views.Steady keeps it, and COMING UP and LATELY theirs however many
+// lines they have. A frame lays the Overview out afresh where its Layout is
+// the zero Layout, or one made for another frame or shape.
 type Layout struct {
 	made     layoutFor
 	allotted [len(sectionWords)]allotment
 	running  []views.RunningRow
+	usage    usageForm
 }
 
 // layoutFor is what a layout is made for: a frame of a size, showing the
@@ -785,8 +789,9 @@ func (f Frame) LayoutOf(doc status.Document, now time.Time) Layout {
 	if f.keeps(made) {
 		return f.Layout
 	}
-	l := Layout{made: made}
-	for _, u := range allot(units, f.viewRows()) {
+	units = allot(units, f.viewRows())
+	l := Layout{made: made, usage: f.usageFormOf(units)}
+	for _, u := range units {
 		l.allotted[u.sections[0].Section] = allotment{rows: u.rows, fold: u.fold, lean: u.lean}
 		for _, s := range u.sections {
 			if s.steady != nil {
@@ -1009,12 +1014,31 @@ func scrollingOf(laid []planned, offset int) Scrolling {
 	return usage.scrolling(usage.body.rows, offset)
 }
 
-// overviewScrollsRows reports whether the Overview's USAGE of doc at now
-// scrolls a row at a time, in the rows it's laid out in, as its rowsAtATime
-// says: not where it's hidden.
-func (f Frame) overviewScrollsRows(doc status.Document, now time.Time) bool {
-	usage := usageOf(f.laidOut(doc, now, f.top()))
-	return usage.rowsAtATime != nil && usage.rowsAtATime(usage.body.rows)
+// ScrollForm is what an offset into the view the frame shows of doc at now
+// is read in: rows or things, as ScrollsRows says; and on the Overview, the
+// form USAGE's rows are laid out in, as the frame's Layout has it. An offset
+// read in one form means nothing in another.
+type ScrollForm struct {
+	rows  bool
+	usage usageForm
+}
+
+// ScrollForm is the form an offset into the view the frame shows of doc at
+// now is read in, its Overview's as LayoutOf made the frame's Layout, which
+// the frame lays it out by.
+func (f Frame) ScrollForm(doc status.Document, now time.Time) ScrollForm {
+	return ScrollForm{rows: f.ScrollsRows(doc, now), usage: f.Layout.usage}
+}
+
+// usageFormOf is the form USAGE's rows are laid out in, as its scrollForm
+// has it, of the units as they're given their rows: none where it's hidden,
+// or the frame is too short for the view.
+func (f Frame) usageFormOf(units []unit) usageForm {
+	usage := usageOf(f.place(units, 0))
+	if f.cramped() || usage.scrollForm == nil {
+		return usageForm{}
+	}
+	return usage.scrollForm(usage.body.rows)
 }
 
 // overviewScrolls is what of the Overview of doc at now scrolls, from column
