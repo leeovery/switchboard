@@ -2082,7 +2082,7 @@ below, not flex's even share:
    rows among them. The rows a step leaves are empty at the foot, and where a step doesn't fit, it
    scrolls within the rows, as Many accounts, above, has it. So at 138 × 15, where it showed
    `WEEK`, how many rows more and its key, it shows the matrix, all three accounts and `▼ 2 more
-   below`; and at 73 × 36, every section shown, three accounts stacked a row apart with their key
+   below`; and at 73 × 36, every section on, three accounts stacked a row apart with their key
    leave 3 rows at the foot, the step as it is taking 4 more. As the rows grow, the most any step
    shows never falls: every step scrolls whole, a row at a time, so a row more shows as many
    accounts or more. The planner keeps the step it took in the layout, so USAGE is drawn in the

@@ -223,11 +223,12 @@ var knownBreaks = []known{
 	},
 	// What's left at the foot at 73x36, every other section folded, where
 	// USAGE takes the least far step that fits whole, as it keeps its key
-	// only where it shows: three accounts stacked, their blank rows given way, 3 rows, where
-	// they take 4 more and LATELY 5, and GRAPHS alone shown, more; three by
-	// account, of three windows, their key given way, 2 rows, where the key
-	// takes 3 more and LATELY 5; six stacked, their headings' blank rows
-	// given way too, 2 rows, where those take 3 more and LATELY 5.
+	// only where it shows: three accounts stacked, their blank rows given
+	// way, 3 rows, where they take 4 more and LATELY 5, and GRAPHS alone
+	// shown, more; three by account, of three windows, their key given way,
+	// 2 rows, where the key takes 3 more and LATELY 5; six stacked, their
+	// headings' blank rows given way too, 2 rows, where those take 3 more and
+	// LATELY 5.
 	{
 		byDesign: "the rows under USAGE whole, short of its step before and every folded section's least", rule: foldWithRowsSpare,
 		sizes: []string{"73x36"}, fixtures: []string{

@@ -435,13 +435,10 @@ func TestUSAGEGivesWayInItsStepsOrder(t *testing.T) {
 }
 
 // keyHidden reports whether USAGE's section s, at the step given in rows
-// rows, keeps its key out of view: the step keeps it, and takes more rows.
+// rows, keeps its key out of view: the step keeps it, and takes more rows
+// whole than it's given.
 func keyHidden(s section, given giving, rows int) bool {
-	whole := s.least
-	if given > givenNone {
-		whole = s.leaner[given-1]
-	}
-	return given < givenKey && whole > rows
+	return given < givenKey && s.rowsAt(given) > rows
 }
 
 // Squeezed, USAGE keeps its key only where it shows: of the steps that show
