@@ -164,13 +164,16 @@ func TestAccountsHelpDrawsBYDAYAndWEEKSAsDetailDoes(t *testing.T) {
 	}
 }
 
-// BY DAY's key draws a day as many cells wide as Detail draws its days in
-// the form it's drawn in, the limit's ▪ in its middle cell, the first of two,
-// and a day to come a · a cell: two with the list, three with one account,
-// whose days grow into the width, and two again where one account's Detail
-// is stacked, as on a phone, or too narrow for its wide form.
+// BY DAY's key draws a day as many cells wide as Detail draws its days, of
+// the moment the frame holds, as the watch draws help, over a frame it never
+// builds, from Compare as from Detail: the limit's ▪ in its middle cell, the
+// first of two, and a day to come a · a cell. Two with the list at 160, three
+// at 200 and 220, where the days grow; three with one account at 160, two at
+// 120, where they don't yet, and two where it's stacked, as on a phone.
 func TestAccountsHelpDrawsADayAsWideAsDetailDrawsItsDays(t *testing.T) {
 	look := Screen(builtin(t, "nord"))
+	compared := threeShown
+	compared.Shown = AccountsCompare
 	tests := []struct {
 		name  string
 		shown AccountsShown
@@ -178,8 +181,10 @@ func TestAccountsHelpDrawsADayAsWideAsDetailDrawsItsDays(t *testing.T) {
 		cells int
 	}{
 		{name: "three accounts, the list beside the panel", shown: threeShown, width: 160, cells: 2},
+		{name: "three accounts, from Compare, its days grown", shown: compared, width: 220, cells: 3},
+		{name: "three accounts, on Detail, its days grown", shown: threeShown, width: 200, cells: 3},
 		{name: "one account, wide", shown: oneShown, width: 160, cells: 3},
-		{name: "one account, too narrow for its wide form", shown: oneShown, width: 120, cells: 2},
+		{name: "one account, its days not yet grown", shown: oneShown, width: 120, cells: 2},
 		{name: "one account on a phone", shown: oneShown, width: 52, cells: 2},
 	}
 	for _, tt := range tests {
@@ -194,7 +199,8 @@ func TestAccountsHelpDrawsADayAsWideAsDetailDrawsItsDays(t *testing.T) {
 				limited = slices.Concat(line{{" ", on}}, limited)
 			}
 			want = append(want, limited, line{{strings.Repeat("·", tt.cells), faintInk}})
-			parts := Frame{Width: tt.width, Height: 37, View: Accounts, Accounts: tt.shown, Look: look}.accountsHelp()
+			doc := usageWorld(extraOff)
+			parts := Frame{Width: tt.width, Height: 37, View: Accounts, Accounts: tt.shown, Look: look, Policy: claudeLike}.At(doc, routedAt).accountsHelp()
 			glyphs := parts[len(parts)-1].glyphs
 			var got []line
 			for _, g := range glyphs[:len(glyphs)-1] {

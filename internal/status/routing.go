@@ -98,12 +98,13 @@ func (r Routing) String() string {
 }
 
 // What's said of an account at its cap, which holds it back, or the global
-// pin spends; of the account new sessions go to; and of an account held back
-// from some models' requests alone, while another model's can still go
-// there.
+// pin spends, in full and short; of the account new sessions go to; and of
+// an account held back from some models' requests alone, while another
+// model's can still go there.
 const (
 	goElsewhere = "new sessions go elsewhere"
 	stillPinned = "pinned, so new sessions still come here"
+	pinnedShort = "pinned"
 	comeHere    = "new sessions come here"
 	stillComes  = "other models still come here"
 )
@@ -197,7 +198,7 @@ func (s windowStates) cappedRouting() (Routing, bool) {
 		if shared {
 			kind = RoutingCappedPinned
 		}
-		return Routing{Kind: kind, Says: says, Clauses: []string{stillPinned}, Short: []string{says, "pinned"}}, true
+		return Routing{Kind: kind, Says: says, Clauses: []string{stillPinned}, Short: []string{says, pinnedShort}}, true
 	}
 	back := s.back
 	if !shared {

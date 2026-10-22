@@ -177,42 +177,34 @@ var knownBreaks = []known{
 		byDesign: "on's share at 109", cuts: []string{"personal-resea…", "side-hustle-co…"}, rule: cutWithRoom,
 		sizes: []string{"109x53"}, fixtures: []string{"log-requests-long-names-108x44"},
 	},
+	// Detail's list, which gives way first, its names cut to what the panel
+	// leaves them, down to 14 cells, before its weeks narrow (the owner's call,
+	// 15 October 2026); and its names at their most, 24 cells.
+	{
+		byDesign: "Detail's list giving way at 138", cuts: []string{"work-team-p…"}, rule: cutWithRoom,
+		sizes: []string{"138x30", "138x15"}, fixtures: []string{"long-names-accounts-detail"},
+	},
+	{
+		byDesign: "Detail's list giving way at 108", cuts: []string{"work-team-pl…"}, rule: cutWithRoom,
+		sizes: []string{"108x44", "108x24"}, fixtures: []string{"long-names-accounts-detail"},
+	},
+	{
+		byDesign: "Detail's list's names at their most", cuts: []string{"side-hustle-consult…"}, rule: cutWithRoom,
+		sizes: []string{"173x53"}, fixtures: []string{"long-names-accounts-detail"},
+	},
 	// The List's directories at their most, where the session's column is
 	// whole and the rows end blank.
 	{
 		byDesign: "the List's directories at their most", cuts: dirCuts(views.SessionDirMost), rule: cutWithRoom,
 		sizes: []string{"138x30", "138x15", "173x53"}, fixtures: []string{"sessions-list-long-names-108x44"},
 	},
-	// S10, the Overview's rows on flex (F1): sections folded with rows spare.
+	// S12, USAGE at short heights (F3, F4): at 108x44, USAGE's three windows
+	// stacked leave 3 rows under GRAPHS, ROUTING, COMING UP and LATELY
+	// folded, short of any of them unfolding, until its blank rows and key
+	// give way.
 	{
-		slice: "S10", rule: foldWithRowsSpare, sizes: []string{"73x61"},
-		fixtures: []string{
-			"overview-model-nearing-160", "overview-models-160",
-		},
-	},
-	{
-		slice: "S10", rule: foldWithRowsSpare, sizes: []string{"73x61", "108x44"},
-		fixtures: []string{
-			"overview-by-account-burn-down-220x50", "overview-by-account-graphs-160", "overview-pool-220x50",
-			"overview-pool-burn-down-160",
-		},
-	},
-	{
-		slice: "S10", rule: foldWithRowsSpare, sizes: []string{"73x61", "109x53"},
-		fixtures: []string{"overview-six-accounts-160"},
-	},
-	// S11, SESSIONS takes the rows left (F2): it folds unless every session
-	// fits.
-	{
-		slice: "S11", rule: foldWithRowsSpare, sizes: []string{"73x61", "108x44", "109x53"},
-		fixtures: []string{
-			"long-names-overview", "overview-burn-down-160x39", "overview-everything-160x39",
-			"overview-everything-216x106", "overview-sessions-graphs-216",
-		},
-	},
-	{
-		slice: "S11", rule: foldWithRowsSpare, sizes: []string{"73x61", "109x53"},
-		fixtures: []string{"overview-sessions-216"},
+		slice: "S12", rule: foldWithRowsSpare, sizes: []string{"108x44"},
+		fixtures: []string{"overview-by-account-burn-down-220x50", "overview-pool-220x50"},
 	},
 	// S12, USAGE at short heights (F3): no account at 15 rows.
 	{
@@ -233,11 +225,15 @@ var knownBreaks = []known{
 		slice: "S12", rule: wastedThird, sizes: []string{"138x15"},
 		fixtures: []string{"overview-phone-burn-down-52"},
 	},
-	// S13, GRAPHS fluid (F7): no room for its charts with rows spare.
+	// S14, USAGE's matrix where it fits (F8): GRAPHS folded on an iPad with rows
+	// spare, under USAGE's windows stacked, which hold the rows GRAPHS' least
+	// needs until S14 puts them side by side, as in the spike's frame 12.
 	{
-		slice: "S13", rule: foldWithRowsSpare, sizes: []string{"73x61", "108x44"},
+		slice: "S14", rule: foldWithRowsSpare, sizes: []string{"108x44"},
 		fixtures: []string{
-			"overview-by-account-graphs-140", "overview-phone-burn-down-52",
+			"long-names-overview", "overview-burn-down-160x39", "overview-by-account-graphs-140",
+			"overview-by-account-graphs-160", "overview-everything-160x39", "overview-everything-216x106",
+			"overview-phone-burn-down-52", "overview-pool-burn-down-160", "overview-sessions-graphs-216",
 		},
 	},
 	// S14, USAGE's parts, its names' column at its natural width, at most 24, at
@@ -249,16 +245,6 @@ var knownBreaks = []known{
 	{
 		slice: "S14", rule: cutWithRoom, sizes: []string{"73x61", "73x36"},
 		fixtures: []string{"overview-ten-accounts-160"},
-	},
-	// S17, Detail's wide form from where it fits (F11, F12): its names cut with
-	// room, and its stack drawn at 138 columns.
-	{
-		slice: "S17", rule: cutWithRoom, sizes: []string{"173x53"},
-		fixtures: []string{"long-names-accounts-detail"},
-	},
-	{
-		slice: "S17", rule: wastedThird, sizes: []string{"138x15"},
-		fixtures: []string{"accounts-detail-one-160"},
 	},
 	// S20, Weeks (F16): its names cut with room.
 	{

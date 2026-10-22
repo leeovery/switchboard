@@ -114,35 +114,54 @@ const (
 	stackPeakGap   = 1
 )
 
-// The parts of a phone's USAGE row across a frame, in stackUsageLaid's order.
+// The parts of Detail's USAGE row, stacked or wide, in the order
+// detailUsageRow lays them.
 const (
-	stackNames = iota
-	stackBar
-	stackAfterBar
-	stackWords
+	detailUsageNames = iota
+	detailUsageBar
+	detailUsageAfter
+	detailUsageWords
 )
 
-// stackUsage is where a phone's USAGE row's parts sit: its names' cells, and
-// where its bars start and their cells.
-type stackUsage struct {
+// detailUsage is where Detail's USAGE row's parts sit, stacked or wide: its
+// names' cells, and where its bars start and their cells.
+type detailUsage struct {
 	names, at, bar int
 }
 
-// stackUsageLaid is a phone's USAGE row laid out in room cells, as flex lays
-// it: its windows' names, names cells at their widest, between
-// compareNameLeast and compareNameMost; a cell on, its bars, at least
-// stackBarLeast; then afterBar's cells, their percentages among them; and
-// their words, in words cells. The bars take their least first, then the
-// names are raised toward their widest, then the bars grow into what's left,
-// at most barMost, as every bar beside words does.
-func stackUsageLaid(room, names, words int) stackUsage {
-	s, _ := flex.Lay(room, []flex.Part{
-		stackNames:    {Least: compareNameLeast, Natural: names, Most: compareNameMost},
-		stackBar:      {Least: stackBarLeast, Natural: stackBarLeast, Grows: true, Most: barMost, Gap: 1},
-		stackAfterBar: {Least: afterBar, Natural: afterBar},
-		stackWords:    {Least: words, Natural: words},
-	}...)
-	return stackUsage{names: s[stackNames].Size, at: s[stackBar].At, bar: s[stackBar].Size}
+// detailUsageRow is Detail's USAGE row, stacked or wide: its bars at least
+// bar cells; its windows' names at least least cells, and names at their
+// widest; and its words, words cells.
+type detailUsageRow struct {
+	bar, least, names, words int
+}
+
+// laid is the row laid out in room cells, as flex lays it, and whether its
+// parts' leasts fit: its windows' names, from their least to their widest,
+// at least compareNameLeast and at most compareNameMost; a cell on, its
+// bars; then afterBar's cells, their percentages among them; and their
+// words. The bars take their least first, then the names are raised toward
+// their widest, then the bars grow into what's left, at most barMost, as
+// every bar beside words does.
+func (r detailUsageRow) laid(room int) (detailUsage, bool) {
+	s, ok := flex.Lay(room, r.parts()...)
+	return detailUsage{names: s[detailUsageNames].Size, at: s[detailUsageBar].At, bar: s[detailUsageBar].Size}, ok
+}
+
+// leastCells are the fewest cells the row takes: its parts at their leasts.
+func (r detailUsageRow) leastCells() int {
+	s, _ := flex.Lay(0, r.parts()...)
+	return s[detailUsageWords].At + s[detailUsageWords].Size
+}
+
+// parts are the row's parts, as laid lays them.
+func (r detailUsageRow) parts() []flex.Part {
+	return []flex.Part{
+		detailUsageNames: {Least: max(r.least, compareNameLeast), Natural: r.names, Most: compareNameMost},
+		detailUsageBar:   {Least: r.bar, Natural: r.bar, Grows: true, Most: barMost, Gap: 1},
+		detailUsageAfter: {Least: afterBar, Natural: afterBar},
+		detailUsageWords: {Least: r.words, Natural: r.words},
+	}
 }
 
 // partsApart is how far a phone's part is from the row before it, a blank
@@ -395,7 +414,7 @@ type stacked struct {
 // stackLayout is Detail on a phone: no list; BY MODEL, BY DAY and WEEKS from
 // stackAt; and its days swatchCells wide, as History's, its weeks a cell
 // apart.
-var stackLayout = detailLayout{into: stackAt, dw: swatchCells, gap: 1}
+var stackLayout = detailLayout{into: stackAt, dw: dayCellsLeast, gap: 1}
 
 // stackedOf is a phone's Detail of doc at now: of the account the frame's
 // Accounts shows, else all accounts, as detailDrawn has it.
@@ -457,20 +476,16 @@ func (s stacked) named(cells int) line {
 
 // usage draws USAGE from row y, and returns the row its last window is on:
 // its heading, then every window, windowsApart rows apart, named in
-// text.subtle, then as Detail's gauge has it, laid out as stackUsageLaid lays
-// its row across the frame: its names as wide as the widest of every window
-// listed, shown or not, and its words the cells of their form at their
+// text.subtle, then as Detail's gauge has it, laid out as detailUsageRow
+// lays its row across the frame: its names as wide as windowNames has them,
+// at least compareNameLeast, and its words the cells of their form at their
 // widest, so neither moves as the windows shown or their words change; its
 // words ending at the frame's edge.
 func (s stacked) usage(c *canvas, y int) int {
 	c.line(0, y, line{{"USAGE", dimInk}})
 	c.heading(y, y+1)
 	b := usageBlock{width: s.f.Width, look: s.f.Look}
-	names := 0
-	for _, w := range usageWindows(s.m.Listed(true), s.f.windowNamer(s.m)) {
-		names = max(names, ansi.StringWidth(status.Short(w.name)))
-	}
-	l := stackUsageLaid(s.f.edge(), names, b.widestWords())
+	l, _ := detailUsageRow{bar: stackBarLeast, names: s.windowNames(), words: b.widestWords()}.laid(s.f.edge())
 	last := y
 	for i, w := range s.windows() {
 		last = y + 1 + i*windowsApart
@@ -499,6 +514,12 @@ func (s stacked) thisWeek(c *canvas, y int) int {
 		}
 	}
 	return y + len(halves[0])
+}
+
+// thisWeekItem is an item of a phone's THIS WEEK: its label, and its figure.
+type thisWeekItem struct {
+	label string
+	parts []part
 }
 
 // thisWeekItems are THIS WEEK's items in its two columns, as the words of

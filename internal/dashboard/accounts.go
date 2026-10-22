@@ -207,7 +207,13 @@ func (f Frame) accountsScrolling(doc status.Document, now time.Time) func(offset
 // accountsScrolls is what of Accounts' view shown of doc at now scrolls, as
 // its form says: else the view's rows, across the frame.
 func (f Frame) accountsScrolls(doc status.Document, now time.Time) (x, y, width, rows int) {
-	if form := f.accountsForm(doc, now); form.scrolls != nil {
+	return f.accountsForm(doc, now).scrolled(f)
+}
+
+// scrolled is what of the form scrolls in the frame f, as its scrolls says:
+// else the view's rows, across the frame.
+func (form accountsForm) scrolled(f Frame) (x, y, width, rows int) {
+	if form.scrolls != nil {
 		return form.scrolls()
 	}
 	return 0, f.top(), f.Width, f.viewRows()

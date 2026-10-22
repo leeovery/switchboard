@@ -1495,7 +1495,7 @@ never changes, a section hidden taking no room:
 | Section | Key | Shown at first | What it is |
 |---|---|---|---|
 | USAGE | `u` | yes | Every account's windows, `usage`'s block |
-| GRAPHS | `g` | no | The focused account's use so far in each window, under USAGE's columns; by account, every account's, beside its block, and the pool's room, beside `Σ pool` |
+| GRAPHS | `g` | no | The focused account's use so far in each window, under USAGE's bars where they fit there, else from the left edge; by account, every account's, beside its block, and the pool's room, beside `Σ pool` |
 | ROUTING | `r` | yes | How each account stands with the router, and its requests over the last 30 minutes |
 | SESSIONS | `s` | no | The sessions running, by account |
 | COMING UP | `c` | yes | What happens next, soonest first |
@@ -1550,19 +1550,30 @@ Then, as only the Overview has them:
   accounts` over the first while some are above. `j`/`k`, PgUp, PgDn and the wheel scroll it, and
   moving the focus to an account out of view scrolls to it (settled in the plan).
 
-**GRAPHS** draws the focused account's windows, a chart a window, each under its window's column
-in USAGE. `↑` and `↓` move the focus between the accounts, in the config's order. `v`, while GRAPHS
+**GRAPHS** draws the focused account's windows, a chart a window, under USAGE's bars where they
+fit there. `↑` and `↓` move the focus between the accounts, in the config's order. `v`, while GRAPHS
 shows, flips every chart between its burn-up, the use so far rising from empty, and its burn-down,
 the room left falling from full and where it's heading; the preferences keep which, the burn-up at
 first (the owner's call, 15 October 2026).
 
-- **Placement:** from the name column, a chart every `gw = ⌊(w − 14 + 3) / k⌋ − ⌈(n − 14) / k⌉`
-  columns for `k` windows, each `gw − 3` wide: 45 cells every 48 at 160 columns, 64 every 67 at 216.
-- **Its rows:** under the heading's blank row, the charts' top row: each chart's window, `5-HOUR`,
-  `WEEK`, `FABLE WEEK`, in `text.subtle` and a space, then the limit's line along the rest of the
-  chart's width, `┄` in `text.faint`, which on the burn-down marks full; then the chart's `h` rows;
-  then its axis row. GRAPHS takes `h + 4` rows, `h` from 5 to 19, as "Room", below, gives them;
-  taller distorts.
+- **Placement,** laid by flex (`graphs.go`), from the width and the windows shown alone, never
+  from what the charts hold. A chart is 30 cells across at the least, the charts 3 apart, each as
+  wide as the others, the odd cells left at the end:
+  - **under USAGE's bars,** where every window's chart is 30 or more there: from the name column, a
+    chart every `gw = ⌊(w − 14 + 3) / k⌋ − ⌈(n − 14) / k⌉` columns for `k` windows, as USAGE's matrix
+    has its groups, each `gw − 3` wide: 44 cells every 47 at 108 columns with two windows, 45 every
+    48 at 160 with three, 64 every 67 at 216;
+  - **else from column 0,** to a cell short of the edge, as many side by side as are 30 or more,
+    the rest on the rows under, in the same columns: two windows at 73 columns are two charts of
+    34; three are two, and the third under the first; three at 108 are 33 each; at 52, a chart a
+    row, 51 cells (the owner's call, 20 October 2026).
+- **Its rows:** under the heading's blank row, each row of charts: the charts' top row, each
+  chart's window, `5-HOUR`, `WEEK`, `FABLE WEEK`, in `text.subtle` and a space, then the limit's
+  line along the rest of the chart's width, `┄` in `text.faint`, which on the burn-down marks full;
+  then the chart's `h` rows; then its axis row. The rows of charts come one under another, none
+  between them, each `h` from 5 to 19, taller distorts; they share the rows "Room", below, gives
+  GRAPHS, a row at a time, the odd row to the first, and what's past their most stays blank.
+  GRAPHS takes `r(h + 2) + 2` rows for `r` rows of charts.
 - **A column a cell,** over the window's whole length, from its start to its reset; now's column is
   `min(round(pace × width), width − 1)`.
 - **The burn-up:** each column to now is filled to the use read at its middle, or at now for now's
@@ -1618,14 +1629,43 @@ first (the owner's call, 15 October 2026).
   USAGE's bars, from `hx`, where ROUTING's blocks would be (see By account, below), to a cell short
   of the edge, as v0.1.6's cards had every account show at once (the owner's call, 15 October
   2026):
-  - **as many of its windows as fit,** in USAGE's order, each 24 cells at the least, 2 apart, and
-    as wide as they share the room: `⌊(w − 1 − hx + 2) / k⌋ − 2` for `k` that fit, two at 160
-    columns, 25 cells wide, and three from 184, 36 wide at 220;
-  - **each from the block's first row to the row after its last,** its top row on the block's
-    first and its axis on the row after, so a block of three windows has `h = 4`; for the axis,
-    USAGE's blocks are two rows apart here, the axis on the first, where everywhere else they're
-    one, the phone's among them (the owner's call, 17 October 2026);
-  - **the pool's charts beside `Σ pool`,** as many of its windows as fit, as each account's: the
+  - **three forms, from USAGE's least to its most,** each a step USAGE grows to whole, ahead of
+    COMING UP and LATELY, as the rows it's given allow, never as what it holds; so USAGE's least,
+    and everything the planner folds or shows by it, is the drawing before every chart showed,
+    and the fluid forms come only from rows to spare (the owner's call, 21 October 2026):
+    1. **At USAGE's least, as before:** in USAGE's order, as many side by side as are 24 cells or
+       more, 2 apart, as wide as they share the room, `⌊(w − 1 − hx + 2) / k⌋ − 2` for `k` that
+       fit, the rest left off: two of 25 at 160 columns, two of 31 at 173, three of 36 at 220.
+       Each from the block's first row to the row after its last, its top row on the first and its
+       axis on the row after, so a block of two windows has `h = 2` and one of three `h = 4`; for
+       the axis, USAGE's blocks are two rows apart here, the axis on the first, where everywhere
+       else they're one, the phone's among them (the owner's call, 17 October 2026). A block of one
+       window has `h = 2` too, its blocks four rows apart, where before it had no rows of chart at
+       all, only its top and axis rows: new with the fluid pass, so every chart beside a block has
+       rows to draw in. Where every chart is 30 cells or more side by side, this is the same as
+       the next form's first row, from 170 columns with two windows.
+    2. **Stacked:** every one of its windows, by Placement's rule: as many side by side as are 30
+       cells or more, as wide as they share the room, the rest on the rows under, still beside the
+       block, in the same columns: a chart a row at 150 and 160 columns, 42 and 52 cells; two a row
+       from 170, 31 wide at 173; three from 202, 36 wide at 220. Each row of charts has `h = 2`, one
+       under another, none between them, the block's next a blank row after the last axis. Where
+       its rows of charts take no more rows than the least's, it's no step of its own, and USAGE
+       at its least draws the first form: where the charts fit one row, and with four windows from
+       170 to 233 columns, or five from 202 to 233, whose two rows fit the block's rows and the row after.
+    3. **At USAGE's most:** as stacked, each row of charts the least of 5 rows, `h = 5`, the block
+       growing apart for them: the rows under a block's last that its charts take, the last of
+       them their axis, are 4 under a block of two windows side by side at 173, and 11 under two
+       stacked at 160. A blank row comes before the next block; under the pool's, the key line
+       sits directly under its charts' axis (the owner's call, 20 October 2026).
+
+    The rows of charts share what they're given evenly, the odd row to the first. At 160 columns
+    with two windows, the stacked step comes from 57 rows and 5 rows a chart from 81; with three,
+    from 73 and 109. Where USAGE's least doesn't fit, it scrolls, as it does by
+    window, showing as many accounts as it did before every chart showed: `▼` and how many more
+    keep the row after the last block shown, and that block's charts are cut short to end on its
+    last row, a row above `▼`, nothing drawn over it, as the accounts are the data and a chart's
+    last row at the scroll's edge isn't (the owner's call, 21 October 2026);
+  - **the pool's charts beside `Σ pool`,** its windows in the same form as each account's: the
     pool's room in each window over its length back from now, from its left edge to now at its
     right, a column a cell, each column the room at its end's moment, a share of all its accounts'
     (the owner's call, 15 October 2026). That room is each of the pool's accounts' room then,
@@ -1663,9 +1703,10 @@ first (the owner's call, 15 October 2026).
     focus:** `↑↓ focus` leaves the key line, and `↑` and `↓` do nothing.
   - Under 150 columns, where by account has no room beside its blocks, GRAPHS falls back to the
     focused account's charts, as by window.
-- **On a phone,** its charts stack, a window's under another's, each from the name column to the
-  edge, the burn-down as the burn-up (settled in the plan); by account, as by window, the focused
-  account's charts, stacked.
+- **At every width,** the charts lie as Placement has them: under USAGE's bars where every
+  window's chart is 30 cells or more there, as with two windows from 79 columns, else from column
+  0, as on a phone at 52 and 73. The burn-down lies as the burn-up (settled in the plan); by
+  account under 150 columns, the focused account's charts, as by window.
 
 **ROUTING** says how each account stands with the router, and how busy it's been.
 
@@ -1674,25 +1715,56 @@ first (the owner's call, 15 October 2026).
   bold `accent.key` and ` back to auto` in `text.faint`; with several accounts pinned, `pinned to
   personal and side since 13:40   p back to auto`. By account and on a phone, the mode alone. How
   each mode routes is for `?` help.
-- **A row an account,** in the config's order, from 110 columns:
+- **A row's parts,** across the width, laid by flex (`routing.go`, `routingParts`), and read by
+  SESSIONS' rows too, so the two line up:
+  - fixed: the name column, as USAGE's rows have it; two cells after the words; the sessions, as
+    wide as `0 sessions`, and three cells after them; and the rate's tail of 8;
+  - flexing: the words, at least 20 and at most 61 (what they had at 173 columns before they
+    flexed), and the trace, at least 24; half of what the fixed parts leave each, the odd cell the
+    trace's, the words capped at their most and the trace taking the rest.
+
+  Their widths come from the accounts configured and fixed words alone, never the words or sessions
+  shown, so nothing moves as they change. With a name column of 16, that's 92 for the trace at 173
+  columns, the sessions at 79, and 35 cells from 65 at 108.
+- **A row an account,** in the config's order, wherever those parts' leasts fit (from 83 columns
+  with a name column of 16):
   - its number, name and marks at column 0, as in USAGE;
-  - its state at the name column, its glyph coloured as its words (below), its words cut by whole
-    clauses from the end so they end two cells before `● pinned` at column 68, or before the
-    sessions at 79 where no pin shows, a name column wider than 16 moving their start and cutting
-    them sooner, as Sessions' lines cut theirs (see Sessions);
-  - `● pinned` in `accent.key` at column 68, on each account the global pin names;
-  - its sessions at column 79: `2 sessions` or `1 session` in `text.muted`, `0 sessions` in
-    `text.faint`;
-  - its trace from column 92 to `w − 8`, then its rate right-aligned at the last column, `15/min` in
-    bold `text.secondary`, or `0/min` in `text.subtle`.
-- **Size 1:** a row an account, none between them, and under the last, at column 92, `requests a
-  minute, last 30 minutes` in `text.faint`. **Size 2,** with room to spare: two rows of trace an
-  account and a blank row, its words on the first row and its rate on the second, the caption on the
-  blank row after the last account.
-- **Under 110 columns, and on a phone:** two rows an account and a blank row. On the first, the
-  number and name at column 1, the short state at the name column, and `● pinned` right-aligned;
-  on the second, the trace from the name column to `w − 20` (16 cells on a phone, the name column
-  at 16), and the sessions and rate right-aligned, `4 sessions  15/min` (settled in the plan).
+  - its state at the name column, its glyph coloured as its words (below), in its words' cells,
+    ending two cells before `● pinned`, or before the sessions where no pin shows: the widest
+    that fits whole of its words cut to their leading clauses, from all of them to their lead
+    alone, and its short form. So a time is kept wherever a form keeps it (`● at its cap · back
+    17:10`, then `● at its cap · 17:10`), a model's family wherever its lead fits (`■ refused (403,
+    opus)`, never `■ refused (403)` beside it), and where new sessions go reads `● open · next`
+    wherever `● open · new sessions come here` doesn't fit, its short form the wider;
+  - `● pinned` in `accent.key`, three cells before the sessions, on each account the global pin
+    names, its words' cells giving way to it. A row ranks its parts: the state's lead; then its
+    time, where it has one (when it's back, or when its pressure runs out, never when a prime starts
+    an idle window); then the mark; then the rest (`· next` and the other clauses). The lead is
+    never cut where the words' least holds it; a model's own lead, wider than the least, is cut
+    until the words reach its width (`● Fable wk at its c…` at 83 with a name column of 16, `●
+    Sonnet wk at its cap` whole from 85). So the mark shows wherever the words beside it keep their
+    lead whole and, where it has a time, keep that too: `■ limit reached · back 15:54` at 100
+    columns, `■ limit reached · 15:54  ● pinned` once its short form fits beside the mark. Else the
+    mark is left off and the words take its cells. On one row a wider frame never says less: once
+    the time or the mark shows, it shows on every wider frame; the switch from two rows to one can
+    still say less a column on (`■ limit reached · 15:54` with `● pinned` at 82, `■ limit reached`
+    at 83). The least never counts the pin. The pin is said once: where the mark shows, the words
+    leave out what says it (`● at its cap  ● pinned`); where it's left off, a state whose words
+    carry it says it there (`● at its cap · pinned`); otherwise the row doesn't, and ROUTING's
+    heading names the accounts pinned. The two-row form and the lines beside USAGE's blocks say it
+    once too;
+  - its sessions: `2 sessions` or `1 session` in `text.muted`, `0 sessions` in `text.faint`;
+  - its trace to `w − 8`, then its rate right-aligned at the last column, `15/min` in bold
+    `text.secondary`, or `0/min` in `text.subtle`.
+- **Size 1:** a row an account, none between them, and under the last, where the trace starts,
+  `requests a minute, last 30 minutes` in `text.faint`. **Size 2,** with room to spare: two rows of
+  trace an account and a blank row, its words on the first row and its rate on the second, the
+  caption on the blank row after the last account.
+- **Where the parts' leasts don't fit a row,** as on a phone: two rows an account and a blank row.
+  On the first, the number and name at column 1, the short state at the name column, and
+  `● pinned` right-aligned; on the second, the trace from the name column to `w − 20` (16 cells on
+  a phone, the name column at 16), and the sessions and rate right-aligned, `4 sessions  15/min`
+  (settled in the plan).
 - **An account's state,** the first of these that holds, its glyph and first words in the colour
   given, the rest in `text.muted`; the short form on a phone:
 
@@ -1714,7 +1786,8 @@ first (the owner's call, 15 October 2026).
 
   The states are the status document's (see The status document): a limit or a refusal is said even
   where the account's last read failed. Accounts' Detail and Sessions' lines say an account's state
-  in these words too.
+  in these words too. In ROUTING, where `● pinned` shows beside them, the words leave out the pin,
+  so the phone draws `● at its cap` with `● pinned`, not `at its cap · pinned`.
 
 **A trace** draws requests a minute over the last 30 minutes, a column a cell, the newest at the
 right:
@@ -1735,14 +1808,23 @@ right:
   opening asking for one (see Live updates), then from the request stream. A session moved between
   accounts carries its whole 30 minutes on its own trace.
 
-**SESSIONS** lists the sessions running, those the router has routed in the last hour, grouped by
-account in the config's order, a session whose models go to two accounts on each:
+**SESSIONS** lists the sessions running, those the router has routed in the last hour, a session
+whose models go to two accounts on each:
 
-- **The account's number, name and marks** at column 0, on its first session's row alone.
+- **Busiest first** (`views.BusiestFirst`): the accounts by their sessions' requests a minute,
+  each session's as its trace counts it, then by how many run there, then in USAGE's order; and
+  each account's sessions together, by requests a minute, then the one seen last first. So an idle
+  session of a busy account comes before a busier one of a quieter account: the grouping wins (the
+  owner's call, 21 October 2026).
+- **The account's number, name and marks** at column 0, on the first of its sessions shown alone.
 - **The session's id,** its first 4 characters, at the name column: bold `text.primary` while busy,
   with a request in flight or seen in the last minute, else `text.muted`. Then two spaces, its
-  model's family padded to 7 in `text.muted`, and when it was last seen, right-aligned in 4 in
-  `text.subtle`: `now` within the minute, `9m`, `2h`.
+  model's family in `text.muted`, and a cell on, when it was last seen, right-aligned in 4 in
+  `text.subtle`: `now` within the minute, `9m`, `2h`. The family's column is a fixed part of the
+  row's, laid by flex (`overview_sessions.go`, `runningParts`), its width the widest family the
+  version table names, `sonnet`'s 6, a fact of the version table (`ledger`'s `families`), so the
+  columns never move with the sessions shown and why it's there keeps its cells; a model's id that
+  names no family is cut there, `claud…`.
 - **What it's doing,** three spaces on, padded to 9: `↓ ~1.2k` while it's answering, its tokens so
   far estimated at four characters a token, or `↑ ask` while it's asking, both in `accent.key`; else
   `idle` in `text.faint`.
@@ -1750,23 +1832,50 @@ account in the config's order, a session whose models go to two accounts on each
   router's reasons (see The router's events), with when: `started here 14:41`, adding `, the best`
   while its account is still where new sessions go; `moved from work 14:31: work reached its cap`;
   `moved from work 14:39: pinned to side`; `pinned here 14:39`, its own pin; `its pin to side
-  yields: side has no room` (settled in the plan).
-- **Its own trace** at column 92, one row, on the shared scale, and its rate right-aligned at the
-  last column. No blank rows between sessions; with none running, `no sessions running` in
+  yields: side has no room` (settled in the plan). It's cut to end two cells before the trace:
+  `moved from work 1…`, 18 cells, at 108 columns.
+- **Its own trace,** one row, starting where ROUTING's do, as ROUTING's row's parts lay them, so
+  the two columns line up, on the shared scale, and its rate right-aligned at the last column. A
+  session takes a row wherever an account does in ROUTING. No blank rows between sessions, but
+  where one has ended (see Steady, below); with none running, `no sessions running` in
   `text.faint` (settled in the plan).
+- **As many as its rows hold** (see Room): at its least, the busiest session and a row saying
+  how many more run, `+5 more` in `text.subtle` at the name column, the words and code Detail's
+  sessions use; a whole session more at a time as rows are spare; and the row saying how many more
+  goes once every session shows.
+- **Steady:** the sessions it shows, and their order, are taken as the layout is made, and kept
+  with it till the next, on a key, a resize or a section's shape changing (see Room). A session
+  that starts goes into `+N more`, the last shown giving way to that row where every row is taken;
+  under a layout made with none running, a session that starts shows on the row where it fits
+  whole, a row a session, else it's counted in `+N more`. One that ends leaves its row
+  blank, and where it was its account's first shown, its account's name goes to the next; as rates
+  change, nothing reorders (`views.Steady`). With none left running, it says so.
 - **While what names them is read,** as the List's first read takes 150 ms or longer, the heading
   says `loading…` in `text.subtle` as its description, till it lands (settled in the plan; see The
   page).
 - **A click on a row opens its session's page** (see A session's page): `↑` and `↓` stay on the
   account focus GRAPHS follows, so no key here opens one.
-- **Under 110 columns, and on a phone,** a session takes two rows: the account's number and name at
-  column 1 on its first, its id at the name column and what it's doing right-aligned; under them,
-  why it's there, from the name column. No trace (settled in the plan).
+- **Where ROUTING takes two rows an account,** as on a phone, a session takes two rows: the
+  account's number and name at column 1 on its first, its id at the name column and what it's doing
+  right-aligned; under them, why it's there, from the name column. No trace (settled in the plan).
 
 **COMING UP and LATELY** sit side by side: COMING UP from column 0, `round(w × 0.45)` wide, and
 LATELY from column `⌊w / 2⌋ + 2` to the edge, so 72 wide and from 82 at 160 columns, and 97 wide
-and from 110 at 216. Either alone takes the full width; on a phone, COMING UP comes first, then
-LATELY under it, each the full width, in their short words.
+and from 110 at 216. Either alone takes the full width. They sit side by side where each one's
+least fits in its column beside the other (`overview.go`, `listsBeside`), never by a width written
+down; else COMING UP comes first, then LATELY under it, each the full width. Each least is its
+line's fixed parts with an account's name at its least of 8, cut as the labels' rule allows, so the
+names configured never move the switch:
+
+- **COMING UP, 42 cells** (`comingLeast`): its time at its widest, `~Sat 06:00`, 10; the two blanks
+  after it; the name, 8; what befalls it at its shortest, ` is primed`, 10; and its countdown with
+  the gap before it, 12. It fits in `round(w × 0.45)` from 93 columns, so the two sit side by side
+  from 93, and from 100 are drawn as they were before.
+- **LATELY, 21 cells** (`latelyLeast`): its time at its widest, `Sun 02:00`, 9; the two blanks; its
+  mark and a blank, 2; and the name, 8. It fits beside COMING UP wherever COMING UP's does.
+
+Under 100 columns, on a phone's chrome, LATELY's words are its short ones; COMING UP's are the same
+at every width.
 
 - **COMING UP,** soonest first: the time, padded to the longest, as `16:30`, `~Sat 06:00` or
   `Sun 02:00`, in `text.secondary`; two spaces; the account in bold `text.primary`, then what
@@ -1822,7 +1931,8 @@ remembered").
   `50 − (n − 14)` cells wide: the number and name at column 0; the window labels at the name column,
   10 cells; the bars 10 cells on; the percentage a cell after a bar, and the words two cells after
   the percentage: 26, 48 cells, 75 and 81 for the sample. Its blocks are a blank row apart, as
-  `usage`'s are, but two while GRAPHS' charts sit beside them (see GRAPHS, above).
+  `usage`'s are, but two while GRAPHS' charts sit beside them at USAGE's least, and further, as
+  far as their rows of charts take, as USAGE grows (see GRAPHS, above).
 - **ROUTING moves beside each block,** at column `hx = n + 10 + bar + 7 + 22 + 4`, 107 for the
   sample, but while GRAPHS shows, when GRAPHS' charts are there instead and ROUTING keeps a section
   of its own (see GRAPHS, above; the owner's call, 15 October 2026). USAGE's heading is `hx − 3`
@@ -1858,29 +1968,46 @@ remembered").
 
 | Section | Least | Most | Rows |
 |---|---|---|---|
-| USAGE | The compact matrix | The big bars, by window from 150 columns | Compact: `2a + 7` for `a` accounts and the pool, 7 for one account |
-| GRAPHS | 5 rows of chart | 19 | `h + 4`; beside USAGE's blocks by account, none of its own (the owner's call, 15 October 2026) |
+| USAGE | The compact matrix | The big bars, by window from 150 columns; by account with GRAPHS' charts beside, every chart, its blocks apart for 5 rows of chart, and on the way, the charts stacked at 2 rows | Compact: `2a + 7` for `a` accounts and the pool, 7 for one account |
+| GRAPHS | 5 rows of chart | 19 | `r(h + 2) + 2` for `r` rows of charts; beside USAGE's blocks by account, none of its own (the owner's call, 15 October 2026) |
 | ROUTING | A row an account | Two rows of trace an account, a blank row between | `a + 3`; `3a + 2` |
-| SESSIONS | A row a session | The same | Its sessions and 2 |
+| SESSIONS | A session and `+N more`; every one where that's no fewer | A row a session, two where ROUTING takes two an account | Its sessions and 2, from one session and a row, a session at a time |
 | COMING UP and LATELY | 3 lines | 12 | Its lines and 2 |
 
 Rows 0 to 3 (0 to 4 on a phone) hold the title row and the status line, and the last two the blank
-row and the key line. The planner:
+row and the key line. The planner works in units, the sections that share rows: a section alone,
+USAGE with what sits beside it, or COMING UP and LATELY side by side. Each arrangement it tries is
+laid down the rows by flex (`overview.go`, `layUnits`): each unit a part of the rows it takes, its
+heading's alone where it folds, and the blank row before it a gap, as the rule above has it; flex
+says whether they fit. The order in which units fold, unfold and grow is the Overview's own, as
+below, not flex's even share:
 
 1. Every section shown starts at its least.
 2. **Rows short:** sections fold, in turn, until the page fits: SESSIONS; then COMING UP and LATELY
    together; then GRAPHS; then ROUTING. USAGE never folds; with many accounts it scrolls within the
    rows left to it.
-3. **While anything is folded, nothing grows,** and the rows over stay empty at the foot.
-4. **Rows to spare,** while nothing is folded, go in turn: to GRAPHS, a row at a time to 19; to
-   USAGE's big bars, if they fit; to ROUTING's two rows of trace, if they fit; then to COMING UP and
-   LATELY, a line at a time to 12. GRAPHS comes before the big bars, so that GRAPHS never shrinks as
-   they come; at a few heights, one row more brings the big bars or ROUTING's trace in, and ROUTING,
-   or COMING UP and LATELY, give up rows to make room.
-5. **Past every most,** the rest is empty at the foot, the key line on the last row.
-6. **The layout changes only on a key or a resize,** never on its own. SESSIONS keeps the rows it
-   was given: more sessions than fit show as many as fit, the last row saying `+2 more`
-   (settled in the plan).
+3. **What folds unfolds where it fits,** at its least: those folded last first, and of those
+   folded together, unit by unit in the page's order. So where the two don't fit side by side,
+   under 93 columns, and LATELY is a unit of its own under COMING UP, COMING UP unfolds alone where
+   LATELY can't, and LATELY alone where it fits
+   and COMING UP doesn't, as under a folded heading, where COMING UP's would bring a blank row
+   back. A section left folded never fits at its least with every other at its own.
+4. **Rows to spare go out even while a section is folded,** to the units that aren't, in turn: to
+   SESSIONS, a whole session at a time, its row or two, to every one, what's left that's less than a
+   session going on, never left blank; to GRAPHS, a row at a time to 19; to USAGE's big bars, if
+   they fit; to ROUTING's two rows of trace, if they fit; then to COMING UP and LATELY, a line at a
+   time to 12; by account, at the big bars' turn, so ahead of COMING UP and LATELY, USAGE grows to
+   the most of its forms that fits whole: GRAPHS' charts at 5 rows, or stacked at 2. A folded unit
+   never grows: what can't unfold leaves rows the others use. GRAPHS comes before the big bars, so
+   that GRAPHS never shrinks as they come; at a few heights, one row more brings the big bars or
+   ROUTING's trace in, and ROUTING, or COMING UP and LATELY, give up rows to make room.
+5. **Past every most,** or where no unit's next step fits, the rest is empty at the foot, the key
+   line on the last row.
+6. **The layout changes only on a key or a resize,** or a section's shape changing, never on its
+   own. SESSIONS keeps the rows it was given as sessions start and end, and the sessions it shows
+   in the order it took them, as SESSIONS above says; and COMING UP and LATELY theirs as lines
+   come and go: more sessions than fit show as many as fit, the last row saying `+2 more` (settled
+   in the plan).
 
 **A folded section keeps its heading,** saying what it holds, with no blank row between two folded
 ones:
@@ -2088,7 +2215,9 @@ holds.
     it, with no blank rows.
 
 **Detail** shows one account in full, or all of them, chosen from a list at its left. The panel's
-top half is now and the period; a rule, `the last six weeks`, heads the rest.
+top half is now and the period; a rule, `the last six weeks`, heads the rest. The rows and columns
+below are the frames' at 160 columns; its parts across the width are laid by flex, as **Wide, from
+where it fits** says, and where they don't fit, it's stacked, as **On a phone** says.
 
 - **The list,** columns 0 to 19 with the sample's names, a chooser and nothing else: from row 6, 2
   rows apart and from column 1, `0 all accounts`, `0` in `text.subtle` and the name bold
@@ -2103,10 +2232,13 @@ top half is now and the period; a rule, `the last six weeks`, heads the rest.
 - **The list's name column fits the names,** as USAGE's does (see `usage`, the printout): the widest
   number, label and `◆`, with no cells kept for `▲`, which the list doesn't draw, and a gap of two
   cells; at least 14 cells and at most 24. The dot, the lit row, the `│` and the panel move right
-  with it, the panel's parts keeping their widths, and the list gives way first: it widens only
-  into the cells the frame has past the panel's widest rows, 141 columns with the least column, a
-  long label cut with `…` to what's left: from 151 columns the column takes all 24 cells it may
-  (the owner's call, 15 October 2026).
+  with it, and the list gives way first (the owner's call, 15 October 2026): it takes what the
+  panel leaves it, a long label cut with `…` to that. The panel takes its natural, six weeks at a
+  gap of 4 and 2-cell days, before the names take more than 14 cells, at 141 columns; the names
+  narrow to 14 before the panel narrows; and past 141 they take up to 24 before the days grow.
+  Cells the weeks leave at their edge, as the 2 at 138 columns, go to the names before they're
+  cut. As the panel is laid with the names at 24, whatever the labels, its layout follows the
+  width alone.
 - **The panel's head,** row 6: the account's number, name and marks, three spaces, then its state in
   ROUTING's words without its `back …` time, saying where new sessions go (see The Overview): `● at
   its cap · new sessions go elsewhere`, `■ limit reached · new sessions go elsewhere`, `■ refused
@@ -2116,35 +2248,63 @@ top half is now and the period; a rule, `the last six weeks`, heads the rest.
   other models still come here`, in `accent.attention`, its USAGE row as `usage` draws a limit,
   while Compare's word stays the account's own (settled in the plan).
 - **USAGE,** row 8, then every window, used or not, from row 9, 2 rows apart: the window's name in
-  `text.subtle` (`5-hour`, `Week`, `Fable wk`); `usage`'s bar from 9 cells in, 40 wide; a cell on,
-  its percentage, right-aligned in 4 and bold in its level's colour; and two cells on, `usage`'s
-  full words (see `usage`, the printout). For `all accounts`, every account's window together, its
-  words its room, `1.2 of 3 left`.
-- **THIS WEEK,** on USAGE's row, rows 8 to 13, so its last row is level with the last window's:
-  `requests`, `limits`, `plan`, `worth` with its ratio, `$184  4.0×`, `all accounts`' saying it's
-  over the plans known where any isn't, `$635  4.3× · 2 of 3 plans known`, and `extra use`, labels 10
-  wide in `text.subtle`; for `all accounts`, `limits` is how many and `plan` the plans summed,
-  `$600/mo`. It starts at the fifth week's column of BY DAY below, `cx + 4 × step`, column 108. Its
-  title names the period: `THIS WEEK`, or `LAST 30 DAYS`.
+  `text.subtle` (`5-hour`, `Week`, `Fable wk`); `usage`'s bar, 40 wide at 160; a cell on, its
+  percentage, right-aligned in 4 and bold in its level's colour; and two cells on, `usage`'s full
+  words (see `usage`, the printout). For `all accounts`, every account's window together, its
+  words its room, `1.2 of 3 left`. Its row is laid by flex as the stack's is (see On a phone):
+  the names as wide as the widest of every window listed in its shortest whole form, `Sonnet
+  wk`, never cut, and at least 8 cells; a cell on, the bars, at least 16, two fewer than the
+  stack's, so four weeks still fit at 108 columns; and the percentage and the words, in the
+  cells of their form at its widest, ending a cell before THIS WEEK. The bars take what's left,
+  at most 40: 16 at 108 columns, 40 from 131.
+- **THIS WEEK,** on USAGE's row, from row 8, its title, then an item a row, labels 10 wide in
+  `text.subtle`: `requests`; `limits`, each window's hits, `week ×1 · 5-hour ×2`, or for `all
+  accounts`, how many; `plan`, by its name, or for `all accounts`, the plans summed, `$600/mo`;
+  `worth` with its ratio, `$184  4.0×`, and for `all accounts`, where some plans aren't known,
+  the plans known, `$635  4.3× · 2 of 3 plans known`; and `extra use`.
+  - Its column is its labels and its figures' cells, at least 10, and as many as its widest
+    bounded part takes, so each reads whole on a row of its own: a limit's hits of any window
+    the moment lists, or any the period's page records a limit of, by its short name and
+    counted as often as the window can be hit over the longest period, twelve weeks, once a
+    window, `5h ×403`, `Fable wk ×12`, 12 cells; and `all accounts`' extra use on for one fewer
+    than every account, `on for 2 of 3`, 13 cells. So 23 with three accounts. It's the same
+    whichever account is chosen, so nothing moves as the choice does, and it ends at the weeks'
+    edge, column 140 at 160.
+  - A figure's parts, between its ` · `, go on one row where they fit; where they don't, each
+    part goes on a row of its own, under the one before, in full where it fits, else short: a
+    limit's window by its short name, `5h ×2`, and the plans known as `2 of 3 plans`, or `2/3`.
+    BY MODEL sits two rows under the lower of USAGE's last window and THIS WEEK's last row, so
+    where THIS WEEK's rows reach past the windows', BY MODEL and all under it move down with
+    them.
+  - The requests, the plan's name, from the price table, the plans' summed price, and the worth
+    and its ratio have no bound: where one is wider than its cells, it's cut at the weeks' edge
+    with `…`.
+  - Its title names the period: `THIS WEEK`, or `LAST 30 DAYS`.
 - **BY MODEL,** row 15: the period's share of use as a stacked bar, from `cx`, 12 cells into the
-  panel, at column 36, to the six weeks' right edge below, `6 × step − gap` wide, 104 cells; on row
-  16, from `cx`, each version with a share, `● Opus 5.5 55%`, two cells apart, the smallest that
-  don't fit the row left out and `+2 more` in `text.subtle` ending it (settled in the plan).
-- **The rule,** row 18: `┄┄ ` in `border`, `the last six weeks` in `text.faint`, then `┄` in
-  `border` to BY MODEL's right edge. Above it, the windows are now, and THIS WEEK and BY MODEL the
-  period; below it, BY DAY and WEEKS always cover the last six weeks.
-- **BY DAY,** row 20: the last six weeks of days, from `cx`, `dw` cells a day and `gap` cells
-  between weeks, 2 and 4, so `step = 7 × dw + gap` is 18: each day the points of its week the
-  account used, in History's five shades on the account's own scale (see History); a red `▪`, in
+  panel, at column 36, to the weeks' edge below, 104 cells at 160; from row 16, from `cx`, each
+  version with a share, `● Opus 5.5 55%`, two cells apart, as many as fit the row, the rest on the
+  row under it, as the stack's, the smallest that don't fit that row left out and `+2 more` in
+  `text.subtle` ending it (settled in the plan). A second row moves the rule and all under it down
+  a row.
+- **The rule,** row 18: `┄┄ ` in `border`, the weeks shown, counted, `the last six weeks`, or `the
+  last four weeks`, in `text.faint`, then `┄` in `border` to the weeks' edge. Above it, the windows
+  are now, and THIS WEEK and BY MODEL the period; below it, BY DAY and WEEKS cover the weeks it
+  names.
+- **BY DAY,** row 20: the weeks' days, from `cx`, `dw` cells a day and `gap` cells between weeks, 2
+  and 4 at 160, so `step = 7 × dw + gap` is 18: each day the points of its week the account used,
+  in History's five shades on the account's own scale (see History); a red `▪`, in
   `state.destructive`, in the middle of a day it hit a 5-hour limit; and `··` in `text.faint` for
   days still to come. On row 21, under each week, its first day, `24 Aug`, a `step` apart, this
   week's bold `text.secondary` and the rest `text.faint`. For `all accounts`, every account's days
   together, marked where any hit a limit.
-- **WEEKS,** row 23: the last six weeks, a `step` apart from `cx`, each `usage`'s bar of the week's
-  peak, `step − gap − 5` wide, 9 cells, and a cell on, the peak, `text.muted`, or at 100 bold
+- **WEEKS,** row 23: the weeks' peaks, a `step` apart from `cx`, each `usage`'s bar of the week's
+  peak, `7 × dw − 5` wide, 9 cells at 160, and a cell on, the peak, `text.muted`, or at 100 bold
   `state.destructive`; for `all accounts`, each week the mean of the accounts' peaks. On row 25,
   from the panel's left, the verdict, as History's Weeks gives it (see History), bold in its colour,
-  then `   limit hit 3 of the last 7 weeks · 9% left at a reset, on average` in `text.muted`. For
+  then `   limit hit 3 of the last 7 weeks · 9% left at a reset, on average` in `text.muted`, to the
+  weeks' edge; where that doesn't fit, as at 108 columns, the stack's shorter words on its one
+  row, `   limit hit 3 of 7 weeks · 9% left at a reset`. As it fits to the weeks' edge, never the
+  frame's, its form follows the width alone, whatever the list's names. For
   `all accounts`, `room to spare together`, in `state.positive`, or `little to spare together`, in
   `accent.attention`, the first where its weeks left 25% or more at a reset on average
   (settled in the plan), then
@@ -2172,10 +2332,39 @@ top half is now and the period; a rule, `the last six weeks`, heads the rest.
   page). `→` takes the selection from the list into them, and `←` back; there `↑` `↓` select a
   session, and `enter` opens its page; more sessions than rows 28 to 31 hold end with `+2 more`
   (settled in the plan). LATELY moves beside them, 48 columns into the panel, at column 72, its rows
-  from row 28 and its words cut to 52.
-- **With one account,** there's no list and no Compare, and the stack grows into the width: the
-  panel from column 0, `cx` 12, the windows' bars 50 wide, days 3 cells and weeks 1 apart, so `step`
-  is 22, BY MODEL 131 wide, and THIS WEEK at column 100, over the fifth week as with the list.
+  from row 28 and its words cut short of the frame's edge.
+- **With one account,** there's no list and no Compare: the panel from column 0, `cx` 12, laid as
+  with the list. At 160 its days are 3 cells, so `step` is 25, and the weeks, BY MODEL and THIS
+  WEEK end at column 158.
+- **Wide, from where it fits.** Flex lays the wide form's parts across the frame, and where their
+  leasts don't fit, Detail is stacked; and under 100 columns, where the phone's chrome takes the
+  frame, always, one account's too, though its leasts fit narrower. The wide form's start
+  follows from the weeks' least: the fewest cells of weeks, as they're laid, that reach as far
+  past `cx` as USAGE's row at its leasts, a cell, and THIS WEEK. Where that's 68 or fewer, four
+  weeks at a gap of 4 reach it, and with the list Detail is wide from 105 columns, whatever its
+  names: so with up to nine accounts and the windows' names within 8 cells, THIS WEEK 23. Where
+  it's 69 to 78, five weeks at a gap of 2 do, and it's from 115: so with ten accounts or more,
+  `on for 9 of 10` making THIS WEEK 24, or a window named past 8 cells, `Sonnet wk`, widening
+  USAGE's names. The parts, in order:
+  - with more than one account, the list: a cell, the name column, from 14 cells to 24, narrowing
+    first, and 9 cells past it to the panel;
+  - the panel's headings' column, 12 cells, to `cx`;
+  - the weeks, at their natural, six at a gap of 4, 104 cells, narrowing after the names, to the
+    fewest cells whose weeks, as they're laid, end where USAGE's row at its leasts, a cell, and
+    THIS WEEK after it reach: 68 cells, four weeks at a gap of 4, with THIS WEEK 23 cells; 78,
+    five at a gap of 2, with 24;
+  - past their natural, the weeks growing into what's left once the names have 24.
+  - In the weeks' room, as many weeks as fit, six at most, the latest kept: their gap 4, narrowing
+    to 3 and then 2 before a week leaves. So six at 138 columns, a gap of 3, and four at 108, a gap
+    of 4. Past six at a gap of 4, the days' cells grow, a whole cell at a time, where six weeks at
+    a gap of 4 have room for them: 3 cells from 193 columns. What's left past the weeks, less than
+    a cell more for each of their 42 days, stays blank at the right, or goes to the names where
+    they're cut.
+  - THIS WEEK, the rule and BY MODEL's bar end at the weeks' edge, and USAGE's row ends a cell
+    before THIS WEEK, its bars at most 40, so they don't grow past that.
+  - The layout follows the width, the configured accounts, the windows the moment lists and the
+    limits the period's page records alone, never the figures in view. The rows under BY MODEL
+    move down with its second row, and with THIS WEEK's rows where they reach past USAGE's.
 - **On a phone,** stacked, each part under its heading, a blank row between: on the view's first
   row, `◂ 1 work ▸`, `◂` and `▸` bold `accent.key`, a picker that takes any number of accounts
   (settled in the plan), and at the right `↑↓ an account, or all` in `text.subtle`; under it, the

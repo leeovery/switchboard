@@ -532,7 +532,7 @@ func TestAScrollLaysTheOverviewOutAfreshOnlyWhereItMoves(t *testing.T) {
 			if h.model.scroll != tt.scroll {
 				t.Fatalf("USAGE is scrolled %d accounts, want %d", h.model.scroll, tt.scroll)
 			}
-			if afresh := h.model.layout != kept; afresh != tt.afresh {
+			if afresh := !sameLayout(h.model.layout, kept); afresh != tt.afresh {
 				t.Errorf("laid out afresh %v, want %v: only a scroll that moves USAGE lets the layout kept go, as sessions started", afresh, tt.afresh)
 			}
 			if tt.afresh {
@@ -540,7 +540,7 @@ func TestAScrollLaysTheOverviewOutAfreshOnlyWhereItMoves(t *testing.T) {
 			}
 		})
 	}
-	if len(laid) == 2 && laid[0] != laid[1] {
+	if len(laid) == 2 && !sameLayout(laid[0], laid[1]) {
 		t.Errorf("the wheel laid the Overview out as %+v, want it as j does, %+v", laid[1], laid[0])
 	}
 }

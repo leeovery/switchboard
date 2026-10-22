@@ -51,13 +51,9 @@ var (
 var phoneAllowed = []string{
 	// S5: the Switchboard's lanes.
 	"internal/dashboard/sessionslanes.go:Frame.lanesOf",
-	// S10: the Overview's sections, side by side or not.
-	"internal/dashboard/overview.go:Frame.joins",
 	// S12: USAGE's key, and the room it says is left.
 	"internal/dashboard/overview_usage.go:Frame.overviewBlock",
 	"internal/dashboard/overview_usage.go:Frame.roomLeft",
-	// S13: GRAPHS.
-	"internal/dashboard/graphs.go:Frame.graphsOf",
 	// S14: USAGE's key, its parts spaced apart by the width.
 	"internal/dashboard/usage.go:keyApart",
 	// S16, S17 and S25: the form Accounts draws its views in, Compare's
@@ -88,13 +84,6 @@ var sizedAllowed = []string{
 	// S5: the Switchboard's lines, on one row where they're narrower than
 	// widestLines.
 	"internal/dashboard/switchboardlines.go:linesDrawn.oneRow",
-	// S10: ROUTING's rows, routingRows, and SESSIONS' form by it.
-	"internal/dashboard/overview_sessions.go:Frame.runningForm",
-	"internal/dashboard/routing.go:Frame.routingSection",
-	"internal/dashboard/routing.go:Frame.drawRouting",
-	"internal/dashboard/routing.go:Frame.accountRows",
-	"internal/dashboard/routing.go:besideRows",
-	"internal/dashboard/traces.go:Frame.accountTraceCells",
 	// S12: USAGE paged at short heights.
 	"internal/dashboard/overview_usage.go:usageViews.paged",
 	// S14: USAGE's matrix, matrixWidth, its names' column, roomyNames, its
@@ -107,7 +96,6 @@ var sizedAllowed = []string{
 	"internal/dashboard/usage.go:nameColumn",
 	"internal/dashboard/usage.go:usageBlock.wordCells",
 	"internal/dashboard/usage.go:usageBlock.matrixed",
-	"internal/dashboard/usage.go:usageBlock.byAccount",
 	"internal/dashboard/usage.go:usageBlock.labels",
 	"internal/dashboard/usage.go:usageBlock.key",
 	"internal/dashboard/usagewords.go:usageWords.pick",
@@ -139,14 +127,9 @@ var sizedAllowed = []string{
 var cutAllowed = []string{
 	// S5: the Switchboard's lines' window labels.
 	"internal/dashboard/switchboardlines.go:linesDrawn.window",
-	// S11: SESSIONS' model families.
-	"internal/dashboard/overview_sessions.go:Frame.wideRunning",
-	// S17: Detail's window names, its sessions' model families and how many
-	// more, and its LATELY's words.
-	"internal/dashboard/accountsdetail.go:detailDrawn.usage",
+	// S17: Detail's sessions' model families and how many more.
 	"internal/dashboard/accountsdetail.go:detailDrawn.session",
 	"internal/dashboard/accountsdetail.go:detailDrawn.sessions",
-	"internal/dashboard/accountsdetail.go:detailDrawn.panel",
 	// S22: a session's page, its accounts' stays and the account it's on.
 	"internal/dashboard/sessionpage.go:sessionDrawn.account",
 	"internal/dashboard/sessionpage.go:sessionDrawn.phoneOn",

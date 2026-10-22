@@ -8,8 +8,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // Section is one of the Overview's sections, which its key shows and hides.
@@ -148,8 +150,8 @@ func (s Sections) none() bool {
 }
 
 // lists reports whether the section lists lines, as COMING UP and LATELY
-// do: side by side, but on a phone, they fold together, each to its first
-// line, and grow a line at a time.
+// do: side by side, where listsBeside says, they fold together, each to its
+// first line, and grow a line at a time.
 func (s Section) lists() bool {
 	return s == SectionComing || s == SectionLately
 }
@@ -189,8 +191,10 @@ type section struct {
 	Section
 	// least and most are the fewest rows the section takes and the most,
 	// but for one that lists lines, whose most lines tells, as mostRows has
-	// it.
+	// it; between are the rows past its least and short of its most it may
+	// grow to whole, as whole grows it, the fewest first.
 	least, most int
+	between     []int
 	// aside is the column a section of no rows of its own is drawn from
 	// beside this one, in its rows, as ROUTING is beside USAGE's blocks by
 	// account: 0 where none can be.
@@ -217,6 +221,11 @@ type section struct {
 	scrolling   func(rows, offset int) Scrolling
 	rowsAtATime func(rows int) bool
 	revealing   func(rows, offset int, id string) int
+	// order is the order of the rows SESSIONS lists, which a layout made
+	// keeps; and steady is SESSIONS listing them in the order a layout kept,
+	// as give gives it. Nil for any other section.
+	order  []views.RunningRow
+	steady func(kept []views.RunningRow) section
 }
 
 // mostRows is the most rows the section takes: its most, or for one that
@@ -306,14 +315,15 @@ type planned struct {
 // then ROUTING. USAGE never folds.
 var foldOrder = [][]Section{{SectionSessions}, {SectionComing, SectionLately}, {SectionGraphs}, {SectionRouting}}
 
-// growth is the order the rows to spare go in, where nothing folds, each
-// section to its most: to GRAPHS, a row at a time; to USAGE's big bars, then
-// to ROUTING's two rows of trace, each where it fits whole; then to COMING UP
-// and LATELY, a line at a time.
+// growth is the order the rows to spare go in, to the units not folded, each
+// to its most: to SESSIONS, a whole session at a time; to GRAPHS, a row at a
+// time; to USAGE's big bars, then to ROUTING's two rows of trace, each where
+// it fits whole; then to COMING UP and LATELY, a line at a time.
 var growth = []struct {
 	sections []Section
 	grow     func(units []*unit, spare int) int
 }{
+	{[]Section{SectionSessions}, whole},
 	{[]Section{SectionGraphs}, rowByRow},
 	{[]Section{SectionUsage}, whole},
 	{[]Section{SectionRouting}, whole},
@@ -367,23 +377,35 @@ func blankBetween(before, after unit) bool {
 	return !before.fold || !after.fold
 }
 
-// rowsTaken is how many rows the units take, laid out in turn, a blank row
-// between two, as blankBetween says.
-func rowsTaken(units []unit) int {
-	n := 0
+// layUnits lays the units out by flex down room rows, in turn, each the rows
+// it takes, a blank row between two as blankBetween says: where each lies,
+// the rows they take, and whether they fit in room.
+func layUnits(units []unit, room int) (spans []flex.Span, taken int, fits bool) {
+	parts := make([]flex.Part, len(units))
 	for i, u := range units {
-		n += u.taken()
+		parts[i] = flex.Part{Least: u.taken(), Natural: u.taken()}
 		if i > 0 && blankBetween(units[i-1], u) {
-			n++
+			parts[i].Gap = 1
 		}
 	}
-	return n
+	spans, fits = flex.Lay(room, parts...)
+	if len(spans) > 0 {
+		last := spans[len(spans)-1]
+		taken = last.At + last.Size
+	}
+	return spans, taken, fits
+}
+
+// unitsFit reports whether the units fit in room rows, as layUnits lays them out.
+func unitsFit(units []unit, room int) bool {
+	_, _, fits := layUnits(units, room)
+	return fits
 }
 
 // unitsOf are the units the sections are laid out in, in their order: a
 // section of no rows of its own beside the one that leaves room for it, as
-// aside says, and where none does, nowhere; LATELY beside COMING UP, but on
-// a phone, where it's under it; and each other section alone.
+// aside says, and where none does, nowhere; LATELY beside COMING UP, where
+// listsBeside says, else under it; and each other section alone.
 func (f Frame) unitsOf(sections []section) []unit {
 	var units []unit
 	for _, s := range sections {
@@ -401,40 +423,71 @@ func (f Frame) unitsOf(sections []section) []unit {
 // joins is which of the units laid out so far the section shares rows with,
 // reporting false where it takes rows of its own: for a section of no rows of
 // its own, the one that leaves room beside it; for one that lists lines, the
-// last, where it lists them too, but on a phone.
+// last, where it lists them too, and listsBeside says they sit side by side.
 func (f Frame) joins(units []unit, s section) (int, bool) {
 	if s.least == 0 {
 		i := slices.IndexFunc(units, func(u unit) bool { return u.sections[0].aside > 0 })
 		return i, i >= 0
 	}
 	last := len(units) - 1
-	return last, s.lists() && !f.phone() && last >= 0 && units[last].sections[0].lists()
+	return last, s.lists() && f.listsBeside() && last >= 0 && units[last].sections[0].lists()
+}
+
+// listsBeside reports whether COMING UP and LATELY sit side by side: where
+// each one's least fits in the columns columns gives it beside the other,
+// COMING UP comingWidth wide, and LATELY from latelyAt to the edge.
+func (f Frame) listsBeside() bool {
+	return comingLeast() <= comingWidth(f.Width) && latelyLeast() <= f.Width-latelyAt(f.Width)
 }
 
 // allot gives each unit its rows in room rows, and returns them: its least,
-// to start with. Where they don't fit, units fold to their headings, as
-// foldOrder has them, until they do; and where they still don't, USAGE
-// scrolls within the rows left to it. Where they fit with none folded, the
-// rows to spare go as growth has them, and the rest stay empty at the foot.
+// to start with. Where they don't fit, units fold to their headings, as fold
+// folds them, and what then fits unfolds again, as unfold unfolds it; where
+// they still don't, USAGE scrolls within the rows left to it. The rows to
+// spare go to the units not folded, as growth has them, and the rest stay
+// empty at the foot.
 func allot(units []unit, room int) []unit {
 	for i := range units {
 		units[i].rows = units[i].least
 	}
-	for _, folds := range foldOrder {
-		if rowsTaken(units) <= room {
-			break
-		}
-		for i := range units {
-			units[i].fold = units[i].fold || units[i].ledBy(folds...)
-		}
-	}
-	switch over := rowsTaken(units) - room; {
-	case over > 0:
-		squeeze(units, over)
-	case !slices.ContainsFunc(units, func(u unit) bool { return u.fold }):
-		grow(units, -over)
+	unfold(units, room, fold(units, room))
+	if _, taken, fits := layUnits(units, room); fits {
+		grow(units, room-taken)
+	} else {
+		squeeze(units, taken-room)
 	}
 	return units
+}
+
+// fold folds the units to their headings, a group of foldOrder's at a time,
+// until they fit in room rows, and returns the groups it folded, in turn.
+func fold(units []unit, room int) [][]Section {
+	var folded [][]Section
+	for _, group := range foldOrder {
+		if unitsFit(units, room) {
+			break
+		}
+		folded = append(folded, group)
+		for i := range units {
+			units[i].fold = units[i].fold || units[i].ledBy(group...)
+		}
+	}
+	return folded
+}
+
+// unfold unfolds each of the units folded where it fits in room rows at its
+// least: the group folded last first, and within a group, unit by unit, in
+// the page's order, so where LATELY is under COMING UP, COMING UP unfolds
+// alone where LATELY can't.
+func unfold(units []unit, room int, folded [][]Section) {
+	for _, group := range slices.Backward(folded) {
+		for i := range units {
+			if units[i].fold && units[i].ledBy(group...) {
+				units[i].fold = false
+				units[i].fold = !unitsFit(units, room)
+			}
+		}
+	}
 }
 
 // squeeze takes over rows from USAGE, which scrolls within the rest, its
@@ -445,12 +498,13 @@ func squeeze(units []unit, over int) {
 	}
 }
 
-// grow gives the units spare rows, as growth has them.
+// grow gives the units not folded spare rows, as growth has them: a unit
+// folded never grows.
 func grow(units []unit, spare int) {
 	for _, g := range growth {
 		var grown []*unit
 		for i := range units {
-			if units[i].ledBy(g.sections...) {
+			if !units[i].fold && units[i].ledBy(g.sections...) {
 				grown = append(grown, &units[i])
 			}
 		}
@@ -473,27 +527,32 @@ func rowByRow(units []*unit, spare int) int {
 }
 
 // whole grows each unit to its most where that fits whole in the rows to
-// spare, and returns how many are left.
+// spare, else to the most of its sections' steps between that does, and
+// returns how many are left.
 func whole(units []*unit, spare int) int {
 	for _, u := range units {
-		if need := u.most() - u.rows; need > 0 && need <= spare {
-			u.rows, spare = u.rows+need, spare-need
+		to := u.rows
+		for _, s := range u.sections {
+			for _, step := range slices.Concat(s.between, []int{u.most()}) {
+				if step > to && step-u.rows <= spare {
+					to = step
+				}
+			}
 		}
+		u.rows, spare = to, spare-(to-u.rows)
 	}
 	return spare
 }
 
-// place lays the units out in turn from row top, a blank row between two, as
-// blankBetween says: each section's heading on its unit's first row, in the
-// columns columns gives it, and where it doesn't fold, its body under its
-// heading's blank row, in the rest of its unit's rows.
+// place lays the units out from row top, as layUnits lays them: each
+// section's heading on its unit's first row, in the columns columns gives
+// it, and where it doesn't fold, its body under its heading's blank row, in
+// the rest of its unit's rows.
 func (f Frame) place(units []unit, top int) []planned {
 	var laid []planned
-	y := top
+	spans, _, _ := layUnits(units, f.viewRows())
 	for i, u := range units {
-		if i > 0 && blankBetween(units[i-1], u) {
-			y++
-		}
+		y := top + spans[i].At
 		for j, s := range u.sections {
 			head, body := f.columns(u, j)
 			head.y, head.rows = y, 1
@@ -504,7 +563,6 @@ func (f Frame) place(units []unit, top int) []planned {
 			}
 			laid = append(laid, p)
 		}
-		y += u.taken()
 	}
 	return laid
 }
@@ -548,17 +606,19 @@ func latelyAt(width int) int {
 }
 
 // Layout is the Overview's layout as it was made: the rows each section shown
-// was given, its heading's among them, and which fold; and what it was made
-// for, as layoutFor says. The watch keeps it from look to look, as LayoutOf
-// gives it, so the layout changes only on a key or a resize, or a section's
-// shape changing, never as sessions start and lines come: SESSIONS keeps the
-// rows it was given however many sessions run, and COMING UP and LATELY
-// theirs however many lines they have. A frame lays the Overview out afresh
-// where its Layout is the zero Layout, or one made for another frame or
-// shape.
+// was given, its heading's among them, and which fold; the rows SESSIONS
+// listed, in their order; and what it was made for, as layoutFor says. The
+// watch keeps it from look to look, as LayoutOf gives it, so the layout
+// changes only on a key or a resize, or a section's shape changing, never as
+// sessions start and lines come: SESSIONS keeps the rows it was given
+// however many sessions run, and the order it listed them in, as
+// views.Steady keeps it, and COMING UP and LATELY theirs however many lines
+// they have. A frame lays the Overview out afresh where its Layout is the
+// zero Layout, or one made for another frame or shape.
 type Layout struct {
 	made     layoutFor
 	allotted [len(sectionWords)]allotment
+	running  []views.RunningRow
 }
 
 // layoutFor is what a layout is made for: a frame of a size, showing the
@@ -608,6 +668,11 @@ func (f Frame) LayoutOf(doc status.Document, now time.Time) Layout {
 	l := Layout{made: made}
 	for _, u := range allot(units, f.viewRows()) {
 		l.allotted[u.sections[0].Section] = allotment{rows: u.rows, fold: u.fold}
+		for _, s := range u.sections {
+			if s.steady != nil {
+				l.running = s.order
+			}
+		}
 	}
 	return l
 }
@@ -629,7 +694,7 @@ func (f Frame) layoutFor(units []unit) layoutFor {
 // keeps reports whether the frame keeps its Layout for a layout made for
 // made: one made for it, which isn't the zero Layout.
 func (f Frame) keeps(made layoutFor) bool {
-	return f.Layout != (Layout{}) && f.Layout.made == made
+	return f.Layout.made != (layoutFor{}) && f.Layout.made == made
 }
 
 // allotted are the units of the Overview's sections of doc at now, each
@@ -644,11 +709,17 @@ func (f Frame) allotted(doc status.Document, now time.Time) []unit {
 }
 
 // give gives each unit the rows, and the fold, the layout gave the section
-// it's led by, and returns them.
+// it's led by, SESSIONS listing in the order the layout kept, as its steady
+// lists them, and returns them.
 func (l Layout) give(units []unit) []unit {
 	for i := range units {
 		a := l.allotted[units[i].sections[0].Section]
 		units[i].rows, units[i].fold = a.rows, a.fold
+		for j, s := range units[i].sections {
+			if s.steady != nil {
+				units[i].sections[j] = s.steady(l.running)
+			}
+		}
 	}
 	return units
 }

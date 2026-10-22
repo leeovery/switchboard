@@ -2,6 +2,7 @@ package watch
 
 import (
 	"errors"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -451,6 +452,13 @@ func TestTheOverviewKeepsItsLayoutAsSessionsStartTillAKeyOrAResize(t *testing.T)
 	}
 }
 
+// sameLayout reports whether two of the Overview's layouts are one: made for
+// the same, each section given the same rows, and SESSIONS' rows kept in the
+// same order.
+func sameLayout(a, b dashboard.Layout) bool {
+	return reflect.DeepEqual(a, b)
+}
+
 // threeRunning are three sessions running, two on side and one on work.
 func threeRunning() []status.Session {
 	return []status.Session{
@@ -565,11 +573,11 @@ func TestAClickOrTheWheelLaysTheOverviewOutAsItsKeyDoes(t *testing.T) {
 				h.tickUntilAsked()
 				kept := h.model.layout
 				input(h)
-				if laid[i] = h.model.layout; laid[i] == kept {
+				if laid[i] = h.model.layout; sameLayout(laid[i], kept) {
 					t.Errorf("input %d left the layout as kept, want it laid out afresh, SESSIONS a row a session", i+1)
 				}
 			}
-			if laid[0] != laid[1] {
+			if !sameLayout(laid[0], laid[1]) {
 				t.Errorf("the mouse laid the Overview out as %+v, want it as the key does, %+v", laid[1], laid[0])
 			}
 		})

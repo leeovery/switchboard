@@ -9,8 +9,8 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// Detail's last six weeks, under its rule: BY DAY, WEEKS and the verdict, of
-// the account shown, or all accounts.
+// Detail's last weeks, as many as fit, under its rule: BY DAY, WEEKS and the
+// verdict, of the account shown, or all accounts.
 
 // weeksIn are where the latest of count weeks that fit in room cells lie,
 // from cx, as latestFitting lays them: a week its days, the gap between.
@@ -48,14 +48,15 @@ func dayToCome(cells int) line {
 	return line{{strings.Repeat("·", cells), faintInk}}
 }
 
-// weeks draws WEEKS along row y: its heading; and from cx, a step apart,
-// each of the six weeks' peaks as usage's bar draws a share, weekBar cells
-// long, and a cell on, as peakSaid says it.
-func (d detailDrawn) weeks(c *canvas, y int) {
+// weeks draws WEEKS along row y: its heading; and from cx, at the weeks
+// given, the latest peak at the last, each as usage's bar draws a share,
+// weekBar cells long, and a cell on, as peakSaid says it.
+func (d detailDrawn) weeks(c *canvas, y int, weeks []flex.Span) {
 	c.line(d.l.panel, y, line{{"WEEKS", dimInk}})
 	cells := d.l.weekBar()
-	for i, p := range d.row.Peaks {
-		x := d.l.cx() + i*d.l.step()
+	peaks := d.row.Peaks[max(len(d.row.Peaks)-len(weeks), 0):]
+	for i, p := range peaks {
+		x := d.l.cx() + weeks[len(weeks)-len(peaks)+i].At
 		peakBar(p).draw(c, d.f.Look, x, y, cells)
 		c.line(x+cells+1, y, peakSaid(p))
 	}
@@ -85,7 +86,12 @@ func peakSaid(p views.WeekPeak) line {
 }
 
 // verdict draws the verdict on the account's weeks along row y, from the
-// panel's column, as verdictParts says it, cut short of the frame's edge.
+// panel's column to the weeks' edge: as verdictParts says it, or where that
+// doesn't fit, as verdictShort does, its parts on the one row, three cells
+// apart, cut there.
 func (d detailDrawn) verdict(c *canvas, y int) {
-	c.line(d.l.panel, y, fitParts(d.f.edge()-d.l.panel, verdictParts(*d.page, d.row)...))
+	full := verdictParts(*d.page, d.row)
+	short := joinedParts(span{"   ", mutedInk}, verdictShort(d.row)...)
+	cells := d.l.edge() - d.l.panel
+	c.line(d.l.panel, y, firstFit(cells, fitParts(partsWidth(full), full...), fitParts(cells, short...)))
 }
