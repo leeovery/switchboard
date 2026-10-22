@@ -164,7 +164,7 @@ session shows:
 
 ROUTING takes a row for each account, and SESSIONS a row for each session, wherever an account's
 name, its state in at least 20 cells, its sessions and a trace of at least 24 fit on one row, from
-83 columns with short names. Narrower, each takes two.
+83 columns with a name column of 16. Narrower, each takes two.
 
 ### COMING UP and LATELY
 
@@ -520,7 +520,7 @@ Under 100 columns, the dashboard lays itself out for a phone.
 - The tabs sit on a row of their own, under the clock.
 - The Overview's USAGE stacks its windows in short words.
 - ROUTING takes two rows for each account, and SESSIONS two rows for each session, as they do
-  wherever one row doesn't fit, under 83 columns with short names.
+  wherever one row doesn't fit, under 83 columns with a name column of 16.
 - LATELY comes under COMING UP, as it does wherever the two don't fit side by side, under 93
   columns.
 - Accounts' `against it` and `against` give `all accounts`' ratio alone, but where an account has

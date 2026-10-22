@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"fmt"
+	"math"
 	"slices"
 	"sync"
 	"time"
@@ -194,8 +195,9 @@ func (f Frame) routingBesideUsage() bool {
 // a + 3 rows for a accounts; at its most, size 2, two rows of trace an
 // account and a blank row, 3a + 2. Where its row's parts don't fit a row, as
 // routingColumns says, it's two rows an account and a blank row, 3a + 1 at
-// its least and its most. Beside USAGE's blocks, it's as routingAside has it. Folded, its
-// heading says the mode alone. Its table is built only as it's first drawn.
+// its least and its most. Beside USAGE's blocks, it's as routingAside has
+// it. Folded, its heading says the mode alone. Its table is built only as
+// it's first drawn.
 func (f Frame) routingSection(doc status.Document, now time.Time) section {
 	m := f.Moment(doc, now)
 	if f.routingBesideUsage() {
@@ -288,19 +290,22 @@ func routingSized(a int, body bounds) bool {
 
 // wideRouting draws account r's row of ROUTING from row y, on a row an
 // account, its trace rows tall, as t's columns lay it: its number, name and
-// marks; its state from the name column, its words cut by whole clauses to
-// their cells, less ● pinned's and pinnedApart, where it shows, wordsGap
-// before it; its sessions; and its trace, its rate right-aligned on its last
-// row at the edge rateEdge gives it.
+// marks; its state from the name column, in its words' cells as
+// rowStanding words it, less ● pinned's and pinnedApart, where it shows,
+// wordsGap before it; its sessions; and its trace, its rate right-aligned on
+// its last row at the edge rateEdge gives it. ● pinned shows only where the
+// words keep their least beside it: ROUTING's heading names the accounts
+// pinned all the same.
 func (f Frame) wideRouting(c *canvas, t routingTable, r accountRouting, y, rows int) {
 	at := t.columns
 	c.line(0, y, r.name)
 	words := at.words
-	if r.pinned {
-		words -= line{pinnedSpan}.width() + pinnedApart
+	beside := words - ansi.StringWidth(pinnedSpan.text) - pinnedApart
+	if r.pinned && beside >= wordsLeast {
+		words = beside
 		c.line(at.names+words+wordsGap, y, line{pinnedSpan})
 	}
-	f.drawStanding(c, r, at.names, y, words, false)
+	f.drawStanding(c, r, at.names, y, rowStanding(r.standing, words))
 	c.line(at.sessions, y, line{r.sessionsCounted()})
 	trace := bounds{x: at.trace, y: y, width: at.traceCells, rows: rows}
 	f.drawTrace(c, r.trace, t.now, trace, r.faded)
@@ -320,19 +325,25 @@ func (f Frame) narrowRouting(c *canvas, t routingTable, r accountRouting, y int)
 		end = c.right(f.Width, y, line{pinnedSpan})
 	}
 	at := t.columns
-	f.drawStanding(c, r, at.names, y, end-wordsGap-at.names, true)
+	f.drawStanding(c, r, at.names, y, standingWords(r.standing, true, end-wordsGap-at.names))
 	trace := bounds{x: at.trace, y: y + 1, width: at.traceCells, rows: 1}
 	f.drawTrace(c, r.trace, t.now, trace, r.faded)
 	c.right(f.rateEdge(trace), y+1, line{r.sessionsCounted(), spaces(2), r.rate(t.now)})
 }
 
-// drawStanding draws how account r stands from x along row y, its words, or
-// short, its short form, cut by whole clauses to width cells, as standingWords
-// cuts them, picked out while its state is newly changed, as cueStanding
-// says.
-func (f Frame) drawStanding(c *canvas, r accountRouting, x, y, width int, short bool) {
-	end := c.line(x, y, standingWords(r.standing, short, width))
+// drawStanding draws how account r stands from x along row y, in the words
+// given, picked out while its state is newly changed, as cueStanding says.
+func (f Frame) drawStanding(c *canvas, r accountRouting, x, y int, words line) {
+	end := c.line(x, y, words)
 	f.cueStanding(c, r.id, x, y, end-x)
+}
+
+// rowStanding are the words of how an account stands on a row of ROUTING's,
+// in width cells: the first form that fits whole, its words, then its short
+// form, so a time is never cut where a form keeps it; else its words cut by
+// whole clauses, as standingWords cuts them.
+func rowStanding(r status.Routing, width int) line {
+	return firstFit(width, standingWords(r, false, math.MaxInt), standingWords(r, true, math.MaxInt), standingWords(r, false, width))
 }
 
 // standingWords are the words of how an account stands, or short, its short
@@ -489,7 +500,7 @@ func (f Frame) routingBeside(c *canvas, t routingTable, at blocksBeside) {
 // where they have their rows.
 func (f Frame) besideAccount(c *canvas, t routingTable, r accountRouting, x int, rows []int) {
 	drawLines(rows,
-		func(y int) { f.drawStanding(c, r, x, y, f.Width-wordsGap-x, false) },
+		func(y int) { f.drawStanding(c, r, x, y, standingWords(r.standing, false, f.Width-wordsGap-x)) },
 		func(y int) { c.line(x, y, besideSessions(r)) },
 		func(y int) {
 			trace := f.besideTrace(x, y)

@@ -29,7 +29,7 @@ WEEK
 
 ROUTING   auto ─────────────────────────────────────────────────────────────────────────────────────────── r
 
-1 work          ● at its cap · back 17:10           0 sessions   ▃▅▄▂▂▂▂▃▅▆▄▃▃▂▂▂▂▂▂▂▁▂▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
+1 work          ● at its cap · 17:10                0 sessions   ▃▅▄▂▂▂▂▃▅▆▄▃▃▂▂▂▂▂▂▂▁▂▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
 2 personal ◆    ● open                              2 sessions   ▁▂▂▂▁▁▁▁▁▁▂▂▁▁▁▁▁▁▁▁▃▆▄▂▁▁▁▁▁▁▁▁▂▂▂   3/min
 3 side ▲        ● open · new sessions come here     4 sessions   ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▄▇   ▇▇▆▅▄▅▅▆  11/min
                                                                  requests a minute, last 30 minutes

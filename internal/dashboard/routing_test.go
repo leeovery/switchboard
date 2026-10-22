@@ -74,7 +74,7 @@ func TestROUTINGsFormsLayItsRowsOut(t *testing.T) {
 		texts[71], texts[115] = lane(41), "0/min"
 		return textsAt(120, texts)
 	}
-	work, personal, side := "● at its cap · back 17:10", "● open", "● open · new sessions come here"
+	work, personal, side := "● at its cap · 17:10", "● open", "● open · new sessions come here"
 	caption := textsAt(120, map[int]string{71: "requests a minute, last 30 minutes"})
 	tests := []struct {
 		name  string
@@ -139,8 +139,8 @@ func TestAnAccountsStateIsCutByWholeClausesBeforeWhatFollowsIt(t *testing.T) {
 			want: textsAt(92, map[int]string{0: "1 work", 16: "● at its cap · back 17:10 · new sessions go elsewhere", 79: "0 sessions"}),
 		},
 		{
-			name: "pinned: its clause left off whole, to end two cells or more before ● pinned at 68", doc: capped(true),
-			want: textsAt(92, map[int]string{0: "1 work", 16: "● at its cap", 68: "● pinned", 79: "0 sessions"}),
+			name: "pinned: its short form whole, where its words aren't, to end two cells or more before ● pinned at 68", doc: capped(true),
+			want: textsAt(92, map[int]string{0: "1 work", 16: "● at its cap · pinned", 68: "● pinned", 79: "0 sessions"}),
 		},
 	}
 	for _, tt := range tests {
@@ -173,6 +173,111 @@ func TestStandingWordsAreCutWholeFromTheEnd(t *testing.T) {
 	for _, tt := range tests {
 		if got := standingWords(r, tt.short, tt.width).plain(); got != tt.want {
 			t.Errorf("%s: %q, want %q", tt.name, got, tt.want)
+		}
+	}
+}
+
+// On a row of ROUTING's, an account's state takes the first form that fits
+// whole, its words, then its short form, so its time is never cut where a
+// form keeps it; else its words cut by whole clauses.
+func TestARowsStateTakesTheFirstFormThatFitsWhole(t *testing.T) {
+	r := status.Routing{Kind: status.RoutingLimited, Says: "limit reached", Clauses: []string{"back 15:30"}, Short: []string{"limit reached", "15:30"}}
+	tests := []struct {
+		name  string
+		width int
+		want  string
+	}{
+		{name: "its words whole", width: 28, want: "■ limit reached · back 15:30"},
+		{name: "its short form whole, a cell short of its words", width: 27, want: "■ limit reached · 15:30"},
+		{name: "its short form at its width", width: 23, want: "■ limit reached · 15:30"},
+		{name: "its words cut by whole clauses, a cell short of its short form", width: 22, want: "■ limit reached"},
+	}
+	for _, tt := range tests {
+		if got := rowStanding(r, tt.width).plain(); got != tt.want {
+			t.Errorf("%s: %q, want %q", tt.name, got, tt.want)
+		}
+	}
+}
+
+// From the first row an account to 100 columns, a state keeps its time
+// wherever a form holds it whole: work at its cap, its words never whole
+// there, in its short form, from 83; and of ten accounts, a name column of
+// 17, team at its limit, from 84, its words cut to their lead in under 23
+// cells, then its short form from 87, until its words fit whole from 96.
+func TestARowsStateKeepsItsTimeTo100Columns(t *testing.T) {
+	doc, _ := autoRouting()
+	tests := []struct {
+		name  string
+		doc   status.Document
+		label string
+		from  int
+		want  func(width int) string
+	}{
+		{name: "work at its cap", doc: doc, label: "1 work", from: 83, want: func(int) string { return "● at its cap · 17:10" }},
+		{name: "team at its limit, of ten", doc: tenRouting(), label: "team", from: 84, want: func(width int) string {
+			switch {
+			case width >= 96:
+				return "■ limit reached · back 15:30"
+			case width >= 87:
+				return "■ limit reached · 15:30"
+			}
+			return "■ limit reached"
+		}},
+	}
+	for _, tt := range tests {
+		for width := tt.from; width <= 100; width++ {
+			f := Frame{Width: width, Height: 40, View: Overview, Policy: claudeLike}
+			at := f.routingColumns(f.Moment(tt.doc, routedAt))
+			rows := 3 * len(tt.doc.Accounts)
+			c := newCanvas(f.Width, rows)
+			f.routingSection(tt.doc, routedAt).draw(c, bounds{width: f.Width, rows: rows})
+			row := slices.IndexFunc(textOf(c.rows(Look{})), func(r string) bool { return strings.Contains(r, tt.label) })
+			if !at.oneRow || row < 0 {
+				t.Fatalf("%s at %d columns: one row %v, its row %d; want a row an account, %q on one", tt.name, width, at.oneRow, row, tt.label)
+			}
+			got := strings.TrimRight(string([]rune(textOf(c.rows(Look{}))[row])[at.names:at.sessions]), " ")
+			if want := tt.want(width); got != want {
+				t.Errorf("%s at %d columns: %q, want %q", tt.name, width, got, want)
+			}
+		}
+	}
+}
+
+// ● pinned shows on a row an account only where its words keep their least
+// of 20 beside it, from 101 columns with a name column of 16; narrower, it's
+// left off, as ROUTING's heading names the accounts pinned all the same, and
+// the words take its cells.
+func TestPinnedShowsOnARowOnlyWhereTheWordsKeepTheirLeast(t *testing.T) {
+	doc, _ := autoRouting()
+	doc.Pin = status.Pin{Accounts: []string{"work", "personal", "side"}, Since: routedClock(1, 14, 2)}
+	doc = doc.WorkedOut(claudeLike)
+	tests := []struct {
+		width  int
+		pinned bool
+		words  string
+	}{
+		{width: 83, words: "● at its cap"},
+		{width: 100, words: "● at its cap · pinned"},
+		{width: 101, pinned: true, words: "● at its cap"},
+		{width: 104, pinned: true, words: "● at its cap · pinned"},
+	}
+	for _, tt := range tests {
+		f := Frame{Width: tt.width, Height: 40, View: Overview, Policy: claudeLike}
+		at := f.routingColumns(f.Moment(doc, routedAt))
+		c := newCanvas(f.Width, 4)
+		f.routingSection(doc, routedAt).draw(c, bounds{width: f.Width, rows: 4})
+		row := []rune(textOf(c.rows(Look{}))[0])
+		words := strings.TrimRight(string(row[at.names:at.sessions]), " ")
+		if tt.pinned {
+			mark := at.sessions - pinnedApart - len([]rune(pinnedSpan.text))
+			want := textsAt(at.sessions-at.names, map[int]string{0: tt.words, mark - at.names: pinnedSpan.text})
+			if got := words; got != want {
+				t.Errorf("at %d columns, drew %q, want %q, ● pinned at %d", tt.width, got, want, mark)
+			}
+			continue
+		}
+		if words != tt.words {
+			t.Errorf("at %d columns, drew %q, want %q in the words' %d cells, ● pinned left off", tt.width, words, tt.words, at.words)
 		}
 	}
 }

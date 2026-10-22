@@ -1729,11 +1729,15 @@ first (the owner's call, 15 October 2026).
 - **A row an account,** in the config's order, wherever those parts' leasts fit (from 83 columns
   with a name column of 16):
   - its number, name and marks at column 0, as in USAGE;
-  - its state at the name column, its glyph coloured as its words (below), its words cut by whole
-    clauses from the end to their cells, so they end two cells before `● pinned`, or before the
-    sessions where no pin shows, as Sessions' lines cut theirs (see Sessions);
+  - its state at the name column, its glyph coloured as its words (below), in its words' cells,
+    ending two cells before `● pinned`, or before the sessions where no pin shows: the first form
+    that fits whole, its words, then its short form, so a time is never cut where a form keeps it;
+    else its words cut by whole clauses from the end, as Sessions' lines cut theirs (see
+    Sessions);
   - `● pinned` in `accent.key`, three cells before the sessions, on each account the global pin
-    names, its words' cells giving way to it;
+    names, its words' cells giving way to it, wherever they keep their least of 20 beside it (from
+    101 columns with a name column of 16); else it's left off, the heading naming the accounts
+    pinned all the same, and the least never moves with it;
   - its sessions: `2 sessions` or `1 session` in `text.muted`, `0 sessions` in `text.faint`;
   - its trace to `w − 8`, then its rate right-aligned at the last column, `15/min` in bold
     `text.secondary`, or `0/min` in `text.subtle`.
@@ -1742,10 +1746,10 @@ first (the owner's call, 15 October 2026).
   trace an account and a blank row, its words on the first row and its rate on the second, the
   caption on the blank row after the last account.
 - **Where the parts' leasts don't fit a row,** as on a phone: two rows an account and a blank row.
-  On the first, the number and name at column 1, the short state at the name column, and `● pinned`
-  right-aligned; on the second, the trace from the name column to `w − 20` (16 cells on a phone,
-  the name column at 16), and the sessions and rate right-aligned, `4 sessions  15/min` (settled in
-  the plan).
+  On the first, the number and name at column 1, the short state at the name column, and
+  `● pinned` right-aligned; on the second, the trace from the name column to `w − 20` (16 cells on
+  a phone, the name column at 16), and the sessions and rate right-aligned, `4 sessions  15/min`
+  (settled in the plan).
 - **An account's state,** the first of these that holds, its glyph and first words in the colour
   given, the rest in `text.muted`; the short form on a phone:
 
@@ -1807,8 +1811,8 @@ account in the config's order, a session whose models go to two accounts on each
   `moved from work 1…`, 18 cells, at 108 columns.
 - **Its own trace,** one row, starting where ROUTING's do, as ROUTING's row's parts lay them, so
   the two columns line up, on the shared scale, and its rate right-aligned at the last column. A
-  session takes a row wherever an account does in ROUTING. No blank rows between sessions; with none running, `no sessions running` in
-  `text.faint` (settled in the plan).
+  session takes a row wherever an account does in ROUTING. No blank rows between sessions; with
+  none running, `no sessions running` in `text.faint` (settled in the plan).
 - **While what names them is read,** as the List's first read takes 150 ms or longer, the heading
   says `loading…` in `text.subtle` as its description, till it lands (settled in the plan; see The
   page).
