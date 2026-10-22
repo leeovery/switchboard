@@ -273,7 +273,7 @@ func (s span) blank() bool {
 	return s.text != "" && strings.TrimSpace(s.text) == ""
 }
 
-// firstFit is the first of forms, each shorter than the one before, that fits
+// firstFit is the first of forms, none wider than the one before, that fits
 // in width cells; where none does, the last, cut short.
 func firstFit(width int, forms ...line) line {
 	for _, l := range forms {

@@ -228,7 +228,7 @@ func TestARowsStateTakesTheWidestFormThatFitsWhole(t *testing.T) {
 	}
 }
 
-// A row's forms come widest first, as firstFit takes them.
+// A row's forms come none wider than the one before.
 func TestARowsFormsComeWidestFirst(t *testing.T) {
 	for name, r := range rowStates {
 		forms := rowForms(r)
@@ -319,17 +319,19 @@ func accountRow(t *testing.T, doc status.Document, label string, width int) (str
 	return strings.TrimRight(string(words), " "), marked
 }
 
-// A row ranks its parts: its state's lead, never cut; its time, where it has
-// one; ● pinned; then the rest. So the mark shows where the words beside it
-// keep their lead whole and their time, where they'd keep it without it;
-// else it's left off, and the words take its cells, saying the pin where
-// their forms carry it, as at its cap the pin spends: with a name column of
-// 16, at 84 and 85, where its lead has no room beside the mark; where they
-// don't, as at 83, the row doesn't, ROUTING's heading naming the accounts
-// pinned. Of ten accounts, a name column of 17, team at its limit keeps its
-// time, the mark left off, until its short form fits beside it from 108; lab
-// under pressure, until its words fit whole beside it from 120. Where new
-// sessions go, the mark shows beside its lead, or its short form, from 83.
+// A row ranks its parts: its state's lead; its time, where it has one;
+// ● pinned; then the rest. So the mark shows where the words beside it keep
+// their lead whole and, where it has a time, that too; else it's left off,
+// and the words take its cells, saying the pin where their forms carry it,
+// as at its cap the pin spends: with a name column of 16, at 84 and 85,
+// where its lead has no room beside the mark; where they don't, as at 83,
+// the row doesn't, ROUTING's heading naming the accounts pinned. Of ten
+// accounts, a name column of 17, from 100 columns: team at its limit keeps
+// its time, the mark left off, until its short form fits beside it from
+// 108; lab under pressure, until its words fit whole beside it from 120.
+// (Narrower, where neither shows its time, the sweep of every width holds
+// them.) Where new sessions go, the mark shows beside its lead, or its short
+// form, from 83.
 // And a model's requests refused keep its family wherever its lead fits,
 // never giving way to a short form narrower than it.
 func TestPinnedShowsOnARowWhereItsWordsKeepTheirLeadAndTime(t *testing.T) {
@@ -380,6 +382,55 @@ func TestPinnedShowsOnARowWhereItsWordsKeepTheirLeadAndTime(t *testing.T) {
 		for width, want := range tt.want {
 			if words, marked := accountRow(t, tt.doc, tt.label, width); words != want.words || marked != want.marked {
 				t.Errorf("%s at %d columns: %q, ● pinned %v; want %q, ● pinned %v", tt.name, width, words, marked, want.words, want.marked)
+			}
+		}
+	}
+}
+
+// A wider frame never says less: for each pinned state that has a time,
+// with name columns of 16 and 17, from 83 to 130 columns, once its time or
+// ● pinned shows on its row, it shows on every wider one.
+func TestAWiderRowNeverDropsAPinnedStatesTimeOrMark(t *testing.T) {
+	back := routedClock(1, 17, 10)
+	tests := []struct {
+		name, time string
+		r          status.Routing
+	}{
+		{name: "at its limit", time: "21:00", r: status.Routing{
+			Kind: status.RoutingLimited, Says: "limit reached", Clauses: []string{"back Mon 21:00"}, Short: []string{"limit reached", "Mon 21:00"}, Back: back,
+		}},
+		{name: "a model at its limit", time: "17:10", r: status.Routing{
+			Kind: status.RoutingModelLimited, Says: "Fable wk limit", Clauses: []string{"back 17:10", "other models still come here"}, Short: []string{"Fable wk limit"}, Back: back,
+		}},
+		{name: "under pressure", time: "16:05", r: status.Routing{
+			Kind: status.RoutingPressed, Says: "under pressure", Clauses: []string{"out ~16:05"}, Short: []string{"under pressure"},
+		}},
+	}
+	for _, tt := range tests {
+		for _, names := range []int{16, 17} {
+			timed, marked := 0, 0
+			for width := 83; width <= 130; width++ {
+				at := routingColumnsOf(width, names)
+				if !at.oneRow {
+					continue
+				}
+				words, mark := rowState(accountRouting{standing: tt.r, pinned: true}, at.words)
+				saysTime := strings.Contains(words.plain(), tt.time)
+				switch {
+				case timed > 0 && !saysTime:
+					t.Errorf("%s, a name column of %d: its time shows at %d columns, but not at %d: %q", tt.name, names, timed, width, words.plain())
+				case marked > 0 && !mark:
+					t.Errorf("%s, a name column of %d: ● pinned shows at %d columns, but not at %d", tt.name, names, marked, width)
+				}
+				if saysTime && timed == 0 {
+					timed = width
+				}
+				if mark && marked == 0 {
+					marked = width
+				}
+			}
+			if timed == 0 || marked == 0 {
+				t.Errorf("%s, a name column of %d: its time first shows at %d, ● pinned at %d; want both by 130", tt.name, names, timed, marked)
 			}
 		}
 	}

@@ -67,9 +67,11 @@ func (r Routing) backed() bool {
 	return !r.Back.IsZero() && len(r.Clauses) > 0
 }
 
-// Timed reports whether r says a time: its first clause, and its short
-// form's second part, where it has one, when room returns, as backed says;
-// or, under pressure, its first clause, when its pressure window runs out.
+// Timed reports whether r says a time, counting two: when it's back, in its
+// first clause and its short form's second part, where it has one, as
+// backed says; and, under pressure, when its pressure window runs out, in
+// its first clause. When a prime starts an idle account's window isn't
+// counted, as its clause doesn't always say a time.
 func (r Routing) Timed() bool {
 	return r.backed() || (r.Kind == RoutingPressed && len(r.Clauses) > 0)
 }

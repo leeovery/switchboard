@@ -1737,13 +1737,16 @@ first (the owner's call, 15 October 2026).
     opus)`, never `■ refused (403)` beside it), and where new sessions go reads `● open · next`
     wherever `● open · new sessions come here` doesn't fit, its short form the wider;
   - `● pinned` in `accent.key`, three cells before the sessions, on each account the global pin
-    names, its words' cells giving way to it. A row ranks its parts: the state's lead, never cut;
-    then its time, where it has one (when it's back, or when its pressure runs out); then the mark;
-    then the rest (`· next` and the other clauses). So the mark shows wherever the words beside it
-    keep their lead whole, and their time where they'd keep it without the mark: `■ limit reached
-    · back 15:54` at 100 columns, `■ limit reached · 15:54  ● pinned` once its short form fits
-    beside the mark. Else the mark is left off and the words take its cells. The least never
-    counts the pin. The pin is said once: where the mark shows, the words leave out what says it
+    names, its words' cells giving way to it. A row ranks its parts: the state's lead; then its
+    time, where it has one (when it's back, or when its pressure runs out, never when a prime
+    starts an idle window); then the mark; then the rest (`· next` and the other clauses). The
+    lead is never cut where the words' least holds it; a model's own lead, wider than the least,
+    can be at the one-row least (`● Fable wk at its c…` at 83 with a name column of 16). So the
+    mark shows wherever the words beside it keep their lead whole and, where it has a time, keep
+    that too: `■ limit reached · back 15:54` at 100 columns, `■ limit reached · 15:54  ● pinned`
+    once its short form fits beside the mark. Else the mark is left off and the words take its
+    cells. A wider frame never says less: once the time or the mark shows, it shows on every
+    wider frame. The least never counts the pin. The pin is said once: where the mark shows, the words leave out what says it
     (`● at its cap  ● pinned`); where it's left off, a state whose words carry it says it there
     (`● at its cap · pinned`); otherwise the row doesn't, and ROUTING's heading names the accounts
     pinned. The two-row form and the lines beside USAGE's blocks say it once too;
@@ -1780,7 +1783,8 @@ first (the owner's call, 15 October 2026).
 
   The states are the status document's (see The status document): a limit or a refusal is said even
   where the account's last read failed. Accounts' Detail and Sessions' lines say an account's state
-  in these words too.
+  in these words too. In ROUTING, where `● pinned` shows beside them, the words leave out the pin,
+  so the phone draws `● at its cap` with `● pinned`, not `at its cap · pinned`.
 
 **A trace** draws requests a minute over the last 30 minutes, a column a cell, the newest at the
 right:

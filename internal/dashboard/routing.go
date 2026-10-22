@@ -312,9 +312,9 @@ func (f Frame) wideRouting(c *canvas, t routingTable, r accountRouting, y, rows 
 // narrowRouting draws account r's two rows of ROUTING from row y, as t's
 // columns lay them: on the first, its number, name and marks from column 1,
 // its short state from the name column, cut by whole clauses, and ● pinned
-// right-aligned, where it shows, the state then as said has it; on the second, its trace from the name
-// column to narrowTail cells short of the edge, then its sessions and its
-// rate right-aligned.
+// right-aligned, where it shows, the state then as said has it; on the
+// second, its trace from the name column to narrowTail cells short of the
+// edge, then its sessions and its rate right-aligned.
 func (f Frame) narrowRouting(c *canvas, t routingTable, r accountRouting, y int) {
 	c.line(1, y, r.name)
 	end := f.Width
@@ -337,23 +337,24 @@ func (f Frame) drawStanding(c *canvas, r accountRouting, x, y int, words line) {
 
 // rowState is how account r stands on its row of ROUTING's, in its words'
 // cells, as rowStanding words it, and whether ● pinned shows beside them, a
-// row ranking its parts: its state's lead, never cut; then its time, where
-// it has one, as Timed says; then the mark; then the rest. So where the
-// global pin names it, the mark shows wherever the words beside it, with
-// pinnedApart and wordsGap, keep their lead whole and keep their time where
-// the words without it would; and they're then as said has them, the mark
-// saying the pin. Else the mark is left off and the words take its cells,
-// saying the pin where their forms carry it, as at its cap the pin spends;
-// where they don't, the row doesn't, and ROUTING's heading names the
-// accounts pinned.
+// row ranking its parts: its state's lead; then its time, where it has one,
+// as Timed says; then the mark; then the rest. The lead is never cut where
+// the words' least holds it; a model's own lead, wider than the least, can
+// be at the one-row least. Where the global pin names it, the mark shows
+// wherever the words beside it, with pinnedApart and wordsGap, keep their
+// lead whole and, where it has a time, keep that too, so a wider frame never
+// says less; the words are then as said has them, the mark saying the pin.
+// Else the mark is left off and the words take its cells, saying the pin
+// where their forms carry it, as at its cap the pin spends; where they
+// don't, the row doesn't, and ROUTING's heading names the accounts pinned.
 func rowState(r accountRouting, cells int) (line, bool) {
-	words, timed := rowStanding(r.standing, cells)
+	words, _ := rowStanding(r.standing, cells)
 	if !r.pinned {
 		return words, false
 	}
 	beside, said := cells-pinnedCells()-pinnedApart, r.said(true)
 	marked, markedTimed := rowStanding(said, beside)
-	if standingLeads(said, false).width() > beside || (timed && !markedTimed) {
+	if standingLeads(said, false).width() > beside || (said.Timed() && !markedTimed) {
 		return words, false
 	}
 	return marked, true
@@ -381,10 +382,10 @@ type rowForm struct {
 }
 
 // rowForms are the forms of how an account stands on a row of ROUTING's,
-// the widest first, as firstFit takes them: its words cut to their leading
-// clauses, from all of them down to their lead alone, and its short form;
-// where two are as wide, its words first. Each says its time where r has
-// one, as Timed says, and it keeps the clause or the part that says it.
+// none wider than the one before: its words cut to their leading clauses,
+// from all of them down to their lead alone, and its short form; where two
+// are as wide, its words first. Each says its time where r has one, as Timed
+// says, and it keeps the clause or the part that says it.
 func rowForms(r status.Routing) []rowForm {
 	var forms []rowForm
 	for n := len(r.Clauses); n >= 0; n-- {
@@ -398,17 +399,15 @@ func rowForms(r status.Routing) []rowForm {
 }
 
 // rowStanding are the words of how an account stands on a row of ROUTING's,
-// in width cells: the widest of rowForms that fits whole, as firstFit picks
-// it, so its time is kept wherever a form keeps it, and whether they say its
-// time.
+// in width cells, and whether they say its time: the widest of rowForms that
+// fits whole, so its time is kept wherever a form keeps it; where none does,
+// the narrowest, cut short, as firstFit has it.
 func rowStanding(r status.Routing, width int) (line, bool) {
 	forms := rowForms(r)
-	words := make([]line, len(forms))
-	for i, f := range forms {
-		words[i] = f.words
+	if i := slices.IndexFunc(forms, func(f rowForm) bool { return f.words.width() <= width }); i >= 0 {
+		return forms[i].words, forms[i].timed
 	}
-	fits := slices.IndexFunc(forms, func(f rowForm) bool { return f.words.width() <= width })
-	return firstFit(width, words...), fits >= 0 && forms[fits].timed
+	return forms[len(forms)-1].words.fit(width), false
 }
 
 // standingWords are the words of how an account stands, or short, its short

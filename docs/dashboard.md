@@ -138,9 +138,10 @@ ROUTING says, in words, how each account stands with the router. For example:
 - `● under pressure · out ~16:05`
 - `■ limit reached · back 15:54`
 - `○ idle · window starts at its prime, 16:20`
-- `● pinned`, on each account the pin names, where it has room beside the account's state and its
-  time. Where it doesn't, a state that says the pin says it in its words, as
-  `● at its cap · pinned`; otherwise only the heading names the pinned accounts.
+- `● pinned`, on each account the pin names, where it has room beside the account's state, and,
+  where the state has a time, only where that time fits beside the mark too. Where it doesn't, a
+  state that says the pin says it in its words, as `● at its cap · pinned`; otherwise only the
+  heading names the pinned accounts.
 
 For each account, ROUTING also shows:
 

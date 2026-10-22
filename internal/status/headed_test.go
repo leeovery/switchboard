@@ -159,7 +159,8 @@ func TestUnpinnedLeavesOffWhatSaysThePin(t *testing.T) {
 }
 
 // A state says a time where its first clause says when room returns, or
-// when its pressure runs out; never where it says neither.
+// when its pressure runs out; never where it says neither, as when a prime
+// starts an idle account's window.
 func TestTimedSaysWhetherAStateSaysATime(t *testing.T) {
 	back := time.Date(2026, 10, 1, 17, 10, 0, 0, time.UTC)
 	tests := []struct {
@@ -173,6 +174,7 @@ func TestTimedSaysWhetherAStateSaysATime(t *testing.T) {
 		{name: "under pressure, not running out", r: status.Routing{Kind: status.RoutingPressed, Says: "under pressure"}},
 		{name: "its cap the pin spends", r: status.Routing{Kind: status.RoutingCappedPinned, Says: "at its cap", Clauses: []string{"pinned, so new sessions still come here"}}},
 		{name: "open", r: status.Routing{Kind: status.RoutingNext, Says: "open", Clauses: []string{"new sessions come here"}}},
+		{name: "idle, its window starting at its prime", r: status.Routing{Kind: status.RoutingIdle, Says: "idle", Clauses: []string{"window starts at its prime, 16:20"}}},
 	}
 	for _, tt := range tests {
 		if got := tt.r.Timed(); got != tt.want {
