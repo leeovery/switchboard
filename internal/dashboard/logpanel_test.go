@@ -178,7 +178,7 @@ func TestTheCursorMovesThroughTheTicksInReadingOrder(t *testing.T) {
 		"■ work", "■ personal", "■ side", "■ account-0", "■ account-1", "■ account-2", "■ account-3", "■ account-4",
 		"■ account-5", "■ account-6", "■ account-7", "■ account-8", "■ account-9", "■ opus-5-5", "■ haiku-4-5",
 		"■ requests 1,240", "□ checks 31", "□ counts 4", "□ only those that failed 3",
-		"□ d28c  switchboard   side      445 today   asking",
+		"□ d28c  switchboard   side       445 today   asking",
 	}
 	if !slices.Equal(read, want[:len(read)]) {
 		t.Errorf("↓ lit\n%q\nwant\n%q", read, want)
@@ -439,5 +439,34 @@ func TestWhatTheFilterTicksThatTodayCountsNoneOfHasATick(t *testing.T) {
 		if got, want := haiku.toggle(p).Filter.Models, []string{"claude-haiku-4-5", old}; !slices.Equal(got, want) {
 			t.Errorf("haiku ticked too, the filter keeps the models %q, want %q", got, want)
 		}
+	}
+}
+
+// A session's row's account is a label's column by Rule 2: as wide as the
+// widest name the panel knows, at least 8 and at most 24, its count and
+// what it's doing after it.
+func TestASessionsRowsAccountIsALabelsColumn(t *testing.T) {
+	labelled := func(label string) LogPanel {
+		p := framesPanel(LogRequests, 0)
+		p.Accounts[1].Label = label
+		return p
+	}
+	tests := []struct {
+		name  string
+		panel LogPanel
+		want  string
+	}{
+		{name: "the frames' names, 8 cells", panel: framesPanel(LogRequests, 0), want: "9c2e  website       personal  267 today   idle 9m"},
+		{name: "a name of 24, whole", panel: labelled("a-very-long-account-name"),
+			want: "9c2e  website       a-very-long-account-name  267 today   idle 9m"},
+		{name: "a name past 24, cut there", panel: labelled("a-very-long-account-name-and-more"),
+			want: "9c2e  website       a-very-long-account-nam…  267 today   idle 9m"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := strings.TrimRight(tt.panel.sessionWords(tt.panel.Sessions[5]).plain(), " "); got != tt.want {
+				t.Errorf("the row reads\n%q\nwant\n%q", got, tt.want)
+			}
+		})
 	}
 }

@@ -29,6 +29,20 @@ func TestDatedIsNeverWiderThanItsWidthAndAnotherDaysFillsIt(t *testing.T) {
 	}
 }
 
+func TestNoDayOrTimeOfDayIsWiderThanItsWidthAndADayOfTwoFiguresFillsIt(t *testing.T) {
+	widest := 0
+	for d := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC); d.Year() == 2026; d = d.AddDate(0, 0, 1) {
+		widest = max(widest, utf8.RuneCountInString(prose.Day(d)))
+	}
+	if got := prose.DayWidth(); got != widest {
+		t.Errorf("DayWidth() = %d, want %d, the widest day of a year", got, widest)
+	}
+	at := time.Date(2026, 10, 7, 23, 59, 0, 0, time.UTC)
+	if got, want := prose.TimeOfDayWidth(), utf8.RuneCountInString(prose.TimeOfDay(at, at)); got != want {
+		t.Errorf("TimeOfDayWidth() = %d, want %d", got, want)
+	}
+}
+
 func TestAStintGivesItsEndsTheirDaysWhereTheSessionSpansDays(t *testing.T) {
 	now := time.Date(2026, 9, 28, 14, 31, 0, 0, time.FixedZone("UTC+1", 60*60))
 	at := func(days, hour, minute int) time.Time {

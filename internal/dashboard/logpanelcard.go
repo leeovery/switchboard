@@ -108,10 +108,9 @@ func (p pane) rows() []line {
 
 // card is the panel on the frame, titled as the table it's of: in two
 // sides, where the frame has it its natural width, else the side the
-// cursor's on alone; the
-// tick the cursor's on lit a cell either side; as tall as its body, up to
-// the frame's height less panelSpare, past which it shows the rows around
-// the cursor's.
+// cursor's on alone; the tick the cursor's on lit a cell either side; as
+// tall as its body, up to the frame's height less panelSpare, past which it
+// shows the rows around the cursor's.
 func (p LogPanel) card(f Frame) Card {
 	return p.cardOf(p.laidOut(f))
 }
@@ -321,10 +320,10 @@ func (p LogPanel) onlyPane(width int) pane {
 		}
 		row++
 	}
-	ticks, at := p.sessionTicks(), max(min(todayAt[p.Of], width-sessionCells), 0)
+	ticks, at := p.sessionTicks(), max(min(todayAt[p.Of], width-p.sessionCells()), 0)
 	first, end := p.sessionsShown(ticks)
 	for _, t := range ticks[first:end] {
-		pn.tick(row, at, t, sessionCells)
+		pn.tick(row, at, t, p.sessionCells())
 		row++
 	}
 	pn.put(row, at, moreToday(len(ticks)-end))

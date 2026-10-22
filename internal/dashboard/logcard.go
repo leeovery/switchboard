@@ -30,8 +30,8 @@ type LogCard struct {
 }
 
 // The card's wide form: its natural, logCardWidth cells wide, its edges
-// included, as it sits from column 16 at 160; its tree's columns, from where its content
-// starts, as the frames draw them from 19, 69 and 94.
+// included, as it sits from column 16 at 160; its tree's columns, from where
+// its content starts, as the frames draw them from 19, 69 and 94.
 const logCardWidth = 128
 
 var logCardColumns = [3]int{0, 50, 75}

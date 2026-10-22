@@ -128,8 +128,9 @@ account, at 0% as at 40%.
 - **By account:** each account is a block, with its windows as rows. The account's name sits beside
   its first bar wherever that fits, from 60 columns with short names. Narrower, it's on a line of
   its own above it.
-- **The header** is one line wherever the date and the status fit side by side, as wide as your
-  accounts' names can make them, from about 90 columns; else two.
+- **The header** is one line wherever the date and the status fit side by side at the widest the
+  status can be with your accounts, every part of it said, from about 160 columns with three short
+  names; else two. So one line never says less than two would.
 - **The key line** is one line wherever it fits beside the names, else two. The second line names
   the cap, where a bar draws one.
 - **The words** are in full where they fit, else short, as `back 15:54`, `out ~Sat` and

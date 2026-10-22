@@ -353,40 +353,55 @@ func toggledIn(choice []string, one string) []string {
 	return append(slices.Clone(choice), one)
 }
 
-// The columns of a session's row, from its tick: its directory, the account
-// it's on, its count ending, and what it's doing; and the cells it takes at
-// its widest, as started 14:41 says. Its id follows its box.
+// The columns of a session's row, from its tick: its directory, and the
+// account it's on; then, past the account's column, the cells its count
+// takes to its end, and to what it's doing; and the cells what it's doing
+// takes at its widest, as started 14:41 says. Its id follows its box.
 const (
 	sessionDirAt     = 8
 	sessionAccountAt = 22
-	sessionCountEnd  = 35
-	sessionDoingAt   = 44
-	sessionCells     = sessionDoingAt + 13
+	sessionCountTo   = 5
+	sessionDoingFrom = 14
+	sessionDoingMost = 13
 )
+
+// accountCells are the cells of a session's row's account column, a label's
+// column by Rule 2: the widest name of the accounts the panel knows, each
+// as labelColumnCells counts it, at least labelLeast.
+func (p LogPanel) accountCells() int {
+	widest := labelLeast
+	for _, a := range p.Accounts {
+		widest = max(widest, labelColumnCells(name(a)))
+	}
+	return widest
+}
+
+// sessionCells are the cells a session's row takes at its widest, from its
+// tick.
+func (p LogPanel) sessionCells() int {
+	return sessionAccountAt + p.accountCells() + sessionDoingFrom + sessionDoingMost
+}
 
 // sessionWords are a session's row after its tick: its id in
 // text.secondary; its directory's name, padded, in text.muted; the account
-// it's on, padded, in text.primary; its lines today, or of Events', its
-// events, the figure ending at its column, in text.secondary and the rest
-// in text.muted; and what it's doing.
+// it's on, in its column, in text.primary; its lines today, or of Events',
+// its events, the figure ending at its column, in text.secondary and the
+// rest in text.muted; and what it's doing.
 func (p LogPanel) sessionWords(s views.LogSession) line {
 	count := line{{prose.Grouped(s.Lines), secondaryInk}, {" today", mutedInk}}
 	if p.Of == LogEvents {
 		count = countedSaid(s.Events, "event", secondaryInk, mutedInk)
 	}
+	accountEnd := sessionAccountAt + p.accountCells()
 	words := line{{status.ShownID(s.ID), secondaryInk}}
 	words = padTo(words, sessionDirAt-tickBox, line{{views.SessionDirName(s.Dir), mutedInk}})
-	words = padTo(words, sessionAccountAt-tickBox, line{{prose.Cut(p.named(s.Account), logAccountCells), accountInk}})
-	words = padTo(words, sessionCountEnd-tickBox-count[:1].width(), count)
+	words = padTo(words, sessionAccountAt-tickBox, line{{prose.Cut(p.named(s.Account), p.accountCells()), accountInk}})
+	words = padTo(words, accountEnd+sessionCountTo-tickBox-count[:1].width(), count)
 	if doing := sessionDoing(s, p.Now); doing.text != "" {
-		words = padTo(words, sessionDoingAt-tickBox, line{doing})
+		words = padTo(words, accountEnd+sessionDoingFrom-tickBox, line{doing})
 	}
 	return words
 }
-
-// logAccountCells are the most cells an account's name takes in the panel's
-// sessions' rows, cut with an ellipsis past them.
-const logAccountCells = 8
 
 // named is what the panel calls the account with the given id: its name, of
 // those it ticks, else its id, cleaned; "" for none.

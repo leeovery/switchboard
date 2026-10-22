@@ -7,24 +7,24 @@ USAGE  ────────────────────────�
                 WEEK                                                                     5-HOUR
 
 1 work                                ┃                ╎   34%  19%/day till Sun 21:00                        ┃                 ╎   95%  at cap · back 17:10
-                                       ╭─ ROUTING · NEW SESSIONS ───────────────────────────────────────────────────────╮
-2 personal ◆                           │                                                                                │          100%  limit · back 15:54
-                                       │  Pick the accounts new sessions go to.                                         │
-3 side ▲                           ┃   │                                                                                │           13%  21%/h till 18:50
-───────────────────────────────────────│  □ 0 auto        the router chooses                                            │───────────────────────────────────────
-Σ pool                                ┃│  □ 1 work        closed    week 34%   5-hour 95%        at its cap till 17:10  │           69%  0.9 of 3 left
-                                       │    2 personal    closed    week 66%   5-hour 100%     at its limit till 15:54  │
-                ┃ even pace: where you │  ■ 3 side        open      week 78%   5-hour 13%                    6 running  │here
-                                       │                                                                                │
-ROUTING   auto ────────────────────────│  □ m  also move the sessions running                                           │───────────────────────────────────── r
-                                       │                                                                                │
-1 work          ● at its cap · back 17:│  New sessions go to side. When it's full, the router chooses.                  │
-                                       │                                                                                │▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
-                                       │                                                                                │
-2 personal ◆    ■ limit reached · back │                                                                                │
-                                       │                                                                                │▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
-                                       │          ↑↓ move   space 0-3 tick   m move running   enter apply   esc cancel  │
-3 side ▲        ● open · new sessions c╰────────────────────────────────────────────────────────────────────────────────╯
+                                       ╭─ ROUTING · NEW SESSIONS ──────────────────────────────────────────────────────╮
+2 personal ◆                           │                                                                               │┃          100%  limit · back 15:54
+                                       │  Pick the accounts new sessions go to.                                        │
+3 side ▲                           ┃   │                                                                               │            13%  21%/h till 18:50
+───────────────────────────────────────│  □ 0 auto      the router chooses                                             │────────────────────────────────────────
+Σ pool                                ┃│  □ 1 work      closed    week 34%   5-hour 95%         at its cap till 17:10  │            69%  0.9 of 3 left
+                                       │    2 personal  closed    week 66%   5-hour 100%      at its limit till 15:54  │
+                ┃ even pace: where you │  ■ 3 side      open      week 78%   5-hour 13%                     6 running  │ here
+                                       │                                                                               │
+ROUTING   auto ────────────────────────│  □ m  also move the sessions running                                          │────────────────────────────────────── r
+                                       │                                                                               │
+1 work          ● at its cap · back 17:│  New sessions go to side. When it's full, the router chooses.                 │
+                                       │                                                                               │▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
+                                       │                                                                               │
+2 personal ◆    ■ limit reached · back │                                                                               │
+                                       │                                                                               │▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
+                                       │         ↑↓ move   space 0-3 tick   m move running   enter apply   esc cancel  │
+3 side ▲        ● open · new sessions c╰───────────────────────────────────────────────────────────────────────────────╯
                                                                                            ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
                                                                                            requests a minute, last 30 minutes
 

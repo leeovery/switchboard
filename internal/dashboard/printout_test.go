@@ -36,22 +36,72 @@ func TestTheHeaderSaysWhenTheDocumentWasRead(t *testing.T) {
 
 // The header is one line where its parts fit at their naturals, of what's
 // configured: the badge's line at its widest, 32 cells; two; and the status
-// healthy, 99 sessions, new sessions going to personal, the widest account,
-// 55. So from 89 columns here.
+// at the widest its configuration allows, 124: ● unhealthy, restart due (…),
+// pinned to work, personal and side, 99 sessions, and new sessions → no
+// account has room. So from 158 columns here.
 func TestTheHeaderTakesOneLineWhereItsPartsFitAtTheirNaturals(t *testing.T) {
 	says := "● healthy  ·  6 sessions  ·  new sessions → ▲ side"
-	for _, width := range []int{89, 120} {
+	for _, width := range []int{158, 220} {
 		one := printed(trio(), width, ByWindow)
 		if got := one[0]; !strings.HasSuffix(got, says) || len([]rune(got)) != width {
 			t.Errorf("at %d columns the header reads %q, want its status ending at the last column", width, got)
 		}
-		if one[1] != "" || one[2] != "WEEK" {
-			t.Errorf("at %d columns, the header is followed by %q, want a blank line, then the first window", width, one[1:3])
+		if one[1] != "" || !strings.HasPrefix(strings.TrimSpace(one[2]), "WEEK") {
+			t.Errorf("at %d columns, the header is followed by %q, want a blank line, then the windows' headings", width, one[1:3])
 		}
 	}
-	two := printed(trio(), 88, ByWindow)
-	if got, want := two[:5], []string{" SWITCHBOARD   Thu 1 Oct  14:42", "", says, "", "WEEK"}; strings.Join(got, "\n") != strings.Join(want, "\n") {
-		t.Errorf("at 88 columns the printout starts %q, want %q: its status on a line of its own", got, want)
+	two := printed(trio(), 157, ByWindow)
+	if got, want := two[:3], []string{" SWITCHBOARD   Thu 1 Oct  14:42", "", says}; strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Errorf("at 157 columns the printout starts %q, want %q: its status on a line of its own", got, want)
+	}
+}
+
+// At its widest, every part of the status said, a pin to every account,
+// whatever their names, unhealthy, a restart due, the header switches to
+// one line once as the width grows, and on one line says every part it says
+// on two, the restart's reason, free text, alone cut.
+func TestTheHeaderOnOneLineNeverSaysLessThanOnTwo(t *testing.T) {
+	labelled := func(work, personal, side string) status.Document {
+		label := func(id, l string) func(*status.Document) {
+			return account(id, func(a *status.Account) { a.Label = l })
+		}
+		return trio(label("work", work), label("personal", personal), label("side", side), pinnedTo("work", "personal", "side"), func(d *status.Document) {
+			d.Router.Healthy = false
+			d.Restart = status.Restart{Reason: "config changed", Since: printNow.UTC()}
+		})
+	}
+	tests := []struct {
+		name  string
+		doc   status.Document
+		parts []string
+	}{
+		{name: "the frames' names", doc: labelled("work", "personal", "side"),
+			parts: []string{"● unhealthy", "restart due (", "pinned to work, personal and side", "6 sessions", "new sessions → ▲ side"}},
+		{name: "names of 24, 23 and 4", doc: labelled("a-very-long-account-name", "another-long-account-id", "side"),
+			parts: []string{"● unhealthy", "restart due (", "pinned to a-very-long-account-name, another-long-account-id and side", "6 sessions", "new sessions → ▲ side"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			switches, was := 0, false
+			for width := 40; width <= 220; width++ {
+				rows := printed(tt.doc, width, ByWindow)
+				oneLine := strings.HasPrefix(strings.TrimSpace(rows[2]), "WEEK")
+				if oneLine != was {
+					switches, was = switches+1, oneLine
+				}
+				if !oneLine {
+					continue
+				}
+				for _, part := range tt.parts {
+					if !strings.Contains(rows[0], part) {
+						t.Errorf("at %d columns, on one line, the header reads %q, want %q in it, as two lines say it", width, rows[0], part)
+					}
+				}
+			}
+			if switches != 1 || !was {
+				t.Errorf("the header switched form %d times from 40 columns to 220, ending on one line: %v; want once, to one line", switches, was)
+			}
+		})
 	}
 }
 

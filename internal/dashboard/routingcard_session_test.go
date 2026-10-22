@@ -43,9 +43,9 @@ func TestASessionsCardIsTitledAndOpensForItsSession(t *testing.T) {
 	want := []string{
 		"Pick the account this session goes to.",
 		"",
-		"9c2e  website  ~/Code/website                               runs on personal",
+		"9c2e  website  ~/Code/website                              runs on personal",
 		"",
-		"● 0 auto        the router chooses: side for now",
+		"● 0 auto      the router chooses: side for now",
 	}
 	if title != "ROUTING · THIS SESSION" || !slices.Equal(body[:5], want) {
 		t.Errorf("titled %q, opening\n%s\nwant ROUTING · THIS SESSION, opening\n%s", title, strings.Join(body[:5], "\n"), strings.Join(want, "\n"))
@@ -142,14 +142,14 @@ func TestASessionsCardPicksOneMarkedWithADot(t *testing.T) {
 	r := sessionCard(func(r *RoutingCard) { r.Picked = []string{"side"} })
 	var marks []span
 	for _, row := range r.Rows {
-		marks = append(marks, r.choice(row, false, 76)[0][0])
+		marks = append(marks, r.choice(row, r.columns(76), 76)[0][0])
 	}
 	// work, at its cap, can be picked, as a pin spends an account's cap.
 	want := []span{{"○", dimInk}, {"○", dimInk}, {"○", dimInk}, {"●", keyInk}}
 	if !slices.Equal(marks, want) {
 		t.Errorf("the rows are marked %v, want %v", marks, want)
 	}
-	if got := sessionCard(nil).choice(r.Rows[0], false, 76)[0][0]; got != (span{"●", keyInk}) {
+	if got := sessionCard(nil).choice(r.Rows[0], r.columns(76), 76)[0][0]; got != (span{"●", keyInk}) {
 		t.Errorf("auto's mark, nothing picked, is %+v, want it picked", got)
 	}
 }
@@ -238,13 +238,13 @@ func TestANarrowSessionsCardKeepsItsRowsToTheScreen(t *testing.T) {
 		"",
 		"9c2e  website  …de/website  runs on personal",
 		"",
-		"○ 0 auto        the router chooses: side",
-		"○ 1 work        closed  at its cap till 17:…",
-		"                week 34%   5-hour 95%",
-		"○ 2 personal    open               2 running",
-		"                week 66%   5-hour 39%",
-		"● 3 side        open               4 running",
-		"                week 78%   5-hour 13%",
+		"○ 0 auto      the router chooses: side",
+		"○ 1 work      closed   at its cap till 17:10",
+		"              week 34%   5-hour 95%",
+		"○ 2 personal  open                 2 running",
+		"              week 66%   5-hour 39%",
+		"● 3 side      open                 4 running",
+		"              week 78%   5-hour 13%",
 		"",
 		"This session moves to side on its next",
 		"request.",
@@ -268,7 +268,7 @@ func TestNoPickOrRefusalMovesASessionsCard(t *testing.T) {
 				f := Frame{Width: width, Height: 37}
 				opened := RoutingCard{Mode: ThisSession, Session: sessionRouted, Rows: rows}
 				at := cardAt(f, opened)
-				content := f.cardWidth(routingWidth) - 2*cardInset
+				content := f.cardWidth(opened.natural()) - 2*cardInset
 				for _, picked := range picks {
 					for _, said := range []RoutingCard{{}, {Cost: dollars(99_999_999)}, {Refused: refusal}} {
 						r := opened

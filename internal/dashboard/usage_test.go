@@ -983,7 +983,7 @@ func TestWordsACellTooLongInFullAreShortLeavingTheCellsAfterThemBlank(t *testing
 		blank     int
 	}{
 		{name: "the matrix, the 3 cells before the next group", width: 160, by: ByWindow, row: 4, wordsAt: 39, blankFrom: 39 + 22, blank: 3},
-		{name: "stacked, the last column", width: 120, by: ByWindow, row: 4, wordsAt: 97, blankFrom: 119, blank: 1},
+		{name: "stacked, the last column", width: 120, by: ByWindow, row: 6, wordsAt: 97, blankFrom: 119, blank: 1},
 		{name: "by account, wide, the last column", width: 160, by: ByAccount, row: 2, wordsAt: 137, blankFrom: 159, blank: 1},
 		{name: "by account, its name above, the last column", width: 59, by: ByAccount, row: 5, wordsAt: 36, blankFrom: 58, blank: 1},
 	}

@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/theme"
-	"github.com/leeovery/switchboard/internal/views"
 )
 
 func TestACardIsItsNaturalWidthOrTheScreensLessACellEitherSide(t *testing.T) {
@@ -18,13 +17,13 @@ func TestACardIsItsNaturalWidthOrTheScreensLessACellEitherSide(t *testing.T) {
 		want           int
 		whole          bool
 	}{
-		{name: "the routing card, with room", width: 160, natural: routingWidth, want: 82, whole: true},
-		{name: "the routing card, a cell clear either side", width: 84, natural: routingWidth, want: 82, whole: true},
-		{name: "the routing card, a cell short", width: 83, natural: routingWidth, want: 81},
-		{name: "the routing card on a phone, its width less two", width: 52, natural: routingWidth, want: 50},
+		{name: "a card of 82, with room", width: 160, natural: laidWidth, want: 82, whole: true},
+		{name: "a card of 82, a cell clear either side", width: 84, natural: laidWidth, want: 82, whole: true},
+		{name: "a card of 82, a cell short", width: 83, natural: laidWidth, want: 81},
+		{name: "a card of 82 on a phone, its width less two", width: 52, natural: laidWidth, want: 50},
 		{name: "help, with room", width: 216, natural: helpWidth, want: 128, whole: true},
 		{name: "help, short of room", width: 120, natural: helpWidth, want: 118},
-		{name: "a screen of two cells, no card", width: 2, natural: routingWidth, want: 0},
+		{name: "a screen of two cells, no card", width: 2, natural: laidWidth, want: 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -38,8 +37,11 @@ func TestACardIsItsNaturalWidthOrTheScreensLessACellEitherSide(t *testing.T) {
 	}
 }
 
+// laidWidth is the natural width of a card the tests lay out.
+const laidWidth = 82
+
 // laidCard is a card of a body of the lines given, with keys or none, its
-// cursor on the rows given, as wide as the routing card.
+// cursor on the rows given, laidWidth wide at its natural.
 type laidCard struct {
 	body []line
 	keys []Key
@@ -47,7 +49,7 @@ type laidCard struct {
 }
 
 func (k laidCard) card(f Frame) Card {
-	return Card{title: "ROUTING · NEW SESSIONS", width: f.cardWidth(routingWidth), body: k.body, keys: k.keys, lit: k.lit}
+	return Card{title: "ROUTING · NEW SESSIONS", width: f.cardWidth(laidWidth), body: k.body, keys: k.keys, lit: k.lit}
 }
 
 func TestACardIsDrawnCentredOverThePage(t *testing.T) {
@@ -225,7 +227,7 @@ var widerForms = []struct {
 		return !slices.ContainsFunc(plains(routedCard(nil).card(frameOf(width, 40)).body), func(row string) bool {
 			return strings.HasPrefix(strings.TrimSpace(row), "week ")
 		})
-	}, from: 81},
+	}, from: 83},
 	{name: "the Log's card in its columns", wider: func(width int) bool {
 		return logFrameOf(LogPage{}, width, 37).logCardForm().wide
 	}, from: 130},
@@ -234,7 +236,7 @@ var widerForms = []struct {
 	}, from: 126},
 	{name: "usage's header on one line", wider: func(width int) bool {
 		return strings.HasPrefix(strings.TrimSpace(printed(trio(), width, ByWindow)[2]), "WEEK")
-	}, from: 89},
+	}, from: 158},
 	{name: "the theme picker at its widest", wider: func(width int) bool {
 		return PickerWidth(width) == pickerWide
 	}, from: 2 * pickerWide},
@@ -252,38 +254,70 @@ func TestEachCardsFormSwitchesOnceAsTheWidthGrows(t *testing.T) {
 	}
 }
 
+// stackedRows counts the rows of the routing card on the frame stacked, its
+// windows on a line of their own under its name, as its body draws them.
+func stackedRows(r RoutingCard, f Frame) int {
+	n := 0
+	for _, l := range plains(r.card(f).body) {
+		if strings.HasPrefix(strings.TrimSpace(l), "week ") {
+			n++
+		}
+	}
+	return n
+}
+
+// widestEnds is the routing card of the frames' world with its rows' ends
+// at their widest: a limit's reason back another day, a token refused for a
+// family, and the 5-hour's use at its widest.
+func widestEnds() RoutingCard {
+	return routedCard(func(r *RoutingCard) {
+		r.Rows[1].Reason = "at its limit till Sun 15:54"
+		r.Rows[2].Open, r.Rows[2].Reason = false, "token refused (403, sonnet)"
+		r.Rows[2].Windows[1].Used = 1
+	})
+}
+
 func TestTheRoutingCardsRowsAreStackedAlikeWhateverTheySay(t *testing.T) {
 	cards := map[string]RoutingCard{
-		"the frames' world":          routedCard(nil),
-		"every account at its limit": {Rows: RoutingRows(routerDoc("", 0, namedAccounts(3)...).At(now, claudeLike), nil, views.Stream{})},
+		"the frames' world": routedCard(nil),
+		"their widest ends": widestEnds(),
+		"every account open": routedCard(func(r *RoutingCard) {
+			for i := range r.Rows {
+				r.Rows[i].Open, r.Rows[i].Reason, r.Rows[i].Running = true, "", 0
+			}
+		}),
 		"a long reason": routedCard(func(r *RoutingCard) {
 			r.Rows[1].Open, r.Rows[1].Reason = false, "token refused: "+strings.Repeat("why ", 20)
 		}),
 	}
 	for width := 40; width <= 220; width++ {
-		heights := map[string]int{}
+		stacked := map[string]int{}
 		for name, r := range cards {
-			k := r.card(frameOf(width, 60))
-			heights[name] = len(r.choice(r.Rows[1], choicesStacked(k.width-2*cardInset), k.width-2*cardInset))
+			stacked[name] = stackedRows(r, frameOf(width, 60))
 		}
-		if len(slices.Compact(slices.Sorted(maps.Values(heights)))) != 1 {
-			t.Errorf("at %d columns, an account's row takes %v lines; want the same whatever the rows say", width, heights)
+		if len(slices.Compact(slices.Sorted(maps.Values(stacked)))) != 1 {
+			t.Errorf("at %d columns, the card stacks %v of its rows; want the same whatever the rows say", width, stacked)
 		}
 	}
 }
 
-func TestTheRoutingCardNeverCutsAWindowsUse(t *testing.T) {
-	r := routedCard(nil)
+func TestTheRoutingCardNeverCutsAWindowsUseNorOnOneLineItsEnd(t *testing.T) {
+	r := widestEnds()
 	for width := 40; width <= 220; width++ {
-		k := r.card(frameOf(width, 60))
-		body := strings.Join(plains(k.body), "\n")
-		for _, use := range []string{"week 34%   5-hour 95%", "week 66%   5-hour 39%", "week 78%   5-hour 13%"} {
+		f := frameOf(width, 60)
+		body := strings.Join(plains(r.card(f).body), "\n")
+		for _, use := range []string{"week 34%   5-hour 95%", "week 66%   5-hour 100%", "week 78%   5-hour 13%"} {
 			if !strings.Contains(body, use) {
 				t.Errorf("at %d columns, the card reads\n%s\nwant %q whole", width, body, use)
 			}
 		}
-		if !choicesStacked(k.width-2*cardInset) && !strings.Contains(body, "at its cap till 17:10") {
-			t.Errorf("at %d columns, an account's row is one line, and reads\n%s\nwant its reason whole beside its windows", width, body)
+		if stackedRows(r, f) > 0 {
+			continue
+		}
+		for _, end := range []string{"at its limit till Sun 15:54", "token refused (403, sonnet)"} {
+			if !strings.Contains(body, end) {
+				t.Errorf("at %d columns, an account's row is one line, and reads\n%s\nwant %q whole beside its windows", width, body, end)
+			}
 		}
 	}
 }

@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"slices"
+	"strings"
 
 	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/prose"
@@ -21,27 +22,44 @@ const (
 // status, on the printout's header's one line.
 const headerGap = 2
 
-// The header's parts at their naturals, of what's configured, never what's
-// read: the badge's line with the widest date and time there is; and the
-// status healthy, its sessions in two figures, new sessions going to the
-// widest account configured.
-const (
-	widestRead     = "Wed 30 Sep  00:00"
-	widestSessions = 99
-)
+// readApart are the cells between the badge and the day it read at, and
+// between the day and the time.
+const readApart = 2
+
+// widestSessions is the most sessions the header's natural counts: two
+// figures' worth.
+const widestSessions = 99
 
 // headerParts are the badge's line and the status, at their naturals, as
 // the header lays them out on one line of the moment m, the status taking
-// the rest, to the last column.
+// the rest, to the last column. Each natural is of what's configured, never
+// what's read, so a header of any reading takes one form: the badge's line
+// with the widest day and time there are; and the status at the widest the
+// configuration allows, as headerStatus has it.
 func headerParts(m status.Moment) []flex.Part {
-	badge := slices.Concat(pill, line{spaces(2), {widestRead, titleInk}}).width()
-	s := statusLine{
-		state:       line{{"● ", positiveInk}, {"healthy", secondaryInk}},
-		sessions:    line{{prose.SessionCount(widestSessions), mutedInk}},
-		destination: line{{"▲ ", nameInk}, spaces(widestLabel(m))},
+	badge := pill.width() + readApart + prose.DayWidth() + readApart + prose.TimeOfDayWidth()
+	status := headerStatus(m).forms()[0].width()
+	return []flex.Part{{Least: badge, Natural: badge}, {Least: status, Natural: status, Gap: headerGap}}
+}
+
+// headerStatus is the status line at the widest m's configuration allows:
+// unhealthy; a restart due, its reason, free text, at its least, cut to
+// nothing; pinned to every account configured; widestSessions sessions; and
+// new sessions going to the widest account configured, or to none.
+func headerStatus(m status.Moment) statusLine {
+	ids := make([]string, len(m.Accounts))
+	going := []line{nothingRead, noRoom}
+	for i, a := range m.Accounts {
+		ids[i] = a.ID
+		going = append(going, goingTo(m, a.ID))
 	}
-	status := s.forms()[0].width()
-	return []flex.Part{{Least: badge, Natural: badge}, {Least: status, Natural: status, Grows: true, Gap: headerGap}}
+	return statusLine{
+		state:       unhealthy,
+		restart:     restartSaid(prose.Ellipsis),
+		mode:        pinnedSaid(m, ids),
+		sessions:    line{{prose.SessionCount(widestSessions), mutedInk}},
+		destination: slices.MaxFunc(going, func(a, b line) int { return a.width() - b.width() }),
+	}
 }
 
 // Printout is every account's windows as usage prints them into the
@@ -94,22 +112,34 @@ func (p Printout) namer(m status.Moment) func(key string) string {
 // header draws the printout's header of the moment m, and returns its last
 // row: the badge and when its document was read, then the status line, its
 // mode shown only while the router has a global pin. It's one line where
-// headerParts fit, the status ending at the last column; else two, the
-// status from column 0 after a blank line. The status shortens to fit, as a
-// phone's does; the badge's line leaves off the date, as a phone's title row
-// does, then the badge, before it's cut.
+// headerParts fit, the status ending at the last column, every part of it
+// kept, only its free text cut, as statusBeside has it; else two, the
+// status from column 0 after a blank line, shortening to fit, as a phone's
+// does. The badge's line leaves off the date, as a phone's title row does,
+// then the badge, before it's cut.
 func (p Printout) header(c *canvas, m status.Moment) int {
 	at := prose.TimeOfDay(m.Now, m.ReadAt)
-	gap, clock := line{spaces(2)}, line{{at, titleInk}}
+	gap, clock := line{spaces(readApart)}, line{{at, titleInk}}
 	end := c.line(0, 0, firstFit(p.Width,
-		slices.Concat(pill, gap, line{{prose.Day(m.ReadAt.In(m.Now.Location())) + "  " + at, titleInk}}),
+		slices.Concat(pill, gap, line{{prose.Day(m.ReadAt.In(m.Now.Location())) + strings.Repeat(" ", readApart) + at, titleInk}}),
 		slices.Concat(pill, gap, clock),
 		clock))
-	s := newStatusLine(m)
 	if _, oneLine := flex.Lay(p.Width, headerParts(m)...); oneLine {
-		c.right(p.Width, 0, s.fit(p.Width-end-headerGap))
+		c.right(p.Width, 0, statusBeside(m, p.Width-end-headerGap))
 		return 0
 	}
-	c.line(0, 2, s.fit(p.Width))
+	c.line(0, 2, newStatusLine(m).fit(p.Width))
 	return 2
+}
+
+// statusBeside is the status line of the moment m in full in room cells, its
+// free text cut as far as it must be; and where even that doesn't fit, as
+// fit shortens it.
+func statusBeside(m status.Moment, room int) line {
+	for cells := room; cells > 0; cells-- {
+		if l := statusCut(m, cells).forms()[0]; l.width() <= room {
+			return l
+		}
+	}
+	return newStatusLine(m).fit(room)
 }

@@ -107,10 +107,9 @@ var cutAllowed = []string{
 	// S22: a session's page, its accounts' stays and the account it's on.
 	"internal/dashboard/sessionpage.go:sessionDrawn.account",
 	"internal/dashboard/sessionpage.go:sessionDrawn.phoneOn",
-	// S25: the routing card's choices, the Log's panel's sessions and a
-	// card's items' names, cards of a kind, opened over the page.
-	"internal/dashboard/routingcard.go:RoutingCard.choice",
-	"internal/dashboard/logpanel.go:LogPanel.sessionWords",
+	// S25, left by it: a Log card's items' names, the tree's own words, a
+	// window's name and a session's id, none a label, in the tree's column
+	// of names, fixed as its wide form's columns are.
 	"internal/dashboard/logcard.go:cardItem.row",
 }
 

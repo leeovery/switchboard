@@ -8,12 +8,8 @@ import (
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
-// The natural widths of cards, their edges included: the routing card's,
-// and help's.
-const (
-	routingWidth = 82
-	helpWidth    = 128
-)
+// helpWidth is help's card's natural width, its edges included.
+const helpWidth = 128
 
 // cardInset is how many cells in from a card's edges its content runs: its
 // line and two blank cells, either side, so its keys row ends where its

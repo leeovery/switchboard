@@ -157,6 +157,18 @@ func Day(d time.Time) string {
 	return d.Format(dayLayout)
 }
 
+// DayWidth is how many characters the widest day Day names takes: one of
+// two figures.
+func DayWidth() int {
+	return utf8.RuneCountInString(Day(time.Date(2000, time.January, 10, 0, 0, 0, 0, time.UTC)))
+}
+
+// TimeOfDayWidth is how many characters a time TimeOfDay shows takes.
+func TimeOfDayWidth() int {
+	var t time.Time
+	return utf8.RuneCountInString(TimeOfDay(t, t))
+}
+
 // DayInYear names the day d by its weekday, date, month and year, as a
 // verb's heading names a day, such as "Wed 7 Oct 2026".
 func DayInYear(d time.Time) string {
