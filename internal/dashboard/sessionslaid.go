@@ -29,16 +29,17 @@ const (
 
 // The fewest cells each part narrows to, as the narrowing has them: the
 // bends' room, a loose cord's looseCells among them, and the lines' bars,
-// first and last. Bent cords turn down bendsApart apart, or closer; a stub is
-// stubCells long, each next a cell shorter, down to stubLeast.
+// first and last. Bent cords turn down bendsApart apart, or closer.
 const (
 	leastRoom    = 18
 	leastWideBar = 16
 	leastBar     = 8
 	bendsApart   = 3
-	stubCells    = 7
-	stubLeast    = 1
 )
+
+// stubCells are the cells a limit's stub hangs to its jack's left: those
+// between the first bend and the jack, so no cord ever crosses it.
+const stubCells = bendClear - 1
 
 // boardColumns are where the Switchboard's parts sit across a frame, as
 // boardColumnsOf lays them for its width: a call's parts, its id at the
@@ -218,10 +219,10 @@ func (ln laidLine) tall() int {
 	return ln.end() - ln.first
 }
 
-// laidStub is a cord a limit let go, hanging from the jack on row: cells
-// long, to the jack's left.
+// laidStub is a cord a limit let go, hanging from the jack on row,
+// stubCells long, to the jack's left.
 type laidStub struct {
-	row, cells int
+	row int
 }
 
 // laidCall is a call laid out: its session, by its id, and the account its
@@ -367,9 +368,9 @@ func (ln *laidLine) laid(step, windows, next int) int {
 		ln.first = min(ln.top, ln.groupStart)
 	}
 	ln.stubs = nil
-	for i, jack := range ln.patched.Stubs {
+	for _, jack := range ln.patched.Stubs {
 		ln.rows = max(ln.rows, jack+1)
-		ln.stubs = append(ln.stubs, laidStub{row: ln.top + jack, cells: max(stubCells-i, stubLeast)})
+		ln.stubs = append(ln.stubs, laidStub{row: ln.top + jack})
 	}
 	return ln.top + ln.rows
 }

@@ -11,8 +11,8 @@ db8a infra                    idle 50s     ▸ from work      ●━━━━━
 41e0 docs                     idle 34s     ▸ from personal  ●━━━━━━━━┓  ┃  ┃  ┃  ┃
 9c2e website                  idle 9m      ▸ from personal  ●━━━━━┓  ┃  ┃  ┃  ┃  ┃
                                                                   ┃  ┃  ┃  ┃  ┃  ┃
-                                                                  ┃  ┃  ┃  ┃ ╌┃╌╌┃╌╌○ 2 personal ◆    ■ limit reached · back 15:54                      ● pinned
-                                                                  ┃  ┃  ┃  ┃  ┃╌╌┃╌╌○  Week                            ┃            66%  out ~Sat 06:00
+                                                                  ┃  ┃  ┃  ┃  ┃  ┃╌╌○ 2 personal ◆    ■ limit reached · back 15:54                      ● pinned
+                                                                  ┃  ┃  ┃  ┃  ┃  ┃╌╌○  Week                            ┃            66%  out ~Sat 06:00
                                                                   ┃  ┃  ┃  ┃  ┃  ┃  ○
                                                                   ┃  ┃  ┃  ┃  ┃  ┃  ○  5-hour                             ┃        100%  limit · back 15:54
                                                                   ┃  ┃  ┃  ┃  ┃  ┃

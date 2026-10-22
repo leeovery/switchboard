@@ -2883,8 +2883,9 @@ where the parts lay it, as Narrower and wider says.
   call's. The first bends 3 cells left of the jacks, at 81, and each next 3 cells further left;
   where the last would then fall outside the bends' room, they bend 2 apart, or failing that, 1.
   The bends' room runs from the column after the plugs to the first bend, over the 9 cells a loose
-  cord or a stub hangs in: a bent cord crossing the row of one is drawn over it, the rest of it
-  hanging as it fades (the owner's call on the spike, 21 October 2026). It's 61 to 81 at 160
+  cord hangs in: a bent cord crossing the row of one is drawn over it, the rest of it hanging as it
+  fades (the owner's call on the spike, 21 October 2026). A limit's stub hangs in the 2 cells after
+  the first bend, so no cord crosses it (the owner's call, 22 October 2026). It's 61 to 81 at 160
   columns with a call moved: 21 columns, so 3 apart holds 7 bent cords, 2 apart 11, and 1 apart 21;
   at 108, 18 columns, 6 bent cords 3 apart, at 61, 58, 55, 52, 49 and 46. Where 1 apart can't hold
   them all in the steady room (see Narrower and wider), the view draws lanes (see Lanes, below).
@@ -2919,10 +2920,11 @@ only for what moves on screen, never for a cord scrolled away or under `?`.
 group at the foot, `↑ asking  ▸ from personal`, its cord to a jack there, as The jacks say.
 
 - **Where a limit forced the move,** the old cord hangs from its old jack while the limit holds: `╌`
-  in `state.destructive`, to the jack's left, 7 cells, then 6 for a second session, each a cell
-  shorter, one for each session the limit's event moved, its `count`; red, as red on this page means
-  a limit. Its jack shows `○`, and isn't free while the cord hangs. A session the limit moves at its
-  next request keeps its row and its jack until then.
+  in `state.destructive`, to the jack's left, 2 cells, `╌╌○`, clear of the bends, so no cord ever
+  crosses it; one for each session the limit's event moved, its `count`, each alike (the owner's
+  call, 22 October 2026); red, as red on this page means a limit. Its jack shows `○`, and isn't
+  free while the cord hangs. A session the limit moves at its next request keeps its row and its
+  jack until then.
 - **A move no limit forced,** by pressure, a pin or by hand: the old cord hangs 9 cells, in
   `text.subtle`, fading into the canvas over 3 seconds (settled in the plan).
 
@@ -2933,7 +2935,9 @@ number, name and marks in `text.faint`, its bars keeping 35% of their colour, wh
 the canvas, and its percentages and words in `text.faint`. Its state words stay unfaded, in their
 own colours, as they're the account's own, cut by whole clauses from the end where
 `✕ out of the pool` needs the room: `● at its cap · back 17:10`. An account closed by a cap or a
-limit is never faded for it: one the pin names, at its limit, is red.
+limit is never faded for it: one the pin names, at its limit, is red. The pin is said once, as
+ROUTING says it, here and in the lanes alike: where `● pinned` shows, the words leave out what
+says it (`● at its cap  ● pinned`); where it's left off, a state whose words carry it says it there.
 
 **Compaction.** No view changes shape by account count, so the Switchboard stays a switchboard: as
 rows run short, its lines compact, as the Overview's sections fold. Its rows are laid by `flex`, as

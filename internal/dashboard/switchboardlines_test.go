@@ -208,6 +208,46 @@ func TestThePinsMarkNeverDrawsOverALinesMeterOrItsFirstWords(t *testing.T) {
 	}
 }
 
+// An account whose cap the pin spends says the pin once, on the Switchboard
+// and on its lanes alike: where ● pinned ends its name row, its words say
+// nothing of the pin; where the mark hasn't the room, it isn't drawn, and its
+// words are whole, saying the pin themselves as far as they fit.
+func TestThePinIsSaidOnceOnTheSwitchboardAndItsLanes(t *testing.T) {
+	doc := usageWorld(usagePinned("work"))
+	for _, tt := range []struct {
+		name   string
+		frame  Frame
+		marked bool
+	}{
+		{name: "the Switchboard", frame: boardFrame(130, 30, Look{}, boardOf(boardLook{calls: phoneScene()}), Traffic{}), marked: true},
+		{name: "the Switchboard, two rows a line", frame: boardFrame(130, 20, Look{}, boardOf(boardLook{calls: phoneScene()}), Traffic{}), marked: true},
+		{name: "its lanes", frame: lanesFrame(52, 33, Look{}, phoneScene()), marked: true},
+		{name: "its lanes, short of room for the mark", frame: lanesFrame(36, 33, Look{}, phoneScene())},
+	} {
+		rows := textOf(tt.frame.Draw(doc, routedAt))
+		i := slices.IndexFunc(rows, func(r string) bool { return strings.Contains(r, "1 work") })
+		if i < 0 {
+			t.Fatalf("%s: no row names work; drew\n%s", tt.name, strings.Join(rows, "\n"))
+		}
+		row := strings.TrimRight(rows[i][strings.Index(rows[i], "1 work"):], " ")
+		said := 0
+		if tt.marked {
+			said = 1
+		}
+		if !strings.Contains(row, "● at its cap") || strings.HasSuffix(row, pinnedSpan.text) != tt.marked || strings.Count(row, "pinned") != said {
+			t.Errorf("%s: work's row reads %q, want ● at its cap, its mark drawn %v, and the pin said %d times", tt.name, row, tt.marked, said)
+		}
+	}
+	work, _ := doc.At(routedAt, claudeLike).Account("work")
+	room := standingLeads(work.Routing, true).width() + wordsGap + pinnedCells()
+	if mark, said := pinShown(work, 0, room, true); mark == nil || slices.Contains(said.Short, "pinned") {
+		t.Errorf("with room for the mark, pinShown gives %v and %+v, want ● pinned and words without the pin", mark, said)
+	}
+	if mark, said := pinShown(work, 0, room-1, true); mark != nil || !slices.Equal(said.Short, work.Routing.Short) || !slices.Contains(said.Short, "pinned") {
+		t.Errorf("a cell short of room for the mark, pinShown gives %v and %+v, want no mark and work's words whole, %+v", mark, said, work.Routing)
+	}
+}
+
 // moreAccounts counts n more accounts, as a line saying what's out of view
 // counts them.
 func moreAccounts(n int) string {

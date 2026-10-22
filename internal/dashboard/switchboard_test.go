@@ -109,14 +109,21 @@ func readAt(at time.Time) func(*status.Document) {
 // until, as its window resets, its event counting the sessions it has moved,
 // to side.
 func personalAtItsLimit(reached, until time.Time, moved int) func(*status.Document) {
+	return atItsLimit("personal", "side", reached, until, moved)
+}
+
+// atItsLimit has the account with the id given at its 5-hour limit, reached
+// at reached, till until, as its window resets, its event counting the
+// sessions it has moved, to the account to.
+func atItsLimit(id, to string, reached, until time.Time, moved int) func(*status.Document) {
 	const limit = 12
 	return func(d *status.Document) {
-		account("personal", func(a *status.Account) {
+		account(id, func(a *status.Account) {
 			a.Windows[0] = quota.Window{Key: "5h", Label: "Session", Utilization: 1, Status: quota.StatusRejected, ResetsAt: until}
 			a.Limit = status.Limit{ID: limit, Windows: []string{"5h"}, Until: until}
 		})(d)
 		d.Events = append(d.Events, status.Event{
-			ID: 7, At: reached, Kind: status.EventLimit, Account: "personal", Windows: []string{"5h"}, To: "side", Until: until, Count: moved, Limit: limit,
+			ID: 7, At: reached, Kind: status.EventLimit, Account: id, Windows: []string{"5h"}, To: to, Until: until, Count: moved, Limit: limit,
 		})
 	}
 }
@@ -470,8 +477,8 @@ func stubsOn(moved int) (Frame, status.Document) {
 }
 
 // A stub hangs to its jack's left for each session the limit's event moved,
-// red: 7 cells, then a cell shorter for each next, never under a cell; its
-// jack shows ○, and the line grows a row for each stub past its rows.
+// red, 2 cells, each alike; its jack shows ○, and the line grows a row for
+// each stub past its rows.
 func TestStubsHangForEachSessionTheLimitMoved(t *testing.T) {
 	for _, moved := range []int{1, 3, 8} {
 		t.Run(strconv.Itoa(moved), func(t *testing.T) {
@@ -480,8 +487,7 @@ func TestStubsHangForEachSessionTheLimitMoved(t *testing.T) {
 			personal, _ := f.switchboardLaid(doc, routedAt).line("personal")
 			top := f.top() + personal.top
 			for jack := range moved {
-				cells := max(7-jack, 1)
-				want := strings.Repeat(" ", 7-cells) + strings.Repeat(hangingGlyph, cells) + freeJack
+				want := "     " + strings.Repeat(hangingGlyph, stubCells) + freeJack
 				if got := textFrom(c, 77, 85, top+jack); got != want {
 					t.Errorf("jack %d reads %q, want %q", jack, got, want)
 				}
@@ -493,6 +499,56 @@ func TestStubsHangForEachSessionTheLimitMoved(t *testing.T) {
 				t.Errorf("the row under personal's line reads %q, want nothing hanging", got)
 			}
 		})
+	}
+}
+
+// No cord crosses a limit's stub: each is 2 cells, red, from the jack its
+// session left, clear of the first bend, 3 cells before the jacks. The
+// limited account first, second and last, of work, personal and side, its
+// limit having moved 1 to 6 sessions to the other two, each with a call of
+// its own, at every width from 100 to 220 the board draws: so the calls
+// moved run along the stubs' rows where the limited account is first.
+func TestNoCordCrossesALimitsStub(t *testing.T) {
+	accounts := []string{"work", "personal", "side"}
+	idle := idleSince(routedAt.Add(-time.Minute))
+	for i, limited := range accounts {
+		others := slices.Delete(slices.Clone(accounts), i, i+1)
+		for moved := 1; moved <= 6; moved++ {
+			var before, after []views.Call
+			for j, other := range others {
+				own := boardCall(fmt.Sprintf("%04x0000-5e55-4000-8000-000000000000", 0xa0+j), other, "~/Code/own", idle, "")
+				before, after = append(before, own), append(after, own)
+			}
+			for j := range moved {
+				id := fmt.Sprintf("%04x0000-5e55-4000-8000-000000000000", j+1)
+				before = append(before, boardCall(id, limited, "~/Code/moved", idle, ""))
+				after = append(after, boardCall(id, others[j%2], "~/Code/moved", idle, limited))
+			}
+			doc := usageWorld(atItsLimit(limited, others[0], atClock(14, 12, 0), atClock(15, 54, 0), moved))
+			board := boardOf(boardLook{calls: before}, boardLook{calls: after, stubs: map[string]int{limited: moved}})
+			for width := 100; width <= 220; width++ {
+				f := boardFrame(width, 60, Look{}, board, Traffic{})
+				laid := f.switchboardLaid(doc, routedAt)
+				if laid.lanes {
+					continue
+				}
+				ln, _ := laid.line(limited)
+				if len(ln.stubs) != moved {
+					t.Fatalf("%s limited, %d moved, at %d: %d stubs, want %d", limited, moved, width, len(ln.stubs), moved)
+				}
+				c := f.page(doc, routedAt)
+				for _, s := range ln.stubs {
+					y, x := f.top()+s.row, laid.columns.jacks-stubCells
+					hangs := c.at(x-1, y).glyph != hangingGlyph
+					for k := range stubCells {
+						hangs = hangs && c.at(x+k, y).glyph == hangingGlyph && c.at(x+k, y).ink == errorInk
+					}
+					if !hangs {
+						t.Fatalf("%s limited, %d moved, at %d: the stub on row %d reads %q, want %d red cells of %s, clear of every cord", limited, moved, width, y+1, textFrom(c, x-3, x+stubCells+1, y), stubCells, hangingGlyph)
+					}
+				}
+			}
+		}
 	}
 }
 

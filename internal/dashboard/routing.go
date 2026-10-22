@@ -312,7 +312,7 @@ func (f Frame) wideRouting(c *canvas, t routingTable, r accountRouting, y, rows 
 // narrowRouting draws account r's two rows of ROUTING from row y, as t's
 // columns lay them: on the first, its number, name and marks from column 1,
 // its short state from the name column, cut by whole clauses, and ● pinned
-// right-aligned, where it shows, the state then as said has it; on the
+// right-aligned, where it shows, the state then as saidBeside has it; on the
 // second, its trace from the name column to narrowTail cells short of the
 // edge, then its sessions and its rate right-aligned.
 func (f Frame) narrowRouting(c *canvas, t routingTable, r accountRouting, y int) {
@@ -322,7 +322,7 @@ func (f Frame) narrowRouting(c *canvas, t routingTable, r accountRouting, y int)
 		end = c.right(f.Width, y, line{pinnedSpan})
 	}
 	at := t.columns
-	f.drawStanding(c, r, at.names, y, standingWords(r.said(r.pinned), true, end-wordsGap-at.names))
+	f.drawStanding(c, r, at.names, y, standingWords(saidBeside(r.standing, r.pinned), true, end-wordsGap-at.names))
 	trace := bounds{x: at.trace, y: y + 1, width: at.traceCells, rows: 1}
 	f.drawTrace(c, r.trace, t.now, trace, r.faded)
 	c.right(f.rateEdge(trace), y+1, line{r.sessionsCounted(), spaces(2), r.rate(t.now)})
@@ -353,7 +353,7 @@ func rowState(r accountRouting, cells int) (line, bool) {
 	if !r.pinned {
 		return words, false
 	}
-	beside, said := cells-pinnedCells()-pinnedApart, r.said(true)
+	beside, said := cells-pinnedCells()-pinnedApart, saidBeside(r.standing, true)
 	marked, markedTimed := rowStanding(said, beside)
 	if standingLeads(said, false).width() > beside || (said.Timed() && !markedTimed) {
 		return words, false
@@ -361,13 +361,14 @@ func rowState(r accountRouting, cells int) (line, bool) {
 	return marked, true
 }
 
-// said is how the account stands in words, where marked says ● pinned shows
-// beside them: as Unpinned has it, the mark saying the pin; else whole.
-func (r accountRouting) said(marked bool) status.Routing {
+// saidBeside is how an account standing r stands in words, where marked says
+// ● pinned shows beside them: as Unpinned has it, the mark saying the pin;
+// else whole.
+func saidBeside(r status.Routing, marked bool) status.Routing {
 	if marked {
-		return r.standing.Unpinned()
+		return r.Unpinned()
 	}
-	return r.standing
+	return r
 }
 
 // pinnedCells are the cells ● pinned takes.
@@ -562,10 +563,10 @@ func (f Frame) routingBeside(c *canvas, t routingTable, at blocksBeside) {
 
 // besideAccount draws account r's lines beside its block from column x, on
 // the rows given, as routingBeside has them: its sessions and its trace only
-// where they have their rows; its state as said has it, where ● pinned shows
-// on its sessions' line.
+// where they have their rows; its state as saidBeside has it, where ● pinned
+// shows on its sessions' line.
 func (f Frame) besideAccount(c *canvas, t routingTable, r accountRouting, x int, rows []int) {
-	said := r.said(r.pinned && len(rows) > 1)
+	said := saidBeside(r.standing, r.pinned && len(rows) > 1)
 	drawLines(rows,
 		func(y int) { f.drawStanding(c, r, x, y, standingWords(said, false, f.Width-wordsGap-x)) },
 		func(y int) { c.line(x, y, besideSessions(r)) },

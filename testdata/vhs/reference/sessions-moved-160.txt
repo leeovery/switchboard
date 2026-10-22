@@ -11,7 +11,7 @@ d28c switchboard              idle 6s      ▸ from work      ●━━━━━
 7f3a api                      idle 2m      ▸ from work      ●━━━━━━━━━━━┓  ┃  ┃  ┃
 db8a infra                    idle 47s     ▸ from work      ●━━━━━━━━┓  ┃  ┃  ┃  ┃
 41e0 docs                     ↑ asking     ▸ from personal  ●━━━━━┓  ┃  ┃  ┃  ┃  ┃
-                                                                  ┃  ┃  ┃  ┃ ╌┃╌╌┃╌╌○ 2 personal ◆    ■ limit reached · back 16:30
+                                                                  ┃  ┃  ┃  ┃  ┃  ┃╌╌○ 2 personal ◆    ■ limit reached · back 16:30
                                                                   ┃  ┃  ┃  ┃  ┃  ┗━━◉  Week                            ┃            66%  out ~Sun 00:48
                                                                   ┃  ┃  ┃  ┃  ┃     ○
                                                                   ┃  ┃  ┃  ┃  ┃     ○  5-hour                                  ┃   100%  limit · back 16:30

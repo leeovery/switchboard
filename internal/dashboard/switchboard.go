@@ -77,7 +77,7 @@ func (d boardDrawn) jacks(c *canvas, ln laidLine) {
 		c.text(x, row, freeJack, faintInk)
 	}
 	for _, s := range ln.stubs {
-		c.text(x-s.cells, s.row, strings.Repeat(hangingGlyph, s.cells), errorInk)
+		c.text(x-stubCells, s.row, strings.Repeat(hangingGlyph, stubCells), errorInk)
 	}
 	for _, l := range d.f.Traffic.Loose {
 		d.loose(c, ln, l)

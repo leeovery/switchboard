@@ -502,14 +502,14 @@ func (l boardLayout) cordsOf() []string {
 }
 
 // linesOf are the layout's lines, as "personal 14–19", the rows absolute,
-// as a frame from row 6 draws them, with the stubs hanging from each, as
-// "╌14×7".
+// as a frame from row 6 draws them, with the rows of the stubs hanging from
+// each, as "╌14".
 func (l boardLayout) linesOf() []string {
 	var lines []string
 	for _, ln := range l.lines {
 		said := fmt.Sprintf("%s %d–%d", ln.account, 6+ln.top, 6+ln.top+ln.rows-1)
 		for _, s := range ln.stubs {
-			said += fmt.Sprintf(" ╌%d×%d", 6+s.row, s.cells)
+			said += fmt.Sprintf(" ╌%d", 6+s.row)
 		}
 		lines = append(lines, said)
 	}
@@ -535,7 +535,7 @@ func TestTheFramesWorldsAreLaidOutAsTheFramesDrawThem(t *testing.T) {
 			name:   "sessions-moved-160: 41e0 at side's foot, its stub on personal's first jack, 9c2e kept on its second",
 			height: 37, lines: threeLines, step: 1, keyAt: 34,
 			patched:   patchedBy(sceneAt1442, sat{on: []string{"personal: 9c2e", "side: c61b d28c 7f3a db8a 41e0"}, stubs: map[string]int{"personal": 1}}),
-			wantLines: []string{"work 6–11", "personal 15–20 ╌15×7", "side 24–29"},
+			wantLines: []string{"work 6–11", "personal 15–20 ╌15", "side 24–29"},
 			wantCords: []string{"9c2e 6→16 @81", "c61b 8→24 @78", "d28c 9→25 @75", "7f3a 10→26 @72", "db8a 11→27 @69", "41e0 12→28 @66"},
 		},
 		{
@@ -544,7 +544,7 @@ func TestTheFramesWorldsAreLaidOutAsTheFramesDrawThem(t *testing.T) {
 				sat{on: []string{"side: c61b d28c 7f3a db8a"}},
 				sat{on: []string{"side: c61b d28c 7f3a db8a 41e0 9c2e"}, stubs: map[string]int{"personal": 2}},
 			),
-			wantLines: []string{"work 6–11", "personal 15–20 ╌15×7 ╌16×6", "side 24–29"},
+			wantLines: []string{"work 6–11", "personal 15–20 ╌15 ╌16", "side 24–29"},
 			wantCords: []string{
 				"c61b 6→24 @81", "d28c 7→25 @78", "7f3a 8→26 @75", "db8a 9→27 @72", "41e0 10→28 @69", "9c2e 11→29 @66",
 			},
@@ -747,17 +747,13 @@ func TestALineGrowsARowForEachJackPastItsOwn(t *testing.T) {
 	}
 }
 
-func TestAStubHangsAShorterCordForEachSessionTheLimitMovedNeverUnderACell(t *testing.T) {
+// A limit hangs a stub from a jack of its line for each session it moved,
+// each 2 cells, as the next tests draw them, the line growing a row for each
+// jack past its own.
+func TestAStubHangsForEachSessionTheLimitMoved(t *testing.T) {
 	l := sessionsLaid(160, viewRows(37), patchedBy(sat{stubs: map[string]int{"personal": 9}}), threeLines)
 	ln, _ := l.line("personal")
-	var cells []int
-	for _, s := range ln.stubs {
-		cells = append(cells, s.cells)
-	}
-	if want := []int{7, 6, 5, 4, 3, 2, 1, 1, 1}; !slices.Equal(cells, want) {
-		t.Errorf("nine stubs are %v cells long, want %v", cells, want)
-	}
-	if ln.rows != 9 {
-		t.Errorf("personal's line takes %d rows, want 9, a jack for each stub", ln.rows)
+	if len(ln.stubs) != 9 || ln.rows != 9 {
+		t.Errorf("nine sessions moved, personal hangs %d stubs over %d rows, want 9 over 9, a jack for each stub", len(ln.stubs), ln.rows)
 	}
 }
