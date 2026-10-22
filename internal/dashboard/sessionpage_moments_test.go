@@ -67,8 +67,8 @@ func momentsShown(hm viewstest.SessionMoment, id string) (*SessionShown, bool) {
 // once it's over, its models and how long its lines are kept; a row each of
 // the accounts it ran on, its time there and its requests; a row each of its
 // turns, its number and how long it took; and ↑ asking on its newest turn
-// while it waits, and only then. A phone's two rows of now say the same,
-// short, at each moment too.
+// while it waits, and only then. A phone's two rows of now, at its
+// narrowest, say the same, short, at each moment too.
 func TestASessionsPageSaysWhatItsViewsSayAtEachHardMoment(t *testing.T) {
 	for _, hm := range viewstest.SessionMoments() {
 		t.Run(hm.Name, func(t *testing.T) {
@@ -85,7 +85,7 @@ func TestASessionsPageSaysWhatItsViewsSayAtEachHardMoment(t *testing.T) {
 				checkAccountRows(t, c, d, shown.Page, hm.Now)
 				checkTurnRows(t, c, d, shown.Page, hm.Now)
 
-				phone := frameOf(52, 32)
+				phone := frameOf(40, 32)
 				phone.Sessions, phone.Stream, phone.Session = hm.Sessions, hm.Stream, shown
 				checkPhoneNowRows(t, phone.At(hm.Doc, hm.Now).page(hm.Doc, hm.Now), phone.layoutOf(len(shown.Page.Accounts)), shown.Page, hm.Now)
 			}

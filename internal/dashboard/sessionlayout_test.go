@@ -235,17 +235,18 @@ func nowStates() []struct {
 }
 
 // The now rows take their wide form only where every part of each fits
-// whole at its widest, and switch once: so in every state, with short names
+// whole at its least, and switch once: so in every state, with short names
 // and long, wherever they're wide, row 6 says what the session's doing,
-// where it runs and why whole, and when it started whole at its right; and
-// row 7 its account's windows whole, or once it's over, its models and how
-// long they're kept.
+// where it runs and why whole, and at its right one of the forms of when it
+// started, whole, three cells or more apart, never a fuller one as the frame
+// narrows; and row 7 its account's windows whole, or once it's over, its
+// models and how long they're kept.
 func TestTheNowRowsWideFormCutsNothing(t *testing.T) {
 	for _, world := range pageWorlds {
 		for _, state := range nowStates() {
 			var switched []int
-			was := false
-			for width := 40; width <= 220; width++ {
+			was, fuller := true, 0
+			for width := 220; width >= 40; width-- {
 				d, drawn := pageDrawn(pageFrame(t, state.shown, width, 37), world.doc())
 				if d.nowWide != was {
 					switched = append(switched, width)
@@ -257,9 +258,13 @@ func TestTheNowRowsWideFormCutsNothing(t *testing.T) {
 				row6, row7 := strings.TrimRight(string(drawn[d.l.now]), " "), strings.TrimRight(string(drawn[d.l.now+1]), " ")
 				where := d.page.Where(d.now)
 				said := slices.Concat(d.doing(), line{spaces(sessionApart)}, d.onSince(where.OnSince), d.words(where.Why, mutedInk)).plain()
-				if !strings.HasPrefix(row6, said) || !strings.HasSuffix(row6, d.started().plain()) {
-					t.Errorf("%s, %s, at %d columns, row 6 reads\n%q\nwant it to say\n%q\nand end\n%q", world.name, state.name, width, row6, said, d.started().plain())
+				form := slices.IndexFunc(d.startedForms(), func(l line) bool {
+					return strings.HasSuffix(row6, strings.Repeat(" ", sessionApart)+l.plain())
+				})
+				if !strings.HasPrefix(row6, said) || form < fuller {
+					t.Errorf("%s, %s, at %d columns, row 6 reads\n%q\nwant it to say\n%q\nand end in a form of when it started, no fuller than at %d", world.name, state.name, width, row6, said, width+1)
 				}
+				fuller = max(fuller, form)
 				right := d.windows()
 				if !d.page.Runs() {
 					right = d.endedModels()
@@ -272,6 +277,22 @@ func TestTheNowRowsWideFormCutsNothing(t *testing.T) {
 				t.Errorf("%s, %s, the now rows switch form at %v, want once", world.name, state.name, switched)
 			}
 		}
+	}
+}
+
+// A session resumed the day before is wide at 160 columns, each part
+// measured for its own kind, its started part whole in its fullest form;
+// and narrower, its started part gives way to how it has run alone before
+// the rows take their short form.
+func TestASessionResumedTheDayBeforeIsWideAt160(t *testing.T) {
+	overnight := nowStates()[6].shown
+	d, drawn := pageDrawn(pageFrame(t, overnight, 160, 37), pageDoc())
+	if row := strings.TrimRight(string(drawn[d.l.now]), " "); !d.nowWide || !strings.HasSuffix(row, "   started yesterday 16:40 · resumed yesterday 22:10") {
+		t.Errorf("at 160 columns, row 6 reads\n%q\nwant it wide, ending in when it started and resumed", row)
+	}
+	d, drawn = pageDrawn(pageFrame(t, overnight, 140, 37), pageDoc())
+	if row := strings.TrimRight(string(drawn[d.l.now]), " "); !d.nowWide || !strings.HasSuffix(row, "   resumed yesterday 22:10") || strings.Contains(row, "started") {
+		t.Errorf("at 140 columns, row 6 reads\n%q\nwant it wide, ending in when it resumed alone", row)
 	}
 }
 

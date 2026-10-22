@@ -4165,16 +4165,23 @@ dashboard shows ids, bold `text.primary`; three spaces; its directory's last par
 plan).
 
 **Now** (rows 6 and 7). They take this wide form only where every part of each fits whole at its
-widest: row 6's state at its widest in any state, `ended yesterday 18:46`, then where it runs and
-why, whole, as the session says them, beside its right at its widest, started and resumed the day
-before, `started yesterday 16:40 · resumed yesterday 22:10`; and row 7's windows whole, the widest
-name and every window listed at `100%`. Names in both rows are drawn as a label's column holds
-them, 24 cells at the most, cut with `…` past it, their marks kept. Narrower, they take the short
-form a phone's has (see On a phone), which says the why short and whole, so the wide form never
-cuts what the short says whole. Only where and why come from the session: they change as it moves
-or ends, never as its turns come and go, so the form holds still while it asks, answers or idles.
-The form never follows the chrome's breakpoint. With the frames' names, `moved` is wide from 136
-columns, `quiet` from 114, `ended` from 131 and `resumed` from 157.
+least, each measured for the session's own kind:
+- row 6: its state at the widest a session of its kind says: running, the widest of asking,
+  answering, throttled, refused and idle to the hour, `↓ answering`; ended, its end the day before,
+  `ended yesterday 18:46`. Then where it runs and why, whole, as the session says them. Then its right
+  at its least, its shortest form at its widest for the session: `23h 59m`, `resumed yesterday
+  22:10` once resumed, or `ran 23h 59m` once over;
+- row 7: its windows whole, the widest name and every window listed at `100%`.
+
+Names in both rows are drawn as a label's column holds them, 24 cells at the most, cut with `…` past
+it, their marks kept. Where the rows are wide, the right takes the fullest of its forms that fits
+whole beside the left as it's measured: `started yesterday 16:40 · resumed yesterday 22:10`, else
+how it has run alone, `resumed yesterday 22:10`, as a phone's says it. Narrower, the rows take the
+short form a phone's has (see On a phone), which says the why short and whole, so the wide form never
+cuts what the short says whole. What's measured changes only as the session moves, is resumed or
+ends, never as its turns come and go, so the form holds still while it asks, answers or idles. The
+form never follows the chrome's breakpoint. With the frames' names, `moved` is wide from 84 columns,
+`quiet` from 62, `ended` from 93, `resumed` from 121, and resumed the day before from 131.
 
 - **Row 6,** what it's doing and where it runs:
   - **its state,** bold: `↑ asking` in `accent.key` while a request of it waits for its answer;
@@ -4191,7 +4198,8 @@ columns, `quiet` from 114, `ended` from 131 and `resumed` from 157.
   - **at the right,** ending at the last column: `started ` in `text.subtle`, the time in
     `text.secondary`, then in `text.muted` ` · 2h 40m`, how long since it started; ` · resumed
     09:12` once it came back after a fold; ` · ran 5h 27m` once it's over. A day other than today is
-    named: `started yesterday 16:40`.
+    named: `started yesterday 16:40`. Where that doesn't fit whole, how it has run alone, in
+    `text.secondary`: `2h 40m`.
 - **Row 7:** its models, three spaces apart, each by its id less `claude-` in `text.secondary`, then
   ` → ` in `text.muted` and the account it goes to now in `text.secondary`:
   `opus-5-5 → side   haiku-4-5 → side`. A session's models are routed apart, the session key being

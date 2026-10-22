@@ -108,22 +108,14 @@ func (d sessionDrawn) draw(c *canvas) {
 }
 
 // nowFits reports whether the session's now rows take their wide form:
-// where every part of each fits whole at its widest. Row 6: what it's doing
-// at its widest, in any state, as doingWidest says it, then where it runs
-// and why, whole, as wideNow draws them, and at its right, when it started
-// and how it has run, at their widest, as startedWidest says them. Row 7:
-// the account it runs on and its windows, the widest name and every window
-// listed at 100%, as windows draws them. Else they take their short form, a
-// phone's, which says the why short and whole.
-//
-// Only where it runs and why come from the session, as they're not bounded:
-// an ended session's names every account it ran on. They change as it moves
-// or ends, never as it asks, answers or idles, so the form holds still as
-// its turns come and go.
+// where every part of each fits whole at its least. Row 6: what it's doing
+// and where it runs and why, as saidCells counts them, then at its right
+// when it started in its shortest form at its widest, as ranWidest counts
+// it. Row 7: the account it runs on and its windows, the widest name and
+// every window listed at 100%, as windows draws them. Else they take their
+// short form, a phone's, which says the why short and whole.
 func (d sessionDrawn) nowFits() bool {
-	where := d.page.Where(d.now)
-	said := d.doingWidest() + sessionApart + slices.Concat(d.onSince(where.OnSince), d.words(where.Why, mutedInk)).width()
-	_, row6 := flex.Lay(d.Width, flex.Part{Least: said, Natural: said}, flex.Part{Least: d.startedWidest(), Gap: sessionApart})
+	_, row6 := flex.Lay(d.Width, flex.Part{Least: d.saidCells(), Natural: d.saidCells()}, flex.Part{Least: d.ranWidest(), Gap: sessionApart})
 	right := widestLabel(d.m) + ansi.StringWidth(" now  ")
 	for i, w := range d.listedWindows(d.m) {
 		if i > 0 {
@@ -135,22 +127,53 @@ func (d sessionDrawn) nowFits() bool {
 	return row6 && row7
 }
 
-// doingWidest are the cells the widest a session's state says takes: once
-// it's over, its end the day before, as "ended yesterday 18:46", as
-// prose.PastWidth counts it. Each other state says less: "↓ answering",
-// "idle 59m", as a session ends after an idle hour.
-func (d sessionDrawn) doingWidest() int {
-	ended := views.Activity{Doing: views.Ended, Since: d.now.AddDate(0, 0, -1)}
-	return ansi.StringWidth(ended.Said(d.now))
+// saidCells are the cells row 6's left takes, wide: what the session's
+// doing at the widest its kind says, as doingWidest counts it, then where it
+// runs and why, whole, as the session says them. Those aren't bounded, as an
+// ended session's name every account it ran on, but change only as it moves
+// or ends, never as its turns come and go, so the form holds still while it
+// asks, answers or idles.
+func (d sessionDrawn) saidCells() int {
+	where := d.page.Where(d.now)
+	return d.doingWidest() + sessionApart + slices.Concat(d.onSince(where.OnSince), d.words(where.Why, mutedInk)).width()
 }
 
-// startedWidest are the cells row 6's right takes at its widest: started
-// and resumed the day before, as "started yesterday 16:40 · resumed
-// yesterday 22:10", as prose.PastWidth counts them; how long it has run, or
-// ran, is narrower.
-func (d sessionDrawn) startedWidest() int {
-	yesterday := d.now.AddDate(0, 0, -1)
-	return d.startedOf(views.SessionPage{Started: yesterday, Resumed: yesterday}).width()
+// doingWidest are the cells the widest of what a session of its kind is
+// doing says: once it's over, its end the day before, the widest
+// prose.Past says a day, as "ended yesterday 18:46"; while it runs, the
+// widest of asking, answering, throttled, refused, and idle to the
+// IdleHour, after which it ends. A session's kind changes once, as it ends.
+func (d sessionDrawn) doingWidest() int {
+	if !d.page.Runs() {
+		return ansi.StringWidth(views.Activity{Doing: views.Ended, Since: d.now.AddDate(0, 0, -1)}.Said(d.now))
+	}
+	widest := 0
+	for _, a := range []views.Activity{
+		{Doing: views.Asking}, {Doing: views.Answering}, {Doing: views.Throttled, Status: 429}, {Doing: views.Refused, Status: 403},
+		{Doing: views.Idle, Since: d.now.Add(time.Second - views.IdleHour)},
+	} {
+		widest = max(widest, ansi.StringWidth(a.Said(d.now)))
+	}
+	return widest
+}
+
+// ranWidest are the cells row 6's right takes at its least, its shortest
+// form, how it has run, at its widest for the session's own kind: once over,
+// how long it ran, as "ran 23h 59m"; resumed, when, the day before, as
+// "resumed yesterday 22:10"; else how long it has run, as "23h 59m". Nothing
+// where its start isn't known.
+func (d sessionDrawn) ranWidest() int {
+	if d.page.Started.IsZero() {
+		return 0
+	}
+	widest := views.SessionPage{Started: d.now.Add(time.Minute - 24*time.Hour), Activity: views.Activity{Doing: views.Idle}}
+	switch {
+	case !d.page.Runs():
+		widest.Activity = views.Activity{Doing: views.Ended, Since: d.now}
+	case !d.page.Resumed.IsZero():
+		widest.Resumed = d.now.AddDate(0, 0, -1)
+	}
+	return ansi.StringWidth(widest.RanSaid(d.now))
 }
 
 // chosen is the turn chosen: the zero Turn where none is.
@@ -228,7 +251,7 @@ func (d sessionDrawn) wideNow(c *canvas) {
 	y := d.l.now
 	where := d.page.Where(d.now)
 	said := slices.Concat(d.doing(), line{spaces(sessionApart)}, d.onSince(where.OnSince), d.words(where.Why, mutedInk))
-	c.line(0, y, said.fit(d.leftOf(c, y, d.started())))
+	c.line(0, y, said.fit(d.leftOf(c, y, d.startedFit())))
 	if !d.page.Runs() {
 		c.line(0, y+1, d.endedModels().fit(d.Width))
 		return
@@ -287,13 +310,7 @@ func (d sessionDrawn) doing() line {
 // text.secondary, and how it has run in text.muted, "started yesterday
 // 16:40 · resumed 09:12"; nothing where its start isn't known.
 func (d sessionDrawn) started() line {
-	return d.startedOf(d.page)
-}
-
-// startedOf says when the session of page p started and how it has run
-// since, as started says it.
-func (d sessionDrawn) startedOf(p views.SessionPage) line {
-	said := p.StartedSaid(d.now)
+	said := d.page.StartedSaid(d.now)
 	if said == "" {
 		return nil
 	}
@@ -301,7 +318,30 @@ func (d sessionDrawn) startedOf(p views.SessionPage) line {
 	if i := strings.LastIndex(said, " "); i >= 0 {
 		day, at = said[:i+1], said[i+1:]
 	}
-	return line{{"started " + day, dimInk}, {at, secondaryInk}, {" · " + p.RanSaid(d.now), mutedInk}}
+	return line{{"started " + day, dimInk}, {at, secondaryInk}, {" · " + d.page.RanSaid(d.now), mutedInk}}
+}
+
+// startedForms are the forms row 6's right takes, fullest first: when the
+// session started and how it has run, as started says it, then how it has
+// run alone, as a phone's says it, in text.secondary. None where its start
+// isn't known.
+func (d sessionDrawn) startedForms() []line {
+	full := d.started()
+	if full == nil {
+		return nil
+	}
+	return []line{full, {{d.page.RanSaid(d.now), secondaryInk}}}
+}
+
+// startedFit is row 6's right in the fullest of its forms that fits whole
+// beside what's said at its left, as saidCells counts it, so the form holds
+// still as the session's doing changes.
+func (d sessionDrawn) startedFit() line {
+	forms := d.startedForms()
+	if len(forms) == 0 {
+		return nil
+	}
+	return firstFit(d.Width-d.saidCells()-sessionApart, forms...)
 }
 
 // onSince is the account the session runs on and since when, as words say

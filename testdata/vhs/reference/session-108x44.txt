@@ -4,8 +4,8 @@
 
 SESSION   d28c   switchboard  ~/Code/switchboard ─────────────────────────────────────────────────  esc back
 
-↑ asking  on side ▲ since 14:31
-moved from work: its cap                                                                              2h 39m
+↑ asking   on side ▲ since 14:31, moved from work: work reached its cap               started 12:02 · 2h 39m
+opus-5-5 → side   haiku-4-5 → side                                           side now  week 78%   5-hour 13%
 
 STORY   requests a minute ────────────────────────────────────────────────────────────────────────────────
                                       work reached its cap → side · 182k cached again, $1.82  14:31 ┊

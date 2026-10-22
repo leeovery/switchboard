@@ -310,20 +310,9 @@ func TestASessionsPageAtEachSize(t *testing.T) {
 			endAt: 157,
 		},
 		{
-			name: "136 wide: the now rows wide, where every part fits at its widest", shown: moved(), width: 136, height: 37,
-			want: map[int]string{
-				6: "↑ asking   on side ▲ since 14:31, moved from work: work reached its cap                                           started 12:02 · 2h 40m",
-				7: "opus-5-5 → side   haiku-4-5 → side",
-			},
-		},
-		{
-			name: "135 wide: the now rows short, as the widest wouldn't fit", shown: moved(), width: 135, height: 37,
-			want: map[int]string{6: "↑ asking  on side ▲ since 14:31", 7: "moved from work: its cap"},
-		},
-		{
 			name: "122 wide: every column, tools at its natural", shown: moved(), width: 122, height: 37,
 			want: map[int]string{
-				6: "↑ asking  on side ▲ since 14:31", 7: "moved from work: its cap",
+				6:  "↑ asking   on side ▲ since 14:31, moved from work: work reached its cap                             started 12:02 · 2h 40m",
 				24: "  #  started  took   requests  tools                             read  written     out    worth  on",
 			},
 			ends: map[int]string{25: "$0.79  side             ↑ asking"},
@@ -340,16 +329,27 @@ func TestASessionsPageAtEachSize(t *testing.T) {
 		{
 			name: "100 wide: the wide chrome's heading, tools gone", shown: moved(), width: 100, height: 30,
 			want: map[int]string{
-				4: "SESSION   d28c   switchboard  ~/Code/switchboard ─", 6: "↑ asking  on side ▲ since 14:31", 22: "TURNS    ",
+				4: "SESSION   d28c   switchboard  ~/Code/switchboard ─", 6: "↑ asking   on side ▲ since 14:31, moved from work: work reached its cap       started 12:02 · 2h 40m", 22: "TURNS    ",
 				24: "  #  started  took   requests     read  written     out    worth  on",
 			},
 		},
 		{
-			name: "99 wide: a phone's heading, under its own chrome, its now rows short", shown: moved(), width: 99, height: 30,
+			name: "99 wide: a phone's heading, under its own chrome, its now rows wide as they fit", shown: moved(), width: 99, height: 30,
 			want: map[int]string{
-				5: "SESSION  d28c  switchboard", 7: "↑ asking  on side ▲ since 14:31", 8: "moved from work: its cap",
+				5: "SESSION  d28c  switchboard", 7: "↑ asking   on side ▲ since 14:31, moved from work: work reached its cap      started 12:02 · 2h 40m", 8: "opus-5-5 → side   haiku-4-5 → side",
 				22: "TURNS    ", 24: "  #  started  took   requests     read  written     out    worth  on",
 			},
+		},
+		{
+			name: "84 wide: the now rows wide where their leasts fit, started as how it has run alone", shown: moved(), width: 84, height: 30,
+			want: map[int]string{
+				7: "↑ asking   on side ▲ since 14:31, moved from work: work reached its cap       2h 40m",
+				8: "opus-5-5 → side   haiku-4-5 → side",
+			},
+		},
+		{
+			name: "83 wide: the now rows short, as their leasts don't fit", shown: moved(), width: 83, height: 30,
+			want: map[int]string{7: "↑ asking  on side ▲ since 14:31", 8: "moved from work: its cap"},
 		},
 		{
 			name: "52 wide: a phone's, its turns their figures, worth and on", shown: moved(), width: 52, height: 32,
