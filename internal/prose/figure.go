@@ -31,9 +31,9 @@ func Tenths(x float64) string {
 }
 
 // Ratio writes a ratio, as a worth against its price, then ×: to a tenth, as
-// Tenths writes it, as "3.8×"; and from 100, as it rounds to a tenth, whole,
-// as "123×", so 99.95 reads "100×", never "100.0×". So it's 5 cells at most
-// up to 9999×.
+// Tenths writes it, as "3.8×"; and once its tenth reaches 100, to the nearest
+// whole, as "123×", so 99.95 reads "100×", never "100.0×". So it's 5 cells
+// at most up to 9999×.
 func Ratio(x float64) string {
 	if NearestTenth(x) < ratioWholeFrom {
 		return Tenths(x) + "×"

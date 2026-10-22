@@ -11,6 +11,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -962,6 +963,18 @@ func TestTokensOfIsItsLeastWhereItNamesNoAccounts(t *testing.T) {
 // cost a day, is written whole, so against its price still fits its least
 // and is never cut: by day, unsplit and by model on ten accounts, from 220
 // columns to 40, the newest day's reads whole, or not at all.
+// Against its price's least is reckoned at tokensRatioMost, so no ratio short
+// of 10000× is written wider than it.
+func TestTokensRatioMostIsTheWidestARatioIsWritten(t *testing.T) {
+	most := ansi.StringWidth(prose.Ratio(tokensRatioMost))
+	for tenths := 0; tenths < 99995; tenths++ {
+		x := float64(tenths) / 10
+		if got := ansi.StringWidth(prose.Ratio(x)); got > most {
+			t.Fatalf("a ratio of %v reads %q, %d cells, wider than tokensRatioMost's %d", x, prose.Ratio(x), got, most)
+		}
+	}
+}
+
 func TestTokensAgainstItsPriceOfAHundredfoldIsNeverCut(t *testing.T) {
 	for _, split := range []TokensSplit{TokensUnsplit, TokensByModel} {
 		for ratio, said := range map[float64]string{123.4: "123× its $7 day", 1234.5: "1234× its $7 day"} {
