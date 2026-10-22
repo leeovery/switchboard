@@ -121,8 +121,24 @@ func TestTheHeadingRow(t *testing.T) {
 			want:    []string{"ACCOUNTS    Compare  Detail  [ ]   accounts 1–6 of 10  ·  ←→ moves along them; all a…  < this week >"},
 		},
 		{
-			name: "the right left out where it doesn't fit beside the name and the sub-tabs", heading: filteredLog, width: 40, phone: true,
-			want: []string{"LOG   Requests  Events    only d28c swi…"},
+			name:    "on a phone, the state whole on the row under where it doesn't fit beside the name and the sub-tabs, the right left out where it doesn't fit after it",
+			heading: filteredLog, width: 40, phone: true,
+			want: []string{"LOG   Requests  Events", "only d28c switchboard"},
+		},
+		{
+			name:    "on a phone, loading… whole on the row under where it doesn't fit beside History's sub-tabs, eight weeks after it",
+			heading: HistoryPage{Shown: HistoryWeeks}.heading().loading(), width: 40, phone: true,
+			want: []string{"HISTORY   Year  Weeks  Days  Tokens", "loading…" + blanks(21) + "eight weeks"},
+		},
+		{
+			name:    "on a phone, eight weeks on the row under where it doesn't fit beside loading…'s room, whether it's loading or not",
+			heading: HistoryPage{Shown: HistoryDays}.heading(), width: 59, phone: true,
+			want: []string{"HISTORY   Year  Weeks  Days  Tokens", blanks(48) + "eight weeks"},
+		},
+		{
+			name:    "on a phone, loading… and eight weeks beside History's sub-tabs where they fit",
+			heading: HistoryPage{Shown: HistoryDays}.heading().loading(), width: 60, phone: true,
+			want: []string{"HISTORY   Year  Weeks  Days  Tokens    loading…  eight weeks"},
 		},
 	}
 	for _, tt := range tests {
@@ -411,6 +427,32 @@ func TestSteppingThePeriodNeverMovesTheHeadingsRows(t *testing.T) {
 			}
 			if slices.Min(rows) != slices.Max(rows) {
 				t.Errorf("%s at %d: its headings, read, loading and stepped, take %v rows, want the same for each", name, width, rows)
+			}
+		}
+	}
+}
+
+// A heading's state is a bounded qualifier, never cut: on Weeks and Days,
+// from 40 columns, loading… reads whole, beside the sub-tabs or on the row
+// under them, and the heading takes the same rows whether it's loading or
+// not.
+func TestLoadingReadsWholeOnWeeksAndDays(t *testing.T) {
+	for _, shown := range []HistoryView{HistoryWeeks, HistoryDays} {
+		for width := 40; width <= 220; width++ {
+			var rows []int
+			for _, loading := range []bool{false, true} {
+				f := headingFrame(width, History, historyAt(HistoryPage{Shown: shown}), loading)
+				rows = append(rows, f.heading().rows(width, f.phone()))
+				var said strings.Builder
+				for _, p := range f.headingPieces() {
+					said.WriteString(p.line.plain() + "\n")
+				}
+				if loading && !strings.Contains(said.String(), loadingWord) {
+					t.Errorf("%s at %d: the heading reads\n%s\nwant %q whole in it", historyViews[shown], width, said.String(), loadingWord)
+				}
+			}
+			if rows[0] != rows[1] {
+				t.Errorf("%s at %d: the heading takes %d rows, and loading %d, want the same", historyViews[shown], width, rows[0], rows[1])
 			}
 		}
 	}

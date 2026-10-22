@@ -159,22 +159,11 @@ func (f Frame) Split() string {
 }
 
 // weeksCycles reports whether v has a shape of Weeks to change to in the
-// frame: never on a phone; else either, where its page isn't built yet;
-// else where the table and the columns both take their wide form, each
-// drawn as itself, their widest rows fitting.
+// frame: where the table and the columns both take their wide form, as
+// weeksWideFits has it of the frame alone, whether its page is built yet or
+// not.
 func (f Frame) weeksCycles() bool {
-	p := f.History.Weeks
-	if f.phone() || p == nil {
-		return !f.phone()
-	}
-	for _, shape := range []WeeksShape{WeeksTable, WeeksColumns} {
-		shaped := f
-		shaped.History.WeeksShape = shape
-		if w := shaped.weeksDrawn(*p); w.phone || w.columns != (shape == WeeksColumns) {
-			return false
-		}
-	}
-	return true
+	return f.weeksWideFits(false) && f.weeksWideFits(true)
 }
 
 // yearShown names what the Year is shown for alone: an account, as label

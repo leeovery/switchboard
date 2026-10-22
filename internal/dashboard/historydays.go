@@ -189,7 +189,7 @@ func (f Frame) daysLaidOut(p views.DaysPage, top int, phone bool) daysLayout {
 func (f Frame) daysRowOf(p views.DaysPage, phone bool) daysRow {
 	if phone {
 		spans, fits := flex.Lay(f.edge()+1, daysParts(p, true)...)
-		weeks := daysWeeksShown(spans, fits)
+		weeks := spansShown(spans, fits)
 		name, count := f.phoneNamed(weeks)
 		return daysRow{name: name, weeks: weeks, count: count}
 	}
@@ -197,17 +197,17 @@ func (f Frame) daysRowOf(p views.DaysPage, phone bool) daysRow {
 	last := len(spans) - 1
 	return daysRow{
 		labels: spans[0], name: flex.Span{Size: spans[0].Size - nameGap},
-		weeks: daysWeeksShown(spans[1:last], fits), count: spans[last],
+		weeks: spansShown(spans[1:last], fits), count: spans[last],
 	}
 }
 
-// daysWeeksShown are the weeks of those laid out given that didn't give
+// spansShown are the spans of the parts laid out given that didn't give
 // way, where they fit; none where they don't.
-func daysWeeksShown(weeks []flex.Span, fit bool) []flex.Span {
+func spansShown(spans []flex.Span, fit bool) []flex.Span {
 	if !fit {
 		return nil
 	}
-	return slices.DeleteFunc(slices.Clone(weeks), func(week flex.Span) bool { return week.Left })
+	return slices.DeleteFunc(slices.Clone(spans), func(s flex.Span) bool { return s.Left })
 }
 
 // phoneNamed is where a phone lays a strip's name and its count on the row
@@ -278,7 +278,7 @@ func daysLabels(p views.DaysPage, weeks int) flex.Part {
 	for _, s := range p.ByAccount {
 		widest = max(widest, historyAccount(labelled(s.Label, s.Of), s.Primary, math.MaxInt).width())
 	}
-	return flex.Part{Least: leastRunwayLabels, Natural: widest + nameGap, Most: mostRunwayLabels, Narrows: weeks}
+	return labelsPart(widest, weeks)
 }
 
 // placeAccounts places BY ACCOUNT, three rows under the last family's
