@@ -1,6 +1,8 @@
 package dashboard
 
 import (
+	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -129,9 +131,9 @@ func TestSESSIONSShowsAsManyAsFitTheLastRowSayingHowManyMore(t *testing.T) {
 		rows  int
 		want  []string
 	}{
-		{name: "a row a session", width: 160, rows: 3, want: []string{"2 personal ◆    41e0", "                9c2e", "                +4 more"}},
-		{name: "two rows a session, where its row's parts don't fit a row", width: 82, rows: 6, want: []string{" 2 personal ◆   41e0", "                started", "                9c2e", "                started", "                +4 more", ""}},
-		{name: "every one where they fit", width: 160, rows: 6, want: []string{"2 personal ◆    41e0", "                9c2e", "3 side ▲        c61b", "                d28c", "                7f3a", "                db8a"}},
+		{name: "a row a session", width: 160, rows: 3, want: []string{"3 side ▲        c61b", "                d28c", "                +4 more"}},
+		{name: "two rows a session, where its row's parts don't fit a row", width: 82, rows: 6, want: []string{" 3 side ▲       c61b", "                started", "                d28c", "                moved", "                +4 more", ""}},
+		{name: "every one where they fit", width: 160, rows: 6, want: []string{"3 side ▲        c61b", "                d28c", "                7f3a", "                db8a", "2 personal ◆    41e0", "                9c2e"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -167,11 +169,11 @@ func TestEachRowOfASessionInSESSIONSOpensItsPage(t *testing.T) {
 		rows     int
 		want     []string
 	}{
-		{name: "a row a session, the last saying how many more", width: 160, sessions: sessions, rows: 3, want: []string{id41E0, id9C2E, ""}},
-		{name: "two rows a session, where its row's parts don't fit a row", width: 82, sessions: sessions, rows: 5, want: []string{id41E0, id41E0, id9C2E, id9C2E, ""}},
+		{name: "a row a session, the last saying how many more", width: 160, sessions: sessions, rows: 3, want: []string{idC61B, idD28C, ""}},
+		{name: "two rows a session, where its row's parts don't fit a row", width: 82, sessions: sessions, rows: 5, want: []string{idC61B, idC61B, idD28C, idD28C, ""}},
 		{
 			name: "a session on two accounts, on each", width: 160, sessions: two, rows: 7,
-			want: []string{idC61B, id41E0, id9C2E, idC61B, idD28C, id7F3A, idDB8A},
+			want: []string{idC61B, idD28C, id7F3A, idDB8A, idC61B, id41E0, id9C2E},
 		},
 	}
 	for _, tt := range tests {
@@ -196,8 +198,8 @@ func TestWhereItsRowsPartsDontFitASessionTakesTwoRows(t *testing.T) {
 	doc, sessions, stream := overviewWorld()
 	for _, width := range []int{82, 52} {
 		f := Frame{Width: width, Height: 40, View: Overview, Sessions: sessions[:2], Stream: stream}
-		if got := f.sessionsSection(doc, routedAt); got.least != 6 || got.most != 6 {
-			t.Errorf("at %d columns: least %d, most %d; want two rows a session and the heading's two", width, got.least, got.most)
+		if got := f.sessionsSection(doc, routedAt); got.least != 5 || got.most != 6 {
+			t.Errorf("at %d columns: least %d, most %d; want a session's two rows and how many more, to two rows a session, and the heading's two", width, got.least, got.most)
 		}
 		pad := func(left, right string) string {
 			return left + strings.Repeat(" ", width-len([]rune(left))-len([]rune(right))) + right
@@ -315,7 +317,7 @@ func TestASessionSeenLongerAgoThanItsColumnHoldsIsDrawnWhole(t *testing.T) {
 	c := newCanvas(160, 1)
 	r := views.Running{Account: "side", Session: idD28C, Family: "opus", Activity: views.Activity{LastSeen: routedAt.Add(-1000 * time.Hour)}}
 	f := Frame{Width: 160}
-	f.wideRunning(c, f.Moment(doc, routedAt), r, routingColumnsOf(f.Width, 16), 0)
+	f.wideRunning(c, f.Moment(doc, routedAt), r, f.runningForm(routingColumnsOf(f.Width, 16)).laid([]views.Running{r}), 0)
 	if got := rowOf(c, 0); !strings.Contains(got, "d28c  opus   1000h   idle") {
 		t.Errorf("drew %q, want 1000h whole, no blank before it", got)
 	}
@@ -379,5 +381,130 @@ func TestTheStreamSeesASessionRunningLaterThanTheRouterListedIt(t *testing.T) {
 	}
 	if !sessions[4].Assignments[0].LastSeen.Equal(routedAt.Add(-4 * time.Minute)) {
 		t.Error("the router's listing was changed")
+	}
+}
+
+// busyAt is a session sending requests on an account: rate of them in the
+// minute to routedAt.
+type busyAt struct {
+	account, session string
+	rate             int
+}
+
+// busyNow are the traces of the sessions given, each sending at its rate.
+func busyNow(busy ...busyAt) views.Traces {
+	var told []views.Told
+	for _, b := range busy {
+		for i := range b.rate {
+			told = append(told, views.Told{Request: fmt.Sprintf("%s-%d", b.session, i), Session: b.session, Account: b.account, Sent: routedAt.Add(-time.Duration(i+1) * time.Second)})
+		}
+	}
+	return views.Traces{}.Told(told, routedAt)
+}
+
+// sessionsOnPage are the rows of SESSIONS' body as the frame draws the
+// Overview of doc at routedAt, trimmed.
+func sessionsOnPage(f Frame, doc status.Document) []string {
+	laid := f.laidOut(doc, routedAt, 0)
+	body := laid[slices.IndexFunc(laid, func(p planned) bool { return p.Section == SectionSessions })].body
+	var shown []string
+	for _, row := range f.overviewDrawn(doc, routedAt).rows(Look{})[body.y : body.y+body.rows] {
+		shown = append(shown, strings.TrimRight(row, " "))
+	}
+	return shown
+}
+
+// rowsStart reports whether there are as many rows as wanted, each starting
+// as wanted, and one wanted blank blank.
+func rowsStart(rows, wanted []string) bool {
+	if len(rows) != len(wanted) {
+		return false
+	}
+	for i, row := range rows {
+		if !strings.HasPrefix(row, wanted[i]) || wanted[i] == "" && row != "" {
+			return false
+		}
+	}
+	return true
+}
+
+// SESSIONS lists the busiest accounts first, each one's sessions together,
+// busiest first, as views.BusiestFirst has them; and keeps the sessions it
+// shows, and their order, as the layout was made, till the next: a session
+// coming goes into how many more, one ending leaves its row blank, and as
+// rates change, nothing reorders. A resize lays it out afresh, in the order
+// the rates give then.
+func TestSESSIONSKeepsWhatItShowsInTheOrderTakenTillTheNextLayout(t *testing.T) {
+	doc, sessions, stream := overviewWorld()
+	f := Frame{
+		Width: 160, Height: 13, View: Overview, Sections: SectionsNamed([]string{"sessions"}), Sessions: sessions, Stream: stream,
+		Traces: busyNow(busyAt{account: "personal", session: id9C2E, rate: 5}, busyAt{account: "side", session: idD28C, rate: 1}),
+	}
+	taken := []string{"2 personal ◆    9c2e", "                41e0", "3 side ▲        d28c", "                c61b", "                +2 more"}
+	if got := sessionsOnPage(f, doc); !rowsStart(got, taken) {
+		t.Fatalf("laid out afresh, SESSIONS shows\n  %q\nwant\n  %q: personal, 5 a minute, before side's 1, though side runs more, and its idle 41e0 before side's d28c", got, taken)
+	}
+	f.Layout = f.LayoutOf(doc, routedAt)
+
+	without := func(id string) []status.Session {
+		return slices.DeleteFunc(slices.Clone(sessions), func(s status.Session) bool { return s.ID == id })
+	}
+	busier, came, ended, endedFirst := f, f, f, f
+	busier.Traces = busyNow(busyAt{account: "side", session: idC61B, rate: 20}, busyAt{account: "personal", session: id9C2E, rate: 5})
+	came.Sessions = append(slices.Clone(sessions), status.Session{ID: id1F9A, Assignments: []status.Assignment{
+		{Model: opus, Family: "opus", Account: "work", Reason: status.ReasonNew, AssignedAt: routedAt, LastSeen: routedAt},
+	}})
+	came.Traces = busyNow(busyAt{account: "work", session: id1F9A, rate: 30})
+	ended.Sessions, endedFirst.Sessions = without(id41E0), without(id9C2E)
+	tests := []struct {
+		name string
+		f    Frame
+		want []string
+	}{
+		{name: "rates changing: nothing reorders", f: busier, want: taken},
+		{name: "a session coming, the busiest: into how many more", f: came, want: []string{"2 personal ◆    9c2e", "                41e0", "3 side ▲        d28c", "                c61b", "                +3 more"}},
+		{name: "a session ending: its row left blank", f: ended, want: []string{"2 personal ◆    9c2e", "", "3 side ▲        d28c", "                c61b", "                +2 more"}},
+		{name: "an account's first ending: its row left blank, its name on its next", f: endedFirst, want: []string{"", "2 personal ◆    41e0", "3 side ▲        d28c", "                c61b", "                +2 more"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := sessionsOnPage(tt.f, doc); !rowsStart(got, tt.want) {
+				t.Errorf("SESSIONS shows\n  %q\nwant\n  %q", got, tt.want)
+			}
+			if got := tt.f.LayoutOf(doc, routedAt); !sameLayout(got, f.Layout) {
+				t.Errorf("the layout is %+v, want it kept, %+v", got, f.Layout)
+			}
+		})
+	}
+
+	resized := busier
+	resized.Height++
+	want := []string{"3 side ▲        c61b", "                d28c", "                7f3a", "                db8a", "2 personal ◆    9c2e", "                41e0"}
+	if got := sessionsOnPage(resized, doc); !rowsStart(got, want) {
+		t.Errorf("resized, SESSIONS shows\n  %q\nwant it laid out afresh, side's c61b, 20 a minute, first\n  %q", got, want)
+	}
+	if sameLayout(resized.LayoutOf(doc, routedAt), f.Layout) {
+		t.Error("resized, the layout is as kept, want it made afresh")
+	}
+}
+
+// A click on SESSIONS' rows as a layout kept lists them opens the session
+// drawn there: none on a row left blank.
+func TestARowSESSIONSLeftBlankOpensNoPage(t *testing.T) {
+	doc, sessions, stream := overviewWorld()
+	f := Frame{Width: 160, Height: 13, View: Overview, Sections: SectionsNamed([]string{"sessions"}), Sessions: sessions, Stream: stream}
+	f.Layout = f.LayoutOf(doc, routedAt)
+	f.Sessions = slices.DeleteFunc(slices.Clone(sessions), func(s status.Session) bool { return s.ID == idD28C })
+	got := map[int]string{}
+	for _, target := range f.overviewTargets(doc, routedAt) {
+		if target.On == OnSession {
+			got[target.Y] = target.Session
+		}
+	}
+	laid := f.laidOut(doc, routedAt, f.top())
+	body := laid[slices.IndexFunc(laid, func(p planned) bool { return p.Section == SectionSessions })].body
+	want := map[int]string{body.y: idC61B, body.y + 2: id7F3A, body.y + 3: idDB8A}
+	if !maps.Equal(got, want) {
+		t.Errorf("SESSIONS' rows open %v, want %v: d28c's row, left blank, none", got, want)
 	}
 }

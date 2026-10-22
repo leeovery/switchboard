@@ -18,8 +18,8 @@ import (
 const IdleHour = time.Hour
 
 // Running is a session running on an account, as SESSIONS lists it: a row
-// on each account its models go to, grouped by account in the config's
-// order.
+// on each account its models go to, grouped by account, as RunningOf lists
+// them in the config's order and BusiestFirst busiest first.
 type Running struct {
 	// Account is the account's id, and Session the session's.
 	Account, Session string

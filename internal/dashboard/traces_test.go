@@ -357,8 +357,8 @@ func TestEveryTraceOnScreenSharesTheBusiestColumnAsItsScale(t *testing.T) {
 		{name: "the sessions' alone, ROUTING hidden", width: 160, height: 60, shown: SectionsNamed([]string{"sessions"}), want: 24},
 		{name: "two rows a session, where SESSIONS draws no trace: ROUTING's alone", width: 82, height: 60, shown: routingAndSessions, want: 16},
 		{name: "beside USAGE's blocks, the pool's, its accounts' summed", width: 160, height: 60, by: ByAccount, want: 30},
-		{name: "SESSIONS folded, its rows run short: ROUTING's alone", width: 160, height: 20, shown: routingAndSessions, want: 16},
-		{name: "ROUTING folded too: none, the least", width: 160, height: 12, shown: routingAndSessions, want: leastScale},
+		{name: "SESSIONS folded, its rows run short: ROUTING's alone", width: 160, height: 16, shown: routingAndSessions, want: 16},
+		{name: "ROUTING folded too: none, the least", width: 160, height: 11, shown: routingAndSessions, want: leastScale},
 		{name: "with no trace shown, the least", width: 160, height: 60, shown: SectionsNamed([]string{"usage"}), want: leastScale},
 		{name: "a quiet page, never less than 8", width: 160, height: 60, shown: SectionsNamed([]string{"routing"}), quiet: true, want: leastScale},
 	}
@@ -424,12 +424,12 @@ func TestABusyAccountScrolledOutOfUSAGEDoesNotSetTheScale(t *testing.T) {
 func TestASessionPastSESSIONSMoreRowDoesNotSetTheScale(t *testing.T) {
 	doc, listed, traces := tracedWorld()
 	f := Frame{Width: 160, Height: 40, View: Overview, Sessions: listed, Traces: traces}
-	// Three rows show personal's two sessions, 4 their busiest, and say four
-	// more run, side-1, 24, among them.
-	c := holdingTraces(newCanvas(f.Width, 3))
-	f.sessionsSection(doc, routedAt).draw(c, bounds{width: f.Width, rows: 3})
-	if got := f.traceScale(*c.traces); got != leastScale {
-		t.Errorf("scaled to %v, want %v: the sessions shown", got, float64(leastScale))
+	// Two rows show side's busiest session, side-0, 16 its busiest, and say
+	// five more run, side-1, 24, among them.
+	c := holdingTraces(newCanvas(f.Width, 2))
+	f.sessionsSection(doc, routedAt).draw(c, bounds{width: f.Width, rows: 2})
+	if got := f.traceScale(*c.traces); got != 16 {
+		t.Errorf("scaled to %v, want 16: the session shown", got)
 	}
 }
 

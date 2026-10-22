@@ -1808,14 +1808,23 @@ right:
   opening asking for one (see Live updates), then from the request stream. A session moved between
   accounts carries its whole 30 minutes on its own trace.
 
-**SESSIONS** lists the sessions running, those the router has routed in the last hour, grouped by
-account in the config's order, a session whose models go to two accounts on each:
+**SESSIONS** lists the sessions running, those the router has routed in the last hour, a session
+whose models go to two accounts on each:
 
-- **The account's number, name and marks** at column 0, on its first session's row alone.
+- **Busiest first** (`views.BusiestFirst`): the accounts by their sessions' requests a minute,
+  each session's as its trace counts it, then by how many run there, then in USAGE's order; and
+  each account's sessions together, by requests a minute, then the one seen last first. So an idle
+  session of a busy account comes before a busier one of a quieter account: the grouping wins (the
+  owner's call, 21 October 2026).
+- **The account's number, name and marks** at column 0, on the first of its sessions shown alone.
 - **The session's id,** its first 4 characters, at the name column: bold `text.primary` while busy,
   with a request in flight or seen in the last minute, else `text.muted`. Then two spaces, its
-  model's family padded to 7 in `text.muted`, and when it was last seen, right-aligned in 4 in
-  `text.subtle`: `now` within the minute, `9m`, `2h`.
+  model's family in `text.muted`, and a cell on, when it was last seen, right-aligned in 4 in
+  `text.subtle`: `now` within the minute, `9m`, `2h`. The family's column is laid by flex
+  (`overview_sessions.go`, `runningParts`), as a label's is: at least the widest family the
+  version table names, `sonnet`'s 6, its natural the widest of the families shown, at most 24, so
+  a model's id that names no family reads whole where there's room, why it's there giving way
+  first.
 - **What it's doing,** three spaces on, padded to 9: `↓ ~1.2k` while it's answering, its tokens so
   far estimated at four characters a token, or `↑ ask` while it's asking, both in `accent.key`; else
   `idle` in `text.faint`.
@@ -1827,8 +1836,18 @@ account in the config's order, a session whose models go to two accounts on each
   `moved from work 1…`, 18 cells, at 108 columns.
 - **Its own trace,** one row, starting where ROUTING's do, as ROUTING's row's parts lay them, so
   the two columns line up, on the shared scale, and its rate right-aligned at the last column. A
-  session takes a row wherever an account does in ROUTING. No blank rows between sessions; with
-  none running, `no sessions running` in `text.faint` (settled in the plan).
+  session takes a row wherever an account does in ROUTING. No blank rows between sessions, but
+  where one has ended (see Steady, below); with none running, `no sessions running` in
+  `text.faint` (settled in the plan).
+- **As many as its rows hold** (see Room): at its least, the busiest session and a row saying
+  how many more run, `+5 more` in `text.subtle` at the name column, the words and code Detail's
+  sessions use; a whole session more at a time as rows are spare; and the row saying how many more
+  goes once every session shows.
+- **Steady:** the sessions it shows, and their order, are taken as the layout is made, and kept
+  with it till the next, on a key, a resize or a section's shape changing (see Room). A session
+  that starts goes into `+N more`; one that ends leaves its row blank, and where it was its
+  account's first shown, its account's name goes to the next; as rates change, nothing reorders
+  (`views.Steady`). With none left running, it says so.
 - **While what names them is read,** as the List's first read takes 150 ms or longer, the heading
   says `loading…` in `text.subtle` as its description, till it lands (settled in the plan; see The
   page).
@@ -1950,7 +1969,7 @@ remembered").
 | USAGE | The compact matrix | The big bars, by window from 150 columns; by account with GRAPHS' charts beside, every chart, its blocks apart for 5 rows of chart, and on the way, the charts stacked at 2 rows | Compact: `2a + 7` for `a` accounts and the pool, 7 for one account |
 | GRAPHS | 5 rows of chart | 19 | `r(h + 2) + 2` for `r` rows of charts; beside USAGE's blocks by account, none of its own (the owner's call, 15 October 2026) |
 | ROUTING | A row an account | Two rows of trace an account, a blank row between | `a + 3`; `3a + 2` |
-| SESSIONS | A row a session | The same | Its sessions and 2 |
+| SESSIONS | A session and `+N more`; every one where that's no fewer | A row a session, two where ROUTING takes two an account | Its sessions and 2, from one session and a row, a session at a time |
 | COMING UP and LATELY | 3 lines | 12 | Its lines and 2 |
 
 Rows 0 to 3 (0 to 4 on a phone) hold the title row and the status line, and the last two the blank
@@ -1972,19 +1991,21 @@ below, not flex's even share:
    and COMING UP doesn't, as under a folded heading, where COMING UP's would bring a blank row
    back. A section left folded never fits at its least with every other at its own.
 4. **Rows to spare go out even while a section is folded,** to the units that aren't, in turn: to
-   GRAPHS, a row at a time to 19; to USAGE's big bars, if they fit; to ROUTING's two rows of trace,
-   if they fit; then to COMING UP and LATELY, a line at a time to 12; by account, at the big bars'
-   turn, so ahead of COMING UP and LATELY, USAGE grows to the most of its forms that fits whole:
-   GRAPHS' charts at 5 rows, or stacked at 2. A folded unit never grows: what can't unfold leaves
-   rows the others use. GRAPHS comes before the big bars, so that GRAPHS never shrinks as they
-   come; at a few heights, one row more brings the big bars or ROUTING's trace in, and ROUTING, or
-   COMING UP and LATELY, give up rows to make room.
+   SESSIONS, a whole session at a time, its row or two, to every one, what's left that's less than a
+   session going on, never left blank; to GRAPHS, a row at a time to 19; to USAGE's big bars, if
+   they fit; to ROUTING's two rows of trace, if they fit; then to COMING UP and LATELY, a line at a
+   time to 12; by account, at the big bars' turn, so ahead of COMING UP and LATELY, USAGE grows to
+   the most of its forms that fits whole: GRAPHS' charts at 5 rows, or stacked at 2. A folded unit
+   never grows: what can't unfold leaves rows the others use. GRAPHS comes before the big bars, so
+   that GRAPHS never shrinks as they come; at a few heights, one row more brings the big bars or
+   ROUTING's trace in, and ROUTING, or COMING UP and LATELY, give up rows to make room.
 5. **Past every most,** or where no unit's next step fits, the rest is empty at the foot, the key
    line on the last row.
 6. **The layout changes only on a key or a resize,** or a section's shape changing, never on its
-   own. SESSIONS keeps the rows it was given as sessions start and end, and COMING UP and LATELY
-   theirs as lines come and go: more sessions than fit show as many as fit, the last row saying
-   `+2 more` (settled in the plan).
+   own. SESSIONS keeps the rows it was given as sessions start and end, and the sessions it shows
+   in the order it took them, as SESSIONS above says; and COMING UP and LATELY theirs as lines
+   come and go: more sessions than fit show as many as fit, the last row saying `+2 more` (settled
+   in the plan).
 
 **A folded section keeps its heading,** saying what it holds, with no blank row between two folded
 ones:

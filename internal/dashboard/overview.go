@@ -11,6 +11,7 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // Section is one of the Overview's sections, which its key shows and hides.
@@ -220,6 +221,11 @@ type section struct {
 	scrolling   func(rows, offset int) Scrolling
 	rowsAtATime func(rows int) bool
 	revealing   func(rows, offset int, id string) int
+	// order is the order of the rows SESSIONS lists, which a layout made
+	// keeps; and steady is SESSIONS listing them in the order a layout kept,
+	// as give gives it. Nil for any other section.
+	order  []views.RunningRow
+	steady func(kept []views.RunningRow) section
 }
 
 // mostRows is the most rows the section takes: its most, or for one that
@@ -310,13 +316,14 @@ type planned struct {
 var foldOrder = [][]Section{{SectionSessions}, {SectionComing, SectionLately}, {SectionGraphs}, {SectionRouting}}
 
 // growth is the order the rows to spare go in, to the units not folded, each
-// to its most: to GRAPHS, a row at a time; to USAGE's big bars, then to
-// ROUTING's two rows of trace, each where it fits whole; then to COMING UP
-// and LATELY, a line at a time.
+// to its most: to SESSIONS, a whole session at a time; to GRAPHS, a row at a
+// time; to USAGE's big bars, then to ROUTING's two rows of trace, each where
+// it fits whole; then to COMING UP and LATELY, a line at a time.
 var growth = []struct {
 	sections []Section
 	grow     func(units []*unit, spare int) int
 }{
+	{[]Section{SectionSessions}, whole},
 	{[]Section{SectionGraphs}, rowByRow},
 	{[]Section{SectionUsage}, whole},
 	{[]Section{SectionRouting}, whole},
@@ -599,17 +606,19 @@ func latelyAt(width int) int {
 }
 
 // Layout is the Overview's layout as it was made: the rows each section shown
-// was given, its heading's among them, and which fold; and what it was made
-// for, as layoutFor says. The watch keeps it from look to look, as LayoutOf
-// gives it, so the layout changes only on a key or a resize, or a section's
-// shape changing, never as sessions start and lines come: SESSIONS keeps the
-// rows it was given however many sessions run, and COMING UP and LATELY
-// theirs however many lines they have. A frame lays the Overview out afresh
-// where its Layout is the zero Layout, or one made for another frame or
-// shape.
+// was given, its heading's among them, and which fold; the rows SESSIONS
+// listed, in their order; and what it was made for, as layoutFor says. The
+// watch keeps it from look to look, as LayoutOf gives it, so the layout
+// changes only on a key or a resize, or a section's shape changing, never as
+// sessions start and lines come: SESSIONS keeps the rows it was given
+// however many sessions run, and the order it listed them in, as
+// views.Steady keeps it, and COMING UP and LATELY theirs however many lines
+// they have. A frame lays the Overview out afresh where its Layout is the
+// zero Layout, or one made for another frame or shape.
 type Layout struct {
 	made     layoutFor
 	allotted [len(sectionWords)]allotment
+	running  []views.RunningRow
 }
 
 // layoutFor is what a layout is made for: a frame of a size, showing the
@@ -659,6 +668,11 @@ func (f Frame) LayoutOf(doc status.Document, now time.Time) Layout {
 	l := Layout{made: made}
 	for _, u := range allot(units, f.viewRows()) {
 		l.allotted[u.sections[0].Section] = allotment{rows: u.rows, fold: u.fold}
+		for _, s := range u.sections {
+			if s.steady != nil {
+				l.running = s.order
+			}
+		}
 	}
 	return l
 }
@@ -680,7 +694,7 @@ func (f Frame) layoutFor(units []unit) layoutFor {
 // keeps reports whether the frame keeps its Layout for a layout made for
 // made: one made for it, which isn't the zero Layout.
 func (f Frame) keeps(made layoutFor) bool {
-	return f.Layout != (Layout{}) && f.Layout.made == made
+	return f.Layout.made != (layoutFor{}) && f.Layout.made == made
 }
 
 // allotted are the units of the Overview's sections of doc at now, each
@@ -695,11 +709,17 @@ func (f Frame) allotted(doc status.Document, now time.Time) []unit {
 }
 
 // give gives each unit the rows, and the fold, the layout gave the section
-// it's led by, and returns them.
+// it's led by, SESSIONS listing in the order the layout kept, as its steady
+// lists them, and returns them.
 func (l Layout) give(units []unit) []unit {
 	for i := range units {
 		a := l.allotted[units[i].sections[0].Section]
 		units[i].rows, units[i].fold = a.rows, a.fold
+		for j, s := range units[i].sections {
+			if s.steady != nil {
+				units[i].sections[j] = s.steady(l.running)
+			}
+		}
 	}
 	return units
 }

@@ -127,8 +127,6 @@ var sizedAllowed = []string{
 var cutAllowed = []string{
 	// S5: the Switchboard's lines' window labels.
 	"internal/dashboard/switchboardlines.go:linesDrawn.window",
-	// S11: SESSIONS' model families.
-	"internal/dashboard/overview_sessions.go:Frame.wideRunning",
 	// S17: Detail's sessions' model families and how many more.
 	"internal/dashboard/accountsdetail.go:detailDrawn.session",
 	"internal/dashboard/accountsdetail.go:detailDrawn.sessions",
