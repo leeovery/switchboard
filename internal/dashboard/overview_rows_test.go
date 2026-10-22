@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"testing"
 
@@ -24,9 +25,10 @@ func rowsDown(units []unit) int {
 }
 
 // nextStep is the fewest rows the unit grows by next, as growth grows it:
-// USAGE and ROUTING to their next form whole, any other a row.
+// USAGE and ROUTING to their next form whole, SESSIONS a whole session, any
+// other a row.
 func nextStep(u unit) int {
-	if !u.ledBy(SectionUsage, SectionRouting) {
+	if !u.ledBy(SectionUsage, SectionRouting, SectionSessions) {
 		return 1
 	}
 	next := u.most()
@@ -125,5 +127,93 @@ func allottedFully(t *testing.T, f Frame, doc status.Document) {
 			t.Errorf("at %dx%d, %s takes %d rows of its most %d, with %d blank at the foot that its next step of %d fits in",
 				f.Width, f.Height, u.sections[0].heading(), u.rows, u.most(), spare, nextStep(u))
 		}
+	}
+}
+
+func TestSESSIONSRowsAreASessionAndHowManyMoreToEveryOneASessionAtATime(t *testing.T) {
+	tests := []struct {
+		name         string
+		running, per int
+		least, most  int
+		between      []int
+	}{
+		{name: "none running: the row saying so", running: 0, per: 1, least: 3, most: 3},
+		{name: "one: it alone", running: 1, per: 1, least: 3, most: 3},
+		{name: "one, two rows a session", running: 1, per: 2, least: 4, most: 4},
+		{name: "two: one and how many more is no fewer than both", running: 2, per: 1, least: 4, most: 4},
+		{name: "six, a row a session", running: 6, per: 1, least: 4, most: 8, between: []int{5, 6, 7}},
+		{name: "six, two rows a session", running: 6, per: 2, least: 5, most: 14, between: []int{7, 9, 11, 13}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			least, most, between := sessionsRows(tt.running, tt.per)
+			if least != tt.least || most != tt.most || !slices.Equal(between, tt.between) {
+				t.Errorf("sessionsRows = %d, %d, %v; want %d, %d, %v", least, most, between, tt.least, tt.most, tt.between)
+			}
+		})
+	}
+}
+
+// SESSIONS' least is a session and the row saying how many more, or every
+// one where that's no fewer: it folds only where even that doesn't fit, beside
+// USAGE's 13 rows and the blank row between.
+func TestSESSIONSFoldsOnlyWhereASessionAndHowManyMoreDontFit(t *testing.T) {
+	tests := []struct {
+		name         string
+		running, per int
+		rows, given  int
+		fold         bool
+	}{
+		{name: "a row a session: one, and how many more", running: 6, per: 1, rows: 18, given: 4},
+		{name: "a row a session: a row short", running: 6, per: 1, rows: 17, fold: true},
+		{name: "two rows a session: one, and how many more", running: 6, per: 2, rows: 19, given: 5},
+		{name: "two rows a session: a row short", running: 6, per: 2, rows: 18, fold: true},
+		{name: "one running: it alone", running: 1, per: 1, rows: 17, given: 3},
+		{name: "one running: a row short", running: 1, per: 1, rows: 16, fold: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			laid := planOf(frameOf(160, 50), []section{sized(SectionUsage, 13, 13), sessionsSized(tt.running, tt.per)}, 0, tt.rows)
+			if got := rowsGiven(laid)[SectionSessions]; laid[1].fold != tt.fold || !tt.fold && got != tt.given {
+				t.Errorf("in %d rows, SESSIONS folds %v, taking %d; want it folded %v, taking %d", tt.rows, laid[1].fold, got, tt.fold, tt.given)
+			}
+		})
+	}
+}
+
+// The rows to spare go to SESSIONS first, a whole session at a time, two rows
+// a session here, to every one, its row saying how many more going once every
+// one shows; a row left that's less than a session goes on to GRAPHS, then
+// COMING UP and LATELY, never left blank.
+func TestSESSIONSGrowsFirstAWholeSessionAtATimeWhatsLeftGoingOn(t *testing.T) {
+	sections := []section{
+		sized(SectionUsage, 13, 35), sized(SectionGraphs, 9, 23), sessionsSized(6, 2),
+		sized(SectionComing, 5, 9), sized(SectionLately, 5, 14),
+	}
+	tests := []struct {
+		name                     string
+		rows                     int
+		sessions, graphs, coming int
+	}{
+		{name: "none to spare: a session and how many more", rows: 35, sessions: 5, graphs: 9, coming: 5},
+		{name: "a row, less than a session: to GRAPHS", rows: 36, sessions: 5, graphs: 10, coming: 5},
+		{name: "a session's two rows: to SESSIONS, before GRAPHS", rows: 37, sessions: 7, graphs: 9, coming: 5},
+		{name: "a session's two rows and one: the one to GRAPHS", rows: 38, sessions: 7, graphs: 10, coming: 5},
+		{name: "five sessions and how many more", rows: 43, sessions: 13, graphs: 9, coming: 5},
+		{name: "every session, the last's second row where how many more was", rows: 44, sessions: 14, graphs: 9, coming: 5},
+		{name: "every session, and a row to GRAPHS", rows: 45, sessions: 14, graphs: 10, coming: 5},
+		{name: "GRAPHS at its most too, a row on to COMING UP and LATELY", rows: 59, sessions: 14, graphs: 23, coming: 6},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			laid := planOf(frameOf(160, 120), sections, 0, tt.rows)
+			want := map[Section]int{SectionUsage: 13, SectionGraphs: tt.graphs, SectionSessions: tt.sessions, SectionComing: tt.coming, SectionLately: tt.coming}
+			if got := rowsGiven(laid); !maps.Equal(got, want) {
+				t.Errorf("in %d rows, the sections take %v, want %v", tt.rows, got, want)
+			}
+			if got := laid[len(laid)-1].lastRow() + 1; got != tt.rows {
+				t.Errorf("in %d rows, the last section ends on row %d, want no row left blank", tt.rows, got)
+			}
+		})
 	}
 }

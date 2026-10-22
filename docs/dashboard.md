@@ -73,7 +73,7 @@ gets:
 - USAGE never folds. With many accounts, it scrolls within itself.
 - A folded section opens again wherever it fits, the last folded first.
 - Spare rows grow the sections that aren't folded, up to their full size, even while others are
-  folded.
+  folded. SESSIONS takes them first, a whole session at a time.
 
 ### USAGE
 
@@ -156,8 +156,9 @@ Every trace on the page shares one scale, a session's trace included, so you can
 
 ### SESSIONS
 
-SESSIONS lists the sessions the router has routed in the last hour, grouped by account. Each
-session shows:
+SESSIONS lists the sessions the router has routed in the last hour, busiest first. The account
+whose sessions send the most requests a minute comes first, with all its sessions together, the
+busiest of them first. Each session shows:
 
 - its id, bright while the session is busy
 - its model
@@ -165,6 +166,14 @@ session shows:
 - what it's doing, such as `↑ ask` or `↓ ~1.2k`
 - why it's on its account, such as `moved from work 14:31: work reached its cap`
 - its own trace, lined up with ROUTING's.
+
+SESSIONS shows as many sessions as there's room for, and a row such as `+5 more` for the rest. It
+folds only when there isn't room for one session and that row. The sessions it shows stay put
+until the layout changes, on a key or a resize: a session that starts joins `+5 more`, one that
+ends leaves its row blank, and nothing reorders as the rates change. When every row is already
+taken, the last session shown gives way to the `+N more` row. Once every session it kept has
+ended, it says `no sessions running`. When none were running as the layout was made, a session
+that starts shows on the row where it fits whole, and otherwise is counted in `+N more`.
 
 ROUTING takes a row for each account, and SESSIONS a row for each session, wherever an account's
 name, its state in at least 20 cells, its sessions and a trace of at least 24 fit on one row, from

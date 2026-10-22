@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"maps"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -122,8 +123,8 @@ func TestEachSectionsLeastAndMostRows(t *testing.T) {
 		{name: "ROUTING by account from 150 columns: beside USAGE, no rows of its own", section: at(150, ByAccount).routingSection(doc, now), least: 0, most: 0},
 		{name: "ROUTING where its row's parts don't fit a row: two rows an account, 3a + 1", section: at(80, ByWindow).routingSection(doc, now), least: 10, most: 10},
 		{name: "SESSIONS: a row saying none runs", section: at(160, ByWindow).sessionsSection(doc, now), least: 3, most: 3},
-		{name: "SESSIONS: a row a session on each account its models go to", section: running.sessionsSection(doc, now), least: 8, most: 8},
-		{name: "SESSIONS on a phone: two rows a session", section: phone.sessionsSection(doc, now), least: 14, most: 14},
+		{name: "SESSIONS: a session and how many more, to a row a session on each account its models go to", section: running.sessionsSection(doc, now), least: 4, most: 8},
+		{name: "SESSIONS on a phone: a session's two rows and how many more, to two rows a session", section: phone.sessionsSection(doc, now), least: 5, most: 14},
 	}
 	for _, tt := range tests {
 		if tt.section.least != tt.least || tt.section.most != tt.most {
@@ -195,6 +196,14 @@ func sized(s Section, least, most int) section {
 	return sized
 }
 
+// sessionsSized is SESSIONS of n sessions running, rows rows a session, its
+// body drawing nothing, sized as sessionsRows has it.
+func sessionsSized(n, rows int) section {
+	s := sized(SectionSessions, 0, 0)
+	s.least, s.most, s.between = sessionsRows(n, rows)
+	return s
+}
+
 // lastRow is the last row the section takes as it's laid out, counted from 0:
 // its heading's where it folds.
 func (p planned) lastRow() int {
@@ -223,14 +232,15 @@ var (
 // compact matrix, 2a + 7, to its big bars, 2 + w(2a + 5); by account, a block
 // an account and the pool's, ROUTING beside them from column 107; on a phone,
 // stacked, its key on two lines; GRAPHS h + 4, h from 5 to 19; ROUTING a + 3
-// to 3a + 2, and on a phone 3a + 1; SESSIONS a row a session, two on a
-// phone; and COMING UP and LATELY a row a line, from 3 to 12; each with its
-// heading's two rows.
+// to 3a + 2, and on a phone 3a + 1; SESSIONS from a session and how many
+// more to a row a session, two on a phone, as sessionsRows has it; and
+// COMING UP and LATELY a row a line, from 3 to 12; each with its heading's
+// two rows.
 func (w planWorld) sections(width int, by By, shown Sections) []section {
 	a, k := w.accounts, w.windows
 	usage := sized(SectionUsage, 2*a+7, 2+k*(2*a+5))
 	routing := sized(SectionRouting, a+3, 3*a+2)
-	sessions := sized(SectionSessions, 2+w.running, 2+w.running)
+	sessions := sessionsSized(w.running, 1)
 	switch {
 	case by == ByAccount:
 		blocks := 2 + (a+1)*(2*k-1) + 2*a + 2
@@ -239,7 +249,7 @@ func (w planWorld) sections(width int, by By, shown Sections) []section {
 	case width < phoneUnder:
 		usage = sized(SectionUsage, usage.most+1, usage.most+1)
 		routing = sized(SectionRouting, 3*a+1, 3*a+1)
-		sessions = sized(SectionSessions, 2+2*w.running, 2+2*w.running)
+		sessions = sessionsSized(w.running, 2)
 	}
 	lines := func(s Section, n int) section {
 		return section{Section: s, least: 2 + 3, lines: func() int { return n }, draw: func(*canvas, bounds) {}}
@@ -622,14 +632,14 @@ func TestTheLayoutChangesOnlyOnAKeyOrAResizeNeverOnItsOwn(t *testing.T) {
 	}
 
 	f.Sessions = flippingSessions()
-	if p := sessionsOf(f, doc); !p.fold {
-		t.Errorf("laid out afresh with six running, SESSIONS has %d rows, want it folded, as they don't fit", p.body.rows)
+	if p := sessionsOf(f, doc); p.fold || p.body.rows < 2 {
+		t.Errorf("laid out afresh with six running, SESSIONS is folded %v, its body %d rows; want a session and how many more, or more", p.fold, p.body.rows)
 	}
 	f.Layout = kept
 	if p := sessionsOf(f, doc); p.fold || p.body.rows != 1 {
 		t.Errorf("as the layout kept has it, with six running, SESSIONS is folded %v, its body %d rows; want the row it was given", p.fold, p.body.rows)
 	}
-	if again := f.LayoutOf(doc, now); again != kept {
+	if again := f.LayoutOf(doc, now); !sameLayout(again, kept) {
 		t.Errorf("the layout as kept is made again otherwise: %+v, want %+v", again, kept)
 	}
 
@@ -650,11 +660,11 @@ func TestTheLayoutChangesOnlyOnAKeyOrAResizeNeverOnItsOwn(t *testing.T) {
 	for name, tt := range tests {
 		fresh := tt.f
 		fresh.Layout = Layout{}
-		if got, want := tt.f.LayoutOf(tt.doc, now), fresh.LayoutOf(tt.doc, now); got != want || got == kept {
+		if got, want := tt.f.LayoutOf(tt.doc, now), fresh.LayoutOf(tt.doc, now); !sameLayout(got, want) || sameLayout(got, kept) {
 			t.Errorf("after %s, the layout is %+v, want it made afresh, %+v", name, got, want)
 		}
 	}
-	if off := f; func() bool { off.View = Sessions; return off.LayoutOf(doc, now) != (Layout{}) }() {
+	if off := f; func() bool { off.View = Sessions; return !sameLayout(off.LayoutOf(doc, now), Layout{}) }() {
 		t.Errorf("off the Overview, LayoutOf gives a layout, want none")
 	}
 }
@@ -667,7 +677,7 @@ func TestUnderASessionsPageTheOverviewIsLaidOutNotAtAll(t *testing.T) {
 	f.Sessions = flippingSessions()
 	f.Layout = f.LayoutOf(doc, now)
 	f.Session = &SessionShown{Page: views.SessionPage{Accounts: []views.SessionAccount{{Account: "work"}}}}
-	if got := f.LayoutOf(doc, now); got != (Layout{}) {
+	if got := f.LayoutOf(doc, now); !sameLayout(got, Layout{}) {
 		t.Errorf("under a session's page, LayoutOf gives %+v, want none", got)
 	}
 	if allocs := testing.AllocsPerRun(10, func() { f.LayoutOf(doc, now) }); allocs != 0 {
@@ -692,14 +702,14 @@ func TestTheLayoutIsMadeAfreshAsASectionsShapeMovesNeverAsSessionsStartOrLinesCo
 	f.Layout = f.LayoutOf(unreadOf(doc), now)
 	fresh := f
 	fresh.Layout = Layout{}
-	if got, want := f.LayoutOf(doc, now), fresh.LayoutOf(doc, now); got != want || got != f.Layout {
+	if got, want := f.LayoutOf(doc, now), fresh.LayoutOf(doc, now); !sameLayout(got, want) || !sameLayout(got, f.Layout) {
 		t.Errorf("as the accounts' windows every model shares are first read, the layout is %+v, want it as kept, %+v, each account's rows shown before any read", got, f.Layout)
 	}
 
 	fabled := doc
 	fabled.Accounts = slices.Clone(doc.Accounts)
 	fabled.Accounts[2].Windows = append(slices.Clone(doc.Accounts[2].Windows), fableOf(0.1, 5*quota.Day))
-	if got, want := f.LayoutOf(fabled, now), fresh.LayoutOf(fabled, now); got != want || got == f.Layout {
+	if got, want := f.LayoutOf(fabled, now), fresh.LayoutOf(fabled, now); !sameLayout(got, want) || sameLayout(got, f.Layout) {
 		t.Errorf("as a model's own window is first read, the layout is %+v, want it made afresh, %+v", got, want)
 	}
 	if got := f.Scrolling(fabled, now); got.Most != 0 {
@@ -724,7 +734,7 @@ func TestTheLayoutIsMadeAfreshAsASectionsShapeMovesNeverAsSessionsStartOrLinesCo
 		"lines coming":      {f: f, doc: busy},
 	}
 	for name, tt := range tests {
-		if got := tt.f.LayoutOf(tt.doc, now); got != f.Layout {
+		if got := tt.f.LayoutOf(tt.doc, now); !sameLayout(got, f.Layout) {
 			t.Errorf("after %s, the layout is %+v, want it kept, %+v", name, got, f.Layout)
 		}
 	}
@@ -735,10 +745,10 @@ func TestTheLayoutIsMadeAfreshAsASectionsShapeMovesNeverAsSessionsStartOrLinesCo
 	ended.Sessions = nil
 	afresh := ended
 	afresh.Layout = Layout{}
-	if afresh.LayoutOf(doc, now) == ran.Layout {
+	if sameLayout(afresh.LayoutOf(doc, now), ran.Layout) {
 		t.Fatalf("with none running, the layout made afresh is the one made with six: want them apart, so keeping it shows")
 	}
-	if got := ended.LayoutOf(doc, now); got != ran.Layout {
+	if got := ended.LayoutOf(doc, now); !sameLayout(got, ran.Layout) {
 		t.Errorf("after sessions ending, the layout is %+v, want it kept, %+v", got, ran.Layout)
 	}
 }
@@ -759,7 +769,7 @@ func TestAFrameBuiltLooksAtTheSectionsItBuilt(t *testing.T) {
 	if got, want, ran := textOf(built.Draw(doc, now)), textOf(f.Draw(doc, now)), textOf(ran.Draw(doc, now)); !slices.Equal(got, want) || slices.Equal(got, ran) {
 		t.Errorf("drew\n%s\nwant it as built, with no sessions running\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
-	if got, want := built.LayoutOf(doc, now), f.LayoutOf(doc, now); got != want || got == ran.LayoutOf(doc, now) {
+	if got, want := built.LayoutOf(doc, now), f.LayoutOf(doc, now); !sameLayout(got, want) || sameLayout(got, ran.LayoutOf(doc, now)) {
 		t.Errorf("laid out %+v, want it as built, with no sessions running, %+v", got, want)
 	}
 	if got, want := built.Numbers(doc, now), f.Numbers(doc, now); !maps.Equal(got, want) || maps.Equal(got, ran.Numbers(doc, now)) {
@@ -976,4 +986,11 @@ func TestAFrameBuiltBuildsItsSectionsAfreshOfAnotherDocument(t *testing.T) {
 	if got, want := textOf(f.Built(threeRouted(), now).Draw(other, now)), textOf(f.Draw(other, now)); !slices.Equal(got, want) {
 		t.Errorf("built of one document and drawn of another at the same moment, drew\n%s\nwant the other as drawn afresh\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
+}
+
+// sameLayout reports whether two layouts are one: made for the same, each
+// section given the same rows and fold, and SESSIONS' rows kept in the same
+// order.
+func sameLayout(a, b Layout) bool {
+	return reflect.DeepEqual(a, b)
 }

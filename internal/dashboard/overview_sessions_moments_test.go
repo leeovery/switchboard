@@ -21,7 +21,9 @@ func TestSESSIONSSaysWhatEachSessionIsDoingAtEachHardMoment(t *testing.T) {
 		t.Run(hm.Name, func(t *testing.T) {
 			f := frameOf(160, 40)
 			f.Sessions, f.Stream = hm.Sessions, hm.Stream
-			running := f.running(hm.Doc, hm.Now)
+			m := f.Moment(hm.Doc, hm.Now)
+			running := views.BusiestFirst(m, f.running(hm.Doc, hm.Now), f.Traces)
+			laid := f.runningForm(f.routingColumns(m)).laid()
 			want := 0
 			for _, doing := range hm.Want {
 				want += len(doing.On)
@@ -44,7 +46,7 @@ func TestSESSIONSSaysWhatEachSessionIsDoingAtEachHardMoment(t *testing.T) {
 					t.Fatalf("row %d is %q, want %s on it", y+1, string(row), shown)
 				}
 				at := utf8.RuneCountInString(before)
-				seenAt := at + runningID + familyCells
+				seenAt := at + runningID + laid.family + familyGap
 				doingAt := seenAt + seenCells + beforeDoing
 				seen, doing := strings.TrimSpace(string(row[seenAt:doingAt])), strings.TrimSpace(string(row[doingAt:doingAt+doingCells]))
 				wantDoing := runningDoing(a)
