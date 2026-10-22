@@ -25,10 +25,10 @@ const rowsBesideTurns = 6
 
 // sessionLayout is how a session's page lays out its rows at the frame's
 // size: its heading and its story's heading in the wide chrome's form, or
-// a phone's, as chromeWide has it; its chrome alone, where it's too short for the rest;
-// its story whole, or else, wide, folded to its heading, and on a phone left
-// out; and from what row each part starts, and how many rows its accounts,
-// its turns and an open turn's requests take.
+// a phone's, as chromeWide has it; its chrome alone, where it's too short
+// for the rest; its story whole, or else, wide, folded to its heading, and
+// on a phone left out; and from what row each part starts, and how many
+// rows its accounts, its turns and an open turn's requests take.
 type sessionLayout struct {
 	wide, chrome, story bool
 	// heading is the heading's row, now the first of the two that say what
@@ -110,9 +110,10 @@ func (l sessionLayout) room(height, accountsAt int) int {
 
 // chromeWide reports whether a session's page heads itself as the wide
 // chrome does, its heading and its story's heading in their wide forms,
-// rather than a phone's, its story labelled alone: where the chrome's tabs share the title's row. The page's own
-// chrome follows the page's, so it reads the breakpoint where the chrome
-// has drawn it, rather than choosing again.
+// rather than a phone's, its story labelled alone: where the chrome's tabs
+// share the title's row. The page's own chrome follows the page's, so it
+// reads the breakpoint where the chrome has drawn it, rather than choosing
+// again.
 func (f Frame) chromeWide() bool {
 	_, tabsRow, _ := f.tabsAt()
 	return tabsRow == 0

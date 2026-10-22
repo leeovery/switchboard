@@ -135,6 +135,18 @@ func Past(now, t time.Time) string {
 	return t.Format(pastLayout)
 }
 
+// PastWidth is how many characters the widest time Past shows takes, of
+// each of its forms: the day before's, within the week's, and a date of two
+// digits'.
+func PastWidth() int {
+	now := time.Date(2001, time.March, 28, 12, 0, 0, 0, time.UTC)
+	widest := 0
+	for _, back := range []int{0, 1, 3, 60} {
+		widest = max(widest, utf8.RuneCountInString(Past(now, now.AddDate(0, 0, -back))))
+	}
+	return widest
+}
+
 // WithinWeek reports whether t, before now, falls on now's day or one of the
 // six before it, in now's time zone: the days Past names by their weekday.
 func WithinWeek(now, t time.Time) bool {

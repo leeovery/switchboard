@@ -307,12 +307,23 @@ func TestASessionsPageAtEachSize(t *testing.T) {
 				25: " 13  14:40    3m…           6  Read ×3, Bash ×2 ",
 			},
 			ends:  map[int]string{25: "958k      18k    5.4k    $0.79  side             ↑ asking"},
-			endAt: 151,
+			endAt: 157,
+		},
+		{
+			name: "136 wide: the now rows wide, where every part fits at its widest", shown: moved(), width: 136, height: 37,
+			want: map[int]string{
+				6: "↑ asking   on side ▲ since 14:31, moved from work: work reached its cap                                           started 12:02 · 2h 40m",
+				7: "opus-5-5 → side   haiku-4-5 → side",
+			},
+		},
+		{
+			name: "135 wide: the now rows short, as the widest wouldn't fit", shown: moved(), width: 135, height: 37,
+			want: map[int]string{6: "↑ asking  on side ▲ since 14:31", 7: "moved from work: its cap"},
 		},
 		{
 			name: "122 wide: every column, tools at its natural", shown: moved(), width: 122, height: 37,
 			want: map[int]string{
-				6:  "↑ asking   on side ▲ since 14:31, moved from work: work reached its cap                             started 12:02 · 2h 40m",
+				6: "↑ asking  on side ▲ since 14:31", 7: "moved from work: its cap",
 				24: "  #  started  took   requests  tools                             read  written     out    worth  on",
 			},
 			ends: map[int]string{25: "$0.79  side             ↑ asking"},
@@ -329,14 +340,14 @@ func TestASessionsPageAtEachSize(t *testing.T) {
 		{
 			name: "100 wide: the wide chrome's heading, tools gone", shown: moved(), width: 100, height: 30,
 			want: map[int]string{
-				4: "SESSION   d28c   switchboard  ~/Code/switchboard ─", 6: "↑ asking   on side ▲ since 14:31,", 22: "TURNS    ",
+				4: "SESSION   d28c   switchboard  ~/Code/switchboard ─", 6: "↑ asking  on side ▲ since 14:31", 22: "TURNS    ",
 				24: "  #  started  took   requests     read  written     out    worth  on",
 			},
 		},
 		{
-			name: "99 wide: a phone's heading, under its own chrome, its now rows wide as they fit", shown: moved(), width: 99, height: 30,
+			name: "99 wide: a phone's heading, under its own chrome, its now rows short", shown: moved(), width: 99, height: 30,
 			want: map[int]string{
-				5: "SESSION  d28c  switchboard", 7: "↑ asking   on side ▲ since 14:31,", 8: "opus-5-5 → side   haiku-4-5 → side",
+				5: "SESSION  d28c  switchboard", 7: "↑ asking  on side ▲ since 14:31", 8: "moved from work: its cap",
 				22: "TURNS    ", 24: "  #  started  took   requests     read  written     out    worth  on",
 			},
 		},
@@ -390,31 +401,34 @@ func TestASessionsPageAtEachSize(t *testing.T) {
 	}
 }
 
-// Wide but narrow, row 6's where-words are cut three cells before its right
-// part, which stays whole; row 7's models leave whole from the end three
-// cells before the windows; and an account's points take their short words
-// where the wide don't fit whole, and leave whole windows from the end two
-// cells before its worth where even those don't (call 59).
+// Where the now rows are wide, row 6 says where it runs and why whole, its
+// right part whole; row 7's models leave whole from the end three cells
+// before the windows; and an account's points take their short words where
+// the wide don't fit whole, and leave whole windows from the end two cells
+// before its worth where even those don't (call 59).
 func TestANarrowWidePageCutsItsRowsBeforeTheirRightParts(t *testing.T) {
 	shown := resumed()
 	shown.Page.Goes = append(shown.Page.Goes, views.SessionModel{Model: haiku, Account: "side"})
 	shown.Page.Accounts[1].Points["7d_oi"] = 2
-	rows := pageText(pageFrame(t, shown, 122, 37))
-	right := "started yesterday 16:40 · resumed 09:12"
-	left, _, _ := strings.Cut(rows[6], right)
-	if !strings.HasPrefix(left, "↓ answering   on personal ◆ since 09:12, rescored after 15h 7m idle: personal") ||
-		!strings.HasSuffix(strings.TrimRight(left, " "), "…") || !strings.HasSuffix(left, "   ") || !strings.HasSuffix(rows[6], right) {
-		t.Errorf("row 7 reads\n%q\nwant where it runs cut with … three cells or more before %q, whole at the right", rows[6], right)
+	rows := pageText(pageFrame(t, shown, 157, 37))
+	if want := "↓ answering   on personal ◆ since 09:12, rescored after 15h 7m idle: personal had the most room   "; !strings.HasPrefix(rows[6], want) ||
+		!strings.HasSuffix(rows[6], "started yesterday 16:40 · resumed 09:12") {
+		t.Errorf("row 7 reads\n%q\nwant where it runs whole, three cells or more before when it started", rows[6])
 	}
+	windows := "personal now  week 66%   5-hour 39%   fable week 0%"
 	models := "opus-5-5 → personal   haiku-4-5 → side"
-	if !strings.HasPrefix(rows[7], models+"    ") {
+	if !strings.HasPrefix(rows[7], models+"   ") || !strings.HasSuffix(rows[7], windows) {
 		t.Errorf("row 8 reads\n%q\nwant its models whole, all fitting, %q", rows[7], models)
 	}
-	shown.Page.Goes = append(shown.Page.Goes, views.SessionModel{Model: "claude-sonnet-5-5", Account: "personal"}, views.SessionModel{Model: "claude-fable-1", Account: "work"})
-	rows = pageText(pageFrame(t, shown, 122, 37))
-	if want := models + "   sonnet-5-5 → personal"; !strings.HasPrefix(rows[7], want+"         personal now") {
+	for _, more := range [][2]string{{"claude-sonnet-5-5", "personal"}, {"claude-fable-1", "work"}, {"claude-opus-4-1", "side"}, {"claude-sonnet-4-5", "work"}} {
+		shown.Page.Goes = append(shown.Page.Goes, views.SessionModel{Model: more[0], Account: more[1]})
+	}
+	rows = pageText(pageFrame(t, shown, 157, 37))
+	if want := models + "   sonnet-5-5 → personal   fable-1 → work   opus-4-1 → side"; !strings.HasPrefix(rows[7], want+"   ") ||
+		strings.Contains(rows[7], "sonnet-4-5") || !strings.HasSuffix(rows[7], windows) {
 		t.Errorf("row 8 reads\n%q\nwant the model that doesn't fit left out whole, after\n%q", rows[7], want)
 	}
+	rows = pageText(pageFrame(t, shown, 122, 37))
 	if want := "≈ 9 of week · 31 of 5-hour · 2 of Fable week" + strings.Repeat(" ", 13) + "$114.10"; !strings.HasSuffix(rows[20], want) {
 		t.Errorf("row 21 reads\n%q\nwant its points in their short words, whole where the wide don't fit, ending\n%q", rows[20], want)
 	}
@@ -489,8 +503,8 @@ func TestTheTurnChosenIsLit(t *testing.T) {
 		chosen        int
 		lit           int
 	}{
-		{name: "wide, the newest", width: 160, height: 37, chosen: 25, lit: 141},
-		{name: "wide, one under it", width: 160, height: 37, chosen: 27, lit: 141},
+		{name: "wide, the newest", width: 160, height: 37, chosen: 25, lit: 147},
+		{name: "wide, one under it", width: 160, height: 37, chosen: 27, lit: 147},
 		{name: "a phone", width: 52, height: 32, chosen: 25, lit: 52},
 	}
 	for _, tt := range tests {

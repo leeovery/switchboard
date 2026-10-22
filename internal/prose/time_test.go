@@ -29,6 +29,21 @@ func TestDatedIsNeverWiderThanItsWidthAndAnotherDaysFillsIt(t *testing.T) {
 	}
 }
 
+func TestPastIsNeverWiderThanItsWidthAndTheDayBeforeFillsIt(t *testing.T) {
+	now := time.Date(2026, 10, 7, 9, 5, 0, 0, time.FixedZone("UTC+1", 60*60))
+	widest := 0
+	for back := range 400 {
+		said := prose.Past(now, now.Add(-time.Duration(back)*6*time.Hour))
+		if n := utf8.RuneCountInString(said); n > prose.PastWidth() {
+			t.Errorf("Past says %q, %d characters, wider than its width, %d", said, n, prose.PastWidth())
+		}
+		widest = max(widest, utf8.RuneCountInString(said))
+	}
+	if said := prose.Past(now, now.Add(-24*time.Hour)); widest != prose.PastWidth() || utf8.RuneCountInString(said) != prose.PastWidth() {
+		t.Errorf("Past's widest is %d and the day before's %q, want both its width, %d", widest, said, prose.PastWidth())
+	}
+}
+
 func TestAStintGivesItsEndsTheirDaysWhereTheSessionSpansDays(t *testing.T) {
 	now := time.Date(2026, 9, 28, 14, 31, 0, 0, time.FixedZone("UTC+1", 60*60))
 	at := func(days, hour, minute int) time.Time {

@@ -204,6 +204,104 @@ func TestASessionsContentFormsSwitchOnceWhereTheyFit(t *testing.T) {
 	}
 }
 
+// nowStates are the sessions a page's now rows are held in: running, moved
+// with its why, idle, ended, pinned, its pin yielding, and resumed, today and
+// the day before.
+func nowStates() []struct {
+	name  string
+	shown *SessionShown
+} {
+	pinned := func(reason, from, to string) *SessionShown {
+		shown := moved()
+		shown.Page.Account = to
+		shown.Page.Moves = []views.SessionMove{{At: at(14, 31), Model: opus, From: from, To: to, Reason: reason}}
+		return shown
+	}
+	overnight := resumed()
+	overnight.Page.Resumed = yesterdayAt(22, 10)
+	overnight.Page.Moves[0].At = yesterdayAt(22, 10)
+	return []struct {
+		name  string
+		shown *SessionShown
+	}{
+		{name: "moved", shown: moved()},
+		{name: "quiet", shown: quiet()},
+		{name: "ended", shown: ended()},
+		{name: "pinned here", shown: pinned(status.ReasonPinned, "work", "side")},
+		{name: "its pin yielding", shown: pinned(status.ReasonPinYields+"side has no room", "side", "work")},
+		{name: "resumed", shown: resumed()},
+		{name: "resumed the day before", shown: overnight},
+	}
+}
+
+// The now rows take their wide form only where every part of each fits
+// whole at its widest, and switch once: so in every state, with short names
+// and long, wherever they're wide, row 6 says what the session's doing,
+// where it runs and why whole, and when it started whole at its right; and
+// row 7 its account's windows whole, or once it's over, its models and how
+// long they're kept.
+func TestTheNowRowsWideFormCutsNothing(t *testing.T) {
+	for _, world := range pageWorlds {
+		for _, state := range nowStates() {
+			var switched []int
+			was := false
+			for width := 40; width <= 220; width++ {
+				d, drawn := pageDrawn(pageFrame(t, state.shown, width, 37), world.doc())
+				if d.nowWide != was {
+					switched = append(switched, width)
+				}
+				was = d.nowWide
+				if !d.nowWide {
+					continue
+				}
+				row6, row7 := strings.TrimRight(string(drawn[d.l.now]), " "), strings.TrimRight(string(drawn[d.l.now+1]), " ")
+				where := d.page.Where(d.now)
+				said := slices.Concat(d.doing(), line{spaces(sessionApart)}, d.onSince(where.OnSince), d.words(where.Why, mutedInk)).plain()
+				if !strings.HasPrefix(row6, said) || !strings.HasSuffix(row6, d.started().plain()) {
+					t.Errorf("%s, %s, at %d columns, row 6 reads\n%q\nwant it to say\n%q\nand end\n%q", world.name, state.name, width, row6, said, d.started().plain())
+				}
+				right := d.windows()
+				if !d.page.Runs() {
+					right = d.endedModels()
+				}
+				if !strings.HasSuffix(row7, right.plain()) {
+					t.Errorf("%s, %s, at %d columns, row 7 reads\n%q\nwant it to end\n%q", world.name, state.name, width, row7, right.plain())
+				}
+			}
+			if len(switched) != 1 {
+				t.Errorf("%s, %s, the now rows switch form at %v, want once", world.name, state.name, switched)
+			}
+		}
+	}
+}
+
+// Rows 6 and 7 name an account at a label's most, cut with … past it, and
+// keep its marks: so a label longer still leaves their rows on the frame.
+func TestTheNowRowsNameAnAccountAtALabelsMost(t *testing.T) {
+	long := strings.Repeat("s", 60)
+	doc := pageLabelled("work", "personal", long)
+	d, drawn := pageDrawn(pageFrame(t, moved(), 100, 37), doc)
+	if d.nowWide {
+		t.Fatal("at 100 columns, the now rows are wide, want them short")
+	}
+	cut := prose.Cut(long, labelMost)
+	if row := strings.TrimRight(string(drawn[d.l.now]), " "); !strings.Contains(row, "on "+cut+" ▲ since 14:31") {
+		t.Errorf("row 6 reads %q, want side named %q, its ▲ kept", row, cut)
+	}
+	wide, drawn := pageDrawn(pageFrame(t, moved(), 220, 37), doc)
+	if !wide.nowWide {
+		t.Fatal("at 220 columns, the now rows are short, want them wide")
+	}
+	for _, y := range []int{wide.l.now, wide.l.now + 1} {
+		if row := string(drawn[y]); !strings.Contains(row, cut) || strings.Contains(row, strings.Repeat("s", labelMost)) {
+			t.Errorf("row %d reads %q, want side named %q", y+1, strings.TrimRight(row, " "), cut)
+		}
+	}
+	if row := string(drawn[wide.l.now]); !strings.Contains(row, cut+" ▲ since 14:31") {
+		t.Errorf("row 6 reads %q, want side's ▲ kept", strings.TrimRight(row, " "))
+	}
+}
+
 // turnColumnOf is the column of a session's turns d lays out as part p,
 // and whether it shows.
 func (d sessionDrawn) turnColumnOf(p turnPart) (turnColumn, bool) {

@@ -4164,12 +4164,17 @@ dashboard shows ids, bold `text.primary`; three spaces; its directory's last par
 `text.subtle` go before the rule; on a phone, two, as its parts are spaced there (settled in the
 plan).
 
-**Now** (rows 6 and 7). They take this wide form wherever its parts fit at their leasts: row 6's
-words, what it's doing at its widest (`↓ answering`) and `on` with the widest name configured, beside
-its right whole at its widest (`started yesterday 16:40 · resumed 09:12`); and row 7's windows
-whole, the widest name and every window listed at `100%`. Narrower, they take the short form a
-phone's has (see On a phone). The form never asks what the session says, so it never hangs on it,
-and it never follows the chrome's breakpoint.
+**Now** (rows 6 and 7). They take this wide form only where every part of each fits whole at its
+widest: row 6's state at its widest in any state, `ended yesterday 18:46`, then where it runs and
+why, whole, as the session says them, beside its right at its widest, started and resumed the day
+before, `started yesterday 16:40 · resumed yesterday 22:10`; and row 7's windows whole, the widest
+name and every window listed at `100%`. Names in both rows are drawn as a label's column holds
+them, 24 cells at the most, cut with `…` past it, their marks kept. Narrower, they take the short
+form a phone's has (see On a phone), which says the why short and whole, so the wide form never
+cuts what the short says whole. Only where and why come from the session: they change as it moves
+or ends, never as its turns come and go, so the form holds still while it asks, answers or idles.
+The form never follows the chrome's breakpoint. With the frames' names, `moved` is wide from 136
+columns, `quiet` from 114, `ended` from 131 and `resumed` from 157.
 
 - **Row 6,** what it's doing and where it runs:
   - **its state,** bold: `↑ asking` in `accent.key` while a request of it waits for its answer;
@@ -4336,7 +4341,8 @@ first ran on them. A row's parts, two cells apart, as flex lays them at every wi
   - `↑ asking` in its words' cells while the session can still ask, between turns as while one
     runs, so the columns hold still as turns come and go; an ended session's turns have none;
   - `tools` from 12 at the least to 30 at its natural, and past it, what's left, to its most: three
-    tools, as a turn names them, each at Claude Code's widest name, 12 cells, and a count to `×999`.
+    tools, as a turn names them, each at Claude Code's widest name, `AskUserQuestion`, 15 cells,
+    and a count to `×999`; a name wider, as an MCP server's tool, is cut.
     Past its most, the spare trails the row's end, so the columns stay together.
 - **As the width runs short,** `tools` leaves first, as the part that grows, so no column comes back
   to narrow it as the frame widens; then `↑ asking`, which row 6 says too; then a move's second

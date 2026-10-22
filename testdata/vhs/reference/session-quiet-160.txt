@@ -21,17 +21,17 @@ STORY   requests a minute ──────────────────
 
 TURNS    ──────────────────────────────────────────────────────────────────────────────────────  10 turns · 267 requests · 97% from cache · $27.15 at API prices
 
-  #  started  took   requests  tools                                                          read  written     out    worth  on
- 10  14:29    4m           16  Edit ×5, Bash ×4, Read ×3                                      2.5M      48k     14k    $2.10  personal
-  9  14:20    3m            9  Bash ×3, Edit ×2, Read ×1                                      1.3M      27k    8.1k    $1.15  personal
-  8  13:56    14m          70  Edit ×23, Bash ×17, Read ×14                                   9.5M     210k     63k    $8.44  personal
-  7  13:41    5m           20  Bash ×6, Edit ×5, Read ×4                                      2.4M      60k     18k    $2.26  personal
-  6  13:22    9m           27  Edit ×9, Bash ×6, Read ×5                                      2.9M      81k     24k    $2.88  personal
-  5  13:14    2m            6  Bash ×2, Edit ×1, Read ×1                                      600k      18k    5.4k    $0.62  personal
-  4  12:56    2m            6  Edit ×2, Bash ×1, Read ×1                                      519k      18k    5.4k    $0.57  personal
-  3  12:32    10m          30  Bash ×10, Edit ×7, Read ×6                                     2.1M      90k     27k    $2.65  personal
-  2  12:16    8m           32  Edit ×10, Bash ×8, Read ×6                                     1.9M      96k     29k    $2.62  personal
-  1  11:55    17m          51  Bash ×17, Edit ×12, Read ×10                                   2.4M     153k     46k    $3.86  personal
+  #  started  took   requests  tools                                                                read  written     out    worth  on
+ 10  14:29    4m           16  Edit ×5, Bash ×4, Read ×3                                            2.5M      48k     14k    $2.10  personal
+  9  14:20    3m            9  Bash ×3, Edit ×2, Read ×1                                            1.3M      27k    8.1k    $1.15  personal
+  8  13:56    14m          70  Edit ×23, Bash ×17, Read ×14                                         9.5M     210k     63k    $8.44  personal
+  7  13:41    5m           20  Bash ×6, Edit ×5, Read ×4                                            2.4M      60k     18k    $2.26  personal
+  6  13:22    9m           27  Edit ×9, Bash ×6, Read ×5                                            2.9M      81k     24k    $2.88  personal
+  5  13:14    2m            6  Bash ×2, Edit ×1, Read ×1                                            600k      18k    5.4k    $0.62  personal
+  4  12:56    2m            6  Edit ×2, Bash ×1, Read ×1                                            519k      18k    5.4k    $0.57  personal
+  3  12:32    10m          30  Bash ×10, Edit ×7, Read ×6                                           2.1M      90k     27k    $2.65  personal
+  2  12:16    8m           32  Edit ×10, Bash ×8, Read ×6                                           1.9M      96k     29k    $2.62  personal
+  1  11:55    17m          51  Bash ×17, Edit ×12, Read ×10                                         2.4M     153k     46k    $3.86  personal
 
 
 esc back    ↑↓ turn  enter its requests    p pin    ? help  q quit
