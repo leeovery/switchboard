@@ -28,7 +28,7 @@ const (
 // otherwise its least. Short of its least, it gives way in steps, as giving
 // has them, the planner taking each as a step of its least, as leaner has
 // them, but never folds: given fewer rows than its form takes, it scrolls
-// within them, as shown shows it. By account from 150 columns, GRAPHS'
+// within them whole, a row at a time, as shown shows it. By account from 150 columns, GRAPHS'
 // charts or ROUTING are drawn beside its blocks, from besideAt, as
 // besideUsage has them, and follow them as they scroll; a click along an
 // account's rows, its own or what's beside them, moves the focus to it.
@@ -66,7 +66,7 @@ func (f Frame) usageIn(s section, form usageViews, beside func(*canvas, blocksBe
 	s.targets = func(body bounds) []Target {
 		return form.shown(body.rows, f.Scroll).targets(body)
 	}
-	s.scrolling, s.rowsAtATime, s.revealing = form.scrolling, form.whole, form.revealing
+	s.scrolling, s.revealing = form.scrolling, form.revealing
 	return s
 }
 
@@ -265,16 +265,13 @@ func (b usageBlock) enlarges() bool {
 
 // usageViews are the block's views, as USAGE shows it in however many rows
 // it's given, scrolled however far: the block; the rows it takes with its big
-// bars, and as it's laid out; how many accounts it has; and, worked out only
-// once it scrolls, the rows each account in view adds, and each mark, ▲ or
-// ▼, as of counts them, and the block laid out whole, as paged pages it.
-// Where it's short of rows, its leaner views are the block as it gives way, a
-// step at a time, as giving has them.
+// bars, by account with GRAPHS' charts beside its blocks stacked, and as it's
+// laid out; and, worked out only once it's asked for, the block laid out
+// whole, as paged pages it. Where it's short of rows, its leaner views are
+// the block as it gives way, a step at a time, as giving has them.
 type usageViews struct {
 	block             usageBlock
 	big, stacked, all int
-	accounts          int
-	steps             func() (account, mark int)
 	laid              func() laid
 	leaner            []usageViews
 }
@@ -301,12 +298,10 @@ func (b usageBlock) views() usageViews {
 
 // viewsAsLaid are the block's views as it's laid out, and in no other form.
 func (b usageBlock) viewsAsLaid() usageViews {
-	accounts, _ := b.split()
 	all := b.height()
 	return usageViews{
-		block: b, big: all, stacked: all, all: all, accounts: len(accounts),
-		steps: sync.OnceValues(func() (int, int) { return b.steps(all) }),
-		laid:  sync.OnceValue(func() laid { return b.lay(growing(b.width), 0) }),
+		block: b, big: all, stacked: all, all: all,
+		laid: sync.OnceValue(func() laid { return b.lay(growing(b.width), 0) }),
 	}
 }
 
@@ -368,259 +363,144 @@ func (v usageViews) between() []int {
 }
 
 // usageDrawn is USAGE's block of doc at now as USAGE draws it in the rows the
-// Overview gives it, as fitted has it, scrolled as the frame is.
+// Overview gives it, in the form fitted has it.
 func (f Frame) usageDrawn(doc status.Document, now time.Time) usageBlock {
 	views := f.overviewBlock(doc, now).views()
 	for _, u := range f.allotted(doc, now) {
 		if u.ledBy(SectionUsage) && !u.fold {
 			form := views.given(u.lean)
-			return form.fitted(u.rows-form.block.headed(), f.Scroll)
+			return form.fitted(u.rows - form.block.headed())
 		}
 	}
 	return views.block
 }
 
-// steps are the rows the block, all rows tall with every account in view,
-// takes for each account in view, and for each mark, ▲ or ▼: worked out from
-// two more layouts of it at most, as every account's rows are alike, and ▲
-// and ▼ take a row each in each window's section: all but the last account
-// in view, and all but the last two. With two accounts, a view of one has a
-// mark, so the account's rows count the mark's.
-func (b usageBlock) steps(all int) (account, mark int) {
-	accounts, _ := b.split()
-	n := len(accounts)
-	if n < 2 {
-		return 0, 0
-	}
-	oneBelow := b.shows(0, n-1).height()
-	account = all - oneBelow
-	if n > 2 {
-		account = oneBelow - b.shows(0, n-2).height()
-		mark = oneBelow + account - all
-	}
-	return account, mark
-}
-
-// of is how many rows the block takes, as height has them, with above
-// accounts' rows out of view above, shown in view, and the rest below.
-func (v usageViews) of(above, shown int) int {
-	account, mark := v.steps()
-	marks := 0
-	if above > 0 {
-		marks++
-	}
-	if v.accounts-above-shown > 0 {
-		marks++
-	}
-	return v.all - (v.accounts-shown)*account + marks*mark
-}
-
-// whole reports whether the block, in rows rows, is shown whole, a row at a
-// time, as paged pages it: where it doesn't fit, nor does it scrolled an
-// account at a time, an account a window in view, as leastPage has it.
-func (v usageViews) whole(rows int) bool {
-	return v.all > rows && v.leastPage() > rows
-}
-
-// leastPage is the most rows the block takes scrolled an account at a time,
-// an account in view: past the first, ▲ over it and ▼ under it, where it has
-// three accounts or more; ▼ alone with two; and with one, every row.
-func (v usageViews) leastPage() int {
-	if v.accounts < 2 {
-		return v.all
-	}
-	return v.of(min(1, v.accounts-2), 1)
-}
-
-// paged is how the block, laid out whole, pages in rows rows: its key line
-// held on their last rows, a blank row over it, but where that would leave
-// fewer than leastPaged rows over it; each window's heading, and each
-// block's name on a row of its own, shown with the first row under it, as
-// lay has them.
+// paged is how the block, laid out whole, its key line among its rows,
+// pages in rows rows, a row at a time: each window's heading, and each
+// block's name on a row of its own, shown with the first row under it, and
+// each window's heading kept on the page's first row while its rows scroll
+// under it, as lay has them.
 func (v usageViews) paged(rows int) rowsPaged {
 	l := v.laid()
-	foot := max(v.all-l.end-1, 0)
-	if rows-foot < leastPaged {
-		foot = 0
-	}
-	return rowsPaged{rows: rows, foot: foot, content: l.end, heads: l.heads, says: true}
+	return rowsPaged{rows: rows, content: v.all, heads: l.heads, kept: l.kept, says: true}
 }
 
-// usageShown is USAGE's block as it's shown in a body's rows: scrolled an
-// account at a time, as fitted lays it out, its rows from the first to the
-// body's last; or shown whole, its rows from from up to to, as paged pages
-// them.
+// usageShown is USAGE's block as it's shown in a body's rows: its rows from
+// from up to to, as paged pages them where it scrolls, its rows from the
+// first to the body's last where it fits.
 type usageShown struct {
 	block    usageBlock
 	paged    rowsPaged
-	whole    bool
 	from, to int
 }
 
-// shown is the block as USAGE shows it in rows rows, scrolled offset down:
-// whole, a row at a time, where whole says so; else as fitted lays it out.
+// shown is the block as USAGE shows it in rows rows, scrolled offset rows
+// down: in the form fitted has it, where that fits; else whole, a row at a
+// time, as paged pages it.
 func (v usageViews) shown(rows, offset int) usageShown {
-	if !v.whole(rows) {
-		return usageShown{block: v.fitted(rows, offset), to: rows}
+	if v.all <= rows {
+		return usageShown{block: v.fitted(rows), to: rows}
 	}
 	p := v.paged(rows)
 	from, to := p.shown(offset)
-	return usageShown{block: v.block, paged: p, whole: true, from: from, to: to}
+	return usageShown{block: v.block, paged: p, from: from, to: to}
 }
 
-// fitted is the block as USAGE draws it in rows rows, scrolled offset
-// accounts' rows down: at its most, as enlarged has it, where that's past its
-// least and fits; else stacked beside, where that's a step of its own, as
-// between has it, and fits; else as it's laid out, scrolled within the rows
-// where it doesn't fit. Only the rows given choose, never what it holds.
-func (v usageViews) fitted(rows, offset int) usageBlock {
+// fitted is the block as USAGE draws it in rows rows: at its most, as
+// enlarged has it, where that's past its least and fits; else stacked
+// beside, where that's a step of its own, as between has it, and fits; else
+// as it's laid out. Only the rows given choose, never what it holds.
+func (v usageViews) fitted(rows int) usageBlock {
 	switch {
 	case v.all < v.big && v.big <= rows:
 		return v.block.enlarged()
 	case v.all < v.stacked && v.stacked <= rows:
 		return v.block.stackedBeside()
 	}
-	return v.scrolled(rows, offset)
+	return v.block
 }
 
 // scrolling is how far the block scrolls in rows rows, scrolled offset down:
-// shown whole, a row at a time, as paged has it; else an account's rows at a
-// time, no further than shows the last account, a page being as many as show
-// at the offset, taken no further than it goes: more at the top or the foot,
-// with no ▲ or ▼ by them, than between; nowhere where it fits.
+// a row at a time, as paged has it; nowhere where it fits.
 func (v usageViews) scrolling(rows, offset int) Scrolling {
-	switch {
-	case v.whole(rows):
-		return v.paged(rows).scrolling(offset)
-	case v.all <= rows:
+	if v.all <= rows {
 		return Scrolling{}
 	}
-	n, last := v.accounts, 1
-	for last < n-1 && v.of(n-last-1, last+1) <= rows {
-		last++
-	}
-	most := n - last
-	return Scrolling{Most: most, Page: v.shownFrom(rows, min(max(offset, 0), most))}
+	return v.paged(rows).scrolling(offset)
 }
 
 // revealing is how far the block, in rows rows, scrolled offset down, is
-// scrolled to show the account with the given id: shown whole, as paged
-// reveals one of its rows; else as far as it's scrolled, where that shows
-// it, else no further than it must go to. Scrolled down, a page may show
-// fewer than the one it left, once a ▲ row comes over it, so it goes on an
-// account at a time until the account shows.
+// scrolled to show the account with the given id, as paged reveals one of
+// its rows: nowhere where it fits.
 func (v usageViews) revealing(rows, offset int, id string) int {
-	if v.whole(rows) {
-		var spans []rowAt
-		for _, p := range v.block.placed() {
-			if p.id == id {
-				spans = append(spans, p)
-			}
+	if v.all <= rows {
+		return 0
+	}
+	var spans []rowAt
+	for _, p := range v.laid().placed {
+		if p.id == id {
+			spans = append(spans, p)
 		}
-		return v.paged(rows).revealing(offset, spans)
 	}
-	accounts, _ := v.block.split()
-	i := slices.IndexFunc(accounts, func(r usageRow) bool { return r.id == id })
-	at := v.scrolling(rows, offset).revealing(offset, i)
-	for s := v.scrolling(rows, at); at < s.Most && i >= at+s.Page; s = v.scrolling(rows, at) {
-		at++
-	}
-	return at
-}
-
-// scrolled is the block in rows rows, scrolled offset accounts' rows down, no
-// further than scrolling says it goes, showing as many as fit, at least one,
-// the rows they leave spare under them, so its pool and its key line keep
-// their rows at the foot however far it's scrolled.
-func (v usageViews) scrolled(rows, offset int) usageBlock {
-	s := v.scrolling(rows, offset)
-	if s.Most == 0 {
-		return v.block
-	}
-	above := min(max(offset, 0), s.Most)
-	shown := v.block.shows(above, s.Page)
-	shown.spare = max(rows-v.of(above, s.Page), 0)
-	return shown
-}
-
-// shownFrom is how many accounts' rows show in rows rows, from the one at
-// first: as many as fit, at least one.
-func (v usageViews) shownFrom(rows, first int) int {
-	shown := 1
-	for shown < v.accounts-first && v.of(first, shown+1) <= rows {
-		shown++
-	}
-	return shown
-}
-
-// shows is the block with above accounts' rows out of view above, shown in
-// view, and the rest below.
-func (b usageBlock) shows(above, shown int) usageBlock {
-	accounts, _ := b.split()
-	b.above, b.below = above, len(accounts)-above-shown
-	return b
+	return v.paged(rows).revealing(offset, spans)
 }
 
 // usageRowsOut is the form of the line saying how many of USAGE's rows are
-// out of view, where it's shown whole: "▲ 3 more above · ▼ 9 more below", in
-// text.subtle, as its accounts' are.
+// out of view, where it scrolls: "▲ 3 more above · ▼ 9 more below", in
+// text.subtle.
 var usageRowsOut = outForm{above: " above", below: " below", gap: " · ", inks: subtleOut}
 
-// draw draws the block in body, its rows shown in those rowsIn gives them:
-// shown whole, its key line on the body's last rows, where it keeps it, and
-// on the row after the rows shown, how many are out of view; else its key
-// line after a blank row, cut to the body's rows.
+// draw draws the block in body, its rows shown in those rowsIn gives them,
+// its key line after a blank row among them; the heading paged keeps on the
+// body's first row, where it keeps one; and on the row after the rows shown,
+// how many are out of view, where it scrolls.
 func (s usageShown) draw(c *canvas, body bounds) {
 	in := c.within(s.rowsIn(body))
 	end := s.block.draw(in, body.y-s.from)
-	if !s.whole {
-		s.block.key(in, end+1)
-		return
-	}
-	if s.paged.foot > 0 {
-		s.block.key(c, body.y+body.rows-s.paged.foot)
+	s.block.key(in, end+1)
+	if at, ok := s.paged.keeps(s.from, s.to); ok {
+		s.block.draw(c.within(bounds{x: body.x, y: body.y, width: body.width, rows: 1}), body.y-at)
 	}
 	s.paged.said(c, body.y, s.from, s.to, s.block.width, usageRowsOut)
 }
 
-// rowsIn are the rows of body the block's rows shown are drawn in, from its
-// first.
+// rowsIn are the rows of body the block's rows shown are drawn in: from the
+// first, but under a heading kept on it.
 func (s usageShown) rowsIn(body bounds) bounds {
-	body.rows = s.to - s.from
+	top := s.paged.top(s.from, s.to)
+	body.y += top - s.from
+	body.rows = s.to - top
 	return body
 }
 
-// placed is where the block draws each of its rows in view, the accounts'
-// and the pool's, counted from its first row.
+// placed is where the block draws each of its rows, the accounts' and the
+// pool's, counted from its first row.
 func (b usageBlock) placed() []rowAt {
 	return b.lay(growing(b.width), 0).placed
 }
 
 // beside is where the block draws its rows shown in body, for ROUTING or
-// GRAPHS' charts to be drawn beside them from column x: where accounts are
-// out of view below, what's beside the last shown is cut at the row after
-// its last, where ▼ and how many sit.
+// GRAPHS' charts to be drawn beside them from column x.
 func (s usageShown) beside(x int, body bounds) blocksBeside {
 	at := blocksBeside{x: x, under: s.block.under(), across: s.block.besideCharts()}
 	for _, p := range s.block.placed() {
 		p.y += body.y - s.from
 		at.blocks = append(at.blocks, p)
-		if p.id != "" && s.block.below > 0 {
-			at.cut = p.y + p.rows
-		}
 	}
 	return at
 }
 
 // targets are the block's click targets as it's shown in body: each row of
-// an account's shown, across the body, which moves the focus to it.
+// an account's shown, across the body, which moves the focus to it, but a
+// row a heading kept takes.
 func (s usageShown) targets(body bounds) []Target {
 	var targets []Target
+	top := s.paged.top(s.from, s.to)
 	for _, p := range s.block.placed() {
 		if p.id == "" {
 			continue
 		}
-		for y := max(p.y, s.from); y < min(p.y+p.rows, s.to); y++ {
+		for y := max(p.y, top); y < min(p.y+p.rows, s.to); y++ {
 			targets = append(targets, Target{X: body.x, Y: body.y + y - s.from, Width: body.width, On: OnAccount, Account: p.id})
 		}
 	}

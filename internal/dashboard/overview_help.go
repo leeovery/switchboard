@@ -29,8 +29,8 @@ func overviewHelp() []helpPart {
 					"of the pool is faint."),
 				said("`b` groups the windows by account instead, a block an account, ROUTING beside each, or while GRAPHS shows, its charts. " +
 					"With more accounts than fit, USAGE " +
-					"scrolls within itself, an account at a time, or a row at a time where not even one account a window fits; turned " +
-					"from one to the other, as `b`, a section's key, a resize or what's read can turn it, it goes back to its top."),
+					"scrolls within itself, whole, a row at a time, each window's heading kept on its first row while the window's " +
+					"rows scroll under it, and its last row says how many rows are out of view above and below."),
 				said("`w` shows each model's own window, as Fable's week, here and wherever windows are listed as they stand now: GRAPHS, " +
 					"Accounts' Detail, Sessions' Switchboard and a session's page. Hidden, one shows all the same while it nears its limit " +
 					"on any account: held at it, at the cap, or running out or nearing where it would. switchboard usage, History and the " +

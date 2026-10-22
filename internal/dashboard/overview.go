@@ -225,14 +225,12 @@ type section struct {
 	folded  func() line
 	targets func(body bounds) []Target
 	// scrolling is how far the body scrolls in rows rows, scrolled offset
-	// down, as USAGE's does where its accounts are many: Most, the furthest,
-	// and Page, how many show at once from the offset, in accounts, or where
-	// rowsAtATime says it scrolls a row at a time, in rows; and revealing, how
-	// far it's scrolled from offset to show the account with the given id.
-	// Nil where it doesn't scroll.
-	scrolling   func(rows, offset int) Scrolling
-	rowsAtATime func(rows int) bool
-	revealing   func(rows, offset int, id string) int
+	// down, a row at a time, as USAGE's does where its accounts are many:
+	// Most, the furthest, and Page, how many show at once from the offset;
+	// and revealing, how far it's scrolled from offset to show the account
+	// with the given id. Nil where it doesn't scroll.
+	scrolling func(rows, offset int) Scrolling
+	revealing func(rows, offset int, id string) int
 	// order is the order of the rows SESSIONS lists, which a layout made
 	// keeps; and steady is SESSIONS listing them in the order a layout kept,
 	// as give gives it. Nil for any other section.
@@ -1007,14 +1005,6 @@ func scrollingOf(laid []planned, offset int) Scrolling {
 		return Scrolling{}
 	}
 	return usage.scrolling(usage.body.rows, offset)
-}
-
-// overviewScrollsRows reports whether the Overview's USAGE of doc at now
-// scrolls a row at a time, in the rows it's laid out in, as its rowsAtATime
-// says: not where it's hidden.
-func (f Frame) overviewScrollsRows(doc status.Document, now time.Time) bool {
-	usage := usageOf(f.laidOut(doc, now, f.top()))
-	return usage.rowsAtATime != nil && usage.rowsAtATime(usage.body.rows)
 }
 
 // overviewScrolls is what of the Overview of doc at now scrolls, from column

@@ -701,7 +701,9 @@ Where a view doesn't fit, these keys scroll it:
 
 What scrolls on each page:
 
-- **Overview:** USAGE, where its accounts don't fit.
+- **Overview:** USAGE, where its accounts don't fit. It scrolls whole, a row at a time, keeping
+  each window's heading on its first row while that window's rows pass under it, and its last row
+  says how many rows are out of view above and below.
 - **Accounts:** its view.
 - **History:** the Year, where the screen is shorter than it; Weeks' accounts; Days' BY ACCOUNT,
   past six accounts; and Tokens' periods.
@@ -710,15 +712,15 @@ What scrolls on each page:
 - **The Log:** its table.
 - **A session's page:** its turns, or with a turn open, the turn's requests.
 
-USAGE, Weeks, Days, the Switchboard on Sessions, and the lanes on Runway scroll an account at a
-time. Tokens scrolls a period at a time. A turn of the wheel scrolls the same.
+Weeks, Days, the Switchboard on Sessions, and the lanes on Runway scroll an account at a time.
+Tokens scrolls a period at a time. A turn of the wheel scrolls the same.
 
 Where one account or one period doesn't fit, as on a short screen, the view scrolls whole, a row at
 a time. It does the same on History's Weeks and Days below 37 rows, and the Year always scrolls
 so. It then says how many rows are out of view above and below.
 
-When `b`, a section's key, a resize or what's read turns a view from one kind of scrolling to the
-other, the view goes back to its top.
+When a resize or what's read turns a view from one kind of scrolling to the other, the view goes
+back to its top.
 
 ## The routing card
 

@@ -315,9 +315,10 @@ type Model struct {
 	// acts on, a key, a click or the wheel, a resize, or a section's shape
 	// changing.
 	layout dashboard.Layout
-	// scroll is how many rows the view shown is scrolled down by, where it
-	// doesn't fit, or on the Overview, how many accounts USAGE is, within its
-	// section; and counts what it counted, as rescrolled noted it.
+	// scroll is how far the view shown is scrolled down, where it doesn't
+	// fit, as the frame's Scroll has it: rows, or things, as History's
+	// accounts, where it scrolls a thing at a time; and counts what it
+	// counted, as rescrolled noted it.
 	scroll int
 	counts scrollUnit
 	// focus is the account the Overview's focus is on, which GRAPHS follows:
@@ -575,7 +576,7 @@ const (
 // rescrolled is m, and page, built at now, with the view scrolled back to
 // its top where what its scroll counts has changed since the last message
 // noted it: rows where it counted things, or things where it counted rows,
-// as b, a section's key, a resize or a read can change it; so an offset is
+// as a resize or a read can change it; so an offset is
 // never read in the other's unit, the view going back to its top, its page
 // built afresh, as History's does on any change. At its top, an offset
 // reads alike in either, so nothing is noted there. A session's page open

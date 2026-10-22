@@ -1552,11 +1552,29 @@ Then, as only the Overview has them:
   between blocks; then the blank rows under its heading and its windows' headings; then its key
   line, with the blank row over it. The pool keeps its rule's row, and its other blank rows stay:
   between windows stacked, and between a block's windows by account.
-- **Many accounts:** past what fits, USAGE scrolls within its section, in the form it has, as Room
-  has it, its window headings, pool and key line, where it keeps one, held, with `▼ 4 more
-  accounts` in `text.subtle` under the last row shown, and `▲ 2 more accounts` over the first
-  while some are above. `j`/`k`, PgUp, PgDn and the wheel scroll it, and moving the focus to an
-  account out of view scrolls to it (settled in the plan).
+- **Many accounts:** past what fits, USAGE scrolls whole within its section, a row at a time, as
+  History's views do, in the form the step it takes has, as Room has it: one scroll over all its
+  rows, its windows', their pools' and its key line's, where it keeps one (the owner's call, 21
+  October 2026).
+  - **Each window's heading is kept** on the section's first row while the scroll is among that
+    window's rows, in place of the row there; scrolled into the next window's, its heading takes
+    the row, and the blank row between two windows is neither's. By window from 150 columns, the
+    windows side by side share one heading row, kept over them all; by account, no heading is
+    kept. A page never ends on a heading without the first row under it.
+  - **The last row says what's out of view,** in rows, in `text.subtle`, as History's do:
+    `▲ 3 more above · ▼ 12 more below`, each part only while any are. At 138 × 15, three accounts
+    show under `WEEK`, and the 12 rows below are its pool's, the 5-hour's block and the key line.
+  - **`j`/`k` scroll it a row, PgUp and PgDn a page, and the wheel three rows;** a page down
+    stops a row short where the heading kept would cover the first row it hadn't shown, so it
+    passes over none. `↑` and `↓` move the focus an account, scrolling no further than shows a
+    row of it, under the heading kept: with its accounts a row apart, a row a press. A click on
+    an account's row where it's drawn moves the focus there; the heading kept on the first row is
+    no account's.
+  - **The scroll holds** as reads change what USAGE shows, and after a resize, `b` or a section's
+    key, goes no further than USAGE then goes: it counts rows whatever the form, so nothing turns
+    it back to its top.
+  - **The accounts shown never fall as the rows grow:** each step shows its accounts from its top,
+    so a row more shows as many or more, and the most any step shows never falls.
 
 **GRAPHS** draws the focused account's windows, a chart a window, under USAGE's bars where they
 fit there. `↑` and `↓` move the focus between the accounts, in the config's order. `v`, while GRAPHS
@@ -1668,11 +1686,10 @@ first (the owner's call, 15 October 2026).
 
     The rows of charts share what they're given evenly, the odd row to the first. At 160 columns
     with two windows, the stacked step comes from 57 rows and 5 rows a chart from 81; with three,
-    from 73 and 109. Where USAGE's least doesn't fit, it scrolls, as it does by
-    window, showing as many accounts as it did before every chart showed: `▼` and how many more
-    keep the row after the last block shown, and that block's charts are cut short to end on its
-    last row, a row above `▼`, nothing drawn over it, as the accounts are the data and a chart's
-    last row at the scroll's edge isn't (the owner's call, 21 October 2026);
+    from 73 and 109. Where USAGE's least doesn't fit, it scrolls whole, a row at a time, as it
+    does by window (see Many accounts), each block's charts with it, drawn in the rows shown alone:
+    a block shown in part has its charts in its rows shown, and nothing is drawn beside the last
+    row, which says what's out of view;
   - **the pool's charts beside `Σ pool`,** its windows in the same form as each account's: the
     pool's room in each window over its length back from now, from its left edge to now at its
     right, a column a cell, each column the room at its end's moment, a share of all its accounts'
@@ -2012,10 +2029,9 @@ below, not flex's even share:
    cost no account. The rows a step leaves are empty at the foot, and where a step doesn't fit,
    it scrolls within the rows, as Many accounts, above, has it. So at 138 × 15, where it showed
    `WEEK`, how many rows more and its key, its accounts show under their window's heading. As the
-   rows grow, the most any step shows never falls but in one case: a step that a row taller
-   scrolls an account at a time, where a row shorter it scrolled whole, can show fewer. The
-   scrolling's own pass settles that. The planner keeps the step it took in the layout, so USAGE is drawn in the form
-   the planner chose, never one its rows alone suggest.
+   rows grow, the most any step shows never falls: every step scrolls whole, a row at a time, so a
+   row more shows as many accounts or more. The planner keeps the step it took in the layout, so
+   USAGE is drawn in the form the planner chose, never one its rows alone suggest.
 5. **Rows to spare go out even while a section is folded,** to the units that aren't, in turn: to
    SESSIONS, a whole session at a time, its row or two, to every one, what's left that's less than a
    session going on, never left blank; to GRAPHS, a row at a time to 19; to USAGE's big bars, if
@@ -2049,8 +2065,8 @@ then the toggles as the key line words them (settled in the plan).
 **`?` help**, `HELP · OVERVIEW`, lists every key first, the toggles, `b`, `v`, `↑↓`, `p`, `t`, `R`
 and `j`/`k` among them, each where it works; then it explains each section, what it shows and why
 it's where it is; USAGE's marks, the levels' colours, the allowance and `out ~…`, the pool against
-`all accounts`, and how it scrolls, an account at a time or a row at a time, going back to its top
-as `b`, a section's key or a resize turns it from one to the other; GRAPHS' two charts, `v`, and
+`all accounts`, and how it scrolls, whole, a row at a time, each window's heading kept on its first
+row and its last row saying how many rows are out of view; GRAPHS' two charts, `v`, and
 how by account charts every account, and the lines of each chart; the modes and how each routes;
 ROUTING's states and the traces' scale; what a session is doing; and LATELY's marks.
 
