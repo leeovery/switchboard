@@ -212,8 +212,8 @@ func (f Frame) routingSection(doc status.Document, now time.Time) section {
 	t := sync.OnceValue(func() routingTable { return f.routingTableOf(doc, now) })
 	return section{
 		Section: SectionRouting, least: least, most: most,
-		description: func() line { return routingMode(m, f.phone()) },
-		folded:      func() line { return routingMode(m, true) },
+		description: func(cells int) line { return routingMode(m, cells) },
+		folded:      oneForm(func() line { return modeAlone(m) }),
 		draw: func(c *canvas, body bounds) {
 			f.drawRouting(c, t(), body)
 		},
@@ -233,7 +233,7 @@ func (f Frame) routingSection(doc status.Document, now time.Time) section {
 // nothing drawn and no targets of its own, as USAGE's draw has routingBeside
 // draw it where its blocks lie; its heading the mode alone, folded or not.
 func routingAside(m status.Moment) section {
-	mode := func() line { return routingMode(m, true) }
+	mode := oneForm(func() line { return modeAlone(m) })
 	return section{
 		Section: SectionRouting, description: mode, folded: mode,
 		draw:    func(*canvas, bounds) {},
@@ -241,26 +241,44 @@ func routingAside(m status.Moment) section {
 	}
 }
 
-// routingMode is the mode of m's router, as ROUTING's heading says it: auto,
+// routingMode is the mode of m's router, as ROUTING's heading says it in
+// cells cells: the mode alone, as modeAlone has it; and of a pin, where it
+// fits whole, since when, in text.subtle, then p back to auto. It fits
+// measured with its time at its widest, as prose.DatedWidth has it, so a pin
+// set today says as much as one set on an earlier day.
+func routingMode(m status.Moment, cells int) line {
+	mode := modeAlone(m)
+	if !m.Routed || m.Pin.IsZero() {
+		return mode
+	}
+	back := line{spaces(3), {"p", keyInk}, {" back to auto", faintInk}}
+	var since line
+	widest := mode.width() + back.width()
+	if !m.Pin.Since.IsZero() {
+		since = line{{pinnedSince + prose.Dated(m.Now, m.Pin.Since), dimInk}}
+		widest += len(pinnedSince) + prose.DatedWidth()
+	}
+	if widest > cells {
+		return mode
+	}
+	return slices.Concat(mode, since, back)
+}
+
+// pinnedSince leads the time a pin was set, as ROUTING's heading says it.
+const pinnedSince = " since "
+
+// modeAlone is the mode of m's router alone, as ROUTING's heading says it
+// folded, beside USAGE's blocks, and where its fuller words don't fit: auto,
 // in bold text.secondary; or pinned to the accounts the global pin names, in
-// bold accent.attention, since when, then p back to auto, or, where alone is
-// set, as by account and on a phone, the mode alone. A document probed has
-// none.
-func routingMode(m status.Moment, alone bool) line {
+// bold accent.attention. A document probed has none.
+func modeAlone(m status.Moment) line {
 	switch {
 	case !m.Routed:
 		return nil
 	case m.Pin.IsZero():
 		return line{{"auto", strongInk}}
 	}
-	mode := line{{"pinned to " + names(m, m.Pin.Accounts), alertInk}}
-	if alone {
-		return mode
-	}
-	if !m.Pin.Since.IsZero() {
-		mode = append(mode, span{" since " + prose.Dated(m.Now, m.Pin.Since), dimInk})
-	}
-	return append(mode, spaces(3), span{"p", keyInk}, span{" back to auto", faintInk})
+	return line{{"pinned to " + names(m, m.Pin.Accounts), alertInk}}
 }
 
 // drawRouting draws ROUTING's body in the bounds the planner gives it: a row

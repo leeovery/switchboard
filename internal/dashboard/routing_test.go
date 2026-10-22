@@ -1,12 +1,14 @@
 package dashboard
 
 import (
+	"fmt"
 	"maps"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
@@ -509,48 +511,123 @@ func TestTheModeIsROUTINGsDescription(t *testing.T) {
 	tests := []struct {
 		name  string
 		doc   status.Document
-		alone bool
+		cells int
 		want  line
 	}{
-		{name: "auto", doc: auto, want: line{{"auto", strongInk}}},
+		{name: "auto", doc: auto, cells: 160, want: line{{"auto", strongInk}}},
 		{
-			name: "pinned to an account", doc: pinned("personal"),
+			name: "pinned to an account", doc: pinned("personal"), cells: 160,
 			want: slices.Concat(line{{"pinned to personal", alertInk}, {" since 13:40", dimInk}}, back),
 		},
 		{
-			name: "pinned to several", doc: pinned("personal", "side"),
+			name: "pinned to several", doc: pinned("personal", "side"), cells: 160,
 			want: slices.Concat(line{{"pinned to personal and side", alertInk}, {" since 13:40", dimInk}}, back),
 		},
-		{name: "the mode alone, as by account and on a phone", doc: pinned("personal"), alone: true, want: line{{"pinned to personal", alertInk}}},
-		{name: "probed: no mode", doc: probe},
+		{name: "the mode alone, where its fuller words don't fit", doc: pinned("personal"), cells: 30, want: line{{"pinned to personal", alertInk}}},
+		{name: "probed: no mode", doc: probe, cells: 160},
 	}
 	for _, tt := range tests {
-		if got := routingMode(tt.doc.At(routedAt, claudeLike), tt.alone); !slices.Equal(got, tt.want) {
+		if got := routingMode(tt.doc.At(routedAt, claudeLike), tt.cells); !slices.Equal(got, tt.want) {
 			t.Errorf("%s: %v, want %v", tt.name, got, tt.want)
 		}
 	}
 }
 
-func TestROUTINGsHeadingSaysTheModeAloneBesideUSAGEOnAPhoneAndFolded(t *testing.T) {
+func TestROUTINGsModeSaysItsFullerWordsFromOneWidthWhenEverItsPinWasSet(t *testing.T) {
+	pinnedSince := func(since time.Time) status.Moment {
+		doc, _ := autoRouting()
+		doc.Pin = status.Pin{Accounts: []string{"personal"}, Since: since}
+		return doc.At(routedAt, claudeLike)
+	}
+	alone := line{{"pinned to personal", alertInk}}
+	back := line{spaces(3), {"p", keyInk}, {" back to auto", faintInk}}
+	widest := alone.width() + len(" since ") + prose.DatedWidth() + back.width()
+	tests := []struct {
+		name string
+		m    status.Moment
+		fits int
+	}{
+		{name: "a pin set today", m: pinnedSince(routedClock(1, 13, 40)), fits: widest},
+		{name: "a pin set on an earlier day", m: pinnedSince(time.Date(2026, 9, 28, 9, 5, 0, 0, time.UTC)), fits: widest},
+		{name: "a pin from a router that doesn't say since when", m: pinnedSince(time.Time{}), fits: alone.width() + back.width()},
+	}
+	for _, tt := range tests {
+		for cells := range 120 {
+			got := routingMode(tt.m, cells)
+			full := slices.Contains(got, span{" back to auto", faintInk})
+			if full != (cells >= tt.fits) {
+				t.Errorf("%s, in %d cells: says %q, want its fuller words %t: from %d cells, and only there", tt.name, cells, got.plain(), cells >= tt.fits, tt.fits)
+			}
+			if full && got.width() > cells {
+				t.Errorf("%s, in %d cells: says %q, %d cells, want it whole", tt.name, cells, got.plain(), got.width())
+			}
+		}
+	}
+}
+
+func TestROUTINGsHeadingSaysTheModeAloneBesideUSAGEAndFolded(t *testing.T) {
 	doc := pinnedRouting()
-	full, alone := routingMode(doc.At(routedAt, claudeLike), false), routingMode(doc.At(routedAt, claudeLike), true)
+	m := doc.At(routedAt, claudeLike)
+	full, alone := routingMode(m, 160), modeAlone(m)
 	tests := []struct {
 		name        string
 		frame       Frame
 		description line
 	}{
 		{name: "by window", frame: Frame{Width: 160}, description: full},
-		{name: "on a phone", frame: Frame{Width: 52}, description: alone},
+		{name: "a frame of 52 columns: the heading's room decides, not the frame's width", frame: Frame{Width: 52}, description: full},
 		{name: "by account, beside USAGE", frame: Frame{Width: 160, By: ByAccount}, description: alone},
 		{name: "by account under 150 columns, a section of its own", frame: Frame{Width: 149, By: ByAccount}, description: full},
 	}
 	for _, tt := range tests {
 		s := tt.frame.routingSection(doc, routedAt)
-		if got := s.description(); !slices.Equal(got, tt.description) {
+		if got := s.description(160); !slices.Equal(got, tt.description) {
 			t.Errorf("%s: described as %v, want %v", tt.name, got, tt.description)
 		}
-		if got := s.folded(); !slices.Equal(got, alone) {
+		if got := s.folded(160); !slices.Equal(got, alone) {
 			t.Errorf("%s: folded to %v, want the mode alone, %v", tt.name, got, alone)
+		}
+	}
+}
+
+// routingHeading is ROUTING's heading as the frame draws it of doc at
+// routedAt, as text: none where it doesn't show.
+func routingHeading(f Frame, doc status.Document) string {
+	for _, p := range f.laidOut(doc, routedAt, 0) {
+		if p.Section == SectionRouting {
+			c := newCanvas(f.Width, p.head.y+1)
+			f.sectionHeading(c, p)
+			return strings.TrimRight(c.row(p.head.y, Look{}), " ")
+		}
+	}
+	return ""
+}
+
+func TestROUTINGsHeadingSwitchesToItsFullerWordsOnceAsTheFrameWidensWhenEverItsPinWasSet(t *testing.T) {
+	sinces := []time.Time{routedClock(1, 13, 40), time.Date(2026, 9, 28, 9, 5, 0, 0, time.UTC)}
+	for n := 1; n <= len(accountIDs); n++ {
+		for _, long := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%d accounts, long names %t", n, long), func(t *testing.T) {
+				t.Parallel()
+				switches := make([]int, len(sinces))
+				for i, since := range sinces {
+					doc := latelyWorld(n, long)
+					doc.Pin = status.Pin{Accounts: []string{accountIDs[0]}, Since: since}
+					doc = doc.WorkedOut(claudeLike)
+					for width := 40; width <= 220; width++ {
+						full := strings.Contains(routingHeading(frameOf(width, 120), doc), "p back to auto")
+						switch {
+						case full && switches[i] == 0:
+							switches[i] = width
+						case !full && switches[i] > 0:
+							t.Errorf("pinned since %s, at %d columns ROUTING's heading says the mode alone, want its fuller words, as from %d", since, width, switches[i])
+						}
+					}
+				}
+				if switches[0] == 0 || switches[0] != switches[1] {
+					t.Errorf("ROUTING's heading says its fuller words from %d columns, pinned today, and %d, pinned on an earlier day: want one width, in 40 to 220", switches[0], switches[1])
+				}
+			})
 		}
 	}
 }

@@ -45,7 +45,7 @@ func (f Frame) usageSection(doc status.Document, now time.Time) section {
 		between:     views.between(),
 		leaner:      views.leanerRows(),
 		accounts:    func(given giving, rows int) int { return views.given(given).accountsIn(rows) },
-		description: func() line { return f.roomLeft(doc, now) },
+		description: oneForm(func() line { return f.roomLeft(doc, now) }),
 		keyed:       true,
 	}
 	if beside != nil {

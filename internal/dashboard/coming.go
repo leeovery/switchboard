@@ -55,12 +55,12 @@ func (f Frame) comingSection(doc status.Document, now time.Time) section {
 		draw: func(c *canvas, body bounds) {
 			comingLines(c, things, now, body)
 		},
-		folded: func() line {
+		folded: oneForm(func() line {
 			if len(things) == 0 {
 				return nil
 			}
 			return things[0].said(now, 0)
-		},
+		}),
 	}
 }
 

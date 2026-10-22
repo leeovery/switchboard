@@ -860,15 +860,15 @@ func TestAFrameBuiltBuildsItsSectionsAfreshAtAnotherMoment(t *testing.T) {
 func TestWhatAHeadingSaysIsCutToKeepACellOfRuleBeforeItsKey(t *testing.T) {
 	c := newCanvas(30, 1)
 	long := func() line { return line{{"a very long description that won't fit", strongInk}} }
-	frameOf(30, 40).sectionHeading(c, planned{Section: SectionRouting, description: long, head: bounds{width: 30, rows: 1}})
+	frameOf(30, 40).sectionHeading(c, planned{Section: SectionRouting, description: oneForm(long), head: bounds{width: 30, rows: 1}})
 	if got, want := textOf(c.rows(Look{}))[0], "ROUTING   a very long des… ─ r"; got != want {
 		t.Errorf("the heading reads %q, want %q", got, want)
 	}
 }
 
 func TestAFoldedHeadingSaysWhatItHoldsThenWhyOrThatItHasMore(t *testing.T) {
-	holds := func(text string) func() line { return func() line { return line{{text, mutedInk}} } }
-	nothing := func() line { return nil }
+	holds := func(text string) headingWords { return oneForm(func() line { return line{{text, mutedInk}} }) }
+	nothing := oneForm(func() line { return nil })
 	lines := func(n int) func() int { return func() int { return n } }
 	tests := []struct {
 		name    string
@@ -889,7 +889,7 @@ func TestAFoldedHeadingSaysWhatItHoldsThenWhyOrThatItHasMore(t *testing.T) {
 	}
 	f := frameOf(160, 39)
 	for _, tt := range tests {
-		if got := f.says(planned{section: tt.section, fold: tt.fold}).plain(); got != tt.want {
+		if got := f.says(planned{section: tt.section, fold: tt.fold}, f.Width).plain(); got != tt.want {
 			t.Errorf("%s: the heading says %q after its name, want %q", tt.name, got, tt.want)
 		}
 	}

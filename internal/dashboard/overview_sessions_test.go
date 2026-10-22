@@ -100,7 +100,7 @@ func TestSESSIONSFoldsToHowManyRunAndWhere(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := Frame{Width: 160, Height: 39, View: Overview, Sessions: tt.sessions, Stream: stream}
-			if got := f.sessionsSection(doc, routedAt).folded(); !slices.Equal(got, tt.want) {
+			if got := f.sessionsSection(doc, routedAt).folded(160); !slices.Equal(got, tt.want) {
 				t.Errorf("folded = %+v, want %+v", got, tt.want)
 			}
 		})

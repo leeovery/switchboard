@@ -162,7 +162,8 @@ For each account, ROUTING also shows:
 - its requests a minute over the last 30 minutes, drawn as a trace, with the last minute's rate.
 
 The section's heading gives the routing mode: `auto`, or
-`pinned to personal since 14:02   p back to auto`.
+`pinned to personal since 14:02   p back to auto`, or `pinned to personal` alone where the rest
+doesn't fit.
 
 Every trace on the page shares one scale, a session's trace included, so you can compare any two.
 
@@ -200,7 +201,8 @@ COMING UP where they don't.
   `16:30  personal's 5-hour resets  in 1h 48m`. A run-out's row is in the theme's attention colour.
 - **LATELY** is what the router has done, newest first. Each event is marked, such as
   `14:31  ╎ work reached its cap: 3 sessions moved to side`. When a limit, a cap or a refusal moves
-  sessions, those sessions are folded into that event's line.
+  sessions, those sessions are folded into that event's line. Where a line doesn't fit whole, it
+  takes a shorter form, `work at its cap: 3 moved to side`.
 
 ### By account
 

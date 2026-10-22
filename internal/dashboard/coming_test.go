@@ -357,7 +357,7 @@ func TestCOMINGUPFoldsToItsFirstLineButItsCountdownThenAnEllipsisWhereItHasMore(
 	}
 	f := frameOf(160, 40)
 	for _, tt := range tests {
-		if got := f.says(planned{section: f.comingSection(comingOf(tt.coming...), now), fold: true}); !slices.Equal(got, tt.want) {
+		if got := f.says(planned{section: f.comingSection(comingOf(tt.coming...), now), fold: true}, f.Width); !slices.Equal(got, tt.want) {
 			t.Errorf("folded with %s, COMING UP's heading says %+v, want %+v", tt.name, got, tt.want)
 		}
 	}

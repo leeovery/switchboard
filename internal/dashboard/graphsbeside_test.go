@@ -221,7 +221,7 @@ func TestWhileGRAPHSIsBesideUSAGEsBlocksROUTINGIsASectionOfItsOwnAndThereIsNoFoc
 		})
 	}
 	g := besideOf(160).graphsSection(trio(), printNow)
-	if got, want := g.description(), burnKey(BurnUp); g.least != 0 || !slices.Equal(got, want) {
+	if got, want := g.description(160), burnKey(BurnUp); g.least != 0 || !slices.Equal(got, want) {
 		t.Errorf("beside, GRAPHS takes %d rows, its heading %+v; want none, and the key alone, as no account is focused", g.least, got)
 	}
 }

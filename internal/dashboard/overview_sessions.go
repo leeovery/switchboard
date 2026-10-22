@@ -59,15 +59,15 @@ func (f Frame) sessionsSection(doc status.Document, now time.Time) section {
 	form := f.runningForm(f.routingColumns(m))
 	base := section{
 		Section: SectionSessions,
-		description: func() line {
+		description: oneForm(func() line {
 			if !f.Loading {
 				return nil
 			}
 			return line{{loadingWord, dimInk}}
-		},
-		folded: func() line {
+		}),
+		folded: oneForm(func() line {
 			return line{{runningCount(m, running), mutedInk}}
-		},
+		}),
 		order: views.RowsOf(running),
 	}
 	base.least, base.most, base.between = sessionsRows(len(running), form.rows)
