@@ -8,7 +8,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/dashboard/flex"
-	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -255,15 +254,8 @@ const (
 var (
 	tookCells     = ansi.StringWidth("999m" + prose.Ellipsis)
 	requestsCells = ansi.StringWidth(prose.Grouped(9999))
-	worthCells    = max(ansi.StringWidth(worthMost.Cents()), ansi.StringWidth(views.Worth{Unpriced: worthMost.Unpriced}.Cents()))
+	worthCells    = ansi.StringWidth(widestOf(views.WorthSaidWidest()))
 )
-
-// worthMost is the most a turn's worth is held whole to: $999.99, part of
-// it unpriced.
-var worthMost = func() views.Worth {
-	amount := ledger.Picodollars(99_999) * ledger.Picodollars(10_000_000_000)
-	return views.Worth{Amount: &amount, Unpriced: []string{"model"}}
-}()
 
 // toolsMost are the cells tools takes at the most, as views.ToolsSaidWidest
 // says them. No name is cut on its own: where a wider one, as an MCP

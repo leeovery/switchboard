@@ -99,6 +99,28 @@ func Stint(now, from, to time.Time, dated bool) string {
 	return start + " – " + end
 }
 
+// StintWidth is how many characters the widest stay Stint says takes: of
+// starts on now's day, the day before, within the week and a date of two
+// digits before, each to an end on its own day, a day after or now, dated or
+// not, as "28 Sep 13:20 – yesterday 01:20".
+func StintWidth() int {
+	now := time.Date(2001, time.March, 28, 12, 0, 0, 0, time.UTC)
+	widest := 0
+	for _, back := range []int{0, 1, 3, 60} {
+		from := now.AddDate(0, 0, -back).Add(-time.Minute)
+		ends := []time.Time{{}, from.Add(time.Minute)}
+		if back > 0 {
+			ends = append(ends, now.AddDate(0, 0, -1), now.Add(-time.Minute/2))
+		}
+		for _, to := range ends {
+			for _, dated := range []bool{false, true} {
+				widest = max(widest, utf8.RuneCountInString(Stint(now, from, to, dated)))
+			}
+		}
+	}
+	return widest
+}
+
 // Later says t, a time after start, in now's time zone, as it's said beside
 // start, which names its own day: its time of day on start's day, as
 // "16:02"; on another, with its day, as "today 00:40" or "yesterday 23:10".

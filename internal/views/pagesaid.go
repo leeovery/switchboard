@@ -381,15 +381,23 @@ func (t Turn) Took(now time.Time) (minutes string, going bool) {
 // names.
 const ToolsNamed = 3
 
-// ToolsSaid says the tools the turn's answers called most, three at the
-// most, most first, with how many times each, as "Bash ×14, Edit ×9, Read
-// ×8".
+// ToolsSaid says the tools the turn's answers called most, as ToolsEach
+// says them, a comma and a blank between: "Bash ×14, Edit ×9, Read ×8".
 func (t Turn) ToolsSaid() string {
+	return strings.Join(t.ToolsEach(), ToolsApart)
+}
+
+// ToolsApart sets the tools a turn names apart.
+const ToolsApart = ", "
+
+// ToolsEach says each of the tools the turn's answers called most, three at
+// the most, most first, with how many times it was called, as "Bash ×14".
+func (t Turn) ToolsEach() []string {
 	said := make([]string, 0, ToolsNamed)
 	for _, c := range t.Tools[:min(len(t.Tools), ToolsNamed)] {
 		said = append(said, prose.Clean(c.Tool)+" ×"+prose.Grouped(c.Times))
 	}
-	return strings.Join(said, ", ")
+	return said
 }
 
 // ToolsSaidWidest is ToolsSaid at its widest of Claude Code's own tools:
@@ -400,6 +408,15 @@ func ToolsSaidWidest() string {
 		tools[i] = ToolCalls{Tool: claude.WidestTool, Times: 999}
 	}
 	return Turn{Tools: tools}.ToolsSaid()
+}
+
+// WorthSaidWidest are the worths a turn says at their widest, as Cents
+// says them, to the most it's held whole to: $999.99 with part of it
+// unpriced, "$999.99+", and none of it priced, "unpriced".
+func WorthSaidWidest() []string {
+	most := ledger.Picodollars(99_999) * ledger.Picodollars(10_000_000_000)
+	unpriced := []string{"unpriced"}
+	return []string{Worth{Amount: &most, Unpriced: unpriced}.Cents(), Worth{Unpriced: unpriced}.Cents()}
 }
 
 // PointsForm is the form an account's points are said in.

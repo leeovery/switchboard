@@ -551,7 +551,8 @@ Under 100 columns, the dashboard lays itself out for a phone.
 - Accounts' `against it` and `against` give `all accounts`' ratio alone, but where an account has
   no `plan`, they add how many of the plans it's over, compact: `4.4× · 2/3`.
 - A session's page keeps each turn's number, start, length, requests, worth and accounts, as it
-  does at every width: its tools, then read, written and out, leave as the width runs short.
+  does at every width: its tools, then `↑ asking`, then read, written and out, leave as the width
+  runs short.
 
 ## Every page
 

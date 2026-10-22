@@ -456,10 +456,18 @@ func TestATurnsToolsAreTheThreeItCalledMost(t *testing.T) {
 }
 
 // A turn's tools at their widest are the three it names, each Claude Code's
-// widest tool, called 999 times.
-func TestATurnsToolsAtTheirWidest(t *testing.T) {
+// widest tool, called 999 times; and its worth at its widest, $999.99 part
+// unpriced, or unpriced.
+func TestATurnsToolsAndWorthAtTheirWidest(t *testing.T) {
 	if got, want := views.ToolsSaidWidest(), "AskUserQuestion ×999, AskUserQuestion ×999, AskUserQuestion ×999"; got != want {
 		t.Errorf("ToolsSaidWidest = %q, want %q", got, want)
+	}
+	if got, want := views.WorthSaidWidest(), []string{"$999.99+", "unpriced"}; !slices.Equal(got, want) {
+		t.Errorf("WorthSaidWidest = %q, want %q", got, want)
+	}
+	tools := views.Turn{Tools: []views.ToolCalls{{Tool: "Bash", Times: 14}, {Tool: "Edit", Times: 9}}}
+	if got, want := tools.ToolsEach(), []string{"Bash ×14", "Edit ×9"}; !slices.Equal(got, want) {
+		t.Errorf("ToolsEach = %q, want %q", got, want)
 	}
 }
 

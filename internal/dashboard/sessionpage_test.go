@@ -322,7 +322,7 @@ func TestASessionsPageAtEachSize(t *testing.T) {
 			want: map[int]string{
 				4:  "SESSION   d28c   switchboard  ~/Code/switchboard ─",
 				24: "  #  started  took   requests  tools              read  written     out     worth  on",
-				25: " 13  14:40    3m…           6  Read ×3, Bash…     958k",
+				25: " 13  14:40    3m…           6  Read ×3            958k",
 			},
 			ends: map[int]string{25: "$0.79  side             ↑ asking"},
 		},
@@ -428,8 +428,8 @@ func TestANarrowWidePageCutsItsRowsBeforeTheirRightParts(t *testing.T) {
 		strings.Contains(rows[7], "sonnet-4-5") || !strings.HasSuffix(rows[7], windows) {
 		t.Errorf("row 8 reads\n%q\nwant the model that doesn't fit left out whole, after\n%q", rows[7], want)
 	}
-	rows = pageText(pageFrame(t, shown, 122, 37))
-	if want := "≈ 9 of week · 31 of 5-hour · 2 of Fable week" + strings.Repeat(" ", 13) + "$114.10"; !strings.HasSuffix(rows[20], want) {
+	rows = pageText(pageFrame(t, shown, 130, 37))
+	if want := "≈ 9 of week · 31 of 5-hour · 2 of Fable week" + strings.Repeat(" ", 14) + "$114.10"; !strings.HasSuffix(rows[20], want) {
 		t.Errorf("row 21 reads\n%q\nwant its points in their short words, whole where the wide don't fit, ending\n%q", rows[20], want)
 	}
 	if want := "≈ 9 points of its week · 31 of its 5-hour · 2 of its Fable week"; !strings.Contains(pageText(pageFrame(t, shown, 160, 37))[20], want) {
@@ -567,7 +567,7 @@ func TestATurnsAccountsFitItsOnColumn(t *testing.T) {
 	}{
 		{accounts: []string{"work"}, cells: 12, want: "work"},
 		{accounts: []string{"work", "side"}, cells: 12, want: "work → side"},
-		{accounts: []string{"personal", "side"}, cells: 12, want: "personal→si…"},
+		{accounts: []string{"personal", "side"}, cells: 12, want: "person…→side"},
 		{accounts: []string{"personal", "side"}, cells: 11, want: "perso…→side"},
 		{accounts: []string{"personal", "side"}, cells: 15, want: "personal → side"},
 		{accounts: []string{"personal", "side"}, cells: 13, want: "personal→side"},

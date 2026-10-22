@@ -156,11 +156,7 @@ var everyMark = accountName{primary: true, best: true}.marks()
 // doingWidest are the cells the widest of what a session of its kind says
 // it's doing takes, as DoingSaidWidest says them.
 func (d sessionDrawn) doingWidest() int {
-	widest := 0
-	for _, said := range d.page.DoingSaidWidest(d.now) {
-		widest = max(widest, ansi.StringWidth(said))
-	}
-	return widest
+	return ansi.StringWidth(widestOf(d.page.DoingSaidWidest(d.now)))
 }
 
 // ranWidest are the cells row 6's right takes at its least, its shortest
@@ -258,32 +254,43 @@ func (d sessionDrawn) wideNow(c *canvas) {
 func (d sessionDrawn) phoneNow(c *canvas) {
 	y := d.l.now
 	where := d.page.Where(d.now)
-	c.line(0, y, namesNarrowing(d.Width, func(most int) line {
-		if len(where.OnSince) == 0 {
-			return d.doing()
-		}
-		return slices.Concat(d.doing(), line{spaces(sessionPhoneApart)}, d.onSinceAt(where.OnSince, labelCutAt(most)))
-	}))
+	named := labelCutAt(d.shortNamesCells(where))
+	said := d.doing()
+	if len(where.OnSince) > 0 {
+		said = slices.Concat(said, line{spaces(sessionPhoneApart)}, d.onSinceAt(where.OnSince, named))
+	}
+	c.line(0, y, said.fit(d.Width))
 	ran := line{{d.page.RanSaid(d.now), secondaryInk}}
 	room := c.right(d.Width, y+1, ran) - sessionPhoneApart
-	c.line(0, y+1, namesNarrowing(room, func(most int) line { return d.wordsAt(where.Short, mutedInk, labelCutAt(most)) }))
+	c.line(0, y+1, d.wordsAt(where.Short, mutedInk, named).fit(room))
+}
+
+// shortNamesCells are the cells the short now rows give each name they
+// say, the same in both: a label's most where both rows fit whole, its
+// names narrowing toward a label's least before anything else is cut. Each
+// row is measured with the doing and how it has run at their widest, as
+// startedFit measures, so the names hold still as the session asks,
+// answers or idles and as its run goes on; and with where and why as said
+// now.
+func (d sessionDrawn) shortNamesCells(where views.WhereSaid) int {
+	ran := ansi.StringWidth(d.page.RanSaidWidest(d.now))
+	for most := labelMost; most > labelLeast; most-- {
+		named := labelCutAt(most)
+		row7 := d.doingWidest()
+		if len(where.OnSince) > 0 {
+			row7 += sessionPhoneApart + d.onSinceAt(where.OnSince, named).width()
+		}
+		row8 := d.wordsAt(where.Short, mutedInk, named).width() + sessionPhoneApart + ran
+		if max(row7, row8) <= d.Width {
+			return most
+		}
+	}
+	return labelLeast
 }
 
 // labelCutAt names an account by its label cut to most cells.
 func labelCutAt(most int) func(string) string {
 	return func(label string) string { return prose.Cut(label, most) }
-}
-
-// namesNarrowing is the line said says with its names at most cells, in
-// room cells: at a label's most where it fits, its names narrowing toward a
-// label's least before anything else of it is cut; and where it doesn't fit
-// even at that, cut.
-func namesNarrowing(room int, said func(most int) line) line {
-	forms := make([]line, 0, labelMost-labelLeast+1)
-	for most := labelMost; most >= labelLeast; most-- {
-		forms = append(forms, said(most))
-	}
-	return firstFit(room, forms...)
 }
 
 // leftOf draws right at the right of row y, and returns the cells left of
@@ -508,14 +515,24 @@ const (
 )
 
 // The cells of an account's row's parts that hold theirs whole: its time
-// there, as "yesterday 13:20 – 16:01"; its requests, as "12,345 requests";
-// and its worth, as "$114.11"; stayGap blanks between its parts.
-const (
-	stayTimeCells     = 24
-	stayRequestsCells = 14
-	stayWorthCells    = 7
-	stayGap           = 2
+// there, at prose.StintWidth, as "28 Sep 13:20 – yesterday 01:20"; its
+// requests, to "99,999 requests"; and its worth, as "$114.11"; stayGap
+// blanks between its parts.
+var (
+	stayTimeCells     = prose.StintWidth()
+	stayRequestsCells = ansi.StringWidth(stayRequestsSaid(99_999))
 )
+
+const (
+	stayWorthCells = 7
+	stayGap        = 2
+)
+
+// stayRequestsSaid says an account's requests, as its row does: "12,345
+// requests".
+func stayRequestsSaid(n int) string {
+	return prose.Counted(n, "request")
+}
 
 // stayColumn is a part of an account's row as it's laid out: which it is,
 // from column x, width cells wide.
@@ -597,11 +614,13 @@ func (d sessionDrawn) account(c *canvas, y int, s views.Stay) {
 	for _, col := range d.stayColumns {
 		switch col.part {
 		case stayName:
-			c.line(col.x, y, d.nameOf(s.Account).fitted(col.width+nameGap))
+			n := d.nameOf(s.Account)
+			n.label = labelAtMost(n.label)
+			c.line(col.x, y, n.fitted(col.width+nameGap))
 		case stayTime:
 			c.text(col.x, y, prose.Cut(s.Said, col.width), secondaryInk)
 		case stayRequests:
-			c.text(col.x, y, prose.Cut(prose.Counted(s.Requests, "request"), col.width), mutedInk)
+			c.text(col.x, y, prose.Cut(stayRequestsSaid(s.Requests), col.width), mutedInk)
 		case stayPoints:
 			room, form := worth-stayGap-col.x, views.PointsWide
 			if pointsWhole(s.SessionAccount, form) > room {
@@ -734,7 +753,7 @@ func (d sessionDrawn) turnSaid(col turnColumn, t views.Turn, newest bool) line {
 	case turnRequests:
 		return muted(prose.Grouped(t.Requests))
 	case turnTools:
-		return muted(t.ToolsSaid())
+		return muted(toolsWhole(t.ToolsEach(), col.width))
 	case turnRead:
 		return muted(prose.Tokens(t.Read))
 	case turnWritten:
@@ -756,12 +775,35 @@ func (d sessionDrawn) turnSaid(col turnColumn, t views.Turn, newest bool) line {
 	return nil
 }
 
+// toolsWhole are the tools a turn names, as views says each, as many as fit
+// whole in cells, those that don't leaving from the end, as an account's
+// points leave whole windows; where even the first doesn't fit, it alone,
+// cut.
+func toolsWhole(each []string, cells int) string {
+	said := ""
+	for i, tool := range each {
+		next := tool
+		if i > 0 {
+			next = said + views.ToolsApart + tool
+		}
+		if ansi.StringWidth(next) > cells {
+			break
+		}
+		said = next
+	}
+	if said == "" && len(each) > 0 {
+		return prose.Cut(each[0], cells)
+	}
+	return said
+}
+
 // turnOn names the accounts a turn went to, in text.secondary, in cells,
 // each at a label's most, as labelAtMost cuts it, in the first of these
 // that fits whole: each in turn, "work → side"; the arrows narrowed,
 // "work→side"; two moves or more as the first and the last, an ellipsis
 // between, "work→…→side". Else cut: a move's second name, its first whole,
-// down to moveToLeast cells, "work→si…"; else the first and the last share
+// down to moveToLeast cells, "work→si…", where that shows the shorter of
+// the two at least as much as sharing; else the first and the last share
 // the room, as movedCells shares it, the shorter kept whole where it can
 // be, "perso…→side"; and where that leaves the first under two cells, the
 // first alone, cut, "wo…→…".
@@ -780,10 +822,11 @@ func (d sessionDrawn) turnOn(accounts []string, cells int) line {
 		return line{{forms[max(i, 0)], secondaryInk}}.fit(cells)
 	}
 	room := cells - ansi.StringWidth(via)
-	if from := ansi.StringWidth(first); len(names) == 2 && from+moveToLeast <= room {
+	from, to := ansi.StringWidth(first), ansi.StringWidth(last)
+	f, t := movedCells(from, to, room)
+	if len(names) == 2 && from+moveToLeast <= room && min(from, room-from) >= min(f, t) {
 		return line{{first + via + prose.Cut(last, room-from), secondaryInk}}
 	}
-	f, t := movedCells(ansi.StringWidth(first), ansi.StringWidth(last), room)
 	if f < 2 {
 		alone := moveArrowTight + prose.Ellipsis
 		return line{{prose.Cut(first, cells-ansi.StringWidth(alone)) + alone, secondaryInk}}

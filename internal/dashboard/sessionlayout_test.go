@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -562,8 +563,8 @@ func TestATurnsRowNeverSaysLessAsTheFrameWidens(t *testing.T) {
 				}
 				for i := range min(d.l.turns, before.l.turns) {
 					on, was := turnText(rows[d.l.turnsAt+i], d, turnOn), turnText(beforeRows[before.l.turnsAt+i], before, turnOn)
-					if len([]rune(on)) < len([]rune(was)) {
-						t.Errorf("%s, at %d columns, a turn's accounts read %q, want no shorter than %q a column narrower", world.name, width, on, was)
+					if namesShrank(namesShown(was), namesShown(on)) {
+						t.Errorf("%s, at %d columns, a turn's accounts read %q, want each name shown no shorter than in %q a column narrower", world.name, width, on, was)
 					}
 				}
 			}
@@ -661,6 +662,93 @@ func TestAnAccountsNameIsALabels(t *testing.T) {
 			}
 		})
 	}
+}
+
+// An account reads one way across the page: its row draws its label cut at
+// a label's most, as rows 6 and 7 and a turn's on do, never whole past it.
+func TestAnAccountReadsOneWayAcrossThePage(t *testing.T) {
+	for _, label := range []string{"work-team-plan-for-the-org", strings.Repeat("w", 30)} {
+		d, drawn := pageDrawn(pageFrame(t, moved(), 160, 37), pageLabelled(label, "personal", "side"))
+		cut := labelAtMost(label)
+		rows := map[string]string{
+			"its row":    string(drawn[d.l.accountsAt]),
+			"row 7":      string(drawn[d.l.now]),
+			"turn 12 on": turnText(drawn[d.l.turnsAt+1], d, turnOn),
+		}
+		for name, row := range rows {
+			if !strings.Contains(row, cut) || strings.Contains(row, label) {
+				t.Errorf("labelled %q, %s reads %q, want it named %q", label, name, strings.TrimRight(row, " "), cut)
+			}
+		}
+	}
+}
+
+// An account's time there and its requests are whole wherever they show:
+// stays as wide as a date to a day after, and from the day before to today,
+// and requests to 99,999.
+func TestAnAccountsTimeAndRequestsAreWhole(t *testing.T) {
+	stays := [][2]time.Time{
+		{at(13, 20).AddDate(0, 0, -11), at(1, 20).AddDate(0, 0, -10)},
+		{yesterdayAt(23, 0), at(1, 0)},
+	}
+	for _, stay := range stays {
+		shown := moved()
+		shown.Page.Started = stay[0]
+		shown.Page.Accounts[0].From, shown.Page.Accounts[0].To = stay[0], stay[1]
+		shown.Page.Accounts[0].Requests = 99_999
+		said := shown.Page.Stays(sessionNow)[0].Said
+		for width := 40; width <= 220; width++ {
+			d, drawn := pageDrawn(pageFrame(t, shown, width, 37), pageDoc())
+			row := drawn[d.l.accountsAt]
+			if got := stayText(row, d, stayTime); got != "" && got != said {
+				t.Errorf("at %d columns, the time there reads %q, want %q whole", width, got, said)
+			}
+			if got := stayText(row, d, stayRequests); got != "" && got != "99,999 requests" {
+				t.Errorf("at %d columns, the requests read %q, want them whole", width, got)
+			}
+		}
+	}
+}
+
+// The short now rows give every name one width, the same in both rows and
+// whatever the session's doing or however long it has run, so an account
+// reads one way and holds still as the session works.
+func TestTheShortNowRowsGiveTheirNamesOneWidth(t *testing.T) {
+	doings := []views.Activity{
+		{Doing: views.Asking}, {Doing: views.Answering}, {Doing: views.Throttled, Status: 429},
+		{Doing: views.Refused, Status: 403}, {Doing: views.Idle, Since: sessionNow.Add(-9 * time.Minute)},
+	}
+	runs := []time.Duration{59 * time.Minute, 61 * time.Minute, 10 * time.Hour}
+	doc := pageLabelled("work-team-plan-for-the-org", "personal-research-writing", "side-hustle-consulting")
+	for width := 40; width <= 60; width++ {
+		widths := map[int]bool{}
+		for _, doing := range doings {
+			for _, run := range runs {
+				shown := moved()
+				shown.Page.Activity, shown.Page.Started = doing, sessionNow.Add(-run)
+				shown.Page.Moves[0].Reason = status.ReasonMovedByPin
+				d, drawn := pageDrawn(pageFrame(t, shown, width, 37), doc)
+				widths[d.shortNamesCells(d.page.Where(d.now))] = true
+				row7, row8 := string(drawn[d.l.now]), string(drawn[d.l.now+1])
+				if named := sideNamed(row7); named != sideNamed(row8) {
+					t.Errorf("at %d columns, rows 7 and 8 read %q and %q, want side named alike", width, strings.TrimRight(row7, " "), strings.TrimRight(row8, " "))
+				}
+			}
+		}
+		if len(widths) != 1 {
+			t.Errorf("at %d columns, the short rows' names take %v cells as the session works, want one", width, slices.Collect(maps.Keys(widths)))
+		}
+	}
+}
+
+// sideNamed is how row names side-hustle-consulting: the word it starts.
+func sideNamed(row string) string {
+	for word := range strings.FieldsSeq(row) {
+		if strings.HasPrefix(word, "side-") {
+			return word
+		}
+	}
+	return ""
 }
 
 // ↑ asking keeps its cells on the page of a session that can still ask,
@@ -771,6 +859,72 @@ func TestANarrowTurnsRowKeepsItsFiguresAndMovesWhole(t *testing.T) {
 			}
 		}
 	}
+}
+
+// A turn's tools leave whole from the end, each with its count, never cut
+// part-way but for the first where even it doesn't fit.
+func TestATurnsToolsLeaveWhole(t *testing.T) {
+	shown := moved()
+	shown.Page.Turns[0].Tools = []views.ToolCalls{{Tool: "mcp__server__a_tool_named_long", Times: 3}, {Tool: "Read", Times: 2}}
+	for width := 40; width <= 220; width++ {
+		d, rows := pageDrawn(pageFrame(t, shown, width, 37), pageDoc())
+		col, ok := d.turnColumnOf(turnTools)
+		if !ok {
+			continue
+		}
+		for i, turn := range shown.Page.Turns[:d.l.turns] {
+			got, each := turnText(rows[d.l.turnsAt+i], d, turnTools), turn.ToolsEach()
+			whole := len(each) == 0 && got == ""
+			for n := 1; n <= len(each); n++ {
+				whole = whole || got == strings.Join(each[:n], views.ToolsApart)
+			}
+			if !whole && got != prose.Cut(each[0], col.width) {
+				t.Errorf("at %d columns, turn %d's tools read %q, want whole tools, or the first alone cut", width, turn.Turn, got)
+			}
+		}
+	}
+}
+
+// No row of a session's page reads "……", a cut landing right after a name
+// cut short ending at the name's own ellipsis.
+func TestNoRowReadsADoubledEllipsis(t *testing.T) {
+	for _, world := range pageWorlds {
+		for _, state := range nowStates() {
+			for width := 40; width <= 220; width++ {
+				_, drawn := pageDrawn(pageFrame(t, state.shown, width, 37), world.doc())
+				for y, row := range drawn {
+					if strings.Contains(string(row), prose.Ellipsis+prose.Ellipsis) {
+						t.Errorf("%s, %s, at %d columns, row %d reads %q", world.name, state.name, width, y+1, strings.TrimRight(string(row), " "))
+					}
+				}
+			}
+		}
+	}
+}
+
+// namesShrank reports whether a turn's on shows a name in fewer cells now
+// than it did then, or names more or fewer.
+func namesShrank(then, now []int) bool {
+	if len(then) != len(now) {
+		return true
+	}
+	for i := range now {
+		if now[i] < then[i] {
+			return true
+		}
+	}
+	return false
+}
+
+// namesShown are the cells of each name on shows, the first and the last,
+// an ellipsis that cuts one not counted.
+func namesShown(on string) []int {
+	names := strings.Split(strings.ReplaceAll(on, moveArrow, moveArrowTight), moveArrowTight)
+	shown := make([]int, 0, 2)
+	for _, name := range []string{names[0], names[len(names)-1]}[:min(2, len(names))] {
+		shown = append(shown, ansi.StringWidth(strings.TrimSuffix(name, prose.Ellipsis)))
+	}
+	return shown
 }
 
 // A move's second name gives way before read, written and out leave: its

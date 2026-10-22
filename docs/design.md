@@ -4184,7 +4184,9 @@ time's words or a mark do: `started yesterday 16:40 · resumed yesterday 22:10`,
 alone, `resumed yesterday 22:10`, as a phone's says it. Narrower, the rows take the short form a
 phone's has (see On a phone), its names narrowing toward a label's least of 8 before a date, a
 figure or the why is cut, so it says the why short and whole wherever its names at their least let
-it, and the wide form never cuts what the short says whole. What the switch measures changes only
+it, and the wide form never cuts what the short says whole. Its names take one width in both rows,
+measured with the state and how it has run at their widest, so an account reads one way and holds
+still as the session works; a cut never reads `……`. What the switch measures changes only
 as the session moves, is resumed or ends: never as its turns come and go, the clock moves a time's
 day on, or new sessions go elsewhere, so the form holds still while it asks, answers or idles. The
 form never follows the chrome's breakpoint. With the frames' names, `moved` is wide from 96
@@ -4280,15 +4282,17 @@ columns, `quiet` from 64, `ended` from 93, or 103 where it moved on a day after 
 first ran on them. A row's parts, two cells apart, as flex lays them at every width:
 
 - **its name:** the account's number in config order, as the Overview numbers it, in `text.subtle`,
-  and a space; then its name bold `text.primary` and its marks. It's a label's column: its least
+  and a space; then its name bold `text.primary`, cut at a label's most as every row of the page
+  cuts it, and its marks. It's a label's column: its least
   the number, the marks, `▲`'s cells kept on every account so the row holds still as `▲` moves, and
   8 cells of the label; its natural the same with the widest label configured, at most 24, never
   the accounts the session ran on;
-- **its time there,** from its first request on it to its last, in `text.secondary`, in 24 cells:
+- **its time there,** from its first request on it to its last, in `text.secondary`, in the
+  cells of the widest a stay is said, 30, `28 Sep 13:20 – yesterday 01:20`, so it's never cut:
   `12:02 – 14:31`, `14:31 – now`; with its day where the session spans more than one, or began
   before today, as an undated time reads as today's: `yesterday 16:40 – 18:05`, `today 09:12 –
   now`, `yesterday 13:20 – 16:02` (settled in the plan);
-- **its requests** in `text.muted`, in 14: `404 requests`;
+- **its requests** in `text.muted`, in 15, to `99,999 requests`: `404 requests`;
 - **what it took of the account's windows,** the points bold `text.primary` and the rest
   `text.muted`, in the order of care: `≈ 6 points of its week · 41 of its 5-hour`, a model's own
   window it used adding `· N of its Fable week` (settled in the plan). Its natural is the wide
@@ -4365,9 +4369,10 @@ first ran on them. A row's parts, two cells apart, as flex lays them at every wi
     runs, so the columns hold still as turns come and go; an ended session's turns have none;
   - `tools` from 12 at the least to 30 at its natural, and past it, what's left, to its most: three
     tools, as a turn names them, each at Claude Code's widest name, `AskUserQuestion`, 15 cells,
-    and a count to `×999`. No name is cut on its own: where a wider one, as an MCP server's tool,
-    makes the tools wider than their column, they're cut with `…` at its end, so the tools after it
-    give way first. Past its most, the spare trails the row's end, so the columns stay together.
+    and a count to `×999`. Where they don't all fit their column, whole tools leave from the end,
+    each with its count, as an account's points leave whole windows; only a single tool wider than
+    the column, as an MCP server's can be, is cut. Past its most, the spare trails the row's end,
+    so the columns stay together.
 - **As the width runs short,** `tools` leaves first, as the part that grows, so no column comes back
   to narrow it as the frame widens; then `↑ asking`, which row 6 says too; then a move's second
   name, as `on` says it, as most turns run on one account; then `read`, `written` and `out`, in

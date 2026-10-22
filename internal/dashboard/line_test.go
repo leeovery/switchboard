@@ -18,6 +18,8 @@ func TestFit(t *testing.T) {
 		{name: "cut inside a span, keeping its ink", line: name, width: 8, want: line{{"Switch", nameInk}, {"b…", dimInk}}},
 		{name: "cut at the end of a span", line: name, width: 6, want: line{{"Switc…", nameInk}}},
 		{name: "no room", line: name, width: 0, want: nil},
+		{name: "cut right after a name cut short, ending at its ellipsis", line: line{{"side-hu…", nameInk}, {" from 16:02", dimInk}},
+			width: 9, want: line{{"side-hu…", nameInk}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

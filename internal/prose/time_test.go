@@ -29,6 +29,34 @@ func TestDatedIsNeverWiderThanItsWidthAndAnotherDaysFillsIt(t *testing.T) {
 	}
 }
 
+// No stay Stint says is wider than StintWidth, from starts across more than
+// a year back to ends on their own day, the next, or any day after, dated
+// or not; and the widest fills it.
+func TestAStintIsNeverWiderThanItsWidth(t *testing.T) {
+	now := time.Date(2027, 1, 3, 9, 5, 0, 0, time.FixedZone("UTC+1", 60*60))
+	widest, filled := prose.StintWidth(), 0
+	for back := range 400 {
+		from := now.AddDate(0, 0, -back).Add(-time.Hour)
+		for _, on := range []int{0, 1, 2, 7, back} {
+			to := from.AddDate(0, 0, on).Add(30 * time.Minute)
+			if to.After(now) {
+				to = time.Time{}
+			}
+			for _, dated := range []bool{false, true} {
+				said := prose.Stint(now, from, to, dated)
+				n := utf8.RuneCountInString(said)
+				filled = max(filled, n)
+				if n > widest {
+					t.Errorf("%q is %d characters, wider than StintWidth's %d", said, n, widest)
+				}
+			}
+		}
+	}
+	if filled != widest {
+		t.Errorf("the widest stay said is %d characters, want StintWidth's %d", filled, widest)
+	}
+}
+
 func TestAStintGivesItsEndsTheirDaysWhereTheSessionSpansDays(t *testing.T) {
 	now := time.Date(2026, 9, 28, 14, 31, 0, 0, time.FixedZone("UTC+1", 60*60))
 	at := func(days, hour, minute int) time.Time {
