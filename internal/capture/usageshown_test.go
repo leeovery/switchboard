@@ -77,10 +77,12 @@ var fallsAtBase = []usageFalls{
 	{fixture: "routing-two-160", by: byAccount, at: []string{"52x27", "73x27", "108x25", "160x21", "216x21"}},
 }
 
-// fallsMoved are the same falls moved by USAGE's steps: at 138 by account,
-// four rows shorter than at 6a7a2091, where they no longer fall; and of ten
-// accounts by window, its key given way scrolling an account at a time a
-// row taller than it scrolls whole.
+// fallsMoved are falls of the steps' own scrolling, where 6a7a2091 has
+// none: the step that shows the most in its rows scrolls otherwise a row
+// taller, an account at a time where it scrolled whole, and shows fewer, so
+// the most any step shows falls. At 138 by account, four rows shorter than
+// 6a7a2091's falls; and of ten accounts by window. USAGE scrolled whole at
+// every height, as S12b has it, clears them.
 var fallsMoved = []usageFalls{
 	{fixture: "long-names-overview", by: byAccount, at: []string{"138x21"}},
 	{fixture: "overview-108x44", by: byAccount, at: []string{"138x19"}},

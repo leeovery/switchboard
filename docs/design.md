@@ -2011,10 +2011,10 @@ below, not flex's even share:
    line. Of steps that show as many, it takes the least far, so it keeps its blank rows where they
    cost no account. The rows a step leaves are empty at the foot, and where a step doesn't fit,
    it scrolls within the rows, as Many accounts, above, has it. So at 138 × 15, where it showed
-   `WEEK`, how many rows more and its key, its accounts show under their window's heading. The
-   most of what each step shows never falls as the rows grow, but where a step shows fewer a row
-   taller, scrolled an account at a time where it was scrolled whole, which the scrolling's own
-   pass settles. The planner keeps the step it took in the layout, so USAGE is drawn in the form
+   `WEEK`, how many rows more and its key, its accounts show under their window's heading. As the
+   rows grow, the most any step shows never falls but in one case: a step that a row taller
+   scrolls an account at a time, where a row shorter it scrolled whole, can show fewer. The
+   scrolling's own pass settles that. The planner keeps the step it took in the layout, so USAGE is drawn in the form
    the planner chose, never one its rows alone suggest.
 5. **Rows to spare go out even while a section is folded,** to the units that aren't, in turn: to
    SESSIONS, a whole session at a time, its row or two, to every one, what's left that's less than a

@@ -200,12 +200,13 @@ var knownBreaks = []known{
 		sizes: []string{"138x30", "138x15", "173x53"}, fixtures: []string{"sessions-list-long-names-108x44"},
 	},
 	// What's left at the foot where USAGE takes the rows it must: by account
-	// at 108x44, its three windows a blank row apart and its names on rows
-	// of their own, as the design keeps them, its accounts closed up; and of
-	// six accounts at 73x61, stacked, ROUTING open under it. The foot's blank
-	// row among them, it's 3 rows, short of every folded section's least.
+	// at 108x44, as it is, its three windows a blank row apart and its names
+	// on rows of their own, as the design keeps them, closing up its accounts
+	// opening no section; and of six accounts at 73x61, stacked, ROUTING open
+	// under it. The foot's blank row among them, it's 3 rows, short of every
+	// folded section's least.
 	{
-		byDesign: "2 rows under USAGE by account, its accounts closed up, short of every folded section's least", rule: foldWithRowsSpare,
+		byDesign: "2 rows under USAGE by account as it is, short of every folded section's least", rule: foldWithRowsSpare,
 		sizes: []string{"108x44"}, fixtures: []string{"overview-by-account-burn-down-220x50", "overview-pool-220x50"},
 	},
 	{
