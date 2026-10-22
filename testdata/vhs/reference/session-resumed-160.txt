@@ -17,21 +17,21 @@ STORY   requests a minute ──────────────────
 ├──────────── side ────────────┤   ├───────────────────────────────────────────────────────── personal ────────────────────────────────────────────────────────┤
 16:40  17:00                   15h  09:12             10:00                  11:00                 12:00                 13:00                  14:00        now
 
-3 side ▲      yesterday 16:40 – 18:04   154 requests                                                                                                      $14.08
-2 personal ◆  today 09:12 – now         767 requests                                                                                                     $114.11
+3 side ▲        yesterday 16:40 – 18:04   154 requests                                                                                                    $14.08
+2 personal ◆    today 09:12 – now         767 requests                                                                                                   $114.11
 
 TURNS    ─────────────────────────────────────────────────────────────────────────────────────  21 turns · 921 requests · 98% from cache · $128.19 at API prices
 
-  #  started  took   requests   tools                              read  written     out    worth   on
- 21  14:25    18m…         44   Bash ×14, Edit ×11, Read ×8        8.4M     132k     40k    $6.49   personal
- 20  13:58    17m          85   Edit ×28, Bash ×21, Read ×17      16.2M     255k     77k   $12.54   personal
- 19  13:37    9m           27   Bash ×9, Edit ×6, Read ×5          5.1M      81k     24k    $3.98   personal
- 18  13:17    16m          48   Edit ×16, Bash ×12, Read ×9        9.1M     144k     43k    $7.08   personal
- 17  13:01    6m           18   Bash ×6, Edit ×4, Read ×3          3.4M      54k     16k    $2.66   personal
- 16  12:44    9m           27   Edit ×9, Bash ×6, Read ×5          5.1M      81k     24k    $3.98   personal
- 15  12:18    14m          42   Bash ×14, Edit ×10, Read ×8        8.0M     126k     38k    $6.20   personal
- 14  11:55    15m          75   Edit ×25, Bash ×18, Read ×15      14.3M     225k     68k   $11.06   personal
- 13  11:34    13m          39   Bash ×13, Edit ×9, Read ×7         7.4M     117k     35k    $5.75   personal
- 12  11:24    4m           20   Edit ×6, Bash ×5, Read ×4          3.8M      60k     18k    $2.95   personal
+  #  started  took   requests  tools                                                                   read  written     out    worth  on
+ 21  14:25    18m…         44  Bash ×14, Edit ×11, Read ×8                                             8.4M     132k     40k    $6.49  personal
+ 20  13:58    17m          85  Edit ×28, Bash ×21, Read ×17                                           16.2M     255k     77k   $12.54  personal
+ 19  13:37    9m           27  Bash ×9, Edit ×6, Read ×5                                               5.1M      81k     24k    $3.98  personal
+ 18  13:17    16m          48  Edit ×16, Bash ×12, Read ×9                                             9.1M     144k     43k    $7.08  personal
+ 17  13:01    6m           18  Bash ×6, Edit ×4, Read ×3                                               3.4M      54k     16k    $2.66  personal
+ 16  12:44    9m           27  Edit ×9, Bash ×6, Read ×5                                               5.1M      81k     24k    $3.98  personal
+ 15  12:18    14m          42  Bash ×14, Edit ×10, Read ×8                                             8.0M     126k     38k    $6.20  personal
+ 14  11:55    15m          75  Edit ×25, Bash ×18, Read ×15                                           14.3M     225k     68k   $11.06  personal
+ 13  11:34    13m          39  Bash ×13, Edit ×9, Read ×7                                              7.4M     117k     35k    $5.75  personal
+ 12  11:24    4m           20  Edit ×6, Bash ×5, Read ×4                                               3.8M      60k     18k    $2.95  personal
 ▼ 11 more turns   ·   j/k to scroll
 esc back    ↑↓ turn  enter its requests    p pin    ? help  q quit

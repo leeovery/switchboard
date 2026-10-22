@@ -40,8 +40,6 @@ var flipped = map[token.Token]token.Token{token.LSS: token.GTR, token.LEQ: token
 // still be there, and still pass over a comparison with a constant; a slice
 // that needs another adds it, with its reason.
 var contentMeasures = []string{
-	// A line's cells, its spans' widths summed: phoneOn's fit.
-	"dashboard.line.width",
 	// A token period's own rows: periodHeads'.
 	"dashboard.tokensHeight",
 }

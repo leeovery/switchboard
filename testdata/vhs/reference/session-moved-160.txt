@@ -17,21 +17,21 @@ STORY   requests a minute ──────────────────
 ├─────────────────────────────────────────────────────────────────────── work ──────────────────────────────────────────────────────────────────────┤├── side ─┤
 12:02                       12:30                         13:00                         13:30                         14:00                         14:30    now
 
-1 work        12:02 – 14:30             404 requests                                                                                                      $41.09
-3 side ▲      14:31 – now               41 requests                                                                                                        $7.11
+1 work          12:02 – 14:30             404 requests                                                                                                    $41.09
+3 side ▲        14:31 – now               41 requests                                                                                                      $7.11
 
 TURNS    ──────────────────────────────────────────────────────────────────────────────────────  13 turns · 445 requests · 97% from cache · $48.20 at API prices
 
-  #  started  took   requests   tools                              read  written     out    worth   on
- 13  14:40    3m…           6   Read ×3, Bash ×2                   958k      18k    5.4k    $0.79   side          ↑ asking
- 12  14:29    9m           37   Bash ×14, Edit ×9, Read ×8         5.7M     293k     33k    $6.61   work → side
- 11  14:15    15m          58   Bash ×20, Edit ×13, Read ×13       8.4M     174k     52k    $7.26   work
- 10  14:00    12m          52   Edit ×16, Bash ×14, Read ×12       6.9M     156k     47k    $6.19   work
-  9  13:50    5m           17   Bash ×7, Read ×5                   2.1M      51k     15k    $1.94   work
-  8  13:37    8m           31   Read ×11, Edit ×8, Bash ×6         3.5M      93k     28k    $3.40   work
-  7  13:12    19m          83   Bash ×27, Edit ×21, Read ×17       8.3M     249k     75k    $8.49   work
-  6  13:06    2m            5   Read ×2                            444k      15k    4.5k    $0.48   work
-  5  12:54    6m           22   Read ×8, Edit ×6, Bash ×3          1.8M      66k     20k    $2.05   work
-  4  12:35    14m          61   Bash ×19, Edit ×15, Read ×13       4.3M     183k     55k    $5.34   work
+  #  started  took   requests  tools                                                                   read  written     out    worth  on
+ 13  14:40    3m…           6  Read ×3, Bash ×2                                                        958k      18k    5.4k    $0.79  side             ↑ asking
+ 12  14:29    9m           37  Bash ×14, Edit ×9, Read ×8                                              5.7M     293k     33k    $6.61  work → side
+ 11  14:15    15m          58  Bash ×20, Edit ×13, Read ×13                                            8.4M     174k     52k    $7.26  work
+ 10  14:00    12m          52  Edit ×16, Bash ×14, Read ×12                                            6.9M     156k     47k    $6.19  work
+  9  13:50    5m           17  Bash ×7, Read ×5                                                        2.1M      51k     15k    $1.94  work
+  8  13:37    8m           31  Read ×11, Edit ×8, Bash ×6                                              3.5M      93k     28k    $3.40  work
+  7  13:12    19m          83  Bash ×27, Edit ×21, Read ×17                                            8.3M     249k     75k    $8.49  work
+  6  13:06    2m            5  Read ×2                                                                 444k      15k    4.5k    $0.48  work
+  5  12:54    6m           22  Read ×8, Edit ×6, Bash ×3                                               1.8M      66k     20k    $2.05  work
+  4  12:35    14m          61  Bash ×19, Edit ×15, Read ×13                                            4.3M     183k     55k    $5.34  work
 ▼ 3 more turns   ·   j/k to scroll
 esc back    ↑↓ turn  enter its requests    p pin    ? help  q quit

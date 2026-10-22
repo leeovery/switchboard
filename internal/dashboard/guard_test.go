@@ -96,8 +96,7 @@ var sizedAllowed = []string{
 	"internal/dashboard/historypage.go:Frame.shortOfHistory",
 	// S21: Tokens' footnote, left off short of leastPaged.
 	"internal/dashboard/historytokens.go:Frame.tokensPlaced",
-	// S22 and S23: a session's page, its turns' form, sessionWideFrom, and
-	// its rows.
+	// S23: a session's page's rows, at short heights.
 	"internal/dashboard/sessionlayout.go:Frame.sessionLayout",
 	// S25: the frame cramped short of leastView, which many views choose
 	// by; the Log's panel and card, and the theme picker, cards of a kind;
@@ -123,9 +122,6 @@ var cutAllowed = []string{
 	// S17: Detail's sessions' model families and how many more.
 	"internal/dashboard/accountsdetail.go:detailDrawn.session",
 	"internal/dashboard/accountsdetail.go:detailDrawn.sessions",
-	// S22: a session's page, its accounts' stays and the account it's on.
-	"internal/dashboard/sessionpage.go:sessionDrawn.account",
-	"internal/dashboard/sessionpage.go:sessionDrawn.phoneOn",
 	// S25: the routing card's choices, the Log's panel's sessions and a
 	// card's items' names, cards of a kind, opened over the page.
 	"internal/dashboard/routingcard.go:RoutingCard.choice",

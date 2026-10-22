@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -21,95 +22,8 @@ const (
 	sessionPhoneApart = 2
 )
 
-// The columns an account's row starts its parts at: wide, its time there,
-// its requests and its points; and on a phone, its points. Its worth ends
-// at the last column, its points left out a window at a time where they'd
-// come within worthApart cells of it.
-const (
-	stayAt        = 14
-	requestsAt    = 40
-	pointsAt      = 56
-	phonePointsAt = 11
-	worthApart    = 2
-)
-
 // turnsRuleAt is the column TURNS' rule starts at.
 const turnsRuleAt = 9
-
-// turnColumn is a column of the wide page's turns: its head, the column it
-// starts at, the cells it takes, and whether what's in it is right-aligned.
-type turnColumn struct {
-	head      string
-	at, cells int
-	right     bool
-}
-
-// turnColumns are the wide page's turns' columns, in order: a turn's
-// number, its start, how long it took, its requests, its tools, the tokens
-// it read, wrote and put out, its worth, and the accounts it went to.
-var turnColumns = []turnColumn{
-	{head: "#", cells: 3, right: true},
-	{head: "started", at: 5, cells: 9},
-	{head: "took", at: 14, cells: 7},
-	{head: "requests", at: 21, cells: 8, right: true},
-	{head: "tools", at: 32, cells: 30},
-	{head: "read", at: 64, cells: 7, right: true},
-	{head: "written", at: 73, cells: 7, right: true},
-	{head: "out", at: 82, cells: 6, right: true},
-	{head: "worth", at: 90, cells: 7, right: true},
-	{head: "on", at: 100, cells: 12},
-}
-
-// The wide page's turn chosen is lit across its columns, chosenCells, and
-// the newest turn says ↑ asking from askingAt while a request of it waits.
-const (
-	chosenCells = 112
-	askingAt    = 114
-)
-
-// The cells of a phone's turn row: its number right-aligned in
-// phoneNumberCells at the least, then a blank; its start, in
-// phoneStartCells; phoneTookApart blanks at the least, then its minutes
-// right-aligned in phoneTookCells at the least, the mark of one going after
-// them; and its requests right-aligned in phoneRequestsCells at the least, "
-// req" after them; and at the right, the accounts it went to, in
-// phoneOnCells, its worth sessionPhoneApart cells before them.
-const (
-	phoneNumberCells   = 2
-	phoneStartCells    = 5
-	phoneTookApart     = 2
-	phoneTookCells     = 3
-	phoneRequestsCells = 4
-	phoneOnCells       = 9
-)
-
-// phoneTurnCells are where a phone's turn rows set their parts: each
-// number ends before numberEnd, each start is from startAt, each turn's
-// minutes end before tookEnd, the mark of one going after them, and its
-// requests end before requestsEnd.
-type phoneTurnCells struct {
-	numberEnd, startAt, tookEnd, requestsEnd int
-}
-
-// phoneTurnCellsOf are where a phone's rows of the turns given set their
-// parts at now: the numbers in phoneNumberCells, or past 99 as many as the
-// widest takes, the minutes in phoneTookCells, or past 99 as many as the
-// longest take, and the requests in phoneRequestsCells, or past 999 as many
-// as the most take, each part after moving on as far on every row, so each
-// figure is whole and the columns line up.
-func phoneTurnCellsOf(turns []views.Turn, now time.Time) phoneTurnCells {
-	number, took, requests := phoneNumberCells, phoneTookCells, phoneRequestsCells
-	for _, t := range turns {
-		number = max(number, len(strconv.Itoa(t.Turn)))
-		minutes, _ := t.Took(now)
-		took = max(took, len(minutes))
-		requests = max(requests, len(prose.Grouped(t.Requests)))
-	}
-	c := phoneTurnCells{numberEnd: number, startAt: number + 1}
-	c.tookEnd = c.startAt + phoneStartCells + phoneTookApart + took
-	c.requestsEnd = c.tookEnd + ansi.StringWidth(prose.Ellipsis) + requests
-	return c
-}
 
 // noTurns is what TURNS says of a session whose requests name no prompt,
 // as one from before Claude Code named them.
@@ -135,26 +49,31 @@ var turnsOut = outForm{
 
 // sessionDrawn is a session's page as the frame draws it of a moment at
 // now: the page open, laid out as sessionLayout lays it out, its accounts
-// named as the Overview names them, and on a phone, its turns' rows set out
-// as phoneTurnCellsOf sets them.
+// named as the Overview names them, their rows' columns as stayColumnsOf
+// lays them out, and its turns' columns as turnColumnsOf lays them out.
 type sessionDrawn struct {
 	Frame
-	shown      *SessionShown
-	page       views.SessionPage
-	m          status.Moment
-	names      []accountName
-	l          sessionLayout
-	phoneCells phoneTurnCells
-	now        time.Time
+	shown       *SessionShown
+	page        views.SessionPage
+	m           status.Moment
+	names       []accountName
+	l           sessionLayout
+	stayColumns []stayColumn
+	turnColumns []turnColumn
+	now         time.Time
 }
 
 // sessionDrawn is the session's page open, as the frame draws it of doc at
 // now.
 func (f Frame) sessionDrawn(doc status.Document, now time.Time) sessionDrawn {
 	m := f.Moment(doc, now)
+	names := namesOf(m)
 	return sessionDrawn{
-		Frame: f, shown: f.Session, page: f.Session.Page.Live(f.Stream), m: m, names: namesOf(m),
-		l: f.sessionLayout(len(f.Session.Page.Accounts)), phoneCells: phoneTurnCellsOf(f.Session.Page.Turns, now), now: now,
+		Frame: f, shown: f.Session, page: f.Session.Page.Live(f.Stream), m: m, names: names,
+		l:           f.sessionLayout(len(f.Session.Page.Accounts)),
+		stayColumns: stayColumnsOf(f.Width, stayNameCells(names), pointsCells(f.listedWindows(m))),
+		turnColumns: turnColumnsOf(f.Width, turnNumberCells(f.Session.Page.Turns), turnOnCells(m)),
+		now:         now,
 	}
 }
 
@@ -431,20 +350,133 @@ func (d sessionDrawn) accounts(c *canvas) {
 	}
 }
 
-// account draws the row along row y of an account the session ran on: its
-// name; wide, its time there and its requests; the points of its windows
-// the session took; and at the right, its worth.
+// stayPart is one of the parts of the row of an account a session ran on.
+type stayPart int
+
+// The parts of an account's row, in its order: its name, its time there,
+// its requests, the points of its windows the session took, and its worth.
+const (
+	stayName stayPart = iota
+	stayTime
+	stayRequests
+	stayPoints
+	stayWorth
+)
+
+// The turns an account's row gives way in as it narrows, in this order, so
+// it keeps its name, its points and its worth: its points narrow to their
+// short words; its requests leave, then its time there; and its name
+// narrows to its least.
+const (
+	stayPointsNarrow = iota + 1
+	stayRequestsLeave
+	stayTimeLeaves
+	stayNameNarrows
+)
+
+// The cells of an account's row's parts that hold theirs whole: its time
+// there, as "yesterday 13:20 – 16:01"; its requests, as "12,345 requests";
+// and its worth, as "$114.11"; stayGap blanks between its parts.
+const (
+	stayTimeCells     = 24
+	stayRequestsCells = 14
+	stayWorthCells    = 7
+	stayGap           = 2
+)
+
+// stayColumn is a part of an account's row as it's laid out: which it is,
+// from column x, width cells wide.
+type stayColumn struct {
+	part     stayPart
+	x, width int
+}
+
+// stayParts are the parts of an account's row as flex lays them, stayGap
+// apart, each holding its natural until it narrows or leaves in its turn:
+// its name from the least to the natural of names given; its points from
+// the least to the natural of points given; and the rest at their cells.
+// Nothing grows, so the spare lies between its points and its worth, which
+// ends at the last column.
+func stayParts(names, points partCells) []flex.Part {
+	return []flex.Part{
+		stayName:     {Least: names.least, Natural: names.natural, Narrows: stayNameNarrows},
+		stayTime:     {Least: stayTimeCells, Natural: stayTimeCells, Leaves: stayTimeLeaves, Gap: stayGap},
+		stayRequests: {Least: stayRequestsCells, Natural: stayRequestsCells, Leaves: stayRequestsLeave, Gap: stayGap},
+		stayPoints:   {Least: points.least, Natural: points.natural, Narrows: stayPointsNarrow, Gap: stayGap},
+		stayWorth:    {Least: stayWorthCells, Natural: stayWorthCells, Gap: stayGap},
+	}
+}
+
+// partCells is a part's least and its natural.
+type partCells struct{ least, natural int }
+
+// stayColumnsOf are the parts of an account's row shown across a frame
+// width cells wide, its names' and its points' cells those given, as
+// stayParts lays them out.
+func stayColumnsOf(width int, names, points partCells) []stayColumn {
+	spans, _ := flex.Lay(width, stayParts(names, points)...)
+	var columns []stayColumn
+	for p, span := range spans {
+		if !span.Left {
+			columns = append(columns, stayColumn{part: stayPart(p), x: span.At, width: span.Size})
+		}
+	}
+	return columns
+}
+
+// stayNameCells are the least and the natural of the names of accounts'
+// rows, of the names given, as a label's column has them: each its number,
+// its marks, ▲'s cells kept, as headCells counts them, and its label,
+// labelLeast cells of it at the least and the widest, labelMost at the most,
+// as labelColumnCells counts it, at the natural.
+func stayNameCells(names []accountName) partCells {
+	var cells partCells
+	for _, n := range names {
+		cells.least = max(cells.least, n.cells(labelLeast))
+		cells.natural = max(cells.natural, n.cells(labelColumnCells(n.label)))
+	}
+	return cells
+}
+
+// pointsCells are the least and the natural of an account's points, of the
+// windows given, each at its most, a hundred points: whole, in their short
+// words and in their wide.
+func pointsCells(windows []shownWindow) partCells {
+	most := views.SessionAccount{Points: make(map[string]int, len(windows))}
+	for _, w := range windows {
+		most.Points[w.key] = 100
+	}
+	return partCells{least: pointsWhole(most, views.PointsShort), natural: pointsWhole(most, views.PointsWide)}
+}
+
+// pointsWhole are the cells the account's points take whole in form.
+func pointsWhole(a views.SessionAccount, form views.PointsForm) int {
+	return ansi.StringWidth(slices.Concat(a.PointsWords(form)...).String())
+}
+
+// account draws the row along row y of an account the session ran on, its
+// parts as stayColumnsOf lays them out: its name; its time there and its
+// requests, where they show; the points of its windows the session took, to
+// stayGap cells short of its worth, wide where they fit whole, else short;
+// and at the right, its worth.
 func (d sessionDrawn) account(c *canvas, y int, s views.Stay) {
 	worth := c.right(d.Width, y, line{{s.Cents(), secondaryInk}})
-	if !d.l.wide {
-		c.line(0, y, d.nameOf(s.Account).fitted(phonePointsAt))
-		c.line(phonePointsAt, y, d.points(s.SessionAccount, views.PointsShort, worth-worthApart-phonePointsAt))
-		return
+	for _, col := range d.stayColumns {
+		switch col.part {
+		case stayName:
+			c.line(col.x, y, d.nameOf(s.Account).fitted(col.width+nameGap))
+		case stayTime:
+			c.text(col.x, y, prose.Cut(s.Said, col.width), secondaryInk)
+		case stayRequests:
+			c.text(col.x, y, prose.Cut(prose.Counted(s.Requests, "request"), col.width), mutedInk)
+		case stayPoints:
+			room, form := worth-stayGap-col.x, views.PointsWide
+			if pointsWhole(s.SessionAccount, form) > room {
+				form = views.PointsShort
+			}
+			c.line(col.x, y, d.points(s.SessionAccount, form, room))
+		}
 	}
-	c.line(0, y, d.nameOf(s.Account).fitted(stayAt))
-	c.text(stayAt, y, prose.Cut(s.Said, requestsAt-stayAt-1), secondaryInk)
-	c.text(requestsAt, y, prose.Cut(prose.Counted(s.Requests, "request"), pointsAt-requestsAt-1), mutedInk)
-	c.line(pointsAt, y, d.points(s.SessionAccount, views.PointsWide, worth-worthApart-pointsAt))
 }
 
 // points are the points of the account's windows the session took, in
@@ -470,10 +502,9 @@ func (d sessionDrawn) points(a views.SessionAccount, form views.PointsForm, room
 	return l
 }
 
-// turns draws TURNS: its heading; wide, its columns' heads; and its turns
-// shown, as far as they're scrolled, the turn open's requests under its own,
-// with a row saying how many turns are out of view; or where it has none,
-// why.
+// turns draws TURNS: its heading; its columns' heads; and its turns shown,
+// as far as they're scrolled, the turn open's requests under its own, with a
+// row saying how many turns are out of view; or where it has none, why.
 func (d sessionDrawn) turns(c *canvas) {
 	d.turnsHeading(c)
 	if len(d.page.Turns) == 0 {
@@ -482,10 +513,8 @@ func (d sessionDrawn) turns(c *canvas) {
 		}
 		return
 	}
-	if d.l.wide {
-		for _, col := range turnColumns {
-			col.draw(c, d.l.turnsHeading+2, line{{col.head, dimInk}})
-		}
+	for _, col := range d.turnColumns {
+		col.draw(c, d.l.turnsHeading+2, col.head())
 	}
 	rows, above, below := d.turnsShown()
 	for i, r := range rows {
@@ -494,19 +523,18 @@ func (d sessionDrawn) turns(c *canvas) {
 	c.line(0, d.l.moreTurns, outOfView(above, below, d.Width, turnsOut))
 }
 
-// turnsHeading draws TURNS' heading: TURNS, a rule, and at the right the
-// session's totals: wide, its turns, requests, share from the cache and
-// worth; on a phone, its worth alone.
+// turnsHeading draws TURNS' heading: TURNS, a rule from turnsRuleAt, a cell
+// of it at the least, and at the right the session's totals, its turns,
+// requests, share from the cache and worth, or where they don't fit, its
+// worth alone.
 func (d sessionDrawn) turnsHeading(c *canvas) {
 	y, t := d.l.turnsHeading, d.page.Totals
-	totals := line{{t.Cents(), strongInk}}
-	if d.l.wide {
-		totals = line{
-			{prose.Counted(t.Turns, "turn"), secondaryInk},
-			{" · " + prose.Counted(t.Requests, "request") + " · " + prose.Percent(t.FromCache) + " from cache · ", mutedInk},
-			{t.Cents(), strongInk}, {" at API prices", mutedInk},
-		}
+	all := line{
+		{prose.Counted(t.Turns, "turn"), secondaryInk},
+		{" · " + prose.Counted(t.Requests, "request") + " · " + prose.Percent(t.FromCache) + " from cache · ", mutedInk},
+		{t.Cents(), strongInk}, {" at API prices", mutedInk},
 	}
+	totals := firstFit(d.Width-turnsRuleAt-1-ruleGap, all, line{{t.Cents(), strongInk}})
 	end := c.right(d.Width, y, totals) - ruleGap
 	c.text(0, y, "TURNS", dimInk)
 	c.text(turnsRuleAt, y, rule(end-turnsRuleAt), borderInk)
@@ -534,59 +562,77 @@ func (d sessionDrawn) turnsShown() (rows []pageRow, above, below int) {
 	return rows, turnsIn(laid[:from]), turnsIn(laid[to:])
 }
 
-// turn draws the turn t's row along row y, the newest where newest says.
+// turn draws the turn t's row along row y, the newest where newest says, in
+// the columns shown: lit across them, but ↑ asking's, its words bold, where
+// it's chosen.
 func (d sessionDrawn) turn(c *canvas, y int, t views.Turn, newest bool) {
-	if !d.l.wide {
-		d.phoneTurn(c, y, t)
-		return
-	}
-	took, going := t.Took(d.now)
-	if going {
-		took += prose.Ellipsis
-	}
-	written := mutedInk
-	if len(t.Accounts) > 1 {
-		written = warningInk
-	}
-	cells := []line{
-		{{strconv.Itoa(t.Turn), titleInk}}, {{prose.TimeOfDay(d.now, t.Started), mutedInk}}, {{took, mutedInk}},
-		{{prose.Grouped(t.Requests), mutedInk}}, {{t.ToolsSaid(), mutedInk}}, {{prose.Tokens(t.Read), mutedInk}},
-		{{prose.Tokens(t.Written), written}}, {{prose.Tokens(t.Out), mutedInk}}, {{t.Cents(), mutedInk}},
-		d.turnOn(t.Accounts),
-	}
-	for i, col := range turnColumns {
-		col.draw(c, y, cells[i])
+	lit := 0
+	for _, col := range d.turnColumns {
+		col.draw(c, y, d.turnSaid(col, t, newest))
+		if col.part != turnAsking {
+			lit = col.end()
+		}
 	}
 	if t.Turn == d.shown.Turn {
-		c.surface(0, y, chosenCells, chosenTurn)
-		c.emboldened(0, y, chosenCells)
-	}
-	if said := d.page.Activity.WaitingSaid(); newest && said != "" {
-		c.text(askingAt, y, said, asKnown(d.page.Activity, keyInk))
+		c.surface(0, y, lit, chosenTurn)
+		c.emboldened(0, y, lit)
 	}
 }
 
-// draw draws l in the column along row y, cut to its cells.
-func (col turnColumn) draw(c *canvas, y int, l line) {
-	l = l.fit(col.cells)
-	if col.right {
-		c.right(col.at+col.cells, y, l)
-		return
+// turnSaid is what the turn t's row says in the column given, the newest's
+// where newest says: its number, bold text.primary; its start; how long it
+// took, … after it while it runs; its requests; its tools; the tokens it
+// read, wrote, in accent.attention where it moved, and put out; its worth;
+// the accounts it went to, as turnOn names them; and the newest's ↑ asking,
+// bold accent.key, while a request of it waits; the rest in text.muted.
+func (d sessionDrawn) turnSaid(col turnColumn, t views.Turn, newest bool) line {
+	muted := func(s string) line { return line{{s, mutedInk}} }
+	switch col.part {
+	case turnNumber:
+		return line{{strconv.Itoa(t.Turn), titleInk}}
+	case turnStarted:
+		return muted(prose.TimeOfDay(d.now, t.Started))
+	case turnTook:
+		took, going := t.Took(d.now)
+		if going {
+			took += prose.Ellipsis
+		}
+		return muted(took)
+	case turnRequests:
+		return muted(prose.Grouped(t.Requests))
+	case turnTools:
+		return muted(t.ToolsSaid())
+	case turnRead:
+		return muted(prose.Tokens(t.Read))
+	case turnWritten:
+		if len(t.Accounts) > 1 {
+			return line{{prose.Tokens(t.Written), warningInk}}
+		}
+		return muted(prose.Tokens(t.Written))
+	case turnOut:
+		return muted(prose.Tokens(t.Out))
+	case turnWorth:
+		return muted(t.Cents())
+	case turnOn:
+		return d.turnOn(t.Accounts, col.width)
+	case turnAsking:
+		if said := d.page.Activity.WaitingSaid(); newest && said != "" {
+			return line{{said, asKnown(d.page.Activity, keyInk)}}
+		}
 	}
-	c.line(col.at, y, l)
+	return nil
 }
 
-// turnOn names the accounts a turn went to, in text.secondary, in its
-// column: the one, or each in turn, as "work → side"; where they don't fit,
-// a move's two names cut as moveNames cuts them, and two moves or more as
-// the first and the last, an ellipsis between, each cut as movedCells
-// shares the room, as "w… → … → wo…" (C16).
-func (d sessionDrawn) turnOn(accounts []string) line {
+// turnOn names the accounts a turn went to, in text.secondary, in cells:
+// the one, or each in turn, as "work → side"; where they don't fit, a move's
+// two names cut as moveNames cuts them, and two moves or more as the first
+// and the last, an ellipsis between, each cut as movedCells shares the room,
+// as "w… → … → wo…" (C16).
+func (d sessionDrawn) turnOn(accounts []string, cells int) line {
 	names := make([]string, len(accounts))
 	for i, id := range accounts {
 		names[i] = named(d.m, id)
 	}
-	cells := turnColumns[len(turnColumns)-1].cells
 	if said := strings.Join(names, moveArrow); len(names) < 2 || ansi.StringWidth(said) <= cells {
 		return line{{said, secondaryInk}}.fit(cells)
 	}
@@ -601,44 +647,4 @@ func (d sessionDrawn) turnOn(accounts []string) line {
 	via := moveArrow + prose.Ellipsis + moveArrow
 	f, t := movedCells(ansi.StringWidth(first), ansi.StringWidth(last), cells-ansi.StringWidth(via))
 	return line{{prose.Cut(first, f) + via + prose.Cut(last, t), secondaryInk}}
-}
-
-// phoneTurn draws the turn t's row along row y as a phone has it: its
-// number, its start, its minutes, its requests, and at the right its worth
-// and the accounts it went to, lit across the row where it's chosen.
-func (d sessionDrawn) phoneTurn(c *canvas, y int, t views.Turn) {
-	took, going := t.Took(d.now)
-	at := d.phoneCells
-	c.right(at.numberEnd, y, line{{strconv.Itoa(t.Turn), titleInk}})
-	c.text(at.startAt, y, prose.TimeOfDay(d.now, t.Started), secondaryInk)
-	c.right(at.tookEnd, y, line{{took, mutedInk}})
-	if going {
-		c.text(at.tookEnd, y, prose.Ellipsis, mutedInk)
-	}
-	c.right(at.requestsEnd, y, line{{prose.Grouped(t.Requests), mutedInk}})
-	c.text(at.requestsEnd, y, " req", mutedInk)
-	on := d.Width - phoneOnCells
-	c.right(on-sessionPhoneApart, y, line{{t.Cents(), mutedInk}})
-	c.line(on, y, d.phoneOn(t.Accounts))
-	if t.Turn == d.shown.Turn {
-		c.surface(0, y, d.Width, chosenTurn)
-	}
-}
-
-// phoneOn names the accounts a turn went to as a phone does, in
-// text.secondary, in phoneOnCells: the one, or each in turn, a bold → in
-// accent.attention between, as "work→side"; where they don't fit, → and the
-// last.
-func (d sessionDrawn) phoneOn(accounts []string) line {
-	var l line
-	for i, id := range accounts {
-		if i > 0 {
-			l = append(l, span{"→", alertInk})
-		}
-		l = append(l, span{named(d.m, id), secondaryInk})
-	}
-	if len(accounts) < 2 || l.width() <= phoneOnCells {
-		return l.fit(phoneOnCells)
-	}
-	return line{{"→", alertInk}, {prose.Cut(named(d.m, accounts[len(accounts)-1]), phoneOnCells-1), secondaryInk}}
 }

@@ -1,10 +1,5 @@
 package dashboard
 
-// sessionWideFrom is the width a session's page draws its wide form from:
-// where its widest fixed row, the newest turn's ↑ asking, ends. Narrower, it
-// draws a phone's.
-const sessionWideFrom = 122
-
 // A session's page keeps rows for leastTurns turns at the least, beside its
 // accounts, which give way to a row saying how many more there are before
 // they do; and an open turn shows mostRequests of its requests at a time.
@@ -13,20 +8,27 @@ const (
 	mostRequests = 5
 )
 
-// The rows a session's story takes: the wide page's, from its heading to its
-// axis, and folded to its heading alone; and a phone's, from its label to
-// its axis, as it has no heading.
+// The rows a session's story takes: under the wide chrome, from its heading
+// to its axis, and folded to its heading alone; and under a phone's, from
+// its label to its axis, as it has no heading.
 const (
 	wideStoryRows   = 9
 	foldedStoryRows = 1
 	phoneStoryRows  = 7
 )
 
+// rowsBesideTurns are the rows a session's page keeps under its accounts
+// besides its turns' own: the blank row and TURNS' heading under them, the
+// blank row and the turns' column heads under that, the row saying how many
+// more turns there are, and the key line.
+const rowsBesideTurns = 6
+
 // sessionLayout is how a session's page lays out its rows at the frame's
-// size: in its wide form, or a phone's; its chrome alone, where it's too
-// short for the rest; its story whole, or else, wide, folded to its heading,
-// and on a phone left out; and from what row each part starts, and how many
-// rows its accounts, its turns and an open turn's requests take.
+// size: its heading, now and story in the wide chrome's form, or a phone's,
+// as chromeWide has it; its chrome alone, where it's too short for the rest;
+// its story whole, or else, wide, folded to its heading, and on a phone left
+// out; and from what row each part starts, and how many rows its accounts,
+// its turns and an open turn's requests take.
 type sessionLayout struct {
 	wide, chrome, story bool
 	// heading is the heading's row, now the first of the two that say what
@@ -47,12 +49,12 @@ type sessionLayout struct {
 
 // sessionLayout lays out the page of a session that ran on the accounts
 // given, at the frame's size: its story whole where its fixed rows, one
-// account and leastTurns turns fit, else folded, wide, or left out, on a
-// phone, where they fit then, else the chrome alone. Its accounts each
-// take a row while leastTurns turns fit beside them, else as many as leave
-// a row saying how many more, and the turns the rest.
+// account and leastTurns turns fit, else folded, under the wide chrome, or
+// left out, under a phone's, where they fit then, else the chrome alone. Its
+// accounts each take a row while leastTurns turns fit beside them, else as
+// many as leave a row saying how many more, and the turns the rest.
 func (f Frame) sessionLayout(accounts int) sessionLayout {
-	l := sessionLayout{wide: f.Width >= sessionWideFrom, heading: f.headingY()}
+	l := sessionLayout{wide: f.chromeWide(), heading: f.headingY()}
 	l.now = l.heading + 2
 	l.storyAt = l.now + 3
 	whole, folded := wideStoryRows, foldedStoryRows
@@ -75,10 +77,7 @@ func (f Frame) sessionLayout(accounts int) sessionLayout {
 		l.more = accounts - l.accounts
 	}
 	l.turnsHeading = l.accountsAt + l.accounts + min(l.more, 1) + 1
-	l.turnsAt = l.turnsHeading + 2
-	if l.wide {
-		l.turnsAt++
-	}
+	l.turnsAt = l.turnsHeading + 3
 	l.moreTurns = f.Height - 2
 	l.turns = l.moreTurns - l.turnsAt
 	l.requests = min(max(l.turns-3, 1), mostRequests)
@@ -97,13 +96,17 @@ func (l sessionLayout) accountsAfter(storyRows int) int {
 
 // room is how many rows a session's page the given height has for its
 // accounts and its turns together, its accounts starting at the row given:
-// all but those of the blank row and TURNS' heading under them, the blank
-// row, and wide, the column heads under that, the row saying how many more
-// turns there are, and the key line.
+// all but rowsBesideTurns.
 func (l sessionLayout) room(height, accountsAt int) int {
-	under := 5
-	if l.wide {
-		under++
-	}
-	return height - accountsAt - under
+	return height - accountsAt - rowsBesideTurns
+}
+
+// chromeWide reports whether a session's page heads itself as the wide
+// chrome does, its heading, now and story in their wide forms, rather than a
+// phone's: where the chrome's tabs share the title's row. The page's own
+// chrome follows the page's, so it reads the breakpoint where the chrome
+// has drawn it, rather than choosing again.
+func (f Frame) chromeWide() bool {
+	_, tabsRow, _ := f.tabsAt()
+	return tabsRow == 0
 }

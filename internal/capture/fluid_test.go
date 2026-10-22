@@ -240,11 +240,6 @@ var knownBreaks = []known{
 		slice: "S21", rule: cutWithRoom, sizes: []string{"73x61", "73x36", "138x30", "138x15", "108x44", "108x24", "173x53", "109x53"},
 		fixtures: []string{"long-names-history-tokens"},
 	},
-	// S22, a session's turns on flex (F31): its accounts cut with room.
-	{
-		slice: "S22", rule: cutWithRoom, sizes: []string{"138x30", "173x53"},
-		fixtures: []string{"long-names-session"},
-	},
 	// S23, a session's page at short heights (F32): nothing at 15 rows; and an
 	// opened turn's requests out of view over blank rows.
 	{

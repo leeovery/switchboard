@@ -79,10 +79,11 @@ func TestASessionsPageSaysWhatItsViewsSayAtEachHardMoment(t *testing.T) {
 				}
 				f := frameOf(160, 40)
 				f.Sessions, f.Stream, f.Session = hm.Sessions, hm.Stream, shown
-				c := f.At(hm.Doc, hm.Now).page(hm.Doc, hm.Now)
-				checkNowRows(t, c, f.sessionLayout(len(shown.Page.Accounts)), shown.Page, hm.Now)
-				checkAccountRows(t, c, f.sessionLayout(len(shown.Page.Accounts)), shown.Page, hm.Now)
-				checkTurnRows(t, c, f.sessionLayout(len(shown.Page.Accounts)), shown.Page, hm.Now)
+				at := f.At(hm.Doc, hm.Now)
+				c, d := at.page(hm.Doc, hm.Now), at.sessionDrawn(hm.Doc, hm.Now)
+				checkNowRows(t, c, d.l, shown.Page, hm.Now)
+				checkAccountRows(t, c, d, shown.Page, hm.Now)
+				checkTurnRows(t, c, d, shown.Page, hm.Now)
 
 				phone := frameOf(52, 32)
 				phone.Sessions, phone.Stream, phone.Session = hm.Sessions, hm.Stream, shown
@@ -154,36 +155,36 @@ func saysCut(drawn, want string) bool {
 }
 
 // checkAccountRows checks that the page's rows of the accounts it ran on,
-// drawn on c as l lays them out, say what the views say of each of page p's
+// drawn on c as d lays them out, say what the views say of each of page p's
 // stays at now.
-func checkAccountRows(t *testing.T, c *canvas, l sessionLayout, p views.SessionPage, now time.Time) {
+func checkAccountRows(t *testing.T, c *canvas, d sessionDrawn, p views.SessionPage, now time.Time) {
 	t.Helper()
 	for i, s := range p.Stays(now) {
-		row := []rune(rowOf(c, l.accountsAt+i) + strings.Repeat(" ", c.width))
-		if !strings.Contains(string(row[:stayAt]), " "+s.Account) || strings.TrimSpace(string(row[stayAt:requestsAt])) != s.Said ||
-			strings.TrimSpace(string(row[requestsAt:pointsAt])) != prose.Counted(s.Requests, "request") {
+		row := []rune(rowOf(c, d.l.accountsAt+i) + strings.Repeat(" ", c.width))
+		if !strings.Contains(stayText(row, d, stayName), " "+s.Account) || stayText(row, d, stayTime) != s.Said ||
+			stayText(row, d, stayRequests) != prose.Counted(s.Requests, "request") {
 			t.Errorf("%s's row of %s reads\n%q\nwant its time there, %q, and its %d requests", status.ShownID(p.Session), s.Account, strings.TrimRight(string(row), " "), s.Said, s.Requests)
 		}
 	}
 }
 
-// checkTurnRows checks that the page's rows of its turns, drawn on c as l
+// checkTurnRows checks that the page's rows of its turns, drawn on c as d
 // lays them out, say what the views say of page p's turns at now: each its
 // number and how long it took, "…" after it while it goes; and ↑ asking on
 // the newest, while p waits, and only then.
-func checkTurnRows(t *testing.T, c *canvas, l sessionLayout, p views.SessionPage, now time.Time) {
+func checkTurnRows(t *testing.T, c *canvas, d sessionDrawn, p views.SessionPage, now time.Time) {
 	t.Helper()
 	shown := status.ShownID(p.Session)
-	for i, turn := range p.Turns[:min(len(p.Turns), l.turns)] {
-		row := []rune(rowOf(c, l.turnsAt+i) + strings.Repeat(" ", c.width))
+	for i, turn := range p.Turns[:min(len(p.Turns), d.l.turns)] {
+		row := []rune(rowOf(c, d.l.turnsAt+i) + strings.Repeat(" ", c.width))
 		took, going := turn.Took(now)
 		if going {
 			took += prose.Ellipsis
 		}
-		if number := strings.TrimSpace(string(row[:3])); number != prose.Grouped(turn.Turn) || strings.TrimSpace(string(row[14:21])) != took {
+		if number := turnText(row, d, turnNumber); number != prose.Grouped(turn.Turn) || turnText(row, d, turnTook) != took {
 			t.Errorf("%s's row of turn %d reads\n%q\nwant its number and its took, %q", shown, turn.Turn, strings.TrimRight(string(row), " "), took)
 		}
-		asking := strings.TrimSpace(string(row[askingAt:]))
+		asking := turnText(row, d, turnAsking)
 		if want := i == 0 && p.Activity.Waiting(); (asking == "↑ asking") != want {
 			t.Errorf("%s's row of turn %d ends %q, want ↑ asking: %t, as it waits: %t", shown, turn.Turn, asking, want, p.Activity.Waiting())
 		}

@@ -4249,20 +4249,29 @@ plan).
   in `text.subtle`.
 
 **The accounts it ran on** (row 19 on), under the story with no heading, a row each, in the order it
-first ran on them:
+first ran on them. A row's parts, two cells apart, as flex lays them at every width:
 
-- at column 0, the account's number in config order, as the Overview numbers it, in `text.subtle`,
-  and a space; then its name bold `text.primary` and its marks;
-- at 14, its time there, from its first request on it to its last, in `text.secondary`: `12:02 –
-  14:31`, `14:31 – now`; with its day where the session spans more than one, or began before today,
-  as an undated time reads as today's: `yesterday 16:40 – 18:05`, `today 09:12 – now`,
-  `yesterday 13:20 – 16:02` (settled in the plan);
-- at 40, its requests in `text.muted`: `404 requests`;
-- at 56, what it took of the account's windows, the points bold `text.primary` and the rest
+- **its name:** the account's number in config order, as the Overview numbers it, in `text.subtle`,
+  and a space; then its name bold `text.primary` and its marks. It's a label's column: its least
+  the number, the marks, `▲`'s cells kept on every account so the row holds still as `▲` moves, and
+  8 cells of the label; its natural the same with the widest label configured, at most 24, never
+  the accounts the session ran on;
+- **its time there,** from its first request on it to its last, in `text.secondary`, in 24 cells:
+  `12:02 – 14:31`, `14:31 – now`; with its day where the session spans more than one, or began
+  before today, as an undated time reads as today's: `yesterday 16:40 – 18:05`, `today 09:12 –
+  now`, `yesterday 13:20 – 16:02` (settled in the plan);
+- **its requests** in `text.muted`, in 14: `404 requests`;
+- **what it took of the account's windows,** the points bold `text.primary` and the rest
   `text.muted`, in the order of care: `≈ 6 points of its week · 41 of its 5-hour`, a model's own
-  window it used adding
-  `· N of its Fable week` (settled in the plan);
-- right-aligned to the last column, its worth at API prices, in `text.secondary`: `$41.06`.
+  window it used adding `· N of its Fable week` (settled in the plan). Its natural is the wide
+  words of every window listed, each at a hundred points, and its least their short words,
+  `≈ 41 of 5-hour · 6 of week`; it says the wide words where they fit whole, else the short, and
+  leaves whole windows off the end where even those don't, two cells short of the worth;
+- **right-aligned to the last column,** its worth at API prices, in `text.secondary`: `$41.06`.
+  Nothing grows, so what's spare lies between the points and the worth.
+- **As the width runs short,** the points narrow to their short words first; then the requests
+  leave, then the time there; and last the name narrows, to its least. The name, the points and
+  the worth stay. A wider frame never shows fewer parts, nor a shorter name.
 - **A turn that moved splits** between the two, each request counted on the account that answered
   it, the context written again on the account it moved to. The rows' requests and worth add up to
   TURNS', the worths to the cent too: TURNS' total is their sum worked out once, exactly, then
@@ -4299,16 +4308,34 @@ first ran on them:
   - A request that names no prompt, as one from a Claude Code before 2.1.283, or one the ledger
     holds from before the router recorded prompts, is in no turn.
 - **The heading:** `TURNS`, with no description, its rule of `─` in `border` from column 9 to two
-  cells short of the totals, and at the right the session's totals: `13 turns` in `text.secondary`;
+  cells short of the totals, a cell of it at the least, and at the right the session's totals, or
+  where they don't fit, its worth alone: `13 turns` in `text.secondary`;
   ` · 445 requests · 97% from cache · ` in `text.muted`; its worth bold `text.secondary` (`$48.20`);
   and ` at API prices` in `text.muted`. Its requests are its `message` lines; `from cache` is the
   share of the tokens it sent that the cache served, its cache reads over its input, cache reads
   and cache writes together, to a whole percent.
-- **The column heads,** two rows under it, in `text.subtle`: `#` right-aligned in 3 from column 0;
-  `started` at 5; `took` at 14; `requests` right-aligned in 8 from 21; `tools` at 32, 30 wide; then
-  right-aligned, `read` in 7 from 64, `written` in 7 from 73, `out` in 6 from 82 and `worth` in 7
-  from 90; and `on` at 100, 12 wide.
-- **A row a turn,** newest first, from the row under the heads to row 34:
+- **The columns,** one form at every width, two cells apart, as flex lays them: `#`; `started`;
+  `took`; `requests`; `tools`; `read`, `written` and `out`; `worth`; `on`; and the newest's
+  `↑ asking`. Each holds its natural until it narrows or leaves in its turn:
+  - `#` right-aligned in the cells the newest turn's number takes, 3 at the least, so turn 1,005
+    reads apart from turn 5; `took` in 5; `read` and `written` right-aligned in 7, `out` in 6 and
+    `worth` in 7; `↑ asking` in its words' cells;
+  - `started` in 7 and `requests` right-aligned in 8, the widths of their heads;
+  - `on`, the accounts a turn went to, a label's: its least 8, its natural what a move between the
+    two widest labels configured says, each at most 24, as `work → personal`, never the accounts
+    the session ran on;
+  - `tools` from 12 at the least to 30 at its natural, and past it, all that's left, so the row
+    runs to the last column wherever it shows, and no gap lies mid-row.
+- **As the width runs short,** `tools` leaves first, as the part that grows, so no column comes back
+  to narrow it as the frame widens; then `↑ asking`, which row 6 says too; then `read`, `written`
+  and `out`, in that order. Then `started`, `took` and `requests` narrow to 5, 4 and 3, their heads
+  taking their short forms, `start` and `req`; and last `on` narrows to its least. A turn always
+  keeps its number, start, length, requests, worth and accounts, which fit from 40 columns; under
+  that the row lies as laid, cut at the frame's edge. A wider frame never shows fewer columns, a
+  narrower one, nor a shorter name.
+- **The column heads,** two rows under the heading, in `text.subtle`, each at its column's start,
+  or ending at its end where it's right-aligned, at every width.
+- **A row a turn,** newest first, from the row under the heads to the row over how many more:
   - `#`, its number, from 1 at its first, bold `text.primary`;
   - `started`, its first request's time; `took`, its length in minutes, from the minute it started
     to the one it ended in, and while it runs, to the minute it's in, `…` after it (`3m…`);
@@ -4322,8 +4349,8 @@ first ran on them:
     which holds the context written again, in `accent.attention`;
   - the rest in `text.muted`.
 - **While a request waits for its answer,** the newest turn's row ends in `↑ asking`, bold
-  `accent.key`, at column 114; while its answer streams, it has no word there.
-- **The turn chosen** is on `bg.selection` from column 0 to 111, its words bold, and lit on the
+  `accent.key`, in its column; while its answer streams, it has no word there.
+- **The turn chosen** is on `bg.selection` from column 0 to the end of `on`, its words bold, and lit on the
   story. The page opens on the newest.
 - **More than fit:** row 35, `▼` in `accent.key`, ` 3 more turns   ·   ` in `text.muted`, `j/k` bold
   `accent.key` and ` to scroll` in `text.muted`. The turns scroll within their rows, under the
@@ -4334,10 +4361,10 @@ first ran on them:
 moving down.
 
 - **One request row with the Log, the Log's** (see The Log): its columns in the Log's order,
-  colours, widths and words, but `session`, which a session's own page doesn't need. Its heads, on
-  the row under the turn, in `text.faint`: `at` from column 5, `model` 15, `on` 26 and `status` 36;
-  right-aligned, `first` in 5 from 44, `took` in 6 from 51, `read` in 6 from 59, `written` in 7
-  from 67 and `out` in 5 from 76; `stopped` at 83, 27 wide; and `routing` at 112, 30 wide.
+  colours, widths and words, but `session`, which a session's own page doesn't need, laid from
+  column 5 as the Log lays its own at every width, its columns leaving in the Log's order as the
+  width runs short; routing, once whole, ends 18 cells short of the last column. Its heads, on the
+  row under the turn, in `text.faint`.
 - **A row a request,** oldest first, a `│` in `border` at column 2, with no mark. The request that
   wrote the context again on the account it moved to has its `written` bold `accent.attention`, and
   in `routing`, as the Log words it, `from work, at its cap  $1.82`. A move at a cap refuses
@@ -4377,7 +4404,9 @@ moving down.
 - **Row 6's right:** `started yesterday 16:40 · resumed 09:12`; the accounts name their days:
   `yesterday 16:40 – 18:05`, `today 09:12 – now`.
 
-**On a phone** (52×32), each part shorter:
+**On a phone** (52×32): under the phone's chrome, under 100 columns as every page's is (see The
+page), the page heads itself shorter; its accounts and its turns are the wide page's, their parts
+leaving as the width runs short:
 
 - **Rows 0, 1 and 3:** the title, the tabs and the status line, as every page's phone has them.
 - **Row 5, the heading:** `SESSION` in `text.subtle`, two spaces, the id and the directory's name,
@@ -4390,21 +4419,19 @@ moving down.
   `its cap → side, $1.82  14:31 ┊`, the account in `text.secondary` and the worth in
   `accent.attention`; four rows of columns, 11 to 14, on the same scale; the ribbon on 15, where
   side's stretch is too narrow for its name (`┤├──┤`); and the axis on 16.
-- **The accounts,** from row 18: numbered, the name and its marks at 0, as the wide page's; at 11,
-  `≈ 41 of 5-hour · 6 of week`, the points bold `text.primary` and the rest `text.muted`; and the
-  worth at the right, in `text.secondary`.
-- **TURNS,** after a blank row: the heading, its rule from column 9, and the session's worth at the
-  right, bold `text.secondary`; no other totals.
-- **The newest seven turns,** from two rows under the heading: the number right-aligned in 2, bold
-  `text.primary`, and a space; its start in `text.secondary`; two spaces, its minutes right-aligned
-  in 2 and `m`, `…` after the newest's; its requests right-aligned in 4 and ` req`; and at the
-  right its worth, two spaces, and its account padded to 9 in `text.secondary`, `work→side` for a
-  turn that moved, its `→` bold `accent.attention`; the rest in `text.muted`. The newest is chosen,
-  on `bg.selection` across all 52 columns.
+- **The accounts,** from row 18: the name, the points in their short words, `≈ 41 of 5-hour · 6 of
+  week`, and the worth at the right; the time there and the requests gone, as the wide page's rules
+  give way.
+- **TURNS,** after a blank row: the heading, its rule from column 9, and the session's worth alone
+  at the right, as the totals don't fit.
+- **The newest six turns,** under their column heads: `#`, `started`, `took`, `req` and `worth`,
+  and `on` whole, `work → side` for a turn that moved; `tools`, `↑ asking`, `read`, `written` and
+  `out` gone, as the wide page's rules give way. The newest is chosen, on `bg.selection` to the end
+  of `on`.
 - **Row 31, the keys:** `esc back   ↑↓ turn   enter open   ? keys   q quit`, by the phone's rule for
   key lines (see The page).
-- A turn opened, one that ended and one that came back follow the wide page's rules in the phone's
-  columns, and `▼ N more turns` shows where some don't fit (settled in the plan).
+- A turn opened, one that ended and one that came back follow the wide page's rules, and `▼ N more
+  turns` shows where some don't fit (settled in the plan).
 
 **Keys.**
 
