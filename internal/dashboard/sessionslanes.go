@@ -108,7 +108,7 @@ func (f Frame) lanesOf(doc status.Document, now time.Time, laid boardLayout) lan
 	m := f.Moment(doc, now)
 	names := overviewNames(m)
 	block := blockOf(m, f.Width, f.Look, ByAccount, f.besideWindows(m), names)
-	block.accountBar, block.marks = sideBySideBar(f.Width, laneBarsAfter), keyMarks(names, f.phone())
+	block.accountBar, block.marks = sideBySideBar(f.Width, laneBarsAfter), keyMarks(names)
 	found := make(map[Plug]views.Call, len(f.SessionsTab.Calls))
 	for _, c := range f.SessionsTab.Calls {
 		found[Plug{Session: c.Session, Account: c.Account}] = c

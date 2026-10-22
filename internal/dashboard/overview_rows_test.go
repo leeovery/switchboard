@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/quota"
@@ -25,21 +26,31 @@ func rowsDown(units []unit) int {
 }
 
 // nextStep is the fewest rows the unit grows by next, as growth grows it:
-// USAGE and ROUTING to their next form whole, SESSIONS a whole session, any
-// other a row.
+// USAGE and ROUTING to their next form whole, USAGE given way back a step
+// among them, SESSIONS a whole session, any other a row.
 func nextStep(u unit) int {
 	if !u.ledBy(SectionUsage, SectionRouting, SectionSessions) {
 		return 1
 	}
 	next := u.most()
 	for _, s := range u.sections {
-		for _, step := range s.between {
+		for _, step := range slices.Concat(s.between, s.leaner, []int{u.least}) {
 			if step > u.rows {
 				next = min(next, step)
 			}
 		}
 	}
 	return next - u.rows
+}
+
+// leastShort is the fewest rows the unit takes short of folding a section
+// for it: USAGE's first step short of its least, its accounts a row apart;
+// any other's least.
+func leastShort(u unit) int {
+	if leaner := u.sections[0].leaner; len(leaner) > 0 {
+		return leaner[0]
+	}
+	return u.least
 }
 
 // COMING UP and LATELY sit side by side where each one's least fits beside
@@ -102,9 +113,9 @@ func TestNoUnitFoldsWhereItFitsAndNoRowIsLeftBlankWhereAStepFits(t *testing.T) {
 }
 
 // allottedFully holds the units of doc as the frame allots them to the
-// rules: none folded that fits at its least, the others at theirs; and no
-// row blank at the foot that a unit not folded, short of its most, could
-// take its next step in.
+// rules: none folded that fits at its least, the others at theirs, USAGE's
+// blank rows between its accounts given way; and no row blank at the foot
+// that a unit not folded, short of its most, could take its next step in.
 func allottedFully(t *testing.T, f Frame, doc status.Document) {
 	t.Helper()
 	units, room := f.allotted(doc, now), f.viewRows()
@@ -114,7 +125,7 @@ func allottedFully(t *testing.T, f Frame, doc status.Document) {
 		}
 		atLeast := slices.Clone(units)
 		for j := range atLeast {
-			atLeast[j].rows = atLeast[j].least
+			atLeast[j].rows = leastShort(atLeast[j])
 		}
 		atLeast[i].fold = false
 		if rowsDown(atLeast) <= room {
@@ -215,5 +226,157 @@ func TestSESSIONSGrowsFirstAWholeSessionAtATimeWhatsLeftGoingOn(t *testing.T) {
 				t.Errorf("in %d rows, the last section ends on row %d, want no row left blank", tt.rows, got)
 			}
 		})
+	}
+}
+
+// leanUsage is USAGE sized at 13 rows, showing an account as it is from 12,
+// giving way to 11, its accounts a row apart; to 10, its headings' blank
+// rows gone; and to 8, its key gone.
+func leanUsage() section {
+	usage := sized(SectionUsage, 13, 13)
+	usage.leaner, usage.showing = []int{11, 10, 8}, 12
+	return usage
+}
+
+// USAGE's blank rows between its accounts give way only where, keeping them,
+// a section open would fold, the rows they free going on to growth; where
+// every section open stays open with them, they stay, USAGE scrolling within
+// its rows where they're short of its least but show an account. Short of
+// that, at the shortest heights, every other section folded, its blank rows
+// between accounts give way, then those under its headings, then its key,
+// each where the step before doesn't fit, the rows a step leaves blank at
+// the foot; then it scrolls. Here ROUTING takes 6 rows to 11, and COMING UP
+// and LATELY, side by side, 5 to 14.
+func TestUSAGEsBlankRowsGiveWayOnlyWhereASectionWouldFoldOrAtTheShortestHeights(t *testing.T) {
+	sections := []section{leanUsage(), sized(SectionRouting, 6, 11), sized(SectionComing, 5, 9), sized(SectionLately, 5, 14)}
+	others := []Section{SectionRouting, SectionComing, SectionLately}
+	tests := []struct {
+		name            string
+		rows            int
+		usage           int
+		lean            giving
+		routing, coming int
+		folds           []Section
+	}{
+		{name: "every section fits: the blank rows stay", rows: 26, usage: 13, routing: 6, coming: 5},
+		{name: "a row short: they give way, the row they free over going on to COMING UP and LATELY", rows: 25, usage: 11, lean: givenApart, routing: 6, coming: 6},
+		{name: "two rows short: they give way, and nothing folds", rows: 24, usage: 11, lean: givenApart, routing: 6, coming: 5},
+		{name: "COMING UP and LATELY fold all the same: they stay", rows: 23, usage: 13, routing: 6, coming: 1, folds: others[1:]},
+		{name: "ROUTING folds all the same: they stay", rows: 16, usage: 13, routing: 1, coming: 1, folds: others},
+		{name: "USAGE itself short of its least, an account showing: they stay, and it scrolls", rows: 15, usage: 12, routing: 1, coming: 1, folds: others},
+		{name: "short of an account showing: they give way", rows: 14, usage: 11, lean: givenApart, routing: 1, coming: 1, folds: others},
+		{name: "a row shorter: its headings' blank rows give way", rows: 13, usage: 10, lean: givenHeads, routing: 1, coming: 1, folds: others},
+		{name: "then its key, a row left blank at the foot", rows: 12, usage: 8, lean: givenKey, routing: 1, coming: 1, folds: others},
+		{name: "past every step, it scrolls in the rest", rows: 10, usage: 7, lean: givenKey, routing: 1, coming: 1, folds: others},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			units := allot(frameOf(160, 50).unitsOf(sections), tt.rows)
+			laid := frameOf(160, 50).place(units, 0)
+			want := map[Section]int{SectionUsage: tt.usage, SectionRouting: tt.routing, SectionComing: tt.coming, SectionLately: tt.coming}
+			if got := rowsGiven(laid); !maps.Equal(got, want) {
+				t.Errorf("in %d rows, the sections take %v, want %v", tt.rows, got, want)
+			}
+			if got := folds(laid); !slices.Equal(got, tt.folds) {
+				t.Errorf("in %d rows, %v fold, want %v", tt.rows, got, tt.folds)
+			}
+			if got := units[0].lean; got != tt.lean {
+				t.Errorf("in %d rows, USAGE has given way %d steps, want %d", tt.rows, got, tt.lean)
+			}
+		})
+	}
+}
+
+// USAGE's heading keeps the blank row under it while its block keeps those
+// under its windows' headings, and gives it way with them: its body starts
+// on the row under that blank, or straight under its heading.
+func TestUSAGEsHeadingGivesWayItsBlankRowWithItsWindowsHeadings(t *testing.T) {
+	f := frameOf(138, 60)
+	usage := f.usageSection(threeRouted(), now)
+	if len(usage.leaner) != 3 {
+		t.Fatalf("USAGE gives way in %v, want three steps", usage.leaner)
+	}
+	for _, tt := range []struct {
+		lean  giving
+		rows  int
+		heads int
+	}{
+		{lean: givenNone, rows: usage.least, heads: sectionHead},
+		{lean: givenApart, rows: usage.leaner[0], heads: sectionHead},
+		{lean: givenHeads, rows: usage.leaner[1], heads: 1},
+		{lean: givenKey, rows: usage.leaner[2], heads: 1},
+		{lean: givenKey, rows: 4, heads: 1},
+	} {
+		u := unit{sections: []section{usage}, least: usage.least, rows: tt.rows, lean: tt.lean}
+		if got := f.place([]unit{u}, 0)[0].body.y; got != tt.heads {
+			t.Errorf("given way %d steps, in %d rows, USAGE's body starts on row %d, want %d", tt.lean, tt.rows, got, tt.heads)
+		}
+	}
+}
+
+// At every height from 10 to 60, at the phone's widths, the iPad's, the
+// landscape phone's and the desktop's, with the sections shown at first and
+// with every one, USAGE gives way in its steps' order: its blank rows
+// between accounts, with a section open, only where it doesn't fit with
+// them; every other section folded, only where, as it is, it shows no
+// account in its rows; the blank rows under its headings, then its key, only
+// there too, each where the step before doesn't fit; and every other section
+// folded, never further as the rows grow.
+func TestUSAGEGivesWayInItsStepsOrder(t *testing.T) {
+	for _, shown := range []Sections{{}, every} {
+		for _, width := range []int{52, 73, 108, 138, 160} {
+			t.Run(fmt.Sprintf("%v at %d", shown.Names(), width), func(t *testing.T) {
+				t.Parallel()
+				shortest := givenKey
+				for height := 10; height <= 60; height++ {
+					f := frameOf(width, height)
+					f.Sections, f.Sessions = shown, flippingSessions()
+					units, room := f.allotted(threeRouted(), now), f.viewRows()
+					i := slices.IndexFunc(units, func(u unit) bool { return u.ledBy(SectionUsage) })
+					usage := units[i]
+					folded := !slices.ContainsFunc(units, func(u unit) bool { return !u.fold && !u.ledBy(SectionUsage) })
+					back := slices.Clone(units)
+					for j := range back {
+						back[j].rows = back[j].least
+					}
+					if usage.lean > givenApart {
+						back[i].rows = usage.sections[0].leaner[usage.lean-2]
+					}
+					open := room - (rowsDown(back) - back[i].rows)
+					switch {
+					case usage.lean > givenNone && open >= back[i].rows:
+						t.Errorf("at %dx%d, USAGE has given way %d steps, but fits a step back", width, height, usage.lean)
+					case usage.lean > givenApart && !folded:
+						t.Errorf("at %dx%d, USAGE has given way %d steps, its headings' blank rows among them, with a section open", width, height, usage.lean)
+					case folded && usage.lean > givenNone && open >= usage.sections[0].showing:
+						t.Errorf("at %dx%d, USAGE has given way %d steps, every other section folded, where it shows an account as it is", width, height, usage.lean)
+					case folded && usage.lean > shortest:
+						t.Errorf("at %dx%d, USAGE has given way %d steps, more than the %d a row shorter, every other section folded", width, height, usage.lean, shortest)
+					}
+					if folded {
+						shortest = usage.lean
+					}
+				}
+			})
+		}
+	}
+}
+
+// At 15 rows, USAGE's blank rows and its key give way, so its accounts show:
+// stacked at 138 columns, its first window's heading straight under USAGE's,
+// and an account a row under it.
+func TestAt15RowsUSAGEShowsItsAccounts(t *testing.T) {
+	rows := textOf(frameOf(138, 15).Draw(threeRouted(), now))
+	at := slices.IndexFunc(rows, func(r string) bool { return strings.HasPrefix(r, "USAGE ") })
+	if at < 0 || at+4 >= len(rows) {
+		t.Fatalf("at 138x15, the Overview reads\n%s\nwant USAGE's heading", strings.Join(rows, "\n"))
+	}
+	for i, want := range []string{"WEEK", " 1 work", " 2 personal", " 3 side"} {
+		if !strings.HasPrefix(rows[at+1+i], want) {
+			t.Errorf("at 138x15, row %d under USAGE's heading reads %q, want it to start %q:\n%s", i+1, rows[at+1+i], want, strings.Join(rows, "\n"))
+		}
+	}
+	if slices.ContainsFunc(rows, func(r string) bool { return strings.Contains(r, "even pace") }) {
+		t.Errorf("at 138x15, the Overview reads\n%s\nwant USAGE's key given way", strings.Join(rows, "\n"))
 	}
 }

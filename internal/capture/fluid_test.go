@@ -211,43 +211,20 @@ var knownBreaks = []known{
 		byDesign: "the List's directories at their most", cuts: dirCuts(views.SessionDirMost), rule: cutWithRoom,
 		sizes: []string{"138x30", "138x15", "173x53"}, fixtures: []string{"sessions-list-long-names-108x44"},
 	},
-	// S12, USAGE at short heights (F3, F4): at 108x44, USAGE's three windows
-	// stacked leave 3 rows under GRAPHS, ROUTING, COMING UP and LATELY
-	// folded, short of any of them unfolding, until its blank rows and key
-	// give way.
+	// S12, USAGE at short heights (F3, F4): at 108x44, USAGE by account, its
+	// three windows charted a blank row apart, leaves 3 rows under GRAPHS,
+	// ROUTING, COMING UP and LATELY folded; its accounts closing up frees 2
+	// more, still short of any of them unfolding.
 	{
 		slice: "S12", rule: foldWithRowsSpare, sizes: []string{"108x44"},
 		fixtures: []string{"overview-by-account-burn-down-220x50", "overview-pool-220x50"},
-	},
-	// S12, USAGE at short heights (F3): no account at 15 rows.
-	{
-		slice: "S12", rule: nothingDrawn, sizes: []string{"138x15"},
-		fixtures: []string{
-			"long-names-overview", "overview-108x44", "overview-138x15", "overview-73x61",
-			"overview-bad-hour-160", "overview-burn-down-160x39", "overview-default-160",
-			"overview-default-216", "overview-everything-160x39", "overview-everything-216x106",
-			"overview-model-nearing-160", "overview-models-160", "overview-phone-52",
-			"overview-phone-burn-down-52", "overview-pinned-160", "overview-sessions-216",
-			"overview-sessions-graphs-216", "overview-six-accounts-160", "overview-ten-accounts-160",
-			"page-help-scrolled", "page-not-answering", "page-routing", "page-routing-160x16",
-			"page-routing-phone", "routing-auto-160", "routing-limit-160", "routing-move-160",
-			"routing-two-160",
-		},
-	},
-	{
-		slice: "S12", rule: wastedThird, sizes: []string{"138x15"},
-		fixtures: []string{"overview-phone-burn-down-52"},
 	},
 	// S14, USAGE's matrix where it fits (F8): GRAPHS folded on an iPad with rows
 	// spare, under USAGE's windows stacked, which hold the rows GRAPHS' least
 	// needs until S14 puts them side by side, as in the spike's frame 12.
 	{
 		slice: "S14", rule: foldWithRowsSpare, sizes: []string{"108x44"},
-		fixtures: []string{
-			"long-names-overview", "overview-burn-down-160x39", "overview-by-account-graphs-140",
-			"overview-by-account-graphs-160", "overview-everything-160x39", "overview-everything-216x106",
-			"overview-phone-burn-down-52", "overview-pool-burn-down-160", "overview-sessions-graphs-216",
-		},
+		fixtures: []string{"overview-by-account-graphs-140"},
 	},
 	// S14, USAGE's parts, its names' column at its natural width, at most 24, at
 	// every width, as the plan's rule of labels has it.

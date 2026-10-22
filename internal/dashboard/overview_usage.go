@@ -25,38 +25,49 @@ const (
 // columns, by window, the big bars, its windows stacked as sections at the
 // full width; by account with GRAPHS' charts beside its blocks, the charts at
 // 5 rows, every one, and between, the stacked step, as stackedBeside has it;
-// otherwise its least. USAGE never folds: given fewer rows than
-// its least, it scrolls within them, as shown shows it. By account from 150
-// columns, GRAPHS' charts or ROUTING are drawn beside its blocks, from
-// besideAt, as besideUsage has them, and follow them as they scroll; a click
-// along an account's rows, its own or what's beside them, moves the focus to
-// it.
+// otherwise its least. Short of its least, it gives way in steps, as giving
+// has them, the planner taking each as a step of its least, as leaner has
+// them, but never folds: given fewer rows than its form takes, it scrolls
+// within them, as shown shows it. By account from 150 columns, GRAPHS'
+// charts or ROUTING are drawn beside its blocks, from besideAt, as
+// besideUsage has them, and follow them as they scroll; a click along an
+// account's rows, its own or what's beside them, moves the focus to it.
 func (f Frame) usageSection(doc status.Document, now time.Time) section {
-	block := f.overviewBlock(doc, now)
-	views := block.views()
+	views := f.overviewBlock(doc, now).views()
 	beside := f.besideUsage(doc, now)
-	aside := 0
-	if beside != nil {
-		aside = block.besideAt()
-	}
-	return section{
-		Section: SectionUsage, least: sectionHead + views.all, most: sectionHead + views.big, aside: aside,
+	s := section{
+		Section: SectionUsage, least: sectionHead + views.all, most: sectionHead + views.big,
 		between:     views.between(),
+		leaner:      views.leanerRows(),
+		showing:     sectionHead + views.showsFrom(),
 		description: func() line { return f.roomLeft(doc, now) },
-		draw: func(c *canvas, body bounds) {
-			shown := views.shown(body.rows, f.Scroll)
-			shown.draw(c, body)
-			if beside != nil {
-				beside(c.within(shown.rowsIn(body)), shown.beside(aside, body))
-			}
-		},
-		targets: func(body bounds) []Target {
-			return views.shown(body.rows, f.Scroll).targets(body)
-		},
-		scrolling:   views.scrolling,
-		rowsAtATime: views.whole,
-		revealing:   views.revealing,
+		keyed:       true,
 	}
+	if beside != nil {
+		s.aside = views.block.besideAt()
+	}
+	s.leaned = func(given giving) section { return f.usageIn(s, views.given(given), beside) }
+	return f.usageIn(s, views, beside)
+}
+
+// usageIn is USAGE as s has it, its block drawn in the form of the views
+// given, what's beside its blocks drawn beside them: its heading's rows as
+// the form's headed has them, and its body, its targets and how it scrolls
+// the form's.
+func (f Frame) usageIn(s section, form usageViews, beside func(*canvas, blocksBeside)) section {
+	s.heads = form.block.headed()
+	s.draw = func(c *canvas, body bounds) {
+		shown := form.shown(body.rows, f.Scroll)
+		shown.draw(c, body)
+		if beside != nil {
+			beside(c.within(shown.rowsIn(body)), shown.beside(s.aside, body))
+		}
+	}
+	s.targets = func(body bounds) []Target {
+		return form.shown(body.rows, f.Scroll).targets(body)
+	}
+	s.scrolling, s.rowsAtATime, s.revealing = form.scrolling, form.whole, form.revealing
+	return s
 }
 
 // overviewBlock is usage's block of doc at now as the Overview's USAGE draws
@@ -71,7 +82,7 @@ func (f Frame) overviewBlock(doc status.Document, now time.Time) usageBlock {
 	m := f.Moment(doc, now)
 	names := overviewNames(m)
 	b := blockOf(m, f.Width, f.Look, f.By, f.overviewWindows(doc, now), names)
-	b.marks = keyMarks(names, f.phone())
+	b.marks = keyMarks(names)
 	if f.By == ByAccount && f.Width >= matrixWidth {
 		b.accountBar = besideBar - (b.names - matrixNames)
 	}
@@ -152,32 +163,38 @@ func (f Frame) overviewGauge(g gauge, out bool) gauge {
 }
 
 // keyMarks are the marks the accounts named carry, as USAGE's key line names
-// them after the cap's: ◆ on the primary, and ▲ on the account new sessions
-// go to, which a phone words short.
-func keyMarks(names []accountName, phone bool) []line {
-	var marks []line
-	if slices.ContainsFunc(names, func(n accountName) bool { return n.primary }) {
-		marks = append(marks, line{{"◆", primaryInk}, {" primary", mutedInk}})
-	}
-	if slices.ContainsFunc(names, func(n accountName) bool { return n.best }) {
-		goes := " new sessions go here"
-		if phone {
-			goes = " new"
+// them after the cap's, in their forms, the widest first: ◆ on the primary,
+// and ▲ on the account new sessions go to, worded as each of bestWords.
+func keyMarks(names []accountName) [][]line {
+	primary := slices.ContainsFunc(names, func(n accountName) bool { return n.primary })
+	best := slices.ContainsFunc(names, func(n accountName) bool { return n.best })
+	forms := make([][]line, len(bestWords))
+	for i, goes := range bestWords {
+		if primary {
+			forms[i] = append(forms[i], line{{"◆", primaryInk}, {" primary", mutedInk}})
 		}
-		marks = append(marks, line{{"▲", accentInk}, {goes, mutedInk}})
+		if best {
+			forms[i] = append(forms[i], line{{"▲", accentInk}, {goes, mutedInk}})
+		}
 	}
-	return marks
+	return forms
 }
+
+// bestWords are the key line's words after ▲, the widest first.
+var bestWords = []string{" new sessions go here", " new"}
 
 // roomLeft is USAGE's description of doc at now: with one account, which has
 // no pool, the room it has left in its week and its 5-hour window at now,
 // where it has them, in the order m lists windows, as its CompareWindows has
 // it, as their Room has it, and numbered as its window's room, as in
-// "room left  week 0.6 of 1  ·  5h 0.4 of 1"; none on a phone, nor with more
-// accounts, whose pool's row says the room.
+// "room left  week 0.6 of 1  ·  5h 0.4 of 1"; none with more accounts, whose
+// pool's row says the room. Each window's room is an item, as a key's parts
+// are, a blank span before the · after the first, so where the heading has
+// no room for them all, they give way whole from the last, as fitItems cuts
+// them.
 func (f Frame) roomLeft(doc status.Document, now time.Time) line {
 	m := f.Moment(doc, now)
-	if len(m.Accounts) != 1 || f.phone() {
+	if len(m.Accounts) != 1 {
 		return nil
 	}
 	a := m.Accounts[0]
@@ -194,14 +211,18 @@ func (f Frame) roomLeft(doc status.Document, now time.Time) line {
 	}
 	slices.SortFunc(rooms, func(a, b room) int { return m.CompareWindows(a.window.Key, b.window.Key) })
 	var parts []line
-	for _, r := range rooms {
+	for i, r := range rooms {
 		left := span{prose.Tenths(r.window.Room), strongInk}.numbered(Number{Kind: NumberRoom, Account: a.ID, Of: r.window.Key})
-		parts = append(parts, line{{r.word + " ", dimInk}, left, {" of 1", dimInk}})
+		part := line{{r.word + " ", dimInk}, left, {" of 1", dimInk}}
+		if i > 0 {
+			part = slices.Concat(line{{"·  ", faintInk}}, part)
+		}
+		parts = append(parts, part)
 	}
 	if parts == nil {
 		return nil
 	}
-	return slices.Concat(line{{"room left  ", faintInk}}, joined(span{"  ·  ", faintInk}, parts...))
+	return slices.Concat(line{{"room left  ", faintInk}}, joined(span{"  ", faintInk}, parts...))
 }
 
 // besideAt is the column what's beside the block's blocks starts at, by
@@ -247,30 +268,88 @@ func (b usageBlock) enlarges() bool {
 // bars, and as it's laid out; how many accounts it has; and, worked out only
 // once it scrolls, the rows each account in view adds, and each mark, ▲ or
 // ▼, as of counts them, and the block laid out whole, as paged pages it.
+// Where it's short of rows, its leaner views are the block as it gives way, a
+// step at a time, as giving has them.
 type usageViews struct {
 	block             usageBlock
 	big, stacked, all int
 	accounts          int
 	steps             func() (account, mark int)
 	laid              func() laid
+	leaner            []usageViews
 }
 
 // views are the block's views, laid out once as it is, and once more with
-// its big bars where it has them, as enlarges says; and by account, with
-// GRAPHS' charts beside its blocks, stacked, as stackedBeside has them.
+// its big bars where it has them, as enlarges says; by account, with GRAPHS'
+// charts beside its blocks, stacked, as stackedBeside has them; and once as
+// it is at each step it gives way.
 func (b usageBlock) views() usageViews {
-	accounts, _ := b.split()
-	all := b.height()
-	v := usageViews{block: b, big: all, stacked: all, all: all, accounts: len(accounts)}
+	v := b.viewsAsLaid()
 	if b.enlarges() {
 		v.big = b.enlarged().height()
 	}
 	if b.charted {
 		v.stacked = b.stackedBeside().height()
 	}
-	v.steps = sync.OnceValues(func() (int, int) { return b.steps(all) })
-	v.laid = sync.OnceValue(func() laid { return b.lay(growing(b.width), 0) })
+	for given := givenApart; given <= givenKey; given++ {
+		lean := b
+		lean.given = given
+		v.leaner = append(v.leaner, lean.viewsAsLaid())
+	}
 	return v
+}
+
+// viewsAsLaid are the block's views as it's laid out, and in no other form.
+func (b usageBlock) viewsAsLaid() usageViews {
+	accounts, _ := b.split()
+	all := b.height()
+	return usageViews{
+		block: b, big: all, stacked: all, all: all, accounts: len(accounts),
+		steps: sync.OnceValues(func() (int, int) { return b.steps(all) }),
+		laid:  sync.OnceValue(func() laid { return b.lay(growing(b.width), 0) }),
+	}
+}
+
+// given are the block's views as far as given has it give way: as it is, or
+// the leaner view of that step.
+func (v usageViews) given(given giving) usageViews {
+	if given == givenNone {
+		return v
+	}
+	return v.leaner[given-1]
+}
+
+// headed are the rows USAGE's heading takes over the block in its form: its
+// own and the blank row under it; but its own alone where the block has
+// given way the blank rows under its windows' headings, as the blank under
+// USAGE's goes with them.
+func (b usageBlock) headed() int {
+	if b.given >= givenHeads {
+		return 1
+	}
+	return sectionHead
+}
+
+// showsFrom is the fewest rows the block shows an account in, as it's laid
+// out, scrolled to its top: an account's row among its targets.
+func (v usageViews) showsFrom() int {
+	for rows := 1; rows < v.all; rows++ {
+		if len(v.shown(rows, 0).targets(bounds{rows: rows})) > 0 {
+			return rows
+		}
+	}
+	return v.all
+}
+
+// leanerRows are the rows USAGE takes, its heading's among them, as headed
+// has them, at each step its block gives way, the planner stepping it short
+// of its least as its rows run short.
+func (v usageViews) leanerRows() []int {
+	rows := make([]int, len(v.leaner))
+	for i, lean := range v.leaner {
+		rows[i] = lean.block.headed() + lean.all
+	}
+	return rows
 }
 
 // between are the rows, its heading's among them, USAGE grows to whole past
@@ -289,7 +368,8 @@ func (f Frame) usageDrawn(doc status.Document, now time.Time) usageBlock {
 	views := f.overviewBlock(doc, now).views()
 	for _, u := range f.allotted(doc, now) {
 		if u.ledBy(SectionUsage) && !u.fold {
-			return views.fitted(u.rows-sectionHead, f.Scroll)
+			form := views.given(u.lean)
+			return form.fitted(u.rows-form.block.headed(), f.Scroll)
 		}
 	}
 	return views.block
@@ -354,7 +434,7 @@ func (v usageViews) leastPage() int {
 // lay has them.
 func (v usageViews) paged(rows int) rowsPaged {
 	l := v.laid()
-	foot := v.all - l.end - 1
+	foot := max(v.all-l.end-1, 0)
 	if rows-foot < leastPaged {
 		foot = 0
 	}
@@ -384,13 +464,13 @@ func (v usageViews) shown(rows, offset int) usageShown {
 }
 
 // fitted is the block as USAGE draws it in rows rows, scrolled offset
-// accounts' rows down: at its most, as enlarged has it, where that fits; else
-// stacked beside, where that's a step of its own, as between has it, and
-// fits; else as it's laid out, scrolled within the rows where it doesn't
-// fit. Only the rows given choose, never what it holds.
+// accounts' rows down: at its most, as enlarged has it, where that's past its
+// least and fits; else stacked beside, where that's a step of its own, as
+// between has it, and fits; else as it's laid out, scrolled within the rows
+// where it doesn't fit. Only the rows given choose, never what it holds.
 func (v usageViews) fitted(rows, offset int) usageBlock {
 	switch {
-	case v.big <= rows:
+	case v.all < v.big && v.big <= rows:
 		return v.block.enlarged()
 	case v.all < v.stacked && v.stacked <= rows:
 		return v.block.stackedBeside()

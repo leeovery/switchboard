@@ -222,16 +222,19 @@ type planWorld struct {
 // The frames' worlds: auto's, three accounts, as the pinned, bad-hour and
 // limit worlds have too; and the many worlds'.
 var (
-	autoWorld = planWorld{accounts: 3, windows: 3, running: 6, coming: 7, lately: 12}
-	sixWorld  = planWorld{accounts: 6, windows: 3, coming: 3, lately: 3}
-	tenWorld  = planWorld{accounts: 10, windows: 3, coming: 3, lately: 3}
+	autoWorld  = planWorld{accounts: 3, windows: 3, running: 6, coming: 7, lately: 12}
+	sixWorld   = planWorld{accounts: 6, windows: 3, coming: 3, lately: 3}
+	sixRunning = planWorld{accounts: 6, windows: 2, running: 11, coming: 3, lately: 3}
+	tenWorld   = planWorld{accounts: 10, windows: 3, coming: 3, lately: 3}
 )
 
 // sections are the sections shown of a frame of the world, width columns
 // wide, grouped by by, sized as the design counts their rows: USAGE from its
 // compact matrix, 2a + 7, to its big bars, 2 + w(2a + 5); by account, a block
 // an account and the pool's, ROUTING beside them from column 107; on a phone,
-// stacked, its key on two lines; GRAPHS h + 4, h from 5 to 19; ROUTING a + 3
+// stacked, its key on two lines; USAGE giving way, as leanerBy has it, a
+// blank row between each two accounts in each window, its headings' blank
+// rows, and its key; GRAPHS h + 4, h from 5 to 19; ROUTING a + 3
 // to 3a + 2, and on a phone 3a + 1; SESSIONS from a session and how many
 // more to a row a session, two on a phone, as sessionsRows has it; and
 // COMING UP and LATELY a row a line, from 3 to 12; each with its heading's
@@ -239,15 +242,17 @@ var (
 func (w planWorld) sections(width int, by By, shown Sections) []section {
 	a, k := w.accounts, w.windows
 	usage := sized(SectionUsage, 2*a+7, 2+k*(2*a+5))
+	usage.leaner = leanerBy(usage.least, a-1, 2, 2)
 	routing := sized(SectionRouting, a+3, 3*a+2)
 	sessions := sessionsSized(w.running, 1)
 	switch {
 	case by == ByAccount:
 		blocks := 2 + (a+1)*(2*k-1) + 2*a + 2
 		usage, routing = sized(SectionUsage, blocks, blocks), sized(SectionRouting, 0, 0)
-		usage.aside = 107
+		usage.aside, usage.leaner = 107, leanerBy(blocks, a-1, 1, 2)
 	case width < phoneUnder:
 		usage = sized(SectionUsage, usage.most+1, usage.most+1)
+		usage.leaner = leanerBy(usage.least, k*(a-1), 1+k, 3)
 		routing = sized(SectionRouting, 3*a+1, 3*a+1)
 		sessions = sessionsSized(w.running, 2)
 	}
@@ -256,6 +261,15 @@ func (w planWorld) sections(width int, by By, shown Sections) []section {
 	}
 	all := []section{usage, sized(SectionGraphs, 2+1+5+1, 2+1+19+1), routing, sessions, lines(SectionComing, w.coming), lines(SectionLately, w.lately)}
 	return slices.DeleteFunc(all, func(s section) bool { return !shown.Has(s.Section) })
+}
+
+// leanerBy are USAGE's steps short of its least rows, as it gives way: apart
+// rows fewer, the blank rows between its accounts gone; heads fewer, the
+// blank rows under USAGE's heading and its windows'; then key fewer, its key
+// and the blank row over it.
+func leanerBy(least, apart, heads, key int) []int {
+	closed := least - apart
+	return []int{closed, closed - heads, closed - heads - key}
 }
 
 // rowsOf is where a section is laid out, counted from 1 as the frames count
@@ -318,6 +332,12 @@ func TestThePlannerLaysEachOverviewFrameOutOnItsRows(t *testing.T) {
 		{stem: "overview-everything-216x106", width: 216, height: 106, shown: gs, world: autoWorld, want: []rowsOf{
 			{SectionUsage, 5, 39, false}, {SectionGraphs, 41, 63, false}, {SectionRouting, 65, 75, false},
 			{SectionSessions, 77, 84, false}, {SectionComing, 86, 99, false}, {SectionLately, 86, 99, false},
+		}},
+		// USAGE's blank rows between its accounts give way, so SESSIONS
+		// shows a session and how many more where it would fold with them.
+		{stem: "overview-everything-173x53", width: 173, height: 53, shown: gs, world: sixRunning, want: []rowsOf{
+			{SectionUsage, 5, 18, false}, {SectionGraphs, 20, 28, false}, {SectionRouting, 30, 38, false},
+			{SectionSessions, 40, 45, false}, {SectionComing, 47, 51, false}, {SectionLately, 47, 51, false},
 		}},
 		{stem: "overview-phone-52", width: 52, height: 66, world: autoWorld, want: []rowsOf{
 			{SectionUsage, 6, 41, false}, {SectionRouting, 43, 52, false}, {SectionComing, 54, 58, false}, {SectionLately, 60, 64, false},
@@ -413,8 +433,8 @@ func TestRowsShortSectionsFoldInTurnThenWhatFitsUnfoldsTheLastFoldedFirstAndUSAG
 // the group folded last from the first: with SESSIONS at 3 rows, in 30 or 31,
 // SESSIONS, COMING UP and LATELY, then GRAPHS fold; COMING UP and LATELY,
 // folded after SESSIONS, unfold before it, and leave it no room. So with
-// every section shown, at 73x46, GRAPHS, folded after COMING UP and LATELY,
-// unfolds where they then can't; at 108x44, ROUTING, a row an account and
+// every section shown, at 73x42, GRAPHS, folded after COMING UP and LATELY,
+// unfolds where they then can't; at 108x40, ROUTING, a row an account and
 // folded last, unfolds first and leaves GRAPHS no room.
 func TestTheGroupFoldedLastUnfoldsFirst(t *testing.T) {
 	sections := shortOfRows()
@@ -430,8 +450,8 @@ func TestTheGroupFoldedLastUnfoldsFirst(t *testing.T) {
 		width, height int
 		folds         []Section
 	}{
-		{width: 73, height: 46, folds: []Section{SectionRouting, SectionSessions, SectionComing, SectionLately}},
-		{width: 108, height: 44, folds: []Section{SectionGraphs, SectionSessions, SectionComing, SectionLately}},
+		{width: 73, height: 42, folds: []Section{SectionRouting, SectionSessions, SectionComing, SectionLately}},
+		{width: 108, height: 40, folds: []Section{SectionGraphs, SectionSessions, SectionComing, SectionLately}},
 	}
 	for _, tt := range tests {
 		f := frameOf(tt.width, tt.height)
@@ -858,7 +878,7 @@ func TestAFoldedSectionsHeadingSaysOnceThatThereIsNoRoomAsTheDesignWordsIt(t *te
 	}{
 		{height: 37, section: SectionSessions, want: "SESSIONS   6 running: 2 on personal, 4 on side   no room at 37 rows ─"},
 		{height: 35, section: SectionGraphs, want: "GRAPHS   work   no room at 35 rows ─"},
-		{height: 30, section: SectionRouting, want: "ROUTING   auto   no room at 30 rows ─"},
+		{height: 28, section: SectionRouting, want: "ROUTING   auto   no room at 28 rows ─"},
 	}
 	for _, tt := range tests {
 		f.Height = tt.height

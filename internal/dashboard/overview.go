@@ -195,6 +195,17 @@ type section struct {
 	// grow to whole, as whole grows it, the fewest first.
 	least, most int
 	between     []int
+	// leaner are the rows it takes short of its least, a step at a time, as
+	// USAGE's block gives way to rows short, which never folds; showing, the
+	// fewest rows it shows an account in as it is, scrolled to its top,
+	// short of which it gives way at the shortest heights; leaned, it given
+	// way as far as the step given; and heads, the rows its heading takes
+	// over its body, its own among them, as USAGE's gives way its blank row:
+	// 0 for sectionHead.
+	leaner  []int
+	showing int
+	leaned  func(given giving) section
+	heads   int
 	// aside is the column a section of no rows of its own is drawn from
 	// beside this one, in its rows, as ROUTING is beside USAGE's blocks by
 	// account: 0 where none can be.
@@ -310,10 +321,12 @@ type planned struct {
 	body bounds
 }
 
-// foldOrder are the sections in the order they fold to their headings, where
-// rows run short: SESSIONS; then COMING UP and LATELY together; then GRAPHS;
-// then ROUTING. USAGE never folds.
-var foldOrder = [][]Section{{SectionSessions}, {SectionComing, SectionLately}, {SectionGraphs}, {SectionRouting}}
+// foldOrder are the sections in the order they give way, where rows run
+// short: USAGE first, which never folds, but gives way the blank rows between
+// its accounts, its first step short of its least; then, each folding to its
+// headings, SESSIONS; then COMING UP and LATELY together; then GRAPHS; then
+// ROUTING.
+var foldOrder = [][]Section{{SectionUsage}, {SectionSessions}, {SectionComing, SectionLately}, {SectionGraphs}, {SectionRouting}}
 
 // growth is the order the rows to spare go in, to the units not folded, each
 // to its most: to SESSIONS, a whole session at a time; to GRAPHS, a row at a
@@ -333,11 +346,13 @@ var growth = []struct {
 // unit is sections that share rows: a section alone; USAGE with a section
 // beside it; or COMING UP and LATELY side by side. It takes rows rows, its
 // headings' among them, from least to most, as its sections' most rows; or
-// where it folds, its headings' row alone.
+// where it folds, its headings' row alone; or led by USAGE, short of its
+// least, as far as lean has its block give way.
 type unit struct {
 	sections    []section
 	least, rows int
 	fold        bool
+	lean        giving
 }
 
 // join has s share the unit's rows, beside its sections.
@@ -360,6 +375,57 @@ func (u unit) most() int {
 // unit folds and grows as the section it's led by does.
 func (u unit) ledBy(sections ...Section) bool {
 	return slices.Contains(sections, u.sections[0].Section)
+}
+
+// giveWay has the unit give way where rows run short: USAGE, which never
+// folds, its blank rows between accounts, the first step short of its least
+// its leaner has, where it has one; any other, folded to its headings.
+func (u *unit) giveWay() {
+	if !u.ledBy(SectionUsage) {
+		u.fold = true
+		return
+	}
+	u.leanTo(givenApart)
+}
+
+// leanTo has USAGE's unit give way as far as the step given, taking the
+// rows its leaner has for it, where it has them.
+func (u *unit) leanTo(given giving) {
+	if leaner := u.sections[0].leaner; int(given) <= len(leaner) {
+		u.rows, u.lean = leaner[given-1], given
+	}
+}
+
+// gaveWay reports whether the unit has given way: folded, or led by USAGE,
+// its block given way.
+func (u unit) gaveWay() bool {
+	return u.fold || u.lean > givenNone
+}
+
+// regain has the unit take back what it gave way: unfolded, at its least.
+func (u *unit) regain() {
+	u.rows, u.fold, u.lean = u.least, false, givenNone
+}
+
+// formed are the unit's sections in the form it has them: USAGE as far as
+// its block has given way, as leaned has it.
+func (u unit) formed() []section {
+	formed := slices.Clone(u.sections)
+	for i, s := range formed {
+		if s.leaned != nil && u.lean > givenNone {
+			formed[i] = s.leaned(u.lean)
+		}
+	}
+	return formed
+}
+
+// headRows are the rows the section's heading takes over its body, its own
+// among them: as its heads has them, else sectionHead.
+func (s section) headRows() int {
+	if s.heads > 0 {
+		return s.heads
+	}
+	return sectionHead
 }
 
 // taken is how many rows the unit takes: its rows, or its headings' row
@@ -441,11 +507,12 @@ func (f Frame) listsBeside() bool {
 }
 
 // allot gives each unit its rows in room rows, and returns them: its least,
-// to start with. Where they don't fit, units fold to their headings, as fold
-// folds them, and what then fits unfolds again, as unfold unfolds it; where
-// they still don't, USAGE scrolls within the rows left to it. The rows to
-// spare go to the units not folded, as growth has them, and the rest stay
-// empty at the foot.
+// to start with. Where they don't fit, units give way, USAGE's blank rows
+// between its accounts first, then sections folding to their headings, as
+// fold has them, and what then fits takes back what it gave, as unfold has
+// it; where they still don't, USAGE scrolls or gives way further, as
+// squeeze has it. The rows to spare go to the units not folded, as growth
+// has them, and the rest stay empty at the foot.
 func allot(units []unit, room int) []unit {
 	for i := range units {
 		units[i].rows = units[i].least
@@ -459,8 +526,9 @@ func allot(units []unit, room int) []unit {
 	return units
 }
 
-// fold folds the units to their headings, a group of foldOrder's at a time,
-// until they fit in room rows, and returns the groups it folded, in turn.
+// fold has the units give way, as giveWay has them, a group of foldOrder's
+// at a time, until they fit in room rows, and returns the groups that gave
+// way, in turn.
 func fold(units []unit, room int) [][]Section {
 	var folded [][]Section
 	for _, group := range foldOrder {
@@ -469,33 +537,66 @@ func fold(units []unit, room int) [][]Section {
 		}
 		folded = append(folded, group)
 		for i := range units {
-			units[i].fold = units[i].fold || units[i].ledBy(group...)
+			if units[i].ledBy(group...) {
+				units[i].giveWay()
+			}
 		}
 	}
 	return folded
 }
 
-// unfold unfolds each of the units folded where it fits in room rows at its
-// least: the group folded last first, and within a group, unit by unit, in
-// the page's order, so where LATELY is under COMING UP, COMING UP unfolds
-// alone where LATELY can't.
+// unfold has each of the units that gave way take it back, as regain has it,
+// where it then keeps it in room rows at its least, as keeps has it: the
+// group that gave way last first, and within a group, unit by unit, in the
+// page's order, so where LATELY is under COMING UP, COMING UP unfolds alone
+// where LATELY can't; and USAGE's blank rows between its accounts last, so
+// they stay given way only where a section open would fold for them.
 func unfold(units []unit, room int, folded [][]Section) {
 	for _, group := range slices.Backward(folded) {
 		for i := range units {
-			if units[i].fold && units[i].ledBy(group...) {
-				units[i].fold = false
-				units[i].fold = !unitsFit(units, room)
+			if units[i].gaveWay() && units[i].ledBy(group...) {
+				units[i].regain()
+				if !keeps(units, i, room) {
+					units[i].giveWay()
+				}
 			}
 		}
 	}
 }
 
-// squeeze takes over rows from USAGE, which scrolls within the rest, its
-// heading kept.
-func squeeze(units []unit, over int) {
-	if i := slices.IndexFunc(units, func(u unit) bool { return u.ledBy(SectionUsage) }); i >= 0 {
-		units[i].rows = max(units[i].rows-over, sectionHead)
+// keeps reports whether unit i keeps what it took back in room rows: where
+// the units fit; and USAGE where no other unit is open, as no section is
+// open for its blank rows between accounts to give way to, though it doesn't
+// fit, which squeeze then settles.
+func keeps(units []unit, i, room int) bool {
+	if unitsFit(units, room) {
+		return true
 	}
+	return units[i].ledBy(SectionUsage) && !slices.ContainsFunc(units, func(u unit) bool { return !u.fold && !u.ledBy(SectionUsage) })
+}
+
+// squeeze takes over rows from USAGE, every other section folded: it
+// scrolls within the rest, its heading kept, where it shows an account in
+// them as it is; else, at the shortest heights, it gives way to the first of
+// its steps that fits, its blank rows between accounts, then those under its
+// headings, then its key, the rows that step leaves going blank at the foot,
+// and past its last, scrolls within the rest.
+func squeeze(units []unit, over int) {
+	i := slices.IndexFunc(units, func(u unit) bool { return u.ledBy(SectionUsage) })
+	if i < 0 {
+		return
+	}
+	u := &units[i]
+	left := u.rows - over
+	if left < u.sections[0].showing {
+		for given := givenApart; int(given) <= len(u.sections[0].leaner); given++ {
+			u.leanTo(given)
+			if u.rows <= left {
+				return
+			}
+		}
+	}
+	u.rows = max(left, sectionHead)
 }
 
 // grow gives the units not folded spare rows, as growth has them: a unit
@@ -545,20 +646,23 @@ func whole(units []*unit, spare int) int {
 }
 
 // place lays the units out from row top, as layUnits lays them: each
-// section's heading on its unit's first row, in the columns columns gives
-// it, and where it doesn't fold, its body under its heading's blank row, in
-// the rest of its unit's rows.
+// section, in the form its unit has it, as formed has it, its heading on its
+// unit's first row, in the columns columns gives it, and where it doesn't
+// fold, its body under its first section's heading rows, as headRows has
+// them, in the rest of its unit's rows.
 func (f Frame) place(units []unit, top int) []planned {
 	var laid []planned
 	spans, _, _ := layUnits(units, f.viewRows())
 	for i, u := range units {
 		y := top + spans[i].At
-		for j, s := range u.sections {
+		formed := u.formed()
+		heads := formed[0].headRows()
+		for j, s := range formed {
 			head, body := f.columns(u, j)
 			head.y, head.rows = y, 1
 			p := planned{section: s, head: head, fold: u.fold}
 			if !u.fold {
-				body.y, body.rows = y+sectionHead, u.rows-sectionHead
+				body.y, body.rows = y+heads, u.rows-heads
 				p.body = body
 			}
 			laid = append(laid, p)
@@ -638,10 +742,12 @@ type shape struct {
 	least, most int
 }
 
-// allotment is the rows a layout gives a section, and whether it folds.
+// allotment is the rows a layout gives a section, whether it folds, and for
+// USAGE, how far its block gives way.
 type allotment struct {
 	rows int
 	fold bool
+	lean giving
 }
 
 // fills reports whether the section's rows fill with what comes and goes, as
@@ -667,7 +773,7 @@ func (f Frame) LayoutOf(doc status.Document, now time.Time) Layout {
 	}
 	l := Layout{made: made}
 	for _, u := range allot(units, f.viewRows()) {
-		l.allotted[u.sections[0].Section] = allotment{rows: u.rows, fold: u.fold}
+		l.allotted[u.sections[0].Section] = allotment{rows: u.rows, fold: u.fold, lean: u.lean}
 		for _, s := range u.sections {
 			if s.steady != nil {
 				l.running = s.order
@@ -708,13 +814,13 @@ func (f Frame) allotted(doc status.Document, now time.Time) []unit {
 	return allot(units, f.viewRows())
 }
 
-// give gives each unit the rows, and the fold, the layout gave the section
-// it's led by, SESSIONS listing in the order the layout kept, as its steady
-// lists them, and returns them.
+// give gives each unit the rows, the fold and the lean the layout gave the
+// section it's led by, SESSIONS listing in the order the layout kept, as its
+// steady lists them, and returns them.
 func (l Layout) give(units []unit) []unit {
 	for i := range units {
 		a := l.allotted[units[i].sections[0].Section]
-		units[i].rows, units[i].fold = a.rows, a.fold
+		units[i].rows, units[i].fold, units[i].lean = a.rows, a.fold, a.lean
 		for j, s := range units[i].sections {
 			if s.steady != nil {
 				units[i].sections[j] = s.steady(l.running)

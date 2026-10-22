@@ -1512,7 +1512,7 @@ can't, state or a key to marks; what a section is, and why it's where it is, are
 
 | Section | Description |
 |---|---|
-| USAGE | None, as the pool's row says the room; with one account, which has no pool, the room left, in the order of care: `room left  ` in `text.faint`, `week ` in `text.subtle`, `0.6` in bold `text.secondary`, ` of 1` in `text.subtle`, `  ·  ` in `text.faint`, then `5h 0.4 of 1` the same way, summed as the pool's room is; on a phone, none |
+| USAGE | None, as the pool's row says the room; with one account, which has no pool, the room left, in the order of care: `room left  ` in `text.faint`, `week ` in `text.subtle`, `0.6` in bold `text.secondary`, ` of 1` in `text.subtle`, `  ·  ` in `text.faint`, then `5h 0.4 of 1` the same way, summed as the pool's room is; wherever the heading has room for it, a phone's too, each window's room giving way whole from the last where it hasn't, as a key's parts do |
 | GRAPHS | The focused account, `work`, in bold `text.primary`; five spaces; then the key to the chart drawn, the rest in `text.faint`: of the burn-up, `·` in `text.subtle` and ` even pace   `, `╌` in `viz.reserve` and ` cap   `, `┄` and ` limit`; of the burn-down, `⠢` in `text.subtle` and ` heading   `, `✕` in bold `state.destructive` and ` runs out   `, `⠤` in `viz.reserve`, faint, and ` cap   `, `┄` and ` full`. Beside USAGE's blocks, the key alone, as no account is focused |
 | ROUTING | The mode (below) |
 | SESSIONS, COMING UP, LATELY | None |
@@ -1544,11 +1544,19 @@ Then, as only the Overview has them:
   leave.
 - **The key line names the marks the accounts carry,** after the cap's: `◆` in `text.tertiary` and
   ` primary`, and `▲` in `accent.mode` and ` new sessions go here`, each four spaces after the part
-  before, in `text.muted`; on a phone, three spaces, and `▲ new`.
-- **Many accounts:** past what fits, USAGE scrolls within its section, its window headings and key
-  line held, with `▼ 4 more accounts` in `text.subtle` under the last row shown, and `▲ 2 more
-  accounts` over the first while some are above. `j`/`k`, PgUp, PgDn and the wheel scroll it, and
-  moving the focus to an account out of view scrolls to it (settled in the plan).
+  before, in `text.muted`; on a phone, three spaces. `▲`'s words take the first of their two
+  forms that fits the line, ` new sessions go here`, then ` new`, as `firstFit` has them, never by
+  the phone: in full on a phone of 73, and at 52 where no cap's part comes before them.
+- **Rows short,** USAGE gives way in steps, each a step of its least the planner takes (see Room):
+  its accounts a row apart, the blank row between each two gone, in every window and by account
+  between blocks; then the blank rows under its heading and its windows' headings; then its key
+  line, with the blank row over it. The pool keeps its rule's row, and its other blank rows stay:
+  between windows stacked, and between a block's windows by account.
+- **Many accounts:** past what fits, USAGE scrolls within its section, in the form it has, as Room
+  has it, its window headings, pool and key line, where it keeps one, held, with `▼ 4 more
+  accounts` in `text.subtle` under the last row shown, and `▲ 2 more accounts` over the first
+  while some are above. `j`/`k`, PgUp, PgDn and the wheel scroll it, and moving the focus to an
+  account out of view scrolls to it (settled in the plan).
 
 **GRAPHS** draws the focused account's windows, a chart a window, under USAGE's bars where they
 fit there. `↑` and `↓` move the focus between the accounts, in the config's order. `v`, while GRAPHS
@@ -1968,7 +1976,7 @@ remembered").
 
 | Section | Least | Most | Rows |
 |---|---|---|---|
-| USAGE | The compact matrix | The big bars, by window from 150 columns; by account with GRAPHS' charts beside, every chart, its blocks apart for 5 rows of chart, and on the way, the charts stacked at 2 rows | Compact: `2a + 7` for `a` accounts and the pool, 7 for one account |
+| USAGE | The compact matrix; short of it, its steps as it gives way: its accounts a row apart, `a + 8` in the matrix; its headings' blank rows gone, `a + 6`; its key gone, `a + 4` | The big bars, by window from 150 columns; by account with GRAPHS' charts beside, every chart, its blocks apart for 5 rows of chart, and on the way, the charts stacked at 2 rows | Compact: `2a + 7` for `a` accounts and the pool, 7 for one account |
 | GRAPHS | 5 rows of chart | 19 | `r(h + 2) + 2` for `r` rows of charts; beside USAGE's blocks by account, none of its own (the owner's call, 15 October 2026) |
 | ROUTING | A row an account | Two rows of trace an account, a blank row between | `a + 3`; `3a + 2` |
 | SESSIONS | A session and `+N more`; every one where that's no fewer | A row a session, two where ROUTING takes two an account | Its sessions and 2, from one session and a row, a session at a time |
@@ -1983,16 +1991,30 @@ says whether they fit. The order in which units fold, unfold and grow is the Ove
 below, not flex's even share:
 
 1. Every section shown starts at its least.
-2. **Rows short:** sections fold, in turn, until the page fits: SESSIONS; then COMING UP and LATELY
-   together; then GRAPHS; then ROUTING. USAGE never folds; with many accounts it scrolls within the
-   rows left to it.
-3. **What folds unfolds where it fits,** at its least: those folded last first, and of those
-   folded together, unit by unit in the page's order. So where the two don't fit side by side,
-   under 93 columns, and LATELY is a unit of its own under COMING UP, COMING UP unfolds alone where
-   LATELY can't, and LATELY alone where it fits
-   and COMING UP doesn't, as under a folded heading, where COMING UP's would bring a blank row
-   back. A section left folded never fits at its least with every other at its own.
-4. **Rows to spare go out even while a section is folded,** to the units that aren't, in turn: to
+2. **Rows short:** units give way, in turn, until the page fits: USAGE first, which never folds,
+   to its first step, its accounts a row apart; then sections fold: SESSIONS; then COMING UP and
+   LATELY together; then GRAPHS; then ROUTING.
+3. **What gave way takes it back where it fits,** at its least: what gave way last first, and of
+   those folded together, unit by unit in the page's order. So where the two don't fit side by
+   side, under 93 columns, and LATELY is a unit of its own under COMING UP, COMING UP unfolds alone
+   where LATELY can't, and LATELY alone where it fits and COMING UP doesn't, as under a folded
+   heading, where COMING UP's would bring a blank row back. USAGE's blank rows between its
+   accounts come back last, and where no other section is open, come back whatever the rows, so
+   they give way only where, keeping them, a section open would fold: at 173 × 53 with every
+   section and six accounts, SESSIONS shows its busiest three and `+8 more` where it folds with
+   them; on a phone, LATELY or COMING UP opens where it stays folded with them. Where every
+   section open stays open with them, they stay. A section left folded never fits at its least
+   with every other at its own, USAGE's accounts a row apart.
+4. **Every other section folded,** where USAGE still doesn't fit, it scrolls within the rows left
+   to it, as Many accounts, above, has it, where as it is, scrolled to its top, they show an
+   account. Short of that, at the shortest heights, it gives way to the first of its steps that
+   fits: its accounts a row apart; then the blank rows under its heading and its windows'
+   headings; then its key line. The rows a step leaves are empty at the foot. So at 138 × 15,
+   where it showed `WEEK`, how many rows more and its key, its accounts show under their window's
+   heading. Past its last step, it scrolls within the rows left to it. The planner keeps the step
+   it took in the layout, so USAGE is drawn in the form the planner chose, never one its rows
+   alone suggest.
+5. **Rows to spare go out even while a section is folded,** to the units that aren't, in turn: to
    SESSIONS, a whole session at a time, its row or two, to every one, what's left that's less than a
    session going on, never left blank; to GRAPHS, a row at a time to 19; to USAGE's big bars, if
    they fit; to ROUTING's two rows of trace, if they fit; then to COMING UP and LATELY, a line at a
@@ -2001,9 +2023,9 @@ below, not flex's even share:
    never grows: what can't unfold leaves rows the others use. GRAPHS comes before the big bars, so
    that GRAPHS never shrinks as they come; at a few heights, one row more brings the big bars or
    ROUTING's trace in, and ROUTING, or COMING UP and LATELY, give up rows to make room.
-5. **Past every most,** or where no unit's next step fits, the rest is empty at the foot, the key
+6. **Past every most,** or where no unit's next step fits, the rest is empty at the foot, the key
    line on the last row.
-6. **The layout changes only on a key or a resize,** or a section's shape changing, never on its
+7. **The layout changes only on a key or a resize,** or a section's shape changing, never on its
    own. SESSIONS keeps the rows it was given as sessions start and end, and the sessions it shows
    in the order it took them, as SESSIONS above says; and COMING UP and LATELY theirs as lines
    come and go: more sessions than fit show as many as fit, the last row saying `+2 more` (settled

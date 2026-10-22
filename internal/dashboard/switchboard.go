@@ -134,7 +134,8 @@ func (d boardDrawn) cord(c *canvas, lc laidCall, works bool) {
 // key draws the key, the Overview's, on its two rows, where the layout gives
 // them, a cell after the lines' column: even pace's on the first; the cap's,
 // on the bars the layout draws, and the marks the accounts carry on the
-// second. A row that would pass the last column starts at column 0. With
+// second, in the first of their forms that fits the width, as firstFit has
+// it. A row that would pass the last column starts at column 0. With
 // no lines, it has nothing to key, and draws none.
 func (d boardDrawn) key(c *canvas) {
 	if d.laid.keyAt < 0 || len(d.laid.lines) == 0 {
@@ -142,9 +143,9 @@ func (d boardDrawn) key(c *canvas) {
 	}
 	m := d.lines.m
 	b := blockOf(m, d.f.Width, d.f.Look, ByAccount, d.lines.windows, d.lines.names)
-	b.marks = keyMarks(d.lines.names, false)
-	pace, after := b.keyParts(d.lines.barDrawn())
-	for i, l := range []line{pace, joined(keyGap(d.f.Width), after...)} {
+	b.marks = keyMarks(d.lines.names)
+	pace, forms := b.keyParts(d.lines.barDrawn())
+	for i, l := range []line{pace, firstFit(d.f.Width, keyForms(keyGap(d.f.Width), forms)...)} {
 		x := d.laid.columns.lines + 1
 		if x+l.width() > d.f.Width {
 			x = 0
