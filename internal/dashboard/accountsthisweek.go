@@ -48,32 +48,17 @@ func (f Frame) limitedWindows(m status.Moment) []string {
 	return slices.Compact(keys)
 }
 
-// thisWeekForms are a part of a THIS WEEK figure in its forms, the full first,
-// then each shorter.
-type thisWeekForms [][]part
-
-// fitting is the first of the forms that fits the cells given, else the
-// last, for fitParts to cut.
-func (f thisWeekForms) fitting(cells int) []part {
-	for _, form := range f {
-		if partsWidth(form) <= cells {
-			return form
-		}
-	}
-	return f[len(f)-1]
-}
-
 // thisWeekSaid is an item of THIS WEEK, wide: its label; its figure's parts,
 // in their forms; and what sets them apart on a row.
 type thisWeekSaid struct {
 	label string
-	parts []thisWeekForms
+	parts []partForms
 	apart part
 }
 
 // figure is an item whose figure is one part, in one form.
 func figure(label string, said []part) thisWeekSaid {
-	return thisWeekSaid{label: label, parts: []thisWeekForms{{said}}}
+	return thisWeekSaid{label: label, parts: []partForms{{said}}}
 }
 
 // rows are the item's figure over the rows it needs, cells wide: each part
@@ -129,7 +114,7 @@ func (d detailDrawn) limitsSaid() thisWeekSaid {
 	full, short := totals.LimitsHit(name), totals.LimitsHit(shortWindows(name))
 	said := thisWeekSaid{label: "limits", apart: wordsIn(accountsApart, faintInk)}
 	for i := range full {
-		said.parts = append(said.parts, thisWeekForms{{figureIn(full[i], errorInk)}, {figureIn(short[i], errorInk)}})
+		said.parts = append(said.parts, partForms{{figureIn(full[i], errorInk)}, {figureIn(short[i], errorInk)}})
 	}
 	return said
 }
@@ -146,10 +131,10 @@ func (d detailDrawn) worthSaid() thisWeekSaid {
 	}
 	said := thisWeekSaid{
 		label: "worth", apart: wordsIn(accountsApart, dimInk),
-		parts: []thisWeekForms{{slices.Concat(worth, []part{wordsIn("  ", secondaryInk)}, againstShort(d.row))}},
+		parts: []partForms{{slices.Concat(worth, []part{wordsIn("  ", secondaryInk)}, againstShort(d.row))}},
 	}
 	if known := d.row.Plan.Plans; known.Said() != "" {
-		said.parts = append(said.parts, thisWeekForms{
+		said.parts = append(said.parts, partForms{
 			{wordsIn(known.Said(), dimInk)}, {wordsIn(known.SaidShort(), dimInk)}, {wordsIn(known.SaidCompact(), dimInk)},
 		})
 	}

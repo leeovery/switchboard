@@ -1,12 +1,16 @@
 package dashboard
 
 import (
+	"cmp"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -124,5 +128,100 @@ func TestComparesDrawingHelpAndHeadingAgreeWithItsForm(t *testing.T) {
 				t.Errorf("%d accounts at %d columns: turned, but the heading says %q", len(configured), f.Width, plainLines(f.compareState()))
 			}
 		}
+	}
+}
+
+// comparedWorld is a world Compare is drawn of: the accounts configured,
+// the rows of its page, every account's last, and its document.
+type comparedWorld struct {
+	name       string
+	configured config.Accounts
+	rows       []compareFramed
+	doc        status.Document
+}
+
+// comparedWorlds are the worlds of Compare's frames at their widest
+// figures: ten accounts, work's extra usage on and its limits hit by two
+// windows, as over a month; the first two, three and nine of them; and
+// three, side's plan not known.
+func comparedWorlds() []comparedWorld {
+	ten := tenRows()
+	ten[0].limits = map[string]int{"5h": 19, "7d": 2}
+	doc := usageWorld(tenCompared, extraOff)
+	account("work", func(a *status.Account) { a.Extra = quota.ExtraUsage{Status: quota.StatusAllowed} })(&doc)
+	all := ten[len(ten)-1]
+	worlds := []comparedWorld{{name: "ten", configured: tenFramed, rows: ten, doc: doc}}
+	for _, n := range []int{2, 3, 9} {
+		worlds = append(worlds, comparedWorld{
+			name: fmt.Sprintf("%d of them", n), configured: tenFramed[:n], rows: append(slices.Clone(ten[:n]), all), doc: doc,
+		})
+	}
+	unknown := compareSide
+	unknown.planKnown = false
+	return append(worlds, comparedWorld{
+		name: "side's plan not known", configured: threeFramed,
+		rows: []compareFramed{compareWork, comparePersonal, unknown, compareAll}, doc: usageWorld(extraOff),
+	})
+}
+
+// formTaken is the form a row's value takes in a column the cells given, by
+// its place among its forms, the fullest 0.
+type formTaken struct{ cells, form int }
+
+// Wherever Compare is drawn wide, in every world and over every period, each
+// row's value takes the fullest of its forms its column holds, and never a
+// figure cut: the form it takes fits its column whole, and a wider column
+// never gives it a shorter form. Its form switches once as the frame widens,
+// at the one width over every period.
+func TestComparesValuesCutNoFigureAtAnyWidth(t *testing.T) {
+	versions := comparedVersions(t)
+	for _, w := range comparedWorlds() {
+		t.Run(w.name, func(t *testing.T) {
+			doc := w.doc.WorkedOut(claudeLike)
+			from := map[views.AccountsPeriod]int{}
+			for _, period := range views.AccountsPeriods() {
+				f := compareFrame(t, w.configured, comparedPage(period, versions, w.rows...))
+				f.Look = Look{}
+				taken := map[string][]formTaken{}
+				for f.Width = compareWidthsFrom; f.Width <= compareWidthsTo; f.Width++ {
+					if !f.CompareWide() {
+						if wide, ok := from[period]; ok {
+							t.Errorf("%s: turned at %d columns, though wide from %d", period.Name(), f.Width, wide)
+						}
+						continue
+					}
+					if _, ok := from[period]; !ok {
+						from[period] = f.Width
+					}
+					cp := f.comparing(doc, routedAt)
+					for _, g := range cp.groups() {
+						for _, r := range g.rows {
+							for _, col := range cp.columns() {
+								forms, of := r.said(col), r.label+" of "+cmp.Or(col.id, "all accounts")
+								i := slices.IndexFunc(forms, func(form []part) bool { return partsWidth(form) <= col.width })
+								if i < 0 {
+									t.Errorf("%s at %d columns: %s is cut, its shortest %q in %d cells",
+										period.Name(), f.Width, of, plainLines([]line{fitParts(200, forms.shortest()...)}), col.width)
+									continue
+								}
+								taken[of] = append(taken[of], formTaken{cells: col.width, form: i})
+							}
+						}
+					}
+				}
+				for of, took := range taken {
+					slices.SortStableFunc(took, func(a, b formTaken) int { return a.cells - b.cells })
+					for j := 1; j < len(took); j++ {
+						if took[j].form > took[j-1].form {
+							t.Errorf("%s: %s takes form %d in %d cells, shorter than form %d in %d",
+								period.Name(), of, took[j].form, took[j].cells, took[j-1].form, took[j-1].cells)
+						}
+					}
+				}
+			}
+			if widths := slices.Compact(slices.Sorted(maps.Values(from))); len(widths) != 1 {
+				t.Errorf("wide from %v as the period changes, want one width", from)
+			}
+		})
 	}
 }

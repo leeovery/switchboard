@@ -498,11 +498,11 @@ func TestComparesFocusedColumnsHeadsAreSelected(t *testing.T) {
 	}
 }
 
-// A value wider than its column is cut to the column less a cell, its words
-// with … and its figures whole or left off, … in their place, as a limit cut
-// part-way would say fewer; but all accounts', which runs to the frame's
-// edge.
-func TestComparesValuesAreCutToTheirColumnsAllAccountsToTheEdge(t *testing.T) {
+// A value takes the fullest of its forms that fits its column less a cell,
+// its words giving way and never a figure: the limits by their windows'
+// short names, extra usage on alone, against its price its ratio alone; all
+// accounts' to the frame's edge, its full forms whole.
+func TestComparesValuesTakeTheFullestFormTheirColumnsHold(t *testing.T) {
 	f, doc := tenOnCompare(t, 122, 37, 0)
 	account("work", func(a *status.Account) { a.Extra = quota.ExtraUsage{Status: quota.StatusAllowed} })(&doc)
 	f.Accounts.Page.Rows[0].Totals.Limits = map[string]int{"5h": 2, "7d": 1}
@@ -511,8 +511,8 @@ func TestComparesValuesAreCutToTheirColumnsAllAccountsToTheEdge(t *testing.T) {
 		row, column int
 		want        string
 	}{
-		{row: 25, column: 26, want: "week ×1 · …        n"},
-		{row: 31, column: 26, want: "on · billed past…  o"},
+		{row: 25, column: 26, want: "week ×1 · 5h ×2    n"},
+		{row: 31, column: 26, want: "on                 o"},
 		{row: 31, column: 102, want: "on for 1 of 10"},
 		{row: 30, column: 102, want: "$1,700/mo · 10 plans"},
 		{row: 33, column: 26, want: "4.0× its $46 week  "},

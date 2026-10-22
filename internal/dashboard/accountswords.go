@@ -22,6 +22,26 @@ import (
 // out".
 const accountsApart = " · "
 
+// partForms are a figure in its forms, the fullest first, then each shorter,
+// each keeping its figures whole: only words give way.
+type partForms [][]part
+
+// fitting is the first of the forms that fits the cells given, else the
+// last, for fitParts to cut.
+func (f partForms) fitting(cells int) []part {
+	for _, form := range f {
+		if partsWidth(form) <= cells {
+			return form
+		}
+	}
+	return f.shortest()
+}
+
+// shortest is the last of the forms, the fewest cells they come to.
+func (f partForms) shortest() []part {
+	return f[len(f)-1]
+}
+
 // noneOf is a figure Accounts has none of, as the word given says it, "—"
 // or "none", in text.faint, bold where k is: words, as no figure, so it's
 // never a number, its figure appearing or going brightening nothing.
@@ -116,6 +136,19 @@ func limitsParts(t views.AccountTotals, name func(key string) string, k ink) []p
 	return hit
 }
 
+// limitsForms say the limits an account hit over the period in Compare's
+// LIMITS, in its forms: as limitsParts says them, each window named as name
+// names its key, "5-hour ×2 · week ×1"; then named as turned Compare names
+// them, as shortWindows has it, "5h ×2 · week ×1"; then how many, "3", in
+// state.destructive, as all accounts' says it, dropping the windows. Of
+// every account's, and of an account that hit none, its one form.
+func limitsForms(t views.AccountTotals, name func(key string) string, k ink) partForms {
+	if t.All || t.LimitCount() == 0 {
+		return partForms{limitsParts(t, name, k)}
+	}
+	return partForms{limitsParts(t, name, k), limitsParts(t, shortWindows(name), k), {figureIn(prose.Grouped(t.LimitCount()), errorInk)}}
+}
+
 // shortWindows name windows as a phone's LIMITS does, name naming them in
 // full: one named by its hours, "5-hour", cut to "5h"; any other as
 // status.Short has its name, as "Fable wk".
@@ -151,6 +184,13 @@ func leftParts(row views.AccountsRow, k ink) []part {
 	return left
 }
 
+// leftForms say what an account's week had left as it last reset in its
+// forms: as leftParts says it, "0% (limit Fri)", then as turned Compare
+// says it, as leftShort has it, "0%", dropping the day it ran out.
+func leftForms(row views.AccountsRow, k ink) partForms {
+	return partForms{leftParts(row, k), leftShort(row, k)}
+}
+
 // leftShort says what an account's week had left as it last reset, "15%", as
 // a phone's LIMITS has it: a dash where none of its weeks ended in the six
 // weeks, and of every account's.
@@ -177,6 +217,19 @@ func planParts(row views.AccountsRow, k ink) []part {
 	return append(append(said, wordsIn(accountsApart, dimInk)), saidParts(row.Plan.Plans.Words(), dimInk)...)
 }
 
+// planForms say an account's plan in Compare's VALUE, in its forms: as
+// planParts says it, "Max 20x · $200/mo"; of every account's where some
+// plans aren't known, then its plans known compact, "$400/mo · 2/3"; then as
+// turned Compare says it, as planPriced has it, "$200/mo", dropping the
+// plan's name and the plans' count.
+func planForms(row views.AccountsRow, k ink) partForms {
+	forms := partForms{planParts(row, k)}
+	if compact := row.Plan.Plans.SaidCompact(); row.Plan.All && row.Plan.Price != nil && compact != "" {
+		forms = append(forms, append(planPriced(row, k), wordsIn(accountsApart, dimInk), figureIn(compact, dimInk)))
+	}
+	return append(forms, planPriced(row, k))
+}
+
 // planNamed says an account's plan as Detail's THIS WEEK does, by its name
 // alone, "Max 20x"; of every account's, as planPriced says it.
 func planNamed(row views.AccountsRow, k ink) []part {
@@ -197,18 +250,21 @@ func planPriced(row views.AccountsRow, k ink) []part {
 	return []part{figureIn(monthly, k)}
 }
 
-// extraParts say an account's extra usage as Compare's VALUE does, as
-// ExtraSaid has it: "off", in text.muted; "on · billed past its limit", in
-// accent.attention; a dash before it's read. Each is bold where k is.
-func extraParts(a status.AccountNow, k ink) []part {
-	return extraSaid(status.ExtraOfAll([]status.AccountNow{a}), " · billed past its limit", "off", k)
+// extraForms say an account's extra usage in Compare's VALUE, in its forms,
+// as ExtraSaid has it: "off", in text.muted; "on · billed past its limit",
+// in accent.attention, then "on", dropping what it means; a dash before it's
+// read. Each is bold where k is.
+func extraForms(a status.AccountNow, k ink) partForms {
+	all := status.ExtraOfAll([]status.AccountNow{a})
+	return partForms{extraSaid(all, " · billed past its limit", "off", k), extraSaid(all, "", "off", k)}
 }
 
-// extraOfAll say every account's extra usage, taken together, as Compare's
-// VALUE does: "off on all"; "on on all" where each is on, else how many are,
-// "on for 1 of 3"; a dash where none is read.
-func extraOfAll(all status.AllExtra, k ink) []part {
-	return extraSaid(all, " on all", "off on all", k)
+// extraOfAllForms say every account's extra usage, taken together, in
+// Compare's VALUE, in its forms: "off on all", then "off"; "on on all" where
+// each is on, then "on", dropping on all; else how many are, "on for 1 of
+// 3", its one form; a dash where none is read.
+func extraOfAllForms(all status.AllExtra, k ink) partForms {
+	return partForms{extraSaid(all, " on all", "off on all", k), extraSaid(all, "", "off", k)}
 }
 
 // extraShort says extra usage as Detail's THIS WEEK and a phone's Detail do,
@@ -248,6 +304,15 @@ func worthParts(row views.AccountsRow, k ink) []part {
 // cells given: "4.0× its $46 week".
 func againstParts(page views.AccountsPage, row views.AccountsRow, cells int) []part {
 	return againstItsPrice(row.Plan.Against, page.Period.Unit(), cells)
+}
+
+// againstForms say an account's worth against its plan's price in Compare's
+// VALUE, in its forms: as againstParts says it in the cells given, "4.0×
+// its $46 week", then as turned Compare says it, as againstOnPhone has it,
+// "4.0×", dropping what the plans cost over the period and the plans known
+// in words.
+func againstForms(page views.AccountsPage, row views.AccountsRow, cells int) partForms {
+	return partForms{againstParts(page, row, cells), againstOnPhone(row)}
 }
 
 // againstShort says an account's worth against its plan's price by the

@@ -2234,7 +2234,9 @@ holds.
   whatever the page, `left at its last reset` indented 2, 24 cells; then, 2 cells on, a column an
   account and one for `all accounts`, last. Each column is at least 19 cells, or the widest
   account's head and a cell where that's more, its name whole at most 24 cells with its marks, so
-  no name is cut where another account's column would show it whole. As many accounts show as
+  no name is cut where another account's column would show it whole; or, where it's more, the
+  widest of its rows' shortest forms and a cell, each figure at its stated bound over the longest
+  period, so no figure is cut at a column's least, whatever the period. As many accounts show as
   fit, at least two, as a comparison needs two, the last giving way first: six of ten at 160
   columns, every one of three at 108, two of three with long names. The columns shown share the
   rest alike, the odd cells `all accounts`' and then the first's, `all accounts`' values running
@@ -2286,6 +2288,13 @@ holds.
     `—` before it's read, as the status document's `extra_usage` gives it (see The status document),
     and for `all accounts` `off on all`, `on on all` or `on for 1 of 3` (settled in the plan);
     `worth at API prices`, `$184`; and `against its price`, `4.0× its $46 week`.
+  - **Each value in its forms,** fullest first, taking the fullest its column holds, less a cell:
+    words give way, never a figure. The shortest are turned Compare's words where it has them.
+    `limits hit` names its windows short, `week ×1 · 5h ×2`, then says how many, `3`, as
+    `all accounts` does; `left at its last reset` drops the day, `0%`; `plan` drops the plan's name,
+    `$200/mo`, and for `all accounts` its plans, to `$400/mo · 2/3` where some aren't known, then
+    `$400/mo`; `extra usage` drops what it means, `on`, and for `all accounts` `on all`, `off`;
+    `against its price` drops its price, `4.0×`, as turned Compare says it. The rest have one form.
 - **With one account,** Compare goes, being Detail with one column: the heading shows ` Detail `
   alone.
 - **Wide, from where it fits.** Compare is drawn wide wherever its wide parts fit at their
