@@ -500,16 +500,32 @@ func periodName(first string, period views.TokensPeriod) string {
 // that are left: "4.4× its $92 week · 2 of 3 plans known". It's a dash where
 // no plan is known, or they cost nothing.
 func againstItsPrice(a views.Against, unit string, cells int) []part {
-	if a.Ratio == nil || a.Cost == nil {
+	said := againstPriced(a, unit)
+	if !pricedAgainst(a) {
+		return said
+	}
+	return append(said, knownParts(a.Plans, cells-partsWidth(said))...)
+}
+
+// againstPriced is a period's worth against what the plans cost over it, as
+// againstItsPrice says it, without the plans known: "4.6× its $138 week"; a
+// dash where no plan is known, or they cost nothing.
+func againstPriced(a views.Against, unit string) []part {
+	if !pricedAgainst(a) {
 		return []part{figurePart(line{noFigure}, Number{})}
 	}
-	said := []part{
+	return []part{
 		figurePart(againstSaid(a.Ratio), Number{}),
 		wordsPart(line{{" its ", dimInk}}),
 		figurePart(line{{a.Cost.GroupedDollars(), dimInk}}, Number{}),
 		wordsPart(line{{" " + unit, dimInk}}),
 	}
-	return append(said, knownParts(a.Plans, cells-partsWidth(said))...)
+}
+
+// pricedAgainst reports whether the worth against the plans' price has a
+// ratio and a price to say.
+func pricedAgainst(a views.Against) bool {
+	return a.Ratio != nil && a.Cost != nil
 }
 
 // knownParts say, after a ratio of every account's, that it's over the plans

@@ -36,9 +36,9 @@ func inDollars(dollars float64) Picodollars {
 }
 
 const (
-	// dollar and cent are how many picodollars each is.
-	dollar Picodollars = 1_000_000_000_000
-	cent               = dollar / 100
+	// Dollar and cent are how many picodollars each is.
+	Dollar Picodollars = 1_000_000_000_000
+	cent               = Dollar / 100
 )
 
 // Cents shows the amount to the nearest cent, as "$412.53".
@@ -74,13 +74,13 @@ func (p Picodollars) GroupedDollars() string {
 
 // wholeDollars is the amount without its sign, to the nearest dollar.
 func (p Picodollars) wholeDollars() Picodollars {
-	return (p.abs() + dollar/2) / dollar
+	return (p.abs() + Dollar/2) / Dollar
 }
 
 // MarshalJSON gives the amount in dollars, exactly, as 412.532118.
 func (p Picodollars) MarshalJSON() ([]byte, error) {
-	dollars := fmt.Sprintf("%s%d", p.sign(), p.abs()/dollar)
-	if part := p.abs() % dollar; part > 0 {
+	dollars := fmt.Sprintf("%s%d", p.sign(), p.abs()/Dollar)
+	if part := p.abs() % Dollar; part > 0 {
 		dollars += strings.TrimRight(fmt.Sprintf(".%012d", part), "0")
 	}
 	return []byte(dollars), nil

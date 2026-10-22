@@ -15,6 +15,7 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
@@ -32,9 +33,10 @@ const (
 	versionAt   = labelIndent + 2
 	labelsGap   = 2
 	// leastColumn are the fewest cells a column takes, as many accounts
-	// showing as fit at it, less all accounts': more than the rows' shortest
-	// forms need, so a week's plan and its worth against it read whole,
-	// "Max 20x · $200/mo" and "4.0× its $46 week".
+	// showing as fit at it, less all accounts'. The rows' shortest forms
+	// need 17, as compareFigures has them; 19 is a floor above that, which
+	// keeps the wide form from 83 columns and ten accounts' six at 160, as
+	// before the figures set a least.
 	leastColumn = 19
 	// barMost are the most cells a bar beside words takes, so none reads as
 	// a rule; and shareSpare the cells a column keeps beside BY MODEL's.
@@ -194,40 +196,41 @@ const (
 	worthMost = 99_999
 	// periodMost is the longest period, in minutes: 12 weeks.
 	periodMost = 12 * 7 * 24 * 60
-	// picodollarsADollar is a dollar, as the ledger counts money, and
-	// ledgerDollarsMost the most dollars it can count.
-	picodollarsADollar = 1_000_000_000_000
-	ledgerDollarsMost  = math.MaxInt64 / picodollarsADollar
+	// dollarsMost are the most whole dollars the ledger says, a dollar short
+	// of the most it counts, as it rounds to the dollar by adding half of one.
+	dollarsMost = math.MaxInt64/int64(ledger.Dollar) - 1
 )
 
 // compareFigures are the shortest forms of Compare's rows, as groups says
 // them, an account's and all accounts', of n accounts configured, each
 // figure at its bound: so a column that holds the widest of them cuts no
-// figure, whatever the period. The ratio is at tokensRatioMost; of all
-// accounts, all but one plan known and all but one on extra usage.
+// figure, whatever the period. The ratio is at tokensRatioMost; an account
+// on extra usage; of all accounts, all but one plan known and all but one on
+// extra usage.
 func compareFigures(n int) [][]part {
-	var figures [][]part
-	for _, of := range []struct {
-		accounts int
-		all      bool
-	}{{1, false}, {n, true}} {
-		row := compareBound(of.accounts, of.all)
-		t, k := row.Totals, secondaryInk
-		extra := status.AllExtra{State: status.ExtraOn, On: max(of.accounts-1, 1), Of: of.accounts}
-		figures = append(figures,
-			[]part{figureIn(prose.Grouped(t.Requests), k)},
-			[]part{figureIn(prose.Grouped(t.Sessions), k)},
-			movedParts(t, k),
-			limitsForms(t, func(key string) string { return key }, k).shortest(),
-			atCapParts(t, k),
-			leftForms(row, k).shortest(),
-			planForms(row, k).shortest(),
-			extraOfAllForms(extra, k).shortest(),
-			worthParts(row, k),
-			againstForms(views.AccountsPage{}, row, 0).shortest(),
-		)
+	account := compareBound(1, false)
+	all := compareBound(n, true)
+	k := secondaryInk
+	on := status.AccountNow{Extra: quota.ExtraUsage{Status: quota.StatusAllowed}}
+	return append(append(boundFigures(account, k), extraForms(on, k).shortest()),
+		append(boundFigures(all, k), extraOfAllForms(status.AllExtra{State: status.ExtraOn, On: max(n-1, 1), Of: n}, k).shortest())...)
+}
+
+// boundFigures are the shortest forms of Compare's rows of the row given, as
+// compareFigures has them, but extra usage, which is the moment's.
+func boundFigures(row views.AccountsRow, k ink) [][]part {
+	col := compareColumn{row: row, all: row.Totals.All}
+	return [][]part{
+		col.requests(),
+		col.sessions(),
+		col.moved(),
+		limitsForms(row.Totals, func(key string) string { return key }, k).shortest(),
+		col.atCap(),
+		leftForms(row, k).shortest(),
+		planForms(row, k).shortest(),
+		col.worth(),
+		againstForms(views.AccountsPage{}, row).shortest(),
 	}
-	return figures
 }
 
 // compareBound is a row of Compare's of as many accounts as given, all
@@ -235,7 +238,7 @@ func compareFigures(n int) [][]part {
 // has them.
 func compareBound(accounts int, all bool) views.AccountsRow {
 	dollars := func(n int) *ledger.Picodollars {
-		return new(ledger.Picodollars(min(n, ledgerDollarsMost)) * picodollarsADollar)
+		return new(ledger.Picodollars(min(int64(n), dollarsMost)) * ledger.Dollar)
 	}
 	return views.AccountsRow{
 		Totals: views.AccountTotals{
@@ -688,30 +691,52 @@ type compareRow struct {
 // install, says a dash in each of its own figures, as recorded has it; left
 // at its last reset, the plan and extra usage are none of them.
 func (cp compared) groups() []compareGroup {
-	page := *cp.page
-	names := cp.f.windowNamer(cp.m)
+	page, names := *cp.page, cp.f.windowNamer(cp.m)
 	return []compareGroup{
 		{name: "ACTIVITY", rows: []compareRow{
-			{"requests", cp.recorded(oneForm(func(col compareColumn) []part {
-				return []part{figureIn(prose.Grouped(col.row.Totals.Requests), col.ink())}
-			}))},
-			{"sessions served", cp.recorded(oneForm(func(col compareColumn) []part {
-				return []part{figureIn(prose.Grouped(col.row.Totals.Sessions), col.ink())}
-			}))},
-			{"sessions moved", cp.recorded(oneForm(func(col compareColumn) []part { return movedParts(col.row.Totals, col.ink()) }))},
+			{"requests", cp.recorded(oneForm(compareColumn.requests))},
+			{"sessions served", cp.recorded(oneForm(compareColumn.sessions))},
+			{"sessions moved", cp.recorded(oneForm(compareColumn.moved))},
 		}},
 		{name: "LIMITS", rows: []compareRow{
 			{"limits hit", cp.recorded(func(col compareColumn) partForms { return limitsForms(col.row.Totals, names, col.ink()) })},
-			{"at cap or limit", cp.recorded(oneForm(func(col compareColumn) []part { return atCapParts(col.row.Totals, col.ink()) }))},
+			{"at cap or limit", cp.recorded(oneForm(compareColumn.atCap))},
 			{"left at its last reset", func(col compareColumn) partForms { return leftForms(col.row, col.ink()) }},
 		}},
 		{name: "VALUE", rows: []compareRow{
 			{"plan", func(col compareColumn) partForms { return planForms(col.row, col.ink()) }},
 			{"extra usage", cp.extra},
-			{"worth at API prices", cp.recorded(oneForm(func(col compareColumn) []part { return worthParts(col.row, col.ink()) }))},
-			{"against its price", cp.recorded(func(col compareColumn) partForms { return againstForms(page, col.row, col.width) })},
+			{"worth at API prices", cp.recorded(oneForm(compareColumn.worth))},
+			{"against its price", cp.recorded(func(col compareColumn) partForms { return againstForms(page, col.row) })},
 		}},
 	}
+}
+
+// requests are the requests of the column's row, "1,204".
+func (col compareColumn) requests() []part {
+	return []part{figureIn(prose.Grouped(col.row.Totals.Requests), col.ink())}
+}
+
+// sessions are the sessions the column's row served, "9".
+func (col compareColumn) sessions() []part {
+	return []part{figureIn(prose.Grouped(col.row.Totals.Sessions), col.ink())}
+}
+
+// moved are the sessions moved onto the column's account and off it, as
+// movedParts says them.
+func (col compareColumn) moved() []part {
+	return movedParts(col.row.Totals, col.ink())
+}
+
+// atCap is how long the column's account spent at its cap or a limit, as
+// atCapParts says it.
+func (col compareColumn) atCap() []part {
+	return atCapParts(col.row.Totals, col.ink())
+}
+
+// worth is what the column's requests were worth, as worthParts says it.
+func (col compareColumn) worth() []part {
+	return worthParts(col.row, col.ink())
 }
 
 // oneForm is a row's figure in its one form, as said says it.
@@ -729,12 +754,6 @@ func (cp compared) recorded(said func(col compareColumn) partForms) func(col com
 		}
 		return said(col)
 	}
-}
-
-// period is what a row of turned Compare's groups says of each column, as
-// said says it, as periodParts has a row of the period.
-func (cp compared) period(said func(col compareColumn) []part) func(col compareColumn) []part {
-	return func(col compareColumn) []part { return periodParts(*cp.page, said(col), col.ink()) }
 }
 
 // extra is the column's extra usage, as it stands, in its forms: an

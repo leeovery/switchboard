@@ -117,14 +117,13 @@ func movedParts(t views.AccountTotals, k ink) []part {
 // limitsParts say the limits an account hit over the period, by window,
 // each named as name names its key, as views.LimitsHit says them, in
 // state.destructive, a faint " · " between: "5-hour ×2 · week ×1"; of every
-// account's, how many, "3"; "none" where it hit none.
+// account's, how many, as limitsCount says it; "none" where it hit none.
 func limitsParts(t views.AccountTotals, name func(key string) string, k ink) []part {
-	n := t.LimitCount()
-	if n == 0 {
+	if t.LimitCount() == 0 {
 		return noneOf("none", k)
 	}
 	if t.All {
-		return []part{figureIn(prose.Grouped(n), k)}
+		return limitsCount(t, k)
 	}
 	var hit []part
 	for i, said := range t.LimitsHit(name) {
@@ -138,15 +137,33 @@ func limitsParts(t views.AccountTotals, name func(key string) string, k ink) []p
 
 // limitsForms say the limits an account hit over the period in Compare's
 // LIMITS, in its forms: as limitsParts says them, each window named as name
-// names its key, "5-hour ×2 · week ×1"; then named as turned Compare names
-// them, as shortWindows has it, "5h ×2 · week ×1"; then how many, "3", in
-// state.destructive, as all accounts' says it, dropping the windows. Of
-// every account's, and of an account that hit none, its one form.
+// names its key, "5-hour ×2 · week ×1"; then as turned Compare does, as
+// limitsShortForms has them. Of every account's, and of an account that hit
+// none, its one form.
 func limitsForms(t views.AccountTotals, name func(key string) string, k ink) partForms {
 	if t.All || t.LimitCount() == 0 {
 		return partForms{limitsParts(t, name, k)}
 	}
-	return partForms{limitsParts(t, name, k), limitsParts(t, shortWindows(name), k), {figureIn(prose.Grouped(t.LimitCount()), errorInk)}}
+	return append(partForms{limitsParts(t, name, k)}, limitsShortForms(t, name, k)...)
+}
+
+// limitsShortForms say the limits an account hit over the period as turned
+// Compare does, in its forms: each window named short, as shortWindows has
+// it, "5h ×2 · week ×1"; then how many, "3", as limitsCount says it and all
+// accounts' does, dropping the windows. Of every account's, and of an
+// account that hit none, its one form.
+func limitsShortForms(t views.AccountTotals, name func(key string) string, k ink) partForms {
+	short := limitsParts(t, shortWindows(name), k)
+	if t.All || t.LimitCount() == 0 {
+		return partForms{short}
+	}
+	return partForms{short, limitsCount(t, k)}
+}
+
+// limitsCount says how many limits an account hit over the period, every
+// window's together, "3", in the ink given, as every account's says them.
+func limitsCount(t views.AccountTotals, k ink) []part {
+	return []part{figureIn(prose.Grouped(t.LimitCount()), k)}
 }
 
 // shortWindows name windows as a phone's LIMITS does, name naming them in
@@ -256,7 +273,7 @@ func planPriced(row views.AccountsRow, k ink) []part {
 // read. Each is bold where k is.
 func extraForms(a status.AccountNow, k ink) partForms {
 	all := status.ExtraOfAll([]status.AccountNow{a})
-	return partForms{extraSaid(all, " · billed past its limit", "off", k), extraSaid(all, "", "off", k)}
+	return partForms{extraSaid(all, " · billed past its limit", "off", k), extraShort(all, k)}
 }
 
 // extraOfAllForms say every account's extra usage, taken together, in
@@ -264,15 +281,15 @@ func extraForms(a status.AccountNow, k ink) partForms {
 // each is on, then "on", dropping on all; else how many are, "on for 1 of
 // 3", its one form; a dash where none is read.
 func extraOfAllForms(all status.AllExtra, k ink) partForms {
-	return partForms{extraSaid(all, " on all", "off on all", k), extraSaid(all, "", "off", k)}
+	return partForms{extraSaid(all, " on all", "off on all", k), extraShort(all, k)}
 }
 
-// extraShort says extra usage as Detail's THIS WEEK and a phone's Detail do,
-// in text.secondary's place: of the accounts shown, an account alone or
-// every account, taken together, "off"; "on" where each is on, else how many
-// are, "on for 1 of 3"; a dash where none is read.
-func extraShort(all status.AllExtra) []part {
-	return extraSaid(all, "", "off", secondaryInk)
+// extraShort says extra usage short, as Detail's THIS WEEK, a phone's Detail
+// and Compare's shortest forms do, in k's place: of the accounts given, an
+// account alone or every account, taken together, "off"; "on" where each is
+// on, else how many are, "on for 1 of 3"; a dash where none is read.
+func extraShort(all status.AllExtra, k ink) []part {
+	return extraSaid(all, "", "off", k)
 }
 
 // extraSaid says extra usage as all has it: off as the words given say it,
@@ -299,20 +316,25 @@ func worthParts(row views.AccountsRow, k ink) []part {
 	return []part{worthPart(row.Totals.Worth, k)}
 }
 
-// againstParts say an account's worth against what its plan cost over the
-// period, the period named by its unit, as againstItsPrice says it in the
-// cells given: "4.0× its $46 week".
-func againstParts(page views.AccountsPage, row views.AccountsRow, cells int) []part {
-	return againstItsPrice(row.Plan.Against, page.Period.Unit(), cells)
-}
-
 // againstForms say an account's worth against its plan's price in Compare's
-// VALUE, in its forms: as againstParts says it in the cells given, "4.0×
-// its $46 week", then as turned Compare says it, as againstOnPhone has it,
-// "4.0×", dropping what the plans cost over the period and the plans known
-// in words.
-func againstForms(page views.AccountsPage, row views.AccountsRow, cells int) partForms {
-	return partForms{againstParts(page, row, cells), againstOnPhone(row)}
+// VALUE, in its forms: as againstPriced says it, "4.0× its $46 week"; then
+// as turned Compare says it, as againstOnPhone has it, "4.0×", dropping what
+// the plans cost over the period. Of every account's where some plans
+// aren't known, the ratio is of those alone, so every form says how many,
+// the priced forms as knownForms words it, "4.4× its $92 week · 2 of 3
+// plans known", then shorter, and the last compact, "4.4× · 2/3".
+func againstForms(page views.AccountsPage, row views.AccountsRow) partForms {
+	a := row.Plan.Against
+	priced := againstPriced(a, page.Period.Unit())
+	known := knownForms(a.Plans)
+	if !pricedAgainst(a) || known == nil {
+		return partForms{priced, againstOnPhone(row)}
+	}
+	var forms partForms
+	for _, said := range known {
+		forms = append(forms, append(slices.Clone(priced), wordsIn(said, dimInk)))
+	}
+	return append(forms, againstOnPhone(row))
 }
 
 // againstShort says an account's worth against its plan's price by the

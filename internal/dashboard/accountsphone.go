@@ -327,37 +327,41 @@ type turnedGroup struct {
 // says of each of Compare's columns.
 type turnedColumn struct {
 	head string
-	said func(col compareColumn) []part
+	said func(col compareColumn) partForms
 }
 
 // turnedGroups are turned Compare's groups under BY MODEL, ACTIVITY,
-// LIMITS and VALUE, as Accounts' words say each figure in their short forms,
-// a window of hours named by them, as 5h. A period with nothing recorded, as
-// on a fresh install, says a dash in each of its own figures, as period has
-// it; left and the plan are none of them.
+// LIMITS and VALUE, as the wide form's rows say each figure, in their
+// shortest forms, so each row's short words have one owner: but the limits
+// hit, in the forms limitsShortForms has, its windows named short, as 5h,
+// then how many, the fullest a column holds. A period with nothing
+// recorded, as on a fresh install, says a dash in each of its own figures,
+// as recorded has it; left and the plan are none of them.
 func (cp compared) turnedGroups() []turnedGroup {
-	limits := shortWindows(cp.f.windowNamer(cp.m))
+	page, names := *cp.page, cp.f.windowNamer(cp.m)
 	return []turnedGroup{
 		{name: "ACTIVITY", columns: []turnedColumn{
-			{"reqs", cp.period(func(col compareColumn) []part {
-				return []part{figureIn(prose.Grouped(col.row.Totals.Requests), col.ink())}
-			})},
-			{"sessions", cp.period(func(col compareColumn) []part {
-				return []part{figureIn(prose.Grouped(col.row.Totals.Sessions), col.ink())}
-			})},
-			{"moved", cp.period(func(col compareColumn) []part { return movedParts(col.row.Totals, col.ink()) })},
+			{"reqs", cp.recorded(oneForm(compareColumn.requests))},
+			{"sessions", cp.recorded(oneForm(compareColumn.sessions))},
+			{"moved", cp.recorded(oneForm(compareColumn.moved))},
 		}},
 		{name: "LIMITS", columns: []turnedColumn{
-			{"hit", cp.period(func(col compareColumn) []part { return limitsParts(col.row.Totals, limits, col.ink()) })},
-			{"at cap", cp.period(func(col compareColumn) []part { return atCapParts(col.row.Totals, col.ink()) })},
-			{"left", func(col compareColumn) []part { return leftShort(col.row, col.ink()) }},
+			{"hit", cp.recorded(func(col compareColumn) partForms { return limitsShortForms(col.row.Totals, names, col.ink()) })},
+			{"at cap", cp.recorded(oneForm(compareColumn.atCap))},
+			{"left", shortestOf(func(col compareColumn) partForms { return leftForms(col.row, col.ink()) })},
 		}},
 		{name: "VALUE", columns: []turnedColumn{
-			{"plan", func(col compareColumn) []part { return planPriced(col.row, col.ink()) }},
-			{"worth", cp.period(func(col compareColumn) []part { return worthParts(col.row, col.ink()) })},
-			{"against it", cp.period(func(col compareColumn) []part { return againstOnPhone(col.row) })},
+			{"plan", shortestOf(func(col compareColumn) partForms { return planForms(col.row, col.ink()) })},
+			{"worth", cp.recorded(oneForm(compareColumn.worth))},
+			{"against it", cp.recorded(shortestOf(func(col compareColumn) partForms { return againstForms(page, col.row) }))},
 		}},
 	}
+}
+
+// shortestOf is a row's figure in the shortest of its forms, as said has
+// them, its one form.
+func shortestOf(said func(col compareColumn) partForms) func(col compareColumn) partForms {
+	return func(col compareColumn) partForms { return partForms{said(col).shortest()} }
 }
 
 // turnedGroup draws the group from row y, and returns the row its last
@@ -385,7 +389,7 @@ func (cp compared) turnedGroup(c *canvas, y int, l turnedLayout, g turnedGroup, 
 			if i+1 == len(g.columns) {
 				cells = cp.f.edge() - at
 			}
-			c.line(at, y, fitParts(cells, periodNumbered(figure.said(col), col.id, figure.head)...))
+			c.line(at, y, fitParts(cells, periodNumbered(figure.said(col).fitting(cells), col.id, figure.head)...))
 		}
 	}
 	return y
@@ -525,7 +529,7 @@ func (s stacked) thisWeekItems() [][]thisWeekItem {
 		},
 		{
 			{"worth", periodParts(page, worthParts(s.row, secondaryInk), secondaryInk)},
-			{"extra use", extraShort(s.extra())},
+			{"extra use", extraShort(s.extra(), secondaryInk)},
 			{"against", periodParts(page, againstOnPhone(s.row), secondaryInk)},
 		},
 	}

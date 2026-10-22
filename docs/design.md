@@ -2289,12 +2289,15 @@ holds.
     and for `all accounts` `off on all`, `on on all` or `on for 1 of 3` (settled in the plan);
     `worth at API prices`, `$184`; and `against its price`, `4.0× its $46 week`.
   - **Each value in its forms,** fullest first, taking the fullest its column holds, less a cell:
-    words give way, never a figure. The shortest are turned Compare's words where it has them.
-    `limits hit` names its windows short, `week ×1 · 5h ×2`, then says how many, `3`, as
-    `all accounts` does; `left at its last reset` drops the day, `0%`; `plan` drops the plan's name,
-    `$200/mo`, and for `all accounts` its plans, to `$400/mo · 2/3` where some aren't known, then
-    `$400/mo`; `extra usage` drops what it means, `on`, and for `all accounts` `on all`, `off`;
-    `against its price` drops its price, `4.0×`, as turned Compare says it. The rest have one form.
+    words give way, never a figure. The shortest are turned Compare's words, one owner of each.
+    `limits hit` names its windows short, `week ×1 · 5h ×2`, then says how many, `3`, in the
+    column's ink, as `all accounts` says its count; turned Compare's `hit` takes the same forms
+    but the full, the fullest its column holds, so three windows read `4` there. `left at its last
+    reset` drops the day, `0%`; `plan` drops the plan's name, `$200/mo`, and for `all accounts` its
+    plans, to `$400/mo · 2/3` where some aren't known, then `$400/mo`; `extra usage` drops what it
+    means, `on`, and for `all accounts` `on all`, `off`; `against its price` drops its price,
+    `4.0×`, and for `all accounts` where some plans aren't known, every form keeps how many are,
+    its words shorter, then `4.4× · 2/3`, as its ratio is of those alone. The rest have one form.
 - **With one account,** Compare goes, being Detail with one column: the heading shows ` Detail `
   alone.
 - **Wide, from where it fits.** Compare is drawn wide wherever its wide parts fit at their

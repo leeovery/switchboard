@@ -26,7 +26,7 @@ import (
 func (f Frame) thisWeekCells(m status.Moment) int {
 	figures, n := thisWeekFigures, len(f.Accounts.Accounts)
 	if n > 1 {
-		figures = max(figures, partsWidth(extraShort(status.AllExtra{State: status.ExtraOn, On: n - 1, Of: n})))
+		figures = max(figures, partsWidth(extraShort(status.AllExtra{State: status.ExtraOn, On: n - 1, Of: n}, secondaryInk)))
 	}
 	short := shortWindows(f.windowNamer(m))
 	for _, key := range f.limitedWindows(m) {
@@ -99,7 +99,7 @@ func (d detailDrawn) thisWeekSaid() []thisWeekSaid {
 		limits,
 		figure("plan", planNamed(d.row, secondaryInk)),
 		worth,
-		figure("extra use", extraShort(d.extra())),
+		figure("extra use", extraShort(d.extra(), secondaryInk)),
 	}
 }
 

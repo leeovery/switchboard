@@ -131,6 +131,33 @@ func TestComparesDrawingHelpAndHeadingAgreeWithItsForm(t *testing.T) {
 	}
 }
 
+// The bounds Compare's least is reckoned at say every figure whole and
+// positive, however many accounts are configured, the ledger's most dollars
+// holding all accounts' plans and worth where the bounds would pass it.
+func TestComparesBoundsSayEveryFigureWhole(t *testing.T) {
+	for _, n := range []int{1, 10, 100, 1000} {
+		for _, figure := range compareFigures(n) {
+			said := plainLines([]line{fitParts(200, figure...)})[0]
+			if strings.ContainsAny(said, "-…") || said == "" {
+				t.Errorf("of %d accounts, a bound says %q, want it whole and positive", n, said)
+			}
+		}
+	}
+}
+
+// Every form of all accounts' worth against its price, where some plans
+// aren't known, says how many are, as its ratio is of those alone: so no
+// form drops it while a shorter one holds it.
+func TestAllAccountsAgainstItsPriceKeepsThePlansKnownInEveryForm(t *testing.T) {
+	page := comparedPage(views.AccountsThisWeek, comparedVersions(t), compareWork, comparePersonal, compareSide, compareAll)
+	page.All.Plan.Plans = views.PlansKnown{Known: 2, Of: 3}
+	for _, form := range againstForms(page, page.All) {
+		if said := plainLines([]line{fitParts(200, form...)})[0]; !strings.Contains(said, "2 of 3") && !strings.Contains(said, "2/3") {
+			t.Errorf("all accounts' against its price says %q, dropping the plans known", said)
+		}
+	}
+}
+
 // comparedWorld is a world Compare is drawn of: the accounts configured,
 // the rows of its page, every account's last, and its document.
 type comparedWorld struct {
