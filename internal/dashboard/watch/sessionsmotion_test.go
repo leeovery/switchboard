@@ -148,7 +148,7 @@ func TestNoFrameIsDrawnUnderHelp(t *testing.T) {
 
 // boardOfTwelve is a model of the router of twelve, a session on each, d28c
 // on a, the first, and 7f3a on l, the last, on Sessions' Switchboard in a
-// terminal 160 columns wide and 24 tall, where it takes step 5, scrolling an
+// terminal 160 columns wide and 18 tall, where it takes step 5, scrolling an
 // account at a time, each with its calls, at its top.
 func boardOfTwelve(t *testing.T) *harness {
 	t.Helper()
@@ -164,7 +164,7 @@ func boardOfTwelve(t *testing.T) *harness {
 		}
 		h.source.sessions = append(h.source.sessions, sessionOn(id, opus, a.ID, time.Minute))
 	}
-	h.update(tea.WindowSizeMsg{Width: 160, Height: 24})
+	h.update(tea.WindowSizeMsg{Width: 160, Height: 18})
 	h.start()
 	h.keys(toSessions...)
 	h.settle()
@@ -182,7 +182,7 @@ func (h *harness) most() int {
 func TestACordScrolledOutOfViewDrawsNoFrames(t *testing.T) {
 	h := boardOfTwelve(t)
 	if h.most() == 0 {
-		t.Fatal("the Switchboard of twelve at 160 by 24 doesn't scroll")
+		t.Fatal("the Switchboard of twelve at 160 by 18 doesn't scroll")
 	}
 	h.hear(alter(told(router.StreamSent, "r1", "l", h.sinceStart()), func(e *router.StreamEvent) { e.Session = id7F3A }))
 	h.noFrame("7f3a's request sent, l's line scrolled out of view")

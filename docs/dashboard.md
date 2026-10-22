@@ -344,9 +344,9 @@ The Switchboard is the default view. It's drawn as a telephone switchboard:
 Each session's requests travel its cord, out as they go and back as their answers stream. A
 refusal bounces back red, `✕ 429`.
 
-When a limit moves a session, the session joins its new account's group. Its old cord hangs red
-from the old jack, one cell shorter for each session the limit moved. A move made for any other
-reason hangs faint for 3 seconds.
+When a limit moves a session, the session joins its new account's group. A short cord hangs red
+from the old jack, one for each session the limit moved, while the limit holds. A move made for any
+other reason hangs faint for 3 seconds.
 
 Where the cords don't fit, as on a phone, each account's line carries its sessions under it.
 

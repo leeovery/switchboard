@@ -3,6 +3,7 @@ package dashboard
 import (
 	"slices"
 
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -14,6 +15,23 @@ const (
 	firstLabelCells  = windowLabelCells + 1
 	secondLabelCells = 7
 	oneRowBar        = 14
+)
+
+// oneRowStep is the compaction step from which a line takes one row.
+const oneRowStep = 4
+
+// leastStanding is the fewest cells a line's state words take: the widest of
+// the short leads standingLeads has, ● under pressure, so a name narrows
+// before any lead is cut, and the name column holds still as states change.
+// A model's own lead, as Fable wk at its cap, takes its window's label and
+// may be wider: it's cut where the names leave it no more.
+const leastStanding = 16
+
+// The parts of a line's row its name heads, in nameParts' order.
+const (
+	lineNamePart = iota
+	lineMeterPart
+	lineWordsPart
 )
 
 // stepThreeLabels are the cells of the labels of step 3's two windows, side
@@ -30,8 +48,8 @@ var outOfPoolSpan = span{"✕ out of the pool", faintInk}
 
 // linesDrawn are the Switchboard's lines of a moment as its form draws them,
 // laid out as laid lays them: each account's name as the Overview names it,
-// faint where it's out of the pool, in a name column fitted to them as usage
-// fits it at the frame's width; and the windows usage shows of it.
+// faint where it's out of the pool, in a name column laid as nameColumn lays
+// it; and the windows usage shows of it.
 type linesDrawn struct {
 	f       Frame
 	m       status.Moment
@@ -44,10 +62,40 @@ type linesDrawn struct {
 
 // linesDrawn are the Switchboard's lines of m, laid out as laid lays them.
 func (f Frame) linesDrawn(m status.Moment, laid boardLayout) linesDrawn {
-	names := overviewNames(m)
-	return linesDrawn{
-		f: f, m: m, laid: laid, names: names, column: nameColumn(names, f.Width),
-		windows: f.listedWindows(m), beside: f.besideWindows(m),
+	d := linesDrawn{f: f, m: m, laid: laid, names: overviewNames(m), windows: f.listedWindows(m), beside: f.besideWindows(m)}
+	d.column = d.nameColumn()
+	return d
+}
+
+// nameColumn is the cells of the lines' name column, laid across the lines'
+// width as nameParts declares a row's parts.
+func (d linesDrawn) nameColumn() int {
+	s, _ := flex.Lay(d.width(), d.nameParts()...)
+	return s[lineNamePart].Size
+}
+
+// nameParts are the parts of a line's row its name heads, as flex lays them:
+// the name column, its names' labels a column of names as Runway's, at least
+// labelLeast, at its natural the widest, as labelColumnCells counts them,
+// with their numbers, their marks and nameGap; from oneRowStep, where the
+// line takes one row, its week's bar, oneRowBar cells, and afterBar on to its
+// words; and its words, at least leastStanding, which take the rest. So a
+// name is whole wherever it fits beside them, and narrows toward its least
+// before the words' lead is cut.
+func (d linesDrawn) nameParts() []flex.Part {
+	least, natural := 0, 0
+	for _, n := range d.names {
+		least = max(least, n.cells(labelLeast)+nameGap)
+		natural = max(natural, n.cells(labelColumnCells(n.label))+nameGap)
+	}
+	meter := 0
+	if d.laid.step >= oneRowStep {
+		meter = oneRowBar + afterBar
+	}
+	return []flex.Part{
+		lineNamePart:  {Least: least, Natural: natural},
+		lineMeterPart: {Least: meter, Natural: meter},
+		lineWordsPart: {Least: leastStanding, Grows: true},
 	}
 }
 
@@ -105,15 +153,16 @@ func (d linesDrawn) nameRow(c *canvas, a status.AccountNow, n accountName, y int
 // short, their short form, cut by whole clauses to end wordsGap cells short
 // of the pin's mark, which ends the row at the last column: ● pinned on an
 // account the global pin names, ✕ out of the pool, faint, on one it leaves
-// out, as pinMark has it, where pinFits has it room, else not drawn;
-// picked out while its state is newly changed, as the Overview's ROUTING
-// picks it out.
+// out, as pinMark has it, where pinFits has it room, the words then not
+// saying the pin again, else not drawn; picked out while its state is newly
+// changed, as the Overview's ROUTING picks it out.
 func (d linesDrawn) stands(c *canvas, a status.AccountNow, x, y int, short bool) {
 	end := d.f.Width
-	if mark := pinMark(a); mark != nil && pinFits(a, mark, x, end, short) {
-		end = c.right(d.f.Width, y, mark) - wordsGap
+	mark, said := pinShown(a, x, end, short)
+	if mark != nil {
+		end = c.right(end, y, mark) - wordsGap
 	}
-	drawn := c.line(x, y, standingWords(a.Routing, short, end-x))
+	drawn := c.line(x, y, standingWords(said, short, end-x))
 	d.f.cueStanding(c, a.ID, x, y, drawn-x)
 }
 
@@ -128,6 +177,17 @@ func pinMark(a status.AccountNow) line {
 		return line{outOfPoolSpan}
 	}
 	return nil
+}
+
+// pinShown is a's pin mark, as pinMark has it, where pinFits has it room
+// ending a row at column end, else nil; and how a stands in words beside it,
+// as saidBeside has it, so the pin is said once, by the mark where it's drawn.
+func pinShown(a status.AccountNow, x, end int, short bool) (line, status.Routing) {
+	mark := pinMark(a)
+	if mark == nil || !pinFits(a, mark, x, end, short) {
+		return nil, a.Routing
+	}
+	return mark, saidBeside(a.Routing, a.Pinned)
 }
 
 // pinFits reports whether a's pin mark, ending a row at column end, leaves
@@ -229,10 +289,32 @@ func windowLabel(w shownWindow, cells int) line {
 }
 
 // gauge is a's window with the given key as the lines draw it, as the
-// Overview's USAGE draws it: faded where a is out of the pool, eased and
-// cued as the frame has it.
+// Overview's USAGE draws it, uncapped: faded where a is out of the pool,
+// eased and cued as the frame has it.
 func (d linesDrawn) gauge(a status.AccountNow, key string) gauge {
-	return d.f.overviewGauge(accountGauge(a, key, d.m.Now), a.OutOfPool)
+	return d.f.overviewGauge(accountGauge(a, key, d.m.Now).uncapped(), a.OutOfPool)
+}
+
+// uncapped is the block as the Switchboard draws it, as uncapped has each of
+// its gauges: its key names no cap.
+func (b usageBlock) uncapped() usageBlock {
+	rows := make([]usageRow, len(b.rows))
+	for i, r := range b.rows {
+		r.cap, r.gauges = "", slices.Clone(r.gauges)
+		for j, g := range r.gauges {
+			r.gauges[j] = g.uncapped()
+		}
+		rows[i] = r
+	}
+	b.rows = rows
+	return b
+}
+
+// uncapped is the gauge as the Switchboard draws it: its bar with no cap's
+// mark, at any width, as its line's state words say the cap.
+func (g gauge) uncapped() gauge {
+	g.bar.capAt = 1
+	return g
 }
 
 // meter draws g's bar in the look, bar cells long from x along row y,

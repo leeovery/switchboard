@@ -2834,8 +2834,16 @@ where the parts lay it, as Narrower and wider says.
   retried. Claude Code's quota check is never drawn.
 - **The lines:** each account's line is `usage --by account`'s narrow block, 74 columns from column
   86 (see `usage`, the printout):
-  - its name row: the number, name and marks; from the name column, fitted to the names as `usage`
-    fits it (16 cells, column 102, for `2 personal ◆`), its state in the Overview's ROUTING words,
+  - its name row: the number, name and marks; from the name column, its state in the Overview's
+    ROUTING words. The name column is a column of names: its labels at least 8 cells, at their
+    natural the widest name configured, 24 at the most, with their numbers, their marks and two
+    cells after them, laid by `flex` across the lines' width, before the state words. The words
+    take at least 16 cells, the widest short lead, `● under pressure`, so a name is whole wherever
+    it fits beside them, and narrows toward its least before any lead is cut, and the column holds
+    still as states change (16 cells, column 102, for `2 personal ◆`; with a call moved, 26 of
+    the 28 `3 side-hustle-consulting ▲` takes whole at 108, and all 28 from 136). A model's own
+    lead, as `Fable wk at its cap`, takes its window's label and may be wider: it's cut where the
+    names leave it no more. The state words:
     `● open`, ` · new sessions come here` added on the account new sessions go to,
     `● at its cap · back 17:10 · new sessions go elsewhere`, `● under pressure · out ~16:05`,
     `■ limit reached · back 16:30`, `■ refused (401) · its token needs renewing` or `○ not read yet`
@@ -2845,15 +2853,20 @@ where the parts lay it, as Narrower and wider says.
     between: its label at 87 in `text.subtle`, its bar at 98, 32 cells, a cell, its percentage in 4
     cells at 131, two cells, and its words, 22 cells, at 137.
 
-  The lines start on row 6, each followed by two blank rows: 8 rows apart with three windows. A line
+  The lines start on row 6, each 3 blank rows after the one before where the view's rows hold them
+  so, else 2, the least (see Compaction): 9 rows apart with three windows. A line
   whose group of calls starts below its first jack moves down to meet it, so cords only run right,
   then down. A closed account is never faded: its words and colours say why, amber for a cap and red
   for a limit or a refused token (see Routing by hand). No pool row: no session plugs into the pool,
   which `usage` and the Overview show.
-- **The key,** the Overview's, under two blank rows after the last line, at column 87:
-  `┃ even pace: where you would be now, used evenly` on its first line, and on its second,
-  `╎ cap: work at 95%`, `◆ primary` and `▲ new sessions go here`, four spaces apart. Where a line of
-  it would pass the last column, it starts at column 0.
+- **The key,** the Overview's, on the two rows directly over the key line, from column 0, as
+  Runway's legend sits, the rows left over lying between the last line and it, two blank at the
+  least (B2, the owner's call, 21 October 2026): `┃ even pace: where you would be now, used evenly`
+  on its first line, and on its second, `◆ primary` and `▲ new sessions go here`, four spaces
+  apart.
+- **No cap's mark:** no bar of the Switchboard draws the cap's `╎`, at any width, on the board or in
+  lanes, and its key never names it: the line's state words say it, `● at its cap · 17:10` (the
+  owner's call on the spike, 21 October 2026).
 - **The jacks,** a jack on each row of a line, at column 84: `○` in `text.faint` where no cord ends,
   `◉` in its cord's colour where one does. A session joining a line takes its first free jack, and
   the line's sessions hold the jacks they take in the order of their calls, top to bottom, so no
@@ -2867,12 +2880,15 @@ where the parts lay it, as Narrower and wider says.
   out of colours: `accent.key` while the session works, and at rest, `accent.key` dimmed toward the
   canvas, `mix(canvas, accent.key, 0.45)`.
 - **The bends,** so no cords cross: the bent cords are ordered by their jack's row, then their
-  call's. The first bends 12 cells left of the jacks, at 72, clear of a 9-cell loose cord by 3
-  cells, and each next 3 cells further left; where the last would then fall outside the bends' room,
-  they bend 2 apart, or failing that, 1. The bends' room runs from the column after the plugs to the
-  first bend, 61 to 72 at 160 columns with a call moved: 12 columns, so 3 apart holds 4 bent cords,
-  2 apart 6, and 1 apart 12. Where 1 apart can't hold them all in the steady room (see Narrower
-  and wider), the view draws lanes (see Lanes, below).
+  call's. The first bends 3 cells left of the jacks, at 81, and each next 3 cells further left;
+  where the last would then fall outside the bends' room, they bend 2 apart, or failing that, 1.
+  The bends' room runs from the column after the plugs to the first bend, over the 9 cells a loose
+  cord hangs in: a bent cord crossing the row of one is drawn over it, the rest of it hanging as it
+  fades (the owner's call on the spike, 21 October 2026). A limit's stub hangs in the 2 cells after
+  the first bend, so no cord crosses it (the owner's call, 22 October 2026). It's 61 to 81 at 160
+  columns with a call moved: 21 columns, so 3 apart holds 7 bent cords, 2 apart 11, and 1 apart 21;
+  at 108, 18 columns, 6 bent cords 3 apart, at 61, 58, 55, 52, 49 and 46. Where 1 apart can't hold
+  them all in the steady room (see Narrower and wider), the view draws lanes (see Lanes, below).
 
 **What moves.** The cords' motion stays on this tab alone (see What moves). Its steps fall on the
 clock's 80-millisecond marks, every cord in step, at up to 30 frames a second, and a frame is drawn
@@ -2904,10 +2920,11 @@ only for what moves on screen, never for a cord scrolled away or under `?`.
 group at the foot, `↑ asking  ▸ from personal`, its cord to a jack there, as The jacks say.
 
 - **Where a limit forced the move,** the old cord hangs from its old jack while the limit holds: `╌`
-  in `state.destructive`, to the jack's left, 7 cells, then 6 for a second session, each a cell
-  shorter, one for each session the limit's event moved, its `count`; red, as red on this page means
-  a limit. Its jack shows `○`, and isn't free while the cord hangs. A session the limit moves at its
-  next request keeps its row and its jack until then.
+  in `state.destructive`, to the jack's left, 2 cells, `╌╌○`, clear of the bends, so no cord ever
+  crosses it; one for each session the limit's event moved, its `count`, each alike (the owner's
+  call, 22 October 2026); red, as red on this page means a limit. Its jack shows `○`, and isn't
+  free while the cord hangs. A session the limit moves at its next request keeps its row and its
+  jack until then.
 - **A move no limit forced,** by pressure, a pin or by hand: the old cord hangs 9 cells, in
   `text.subtle`, fading into the canvas over 3 seconds (settled in the plan).
 
@@ -2918,29 +2935,40 @@ number, name and marks in `text.faint`, its bars keeping 35% of their colour, wh
 the canvas, and its percentages and words in `text.faint`. Its state words stay unfaded, in their
 own colours, as they're the account's own, cut by whole clauses from the end where
 `✕ out of the pool` needs the room: `● at its cap · back 17:10`. An account closed by a cap or a
-limit is never faded for it: one the pin names, at its limit, is red.
+limit is never faded for it: one the pin names, at its limit, is red. The pin is said once, as
+ROUTING says it, here and in the lanes alike: where `● pinned` shows, the words leave out what
+says it (`● at its cap  ● pinned`); where it's left off, a state whose words carry it says it there.
 
 **Compaction.** No view changes shape by account count, so the Switchboard stays a switchboard: as
-rows run short, its lines compact, as the Overview's sections fold. It takes the first step whose
-lines end seven rows above the key line or higher, row h − 7 on a terminal h rows tall, which leaves
-two blank rows, the key on the next two, and the row over the key line:
+rows run short, its lines compact, as the Overview's sections fold. Its rows are laid by `flex`, as
+parts: the lines and calls; the rows spare, which take what's left; and the key, two rows over the
+key line, two blank rows before it at the least. It takes the first step whose parts fit, the lines
+ending six rows above the key line or higher, row h − 6 on a terminal h rows tall. At each step the
+lines are 3 blank rows apart where the rows hold them so, else 2, else 1, down to the step's gap,
+every line alike, so the accounts stay evenly apart; and the rows still spare lie between the last
+line and the key:
 
-1. Each line as above.
-2. No blank rows within a line: its name row and a row a window, then a blank row
+1. Each line as above, 2 blank rows after it at the least.
+2. No blank rows within a line: its name row and a row a window, then a blank row at the least
    (settled in the plan).
-3. Two rows a line, and no blank rows between lines: the name row with its state words; then
+3. Two rows a line, and no blank rows between lines at the least: the name row with its state words; then
    `Week` at 87, its bar from 98, 21 cells, a cell and its percentage; three cells on, `5-hour` at
    127, its bar from 134, 21 cells, a cell and its percentage, ending at the last column. The
-   even-pace and cap marks stay; the words and the model windows go, as `usage` and the Overview
-   show them.
-4. One row a line: the number, name and marks, cut to the name column; from it, the week's bar, 14
-   cells, a cell and its percentage; and 21 cells after it, the state words (settled in the plan).
+   even-pace mark stays; the words and the model windows go, as `usage` and the Overview show them.
+4. One row a line: the number, name and marks, the name column laid as on the name row, the
+   bar between it and the words; from it, the week's bar, 14 cells, a cell and its percentage; and
+   21 cells after it, the state words (settled in the plan). Where the lines are too narrow for the
+   names at their least, the bar and the words' 16, the words are cut: with a call moved, from
+   100 columns to 135 with names of 8 cells, to 141 with 14 and to 149 with 22.
 5. Step 4's lines, scrolling, the calls with them, as Accounts scrolls (see Accounts): the key gives
    way, and the row over the key line says what's out of view, right-aligned: `▼ 3 more accounts`
    (settled in the plan). An account's rows run from its first, its line's row or its group's
    first, whichever is higher, to its line's last, its calls among them; each account's start
    below the last of the one above, its group moving down to clear it, and the scroll reads the
-   same rows. It scrolls an account at a time and shows whole accounts alone, so paging never cuts
+   same rows. The lines take the rows they can: where the board's rows pass the view's, the blank
+   row after each group of calls gives way, so at 138 by 15 the frames' three accounts all show,
+   where with it the third was out of view over 4 blank rows; and where the board then fits the
+   view whole, the key shows under it, as at steps 1 to 4. It scrolls an account at a time and shows whole accounts alone, so paging never cuts
    a call: scrolled down, the view's first row says how many accounts are above, right-aligned,
    `▲ 2 more accounts`, and the row over the key line how many below it doesn't show. Where an
    account's rows don't fit the view, under that first row where any are above, it scrolls a row
@@ -2948,7 +2976,7 @@ two blank rows, the key on the next two, and the row over the key line:
    `▲ 3 more above · ▼ 12 more below`, so every call can be reached.
 
 Where no line grows past its rows and no group of calls moves its line down, each row so taken being
-one fewer, steps 1 to 4 hold 3, 5, 12 and 25 accounts at 160 by 37. Where the lines are narrower
+one fewer, steps 1 to 4 hold 3, 5, 13 and 26 accounts at 160 by 37. Where the lines are narrower
 than 74 columns (below), step 3's two bars share the lines' width, `⌊(width − 30) ÷ 2⌋` cells each,
 and step 4's state words take the short form, then lose whole clauses, as they must.
 
@@ -2966,8 +2994,8 @@ one layout of parts, `flex`, in the row's order:
 | What it's doing, a cell on | 13, with the gap after it | 13 | Never |
 | `▸ from ` | 7 | 7 | Second, to `▸ ` |
 | The account after it | 6, or the widest name where that's narrower | The widest account's name configured, 24 at the most | Fifth, toward its least |
-| The bends' room, two cells on | 9 | 9, then growing with no most | Never |
-| To the jacks | 12 | 12 | Never |
+| The bends' room, two cells on, over a loose cord's 9 cells | 18 | 18, then growing with no most | Never |
+| Clear of the jacks | 3 | 3 | Never |
 | The lines' label, percentage and gaps, two cells on | 20 | 20 | Never |
 | The lines' bars | 8 | 32 | First, to 16; fourth, to 8 |
 | The lines' words | 22 | 22 | Third, to `usage`'s short form, 14 |
@@ -2979,8 +3007,8 @@ beyond what's lacking to the bends' room, which gives it back a column at a time
 plan). So as the frame widens from the leasts, a call's names are raised first, before the lines'
 bars: the directory to 24, then the account; then the bars to 16, the words whole, `▸ from`, the
 bars to 32, and past every natural the bends' room takes the rest. At 108 columns, the 8 cells past
-the leasts all go to the directory, 6 to 14 cells; the account stays at 6, `▸ work-…`, and the bars
-at 8 (the owner's call, 21 October 2026). A directory longer than 24 is cut at its most even with
+the leasts all go to the directory, 6 to 14 cells; the account stays at 6, `▸ work-…`, the bars
+at 8 (the owner's call, 21 October 2026), and the bends' room at its least, 18. A directory longer than 24 is cut at its most even with
 room, `docs-site-getting-start…`, as the List cuts it.
 
 No natural comes from the calls shown, so the columns hold still as calls come, go and move, and
@@ -2993,14 +3021,19 @@ is doing is at 12, `▸` at 25 and the plug at 35, the jacks are at 56, and the 
 columns. A line's state words that don't fit take the short form, as on a phone, then lose whole
 clauses from the end. The Switchboard draws lanes where its parts don't fit with every turn taken,
 as under 100 columns, or wherever the bent cords outnumber the columns of the steady bends' room.
-Neither hangs on a move, so cords or lanes is the width's, the names configured's and the bent
-cords' alone:
+Neither hangs on a move, nor turns back as the frame widens, so cords or lanes is the width's, the
+names configured's and the bent cords' alone, and changes once at the most as the width grows:
 - whether the parts fit is reckoned with the from column at its least, `▸ ` and 6 of the account,
   as though a call had moved, so the board starts at 100 columns whatever the moves;
-- the steady room is the lesser of the bends' rooms laid with no from column and with one at its
-  natural. The from column's arrival narrows the room, or, where a turn it brings on frees more
-  than is lacking, widens it: `▸` dropping its from, or the lines' words going short. The bent
-  cords turn down in the room laid, which is never narrower.
+- the steady room is the room laid with the from column at its natural where every part stands at
+  its natural, and short of that the room's least, 18. Short of the naturals, the room laid comes
+  and goes as the frame widens: a turn that gives way, `▸` dropping its from or the lines' words
+  going short, gives what it frees beyond what's lacking to the room, and a column wider takes it
+  back; and the from column's arrival narrows it, or widens it where a turn it brings on frees more
+  than is lacking. The steady room is the widest room that never narrows as the frame widens: the
+  least of the rooms laid, with the from column and without, at its width and at every width past
+  it. With names of 8 cells it's 18 from 100 columns to 157, and grows a column a column past them,
+  21 at 160. The bent cords turn down in the room laid, which is never narrower.
 
 **Lanes,** as on a phone, where cords would need width the terminal hasn't got: each account's line
 with its sessions under it, in The page's phone frame under 100 columns (settled in the plan).
@@ -3023,7 +3056,8 @@ with its sessions under it, in The page's phone frame under 100 columns (settled
 - **The foot:** the pool's rule across the whole row; `Σ pool` under it; on the row under that, from
   column 1, the room in each window, `5-hour 1.5 of 3 left   Week 1.2 of 3 left`; then, after a
   blank row, the Overview's phone key on two lines,
-  `┃ even pace: where you would be now, used evenly`, and `╎ cap: work at 95%   ◆ primary   ▲ new`.
+  `┃ even pace: where you would be now, used evenly`, and `◆ primary   ▲ new`, naming no cap, as
+  no lane's bar draws its `╎`.
 - **No cords, no travel:** the state words carry the motion, bold while the session works.
 - **The heading:** `SESSIONS` in `text.subtle`, two spaces and the sub-tabs, with no `[ ]` and no
   rule, as on the Log's phone (see The Log).
