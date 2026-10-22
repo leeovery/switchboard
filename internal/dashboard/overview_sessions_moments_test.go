@@ -23,7 +23,7 @@ func TestSESSIONSSaysWhatEachSessionIsDoingAtEachHardMoment(t *testing.T) {
 			f.Sessions, f.Stream = hm.Sessions, hm.Stream
 			m := f.Moment(hm.Doc, hm.Now)
 			running := views.BusiestFirst(m, f.running(hm.Doc, hm.Now), f.Traces)
-			laid := f.runningForm(f.routingColumns(m)).laid(running)
+			laid := f.runningForm(f.routingColumns(m)).laid()
 			want := 0
 			for _, doing := range hm.Want {
 				want += len(doing.On)

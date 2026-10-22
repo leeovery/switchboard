@@ -173,34 +173,30 @@ type runningColumns struct {
 	why, whyCells int
 }
 
-// laid is where the rows of the sessions shown lie in the form, as
-// runningColumns has it: on a row a session, their parts laid by
-// runningParts from the name column to beforeTraceAt cells short of the
-// trace.
-func (form runningForm) laid(shown []views.Running) runningColumns {
+// laid is where a session's row lies in the form, as runningColumns has it:
+// on a row a session, its parts laid by runningParts from the name column
+// to beforeTraceAt cells short of the trace.
+func (form runningForm) laid() runningColumns {
 	at := runningColumns{routingColumns: form.columns}
 	if !at.oneRow {
 		return at
 	}
-	s, _ := flex.Lay(at.trace-beforeTraceAt-at.names, runningParts(shown)...)
+	s, _ := flex.Lay(at.trace-beforeTraceAt-at.names, runningParts()...)
 	at.family, at.why, at.whyCells = s[runFamily].Size, at.names+s[runWhy].At, s[runWhy].Size
 	return at
 }
 
-// runningParts are the parts of the rows of the sessions shown on a row a
-// session, as flex lays them: the id, runningID; the family, at least the
-// widest family the version table names, its natural the widest shown, at
-// most labelMost, as a label's column is; familyGap on, when it was last
-// seen, seenCells; beforeDoing on, what it's doing, doingCells; and why
-// it's there, which takes the rest.
-func runningParts(shown []views.Running) []flex.Part {
-	widest := 0
-	for _, r := range shown {
-		widest = max(widest, ansi.StringWidth(r.Family))
-	}
+// runningParts are the parts of a session's row on a row a session, as flex
+// lays them: the id, runningID; the family, fixed at the widest family the
+// version table names, as familiesCells has it, so the columns never move
+// with the sessions shown, and a model's id that names no family is cut
+// there; familyGap on, when it was last seen, seenCells; beforeDoing on,
+// what it's doing, doingCells; and why it's there, which takes the rest.
+func runningParts() []flex.Part {
+	family := familiesCells()
 	return []flex.Part{
 		runID:     {Least: runningID, Natural: runningID},
-		runFamily: {Least: familiesCells(), Natural: widest, Most: labelMost},
+		runFamily: {Least: family, Natural: family},
 		runSeen:   {Least: seenCells, Natural: seenCells, Gap: familyGap},
 		runDoing:  {Least: doingCells, Natural: doingCells, Gap: beforeDoing},
 		runWhy:    {Grows: true},
@@ -228,7 +224,7 @@ func (f Frame) drawRunning(c *canvas, m status.Moment, form runningForm, listed 
 		return
 	}
 	shown := form.shown(len(listed), body.rows)
-	at := form.laid(listed[:shown])
+	at := form.laid()
 	names, named := overviewNames(m), ""
 	for i, r := range listed[:shown] {
 		if r.Blank() {

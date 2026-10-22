@@ -317,9 +317,38 @@ func TestASessionSeenLongerAgoThanItsColumnHoldsIsDrawnWhole(t *testing.T) {
 	c := newCanvas(160, 1)
 	r := views.Running{Account: "side", Session: idD28C, Family: "opus", Activity: views.Activity{LastSeen: routedAt.Add(-1000 * time.Hour)}}
 	f := Frame{Width: 160}
-	f.wideRunning(c, f.Moment(doc, routedAt), r, f.runningForm(routingColumnsOf(f.Width, 16)).laid([]views.Running{r}), 0)
+	f.wideRunning(c, f.Moment(doc, routedAt), r, f.runningForm(routingColumnsOf(f.Width, 16)).laid(), 0)
 	if got := rowOf(c, 0); !strings.Contains(got, "d28c  opus   1000h   idle") {
 		t.Errorf("drew %q, want 1000h whole, no blank before it", got)
+	}
+}
+
+// The family's column is fixed at the widest family the version table
+// names: a model's id that names no family is cut there, never moving the
+// columns after it, nor taking why's cells, at any width a session takes a
+// row.
+func TestAFamilyTheVersionTableDoesntNameIsCutToItsColumn(t *testing.T) {
+	doc, sessions, stream := overviewWorld()
+	mystery := status.Session{ID: id1F9A, Assignments: []status.Assignment{{
+		Model: "claude-mystery-model-9", Family: "claude-mystery-model-9", Account: "work", Reason: status.ReasonNew, AssignedAt: routedAt, LastSeen: routedAt,
+	}}}
+	// Why it's there starts 29 cells past the name column: the id's 6, the
+	// family's 6 and a blank, the seen's 4, 3 blanks and the doing's 9.
+	whyAt := func(row string) bool {
+		r := []rune(row)
+		return r[16+28] == ' ' && r[16+29] == 's'
+	}
+	for _, width := range []int{83, 90, 108, 120, 173} {
+		f := Frame{Width: width, Height: 40, View: Overview, Sessions: sessions, Stream: stream}
+		with := f
+		with.Sessions = append(slices.Clone(sessions), mystery)
+		known, drawn := sessionsDrawn(f, doc, 7), sessionsDrawn(with, doc, 7)
+		if !slices.Equal(drawn[:6], known[:6]) {
+			t.Errorf("at %d columns, with 1f9a running, the other sessions drew\n  %q\nwant them as without it\n  %q", width, drawn[:6], known[:6])
+		}
+		if last := drawn[6]; !strings.HasPrefix(last, "1 work          1f9a  claud…  now   idle     s") || !whyAt(last) || !whyAt(known[0]) {
+			t.Errorf("at %d columns, 1f9a drew %q, and c61b %q; want its family cut to its column, and why it's there from column 45 in each", width, last, known[0])
+		}
 	}
 }
 
@@ -431,9 +460,10 @@ func rowsStart(rows, wanted []string) bool {
 // SESSIONS lists the busiest accounts first, each one's sessions together,
 // busiest first, as views.BusiestFirst has them; and keeps the sessions it
 // shows, and their order, as the layout was made, till the next: a session
-// coming goes into how many more, one ending leaves its row blank, and as
-// rates change, nothing reorders. A resize lays it out afresh, in the order
-// the rates give then.
+// coming goes into how many more, the last shown giving way to it where
+// every row is taken; one ending leaves its row blank, and with every one
+// ended, it says none runs; and as rates change, nothing reorders. A resize
+// lays it out afresh, in the order the rates give then.
 func TestSESSIONSKeepsWhatItShowsInTheOrderTakenTillTheNextLayout(t *testing.T) {
 	doc, sessions, stream := overviewWorld()
 	f := Frame{
@@ -477,11 +507,39 @@ func TestSESSIONSKeepsWhatItShowsInTheOrderTakenTillTheNextLayout(t *testing.T) 
 		})
 	}
 
+	gone := f
+	gone.Sessions = nil
+	if got := sessionsOnPage(gone, doc); !rowsStart(got, []string{"no sessions running", "", "", "", ""}) {
+		t.Errorf("every session ended, SESSIONS shows\n  %q\nwant it to say none runs", got)
+	}
+
+	full := f
+	full.Height++
+	full.Layout = full.LayoutOf(doc, routedAt)
+	every := []string{"2 personal ◆    9c2e", "                41e0", "3 side ▲        d28c", "                c61b", "                7f3a", "                db8a"}
+	if got := sessionsOnPage(full, doc); !rowsStart(got, every) {
+		t.Fatalf("a row more, SESSIONS shows\n  %q\nwant every session\n  %q", got, every)
+	}
+	full.Sessions = came.Sessions
+	want := []string{"2 personal ◆    9c2e", "                41e0", "3 side ▲        d28c", "                c61b", "                7f3a", "                +2 more"}
+	if got := sessionsOnPage(full, doc); !rowsStart(got, want) {
+		t.Errorf("a session coming with every row taken, SESSIONS shows\n  %q\nwant the last shown giving way to how many more\n  %q", got, want)
+	}
+	var opened []string
+	for _, target := range full.overviewTargets(doc, routedAt) {
+		if target.On == OnSession {
+			opened = append(opened, status.ShownID(target.Session))
+		}
+	}
+	if want := []string{"9c2e", "41e0", "d28c", "c61b", "7f3a"}; !slices.Equal(opened, want) {
+		t.Errorf("SESSIONS' rows open %q, want %q: the sessions drawn alone", opened, want)
+	}
+
 	resized := busier
 	resized.Height++
-	want := []string{"3 side ▲        c61b", "                d28c", "                7f3a", "                db8a", "2 personal ◆    9c2e", "                41e0"}
-	if got := sessionsOnPage(resized, doc); !rowsStart(got, want) {
-		t.Errorf("resized, SESSIONS shows\n  %q\nwant it laid out afresh, side's c61b, 20 a minute, first\n  %q", got, want)
+	afresh := []string{"3 side ▲        c61b", "                d28c", "                7f3a", "                db8a", "2 personal ◆    9c2e", "                41e0"}
+	if got := sessionsOnPage(resized, doc); !rowsStart(got, afresh) {
+		t.Errorf("resized, SESSIONS shows\n  %q\nwant it laid out afresh, side's c61b, 20 a minute, first\n  %q", got, afresh)
 	}
 	if sameLayout(resized.LayoutOf(doc, routedAt), f.Layout) {
 		t.Error("resized, the layout is as kept, want it made afresh")
