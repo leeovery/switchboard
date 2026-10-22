@@ -160,3 +160,56 @@ func repeatsAtMost(p rowsPaged) int {
 	}
 	return most
 }
+
+// fittingFrom is how many of things, each as many rows tall as it says,
+// show whole from the at-th in rows rows, a row less where any are above,
+// at least one.
+func fittingFrom(things []int, rows, at int) int {
+	if at > 0 {
+		rows--
+	}
+	n, used := 1, things[at]
+	for _, h := range things[at+1:] {
+		if used += h; used > rows {
+			break
+		}
+		n++
+	}
+	return n
+}
+
+// Things shown whole, a thing at a time, as the Switchboard's accounts and
+// Tokens' periods are, paged from the first down and from the last up,
+// every thing shows, however tall each is: a page down starts at the first
+// the page didn't show, and a page up ends at the one above the first it
+// showed.
+func TestPagingWholeThingsDownAndUpShowsEveryThing(t *testing.T) {
+	for _, things := range [][]int{{2, 5, 3, 2, 6, 4, 2}, {1, 1, 1, 1, 1, 1}, {6, 1, 1, 1, 6, 2, 2, 5}, {3, 7, 2, 2, 2, 7, 3}} {
+		for rows := 7; rows <= 16; rows++ {
+			shown := func(at int) int { return fittingFrom(things, rows, at) }
+			most := 0
+			for most < len(things)-1 && shown(most) < len(things)-most {
+				most++
+			}
+			for _, way := range []struct {
+				name          string
+				offset, pages int
+			}{{"down", 0, 1}, {"up", most, -1}} {
+				reached := make([]bool, len(things))
+				for at, n := way.offset, 0; n <= len(things); n++ {
+					for i := range shown(at) {
+						reached[at+i] = true
+					}
+					next := thingsPaged(most, at, shown).Paged(at, way.pages)
+					if next == at {
+						break
+					}
+					at = next
+				}
+				if i := slices.Index(reached, false); i >= 0 {
+					t.Errorf("things %v in %d rows, paged %s, thing %d never shows", things, rows, way.name, i)
+				}
+			}
+		}
+	}
+}

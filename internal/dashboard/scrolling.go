@@ -145,11 +145,57 @@ func pagedWhole(c *canvas, rows int) rowsPaged {
 // row.
 func (p rowsPaged) scrolling(offset int) Scrolling {
 	from, to := p.shown(offset)
-	s := Scrolling{Most: max(p.content-p.page(), 0), Page: p.down(from, to) - from}
-	if up := p.up(from, to); up != max(from-s.Page, 0) {
+	return pagedFrom(max(p.content-p.page(), 0), from, p.down(from, to), p.up(from, to))
+}
+
+// pagedFrom is how far what's shown from from, and scrolls no further than
+// most, scrolls: a page down to down, and a page up to up, Back where that's
+// other than a page down's length up.
+func pagedFrom(most, from, down, up int) Scrolling {
+	s := Scrolling{Most: most, Page: down - from}
+	if up != max(from-s.Page, 0) {
 		s.Back = from - up
 	}
 	return s
+}
+
+// pageDown is where a page down from the page shown from from starts, next
+// being the first row, or thing, it didn't show: as far down as shows next,
+// no further than next, as shows has it; next where none after from does.
+func pageDown(from, next int, shows func(at, r int) bool) int {
+	for at := next; at > from; at-- {
+		if shows(at, next) {
+			return at
+		}
+	}
+	return next
+}
+
+// pageUp is where a page up from the page shown from from starts, above
+// being the row, or thing, above the first it showed: as far up as shows
+// above, as shows has it, so the page ends at above, the search bounded to
+// least on; a step up where none before from does.
+func pageUp(least, from, above int, shows func(at, r int) bool) int {
+	for at := max(least, 0); at < from; at++ {
+		if shows(at, above) {
+			return at
+		}
+	}
+	return max(from-1, 0)
+}
+
+// thingsPaged is how far things shown whole, a thing at a time, scroll,
+// scrolled offset of them down, no further than most: a page down starting
+// at the first the page didn't show, and a page up ending at the one above
+// the first it showed, as pageDown and pageUp have them, shown(at) of them
+// showing scrolled to the at-th.
+func thingsPaged(most, offset int, shown func(at int) int) Scrolling {
+	from := min(max(offset, 0), most)
+	shows := func(at, i int) bool {
+		at = min(at, most)
+		return at <= i && i < at+shown(at)
+	}
+	return pagedFrom(most, from, pageDown(from, from+shown(from), shows), pageUp(0, from, from-1, shows))
 }
 
 // shows reports whether the page scrolled offset down shows the content's
@@ -161,31 +207,22 @@ func (p rowsPaged) shows(offset, r int) bool {
 
 // down is where a page down from the page shown from row from up to to
 // starts: at the first row it didn't show, or as little short of it as
-// shows it, where a heading kept would take its place; a page on where the
-// content ends within it.
+// shows it, where a heading kept would take its place, as pageDown has it; a
+// page on where the content ends within it.
 func (p rowsPaged) down(from, to int) int {
 	if to >= p.content {
 		return from + p.page()
 	}
-	for at := to; at > from; at-- {
-		if p.shows(at, to) {
-			return at
-		}
-	}
-	return to
+	return pageDown(from, to, p.shows)
 }
 
 // up is where a page up from the page shown from row from up to to starts:
 // as far up as shows the row above the first it showed, a row a heading
-// kept takes counting as not shown; a row up where none does.
+// kept takes counting as not shown, as pageUp has it; a row up where none
+// does.
 func (p rowsPaged) up(from, to int) int {
 	above := p.top(from, to) - 1
-	for at := max(above-p.page()+1, 0); at < from; at++ {
-		if p.shows(at, above) {
-			return at
-		}
-	}
-	return max(from-1, 0)
+	return pageUp(above-p.page()+1, from, above, p.shows)
 }
 
 // paste draws the rows of whole, the view's rows laid out whole, shown

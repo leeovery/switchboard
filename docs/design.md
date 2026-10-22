@@ -2787,7 +2787,9 @@ account.
   `$635`.
 - **`<` `>`:** by day, by week, the default, and by month. Older periods scroll, `j/k`, the row
   after the last shown saying `▼ 3 more weeks below   ·   j/k to scroll`, `▼` in `accent.key`, the
-  words in `text.muted`, `j/k` bold `accent.key`.
+  words in `text.muted`, `j/k` bold `accent.key`. A page down starts at the first period the page
+  didn't show, and a page up ends at the one above the first it showed, by the one paging rule
+  (see the Overview's USAGE).
 - **The footnote,** row 34, in `text.faint`:
   `worth: what the same tokens would cost through the API, at its prices as of 7 Oct 2026`, the
   price table's date, 7 Oct 2026 for the built-in table and 1 Oct 2026 in the frames, whose fixtures
@@ -3018,9 +3020,12 @@ line and the key:
    same rows. The lines take the rows they can: where the board's rows pass the view's, the blank
    row after each group of calls gives way, so at 138 by 15 the frames' three accounts all show,
    where with it the third was out of view over 4 blank rows; and where the board then fits the
-   view whole, the key shows under it, as at steps 1 to 4. It scrolls an account at a time and shows whole accounts alone, so paging never cuts
-   a call: scrolled down, the view's first row says how many accounts are above, right-aligned,
-   `▲ 2 more accounts`, and the row over the key line how many below it doesn't show. Where an
+   view whole, the key shows under it, as at steps 1 to 4. It scrolls an account at a time and
+   shows whole accounts alone, so paging never cuts a call, a page down starting at the first
+   account the page didn't show and a page up ending at the one above the first it showed, by the
+   one paging rule (see the Overview's USAGE): scrolled down, the view's first row says how many
+   accounts are above, right-aligned, `▲ 2 more accounts`, and the row over the key line how many
+   below it doesn't show. Where an
    account's rows don't fit the view, under that first row where any are above, it scrolls a row
    at a time instead, the row over the key line saying how many rows are out of view,
    `▲ 3 more above · ▼ 12 more below`, so every call can be reached.
@@ -3135,7 +3140,11 @@ October 2026).
   4. as 3, the key giving way: the lanes scroll an account at a time, `▲ 1 more account` on the
      view's first row while any are above, and `▼ 1 more account` right-aligned on the row over the
      key line while any are below; or a row at a time, where a lane doesn't fit the view, a name
-     row showing with the row under it.
+     row showing with the row under it. Either way they page by the one rule of every view paged a
+     row at a time (see the Overview's USAGE), lanes in place of rows where they scroll an account
+     at a time: a page down starts at the first lane, or row, the page didn't show, and a page up
+     ends at the one above the first it showed, so paging either way passes over none
+     (`pageDown` and `pageUp`, in `scrolling.go`).
 
   The step hangs on the rows, the accounts configured, the calls, and the windows the moment lists,
   as the board's lines count them: among them a model's own week while it nears its limit, is held
