@@ -26,18 +26,15 @@ const headerGap = 2
 // between the day and the time.
 const readApart = 2
 
-// headerParts are the badge's line and the status, at their naturals, as
-// the header lays them out on one line of the moment m, the status taking
-// the rest, to the last column. The printout is printed once, never redrawn
-// under the reader's eye, so its form follows what it says as read: the
-// badge's line, its day counted at the widest a day is; and the status in
-// full as m has it, every part whole, at its least its free text, a
-// restart's reason or a probe's, cut to its ellipsis alone.
-func headerParts(m status.Moment) []flex.Part {
+// headerParts are the badge's line and the status full, as the header lays
+// them out on one line, the status ending at the last column. The printout
+// is printed once, never redrawn under the reader's eye, so its form
+// follows what it says as read: the badge's line, its day counted at the
+// widest a day is; and the status in full as read, every part whole, its
+// free text too, a restart's reason or a probe's.
+func headerParts(full line) []flex.Part {
 	badge := pill.width() + readApart + prose.DayWidth() + readApart + prose.TimeOfDayWidth()
-	least := statusCut(m, line{{text: prose.Ellipsis}}.width()).forms()[0].width()
-	full := newStatusLine(m).forms()[0].width()
-	return []flex.Part{{Least: badge, Natural: badge}, {Least: least, Natural: full, Gap: headerGap}}
+	return []flex.Part{{Least: badge, Natural: badge}, {Least: full.width(), Natural: full.width(), Gap: headerGap}}
 }
 
 // Printout is every account's windows as usage prints them into the
@@ -90,34 +87,30 @@ func (p Printout) namer(m status.Moment) func(key string) string {
 // header draws the printout's header of the moment m, and returns its last
 // row: the badge and when its document was read, then the status line, its
 // mode shown only while the router has a global pin. It's one line where
-// headerParts fit, the status ending at the last column, every part of it
-// kept, only its free text cut, as statusBeside has it; else two, the
-// status from column 0 after a blank line, shortening to fit, as a phone's
-// does. The badge's line leaves off the date, as a phone's title row does,
-// then the badge, before it's cut.
+// headerParts fit, the status in full ending at the last column, so it
+// never says less than on two; else two, the status from column 0 after a
+// blank line, shortening to fit, as a phone's does. The badge's line leaves
+// off the date, as a phone's title row does, then the badge, before it's
+// cut.
 func (p Printout) header(c *canvas, m status.Moment) int {
 	at := prose.TimeOfDay(m.Now, m.ReadAt)
 	gap, clock := line{spaces(readApart)}, line{{at, titleInk}}
-	end := c.line(0, 0, firstFit(p.Width,
+	c.line(0, 0, firstFit(p.Width,
 		slices.Concat(pill, gap, line{{prose.Day(m.ReadAt.In(m.Now.Location())) + strings.Repeat(" ", readApart) + at, titleInk}}),
 		slices.Concat(pill, gap, clock),
 		clock))
-	if _, oneLine := flex.Lay(p.Width, headerParts(m)...); oneLine {
-		c.right(p.Width, 0, statusBeside(m, p.Width-end-headerGap))
+	s := newStatusLine(m)
+	if full := s.forms()[0]; fitsBeside(p.Width, full) {
+		c.right(p.Width, 0, full)
 		return 0
 	}
-	c.line(0, 2, newStatusLine(m).fit(p.Width))
+	c.line(0, 2, s.fit(p.Width))
 	return 2
 }
 
-// statusBeside is the status line of the moment m in full in room cells, its
-// free text cut as far as it must be; and where even that doesn't fit, as
-// fit shortens it.
-func statusBeside(m status.Moment, room int) line {
-	for cells := room; cells > 0; cells-- {
-		if l := statusCut(m, cells).forms()[0]; l.width() <= room {
-			return l
-		}
-	}
-	return newStatusLine(m).fit(room)
+// fitsBeside reports whether the header's parts, the status full, fit on
+// one line width cells wide, as flex lays them.
+func fitsBeside(width int, full line) bool {
+	_, fits := flex.Lay(width, headerParts(full)...)
+	return fits
 }

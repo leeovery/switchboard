@@ -1,7 +1,6 @@
 package dashboard
 
 import (
-	"math"
 	"slices"
 	"time"
 
@@ -62,7 +61,7 @@ func (f Frame) pageStatus(doc status.Document, now time.Time) statusLine {
 	var s statusLine
 	switch {
 	case m.Probed:
-		return f.failing(probedLine(m, math.MaxInt), now)
+		return f.failing(probedLine(m), now)
 	case m.Routed:
 		s = newStatusLine(m)
 		if s.mode == nil {
@@ -103,53 +102,34 @@ func (f Frame) failing(s statusLine, now time.Time) statusLine {
 // newStatusLine is the status line of the moment m, its mode shown only while
 // the router has a global pin.
 func newStatusLine(m status.Moment) statusLine {
-	return statusCut(m, math.MaxInt)
-}
-
-// statusCut is the status line of the moment m, as newStatusLine has it,
-// its free text, a restart's reason or a probe's, cut to cells.
-func statusCut(m status.Moment, cells int) statusLine {
 	if !m.Routed {
-		return probedLine(m, cells)
+		return probedLine(m)
 	}
 	s := statusLine{sessions: line{{prose.SessionCount(m.Sessions), mutedInk}}, destination: destination(m)}
 	s.state = line{{"● ", positiveInk}, {"healthy", secondaryInk}}
 	if !m.Health.Healthy {
-		s.state = unhealthy
+		s.state = line{{"● unhealthy", errorInk}}
 	}
 	s.short = s.state
 	if m.Restart.Due() {
-		s.restart = restartSaid(prose.Cut(prose.Clean(m.Restart.Reason), cells))
+		s.restart = line{{"restart due (" + prose.Clean(m.Restart.Reason) + ")", warningInk}}
 	}
 	if !m.Pin.IsZero() {
-		s.mode = pinnedSaid(m, m.Pin.Accounts)
+		s.mode = line{{"pinned to " + names(m, m.Pin.Accounts), alertInk}}
 	}
 	return s
 }
 
-// unhealthy is the router's state, unhealthy.
-var unhealthy = line{{"● unhealthy", errorInk}}
-
-// pinnedSaid is the mode, pinned to the accounts of m with the given ids.
-func pinnedSaid(m status.Moment, ids []string) line {
-	return line{{"pinned to " + names(m, ids), alertInk}}
-}
-
-// restartSaid is a restart due, and why.
-func restartSaid(reason string) line {
-	return line{{"restart due (" + reason + ")", warningInk}}
-}
-
 // probedLine is the status line of the moment m, probed rather than the
-// router's: why the router's document wasn't read, the router's reason cut
-// to cells, or that probing was asked for.
-func probedLine(m status.Moment, cells int) statusLine {
+// router's: why the router's document wasn't read, or that probing was asked
+// for.
+func probedLine(m status.Moment) statusLine {
 	why := ", as asked"
 	switch m.Fallback.Router {
 	case status.RouterNotRunning:
 		why = " · router not running"
 	case status.RouterUnhealthy:
-		why = " · " + because("router unhealthy", prose.Cut(prose.Clean(m.Fallback.Reason), cells))
+		why = " · " + because("router unhealthy", m.Fallback.Reason)
 	}
 	return statusLine{state: line{{"○ probed" + why, dimInk}}, short: line{{"○ probed", dimInk}}}
 }
@@ -162,24 +142,12 @@ func destination(m status.Moment) line {
 	read := slices.ContainsFunc(m.Accounts, func(a status.AccountNow) bool { return a.Read })
 	switch {
 	case len(m.Accounts) != 1 && !read:
-		return nothingRead
+		return line{{"nothing read yet", dimInk}}
 	case m.Next == "":
-		return noRoom
+		return line{{"no account has room", exhaustedInk}}
 	default:
-		return goingTo(m, m.Next)
+		return line{{"▲ " + named(m, m.Next), nameInk}}
 	}
-}
-
-// Where new sessions go, where it's no account: before anything's read, and
-// where none has room.
-var (
-	nothingRead = line{{"nothing read yet", dimInk}}
-	noRoom      = line{{"no account has room", exhaustedInk}}
-)
-
-// goingTo is where new sessions go, to the account of m with the given id.
-func goingTo(m status.Moment, id string) line {
-	return line{{"▲ " + named(m, id), nameInk}}
 }
 
 // fit is the line in width cells at most: in full where it fits; else as a

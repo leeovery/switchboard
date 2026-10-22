@@ -825,3 +825,23 @@ func plains(lines []line) []string {
 	}
 	return said
 }
+
+func TestARowsEndKeepsTwoCellsFromItsStartWhereItsCut(t *testing.T) {
+	tests := []struct {
+		name  string
+		width int
+		want  string
+	}{
+		{name: "whole, at the edge", width: 40, want: "work closed      at its limit till 15:54"},
+		{name: "cut where a space goes, two cells on", width: 27, want: "work closed  at its limit…"},
+		{name: "cut, two cells on", width: 30, want: "work closed  at its limit til…"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := strings.TrimRight(atEnd(line{{"work closed", titleInk}}, line{{"at its limit till 15:54", errorInk}}, tt.width).plain(), " ")
+			if got != tt.want {
+				t.Errorf("the row reads %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

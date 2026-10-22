@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
@@ -225,16 +226,18 @@ func TestARowTooLongWrapsUnderItsLabel(t *testing.T) {
 // Under 126 columns, where its two sides don't fit, the panel shows the
 // side the cursor's on alone, from its content's start; on a phone, today's
 // sessions from ONLY's start, where they'd lack the room further in.
-func TestUnder126ColumnsThePanelShowsOneSideAtATime(t *testing.T) {
+func TestWhereItsSidesLeastsDontFitThePanelShowsOneSideAtATime(t *testing.T) {
 	tests := []struct {
 		name       string
 		width      int
 		panel      LogPanel
 		has, lacks string
 	}{
-		{name: "both sides at 126", width: 126, panel: framesPanel(LogRequests, 0), has: "COLUMNS                                 ONLY"},
-		{name: "the left side at 125", width: 125, panel: framesPanel(LogRequests, 0), has: "COLUMNS", lacks: "ONLY"},
-		{name: "the right side at 125", width: 125, panel: framesPanel(LogRequests, 0).Sided(1), has: "ONLY", lacks: "COLUMNS"},
+		{name: "both sides of Requests at 105", width: 105, panel: framesPanel(LogRequests, 0), has: "COLUMNS                                 ONLY"},
+		{name: "both sides of Events at 123", width: 123, panel: framesPanel(LogEvents, 0), has: "EVENTS        today                                       ONLY"},
+		{name: "Events' left side at 122", width: 122, panel: framesPanel(LogEvents, 0), has: "EVENTS", lacks: "ONLY"},
+		{name: "the left side at 104", width: 104, panel: framesPanel(LogRequests, 0), has: "COLUMNS", lacks: "ONLY"},
+		{name: "the right side at 104", width: 104, panel: framesPanel(LogRequests, 0).Sided(1), has: "ONLY", lacks: "COLUMNS"},
 		{name: "Events' right side on a phone", width: 52, panel: framesPanel(LogEvents, 0).Sided(1), has: "ONLY", lacks: "EVENTS"},
 		{name: "today's sessions from ONLY's start on a phone", width: 52, panel: framesPanel(LogRequests, 0).Sided(1), has: "□ d28c  switchboard"},
 	}
@@ -442,31 +445,77 @@ func TestWhatTheFilterTicksThatTodayCountsNoneOfHasATick(t *testing.T) {
 	}
 }
 
-// A session's row's account is a label's column by Rule 2: as wide as the
-// widest name the panel knows, at least 8 and at most 24, its count and
-// what it's doing after it.
+// labelledPanel is the frames' panel of the table given, personal labelled
+// as given.
+func labelledPanel(of LogView, label string) LogPanel {
+	p := framesPanel(of, 0)
+	p.Accounts[1].Label = label
+	return p
+}
+
+// A session's row's account is a label's column by Rule 2, laid out by flex
+// with the rest of its row in ONLY: as wide as the widest name the panel
+// knows, at most 24, narrowing toward 8 where ONLY's short of room, before
+// the rows start further in.
 func TestASessionsRowsAccountIsALabelsColumn(t *testing.T) {
-	labelled := func(label string) LogPanel {
-		p := framesPanel(LogRequests, 0)
-		p.Accounts[1].Label = label
-		return p
-	}
 	tests := []struct {
 		name  string
 		panel LogPanel
+		width int
+		at    int
 		want  string
 	}{
-		{name: "the frames' names, 8 cells", panel: framesPanel(LogRequests, 0), want: "9c2e  website       personal  267 today   idle 9m"},
-		{name: "a name of 24, whole", panel: labelled("a-very-long-account-name"),
+		{name: "the frames' names, 8 cells", panel: framesPanel(LogRequests, 0), width: 78, at: 12, want: "9c2e  website       personal  267 today   idle 9m"},
+		{name: "a name of 24, whole", panel: labelledPanel(LogRequests, "a-very-long-account-name"), width: 85, at: 12,
 			want: "9c2e  website       a-very-long-account-name  267 today   idle 9m"},
-		{name: "a name past 24, cut there", panel: labelled("a-very-long-account-name-and-more"),
+		{name: "a name past 24, cut there", panel: labelledPanel(LogRequests, "a-very-long-account-name-and-more"), width: 85, at: 12,
 			want: "9c2e  website       a-very-long-account-nam…  267 today   idle 9m"},
+		{name: "short of room, the name narrows first", panel: labelledPanel(LogRequests, "a-very-long-account-name"), width: 78, at: 12,
+			want: "9c2e  website       a-very-long-acco…  267 today   idle 9m"},
+		{name: "at its least, the rows further out", panel: labelledPanel(LogRequests, "a-very-long-account-name"), width: 60, at: 3,
+			want: "9c2e  website       a-very-…  267 today   idle 9m"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := strings.TrimRight(tt.panel.sessionWords(tt.panel.Sessions[5]).plain(), " "); got != tt.want {
-				t.Errorf("the row reads\n%q\nwant\n%q", got, tt.want)
+			at := tt.panel.sessionColumns(tt.width)
+			if got := strings.TrimRight(tt.panel.sessionWords(tt.panel.Sessions[5], at.account).plain(), " "); got != tt.want || at.at != tt.at {
+				t.Errorf("the row reads\n%q from %d\nwant\n%q from %d", got, at.at, tt.want, tt.at)
 			}
 		})
+	}
+}
+
+// With a long name, on either side, at every width, no row of the panel is
+// wider than its card's content wherever today's sessions' rows fit there
+// at their least, and none cuts what a session's doing.
+func TestNoPanelRowRunsPastItsCard(t *testing.T) {
+	for _, of := range []LogView{LogRequests, LogEvents} {
+		for side := range 2 {
+			p := labelledPanel(of, "a-very-long-account-name").Sided(side)
+			for width := 40; width <= 220; width++ {
+				f := frameOf(width, 60)
+				content := f.cardWidth(panelWidth) - 2*cardInset
+				body := p.body(content, p.bothFit(content)).rows()
+				_, fits := flex.Lay(content, p.sessionParts()...)
+				if !fits {
+					continue
+				}
+				said := ""
+				for y, l := range body {
+					said += l.plain() + "\n"
+					if l.width() > content {
+						t.Errorf("%d, side %d, at %d columns, row %d is %d cells, past the card's %d: %q", of, side, width, y+1, l.width(), content, l.plain())
+					}
+				}
+				if !strings.Contains(said, "d28c") {
+					continue
+				}
+				for _, doing := range []string{"asking", "started 14:41", "idle 9m"} {
+					if !strings.Contains(said, doing) {
+						t.Errorf("%d, side %d, at %d columns, the panel reads\n%s\nwant %q whole", of, side, width, said, doing)
+					}
+				}
+			}
+		}
 	}
 }

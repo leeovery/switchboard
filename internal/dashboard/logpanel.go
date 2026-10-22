@@ -4,6 +4,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -325,13 +326,14 @@ func (p LogPanel) failedTick() tick {
 
 // sessionTicks are today's sessions' ticks, as Sessions lists them, each
 // ticked where the table's filter ticks it: none at first, as none ticked
-// keeps every one.
+// keeps every one. Their words, which take their widths from where they're
+// laid out, are ONLY's to give them, as sessionWords has them.
 func (p LogPanel) sessionTicks() []tick {
 	chosen := p.chosenSessions()
 	ticks := make([]tick, len(p.Sessions))
 	for i, s := range p.Sessions {
 		ticks[i] = tick{
-			on: tickOn{sessionTick, s.ID}, ticked: slices.Contains(chosen, s.ID), after: p.sessionWords(s),
+			on: tickOn{sessionTick, s.ID}, ticked: slices.Contains(chosen, s.ID),
 			toggle: func(p LogPanel) LogPanel {
 				if p.Of == LogEvents {
 					p.Shows.Sessions = toggledIn(p.Shows.Sessions, s.ID)
@@ -365,37 +367,60 @@ const (
 	sessionDoingMost = 13
 )
 
-// accountCells are the cells of a session's row's account column, a label's
-// column by Rule 2: the widest name of the accounts the panel knows, each
-// as labelColumnCells counts it, at least labelLeast.
-func (p LogPanel) accountCells() int {
-	widest := labelLeast
+// widestAccount is the natural of a session's row's account column: the
+// widest name of the accounts the panel knows, each as labelColumnCells
+// counts it.
+func (p LogPanel) widestAccount() int {
+	widest := 0
 	for _, a := range p.Accounts {
 		widest = max(widest, labelColumnCells(name(a)))
 	}
 	return widest
 }
 
-// sessionCells are the cells a session's row takes at its widest, from its
-// tick.
-func (p LogPanel) sessionCells() int {
-	return sessionAccountAt + p.accountCells() + sessionDoingFrom + sessionDoingMost
+// sessionParts are the parts of today's sessions' rows across ONLY, as flex
+// lays them: how far in they start, todayAt, giving way second; the tick,
+// the id and the directory, to the account; the account, a label's column
+// by Rule 2, narrowing toward labelLeast first; and the count and what it's
+// doing, at its widest.
+func (p LogPanel) sessionParts() []flex.Part {
+	tail := sessionDoingFrom + sessionDoingMost
+	return []flex.Part{
+		{Natural: todayAt[p.Of], Narrows: 2},
+		{Least: sessionAccountAt, Natural: sessionAccountAt},
+		{Least: labelLeast, Natural: p.widestAccount(), Most: labelMost, Narrows: 1},
+		{Least: tail, Natural: tail},
+	}
 }
 
-// sessionWords are a session's row after its tick: its id in
-// text.secondary; its directory's name, padded, in text.muted; the account
-// it's on, in its column, in text.primary; its lines today, or of Events',
-// its events, the figure ending at its column, in text.secondary and the
-// rest in text.muted; and what it's doing.
-func (p LogPanel) sessionWords(s views.LogSession) line {
+// sessionColumns are where today's sessions' rows lie, as sessionParts
+// lays them: from where, the account's cells, and the cells a row takes
+// from its tick.
+type sessionColumns struct {
+	at, account, cells int
+}
+
+// sessionColumns are where today's sessions' rows lie in ONLY, width cells
+// wide.
+func (p LogPanel) sessionColumns(width int) sessionColumns {
+	s, _ := flex.Lay(width, p.sessionParts()...)
+	return sessionColumns{at: s[0].Size, account: s[2].Size, cells: s[1].Size + s[2].Size + s[3].Size}
+}
+
+// sessionWords are a session's row after its tick, its account account
+// cells wide: its id in text.secondary; its directory's name, padded, in
+// text.muted; the account it's on, in its column, in text.primary; its
+// lines today, or of Events', its events, the figure ending at its column,
+// in text.secondary and the rest in text.muted; and what it's doing.
+func (p LogPanel) sessionWords(s views.LogSession, account int) line {
 	count := line{{prose.Grouped(s.Lines), secondaryInk}, {" today", mutedInk}}
 	if p.Of == LogEvents {
 		count = countedSaid(s.Events, "event", secondaryInk, mutedInk)
 	}
-	accountEnd := sessionAccountAt + p.accountCells()
+	accountEnd := sessionAccountAt + account
 	words := line{{status.ShownID(s.ID), secondaryInk}}
 	words = padTo(words, sessionDirAt-tickBox, line{{views.SessionDirName(s.Dir), mutedInk}})
-	words = padTo(words, sessionAccountAt-tickBox, line{{prose.Cut(p.named(s.Account), p.accountCells()), accountInk}})
+	words = padTo(words, sessionAccountAt-tickBox, line{{prose.Cut(p.named(s.Account), account), accountInk}})
 	words = padTo(words, accountEnd+sessionCountTo-tickBox-count[:1].width(), count)
 	if doing := sessionDoing(s, p.Now); doing.text != "" {
 		words = padTo(words, accountEnd+sessionDoingFrom-tickBox, line{doing})

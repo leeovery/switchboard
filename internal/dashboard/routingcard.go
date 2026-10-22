@@ -72,22 +72,23 @@ type choiceColumns struct {
 }
 
 // rowParts are a row's parts on one line, as flex lays them: the mark and
-// number; the name, at its natural; the state; the windows; and the end.
+// number; the name, a label's column by Rule 2, the one part that narrows;
+// the state; the windows; and the end.
 func (r RoutingCard) rowParts() []flex.Part {
 	use := choiceUsesApart + len(widestUse)
 	return []flex.Part{
 		{Least: choiceNameAt, Natural: choiceNameAt},
-		{Least: r.namesCells(), Natural: r.namesCells()},
+		{Least: labelLeast, Natural: r.widestName(), Most: labelMost},
 		{Least: stateCells, Natural: stateCells, Gap: nameGap},
 		{Least: use, Natural: use, Gap: stateGap},
 		{Least: endLeast(), Natural: endLeast(), Gap: endGap},
 	}
 }
 
-// namesCells is the name column's natural, by Rule 2: the widest of the
-// accounts' names, each as labelColumnCells counts it, at least labelLeast.
-func (r RoutingCard) namesCells() int {
-	widest := labelLeast
+// widestName is the name column's natural: the widest of the accounts'
+// names, each as labelColumnCells counts it.
+func (r RoutingCard) widestName() int {
+	widest := 0
 	for _, row := range r.Rows {
 		if row.Account != "" {
 			widest = max(widest, labelColumnCells(row.Name))
@@ -97,30 +98,41 @@ func (r RoutingCard) namesCells() int {
 }
 
 // natural is the card's natural width, its edges included: its rows' parts
-// on one line, cardInset in from either edge.
+// on one line, each at its natural, cardInset in from either edge.
 func (r RoutingCard) natural() int {
-	s, _ := flex.Lay(0, r.rowParts()...)
+	s, _ := flex.Lay(math.MaxInt, r.rowParts()...)
 	last := s[len(s)-1]
 	return last.At + last.Size + 2*cardInset
 }
 
-// columns are where the rows' parts lie in width cells: on one line, each at
-// its natural, where they all fit; else stacked, the name narrowing toward
-// labelLeast, the state after it, and the windows on a row of their own
-// from the state's column, or as near it as they still fit whole, so a
-// window's use is never cut. The parts are the card's, never what a row
-// says, so every row is laid out alike.
+// columns are where the rows' parts lie in width cells: on one line, where
+// they fit, the name narrowing toward labelLeast first; else stacked, the
+// windows on a row of their own from the state's column, or as near it as
+// they still fit whole, so a window's use is never cut, and the name laid
+// out with the end beside it, as stackedNames has it. The parts are the
+// card's, never what a row says, so every row is laid out alike.
 func (r RoutingCard) columns(width int) choiceColumns {
 	parts := r.rowParts()
 	if s, oneLine := flex.Lay(width, parts...); oneLine {
 		return choiceColumns{name: s[1].Size, state: s[2].At, windows: s[3].At}
 	}
-	parts[1].Least = labelLeast
-	s, _ := flex.Lay(width, parts[:3]...)
+	s := stackedNames(width, parts)
 	uses := parts[3]
 	uses.Gap = 0
 	w, _ := flex.Lay(width, flex.Part{Natural: s[2].At}, uses)
 	return choiceColumns{name: s[1].Size, state: s[2].At, windows: w[1].At, stacked: true}
+}
+
+// stackedNames are where a stacked row's mark and number, name and state
+// lie in width cells, of the row's parts: the name narrowing toward
+// labelLeast so the end beside them keeps its least, where that fits; else
+// without it, the end cut as the room allows.
+func stackedNames(width int, parts []flex.Part) []flex.Span {
+	if s, fits := flex.Lay(width, parts[0], parts[1], parts[2], parts[4]); fits {
+		return s
+	}
+	s, _ := flex.Lay(width, parts[:3]...)
+	return s
 }
 
 // RoutingCard is the routing card's data, which the watch builds afresh at
@@ -599,11 +611,16 @@ func padTo(l line, column int, after line) line {
 }
 
 // atEnd is l, cut to width cells, with end at its end, cut short where it
-// must be to keep two cells clear of l.
+// must be to keep two cells clear of l: then two cells after l, as a cut
+// can let go of the spaces before its ellipsis and end short of the edge.
 func atEnd(l, end line, width int) line {
 	l = l.fit(width)
-	end = end.fit(width - l.width() - 2)
-	return padTo(l, width-end.width(), end)
+	at := l.width() + 2
+	cut := end.fit(width - at)
+	if cut.width() == end.width() || cut.width() == 0 {
+		at = width - cut.width()
+	}
+	return padTo(l, at, cut)
 }
 
 // moveRows are the rows between the card's choices and its outcome: m's, a

@@ -233,7 +233,7 @@ var widerForms = []struct {
 	}, from: 130},
 	{name: "the Log's panel in its two sides", wider: func(width int) bool {
 		return strings.Contains(strings.Join(bodyText(framesPanel(LogRequests, 0), frameOf(width, 40)), "\n"), "ONLY")
-	}, from: 126},
+	}, from: 105},
 	{name: "usage's header on one line", wider: func(width int) bool {
 		return strings.HasPrefix(strings.TrimSpace(printed(trio(), width, ByWindow)[2]), "WEEK")
 	}, from: 84},
@@ -297,6 +297,27 @@ func TestTheRoutingCardsRowsAreStackedAlikeWhateverTheySay(t *testing.T) {
 		}
 		if len(slices.Compact(slices.Sorted(maps.Values(stacked)))) != 1 {
 			t.Errorf("at %d columns, the card stacks %v of its rows; want the same whatever the rows say", width, stacked)
+		}
+	}
+}
+
+// A long name narrows toward 8 before a row's end is cut, on one line or
+// stacked, wherever the name at 8 and the end at its least fit beside the
+// mark and the state.
+func TestALongNameNarrowsBeforeARowsEndIsCut(t *testing.T) {
+	r := widestEnds()
+	r.Rows[3].Name = "a-very-long-account-name"
+	least := choiceNameAt + labelLeast + nameGap + stateCells + endGap + endLeast()
+	for width := 40; width <= 220; width++ {
+		k := r.card(frameOf(width, 60))
+		if k.width-2*cardInset < least {
+			continue
+		}
+		body := strings.Join(plains(k.body), "\n")
+		for _, end := range []string{"at its limit till Sun 15:54", "token refused (403, sonnet)"} {
+			if !strings.Contains(body, end) {
+				t.Errorf("at %d columns, the card reads\n%s\nwant %q whole", width, body, end)
+			}
 		}
 	}
 }
