@@ -30,8 +30,16 @@ func Tenths(x float64) string {
 	return strconv.FormatFloat(NearestTenth(x), 'f', 1, 64)
 }
 
-// Ratio writes a ratio, as a worth against its price, to a tenth, as Tenths
-// writes it, then ×, as "3.8×".
+// Ratio writes a ratio, as a worth against its price, then ×: to a tenth, as
+// Tenths writes it, as "3.8×"; and from 100, as it rounds to a tenth, whole,
+// as "123×", so 99.95 reads "100×", never "100.0×". So it's 5 cells at most
+// up to 9999×.
 func Ratio(x float64) string {
-	return Tenths(x) + "×"
+	if NearestTenth(x) < ratioWholeFrom {
+		return Tenths(x) + "×"
+	}
+	return strconv.FormatFloat(math.RoundToEven(x), 'f', 0, 64) + "×"
 }
+
+// ratioWholeFrom is the ratio Ratio writes whole from.
+const ratioWholeFrom = 100

@@ -2150,7 +2150,8 @@ holds.
   price it, as there's no worth for the days before to set against it (the owner's call, 15 October
   2026): Max 20x's week from a Wednesday costs $33, not its whole week's $46. A ledger that holds no
   day yet begins today, for its plans' prices as for a read of its days, and the dashboard asks
-  again where it began till it holds one. It reads `4.0×`, bold, in `state.positive` at 1× or more
+  again where it began till it holds one. It reads `4.0×`, to a tenth, and from 100× whole, `123×`,
+  so it's 5 cells at most up to 9999×, bold, in `state.positive` at 1× or more
   and `accent.attention` under, then ` its $46 week` in `text.subtle`, the price to the dollar. A
   plan's price is the price table's, or the config's (see
   Config). An account without a `plan` shows `—` for it and no ratio, and `all accounts` sums the
@@ -2781,10 +2782,12 @@ account.
   shown, so the columns don't move with the data.
 - **`models` (or `on`)** is 18 cells at the least. Split by model, where it names the accounts a
   version ran on, its natural is every account configured, a space apart, each at 24 cells at the
-  most: it takes that before `against its price` grows, and narrows to 18 before any column leaves.
+  most, as each is drawn, a longer one cut with `…`: it takes that before `against its price` grows,
+  and narrows to 18 before any column leaves.
 - **`against its price` is never cut.** Its least is what it says at its widest for what every plan
   configured costs over a whole period, at today's prices (`views` works that out), the ratio at
-  `99.9×`, as `99.9× its $138 week`, or its head where no plan is known; where that doesn't fit, it
+  `99.9×`, as `99.9× its $138 week`, 5 cells, the most a ratio takes up to 9999× as it's written
+  whole from 100×; or its head where no plan is known. Where that doesn't fit, it
   leaves in its turn. Past it, the plans known take the longest form that fits, or none.
 - **Narrower, the columns leave one at a time,** never all at once, and never by a switch at a
   width: `models` first, then `cache write`, `input`, `output`, `against its price` and `cache
@@ -2792,8 +2795,10 @@ account.
   so a detail column leaves before a name is cut, and only then narrow to their least. A wider frame
   never shows fewer columns, nor a shorter name. Where `against its price` has left, worth runs to
   the frame's width. So at 108 and 120 every column shows but `models`, of short labels; by account
-  and model, whose names take 2 more, `models` leaves from 124, where it used to show, as the names
-  come first; and at 73, `cache read`, `total`, `worth` and `against its price`.
+  and model, whose names take 2 more, `models` leaves 2 columns sooner than by account, as the names
+  come first, where it used to show at the widest the old fixed form needed; and at 73, `cache
+  read`, `total`, `worth` and `against its price`. Where `models` leaves moves with the names
+  configured and the digits of what the plans cost.
 - **A period a row,** newest first, from row 8, a blank row between periods: named by its first day,
   `28 Sep`, by day its day, `Thu 1 Oct`, and by month its month, `Oct 2026` (settled in the plan),
   this week as any other, bold `text.primary`; how many model versions it used, `6 models`, in

@@ -60,8 +60,9 @@ const (
 	tokensAgainstGap = 1
 )
 
-// tokensRatioMost is the most a ratio of worth against its price is reckoned
-// to take, as against its price's least has it: 99.9×.
+// tokensRatioMost is the ratio against its price's least is reckoned at:
+// 99.9×, 5 cells, the most prose.Ratio writes up to 9999×, as it writes
+// whole from 100×.
 const tokensRatioMost = 99.9
 
 // The branches before a row's name under its period: an account's or a
@@ -446,11 +447,13 @@ func (r tokensRow) ofModel(m views.ModelTokens, branch string) tokensRow {
 }
 
 // on is the row naming the accounts given, by their ids, those its version
-// ran on, at the split's column, each as named names it, else by its id.
+// ran on, at the split's column, each as named names it, else by its id, at
+// labelMost cells at the most, as a column of names has it.
 func (r tokensRow) on(accounts []string, named map[string]string) tokensRow {
 	names := make([]string, len(accounts))
 	for i, id := range accounts {
-		names[i] = cmp.Or(named[id], tokensAccount(views.AccountTokens{Account: id}))
+		name := cmp.Or(named[id], tokensAccount(views.AccountTokens{Account: id}))
+		names[i] = prose.Cut(name, labelColumnCells(name))
 	}
 	r.of, r.ofIs = []part{wordsPart(line{{strings.Join(names, " "), dimInk}})}, "on"
 	return r
@@ -547,7 +550,7 @@ type tokensPlaced struct {
 
 // Tokens' parts down its view, in their order: its heads' row, the periods'
 // rows and the footnote's; and how many they are. The footnote leaves in
-// noteLeaves, the one turn.
+// tokensNoteLeaves, the one turn.
 const (
 	tokensHeadsRow = iota
 	tokensPeriodsRows
@@ -555,7 +558,7 @@ const (
 	tokensRowsCount
 )
 
-const noteLeaves = 1
+const tokensNoteLeaves = 1
 
 // tokensPlaced is the frame's periods of Tokens, its view from row top,
 // placed from two rows under its heads to two over its footnote, and the
@@ -573,7 +576,7 @@ func (f Frame) tokensPlaced(top int) (tokensPlaced, []line) {
 	rows := make([]flex.Part, tokensRowsCount)
 	rows[tokensHeadsRow] = flex.Part{Least: 1, Natural: 1}
 	rows[tokensPeriodsRows] = flex.Part{Least: leastPaged, Natural: leastPaged, Grows: true, Gap: 1}
-	rows[tokensNoteRows] = flex.Part{Least: len(note), Natural: len(note), Leaves: noteLeaves, Gap: min(len(note), 1)}
+	rows[tokensNoteRows] = flex.Part{Least: len(note), Natural: len(note), Leaves: tokensNoteLeaves, Gap: min(len(note), 1)}
 	spans, _ := flex.Lay(f.viewRows(), rows...)
 	if spans[tokensNoteRows].Left {
 		note = nil

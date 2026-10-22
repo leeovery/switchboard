@@ -926,6 +926,70 @@ func TestTokensAgainstItsPriceIsNeverCut(t *testing.T) {
 	}
 }
 
+// A name in on is at labelMost cells at the most, as a column of names has
+// it, so at on's natural every name reads as the natural reckons it: a label
+// past labelMost cut to it with an ellipsis, the names after it whole.
+func TestTokensOnCutsEachNameAtLabelMost(t *testing.T) {
+	long := strings.Repeat("r", 30)
+	f := tokensFrame(220, 37, TokensByModel)
+	f.History.Accounts = config.Accounts{{ID: "work", Label: long}, {ID: "side"}}
+	period := &f.History.Tokens.Periods[0]
+	period.ByAccount[0].Label = long
+	period.ByModel[0].On = []string{"work", "side"}
+	on := strings.Repeat("r", labelMost-1) + "… side"
+	if got := f.tokensColumns().spans[tokensOf].Size; got != ansi.StringWidth(on) {
+		t.Errorf("on takes %d cells, want its natural %d", got, ansi.StringWidth(on))
+	}
+	if row := tokensRowsOf(f)[3]; !strings.HasPrefix(row, "└ opus-5-5    "+on+" ") {
+		t.Errorf("the version reads %q, want it on %q", row, on)
+	}
+}
+
+// Where the split's column doesn't name accounts, by account, by account and
+// model, or unsplit, many accounts configured never widen it: it's
+// tokensOfCells at every width it shows.
+func TestTokensOfIsItsLeastWhereItNamesNoAccounts(t *testing.T) {
+	for _, split := range []TokensSplit{TokensByAccount, TokensByAccountAndModel, TokensUnsplit} {
+		f := tokensFrame(220, 37, split)
+		f.History.Accounts = tenConfigured()
+		if got := f.tokensColumns().spans[tokensOf].Size; got != tokensOfCells {
+			t.Errorf("split %d, of ten accounts, at 220 columns the split's column takes %d cells, want %d", split, got, tokensOfCells)
+		}
+	}
+}
+
+// A ratio of 100× or more, as a day's worth often is against what its plans
+// cost a day, is written whole, so against its price still fits its least
+// and is never cut: by day, unsplit and by model on ten accounts, from 220
+// columns to 40, the newest day's reads whole, or not at all.
+func TestTokensAgainstItsPriceOfAHundredfoldIsNeverCut(t *testing.T) {
+	for _, split := range []TokensSplit{TokensUnsplit, TokensByModel} {
+		for ratio, said := range map[float64]string{123.4: "123× its $7 day", 1234.5: "1234× its $7 day"} {
+			f := tokensFrame(220, 37, split)
+			f.History.TokensAsk.Period = views.TokensByDay
+			f.History.Accounts = tenConfigured()
+			f.History.Tokens.PeriodCost = usd(7)
+			period := &f.History.Tokens.Periods[0]
+			period.Against = againstAt(ratio, 7)
+			period.ByModel[0].On = f.History.Accounts.IDs()
+			shown := 0
+			for width := 220; width >= 40; width-- {
+				f.Width = width
+				row := tokensRowsOf(f)[2]
+				switch {
+				case strings.HasSuffix(row, said):
+					shown++
+				case strings.Contains(row, "×"):
+					t.Errorf("split %d at %d columns, a ratio of %v reads %q, want it to end %q whole", split, width, ratio, row, said)
+				}
+			}
+			if shown == 0 {
+				t.Errorf("split %d, a ratio of %v never shows %q", split, ratio, said)
+			}
+		}
+	}
+}
+
 // Nothing Tokens draws is left to the canvas to clip: in every split, at
 // any width, scrolled, it draws nothing past the frame's width.
 func TestTokensDrawsNothingPastTheWidth(t *testing.T) {
