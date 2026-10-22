@@ -55,12 +55,12 @@ LATELY  ────────────────────────
 14:41  ▲ c61b started on side
 14:31  ╎ work at its cap: 3 moved to side
 14:12  ▲ 7f3a started on work
-13:50  ◇ side primed
+13:50  ◇ side primed: its 5-hour window started
 13:22  ▸ db8a moved personal → work: personal came…
 12:47  ▲ 41e0 started on personal
-12:10  ◇ work primed
+12:10  ◇ work primed: its 5-hour window started
 12:02  ▲ d28c started on work
 11:55  ▲ 9c2e started on personal
-11:30  ◇ personal primed
+11:30  ◇ personal primed: its 5-hour window started
 
 tab views   ? keys and toggles   q quit

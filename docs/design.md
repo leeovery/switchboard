@@ -1795,8 +1795,11 @@ first (the owner's call, 15 October 2026).
 - **The mode, as the heading's description:** `auto` in bold `text.secondary`; or `pinned to
   personal` in bold `accent.attention`, ` since 14:02` in `text.subtle`, three spaces, then `p` in
   bold `accent.key` and ` back to auto` in `text.faint`; with several accounts pinned, `pinned to
-  personal and side since 13:40   p back to auto`. By account and on a phone, the mode alone. How
-  each mode routes is for `?` help.
+  personal and side since 13:40   p back to auto`. Those words show where they fit whole in the
+  heading's room, measured with the time at its widest (`prose.DatedWidth`), so a pin set today
+  switches where one set on an earlier day does, once as the width grows; else the mode alone
+  (`routingMode`). Folded and beside USAGE's blocks by account, the mode alone. How each mode
+  routes is for `?` help.
 - **A row's parts,** across the width, laid by flex (`routing.go`, `routingParts`), and read by
   SESSIONS' rows too, so the two line up:
   - fixed: the name column, as USAGE's rows have it; two cells after the words; the sessions, as
@@ -1848,7 +1851,8 @@ first (the owner's call, 15 October 2026).
   a phone, the name column at 16), and the sessions and rate right-aligned, `4 sessions  15/min`
   (settled in the plan).
 - **An account's state,** the first of these that holds, its glyph and first words in the colour
-  given, the rest in `text.muted`; the short form on a phone:
+  given, the rest in `text.muted`; the short form where the fuller ones don't fit, as on two rows
+  an account:
 
   | State | Words | Colour | Short |
   |---|---|---|---|
@@ -1956,7 +1960,7 @@ names configured never move the switch:
 - **LATELY, 21 cells** (`latelyLeast`): its time at its widest, `Sun 02:00`, 9; the two blanks; its
   mark and a blank, 2; and the name, 8. It fits beside COMING UP wherever COMING UP's does.
 
-Under 100 columns, on a phone's chrome, LATELY's words are its short ones; COMING UP's are the same
+LATELY's words are as long as its room holds, as LATELY's rule below says; COMING UP's are the same
 at every width.
 
 - **COMING UP,** soonest first: the time, padded to the longest, as `16:30`, `~Sat 06:00` or
@@ -2001,8 +2005,16 @@ at every width.
   A mark is one a kind, but for `■`, which a limit and a refusal share, their words telling them
   apart; the Log's Events mark each kind the same (see The Log). The sessions a limit, a cap or a
   refusal moved fold into its line, counted, as its event's `count` and `to` give them; a move shows
-  alone only where the line it's folded into isn't among those shown. On a phone the words are
-  short: `work at its cap: 3 moved to side`. A limit's or a cap's line names the windows it began
+  alone only where the line it's folded into isn't among those shown. Each sentence takes the
+  fullest of its two forms that fits whole in LATELY's room, its column or, folded, what its heading
+  holds (`latelyTold`), and is cut only where even the short one doesn't fit, so its names and
+  figures are never cut while a shorter form fits: `work at its cap: 3 moved to side`. The short
+  form keeps every name, count and time, and says less: a limit's, a prime's and room again's
+  windows go (`personal at its limit`, `side primed`, `work open again`), a count loses `sessions`
+  (`3 moved to side`), pressure's window goes (`personal under pressure: out ~16:05`), and a pin
+  is `pin set:`. The forms come from what each sentence says, never from the frame's width; the
+  room only grows with the width but where LATELY moves beside COMING UP, its column halving, the
+  one width a sentence may take its shorter form. A limit's or a cap's line names the windows it began
   with, as it began: `work reached its Fable week limit`, a 5-hour that joined it later left to the
   Log's card (the owner's call, 15 October 2026).
 

@@ -19,7 +19,7 @@ import (
 func graphsDrawn(f Frame, doc status.Document, heading, rows int) *canvas {
 	s := f.graphsSection(doc, printNow)
 	c := newCanvas(f.Width, f.Height)
-	c.line(len("GRAPHS   "), heading, s.description())
+	c.line(len("GRAPHS   "), heading, s.description(f.Width))
 	s.draw(c, bounds{y: heading + sectionHead, width: f.Width, rows: rows})
 	return c
 }
@@ -347,12 +347,12 @@ func TestGRAPHSChartsTheFocusedAccountOrTheFirst(t *testing.T) {
 	for _, tt := range []struct{ focus, want string }{{"personal", "personal"}, {"", "work"}, {"gone", "work"}} {
 		g := Frame{Width: 160, Height: 39, Focus: tt.focus}.graphsSection(doc, printNow)
 		want := slices.Concat(line{{tt.want, titleInk}, spaces(5)}, burnUpKey)
-		if got := g.description(); !slices.Equal(got, want) {
+		if got := g.description(160); !slices.Equal(got, want) {
 			t.Errorf("focused on %q, the description is %+v, want %+v", tt.focus, got, want)
 		}
 	}
-	if s := (Frame{Width: 160, Height: 39}).graphsSection(status.Document{}, printNow); s.description() != nil || s.folded() != nil {
-		t.Errorf("with no account, GRAPHS says %+v, folded %+v, want nothing", s.description(), s.folded())
+	if s := (Frame{Width: 160, Height: 39}).graphsSection(status.Document{}, printNow); s.description(160) != nil || s.folded(160) != nil {
+		t.Errorf("with no account, GRAPHS says %+v, folded %+v, want nothing", s.description(160), s.folded(160))
 	}
 }
 
@@ -367,7 +367,7 @@ func TestGRAPHSNamesAFocusedAccountOutOfThePoolFaint(t *testing.T) {
 	}
 	for _, tt := range tests {
 		g := Frame{Width: 160, Height: 39, Focus: tt.focus}.graphsSection(doc, printNow)
-		if said, folded := g.description(), g.folded(); said[0] != tt.want || !slices.Equal(folded, line{tt.want}) {
+		if said, folded := g.description(160), g.folded(160); said[0] != tt.want || !slices.Equal(folded, line{tt.want}) {
 			t.Errorf("with work alone pinned, focused on %s, GRAPHS says %+v, folded %+v, want each to name %+v", tt.focus, said, folded, tt.want)
 		}
 	}
@@ -376,7 +376,7 @@ func TestGRAPHSNamesAFocusedAccountOutOfThePoolFaint(t *testing.T) {
 func TestGRAPHSFoldedHoldsTheFocusedAccount(t *testing.T) {
 	g := Frame{Width: 160, Height: 35, Focus: "work"}.graphsSection(trio(), printNow)
 	want := line{{"work", titleInk}}
-	if got := g.folded(); !slices.Equal(got, want) {
+	if got := g.folded(160); !slices.Equal(got, want) {
 		t.Errorf("GRAPHS folded says %+v, want %+v", got, want)
 	}
 }
@@ -438,7 +438,7 @@ func TestGRAPHSHeadingKeysTheLinesOfTheChartItDraws(t *testing.T) {
 	}
 	for _, tt := range tests {
 		g := Frame{Width: 160, Height: 39, Focus: "work", Burn: tt.burn}.graphsSection(trio(), printNow)
-		if got, want := g.description(), slices.Concat(line{{"work", titleInk}, spaces(5)}, tt.want); !slices.Equal(got, want) {
+		if got, want := g.description(160), slices.Concat(line{{"work", titleInk}, spaces(5)}, tt.want); !slices.Equal(got, want) {
 			t.Errorf("drawing the %s, GRAPHS' heading says %+v, want %+v", tt.burn.Name(), got, want)
 		}
 	}

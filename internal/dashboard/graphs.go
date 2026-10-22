@@ -96,9 +96,9 @@ func (f Frame) graphsSection(doc status.Document, now time.Time) section {
 	g := f.graphsOf(doc, now)
 	return section{
 		Section: SectionGraphs, least: g.rows(leastChart), most: g.rows(mostChart),
-		description: g.description, keyed: true,
+		description: oneForm(g.description), keyed: true,
 		draw:   g.draw,
-		folded: g.folded,
+		folded: oneForm(g.folded),
 	}
 }
 
@@ -107,7 +107,7 @@ func (f Frame) graphsSection(doc status.Document, now time.Time) section {
 // draw it where its blocks lie; its heading the key to the charts' lines
 // alone, as no account is focused.
 func graphsAside(burn Burn) section {
-	key := func() line { return burnKey(burn) }
+	key := oneForm(func() line { return burnKey(burn) })
 	return section{
 		Section: SectionGraphs, description: key, keyed: true, folded: key,
 		draw:    func(*canvas, bounds) {},

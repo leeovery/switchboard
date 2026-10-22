@@ -770,7 +770,7 @@ func TestOneAccountsUSAGESaysTheRoomLeftWhereThePoolWouldSayIt(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := frameOf(tt.width, 60).usageSection(tt.doc, now).description()
+			got := frameOf(tt.width, 60).usageSection(tt.doc, now).description(tt.width)
 			if got.plain() != tt.want {
 				t.Errorf("USAGE's description reads %q, want %q", got.plain(), tt.want)
 			}
@@ -778,7 +778,7 @@ func TestOneAccountsUSAGESaysTheRoomLeftWhereThePoolWouldSayIt(t *testing.T) {
 	}
 	room := func(key string) ink { return strongInk.numbered(Number{Kind: NumberRoom, Account: "work", Of: key}) }
 	inks := []ink{faintInk, dimInk, room("7d"), dimInk, faintInk, faintInk, dimInk, room("5h"), dimInk}
-	got := frameOf(160, 60).usageSection(one(0), now).description()
+	got := frameOf(160, 60).usageSection(one(0), now).description(160)
 	if len(got) != len(inks) {
 		t.Fatalf("USAGE's description is %+v, want %d spans", got, len(inks))
 	}
@@ -839,7 +839,7 @@ func TestAcrossAResetBetweenReadsOneAccountsRoomLeftAndROUTINGAgree(t *testing.T
 			if capped := f.routingTableOf(doc, tt.now).accounts[0].standing.Kind == status.RoutingCapped; capped != tt.capped {
 				t.Errorf("ROUTING has work capped %t, want %t", capped, tt.capped)
 			}
-			if got := f.usageSection(doc, tt.now).description().plain(); got != tt.want {
+			if got := f.usageSection(doc, tt.now).description(160).plain(); got != tt.want {
 				t.Errorf("USAGE's description reads %q, want %q", got, tt.want)
 			}
 		})

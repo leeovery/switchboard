@@ -59,9 +59,7 @@ var phoneAllowed = []string{
 	"internal/dashboard/accountscompare.go:Frame.compareState",
 	"internal/dashboard/accounts_help.go:Frame.compareHelp",
 	"internal/dashboard/watch/accounts.go:Model.comparing",
-	// S25: what's left, LATELY's sentences, ROUTING's mode, and the cards.
-	"internal/dashboard/lately.go:Frame.latelySaid",
-	"internal/dashboard/routing.go:Frame.routingSection",
+	// S25: what's left, the cards.
 	"internal/dashboard/card.go:Frame.cardWidth",
 	"internal/dashboard/routingcard.go:RoutingCard.card",
 }

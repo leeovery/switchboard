@@ -215,14 +215,18 @@ type section struct {
 	// row a line at its most, as linesRows has it, and folded, its heading
 	// says where it holds more than its first. Its rows fill with what comes
 	// and goes, so only a layout made afresh, or its heading folded, asks.
-	lines       func() int
-	description func() line
+	lines func() int
+	// description and folded are what its heading says, unfolded and
+	// folded, in the cells its heading has for them, as says gives them:
+	// a section of several forms says the fullest that fits; one of a
+	// single form, as oneForm has it, says it at any width.
+	description headingWords
 	// keyed reports whether its description is items blank spans apart, as
 	// a key's, which give way whole, as fitItems cuts them, where its
 	// heading has no room for them all.
 	keyed   bool
 	draw    func(c *canvas, body bounds)
-	folded  func() line
+	folded  headingWords
 	targets func(body bounds) []Target
 	// scrolling is how far the body scrolls in rows rows, scrolled offset
 	// down, a row at a time, as USAGE's does where its accounts are many:
@@ -930,10 +934,10 @@ func (f Frame) sectionHeading(c *canvas, p planned) {
 	h := p.head
 	key := h.x + h.width - 1
 	x := c.line(h.x, h.y, line{{p.heading(), dimInk}})
-	ruled := x + ruleGap
-	if says := f.says(p); len(says) > 0 {
-		at := x + headingGap
-		ruled = c.line(at, h.y, p.fitted(says, key-at-leastRule-2)) + 1
+	ruled, at := x+ruleGap, x+headingGap
+	room := key - at - leastRule - 2
+	if says := f.says(p, room); len(says) > 0 {
+		ruled = c.line(at, h.y, p.fitted(says, room)) + 1
 	}
 	c.text(ruled, h.y, rule(key-1-ruled), borderInk)
 	c.text(key, h.y, p.Key(), keyInk)
@@ -949,23 +953,25 @@ func (p planned) fitted(says line, width int) line {
 	return says.fit(width)
 }
 
-// says is what the section's heading says after its name: where it folds,
-// what it holds, as its folded has it, then, for a section that lists lines,
-// where it holds more than that, two cells on, an ellipsis, or for any other,
-// three on, that there's no room for it at the frame's height, in
-// text.subtle; else its description, where it has one.
-func (f Frame) says(p planned) line {
+// says is what the section's heading says after its name, in cells cells:
+// where it folds, what it holds, as its folded has it, then, for a section
+// that lists lines, where it holds more than that, two cells on, an
+// ellipsis, or for any other, three on, that there's no room for it at the
+// frame's height, in text.subtle, what it holds in the cells those leave;
+// else its description, where it has one.
+func (f Frame) says(p planned, cells int) line {
 	if !p.fold {
-		return saying(p.description)
+		return saying(p.description, cells)
 	}
-	holds := saying(p.folded)
 	switch {
 	case p.lists() && p.lines() > 1:
-		return slices.Concat(holds, line{{"  " + prose.Ellipsis, dimInk}})
+		more := line{{"  " + prose.Ellipsis, dimInk}}
+		return slices.Concat(saying(p.folded, cells-more.width()), more)
 	case p.lists():
-		return holds
+		return saying(p.folded, cells)
 	}
 	noRoom := f.noRoom()
+	holds := saying(p.folded, cells-headingGap-noRoom.width())
 	if len(holds) == 0 {
 		return noRoom
 	}
@@ -978,12 +984,21 @@ func (f Frame) noRoom() line {
 	return line{{"no room at " + strconv.Itoa(f.Height) + " rows", dimInk}}
 }
 
-// saying is the line words gives, or none where it's nil.
-func saying(words func() line) line {
+// headingWords are what a section's heading says in the cells given.
+type headingWords func(cells int) line
+
+// oneForm is what a heading of a single form says, as words gives it, at any
+// width.
+func oneForm(words func() line) headingWords {
+	return func(int) line { return words() }
+}
+
+// saying is what words says in cells cells, or none where it's nil.
+func saying(words headingWords, cells int) line {
 	if words == nil {
 		return nil
 	}
-	return words()
+	return words(cells)
 }
 
 // everythingHidden draws, from the first row, how to bring the sections back
