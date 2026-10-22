@@ -1129,7 +1129,8 @@ last 12 months didn't use, which drops the filter as `v` would. Beside the perio
 takes the room left, two cells short of it, in the first of its forms that fits. A state of free
 text, the Log's filter, whose length is its data's, holds nothing of itself whole, so the heading's
 rows never hang on what it keeps: it's cut to the room left, as `only d28c swi…`. `loading…`'s room
-is kept for it all the same, as the Log says it reading back a day; so under 48 columns the Log's
+is kept for it all the same, as the Log says it reading back a day; so where the Log's count and
+`loading…` don't fit on row 5 together, under about 48 columns as the count's width has it, the
 count takes row 6, the price of its heading holding still as `loading…` comes and goes. Runway,
 without sub-tabs, keeps its rule and its window on row 5.
 
@@ -2681,8 +2682,9 @@ drop, one fewer being short on no more weeks than now; otherwise its form for fe
 - **Its form.** Weeks is drawn wide, in the shape `v` gives it, where that shape's parts fit at
   their leasts short of the frame's margin and its legend reads whole on one row; else in the other
   shape, where that fits, as `v` then has no shape to change to; else in its phone form (below).
-  Neither hangs on the data, so the form changes once as the width grows: the table's legend fits
-  from 79 columns, the columns' wider one from 126.
+  Neither hangs on the data, so the form changes once as the width grows, from the phone's to the
+  table's at 79 columns; with the columns chosen, once more, to theirs at 126, where their wider
+  legend fits.
 - **A row's parts,** laid out across the width the same for every row, so its columns come from the
   width and the accounts configured alone, never from the rows in view:
   - **the label column,** as Days' is: its widest name, `all accounts` or any account's with its

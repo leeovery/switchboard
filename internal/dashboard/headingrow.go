@@ -32,11 +32,11 @@ var shownSubTabInk = ink{token: theme.TextPrimary, on: hue{token: theme.BgSubtle
 // less room; the widest its least form takes as the keys that change what it
 // names step it, whether it shows yet or not; whether it's free text, its
 // length unbounded, as the Log's filter, cut to the room it's left; and at
-// its right, its period or
-// window, which < and > step, or another line, as the Log's count and its f,
-// and that line where the heading is compact, where it has one of its own;
-// the widest form its period takes as < and > step it, the period itself
-// where it's not given; and whether it says its page is loading.
+// its right, its period or window, which < and > step, or another line, as
+// the Log's count and its f, and that line where the heading is compact,
+// where it has one of its own; the widest form its period takes as < and >
+// step it, the period itself where it's not given; and whether it says its
+// page is loading.
 type heading struct {
 	name         string
 	subTabs      []string
