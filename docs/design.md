@@ -3131,7 +3131,11 @@ October 2026).
   4. as 3, the key giving way: the lanes scroll an account at a time, `▲ 1 more account` on the
      view's first row while any are above, and `▼ 1 more account` right-aligned on the row over the
      key line while any are below; or a row at a time, where a lane doesn't fit the view, a name
-     row showing with the row under it.
+     row showing with the row under it. Either way they page by the one rule of every view paged a
+     row at a time (see the Overview's USAGE), lanes in place of rows where they scroll an account
+     at a time: a page down starts at the first lane, or row, the page didn't show, and a page up
+     ends at the one above the first it showed, so paging either way passes over none
+     (`pageDown` and `pageUp`, in `scrolling.go`).
 
   The step hangs on the rows, the accounts configured, the calls, and the windows the moment lists,
   as the board's lines count them: among them a model's own week while it nears its limit, is held

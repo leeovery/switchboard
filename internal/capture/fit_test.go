@@ -161,11 +161,10 @@ var (
 // paging changes says more lies beyond either end. History's views, the
 // Overview's USAGE, Accounts' views and a phone's Switchboard, once they
 // have two rows to page, reach every row they draw as tall as everything
-// fits, paged down from the top, and but for the Switchboard's lanes, which
-// page a lane at a time, up from the foot, so the frame cuts nothing short
-// that they can't scroll to; and say on their first page that more lies
-// below, where they page, but the Year, as its frames draw it. The Log's tables are passed over: they hold no
-// heading, say where they are on their own status line, and paging a day's
+// fits, paged down from the top, and up from the foot, so the frame cuts
+// nothing short that they can't scroll to; and say on their first page that
+// more lies below, where they page, but the Year, as its frames draw it. The
+// Log's tables are passed over: they hold no heading, say where they are on their own status line, and paging a day's
 // lines at every size would take the sweep's time many times over.
 func TestNoViewCutsWhatItCantScrollTo(t *testing.T) {
 	for _, name := range Names() {
@@ -196,9 +195,6 @@ func TestNoViewCutsWhatItCantScrollTo(t *testing.T) {
 					}
 					if missing := unreached(reached, pages, tall, width); len(missing) > 0 {
 						t.Errorf("at %d×%d, paged as far as it goes, the view never shows %d of the rows it draws at %d rows:\n%s", width, height, len(missing), tallest, strings.Join(missing, "\n"))
-					}
-					if strings.HasPrefix(name, "sessions-") {
-						continue
 					}
 					if missing := unreached(reached, pagesUp(m, width, height), tall, width); len(missing) > 0 {
 						t.Errorf("at %d×%d, paged up from as far down as it goes, the view never shows %d of the rows it draws at %d rows:\n%s", width, height, len(missing), tallest, strings.Join(missing, "\n"))

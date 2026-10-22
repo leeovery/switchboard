@@ -346,8 +346,10 @@ func (b lanesBoard) fits() bool {
 // account at a time, its line and its sessions together: nowhere where they
 // fit the view whole, the key with them; a row at a time, where byRows says
 // so, as paged has it; else, the key giving way, no further than shows the
-// last account, a page being as many as show from the offset, under ▲ where
-// any are above.
+// last account, a page down starting at the first lane the page didn't
+// show, and a page up ending at the one above the first it showed, as
+// pageDown and pageUp have them, a page being as many as show from where
+// it starts, under ▲ where any are above.
 func (b lanesBoard) scrolling(offset int) Scrolling {
 	if b.fits() {
 		return Scrolling{}
@@ -355,11 +357,23 @@ func (b lanesBoard) scrolling(offset int) Scrolling {
 	if b.byRows() {
 		return b.paged().scrolling(offset)
 	}
+	most := b.mostScrolled()
+	from := min(max(offset, 0), most)
+	shows := func(at, lane int) bool {
+		at = min(at, most)
+		return at <= lane && lane < at+b.fitting(at)
+	}
+	return pagedFrom(most, from, pageDown(from, from+b.fitting(from), shows), pageUp(0, from, from-1, shows))
+}
+
+// mostScrolled is the furthest the lanes scroll an account at a time: the
+// first lane from which every lane after it fits the view.
+func (b lanesBoard) mostScrolled() int {
 	most := 0
 	for most < len(b.lanes)-1 && b.fitting(most) < len(b.lanes)-most {
 		most++
 	}
-	return Scrolling{Most: most, Page: b.fitting(min(max(offset, 0), most))}
+	return most
 }
 
 // fitting is how many lanes, from the one at first, fit the view, as many as

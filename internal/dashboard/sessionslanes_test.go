@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -298,7 +299,8 @@ func TestWhereBentCordsOutnumberTheRoomTheSwitchboardDrawsLanes(t *testing.T) {
 // way and they scroll an account at a time, its line and its sessions
 // together: ▲ and how many accounts are above on the view's first row, while
 // any are, and ▼ and how many below, right-aligned on the row over the key
-// line, no further than shows the last account.
+// line, no further than shows the last account; a page up going back as far
+// as shows the lane above the first shown, and no further.
 func TestLanesThatDontFitScrollAnAccountAtATime(t *testing.T) {
 	doc := phoneDoc()
 	tests := []struct {
@@ -309,8 +311,8 @@ func TestLanesThatDontFitScrollAnAccountAtATime(t *testing.T) {
 	}{
 		{offset: 0, scrolling: Scrolling{Most: 2, Page: 2}, first: "1 work          ● at its cap · 17:10", over: "               ▼ 1 more account"},
 		{offset: 1, scrolling: Scrolling{Most: 2, Page: 1}, first: "▲ 1 more account", over: "               ▼ 1 more account"},
-		{offset: 2, scrolling: Scrolling{Most: 2, Page: 1}, first: "▲ 2 more accounts"},
-		{offset: 5, scrolling: Scrolling{Most: 2, Page: 1}, first: "▲ 2 more accounts"},
+		{offset: 2, scrolling: Scrolling{Most: 2, Page: 1, Back: 2}, first: "▲ 2 more accounts"},
+		{offset: 5, scrolling: Scrolling{Most: 2, Page: 1, Back: 2}, first: "▲ 2 more accounts"},
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprint(tt.offset), func(t *testing.T) {
@@ -652,5 +654,78 @@ func TestTheLanesFormChangesOnlyAtAStepsEdgeAsCallsComeAndGo(t *testing.T) {
 		if got, gotFits := formOf(n); got != want || gotFits != fits {
 			t.Errorf("with %d calls, the lanes take step %d, fitting %t; want %d, %t", n, got, gotFits, want, fits)
 		}
+	}
+}
+
+// unevenLanes are a document of six accounts, each its windows used apart,
+// so no two lanes' rows read alike, and calls on them, as many on each as
+// sessions has it, each idle a minute longer than the last.
+func unevenLanes(sessions ...int) (status.Document, []views.Call) {
+	accounts := make([]status.Account, len(sessions))
+	var calls []views.Call
+	for i, n := range sessions {
+		id := "a" + strconv.Itoa(i+1)
+		used := float64(i+1) / 10
+		accounts[i] = routedAccount(id, routedWindow("5h", used, routedClock(1, 17, 0)), routedWindow("7d", used/2, routedClock(4, 21, 0)))
+		for s := range n {
+			session := fmt.Sprintf("%d%d00b6c2-8d3f-4a71-95e4-2c7b0f9a1d68", i+1, s)
+			calls = append(calls, sceneCall(id, session, "dir"+strconv.Itoa(len(calls)), "", idleFor(time.Duration(len(calls)+1)*time.Minute)))
+		}
+	}
+	doc := status.Document{GeneratedAt: routedAt, Source: status.SourceRouter, Best: "a1", Router: status.Health{Healthy: true}, Accounts: accounts}
+	return doc.WorkedOut(claudeLike), calls
+}
+
+// lanesInView are the rows of the frame's view of doc, scrolled as it has
+// them, each trimmed at its right.
+func lanesInView(f Frame, doc status.Document) []string {
+	rows := lanesText(f, doc)
+	return rows[f.top() : f.top()+f.viewRows()]
+}
+
+// Paged a page at a time, from the top down and from the foot up, the lanes
+// show every row they draw whole, whether they scroll an account at a time
+// or a row at a time: a page down starts at the first lane or row the page
+// before didn't show, and a page up ends at the one above the first it
+// showed, so neither way passes over one.
+func TestPagingTheLanesDownAndUpShowsEveryRow(t *testing.T) {
+	doc, calls := unevenLanes(0, 3, 1, 0, 4, 2)
+	paged := map[bool]bool{}
+	for _, width := range []int{52, 80} {
+		for height := 10; height <= 40; height++ {
+			f := lanesFrame(width, height, Look{}, calls)
+			b := f.lanesOf(doc, routedAt, f.switchboardLaid(doc, routedAt))
+			most := f.Scrolling(doc, routedAt).Most
+			if most == 0 {
+				continue
+			}
+			paged[f.ScrollsRows(doc, routedAt)] = true
+			whole := textOf(b.laned().c.rows(Look{}))
+			for _, way := range []struct {
+				name          string
+				offset, pages int
+			}{{"down", 0, 1}, {"up", most, -1}} {
+				reached := make(map[string]bool)
+				f.Scroll = way.offset
+				for range len(whole) + 1 {
+					for _, r := range lanesInView(f, doc) {
+						reached[r] = true
+					}
+					next := f.Scrolling(doc, routedAt).Paged(f.Scroll, way.pages)
+					if next == f.Scroll {
+						break
+					}
+					f.Scroll = next
+				}
+				for _, r := range whole {
+					if r != "" && !reached[r] {
+						t.Errorf("at %d×%d, paged %s, the lanes never show %q", width, height, way.name, r)
+					}
+				}
+			}
+		}
+	}
+	if !paged[false] || !paged[true] {
+		t.Errorf("the lanes paged an account at a time %v and a row at a time %v, want both", paged[false], paged[true])
 	}
 }
