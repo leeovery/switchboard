@@ -3983,8 +3983,11 @@ filling in as its line comes (settled in the plan).
   opens while it's open.
 
 **What it shows (`f`).** A panel in the same card, its natural 124 cells wide, wider than the
-routing card, as its two sides need, and 22 tall, centred: columns 18 to 141, rows 7 to 28 at 160. Where the
-screen hasn't its natural and a cell either side, it's the screen's width less those cells. It
+routing card, as its two sides need, and 22 tall, centred: columns 18 to 141, rows 7 to 28 at
+160. Where its two sides at their naturals need more, as a configured name long enough that
+today's sessions' account reaches its natural by Rule 2, it's as wide as they are: 131 for
+Requests and 138 for Events with a name of 24. Where the screen hasn't its natural and a cell
+either side, it's the screen's width less those cells. It
 shows both sides wherever they fit at their leasts: the left, to where ONLY starts, and ONLY as
 wide as today's sessions' rows at their least, their account at 8; from 105 columns for Requests
 and 123 for Events. Narrower, it shows the side the cursor's on alone. Its title, in its top edge:

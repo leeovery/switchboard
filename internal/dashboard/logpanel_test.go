@@ -485,6 +485,39 @@ func TestASessionsRowsAccountIsALabelsColumn(t *testing.T) {
 	}
 }
 
+// The panel is as wide as it was signed off at, 124, with the frames' names,
+// wherever it shows both sides, or as the frame has room for.
+func TestWithTheFramesNamesThePanelIsItsSignedOffWidth(t *testing.T) {
+	for _, of := range []LogView{LogRequests, LogEvents} {
+		p := framesPanel(of, 0)
+		for width := 40; width <= 220; width++ {
+			f := frameOf(width, 60)
+			got, _, _, _ := p.laidOut(f)
+			if p.bothFit(got-2*cardInset) && got != f.cardWidth(124) {
+				t.Errorf("%d at %d columns, the panel is %d wide, want %d", of, width, got, f.cardWidth(124))
+			}
+		}
+	}
+}
+
+// Where a configured name is long enough that today's sessions' account
+// reaches its natural by Rule 2, the panel widens to its parts' natural
+// where the frame has room: the name whole, on either side.
+func TestALongNameWidensThePanelToItsParts(t *testing.T) {
+	const name = "a-very-long-account-name"
+	for _, of := range []LogView{LogRequests, LogEvents} {
+		for side := range 2 {
+			p := labelledPanel(of, name).Sided(side)
+			for _, width := range []int{160, 220} {
+				body := strings.Join(bodyText(p, frameOf(width, 40)), "\n")
+				if !strings.Contains(body, "  "+name+"  ") {
+					t.Errorf("%d, side %d, at %d columns, the body reads\n%s\nwant %q whole", of, side, width, body, name)
+				}
+			}
+		}
+	}
+}
+
 // With a long name, on either side, at every width, no row of the panel is
 // wider than its card's content wherever today's sessions' rows fit there
 // at their least, and none cuts what a session's doing.
@@ -494,7 +527,7 @@ func TestNoPanelRowRunsPastItsCard(t *testing.T) {
 			p := labelledPanel(of, "a-very-long-account-name").Sided(side)
 			for width := 40; width <= 220; width++ {
 				f := frameOf(width, 60)
-				content := f.cardWidth(panelWidth) - 2*cardInset
+				content := f.cardWidth(p.natural()) - 2*cardInset
 				body := p.body(content, p.bothFit(content)).rows()
 				_, fits := flex.Lay(content, p.sessionParts()...)
 				if !fits {

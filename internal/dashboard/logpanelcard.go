@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"cmp"
+	"math"
 	"slices"
 	"strings"
 
@@ -10,12 +11,12 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// The panel's natural width, its edges included, as its two sides want it;
-// and the rows of the frame it leaves spare at its tallest, past which it
-// scrolls, the cursor's row kept in view.
+// The panel's width, its edges included, as its two sides were signed off
+// at, the least natural it has; and the rows of the frame it leaves spare at
+// its tallest, past which it scrolls, the cursor's row kept in view.
 const (
-	panelWidth = 124
-	panelSpare = 2
+	panelSignedOff = 124
+	panelSpare     = 2
 )
 
 // The panel's columns, from its content's start, where they differ by the
@@ -134,7 +135,7 @@ func (p LogPanel) cardOf(width int, body pane, from, shown int) Card {
 // laidOut is the panel as the frame lays it out: its width; its body; and
 // from which row of it, and how many, it shows.
 func (p LogPanel) laidOut(f Frame) (width int, body pane, from, shown int) {
-	width = f.cardWidth(panelWidth)
+	width = f.cardWidth(p.natural())
 	body = p.body(width-2*cardInset, p.bothFit(width-2*cardInset))
 	rows := body.height()
 	shown = min(max(f.bodyRoom(panelSpare, true), 0), rows)
@@ -144,12 +145,28 @@ func (p LogPanel) laidOut(f Frame) (width int, body pane, from, shown int) {
 	return width, body, from, shown
 }
 
+// natural is the panel's natural width, its edges included: the width its
+// two sides were signed off at, or wider where its parts at their naturals,
+// as a long configured name has them, need more, cardInset in from either
+// edge.
+func (p LogPanel) natural() int {
+	s, _ := flex.Lay(math.MaxInt, p.sideParts()...)
+	last := s[len(s)-1]
+	return max(panelSignedOff, last.At+last.Size+2*cardInset)
+}
+
 // bothFit reports whether the panel's two sides fit content cells, as flex
-// lays them at their leasts: the left side, to where ONLY starts; and ONLY,
-// as wide as today's sessions' rows at their least, its widest part.
+// lays them at their leasts.
 func (p LogPanel) bothFit(content int) bool {
-	_, fits := flex.Lay(content, append([]flex.Part{{Least: onlyAt[p.Of], Natural: onlyAt[p.Of]}}, p.sessionParts()...)...)
+	_, fits := flex.Lay(content, p.sideParts()...)
 	return fits
+}
+
+// sideParts are the parts of the panel's two sides across a row: the left
+// side, to where ONLY starts; and ONLY, as wide as today's sessions' rows,
+// its widest part.
+func (p LogPanel) sideParts() []flex.Part {
+	return append([]flex.Part{{Least: onlyAt[p.Of], Natural: onlyAt[p.Of]}}, p.sessionParts()...)
 }
 
 // lit is the tick the cursor's on, as it's placed in body.
