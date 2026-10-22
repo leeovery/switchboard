@@ -812,21 +812,20 @@ func (g gauge) number(kind NumberKind) Number {
 // line from the name column, the cap's part after even pace's, where it fits
 // there, as oneLineKey judges it; else two lines from column 0, the cap's
 // part on the second. The marks the Overview names follow the cap's part,
-// each part keyApart cells after the one before, in the first of their forms
-// that fits the line, as firstFit has it. Where the block has given way its
-// key, it draws none.
+// each part a gap after the one before, in the first of their forms
+// that fits the line, as keyForms and firstFit have them. Where the block
+// has given way its key, it draws none.
 func (b usageBlock) key(c *canvas, y int) {
 	if b.given >= givenKey {
 		return
 	}
 	pace, forms := b.keyParts(b.bar())
-	apart := keyGap(b.width)
 	if b.oneLineKey() {
-		c.line(b.names, y, firstFit(b.width-b.names, keyForms(apart, forms, pace)...))
+		c.line(b.names, y, firstFit(b.width-b.names, keyForms(b.width, forms, pace)...))
 		return
 	}
 	c.line(0, y, pace.fit(b.width))
-	if second := keyForms(apart, forms); second[0] != nil {
+	if second := keyForms(b.width, forms); second[0] != nil {
 		c.line(0, y+1, firstFit(b.width, second...))
 	}
 }
@@ -834,19 +833,29 @@ func (b usageBlock) key(c *canvas, y int) {
 // oneLineKey reports whether the block's key line is one line, from the name
 // column: where it fits there at its widest, the cap of every account that
 // has one among its parts, and the marks its accounts may carry, in their
-// widest form; so it's one line or two whatever the bars draw and wherever ▲
-// is.
+// widest form, its gaps at their least; so it's one line or two whatever the
+// bars draw and wherever ▲ is, and one line at a width is one line wider.
 func (b usageBlock) oneLineKey() bool {
 	pace, forms := keyPartsOf(b.everyCap(), b.markable)
-	return keyForms(keyGap(b.width), forms[:1], pace)[0].width() <= b.width-b.names
+	widest := keyForms(b.width, forms[:1], pace)
+	return widest[len(widest)-1].width() <= b.width-b.names
 }
 
-// keyForms are a key line in each of the forms of its parts, the widest
-// first, the parts led by those given, apart between each two.
-func keyForms(apart span, forms [][]line, lead ...line) []line {
-	lines := make([]line, len(forms))
-	for i, parts := range forms {
-		lines[i] = joined(apart, slices.Concat(lead, parts)...)
+// keyForms are a key line width columns wide in each of the forms of its
+// parts, the widest first, the parts led by those given: each form with its
+// parts keyApart cells apart, then, where that's wider, leastKeyApart, as
+// the gaps narrow before the parts take a narrower form. So the form a line
+// takes never narrows as the width grows, the gap widening at 100 columns.
+func keyForms(width int, forms [][]line, lead ...line) []line {
+	gaps := []int{keyApart(width)}
+	if gaps[0] > leastKeyApart {
+		gaps = append(gaps, leastKeyApart)
+	}
+	var lines []line
+	for _, parts := range forms {
+		for _, gap := range gaps {
+			lines = append(lines, joined(span{strings.Repeat(" ", gap), mutedInk}, slices.Concat(lead, parts)...))
+		}
 	}
 	return lines
 }
@@ -872,17 +881,14 @@ func keyPartsOf(caps line, marks [][]line) (pace line, forms [][]line) {
 	return pace, forms
 }
 
-// keyGap is what sets a key line's parts apart, width columns wide, as
-// keyApart has it.
-func keyGap(width int) span {
-	return span{strings.Repeat(" ", keyApart(width)), mutedInk}
-}
+// leastKeyApart is the fewest cells between the parts of a key line.
+const leastKeyApart = 3
 
-// keyApart is the cells between the parts of a key line width columns wide:
-// four, or on a phone, as Phone tells one, three.
+// keyApart is the cells between the parts of a key line width columns wide,
+// where they fit: four, or on a phone, as Phone tells one, leastKeyApart.
 func keyApart(width int) int {
 	if Phone(width) {
-		return 3
+		return leastKeyApart
 	}
 	return 4
 }

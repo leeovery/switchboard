@@ -1234,14 +1234,22 @@ and the windows shown, never what's read of them:
 | The name column | Fitted to the names, a label 8 cells at the least and 24 at the most (see "The pool, the names and their numbers", below) |
 | The words | 22 cells, the full form's, narrowing toward the short form's 14 once the bars are at their least; each window's words in full wherever they fit their cells, else short |
 | By account, the name beside its first bar | Wherever its row's parts fit at their leasts beside the name column; else on a line of its own |
-| The key line | One line from the name column wherever it fits there at its widest; else two |
+| The key line | One line from the name column wherever it fits there at its widest, its gaps at their least; else two |
+
+A model's window status lists, as it lists one while it nears its limit, is a window shown, so where
+it makes three, the arrangement follows: from 86 columns to 121, two windows sit side by side, but
+three stack.
 
 **A row's parts,** in every layout, laid out as the dashboard's flex lays a row: the name column;
 each window's bar, at least 12 cells, taking what's left, at most 90 in the matrix; after each bar,
 a cell, the percentage in 4 cells and two cells; each window's words; 3 cells between windows; and a
 cell at the edge. Where the room runs short, the bars give way first, to their least; then the
-words, a cell at a time, from 22 toward 14; then the name column, toward its least. So a bar only
-grows with the width, and the words are in full wherever the bars can spare them the cells.
+words, a cell at a time, from 22 toward 14; then the name column, toward its least. So within an
+arrangement a bar only grows with the width, and the words are in full wherever the bars can spare
+them the cells. Where the arrangement changes as the width grows, the bars can be shorter after it:
+by window, stacked to the matrix, at 86 columns with two windows; by account, the name over its
+block to beside its first bar, at 60; and on the Overview by account, at 150, where ROUTING or
+GRAPHS' charts come beside its blocks.
 
 **The header:**
 
@@ -1312,11 +1320,11 @@ a matrix of one.
   `text.muted`;
 - where any account has a cap, four spaces, `╎` in `viz.reserve`, then ` cap: work at 95%` in
   `text.muted`; several capped accounts in the config's order, `work at 95%, side at 90%`.
-- One line starting at the name column, wherever it fits there at its widest: the cap of every
-  account that has one, whether its bars draw its mark or not, and the marks the Overview names,
-  `▲` among them as an account may carry it at any read; so it's one line or two whatever a read
-  draws. Else two lines at column 0, the cap's part on the second. A blank line separates it from
-  the last row.
+- One line starting at the name column, wherever it fits there at its widest, its gaps at their
+  least: the cap of every account that has one, whether its bars draw its mark or not, and the
+  marks the Overview names, `▲` among them as an account may carry it at any read; so it's one line
+  or two whatever a read draws, and one line at a width is one line wider. Else two lines at column
+  0, the cap's part on the second. A blank line separates it from the last row.
 
 **Spacing:** `usage` prints a blank line, then the header, and ends at the key line, with no blank
 line after it, as a shell's prompt spaces itself (settled in the plan).
@@ -1571,9 +1579,13 @@ Then, as only the Overview has them:
   leave.
 - **The key line names the marks the accounts carry,** after the cap's: `◆` in `text.tertiary` and
   ` primary`, and `▲` in `accent.mode` and ` new sessions go here`, each four spaces after the part
-  before, in `text.muted`; on a phone, three spaces. `▲`'s words take the first of their two
-  forms that fits the line, ` new sessions go here`, then ` new`, as `firstFit` has them, never by
-  the phone: in full on a phone of 73, and at 52 where no cap's part comes before them.
+  before, in `text.muted`; on a phone, three spaces. The gaps are three at the least: where four
+  don't fit, they narrow to three before the line takes a narrower form, so the form a key line
+  takes never steps down as the width grows, the gaps widening at 100 columns. `▲`'s words take
+  the first of their two forms that fits the line, ` new sessions go here`, then ` new`, as
+  `keyForms` and `firstFit` have them, never by the phone: in full on a phone of 73, and at 52
+  where no cap's part comes before them. The Switchboard's key, the Overview's, follows the same
+  rule.
 - **Rows short,** USAGE gives way in steps, each a step of its least the planner takes (see Room):
   its accounts a row apart, the blank row between each two gone, in every window and by account
   between blocks; then the blank rows under its heading and its windows' headings; then its key
@@ -2062,15 +2074,19 @@ below, not flex's even share:
 4. **Every other section folded,** where USAGE still doesn't fit, it takes, in the rows left to
    it, the step that shows the most accounts, scrolled to its top: as it is; its accounts a row
    apart; then the blank rows under its heading and its windows' headings gone too; then its key
-   line. Of steps that show as many, it takes the least far, so it keeps its blank rows where they
-   cost no account, but its key line only where it shows: where the step that keeps it would
-   scroll it out of view, the key gives way too. The rows a step leaves are empty at the foot, and
-   where a step doesn't fit, it scrolls within the rows, as Many accounts, above, has it. So at
-   138 × 15, where it showed `WEEK`, how many rows more and its key, it shows the matrix, all
-   three accounts and `▼ 2 more below`. As the
-   rows grow, the most any step shows never falls: every step scrolls whole, a row at a time, so a
-   row more shows as many accounts or more. The planner keeps the step it took in the layout, so
-   USAGE is drawn in the form the planner chose, never one its rows alone suggest.
+   line. Of steps that show as many, it takes the least far whose key line shows, so it keeps its
+   blank rows where they cost no account, and its key line only where it shows: a step that keeps
+   the key but would scroll it out of view gives way to the next that shows as many, and so to the
+   step without the key where no step keeping it fits whole. The key comes into view only once a
+   step that keeps it fits whole, so a row more never hides what a row less showed, the pool's
+   rows among them. The rows a step leaves are empty at the foot, and where a step doesn't fit, it
+   scrolls within the rows, as Many accounts, above, has it. So at 138 × 15, where it showed
+   `WEEK`, how many rows more and its key, it shows the matrix, all three accounts and `▼ 2 more
+   below`; and at 73 × 36, every section shown, three accounts stacked a row apart with their key
+   leave 3 rows at the foot, the step as it is taking 4 more. As the rows grow, the most any step
+   shows never falls: every step scrolls whole, a row at a time, so a row more shows as many
+   accounts or more. The planner keeps the step it took in the layout, so USAGE is drawn in the
+   form the planner chose, never one its rows alone suggest.
 5. **Rows to spare go out even while a section is folded,** to the units that aren't, in turn: to
    SESSIONS, a whole session at a time, its row or two, to every one, what's left that's less than a
    session going on, never left blank; to GRAPHS, a row at a time to 19; to USAGE's big bars, if
@@ -3154,7 +3170,8 @@ October 2026).
   `┃ even pace: where you would be now, used evenly`, and `◆ primary   ▲ new sessions go here`,
   naming no cap, `▲`'s words as the Overview's key line words them, by the room it has: `▲ new`
   where the long words don't fit; its marks three spaces apart under 100 columns, and four from 100,
-  where bent cords bring the lanes, as `keyApart` sets them.
+  where bent cords bring the lanes, narrowing to three before `▲`'s words shorten, as `keyForms`
+  has them.
 - **When rows run short,** the lanes take the first of their steps whose lanes, a blank row and the
   key fit the view and the row over the key line, the order kept in one place (`laneSteps`, in
   `sessionslanes.go`):

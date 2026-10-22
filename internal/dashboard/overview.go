@@ -403,8 +403,10 @@ func (u *unit) leanTo(given giving) {
 }
 
 // showsMost is the step USAGE's unit shows the most accounts at in rows
-// rows, as its accounts counts them, the least far of those that tie, but
-// that its key is kept only where it shows, as keyShown has it.
+// rows, as its accounts counts them, the least far of those that tie whose
+// key shows, as keyShows has it: a key scrolled out of view says nothing, so
+// the step that gives it way, showing as many, shows what that one would
+// over it, the pool's rows among them.
 func (u unit) showsMost(rows int) giving {
 	s := u.sections[0]
 	if s.accounts == nil {
@@ -416,18 +418,26 @@ func (u unit) showsMost(rows int) giving {
 			best, most = given, shown
 		}
 	}
-	return s.keyShown(best, rows)
+	for given := givenNone; int(given) <= len(s.leaner); given++ {
+		if s.keyShows(given, rows) && s.accounts(given, rows) == most {
+			return given
+		}
+	}
+	return best
 }
 
-// keyShown is the step given, USAGE's in rows rows, but where it keeps the
-// key only to leave it out of view, as the key is the last of the rows it
-// scrolls, the step that gives the key way: a key below the view says
-// nothing, and the step without it shows the same rows over it.
-func (s section) keyShown(given giving, rows int) giving {
-	if given == givenHeads && int(givenKey) <= len(s.leaner) && s.leaner[givenHeads-1] > rows {
-		return givenKey
+// keyShows reports whether USAGE's key shows in rows rows at the step given:
+// where it's given way, or can't be; or the step fits whole, the key being
+// the last of the rows it scrolls.
+func (s section) keyShows(given giving, rows int) bool {
+	if given >= givenKey || len(s.leaner) < int(givenKey) {
+		return true
 	}
-	return given
+	whole := s.least
+	if given > givenNone {
+		whole = s.leaner[given-1]
+	}
+	return whole <= rows
 }
 
 // gaveWay reports whether the unit has given way: folded, or led by USAGE,

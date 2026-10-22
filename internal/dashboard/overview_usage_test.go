@@ -365,11 +365,11 @@ func TestUSAGEScrollsWholeARowAtATimeInEveryLayout(t *testing.T) {
 }
 
 // The Overview scrolls a row at a time wherever its USAGE scrolls, a turn of
-// the wheel scrolling several: as at 80×24 with one account of three windows.
+// the wheel scrolling several: as at 80×18 with one account of three windows.
 func TestTheOverviewScrollsARowAtATime(t *testing.T) {
-	f := frameOf(80, 24)
+	f := frameOf(80, 18)
 	if doc := usageWorld(workAlone); f.Scrolling(doc, now).Most == 0 || !f.ScrollsRows(doc, now) {
-		t.Errorf("at 80×24, the Overview scrolls %+v, a row at a time: %t; want it to scroll, a row at a time", f.Scrolling(doc, now), f.ScrollsRows(doc, now))
+		t.Errorf("at 80×18, the Overview scrolls %+v, a row at a time: %t; want it to scroll, a row at a time", f.Scrolling(doc, now), f.ScrollsRows(doc, now))
 	}
 }
 
@@ -716,9 +716,11 @@ func TestUSAGEsKeyLineNamesTheMarksTheAccountsCarry(t *testing.T) {
 		{name: "at 52, ▲ new", doc: trio(), width: 52, want: []string{pace, "╎ cap: work at 95%   ◆ primary   ▲ new"}},
 		{name: "at 52 with no cap, the long form fitting", doc: trio(account("work", func(a *status.Account) { a.Reserve = 0 })), width: 52, want: []string{pace, "◆ primary   ▲ new sessions go here"}},
 		{name: "one line where it fits beside the name column at its widest", doc: trio(), width: 125, want: []string{pace + "    ╎ cap: work at 95%    ◆ primary    ▲ new sessions go here"}},
-		{name: "a cell short of it, two lines", doc: trio(), width: 124, want: []string{pace, "╎ cap: work at 95%    ◆ primary    ▲ new sessions go here"}},
-		{name: "a cell short of it, two lines though new sessions go nowhere, as they may", doc: trio(nowhere), width: 124, want: []string{pace, "╎ cap: work at 95%    ◆ primary"}},
-		{name: "a cell short of it, two lines though nothing read draws the cap's mark, as a read may", doc: trio(account("work", func(a *status.Account) { a.FetchedAt, a.Windows = time.Time{}, nil })), width: 124, want: []string{pace, "◆ primary    ▲ new sessions go here"}},
+		{name: "a cell short of it, one line, its gaps narrowed to three", doc: trio(), width: 124, want: []string{pace + "   ╎ cap: work at 95%   ◆ primary   ▲ new sessions go here"}},
+		{name: "one line where it fits with its gaps at their least", doc: trio(), width: 122, want: []string{pace + "   ╎ cap: work at 95%   ◆ primary   ▲ new sessions go here"}},
+		{name: "a cell short of it, two lines", doc: trio(), width: 121, want: []string{pace, "╎ cap: work at 95%    ◆ primary    ▲ new sessions go here"}},
+		{name: "a cell short of it, two lines though new sessions go nowhere, as they may", doc: trio(nowhere), width: 121, want: []string{pace, "╎ cap: work at 95%    ◆ primary"}},
+		{name: "a cell short of it, two lines though nothing read draws the cap's mark, as a read may", doc: trio(account("work", func(a *status.Account) { a.FetchedAt, a.Windows = time.Time{}, nil })), width: 121, want: []string{pace, "◆ primary    ▲ new sessions go here"}},
 		{name: "no primary, no ◆, one line where that fits", doc: trio(noPrimary), width: 120, want: []string{pace + "    ╎ cap: work at 95%    ▲ new sessions go here"}},
 		{name: "no cap, the marks alone, one line where they fit", doc: trio(account("work", func(a *status.Account) { a.Reserve = 0 })), width: 120, want: []string{pace + "    ◆ primary    ▲ new sessions go here"}},
 	}

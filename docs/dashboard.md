@@ -546,8 +546,10 @@ Under 100 columns, the dashboard lays itself out for a phone.
 </div>
 
 - The tabs sit on a row of their own, under the clock.
-- The Overview's USAGE stacks its windows, its bars at their least and its words short where they
-  don't fit in full.
+- The Overview's USAGE sets its windows side by side wherever every part of a row fits at its
+  least, from 86 columns with two windows and names of the sample's length, and stacks them where
+  they don't. As the room runs short, its bars give way first, to 12 cells, then its words, to their
+  short form, then the name column.
 - ROUTING takes two rows for each account, and SESSIONS two rows for each session, as they do
   wherever one row doesn't fit, under 83 columns with a name column of 16.
 - LATELY comes under COMING UP, as it does wherever the two don't fit side by side, under 93

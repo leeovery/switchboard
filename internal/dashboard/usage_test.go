@@ -823,6 +823,64 @@ func TestTheKeyLineSaysWhatTheMarksMean(t *testing.T) {
 	}
 }
 
+// From 52 columns to 220, by window and by account, with the sample's names
+// and with names short enough that the gap's widening at 100 columns falls
+// where the key is one line or two: a key line one line at a width is one
+// line wider, and its words never step down to a narrower form, as its gaps
+// narrow to three before it steps down.
+func TestAKeyLineNeverStepsDownAsTheWidthGrows(t *testing.T) {
+	short := trio(
+		account("work", func(a *status.Account) { a.Label, a.Reserve = "wk", 0 }),
+		account("personal", func(a *status.Account) { a.Label = "pe" }),
+		account("side", func(a *status.Account) { a.Label = "sd" }),
+	)
+	for name, doc := range map[string]status.Document{"the sample's names": trio(), "names of 2 cells and no cap": short} {
+		for _, by := range []By{ByWindow, ByAccount} {
+			oneLine, words := false, 0
+			for width := 52; width <= 220; width++ {
+				f := frameOf(width, 60)
+				f.By = by
+				b := f.overviewBlock(doc, printNow)
+				c := growing(width)
+				b.key(c, 0)
+				drawn := len(strings.Fields(strings.Join(textOf(c.rows(Look{})), " ")))
+				if oneLine && !b.oneLineKey() {
+					t.Errorf("%s, by %d, at %d columns, the key line is two lines, one a column narrower", name, by, width)
+				}
+				if drawn < words {
+					t.Errorf("%s, by %d, at %d columns, the key line draws %d words, %d a column narrower", name, by, width, drawn, words)
+				}
+				oneLine, words = b.oneLineKey(), drawn
+			}
+		}
+	}
+}
+
+// From 52 columns to 220, the form keyForms has a key line take, the first
+// that fits, never steps down as the width grows: the marks alone, the whole
+// width, as the Switchboard's are, and led by even pace, beside every name
+// column there is.
+func TestAKeyLinesFormNeverStepsDownAsTheWidthGrows(t *testing.T) {
+	pace, _ := keyPartsOf(nil, nil)
+	forms := markable(namesOf(frameOf(160, 60).Moment(trio(), printNow)))
+	for beside := range 25 {
+		for _, lead := range [][]line{nil, {pace}} {
+			words := 0
+			for width := 52; width <= 220; width++ {
+				var said strings.Builder
+				for _, s := range firstFit(width-beside, keyForms(width, forms, lead...)...) {
+					said.WriteString(s.text)
+				}
+				drawn := len(strings.Fields(said.String()))
+				if drawn < words {
+					t.Errorf("led by %d parts, %d cells beside, at %d columns, the key line draws %d words, %d a column narrower", len(lead), beside, width, drawn, words)
+				}
+				words = drawn
+			}
+		}
+	}
+}
+
 func TestEveryAccountKeepsItsRowsBeforeAnyWindowIsRead(t *testing.T) {
 	unread := func(a *status.Account) { a.FetchedAt, a.Windows = time.Time{}, nil }
 	doc := trio(func(d *status.Document) { d.Accounts, d.Best = d.Accounts[:2], "" }, account("work", unread), account("personal", unread))

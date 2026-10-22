@@ -285,11 +285,13 @@ func (h *harness) scrollForm() dashboard.ScrollForm {
 	return f.ScrollForm(h.model.doc, at)
 }
 
-// resized is the screen's frame resized to width by height, laid out
-// afresh for it, as the watch lays out a resize.
+// resized is the screen's frame resized to width by height, built and laid
+// out afresh for it, as the watch lays out a resize: a copy only resized
+// would draw the sections as they were built at the screen's size.
 func (h *harness) resized(width, height int) (dashboard.Frame, time.Time) {
 	f, at := h.model.onScreen()
 	f.Width, f.Height = width, height
+	f = f.Built(h.model.doc, at)
 	f.Layout = f.LayoutOf(h.model.doc, at)
 	return f, at
 }
@@ -312,14 +314,14 @@ func (h *harness) tallerInForm() int {
 	return 0
 }
 
-// acrossAStep is a resize of the screen, at 160 columns or under, where
+// acrossAForm is a resize of the screen, at 160 columns or under, where
 // USAGE still scrolls, in another form, and shows the account with the
 // given id neither where it's scrolled now nor at its top, failing the test
 // where none does.
-func (h *harness) acrossAStep(id string) tea.WindowSizeMsg {
+func (h *harness) acrossAForm(id string) tea.WindowSizeMsg {
 	h.t.Helper()
 	form, held := h.scrollForm(), h.model.scroll
-	for _, width := range []int{160, 120, 100, 73} {
+	for _, width := range []int{160, 120, 100, 73, 52} {
 		for height := 14; height < 40; height++ {
 			g, at := h.resized(width, height)
 			if g.ScrollForm(h.model.doc, at) == form || g.Scrolling(h.model.doc, at).Most == 0 {
@@ -403,17 +405,20 @@ func TestUSAGEsScrollHoldsAsAReadChangesItsKeyLine(t *testing.T) {
 	}
 }
 
-// Where USAGE's form changes, as b groups it the other way or a resize
-// takes another step, its scroll is read afresh: USAGE scrolled to show the
+// Where USAGE's form changes, as b groups it the other way or a resize lays
+// it out otherwise, its scroll is read afresh: USAGE scrolled to show the
 // account the focus is on, as ↑ and ↓ scroll it, rather than left at an
-// offset into rows laid out otherwise.
+// offset into rows laid out otherwise. As USAGE scrolls only in the step
+// that gives its key way, the key showing wherever a step keeping it fits,
+// a resize changes the form it scrolls in by the width: its windows stacked
+// where the matrix doesn't fit.
 func TestWhereUSAGEsFormChangesItScrollsToTheFocusedAccount(t *testing.T) {
 	tests := []struct {
 		name    string
 		changed func(*harness)
 	}{
 		{name: "b", changed: func(h *harness) { h.press("b") }},
-		{name: "a resize to another step", changed: func(h *harness) { h.update(h.acrossAStep("h")) }},
+		{name: "a resize to another form", changed: func(h *harness) { h.update(h.acrossAForm("h")) }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

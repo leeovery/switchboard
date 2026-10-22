@@ -865,17 +865,20 @@ func TestROUTINGsRowNeverGoesBackToTwoInAWiderFrame(t *testing.T) {
 
 // USAGE's name column, and so ROUTING's, counts what's configured, never
 // what's shown: at every width, it's the same wherever new sessions go, and
-// where they go nowhere.
+// where they go nowhere; with the sample's names, its least deciding it, and
+// with a label of 12 cells, its natural.
 func TestTheNameColumnIsTheSameWhereverNewSessionsGo(t *testing.T) {
-	for width := 52; width <= 220; width++ {
-		f := frameOf(width, 60)
-		var columns []int
-		for _, best := range []string{"work", "personal", "side", ""} {
-			doc := usageWorld(func(d *status.Document) { d.Best = best })
-			columns = append(columns, f.overviewBlock(doc, now).names, f.routingColumns(f.Moment(doc, now)).names)
-		}
-		if slices.Min(columns) != slices.Max(columns) {
-			t.Errorf("at %d columns, the name columns are %v as ▲ moves, want one", width, columns)
+	for _, label := range []string{"", "side-project"} {
+		for width := 52; width <= 220; width++ {
+			f := frameOf(width, 60)
+			var columns []int
+			for _, best := range []string{"work", "personal", "side", ""} {
+				doc := usageWorld(func(d *status.Document) { d.Best = best }, account("side", func(a *status.Account) { a.Label = label }))
+				columns = append(columns, f.overviewBlock(doc, now).names, f.routingColumns(f.Moment(doc, now)).names)
+			}
+			if slices.Min(columns) != slices.Max(columns) {
+				t.Errorf("side labelled %q, at %d columns, the name columns are %v as ▲ moves, want one", label, width, columns)
+			}
 		}
 	}
 }

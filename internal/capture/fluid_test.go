@@ -221,6 +221,21 @@ var knownBreaks = []known{
 		byDesign: "3 rows under USAGE's ten accounts side by side, short of every folded section's least", rule: foldWithRowsSpare,
 		sizes: []string{"138x30", "108x44"}, fixtures: []string{"overview-ten-accounts-160"},
 	},
+	// What's left at the foot at 73x36, every other section folded, where
+	// USAGE takes the least far step that fits whole, as it keeps its key
+	// only where it shows: three accounts stacked, their blank rows given way, 3 rows, where
+	// they take 4 more and LATELY 5, and GRAPHS alone shown, more; three by
+	// account, of three windows, their key given way, 2 rows, where the key
+	// takes 3 more and LATELY 5; six stacked, their headings' blank rows
+	// given way too, 2 rows, where those take 3 more and LATELY 5.
+	{
+		byDesign: "the rows under USAGE whole, short of its step before and every folded section's least", rule: foldWithRowsSpare,
+		sizes: []string{"73x36"}, fixtures: []string{
+			"overview-everything-160x39", "overview-everything-216x106", "overview-burn-down-160x39", "overview-sessions-graphs-216",
+			"overview-phone-burn-down-52", "long-names-overview", "overview-pool-220x50", "overview-by-account-burn-down-220x50",
+			"overview-six-accounts-160",
+		},
+	},
 	// S20, Weeks (F16): its names cut with room.
 	{
 		slice: "S20", rule: cutWithRoom, sizes: []string{"73x61", "73x36", "173x53"},

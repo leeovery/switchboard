@@ -399,9 +399,9 @@ func TestABusyAccountScrolledOutOfUSAGEDoesNotSetTheScale(t *testing.T) {
 	doc.Pin = status.Pin{Accounts: []string{"personal", "side"}}
 	doc = doc.WorkedOut(claudeLike)
 	// Work, out of the pool, sends 40 at once, its busiest column 30, 45
-	// cells wide; the pool's trace sums personal's and side's alone. At 21
+	// cells wide; the pool's trace sums personal's and side's alone. At 20
 	// rows, USAGE scrolls, as far as takes work's block out of view.
-	f := frameOf(160, 21)
+	f := frameOf(160, 20)
 	f.By, f.Sessions, f.Traces = ByAccount, listed, burst("work-0", "work", 40)
 	most := f.Scrolling(doc, routedAt).Most
 	if most == 0 {

@@ -415,13 +415,12 @@ func TestUSAGEGivesWayInItsStepsOrder(t *testing.T) {
 					if folded {
 						shows := s.accounts(usage.lean, open)
 						for given := givenNone; int(given) <= len(s.leaner); given++ {
-							keyHidden := given == givenHeads && usage.lean == givenKey && s.leaner[givenHeads-1] > open
-							if other := s.accounts(given, open); other > shows || other == shows && given < usage.lean && !keyHidden {
+							if other := s.accounts(given, open); other > shows || other == shows && given < usage.lean && !keyHidden(s, given, open) {
 								t.Errorf("at %dx%d, USAGE has given way %d steps, showing %d accounts in %d rows, where %d steps show %d", width, height, usage.lean, shows, open, given, other)
 							}
 						}
-						if usage.lean == givenHeads && s.leaner[givenHeads-1] > open {
-							t.Errorf("at %dx%d, USAGE keeps its key in %d rows, out of view under the %d it takes", width, height, open, s.leaner[givenHeads-1])
+						if keyHidden(s, usage.lean, open) {
+							t.Errorf("at %dx%d, USAGE keeps its key in %d rows, out of view under the rows it takes", width, height, open)
 						}
 					}
 					accounts := s.accounts(usage.lean, usage.rows)
@@ -435,17 +434,26 @@ func TestUSAGEGivesWayInItsStepsOrder(t *testing.T) {
 	}
 }
 
-// Squeezed, USAGE keeps its key only where it shows: where the step keeping
-// it, its headings' blank rows given way, would leave the key out of view
-// under its rows, showing no more accounts than the step without it, the key
-// gives way; where that step fits its rows, the key showing, it's kept; and
-// where an earlier step shows as many accounts, the least far still wins.
+// keyHidden reports whether USAGE's section s, at the step given in rows
+// rows, keeps its key out of view: the step keeps it, and takes more rows.
+func keyHidden(s section, given giving, rows int) bool {
+	whole := s.least
+	if given > givenNone {
+		whole = s.leaner[given-1]
+	}
+	return given < givenKey && whole > rows
+}
+
+// Squeezed, USAGE keeps its key only where it shows: of the steps that show
+// the most accounts, it takes the least far whose key isn't left out of view
+// under its rows, the step that gives the key way where none keeps it in
+// view, whichever step would have won the tie.
 func TestUSAGEKeepsItsKeyOnlyWhereItShows(t *testing.T) {
 	// The steps' rows, as a matrix of three accounts and the pool has them:
-	// its accounts a row apart, 12; its headings' blank rows gone, 10; its
-	// key gone, 8. As it is, it shows one account under 13 rows; its
-	// accounts a row apart show two in 9 or 10 rows, three from 11.
-	usage := unit{sections: []section{{Section: SectionUsage, leaner: []int{12, 10, 8}, accounts: func(given giving, rows int) int {
+	// as it is, 14; its accounts a row apart, 12; its headings' blank rows
+	// gone, 10; its key gone, 8. As it is, it shows one account under 13
+	// rows; its accounts a row apart show two in 9 or 10 rows, three from 11.
+	usage := unit{sections: []section{{Section: SectionUsage, least: 14, leaner: []int{12, 10, 8}, accounts: func(given giving, rows int) int {
 		switch {
 		case given == givenNone && rows < 13:
 			return 1
@@ -459,9 +467,12 @@ func TestUSAGEKeepsItsKeyOnlyWhereItShows(t *testing.T) {
 		rows int
 		want giving
 	}{
-		{name: "the key out of view under its rows: given way", rows: 9, want: givenKey},
-		{name: "the key showing: kept", rows: 10, want: givenHeads},
-		{name: "as many accounts with the blank rows between them: the least far", rows: 11, want: givenApart},
+		{name: "every step keeping the key leaves it out of view: given way", rows: 9, want: givenKey},
+		{name: "its headings' blank rows given way, the key showing: kept", rows: 10, want: givenHeads},
+		{name: "a row apart, the key out of view: the step that shows it", rows: 11, want: givenHeads},
+		{name: "a row apart, the key showing", rows: 12, want: givenApart},
+		{name: "as it is, the key out of view: the least far that shows it", rows: 13, want: givenApart},
+		{name: "as it is, the key showing", rows: 14, want: givenNone},
 	}
 	for _, tt := range tests {
 		if got := usage.showsMost(tt.rows); got != tt.want {

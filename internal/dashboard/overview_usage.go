@@ -27,16 +27,16 @@ const (
 // overviewBlock has it. At its least it's the block as usage lays it out at
 // the frame's width, which by window, where its windows sit side by side, is
 // the compact matrix, 2a + 7 rows for a accounts and the pool; at its most,
-// there, the big bars, its windows stacked as sections at the full width; by account with GRAPHS' charts beside its blocks, the charts at
-// 5 rows, every one, and between, the stacked step, as stackedBeside has it;
-// otherwise its least. Short of its least, it gives way in steps, as giving
-// has them, the planner taking each as a step of its least, as leaner has
-// them, but never folds: given fewer rows than its form takes, it scrolls
-// within them whole, a row at a time, as shown shows it. By account from
-// besideWidth columns, GRAPHS' charts or ROUTING are drawn beside its blocks, from
-// besideAt, as besideUsage has them, and follow them as they scroll; a click
-// along an account's rows, its own or what's beside them, moves the focus to
-// it.
+// there, the big bars, its windows stacked as sections at the full width; by
+// account with GRAPHS' charts beside its blocks, the charts at 5 rows, every
+// one, and between, the stacked step, as stackedBeside has it; otherwise its
+// least. Short of its least, it gives way in steps, as giving has them, the
+// planner taking each as a step of its least, as leaner has them, but never
+// folds: given fewer rows than its form takes, it scrolls within them whole,
+// a row at a time, as shown shows it. By account from besideWidth columns,
+// GRAPHS' charts or ROUTING are drawn beside its blocks, from besideAt, as
+// besideUsage has them, and follow them as they scroll; a click along an
+// account's rows, its own or what's beside them, moves the focus to it.
 func (f Frame) usageSection(doc status.Document, now time.Time) section {
 	views := f.overviewBlock(doc, now).views()
 	beside := f.besideUsage(doc, now)
@@ -82,8 +82,9 @@ func (f Frame) usageIn(s section, form usageViews, beside func(*canvas, blocksBe
 // room for GRAPHS' charts or ROUTING beside them, its blocks a row further
 // apart for the charts' axes, where they're the charts. While GRAPHS shows,
 // the matrix picks out the account the focus is on. Its key line names the
-// marks the accounts carry, its form judged by those they may. An account out of the pool at now is faint, as
-// overviewGauge draws its windows and overviewNames its name.
+// marks the accounts carry, its form judged by those they may. An account
+// out of the pool at now is faint, as overviewGauge draws its windows and
+// overviewNames its name.
 func (f Frame) overviewBlock(doc status.Document, now time.Time) usageBlock {
 	m := f.Moment(doc, now)
 	names := overviewNames(m)
