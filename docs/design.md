@@ -1126,8 +1126,12 @@ widest configured account's, `personal only`, as `←` `→` step through them. 
 heading between one row and two, as it changes what the Year is filtered to; neither stepping the
 period nor stepping the account does, nor a read, save one that finds a kept version or account the
 last 12 months didn't use, which drops the filter as `v` would. Beside the period, the state
-takes the room left, two cells short of it, in the first of its forms that fits. Runway, without
-sub-tabs, keeps its rule and its window on row 5.
+takes the room left, two cells short of it, in the first of its forms that fits. A state of free
+text, the Log's filter, whose length is its data's, holds nothing of itself whole, so the heading's
+rows never hang on what it keeps: it's cut to the room left, as `only d28c swi…`. `loading…`'s room
+is kept for it all the same, as the Log says it reading back a day; so under 48 columns the Log's
+count takes row 6, the price of its heading holding still as `loading…` comes and goes. Runway,
+without sub-tabs, keeps its rule and its window on row 5.
 
 **The key line** (the last row) lists the keys that work where they are, each key in bold
 `accent.key` and its word in `text.muted`: `tab views` first, then the page's own keys in groups,

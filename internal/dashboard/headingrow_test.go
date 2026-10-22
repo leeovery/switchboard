@@ -29,7 +29,7 @@ func laidOn(h heading, width int, phone bool) (*canvas, []piece) {
 var (
 	filteredLog = heading{
 		name: "LOG", subTabs: []string{"Requests", "Events"},
-		state: line{{"only d28c switchboard", faintInk}},
+		state: line{{"only d28c switchboard", faintInk}}, free: true,
 		right: line{{"830 hidden", secondaryInk}, spaces(3), {"f", keyInk}, {" what it shows", mutedInk}},
 	}
 	steppedBack = heading{name: "RUNWAY", state: line{{"Wed 30 Sep", faintInk}}, period: "5-hour"}
@@ -121,9 +121,9 @@ func TestTheHeadingRow(t *testing.T) {
 			want:    []string{"ACCOUNTS    Compare  Detail  [ ]   accounts 1–6 of 10  ·  ←→ moves along them; all a…  < this week >"},
 		},
 		{
-			name:    "on a phone, the state whole on the row under where it doesn't fit beside the name and the sub-tabs, the right left out where it doesn't fit after it",
+			name:    "on a phone, a free state cut beside the name and the sub-tabs, loading…'s room kept, the right on the row under where it doesn't fit after that",
 			heading: filteredLog, width: 40, phone: true,
-			want: []string{"LOG   Requests  Events", "only d28c switchboard"},
+			want: []string{"LOG   Requests  Events    only d28c swi…", blanks(12) + "830 hidden   f what it shows"},
 		},
 		{
 			name:    "on a phone, loading… whole on the row under where it doesn't fit beside History's sub-tabs, eight weeks after it",
@@ -453,6 +453,37 @@ func TestLoadingReadsWholeOnWeeksAndDays(t *testing.T) {
 			}
 			if rows[0] != rows[1] {
 				t.Errorf("%s at %d: the heading takes %d rows, and loading %d, want the same", historyViews[shown], width, rows[0], rows[1])
+			}
+		}
+	}
+}
+
+// The Log's filter is free text, its length its data's: its heading takes
+// the same rows whatever it keeps, or none, loading or not, and says its
+// count whole at every width, beside the sub-tabs from where loading…'s room
+// and the count fit after them, and on the row under narrower.
+func TestTheLogsHeadingNeverHangsOnItsFilter(t *testing.T) {
+	count := line{{"35 hidden", secondaryInk}, spaces(2), {"f", keyInk}}
+	filters := map[string]line{
+		"none":  nil,
+		"short": {{"only side", faintInk}},
+		"long":  {{"only d28c switchboard · work-team-plan · personal-research · opus", faintInk}},
+	}
+	for width := 40; width <= 99; width++ {
+		want := 1
+		if width < 48 {
+			want = 2
+		}
+		for name, filter := range filters {
+			h := heading{name: "LOG", subTabs: logViews, state: filter, free: true, right: count, compactRight: count}
+			for _, h := range []heading{h, h.loading()} {
+				if got := h.rows(width, true); got != want {
+					t.Errorf("at %d, filtered %s, loading %t: the heading takes %d rows, want %d", width, name, h.reading, got, want)
+				}
+				c, _ := laidOn(h, width, true)
+				if rows := strings.Join(textOf(c.rows(Look{})), "\n"); !strings.Contains(rows, count.plain()) {
+					t.Errorf("at %d, filtered %s, loading %t: the heading reads\n%s\nwant %q whole", width, name, h.reading, rows, count.plain())
+				}
 			}
 		}
 	}

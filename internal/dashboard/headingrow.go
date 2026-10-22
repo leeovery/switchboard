@@ -30,7 +30,9 @@ var shownSubTabInk = ink{token: theme.TextPrimary, on: hue{token: theme.BgSubtle
 // the screen can't otherwise show, in text.faint, a key within it in bold
 // accent.key, where there's any, and its shorter forms, each shorter, for
 // less room; the widest its least form takes as the keys that change what it
-// names step it, whether it shows yet or not; and at its right, its period or
+// names step it, whether it shows yet or not; whether it's free text, its
+// length unbounded, as the Log's filter, cut to the room it's left; and at
+// its right, its period or
 // window, which < and > step, or another line, as the Log's count and its f,
 // and that line where the heading is compact, where it has one of its own;
 // the widest form its period takes as < and > step it, the period itself
@@ -42,6 +44,7 @@ type heading struct {
 	state        line
 	shorter      []line
 	least        string
+	free         bool
 	reading      bool
 	period       string
 	widest       string
@@ -112,13 +115,15 @@ func (h heading) stateForms() []line {
 }
 
 // leastState is the fewest cells the state must have whole beside a compact
-// heading's period, so neither loading nor a step moves the heading between
+// heading's name, so neither loading nor a step moves the heading between
 // one row and two: loading… whole, whether it shows or not, as a read can
 // start at any moment; or the widest the state's least form takes as it
-// steps, or the least form shown, where that's wider.
+// steps, or the least form shown, where that's wider. A free state's length
+// is its data's, so it holds none of it whole, or the heading's rows would
+// hang on it.
 func (h heading) leastState() int {
 	least := max(ansi.StringWidth(loadingWord), ansi.StringWidth(h.least))
-	if forms := h.quietForms(); forms != nil {
+	if forms := h.quietForms(); forms != nil && !h.free {
 		least = max(least, forms[len(forms)-1].width())
 	}
 	return least
