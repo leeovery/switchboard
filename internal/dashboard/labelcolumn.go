@@ -63,9 +63,10 @@ func labelColumnCells(name string) int {
 // knows, as the dashboard names them, as labelColumnCells counts them, the
 // widest first.
 func labelsCells(m status.Moment) []int {
-	cells := make([]int, len(m.Accounts))
-	for i, a := range m.Accounts {
-		cells[i] = labelColumnCells(name(a))
+	names := accountNames(m.Accounts)
+	cells := make([]int, len(names))
+	for i, n := range names {
+		cells[i] = labelColumnCells(n)
 	}
 	return slices.SortedFunc(slices.Values(cells), func(a, b int) int { return cmp.Compare(b, a) })
 }

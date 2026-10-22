@@ -272,7 +272,7 @@ func stackedRows(r RoutingCard, f Frame) int {
 // family, and the 5-hour's use at its widest.
 func widestEnds() RoutingCard {
 	return routedCard(func(r *RoutingCard) {
-		r.Rows[1].Reason = "at its limit till Sun 15:54"
+		r.Rows[1].Reason = widestHeld()
 		r.Rows[2].Open, r.Rows[2].Reason = false, "token refused (403, sonnet)"
 		r.Rows[2].Windows[1].Used = 1
 	})
@@ -308,14 +308,14 @@ func TestTheRoutingCardsRowsAreStackedAlikeWhateverTheySay(t *testing.T) {
 func TestALongNameNarrowsBeforeARowsEndIsCut(t *testing.T) {
 	r := widestEnds()
 	r.Rows[3].Name = "a-very-long-account-name"
-	least := choiceNameAt + labelLeast + narrowGap + stateCells + narrowGap + endLeast()
+	least := choiceNameAt + labelLeast + narrowGap + stateCells() + narrowGap + endLeast()
 	for width := 40; width <= 220; width++ {
 		k := r.card(frameOf(width, 60))
 		if k.width-2*cardInset < least {
 			continue
 		}
 		body := strings.Join(plains(k.body), "\n")
-		for _, end := range []string{"at its limit till Sun 15:54", "token refused (403, sonnet)"} {
+		for _, end := range []string{widestHeld(), "token refused (403, sonnet)"} {
 			if !strings.Contains(body, end) {
 				t.Errorf("at %d columns, the card reads\n%s\nwant %q whole", width, body, end)
 			}
@@ -363,7 +363,7 @@ func TestTheNarrowestStackedCardSaysNoLessThanBefore(t *testing.T) {
 			body := strings.Join(plains(k.body), "\n")
 			for said, from := range map[string]int{
 				"the router chooses": 16, "4 running": 24,
-				"at its limit till Sun 15:54": 24, "token refused (403, sonnet)": 24,
+				widestHeld(): 24, "token refused (403, sonnet)": 24,
 			} {
 				if got, base := shownOf(body, said), basedOf(said, content-from); got < base {
 					t.Errorf("%s, at %d columns, the card shows %d characters of %q, fewer than the %d it showed before:\n%s", name, width, got, said, base, body)
@@ -410,7 +410,7 @@ func TestTheRoutingCardNeverCutsAWindowsUseNorOnOneLineItsEnd(t *testing.T) {
 		if stackedRows(r, f) > 0 {
 			continue
 		}
-		for _, end := range []string{"at its limit till Sun 15:54", "token refused (403, sonnet)"} {
+		for _, end := range []string{widestHeld(), "token refused (403, sonnet)"} {
 			if !strings.Contains(body, end) {
 				t.Errorf("at %d columns, an account's row is one line, and reads\n%s\nwant %q whole beside its windows", width, body, end)
 			}

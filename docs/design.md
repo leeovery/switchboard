@@ -4775,10 +4775,12 @@ cells of content, a screen under 83 columns; with one of 11, under 86. They're f
 and its configuration, never what a row says, so every row is stacked alike. Stacked, its windows
 go to a row of their own under it, from the state's column, or as near it as they fit whole, so a
 window's use is never cut. On its name's row, its reason or sessions are right-aligned, at least
-27 cells, the name narrowing toward 8 first to keep them; where even the name at 8 doesn't leave
-them those with gaps of 2, under 49 cells of content, a screen under 57, both gaps narrow to a
-cell; and narrower still, the name at 8, they're cut with `…` where they must, a cell after the
-state. The key row keeps `enter apply` and `esc cancel`, and as many of the rest as fit, `↑↓
+27 cells; and after `auto`, its description, as wide as it says at its fullest of any account
+configured. Whitespace gives way before words: the name whole with gaps of 2; where that doesn't
+fit, both gaps narrow to a cell, once, from where the configured names put it (with the sample's
+names, under 49 cells of content, a screen under 57; under 58 on a session's card; with a name of
+11, under 60); then the name narrows toward 8; then auto's description is cut, and the reasons
+and sessions after it, with `…` where they must, a cell after the state. The key row keeps `enter apply` and `esc cancel`, and as many of the rest as fit, `↑↓
 move` the first to go (settled in the plan).
 
 **More accounts than fit:** the card is at most the page's height less 4 rows; past that, its

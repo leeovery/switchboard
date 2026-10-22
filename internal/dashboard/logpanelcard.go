@@ -11,11 +11,12 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// The panel's width, its edges included, as its two sides were signed off
-// at, the least natural it has; and the rows of the frame it leaves spare at
-// its tallest, past which it scrolls, the cursor's row kept in view.
+// The narrowest the panel's natural is, its edges included, however short
+// its parts: the frame narrows it only where it hasn't the room; and the
+// rows of the frame it leaves spare at its tallest, past which it scrolls,
+// the cursor's row kept in view.
 const (
-	panelSignedOff = 124
+	panelNarrowest = 124
 	panelSpare     = 2
 )
 
@@ -145,14 +146,13 @@ func (p LogPanel) laidOut(f Frame) (width int, body pane, from, shown int) {
 	return width, body, from, shown
 }
 
-// natural is the panel's natural width, its edges included: the width its
-// two sides were signed off at, or wider where its parts at their naturals,
-// as a long configured name has them, need more, cardInset in from either
-// edge.
+// natural is the panel's natural width, its edges included: panelNarrowest,
+// or wider where its parts at their naturals, as a long configured name has
+// them, need more, cardInset in from either edge.
 func (p LogPanel) natural() int {
 	s, _ := flex.Lay(math.MaxInt, p.sideParts()...)
 	last := s[len(s)-1]
-	return max(panelSignedOff, last.At+last.Size+2*cardInset)
+	return max(panelNarrowest, last.At+last.Size+2*cardInset)
 }
 
 // bothFit reports whether the panel's two sides fit content cells, as flex

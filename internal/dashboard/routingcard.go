@@ -40,35 +40,67 @@ const (
 // The parts of a row of the routing card, from its content's start: the
 // mark and the number, from choiceName, before the name; the name, a
 // label's column by Rule 2; nameGap on, the state, or auto's description,
-// as wide as closed; stateGap on, the windows, the first, the week, then
-// the second, the 5-hour, choiceUsesApart from it, its use at its widest; and
-// endGap on, at the content's end, the reason or the sessions running, as
-// endLeast has it.
+// as wide as stateCells has it; stateGap on, the windows, the second
+// choiceUsesApart from the first, as widestUses has them; and endGap on, at
+// the content's end, the reason or the sessions running, as endLeast has
+// it.
 const (
 	choiceName      = 2
 	choiceNameAt    = choiceName + 2
-	stateCells      = len("closed")
 	stateGap        = 4
 	choiceUsesApart = 11
-	widestUse       = "5-hour 100%"
 	endGap          = 2
 )
 
-// endLeast is the cells of a row's end at its least: the widest reason the
-// router gives with a time, a limit's back another day, as in "at its limit
-// till Sun 15:54", as wide as a token refused for a family, as in "token
-// refused (403, sonnet)".
-func endLeast() int {
-	return len("at its limit till ") + prose.DatedWidth()
+// What holds an account back from new sessions until a time, as closedBy
+// says it: a limit, or its own cap.
+const (
+	limitHolds = "at its limit"
+	capHolds   = "at its cap"
+)
+
+// stateCells are the cells of a row's state: the widest word stateWords
+// says.
+func stateCells() int {
+	return max(RoutingRow{Open: true}.stateWords().width(), RoutingRow{}.stateWords().width())
 }
 
-// oneLineNameKept is the fewest cells a name keeps on one line, where its
-// column's natural is as many or more: the name column's width before it
-// was a label's column, so one line never cuts a name that width held.
+// widestHeld is the widest reason the router gives with a time, as closedBy
+// says it: a limit's, back another day, as "at its limit till Sun 15:54".
+func widestHeld() string {
+	var now time.Time
+	another := now.AddDate(0, 0, 1)
+	return slices.MaxFunc([]string{till(limitHolds, another, now), till(capHolds, another, now)}, func(a, b string) int {
+		return ansi.StringWidth(a) - ansi.StringWidth(b)
+	})
+}
+
+// endLeast is the cells of a row's end at its least: the widest reason the
+// router gives with a time, as widestHeld has it, as wide as a token refused
+// for a family, as "token refused (403, sonnet)".
+func endLeast() int {
+	return ansi.StringWidth(widestHeld())
+}
+
+// widestUses are the cells of the rows' windows' use, as windowsWords says
+// it, each window as it's named at its widest, 100%.
+func (r RoutingCard) widestUses() int {
+	widest := 0
+	for _, row := range r.Rows {
+		for i := range row.Windows {
+			row.Windows[i].Figure = Figure{Used: 1, Read: true}
+		}
+		widest = max(widest, row.windowsWords().width())
+	}
+	return widest
+}
+
+// oneLineNameKept is the name's least on one line, where its natural is as
+// many or more: so one line keeps a name of up to 11 cells whole.
 const oneLineNameKept = 11
 
-// narrowGap is the cells a stacked row's gaps narrow to where its leasts
-// don't fit with their own, before its end is cut.
+// narrowGap is the cells a stacked row's gaps narrow to, once, where they
+// don't fit with their own, before its name narrows.
 const narrowGap = 1
 
 // choiceColumns are where a row's parts lie in the card's content, as
@@ -85,13 +117,13 @@ type choiceColumns struct {
 // on one line to no fewer than oneLineNameKept of its natural; the state;
 // the windows; and the end.
 func (r RoutingCard) rowParts() []flex.Part {
-	use := choiceUsesApart + len(widestUse)
+	use := r.widestUses()
 	name := labelColumn(r.widestName())
 	name.Least = max(name.Least, min(name.Natural, oneLineNameKept))
 	return []flex.Part{
 		{Least: choiceNameAt, Natural: choiceNameAt},
 		name,
-		{Least: stateCells, Natural: stateCells, Gap: nameGap},
+		{Least: stateCells(), Natural: stateCells(), Gap: nameGap},
 		{Least: use, Natural: use, Gap: stateGap},
 		{Least: endLeast(), Natural: endLeast(), Gap: endGap},
 	}
@@ -128,31 +160,41 @@ func (r RoutingCard) columns(width int) choiceColumns {
 	if s, oneLine := flex.Lay(width, parts...); oneLine {
 		return choiceColumns{name: s[1].Size, state: s[2].At, windows: s[3].At, endGap: endGap}
 	}
-	parts[1].Least = labelLeast
-	s, gap := stackedNames(width, parts)
+	s, gap := r.stackedNames(width, parts[0], parts[1])
 	uses := parts[3]
 	uses.Gap = 0
 	w, _ := flex.Lay(width, flex.Part{Natural: s[2].At}, uses)
 	return choiceColumns{name: s[1].Size, state: s[2].At, windows: w[1].At, endGap: gap, stacked: true}
 }
 
-// stackedNames are where a stacked row's mark and number, name and state
-// lie in width cells, of the row's parts, and the gap before its end: the
-// name narrowing toward labelLeast first, so the end keeps its least; where
-// that doesn't fit, the gaps narrow to a cell, once; and narrower still,
-// the name at its least, the end cut as the room allows.
-func stackedNames(width int, parts []flex.Part) ([]flex.Span, int) {
-	row := []flex.Part{parts[0], parts[1], parts[2], parts[4]}
-	if s, fits := flex.Lay(width, row...); fits {
-		return s, endGap
+// stackedNames are where a stacked row's mark and number, name and what
+// follows it lie in width cells, and the gap before its end, whitespace
+// giving way before words: the name whole with gaps of nameGap and endGap;
+// where that doesn't fit, the gaps at narrowGap, once; then the name
+// narrowing toward labelLeast; then what follows it narrowing, auto's
+// description cut first, then the end.
+func (r RoutingCard) stackedNames(width int, key, name flex.Part) ([]flex.Span, int) {
+	whole := name
+	whole.Least = min(whole.Natural, whole.Most)
+	for _, gaps := range [][2]int{{nameGap, endGap}, {narrowGap, narrowGap}} {
+		if s, fits := flex.Lay(width, key, whole, r.afterName(gaps[0], gaps[1])); fits {
+			return s, gaps[1]
+		}
 	}
-	row[2].Gap, row[3].Gap = narrowGap, narrowGap
-	if s, fits := flex.Lay(width, row...); fits {
-		return s, narrowGap
-	}
-	row[1].Natural = row[1].Least
-	s, _ := flex.Lay(width, row[:3]...)
+	name.Least, name.Narrows = labelLeast, 1
+	after := r.afterName(narrowGap, narrowGap)
+	after.Least, after.Narrows = stateCells()+narrowGap+endLeast(), 2
+	s, _ := flex.Lay(width, key, name, after)
 	return s, narrowGap
+}
+
+// afterName is what follows a stacked row's name, gap cells on, as flex
+// lays it: the state, then the end at its least, end cells after it; or
+// auto's description at its natural, as autoNatural has it, where that's
+// wider.
+func (r RoutingCard) afterName(gap, end int) flex.Part {
+	cells := max(stateCells()+end+endLeast(), r.autoNatural())
+	return flex.Part{Least: cells, Natural: cells, Gap: gap}
 }
 
 // RoutingCard is the routing card's data, which the watch builds afresh at
@@ -300,11 +342,11 @@ func closedBy(a status.AccountNow, now time.Time) (reason string, capped bool) {
 	case !a.TokenSet:
 		return "no token", false
 	case limited(a):
-		return till("at its limit", a.Back, now), false
+		return till(limitHolds, a.Back, now), false
 	case a.TokenRefused:
 		return "token " + a.Refusal.Answer(), false
 	case a.CapHolds:
-		return till("at its cap", a.Back, now), true
+		return till(capHolds, a.Back, now), true
 	}
 	return "", false
 }
@@ -528,16 +570,21 @@ func (r RoutingCard) choice(row RoutingRow, at choiceColumns, width int) []line 
 	if row.Account == "" {
 		return []line{padTo(head, at.state, r.autoChooses(width-at.state))}
 	}
-	state := line{{"open", positiveInk}}
-	if !row.Open {
-		state = line{{"closed", reasonInk(row)}}
-	}
-	named := padTo(head, at.state, state)
+	named := padTo(head, at.state, row.stateWords())
 	windows := row.windowsWords()
 	if at.stacked {
 		return []line{atEnd(named, row.sideWords(), width, at.endGap), padTo(nil, at.windows, windows).fit(width)}
 	}
 	return []line{atEnd(padTo(named, at.windows, windows), row.sideWords(), width, at.endGap)}
+}
+
+// stateWords are an account's row's state: open, or closed in its reason's
+// ink.
+func (row RoutingRow) stateWords() line {
+	if row.Open {
+		return line{{"open", positiveInk}}
+	}
+	return line{{"closed", reasonInk(row)}}
 }
 
 // windowsWords are the row's windows' use as the card says it, as
@@ -558,12 +605,32 @@ func (row RoutingRow) windowsWords() line {
 // choose for the session, for now, those last words the first to go where
 // they don't fit.
 func (r RoutingCard) autoChooses(room int) line {
+	return firstFit(room, r.autoForms(r.Session.Auto)...)
+}
+
+// autoForms are what auto's row can say of it, choosing the account with
+// the id given, the fullest first: on a session's card, the account, for
+// now, then the account alone; else, or where it's none, the router
+// chooses.
+func (r RoutingCard) autoForms(id string) []line {
 	chooses := line{{"the router chooses", mutedInk}}
-	if r.Mode != ThisSession || r.Session.Auto == "" {
-		return chooses.fit(room)
+	if r.Mode != ThisSession || id == "" {
+		return []line{chooses}
 	}
-	named := slices.Concat(chooses, line{{": ", mutedInk}, {r.names([]string{r.Session.Auto})[0], titleInk}})
-	return firstFit(room, slices.Concat(named, line{{" for now", mutedInk}}), named)
+	named := slices.Concat(chooses, line{{": ", mutedInk}, {r.names([]string{id})[0], titleInk}})
+	return []line{slices.Concat(named, line{{" for now", mutedInk}}), named}
+}
+
+// autoNatural is the cells of auto's description at its fullest, whichever
+// account the router chooses: of the card's accounts, the widest it says.
+func (r RoutingCard) autoNatural() int {
+	widest := r.autoForms("")[0].width()
+	for _, row := range r.Rows {
+		if row.Account != "" {
+			widest = max(widest, r.autoForms(row.Account)[0].width())
+		}
+	}
+	return widest
 }
 
 // mark is the row's mark: picked, or not, where it can be, as the card's mode
@@ -639,7 +706,7 @@ func atEnd(l, end line, width, gap int) line {
 	l = l.fit(width)
 	at := l.width() + gap
 	cut := end.fit(width - at)
-	if cut.width() == end.width() || cut.width() == 0 {
+	if cut.width() == end.width() {
 		at = width - cut.width()
 	}
 	return padTo(l, at, cut)
