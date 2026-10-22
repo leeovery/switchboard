@@ -49,9 +49,6 @@ var (
 // its parts. The list only shrinks: an entry must still be there, and still
 // use it.
 var phoneAllowed = []string{
-	// S12: USAGE's key, and the room it says is left.
-	"internal/dashboard/overview_usage.go:Frame.overviewBlock",
-	"internal/dashboard/overview_usage.go:Frame.roomLeft",
 	// S14: USAGE's key, its parts spaced apart by the width.
 	"internal/dashboard/usage.go:keyApart",
 	// S16, S17 and S25: the form Accounts draws its views in, Compare's

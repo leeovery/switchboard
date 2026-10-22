@@ -68,9 +68,14 @@ gets:
 
 - When rows run short, sections fold to their headings. Each folded heading still says what the
   section holds.
+- Before a section folds, USAGE's accounts close up, the blank row between each two giving way.
+  They close up only where that keeps a section open.
 - Sections fold in this order: SESSIONS first, then COMING UP and LATELY, then GRAPHS, then
   ROUTING.
-- USAGE never folds. With many accounts, it scrolls within itself.
+- USAGE never folds. Short of its rows, with every other section folded, it shows as many
+  accounts as it can: its accounts close up, then the blank rows under its headings give way,
+  then its key, as far as shows the most, and where they still don't fit, it scrolls within
+  itself.
 - A folded section opens again wherever it fits, the last folded first.
 - Spare rows grow the sections that aren't folded, up to their full size, even while others are
   folded. SESSIONS takes them first, a whole session at a time.
@@ -99,6 +104,10 @@ The key line under the block names the marks:
 | `╎` | the cap |
 | `◆` | the primary |
 | `▲` | where new sessions go |
+
+Where the key line has no room for `▲ new sessions go here`, it says `▲ new`. With one account,
+which has no pool, USAGE's heading says the room it has left in each window, wherever the heading
+has room for it.
 
 ### GRAPHS
 

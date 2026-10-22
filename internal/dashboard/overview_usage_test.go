@@ -173,18 +173,21 @@ func TestUSAGEScrollsItsAccountsWithinItsRowsItsHeadingsPoolAndKeyLineHeld(t *te
 // scrolls: an account's, ▲ or ▼ and how many more, or a blank row.
 var accountsRow = regexp.MustCompile(`^(\s?\d+ a\d+\s.*|[▲▼] \d+ more accounts?|)$`)
 
+// USAGE as it is, ten accounts in 18 rows, scrolls with its pool and its key
+// line held at its foot.
 func TestUSAGEHoldsItsPoolAndKeyLineAtTheFootOfItsRowsHoweverFarItsScrolled(t *testing.T) {
 	doc := manyRead(10)
-	f := frameOf(160, 30)
-	most := f.Scrolling(doc, now).Most
+	f := frameOf(160, 60)
+	const body = 18
+	most := f.usageSection(doc, now).scrolling(body, 0).Most
 	if most < 2 {
-		t.Fatalf("ten accounts at 160×30 scroll %d accounts at most, want USAGE to scroll past its top and short of its end", most)
+		t.Fatalf("ten accounts in %d rows scroll %d accounts at most, want USAGE to scroll past its top and short of its end", body, most)
 	}
 	keyRow := func(rows []string) int {
 		return slices.IndexFunc(rows, func(r string) bool { return strings.Contains(r, "┃ even pace") })
 	}
 	f.Scroll = 0
-	top := textOf(f.Draw(doc, now))
+	top, _ := usageBody(f, doc, now, body)
 	headings := slices.IndexFunc(top, func(r string) bool { return strings.Contains(r, "5-HOUR") })
 	rule := slices.IndexFunc(top, func(r string) bool { return strings.HasPrefix(r, "────") })
 	if headings < 0 || rule < headings {
@@ -192,7 +195,7 @@ func TestUSAGEHoldsItsPoolAndKeyLineAtTheFootOfItsRowsHoweverFarItsScrolled(t *t
 	}
 	for _, scroll := range []int{1, most} {
 		f.Scroll = scroll
-		rows := textOf(f.Draw(doc, now))
+		rows, _ := usageBody(f, doc, now, body)
 		if got, want := keyRow(rows), keyRow(top); got != want {
 			t.Errorf("scrolled %d down, USAGE's key line is on row %d, want row %d, where it is at the top:\n%s", scroll, got, want, strings.Join(rows, "\n"))
 		}
@@ -336,10 +339,12 @@ func TestRevealingAnAccountInUSAGEScrollsOnlyWhereItIsntShownAndThenTillItIs(t *
 		accounts[i] = readAccount(fmt.Sprintf("a%d", i+1), sessionOf(0.1, time.Hour), weekOf(0.2, 3*quota.Day), windowOf("7d_opus", "Opus", 0.3, 3*quota.Day))
 	}
 	doc := routerDoc("a1", 0, accounts...)
-	// Stacked, under 150 columns, three windows: at the top, with no ▲ over
-	// each, a1 to a4 show; between ▲ and ▼, three; at the foot, from a5, four.
-	f := frameOf(120, 54)
-	if s := f.Scrolling(doc, now); s != (Scrolling{Most: 4, Page: 4}) {
+	// Stacked, under 150 columns, three windows, in 42 rows: at the top, with
+	// no ▲ over each, a1 to a4 show; between ▲ and ▼, three; at the foot,
+	// from a5, four.
+	const rows = 42
+	usage := frameOf(120, 60).usageSection(doc, now)
+	if s := usage.scrolling(rows, 0); s != (Scrolling{Most: 4, Page: 4}) {
 		t.Fatalf("USAGE scrolls %+v, want 4 accounts at the top, as far as 4", s)
 	}
 	tests := []struct {
@@ -356,8 +361,7 @@ func TestRevealingAnAccountInUSAGEScrollsOnlyWhereItIsntShownAndThenTillItIs(t *
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f.Scroll = tt.scroll
-			if got := f.Revealing(doc, now, tt.id); got != tt.want {
+			if got := usage.revealing(rows, tt.scroll, tt.id); got != tt.want {
 				t.Errorf("scrolled %d down, revealing %s scrolls to %d, want %d", tt.scroll, tt.id, got, tt.want)
 			}
 		})
@@ -751,6 +755,10 @@ func TestTheFocusedAccountIsPickedOutInTheMatrixWhileGRAPHSShows(t *testing.T) {
 	}
 }
 
+// The marks' words take their long form where it fits the key line, else
+// their short, as firstFit has them, never by the phone: ▲ new sessions go
+// here on a phone of 73, and ▲ new at 52, where the cap's part leaves the
+// long no room, but not where there's no cap.
 func TestUSAGEsKeyLineNamesTheMarksTheAccountsCarry(t *testing.T) {
 	pace := "┃ even pace: where you would be now, used evenly"
 	noPrimary := func(d *status.Document) {
@@ -766,7 +774,13 @@ func TestUSAGEsKeyLineNamesTheMarksTheAccountsCarry(t *testing.T) {
 	}{
 		{name: "from 150 columns, four cells apart after the cap's", doc: trio(), width: 160, want: []string{pace + "    ╎ cap: work at 95%    ◆ primary    ▲ new sessions go here"}},
 		{name: "narrower, on the second line", doc: trio(), width: 120, want: []string{pace, "╎ cap: work at 95%    ◆ primary    ▲ new sessions go here"}},
-		{name: "on a phone, three cells apart, ▲ new", doc: trio(), width: 52, want: []string{pace, "╎ cap: work at 95%   ◆ primary   ▲ new"}},
+		{name: "at 100, four cells apart", doc: trio(), width: 100, want: []string{pace, "╎ cap: work at 95%    ◆ primary    ▲ new sessions go here"}},
+		{name: "at 99, three cells apart, the long form fitting", doc: trio(), width: 99, want: []string{pace, "╎ cap: work at 95%   ◆ primary   ▲ new sessions go here"}},
+		{name: "at 73, on a phone, the long form fitting", doc: trio(), width: 73, want: []string{pace, "╎ cap: work at 95%   ◆ primary   ▲ new sessions go here"}},
+		{name: "at 55, the long form just fitting", doc: trio(), width: 55, want: []string{pace, "╎ cap: work at 95%   ◆ primary   ▲ new sessions go here"}},
+		{name: "at 54, a cell short of the long form: ▲ new", doc: trio(), width: 54, want: []string{pace, "╎ cap: work at 95%   ◆ primary   ▲ new"}},
+		{name: "at 52, ▲ new", doc: trio(), width: 52, want: []string{pace, "╎ cap: work at 95%   ◆ primary   ▲ new"}},
+		{name: "at 52 with no cap, the long form fitting", doc: trio(account("work", func(a *status.Account) { a.Reserve = 0 })), width: 52, want: []string{pace, "◆ primary   ▲ new sessions go here"}},
 		{name: "no primary, no ◆", doc: trio(noPrimary), width: 120, want: []string{pace, "╎ cap: work at 95%    ▲ new sessions go here"}},
 		{name: "no cap, the marks alone", doc: trio(account("work", func(a *status.Account) { a.Reserve = 0 })), width: 120, want: []string{pace, "◆ primary    ▲ new sessions go here"}},
 	}
@@ -779,8 +793,10 @@ func TestUSAGEsKeyLineNamesTheMarksTheAccountsCarry(t *testing.T) {
 			if got := textOf(c.rows(Look{})); !slices.Equal(trimmedLeft(got), tt.want) {
 				t.Errorf("the key line reads %q, want %q", got, tt.want)
 			}
-			if marks := keyMarks(namesOf(f.Moment(tt.doc, printNow)), false); len(marks) > 0 && (marks[len(marks)-1][0].ink != accentInk || marks[len(marks)-1][1].ink != mutedInk) {
-				t.Errorf("▲'s part is drawn %+v, want ▲ in accent.mode and its words in text.muted", marks[len(marks)-1])
+			for _, marks := range keyMarks(namesOf(f.Moment(tt.doc, printNow))) {
+				if best := marks[len(marks)-1]; best[0].ink != accentInk || best[1].ink != mutedInk {
+					t.Errorf("▲'s part is drawn %+v, want ▲ in accent.mode and its words in text.muted", best)
+				}
 			}
 		})
 	}
@@ -809,7 +825,7 @@ func TestOneAccountsUSAGESaysTheRoomLeftWhereThePoolWouldSayIt(t *testing.T) {
 	}{
 		{name: "one account, the week first", doc: one(0), width: 160, want: "room left  week 0.6 of 1  ·  5h 0.4 of 1"},
 		{name: "to its cap, as the pool counts its room", doc: one(0.2), width: 160, want: "room left  week 0.4 of 1  ·  5h 0.2 of 1"},
-		{name: "on a phone, none", doc: one(0), width: 52},
+		{name: "on a phone too", doc: one(0), width: 52, want: "room left  week 0.6 of 1  ·  5h 0.4 of 1"},
 		{name: "several accounts, whose pool says it", doc: threeRouted(), width: 160},
 	}
 	for _, tt := range tests {
@@ -821,7 +837,7 @@ func TestOneAccountsUSAGESaysTheRoomLeftWhereThePoolWouldSayIt(t *testing.T) {
 		})
 	}
 	room := func(key string) ink { return strongInk.numbered(Number{Kind: NumberRoom, Account: "work", Of: key}) }
-	inks := []ink{faintInk, dimInk, room("7d"), dimInk, faintInk, dimInk, room("5h"), dimInk}
+	inks := []ink{faintInk, dimInk, room("7d"), dimInk, faintInk, faintInk, dimInk, room("5h"), dimInk}
 	got := frameOf(160, 60).usageSection(one(0), now).description()
 	if len(got) != len(inks) {
 		t.Fatalf("USAGE's description is %+v, want %d spans", got, len(inks))
@@ -830,6 +846,35 @@ func TestOneAccountsUSAGESaysTheRoomLeftWhereThePoolWouldSayIt(t *testing.T) {
 		if s.ink != inks[i] {
 			t.Errorf("%q is drawn in %+v, want %+v", s.text, s.ink, inks[i])
 		}
+	}
+}
+
+// USAGE's heading says the room left wherever it has room for it, on a phone
+// too: whole from 52 columns, its 40 cells between the name's three blanks
+// and the rule's least and key; narrower, its windows give way whole from
+// the last, never cut.
+func TestOneAccountsUSAGEHeadingSaysTheRoomLeftWhereItHasRoom(t *testing.T) {
+	a := readAccount("work", sessionOf(0.6, 2*time.Hour), weekOf(0.4, 3*quota.Day))
+	doc := routerDoc("work", 0, a)
+	tests := []struct {
+		width int
+		want  string
+	}{
+		{width: 160, want: "USAGE   room left  week 0.6 of 1  ·  5h 0.4 of 1 ─"},
+		{width: 73, want: "USAGE   room left  week 0.6 of 1  ·  5h 0.4 of 1 ─"},
+		{width: 52, want: "USAGE   room left  week 0.6 of 1  ·  5h 0.4 of 1 ─ u"},
+		{width: 51, want: "USAGE   room left  week 0.6 of 1 ─"},
+		{width: 36, want: "USAGE   room left  week 0.6 of 1 ─ u"},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprint(tt.width), func(t *testing.T) {
+			f := frameOf(tt.width, 60)
+			c := newCanvas(tt.width, 1)
+			f.sectionHeading(c, planned{section: f.usageSection(doc, now), head: bounds{width: tt.width, rows: 1}})
+			if got := textOf(c.rows(Look{}))[0]; !strings.HasPrefix(got, tt.want) {
+				t.Errorf("USAGE's heading reads %q, want it to start %q", got, tt.want)
+			}
+		})
 	}
 }
 

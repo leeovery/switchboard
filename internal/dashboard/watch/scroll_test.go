@@ -174,11 +174,11 @@ func tenRouted() status.Document {
 
 func TestUSAGEScrollsAnAccountAtATimeAsTheFocusTheKeysAndTheWheelOverItMoveIt(t *testing.T) {
 	h := routedHarness(t, tenRouted())
-	h.update(tea.WindowSizeMsg{Width: 160, Height: 24})
+	h.update(tea.WindowSizeMsg{Width: 160, Height: 22})
 	h.start()
 	s := h.model.scrolling()
 	if s.Most == 0 || s.Page == 0 || s.Page >= 10 {
-		t.Fatalf("USAGE scrolls %+v, want some accounts out of view, ten in 24 rows", s)
+		t.Fatalf("USAGE scrolls %+v, want some accounts out of view, ten in 22 rows", s)
 	}
 	scrolled := func(step string, want int) {
 		t.Helper()
@@ -194,8 +194,10 @@ func TestUSAGEScrollsAnAccountAtATimeAsTheFocusTheKeysAndTheWheelOverItMoveIt(t 
 		h.keys(downKey)
 	}
 	scrolled("↓ to the last account in view", 0)
+	// Its accounts a row apart, as it gives way at 22 rows, the ▲ come over
+	// them takes an account's row, so it scrolls on till the next shows.
 	h.keys(downKey)
-	scrolled("↓ past it", 1)
+	scrolled("↓ past it", 2)
 	for range s.Page {
 		h.keys(upKey)
 	}
@@ -320,7 +322,7 @@ func TestAViewWhoseScrollChangesWhatItCountsGoesBackToItsTop(t *testing.T) {
 }
 
 func TestAScrollThatMovesNothingLeavesUSAGEScrolledNoFurtherThanItsDrawn(t *testing.T) {
-	short, tall := tea.WindowSizeMsg{Width: 160, Height: 24}, tea.WindowSizeMsg{Width: 160, Height: 80}
+	short, tall := tea.WindowSizeMsg{Width: 160, Height: 22}, tea.WindowSizeMsg{Width: 160, Height: 80}
 	h := routedHarness(t, tenRouted())
 	h.update(short)
 	h.start()
@@ -520,7 +522,7 @@ func TestAScrollLaysTheOverviewOutAfreshOnlyWhereItMoves(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := routedHarness(t, tenRouted())
-			h.update(tea.WindowSizeMsg{Width: 160, Height: 30})
+			h.update(tea.WindowSizeMsg{Width: 160, Height: 22})
 			h.start()
 			h.deliver(h.press("s")...)
 			h.source.sessions = []status.Session{

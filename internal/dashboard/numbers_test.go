@@ -289,7 +289,7 @@ func TestWhatTheClockMovesIsNoNumber(t *testing.T) {
 
 func TestOnlyTheNumbersOnScreenAreNamed(t *testing.T) {
 	ten := tenRouting()
-	scrolled := frameOf(160, 30)
+	scrolled := frameOf(160, 19)
 	scrolled.Sections = Sections{}.Toggled(SectionRouting).Toggled(SectionComing).Toggled(SectionLately)
 	folded, overview := sessionsShown(160, 30)
 	tests := []struct {

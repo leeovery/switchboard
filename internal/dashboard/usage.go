@@ -73,21 +73,37 @@ type usageBlock struct {
 	// values: big stacks its windows from 150 columns, as its big bars;
 	// accountBar is its bars' cells by account, where it sets them; focus is
 	// the account whose number and name the matrix picks out; marks are the
-	// marks the key line names after the cap's; above and below are how
-	// many accounts' rows are scrolled out of view above those shown, and
-	// below; spare are the rows those shown leave blank under them, over
-	// the pool's, so the pool and the key line keep their rows however far
-	// the block's scrolled; charted is whether GRAPHS' charts sit beside its
-	// blocks by account, and beside the form they take there.
+	// marks the key line names after the cap's, in their forms, the widest
+	// first; above and below are how many accounts' rows are scrolled out
+	// of view above those shown, and below; spare are the rows those shown
+	// leave blank under them, over the pool's, so the pool and the key line
+	// keep their rows however far the block's scrolled; charted is whether
+	// GRAPHS' charts sit beside its blocks by account, and beside the form
+	// they take there; and given is how far it has given way to rows short.
 	big          bool
 	accountBar   int
 	focus        string
-	marks        []line
+	marks        [][]line
 	above, below int
 	spare        int
 	charted      bool
 	beside       besideForm
+	given        giving
 }
+
+// giving is how far USAGE's block has given way where the Overview's rows
+// run short, each step a form of the one before: not at all; its accounts a
+// row apart, the blank rows between them gone; the blank rows under its
+// windows' headings gone too, as the blank under USAGE's heading is; and its
+// key gone too, with the blank row over it.
+type giving int
+
+const (
+	givenNone giving = iota
+	givenApart
+	givenHeads
+	givenKey
+)
 
 // shownWindow is a window the block shows: its key, and its name, as in
 // "5-hour" or "Fable week".
@@ -461,7 +477,8 @@ func (b usageBlock) matrix(c *canvas, y int) laid {
 	for i, w := range b.windows {
 		c.line(b.names+i*group, y, line{{strings.ToUpper(w.name), dimInk}})
 	}
-	l := b.each(c, 0, y+2, 2, func(r usageRow, y int) int {
+	first := y + b.underHeading()
+	l := b.each(c, 0, first, 2, func(r usageRow, y int) int {
 		c.line(0, y, r.name)
 		if b.focus != "" && r.id == b.focus {
 			c.surface(0, y, b.focusCells(), hue{token: theme.BgSelection})
@@ -472,8 +489,18 @@ func (b usageBlock) matrix(c *canvas, y int) laid {
 		}
 		return y
 	})
-	l.heads = append(l.heads, headed{at: y, first: y + 2})
+	l.heads = append(l.heads, headed{at: y, first: first})
 	return l
+}
+
+// underHeading is how far a window's first row is from its heading: a row
+// on from the blank under it, or where the block has given way its
+// headings' blank rows, the next.
+func (b usageBlock) underHeading() int {
+	if b.given >= givenHeads {
+		return 1
+	}
+	return 2
 }
 
 // focusCells are the cells of the focused account's row the Overview's
@@ -502,13 +529,14 @@ func (b usageBlock) stacked(c *canvas, y int) laid {
 		if i == len(b.windows)-1 {
 			in.spare = b.spare - i*in.spare
 		}
-		section := in.each(c, 1, y+2, 2, func(r usageRow, y int) int {
+		first := y + b.underHeading()
+		section := in.each(c, 1, first, 2, func(r usageRow, y int) int {
 			c.line(1, y, r.name)
 			b.gauge(c, r.gauges[i], b.names, y, bar, b.width-afterWords)
 			return y
 		})
 		all.placed = append(all.placed, section.placed...)
-		all.heads = append(all.heads, headed{at: y, first: y + 2})
+		all.heads = append(all.heads, headed{at: y, first: first})
 		all.heads = append(all.heads, section.heads...)
 		y, all.end = section.end, section.end
 	}
@@ -517,12 +545,17 @@ func (b usageBlock) stacked(c *canvas, y int) laid {
 
 // each draws the rows in view from row y, each as draw draws it from the row
 // given, returning its last, a row's first apart rows on from the last of
-// the row before. Where accounts' rows are scrolled out of view, ▲ and how
-// many are above comes over the first row shown, and ▼ and how many below
-// under the last, from column x, then the block's spare rows. The pool's row
-// comes last, its rule in the row above it.
+// the row before, or a row fewer where the block has given way the blank
+// rows between its accounts. Where accounts' rows are scrolled out of view,
+// ▲ and how many are above comes over the first row shown, and ▼ and how
+// many below under the last, from column x, then the block's spare rows. The
+// pool's row comes last, apart rows on, its rule in the row above it.
 func (b usageBlock) each(c *canvas, x, y, apart int, draw func(r usageRow, y int) int) laid {
 	accounts, pool := b.split()
+	between := apart
+	if b.given >= givenApart {
+		between--
+	}
 	var l laid
 	if b.above > 0 {
 		c.line(x, y, outOfView(b.above, 0, b.width-x, usageOut))
@@ -532,14 +565,13 @@ func (b usageBlock) each(c *canvas, x, y, apart int, draw func(r usageRow, y int
 	for _, r := range accounts[b.above : len(accounts)-b.below] {
 		last = draw(r, next)
 		l.placed = append(l.placed, rowAt{id: r.id, y: next, rows: last - next + 1})
-		next = last + apart
+		next = last + between
 	}
 	if b.below > 0 {
 		last++
 		c.line(x, last, outOfView(0, b.below, b.width-x, usageOut))
-		next = last + apart
 	}
-	last, next = last+b.spare, next+b.spare
+	last, next = last+b.spare, last+apart+b.spare
 	if pool != nil {
 		c.line(0, next-1, line{{rule(b.width), borderInk}})
 		last = draw(*pool, next)
@@ -709,26 +741,48 @@ func (g gauge) number(kind NumberKind) Number {
 // 150 columns, one line from the name column, the cap's part after even
 // pace's; narrower, two lines from column 0, the cap's part on the second.
 // The marks the Overview names follow the cap's part, each part keyApart
-// cells after the one before.
+// cells after the one before, in the first of their forms that fits the
+// line, as firstFit has it. Where the block has given way its key, it draws
+// none.
 func (b usageBlock) key(c *canvas, y int) {
-	pace, after := b.keyParts(b.bar())
+	if b.given >= givenKey {
+		return
+	}
+	pace, forms := b.keyParts(b.bar())
 	apart := keyGap(b.width)
 	if b.width >= matrixWidth {
-		c.line(b.names, y, joined(apart, slices.Concat([]line{pace}, after)...).fit(b.width-b.names))
+		c.line(b.names, y, firstFit(b.width-b.names, keyForms(apart, forms, pace)...))
 		return
 	}
 	c.line(0, y, pace.fit(b.width))
-	if second := joined(apart, after...); second != nil {
-		c.line(0, y+1, second.fit(b.width))
+	if second := keyForms(apart, forms); second[0] != nil {
+		c.line(0, y+1, firstFit(b.width, second...))
 	}
 }
 
+// keyForms are a key line in each of the forms of its parts, the widest
+// first, the parts led by those given, apart between each two.
+func keyForms(apart span, forms [][]line, lead ...line) []line {
+	lines := make([]line, len(forms))
+	for i, parts := range forms {
+		lines[i] = joined(apart, slices.Concat(lead, parts)...)
+	}
+	return lines
+}
+
 // keyParts are the parts of the block's key line, its bars bar cells long:
-// even pace's; then the cap's, where its bars draw one, and the marks the
-// Overview names.
-func (b usageBlock) keyParts(bar int) (pace line, after []line) {
+// even pace's; then, in each of the forms of the marks the Overview names,
+// the widest first, the cap's, where its bars draw one, and those marks.
+func (b usageBlock) keyParts(bar int) (pace line, forms [][]line) {
 	pace = line{{paceMark, paceInk}, {" even pace: where you would be now, used evenly", mutedInk}}
-	return pace, slices.Concat([]line{b.caps(bar)}, b.marks)
+	caps := b.caps(bar)
+	if len(b.marks) == 0 {
+		return pace, [][]line{{caps}}
+	}
+	for _, marks := range b.marks {
+		forms = append(forms, slices.Concat([]line{caps}, marks))
+	}
+	return pace, forms
 }
 
 // keyGap is what sets a key line's parts apart, width columns wide, as
@@ -747,9 +801,10 @@ func keyApart(width int) int {
 }
 
 // height is how many rows the block takes as it's laid out, its key line
-// after a blank row.
+// after a blank row, where it keeps it.
 func (b usageBlock) height() int {
 	c := growing(b.width)
-	b.key(c, b.draw(c, 0)+1)
-	return c.height()
+	end := b.draw(c, 0)
+	b.key(c, end+1)
+	return max(c.height(), end)
 }
