@@ -45,7 +45,6 @@ var Caps = ledger.Caps{Shared: []string{fiveHour, week}}
 const (
 	opus, sonnet, haiku = "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-4-5"
 	aMillionIn          = `{"input_tokens":1000000}`
-	dollar              = ledger.Picodollars(1_000_000_000_000)
 )
 
 // DayMoments are the moments views have got a day's figures wrong at, or
@@ -244,6 +243,6 @@ func noReadings(time.Time, time.Time) iter.Seq[readings.Reading] {
 
 // worth is n dollars, as the ledger counts money.
 func worth(n int) *ledger.Picodollars {
-	w := ledger.Picodollars(n) * dollar
+	w := ledger.Picodollars(n) * ledger.Dollar
 	return &w
 }

@@ -114,7 +114,7 @@ func TestAMonthAPlanPriceChangedInCostsItsPriceOnItsFirstDay(t *testing.T) {
 			in := input(daysFrom(tt.began))
 			in.Accounts = config.Accounts{{ID: "work", Plan: "max20x"}}
 			in.Prices.Plans = []ledger.Plan{{ID: "max20x", Name: "Max 20x", Size: 20, Prices: []ledger.PlanPrice{
-				{From: "2025-04-09", Monthly: 200 * dollar}, {From: "2026-09-15", Monthly: 250 * dollar}, {From: "2026-10-02", Monthly: 300 * dollar},
+				{From: "2025-04-09", Monthly: 200 * ledger.Dollar}, {From: "2026-09-15", Monthly: 250 * ledger.Dollar}, {From: "2026-10-02", Monthly: 300 * ledger.Dollar},
 			}}}
 			if got := jsonOf(t, views.NewHistory(in).Months); got != tt.want {
 				t.Errorf("the months are\n%s\nwant\n%s", got, tt.want)

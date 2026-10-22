@@ -128,7 +128,7 @@ var dirs = map[string]string{D28C: "~/Code/switchboard", C61B: "~/Code/mobile"}
 const (
 	turnUsage    = `{"input_tokens":3,"cache_read_input_tokens":180000,"cache_creation_input_tokens":2000,"cache_creation":{"ephemeral_1h_input_tokens":2000},"output_tokens":900}`
 	rewriteUsage = `{"input_tokens":3,"cache_creation_input_tokens":1000000,"cache_creation":{"ephemeral_1h_input_tokens":1000000},"output_tokens":1200}`
-	rewriteCost  = 8 * dollar
+	rewriteCost  = 8 * ledger.Dollar
 )
 
 // onDay is the local time on the given day of October 2026, the day before

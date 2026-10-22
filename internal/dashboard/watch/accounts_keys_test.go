@@ -172,8 +172,8 @@ func TestAccountsHelpListsTheWayIntoSessionsWhereTheKeyLineDoesnt(t *testing.T) 
 }
 
 // Compare's focus keys, ←→, enter and esc, are listed where its focus is
-// drawn, wide; and on a phone, whose Compare draws none, or with no
-// accounts, whose Compare draws no columns, neither in help nor on the line.
+// drawn, wide; and where it's turned, drawing none, or with no accounts,
+// whose Compare draws no columns, neither in help nor on the line.
 func TestAccountsListsCompareFocusKeysOnlyWhereTheFocusIsDrawn(t *testing.T) {
 	focus := []string{"←→", "enter", "esc"}
 	for _, tt := range []struct {
@@ -183,8 +183,8 @@ func TestAccountsListsCompareFocusKeysOnlyWhereTheFocusIsDrawn(t *testing.T) {
 		want     bool
 	}{
 		{name: "wide", width: 160, accounts: threeConfigured, want: true},
-		{name: "at the narrowest wide", width: 100, accounts: threeConfigured, want: true},
-		{name: "a phone", width: 99, accounts: threeConfigured},
+		{name: "at the narrowest wide", width: 83, accounts: threeConfigured, want: true},
+		{name: "turned, at its widest", width: 82, accounts: threeConfigured},
 		{name: "a phone's narrowest", width: 52, accounts: threeConfigured},
 		{name: "no accounts", width: 160},
 	} {

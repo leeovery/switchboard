@@ -308,14 +308,14 @@ func TestAccountsHelpOfOneAccountExplainsWhatItDraws(t *testing.T) {
 	}
 }
 
-// Compare's focus is explained where it's drawn, wide; a phone's Compare
+// Compare's focus is explained where it's drawn, wide; turned Compare
 // draws none.
 func TestAccountsHelpExplainsComparesFocusWhereItsDrawn(t *testing.T) {
 	const focus = "← and → move the focus along the columns"
 	for _, tc := range []struct {
 		width int
 		want  bool
-	}{{160, true}, {100, true}, {99, false}, {52, false}} {
+	}{{160, true}, {83, true}, {82, false}, {52, false}} {
 		said := strings.Join(plainLines(accountsHelping(tc.width, threeShown, Look{}).body), " ")
 		if got := strings.Contains(said, focus); got != tc.want {
 			t.Errorf("at %d columns, help reads\n%s\nwant %q said %v", tc.width, said, focus, tc.want)

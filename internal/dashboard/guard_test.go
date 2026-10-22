@@ -51,14 +51,6 @@ var (
 var phoneAllowed = []string{
 	// S14: USAGE's key, its parts spaced apart by the width.
 	"internal/dashboard/usage.go:keyApart",
-	// S16, S17 and S25: the form Accounts draws its views in, Compare's
-	// turned or wide.
-	"internal/dashboard/accounts.go:Frame.buildAccountsForm",
-	// S25: Compare's form, turned or wide, its focus, the help that tells of
-	// it, and the watch that keeps it.
-	"internal/dashboard/accountscompare.go:Frame.compareState",
-	"internal/dashboard/accounts_help.go:Frame.compareHelp",
-	"internal/dashboard/watch/accounts.go:Model.comparing",
 	// S25: what's left, the cards.
 	"internal/dashboard/card.go:Frame.cardWidth",
 	"internal/dashboard/routingcard.go:RoutingCard.card",

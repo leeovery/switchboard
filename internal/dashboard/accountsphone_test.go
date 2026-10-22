@@ -685,7 +685,7 @@ func TestTheVersionARowUsedMostIsItsLargestShares(t *testing.T) {
 	}
 }
 
-// A phone's Compare lays its parts across the width: its names at their
+// Turned Compare lays its parts across the width: its names at their
 // widest whole, at most 24 cells, the bars turnedApart after them; WEEK
 // USED's and BY MODEL's bars one width, from 20 growing with the room to 40
 // at most; their figures in one column, WEEK USED's percentage right-aligned
@@ -704,7 +704,7 @@ func TestAPhonesCompareLaysItsPartsAcrossTheWidth(t *testing.T) {
 	}{
 		{name: "at 52, its bars at their least", width: 52, at: 13, bar: 20, groups: []int{13, 26, 39}, named: " side        "},
 		{name: "at 73, its bars at their most", width: 73, at: 13, bar: 40, groups: []int{13, 33, 53}, named: " side        "},
-		{name: "at 99, its bars held at their most", width: 99, at: 13, bar: 40, groups: []int{13, 42, 70}, named: " side        "},
+		{name: "at 82, the widest turned, its bars held at their most", width: 82, at: 13, bar: 40, groups: []int{13, 36, 59}, named: " side        "},
 		{name: "at 73, long names whole", width: 73, labels: long, at: 25, bar: 28, groups: []int{25, 41, 57}, named: " side-hustle-consulting  "},
 		{name: "at 52, long names cut, the figures whole", width: 52, labels: long, at: 13, bar: 20, groups: []int{13, 26, 39}, named: " side-hust…  "},
 		{name: "at 60, long names cut, the figures whole", width: 60, labels: long, at: 21, bar: 20, groups: []int{21, 34, 47}, named: " side-hustle-consu…  "},

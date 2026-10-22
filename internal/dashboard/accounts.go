@@ -174,13 +174,10 @@ func (f Frame) accountsForm(doc status.Document, now time.Time) accountsForm {
 }
 
 // buildAccountsForm builds the form Accounts' view shown is drawn in, of doc
-// at now: a phone's, as phoneAccounts has it; else Compare's, as compareForm
-// has it, or Detail's, as detailForm has it.
+// at now: Compare's, as compareForm has it, or Detail's, as detailForm has
+// it, each choosing its own form by its parts.
 func (f Frame) buildAccountsForm(doc status.Document, now time.Time) accountsForm {
-	switch {
-	case f.phone():
-		return f.phoneAccounts(doc, now)
-	case f.Accounts.View() == AccountsCompare:
+	if f.Accounts.View() == AccountsCompare {
 		return f.compareForm(doc, now)
 	}
 	return f.detailForm(doc, now)

@@ -989,7 +989,7 @@ Every view speaks as `usage` does:
 - **Percentages are coloured by level,** along the theme's ramp: its first stop below 70%, its
   second from 70%, its last from 90%.
 - **Every account is numbered** by its place in the config, wherever its name heads a row, but on
-  History and a phone's Compare, which number nothing: the number that picks it in the routing card.
+  History and turned Compare, which number nothing: the number that picks it in the routing card.
   `◆` marks the primary, and `▲` the account new sessions go to now.
 - **The pool** is the accounts new sessions can go to now: every account on auto, only those the
   global pin names when pinned. `Σ pool` totals them on the Overview, in `usage` and on Runway;
@@ -2178,7 +2178,7 @@ holds.
 - **Numbers:** wherever the accounts are numbered, as in Compare's heads and Detail's list and
   panel, each account's number, its place in the config, is before its name in `text.subtle`, and
   `0` before `all accounts`: the numbers are the routing picker's keys, and `0` is auto, which
-  routes to every account (see Routing by hand). History and a phone's Compare number nothing.
+  routes to every account (see Routing by hand). History and turned Compare number nothing.
 - **`all accounts`,** never a count, is every configured account, always, whatever is pinned, at its
   limit or refused. Its totals count them all; a window's use is the mean of theirs and its pace the
   mean of their paces; and its room, `1.2 of 3 left`, is the sum of what each has left of it, to its
@@ -2246,16 +2246,19 @@ holds.
   whatever the page, `left at its last reset` indented 2, 24 cells; then, 2 cells on, a column an
   account and one for `all accounts`, last. Each column is at least 19 cells, or the widest
   account's head and a cell where that's more, its name whole at most 24 cells with its marks, so
-  no name is cut where another account's column would show it whole. As many accounts show as
-  fit, at least one, the last
-  giving way first: six of ten at 160 columns, every one of three at 108, two of three with long
-  names. The columns shown share the rest alike, the odd cells `all accounts`' and then the
-  first's, `all accounts`' values running to the frame's edge. Past them, `←` and `→` move the
+  no name is cut where another account's column would show it whole; or, where it's more, the
+  widest of its rows' shortest forms and a cell, each figure at its stated bound over the longest
+  period, so no figure is cut at a column's least, whatever the period. As many accounts show as
+  fit, at least two, as a comparison needs two, the last giving way first: six of ten at 160
+  columns, every one of three at 108, two of three with long names. The columns shown share the
+  rest alike, the odd cells `all accounts`' and then the first's, `all accounts`' values running
+  to the frame's edge. Past them, `←` and `→` move the
   focus along the accounts, the columns scrolling to keep it in view and `all accounts` staying put
   at the right, and the heading's state says which show:
   `accounts 1–6 of 10  ·  ←→ moves along them; all accounts stays put`, its `←→` bold `accent.key`.
-- **The heads,** rows 6 and 7: an account's number, then its name and marks, bold, as `usage` draws
-  a name (see `usage`, the printout); under them, its state in a word, as the Overview colours its
+- **The heads,** on the view's first two rows, wherever the heading's rows end, held however far
+  the rest scrolls: an account's number, then its name and marks, bold, as `usage` draws a name
+  (see `usage`, the printout); under them, its state in a word, as the Overview colours its
   state: `● open`, the dot `state.positive` and the word `text.secondary`; `● pressure` and
   `● at cap`, in `accent.attention`; `■ limit` and `■ refused`, in `state.destructive`;
   `○ not read`, in `text.subtle`. `all accounts`' head is `0`, in `text.subtle`, and `all accounts`,
@@ -2265,20 +2268,20 @@ holds.
   (settled in the plan). No column is focused until `←` or `→`; then the focused column's heads are
   `bg.selection` across its width, less a cell, and `enter` opens that account, or `all accounts`,
   in Detail (settled in the plan).
-- **WEEK USED,** row 9: each account's week as `usage` draws a window's bar, its cap and even pace
-  marked (see `usage`, the printout), then, a cell on, its percentage, right-aligned in 4 and bold
-  in its level's colour, ending where BY MODEL's bar does: its bar grows with its column, 19 at 138
-  columns, 24 at 160 and 35 at 220. `all accounts`' is every account's week
-  together, with no cap. A stale account's bar is faded, as the Overview fades it, keeping 35% of
-  its colour, which is 65% toward the canvas. The week is always as it stands now: over another
+- **WEEK USED,** a blank row under the heads: each account's week as `usage` draws a window's bar,
+  its cap and even pace marked (see `usage`, the printout), then, a cell on, its percentage,
+  right-aligned in 4 and bold in its level's colour, ending where BY MODEL's bar does: its bar grows
+  with its column, 19 at 138 columns, 24 at 160 and 35 at 220. `all accounts`' is every account's
+  week together, with no cap. A stale account's bar is faded, as the Overview fades it, keeping 35%
+  of its colour, which is 65% toward the canvas. The week is always as it stands now: over another
   period, the label adds `now`, in `text.faint`.
-- **BY MODEL,** row 11, `share of use` after it in `text.faint`: on its heading row, each column's
-  share of use as a stacked bar, the narrowest column less 4, at most 40, the most of any bar
-  beside words, so none reads as a rule; each version's part in its shade; then from row 12 a row a
-  version used in the period, in the version table's order, `●` in its shade from column 2 and the
-  version's name in `text.secondary`, cut to the labels' column, and in each column its share,
-  right-aligned in 4, `—` in `text.faint` for none, and `<1%` for a share that rounds to nothing
-  (settled in the plan).
+- **BY MODEL,** a blank row under WEEK USED, `share of use` after it in `text.faint`: on its heading
+  row, each column's share of use as a stacked bar, the narrowest column less 4, at most 40, the
+  most of any bar beside words, so none reads as a rule; each version's part in its shade; then from
+  the row under it a row a version used in the period, in the version table's order, `●` in its
+  shade from column 2 and the version's name in `text.secondary`, cut to the labels' column, and in
+  each column its share, right-aligned in 4, `—` in `text.faint` for none, and `<1%` for a share
+  that rounds to nothing (settled in the plan).
 - **Three groups** follow, a blank row before each, every value from its column's first cell in
   `text.secondary`, `—` and `none` in `text.faint`, and `all accounts`' bold:
   - **ACTIVITY:** `requests`, `1,204`; `sessions served`, `9`, each session counted once, however
@@ -2297,9 +2300,25 @@ holds.
     `—` before it's read, as the status document's `extra_usage` gives it (see The status document),
     and for `all accounts` `off on all`, `on on all` or `on for 1 of 3` (settled in the plan);
     `worth at API prices`, `$184`; and `against its price`, `4.0× its $46 week`.
+  - **Each value in its forms,** fullest first, taking the fullest its column holds, less a cell:
+    words give way, never a figure. The shortest are turned Compare's words, one owner of each.
+    `limits hit` names its windows short, `week ×1 · 5h ×2`, then says how many, `3`, in the
+    column's ink, as `all accounts` says its count; turned Compare's `hit` takes the same forms
+    but the full, the fullest its column holds, so three windows read `4` there. `left at its last
+    reset` drops the day, `0%`; `plan` drops the plan's name, `$200/mo`, and for `all accounts` its
+    plans, to `$400/mo · 2/3` where some aren't known, then `$400/mo`; `extra usage` drops what it
+    means, `on`, and for `all accounts` `on all`, `off`; `against its price` drops its price,
+    `4.0×`, and for `all accounts` where some plans aren't known, every form keeps how many are,
+    its words shorter, then `4.4× · 2/3`, as its ratio is of those alone. The rest have one form.
 - **With one account,** Compare goes, being Detail with one column: the heading shows ` Detail `
   alone.
-- **On a phone,** Compare turns: a group at a time, an account a row, its name from column 1, and
+- **Wide, from where it fits.** Compare is drawn wide wherever its wide parts fit at their
+  leasts, as flex lays them: the labels' column, its gap, and the first two accounts' columns and
+  `all accounts`', which never give way. Narrower, it turns. Its parts are the config's alone,
+  the accounts and their labels, so its form switches once as the width grows, never as the data
+  or the period changes; its focus, help and the key line follow the form drawn, so where it's
+  turned they have no focus. The phone's chrome takes no part in it.
+- **Turned,** Compare is a group at a time, an account a row, its name from column 1, and
   `all` last, unnumbered. More accounts than its height holds scroll with `j/k`, the last row saying
   `▼ 2 more below · j/k` (settled in the plan).
   - Its parts, laid by flex across the width: the names at their widest whole, at least 8 and at
@@ -2323,11 +2342,13 @@ holds.
     the bars one width, WEEK USED's percentage right-aligned in the figures' first 4 cells, and BY
     MODEL's account's largest version and its share a cell further in, `● Opus 5.5 55%`, so their
     figures line up.
-  - ACTIVITY (`reqs`, `sessions`, `moved`), LIMITS (`hit`, `at cap`, `left`, `5-hour` cut to `5h`)
-    and VALUE (`plan`, its price, `worth`, `against it`, the ratio alone): three columns sharing the
-    room from the bars to the frame's edge alike, every group's the same, so they read as one table,
-    each figure cut a cell short of the next column: at 13, 26 and 39 at 52 columns, at 13, 33 and
-    53 at 73. The columns' heads on the group's heading row in `text.subtle`, a row an account under
+  - ACTIVITY (`reqs`, `sessions`, `moved`), LIMITS (`hit`, `at cap`, `left`) and VALUE (`plan`,
+    `worth`, `against it`), each in its row's shortest form, as the wide form says it: `left` `0%`,
+    `plan` its price, `against it` the ratio, with `· 2/3` where some plans aren't known; `hit` its
+    windows named short, `week ×1 · 5h ×2`, where that fits a cell short of the next column, else
+    how many, `4`. Three columns share the room from the bars to the frame's edge alike, every
+    group's the same, so they read as one table: at 13, 26 and 39 at 52 columns, at 13, 33 and 53
+    at 73. The columns' heads on the group's heading row in `text.subtle`, a row an account under
     it, with no blank rows.
 
 **Detail** shows one account in full, or all of them, chosen from a list at its left. The panel's
@@ -2453,8 +2474,8 @@ where it fits** says, and where they don't fit, it's stacked, as **On a phone** 
   with the list. At 160 its days are 3 cells, so `step` is 25, and the weeks, BY MODEL and THIS
   WEEK end at column 158.
 - **Wide, from where it fits.** Flex lays the wide form's parts across the frame, and where their
-  leasts don't fit, Detail is stacked; and under 100 columns, where the phone's chrome takes the
-  frame, always, one account's too, though its leasts fit narrower. The wide form's start
+  leasts don't fit, Detail is stacked, under the phone's chrome as under the wide: one account's,
+  with no list, is wide from 81 columns. The wide form's start
   follows from the weeks' least: the fewest cells of weeks, as they're laid, that reach as far
   past `cx` as USAGE's row at its leasts, a cell, and THIS WEEK. Where that's 68 or fewer, four
   weeks at a gap of 4 reach it, and with the list Detail is wide from 105 columns, whatever its

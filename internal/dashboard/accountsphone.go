@@ -15,14 +15,14 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// Accounts on a phone: Compare turned, a group at a time and an account a
-// row, all accounts last; and Detail stacked, each part under its heading,
-// as Detail's body is drawn too where the frame is too narrow for its wide
-// form. Each is drawn whole, then scrolled a row at a time, as History's
-// Year is.
+// Accounts' narrow forms: Compare turned, a group at a time and an account a
+// row, all accounts last, where its wide form doesn't fit (CompareWide); and
+// Detail stacked, each part under its heading, where its wide form doesn't
+// (detailIn). Each is drawn whole, then scrolled a row at a time, as
+// History's Year is.
 
-// A phone's Compare's columns: its names from turnedNameAt, turnedApart
-// before its bars; and its bars at least turnedBar cells.
+// Turned Compare's columns: its names from turnedNameAt, turnedApart before
+// its bars; and its bars at least turnedBar cells.
 const (
 	turnedNameAt = 1
 	turnedApart  = 2
@@ -48,7 +48,7 @@ const (
 // id.
 const figuresNarrowed = 1
 
-// turnedLayout is where a phone's Compare's parts sit across a frame, as flex
+// turnedLayout is where turned Compare's parts sit across a frame, as flex
 // lays them: its names' cells, from turnedNameAt; where its bars start, as
 // its groups' first columns do, and their cells; and where its figures'
 // column starts, a cell after the bars: WEEK USED's percentages right-aligned
@@ -58,7 +58,7 @@ type turnedLayout struct {
 	names, at, bar, figures int
 }
 
-// turnedLaid is a phone's Compare's columns laid out across the frame: its
+// turnedLaid is turned Compare's columns laid out across the frame: its
 // names at their widest whole, at least compareNameLeast and at most
 // compareNameMost; its bars at least turnedBar, growing to barMost; and its
 // figures holding the widest largest version the table can name, as the
@@ -168,22 +168,8 @@ func (r detailUsageRow) parts() []flex.Part {
 // row between.
 const partsApart = 2
 
-// phoneAccounts is Accounts' view shown as a phone draws it, of doc at now:
-// Compare turned, or Detail stacked; nothing where no account is configured.
-func (f Frame) phoneAccounts(doc status.Document, now time.Time) accountsForm {
-	switch {
-	case len(f.Accounts.Accounts) == 0:
-		return accountsForm{}
-	case f.Accounts.View() == AccountsCompare:
-		cp := f.turned(doc, now)
-		return f.stackForm(cp.turnedWhole, cp.filled)
-	}
-	return f.detailPhoneBody(doc, now)
-}
-
-// detailPhoneBody is Detail of doc at now as a phone stacks it: on a phone,
-// and as Detail's body where the frame is too narrow for its wide form,
-// under the wide chrome.
+// detailPhoneBody is Detail of doc at now stacked, where the frame is too
+// narrow for its wide form, as detailIn has it.
 func (f Frame) detailPhoneBody(doc status.Document, now time.Time) accountsForm {
 	s := f.stackedOf(doc, now)
 	return f.stackForm(s.whole, s.filled)
@@ -235,15 +221,15 @@ func (f Frame) stackTargets(s stack) []Target {
 	return shown
 }
 
-// turned is Compare of doc at now as a phone turns it: a column every
-// account, none scrolled out of view, then all accounts', as compared reads
-// them, each a row.
+// turned is Compare of doc at now turned: a column every account, none
+// scrolled out of view, then all accounts', as compared reads them, each a
+// row.
 func (f Frame) turned(doc status.Document, now time.Time) compared {
 	m := f.Moment(doc, now)
 	return compared{f: f, m: m, now: now, page: f.Accounts.Page, shown: len(f.Accounts.Accounts), week: f.WeekWindow}
 }
 
-// turnedWhole is a phone's Compare drawn whole, laid out as turnedLaid lays
+// turnedWhole is turned Compare drawn whole, laid out as turnedLaid lays
 // it: WEEK USED; then, once the period's page is read, BY MODEL, ACTIVITY,
 // LIMITS and VALUE, a blank row before each.
 func (cp compared) turnedWhole() stack {
@@ -260,7 +246,7 @@ func (cp compared) turnedWhole() stack {
 	return stack{c: c}
 }
 
-// turnedNamed is the column's name as a phone's row heads it: an account's
+// turnedNamed is the column's name as turned Compare's row heads it: an account's
 // label and marks, but ▲, as Accounts shows no routing; or all, unnumbered.
 func turnedNamed(col compareColumn) accountName {
 	if col.all {
@@ -330,48 +316,52 @@ func largestVersion(used []versionUsed) (versionUsed, bool) {
 	return most, most.share != nil
 }
 
-// turnedGroup is a group of a phone's Compare, as ACTIVITY: its name, and its
+// turnedGroup is a group of turned Compare, as ACTIVITY: its name, and its
 // columns.
 type turnedGroup struct {
 	name    string
 	columns []turnedColumn
 }
 
-// turnedColumn is a column of a phone's group: its head, and what it says of
-// each of Compare's columns.
+// turnedColumn is a column of turned Compare's group: its head, and what it
+// says of each of Compare's columns.
 type turnedColumn struct {
 	head string
-	said func(col compareColumn) []part
+	said func(col compareColumn) partForms
 }
 
-// turnedGroups are a phone's Compare's groups under BY MODEL, ACTIVITY,
-// LIMITS and VALUE, as Accounts' words say each figure in their short forms,
-// a window of hours named by them, as 5h. A period with nothing recorded, as
-// on a fresh install, says a dash in each of its own figures, as period has
-// it; left and the plan are none of them.
+// turnedGroups are turned Compare's groups under BY MODEL, ACTIVITY,
+// LIMITS and VALUE, as the wide form's rows say each figure, in their
+// shortest forms, so each row's short words have one owner: but the limits
+// hit, in the forms limitsShortForms has, its windows named short, as 5h,
+// then how many, the fullest a column holds. A period with nothing
+// recorded, as on a fresh install, says a dash in each of its own figures,
+// as recorded has it; left and the plan are none of them.
 func (cp compared) turnedGroups() []turnedGroup {
-	limits := shortWindows(cp.f.windowNamer(cp.m))
+	page, names := *cp.page, cp.f.windowNamer(cp.m)
 	return []turnedGroup{
 		{name: "ACTIVITY", columns: []turnedColumn{
-			{"reqs", cp.period(func(col compareColumn) []part {
-				return []part{figureIn(prose.Grouped(col.row.Totals.Requests), col.ink())}
-			})},
-			{"sessions", cp.period(func(col compareColumn) []part {
-				return []part{figureIn(prose.Grouped(col.row.Totals.Sessions), col.ink())}
-			})},
-			{"moved", cp.period(func(col compareColumn) []part { return movedParts(col.row.Totals, col.ink()) })},
+			{"reqs", cp.recorded(oneForm(compareColumn.requests))},
+			{"sessions", cp.recorded(oneForm(compareColumn.sessions))},
+			{"moved", cp.recorded(oneForm(compareColumn.moved))},
 		}},
 		{name: "LIMITS", columns: []turnedColumn{
-			{"hit", cp.period(func(col compareColumn) []part { return limitsParts(col.row.Totals, limits, col.ink()) })},
-			{"at cap", cp.period(func(col compareColumn) []part { return atCapParts(col.row.Totals, col.ink()) })},
-			{"left", func(col compareColumn) []part { return leftShort(col.row, col.ink()) }},
+			{"hit", cp.recorded(func(col compareColumn) partForms { return limitsShortForms(col.row.Totals, names, col.ink()) })},
+			{"at cap", cp.recorded(oneForm(compareColumn.atCap))},
+			{"left", shortestOf(func(col compareColumn) partForms { return leftForms(col.row, col.ink()) })},
 		}},
 		{name: "VALUE", columns: []turnedColumn{
-			{"plan", func(col compareColumn) []part { return planPriced(col.row, col.ink()) }},
-			{"worth", cp.period(func(col compareColumn) []part { return worthParts(col.row, col.ink()) })},
-			{"against it", cp.period(func(col compareColumn) []part { return againstOnPhone(col.row) })},
+			{"plan", shortestOf(func(col compareColumn) partForms { return planForms(col.row, col.ink()) })},
+			{"worth", cp.recorded(oneForm(compareColumn.worth))},
+			{"against it", cp.recorded(shortestOf(func(col compareColumn) partForms { return againstForms(page, col.row) }))},
 		}},
 	}
+}
+
+// shortestOf is a row's figure in the shortest of its forms, as said has
+// them, its one form.
+func shortestOf(said func(col compareColumn) partForms) func(col compareColumn) partForms {
+	return func(col compareColumn) partForms { return partForms{said(col).shortest()} }
 }
 
 // turnedGroup draws the group from row y, and returns the row its last
@@ -399,7 +389,7 @@ func (cp compared) turnedGroup(c *canvas, y int, l turnedLayout, g turnedGroup, 
 			if i+1 == len(g.columns) {
 				cells = cp.f.edge() - at
 			}
-			c.line(at, y, fitParts(cells, periodNumbered(figure.said(col), col.id, figure.head)...))
+			c.line(at, y, fitParts(cells, periodNumbered(figure.said(col).fitting(cells), col.id, figure.head)...))
 		}
 	}
 	return y
@@ -539,7 +529,7 @@ func (s stacked) thisWeekItems() [][]thisWeekItem {
 		},
 		{
 			{"worth", periodParts(page, worthParts(s.row, secondaryInk), secondaryInk)},
-			{"extra use", extraShort(s.extra())},
+			{"extra use", extraShort(s.extra(), secondaryInk)},
 			{"against", periodParts(page, againstOnPhone(s.row), secondaryInk)},
 		},
 	}
