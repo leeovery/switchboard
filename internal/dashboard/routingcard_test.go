@@ -782,13 +782,13 @@ func TestWhereAnAccountsRowDoesntFitOneLineItsWindowsTakeARowOfTheirOwn(t *testi
 		"Pick the accounts new sessions go to.",
 		"",
 		"",
-		"■ 0 auto      the router chooses",
-		"□ 1 work      closed   at its cap till 17:10",
-		"              week 34%   5-hour 95%",
-		"□ 2 personal  open                 2 running",
-		"              week 66%   5-hour 39%",
-		"□ 3 side      open                 4 running",
-		"              week 78%   5-hour 13%",
+		"■ 0 auto     the router chooses",
+		"□ 1 work     closed    at its cap till 17:10",
+		"             week 34%   5-hour 95%",
+		"□ 2 personal open                  2 running",
+		"             week 66%   5-hour 39%",
+		"□ 3 side     open                  4 running",
+		"             week 78%   5-hour 13%",
 	}
 	if got := body[:10]; !slices.Equal(got, want) {
 		t.Errorf("the rows read\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -838,7 +838,7 @@ func TestARowsEndKeepsTwoCellsFromItsStartWhereItsCut(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := strings.TrimRight(atEnd(line{{"work closed", titleInk}}, line{{"at its limit till 15:54", errorInk}}, tt.width).plain(), " ")
+			got := strings.TrimRight(atEnd(line{{"work closed", titleInk}}, line{{"at its limit till 15:54", errorInk}}, tt.width, endGap).plain(), " ")
 			if got != tt.want {
 				t.Errorf("the row reads %q, want %q", got, tt.want)
 			}

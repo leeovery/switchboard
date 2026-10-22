@@ -1276,8 +1276,10 @@ GRAPHS' charts come beside its blocks.
   header's form follows what it says, as read, the one exception to the rule above: one line
   wherever the badge's line, its day counted at the widest, two figures, 32 cells, and two cells
   on, the status in full as the moment has it, every part whole, its free text too, a restart's
-  reason or a probe's, fit; else two. So one line never says less than two: nothing on it is cut,
-  and free text is cut only where even two lines can't hold it. The sample's status is 50 cells,
+  reason or a probe's, fit; else two. So one line never says less than two: nothing on it is cut
+  or left out. On two, where even the status's own line can't hold it, it shortens as a phone's
+  status line does, leaving out whole parts, a restart and its reason among them, before the last
+  form is cut. The sample's status is 50 cells,
   so its header is one line from 84 columns; a longer status, as a pin to every account, takes one
   line further on.
 
@@ -3980,8 +3982,8 @@ filling in as its line comes (settled in the plan).
 - **One open at a time:** the card shows one line's details, a request's or an event's; nothing else
   opens while it's open.
 
-**What it shows (`f`).** A panel in the same card, its natural 124 cells wide, as two sides don't
-fit the routing card's, and 22 tall, centred: columns 18 to 141, rows 7 to 28 at 160. Where the
+**What it shows (`f`).** A panel in the same card, its natural 124 cells wide, wider than the
+routing card, as its two sides need, and 22 tall, centred: columns 18 to 141, rows 7 to 28 at 160. Where the
 screen hasn't its natural and a cell either side, it's the screen's width less those cells. It
 shows both sides wherever they fit at their leasts: the left, to where ONLY starts, and ONLY as
 wide as today's sessions' rows at their least, their account at 8; from 105 columns for Requests
@@ -4010,8 +4012,9 @@ and 123 for Events. Narrower, it shows the side the cursor's on alone. Its title
     after it; its lines today right-aligned in 4 in `text.secondary`, then ` today` in
     `text.muted`; and 9 cells after their end, at `x+96` with the sample's names, what it's doing,
     `asking` in `accent.key`, or `started 14:41` or `idle 9m` in `text.muted`. The rows are laid
-    out by flex within ONLY, so none runs past it: where it's short of room, the account narrows
-    toward 8 first, then the rows start further in, toward ONLY's start. The row the cursor's on
+    out by flex within ONLY, so none runs past it: where it's short of room, the rows start
+    further out first, toward ONLY's start, as blank cells go before words; then the account
+    narrows toward 8. The row the cursor's on
     is on `bg.selection`. Row 23: `▼` in `accent.key`, ` 8 more today   ` in `text.muted`, `/` bold
     `accent.key`, and ` finds one from another day` in `text.muted`. The list scrolls within the
     panel, and a session found with `/` joins it, ticked (settled in the plan);
@@ -4641,7 +4644,8 @@ none touches routing.
 - **It keeps its place:** new sessions' card holds room for its longest outcome, four lines, and a
   session's for two, so picking, which changes how long the outcome is, never moves it. New
   sessions' card is `15 + a` rows tall for `a` accounts, a session's `13 + a`.
-- The Log's details and `?` help are drawn in the same card, 128 cells wide (see The page,
+- The Log's details and `?` help are drawn in the same card, their natural 128 cells wide, or
+  where the screen hasn't that and a cell either side, its width less those cells (see The page,
   The Log).
 
 **What the card holds,** top to bottom, a blank row between each part:
@@ -4652,13 +4656,15 @@ none touches routing.
 2. **The session,** on a session's card alone: its id, its first 4 characters, in bold
    `text.primary`; two spaces, its directory's own name in `text.muted`; two spaces, its directory,
    the home shown as `~`, in `text.secondary`, cut from its start to the room left, and left out
-   where that would leave no more than its name; and at the right, `runs on ` in `text.muted` and
+   where that would leave no more than its name; none where the rows are stacked, as a phone's page
+   heads it with none; and at the right, `runs on ` in `text.muted` and
    the account it runs on, bold `text.primary`. Where it runs is never marked in the list below.
 3. **The choices,** a row each, in parts from the content's start, as flex lays them: the mark at
    0 and the number at 2; the name at 4, a label's column by Rule 2, as wide as the widest account
-   configured, 24 cells at the most, narrowing toward 8 where the card's short of room before any
-   other part gives way, cut with `…` past its cells; two cells on, the
-   state, 6 cells, as wide as `closed`; four on, the windows, the week, then the 5-hour 11 cells
+   configured, 24 cells at the most, narrowing where the card's short of room before any other
+   part gives way: on one line to 8, or 11 where its natural is as many or more, so one line never
+   cuts a name of 11 cells or fewer; stacked, to 8. It's cut with `…` past its cells. Two cells
+   on, the state, 6 cells, as wide as `closed`; four on, the windows, the week, then the 5-hour 11 cells
    from it, at its widest `5-hour 100%`, 22 cells in all; and two on, at the right edge, the
    account's reason or its sessions, at least 27 cells, the widest reason the router gives with a
    time, `at its limit till Sun 15:54`, as wide as `token refused (403, sonnet)`. With the sample's
@@ -4761,14 +4767,16 @@ Overview's ROUTING heading says `p back to auto`, and `p` opens the card, its on
 `0 auto`, to clear it.
 
 **Narrower,** as on a phone, an account's row is stacked wherever its parts, as "The choices" says
-them, don't fit one line of the content at their leasts, the name at 8: under 75 cells of content,
-a screen under 83 columns, whatever the names. They're facts of the card and its configuration,
-never what a row says, so every row is stacked alike. Stacked, its windows go to a row of their own
-under it, from the state's column, or as near it as they fit whole, so a window's use is never cut;
-the name narrows toward 8 so its reason or sessions, right-aligned on its name's row, keep their 27
-cells, wherever the name at 8 and those fit; narrower, they're cut with `…` where they must, two
-cells after the state. The key row keeps `enter apply` and `esc cancel`, and as many of the rest
-as fit, `↑↓ move` the first to go (settled in the plan).
+them, don't fit one line of the content at their leasts: with names of 8 cells or fewer, under 75
+cells of content, a screen under 83 columns; with one of 11, under 86. They're facts of the card
+and its configuration, never what a row says, so every row is stacked alike. Stacked, its windows
+go to a row of their own under it, from the state's column, or as near it as they fit whole, so a
+window's use is never cut. On its name's row, its reason or sessions are right-aligned, at least
+27 cells, the name narrowing toward 8 first to keep them; where even the name at 8 doesn't leave
+them those with gaps of 2, under 49 cells of content, a screen under 57, both gaps narrow to a
+cell; and narrower still, the name at 8, they're cut with `…` where they must, a cell after the
+state. The key row keeps `enter apply` and `esc cancel`, and as many of the rest as fit, `↑↓
+move` the first to go (settled in the plan).
 
 **More accounts than fit:** the card is at most the page's height less 4 rows; past that, its
 accounts scroll within it, the row it's on kept in view, `▼ 3 more` under the last row shown and

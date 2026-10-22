@@ -367,28 +367,20 @@ const (
 	sessionDoingMost = 13
 )
 
-// widestAccount is the natural of a session's row's account column: the
-// widest name of the accounts the panel knows, each as labelColumnCells
-// counts it.
-func (p LogPanel) widestAccount() int {
-	widest := 0
-	for _, a := range p.Accounts {
-		widest = max(widest, labelColumnCells(name(a)))
-	}
-	return widest
-}
-
 // sessionParts are the parts of today's sessions' rows across ONLY, as flex
-// lays them: how far in they start, todayAt, giving way second; the tick,
-// the id and the directory, to the account; the account, a label's column
-// by Rule 2, narrowing toward labelLeast first; and the count and what it's
-// doing, at its widest.
+// lays them: how far in they start, todayAt, narrowing first, as blank
+// cells go before words; the tick, the id and the directory, to the
+// account; the account, a label's column by Rule 2, its natural the widest
+// account the panel knows, narrowing next, toward labelLeast; and the count
+// and what it's doing, at its widest.
 func (p LogPanel) sessionParts() []flex.Part {
 	tail := sessionDoingFrom + sessionDoingMost
+	account := labelColumn(widestNamed(accountNames(p.Accounts)))
+	account.Narrows = 2
 	return []flex.Part{
-		{Natural: todayAt[p.Of], Narrows: 2},
+		{Natural: todayAt[p.Of], Narrows: 1},
 		{Least: sessionAccountAt, Natural: sessionAccountAt},
-		{Least: labelLeast, Natural: p.widestAccount(), Most: labelMost, Narrows: 1},
+		account,
 		{Least: tail, Natural: tail},
 	}
 }

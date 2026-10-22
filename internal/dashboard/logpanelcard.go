@@ -108,10 +108,10 @@ func (p pane) rows() []line {
 }
 
 // card is the panel on the frame, titled as the table it's of: in two
-// sides, where bothFit says they fit, else the side the
-// cursor's on alone; the tick the cursor's on lit a cell either side; as
-// tall as its body, up to the frame's height less panelSpare, past which it
-// shows the rows around the cursor's.
+// sides, where bothFit says they fit, else the side the cursor's on alone;
+// the tick the cursor's on lit a cell either side; as tall as its body, up
+// to the frame's height less panelSpare, past which it shows the rows
+// around the cursor's.
 func (p LogPanel) card(f Frame) Card {
 	return p.cardOf(p.laidOut(f))
 }

@@ -62,23 +62,35 @@ func endLeast() int {
 	return len("at its limit till ") + prose.DatedWidth()
 }
 
+// oneLineNameKept is the fewest cells a name keeps on one line, where its
+// column's natural is as many or more: the name column's width before it
+// was a label's column, so one line never cuts a name that width held.
+const oneLineNameKept = 11
+
+// narrowGap is the cells a stacked row's gaps narrow to where its leasts
+// don't fit with their own, before its end is cut.
+const narrowGap = 1
+
 // choiceColumns are where a row's parts lie in the card's content, as
 // columns lays them: the name's cells, and where the state and the windows
-// start; and whether the rows are stacked, an account's windows on a row of
-// their own under it.
+// start; the cells between the end and what's before it; and whether the
+// rows are stacked, an account's windows on a row of their own under it.
 type choiceColumns struct {
-	name, state, windows int
-	stacked              bool
+	name, state, windows, endGap int
+	stacked                      bool
 }
 
 // rowParts are a row's parts on one line, as flex lays them: the mark and
-// number; the name, a label's column by Rule 2, the one part that narrows;
-// the state; the windows; and the end.
+// number; the name, a label's column by Rule 2, the one part that narrows,
+// on one line to no fewer than oneLineNameKept of its natural; the state;
+// the windows; and the end.
 func (r RoutingCard) rowParts() []flex.Part {
 	use := choiceUsesApart + len(widestUse)
+	name := labelColumn(r.widestName())
+	name.Least = max(name.Least, min(name.Natural, oneLineNameKept))
 	return []flex.Part{
 		{Least: choiceNameAt, Natural: choiceNameAt},
-		{Least: labelLeast, Natural: r.widestName(), Most: labelMost},
+		name,
 		{Least: stateCells, Natural: stateCells, Gap: nameGap},
 		{Least: use, Natural: use, Gap: stateGap},
 		{Least: endLeast(), Natural: endLeast(), Gap: endGap},
@@ -86,15 +98,15 @@ func (r RoutingCard) rowParts() []flex.Part {
 }
 
 // widestName is the name column's natural: the widest of the accounts'
-// names, each as labelColumnCells counts it.
+// names, as widestNamed has it.
 func (r RoutingCard) widestName() int {
-	widest := 0
+	var names []string
 	for _, row := range r.Rows {
 		if row.Account != "" {
-			widest = max(widest, labelColumnCells(row.Name))
+			names = append(names, row.Name)
 		}
 	}
-	return widest
+	return widestNamed(names)
 }
 
 // natural is the card's natural width, its edges included: its rows' parts
@@ -106,33 +118,41 @@ func (r RoutingCard) natural() int {
 }
 
 // columns are where the rows' parts lie in width cells: on one line, where
-// they fit, the name narrowing toward labelLeast first; else stacked, the
-// windows on a row of their own from the state's column, or as near it as
-// they still fit whole, so a window's use is never cut, and the name laid
-// out with the end beside it, as stackedNames has it. The parts are the
-// card's, never what a row says, so every row is laid out alike.
+// they fit, the name narrowing first; else stacked, as stackedNames lays
+// the name's row, the windows on a row of their own from the state's
+// column, or as near it as they still fit whole, so a window's use is never
+// cut. The parts are the card's, never what a row says, so every row is
+// laid out alike.
 func (r RoutingCard) columns(width int) choiceColumns {
 	parts := r.rowParts()
 	if s, oneLine := flex.Lay(width, parts...); oneLine {
-		return choiceColumns{name: s[1].Size, state: s[2].At, windows: s[3].At}
+		return choiceColumns{name: s[1].Size, state: s[2].At, windows: s[3].At, endGap: endGap}
 	}
-	s := stackedNames(width, parts)
+	parts[1].Least = labelLeast
+	s, gap := stackedNames(width, parts)
 	uses := parts[3]
 	uses.Gap = 0
 	w, _ := flex.Lay(width, flex.Part{Natural: s[2].At}, uses)
-	return choiceColumns{name: s[1].Size, state: s[2].At, windows: w[1].At, stacked: true}
+	return choiceColumns{name: s[1].Size, state: s[2].At, windows: w[1].At, endGap: gap, stacked: true}
 }
 
 // stackedNames are where a stacked row's mark and number, name and state
-// lie in width cells, of the row's parts: the name narrowing toward
-// labelLeast so the end beside them keeps its least, where that fits; else
-// without it, the end cut as the room allows.
-func stackedNames(width int, parts []flex.Part) []flex.Span {
-	if s, fits := flex.Lay(width, parts[0], parts[1], parts[2], parts[4]); fits {
-		return s
+// lie in width cells, of the row's parts, and the gap before its end: the
+// name narrowing toward labelLeast first, so the end keeps its least; where
+// that doesn't fit, the gaps narrow to a cell, once; and narrower still,
+// the name at its least, the end cut as the room allows.
+func stackedNames(width int, parts []flex.Part) ([]flex.Span, int) {
+	row := []flex.Part{parts[0], parts[1], parts[2], parts[4]}
+	if s, fits := flex.Lay(width, row...); fits {
+		return s, endGap
 	}
-	s, _ := flex.Lay(width, parts[:3]...)
-	return s
+	row[2].Gap, row[3].Gap = narrowGap, narrowGap
+	if s, fits := flex.Lay(width, row...); fits {
+		return s, narrowGap
+	}
+	row[1].Natural = row[1].Least
+	s, _ := flex.Lay(width, row[:3]...)
+	return s, narrowGap
 }
 
 // RoutingCard is the routing card's data, which the watch builds afresh at
@@ -334,9 +354,10 @@ func windowWhere(a status.AccountNow, is func(status.WindowNow) bool) (status.Wi
 func (r RoutingCard) card(f Frame) Card {
 	width := f.cardWidth(r.natural())
 	content := width - 2*cardInset
-	above := slices.Concat(r.opening(content), []line{nil}, r.sessionRows(content))
+	at := r.columns(content)
+	above := slices.Concat(r.opening(content), []line{nil}, r.sessionRows(at, content))
 	below := slices.Concat(r.moveRows(), r.outcome(content))
-	rows, lit, scroll := r.inView(r.columns(content), content, f.bodyRoom(routingSpare, true)-len(above)-len(below))
+	rows, lit, scroll := r.inView(at, content, f.bodyRoom(routingSpare, true)-len(above)-len(below))
 	lit.first += len(above)
 	return Card{title: r.title(), width: width, body: slices.Concat(above, rows, below), keys: r.keys(content), scroll: scroll, lit: lit}
 }
@@ -376,20 +397,21 @@ func (r RoutingCard) opening(width int) []line {
 }
 
 // sessionRows are the session's row and a blank row after it, on a
-// session's card alone, as sessionRow lays it out.
-func (r RoutingCard) sessionRows(width int) []line {
+// session's card alone, as sessionRow lays it out, its path, as the rows
+// are laid out, on one line alone.
+func (r RoutingCard) sessionRows(at choiceColumns, width int) []line {
 	if r.Mode != ThisSession {
 		return nil
 	}
-	return []line{r.sessionRow(width), nil}
+	return []line{r.sessionRow(width, !at.stacked), nil}
 }
 
 // sessionRow is the session's row, width cells wide: its id, as the
-// dashboard shows ids, bold; its directory's name, muted; the directory, as
-// pathIn has it; and at its end, runs on and the account it runs on, bold,
-// where that's known. Where it runs is said here alone, never marked on its
-// row below.
-func (r RoutingCard) sessionRow(width int) line {
+// dashboard shows ids, bold; its directory's name, muted; where pathed, the
+// directory, as pathIn has it; and at its end, runs on and the account it
+// runs on, bold, where that's known. Where it runs is said here alone,
+// never marked on its row below.
+func (r RoutingCard) sessionRow(width int, pathed bool) line {
 	s := r.Session
 	var on line
 	if s.On != "" {
@@ -400,10 +422,10 @@ func (r RoutingCard) sessionRow(width int) line {
 	if name := status.DirName(s.Dir, max(room-row.width()-2, 1)); name != "" {
 		row = slices.Concat(row, line{spaces(2), {name, mutedInk}})
 	}
-	if path := pathIn(s.Dir, s.Home, room-row.width()-2); path != "" {
+	if path := pathIn(s.Dir, s.Home, room-row.width()-2); pathed && path != "" {
 		row = slices.Concat(row, line{spaces(2), {path, secondaryInk}})
 	}
-	return atEnd(row, on, width)
+	return atEnd(row, on, width, endGap)
 }
 
 // pathIn is the directory dir in room cells, the home directory given as ~,
@@ -513,9 +535,9 @@ func (r RoutingCard) choice(row RoutingRow, at choiceColumns, width int) []line 
 	named := padTo(head, at.state, state)
 	windows := row.windowsWords()
 	if at.stacked {
-		return []line{atEnd(named, row.sideWords(), width), padTo(nil, at.windows, windows).fit(width)}
+		return []line{atEnd(named, row.sideWords(), width, at.endGap), padTo(nil, at.windows, windows).fit(width)}
 	}
-	return []line{atEnd(padTo(named, at.windows, windows), row.sideWords(), width)}
+	return []line{atEnd(padTo(named, at.windows, windows), row.sideWords(), width, at.endGap)}
 }
 
 // windowsWords are the row's windows' use as the card says it, as
@@ -611,11 +633,11 @@ func padTo(l line, column int, after line) line {
 }
 
 // atEnd is l, cut to width cells, with end at its end, cut short where it
-// must be to keep two cells clear of l: then two cells after l, as a cut
+// must be to keep gap cells clear of l: then gap cells after l, as a cut
 // can let go of the spaces before its ellipsis and end short of the edge.
-func atEnd(l, end line, width int) line {
+func atEnd(l, end line, width, gap int) line {
 	l = l.fit(width)
-	at := l.width() + 2
+	at := l.width() + gap
 	cut := end.fit(width - at)
 	if cut.width() == end.width() || cut.width() == 0 {
 		at = width - cut.width()

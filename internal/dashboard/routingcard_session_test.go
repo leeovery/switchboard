@@ -78,7 +78,7 @@ func TestASessionsRowNamesItAndWhereItRuns(t *testing.T) {
 		{name: "no directory, its id alone", session: RoutingSession{ID: "9c2e47b1", On: "personal"}, left: "9c2e", right: "runs on personal"},
 		{name: "where it runs not known", session: RoutingSession{ID: "9c2e", Dir: "~/Code/website"}, left: "9c2e  website  ~/Code/website"},
 		{name: "an account named by its name", session: RoutingSession{ID: "9c2e", On: "side"}, left: "9c2e", right: "runs on side"},
-		{name: "a narrow card, its directory cut from its start to fit", session: sessionRouted, width: 44, left: "9c2e  website  …de/website", right: "runs on personal"},
+		{name: "stacked, no directory, as a phone's page heads it", session: sessionRouted, width: 44, left: "9c2e  website", right: "runs on personal"},
 		{name: "a card too narrow to say more than its name, no directory", session: sessionRouted, width: 40, left: "9c2e  website", right: "runs on personal"},
 	}
 	for _, tt := range tests {
@@ -89,7 +89,7 @@ func TestASessionsRowNamesItAndWhereItRuns(t *testing.T) {
 				want += strings.Repeat(" ", width-ansi.StringWidth(tt.left)-ansi.StringWidth(tt.right)) + tt.right
 			}
 			r := sessionCard(func(r *RoutingCard) { r.Session = tt.session })
-			if got := strings.TrimRight(r.sessionRow(width).plain(), " "); got != want {
+			if got := strings.TrimRight(r.sessionRow(width, !r.columns(width).stacked).plain(), " "); got != want {
 				t.Errorf("the row reads\n%q\nwant\n%q", got, want)
 			}
 		})
@@ -98,7 +98,7 @@ func TestASessionsRowNamesItAndWhereItRuns(t *testing.T) {
 
 func TestASessionsRowIsInkedAsTheDesignSays(t *testing.T) {
 	inked := map[string]ink{}
-	for _, s := range sessionCard(nil).sessionRow(76) {
+	for _, s := range sessionCard(nil).sessionRow(76, true) {
 		inked[strings.TrimSpace(s.text)] = s.ink
 	}
 	for text, want := range map[string]ink{"9c2e": titleInk, "website": mutedInk, "~/Code/website": secondaryInk, "runs on": mutedInk, "personal": titleInk} {
@@ -236,15 +236,15 @@ func TestANarrowSessionsCardKeepsItsRowsToTheScreen(t *testing.T) {
 	want := []string{
 		"Pick the account this session goes to.",
 		"",
-		"9c2e  website  …de/website  runs on personal",
+		"9c2e  website               runs on personal",
 		"",
-		"○ 0 auto      the router chooses: side",
-		"○ 1 work      closed   at its cap till 17:10",
-		"              week 34%   5-hour 95%",
-		"○ 2 personal  open                 2 running",
-		"              week 66%   5-hour 39%",
-		"● 3 side      open                 4 running",
-		"              week 78%   5-hour 13%",
+		"○ 0 auto     the router chooses: side",
+		"○ 1 work     closed    at its cap till 17:10",
+		"             week 34%   5-hour 95%",
+		"○ 2 personal open                  2 running",
+		"             week 66%   5-hour 39%",
+		"● 3 side     open                  4 running",
+		"             week 78%   5-hour 13%",
 		"",
 		"This session moves to side on its next",
 		"request.",

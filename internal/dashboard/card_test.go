@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
@@ -307,7 +308,7 @@ func TestTheRoutingCardsRowsAreStackedAlikeWhateverTheySay(t *testing.T) {
 func TestALongNameNarrowsBeforeARowsEndIsCut(t *testing.T) {
 	r := widestEnds()
 	r.Rows[3].Name = "a-very-long-account-name"
-	least := choiceNameAt + labelLeast + nameGap + stateCells + endGap + endLeast()
+	least := choiceNameAt + labelLeast + narrowGap + stateCells + narrowGap + endLeast()
 	for width := 40; width <= 220; width++ {
 		k := r.card(frameOf(width, 60))
 		if k.width-2*cardInset < least {
@@ -319,6 +320,80 @@ func TestALongNameNarrowsBeforeARowsEndIsCut(t *testing.T) {
 				t.Errorf("at %d columns, the card reads\n%s\nwant %q whole", width, body, end)
 			}
 		}
+	}
+}
+
+// shownOf is how many characters of what's said the body shows, from its
+// start, whole or cut with an ellipsis.
+func shownOf(body, said string) int {
+	runes := []rune(said)
+	for n := len(runes); n > 0; n-- {
+		shown := string(runes[:n])
+		if n < len(runes) {
+			shown = strings.TrimRight(shown, " ") + prose.Ellipsis
+		}
+		if strings.Contains(body, shown) || n == len(runes) && strings.Contains(body, said) {
+			return n
+		}
+	}
+	return 0
+}
+
+// basedOf is how many characters of what's said the card drew, before its
+// names were a label's column, in cells cells: whole where it fit, else cut
+// to a cell short of them, for its ellipsis.
+func basedOf(said string, cells int) int {
+	if n := len([]rune(said)); n <= cells {
+		return n
+	}
+	return max(cells-1, 0)
+}
+
+// Where the stacked card is narrowest, its words say no less than it said
+// before its names were a label's column: auto's description from column
+// 16, and each row's end two cells after closed, from 24, whatever the
+// names.
+func TestTheNarrowestStackedCardSaysNoLessThanBefore(t *testing.T) {
+	long := widestEnds()
+	long.Rows[3].Name = "a-very-long-account-name"
+	for name, r := range map[string]RoutingCard{"the sample's names": widestEnds(), "a long name": long} {
+		for width := 40; width <= 56; width++ {
+			k := r.card(frameOf(width, 60))
+			content := k.width - 2*cardInset
+			body := strings.Join(plains(k.body), "\n")
+			for said, from := range map[string]int{
+				"the router chooses": 16, "4 running": 24,
+				"at its limit till Sun 15:54": 24, "token refused (403, sonnet)": 24,
+			} {
+				if got, base := shownOf(body, said), basedOf(said, content-from); got < base {
+					t.Errorf("%s, at %d columns, the card shows %d characters of %q, fewer than the %d it showed before:\n%s", name, width, got, said, base, body)
+				}
+			}
+		}
+	}
+}
+
+// One line never cuts a name the card's old fixed column of 11 held whole:
+// a name of 9 to 11 cells keeps them all there, the card stacking first.
+func TestOneLineNeverCutsANameItsOldColumnHeld(t *testing.T) {
+	r := routedCard(func(r *RoutingCard) { r.Rows[1].Name = "engineering" })
+	switches := 0
+	was := false
+	for width := 40; width <= 220; width++ {
+		k := r.card(frameOf(width, 60))
+		oneLine := stackedRows(r, frameOf(width, 60)) == 0
+		if oneLine != was {
+			switches, was = switches+1, oneLine
+			if width != 86 {
+				t.Errorf("the rows go onto one line at %d columns, want 86, where the name's 11 fit", width)
+			}
+		}
+		if body := strings.Join(plains(k.body), "\n"); (oneLine || width == 82) && !strings.Contains(body, "1 engineering ") {
+			t.Errorf("at %d columns, the card reads\n%s\nwant engineering whole", width, body)
+		}
+	}
+	if switches != 1 {
+		t.Errorf("the rows switched form %d times, want once", switches)
 	}
 }
 

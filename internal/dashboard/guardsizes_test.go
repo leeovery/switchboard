@@ -44,6 +44,9 @@ var contentMeasures = []string{
 	"dashboard.line.width",
 	// A token period's own rows: periodHeads'.
 	"dashboard.tokensHeight",
+	// A glyph's own cells, one or two: wide's, whether it covers the cell
+	// after it, a property of the glyph, not where a layout breaks.
+	"dashboard.grapheme.width",
 }
 
 // sizes judge what's compared with a size in the drawing packages, by the

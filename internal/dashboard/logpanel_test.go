@@ -223,7 +223,7 @@ func TestARowTooLongWrapsUnderItsLabel(t *testing.T) {
 	}
 }
 
-// Under 126 columns, where its two sides don't fit, the panel shows the
+// Where its two sides' leasts don't fit, the panel shows the
 // side the cursor's on alone, from its content's start; on a phone, today's
 // sessions from ONLY's start, where they'd lack the room further in.
 func TestWhereItsSidesLeastsDontFitThePanelShowsOneSideAtATime(t *testing.T) {
@@ -455,8 +455,8 @@ func labelledPanel(of LogView, label string) LogPanel {
 
 // A session's row's account is a label's column by Rule 2, laid out by flex
 // with the rest of its row in ONLY: as wide as the widest name the panel
-// knows, at most 24, narrowing toward 8 where ONLY's short of room, before
-// the rows start further in.
+// knows, at most 24; where ONLY's short of room, the rows start further
+// out first, then the name narrows toward 8.
 func TestASessionsRowsAccountIsALabelsColumn(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -470,10 +470,10 @@ func TestASessionsRowsAccountIsALabelsColumn(t *testing.T) {
 			want: "9c2e  website       a-very-long-account-name  267 today   idle 9m"},
 		{name: "a name past 24, cut there", panel: labelledPanel(LogRequests, "a-very-long-account-name-and-more"), width: 85, at: 12,
 			want: "9c2e  website       a-very-long-account-nam…  267 today   idle 9m"},
-		{name: "short of room, the name narrows first", panel: labelledPanel(LogRequests, "a-very-long-account-name"), width: 78, at: 12,
-			want: "9c2e  website       a-very-long-acco…  267 today   idle 9m"},
-		{name: "at its least, the rows further out", panel: labelledPanel(LogRequests, "a-very-long-account-name"), width: 60, at: 3,
-			want: "9c2e  website       a-very-…  267 today   idle 9m"},
+		{name: "short of room, the blank cells in go first", panel: labelledPanel(LogRequests, "a-very-long-account-name"), width: 78, at: 5,
+			want: "9c2e  website       a-very-long-account-name  267 today   idle 9m"},
+		{name: "then the name narrows", panel: labelledPanel(LogRequests, "a-very-long-account-name"), width: 60, at: 0,
+			want: "9c2e  website       a-very-lon…  267 today   idle 9m"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

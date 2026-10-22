@@ -26,6 +26,33 @@ func labelsPart(widest, narrows int) flex.Part {
 	return flex.Part{Least: labelLeast, Natural: widest + nameGap, Most: labelMost, Narrows: narrows}
 }
 
+// labelColumn is a column of names laid out by flex, with no gap of its
+// own: its natural the widest name given, held within labelLeast and
+// labelMost, narrowing freely toward its least.
+func labelColumn(widest int) flex.Part {
+	return flex.Part{Least: labelLeast, Natural: widest, Most: labelMost}
+}
+
+// widestNamed is a column of names' natural: the widest of the names given,
+// as labelColumnCells counts each; none of none.
+func widestNamed(names []string) int {
+	widest := 0
+	for _, n := range names {
+		widest = max(widest, labelColumnCells(n))
+	}
+	return widest
+}
+
+// accountNames are the names of the accounts given, as the dashboard names
+// them.
+func accountNames(accounts []status.AccountNow) []string {
+	names := make([]string, len(accounts))
+	for i, a := range accounts {
+		names[i] = name(a)
+	}
+	return names
+}
+
 // labelColumnCells are the cells an account's name takes in a column of
 // names: its own, labelMost at the most.
 func labelColumnCells(name string) int {
@@ -44,11 +71,8 @@ func labelsCells(m status.Moment) []int {
 }
 
 // widestLabel is a column of names' natural: the widest of the names of the
-// accounts the moment m knows, as labelsCells has them; none where it knows
+// accounts the moment m knows, as widestNamed has it; none where it knows
 // none.
 func widestLabel(m status.Moment) int {
-	if cells := labelsCells(m); len(cells) > 0 {
-		return cells[0]
-	}
-	return 0
+	return widestNamed(accountNames(m.Accounts))
 }

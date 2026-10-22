@@ -141,7 +141,7 @@ func (c *canvas) text(x, y int, text string, k ink) int {
 		if width > 0 {
 			g := grapheme{text: cluster, cells: min(width, 2)}
 			c.put(x, y, g, k)
-			x += g.cells
+			x += g.width()
 		}
 	}
 	return x
@@ -154,10 +154,16 @@ type grapheme struct {
 	cells int
 }
 
+// width is the cells the glyph takes: a measure of what's drawn, never of
+// the frame.
+func (g grapheme) width() int {
+	return g.cells
+}
+
 // wide reports whether the glyph takes two cells, covering the one after
 // its own.
 func (g grapheme) wide() bool {
-	return g.cells == 2
+	return g.width() == 2
 }
 
 // put draws the glyph at x along row y, the mark its ink carries noted on
@@ -165,10 +171,10 @@ func (g grapheme) wide() bool {
 // drawn. Half a wide glyph it covers is left blank, as is a wide glyph the
 // canvas's edge cuts.
 func (c *canvas) put(x, y int, g grapheme, k ink) {
-	for i := range g.cells {
+	for i := range g.width() {
 		c.clear(x+i, y)
 	}
-	first, last := c.at(x, y), c.at(x+g.cells-1, y)
+	first, last := c.at(x, y), c.at(x+g.width()-1, y)
 	if first == nil || last == nil {
 		return
 	}
