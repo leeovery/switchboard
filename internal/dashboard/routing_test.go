@@ -130,26 +130,31 @@ func TestAnAccountsStateIsCutByWholeClausesBeforeWhatFollowsIt(t *testing.T) {
 		return doc.WorkedOut(claudeLike)
 	}
 	tests := []struct {
-		name string
-		doc  status.Document
-		want string
+		name         string
+		doc          status.Document
+		width, trace int
+		want         string
 	}{
 		{
-			name: "whole, ending two cells or more before its sessions at 79", doc: capped(false),
+			name: "whole, ending two cells or more before its sessions at 79", doc: capped(false), width: 173, trace: 92,
 			want: textsAt(92, map[int]string{0: "1 work", 16: "● at its cap · back 17:10 · new sessions go elsewhere", 79: "0 sessions"}),
 		},
 		{
-			name: "pinned: its short form whole, where its words aren't, to end two cells or more before ● pinned at 68", doc: capped(true),
-			want: textsAt(92, map[int]string{0: "1 work", 16: "● at its cap · pinned", 68: "● pinned", 79: "0 sessions"}),
+			name: "pinned: the pin left off its words, as ● pinned at 68 says it, to end two cells or more before the mark", doc: capped(true), width: 173, trace: 92,
+			want: textsAt(92, map[int]string{0: "1 work", 16: "● at its cap", 68: "● pinned", 79: "0 sessions"}),
+		},
+		{
+			name: "pinned at 100, ● pinned left off: its words say the pin", doc: capped(true), width: 100, trace: 61,
+			want: textsAt(61, map[int]string{0: "1 work", 16: "● at its cap · pinned", 48: "0 sessions"}),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := Frame{Width: 173, Height: 40, View: Overview, Policy: claudeLike}
+			f := Frame{Width: tt.width, Height: 40, View: Overview, Policy: claudeLike}
 			c := newCanvas(f.Width, 4)
 			f.routingSection(tt.doc, routedAt).draw(c, bounds{width: f.Width, rows: 4})
 			row := []rune(textOf(c.rows(Look{}))[0])
-			if got := textsAt(92, map[int]string{0: string(row[:92])}); got != tt.want {
+			if got := textsAt(tt.trace, map[int]string{0: string(row[:tt.trace])}); got != tt.want {
 				t.Errorf("drew\n  %q\nwant\n  %q", got, tt.want)
 			}
 		})
@@ -261,7 +266,8 @@ func TestARowsStateKeepsItsTime(t *testing.T) {
 // ● pinned shows on a row an account only where its words keep their least
 // of 20 beside it, from 101 columns with a name column of 16; narrower, it's
 // left off, as ROUTING's heading names the accounts pinned all the same, and
-// the words take its cells.
+// the words take its cells. The pin is said once on a row: by the mark where
+// it shows, else by the words.
 func TestPinnedShowsOnARowOnlyWhereTheWordsKeepTheirLeast(t *testing.T) {
 	doc, _ := autoRouting()
 	doc.Pin = status.Pin{Accounts: []string{"work", "personal", "side"}, Since: routedClock(1, 14, 2)}
@@ -274,7 +280,7 @@ func TestPinnedShowsOnARowOnlyWhereTheWordsKeepTheirLeast(t *testing.T) {
 		{width: 83, words: "● at its cap"},
 		{width: 100, words: "● at its cap · pinned"},
 		{width: 101, pinned: true, words: "● at its cap"},
-		{width: 104, pinned: true, words: "● at its cap · pinned"},
+		{width: 104, pinned: true, words: "● at its cap"},
 	}
 	for _, tt := range tests {
 		f := Frame{Width: tt.width, Height: 40, View: Overview, Policy: claudeLike}

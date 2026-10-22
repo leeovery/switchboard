@@ -34,6 +34,18 @@ func (a AccountNow) Headed() Routing {
 	return r
 }
 
+// Unpinned is how the account stands where a mark beside its words says the
+// global pin names it: its clauses and its short form, after its first
+// words, without those that say so, as its cap the pin spends has them.
+func (r Routing) Unpinned() Routing {
+	saysPin := func(s string) bool { return s == stillPinned || s == pinnedShort }
+	r.Clauses = slices.DeleteFunc(slices.Clone(r.Clauses), saysPin)
+	if len(r.Short) > 0 {
+		r.Short = append([]string{r.Short[0]}, slices.DeleteFunc(slices.Clone(r.Short[1:]), saysPin)...)
+	}
+	return r
+}
+
 // headed is r as Detail's head says it: its kind and first words, the
 // clauses given after them, and its first words alone short.
 func (r Routing) headed(clauses []string) Routing {

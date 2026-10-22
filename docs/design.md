@@ -1738,7 +1738,9 @@ first (the owner's call, 15 October 2026).
   - `● pinned` in `accent.key`, three cells before the sessions, on each account the global pin
     names, its words' cells giving way to it, wherever they keep their least of 20 beside it (from
     101 columns with a name column of 16); else it's left off, the heading naming the accounts
-    pinned all the same, and the least never moves with it;
+    pinned all the same, and the least never moves with it. The row says the pin once: where the
+    mark shows, the words leave out what says it (`● at its cap`); where it's left off, they keep
+    it (`● at its cap · pinned`);
   - its sessions: `2 sessions` or `1 session` in `text.muted`, `0 sessions` in `text.faint`;
   - its trace to `w − 8`, then its rate right-aligned at the last column, `15/min` in bold
     `text.secondary`, or `0/min` in `text.subtle`.

@@ -290,22 +290,18 @@ func routingSized(a int, body bounds) bool {
 
 // wideRouting draws account r's row of ROUTING from row y, on a row an
 // account, its trace rows tall, as t's columns lay it: its number, name and
-// marks; its state from the name column, in its words' cells as
-// rowStanding words it, less ● pinned's and pinnedApart, where it shows,
-// wordsGap before it; its sessions; and its trace, its rate right-aligned on
-// its last row at the edge rateEdge gives it. ● pinned shows only where the
-// words keep their least beside it: ROUTING's heading names the accounts
-// pinned all the same.
+// marks; its state from the name column, and ● pinned pinnedApart before its
+// sessions, where it shows, as rowState has them in its words' cells; its
+// sessions; and its trace, its rate right-aligned on its last row at the
+// edge rateEdge gives it.
 func (f Frame) wideRouting(c *canvas, t routingTable, r accountRouting, y, rows int) {
 	at := t.columns
 	c.line(0, y, r.name)
-	words := at.words
-	beside := words - ansi.StringWidth(pinnedSpan.text) - pinnedApart
-	if r.pinned && beside >= wordsLeast {
-		words = beside
-		c.line(at.names+words+wordsGap, y, line{pinnedSpan})
+	words, pinned := rowState(r, at.words)
+	if pinned {
+		c.line(at.sessions-pinnedApart-pinnedCells(), y, line{pinnedSpan})
 	}
-	f.drawStanding(c, r, at.names, y, rowStanding(r.standing, words))
+	f.drawStanding(c, r, at.names, y, words)
 	c.line(at.sessions, y, line{r.sessionsCounted()})
 	trace := bounds{x: at.trace, y: y, width: at.traceCells, rows: rows}
 	f.drawTrace(c, r.trace, t.now, trace, r.faded)
@@ -336,6 +332,26 @@ func (f Frame) narrowRouting(c *canvas, t routingTable, r accountRouting, y int)
 func (f Frame) drawStanding(c *canvas, r accountRouting, x, y int, words line) {
 	end := c.line(x, y, words)
 	f.cueStanding(c, r.id, x, y, end-x)
+}
+
+// rowState is how account r stands on its row of ROUTING's, in its words'
+// cells, and whether ● pinned shows beside them: where the global pin names
+// it and the words keep their least beside the mark and pinnedApart, wordsGap
+// before it, the mark shows and the words, as Unpinned has them, say the pin
+// no more; else the mark is left off, ROUTING's heading naming the accounts
+// pinned all the same, and the words, which then say it, take its cells.
+// Either way they're as rowStanding words them.
+func rowState(r accountRouting, cells int) (line, bool) {
+	beside := cells - pinnedCells() - pinnedApart
+	if r.pinned && beside >= wordsLeast {
+		return rowStanding(r.standing.Unpinned(), beside), true
+	}
+	return rowStanding(r.standing, cells), false
+}
+
+// pinnedCells are the cells ● pinned takes.
+func pinnedCells() int {
+	return line{pinnedSpan}.width()
 }
 
 // rowStanding are the words of how an account stands on a row of ROUTING's,

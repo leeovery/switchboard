@@ -124,3 +124,36 @@ func TestDetailsHeadFollowsTheAccountFromLookToLook(t *testing.T) {
 		})
 	}
 }
+
+// Where a mark beside its words says the pin, an account's cap the pin
+// spends says nothing of the pin in its clauses or its short form; any
+// other state is as it was.
+func TestUnpinnedLeavesOffWhatSaysThePin(t *testing.T) {
+	tests := []struct {
+		name string
+		r    status.Routing
+		want status.Routing
+	}{
+		{
+			name: "its cap the pin spends",
+			r:    status.Routing{Kind: status.RoutingCappedPinned, Says: "at its cap", Clauses: []string{"pinned, so new sessions still come here"}, Short: []string{"at its cap", "pinned"}},
+			want: status.Routing{Kind: status.RoutingCappedPinned, Says: "at its cap", Clauses: []string{}, Short: []string{"at its cap"}},
+		},
+		{
+			name: "a model's cap the pin spends",
+			r:    status.Routing{Kind: status.RoutingModelCapped, Says: "Fable wk at its cap", Clauses: []string{"pinned, so new sessions still come here"}, Short: []string{"Fable wk at its cap", "pinned"}},
+			want: status.Routing{Kind: status.RoutingModelCapped, Says: "Fable wk at its cap", Clauses: []string{}, Short: []string{"Fable wk at its cap"}},
+		},
+		{
+			name: "open, as it was",
+			r:    status.Routing{Kind: status.RoutingNext, Says: "open", Clauses: []string{"new sessions come here"}, Short: []string{"open", "next"}},
+			want: status.Routing{Kind: status.RoutingNext, Says: "open", Clauses: []string{"new sessions come here"}, Short: []string{"open", "next"}},
+		},
+	}
+	for _, tt := range tests {
+		got := tt.r.Unpinned()
+		if got.Kind != tt.want.Kind || got.Says != tt.want.Says || !slices.Equal(got.Clauses, tt.want.Clauses) || !slices.Equal(got.Short, tt.want.Short) {
+			t.Errorf("%s: %+v, want %+v", tt.name, got, tt.want)
+		}
+	}
+}
