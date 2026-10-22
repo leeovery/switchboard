@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"cmp"
 	"fmt"
 	"math"
 	"slices"
@@ -311,7 +312,7 @@ func (f Frame) wideRouting(c *canvas, t routingTable, r accountRouting, y, rows 
 // narrowRouting draws account r's two rows of ROUTING from row y, as t's
 // columns lay them: on the first, its number, name and marks from column 1,
 // its short state from the name column, cut by whole clauses, and ● pinned
-// right-aligned, where it shows; on the second, its trace from the name
+// right-aligned, where it shows, the state then as said has it; on the second, its trace from the name
 // column to narrowTail cells short of the edge, then its sessions and its
 // rate right-aligned.
 func (f Frame) narrowRouting(c *canvas, t routingTable, r accountRouting, y int) {
@@ -321,7 +322,7 @@ func (f Frame) narrowRouting(c *canvas, t routingTable, r accountRouting, y int)
 		end = c.right(f.Width, y, line{pinnedSpan})
 	}
 	at := t.columns
-	f.drawStanding(c, r, at.names, y, standingWords(r.standing, true, end-wordsGap-at.names))
+	f.drawStanding(c, r, at.names, y, standingWords(r.said(r.pinned), true, end-wordsGap-at.names))
 	trace := bounds{x: at.trace, y: y + 1, width: at.traceCells, rows: 1}
 	f.drawTrace(c, r.trace, t.now, trace, r.faded)
 	c.right(f.rateEdge(trace), y+1, line{r.sessionsCounted(), spaces(2), r.rate(t.now)})
@@ -335,18 +336,36 @@ func (f Frame) drawStanding(c *canvas, r accountRouting, x, y int, words line) {
 }
 
 // rowState is how account r stands on its row of ROUTING's, in its words'
-// cells, and whether ● pinned shows beside them: where the global pin names
-// it and the words keep their least beside the mark and pinnedApart, wordsGap
-// before it, the mark shows and the words, as Unpinned has them, say the pin
-// no more; else the mark is left off, ROUTING's heading naming the accounts
-// pinned all the same, and the words, which then say it, take its cells.
-// Either way they're as rowStanding words them.
+// cells, as rowStanding words it, and whether ● pinned shows beside them, a
+// row ranking its parts: its state's lead, never cut; then its time, where
+// it has one, as Timed says; then the mark; then the rest. So where the
+// global pin names it, the mark shows wherever the words beside it, with
+// pinnedApart and wordsGap, keep their lead whole and keep their time where
+// the words without it would; and they're then as said has them, the mark
+// saying the pin. Else the mark is left off and the words take its cells,
+// saying the pin where their forms carry it, as at its cap the pin spends;
+// where they don't, the row doesn't, and ROUTING's heading names the
+// accounts pinned.
 func rowState(r accountRouting, cells int) (line, bool) {
-	beside := cells - pinnedCells() - pinnedApart
-	if r.pinned && beside >= wordsLeast {
-		return rowStanding(r.standing.Unpinned(), beside), true
+	words, timed := rowStanding(r.standing, cells)
+	if !r.pinned {
+		return words, false
 	}
-	return rowStanding(r.standing, cells), false
+	beside, said := cells-pinnedCells()-pinnedApart, r.said(true)
+	marked, markedTimed := rowStanding(said, beside)
+	if standingLeads(said, false).width() > beside || (timed && !markedTimed) {
+		return words, false
+	}
+	return marked, true
+}
+
+// said is how the account stands in words, where marked says ● pinned shows
+// beside them: as Unpinned has it, the mark saying the pin; else whole.
+func (r accountRouting) said(marked bool) status.Routing {
+	if marked {
+		return r.standing.Unpinned()
+	}
+	return r.standing
 }
 
 // pinnedCells are the cells ● pinned takes.
@@ -354,29 +373,42 @@ func pinnedCells() int {
 	return line{pinnedSpan}.width()
 }
 
-// rowStanding are the words of how an account stands on a row of ROUTING's,
-// in width cells: the first form that fits whole, its words; its words to
-// when it's back, as timed has them; then its short form, so a time is never
-// cut where a form keeps it; else its words cut by whole clauses, as
-// standingWords cuts them.
-func rowStanding(r status.Routing, width int) line {
-	forms := []line{standingWords(r, false, math.MaxInt)}
-	if words, ok := timed(r); ok {
-		forms = append(forms, standingWords(words, false, math.MaxInt))
-	}
-	forms = append(forms, standingWords(r, true, math.MaxInt), standingWords(r, false, width))
-	return firstFit(width, forms...)
+// rowForm is a form of how an account stands on a row of ROUTING's: its
+// words whole, and whether they say its time.
+type rowForm struct {
+	words line
+	timed bool
 }
 
-// timed is how an account stands, its clauses up to when it's back, the
-// first of them where it says so, as its Back has it; false where it
-// doesn't.
-func timed(r status.Routing) (status.Routing, bool) {
-	if r.Back.IsZero() || len(r.Clauses) == 0 {
-		return r, false
+// rowForms are the forms of how an account stands on a row of ROUTING's,
+// the widest first, as firstFit takes them: its words cut to their leading
+// clauses, from all of them down to their lead alone, and its short form;
+// where two are as wide, its words first. Each says its time where r has
+// one, as Timed says, and it keeps the clause or the part that says it.
+func rowForms(r status.Routing) []rowForm {
+	var forms []rowForm
+	for n := len(r.Clauses); n >= 0; n-- {
+		cut := r
+		cut.Clauses = r.Clauses[:n]
+		forms = append(forms, rowForm{standingWords(cut, false, math.MaxInt), r.Timed() && n > 0})
 	}
-	r.Clauses = r.Clauses[:1]
-	return r, true
+	forms = append(forms, rowForm{standingWords(r, true, math.MaxInt), r.Timed() && len(r.Short) > 1})
+	slices.SortStableFunc(forms, func(a, b rowForm) int { return cmp.Compare(b.words.width(), a.words.width()) })
+	return forms
+}
+
+// rowStanding are the words of how an account stands on a row of ROUTING's,
+// in width cells: the widest of rowForms that fits whole, as firstFit picks
+// it, so its time is kept wherever a form keeps it, and whether they say its
+// time.
+func rowStanding(r status.Routing, width int) (line, bool) {
+	forms := rowForms(r)
+	words := make([]line, len(forms))
+	for i, f := range forms {
+		words[i] = f.words
+	}
+	fits := slices.IndexFunc(forms, func(f rowForm) bool { return f.words.width() <= width })
+	return firstFit(width, words...), fits >= 0 && forms[fits].timed
 }
 
 // standingWords are the words of how an account stands, or short, its short
@@ -530,10 +562,12 @@ func (f Frame) routingBeside(c *canvas, t routingTable, at blocksBeside) {
 
 // besideAccount draws account r's lines beside its block from column x, on
 // the rows given, as routingBeside has them: its sessions and its trace only
-// where they have their rows.
+// where they have their rows; its state as said has it, where ● pinned shows
+// on its sessions' line.
 func (f Frame) besideAccount(c *canvas, t routingTable, r accountRouting, x int, rows []int) {
+	said := r.said(r.pinned && len(rows) > 1)
 	drawLines(rows,
-		func(y int) { f.drawStanding(c, r, x, y, standingWords(r.standing, false, f.Width-wordsGap-x)) },
+		func(y int) { f.drawStanding(c, r, x, y, standingWords(said, false, f.Width-wordsGap-x)) },
 		func(y int) { c.line(x, y, besideSessions(r)) },
 		func(y int) {
 			trace := f.besideTrace(x, y)

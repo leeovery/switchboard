@@ -1730,17 +1730,23 @@ first (the owner's call, 15 October 2026).
   with a name column of 16):
   - its number, name and marks at column 0, as in USAGE;
   - its state at the name column, its glyph coloured as its words (below), in its words' cells,
-    ending two cells before `● pinned`, or before the sessions where no pin shows: the first form
-    that fits whole, its words, then its words to when it's back (`● at its cap · back 17:10`),
-    then its short form (`● at its cap · 17:10`), so a time is never cut where a form keeps it;
-    else its words cut by whole clauses from the end, as Sessions' lines cut theirs (see
-    Sessions);
+    ending two cells before `● pinned`, or before the sessions where no pin shows: the widest
+    that fits whole of its words cut to their leading clauses, from all of them to their lead
+    alone, and its short form. So a time is kept wherever a form keeps it (`● at its cap · back
+    17:10`, then `● at its cap · 17:10`), a model's family wherever its lead fits (`■ refused (403,
+    opus)`, never `■ refused (403)` beside it), and where new sessions go reads `● open · next`
+    wherever `● open · new sessions come here` doesn't fit, its short form the wider;
   - `● pinned` in `accent.key`, three cells before the sessions, on each account the global pin
-    names, its words' cells giving way to it, wherever they keep their least of 20 beside it (from
-    101 columns with a name column of 16); else it's left off, the heading naming the accounts
-    pinned all the same, and the least never moves with it. The row says the pin once: where the
-    mark shows, the words leave out what says it (`● at its cap`); where it's left off, they keep
-    it (`● at its cap · pinned`);
+    names, its words' cells giving way to it. A row ranks its parts: the state's lead, never cut;
+    then its time, where it has one (when it's back, or when its pressure runs out); then the mark;
+    then the rest (`· next` and the other clauses). So the mark shows wherever the words beside it
+    keep their lead whole, and their time where they'd keep it without the mark: `■ limit reached
+    · back 15:54` at 100 columns, `■ limit reached · 15:54  ● pinned` once its short form fits
+    beside the mark. Else the mark is left off and the words take its cells. The least never
+    counts the pin. The pin is said once: where the mark shows, the words leave out what says it
+    (`● at its cap  ● pinned`); where it's left off, a state whose words carry it says it there
+    (`● at its cap · pinned`); otherwise the row doesn't, and ROUTING's heading names the accounts
+    pinned. The two-row form and the lines beside USAGE's blocks say it once too;
   - its sessions: `2 sessions` or `1 session` in `text.muted`, `0 sessions` in `text.faint`;
   - its trace to `w − 8`, then its rate right-aligned at the last column, `15/min` in bold
     `text.secondary`, or `0/min` in `text.subtle`.

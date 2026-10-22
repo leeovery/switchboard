@@ -52,11 +52,24 @@ func (r Routing) headed(clauses []string) Routing {
 	return Routing{Kind: r.Kind, Says: r.Says, Clauses: clauses, Short: []string{r.Says}}
 }
 
-// unbacked are r's clauses but the one saying when room returns, the first of
-// them where Back says there's one.
+// unbacked are r's clauses but the one saying when room returns, as backed
+// says.
 func (r Routing) unbacked() []string {
-	if r.Back.IsZero() || len(r.Clauses) == 0 {
+	if !r.backed() {
 		return slices.Clone(r.Clauses)
 	}
 	return slices.Clone(r.Clauses[1:])
+}
+
+// backed reports whether r's first clause says when room returns, as Back
+// says there's a time it does.
+func (r Routing) backed() bool {
+	return !r.Back.IsZero() && len(r.Clauses) > 0
+}
+
+// Timed reports whether r says a time: its first clause, and its short
+// form's second part, where it has one, when room returns, as backed says;
+// or, under pressure, its first clause, when its pressure window runs out.
+func (r Routing) Timed() bool {
+	return r.backed() || (r.Kind == RoutingPressed && len(r.Clauses) > 0)
 }

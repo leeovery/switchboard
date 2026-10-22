@@ -157,3 +157,26 @@ func TestUnpinnedLeavesOffWhatSaysThePin(t *testing.T) {
 		}
 	}
 }
+
+// A state says a time where its first clause says when room returns, or
+// when its pressure runs out; never where it says neither.
+func TestTimedSaysWhetherAStateSaysATime(t *testing.T) {
+	back := time.Date(2026, 10, 1, 17, 10, 0, 0, time.UTC)
+	tests := []struct {
+		name string
+		r    status.Routing
+		want bool
+	}{
+		{name: "at its cap, back at 17:10", r: status.Routing{Kind: status.RoutingCapped, Says: "at its cap", Clauses: []string{"back 17:10"}, Back: back}, want: true},
+		{name: "at its cap, when it's back unknown", r: status.Routing{Kind: status.RoutingCapped, Says: "at its cap", Clauses: []string{"new sessions go elsewhere"}}},
+		{name: "under pressure, running out", r: status.Routing{Kind: status.RoutingPressed, Says: "under pressure", Clauses: []string{"out ~16:05"}}, want: true},
+		{name: "under pressure, not running out", r: status.Routing{Kind: status.RoutingPressed, Says: "under pressure"}},
+		{name: "its cap the pin spends", r: status.Routing{Kind: status.RoutingCappedPinned, Says: "at its cap", Clauses: []string{"pinned, so new sessions still come here"}}},
+		{name: "open", r: status.Routing{Kind: status.RoutingNext, Says: "open", Clauses: []string{"new sessions come here"}}},
+	}
+	for _, tt := range tests {
+		if got := tt.r.Timed(); got != tt.want {
+			t.Errorf("%s: Timed() %v, want %v", tt.name, got, tt.want)
+		}
+	}
+}
