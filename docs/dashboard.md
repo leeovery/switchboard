@@ -85,9 +85,12 @@ gets:
 USAGE is the block that [`usage`](commands.md#usage) prints: every account's windows, and the
 pool's.
 
-- From 150 columns, it's the matrix. Given the room, it stacks the windows at the full width
+- Wherever its windows fit side by side, it's the matrix: from 86 columns with two windows and
+  short names, its bars at least 12 cells. Given the room, it stacks the windows at the full width
   instead, their bars as long.
-- Narrower, it stacks the windows as `usage` stacks them.
+- Narrower, as on a phone, it stacks the windows as `usage` stacks them.
+- Its name column is as wide as the longest name, up to 24 cells of label, wherever the screen has
+  room. A bar only grows as the screen widens: the words go from short to full first.
 - An account out of the pool, under a pin, is drawn faint.
 
 Each model's own window, such as Fable's week, is hidden until you press `w`. That goes for every
@@ -543,7 +546,8 @@ Under 100 columns, the dashboard lays itself out for a phone.
 </div>
 
 - The tabs sit on a row of their own, under the clock.
-- The Overview's USAGE stacks its windows in short words.
+- The Overview's USAGE stacks its windows, its bars at their least and its words short where they
+  don't fit in full.
 - ROUTING takes two rows for each account, and SESSIONS two rows for each session, as they do
   wherever one row doesn't fit, under 83 columns with a name column of 16.
 - LATELY comes under COMING UP, as it does wherever the two don't fit side by side, under 93

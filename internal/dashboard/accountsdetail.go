@@ -19,10 +19,14 @@ import (
 )
 
 // Detail's list's columns: its rows from listAt, each account's name in the
-// name column nameColumn fits to the names, and after it its state's dot or
+// name column listNames fits to the names, and after it its state's dot or
 // square; then, as many cells past the dot as given, the end of the chosen
-// row's light, from column 0; the list's │; and the panel beside it.
+// row's light, from column 0; the list's │; and the panel beside it. Its
+// names' column takes leastNames cells at the fewest and mostNames at the
+// most.
 const (
+	leastNames   = 14
+	mostNames    = 24
 	listAt       = 1
 	litPastDot   = 2
 	rulePastDot  = 5
@@ -209,8 +213,8 @@ func (l detailLayout) wideWeeks(room int) detailLayout {
 }
 
 // listNames is the cells of the name column Detail's list fits its accounts'
-// names to, as nameColumn fits USAGE's: the widest, number, label and ◆, and
-// a gap, within its least and its most.
+// names to: the widest, number, label and ◆, and a gap, within leastNames
+// and mostNames.
 func (f Frame) listNames() int {
 	configured := f.Accounts.Accounts
 	digits := len(strconv.Itoa(len(configured)))
@@ -218,7 +222,11 @@ func (f Frame) listNames() int {
 	for i, a := range configured {
 		names[i] = listName(status.AccountNow{ID: a.ID, Label: a.Label, Primary: a.Primary, Place: i + 1}, digits)
 	}
-	return nameColumn(names, f.Width)
+	widest := 0
+	for _, n := range names {
+		widest = max(widest, n.cells(ansi.StringWidth(n.label)))
+	}
+	return min(max(widest+nameGap, leastNames), mostNames)
 }
 
 // dotAt is the column of each account's state's dot or square in the list.

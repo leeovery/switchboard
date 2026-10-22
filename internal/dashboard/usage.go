@@ -7,40 +7,22 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/x/ansi"
-
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
-// The widths the usage block's layouts change at, in columns.
-const (
-	// matrixWidth is the fewest a block by window draws as a matrix at, its
-	// windows side by side; narrower, they stack.
-	matrixWidth = 150
-	// wideAccounts is the fewest a block by account draws an account's name
-	// beside its first bar at; narrower, the name has a line of its own.
-	wideAccounts = 110
-	// roomyNames is the fewest the name column may be its widest at.
-	roomyNames = 80
-)
-
 // The cells of the usage block's columns.
 const (
-	// groupCells are a matrix group's cells beyond its bar: a cell, the
-	// percentage, two cells, the words and three cells before the next.
-	groupCells = 32
 	// groupGap are the cells after a matrix group's words, before the next.
 	groupGap = 3
-	// leastMatrixBar is the fewest cells a matrix's bars may be; shorter,
-	// the windows stack.
-	leastMatrixBar = 12
+	// leastUsageBar is the fewest cells a bar of the block takes: where a row's
+	// parts don't fit at their leasts with it, its windows don't sit side by
+	// side.
+	leastUsageBar = 12
 	// mostMatrixBar is the most cells a matrix's bar is.
 	mostMatrixBar = 90
-	// matrixNames is the name column a matrix's bars are worked out for:
-	// a wider one takes its cells from the bars.
-	matrixNames = 14
 	// afterBar are the cells after a bar, before its words: a cell, the
 	// percentage and two cells.
 	afterBar = 1 + percentCells + 2
@@ -69,18 +51,25 @@ type usageBlock struct {
 	rows []usageRow
 	// names is the name column's cells.
 	names int
+	// laid is whether its words are as its rows' parts lay them out, in full
+	// wherever they fit their cells, as usage's and USAGE's are; else, as the
+	// views that draw its gauges in rows of their own have them, as pick
+	// picks them by the width.
+	laid bool
 	// The rest are the Overview's alone, the printout's being their zero
-	// values: big stacks its windows from 150 columns, as its big bars;
-	// accountBar is its bars' cells by account, where it sets them; focus is
-	// the account whose number and name the matrix picks out; marks are the
-	// marks the key line names after the cap's, in their forms, the widest
-	// first; charted is whether GRAPHS' charts sit beside its blocks by
-	// account, and beside the form they take there; and given is how far it
-	// has given way to rows short.
+	// values: big stacks its windows where they'd sit side by side, as its
+	// big bars; accountBar is its bars' cells by account, where it sets them;
+	// focus is the account whose number and name the matrix picks out; marks
+	// are the marks the key line names after the cap's, in their forms, the
+	// widest first, and markable those its accounts may carry at any read,
+	// which its key line's form is judged by; charted is whether GRAPHS'
+	// charts sit beside its blocks by account, and beside the form they take
+	// there; and given is how far it has given way to rows short.
 	big        bool
 	accountBar int
 	focus      string
 	marks      [][]line
+	markable   [][]line
 	charted    bool
 	beside     besideForm
 	given      giving
@@ -142,7 +131,7 @@ func newUsageBlock(m status.Moment, width int, look Look, by By, windows []shown
 // blockOf is the usage block of m, as newUsageBlock has it, its accounts
 // named as names has them.
 func blockOf(m status.Moment, width int, look Look, by By, windows []shownWindow, names []accountName) usageBlock {
-	b := usageBlock{width: width, look: look, by: by, windows: windows}
+	b := usageBlock{width: width, look: look, by: by, windows: windows, laid: true}
 	b.names = nameColumn(names, width)
 	for i, a := range m.Accounts {
 		row := usageRow{id: a.ID, name: names[i].line(b.names)}
@@ -235,9 +224,23 @@ func poolSigma(names []accountName) span {
 // bar cells long, draw its mark, in the config's order, as in "cap: work at
 // 95%, side at 90%"; nil where none does, as where every cap is off its bars.
 func (b usageBlock) caps(bar int) line {
+	return b.capsOf(func(r usageRow) bool {
+		return slices.ContainsFunc(r.gauges, func(g gauge) bool { _, ok := g.bar.capCell(bar); return ok })
+	})
+}
+
+// everyCap is the key line's cap part as wide as it may be: the cap of every
+// account that has one, whether its bars draw its mark or not.
+func (b usageBlock) everyCap() line {
+	return b.capsOf(func(usageRow) bool { return true })
+}
+
+// capsOf is the key line's cap part, naming the cap of each account that has
+// one and that drawn says its bars draw; nil where there's none.
+func (b usageBlock) capsOf(drawn func(usageRow) bool) line {
 	var caps []string
 	for _, r := range b.rows {
-		if r.cap != "" && slices.ContainsFunc(r.gauges, func(g gauge) bool { _, ok := g.bar.capCell(bar); return ok }) {
+		if r.cap != "" && drawn(r) {
 			caps = append(caps, r.cap)
 		}
 	}
@@ -357,30 +360,117 @@ func (n accountName) inked(k ink) ink {
 	return k
 }
 
-// leastNames and mostNames are the fewest and the most cells the name
-// column takes from roomyNames columns.
-const (
-	leastNames = 14
-	mostNames  = 24
-)
-
-// nameColumn is the cells of the name column of a block width columns wide:
-// the widest of the names, and a gap, at least 14 cells, or 12 under 80
-// columns, and at most 24, or 16 under 80. Accounts' Detail fits its list
-// to the names by it too.
-func nameColumn(names []accountName, width int) int {
-	least, most := leastNames, mostNames
-	if width < roomyNames {
-		least, most = 12, 16
-	}
-	widest := 0
+// namesPart is the name column of the names given as flex lays it, a column
+// of names, each with its number, its marks and nameGap: at least a label of
+// labelLeast cells, and at that each name with its label cut to it; at its
+// natural the widest whole, as labelColumnCells counts its label. It counts
+// what's configured, never what's shown, as cells keeps ▲'s cells on every
+// account.
+func namesPart(names []accountName) flex.Part {
+	least, natural := 0, 0
 	for _, n := range names {
-		widest = max(widest, n.cells(ansi.StringWidth(n.label)))
+		plain := accountName{number: n.number, unrouted: n.unrouted}
+		label := labelColumnCells(n.label)
+		least = max(least, plain.cells(labelLeast), n.cells(min(label, labelLeast)))
+		natural = max(natural, n.cells(label))
 	}
-	return min(max(widest+nameGap, least), most)
+	return flex.Part{Least: least + nameGap, Natural: natural + nameGap}
 }
 
-// wordCells are the cells the block's words take.
+// nameColumn is the cells of the name column of a block width columns wide,
+// and of ROUTING's, SESSIONS' and GRAPHS' under it: the names' column as
+// namesPart has it, laid out in a row of a window, as layGauges lays one, so
+// it narrows toward its least only once the bar is at its least and the
+// words are short.
+func nameColumn(names []accountName, width int) int {
+	row, _ := layGauges(width, namesPart(names), 1, afterBar+afterWords, 0)
+	return row.names
+}
+
+// The parts of a row of the block, as layGauges lays them: its name column;
+// every window's bar; the cells it keeps beside them, after each bar, between
+// its windows and at its edge; and every window's words.
+const (
+	gaugeNames = iota
+	gaugeBars
+	gaugeKept
+	gaugeWords
+)
+
+// The turns a row's parts narrow in: its words, from full toward short, then
+// its names, toward their least.
+const (
+	usageWordsTurn = 1 + iota
+	usageNamesTurn
+)
+
+// usageCells are the cells of a row's parts, as layGauges lays them: its name
+// column's, and each window's bar's and words'.
+type usageCells struct {
+	names, bar, words int
+}
+
+// layGauges are the cells of a row of the block's parts, windows windows
+// across width columns, after a name column as names has it, with kept cells
+// beside its bars and words: each window's bar at least leastUsageBar, taking
+// what's left, up to most where it's more than 0; and its words at their
+// natural, fullCells, narrowing toward the short form's, shortCells, in the
+// first turn, before the names narrow toward their least. So the bars only
+// grow with the width. It reports false where the parts don't fit at their
+// leasts, the bars then taking what the row leaves them, none where it
+// leaves none.
+func layGauges(width int, names flex.Part, windows, kept, most int) (usageCells, bool) {
+	names.Narrows = usageNamesTurn
+	s, ok := flex.Lay(width, []flex.Part{
+		gaugeNames: names,
+		gaugeBars:  {Least: windows * leastUsageBar, Most: windows * most, Grows: true},
+		gaugeKept:  {Least: kept, Natural: kept},
+		gaugeWords: {Least: windows * shortCells, Natural: windows * fullCells, Narrows: usageWordsTurn},
+	}...)
+	bars := s[gaugeBars].Size
+	if !ok {
+		bars = max(bars-(s[gaugeWords].At+s[gaugeWords].Size-width), 0)
+	}
+	return usageCells{names: s[gaugeNames].Size, bar: bars / windows, words: s[gaugeWords].Size / windows}, ok
+}
+
+// cells are the cells of the block's rows' parts, as its layout has them:
+// by account, after its labels; as a matrix, its windows side by side; else
+// stacked, a window's row at a time.
+func (b usageBlock) cells() usageCells {
+	switch {
+	case b.by == ByAccount:
+		labelAt, cells, _ := b.labels()
+		row, _ := layGauges(b.width, flex.Part{}, 1, labelAt+cells+afterBar+afterWords, 0)
+		return row
+	case b.matrixed():
+		row, _ := b.matrixCells()
+		return row
+	}
+	row, _ := layGauges(b.width, b.column(), 1, afterBar+afterWords, 0)
+	return row
+}
+
+// matrixCells are the cells of a matrix's row's parts, every window side by
+// side after the name column, each group's words groupGap cells before the
+// next's bar, the last's a cell before the edge, as a stacked row's are; and
+// whether they fit at their leasts.
+func (b usageBlock) matrixCells() (usageCells, bool) {
+	k := len(b.windows)
+	if k == 0 {
+		return usageCells{}, false
+	}
+	return layGauges(b.width, b.column(), k, k*afterBar+(k-1)*groupGap+afterWords, mostMatrixBar)
+}
+
+// column is the block's name column as a part of its rows: as wide as it is.
+func (b usageBlock) column() flex.Part {
+	return flex.Part{Least: b.names, Natural: b.names}
+}
+
+// wordCells are the cells the words take of a block by its width, as the
+// views that draw its gauges in rows of their own have them, as widestWords
+// counts them: in full from fullWords columns, else short.
 func (b usageBlock) wordCells() int {
 	if b.width >= fullWords {
 		return fullCells
@@ -429,48 +519,37 @@ func (b usageBlock) lay(c *canvas, y int) laid {
 	return l
 }
 
-// matrixed reports whether the block, by window, draws as a matrix: from 150
-// columns, where its bars would be 12 cells or more, but for the Overview's
-// big bars.
+// matrixed reports whether the block draws as a matrix, its windows side by
+// side, as sideBySide has them, but for the Overview's big bars.
 func (b usageBlock) matrixed() bool {
-	return b.width >= matrixWidth && b.matrixBar() >= leastMatrixBar && !b.big
+	return b.sideBySide() && !b.big
+}
+
+// sideBySide reports whether the block's windows, by window, sit side by
+// side: wherever every part of the matrix's row fits at its least, as
+// matrixCells lays it out. It follows the width, the names configured and
+// the windows shown, never what they say.
+func (b usageBlock) sideBySide() bool {
+	_, fits := b.matrixCells()
+	return b.by == ByWindow && fits
 }
 
 // bar is the cells of the block's bars, as its layout has them, none where
-// the width leaves none: by account, what the width leaves them, but where
-// the Overview sets them.
+// the width leaves none: as cells has them, but by account where the
+// Overview sets them.
 func (b usageBlock) bar() int {
-	switch {
-	case b.by == ByAccount && b.accountBar > 0:
+	if b.by == ByAccount && b.accountBar > 0 {
 		return b.accountBar
-	case b.by == ByAccount:
-		labelAt, cells, _ := b.labels()
-		return max(b.width-labelAt-cells-afterBar-b.wordCells()-afterWords, 0)
-	case b.matrixed():
-		return b.matrixBar()
-	default:
-		return max(b.width-b.names-afterBar-b.wordCells()-afterWords, 0)
 	}
-}
-
-// matrixBar is the cells of a matrix's bars, for its windows side by side:
-// min(90, ⌊(w − 14 − 32k + 3) ÷ k⌋) − ⌈(n − 14) ÷ k⌉ for k windows, the
-// name column n.
-func (b usageBlock) matrixBar() int {
-	k := len(b.windows)
-	if k == 0 {
-		return 0
-	}
-	room := b.width - matrixNames - groupCells*k + groupGap
-	return min(mostMatrixBar, room/k) - (b.names-matrixNames+k-1)/k
+	return b.cells().bar
 }
 
 // matrix draws the block's windows side by side, a group each from the name
 // column, its heading over it, and a row an account, the pool last, from row
 // y, the account the focus is on picked out, where the block has one.
 func (b usageBlock) matrix(c *canvas, y int) laid {
-	bar := b.bar()
-	group := bar + groupCells
+	row := b.cells()
+	bar, group := row.bar, row.bar+afterBar+row.words+groupGap
 	for i, w := range b.windows {
 		c.line(b.names+i*group, y, line{{strings.ToUpper(w.name), dimInk}})
 	}
@@ -574,14 +653,14 @@ func (b usageBlock) split() ([]usageRow, *usageRow) {
 
 // byAccount draws a block an account from row y, each window a row of it,
 // the pool's last, as far apart as blocksApart has them, the pool's rule in
-// the last blank line before it: wide, from 110 columns, the name beside its
-// first window's row and each label in the name column; else the name on a
-// line of its own above, and the labels a cell in. Its bars take what the
-// block's width leaves them, and its words end a cell before the edge, but
-// where the Overview sets its bars: then its words end besideCells before
-// besideAt, the gap before ROUTING's blocks beside them. After the last
-// block come the rows under it what's beside it takes, as under has them,
-// the first of them the blank line before the key line.
+// the last blank line before it: the name beside its first window's row and
+// each label in the name column, where they fit, as labels says; else the
+// name on a line of its own above, and the labels a cell in. Its bars take
+// what the block's width leaves them, and its words end a cell before the
+// edge, but where the Overview sets its bars: then its words end besideCells
+// before besideAt, the gap before ROUTING's blocks beside them. After the
+// last block come the rows under it what's beside it takes, as under has
+// them, the first of them the blank line before the key line.
 func (b usageBlock) byAccount(c *canvas, y int) laid {
 	labelAt, cells, above := b.labels()
 	bar, end := b.bar(), b.width-afterWords
@@ -656,28 +735,39 @@ func (b usageBlock) blockRows() int {
 
 // labels are the column a block by account's window labels start at, the
 // cells they take, and whether its name is on a line of its own above them:
-// wide, from 110 columns, the name column and 10 cells, the name beside the
-// first; else a cell in, and a cell more, the name above.
+// the name column and windowLabelCells, the name beside the first, wherever
+// the row's parts fit at their leasts with the name column beside them, as
+// layGauges lays them; else a cell in, and a cell more, the name above.
 func (b usageBlock) labels() (at, cells int, above bool) {
-	if b.width < wideAccounts {
-		return 1, windowLabelCells + 1, true
+	if _, fits := layGauges(b.width, b.column(), 1, windowLabelCells+afterBar+afterWords, 0); fits {
+		return b.names, windowLabelCells, false
 	}
-	return b.names, windowLabelCells, false
+	return 1, windowLabelCells + 1, true
 }
 
 // gauge draws g from x along row y: its bar, bar cells long, marked as its
 // window's; a cell; its percentage, right-aligned in its cells; two cells;
-// and its words, in the form the block's width has them, ending before
-// column end, picked out while they're cued, as cue picks them out.
+// and its words, ending before column end, in the form wordsIn has them,
+// picked out while they're cued, as cue picks them out.
 func (b usageBlock) gauge(c *canvas, g gauge, x, y, bar, end int) {
 	g.bar.draw(c, b.look, x, y, bar)
 	c.barred(x, y, bar, g.of)
 	at := x + bar + 1
 	c.right(at+percentCells, y, g.percentage())
 	words := at + percentCells + 2
-	if drawn := c.line(words, y, g.said(b.width, end-words)); g.cue != nil {
+	if drawn := c.line(words, y, b.wordsIn(g, end-words)); g.cue != nil {
 		cue(c, b.look, words, y, drawn-words, *g.cue)
 	}
+}
+
+// wordsIn are g's words as the block draws them in room cells: where its
+// words are laid, in full wherever they fit them, as fitted has them; else
+// as said has them by the block's width.
+func (b usageBlock) wordsIn(g gauge, room int) line {
+	if b.laid {
+		return g.led(g.words.fitted(room))
+	}
+	return g.said(b.width, room)
 }
 
 // percentage is g's percentage, as its bar has it, numbered as its window's
@@ -690,11 +780,16 @@ func (g gauge) percentage() line {
 	return shown.numbered(g.number(NumberUsed))
 }
 
-// said are g's words as a block width columns wide draws them in room cells,
-// as pick has them, the number they lead with, where they lead with one,
-// numbered as their window's.
+// said are g's words as a view drawing usage's gauges in rows of its own
+// draws them width columns wide, in room cells, as pick has them, led as led
+// has them.
 func (g gauge) said(width, room int) line {
-	said := g.words.pick(width, room)
+	return g.led(g.words.pick(width, room))
+}
+
+// led is said, g's words in a form, the number they lead with, where they
+// lead with one, numbered as their window's.
+func (g gauge) led(said line) line {
 	if g.words.leads == 0 || len(said) == 0 {
 		return said
 	}
@@ -713,20 +808,20 @@ func (g gauge) number(kind NumberKind) Number {
 	return Number{Kind: kind, Account: g.of.Account, Of: g.of.Window}
 }
 
-// key draws the block's key line at row y, saying what its marks mean: from
-// 150 columns, one line from the name column, the cap's part after even
-// pace's; narrower, two lines from column 0, the cap's part on the second.
-// The marks the Overview names follow the cap's part, each part keyApart
-// cells after the one before, in the first of their forms that fits the
-// line, as firstFit has it. Where the block has given way its key, it draws
-// none.
+// key draws the block's key line at row y, saying what its marks mean: one
+// line from the name column, the cap's part after even pace's, where it fits
+// there, as oneLineKey judges it; else two lines from column 0, the cap's
+// part on the second. The marks the Overview names follow the cap's part,
+// each part keyApart cells after the one before, in the first of their forms
+// that fits the line, as firstFit has it. Where the block has given way its
+// key, it draws none.
 func (b usageBlock) key(c *canvas, y int) {
 	if b.given >= givenKey {
 		return
 	}
 	pace, forms := b.keyParts(b.bar())
 	apart := keyGap(b.width)
-	if b.width >= matrixWidth {
+	if b.oneLineKey() {
 		c.line(b.names, y, firstFit(b.width-b.names, keyForms(apart, forms, pace)...))
 		return
 	}
@@ -734,6 +829,16 @@ func (b usageBlock) key(c *canvas, y int) {
 	if second := keyForms(apart, forms); second[0] != nil {
 		c.line(0, y+1, firstFit(b.width, second...))
 	}
+}
+
+// oneLineKey reports whether the block's key line is one line, from the name
+// column: where it fits there at its widest, the cap of every account that
+// has one among its parts, and the marks its accounts may carry, in their
+// widest form; so it's one line or two whatever the bars draw and wherever ▲
+// is.
+func (b usageBlock) oneLineKey() bool {
+	pace, forms := keyPartsOf(b.everyCap(), b.markable)
+	return keyForms(keyGap(b.width), forms[:1], pace)[0].width() <= b.width-b.names
 }
 
 // keyForms are a key line in each of the forms of its parts, the widest
@@ -750,13 +855,19 @@ func keyForms(apart span, forms [][]line, lead ...line) []line {
 // even pace's; then, in each of the forms of the marks the Overview names,
 // the widest first, the cap's, where its bars draw one, and those marks.
 func (b usageBlock) keyParts(bar int) (pace line, forms [][]line) {
+	return keyPartsOf(b.caps(bar), b.marks)
+}
+
+// keyPartsOf are the parts of a key line: even pace's; then, in each of the
+// forms of the marks given, the widest first, the cap part given and those
+// marks.
+func keyPartsOf(caps line, marks [][]line) (pace line, forms [][]line) {
 	pace = line{{paceMark, paceInk}, {" even pace: where you would be now, used evenly", mutedInk}}
-	caps := b.caps(bar)
-	if len(b.marks) == 0 {
+	if len(marks) == 0 {
 		return pace, [][]line{{caps}}
 	}
-	for _, marks := range b.marks {
-		forms = append(forms, slices.Concat([]line{caps}, marks))
+	for _, m := range marks {
+		forms = append(forms, slices.Concat([]line{caps}, m))
 	}
 	return pace, forms
 }

@@ -113,8 +113,9 @@ func TestEachSectionsLeastAndMostRows(t *testing.T) {
 		section     section
 		least, most int
 	}{
-		{name: "USAGE from 150 columns: the compact matrix, 2a + 7, to the big bars, a window's heading, its accounts and the pool", section: at(160, ByWindow).usageSection(doc, now), least: 13, most: 23},
-		{name: "USAGE under 150 columns: stacked, as usage is, its key line's marks on a line of their own", section: at(149, ByWindow).usageSection(doc, now), least: 24, most: 24},
+		{name: "USAGE where its windows sit side by side: the compact matrix, 2a + 7, to the big bars, a window's heading, its accounts and the pool", section: at(160, ByWindow).usageSection(doc, now), least: 13, most: 23},
+		{name: "USAGE side by side on an iPad: the same", section: at(108, ByWindow).usageSection(doc, now), least: 13, most: 23},
+		{name: "USAGE where its windows don't sit side by side: stacked, as usage is", section: at(73, ByWindow).usageSection(doc, now), least: 24, most: 24},
 		{name: "USAGE by account: a block an account, a blank row after each", section: at(160, ByAccount).usageSection(doc, now), least: 19, most: 19},
 		{name: "USAGE by account beside GRAPHS' charts at 160: at its least, as before every chart showed, two rows after each block, the charts' axis on the first; at its most, a chart a row, each block apart for 5 rows a chart", section: charted.usageSection(doc, now), least: 22, most: 62},
 		{name: "GRAPHS: h + 4, 5 rows of chart to 19", section: at(160, ByWindow).graphsSection(doc, now), least: 9, most: 23},
@@ -434,7 +435,7 @@ func TestRowsShortSectionsFoldInTurnThenWhatFitsUnfoldsTheLastFoldedFirstAndUSAG
 // SESSIONS, COMING UP and LATELY, then GRAPHS fold; COMING UP and LATELY,
 // folded after SESSIONS, unfold before it, and leave it no room. So with
 // every section shown, at 73x42, GRAPHS, folded after COMING UP and LATELY,
-// unfolds where they then can't; at 108x40, ROUTING, a row an account and
+// unfolds where they then can't; at 108x32, ROUTING, a row an account and
 // folded last, unfolds first and leaves GRAPHS no room.
 func TestTheGroupFoldedLastUnfoldsFirst(t *testing.T) {
 	sections := shortOfRows()
@@ -451,7 +452,7 @@ func TestTheGroupFoldedLastUnfoldsFirst(t *testing.T) {
 		folds         []Section
 	}{
 		{width: 73, height: 42, folds: []Section{SectionRouting, SectionSessions, SectionComing, SectionLately}},
-		{width: 108, height: 40, folds: []Section{SectionGraphs, SectionSessions, SectionComing, SectionLately}},
+		{width: 108, height: 32, folds: []Section{SectionGraphs, SectionSessions, SectionComing, SectionLately}},
 	}
 	for _, tt := range tests {
 		f := frameOf(tt.width, tt.height)

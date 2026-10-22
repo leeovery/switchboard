@@ -79,18 +79,14 @@ var sizedAllowed = []string{
 	// S5: the Switchboard's lines, on one row where they're narrower than
 	// widestLines.
 	"internal/dashboard/switchboardlines.go:linesDrawn.oneRow",
-	// S14: USAGE's matrix, matrixWidth, its names' column, roomyNames, its
-	// accounts' labels, wideAccounts, and its words, fullWords; and what
-	// sits beside it by the matrix.
+	// S14, left by it: GRAPHS' charts or ROUTING beside USAGE's blocks by
+	// account from besideWidth, as the spike's frame 27 keeps them; and
+	// usage's words by the width, fullWords, as Detail, the phone's stack and
+	// the Switchboard's lines draw its gauges in rows of their own.
 	"internal/dashboard/graphsbeside.go:Frame.graphsBeside",
 	"internal/dashboard/overview_usage.go:Frame.overviewBlock",
-	"internal/dashboard/overview_usage.go:usageBlock.enlarges",
 	"internal/dashboard/routing.go:Frame.routingBesideUsage",
-	"internal/dashboard/usage.go:nameColumn",
 	"internal/dashboard/usage.go:usageBlock.wordCells",
-	"internal/dashboard/usage.go:usageBlock.matrixed",
-	"internal/dashboard/usage.go:usageBlock.labels",
-	"internal/dashboard/usage.go:usageBlock.key",
 	"internal/dashboard/usagewords.go:usageWords.pick",
 	// S19 and S20: Days and Weeks scrolling whole under historyRows.
 	"internal/dashboard/historypage.go:Frame.shortOfHistory",

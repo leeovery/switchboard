@@ -122,17 +122,19 @@ account, at 0% as at 40%.
 
 **The width** shapes the layout:
 
-- **By window:** from 150 columns, the windows sit side by side, a column each. Narrower, or
-  where a bar would be under 12 cells, as with four windows at 160 columns, they're stacked, a
-  section each.
-- **By account:** each account is a block, with its windows as rows. From 110 columns, the
-  account's name sits beside its first bar. Narrower, it's on a line of its own above it.
+- **By window:** the windows sit side by side, a column each, wherever every bar has 12 cells and
+  the words their short form: from 86 columns with two windows and short names, 122 with three.
+  Narrower, they're stacked, a section each.
+- **By account:** each account is a block, with its windows as rows. The account's name sits beside
+  its first bar wherever that fits, from 60 columns with short names. Narrower, it's on a line of
+  its own above it.
 - **The header** is one line from 120 columns, else two.
-- **The key line** is one line from 150 columns, else two. The second line names the cap, where a
-  bar draws one.
-- **Under 70 columns,** the words shorten, to `back 15:54`, `out ~Sat` and `19%/day · Sun`.
-- **A label too long** for the name column is cut with `…`. It never moves as `▲` moves between
-  accounts.
+- **The key line** is one line wherever it fits beside the names, else two. The second line names
+  the cap, where a bar draws one.
+- **The words** are in full where they fit, else short, as `back 15:54`, `out ~Sat` and
+  `19%/day · Sun`. As the terminal narrows, the bars shorten to 12 cells first, then the words.
+- **The name column** is as wide as the longest name, up to 24 cells of label. A label too long for
+  it is cut with `…`. It never moves as `▲` moves between accounts.
 
 **Colour:** `usage` draws in the dashboard's theme, brought down to what the terminal shows, with
 no background of its own. See [Themes](dashboard.md#themes). With `NO_COLOR` set, or on a terminal

@@ -841,6 +841,45 @@ func TestARowOfROUTINGsIsOneWhereItsPartsLeastsFit(t *testing.T) {
 	}
 }
 
+// ROUTING takes USAGE's name column, which only narrows where the frame does,
+// so its row, once one, stays one: across 52 to 220 columns, with labels of
+// 4, 8, 12, 16 and 24 cells, a wider frame never goes from one row an account
+// back to two.
+func TestROUTINGsRowNeverGoesBackToTwoInAWiderFrame(t *testing.T) {
+	for _, cells := range []int{4, 8, 12, 16, 24} {
+		doc := threeRouted()
+		for i := range doc.Accounts {
+			doc.Accounts[i].Label = string(rune('a'+i)) + strings.Repeat("-", cells-1)
+		}
+		oneRow := false
+		for width := 52; width <= 220; width++ {
+			f := frameOf(width, 60)
+			at := f.routingColumns(f.Moment(doc, now))
+			if oneRow && !at.oneRow {
+				t.Errorf("labels of %d cells: at %d columns ROUTING is two rows an account, where a column narrower it was one", cells, width)
+			}
+			oneRow = at.oneRow
+		}
+	}
+}
+
+// USAGE's name column, and so ROUTING's, counts what's configured, never
+// what's shown: at every width, it's the same wherever new sessions go, and
+// where they go nowhere.
+func TestTheNameColumnIsTheSameWhereverNewSessionsGo(t *testing.T) {
+	for width := 52; width <= 220; width++ {
+		f := frameOf(width, 60)
+		var columns []int
+		for _, best := range []string{"work", "personal", "side", ""} {
+			doc := usageWorld(func(d *status.Document) { d.Best = best })
+			columns = append(columns, f.overviewBlock(doc, now).names, f.routingColumns(f.Moment(doc, now)).names)
+		}
+		if slices.Min(columns) != slices.Max(columns) {
+			t.Errorf("at %d columns, the name columns are %v as ▲ moves, want one", width, columns)
+		}
+	}
+}
+
 // A row's words and trace take half of what its fixed parts leave each, the
 // odd cell the trace's, the words up to their most, the trace the rest: at
 // 173 as before, the sessions at 79 and the trace at 92; at 108, the trace

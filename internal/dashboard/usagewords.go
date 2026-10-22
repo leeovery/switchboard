@@ -12,18 +12,20 @@ import (
 )
 
 // usageWords are what a window's words say of it, in full and short, as the
-// usage block draws them: the full form from fullWords columns, the short
-// below; and the figure they lead with in either, where they lead with one,
-// an allowance or the pool's room.
+// usage block draws them: in full wherever they fit the cells its row lays
+// them in, else short; and the figure they lead with in either, where they
+// lead with one, an allowance or the pool's room.
 type usageWords struct {
 	full, short line
 	leads       NumberKind
 }
 
-// fullWords is the fewest columns the usage block draws its words in full at.
+// fullWords is the fewest columns the views that draw usage's gauges in rows
+// of their own draw its words in full at, as pick picks them.
 const fullWords = 70
 
-// The cells the words take in each form.
+// The cells the words take in each form: a row of the usage block lays them
+// out at the full form's, narrowing toward the short's.
 const (
 	fullCells  = 22
 	shortCells = 14
@@ -160,12 +162,21 @@ func inFaint(l line) line {
 	return faint
 }
 
-// pick is the words as a block width columns wide draws them, in room cells,
-// those up to what follows them: in full from 70 columns, where they fit;
-// else short, whole spans left off their end where even that doesn't fit, or
-// cut short.
+// pick is the words as a view drawing usage's gauges in rows of its own
+// draws them width columns wide, in room cells, those up to what follows
+// them: as fitted has them from 70 columns; else short, whole spans left off
+// their end where even that doesn't fit, or cut short.
 func (w usageWords) pick(width, room int) line {
-	if width >= fullWords && w.full.width() <= room {
+	if width < fullWords {
+		return w.short.fitWhole(room)
+	}
+	return w.fitted(room)
+}
+
+// fitted is the words in room cells: in full where they fit, else short,
+// whole spans left off their end where even that doesn't fit, or cut short.
+func (w usageWords) fitted(room int) line {
+	if w.full.width() <= room {
 		return w.full
 	}
 	return w.short.fitWhole(room)
