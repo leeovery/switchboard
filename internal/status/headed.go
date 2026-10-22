@@ -71,7 +71,8 @@ func (r Routing) backed() bool {
 // first clause and its short form's second part, where it has one, as
 // backed says; and, under pressure, when its pressure window runs out, in
 // its first clause. When a prime starts an idle account's window isn't
-// counted, as its clause doesn't always say a time.
+// counted: an idle account takes requests now, and its prime says only when
+// its window starts, which ranks below the pin's mark.
 func (r Routing) Timed() bool {
 	return r.backed() || (r.Kind == RoutingPressed && len(r.Clauses) > 0)
 }

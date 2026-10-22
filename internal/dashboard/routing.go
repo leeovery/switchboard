@@ -339,11 +339,12 @@ func (f Frame) drawStanding(c *canvas, r accountRouting, x, y int, words line) {
 // cells, as rowStanding words it, and whether ● pinned shows beside them, a
 // row ranking its parts: its state's lead; then its time, where it has one,
 // as Timed says; then the mark; then the rest. The lead is never cut where
-// the words' least holds it; a model's own lead, wider than the least, can
-// be at the one-row least. Where the global pin names it, the mark shows
-// wherever the words beside it, with pinnedApart and wordsGap, keep their
-// lead whole and, where it has a time, keep that too, so a wider frame never
-// says less; the words are then as said has them, the mark saying the pin.
+// the words' least holds it; a model's own lead, wider than the least, is
+// cut until the words reach its width. Where the global pin names it, the
+// mark shows wherever the words beside it, with pinnedApart and wordsGap,
+// keep their lead whole and, where it has a time, keep that too, so a wider
+// row never says less; the words are then as said has them, the mark saying
+// the pin.
 // Else the mark is left off and the words take its cells, saying the pin
 // where their forms carry it, as at its cap the pin spends; where they
 // don't, the row doesn't, and ROUTING's heading names the accounts pinned.
