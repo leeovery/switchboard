@@ -159,6 +159,45 @@ func TestWhereWidestSaysWhereAtItsWidestWhateverTheDay(t *testing.T) {
 	}
 }
 
+// What a session's doing and how it has run are said at their widest for
+// its own kind, the same whatever it's doing now and wherever the clock is:
+// a running session's doings, each at its widest, an ended one's end the
+// day before; and how it has run to a minute short of a day, or resumed the
+// day before.
+func TestASessionsDoingAndRunAtTheirWidestFollowItsKind(t *testing.T) {
+	now := time.Date(2026, 10, 7, 9, 5, 0, 0, time.UTC)
+	started := now.Add(-2 * time.Hour)
+	running := views.SessionPage{Started: started, Activity: views.Activity{Doing: views.Asking}}
+	resumed := running
+	resumed.Resumed = now.Add(-time.Hour)
+	ended := views.SessionPage{Started: started, Activity: views.Activity{Doing: views.Ended, Since: now.Add(-time.Hour)}}
+	tests := []struct {
+		name  string
+		page  views.SessionPage
+		doing []string
+		ran   string
+	}{
+		{name: "running", page: running, doing: []string{"↑ asking", "↓ answering", "… 429", "✕ 403", "idle 59m"}, ran: "23h 59m"},
+		{name: "resumed", page: resumed, doing: []string{"↑ asking", "↓ answering", "… 429", "✕ 403", "idle 59m"}, ran: "resumed yesterday 09:05"},
+		{name: "ended", page: ended, doing: []string{"ended yesterday 09:05"}, ran: "ran 23h 59m"},
+		{name: "its start not known", page: views.SessionPage{Activity: views.Activity{Doing: views.Idle}}, doing: []string{"↑ asking", "↓ answering", "… 429", "✕ 403", "idle 59m"}},
+	}
+	for _, tt := range tests {
+		if got := tt.page.DoingSaidWidest(now); !slices.Equal(got, tt.doing) {
+			t.Errorf("%s, DoingSaidWidest = %q, want %q", tt.name, got, tt.doing)
+		}
+		if got := tt.page.RanSaidWidest(now); got != tt.ran {
+			t.Errorf("%s, RanSaidWidest = %q, want %q", tt.name, got, tt.ran)
+		}
+		for _, days := range []int{1, 7, 365} {
+			later := now.AddDate(0, 0, days)
+			if got := tt.page.RanSaidWidest(later); len(got) != len(tt.ran) {
+				t.Errorf("%s, %d days on, RanSaidWidest = %q, want it as wide as %q", tt.name, days, got, tt.ran)
+			}
+		}
+	}
+}
+
 // A move's label on the story says what moved it and where to, and where it
 // wrote its context again, what that wrote and cost, wide and short.
 func TestAMovesLabelSaysWhatMovedItAndWhatItCost(t *testing.T) {
@@ -413,6 +452,14 @@ func TestATurnsToolsAreTheThreeItCalledMost(t *testing.T) {
 		if got := (views.Turn{Tools: tt.tools}).ToolsSaid(); got != tt.want {
 			t.Errorf("ToolsSaid of %+v = %q, want %q", tt.tools, got, tt.want)
 		}
+	}
+}
+
+// A turn's tools at their widest are the three it names, each Claude Code's
+// widest tool, called 999 times.
+func TestATurnsToolsAtTheirWidest(t *testing.T) {
+	if got, want := views.ToolsSaidWidest(), "AskUserQuestion ×999, AskUserQuestion ×999, AskUserQuestion ×999"; got != want {
+		t.Errorf("ToolsSaidWidest = %q, want %q", got, want)
 	}
 }
 

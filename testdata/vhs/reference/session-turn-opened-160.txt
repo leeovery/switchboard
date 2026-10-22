@@ -22,9 +22,9 @@ STORY   requests a minute ──────────────────
 
 TURNS    ──────────────────────────────────────────────────────────────────────────────────────  13 turns · 445 requests · 97% from cache · $48.20 at API prices
 
-  #  started  took   requests  tools                                                                read  written     out    worth  on
- 13  14:40    3m…           6  Read ×3, Bash ×2                                                     958k      18k    5.4k    $0.79  side             ↑ asking
- 12  14:29    9m           37  Bash ×14, Edit ×9, Read ×8                                           5.7M     293k     33k    $6.61  work → side
+  #  started  took   requests  tools                                                                read  written     out     worth  on
+ 13  14:40    3m…           6  Read ×3, Bash ×2                                                     958k      18k    5.4k     $0.79  side             ↑ asking
+ 12  14:29    9m           37  Bash ×14, Edit ×9, Read ×8                                           5.7M     293k     33k     $6.61  work → side
      at        model      on        status  first    took    read  written    out  stopped                      routing
   │  14:29:04  opus-5-5   work      200      0.8s   11.2s    176k     2.1k   1.3k  tool_use · Bash
   │  14:30:42  opus-5-5   work      200      0.9s   12.4s    181k     2.4k   1.1k  tool_use · Bash
@@ -32,6 +32,6 @@ TURNS    ───────────────────────�
   │  14:31:44  haiku-4-5  side      200      0.3s    0.6s       —        —     40  end_turn
   │  14:31:58  opus-5-5   side      200      1.1s    9.8s    182k     2.6k    900  tool_use · Edit
   └  ▼ 32 more of its requests   ·   j/k through them
- 11  14:15    15m          58  Bash ×20, Edit ×13, Read ×13                                         8.4M     174k     52k    $7.26  work
+ 11  14:15    15m          58  Bash ×20, Edit ×13, Read ×13                                         8.4M     174k     52k     $7.26  work
 ▼ 10 more turns   ·   j/k to scroll
 esc close    ↑↓ request  enter open    p pin    ? help  q quit

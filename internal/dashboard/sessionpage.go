@@ -110,12 +110,14 @@ func (d sessionDrawn) draw(c *canvas) {
 // nowFits reports whether the session's now rows take their wide form:
 // where every part of each fits whole at its least. Row 6: what it's doing
 // and where it runs and why, as saidCells counts them, every time at its
-// widest, as WhereWidest says them, then at its right when it started in
-// its shortest form at its widest, as ranWidest counts it. Row 7: the account it runs on and its windows, the widest name and
-// every window listed at 100%, as windows draws them. Else they take their
-// short form, a phone's, which says the why short and whole.
+// widest, as WhereWidest says them, every mark's cells kept, as marksSpare
+// counts them; then at its right when it started in its shortest form at
+// its widest, as ranWidest counts it. Row 7: the account it runs on and its
+// windows, the widest name and every window listed at 100%, as windows
+// draws them. Else they take their short form, a phone's.
 func (d sessionDrawn) nowFits() bool {
-	said := d.saidCells(d.page.WhereWidest(d.now))
+	where := d.page.WhereWidest(d.now)
+	said := d.saidCells(where) + d.marksSpare(where)
 	_, row6 := flex.Lay(d.Width, flex.Part{Least: said, Natural: said}, flex.Part{Least: d.ranWidest(), Gap: sessionApart})
 	right := widestLabel(d.m) + ansi.StringWidth(" now  ")
 	for i, w := range d.listedWindows(d.m) {
@@ -130,63 +132,41 @@ func (d sessionDrawn) nowFits() bool {
 
 // saidCells are the cells row 6's left takes, wide, saying where as given:
 // what the session's doing at the widest its kind says, as doingWidest
-// counts it, then where it runs and why, whole, and the account it's on
-// with every mark's cells, ▲ and ◆, as a label's column keeps them,
-// whichever it carries now. Where and why aren't bounded, as an ended
-// session's name every account it ran on, but change only as it moves, is
-// resumed or ends, and as the clock moves a time's day on, where they're
-// said as they are now: never as its turns come and go, or new sessions go
-// elsewhere.
+// counts it, then where it runs and why, whole, as drawn.
 func (d sessionDrawn) saidCells(where views.WhereSaid) int {
-	cells := slices.Concat(d.onSince(where.OnSince), d.words(where.Why, mutedInk)).width()
+	return d.doingWidest() + sessionApart + slices.Concat(d.onSince(where.OnSince), d.words(where.Why, mutedInk)).width()
+}
+
+// marksSpare are the cells the marks the account where names doesn't carry
+// now would take, ▲ and ◆, as a label's column keeps them.
+func (d sessionDrawn) marksSpare(where views.WhereSaid) int {
+	spare := 0
 	for _, p := range where.OnSince {
 		if p.Kind == status.PartAccount {
-			cells += everyMark.width() - d.nameOf(p.Text).marks().width()
+			spare += everyMark.width() - d.nameOf(p.Text).marks().width()
 		}
 	}
-	return d.doingWidest() + sessionApart + cells
+	return spare
 }
 
 // everyMark are the marks a name can carry, as a label's column keeps
 // their cells: ◆ and ▲.
 var everyMark = accountName{primary: true, best: true}.marks()
 
-// doingWidest are the cells the widest of what a session of its kind is
-// doing says: once it's over, its end the day before, the widest
-// prose.Past says a day, as "ended yesterday 18:46"; while it runs, the
-// widest of asking, answering, throttled, refused, and idle to the
-// IdleHour, after which it ends. A session's kind changes once, as it ends.
+// doingWidest are the cells the widest of what a session of its kind says
+// it's doing takes, as DoingSaidWidest says them.
 func (d sessionDrawn) doingWidest() int {
-	if !d.page.Runs() {
-		return ansi.StringWidth(views.Activity{Doing: views.Ended, Since: d.now.AddDate(0, 0, -1)}.Said(d.now))
-	}
 	widest := 0
-	for _, a := range []views.Activity{
-		{Doing: views.Asking}, {Doing: views.Answering}, {Doing: views.Throttled, Status: 429}, {Doing: views.Refused, Status: 403},
-		{Doing: views.Idle, Since: d.now.Add(time.Second - views.IdleHour)},
-	} {
-		widest = max(widest, ansi.StringWidth(a.Said(d.now)))
+	for _, said := range d.page.DoingSaidWidest(d.now) {
+		widest = max(widest, ansi.StringWidth(said))
 	}
 	return widest
 }
 
 // ranWidest are the cells row 6's right takes at its least, its shortest
-// form, how it has run, at its widest for the session's own kind: once over,
-// how long it ran, as "ran 23h 59m"; resumed, when, the day before, as
-// "resumed yesterday 22:10"; else how long it has run, as "23h 59m". Nothing
-// where its start isn't known.
+// form, how it has run, as RanSaidWidest says it.
 func (d sessionDrawn) ranWidest() int {
-	if d.page.Started.IsZero() {
-		return 0
-	}
-	widest := views.SessionPage{Started: d.now.Add(time.Minute - 24*time.Hour), Activity: views.Activity{Doing: views.Idle}}
-	switch {
-	case !d.page.Runs():
-		widest.Activity = views.Activity{Doing: views.Ended, Since: d.now}
-	case !d.page.Resumed.IsZero():
-		widest.Resumed = d.now.AddDate(0, 0, -1)
-	}
-	return ansi.StringWidth(widest.RanSaid(d.now))
+	return ansi.StringWidth(d.page.RanSaidWidest(d.now))
 }
 
 // chosen is the turn chosen: the zero Turn where none is.
@@ -278,14 +258,32 @@ func (d sessionDrawn) wideNow(c *canvas) {
 func (d sessionDrawn) phoneNow(c *canvas) {
 	y := d.l.now
 	where := d.page.Where(d.now)
-	said := d.doing()
-	if len(where.OnSince) > 0 {
-		said = slices.Concat(said, line{spaces(sessionPhoneApart)}, d.onSince(where.OnSince))
-	}
-	c.line(0, y, said.fit(d.Width))
+	c.line(0, y, namesNarrowing(d.Width, func(most int) line {
+		if len(where.OnSince) == 0 {
+			return d.doing()
+		}
+		return slices.Concat(d.doing(), line{spaces(sessionPhoneApart)}, d.onSinceAt(where.OnSince, labelCutAt(most)))
+	}))
 	ran := line{{d.page.RanSaid(d.now), secondaryInk}}
 	room := c.right(d.Width, y+1, ran) - sessionPhoneApart
-	c.line(0, y+1, d.words(where.Short, mutedInk).fit(room))
+	c.line(0, y+1, namesNarrowing(room, func(most int) line { return d.wordsAt(where.Short, mutedInk, labelCutAt(most)) }))
+}
+
+// labelCutAt names an account by its label cut to most cells.
+func labelCutAt(most int) func(string) string {
+	return func(label string) string { return prose.Cut(label, most) }
+}
+
+// namesNarrowing is the line said says with its names at most cells, in
+// room cells: at a label's most where it fits, its names narrowing toward a
+// label's least before anything else of it is cut; and where it doesn't fit
+// even at that, cut.
+func namesNarrowing(room int, said func(most int) line) line {
+	forms := make([]line, 0, labelMost-labelLeast+1)
+	for most := labelMost; most >= labelLeast; most-- {
+		forms = append(forms, said(most))
+	}
+	return firstFit(room, forms...)
 }
 
 // leftOf draws right at the right of row y, and returns the cells left of
@@ -347,12 +345,9 @@ func (d sessionDrawn) startedForms() []line {
 }
 
 // startedFit is row 6's right in the fullest of its forms that fits whole
-// beside what's said at its left, as saidCells counts it, where and why as
-// they're said now, so the form holds still as the session's doing changes.
-// Unlike nowFits, it doesn't measure their times at their widest: the right
-// gives way within the wide form, so it can take its fuller form as soon as
-// it fits, and changes only where a time's words do, at midnight or a week
-// on, while the switch to the short form, which loses rows, holds still.
+// beside its left as drawn, but for the doing at its widest, so it never
+// changes as the session asks, answers or idles. It can change as a time's
+// words or the marks do, unlike the switch nowFits makes.
 func (d sessionDrawn) startedFit() line {
 	forms := d.startedForms()
 	if len(forms) == 0 {
@@ -365,6 +360,11 @@ func (d sessionDrawn) startedFit() line {
 // it: the account bold text.primary, with its marks, the rest in
 // text.muted.
 func (d sessionDrawn) onSince(w status.Words) line {
+	return d.onSinceAt(w, labelAtMost)
+}
+
+// onSinceAt is onSince with the account's name as named names it.
+func (d sessionDrawn) onSinceAt(w status.Words, named func(string) string) line {
 	var l line
 	for _, p := range w {
 		if p.Kind != status.PartAccount {
@@ -372,7 +372,7 @@ func (d sessionDrawn) onSince(w status.Words) line {
 			continue
 		}
 		n := d.nameOf(p.Text)
-		l = append(append(l, span{nowLabel(n.label), titleInk}), n.marks()...)
+		l = append(append(l, span{named(n.label), titleInk}), n.marks()...)
 	}
 	return l
 }
@@ -380,11 +380,17 @@ func (d sessionDrawn) onSince(w status.Words) line {
 // words are words a session's page says, in k, every account they name by
 // its name, and every span and figure, in text.secondary.
 func (d sessionDrawn) words(w status.Words, k ink) line {
+	return d.wordsAt(w, k, labelAtMost)
+}
+
+// wordsAt are words as words says them, every account's name as name names
+// it.
+func (d sessionDrawn) wordsAt(w status.Words, k ink, name func(string) string) line {
 	l := make(line, len(w))
 	for i, p := range w {
 		switch p.Kind {
 		case status.PartAccount:
-			l[i] = span{nowLabel(named(d.m, p.Text)), secondaryInk}
+			l[i] = span{name(named(d.m, p.Text)), secondaryInk}
 		case status.PartPlain:
 			l[i] = span{p.Text, k}
 		default:
@@ -404,7 +410,7 @@ func (d sessionDrawn) windows() line {
 	if !ok {
 		return nil
 	}
-	l := line{{nowLabel(name(a)), secondaryInk}, {" now  ", dimInk}}
+	l := line{{labelAtMost(name(a)), secondaryInk}, {" now  ", dimInk}}
 	for i, w := range d.listedWindows(d.m) {
 		if i > 0 {
 			l = append(l, spaces(sessionApart))
@@ -425,7 +431,7 @@ func (d sessionDrawn) models(room int) line {
 		if i > 0 {
 			next = append(next, spaces(sessionApart))
 		}
-		next = append(next, span{modelNamed(g.Model), secondaryInk}, span{moveArrow, mutedInk}, span{nowLabel(named(d.m, g.Account)), secondaryInk})
+		next = append(next, span{modelNamed(g.Model), secondaryInk}, span{moveArrow, mutedInk}, span{labelAtMost(named(d.m, g.Account)), secondaryInk})
 		if next.width() > room {
 			break
 		}
@@ -448,10 +454,11 @@ func (d sessionDrawn) endedModels() line {
 	return append(l, spaces(sessionApart), span{views.KeptUntil(d.page.KeptUntil, d.now), faintInk})
 }
 
-// nowLabel is an account's label as the page's now rows draw it, as a
-// label's column holds it at its most: cut with an ellipsis past
-// labelColumnCells, so what's drawn is what nowFits measures.
-func nowLabel(label string) string {
+// labelAtMost is an account's label as the page draws it, as a label's
+// column holds it at its most: cut with an ellipsis past labelColumnCells,
+// so one account reads one way across the page, and what's drawn is what
+// nowFits measures.
+func labelAtMost(label string) string {
 	return prose.Cut(label, labelColumnCells(label))
 }
 
@@ -749,30 +756,37 @@ func (d sessionDrawn) turnSaid(col turnColumn, t views.Turn, newest bool) line {
 	return nil
 }
 
-// turnOn names the accounts a turn went to, in text.secondary, in cells:
-// the one, or each in turn, as "work → side". Where they don't fit, the
-// arrow narrows, as "work→side", and each cut form keeps it narrow: a
-// move's second name cut, its first whole, where that leaves moveToLeast
-// cells of it, as "work→si…", else its two names cut as movedCells shares
-// the room, as "w…→si…"; and two moves or more as the first and the last,
-// an ellipsis between, each cut the same, as "w…→…→wo…" (C16).
+// turnOn names the accounts a turn went to, in text.secondary, in cells,
+// each at a label's most, as labelAtMost cuts it, in the first of these
+// that fits whole: each in turn, "work → side"; the arrows narrowed,
+// "work→side"; two moves or more as the first and the last, an ellipsis
+// between, "work→…→side". Else cut: a move's second name, its first whole,
+// down to moveToLeast cells, "work→si…"; else the first and the last share
+// the room, as movedCells shares it, the shorter kept whole where it can
+// be, "perso…→side"; and where that leaves the first under two cells, the
+// first alone, cut, "wo…→…".
 func (d sessionDrawn) turnOn(accounts []string, cells int) line {
 	names := make([]string, len(accounts))
 	for i, id := range accounts {
-		names[i] = named(d.m, id)
-	}
-	if said := strings.Join(names, moveArrow); len(names) < 2 || ansi.StringWidth(said) <= cells {
-		return line{{said, secondaryInk}}.fit(cells)
+		names[i] = labelAtMost(named(d.m, id))
 	}
 	first, last := names[0], names[len(names)-1]
 	via := moveArrowTight
 	if len(names) > 2 {
 		via = moveArrowTight + prose.Ellipsis + moveArrowTight
 	}
+	forms := []string{strings.Join(names, moveArrow), strings.Join(names, moveArrowTight), first + via + last}
+	if i := slices.IndexFunc(forms, func(form string) bool { return ansi.StringWidth(form) <= cells }); len(names) < 2 || i >= 0 {
+		return line{{forms[max(i, 0)], secondaryInk}}.fit(cells)
+	}
 	room := cells - ansi.StringWidth(via)
 	if from := ansi.StringWidth(first); len(names) == 2 && from+moveToLeast <= room {
 		return line{{first + via + prose.Cut(last, room-from), secondaryInk}}
 	}
 	f, t := movedCells(ansi.StringWidth(first), ansi.StringWidth(last), room)
+	if f < 2 {
+		alone := moveArrowTight + prose.Ellipsis
+		return line{{prose.Cut(first, cells-ansi.StringWidth(alone)) + alone, secondaryInk}}
+	}
 	return line{{prose.Cut(first, f) + via + prose.Cut(last, t), secondaryInk}}.fit(cells)
 }

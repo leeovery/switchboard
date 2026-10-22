@@ -4178,16 +4178,18 @@ least, each measured for the session's own kind:
 
 Names in both rows are drawn as a label's column holds them, 24 cells at the most, cut with `…` past
 it, their marks kept. Where the rows are wide, the right takes the fullest of its forms that fits
-whole beside the left, measured as the switch measures it but with its times as they're said now,
-so its form changes only as their words do, at midnight or a week on, never as the session asks,
-answers or idles: `started yesterday 16:40 · resumed yesterday 22:10`, else
-how it has run alone, `resumed yesterday 22:10`, as a phone's says it. Narrower, the rows take the
-short form a phone's has (see On a phone), which says the why short and whole, so the wide form never
-cuts what the short says whole. What's measured changes only as the session moves, is resumed or
-ends: never as its turns come and go, the clock moves a time's day on, or new sessions go
-elsewhere, so the form holds still while it asks, answers or idles. The form never follows the
-chrome's breakpoint. With the frames' names, `moved` is wide from 96 columns, `quiet` from 64,
-`ended` from 93, and `resumed`, today or the day before, from 133.
+whole beside the left as drawn, its times as they're said now and the marks its name carries, but
+its state at its widest, so its form never changes as the session asks, answers or idles, only as a
+time's words or a mark do: `started yesterday 16:40 · resumed yesterday 22:10`, else how it has run
+alone, `resumed yesterday 22:10`, as a phone's says it. Narrower, the rows take the short form a
+phone's has (see On a phone), its names narrowing toward a label's least of 8 before a date, a
+figure or the why is cut, so it says the why short and whole wherever its names at their least let
+it, and the wide form never cuts what the short says whole. What the switch measures changes only
+as the session moves, is resumed or ends: never as its turns come and go, the clock moves a time's
+day on, or new sessions go elsewhere, so the form holds still while it asks, answers or idles. The
+form never follows the chrome's breakpoint. With the frames' names, `moved` is wide from 96
+columns, `quiet` from 64, `ended` from 93, or 103 where it moved on a day after its start's, and
+`resumed`, today or the day before, from 133.
 
 - **Row 6,** what it's doing and where it runs:
   - **its state,** bold: `↑ asking` in `accent.key` while a request of it waits for its answer;
@@ -4340,35 +4342,42 @@ first ran on them. A row's parts, two cells apart, as flex lays them at every wi
   and ` at API prices` in `text.muted`. Its requests are its `message` lines; `from cache` is the
   share of the tokens it sent that the cache served, its cache reads over its input, cache reads
   and cache writes together, to a whole percent.
-- **The columns,** one form at every width, two cells apart, as flex lays them: `#`; `started`;
+- **The columns,** one form at every width, two cells apart, one where `on` would narrow, as flex
+  lays them: `#`; `started`;
   `took`; `requests`; `tools`; `read`, `written` and `out`; `worth`; `on`; and the newest's
   `↑ asking`. Each holds its natural until it narrows or leaves in its turn:
   - `#` right-aligned in the cells the newest turn's number takes, 3 at the least, so turn 1005
-    reads apart from turn 5; `read` and `written` right-aligned in 7, `out` in 6 and `worth` in 7;
+    reads apart from turn 5; `read` and `written` right-aligned in 7, `out` in 6;
   - the figures whole to their bounds at every width: `took` in 5, to `999m…`, past which it's
     cut (`1000m…` reads `100…`); and `requests` right-aligned from 5, to `9,999`, to 8, its head's;
-    `started` from 5 to 7, its head's;
+    `started` from 5 to 7, its head's; and `worth` right-aligned in 8, to `$999.99+`, as wide as
+    `unpriced`;
   - `on`, the accounts a turn went to: one account's name, a label's, its least 8 and its natural
     the widest configured, at most 24; and past it, a move's arrow and second name, the second
     widest configured, so a move reads whole where there's room, as `work → personal`; never the
-    accounts the session ran on;
+    accounts the session ran on. Each name is cut at a label's most, as rows 6 and 7 cut it, and
+    they're said in the first of these that fits whole: each in turn, `work → side`; the arrows
+    narrowed, `work→side`; two moves or more as the first and the last, `work→…→side`. Else cut: a
+    move's second name, its first whole, to 3 cells, `work→si…`; else the first and the last share
+    the room, the shorter kept whole where it can be, `perso…→side`; and where that leaves the
+    first under two cells, the first alone, cut, `wo…→…`;
   - `↑ asking` in its words' cells while the session can still ask, between turns as while one
     runs, so the columns hold still as turns come and go; an ended session's turns have none;
   - `tools` from 12 at the least to 30 at its natural, and past it, what's left, to its most: three
     tools, as a turn names them, each at Claude Code's widest name, `AskUserQuestion`, 15 cells,
     and a count to `×999`. No name is cut on its own: where a wider one, as an MCP server's tool,
     makes the tools wider than their column, they're cut with `…` at its end, so the tools after it
-    give way first.
-    Past its most, the spare trails the row's end, so the columns stay together.
+    give way first. Past its most, the spare trails the row's end, so the columns stay together.
 - **As the width runs short,** `tools` leaves first, as the part that grows, so no column comes back
-  to narrow it as the frame widens; then `↑ asking`, which row 6 says too; then a move, its arrow
-  narrowing first, `work→side`, before its second name is cut with `…` to 3 cells, `work→si…`, the arrow kept narrow,
-  as most turns run on one account; then `read`,
-  `written` and `out`, in that order. Then `started` and `requests` narrow, their heads taking
-  their short forms, `start` and `req`; and last `on`, a move's last cells first, then the name to
-  its least. A turn always keeps its number, start, length, requests, worth and accounts; where
-  even those don't fit, the row lies as laid, cut at the frame's edge. A wider frame never shows
-  fewer columns, a narrower one, nor a shorter name.
+  to narrow it as the frame widens; then `↑ asking`, which row 6 says too; then a move's second
+  name, as `on` says it, as most turns run on one account; then `read`, `written` and `out`, in
+  that order. Then `started` and `requests` narrow, their heads taking their short forms, `start`
+  and `req`; then the gaps, all at once, to one cell, the figures kept at their leasts, the spare
+  trailing; and last `on`, a move's last cells first, then the name to its least. With the frames'
+  names the gaps narrow under 50 columns, so `work→side` is whole down to 40. A turn always keeps
+  its number, start, length, requests, worth and accounts; where even those don't fit, the row
+  lies as laid, cut at the frame's edge. A wider frame never shows fewer columns, a narrower one,
+  nor a shorter name.
 - **The column heads,** two rows under the heading, in `text.subtle`, each at its column's start,
   or ending at its end where it's right-aligned, at every width.
 - **A row a turn,** newest first, from the row under the heads to the row over how many more:

@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/dashboard/flex"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -226,8 +227,9 @@ const (
 // accounts: tools first, the part that grows, so none comes back to narrow
 // it as the frame widens; ↑ asking, which row 6 says too; a move's second
 // name, to the least it keeps, as most turns run on one account; read,
-// written and out; the start and the requests to their short heads; and
-// last, on, a move's least first, then the name, to a label's least.
+// written and out; the start and the requests to their short heads; the
+// gaps, to tightGap, as turnColumnsOf narrows them; and last, on, a move's
+// least first, then the name, to a label's least.
 const (
 	toolsLeaves = iota + 1
 	askingLeaves
@@ -239,28 +241,35 @@ const (
 	turnOnNarrows
 )
 
-// turnGap is the blanks between the columns of a session's turns.
-const turnGap = 2
+// turnGap is the blanks between the columns of a session's turns, and
+// tightGap those between them where on would narrow at turnGap.
+const (
+	turnGap  = 2
+	tightGap = 1
+)
 
 // The bounds a turn's figures are held whole to at their least: its length
 // to "999m…", 999 minutes and going; past it, as prose.Minutes says minutes
 // whatever their number, "1000m…" is cut to "100…". Its requests to
-// "9,999".
+// "9,999". Its worth to "$999.99+", as wide as "unpriced".
 var (
 	tookCells     = ansi.StringWidth("999m" + prose.Ellipsis)
 	requestsCells = ansi.StringWidth(prose.Grouped(9999))
+	worthCells    = max(ansi.StringWidth(worthMost.Cents()), ansi.StringWidth(views.Worth{Unpriced: worthMost.Unpriced}.Cents()))
 )
 
-// toolNameCells are the cells of Claude Code's widest tool's name,
-// AskUserQuestion.
-const toolNameCells = 15
+// worthMost is the most a turn's worth is held whole to: $999.99, part of
+// it unpriced.
+var worthMost = func() views.Worth {
+	amount := ledger.Picodollars(99_999) * ledger.Picodollars(10_000_000_000)
+	return views.Worth{Amount: &amount, Unpriced: []string{"model"}}
+}()
 
-// toolsMost are the cells tools takes at the most: the views' ToolsNamed
-// tools, each at toolNameCells, and its count to "×999", a comma and a
-// blank between them. No name is cut on its own: where a wider one, as an
-// MCP server's tool, makes the tools wider than their column, they're cut
-// with … at its end, so the tools after it give way first.
-var toolsMost = views.ToolsNamed*(toolNameCells+ansi.StringWidth(" ×999")) + (views.ToolsNamed-1)*ansi.StringWidth(", ")
+// toolsMost are the cells tools takes at the most, as views.ToolsSaidWidest
+// says them. No name is cut on its own: where a wider one, as an MCP
+// server's tool, makes the tools wider than their column, they're cut with
+// … at its end, so the tools after it give way first.
+var toolsMost = ansi.StringWidth(views.ToolsSaidWidest())
 
 // moveToLeast are the fewest cells a move's second name keeps, cut, as
 // "si…".
@@ -285,7 +294,7 @@ var turnPartFacts = [...]struct {
 	turnRead:     {heads: []string{"read"}, least: 7, right: true, leaves: readLeaves},
 	turnWritten:  {heads: []string{"written"}, least: 7, right: true, leaves: writtenLeaves},
 	turnOut:      {heads: []string{"out"}, least: 6, right: true, leaves: outLeaves},
-	turnWorth:    {heads: []string{"worth"}, least: 7, right: true},
+	turnWorth:    {heads: []string{"worth"}, least: worthCells, right: true},
 	turnOn:       {heads: []string{"on"}, narrows: turnOnNarrows},
 	turnMove:     {narrows: moveNarrows},
 	turnMoveKept: {narrows: turnOnNarrows},
@@ -339,6 +348,21 @@ func turnParts(facts turnFacts) []flex.Part {
 	return parts
 }
 
+// tightened are a turn's parts with their gaps narrowed to tightGap, and
+// the figures held at their leasts, as they were narrowed before.
+func tightened(parts []flex.Part) []flex.Part {
+	parts = slices.Clone(parts)
+	for p := range parts {
+		if parts[p].Gap == turnGap {
+			parts[p].Gap = tightGap
+		}
+		if turnPartFacts[p].narrows == figuresNarrow {
+			parts[p].Natural = parts[p].Least
+		}
+	}
+	return parts
+}
+
 // turnColumn is a column of a session's turns as it's laid out: which it
 // is, from column x, width cells wide.
 type turnColumn struct {
@@ -348,12 +372,17 @@ type turnColumn struct {
 
 // turnColumnsOf are the columns of a session's turns shown across a frame
 // width cells wide, of the facts given, as turnParts lays them out, on's
-// three parts one column. Where even their leasts don't fit, they lie as the
-// turns left them, each cut at the frame's edge, those past it left out: a
-// turn's row has no other form, as none keeping its figures would fit there
-// either.
+// three parts one column. Where on would narrow, the gaps narrow first, to
+// tightGap, as a turn taken after the figures', so they keep their leasts.
+// Where even their leasts don't fit, they lie as the turns left them, each
+// cut at the frame's edge, those past it left out: a turn's row has no
+// other form, as none keeping its figures would fit there either.
 func turnColumnsOf(width int, facts turnFacts) []turnColumn {
-	spans, _ := flex.Lay(width, turnParts(facts)...)
+	parts := turnParts(facts)
+	spans, _ := flex.Lay(width, parts...)
+	if spans[turnOn].Size < parts[turnOn].Natural || spans[turnMoveKept].Size < parts[turnMoveKept].Natural {
+		spans, _ = flex.Lay(width, tightened(parts)...)
+	}
 	var columns []turnColumn
 	for p, span := range spans {
 		part := turnPart(p)

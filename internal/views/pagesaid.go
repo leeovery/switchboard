@@ -129,6 +129,44 @@ func (p SessionPage) WhereWidest(now time.Time) WhereSaid {
 	return p.where(now, datesWidest)
 }
 
+// DoingSaidWidest is each thing a session of its kind can say it's doing,
+// as its Activity's Said says it, at its widest at now: once it's over, its
+// end the day before, "ended yesterday 18:46"; while it runs, asking,
+// answering, throttled, refused, and idle to the IdleHour, after which it
+// ends. A session's kind changes once, as it ends.
+func (p SessionPage) DoingSaidWidest(now time.Time) []string {
+	if !p.Runs() {
+		return []string{Activity{Doing: Ended, Since: now.AddDate(0, 0, -1)}.Said(now)}
+	}
+	doings := []Activity{
+		{Doing: Asking}, {Doing: Answering}, {Doing: Throttled, Status: 429}, {Doing: Refused, Status: 403},
+		{Doing: Idle, Since: now.Add(time.Second - IdleHour)},
+	}
+	said := make([]string, len(doings))
+	for i, a := range doings {
+		said[i] = a.Said(now)
+	}
+	return said
+}
+
+// RanSaidWidest says how the session has run, as RanSaid does, at its widest
+// for its own kind at now: once over, how long it ran, "ran 23h 59m";
+// resumed, when, the day before, "resumed yesterday 22:10"; else how long it
+// has run, "23h 59m". "" where its start isn't known.
+func (p SessionPage) RanSaidWidest(now time.Time) string {
+	if p.Started.IsZero() {
+		return ""
+	}
+	widest := SessionPage{Started: now.Add(time.Minute - 24*time.Hour), Activity: Activity{Doing: Idle}}
+	switch {
+	case !p.Runs():
+		widest.Activity = Activity{Doing: Ended, Since: now}
+	case !p.Resumed.IsZero():
+		widest.Resumed = now.AddDate(0, 0, -1)
+	}
+	return widest.RanSaid(now)
+}
+
 // dating says the times a session's where and why name: as they're said,
 // datesSaid, or at their widest, datesWidest.
 type dating struct {
@@ -352,6 +390,16 @@ func (t Turn) ToolsSaid() string {
 		said = append(said, prose.Clean(c.Tool)+" ×"+prose.Grouped(c.Times))
 	}
 	return strings.Join(said, ", ")
+}
+
+// ToolsSaidWidest is ToolsSaid at its widest of Claude Code's own tools:
+// ToolsNamed of them, each named as claude.WidestTool and called 999 times.
+func ToolsSaidWidest() string {
+	tools := make([]ToolCalls, ToolsNamed)
+	for i := range tools {
+		tools[i] = ToolCalls{Tool: claude.WidestTool, Times: 999}
+	}
+	return Turn{Tools: tools}.ToolsSaid()
 }
 
 // PointsForm is the form an account's points are said in.

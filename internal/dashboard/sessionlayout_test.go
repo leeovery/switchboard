@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -220,6 +222,8 @@ func nowStates() []struct {
 	overnight := resumed()
 	overnight.Page.Resumed = yesterdayAt(22, 10)
 	overnight.Page.Moves[0].At = yesterdayAt(22, 10)
+	movedLater := ended()
+	movedLater.Page.Started = yesterdayAt(13, 20).AddDate(0, 0, -1)
 	return []struct {
 		name  string
 		shown *SessionShown
@@ -231,6 +235,7 @@ func nowStates() []struct {
 		{name: "its pin yielding", shown: pinned(status.ReasonPinYields+"side has no room", "side", "work")},
 		{name: "resumed", shown: resumed()},
 		{name: "resumed the day before", shown: overnight},
+		{name: "ended, moved on a day after its start's", shown: movedLater},
 	}
 }
 
@@ -293,6 +298,7 @@ func TestTheNowRowsSwitchWhereTheSessionsWordsSay(t *testing.T) {
 		"its pin yielding":       {99, 155},
 		"resumed":                {133, 165},
 		"resumed the day before": {133, 165},
+		"ended, moved on a day after its start's": {103, 161},
 	}
 	for w, world := range pageWorlds {
 		for _, state := range nowStates() {
@@ -350,6 +356,36 @@ func TestRow6sRightIsAsFullAsTheWordsSaidNowLeaveRoomFor(t *testing.T) {
 			if slices.ContainsFunc(forms, func(form string) bool { return form != forms[0] }) {
 				t.Errorf("%s, at %d columns, row 6's right reads %q as the session's doing changes, want one form", state.name, width, forms)
 			}
+		}
+	}
+}
+
+// At 138 columns a session resumed today says when it started and resumed
+// whole beside where it runs, its right measured with the marks its name
+// carries; with ▲ moved onto its account too, its row never runs past the
+// frame, and the switch to the short form stays where it was.
+func TestRow6sRightCountsTheMarksItsNameCarries(t *testing.T) {
+	d, drawn := pageDrawn(pageFrame(t, resumed(), 138, 30), pageDoc())
+	if row := strings.TrimRight(string(drawn[d.l.now]), " "); !d.nowWide || !strings.HasSuffix(row, "the most room    started yesterday 16:40 · resumed 09:12") {
+		t.Errorf("at 138 columns, row 6 reads\n%q\nwant both its parts whole", row)
+	}
+	doc := pageDoc()
+	doc.Best = "personal"
+	switchedAt := func(doc status.Document) int {
+		for width := 40; width <= 220; width++ {
+			if d, _ := pageDrawn(pageFrame(t, resumed(), width, 30), doc); d.nowWide {
+				return width
+			}
+		}
+		return 0
+	}
+	if at, was := switchedAt(doc), switchedAt(pageDoc()); at != was {
+		t.Errorf("with ▲ on its account, the now rows are wide from %d columns, want %d, as without it", at, was)
+	}
+	for width := 40; width <= 220; width++ {
+		d, drawn := pageDrawn(pageFrame(t, resumed(), width, 30), doc)
+		if row := strings.TrimRight(string(drawn[d.l.now]), " "); !strings.Contains(row, "▲") || ansi.StringWidth(row) > width {
+			t.Errorf("at %d columns, with ▲ on its account, row 6 reads %q, want ▲ shown and the row within the frame", width, row)
 		}
 	}
 }
@@ -650,6 +686,89 @@ func TestOnlyASessionThatCanAskKeepsAskingsCells(t *testing.T) {
 		endedTools, _ := ended.turnColumnOf(turnTools)
 		if ok && tools.width < toolsMost && endedTools.width <= tools.width {
 			t.Errorf("at %d columns, an ended session's tools is %d cells wide, want more than a running one's %d", width, endedTools.width, tools.width)
+		}
+	}
+}
+
+// The short form's names narrow toward a label's least before a date, a
+// figure or the why is cut: at 73 columns, with long names, an ended
+// session says when it moved and why whole, a pin yielding says why whole,
+// and an idle session where it runs and since when, each name cut short
+// instead, to no fewer than a label's least.
+func TestTheShortNowRowsNarrowTheirNamesFirst(t *testing.T) {
+	states := nowStates()
+	tests := []struct {
+		shown *SessionShown
+		row   int
+		whole string
+	}{
+		{shown: states[2].shown, row: 1, whole: " from 16:02: its cap"},
+		{shown: states[4].shown, row: 1, whole: " has no room"},
+		{shown: states[1].shown, row: 0, whole: " ◆ since it started"},
+	}
+	for _, tt := range tests {
+		d, drawn := pageDrawn(pageFrame(t, tt.shown, 73, 37), pageWorlds[1].doc())
+		row := strings.TrimRight(string(drawn[d.l.now+tt.row]), " ")
+		if d.nowWide || !strings.Contains(row, tt.whole) {
+			t.Errorf("at 73 columns, row %d reads %q, want it short, saying %q whole", d.l.now+tt.row+1, row, tt.whole)
+		}
+		for word := range strings.FieldsSeq(row) {
+			if cut := strings.TrimSuffix(word, ","); strings.HasSuffix(cut, prose.Ellipsis) && ansi.StringWidth(cut) < labelLeast {
+				t.Errorf("at 73 columns, row %d reads %q, a name cut under a label's least", d.l.now+tt.row+1, row)
+			}
+		}
+	}
+}
+
+// A turn's worth is whole at every width to its bound: unpriced, part
+// unpriced, and $999.99.
+func TestATurnsWorthIsWholeToItsBound(t *testing.T) {
+	shown := moved()
+	plus := worthOf(11411)
+	plus.Unpriced = []string{"claude-fable-1"}
+	worths := []views.Worth{{Unpriced: []string{"claude-fable-1"}}, plus, worthOf(99999)}
+	for i, w := range worths {
+		shown.Page.Turns[i].Worth = w
+	}
+	for _, world := range pageWorlds {
+		for width := 40; width <= 220; width++ {
+			d, rows := pageDrawn(pageFrame(t, shown, width, 37), world.doc())
+			for i, w := range worths {
+				if got := turnText(rows[d.l.turnsAt+i], d, turnWorth); got != w.Cents() {
+					t.Errorf("%s, at %d columns, turn %d's worth reads %q, want %q whole", world.name, width, shown.Page.Turns[i].Turn, got, w.Cents())
+				}
+			}
+		}
+	}
+}
+
+// From 40 columns to 52, in every session the frames draw, a turn's figures
+// are whole, and a move between the frames' accounts is named whole: where
+// on would narrow, the gaps narrow first, once, to one blank.
+func TestANarrowTurnsRowKeepsItsFiguresAndMovesWhole(t *testing.T) {
+	sessions := []*SessionShown{moved(), quiet(), ended(), resumed()}
+	for width := 40; width <= 52; width++ {
+		for _, shown := range sessions {
+			d, rows := pageDrawn(pageFrame(t, shown, width, 44), pageDoc())
+			shownTurns, _, _ := d.turnsShown()
+			for i := range shownTurns {
+				row := rows[d.l.turnsAt+i]
+				for _, p := range []turnPart{turnStarted, turnRequests, turnWorth, turnOn} {
+					if text := turnText(row, d, p); strings.Contains(text, prose.Ellipsis) {
+						t.Errorf("at %d columns, turn row %q cuts %q", width, strings.TrimRight(string(row), " "), text)
+					}
+				}
+			}
+			gaps := slices.Collect(func(yield func(int) bool) {
+				for i := 1; i < len(d.turnColumns); i++ {
+					if !yield(d.turnColumns[i].x - d.turnColumns[i-1].end()) {
+						return
+					}
+				}
+			})
+			if want := turnGap - min(1, max(0, 50-width)); slices.ContainsFunc(gaps, func(g int) bool { return g != want }) {
+				t.Errorf("at %d columns, the turns' gaps are %v, want each %d", width, gaps, want)
+			}
 		}
 	}
 }

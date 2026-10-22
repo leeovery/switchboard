@@ -306,14 +306,14 @@ func TestASessionsPageAtEachSize(t *testing.T) {
 				24: "  #  started  took   requests  tools ",
 				25: " 13  14:40    3m…           6  Read ×3, Bash ×2 ",
 			},
-			ends:  map[int]string{25: "958k      18k    5.4k    $0.79  side             ↑ asking"},
-			endAt: 157,
+			ends:  map[int]string{25: "958k      18k    5.4k     $0.79  side             ↑ asking"},
+			endAt: 158,
 		},
 		{
 			name: "122 wide: every column, tools at its natural", shown: moved(), width: 122, height: 37,
 			want: map[int]string{
 				6:  "↑ asking   on side ▲ since 14:31, moved from work: work reached its cap                             started 12:02 · 2h 40m",
-				24: "  #  started  took   requests  tools                             read  written     out    worth  on",
+				24: "  #  started  took   requests  tools                            read  written     out     worth  on",
 			},
 			ends: map[int]string{25: "$0.79  side             ↑ asking"},
 		},
@@ -321,23 +321,23 @@ func TestASessionsPageAtEachSize(t *testing.T) {
 			name: "108 wide: the wide chrome's heading, tools narrower", shown: moved(), width: 108, height: 37,
 			want: map[int]string{
 				4:  "SESSION   d28c   switchboard  ~/Code/switchboard ─",
-				24: "  #  started  took   requests  tools               read  written     out    worth  on",
-				25: " 13  14:40    3m…           6  Read ×3, Bash…      958k",
+				24: "  #  started  took   requests  tools              read  written     out     worth  on",
+				25: " 13  14:40    3m…           6  Read ×3, Bash…     958k",
 			},
 			ends: map[int]string{25: "$0.79  side             ↑ asking"},
 		},
 		{
 			name: "100 wide: the wide chrome's heading, tools gone", shown: moved(), width: 100, height: 30,
 			want: map[int]string{
-				4: "SESSION   d28c   switchboard  ~/Code/switchboard ─", 6: "↑ asking   on side ▲ since 14:31, moved from work: work reached its cap                       2h 40m", 22: "TURNS    ",
-				24: "  #  started  took   requests     read  written     out    worth  on",
+				4: "SESSION   d28c   switchboard  ~/Code/switchboard ─", 6: "↑ asking   on side ▲ since 14:31, moved from work: work reached its cap       started 12:02 · 2h 40m", 22: "TURNS    ",
+				24: "  #  started  took   requests     read  written     out     worth  on",
 			},
 		},
 		{
 			name: "99 wide: a phone's heading, under its own chrome, its now rows wide as they fit", shown: moved(), width: 99, height: 30,
 			want: map[int]string{
-				5: "SESSION  d28c  switchboard", 7: "↑ asking   on side ▲ since 14:31, moved from work: work reached its cap                      2h 40m", 8: "opus-5-5 → side   haiku-4-5 → side",
-				22: "TURNS    ", 24: "  #  started  took   requests     read  written     out    worth  on",
+				5: "SESSION  d28c  switchboard", 7: "↑ asking   on side ▲ since 14:31, moved from work: work reached its cap      started 12:02 · 2h 40m", 8: "opus-5-5 → side   haiku-4-5 → side",
+				22: "TURNS    ", 24: "  #  started  took   requests     read  written     out     worth  on",
 			},
 		},
 		{
@@ -355,7 +355,7 @@ func TestASessionsPageAtEachSize(t *testing.T) {
 			name: "52 wide: a phone's, its turns their figures, worth and on", shown: moved(), width: 52, height: 32,
 			want: map[int]string{
 				5: "SESSION  d28c  switchboard                  esc back", 7: "↑ asking  on side ▲ since 14:31",
-				24: "  #  started  took      req    worth  on", 25: " 13  14:40    3m…         6    $0.79  side",
+				24: "  #  started  took     req     worth  on", 25: " 13  14:40    3m…        6     $0.79  side",
 				30: "▼ 8 more turns   ·   j/k to scroll",
 			},
 		},
@@ -503,8 +503,8 @@ func TestTheTurnChosenIsLit(t *testing.T) {
 		chosen        int
 		lit           int
 	}{
-		{name: "wide, the newest", width: 160, height: 37, chosen: 25, lit: 147},
-		{name: "wide, one under it", width: 160, height: 37, chosen: 27, lit: 147},
+		{name: "wide, the newest", width: 160, height: 37, chosen: 25, lit: 148},
+		{name: "wide, one under it", width: 160, height: 37, chosen: 27, lit: 148},
 		{name: "a phone", width: 52, height: 32, chosen: 25, lit: 52},
 	}
 	for _, tt := range tests {
@@ -553,11 +553,12 @@ func TestATurnsScrollWithinTheirRows(t *testing.T) {
 	}
 }
 
-// A turn's on names the accounts it went to in its cells: each in turn
-// where they fit, the arrow narrowing to → before any name is cut, and
-// kept narrow as they're cut: a move's second name, its first whole, down
-// to moveToLeast cells, else both as movedCells shares the room; and two
-// moves or more as their first and last, … between (C16).
+// A turn's on names the accounts it went to in its cells, each at a
+// label's most: each in turn where they fit, the arrows narrowing to →
+// before any name is cut, then two moves or more as their first and last,
+// … between; then cut, the arrow kept narrow: a move's second name, its
+// first whole, down to moveToLeast cells, else both as movedCells shares
+// the room; and where the first would keep under two cells, it alone.
 func TestATurnsAccountsFitItsOnColumn(t *testing.T) {
 	tests := []struct {
 		accounts []string
@@ -574,7 +575,14 @@ func TestATurnsAccountsFitItsOnColumn(t *testing.T) {
 		{accounts: []string{"work", "side"}, cells: 9, want: "work→side"},
 		{accounts: []string{"work", "side", "work"}, cells: 12, want: "work→…→work"},
 		{accounts: []string{"work", "side", "work"}, cells: 8, want: "w…→…→wo…"},
-		{accounts: []string{"a", "b", "c", "d"}, cells: 12, want: "a→…→d"},
+		{accounts: []string{"a", "b", "c", "d"}, cells: 12, want: "a→b→c→d"},
+		{accounts: []string{"a", "b", "c", "d"}, cells: 6, want: "a→…→d"},
+		{accounts: []string{"work", "personal", "side"}, cells: 18, want: "work→personal→side"},
+		{accounts: []string{"work", "personal", "side"}, cells: 12, want: "work→…→side"},
+		{accounts: []string{"work", "personal", "side"}, cells: 5, want: "wo…→…"},
+		{accounts: []string{"work", "side"}, cells: 4, want: "w…→…"},
+		{accounts: []string{"abcdefghijklmnopqrstuvwxyz0123"}, cells: 30, want: "abcdefghijklmnopqrstuvw…"},
+		{accounts: []string{"abcdefghijklmnopqrstuvwxyz0123", "side"}, cells: 30, want: "abcdefghijklmnopqrstuvw…→side"},
 		{accounts: []string{"workstation-one"}, cells: 12, want: "workstation…"},
 		{accounts: []string{"work", "side"}, cells: labelLeast, want: "work→si…"},
 		{accounts: []string{"work", "side"}, cells: 7, want: "wo…→si…"},
