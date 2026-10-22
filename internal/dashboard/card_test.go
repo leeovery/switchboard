@@ -236,7 +236,7 @@ var widerForms = []struct {
 	}, from: 126},
 	{name: "usage's header on one line", wider: func(width int) bool {
 		return strings.HasPrefix(strings.TrimSpace(printed(trio(), width, ByWindow)[2]), "WEEK")
-	}, from: 158},
+	}, from: 84},
 	{name: "the theme picker at its widest", wider: func(width int) bool {
 		return PickerWidth(width) == pickerWide
 	}, from: 2 * pickerWide},

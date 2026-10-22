@@ -1238,7 +1238,7 @@ and the windows shown, never what's read of them:
 
 | What | Rule |
 |---|---|
-| The header on one line | Wherever its parts fit at their naturals, two cells apart (see "The header", below); else two |
+| The header on one line | Wherever the badge's line and the status, in full as read, fit two cells apart (see "The header", below); else two |
 | By window, the matrix | Wherever every part of its row fits at its least (below); else the windows stacked |
 | The name column | Fitted to the names, a label 8 cells at the least and 24 at the most (see "The pool, the names and their numbers", below) |
 | The words | 22 cells, the full form's, narrowing toward the short form's 14 once the bars are at their least; each window's words in full wherever they fit their cells, else short |
@@ -1272,15 +1272,13 @@ GRAPHS' charts come beside its blocks.
 - **Placement:** on one line, the status ends at the last column. On two, the status starts at
   column 0, with a blank line between it and the badge. Where it doesn't fit the width, it shortens
   as a phone's status line does.
-- **One line or two:** one wherever its two parts fit at their naturals, two cells apart, and those
-  are of what's configured, never what's read, so a printout of any reading takes the same form:
-  the badge's line at its widest, a day of two figures, `Wed 30 Sep  00:00`, 32 cells; and the
-  status at the widest the configuration allows, every part whole: `● unhealthy`, `restart due
-  (…)`, pinned to every account configured, `99 sessions`, and new sessions going to the widest
-  account configured, or `no account has room` where that's wider. So on one line the status never
-  says less than on two: every part shows, and only free text, a restart's reason or a probe's, is
-  cut, with `…`. The sample's status at its widest is 124 cells, so its header is one line from 158
-  columns.
+- **One line or two:** the printout is printed once, never redrawn under the reader's eye, so the
+  header's form follows what it says, as read, the one exception to the rule above: one line
+  wherever the badge's line, its day counted at the widest, two figures, 32 cells, and two cells
+  on, the status in full as the moment has it, fit; else two. On one line the status never says
+  less than on two: every part shows whole, and only free text, a restart's reason or a probe's,
+  may be cut, with `…`, first. The sample's status is 50 cells, so its header is one line from 84
+  columns; a longer status, as a pin to every account, takes one line further on.
 
 **By window, the matrix,** wherever every part of its row fits at its least: the name column as
 the names have it, each window's bar at 12 cells and its words at 14. With the sample's 16-cell

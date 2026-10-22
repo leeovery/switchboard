@@ -72,7 +72,7 @@ func TestUsageRefreshWithoutTheRouterProbesAsUsageDoes(t *testing.T) {
 		return run(t, deps, append([]string{"usage"}, args...)...), api.questions()
 	}
 	want, probes := usage()
-	if want.code != 0 || want.stderr != "" || len(probes) == 0 || !strings.Contains(want.stdout, "\n○ probed · router not running\n") {
+	if want.code != 0 || want.stderr != "" || len(probes) == 0 || !strings.Contains(want.stdout, "○ probed · router not running\n") {
 		t.Fatalf("switchboard usage = %+v, asking the API %q; want exit status 0, nothing on stderr, and every account probed, as the printout says", want, probes)
 	}
 	for _, label := range []string{"Work", "Personal", "Side"} {

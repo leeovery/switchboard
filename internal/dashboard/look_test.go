@@ -329,13 +329,13 @@ func TestTextFromElsewherePrintsItsControlCharactersAsSpaces(t *testing.T) {
 		{name: "probing past it", doc: probed, want: []string{"personal [31m plan", "the router [31m answered 404"}},
 	}
 	for _, tt := range tests {
-		for _, p := range []dashboard.Printout{{Width: 160}, {Width: 160, By: dashboard.ByAccount}, {Width: 80}} {
+		for _, p := range []dashboard.Printout{{Width: 220}, {Width: 220, By: dashboard.ByAccount}, {Width: 80}} {
 			t.Run(fmt.Sprintf("%s, %d columns, by %d", tt.name, p.Width, p.By), func(t *testing.T) {
 				printed := strings.Join(p.Draw(tt.doc.At(now, score.Policy{})), "\n")
 				if strings.ContainsAny(printed, "\x1b\a") {
 					t.Errorf("printed %q, want no control characters from the document", printed)
 				}
-				if p.Width < 160 {
+				if p.Width < 220 {
 					return
 				}
 				for _, want := range tt.want {

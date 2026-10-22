@@ -26,40 +26,18 @@ const headerGap = 2
 // between the day and the time.
 const readApart = 2
 
-// widestSessions is the most sessions the header's natural counts: two
-// figures' worth.
-const widestSessions = 99
-
 // headerParts are the badge's line and the status, at their naturals, as
 // the header lays them out on one line of the moment m, the status taking
-// the rest, to the last column. Each natural is of what's configured, never
-// what's read, so a header of any reading takes one form: the badge's line
-// with the widest day and time there are; and the status at the widest the
-// configuration allows, as headerStatus has it.
+// the rest, to the last column. The printout is printed once, never redrawn
+// under the reader's eye, so its form follows what it says as read: the
+// badge's line, its day counted at the widest a day is; and the status in
+// full as m has it, every part whole, at its least its free text, a
+// restart's reason or a probe's, cut to its ellipsis alone.
 func headerParts(m status.Moment) []flex.Part {
 	badge := pill.width() + readApart + prose.DayWidth() + readApart + prose.TimeOfDayWidth()
-	status := headerStatus(m).forms()[0].width()
-	return []flex.Part{{Least: badge, Natural: badge}, {Least: status, Natural: status, Gap: headerGap}}
-}
-
-// headerStatus is the status line at the widest m's configuration allows:
-// unhealthy; a restart due, its reason, free text, at its least, cut to
-// nothing; pinned to every account configured; widestSessions sessions; and
-// new sessions going to the widest account configured, or to none.
-func headerStatus(m status.Moment) statusLine {
-	ids := make([]string, len(m.Accounts))
-	going := []line{nothingRead, noRoom}
-	for i, a := range m.Accounts {
-		ids[i] = a.ID
-		going = append(going, goingTo(m, a.ID))
-	}
-	return statusLine{
-		state:       unhealthy,
-		restart:     restartSaid(prose.Ellipsis),
-		mode:        pinnedSaid(m, ids),
-		sessions:    line{{prose.SessionCount(widestSessions), mutedInk}},
-		destination: slices.MaxFunc(going, func(a, b line) int { return a.width() - b.width() }),
-	}
+	least := statusCut(m, line{{text: prose.Ellipsis}}.width()).forms()[0].width()
+	full := newStatusLine(m).forms()[0].width()
+	return []flex.Part{{Least: badge, Natural: badge}, {Least: least, Natural: full, Gap: headerGap}}
 }
 
 // Printout is every account's windows as usage prints them into the
