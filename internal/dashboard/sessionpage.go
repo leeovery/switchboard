@@ -129,14 +129,26 @@ func (d sessionDrawn) nowFits() bool {
 
 // saidCells are the cells row 6's left takes, wide: what the session's
 // doing at the widest its kind says, as doingWidest counts it, then where it
-// runs and why, whole, as the session says them. Those aren't bounded, as an
-// ended session's name every account it ran on, but change only as it moves
-// or ends, never as its turns come and go, so the form holds still while it
-// asks, answers or idles.
+// runs and why, whole, every time they name at its widest, as WhereWidest
+// says them, and the account it's on with every mark's cells, ▲ and ◆, as
+// a label's column keeps them, whichever it carries now. Those aren't
+// bounded, as an ended session's name every account it ran on, but change
+// only as it moves, is resumed or ends: never as its turns come and go, the
+// clock moves a day on, or new sessions go elsewhere.
 func (d sessionDrawn) saidCells() int {
-	where := d.page.Where(d.now)
-	return d.doingWidest() + sessionApart + slices.Concat(d.onSince(where.OnSince), d.words(where.Why, mutedInk)).width()
+	where := d.page.WhereWidest(d.now)
+	cells := slices.Concat(d.onSince(where.OnSince), d.words(where.Why, mutedInk)).width()
+	for _, p := range where.OnSince {
+		if p.Kind == status.PartAccount {
+			cells += everyMark.width() - d.nameOf(p.Text).marks().width()
+		}
+	}
+	return d.doingWidest() + sessionApart + cells
 }
+
+// everyMark are the marks a name can carry, as a label's column keeps
+// their cells: ◆ and ▲.
+var everyMark = accountName{primary: true, best: true}.marks()
 
 // doingWidest are the cells the widest of what a session of its kind is
 // doing says: once it's over, its end the day before, the widest
@@ -733,11 +745,12 @@ func (d sessionDrawn) turnSaid(col turnColumn, t views.Turn, newest bool) line {
 }
 
 // turnOn names the accounts a turn went to, in text.secondary, in cells:
-// the one, or each in turn, as "work → side"; where they don't fit, a move's
-// second name cut, its first whole, where that leaves moveToLeast cells of
-// it, as "personal → si…", else its two names cut as moveNames cuts them;
-// and two moves or more as the first and the last, an ellipsis between,
-// each cut as movedCells shares the room, as "w… → … → wo…" (C16).
+// the one, or each in turn, as "work → side", else a move as "work→side";
+// where neither fits whole, a move's second name cut, its first whole, where that
+// leaves moveToLeast cells of it, as "personal → si…", else its two names
+// cut as moveNames cuts them; and two moves or more as the first and the
+// last, an ellipsis between, each cut as movedCells shares the room, as
+// "w… → … → wo…" (C16).
 func (d sessionDrawn) turnOn(accounts []string, cells int) line {
 	names := make([]string, len(accounts))
 	for i, id := range accounts {
@@ -745,6 +758,9 @@ func (d sessionDrawn) turnOn(accounts []string, cells int) line {
 	}
 	if said := strings.Join(names, moveArrow); len(names) < 2 || ansi.StringWidth(said) <= cells {
 		return line{{said, secondaryInk}}.fit(cells)
+	}
+	if tight := strings.Join(names, moveArrowTight); len(names) == 2 && ansi.StringWidth(tight) <= cells {
+		return line{{tight, secondaryInk}}
 	}
 	first, last := names[0], names[len(names)-1]
 	if from := ansi.StringWidth(first); len(names) == 2 && from+ansi.StringWidth(moveArrow)+moveToLeast <= cells {

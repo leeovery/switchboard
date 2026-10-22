@@ -257,3 +257,22 @@ func TestDatedShowsTheDayOnAnyOtherDay(t *testing.T) {
 		})
 	}
 }
+
+// No time Past or Later says is wider than PastWidest says it, and the day
+// before's fills it, from now's day to more than a year back, across a turn
+// of the year.
+func TestPastWidestIsAsWideAsPastOrLaterEverSays(t *testing.T) {
+	now := time.Date(2027, 1, 3, 9, 5, 0, 0, time.FixedZone("UTC+1", 60*60))
+	widest := utf8.RuneCountInString(prose.PastWidest(now, now))
+	for back := range 400 {
+		at := now.AddDate(0, 0, -back).Add(-time.Minute)
+		for _, said := range []string{prose.Past(now, at), prose.Later(now, at.AddDate(0, 0, -1), at), prose.Later(now, at, at)} {
+			if n := utf8.RuneCountInString(said); n > widest {
+				t.Errorf("%d days back, %q is %d characters, wider than PastWidest's %d", back, said, n, widest)
+			}
+		}
+	}
+	if said := prose.Past(now, now.AddDate(0, 0, -1)); utf8.RuneCountInString(said) != widest {
+		t.Errorf("the day before is said %q, want it as wide as PastWidest's %d", said, widest)
+	}
+}

@@ -117,15 +117,43 @@ func (w WhereSaid) Words() status.Words {
 // that isn't known, "on side: pinned here". Once it's over, where it ran, as
 // RanOn has it, as ranOn says it. None where it's named on no account.
 func (p SessionPage) Where(now time.Time) WhereSaid {
+	return p.where(now, datesSaid)
+}
+
+// WhereWidest says where the session runs and why, at now, as Where does,
+// but every time it names at its widest, as prose.PastWidest says it: as
+// its page measures what it says, so the measure moves only as the session
+// moves or ends, never as the clock moves the day of a time it names.
+func (p SessionPage) WhereWidest(now time.Time) WhereSaid {
+	return p.where(now, datesWidest)
+}
+
+// dating says the times a session's where and why name: as they're said,
+// datesSaid, or at their widest, datesWidest.
+type dating struct {
+	// past says a time before now, as prose.Past does.
+	past func(now, t time.Time) string
+	// later says a time after start, as prose.Later does.
+	later func(now, start, t time.Time) string
+}
+
+var (
+	datesSaid   = dating{past: prose.Past, later: prose.Later}
+	datesWidest = dating{past: prose.PastWidest, later: func(now, _, t time.Time) string { return prose.PastWidest(now, t) }}
+)
+
+// where says where the session runs and why, at now, as Where does, each
+// time as dates says it.
+func (p SessionPage) where(now time.Time, dates dating) WhereSaid {
 	if !p.Runs() {
-		return p.ranOn(now)
+		return p.ranOn(now, dates)
 	}
 	if p.Account == "" {
 		return WhereSaid{}
 	}
 	on := status.Words{status.Plain("on "), status.Named(p.Account)}
 	if m, ok := p.MovedOnto(); ok {
-		return cameBy(on, m, now)
+		return cameBy(on, m, now, dates)
 	}
 	why := p.whyOn()
 	facts := status.Facts{To: p.Account, Now: now}
@@ -136,7 +164,7 @@ func (p SessionPage) Where(now time.Time) WhereSaid {
 		return WhereSaid{OnSince: append(on, status.Plain(" since it started")), Why: slices.Concat(status.Words{status.Plain(": ")},
 			status.SessionWords(why.Reason, facts)), Short: status.ShortWords(why.Reason, facts)}
 	case !why.Since.IsZero():
-		return cameBy(on, SessionMove{At: why.Since, Model: p.Model, From: status.MovedFrom(why.Reason), To: p.Account, Reason: why.Reason}, now)
+		return cameBy(on, SessionMove{At: why.Since, Model: p.Model, From: status.MovedFrom(why.Reason), To: p.Account, Reason: why.Reason}, now, dates)
 	}
 	return WhereSaid{OnSince: on, Why: slices.Concat(status.Words{status.Plain(": ")}, status.SessionWords(why.Reason, facts)),
 		Short: status.ShortWords(why.Reason, facts)}
@@ -156,14 +184,15 @@ func (p SessionPage) whyOn() SessionModel {
 // brought it there, at now: since when, then why, after ", ", as "on side
 // since 14:31, moved from work: work reached its cap", or after ": " for a
 // pin that yields, as "on work since 14:31: its pin to side yields: side has
-// no room", as it went elsewhere than its pin sends it.
-func cameBy(on status.Words, m SessionMove, now time.Time) WhereSaid {
+// no room", as it went elsewhere than its pin sends it; when, as dates
+// says it.
+func cameBy(on status.Words, m SessionMove, now time.Time, dates dating) WhereSaid {
 	lead := ", "
 	if strings.HasPrefix(m.Reason, status.ReasonPinYields) {
 		lead = ": "
 	}
 	return WhereSaid{
-		OnSince: append(on, status.Plain(" since "+prose.Past(now, m.At))),
+		OnSince: append(on, status.Plain(" since "+dates.past(now, m.At))),
 		Why:     slices.Concat(status.Words{status.Plain(lead)}, movedWords(m, status.SessionWords, now)),
 		Short:   movedWords(m, status.ShortWords, now),
 	}
@@ -187,8 +216,8 @@ func movedWords(m SessionMove, words func(reason string, f status.Facts) status.
 // on work, then side from 16:02: work reached its cap", and short, "ran on
 // work, then side from 16:02: its cap". A move's day is named only where it
 // isn't the day the session started on, as row 6's right names that day:
-// "from today 00:40". None where it ran on no account.
-func (p SessionPage) ranOn(now time.Time) WhereSaid {
+// "from today 00:40", as dates says it. None where it ran on no account.
+func (p SessionPage) ranOn(now time.Time, dates dating) WhereSaid {
 	first, moves := p.RanOn()
 	if first == "" {
 		return WhereSaid{}
@@ -196,7 +225,7 @@ func (p SessionPage) ranOn(now time.Time) WhereSaid {
 	ran := status.Words{status.Plain("ran on "), status.Named(first)}
 	why, short := ran, slices.Clone(ran)
 	for _, m := range moves {
-		then := status.Words{status.Plain(", then "), status.Named(m.To), status.Plain(" from " + prose.Later(now, p.Started, m.At) + ": ")}
+		then := status.Words{status.Plain(", then "), status.Named(m.To), status.Plain(" from " + dates.later(now, p.Started, m.At) + ": ")}
 		facts := status.Facts{From: m.From, To: m.To, Now: now}
 		why = slices.Concat(why, then, status.EventWords(m.Reason, facts))
 		short = slices.Concat(short, then, status.ShortWords(m.Reason, facts))

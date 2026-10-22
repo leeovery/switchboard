@@ -135,6 +135,14 @@ func Past(now, t time.Time) string {
 	return t.Format(pastLayout)
 }
 
+// PastWidest shows t, in now's time zone, as Past and Later do in their
+// widest form, the day before's, such as "yesterday 15:08", whatever day it
+// falls on: as what says it is measured, so the measure holds as the clock
+// moves t's day further back.
+func PastWidest(now, t time.Time) string {
+	return "yesterday " + TimeOfDay(now, t)
+}
+
 // WithinWeek reports whether t, before now, falls on now's day or one of the
 // six before it, in now's time zone: the days Past names by their weekday.
 func WithinWeek(now, t time.Time) bool {

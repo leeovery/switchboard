@@ -329,26 +329,26 @@ func TestASessionsPageAtEachSize(t *testing.T) {
 		{
 			name: "100 wide: the wide chrome's heading, tools gone", shown: moved(), width: 100, height: 30,
 			want: map[int]string{
-				4: "SESSION   d28c   switchboard  ~/Code/switchboard ─", 6: "↑ asking   on side ▲ since 14:31, moved from work: work reached its cap       started 12:02 · 2h 40m", 22: "TURNS    ",
+				4: "SESSION   d28c   switchboard  ~/Code/switchboard ─", 6: "↑ asking   on side ▲ since 14:31, moved from work: work reached its cap                       2h 40m", 22: "TURNS    ",
 				24: "  #  started  took   requests     read  written     out    worth  on",
 			},
 		},
 		{
 			name: "99 wide: a phone's heading, under its own chrome, its now rows wide as they fit", shown: moved(), width: 99, height: 30,
 			want: map[int]string{
-				5: "SESSION  d28c  switchboard", 7: "↑ asking   on side ▲ since 14:31, moved from work: work reached its cap      started 12:02 · 2h 40m", 8: "opus-5-5 → side   haiku-4-5 → side",
+				5: "SESSION  d28c  switchboard", 7: "↑ asking   on side ▲ since 14:31, moved from work: work reached its cap                      2h 40m", 8: "opus-5-5 → side   haiku-4-5 → side",
 				22: "TURNS    ", 24: "  #  started  took   requests     read  written     out    worth  on",
 			},
 		},
 		{
-			name: "84 wide: the now rows wide where their leasts fit, started as how it has run alone", shown: moved(), width: 84, height: 30,
+			name: "96 wide: the now rows wide where their leasts fit, started as how it has run alone", shown: moved(), width: 96, height: 30,
 			want: map[int]string{
-				7: "↑ asking   on side ▲ since 14:31, moved from work: work reached its cap       2h 40m",
+				7: "↑ asking   on side ▲ since 14:31, moved from work: work reached its cap                   2h 40m",
 				8: "opus-5-5 → side   haiku-4-5 → side",
 			},
 		},
 		{
-			name: "83 wide: the now rows short, as their leasts don't fit", shown: moved(), width: 83, height: 30,
+			name: "95 wide: the now rows short, as their leasts don't fit", shown: moved(), width: 95, height: 30,
 			want: map[int]string{7: "↑ asking  on side ▲ since 14:31", 8: "moved from work: its cap"},
 		},
 		{
@@ -554,8 +554,9 @@ func TestATurnsScrollWithinTheirRows(t *testing.T) {
 }
 
 // A turn's on names the accounts it went to in its cells: each in turn
-// where they fit, else a move's two names cut as moveNames cuts them, and
-// two moves or more as their first and last, … between (C16).
+// where they fit, the arrow narrowing to → before any name is cut; else a
+// move's two names cut as moveNames cuts them, and two moves or more as
+// their first and last, … between (C16).
 func TestATurnsAccountsFitItsOnColumn(t *testing.T) {
 	tests := []struct {
 		accounts []string
@@ -566,6 +567,9 @@ func TestATurnsAccountsFitItsOnColumn(t *testing.T) {
 		{accounts: []string{"work", "side"}, cells: 12, want: "work → side"},
 		{accounts: []string{"personal", "side"}, cells: 12, want: "pers… → side"},
 		{accounts: []string{"personal", "side"}, cells: 15, want: "personal → side"},
+		{accounts: []string{"personal", "side"}, cells: 13, want: "personal→side"},
+		{accounts: []string{"work", "side"}, cells: 10, want: "work→side"},
+		{accounts: []string{"work", "side"}, cells: 9, want: "work→side"},
 		{accounts: []string{"work", "side", "work"}, cells: 12, want: "w… → … → wo…"},
 		{accounts: []string{"a", "b", "c", "d"}, cells: 12, want: "a → … → d"},
 		{accounts: []string{"workstation-one"}, cells: 12, want: "workstation…"},

@@ -253,8 +253,10 @@ var (
 
 // toolsMost are the cells tools takes at the most: the views' ToolsNamed
 // tools, each at toolNameCells, as Claude Code's widest, AskUserQuestion,
-// and its count to "×999", a comma and a blank between them. A name wider,
-// as an MCP server's tool, is cut.
+// and its count to "×999", a comma and a blank between them. No name is
+// cut on its own: where a wider one, as an MCP server's tool, makes the
+// tools wider than their column, they're cut with … at its end, so the
+// tools after it give way first.
 const toolNameCells = 15
 
 var toolsMost = views.ToolsNamed*(toolNameCells+ansi.StringWidth(" ×999")) + (views.ToolsNamed-1)*ansi.StringWidth(", ")

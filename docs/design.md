@@ -4168,7 +4168,9 @@ plan).
 least, each measured for the session's own kind:
 - row 6: its state at the widest a session of its kind says: running, the widest of asking,
   answering, throttled, refused and idle to the hour, `↓ answering`; ended, its end the day before,
-  `ended yesterday 18:46`. Then where it runs and why, whole, as the session says them. Then its right
+  `ended yesterday 18:46`. Then where it runs and why, whole, as the session says them, but each
+  time they name at its widest, a day's, `since yesterday 14:31`, `from yesterday 16:02`, and the
+  account it's on with both marks' cells, `▲` and `◆`, whichever it carries now. Then its right
   at its least, its shortest form at its widest for the session: `23h 59m`, `resumed yesterday
   22:10` once resumed, or `ran 23h 59m` once over;
 - row 7: its windows whole, the widest name and every window listed at `100%`.
@@ -4179,9 +4181,10 @@ whole beside the left as it's measured: `started yesterday 16:40 · resumed yest
 how it has run alone, `resumed yesterday 22:10`, as a phone's says it. Narrower, the rows take the
 short form a phone's has (see On a phone), which says the why short and whole, so the wide form never
 cuts what the short says whole. What's measured changes only as the session moves, is resumed or
-ends, never as its turns come and go, so the form holds still while it asks, answers or idles. The
-form never follows the chrome's breakpoint. With the frames' names, `moved` is wide from 84 columns,
-`quiet` from 62, `ended` from 93, `resumed` from 121, and resumed the day before from 131.
+ends: never as its turns come and go, the clock moves a time's day on, or new sessions go
+elsewhere, so the form holds still while it asks, answers or idles. The form never follows the
+chrome's breakpoint. With the frames' names, `moved` is wide from 96 columns, `quiet` from 64,
+`ended` from 103, and `resumed`, today or the day before, from 133.
 
 - **Row 6,** what it's doing and where it runs:
   - **its state,** bold: `↑ asking` in `accent.key` while a request of it waits for its answer;
@@ -4350,11 +4353,14 @@ first ran on them. A row's parts, two cells apart, as flex lays them at every wi
     runs, so the columns hold still as turns come and go; an ended session's turns have none;
   - `tools` from 12 at the least to 30 at its natural, and past it, what's left, to its most: three
     tools, as a turn names them, each at Claude Code's widest name, `AskUserQuestion`, 15 cells,
-    and a count to `×999`; a name wider, as an MCP server's tool, is cut.
+    and a count to `×999`. No name is cut on its own: where a wider one, as an MCP server's tool,
+    makes the tools wider than their column, they're cut with `…` at its end, so the tools after it
+    give way first.
     Past its most, the spare trails the row's end, so the columns stay together.
 - **As the width runs short,** `tools` leaves first, as the part that grows, so no column comes back
-  to narrow it as the frame widens; then `↑ asking`, which row 6 says too; then a move's second
-  name, cut with `…` to 3 cells, `work → si…`, as most turns run on one account; then `read`,
+  to narrow it as the frame widens; then `↑ asking`, which row 6 says too; then a move, its arrow
+  narrowing first, `work→side`, before its second name is cut with `…` to 3 cells, `work → si…`,
+  as most turns run on one account; then `read`,
   `written` and `out`, in that order. Then `started` and `requests` narrow, their heads taking
   their short forms, `start` and `req`; and last `on`, a move's last cells first, then the name to
   its least. A turn always keeps its number, start, length, requests, worth and accounts; where

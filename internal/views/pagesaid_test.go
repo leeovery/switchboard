@@ -124,6 +124,35 @@ func TestWhereASessionRunsIsItsNamedModelsAccountAndHowItCameThere(t *testing.T)
 	}
 }
 
+// WhereWidest says what Where says, each time it names in the widest form
+// a day gives it, "yesterday 14:31": so it says the same whether the clock
+// is on the time's day, the next, or a week or a year on.
+func TestWhereWidestSaysWhereAtItsWidestWhateverTheDay(t *testing.T) {
+	at := time.Date(2026, 10, 7, 14, 31, 0, 0, time.UTC)
+	running := views.SessionPage{Account: "side", Model: "claude-opus-5-5", Activity: views.Activity{Doing: views.Idle},
+		Moves: []views.SessionMove{{At: at, Model: "claude-opus-5-5", From: "work", To: "side", Reason: "moved: work hit its limit"}}}
+	ended := running
+	ended.Started, ended.Activity = at.Add(-2*time.Hour), views.Activity{Doing: views.Ended}
+	tests := []struct {
+		name string
+		page views.SessionPage
+		want string
+	}{
+		{name: "running, since its move", page: running,
+			want: "on [side] since yesterday 14:31, moved from [work]: [work] reached its limit"},
+		{name: "ended, from its move", page: ended,
+			want: "ran on [work], then [side] from yesterday 14:31: [work] reached its limit"},
+	}
+	for _, tt := range tests {
+		for _, days := range []int{0, 1, 7, 400} {
+			now := at.Add(time.Hour).AddDate(0, 0, days)
+			if got := wordsSaid(tt.page.WhereWidest(now).Words()); got != tt.want {
+				t.Errorf("%s, %d days on, WhereWidest says %q, want %q", tt.name, days, got, tt.want)
+			}
+		}
+	}
+}
+
 // A move's label on the story says what moved it and where to, and where it
 // wrote its context again, what that wrote and cost, wide and short.
 func TestAMovesLabelSaysWhatMovedItAndWhatItCost(t *testing.T) {

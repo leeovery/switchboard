@@ -83,8 +83,12 @@ func because(what, why string) string {
 	return what + ": " + why
 }
 
-// moveArrow sets a move's two accounts apart, as "work → side".
-const moveArrow = " → "
+// moveArrow sets a move's two accounts apart, as "work → side"; and
+// moveArrowTight, where that doesn't fit, as "work→side".
+const (
+	moveArrow      = " → "
+	moveArrowTight = "→"
+)
 
 // moveNames names a move's accounts, the one it left and the one it went
 // to, in the ink given, the arrow between them in text.muted, in no more
