@@ -1822,9 +1822,9 @@ whose models go to two accounts on each:
   model's family in `text.muted`, and a cell on, when it was last seen, right-aligned in 4 in
   `text.subtle`: `now` within the minute, `9m`, `2h`. The family's column is a fixed part of the
   row's, laid by flex (`overview_sessions.go`, `runningParts`), its width the widest family the
-  version table names, `sonnet`'s 6, a configured fact, so the columns never move with the
-  sessions shown and why it's there keeps its cells; a model's id that names no family is cut
-  there, `claud…` (the owner's rule that a column's natural comes from what's configured).
+  version table names, `sonnet`'s 6, a fact of the version table (`ledger`'s `families`), so the
+  columns never move with the sessions shown and why it's there keeps its cells; a model's id that
+  names no family is cut there, `claud…`.
 - **What it's doing,** three spaces on, padded to 9: `↓ ~1.2k` while it's answering, its tokens so
   far estimated at four characters a token, or `↑ ask` while it's asking, both in `accent.key`; else
   `idle` in `text.faint`.
@@ -1846,8 +1846,8 @@ whose models go to two accounts on each:
 - **Steady:** the sessions it shows, and their order, are taken as the layout is made, and kept
   with it till the next, on a key, a resize or a section's shape changing (see Room). A session
   that starts goes into `+N more`, the last shown giving way to that row where every row is taken;
-  under a layout made with none running, one that starts shows on the row it was given where it
-  fits whole there, a row a session, else it's counted in `+1 more`. One that ends leaves its row
+  under a layout made with none running, a session that starts shows on the row where it fits
+  whole, a row a session, else it's counted in `+N more`. One that ends leaves its row
   blank, and where it was its account's first shown, its account's name goes to the next; as rates
   change, nothing reorders (`views.Steady`). With none left running, it says so.
 - **While what names them is read,** as the List's first read takes 150 ms or longer, the heading

@@ -520,10 +520,13 @@ func TestSESSIONSKeepsWhatItShowsInTheOrderTakenTillTheNextLayout(t *testing.T) 
 	if got := sessionsOnPage(full, doc); !rowsStart(got, every) {
 		t.Fatalf("a row more, SESSIONS shows\n  %q\nwant every session\n  %q", got, every)
 	}
-	full.Sessions = came.Sessions
+	full.Sessions, full.Traces = came.Sessions, came.Traces
 	want := []string{"2 personal ◆    9c2e", "                41e0", "3 side ▲        d28c", "                c61b", "                7f3a", "                +2 more"}
 	if got := sessionsOnPage(full, doc); !rowsStart(got, want) {
-		t.Errorf("a session coming with every row taken, SESSIONS shows\n  %q\nwant the last shown giving way to how many more\n  %q", got, want)
+		t.Errorf("a session coming with every row taken, the busiest, SESSIONS shows\n  %q\nwant the last shown giving way to how many more\n  %q", got, want)
+	}
+	if kept := full.Layout; !sameLayout(full.LayoutOf(doc, routedAt), kept) {
+		t.Errorf("a session coming with every row taken, the layout is made afresh, want it kept, %+v", kept)
 	}
 	var opened []string
 	for _, target := range full.overviewTargets(doc, routedAt) {
@@ -543,6 +546,39 @@ func TestSESSIONSKeepsWhatItShowsInTheOrderTakenTillTheNextLayout(t *testing.T) 
 	}
 	if sameLayout(resized.LayoutOf(doc, routedAt), f.Layout) {
 		t.Error("resized, the layout is as kept, want it made afresh")
+	}
+}
+
+// Under a layout made with none running, SESSIONS keeps the row saying so:
+// a session that starts shows on it where it fits whole there, a row a
+// session; else the sessions started are counted in how many more.
+func TestUnderALayoutMadeWithNoneRunningSessionsStartingShowWhereTheyFitWhole(t *testing.T) {
+	doc, sessions, stream := overviewWorld()
+	tests := []struct {
+		name    string
+		width   int
+		started []status.Session
+		want    string
+	}{
+		{name: "one, a row a session: on the row", width: 160, started: sessions[:1], want: "3 side ▲        c61b"},
+		{name: "one, two rows a session: counted", width: 80, started: sessions[:1], want: "                +1 more"},
+		{name: "two, a row a session: counted", width: 160, started: sessions[:2], want: "                +2 more"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := Frame{Width: tt.width, Height: 13, View: Overview, Sections: SectionsNamed([]string{"sessions"}), Stream: stream}
+			f.Layout = f.LayoutOf(doc, routedAt)
+			if got := sessionsOnPage(f, doc); !slices.Equal(got, []string{"no sessions running"}) {
+				t.Fatalf("with none running, SESSIONS shows %q, want a row saying so", got)
+			}
+			f.Sessions = tt.started
+			if got := sessionsOnPage(f, doc); !rowsStart(got, []string{tt.want}) {
+				t.Errorf("SESSIONS shows %q, want its one row to read %q", got, tt.want)
+			}
+			if kept := f.Layout; !sameLayout(f.LayoutOf(doc, routedAt), kept) {
+				t.Errorf("the layout is made afresh, want it kept, %+v", kept)
+			}
+		})
 	}
 }
 

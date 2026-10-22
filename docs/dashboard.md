@@ -171,9 +171,9 @@ SESSIONS shows as many sessions as there's room for, and a row such as `+5 more`
 folds only when there isn't room for one session and that row. The sessions it shows stay put
 until the layout changes, on a key or a resize: a session that starts joins `+5 more`, one that
 ends leaves its row blank, and nothing reorders as the rates change. When every row is already
-taken, the last session shown gives way to the `+N more` row. When none were running as the
-layout was made, a session that starts shows on the row SESSIONS was given if it fits on one row,
-and otherwise is counted in `+1 more`.
+taken, the last session shown gives way to the `+N more` row. Once every session it kept has
+ended, it says `no sessions running`. When none were running as the layout was made, a session
+that starts shows on the row where it fits whole, and otherwise is counted in `+N more`.
 
 ROUTING takes a row for each account, and SESSIONS a row for each session, wherever an account's
 name, its state in at least 20 cells, its sessions and a trace of at least 24 fit on one row, from
