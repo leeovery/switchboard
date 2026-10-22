@@ -2330,11 +2330,13 @@ holds.
     the bars one width, WEEK USED's percentage right-aligned in the figures' first 4 cells, and BY
     MODEL's account's largest version and its share a cell further in, `● Opus 5.5 55%`, so their
     figures line up.
-  - ACTIVITY (`reqs`, `sessions`, `moved`), LIMITS (`hit`, `at cap`, `left`, `5-hour` cut to `5h`)
-    and VALUE (`plan`, its price, `worth`, `against it`, the ratio alone): three columns sharing the
-    room from the bars to the frame's edge alike, every group's the same, so they read as one table,
-    each figure cut a cell short of the next column: at 13, 26 and 39 at 52 columns, at 13, 33 and
-    53 at 73. The columns' heads on the group's heading row in `text.subtle`, a row an account under
+  - ACTIVITY (`reqs`, `sessions`, `moved`), LIMITS (`hit`, `at cap`, `left`) and VALUE (`plan`,
+    `worth`, `against it`), each in its row's shortest form, as the wide form says it: `left` `0%`,
+    `plan` its price, `against it` the ratio, with `· 2/3` where some plans aren't known; `hit` its
+    windows named short, `week ×1 · 5h ×2`, where that fits a cell short of the next column, else
+    how many, `4`. Three columns share the room from the bars to the frame's edge alike, every
+    group's the same, so they read as one table: at 13, 26 and 39 at 52 columns, at 13, 33 and 53
+    at 73. The columns' heads on the group's heading row in `text.subtle`, a row an account under
     it, with no blank rows.
 
 **Detail** shows one account in full, or all of them, chosen from a list at its left. The panel's

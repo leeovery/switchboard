@@ -33,10 +33,11 @@ const (
 	versionAt   = labelIndent + 2
 	labelsGap   = 2
 	// leastColumn are the fewest cells a column takes, as many accounts
-	// showing as fit at it, less all accounts'. The rows' shortest forms
-	// need 17, as compareFigures has them; 19 is a floor above that, which
-	// keeps the wide form from 83 columns and ten accounts' six at 160, as
-	// before the figures set a least.
+	// showing as fit at it, less all accounts'. It's a floor: the rows'
+	// shortest forms at their bounds, as compareFigures has them, set the
+	// least where they need more, as with many hundreds of accounts. At 19
+	// the wide form holds from 83 columns, and ten accounts show six at 160,
+	// as before the figures set a least.
 	leastColumn = 19
 	// barMost are the most cells a bar beside words takes, so none reads as
 	// a rule; and shareSpare the cells a column keeps beside BY MODEL's.

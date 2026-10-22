@@ -33,9 +33,6 @@ const (
 	cacheHourUsage = `{"cache_creation_input_tokens":1000000,"cache_creation":{"ephemeral_1h_input_tokens":1000000}}`
 )
 
-// dollar is a dollar, as the ledger counts money.
-const dollar ledger.Picodollars = 1_000_000_000_000
-
 // ledgerOf is a ledger that holds the summaries given, the days asked for.
 type ledgerOf []ledger.Summary
 

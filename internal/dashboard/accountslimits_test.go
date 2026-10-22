@@ -46,3 +46,26 @@ func TestLimitsHitInThreeWindowsTakeTheFullestFormThatFits(t *testing.T) {
 		}
 	}
 }
+
+// An account's limits hit, said as how many, take the column's ink, as all
+// accounts' count does, never the windows' state.destructive: in turned
+// Compare's forms and the wide form's alike.
+func TestLimitsHitCountedTakeTheColumnsInkAsAllAccountsDoes(t *testing.T) {
+	name := func(key string) string { return key }
+	hit := views.AccountTotals{Limits: map[string]int{"5h": 2, "7d": 1, "7d_oi": 1}}
+	all := views.AccountTotals{All: true, Limits: map[string]int{"5h": 3}}
+	tests := []struct {
+		name  string
+		parts []part
+		want  line
+	}{
+		{name: "turned", parts: limitsShortForms(hit, name, secondaryInk).shortest(), want: line{{"4", secondaryInk}}},
+		{name: "wide", parts: limitsForms(hit, name, secondaryInk).shortest(), want: line{{"4", secondaryInk}}},
+		{name: "all accounts'", parts: limitsForms(all, name, strongInk).shortest(), want: line{{"3", strongInk}}},
+	}
+	for _, tt := range tests {
+		if got := fitParts(200, tt.parts...).inked(); !slices.Equal(got, tt.want) {
+			t.Errorf("%s, the count said %+v, want %+v", tt.name, got, tt.want)
+		}
+	}
+}
