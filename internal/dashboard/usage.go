@@ -563,11 +563,6 @@ func (b usageBlock) each(c *canvas, y, apart int, draw func(r usageRow, y int) i
 	return l
 }
 
-// usageOut is the form of the line saying how many accounts' rows are
-// scrolled out of view, over the first shown or under the last, as in "▼ 4
-// more accounts", as Sessions' lines and lanes say it.
-var usageOut = outForm{noun: "account", inks: subtleOut}
-
 // split is the block's rows: the accounts', and the pool's, nil where it has
 // none.
 func (b usageBlock) split() ([]usageRow, *usageRow) {

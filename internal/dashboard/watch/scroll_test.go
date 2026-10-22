@@ -279,10 +279,34 @@ func TestAClickOnUSAGEScrolledFollowsItsRows(t *testing.T) {
 	}
 }
 
-// USAGE's scroll, in rows, holds across a read that changes what it shows;
-// and a resize keeps it within how far USAGE then goes, and then no
-// further.
-func TestUSAGEsScrollHoldsAcrossAReadAndAResizeKeepsItWithinRange(t *testing.T) {
+// scrollForm is the form USAGE's scroll is read in on the screen.
+func (h *harness) scrollForm() dashboard.ScrollForm {
+	f, at := h.model.onScreen()
+	return f.ScrollForm(h.model.doc, at)
+}
+
+// tallerInForm is the first height past the screen's, at its width, up to
+// 40 rows, where USAGE still scrolls, keeps its form or changes it as same
+// says, and scrolls a row less far than now or more, failing the test where
+// none does.
+func (h *harness) tallerInForm(same bool) int {
+	h.t.Helper()
+	f, at := h.model.onScreen()
+	form, most := h.scrollForm(), h.model.scrolling().Most
+	for g := f; g.Height < 40; {
+		g.Height++
+		if s := g.Scrolling(h.model.doc, at); s.Most > 0 && s.Most != most && (g.ScrollForm(h.model.doc, at) == form) == same {
+			return g.Height
+		}
+	}
+	h.t.Fatalf("no height past %d, up to 40, scrolls USAGE in its form kept %t", f.Height, same)
+	return 0
+}
+
+// Within one form, USAGE's scroll, in rows, holds across a read that changes
+// what it shows; and a resize keeps it within how far USAGE then goes, and
+// then no further.
+func TestUSAGEsScrollHoldsWithinItsFormAcrossAReadAndAResize(t *testing.T) {
 	h := shortUSAGE(t)
 	for range 2 {
 		h.press("j")
@@ -296,11 +320,47 @@ func TestUSAGEsScrollHoldsAcrossAReadAndAResizeKeepsItWithinRange(t *testing.T) 
 	}
 
 	h.keys(tea.KeyPressMsg{Code: tea.KeyPgDown}, tea.KeyPressMsg{Code: tea.KeyPgDown}, tea.KeyPressMsg{Code: tea.KeyPgDown})
-	h.update(tea.WindowSizeMsg{Width: 160, Height: 20})
+	h.update(tea.WindowSizeMsg{Width: 160, Height: h.tallerInForm(true)})
 	most := h.model.scrolling().Most
 	h.press("k")
 	if h.model.scroll != most-1 {
 		t.Errorf("as far as it went, then a taller terminal and k, USAGE is scrolled %d rows, want %d, a row up from as far as it now goes", h.model.scroll, most-1)
+	}
+}
+
+// Where USAGE's form changes, as b groups it the other way or a resize
+// takes another step, its scroll is read afresh: USAGE scrolled to show the
+// account the focus is on, as ↑ and ↓ scroll it, rather than left at an
+// offset into rows laid out otherwise.
+func TestWhereUSAGEsFormChangesItScrollsToTheFocusedAccount(t *testing.T) {
+	tests := []struct {
+		name    string
+		changed func(*harness)
+	}{
+		{name: "b", changed: func(h *harness) { h.press("b") }},
+		{name: "a resize to another step", changed: func(h *harness) {
+			h.update(tea.WindowSizeMsg{Width: 160, Height: h.tallerInForm(false)})
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := shortUSAGE(t)
+			for range 7 {
+				h.keys(downKey)
+			}
+			if h.model.focus != "h" || h.model.scroll == 0 {
+				t.Fatalf("↓ seven times, the focus is on %q, USAGE scrolled %d; want Account H, USAGE scrolled", h.model.focus, h.model.scroll)
+			}
+			form := h.scrollForm()
+			tt.changed(h)
+			if h.scrollForm() == form {
+				t.Fatalf("USAGE is read in the form it was, want it changed")
+			}
+			f, at := h.model.onScreen()
+			if !strings.Contains(h.view(), "Account H ") || h.model.scroll != f.Revealing(h.model.doc, at, "h") {
+				t.Errorf("USAGE is scrolled %d rows, the screen\n%s\nwant Account H, the focus, in view, no further than shows it", h.model.scroll, h.view())
+			}
+		})
 	}
 }
 
@@ -453,6 +513,8 @@ func TestAScrollGoesNoFurtherThanWhatItScrolls(t *testing.T) {
 		{name: "a page up", by: scrollStep{pages: -1}, at: 7, s: tall, want: 3},
 		{name: "a page down, past the foot", by: scrollStep{pages: 1}, at: 8, s: tall, want: 10},
 		{name: "a page up, past the top", by: scrollStep{pages: -1}, at: 2, s: tall, want: 0},
+		{name: "a page up, as far back as it goes back", by: scrollStep{pages: -1}, at: 7, s: dashboard.Scrolling{Most: 10, Page: 4, Back: 3}, want: 4},
+		{name: "a page down, a page on whatever it goes back", by: scrollStep{pages: 1}, at: 3, s: dashboard.Scrolling{Most: 10, Page: 4, Back: 3}, want: 7},
 		{name: "a row up from further than it now goes", by: scrollStep{rows: -1}, at: 14, s: tall, want: 9},
 		{name: "nowhere, where it fits", by: scrollStep{rows: 1}, at: 0, s: fits, want: 0},
 	}

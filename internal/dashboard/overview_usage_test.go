@@ -180,9 +180,10 @@ func TestUSAGEScrollsWholeARowAtATimeItsWindowsHeadingKept(t *testing.T) {
 // pool on 8; the 5-hour's heading on 10, its accounts on 12, 14 and 16; Fable
 // week's on 20, its accounts on 22, 24 and 26, its pool on 28; the key line
 // on 30 and 31. In 8 rows, each window's heading is kept on the first row
-// while the scroll is among its rows, and hands it to the next window's as
-// the scroll passes into them; the blank row between two windows is
-// neither's.
+// while the scroll is among its rows, a row of them under it, and hands it
+// to the next window's as the scroll passes into them: scrolled to its last
+// row, the pool's, the heading gives way, as none of its rows would show
+// under it; and the blank row between two windows is neither's.
 func TestStackedUSAGEKeepsEachWindowsHeadingOverItsRowsAndHandsItOn(t *testing.T) {
 	f := frameOf(120, 60)
 	tests := []struct {
@@ -191,6 +192,7 @@ func TestStackedUSAGEKeepsEachWindowsHeadingOverItsRowsAndHandsItOn(t *testing.T
 	}{
 		{scroll: 0, want: map[int]string{0: "WEEK", 2: " 1 work"}},
 		{scroll: 3, want: map[int]string{0: "WEEK", 1: " 2 personal", 3: " 3 side", 5: " Σ pool"}},
+		{scroll: 8, want: map[int]string{0: " Σ pool", 1: "", 2: "5-HOUR"}},
 		{scroll: 9, want: map[int]string{0: "", 1: "5-HOUR", 3: " 1 work"}},
 		{scroll: 13, want: map[int]string{0: "5-HOUR", 1: " 2 personal"}},
 		{scroll: 23, want: map[int]string{0: "FABLE WEEK", 1: " 2 personal", 5: " Σ pool"}},
@@ -209,11 +211,11 @@ func TestStackedUSAGEKeepsEachWindowsHeadingOverItsRowsAndHandsItOn(t *testing.T
 }
 
 // USAGE scrolls a row at a time, as far as shows its last row, the key
-// line's, over the row saying what's out of view; a page being the rows from
-// the offset to the last shown, less those a page leaves off its foot so as
-// not to end on a heading without the first row under it, and a row less
-// where a heading kept a page on would take the place of the first row
-// left out, so a page down passes over none.
+// line's, over the row saying what's out of view; a page down going to the
+// first row the page didn't show, or a row short of it where a heading kept
+// there would take its place; and a page up, where it goes other than a page
+// down does, back to where the row over the first shown, a row a heading
+// kept takes among them, shows.
 func TestUSAGEScrollsARowAtATimeAPageBeingTheRowsShownAtItsOffset(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -228,7 +230,7 @@ func TestUSAGEScrollsARowAtATimeAPageBeingTheRowsShownAtItsOffset(t *testing.T) 
 		{name: "the matrix at the top, its heading kept a page on", width: 160, n: 10, rows: 9, want: Scrolling{Most: 17, Page: 7}},
 		{name: "the matrix, its heading kept here and a page on", width: 160, n: 10, rows: 9, scroll: 1, want: Scrolling{Most: 17, Page: 7}},
 		{name: "the matrix a page from its foot, which a page on goes no further than", width: 160, n: 10, rows: 15, want: Scrolling{Most: 11, Page: 14}},
-		{name: "the matrix scrolled past the foot, as the frame now has it", width: 160, n: 10, rows: 9, scroll: 30, want: Scrolling{Most: 17, Page: 8}},
+		{name: "the matrix scrolled past the foot, as the frame now has it, a page up going 7 to show the row its heading kept covers", width: 160, n: 10, rows: 9, scroll: 30, want: Scrolling{Most: 17, Page: 8, Back: 7}},
 		{name: "by account, no heading kept", width: 160, by: ByAccount, n: 6, rows: 17, scroll: 1, want: Scrolling{Most: 13, Page: 16}},
 	}
 	for _, tt := range tests {

@@ -10,16 +10,29 @@ import (
 
 // Scrolling is how far a frame's view scrolls: Most, the furthest, in rows,
 // or where it scrolls a thing at a time, as ScrollsRows says it doesn't, in
-// those things, zero where it fits; and Page, how many of them show at once,
-// as the frame has it scrolled.
+// those things, zero where it fits; Page, how many of them show at once, as
+// the frame has it scrolled, and how far a page down goes; and Back, how far
+// a page up goes, where that's other than Page, as Paged has them.
 type Scrolling struct {
-	Most, Page int
+	Most, Page, Back int
 }
 
 // byRows is how far content rows tall scrolls in a view rows tall: as far
 // as it runs past it, the view's rows at once.
 func byRows(content, rows int) Scrolling {
 	return Scrolling{Most: max(content-rows, 0), Page: rows}
+}
+
+// Paged is how far what's scrolled at, and scrolls as s says, is scrolled a
+// page on, down where pages is more than zero, up where less: Page down, and
+// Back up, or Page where Back is zero, as it is wherever a page up goes as
+// far as a page down; no further either way than it goes.
+func (s Scrolling) Paged(at, pages int) int {
+	page := s.Page
+	if pages < 0 && s.Back > 0 {
+		page = s.Back
+	}
+	return s.clamped(s.clamped(at) + pages*page)
 }
 
 // clamped is offset as far as what scrolls as s says goes: none before the
@@ -95,15 +108,16 @@ func (p rowsPaged) end(from int) int {
 }
 
 // keeps is the row of the heading of kept the page shown from row from up
-// to to shows on its first row: the one whose rows that row is among, below
-// the heading's own; none, false, where it's no such row, or the page has no
-// row under it to show.
+// to to shows on its first row: the one whose rows that row and the next are
+// among, below the heading's own, so a row of its own shows under it; none,
+// false, where it's no such row, or the page has fewer than two rows under it
+// to show, as a heading and its first row there need.
 func (p rowsPaged) keeps(from, to int) (int, bool) {
-	if to-from < 2 {
+	if to-from < 3 {
 		return 0, false
 	}
 	for _, k := range p.kept {
-		if k.at < from && from < k.end {
+		if k.at < from && from+1 < k.end {
 			return k.at, true
 		}
 	}
@@ -126,18 +140,52 @@ func pagedWhole(c *canvas, rows int) rowsPaged {
 }
 
 // scrolling is how far the rows scroll, a row at a time, scrolled offset
-// down: as far as shows the last, a page at once, less the rows a heading
-// left out at its foot at the offset leaves; and a row less, where that
-// leaves a row, where a page on, a heading kept would take the place of the
-// first row this one leaves out, so paging down passes over no row.
+// down: as far as shows the last; a page down going as far as down has it,
+// and a page up as far as up has it, so paging either way passes over no
+// row.
 func (p rowsPaged) scrolling(offset int) Scrolling {
-	page := p.page()
 	from, to := p.shown(offset)
-	next := page - (min(from+page, p.content) - to)
-	if next > 1 && p.top(p.shown(from+next)) > to {
-		next--
+	s := Scrolling{Most: max(p.content-p.page(), 0), Page: p.down(from, to) - from}
+	if up := p.up(from, to); up != max(from-s.Page, 0) {
+		s.Back = from - up
 	}
-	return Scrolling{Most: max(p.content-page, 0), Page: next}
+	return s
+}
+
+// shows reports whether the page scrolled offset down shows the content's
+// row r: not where a heading kept takes its place.
+func (p rowsPaged) shows(offset, r int) bool {
+	from, to := p.shown(offset)
+	return p.top(from, to) <= r && r < to
+}
+
+// down is where a page down from the page shown from row from up to to
+// starts: at the first row it didn't show, or as little short of it as
+// shows it, where a heading kept would take its place; a page on where the
+// content ends within it.
+func (p rowsPaged) down(from, to int) int {
+	if to >= p.content {
+		return from + p.page()
+	}
+	for at := to; at > from; at-- {
+		if p.shows(at, to) {
+			return at
+		}
+	}
+	return to
+}
+
+// up is where a page up from the page shown from row from up to to starts:
+// as far up as shows the row above the first it showed, a row a heading
+// kept takes counting as not shown; a row up where none does.
+func (p rowsPaged) up(from, to int) int {
+	above := p.top(from, to) - 1
+	for at := max(above-p.page()+1, 0); at < from; at++ {
+		if p.shows(at, above) {
+			return at
+		}
+	}
+	return max(from-1, 0)
 }
 
 // paste draws the rows of whole, the view's rows laid out whole, shown
@@ -176,13 +224,12 @@ func (p rowsPaged) revealing(offset int, spans []rowAt) int {
 			up = s.y
 		}
 	}
-	if up >= 0 && p.top(p.shown(up)) > up {
+	for row := up; up > 0 && !p.shows(up, row); {
 		up--
 	}
 	if i := slices.IndexFunc(spans, func(s rowAt) bool { return s.y >= to }); i >= 0 {
-		most := p.scrolling(from).Most
-		down = from
-		for down < most && spans[i].y >= p.end(down) {
+		most := max(p.content-p.page(), 0)
+		for down = from; down < most && !p.shows(down, spans[i].y); {
 			down++
 		}
 	}

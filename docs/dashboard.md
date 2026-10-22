@@ -719,8 +719,12 @@ Where one account or one period doesn't fit, as on a short screen, the view scro
 a time. It does the same on History's Weeks and Days below 37 rows, and the Year always scrolls
 so. It then says how many rows are out of view above and below.
 
+Scrolled a row at a time, a page down starts at the first row the page didn't show, and a page up
+ends just above the first row it showed, so paging either way passes over nothing.
+
 When a resize or what's read turns a view from one kind of scrolling to the other, the view goes
-back to its top.
+back to its top. Where USAGE is laid out another way, as `b` groups it the other way or a resize
+gives it more room or less, it scrolls to show the focused account.
 
 ## The routing card
 

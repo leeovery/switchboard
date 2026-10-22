@@ -231,6 +231,10 @@ type section struct {
 	// with the given id. Nil where it doesn't scroll.
 	scrolling func(rows, offset int) Scrolling
 	revealing func(rows, offset int, id string) int
+	// scrollForm is the form its body's rows are laid out in, in rows rows,
+	// which an offset into them is read in, as USAGE's usageForm has it.
+	// Nil where it doesn't scroll.
+	scrollForm func(rows int) usageForm
 	// order is the order of the rows SESSIONS lists, which a layout made
 	// keeps; and steady is SESSIONS listing them in the order a layout kept,
 	// as give gives it. Nil for any other section.
@@ -1005,6 +1009,27 @@ func scrollingOf(laid []planned, offset int) Scrolling {
 		return Scrolling{}
 	}
 	return usage.scrolling(usage.body.rows, offset)
+}
+
+// ScrollForm is what an offset into the view the frame shows of doc at now
+// is read in: rows or things, as ScrollsRows says; and on the Overview, the
+// form USAGE's rows are laid out in, as its scrollForm has it, in the rows
+// it's laid out in. An offset read in one form means nothing in another.
+type ScrollForm struct {
+	rows  bool
+	usage usageForm
+}
+
+// ScrollForm is the form an offset into the view the frame shows of doc at
+// now is read in.
+func (f Frame) ScrollForm(doc status.Document, now time.Time) ScrollForm {
+	form := ScrollForm{rows: f.ScrollsRows(doc, now)}
+	if f.Shown() == Overview && !f.cramped() {
+		if usage := usageOf(f.laidOut(doc, now, f.top())); usage.scrollForm != nil {
+			form.usage = usage.scrollForm(usage.body.rows)
+		}
+	}
+	return form
 }
 
 // overviewScrolls is what of the Overview of doc at now scrolls, from column

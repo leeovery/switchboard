@@ -1553,26 +1553,30 @@ Then, as only the Overview has them:
   line, with the blank row over it. The pool keeps its rule's row, and its other blank rows stay:
   between windows stacked, and between a block's windows by account.
 - **Many accounts:** past what fits, USAGE scrolls whole within its section, a row at a time, as
-  History's views do, in the form the step it takes has, as Room has it: one scroll over all its
-  rows, its windows', their pools' and its key line's, where it keeps one (the owner's call, 21
-  October 2026).
+  History's views do, each window's heading kept (the owner's call, 21 October 2026). It's one
+  scroll over all its rows in the form the step it takes has, as Room has it: its windows', their
+  pools', which scroll with the rest, and its key line's, where it keeps one, the last of them.
   - **Each window's heading is kept** on the section's first row while the scroll is among that
-    window's rows, in place of the row there; scrolled into the next window's, its heading takes
-    the row, and the blank row between two windows is neither's. By window from 150 columns, the
-    windows side by side share one heading row, kept over them all; by account, no heading is
-    kept. A page never ends on a heading without the first row under it.
+    window's rows, in place of the row there, so long as a row of the window's own shows under it
+    and the page has two rows under it to show; scrolled into the next window's, its heading
+    takes the row, and the blank row between two windows is neither's. By window from 150
+    columns, the windows side by side share one heading row, kept over them all; by account, no
+    heading is kept. A page never ends on a heading without the first row under it.
   - **The last row says what's out of view,** in rows, in `text.subtle`, as History's do:
     `▲ 3 more above · ▼ 12 more below`, each part only while any are. At 138 × 15, three accounts
     show under `WEEK`, and the 12 rows below are its pool's, the 5-hour's block and the key line.
-  - **`j`/`k` scroll it a row, PgUp and PgDn a page, and the wheel three rows;** a page down
-    stops a row short where the heading kept would cover the first row it hadn't shown, so it
-    passes over none. `↑` and `↓` move the focus an account, scrolling no further than shows a
-    row of it, under the heading kept: with its accounts a row apart, a row a press. A click on
-    an account's row where it's drawn moves the focus there; the heading kept on the first row is
-    no account's.
-  - **The scroll holds** as reads change what USAGE shows, and after a resize, `b` or a section's
-    key, goes no further than USAGE then goes: it counts rows whatever the form, so nothing turns
-    it back to its top.
+  - **`j`/`k` scroll it a row, PgUp and PgDn a page, and the wheel three rows.** A page down
+    starts at the first row the page didn't show, and a page up ends at the row over the first it
+    showed, a row the heading kept covers counting as not shown, so paging either way passes over
+    no row, here as in every view paged a row at a time. `↑` and `↓` move the focus an account,
+    scrolling no further than shows a row of it, under the heading kept: with its accounts a row
+    apart, a row a press. A click on an account's row where it's drawn moves the focus there; the
+    heading kept on the first row is no account's.
+  - **The scroll holds** within one form, as reads change what USAGE shows and a resize keeps the
+    form, going no further than USAGE then goes. Where the form changes, as `b` groups it the
+    other way, or a resize, a section's key or a read takes another step, an offset into rows laid
+    out otherwise means nothing, so USAGE scrolls to show the account the focus is on, as `↑` and
+    `↓` do; at its top, which is its top in any form, it stays.
   - **The accounts shown never fall as the rows grow:** each step shows its accounts from its top,
     so a row more shows as many or more, and the most any step shows never falls.
 
@@ -1687,9 +1691,11 @@ first (the owner's call, 15 October 2026).
     The rows of charts share what they're given evenly, the odd row to the first. At 160 columns
     with two windows, the stacked step comes from 57 rows and 5 rows a chart from 81; with three,
     from 73 and 109. Where USAGE's least doesn't fit, it scrolls whole, a row at a time, as it
-    does by window (see Many accounts), each block's charts with it, drawn in the rows shown alone:
-    a block shown in part has its charts in its rows shown, and nothing is drawn beside the last
-    row, which says what's out of view;
+    does by window (see Many accounts), each block's charts with it: a block shown in part has its
+    charts drawn in its rows shown, its accounts' and those under them its charts take. The last
+    row says what's out of view, nothing drawn over it, as the accounts are the data and a chart's
+    last row at the scroll's edge isn't (the owner's call, 21 October 2026); the same call cut a
+    block's charts short to end above `▼`, which scrolling whole replaced;
   - **the pool's charts beside `Σ pool`,** its windows in the same form as each account's: the
     pool's room in each window over its length back from now, from its left edge to now at its
     right, a column a cell, each column the room at its end's moment, a share of all its accounts'

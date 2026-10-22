@@ -48,10 +48,14 @@ func wheelTurn(button tea.MouseButton) (int, bool) {
 }
 
 // from is where what's scrolled at, and scrolls as s says, is scrolled to:
-// no further either way than it goes as it stands now, which may be less
-// than when it was last scrolled.
+// its rows on, or its pages, as s pages them; no further either way than it
+// goes as it stands now, which may be less than when it was last scrolled.
 func (by scrollStep) from(at int, s dashboard.Scrolling) int {
-	return min(max(min(at, s.Most)+by.rows+by.pages*s.Page, 0), s.Most)
+	at = min(at, s.Most)
+	if by.pages != 0 {
+		return s.Paged(at, by.pages)
+	}
+	return min(max(at+by.rows, 0), s.Most)
 }
 
 // wheeled scrolls what the wheel turns under the pointer, as the screen

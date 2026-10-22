@@ -67,6 +67,7 @@ func (f Frame) usageIn(s section, form usageViews, beside func(*canvas, blocksBe
 		return form.shown(body.rows, f.Scroll).targets(body)
 	}
 	s.scrolling, s.revealing = form.scrolling, form.revealing
+	s.scrollForm = func(rows int) usageForm { return form.shown(rows, 0).form() }
 	return s
 }
 
@@ -267,12 +268,12 @@ func (b usageBlock) enlarges() bool {
 // it's given, scrolled however far: the block; the rows it takes with its big
 // bars, by account with GRAPHS' charts beside its blocks stacked, and as it's
 // laid out; and, worked out only once it's asked for, the block laid out
-// whole, as paged pages it. Where it's short of rows, its leaner views are
+// whole and drawn so, as paged pages it. Where it's short of rows, its leaner views are
 // the block as it gives way, a step at a time, as giving has them.
 type usageViews struct {
 	block             usageBlock
 	big, stacked, all int
-	laid              func() laid
+	whole             func() (laid, *canvas)
 	leaner            []usageViews
 }
 
@@ -301,7 +302,10 @@ func (b usageBlock) viewsAsLaid() usageViews {
 	all := b.height()
 	return usageViews{
 		block: b, big: all, stacked: all, all: all,
-		laid: sync.OnceValue(func() laid { return b.lay(growing(b.width), 0) }),
+		whole: sync.OnceValues(func() (laid, *canvas) {
+			c := growing(b.width)
+			return b.lay(c, 0), c
+		}),
 	}
 }
 
@@ -381,17 +385,40 @@ func (f Frame) usageDrawn(doc status.Document, now time.Time) usageBlock {
 // each window's heading kept on the page's first row while its rows scroll
 // under it, as lay has them.
 func (v usageViews) paged(rows int) rowsPaged {
-	l := v.laid()
+	l, _ := v.whole()
 	return rowsPaged{rows: rows, content: v.all, heads: l.heads, kept: l.kept, says: true}
 }
 
 // usageShown is USAGE's block as it's shown in a body's rows: its rows from
-// from up to to, as paged pages them where it scrolls, its rows from the
+// from up to to, as paged pages them where it scrolls, the block laid out
+// whole with them, which a heading kept is taken from; its rows from the
 // first to the body's last where it fits.
 type usageShown struct {
 	block    usageBlock
+	whole    *canvas
 	paged    rowsPaged
 	from, to int
+}
+
+// usageForm is the form USAGE's rows are laid out in where it scrolls, which
+// an offset into them is read in: grouped by window or by account; how far
+// it has given way; as a matrix, or by account with each block's name on a
+// row of its own, or neither; and how many rows it takes. The zero
+// usageForm where it fits, and doesn't scroll.
+type usageForm struct {
+	by            By
+	given         giving
+	matrix, above bool
+	rows          int
+}
+
+// form is the form the block's rows are laid out in, as shown.
+func (s usageShown) form() usageForm {
+	if s.paged.content == 0 {
+		return usageForm{}
+	}
+	_, _, above := s.block.labels()
+	return usageForm{by: s.block.by, given: s.block.given, matrix: s.block.matrixed(), above: above, rows: s.paged.content}
 }
 
 // shown is the block as USAGE shows it in rows rows, scrolled offset rows
@@ -403,7 +430,8 @@ func (v usageViews) shown(rows, offset int) usageShown {
 	}
 	p := v.paged(rows)
 	from, to := p.shown(offset)
-	return usageShown{block: v.block, paged: p, from: from, to: to}
+	_, whole := v.whole()
+	return usageShown{block: v.block, whole: whole, paged: p, from: from, to: to}
 }
 
 // fitted is the block as USAGE draws it in rows rows: at its most, as
@@ -437,7 +465,8 @@ func (v usageViews) revealing(rows, offset int, id string) int {
 		return 0
 	}
 	var spans []rowAt
-	for _, p := range v.laid().placed {
+	l, _ := v.whole()
+	for _, p := range l.placed {
 		if p.id == id {
 			spans = append(spans, p)
 		}
@@ -459,7 +488,7 @@ func (s usageShown) draw(c *canvas, body bounds) {
 	end := s.block.draw(in, body.y-s.from)
 	s.block.key(in, end+1)
 	if at, ok := s.paged.keeps(s.from, s.to); ok {
-		s.block.draw(c.within(bounds{x: body.x, y: body.y, width: body.width, rows: 1}), body.y-at)
+		c.within(bounds{x: body.x, y: body.y, width: body.width, rows: 1}).paste(s.whole, at, body.y, 1)
 	}
 	s.paged.said(c, body.y, s.from, s.to, s.block.width, usageRowsOut)
 }

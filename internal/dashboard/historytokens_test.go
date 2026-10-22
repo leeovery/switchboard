@@ -485,7 +485,7 @@ func TestTokensScrollsARowAtATimeWhereAPeriodDoesntFit(t *testing.T) {
 			says:  "▲ 1 more above   ·   ▼ 10 more below   ·   j/k to scroll",
 		},
 		{
-			name: "as far as it goes, the last row shown", scroll: 11, want: Scrolling{Most: 11, Page: 7},
+			name: "as far as it goes, the last row shown, a page up going 6 to show the row over it", scroll: 11, want: Scrolling{Most: 11, Page: 7, Back: 6},
 			shown: []string{"  └ opus-5-5", "└ side", "  └ opus-5-5", "", "14 Sep", "└ work", "  └ opus-5-5"},
 			says:  "▲ 11 more above   ·   j/k to scroll",
 		},

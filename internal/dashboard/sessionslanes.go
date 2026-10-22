@@ -281,11 +281,11 @@ func (b lanesBoard) shown() lanesShown {
 	above := scrolling.clamped(b.f.Scroll)
 	y := 0
 	if above > 0 {
-		s.c.line(0, y, outOfView(above, 0, b.f.Width, usageOut))
+		s.c.line(0, y, outOfView(above, 0, b.f.Width, boardOut))
 		y++
 	}
 	b.drawLanes(&s, y, b.lanes[above:above+scrolling.Page])
-	s.out = outOfView(0, len(b.lanes)-above-scrolling.Page, b.f.Width, usageOut)
+	s.out = outOfView(0, len(b.lanes)-above-scrolling.Page, b.f.Width, boardOut)
 	return s
 }
 
