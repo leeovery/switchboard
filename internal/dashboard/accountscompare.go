@@ -695,19 +695,19 @@ func (cp compared) groups() []compareGroup {
 	page, names := *cp.page, cp.f.windowNamer(cp.m)
 	return []compareGroup{
 		{name: "ACTIVITY", rows: []compareRow{
-			{"requests", cp.recorded(oneForm(compareColumn.requests))},
-			{"sessions served", cp.recorded(oneForm(compareColumn.sessions))},
-			{"sessions moved", cp.recorded(oneForm(compareColumn.moved))},
+			{"requests", cp.recorded(figureForm(compareColumn.requests))},
+			{"sessions served", cp.recorded(figureForm(compareColumn.sessions))},
+			{"sessions moved", cp.recorded(figureForm(compareColumn.moved))},
 		}},
 		{name: "LIMITS", rows: []compareRow{
 			{"limits hit", cp.recorded(func(col compareColumn) partForms { return limitsForms(col.row.Totals, names, col.ink()) })},
-			{"at cap or limit", cp.recorded(oneForm(compareColumn.atCap))},
+			{"at cap or limit", cp.recorded(figureForm(compareColumn.atCap))},
 			{"left at its last reset", func(col compareColumn) partForms { return leftForms(col.row, col.ink()) }},
 		}},
 		{name: "VALUE", rows: []compareRow{
 			{"plan", func(col compareColumn) partForms { return planForms(col.row, col.ink()) }},
 			{"extra usage", cp.extra},
-			{"worth at API prices", cp.recorded(oneForm(compareColumn.worth))},
+			{"worth at API prices", cp.recorded(figureForm(compareColumn.worth))},
 			{"against its price", cp.recorded(func(col compareColumn) partForms { return againstForms(page, col.row) })},
 		}},
 	}
@@ -740,8 +740,8 @@ func (col compareColumn) worth() []part {
 	return worthParts(col.row, col.ink())
 }
 
-// oneForm is a row's figure in its one form, as said says it.
-func oneForm(said func(col compareColumn) []part) func(col compareColumn) partForms {
+// figureForm is a row's figure in its one form, as said says it.
+func figureForm(said func(col compareColumn) []part) func(col compareColumn) partForms {
 	return func(col compareColumn) partForms { return partForms{said(col)} }
 }
 

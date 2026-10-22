@@ -341,18 +341,18 @@ func (cp compared) turnedGroups() []turnedGroup {
 	page, names := *cp.page, cp.f.windowNamer(cp.m)
 	return []turnedGroup{
 		{name: "ACTIVITY", columns: []turnedColumn{
-			{"reqs", cp.recorded(oneForm(compareColumn.requests))},
-			{"sessions", cp.recorded(oneForm(compareColumn.sessions))},
-			{"moved", cp.recorded(oneForm(compareColumn.moved))},
+			{"reqs", cp.recorded(figureForm(compareColumn.requests))},
+			{"sessions", cp.recorded(figureForm(compareColumn.sessions))},
+			{"moved", cp.recorded(figureForm(compareColumn.moved))},
 		}},
 		{name: "LIMITS", columns: []turnedColumn{
 			{"hit", cp.recorded(func(col compareColumn) partForms { return limitsShortForms(col.row.Totals, names, col.ink()) })},
-			{"at cap", cp.recorded(oneForm(compareColumn.atCap))},
+			{"at cap", cp.recorded(figureForm(compareColumn.atCap))},
 			{"left", shortestOf(func(col compareColumn) partForms { return leftForms(col.row, col.ink()) })},
 		}},
 		{name: "VALUE", columns: []turnedColumn{
 			{"plan", shortestOf(func(col compareColumn) partForms { return planForms(col.row, col.ink()) })},
-			{"worth", cp.recorded(oneForm(compareColumn.worth))},
+			{"worth", cp.recorded(figureForm(compareColumn.worth))},
 			{"against it", cp.recorded(shortestOf(func(col compareColumn) partForms { return againstForms(page, col.row) }))},
 		}},
 	}
