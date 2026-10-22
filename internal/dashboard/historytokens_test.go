@@ -967,7 +967,7 @@ func TestTokensOfIsItsLeastWhereItNamesNoAccounts(t *testing.T) {
 // of 10000× is written wider than it.
 func TestTokensRatioMostIsTheWidestARatioIsWritten(t *testing.T) {
 	most := ansi.StringWidth(prose.Ratio(tokensRatioMost))
-	for tenths := 0; tenths < 99995; tenths++ {
+	for tenths := range 99995 {
 		x := float64(tenths) / 10
 		if got := ansi.StringWidth(prose.Ratio(x)); got > most {
 			t.Fatalf("a ratio of %v reads %q, %d cells, wider than tokensRatioMost's %d", x, prose.Ratio(x), got, most)
