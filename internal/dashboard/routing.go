@@ -339,11 +339,28 @@ func (f Frame) drawStanding(c *canvas, r accountRouting, x, y int, words line) {
 }
 
 // rowStanding are the words of how an account stands on a row of ROUTING's,
-// in width cells: the first form that fits whole, its words, then its short
-// form, so a time is never cut where a form keeps it; else its words cut by
-// whole clauses, as standingWords cuts them.
+// in width cells: the first form that fits whole, its words; its words to
+// when it's back, as timed has them; then its short form, so a time is never
+// cut where a form keeps it; else its words cut by whole clauses, as
+// standingWords cuts them.
 func rowStanding(r status.Routing, width int) line {
-	return firstFit(width, standingWords(r, false, math.MaxInt), standingWords(r, true, math.MaxInt), standingWords(r, false, width))
+	forms := []line{standingWords(r, false, math.MaxInt)}
+	if words, ok := timed(r); ok {
+		forms = append(forms, standingWords(words, false, math.MaxInt))
+	}
+	forms = append(forms, standingWords(r, true, math.MaxInt), standingWords(r, false, width))
+	return firstFit(width, forms...)
+}
+
+// timed is how an account stands, its clauses up to when it's back, the
+// first of them where it says so, as its Back has it; false where it
+// doesn't.
+func timed(r status.Routing) (status.Routing, bool) {
+	if r.Back.IsZero() || len(r.Clauses) == 0 {
+		return r, false
+	}
+	r.Clauses = r.Clauses[:1]
+	return r, true
 }
 
 // standingWords are the words of how an account stands, or short, its short

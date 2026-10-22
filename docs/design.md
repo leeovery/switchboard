@@ -1731,7 +1731,8 @@ first (the owner's call, 15 October 2026).
   - its number, name and marks at column 0, as in USAGE;
   - its state at the name column, its glyph coloured as its words (below), in its words' cells,
     ending two cells before `● pinned`, or before the sessions where no pin shows: the first form
-    that fits whole, its words, then its short form, so a time is never cut where a form keeps it;
+    that fits whole, its words, then its words to when it's back (`● at its cap · back 17:10`),
+    then its short form (`● at its cap · 17:10`), so a time is never cut where a form keeps it;
     else its words cut by whole clauses from the end, as Sessions' lines cut theirs (see
     Sessions);
   - `● pinned` in `accent.key`, three cells before the sessions, on each account the global pin

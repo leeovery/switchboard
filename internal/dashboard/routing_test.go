@@ -74,7 +74,7 @@ func TestROUTINGsFormsLayItsRowsOut(t *testing.T) {
 		texts[71], texts[115] = lane(41), "0/min"
 		return textsAt(120, texts)
 	}
-	work, personal, side := "● at its cap · 17:10", "● open", "● open · new sessions come here"
+	work, personal, side := "● at its cap · back 17:10", "● open", "● open · new sessions come here"
 	caption := textsAt(120, map[int]string{71: "requests a minute, last 30 minutes"})
 	tests := []struct {
 		name  string
@@ -178,19 +178,24 @@ func TestStandingWordsAreCutWholeFromTheEnd(t *testing.T) {
 }
 
 // On a row of ROUTING's, an account's state takes the first form that fits
-// whole, its words, then its short form, so its time is never cut where a
-// form keeps it; else its words cut by whole clauses.
+// whole: its words; its words to when it's back; its short form; so its time
+// is never cut where a form keeps it; else its words cut by whole clauses.
 func TestARowsStateTakesTheFirstFormThatFitsWhole(t *testing.T) {
-	r := status.Routing{Kind: status.RoutingLimited, Says: "limit reached", Clauses: []string{"back 15:30"}, Short: []string{"limit reached", "15:30"}}
+	r := status.Routing{
+		Kind: status.RoutingCapped, Says: "at its cap", Clauses: []string{"back 17:10", "new sessions go elsewhere"},
+		Short: []string{"at its cap", "17:10"}, Back: routedClock(1, 17, 10),
+	}
 	tests := []struct {
 		name  string
 		width int
 		want  string
 	}{
-		{name: "its words whole", width: 28, want: "■ limit reached · back 15:30"},
-		{name: "its short form whole, a cell short of its words", width: 27, want: "■ limit reached · 15:30"},
-		{name: "its short form at its width", width: 23, want: "■ limit reached · 15:30"},
-		{name: "its words cut by whole clauses, a cell short of its short form", width: 22, want: "■ limit reached"},
+		{name: "its words whole", width: 53, want: "● at its cap · back 17:10 · new sessions go elsewhere"},
+		{name: "its words to when it's back, a cell short of them whole", width: 52, want: "● at its cap · back 17:10"},
+		{name: "its words to when it's back, at their width", width: 25, want: "● at its cap · back 17:10"},
+		{name: "its short form whole, a cell short of its words to when it's back", width: 24, want: "● at its cap · 17:10"},
+		{name: "its short form at its width", width: 20, want: "● at its cap · 17:10"},
+		{name: "its words cut by whole clauses, a cell short of its short form", width: 19, want: "● at its cap"},
 	}
 	for _, tt := range tests {
 		if got := rowStanding(r, tt.width).plain(); got != tt.want {
@@ -199,12 +204,13 @@ func TestARowsStateTakesTheFirstFormThatFitsWhole(t *testing.T) {
 	}
 }
 
-// From the first row an account to 100 columns, a state keeps its time
-// wherever a form holds it whole: work at its cap, its words never whole
-// there, in its short form, from 83; and of ten accounts, a name column of
-// 17, team at its limit, from 84, its words cut to their lead in under 23
-// cells, then its short form from 87, until its words fit whole from 96.
-func TestARowsStateKeepsItsTimeTo100Columns(t *testing.T) {
+// From the first row an account to 100 columns, and at 108 and 120, a state
+// keeps its time wherever a form holds it whole: work at its cap, a name
+// column of 16, from 83, in its short form until its words to when it's
+// back fit from 89; and of ten accounts, a name column of 17, team at its
+// limit, from 84, its words cut to their lead in under 23 cells, then its
+// short form from 87, until its words fit whole from 96.
+func TestARowsStateKeepsItsTime(t *testing.T) {
 	doc, _ := autoRouting()
 	tests := []struct {
 		name  string
@@ -213,7 +219,12 @@ func TestARowsStateKeepsItsTimeTo100Columns(t *testing.T) {
 		from  int
 		want  func(width int) string
 	}{
-		{name: "work at its cap", doc: doc, label: "1 work", from: 83, want: func(int) string { return "● at its cap · 17:10" }},
+		{name: "work at its cap", doc: doc, label: "1 work", from: 83, want: func(width int) string {
+			if width >= 89 {
+				return "● at its cap · back 17:10"
+			}
+			return "● at its cap · 17:10"
+		}},
 		{name: "team at its limit, of ten", doc: tenRouting(), label: "team", from: 84, want: func(width int) string {
 			switch {
 			case width >= 96:
@@ -225,7 +236,11 @@ func TestARowsStateKeepsItsTimeTo100Columns(t *testing.T) {
 		}},
 	}
 	for _, tt := range tests {
+		widths := []int{108, 120}
 		for width := tt.from; width <= 100; width++ {
+			widths = append(widths, width)
+		}
+		for _, width := range widths {
 			f := Frame{Width: width, Height: 40, View: Overview, Policy: claudeLike}
 			at := f.routingColumns(f.Moment(tt.doc, routedAt))
 			rows := 3 * len(tt.doc.Accounts)
