@@ -2766,24 +2766,34 @@ data, as from 118 columns. Narrower, each strip's name takes the row over it (On
 account.
 
 - **Columns,** their heads on the view's first row in `text.subtle`, laid out as parts by flex, in
-  this order: the names, under `week`; two cells on, `models` (or `on`), 18 cells, to the first
-  count's; the counts, each right-aligned in its cells, those to its left keeping it apart from the
-  column before, `input` in 10, `output` and `cache write` in 12, `cache read` and `total` in 14;
-  two cells on, `worth`, in 9; and a cell on, `against its price`, which takes the rest of the row,
-  cut at the frame's width. `cache write` is both lifetimes' writes together, and `total` the four
-  kinds. So at 160 columns, of short labels, `models` is at 14 and `against its price` at 106.
-- **The names** are a column of labels, as every view's are: at least 8 cells; their
-  natural the widest account configured, after its `└ `, each at 24 cells at the most, and never
-  under 12, which holds a period's name and a version's id, `└ sonnet-5-5`; split by account and
-  model, 2 more, for a version nested under its account. It's worked out from the config, never the
-  rows shown, so the columns don't move with the data.
+  this order: the names, under `week`; two cells on, `models` (or `on`), to the first count's; the
+  counts, each right-aligned in its cells, those to its left keeping it apart from the column
+  before, `input` in 10, `output` and `cache write` in 12, `cache read` in 14 and 3 after it that
+  keep `total` apart, which leave with it, and a cell on, `total` in 10; two cells on, `worth`, in
+  9; and a cell on, `against its price`, which takes the rest of the row. `cache write` is both
+  lifetimes' writes together, and `total` the four kinds. So at 160 columns, of short labels,
+  `models` is at 14 and `against its price` at 106.
+- **The names** are a column of labels, as every view's are: at least 8 cells, their natural what
+  the split names, never under 12, which holds a period's name and a version's id, `└ sonnet-5-5`.
+  By account, it's the widest account configured, after its `└ `, each at 24 cells at the most; by
+  model, or none, no account's, as no row names one; by account and model, both, and 2 more, for a
+  version nested under its account. It's worked out from the config and the split, never the rows
+  shown, so the columns don't move with the data.
+- **`models` (or `on`)** is 18 cells at the least. Split by model, where it names the accounts a
+  version ran on, its natural is every account configured, a space apart, each at 24 cells at the
+  most: it takes that before `against its price` grows, and narrows to 18 before any column leaves.
+- **`against its price` is never cut.** Its least is what it says at its widest for what every plan
+  configured costs over a whole period, at today's prices (`views` works that out), the ratio at
+  `99.9×`, as `99.9× its $138 week`, or its head where no plan is known; where that doesn't fit, it
+  leaves in its turn. Past it, the plans known take the longest form that fits, or none.
 - **Narrower, the columns leave one at a time,** never all at once, and never by a switch at a
   width: `models` first, then `cache write`, `input`, `output`, `against its price` and `cache
   read`; `total` and `worth` stay. The names hold their natural until every one of those has left,
   so a detail column leaves before a name is cut, and only then narrow to their least. A wider frame
   never shows fewer columns, nor a shorter name. Where `against its price` has left, worth runs to
-  the frame's width. So at 108 and 120 every column shows but `models`, of short labels; at 73,
-  `cache read`, `total`, `worth` and `against its price`.
+  the frame's width. So at 108 and 120 every column shows but `models`, of short labels; by account
+  and model, whose names take 2 more, `models` leaves from 124, where it used to show, as the names
+  come first; and at 73, `cache read`, `total`, `worth` and `against its price`.
 - **A period a row,** newest first, from row 8, a blank row between periods: named by its first day,
   `28 Sep`, by day its day, `Thu 1 Oct`, and by month its month, `Oct 2026` (settled in the plan),
   this week as any other, bold `text.primary`; how many model versions it used, `6 models`, in

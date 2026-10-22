@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
+	"github.com/leeovery/switchboard/internal/ledger"
 )
 
 // TokensAsk is what Tokens is asked to show: its rows' period.
@@ -33,11 +34,14 @@ func (p TokensPeriod) Name() string {
 }
 
 // TokensPage is Tokens as the dashboard draws it: its rows, a period each,
-// newest first, those with nothing recorded in them left out, and the date
-// of the prices their worth is at.
+// newest first, those with nothing recorded in them left out; the date of
+// the prices their worth is at; and what every plan configured costs over a
+// whole period of the kind asked, at today's prices, the most a period's
+// worth is set against, nil where no plan is known or they cost nothing.
 type TokensPage struct {
 	Periods    []TokenPeriod
 	PricesAsOf string
+	PeriodCost *ledger.Picodollars
 }
 
 // TokenPeriod is a row of Tokens: a period, by its first day's date, or by
@@ -67,7 +71,8 @@ func (p Past) tokens(ask TokensAsk) TokensPage {
 	today, _ := by.of(dayfile.DateOf(p.in.Now))
 	span := yearSpanOf(0, dayfile.CivilOf(p.in.Now), p.in.WeekStarts)
 	from := p.counted(max(span.first, dayfile.DateOf(p.in.From)))
-	all := tokenPeriodsOf(between(p.days, from, span.last), plans{accounts: p.in.Accounts, table: p.in.Prices}, versions{table: p.in.Prices, family: p.in.Family}, from, by)
+	known := plans{accounts: p.in.Accounts, table: p.in.Prices}
+	all := tokenPeriodsOf(between(p.days, from, span.last), known, versions{table: p.in.Prices, family: p.in.Family}, from, by)
 	var periods []TokenPeriod
 	for _, t := range slices.Backward(all) {
 		if len(t.ByAccount) > 0 {
@@ -75,7 +80,12 @@ func (p Past) tokens(ask TokensAsk) TokensPage {
 			periods = append(periods, t)
 		}
 	}
-	return TokensPage{Periods: periods, PricesAsOf: p.in.Prices.AsOf}
+	whole := known.against(nil, priced{share: by.share, at: dayfile.DateOf(p.in.Now)})
+	page := TokensPage{Periods: periods, PricesAsOf: p.in.Prices.AsOf}
+	if whole.Ratio != nil {
+		page.PeriodCost = whole.Cost
+	}
+	return page
 }
 
 // periodShape is how Tokens' rows split days into periods: of gives the key

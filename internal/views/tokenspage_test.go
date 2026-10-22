@@ -110,6 +110,35 @@ func TestTokensPricesEachPeriodAgainstItsShareOfAMonth(t *testing.T) {
 	}
 }
 
+// The page says what every plan configured costs over a whole period of the
+// kind asked, at today's prices, whatever the days hold: work's $200 and
+// side's $20, spare's plan not known; none where no plan is known.
+func TestTokensPageSaysWhatAWholePeriodCostsThePlans(t *testing.T) {
+	tests := []struct {
+		name     string
+		period   views.TokensPeriod
+		accounts config.Accounts
+		want     string
+	}{
+		{name: "by day", period: views.TokensByDay, accounts: accounts, want: "7.232876712328"},
+		{name: "by week", period: views.TokensByWeek, accounts: accounts, want: "50.769230769231"},
+		{name: "by month", period: views.TokensByMonth, accounts: accounts, want: "220"},
+		{name: "no plan known", period: views.TokensByMonth, accounts: config.Accounts{{ID: "work"}, {ID: "side"}}, want: "null"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			in := input(usedAcrossTwoMonths)
+			in.Accounts = tt.accounts
+			for _, days := range [][]ledger.Summary{usedAcrossTwoMonths, nil} {
+				page := views.NewPast(in, days).Tokens(views.TokensAsk{Period: tt.period})
+				if got := jsonOf(t, page.PeriodCost); got != tt.want {
+					t.Errorf("of %d days, a whole period costs %s, want %s", len(days), got, tt.want)
+				}
+			}
+		})
+	}
+}
+
 // Tokens' periods start at the last 12 months' first day, as the Year's do,
 // the days the Year's grid draws before it left out: its oldest month is
 // the Year's BY MONTH's, its worth and its plans' cost, though the days are
