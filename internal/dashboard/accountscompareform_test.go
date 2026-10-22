@@ -31,17 +31,19 @@ const compareWidthsFrom, compareWidthsTo = 40, 220
 // labels' column, 24, and its gap, 2, then the first two accounts' columns
 // and all accounts', which never give way, each at least 19 cells, or the
 // widest head and a cell: from 83 with short names, from 107 with names of
-// 24 cells, 110 with ten of them, as "10 " is a cell more; with one account,
-// a column fewer. The rest of the accounts' columns give way, so how many
-// there are past two moves nothing.
+// 24 cells, 110 with ten of them, as "10 " is a cell more. The rest of the
+// accounts' columns give way, so how many there are past two moves nothing.
+// With fewer than two there's nothing to compare, and it's never wide.
 func TestCompareIsWideFromWhereItsLeastsFit(t *testing.T) {
+	never := compareWidthsTo + 1
 	tests := []struct {
 		name     string
 		accounts config.Accounts
 		from     int
 	}{
-		{name: "one, short", accounts: comparedAccounts(1, false), from: 64},
-		{name: "one, long", accounts: comparedAccounts(1, true), from: 80},
+		{name: "none", from: never},
+		{name: "one, short", accounts: comparedAccounts(1, false), from: never},
+		{name: "one, long", accounts: comparedAccounts(1, true), from: never},
 		{name: "two, short", accounts: comparedAccounts(2, false), from: 83},
 		{name: "three, short", accounts: comparedAccounts(3, false), from: 83},
 		{name: "three, as the frames configure them", accounts: threeFramed, from: 83},
@@ -61,6 +63,17 @@ func TestCompareIsWideFromWhereItsLeastsFit(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// With no accounts configured, Compare draws nothing, and help tells of no
+// focus at any width.
+func TestComparesHelpTellsOfNoFocusWithNoAccounts(t *testing.T) {
+	const focus = "← and → move the focus along the columns"
+	for width := compareWidthsFrom; width <= compareWidthsTo; width++ {
+		if said := strings.Join(plainLines(accountsHelping(width, AccountsShown{}, Look{}).body), " "); strings.Contains(said, focus) {
+			t.Errorf("with no accounts at %d columns, help reads\n%s\nwant no %q", width, said, focus)
+		}
 	}
 }
 

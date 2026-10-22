@@ -117,10 +117,14 @@ func (f Frame) compareParts() []flex.Part {
 
 // CompareWide reports whether Compare is drawn wide in the frame, a column
 // an account: where its parts, as compareParts has them, fit at their
-// leasts; else it's turned, a row an account. Its form, its focus, help and
-// the watch all choose by it. Its parts are the config's alone, so it never
-// changes as the data does.
+// leasts; else it's turned, a row an account. With fewer than two accounts
+// there's nothing to compare, and it's never wide. Its form, its focus, help
+// and the watch all choose by it. Its parts are the config's alone, so it
+// never changes as the data does.
 func (f Frame) CompareWide() bool {
+	if len(f.Accounts.Accounts) < comparedAlways {
+		return false
+	}
 	_, wide := flex.Lay(f.Width, f.compareParts()...)
 	return wide
 }

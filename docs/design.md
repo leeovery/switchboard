@@ -2236,13 +2236,15 @@ holds.
   account's head and a cell where that's more, its name whole at most 24 cells with its marks, so
   no name is cut where another account's column would show it whole. As many accounts show as
   fit, at least two, as a comparison needs two, the last giving way first: six of ten at 160
-  columns, every one of three at 108, two of three with long names. The columns shown share the rest alike, the odd cells `all accounts`' and then the
-  first's, `all accounts`' values running to the frame's edge. Past them, `←` and `→` move the
+  columns, every one of three at 108, two of three with long names. The columns shown share the
+  rest alike, the odd cells `all accounts`' and then the first's, `all accounts`' values running
+  to the frame's edge. Past them, `←` and `→` move the
   focus along the accounts, the columns scrolling to keep it in view and `all accounts` staying put
   at the right, and the heading's state says which show:
   `accounts 1–6 of 10  ·  ←→ moves along them; all accounts stays put`, its `←→` bold `accent.key`.
-- **The heads,** rows 6 and 7: an account's number, then its name and marks, bold, as `usage` draws
-  a name (see `usage`, the printout); under them, its state in a word, as the Overview colours its
+- **The heads,** on the view's first two rows, wherever the heading's rows end, held however far
+  the rest scrolls: an account's number, then its name and marks, bold, as `usage` draws a name
+  (see `usage`, the printout); under them, its state in a word, as the Overview colours its
   state: `● open`, the dot `state.positive` and the word `text.secondary`; `● pressure` and
   `● at cap`, in `accent.attention`; `■ limit` and `■ refused`, in `state.destructive`;
   `○ not read`, in `text.subtle`. `all accounts`' head is `0`, in `text.subtle`, and `all accounts`,
@@ -2252,20 +2254,20 @@ holds.
   (settled in the plan). No column is focused until `←` or `→`; then the focused column's heads are
   `bg.selection` across its width, less a cell, and `enter` opens that account, or `all accounts`,
   in Detail (settled in the plan).
-- **WEEK USED,** row 9: each account's week as `usage` draws a window's bar, its cap and even pace
-  marked (see `usage`, the printout), then, a cell on, its percentage, right-aligned in 4 and bold
-  in its level's colour, ending where BY MODEL's bar does: its bar grows with its column, 19 at 138
-  columns, 24 at 160 and 35 at 220. `all accounts`' is every account's week
-  together, with no cap. A stale account's bar is faded, as the Overview fades it, keeping 35% of
-  its colour, which is 65% toward the canvas. The week is always as it stands now: over another
+- **WEEK USED,** a blank row under the heads: each account's week as `usage` draws a window's bar,
+  its cap and even pace marked (see `usage`, the printout), then, a cell on, its percentage,
+  right-aligned in 4 and bold in its level's colour, ending where BY MODEL's bar does: its bar grows
+  with its column, 19 at 138 columns, 24 at 160 and 35 at 220. `all accounts`' is every account's
+  week together, with no cap. A stale account's bar is faded, as the Overview fades it, keeping 35%
+  of its colour, which is 65% toward the canvas. The week is always as it stands now: over another
   period, the label adds `now`, in `text.faint`.
-- **BY MODEL,** row 11, `share of use` after it in `text.faint`: on its heading row, each column's
-  share of use as a stacked bar, the narrowest column less 4, at most 40, the most of any bar
-  beside words, so none reads as a rule; each version's part in its shade; then from row 12 a row a
-  version used in the period, in the version table's order, `●` in its shade from column 2 and the
-  version's name in `text.secondary`, cut to the labels' column, and in each column its share,
-  right-aligned in 4, `—` in `text.faint` for none, and `<1%` for a share that rounds to nothing
-  (settled in the plan).
+- **BY MODEL,** a blank row under WEEK USED, `share of use` after it in `text.faint`: on its heading
+  row, each column's share of use as a stacked bar, the narrowest column less 4, at most 40, the
+  most of any bar beside words, so none reads as a rule; each version's part in its shade; then from
+  the row under it a row a version used in the period, in the version table's order, `●` in its
+  shade from column 2 and the version's name in `text.secondary`, cut to the labels' column, and in
+  each column its share, right-aligned in 4, `—` in `text.faint` for none, and `<1%` for a share
+  that rounds to nothing (settled in the plan).
 - **Three groups** follow, a blank row before each, every value from its column's first cell in
   `text.secondary`, `—` and `none` in `text.faint`, and `all accounts`' bold:
   - **ACTIVITY:** `requests`, `1,204`; `sessions served`, `9`, each session counted once, however

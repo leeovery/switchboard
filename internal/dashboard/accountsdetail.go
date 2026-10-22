@@ -296,9 +296,9 @@ func (f Frame) detailIn(m status.Moment) (detailLayout, bool) {
 }
 
 // detailForm is Detail of doc at now, in the layout detailIn chooses: drawn
-// wide, or stacked, as detailPhoneBody has it. The form is chosen once, the first time a look
-// that draws asks; how much of each bar it fills is alike in either, so
-// filling chooses none.
+// wide, or stacked, as detailPhoneBody has it. The form is chosen once, the
+// first time a look that draws asks; how much of each bar it fills is alike
+// in either, so filling chooses none.
 func (f Frame) detailForm(doc status.Document, now time.Time) accountsForm {
 	chosen := sync.OnceValue(func() accountsForm {
 		l, wide := f.detailIn(f.Moment(doc, now))

@@ -219,12 +219,12 @@ func (m Model) accountsKey(key string) (Model, tea.Cmd, bool) {
 }
 
 // comparing reports whether Accounts shows Compare with a focus for ← and →
-// to move, enter to open and esc to end: never where Compare is turned,
-// drawing none, as the frame's CompareWide has it, nor with no accounts, as
-// it draws no columns.
+// to move, enter to open and esc to end: only where the frame's CompareWide
+// has it drawn wide, never turned, drawing none, nor with fewer than two
+// accounts.
 func (m Model) comparing() bool {
 	s := m.accounts.shown
-	return m.shownView() == dashboard.Accounts && s.View() == dashboard.AccountsCompare && len(s.Accounts) > 0 &&
+	return m.shownView() == dashboard.Accounts && s.View() == dashboard.AccountsCompare &&
 		dashboard.Frame{Width: m.size.Width, Accounts: s}.CompareWide()
 }
 
