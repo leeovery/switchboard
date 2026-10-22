@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -86,22 +87,29 @@ func TestLATELYTellsEachSentenceInTheFullestOfItsFormsThatFitsWhole(t *testing.T
 }
 
 func TestLATELYFoldedSaysItsFirstSentenceInTheFullestFormItsHeadingHoldsWhole(t *testing.T) {
-	doc := eventsOf(status.Event{At: now.Add(-time.Minute).UTC(), Kind: status.EventCap, Account: "work", Count: 3, To: "side"})
-	f := frameOf(160, 40)
-	p := planned{section: f.latelySection(doc, now), fold: true}
+	capped := status.Event{At: now.Add(-time.Minute).UTC(), Kind: status.EventCap, Account: "work", Count: 3, To: "side"}
+	room := status.Event{At: now.Add(-2 * time.Minute).UTC(), Kind: status.EventRoom, Account: "side"}
 	full, short := "13:11  ╎ work reached its cap: 3 sessions moved to side", "13:11  ╎ work at its cap: 3 moved to side"
+	more := "  " + prose.Ellipsis
 	width := func(s string) int { return line{{s, dimInk}}.width() }
 	tests := []struct {
-		cells int
-		want  string
+		name   string
+		events []status.Event
+		cells  int
+		want   string
 	}{
-		{cells: width(full), want: full},
-		{cells: width(full) - 1, want: short},
-		{cells: width(short), want: short},
+		{name: "alone, its full form whole", events: []status.Event{capped}, cells: width(full), want: full},
+		{name: "alone, a cell short of its full form", events: []status.Event{capped}, cells: width(full) - 1, want: short},
+		{name: "alone, its short form whole", events: []status.Event{capped}, cells: width(short), want: short},
+		{name: "with more, its full form and the ellipsis whole", events: []status.Event{capped, room}, cells: width(full + more), want: full + more},
+		{name: "with more, a cell short of its full form and the ellipsis", events: []status.Event{capped, room}, cells: width(full+more) - 1, want: short + more},
+		{name: "with more, its short form and the ellipsis whole", events: []status.Event{capped, room}, cells: width(short + more), want: short + more},
 	}
+	f := frameOf(160, 40)
 	for _, tt := range tests {
+		p := planned{section: f.latelySection(eventsOf(tt.events...), now), fold: true}
 		if got := f.says(p, tt.cells).plain(); got != tt.want {
-			t.Errorf("folded in %d cells, LATELY's heading says %q, want %q", tt.cells, got, tt.want)
+			t.Errorf("%s: folded in %d cells, LATELY's heading says %q, want %q", tt.name, tt.cells, got, tt.want)
 		}
 	}
 }

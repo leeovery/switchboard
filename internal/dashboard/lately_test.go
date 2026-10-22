@@ -155,7 +155,7 @@ func TestLATELYsTimesAreDatedInAColumn(t *testing.T) {
 	}
 }
 
-func TestLATELYsWordsAreShortOnAPhone(t *testing.T) {
+func TestLATELYsWordsAreShortWhereItsRoomDoesntHoldThemInFull(t *testing.T) {
 	doc := eventsOf(status.Event{At: now.Add(-time.Minute).UTC(), Kind: status.EventCap, Account: "work", Count: 3, To: "side"})
 	tests := []struct {
 		width int
@@ -167,7 +167,7 @@ func TestLATELYsWordsAreShortOnAPhone(t *testing.T) {
 	for _, tt := range tests {
 		c := latelyDrawn(frameOf(tt.width, 10), doc, now, bounds{width: tt.width, rows: 3})
 		if got := strings.TrimRight(c.row(0, Look{}), " "); got != tt.want {
-			t.Errorf("at %d columns, LATELY's line is %q, want %q", tt.width, got, tt.want)
+			t.Errorf("in %d cells, LATELY's line is %q, want %q", tt.width, got, tt.want)
 		}
 	}
 }

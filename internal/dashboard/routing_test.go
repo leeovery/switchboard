@@ -575,7 +575,7 @@ func TestROUTINGsHeadingSaysTheModeAloneBesideUSAGEAndFolded(t *testing.T) {
 		description line
 	}{
 		{name: "by window", frame: Frame{Width: 160}, description: full},
-		{name: "on a phone, as wide", frame: Frame{Width: 52}, description: full},
+		{name: "a frame of 52 columns: the heading's room decides, not the frame's width", frame: Frame{Width: 52}, description: full},
 		{name: "by account, beside USAGE", frame: Frame{Width: 160, By: ByAccount}, description: alone},
 		{name: "by account under 150 columns, a section of its own", frame: Frame{Width: 149, By: ByAccount}, description: full},
 	}
