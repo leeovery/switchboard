@@ -382,6 +382,7 @@ var pages = []page{
 	{name: "overview-usage-alone-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("r", "c", "l")},
 	{name: "overview-everything-160x39", size: wide(39), world: accountWorlds.auto, keys: keysOf("g", "s")},
 	{name: "overview-six-accounts-160", size: wide(41), world: manyAccounts(6)},
+	{name: "overview-six-running-173x53", size: watch.Size{Width: 173, Height: 53}, world: accountWorlds.sixRunning, keys: keysOf("g", "s")},
 	{name: "overview-ten-accounts-160", size: wide(53), world: manyAccounts(10)},
 	{name: "overview-default-216", size: broad(70), world: accountWorlds.auto},
 	{name: "overview-sessions-216", size: broad(70), world: accountWorlds.auto, keys: keysOf("s")},

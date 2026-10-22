@@ -173,18 +173,21 @@ func TestUSAGEScrollsItsAccountsWithinItsRowsItsHeadingsPoolAndKeyLineHeld(t *te
 // scrolls: an account's, ▲ or ▼ and how many more, or a blank row.
 var accountsRow = regexp.MustCompile(`^(\s?\d+ a\d+\s.*|[▲▼] \d+ more accounts?|)$`)
 
+// USAGE as it is, ten accounts in 18 rows, scrolls with its pool and its key
+// line held at its foot.
 func TestUSAGEHoldsItsPoolAndKeyLineAtTheFootOfItsRowsHoweverFarItsScrolled(t *testing.T) {
 	doc := manyRead(10)
-	f := frameOf(160, 30)
-	most := f.Scrolling(doc, now).Most
+	f := frameOf(160, 60)
+	const body = 18
+	most := f.usageSection(doc, now).scrolling(body, 0).Most
 	if most < 2 {
-		t.Fatalf("ten accounts at 160×30 scroll %d accounts at most, want USAGE to scroll past its top and short of its end", most)
+		t.Fatalf("ten accounts in %d rows scroll %d accounts at most, want USAGE to scroll past its top and short of its end", body, most)
 	}
 	keyRow := func(rows []string) int {
 		return slices.IndexFunc(rows, func(r string) bool { return strings.Contains(r, "┃ even pace") })
 	}
 	f.Scroll = 0
-	top := textOf(f.Draw(doc, now))
+	top, _ := usageBody(f, doc, now, body)
 	headings := slices.IndexFunc(top, func(r string) bool { return strings.Contains(r, "5-HOUR") })
 	rule := slices.IndexFunc(top, func(r string) bool { return strings.HasPrefix(r, "────") })
 	if headings < 0 || rule < headings {
@@ -192,7 +195,7 @@ func TestUSAGEHoldsItsPoolAndKeyLineAtTheFootOfItsRowsHoweverFarItsScrolled(t *t
 	}
 	for _, scroll := range []int{1, most} {
 		f.Scroll = scroll
-		rows := textOf(f.Draw(doc, now))
+		rows, _ := usageBody(f, doc, now, body)
 		if got, want := keyRow(rows), keyRow(top); got != want {
 			t.Errorf("scrolled %d down, USAGE's key line is on row %d, want row %d, where it is at the top:\n%s", scroll, got, want, strings.Join(rows, "\n"))
 		}
@@ -336,10 +339,12 @@ func TestRevealingAnAccountInUSAGEScrollsOnlyWhereItIsntShownAndThenTillItIs(t *
 		accounts[i] = readAccount(fmt.Sprintf("a%d", i+1), sessionOf(0.1, time.Hour), weekOf(0.2, 3*quota.Day), windowOf("7d_opus", "Opus", 0.3, 3*quota.Day))
 	}
 	doc := routerDoc("a1", 0, accounts...)
-	// Stacked, under 150 columns, three windows: at the top, with no ▲ over
-	// each, a1 to a4 show; between ▲ and ▼, three; at the foot, from a5, four.
-	f := frameOf(120, 54)
-	if s := f.Scrolling(doc, now); s != (Scrolling{Most: 4, Page: 4}) {
+	// Stacked, under 150 columns, three windows, in 42 rows: at the top, with
+	// no ▲ over each, a1 to a4 show; between ▲ and ▼, three; at the foot,
+	// from a5, four.
+	const rows = 42
+	usage := frameOf(120, 60).usageSection(doc, now)
+	if s := usage.scrolling(rows, 0); s != (Scrolling{Most: 4, Page: 4}) {
 		t.Fatalf("USAGE scrolls %+v, want 4 accounts at the top, as far as 4", s)
 	}
 	tests := []struct {
@@ -356,8 +361,7 @@ func TestRevealingAnAccountInUSAGEScrollsOnlyWhereItIsntShownAndThenTillItIs(t *
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f.Scroll = tt.scroll
-			if got := f.Revealing(doc, now, tt.id); got != tt.want {
+			if got := usage.revealing(rows, tt.scroll, tt.id); got != tt.want {
 				t.Errorf("scrolled %d down, revealing %s scrolls to %d, want %d", tt.scroll, tt.id, got, tt.want)
 			}
 		})

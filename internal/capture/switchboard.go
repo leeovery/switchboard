@@ -4,6 +4,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
@@ -104,6 +105,29 @@ func (a accountWorlds) ten() accountWorld {
 		w.routed, w.stream = tenSessions, sceneStream(a.now, "side")
 		return w
 	})
+}
+
+// sixRunning is the world of six accounts as the Overview's frame of every
+// section at 173 × 53 draws it: the sessions the world of ten lists on those
+// six, as tenSessions has them, eleven, its stream the scene's.
+func (a accountWorlds) sixRunning() accountWorld {
+	return a.kept("six running", func() accountWorld {
+		w := a.many(6)
+		w.routed, w.stream = routedOn(w.accounts, tenSessions), sceneStream(a.now, "side")
+		return w
+	})
+}
+
+// routedOn are the sessions routed lists, but those assigned to none of the
+// accounts given.
+func routedOn(accounts config.Accounts, routed func(now time.Time) []status.Session) func(now time.Time) []status.Session {
+	return func(now time.Time) []status.Session {
+		return slices.DeleteFunc(routed(now), func(s status.Session) bool {
+			return !slices.ContainsFunc(s.Assignments, func(as status.Assignment) bool {
+				return slices.ContainsFunc(accounts, func(a config.Account) bool { return a.ID == as.Account })
+			})
+		})
+	}
 }
 
 // tenSessions are the sessions the router lists in the world of ten at now,

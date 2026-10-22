@@ -2005,15 +2005,17 @@ below, not flex's even share:
    them; on a phone, LATELY or COMING UP opens where it stays folded with them. Where every
    section open stays open with them, they stay. A section left folded never fits at its least
    with every other at its own, USAGE's accounts a row apart.
-4. **Every other section folded,** where USAGE still doesn't fit, it scrolls within the rows left
-   to it, as Many accounts, above, has it, where as it is, scrolled to its top, they show an
-   account. Short of that, at the shortest heights, it gives way to the first of its steps that
-   fits: its accounts a row apart; then the blank rows under its heading and its windows'
-   headings; then its key line. The rows a step leaves are empty at the foot. So at 138 × 15,
-   where it showed `WEEK`, how many rows more and its key, its accounts show under their window's
-   heading. Past its last step, it scrolls within the rows left to it. The planner keeps the step
-   it took in the layout, so USAGE is drawn in the form the planner chose, never one its rows
-   alone suggest.
+4. **Every other section folded,** where USAGE still doesn't fit, it takes, in the rows left to
+   it, the step that shows the most accounts, scrolled to its top: as it is; its accounts a row
+   apart; then the blank rows under its heading and its windows' headings gone too; then its key
+   line. Of steps that show as many, it takes the least far, so it keeps its blank rows where they
+   cost no account. The rows a step leaves are empty at the foot, and where a step doesn't fit,
+   it scrolls within the rows, as Many accounts, above, has it. So at 138 × 15, where it showed
+   `WEEK`, how many rows more and its key, its accounts show under their window's heading. The
+   most of what each step shows never falls as the rows grow, but where a step shows fewer a row
+   taller, scrolled an account at a time where it was scrolled whole, which the scrolling's own
+   pass settles. The planner keeps the step it took in the layout, so USAGE is drawn in the form
+   the planner chose, never one its rows alone suggest.
 5. **Rows to spare go out even while a section is folded,** to the units that aren't, in turn: to
    SESSIONS, a whole session at a time, its row or two, to every one, what's left that's less than a
    session going on, never left blank; to GRAPHS, a row at a time to 19; to USAGE's big bars, if
@@ -3045,7 +3047,8 @@ with its sessions under it, in The page's phone frame under 100 columns (settled
 - **The foot:** the pool's rule across the whole row; `Σ pool` under it; on the row under that, from
   column 1, the room in each window, `5-hour 1.5 of 3 left   Week 1.2 of 3 left`; then, after a
   blank row, the Overview's phone key on two lines,
-  `┃ even pace: where you would be now, used evenly`, and `╎ cap: work at 95%   ◆ primary   ▲ new`.
+  `┃ even pace: where you would be now, used evenly`, and `╎ cap: work at 95%   ◆ primary   ▲ new
+  sessions go here`, `▲`'s words as the Overview's key line words them, by the room it has.
 - **No cords, no travel:** the state words carry the motion, bold while the session works.
 - **The heading:** `SESSIONS` in `text.subtle`, two spaces and the sub-tabs, with no `[ ]` and no
   rule, as on the Log's phone (see The Log).

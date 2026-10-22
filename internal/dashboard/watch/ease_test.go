@@ -148,7 +148,7 @@ func TestFramesRunOnlyWhileBarsMove(t *testing.T) {
 }
 
 // tenIDs are the ids of ten accounts, too many for USAGE alone on a
-// terminal 30 rows tall: ops and studio are scrolled out of view.
+// terminal 17 rows tall: ops and studio are scrolled out of view.
 var tenIDs = []string{"work", "personal", "side", "client", "spare", "lab", "team", "extra", "ops", "studio"}
 
 // tenWith is the router's document of ten accounts, each using a quarter of
@@ -169,13 +169,13 @@ func tenWith(change func(*status.Account), ids ...string) status.Document {
 }
 
 // tenOnAShortScreen is a model of a source whose router answers with doc,
-// of tenWith's ten accounts, showing USAGE alone on a terminal 30 rows tall,
+// of tenWith's ten accounts, showing USAGE alone on a terminal 17 rows tall,
 // started and settled, studio scrolled out of view.
 func tenOnAShortScreen(t *testing.T, doc status.Document) *harness {
 	t.Helper()
 	h := routedHarness(t, doc)
 	h.model.sections = dashboard.Sections{}.Toggled(dashboard.SectionRouting).Toggled(dashboard.SectionComing).Toggled(dashboard.SectionLately)
-	h.update(tea.WindowSizeMsg{Width: 160, Height: 30})
+	h.update(tea.WindowSizeMsg{Width: 160, Height: 17})
 	h.start()
 	h.settle()
 	if view := h.view(); strings.Contains(view, "10 studio") {
@@ -245,7 +245,7 @@ func TestTheScreenUpdateDrawsIsTheScreenDrawnAfresh(t *testing.T) {
 	ten := tenWith(using)
 	h.source.router = &ten
 	h.model.sections = dashboard.Sections{}.Toggled(dashboard.SectionRouting).Toggled(dashboard.SectionComing).Toggled(dashboard.SectionLately)
-	h.update(tea.WindowSizeMsg{Width: 160, Height: 30})
+	h.update(tea.WindowSizeMsg{Width: 160, Height: 17})
 	h.start()
 	h.answer(darkBackground)
 	h.settle()

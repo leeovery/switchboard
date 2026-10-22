@@ -196,16 +196,17 @@ type section struct {
 	least, most int
 	between     []int
 	// leaner are the rows it takes short of its least, a step at a time, as
-	// USAGE's block gives way to rows short, which never folds; showing, the
-	// fewest rows it shows an account in as it is, scrolled to its top,
-	// short of which it gives way at the shortest heights; leaned, it given
-	// way as far as the step given; and heads, the rows its heading takes
-	// over its body, its own among them, as USAGE's gives way its blank row:
-	// 0 for sectionHead.
-	leaner  []int
-	showing int
-	leaned  func(given giving) section
-	heads   int
+	// USAGE's block gives way to rows short, as it never folds.
+	leaner []int
+	// accounts is how many accounts it shows at the step given, in rows
+	// rows, its heading's among them, scrolled to its top: nil where it
+	// shows none.
+	accounts func(given giving, rows int) int
+	// leaned is the section given way as far as the step given.
+	leaned func(given giving) section
+	// heads are the rows its heading takes over its body, its own among
+	// them, as USAGE's gives way its blank row: 0 for sectionHead.
+	heads int
 	// aside is the column a section of no rows of its own is drawn from
 	// beside this one, in its rows, as ROUTING is beside USAGE's blocks by
 	// account: 0 where none can be.
@@ -389,11 +390,30 @@ func (u *unit) giveWay() {
 }
 
 // leanTo has USAGE's unit give way as far as the step given, taking the
-// rows its leaner has for it, where it has them.
+// rows its leaner has for it, where it has them; or, given none, its least.
 func (u *unit) leanTo(given giving) {
-	if leaner := u.sections[0].leaner; int(given) <= len(leaner) {
+	switch leaner := u.sections[0].leaner; {
+	case given == givenNone:
+		u.rows, u.lean = u.least, givenNone
+	case int(given) <= len(leaner):
 		u.rows, u.lean = leaner[given-1], given
 	}
+}
+
+// showsMost is the step USAGE's unit shows the most accounts at in rows
+// rows, as its accounts counts them, the least far of those that tie.
+func (u unit) showsMost(rows int) giving {
+	s := u.sections[0]
+	if s.accounts == nil {
+		return givenNone
+	}
+	best, most := givenNone, s.accounts(givenNone, rows)
+	for given := givenApart; int(given) <= len(s.leaner); given++ {
+		if shown := s.accounts(given, rows); shown > most {
+			best, most = given, shown
+		}
+	}
+	return best
 }
 
 // gaveWay reports whether the unit has given way: folded, or led by USAGE,
@@ -404,7 +424,8 @@ func (u unit) gaveWay() bool {
 
 // regain has the unit take back what it gave way: unfolded, at its least.
 func (u *unit) regain() {
-	u.rows, u.fold, u.lean = u.least, false, givenNone
+	u.fold = false
+	u.leanTo(givenNone)
 }
 
 // formed are the unit's sections in the form it has them: USAGE as far as
@@ -575,28 +596,21 @@ func keeps(units []unit, i, room int) bool {
 	return units[i].ledBy(SectionUsage) && !slices.ContainsFunc(units, func(u unit) bool { return !u.fold && !u.ledBy(SectionUsage) })
 }
 
-// squeeze takes over rows from USAGE, every other section folded: it
-// scrolls within the rest, its heading kept, where it shows an account in
-// them as it is; else, at the shortest heights, it gives way to the first of
-// its steps that fits, its blank rows between accounts, then those under its
-// headings, then its key, the rows that step leaves going blank at the foot,
-// and past its last, scrolls within the rest.
+// squeeze takes over rows from USAGE, every other section folded, its
+// heading kept: in the rest, it takes the step, as it is or given way as far
+// as its blank rows between accounts, those under its headings, or its key,
+// that shows the most accounts, as showsMost has it, keeping its blank rows
+// where they cost none; the rows a step leaves go blank at the foot, and
+// where it doesn't fit, it scrolls within them.
 func squeeze(units []unit, over int) {
 	i := slices.IndexFunc(units, func(u unit) bool { return u.ledBy(SectionUsage) })
 	if i < 0 {
 		return
 	}
 	u := &units[i]
-	left := u.rows - over
-	if left < u.sections[0].showing {
-		for given := givenApart; int(given) <= len(u.sections[0].leaner); given++ {
-			u.leanTo(given)
-			if u.rows <= left {
-				return
-			}
-		}
-	}
-	u.rows = max(left, sectionHead)
+	left := max(u.rows-over, sectionHead)
+	u.leanTo(u.showsMost(left))
+	u.rows = min(u.rows, left)
 }
 
 // grow gives the units not folded spare rows, as growth has them: a unit

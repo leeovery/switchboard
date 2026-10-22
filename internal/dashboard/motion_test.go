@@ -54,7 +54,7 @@ func TestWhatSettlesOnScreenAloneMovesTheFrame(t *testing.T) {
 		status.Event{At: now.Add(-2 * time.Minute).UTC(), Kind: status.EventRoom, Account: "side"},
 	)
 	// usageAlone is USAGE alone, too short for every account: studio's
-	// scrolled out of view at 30 rows, and lab's, whose words say out ~, at 24.
+	// scrolled out of view at 19 rows, and lab's, whose words say out ~, at 16.
 	usageAlone := func(height int) Frame {
 		f := frameOf(160, height)
 		f.Sections = Sections{}.Toggled(SectionRouting).Toggled(SectionComing).Toggled(SectionLately)
@@ -71,23 +71,23 @@ func TestWhatSettlesOnScreenAloneMovesTheFrame(t *testing.T) {
 		settle func(f *Frame)
 		want   bool
 	}{
-		{name: "nothing settling", f: usageAlone(30), doc: ten, at: routedAt, settle: func(*Frame) {}},
+		{name: "nothing settling", f: usageAlone(19), doc: ten, at: routedAt, settle: func(*Frame) {}},
 		{
-			name: "a number on screen brightening", f: usageAlone(30), doc: ten, at: routedAt, want: true,
+			name: "a number on screen brightening", f: usageAlone(19), doc: ten, at: routedAt, want: true,
 			settle: func(f *Frame) { f.Brightened = map[Number]float64{workSession: 0.5} },
 		},
 		{
-			name: "a number scrolled out of view brightening", f: usageAlone(30), doc: ten, at: routedAt,
+			name: "a number scrolled out of view brightening", f: usageAlone(19), doc: ten, at: routedAt,
 			settle: func(f *Frame) {
 				f.Brightened = map[Number]float64{{Kind: NumberUsed, Account: "studio", Of: "5h"}: 0.5}
 			},
 		},
 		{
-			name: "a bar on screen easing", f: usageAlone(30), doc: ten, at: routedAt, want: true,
+			name: "a bar on screen easing", f: usageAlone(19), doc: ten, at: routedAt, want: true,
 			settle: func(f *Frame) { f.Eased = map[Ref]float64{workBar: 0.3} },
 		},
 		{
-			name: "a bar scrolled out of view easing", f: usageAlone(30), doc: ten, at: routedAt,
+			name: "a bar scrolled out of view easing", f: usageAlone(19), doc: ten, at: routedAt,
 			settle: func(f *Frame) { f.Eased = map[Ref]float64{studioBar: 0.3} },
 		},
 		{
@@ -95,11 +95,11 @@ func TestWhatSettlesOnScreenAloneMovesTheFrame(t *testing.T) {
 			settle: func(f *Frame) { f.Eased = map[Ref]float64{workBar: 0.3} },
 		},
 		{
-			name: "a window's words on screen cued, out ~", f: usageAlone(24), doc: ten, at: routedAt, want: true,
+			name: "a window's words on screen cued, out ~", f: usageAlone(16), doc: ten, at: routedAt, want: true,
 			settle: func(f *Frame) { f.TurnedOut = map[Ref]float64{{Account: "client", Window: "5h"}: 0.5} },
 		},
 		{
-			name: "a window's words scrolled out of view cued, out ~", f: usageAlone(24), doc: ten, at: routedAt,
+			name: "a window's words scrolled out of view cued, out ~", f: usageAlone(16), doc: ten, at: routedAt,
 			settle: func(f *Frame) { f.TurnedOut = map[Ref]float64{{Account: "lab", Window: "5h"}: 0.5} },
 		},
 		{

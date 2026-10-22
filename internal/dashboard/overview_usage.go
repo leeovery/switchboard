@@ -39,7 +39,7 @@ func (f Frame) usageSection(doc status.Document, now time.Time) section {
 		Section: SectionUsage, least: sectionHead + views.all, most: sectionHead + views.big,
 		between:     views.between(),
 		leaner:      views.leanerRows(),
-		showing:     sectionHead + views.showsFrom(),
+		accounts:    func(given giving, rows int) int { return views.given(given).accountsIn(rows) },
 		description: func() line { return f.roomLeft(doc, now) },
 		keyed:       true,
 	}
@@ -330,15 +330,20 @@ func (b usageBlock) headed() int {
 	return sectionHead
 }
 
-// showsFrom is the fewest rows the block shows an account in, as it's laid
-// out, scrolled to its top: an account's row among its targets.
-func (v usageViews) showsFrom() int {
-	for rows := 1; rows < v.all; rows++ {
-		if len(v.shown(rows, 0).targets(bounds{rows: rows})) > 0 {
-			return rows
-		}
+// accountsIn is how many accounts the block shows in rows rows, its
+// heading's among them, as headed has them, scrolled to its top: those with
+// a row among its targets.
+func (v usageViews) accountsIn(rows int) int {
+	body := rows - v.block.headed()
+	if body <= 0 {
+		return 0
 	}
-	return v.all
+	var ids []string
+	for _, t := range v.shown(body, 0).targets(bounds{rows: body}) {
+		ids = append(ids, t.Account)
+	}
+	slices.Sort(ids)
+	return len(slices.Compact(ids))
 }
 
 // leanerRows are the rows USAGE takes, its heading's among them, as headed

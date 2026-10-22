@@ -687,6 +687,33 @@ func TestTheLayoutChangesOnlyOnAKeyOrAResizeNeverOnItsOwn(t *testing.T) {
 	if off := f; func() bool { off.View = Sessions; return !sameLayout(off.LayoutOf(doc, now), Layout{}) }() {
 		t.Errorf("off the Overview, LayoutOf gives a layout, want none")
 	}
+
+	// At 160x36, with six running, USAGE gives way its blank rows between
+	// accounts so SESSIONS keeps a session and how many more; with none,
+	// it keeps them. The step stays as kept as the sessions stop, and a
+	// resize makes it afresh.
+	leaned := frameOf(160, 36)
+	leaned.Sections, leaned.Sessions = f.Sections, flippingSessions()
+	leaned.Layout = leaned.LayoutOf(doc, now)
+	stopped := leaned
+	stopped.Sessions = nil
+	afresh, taller := stopped, leaned
+	afresh.Layout = Layout{}
+	taller.Height = 37
+	for name, tt := range map[string]struct {
+		f    Frame
+		want giving
+	}{
+		"as kept":                       {f: leaned, want: givenApart},
+		"the sessions stopped, as kept": {f: stopped, want: givenApart},
+		"the sessions stopped, afresh":  {f: afresh, want: givenNone},
+		"a resize":                      {f: taller, want: givenNone},
+	} {
+		units := tt.f.allotted(doc, now)
+		if got := units[slices.IndexFunc(units, func(u unit) bool { return u.ledBy(SectionUsage) })].lean; got != tt.want {
+			t.Errorf("%s, USAGE has given way %d steps, want %d", name, got, tt.want)
+		}
+	}
 }
 
 // A session's page over the Overview hides it: LayoutOf builds none of its
