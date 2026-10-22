@@ -84,13 +84,6 @@ var sizedAllowed = []string{
 	// S5: the Switchboard's lines, on one row where they're narrower than
 	// widestLines.
 	"internal/dashboard/switchboardlines.go:linesDrawn.oneRow",
-	// S10: ROUTING's rows, routingRows, and SESSIONS' form by it.
-	"internal/dashboard/overview_sessions.go:Frame.runningForm",
-	"internal/dashboard/routing.go:Frame.routingSection",
-	"internal/dashboard/routing.go:Frame.drawRouting",
-	"internal/dashboard/routing.go:Frame.accountRows",
-	"internal/dashboard/routing.go:besideRows",
-	"internal/dashboard/traces.go:Frame.accountTraceCells",
 	// S12: USAGE paged at short heights.
 	"internal/dashboard/overview_usage.go:usageViews.paged",
 	// S14: USAGE's matrix, matrixWidth, its names' column, roomyNames, its

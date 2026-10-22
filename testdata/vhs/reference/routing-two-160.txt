@@ -19,14 +19,14 @@ USAGE  ────────────────────────�
 ROUTING   auto ────────────────────────│  □ m  also move the sessions running                                           │───────────────────────────────────── r
                                        │                                                                                │
 1 work          ● at its cap · back 17:│  New sessions go to personal or side. When both are full, the router chooses.  │
-                                       │                                                                                │▄▃▃▂▄▃▂▄▄▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
+                                       │                                                                                │▄▃▃▂▄▃▂▃▄▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
                                        │                                                                                │
-2 personal ◆    ● open                 │                                                                                │       ▁▃▂
-                                       │                                                                                │▁▁▁▁▁▂▅    ▆▃▁▁▁▁▁▁▁▁▁▁▁▁▁▂▃▄▃▃   3/min
+2 personal ◆    ● open                 │                                                                                │       ▁▂▂▁
+                                       │                                                                                │▁▁▁▁▁▂▅    ▆▃▁▁▁▁▁▁▁▁▁▁▁▁▁▁▃▃▃▃   3/min
                                        │          ↑↓ move   space 0-3 tick   m move running   enter apply   esc cancel  │
-3 side ▲        ● open · new sessions c╰────────────────────────────────────────────────────────────────────────────────╯           ▄▇▇   ▇▇▆▆▇▅▂▁  ▂▂▃▃
-                                                                                            ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▄                       11/min
-                                                                                            requests a minute, last 30 minutes
+3 side ▲        ● open · new sessions c╰────────────────────────────────────────────────────────────────────────────────╯           ▄       ▆▅▇▆▃▁▁ ▁▂▃▃
+                                                                                           ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▄                       11/min
+                                                                                           requests a minute, last 30 minutes
 
 COMING UP  ─────────────────────────────────────────────────────────── c          LATELY  ──────────────────────────────────────────────────────────────────── l
 

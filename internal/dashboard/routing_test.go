@@ -64,18 +64,18 @@ func tenRouting() status.Document {
 func TestROUTINGsFormsLayItsRowsOut(t *testing.T) {
 	doc, sessions := autoRouting()
 	lane := func(n int) string { return strings.Repeat(traceLane, n) }
-	// From 110 columns, at 120, a trace is 20 cells, from column 92, and its
-	// rate ends at the last column, the caption cut to it; at 109, it's from
-	// the name column to 89.
+	// On a row an account, at 120, the words are 40 cells, its sessions at 58
+	// and its trace 41 cells from column 71, its rate ending at the last
+	// column; on two, at 82, its trace is from the name column to 62.
 	wide := func(name, state, sessions string) map[int]string {
-		return map[int]string{0: name, 16: state, sessionsAt: sessions}
+		return map[int]string{0: name, 16: state, 58: sessions}
 	}
 	traced := func(texts map[int]string) string {
-		texts[traceFrom], texts[115] = lane(20), "0/min"
+		texts[71], texts[115] = lane(41), "0/min"
 		return textsAt(120, texts)
 	}
-	work, personal, side := "● at its cap · back 17:10 · new sessions go elsewhere", "● open", "● open · new sessions come here"
-	caption := textsAt(120, map[int]string{traceFrom: "requests a minute, last 30…"})
+	work, personal, side := "● at its cap · back 17:10", "● open", "● open · new sessions come here"
+	caption := textsAt(120, map[int]string{71: "requests a minute, last 30 minutes"})
 	tests := []struct {
 		name  string
 		width int
@@ -101,11 +101,11 @@ func TestROUTINGsFormsLayItsRowsOut(t *testing.T) {
 			},
 		},
 		{
-			name: "under 110 columns: two rows an account and a blank row, its short state, its trace to 20 cells short of the edge", width: 109, rows: 8,
+			name: "its row's parts not fitting a row: two rows an account and a blank row, its short state, its trace to 20 cells short of the edge", width: 82, rows: 8,
 			want: []string{
-				" 1 work         ● at its cap · 17:10", textsAt(109, map[int]string{16: lane(73), 92: "0 sessions  0/min"}), "",
-				" 2 personal ◆   ● open", textsAt(109, map[int]string{16: lane(73), 92: "2 sessions  0/min"}), "",
-				" 3 side ▲       ● open · next", textsAt(109, map[int]string{16: lane(73), 92: "4 sessions  0/min"}),
+				" 1 work         ● at its cap · 17:10", textsAt(82, map[int]string{16: lane(46), 65: "0 sessions  0/min"}), "",
+				" 2 personal ◆   ● open", textsAt(82, map[int]string{16: lane(46), 65: "2 sessions  0/min"}), "",
+				" 3 side ▲       ● open · next", textsAt(82, map[int]string{16: lane(46), 65: "4 sessions  0/min"}),
 			},
 		},
 	}
@@ -136,20 +136,20 @@ func TestAnAccountsStateIsCutByWholeClausesBeforeWhatFollowsIt(t *testing.T) {
 	}{
 		{
 			name: "whole, ending two cells or more before its sessions at 79", doc: capped(false),
-			want: textsAt(traceFrom, map[int]string{0: "1 work", 16: "● at its cap · back 17:10 · new sessions go elsewhere", sessionsAt: "0 sessions"}),
+			want: textsAt(92, map[int]string{0: "1 work", 16: "● at its cap · back 17:10 · new sessions go elsewhere", 79: "0 sessions"}),
 		},
 		{
 			name: "pinned: its clause left off whole, to end two cells or more before ● pinned at 68", doc: capped(true),
-			want: textsAt(traceFrom, map[int]string{0: "1 work", 16: "● at its cap", pinnedAt: "● pinned", sessionsAt: "0 sessions"}),
+			want: textsAt(92, map[int]string{0: "1 work", 16: "● at its cap", 68: "● pinned", 79: "0 sessions"}),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := Frame{Width: 160, Height: 40, View: Overview, Policy: claudeLike}
+			f := Frame{Width: 173, Height: 40, View: Overview, Policy: claudeLike}
 			c := newCanvas(f.Width, 4)
 			f.routingSection(tt.doc, routedAt).draw(c, bounds{width: f.Width, rows: 4})
 			row := []rune(textOf(c.rows(Look{}))[0])
-			if got := textsAt(traceFrom, map[int]string{0: string(row[:traceFrom])}); got != tt.want {
+			if got := textsAt(92, map[int]string{0: string(row[:92])}); got != tt.want {
 				t.Errorf("drew\n  %q\nwant\n  %q", got, tt.want)
 			}
 		})
@@ -276,7 +276,7 @@ func TestROUTINGIsBesideUSAGEOnlyWhereBothShowByAccountFrom150Columns(t *testing
 		{name: "by account, beside USAGE", frame: Frame{Width: 150, By: ByAccount}, least: 0, most: 0},
 		{name: "by account under 150 columns", frame: Frame{Width: 149, By: ByAccount}, least: 6, most: 11},
 		{name: "by account, USAGE hidden", frame: Frame{Width: 160, By: ByAccount, Sections: Sections{}.Toggled(SectionUsage)}, least: 6, most: 11},
-		{name: "under 110 columns", frame: Frame{Width: 109}, least: 10, most: 10},
+		{name: "its row's parts not fitting a row", frame: Frame{Width: 82}, least: 10, most: 10},
 	}
 	for _, tt := range tests {
 		if s := tt.frame.routingSection(doc, routedAt); s.least != tt.least || s.most != tt.most {
@@ -360,8 +360,9 @@ func TestAnAccountOutOfThePoolHasItsTraceAndRateFadedItsStateAsItIs(t *testing.T
 	if got := c.at(f.Width-1, 1).ink; got != faintInk {
 		t.Errorf("work's rate is in %+v, want %+v", got, faintInk)
 	}
-	if _, lane := traceInks(true); c.at(traceFrom, 1).ink != lane {
-		t.Errorf("work's empty trace is in %+v, want %+v, faded", c.at(traceFrom, 1).ink, lane)
+	first := c.at(f.routingColumns(f.Moment(doc, routedAt)).trace, 1)
+	if _, lane := traceInks(true); first.ink != lane {
+		t.Errorf("work's empty trace is in %+v, want %+v, faded", first.ink, lane)
 	}
 }
 
@@ -508,7 +509,7 @@ func TestEachAccountsRowsInROUTINGAreItsTargets(t *testing.T) {
 	}{
 		{name: "size 1", width: 160, rows: 4, want: map[string][]int{"work": {10}, "personal": {11}, "side": {12}}},
 		{name: "size 2", width: 160, rows: 9, want: map[string][]int{"work": {10, 11}, "personal": {13, 14}, "side": {16, 17}}},
-		{name: "under 110 columns", width: 109, rows: 8, want: map[string][]int{"work": {10, 11}, "personal": {13, 14}, "side": {16, 17}}},
+		{name: "its row's parts not fitting a row", width: 82, rows: 8, want: map[string][]int{"work": {10, 11}, "personal": {13, 14}, "side": {16, 17}}},
 	}
 	for _, tt := range tests {
 		f := Frame{Width: tt.width, Height: 40, View: Overview, Policy: claudeLike}
@@ -521,6 +522,99 @@ func TestEachAccountsRowsInROUTINGAreItsTargets(t *testing.T) {
 		}
 		if !maps.EqualFunc(got, tt.want, slices.Equal) {
 			t.Errorf("%s: targets on rows %v, want %v", tt.name, got, tt.want)
+		}
+	}
+}
+
+// ROUTING and SESSIONS take a row an account and a session from the width
+// their row's parts' leasts first fit, the name column, the words' 20, the
+// sessions and their gaps, the trace's 24 and the rate's tail: 83 columns
+// with a name column of 16, 91 with one of 24; a column less, two rows.
+func TestARowOfROUTINGsIsOneWhereItsPartsLeastsFit(t *testing.T) {
+	tests := []struct {
+		names, width int
+		oneRow       bool
+	}{
+		{names: 16, width: 83, oneRow: true},
+		{names: 16, width: 82},
+		{names: 24, width: 91, oneRow: true},
+		{names: 24, width: 90},
+	}
+	for _, tt := range tests {
+		at := routingColumnsOf(tt.width, tt.names)
+		if at.oneRow != tt.oneRow {
+			t.Errorf("at %d columns, a name column of %d: one row %v, want %v", tt.width, tt.names, at.oneRow, tt.oneRow)
+		}
+		if tt.oneRow && (at.words != wordsLeast || at.traceCells != traceLeast) {
+			t.Errorf("at %d columns, a name column of %d: words %d, trace %d; want their leasts, %d and %d", tt.width, tt.names, at.words, at.traceCells, wordsLeast, traceLeast)
+		}
+	}
+}
+
+// A row's words and trace take half of what its fixed parts leave each, the
+// odd cell the trace's, the words up to their most, the trace the rest: at
+// 173 as before, the sessions at 79 and the trace at 92; at 108, the trace
+// 35 cells from 65.
+func TestARowOfROUTINGsSharesItsRoomBetweenItsWordsAndItsTrace(t *testing.T) {
+	tests := []struct {
+		width int
+		want  routingColumns
+	}{
+		{width: 173, want: routingColumns{oneRow: true, names: 16, words: 61, sessions: 79, trace: 92, traceCells: 73}},
+		{width: 108, want: routingColumns{oneRow: true, names: 16, words: 34, sessions: 52, trace: 65, traceCells: 35}},
+		{width: 82, want: routingColumns{names: 16, trace: 16, traceCells: 46}},
+	}
+	for _, tt := range tests {
+		if got := routingColumnsOf(tt.width, 16); got != tt.want {
+			t.Errorf("at %d columns: %+v, want %+v", tt.width, got, tt.want)
+		}
+	}
+}
+
+// Wherever a row's one, its words are within their least and most, and its
+// trace no less than its least, the two level, the odd cell the trace's,
+// but where either is at a least or the words at their most; its sessions
+// follow the words wordsGap on, and its trace ends traceTail short of the
+// edge.
+func TestARowOfROUTINGsWordsKeepWithinTheirLeastAndMost(t *testing.T) {
+	for _, names := range []int{labelLeast, 16, labelMost} {
+		for width := 52; width <= 400; width++ {
+			at := routingColumnsOf(width, names)
+			if !at.oneRow {
+				continue
+			}
+			if at.words < wordsLeast || at.words > wordsMost || at.traceCells < traceLeast {
+				t.Errorf("at %d columns, a name column of %d: words %d, trace %d; want words %d to %d and a trace of %d or more", width, names, at.words, at.traceCells, wordsLeast, wordsMost, traceLeast)
+			}
+			if level := at.traceCells - at.words; at.words > traceLeast && at.words < wordsMost && level != 0 && level != 1 {
+				t.Errorf("at %d columns, a name column of %d: words %d, trace %d; want them level, the odd cell the trace's", width, names, at.words, at.traceCells)
+			}
+			if at.sessions != names+at.words+wordsGap || at.trace+at.traceCells != width-traceTail {
+				t.Errorf("at %d columns, a name column of %d: %+v; want the sessions %d after the words, the trace ending %d short of the edge", width, names, at, wordsGap, traceTail)
+			}
+		}
+	}
+}
+
+// SESSIONS' traces start where ROUTING's do, at every width, so the two
+// columns line up; where a row's two, SESSIONS draws none.
+func TestSESSIONSTracesStartWhereROUTINGsDo(t *testing.T) {
+	doc, sessions, stream := overviewWorld()
+	for width := 52; width <= 220; width++ {
+		f := frameOf(width, 60)
+		f.Sections, f.Sessions, f.Stream = SectionsNamed([]string{"routing", "sessions"}), sessions, stream
+		traces := *f.overviewDrawn(doc, routedAt).traces
+		want := len(doc.Accounts)
+		if f.routingColumns(f.Moment(doc, routedAt)).oneRow {
+			want += len(f.running(doc, routedAt))
+		}
+		if len(traces) != want {
+			t.Fatalf("at %d columns, %d traces drawn, want %d", width, len(traces), want)
+		}
+		for _, tr := range traces {
+			if tr.at.x != traces[0].at.x {
+				t.Errorf("at %d columns, a trace starts at column %d, want %d, where ROUTING's does", width, tr.at.x, traces[0].at.x)
+			}
 		}
 	}
 }

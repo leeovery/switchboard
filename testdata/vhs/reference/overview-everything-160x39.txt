@@ -28,10 +28,10 @@ GRAPHS   work     · even pace   ╌ cap   ┄ limit ─────────
 
 ROUTING   auto ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── r
 
-1 work          ● at its cap · back 17:10 · new sessions go elsewhere          0 sessions   ▂▃▄▅▅▂▂▂▂▂▂▂▂▃▄▅▆▆▄▄▃▃▃▃▂▂▂▂▂▂▂▂▁▂▂▁▂▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
-2 personal ◆    ● open                                                         2 sessions   ▁▁▂▂▂▂▂▁▁▁▁▁▁▁▁▁▁▂▂▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▃▅▆▅▄▃▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂▂▁▂   3/min
-3 side ▲        ● open · new sessions come here                                4 sessions   ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂▄▆       ▇▇ ▇▅▄▄▄▅▅▆▆  11/min
-                                                                                            requests a minute, last 30 minutes
+1 work          ● at its cap · back 17:10 · new sessions go elsewhere         0 sessions   ▂▂▄▅▅▄▂▂▂▂▂▃▂▂▃▄▆▆▆▄▄▃▃▃▃▂▂▂▂▂▂▂▂▁▂▂▁▂▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
+2 personal ◆    ● open                                                        2 sessions   ▂▁▂▂▂▂▂▂▁▁▁▁▁▁▁▁▁▁▂▂▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂▅▅▅▄▃▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂▂▂▁   3/min
+3 side ▲        ● open · new sessions come here                               4 sessions   ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂▄▆       ▇▇▇▇▅▄▄▄▅▅▅▆  11/min
+                                                                                           requests a minute, last 30 minutes
 
 SESSIONS   6 running: 2 on personal, 4 on side   no room at 39 rows ────────────────────────────────────────────────────────────────────────────────────────── s
 COMING UP   16:30  personal's 5-hour resets  … ─────────────────────── c          LATELY   14:41  ▲ c61b started on side  … ────────────────────────────────── l

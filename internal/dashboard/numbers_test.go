@@ -70,8 +70,8 @@ func TestTheOverviewNamesEachNumberItDrawsByWhatItIs(t *testing.T) {
 			want: map[Number]string{{Kind: NumberRoom, Account: "work", Of: "5h"}: "0.4", {Kind: NumberRoom, Account: "work", Of: "7d"}: "0.6"},
 		},
 		{
-			name: "under 110 columns, ROUTING's sessions and rate on its second row",
-			f:    frameOf(100, 60), doc: threeRouted(), at: now,
+			name: "two rows an account, ROUTING's sessions and rate on its second row",
+			f:    frameOf(80, 60), doc: threeRouted(), at: now,
 			want: map[Number]string{{Kind: NumberSessions, Account: "work"}: "0 sessions", workRate: "0/min"},
 		},
 		{

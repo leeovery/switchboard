@@ -120,7 +120,7 @@ func TestEachSectionsLeastAndMostRows(t *testing.T) {
 		{name: "ROUTING: a + 3, to 3a + 2", section: at(160, ByWindow).routingSection(doc, now), least: 6, most: 11},
 		{name: "ROUTING by account under 150 columns: a section of its own", section: at(149, ByAccount).routingSection(doc, now), least: 6, most: 11},
 		{name: "ROUTING by account from 150 columns: beside USAGE, no rows of its own", section: at(150, ByAccount).routingSection(doc, now), least: 0, most: 0},
-		{name: "ROUTING under 110 columns: two rows an account, 3a + 1", section: at(109, ByWindow).routingSection(doc, now), least: 10, most: 10},
+		{name: "ROUTING where its row's parts don't fit a row: two rows an account, 3a + 1", section: at(80, ByWindow).routingSection(doc, now), least: 10, most: 10},
 		{name: "SESSIONS: a row saying none runs", section: at(160, ByWindow).sessionsSection(doc, now), least: 3, most: 3},
 		{name: "SESSIONS: a row a session on each account its models go to", section: running.sessionsSection(doc, now), least: 8, most: 8},
 		{name: "SESSIONS on a phone: two rows a session", section: phone.sessionsSection(doc, now), least: 14, most: 14},
@@ -403,8 +403,9 @@ func TestRowsShortSectionsFoldInTurnThenWhatFitsUnfoldsTheLastFoldedFirstAndUSAG
 // the group folded last from the first: with SESSIONS at 3 rows, in 30 or 31,
 // SESSIONS, COMING UP and LATELY, then GRAPHS fold; COMING UP and LATELY,
 // folded after SESSIONS, unfold before it, and leave it no room. So with
-// every section shown, at 73x46 and 108x44, GRAPHS, folded after COMING UP
-// and LATELY, unfolds where they then can't.
+// every section shown, at 73x46, GRAPHS, folded after COMING UP and LATELY,
+// unfolds where they then can't; at 108x44, ROUTING, a row an account and
+// folded last, unfolds first and leaves GRAPHS no room.
 func TestTheGroupFoldedLastUnfoldsFirst(t *testing.T) {
 	sections := shortOfRows()
 	sections[3] = sized(SectionSessions, 3, 3)
@@ -420,7 +421,7 @@ func TestTheGroupFoldedLastUnfoldsFirst(t *testing.T) {
 		folds         []Section
 	}{
 		{width: 73, height: 46, folds: []Section{SectionRouting, SectionSessions, SectionComing, SectionLately}},
-		{width: 108, height: 44, folds: []Section{SectionRouting, SectionSessions, SectionComing, SectionLately}},
+		{width: 108, height: 44, folds: []Section{SectionGraphs, SectionSessions, SectionComing, SectionLately}},
 	}
 	for _, tt := range tests {
 		f := frameOf(tt.width, tt.height)

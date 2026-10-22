@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -129,7 +130,7 @@ func TestSESSIONSShowsAsManyAsFitTheLastRowSayingHowManyMore(t *testing.T) {
 		want  []string
 	}{
 		{name: "a row a session", width: 160, rows: 3, want: []string{"2 personal ◆    41e0", "                9c2e", "                +4 more"}},
-		{name: "two rows a session, under 110 columns", width: 109, rows: 6, want: []string{" 2 personal ◆   41e0", "                started", "                9c2e", "                started", "                +4 more", ""}},
+		{name: "two rows a session, where its row's parts don't fit a row", width: 82, rows: 6, want: []string{" 2 personal ◆   41e0", "                started", "                9c2e", "                started", "                +4 more", ""}},
 		{name: "every one where they fit", width: 160, rows: 6, want: []string{"2 personal ◆    41e0", "                9c2e", "3 side ▲        c61b", "                d28c", "                7f3a", "                db8a"}},
 	}
 	for _, tt := range tests {
@@ -152,7 +153,7 @@ func TestSESSIONSShowsAsManyAsFitTheLastRowSayingHowManyMore(t *testing.T) {
 }
 
 // A click on a session's row in SESSIONS opens its page: each row of each
-// session shown, across the body, both of a session's under 110 columns,
+// session shown, across the body, both of a session's on two rows a session,
 // and a session's on each account its models go to; none on the row saying
 // how many more there are.
 func TestEachRowOfASessionInSESSIONSOpensItsPage(t *testing.T) {
@@ -167,7 +168,7 @@ func TestEachRowOfASessionInSESSIONSOpensItsPage(t *testing.T) {
 		want     []string
 	}{
 		{name: "a row a session, the last saying how many more", width: 160, sessions: sessions, rows: 3, want: []string{id41E0, id9C2E, ""}},
-		{name: "two rows a session, under 110 columns", width: 109, sessions: sessions, rows: 5, want: []string{id41E0, id41E0, id9C2E, id9C2E, ""}},
+		{name: "two rows a session, where its row's parts don't fit a row", width: 82, sessions: sessions, rows: 5, want: []string{id41E0, id41E0, id9C2E, id9C2E, ""}},
 		{
 			name: "a session on two accounts, on each", width: 160, sessions: two, rows: 7,
 			want: []string{idC61B, id41E0, id9C2E, idC61B, idD28C, id7F3A, idDB8A},
@@ -191,9 +192,9 @@ func TestEachRowOfASessionInSESSIONSOpensItsPage(t *testing.T) {
 	}
 }
 
-func TestUnder110ColumnsASessionTakesTwoRows(t *testing.T) {
+func TestWhereItsRowsPartsDontFitASessionTakesTwoRows(t *testing.T) {
 	doc, sessions, stream := overviewWorld()
-	for _, width := range []int{109, 52} {
+	for _, width := range []int{82, 52} {
 		f := Frame{Width: width, Height: 40, View: Overview, Sessions: sessions[:2], Stream: stream}
 		if got := f.sessionsSection(doc, routedAt); got.least != 6 || got.most != 6 {
 			t.Errorf("at %d columns: least %d, most %d; want two rows a session and the heading's two", width, got.least, got.most)
@@ -218,10 +219,23 @@ func TestASessionsWhyIsCutToEndBeforeItsTrace(t *testing.T) {
 	long := status.Session{ID: idD28C, Assignments: []status.Assignment{{
 		Model: opus, Family: "opus", Account: "side", Reason: "pin yields: personal has no room for a request that's long", AssignedAt: routedAt, LastSeen: routedAt,
 	}}}
-	f := Frame{Width: 160, Height: 40, View: Overview, Sessions: []status.Session{long}}
-	want := "3 side ▲        d28c  opus    now   idle     its pin to personal yields: personal has no…"
-	if got := strings.TrimRight(string([]rune(sessionsDrawn(f, doc, 1)[0])[:traceFrom]), " "); got != want {
-		t.Errorf("drew\n  %q\nwant\n  %q, its why cut short two cells or more before the trace at column %d", got, want, traceFrom)
+	before := func(width int) (string, int) {
+		f := Frame{Width: width, Height: 40, View: Overview, Sessions: []status.Session{long}}
+		trace := f.routingColumns(f.Moment(doc, routedAt)).trace
+		return strings.TrimRight(string([]rune(sessionsDrawn(f, doc, 1)[0])[:trace]), " "), trace
+	}
+	for width, want := range map[int]string{
+		173: "3 side ▲        d28c  opus    now   idle     its pin to personal yields: personal has no…",
+		108: "3 side ▲        d28c  opus    now   idle     its pin to person…",
+	} {
+		if got, trace := before(width); got != want {
+			t.Errorf("at %d columns, drew\n  %q\nwant\n  %q, its why cut short two cells or more before the trace at column %d", width, got, want, trace)
+		}
+	}
+	for width := 83; width <= 220; width++ {
+		if got, trace := before(width); !strings.HasSuffix(got, "…") || ansi.StringWidth(got) > trace-beforeTraceAt {
+			t.Errorf("at %d columns, drew %q, want its why cut to end %d cells or more before the trace at column %d", width, got, beforeTraceAt, trace)
+		}
 	}
 }
 
@@ -301,7 +315,7 @@ func TestASessionSeenLongerAgoThanItsColumnHoldsIsDrawnWhole(t *testing.T) {
 	c := newCanvas(160, 1)
 	r := views.Running{Account: "side", Session: idD28C, Family: "opus", Activity: views.Activity{LastSeen: routedAt.Add(-1000 * time.Hour)}}
 	f := Frame{Width: 160}
-	f.wideRunning(c, f.Moment(doc, routedAt), r, 16, 0)
+	f.wideRunning(c, f.Moment(doc, routedAt), r, routingColumnsOf(f.Width, 16), 0)
 	if got := rowOf(c, 0); !strings.Contains(got, "d28c  opus   1000h   idle") {
 		t.Errorf("drew %q, want 1000h whole, no blank before it", got)
 	}

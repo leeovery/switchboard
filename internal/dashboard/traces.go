@@ -8,13 +8,10 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// The columns of a trace a row an account, or a session, has from 110
-// columns: from traceFrom to traceTail cells short of the frame's edge, its
-// rate right-aligned in them.
-const (
-	traceFrom = 92
-	traceTail = 8
-)
+// traceTail is how many cells short of the frame's edge a trace ends on a
+// row of ROUTING's or SESSIONS', or beside USAGE's blocks, its rate
+// right-aligned in them.
+const traceTail = 8
 
 // leastScale is the fewest requests a minute that fill a trace's height, so
 // a quiet page isn't magnified.
@@ -82,24 +79,6 @@ func (t tracing) shows(i int) bool {
 		}
 	}
 	return false
-}
-
-// wideTraceCells are the cells a trace takes on its row from routingRows
-// columns, an account's in ROUTING or a session's in SESSIONS: from
-// traceFrom to traceTail short of the frame's edge.
-func (f Frame) wideTraceCells() int {
-	return f.Width - traceTail - traceFrom
-}
-
-// accountTraceCells are the cells an account's trace takes in ROUTING as a
-// section of its own, the name column given: as wideTraceCells says, from
-// routingRows columns; narrower, from the name column to narrowTail short
-// of the frame's edge.
-func (f Frame) accountTraceCells(names int) int {
-	if f.Width >= routingRows {
-		return f.wideTraceCells()
-	}
-	return f.Width - narrowTail - names
 }
 
 // summed are the traces' columns, as columnsOf gives them, summed column by

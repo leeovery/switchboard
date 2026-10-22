@@ -160,7 +160,11 @@ session shows:
 - when it was last seen
 - what it's doing, such as `↑ ask` or `↓ ~1.2k`
 - why it's on its account, such as `moved from work 14:31: work reached its cap`
-- its own trace.
+- its own trace, lined up with ROUTING's.
+
+ROUTING takes a row for each account, and SESSIONS a row for each session, wherever an account's
+name, its state in at least 20 cells, its sessions and a trace of at least 24 fit on one row, from
+83 columns with short names. Narrower, each takes two.
 
 ### COMING UP and LATELY
 
@@ -515,7 +519,8 @@ Under 100 columns, the dashboard lays itself out for a phone.
 
 - The tabs sit on a row of their own, under the clock.
 - The Overview's USAGE stacks its windows in short words.
-- ROUTING takes two rows for each account, and SESSIONS two rows for each session.
+- ROUTING takes two rows for each account, and SESSIONS two rows for each session, as they do
+  wherever one row doesn't fit, under 83 columns with short names.
 - LATELY comes under COMING UP, as it does wherever the two don't fit side by side, under 93
   columns.
 - Accounts' `against it` and `against` give `all accounts`' ratio alone, but where an account has

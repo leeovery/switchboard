@@ -12,8 +12,8 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// The cells of a session's row in SESSIONS from routingRows columns, from the
-// name column: its id and the blanks after it; its model's family, padded;
+// The cells of a session's row in SESSIONS on a row a session, from the name
+// column: its id and the blanks after it; its model's family, padded;
 // when it was last seen, right-aligned; the blanks before what it's doing;
 // what it's doing, padded, why it's there following; and the blanks why
 // leaves, at the least, before its trace.
@@ -32,13 +32,14 @@ var doingInk = ink{token: theme.AccentKey}
 
 // sessionsSection is the Overview's SESSIONS of doc at now: the sessions
 // running, a row on each account a session's models go to, or a row saying
-// none is, at its least and its most alike; under routingRows columns, and
-// on a phone, two rows a session. A click on a session's row opens its page.
-// Its heading says loading…, in text.subtle, while the frame says so, as
-// what names its sessions is read.
+// none is, at its least and its most alike; two rows a session where
+// ROUTING's row's parts don't fit a row, as routingColumns says. A click on
+// a session's row opens its page. Its heading says loading…, in
+// text.subtle, while the frame says so, as what names its sessions is read.
 func (f Frame) sessionsSection(doc status.Document, now time.Time) section {
 	running := f.running(doc, now)
-	rows := sectionHead + max(len(running)*f.runningForm().rows, 1)
+	form := f.runningForm(f.routingColumns(f.Moment(doc, now)))
+	rows := sectionHead + max(len(running)*form.rows, 1)
 	return section{
 		Section: SectionSessions, least: rows, most: rows,
 		description: func() line {
@@ -54,7 +55,7 @@ func (f Frame) sessionsSection(doc status.Document, now time.Time) section {
 			return line{{runningCount(f.Moment(doc, now), running), mutedInk}}
 		},
 		targets: func(body bounds) []Target {
-			return f.runningTargets(running, body)
+			return form.targets(running, body)
 		},
 	}
 }
@@ -97,20 +98,23 @@ func (f Frame) holdRunning(doc status.Document, now time.Time) Frame {
 }
 
 // runningForm is how SESSIONS draws a session running: the rows it takes;
-// the column its account's name starts at, on its account's first; and what
-// draws the rest of it, of a moment, from a row, the name column given.
+// the column its account's name starts at, on its account's first; where
+// its row lies across the frame, as ROUTING's does; and what draws the rest
+// of it, of a moment, from a row.
 type runningForm struct {
 	rows, nameAt int
-	draw         func(c *canvas, m status.Moment, r views.Running, column, y int)
+	columns      routingColumns
+	draw         func(c *canvas, m status.Moment, r views.Running, at routingColumns, y int)
 }
 
-// runningForm is how the frame draws a session running: a row, from
-// routingRows columns; else two, its account's name a cell in.
-func (f Frame) runningForm() runningForm {
-	if f.Width < routingRows {
-		return runningForm{rows: 2, nameAt: 1, draw: f.narrowRunning}
+// runningForm is how the frame draws a session running, its row lying as
+// the columns given say, as ROUTING's does: a row, where they're one row;
+// else two, its account's name a cell in.
+func (f Frame) runningForm(columns routingColumns) runningForm {
+	if !columns.oneRow {
+		return runningForm{rows: 2, nameAt: 1, columns: columns, draw: f.narrowRunning}
 	}
-	return runningForm{rows: 1, draw: f.wideRunning}
+	return runningForm{rows: 1, columns: columns, draw: f.wideRunning}
 }
 
 // drawRunning draws the sessions running, of the moment m, in the body's
@@ -121,16 +125,15 @@ func (f Frame) drawRunning(c *canvas, m status.Moment, running []views.Running, 
 		c.line(0, body.y, line{{noSessionsRunning, faintInk}})
 		return
 	}
-	form := f.runningForm()
+	form := f.runningForm(f.routingColumns(m))
 	shown := form.shown(len(running), body.rows)
-	names := overviewNames(m)
-	column := nameColumn(names, f.Width)
+	names, column := overviewNames(m), form.columns.names
 	for i, r := range running[:shown] {
 		y := body.y + i*form.rows
 		if i == 0 || running[i-1].Account != r.Account {
 			c.line(form.nameAt, y, names[place(m, r.Account)-1].line(column))
 		}
-		form.draw(c, m, r, column, y)
+		form.draw(c, m, r, form.columns, y)
 	}
 	if more := len(running) - shown; more > 0 {
 		c.line(column, body.y+shown*form.rows, outOfView(0, more, body.x+body.width-column, runningOut))
@@ -147,12 +150,11 @@ func (form runningForm) shown(n, rows int) int {
 	return n
 }
 
-// runningTargets are SESSIONS' click targets, the sessions running drawn in
-// the body's bounds as drawRunning draws them: every row of each session
-// shown, across the body, which opens its page; none on the row saying how
-// many more there are.
-func (f Frame) runningTargets(running []views.Running, body bounds) []Target {
-	form := f.runningForm()
+// targets are SESSIONS' click targets, the sessions running drawn in the
+// body's bounds in the form, as drawRunning draws them: every row of each
+// session shown, across the body, which opens its page; none on the row
+// saying how many more there are.
+func (form runningForm) targets(running []views.Running, body bounds) []Target {
 	var targets []Target
 	for i, r := range running[:form.shown(len(running), body.rows)] {
 		for row := range form.rows {
@@ -166,13 +168,14 @@ func (f Frame) runningTargets(running []views.Running, body bounds) []Target {
 // running than SESSIONS shows, ending it, as in "+2 more".
 var runningOut = outForm{lead: "+", inks: subtleOut}
 
-// wideRunning draws the session running r on row y, of the moment m, from
-// routingRows columns: from the name column, its id, its family, when it was
-// last seen, what it's doing, and why it's there, cut to end before its
-// trace; then its trace, and its rate right-aligned at the edge
+// wideRunning draws the session running r on row y, of the moment m, on a
+// row a session, as the columns given lay it: from the name column, its id,
+// its family, when it was last seen, what it's doing, and why it's there,
+// cut to end beforeTraceAt cells before its trace, which starts where
+// ROUTING's does; then its trace, and its rate right-aligned at the edge
 // rateEdge gives it.
-func (f Frame) wideRunning(c *canvas, m status.Moment, r views.Running, column, y int) {
-	now := m.Now
+func (f Frame) wideRunning(c *canvas, m status.Moment, r views.Running, at routingColumns, y int) {
+	now, column := m.Now, at.names
 	seen := runningSeen(r.Activity.LastSeen, now)
 	doing := runningDoing(r.Activity)
 	c.line(column, y, line{
@@ -183,18 +186,19 @@ func (f Frame) wideRunning(c *canvas, m status.Moment, r views.Running, column, 
 		{padded(doing.text, doingCells), doing.ink},
 	})
 	why := column + runningWhy
-	c.line(why, y, line{{r.Why.String(), dimInk}}.fit(traceFrom-beforeTraceAt-why))
+	c.line(why, y, line{{r.Why.String(), dimInk}}.fit(at.trace-beforeTraceAt-why))
 	faded, t := outOfPool(m, r.Account), f.Traces.Sessions[r.Session]
-	trace := bounds{x: traceFrom, y: y, width: f.wideTraceCells(), rows: 1}
+	trace := bounds{x: at.trace, y: y, width: at.traceCells, rows: 1}
 	f.drawTrace(c, t, now, trace, faded)
 	c.right(f.rateEdge(trace), y, line{traceRate(t, now, faded).numbered(Number{Kind: NumberRate, Account: r.Account, Of: r.Session})})
 }
 
 // narrowRunning draws the session running r on rows y and y + 1, of the
-// moment m, under routingRows columns: on the first, its id at the name
-// column and what it's doing right-aligned; on the second, why it's there,
-// from the name column.
-func (f Frame) narrowRunning(c *canvas, m status.Moment, r views.Running, column, y int) {
+// moment m, on two rows a session, as the columns given lay it: on the
+// first, its id at the name column and what it's doing right-aligned; on
+// the second, why it's there, from the name column.
+func (f Frame) narrowRunning(c *canvas, m status.Moment, r views.Running, at routingColumns, y int) {
+	column := at.names
 	c.line(column, y, line{runningIDOf(r, m.Now)})
 	c.right(f.Width, y, line{runningDoing(r.Activity)})
 	c.line(column, y+1, line{{r.Why.String(), dimInk}}.fit(f.Width-column))

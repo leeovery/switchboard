@@ -1715,25 +1715,37 @@ first (the owner's call, 15 October 2026).
   bold `accent.key` and ` back to auto` in `text.faint`; with several accounts pinned, `pinned to
   personal and side since 13:40   p back to auto`. By account and on a phone, the mode alone. How
   each mode routes is for `?` help.
-- **A row an account,** in the config's order, from 110 columns:
+- **A row's parts,** across the width, laid by flex (`routing.go`, `routingParts`), and read by
+  SESSIONS' rows too, so the two line up:
+  - fixed: the name column, as USAGE's rows have it; two cells after the words; the sessions, as
+    wide as `0 sessions`, and three cells after them; and the rate's tail of 8;
+  - flexing: the words, at least 20 and at most 61 (what they had at 173 columns before they
+    flexed), and the trace, at least 24; half of what the fixed parts leave each, the odd cell the
+    trace's, the words capped at their most and the trace taking the rest.
+
+  Their widths come from the accounts configured and fixed words alone, never the words or sessions
+  shown, so nothing moves as they change. With a name column of 16, that's 92 for the trace at 173
+  columns, the sessions at 79, and 35 cells from 65 at 108.
+- **A row an account,** in the config's order, wherever those parts' leasts fit (from 83 columns
+  with a name column of 16):
   - its number, name and marks at column 0, as in USAGE;
   - its state at the name column, its glyph coloured as its words (below), its words cut by whole
-    clauses from the end so they end two cells before `● pinned` at column 68, or before the
-    sessions at 79 where no pin shows, a name column wider than 16 moving their start and cutting
-    them sooner, as Sessions' lines cut theirs (see Sessions);
-  - `● pinned` in `accent.key` at column 68, on each account the global pin names;
-  - its sessions at column 79: `2 sessions` or `1 session` in `text.muted`, `0 sessions` in
-    `text.faint`;
-  - its trace from column 92 to `w − 8`, then its rate right-aligned at the last column, `15/min` in
-    bold `text.secondary`, or `0/min` in `text.subtle`.
-- **Size 1:** a row an account, none between them, and under the last, at column 92, `requests a
-  minute, last 30 minutes` in `text.faint`. **Size 2,** with room to spare: two rows of trace an
-  account and a blank row, its words on the first row and its rate on the second, the caption on the
-  blank row after the last account.
-- **Under 110 columns, and on a phone:** two rows an account and a blank row. On the first, the
-  number and name at column 1, the short state at the name column, and `● pinned` right-aligned;
-  on the second, the trace from the name column to `w − 20` (16 cells on a phone, the name column
-  at 16), and the sessions and rate right-aligned, `4 sessions  15/min` (settled in the plan).
+    clauses from the end to their cells, so they end two cells before `● pinned`, or before the
+    sessions where no pin shows, as Sessions' lines cut theirs (see Sessions);
+  - `● pinned` in `accent.key`, three cells before the sessions, on each account the global pin
+    names, its words' cells giving way to it;
+  - its sessions: `2 sessions` or `1 session` in `text.muted`, `0 sessions` in `text.faint`;
+  - its trace to `w − 8`, then its rate right-aligned at the last column, `15/min` in bold
+    `text.secondary`, or `0/min` in `text.subtle`.
+- **Size 1:** a row an account, none between them, and under the last, where the trace starts,
+  `requests a minute, last 30 minutes` in `text.faint`. **Size 2,** with room to spare: two rows of
+  trace an account and a blank row, its words on the first row and its rate on the second, the
+  caption on the blank row after the last account.
+- **Where the parts' leasts don't fit a row,** as on a phone: two rows an account and a blank row.
+  On the first, the number and name at column 1, the short state at the name column, and `● pinned`
+  right-aligned; on the second, the trace from the name column to `w − 20` (16 cells on a phone,
+  the name column at 16), and the sessions and rate right-aligned, `4 sessions  15/min` (settled in
+  the plan).
 - **An account's state,** the first of these that holds, its glyph and first words in the colour
   given, the rest in `text.muted`; the short form on a phone:
 
@@ -1791,18 +1803,20 @@ account in the config's order, a session whose models go to two accounts on each
   router's reasons (see The router's events), with when: `started here 14:41`, adding `, the best`
   while its account is still where new sessions go; `moved from work 14:31: work reached its cap`;
   `moved from work 14:39: pinned to side`; `pinned here 14:39`, its own pin; `its pin to side
-  yields: side has no room` (settled in the plan).
-- **Its own trace** at column 92, one row, on the shared scale, and its rate right-aligned at the
-  last column. No blank rows between sessions; with none running, `no sessions running` in
+  yields: side has no room` (settled in the plan). It's cut to end two cells before the trace:
+  `moved from work 1…`, 18 cells, at 108 columns.
+- **Its own trace,** one row, starting where ROUTING's do, as ROUTING's row's parts lay them, so
+  the two columns line up, on the shared scale, and its rate right-aligned at the last column. A
+  session takes a row wherever an account does in ROUTING. No blank rows between sessions; with none running, `no sessions running` in
   `text.faint` (settled in the plan).
 - **While what names them is read,** as the List's first read takes 150 ms or longer, the heading
   says `loading…` in `text.subtle` as its description, till it lands (settled in the plan; see The
   page).
 - **A click on a row opens its session's page** (see A session's page): `↑` and `↓` stay on the
   account focus GRAPHS follows, so no key here opens one.
-- **Under 110 columns, and on a phone,** a session takes two rows: the account's number and name at
-  column 1 on its first, its id at the name column and what it's doing right-aligned; under them,
-  why it's there, from the name column. No trace (settled in the plan).
+- **Where ROUTING takes two rows an account,** as on a phone, a session takes two rows: the
+  account's number and name at column 1 on its first, its id at the name column and what it's doing
+  right-aligned; under them, why it's there, from the name column. No trace (settled in the plan).
 
 **COMING UP and LATELY** sit side by side: COMING UP from column 0, `round(w × 0.45)` wide, and
 LATELY from column `⌊w / 2⌋ + 2` to the edge, so 72 wide and from 82 at 160 columns, and 97 wide

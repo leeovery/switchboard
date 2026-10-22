@@ -238,12 +238,22 @@ var knownBreaks = []known{
 		slice: "S12", rule: wastedThird, sizes: []string{"138x15"},
 		fixtures: []string{"overview-phone-burn-down-52"},
 	},
+	// S11, SESSIONS takes the rows left (F2): at 108x44, ROUTING a row an
+	// account leaves 4 rows spare, but SESSIONS' least is every session until
+	// S11 gives it one session and "+N more".
+	{
+		slice: "S11", rule: foldWithRowsSpare, sizes: []string{"108x44"},
+		fixtures: []string{"overview-sessions-216"},
+	},
 	// S14, USAGE's matrix where it fits (F8): GRAPHS folded on an iPad with rows
-	// spare, under USAGE's windows stacked.
+	// spare, under USAGE's windows stacked, which hold the rows GRAPHS' least
+	// needs until S14 puts them side by side, as in the spike's frame 12.
 	{
 		slice: "S14", rule: foldWithRowsSpare, sizes: []string{"108x44"},
 		fixtures: []string{
-			"overview-by-account-graphs-140", "overview-phone-burn-down-52",
+			"long-names-overview", "overview-burn-down-160x39", "overview-by-account-graphs-140",
+			"overview-by-account-graphs-160", "overview-everything-160x39", "overview-everything-216x106",
+			"overview-phone-burn-down-52", "overview-pool-burn-down-160", "overview-sessions-graphs-216",
 		},
 	},
 	// S14, USAGE's parts, its names' column at its natural width, at most 24, at
