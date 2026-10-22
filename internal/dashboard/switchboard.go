@@ -131,22 +131,14 @@ func (d boardDrawn) cord(c *canvas, lc laidCall, works bool) {
 	travel(c, path, theme.AccentKey, d.f.Traffic.On(plug.Session, plug.Account))
 }
 
-// key draws the key, the Overview's, on its two rows from the row of the
-// view from top the layout gives it, the last over the key line, from
-// column 0: even pace's on the first, and the marks the accounts carry on
-// the second; never the cap's, as no bar of the Switchboard draws one. With
-// no lines, it has nothing to key, and draws none.
+// key draws the lines' key, as drawKey draws it, from the row of the view
+// from top the layout gives it, the last over the key line. With no lines,
+// it has nothing to key, and draws none.
 func (d boardDrawn) key(c *canvas, top int) {
 	if d.laid.keyAt < 0 || len(d.laid.lines) == 0 {
 		return
 	}
-	m := d.lines.m
-	b := blockOf(m, d.f.Width, d.f.Look, ByAccount, d.lines.windows, d.lines.names).uncapped()
-	b.marks = keyMarks(d.lines.names, false)
-	pace, after := b.keyParts(d.lines.barDrawn())
-	for i, l := range []line{pace, joined(keyGap(d.f.Width), after...)} {
-		c.line(0, top+d.laid.keyAt+i, l.fit(d.f.Width))
-	}
+	d.lines.drawKey(c, top+d.laid.keyAt)
 }
 
 // chosen picks out the call chosen, where one is, on bg.selection over its

@@ -406,13 +406,53 @@ func reachOf(name string, width int) func(rows []string) []string {
 	case strings.HasPrefix(name, "sessions-") && !strings.Contains(name, "-list") && dashboard.Phone(width):
 		return func(rows []string) []string {
 			view := rows[chrome+2 : len(rows)-1]
-			if to := slices.IndexFunc(view, func(r string) bool { return strings.HasPrefix(r, "──") || strings.HasPrefix(r, "┃ even pace") }); to >= 0 {
+			if to := slices.IndexFunc(view, func(r string) bool { return strings.HasPrefix(r, "┃ even pace") }); to >= 0 {
 				view = view[:to]
 			}
-			return shownRows(view)
+			return lanesRead(shownRows(view))
 		}
 	}
 	return nil
+}
+
+var (
+	// laneName is a lane's name row, its account's number first.
+	laneName = regexp.MustCompile(`^ ?([0-9]+) `)
+	// laneWindows is a lane's windows' row: a window's label a cell in.
+	laneWindows = regexp.MustCompile(`^ [^ ]`)
+	// shownPercent is a bar's percentage, or — where it shows none.
+	shownPercent = regexp.MustCompile(`^([0-9]+%|—)$`)
+)
+
+// lanesRead are a phone's Switchboard's rows as the sweep reaches them: each
+// account's name row and each session's as drawn; and as the lanes stack
+// their windows a row each where rows are free, and side by side where
+// they're short, each window a windows' row shows as its account's number,
+// its label and its percentage.
+func lanesRead(rows []string) []string {
+	var read []string
+	account := ""
+	for _, r := range rows {
+		m := laneName.FindStringSubmatch(r)
+		if m != nil {
+			account = m[1]
+		}
+		if m != nil || !laneWindows.MatchString(r) {
+			read = append(read, r)
+			continue
+		}
+		fields := strings.Fields(r)
+		label := fields[0]
+		for i, f := range fields[1:] {
+			if shownPercent.MatchString(f) {
+				read = append(read, account+" "+label+" "+f)
+				if i+2 < len(fields) {
+					label = fields[i+2]
+				}
+			}
+		}
+	}
+	return read
 }
 
 // shownRows are the rows given drawn on, trimmed at their right, but for

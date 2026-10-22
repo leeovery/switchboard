@@ -3036,28 +3036,62 @@ names configured's and the bent cords' alone, and changes once at the most as th
   21 at 160. The bent cords turn down in the room laid, which is never narrower.
 
 **Lanes,** as on a phone, where cords would need width the terminal hasn't got: each account's line
-with its sessions under it, in The page's phone frame under 100 columns (settled in the plan).
+with its sessions under it, in The page's phone frame under 100 columns (settled in the plan). The
+lanes' lines are the board's lines, drawn by the same code (the owner's call on the spike, 21
+October 2026).
 
 - **Each account:**
-  - its name row: the number, name and marks, cut to the name column, fitted as `usage` fits it, 12
-    to 16 cells under 80 columns and 14 to 24 from 80; from it, the Overview's short state words,
+  - its name row, as the board's lines draw it: the number, name and marks in a name column laid
+    as the lines lay theirs, its natural the widest heading configured and two cells, at least a
+    label of 8, so `3 side-hustle-consulting ▲` and its gap make 28 and every label shows whole
+    wherever the width leaves its state words their least, 16; a label is cut, to its least of 8,
+    only where the width leaves no more. From it, the Overview's short state words,
     `● at its cap · 17:10`, `● open · next`, `■ limit reached · 15:54`; and ending at the last
     column, `● pinned` or `✕ out of the pool`;
-  - its windows on one row, as step 3 draws them: `5-hour` at column 1, its bar from 8, a cell and
-    its percentage; three cells on, `Week`, its bar 5 cells after it, a cell and its percentage,
-    ending at the last column; each bar `⌊(width − 26) ÷ 2⌋` cells, 13 at 52;
-  - its sessions, a row each, their parts laid by the board's rule from column 2, alike in every
-    lane so their columns align, what's spare at the row's end: the id, bold `text.primary` while
-    the session works, else `text.muted`; a space and the directory, 6 to 24 cells, cut with `…`;
-    two cells after it, what it's doing; and 13 cells on, where a call has moved, `▸ from work`,
-    whole where it fits, else its from dropped, then the account cut, as the board's turns take
-    them;
-  - a blank row, which the pool's rule takes after the last account.
-- **The foot:** the pool's rule across the whole row; `Σ pool` under it; on the row under that, from
-  column 1, the room in each window, `5-hour 1.5 of 3 left   Week 1.2 of 3 left`; then, after a
-  blank row, the Overview's phone key on two lines,
-  `┃ even pace: where you would be now, used evenly`, and `◆ primary   ▲ new`, naming no cap, as
-  no lane's bar draws its `╎`.
+  - its windows, stacked where rows allow, as the board's lines stack them at its step 1: `Week`, a
+    blank row, `5-hour`, and each model's own week on `w`, a row each, a blank row between. A
+    window's row is the board's, its label a cell in, its bar, its percentage and its words laid by
+    the lines' parts, as the board lays them, but running to the last column, as the board's leave
+    a cell at the edge. So from 73 columns the bars stand at their natural, 32, and the words take
+    their long form, `19%/day till Sun 21:00`; narrower, the line narrows in the board's turns, the
+    bars to 16, then the words to usage's short form, `19%/day · Sun`. A bar never grows past its
+    natural: what's spare lies at the row's end;
+  - else its week and its 5-hour alone, as the board's step 3 draws a line's, side by side on the
+    row under its name: `Week` at column 1, its bar from 8, a cell and its percentage; three cells
+    on, `5-hour`, its bar 7 cells after it, a cell and its percentage, ending at the last column;
+    each bar `⌊(width − 28) ÷ 2⌋` cells, 12 at 52;
+  - a blank row, then its sessions, a row each, their parts laid by the board's rule from column 2,
+    alike in every lane so their columns align, what's spare at the row's end: the id, bold
+    `text.primary` while the session works, else `text.muted`; a space and the directory, 6 to 24
+    cells, cut with `…`; two cells after it, what it's doing; and 13 cells on, where a call has
+    moved, `▸ from work`, whole where it fits, else its from dropped, then the account cut, as the
+    board's turns take them;
+  - 2 blank rows before the next account.
+- **No pool:** no rule, no `Σ pool` and no room line. The pool isn't an account and has no
+  sessions, and the board never shows it; `usage`, the Overview and Runway show it (the owner's call
+  on the spike, 21 October 2026).
+- **The key,** as the board's, on the two rows directly over the key line, from column 0, the rows
+  left over lying between the last lane and it, a blank row at the least:
+  `┃ even pace: where you would be now, used evenly`, and `◆ primary   ▲ new sessions go here`,
+  naming no cap; its marks three spaces apart under 100 columns, and four from 100, where bent
+  cords bring the lanes, as `keyApart` sets them.
+- **When rows run short,** the lanes take the first of their steps whose lanes, a blank row and the
+  key fit the view and the row over the key line, the order kept in one place (`laneSteps`, in
+  `sessionslanes.go`):
+  1. the windows stacked, accounts 2 blank rows apart and a blank row before an account's calls;
+  2. the windows side by side, the gaps as at 1;
+  3. the windows side by side, accounts a blank row apart and none before the calls;
+  4. as 3, the key giving way: the lanes scroll an account at a time, `▲ 1 more account` on the
+     view's first row while any are above, and `▼ 1 more account` right-aligned on the row over the
+     key line while any are below; or a row at a time, where a lane doesn't fit the view, a name
+     row showing with the row under it.
+
+  The step hangs on the rows, the accounts configured, the calls, and the windows the moment lists,
+  as the board's lines count them: among them a model's own week while it nears its limit, is held
+  at it, or is capped, with `w` off, two rows more an account stacked, which can tip the lanes to
+  side by side, where only `Week` and `5-hour` show, as on the board's step 3. As a call comes or
+  goes, the form changes only where a step's rows stop fitting or start to. With three accounts, three windows and six calls at 73 columns, the windows stack from
+  41 rows of terminal, go side by side from 29, take the least gaps from 25, and scroll under that.
 - **No cords, no travel:** the state words carry the motion, bold while the session works.
 - **The heading:** `SESSIONS` in `text.subtle`, two spaces and the sub-tabs, with no `[ ]` and no
   rule, as on the Log's phone (see The Log).

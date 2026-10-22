@@ -34,6 +34,30 @@ const (
 	lineWordsPart
 )
 
+// The parts of a line's window row across its width, in lineParts' order.
+const (
+	lineBesidePart = iota
+	lineBarsPastPart
+	lineBarsPart
+	lineSaidPart
+)
+
+// lineParts are the parts of a line's window row across its width, as flex
+// lays them: its label, percentage and gaps, beside cells; its bars, those
+// past leastWideBar and those up to it each narrowing in a turn of its own;
+// and its words, which give way to usage's short form. A part that keeps its
+// cells sets its least and natural alike. They aren't in the screen's order:
+// the label, percentage and gaps together come before the bars they sit
+// among.
+func lineParts(beside int) []flex.Part {
+	return []flex.Part{
+		lineBesidePart:   {Least: beside, Natural: beside},
+		lineBarsPastPart: {Natural: lineBar - leastWideBar, Narrows: barsToLeastWide},
+		lineBarsPart:     {Least: leastBar, Natural: leastWideBar, Narrows: barsToLeast},
+		lineSaidPart:     {Least: lineWords, Natural: lineWords, Leaves: wordsShortened, Kept: lineShortWords},
+	}
+}
+
 // stepThreeLabels are the cells of the labels of step 3's two windows, side
 // by side.
 var stepThreeLabels = []int{firstLabelCells, secondLabelCells}
@@ -125,16 +149,10 @@ func (d linesDrawn) width() int {
 func (d linesDrawn) line(c *canvas, a status.AccountNow, n accountName, y int) {
 	switch d.laid.step {
 	case 1, 2:
-		apart := 2
-		if d.laid.step == 2 {
-			apart = 1
-		}
-		d.nameRow(c, a, n, y)
-		for j, w := range d.windowsShown() {
-			d.window(c, a, w, y+1+j*apart)
-		}
+		d.nameRow(c, a, n, y, d.laid.columns.shortWords)
+		d.stacked(c, a, y+1)
 	case 3:
-		d.nameRow(c, a, n, y)
+		d.nameRow(c, a, n, y, d.laid.columns.shortWords)
 		d.sideBySide(c, a, y+1)
 	default:
 		d.oneRow(c, a, n, y)
@@ -142,11 +160,23 @@ func (d linesDrawn) line(c *canvas, a status.AccountNow, n accountName, y int) {
 }
 
 // nameRow draws a's name row along row y: its number, name and marks, then
-// from the name column, its state in ROUTING's words, ending where the pin's
-// mark needs the room, as stands has them.
-func (d linesDrawn) nameRow(c *canvas, a status.AccountNow, n accountName, y int) {
+// from the name column, its state in ROUTING's words, or short, their short
+// form, ending where the pin's mark needs the room, as stands has them.
+func (d linesDrawn) nameRow(c *canvas, a status.AccountNow, n accountName, y int, short bool) {
 	c.line(d.x(), y, n.line(d.column))
-	d.stands(c, a, d.x()+d.column, y, d.laid.columns.shortWords)
+	d.stands(c, a, d.x()+d.column, y, short)
+}
+
+// stacked draws a's windows from row y, as steps 1 and 2 draw them, a row a
+// window, as window draws it, a blank row between at step 1.
+func (d linesDrawn) stacked(c *canvas, a status.AccountNow, y int) {
+	apart := 2
+	if d.laid.step == 2 {
+		apart = 1
+	}
+	for j, w := range d.windowsShown() {
+		d.window(c, a, w, y+j*apart)
+	}
 }
 
 // stands draws how a stands from x along row y, in ROUTING's words, or
@@ -199,12 +229,13 @@ func pinFits(a status.AccountNow, mark line, x, end int, short bool) bool {
 }
 
 // window draws a's window w along row y, as usage --by account draws it
-// narrow: its label a cell in, then its gauge, its bar the cells the columns
-// give it, its words in their form, ending a cell short of the edge.
+// narrow: its label a cell in, then its gauge, its bar and its words the
+// cells the columns give them, its words in their form.
 func (d linesDrawn) window(c *canvas, a status.AccountNow, w shownWindow, y int) {
 	x := d.x() + 1
+	bar := x + firstLabelCells
 	c.line(x, y, windowLabel(w, windowLabelCells))
-	d.wordsBlock().gauge(c, d.gauge(a, w.key), x+firstLabelCells, y, d.laid.columns.bar, d.f.Width-afterWords)
+	d.wordsBlock().gauge(c, d.gauge(a, w.key), bar, y, d.laid.columns.bar, bar+d.laid.columns.bar+afterBar+d.laid.columns.words)
 }
 
 // barDrawn is the cells of the bars the lines draw at the layout's step: the
@@ -280,6 +311,19 @@ func (d linesDrawn) oneRow(c *canvas, a status.AccountNow, n accountName, y int)
 		meter(c, d.f.Look, d.gauge(a, w.key), x, y, oneRowBar)
 	}
 	d.stands(c, a, x+oneRowBar+afterBar, y, d.width() < widestLines)
+}
+
+// drawKey draws the lines' key, the Overview's, on its two rows from row y,
+// from column 0, each fit to the frame's width: even pace's on the first,
+// and the marks the accounts carry on the second, in full; never the cap's,
+// as no bar of the Switchboard draws one.
+func (d linesDrawn) drawKey(c *canvas, y int) {
+	b := blockOf(d.m, d.f.Width, d.f.Look, ByAccount, d.windows, d.names).uncapped()
+	b.marks = keyMarks(d.names, false)
+	pace, after := b.keyParts(d.barDrawn())
+	for i, l := range []line{pace, joined(keyGap(d.f.Width), after...)} {
+		c.line(0, y+i, l.fit(d.f.Width))
+	}
 }
 
 // windowLabel is the window w's name, short, cut to the cells given, in

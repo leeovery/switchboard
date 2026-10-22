@@ -11,9 +11,9 @@ import (
 )
 
 // Lanes are the Switchboard where cords would need width the terminal hasn't
-// got: each account's line, its windows on one row, with its sessions under
-// it, a row each, then the pool and the key. Nothing travels them: what a
-// session's doing says what moves.
+// got: each account's line, as the board's lines draw it, with its sessions
+// under it, a row each, then the key over the key line. Nothing travels
+// them: what a session's doing says what moves.
 
 // A lane's call starts laneIndent cells in, what it's doing laneDoingGap
 // cells after its directory.
@@ -31,62 +31,120 @@ func laneColumnsOf(width, from int) callColumns {
 	return callColumnsOf(s, laneIndent)
 }
 
-// A lane's windows' row: the first's label at laneWindowsAt, its bar
-// laneFirstBar cells after it; the second's bar laneNextBar cells after its
-// label, room for "5-hour", as windowsBeside draws them. The foot's room line sets each window
-// laneApart cells from the last.
+// A lane's windows side by side, on the row under its name: the first's
+// label at laneWindowsAt, its bar laneFirstBar cells after it; the second's
+// bar laneNextBar cells after its label, room for "5-hour", as windowsBeside
+// draws them.
 const (
 	laneWindowsAt = 1
 	laneFirstBar  = 7
 	laneNextBar   = 7
-	laneApart     = 3
 )
 
 // laneBarsAfter are how many cells after its label each window's bar starts
 // on a lane's windows' row: the week's, then the 5-hour's.
 var laneBarsAfter = []int{laneFirstBar, laneNextBar}
 
-// lanesBoard is the Switchboard of a moment drawn in lanes: the frame, the
-// moment and the time it's drawn at; the usage block its lines are drawn
-// from, of the windows a lane shows, its bars a lane's; where its calls'
-// parts sit, as laneColumnsOf has them; its lanes, an
-// account's each, in the config's order; the pool's row, nil where there's
-// no pool, as with one account; and the rows it takes drawn whole, the foot
-// under its lanes.
-type lanesBoard struct {
-	f     Frame
-	m     status.Moment
-	now   time.Time
-	block usageBlock
-	calls callColumns
-	lanes []boardLane
-	pool  *usageRow
-	whole int
+// laneLineBeside are a lane's line's cells besides its bars and words, as
+// lineBeside counts the board's, but the cell the board leaves at the edge:
+// a lane's line runs to the frame's last column.
+const laneLineBeside = lineBeside - afterWords
+
+// stackedStep is the board's compaction step whose lines a lane's stacked
+// windows are drawn as: a row a window, a blank row between.
+const stackedStep = 1
+
+// laneStep is a form the lanes take down the view: their windows stacked,
+// as the board's lines at stackedStep, or side by side on a row; and the
+// blank rows between accounts, and before an account's calls.
+type laneStep struct {
+	stacked            bool
+	apart, beforeCalls int
 }
 
-// boardLane is an account's lane: the account, how it stands, its row of the
-// block, and its calls, in the order the patch keeps them; and whether it
-// says no session is running, as the first lane does where none is.
+// laneSteps are the lanes' forms, in the order they're taken as rows run
+// short: each account's windows stacked, accounts 2 blank rows apart and a
+// blank row before an account's calls; then its windows side by side; then
+// the gaps back to their least, accounts a row apart and none before the
+// calls. Where even the last doesn't fit the view with the key under it, it
+// scrolls, as lanesBoard.scrolling has it.
+var laneSteps = []laneStep{
+	{stacked: true, apart: 2, beforeCalls: 1},
+	{apart: 2, beforeCalls: 1},
+	{apart: 1},
+}
+
+// lineRows are the rows an account's line takes at the step, of windows
+// windows: stacked, as the board's at stackedStep; side by side, its name
+// row and its windows' row.
+func (s laneStep) lineRows(windows int) int {
+	if s.stacked {
+		return lineRows(stackedStep, windows)
+	}
+	return 2
+}
+
+// laneKeyGap is the fewest blank rows between the last lane and the key.
+const laneKeyGap = 1
+
+// lanesBoard is the Switchboard of a moment drawn in lanes: the frame, and
+// the time it's drawn at; its accounts' lines, as the board's lines draw them
+// across the frame from column 0, as laneLines lays them; where its calls'
+// parts sit, as laneColumnsOf has them; its lanes, an account's each, in the
+// config's order; the step it takes, as laneSteps has them; and the row of
+// the view its key starts on, -1 where it gives way, as where the lanes
+// scroll.
+type lanesBoard struct {
+	f     Frame
+	now   time.Time
+	lines linesDrawn
+	calls callColumns
+	lanes []boardLane
+	step  laneStep
+	keyAt int
+}
+
+// boardLane is an account's lane: the account, as the lines name it, and its
+// calls, in the order the patch keeps them; and whether it says no session
+// is running, as the first lane does where none is.
 type boardLane struct {
 	account  status.AccountNow
-	row      usageRow
+	name     accountName
 	calls    []views.Call
 	saysNone bool
 }
 
-// rows are the rows the lane takes: its name row, its windows' row, a row a
-// session, and one saying none runs, where it says so.
-func (l boardLane) rows() int {
-	rows := 2 + len(l.calls)
+// rows are the rows the lane takes at the step given, of windows windows:
+// its line, as the step's lineRows has them; then, where it has calls or
+// says none runs, the step's blank rows before them, and a row a session, or
+// one saying none runs.
+func (l boardLane) rows(step laneStep, windows int) int {
+	calls := len(l.calls)
 	if l.saysNone {
-		rows++
+		calls++
 	}
-	return rows
+	if calls > 0 {
+		calls += step.beforeCalls
+	}
+	return step.lineRows(windows) + calls
+}
+
+// laneLines are the lanes' lines of m, as the board's lines draw them at
+// stackedStep, from column 0: their windows' rows' parts laid across the
+// frame as lineParts declares them, running to its last column, so a bar
+// stands at its natural, lineBar, with its words in full, from 73 columns.
+func (f Frame) laneLines(m status.Moment) linesDrawn {
+	s, _ := flex.Lay(f.Width, lineParts(laneLineBeside)...)
+	return f.linesDrawn(m, boardLayout{step: stackedStep, columns: boardColumns{
+		bar:        s[lineBarsPastPart].Size + s[lineBarsPart].Size,
+		words:      s[lineSaidPart].Size,
+		shortWords: s[lineSaidPart].Left,
+	}})
 }
 
 // lanesForm is the Switchboard of doc at now in lanes, in place of cords,
 // its accounts' lines and calls as laid gives them: drawn whole, where they
-// fit the view with the foot under them; else scrolled an account at a time,
+// fit the view with the key under them; else scrolled an account at a time,
 // or a row at a time where a lane doesn't fit, as lanesBoard.scrolling has
 // it.
 func (f Frame) lanesForm(doc status.Document, now time.Time, laid boardLayout) sessionsForm {
@@ -101,26 +159,19 @@ func (f Frame) lanesForm(doc status.Document, now time.Time, laid boardLayout) s
 }
 
 // lanesOf is the Switchboard of doc at now in lanes: a lane an account of the
-// moment, its line its row of usage's block of the windows a lane shows,
-// uncapped, as the board's lines are, faded as the Overview fades an account
-// out of the pool, and its calls the patch's on its line, as laid has them,
-// each with what the look found of it.
+// moment, its line as laneLines draws it, and its calls the patch's on its
+// line, as laid has them, each with what the look found of it; at the first
+// of laneSteps whose lanes fit the view with the key under them, as keyed
+// has them, else the last.
 func (f Frame) lanesOf(doc status.Document, now time.Time, laid boardLayout) lanesBoard {
 	m := f.Moment(doc, now)
-	names := overviewNames(m)
-	block := blockOf(m, f.Width, f.Look, ByAccount, f.besideWindows(m), names).uncapped()
-	block.accountBar, block.marks = sideBySideBar(f.Width, laneBarsAfter), keyMarks(names, f.phone())
 	found := make(map[Plug]views.Call, len(f.SessionsTab.Calls))
 	for _, c := range f.SessionsTab.Calls {
 		found[Plug{Session: c.Session, Account: c.Account}] = c
 	}
-	accounts, pool := block.split()
-	b := lanesBoard{f: f, m: m, now: now, block: block, calls: laneColumnsOf(f.Width, f.fromCells(m)), pool: pool}
+	b := lanesBoard{f: f, now: now, lines: f.laneLines(m), calls: laneColumnsOf(f.Width, f.fromCells(m)), keyAt: -1}
 	for i, a := range m.Accounts {
-		l := boardLane{account: a, row: accounts[i]}
-		for j, g := range l.row.gauges {
-			l.row.gauges[j] = f.overviewGauge(g, a.OutOfPool)
-		}
+		l := boardLane{account: a, name: b.lines.names[i]}
 		ln, _ := laid.line(a.ID)
 		for _, p := range ln.patched.Calls {
 			plug := Plug{Session: p.Session, Account: a.ID}
@@ -135,18 +186,57 @@ func (f Frame) lanesOf(doc status.Document, now time.Time, laid boardLayout) lan
 	if len(b.lanes) > 0 && !slices.ContainsFunc(b.lanes, func(l boardLane) bool { return len(l.calls) > 0 }) {
 		b.lanes[0].saysNone = true
 	}
-	whole := growing(f.Width)
-	b.foot(whole, b.drawLanes(&lanesShown{c: whole, filled: make(map[Ref]float64)}, 0, b.lanes))
-	b.whole = whole.height()
+	for _, b.step = range laneSteps {
+		if b.keyed() {
+			break
+		}
+	}
 	return b
 }
 
+// keyed has b's key where its lanes, at its step, and the key under them fit
+// the view, as keyPlaced has them, laneKeyGap rows apart at the least,
+// reporting whether they do, as they do where there are no lanes, which
+// leave nothing to key.
+func (b *lanesBoard) keyed() bool {
+	if len(b.lanes) == 0 {
+		return true
+	}
+	at, ok := keyPlaced(b.f.viewRows(), b.height(), laneKeyGap)
+	if ok {
+		b.keyAt = at
+	}
+	return ok
+}
+
+// height is the rows the lanes take at b's step, its blank rows between
+// each.
+func (b lanesBoard) height() int {
+	rows := 0
+	for i, l := range b.lanes {
+		if i > 0 {
+			rows += b.step.apart
+		}
+		rows += b.rows(l)
+	}
+	return rows
+}
+
+// rows are the rows the lane takes at b's step.
+func (b lanesBoard) rows(l boardLane) int {
+	return l.rows(b.step, len(b.lines.windows))
+}
+
 // draw draws the lanes the view shows from row top, as shown has them, cut
-// to the view's rows; and right-aligned on the row over the key line, what
-// shown says is out of view under them.
+// to the view's rows; the key, where it fits, from the row the lanes give
+// it, its last over the key line; and right-aligned on that row, what shown
+// says is out of view under the lanes.
 func (b lanesBoard) draw(c *canvas, top int) {
 	shown := b.shown()
 	c.paste(shown.c, 0, top, b.f.viewRows())
+	if b.keyAt >= 0 {
+		b.lines.drawKey(c, top+b.keyAt)
+	}
 	c.right(b.f.Width, b.f.Height-underView, shown.out)
 }
 
@@ -174,20 +264,19 @@ type lanesShown struct {
 	out    line
 }
 
-// shown are the lanes the view shows: every lane, and the foot under them,
-// where they fit; a row at a time, where byRows says so, as paged has them;
+// shown are the lanes the view shows: every lane, where they fit with the
+// key under them; a row at a time, where byRows says so, as paged has them;
 // else as many as fit from the account the frame has the view scrolled to,
-// as scrolling has it, the foot giving way, and ▲ and how many accounts are
+// as scrolling has it, the key giving way, and ▲ and how many accounts are
 // above, on the view's first row, while any are, and ▼ and how many below.
 func (b lanesBoard) shown() lanesShown {
-	s := lanesShown{c: growing(b.f.Width), filled: make(map[Ref]float64)}
-	if b.fits() {
-		b.foot(s.c, b.drawLanes(&s, 0, b.lanes))
-		return s
-	}
-	if b.byRows() {
+	switch {
+	case b.fits():
+		return b.laned()
+	case b.byRows():
 		return b.pagedShown()
 	}
+	s := lanesShown{c: growing(b.f.Width), filled: make(map[Ref]float64)}
 	scrolling := b.scrolling(b.f.Scroll)
 	above := scrolling.clamped(b.f.Scroll)
 	y := 0
@@ -208,15 +297,14 @@ func (b lanesBoard) byRows() bool {
 		return false
 	}
 	for i, l := range b.lanes {
-		if l.rows()+min(i, 1) > b.f.viewRows() {
+		if b.rows(l)+min(i, 1) > b.f.viewRows() {
 			return true
 		}
 	}
 	return false
 }
 
-// laned are the lanes drawn whole from row 0, without the foot, which gives
-// way where they scroll.
+// laned are the lanes drawn whole from row 0.
 func (b lanesBoard) laned() lanesShown {
 	s := lanesShown{c: growing(b.f.Width), filled: make(map[Ref]float64)}
 	b.drawLanes(&s, 0, b.lanes)
@@ -247,16 +335,17 @@ func (b lanesBoard) pagedShown() lanesShown {
 	return s
 }
 
-// fits reports whether every lane fits the view, the foot under them, as
-// they do where there are none, which leaves nothing to scroll.
+// fits reports whether every lane fits the view, the key under them, as
+// keyed has it, as they do where there are none, which leaves nothing to
+// scroll.
 func (b lanesBoard) fits() bool {
-	return len(b.lanes) == 0 || b.whole <= b.f.viewRows()
+	return len(b.lanes) == 0 || b.keyAt >= 0
 }
 
 // scrolling is how far the lanes scroll, scrolled offset accounts down, an
 // account at a time, its line and its sessions together: nowhere where they
-// fit the view whole, the foot with them; a row at a time, where byRows says
-// so, as paged has it; else, the foot giving way, no further than shows the
+// fit the view whole, the key with them; a row at a time, where byRows says
+// so, as paged has it; else, the key giving way, no further than shows the
 // last account, a page being as many as show from the offset, under ▲ where
 // any are above.
 func (b lanesBoard) scrolling(offset int) Scrolling {
@@ -274,15 +363,15 @@ func (b lanesBoard) scrolling(offset int) Scrolling {
 }
 
 // fitting is how many lanes, from the one at first, fit the view, as many as
-// do, at least one, under ▲ where any are above, a blank row between each.
+// do, at least one, under ▲ where any are above, at the step's rows apart.
 func (b lanesBoard) fitting(first int) int {
 	rows := b.f.viewRows()
 	if first > 0 {
 		rows--
 	}
-	shown, taken := 1, b.lanes[first].rows()
+	shown, taken := 1, b.rows(b.lanes[first])
 	for _, l := range b.lanes[first+1:] {
-		if taken += 1 + l.rows(); taken > rows {
+		if taken += b.step.apart + b.rows(l); taken > rows {
 			break
 		}
 		shown++
@@ -290,27 +379,28 @@ func (b lanesBoard) fitting(first int) int {
 	return shown
 }
 
-// drawLanes draws the lanes given onto s from row y, a blank row
-// between each, and returns the row after the last's last row.
+// drawLanes draws the lanes given onto s from row y, at the step's rows
+// apart, and returns the row after the last's last row.
 func (b lanesBoard) drawLanes(s *lanesShown, y int, lanes []boardLane) int {
 	for i, l := range lanes {
 		if i > 0 {
-			y++
+			y += b.step.apart
 		}
 		y = b.drawLane(s, y, l)
 	}
 	return y
 }
 
-// drawLane draws the lane onto s from row y: its name row, its
-// windows' row and its calls, a row each, each a zone a click chooses it by,
+// drawLane draws the lane onto s from row y: its line, as drawLine draws
+// it; then, where it has calls, or says none runs, the step's blank rows
+// before them, and its calls, a row each, each a zone a click chooses it by,
 // or where it says none runs, a row saying so in text.faint, where its first
 // call would be; and returns the row after its last.
 func (b lanesBoard) drawLane(s *lanesShown, y int, l boardLane) int {
-	b.nameRow(s.c, y, l)
-	s.c.heading(y, y+1)
-	b.windowsRow(s, y+1, l.row)
-	y += 2
+	y = b.drawLine(s, y, l)
+	if l.saysNone || len(l.calls) > 0 {
+		y += b.step.beforeCalls
+	}
 	if l.saysNone {
 		s.c.line(b.calls.id, y, line{{noSessionsRunning, faintInk}})
 		y++
@@ -323,67 +413,42 @@ func (b lanesBoard) drawLane(s *lanesShown, y int, l boardLane) int {
 	return y
 }
 
-// nameRow draws the lane's name row along row y: its number, name and marks,
-// cut to the name column; from it, how the account stands, in the Overview's
-// short words, cut by whole clauses to end wordsGap short of what ends the
-// row at the last column, where something does: ● pinned on an account the
-// global pin names, ✕ out of the pool on one it leaves out, where pinFits
-// has it room, the words then not saying the pin again.
-func (b lanesBoard) nameRow(c *canvas, y int, l boardLane) {
-	c.line(0, y, l.row.name)
-	end := b.f.Width
-	mark, said := pinShown(l.account, b.block.names, end, true)
-	if mark != nil {
-		end = c.right(end, y, mark)
+// drawLine draws the lane's account's line onto s from row y, and returns
+// the row after it: its name row, as the board's lines draw it, its state in
+// their short words, heading the rows under it; then, at a step that stacks
+// them, its windows as the board's lines stack them at stackedStep; else its
+// week and its 5-hour side by side, as windowsBeside draws them from
+// laneWindowsAt, each bar half what the width leaves them. Each bar it draws
+// is counted among the bars they fill.
+func (b lanesBoard) drawLine(s *lanesShown, y int, l boardLane) int {
+	s.c.heading(y, y+1)
+	shown := b.lines.beside
+	if b.step.stacked {
+		shown = b.lines.windows
 	}
-	c.line(b.block.names, y, standingWords(said, true, end-wordsGap-b.block.names))
-}
-
-// windowsRow draws the windows of the account's row along row y onto the
-// lanes, as windowsBeside draws them, from laneWindowsAt, each bar counted
-// among the bars they fill.
-func (b lanesBoard) windowsRow(s *lanesShown, y int, row usageRow) {
-	windowsBeside(s.c, b.f.Look, laneWindowsAt, y, b.block.accountBar, laneBarsAfter, b.block.windows, row.gauges)
-	for _, g := range row.gauges {
+	gauges := make([]gauge, len(shown))
+	for i, w := range shown {
+		gauges[i] = b.lines.gauge(l.account, w.key)
+	}
+	b.lines.nameRow(s.c, l.account, l.name, y, true)
+	if b.step.stacked {
+		b.lines.stacked(s.c, l.account, y+1)
+	} else {
+		windowsBeside(s.c, b.f.Look, laneWindowsAt, y+1, sideBySideBar(b.f.Width, laneBarsAfter), laneBarsAfter, shown, gauges)
+	}
+	for _, g := range gauges {
 		if !g.bar.empty {
 			s.filled[g.of] = g.bar.used
 		}
 	}
+	return y + b.step.lineRows(len(b.lines.windows))
 }
 
 // callRow draws the call along row y, as drawCall draws it at a lane's
 // columns, all on bg.selection across the row where it's the row chosen.
 func (b lanesBoard) callRow(c *canvas, y int, call views.Call) {
-	drawCall(c, y, call, b.calls, b.m, b.now)
+	drawCall(c, y, call, b.calls, b.lines.m, b.now)
 	if b.f.SessionsTab.Chosen == (Plug{Session: call.Session, Account: call.Account}) {
 		c.surface(0, y, b.f.Width, hue{token: theme.BgSelection})
 	}
-}
-
-// foot draws the foot under the lanes onto c from row y, the row after the
-// last lane's: where there's a pool, its rule across the row, Σ pool under
-// it, and under that, from laneWindowsAt, the room it has left in each window;
-// then, after a blank row, the key.
-func (b lanesBoard) foot(c *canvas, y int) {
-	if b.pool != nil {
-		c.line(0, y, line{{rule(b.f.Width), borderInk}})
-		c.line(0, y+1, b.pool.name)
-		c.line(laneWindowsAt, y+2, b.room().fit(b.f.Width-laneWindowsAt))
-		y += 3
-	}
-	b.block.key(c, y+1)
-}
-
-// room is the room the pool has left in each window it has, as in "5-hour
-// 1.5 of 3 left   Week 1.2 of 3 left": each window's label in text.subtle,
-// and its words, laneApart cells apart.
-func (b lanesBoard) room() line {
-	var parts []line
-	for j, g := range b.pool.gauges {
-		if said := g.said(b.f.Width, b.f.Width); len(said) > 0 {
-			label := span{status.Short(b.block.windows[j].name) + " ", dimInk}
-			parts = append(parts, slices.Concat(line{label}, said))
-		}
-	}
-	return joined(spaces(laneApart), parts...)
 }

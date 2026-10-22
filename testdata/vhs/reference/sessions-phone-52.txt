@@ -8,26 +8,26 @@ SESSIONS   Switchboard  List
 1 work          ● at its cap · 17:10
  Week       ▏ ┃       34%   5-hour       ┃    ▍  95%
 
+
 2 personal ◆    ● open
  Week          ▉┃     66%   5-hour     ▋   ┃     39%
+
   41e0 docs                    idle 34s
   9c2e website                 idle 9m
 
+
 3 side ▲        ● open · next
  Week        ┃   ▍    78%   5-hour  ▌┃           13%
+
   c61b mobile                  ↓ answering
   d28c switchboard             ↑ asking     ▸ work
   7f3a api                     ↓ answering  ▸ work
   db8a infra                   idle 50s     ▸ work
-────────────────────────────────────────────────────
-Σ pool
- Week 1.2 of 3 left   5-hour 1.5 of 3 left
+
+
+
+
 
 ┃ even pace: where you would be now, used evenly
-◆ primary   ▲ new
-
-
-
-
-
+◆ primary   ▲ new sessions go here
 ↑↓ session   enter open   [ ] view   ? keys   q quit

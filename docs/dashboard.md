@@ -348,7 +348,10 @@ When a limit moves a session, the session joins its new account's group. A short
 from the old jack, one for each session the limit moved, while the limit holds. A move made for any
 other reason hangs faint for 3 seconds.
 
-Where the cords don't fit, as on a phone, each account's line carries its sessions under it.
+Where the cords don't fit, as on a phone, each account's line carries its sessions under it. Its
+windows are stacked as the board's lines are, a row each, where the screen is tall enough, and go
+side by side on one row where it's short. The pool has no lane, as
+no session runs on it: the Overview, Runway and `usage` show it.
 
 While the router isn't answering, the Switchboard and the List show the sessions it last listed.
 What one was doing then, such as `↓ answering`, stays as it was but faint, here and on every other
