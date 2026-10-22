@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -114,16 +115,17 @@ func personalAtItsLimit(reached, until time.Time, moved int) func(*status.Docume
 
 // atItsLimit has the account with the id given at its 5-hour limit, reached
 // at reached, till until, as its window resets, its event counting the
-// sessions it has moved, to the account to.
+// sessions it has moved, to the account to; the event and the limit numbered
+// after any already told.
 func atItsLimit(id, to string, reached, until time.Time, moved int) func(*status.Document) {
-	const limit = 12
 	return func(d *status.Document) {
+		limit := 12 + len(d.Events)
 		account(id, func(a *status.Account) {
 			a.Windows[0] = quota.Window{Key: "5h", Label: "Session", Utilization: 1, Status: quota.StatusRejected, ResetsAt: until}
 			a.Limit = status.Limit{ID: limit, Windows: []string{"5h"}, Until: until}
 		})(d)
 		d.Events = append(d.Events, status.Event{
-			ID: 7, At: reached, Kind: status.EventLimit, Account: id, Windows: []string{"5h"}, To: to, Until: until, Count: moved, Limit: limit,
+			ID: 7 + len(d.Events), At: reached, Kind: status.EventLimit, Account: id, Windows: []string{"5h"}, To: to, Until: until, Count: moved, Limit: limit,
 		})
 	}
 }
@@ -503,48 +505,74 @@ func TestStubsHangForEachSessionTheLimitMoved(t *testing.T) {
 }
 
 // No cord crosses a limit's stub: each is 2 cells, red, from the jack its
-// session left, clear of the first bend, 3 cells before the jacks. The
-// limited account first, second and last, of work, personal and side, its
-// limit having moved 1 to 6 sessions to the other two, each with a call of
-// its own, at every width from 100 to 220 the board draws: so the calls
-// moved run along the stubs' rows where the limited account is first.
+// session left, clear of the first bend, 3 cells before the jacks. Of work,
+// personal and side, one account limited, first, second or last, its limit
+// having moved 1 to 6 sessions to the other two; or two limited at once,
+// each having moved 1 to 3 to the third; each account left with a call of
+// its own: at every width from 100 to 220 the board draws, at 60 rows, its
+// lines whole, and at 24, compacted, the stubs' rows still in view. So the
+// calls moved run along the stubs' rows where a limited account is first.
 func TestNoCordCrossesALimitsStub(t *testing.T) {
 	accounts := []string{"work", "personal", "side"}
-	idle := idleSince(routedAt.Add(-time.Minute))
 	for i, limited := range accounts {
 		others := slices.Delete(slices.Clone(accounts), i, i+1)
 		for moved := 1; moved <= 6; moved++ {
-			var before, after []views.Call
-			for j, other := range others {
-				own := boardCall(fmt.Sprintf("%04x0000-5e55-4000-8000-000000000000", 0xa0+j), other, "~/Code/own", idle, "")
-				before, after = append(before, own), append(after, own)
+			stubsClear(t, others, map[string]int{limited: moved})
+		}
+	}
+	for i, open := range accounts {
+		limited := slices.Delete(slices.Clone(accounts), i, i+1)
+		for moved := 1; moved <= 3; moved++ {
+			stubsClear(t, []string{open}, map[string]int{limited[0]: moved, limited[1]: 4 - moved})
+		}
+	}
+}
+
+// stubsClear checks no cord crosses a stub where each account limited has
+// moved the sessions stubs counts, in turn, to the accounts open, each of
+// those with a call of its own, as TestNoCordCrossesALimitsStub has it.
+func stubsClear(t *testing.T, open []string, stubs map[string]int) {
+	t.Helper()
+	idle := idleSince(routedAt.Add(-time.Minute))
+	var before, after []views.Call
+	for j, to := range open {
+		own := boardCall(fmt.Sprintf("%04x0000-5e55-4000-8000-000000000000", 0xa0+j), to, "~/Code/own", idle, "")
+		before, after = append(before, own), append(after, own)
+	}
+	var limits []func(*status.Document)
+	n := 0
+	for _, limited := range slices.Sorted(maps.Keys(stubs)) {
+		for range stubs[limited] {
+			n++
+			id := fmt.Sprintf("%04x0000-5e55-4000-8000-000000000000", n)
+			before = append(before, boardCall(id, limited, "~/Code/moved", idle, ""))
+			after = append(after, boardCall(id, open[n%len(open)], "~/Code/moved", idle, limited))
+		}
+		limits = append(limits, atItsLimit(limited, open[0], atClock(14, 12, 0), atClock(15, 54, 0), stubs[limited]))
+	}
+	doc := usageWorld(limits...)
+	board := boardOf(boardLook{calls: before}, boardLook{calls: after, stubs: stubs})
+	for _, height := range []int{60, 24} {
+		for width := 100; width <= 220; width++ {
+			f := boardFrame(width, height, Look{}, board, Traffic{})
+			laid := f.switchboardLaid(doc, routedAt)
+			if laid.lanes {
+				continue
 			}
-			for j := range moved {
-				id := fmt.Sprintf("%04x0000-5e55-4000-8000-000000000000", j+1)
-				before = append(before, boardCall(id, limited, "~/Code/moved", idle, ""))
-				after = append(after, boardCall(id, others[j%2], "~/Code/moved", idle, limited))
-			}
-			doc := usageWorld(atItsLimit(limited, others[0], atClock(14, 12, 0), atClock(15, 54, 0), moved))
-			board := boardOf(boardLook{calls: before}, boardLook{calls: after, stubs: map[string]int{limited: moved}})
-			for width := 100; width <= 220; width++ {
-				f := boardFrame(width, 60, Look{}, board, Traffic{})
-				laid := f.switchboardLaid(doc, routedAt)
-				if laid.lanes {
-					continue
-				}
+			c := f.page(doc, routedAt)
+			for limited, moved := range stubs {
 				ln, _ := laid.line(limited)
 				if len(ln.stubs) != moved {
-					t.Fatalf("%s limited, %d moved, at %d: %d stubs, want %d", limited, moved, width, len(ln.stubs), moved)
+					t.Fatalf("%v moved, at %d×%d: %s has %d stubs, want %d", stubs, width, height, limited, len(ln.stubs), moved)
 				}
-				c := f.page(doc, routedAt)
 				for _, s := range ln.stubs {
 					y, x := f.top()+s.row, laid.columns.jacks-stubCells
-					hangs := c.at(x-1, y).glyph != hangingGlyph
+					hangs := y < height && c.at(x-1, y).glyph != hangingGlyph
 					for k := range stubCells {
 						hangs = hangs && c.at(x+k, y).glyph == hangingGlyph && c.at(x+k, y).ink == errorInk
 					}
 					if !hangs {
-						t.Fatalf("%s limited, %d moved, at %d: the stub on row %d reads %q, want %d red cells of %s, clear of every cord", limited, moved, width, y+1, textFrom(c, x-3, x+stubCells+1, y), stubCells, hangingGlyph)
+						t.Fatalf("%v moved, at %d×%d: %s's stub on row %d reads %q, want %d red cells of %s, clear of every cord", stubs, width, height, limited, y+1, textFrom(c, x-3, x+stubCells+1, y), stubCells, hangingGlyph)
 					}
 				}
 			}

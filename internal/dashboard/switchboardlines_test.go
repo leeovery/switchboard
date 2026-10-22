@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -211,17 +212,24 @@ func TestThePinsMarkNeverDrawsOverALinesMeterOrItsFirstWords(t *testing.T) {
 // An account whose cap the pin spends says the pin once, on the Switchboard
 // and on its lanes alike: where ● pinned ends its name row, its words say
 // nothing of the pin; where the mark hasn't the room, it isn't drawn, and its
-// words are whole, saying the pin themselves as far as they fit.
+// words are whole, saying the pin themselves where they fit, as on the
+// Switchboard's one-row lines at 138 columns, and not where they don't, as
+// on the lanes at 36.
 func TestThePinIsSaidOnceOnTheSwitchboardAndItsLanes(t *testing.T) {
 	doc := usageWorld(usagePinned("work"))
+	board := func(width, height int) Frame {
+		return boardFrame(width, height, Look{}, boardOf(boardLook{calls: phoneScene()}), Traffic{})
+	}
 	for _, tt := range []struct {
 		name   string
 		frame  Frame
 		marked bool
+		said   int
 	}{
-		{name: "the Switchboard", frame: boardFrame(130, 30, Look{}, boardOf(boardLook{calls: phoneScene()}), Traffic{}), marked: true},
-		{name: "the Switchboard, two rows a line", frame: boardFrame(130, 20, Look{}, boardOf(boardLook{calls: phoneScene()}), Traffic{}), marked: true},
-		{name: "its lanes", frame: lanesFrame(52, 33, Look{}, phoneScene()), marked: true},
+		{name: "the Switchboard", frame: board(130, 30), marked: true, said: 1},
+		{name: "the Switchboard, two rows a line", frame: board(130, 20), marked: true, said: 1},
+		{name: "the Switchboard, a row a line, short of room for the mark", frame: board(138, 15), said: 1},
+		{name: "its lanes", frame: lanesFrame(52, 33, Look{}, phoneScene()), marked: true, said: 1},
 		{name: "its lanes, short of room for the mark", frame: lanesFrame(36, 33, Look{}, phoneScene())},
 	} {
 		rows := textOf(tt.frame.Draw(doc, routedAt))
@@ -230,12 +238,8 @@ func TestThePinIsSaidOnceOnTheSwitchboardAndItsLanes(t *testing.T) {
 			t.Fatalf("%s: no row names work; drew\n%s", tt.name, strings.Join(rows, "\n"))
 		}
 		row := strings.TrimRight(rows[i][strings.Index(rows[i], "1 work"):], " ")
-		said := 0
-		if tt.marked {
-			said = 1
-		}
-		if !strings.Contains(row, "● at its cap") || strings.HasSuffix(row, pinnedSpan.text) != tt.marked || strings.Count(row, "pinned") != said {
-			t.Errorf("%s: work's row reads %q, want ● at its cap, its mark drawn %v, and the pin said %d times", tt.name, row, tt.marked, said)
+		if !strings.Contains(row, "● at its cap") || strings.HasSuffix(row, pinnedSpan.text) != tt.marked || strings.Count(row, "pinned") != tt.said {
+			t.Errorf("%s: work's row reads %q, want ● at its cap, its mark drawn %v, and the pin said %d times", tt.name, row, tt.marked, tt.said)
 		}
 	}
 	work, _ := doc.At(routedAt, claudeLike).Account("work")
@@ -245,6 +249,49 @@ func TestThePinIsSaidOnceOnTheSwitchboardAndItsLanes(t *testing.T) {
 	}
 	if mark, said := pinShown(work, 0, room-1, true); mark != nil || !slices.Equal(said.Short, work.Routing.Short) || !slices.Contains(said.Short, "pinned") {
 		t.Errorf("a cell short of room for the mark, pinShown gives %v and %+v, want no mark and work's words whole, %+v", mark, said, work.Routing)
+	}
+}
+
+// A line's state words take at least leastStanding cells, the widest short
+// lead of a state of an account as a whole, as status words it, so a
+// rewording there that changes the widest fails here. A model's own lead is
+// wider by its window's label, and is cut.
+func TestTheLinesStateWordsLeastIsTheWidestShortLead(t *testing.T) {
+	tokenless := usageAccount("tokenless", 0.2, routedClock(1, 17, 10), 0.2, 0, routedClock(4, 21, 0))
+	tokenless.TokenSet = false
+	unreadable := status.Account{ID: "unreadable", Label: "unreadable", TokenSet: true, Error: "usage endpoint answered 500"}
+	unread := status.Account{ID: "unread", Label: "unread", TokenSet: true}
+	refused := usageAccount("refused", 0.2, routedClock(1, 17, 10), 0.2, 0, routedClock(4, 21, 0))
+	refused.Refused = status.Refusal{Until: routedClock(1, 15, 0), Status: 401}
+	idle := usageAccount("idle", 0.2, routedAt.Add(-time.Hour), 0.2, 0, routedClock(4, 21, 0))
+	world := func(change ...func(*status.Document)) status.Document {
+		ten := boardOfTen()
+		ten.Accounts = append(ten.Accounts, tokenless, unreadable, unread, refused, idle)
+		for _, c := range change {
+			c(&ten)
+		}
+		return ten
+	}
+	leads := map[status.RoutingKind]int{}
+	for _, doc := range []status.Document{world(), world(usagePinned("work"))} {
+		for _, a := range doc.At(routedAt, claudeLike).Accounts {
+			leads[a.Routing.Kind] = max(leads[a.Routing.Kind], standingLeads(a.Routing, true).width())
+		}
+	}
+	whole := []status.RoutingKind{
+		status.RoutingTokenless, status.RoutingLimited, status.RoutingRefused, status.RoutingUnreadable, status.RoutingUnread,
+		status.RoutingCapped, status.RoutingCappedPinned, status.RoutingPressed, status.RoutingIdle, status.RoutingNext, status.RoutingOpen,
+	}
+	widest := 0
+	for _, k := range whole {
+		cells, ok := leads[k]
+		if !ok {
+			t.Fatalf("no account stands as kind %d; the world has %v", k, leads)
+		}
+		widest = max(widest, cells)
+	}
+	if widest != leastStanding {
+		t.Errorf("the widest short lead takes %d cells, want leastStanding, %d", widest, leastStanding)
 	}
 }
 

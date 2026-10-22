@@ -28,10 +28,12 @@ const (
 )
 
 // The fewest cells each part narrows to, as the narrowing has them: the
-// bends' room, a loose cord's looseCells among them, and the lines' bars,
-// first and last. Bent cords turn down bendsApart apart, or closer.
+// bends' room, leastBends cells besides the looseCells a loose cord hangs in,
+// and the lines' bars, first and last. Bent cords turn down bendsApart apart,
+// or closer.
 const (
-	leastRoom    = 18
+	leastBends   = 9
+	leastRoom    = leastBends + looseCells
 	leastWideBar = 16
 	leastBar     = 8
 	bendsApart   = 3
