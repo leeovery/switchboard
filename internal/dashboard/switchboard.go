@@ -209,7 +209,7 @@ func (d boardDrawn) accountsShown(offset int) boardShown {
 	o := min(max(offset, 0), d.mostScrolled())
 	from := d.laid.lines[o]
 	s := boardShown{first: from.first, lead: min(o, 1)}
-	n := d.wholeFrom(o, d.f.viewRows()-s.lead)
+	n := d.wholeAt(o)
 	s.rows = d.laid.lines[o+n-1].end() - s.first
 	s.over = outOfView(o, 0, d.f.Width, boardOut)
 	s.under = outOfView(0, len(d.laid.lines)-o-n, d.f.Width, boardOut)
@@ -243,13 +243,19 @@ func (d boardDrawn) wholeFrom(o, rows int) int {
 	return n
 }
 
+// wholeAt is how many accounts show whole from the o-th in the view, under
+// the row saying how many are above, where any are.
+func (d boardDrawn) wholeAt(o int) int {
+	return d.wholeFrom(o, d.f.viewRows()-min(o, 1))
+}
+
 // mostScrolled is the fewest accounts the Switchboard scrolls past to show
 // its last account whole, at step 5, under the row saying how many are
 // above.
 func (d boardDrawn) mostScrolled() int {
-	rows, n := d.f.viewRows(), len(d.laid.lines)
+	n := len(d.laid.lines)
 	for o := range n {
-		if d.wholeFrom(o, rows-min(o, 1)) == n-o {
+		if d.wholeAt(o) == n-o {
 			return o
 		}
 	}
@@ -260,7 +266,7 @@ func (d boardDrawn) mostScrolled() int {
 // but at step 5; there, a row at a time, where byRows says so, as paged has
 // it; else in accounts, as far as shows its last account whole, as many at
 // once as show whole from the offset, as accountsShown has them, paged as
-// wholePaged has it.
+// thingsPaged has it.
 func (d boardDrawn) scrolling(offset int) Scrolling {
 	switch {
 	case d.laid.step < compactedStep || len(d.laid.lines) == 0:
@@ -268,9 +274,7 @@ func (d boardDrawn) scrolling(offset int) Scrolling {
 	case d.byRows():
 		return d.paged().scrolling(offset)
 	}
-	return wholePaged(d.mostScrolled(), offset, func(o int) int {
-		return d.wholeFrom(o, d.f.viewRows()-min(o, 1))
-	})
+	return thingsPaged(d.mostScrolled(), offset, d.wholeAt)
 }
 
 // targets are the calls the view shows, each a session's on an account, over

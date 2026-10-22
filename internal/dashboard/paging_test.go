@@ -200,7 +200,7 @@ func TestPagingWholeThingsDownAndUpShowsEveryThing(t *testing.T) {
 					for i := range shown(at) {
 						reached[at+i] = true
 					}
-					next := wholePaged(most, at, shown).Paged(at, way.pages)
+					next := thingsPaged(most, at, shown).Paged(at, way.pages)
 					if next == at {
 						break
 					}

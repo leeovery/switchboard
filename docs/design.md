@@ -3019,8 +3019,9 @@ line and the key:
    view whole, the key shows under it, as at steps 1 to 4. It scrolls an account at a time and
    shows whole accounts alone, so paging never cuts a call, a page down starting at the first
    account the page didn't show and a page up ending at the one above the first it showed, by the
-   one paging rule (see the Overview's USAGE): scrolled down, the view's first row says how many accounts are above, right-aligned,
-   `▲ 2 more accounts`, and the row over the key line how many below it doesn't show. Where an
+   one paging rule (see the Overview's USAGE): scrolled down, the view's first row says how many
+   accounts are above, right-aligned, `▲ 2 more accounts`, and the row over the key line how many
+   below it doesn't show. Where an
    account's rows don't fit the view, under that first row where any are above, it scrolls a row
    at a time instead, the row over the key line saying how many rows are out of view,
    `▲ 3 more above · ▼ 12 more below`, so every call can be reached.

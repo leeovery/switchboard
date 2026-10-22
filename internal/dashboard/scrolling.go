@@ -184,12 +184,12 @@ func pageUp(least, from, above int, shows func(at, r int) bool) int {
 	return max(from-1, 0)
 }
 
-// wholePaged is how far things shown whole, a thing at a time, scroll,
+// thingsPaged is how far things shown whole, a thing at a time, scroll,
 // scrolled offset of them down, no further than most: a page down starting
 // at the first the page didn't show, and a page up ending at the one above
 // the first it showed, as pageDown and pageUp have them, shown(at) of them
 // showing scrolled to the at-th.
-func wholePaged(most, offset int, shown func(at int) int) Scrolling {
+func thingsPaged(most, offset int, shown func(at int) int) Scrolling {
 	from := min(max(offset, 0), most)
 	shows := func(at, i int) bool {
 		at = min(at, most)
