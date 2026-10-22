@@ -4169,7 +4169,8 @@ least, each measured for the session's own kind:
 - row 6: its state at the widest a session of its kind says: running, the widest of asking,
   answering, throttled, refused and idle to the hour, `↓ answering`; ended, its end the day before,
   `ended yesterday 18:46`. Then where it runs and why, whole, as the session says them, but each
-  time they name at its widest, a day's, `since yesterday 14:31`, `from yesterday 16:02`, and the
+  time they name at its widest, a day's, `since yesterday 14:31`, or a move's on an ended session's
+  other days `from yesterday 16:02` (one on its start's day is `from 16:02` at any clock), and the
   account it's on with both marks' cells, `▲` and `◆`, whichever it carries now. Then its right
   at its least, its shortest form at its widest for the session: `23h 59m`, `resumed yesterday
   22:10` once resumed, or `ran 23h 59m` once over;
@@ -4177,14 +4178,16 @@ least, each measured for the session's own kind:
 
 Names in both rows are drawn as a label's column holds them, 24 cells at the most, cut with `…` past
 it, their marks kept. Where the rows are wide, the right takes the fullest of its forms that fits
-whole beside the left as it's measured: `started yesterday 16:40 · resumed yesterday 22:10`, else
+whole beside the left, measured as the switch measures it but with its times as they're said now,
+so its form changes only as their words do, at midnight or a week on, never as the session asks,
+answers or idles: `started yesterday 16:40 · resumed yesterday 22:10`, else
 how it has run alone, `resumed yesterday 22:10`, as a phone's says it. Narrower, the rows take the
 short form a phone's has (see On a phone), which says the why short and whole, so the wide form never
 cuts what the short says whole. What's measured changes only as the session moves, is resumed or
 ends: never as its turns come and go, the clock moves a time's day on, or new sessions go
 elsewhere, so the form holds still while it asks, answers or idles. The form never follows the
 chrome's breakpoint. With the frames' names, `moved` is wide from 96 columns, `quiet` from 64,
-`ended` from 103, and `resumed`, today or the day before, from 133.
+`ended` from 93, and `resumed`, today or the day before, from 133.
 
 - **Row 6,** what it's doing and where it runs:
   - **its state,** bold: `↑ asking` in `accent.key` while a request of it waits for its answer;
@@ -4359,7 +4362,7 @@ first ran on them. A row's parts, two cells apart, as flex lays them at every wi
     Past its most, the spare trails the row's end, so the columns stay together.
 - **As the width runs short,** `tools` leaves first, as the part that grows, so no column comes back
   to narrow it as the frame widens; then `↑ asking`, which row 6 says too; then a move, its arrow
-  narrowing first, `work→side`, before its second name is cut with `…` to 3 cells, `work → si…`,
+  narrowing first, `work→side`, before its second name is cut with `…` to 3 cells, `work→si…`, the arrow kept narrow,
   as most turns run on one account; then `read`,
   `written` and `out`, in that order. Then `started` and `requests` narrow, their heads taking
   their short forms, `start` and `req`; and last `on`, a move's last cells first, then the name to

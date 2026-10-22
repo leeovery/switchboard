@@ -554,9 +554,10 @@ func TestATurnsScrollWithinTheirRows(t *testing.T) {
 }
 
 // A turn's on names the accounts it went to in its cells: each in turn
-// where they fit, the arrow narrowing to → before any name is cut; else a
-// move's two names cut as moveNames cuts them, and two moves or more as
-// their first and last, … between (C16).
+// where they fit, the arrow narrowing to → before any name is cut, and
+// kept narrow as they're cut: a move's second name, its first whole, down
+// to moveToLeast cells, else both as movedCells shares the room; and two
+// moves or more as their first and last, … between (C16).
 func TestATurnsAccountsFitItsOnColumn(t *testing.T) {
 	tests := []struct {
 		accounts []string
@@ -565,15 +566,20 @@ func TestATurnsAccountsFitItsOnColumn(t *testing.T) {
 	}{
 		{accounts: []string{"work"}, cells: 12, want: "work"},
 		{accounts: []string{"work", "side"}, cells: 12, want: "work → side"},
-		{accounts: []string{"personal", "side"}, cells: 12, want: "pers… → side"},
+		{accounts: []string{"personal", "side"}, cells: 12, want: "personal→si…"},
+		{accounts: []string{"personal", "side"}, cells: 11, want: "perso…→side"},
 		{accounts: []string{"personal", "side"}, cells: 15, want: "personal → side"},
 		{accounts: []string{"personal", "side"}, cells: 13, want: "personal→side"},
 		{accounts: []string{"work", "side"}, cells: 10, want: "work→side"},
 		{accounts: []string{"work", "side"}, cells: 9, want: "work→side"},
-		{accounts: []string{"work", "side", "work"}, cells: 12, want: "w… → … → wo…"},
-		{accounts: []string{"a", "b", "c", "d"}, cells: 12, want: "a → … → d"},
+		{accounts: []string{"work", "side", "work"}, cells: 12, want: "work→…→work"},
+		{accounts: []string{"work", "side", "work"}, cells: 8, want: "w…→…→wo…"},
+		{accounts: []string{"a", "b", "c", "d"}, cells: 12, want: "a→…→d"},
 		{accounts: []string{"workstation-one"}, cells: 12, want: "workstation…"},
-		{accounts: []string{"work", "side"}, cells: labelLeast, want: "w… → si…"},
+		{accounts: []string{"work", "side"}, cells: labelLeast, want: "work→si…"},
+		{accounts: []string{"work", "side"}, cells: 7, want: "wo…→si…"},
+		{accounts: []string{"work", "side"}, cells: 6, want: "w…→si…"},
+		{accounts: []string{"work", "side"}, cells: 5, want: "w…→s…"},
 	}
 	for _, tt := range tests {
 		d := sessionDrawn{m: pageDoc().At(sessionNow, claudeLike)}

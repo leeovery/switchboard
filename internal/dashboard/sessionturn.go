@@ -251,14 +251,15 @@ var (
 	requestsCells = ansi.StringWidth(prose.Grouped(9999))
 )
 
-// toolsMost are the cells tools takes at the most: the views' ToolsNamed
-// tools, each at toolNameCells, as Claude Code's widest, AskUserQuestion,
-// and its count to "×999", a comma and a blank between them. No name is
-// cut on its own: where a wider one, as an MCP server's tool, makes the
-// tools wider than their column, they're cut with … at its end, so the
-// tools after it give way first.
+// toolNameCells are the cells of Claude Code's widest tool's name,
+// AskUserQuestion.
 const toolNameCells = 15
 
+// toolsMost are the cells tools takes at the most: the views' ToolsNamed
+// tools, each at toolNameCells, and its count to "×999", a comma and a
+// blank between them. No name is cut on its own: where a wider one, as an
+// MCP server's tool, makes the tools wider than their column, they're cut
+// with … at its end, so the tools after it give way first.
 var toolsMost = views.ToolsNamed*(toolNameCells+ansi.StringWidth(" ×999")) + (views.ToolsNamed-1)*ansi.StringWidth(", ")
 
 // moveToLeast are the fewest cells a move's second name keeps, cut, as

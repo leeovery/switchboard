@@ -128,19 +128,33 @@ func Past(now, t time.Time) string {
 	case days == 0:
 		return TimeOfDay(now, t)
 	case days == 1:
-		return "yesterday " + TimeOfDay(now, t)
+		return yesterday + TimeOfDay(now, t)
 	case WithinWeek(now, t):
 		return Clock(now, t)
 	}
 	return t.Format(pastLayout)
 }
 
-// PastWidest shows t, in now's time zone, as Past and Later do in their
-// widest form, the day before's, such as "yesterday 15:08", whatever day it
-// falls on: as what says it is measured, so the measure holds as the clock
-// moves t's day further back.
+// yesterday leads a time on the day before now's, as Past says it.
+const yesterday = "yesterday "
+
+// PastWidest shows t, in now's time zone, as Past does in its widest form,
+// the day before's, such as "yesterday 15:08", whatever day it falls on: as
+// what says it is measured, so the measure holds as the clock moves t's day
+// further back.
 func PastWidest(now, t time.Time) string {
-	return "yesterday " + TimeOfDay(now, t)
+	return yesterday + TimeOfDay(now, t)
+}
+
+// LaterWidest shows t, a time after start, in now's time zone, as Later
+// does in its widest form: its time of day on start's day, as Later says it
+// there whatever the clock, as "16:02"; on another, as PastWidest does, as
+// "yesterday 00:40".
+func LaterWidest(now, start, t time.Time) string {
+	if SameDay(now, start, t) {
+		return TimeOfDay(now, t)
+	}
+	return PastWidest(now, t)
 }
 
 // WithinWeek reports whether t, before now, falls on now's day or one of the

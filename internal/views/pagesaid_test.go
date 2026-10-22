@@ -125,14 +125,18 @@ func TestWhereASessionRunsIsItsNamedModelsAccountAndHowItCameThere(t *testing.T)
 }
 
 // WhereWidest says what Where says, each time it names in the widest form
-// a day gives it, "yesterday 14:31": so it says the same whether the clock
-// is on the time's day, the next, or a week or a year on.
+// a day gives it, "yesterday 14:31", but a move on an ended session's
+// start's day, which is said by its time alone at any clock: so it says the
+// same whether the clock is on the time's day, the next, or a week or a
+// year on.
 func TestWhereWidestSaysWhereAtItsWidestWhateverTheDay(t *testing.T) {
 	at := time.Date(2026, 10, 7, 14, 31, 0, 0, time.UTC)
 	running := views.SessionPage{Account: "side", Model: "claude-opus-5-5", Activity: views.Activity{Doing: views.Idle},
 		Moves: []views.SessionMove{{At: at, Model: "claude-opus-5-5", From: "work", To: "side", Reason: "moved: work hit its limit"}}}
 	ended := running
 	ended.Started, ended.Activity = at.Add(-2*time.Hour), views.Activity{Doing: views.Ended}
+	overnight := ended
+	overnight.Started = at.AddDate(0, 0, -1)
 	tests := []struct {
 		name string
 		page views.SessionPage
@@ -140,7 +144,9 @@ func TestWhereWidestSaysWhereAtItsWidestWhateverTheDay(t *testing.T) {
 	}{
 		{name: "running, since its move", page: running,
 			want: "on [side] since yesterday 14:31, moved from [work]: [work] reached its limit"},
-		{name: "ended, from its move", page: ended,
+		{name: "ended, from its move on its start's day", page: ended,
+			want: "ran on [work], then [side] from 14:31: [work] reached its limit"},
+		{name: "ended, from its move on a day after its start's", page: overnight,
 			want: "ran on [work], then [side] from yesterday 14:31: [work] reached its limit"},
 	}
 	for _, tt := range tests {

@@ -282,13 +282,13 @@ func TestTheNowRowsWideFormCutsNothing(t *testing.T) {
 
 // The now rows take their wide form from a width each session's own words
 // set, cell for cell, and nothing else moves it: not where new sessions go,
-// ▲ on whichever account, nor the clock a day or a week on, its times'
-// days with it.
+// ▲ on whichever account or none, nor ◆ on whichever, nor the clock a day,
+// a week or a year on, its times' days with it.
 func TestTheNowRowsSwitchWhereTheSessionsWordsSay(t *testing.T) {
 	wideFrom := map[string][2]int{
 		"moved":                  {96, 154},
 		"quiet":                  {64, 80},
-		"ended":                  {103, 161},
+		"ended":                  {93, 151},
 		"pinned here":            {70, 88},
 		"its pin yielding":       {99, 155},
 		"resumed":                {133, 165},
@@ -296,22 +296,59 @@ func TestTheNowRowsSwitchWhereTheSessionsWordsSay(t *testing.T) {
 	}
 	for w, world := range pageWorlds {
 		for _, state := range nowStates() {
-			for _, best := range []string{"work", "personal", "side"} {
-				for _, later := range []int{0, 1, 7} {
-					doc := world.doc()
-					doc.Best = best
-					now := sessionNow.AddDate(0, 0, later)
-					switched := 0
-					for width := 40; width <= 220 && switched == 0; width++ {
-						f := pageFrame(t, state.shown, width, 37)
-						if f.At(doc, now).sessionDrawn(doc, now).nowWide {
-							switched = width
+			for _, best := range []string{"", "work", "personal", "side"} {
+				for _, primary := range []string{"work", "personal", "side"} {
+					for _, later := range []int{0, 1, 7, 365} {
+						doc := world.doc()
+						doc.Best = best
+						for i := range doc.Accounts {
+							doc.Accounts[i].Primary = doc.Accounts[i].ID == primary
+						}
+						now := sessionNow.AddDate(0, 0, later)
+						switched := 0
+						for width := 40; width <= 220 && switched == 0; width++ {
+							if pageFrame(t, state.shown, width, 37).At(doc, now).sessionDrawn(doc, now).nowWide {
+								switched = width
+							}
+						}
+						if want := wideFrom[state.name][w]; switched != want {
+							t.Errorf("%s, %s, ▲ on %q, ◆ on %s, %d days on, the now rows are wide from %d columns, want %d",
+								world.name, state.name, best, primary, later, switched, want)
 						}
 					}
-					if want := wideFrom[state.name][w]; switched != want {
-						t.Errorf("%s, %s, ▲ on %s, %d days on, the now rows are wide from %d columns, want %d", world.name, state.name, best, later, switched, want)
-					}
 				}
+			}
+		}
+	}
+}
+
+// Row 6's right takes its fullest form where it fits beside the left as
+// it's said now, its times as they are, not at their widest: so a session
+// resumed today says when it started whole at 140 columns. And at every
+// width its form is the same whatever the session's doing.
+func TestRow6sRightIsAsFullAsTheWordsSaidNowLeaveRoomFor(t *testing.T) {
+	d, drawn := pageDrawn(pageFrame(t, resumed(), 140, 37), pageDoc())
+	if row := strings.TrimRight(string(drawn[d.l.now]), " "); !d.nowWide || !strings.HasSuffix(row, "   started yesterday 16:40 · resumed 09:12") {
+		t.Errorf("at 140 columns, row 6 reads\n%q\nwant it wide, ending in when it started and resumed", row)
+	}
+	doings := []views.Activity{
+		{Doing: views.Asking}, {Doing: views.Answering}, {Doing: views.Throttled, Status: 429},
+		{Doing: views.Refused, Status: 403}, {Doing: views.Idle, Since: sessionNow.Add(-59 * time.Minute)},
+	}
+	for _, state := range nowStates() {
+		if !state.shown.Page.Runs() {
+			continue
+		}
+		for width := 40; width <= 220; width++ {
+			var forms []string
+			for _, doing := range doings {
+				shown := *state.shown
+				shown.Page.Activity = doing
+				d, _ := pageDrawn(pageFrame(t, &shown, width, 37), pageDoc())
+				forms = append(forms, d.startedFit().plain())
+			}
+			if slices.ContainsFunc(forms, func(form string) bool { return form != forms[0] }) {
+				t.Errorf("%s, at %d columns, row 6's right reads %q as the session's doing changes, want one form", state.name, width, forms)
 			}
 		}
 	}
@@ -619,8 +656,8 @@ func TestOnlyASessionThatCanAskKeepsAskingsCells(t *testing.T) {
 
 // A move's second name gives way before read, written and out leave: its
 // arrow narrowed, then cut with …, its first name whole, down to
-// moveToLeast cells; and while any of them shows, it's cut no further. One account's name stays whole until
-// they've left.
+// moveToLeast cells; and while any of them shows, it's cut no further. One
+// account's name stays whole until they've left.
 func TestAMovesSecondNameGivesWayBeforeTheDetails(t *testing.T) {
 	doc := pageLabelled("work-team-plan", "personal-research", "side-hustle-consulting")
 	cut := 0
@@ -631,7 +668,7 @@ func TestAMovesSecondNameGivesWayBeforeTheDetails(t *testing.T) {
 		if !read {
 			continue
 		}
-		if tight := move == "work-team-plan→side-hustle-consulting"; !tight && !strings.HasPrefix(move, "work-team-plan → si") || one != "work-team-plan" {
+		if spaced := move == "work-team-plan → side-hustle-consulting"; !spaced && !strings.HasPrefix(move, "work-team-plan→si") || one != "work-team-plan" {
 			t.Errorf("at %d columns, read shows beside a move named %q and one account %q, want the first whole, si… at the least, and the one whole", width, move, one)
 		}
 		if strings.HasSuffix(move, prose.Ellipsis) {

@@ -121,9 +121,10 @@ func (p SessionPage) Where(now time.Time) WhereSaid {
 }
 
 // WhereWidest says where the session runs and why, at now, as Where does,
-// but every time it names at its widest, as prose.PastWidest says it: as
-// its page measures what it says, so the measure moves only as the session
-// moves or ends, never as the clock moves the day of a time it names.
+// but every time it names at its widest, as prose.PastWidest and
+// prose.LaterWidest say them: as its page measures what it says, so the
+// measure moves only as the session moves or ends, never as the clock moves
+// the day of a time it names.
 func (p SessionPage) WhereWidest(now time.Time) WhereSaid {
 	return p.where(now, datesWidest)
 }
@@ -139,7 +140,7 @@ type dating struct {
 
 var (
 	datesSaid   = dating{past: prose.Past, later: prose.Later}
-	datesWidest = dating{past: prose.PastWidest, later: func(now, _, t time.Time) string { return prose.PastWidest(now, t) }}
+	datesWidest = dating{past: prose.PastWidest, later: prose.LaterWidest}
 )
 
 // where says where the session runs and why, at now, as Where does, each
