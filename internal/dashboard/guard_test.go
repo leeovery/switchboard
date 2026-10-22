@@ -54,10 +54,8 @@ var phoneAllowed = []string{
 	// S16, S17 and S25: the form Accounts draws its views in, Compare's
 	// turned or wide.
 	"internal/dashboard/accounts.go:Frame.buildAccountsForm",
-	// S20 and S21: the form Weeks and Tokens are drawn in.
+	// S21: the form Tokens is drawn in.
 	"internal/dashboard/historypage.go:Frame.phoneForm",
-	// S20: whether Weeks' cycles show.
-	"internal/dashboard/historyasks.go:Frame.weeksCycles",
 	// S25: Compare's form, turned or wide, its focus, the help that tells of
 	// it, and the watch that keeps it.
 	"internal/dashboard/accountscompare.go:Frame.compareState",

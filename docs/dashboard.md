@@ -317,6 +317,9 @@ as many accounts as the use needs.
 - Its verdict is worded as [`history`](commands.md#history) words it.
 - The verdict comes from replaying the last 7 whole weeks with one account fewer or one more.
 - `v` draws the weeks as columns or as a table, where both fit.
+- As many weeks show as fit. On a narrower screen the oldest go first, so each account's verdict
+  still reads whole.
+- On a phone the verdict comes first, with the weeks under it and no verdicts beside them.
 
 ### Days
 

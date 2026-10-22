@@ -230,11 +230,6 @@ var knownBreaks = []known{
 		slice: "S14", rule: cutWithRoom, sizes: []string{"73x61", "73x36"},
 		fixtures: []string{"overview-ten-accounts-160"},
 	},
-	// S20, Weeks (F16): its names cut with room.
-	{
-		slice: "S20", rule: cutWithRoom, sizes: []string{"73x61", "73x36", "173x53"},
-		fixtures: []string{"long-names-history-weeks"},
-	},
 	// S21, Tokens (F17): its names' column natural.
 	{
 		slice: "S21", rule: cutWithRoom, sizes: []string{"73x61", "73x36", "138x30", "138x15", "108x44", "108x24", "173x53", "109x53"},

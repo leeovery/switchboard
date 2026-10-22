@@ -5,6 +5,8 @@ import (
 	"slices"
 
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -15,6 +17,14 @@ const (
 	labelLeast = 8
 	labelMost  = 24
 )
+
+// labelsPart is a column of names laid out by flex, its gap after it: its
+// natural the widest name given and nameGap, held within labelLeast and
+// labelMost, narrowing toward its least in the turn given, so its names
+// read whole till then.
+func labelsPart(widest, narrows int) flex.Part {
+	return flex.Part{Least: labelLeast, Natural: widest + nameGap, Most: labelMost, Narrows: narrows}
+}
 
 // labelColumnCells are the cells an account's name takes in a column of
 // names: its own, labelMost at the most.

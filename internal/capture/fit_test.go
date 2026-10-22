@@ -187,7 +187,7 @@ func TestNoViewCutsWhatItCantScrollTo(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			m := withNothingOver(t, f.settle(f.Size), f.Size)
-			for _, width := range pagedWidths {
+			for _, width := range pagingWidths(log) {
 				reached, tall := reachOf(name, width), plainRows(m, width, tallest)
 				for _, height := range pagingHeights(log) {
 					top := pagedTop(m, width, height)
@@ -301,6 +301,16 @@ func pagedTo(m watch.Model, height int, key rune) ([]paged, watch.Model) {
 		pages = append(pages, paged{content: content, rows: plainOf(content, height)})
 	}
 	return pages, m
+}
+
+// pagingWidths are the widths the sweep pages a view at: pagedWidths; and
+// the Log's at 44 too, where its heading takes two rows, its count on the
+// row under, as only a narrow phone's does.
+func pagingWidths(log bool) []int {
+	if log {
+		return append([]int{44}, pagedWidths...)
+	}
+	return pagedWidths
 }
 
 // pagingHeights are the heights the sweep pages a view at, each of

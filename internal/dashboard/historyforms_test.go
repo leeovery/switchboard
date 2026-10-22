@@ -78,20 +78,20 @@ func tokensReach(Frame) int {
 	return wideTokens.reach()
 }
 
-// weeksReach and weeksWidest are the width Weeks' wide form takes, in its
-// shape, and the column its widest row ends before, as the frame works them
-// out.
+// weeksReach is the width Weeks' wide form takes, in its shape, the
+// narrowest frame it fits, as flex lays it; and weeksWidest the column its
+// widest row ends before there, a margin short of it.
 func weeksReach(f Frame) int {
-	return weeksWide(f).reach()
+	for width := 1; ; width++ {
+		f.Width = width
+		if f.weeksWideFits(f.History.WeeksShape == WeeksColumns) {
+			return width
+		}
+	}
 }
 
 func weeksWidest(f Frame) int {
-	return weeksWide(f).widest()
-}
-
-// weeksWide is Weeks of the frame in its wide form, in its shape.
-func weeksWide(f Frame) weeksDrawn {
-	return weeksDrawn{page: *f.History.Weeks, columns: f.History.WeeksShape == WeeksColumns, edge: f.edge()}
+	return weeksReach(f) - margin
 }
 
 // weeksForm is Weeks of the frame in its phone form, or wide, in its shape,
@@ -99,7 +99,7 @@ func weeksWide(f Frame) weeksDrawn {
 func weeksForm(phone bool) func(f Frame) *canvas {
 	return func(f Frame) *canvas {
 		c := newCanvas(f.Width, f.Height)
-		w := weeksDrawn{page: *f.History.Weeks, phone: phone, columns: !phone && f.History.WeeksShape == WeeksColumns, edge: f.edge()}
+		w := f.weeksIn(*f.History.Weeks, phone, !phone && f.History.WeeksShape == WeeksColumns)
 		foot := f.top() + f.viewRows() - 1
 		shown, above, below := f.weeksShown(w)
 		w.draw(c, f.Look, f.top(), shown)
@@ -337,8 +337,8 @@ func TestAPhoneSaysWhatsOutOfViewInALineThatFits(t *testing.T) {
 		frame Frame
 		want  string
 	}{
-		{name: "weeks", frame: weeksFrame(manyWeeks(18), WeeksTable, 52, 37, NoColour()), want: "▲ 2 more accounts above · ▼ 1 more account below"},
-		{name: "days", frame: days, want: "▲ 2 more accounts above · ▼ 3 more accounts below"},
+		{name: "weeks", frame: weeksFrame(manyWeeks(18), WeeksTable, 52, 37, NoColour()), want: "▲ 2 more accounts above · ▼ 2 more accounts below"},
+		{name: "days", frame: days, want: "▲ 2 more accounts above · ▼ 4 more accounts below"},
 	}
 	for _, tt := range tests {
 		f := tt.frame

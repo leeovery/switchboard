@@ -1112,10 +1112,13 @@ heading there, ending in `esc back` (see A session's page). From column 0:
   bold `accent.key`, the period in `text.muted` with a space either side, `< this week >`,
   `< 5-hour >`; or the Log's count and its `f` (see The Log).
 
-On a phone, as every phone frame draws it, a tab with sub-tabs has no `[ ]` and no rule, and its
-period sits at the right of row 5 wherever the name, the sub-tabs, the state at its least and the
-period fit whole there; where they don't, the period goes to row 6, right-aligned, the view then
-starting at row 8. Whether they fit is decided by the width, the period's widest form, as
+On a phone, as every phone frame draws it, a tab with sub-tabs has no `[ ]` and no rule, and what
+sits at its right, its period or its line, as History's `eight weeks` on Weeks and Days, sits at
+the right of row 5 wherever the name, the sub-tabs, the state at its least and it fit whole there;
+where they don't, it goes to row 6, right-aligned, the view then starting at row 8. The state is
+never cut below its least: where even the name, the sub-tabs and the state at its least don't fit
+row 5, the state starts row 6, what's at the right ending it, left out only where the two don't fit
+there. Whether they fit is decided by the width, the period's widest form, as
 `< last 12 months >` for the Year, and the state's least: `loading…` whole, whether it shows or not,
 as a read can start at any moment, or the state's shortest form where that's wider: the Year's
 filter to a version, `Opus 5.5 only`, whether the year is read yet or not, and to an account, the
@@ -1123,8 +1126,12 @@ widest configured account's, `personal only`, as `←` `→` step through them. 
 heading between one row and two, as it changes what the Year is filtered to; neither stepping the
 period nor stepping the account does, nor a read, save one that finds a kept version or account the
 last 12 months didn't use, which drops the filter as `v` would. Beside the period, the state
-takes the room left, two cells short of it, in the first of its forms that fits. Runway, without
-sub-tabs, keeps its rule and its window on row 5.
+takes the room left, two cells short of it, in the first of its forms that fits. A state of free
+text, the Log's filter, whose length is its data's, holds nothing of itself whole, so the heading's
+rows never hang on what it keeps: it's cut to the room left, as `only d28c swi…`. `loading…`'s room
+is kept for it all the same, as the Log says it reading back a day; so under 48 columns the Log's
+count takes row 6, the price of its heading holding still as `loading…` comes and goes. Runway,
+without sub-tabs, keeps its rule and its window on row 5.
 
 **The key line** (the last row) lists the keys that work where they are, each key in bold
 `accent.key` and its word in `text.muted`: `tab views` first, then the page's own keys in groups,
@@ -2671,17 +2678,41 @@ drop, one fewer being short on no more weeks than now; otherwise its form for fe
   least over the weeks shown. Plans' sizes are in Pros, `pro` 1, `max5x` 5 and `max20x` 20 (see The
   request ledger); an account without a `plan` counts as the plan most of the accounts have, and
   where none has one, every account counts as one (settled in the plan).
-- **The table,** `v`'s first shape and the default. On row 10, the eight weeks' first days,
-  `10 Aug`, from column 14, 8 apart, right-aligned in 6, in `text.faint`, this week's bold
-  `text.secondary`, and at column 82 `over the last 7 weeks` in `text.faint`. On row 12,
-  `all accounts`, bold `text.secondary`, each week the mean of the accounts' peaks, and at 82
+- **Its form.** Weeks is drawn wide, in the shape `v` gives it, where that shape's parts fit at
+  their leasts short of the frame's margin and its legend reads whole on one row; else in the other
+  shape, where that fits, as `v` then has no shape to change to; else in its phone form (below).
+  Neither hangs on the data, so the form changes once as the width grows: the table's legend fits
+  from 79 columns, the columns' wider one from 126.
+- **A row's parts,** laid out across the width the same for every row, so its columns come from the
+  width and the accounts configured alone, never from the rows in view:
+  - **the label column,** as Days' is: its widest name, `all accounts` or any account's with its
+    marks, not only those shown, and a gap of 2, at least 8 and at most 24; 14 in the frames;
+  - **the weeks,** 6 cells each, 2 apart: the latest that fit, up to the eight, the oldest giving way
+    first, the last never;
+  - **the verdict,** a cell after the last week shown: its natural the widest an account's verdict
+    is worded, its counts at `views.VerdictWeeks`, 7, and its shares at 100%, as
+    `plenty to spare most weeks  100% left  without it: short 7 of 7` in the table and
+    `limit hit 7 of 7 weeks · 100% left at a reset, on average` in columns; its least the widest
+    verdict alone, `plenty to spare most weeks`.
+
+  Weeks give way one at a time before a verdict is cut below its natural, so wherever a week can
+  give way, every account's verdict reads whole; the verdict narrows only once the last week alone
+  is left, and is cut at the edge there, never to less than its least; and the label column
+  narrows only once the verdict has. What else sits beside the weeks, `over the last 7 weeks`,
+  every account's `short on 3 of 7 weeks`, and in columns the capacity verdict's rows beside
+  `all accounts`, isn't counted in the verdict's natural: it's held to the frame's edge, cut there
+  where it's wider.
+- **The table,** `v`'s first shape and the default. On row 10, the weeks' first days, `10 Aug`,
+  each right-aligned in its week, in `text.faint`, this week's bold `text.secondary`, and in the
+  verdict's column `over the last 7 weeks` in `text.faint`. On row 12, `all accounts`, bold
+  `text.secondary`, each week the mean of the accounts' peaks, and in the verdict's column
   `short on 3 of 7 weeks`, bold `text.secondary`, and with many accounts `   with ten accounts`
   after it, in `text.subtle`. From row 14, a row an account: its name and marks at column 0; each
-  week's peak, right-aligned in 5, in its level's colour, as `usage` colours a percentage, but bold
-  only at 100%, in `state.destructive`; and this week's so far, `34%…`, bold `text.secondary`. At
-  82, the account's verdict, bold, then, with few accounts, `  9% left` and
-  `  without it: short 6 of 7`, in `text.subtle`, and with many, `   9% left at a reset`, with no
-  `without it`.
+  week's peak, right-aligned in the week's first 5 cells, in its level's colour, as `usage`
+  colours a percentage, but bold only at 100%, in `state.destructive`; and this week's so far,
+  `34%…`, bold `text.secondary`. In the verdict's column, the account's verdict, bold, then, with
+  few accounts, `  9% left` and `  without it: short 6 of 7`, in `text.subtle`, and with many,
+  `   9% left at a reset`, with no `without it`.
 - **An account's verdict,** over the last 7 whole weeks: `hits its limit most weeks`, in
   `state.destructive`, where it hit its limit in 3 or more of them; else
   `plenty to spare most weeks`, in `state.positive`, where its weeks ended with 40% or more left on
@@ -2692,12 +2723,13 @@ drop, one fewer being short on no more weeks than now; otherwise its form for fe
   less on average; it's barely used where its weeks ended with 75% or more left on average
   (settled in the plan).
 - **The columns,** `v`'s second shape: a block an account, `all accounts` first, 6 rows apart, the
-  name at column 0 on the block's first row. Each week is a column 5 wide and 3 rows tall, from
-  column 14 and 8 apart, filled from the bottom to its peak, its top cell in eighths, each row in
+  name at column 0 on the block's first row. Each week shown is a column 5 wide and 3 rows tall, at
+  the start of its week's cells, filled from the bottom to its peak, its top cell in eighths, each row in
   the ramp's colour at its height (`viz.ramp.1`–`viz.ramp.4`, as a bar's cells take it) mixed 75%
   from the canvas toward it, and 45% for this week; a week with no use is `▁▁▁▁▁` in `text.faint`.
-  Under each column, its peak centred in 6, `text.muted`, 100% bold `state.destructive`, and this
-  week's, `59%…`, in `text.secondary`. Beside each block at column 82: for `all accounts`, the
+  Under each column, its peak centred in its week's 6 cells, `text.muted`, 100% bold
+  `state.destructive`, and this week's, `59%…`, in `text.secondary`. Beside each block, in the
+  verdict's column: for `all accounts`, the
   headline, then `as now: …`, then `with one fewer: …   with one more: …`, then the estimate's line;
   for an account, its verdict, then `limit hit 3 of 7 weeks · 9% left at a reset, on average` in
   `text.muted`, then `without it, the rest: ` in `text.subtle` and `short on 6 of 7` in
@@ -2709,7 +2741,11 @@ drop, one fewer being short on no more weeks than now; otherwise its form for fe
 - **Each column is one of the account's own weeks,** from one reset of its week window to the next,
   placed under the first day of the calendar week it began nearest. More accounts than fit scroll,
   `j/k` or the wheel.
-- **On a phone,** Weeks shows the verdict and the table's last four weeks (settled in the plan).
+- **On a phone,** and wherever the wide form doesn't fit, Weeks shows the capacity verdict, a part
+  a row, wrapped to the width, then the table with no verdicts beside it: its label column and the
+  latest weeks that fit, laid out as the wide form's, the label column narrowing only once the last
+  week alone is left; seven at 73 columns, all eight from 77. Weeks leave only where the form
+  changes, as the verdicts take their room.
 
 **Days** is eight weeks, the week so far and the seven before it, a day at a time. It's drawn in its
 wide form, laid out below, where that form's parts fit short of the frame's margin: a strip's row,
