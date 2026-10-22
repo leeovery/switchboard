@@ -2,11 +2,13 @@ package dashboard
 
 import (
 	"cmp"
+	"slices"
 	"strconv"
 
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/dashboard/flex"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -102,14 +104,14 @@ func (f Frame) RequestsScrolling() Scrolling {
 	if f.Session == nil || f.Session.Open == 0 {
 		return Scrolling{}
 	}
-	return byRows(len(f.Session.Requests), f.sessionLayout(len(f.Session.Page.Accounts)).requests)
+	return byRows(len(f.Session.Requests), f.pageLayout().requests)
 }
 
 // turnLitRow is the row the session's page draws the request chosen of its
 // turn open on: false where none is open, or it's out of view, or the page
 // has room for its chrome alone.
 func (f Frame) turnLitRow() (int, bool) {
-	l := f.sessionLayout(len(f.Session.Page.Accounts))
+	l := f.pageLayout()
 	if l.chrome {
 		return 0, false
 	}
@@ -126,7 +128,7 @@ func (f Frame) turnLitRow() (int, bool) {
 // session's turn open sits within: from the page's heading to its turns'
 // last row.
 func (f Frame) turnCardRows() (first, last int) {
-	l := f.sessionLayout(len(f.Session.Page.Accounts))
+	l := f.pageLayout()
 	return l.heading, l.moreTurns - 1
 }
 
@@ -194,13 +196,15 @@ func turnsIn(rows []turnsRow) int {
 	return n
 }
 
-// turnPart is one of the columns of a session's turns.
+// turnPart is one of the parts of a row of a session's turns.
 type turnPart int
 
-// The columns of a session's turns, in the row's order: its number, its
+// The parts of a row of a session's turns, in its order: its number, its
 // start, how long it took, its requests, its tools, the tokens it read,
-// wrote and put out, its worth, the accounts it went to, and the newest's ↑
-// asking while a request of it waits.
+// wrote and put out, its worth; the accounts it went to, in three parts,
+// one account's name, then a move's arrow and second name past the least of
+// them it keeps, then that least; and the newest's ↑ asking while a request
+// of it waits.
 const (
 	turnNumber turnPart = iota
 	turnStarted
@@ -212,18 +216,22 @@ const (
 	turnOut
 	turnWorth
 	turnOn
+	turnMove
+	turnMoveKept
 	turnAsking
 )
 
-// The turns the columns of a session's turns give way in as it narrows, in
+// The turns the parts of a session's turns give way in as it narrows, in
 // this order, so a turn keeps its number, start, length, requests, worth and
-// accounts: tools first, the column that grows, so none comes back to narrow
-// it as the frame widens; ↑ asking, which row 6 says too; read, written and
-// out; the start, length and requests to their short heads; and last, on to
-// its least.
+// accounts: tools first, the part that grows, so none comes back to narrow
+// it as the frame widens; ↑ asking, which row 6 says too; a move's second
+// name, to the least it keeps, as most turns run on one account; read,
+// written and out; the start and the requests to their short heads; and
+// last, on, a move's least first, then the name, to a label's least.
 const (
 	toolsLeaves = iota + 1
 	askingLeaves
+	moveNarrows
 	readLeaves
 	writtenLeaves
 	outLeaves
@@ -234,10 +242,33 @@ const (
 // turnGap is the blanks between the columns of a session's turns.
 const turnGap = 2
 
-// turnPartFacts are each column's heads, the fullest first, as firstFit
-// tries them in its cells; its least and its natural, 0 for its least, the
-// number's, on's and ↑ asking's as turnParts gives them; whether its words
-// are right-aligned; and the turns it narrows and leaves in, 0 never.
+// The bounds a turn's figures are held whole to at their least: its length
+// to "999m…", 999 minutes and going; past it, as prose.Minutes says minutes
+// whatever their number, "1000m…" is cut to "100…". Its requests to
+// "9,999".
+var (
+	tookCells     = ansi.StringWidth("999m" + prose.Ellipsis)
+	requestsCells = ansi.StringWidth(prose.Grouped(9999))
+)
+
+// The cells tools takes at the most: the views' ToolsNamed tools, each at
+// toolNameCells, as Claude Code's widest, ExitPlanMode and NotebookEdit,
+// and its count to "×999", a comma and a blank between them. A name wider,
+// as an MCP server's tool, is cut.
+const (
+	toolNameCells = 12
+	toolsMost     = views.ToolsNamed*(toolNameCells+len(" ×999")) + (views.ToolsNamed-1)*len(", ")
+)
+
+// moveToLeast are the fewest cells a move's second name keeps, cut, as
+// "si…".
+const moveToLeast = 3
+
+// turnPartFacts are each part's heads, the fullest first, as firstFit tries
+// them in its cells, none for those that carry on its column; its least and
+// its natural, 0 for its least, those of the number, on and ↑ asking as
+// turnParts gives them; whether its words are right-aligned; and the turns
+// it narrows and leaves in, 0 never.
 var turnPartFacts = [...]struct {
 	heads           []string
 	least, natural  int
@@ -246,42 +277,63 @@ var turnPartFacts = [...]struct {
 }{
 	turnNumber:   {heads: []string{"#"}, right: true},
 	turnStarted:  {heads: []string{"started", "start"}, least: 5, natural: 7, narrows: figuresNarrow},
-	turnTook:     {heads: []string{"took"}, least: 4, natural: 5, narrows: figuresNarrow},
-	turnRequests: {heads: []string{"requests", "req"}, least: 3, natural: 8, right: true, narrows: figuresNarrow},
+	turnTook:     {heads: []string{"took"}, least: tookCells},
+	turnRequests: {heads: []string{"requests", "req"}, least: requestsCells, natural: 8, right: true, narrows: figuresNarrow},
 	turnTools:    {heads: []string{"tools"}, least: 12, natural: 30, leaves: toolsLeaves},
 	turnRead:     {heads: []string{"read"}, least: 7, right: true, leaves: readLeaves},
 	turnWritten:  {heads: []string{"written"}, least: 7, right: true, leaves: writtenLeaves},
 	turnOut:      {heads: []string{"out"}, least: 6, right: true, leaves: outLeaves},
 	turnWorth:    {heads: []string{"worth"}, least: 7, right: true},
 	turnOn:       {heads: []string{"on"}, narrows: turnOnNarrows},
+	turnMove:     {narrows: moveNarrows},
+	turnMoveKept: {narrows: turnOnNarrows},
 	turnAsking:   {leaves: askingLeaves},
+}
+
+// turnFacts are what a session's turns' parts are laid from: the cells the
+// newest turn's number takes, leastNumber at the least; on's natural, one
+// account's name and a move's arrow and second name past it, as
+// turnOnCells has them; and whether a turn of it can still ask, as one of a
+// session that's ended can't.
+type turnFacts struct {
+	number     int
+	name, move int
+	asks       bool
 }
 
 // leastNumber is the fewest cells a turn's number takes: to turn 999.
 const leastNumber = 3
 
-// turnParts are the columns of a session's turns as flex lays them,
-// turnGap apart, each from its least to its natural, holding its natural
-// until it narrows in its turn: the number in the cells given; on from a
-// label's least to the natural given; ↑ asking in its words' cells; and
-// tools taking what's left.
+// turnParts are the parts of a session's turns as flex lays them, turnGap
+// apart but on's three, each from its least to its natural, holding its
+// natural until it narrows in its turn: the number, on and ↑ asking as the
+// facts given have them, ↑ asking none where no turn can ask; and tools
+// taking what's left, to toolsMost, past which the spare trails the row's
+// end.
 //
 // No natural comes from the turns shown, so the columns hold still as they
 // scroll and as turns come and go, but the number's, which moves on a cell
 // only as the session reaches its thousandth turn.
-func turnParts(number, on int) []flex.Part {
+func turnParts(facts turnFacts) []flex.Part {
 	parts := make([]flex.Part, len(turnPartFacts))
-	for p, facts := range turnPartFacts {
+	for p, part := range turnPartFacts {
 		parts[p] = flex.Part{
-			Least: facts.least, Natural: cmp.Or(facts.natural, facts.least),
-			Narrows: facts.narrows, Leaves: facts.leaves, Gap: turnGap,
+			Least: part.least, Natural: cmp.Or(part.natural, part.least),
+			Narrows: part.narrows, Leaves: part.leaves, Gap: turnGap,
 		}
 	}
-	asking := ansi.StringWidth(views.Activity{Doing: views.Asking}.WaitingSaid())
-	parts[turnNumber].Least, parts[turnNumber].Natural = number, number
-	parts[turnOn].Least, parts[turnOn].Natural = labelLeast, on
-	parts[turnAsking].Least, parts[turnAsking].Natural = asking, asking
-	parts[turnTools].Grows = true
+	kept := min(facts.move, ansi.StringWidth(moveArrow)+moveToLeast)
+	parts[turnNumber].Least, parts[turnNumber].Natural = facts.number, facts.number
+	parts[turnOn].Least, parts[turnOn].Natural = labelLeast, facts.name
+	parts[turnMove].Natural, parts[turnMove].Gap = facts.move-kept, 0
+	parts[turnMoveKept].Natural, parts[turnMoveKept].Gap = kept, 0
+	if facts.asks {
+		asking := ansi.StringWidth(views.Activity{Doing: views.Asking}.WaitingSaid())
+		parts[turnAsking].Least, parts[turnAsking].Natural = asking, asking
+	} else {
+		parts[turnAsking].Gap = 0
+	}
+	parts[turnTools].Grows, parts[turnTools].Most = true, toolsMost
 	return parts
 }
 
@@ -293,20 +345,28 @@ type turnColumn struct {
 }
 
 // turnColumnsOf are the columns of a session's turns shown across a frame
-// width cells wide, the number's cells and on's natural those given, as
-// turnParts lays them out. Where even their leasts don't fit, under 40
-// columns, they lie as the turns left them, each cut at the frame's edge,
-// those past it left out: a turn's row has no other form, as none keeping
-// its figures would fit there either.
-func turnColumnsOf(width, number, on int) []turnColumn {
-	spans, _ := flex.Lay(width, turnParts(number, on)...)
+// width cells wide, of the facts given, as turnParts lays them out, on's
+// three parts one column. Where even their leasts don't fit, they lie as the
+// turns left them, each cut at the frame's edge, those past it left out: a
+// turn's row has no other form, as none keeping its figures would fit there
+// either.
+func turnColumnsOf(width int, facts turnFacts) []turnColumn {
+	spans, _ := flex.Lay(width, turnParts(facts)...)
 	var columns []turnColumn
 	for p, span := range spans {
-		if cells := min(span.Size, width-span.At); !span.Left && cells > 0 {
-			columns = append(columns, turnColumn{part: turnPart(p), x: span.At, width: cells})
+		part := turnPart(p)
+		if part == turnMove || part == turnMoveKept {
+			columns[len(columns)-1].width += span.Size
+			continue
+		}
+		if !span.Left && span.Size > 0 {
+			columns = append(columns, turnColumn{part: part, x: span.At, width: span.Size})
 		}
 	}
-	return columns
+	for i := range columns {
+		columns[i].width = min(columns[i].width, width-columns[i].x)
+	}
+	return slices.DeleteFunc(columns, func(col turnColumn) bool { return col.width <= 0 })
 }
 
 // head is the column's head, in text.subtle: the fullest of its heads that
@@ -338,28 +398,31 @@ func (col turnColumn) end() int {
 	return col.x + col.width
 }
 
-// turnNumberCells are the cells the number of the newest of the turns,
-// newest first, takes, leastNumber at the least.
-func turnNumberCells(turns []views.Turn) int {
-	if len(turns) == 0 {
-		return leastNumber
+// turnFactsOf are the facts the turns of the page given are laid from, of
+// the accounts the moment m knows.
+func turnFactsOf(page views.SessionPage, m status.Moment) turnFacts {
+	facts := turnFacts{number: leastNumber, asks: page.Runs()}
+	if len(page.Turns) > 0 {
+		facts.number = max(leastNumber, len(strconv.Itoa(page.Turns[0].Turn)))
 	}
-	return max(leastNumber, len(strconv.Itoa(turns[0].Turn)))
+	facts.name, facts.move = turnOnCells(m)
+	return facts
 }
 
-// turnOnCells is the natural of a turn's on: the most a turn says of the
-// accounts the moment m knows, a move between the two widest of their names,
-// each a label's, as labelsCells counts them, as turnOn says it; or the one,
-// where it knows one; labelLeast at the least. It counts the accounts
-// configured, never those the session ran on.
-func turnOnCells(m status.Moment) int {
+// turnOnCells are the natural of a turn's on, of the accounts the moment m
+// knows, as labelsCells counts their names, a label's each: the widest
+// name, labelLeast at the least; and past it, where m knows two or more, a
+// move's arrow and the second widest, so a move between the two reads
+// whole, as turnOn says it. It counts the accounts configured, never those
+// the session ran on.
+func turnOnCells(m status.Moment) (name, move int) {
 	cells := labelsCells(m)
-	widest := 0
-	switch {
-	case len(cells) > 1:
-		widest = cells[0] + ansi.StringWidth(moveArrow) + cells[1]
-	case len(cells) == 1:
-		widest = cells[0]
+	if len(cells) == 0 {
+		return labelLeast, 0
 	}
-	return max(widest, labelLeast)
+	name = max(cells[0], labelLeast)
+	if len(cells) > 1 {
+		move = ansi.StringWidth(moveArrow) + cells[1]
+	}
+	return name, move
 }

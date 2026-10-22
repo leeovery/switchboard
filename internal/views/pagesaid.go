@@ -309,16 +309,16 @@ func (t Turn) Took(now time.Time) (minutes string, going bool) {
 	return prose.Minutes(t.Started, t.Ended), false
 }
 
-// toolsSaid is how many of the tools a turn's answers called most its row
+// ToolsNamed is how many of the tools a turn's answers called most its row
 // names.
-const toolsSaid = 3
+const ToolsNamed = 3
 
 // ToolsSaid says the tools the turn's answers called most, three at the
 // most, most first, with how many times each, as "Bash ×14, Edit ×9, Read
 // ×8".
 func (t Turn) ToolsSaid() string {
-	said := make([]string, 0, toolsSaid)
-	for _, c := range t.Tools[:min(len(t.Tools), toolsSaid)] {
+	said := make([]string, 0, ToolsNamed)
+	for _, c := range t.Tools[:min(len(t.Tools), ToolsNamed)] {
 		said = append(said, prose.Clean(c.Tool)+" ×"+prose.Grouped(c.Times))
 	}
 	return strings.Join(said, ", ")

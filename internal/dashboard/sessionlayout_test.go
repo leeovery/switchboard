@@ -5,9 +5,11 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // A session's page heads itself in the wide chrome's form from 100 columns,
@@ -76,13 +78,13 @@ func TestASessionsPageLaysOutItsRowsAtEachSize(t *testing.T) {
 		},
 		{
 			name: "52×32, two accounts: the phone's frame", width: 52, height: 32, ranOn: 2,
-			want: sessionLayout{story: true, heading: 5, now: 7, storyAt: 10, accountsAt: 18, accounts: 2,
-				turnsHeading: 21, turnsAt: 24, turns: 6, moreTurns: 30, requests: 3},
+			want: sessionLayout{story: true, heading: 5, now: 7, storyAt: 10, accountsAt: 19, accounts: 2,
+				turnsHeading: 22, turnsAt: 25, turns: 5, moreTurns: 30, requests: 2},
 		},
 		{
-			name: "52×28, one account: a phone's least whole", width: 52, height: 28, ranOn: 1,
-			want: sessionLayout{story: true, heading: 5, now: 7, storyAt: 10, accountsAt: 18, accounts: 1,
-				turnsHeading: 20, turnsAt: 23, turns: 3, moreTurns: 26, requests: 1},
+			name: "52×29, one account: a phone's least whole", width: 52, height: 29, ranOn: 1,
+			want: sessionLayout{story: true, heading: 5, now: 7, storyAt: 10, accountsAt: 19, accounts: 1,
+				turnsHeading: 21, turnsAt: 24, turns: 3, moreTurns: 27, requests: 1},
 		},
 		{
 			name: "52×20, one account: a phone's least, its story left out", width: 52, height: 20, ranOn: 1,
@@ -102,7 +104,7 @@ func TestASessionsPageLaysOutItsRowsAtEachSize(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := Frame{Width: tt.width, Height: tt.height, View: Sessions}
-			if got := f.sessionLayout(tt.ranOn); got != tt.want {
+			if got := f.layoutOf(tt.ranOn); got != tt.want {
 				t.Errorf("sessionLayout(%d) =\n%+v\nwant\n%+v", tt.ranOn, got, tt.want)
 			}
 		})
@@ -115,8 +117,89 @@ func TestASessionsPageLaysOutItsRowsAtEachSize(t *testing.T) {
 func TestASessionsPageHeadsItselfAsTheChromeDoes(t *testing.T) {
 	for width := 20; width <= 230; width++ {
 		f := Frame{Width: width, Height: 40, View: Sessions}
-		if got, want := f.sessionLayout(1).wide, f.titleRows() == 1; got != want {
+		if got, want := f.layoutOf(1).wide, f.titleRows() == 1; got != want {
 			t.Errorf("at %d columns, the page heads itself wide %t, want %t, as the chrome's title takes %d rows", width, got, want, f.titleRows())
+		}
+	}
+}
+
+// layoutOf is how the frame lays out the page of a session that ran on the
+// accounts given, heading itself as chromeWide has it.
+func (f Frame) layoutOf(accounts int) sessionLayout {
+	return f.sessionLayout(accounts, f.chromeWide())
+}
+
+// drawnRows are the rows d draws, as text.
+func drawnRows(d sessionDrawn) []string {
+	c := newCanvas(d.Width, d.Height)
+	d.draw(c)
+	rows := make([]string, d.Height)
+	for y := range rows {
+		rows[y] = rowOf(c, y)
+	}
+	return rows
+}
+
+// The chrome decides the page's heading and its story's heading alone: with
+// the page heading itself as the wide chrome does at every width, from 40
+// columns to 220, its now rows, its story under its heading or label, its
+// accounts, TURNS and its turns read as they do under the chrome's own.
+func TestTheChromeDecidesNothingButTheHeadings(t *testing.T) {
+	shown := moved()
+	shown.Story = movedStory()
+	for width := 40; width <= 220; width++ {
+		f := pageFrame(t, shown, width, 60)
+		d, _ := pageDrawn(f, pageDoc())
+		wide := d
+		wide.l = f.sessionLayout(len(shown.Page.Accounts), true)
+		rows, wideRows := drawnRows(d), drawnRows(wide)
+		same := func(what string, from, wideFrom, n int) {
+			for i := range n {
+				if rows[from+i] != wideRows[wideFrom+i] {
+					t.Errorf("at %d columns, headed wide, %s's row %d reads\n%q\nwant it as under the chrome's own\n%q", width, what, i+1, wideRows[wideFrom+i], rows[from+i])
+				}
+			}
+		}
+		same("now", d.l.now, wide.l.now, 2)
+		story := d.l.storyAt
+		if d.l.wide {
+			story++
+		}
+		same("the story", story, wide.l.storyAt+1, phoneStoryRows)
+		same("the accounts and TURNS", d.l.accountsAt, wide.l.accountsAt, d.l.turnsAt-d.l.accountsAt)
+		same("the turns", d.l.turnsAt, wide.l.turnsAt, min(d.l.turns, wide.l.turns))
+	}
+}
+
+// What a session's page says takes its wide form where its own parts fit,
+// switching once as the frame widens, never at the chrome's breakpoint: its
+// now rows, and a move's label in the story.
+func TestASessionsContentFormsSwitchOnceWhereTheyFit(t *testing.T) {
+	shown := moved()
+	shown.Story = movedStory()
+	for _, world := range pageWorlds {
+		var nowSwitched, labelSwitched []int
+		wasNow, wasLabel := false, false
+		for width := 40; width <= 220; width++ {
+			f := pageFrame(t, shown, width, 60)
+			d, _ := pageDrawn(f, world.doc())
+			rows := drawnRows(d)
+			label := strings.Contains(strings.Join(rows, "\n"), "cached again")
+			if d.nowWide != wasNow {
+				nowSwitched = append(nowSwitched, width)
+			}
+			if label != wasLabel {
+				labelSwitched = append(labelSwitched, width)
+			}
+			wasNow, wasLabel = d.nowWide, label
+		}
+		if len(nowSwitched) != 1 || len(labelSwitched) != 1 {
+			t.Errorf("%s, the now rows take their wide form from %v and the move's label from %v, want each to switch once", world.name, nowSwitched, labelSwitched)
+		}
+		for _, at := range slices.Concat(nowSwitched, labelSwitched) {
+			if at == phoneUnder {
+				t.Errorf("%s, a form switches at %d, the chrome's breakpoint", world.name, at)
+			}
 		}
 	}
 }
@@ -216,8 +299,12 @@ func TestATurnsColumnsLeaveInTheirOrder(t *testing.T) {
 			if last.end() > width {
 				t.Errorf("%s, at %d columns, the turns' row runs to %d, past the frame", world.name, width, last.end())
 			}
-			if _, tools := d.turnColumnOf(turnTools); tools && last.end() != width {
-				t.Errorf("%s, at %d columns, tools shows and the row ends at %d, want it at the last column", world.name, width, last.end())
+			tools, ok := d.turnColumnOf(turnTools)
+			switch {
+			case ok && tools.width > toolsMost:
+				t.Errorf("%s, at %d columns, tools is %d cells wide, past its most, %d", world.name, width, tools.width, toolsMost)
+			case ok && tools.width < toolsMost && last.end() != width:
+				t.Errorf("%s, at %d columns, tools is short of its most and the row ends at %d, want it at the last column", world.name, width, last.end())
 			}
 		}
 	}
@@ -344,5 +431,58 @@ func TestAnAccountsNameIsALabels(t *testing.T) {
 				t.Errorf("an account's name is %+v, want least %d and natural %d", got, tt.least, tt.natual)
 			}
 		})
+	}
+}
+
+// ↑ asking keeps its cells on the page of a session that can still ask,
+// between turns as while one runs, so tools holds still as they come and
+// go; on an ended session's, which never asks, it has none, and tools takes
+// them.
+func TestOnlyASessionThatCanAskKeepsAskingsCells(t *testing.T) {
+	over := moved()
+	over.Page.Activity = views.Activity{Doing: views.Ended, Since: at(14, 0)}
+	quiet := moved()
+	quiet.Page.Activity = views.Activity{Since: sessionNow.Add(-9 * time.Minute)}
+	for width := 40; width <= 220; width++ {
+		running, _ := pageDrawn(pageFrame(t, moved(), width, 37), pageDoc())
+		between, _ := pageDrawn(pageFrame(t, quiet, width, 37), pageDoc())
+		ended, _ := pageDrawn(pageFrame(t, over, width, 37), pageDoc())
+		if !slices.Equal(running.turnColumns, between.turnColumns) {
+			t.Errorf("at %d columns, a quiet session's turns are laid out\n%+v\nwant them as a running one's\n%+v", width, between.turnColumns, running.turnColumns)
+		}
+		if _, ok := ended.turnColumnOf(turnAsking); ok {
+			t.Errorf("at %d columns, an ended session's turns keep ↑ asking's cells", width)
+		}
+		tools, ok := running.turnColumnOf(turnTools)
+		endedTools, _ := ended.turnColumnOf(turnTools)
+		if ok && tools.width < toolsMost && endedTools.width <= tools.width {
+			t.Errorf("at %d columns, an ended session's tools is %d cells wide, want more than a running one's %d", width, endedTools.width, tools.width)
+		}
+	}
+}
+
+// A move's second name gives way before read, written and out leave: cut
+// with …, its first name whole, down to moveToLeast cells; and while any of
+// them shows, it's cut no further. One account's name stays whole until
+// they've left.
+func TestAMovesSecondNameGivesWayBeforeTheDetails(t *testing.T) {
+	doc := pageLabelled("work-team-plan", "personal-research", "side-hustle-consulting")
+	cut := 0
+	for width := 40; width <= 220; width++ {
+		d, rows := pageDrawn(pageFrame(t, moved(), width, 37), doc)
+		_, read := d.turnColumnOf(turnRead)
+		move, one := turnText(rows[d.l.turnsAt+1], d, turnOn), turnText(rows[d.l.turnsAt+2], d, turnOn)
+		if !read {
+			continue
+		}
+		if !strings.HasPrefix(move, "work-team-plan → si") || one != "work-team-plan" {
+			t.Errorf("at %d columns, read shows beside a move named %q and one account %q, want the first whole, si… at the least, and the one whole", width, move, one)
+		}
+		if strings.HasSuffix(move, prose.Ellipsis) {
+			cut++
+		}
+	}
+	if cut == 0 {
+		t.Error("no width shows read beside a move cut, want its second name to give way first")
 	}
 }

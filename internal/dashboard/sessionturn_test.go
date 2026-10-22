@@ -102,7 +102,7 @@ func TestATurnOpenedLaysItsRowsOutUnderItsOwn(t *testing.T) {
 			if tt.open != nil {
 				tt.open(shown)
 			}
-			if got := shown.turnsRows(pageFrame(t, shown, 160, tt.height).sessionLayout(1)); !slices.Equal(got, tt.want) {
+			if got := shown.turnsRows(pageFrame(t, shown, 160, tt.height).layoutOf(1)); !slices.Equal(got, tt.want) {
 				t.Errorf("the turns' rows are\n%v\nwant\n%v", got, tt.want)
 			}
 		})
@@ -184,7 +184,7 @@ func TestATurnOpenedsRequestsAreTheLogsRowsInThePagesColumns(t *testing.T) {
 			shown := turnOpened()
 			shown.Request = 0
 			f := pageFrame(t, shown, tt.width, 37)
-			l := f.sessionLayout(2)
+			l := f.layoutOf(2)
 			heads, move := l.turnsAt+2, l.turnsAt+5
 			rows := pageText(f)
 			if rows[heads] != tt.heads || rows[move] != tt.move {
@@ -225,7 +225,7 @@ func TestATurnOpensRequestInFlightIsDrawnAsItStands(t *testing.T) {
 		f := pageFrame(t, shown, 160, 37)
 		f.Stream = streamed(tt.chars)
 		rows := textOf(f.Draw(pageDoc(), sent.Add(tt.at)))
-		row := rows[f.sessionLayout(2).turnsAt+3]
+		row := rows[f.layoutOf(2).turnsAt+3]
 		for _, want := range []string{prose.Seconds(tt.at), "answering · " + prose.Characters(tt.chars) + " characters"} {
 			if !strings.Contains(row, want) {
 				t.Errorf("drawn %s after it was sent, %d characters streamed, the turn open's row in flight doesn't read %q:\n%s", tt.at, tt.chars, want, row)
@@ -290,7 +290,7 @@ func TestTheLogsCardOverASessionsPageIsPlacedByItsRequestChosen(t *testing.T) {
 	}{
 		{name: "over its line", request: 2, width: 160, height: 37, placed: true, line: 30},
 		{name: "too short for it", scroll: 1, width: 160, height: 24, line: 19},
-		{name: "a tall phone, its card stacked", width: 52, height: 64, line: 27},
+		{name: "a tall phone, its card stacked", width: 52, height: 64, line: 28},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

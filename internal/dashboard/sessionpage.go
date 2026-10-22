@@ -48,9 +48,10 @@ var turnsOut = outForm{
 }
 
 // sessionDrawn is a session's page as the frame draws it of a moment at
-// now: the page open, laid out as sessionLayout lays it out, its accounts
-// named as the Overview names them, their rows' columns as stayColumnsOf
-// lays them out, and its turns' columns as turnColumnsOf lays them out.
+// now: the page open, laid out as sessionLayout lays it out; its accounts
+// named as the Overview names them; whether its now rows take their wide
+// form, as nowWide has it; and its accounts' rows' columns and its turns',
+// as stayColumnsOf and turnColumnsOf lay them out.
 type sessionDrawn struct {
 	Frame
 	shown       *SessionShown
@@ -58,6 +59,7 @@ type sessionDrawn struct {
 	m           status.Moment
 	names       []accountName
 	l           sessionLayout
+	nowWide     bool
 	stayColumns []stayColumn
 	turnColumns []turnColumn
 	now         time.Time
@@ -67,12 +69,13 @@ type sessionDrawn struct {
 // now.
 func (f Frame) sessionDrawn(doc status.Document, now time.Time) sessionDrawn {
 	m := f.Moment(doc, now)
-	names := namesOf(m)
+	names, page := namesOf(m), f.Session.Page.Live(f.Stream)
 	return sessionDrawn{
-		Frame: f, shown: f.Session, page: f.Session.Page.Live(f.Stream), m: m, names: names,
-		l:           f.sessionLayout(len(f.Session.Page.Accounts)),
+		Frame: f, shown: f.Session, page: page, m: m, names: names,
+		l:           f.pageLayout(),
+		nowWide:     nowWide(f.Width, m, f.listedWindows(m)),
 		stayColumns: stayColumnsOf(f.Width, stayNameCells(names), pointsCells(f.listedWindows(m))),
-		turnColumns: turnColumnsOf(f.Width, turnNumberCells(f.Session.Page.Turns), turnOnCells(m)),
+		turnColumns: turnColumnsOf(f.Width, turnFactsOf(page, m)),
 		now:         now,
 	}
 }
@@ -82,19 +85,61 @@ func (f Frame) sessionDrawn(doc status.Document, now time.Time) sessionDrawn {
 // accounts it ran on; and its turns, each as sessionLayout lays it out.
 // While it loads, its heading alone.
 func (f Frame) sessionPage(c *canvas, doc status.Document, now time.Time) {
-	d := f.sessionDrawn(doc, now)
+	f.sessionDrawn(doc, now).draw(c)
+}
+
+// draw draws the page as d lays it out: its heading, then, once it's
+// loaded, its now rows, wide or short as nowWide has them, its story, its
+// accounts and its turns.
+func (d sessionDrawn) draw(c *canvas) {
 	d.heading(c)
 	if d.shown.Loading {
 		return
 	}
-	if d.l.wide {
+	if d.nowWide {
 		d.wideNow(c)
 	} else {
 		d.phoneNow(c)
 	}
-	f.sessionStory(c, d.m, d.l, d.shown.Story, d.chosen())
+	d.sessionStory(c, d.m, d.l, d.shown.Story, d.chosen())
 	d.accounts(c)
 	d.turns(c)
+}
+
+// The cells the wide now rows hold whole beside their words at the least:
+// row 6's right, when the session started and how it has run, at its
+// widest, as startedWidest says it; and the least of its words, what it's
+// doing at its widest, as doingWidest says it, and "on" and the account it
+// runs on.
+var (
+	startedCells  = ansi.StringWidth(startedWidest)
+	nowDoingCells = ansi.StringWidth(doingWidest)
+)
+
+const (
+	startedWidest = "started yesterday 16:40 · resumed 09:12"
+	doingWidest   = "↓ answering"
+)
+
+// nowWide reports whether a session's now rows take their wide form in a
+// frame width cells wide, of the moment m and the windows given: where row
+// 6's least words and its right, whole, fit, and row 7's windows, whole,
+// as the moment's widest name and every window at 100% say them. Else they
+// take their short form, as a phone's. It never asks what the session says,
+// so the form never hangs on it.
+func nowWide(width int, m status.Moment, windows []shownWindow) bool {
+	name := widestLabel(m) + 2*markCells
+	said := nowDoingCells + sessionApart + ansi.StringWidth("on ") + name
+	_, row6 := flex.Lay(width, flex.Part{Least: said, Grows: true}, flex.Part{Least: startedCells, Gap: sessionApart})
+	right := name + ansi.StringWidth(" now  ")
+	for i, w := range windows {
+		if i > 0 {
+			right += sessionApart
+		}
+		right += ansi.StringWidth(strings.ToLower(w.name) + " 100%")
+	}
+	_, row7 := flex.Lay(width, flex.Part{Grows: true}, flex.Part{Least: right, Gap: sessionApart})
+	return row6 && row7
 }
 
 // chosen is the turn chosen: the zero Turn where none is.
@@ -625,9 +670,10 @@ func (d sessionDrawn) turnSaid(col turnColumn, t views.Turn, newest bool) line {
 
 // turnOn names the accounts a turn went to, in text.secondary, in cells:
 // the one, or each in turn, as "work → side"; where they don't fit, a move's
-// two names cut as moveNames cuts them, and two moves or more as the first
-// and the last, an ellipsis between, each cut as movedCells shares the room,
-// as "w… → … → wo…" (C16).
+// second name cut, its first whole, where that leaves moveToLeast cells of
+// it, as "personal → si…", else its two names cut as moveNames cuts them;
+// and two moves or more as the first and the last, an ellipsis between,
+// each cut as movedCells shares the room, as "w… → … → wo…" (C16).
 func (d sessionDrawn) turnOn(accounts []string, cells int) line {
 	names := make([]string, len(accounts))
 	for i, id := range accounts {
@@ -637,6 +683,9 @@ func (d sessionDrawn) turnOn(accounts []string, cells int) line {
 		return line{{said, secondaryInk}}.fit(cells)
 	}
 	first, last := names[0], names[len(names)-1]
+	if from := ansi.StringWidth(first); len(names) == 2 && from+ansi.StringWidth(moveArrow)+moveToLeast <= cells {
+		return line{{first + moveArrow + prose.Cut(last, cells-from-ansi.StringWidth(moveArrow)), secondaryInk}}
+	}
 	if len(names) == 2 {
 		cut := moveNames(first, last, cells, secondaryInk)
 		for i := range cut {

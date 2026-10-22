@@ -1,8 +1,10 @@
 package dashboard
 
 import (
+	"cmp"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -10,6 +12,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -287,13 +290,15 @@ func TestASessionsPageAtEachSize(t *testing.T) {
 		shown         *SessionShown
 		width, height int
 		want          map[int]string
-		// ends are rows that end as given, at the last column.
-		ends map[int]string
+		// ends are rows that end as given, at endAt, or the last column where
+		// it's none.
+		ends  map[int]string
+		endAt int
 		// blank are rows drawn blank, from the first given to the second.
 		blank [2]int
 	}{
 		{
-			name: "200 wide: the rows' right parts at the last column, tools taking what's left", shown: moved(), width: 200, height: 37,
+			name: "200 wide: the rows' right parts at the last column, tools at its most, the spare trailing", shown: moved(), width: 200, height: 37,
 			want: map[int]string{
 				4:  "SESSION   d28c   switchboard  ~/Code/switchboard " + rule(141) + "  esc back",
 				6:  "↑ asking   on side ▲ since 14:31, moved from work: work reached its cap" + strings.Repeat(" ", 107) + "started 12:02 · 2h 40m",
@@ -301,7 +306,8 @@ func TestASessionsPageAtEachSize(t *testing.T) {
 				24: "  #  started  took   requests  tools ",
 				25: " 13  14:40    3m…           6  Read ×3, Bash ×2 ",
 			},
-			ends: map[int]string{25: "958k      18k    5.4k    $0.79  side             ↑ asking"},
+			ends:  map[int]string{25: "958k      18k    5.4k    $0.79  side             ↑ asking"},
+			endAt: 151,
 		},
 		{
 			name: "122 wide: every column, tools at its natural", shown: moved(), width: 122, height: 37,
@@ -328,17 +334,18 @@ func TestASessionsPageAtEachSize(t *testing.T) {
 			},
 		},
 		{
-			name: "99 wide: a phone's heading, under its own chrome", shown: moved(), width: 99, height: 30,
+			name: "99 wide: a phone's heading, under its own chrome, its now rows wide as they fit", shown: moved(), width: 99, height: 30,
 			want: map[int]string{
-				5: "SESSION  d28c  switchboard", 7: "↑ asking  on side ▲ since 14:31", 21: "TURNS    ",
-				23: "  #  started  took   requests     read  written     out    worth  on",
+				5: "SESSION  d28c  switchboard", 7: "↑ asking   on side ▲ since 14:31,", 8: "opus-5-5 → side   haiku-4-5 → side",
+				22: "TURNS    ", 24: "  #  started  took   requests     read  written     out    worth  on",
 			},
 		},
 		{
 			name: "52 wide: a phone's, its turns their figures, worth and on", shown: moved(), width: 52, height: 32,
 			want: map[int]string{
-				5: "SESSION  d28c  switchboard                  esc back", 23: "  #  started  took     req    worth  on",
-				24: " 13  14:40    3m…        6    $0.79  side", 30: "▼ 7 more turns   ·   j/k to scroll",
+				5: "SESSION  d28c  switchboard                  esc back", 7: "↑ asking  on side ▲ since 14:31",
+				24: "  #  started  took      req    worth  on", 25: " 13  14:40    3m…         6    $0.79  side",
+				30: "▼ 8 more turns   ·   j/k to scroll",
 			},
 		},
 		{
@@ -365,8 +372,8 @@ func TestASessionsPageAtEachSize(t *testing.T) {
 				}
 			}
 			for y, want := range tt.ends {
-				if !strings.HasSuffix(rows[y], want) || ansi.StringWidth(rows[y]) != tt.width {
-					t.Errorf("row %d reads\n%q\nwant it to end at the last column\n%q", y+1, rows[y], want)
+				if end := cmp.Or(tt.endAt, tt.width); !strings.HasSuffix(rows[y], want) || ansi.StringWidth(rows[y]) != end {
+					t.Errorf("row %d reads\n%q\nwant it to end at column %d\n%q", y+1, rows[y], end, want)
 				}
 			}
 			for y := tt.blank[0]; y > 0 && y <= tt.blank[1]; y++ {
@@ -482,9 +489,9 @@ func TestTheTurnChosenIsLit(t *testing.T) {
 		chosen        int
 		lit           int
 	}{
-		{name: "wide, the newest", width: 160, height: 37, chosen: 25, lit: 150},
-		{name: "wide, one under it", width: 160, height: 37, chosen: 27, lit: 150},
-		{name: "a phone", width: 52, height: 32, chosen: 24, lit: 52},
+		{name: "wide, the newest", width: 160, height: 37, chosen: 25, lit: 141},
+		{name: "wide, one under it", width: 160, height: 37, chosen: 27, lit: 141},
+		{name: "a phone", width: 52, height: 32, chosen: 25, lit: 52},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -559,19 +566,20 @@ func TestATurnsAccountsFitItsOnColumn(t *testing.T) {
 }
 
 // A turn's on takes its natural from the accounts configured, never those
-// the session ran on: a move between the two widest names, each a label's,
-// at most labelMost; the one where there's one; labelLeast at the least.
+// the session ran on: the widest name, a label's, at most labelMost and
+// labelLeast at the least; and past it, where there are two or more, a
+// move's arrow and the second widest name.
 func TestATurnsOnIsAsWideAsTheAccountsConfiguredSay(t *testing.T) {
 	long := strings.Repeat("x", labelMost+6)
 	tests := []struct {
-		name   string
-		labels []string
-		want   int
+		name        string
+		labels      []string
+		named, move int
 	}{
-		{name: "the frames' three", labels: []string{"work", "personal", "side"}, want: 15},
-		{name: "one", labels: []string{"work"}, want: labelLeast},
-		{name: "one of a label's most", labels: []string{long}, want: labelMost},
-		{name: "two long", labels: []string{long, "side-hustle-consulting"}, want: labelMost + 3 + 22},
+		{name: "the frames' three", labels: []string{"work", "personal", "side"}, named: 8, move: 7},
+		{name: "one", labels: []string{"work"}, named: labelLeast},
+		{name: "one of a label's most", labels: []string{long}, named: labelMost},
+		{name: "two long", labels: []string{long, "side-hustle-consulting"}, named: labelMost, move: 3 + 22},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -580,69 +588,42 @@ func TestATurnsOnIsAsWideAsTheAccountsConfiguredSay(t *testing.T) {
 			for i, label := range tt.labels {
 				doc.Accounts[i].Label = label
 			}
-			if got := turnOnCells(doc.At(sessionNow, claudeLike)); got != tt.want {
-				t.Errorf("on's natural is %d, want %d", got, tt.want)
+			if name, move := turnOnCells(doc.At(sessionNow, claudeLike)); name != tt.named || move != tt.move {
+				t.Errorf("on's natural is %d and a move %d past it, want %d and %d", name, move, tt.named, tt.move)
 			}
 		})
 	}
 }
 
-// manyTurns are n turns, newest first, each of nine minutes and 37 requests
-// but the newest, still going, of the requests given.
-func manyTurns(n, requests int) []views.Turn {
-	turns := make([]views.Turn, n)
-	for i := range turns {
-		turns[i] = turnRow{n - i, at(14, 29), 9, 37, nil, 0, 0, 0, 661, []string{"side"}}.turn()
-	}
-	turns[0] = turnRow{n, at(14, 29), 0, requests, nil, 0, 0, 0, 661, []string{"side"}}.turn()
-	return turns
-}
-
-// A turn's row keeps its figures whole: the numbers in as many cells as the
-// newest's, three at the least, so turn 1,005 reads apart from turn 5; the
-// minutes in five, so a turn of 1,000 reads whole; and the requests in
-// eight, or in three once they narrow, each right-aligned.
-func TestATurnsRowKeepsItsFiguresWhole(t *testing.T) {
-	tests := []struct {
-		name            string
-		turns, requests int
-		oldestTook      int
-		width           int
-		want            []string
-	}{
-		{name: "1,005 turns at 100 columns", turns: 1005, requests: 6, width: 100, want: []string{
-			"1005  14:29    14m…          6", " 999  14:29    9m           37", "  13  14:29    9m           37",
-		}},
-		{name: "a turn of 1,234 requests at 52 columns", turns: 13, requests: 1234, width: 52, want: []string{
-			" 13  14:29    14m…   1,234", " 12  14:29    9m        37",
-		}},
-		{name: "a turn of 1,000 minutes at 52 columns", turns: 3, requests: 6, oldestTook: 1000, width: 52, want: []string{
-			"  3  14:29    14m…       6", "  1  14:29    1000m     37",
-		}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			shown := moved()
-			shown.Page.Turns, shown.Turn = manyTurns(tt.turns, tt.requests), tt.turns
-			if tt.oldestTook > 0 {
-				shown.Page.Turns[tt.turns-1] = turnRow{1, at(14, 29).Add(-24 * time.Hour), tt.oldestTook, 37, nil, 0, 0, 0, 661, []string{"side"}}.turn()
+// A turn's row keeps its figures whole at every width from 40 columns to
+// 220, at their bounds: its number in as many cells as the newest's, so turn
+// 1005 reads apart from turn 5; its length to "999m…", going, and "999m"
+// once over; and its requests to "9,999".
+func TestATurnsRowKeepsItsFiguresWholeAtTheirBounds(t *testing.T) {
+	shown := moved()
+	shown.Page.Turns = turnsOf(
+		turnRow{1005, at(14, 42).Add(-998 * time.Minute), 0, 9999, nil, 0, 0, 0, 661, []string{"side"}},
+		turnRow{1004, at(14, 29).Add(-24 * time.Hour), 999, 9999, nil, 0, 0, 0, 661, []string{"side"}},
+		turnRow{5, at(14, 29), 9, 37, nil, 0, 0, 0, 661, []string{"side"}},
+	)
+	shown.Turn = 1005
+	for width := 40; width <= 220; width++ {
+		d, rows := pageDrawn(pageFrame(t, shown, width, 37), pageDoc())
+		for i, turn := range shown.Page.Turns {
+			row := rows[d.l.turnsAt+i]
+			took, going := turn.Took(sessionNow)
+			if going {
+				took += prose.Ellipsis
 			}
-			var rows []string
-			for _, scroll := range []int{0, tt.turns} {
-				shown.Scroll = scroll
-				f := pageFrame(t, shown, tt.width, 40)
-				rows = append(rows, pageText(f)[f.sessionLayout(len(shown.Page.Accounts)).turnsAt:]...)
+			figures := map[turnPart]string{
+				turnNumber: strconv.Itoa(turn.Turn), turnTook: took, turnRequests: prose.Grouped(turn.Requests), turnWorth: turn.Cents(),
 			}
-			for _, want := range tt.want {
-				i := slices.IndexFunc(rows, func(row string) bool { return strings.HasPrefix(row, want) })
-				switch {
-				case i < 0:
-					t.Errorf("no turn's row starts %q among\n%s", want, strings.Join(rows, "\n"))
-				case !strings.Contains(rows[i], "$6.61  side"):
-					t.Errorf("the row %q reads %q, want its worth and account whole after it", want, rows[i])
+			for p, want := range figures {
+				if got := turnText(row, d, p); got != want {
+					t.Errorf("at %d columns, turn %d's column %d reads %q, want %q whole", width, turn.Turn, p, got, want)
 				}
 			}
-		})
+		}
 	}
 }
 
@@ -688,7 +669,7 @@ func TestASessionsHeadingNamesItByItsDirectory(t *testing.T) {
 			shown := moved()
 			shown.Page.Dir = tt.dir
 			f := pageFrame(t, shown, tt.width, 37)
-			got := pageText(f)[f.sessionLayout(len(shown.Page.Accounts)).heading]
+			got := pageText(f)[f.layoutOf(len(shown.Page.Accounts)).heading]
 			for strings.Contains(got, "──") {
 				got = strings.ReplaceAll(got, "──", "─")
 			}
@@ -705,7 +686,7 @@ func TestASessionsHeadingNamesItByItsDirectory(t *testing.T) {
 // ~/Code/switchboard.
 func TestASessionsHeadingsInks(t *testing.T) {
 	f := pageFrame(t, moved(), 160, 37)
-	c, y := pageCanvas(f), f.sessionLayout(len(moved().Page.Accounts)).heading
+	c, y := pageCanvas(f), f.layoutOf(len(moved().Page.Accounts)).heading
 	tests := []struct {
 		name   string
 		x, end int
@@ -735,7 +716,7 @@ func TestTURNSSaysWhyASessionHasNoTurns(t *testing.T) {
 	for _, width := range []int{160, 52} {
 		shown := quiet()
 		shown.Page.Turns, shown.Page.Totals.Turns = nil, 0
-		l := pageFrame(t, shown, width, 37).sessionLayout(1)
+		l := pageFrame(t, shown, width, 37).layoutOf(1)
 		c := pageCanvas(pageFrame(t, shown, width, 37))
 		if got := rowOf(c, l.turnsHeading+2); got != noTurns[:min(len(noTurns), width)] && !strings.HasPrefix(noTurns, strings.TrimSuffix(got, "…")) || c.cells[l.turnsHeading+2][0].ink != faintInk {
 			t.Errorf("at %d columns, TURNS' rows read %q in %+v, want %q in text.faint", width, got, c.cells[l.turnsHeading+2][0].ink, noTurns)
@@ -755,7 +736,7 @@ func TestRow7DrawsNoWindowsOfAnAccountTheDocumentLacks(t *testing.T) {
 	shown.Page.Account = "gone"
 	shown.Page.Goes = []views.SessionModel{{Model: opus, Account: "gone"}, {Model: haiku, Account: "gone"}}
 	f := pageFrame(t, shown, 160, 37)
-	if got := pageText(f)[f.sessionLayout(len(shown.Page.Accounts)).now+1]; got != "opus-5-5 → gone   haiku-4-5 → gone" {
+	if got := pageText(f)[f.layoutOf(len(shown.Page.Accounts)).now+1]; got != "opus-5-5 → gone   haiku-4-5 → gone" {
 		t.Errorf("row 7 reads %q, want its models alone", got)
 	}
 }
@@ -779,7 +760,7 @@ func TestAPhonesNowRowsSayAPinsMoveShort(t *testing.T) {
 			shown.Page.Account = tt.to
 			shown.Page.Moves = []views.SessionMove{{At: at(14, 31), Model: opus, From: tt.from, To: tt.to, Reason: tt.reason}}
 			f := pageFrame(t, shown, 52, 32)
-			rows, now := pageText(f), f.sessionLayout(len(shown.Page.Accounts)).now
+			rows, now := pageText(f), f.layoutOf(len(shown.Page.Accounts)).now
 			if rows[now] != tt.row7 || rows[now+1] != tt.row8 {
 				t.Errorf("a phone's rows of now read\n%q\n%q\nwant\n%q\n%q", rows[now], rows[now+1], tt.row7, tt.row8)
 			}

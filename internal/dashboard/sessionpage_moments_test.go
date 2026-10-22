@@ -87,7 +87,7 @@ func TestASessionsPageSaysWhatItsViewsSayAtEachHardMoment(t *testing.T) {
 
 				phone := frameOf(52, 32)
 				phone.Sessions, phone.Stream, phone.Session = hm.Sessions, hm.Stream, shown
-				checkPhoneNowRows(t, phone.At(hm.Doc, hm.Now).page(hm.Doc, hm.Now), phone.sessionLayout(len(shown.Page.Accounts)), shown.Page, hm.Now)
+				checkPhoneNowRows(t, phone.At(hm.Doc, hm.Now).page(hm.Doc, hm.Now), phone.layoutOf(len(shown.Page.Accounts)), shown.Page, hm.Now)
 			}
 		})
 	}
