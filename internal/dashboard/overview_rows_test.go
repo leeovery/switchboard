@@ -381,8 +381,9 @@ func TestEachStepUSAGEGivesWayTakesItsOwnPart(t *testing.T) {
 // with every one, USAGE gives way in its steps' order: its blank rows
 // between accounts, with a section open, only where it doesn't fit with
 // them, and never further; every other section folded, at the step that
-// shows the most accounts in its rows, the least far of those that tie; and
-// the accounts it shows never fall as the rows grow.
+// shows the most accounts in its rows, the least far of those that tie, but
+// for its key, kept only where it shows; and the accounts it shows never fall
+// as the rows grow.
 func TestUSAGEGivesWayInItsStepsOrder(t *testing.T) {
 	for _, shown := range []Sections{{}, every} {
 		for _, width := range []int{52, 73, 108, 138, 160, 216} {
@@ -414,9 +415,12 @@ func TestUSAGEGivesWayInItsStepsOrder(t *testing.T) {
 					if folded {
 						shows := s.accounts(usage.lean, open)
 						for given := givenNone; int(given) <= len(s.leaner); given++ {
-							if other := s.accounts(given, open); other > shows || other == shows && given < usage.lean {
+							if other := s.accounts(given, open); other > shows || other == shows && given < usage.lean && !keyHidden(s, given, open) {
 								t.Errorf("at %dx%d, USAGE has given way %d steps, showing %d accounts in %d rows, where %d steps show %d", width, height, usage.lean, shows, open, given, other)
 							}
+						}
+						if keyHidden(s, usage.lean, open) {
+							t.Errorf("at %dx%d, USAGE keeps its key in %d rows, out of view under the rows it takes", width, height, open)
 						}
 					}
 					accounts := s.accounts(usage.lean, usage.rows)
@@ -430,21 +434,71 @@ func TestUSAGEGivesWayInItsStepsOrder(t *testing.T) {
 	}
 }
 
+// keyHidden reports whether USAGE's section s, at the step given in rows
+// rows, keeps its key out of view: the step keeps it, and takes more rows
+// whole than it's given.
+func keyHidden(s section, given giving, rows int) bool {
+	return given < givenKey && s.rowsAt(given) > rows
+}
+
+// Squeezed, USAGE keeps its key only where it shows: of the steps that show
+// the most accounts, it takes the least far whose key isn't left out of view
+// under its rows, the step that gives the key way where none keeps it in
+// view, whichever step would have won the tie.
+func TestUSAGEKeepsItsKeyOnlyWhereItShows(t *testing.T) {
+	// The steps' rows, as a matrix of three accounts and the pool has them:
+	// as it is, 14; its accounts a row apart, 12; its headings' blank rows
+	// gone, 10; its key gone, 8. As it is, it shows one account under 13
+	// rows; its accounts a row apart show two in 9 or 10 rows, three from 11.
+	usage := unit{sections: []section{{Section: SectionUsage, least: 14, leaner: []int{12, 10, 8}, accounts: func(given giving, rows int) int {
+		switch {
+		case given == givenNone && rows < 13:
+			return 1
+		case given == givenApart && rows < 11:
+			return 2
+		}
+		return 3
+	}}}}
+	tests := []struct {
+		name string
+		rows int
+		want giving
+	}{
+		{name: "every step keeping the key leaves it out of view: given way", rows: 9, want: givenKey},
+		{name: "its headings' blank rows given way, the key showing: kept", rows: 10, want: givenHeads},
+		{name: "a row apart, the key out of view: the step that shows it", rows: 11, want: givenHeads},
+		{name: "a row apart, the key showing", rows: 12, want: givenApart},
+		{name: "as it is, the key out of view: the least far that shows it", rows: 13, want: givenApart},
+		{name: "as it is, the key showing", rows: 14, want: givenNone},
+	}
+	for _, tt := range tests {
+		if got := usage.showsMost(tt.rows); got != tt.want {
+			t.Errorf("%s: in %d rows, USAGE takes step %d, want %d", tt.name, tt.rows, got, tt.want)
+		}
+	}
+}
+
 // At 15 rows, USAGE's blank rows and its key give way, so its accounts show:
-// stacked at 138 columns, its first window's heading straight under USAGE's,
-// and an account a row under it.
+// side by side at 138 columns, its windows' headings straight under USAGE's,
+// and an account a row under them.
 func TestAt15RowsUSAGEShowsItsAccounts(t *testing.T) {
 	rows := textOf(frameOf(138, 15).Draw(threeRouted(), now))
 	at := slices.IndexFunc(rows, func(r string) bool { return strings.HasPrefix(r, "USAGE ") })
 	if at < 0 || at+4 >= len(rows) {
 		t.Fatalf("at 138x15, the Overview reads\n%s\nwant USAGE's heading", strings.Join(rows, "\n"))
 	}
-	for i, want := range []string{"WEEK", " 1 work", " 2 personal", " 3 side"} {
-		if !strings.HasPrefix(rows[at+1+i], want) {
-			t.Errorf("at 138x15, row %d under USAGE's heading reads %q, want it to start %q:\n%s", i+1, rows[at+1+i], want, strings.Join(rows, "\n"))
+	if got, want := strings.Fields(rows[at+1]), []string{"WEEK", "5-HOUR"}; !slices.Equal(got, want) {
+		t.Errorf("at 138x15, the row under USAGE's heading reads %q, want its windows' headings %q:\n%s", rows[at+1], want, strings.Join(rows, "\n"))
+	}
+	for i, want := range []string{"1 work", "2 personal", "3 side"} {
+		if !strings.HasPrefix(rows[at+2+i], want) {
+			t.Errorf("at 138x15, row %d under USAGE's heading reads %q, want it to start %q:\n%s", i+2, rows[at+2+i], want, strings.Join(rows, "\n"))
 		}
 	}
 	if slices.ContainsFunc(rows, func(r string) bool { return strings.Contains(r, "even pace") }) {
 		t.Errorf("at 138x15, the Overview reads\n%s\nwant USAGE's key given way", strings.Join(rows, "\n"))
+	}
+	if got, want := strings.TrimSpace(rows[at+5]), "▼ 2 more below"; got != want {
+		t.Errorf("at 138x15, the row under USAGE's accounts reads %q, want %q, the pool's rule and row alone out of view:\n%s", got, want, strings.Join(rows, "\n"))
 	}
 }

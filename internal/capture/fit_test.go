@@ -564,9 +564,11 @@ func saysMore(rows []string, mark string) bool {
 // reachOf is what of the fixture's view, by name, at the width given, the
 // sweep holds paged to reach every row of, from its rows as drawn: History's
 // views, from the row under the view's heading, but for their footnote;
-// the Overview's USAGE under 150 columns, where the key line starts at the
-// margin, from its heading to its key line, where nothing is drawn beside
-// it, or where the page doesn't show that, to the next section's heading;
+// the Overview's USAGE under 150 columns, where nothing is drawn beside its
+// blocks, and where its windows stack, as it's drawn alike paged and at its
+// tallest, not side by side, which grow to its big bars, from its heading to
+// its key line, or where the page doesn't show that, to the next section's
+// heading;
 // Accounts' views, but for Detail's list; a phone's Switchboard in lanes,
 // from the row under the view's heading to the foot, which gives way where
 // they scroll. Elsewhere it's nil: the rest of the views fold and drop what
@@ -589,8 +591,13 @@ func reachOf(name string, width int) func(rows []string) []string {
 				return nil
 			}
 			view := rows[from+1:]
-			if to := slices.IndexFunc(view, func(r string) bool { return sectionHeading.MatchString(r) || strings.HasPrefix(r, "┃ even pace") }); to >= 0 {
+			if to := slices.IndexFunc(view, func(r string) bool {
+				return sectionHeading.MatchString(r) || strings.HasPrefix(strings.TrimLeft(r, " "), "┃ even pace")
+			}); to >= 0 {
 				view = view[:to]
+			}
+			if sideBySide(view) {
+				return nil
 			}
 			return shownRows(view)
 		}
@@ -652,6 +659,14 @@ func lanesRead(rows []string) []string {
 		}
 	}
 	return read
+}
+
+// sideBySide reports whether USAGE's rows given draw its windows side by
+// side: its first row that isn't blank, a window's heading, kept or not,
+// starts in the name column, not at the margin.
+func sideBySide(rows []string) bool {
+	i := slices.IndexFunc(rows, func(r string) bool { return strings.TrimSpace(r) != "" })
+	return i >= 0 && strings.HasPrefix(rows[i], " ") && strings.ToUpper(rows[i]) == rows[i]
 }
 
 // shownRows are the rows given drawn on, trimmed at their right, but for

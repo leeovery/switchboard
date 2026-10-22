@@ -227,7 +227,8 @@ func TestUsagePrintsEveryAccountBeforeAnyWindowIsRead(t *testing.T) {
 	words := map[string]string{"Work": "not read yet", "Personal": "no token", "Side": "not read yet"}
 	for _, tt := range tests {
 		t.Run(strings.Join(tt.args, " "), func(t *testing.T) {
-			deps := statusDeps(t, refusingAPI(t), map[string]string{"COLUMNS": "120"})
+			// At 80 columns the windows stack, a section each, as printedRow reads them.
+			deps := statusDeps(t, refusingAPI(t), map[string]string{"COLUMNS": "80"})
 
 			got := run(t, deps, append([]string{"usage", "--pretty"}, tt.args...)...)
 			if got.code != 0 {
@@ -298,13 +299,15 @@ func refusingAPI(t *testing.T) string {
 
 // printedRow is the row usage printed on stdout, stripped of its escapes and
 // of the spaces it ends with, of the account labelled, in the section under
-// heading, as the windows stacked print it: "" where there's none.
+// heading, as the windows stacked print it, or a window alone, its heading
+// over its bars: "" where there's none.
 func printedRow(stdout, heading, label string) string {
-	_, section, ok := strings.Cut(ansi.Strip(stdout), "\n"+heading+"\n")
-	if !ok {
+	rows := strings.Split(ansi.Strip(stdout), "\n")
+	at := slices.IndexFunc(rows, func(row string) bool { return strings.TrimSpace(row) == heading })
+	if at < 0 {
 		return ""
 	}
-	for row := range strings.SplitSeq(section, "\n") {
+	for _, row := range rows[at+1:] {
 		if fields := strings.Fields(row); len(fields) > 1 && fields[1] == label {
 			return strings.TrimRight(row, " ")
 		}

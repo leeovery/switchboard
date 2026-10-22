@@ -30,5 +30,4 @@ FABLE WEEK
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Σ pool                                                 ┃                                    5%  2.8 of 3 left
 
-┃ even pace: where you would be now, used evenly
-╎ cap: work at 95%
+                ┃ even pace: where you would be now, used evenly    ╎ cap: work at 95%

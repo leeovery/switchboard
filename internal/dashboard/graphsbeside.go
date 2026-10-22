@@ -56,13 +56,13 @@ func (form besideForm) chartRows() int {
 }
 
 // graphsBeside reports whether GRAPHS is drawn beside USAGE's blocks rather
-// than as a section of its own: by account, from matrixWidth columns, while
+// than as a section of its own: by account, from besideWidth columns, while
 // both show. ROUTING is a section of its own while it is, and the Overview
 // has no focus.
 func (f Frame) graphsBeside() bool {
-	// From matrixWidth columns, a chart always fits beside the blocks: the
+	// From besideWidth columns, a chart always fits beside the blocks: the
 	// least the room beside them leaves is 42 cells.
-	return f.By == ByAccount && f.Width >= matrixWidth && f.Sections.Has(SectionUsage) && f.Sections.Has(SectionGraphs)
+	return f.By == ByAccount && f.Width >= besideWidth && f.Sections.Has(SectionUsage) && f.Sections.Has(SectionGraphs)
 }
 
 // Focuses reports whether the Overview has an account focus, which ↑ and ↓

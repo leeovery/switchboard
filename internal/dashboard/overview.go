@@ -392,30 +392,58 @@ func (u *unit) giveWay() {
 }
 
 // leanTo has USAGE's unit give way as far as the step given, taking the
-// rows its leaner has for it, where it has them; or, given none, its least.
+// rows its section takes there, as rowsAt has them, where its leaner has the
+// step; or, given none, its least.
 func (u *unit) leanTo(given giving) {
-	switch leaner := u.sections[0].leaner; {
+	switch s := u.sections[0]; {
 	case given == givenNone:
 		u.rows, u.lean = u.least, givenNone
-	case int(given) <= len(leaner):
-		u.rows, u.lean = leaner[given-1], given
+	case int(given) <= len(s.leaner):
+		u.rows, u.lean = s.rowsAt(given), given
 	}
 }
 
 // showsMost is the step USAGE's unit shows the most accounts at in rows
-// rows, as its accounts counts them, the least far of those that tie.
+// rows, as its accounts counts them, the least far of those that tie whose
+// key shows, as keyShows has it: a key scrolled out of view says nothing, so
+// the step that gives it way, showing as many, shows what that one would
+// over it, the pool's rows among them. Where none before it does, it's the
+// last step, which shows as many as any before it, its key given way, or
+// with none to give.
 func (u unit) showsMost(rows int) giving {
 	s := u.sections[0]
 	if s.accounts == nil {
 		return givenNone
 	}
-	best, most := givenNone, s.accounts(givenNone, rows)
-	for given := givenApart; int(given) <= len(s.leaner); given++ {
-		if shown := s.accounts(given, rows); shown > most {
-			best, most = given, shown
+	last, most := giving(len(s.leaner)), 0
+	for given := givenNone; given <= last; given++ {
+		most = max(most, s.accounts(given, rows))
+	}
+	for given := range last {
+		if s.keyShows(given, rows) && s.accounts(given, rows) == most {
+			return given
 		}
 	}
-	return best
+	return last
+}
+
+// rowsAt are the rows USAGE's section takes whole at the step given: its
+// least as it is, else the rows its leaner has for the step.
+func (s section) rowsAt(given giving) int {
+	if given == givenNone {
+		return s.least
+	}
+	return s.leaner[given-1]
+}
+
+// keyShows reports whether USAGE's key shows in rows rows at the step given:
+// where it's given way, or can't be; or the step fits whole, the key being
+// the last of the rows it scrolls.
+func (s section) keyShows(given giving, rows int) bool {
+	if given >= givenKey || len(s.leaner) < int(givenKey) {
+		return true
+	}
+	return s.rowsAt(given) <= rows
 }
 
 // gaveWay reports whether the unit has given way: folded, or led by USAGE,
@@ -602,8 +630,8 @@ func keeps(units []unit, i, room int) bool {
 // heading kept: in the rest, it takes the step, as it is or given way as far
 // as its blank rows between accounts, those under its headings, or its key,
 // that shows the most accounts, as showsMost has it, keeping its blank rows
-// where they cost none; the rows a step leaves go blank at the foot, and
-// where it doesn't fit, it scrolls within them.
+// where they cost none and its key where it shows; the rows a step leaves go
+// blank at the foot, and where it doesn't fit, it scrolls within them.
 func squeeze(units []unit, over int) {
 	i := slices.IndexFunc(units, func(u unit) bool { return u.ledBy(SectionUsage) })
 	if i < 0 {

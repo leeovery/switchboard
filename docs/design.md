@@ -1232,16 +1232,32 @@ the same block (see The Overview).
   status document instead, as every data verb prints its data (see The data verbs).
 - **`setup` ends by printing it.**
 
-The layout follows the terminal's width, `w` columns:
+The layout follows the terminal's width, `w` columns, and every arrangement the configured accounts
+and the windows shown, never what's read of them:
 
 | What | Rule |
 |---|---|
 | The header on one line | `w ≥ 120`; below that, two |
-| By window, the matrix | `w ≥ 150`; below that, the windows stacked |
-| The name column | Fitted to the names: at least 14 cells, or 12 under 80 columns (see "The pool, the names and their numbers", below) |
-| The words | The full form, 22 cells, from `w ≥ 70`; below that, the short form, 14 cells |
-| By account, the name beside its first bar | `w ≥ 110`; below that, on a line of its own |
-| The key line | One line at `w ≥ 150`; below that, two |
+| By window, the matrix | Wherever every part of its row fits at its least (below); else the windows stacked |
+| The name column | Fitted to the names, a label 8 cells at the least and 24 at the most (see "The pool, the names and their numbers", below) |
+| The words | 22 cells, the full form's, narrowing toward the short form's 14 once the bars are at their least; each window's words in full wherever they fit their cells, else short |
+| By account, the name beside its first bar | Wherever its row's parts fit at their leasts beside the name column; else on a line of its own |
+| The key line | One line from the name column wherever it fits there at its widest, its gaps at their least; else two |
+
+A model's window status lists, as it lists one while it nears its limit, is a window shown, so where
+it makes three, the arrangement follows: from 86 columns to 121, two windows sit side by side, but
+three stack.
+
+**A row's parts,** in every layout, laid out as the dashboard's flex lays a row: the name column;
+each window's bar, at least 12 cells, taking what's left, at most 90 in the matrix; after each bar,
+a cell, the percentage in 4 cells and two cells; each window's words; 3 cells between windows; and a
+cell at the edge. Where the room runs short, the bars give way first, to their least; then the
+words, a cell at a time, from 22 toward 14; then the name column, toward its least. So within an
+arrangement a bar only grows with the width, and the words are in full wherever the bars can spare
+them the cells. Where the arrangement changes as the width grows, the bars can be shorter after it:
+by window, stacked to the matrix, at 86 columns with two windows; by account, the name over its
+block to beside its first bar, at 60; and on the Overview by account, at 150, where ROUTING or
+GRAPHS' charts come beside its blocks.
 
 **The header:**
 
@@ -1256,7 +1272,10 @@ The layout follows the terminal's width, `w` columns:
   column 0, with a blank line between it and the badge. Where it doesn't fit the width, it shortens
   as a phone's status line does.
 
-**By window, the matrix** (`w ≥ 150`):
+**By window, the matrix,** wherever every part of its row fits at its least: the name column as
+the names have it, each window's bar at 12 cells and its words at 14. With the sample's 16-cell
+name column, that's from 86 columns for two windows and 122 for three; a printout of one window is
+a matrix of one.
 
 - **Headings,** in `text.subtle`, not bold: `WEEK`, `5-HOUR`, then each model's own window as its
   model's name in capitals and ` WEEK`, as `FABLE WEEK`; each over its group's first column, with a
@@ -1264,22 +1283,26 @@ The layout follows the terminal's width, `w` columns:
 - **A row an account,** in the config's order, with a blank line under each, then the pool, last,
   under its rule. The account's number and name are at column 0.
 - **Each window is a group** at column `n + i·g`, where `n` is the name column and `g` is the
-  bar's width and 32. In a group: the bar; a cell; the percentage, in 4 cells; two cells; the words,
-  in 22 cells; then 3 cells before the next group.
-- **The bars** are `min(90, ⌊(w − 14 − 32·k + 3) / k⌋) − ⌈(n − 14) / k⌉` cells for `k` windows:
-  at 160 columns with the sample's 16-cell name column, 16 cells with three windows and 88 with one.
-  Where that would be under 12 cells, as with four windows at 160 columns, the windows stack, as
-  under 150 columns (settled in the plan).
+  bar's width, the words' and 10. In a group: the bar; a cell; the percentage, in 4 cells; two
+  cells; the words; then 3 cells before the next group. The last group's words end a cell before
+  the edge.
+- **The bars** share what the row leaves them, one width for every window, at most 90 cells: with
+  the sample's 16-cell name column, 15 cells for two windows at 108 columns, 30 at 138 and 47 at
+  173, where six accounts running at 173 × 53 end a cell short of the edge, as every matrix does;
+  16 for three at 160; 90 for one. Short of every part's least, as with four windows at 150
+  columns, the windows stack; at 160, four sit side by side, their bars at 12 cells and their words
+  in 14.
 
-**By window, stacked** (`w < 150`):
+**By window, stacked,** where the matrix doesn't fit:
 
 - **Each window is a section:** its heading at column 0, in `text.subtle`; a blank line; then a row
   an account with a blank line under each, and the pool last, under its rule. A blank line
   separates each section from the next, as it does the key line from the last.
 - **A row:** the account's number and name at column 1, a cell in from the heading; the bar from the
-  name column, `w − n − 8 − d` cells wide for words `d` cells wide: 74 at 120 columns, 34 at 80 and
-  14 at 52, the name column at 16. Then a cell, the percentage in 4 cells, two cells, and the words,
-  which end a cell before the terminal's edge.
+  name column, `w − n − 8 − d` cells wide for words `d` cells wide, as a row's parts lay them: 74
+  at 120 columns, 34 at 80, and at 52 its least, 12, the words in the 16 cells left, the name column
+  at 16. Then a cell, the percentage in 4 cells, two cells, and the words, which end a cell before
+  the terminal's edge.
 
 **By account** (`--by account`), one layout at every width:
 
@@ -1287,12 +1310,13 @@ The layout follows the terminal's width, `w` columns:
   block and each block from the next, as it does the key line from the last block, and a section
   from the next by window: one rule for every gap in the printout (the owner's call, 17 October
   2026). A blank line separates a block's rows too.
-- **Wide** (`w ≥ 110`): the account's number and name at column 0, on its first window's row; the
+- **Wide,** wherever the row's parts fit at their leasts beside the name column, from 60 columns
+  with the sample's: the account's number and name at column 0, on its first window's row; the
   window's label at the name column, 10 cells; the bar 10 cells on, `w − n − 10 − 8 − d` wide: 104
   at 160.
 - **Narrow:** the number and name on a line of their own at column 0, directly above the first
   window's row; the labels at column 1, 11 cells; the bars from column 12, `w − 1 − 11 − 8 − d`
-  wide: 18 at 52.
+  wide: at 52 their least, 12, the words in 20.
 - **After each bar,** as in the other layouts: a cell, the percentage, two cells and the words.
 - **The labels,** in `text.subtle`: `Week`, `5-hour`, then each model's own window as its model's
   name and ` wk`, as `Fable wk`.
@@ -1304,8 +1328,11 @@ The layout follows the terminal's width, `w` columns:
   `text.muted`;
 - where any account has a cap, four spaces, `╎` in `viz.reserve`, then ` cap: work at 95%` in
   `text.muted`; several capped accounts in the config's order, `work at 95%, side at 90%`.
-- From `w ≥ 150`, one line starting at the name column; narrower, two lines at column 0, the cap's
-  part on the second. A blank line separates it from the last row.
+- One line starting at the name column, wherever it fits there at its widest, its gaps at their
+  least: the cap of every account that has one, whether its bars draw its mark or not, and the
+  marks the Overview names, `▲` among them as an account may carry it at any read; so it's one line
+  or two whatever a read draws, and one line at a width is one line wider. Else two lines at column
+  0, the cap's part on the second. A blank line separates it from the last row.
 
 **Spacing:** `usage` prints a blank line, then the header, and ends at the key line, with no blank
 line after it, as a shell's prompt spaces itself (settled in the plan).
@@ -1337,7 +1364,8 @@ line after it, as a shell's prompt spaces itself (settled in the plan).
   its level: the ramp's last stop (`viz.ramp.4`) from 90%, its second (`viz.ramp.2`) from 70%, and
   its first (`viz.ramp.1`) below, each judged on the percentage shown, so the colour always agrees
   with it (settled in the plan).
-- **The words,** the first of these that holds; the full form from 70 columns, the short below:
+- **The words,** the first of these that holds; in full wherever they fit the cells their row lays
+  them in, else short:
 
   | When | Full | Short | Colour |
   |---|---|---|---|
@@ -1465,13 +1493,18 @@ line after it, as a shell's prompt spaces itself (settled in the plan).
   which is its key in the routing card. The number is in `text.subtle`, `text.faint` where the
   account is out of the pool, right-aligned once there are ten, from ` 1` to `10`, `Σ` in the same
   column. With one account it's still `1`, so no layout changes with the number of accounts.
-- **The name column fits the names:** the widest number, label and marks, plus two cells kept for
-  `▲` on any account without it, as `▲` moves between accounts as routing does and no label may move
-  with it, plus a gap of two cells; at least 14 cells, or 12 under 80 columns, and at most 24, or 16
-  under 80. The bars give up the cells. One column serves every section that names accounts.
+- **The name column fits the names,** a column of names: the widest number, label and marks, plus
+  two cells kept for `▲` on any account without it, as `▲` moves between accounts as routing does
+  and no label may move with it, plus a gap of two cells, each label counted to 24 cells at the most;
+  at its least, a label of 8 cells, each name's cut to 8, its number and marks kept. It counts what's
+  configured, never what's shown, so it never moves as `▲` does. It's that wide wherever the frame
+  has room, the bars giving up the cells, and narrows toward its least, a cell at a time, only once
+  the bars are at their least and the words short; so ROUTING, which takes it, never goes from one
+  row an account back to two as the frame widens. One column serves every section that names
+  accounts.
 - **A longer label is cut** with `…` to fit, its number and marks kept, and the cells for `▲` kept
-  too, so a label never changes when `▲` moves: `2 someone.else@ex… ◆`. Labels are free text, and
-  an email address is the common long one.
+  too, so a label never changes when `▲` moves: a label past 24 cells, or any where the frame
+  narrows the column. Labels are free text, and an email address is the common long one.
 
 **Colour.** The printout is drawn in the theme's colours and brought down to what the terminal shows
 by `colorprofile`. It paints no background, and takes the light or dark half of the theme pair as
@@ -1528,12 +1561,14 @@ can't, state or a key to marks; what a section is, and why it's where it is, are
 **USAGE** is `usage`'s block, exactly as `usage`, the printout gives it, but for its header: the
 title row and the status line say what the header would. By window:
 
-- **Two sizes from 150 columns:** compact, the matrix; and big, the windows stacked as sections at
-  the full width, the bars from the name column and `w − n − 30` cells wide: 114 at 160 columns with
-  the sample's 16-cell name column, 170 at 216. Room chooses which, as "Room", below, says. The
-  matrix's bars follow `usage`'s rule: 16 cells for three windows at 160 columns, 35 at 216.
-- **Under 150 columns,** `usage`'s stacked layout at that width; on a phone, its short words, its
-  bars 14 cells beside a 16-cell name column.
+- **Two sizes wherever its windows sit side by side,** as `usage`'s matrix does: compact, the
+  matrix; and big, the windows stacked as sections at the full width, the bars from the name column
+  and `w − n − 30` cells wide: 62 at 108 columns with the sample's 16-cell name column, 114 at 160,
+  170 at 216. Room chooses which, as "Room", below, says. The matrix's bars follow `usage`'s rule:
+  15 cells for two windows at 108 columns, 30 at 138, 16 for three at 160.
+- **Where they don't,** as on a phone, `usage`'s stacked layout at that width: at 73 columns its
+  bars 27 cells beside a 16-cell name column, its words in full; at 52 its bars at their least, 12,
+  its words in the 16 cells left, in full where they fit.
 - **By account,** as "By account", below, gives it.
 
 Then, as only the Overview has them:
@@ -1552,9 +1587,13 @@ Then, as only the Overview has them:
   leave.
 - **The key line names the marks the accounts carry,** after the cap's: `◆` in `text.tertiary` and
   ` primary`, and `▲` in `accent.mode` and ` new sessions go here`, each four spaces after the part
-  before, in `text.muted`; on a phone, three spaces. `▲`'s words take the first of their two
-  forms that fits the line, ` new sessions go here`, then ` new`, as `firstFit` has them, never by
-  the phone: in full on a phone of 73, and at 52 where no cap's part comes before them.
+  before, in `text.muted`; on a phone, three spaces. The gaps are three at the least: where four
+  don't fit, they narrow to three before the line takes a narrower form, so the form a key line
+  takes never steps down as the width grows, the gaps widening at 100 columns. `▲`'s words take
+  the first of their two forms that fits the line, ` new sessions go here`, then ` new`, as
+  `keyForms` and `firstFit` have them, never by the phone: in full on a phone of 73, and at 52
+  where no cap's part comes before them. The Switchboard's key, the Overview's, follows the same
+  rule.
 - **Rows short,** USAGE gives way in steps, each a step of its least the planner takes (see Room):
   its accounts a row apart, the blank row between each two gone, in every window and by account
   between blocks; then the blank rows under its heading and its windows' headings; then its key
@@ -2011,7 +2050,7 @@ remembered").
 
 | Section | Least | Most | Rows |
 |---|---|---|---|
-| USAGE | The compact matrix; short of it, its steps as it gives way: its accounts a row apart, `a + 8` in the matrix; its headings' blank rows gone, `a + 6`; its key gone, `a + 4` | The big bars, by window from 150 columns; by account with GRAPHS' charts beside, every chart, its blocks apart for 5 rows of chart, and on the way, the charts stacked at 2 rows | Compact: `2a + 7` for `a` accounts and the pool, 7 for one account |
+| USAGE | The compact matrix; short of it, its steps as it gives way: its accounts a row apart, `a + 8` in the matrix; its headings' blank rows gone, `a + 6`; its key gone, `a + 4` | The big bars, by window wherever its windows sit side by side; by account with GRAPHS' charts beside, every chart, its blocks apart for 5 rows of chart, and on the way, the charts stacked at 2 rows | Compact: `2a + 7` for `a` accounts and the pool, 7 for one account |
 | GRAPHS | 5 rows of chart | 19 | `r(h + 2) + 2` for `r` rows of charts; beside USAGE's blocks by account, none of its own (the owner's call, 15 October 2026) |
 | ROUTING | A row an account | Two rows of trace an account, a blank row between | `a + 3`; `3a + 2` |
 | SESSIONS | A session and `+N more`; every one where that's no fewer | A row a session, two where ROUTING takes two an account | Its sessions and 2, from one session and a row, a session at a time |
@@ -2043,13 +2082,19 @@ below, not flex's even share:
 4. **Every other section folded,** where USAGE still doesn't fit, it takes, in the rows left to
    it, the step that shows the most accounts, scrolled to its top: as it is; its accounts a row
    apart; then the blank rows under its heading and its windows' headings gone too; then its key
-   line. Of steps that show as many, it takes the least far, so it keeps its blank rows where they
-   cost no account. The rows a step leaves are empty at the foot, and where a step doesn't fit,
-   it scrolls within the rows, as Many accounts, above, has it. So at 138 × 15, where it showed
-   `WEEK`, how many rows more and its key, its accounts show under their window's heading. As the
-   rows grow, the most any step shows never falls: every step scrolls whole, a row at a time, so a
-   row more shows as many accounts or more. The planner keeps the step it took in the layout, so
-   USAGE is drawn in the form the planner chose, never one its rows alone suggest.
+   line. Of steps that show as many, it takes the least far whose key line shows, so it keeps its
+   blank rows where they cost no account, and its key line only where it shows: a step that keeps
+   the key but would scroll it out of view gives way to the next that shows as many, and so to the
+   step without the key where no step keeping it fits whole. The key comes into view only once a
+   step that keeps it fits whole, so a row more never hides what a row less showed, the pool's
+   rows among them. The rows a step leaves are empty at the foot, and where a step doesn't fit, it
+   scrolls within the rows, as Many accounts, above, has it. So at 138 × 15, where it showed
+   `WEEK`, how many rows more and its key, it shows the matrix, all three accounts and `▼ 2 more
+   below`; and at 73 × 36, every section on, three accounts stacked a row apart with their key
+   leave 3 rows at the foot, the step as it is taking 4 more. As the rows grow, the most any step
+   shows never falls: every step scrolls whole, a row at a time, so a row more shows as many
+   accounts or more. The planner keeps the step it took in the layout, so USAGE is drawn in the
+   form the planner chose, never one its rows alone suggest.
 5. **Rows to spare go out even while a section is folded,** to the units that aren't, in turn: to
    SESSIONS, a whole session at a time, its row or two, to every one, what's left that's less than a
    session going on, never left blank; to GRAPHS, a row at a time to 19; to USAGE's big bars, if
@@ -2288,8 +2333,8 @@ where it fits** says, and where they don't fit, it's stacked, as **On a phone** 
   `↑↓ choose`, `↑↓` bold `accent.key` and `choose` in `text.subtle`. A `│` in `border` at column 20,
   rows 6 to 32, or 33 with sessions; the panel starts at column 24. More accounts than it holds
   scroll with the choice (settled in the plan).
-- **The list's name column fits the names,** as USAGE's does (see `usage`, the printout): the widest
-  number, label and `◆`, with no cells kept for `▲`, which the list doesn't draw, and a gap of two
+- **The list's name column fits the names,** by a rule of its own: the widest number, label and
+  `◆`, with no cells kept for `▲`, which the list doesn't draw, and a gap of two
   cells; at least 14 cells and at most 24. The dot, the lit row, the `│` and the panel move right
   with it, and the list gives way first (the owner's call, 15 October 2026): it takes what the
   panel leaves it, a long label cut with `…` to that. The panel takes its natural, six weeks at a
@@ -3199,7 +3244,8 @@ October 2026).
   `┃ even pace: where you would be now, used evenly`, and `◆ primary   ▲ new sessions go here`,
   naming no cap, `▲`'s words as the Overview's key line words them, by the room it has: `▲ new`
   where the long words don't fit; its marks three spaces apart under 100 columns, and four from 100,
-  where bent cords bring the lanes, as `keyApart` sets them.
+  where bent cords bring the lanes, narrowing to three before `▲`'s words shorten, as `keyForms`
+  has them.
 - **When rows run short,** the lanes take the first of their steps whose lanes, a blank row and the
   key fit the view and the row over the key line, the order kept in one place (`laneSteps`, in
   `sessionslanes.go`):

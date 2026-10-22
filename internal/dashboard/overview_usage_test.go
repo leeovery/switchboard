@@ -137,7 +137,7 @@ func startsAt(t *testing.T, rows []string, want map[int]string) {
 func TestUSAGEScrollsWholeARowAtATimeItsWindowsHeadingKept(t *testing.T) {
 	f := frameOf(160, 40)
 	doc := manyRead(10)
-	key := strings.Repeat(" ", 14) + "┃ even pace"
+	key := strings.Repeat(" ", f.overviewBlock(doc, now).names) + "┃ even pace"
 	tests := []struct {
 		name   string
 		scroll int
@@ -365,11 +365,11 @@ func TestUSAGEScrollsWholeARowAtATimeInEveryLayout(t *testing.T) {
 }
 
 // The Overview scrolls a row at a time wherever its USAGE scrolls, a turn of
-// the wheel scrolling several: as at 80×24 with one account of three windows.
+// the wheel scrolling several: as at 80×18 with one account of three windows.
 func TestTheOverviewScrollsARowAtATime(t *testing.T) {
-	f := frameOf(80, 24)
+	f := frameOf(80, 18)
 	if doc := usageWorld(workAlone); f.Scrolling(doc, now).Most == 0 || !f.ScrollsRows(doc, now) {
-		t.Errorf("at 80×24, the Overview scrolls %+v, a row at a time: %t; want it to scroll, a row at a time", f.Scrolling(doc, now), f.ScrollsRows(doc, now))
+		t.Errorf("at 80×18, the Overview scrolls %+v, a row at a time: %t; want it to scroll, a row at a time", f.Scrolling(doc, now), f.ScrollsRows(doc, now))
 	}
 }
 
@@ -555,7 +555,7 @@ func TestEachAccountsRowsInUSAGEMoveTheFocusThere(t *testing.T) {
 	}
 }
 
-func TestUSAGEHasItsBigBarsWhereTheyFitByWindowFrom150Columns(t *testing.T) {
+func TestUSAGEHasItsBigBarsWhereTheyFitByWindowWhereItsWindowsSitSideBySide(t *testing.T) {
 	tests := []struct {
 		name  string
 		width int
@@ -565,7 +565,9 @@ func TestUSAGEHasItsBigBarsWhereTheyFitByWindowFrom150Columns(t *testing.T) {
 	}{
 		{name: "rows for the big bars", width: 160, rows: 21, big: true},
 		{name: "a row short of them: the compact matrix", width: 160, rows: 20},
-		{name: "under 150 columns: usage's stacked layout, no bigger", width: 149, rows: 40},
+		{name: "rows for the big bars on an iPad", width: 108, rows: 21, big: true},
+		{name: "a row short of them on an iPad: the compact matrix", width: 108, rows: 20},
+		{name: "where its windows don't sit side by side: usage's stacked layout, no bigger", width: 73, rows: 40},
 		{name: "by account: its blocks, no bigger", width: 160, by: ByAccount, rows: 40},
 	}
 	for _, tt := range tests {
@@ -573,7 +575,8 @@ func TestUSAGEHasItsBigBarsWhereTheyFitByWindowFrom150Columns(t *testing.T) {
 			f := frameOf(tt.width, 60)
 			f.By = tt.by
 			rows, _ := usageBody(f, threeRouted(), now, tt.rows)
-			if big := rows[0] == "WEEK" && strings.HasPrefix(rows[2], " 1 work") && tt.width >= matrixWidth; big != tt.big {
+			beside := f.overviewBlock(threeRouted(), now).sideBySide()
+			if big := rows[0] == "WEEK" && strings.HasPrefix(rows[2], " 1 work") && beside; big != tt.big {
 				t.Errorf("in %d rows, USAGE's big bars show: %v, want %v; its first rows read %q", tt.rows, big, tt.big, rows[:3])
 			}
 		})
@@ -621,7 +624,7 @@ func TestUSAGEsBlocksAreABlankRowApartButTwoBesideGRAPHSCharts(t *testing.T) {
 			if tt.f.By == ByAccount {
 				starts = startsAccount
 			}
-			if tt.f.Width >= matrixWidth && tt.f.By == ByAccount {
+			if tt.f.Width >= besideWidth && tt.f.By == ByAccount {
 				cells = tt.f.overviewBlock(usageWorld(), now).besideAt()
 			}
 			height, usage := 60, tt.f.usageSection(usageWorld(), now)
@@ -645,7 +648,8 @@ func TestUSAGEsBlocksAreABlankRowApartButTwoBesideGRAPHSCharts(t *testing.T) {
 // While GRAPHS shows, the matrix lights the focused account's whole name
 // column, its number, name and marks, as wide as USAGE fits the column to the
 // names, but the gap before the bars: 12 cells of the 14 the sample's names
-// fit in, and 22 of the 24 at most a long name takes, cut to fit.
+// fit in, and 28 of the 30 a name of 24 cells takes, a label's most, a
+// longer one cut to it.
 func TestTheFocusedAccountIsPickedOutInTheMatrixWhileGRAPHSShows(t *testing.T) {
 	graphed := Sections{}.Toggled(SectionGraphs)
 	tests := []struct {
@@ -658,7 +662,8 @@ func TestTheFocusedAccountIsPickedOutInTheMatrixWhileGRAPHSShows(t *testing.T) {
 	}{
 		{name: "the matrix, GRAPHS shown", shown: graphed, rows: 11, picked: 12},
 		{name: "the matrix, a name of 13 cells", shown: graphed, rows: 11, label: "personal-plus", picked: 17},
-		{name: "the matrix, a name longer than the column holds", shown: graphed, rows: 11, label: "personal-and-much-longer", picked: 22},
+		{name: "the matrix, a name of 24 cells, whole", shown: graphed, rows: 11, label: "personal-and-much-longer", picked: 28},
+		{name: "the matrix, a name longer than a label's most, cut", shown: graphed, rows: 11, label: "personal-and-much-longer-still", picked: 28},
 		{name: "GRAPHS hidden", rows: 11},
 		{name: "the big bars", shown: graphed, rows: 22},
 		{name: "by account", shown: graphed, by: ByAccount, rows: 20},
@@ -694,6 +699,7 @@ func TestUSAGEsKeyLineNamesTheMarksTheAccountsCarry(t *testing.T) {
 			d.Accounts[i].Primary = false
 		}
 	}
+	nowhere := func(d *status.Document) { d.Best = "" }
 	tests := []struct {
 		name  string
 		doc   status.Document
@@ -709,8 +715,14 @@ func TestUSAGEsKeyLineNamesTheMarksTheAccountsCarry(t *testing.T) {
 		{name: "at 54, a cell short of the long form: ▲ new", doc: trio(), width: 54, want: []string{pace, "╎ cap: work at 95%   ◆ primary   ▲ new"}},
 		{name: "at 52, ▲ new", doc: trio(), width: 52, want: []string{pace, "╎ cap: work at 95%   ◆ primary   ▲ new"}},
 		{name: "at 52 with no cap, the long form fitting", doc: trio(account("work", func(a *status.Account) { a.Reserve = 0 })), width: 52, want: []string{pace, "◆ primary   ▲ new sessions go here"}},
-		{name: "no primary, no ◆", doc: trio(noPrimary), width: 120, want: []string{pace, "╎ cap: work at 95%    ▲ new sessions go here"}},
-		{name: "no cap, the marks alone", doc: trio(account("work", func(a *status.Account) { a.Reserve = 0 })), width: 120, want: []string{pace, "◆ primary    ▲ new sessions go here"}},
+		{name: "one line where it fits beside the name column at its widest", doc: trio(), width: 125, want: []string{pace + "    ╎ cap: work at 95%    ◆ primary    ▲ new sessions go here"}},
+		{name: "a cell short of it, one line, its gaps narrowed to three", doc: trio(), width: 124, want: []string{pace + "   ╎ cap: work at 95%   ◆ primary   ▲ new sessions go here"}},
+		{name: "one line where it fits with its gaps at their least", doc: trio(), width: 122, want: []string{pace + "   ╎ cap: work at 95%   ◆ primary   ▲ new sessions go here"}},
+		{name: "a cell short of it, two lines", doc: trio(), width: 121, want: []string{pace, "╎ cap: work at 95%    ◆ primary    ▲ new sessions go here"}},
+		{name: "a cell short of it, two lines though new sessions go nowhere, as they may", doc: trio(nowhere), width: 121, want: []string{pace, "╎ cap: work at 95%    ◆ primary"}},
+		{name: "a cell short of it, two lines though nothing read draws the cap's mark, as a read may", doc: trio(account("work", func(a *status.Account) { a.FetchedAt, a.Windows = time.Time{}, nil })), width: 121, want: []string{pace, "◆ primary    ▲ new sessions go here"}},
+		{name: "no primary, no ◆, one line where that fits", doc: trio(noPrimary), width: 120, want: []string{pace + "    ╎ cap: work at 95%    ▲ new sessions go here"}},
+		{name: "no cap, the marks alone, one line where they fit", doc: trio(account("work", func(a *status.Account) { a.Reserve = 0 })), width: 120, want: []string{pace + "    ◆ primary    ▲ new sessions go here"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -721,7 +733,7 @@ func TestUSAGEsKeyLineNamesTheMarksTheAccountsCarry(t *testing.T) {
 			if got := textOf(c.rows(Look{})); !slices.Equal(trimmedLeft(got), tt.want) {
 				t.Errorf("the key line reads %q, want %q", got, tt.want)
 			}
-			for _, marks := range keyMarks(namesOf(f.Moment(tt.doc, printNow))) {
+			for _, marks := range markable(namesOf(f.Moment(tt.doc, printNow))) {
 				if best := marks[len(marks)-1]; best[0].ink != accentInk || best[1].ink != mutedInk {
 					t.Errorf("▲'s part is drawn %+v, want ▲ in accent.mode and its words in text.muted", best)
 				}

@@ -316,13 +316,13 @@ func (d linesDrawn) oneRow(c *canvas, a status.AccountNow, n accountName, y int)
 // drawKey draws the lines' key, the Overview's, on its two rows from row y,
 // from column 0, each fit to the frame's width: even pace's on the first,
 // and the marks the accounts carry on the second, in the first of their
-// forms that fits the width, as firstFit has it; never the cap's, as no bar
-// of the Switchboard draws one.
+// forms that fits the width, as keyForms and firstFit have them; never the
+// cap's, as no bar of the Switchboard draws one.
 func (d linesDrawn) drawKey(c *canvas, y int) {
 	b := blockOf(d.m, d.f.Width, d.f.Look, ByAccount, d.windows, d.names).uncapped()
 	b.marks = keyMarks(d.names)
 	pace, forms := b.keyParts(d.barDrawn())
-	for i, l := range []line{pace, firstFit(d.f.Width, keyForms(keyGap(d.f.Width), forms)...)} {
+	for i, l := range []line{pace, firstFit(d.f.Width, keyForms(d.f.Width, forms)...)} {
 		c.line(0, y+i, l.fit(d.f.Width))
 	}
 }

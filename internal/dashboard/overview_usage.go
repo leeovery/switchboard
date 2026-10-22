@@ -9,30 +9,34 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-// The cells of USAGE by account from 150 columns, beside ROUTING: its bars
-// are besideBar cells with a name column of matrixNames, a cell fewer for
-// each cell the column is wider, and ROUTING's blocks start besideCells after
-// its words.
+// The cells of USAGE by account from besideWidth columns, beside ROUTING or
+// GRAPHS' charts: its bars are besideBar cells with a name column of
+// matrixNames, a cell fewer for each cell the column is wider, and what's
+// beside its blocks starts besideCells after its words.
 const (
+	besideWidth = 150
 	besideBar   = 50
 	besideCells = 4
+	// matrixNames is the name column the Overview's cells past it are worked
+	// out for, besideBar's and GRAPHS' charts': a wider one takes its cells
+	// from them.
+	matrixNames = 14
 )
 
 // usageSection is the Overview's USAGE of doc at now: usage's block, as
 // overviewBlock has it. At its least it's the block as usage lays it out at
-// the frame's width, which from 150 columns, by window, is the compact
-// matrix, 2a + 7 rows for a accounts and the pool; at its most, from 150
-// columns, by window, the big bars, its windows stacked as sections at the
-// full width; by account with GRAPHS' charts beside its blocks, the charts at
-// 5 rows, every one, and between, the stacked step, as stackedBeside has it;
-// otherwise its least. Short of its least, it gives way in steps, as giving
-// has them, the planner taking each as a step of its least, as leaner has
-// them, but never folds: given fewer rows than its form takes, it scrolls
-// within them whole, a row at a time, as shown shows it. By account from 150
-// columns, GRAPHS' charts or ROUTING are drawn beside its blocks, from
-// besideAt, as besideUsage has them, and follow them as they scroll; a click
-// along an account's rows, its own or what's beside them, moves the focus to
-// it.
+// the frame's width, which by window, where its windows sit side by side, is
+// the compact matrix, 2a + 7 rows for a accounts and the pool; at its most,
+// there, the big bars, its windows stacked as sections at the full width; by
+// account with GRAPHS' charts beside its blocks, the charts at 5 rows, every
+// one, and between, the stacked step, as stackedBeside has it; otherwise its
+// least. Short of its least, it gives way in steps, as giving has them, the
+// planner taking each as a step of its least, as leaner has them, but never
+// folds: given fewer rows than its form takes, it scrolls within them whole,
+// a row at a time, as shown shows it. By account from besideWidth columns,
+// GRAPHS' charts or ROUTING are drawn beside its blocks, from besideAt, as
+// besideUsage has them, and follow them as they scroll; a click along an
+// account's rows, its own or what's beside them, moves the focus to it.
 func (f Frame) usageSection(doc status.Document, now time.Time) section {
 	views := f.overviewBlock(doc, now).views()
 	beside := f.besideUsage(doc, now)
@@ -74,18 +78,19 @@ func (f Frame) usageIn(s section, form usageViews, beside func(*canvas, blocksBe
 
 // overviewBlock is usage's block of doc at now as the Overview's USAGE draws
 // it, grouped as the frame's By has it: as usage prints it, but for what the
-// Overview alone has. By account from 150 columns, its bars leave room for
-// GRAPHS' charts or ROUTING beside them, its blocks a row further apart for
-// the charts' axes, where they're the charts. While GRAPHS shows, the matrix
-// picks out the account the focus is on. Its key line names the marks the
-// accounts carry. An account out of the pool at now is faint, as
-// overviewGauge draws its windows and overviewNames its name.
+// Overview alone has. By account from besideWidth columns, its bars leave
+// room for GRAPHS' charts or ROUTING beside them, its blocks a row further
+// apart for the charts' axes, where they're the charts. While GRAPHS shows,
+// the matrix picks out the account the focus is on. Its key line names the
+// marks the accounts carry, its form judged by those they may. An account
+// out of the pool at now is faint, as overviewGauge draws its windows and
+// overviewNames its name.
 func (f Frame) overviewBlock(doc status.Document, now time.Time) usageBlock {
 	m := f.Moment(doc, now)
 	names := overviewNames(m)
 	b := blockOf(m, f.Width, f.Look, f.By, f.overviewWindows(doc, now), names)
-	b.marks = keyMarks(names)
-	if f.By == ByAccount && f.Width >= matrixWidth {
+	b.marks, b.markable = keyMarks(names), markable(names)
+	if f.By == ByAccount && f.Width >= besideWidth {
 		b.accountBar = besideBar - (b.names - matrixNames)
 	}
 	b.charted = f.graphsBeside()
@@ -168,8 +173,25 @@ func (f Frame) overviewGauge(g gauge, out bool) gauge {
 // them after the cap's, in their forms, the widest first: ◆ on the primary,
 // and ▲ on the account new sessions go to, worded as each of bestWords.
 func keyMarks(names []accountName) [][]line {
-	primary := slices.ContainsFunc(names, func(n accountName) bool { return n.primary })
-	best := slices.ContainsFunc(names, func(n accountName) bool { return n.best })
+	return marksNamed(slices.ContainsFunc(names, isPrimary), slices.ContainsFunc(names, func(n accountName) bool { return n.best }))
+}
+
+// markable are the marks the accounts named may carry at any read, as
+// keyMarks words them: ◆ where one is the primary, and ▲, as one may be
+// where new sessions go whether one is now or not.
+func markable(names []accountName) [][]line {
+	return marksNamed(slices.ContainsFunc(names, isPrimary), true)
+}
+
+// isPrimary reports whether the name is the primary's.
+func isPrimary(n accountName) bool {
+	return n.primary
+}
+
+// marksNamed are the marks the key line names, in their forms, the widest
+// first: ◆ where primary is set, and ▲ where best is, worded as each of
+// bestWords.
+func marksNamed(primary, best bool) [][]line {
 	forms := make([][]line, len(bestWords))
 	for i, goes := range bestWords {
 		if primary {
@@ -228,9 +250,9 @@ func (f Frame) roomLeft(doc status.Document, now time.Time) line {
 }
 
 // besideAt is the column what's beside the block's blocks starts at, by
-// account from 150 columns, GRAPHS' charts or ROUTING's lines: hx = n + 10 +
-// bar + 7 + 22 + 4, its words' cells and besideCells after them, 107 with a
-// name column of 16.
+// account from besideWidth columns, GRAPHS' charts or ROUTING's lines: hx =
+// n + 10 + bar + 7 + 22 + 4, its words' cells and besideCells after them, 107
+// with a name column of 16.
 func (b usageBlock) besideAt() int {
 	return b.names + windowLabelCells + b.accountBar + afterBar + fullCells + besideCells
 }
@@ -258,11 +280,12 @@ func (b usageBlock) stackedBeside() usageBlock {
 	return b
 }
 
-// enlarges reports whether the block grows: by window from 150 columns, to
-// its big bars, its windows stacked as sections at the full width; and by
-// account, where GRAPHS' charts sit beside its blocks, apart for them.
+// enlarges reports whether the block grows: by window, where its windows sit
+// side by side, to its big bars, its windows stacked as sections at the full
+// width; and by account, where GRAPHS' charts sit beside its blocks, apart
+// for them.
 func (b usageBlock) enlarges() bool {
-	return b.by == ByWindow && b.width >= matrixWidth || b.charted
+	return b.sideBySide() || b.charted
 }
 
 // usageViews are the block's views, as USAGE shows it in however many rows

@@ -199,36 +199,43 @@ var knownBreaks = []known{
 		byDesign: "the List's directories at their most", cuts: dirCuts(views.SessionDirMost), rule: cutWithRoom,
 		sizes: []string{"138x30", "138x15", "173x53"}, fixtures: []string{"sessions-list-long-names-108x44"},
 	},
-	// What's left at the foot where USAGE takes the rows it must: by account
-	// at 108x44, as it is, its three windows a blank row apart and its names
-	// on rows of their own, as the design keeps them, closing up its accounts
-	// opening no section; and of six accounts at 73x61, stacked, ROUTING open
-	// under it. The foot's blank row among them, it's 3 rows, short of every
-	// folded section's least.
-	{
-		byDesign: "2 rows under USAGE by account as it is, short of every folded section's least", rule: foldWithRowsSpare,
-		sizes: []string{"108x44"}, fixtures: []string{"overview-by-account-burn-down-220x50", "overview-pool-220x50"},
-	},
+	// What's left at the foot where USAGE takes the rows it must, the foot's
+	// blank row among them, short of every folded section's least: of six
+	// accounts at 73x61, stacked, ROUTING open under it; by account at 138x30,
+	// 2 rows, where ROUTING unfolded takes 6 more and COMING UP and LATELY 5,
+	// a blank row before each among them, and the blank rows between its
+	// accounts give way only 2; and of ten accounts side by side, their blank
+	// rows given way, 3 rows: at 138x30, where ROUTING takes 13 more and COMING
+	// UP and LATELY 5, its headings' blank rows and its key giving way only
+	// where no section is open; and at 108x44, ROUTING open, where COMING UP
+	// and LATELY take 5.
 	{
 		byDesign: "2 rows under ROUTING, short of every folded section's least", rule: foldWithRowsSpare,
 		sizes: []string{"73x61"}, fixtures: []string{"overview-six-running-173x53"},
 	},
-	// S14, USAGE's matrix where it fits (F8): GRAPHS folded on an iPad with rows
-	// spare, under USAGE's windows stacked, which hold the rows GRAPHS' least
-	// needs until S14 puts them side by side, as in the spike's frame 12.
 	{
-		slice: "S14", rule: foldWithRowsSpare, sizes: []string{"108x44"},
-		fixtures: []string{"overview-by-account-graphs-140"},
-	},
-	// S14, USAGE's parts, its names' column at its natural width, at most 24, at
-	// every width, as the plan's rule of labels has it.
-	{
-		slice: "S14", rule: cutWithRoom, sizes: []string{"73x61", "138x30", "108x44", "108x24", "173x53", "109x53"},
-		fixtures: []string{"long-names-overview"},
+		byDesign: "2 rows under USAGE by account, short of every folded section's least", rule: foldWithRowsSpare,
+		sizes: []string{"138x30"}, fixtures: []string{"overview-by-account-160"},
 	},
 	{
-		slice: "S14", rule: cutWithRoom, sizes: []string{"73x61", "73x36"},
-		fixtures: []string{"overview-ten-accounts-160"},
+		byDesign: "3 rows under USAGE's ten accounts side by side, short of every folded section's least", rule: foldWithRowsSpare,
+		sizes: []string{"138x30", "108x44"}, fixtures: []string{"overview-ten-accounts-160"},
+	},
+	// What's left at the foot at 73x36, every other section folded, where
+	// USAGE takes the least far step that fits whole, as it keeps its key
+	// only where it shows: three accounts stacked, their blank rows given
+	// way, 3 rows, where they take 4 more and LATELY 5, and GRAPHS alone
+	// shown, more; three by account, of three windows, their key given way,
+	// 2 rows, where the key takes 3 more and LATELY 5; six stacked, their
+	// headings' blank rows given way too, 2 rows, where those take 3 more and
+	// LATELY 5.
+	{
+		byDesign: "the rows under USAGE whole, short of its step before and every folded section's least", rule: foldWithRowsSpare,
+		sizes: []string{"73x36"}, fixtures: []string{
+			"overview-everything-160x39", "overview-everything-216x106", "overview-burn-down-160x39", "overview-sessions-graphs-216",
+			"overview-phone-burn-down-52", "long-names-overview", "overview-pool-220x50", "overview-by-account-burn-down-220x50",
+			"overview-six-accounts-160",
+		},
 	},
 	// S22, a session's turns on flex (F31): its accounts cut with room.
 	{

@@ -103,3 +103,65 @@ func usageShown(rows, names []string) int {
 	}
 	return len(shown)
 }
+
+// scrolledPast matches the row USAGE says how many rows are out of view in.
+var scrolledPast = regexp.MustCompile(`^\s*[▲▼] \d+ more`)
+
+// In the default world, with sessions, by account and with ten accounts, by
+// window and by account, at the phone's width, the matrix's least, the
+// iPad's, the landscape phone's and the desktop's, from 12 rows to 40: every
+// row USAGE shows is still shown a row taller, its pool's and its key's
+// among them, as a key it keeps only where it shows never hides what the
+// step without it showed.
+func TestTheRowsUSAGEShowsStayShownAsTheTerminalGrows(t *testing.T) {
+	for _, name := range []string{"overview-default-160", "overview-sessions-216", "overview-by-account-160", "overview-ten-accounts-160"} {
+		f := fixture(t, name)
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			m := withNothingOver(t, f.settle(f.Size), f.Size)
+			for _, turned := range []bool{false, true} {
+				g, by := m, groupedBy(f, turned)
+				if turned {
+					g = deliver(m, tea.KeyPressMsg{Code: 'b', Text: "b"})
+				}
+				for _, width := range []int{73, 86, 108, 138, 160} {
+					var was []string
+					for height := 12; height <= 40; height++ {
+						is := usageShowing(usageRows(plainRows(g, width, height)[:height]))
+						for _, row := range missing(was, is) {
+							t.Errorf("%s at %s, USAGE no longer shows %q, shown a row shorter", by, sizeName(watch.Size{Width: width, Height: height}), row)
+						}
+						was = is
+					}
+				}
+			}
+		})
+	}
+}
+
+// usageShowing are USAGE's rows that show something, trimmed: neither blank
+// nor saying how many rows are out of view.
+func usageShowing(rows []string) []string {
+	var shown []string
+	for _, row := range rows {
+		if row = strings.TrimRight(row, " "); row != "" && !scrolledPast.MatchString(row) {
+			shown = append(shown, row)
+		}
+	}
+	return shown
+}
+
+// missing are the rows of was that is lacks, each counted as often as it
+// shows.
+func missing(was, is []string) []string {
+	left := slices.Clone(is)
+	var gone []string
+	for _, row := range was {
+		if i := slices.Index(left, row); i >= 0 {
+			left = slices.Delete(left, i, i+1)
+		} else {
+			gone = append(gone, row)
+		}
+	}
+	return gone
+}
