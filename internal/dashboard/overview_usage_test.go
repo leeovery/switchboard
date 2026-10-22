@@ -405,6 +405,78 @@ func TestUSAGEScrolledTargetsAndHasROUTINGBesideTheRowsItShows(t *testing.T) {
 	}
 }
 
+// tenReadAs is the router's document of ten accounts, a1 to a10, each read a
+// minute before now, new sessions going to a1, as change leaves it.
+func tenReadAs(change func(*status.Document)) status.Document {
+	accounts := make([]status.Account, 10)
+	for i := range accounts {
+		accounts[i] = readAccount(fmt.Sprintf("a%d", i+1), sessionOf(0.1, time.Hour), weekOf(0.2, 3*quota.Day))
+	}
+	doc := status.Document{
+		GeneratedAt: now.UTC(), Source: status.SourceRouter, Best: "a1", Router: status.Health{Healthy: true}, Accounts: accounts,
+	}
+	if change != nil {
+		change(&doc)
+	}
+	return doc.WorkedOut(claudeLike)
+}
+
+// A layout is kept while what it was made for holds, and USAGE's form with
+// it: so whatever a read changes, its key line's marks or the rows over
+// them, the form kept is the form a layout made afresh for the read would
+// have, at every width, height and grouping, models' windows hidden.
+func TestUSAGEsFormKeptWithItsLayoutIsTheFormMadeAfresh(t *testing.T) {
+	reads := []struct {
+		name string
+		read func(*status.Document)
+	}{
+		{name: "new sessions going elsewhere", read: func(d *status.Document) { d.Best = "a3" }},
+		{name: "an account reserving", read: func(d *status.Document) { d.Accounts[3].Reserve = 0.05 }},
+		{name: "an account at its cap", read: func(d *status.Document) {
+			d.Accounts[3].Reserve, d.Accounts[3].Windows[0].Utilization, d.Accounts[3].AtReserve = 0.05, 0.96, []string{"5h"}
+		}},
+		{name: "accounts out of the pool", read: func(d *status.Document) { d.Pin = status.Pin{Accounts: []string{"a1", "a2"}, Since: now.UTC()} }},
+		{name: "an account unreadable", read: func(d *status.Document) {
+			d.Accounts[4] = status.Account{ID: "a5", Label: "a5", TokenSet: true, Error: "HTTP 401"}
+		}},
+		{name: "an account at its limit", read: func(d *status.Document) { d.Accounts[7] = limitedAccount("a8") }},
+		{name: "sessions running", read: func(d *status.Document) { d.Sessions, d.Accounts[0].Sessions = 3, 3 }},
+		{name: "a bar empty", read: func(d *status.Document) { d.Accounts[5].Windows[0].Utilization = 0 }},
+		{name: "a window dropped", read: func(d *status.Document) { d.Accounts[6].Windows = d.Accounts[6].Windows[:1] }},
+		{name: "a model's window appearing", read: func(d *status.Document) {
+			d.Accounts[2].Windows = append(d.Accounts[2].Windows, windowOf("7d_oi", "Fable week", 0.3, 3*quota.Day))
+		}},
+		{name: "a model's window nearing its limit", read: func(d *status.Document) {
+			d.Accounts[2].Windows = append(d.Accounts[2].Windows, windowOf("7d_oi", "Fable week", 0.95, 3*quota.Day))
+		}},
+	}
+	kept := 0
+	for _, by := range []By{ByWindow, ByAccount} {
+		for _, width := range []int{73, 120, 160} {
+			for _, height := range []int{14, 18, 24, 30} {
+				f := frameOf(width, height)
+				f.By, f.Models = by, false
+				f.Layout = f.LayoutOf(tenReadAs(nil), now)
+				for _, tt := range reads {
+					doc := tenReadAs(tt.read)
+					afresh := f
+					afresh.Layout = Layout{}
+					got, want := f.LayoutOf(doc, now), afresh.LayoutOf(doc, now)
+					if got.usage != want.usage {
+						t.Errorf("by %v at %d×%d, after %s, USAGE's form is %+v, want %+v, as a layout made afresh has it", by, width, height, tt.name, got.usage, want.usage)
+					}
+					if sameLayout(got, f.Layout) && got.usage != (usageForm{}) {
+						kept++
+					}
+				}
+			}
+		}
+	}
+	if kept == 0 {
+		t.Fatalf("no read kept a layout USAGE scrolls in, want reads that keep one")
+	}
+}
+
 // Scrolled, revealing an account scrolls nowhere while any of its rows
 // shows, under a heading kept; else no further than shows its nearest row,
 // below the page or above it. Stacked at 120 columns in 8 rows, seven show

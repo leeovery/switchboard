@@ -28,10 +28,11 @@ const (
 // otherwise its least. Short of its least, it gives way in steps, as giving
 // has them, the planner taking each as a step of its least, as leaner has
 // them, but never folds: given fewer rows than its form takes, it scrolls
-// within them whole, a row at a time, as shown shows it. By account from 150 columns, GRAPHS'
-// charts or ROUTING are drawn beside its blocks, from besideAt, as
-// besideUsage has them, and follow them as they scroll; a click along an
-// account's rows, its own or what's beside them, moves the focus to it.
+// within them whole, a row at a time, as shown shows it. By account from 150
+// columns, GRAPHS' charts or ROUTING are drawn beside its blocks, from
+// besideAt, as besideUsage has them, and follow them as they scroll; a click
+// along an account's rows, its own or what's beside them, moves the focus to
+// it.
 func (f Frame) usageSection(doc status.Document, now time.Time) section {
 	views := f.overviewBlock(doc, now).views()
 	beside := f.besideUsage(doc, now)

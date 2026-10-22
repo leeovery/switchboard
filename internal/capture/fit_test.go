@@ -388,12 +388,13 @@ func saysMore(rows []string, mark string) bool {
 // reachOf is what of the fixture's view, by name, at the width given, the
 // sweep holds paged to reach every row of, from its rows as drawn: History's
 // views, from the row under the view's heading, but for their footnote;
-// the Overview's USAGE, from its heading to its key line, where nothing is
-// drawn beside it, or the next section's heading; Accounts' views, but for
-// Detail's list; a phone's Switchboard in lanes, from the row under the
-// view's heading to the foot, which gives way where they scroll. Elsewhere
-// it's nil: the rest of the views fold and drop what they show by the room
-// they have, as the design lays them out.
+// the Overview's USAGE under 150 columns, where the key line starts at the
+// margin, from its heading to its key line, where nothing is drawn beside
+// it, or where the page doesn't show that, to the next section's heading;
+// Accounts' views, but for Detail's list; a phone's Switchboard in lanes,
+// from the row under the view's heading to the foot, which gives way where
+// they scroll. Elsewhere it's nil: the rest of the views fold and drop what
+// they show by the room they have, as the design lays them out.
 func reachOf(name string, width int) func(rows []string) []string {
 	chrome := chromeOf(width)
 	switch {

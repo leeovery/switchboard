@@ -729,13 +729,13 @@ func latelyAt(width int) int {
 // was given, its heading's among them, and which fold; the rows SESSIONS
 // listed, in their order; the form USAGE's rows were laid out in, in the
 // rows it was given, as usageFormOf has it; and what it was made for, as
-// layoutFor says. The watch keeps it from look to look, as LayoutOf gives it, so the layout
-// changes only on a key or a resize, or a section's shape changing, never as
-// sessions start and lines come: SESSIONS keeps the rows it was given
-// however many sessions run, and the order it listed them in, as
-// views.Steady keeps it, and COMING UP and LATELY theirs however many lines
-// they have. A frame lays the Overview out afresh where its Layout is the
-// zero Layout, or one made for another frame or shape.
+// layoutFor says. The watch keeps it from look to look, as LayoutOf gives
+// it, so the layout changes only on a key or a resize, or a section's shape
+// changing, never as sessions start and lines come: SESSIONS keeps the rows
+// it was given however many sessions run, and the order it listed them in,
+// as views.Steady keeps it, and COMING UP and LATELY theirs however many
+// lines they have. A frame lays the Overview out afresh where its Layout is
+// the zero Layout, or one made for another frame or shape.
 type Layout struct {
 	made     layoutFor
 	allotted [len(sectionWords)]allotment
