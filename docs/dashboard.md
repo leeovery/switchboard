@@ -720,8 +720,10 @@ a time. It does the same on History's Weeks and Days below 37 rows, and the Year
 so. It then says how many rows are out of view above and below.
 
 Scrolled a row at a time, a page down starts at the first row the page didn't show, and a page up
-ends just above the first row it showed, so paging either way passes over nothing. The
-Switchboard's accounts on Sessions page so an account at a time too.
+ends just above the first row it showed, so paging either way passes over nothing. The Switchboard
+on Sessions and Tokens on History follow the same rule when they scroll an account or a period at a
+time: a page down starts at the first account or period the page didn't show, and a page up ends
+at the one just above the first it showed.
 
 When a resize or what's read turns a view from one kind of scrolling to the other, the view goes
 back to its top. Where USAGE is laid out another way, as `b` groups it the other way or a resize

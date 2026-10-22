@@ -259,7 +259,8 @@ func (d boardDrawn) mostScrolled() int {
 // scrolling is how far the Switchboard scrolls, scrolled to offset: none
 // but at step 5; there, a row at a time, where byRows says so, as paged has
 // it; else in accounts, as far as shows its last account whole, as many at
-// once as show whole from the offset, as accountsShown has them.
+// once as show whole from the offset, as accountsShown has them, paged as
+// wholePaged has it.
 func (d boardDrawn) scrolling(offset int) Scrolling {
 	switch {
 	case d.laid.step < compactedStep || len(d.laid.lines) == 0:
@@ -267,9 +268,9 @@ func (d boardDrawn) scrolling(offset int) Scrolling {
 	case d.byRows():
 		return d.paged().scrolling(offset)
 	}
-	most := d.mostScrolled()
-	o := min(max(offset, 0), most)
-	return Scrolling{Most: most, Page: d.wholeFrom(o, d.f.viewRows()-min(o, 1))}
+	return wholePaged(d.mostScrolled(), offset, func(o int) int {
+		return d.wholeFrom(o, d.f.viewRows()-min(o, 1))
+	})
 }
 
 // targets are the calls the view shows, each a session's on an account, over

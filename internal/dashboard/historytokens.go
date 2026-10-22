@@ -571,7 +571,7 @@ func (p tokensPlaced) most() int {
 // tokensScrolling is how far Tokens, from row top, scrolls, scrolled to each
 // offset given: a row at a time, where byRows says so, as paged has it; else
 // a period at a time, as far as most says, and as many periods at once as
-// show from there.
+// show from there, paged as wholePaged has it.
 func (f Frame) tokensScrolling(top int) func(offset int) Scrolling {
 	placed, _ := f.tokensPlaced(top)
 	switch {
@@ -582,6 +582,6 @@ func (f Frame) tokensScrolling(top int) func(offset int) Scrolling {
 	}
 	most := placed.most()
 	return func(offset int) Scrolling {
-		return Scrolling{Most: most, Page: placed.shown(offset)}
+		return wholePaged(most, offset, placed.shown)
 	}
 }

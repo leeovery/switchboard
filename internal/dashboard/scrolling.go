@@ -173,8 +173,8 @@ func pageDown(from, next int, shows func(at, r int) bool) int {
 
 // pageUp is where a page up from the page shown from from starts, above
 // being the row, or thing, above the first it showed: as far up as shows
-// above, from least on, as shows has it, so the page ends at above; a step
-// up where none before from does.
+// above, as shows has it, so the page ends at above, the search bounded to
+// least on; a step up where none before from does.
 func pageUp(least, from, above int, shows func(at, r int) bool) int {
 	for at := max(least, 0); at < from; at++ {
 		if shows(at, above) {
@@ -182,6 +182,20 @@ func pageUp(least, from, above int, shows func(at, r int) bool) int {
 		}
 	}
 	return max(from-1, 0)
+}
+
+// wholePaged is how far things shown whole, a thing at a time, scroll,
+// scrolled offset of them down, no further than most: a page down starting
+// at the first the page didn't show, and a page up ending at the one above
+// the first it showed, as pageDown and pageUp have them, shown(at) of them
+// showing scrolled to the at-th.
+func wholePaged(most, offset int, shown func(at int) int) Scrolling {
+	from := min(max(offset, 0), most)
+	shows := func(at, i int) bool {
+		at = min(at, most)
+		return at <= i && i < at+shown(at)
+	}
+	return pagedFrom(most, from, pageDown(from, from+shown(from), shows), pageUp(0, from, from-1, shows))
 }
 
 // shows reports whether the page scrolled offset down shows the content's

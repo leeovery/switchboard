@@ -2783,7 +2783,9 @@ account.
   `$635`.
 - **`<` `>`:** by day, by week, the default, and by month. Older periods scroll, `j/k`, the row
   after the last shown saying `▼ 3 more weeks below   ·   j/k to scroll`, `▼` in `accent.key`, the
-  words in `text.muted`, `j/k` bold `accent.key`.
+  words in `text.muted`, `j/k` bold `accent.key`. A page down starts at the first period the page
+  didn't show, and a page up ends at the one above the first it showed, by the one paging rule
+  (see the Overview's USAGE).
 - **The footnote,** row 34, in `text.faint`:
   `worth: what the same tokens would cost through the API, at its prices as of 7 Oct 2026`, the
   price table's date, 7 Oct 2026 for the built-in table and 1 Oct 2026 in the frames, whose fixtures
@@ -3014,8 +3016,10 @@ line and the key:
    same rows. The lines take the rows they can: where the board's rows pass the view's, the blank
    row after each group of calls gives way, so at 138 by 15 the frames' three accounts all show,
    where with it the third was out of view over 4 blank rows; and where the board then fits the
-   view whole, the key shows under it, as at steps 1 to 4. It scrolls an account at a time and shows whole accounts alone, so paging never cuts
-   a call: scrolled down, the view's first row says how many accounts are above, right-aligned,
+   view whole, the key shows under it, as at steps 1 to 4. It scrolls an account at a time and
+   shows whole accounts alone, so paging never cuts a call, a page down starting at the first
+   account the page didn't show and a page up ending at the one above the first it showed, by the
+   one paging rule (see the Overview's USAGE): scrolled down, the view's first row says how many accounts are above, right-aligned,
    `▲ 2 more accounts`, and the row over the key line how many below it doesn't show. Where an
    account's rows don't fit the view, under that first row where any are above, it scrolls a row
    at a time instead, the row over the key line saying how many rows are out of view,

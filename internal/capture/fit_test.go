@@ -164,8 +164,9 @@ var (
 // fits, paged down from the top, and up from the foot, so the frame cuts
 // nothing short that they can't scroll to; and say on their first page that
 // more lies below, where they page, but the Year, as its frames draw it. The
-// Log's tables are passed over: they hold no heading, say where they are on their own status line, and paging a day's
-// lines at every size would take the sweep's time many times over.
+// Log's tables are passed over: they hold no heading, say where they are on
+// their own status line, and paging a day's lines at every size would take
+// the sweep's time many times over.
 func TestNoViewCutsWhatItCantScrollTo(t *testing.T) {
 	for _, name := range Names() {
 		f := fixture(t, name)
@@ -261,17 +262,99 @@ func pagesUp(m watch.Model, width, height int) []paged {
 // pagedBy are the pages of m, drawn height rows tall, as the key given pages
 // it from where it's drawn, till a press of it changes nothing.
 func pagedBy(m watch.Model, height int, key rune) []paged {
+	pages, _ := pagedTo(m, height, key)
+	return pages
+}
+
+// pagedTo are the pages of m, as pagedBy has them, and m paged as far as
+// the key goes.
+func pagedTo(m watch.Model, height int, key rune) ([]paged, watch.Model) {
 	content := m.View().Content
 	pages := []paged{{content: content, rows: plainOf(content, height)}}
 	for range mostPages {
-		m = deliver(m, tea.KeyPressMsg{Code: key})
-		if content = m.View().Content; content == pages[len(pages)-1].content {
+		next := deliver(m, tea.KeyPressMsg{Code: key})
+		if content = next.View().Content; content == pages[len(pages)-1].content {
 			break
 		}
+		m = next
 		pages = append(pages, paged{content: content, rows: plainOf(content, height)})
 	}
-	return pages
+	return pages, m
 }
+
+// pagingHeights are the heights the paging sweep pages a fixture at: every
+// one from a phone's shortest, 12 rows, to 36, where most views fit; the
+// Log's, whose tables run to a thousand lines and more, every sixth.
+func pagingHeights(name string) []int {
+	step := 1
+	if strings.HasPrefix(name, "log-") || strings.HasPrefix(name, "page-log-") {
+		step = 6
+	}
+	var heights []int
+	for height := 12; height <= 36; height += step {
+		heights = append(heights, height)
+	}
+	return heights
+}
+
+// Every fixture's view, the Log's among them, at every width the sweep
+// draws and the heights pagingHeights gives it, paged up from as far down
+// as it goes shows every row it shows paged down from the top, so no page
+// up passes over what a page down shows: whatever a view pages by, rows,
+// accounts or periods, a page up ends at the one above the first the page
+// showed. A row is what the view scrolls of it, as panelOf has it; a line
+// saying what's out of view, or where the Log's table is paused, is passed
+// over, as what it says hangs on where the page stands.
+func TestPagingUpShowsWhatPagingDownShows(t *testing.T) {
+	for _, name := range Names() {
+		f := fixture(t, name)
+		if f.Printout {
+			continue
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			m := withNothingOver(t, f.settle(f.Size), f.Size)
+			for _, width := range pagedWidths {
+				for _, height := range pagingHeights(name) {
+					_, top := pagedTo(deliver(m, tea.WindowSizeMsg{Width: width, Height: height}), height, tea.KeyPgUp)
+					down, foot := pagedTo(top, height, tea.KeyPgDown)
+					if len(down) < 2 {
+						continue
+					}
+					up, _ := pagedTo(foot, height, tea.KeyPgUp)
+					if missing := unseen(down, up); len(missing) > 0 {
+						t.Errorf("at %d×%d, paged up from the foot, the view never shows %d rows it shows paged down from the top:\n%s", width, height, len(missing), strings.Join(missing, "\n"))
+					}
+				}
+			}
+		})
+	}
+}
+
+// unseen are the rows the pages seen show, each what the view scrolls of
+// it, as panelOf has it, that none of the pages looked for does, blank rows
+// and lines saying where the page stands, as standsLine has them, aside.
+func unseen(seen, lookedFor []paged) []string {
+	shown := make(map[string]bool)
+	for _, p := range lookedFor {
+		for _, r := range p.rows {
+			shown[panelOf(r)] = true
+		}
+	}
+	var missing []string
+	for _, p := range seen {
+		for _, r := range p.rows {
+			if r = panelOf(r); strings.TrimSpace(r) != "" && !standsLine.MatchString(r) && !shown[r] && !slices.Contains(missing, r) {
+				missing = append(missing, r)
+			}
+		}
+	}
+	return missing
+}
+
+// standsLine is a line saying where a page stands: how much is out of view,
+// or where the Log's table is paused.
+var standsLine = regexp.MustCompile(outLine.String() + `|^‖ paused at `)
 
 // chromeOf is how many rows the title, the status line and the rows between
 // take at the width given, the view's heading on the row after the next.
