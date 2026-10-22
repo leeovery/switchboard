@@ -241,14 +241,6 @@ func (f Frame) historyScrollsRows() bool {
 	return false
 }
 
-// phoneForm reports whether a sub-tab of History draws its phone form: on a
-// phone, or where the width its wide form takes, as reach gives it, its
-// widest row and any column after it it keeps clear, is wider than the
-// frame, as its parts are at fixed columns.
-func (f Frame) phoneForm(reach func() int) bool {
-	return f.phone() || reach() > f.Width
-}
-
 // historyScrolling is how far History's sub-tab shown, from row top,
 // scrolls, scrolled to each offset given: the Year by rows, as far as it
 // runs past the view; Weeks by accounts, and Days, within BY ACCOUNT, but

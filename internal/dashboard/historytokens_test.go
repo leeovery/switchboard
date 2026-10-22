@@ -1,11 +1,15 @@
 package dashboard
 
 import (
+	"fmt"
 	"reflect"
 	"slices"
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/x/ansi"
+
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
@@ -44,7 +48,7 @@ func versionTokens(id string, t views.Tokens, w views.Worth, on ...string) views
 // last under its price.
 func pastTokens() *views.TokensPage {
 	opus, sonnet := "claude-opus-5-5", "claude-sonnet-5-5"
-	return &views.TokensPage{PricesAsOf: "2026-10-01", Periods: []views.TokenPeriod{
+	return &views.TokensPage{PricesAsOf: "2026-10-01", PeriodCost: usd(138), Periods: []views.TokenPeriod{
 		{
 			First: "2026-09-28", Versions: 2, SoFar: true,
 			Tokens: byKind(4_200_000, 2_900_000, 38_000_000, 615_000_000), Worth: worthIn(635, "claude-opus-9"), Against: againstAt(4.6, 138),
@@ -109,8 +113,8 @@ func tokensRowsOf(f Frame) []string {
 
 // Tokens draws its heads, then each period, newest first, a blank row
 // between them, its rows as split, and its footnote on the view's last row,
-// as history-tokens-160 lays them out; a phone shows each row's total and
-// worth alone.
+// as history-tokens-160 lays them out; narrower, as its columns leave, one
+// at a time.
 func TestTokensDrawsEachPeriodAsSplit(t *testing.T) {
 	const (
 		heads = "week          models                 input      output cache write    cache read         total  worth     against its price"
@@ -153,14 +157,14 @@ func TestTokensDrawsEachPeriodAsSplit(t *testing.T) {
 		{
 			name: "by account and model, each account's versions nested under it", width: 160, height: 37, split: TokensByAccountAndModel,
 			want: []string{
-				heads,
+				"week            models                 input      output cache write    cache read         total  worth     against its price",
 				"",
-				"28 Sep        2 models                4.2M        2.9M       38.0M          615M          660M  $635+     4.6× its $138 week",
-				"└ work        2 models                1.2M        0.8M       11.0M          178M          191M  $184",
-				"  └ opus-5-5                          1.0M        0.6M        9.0M          150M          161M  $150",
-				"  └ sonnet-5-5                        0.2M        0.2M        2.0M         28.0M         30.4M  $34",
-				"└ personal    1 model                 1.6M        1.1M       14.2M          241M          258M  $212",
-				"  └ sonnet-5-5                        1.6M        1.1M       14.2M          241M          258M  $212",
+				"28 Sep          2 models                4.2M        2.9M       38.0M          615M          660M  $635+     4.6× its $138 week",
+				"└ work          2 models                1.2M        0.8M       11.0M          178M          191M  $184",
+				"  └ opus-5-5                            1.0M        0.6M        9.0M          150M          161M  $150",
+				"  └ sonnet-5-5                          0.2M        0.2M        2.0M         28.0M         30.4M  $34",
+				"└ personal      1 model                 1.6M        1.1M       14.2M          241M          258M  $212",
+				"  └ sonnet-5-5                          1.6M        1.1M       14.2M          241M          258M  $212",
 			},
 		},
 		{
@@ -176,18 +180,36 @@ func TestTokensDrawsEachPeriodAsSplit(t *testing.T) {
 			},
 		},
 		{
+			name: "at 108 columns, models gone", width: 108, height: 37, split: TokensByAccount,
+			want: []string{
+				"week             input      output cache write    cache read         total  worth     against its price",
+				"",
+				"28 Sep            4.2M        2.9M       38.0M          615M          660M  $635+     4.6× its $138 week",
+				"└ work            1.2M        0.8M       11.0M          178M          191M  $184",
+			},
+		},
+		{
+			name: "at 73 columns, against its price and cache read beside total and worth", width: 73, height: 37, split: TokensByAccount,
+			want: []string{
+				"week            cache read         total  worth     against its price",
+				"",
+				"28 Sep                615M          660M  $635+     4.6× its $138 week",
+				"└ work                178M          191M  $184",
+			},
+		},
+		{
 			name: "on a phone, by account", width: 52, height: 37, split: TokensByAccount,
 			want: []string{
-				"week                     total  worth",
+				"week            cache read         total  worth",
 				"",
-				"28 Sep                    660M  $635+",
-				"└ work                    191M  $184",
-				"└ personal                258M  $212",
-				"└ side                    211M  $239+",
+				"28 Sep                615M          660M  $635+",
+				"└ work                178M          191M  $184",
+				"└ personal            241M          258M  $212",
+				"└ side                196M          211M  $239+",
 				"",
-				"21 Sep                   1.06B  $998",
-				"└ work                    976M  $906",
-				"└ side                   81.2M  $92",
+				"21 Sep                985M         1.06B  $998",
+				"└ work                910M          976M  $906",
+				"└ side               75.4M         81.2M  $92",
 			},
 		},
 	}
@@ -536,10 +558,11 @@ func TestTokensOfNothingRecordedSaysSo(t *testing.T) {
 
 // A row's worth, and in against its price the ratio and the price, are drawn
 // whole or as an ellipsis, never cut part-way, as $12,3… would read as a
-// smaller sum, while words may cut, unpriced among them: a phone's worth, at
-// the frame's width; wide, a worth a cell short of against its price, and
-// against its price at the narrowest the wide form is drawn, its price
-// filling it, and a cell wider. Only a figure drawn whole is numbered, never
+// smaller sum, while words may cut, unpriced among them: a worth, to the
+// frame's width where against its price has left; else a worth a cell short
+// of against its price, and against its price, which ends at the frame's
+// width, its words filling it, and a cell narrower, gone. Only a figure drawn
+// whole is numbered, never
 // an ellipsis or the words.
 func TestTokensFiguresAreDrawnWholeOrAsAnEllipsis(t *testing.T) {
 	unpriced := views.Worth{Unpriced: []string{"claude-opus-9"}}
@@ -551,22 +574,23 @@ func TestTokensFiguresAreDrawnWholeOrAsAnEllipsis(t *testing.T) {
 		numbered       string
 		againstNumbers string
 	}{
-		{name: "a phone's worth", width: 38, worth: worthIn(12345), want: "28 Sep                    660M  …"},
-		{name: "a phone's worth, fitting", width: 39, worth: worthIn(12345), want: "28 Sep                    660M  $12,345", numbered: "$12,345"},
-		{name: "a phone's worth, unpriced", width: 38, worth: unpriced, want: "28 Sep                    660M  unpri…"},
+		{name: "a worth to the frame's width", width: 27, worth: worthIn(12345), want: "28 Sep         660M  …"},
+		{name: "a worth to the frame's width, fitting", width: 28, worth: worthIn(12345), want: "28 Sep         660M  $12,345", numbered: "$12,345"},
+		{name: "a worth to the frame's width, unpriced", width: 27, worth: unpriced, want: "28 Sep         660M  unpri…"},
 		{name: "a worth short of against its price", width: 160, worth: worthIn(1234567), want: "660M  …         14.6× its $12,345 week", againstNumbers: "14.6×$12,345"},
 		{
-			name: "against its price, its price filling it", width: 123, worth: worthIn(12345),
-			want: "660M  $12,345   14.6× its $12,345", numbered: "$12,345", againstNumbers: "14.6×$12,345",
+			name: "against its price, its words filling it", width: 74, worth: worthIn(12345),
+			want: "660M  $12,345   14.6× its $12,345 week", numbered: "$12,345", againstNumbers: "14.6×$12,345",
 		},
 		{
-			name: "against its price, its words cut", width: 124, worth: worthIn(12345),
-			want: "660M  $12,345   14.6× its $12,345…", numbered: "$12,345", againstNumbers: "14.6×$12,345",
+			name: "against its price gone a cell narrower, never cut", width: 73, worth: worthIn(12345),
+			want: "660M  $12,345", numbered: "$12,345",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := tokensFrame(tt.width, 37, TokensUnsplit)
+			f.History.Tokens.PeriodCost = usd(12345)
 			f.History.Tokens.Periods[0].Worth, f.History.Tokens.Periods[0].Against = tt.worth, againstAt(14.6, 12345)
 			if got := tokensRowsOf(f)[2]; !strings.HasSuffix(got, tt.want) {
 				t.Errorf("the period reads %q, want it to end %q", got, tt.want)
@@ -623,11 +647,11 @@ func TestAgainstItsPriceAsTokensWritesIt(t *testing.T) {
 	}
 }
 
-// Narrower than a phone, Tokens cuts each column at the frame's width: a
-// period's name and its counts are figures, drawn whole or as an ellipsis,
-// numbered only where drawn whole, a count's ellipsis at the edge; the heads
-// are words, cut; and the footnote's date, a figure, is never broken across
-// its rows.
+// Narrower than the parts that stay at their leasts, Tokens cuts each column
+// at the frame's width: a period's name and its counts are figures, drawn
+// whole or as an ellipsis, numbered only where drawn whole, a count's
+// ellipsis at the edge; the heads are words, cut; and the footnote's date, a
+// figure, is never broken across its rows.
 func TestTokensCutsEachColumnAtTheWidth(t *testing.T) {
 	total := Number{Kind: NumberTokens, Of: "total"}
 	tests := []struct {
@@ -637,9 +661,9 @@ func TestTokensCutsEachColumnAtTheWidth(t *testing.T) {
 		want     string
 		numbered string
 	}{
-		{name: "a count's head, cut", width: 28, row: 0, want: "week                     to…"},
-		{name: "a count, an ellipsis", width: 28, row: 2, want: "28 Sep                     …"},
-		{name: "a count, whole", width: 30, row: 2, want: "28 Sep                    660M", numbered: "660M"},
+		{name: "a count's head, cut", width: 17, row: 0, want: "week          to…"},
+		{name: "a count, an ellipsis", width: 17, row: 2, want: "28 Sep          …"},
+		{name: "a count, whole", width: 19, row: 2, want: "28 Sep         660M", numbered: "660M"},
 		{name: "a period's name, an ellipsis", width: 5, row: 2, want: "…"},
 	}
 	for _, tt := range tests {
@@ -656,5 +680,324 @@ func TestTokensCutsEachColumnAtTheWidth(t *testing.T) {
 	rows := tokensRowsOf(tokensFrame(40, 37, TokensUnsplit))
 	if got := rows[len(rows)-1]; got != "1 Oct 2026" {
 		t.Errorf("at 40 columns, the footnote's last row reads %q, want the date whole, %q", got, "1 Oct 2026")
+	}
+}
+
+// tokensLeaving are the parts of Tokens that leave, in the order they leave
+// as the frame narrows.
+var tokensLeaving = []int{tokensOf, tokensCacheWrite, tokensInput, tokensOutput, tokensAgainst, tokensCacheRead}
+
+// tokensSplits are every way Tokens splits its periods.
+var tokensSplits = []TokensSplit{TokensByAccount, TokensByModel, TokensByAccountAndModel, TokensUnsplit}
+
+// longTokensAccounts are accounts configured with long labels: 14, 17 and 22
+// cells.
+var longTokensAccounts = config.Accounts{
+	{ID: "work", Label: "work-team-plan"}, {ID: "personal", Label: "personal-research"}, {ID: "side", Label: "side-hustle-consulting"},
+}
+
+// tokensLeft is how many of tokensLeaving have left at the columns, and
+// whether they left in that order, each only after those before it.
+func tokensLeft(cols tokensColumns) (int, bool) {
+	left := 0
+	for _, part := range tokensLeaving {
+		if cols.shows(part) {
+			break
+		}
+		left++
+	}
+	for _, part := range tokensLeaving[left:] {
+		if !cols.shows(part) {
+			return left, false
+		}
+	}
+	return left, true
+}
+
+// Tokens' columns leave one at a time as the frame narrows, never all at
+// once: models first, then cache write, input, output, against its price and
+// cache read, total and worth staying. The names hold their natural while any
+// of those shows, and narrow only after: a wider frame never shows fewer
+// columns, nor a shorter name. So it holds from 220 columns to 40, of short
+// names and long, in every split.
+func TestTokensColumnsLeaveOneAtATime(t *testing.T) {
+	for _, split := range tokensSplits {
+		for names, accounts := range map[string]config.Accounts{"short": nil, "long": longTokensAccounts} {
+			f := tokensFrame(220, 37, split)
+			f.History.Accounts = accounts
+			natural := f.tokensNamesNatural()
+			wasLeft, wasName := 0, natural
+			for width := 220; width >= 40; width-- {
+				f.Width = width
+				cols := f.tokensColumns()
+				left, inOrder := tokensLeft(cols)
+				name := cols.spans[tokensName].Size
+				switch {
+				case !inOrder:
+					t.Fatalf("%s names, split %d, at %d columns, the columns left out of order: %+v", names, split, width, cols.spans)
+				case left > wasLeft+1:
+					t.Errorf("%s names, split %d, at %d columns, %d columns left at once", names, split, width, left-wasLeft)
+				case name > wasName:
+					t.Errorf("%s names, split %d, at %d columns, the names take %d cells, more than %d a column wider", names, split, width, name, wasName)
+				case left < len(tokensLeaving) && name != natural:
+					t.Errorf("%s names, split %d, at %d columns, the names take %d cells with a detail column showing, want their natural %d", names, split, width, name, natural)
+				case !cols.shows(tokensTotal) || !cols.shows(tokensWorth):
+					t.Errorf("%s names, split %d, at %d columns, total or worth has left", names, split, width)
+				}
+				wasLeft, wasName = left, name
+			}
+		}
+	}
+}
+
+// Tokens' columns at the owner's widths, of the labels configured: every
+// column at 160; models gone at 120 and 108, of short names, and cache write
+// too at 108 of long; at 73, cache read and against its price beside total
+// and worth, of short names, and cache read alone of long; and at 52, cache
+// read alone.
+func TestTokensShowsTheColumnsThatFit(t *testing.T) {
+	tests := []struct {
+		width    int
+		accounts config.Accounts
+		left     int
+	}{
+		{width: 160, left: 0},
+		{width: 160, accounts: longTokensAccounts, left: 0},
+		{width: 120, left: 1},
+		{width: 108, left: 1},
+		{width: 108, accounts: longTokensAccounts, left: 2},
+		{width: 73, left: 4},
+		{width: 73, accounts: longTokensAccounts, left: 5},
+		{width: 52, left: 5},
+	}
+	for _, tt := range tests {
+		f := tokensFrame(tt.width, 37, TokensByAccount)
+		f.History.Accounts = tt.accounts
+		if left, _ := tokensLeft(f.tokensColumns()); left != tt.left {
+			t.Errorf("at %d columns, of %d labels configured, %d columns have left, want %d", tt.width, len(tt.accounts), left, tt.left)
+		}
+	}
+}
+
+// The names' natural is of what the split names and what's configured, never
+// of the rows shown, so the columns never move with the data: at least
+// tokensNamesCells, which holds the periods' names and the versions'; by
+// account, the widest label configured, else its id, after its branch, at
+// labelMost at the most; by model, or unsplit, no account's, as no row names
+// one; and by account and model, both, a version's nested id among them. A
+// label the rows carry that isn't configured changes nothing.
+func TestTokensNamesNaturalIsOfWhatTheSplitNames(t *testing.T) {
+	tests := []struct {
+		name     string
+		split    TokensSplit
+		accounts config.Accounts
+		want     int
+	}{
+		{name: "none configured", split: TokensByAccount, want: tokensNamesCells},
+		{name: "short labels", split: TokensByAccount, accounts: config.Accounts{{ID: "work"}, {ID: "personal"}}, want: tokensNamesCells},
+		{name: "a long label", split: TokensByAccount, accounts: longTokensAccounts, want: 24},
+		{name: "an id where there's no label", split: TokensByAccount, accounts: config.Accounts{{ID: "the-research-account"}}, want: 22},
+		{name: "past labelMost", split: TokensByAccount, accounts: config.Accounts{{ID: "work", Label: strings.Repeat("w", 40)}}, want: 2 + labelMost},
+		{name: "by model, of long labels", split: TokensByModel, accounts: longTokensAccounts, want: tokensNamesCells},
+		{name: "unsplit, of long labels", split: TokensUnsplit, accounts: longTokensAccounts, want: tokensNamesCells},
+		{name: "nested versions", split: TokensByAccountAndModel, want: tokensNamesCells + 2},
+		{name: "by account and model, of long labels", split: TokensByAccountAndModel, accounts: longTokensAccounts, want: 24},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := tokensFrame(160, 37, tt.split)
+			f.History.Accounts = tt.accounts
+			if got := f.tokensColumns().spans[tokensName].Size; got != tt.want {
+				t.Errorf("the names take %d cells, want %d", got, tt.want)
+			}
+			f.History.Tokens.Periods[0].ByAccount[0].Label = strings.Repeat("x", 30)
+			if got := f.tokensColumns().spans[tokensName].Size; got != tt.want {
+				t.Errorf("of a label the rows carry, the names take %d cells, want %d still", got, tt.want)
+			}
+		})
+	}
+}
+
+// A label configured long reads whole in its column, at every width the
+// owner uses, as the names come before the detail columns.
+func TestTokensDrawsALongLabelWhole(t *testing.T) {
+	for _, width := range []int{73, 108, 109, 138, 173} {
+		f := tokensFrame(width, 37, TokensByAccount)
+		f.History.Accounts = longTokensAccounts
+		f.History.Tokens.Periods[0].ByAccount[2].Label = "side-hustle-consulting"
+		rows := tokensRowsOf(f)
+		if !slices.ContainsFunc(rows, func(row string) bool { return strings.HasPrefix(row, "└ side-hustle-consulting  ") }) {
+			t.Errorf("at %d columns, Tokens reads\n%s\nwant └ side-hustle-consulting whole", width, strings.Join(rows, "\n"))
+		}
+	}
+}
+
+// Split by model, the version's accounts read whole where there's room: on
+// takes its natural at 200 columns, every account configured a space apart,
+// before against its price grows; and narrows to its least, 18, before any
+// column leaves.
+func TestTokensOnTakesTheAccountsConfigured(t *testing.T) {
+	accounts := append(slices.Clone(longTokensAccounts), config.Account{ID: "lab"})
+	f := tokensFrame(200, 37, TokensByModel)
+	f.History.Accounts = accounts
+	period := &f.History.Tokens.Periods[0]
+	period.ByModel[0].On = []string{"work", "personal", "side", "lab"}
+	for i, a := range accounts[:3] {
+		period.ByAccount[i].Account, period.ByAccount[i].Label = a.ID, a.Label
+	}
+	const on = "work-team-plan personal-research side-hustle-consulting lab"
+	rows := tokensRowsOf(f)
+	if !strings.HasPrefix(rows[3], "└ opus-5-5    "+on+"  ") {
+		t.Errorf("at 200 columns, the version reads %q, want it on %q whole", rows[3], on)
+	}
+	if got := f.tokensColumns().spans[tokensOf].Size; got != len(on) {
+		t.Errorf("on takes %d cells, want its natural %d", got, len(on))
+	}
+	for width := 200; width >= 100; width-- {
+		f.Width = width
+		cols := f.tokensColumns()
+		if left, _ := tokensLeft(cols); left > 0 && cols.spans[tokensOf].Size > tokensOfCells {
+			t.Errorf("at %d columns, a column left with on at %d cells, past its least", width, cols.spans[tokensOf].Size)
+		}
+	}
+}
+
+// Where every count but total has left, total sits a cell after the names,
+// the cells cache read kept between them leaving with it, so the names have
+// all but total's and worth's: from 30 columns to 60, of short names and
+// long, they take their natural or every cell but those.
+func TestTokensTotalSitsACellAfterTheNamesAlone(t *testing.T) {
+	beside := tokensTotalGap + 10 + tokensWorthGap + tokensWorthCells
+	for _, accounts := range []config.Accounts{nil, longTokensAccounts} {
+		f := tokensFrame(60, 37, TokensByAccount)
+		f.History.Accounts = accounts
+		natural := f.tokensNamesNatural()
+		for width := 30; width <= 60; width++ {
+			f.Width = width
+			cols := f.tokensColumns()
+			if cols.shows(tokensCacheRead) {
+				continue
+			}
+			if got, want := cols.spans[tokensName].Size, min(natural, width-beside); got != want {
+				t.Errorf("of %d labels configured, at %d columns, the names take %d cells, want %d", len(accounts), width, got, want)
+			}
+		}
+	}
+}
+
+// Against its price is never cut: its least is its words at their widest
+// for what the plans configured cost over a whole period, the ratio at
+// 99.9×, so where they don't fit, it leaves. From 220 columns to 40, by week
+// and by month, each period's reads whole, its unit last, or not at all; and
+// at the narrowest frame it shows in, the widest it's reckoned at would end
+// at the frame's edge.
+func TestTokensAgainstItsPriceIsNeverCut(t *testing.T) {
+	tests := []struct {
+		period views.TokensPeriod
+		cost   float64
+		widest string
+	}{
+		{period: views.TokensByWeek, cost: 138, widest: "99.9× its $138 week"},
+		{period: views.TokensByMonth, cost: 600, widest: "99.9× its $600 month"},
+	}
+	for _, tt := range tests {
+		f := tokensFrame(220, 37, TokensUnsplit)
+		f.History.TokensAsk.Period = tt.period
+		f.History.Tokens.PeriodCost = usd(tt.cost)
+		for i := range f.History.Tokens.Periods {
+			f.History.Tokens.Periods[i].Against = againstAt(*f.History.Tokens.Periods[i].Ratio, tt.cost)
+		}
+		narrowest := 0
+		for width := 220; width >= 40; width-- {
+			f.Width = width
+			for _, row := range tokensRowsOf(f) {
+				if strings.Contains(row, "× its") && !strings.HasSuffix(row, " "+tt.period.Name()) {
+					t.Errorf("by %s at %d columns, a period reads %q, want against its price whole", tt.period.Name(), width, row)
+				}
+			}
+			if f.tokensColumns().shows(tokensAgainst) {
+				narrowest = width
+			}
+		}
+		f.Width = narrowest
+		if at := f.tokensColumns().at(tokensAgainst); at+ansi.StringWidth(tt.widest) != narrowest {
+			t.Errorf("by %s, against its price shows from %d columns, at %d, want it where %q ends at the edge", tt.period.Name(), narrowest, at, tt.widest)
+		}
+	}
+}
+
+// A name in on is at labelMost cells at the most, as a column of names has
+// it, so at on's natural every name reads as the natural reckons it: a label
+// past labelMost cut to it with an ellipsis, the names after it whole.
+func TestTokensOnCutsEachNameAtLabelMost(t *testing.T) {
+	long := strings.Repeat("r", 30)
+	f := tokensFrame(220, 37, TokensByModel)
+	f.History.Accounts = config.Accounts{{ID: "work", Label: long}, {ID: "side"}}
+	period := &f.History.Tokens.Periods[0]
+	period.ByAccount[0].Label = long
+	period.ByModel[0].On = []string{"work", "side"}
+	on := strings.Repeat("r", labelMost-1) + "… side"
+	if got := f.tokensColumns().spans[tokensOf].Size; got != ansi.StringWidth(on) {
+		t.Errorf("on takes %d cells, want its natural %d", got, ansi.StringWidth(on))
+	}
+	if row := tokensRowsOf(f)[3]; !strings.HasPrefix(row, "└ opus-5-5    "+on+" ") {
+		t.Errorf("the version reads %q, want it on %q", row, on)
+	}
+}
+
+// Where the split's column doesn't name accounts, by account, by account and
+// model, or unsplit, many accounts configured never widen it: it's
+// tokensOfCells at every width it shows.
+func TestTokensOfIsItsLeastWhereItNamesNoAccounts(t *testing.T) {
+	for _, split := range []TokensSplit{TokensByAccount, TokensByAccountAndModel, TokensUnsplit} {
+		f := tokensFrame(220, 37, split)
+		f.History.Accounts = tenConfigured()
+		if got := f.tokensColumns().spans[tokensOf].Size; got != tokensOfCells {
+			t.Errorf("split %d, of ten accounts, at 220 columns the split's column takes %d cells, want %d", split, got, tokensOfCells)
+		}
+	}
+}
+
+// A ratio of 100× or more, as a day's worth often is against what its plans
+// cost a day, is written whole, so against its price still fits its least
+// and is never cut: by day, unsplit and by model on ten accounts, from 220
+// columns to 40, the newest day's reads whole, or not at all.
+func TestTokensAgainstItsPriceOfAHundredfoldIsNeverCut(t *testing.T) {
+	for _, split := range []TokensSplit{TokensUnsplit, TokensByModel} {
+		for ratio, said := range map[float64]string{123.4: "123× its $7 day", 1234.5: "1234× its $7 day"} {
+			f := tokensFrame(220, 37, split)
+			f.History.TokensAsk.Period = views.TokensByDay
+			f.History.Accounts = tenConfigured()
+			f.History.Tokens.PeriodCost = usd(7)
+			period := &f.History.Tokens.Periods[0]
+			period.Against = againstAt(ratio, 7)
+			period.ByModel[0].On = f.History.Accounts.IDs()
+			shown := 0
+			for width := 220; width >= 40; width-- {
+				f.Width = width
+				row := tokensRowsOf(f)[2]
+				switch {
+				case strings.HasSuffix(row, said):
+					shown++
+				case strings.Contains(row, "×"):
+					t.Errorf("split %d at %d columns, a ratio of %v reads %q, want it to end %q whole", split, width, ratio, row, said)
+				}
+			}
+			if shown == 0 {
+				t.Errorf("split %d, a ratio of %v never shows %q", split, ratio, said)
+			}
+		}
+	}
+}
+
+// Nothing Tokens draws is left to the canvas to clip: in every split, at
+// any width, scrolled, it draws nothing past the frame's width.
+func TestTokensDrawsNothingPastTheWidth(t *testing.T) {
+	for _, split := range tokensSplits {
+		for width := 1; width <= 160; width++ {
+			f := tokensFrame(width, 40, split)
+			f.Scroll = 2
+			historyPastItsEdge(t, fmt.Sprintf("Tokens split %d", split), f, f.Width)
+		}
 	}
 }
