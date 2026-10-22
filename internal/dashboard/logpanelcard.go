@@ -9,9 +9,9 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// The panel's width, its edges included, as its two sides want it; and the
-// rows of the frame it leaves spare at its tallest, past which it scrolls,
-// the cursor's row kept in view.
+// The panel's natural width, its edges included, as its two sides want it;
+// and the rows of the frame it leaves spare at its tallest, past which it
+// scrolls, the cursor's row kept in view.
 const (
 	panelWidth = 124
 	panelSpare = 2
@@ -107,7 +107,8 @@ func (p pane) rows() []line {
 }
 
 // card is the panel on the frame, titled as the table it's of: in two
-// sides, where it has its width, else the side the cursor's on alone; the
+// sides, where the frame has it its natural width, else the side the
+// cursor's on alone; the
 // tick the cursor's on lit a cell either side; as tall as its body, up to
 // the frame's height less panelSpare, past which it shows the rows around
 // the cursor's.
@@ -133,8 +134,8 @@ func (p LogPanel) cardOf(width int, body pane, from, shown int) Card {
 // laidOut is the panel as the frame lays it out: its width; its body; and
 // from which row of it, and how many, it shows.
 func (p LogPanel) laidOut(f Frame) (width int, body pane, from, shown int) {
-	width = f.cardWidth(panelWidth)
-	body = p.body(width-2*cardInset, width >= panelWidth)
+	width, both := f.cardOn(panelWidth)
+	body = p.body(width-2*cardInset, both)
 	rows := body.height()
 	shown = min(max(f.bodyRoom(panelSpare, true), 0), rows)
 	if s, ok := p.lit(body); ok {

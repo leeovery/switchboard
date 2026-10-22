@@ -4,11 +4,12 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
-// The widths a card wants, its edges included: the routing card's, and
-// help's.
+// The natural widths of cards, their edges included: the routing card's,
+// and help's.
 const (
 	routingWidth = 82
 	helpWidth    = 128
@@ -90,14 +91,28 @@ type cardScroll struct {
 	above, below int
 }
 
-// cardWidth is how wide a card that wants to be wanted cells wide is drawn
-// on the frame: no wider than the frame less a cell either side, and on a
-// phone, that wide.
-func (f Frame) cardWidth(wanted int) int {
-	if f.phone() {
-		return f.Width - 2
+// cardMargin is the cell a card leaves clear of the frame's edge either side.
+var cardMargin = flex.Part{Least: 1, Natural: 1}
+
+// cardWidth is how wide a card of the natural width given is drawn on the
+// frame, as cardOn lays it.
+func (f Frame) cardWidth(natural int) int {
+	width, _ := f.cardOn(natural)
+	return width
+}
+
+// cardOn is how wide a card of the natural width given is drawn on the
+// frame, its edges included, and whether that's its natural: its natural
+// where the frame has it a cardMargin clear either side, else the frame's
+// width less those margins.
+func (f Frame) cardOn(natural int) (width int, whole bool) {
+	card := flex.Part{Least: natural, Natural: natural}
+	if s, fits := flex.Lay(f.Width, cardMargin, card, cardMargin); fits {
+		return s[1].Size, true
 	}
-	return min(wanted, f.Width-2)
+	card.Least = 0
+	s, _ := flex.Lay(f.Width, cardMargin, card, cardMargin)
+	return s[1].Size, false
 }
 
 // bodyRoom is how many rows of body a card with keys, or without, has room

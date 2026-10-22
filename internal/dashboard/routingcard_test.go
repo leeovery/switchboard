@@ -649,7 +649,7 @@ func TestTheRowTheCursorsOnIsLitAndNoOther(t *testing.T) {
 		cursors       []int
 	}{
 		{name: "at 160 columns", width: 160, height: 37, card: routedCard(nil), cursors: []int{0, 1, 2, 3}},
-		{name: "on a phone, an account's both lines", width: 52, height: 40, card: routedCard(nil), cursors: []int{0, 1, 2, 3}},
+		{name: "stacked, an account's both lines", width: 52, height: 40, card: routedCard(nil), cursors: []int{0, 1, 2, 3}},
 		{name: "a row that can't be picked", width: 160, height: 37, card: closed, cursors: []int{3}},
 		{name: "scrolled, the cursor kept in view", width: 160, height: 30, card: twelve, cursors: []int{0, 11, 12}},
 	}
@@ -668,7 +668,7 @@ func TestTheRowTheCursorsOnIsLitAndNoOther(t *testing.T) {
 					t.Fatalf("no row of the card names %s", row.Name)
 				}
 				last := first
-				if f.phone() && row.Account != "" {
+				if choicesStacked(width-2*cardInset) && row.Account != "" {
 					last++
 				}
 				for y := range f.Height {
@@ -739,11 +739,11 @@ func rowSaying(c *canvas, x int, text string) int {
 	return -1
 }
 
-func TestOnAPhoneAnAccountsWindowsTakeARowOfTheirOwn(t *testing.T) {
+func TestWhereAnAccountsRowDoesntFitOneLineItsWindowsTakeARowOfTheirOwn(t *testing.T) {
 	r := routedCard(nil)
 	f := Frame{Width: 52, Height: 40}
 	if got := r.card(f).width; got != 50 {
-		t.Errorf("the card is %d cells wide, want 50, the phone's width less a cell either side", got)
+		t.Errorf("the card is %d cells wide, want 50, the screen's width less a cell either side", got)
 	}
 	_, body := cardText(r, f)
 	want := []string{

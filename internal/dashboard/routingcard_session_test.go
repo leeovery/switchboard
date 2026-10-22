@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"cmp"
 	"fmt"
 	"slices"
 	"strings"
@@ -55,7 +56,9 @@ func TestASessionsRowNamesItAndWhereItRuns(t *testing.T) {
 	tests := []struct {
 		name    string
 		session RoutingSession
-		phone   bool
+		// width is the row's cells: 76, the card's content at its natural
+		// width, where it's 0.
+		width int
 		// left is what the row says from its start, and right what it says
 		// at its end.
 		left, right string
@@ -75,20 +78,18 @@ func TestASessionsRowNamesItAndWhereItRuns(t *testing.T) {
 		{name: "no directory, its id alone", session: RoutingSession{ID: "9c2e47b1", On: "personal"}, left: "9c2e", right: "runs on personal"},
 		{name: "where it runs not known", session: RoutingSession{ID: "9c2e", Dir: "~/Code/website"}, left: "9c2e  website  ~/Code/website"},
 		{name: "an account named by its name", session: RoutingSession{ID: "9c2e", On: "side"}, left: "9c2e", right: "runs on side"},
-		{name: "on a phone, no directory, as its page heads it", session: sessionRouted, phone: true, left: "9c2e  website", right: "runs on personal"},
+		{name: "a narrow card, its directory cut from its start to fit", session: sessionRouted, width: 44, left: "9c2e  website  …de/website", right: "runs on personal"},
+		{name: "a card too narrow to say more than its name, no directory", session: sessionRouted, width: 40, left: "9c2e  website", right: "runs on personal"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			width := 76
-			if tt.phone {
-				width = 44
-			}
+			width := cmp.Or(tt.width, 76)
 			want := tt.left
 			if tt.right != "" {
 				want += strings.Repeat(" ", width-ansi.StringWidth(tt.left)-ansi.StringWidth(tt.right)) + tt.right
 			}
 			r := sessionCard(func(r *RoutingCard) { r.Session = tt.session })
-			if got := strings.TrimRight(r.sessionRow(tt.phone, width).plain(), " "); got != want {
+			if got := strings.TrimRight(r.sessionRow(width).plain(), " "); got != want {
 				t.Errorf("the row reads\n%q\nwant\n%q", got, want)
 			}
 		})
@@ -97,7 +98,7 @@ func TestASessionsRowNamesItAndWhereItRuns(t *testing.T) {
 
 func TestASessionsRowIsInkedAsTheDesignSays(t *testing.T) {
 	inked := map[string]ink{}
-	for _, s := range sessionCard(nil).sessionRow(false, 76) {
+	for _, s := range sessionCard(nil).sessionRow(76) {
 		inked[strings.TrimSpace(s.text)] = s.ink
 	}
 	for text, want := range map[string]ink{"9c2e": titleInk, "website": mutedInk, "~/Code/website": secondaryInk, "runs on": mutedInk, "personal": titleInk} {
@@ -230,12 +231,12 @@ func TestASessionsKeysRowPicksAndHasNoM(t *testing.T) {
 	}
 }
 
-func TestOnAPhoneASessionsCardKeepsItsRowsToTheScreen(t *testing.T) {
+func TestANarrowSessionsCardKeepsItsRowsToTheScreen(t *testing.T) {
 	_, body := cardText(sessionCard(func(r *RoutingCard) { r.Picked = []string{"side"} }), Frame{Width: 52, Height: 40})
 	want := []string{
 		"Pick the account this session goes to.",
 		"",
-		"9c2e  website               runs on personal",
+		"9c2e  website  …de/website  runs on personal",
 		"",
 		"○ 0 auto        the router chooses: side",
 		"○ 1 work        closed  at its cap till 17:…",

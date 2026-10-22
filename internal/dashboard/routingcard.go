@@ -9,6 +9,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
@@ -39,7 +40,7 @@ const (
 // The columns the routing card's rows lay their parts in, from its
 // content's start: the mark; the name, its number before it; the state, or
 // auto's description; the first window, the week, then the second, the
-// 5-hour, a phone's under the name from the state's column; and at the
+// 5-hour, stacked under the name from the state's column; and at the
 // content's end, the reason or the sessions running.
 const (
 	choiceName    = 2
@@ -47,6 +48,38 @@ const (
 	choiceWindows = 26
 	choiceSecond  = 37
 )
+
+// What an account's row takes on one line at the least: its windows, the
+// second's use at its widest; and two cells on, its end's words, a limit's
+// reason back today, the longest the router gives for a time of day.
+const (
+	widestUse = "5-hour 100%"
+	endLeast  = "at its limit till 00:00"
+	endGap    = 2
+)
+
+// choiceWindowsPart is an account's windows' use, as flex lays it: the
+// second's from choiceSecond, at its widest, so neither is ever cut.
+var choiceWindowsPart = flex.Part{Least: choiceSecond - choiceWindows + len(widestUse), Natural: choiceSecond - choiceWindows + len(widestUse)}
+
+// choicesStacked reports whether an account's row is stacked in width
+// cells, its windows on a row of their own: where its parts on one line, as
+// flex lays them, don't fit. Its parts: the mark, number, name and state, to
+// the windows' column; the windows; and its end.
+func choicesStacked(width int) bool {
+	lead := flex.Part{Least: choiceWindows, Natural: choiceWindows}
+	end := flex.Part{Least: len(endLeast), Natural: len(endLeast), Gap: endGap}
+	_, oneLine := flex.Lay(width, lead, choiceWindowsPart, end)
+	return !oneLine
+}
+
+// stackedWindows is where an account's windows start on a row of their own
+// in width cells, as flex lays them: from the state's column, or as near it
+// as they still fit whole.
+func stackedWindows(width int) int {
+	s, _ := flex.Lay(width, flex.Part{Natural: choiceState}, choiceWindowsPart)
+	return s[1].At
+}
 
 // RoutingCard is the routing card's data, which the watch builds afresh at
 // each read while the card is open, so its figures follow them: what it
@@ -247,9 +280,9 @@ func windowWhere(a status.AccountNow, is func(status.WindowNow) bool) (status.Wi
 func (r RoutingCard) card(f Frame) Card {
 	width := f.cardWidth(routingWidth)
 	content := width - 2*cardInset
-	above := slices.Concat(r.opening(content), []line{nil}, r.sessionRows(f.phone(), content))
+	above := slices.Concat(r.opening(content), []line{nil}, r.sessionRows(content))
 	below := slices.Concat(r.moveRows(), r.outcome(content))
-	rows, lit, scroll := r.inView(f.phone(), content, f.bodyRoom(routingSpare, true)-len(above)-len(below))
+	rows, lit, scroll := r.inView(choicesStacked(content), content, f.bodyRoom(routingSpare, true)-len(above)-len(below))
 	lit.first += len(above)
 	return Card{title: r.title(), width: width, body: slices.Concat(above, rows, below), keys: r.keys(content), scroll: scroll, lit: lit}
 }
@@ -290,11 +323,11 @@ func (r RoutingCard) opening(width int) []line {
 
 // sessionRows are the session's row and a blank row after it, on a
 // session's card alone, as sessionRow lays it out.
-func (r RoutingCard) sessionRows(phone bool, width int) []line {
+func (r RoutingCard) sessionRows(width int) []line {
 	if r.Mode != ThisSession {
 		return nil
 	}
-	return []line{r.sessionRow(phone, width), nil}
+	return []line{r.sessionRow(width), nil}
 }
 
 // sessionRow is the session's row, width cells wide: its id, as the
@@ -302,7 +335,7 @@ func (r RoutingCard) sessionRows(phone bool, width int) []line {
 // pathIn has it; and at its end, runs on and the account it runs on, bold,
 // where that's known. Where it runs is said here alone, never marked on its
 // row below.
-func (r RoutingCard) sessionRow(phone bool, width int) line {
+func (r RoutingCard) sessionRow(width int) line {
 	s := r.Session
 	var on line
 	if s.On != "" {
@@ -313,18 +346,18 @@ func (r RoutingCard) sessionRow(phone bool, width int) line {
 	if name := status.DirName(s.Dir, max(room-row.width()-2, 1)); name != "" {
 		row = slices.Concat(row, line{spaces(2), {name, mutedInk}})
 	}
-	if path := pathIn(s.Dir, s.Home, phone, room-row.width()-2); path != "" {
+	if path := pathIn(s.Dir, s.Home, room-row.width()-2); path != "" {
 		row = slices.Concat(row, line{spaces(2), {path, secondaryInk}})
 	}
 	return atEnd(row, on, width)
 }
 
 // pathIn is the directory dir in room cells, the home directory given as ~,
-// cut from its start, its name kept, as a session's page heads it: none on
-// a phone, as a phone's page heads it with none, nor where cutting it would
-// leave no more than its name, which the row says already.
-func pathIn(dir, home string, phone bool, room int) string {
-	if phone || room < ansi.StringWidth(status.DirName(dir, math.MaxInt))+2 {
+// cut from its start, its name kept, as a session's page heads it: none
+// where cutting it would leave no more than its name, which the row says
+// already.
+func pathIn(dir, home string, room int) string {
+	if room < ansi.StringWidth(status.DirName(dir, math.MaxInt))+2 {
 		return ""
 	}
 	return status.DirPath(dir, home, room)
@@ -344,13 +377,13 @@ var cardOut = outForm{inks: subtleOut}
 // out, the lines of them the cursor's row takes, and how far they're
 // scrolled: all of them where they fit; else those around the cursor, with
 // "▲ 2 more" over them while some are above, and "▼ 3 more" under them while
-// some are below, in all room's lines, so a phone's rows of two lines never
+// some are below, in all room's lines, so stacked rows of two lines never
 // move the card as the cursor does.
-func (r RoutingCard) inView(phone bool, width, room int) ([]line, bodyRows, cardScroll) {
+func (r RoutingCard) inView(stacked bool, width, room int) ([]line, bodyRows, cardScroll) {
 	choices := make([][]line, len(r.Rows))
 	heights := make([]int, len(r.Rows))
 	for i, row := range r.Rows {
-		choices[i] = r.choice(row, phone, width)
+		choices[i] = r.choice(row, stacked, width)
 		heights[i] = len(choices[i])
 	}
 	cursor := min(max(r.Cursor, 0), len(heights)-1)
@@ -411,10 +444,10 @@ func fitting(heights []int, room int) int {
 
 // choice is the row as the card lays it out, width cells wide: its mark,
 // its number and name, then auto's description, or an account's state, its
-// windows' use and at the end its reason or sessions running. On a phone, an
-// account's windows take a row of their own under it, from the state's
-// column.
-func (r RoutingCard) choice(row RoutingRow, phone bool, width int) []line {
+// windows' use and at the end its reason or sessions running. Stacked, as
+// choicesStacked has it, an account's windows take a row of their own under
+// it, as stackedWindows places them.
+func (r RoutingCard) choice(row RoutingRow, stacked bool, width int) []line {
 	head := line{r.mark(row), spaces(choiceName - 1), {padded(row.Key, 2), dimInk}, {prose.Cut(row.Name, choiceState-choiceName-3), titleInk}}
 	if row.Account == "" {
 		return []line{padTo(head, choiceState, r.autoChooses(width-choiceState))}
@@ -425,8 +458,8 @@ func (r RoutingCard) choice(row RoutingRow, phone bool, width int) []line {
 	}
 	named := padTo(head, choiceState, state)
 	windows := row.windowsWords()
-	if phone {
-		return []line{atEnd(named, row.sideWords(), width), padTo(nil, choiceState, windows).fit(width)}
+	if stacked {
+		return []line{atEnd(named, row.sideWords(), width), padTo(nil, stackedWindows(width), windows).fit(width)}
 	}
 	return []line{atEnd(padTo(named, choiceWindows, windows), row.sideWords(), width)}
 }

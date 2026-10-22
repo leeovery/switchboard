@@ -59,11 +59,9 @@ var phoneAllowed = []string{
 	"internal/dashboard/accountscompare.go:Frame.compareState",
 	"internal/dashboard/accounts_help.go:Frame.compareHelp",
 	"internal/dashboard/watch/accounts.go:Model.comparing",
-	// S25: what's left, LATELY's sentences, ROUTING's mode, and the cards.
+	// S25: what's left, LATELY's sentences and ROUTING's mode.
 	"internal/dashboard/lately.go:Frame.latelySaid",
 	"internal/dashboard/routing.go:Frame.routingSection",
-	"internal/dashboard/card.go:Frame.cardWidth",
-	"internal/dashboard/routingcard.go:RoutingCard.card",
 }
 
 // sizedAllowed are the functions of drawingPackages, outside the chrome,
@@ -90,15 +88,8 @@ var sizedAllowed = []string{
 	// its rows.
 	"internal/dashboard/sessionlayout.go:Frame.sessionLayout",
 	// S25: the frame cramped short of leastView, which many views choose
-	// by; the Log's panel and card, and the theme picker, cards of a kind;
-	// usage's printout's header; and a glyph's width as the canvas puts it,
-	// whether it's wide.
+	// by.
 	"internal/dashboard/frame.go:Frame.cramped",
-	"internal/dashboard/logpanelcard.go:LogPanel.laidOut",
-	"internal/dashboard/logcard.go:Frame.logCardForm",
-	"internal/dashboard/picker.go:PickerWidth",
-	"internal/dashboard/printout.go:Printout.header",
-	"internal/dashboard/canvas.go:canvas.put",
 }
 
 // cutAllowed are the functions of drawingPackages allowed to cut a name to a

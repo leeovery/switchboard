@@ -3,6 +3,7 @@ package dashboard
 import (
 	"slices"
 
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -16,13 +17,32 @@ const (
 	ByAccount
 )
 
-// The printout's header: the fewest columns it takes one line at, narrower
-// taking two; and on one line, the fewest cells between when the document was
-// read and the status.
+// headerGap is the fewest cells between when the document was read and the
+// status, on the printout's header's one line.
+const headerGap = 2
+
+// The header's parts at their naturals, of what's configured, never what's
+// read: the badge's line with the widest date and time there is; and the
+// status healthy, its sessions in two figures, new sessions going to the
+// widest account configured.
 const (
-	oneLineHeader = 120
-	headerGap     = 2
+	widestRead     = "Wed 30 Sep  00:00"
+	widestSessions = 99
 )
+
+// headerParts are the badge's line and the status, at their naturals, as
+// the header lays them out on one line of the moment m, the status taking
+// the rest, to the last column.
+func headerParts(m status.Moment) []flex.Part {
+	badge := slices.Concat(pill, line{spaces(2), {widestRead, titleInk}}).width()
+	s := statusLine{
+		state:       line{{"● ", positiveInk}, {"healthy", secondaryInk}},
+		sessions:    line{{prose.SessionCount(widestSessions), mutedInk}},
+		destination: line{{"▲ ", nameInk}, spaces(widestLabel(m))},
+	}
+	status := s.forms()[0].width()
+	return []flex.Part{{Least: badge, Natural: badge}, {Least: status, Natural: status, Grows: true, Gap: headerGap}}
+}
 
 // Printout is every account's windows as usage prints them into the
 // scrollback, once, from the status document alone.
@@ -73,11 +93,11 @@ func (p Printout) namer(m status.Moment) func(key string) string {
 
 // header draws the printout's header of the moment m, and returns its last
 // row: the badge and when its document was read, then the status line, its
-// mode shown only while the router has a global pin. From 120 columns it's
-// one line, the status ending at the last column; narrower, two, the status
-// from column 0 after a blank line. The status shortens to fit, as a phone's
-// does; the badge's line leaves off the date, as a phone's title row does,
-// then the badge, before it's cut.
+// mode shown only while the router has a global pin. It's one line where
+// headerParts fit, the status ending at the last column; else two, the
+// status from column 0 after a blank line. The status shortens to fit, as a
+// phone's does; the badge's line leaves off the date, as a phone's title row
+// does, then the badge, before it's cut.
 func (p Printout) header(c *canvas, m status.Moment) int {
 	at := prose.TimeOfDay(m.Now, m.ReadAt)
 	gap, clock := line{spaces(2)}, line{{at, titleInk}}
@@ -86,7 +106,7 @@ func (p Printout) header(c *canvas, m status.Moment) int {
 		slices.Concat(pill, gap, clock),
 		clock))
 	s := newStatusLine(m)
-	if p.Width >= oneLineHeader {
+	if _, oneLine := flex.Lay(p.Width, headerParts(m)...); oneLine {
 		c.right(p.Width, 0, s.fit(p.Width-end-headerGap))
 		return 0
 	}

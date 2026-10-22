@@ -2,27 +2,37 @@ package dashboard
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/theme"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
-func TestACardIsAsWideAsItWantsWithACellEitherSideAtLeast(t *testing.T) {
+func TestACardIsItsNaturalWidthOrTheScreensLessACellEitherSide(t *testing.T) {
 	tests := []struct {
-		name          string
-		width, wanted int
-		want          int
+		name           string
+		width, natural int
+		want           int
+		whole          bool
 	}{
-		{name: "the routing card, with room", width: 160, wanted: routingWidth, want: 82},
-		{name: "help, with room", width: 216, wanted: helpWidth, want: 128},
-		{name: "help, short of room", width: 120, wanted: helpWidth, want: 118},
-		{name: "on a phone, the phone's width less two", width: 52, wanted: routingWidth, want: 50},
+		{name: "the routing card, with room", width: 160, natural: routingWidth, want: 82, whole: true},
+		{name: "the routing card, a cell clear either side", width: 84, natural: routingWidth, want: 82, whole: true},
+		{name: "the routing card, a cell short", width: 83, natural: routingWidth, want: 81},
+		{name: "the routing card on a phone, its width less two", width: 52, natural: routingWidth, want: 50},
+		{name: "help, with room", width: 216, natural: helpWidth, want: 128, whole: true},
+		{name: "help, short of room", width: 120, natural: helpWidth, want: 118},
+		{name: "a screen of two cells, no card", width: 2, natural: routingWidth, want: 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := frameOf(tt.width, 40).cardWidth(tt.wanted); got != tt.want {
-				t.Errorf("the card is %d cells wide, want %d", got, tt.want)
+			if got, whole := frameOf(tt.width, 40).cardOn(tt.natural); got != tt.want || whole != tt.whole {
+				t.Errorf("the card is %d cells wide, whole %v; want %d, %v", got, whole, tt.want, tt.whole)
+			}
+			if got := frameOf(tt.width, 40).cardWidth(tt.natural); got != tt.want {
+				t.Errorf("cardWidth gives %d cells, want %d, as cardOn has it", got, tt.want)
 			}
 		})
 	}
@@ -200,5 +210,80 @@ func TestACardPlacedByItsLineSitsThere(t *testing.T) {
 func TestNoCardScrollsWhileNoneIsOpen(t *testing.T) {
 	if got := frameOf(160, 40).CardScrolling(); got != (Scrolling{}) {
 		t.Errorf("with no card open, the card scrolls %+v, want nothing", got)
+	}
+}
+
+// widerForms are each card's and panel's forms, and the printout's
+// header's and the picker's, by the frame's width: whether it's in its
+// wider form there, and the width that form starts at, where its parts fit.
+var widerForms = []struct {
+	name  string
+	wider func(width int) bool
+	from  int
+}{
+	{name: "the routing card's rows on one line", wider: func(width int) bool {
+		return !slices.ContainsFunc(plains(routedCard(nil).card(frameOf(width, 40)).body), func(row string) bool {
+			return strings.HasPrefix(strings.TrimSpace(row), "week ")
+		})
+	}, from: 81},
+	{name: "the Log's card in its columns", wider: func(width int) bool {
+		return logFrameOf(LogPage{}, width, 37).logCardForm().wide
+	}, from: 130},
+	{name: "the Log's panel in its two sides", wider: func(width int) bool {
+		return strings.Contains(strings.Join(bodyText(framesPanel(LogRequests, 0), frameOf(width, 40)), "\n"), "ONLY")
+	}, from: 126},
+	{name: "usage's header on one line", wider: func(width int) bool {
+		return strings.HasPrefix(strings.TrimSpace(printed(trio(), width, ByWindow)[2]), "WEEK")
+	}, from: 89},
+	{name: "the theme picker at its widest", wider: func(width int) bool {
+		return PickerWidth(width) == pickerWide
+	}, from: 2 * pickerWide},
+}
+
+func TestEachCardsFormSwitchesOnceAsTheWidthGrows(t *testing.T) {
+	for _, tt := range widerForms {
+		t.Run(tt.name, func(t *testing.T) {
+			for width := 40; width <= 220; width++ {
+				if got, want := tt.wider(width), width >= tt.from; got != want {
+					t.Errorf("at %d columns, in its wider form: %v; want %v, from %d alone", width, got, want, tt.from)
+				}
+			}
+		})
+	}
+}
+
+func TestTheRoutingCardsRowsAreStackedAlikeWhateverTheySay(t *testing.T) {
+	cards := map[string]RoutingCard{
+		"the frames' world":          routedCard(nil),
+		"every account at its limit": {Rows: RoutingRows(routerDoc("", 0, namedAccounts(3)...).At(now, claudeLike), nil, views.Stream{})},
+		"a long reason": routedCard(func(r *RoutingCard) {
+			r.Rows[1].Open, r.Rows[1].Reason = false, "token refused: "+strings.Repeat("why ", 20)
+		}),
+	}
+	for width := 40; width <= 220; width++ {
+		heights := map[string]int{}
+		for name, r := range cards {
+			k := r.card(frameOf(width, 60))
+			heights[name] = len(r.choice(r.Rows[1], choicesStacked(k.width-2*cardInset), k.width-2*cardInset))
+		}
+		if len(slices.Compact(slices.Sorted(maps.Values(heights)))) != 1 {
+			t.Errorf("at %d columns, an account's row takes %v lines; want the same whatever the rows say", width, heights)
+		}
+	}
+}
+
+func TestTheRoutingCardNeverCutsAWindowsUse(t *testing.T) {
+	r := routedCard(nil)
+	for width := 40; width <= 220; width++ {
+		k := r.card(frameOf(width, 60))
+		body := strings.Join(plains(k.body), "\n")
+		for _, use := range []string{"week 34%   5-hour 95%", "week 66%   5-hour 39%", "week 78%   5-hour 13%"} {
+			if !strings.Contains(body, use) {
+				t.Errorf("at %d columns, the card reads\n%s\nwant %q whole", width, body, use)
+			}
+		}
+		if !choicesStacked(k.width-2*cardInset) && !strings.Contains(body, "at its cap till 17:10") {
+			t.Errorf("at %d columns, an account's row is one line, and reads\n%s\nwant its reason whole beside its windows", width, body)
+		}
 	}
 }

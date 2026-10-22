@@ -5,6 +5,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/theme"
 )
@@ -62,17 +63,17 @@ var (
 var pickerHead = []line{nil, {{"Themes", nameInk}}, nil}
 
 // PickerWidth is how many cells wide the picker is on a screen width cells
-// wide: 30, or 24 where 30 would leave the view fewer than it takes; zero
-// where not even that fits.
+// wide, as flex lays it: pickerWide where the view beside it keeps as many;
+// else pickerNarrow where the screen has that; else zero.
 func PickerWidth(width int) int {
-	switch {
-	case width >= 2*pickerWide:
+	wide := flex.Part{Least: pickerWide, Natural: pickerWide}
+	if _, fits := flex.Lay(width, wide, wide); fits {
 		return pickerWide
-	case width >= pickerNarrow:
-		return pickerNarrow
-	default:
-		return 0
 	}
+	if s, fits := flex.Lay(width, flex.Part{Least: pickerNarrow, Natural: pickerNarrow}); fits {
+		return s[0].Size
+	}
+	return 0
 }
 
 // PickerFits reports whether the picker fits a screen width × height: its

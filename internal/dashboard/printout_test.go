@@ -1,6 +1,8 @@
 package dashboard
 
 import (
+	"maps"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -32,18 +34,41 @@ func TestTheHeaderSaysWhenTheDocumentWasRead(t *testing.T) {
 	}
 }
 
-func TestTheHeaderTakesOneLineFrom120Columns(t *testing.T) {
+// The header is one line where its parts fit at their naturals, of what's
+// configured: the badge's line at its widest, 32 cells; two; and the status
+// healthy, 99 sessions, new sessions going to personal, the widest account,
+// 55. So from 89 columns here.
+func TestTheHeaderTakesOneLineWhereItsPartsFitAtTheirNaturals(t *testing.T) {
 	says := "● healthy  ·  6 sessions  ·  new sessions → ▲ side"
-	one := printed(trio(), 120, ByWindow)
-	if got := one[0]; !strings.HasSuffix(got, says) || len([]rune(got)) != 120 {
-		t.Errorf("at 120 columns the header reads %q, want its status ending at the last column", got)
+	for _, width := range []int{89, 120} {
+		one := printed(trio(), width, ByWindow)
+		if got := one[0]; !strings.HasSuffix(got, says) || len([]rune(got)) != width {
+			t.Errorf("at %d columns the header reads %q, want its status ending at the last column", width, got)
+		}
+		if one[1] != "" || one[2] != "WEEK" {
+			t.Errorf("at %d columns, the header is followed by %q, want a blank line, then the first window", width, one[1:3])
+		}
 	}
-	if one[1] != "" || one[2] != "WEEK" {
-		t.Errorf("at 120 columns, the header is followed by %q, want a blank line, then the first window", one[1:3])
-	}
-	two := printed(trio(), 119, ByWindow)
+	two := printed(trio(), 88, ByWindow)
 	if got, want := two[:5], []string{" SWITCHBOARD   Thu 1 Oct  14:42", "", says, "", "WEEK"}; strings.Join(got, "\n") != strings.Join(want, "\n") {
-		t.Errorf("at 119 columns the printout starts %q, want %q: its status on a line of its own", got, want)
+		t.Errorf("at 88 columns the printout starts %q, want %q: its status on a line of its own", got, want)
+	}
+}
+
+func TestTheHeadersFormNeverHangsOnWhatsRead(t *testing.T) {
+	docs := map[string]status.Document{
+		"as the frames have it": trio(),
+		"pinned to two":         trio(pinnedTo("personal", "side")),
+		"unhealthy":             trio(func(d *status.Document) { d.Router.Healthy = false }),
+	}
+	for width := 40; width <= 220; width++ {
+		lines := map[string]bool{}
+		for name, doc := range docs {
+			lines[name] = strings.HasPrefix(strings.TrimSpace(printed(doc, width, ByWindow)[2]), "WEEK")
+		}
+		if slices.Contains(slices.Collect(maps.Values(lines)), !lines["as the frames have it"]) {
+			t.Errorf("at %d columns, the header is one line: %v; want it alike whatever's read", width, lines)
+		}
 	}
 }
 

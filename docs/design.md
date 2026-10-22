@@ -1171,7 +1171,8 @@ one card over whatever page shows, the page faded behind it (see Routing by hand
 is open at a time; while it is, its keys alone act, and `esc` closes it before anything else. The
 theme picker is a slide-over at the right instead, so its themes preview on the page (see Themes).
 
-**`?` opens the page's help** in the card, 128 cells wide and centred, titled `HELP · <PAGE>` as the
+**`?` opens the page's help** in the card, 128 cells wide where the screen has that and a cell
+either side, else the screen's width less those, and centred, titled `HELP · <PAGE>` as the
 page is named, `HELP · OVERVIEW`, or `HELP · SESSION` on a session's page. It lists first every key
 that works on the page, those the key line leaves out among them (`t`, `R`, `j`/`k`, PgUp, PgDn and
 the wheel), worded as the key line words them; then what the page's rules explain, part by part in
@@ -1237,7 +1238,7 @@ and the windows shown, never what's read of them:
 
 | What | Rule |
 |---|---|
-| The header on one line | `w ≥ 120`; below that, two |
+| The header on one line | Wherever its parts fit at their naturals, two cells apart (see "The header", below); else two |
 | By window, the matrix | Wherever every part of its row fits at its least (below); else the windows stacked |
 | The name column | Fitted to the names, a label 8 cells at the least and 24 at the most (see "The pool, the names and their numbers", below) |
 | The words | 22 cells, the full form's, narrowing toward the short form's 14 once the bars are at their least; each window's words in full wherever they fit their cells, else short |
@@ -1271,6 +1272,11 @@ GRAPHS' charts come beside its blocks.
 - **Placement:** on one line, the status ends at the last column. On two, the status starts at
   column 0, with a blank line between it and the badge. Where it doesn't fit the width, it shortens
   as a phone's status line does.
+- **One line or two:** one wherever its two parts fit at their naturals, two cells apart, and those
+  are of what's configured, never what's read, so a printout of any reading takes the same form:
+  the badge's line at its widest, `Wed 30 Sep  00:00`, 32 cells; and the status healthy, its
+  sessions in two figures, new sessions going to the widest account configured, 55 cells with the
+  sample's `personal`. So the sample's header is one line from 89 columns.
 
 **By window, the matrix,** wherever every part of its row fits at its least: the name column as
 the names have it, each window's bar at 12 cells and its words at 14. With the sample's 16-cell
@@ -3896,8 +3902,10 @@ filling in as its line comes (settled in the plan).
   the lines behind the card run on to the table's foot.
 - **The card:** a rounded line, `╭─╮ │ ╰─╯` in `text.subtle`, round nothing filled, the page behind
   it faded 80% toward the canvas and nothing bold, but for the line it's of, which stays as the
-  table drew it, lit on `bg.selection` across the width, its colours and its bold kept. It's 128
-  cells wide, centred, columns 16 to 143. Its title is in its top edge after `╭─ `, in
+  table drew it, lit on `bg.selection` across the width, its colours and its bold kept. It's its
+  natural 128 cells wide where the screen has that and a cell either side, its tree in its three
+  columns, centred, columns 16 to 143 at 160; else the screen's width less those cells, its
+  sections stacked. Its title is in its top edge after `╭─ `, in
   `text.subtle`, ` · ` between its parts: a request's `REQUEST · 14:31:13 · d28c switchboard`, the
   line's time and its session as the table names it; an event's `EVENT · 14:31:03 · work reached
   its cap`, what happened as its `event` item says it. An account a title names is `text.primary`.
@@ -3969,8 +3977,10 @@ filling in as its line comes (settled in the plan).
 - **One open at a time:** the card shows one line's details, a request's or an event's; nothing else
   opens while it's open.
 
-**What it shows (`f`).** A panel in the same card, 124 cells wide, as two sides don't fit the
-pickers' 82, and 22 tall, centred: columns 18 to 141, rows 7 to 28. Its title, in its top edge:
+**What it shows (`f`).** A panel in the same card, its natural 124 cells wide, as two sides don't
+fit the pickers' 82, and 22 tall, centred: columns 18 to 141, rows 7 to 28 at 160. Where the screen
+hasn't its natural and a cell either side, it's the screen's width less those cells, and shows the
+side the cursor's on alone. Its title, in its top edge:
 `LOG · REQUESTS · WHAT IT SHOWS` or `LOG · EVENTS · WHAT IT SHOWS`. Inside, from column 21 (`x`):
 
 - **Requests:**
@@ -4605,8 +4615,9 @@ none touches routing.
 **The card:**
 
 - **A rounded line,** `╭─╮`, `│` and `╰─╯` in `text.subtle`, round nothing filled: the cells inside
-  are the canvas. It's 82 cells wide, centred across the page and down it, a cell of either edge for
-  its line and two more inside it, so its content is 76 cells from 3 in.
+  are the canvas. It's its natural 82 cells wide, or where the screen hasn't that and a cell either
+  side, the screen's width less those cells; centred across the page and down it, a cell of either
+  edge for its line and two more inside it, so its content is 76 cells from 3 in at its natural.
 - **Its title in its top edge,** after `╭─ `, in `text.subtle`, the line running on after it:
   `ROUTING · NEW SESSIONS`, which becomes `ROUTING · NEW AND RUNNING SESSIONS` while `m` is ticked
   (not all sessions: one pinned on its own keeps its pin); `ROUTING · THIS SESSION` on a session's
@@ -4629,8 +4640,9 @@ none touches routing.
    this session goes to.`
 2. **The session,** on a session's card alone: its id, its first 4 characters, in bold
    `text.primary`; two spaces, its directory's own name in `text.muted`; two spaces, its directory,
-   the home shown as `~`, in `text.secondary`; and at the right, `runs on ` in `text.muted` and the
-   account it runs on, bold `text.primary`. Where it runs is never marked in the list below.
+   the home shown as `~`, in `text.secondary`, cut from its start to the room left, and left out
+   where that would leave no more than its name; and at the right, `runs on ` in `text.muted` and
+   the account it runs on, bold `text.primary`. Where it runs is never marked in the list below.
 3. **The choices,** a row each, in columns from the content's start: the mark at 0, the name at 2,
    the state at 16, the 5-hour window at 26 and the week at 39, and at the right edge the account's
    reason or its sessions.
@@ -4731,10 +4743,15 @@ unless a pin set from the command line stands, as `switchboard pin` still allows
 Overview's ROUTING heading says `p back to auto`, and `p` opens the card, its one account and
 `0 auto`, to clear it.
 
-**On a phone,** the card is the screen's width less a cell each side. An account's windows go to a
-row of their own under its name, from the state's column, and its reason or sessions stay
-right-aligned on its name's row, cut with `…` where they must; the key row keeps `enter apply` and
-`esc cancel`, and as many of the rest as fit, `↑↓ move` the first to go (settled in the plan).
+**Narrower,** as on a phone, an account's row is stacked wherever its parts don't fit one line of
+the content: the columns to the windows', 26 cells; the windows, the second's use at its widest,
+`5-hour 100%`, 22; and two cells on, its end at its least, a limit's reason back today, `at its
+limit till 00:00`, 23. They're facts of the card, never what a row says, so every row is stacked
+alike, under 73 cells of content, a screen under 81 columns. Stacked, its windows go to a row of
+their own under its name, from the state's column, or as near it as they fit whole, so a window's
+use is never cut; and its reason or sessions stay right-aligned on its name's row, cut with `…`
+where they must. The key row keeps `enter apply` and `esc cancel`, and as many of the rest as fit,
+`↑↓ move` the first to go (settled in the plan).
 
 **More accounts than fit:** the card is at most the page's height less 4 rows; past that, its
 accounts scroll within it, the row it's on kept in view, `▼ 3 more` under the last row shown and
