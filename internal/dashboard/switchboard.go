@@ -131,16 +131,14 @@ func (d boardDrawn) cord(c *canvas, lc laidCall, works bool) {
 	travel(c, path, theme.AccentKey, d.f.Traffic.On(plug.Session, plug.Account))
 }
 
-// key draws the lines' key, as keyLines has it, on its two rows from the row
-// of the view from top the layout gives it, the last over the key line, from
-// column 0. With no lines, it has nothing to key, and draws none.
+// key draws the lines' key, as drawKey draws it, from the row of the view
+// from top the layout gives it, the last over the key line. With no lines,
+// it has nothing to key, and draws none.
 func (d boardDrawn) key(c *canvas, top int) {
 	if d.laid.keyAt < 0 || len(d.laid.lines) == 0 {
 		return
 	}
-	for i, l := range d.lines.keyLines() {
-		c.line(0, top+d.laid.keyAt+i, l)
-	}
+	d.lines.drawKey(c, top+d.laid.keyAt)
 }
 
 // chosen picks out the call chosen, where one is, on bg.selection over its

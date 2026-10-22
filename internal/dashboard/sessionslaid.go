@@ -283,13 +283,13 @@ func sessionsLaid(width, rows int, patched views.Patched, lines boardLines) boar
 	return l.bend()
 }
 
-// keyed has l's key where its parts down a view rows tall fit, as rowParts
-// has them, reporting whether they do.
+// keyed has l's key where its lines and calls and the key under them fit a
+// view rows tall, as keyPlaced has them, boardKeyGap rows apart at the
+// least, reporting whether they do.
 func (l *boardLayout) keyed(rows int) bool {
-	// The key's last row is the one over the key line, under the view.
-	s, ok := flex.Lay(rows+1, l.rowParts()...)
+	at, ok := keyPlaced(rows, l.rows, boardKeyGap)
 	if ok {
-		l.keyAt = s[boardKeyPart].At
+		l.keyAt = at
 	}
 	return ok
 }
@@ -300,22 +300,25 @@ type boardSpacing struct {
 	apart, group int
 }
 
-// The board's parts down the view, in rowParts' order.
+// The Switchboard's parts down the view, in keyPlaced's order.
 const (
-	boardLinesPart = iota
-	boardSparePart
-	boardKeyPart
+	keyedContentPart = iota
+	keyedSparePart
+	keyedKeyPart
 )
 
-// rowParts are the board's parts down the view, as flex lays them: its
-// lines and calls, as layLines laid them; the rows spare, which take what's
-// left; and the key, boardKeyGap rows on.
-func (l boardLayout) rowParts() []flex.Part {
-	return []flex.Part{
-		boardLinesPart: {Least: l.rows, Natural: l.rows},
-		boardSparePart: {Grows: true},
-		boardKeyPart:   {Least: boardKeyRows, Natural: boardKeyRows, Gap: boardKeyGap},
-	}
+// keyPlaced is the row of a view rows tall the Switchboard's key starts on,
+// under content rows of its board or lanes, as flex lays them: the content;
+// the rows spare, which take what's left; and the key, boardKeyRows, gap
+// rows on at the least. It reports whether they fit.
+func keyPlaced(rows, content, gap int) (int, bool) {
+	// The key's last row is the one over the key line, under the view.
+	s, ok := flex.Lay(rows+1, []flex.Part{
+		keyedContentPart: {Least: content, Natural: content},
+		keyedSparePart:   {Grows: true},
+		keyedKeyPart:     {Least: boardKeyRows, Natural: boardKeyRows, Gap: gap},
+	}...)
+	return s[keyedKeyPart].At, ok
 }
 
 // layLines lays out the calls and the lines at l's step, set apart as

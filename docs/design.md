@@ -2863,10 +2863,10 @@ October 2026).
     their long form, `19%/day till Sun 21:00`; narrower, the line narrows in the board's turns, the
     bars to 16, then the words to usage's short form, `19%/day · Sun`. A bar never grows past its
     natural: what's spare lies at the row's end;
-  - else its week and its 5-hour side by side on the row under its name: `Week` at column 1, its
-    bar from 8, a cell and its percentage; three cells on, `5-hour`, its bar 7 cells after it, a
-    cell and its percentage, ending at the last column; each bar `⌊(width − 28) ÷ 2⌋` cells, 12 at
-    52;
+  - else its week and its 5-hour alone, as the board's step 3 draws a line's, side by side on the
+    row under its name: `Week` at column 1, its bar from 8, a cell and its percentage; three cells
+    on, `5-hour`, its bar 7 cells after it, a cell and its percentage, ending at the last column;
+    each bar `⌊(width − 28) ÷ 2⌋` cells, 12 at 52;
   - a blank row, then its sessions, a row each, their parts laid by the board's rule from column 2,
     alike in every lane so their columns align, what's spare at the row's end: the id, bold
     `text.primary` while the session works, else `text.muted`; a space and the directory, 6 to 24
@@ -2880,7 +2880,8 @@ October 2026).
 - **The key,** as the board's, on the two rows directly over the key line, from column 0, the rows
   left over lying between the last lane and it, a blank row at the least:
   `┃ even pace: where you would be now, used evenly`, and `◆ primary   ▲ new sessions go here`,
-  three spaces apart, naming no cap.
+  naming no cap; its marks three spaces apart under 100 columns, and four from 100, where bent
+  cords bring the lanes, as `keyApart` sets them.
 - **When rows run short,** the lanes take the first of their steps whose lanes, a blank row and the
   key fit the view and the row over the key line, the order kept in one place (`laneSteps`, in
   `sessionslanes.go`):
@@ -2892,9 +2893,11 @@ October 2026).
      key line while any are below; or a row at a time, where a lane doesn't fit the view, a name
      row showing with the row under it.
 
-  The step hangs on the rows, the accounts and windows configured, and the calls, never on what
-  they say: as a call comes or goes, the form changes only where a step's rows stop fitting or
-  start to. With three accounts, three windows and six calls at 73 columns, the windows stack from
+  The step hangs on the rows, the accounts configured, the calls, and the windows the moment lists,
+  as the board's lines count them: among them a model's own week while it nears its limit, is held
+  at it, or is capped, with `w` off, two rows more an account stacked, which can tip the lanes to
+  side by side, where only `Week` and `5-hour` show, as on the board's step 3. As a call comes or
+  goes, the form changes only where a step's rows stop fitting or start to. With three accounts, three windows and six calls at 73 columns, the windows stack from
   41 rows of terminal, go side by side from 29, take the least gaps from 25, and scroll under that.
 - **No cords, no travel:** the state words carry the motion, bold while the session works.
 - **The heading:** `SESSIONS` in `text.subtle`, two spaces and the sub-tabs, with no `[ ]` and no

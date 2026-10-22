@@ -328,7 +328,7 @@ reason hangs faint for 3 seconds.
 
 Where the cords don't fit, as on a phone, each account's line carries its sessions under it. Its
 windows are stacked as the board's lines are, a row each, where the screen is tall enough, and go
-side by side on one row where it's short, as with a phone's keyboard up. The pool has no lane, as
+side by side on one row where it's short. The pool has no lane, as
 no session runs on it: the Overview, Runway and `usage` show it.
 
 While the router isn't answering, the Switchboard and the List show the sessions it last listed.

@@ -301,15 +301,17 @@ func (d linesDrawn) oneRow(c *canvas, a status.AccountNow, n accountName, y int)
 	d.stands(c, a, x+oneRowBar+afterBar, y, d.width() < widestLines)
 }
 
-// keyLines are the lines' key, the Overview's, on its two rows, each fit to
-// the frame's width: even pace's on the first, and the marks the accounts
-// carry on the second, in full; never the cap's, as no bar of the
-// Switchboard draws one.
-func (d linesDrawn) keyLines() []line {
+// drawKey draws the lines' key, the Overview's, on its two rows from row y,
+// from column 0, each fit to the frame's width: even pace's on the first,
+// and the marks the accounts carry on the second, in full; never the cap's,
+// as no bar of the Switchboard draws one.
+func (d linesDrawn) drawKey(c *canvas, y int) {
 	b := blockOf(d.m, d.f.Width, d.f.Look, ByAccount, d.windows, d.names).uncapped()
 	b.marks = keyMarks(d.names, false)
 	pace, after := b.keyParts(d.barDrawn())
-	return []line{pace.fit(d.f.Width), joined(keyGap(d.f.Width), after...).fit(d.f.Width)}
+	for i, l := range []line{pace, joined(keyGap(d.f.Width), after...)} {
+		c.line(0, y+i, l.fit(d.f.Width))
+	}
 }
 
 // windowLabel is the window w's name, short, cut to the cells given, in

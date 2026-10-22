@@ -84,15 +84,6 @@ func (s laneStep) lineRows(windows int) int {
 	return 2
 }
 
-// The lanes' parts down the view, in their rows' order: the lanes, the rows
-// spare, which take what's left, and the key, laneKeyGap rows on, its last
-// row the one over the key line.
-const (
-	lanesPart = iota
-	lanesSparePart
-	lanesKeyPart
-)
-
 // laneKeyGap is the fewest blank rows between the last lane and the key.
 const laneKeyGap = 1
 
@@ -204,20 +195,16 @@ func (f Frame) lanesOf(doc status.Document, now time.Time, laid boardLayout) lan
 }
 
 // keyed has b's key where its lanes, at its step, and the key under them fit
-// the view, the key's last row the one over the key line, reporting whether
-// they do, as they do where there are no lanes, which leave nothing to key.
+// the view, as keyPlaced has them, laneKeyGap rows apart at the least,
+// reporting whether they do, as they do where there are no lanes, which
+// leave nothing to key.
 func (b *lanesBoard) keyed() bool {
 	if len(b.lanes) == 0 {
 		return true
 	}
-	whole := b.height()
-	s, ok := flex.Lay(b.f.viewRows()+1, []flex.Part{
-		lanesPart:      {Least: whole, Natural: whole},
-		lanesSparePart: {Grows: true},
-		lanesKeyPart:   {Least: boardKeyRows, Natural: boardKeyRows, Gap: laneKeyGap},
-	}...)
+	at, ok := keyPlaced(b.f.viewRows(), b.height(), laneKeyGap)
 	if ok {
-		b.keyAt = s[lanesKeyPart].At
+		b.keyAt = at
 	}
 	return ok
 }
@@ -248,9 +235,7 @@ func (b lanesBoard) draw(c *canvas, top int) {
 	shown := b.shown()
 	c.paste(shown.c, 0, top, b.f.viewRows())
 	if b.keyAt >= 0 {
-		for i, l := range b.lines.keyLines() {
-			c.line(0, top+b.keyAt+i, l)
-		}
+		b.lines.drawKey(c, top+b.keyAt)
 	}
 	c.right(b.f.Width, b.f.Height-underView, shown.out)
 }
