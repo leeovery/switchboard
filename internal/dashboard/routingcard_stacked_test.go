@@ -65,7 +65,7 @@ func TestAStackedNameColumnIsNeverWiderThanItsNames(t *testing.T) {
 						t.Errorf("%s, %s card, at %d columns, the row reads %q, want %q whole, its column under 8", name, mode, width, said, row.Name)
 					}
 				}
-				if content < least || r.Mode == ThisSession && content < least+r.autoNatural()-(stateCells()+narrowGap+endLeast()) {
+				if content < least {
 					continue
 				}
 				for _, row := range r.Rows[1:] {
@@ -172,8 +172,9 @@ func TestAutosDescriptionNeverSaysLessThanBefore(t *testing.T) {
 	}
 }
 
-// Auto's row names an account as a label's column does, 24 cells at the
-// most, so a longer name lays the rows out as one of 24.
+// Auto's row, and a session's where it runs, name an account as a label's
+// column does, 24 cells at the most, so a longer name lays the rows out as
+// one of 24, and the card names it alike in both.
 func TestAutoNamesAnAccountAsALabelsColumnDoes(t *testing.T) {
 	named := func(name string) RoutingCard {
 		return sessionCard(func(r *RoutingCard) { r.Rows[1].Name = name })
@@ -184,10 +185,12 @@ func TestAutoNamesAnAccountAsALabelsColumnDoes(t *testing.T) {
 			t.Errorf("at %d cells, a name of 30 lays the rows out %+v, want %+v as one of 24", width, got, want)
 		}
 	}
-	long.Session.Auto = long.Rows[1].Account
+	long.Session.Auto, long.Session.On = long.Rows[1].Account, long.Rows[1].Account
 	_, body := cardText(long, frameOf(100, 60))
-	if want := "the router chooses: a-very-long-account-nam… for now"; !slices.ContainsFunc(body, func(l string) bool { return strings.Contains(l, want) }) {
-		t.Errorf("at 100 columns, the card reads\n%s\nwant auto's row to say %q", strings.Join(body, "\n"), want)
+	for _, want := range []string{"the router chooses: a-very-long-account-nam… for now", "runs on a-very-long-account-nam…"} {
+		if !slices.ContainsFunc(body, func(l string) bool { return strings.HasSuffix(l, want) || strings.Contains(l, want+" ") }) {
+			t.Errorf("at 100 columns, the card reads\n%s\nwant it to say %q", strings.Join(body, "\n"), want)
+		}
 	}
 }
 

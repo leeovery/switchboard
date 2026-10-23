@@ -459,9 +459,9 @@ func (r RoutingCard) sessionRow(width int, pathed bool) line {
 	s := r.Session
 	var on line
 	if s.On != "" {
-		on = line{{"runs on ", mutedInk}, {r.names([]string{s.On})[0], titleInk}}
+		on = line{{"runs on ", mutedInk}, {asLabelled(r.names([]string{s.On})[0]), titleInk}}
 	}
-	room := width - on.width() - 2
+	room := width - on.width() - endGap
 	row := line{{status.ShownID(s.ID), titleInk}}
 	if name := status.DirName(s.Dir, max(room-row.width()-2, 1)); name != "" {
 		row = slices.Concat(row, line{spaces(2), {name, mutedInk}})

@@ -500,6 +500,22 @@ func TestWithTheFramesNamesThePanelIsItsNarrowest(t *testing.T) {
 	}
 }
 
+// Where every name is under 8 cells, the account's column is as wide as
+// the widest of them, never wider, however much room the panel has.
+func TestASessionsAccountColumnIsNoWiderThanItsNames(t *testing.T) {
+	for _, of := range []LogView{LogRequests, LogEvents} {
+		p := framesPanel(of, 0)
+		for i, label := range []string{"ab", "cdef", "gh"} {
+			p.Accounts[i].Label = label
+		}
+		for _, width := range []int{60, 78, 100} {
+			if got := p.sessionColumns(width).account; got != 4 {
+				t.Errorf("%d at %d cells, the account's column is %d cells, want 4, its widest name's", of, width, got)
+			}
+		}
+	}
+}
+
 // Where a configured name is long enough that today's sessions' account
 // reaches its natural, as wide as the name, the panel widens to its parts'
 // natural where the frame has room: the name whole, on either side.
