@@ -546,6 +546,45 @@ func TestProbesErrorsAndFailuresLastUntilRead(t *testing.T) {
 	}
 }
 
+func TestTheStartupProbeIsDueOfAnAccountNothingHasReadThatCanBeProbed(t *testing.T) {
+	failed := func(s *state) {
+		s.recordProbe("work", quota.Probe{}, errors.New("HTTP 529 · Overloaded"), s.mark(), readings.FromProbe)
+	}
+	kept := func(windows ...quota.Window) func(s *state) {
+		return func(s *state) {
+			s.recall(savedUsage{Readings: map[string]savedReading{"work": {Windows: windows}}})
+		}
+	}
+	lapsed, spentWeek := session, week
+	lapsed.ResetsAt = start.Add(-time.Hour)
+	spentWeek.Utilization, spentWeek.Status = 1, quota.StatusRejected
+	tests := []struct {
+		name   string
+		before func(s *state)
+		after  time.Duration
+		want   bool
+	}{
+		{name: "never probed", before: func(*state) {}, want: true},
+		{name: "a probe of it failed just now", before: failed, want: false},
+		{name: "a probe of it failed a second short of a minute ago", before: failed, after: reprobeAfter - time.Second, want: false},
+		{name: "a probe of it failed a minute ago", before: failed, after: reprobeAfter, want: true},
+		{name: "a probe of it read", before: func(s *state) {
+			s.recordProbe("work", quota.Probe{Windows: []quota.Window{session, week}}, nil, s.mark(), readings.FromProbe)
+		}, after: reprobeAfter, want: false},
+		{name: "kept without a read time, its 5-hour window lapsed", before: kept(lapsed, week), want: false},
+		{name: "kept without a read time, its 5-hour window lapsed and its week spent", before: kept(lapsed, spentWeek), want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newTestState(&testClock{now: start})
+			tt.before(s)
+			if got := s.startDue("work", start.Add(tt.after)); got != tt.want {
+				t.Errorf("%v on, the startup probe due of work: %v, want %v", tt.after, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestDocument(t *testing.T) {
 	clock := &testClock{now: start}
 	s := newTestState(clock)
@@ -935,7 +974,7 @@ func TestStateIsSafeForConcurrentUse(t *testing.T) {
 		wg.Go(func() { _ = s.standings(start) })
 		wg.Go(func() { _ = s.due("side", start) })
 		wg.Go(func() { _ = s.dueAgain("side", start) })
-		wg.Go(func() { _ = s.unread("side", start) })
+		wg.Go(func() { _ = s.startDue("side", start) })
 		wg.Go(func() { _ = s.saved() })
 		wg.Go(func() { s.refuse("side", http.StatusUnauthorized, someRequest, s.mark()) })
 		wg.Go(func() { s.forbid("work", "opus", http.StatusForbidden, someRequest) })
