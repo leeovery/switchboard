@@ -35,6 +35,7 @@ const (
 	underHeadingPart
 	sessionNowPart
 	underNowPart
+	storyHeadingPart
 	storyPart
 	storyRowPart
 	underStoryPart
@@ -54,8 +55,9 @@ const (
 // the story's last column row; the turns past leastTurns; the story,
 // folded to its heading, or left out; the accounts, to a row saying how
 // many; the blank rows, one at a time, the one under TURNS' heading first
-// and the one under the page's heading last; and the turns past their
-// least.
+// and the one under the page's heading last; the turns past their least;
+// then, the turns at their least, the accounts' row; the story's heading;
+// and the now rows.
 const (
 	storyRowGivesWay = iota + 1
 	turnsHighGiveWay
@@ -67,16 +69,21 @@ const (
 	underNowGivesWay
 	underHeadingGivesWay
 	turnsLowGiveWay
+	staysLeave
+	storyHeadingGivesWay
+	nowGivesWay
 )
 
 // sessionLayout is how a session's page lays out its rows at the frame's
 // size: its heading and its story's heading in the wide chrome's form, or
 // a phone's, as chromeWide has it; its chrome alone, where it's too short
 // for the rest; its story whole, or else, wide, folded to its heading, and
-// on a phone left out; and from what row each part starts, and how many
-// rows its story's columns, its accounts and its turns take.
+// on a phone left out; whether its story's heading, wide, and its now rows
+// have given way; and from what row each part starts, and how many rows
+// its story's columns, its accounts and its turns take.
 type sessionLayout struct {
 	wide, chrome, story bool
+	storyLeft, nowLeft  bool
 	// heading is the heading's row, now the first of the two that say what
 	// it's doing, storyAt the story's first, and body how many rows its
 	// columns take.
@@ -111,7 +118,8 @@ func (f Frame) sessionLayout(accounts int, wide, open bool) sessionLayout {
 	}
 	row := func(p sessionPart) int { return heading + at[p].At }
 	l := sessionLayout{
-		wide: wide, story: !at[storyPart].Left, heading: heading, now: row(sessionNowPart), storyAt: row(storyPart),
+		wide: wide, story: !at[storyPart].Left, storyLeft: wide && at[storyHeadingPart].Left, nowLeft: at[sessionNowPart].Left,
+		heading: heading, now: row(sessionNowPart), storyAt: row(storyHeadingPart),
 		accountsAt: row(stayRowsPart), turnsHeading: row(turnsHeadingPart), heads: row(turnHeadsPart),
 		turnsAt: row(newestTurnPart), moreTurns: row(moreTurnsPart),
 		turns: at[newestTurnPart].Size + at[turnsLowPart].Size + at[turnsHighPart].Size + at[turnsSparePart].Size,
@@ -120,7 +128,7 @@ func (f Frame) sessionLayout(accounts int, wide, open bool) sessionLayout {
 		l.body = storyColumnRows - 1 + at[storyRowPart].Size
 	}
 	l.accounts = at[stayRowsPart].Size
-	if l.accounts < accounts {
+	if l.accounts < accounts && !at[stayRowsPart].Left {
 		l.accounts = max(l.accounts-1, 0)
 		l.more = accounts - l.accounts
 	}
@@ -128,7 +136,8 @@ func (f Frame) sessionLayout(accounts int, wide, open bool) sessionLayout {
 }
 
 // storyLeast are the rows a story whole takes but its columns' last, the
-// first row of the page to give way.
+// first row of the page to give way, and its heading, under the wide
+// chrome, which it keeps folded.
 func storyLeast(wide bool) int {
 	besides := phoneStoryRows
 	if wide {
@@ -137,15 +146,24 @@ func storyLeast(wide bool) int {
 	return besides + storyColumnRows - 1
 }
 
+// storyHeadingRows are the rows a story's heading takes: one under the wide
+// chrome, which it keeps folded; none under a phone's, where it has none.
+func storyHeadingRows(wide bool) int {
+	if wide {
+		return foldedStoryRows
+	}
+	return 0
+}
+
 // sessionParts are a session's page's parts down the frame, as flex lays
 // them, of a session that ran on the accounts given, under the wide chrome
 // where wide says, else a phone's, with a turn open where open says: each
-// fixed, but the story's last column row, the story, its accounts, its
-// blank rows and its turns, which give way in the turns storyRowGivesWay
-// to turnsLowGiveWay name, and the turns past turnsNatural, which take
-// what's left. Under a phone's chrome the story is left out with the blank
-// row under it, rather than folded. The turns' least is one, or with a turn
-// open, openRows, so it shows whole.
+// fixed, but the story's last column row, the story, its heading, its
+// accounts, the now rows, its blank rows and its turns, which give way in
+// the turns storyRowGivesWay to nowGivesWay name, and the turns past
+// turnsNatural, which take what's left. Under a phone's chrome the story is
+// left out with the blank row under it, rather than folded. The turns'
+// least is one, or with a turn open, openRows, so it shows whole.
 func sessionParts(accounts int, wide, open bool) []flex.Part {
 	least := 1
 	if open {
@@ -153,21 +171,21 @@ func sessionParts(accounts int, wide, open bool) []flex.Part {
 	}
 	fixed := func(rows int) flex.Part { return flex.Part{Least: rows, Natural: rows} }
 	blank := func(givesWay int) flex.Part { return flex.Part{Least: 1, Natural: 1, Leaves: givesWay} }
-	story, underStory := flex.Part{Least: storyLeast(wide), Natural: storyLeast(wide), Leaves: storyGivesWay}, blank(underStoryGivesWay)
-	if wide {
-		story.Kept = foldedStoryRows
-	} else {
+	headed := storyHeadingRows(wide)
+	story, underStory := flex.Part{Least: storyLeast(wide) - headed, Natural: storyLeast(wide) - headed, Leaves: storyGivesWay}, blank(underStoryGivesWay)
+	if !wide {
 		underStory.Leaves = storyGivesWay
 	}
 	return []flex.Part{
 		sessionHeadingPart:    fixed(1),
 		underHeadingPart:      blank(underHeadingGivesWay),
-		sessionNowPart:        fixed(2),
+		sessionNowPart:        {Least: 2, Natural: 2, Leaves: nowGivesWay},
 		underNowPart:          blank(underNowGivesWay),
+		storyHeadingPart:      {Least: headed, Natural: headed, Leaves: storyHeadingGivesWay},
 		storyPart:             story,
 		storyRowPart:          {Natural: 1, Narrows: storyRowGivesWay},
 		underStoryPart:        underStory,
-		stayRowsPart:          {Least: min(accounts, 1), Natural: accounts, Narrows: staysGiveWay},
+		stayRowsPart:          {Least: min(accounts, 1), Natural: accounts, Narrows: staysGiveWay, Leaves: staysLeave},
 		overTurnsPart:         blank(overTurnsGivesWay),
 		turnsHeadingPart:      fixed(1),
 		underTurnsHeadingPart: blank(underTurnsHeadingGivesWay),

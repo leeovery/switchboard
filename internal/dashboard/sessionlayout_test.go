@@ -26,11 +26,14 @@ import (
 // under a phone's, its blank row with it; then the accounts, to a row
 // saying how many more; then the turns, to one; then the blank rows, the
 // one under TURNS' heading first and the one under the page's heading
-// last; and below that it's the chrome alone. The turns take the rest.
+// last; then, one at a time, the accounts' row, the story's heading and the
+// now rows; and below that it's the chrome alone. The turns take the rest,
+// and with a turn open, keep the rows it takes at its least.
 func TestASessionsPageLaysOutItsRowsAtEachSize(t *testing.T) {
 	tests := []struct {
 		name                 string
 		width, height, ranOn int
+		open                 bool
 		want                 sessionLayout
 	}{
 		{
@@ -99,7 +102,41 @@ func TestASessionsPageLaysOutItsRowsAtEachSize(t *testing.T) {
 				turnsHeading: 9, heads: 10, turnsAt: 11, turns: 1, moreTurns: 12},
 		},
 		{
-			name: "160×13: the chrome alone", width: 160, height: 13, ranOn: 1,
+			name: "160×13: the accounts' row given way", width: 160, height: 13, ranOn: 1,
+			want: sessionLayout{wide: true, heading: 4, now: 5, storyAt: 7, accountsAt: 8,
+				turnsHeading: 8, heads: 9, turnsAt: 10, turns: 1, moreTurns: 11},
+		},
+		{
+			name: "160×12: the story's heading given way", width: 160, height: 12, ranOn: 1,
+			want: sessionLayout{wide: true, storyLeft: true, heading: 4, now: 5, storyAt: 7, accountsAt: 7,
+				turnsHeading: 7, heads: 8, turnsAt: 9, turns: 1, moreTurns: 10},
+		},
+		{
+			name: "160×10: the now rows given way, its least", width: 160, height: 10, ranOn: 1,
+			want: sessionLayout{wide: true, storyLeft: true, nowLeft: true, heading: 4, now: 5, storyAt: 5, accountsAt: 5,
+				turnsHeading: 5, heads: 6, turnsAt: 7, turns: 1, moreTurns: 8},
+		},
+		{
+			name: "160×9: the chrome alone", width: 160, height: 9, ranOn: 1,
+			want: sessionLayout{wide: true, chrome: true},
+		},
+		{
+			name: "138×17, a turn open: the accounts counted, the open turn at its least", width: 138, height: 17, ranOn: 2, open: true,
+			want: sessionLayout{wide: true, heading: 4, now: 5, storyAt: 7, accountsAt: 8, more: 2,
+				turnsHeading: 9, heads: 10, turnsAt: 11, turns: 4, moreTurns: 15},
+		},
+		{
+			name: "138×15, a turn open: the accounts' row and the story's heading given way", width: 138, height: 15, ranOn: 2, open: true,
+			want: sessionLayout{wide: true, storyLeft: true, heading: 4, now: 5, storyAt: 7, accountsAt: 7,
+				turnsHeading: 7, heads: 8, turnsAt: 9, turns: 4, moreTurns: 13},
+		},
+		{
+			name: "138×13, a turn open: the now rows given way, its least", width: 138, height: 13, ranOn: 2, open: true,
+			want: sessionLayout{wide: true, storyLeft: true, nowLeft: true, heading: 4, now: 5, storyAt: 5, accountsAt: 5,
+				turnsHeading: 5, heads: 6, turnsAt: 7, turns: 4, moreTurns: 11},
+		},
+		{
+			name: "138×12, a turn open: the chrome alone", width: 138, height: 12, ranOn: 2, open: true,
 			want: sessionLayout{wide: true, chrome: true},
 		},
 		{
@@ -133,7 +170,26 @@ func TestASessionsPageLaysOutItsRowsAtEachSize(t *testing.T) {
 				turnsHeading: 9, heads: 10, turnsAt: 11, turns: 1, moreTurns: 12},
 		},
 		{
-			name: "52×13: the chrome alone", width: 52, height: 13, ranOn: 1,
+			name: "52×13: the accounts' row given way", width: 52, height: 13, ranOn: 1,
+			want: sessionLayout{heading: 5, now: 6, storyAt: 8, accountsAt: 8,
+				turnsHeading: 8, heads: 9, turnsAt: 10, turns: 1, moreTurns: 11},
+		},
+		{
+			name: "52×11: the now rows given way, a phone's least", width: 52, height: 11, ranOn: 1,
+			want: sessionLayout{nowLeft: true, heading: 5, now: 6, storyAt: 6, accountsAt: 6,
+				turnsHeading: 6, heads: 7, turnsAt: 8, turns: 1, moreTurns: 9},
+		},
+		{
+			name: "52×10: the chrome alone", width: 52, height: 10, ranOn: 1,
+			want: sessionLayout{chrome: true},
+		},
+		{
+			name: "52×14, a turn open: a phone's least", width: 52, height: 14, ranOn: 2, open: true,
+			want: sessionLayout{nowLeft: true, heading: 5, now: 6, storyAt: 6, accountsAt: 6,
+				turnsHeading: 6, heads: 7, turnsAt: 8, turns: 4, moreTurns: 12},
+		},
+		{
+			name: "52×13, a turn open: the chrome alone", width: 52, height: 13, ranOn: 2, open: true,
 			want: sessionLayout{chrome: true},
 		},
 		{
@@ -145,7 +201,7 @@ func TestASessionsPageLaysOutItsRowsAtEachSize(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := Frame{Width: tt.width, Height: tt.height, View: Sessions}
-			if got := f.layoutOf(tt.ranOn); got != tt.want {
+			if got := f.sessionLayout(tt.ranOn, f.chromeWide(), tt.open); got != tt.want {
 				t.Errorf("sessionLayout(%d) =\n%+v\nwant\n%+v", tt.ranOn, got, tt.want)
 			}
 		})
@@ -154,33 +210,49 @@ func TestASessionsPageLaysOutItsRowsAtEachSize(t *testing.T) {
 
 // sweptWidths and sweptHeights are the sizes the sweep of a session's page's
 // heights lays it out at: a phone upright and on its side, an iPad, and a
-// desktop, each from 10 rows to 70.
+// desktop, each from 8 rows to 70.
 var (
 	sweptWidths  = []int{52, 73, 108, 138, 173}
-	sweptHeights = [2]int{10, 70}
+	sweptHeights = [2]int{8, 70}
 )
 
 // pageGiven is what a session's page's layout has given way, as its rows
 // read: its story's last column row, its story, its accounts, as many of
 // its accounts' rows as are counted, rather than listed, and each blank row,
-// in the order they give way.
+// in the order they give way; then, the turns at their least, the accounts'
+// row, the story's heading and the now rows, and the rows those took.
 type pageGiven struct {
-	storyRow, story, counted bool
-	hidden                   int
-	blanks                   [5]bool
+	storyRow, story, counted      bool
+	hidden                        int
+	blanks                        [5]bool
+	staysLeft, storyLeft, nowLeft bool
+	lastBack                      int
 }
 
-// givenOf is what the layout l of a session's page has given way.
-func givenOf(l sessionLayout) pageGiven {
-	g := pageGiven{story: !l.story, storyRow: !l.story || l.body < storyColumnRows, counted: l.more > 0}
+// givenOf is what the layout l of a session's page that ran on the accounts
+// given has given way.
+func givenOf(l sessionLayout, accounts int) pageGiven {
+	staysLeft := accounts > 0 && l.accounts+l.more == 0
+	g := pageGiven{
+		story: !l.story, storyRow: !l.story || l.body < storyColumnRows, counted: l.more > 0 || staysLeft,
+		staysLeft: staysLeft, storyLeft: l.storyLeft, nowLeft: l.nowLeft,
+	}
 	if g.counted {
-		g.hidden = l.more - 1
+		g.hidden = accounts - l.accounts - 1
+	}
+	for _, back := range []struct {
+		left bool
+		rows int
+	}{{g.staysLeft, 1}, {g.storyLeft, foldedStoryRows}, {g.nowLeft, 2}} {
+		if back.left {
+			g.lastBack += back.rows
+		}
 	}
 	next := l.storyAt
 	switch {
 	case l.story:
 		next += storyLeast(l.wide) + 1 - (storyColumnRows - l.body)
-	case l.wide:
+	case l.wide && !l.storyLeft:
 		next += foldedStoryRows
 	}
 	accountsEnd := l.accountsAt + l.accounts + min(l.more, 1)
@@ -227,17 +299,20 @@ func storyBack(wide bool) int {
 }
 
 // A session's page gives way in its order as its rows run short, swept from
-// 70 rows to 10 at a phone's widths and the wide chrome's, with one account
+// 70 rows to 8 at a phone's widths and the wide chrome's, with one account
 // and with many, with no turn open and with one: its story's last column
 // row while fewer than eight turns fit beside it; the story only where,
 // whole at its least, it would leave fewer than three turns, or four with
 // one open; its accounts only where, each listed, they would; the blank
-// rows, in their order, only where the turns are down to that; and the
-// turns under it only where every blank row has given way, down to one, or
-// with one open, its row, its heads, a request and its foot. Nothing gives
-// way that a taller frame gave back, its rows from its heading to the row
-// over the key line are all laid, and it's the chrome alone only where its
-// least, with no blank row, doesn't fit.
+// rows, in their order, only where the turns are down to that; the turns
+// under it only where every blank row has given way, down to one, or with
+// one open, its row, its heads, a request and its foot; and only then, one
+// at a time, the accounts' row, the story's heading and the now rows, each
+// only where, shown, it would leave the turns short of their least. Nothing
+// gives way that a taller frame gave back, its rows from its heading to the
+// row over the key line are all laid, and it's the chrome alone only where
+// its least, the heading, TURNS, its heads, the turns' least and how many
+// more, doesn't fit.
 func TestASessionsPageGivesWayInItsOrder(t *testing.T) {
 	for _, width := range sweptWidths {
 		for _, accounts := range []int{1, 2, 4, 10} {
@@ -248,7 +323,7 @@ func TestASessionsPageGivesWayInItsOrder(t *testing.T) {
 					l := f.sessionLayout(accounts, f.chromeWide(), open)
 					at := fmt.Sprintf("%d×%d, %d accounts, a turn open %t", width, height, accounts, open)
 					floor, least := turnsFloors(open)
-					if fits := height >= f.headingY()+1+2+foldedRows(l.wide)+min(accounts, 1)+2+least+1+1; l.chrome == fits {
+					if fits := height >= f.headingY()+1+2+least+1+1; l.chrome == fits {
 						t.Errorf("at %s, the chrome alone is %t, want it only where its least doesn't fit", at, l.chrome)
 					}
 					if l.chrome {
@@ -257,8 +332,8 @@ func TestASessionsPageGivesWayInItsOrder(t *testing.T) {
 					if l.moreTurns != height-2 || l.turnsAt+l.turns != l.moreTurns || l.heads+1 != l.turnsAt {
 						t.Errorf("at %s, the rows are laid %+v, want every row to the one over the key line laid", at, l)
 					}
-					g := givenOf(l)
-					for _, broken := range orderBroken(l, g, taller, accounts, floor) {
+					g := givenOf(l, accounts)
+					for _, broken := range orderBroken(l, g, taller, accounts, floor, least) {
 						t.Errorf("at %s, %s: %+v", at, broken, l)
 					}
 					taller = g
@@ -281,10 +356,15 @@ func turnsFloors(open bool) (floor, least int) {
 // orderBroken are the rules of the order of giving way the layout l, of a
 // session that ran on the accounts given, breaks, as g has given way, and
 // taller, a row taller, gave way, its turns kept at floor while its story,
-// its accounts and its blank rows give way.
-func orderBroken(l sessionLayout, g, taller pageGiven, accounts, floor int) []string {
+// its accounts and its blank rows give way, and at least while the
+// accounts' row, the story's heading and the now rows do.
+func orderBroken(l sessionLayout, g, taller pageGiven, accounts, floor, least int) []string {
 	gone := g.blanksGone()
-	back := g.hidden + gone
+	back := g.hidden + gone + g.lastBack
+	nowBack := 0
+	if g.nowLeft {
+		nowBack = 2
+	}
 	var broken []string
 	for _, rule := range []struct {
 		broken bool
@@ -295,10 +375,14 @@ func orderBroken(l sessionLayout, g, taller pageGiven, accounts, floor int) []st
 		{g.story && l.turns-back-storyBack(l.wide) >= floor, "its story gave way where, whole, it would leave the turns their floor"},
 		{g.counted && l.turns-back >= floor, "its accounts gave way where, listed, they would leave the turns their floor"},
 		{g.counted && !g.story, "its accounts gave way before its story"},
-		{gone > 0 && (l.turns > floor || l.accounts+min(l.more, 1) > min(accounts, 1)), "a blank row gave way before the accounts and the turns were down to their floor"},
+		{gone > 0 && (l.turns-g.lastBack > floor || l.accounts+min(l.more, 1) > min(accounts, 1)), "a blank row gave way before the accounts and the turns were down to their floor"},
 		{l.turns < floor && gone < blanksOf(l), "its turns went under their floor before every blank row gave way"},
 		{!g.blanksInOrder(l.wide), "a blank row gave way out of its order"},
+		{g.staysLeft && (gone < blanksOf(l) || l.turns-g.lastBack >= least), "its accounts' row gave way before the blank rows, or where, shown, it would leave the turns their least"},
+		{g.storyLeft && (accounts > 0 && !g.staysLeft || l.turns-foldedStoryRows-nowBack >= least), "its story's heading gave way before the accounts' row, or where, shown, it would leave the turns their least"},
+		{g.nowLeft && (accounts > 0 && !g.staysLeft || l.wide && !g.storyLeft || l.turns-nowBack >= least), "its now rows gave way before the accounts' row and the story's heading, or where, shown, they would leave the turns their least"},
 		{taller.storyRow && !g.storyRow || taller.story && !g.story || taller.counted && !g.counted || taller.blanksGone() > gone, "a taller frame gave way what this one shows"},
+		{taller.staysLeft && !g.staysLeft || taller.storyLeft && !g.storyLeft || taller.nowLeft && !g.nowLeft, "a taller frame gave way what this one shows, of the page's last to give way"},
 	} {
 		if rule.broken {
 			broken = append(broken, rule.says)
@@ -316,17 +400,8 @@ func blanksOf(l sessionLayout) int {
 	return 5
 }
 
-// foldedRows are the rows a story folded takes: its heading under the wide
-// chrome; none under a phone's, as it's left out.
-func foldedRows(wide bool) int {
-	if wide {
-		return foldedStoryRows
-	}
-	return 0
-}
-
 // Within one arrangement, a taller frame never shows fewer turns, accounts
-// or rows of its story's columns: swept from 10 rows to 70, wherever the
+// or rows of its story's columns: swept from 8 rows to 70, wherever the
 // story, the accounts and the blank rows stand as they did a row shorter.
 func TestATallerPageNeverShowsLess(t *testing.T) {
 	for _, width := range sweptWidths {
@@ -334,9 +409,10 @@ func TestATallerPageNeverShowsLess(t *testing.T) {
 			var shorter sessionLayout
 			for height := sweptHeights[0]; height <= sweptHeights[1]; height++ {
 				l := Frame{Width: width, Height: height, View: Sessions}.layoutOf(accounts)
-				was, is := givenOf(shorter), givenOf(l)
+				was, is := givenOf(shorter, accounts), givenOf(l, accounts)
 				same := !shorter.chrome && !l.chrome && height > sweptHeights[0] &&
-					was.story == is.story && was.counted == is.counted && was.blanks == is.blanks
+					was.story == is.story && was.counted == is.counted && was.blanks == is.blanks &&
+					was.staysLeft == is.staysLeft && was.storyLeft == is.storyLeft && was.nowLeft == is.nowLeft
 				if same && (l.turns < shorter.turns || l.accounts < shorter.accounts || l.body < shorter.body) {
 					t.Errorf("at %d×%d, %d accounts, the page shows %d turns, %d accounts and %d story rows, fewer than a row shorter, %d, %d and %d",
 						width, height, accounts, l.turns, l.accounts, l.body, shorter.turns, shorter.accounts, shorter.body)
@@ -350,7 +426,7 @@ func TestATallerPageNeverShowsLess(t *testing.T) {
 // No rows lie blank under a fold: wherever a session's page has given any
 // of its parts way, its turns fill every row from the newest's to the one
 // over the key line, as a session's of thirteen turns draws them, with none
-// open and with its twelfth open, swept from 10 rows to 70.
+// open and with its twelfth open, swept from 8 rows to 70.
 func TestNoRowsLieBlankUnderASessionsFold(t *testing.T) {
 	for _, open := range []bool{false, true} {
 		for _, width := range sweptWidths {
@@ -363,7 +439,7 @@ func TestNoRowsLieBlankUnderASessionsFold(t *testing.T) {
 				f := pageFrame(t, shown, width, height)
 				keptInView(f)
 				l := f.pageLayout()
-				if g := givenOf(l); l.chrome || !g.storyRow && !g.counted && g.blanksGone() == 0 {
+				if g := givenOf(l, len(shown.Page.Accounts)); l.chrome || !g.storyRow && !g.counted && g.blanksGone() == 0 {
 					continue
 				}
 				rows := pageText(f)

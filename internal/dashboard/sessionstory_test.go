@@ -333,8 +333,8 @@ func TestAMovesNamesAloneNameALongLabelAsALabelsColumnHoldsIt(t *testing.T) {
 
 // STORY folds to its heading where the page hasn't room for it whole, as
 // the Overview folds a section, saying so in text.subtle, its rule to two
-// cells short of the edge; on a phone it's left out, and under the chrome
-// alone nothing is drawn.
+// cells short of the edge; on a phone it's left out; and where its heading
+// has given way too, or under the chrome alone, nothing is drawn.
 func TestAStoryWithoutRoomFoldsToItsHeading(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -346,7 +346,8 @@ func TestAStoryWithoutRoomFoldsToItsHeading(t *testing.T) {
 			want: map[int]string{9: "STORY   no room at 24 rows " + strings.Repeat("─", 131)},
 		},
 		{name: "a phone, 24 rows: left out", width: 52, height: 24},
-		{name: "wide, 13 rows: the chrome alone", width: 160, height: 13},
+		{name: "wide, 12 rows: its heading given way", width: 160, height: 12},
+		{name: "wide, 9 rows: the chrome alone", width: 160, height: 9},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

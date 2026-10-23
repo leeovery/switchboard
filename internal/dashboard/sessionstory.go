@@ -52,12 +52,12 @@ const leastLabel = 12
 // gives it, the turn chosen lit, as STORY draws it: under the wide chrome,
 // its heading, then the label of a move, its columns in the rows the layout
 // gives them, its ribbon and its axis, or its heading alone where it's
-// folded; under a phone's, the same without its heading, or nothing where
-// it's left out. It names each account as the moment m names it. chosen is
-// the zero Turn where none is.
+// folded, or nothing where that has given way too; under a phone's, the
+// same without its heading, or nothing where it's left out. It names each
+// account as the moment m names it. chosen is the zero Turn where none is.
 func (f Frame) sessionStory(c *canvas, m status.Moment, l sessionLayout, story views.Story, chosen views.Turn) {
 	switch {
-	case l.chrome:
+	case l.chrome || l.storyLeft:
 		return
 	case l.wide && !l.story:
 		f.storyHeading(c, l.storyAt, f.noRoom())

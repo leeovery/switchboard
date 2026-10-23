@@ -4351,19 +4351,30 @@ session page · signed off · 7 Oct 2026**, its frames kept as `testdata/vhs/ref
   5. **the blank rows,** one at a time: under TURNS' heading, over it, under the story, under now,
      and last under the heading;
   6. **the turns,** from three to one;
-  7. and below that, where even the heading, now, the story folded, the accounts' row, TURNS, its
-     heads, one turn and how many more don't fit, 14 rows at both chromes, **the chrome alone.**
+  7. then, the turns at their least, one at a time, each only where, shown, it would leave the
+     turns short of it: **the accounts' row,** the story's folded heading under the wide chrome,
+     and **the now rows;**
+  8. and below that, where even the heading, TURNS, its heads, one turn and how many more don't
+     fit, under 10 rows under the wide chrome and 11 under a phone's, **the chrome alone.** The key
+     line stays the view's, as every cramped view's does.
 
   **With a turn open,** the turns' least is the turn whole: its row, its heads, one of its requests
-  and its foot, four rows, kept from step 2 on in place of three turns. The page is the chrome
-  alone where even that doesn't fit, under 17 rows at both chromes, as it never draws a turn open
-  with none of its requests.
+  and its foot, four rows, kept from step 2 on in place of three turns, and step 7 gives way to it
+  as to one turn. The page is the chrome alone where even that doesn't fit, under 13 rows under the
+  wide chrome and 14 under a phone's, as it never draws a turn open with none of its requests. A
+  turn's open state never changes with the frame's height.
+
+  Under the wide chrome, with one account, the accounts' row goes at 13 rows, the story's heading
+  at 12 and the now rows at 11; a phone's has no story's heading, so its accounts' row goes at 13
+  and its now rows at 12. With a turn open, each goes three rows higher.
 
   A taller frame never shows fewer turns, accounts or rows of the story within one arrangement,
   and what a taller frame gave back never gives way again. With one account, the wide page's
   story is whole from 28 rows, or 29 with a turn open, its columns five rows tall from 34; two
   accounts, from 29, or 30, and 35. At 138×15 it's the heading, now, STORY folded,
-  `+2 more accounts`, TURNS, its heads, the two newest turns and how many more, with no blank row.
+  `+2 more accounts`, TURNS, its heads, the two newest turns and how many more, with no blank row;
+  with a turn open, the heading, now, TURNS, its heads, the turn open with a request and its foot,
+  and how many more.
 
 **The heading** (row 4): `SESSION` in `text.subtle`; three spaces; the session's id cut to 4, as the
 dashboard shows ids, bold `text.primary`; three spaces; its directory's last part, bold
@@ -4643,7 +4654,9 @@ first ran on them. A row's parts, two cells apart, as flex lays them at every wi
 - **The turn chosen** is on `bg.selection` from column 0 to the end of `on`, its words bold, and lit on the
   story. The page opens on the newest.
 - **More than fit:** row 35, `▼` in `accent.key`, ` 3 more turns   ·   ` in `text.muted`, `j/k` bold
-  `accent.key` and ` to scroll` in `text.muted`. The turns scroll within their rows, under the
+  `accent.key` and ` to scroll` in `text.muted`; scrolled, `▲ 1 more turn   ·   ` before it, of
+  those above. Where that doesn't fit, it's the counts alone, both said from 34 columns, and the
+  keys from 54. The turns scroll within their rows, under the
   heading, now, the story and the accounts, which stay put, the turn chosen kept in view
   (settled in the plan).
 

@@ -542,8 +542,10 @@ turns arrive, until you open it again or resize the screen.
 
 On a short screen, the page keeps its rows for its turns. The STORY's bars give up a row first,
 then the STORY folds to its heading (on a phone it's left out), then the accounts give way to a
-count, `+2 more accounts`, then the blank rows, and last the turns, down to one. From 14 rows, it
-always shows a turn, and from 17 a turn you've opened, whole.
+count, `+2 more accounts`, then the blank rows, then the turns, down to one. Last, that count,
+the STORY's heading and the two rows saying what the session is doing give way, one at a time.
+From 10 rows wide and 11 on a phone, it always shows a turn, and from 13 and 14 a turn you've
+opened, whole.
 
 Keys on a session's page:
 

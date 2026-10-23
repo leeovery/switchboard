@@ -193,7 +193,7 @@ func TestATurnOpenHoldsItsRequestsAsTurnsCome(t *testing.T) {
 	}
 }
 
-// Swept from 10 rows to 70 at a phone's widths and the wide chrome's, a page
+// Swept from 8 rows to 70 at a phone's widths and the wide chrome's, a page
 // with a turn open shows it whole, its row, its heads, a request at the
 // least and its foot, or is the chrome alone: never the turn without its
 // requests.
