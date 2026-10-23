@@ -127,7 +127,7 @@ func (c LogColumn) placed(x, width int) logPlace {
 // with worth shown at 160 columns, from 136; how far short of the last
 // column routing ends once it's whole, as at 160 columns, at 157; and the
 // fewest cells the table's last column, stopped or routing alone, is cut to,
-// stopped then saying its words as a phone's do, as new session's.
+// stopped then saying its words briefly, as new session's.
 const (
 	logLeft      = 2
 	logColumnGap = 2
@@ -155,7 +155,7 @@ var (
 // logLayout is the Log's Requests laid out across the terminal: the columns
 // shown, in the table's order; whether routing folds into stopped, which
 // then says the row's routing where it has words; whether stopped says its
-// words briefly, as PhoneStopped says them; and whether the session names
+// words briefly, as BriefStopped says them; and whether the session names
 // its directory after its id.
 type logLayout struct {
 	places               []logPlace

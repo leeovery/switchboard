@@ -183,7 +183,7 @@ func limitsCount(t views.AccountTotals, k ink) []part {
 	return []part{figureIn(prose.Grouped(t.LimitCount()), k)}
 }
 
-// shortWindows name windows as a phone's LIMITS does, name naming them in
+// shortWindows name windows as turned Compare's LIMITS does, name naming them in
 // full: one named by its hours, "5-hour", cut to "5h"; any other as
 // status.Short has its name, as "Fable wk".
 func shortWindows(name func(key string) string) func(key string) string {
@@ -226,7 +226,7 @@ func leftForms(row views.AccountsRow, k ink) partForms {
 }
 
 // leftShort says what an account's week had left as it last reset, "15%", as
-// a phone's LIMITS has it: a dash where none of its weeks ended in the six
+// turned Compare's LIMITS has it: a dash where none of its weeks ended in the six
 // weeks, and of every account's.
 func leftShort(row views.AccountsRow, k ink) []part {
 	if row.WeekLeft == nil {
@@ -273,7 +273,7 @@ func planNamed(row views.AccountsRow, k ink) []part {
 	return []part{wordsIn(prose.Clean(row.PlanName), k)}
 }
 
-// planPriced says an account's plan as a phone's VALUE does, by its price a
+// planPriced says an account's plan as turned Compare's VALUE does, by its price a
 // month alone, "$200/mo"; of every account's, the known plans' prices
 // summed, "$600/mo"; a dash where none is known.
 func planPriced(row views.AccountsRow, k ink) []part {
@@ -301,7 +301,7 @@ func extraOfAllForms(all status.AllExtra, k ink) partForms {
 	return partForms{extraSaid(all, " on all", "off on all", k), extraShort(all, k)}
 }
 
-// extraShort says extra usage short, as Detail's THIS WEEK, a phone's Detail
+// extraShort says extra usage short, as Detail's THIS WEEK, stacked Detail
 // and Compare's shortest forms do, in k's place: of the accounts given, an
 // account alone or every account, taken together, "off"; "on" where each is
 // on, else how many are, "on for 1 of 3"; a dash where none is read.
@@ -335,7 +335,7 @@ func worthParts(row views.AccountsRow, k ink) []part {
 
 // againstForms say an account's worth against its plan's price in Compare's
 // VALUE, in its forms: as againstPriced says it, "4.0× its $46 week"; then
-// as turned Compare says it, as againstOnPhone has it, "4.0×", dropping what
+// as turned Compare says it, as againstCompact has it, "4.0×", dropping what
 // the plans cost over the period. Of every account's where some plans
 // aren't known, the ratio is of those alone, so every form says how many,
 // the priced forms as knownForms words it, "4.4× its $92 week · 2 of 3
@@ -345,13 +345,13 @@ func againstForms(page views.AccountsPage, row views.AccountsRow) partForms {
 	priced := againstPriced(a, page.Period.Unit())
 	known := knownForms(a.Plans)
 	if !pricedAgainst(a) || known == nil {
-		return partForms{priced, againstOnPhone(row)}
+		return partForms{priced, againstCompact(row)}
 	}
 	var forms partForms
 	for _, said := range known {
 		forms = append(forms, append(slices.Clone(priced), wordsIn(said, dimInk)))
 	}
-	return append(forms, againstOnPhone(row))
+	return append(forms, againstCompact(row))
 }
 
 // againstShort says an account's worth against its plan's price by the
@@ -360,11 +360,11 @@ func againstShort(row views.AccountsRow) []part {
 	return []part{figurePart(againstSaid(row.Plan.Ratio), Number{})}
 }
 
-// againstOnPhone says an account's worth against its plan's price as a
-// phone's against it and against do, as againstShort says it, then, of
+// againstCompact says an account's worth against its plan's price as
+// turned Compare's against it and stacked Detail's against do, as againstShort says it, then, of
 // every account's where some plans aren't known, over those known, compact,
 // as views.PlansKnown says it, in text.subtle: "4.4× · 2/3".
-func againstOnPhone(row views.AccountsRow) []part {
+func againstCompact(row views.AccountsRow) []part {
 	said := againstShort(row)
 	if compact := row.Plan.Plans.SaidCompact(); row.Plan.Ratio != nil && compact != "" {
 		said = append(said, wordsIn(accountsApart+compact, dimInk))
@@ -425,7 +425,7 @@ func endsParts(page views.AccountsPage) []part {
 	return append(ends, wordsIn(", "+name(least)+" with ", mutedInk), left(least))
 }
 
-// verdictShort are verdictParts' two rows, as a phone's WEEKS has them: the
+// verdictShort are verdictParts' two rows, as stacked Detail's WEEKS has them: the
 // verdict alone, then its record without ", on average": of an account,
 // "limit hit 3 of 7 weeks · 9% left at a reset", and of every account's,
 // "30% left at a reset"; or "not enough weeks yet" alone.

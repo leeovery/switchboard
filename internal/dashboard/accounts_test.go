@@ -145,7 +145,7 @@ func TestAccountsHeadingOnAPhone(t *testing.T) {
 // Accounts' form is built once a frame, as the Overview's sections are:
 // every look a frame Built of a moment takes, its page, how it scrolls, its
 // click targets and its bars filled, shares one drawing of Compare's body,
-// Detail's panel or a phone's stack, naming the windows no more often than
+// Detail's panel or its stack, naming the windows no more often than
 // the page alone does; and its bars filled draw nothing.
 func TestAccountsFormIsBuiltOnceAFrame(t *testing.T) {
 	doc, page := phoneDoc(), phonePage(t)
@@ -155,8 +155,8 @@ func TestAccountsFormIsBuiltOnceAFrame(t *testing.T) {
 	}{
 		{name: "Compare", f: compareFrame(t, threeFramed, *page)},
 		{name: "Detail", f: detailFrame(Screen(builtin(t, "nord")), threeFramed, "work", "", page, nil)},
-		{name: "a phone's Compare", f: phoneFrame(t, 48, AccountsCompare, "", page)},
-		{name: "a phone's Detail", f: phoneFrame(t, 41, AccountsDetail, "work", page)},
+		{name: "turned Compare", f: phoneFrame(t, 48, AccountsCompare, "", page)},
+		{name: "stacked Detail", f: phoneFrame(t, 41, AccountsDetail, "work", page)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -197,7 +197,7 @@ func namingCounted(f Frame) (Frame, *int) {
 // Accounts' views, scrolled a row at a time, show each heading with the
 // first row under it, or end the page over the heading, at any height and
 // however far they're scrolled: Compare's groups; Detail's USAGE, the rule
-// over the last six weeks and SESSIONS; and on a phone, Compare's and
+// over the last six weeks and SESSIONS; and turned and stacked, Compare's and
 // Detail's parts, each under its heading. A heading on the page's first row
 // stays, as the page has no row over it to end on.
 func TestAccountsShowNoHeadingWithoutItsFirstRow(t *testing.T) {
@@ -214,11 +214,11 @@ func TestAccountsShowNoHeadingWithoutItsFirstRow(t *testing.T) {
 		{name: "Compare", f: compare, doc: compareDoc, cells: plain, headings: []string{"ACTIVITY", "LIMITS", "VALUE"}},
 		{name: "Detail", f: detail, doc: usageWorld(extraOff, happened(onAuto()...)), cells: panelCells, headings: []string{"USAGE", "┄┄ the last six weeks", "SESSIONS"}},
 		{
-			name: "a phone's Compare", f: phoneText(t, 52, 37, AccountsCompare, "", phonePage(t), nil), doc: phoneDoc(), cells: plain,
+			name: "turned Compare", f: phoneText(t, 52, 37, AccountsCompare, "", phonePage(t), nil), doc: phoneDoc(), cells: plain,
 			headings: []string{"WEEK USED", "BY MODEL", "ACTIVITY", "LIMITS", "VALUE"},
 		},
 		{
-			name: "a phone's Detail", f: phoneText(t, 52, 37, AccountsDetail, "side", phonePage(t), sessions), doc: phoneDoc(), cells: plain,
+			name: "stacked Detail", f: phoneText(t, 52, 37, AccountsDetail, "side", phonePage(t), sessions), doc: phoneDoc(), cells: plain,
 			headings: []string{"USAGE", "THIS WEEK", "SESSIONS", "LATELY"},
 		},
 	}

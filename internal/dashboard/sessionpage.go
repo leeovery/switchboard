@@ -16,10 +16,11 @@ import (
 )
 
 // The blanks a session's page sets a row's parts apart by: wide, as its
-// state and where it runs, its models, and its windows; and on a phone.
+// state and where it runs, its models, and its windows; and short, as the
+// heading under a phone's chrome and the short now rows set them.
 const (
 	sessionApart      = 3
-	sessionPhoneApart = 2
+	sessionShortApart = 2
 )
 
 // turnsRuleAt is the column TURNS' rule starts at.
@@ -106,7 +107,7 @@ func (d sessionDrawn) draw(c *canvas) {
 	case d.nowWide:
 		d.wideNow(c)
 	default:
-		d.phoneNow(c)
+		d.shortNow(c)
 	}
 	d.sessionStory(c, d.m, d.l, d.shown.Story, d.chosen())
 	d.accounts(c)
@@ -120,7 +121,7 @@ func (d sessionDrawn) draw(c *canvas) {
 // counts them; then at its right when it started in its shortest form at
 // its widest, as ranWidest counts it. Row 7: the account it runs on and its
 // windows, the widest name and every window listed at 100%, as windows
-// draws them. Else they take their short form, a phone's.
+// draws them. Else they take their short form.
 func (d sessionDrawn) nowFits() bool {
 	where := d.page.WhereSaidWidest(d.now)
 	said := d.saidCells(where) + d.marksSpare(where)
@@ -209,7 +210,7 @@ func (f Frame) sessionTargets(doc status.Document, now time.Time) []Target {
 // least; what's said of its loading, as loadingSaid has it; wide, the rule;
 // and at the right, esc back.
 func (d sessionDrawn) heading(c *canvas) {
-	y, apart := d.l.heading, sessionPhoneApart
+	y, apart := d.l.heading, sessionShortApart
 	if d.l.wide {
 		apart = sessionApart
 	}
@@ -260,20 +261,20 @@ func (d sessionDrawn) wideNow(c *canvas) {
 	c.line(0, y+1, d.models(d.leftOf(c, y+1, d.windows())))
 }
 
-// phoneNow draws a phone's two rows of what the session's doing now: what
+// shortNow draws the short form's two rows of what the session's doing now: what
 // it's doing and where it runs, since when; then why, short, and at the
 // right how it has run.
-func (d sessionDrawn) phoneNow(c *canvas) {
+func (d sessionDrawn) shortNow(c *canvas) {
 	y := d.l.now
 	where := d.page.Where(d.now)
 	named := labelCutAt(d.shortNamesCells(where))
 	said := []part{wordsPart(d.doing())}
 	if len(where.OnSince) > 0 {
-		said = slices.Concat(said, []part{wordsPart(line{spaces(sessionPhoneApart)})}, d.onSinceParts(where.OnSince, named))
+		said = slices.Concat(said, []part{wordsPart(line{spaces(sessionShortApart)})}, d.onSinceParts(where.OnSince, named))
 	}
 	c.line(0, y, fitParts(d.Width, said...))
 	ran := line{{d.page.RanSaid(d.now), secondaryInk}}
-	room := c.right(d.Width, y+1, ran) - sessionPhoneApart
+	room := c.right(d.Width, y+1, ran) - sessionShortApart
 	c.line(0, y+1, fitParts(room, d.wordsParts(where.Short, mutedInk, named)...))
 }
 
@@ -290,9 +291,9 @@ func (d sessionDrawn) shortNamesCells(where views.WhereSaid) int {
 		named := labelCutAt(cut)
 		row7 := d.doingWidest()
 		if len(where.OnSince) > 0 {
-			row7 += sessionPhoneApart + d.onSinceAt(where.OnSince, named).width()
+			row7 += sessionShortApart + d.onSinceAt(where.OnSince, named).width()
 		}
-		row8 := d.wordsAt(where.Short, mutedInk, named).width() + sessionPhoneApart + ran
+		row8 := d.wordsAt(where.Short, mutedInk, named).width() + sessionShortApart + ran
 		return max(row7, row8) <= d.Width
 	})
 }
@@ -351,7 +352,7 @@ func (d sessionDrawn) started() line {
 
 // startedForms are the forms row 6's right takes, fullest first: when the
 // session started and how it has run, as started says it, then how it has
-// run alone, as a phone's says it, in text.secondary. None where its start
+// run alone, as the short now rows say it, in text.secondary. None where its start
 // isn't known.
 func (d sessionDrawn) startedForms() []line {
 	full := d.started()

@@ -315,14 +315,14 @@ func lined(r views.RequestRow, said string) line {
 
 // requestWords are what the request's row r says in stopped or routing, as
 // layout lays them out: routing, how the router chose; stopped, briefly, as
-// PhoneStopped says it, routing folded in; folded, as Folded says it; else
+// BriefStopped says it, routing folded in; folded, as Folded says it; else
 // as Stopped does.
 func requestWords(r views.RequestRow, column LogColumn, layout logLayout) views.RowWords {
 	switch {
 	case column == LogRouting:
 		return r.Routing.Said()
 	case layout.brief:
-		return r.PhoneStopped()
+		return r.BriefStopped()
 	case layout.folded:
 		return r.Folded()
 	}

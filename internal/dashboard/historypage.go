@@ -309,9 +309,9 @@ var historyAccountsOut = []outForm{
 }
 
 // groupHead is a group's heading, as BY MONTH and BY MODEL, in text.subtle,
-// and after it, but on a phone, what it shows, in text.faint.
-func groupHead(name, says string, phone bool) line {
-	if phone {
+// and after it, but in the narrow form, what it shows, in text.faint.
+func groupHead(name, says string, narrow bool) line {
+	if narrow {
 		return line{{name, dimInk}}
 	}
 	return line{{name, dimInk}, {"  " + says, faintInk}}

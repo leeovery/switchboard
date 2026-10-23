@@ -79,10 +79,10 @@ func rowsFrom(rows []string, first int) []string {
 	return trimmed(rows, first, len(rows)-1)
 }
 
-// A phone's Compare taller than the screen scrolls a row at a time, saying
+// Turned Compare taller than the screen scrolls a row at a time, saying
 // over the key line how many rows are out of view, and how to scroll to
 // them, as far as its last row and no further.
-func TestAPhonesCompareScrollsByRows(t *testing.T) {
+func TestTurnedCompareScrollsByRows(t *testing.T) {
 	tests := []struct {
 		name   string
 		scroll int
@@ -106,7 +106,7 @@ func TestAPhonesCompareScrollsByRows(t *testing.T) {
 	}
 	f := phoneText(t, 52, 30, AccountsCompare, "", phonePage(t), nil)
 	if got, want := f.Scrolling(phoneDoc(), routedAt), (Scrolling{Most: 17, Page: 20}); got != want {
-		t.Errorf("a phone's Compare at 30 rows scrolls %+v, want %+v", got, want)
+		t.Errorf("turned Compare at 30 rows scrolls %+v, want %+v", got, want)
 	}
 	f.Height = 46
 	if rows := textOf(f.Draw(phoneDoc(), routedAt)); rows[44] != "▼ 1 more below · j/k" {
@@ -118,10 +118,10 @@ func TestAPhonesCompareScrollsByRows(t *testing.T) {
 	}
 }
 
-// Before the period's days are read, a phone's Compare draws what's live
+// Before the period's days are read, turned Compare draws what's live
 // alone, WEEK USED; over another period than this week, WEEK USED says it's
 // now.
-func TestAPhonesCompareDrawsWEEKUSEDAloneTillItsDaysAreRead(t *testing.T) {
+func TestTurnedCompareDrawsWEEKUSEDAloneTillItsDaysAreRead(t *testing.T) {
 	f := phoneText(t, 52, 48, AccountsCompare, "", nil, nil)
 	f.Accounts.Period = views.AccountsThirtyDays
 	got := rowsFrom(textOf(f.Draw(phoneDoc(), routedAt)), 8)
@@ -136,9 +136,9 @@ func TestAPhonesCompareDrawsWEEKUSEDAloneTillItsDaysAreRead(t *testing.T) {
 	}
 }
 
-// A phone's WEEK USED shows the week the frame names the accounts' own, as
+// Turned Compare's WEEK USED shows the week the frame names the accounts' own, as
 // Compare's does: of every account, then of all accounts.
-func TestAPhonesWEEKUSEDShowsTheWeekTheFrameNames(t *testing.T) {
+func TestTurnedComparesWEEKUSEDShowsTheWeekTheFrameNames(t *testing.T) {
 	tests := []struct {
 		name, week string
 		want       []string
@@ -160,10 +160,10 @@ func TestAPhonesWEEKUSEDShowsTheWeekTheFrameNames(t *testing.T) {
 }
 
 // A period with nothing recorded, as on a fresh install or a week's first
-// morning, says a dash in each of its own figures on a phone too, Compare's
+// morning, says a dash in each of its own figures turned and stacked too, Compare's
 // and Detail's THIS WEEK's; left at its last reset, the plan and extra
 // usage, no figures of the period, say what they are.
-func TestAPhonesAccountsSayADashForEachFigureOfAPeriodWithNothingRecorded(t *testing.T) {
+func TestTurnedCompareAndStackedDetailSayADashForEachFigureOfAPeriodWithNothingRecorded(t *testing.T) {
 	page := phonePage(t)
 	page.Recorded = false
 	tests := []struct {
@@ -193,11 +193,11 @@ func TestAPhonesAccountsSayADashForEachFigureOfAPeriodWithNothingRecorded(t *tes
 	}
 }
 
-// A phone's Detail of all accounts picks all accounts out between ◂ and ▸,
+// Stacked Detail of all accounts picks all accounts out between ◂ and ▸,
 // counts its accounts' states under it, and words each window's room, to
 // each account's limit, of how many accounts it counts; its THIS WEEK says
 // how many limits, the plans summed, and extra usage taken together.
-func TestAPhonesDetailOfAllAccounts(t *testing.T) {
+func TestStackedDetailOfAllAccounts(t *testing.T) {
 	rows := textOf(phoneText(t, 52, 60, AccountsDetail, "", phonePage(t), nil).Draw(phoneDoc(), routedAt))
 	for y, want := range map[int]string{
 		8:  "◂ 0 all accounts ▸             ↑↓ an account, or all",
@@ -216,12 +216,12 @@ func TestAPhonesDetailOfAllAccounts(t *testing.T) {
 	}
 }
 
-// Where an account's plan isn't known, a phone's against it, on Compare, 12
+// Where an account's plan isn't known, the compact against it, on Compare, 12
 // cells from column 39 at 52 columns, and against, on Detail, 15 cells from
 // column 36, say every account's ratio over the plans known, compact, the
 // plans known over the accounts: "4.6× · 2/3"; with every plan known, the
 // ratio alone (the owner's call, 15 October 2026).
-func TestAPhonesAgainstSaysTheRatioOverThePlansKnownCompact(t *testing.T) {
+func TestAgainstCompactSaysTheRatioOverThePlansKnown(t *testing.T) {
 	for _, tt := range []struct {
 		name  string
 		known views.PlansKnown
@@ -245,10 +245,10 @@ func TestAPhonesAgainstSaysTheRatioOverThePlansKnownCompact(t *testing.T) {
 	}
 }
 
-// All accounts' Detail on a phone counts the configured accounts' states:
+// All accounts' Detail stacked counts the configured accounts' states:
 // one the document lacks yet as not read, and one the document holds and the
 // config doesn't, not at all.
-func TestAPhonesDetailCountsTheConfiguredAccountsStates(t *testing.T) {
+func TestStackedDetailCountsTheConfiguredAccountsStates(t *testing.T) {
 	tests := []struct {
 		name       string
 		configured config.Accounts
@@ -268,9 +268,9 @@ func TestAPhonesDetailCountsTheConfiguredAccountsStates(t *testing.T) {
 	}
 }
 
-// An account the config has and the document lacks yet is picked on a
-// phone's Detail as the config names it, and stands not read.
-func TestAPhonesDetailOfAnAccountNotReadYet(t *testing.T) {
+// An account the config has and the document lacks yet is picked on
+// Stacked Detail as the config names it, and stands not read.
+func TestStackedDetailOfAnAccountNotReadYet(t *testing.T) {
 	f := phoneText(t, 52, 41, AccountsDetail, "added", nil, nil)
 	f.Accounts.Accounts = append(slices.Clone(threeFramed), config.Account{ID: "added"})
 	rows := textOf(f.Draw(phoneDoc(), routedAt))
@@ -279,9 +279,9 @@ func TestAPhonesDetailOfAnAccountNotReadYet(t *testing.T) {
 	}
 }
 
-// With one account, a phone's Detail has no other to pick: its name stands
+// With one account, stacked Detail has no other to pick: its name stands
 // alone, with neither ◂ and ▸ nor the keys that pick.
-func TestAPhonesDetailOfOneAccountNamesItAlone(t *testing.T) {
+func TestStackedDetailOfOneAccountNamesItAlone(t *testing.T) {
 	f := phoneText(t, 52, 41, AccountsDetail, "", nil, nil)
 	f.Accounts.Accounts = threeFramed[:1]
 	if got := textOf(f.Draw(phoneDoc(), routedAt))[f.top()]; got != "1 work" {
@@ -291,7 +291,7 @@ func TestAPhonesDetailOfOneAccountNamesItAlone(t *testing.T) {
 
 // The picker's keys stand at the right where they fit beside it, as far
 // right as the frame is wide, and go where they don't.
-func TestAPhonesPickerSaysItsKeysWhereTheyFit(t *testing.T) {
+func TestStackedDetailsPickerSaysItsKeysWhereTheyFit(t *testing.T) {
 	tests := []struct {
 		width int
 		want  string
@@ -311,7 +311,7 @@ func TestAPhonesPickerSaysItsKeysWhereTheyFit(t *testing.T) {
 
 // The picker is a heading: it names the account whole wherever it fits,
 // never at a label's most, as a column of names would cut it.
-func TestAPhonesPickerNamesALabelPastALabelsMostWhole(t *testing.T) {
+func TestStackedDetailsPickerNamesALabelPastALabelsMostWhole(t *testing.T) {
 	long := "personal-account-of-thirty-cells"
 	f := phoneText(t, 52, 41, AccountsDetail, "personal", nil, nil)
 	f.Accounts.Accounts = slices.Clone(threeFramed)
@@ -333,12 +333,12 @@ func moreOnSide() []status.Session {
 	return sessions
 }
 
-// With sessions running on the account, a phone's Detail stacks SESSIONS
+// With sessions running on the account, stacked Detail stacks SESSIONS
 // before LATELY (C18): ▸ before the one selected, the first where none is;
 // as many as four rows show, scrolled with the one selected, the last saying
 // how many more are below; and two rows under them, what enter opens. A
 // click on a session's row selects it, where the stack has it scrolled.
-func TestAPhonesDetailStacksSESSIONSBeforeLATELY(t *testing.T) {
+func TestStackedDetailStacksSESSIONSBeforeLATELY(t *testing.T) {
 	_, _, stream := overviewWorld()
 	f := phoneText(t, 52, 60, AccountsDetail, "side", phonePage(t), overviewSessions())
 	f.Stream = stream
@@ -387,30 +387,30 @@ func TestAPhonesDetailStacksSESSIONSBeforeLATELY(t *testing.T) {
 }
 
 // Where the frame is too narrow for Detail's wide form, its body is the
-// phone's stack under the wide chrome, its right-aligned parts at the
+// stack under the wide chrome, its right-aligned parts at the
 // frame's width.
-func TestDetailsPhoneBodyFollowsTheWidth(t *testing.T) {
+func TestDetailsStackedBodyFollowsTheWidth(t *testing.T) {
 	f := phoneText(t, 120, 50, AccountsDetail, "work", phonePage(t), nil).At(phoneDoc(), routedAt)
 	c := newCanvas(f.Width, f.Height)
 	top := f.top()
-	f.detailPhoneBody(phoneDoc(), routedAt).draw(c, top)
+	f.detailStackedBody(phoneDoc(), routedAt).draw(c, top)
 	rows := textOf(c.rows(Look{}))
 	if want := "◂ 1 work ▸" + strings.Repeat(" ", 89) + "↑↓ an account, or all"; rows[top] != want {
 		t.Errorf("the picker at 120 columns is %q, want %q", rows[top], want)
 	}
 	if !strings.HasPrefix(rows[top+15], "BY MODEL  ") {
-		t.Errorf("row %d is %q, want BY MODEL, as on a phone", top+15, rows[top+15])
+		t.Errorf("row %d is %q, want BY MODEL, as stacked", top+15, rows[top+15])
 	}
 }
 
-// A phone's Detail lays its parts across the width, at every width it's
+// Stacked Detail lays its parts across the width, at every width it's
 // drawn at: USAGE's bars from a cell after the windows' names, growing past
 // their least of 18 once their words have the cells of their form at its
 // widest, to 40 at most, their names and words whole beside them; BY MODEL's
 // bar from column 10 to the frame's edge, as it's no bar beside words; the
 // latest of BY DAY's weeks that fit, from column 10; and WEEKS' peaks, every
 // one, this week's % in line with the others' and its … a cell past.
-func TestAPhonesDetailLaysItsPartsAcrossTheWidth(t *testing.T) {
+func TestStackedDetailLaysItsPartsAcrossTheWidth(t *testing.T) {
 	const peaks = "WEEKS      100%   94%  100%   81%  100%   34%…"
 	tests := []struct {
 		width, bar, byModel int
@@ -459,7 +459,7 @@ func TestAPhonesDetailLaysItsPartsAcrossTheWidth(t *testing.T) {
 // WEEKS shows the latest peaks that fit, the earliest giving way first,
 // keeping a cell for this week's … at the frame's edge: all six from 47
 // columns, five at 46.
-func TestAPhonesWEEKSKeepsTheLatestPeaksThatFit(t *testing.T) {
+func TestStackedDetailsWEEKSKeepsTheLatestPeaksThatFit(t *testing.T) {
 	for _, tt := range []struct {
 		width int
 		want  string
@@ -476,7 +476,7 @@ func TestAPhonesWEEKSKeepsTheLatestPeaksThatFit(t *testing.T) {
 // The stack's stretch, BY MODEL's bar and the room of BY DAY and WEEKS,
 // runs from column 10 to the frame's edge, with no cells where the frame is
 // narrower, and the stack draws there all the same.
-func TestAPhonesStretchHasNoCellsPastTheEdge(t *testing.T) {
+func TestTheStacksStretchHasNoCellsPastTheEdge(t *testing.T) {
 	for width := 1; width <= stackAt+3; width++ {
 		f, _ := stackRows(t, width)
 		if got, want := f.stackedOf(phoneDoc(), routedAt).stretch(), (flex.Span{At: stackAt, Size: max(f.edge()-stackAt, 0)}); got != want {
@@ -489,7 +489,7 @@ func TestAPhonesStretchHasNoCellsPastTheEdge(t *testing.T) {
 // shown or not, so the bars hold still as a model's window comes and goes:
 // with Sonnet's week named long, Week's bar starts after its name whether
 // that window shows or not.
-func TestAPhonesUSAGEHoldsStillAsWindowsComeAndGo(t *testing.T) {
+func TestStackedDetailsUSAGEHoldsStillAsWindowsComeAndGo(t *testing.T) {
 	names := map[string]string{"7d": "Week", "5h": "5-hour", "7d_oi": "Sonnet long week"}
 	want := "Week           ████████▉"
 	for _, models := range []bool{true, false} {
@@ -497,7 +497,7 @@ func TestAPhonesUSAGEHoldsStillAsWindowsComeAndGo(t *testing.T) {
 		f.Models, f.WindowName = models, func(key string) string { return names[key] }
 		f = f.At(phoneDoc(), routedAt)
 		c := newCanvas(f.Width, f.Height)
-		f.detailPhoneBody(phoneDoc(), routedAt).draw(c, 0)
+		f.detailStackedBody(phoneDoc(), routedAt).draw(c, 0)
 		rows := textOf(c.rows(Look{}))
 		if week := rowStarting(t, rows, "Week "); !strings.HasPrefix(week, want) {
 			t.Errorf("with the models' windows shown %v, Week's row is %q, want it to start %q", models, week, want)
@@ -514,7 +514,7 @@ func stackRows(t *testing.T, width int) (Frame, []string) {
 	t.Helper()
 	f := phoneText(t, width, 60, AccountsDetail, "work", phonePage(t), nil).At(phoneDoc(), routedAt)
 	c := newCanvas(f.Width, f.Height)
-	f.detailPhoneBody(phoneDoc(), routedAt).draw(c, 0)
+	f.detailStackedBody(phoneDoc(), routedAt).draw(c, 0)
 	return f, textOf(c.rows(Look{}))
 }
 
@@ -567,23 +567,23 @@ func TestDetailsUSAGERowIsLaidByFlex(t *testing.T) {
 	}
 }
 
-// A phone's bars ease after a read as the wide forms' do, each account's by
+// A stack's bars ease after a read as the wide forms' do, each account's by
 // its id and its window's key, and all accounts' by the key alone; and what
 // a look reads brightens as it changes: each account's week's percentage,
 // all accounts' and their room each a figure of its own, and their states
 // counted; and the period's figures, each by its row.
-func TestAPhonesBarsEaseAndItsLookReadNumbersBrighten(t *testing.T) {
+func TestAStacksBarsEaseAndItsLookReadNumbersBrighten(t *testing.T) {
 	compare := phoneText(t, 52, 48, AccountsCompare, "", phonePage(t), nil)
 	all := compare.Moment(phoneDoc(), routedAt).All().Windows
 	week := all[slices.IndexFunc(all, func(w status.AllWindowNow) bool { return w.Key == "7d" })].Used
 	want := map[Ref]float64{{Account: "work", Window: "7d"}: 0.34, {Account: "personal", Window: "7d"}: 0.66, {Account: "side", Window: "7d"}: 0.78, {Window: "7d"}: week}
 	if got := compare.Filled(phoneDoc(), routedAt); !maps.Equal(got, want) {
-		t.Errorf("a phone's Compare's bars fill %v, want %v", got, want)
+		t.Errorf("turned Compare's bars fill %v, want %v", got, want)
 	}
 	got := compare.Numbers(phoneDoc(), routedAt)
 	delete(got, Number{Kind: NumberRouted})
 	if said := got[Number{Kind: NumberPeriod, Account: "work", Of: "reqs"}]; said != "1,204" {
-		t.Errorf("a phone's Compare numbers work's requests %q, want 1,204", said)
+		t.Errorf("turned Compare numbers work's requests %q, want 1,204", said)
 	}
 	maps.DeleteFunc(got, func(n Number, _ string) bool { return n.Kind == NumberPeriod })
 	wantNumbers := map[Number]string{
@@ -591,7 +591,7 @@ func TestAPhonesBarsEaseAndItsLookReadNumbersBrighten(t *testing.T) {
 		{Kind: NumberUsed, Account: "side", Of: "7d"}: "78%", {Kind: NumberAllUsed, Of: "7d"}: "59%",
 	}
 	if !maps.Equal(got, wantNumbers) {
-		t.Errorf("a phone's Compare's numbers are %v, want %v", got, wantNumbers)
+		t.Errorf("turned Compare's numbers are %v, want %v", got, wantNumbers)
 	}
 
 	detail := phoneText(t, 52, 60, AccountsDetail, "", phonePage(t), nil)
@@ -601,22 +601,22 @@ func TestAPhonesBarsEaseAndItsLookReadNumbersBrighten(t *testing.T) {
 		{Kind: NumberAccountStates, Of: "open"}, {Kind: NumberPeriod, Of: "requests"},
 	} {
 		if _, ok := got[n]; !ok {
-			t.Errorf("a phone's Detail of all accounts numbers no %+v among %v", n, got)
+			t.Errorf("stacked Detail of all accounts numbers no %+v among %v", n, got)
 		}
 	}
 	for n := range got {
 		if n.Kind == NumberUsed || n.Kind == NumberRoom {
-			t.Errorf("a phone's Detail of all accounts numbers %+v, the pool's kind", n)
+			t.Errorf("stacked Detail of all accounts numbers %+v, the pool's kind", n)
 		}
 	}
 	if filled := detail.Filled(phoneDoc(), routedAt); filled[Ref{Window: "7d"}] != week || filled[Ref{Account: "work", Window: "7d"}] != 0.34 {
-		t.Errorf("a phone's Detail of all accounts fills %v, want all accounts' week, %v, and every account's", filled, week)
+		t.Errorf("stacked Detail of all accounts fills %v, want all accounts' week, %v, and every account's", filled, week)
 	}
 }
 
-// The account's state is cued on a phone's Detail as its word changes, as
+// The account's state is cued on stacked Detail as its word changes, as
 // Detail's head is, and not at a change ROUTING alone sees.
-func TestAPhonesDetailCuesTheStateAsItsWordChanges(t *testing.T) {
+func TestStackedDetailCuesTheStateAsItsWordChanges(t *testing.T) {
 	tests := []struct {
 		name          string
 		changed, word map[string]float64
@@ -640,10 +640,10 @@ func TestAPhonesDetailCuesTheStateAsItsWordChanges(t *testing.T) {
 	}
 }
 
-// A phone's BY MODEL names the versions over two rows: as many as fit on the
+// Stacked Detail's BY MODEL names the versions over two rows: as many as fit on the
 // first, in the table's order; the rest on the second, the smallest left
 // out where they don't all fit, and how many more there are.
-func TestAPhonesBYMODELNamesTheVersionsOverTwoRows(t *testing.T) {
+func TestStackedDetailsBYMODELNamesTheVersionsOverTwoRows(t *testing.T) {
 	versions := comparedVersions(t)
 	tests := []struct {
 		name   string
@@ -705,7 +705,7 @@ func TestTheVersionARowUsedMostIsItsLargestShares(t *testing.T) {
 // in the 4 cells after its bar and BY MODEL's largest version two cells
 // after it; and each group's columns a third of the room from the bars to
 // the frame's edge, every group alike.
-func TestAPhonesCompareLaysItsPartsAcrossTheWidth(t *testing.T) {
+func TestTurnedCompareLaysItsPartsAcrossTheWidth(t *testing.T) {
 	long := map[string]string{"work": "work-team-plan", "personal": "personal-research", "side": "side-hustle-consulting"}
 	tests := []struct {
 		name    string
@@ -775,11 +775,11 @@ func TestAPhonesCompareLaysItsPartsAcrossTheWidth(t *testing.T) {
 	}
 }
 
-// A phone's Compare holds every column still as the period's page is read:
+// Turned Compare holds every column still as the period's page is read:
 // its figures' column is sized for the widest largest version any version
 // can show, not those the page names, so WEEK USED's names, bars and
 // percentages are where they were before it.
-func TestAPhonesCompareHoldsStillAsItsPageIsRead(t *testing.T) {
+func TestTurnedCompareHoldsStillAsItsPageIsRead(t *testing.T) {
 	long := map[string]string{"work": "work-team-plan", "personal": "personal-research", "side": "side-hustle-consulting"}
 	for _, width := range []int{52, 60, 66, 73} {
 		for _, labels := range []map[string]string{nil, long} {
@@ -837,14 +837,14 @@ func TestALargestVersionThatDoesntFitCutsItsNameNeverItsShare(t *testing.T) {
 	}
 }
 
-// At 52 columns, a phone's Compare keeps a largest version's share whole,
+// At 52 columns, turned Compare keeps a largest version's share whole,
 // cutting its name to make room, and numbers the share by the name whole, so
 // a change of share brightens however the name is cut: a 100% share of the
 // widest version, and a model the config prices that the version table
 // doesn't name, by its id, which sizes the figures' column from the table
 // the pages are built with. There the names keep their least, the bars
 // theirs, and the figures narrow to what's left.
-func TestAPhonesCompareCutsALargestVersionsNameNeverItsShare(t *testing.T) {
+func TestTurnedCompareCutsALargestVersionsNameNeverItsShare(t *testing.T) {
 	const unnamed = "claude-sonnet-4-20250514"
 	configured := ledger.Pricing
 	configured.Models = append(slices.Clone(ledger.Pricing.Models), ledger.Model{IDs: []string{unnamed}})
@@ -898,9 +898,9 @@ func TestAPhonesCompareCutsALargestVersionsNameNeverItsShare(t *testing.T) {
 	}
 }
 
-// A phone's Compare cuts each figure a cell short of the next column, and
+// Turned Compare cuts each figure a cell short of the next column, and
 // the last at the frame's edge.
-func TestAPhonesCompareCutsEachFigureACellShortOfTheNext(t *testing.T) {
+func TestTurnedCompareCutsEachFigureACellShortOfTheNext(t *testing.T) {
 	page := phonePage(t)
 	page.Rows[0].Totals.Requests = 1234567890
 	rows := textOf(phoneText(t, 52, 48, AccountsCompare, "", page, nil).Draw(phoneDoc(), routedAt))
@@ -909,11 +909,11 @@ func TestAPhonesCompareCutsEachFigureACellShortOfTheNext(t *testing.T) {
 	}
 }
 
-// On a phone, Detail's LATELY tells an account's events in their full words,
+// Stacked, Detail's LATELY tells an account's events in their full words,
 // never the short words the Overview's LATELY tells there, whole where they
 // fit and cut at the frame's edge where they don't: work's cap that moved its
 // sessions to other accounts, 51 cells in full.
-func TestAPhonesDetailTellsLATELYInFullToTheEdge(t *testing.T) {
+func TestStackedDetailTellsLATELYInFullToTheEdge(t *testing.T) {
 	doc := eventsOf(
 		status.Event{At: now.Add(-time.Minute).UTC(), Kind: status.EventMoved, Session: "d28c0b1e", From: "work", To: "side", Reason: "moved: work is at its reserve", ForcedBy: 1},
 		status.Event{At: now.Add(-time.Minute).UTC(), Kind: status.EventMoved, Session: "9e21d4a8", From: "work", To: "personal", Reason: "moved: work is at its reserve", ForcedBy: 1},
@@ -930,13 +930,13 @@ func TestAPhonesDetailTellsLATELYInFullToTheEdge(t *testing.T) {
 	for _, tt := range tests {
 		rows := textOf(phoneText(t, tt.width, 41, AccountsDetail, "work", phonePage(t), nil).Draw(doc, now))
 		if !slices.Contains(rows, tt.want) {
-			t.Errorf("at %d columns, a phone's Detail doesn't tell %q in LATELY:\n%s", tt.width, tt.want, strings.Join(rows, "\n"))
+			t.Errorf("at %d columns, stacked Detail doesn't tell %q in LATELY:\n%s", tt.width, tt.want, strings.Join(rows, "\n"))
 		}
 	}
 }
 
-// A phone's Detail picks out each event of LATELY while it's fresh.
-func TestAPhonesDetailPicksOutAFreshEvent(t *testing.T) {
+// Stacked Detail picks out each event of LATELY while it's fresh.
+func TestStackedDetailPicksOutAFreshEvent(t *testing.T) {
 	f := phoneFrame(t, 41, AccountsDetail, "work", phonePage(t))
 	newest := views.AccountLately(f.Moment(phoneDoc(), routedAt), "work", 1)[0]
 	f.Fresh = map[int]float64{newest.ID: 0.25}

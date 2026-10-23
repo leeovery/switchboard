@@ -17,45 +17,45 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// The Year's parts, as the design lays them out, wide and on a phone.
+// The Year's parts, as the design lays them out, wide and in the narrow form.
 const (
-	// yearGridX is the grid's first column, and the wide key's; a phone's is
-	// yearPhoneGridX. The grid shows the weeks that fit, two cells a week.
-	yearGridX      = 14
-	yearPhoneGridX = 4
-	// The numbers' labels are yearLabelCells wide, or on a phone
-	// yearPhoneLabelCells. Beside the grid, they're yearNumbersGap cells after
+	// yearGridX is the grid's first column, and the wide key's; the narrow form's is
+	// yearNarrowGridX. The grid shows the weeks that fit, two cells a week.
+	yearGridX       = 14
+	yearNarrowGridX = 4
+	// The numbers' labels are yearLabelCells wide, or in the narrow form
+	// yearNarrowLabelCells. Beside the grid, they're yearNumbersGap cells after
 	// the most weeks a span holds, views.MostYearWeeks, so a span of fewer
 	// ends further short of them; under the key, in columns of
 	// yearFiguresDown, yearColumnsApart cells apart.
-	yearLabelCells      = 13
-	yearPhoneLabelCells = 10
-	yearNumbersGap      = 6
-	yearFiguresDown     = 3
-	yearColumnsApart    = 4
+	yearLabelCells       = 13
+	yearNarrowLabelCells = 10
+	yearNumbersGap       = 6
+	yearFiguresDown      = 3
+	yearColumnsApart     = 4
 	// The rows under the view's top the key is on, and the numbers' heading
 	// under it, or where they're beside the grid, BY MONTH's.
 	yearKeyRow     = 9
 	yearNumbersRow = 11
 	// byMonthNameX is the column a month's name is at, and byMonthBarX its
-	// bar's; a phone's are byMonthPhoneNameX and byMonthPhoneBarX. A bar takes
+	// bar's; the narrow form's are byMonthNarrowNameX and byMonthNarrowBarX. A bar takes
 	// byMonthBarMost cells at most, the house's most for a bar beside words,
 	// and a part month's note follows it byMonthNoteGap cells on.
-	byMonthNameX      = 2
-	byMonthBarX       = 60
-	byMonthPhoneNameX = 1
-	byMonthPhoneBarX  = 32
-	byMonthBarMost    = 40
-	byMonthNoteGap    = 2
+	byMonthNameX       = 2
+	byMonthBarX        = 60
+	byMonthNarrowNameX = 1
+	byMonthNarrowBarX  = 32
+	byMonthBarMost     = 40
+	byMonthNoteGap     = 2
 )
 
 // yearForm is a form the Year is drawn in: wide, as the design lays it out,
-// or as a phone lays it out, its words shorter. Its grid's column and its
-// days' names; its key's form; its numbers' labels' cells, a phone's labels
-// short; and BY MONTH's heads on its heading's row, as a phone has them,
+// or as the narrow form lays it out, its words shorter. Its grid's column and its
+// days' names; its key's form; its numbers' labels' cells, the narrow form's labels
+// short; and BY MONTH's heads on its heading's row, as the narrow form has them,
 // and its months' names' column and its bars'.
 type yearForm struct {
-	phone       bool
+	narrow      bool
 	gridX       int
 	dayName     func(time.Weekday) string
 	key         keyForm
@@ -63,21 +63,21 @@ type yearForm struct {
 	nameX, barX int
 }
 
-// The Year's forms, wide and on a phone.
+// The Year's forms, wide and in the narrow form.
 var (
 	yearWide = yearForm{
 		gridX: yearGridX, dayName: prose.Weekday, key: keyWide, labelCells: yearLabelCells,
 		nameX: byMonthNameX, barX: byMonthBarX,
 	}
-	yearPhone = yearForm{
-		phone: true, gridX: yearPhoneGridX, dayName: prose.WeekdayInitial, key: keyPhone, labelCells: yearPhoneLabelCells,
-		nameX: byMonthPhoneNameX, barX: byMonthPhoneBarX,
+	yearNarrow = yearForm{
+		narrow: true, gridX: yearNarrowGridX, dayName: prose.WeekdayInitial, key: keyNarrow, labelCells: yearNarrowLabelCells,
+		nameX: byMonthNarrowNameX, barX: byMonthNarrowBarX,
 	}
 )
 
-// label is the figure's label in the form: a phone's short.
+// label is the figure's label in the form: the narrow form's short.
 func (f yearForm) label(figure yearFigure) string {
-	if f.phone {
+	if f.narrow {
 		return figure.short
 	}
 	return figure.label
@@ -114,7 +114,7 @@ type yearDrawn struct {
 }
 
 // yearDrawn is the Year as the frame draws it, wide where the wide form's
-// parts fit, else as a phone lays it out, reporting false before its page is
+// parts fit, else as the narrow form lays it out, reporting false before its page is
 // built.
 func (f Frame) yearDrawn() (yearDrawn, bool) {
 	page := f.History.Year
@@ -123,7 +123,7 @@ func (f Frame) yearDrawn() (yearDrawn, bool) {
 	}
 	y := yearDrawn{Frame: f, page: *page, ask: f.History.YearAsk, form: yearWide}
 	if !y.wideFits() {
-		y.form = yearPhone
+		y.form = yearNarrow
 	}
 	return y.laidOut(), true
 }
@@ -215,7 +215,7 @@ func (y yearDrawn) gridReach(weeks int) int {
 // wide. Beside the grid, a figure longer than reckoned takes its shorter
 // forms, or is an ellipsis.
 func (y yearDrawn) besideAt() (flex.Span, bool) {
-	if y.form.phone {
+	if y.form.narrow {
 		return flex.Span{}, false
 	}
 	numbers := y.reckonedNumbers()
@@ -463,10 +463,10 @@ type keyForm struct {
 	none, under, over string
 }
 
-// The key's forms: wide, from the grid's column, and cut short on a phone.
+// The key's forms: wide, from the grid's column, and cut short in the narrow form.
 var (
-	keyWide  = keyForm{x: yearGridX, gap: "   ", number: prose.Grouped, none: "none", under: "under ", over: "over "}
-	keyPhone = keyForm{gap: " ", number: prose.Thousands, none: "0", under: "<", over: ">"}
+	keyWide   = keyForm{x: yearGridX, gap: "   ", number: prose.Grouped, none: "none", under: "under ", over: "over "}
+	keyNarrow = keyForm{gap: " ", number: prose.Thousands, none: "0", under: "<", over: ">"}
 )
 
 // key draws the shades' key along row row, as the form lays it out, its unit
@@ -550,7 +550,7 @@ func (y yearDrawn) heading(c *canvas, x, row int) {
 	c.line(x, row, fitParts(width, figureIn(period, dimInk)))
 }
 
-// yearFigure is one of the Year's numbers: its label, and a phone's, what it
+// yearFigure is one of the Year's numbers: its label, and the narrow form's, what it
 // says, and its shorter forms, each leaving off more of it whole, as limits
 // of more than one window have; whether a look can change it, and the
 // number it is where one can; and where what it is bounds how long it runs,
@@ -732,7 +732,7 @@ func ordinal(day int) string {
 }
 
 // byMonthPlaced is where BY MONTH's rows are under the Year's top: its
-// heading's; its heads', on a phone its heading's, else the one under it;
+// heading's; its heads', in the narrow form its heading's, else the one under it;
 // whether the row under them is the one for the months before a version was
 // first used, as it is wide where there are any; and its months, oldest
 // first, a row each from first.
@@ -748,11 +748,11 @@ type byMonthPlaced struct {
 // them.
 func (y yearDrawn) placed(beside bool) byMonthPlaced {
 	f := y.form
-	p := byMonthPlaced{heading: yearNumbersRow, before: y.page.Before != nil && !f.phone, months: y.page.ByMonth}
+	p := byMonthPlaced{heading: yearNumbersRow, before: y.page.Before != nil && !f.narrow, months: y.page.ByMonth}
 	if !beside {
 		p.heading += yearFiguresDown + 2
 	}
-	if p.heads = p.heading; !f.phone {
+	if p.heads = p.heading; !f.narrow {
 		p.heads++
 	}
 	if p.first = p.heads + 1; p.before {
@@ -776,20 +776,20 @@ type monthColumn struct {
 	changes bool
 }
 
-// The columns of BY MONTH's worth, and of what follows it, wide and on a
-// phone; the row before a version's months names the version used then
+// The columns of BY MONTH's worth, and of what follows it, wide and in the
+// narrow form; the row before a version's months names the version used then
 // under its worth.
 const (
-	byMonthWorthX      = 26
-	byMonthThirdX      = 38
-	byMonthLimitsX     = 48
-	byMonthPhoneWorthX = 12
-	byMonthPhoneThirdX = 22
+	byMonthWorthX       = 26
+	byMonthThirdX       = 38
+	byMonthLimitsX      = 48
+	byMonthNarrowWorthX = 12
+	byMonthNarrowThirdX = 22
 )
 
 // monthColumns are BY MONTH's columns, before its bars: wide, a month's
 // requests, worth and against, then its limits, or filtered to a version,
-// its share of the month's worth in against's place; on a phone, its worth
+// its share of the month's worth in against's place; in the narrow form, its worth
 // and against, or share.
 func (y yearDrawn) monthColumns() []monthColumn {
 	third := monthColumn{head: "against", of: monthAgainst}
@@ -797,8 +797,8 @@ func (y yearDrawn) monthColumns() []monthColumn {
 		third = monthColumn{head: "share", of: func(m views.MonthRow) line { return shareSaid(m.Share, secondaryInk) }, changes: true}
 	}
 	worth := monthColumn{head: "worth", of: func(m views.MonthRow) line { return worthSaid(m.Worth, secondaryInk) }, changes: true}
-	if y.form.phone {
-		worth.x, third.x = byMonthPhoneWorthX, byMonthPhoneThirdX
+	if y.form.narrow {
+		worth.x, third.x = byMonthNarrowWorthX, byMonthNarrowThirdX
 		return []monthColumn{worth, third}
 	}
 	worth.x, third.x = byMonthWorthX, byMonthThirdX
@@ -816,7 +816,7 @@ func (y yearDrawn) monthColumns() []monthColumn {
 // wide, a row before them for the months before it was used.
 func (y yearDrawn) byMonth(c *canvas, top int) {
 	f, at := y.form, y.laid.byMonth
-	c.line(0, top+at.heading, y.byMonthHead(f.phone).fit(y.Width))
+	c.line(0, top+at.heading, y.byMonthHead(f.narrow).fit(y.Width))
 	columns := y.monthColumns()
 	for i := range columns {
 		c.line(columns[i].x, top+at.heads, line{{columns[i].head, dimInk}}.fit(y.columnCells(columns, i)))
@@ -845,9 +845,9 @@ func (y yearDrawn) barHead() string {
 // knownForms' forms that fits the frame, else none: "... the plans cost
 // that month · 2 of 3 plans known", "· 2 of 3 plans" or "· 2/3". The form
 // is chosen without those words, so it never hangs on the plans.
-func (y yearDrawn) byMonthHead(phone bool) line {
-	head := groupHead("BY MONTH", y.byMonthSays(), phone)
-	if phone || y.ofVersion() {
+func (y yearDrawn) byMonthHead(narrow bool) line {
+	head := groupHead("BY MONTH", y.byMonthSays(), narrow)
+	if narrow || y.ofVersion() {
 		return head
 	}
 	for _, known := range knownForms(y.page.Numbers.Plans) {

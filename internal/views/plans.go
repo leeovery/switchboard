@@ -127,7 +127,7 @@ func (k PlansKnown) SaidShort() string {
 }
 
 // SaidCompact says it as SaidShort does, compact, for where neither form
-// fits, as a phone's against it: the plans known over the accounts, "2/3";
+// fits, as turned Compare's against it: the plans known over the accounts, "2/3";
 // "" where every one is known, or none is.
 func (k PlansKnown) SaidCompact() string {
 	if k.SaidShort() == "" {

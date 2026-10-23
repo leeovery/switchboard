@@ -37,7 +37,7 @@ func TestRunwaysLabelsReadWholeAtTheOwnersSizes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			f := runwayFixture(t, tt.name)
+			f := fixtureOrLongNamed(t, tt.name)
 			m := withNothingOver(t, f.settle(f.Size), f.Size)
 			for _, size := range ownersSizes {
 				heads := lanesHeads(fluidAt(m, size).body())
@@ -66,9 +66,9 @@ func lanesHeads(rows []string) []string {
 	return heads
 }
 
-// runwayFixture is the fixture named, or the long-names world's view so
+// fixtureOrLongNamed is the fixture named, or the long-names world's view so
 // named.
-func runwayFixture(t *testing.T, name string) Fixture {
+func fixtureOrLongNamed(t *testing.T, name string) Fixture {
 	t.Helper()
 	if i := slices.IndexFunc(longNamesViews, func(p page) bool { return p.name == name }); i >= 0 {
 		p := longNamesViews[i]

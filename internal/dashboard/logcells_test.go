@@ -174,9 +174,9 @@ func TestChecksAndCountsShownAreMarkedAndCountedAsTheyAre(t *testing.T) {
 	}
 }
 
-// On a phone, stopped says the tool a request called alone, in
+// Brief, stopped says the tool a request called alone, in
 // text.secondary, for tool_use; else why its answer stopped, in text.muted.
-func TestAPhonesStoppedNamesTheToolAlone(t *testing.T) {
+func TestABriefStoppedNamesTheToolAlone(t *testing.T) {
 	at := time.Date(2026, 10, 1, 14, 31, 13, 0, now.Location())
 	first := asked("0a000001", at)
 	tool := asked("0a000002", at.Add(time.Second))

@@ -45,7 +45,7 @@ const (
 
 // cardForm is how the card is laid out on a frame: its width, its edges
 // included, and its content's; and whether its tree is in its three
-// columns, or stacked one under another, as on a phone.
+// columns, or stacked one under another, where they don't fit.
 type cardForm struct {
 	width, content int
 	wide           bool

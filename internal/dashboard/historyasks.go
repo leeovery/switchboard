@@ -149,7 +149,7 @@ func (p HistoryPage) Split() string {
 
 // Split is what v has History's sub-tab shown show, as HistoryPage's Split
 // names it, where v changes what the frame draws: "" for Weeks where its
-// shapes don't both take their wide form, as on a phone, whose form is
+// shapes don't both take their wide form, as in its narrow form, whose form is
 // neither, so v has no other to change to.
 func (f Frame) Split() string {
 	if f.History.Shown == HistoryWeeks && !f.weeksCycles() {

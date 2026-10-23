@@ -87,13 +87,13 @@ func (f Frame) historyDays(c *canvas, top int) {
 func (f Frame) daysStrips(c *canvas, l daysLayout) {
 	p := l.page
 	f.daysWeeks(c, l)
-	c.line(0, l.top+byModelRow, groupHead("BY MODEL", byModelSays, l.phone).fit(f.edge()))
+	c.line(0, l.top+byModelRow, groupHead("BY MODEL", byModelSays, l.narrow).fit(f.edge()))
 	for i, s := range p.ByModel {
 		hue := familyHue(s.Of)
 		named := familyDot(s.Of, secondaryInk)
 		f.daysStrip(c, l, l.familyRow(i), func(room int) line { return named.fit(room) }, shareOfUse(s), func(level int) ink { return stepInk(hue, level) }, s.Days)
 	}
-	c.line(0, l.byAccount, groupHead("BY ACCOUNT", byAccountSays, l.phone).fit(f.edge()))
+	c.line(0, l.byAccount, groupHead("BY ACCOUNT", byAccountSays, l.narrow).fit(f.edge()))
 	from, to := l.shown()
 	for i, s := range p.ByAccount[from:to] {
 		f.daysStrip(c, l, l.accountRow(i), func(room int) line { return historyAccount(labelled(s.Label, s.Of), s.Primary, room) }, f.limitsHit(s), dayInk, s.Days)
@@ -103,7 +103,7 @@ func (f Frame) daysStrips(c *canvas, l daysLayout) {
 	}
 }
 
-// daysLayout is Days' page laid out in a frame: in its phone form, where
+// daysLayout is Days' page laid out in a frame: in its narrow form, where
 // each strip's name takes the row over it; the row it starts at; where a
 // strip's row lays its parts, as daysRow has them, and the first of the
 // page's days it shows; the rows BY ACCOUNT, its first strip and what's out
@@ -112,7 +112,7 @@ func (f Frame) daysStrips(c *canvas, l daysLayout) {
 // out whole, from row 0, to scroll by rows.
 type daysLayout struct {
 	page       views.DaysPage
-	phone      bool
+	narrow     bool
 	top        int
 	row        daysRow
 	first      int
@@ -127,9 +127,9 @@ type daysLayout struct {
 }
 
 // daysRow is where a strip's row lays its parts: its label column, none on
-// a phone; the cells its name is drawn in, the label column's less nameGap,
-// or on a phone, those before its count; the weeks shown, the oldest first;
-// and its count, on a phone on the row of its name.
+// the narrow form; the cells its name is drawn in, the label column's less nameGap,
+// or in the narrow form, those before its count; the weeks shown, the oldest first;
+// and its count, in the narrow form on the row of its name.
 type daysRow struct {
 	labels flex.Span
 	name   flex.Span
@@ -138,7 +138,7 @@ type daysRow struct {
 }
 
 // layOutDays lays out Days of the page given from row top: wide where it
-// fits, else in its phone form.
+// fits, else in its narrow form.
 func (f Frame) layOutDays(p views.DaysPage, top int) daysLayout {
 	return f.daysLaidOut(p, top, !f.daysWideFits(p))
 }
@@ -155,14 +155,14 @@ func (f Frame) daysWideFits(p views.DaysPage) bool {
 }
 
 // daysLaidOut lays out Days of the page given from row top: its strips' rows
-// as daysParts declares them, in its phone form under each strip's name, its
+// as daysParts declares them, in its narrow form under each strip's name, its
 // key two rows, else beside it, its key a row; the key on the view's last
 // rows, and what's out of view of BY ACCOUNT on the row over them. On a
 // frame shorter than History's, or where BY ACCOUNT would show none of its
 // accounts, it's laid out whole, every account shown, to scroll by rows.
-func (f Frame) daysLaidOut(p views.DaysPage, top int, phone bool) daysLayout {
-	l := daysLayout{page: p, phone: phone, top: top, row: f.daysRowOf(p, phone), keyRows: 1}
-	if l.phone {
+func (f Frame) daysLaidOut(p views.DaysPage, top int, narrow bool) daysLayout {
+	l := daysLayout{page: p, narrow: narrow, top: top, row: f.daysRowOf(p, narrow), keyRows: 1}
+	if l.narrow {
 		l.keyRows = 2
 	}
 	l.first = max(len(p.Weeks)-len(l.row.weeks), 0) * 7
@@ -181,15 +181,15 @@ func (f Frame) daysLaidOut(p views.DaysPage, top int, phone bool) daysLayout {
 }
 
 // daysRowOf is where a strip's row of the page lays its parts in the frame,
-// in its phone form or wide, as flex lays them short of the edge: the weeks
-// that didn't give way, none where even the last alone doesn't fit; on a
-// phone, in a cell more, as nothing follows the blank after the last week's
-// days, and its name and count as phoneNamed lays them.
-func (f Frame) daysRowOf(p views.DaysPage, phone bool) daysRow {
-	if phone {
+// in its narrow form or wide, as flex lays them short of the edge: the weeks
+// that didn't give way, none where even the last alone doesn't fit; in the
+// narrow form, in a cell more, as nothing follows the blank after the last week's
+// days, and its name and count as narrowNamed lays them.
+func (f Frame) daysRowOf(p views.DaysPage, narrow bool) daysRow {
+	if narrow {
 		spans, fits := flex.Lay(f.edge()+1, daysParts(p, true)...)
 		weeks := spansShown(spans, fits)
-		name, count := f.phoneNamed(weeks)
+		name, count := f.narrowNamed(weeks)
 		return daysRow{name: name, weeks: weeks, count: count}
 	}
 	spans, fits := flex.Lay(f.edge(), daysParts(p, false)...)
@@ -209,12 +209,12 @@ func spansShown(spans []flex.Span, fit bool) []flex.Span {
 	return slices.DeleteFunc(slices.Clone(spans), func(s flex.Span) bool { return s.Left })
 }
 
-// phoneNamed is where a phone lays a strip's name and its count on the row
+// narrowNamed is where the narrow form lays a strip's name and its count on the row
 // over its days: the count ending where the last of the weeks given ends its
 // days, so it reads with its strip, the name a cell before it taking what's
-// left, at least phoneNameLeast; or where that doesn't fit, the count ending
+// left, at least narrowNameLeast; or where that doesn't fit, the count ending
 // at the edge, and cut there where even that doesn't.
-func (f Frame) phoneNamed(weeks []flex.Span) (name, count flex.Span) {
+func (f Frame) narrowNamed(weeks []flex.Span) (name, count flex.Span) {
 	end := 0
 	if len(weeks) > 0 {
 		last := weeks[len(weeks)-1]
@@ -222,7 +222,7 @@ func (f Frame) phoneNamed(weeks []flex.Span) (name, count flex.Span) {
 	}
 	counted := daysCount()
 	counted.Gap = 1
-	parts := []flex.Part{{Least: phoneNameLeast, Natural: phoneNameLeast, Grows: true}, counted}
+	parts := []flex.Part{{Least: narrowNameLeast, Natural: narrowNameLeast, Grows: true}, counted}
 	s, fits := flex.Lay(end, parts...)
 	if !fits {
 		s, _ = flex.Lay(f.edge(), parts...)
@@ -231,16 +231,16 @@ func (f Frame) phoneNamed(weeks []flex.Span) (name, count flex.Span) {
 	return s[0], s[1]
 }
 
-// phoneNameLeast are the fewest cells a phone keeps for a strip's name
+// narrowNameLeast are the fewest cells the narrow form keeps for a strip's name
 // before its count: two of the name as drawn, its marks among them, as w…
 // and ●…, or for the primary its mark alone, " ◆".
-const phoneNameLeast = 2
+const narrowNameLeast = 2
 
 // daysParts are a strip's row's parts across the frame, of the page given:
 // each of its weeks, the oldest first, which give way in that order, the
 // last never; and wide, its label column before them, as daysLabels has it,
 // and its count after them, daysCountGap on.
-func daysParts(p views.DaysPage, phone bool) []flex.Part {
+func daysParts(p views.DaysPage, narrow bool) []flex.Part {
 	weeks := make([]flex.Part, len(p.Weeks))
 	for i := range weeks {
 		weeks[i] = flex.Part{Least: weekCells, Natural: weekCells}
@@ -248,7 +248,7 @@ func daysParts(p views.DaysPage, phone bool) []flex.Part {
 			weeks[i].Leaves = i + 1
 		}
 	}
-	if phone {
+	if narrow {
 		return weeks
 	}
 	count := daysCount()
@@ -290,14 +290,14 @@ func (l *daysLayout) placeAccounts() {
 }
 
 // rows is how many rows Days takes laid out whole, from its top: to BY
-// ACCOUNT's last strip, its days on the row under its name on a phone, or
+// ACCOUNT's last strip, its days on the row under its name in the narrow form, or
 // to its heading, where it has none.
 func (l daysLayout) rows() int {
 	n := len(l.page.ByAccount)
 	switch {
 	case n == 0:
 		return l.byAccount + 1
-	case l.phone:
+	case l.narrow:
 		return l.accountRow(n-1) + 2
 	}
 	return l.accountRow(n-1) + 1
@@ -311,7 +311,7 @@ func (l daysLayout) paged(f Frame) rowsPaged {
 
 // heads are Days' headings, as it's laid out, each over the first row under
 // it: BY MODEL's and BY ACCOUNT's over their first strips, where each has
-// any; and on a phone, each strip's name over its days.
+// any; and in the narrow form, each strip's name over its days.
 func (l daysLayout) heads() []headed {
 	var heads []headed
 	if len(l.page.ByModel) > 0 {
@@ -329,10 +329,10 @@ func (l daysLayout) heads() []headed {
 	return heads
 }
 
-// named is the strip on row y's name over its days, on a phone, where they
+// named is the strip on row y's name over its days, in the narrow form, where they
 // take the row under it: none otherwise.
 func (l daysLayout) named(y int) []headed {
-	if !l.phone {
+	if !l.narrow {
 		return nil
 	}
 	return []headed{{at: y, first: y + 1}}
@@ -415,14 +415,14 @@ func initials(c *canvas, from time.Time, x, y int) {
 	}
 }
 
-// daysStrip draws a strip along row y, or on a phone, its name and count on
+// daysStrip draws a strip along row y, or in the narrow form, its name and count on
 // row y and the strip under it: its name at column 0, as name gives it in
 // the cells the row lays it out in; each of its days shown, in the ink
 // shade gives at the day's level, those to come ··; and its count, its
 // number a figure, cut short of the edge.
 func (f Frame) daysStrip(c *canvas, l daysLayout, y int, name func(room int) line, count []part, shade func(level int) ink, days []views.StripDay) {
 	strip := y
-	if l.phone {
+	if l.narrow {
 		strip++
 	}
 	c.line(0, y, name(l.row.name.Size))
@@ -492,11 +492,11 @@ func (f Frame) limitsHit(s views.DaysStrip) []part {
 }
 
 // daysKey draws Days' key from its row: the five shades from less to more,
-// and what they are; a day it hit a 5-hour limit; and the days to come. On a
-// phone, the shades take a row of their own, with nothing said of them.
+// and what they are; a day it hit a 5-hour limit; and the days to come. In the
+// narrow form, the shades take a row of their own, with nothing said of them.
 func (f Frame) daysKey(c *canvas, l daysLayout) {
 	shades, marks := f.daysKeyParts()
-	if l.phone {
+	if l.narrow {
 		c.line(0, l.keyRow, shades.fit(f.edge()))
 		c.line(0, l.keyRow+1, marks.fit(f.edge()))
 		return
