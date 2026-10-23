@@ -288,20 +288,19 @@ func periodsOut(noun string) outForm {
 // historyRowsOut are the forms of the line saying how many of a view's rows
 // are out of view, where Weeks and Days are drawn whole and Tokens scrolls a
 // row at a time, each shorter than the one before: "▲ 3 more above   ·   ▼ 12
-// more below   ·   j/k to scroll"; spaced as Compare's is, "▲ 3 more above ·
-// ▼ 12 more below · j/k"; and without how to scroll.
+// more below   ·   j/k to scroll"; and spaced as Compare's is, "▲ 3 more
+// above · ▼ 12 more below · j/k".
 var historyRowsOut = []outForm{
 	{above: " above", below: " below", gap: "   ·   ", keys: "j/k", does: " to scroll", inks: keyedOut},
 	{above: " above", below: " below", gap: " · ", keys: "j/k", inks: keyedOut},
-	{above: " above", below: " below", gap: " · ", inks: keyedOut},
 }
 
 // historyAccountsOut are the forms of the line saying how many of Weeks' and Days'
 // accounts are out of view, each shorter than the one before: the design's,
 // "▼ 4 more accounts below   ·   j/k or the wheel to scroll them"; spaced as
 // Sessions' and Runway's scroll line is, "▼ 4 more accounts below · j/k or
-// wheel to scroll"; without how to scroll; and as USAGE's rows say it, "▼ 4
-// more accounts".
+// wheel to scroll"; without how to scroll, before USAGE's shorter words take
+// over; and as USAGE's rows say it, "▼ 4 more accounts".
 var historyAccountsOut = []outForm{
 	{noun: "account", above: " above", below: " below", gap: "   ·   ", keys: "j/k", does: " or the wheel to scroll them", inks: keyedOut},
 	{noun: "account", above: " above", below: " below", gap: " · ", keys: "j/k", does: " or wheel to scroll", inks: keyedOut},

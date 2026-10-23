@@ -235,8 +235,8 @@ func (p rowsPaged) paste(c, whole *canvas, y, offset, width int, forms ...outFor
 }
 
 // said draws, where the rows say it and any from from up to to are out of
-// view, how many are, above and below, in the longest of the forms that fits
-// width cells, on the row after the page, the view's first row being y.
+// view, how many are, above and below, as outOfView says it in width cells,
+// on the row after the page, the view's first row being y.
 func (p rowsPaged) said(c *canvas, y, from, to, width int, forms ...outForm) {
 	page := p.page()
 	if above, below := from, p.content-to; p.says && above+below > 0 && page > 0 && page < p.rows-p.foot {
