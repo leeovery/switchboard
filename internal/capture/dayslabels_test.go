@@ -23,7 +23,7 @@ func TestDaysLabelsReadWholeAtTheOwnersSizes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			f := runwayFixture(t, tt.name)
+			f := fixtureOrLongNamed(t, tt.name)
 			m := withNothingOver(t, f.settle(f.Size), f.Size)
 			for _, size := range ownersSizes {
 				var heads []string

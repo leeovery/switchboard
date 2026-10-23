@@ -18,7 +18,7 @@ import (
 // Restarts, the router's health, and routing given back to it name no
 // account, so neither tells them. Each tells a session that started on the
 // router's best, as its reason says, ", the best", as it started, wherever ▲
-// marks since. Each is told in full alone, its Short its Full, as a phone's
+// marks since. Each is told in full alone, its Short its Full, as stacked
 // Detail tells LATELY in full too.
 func AccountLately(m status.Moment, id string, n int) []Sentence {
 	if id == "" {

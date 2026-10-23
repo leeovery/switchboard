@@ -1409,7 +1409,7 @@ func TestTheShortNowRowsGiveTheirNamesOneWidth(t *testing.T) {
 					if a, b := sideNamed(row7), sideNamed(row8); a != "" && b != "" && a != b {
 						t.Errorf("%s, at %d columns, rows 7 and 8 read %q and %q, want side named alike", case_, width, strings.TrimRight(row7, " "), row8)
 					}
-					atLeast := d.wordsAt(where.Short, mutedInk, labelCutAt(labelLeast)).width() + sessionPhoneApart + ansi.StringWidth(d.page.RanSaidWidest(d.now))
+					atLeast := d.wordsAt(where.Short, mutedInk, labelCutAt(labelLeast)).width() + sessionShortApart + ansi.StringWidth(d.page.RanSaidWidest(d.now))
 					if why := d.wordsAt(where.Short, mutedInk, labelCutAt(cells)).plain(); atLeast <= width && !strings.HasPrefix(row8, why) {
 						t.Errorf("%s, at %d columns, row 8 reads %q, want %q whole, as its names at their least let it", case_, width, row8, why)
 					}

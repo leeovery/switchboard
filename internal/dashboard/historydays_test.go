@@ -297,11 +297,11 @@ func TestDaysScrollsWholeWhereItsFramesDontFit(t *testing.T) {
 	}
 }
 
-// On a phone, Days is the last of its weeks that fit the width, three at 52
+// In its narrow form, Days is the last of its weeks that fit the width, three at 52
 // columns, each strip under its name and its count, the count ending where
 // the last week's days end, so it reads with its strip; and the key over two
 // rows.
-func TestDaysOnAPhone(t *testing.T) {
+func TestDaysInItsNarrowForm(t *testing.T) {
 	page := daysWorld(views.DaysStrip{Of: "work", Limits: 2, Days: stripOf(strings.Repeat("2", 53), 35, 52)}, views.DaysStrip{Of: "side", Limits: 1, Days: stripOf("", 50)})
 	page.ByModel = []views.DaysStrip{{Of: "opus", Days: stripOf(strings.Repeat("3", 53)), Share: new(0.8)}, {Of: "sonnet", Days: stripOf(strings.Repeat("01", 26)), Share: new(0.2)}}
 	f := daysFrame(t, page, 52, 35)
@@ -392,7 +392,7 @@ func TestDaysNamesEachFamily(t *testing.T) {
 // An account is named by its label, the primary's ◆ after it in
 // text.tertiary, and never ▲, which is routing. A name too long for its room
 // is cut, keeping ◆: wide, at a label's most, 24 cells, its ◆ and the two
-// blank cells before its strip beside it; on a phone, a blank cell before its count,
+// blank cells before its strip beside it; in the narrow form, a blank cell before its count,
 // which isn't cut for it: the name keeps two cells, as drawn, the count
 // moving to the edge where they don't fit before the weeks' end, and cut
 // there where they don't fit the width.
@@ -409,12 +409,12 @@ func TestDaysNamesEachAccount(t *testing.T) {
 		{name: "the primary marked", account: views.DaysStrip{Of: "work", Label: "Work", Primary: true, Days: stripOf(busy)}, width: 160, want: "Work ◆ "},
 		{name: "cut beside its strip", account: long, width: 160, want: "a-long-account-name-for…  "},
 		{name: "cut, keeping its ◆", account: views.DaysStrip{Of: long.Of, Primary: true, Days: long.Days}, width: 160, want: "a-long-account-name-for… ◆  "},
-		{name: "on a phone, cut before its count", account: long, width: 52, want: "a-long-account-name-for…    12 5-hour limits", whole: true},
-		{name: "on a narrower phone, its count kept", account: long, width: 40, want: "a-long-ac…   12 5-hour limits", whole: true},
+		{name: "narrow, cut before its count", account: long, width: 52, want: "a-long-account-name-for…    12 5-hour limits", whole: true},
+		{name: "narrower still, its count kept", account: long, width: 40, want: "a-long-ac…   12 5-hour limits", whole: true},
 		{name: "narrower than its count and a letter, the count at the edge", account: long, width: 22, want: "a…   12 5-hour limits", whole: true},
 		{name: "narrower still, the count cut at the edge", account: long, width: 20, want: "a…   12 5-hour lim…", whole: true},
 		{name: "the primary at its floor, its mark alone", account: personalDays, width: 20, want: " ◆   11 5-hour lim…", whole: true},
-		{name: "on a phone, whole where it fits", account: views.DaysStrip{Of: "work", Label: "Work", Primary: true, Limits: 3, Days: stripOf(busy)}, width: 52, want: textsAt(52, map[int]string{0: "Work ◆", 29: "3 5-hour limits"}), whole: true},
+		{name: "narrow, whole where it fits", account: views.DaysStrip{Of: "work", Label: "Work", Primary: true, Limits: 3, Days: stripOf(busy)}, width: 52, want: textsAt(52, map[int]string{0: "Work ◆", 29: "3 5-hour limits"}), whole: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -432,7 +432,7 @@ func TestDaysNamesEachAccount(t *testing.T) {
 // headed by its first day, and none where even the last's days don't end
 // short of the edge; and a strip's count, after its name's two cells, is cut
 // at the edge, its share a figure, numbered only where it's drawn whole.
-func TestDaysOnANarrowPhoneFitsItsWeeksAndCounts(t *testing.T) {
+func TestDaysNarrowerStillFitsItsWeeksAndCounts(t *testing.T) {
 	for width, want := range map[int]string{40: "21 Sep         28 Sep", 15: "28 Sep", 14: ""} {
 		f := daysFrame(t, daysWorld(workDays, personalDays, sideDays), width, 40)
 		if rows := textOf(historyDrawn(f).rows(Look{})); rows[f.top()] != want {
@@ -457,17 +457,17 @@ func TestDaysOnANarrowPhoneFitsItsWeeksAndCounts(t *testing.T) {
 func TestDaysShowsTheWeeksThatFitWithEachCountAfterThem(t *testing.T) {
 	tests := []struct {
 		width, weeks int
-		phone        bool
+		narrow       bool
 		from, counts int
 		first        string
 	}{
-		{width: 30, weeks: 2, phone: true, counts: 11, first: "21 Sep"},
-		{width: 45, weeks: 3, phone: true, counts: 26, first: "14 Sep"},
-		{width: 52, weeks: 3, phone: true, counts: 26, first: "14 Sep"},
-		{width: 60, weeks: 4, phone: true, counts: 41, first: "7 Sep"},
-		{width: 73, weeks: 4, phone: true, counts: 41, first: "7 Sep"},
-		{width: 105, weeks: 7, phone: true, counts: 86, first: "17 Aug"},
-		{width: 108, weeks: 7, phone: true, counts: 86, first: "17 Aug"},
+		{width: 30, weeks: 2, narrow: true, counts: 11, first: "21 Sep"},
+		{width: 45, weeks: 3, narrow: true, counts: 26, first: "14 Sep"},
+		{width: 52, weeks: 3, narrow: true, counts: 26, first: "14 Sep"},
+		{width: 60, weeks: 4, narrow: true, counts: 41, first: "7 Sep"},
+		{width: 73, weeks: 4, narrow: true, counts: 41, first: "7 Sep"},
+		{width: 105, weeks: 7, narrow: true, counts: 86, first: "17 Aug"},
+		{width: 108, weeks: 7, narrow: true, counts: 86, first: "17 Aug"},
 		{width: 138, weeks: 7, from: 12, counts: 119, first: "17 Aug"},
 		{width: 152, weeks: 7, from: 12, counts: 119, first: "17 Aug"},
 		{width: 153, weeks: 8, from: 12, counts: 134, first: "10 Aug"},
@@ -478,15 +478,15 @@ func TestDaysShowsTheWeeksThatFitWithEachCountAfterThem(t *testing.T) {
 			f := daysFrame(t, daysWorld(workDays, personalDays, sideDays), tt.width, 40)
 			l := f.layOutDays(*f.History.Days, f.top())
 			r := l.row
-			if l.phone != tt.phone || len(r.weeks) != tt.weeks || r.weeks[0].At != tt.from || r.count.At != tt.counts {
-				t.Fatalf("phone: %t, %d weeks from column %d, the counts at %d; want phone: %t, %d weeks from %d, the counts at %d",
-					l.phone, len(r.weeks), r.weeks[0].At, r.count.At, tt.phone, tt.weeks, tt.from, tt.counts)
+			if l.narrow != tt.narrow || len(r.weeks) != tt.weeks || r.weeks[0].At != tt.from || r.count.At != tt.counts {
+				t.Fatalf("narrow: %t, %d weeks from column %d, the counts at %d; want narrow: %t, %d weeks from %d, the counts at %d",
+					l.narrow, len(r.weeks), r.weeks[0].At, r.count.At, tt.narrow, tt.weeks, tt.from, tt.counts)
 			}
 			lastDay, ends := r.weeks[len(r.weeks)-1].At+7*swatchCells-1, r.count.At+r.count.Size
-			if gap := r.count.At - lastDay; !tt.phone && gap != 4 {
+			if gap := r.count.At - lastDay; !tt.narrow && gap != 4 {
 				t.Errorf("the counts start %d cells after the last week's last day, want 4", gap)
 			}
-			if tt.phone && ends != lastDay+1 {
+			if tt.narrow && ends != lastDay+1 {
 				t.Errorf("the counts end before column %d, want where the last week's days end, %d", ends, lastDay+1)
 			}
 			rows := textOf(historyDrawn(f).rows(Look{}))

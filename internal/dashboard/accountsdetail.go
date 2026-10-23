@@ -120,7 +120,7 @@ const (
 	weeksNarrowed
 )
 
-// detailLayout is Detail laid out wide, or on a phone, as stackLayout: with
+// detailLayout is Detail laid out wide, or stacked, as stackLayout: with
 // its list at its left, its name column names cells wide, the panel beside
 // it, or without, the panel alone, across the frame; how far into the panel
 // BY MODEL, BY DAY and WEEKS start; and its days' cells, the cells between
@@ -296,14 +296,14 @@ func (f Frame) detailIn(m status.Moment) (detailLayout, bool) {
 }
 
 // detailForm is Detail of doc at now, in the layout detailIn chooses: drawn
-// wide, or stacked, as detailPhoneBody has it. The form is chosen once, the
+// wide, or stacked, as detailStackedBody has it. The form is chosen once, the
 // first time a look that draws asks; how much of each bar it fills is alike
 // in either, so filling chooses none.
 func (f Frame) detailForm(doc status.Document, now time.Time) accountsForm {
 	chosen := sync.OnceValue(func() accountsForm {
 		l, wide := f.detailIn(f.Moment(doc, now))
 		if !wide {
-			return f.detailPhoneBody(doc, now)
+			return f.detailStackedBody(doc, now)
 		}
 		d := f.detailDrawn(doc, now, l)
 		return accountsForm{draw: d.draw, scrolling: d.scrolling, scrolls: d.scrolls, targets: d.targets}
@@ -640,8 +640,8 @@ func (d detailDrawn) lately(c *canvas, y, x, words int) {
 }
 
 // accountLatelyLines are Detail's LATELY lines of the sentences given, at the
-// moment m: each led as latelyLeads has it; then its words in full, on a
-// phone as wide, in text.muted, each account named as the dashboard names
+// moment m: each led as latelyLeads has it; then its words in full,
+// stacked as wide, in text.muted, each account named as the dashboard names
 // it, cut to the cells given.
 func accountLatelyLines(m status.Moment, sentences []views.Sentence, words int) []line {
 	lines := latelyLeads(m, sentences)

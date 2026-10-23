@@ -745,7 +745,7 @@ func TestDetailsTHISWEEKNamesThePeriod(t *testing.T) {
 // from 105 columns; with ten, "on for 9 of 10" makes it 24, four weeks no
 // longer reach, five at a gap of 2 take 78, and it's from 115; and a window
 // named past 8 cells, as "Sonnet wk", whole, a cell more of USAGE's row,
-// takes it to 115 too. Narrower, as the phone's body draws it. Drawn wide,
+// takes it to 115 too. Narrower, as the stacked body draws it. Drawn wide,
 // its widest row ends at the weeks' edge.
 func TestDetailDrawsWideFromWhereItsLeastsFit(t *testing.T) {
 	long := config.Accounts{{ID: "work", Label: "work-team-plan"}, {ID: "side", Label: "side-hustle-consulting"}}
@@ -787,8 +787,8 @@ func TestDetailDrawsWideFromWhereItsLeastsFit(t *testing.T) {
 			if _, wide := laidOf(f, tt.doc); wide {
 				t.Fatalf("at %d columns, its wide form's leasts fit", f.Width)
 			}
-			if got, want := accountsDrawn(f, tt.doc), formDrawn(f, f.detailPhoneBody(tt.doc, routedAt)); !slices.Equal(got, want) {
-				t.Errorf("at %d columns, the phone's body isn't drawn", f.Width)
+			if got, want := accountsDrawn(f, tt.doc), formDrawn(f, f.detailStackedBody(tt.doc, routedAt)); !slices.Equal(got, want) {
+				t.Errorf("at %d columns, the stacked body isn't drawn", f.Width)
 			}
 		})
 	}
@@ -807,7 +807,7 @@ func TestOneAccountsDetailIsWideFromWhereItsLeastsFit(t *testing.T) {
 	}{{100, true}, {99, true}, {81, true}, {80, false}} {
 		f.Width = tt.width
 		l, _ := laidOf(f, doc)
-		want := formDrawn(f, f.detailPhoneBody(doc, routedAt))
+		want := formDrawn(f, f.detailStackedBody(doc, routedAt))
 		if tt.wide {
 			want = formDrawn(f, accountsForm{draw: f.detailDrawn(doc, routedAt, l).draw})
 		}

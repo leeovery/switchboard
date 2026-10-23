@@ -187,7 +187,7 @@ type sessionsForm struct {
 // sessionsForm is the form Sessions' view shown is drawn in, of doc at now:
 // the List's, as listForm has it; else the Switchboard laid out as
 // switchboardLaid lays it, in lanes, as lanesForm draws it, where it says
-// so, as on a phone, and with cords, as switchboardForm draws it, where it
+// so, and with cords, as switchboardForm draws it, where it
 // doesn't.
 func (f Frame) sessionsForm(doc status.Document, now time.Time) sessionsForm {
 	if f.SessionsTab.Shown == SessionsList {

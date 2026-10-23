@@ -445,8 +445,8 @@ func TestWeeksScrollsAccountsPastWhatFits(t *testing.T) {
 
 // Shorter than History's frames, or where it would show none of its
 // accounts, Weeks is drawn whole, every account, and scrolls by rows over its
-// legend, which keeps the view's last row, as a phone's form has none: the
-// row after the page, the one over the legend, or a phone's last, says how
+// legend, which keeps the view's last row, as the narrow form has none: the
+// row after the page, the one over the legend, or the narrow form's last, says how
 // many rows are out of view, above and below, and no line counts accounts it
 // doesn't show; and the last row shows scrolled to the end.
 func TestWeeksScrollsWholeWhereItsFramesDontFit(t *testing.T) {
@@ -472,11 +472,11 @@ func TestWeeksScrollsWholeWhereItsFramesDontFit(t *testing.T) {
 			below: "▼ 3 more below   ·   j/k to scroll", above: "▲ 3 more above   ·   j/k to scroll",
 		},
 		{
-			name: "a phone at 52×24, the line on its last row", page: tenWeeks(), width: 52, height: 24, want: Scrolling{Most: 10, Page: 13}, last: "studio ",
+			name: "narrow at 52×24, the line on its last row", page: tenWeeks(), width: 52, height: 24, want: Scrolling{Most: 10, Page: 13}, last: "studio ",
 			below: "▼ 10 more below   ·   j/k to scroll", above: "▲ 10 more above   ·   j/k to scroll",
 		},
 		{
-			name: "a narrow phone as tall as the frames", page: tenWeeks(), width: 12, height: 37, want: Scrolling{Most: 22, Page: 26}, last: "studio",
+			name: "narrower still, as tall as the frames", page: tenWeeks(), width: 12, height: 37, want: Scrolling{Most: 22, Page: 26}, last: "studio",
 			below: "▼ 22 more…", above: "▲ 22 more…",
 		},
 	}
@@ -549,7 +549,7 @@ func TestWeeksColumnsFillFromTheBottomTheirTopCellInEighths(t *testing.T) {
 	}
 }
 
-func TestWeeksOnAPhoneIsTheVerdictAndTheTablesWeeksThatFit(t *testing.T) {
+func TestWeeksInItsNarrowFormIsTheVerdictAndTheTablesWeeksThatFit(t *testing.T) {
 	f := weeksFrame(threeWeeks(), WeeksColumns, 52, 35, Look{})
 	want := []string{
 		"three is about right",
@@ -570,7 +570,7 @@ func TestWeeksOnAPhoneIsTheVerdictAndTheTablesWeeksThatFit(t *testing.T) {
 	}
 	rows := weeksText(f)
 	if !slices.Equal(rows[:len(want)], want) || slices.ContainsFunc(rows[len(want):], func(r string) bool { return r != "" }) {
-		t.Errorf("Weeks on a phone reads\n%s\nwant\n%s", strings.Join(rows, "\n"), strings.Join(want, "\n"))
+		t.Errorf("Weeks in its narrow form reads\n%s\nwant\n%s", strings.Join(rows, "\n"), strings.Join(want, "\n"))
 	}
 }
 
@@ -589,35 +589,35 @@ func TestWeeksGivesAWeekWayBeforeItCutsAVerdict(t *testing.T) {
 }
 
 // Where one week leaves the verdict short of its natural, it's cut at the
-// edge, never to less than its word; and on a phone, with no verdict beside
+// edge, never to less than its word; and in the narrow form, with no verdict beside
 // them, the weeks that fit show: seven at 73 columns, all eight from 77.
 func TestWeeksShowsTheWeeksThatFit(t *testing.T) {
 	tests := []struct {
 		name   string
 		page   views.WeeksPage
 		width  int
-		phone  bool
+		narrow bool
 		weeks  int
 		reads  string
 		labels int
 	}{
 		{name: "the wide form where it fits, one week, the verdict cut", page: threeWeeks(), width: 79, weeks: 1, labels: 14, reads: "work           34%…  hits its limit most weeks  9% left  without it: short 6…"},
-		{name: "a phone a cell narrower, all eight weeks", page: threeWeeks(), width: 78, phone: true, weeks: 8, labels: 14},
-		{name: "a phone at 77, all eight", page: threeWeeks(), width: 77, phone: true, weeks: 8, labels: 14},
-		{name: "a phone at 76, seven", page: threeWeeks(), width: 76, phone: true, weeks: 7, labels: 14},
-		{name: "a phone at 73, seven", page: threeWeeks(), width: 73, phone: true, weeks: 7, labels: 14},
-		{name: "a phone at 73, long names whole, six", page: longNamedWeeks(), width: 73, phone: true, weeks: 6, labels: labelMost},
-		{name: "a phone at 52, four", page: threeWeeks(), width: 52, phone: true, weeks: 4, labels: 14},
-		{name: "a phone at 27, one, the label column at its natural", page: threeWeeks(), width: 27, phone: true, weeks: 1, labels: 14},
-		{name: "a phone at 20, one, the label column narrowed", page: threeWeeks(), width: 20, phone: true, weeks: 1, labels: 13},
+		{name: "narrow a cell narrower, all eight weeks", page: threeWeeks(), width: 78, narrow: true, weeks: 8, labels: 14},
+		{name: "narrow at 77, all eight", page: threeWeeks(), width: 77, narrow: true, weeks: 8, labels: 14},
+		{name: "narrow at 76, seven", page: threeWeeks(), width: 76, narrow: true, weeks: 7, labels: 14},
+		{name: "narrow at 73, seven", page: threeWeeks(), width: 73, narrow: true, weeks: 7, labels: 14},
+		{name: "narrow at 73, long names whole, six", page: longNamedWeeks(), width: 73, narrow: true, weeks: 6, labels: labelMost},
+		{name: "narrow at 52, four", page: threeWeeks(), width: 52, narrow: true, weeks: 4, labels: 14},
+		{name: "narrow at 27, one, the label column at its natural", page: threeWeeks(), width: 27, narrow: true, weeks: 1, labels: 14},
+		{name: "narrow at 20, one, the label column narrowed", page: threeWeeks(), width: 20, narrow: true, weeks: 1, labels: 13},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := weeksFrame(tt.page, WeeksTable, tt.width, 61, Look{})
 			w := f.weeksDrawn(tt.page)
-			if w.phone != tt.phone || len(w.laid.weeks) != tt.weeks || w.laid.labels.Size != tt.labels {
-				t.Errorf("Weeks is drawn on a phone: %t, %d weeks, its labels %d cells; want %t, %d and %d",
-					w.phone, len(w.laid.weeks), w.laid.labels.Size, tt.phone, tt.weeks, tt.labels)
+			if w.narrow != tt.narrow || len(w.laid.weeks) != tt.weeks || w.laid.labels.Size != tt.labels {
+				t.Errorf("Weeks is drawn narrow: %t, %d weeks, its labels %d cells; want %t, %d and %d",
+					w.narrow, len(w.laid.weeks), w.laid.labels.Size, tt.narrow, tt.weeks, tt.labels)
 			}
 			if tt.reads != "" && !slices.Contains(weeksText(f), tt.reads) {
 				t.Errorf("Weeks reads\n%s\nwant a row %q", strings.Join(weeksText(f), "\n"), tt.reads)
@@ -637,12 +637,12 @@ func longNamedWeeks() views.WeeksPage {
 	return page
 }
 
-// weeksForm names the form Weeks is drawn in: its phone form, or wide, in
+// weeksForm names the form Weeks is drawn in: its narrow form, or wide, in
 // columns or as a table.
 func weeksFormOf(w weeksDrawn) string {
 	switch {
-	case w.phone:
-		return "phone"
+	case w.narrow:
+		return "narrow"
 	case w.columns:
 		return "columns"
 	}
@@ -666,7 +666,7 @@ func weeksSweep() map[string][]weeksDrawn {
 	return sweep
 }
 
-// As the width grows, Weeks' phone form gives way to its wide form once, at
+// As the width grows, Weeks' narrow form gives way to its wide form once, at
 // the same width whatever its page, as the form never hangs on the data:
 // where its parts' leasts fit and its legend reads whole on a row; and its
 // columns, chosen, take their own wide form once more, past their wider
@@ -680,11 +680,11 @@ func TestWeeksFormSwitchesOnceAsTheWidthGrows(t *testing.T) {
 			if i == 0 || form != forms[len(forms)-1] {
 				forms = append(forms, form)
 			}
-			if i > 0 && drawn[i-1].phone && !w.phone {
+			if i > 0 && drawn[i-1].narrow && !w.narrow {
 				switches[strings.SplitN(name, " ", 2)[0]+" "+form] = w.edge + margin
 			}
 		}
-		want := []string{"phone", "table"}
+		want := []string{"narrow", "table"}
 		if strings.HasSuffix(name, "in columns") {
 			want = append(want, "columns")
 		}
@@ -706,12 +706,12 @@ func TestWeeksWiderNeverShowsLess(t *testing.T) {
 	for name, drawn := range weeksSweep() {
 		for i, w := range drawn {
 			natural := w.labelsColumn().Natural
-			narrowing := !w.phone && w.laid.verdict.Size > verdictPart(w.columns).Least
+			narrowing := !w.narrow && w.laid.verdict.Size > verdictPart(w.columns).Least
 			if (len(w.laid.weeks) > 1 || narrowing) && w.laid.labels.Size != natural {
 				t.Errorf("%s at %d columns: %d weeks show, the verdict %d cells, its label column %d, want its natural %d",
 					name, w.edge+margin, len(w.laid.weeks), w.laid.verdict.Size, w.laid.labels.Size, natural)
 			}
-			if !w.phone && len(w.laid.weeks) > 1 && w.laid.verdict.Size != widestVerdict(w.columns) {
+			if !w.narrow && len(w.laid.weeks) > 1 && w.laid.verdict.Size != widestVerdict(w.columns) {
 				t.Errorf("%s at %d columns: %d weeks show, the verdict %d cells, want its natural %d", name, w.edge+margin, len(w.laid.weeks), w.laid.verdict.Size, widestVerdict(w.columns))
 			}
 			if i == 0 || weeksFormOf(drawn[i-1]) != weeksFormOf(w) {
@@ -734,7 +734,7 @@ func TestWeeksVerdictsReadWholeWhereAWeekCanGiveWay(t *testing.T) {
 			for width := 40; width <= 220; width++ {
 				f := weeksFrame(page, shape, width, 61, Look{})
 				w := f.weeksDrawn(page)
-				if w.phone || len(w.laid.weeks) < 2 {
+				if w.narrow || len(w.laid.weeks) < 2 {
 					continue
 				}
 				text := strings.Join(weeksText(f), "\n")
@@ -761,7 +761,7 @@ func TestWeeksVerdictsReadWholeWhereAWeekCanGiveWay(t *testing.T) {
 // Narrower than a phone, Weeks' table shows the latest of its four weeks
 // that fit short of the edge, this week's among them, its peak whole and
 // numbered.
-func TestWeeksOnANarrowPhoneShowsTheLatestWeeksThatFit(t *testing.T) {
+func TestWeeksNarrowerStillShowsTheLatestWeeksThatFit(t *testing.T) {
 	f := weeksFrame(threeWeeks(), WeeksTable, 40, 40, NoColour())
 	rows := textOf(historyDrawn(f).rows(Look{}))
 	if want := "              14 Sep  21 Sep  28 Sep"; !slices.Contains(rows, want) {

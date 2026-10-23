@@ -771,7 +771,7 @@ func TestComparesFocusKeysActWhereTheFrameDrawsItWide(t *testing.T) {
 // Where Compare is turned, drawing no focus, its focus keys, ←→, enter and
 // esc, do nothing there, nor say anything, though a wider frame left a
 // column focused; Detail takes its keys as ever.
-func TestOnAPhoneComparesFocusKeysDoNothing(t *testing.T) {
+func TestTurnedComparesFocusKeysDoNothing(t *testing.T) {
 	for _, key := range []tea.KeyPressMsg{leftKey, rightKey, enterKey, escKey} {
 		h := accountsHarness(t, dashboard.AccountsShown{})
 		h.keys(rightKey, rightKey)
@@ -779,7 +779,7 @@ func TestOnAPhoneComparesFocusKeysDoNothing(t *testing.T) {
 		was := h.model.accounts.shown
 		h.keys(key)
 		if s := h.model.accounts.shown; !reflect.DeepEqual(s, was) || h.model.note != "" {
-			t.Errorf("on a phone, %s left the focus %v on %q, showing %d, noting %q; want nothing done", key, s.Focused, s.Focus, s.View(), h.model.note)
+			t.Errorf("turned, %s left the focus %v on %q, showing %d, noting %q; want nothing done", key, s.Focused, s.Focus, s.View(), h.model.note)
 		}
 	}
 
@@ -787,7 +787,7 @@ func TestOnAPhoneComparesFocusKeysDoNothing(t *testing.T) {
 	h.update(tea.WindowSizeMsg{Width: 52, Height: 37})
 	h.keys(downKey, enterKey)
 	if h.pageOpen() != idD28C {
-		t.Errorf("on a phone, ↓ enter on Detail opened %q's page, want %s's", h.pageOpen(), idD28C)
+		t.Errorf("stacked, ↓ enter on Detail opened %q's page, want %s's", h.pageOpen(), idD28C)
 	}
 }
 

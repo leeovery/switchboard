@@ -67,7 +67,7 @@ func momentsShown(hm viewstest.SessionMoment, id string) (*SessionShown, bool) {
 // once it's over, its models and how long its lines are kept; a row each of
 // the accounts it ran on, its time there and its requests; a row each of its
 // turns, its number and how long it took; and ↑ asking on its newest turn
-// while it waits, and only then. A phone's two rows of now, at its
+// while it waits, and only then. The short two rows of now, at their
 // narrowest, say the same, short, at each moment too.
 func TestASessionsPageSaysWhatItsViewsSayAtEachHardMoment(t *testing.T) {
 	for _, hm := range viewstest.SessionMoments() {
@@ -87,7 +87,7 @@ func TestASessionsPageSaysWhatItsViewsSayAtEachHardMoment(t *testing.T) {
 
 				phone := frameOf(40, 32)
 				phone.Sessions, phone.Stream, phone.Session = hm.Sessions, hm.Stream, shown
-				checkPhoneNowRows(t, phone.At(hm.Doc, hm.Now).page(hm.Doc, hm.Now), phone.layoutOf(len(shown.Page.Accounts)), shown.Page, hm.Now)
+				checkShortNowRows(t, phone.At(hm.Doc, hm.Now).page(hm.Doc, hm.Now), phone.layoutOf(len(shown.Page.Accounts)), shown.Page, hm.Now)
 			}
 		})
 	}
@@ -126,11 +126,11 @@ func checkNowRows(t *testing.T, c *canvas, l sessionLayout, p views.SessionPage,
 	}
 }
 
-// checkPhoneNowRows checks that a phone's two rows of now, drawn on c as l
+// checkShortNowRows checks that the short two rows of now, drawn on c as l
 // lays them out, say what the views say of page p at now, each cut with …
 // where it doesn't fit: what it's doing, then where it runs, since when; and
 // why, short, then at the right how it has run.
-func checkPhoneNowRows(t *testing.T, c *canvas, l sessionLayout, p views.SessionPage, now time.Time) {
+func checkShortNowRows(t *testing.T, c *canvas, l sessionLayout, p views.SessionPage, now time.Time) {
 	t.Helper()
 	shown := status.ShownID(p.Session)
 	said, why := unmarked.Replace(rowOf(c, l.now)), rowOf(c, l.now+1)
@@ -139,12 +139,12 @@ func checkPhoneNowRows(t *testing.T, c *canvas, l sessionLayout, p views.Session
 		want += "  " + where
 	}
 	if !saysCut(said, want) {
-		t.Errorf("%s's phone row 7 reads\n%q\nwant it to say\n%q", shown, said, want)
+		t.Errorf("%s's short row 7 reads\n%q\nwant it to say\n%q", shown, said, want)
 	}
 	ran := p.RanSaid(now)
 	short := strings.TrimRight(strings.TrimSuffix(why, ran), " ")
 	if !strings.HasSuffix(why, ran) || !saysCut(short, p.Where(now).Short.String()) {
-		t.Errorf("%s's phone row 8 reads\n%q\nwant it to say\n%q\nthen at the right %q", shown, why, p.Where(now).Short.String(), ran)
+		t.Errorf("%s's short row 8 reads\n%q\nwant it to say\n%q\nthen at the right %q", shown, why, p.Where(now).Short.String(), ran)
 	}
 }
 

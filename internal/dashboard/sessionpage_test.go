@@ -814,10 +814,10 @@ func TestRow7DrawsNoWindowsOfAnAccountTheDocumentLacks(t *testing.T) {
 	}
 }
 
-// A phone's two rows of now say a pin's move as its views do, short, the
+// The short two rows of now say a pin's move as its views do, short, the
 // second cut with … to leave how it has run whole at its right: its own pin
 // moving it, and its pin yielding, which the hard moments don't hold.
-func TestAPhonesNowRowsSayAPinsMoveShort(t *testing.T) {
+func TestTheShortNowRowsSayAPinsMoveShort(t *testing.T) {
 	tests := []struct {
 		name, reason, from, to string
 		row7, row8             string
@@ -835,15 +835,15 @@ func TestAPhonesNowRowsSayAPinsMoveShort(t *testing.T) {
 			f := pageFrame(t, shown, 52, 32)
 			rows, now := pageText(f), f.layoutOf(len(shown.Page.Accounts)).now
 			if rows[now] != tt.row7 || rows[now+1] != tt.row8 {
-				t.Errorf("a phone's rows of now read\n%q\n%q\nwant\n%q\n%q", rows[now], rows[now+1], tt.row7, tt.row8)
+				t.Errorf("the short rows of now read\n%q\n%q\nwant\n%q\n%q", rows[now], rows[now+1], tt.row7, tt.row8)
 			}
 		})
 	}
 }
 
-// Once it's over, a phone's rows say it ended, then where it ran, short,
+// Once it's over, the short rows of now say it ended, then where it ran, short,
 // and how long it ran.
-func TestAnEndedSessionOnAPhone(t *testing.T) {
+func TestAnEndedSessionsShortNowRows(t *testing.T) {
 	rows := pageText(pageFrame(t, ended(), 52, 32))
 	if rows[7] != "ended yesterday 18:47" {
 		t.Errorf("row 8 reads %q, want it ended", rows[7])

@@ -527,7 +527,7 @@ func charsCounted(chars int) bool {
 }
 
 // folds reports whether the request's routing takes its stopped's place where
-// the table has no routing column, as a narrow table's and a phone's Log fold
+// the table has no routing column, as a narrow table's and a brief one's fold
 // it in: a request's, where its routing has words. A request in flight's has
 // none, nor a check's or a count's.
 func (r RequestRow) folds() bool {
@@ -544,13 +544,13 @@ func (r RequestRow) Folded() RowWords {
 	return r.Stopped()
 }
 
-// PhoneStopped is the request's stopped as a phone's Log says it, its routing
+// BriefStopped is the request's stopped as the Log's brief layout says it, its routing
 // folded in, as folds has it: in flight, asking or answering alone; lost, as
 // Stopped says; where it moved its session, from work; where its routing has
 // other words, them, as new session for its session's first; else the tool it
 // called alone, as Bash, and +1 where it called one more; else why its
 // answer stopped. None for a check or a count.
-func (r RequestRow) PhoneStopped() RowWords {
+func (r RequestRow) BriefStopped() RowWords {
 	switch {
 	case r.Kind != RowRequest:
 		return nil

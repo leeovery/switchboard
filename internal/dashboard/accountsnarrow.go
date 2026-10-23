@@ -110,7 +110,7 @@ func largestIn(used versionUsed, cells int) line {
 	return fitParts(cells, named...)
 }
 
-// A phone's Detail's columns: USAGE's bars at least stackBarLeast cells;
+// Stacked Detail's columns: USAGE's bars at least stackBarLeast cells;
 // THIS WEEK's two columns stackHalf apart, their labels stackLabels cells;
 // and from stackAt, BY MODEL's bar, BY DAY's weeks and WEEKS' peaks, the
 // peaks each right-aligned in stackPeakCells, stackPeakGap between.
@@ -173,18 +173,18 @@ func (r detailUsageRow) parts() []flex.Part {
 	}
 }
 
-// partsApart is how far a phone's part is from the row before it, a blank
+// partsApart is how far a stack's part is from the row before it, a blank
 // row between.
 const partsApart = 2
 
-// detailPhoneBody is Detail of doc at now stacked, where the frame is too
+// detailStackedBody is Detail of doc at now stacked, where the frame is too
 // narrow for its wide form, as detailIn has it.
-func (f Frame) detailPhoneBody(doc status.Document, now time.Time) accountsForm {
+func (f Frame) detailStackedBody(doc status.Document, now time.Time) accountsForm {
 	s := f.stackedOf(doc, now)
 	return f.stackForm(s.whole, s.filled)
 }
 
-// stack is a phone's view drawn whole: its rows, on a canvas the frame's
+// stack is a view stacked and drawn whole: its rows, on a canvas the frame's
 // width; and the zones of them a click acts on, by their rows on it.
 type stack struct {
 	c       *canvas
@@ -458,24 +458,24 @@ func (cp compared) turnedGroup(c *canvas, y int, l turnedLayout, g turnedGroup, 
 	return y
 }
 
-// stacked is a phone's Detail of a moment: Detail as detailDrawn has it,
+// stacked is stacked Detail of a moment: Detail as detailDrawn has it,
 // laid out as stackLayout, its parts stacked down the frame.
 type stacked struct {
 	detailDrawn
 }
 
-// stackLayout is Detail on a phone: no list; BY MODEL, BY DAY and WEEKS from
+// stackLayout is Detail stacked: no list; BY MODEL, BY DAY and WEEKS from
 // stackAt; and its days swatchCells wide, as History's, its weeks a cell
 // apart.
 var stackLayout = detailLayout{into: stackAt, dw: dayCellsLeast, gap: 1}
 
-// stackedOf is a phone's Detail of doc at now: of the account the frame's
+// stackedOf is stacked Detail of doc at now: of the account the frame's
 // Accounts shows, else all accounts, as detailDrawn has it.
 func (f Frame) stackedOf(doc status.Document, now time.Time) stacked {
 	return stacked{f.detailDrawn(doc, now, stackLayout)}
 }
 
-// whole is the phone's Detail drawn whole, each part under its heading, a
+// whole is stacked Detail drawn whole, each part under its heading, a
 // blank row between: the picker, and under it how the account stands, short,
 // as stands has it; USAGE; once the period's page is read, THIS WEEK, BY
 // MODEL, BY DAY, and WEEKS with the verdict under it; SESSIONS, as Detail
@@ -569,7 +569,7 @@ func (s stacked) thisWeek(c *canvas, y int) int {
 	return y + len(halves[0])
 }
 
-// thisWeekItem is an item of a phone's THIS WEEK: its label, and its figure.
+// thisWeekItem is an item of stacked Detail's THIS WEEK: its label, and its figure.
 type thisWeekItem struct {
 	label string
 	parts []part
@@ -593,7 +593,7 @@ func (s stacked) thisWeekItems() [][]thisWeekItem {
 		{
 			{"worth", periodParts(page, worthParts(s.row, secondaryInk), secondaryInk)},
 			{"extra use", extraShort(s.extra(), secondaryInk)},
-			{"against", periodParts(page, againstOnPhone(s.row), secondaryInk)},
+			{"against", periodParts(page, againstCompact(s.row), secondaryInk)},
 		},
 	}
 }

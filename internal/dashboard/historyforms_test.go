@@ -15,7 +15,7 @@ import (
 // width given; the width its wide form takes, and the column its widest row
 // ends before, as the frame works them out, the one past the other by the
 // margin Weeks and Days keep clear; what of it its wide form draws, and
-// what it draws where that doesn't fit, its phone form, but Weeks' columns,
+// what it draws where that doesn't fit, its narrow form, but Weeks' columns,
 // whose table is drawn there where it fits, each drawn as that form lays it
 // out. The Year and Tokens, whose arrangements are their parts', not a
 // reach, have tests of their own.
@@ -79,17 +79,17 @@ func weeksWidest(f Frame) int {
 	return weeksReach(f) - margin
 }
 
-// weeksForm is Weeks of the frame in its phone form, or wide, in its shape,
+// weeksForm is Weeks of the frame in its narrow form, or wide, in its shape,
 // from the view's top.
-func weeksForm(phone bool) func(f Frame) *canvas {
+func weeksForm(narrow bool) func(f Frame) *canvas {
 	return func(f Frame) *canvas {
 		c := newCanvas(f.Width, f.Height)
-		w := f.weeksIn(*f.History.Weeks, phone, !phone && f.History.WeeksShape == WeeksColumns)
+		w := f.weeksIn(*f.History.Weeks, narrow, !narrow && f.History.WeeksShape == WeeksColumns)
 		foot := f.top() + f.viewRows() - 1
 		shown, above, below := f.weeksShown(w)
 		w.draw(c, f.Look, f.top(), shown)
 		w.accountsOut(c, foot-w.footRows(), above, below)
-		if !phone {
+		if !narrow {
 			w.put(c, 0, foot, w.legend()...)
 		}
 		return c
@@ -119,12 +119,12 @@ func daysWidestOf(f Frame) int {
 	return daysReachOf(f) - margin
 }
 
-// daysForm is what of Days, laid out in its phone form or wide, tells the
+// daysForm is what of Days, laid out in its narrow form or wide, tells the
 // forms apart: the weeks over the days and the key.
-func daysForm(phone bool) func(f Frame) *canvas {
+func daysForm(narrow bool) func(f Frame) *canvas {
 	return func(f Frame) *canvas {
 		c := newCanvas(f.Width, f.Height)
-		l := f.daysLaidOut(*f.History.Days, f.top(), phone)
+		l := f.daysLaidOut(*f.History.Days, f.top(), narrow)
 		f.daysWeeks(c, l)
 		f.daysKey(c, l)
 		return c
@@ -148,7 +148,7 @@ func drawsAsTheForm(f Frame, form *canvas) string {
 // Each of History's sub-tabs draws its wide form, as the design lays it out
 // at 160 columns, where the width it takes, its widest row and the margin
 // after it that Weeks and Days keep clear, fits the frame's, and where it
-// doesn't, its phone form, as its wide form's parts are at fixed columns,
+// doesn't, its narrow form, as its wide form's parts are at fixed columns,
 // and would fall off the frame; but Weeks' columns, whose table takes their
 // place where it fits. Each fits at 160.
 func TestEachSubTabDrawsItsWideFormWhereItsWidestRowFits(t *testing.T) {
@@ -201,11 +201,11 @@ func TestEachSubTabsWidestRowEndsWhereItsWorkedOutToEnd(t *testing.T) {
 	}
 }
 
-// A sub-tab drawn in its phone form, in a frame wider than a phone's,
+// A sub-tab drawn in its narrow form, in a frame wider than a phone's,
 // scrolls what that form draws: Weeks' accounts from the first's row, under
 // the verdict's rows; Days' BY ACCOUNT to the row over the scroll line, over
 // its key's two rows.
-func TestASubTabInItsPhoneFormScrollsWhatThatFormDraws(t *testing.T) {
+func TestASubTabInItsNarrowFormScrollsWhatThatFormDraws(t *testing.T) {
 	tests := []struct {
 		name  string
 		frame func(t *testing.T, width int) Frame
@@ -245,7 +245,7 @@ func TestASubTabInItsPhoneFormScrollsWhatThatFormDraws(t *testing.T) {
 // bounded is reckoned at the widest its format draws, not at the width it's
 // drawn, so Days of accounts that hit one 5-hour limit each and of accounts
 // that hit more take the one form at each width, on either side of where it
-// changes: its phone form at 117 columns, its wide form from 118, where its
+// changes: its narrow form at 117 columns, its wide form from 118, where its
 // key fits on a row.
 func TestASubTabsFormNeverHangsOnItsData(t *testing.T) {
 	oneEach := daysWorld(workDays, personalDays, sideDays)
@@ -257,11 +257,11 @@ func TestASubTabsFormNeverHangsOnItsData(t *testing.T) {
 		"of limits hit many times": daysWorld(workDays, personalDays, sideDays),
 		"of a limit hit once each": oneEach,
 	}
-	for width, phone := range map[int]bool{117: true, 118: false} {
+	for width, narrow := range map[int]bool{117: true, 118: false} {
 		for name, page := range pages {
 			f := daysFrame(t, page, width, 40)
-			if got := f.layOutDays(page, f.top()).phone; got != phone {
-				t.Errorf("at %d columns, Days %s draws its phone form: %t, want %t", width, name, got, phone)
+			if got := f.layOutDays(page, f.top()).narrow; got != narrow {
+				t.Errorf("at %d columns, Days %s draws its narrow form: %t, want %t", width, name, got, narrow)
 			}
 		}
 	}
@@ -288,10 +288,10 @@ func TestWeeksAndDaysDrawNothingInTheMarginColumn(t *testing.T) {
 	}
 }
 
-// On a phone, Weeks and Days scrolled to accounts above and below say what's
+// In their narrow forms, Weeks and Days scrolled to accounts above and below say what's
 // out of view in the longest form that fits, short of the margin, cut
 // nowhere.
-func TestAPhoneSaysWhatsOutOfViewInALineThatFits(t *testing.T) {
+func TestANarrowFormSaysWhatsOutOfViewInALineThatFits(t *testing.T) {
 	days := daysFrame(t, daysShared([4]float64{0.57, 0.39, 0.01, 0.03}, tenDays...), 52, 37)
 	tests := []struct {
 		name  string
@@ -307,7 +307,7 @@ func TestAPhoneSaysWhatsOutOfViewInALineThatFits(t *testing.T) {
 		rows := textOf(historyDrawn(f).rows(Look{}))
 		i := slices.IndexFunc(rows, func(row string) bool { return strings.Contains(row, "more account") })
 		if i < 0 || rows[i] != tt.want || ansi.StringWidth(rows[i]) > f.edge() {
-			t.Errorf("%s scrolled on a phone reads\n%s\nwant a row %q", tt.name, strings.Join(rows, "\n"), tt.want)
+			t.Errorf("%s scrolled in its narrow form reads\n%s\nwant a row %q", tt.name, strings.Join(rows, "\n"), tt.want)
 		}
 	}
 }
