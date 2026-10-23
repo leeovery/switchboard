@@ -327,7 +327,8 @@ as many accounts as the use needs.
 - `v` draws the weeks as columns or as a table, where both fit.
 - As many weeks show as fit. On a narrower screen the oldest go first, so each account's verdict
   still reads whole.
-- On a phone the verdict comes first, with the weeks under it and no verdicts beside them.
+- Where the table doesn't fit, under 79 columns, the verdict comes first, with the weeks under
+  it and no verdicts beside them.
 
 ### Days
 
@@ -548,7 +549,7 @@ then the STORY folds to its heading (on a phone it's left out), then the account
 count, `+2 more accounts`, then the blank rows, then the turns, down to one. With a turn open, it
 keeps five of the turn's requests until the blank rows have gone, then shows fewer, down to one.
 Last, that count, the STORY's heading and the two rows saying what the session is doing give way,
-one at a time. From 10 rows wide and 11 on a phone, it always shows a turn, and from 13 and 14 a
+one at a time. From 10 rows tall and 11 on a phone, it always shows a turn, and from 13 and 14 a
 turn you've opened, whole.
 
 Keys on a session's page:
@@ -563,13 +564,17 @@ Keys on a session's page:
 
 ## On a phone
 
-Under 100 columns, the dashboard lays itself out for a phone.
+Every view lays itself out by what fits, at every width: each part narrows as far as it still
+reads, and a view takes a narrower arrangement only where its wider one's parts don't fit. So
+what a phone shows follows from its width, as it would in any narrow window. Only the page's frame
+switches at one width: under 100 columns, it takes its phone form.
 
 <div align="center">
 <img src="../art/phone.webp" alt="The Overview in a phone's terminal, 52 columns wide" width="260">
 </div>
 
-- The tabs sit on a row of their own, under the clock.
+- The tabs sit on a row of their own, under the clock, and the status line, the heading row and
+  the key line say less.
 - The Overview's USAGE sets its windows side by side wherever every part of a row fits at its
   least, from 86 columns with two windows and names of the sample's length, and stacks them where
   they don't. As the room runs short, its bars give way first, to 12 cells, then its words, to their

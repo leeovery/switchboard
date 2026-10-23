@@ -1015,6 +1015,38 @@ Every tab, and a session's page, is drawn in one frame, so the eye learns where 
 | The last but one | Blank, or the view's state line |
 | The last | The key line |
 
+**Every view is laid out by its parts,** across the width and down the height alike, so it's
+fluid at every size, and no view compares the width with a figure of its own. Each part has a
+least, the fewest cells or rows it still reads at; a natural, what it takes whole; and, where it
+grows, a most. Where the room runs short, the parts narrow toward their leasts and give way in the
+order the view declares; where there's room to spare, the parts that grow take it, each to its
+most. A view shifts to a narrower arrangement only where its wider arrangement's parts don't fit,
+with every part that may narrow or give way gone to its least, and nowhere else: the width a
+section gives for a shift, as "from 86 with the sample's names", is where the sample's parts stop
+fitting, not a breakpoint. Down the height, a section is a part: at its least, folded to its
+heading and how many more it holds; at its natural, all it holds; the sections giving way in the
+order the view's section gives.
+
+- **The chrome alone keeps a breakpoint of its own:** the title row's tabs go to a row of their
+  own where the badge, the tabs and the clock don't fit one row, under 100 columns, and the status
+  line, the heading row and the key line take their short forms with them. That's all "on a phone"
+  means in this design: a phone's chrome. A view's arrangement follows its own parts, under
+  either chrome.
+- **A column of accounts' names** takes the widest name configured as its natural; at least 8
+  cells, or its natural where that's fewer; at most 24, a longer name cut with `…`, the cells of
+  its number and marks kept beside it.
+- **A figure has a stated bound and is never cut:** it's given its bound's cells, and past the
+  bound it says so, as `999+` and `$9999.99+`.
+- **A live view's form never hangs on its data.** Its naturals come from what's configured, the
+  accounts, their names, the windows known, and from its figures' bounds, never from what a row
+  happens to say, so its arrangement holds still as the data changes, moving only as the
+  terminal's size or the config does.
+- **The figures the design itself decides stay figures,** each in its view's section: GRAPHS and
+  ROUTING beside USAGE by account from 150 columns; `usage`'s words in full from 70 columns in the
+  views that give its bars rows of their own; History's frames, 37 rows; the Switchboard's lines,
+  74 columns; the frame's least, the fixed rows and three of the view's; a model's family padded
+  to 8 cells in Detail's SESSIONS; and the Log card's tree's names padded to 13.
+
 On a phone, under 100 columns, the tabs take row 1 of their own, the status line row 3 and the
 heading row 5, the view starting at row 7, or at row 8 where a period takes row 6 of its own. **The
 breathing room,** the blank row under the heading row and the row over the key line, never goes as
@@ -2207,7 +2239,8 @@ holds.
   `text.subtle`), ` · ` in `text.faint`. Too wide for its room, it's how many are open, pressure
   counting as open, `8 of 10 open`, in `text.secondary`.
 - **A view never changes shape with the number of accounts.** Where a view has two shapes, `v` picks
-  one; more accounts than fit scroll. Only a phone's width changes a layout.
+  one; more accounts than fit scroll. Only the width changes a layout, where a view's parts stop
+  fitting (see The page).
 - **Models:** tables name versions, a row a version used in the period, as the version table names
   them (`Opus 5.5`, `Sonnet 5`; see The request ledger), each `●` and bar in its shade,
   `viz.version.1`–`viz.version.6`, or, for a version without one, its family's hue, mixed 30% toward
@@ -2367,7 +2400,7 @@ holds.
 **Detail** shows one account in full, or all of them, chosen from a list at its left. The panel's
 top half is now and the period; a rule, `the last six weeks`, heads the rest. The rows and columns
 below are the frames' at 160 columns; its parts across the width are laid by flex, as **Wide, from
-where it fits** says, and where they don't fit, it's stacked, as **On a phone** says.
+where it fits** says, and where they don't fit, it's stacked, as **Stacked** says.
 
 - **The list,** columns 0 to 19 with the sample's names, a chooser and nothing else: from row 6, 2
   rows apart and from column 1, `0 all accounts`, `0` in `text.subtle` and the name bold
@@ -2401,7 +2434,7 @@ where it fits** says, and where they don't fit, it's stacked, as **On a phone** 
   `text.subtle` (`5-hour`, `Week`, `Fable wk`); `usage`'s bar, 40 wide at 160; a cell on, its
   percentage, right-aligned in 4 and bold in its level's colour; and two cells on, `usage`'s full
   words (see `usage`, the printout). For `all accounts`, every account's window together, its
-  words its room, `1.2 of 3 left`. Its row is laid by flex as the stack's is (see On a phone):
+  words its room, `1.2 of 3 left`. Its row is laid by flex as the stack's is (see Stacked):
   the names as wide as the widest of every window listed in its shortest whole form, `Sonnet
   wk`, never cut, and at least 8 cells; a cell on, the bars, at least 16, two fewer than the
   stack's, so four weeks still fit at 108 columns; and the percentage and the words, in the
@@ -2515,17 +2548,16 @@ where it fits** says, and where they don't fit, it's stacked, as **On a phone** 
   - The layout follows the width, the configured accounts, the windows the moment lists and the
     limits the period's page records alone, never the figures in view. The rows under BY MODEL
     move down with its second row, and with THIS WEEK's rows where they reach past USAGE's.
-- **On a phone,** stacked, each part under its heading, a blank row between: on the view's first
-  row, `◂ 1 work ▸`, `◂` and `▸` bold `accent.key`, a picker that takes any number of accounts
-  (settled in the plan), and at the right `↑↓ an account, or all` in `text.subtle`; under it, the
-  state, its glyph and words; USAGE, every window, a blank row between windows; THIS WEEK in two
-  columns of three, 26 apart, labels 10 wide: `requests`, `limits` and `plan`, then `worth`,
-  `extra use` and `against`; BY MODEL, its versions over two rows; BY DAY, 2 cells a day, with their
-  first days under them, 15 apart; WEEKS, its peaks as percentages, right-aligned in 5 cells, 6
-  apart, `34%…` this week's; the verdict, and under it
+- **Stacked,** where the wide form doesn't fit, each part under its heading, a blank row between: on
+  the view's first row, `◂ 1 work ▸`, `◂` and `▸` bold `accent.key`, a picker that takes any number
+  of accounts (settled in the plan), and at the right `↑↓ an account, or all` in `text.subtle`;
+  under it, the state, its glyph and words; USAGE, every window, a blank row between windows; THIS
+  WEEK in two columns of three, 26 apart, labels 10 wide: `requests`, `limits` and `plan`, then
+  `worth`, `extra use` and `against`; BY MODEL, its versions over two rows; BY DAY, 2 cells a day,
+  with their first days under them, 15 apart; WEEKS, its peaks as percentages, right-aligned in 5
+  cells, 6 apart, `34%…` this week's; the verdict, and under it
   `limit hit 3 of 7 weeks · 9% left at a reset`, its two rows; and LATELY. No rule. Its parts are
-  laid across the width by flex, the same at every width it's drawn at, a phone's or the wide
-  chrome's where Detail's wide form doesn't fit:
+  laid across the width by flex, the same at every width it's drawn at, under either chrome:
   - USAGE's row: the windows' names, as wide as the widest of every window listed, shown or not,
     at least 8 cells and at most 24; a cell on, the bars, all one width; a cell on, the
     percentage, in 4; and two cells on, `usage`'s words, in the cells of their form at its widest:
@@ -2626,11 +2658,11 @@ section holds.
 
 **Year** is the default view. It's drawn in its wide form, laid out below, where that form's parts
 fit: its key whole after the days' names, reckoned with every cut at four figures and its unit
-without the use shown, so the form never hangs on the data or a label's length, as from 99
-columns. Narrower, it's drawn as a phone lays it out (On a phone, below). In the wide form, the
-numbers sit beside the grid only where the most weeks a span holds and the numbers, at their
-reckoned width, fit beside it, else under the key (the owner's call, 21 October 2026, over fewer weeks with the
-numbers beside); on a phone, they're always under the key. Where they sit is decided by the width
+without the use shown, so the form never hangs on the data or a label's length, as from 99 columns.
+Narrower, it's drawn in its narrow form (Narrower, below). In the wide form, the numbers sit beside
+the grid only where the most weeks a span holds and the numbers, at their reckoned width, fit beside
+it, else under the key (the owner's call, 21 October 2026, over fewer weeks with the numbers
+beside); in the narrow form, they're always under the key. Where they sit is decided by the width
 alone, never by what's shown, so `v` and `<` `>` never move BY MONTH (settled 21 October 2026).
 
 - **The grid:** the latest weeks that fit, the period's at most: the last 12 months' 53, to this
@@ -2723,7 +2755,7 @@ alone, never by what's shown, so `v` and `<` `>` never move BY MONTH (settled 21
   `▲ 3 more above   ·   ▼ 10 more below   ·   j/k to scroll`, shorter where the width is, as Tokens
   says it where a period doesn't fit; a Year that fits says nothing (the owner's call, 15 October
   2026).
-- **On a phone:** under the period's row, the latest weeks that fit, as wide, from column 4 under
+- **Narrower:** under the period's row, the latest weeks that fit, as wide, from column 4 under
   their months' names, `M`, `W` and `F` at column 0, as 33 at 73 columns; a blank row, and the key
   cut short, `■ 0 ■ <450 ■ 450–750 ■ 750–1k ■ >1k  requests a day`; a blank row, `LAST 12 MONTHS`
   and its numbers under it in columns, laid out as wide, labels 10 wide and short: `requests`,
@@ -2773,8 +2805,8 @@ drop, one fewer being short on no more weeks than now; otherwise its form for fe
   where none has one, every account counts as one (settled in the plan).
 - **Its form.** Weeks is drawn wide, in the shape `v` gives it, where that shape's parts fit at
   their leasts short of the frame's margin and its legend reads whole on one row; else in the other
-  shape, where that fits, as `v` then has no shape to change to; else in its phone form (below).
-  Neither hangs on the data, so the form changes once as the width grows, from the phone's to the
+  shape, where that fits, as `v` then has no shape to change to; else in its narrow form (below).
+  Neither hangs on the data, so the form changes once as the width grows, from the narrow to the
   table's at 79 columns; with the columns chosen, once more, to theirs at 126, where their wider
   legend fits.
 - **A row's parts,** laid out across the width the same for every row, so its columns come from the
@@ -2835,23 +2867,23 @@ drop, one fewer being short on no more weeks than now; otherwise its form for fe
 - **Each column is one of the account's own weeks,** from one reset of its week window to the next,
   placed under the first day of the calendar week it began nearest. More accounts than fit scroll,
   `j/k` or the wheel.
-- **On a phone,** and wherever the wide form doesn't fit, Weeks shows the capacity verdict, a part
-  a row, wrapped to the width, then the table with no verdicts beside it: its label column and the
-  latest weeks that fit, laid out as the wide form's, the label column narrowing only once the last
-  week alone is left; seven at 73 columns, all eight from 77. Weeks leave only where the form
-  changes, as the verdicts take their room.
+- **Narrower,** where the wide form doesn't fit, Weeks shows the capacity verdict, a part a row,
+  wrapped to the width, then the table with no verdicts beside it: its label column and the latest
+  weeks that fit, laid out as the wide form's, the label column narrowing only once the last week
+  alone is left; seven at 73 columns, all eight from 77. Weeks leave only where the form changes, as
+  the verdicts take their room.
 
 **Days** is eight weeks, the week so far and the seven before it, a day at a time. It's drawn in its
 wide form, laid out below, where that form's parts fit short of the frame's margin: a strip's row,
 its label column and a week at least, and its key whole on one row, so the form never hangs on the
-data, as from 118 columns. Narrower, each strip's name takes the row over it (On a phone, below).
+data, as from 118 columns. Narrower, each strip's name takes the row over it (Narrower, below).
 
 - **A strip's row** is laid out as parts, across the width, the same for every strip, so its
   columns come from the width and the accounts alone, never from the strips in view:
   - **the label column,** its widest name, a family's or any account's with its marks, not only
-    those shown, and a gap of 2: at least 8 and at most 24, the house's label rule; 12 in the frames
-    (`personal ◆`). It narrows only once every week but the last has given way, so its names read
-    whole before another week shows;
+    those shown, and a gap of 2: at least 8 and at most 24, as The page has a column of names; 12 in
+    the frames (`personal ◆`). It narrows only once every week but the last has given way, so its
+    names read whole before another week shows;
   - **the weeks,** 15 cells each, a day's 2 cells and the cell after a week's days: the latest that
     fit, up to the eight, the oldest giving way first, the last never, as seven at 138 columns and
     all eight from 153;
@@ -2881,16 +2913,16 @@ data, as from 118 columns. Narrower, each strip's name takes the row over it (On
   in `text.subtle`, then `  each shade a quarter of the active days` in `text.faint`; then a swatch
   of `viz.day.2` holding the red `▪`, and `a day it hit a 5-hour limit`; then `··` and
   ` days to come`.
-- **On a phone,** and wherever the wide form doesn't fit, each strip's name and its count share
-  the row over its days. The days are the latest weeks that fit the whole width, from column 0, the
-  blank after the last week's days needing no room: two from 30 columns, three from 45, four from
-  60 and seven from 105. The count, as wide as the widest, ends where the last week shown ends its
-  days, so it reads with its strip; the name takes what's left before it, a blank cell between, and
-  is cut where the two don't fit, not the count. The name keeps two cells at least, of the name as
-  drawn, its marks among them: `w…`, `●…`, or for the primary its mark alone, ` ◆`. Where that
-  doesn't fit before the weeks' end, narrower than 30 columns, the count ends at the frame's edge
-  instead, and narrower than 22 it's cut there, `33 5-hour lim…`. The headings drop their words, and
-  the key takes two rows, the shades on the first with nothing said of them.
+- **Narrower,** where the wide form doesn't fit, each strip's name and its count share the row over
+  its days. The days are the latest weeks that fit the whole width, from column 0, the blank after
+  the last week's days needing no room: two from 30 columns, three from 45, four from 60 and seven
+  from 105. The count, as wide as the widest, ends where the last week shown ends its days, so it
+  reads with its strip; the name takes what's left before it, a blank cell between, and is cut where
+  the two don't fit, not the count. The name keeps two cells at least, of the name as drawn, its
+  marks among them: `w…`, `●…`, or for the primary its mark alone, ` ◆`. Where that doesn't fit
+  before the weeks' end, narrower than 30 columns, the count ends at the frame's edge instead, and
+  narrower than 22 it's cut there, `33 5-hour lim…`. The headings drop their words, and the key
+  takes two rows, the shades on the first with nothing said of them.
 
 **Tokens** is ccusage's weekly report, inside switchboard, split by what ccusage can't split by: the
 account.
