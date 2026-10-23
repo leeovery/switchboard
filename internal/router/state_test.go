@@ -546,29 +546,42 @@ func TestProbesErrorsAndFailuresLastUntilRead(t *testing.T) {
 	}
 }
 
-func TestAnAccountUnreadWaitsAMinuteAfterAProbeOfItEnded(t *testing.T) {
-	s := newTestState(&testClock{now: start})
-	if !s.unread("work", start) {
-		t.Error("before any probe, work isn't unread, want it unread")
+func TestTheStartupProbeIsDueOfAnAccountNothingHasReadThatCanBeProbed(t *testing.T) {
+	failed := func(s *state) {
+		s.recordProbe("work", quota.Probe{}, errors.New("HTTP 529 · Overloaded"), s.mark(), readings.FromProbe)
 	}
-
-	s.recordProbe("work", quota.Probe{}, errors.New("HTTP 529 · Overloaded"), s.mark(), readings.FromProbe)
-	for _, tt := range []struct {
-		after time.Duration
-		want  bool
-	}{
-		{after: 0, want: false},
-		{after: reprobeAfter - time.Second, want: false},
-		{after: reprobeAfter, want: true},
-	} {
-		if got := s.unread("work", start.Add(tt.after)); got != tt.want {
-			t.Errorf("%v after a probe of it failed, work unread = %v, want %v", tt.after, got, tt.want)
+	kept := func(windows ...quota.Window) func(s *state) {
+		return func(s *state) {
+			s.recall(savedUsage{Readings: map[string]savedReading{"work": {Windows: windows}}})
 		}
 	}
-
-	s.recordProbe("work", quota.Probe{Windows: []quota.Window{session, week}}, nil, s.mark(), readings.FromProbe)
-	if s.unread("work", start.Add(reprobeAfter)) {
-		t.Error("once a probe has read work, it's unread, want it read")
+	lapsed, spentWeek := session, week
+	lapsed.ResetsAt = start.Add(-time.Hour)
+	spentWeek.Utilization, spentWeek.Status = 1, quota.StatusRejected
+	tests := []struct {
+		name   string
+		before func(s *state)
+		after  time.Duration
+		want   bool
+	}{
+		{name: "never probed", before: func(*state) {}, want: true},
+		{name: "a probe of it failed just now", before: failed, want: false},
+		{name: "a probe of it failed a second short of a minute ago", before: failed, after: reprobeAfter - time.Second, want: false},
+		{name: "a probe of it failed a minute ago", before: failed, after: reprobeAfter, want: true},
+		{name: "a probe of it read", before: func(s *state) {
+			s.recordProbe("work", quota.Probe{Windows: []quota.Window{session, week}}, nil, s.mark(), readings.FromProbe)
+		}, after: reprobeAfter, want: false},
+		{name: "kept without a read time, its 5-hour window lapsed", before: kept(lapsed, week), want: false},
+		{name: "kept without a read time, its 5-hour window lapsed and its week spent", before: kept(lapsed, spentWeek), want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newTestState(&testClock{now: start})
+			tt.before(s)
+			if got := s.startDue("work", start.Add(tt.after)); got != tt.want {
+				t.Errorf("%v on, the startup probe due of work: %v, want %v", tt.after, got, tt.want)
+			}
+		})
 	}
 }
 
@@ -961,7 +974,7 @@ func TestStateIsSafeForConcurrentUse(t *testing.T) {
 		wg.Go(func() { _ = s.standings(start) })
 		wg.Go(func() { _ = s.due("side", start) })
 		wg.Go(func() { _ = s.dueAgain("side", start) })
-		wg.Go(func() { _ = s.unread("side", start) })
+		wg.Go(func() { _ = s.startDue("side", start) })
 		wg.Go(func() { _ = s.saved() })
 		wg.Go(func() { s.refuse("side", http.StatusUnauthorized, someRequest, s.mark()) })
 		wg.Go(func() { s.forbid("work", "opus", http.StatusForbidden, someRequest) })

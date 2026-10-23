@@ -180,7 +180,7 @@ func (r *Router) serve(ctx context.Context, ls listeners) error {
 	serving.Go(func() { failed <- serveOn(proxySrv.Server, ls.proxy) })
 	serving.Go(func() { failed <- serveOn(controlSrv, ls.control) })
 	r.logStart(ls.proxy.Addr(), ls.control.Addr())
-	r.probes.start(r.accounts.sendable(), r.state.unread)
+	r.probes.start(r.accounts.sendable(), r.state.startDue)
 	looking, stopLooking := context.WithCancel(ctx)
 	var looked sync.WaitGroup
 	looked.Go(func() { r.upkeep.run(looking) })

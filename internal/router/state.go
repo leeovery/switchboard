@@ -614,11 +614,11 @@ func (u *usage) sinceReset(windows []string, sent moment) []string {
 	})
 }
 
-// unread reports whether an account wants probing as the router starts, at
+// startDue reports whether an account wants probing as the router starts, at
 // now: nothing has been read of it, and it can be probed, as probeable says,
 // so one a choice has probed already in vain waits its minute. One read
 // before, whose reading the state file kept, wants none.
-func (s *state) unread(id string, now time.Time) bool {
+func (s *state) startDue(id string, now time.Time) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	u := s.usage[id]
