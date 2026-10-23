@@ -278,31 +278,29 @@ func (d sessionDrawn) phoneNow(c *canvas) {
 }
 
 // shortNamesCells are the cells the short now rows give each name they
-// say, the same in both: a label's most where both rows fit whole, its
-// names narrowing toward a label's least before anything else is cut. Each
-// row is measured with the doing and how it has run at their widest, as
-// startedFit measures, so the names hold still as the session asks,
-// answers or idles and as its run goes on; and with where and why as said
-// now.
+// say, the same in both, as labelCut has them: a label's most where both
+// rows fit whole, its names narrowing toward a label's least before
+// anything else is cut. Each row is measured with the doing and how it has
+// run at their widest, as startedFit measures, so the names hold still as
+// the session asks, answers or idles and as its run goes on; and with where
+// and why as said now.
 func (d sessionDrawn) shortNamesCells(where views.WhereSaid) int {
 	ran := ansi.StringWidth(d.page.RanSaidWidest(d.now))
-	for most := labelMost; most > labelLeast; most-- {
-		named := labelCutAt(most)
+	return labelCut(func(cut int) bool {
+		named := labelCutAt(cut)
 		row7 := d.doingWidest()
 		if len(where.OnSince) > 0 {
 			row7 += sessionPhoneApart + d.onSinceAt(where.OnSince, named).width()
 		}
 		row8 := d.wordsAt(where.Short, mutedInk, named).width() + sessionPhoneApart + ran
-		if max(row7, row8) <= d.Width {
-			return most
-		}
-	}
-	return labelLeast
+		return max(row7, row8) <= d.Width
+	})
 }
 
-// labelCutAt names an account by its label cut to most cells.
+// labelCutAt names an account by its label cut to most cells, as
+// labelledIn cuts it.
 func labelCutAt(most int) func(string) string {
-	return func(label string) string { return prose.Cut(label, most) }
+	return func(label string) string { return labelledIn(label, most) }
 }
 
 // leftOf draws right at the right of row y, and returns the cells left of
@@ -663,17 +661,12 @@ func shortOfWorth(width int, columns []stayColumn) []stayColumn {
 }
 
 // stayNameCells are the least and the natural of the names of accounts'
-// rows, of the names given, as a label's column has them: each its number,
-// its marks, ▲'s cells kept, as headCells counts them, and its label,
-// labelLeast cells of it at the least and the widest, labelMost at the most,
-// as labelColumnCells counts it, at the natural.
+// rows, of the names given, as recordedAccounts has them, as a session may
+// have run on an account no longer configured: each its number, its marks,
+// ▲'s cells kept, as headCells counts them, and its label.
 func stayNameCells(names []accountName) partCells {
-	var cells partCells
-	for _, n := range names {
-		cells.least = max(cells.least, n.cells(labelLeast))
-		cells.natural = max(cells.natural, n.cells(labelColumnCells(n.label)))
-	}
-	return cells
+	column := recordedAccounts(0, names)
+	return partCells{least: column.Least, natural: column.Natural}
 }
 
 // measuredKeys are the keys of the windows an account's points are measured

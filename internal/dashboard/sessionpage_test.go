@@ -641,9 +641,10 @@ func TestATurnsAccountsFitItsOnColumn(t *testing.T) {
 }
 
 // A turn's on takes its natural from the accounts configured, never those
-// the session ran on: the widest name, a label's, at most labelMost and
-// labelLeast at the least; and past it, where there are two or more, a
-// move's arrow and the second widest name.
+// the session ran on: the widest name, a label's, at most labelMost; and
+// past it, where there are two or more, a move's arrow and the second widest
+// name. A record may name an account no longer configured, so on's natural
+// is never under labelLeast.
 func TestATurnsOnIsAsWideAsTheAccountsConfiguredSay(t *testing.T) {
 	long := strings.Repeat("x", labelMost+6)
 	tests := []struct {
@@ -663,7 +664,7 @@ func TestATurnsOnIsAsWideAsTheAccountsConfiguredSay(t *testing.T) {
 			for i, label := range tt.labels {
 				doc.Accounts[i].Label = label
 			}
-			if name, move := turnOnCells(doc.At(sessionNow, claudeLike)); name != tt.named || move != tt.move {
+			if name, move := turnOnCells(doc.At(sessionNow, claudeLike)); recordedNatural(name) != tt.named || move != tt.move {
 				t.Errorf("on's natural is %d and a move %d past it, want %d and %d", name, move, tt.named, tt.move)
 			}
 		})

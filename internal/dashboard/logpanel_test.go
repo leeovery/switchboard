@@ -573,17 +573,18 @@ func TestASessionsRowIsClickedAlongItsWholeExtent(t *testing.T) {
 	}
 }
 
-// Where every name is under 8 cells, the account's column is as wide as
-// the widest of them, never wider, however much room the panel has.
-func TestASessionsAccountColumnIsNoWiderThanItsNames(t *testing.T) {
+// Where every name is under 8 cells, the account's column keeps a label's
+// 8, as a session may be on an account no longer configured, and no more,
+// however much room the panel has.
+func TestASessionsAccountColumnKeepsALabelsLeast(t *testing.T) {
 	for _, of := range []LogView{LogRequests, LogEvents} {
 		p := framesPanel(of, 0)
 		for i, label := range []string{"ab", "cdef", "gh"} {
 			p.Accounts[i].Label = label
 		}
 		for _, width := range []int{60, 78, 100} {
-			if got := p.sessionColumns(width).account; got != 4 {
-				t.Errorf("%d at %d cells, the account's column is %d cells, want 4, its widest name's", of, width, got)
+			if got := p.sessionColumns(width).account; got != 8 {
+				t.Errorf("%d at %d cells, the account's column is %d cells, want a label's 8", of, width, got)
 			}
 		}
 	}

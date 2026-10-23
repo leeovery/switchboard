@@ -208,7 +208,7 @@ func TestTheLanesDrawNoPool(t *testing.T) {
 
 // With one account, its lane is drawn as with more: its windows stacked
 // where rows allow, a blank row before its call, and the key over the key
-// line; its name column at its least, a label of labelLeast.
+// line; its name column at its natural, the one label's own cells.
 func TestWithOneAccountTheLaneStandsAlone(t *testing.T) {
 	doc := usageWorld(extraOff, func(d *status.Document) { d.Accounts, d.Best = d.Accounts[:1], "work" })
 	f := lanesFrame(52, 33, Look{}, []views.Call{sceneCall("work", idC61B, "mobile", "", idleFor(time.Minute))})
@@ -216,7 +216,7 @@ func TestWithOneAccountTheLaneStandsAlone(t *testing.T) {
 	top := f.top()
 	// Each row starts as given, the windows' rows' bars and words held by the
 	// test of a lane's stacked windows.
-	want := []string{"1 work ▲      ● at its cap · 17:10", " Week ", "", " 5-hour ", "", " Fable wk ", "", fmt.Sprintf("%-33sidle 1m", "  c61b mobile")}
+	want := []string{"1 work ▲  ● at its cap · 17:10", " Week ", "", " 5-hour ", "", " Fable wk ", "", fmt.Sprintf("%-33sidle 1m", "  c61b mobile")}
 	for i, w := range want {
 		if got := rows[top+i]; !strings.HasPrefix(got, w) || w == "" && got != "" {
 			t.Errorf("row %d reads %q, want it to start %q; drew\n%s", top+i+1, got, w, strings.Join(rows, "\n"))

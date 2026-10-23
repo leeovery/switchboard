@@ -11,28 +11,104 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-// A column of accounts' names, as a label's column is laid out at every
-// width: at least labelLeast cells, its natural the widest name of the
-// accounts configured, each name counting labelMost cells at the most.
+// A column of accounts' names, as every view lays one out: its natural the
+// widest name of the accounts configured, each label counting labelMost
+// cells at the most, cut with an ellipsis past it; its least labelLeast
+// cells, or its natural where that's fewer; a name's number and marks, and
+// the column's gap, beside its label, never among it. Each view takes its
+// column here, from labelColumn, namesColumn, accountsColumn,
+// recordedNames or recordedAccounts, its least alone from labelsLeast, or
+// a sentence's cut from labelCut. Compare's 8 and 24, Detail's list's 14
+// and 24, the Sessions List's on's 14 and the Switchboard's call's 6 are
+// those views' own figures, as the design gives them.
 const (
 	labelLeast = 8
 	labelMost  = 24
 )
 
-// labelsPart is a column of names laid out by flex, its gap after it: its
-// natural the widest name given and nameGap, held within labelLeast and
-// labelMost, narrowing toward its least in the turn given, so its names
-// read whole till then.
-func labelsPart(widest, narrows int) flex.Part {
-	return flex.Part{Least: labelLeast, Natural: widest + nameGap, Most: labelMost, Narrows: narrows}
+// labelsLeast is the least of a column of names of the natural given:
+// labelLeast, or its natural where that's fewer, so a column of short names
+// narrows only as far as them.
+func labelsLeast(natural int) int {
+	return min(labelLeast, natural)
 }
 
-// labelColumn is a column of names laid out by flex, with no gap of its
-// own: its natural the widest name given, labelMost at the most, narrowing
-// freely toward labelLeast, or its natural where that's fewer, so it's
-// never wider than its names.
+// labelColumn is a column of names, bare, the widest given, as namesColumn
+// lays it out.
 func labelColumn(widest int) flex.Part {
-	return flex.Part{Least: min(labelLeast, widest), Natural: widest, Most: labelMost}
+	return namesColumn(0, columnName{label: widest})
+}
+
+// columnName is a name as a column of names holds it: its label's cells,
+// and the cells kept beside it, its number and marks.
+type columnName struct {
+	label, beside int
+}
+
+// namesColumn is a column of the names given laid out by flex, gap cells
+// after it, each name's cells beside it kept at every width and its label
+// counted alone: at the least, labelsLeast of it; at the natural, as
+// labelColumnCells counts it; and labelMost at the most.
+func namesColumn(gap int, names ...columnName) flex.Part {
+	p := flex.Part{Least: gap, Natural: gap, Most: gap}
+	for _, n := range names {
+		p.Least = max(p.Least, gap+n.beside+labelsLeast(n.label))
+		p.Natural = max(p.Natural, gap+n.beside+min(n.label, labelMost))
+		p.Most = max(p.Most, gap+n.beside+labelMost)
+	}
+	return p
+}
+
+// accountsColumn is the name column of the accounts' names given, gap cells
+// after it, as namesColumn lays it out, each name's number and marks beside
+// its label, as accountName's cells counts them.
+func accountsColumn(gap int, names []accountName) flex.Part {
+	column := make([]columnName, len(names))
+	for i, n := range names {
+		column[i] = columnName{label: ansi.StringWidth(n.label), beside: n.cells(0)}
+	}
+	return namesColumn(gap, column...)
+}
+
+// recordedNatural is the natural of a column of names a record may hold,
+// of the natural given, as the widest configured name or a move's two:
+// never fewer than labelLeast, as a recorded line may name an account no
+// longer configured, which then reads its first cells and an ellipsis.
+func recordedNatural(natural int) int {
+	return max(natural, labelLeast)
+}
+
+// recordedNames is a column of names a record may hold, its natural given:
+// recordedNatural of it, and labelsLeast of that at the least. It has no
+// most of its own, unlike recordedAccounts, as its natural may be a move's
+// two names and the arrow between, each name cut as labelledIn cuts it.
+func recordedNames(natural int) flex.Part {
+	natural = recordedNatural(natural)
+	return flex.Part{Least: labelsLeast(natural), Natural: natural}
+}
+
+// recordedAccounts is the name column of the accounts' names given, as
+// accountsColumn lays it out, where a record may name an account no longer
+// configured: each label counted at recordedNatural of its cells, so the
+// column keeps labelLeast cells of a label beside the widest marks.
+func recordedAccounts(gap int, names []accountName) flex.Part {
+	column := make([]columnName, len(names))
+	for i, n := range names {
+		column[i] = columnName{label: recordedNatural(ansi.StringWidth(n.label)), beside: n.cells(0)}
+	}
+	return namesColumn(gap, column...)
+}
+
+// labelCut is the most cells each name a sentence says is cut to, as fits
+// reports a cut fits: labelMost where it fits so, a cell fewer at a time,
+// and labelLeast at the least, which leaves a shorter name whole.
+func labelCut(fits func(cut int) bool) int {
+	for cut := labelMost; cut > labelLeast; cut-- {
+		if fits(cut) {
+			return cut
+		}
+	}
+	return labelLeast
 }
 
 // widestNamed is a column of names' natural: the widest of the names given,
@@ -65,6 +141,14 @@ func labelColumnCells(name string) int {
 // it's said outside one: cut to labelColumnCells.
 func asLabelled(name string) string {
 	return prose.Cut(name, labelColumnCells(name))
+}
+
+// labelledIn is an account's name cut to the cells given, the one cutter of
+// a label: never past labelColumnCells, however many it's given, so a label
+// beside a name with wider marks is cut at labelMost as the rest are, and
+// the cells past it are blank.
+func labelledIn(name string, cells int) string {
+	return prose.Cut(name, min(cells, labelColumnCells(name)))
 }
 
 // labelsCells are the cells of the names of the accounts the moment m

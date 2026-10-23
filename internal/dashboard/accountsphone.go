@@ -524,7 +524,7 @@ func (s stacked) named(cells int) line {
 	if s.id == "" {
 		return allAccountsName(1).fit(cells)
 	}
-	return listName(s.account, 1).fitted(cells)
+	return listName(s.account, 1).said(cells)
 }
 
 // usage draws USAGE from row y, and returns the row its last window is on:

@@ -431,11 +431,11 @@ COMING UP is cut to the lines that fit first; then the legend gives way, then CO
 blank row under the axis; only then do the lanes scroll with `j` and `k`, down to one lane over
 the pool's lane at the shortest.
 
-The labels beside the lanes take as many columns as the widest needs, up to 24, and the lanes take
-the rest. `a` collapses the labels, to give the lanes more room: each lane keeps its account's
-number and its marks, such as `2 ◆`, with its use under them, such as `66%`, and the pool's lane
-`Σ`, with its room short under it, such as `1.2/3`. COMING UP stays as it is, each line naming its
-account. `a` again expands them. Runway remembers which you left it on.
+The labels beside the lanes take as many columns as the widest needs, up to 24 cells of label,
+and the lanes take the rest. `a` collapses the labels, to give the lanes more room: each lane
+keeps its account's number and its marks, such as `2 ◆`, with its use under them, such as `66%`,
+and the pool's lane `Σ`, with its room short under it, such as `1.2/3`. COMING UP stays as it is,
+each line naming its account. `a` again expands them. Runway remembers which you left it on.
 
 To look back:
 

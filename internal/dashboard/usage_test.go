@@ -462,8 +462,8 @@ func TestTheNameColumnFitsTheNames(t *testing.T) {
 		width int
 		want  int
 	}{
-		{name: "short names, a label's least of 8", names: []accountName{{number: "1", label: "work"}}, width: 160, want: 14},
-		{name: "short names on a phone, the same", names: []accountName{{number: "1", label: "work"}}, width: 52, want: 14},
+		{name: "a short name, its own cells", names: []accountName{{number: "1", label: "work"}}, width: 160, want: 10},
+		{name: "a short name on a phone, the same", names: []accountName{{number: "1", label: "work"}}, width: 52, want: 10},
 		{name: "the primary's mark and ▲'s room", names: []accountName{{number: "1", label: "work"}, {number: "2", label: "personal", primary: true}}, width: 160, want: 16},
 		{name: "▲ counted once, kept or drawn", names: []accountName{{number: "2", label: "personal", primary: true, best: true}}, width: 160, want: 16},
 		{name: "a label of 22, whole", names: []accountName{{number: "3", label: "side-hustle-consulting"}}, width: 73, want: 28},

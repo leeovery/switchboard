@@ -51,7 +51,7 @@ const eventsWhatPast = eventsWhat + 1
 
 // The turns the Events' parts give way in as the row narrows: the session,
 // whole; then what happened, to eventsWhatBrief; then the account, toward
-// labelLeast.
+// its least.
 const (
 	sessionLeaves = iota + 1
 	whatShortened
@@ -76,16 +76,19 @@ func eventsAccountCells(m status.Moment) int {
 // eventsParts are the Events' parts across a row, by what each holds, each
 // column two cells after the one before, as the Requests' are: at and the
 // session, as Requests' are, the session leaving whole; event; account, a
-// column of names, at the account cells given until its turn, then at least
-// labelLeast; and what happened, as two parts, its first eventsWhatBrief
-// cells, which take the room left, and those past them to eventsWhatLeast.
+// column of names a record may hold, as recordedNames has it of the account
+// cells given, holding them until its turn; and what happened, as two
+// parts, its first eventsWhatBrief cells, which take the room left, and
+// those past them to eventsWhatLeast.
 func eventsParts(account int) []flex.Part {
 	at, session := logColumnFacts[LogAt].width, logColumnFacts[LogSession].width
+	named := recordedNames(account)
+	named.Narrows, named.Gap = accountNarrows, logColumnGap
 	return []flex.Part{
 		eventsAt:       {Least: at, Natural: at},
 		eventsSession:  {Least: session, Natural: session, Leaves: sessionLeaves, Gap: logColumnGap},
 		eventsKind:     {Least: eventsKindCells, Natural: eventsKindCells, Gap: logColumnGap},
-		eventsAccount:  {Least: labelLeast, Natural: account, Narrows: accountNarrows, Gap: logColumnGap},
+		eventsAccount:  named,
 		eventsWhat:     {Least: eventsWhatBrief, Natural: eventsWhatBrief, Grows: true, Gap: logColumnGap},
 		eventsWhatPast: {Least: eventsWhatLeast - eventsWhatBrief, Natural: eventsWhatLeast - eventsWhatBrief, Leaves: whatShortened},
 	}
@@ -190,7 +193,7 @@ func eventCell(e views.LogEvent, part eventsPart, width int, m status.Moment, no
 // accountCell is the account the event e befell, in width cells, each
 // named as the moment m names it, white, the words between them muted: a
 // move's two, from and to, as moveNames cuts them; else as the event names
-// them, cut with an ellipsis.
+// them, each cut as asLabelled cuts it, then all cut to the cells given.
 func accountCell(e views.LogEvent, width int, m status.Moment) line {
 	var names []string
 	var l line
@@ -201,7 +204,7 @@ func accountCell(e views.LogEvent, width int, m status.Moment) line {
 		}
 		name := named(m, p.Text)
 		names = append(names, name)
-		l = append(l, span{name, accountInk})
+		l = append(l, span{asLabelled(name), accountInk})
 	}
 	if e.Kind == status.EventMoved && len(names) == 2 {
 		return moveNames(names[0], names[1], width, accountInk)

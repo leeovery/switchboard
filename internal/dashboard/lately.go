@@ -73,7 +73,7 @@ func (f Frame) latelySection(doc status.Document, now time.Time) section {
 	m := f.Moment(doc, now)
 	told := latelyTelling(m)
 	return section{
-		Section: SectionLately, least: linesRows(0),
+		Section: SectionLately, least: linesRows(0), readIn: latelyLeast(labelsLeast(widestLabel(m))),
 		lines: func() int { return len(told(mostLines)) },
 		draw: func(c *canvas, body bounds) {
 			f.drawLately(c, m, told(body.rows), body)
@@ -191,9 +191,9 @@ const afterMark = " "
 
 // latelyLeast is the fewest cells LATELY is read in, beside COMING UP: a
 // line's lead, as latelyLeads leads it, its time at its widest and its
-// widest mark; and an account's name at labelLeast.
-func latelyLeast() int {
-	return prose.DatedWidth() + len(afterTime) + widestMark() + len(afterMark) + labelLeast
+// widest mark; and an account's name at the cells given, its least.
+func latelyLeast(name int) int {
+	return prose.DatedWidth() + len(afterTime) + widestMark() + len(afterMark) + name
 }
 
 // widestMark is how many cells the widest of the kinds' marks takes.

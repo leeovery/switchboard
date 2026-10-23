@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/dashboard/flex"
-	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -157,5 +156,5 @@ func callFrom(m status.Moment, id string, k callColumns) line {
 	if k.fromShort {
 		words = " "
 	}
-	return line{{"▸", keyMarkInk}, {words, mutedInk}, {prose.Cut(named(m, id), k.account), secondaryInk}}
+	return line{{"▸", keyMarkInk}, {words, mutedInk}, {labelledIn(named(m, id), k.account), secondaryInk}}
 }

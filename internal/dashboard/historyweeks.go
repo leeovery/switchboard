@@ -1,7 +1,6 @@
 package dashboard
 
 import (
-	"math"
 	"slices"
 	"strings"
 
@@ -168,7 +167,7 @@ func (f Frame) weeksDrawn(p views.WeeksPage) weeksDrawn {
 // row, none of them hanging on the data, so neither does the form.
 func (f Frame) weeksWideFits(columns bool) bool {
 	verdict := verdictPart(columns)
-	_, fits := flex.Lay(f.edge(), weeksParts(0, 1, &verdict)...)
+	_, fits := flex.Lay(f.edge(), weeksParts(namesColumn(nameGap), 1, &verdict)...)
 	return fits && partsWidth(weeksDrawn{columns: columns}.legend()) <= f.edge()
 }
 
@@ -181,7 +180,7 @@ func (f Frame) weeksIn(p views.WeeksPage, phone, columns bool) weeksDrawn {
 	if !phone {
 		verdict = new(verdictPart(columns))
 	}
-	spans, fits := flex.Lay(w.edge, weeksParts(w.widestName(), len(p.Weeks), verdict)...)
+	spans, fits := flex.Lay(w.edge, weeksParts(w.labelsColumn(), len(p.Weeks), verdict)...)
 	w.laid = weeksLaid{labels: spans[0], weeks: spansShown(spans[1:1+len(p.Weeks)], fits)}
 	if verdict != nil {
 		w.laid.verdict = spans[len(spans)-1]
@@ -189,15 +188,16 @@ func (f Frame) weeksIn(p views.WeeksPage, phone, columns bool) weeksDrawn {
 	return w
 }
 
-// weeksParts are a row of Weeks' parts across the frame: its label column,
-// as labelsPart has it of the widest name given; the weeks given, the oldest
-// first, each but the last with weeksApart after it, which give way in that
-// order, the last never; and in the wide form, the verdict given,
-// verdictGap after the last week. The verdict narrows once every week but
-// the last has given way, and the label column once the verdict has, so a
-// week leaves before a verdict is cut, and a verdict is cut before a name.
-func weeksParts(widest, weeks int, verdict *flex.Part) []flex.Part {
-	parts := []flex.Part{labelsPart(widest, weeks+1)}
+// weeksParts are a row of Weeks' parts across the frame: the label column
+// given; the weeks given, the oldest first, each but the last with
+// weeksApart after it, which give way in that order, the last never; and in
+// the wide form, the verdict given, verdictGap after the last week. The
+// verdict narrows once every week but the last has given way, and the label
+// column once the verdict has, so a week leaves before a verdict is cut, and
+// a verdict is cut before a name.
+func weeksParts(labels flex.Part, weeks int, verdict *flex.Part) []flex.Part {
+	labels.Narrows = weeks + 1
+	parts := []flex.Part{labels}
 	for i := range weeks {
 		week := flex.Part{Least: weekColumnCells, Natural: weekColumnCells}
 		if i < weeks-1 {
@@ -258,15 +258,16 @@ func (w weeksDrawn) verdictWidth(row views.WeeksRow) int {
 	return widest
 }
 
-// widestName is the widest name the label column holds: every account's
-// row's, or any account's with its marks, not only those shown, so the
-// column holds still as Weeks scrolls.
-func (w weeksDrawn) widestName() int {
-	widest := ansi.StringWidth(everyAccount)
+// labelsColumn is the label column, nameGap after it, as namesColumn lays
+// it out of the names it holds: every account's row's, or any account's,
+// its mark beside it, not only those shown, so the column holds still as
+// Weeks scrolls.
+func (w weeksDrawn) labelsColumn() flex.Part {
+	names := []columnName{{label: ansi.StringWidth(everyAccount)}}
 	for _, row := range w.page.Accounts {
-		widest = max(widest, historyAccount(w.named(row.Account), row.Primary, math.MaxInt).width())
+		names = append(names, historyNamed(w.named(row.Account), row.Primary))
 	}
-	return widest
+	return namesColumn(nameGap, names...)
 }
 
 // weeksScrolling is how far Weeks scrolls, as the frame draws it, scrolled

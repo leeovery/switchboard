@@ -309,6 +309,19 @@ func TestAPhonesPickerSaysItsKeysWhereTheyFit(t *testing.T) {
 	}
 }
 
+// The picker is a heading: it names the account whole wherever it fits,
+// never at a label's most, as a column of names would cut it.
+func TestAPhonesPickerNamesALabelPastALabelsMostWhole(t *testing.T) {
+	long := "personal-account-of-thirty-cells"
+	f := phoneText(t, 52, 41, AccountsDetail, "personal", nil, nil)
+	f.Accounts.Accounts = slices.Clone(threeFramed)
+	f.Accounts.Accounts[1].Label = long
+	doc := usageWorld(extraOff, func(d *status.Document) { d.Events, d.Accounts[1].Label = onAuto(), long })
+	if got, want := textOf(f.Draw(doc, routedAt))[f.top()], "◂ 2 "+long+" ◆ ▸"; !strings.HasPrefix(got, want) {
+		t.Errorf("the picker is %q, want it to start %q", got, want)
+	}
+}
+
 // moreOnSide are the Overview's sessions, and two more on side, idle, six
 // running there in all.
 func moreOnSide() []status.Session {

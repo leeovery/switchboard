@@ -522,7 +522,7 @@ func (d detailDrawn) head(c *canvas, y int) {
 	if d.id == "" {
 		x = c.line(x, y, allAccountsName(1)) + headApart
 	} else {
-		x = c.line(x, y, listName(d.account, 1).fitted(d.f.edge()-x)) + headApart
+		x = c.line(x, y, listName(d.account, 1).said(d.f.edge()-x)) + headApart
 	}
 	d.stands(c, x, y, false)
 }

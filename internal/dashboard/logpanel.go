@@ -390,13 +390,14 @@ func sessionDoingMost() int {
 // sessionParts are the parts of today's sessions' rows across ONLY, as flex
 // lays them: how far in they start, todayAt, narrowing first, as blank
 // cells go before words; the tick, the id and the directory, to the
-// account; the account, a column of names as labelColumn lays it, its
-// natural the widest account the panel knows, narrowing next, toward its
-// least; its count's figure, sessionCountGap on, at its widest; and what
-// it counts and what it's doing, at its widest.
+// account; the account, a column of names a record may hold, as a session
+// may run on an account no longer configured, as labelColumn lays it, its
+// natural the widest account the panel knows, recordedNatural of it,
+// narrowing next, toward its least; its count's figure, sessionCountGap
+// on, at its widest; and what it counts and what it's doing, at its widest.
 func (p LogPanel) sessionParts() []flex.Part {
 	count, tail := sessionCountCells(), sessionDoingApart+sessionDoingMost()
-	account := labelColumn(widestNamed(accountNames(p.Accounts)))
+	account := labelColumn(recordedNatural(widestNamed(accountNames(p.Accounts))))
 	account.Narrows = 2
 	return []flex.Part{
 		{Natural: todayAt[p.Of], Narrows: 1},
@@ -436,7 +437,7 @@ func (p LogPanel) sessionWords(s views.LogSession, account int) line {
 	countEnd := sessionAccountAt + account + sessionCountGap + sessionCountCells()
 	words := line{{status.ShownID(s.ID), secondaryInk}}
 	words = padTo(words, sessionDirAt-tickBox, line{{views.SessionDirName(s.Dir), mutedInk}})
-	words = padTo(words, sessionAccountAt-tickBox, line{{prose.Cut(p.named(s.Account), account), accountInk}})
+	words = padTo(words, sessionAccountAt-tickBox, line{{labelledIn(p.named(s.Account), account), accountInk}})
 	words = padTo(words, max(countEnd-tickBox-count[:1].width(), words.width()+sessionCountGap), count)
 	if doing := sessionDoing(s, p.Now); doing.text != "" {
 		words = padTo(words, max(countEnd+sessionDoingApart-tickBox, words.width()+p.doingGap()), line{doing})

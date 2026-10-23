@@ -56,25 +56,36 @@ func leastShort(u unit) int {
 
 // COMING UP and LATELY sit side by side where each one's least fits beside
 // the other, COMING UP's 42 cells in round(w × 0.45) from 93 columns, a name
-// counted at its least of 8 whatever its width, so the switch falls at 93
-// for a name of 8 cells, 14 or 22 alike; under it, LATELY is under COMING UP.
-func TestCOMINGUPAndLATELYSitSideBySideWhereTheirLeastsFitWhateverTheNames(t *testing.T) {
-	if got := comingLeast(); got != 42 {
+// counted at its least, as a column of names has it: 8 for a name of 8
+// cells, 14 or 22 alike, so the switch falls at 93 for each; and a shorter
+// name's own cells, so for one of 3 it falls at 82. Under it, LATELY is
+// under COMING UP.
+func TestCOMINGUPAndLATELYSitSideBySideWhereTheirLeastsFit(t *testing.T) {
+	if got := comingLeast(8); got != 42 {
 		t.Fatalf("COMING UP's least is %d cells, want 42: ~Sat 06:00, two blanks, a name at 8, is primed and its countdown's 12", got)
 	}
-	if got := latelyLeast(); got != 21 {
+	if got := latelyLeast(8); got != 21 {
 		t.Fatalf("LATELY's least is %d cells, want 21: Sun 02:00, two blanks, its mark and a blank, and a name at 8", got)
 	}
-	for _, name := range []string{"personal", "work-team-plan", "side-hustle-consulting"} {
+	tests := []struct {
+		name   string
+		beside int
+	}{
+		{name: "personal", beside: 93},
+		{name: "work-team-plan", beside: 93},
+		{name: "side-hustle-consulting", beside: 93},
+		{name: "ops", beside: 82},
+	}
+	for _, tt := range tests {
 		named := readAccount("work", weekOf(0.33, 5*quota.Day))
-		named.Label = name
+		named.Label = tt.name
 		doc := routerDoc("work", 1, named)
-		for width, beside := range map[int]bool{52: false, 73: false, 92: false, 93: true, 100: true, 160: true} {
+		for _, width := range []int{52, 73, tt.beside - 1, tt.beside, 100, 160} {
 			f := frameOf(width, 60)
 			units := f.unitsOf(f.sectionsOf(doc, now))
 			last := units[len(units)-1]
-			if got := len(last.sections) == 2; got != beside {
-				t.Errorf("named %q at %d columns, COMING UP and LATELY side by side %v, want %v", name, width, got, beside)
+			if got, want := len(last.sections) == 2, width >= tt.beside; got != want {
+				t.Errorf("named %q at %d columns, COMING UP and LATELY side by side %v, want %v", tt.name, width, got, want)
 			}
 		}
 	}

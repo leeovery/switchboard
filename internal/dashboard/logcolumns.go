@@ -51,8 +51,9 @@ const (
 
 // logColumnFacts are each column's name, as its head, the f panel and the
 // preferences have it; its cells: where they're fixed, them, the session's
-// its directory whole; of on, its least; of stopped, the fewest it takes
-// whole; and of routing, its natural; and its alignment.
+// its directory whole; of on, none, its names' as recordedNames has them; of
+// stopped, the fewest it takes whole; and of routing, its natural; and its
+// alignment.
 var logColumnFacts = [...]struct {
 	name    string
 	width   int
@@ -61,7 +62,7 @@ var logColumnFacts = [...]struct {
 	LogAt:        {"at", 8, alignLeft},
 	LogSession:   {"session", sessionColumnCells, alignLeft},
 	LogModel:     {"model", 9, alignLeft},
-	LogOn:        {"on", labelLeast, alignLeft},
+	LogOn:        {"on", 0, alignLeft},
 	LogStatus:    {"status", 6, alignLeft},
 	LogFirst:     {"first", 5, alignRight},
 	LogTook:      {"took", 6, alignRight},
@@ -176,12 +177,6 @@ func logColumns(width int, ticked LogTicks, on int) logLayout {
 	return logSpread.laid(width, ticked.shown(), on)
 }
 
-// wide lays the columns ticked out across a terminal width cells wide as
-// the spread has them, as logColumns does, on at its least.
-func (s requestsSpread) wide(width int, ticked LogTicks) logLayout {
-	return s.laid(width, ticked.shown(), labelLeast)
-}
-
 // laid lays the columns shown out across width cells from the spread's left,
 // on's natural the cells given, the table running to the last column, in two
 // passes of flex, as decided and secondPass have them: the first decides
@@ -287,8 +282,8 @@ type logPart struct {
 // logNarrowing orders them:
 //   - a column of fixed cells, as logColumnFacts has them, at them, giving
 //     way to what it keeps, as keeps has it;
-//   - on, a column of names, at least labelLeast cells, holding its natural
-//     on until its turn;
+//   - on, a column of names a record may hold, as recordedNames has it of
+//     its natural on, holding it until its turn;
 //   - the last column, stopped, or routing alone, as two parts: its
 //     tailLeast cells, which take the room left, and those past them to its
 //     least, which give way;
@@ -318,7 +313,9 @@ func logParts(shown []LogColumn, on, short int) []logPart {
 				logPart{c, routingMargin, flex.Part{Natural: short, Leaves: turn(c)}},
 			)
 		case LogOn:
-			parts = append(parts, logPart{c, wholeColumn, flex.Part{Least: cells, Natural: on, Narrows: turn(c), Gap: logColumnGap}})
+			named := recordedNames(on)
+			named.Narrows, named.Gap = turn(c), logColumnGap
+			parts = append(parts, logPart{c, wholeColumn, named})
 		default:
 			parts = append(parts, logPart{c, wholeColumn, flex.Part{Least: cells, Natural: cells, Leaves: turn(c), Kept: c.keeps(), Gap: logColumnGap}})
 		}

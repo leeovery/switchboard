@@ -178,9 +178,10 @@ func (f Frame) turnCardRows() (first, last int) {
 }
 
 // requestsLayout is how the page lays out its turn open's requests' rows:
-// the Log's, from turnSpread's left, at every width.
+// the Log's, from turnSpread's left, at every width, on given no natural of
+// its own, so it's at its least, as recordedNames holds it.
 func (d sessionDrawn) requestsLayout() logLayout {
-	return turnSpread.wide(d.Width, turnTicks)
+	return turnSpread.laid(d.Width, turnTicks.shown(), 0)
 }
 
 // pageRow is the row r of the session's turns: a turn's, which a click
@@ -386,7 +387,8 @@ func turnParts(facts turnFacts) []flex.Part {
 	}
 	kept := min(facts.move, ansi.StringWidth(moveArrow)+moveToLeast)
 	parts[turnNumber].Least, parts[turnNumber].Natural = facts.number, facts.number
-	parts[turnOn].Least, parts[turnOn].Natural = labelLeast, facts.name
+	on := recordedNames(facts.name)
+	parts[turnOn].Least, parts[turnOn].Natural = on.Least, on.Natural
 	parts[turnMove].Natural, parts[turnMove].Gap = facts.move-kept, 0
 	parts[turnMoveKept].Natural, parts[turnMoveKept].Gap = kept, 0
 	if facts.asks {
@@ -501,17 +503,16 @@ func turnFactsOf(page views.SessionPage, m status.Moment) turnFacts {
 }
 
 // turnOnCells are the natural of a turn's on, of the accounts the moment m
-// knows, as labelsCells counts their names, a label's each: the widest
-// name, labelLeast at the least; and past it, where m knows two or more, a
-// move's arrow and the second widest, so a move between the two reads
-// whole, as turnOn says it. It counts the accounts configured, never those
-// the session ran on.
+// knows, as labelsCells counts their names, a label's each: the widest name,
+// none of none; and past it, where m knows two or more, a move's arrow and
+// the second widest, so a move between the two reads whole, as turnOn says
+// it. It counts the accounts configured, never those the session ran on.
 func turnOnCells(m status.Moment) (name, move int) {
 	cells := labelsCells(m)
 	if len(cells) == 0 {
-		return labelLeast, 0
+		return 0, 0
 	}
-	name = max(cells[0], labelLeast)
+	name = cells[0]
 	if len(cells) > 1 {
 		move = ansi.StringWidth(moveArrow) + cells[1]
 	}

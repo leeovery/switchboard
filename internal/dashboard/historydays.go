@@ -1,7 +1,6 @@
 package dashboard
 
 import (
-	"math"
 	"slices"
 	"strconv"
 	"strings"
@@ -265,20 +264,22 @@ func daysCount() flex.Part {
 	return flex.Part{Least: cells, Natural: cells}
 }
 
-// daysLabels is Days' label column, its gap after it: its widest name and
-// nameGap, a family's or any account's, not only those shown, so the column
-// holds still as BY ACCOUNT scrolls; narrowing only in the turn after the
-// last of the weeks given could give way, so names read whole before a week
-// is added.
+// daysLabels is Days' label column, nameGap after it, as namesColumn lays
+// it out: a family's name, its dot among it, or any account's, its mark
+// beside it, not only those shown, so the column holds still as BY ACCOUNT
+// scrolls; narrowing only in the turn after the last of the weeks given
+// could give way, so names read whole before a week is added.
 func daysLabels(p views.DaysPage, weeks int) flex.Part {
-	widest := 0
+	var names []columnName
 	for _, s := range p.ByModel {
-		widest = max(widest, familyDot(s.Of, secondaryInk).width())
+		names = append(names, columnName{label: familyDot(s.Of, secondaryInk).width()})
 	}
 	for _, s := range p.ByAccount {
-		widest = max(widest, historyAccount(labelled(s.Label, s.Of), s.Primary, math.MaxInt).width())
+		names = append(names, historyNamed(labelled(s.Label, s.Of), s.Primary))
 	}
-	return labelsPart(widest, weeks)
+	labels := namesColumn(nameGap, names...)
+	labels.Narrows = weeks
+	return labels
 }
 
 // placeAccounts places BY ACCOUNT, three rows under the last family's
