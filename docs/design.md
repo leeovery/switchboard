@@ -1054,8 +1054,10 @@ order the view's section gives.
 - **The figures the design itself decides stay figures,** each in its view's section: GRAPHS and
   ROUTING beside USAGE by account from 150 columns; `usage`'s words in full from 70 columns in the
   views that give its bars rows of their own; History's frames, 37 rows; the Switchboard's lines,
-  74 columns; the frame's least, the fixed rows and three of the view's; a model's family padded
-  to 8 cells in Detail's SESSIONS; and the Log card's tree's names padded to 13.
+  74 columns; `usage --by account`'s window labels, 10 cells at the name column, which the
+  Switchboard's lines take; the frame's least, the fixed rows and three of the view's; a model's
+  family padded to 8 cells in Detail's SESSIONS, and its selection, from a cell before the row to
+  42 cells on; and the Log card's tree's names padded to 13.
 
 On a phone, under 100 columns, the tabs take row 1 of their own, the status line row 3 and the
 heading row 5, the view starting at row 7, or at row 8 where a period takes row 6 of its own. **The
@@ -3372,10 +3374,10 @@ October 2026).
      view's first row while any are above, and `▼ 1 more account` right-aligned on the row over the
      key line while any are below; or a row at a time, where a lane doesn't fit the view, and on
      up from there while an account at a time would show less, as the board's step 5 has it, a
-     name row showing with the row under it. Either way they page by the one rule of every view paged a
-     row at a time (see the Overview's USAGE), lanes in place of rows where they scroll an account
-     at a time: a page down starts at the first lane, or row, the page didn't show, and a page up
-     ends at the one above the first it showed, so paging either way passes over none
+     name row showing with the row under it. Either way they page by the one rule of every view
+     paged a row at a time (see the Overview's USAGE), lanes in place of rows where they scroll an
+     account at a time: a page down starts at the first lane, or row, the page didn't show, and a
+     page up ends at the one above the first it showed, so paging either way passes over none
      (`pageDown` and `pageUp`, in `scrolling.go`).
 
   The step hangs on the rows, the accounts configured, the calls, and the windows the moment lists,
@@ -4628,9 +4630,9 @@ first ran on them. A row's parts, two cells apart, as flex lays them at every wi
   end where they wouldn't fit its column at `999+` each, so rows of as many windows show as
   many, whatever their points say;
 - **right-aligned to the last column,** its worth at API prices, in `text.secondary`: `$41.06`,
-  in 9, to `$9999.99`, and past it `$9999.99+`, as wide as `unpriced`. Nothing grows, so what's spare lies between the
-  points and the worth. Where even the row's leasts don't fit, the worth stays whole, two cells
-  after the points, which give way there.
+  in 9, to `$9999.99`, and past it `$9999.99+`, as wide as `unpriced`. Nothing grows, so what's
+  spare lies between the points and the worth. Where even the row's leasts don't fit, the worth
+  stays whole, two cells after the points, which give way there.
 - **As the width runs short,** the points take their short words first, losing no figure; then
   the name narrows, to its least; then the requests leave, then the time there; and only then the
   points give up whole windows from the end, down to one. The name, the points and the worth

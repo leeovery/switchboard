@@ -84,10 +84,11 @@ var sizedAllowed = []string{
 // The list only shrinks: an entry must still be there, and still give one.
 var cutAllowed = []string{
 	// The design's figure of usage --by account's window labels, 10 cells at
-	// the name column, the Switchboard's lines' labels.
+	// the name column, which the Switchboard's lines take.
 	"internal/dashboard/switchboardlines.go:linesDrawn.window",
 	// The design's figures of Detail's SESSIONS: a model's family padded to
-	// 8 cells, and how many more in the 43 its selection lights.
+	// 8 cells, and its selection, from a cell before the row to 42 cells on,
+	// which how many more is said in.
 	"internal/dashboard/accountsdetail.go:detailDrawn.session",
 	"internal/dashboard/accountsdetail.go:detailDrawn.sessions",
 	// The design's figure of the Log card's tree's names, padded to 13: its
