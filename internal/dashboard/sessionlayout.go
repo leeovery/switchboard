@@ -5,9 +5,10 @@ import "github.com/leeovery/switchboard/internal/dashboard/flex"
 // A session's page keeps rows for turnsNatural turns, as many as a turn
 // opened takes at its natural, its row, its heads, requestsNatural of its
 // requests and its foot, till its story's last row of columns has given
-// way; for leastTurns till its story, its accounts and its blank rows have;
-// and for one at the least, or with a turn open, openRows: its row, its
-// heads, one request and its foot.
+// way; for leastTurns till its story, its accounts and its blank rows have,
+// or with a turn open, for it at its natural still; and for one at the
+// least, or with a turn open, openRows: its row, its heads, one request and
+// its foot.
 const (
 	requestsNatural = 5
 	turnsNatural    = 1 + 1 + requestsNatural + 1
@@ -162,12 +163,15 @@ func storyHeadingRows(wide bool) int {
 // accounts, the now rows, its blank rows and its turns, which give way in
 // the turns storyRowGivesWay to nowGivesWay name, and the turns past
 // turnsNatural, which take what's left. Under a phone's chrome the story is
-// left out with the blank row under it, rather than folded. The turns'
-// least is one, or with a turn open, openRows, so it shows whole.
+// left out with the blank row under it, rather than folded. The turns keep
+// leastTurns, or with a turn open, turnsNatural, while the story, the
+// accounts and the blank rows give way, so it shows its requests at their
+// natural as long as it can; and their least is one, or with a turn open,
+// openRows, so it shows whole.
 func sessionParts(accounts int, wide, open bool) []flex.Part {
-	least := 1
+	least, floor := 1, leastTurns
 	if open {
-		least = openRows
+		least, floor = openRows, turnsNatural
 	}
 	fixed := func(rows int) flex.Part { return flex.Part{Least: rows, Natural: rows} }
 	blank := func(givesWay int) flex.Part { return flex.Part{Least: 1, Natural: 1, Leaves: givesWay} }
@@ -191,8 +195,8 @@ func sessionParts(accounts int, wide, open bool) []flex.Part {
 		underTurnsHeadingPart: blank(underTurnsHeadingGivesWay),
 		turnHeadsPart:         fixed(1),
 		newestTurnPart:        fixed(least),
-		turnsLowPart:          {Natural: max(leastTurns-least, 0), Narrows: turnsLowGiveWay},
-		turnsHighPart:         {Natural: turnsNatural - max(leastTurns, least), Narrows: turnsHighGiveWay},
+		turnsLowPart:          {Natural: floor - least, Narrows: turnsLowGiveWay},
+		turnsHighPart:         {Natural: turnsNatural - floor, Narrows: turnsHighGiveWay},
 		turnsSparePart:        {Grows: true},
 		moreTurnsPart:         fixed(1),
 	}

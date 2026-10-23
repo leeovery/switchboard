@@ -159,7 +159,7 @@ func (m Model) moveRequest(by int) Model {
 // keptInView has it.
 func (m Model) scrollRequests(by scrollStep) Model {
 	s := *m.session
-	scrolling := m.pageView(s.shown).requests
+	scrolling := m.pageView(s.shown).Requests
 	s.shown.RequestsScroll = by.from(s.shown.RequestsScroll, scrolling)
 	s.shown.Request = inViewAt(s.shown.Request, s.shown.RequestsScroll, scrolling)
 	m.session = &s
@@ -168,7 +168,7 @@ func (m Model) scrollRequests(by scrollStep) Model {
 
 // keptInView is m with its page's turns, and its turn open's requests,
 // scrolled no further than keeps the turn chosen and the request chosen in
-// view, as choosing has it, with the rows under the turn TurnsKept keeps
+// view, as choosing has it, with the rows under the turn PageScrolling keeps
 // with it: of the turn open, those through its foot.
 func (m Model) keptInView() Model {
 	s := *m.session

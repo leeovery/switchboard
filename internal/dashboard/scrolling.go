@@ -359,11 +359,16 @@ func (f Frame) TurnsScrolling() Scrolling {
 	if f.Session == nil {
 		return Scrolling{}
 	}
-	l := f.pageLayout()
+	return f.Session.turnsScrolling(f.pageLayout())
+}
+
+// turnsScrolling is how far the turns of the page s shows scroll in the
+// layout l, as TurnsScrolling has it.
+func (s *SessionShown) turnsScrolling(l sessionLayout) Scrolling {
 	if l.chrome {
 		return Scrolling{}
 	}
-	return byRows(len(f.Session.turnsRows(l)), l.turns)
+	return byRows(len(s.turnsRows(l)), l.turns)
 }
 
 // scrollingAt is how far the frame's view of doc scrolls at now, scrolled to

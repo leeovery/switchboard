@@ -303,30 +303,15 @@ func (m Model) pageLive(id string, now time.Time) views.PageLive {
 	return views.PageLive{Routed: views.Routed(m.sessions, id), Unlisted: !m.answering(), Stream: m.traffic.stream(now), Now: now}
 }
 
-// turnsScrolling is how far the turns of the page shown scroll, laid out at
-// the size m draws at, as TurnsScrolling has it, of the page alone.
-func (m Model) turnsScrolling(shown dashboard.SessionShown) dashboard.Scrolling {
-	return m.pageFrame(shown).TurnsScrolling()
-}
-
 // pageFrame is the frame of the page shown alone, at the size m draws at.
 func (m Model) pageFrame(shown dashboard.SessionShown) dashboard.Frame {
 	return dashboard.Frame{Width: m.size.Width, Height: m.size.Height, Session: &shown}
 }
 
-// pageView is how a page shown scrolls: its turns, and how many rows under
-// the turn chosen's own they keep in view with it, as TurnsKept has them;
-// and its turn open's requests.
-type pageView struct {
-	turns    dashboard.Scrolling
-	kept     int
-	requests dashboard.Scrolling
-}
-
-// pageView is how the page shown scrolls, laid out at the size m draws at.
-func (m Model) pageView(shown dashboard.SessionShown) pageView {
-	f := m.pageFrame(shown)
-	return pageView{turns: f.TurnsScrolling(), kept: f.TurnsKept(), requests: f.RequestsScrolling()}
+// pageView is how the page shown scrolls, laid out once, of the page alone,
+// at the size m draws at, as PageScrolling has it.
+func (m Model) pageView(shown dashboard.SessionShown) dashboard.PageScrolling {
+	return m.pageFrame(shown).PageScrolling()
 }
 
 // following is the page shown, built afresh, is, as it was before, was: its
@@ -334,7 +319,7 @@ func (m Model) pageView(shown dashboard.SessionShown) pageView {
 // the newest was chosen, or none, with no turn open, so a page follows its
 // newest turn till another is chosen, or where the one chosen is no more;
 // kept in view as choosing has it.
-func following(was, is dashboard.SessionShown, v pageView) dashboard.SessionShown {
+func following(was, is dashboard.SessionShown, v dashboard.PageScrolling) dashboard.SessionShown {
 	i := turnAt(is, is.Turn)
 	if i < 0 || was.Open == 0 && turnAt(was, was.Turn) <= 0 {
 		i = 0
@@ -354,9 +339,12 @@ func turnAt(shown dashboard.SessionShown, n int) int {
 // no further than keeps the one chosen in view, each scrolling as v says:
 // none chosen of a page with no turns. Every change to the page's rows
 // comes through here, so a turn open, its request chosen and its foot stay
-// in view whatever changed them.
-func choosing(shown dashboard.SessionShown, i int, v pageView) dashboard.SessionShown {
-	shown.RequestsScroll = v.requests.Keeping(shown.RequestsScroll, shown.Request, 0)
+// in view whatever changed them: those of keys come through keptInView or
+// turnChosen; and the rest, as openTurn, closeTurn and a resize with no
+// turn open, through following, which relived runs after every message but
+// a frame's.
+func choosing(shown dashboard.SessionShown, i int, v dashboard.PageScrolling) dashboard.SessionShown {
+	shown.RequestsScroll = v.Requests.Keeping(shown.RequestsScroll, shown.Request, 0)
 	turns := shown.Page.Turns
 	if len(turns) == 0 {
 		shown.Turn, shown.Scroll = 0, 0
@@ -364,7 +352,7 @@ func choosing(shown dashboard.SessionShown, i int, v pageView) dashboard.Session
 	}
 	i = min(max(i, 0), len(turns)-1)
 	shown.Turn = turns[i].Turn
-	shown.Scroll = v.turns.Keeping(shown.Scroll, i, v.kept)
+	shown.Scroll = v.Turns.Keeping(shown.Scroll, i, v.Kept)
 	return shown
 }
 
@@ -463,8 +451,8 @@ func (m Model) turnChosen(i int) Model {
 func (m Model) scrollTurns(by scrollStep) Model {
 	s := *m.session
 	v := m.pageView(s.shown)
-	s.shown.Scroll = by.from(s.shown.Scroll, v.turns)
-	s.shown = choosing(s.shown, inViewAt(turnAt(s.shown, s.shown.Turn), s.shown.Scroll, v.turns), v)
+	s.shown.Scroll = by.from(s.shown.Scroll, v.Turns)
+	s.shown = choosing(s.shown, inViewAt(turnAt(s.shown, s.shown.Turn), s.shown.Scroll, v.Turns), v)
 	m.session = &s
 	return m
 }

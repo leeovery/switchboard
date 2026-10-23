@@ -94,7 +94,10 @@ func TestATurnOpenedLaysItsRowsOutUnderItsOwn(t *testing.T) {
 		{name: "two of its requests, both shown", open: func(s *SessionShown) { s.Requests = s.Requests[:2] }, height: 37, want: []turnsRow{
 			turn(0), turn(1), heads, request(0), request(1), foot, turn(2),
 		}},
-		{name: "at 29 rows, one shown", height: 29, want: []turnsRow{turn(0), turn(1), heads, request(0), foot, turn(2)}},
+		{name: "at 29 rows, five shown, the story folded for them", height: 29, want: []turnsRow{
+			turn(0), turn(1), heads, request(0), request(1), request(2), request(3), request(4), foot, turn(2),
+		}},
+		{name: "at 16 rows, one shown", height: 16, want: []turnsRow{turn(0), turn(1), heads, request(0), foot, turn(2)}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -139,13 +142,13 @@ func TestATurnOpensRequestsFitTheRowsThereAre(t *testing.T) {
 }
 
 // keptInView is the frame's page with its turns scrolled to keep the turn
-// chosen, and the rows TurnsKept keeps with it, in view, and its requests
+// chosen, and the rows PageScrolling keeps with it, in view, and its requests
 // scrolled to keep the one chosen in view, as the watch keeps them.
 func keptInView(f Frame) {
 	s := f.Session
 	s.RequestsScroll = f.RequestsScrolling().Keeping(s.RequestsScroll, s.Request, 0)
 	i := slices.IndexFunc(s.Page.Turns, func(t views.Turn) bool { return t.Turn == s.Turn })
-	s.Scroll = f.TurnsScrolling().Keeping(s.Scroll, i, f.TurnsKept())
+	s.Scroll = f.TurnsScrolling().Keeping(s.Scroll, i, f.PageScrolling().Kept)
 }
 
 // openShownWhole reports why the frame's page doesn't show its turn open
@@ -397,7 +400,7 @@ func TestTheLogsCardOverASessionsPageIsPlacedByItsRequestChosen(t *testing.T) {
 		line            int
 	}{
 		{name: "over its line", request: 2, width: 160, height: 37, placed: true, line: 30},
-		{name: "too short for it", scroll: 1, width: 160, height: 24, line: 19},
+		{name: "too short for it", scroll: 1, width: 160, height: 24, line: 16},
 		{name: "a tall phone, its card stacked", width: 52, height: 64, line: 28},
 	}
 	for _, tt := range tests {

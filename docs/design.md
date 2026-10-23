@@ -4358,20 +4358,27 @@ session page · signed off · 7 Oct 2026**, its frames kept as `testdata/vhs/ref
      fit, under 10 rows under the wide chrome and 11 under a phone's, **the chrome alone.** The key
      line stays the view's, as every cramped view's does.
 
-  **With a turn open,** the turns' least is the turn whole: its row, its heads, one of its requests
-  and its foot, four rows, kept from step 2 on in place of three turns, and step 7 gives way to it
-  as to one turn. The page is the chrome alone where even that doesn't fit, under 13 rows under the
-  wide chrome and 14 under a phone's, as it never draws a turn open with none of its requests. A
-  turn's open state never changes with the frame's height.
+  **With a turn open,** step 2 keeps the turn open at its natural, its row, its heads, five of its
+  requests and its foot, eight rows, so the story, the accounts and the blank rows give way before
+  it shows fewer than five; step 6 is then its requests, from five to one; and its least is the
+  turn whole, its row, its heads, one of its requests and its foot, four rows, to which step 7
+  gives way as to one turn. The page is the chrome alone where even that doesn't fit, under 13
+  rows under the wide chrome and 14 under a phone's, as it never draws a turn open with none of
+  its requests. A turn's open state never changes with the frame's height; opening one lays the
+  page out afresh.
 
   Under the wide chrome, with one account, the accounts' row goes at 13 rows, the story's heading
   at 12 and the now rows at 11; a phone's has no story's heading, so its accounts' row goes at 13
-  and its now rows at 12. With a turn open, each goes three rows higher.
+  and its now rows at 12. With a turn open, each goes three rows higher, and with one account its
+  requests go from five at 21 rows to one at 17 at both chromes, after the blank rows, from 25
+  rows under the wide chrome and 24 under a phone's.
 
   A taller frame never shows fewer turns, accounts or rows of the story within one arrangement,
-  and what a taller frame gave back never gives way again. With one account, the wide page's
-  story is whole from 28 rows, or 29 with a turn open, its columns five rows tall from 34; two
-  accounts, from 29, or 30, and 35. At 138×15 it's the heading, now, STORY folded,
+  nor a turn open fewer of its requests at a time in any, but where the now rows come back, two
+  rows for the one the turns had spare; and what a taller frame gave back never gives way again.
+  With one account, the wide page's story is whole from 28 rows, or 33 with a turn open, its
+  columns five rows tall from 34; two accounts, from 29, or 34, and 35. At 138×15 it's the
+  heading, now, STORY folded,
   `+2 more accounts`, TURNS, its heads, the two newest turns and how many more, with no blank row;
   with a turn open, the heading, now, TURNS, its heads, the turn open with a request and its foot,
   and how many more.
@@ -4678,7 +4685,8 @@ moving down.
   and its foot, so none lies blank; and where those are fewer, as many as they hold under the turn's
   own row, its heads and its foot, five at the most; one at the least. That count is set as the
   turn opens and again on a resize, and holds as turns come and go, so the turn holds still, but
-  for as many fewer as the rows the turns lose, as to an account joining. Whatever changes the
+  where the turns lose a row, as to an account joining, and had none spare under the turn: then it
+  shows one fewer. Whatever changes the
   page's rows, its requests and its turns scroll to keep it whole in view, its request chosen and
   its foot among it. Under them, `└` in `border`
   at column 2, then from column 5 `▼` in `accent.key`, ` 32 more of its requests   ·   ` in

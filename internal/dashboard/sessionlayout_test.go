@@ -22,14 +22,14 @@ import (
 // A session's page heads itself in the wide chrome's form from 100 columns,
 // a phone's under them, as the chrome does, and lays its rows out by its
 // parts. As its rows run short, the story's last column row gives way
-// first, while fewer than eight turns fit; then the turns, to three; then
-// the story, folded to its heading under the wide chrome and left out
-// under a phone's, its blank row with it; then the accounts, to a row
-// saying how many more; then the blank rows, the one under TURNS' heading
-// first and the one under the page's heading last; then the turns, to one,
-// or with a turn open, to it whole; then, one at a time, the accounts' row, the story's heading and the
-// now rows; and below that it's the chrome alone. The turns take the rest,
-// and with a turn open, keep the rows it takes at its least.
+// first, while fewer than eight turns fit; then the turns, to three, or with
+// a turn open, none, as it keeps its natural; then the story, folded to its
+// heading under the wide chrome and left out under a phone's, its blank row
+// with it; then the accounts, to a row saying how many more; then the blank
+// rows, the one under TURNS' heading first and the one under the page's
+// heading last; then the turns, to one, or with a turn open, to it whole;
+// then, one at a time, the accounts' row, the story's heading and the now
+// rows; and below that it's the chrome alone. The turns take the rest.
 func TestASessionsPageLaysOutItsRowsAtEachSize(t *testing.T) {
 	tests := []struct {
 		name                 string
@@ -346,10 +346,10 @@ func TestASessionsPageGivesWayInItsOrder(t *testing.T) {
 
 // turnsFloors are the turns a page keeps for while its story, its accounts
 // and its blank rows give way, and its turns' least, with a turn open where
-// open says.
+// open says: one open at its natural, and whole.
 func turnsFloors(open bool) (floor, least int) {
 	if open {
-		return openRows, openRows
+		return turnsNatural, openRows
 	}
 	return leastTurns, 1
 }
@@ -431,6 +431,31 @@ func TestATallerPageNeverShowsLess(t *testing.T) {
 					}
 					shorter = is
 				}
+			}
+		}
+	}
+}
+
+// A turn open shows its requests at their natural, five at a time, before
+// the page keeps its story or its accounts whole, and a taller page never
+// shows it fewer at a time, whatever the page gave back for the row, but
+// the now rows: two rows, given back whole, they take a row the turns had
+// spare a row shorter. Swept from 8 rows to 70, at a phone's widths, the
+// wide chrome's and 160, of thirteen turns, on one account, two and four.
+func TestATallerPageNeverShowsATurnOpenFewerRequests(t *testing.T) {
+	for _, width := range append(slices.Clone(sweptWidths), 160) {
+		for _, accounts := range []int{1, 2, 4} {
+			shorter, nowLeft := 0, false
+			for height := sweptHeights[0]; height <= sweptHeights[1]; height++ {
+				f := pageFrame(t, ranOn(turnOpened(), accounts), width, height)
+				l, requests := f.pageLayout(), f.RequestsScrolling().Page
+				if requests < shorter && (!nowLeft || l.nowLeft) {
+					t.Errorf("at %d×%d, %d accounts, the turn open shows %d requests at a time, fewer than the %d a row shorter: %+v", width, height, accounts, requests, shorter, l)
+				}
+				if requests < requestsNatural && (l.story || l.accounts > 0 && l.more == 0 && accounts > 1) {
+					t.Errorf("at %d×%d, %d accounts, the turn open shows %d requests at a time, its story or its accounts whole: %+v", width, height, accounts, requests, l)
+				}
+				shorter, nowLeft = requests, l.nowLeft
 			}
 		}
 	}

@@ -373,16 +373,18 @@ func TestATurnOpenedKeepsItselfWholeInView(t *testing.T) {
 // as enter opens it, and its requests' tenth chosen, or the last shown where
 // fewer show.
 func openedAt(size Size) Model {
-	m := openedOf(13, 37, size)
+	m := openedOf(13, 1, 37, size)
 	return m.moveRequest(min(10, m.session.shown.RequestsRows-1))
 }
 
-// openedOf is a model of a page of the turns given at the size given, its
-// second newest open, or its one where it has one, the requests given read,
-// as many shown at a time as fit there, as enter opens it, its first chosen.
-func openedOf(turns, requests int, size Size) Model {
+// openedOf is a model of a page of the turns given, run on the accounts
+// given, at the size given, its second newest open, or its one where it has
+// one, the requests given read, as many shown at a time as fit there, as
+// enter opens it, its first chosen.
+func openedOf(turns, accounts, requests int, size Size) Model {
 	m := turnsModel(turns)
 	m.size = size
+	m.session.shown.Page.Accounts = slices.Repeat(m.session.shown.Page.Accounts[:1], accounts)
 	m = m.moveTurn(1)
 	s := *m.session
 	s.shown.Open, s.shown.Requests = s.shown.Turn, make([]views.LogLine, requests)
@@ -442,15 +444,16 @@ func TestATurnOpenHoldsItsRequestsWholeInViewAsTurnsCome(t *testing.T) {
 	}
 }
 
-// An account joining while a turn is open takes a row from the turns, and
-// the page built afresh keeps the turn open, its request chosen, the last
-// shown, and its foot in view: of one turn and of thirteen, its one or its
-// twelfth open, at a phone's widths and the wide chrome's, 20 rows to 40,
-// and at 73×61 and 160×37.
+// An account joining while a turn is open may take a row from the turns,
+// and the page built afresh keeps the turn open, its request chosen, the
+// first shown, the middle or the last, and its foot in view: of one turn
+// and of thirteen, its one or its twelfth open, on one account or two, at a
+// phone's widths and the wide chrome's, 14 rows to 40, and at 73×61 and
+// 160×37.
 func TestATurnOpenKeepsItsRequestChosenInViewAsAnAccountJoins(t *testing.T) {
 	var sizes []Size
 	for _, width := range []int{52, 73, 138, 173} {
-		for height := 20; height <= 40; height++ {
+		for height := 14; height <= 40; height++ {
 			sizes = append(sizes, Size{Width: width, Height: height})
 		}
 	}
@@ -458,19 +461,19 @@ func TestATurnOpenKeepsItsRequestChosenInViewAsAnAccountJoins(t *testing.T) {
 	for _, turns := range []int{1, 13} {
 		for _, size := range sizes {
 			for _, ran := range []int{1, 2} {
-				m := openedOf(turns, 80, size)
-				was := m.session.shown
-				was.Page.Accounts = slices.Repeat(was.Page.Accounts[:1], ran)
-				m.session.shown = was
-				m = m.moveRequest(was.RequestsRows - 1)
-				was = m.session.shown
-				is := was
-				is.Page.Accounts = append(slices.Clone(was.Page.Accounts), views.SessionAccount{Account: "side"})
-				s := *m.session
-				s.shown = following(was, is, m.pageView(is))
-				m.session = &s
-				if why := m.openInView(m.session.shown); why != "" {
-					t.Errorf("at %d×%d, %d turns, a turn open on %d accounts, one joining: %s", size.Width, size.Height, turns, ran, why)
+				for _, chosen := range []string{"first", "middle", "last"} {
+					m := openedOf(turns, ran, 80, size)
+					shown := map[string]int{"first": 0, "middle": (m.session.shown.RequestsRows - 1) / 2, "last": m.session.shown.RequestsRows - 1}
+					m = m.moveRequest(shown[chosen])
+					was := m.session.shown
+					is := was
+					is.Page.Accounts = append(slices.Clone(was.Page.Accounts), views.SessionAccount{Account: "side"})
+					s := *m.session
+					s.shown = following(was, is, m.pageView(is))
+					m.session = &s
+					if why := m.openInView(m.session.shown); why != "" {
+						t.Errorf("at %d×%d, %d turns, a turn open on %d accounts, its %s request shown chosen, one joining: %s", size.Width, size.Height, turns, ran, chosen, why)
+					}
 				}
 			}
 		}
@@ -564,9 +567,9 @@ func TestATurnOpenScrollsItsTurnsNoFurtherThanKeepsItWhole(t *testing.T) {
 	}
 }
 
-// How far a page's turns scroll, which each key, look and stream event on
-// the page asks, is laid out of the page alone at the size drawn at, as
-// TurnsScrolling has it: nothing more of the frame is built for it.
+// How a page scrolls, which each key, look and stream event on the page
+// asks, is laid out once, of the page alone at the size drawn at, as
+// PageScrolling has it: nothing more of the frame is built for it.
 func TestHowFarAPagesTurnsScrollIsLaidOutOfThePageAlone(t *testing.T) {
 	h, _ := pageHarness(t, turnsOfRequests(start.Add(-30*time.Minute), slices.Repeat([]int{1}, 20)...))
 	h.deliver(h.update(tea.WindowSizeMsg{Width: 160, Height: 37})...)
@@ -574,12 +577,12 @@ func TestHowFarAPagesTurnsScrollIsLaidOutOfThePageAlone(t *testing.T) {
 	shown := h.shownPage()
 	bare := dashboard.Frame{Width: 160, Height: 37, Session: &shown}
 	f, doc, at := h.model.screen(h.clock.now)
-	if got, want := h.model.turnsScrolling(shown), f.Scrolling(doc, at); got != want || want.Most == 0 {
+	if got, want := h.model.pageView(shown).Turns, f.Scrolling(doc, at); got != want || want.Most == 0 {
 		t.Fatalf("the page alone lays its turns out scrolling %+v, want %+v, as the frame drawn does, scrolling", got, want)
 	}
 	least := testing.AllocsPerRun(10, func() { bare.TurnsScrolling() })
-	if got := testing.AllocsPerRun(10, func() { h.model.turnsScrolling(shown) }); got > least {
-		t.Errorf("how far the turns scroll allocates %.0f times, want no more than the page alone laid out does, %.0f", got, least)
+	if got := testing.AllocsPerRun(10, func() { h.model.pageView(shown) }); got > least {
+		t.Errorf("how the page scrolls allocates %.0f times, want no more than its turns alone laid out once do, %.0f", got, least)
 	}
 }
 
