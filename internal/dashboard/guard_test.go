@@ -70,8 +70,6 @@ var sizedAllowed = []string{
 	"internal/dashboard/usagewords.go:usageWords.pick",
 	// S19 and S20: Days and Weeks scrolling whole under historyRows.
 	"internal/dashboard/historypage.go:Frame.shortOfHistory",
-	// S23: a session's page's rows, at short heights.
-	"internal/dashboard/sessionlayout.go:Frame.sessionLayout",
 	// S25: the frame cramped short of leastView, which many views choose
 	// by.
 	"internal/dashboard/frame.go:Frame.cramped",

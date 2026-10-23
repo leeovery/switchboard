@@ -77,33 +77,79 @@ func (s *SessionShown) turnsInView(l sessionLayout) (rows []turnsRow, from, to i
 }
 
 // requestsShown are the turn open's requests shown, the first and the one
-// after the last, as far as they're scrolled: as many as the layout l shows
-// at a time, no further than leaves them full.
+// after the last, as far as they're scrolled: as many as requestsAtOnce
+// shows at a time in the layout l, no further than leaves them full.
 func (s *SessionShown) requestsShown(l sessionLayout) (from, to int) {
-	shown := min(len(s.Requests), l.requests)
+	shown := min(len(s.Requests), s.requestsAtOnce(l))
 	from = min(max(s.RequestsScroll, 0), len(s.Requests)-shown)
 	return from, from + shown
 }
 
-// Kept is how many rows under the turn chosen's own its turns keep in view
-// with it as they scroll: of the turn open, its heads and its requests shown
-// down to the one chosen, as it opens its first; of any other,
-// none.
-func (s *SessionShown) Kept() int {
-	if s.Open == 0 || s.Open != s.Turn {
-		return 0
+// requestsAtOnce is how many of the turn open's requests show at a time in
+// the layout l: its RequestsRows, from one, but no more than the turns'
+// rows hold under the turn open's own row, its heads and its foot, so the
+// turn open shows whole.
+func (s *SessionShown) requestsAtOnce(l sessionLayout) int {
+	return min(max(s.RequestsRows, 1), max(l.turns-openRows+1, 1))
+}
+
+// RequestsFit is how many of the turn open's requests the session's page
+// shows at a time, laid out at the frame's size, as its RequestsRows keeps
+// it from the turn's open and each resize: as many as its turns' rows hold
+// under every turn, the turn open's heads and its foot, so none lie blank;
+// and where those are fewer, as many as they hold under the turn open's own
+// row, its heads and its foot, requestsNatural at the most; one at the
+// least.
+func (f Frame) RequestsFit() int {
+	l := f.pageLayout()
+	return max(l.turns-len(f.Session.Page.Turns)-2, min(l.turns-openRows+1, requestsNatural), 1)
+}
+
+// PageScrolling is how a session's page scrolls, laid out once at the
+// frame's size: its turns, as TurnsScrolling has them; how many rows under
+// the turn chosen's own they keep in view with it, as they scroll; and its
+// turn open's requests, as RequestsScrolling has them.
+type PageScrolling struct {
+	Turns    Scrolling
+	Kept     int
+	Requests Scrolling
+}
+
+// PageScrolling is how the session's page scrolls, its turns keeping in
+// view with the turn chosen, where it's the turn open, its heads, its
+// requests shown and its foot, so it shows whole; and with any other, no
+// more: none without a page.
+func (f Frame) PageScrolling() PageScrolling {
+	s := f.Session
+	if s == nil {
+		return PageScrolling{}
 	}
-	return 2 + max(s.Request-s.RequestsScroll, 0)
+	l := f.pageLayout()
+	p := PageScrolling{Turns: s.turnsScrolling(l), Requests: s.requestsScrolling(l)}
+	if s.Open != 0 && s.Open == s.Turn {
+		from, to := s.requestsShown(l)
+		p.Kept = 1 + to - from + 1
+	}
+	return p
 }
 
 // RequestsScrolling is how far the requests of the turn open on the
 // session's page scroll within the rows its layout gives them: none where
 // no page or turn is open.
 func (f Frame) RequestsScrolling() Scrolling {
-	if f.Session == nil || f.Session.Open == 0 {
+	if f.Session == nil {
 		return Scrolling{}
 	}
-	return byRows(len(f.Session.Requests), f.pageLayout().requests)
+	return f.Session.requestsScrolling(f.pageLayout())
+}
+
+// requestsScrolling is how far the requests of the turn open on the page s
+// shows scroll in the layout l, as RequestsScrolling has it.
+func (s *SessionShown) requestsScrolling(l sessionLayout) Scrolling {
+	if s.Open == 0 {
+		return Scrolling{}
+	}
+	return byRows(len(s.Requests), s.requestsAtOnce(l))
 }
 
 // turnLitRow is the row the session's page draws the request chosen of its

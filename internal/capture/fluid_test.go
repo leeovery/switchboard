@@ -237,28 +237,6 @@ var knownBreaks = []known{
 			"overview-six-accounts-160",
 		},
 	},
-	// S23, a session's page at short heights (F32): nothing at 15 rows; and an
-	// opened turn's requests out of view over blank rows.
-	{
-		slice: "S23", rule: foldWithRowsSpare, sizes: []string{"73x61", "173x53", "109x53"},
-		fixtures: []string{"session-turn-opened-160"},
-	},
-	{
-		slice: "S23", rule: nothingDrawn, sizes: []string{"138x15"},
-		fixtures: []string{
-			"long-names-session", "page-session-loading", "routing-session-160", "session-108x44",
-			"session-ended-160", "session-moved-160", "session-phone-52", "session-quiet-160",
-			"session-resumed-160", "session-turn-opened-160",
-		},
-	},
-	{
-		slice: "S23", rule: wastedThird, sizes: []string{"138x15"},
-		fixtures: []string{
-			"long-names-session", "page-session-loading", "routing-session-160", "session-108x44",
-			"session-ended-160", "session-moved-160", "session-phone-52", "session-quiet-160",
-			"session-resumed-160", "session-turn-opened-160",
-		},
-	},
 }
 
 // Every fixture's view, and the long-names world's, at the owner's sizes,

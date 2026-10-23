@@ -242,12 +242,36 @@ func resumed() *SessionShown {
 	return &SessionShown{Page: page, Turn: 21, Home: "/home/dev"}
 }
 
+// The row under a session's turns counts the turns out of view above them
+// wherever both counts fit, its keys given way first, at every width from
+// 30 columns to 220: "▲ 1 more turn   ·   ▼ 7 more turns" at 52.
+func TestASessionsTurnsCountThoseAboveWhereverBothCountsFit(t *testing.T) {
+	for width := 30; width <= 220; width++ {
+		shown := moved()
+		shown.Turn, shown.Scroll = 12, 1
+		f := pageFrame(t, shown, width, 32)
+		rows, above, below := f.sessionDrawn(pageDoc(), sessionNow).turnsShown()
+		if above != 1 || len(rows) == 0 {
+			t.Fatalf("at %d columns, %d turns are out of view above, want 1", width, above)
+		}
+		both := turnsCounted.said(above, below)
+		got := pageText(f)[f.pageLayout().moreTurns]
+		if both.width() <= width && !strings.HasPrefix(got, both.plain()) {
+			t.Errorf("at %d columns, the row under the turns reads %q, want it to start %q", width, got, both.plain())
+		}
+	}
+}
+
 // pageFrame is a frame of the session's page shown, in a terminal of the
-// size given, in nord, over the Log.
+// size given, in nord, over the Log: its turn open, where it has one, showing
+// as many requests at a time as RequestsFit has it, as the watch opens it.
 func pageFrame(t *testing.T, shown *SessionShown, width, height int) Frame {
 	t.Helper()
 	f := frameOf(width, height)
 	f.View, f.Look, f.Session = Log, Screen(builtin(t, "nord")), shown
+	if shown != nil && shown.Open != 0 && shown.RequestsRows == 0 {
+		shown.RequestsRows = f.RequestsFit()
+	}
 	return f
 }
 
@@ -282,8 +306,10 @@ func ranOn(shown *SessionShown, n int) *SessionShown {
 // its right parts ending at the last column, and a phone's under them, as
 // the chrome does; its turns take one form at every width, their columns
 // leaving as it narrows; and below its least rows, it's the chrome alone.
-// Its accounts take a row each while three turns fit beside them, then give
-// way to a row saying how many more.
+// Its accounts take a row each while three turns fit beside them, then, once
+// the story has given way, give way to a row saying how many more; and with
+// the turns at their least, that row, the story's heading and the now rows
+// give way in turn.
 func TestASessionsPageAtEachSize(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -329,15 +355,15 @@ func TestASessionsPageAtEachSize(t *testing.T) {
 		{
 			name: "100 wide: the wide chrome's heading, tools gone", shown: moved(), width: 100, height: 30,
 			want: map[int]string{
-				4: "SESSION   d28c   switchboard  ~/Code/switchboard ─", 6: "↑ asking   on side ▲ since 14:31, moved from work: work reached its cap       started 12:02 · 2h 40m", 22: "TURNS    ",
-				24: "  #  started  took   requests     read  written     out     worth  on",
+				4: "SESSION   d28c   switchboard  ~/Code/switchboard ─", 6: "↑ asking   on side ▲ since 14:31, moved from work: work reached its cap       started 12:02 · 2h 40m", 21: "TURNS    ",
+				23: "  #  started  took   requests     read  written     out     worth  on",
 			},
 		},
 		{
 			name: "99 wide: a phone's heading, under its own chrome, its now rows wide as they fit", shown: moved(), width: 99, height: 30,
 			want: map[int]string{
 				5: "SESSION  d28c  switchboard", 7: "↑ asking   on side ▲ since 14:31, moved from work: work reached its cap      started 12:02 · 2h 40m", 8: "opus-5-5 → side   haiku-4-5 → side",
-				22: "TURNS    ", 24: "  #  started  took   requests     read  written     out     worth  on",
+				21: "TURNS    ", 23: "  #  started  took   requests     read  written     out     worth  on",
 			},
 		},
 		{
@@ -355,24 +381,40 @@ func TestASessionsPageAtEachSize(t *testing.T) {
 			name: "52 wide: a phone's, its turns their figures, worth and on", shown: moved(), width: 52, height: 32,
 			want: map[int]string{
 				5: "SESSION  d28c  switchboard                  esc back", 7: "↑ asking  on side ▲ since 14:31",
-				24: "  #  started  took     req     worth  on", 25: " 13  14:40    3m…        6     $0.79  side",
-				30: "▼ 8 more turns   ·   j/k to scroll",
+				23: "  #  started  took     req     worth  on", 24: " 13  14:40    3m…        6     $0.79  side",
+				30: "▼ 7 more turns   ·   j/k to scroll",
 			},
 		},
 		{
-			name: "ten accounts at 37 rows: eight and two more", shown: ranOn(moved(), 10), width: 160, height: 37,
-			want: map[int]string{26: "account-h       12:07 – 12:07", 27: "+2 more accounts", 29: "TURNS    "},
+			name: "ten accounts at 37 rows: every one, the story's columns four rows tall", shown: ranOn(moved(), 10), width: 160, height: 37,
+			want: map[int]string{18: "account-a       12:00 – 12:00", 27: "account-j       12:09 – now", 29: "TURNS    "},
 		},
 		{
 			name: "ten accounts at 24 rows, the story folded: three and seven more", shown: ranOn(moved(), 10), width: 160, height: 24,
 			want: map[int]string{11: "account-a", 13: "account-c", 14: "+7 more accounts", 16: "TURNS    "},
 		},
 		{
-			name: "two accounts at 29 rows: the row of how many alone", shown: moved(), width: 160, height: 29,
-			want: map[int]string{19: "+2 more accounts", 21: "TURNS    "},
+			name: "two accounts at 20 rows, the story folded: the row of how many alone", shown: moved(), width: 160, height: 20,
+			want: map[int]string{11: "+2 more accounts", 13: "TURNS    "},
 		},
-		{name: "160×20: the chrome alone", shown: moved(), width: 160, height: 20, blank: [2]int{3, 18}},
-		{name: "52×18: a phone's chrome alone", shown: moved(), width: 52, height: 18, blank: [2]int{4, 16}},
+		{
+			name: "160×13: the accounts' row given way", shown: moved(), width: 160, height: 13,
+			want: map[int]string{4: "SESSION   d28c", 5: "↑ asking", 7: "STORY   no room at 13 rows", 8: "TURNS    ", 10: " 13  14:40", 11: "▼ 12 more turns"},
+		},
+		{
+			name: "160×12: the story's heading given way", shown: moved(), width: 160, height: 12,
+			want: map[int]string{4: "SESSION   d28c", 5: "↑ asking", 7: "TURNS    ", 9: " 13  14:40", 10: "▼ 12 more turns"},
+		},
+		{
+			name: "160×10: the now rows given way, its least", shown: moved(), width: 160, height: 10,
+			want: map[int]string{4: "SESSION   d28c", 5: "TURNS    ", 7: " 13  14:40", 8: "▼ 12 more turns"},
+		},
+		{
+			name: "52×11: a phone's least, its now rows given way", shown: moved(), width: 52, height: 11,
+			want: map[int]string{5: "SESSION  d28c", 6: "TURNS    ", 8: " 13  14:40", 9: "▼ 12 more turns"},
+		},
+		{name: "160×9: the chrome alone", shown: moved(), width: 160, height: 9, blank: [2]int{3, 7}},
+		{name: "52×10: a phone's chrome alone", shown: moved(), width: 52, height: 10, blank: [2]int{4, 8}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -506,7 +548,7 @@ func TestTheTurnChosenIsLit(t *testing.T) {
 	}{
 		{name: "wide, the newest", width: 160, height: 37, chosen: 25, lit: 148},
 		{name: "wide, one under it", width: 160, height: 37, chosen: 27, lit: 148},
-		{name: "a phone", width: 52, height: 32, chosen: 25, lit: 52},
+		{name: "a phone", width: 52, height: 32, chosen: 24, lit: 52},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -748,11 +790,11 @@ func TestTURNSSaysWhyASessionHasNoTurns(t *testing.T) {
 		shown.Page.Turns, shown.Page.Totals.Turns = nil, 0
 		l := pageFrame(t, shown, width, 37).layoutOf(1)
 		c := pageCanvas(pageFrame(t, shown, width, 37))
-		if got := rowOf(c, l.turnsHeading+2); got != noTurns[:min(len(noTurns), width)] && !strings.HasPrefix(noTurns, strings.TrimSuffix(got, "…")) || c.cells[l.turnsHeading+2][0].ink != faintInk {
-			t.Errorf("at %d columns, TURNS' rows read %q in %+v, want %q in text.faint", width, got, c.cells[l.turnsHeading+2][0].ink, noTurns)
+		if got := rowOf(c, l.heads); got != noTurns[:min(len(noTurns), width)] && !strings.HasPrefix(noTurns, strings.TrimSuffix(got, "…")) || c.cells[l.heads][0].ink != faintInk {
+			t.Errorf("at %d columns, TURNS' rows read %q in %+v, want %q in text.faint", width, got, c.cells[l.heads][0].ink, noTurns)
 		}
 		shown.Page.Totals.Requests = 0
-		if got := rowOf(pageCanvas(pageFrame(t, shown, width, 37)), l.turnsHeading+2); got != "" {
+		if got := rowOf(pageCanvas(pageFrame(t, shown, width, 37)), l.heads); got != "" {
 			t.Errorf("at %d columns, with no request, TURNS' rows read %q, want nothing", width, got)
 		}
 	}
@@ -835,7 +877,7 @@ func TestASessionsPageTargetsItsTurnsShown(t *testing.T) {
 			t.Errorf("target %d is %+v, want %+v", i, target, want)
 		}
 	}
-	f.Height = 20
+	f.Height = 9
 	if slices.ContainsFunc(f.Targets(pageDoc(), sessionNow), func(t Target) bool { return t.On == OnTurn }) {
 		t.Error("under the chrome alone, the page targets its turns, want none")
 	}

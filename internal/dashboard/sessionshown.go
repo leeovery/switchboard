@@ -23,6 +23,10 @@ type SessionShown struct {
 	Requests        []views.LogLine
 	Request         int
 	RequestsLoading bool
+	// RequestsRows is how many of the turn open's requests show at a time,
+	// as Frame.RequestsFit has it as the turn opens and at each resize, so it
+	// holds as turns come and go.
+	RequestsRows int
 	// Scroll is how many rows its turns are scrolled down by, and
 	// RequestsScroll how many the open turn's requests are.
 	Scroll, RequestsScroll int

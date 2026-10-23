@@ -1,6 +1,8 @@
 package dashboard
 
 import (
+	"cmp"
+	"fmt"
 	"maps"
 	"slices"
 	"strconv"
@@ -18,101 +20,508 @@ import (
 )
 
 // A session's page heads itself in the wide chrome's form from 100 columns,
-// a phone's under them, as the chrome does. Its story is whole where its
-// fixed rows, one account and three turns fit, below 29 rows under the wide
-// chrome folded to its heading, and under a phone's left out, its blank row
-// kept; below that it's the chrome alone. Its accounts take a row each while
-// three turns fit beside them, then give way to a row saying how many more;
-// its turns, under their column heads at every width, take the rest; and an
-// open turn shows as many of its requests as the turns' rows hold under it,
-// five at the most and one at the least.
+// a phone's under them, as the chrome does, and lays its rows out by its
+// parts. As its rows run short, the story's last column row gives way
+// first, while fewer than eight turns fit; then the turns, to three, or with
+// a turn open, none, as it keeps its natural; then the story, folded to its
+// heading under the wide chrome and left out under a phone's, its blank row
+// with it; then the accounts, to a row saying how many more; then the blank
+// rows, the one under TURNS' heading first and the one under the page's
+// heading last; then the turns, to one, or with a turn open, to it whole;
+// then, one at a time, the accounts' row, the story's heading and the now
+// rows; and below that it's the chrome alone. The turns take the rest.
 func TestASessionsPageLaysOutItsRowsAtEachSize(t *testing.T) {
 	tests := []struct {
 		name                 string
 		width, height, ranOn int
+		open                 bool
 		want                 sessionLayout
 	}{
 		{
 			name: "160×37, one account: the frames", width: 160, height: 37, ranOn: 1,
-			want: sessionLayout{wide: true, story: true, heading: 4, now: 6, storyAt: 9, accountsAt: 19, accounts: 1,
-				turnsHeading: 21, turnsAt: 24, turns: 11, moreTurns: 35, requests: 5},
+			want: sessionLayout{wide: true, story: true, heading: 4, now: 6, storyAt: 9, body: 5, accountsAt: 19, accounts: 1,
+				turnsHeading: 21, heads: 23, turnsAt: 24, turns: 11, moreTurns: 35},
 		},
 		{
-			name: "160×37, ten accounts: eight rows and two more", width: 160, height: 37, ranOn: 10,
-			want: sessionLayout{wide: true, story: true, heading: 4, now: 6, storyAt: 9, accountsAt: 19, accounts: 8, more: 2,
-				turnsHeading: 29, turnsAt: 32, turns: 3, moreTurns: 35, requests: 1},
+			name: "160×37, ten accounts: the story's last column row given back, three turns", width: 160, height: 37, ranOn: 10,
+			want: sessionLayout{wide: true, story: true, heading: 4, now: 6, storyAt: 9, body: 4, accountsAt: 18, accounts: 10,
+				turnsHeading: 29, heads: 31, turnsAt: 32, turns: 3, moreTurns: 35},
 		},
 		{
-			name: "160×29, one account: its least whole", width: 160, height: 29, ranOn: 1,
-			want: sessionLayout{wide: true, story: true, heading: 4, now: 6, storyAt: 9, accountsAt: 19, accounts: 1,
-				turnsHeading: 21, turnsAt: 24, turns: 3, moreTurns: 27, requests: 1},
+			name: "160×34, one account: eight turns, the story whole", width: 160, height: 34, ranOn: 1,
+			want: sessionLayout{wide: true, story: true, heading: 4, now: 6, storyAt: 9, body: 5, accountsAt: 19, accounts: 1,
+				turnsHeading: 21, heads: 23, turnsAt: 24, turns: 8, moreTurns: 32},
 		},
 		{
-			name: "160×29, two accounts: the row of how many alone", width: 160, height: 29, ranOn: 2,
-			want: sessionLayout{wide: true, story: true, heading: 4, now: 6, storyAt: 9, accountsAt: 19, more: 2,
-				turnsHeading: 21, turnsAt: 24, turns: 3, moreTurns: 27, requests: 1},
+			name: "160×33, one account: the story's last column row given back first", width: 160, height: 33, ranOn: 1,
+			want: sessionLayout{wide: true, story: true, heading: 4, now: 6, storyAt: 9, body: 4, accountsAt: 18, accounts: 1,
+				turnsHeading: 20, heads: 22, turnsAt: 23, turns: 8, moreTurns: 31},
 		},
 		{
-			name: "160×24, one account: the story folded", width: 160, height: 24, ranOn: 1,
+			name: "160×28, one account: its story's least whole", width: 160, height: 28, ranOn: 1,
+			want: sessionLayout{wide: true, story: true, heading: 4, now: 6, storyAt: 9, body: 4, accountsAt: 18, accounts: 1,
+				turnsHeading: 20, heads: 22, turnsAt: 23, turns: 3, moreTurns: 26},
+		},
+		{
+			name: "160×29, two accounts: the story whole before the accounts give way", width: 160, height: 29, ranOn: 2,
+			want: sessionLayout{wide: true, story: true, heading: 4, now: 6, storyAt: 9, body: 4, accountsAt: 18, accounts: 2,
+				turnsHeading: 21, heads: 23, turnsAt: 24, turns: 3, moreTurns: 27},
+		},
+		{
+			name: "160×27, one account: the story folded", width: 160, height: 27, ranOn: 1,
 			want: sessionLayout{wide: true, heading: 4, now: 6, storyAt: 9, accountsAt: 11, accounts: 1,
-				turnsHeading: 13, turnsAt: 16, turns: 6, moreTurns: 22, requests: 3},
+				turnsHeading: 13, heads: 15, turnsAt: 16, turns: 9, moreTurns: 25},
 		},
 		{
 			name: "160×24, four accounts and three turns", width: 160, height: 24, ranOn: 4,
 			want: sessionLayout{wide: true, heading: 4, now: 6, storyAt: 9, accountsAt: 11, accounts: 4,
-				turnsHeading: 16, turnsAt: 19, turns: 3, moreTurns: 22, requests: 1},
+				turnsHeading: 16, heads: 18, turnsAt: 19, turns: 3, moreTurns: 22},
 		},
 		{
 			name: "160×24, ten accounts: three rows and seven more", width: 160, height: 24, ranOn: 10,
 			want: sessionLayout{wide: true, heading: 4, now: 6, storyAt: 9, accountsAt: 11, accounts: 3, more: 7,
-				turnsHeading: 16, turnsAt: 19, turns: 3, moreTurns: 22, requests: 1},
+				turnsHeading: 16, heads: 18, turnsAt: 19, turns: 3, moreTurns: 22},
 		},
 		{
-			name: "160×21: its least folded", width: 160, height: 21, ranOn: 1,
+			name: "160×17, three accounts: the row of how many alone, three turns, the blank row under the heading alone kept", width: 160, height: 17, ranOn: 3,
+			want: sessionLayout{wide: true, heading: 4, now: 6, storyAt: 8, accountsAt: 9, more: 3,
+				turnsHeading: 10, heads: 11, turnsAt: 12, turns: 3, moreTurns: 15},
+		},
+		{
+			name: "160×20, one account: three turns, the blank row under TURNS' heading given way", width: 160, height: 20, ranOn: 1,
 			want: sessionLayout{wide: true, heading: 4, now: 6, storyAt: 9, accountsAt: 11, accounts: 1,
-				turnsHeading: 13, turnsAt: 16, turns: 3, moreTurns: 19, requests: 1},
+				turnsHeading: 13, heads: 14, turnsAt: 15, turns: 3, moreTurns: 18},
 		},
 		{
-			name: "160×20: the chrome alone", width: 160, height: 20, ranOn: 1,
+			name: "138×15, two accounts: every blank row given way, two turns", width: 138, height: 15, ranOn: 2,
+			want: sessionLayout{wide: true, heading: 4, now: 5, storyAt: 7, accountsAt: 8, more: 2,
+				turnsHeading: 9, heads: 10, turnsAt: 11, turns: 2, moreTurns: 13},
+		},
+		{
+			name: "160×14: its least, with no blank row", width: 160, height: 14, ranOn: 1,
+			want: sessionLayout{wide: true, heading: 4, now: 5, storyAt: 7, accountsAt: 8, accounts: 1,
+				turnsHeading: 9, heads: 10, turnsAt: 11, turns: 1, moreTurns: 12},
+		},
+		{
+			name: "160×13: the accounts' row given way", width: 160, height: 13, ranOn: 1,
+			want: sessionLayout{wide: true, heading: 4, now: 5, storyAt: 7, accountsAt: 8,
+				turnsHeading: 8, heads: 9, turnsAt: 10, turns: 1, moreTurns: 11},
+		},
+		{
+			name: "160×12: the story's heading given way", width: 160, height: 12, ranOn: 1,
+			want: sessionLayout{wide: true, storyLeft: true, heading: 4, now: 5, storyAt: 7, accountsAt: 7,
+				turnsHeading: 7, heads: 8, turnsAt: 9, turns: 1, moreTurns: 10},
+		},
+		{
+			name: "160×10: the now rows given way, its least", width: 160, height: 10, ranOn: 1,
+			want: sessionLayout{wide: true, storyLeft: true, nowLeft: true, heading: 4, now: 5, storyAt: 5, accountsAt: 5,
+				turnsHeading: 5, heads: 6, turnsAt: 7, turns: 1, moreTurns: 8},
+		},
+		{
+			name: "160×9: the chrome alone", width: 160, height: 9, ranOn: 1,
+			want: sessionLayout{wide: true, chrome: true},
+		},
+		{
+			name: "138×17, a turn open: the accounts counted, the open turn at its least", width: 138, height: 17, ranOn: 2, open: true,
+			want: sessionLayout{wide: true, heading: 4, now: 5, storyAt: 7, accountsAt: 8, more: 2,
+				turnsHeading: 9, heads: 10, turnsAt: 11, turns: 4, moreTurns: 15},
+		},
+		{
+			name: "138×15, a turn open: the accounts' row and the story's heading given way", width: 138, height: 15, ranOn: 2, open: true,
+			want: sessionLayout{wide: true, storyLeft: true, heading: 4, now: 5, storyAt: 7, accountsAt: 7,
+				turnsHeading: 7, heads: 8, turnsAt: 9, turns: 4, moreTurns: 13},
+		},
+		{
+			name: "138×13, a turn open: the now rows given way, its least", width: 138, height: 13, ranOn: 2, open: true,
+			want: sessionLayout{wide: true, storyLeft: true, nowLeft: true, heading: 4, now: 5, storyAt: 5, accountsAt: 5,
+				turnsHeading: 5, heads: 6, turnsAt: 7, turns: 4, moreTurns: 11},
+		},
+		{
+			name: "138×12, a turn open: the chrome alone", width: 138, height: 12, ranOn: 2, open: true,
 			want: sessionLayout{wide: true, chrome: true},
 		},
 		{
 			name: "100×24, one account: the wide chrome's least width, its story folded", width: 100, height: 24, ranOn: 1,
 			want: sessionLayout{wide: true, heading: 4, now: 6, storyAt: 9, accountsAt: 11, accounts: 1,
-				turnsHeading: 13, turnsAt: 16, turns: 6, moreTurns: 22, requests: 3},
+				turnsHeading: 13, heads: 15, turnsAt: 16, turns: 6, moreTurns: 22},
 		},
 		{
 			name: "52×32, two accounts: the phone's frame", width: 52, height: 32, ranOn: 2,
-			want: sessionLayout{story: true, heading: 5, now: 7, storyAt: 10, accountsAt: 19, accounts: 2,
-				turnsHeading: 22, turnsAt: 25, turns: 5, moreTurns: 30, requests: 2},
+			want: sessionLayout{story: true, heading: 5, now: 7, storyAt: 10, body: 4, accountsAt: 18, accounts: 2,
+				turnsHeading: 21, heads: 23, turnsAt: 24, turns: 6, moreTurns: 30},
 		},
 		{
-			name: "52×29, one account: a phone's least whole", width: 52, height: 29, ranOn: 1,
-			want: sessionLayout{story: true, heading: 5, now: 7, storyAt: 10, accountsAt: 19, accounts: 1,
-				turnsHeading: 21, turnsAt: 24, turns: 3, moreTurns: 27, requests: 1},
+			name: "73×36, two accounts: the phone's story whole", width: 73, height: 36, ranOn: 2,
+			want: sessionLayout{story: true, heading: 5, now: 7, storyAt: 10, body: 5, accountsAt: 19, accounts: 2,
+				turnsHeading: 22, heads: 24, turnsAt: 25, turns: 9, moreTurns: 34},
 		},
 		{
-			name: "52×20, one account: a phone's least, its story left out", width: 52, height: 20, ranOn: 1,
+			name: "52×28, one account: a phone's story at its least", width: 52, height: 28, ranOn: 1,
+			want: sessionLayout{story: true, heading: 5, now: 7, storyAt: 10, body: 4, accountsAt: 18, accounts: 1,
+				turnsHeading: 20, heads: 22, turnsAt: 23, turns: 3, moreTurns: 26},
+		},
+		{
+			name: "52×20, one account: its story left out with its blank row", width: 52, height: 20, ranOn: 1,
 			want: sessionLayout{heading: 5, now: 7, storyAt: 10, accountsAt: 10, accounts: 1,
-				turnsHeading: 12, turnsAt: 15, turns: 3, moreTurns: 18, requests: 1},
+				turnsHeading: 12, heads: 14, turnsAt: 15, turns: 3, moreTurns: 18},
 		},
 		{
-			name: "52×19: the chrome alone", width: 52, height: 19, ranOn: 1,
+			name: "52×14: a phone's least, with no blank row", width: 52, height: 14, ranOn: 1,
+			want: sessionLayout{heading: 5, now: 6, storyAt: 8, accountsAt: 8, accounts: 1,
+				turnsHeading: 9, heads: 10, turnsAt: 11, turns: 1, moreTurns: 12},
+		},
+		{
+			name: "52×13: the accounts' row given way", width: 52, height: 13, ranOn: 1,
+			want: sessionLayout{heading: 5, now: 6, storyAt: 8, accountsAt: 8,
+				turnsHeading: 8, heads: 9, turnsAt: 10, turns: 1, moreTurns: 11},
+		},
+		{
+			name: "52×11: the now rows given way, a phone's least", width: 52, height: 11, ranOn: 1,
+			want: sessionLayout{nowLeft: true, heading: 5, now: 6, storyAt: 6, accountsAt: 6,
+				turnsHeading: 6, heads: 7, turnsAt: 8, turns: 1, moreTurns: 9},
+		},
+		{
+			name: "52×10: the chrome alone", width: 52, height: 10, ranOn: 1,
+			want: sessionLayout{chrome: true},
+		},
+		{
+			name: "52×14, a turn open: a phone's least", width: 52, height: 14, ranOn: 2, open: true,
+			want: sessionLayout{nowLeft: true, heading: 5, now: 6, storyAt: 6, accountsAt: 6,
+				turnsHeading: 6, heads: 7, turnsAt: 8, turns: 4, moreTurns: 12},
+		},
+		{
+			name: "52×13, a turn open: the chrome alone", width: 52, height: 13, ranOn: 2, open: true,
 			want: sessionLayout{chrome: true},
 		},
 		{
 			name: "99×27, one account: a phone's chrome, its story left out", width: 99, height: 27, ranOn: 1,
 			want: sessionLayout{heading: 5, now: 7, storyAt: 10, accountsAt: 10, accounts: 1,
-				turnsHeading: 12, turnsAt: 15, turns: 10, moreTurns: 25, requests: 5},
+				turnsHeading: 12, heads: 14, turnsAt: 15, turns: 10, moreTurns: 25},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := Frame{Width: tt.width, Height: tt.height, View: Sessions}
-			if got := f.layoutOf(tt.ranOn); got != tt.want {
+			if got := f.sessionLayout(tt.ranOn, f.chromeWide(), tt.open); got != tt.want {
 				t.Errorf("sessionLayout(%d) =\n%+v\nwant\n%+v", tt.ranOn, got, tt.want)
 			}
 		})
+	}
+}
+
+// sweptWidths and sweptHeights are the sizes the sweep of a session's page's
+// heights lays it out at: a phone upright and on its side, an iPad, and a
+// desktop, each from 8 rows to 70.
+var (
+	sweptWidths  = []int{52, 73, 108, 138, 173}
+	sweptHeights = [2]int{8, 70}
+)
+
+// pageGiven is what a session's page's layout has given way, as its rows
+// read: its story's last column row, its story, its accounts, as many of
+// its accounts' rows as are counted, rather than listed, and each blank row,
+// in the order they give way; then, the turns at their least, the accounts'
+// row, the story's heading and the now rows, and the rows those took.
+type pageGiven struct {
+	storyRow, story, counted      bool
+	hidden                        int
+	blanks                        [5]bool
+	staysLeft, storyLeft, nowLeft bool
+	lastBack                      int
+}
+
+// givenOf is what the layout l of a session's page that ran on the accounts
+// given has given way.
+func givenOf(l sessionLayout, accounts int) pageGiven {
+	staysLeft := accounts > 0 && l.accounts+l.more == 0
+	g := pageGiven{
+		story: !l.story, storyRow: !l.story || l.body < storyColumnRows, counted: l.more > 0 || staysLeft,
+		staysLeft: staysLeft, storyLeft: l.storyLeft, nowLeft: l.nowLeft,
+	}
+	if g.counted {
+		g.hidden = accounts - l.accounts - 1
+	}
+	for _, back := range []struct {
+		left bool
+		rows int
+	}{{g.staysLeft, 1}, {g.storyLeft, foldedStoryRows}, {g.nowLeft, 2}} {
+		if back.left {
+			g.lastBack += back.rows
+		}
+	}
+	next := l.storyAt
+	switch {
+	case l.story:
+		next += storyLeast(l.wide) + 1 - (storyColumnRows - l.body)
+	case l.wide && !l.storyLeft:
+		next += foldedStoryRows
+	}
+	accountsEnd := l.accountsAt + l.accounts + min(l.more, 1)
+	g.blanks = [5]bool{
+		l.heads-l.turnsHeading != 2,
+		l.turnsHeading == accountsEnd,
+		(l.story || l.wide) && l.accountsAt-next != 1,
+		min(l.storyAt, l.accountsAt)-l.now != 3,
+		l.now-l.heading != 2,
+	}
+	return g
+}
+
+// blanksGone is how many of the page's blank rows have given way.
+func (g pageGiven) blanksGone() int {
+	n := 0
+	for _, gone := range g.blanks {
+		if gone {
+			n++
+		}
+	}
+	return n
+}
+
+// blanksInOrder reports whether the page's blank rows gave way in their
+// order, none before one ahead of it, but the one under its story where it
+// went with the story, left out under a phone's chrome.
+func (g pageGiven) blanksInOrder(wide bool) bool {
+	gone := g.blanks[:]
+	if g.story && !wide {
+		gone = slices.Delete(slices.Clone(gone), 2, 3)
+	}
+	kept := slices.Index(gone, false)
+	return kept < 0 || !slices.Contains(gone[kept:], true)
+}
+
+// storyBack are the rows the story whole at its least would take back from
+// the turns, its blank row among them on a phone, where it's left out.
+func storyBack(wide bool) int {
+	if wide {
+		return storyLeast(wide) - foldedStoryRows
+	}
+	return storyLeast(wide) + 1
+}
+
+// A session's page gives way in its order as its rows run short, swept from
+// 70 rows to 8 at a phone's widths and the wide chrome's, with one account
+// and with many, with no turn open and with one: its story's last column
+// row while fewer than eight turns fit beside it; the story only where,
+// whole at its least, it would leave fewer than three turns, or four with
+// one open; its accounts only where, each listed, they would; the blank
+// rows, in their order, only where the turns are down to that; the turns
+// under it only where every blank row has given way, down to one, or with
+// one open, its row, its heads, a request and its foot; and only then, one
+// at a time, the accounts' row, the story's heading and the now rows, each
+// only where, shown, it would leave the turns short of their least. Nothing
+// gives way that a taller frame gave back, its rows from its heading to the
+// row over the key line are all laid, and it's the chrome alone only where
+// its least, the heading, TURNS, its heads, the turns' least and how many
+// more, doesn't fit.
+func TestASessionsPageGivesWayInItsOrder(t *testing.T) {
+	for _, width := range sweptWidths {
+		for _, accounts := range []int{1, 2, 4, 10} {
+			for _, open := range []bool{false, true} {
+				var taller pageGiven
+				for height := sweptHeights[1]; height >= sweptHeights[0]; height-- {
+					f := Frame{Width: width, Height: height, View: Sessions}
+					l := f.sessionLayout(accounts, f.chromeWide(), open)
+					at := fmt.Sprintf("%d×%d, %d accounts, a turn open %t", width, height, accounts, open)
+					floor, least := turnsFloors(open)
+					if fits := height >= f.headingY()+1+2+least+1+1; l.chrome == fits {
+						t.Errorf("at %s, the chrome alone is %t, want it only where its least doesn't fit", at, l.chrome)
+					}
+					if l.chrome {
+						continue
+					}
+					if l.moreTurns != height-2 || l.turnsAt+l.turns != l.moreTurns || l.heads+1 != l.turnsAt {
+						t.Errorf("at %s, the rows are laid %+v, want every row to the one over the key line laid", at, l)
+					}
+					g := givenOf(l, accounts)
+					for _, broken := range orderBroken(l, g, taller, accounts, floor, least) {
+						t.Errorf("at %s, %s: %+v", at, broken, l)
+					}
+					taller = g
+				}
+			}
+		}
+	}
+}
+
+// turnsFloors are the turns a page keeps for while its story, its accounts
+// and its blank rows give way, and its turns' least, with a turn open where
+// open says: one open at its natural, and whole.
+func turnsFloors(open bool) (floor, least int) {
+	if open {
+		return turnsNatural, openRows
+	}
+	return leastTurns, 1
+}
+
+// orderBroken are the rules of the order of giving way the layout l, of a
+// session that ran on the accounts given, breaks, as g has given way, and
+// taller, a row taller, gave way, its turns kept at floor while its story,
+// its accounts and its blank rows give way, and at least while the
+// accounts' row, the story's heading and the now rows do.
+func orderBroken(l sessionLayout, g, taller pageGiven, accounts, floor, least int) []string {
+	gone := g.blanksGone()
+	back := g.hidden + gone + g.lastBack
+	nowBack := 0
+	if g.nowLeft {
+		nowBack = 2
+	}
+	var broken []string
+	for _, rule := range []struct {
+		broken bool
+		says   string
+	}{
+		{g.storyRow && l.story && l.turns > turnsNatural, "its story's last column row gave way with more than eight turns beside it"},
+		{!g.storyRow && l.turns < turnsNatural, "its turns went under eight before its story's last column row gave way"},
+		{g.story && l.turns-back-storyBack(l.wide) >= floor, "its story gave way where, whole, it would leave the turns their floor"},
+		{g.counted && l.turns-back >= floor, "its accounts gave way where, listed, they would leave the turns their floor"},
+		{g.counted && !g.story, "its accounts gave way before its story"},
+		{gone > 0 && (l.turns-g.lastBack > floor || l.accounts+min(l.more, 1) > min(accounts, 1)), "a blank row gave way before the accounts and the turns were down to their floor"},
+		{l.turns < floor && gone < blanksOf(l), "its turns went under their floor before every blank row gave way"},
+		{!g.blanksInOrder(l.wide), "a blank row gave way out of its order"},
+		{g.staysLeft && (gone < blanksOf(l) || l.turns-g.lastBack >= least), "its accounts' row gave way before the blank rows, or where, shown, it would leave the turns their least"},
+		{g.storyLeft && (accounts > 0 && !g.staysLeft || l.turns-foldedStoryRows-nowBack >= least), "its story's heading gave way before the accounts' row, or where, shown, it would leave the turns their least"},
+		{g.nowLeft && (accounts > 0 && !g.staysLeft || l.wide && !g.storyLeft || l.turns-nowBack >= least), "its now rows gave way before the accounts' row and the story's heading, or where, shown, they would leave the turns their least"},
+		{taller.storyRow && !g.storyRow || taller.story && !g.story || taller.counted && !g.counted || taller.blanksGone() > gone, "a taller frame gave way what this one shows"},
+		{taller.staysLeft && !g.staysLeft || taller.storyLeft && !g.storyLeft || taller.nowLeft && !g.nowLeft, "a taller frame gave way what this one shows, of the page's last to give way"},
+	} {
+		if rule.broken {
+			broken = append(broken, rule.says)
+		}
+	}
+	return broken
+}
+
+// blanksOf is how many blank rows the layout l has to give way: all five,
+// but the one under the story where it's left out under a phone's chrome.
+func blanksOf(l sessionLayout) int {
+	if !l.story && !l.wide {
+		return 4
+	}
+	return 5
+}
+
+// Within one arrangement, a taller frame never shows fewer turns, accounts,
+// rows of its story's columns or requests of a turn open at a time: swept
+// from 8 rows to 70, at a phone's widths, the wide chrome's and 160, of
+// thirteen turns with none open, and with the newest, the seventh and the
+// oldest open, wherever the story, the accounts and the blank rows stand as
+// they did a row shorter.
+func TestATallerPageNeverShowsLess(t *testing.T) {
+	type shows struct {
+		l        sessionLayout
+		requests int
+	}
+	for _, width := range append(slices.Clone(sweptWidths), 160) {
+		for _, accounts := range []int{1, 2, 4, 10} {
+			for _, open := range []int{0, 13, 7, 1} {
+				var shorter shows
+				for height := sweptHeights[0]; height <= sweptHeights[1]; height++ {
+					shown := ranOn(turnOpened(), accounts)
+					shown.Turn, shown.Open = cmp.Or(open, 13), open
+					f := pageFrame(t, shown, width, height)
+					is := shows{l: f.pageLayout(), requests: f.RequestsScrolling().Page}
+					l, was, g := is.l, givenOf(shorter.l, accounts), givenOf(is.l, accounts)
+					same := !shorter.l.chrome && !l.chrome && height > sweptHeights[0] &&
+						was.story == g.story && was.counted == g.counted && was.blanks == g.blanks &&
+						was.staysLeft == g.staysLeft && was.storyLeft == g.storyLeft && was.nowLeft == g.nowLeft
+					if same && (l.turns < shorter.l.turns || l.accounts < shorter.l.accounts || l.body < shorter.l.body || is.requests < shorter.requests) {
+						t.Errorf("at %d×%d, %d accounts, turn %d open, the page shows %d turns, %d accounts, %d story rows and %d requests, fewer than a row shorter, %+v",
+							width, height, accounts, open, l.turns, l.accounts, l.body, is.requests, shorter)
+					}
+					shorter = is
+				}
+			}
+		}
+	}
+}
+
+// A turn open shows its requests at their natural, five at a time, or more
+// where the turns have rows spare, while the page keeps its story or its
+// accounts' list whole, and a taller page never shows it fewer at a time,
+// but where the story comes back, re-laid to five, or the now rows do, two
+// rows given back whole for the one the turns had spare, one fewer, all else
+// as it was. Swept from 8 rows to 70, at a phone's widths, the wide
+// chrome's and 160, of one turn, three and thirteen, on one account, two
+// and four.
+func TestATallerPageNeverShowsATurnOpenFewerRequests(t *testing.T) {
+	for _, turns := range []int{1, 3, 13} {
+		for _, width := range append(slices.Clone(sweptWidths), 160) {
+			for _, accounts := range []int{1, 2, 4} {
+				var shorter sessionLayout
+				fewer := 0
+				for height := sweptHeights[0]; height <= sweptHeights[1]; height++ {
+					shown := ranOn(turnOpened(), accounts)
+					from := min(1, len(shown.Page.Turns)-turns)
+					shown.Page.Turns = shown.Page.Turns[from : from+turns]
+					f := pageFrame(t, shown, width, height)
+					l, requests := f.pageLayout(), f.RequestsScrolling().Page
+					at := fmt.Sprintf("%d×%d, %d turns, %d accounts", width, height, turns, accounts)
+					if broken := fewerBroken(shorter, l, accounts, fewer-requests, requests); broken != "" && requests < fewer {
+						t.Errorf("at %s, the turn open shows %d requests at a time, %d a row shorter, %s: %+v", at, requests, fewer, broken, l)
+					}
+					if requests < requestsNatural && (l.story || l.accounts > 0 && l.more == 0 && accounts > 1) {
+						t.Errorf("at %s, the turn open shows %d requests at a time, its story or its accounts whole: %+v", at, requests, l)
+					}
+					shorter, fewer = l, requests
+				}
+			}
+		}
+	}
+}
+
+// fewerBroken says how a page laid out as l, a row taller than shorter,
+// breaks the rule of when it may show a turn open fewer requests at a time,
+// by the fewer given, now showing requests: "" where the story came back
+// and it shows five, or the now rows came back and it shows one fewer, its
+// story, its accounts' count and its blank rows as they were.
+func fewerBroken(shorter, l sessionLayout, accounts, fewer, requests int) string {
+	was, is := givenOf(shorter, accounts), givenOf(l, accounts)
+	switch {
+	case shorter.chrome:
+		return ""
+	case was.story && !is.story:
+		if requests != requestsNatural {
+			return "its story come back, want five"
+		}
+	case was.nowLeft && !is.nowLeft:
+		if fewer != 1 || was.story != is.story || was.counted != is.counted || was.blanks != is.blanks {
+			return "its now rows come back, want one fewer, all else as it was"
+		}
+	default:
+		return "want no fewer"
+	}
+	return ""
+}
+
+// No rows lie blank under a fold: wherever a session's page has given any
+// of its parts way, its turns fill every row from the newest's to the one
+// over the key line, as a session's of thirteen turns draws them, with none
+// open and with its twelfth open, swept from 8 rows to 70.
+func TestNoRowsLieBlankUnderASessionsFold(t *testing.T) {
+	for _, open := range []bool{false, true} {
+		for _, width := range sweptWidths {
+			for height := sweptHeights[0]; height <= sweptHeights[1]; height++ {
+				shown := moved()
+				if open {
+					shown = turnOpened()
+				}
+				shown.Story = movedStory()
+				f := pageFrame(t, shown, width, height)
+				keptInView(f)
+				l := f.pageLayout()
+				if g := givenOf(l, len(shown.Page.Accounts)); l.chrome || !g.storyRow && !g.counted && g.blanksGone() == 0 {
+					continue
+				}
+				rows := pageText(f)
+				for y := l.turnsAt; y <= height-2; y++ {
+					if rows[y] == "" {
+						t.Errorf("at %d×%d, a turn open %t, row %d lies blank under a fold:\n%s", width, height, open, y, strings.Join(rows, "\n"))
+						break
+					}
+				}
+			}
+		}
 	}
 }
 
@@ -129,9 +538,10 @@ func TestASessionsPageHeadsItselfAsTheChromeDoes(t *testing.T) {
 }
 
 // layoutOf is how the frame lays out the page of a session that ran on the
-// accounts given, heading itself as chromeWide has it.
+// accounts given, heading itself as chromeWide has it, with a turn open
+// where the frame's session has one.
 func (f Frame) layoutOf(accounts int) sessionLayout {
-	return f.sessionLayout(accounts, f.chromeWide())
+	return f.sessionLayout(accounts, f.chromeWide(), f.Session != nil && f.Session.Open != 0)
 }
 
 // drawnRows are the rows d draws, as text.
@@ -156,7 +566,7 @@ func TestTheChromeDecidesNothingButTheHeadings(t *testing.T) {
 		f := pageFrame(t, shown, width, 60)
 		d, _ := pageDrawn(f, pageDoc())
 		wide := d
-		wide.l = f.sessionLayout(len(shown.Page.Accounts), true)
+		wide.l = f.sessionLayout(len(shown.Page.Accounts), true, false)
 		rows, wideRows := drawnRows(d), drawnRows(wide)
 		same := func(what string, from, wideFrom, n int) {
 			for i := range n {
@@ -170,7 +580,7 @@ func TestTheChromeDecidesNothingButTheHeadings(t *testing.T) {
 		if d.l.wide {
 			story++
 		}
-		same("the story", story, wide.l.storyAt+1, phoneStoryRows)
+		same("the story", story, wide.l.storyAt+1, phoneStoryRows+d.l.body)
 		same("the accounts and TURNS", d.l.accountsAt, wide.l.accountsAt, d.l.turnsAt-d.l.accountsAt)
 		same("the turns", d.l.turnsAt, wide.l.turnsAt, min(d.l.turns, wide.l.turns))
 	}

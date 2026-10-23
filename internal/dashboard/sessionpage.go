@@ -41,11 +41,16 @@ var (
 var accountsOut = outForm{lead: "+", noun: "account", inks: subtleOut}
 
 // turnsOut is how a session's page says how many of its turns are out of
-// view, and how to scroll to them: "▼ 3 more turns   ·   j/k to scroll".
-var turnsOut = outForm{
-	noun: "turn", gap: "   ·   ", keys: "j/k", does: " to scroll",
-	inks: outInks{mark: keyMarkInk, space: mutedInk, count: mutedInk, gap: mutedInk, keys: keyInk, does: mutedInk},
-}
+// view, and how to scroll to them: "▼ 3 more turns   ·   j/k to scroll"; and
+// turnsCounted, where that doesn't fit, its counts alone, so the turns above
+// are counted wherever both counts fit.
+var (
+	turnsOut = outForm{
+		noun: "turn", gap: "   ·   ", keys: "j/k", does: " to scroll",
+		inks: outInks{mark: keyMarkInk, space: mutedInk, count: mutedInk, gap: mutedInk, keys: keyInk, does: mutedInk},
+	}
+	turnsCounted = outForm{noun: turnsOut.noun, gap: turnsOut.gap, inks: turnsOut.inks}
+)
 
 // sessionDrawn is a session's page as the frame draws it of a moment at
 // now: the page open, laid out as sessionLayout lays it out; its accounts
@@ -94,16 +99,18 @@ func (f Frame) sessionPage(c *canvas, doc status.Document, now time.Time) {
 }
 
 // draw draws the page as d lays it out: its heading, then, once it's
-// loaded, its now rows, wide or short as nowWide has them, its story, its
-// accounts and its turns.
+// loaded, its now rows, wide or short as nowWide has them, where they
+// haven't given way, its story, its accounts and its turns.
 func (d sessionDrawn) draw(c *canvas) {
 	d.heading(c)
 	if d.shown.Loading {
 		return
 	}
-	if d.nowWide {
+	switch {
+	case d.l.nowLeft:
+	case d.nowWide:
 		d.wideNow(c)
-	} else {
+	default:
 		d.phoneNow(c)
 	}
 	d.sessionStory(c, d.m, d.l, d.shown.Story, d.chosen())
@@ -776,18 +783,18 @@ func (d sessionDrawn) turns(c *canvas) {
 	d.turnsHeading(c)
 	if len(d.page.Turns) == 0 {
 		if d.page.Totals.Requests > 0 {
-			c.line(0, d.l.turnsHeading+2, line{{noTurns, faintInk}}.fit(d.Width))
+			c.line(0, d.l.heads, line{{noTurns, faintInk}}.fit(d.Width))
 		}
 		return
 	}
 	for _, col := range d.turnColumns {
-		col.draw(c, d.l.turnsHeading+2, col.head())
+		col.draw(c, d.l.heads, col.head())
 	}
 	rows, above, below := d.turnsShown()
 	for i, r := range rows {
 		r.draw(c, d.l.turnsAt+i)
 	}
-	c.line(0, d.l.moreTurns, outOfView(above, below, d.Width, turnsOut))
+	c.line(0, d.l.moreTurns, outOfView(above, below, d.Width, turnsOut, turnsCounted))
 }
 
 // turnsHeading draws TURNS' heading: TURNS, a rule from turnsRuleAt, a cell

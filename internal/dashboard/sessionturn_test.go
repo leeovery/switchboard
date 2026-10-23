@@ -70,9 +70,10 @@ func turnOpened() *SessionShown {
 }
 
 // A turn opened lays its rows out under its own, in place, the turns under
-// it moving down: its heads; its requests, as many as the layout shows at a
-// time, as far as they're scrolled; and its foot, the rows of another turn
-// none of them. Without a turn open, a row a turn.
+// it moving down: its heads; its requests, as many as the turns' rows hold
+// under every turn, its heads and its foot, else five at the most, as far
+// as they're scrolled; and its foot, the rows of another turn none of them.
+// Without a turn open, a row a turn.
 func TestATurnOpenedLaysItsRowsOutUnderItsOwn(t *testing.T) {
 	turn := func(i int) turnsRow { return turnsRow{kind: aTurn, index: i} }
 	request := func(i int) turnsRow { return turnsRow{kind: openRequest, index: i} }
@@ -84,7 +85,7 @@ func TestATurnOpenedLaysItsRowsOutUnderItsOwn(t *testing.T) {
 		want   []turnsRow
 	}{
 		{name: "none open", open: func(s *SessionShown) { s.Open = 0 }, height: 37, want: []turnsRow{turn(0), turn(1), turn(2)}},
-		{name: "the second open, five shown of 37", height: 37, want: []turnsRow{
+		{name: "the second open, five shown of 37, as the rows under the three turns hold", height: 37, want: []turnsRow{
 			turn(0), turn(1), heads, request(0), request(1), request(2), request(3), request(4), foot, turn(2),
 		}},
 		{name: "scrolled through to its last", open: func(s *SessionShown) { s.RequestsScroll = 40 }, height: 37, want: []turnsRow{
@@ -93,7 +94,10 @@ func TestATurnOpenedLaysItsRowsOutUnderItsOwn(t *testing.T) {
 		{name: "two of its requests, both shown", open: func(s *SessionShown) { s.Requests = s.Requests[:2] }, height: 37, want: []turnsRow{
 			turn(0), turn(1), heads, request(0), request(1), foot, turn(2),
 		}},
-		{name: "at the least height, one shown", height: 29, want: []turnsRow{turn(0), turn(1), heads, request(0), foot, turn(2)}},
+		{name: "at 29 rows, five shown, the story folded for them", height: 29, want: []turnsRow{
+			turn(0), turn(1), heads, request(0), request(1), request(2), request(3), request(4), foot, turn(2),
+		}},
+		{name: "at 16 rows, one shown", height: 16, want: []turnsRow{turn(0), turn(1), heads, request(0), foot, turn(2)}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -106,6 +110,113 @@ func TestATurnOpenedLaysItsRowsOutUnderItsOwn(t *testing.T) {
 				t.Errorf("the turns' rows are\n%v\nwant\n%v", got, tt.want)
 			}
 		})
+	}
+}
+
+// A turn opened shows as many of its requests at a time as the turns' rows
+// hold under every turn, its heads and its foot, so none lie blank; where
+// those are fewer, as many as they hold under its own row, its heads and its
+// foot, five at the most; and one at the least.
+func TestATurnOpensRequestsFitTheRowsThereAre(t *testing.T) {
+	tests := []struct {
+		name          string
+		width, height int
+		turns         int
+		want          int
+	}{
+		{name: "thirteen turns at 73×61: the rows under them all", width: 73, height: 61, turns: 13, want: 19},
+		{name: "thirteen turns at 173×53", width: 173, height: 53, turns: 13, want: 11},
+		{name: "three turns at 160×37", width: 160, height: 37, turns: 3, want: 5},
+		{name: "thirteen turns at 160×37: five, as they don't all fit", width: 160, height: 37, turns: 13, want: 5},
+		{name: "thirteen turns at 160×17, the least: one", width: 160, height: 17, turns: 13, want: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			shown := turnOpened()
+			shown.Page.Turns = shown.Page.Turns[:tt.turns]
+			if got := pageFrame(t, shown, tt.width, tt.height).RequestsFit(); got != tt.want {
+				t.Errorf("%d of its requests fit at a time, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
+// keptInView is the frame's page with its turns scrolled to keep the turn
+// chosen, and the rows PageScrolling keeps with it, in view, and its requests
+// scrolled to keep the one chosen in view, as the watch keeps them.
+func keptInView(f Frame) {
+	s := f.Session
+	s.RequestsScroll = f.RequestsScrolling().Keeping(s.RequestsScroll, s.Request, 0)
+	i := slices.IndexFunc(s.Page.Turns, func(t views.Turn) bool { return t.Turn == s.Turn })
+	s.Scroll = f.TurnsScrolling().Keeping(s.Scroll, i, f.PageScrolling().Kept)
+}
+
+// openShownWhole reports why the frame's page doesn't show its turn open
+// whole, its row, its heads, its request chosen, lit, and its foot: "" where
+// it does.
+func openShownWhole(f Frame) string {
+	l := f.pageLayout()
+	rows, from, to := f.Session.turnsInView(l)
+	seen := map[turnsRowKind]bool{}
+	for _, r := range rows[from:to] {
+		if r.kind != aTurn || f.Session.Page.Turns[r.index].Turn == f.Session.Open {
+			seen[r.kind] = true
+		}
+	}
+	_, lit := f.turnLitRow()
+	switch {
+	case !seen[aTurn] || !seen[openHeads] || !seen[openFoot]:
+		return "its row, its heads or its foot is out of view"
+	case !lit:
+		return "its request chosen is out of view"
+	}
+	return ""
+}
+
+// A turn open holds as many requests at a time as it opened with while
+// turns come, and stays whole in view, its request chosen and its foot
+// among it, as the turns scroll to keep it: at 73×61, 160×37 and 173×53,
+// its tenth request chosen, or the last shown where fewer show, as a turn
+// comes.
+func TestATurnOpenHoldsItsRequestsAsTurnsCome(t *testing.T) {
+	for _, size := range [][2]int{{73, 61}, {160, 37}, {173, 53}} {
+		shown := turnOpened()
+		f := pageFrame(t, shown, size[0], size[1])
+		shown.Request = min(10, shown.RequestsRows-1)
+		keptInView(f)
+		opened := f.RequestsScrolling().Page
+		shown.Page.Turns = slices.Insert(shown.Page.Turns, 0, views.Turn{Turn: 14, Started: sessionNow})
+		keptInView(f)
+		if got := f.RequestsScrolling().Page; got != opened {
+			t.Errorf("at %d×%d, a turn came and the turn open shows %d requests at a time, want the %d it opened with", size[0], size[1], got, opened)
+		}
+		if why := openShownWhole(f); why != "" {
+			t.Errorf("at %d×%d, a turn came and %s", size[0], size[1], why)
+		}
+	}
+}
+
+// Swept from 8 rows to 70 at a phone's widths and the wide chrome's, a page
+// with a turn open shows it whole, its row, its heads, a request at the
+// least and its foot, or is the chrome alone: never the turn without its
+// requests.
+func TestATurnOpenShowsWholeOrThePageIsTheChromeAlone(t *testing.T) {
+	for _, width := range sweptWidths {
+		for height := sweptHeights[0]; height <= sweptHeights[1]; height++ {
+			shown := turnOpened()
+			f := pageFrame(t, shown, width, height)
+			keptInView(f)
+			l := f.pageLayout()
+			if l.chrome {
+				continue
+			}
+			if l.turns < openRows {
+				t.Errorf("at %d×%d, the turns take %d rows, short of a turn open's %d", width, height, l.turns, openRows)
+			}
+			if why := openShownWhole(f); why != "" {
+				t.Errorf("at %d×%d, %s", width, height, why)
+			}
+		}
 	}
 }
 
@@ -289,7 +400,7 @@ func TestTheLogsCardOverASessionsPageIsPlacedByItsRequestChosen(t *testing.T) {
 		line            int
 	}{
 		{name: "over its line", request: 2, width: 160, height: 37, placed: true, line: 30},
-		{name: "too short for it", scroll: 1, width: 160, height: 24, line: 19},
+		{name: "too short for it", scroll: 1, width: 160, height: 24, line: 16},
 		{name: "a tall phone, its card stacked", width: 52, height: 64, line: 28},
 	}
 	for _, tt := range tests {

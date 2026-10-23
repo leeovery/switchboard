@@ -4331,9 +4331,58 @@ session page · signed off · 7 Oct 2026**, its frames kept as `testdata/vhs/ref
   its columns (11 to 15), the ribbon (16) and the axis (17); the accounts it ran on, a row each,
   from 19; then a blank row, TURNS' heading, a blank row, its column heads, and a row a turn, to row
   34; how many more turns, where some don't fit (35); and the key line (36). Each account it ran on
-  takes a row from the turns: with one, the turns start at row 24, eleven of them. At other heights
-  the turns take what's left, the rest fixed (settled in the plan), down to 29 rows at the least:
-  its fixed rows and three turns, with one account.
+  takes a row from the turns: with one, the turns start at row 24, eleven of them.
+- **Its rows are laid out by its parts,** from the heading to the row over the key line, as flex
+  lays them: the heading, now, the story, the accounts, TURNS' heading and its column heads, fixed;
+  the turns, from one, taking what's left; and a blank row between each part, and under TURNS'
+  heading. Every row is laid, so none lies blank under what gives way. The turns are the page's
+  point: as the rows run short, the parts give way in this order, each only where the turns would
+  otherwise go under what's kept for them, so the story, the accounts and the blank rows all give
+  way before the turns go under three:
+  1. **the story's last row of columns,** its columns four rows tall rather than five, while
+     fewer than eight turns fit beside it, as many as a turn opened takes at its natural: its row,
+     its heads, five of its requests and its foot;
+  2. **the turns,** from eight to three;
+  3. **the story,** under the wide chrome folded to its heading, `STORY   no room at 24 rows`, as
+     the Overview folds a section, and under a phone's left out with the blank row under it;
+  4. **the accounts,** as many rows as fit, the last saying how many more there are,
+     `+2 more accounts`, in `text.subtle`, down to that row alone;
+  5. **the blank rows,** one at a time: under TURNS' heading, over it, under the story, under now,
+     and last under the heading;
+  6. **the turns,** from three to one;
+  7. then, the turns at their least, one at a time, each only where, shown, it would leave the
+     turns short of it: **the accounts' row,** the story's folded heading under the wide chrome,
+     and **the now rows;**
+  8. and below that, where even the heading, TURNS, its heads, one turn and how many more don't
+     fit, under 10 rows under the wide chrome and 11 under a phone's, **the chrome alone.** The key
+     line stays the view's, as every cramped view's does.
+
+  **With a turn open,** step 2 keeps the turn open at its natural, its row, its heads, five of its
+  requests and its foot, eight rows, so the story, the accounts and the blank rows give way before
+  it shows fewer than five; step 6 is then its requests, from five to one; and its least is the
+  turn whole, its row, its heads, one of its requests and its foot, four rows, to which step 7
+  gives way as to one turn. The page is the chrome alone where even that doesn't fit, under 13
+  rows under the wide chrome and 14 under a phone's, as it never draws a turn open with none of
+  its requests. A turn's open state never changes with the frame's height; opening one lays the
+  page out afresh.
+
+  Under the wide chrome, with one account, the accounts' row goes at 13 rows, the story's heading
+  at 12 and the now rows at 11; a phone's has no story's heading, so its accounts' row goes at 13
+  and its now rows at 12. With a turn open, each goes three rows higher, and with one account its
+  requests go from five at 21 rows to one at 17 at both chromes, after the blank rows, from 25
+  rows under the wide chrome and 24 under a phone's.
+
+  A taller frame never shows fewer turns, accounts or rows of the story within one arrangement,
+  and what a taller frame gave back never gives way again. A turn open never shows fewer than five
+  of its requests at a time while the story or the accounts' list still holds rows, and a taller
+  frame shows it fewer only where the story comes back, the page laid out afresh to five, as a
+  session of few turns had filled the story's rows with them, or where the now rows come back,
+  two rows for the one the turns had spare, one fewer. With one account, the wide page's story is
+  whole from 28 rows, or 33 with a turn open, its columns five rows tall from 34; two accounts,
+  from 29, or 34, and 35. At 138×15 it's the heading, now, STORY folded, `+2 more accounts`,
+  TURNS, its heads, the two newest turns and how many more, with no blank row; with a turn open,
+  the heading, now, TURNS, its heads, the turn open with a request and its foot, and how many
+  more.
 
 **The heading** (row 4): `SESSION` in `text.subtle`; three spaces; the session's id cut to 4, as the
 dashboard shows ids, bold `text.primary`; three spaces; its directory's last part, bold
@@ -4421,11 +4470,12 @@ yielding from 99 (155), and `resumed`, today or the day before, from 133 (165).
   the width: past 160 minutes every column's span grows a little each minute, and a peak can drift
   between neighbouring columns as it does (the owner's call, 13 October 2026). Each
   column is the mean requests a minute over the minutes it stands for, a request counting in the
-  minute it arrived. Five rows tall, filled `round(rate ÷ scale × 40)` eighths, halves to even, as
-  the Overview's traces are drawn: full cells are background and the top cell an eighth block, in
-  `accent.key` mixed 80% from the canvas. A column whose minutes had no requests has `▁` in
+  minute it arrived. Five rows tall, or four where the page's rows run short (see Its rows),
+  filled `round(rate ÷ scale × 40)` eighths, halves to even, as the Overview's traces are drawn:
+  full cells are background and the top cell an eighth block, in `accent.key` mixed 80% from the
+  canvas. A column whose minutes had no requests has `▁` in
   `text.faint` on its bottom row, so the lane always shows.
-- **Its scale** is the traces' (see The Overview): the busiest column's rate fills all five rows,
+- **Its scale** is the traces' (see The Overview): the busiest column's rate fills all its rows,
   never less than 8 requests a minute, so a quiet session isn't magnified; the frames draw it at a
   fixed 8 (settled in the plan).
 - **The turn chosen is lit:** its columns in `accent.key` mixed 95% from the canvas, so the list and
@@ -4612,7 +4662,9 @@ first ran on them. A row's parts, two cells apart, as flex lays them at every wi
 - **The turn chosen** is on `bg.selection` from column 0 to the end of `on`, its words bold, and lit on the
   story. The page opens on the newest.
 - **More than fit:** row 35, `▼` in `accent.key`, ` 3 more turns   ·   ` in `text.muted`, `j/k` bold
-  `accent.key` and ` to scroll` in `text.muted`. The turns scroll within their rows, under the
+  `accent.key` and ` to scroll` in `text.muted`; scrolled, `▲ 1 more turn   ·   ` before it, of
+  those above. Where that doesn't fit, it's the counts alone, both said from 34 columns, and the
+  keys from 54. The turns scroll within their rows, under the
   heading, now, the story and the accounts, which stay put, the turn chosen kept in view
   (settled in the plan).
 
@@ -4630,9 +4682,16 @@ moving down.
   nothing: the session's next request goes to the account it moves to. A request sent again after a
   limit is one row, as it's one line, its times the whole request's and its `tried` in `routing`
   (`after work's limit`); a limit no account could take is its 429, as failed (settled in the plan).
-- **Five at a time:** under them, `└` in `border` at column 2, then from column 5 `▼` in
-  `accent.key`, ` 32 more of its requests   ·   ` in `text.muted`, `j/k` bold `accent.key` and
-  ` through them` in `text.muted`. The requests scroll within their panel, `↑↓` moving through them.
+- **As many as the rows hold:** the rows the turns take left under every turn, the turn's heads
+  and its foot, so none lies blank; and where those are fewer, as many as they hold under the turn's
+  own row, its heads and its foot, five at the most; one at the least. That count is set as the
+  turn opens and again on a resize, and holds as turns come and go, so the turn holds still, but
+  where the turns lose a row, as to an account joining, and had none spare under the turn: then it
+  shows one fewer. Whatever changes the page's rows, its requests and its turns scroll to keep it
+  whole in view, its request chosen and its foot among it. Under them, `└` in `border` at column
+  2, then from column 5 `▼` in `accent.key`, ` 32 more of its requests   ·   ` in `text.muted`,
+  `j/k` bold `accent.key` and ` through them` in `text.muted`. The requests scroll within their
+  panel, `↑↓` moving through them.
 - **`enter` on a request** opens its details in the Log's card, the turn staying open behind it; the
   first request is chosen as a turn opens, on `bg.selection` (settled in the plan).
 
@@ -4676,14 +4735,15 @@ each form taken where its parts fit, as the wide page's rules give way:
   `text.secondary`, and at the right `2h 40m` in `text.secondary`. No models and no windows.
 - **The story,** without a heading: the label on row 10, its short words, as the wide don't fit,
   `its cap → side, $1.82  14:31 ┊`, the account in `text.secondary` and the worth in
-  `accent.attention`; its five rows of columns, 11 to 15, as at every width, on the same scale; the
-  ribbon on 16, where side's stretch is too narrow for its name (`┤├──┤`); and the axis on 17.
-- **The accounts,** from row 19: the name; the points, where it took any, in their short words, as
+  `accent.attention`; its columns, 11 to 14, four rows tall, as fewer than eight turns fit beside
+  five (see Its rows), on the same scale; the ribbon on 15, where side's stretch is too narrow for
+  its name (`┤├──┤`); and the axis on 16.
+- **The accounts,** from row 18: the name; the points, where it took any, in their short words, as
   many windows as fit at `999+` each, at 52 columns the first alone, `≈ 6 of week`; and the
   worth at the right; the time there and the requests gone, as the wide page's rules give way.
 - **TURNS,** after a blank row: the heading, its rule from column 9, and the session's worth alone
   at the right, as the totals don't fit.
-- **The newest five turns,** under their column heads: `#`, `started`, `took`, `req` and `worth`,
+- **The newest six turns,** under their column heads: `#`, `started`, `took`, `req` and `worth`,
   and `on` whole, `work → side` for a turn that moved; `tools`, `↑ asking`, `read`, `written` and
   `out` gone, as the wide page's rules give way. The newest is chosen, on `bg.selection` to the end
   of `on`.

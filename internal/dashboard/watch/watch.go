@@ -933,11 +933,13 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 }
 
 // resized takes in the size the terminal gives, keeping the size drawn at for
-// a width or height it gives as zero; and closes the theme picker should it
-// no longer fit.
+// a width or height it gives as zero, a session's turn open laid out afresh
+// at it, as sessionResized has it; and closes the theme picker should it no
+// longer fit.
 func (m Model) resized(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 	given := Size{Width: msg.Width, Height: msg.Height}
 	m.size = given.or(m.size)
+	m = m.sessionResized()
 	m, closed := m.fitPicker()
 	if m.size == given {
 		return m, closed

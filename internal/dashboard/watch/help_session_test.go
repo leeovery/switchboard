@@ -41,9 +41,12 @@ func TestHelpOverASessionsPageListsItsKeysNotItsTabs(t *testing.T) {
 		{name: "a turn open", page: func(s *dashboard.SessionShown) { s.Open = 1 }, want: opened},
 		{name: "its turns scrolling", page: func(s *dashboard.SessionShown) { turns(s, 60) }, want: scrolled(running)},
 		{name: "a turn open, its requests scrolling where its turns don't",
-			page: func(s *dashboard.SessionShown) { s.Open, s.Requests = 1, make([]views.LogLine, 40) }, want: scrolled(opened)},
+			page: func(s *dashboard.SessionShown) { s.Open, s.Requests, s.RequestsRows = 1, make([]views.LogLine, 40), 5 }, want: scrolled(opened)},
 		{name: "a turn open, its requests all in view where its turns scroll",
-			page: func(s *dashboard.SessionShown) { turns(s, 60); s.Open, s.Requests = 60, make([]views.LogLine, 2) }, want: opened},
+			page: func(s *dashboard.SessionShown) {
+				turns(s, 60)
+				s.Open, s.Requests, s.RequestsRows = 60, make([]views.LogLine, 2), 5
+			}, want: opened},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -70,7 +70,8 @@ type turnLoadingMsg struct {
 }
 
 // openTurn opens the turn chosen into its requests, in place, as enter does,
-// its first chosen, and reads the lines of its requests, as readTurn reads
+// its first chosen, as many shown at a time as RequestsFit has it at the
+// size m draws at, and reads the lines of its requests, as readTurn reads
 // them: once it has waited LoadingAfter on them, it shows they're loading,
 // as turnLoading has it; once they're read, relived builds their rows, and
 // keeps them in view as choosing has it. Nothing opens where no turn is
@@ -81,6 +82,7 @@ func (m Model) openTurn() (Model, tea.Cmd) {
 		return m, nil
 	}
 	s.shown.Open, s.shown.Request, s.shown.RequestsScroll = s.shown.Turn, 0, 0
+	s.shown.RequestsRows = m.pageFrame(s.shown).RequestsFit()
 	s.held, s.turns, s.turnWaited = s.held.Opening(s.shown.Turn, m.pageLive(s.id, m.now())), s.turns+1, false
 	m.session = &s
 	return m, tea.Batch(m.readTurn(), m.after(LoadingAfter, turnLoadingMsg{opened: s.opened()}))
@@ -134,7 +136,7 @@ func (m Model) turnRead(msg turnReadMsg) Model {
 // page holding the lines of its requests no longer.
 func (m Model) closeTurn() Model {
 	s := *m.session
-	s.shown.Open, s.shown.Requests, s.shown.Request, s.shown.RequestsScroll, s.shown.RequestsLoading = 0, nil, 0, 0, false
+	s.shown.Open, s.shown.Requests, s.shown.Request, s.shown.RequestsScroll, s.shown.RequestsLoading, s.shown.RequestsRows = 0, nil, 0, 0, false, 0
 	s.held, s.turnWaited = s.held.Closing(), false
 	m.session = &s
 	return m
@@ -143,37 +145,50 @@ func (m Model) closeTurn() Model {
 // moveRequest chooses the turn open's request by requests on from the one
 // chosen, oldest first, as ↑ and ↓ do, no further than the first and the
 // last, scrolling its requests, and its turns, no further than keeps it in
-// view, as requestInView has it.
+// view, as keptInView has it.
 func (m Model) moveRequest(by int) Model {
 	s := *m.session
-	i := min(max(s.shown.Request+by, 0), max(len(s.shown.Requests)-1, 0))
-	scrolling := m.requestsScrolling()
-	s.shown.Request, s.shown.RequestsScroll = i, scrolling.Keeping(s.shown.RequestsScroll, i, 0)
+	s.shown.Request = min(max(s.shown.Request+by, 0), max(len(s.shown.Requests)-1, 0))
 	m.session = &s
-	return m.requestInView()
+	return m.keptInView()
 }
 
 // scrollRequests scrolls the turn open's requests by, as j and k do with a
 // turn open, no further than they go, the request chosen kept in view: the
 // one nearest it in view, where it scrolls out, its turns scrolling as
-// requestInView has it.
+// keptInView has it.
 func (m Model) scrollRequests(by scrollStep) Model {
 	s := *m.session
-	scrolling := m.requestsScrolling()
+	scrolling := m.pageView(s.shown).Requests
 	s.shown.RequestsScroll = by.from(s.shown.RequestsScroll, scrolling)
 	s.shown.Request = inViewAt(s.shown.Request, s.shown.RequestsScroll, scrolling)
 	m.session = &s
-	return m.requestInView()
+	return m.keptInView()
 }
 
-// requestInView is m with its page's turns scrolled no further than keeps
-// the turn chosen in view, as choosing has it, with the rows under it Kept
-// keeps with it: of the turn open, those down to its request chosen.
-func (m Model) requestInView() Model {
+// keptInView is m with its page's turns, and its turn open's requests,
+// scrolled no further than keeps the turn chosen and the request chosen in
+// view, as choosing has it, with the rows under the turn PageScrolling keeps
+// with it: of the turn open, those through its foot.
+func (m Model) keptInView() Model {
 	s := *m.session
-	s.shown = choosing(s.shown, turnAt(s.shown, s.shown.Turn), m.turnsScrolling(s.shown))
+	s.shown = choosing(s.shown, turnAt(s.shown, s.shown.Turn), m.pageView(s.shown))
 	m.session = &s
 	return m
+}
+
+// sessionResized is m with the turn open on its page, where it has one,
+// showing as many requests at a time as RequestsFit has it at the size m
+// now draws at, its request chosen kept in view, as are the turn open and
+// its foot among its turns.
+func (m Model) sessionResized() Model {
+	if m.session == nil || m.session.shown.Open == 0 {
+		return m
+	}
+	s := *m.session
+	s.shown.RequestsRows = m.pageFrame(s.shown).RequestsFit()
+	m.session = &s
+	return m.keptInView()
 }
 
 // scrollSession scrolls the session's page by, as j, k, PgDn, PgUp and the
@@ -184,13 +199,6 @@ func (m Model) scrollSession(by scrollStep) Model {
 		return m.scrollRequests(by)
 	}
 	return m.scrollTurns(by)
-}
-
-// requestsScrolling is how far the turn open's requests scroll, laid out at
-// the size m draws the frame at.
-func (m Model) requestsScrolling() dashboard.Scrolling {
-	f := dashboard.Frame{Width: m.size.Width, Height: m.size.Height, Session: m.session.frame()}
-	return f.RequestsScrolling()
 }
 
 // clickRequest acts on a click on the row of the turn open's request at

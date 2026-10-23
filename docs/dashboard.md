@@ -536,7 +536,20 @@ A session that has run for weeks takes a moment to read. While it does, the page
 with `loading…` after it, and `esc` goes back.
 
 A turn's requests are read from the ledger as you open it. If that takes a moment, the turn's foot
-says `loading…` until they're read.
+says `loading…` until they're read. An open turn's requests fill the rows there are as you open
+it: those left under the turns, or where the turns fill them, those under the turn, up to five;
+and down to one on a short screen. That holds as new turns arrive, until you open it again or
+resize the screen. An account joining takes a row from the turns, and the turn shows one fewer
+only where it had no row to spare. The request you've chosen stays in view through all of it.
+
+On a short screen, the page keeps its rows for its turns. The STORY's bars give up a row first,
+then the turns, from eight down to three, though a turn you've opened keeps its eight rows there,
+then the STORY folds to its heading (on a phone it's left out), then the accounts give way to a
+count, `+2 more accounts`, then the blank rows, then the turns, down to one. With a turn open, it
+keeps five of the turn's requests until the blank rows have gone, then shows fewer, down to one.
+Last, that count, the STORY's heading and the two rows saying what the session is doing give way,
+one at a time. From 10 rows wide and 11 on a phone, it always shows a turn, and from 13 and 14 a
+turn you've opened, whole.
 
 Keys on a session's page:
 
