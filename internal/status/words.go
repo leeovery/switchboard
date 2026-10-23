@@ -35,6 +35,9 @@ const (
 	// PartUse is how much of a window is used, as "95%", drawn in its
 	// level's colour.
 	PartUse
+	// PartTime is a time among words, as "16:02", drawn as the words around
+	// it, but never cut part-way.
+	PartTime
 )
 
 // String runs the words together, as a page drawn without colour shows them.
@@ -205,6 +208,11 @@ func Plain(text string) Part {
 // Named is the account with the given id, cleaned, as it's from elsewhere.
 func Named(id string) Part {
 	return Part{Text: prose.Clean(id), Kind: PartAccount}
+}
+
+// Time is a time among words, as "16:02".
+func Time(text string) Part {
+	return Part{Text: text, Kind: PartTime}
 }
 
 // Figure is a figure among words, as a count.

@@ -9,10 +9,11 @@ SESSION  d28c  switchboard                  esc back
 moved from work: its cap                      2h 39m
 
                    its cap → side, $1.82  14:31 ┊
-                                                ┊▁
-▄   ▇▂      ▆           ▄ ▇▁    ▃      ▄    ▁▅▃ ┊
-   ▅       ▆  ▆   ▄    ▅    ▂  ▇   ▅▁    ▇     ▃▄ ▂
- ▄▁   ▅▁▇▅▂    ▂▁  ▁▂▅▂      ▁▁  ▅▁  ▁▆   ▂▇       ▇
+                                                ┊
+▁   ▅       ▄▆          ▁▆▄            ▁▆    ▃  ┊
+     ▇     ▂  ▂  ▄         ▅   ▃         ▃  ▅   ┊
+        ▁         ▇         ▄       ▄          ▆  ▅▁
+ ▄▁   ▆▁ ▆▃    ▃▁  ▁▂▆▃      ▁▁  ▆▁  ▁    ▂
 ├──────────────────── work ────────────────────┤├──┤
 12:02    12:30    13:00     13:30     14:00      now
 
@@ -21,12 +22,11 @@ moved from work: its cap                      2h 39m
 
 TURNS    ───────────────────────────────────  $48.20
 
-13 14:40   3m…   6 req              $0.79  side
-12 14:29   9m   37 req              $6.61  work→side
-11 14:15  15m   58 req              $7.26  work
-10 14:00  12m   52 req              $6.19  work
- 9 13:50   5m   17 req              $1.94  work
- 8 13:37   8m   31 req              $3.40  work
- 7 13:12  19m   83 req              $8.49  work
-▼ 6 more turns   ·   j/k to scroll
+  #  started  took     req     worth  on
+ 13  14:40    3m…        6     $0.79  side
+ 12  14:29    9m        37     $6.61  work → side
+ 11  14:15    15m       58     $7.26  work
+ 10  14:00    12m       52     $6.19  work
+  9  13:50    5m        17     $1.94  work
+▼ 8 more turns   ·   j/k to scroll
 esc back   ↑↓ turn   enter open   ? keys   q quit

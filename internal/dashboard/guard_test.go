@@ -73,8 +73,7 @@ var sizedAllowed = []string{
 	"internal/dashboard/usagewords.go:usageWords.pick",
 	// S19 and S20: Days and Weeks scrolling whole under historyRows.
 	"internal/dashboard/historypage.go:Frame.shortOfHistory",
-	// S22 and S23: a session's page, its turns' form, sessionWideFrom, and
-	// its rows.
+	// S23: a session's page's rows, at short heights.
 	"internal/dashboard/sessionlayout.go:Frame.sessionLayout",
 	// S25: the frame cramped short of leastView, which many views choose
 	// by.
@@ -93,9 +92,6 @@ var cutAllowed = []string{
 	// S17: Detail's sessions' model families and how many more.
 	"internal/dashboard/accountsdetail.go:detailDrawn.session",
 	"internal/dashboard/accountsdetail.go:detailDrawn.sessions",
-	// S22: a session's page, its accounts' stays and the account it's on.
-	"internal/dashboard/sessionpage.go:sessionDrawn.account",
-	"internal/dashboard/sessionpage.go:sessionDrawn.phoneOn",
 	// S25, left by it: a Log card's items' names, the tree's own words, a
 	// window's name and a session's id, none a label, in the tree's column
 	// of names, fixed as its wide form's columns are.
@@ -231,10 +227,14 @@ func flexBreaches(t *testing.T, root, module string, every, drawing []string, a 
 // or gives none.
 //
 // It can't follow a width held on a receiver; a literal's address; a
-// promoted field; a wrapper's local copy of its width, or a closure; a
-// package-level variable written from another package, as the watch; or a
-// file built for another platform, read by another loader. None occurs
-// today.
+// promoted field; a wrapper's local copy of its width; a package-level
+// variable written from another package, as the watch; or a file built for
+// another platform, read by another loader. None of those occurs today. Nor
+// can it see a cutter inside a closure, or one that works out its own width
+// and is passed as a value, and the widths they're given go unjudged: as
+// labelCutAt returns a closure over prose.Cut, Days' strips hand daysStrip
+// closures that fit a name to its room, and asLabelled, cutting a name to
+// labelColumnCells, is handed on to name an account.
 func cutBreaches(l *sourcecheck.Loader, module string, dirs []string, files []sourcecheck.File, w widths, allowed []string) []string {
 	given := make(map[string][]widthAt)
 	// A cutter that's a method, as a line's, or a wrapper is judged only where

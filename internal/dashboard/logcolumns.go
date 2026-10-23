@@ -137,13 +137,9 @@ const (
 
 // requestsSpread is where a table of requests' rows lies across the
 // terminal: from column left, its routing, once whole, ending short cells
-// short of the last column; and, of a session's turn opened on a phone, its
-// columns before stopped at the places given, and stopped, or routing alone,
-// from tail to the last column.
+// short of the last column.
 type requestsSpread struct {
 	left, short int
-	phone       []logPlace
-	tail        int
 }
 
 var (
@@ -151,14 +147,8 @@ var (
 	logSpread = requestsSpread{left: logLeft, short: routingShort}
 	// turnSpread is a session's turn opened's, its requests' rows without
 	// their session, as session-turn-opened-160 draws them: from 5, routing
-	// whole from 112 to 141 at 160 columns; and on a phone, as the Log's
-	// was, less the session (call 57), at 5, on 14, took ending at 27,
-	// stopped from 31.
-	turnSpread = requestsSpread{
-		left: 5, short: 18,
-		phone: []logPlace{LogAt.placed(5, 8), LogOn.placed(14, 8), LogTook.placed(22, 6)},
-		tail:  31,
-	}
+	// whole from 112 to 141 at 160 columns.
+	turnSpread = requestsSpread{left: 5, short: 18}
 )
 
 // logLayout is the Log's Requests laid out across the terminal: the columns
@@ -376,25 +366,4 @@ func logNarrowing(shown []LogColumn) []LogColumn {
 	}
 	order = append(order, LogModel, LogStatus, LogSession)
 	return slices.DeleteFunc(order, func(c LogColumn) bool { return !slices.Contains(shown, c) })
-}
-
-// phoned lays the columns ticked out across a phone's width cells as the
-// spread has them, as a session's turn opened does on a phone: its places,
-// those ticked, and stopped, or routing alone, from its tail to the last
-// column, briefly, routing folded into it where both are ticked.
-func (s requestsSpread) phoned(width int, ticked LogTicks) logLayout {
-	layout := logLayout{brief: true, folded: ticked.Shows(LogStopped) && ticked.Shows(LogRouting)}
-	for _, p := range s.phone {
-		if ticked.Shows(p.column) {
-			layout.places = append(layout.places, p)
-		}
-	}
-	tail := LogStopped
-	if !ticked.Shows(tail) {
-		tail = LogRouting
-	}
-	if ticked.Shows(tail) && width > s.tail {
-		layout.places = append(layout.places, tail.placed(s.tail, width-s.tail))
-	}
-	return layout
 }

@@ -33,7 +33,7 @@ const readApart = 2
 // widest a day is; and the status in full as read, every part whole, its
 // free text too, a restart's reason or a probe's.
 func headerParts(full line) []flex.Part {
-	badge := readLine(strings.Repeat(" ", prose.DayWidth()), strings.Repeat(" ", prose.TimeOfDayWidth())).width()
+	badge := readLine(prose.DayWidest(), prose.TimeOfDayWidest()).width()
 	return []flex.Part{{Least: badge, Natural: badge}, {Least: full.width(), Natural: full.width(), Gap: headerGap}}
 }
 

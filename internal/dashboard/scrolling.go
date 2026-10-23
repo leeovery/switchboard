@@ -359,7 +359,7 @@ func (f Frame) TurnsScrolling() Scrolling {
 	if f.Session == nil {
 		return Scrolling{}
 	}
-	l := f.sessionLayout(len(f.Session.Page.Accounts))
+	l := f.pageLayout()
 	if l.chrome {
 		return Scrolling{}
 	}

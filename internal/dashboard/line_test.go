@@ -18,6 +18,8 @@ func TestFit(t *testing.T) {
 		{name: "cut inside a span, keeping its ink", line: name, width: 8, want: line{{"Switch", nameInk}, {"b…", dimInk}}},
 		{name: "cut at the end of a span", line: name, width: 6, want: line{{"Switc…", nameInk}}},
 		{name: "no room", line: name, width: 0, want: nil},
+		{name: "cut right after a name cut short, ending at its ellipsis", line: line{{"side-hu…", nameInk}, {" from 16:02", dimInk}},
+			width: 9, want: line{{"side-hu…", nameInk}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -53,6 +55,16 @@ func TestFitPartsDrawsAFigureWholeOrAnEllipsis(t *testing.T) {
 				t.Errorf("fitParts(%d) = %+v, want %+v", tt.width, got, tt.want)
 			}
 		})
+	}
+}
+
+// A figure that doesn't fit after words already cut short is left off, the
+// line ending at their ellipsis, never reading "……".
+func TestFitPartsNeverDoublesAnEllipsis(t *testing.T) {
+	cut := line{{"side-hu…", nameInk}}
+	got := fitParts(10, wordsPart(cut), figurePart(line{{" $1,234", secondaryInk}}, Number{}))
+	if !reflect.DeepEqual(got, cut) {
+		t.Errorf("fitParts(10) = %q, want %q", got.plain(), cut.plain())
 	}
 }
 

@@ -5,6 +5,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/leeovery/switchboard/internal/prose"
 )
 
@@ -22,24 +24,62 @@ func TestDatedIsNeverWiderThanItsWidthAndAnotherDaysFillsIt(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := utf8.RuneCountInString(prose.Dated(now, tt.t)); got != tt.want {
+			if got := ansi.StringWidth(prose.Dated(now, tt.t)); got != tt.want {
 				t.Errorf("Dated(%v, %v) = %q, %d characters, want %d", now, tt.t, prose.Dated(now, tt.t), got, tt.want)
 			}
 		})
 	}
 }
 
-func TestNoDayOrTimeOfDayIsWiderThanItsWidthAndADayOfTwoFiguresFillsIt(t *testing.T) {
+func TestNoDayIsWiderThanDayWidestAndADayOfTwoFiguresFillsIt(t *testing.T) {
 	widest := 0
 	for d := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC); d.Year() == 2026; d = d.AddDate(0, 0, 1) {
 		widest = max(widest, utf8.RuneCountInString(prose.Day(d)))
 	}
-	if got := prose.DayWidth(); got != widest {
-		t.Errorf("DayWidth() = %d, want %d, the widest day of a year", got, widest)
+	if got := utf8.RuneCountInString(prose.DayWidest()); got != widest {
+		t.Errorf("DayWidest() = %q, %d characters, want %d, the widest day of a year", prose.DayWidest(), got, widest)
 	}
-	at := time.Date(2026, 10, 7, 23, 59, 0, 0, time.UTC)
-	if got, want := prose.TimeOfDayWidth(), utf8.RuneCountInString(prose.TimeOfDay(at, at)); got != want {
-		t.Errorf("TimeOfDayWidth() = %d, want %d", got, want)
+}
+
+// Every time of day is said as wide as TimeOfDayWidest.
+func TestATimeOfDayIsAsWideAsItsWidest(t *testing.T) {
+	now := time.Date(2026, 10, 7, 9, 5, 0, 0, time.FixedZone("UTC+1", 60*60))
+	widest := prose.TimeOfDayWidest()
+	if widest != "23:59" {
+		t.Errorf("TimeOfDayWidest = %q, want %q", widest, "23:59")
+	}
+	for minute := range 24 * 60 {
+		if said := prose.TimeOfDay(now, now.Add(time.Duration(minute)*time.Minute)); len(said) != len(widest) {
+			t.Errorf("TimeOfDay says %q, not as wide as %q", said, widest)
+		}
+	}
+}
+
+// No stay Stint says is wider than StintWidest, from starts across more than
+// a year back to ends on their own day, the next, or any day after, dated
+// or not; and the widest fills it.
+func TestAStintIsNeverWiderThanItsWidest(t *testing.T) {
+	now := time.Date(2027, 1, 3, 9, 5, 0, 0, time.FixedZone("UTC+1", 60*60))
+	widest, filled := ansi.StringWidth(prose.StintWidest()), 0
+	for back := range 400 {
+		from := now.AddDate(0, 0, -back).Add(-time.Hour)
+		for _, on := range []int{0, 1, 2, 7, back} {
+			to := from.AddDate(0, 0, on).Add(30 * time.Minute)
+			if to.After(now) {
+				to = time.Time{}
+			}
+			for _, dated := range []bool{false, true} {
+				said := prose.Stint(now, from, to, dated)
+				n := ansi.StringWidth(said)
+				filled = max(filled, n)
+				if n > widest {
+					t.Errorf("%q is %d cells, wider than StintWidest's %d", said, n, widest)
+				}
+			}
+		}
+	}
+	if filled != widest {
+		t.Errorf("the widest stay said is %d cells, want StintWidest's %d", filled, widest)
 	}
 }
 
@@ -269,5 +309,33 @@ func TestDatedShowsTheDayOnAnyOtherDay(t *testing.T) {
 				t.Errorf("Dated() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+// No time Past says is wider than PastWidest says it, nor Later than
+// LaterWidest, and the day before's fills PastWidest, from now's day to more
+// than a year back, across a turn of the year; on its start's day, Later is
+// as wide as LaterWidest at any clock.
+func TestPastWidestIsAsWideAsPastOrLaterEverSays(t *testing.T) {
+	now := time.Date(2027, 1, 3, 9, 5, 0, 0, time.FixedZone("UTC+1", 60*60))
+	widest := ansi.StringWidth(prose.PastWidest(now, now))
+	width := ansi.StringWidth
+	for back := range 400 {
+		at := now.AddDate(0, 0, -back).Add(-time.Minute)
+		if said := prose.Past(now, at); width(said) > widest {
+			t.Errorf("%d days back, %q is %d characters, wider than PastWidest's %d", back, said, width(said), widest)
+		}
+		for _, start := range []time.Time{at.AddDate(0, 0, -1), at.Add(-time.Minute)} {
+			said, most := prose.Later(now, start, at), prose.LaterWidest(now, start, at)
+			if width(said) > width(most) {
+				t.Errorf("%d days back, from %v, Later says %q, wider than LaterWidest's %q", back, start, said, most)
+			}
+			if prose.SameDay(now, start, at) && width(said) != width(most) {
+				t.Errorf("%d days back, on its start's day, Later says %q, want it as wide as LaterWidest's %q", back, said, most)
+			}
+		}
+	}
+	if said := prose.Past(now, now.AddDate(0, 0, -1)); ansi.StringWidth(said) != widest {
+		t.Errorf("the day before is said %q, want it as wide as PastWidest's %d", said, widest)
 	}
 }

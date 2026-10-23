@@ -406,7 +406,7 @@ func (f Frame) Under(doc status.Document, now time.Time, x, y int) Under {
 func (f Frame) scrolls(doc status.Document, now time.Time) (x, y, width, rows int) {
 	switch f.Shown() {
 	case SessionPage:
-		l := f.sessionLayout(len(f.Session.Page.Accounts))
+		l := f.pageLayout()
 		return 0, l.turnsAt, f.Width, l.turns
 	case Overview:
 		return f.overviewScrolls(doc, now)
@@ -442,7 +442,7 @@ func (f Frame) Shown() View {
 // over the Log, as stateLine has it.
 func (f Frame) cramped() bool {
 	if f.Shown() == SessionPage {
-		return f.sessionLayout(len(f.Session.Page.Accounts)).chrome
+		return f.pageLayout().chrome
 	}
 	return f.viewRows() < leastView
 }

@@ -384,7 +384,7 @@ const sessionStarted = "started "
 // sessionDoingMost is the cells what a session's doing takes at its widest,
 // as sessionDoing says it started, as "started 14:41".
 func sessionDoingMost() int {
-	return len(sessionStarted) + prose.TimeOfDayWidth()
+	return len(sessionStarted) + len(prose.TimeOfDayWidest())
 }
 
 // sessionParts are the parts of today's sessions' rows across ONLY, as flex

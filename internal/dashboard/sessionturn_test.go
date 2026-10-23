@@ -102,7 +102,7 @@ func TestATurnOpenedLaysItsRowsOutUnderItsOwn(t *testing.T) {
 			if tt.open != nil {
 				tt.open(shown)
 			}
-			if got := shown.turnsRows(pageFrame(t, shown, 160, tt.height).sessionLayout(1)); !slices.Equal(got, tt.want) {
+			if got := shown.turnsRows(pageFrame(t, shown, 160, tt.height).layoutOf(1)); !slices.Equal(got, tt.want) {
 				t.Errorf("the turns' rows are\n%v\nwant\n%v", got, tt.want)
 			}
 		})
@@ -136,7 +136,7 @@ func TestATurnOpenedLightsItsRequestChosenAndSaysWhatsOutOfView(t *testing.T) {
 					t.Errorf("row %d is lit across the width %t, want %t", y+1, lit, y == tt.lit)
 				}
 			}
-			if !c.cells[26][chosenCells-1].ink.bold || c.cells[26][0].ink.on != chosenTurn {
+			if !c.cells[26][100].ink.bold || c.cells[26][0].ink.on != chosenTurn {
 				t.Error("the turn open isn't lit as it's chosen")
 			}
 			rows := pageText(f)
@@ -151,11 +151,11 @@ func TestATurnOpenedLightsItsRequestChosenAndSaysWhatsOutOfView(t *testing.T) {
 }
 
 // A turn opened draws its requests as the Log's rows, without their session,
-// in the page's columns: wide, from 5, routing whole from 112 at 160 and cut
-// to the room left to its least, 24, at 136, under that folded into stopped,
-// and taking its share of the room past 160 as the Log's does; under 122, a
-// phone's (call 57), at 5, on 14, took ending at 27 and stopped from 31.
-// Its heads are the Log's, in text.faint.
+// in the page's columns, from 5, at every width: routing whole from 112 at
+// 160 and cut to the room left to its least, 24, at 136, under that folded
+// into stopped, and taking its share of the room past 160 as the Log's does;
+// narrower, its columns leaving as the Log's do. Its heads are the Log's, in
+// text.faint.
 func TestATurnOpenedsRequestsAreTheLogsRowsInThePagesColumns(t *testing.T) {
 	tests := []struct {
 		width int
@@ -174,15 +174,17 @@ func TestATurnOpenedsRequestsAreTheLogsRowsInThePagesColumns(t *testing.T) {
 		{width: 200,
 			heads: "     at        model      on        status  first    took    read  written    out  stopped                                          routing",
 			move:  "  │  14:31:13  opus-5-5   side      200      2.9s   14.6s       —     182k   1.2k  tool_use · Bash                                  from work, at its cap  $1.82"},
-		{width: 121, heads: "     at       on        took   stopped", move: "  │  14:31:13 side     14.6s   from work"},
-		{width: 52, heads: "     at       on        took   stopped", move: "  │  14:31:13 side     14.6s   from work"},
+		{width: 121,
+			heads: "     at        model      on        status  first    took    read  written    out  stopped",
+			move:  "  │  14:31:13  opus-5-5   side      200      2.9s   14.6s       —     182k   1.2k  from work, at its cap  $1.82"},
+		{width: 52, heads: "     at        on        status    took  stopped", move: "  │  14:31:13  side      200      14.6s  from work"},
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprint(tt.width), func(t *testing.T) {
 			shown := turnOpened()
 			shown.Request = 0
 			f := pageFrame(t, shown, tt.width, 37)
-			l := f.sessionLayout(2)
+			l := f.layoutOf(2)
 			heads, move := l.turnsAt+2, l.turnsAt+5
 			rows := pageText(f)
 			if rows[heads] != tt.heads || rows[move] != tt.move {
@@ -223,7 +225,7 @@ func TestATurnOpensRequestInFlightIsDrawnAsItStands(t *testing.T) {
 		f := pageFrame(t, shown, 160, 37)
 		f.Stream = streamed(tt.chars)
 		rows := textOf(f.Draw(pageDoc(), sent.Add(tt.at)))
-		row := rows[f.sessionLayout(2).turnsAt+3]
+		row := rows[f.layoutOf(2).turnsAt+3]
 		for _, want := range []string{prose.Seconds(tt.at), "answering · " + prose.Characters(tt.chars) + " characters"} {
 			if !strings.Contains(row, want) {
 				t.Errorf("drawn %s after it was sent, %d characters streamed, the turn open's row in flight doesn't read %q:\n%s", tt.at, tt.chars, want, row)
@@ -288,7 +290,7 @@ func TestTheLogsCardOverASessionsPageIsPlacedByItsRequestChosen(t *testing.T) {
 	}{
 		{name: "over its line", request: 2, width: 160, height: 37, placed: true, line: 30},
 		{name: "too short for it", scroll: 1, width: 160, height: 24, line: 19},
-		{name: "a tall phone, its card stacked", width: 52, height: 64, line: 26},
+		{name: "a tall phone, its card stacked", width: 52, height: 64, line: 28},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -64,7 +64,7 @@ func storyFrame(width, height int, look Look) Frame {
 // chosen.
 func storyDrawnOn(f Frame, accounts int, story views.Story, chosen views.Turn) *canvas {
 	c := newCanvas(f.Width, f.Height)
-	f.sessionStory(c, status.Moment{}, f.sessionLayout(accounts), story, chosen)
+	f.sessionStory(c, status.Moment{}, f.layoutOf(accounts), story, chosen)
 	return c
 }
 
@@ -276,9 +276,9 @@ func TestAStoryNamesItsAccountsByTheirLabels(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			layout, row, tall := wideStory, 1, wideStoryColumns
+			layout, row, tall := wideStory, 1, storyColumnRows
 			if tt.phone {
-				layout, row, tall = sessionLayout{story: true}, 0, phoneStoryColumns
+				layout, row = sessionLayout{story: true}, 0
 			}
 			f := storyFrame(tt.width, 9, Look{})
 			c := newCanvas(tt.width, 9)
@@ -376,12 +376,12 @@ func TestAStoryIsDrawnAsItsColumnsLayItOutAtEachWidth(t *testing.T) {
 		for name, story := range moments {
 			t.Run(strconv.Itoa(width)+", "+name, func(t *testing.T) {
 				f := storyFrame(width, 37, Look{})
-				l := f.sessionLayout(1)
+				l := f.layoutOf(1)
 				c := storyDrawnOn(f, 1, story, views.Turn{})
 				cols := story.Columns(width)
-				tall, top := phoneStoryColumns, l.storyAt
+				tall, top := storyColumnRows, l.storyAt
 				if l.wide {
-					tall, top = wideStoryColumns, l.storyAt+1
+					top = l.storyAt + 1
 				}
 				if len(cols.Rates) == 0 {
 					t.Fatal("views lays out no columns")

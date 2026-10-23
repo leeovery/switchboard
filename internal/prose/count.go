@@ -30,6 +30,12 @@ func Tokens(n int) string {
 	return strconv.Itoa(rounded(n, 1_000_000_000)) + "B"
 }
 
+// TokensWidest is the widest Tokens says of any count under a hundred
+// thousand billion, past which "100000B" is wider: "999.9M".
+func TokensWidest() string {
+	return Tokens(999_900_000)
+}
+
 // Characters counts n characters as the Log counts an answer's so far: in
 // thousands to a tenth at every size, as "0.8k", "5.1k", "14.2k" or "958.3k",
 // a half rounded up, as Tokens rounds its tenths.

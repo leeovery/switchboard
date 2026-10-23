@@ -237,11 +237,6 @@ var knownBreaks = []known{
 			"overview-six-accounts-160",
 		},
 	},
-	// S22, a session's turns on flex (F31): its accounts cut with room.
-	{
-		slice: "S22", rule: cutWithRoom, sizes: []string{"138x30", "173x53"},
-		fixtures: []string{"long-names-session"},
-	},
 	// S23, a session's page at short heights (F32): nothing at 15 rows; and an
 	// opened turn's requests out of view over blank rows.
 	{

@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -121,6 +123,80 @@ func TestWhereASessionRunsIsItsNamedModelsAccountAndHowItCameThere(t *testing.T)
 				t.Errorf("Where's Words = %q, want %q", got, want)
 			}
 		})
+	}
+}
+
+// WhereSaidWidest says what Where says, each time it names in the widest form
+// a day gives it, "yesterday 14:31", but a move on an ended session's
+// start's day, which is said by its time alone at any clock: so it says the
+// same whether the clock is on the time's day, the next, or a week or a
+// year on.
+func TestWhereWidestSaysWhereAtItsWidestWhateverTheDay(t *testing.T) {
+	at := time.Date(2026, 10, 7, 14, 31, 0, 0, time.UTC)
+	running := views.SessionPage{Account: "side", Model: "claude-opus-5-5", Activity: views.Activity{Doing: views.Idle},
+		Moves: []views.SessionMove{{At: at, Model: "claude-opus-5-5", From: "work", To: "side", Reason: "moved: work hit its limit"}}}
+	ended := running
+	ended.Started, ended.Activity = at.Add(-2*time.Hour), views.Activity{Doing: views.Ended}
+	overnight := ended
+	overnight.Started = at.AddDate(0, 0, -1)
+	tests := []struct {
+		name string
+		page views.SessionPage
+		want string
+	}{
+		{name: "running, since its move", page: running,
+			want: "on [side] since yesterday 14:31, moved from [work]: [work] reached its limit"},
+		{name: "ended, from its move on its start's day", page: ended,
+			want: "ran on [work], then [side] from 14:31: [work] reached its limit"},
+		{name: "ended, from its move on a day after its start's", page: overnight,
+			want: "ran on [work], then [side] from yesterday 14:31: [work] reached its limit"},
+	}
+	for _, tt := range tests {
+		for _, days := range []int{0, 1, 7, 400} {
+			now := at.Add(time.Hour).AddDate(0, 0, days)
+			if got := wordsSaid(tt.page.WhereSaidWidest(now).Words()); got != tt.want {
+				t.Errorf("%s, %d days on, WhereSaidWidest says %q, want %q", tt.name, days, got, tt.want)
+			}
+		}
+	}
+}
+
+// What a session's doing and how it has run are said at their widest for
+// its own kind, the same whatever it's doing now and wherever the clock is:
+// a running session's doings, each at its widest, an ended one's end the
+// day before; and how it has run to a minute short of a day, or resumed the
+// day before.
+func TestASessionsDoingAndRunAtTheirWidestFollowItsKind(t *testing.T) {
+	now := time.Date(2026, 10, 7, 9, 5, 0, 0, time.UTC)
+	started := now.Add(-2 * time.Hour)
+	running := views.SessionPage{Started: started, Activity: views.Activity{Doing: views.Asking}}
+	resumed := running
+	resumed.Resumed = now.Add(-time.Hour)
+	ended := views.SessionPage{Started: started, Activity: views.Activity{Doing: views.Ended, Since: now.Add(-time.Hour)}}
+	tests := []struct {
+		name  string
+		page  views.SessionPage
+		doing []string
+		ran   string
+	}{
+		{name: "running", page: running, doing: []string{"↑ asking", "↓ answering", "… 429", "✕ 403", "idle 59m"}, ran: "23h 59m"},
+		{name: "resumed", page: resumed, doing: []string{"↑ asking", "↓ answering", "… 429", "✕ 403", "idle 59m"}, ran: "resumed yesterday 09:05"},
+		{name: "ended", page: ended, doing: []string{"ended yesterday 09:05"}, ran: "ran 23h 59m"},
+		{name: "its start not known", page: views.SessionPage{Activity: views.Activity{Doing: views.Idle}}, doing: []string{"↑ asking", "↓ answering", "… 429", "✕ 403", "idle 59m"}},
+	}
+	for _, tt := range tests {
+		if got := tt.page.DoingSaidWidest(now); !slices.Equal(got, tt.doing) {
+			t.Errorf("%s, DoingSaidWidest = %q, want %q", tt.name, got, tt.doing)
+		}
+		if got := tt.page.RanSaidWidest(now); got != tt.ran {
+			t.Errorf("%s, RanSaidWidest = %q, want %q", tt.name, got, tt.ran)
+		}
+		for _, days := range []int{1, 7, 365} {
+			later := now.AddDate(0, 0, days)
+			if got := tt.page.RanSaidWidest(later); len(got) != len(tt.ran) {
+				t.Errorf("%s, %d days on, RanSaidWidest = %q, want it as wide as %q", tt.name, days, got, tt.ran)
+			}
+		}
 	}
 }
 
@@ -381,6 +457,70 @@ func TestATurnsToolsAreTheThreeItCalledMost(t *testing.T) {
 	}
 }
 
+// A turn's tools at their widest are the three it names, each Claude Code's
+// widest tool, called 999 times; and its worth at its widest, $999.99 part
+// unpriced, or unpriced.
+func TestATurnsToolsAndWorthAtTheirWidest(t *testing.T) {
+	if got, want := views.ToolsSaidWidest(), "AskUserQuestion ×999, AskUserQuestion ×999, AskUserQuestion ×999"; got != want {
+		t.Errorf("ToolsSaidWidest = %q, want %q", got, want)
+	}
+	if got, want := views.WorthSaidWidest(), []string{"$999.99+", "unpriced"}; !slices.Equal(got, want) {
+		t.Errorf("WorthSaidWidest = %q, want %q", got, want)
+	}
+	widest := map[string][2]string{
+		"TookSaidWidest":         {views.TookSaidWidest(), "999m…"},
+		"TurnRequestsSaidWidest": {views.TurnRequestsSaidWidest(), "9,999"},
+		"StayRequestsSaidWidest": {views.StayRequestsSaidWidest(), "99,999 requests"},
+		"KeptUntilSaidWidest":    {views.KeptUntilSaidWidest("2026-12-29"), "kept until 29 Dec 2026"},
+	}
+	for name, said := range widest {
+		if said[0] != said[1] {
+			t.Errorf("%s = %q, want %q", name, said[0], said[1])
+		}
+	}
+	if got, want := views.StayWorthSaidWidest(), []string{"$9999.99+", "unpriced"}; !slices.Equal(got, want) {
+		t.Errorf("StayWorthSaidWidest = %q, want %q", got, want)
+	}
+	tools := views.Turn{Tools: []views.ToolCalls{{Tool: "Bash", Times: 14}, {Tool: "Edit", Times: 9}, {Tool: "Read", Times: 8}}}
+	for n, want := range []string{"", "Bash ×14", "Bash ×14, Edit ×9", "Bash ×14, Edit ×9, Read ×8", "Bash ×14, Edit ×9, Read ×8"} {
+		if got := tools.ToolsSaidFirst(n); got != want {
+			t.Errorf("ToolsSaidFirst(%d) = %q, want %q", n, got, want)
+		}
+	}
+}
+
+// A turn's took is held to four characters, whole and never wider than
+// TookSaidWidest, however long it ran: minutes to 999, then hours to 99,
+// then days.
+func TestATurnsTookIsWholeHoweverLongItRan(t *testing.T) {
+	start := time.Date(2026, 10, 7, 9, 0, 0, 0, time.UTC)
+	tests := []struct {
+		minutes int
+		ended   string
+		going   string
+	}{
+		{minutes: 999, ended: "999m", going: "999m…"},
+		{minutes: 1000, ended: "16h", going: "16h…"},
+		{minutes: 5999, ended: "99h", going: "99h…"},
+		{minutes: 6000, ended: "4d", going: "4d…"},
+		{minutes: 12_001, ended: "8d", going: "8d…"},
+		{minutes: 99_999, ended: "69d", going: "69d…"},
+	}
+	widest := ansi.StringWidth(views.TookSaidWidest())
+	for _, tt := range tests {
+		last := start.Add(time.Duration(tt.minutes-1) * time.Minute)
+		said := map[string]string{
+			tt.ended: views.Turn{Started: start, Ended: last}.TookSaid(last.Add(time.Hour)),
+			tt.going: views.Turn{Started: start}.TookSaid(last),
+		}
+		for want, got := range said {
+			if got != want || ansi.StringWidth(got) > widest {
+				t.Errorf("a turn of %d minutes is said %q, want %q, no wider than %q", tt.minutes, got, want, views.TookSaidWidest())
+			}
+		}
+	}
+}
+
 func TestTheWindowsASessionTookPointsOfAreNamedTheWeekFirst(t *testing.T) {
 	tests := []struct {
 		points map[string]int
@@ -396,6 +536,35 @@ func TestTheWindowsASessionTookPointsOfAreNamedTheWeekFirst(t *testing.T) {
 		if got := (views.SessionAccount{Points: tt.points}).PointsSaid(); got != tt.want {
 			t.Errorf("PointsSaid of %v = %q, want %q", tt.points, got, tt.want)
 		}
+	}
+}
+
+// A window's points are said whole to 999 in an account's row, and past it
+// as 999+, wide and short, and at their widest so; the session verb's
+// PointsSaid says them whole however many.
+func TestAWindowsPointsAreHeldTo999Plus(t *testing.T) {
+	tests := []struct {
+		points      int
+		wide, short string
+	}{
+		{points: 999, wide: "≈ 999 points of its week", short: "≈ 999 of week"},
+		{points: 1000, wide: "≈ 999+ points of its week", short: "≈ 999+ of week"},
+		{points: 1234, wide: "≈ 999+ points of its week", short: "≈ 999+ of week"},
+	}
+	for _, tt := range tests {
+		a := views.SessionAccount{Points: map[string]int{"7d": tt.points}}
+		said := map[string]views.PointsForm{tt.wide: views.PointsWide, tt.short: views.PointsShort}
+		for want, form := range said {
+			if got := slices.Concat(a.PointsWords(form)...).String(); got != want {
+				t.Errorf("PointsWords of %d points = %q, want %q", tt.points, got, want)
+			}
+		}
+	}
+	if got, want := slices.Concat(views.PointsWordsWidest([]string{"7d", "5h"}, views.PointsShort)...).String(), "≈ 999+ of week · 999+ of 5-hour"; got != want {
+		t.Errorf("PointsWordsWidest = %q, want %q", got, want)
+	}
+	if got, want := (views.SessionAccount{Points: map[string]int{"7d": 1234}}).PointsSaid(), "≈ 1,234 points of its week"; got != want {
+		t.Errorf("PointsSaid = %q, want %q", got, want)
 	}
 }
 

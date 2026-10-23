@@ -10,6 +10,12 @@ func Percent(utilization float64) string {
 	return strconv.Itoa(WholePercent(utilization)) + "%"
 }
 
+// PercentWhole is Percent of a window used whole, "100%": the widest of its
+// use to its limit, as a window's figure is held to.
+func PercentWhole() string {
+	return Percent(1)
+}
+
 // WholePercent is a utilization as the whole percentage Percent shows, a half
 // rounded to the even one.
 func WholePercent(utilization float64) int {

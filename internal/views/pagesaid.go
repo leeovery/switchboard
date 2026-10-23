@@ -117,15 +117,82 @@ func (w WhereSaid) Words() status.Words {
 // that isn't known, "on side: pinned here". Once it's over, where it ran, as
 // RanOn has it, as ranOn says it. None where it's named on no account.
 func (p SessionPage) Where(now time.Time) WhereSaid {
+	return p.where(now, datesSaid)
+}
+
+// WhereSaidWidest says where the session runs and why, at now, as Where does,
+// but every time it names at its widest, as prose.PastWidest and
+// prose.LaterWidest say them: as its page measures what it says, so the
+// measure moves only as the session moves or ends, never as the clock moves
+// the day of a time it names.
+func (p SessionPage) WhereSaidWidest(now time.Time) WhereSaid {
+	return p.where(now, datesWidest)
+}
+
+// DoingSaidWidest is each thing a session of its kind can say it's doing,
+// as its Activity's Said says it, at its widest at now: once it's over, its
+// end the day before, "ended yesterday 18:46"; while it runs, asking,
+// answering, throttled, refused, and idle to the IdleHour, after which it
+// ends. A session's kind changes once, as it ends.
+func (p SessionPage) DoingSaidWidest(now time.Time) []string {
 	if !p.Runs() {
-		return p.ranOn(now)
+		return []string{Activity{Doing: Ended, Since: now.AddDate(0, 0, -1)}.Said(now)}
+	}
+	doings := []Activity{
+		{Doing: Asking}, {Doing: Answering}, {Doing: Throttled, Status: 429}, {Doing: Refused, Status: 403},
+		{Doing: Idle, Since: now.Add(time.Second - IdleHour)},
+	}
+	said := make([]string, len(doings))
+	for i, a := range doings {
+		said[i] = a.Said(now)
+	}
+	return said
+}
+
+// RanSaidWidest says how the session has run, as RanSaid does, at its widest
+// for its own kind at now: once over, how long it ran, "ran 23h 59m";
+// resumed, when, the day before, "resumed yesterday 22:10"; else how long it
+// has run, "23h 59m". "" where its start isn't known.
+func (p SessionPage) RanSaidWidest(now time.Time) string {
+	if p.Started.IsZero() {
+		return ""
+	}
+	widest := SessionPage{Started: now.Add(time.Minute - 24*time.Hour), Activity: Activity{Doing: Idle}}
+	switch {
+	case !p.Runs():
+		widest.Activity = Activity{Doing: Ended, Since: now}
+	case !p.Resumed.IsZero():
+		widest.Resumed = now.AddDate(0, 0, -1)
+	}
+	return widest.RanSaid(now)
+}
+
+// dating says the times a session's where and why name: as they're said,
+// datesSaid, or at their widest, datesWidest.
+type dating struct {
+	// past says a time before now, as prose.Past does.
+	past func(now, t time.Time) string
+	// later says a time after start, as prose.Later does.
+	later func(now, start, t time.Time) string
+}
+
+var (
+	datesSaid   = dating{past: prose.Past, later: prose.Later}
+	datesWidest = dating{past: prose.PastWidest, later: prose.LaterWidest}
+)
+
+// where says where the session runs and why, at now, as Where does, each
+// time as dates says it.
+func (p SessionPage) where(now time.Time, dates dating) WhereSaid {
+	if !p.Runs() {
+		return p.ranOn(now, dates)
 	}
 	if p.Account == "" {
 		return WhereSaid{}
 	}
 	on := status.Words{status.Plain("on "), status.Named(p.Account)}
 	if m, ok := p.MovedOnto(); ok {
-		return cameBy(on, m, now)
+		return cameBy(on, m, now, dates)
 	}
 	why := p.whyOn()
 	facts := status.Facts{To: p.Account, Now: now}
@@ -136,7 +203,7 @@ func (p SessionPage) Where(now time.Time) WhereSaid {
 		return WhereSaid{OnSince: append(on, status.Plain(" since it started")), Why: slices.Concat(status.Words{status.Plain(": ")},
 			status.SessionWords(why.Reason, facts)), Short: status.ShortWords(why.Reason, facts)}
 	case !why.Since.IsZero():
-		return cameBy(on, SessionMove{At: why.Since, Model: p.Model, From: status.MovedFrom(why.Reason), To: p.Account, Reason: why.Reason}, now)
+		return cameBy(on, SessionMove{At: why.Since, Model: p.Model, From: status.MovedFrom(why.Reason), To: p.Account, Reason: why.Reason}, now, dates)
 	}
 	return WhereSaid{OnSince: on, Why: slices.Concat(status.Words{status.Plain(": ")}, status.SessionWords(why.Reason, facts)),
 		Short: status.ShortWords(why.Reason, facts)}
@@ -156,14 +223,15 @@ func (p SessionPage) whyOn() SessionModel {
 // brought it there, at now: since when, then why, after ", ", as "on side
 // since 14:31, moved from work: work reached its cap", or after ": " for a
 // pin that yields, as "on work since 14:31: its pin to side yields: side has
-// no room", as it went elsewhere than its pin sends it.
-func cameBy(on status.Words, m SessionMove, now time.Time) WhereSaid {
+// no room", as it went elsewhere than its pin sends it; when, as dates
+// says it.
+func cameBy(on status.Words, m SessionMove, now time.Time, dates dating) WhereSaid {
 	lead := ", "
 	if strings.HasPrefix(m.Reason, status.ReasonPinYields) {
 		lead = ": "
 	}
 	return WhereSaid{
-		OnSince: append(on, status.Plain(" since "+prose.Past(now, m.At))),
+		OnSince: append(on, status.Plain(" since "), status.Time(dates.past(now, m.At))),
 		Why:     slices.Concat(status.Words{status.Plain(lead)}, movedWords(m, status.SessionWords, now)),
 		Short:   movedWords(m, status.ShortWords, now),
 	}
@@ -187,8 +255,8 @@ func movedWords(m SessionMove, words func(reason string, f status.Facts) status.
 // on work, then side from 16:02: work reached its cap", and short, "ran on
 // work, then side from 16:02: its cap". A move's day is named only where it
 // isn't the day the session started on, as row 6's right names that day:
-// "from today 00:40". None where it ran on no account.
-func (p SessionPage) ranOn(now time.Time) WhereSaid {
+// "from today 00:40", as dates says it. None where it ran on no account.
+func (p SessionPage) ranOn(now time.Time, dates dating) WhereSaid {
 	first, moves := p.RanOn()
 	if first == "" {
 		return WhereSaid{}
@@ -196,7 +264,7 @@ func (p SessionPage) ranOn(now time.Time) WhereSaid {
 	ran := status.Words{status.Plain("ran on "), status.Named(first)}
 	why, short := ran, slices.Clone(ran)
 	for _, m := range moves {
-		then := status.Words{status.Plain(", then "), status.Named(m.To), status.Plain(" from " + prose.Later(now, p.Started, m.At) + ": ")}
+		then := status.Words{status.Plain(", then "), status.Named(m.To), status.Plain(" from "), status.Time(dates.later(now, p.Started, m.At)), status.Plain(": ")}
 		facts := status.Facts{From: m.From, To: m.To, Now: now}
 		why = slices.Concat(why, then, status.EventWords(m.Reason, facts))
 		short = slices.Concat(short, then, status.ShortWords(m.Reason, facts))
@@ -303,25 +371,159 @@ func (p SessionPage) Live(s Stream) SessionPage {
 // as prose.Minutes says them, as "9m"; and of one still going, to the one
 // now is in, going saying so, as its row says by "…" after them.
 func (t Turn) Took(now time.Time) (minutes string, going bool) {
-	if t.Ended.IsZero() {
-		return prose.Minutes(t.Started, now), true
-	}
-	return prose.Minutes(t.Started, t.Ended), false
+	end, going := t.end(now)
+	return prose.Minutes(t.Started, end), going
 }
 
-// toolsSaid is how many of the tools a turn's answers called most its row
-// names.
-const toolsSaid = 3
+// end is when the turn ended, or of one still going, now, going saying so.
+func (t Turn) end(now time.Time) (end time.Time, going bool) {
+	if t.Ended.IsZero() {
+		return now, true
+	}
+	return t.Ended, false
+}
 
-// ToolsSaid says the tools the turn's answers called most, three at the
-// most, most first, with how many times each, as "Bash ×14, Edit ×9, Read
-// ×8".
+// TookSaid says how long the turn took, at now, as its row says it: as Took
+// counts it, held to four characters as prose.MinutesWithin says it, "9m",
+// "16h", "69d", and of one still going, "…" after, as "3m…".
+func (t Turn) TookSaid(now time.Time) string {
+	end, going := t.end(now)
+	took := prose.MinutesWithin(t.Started, end)
+	if going {
+		took += prose.Ellipsis
+	}
+	return took
+}
+
+// TookSaidWidest is the widest TookSaid says: 999 minutes and going,
+// "999m…".
+func TookSaidWidest() string {
+	var start time.Time
+	return Turn{Started: start}.TookSaid(start.Add(998 * time.Minute))
+}
+
+// RequestsSaid says the turn's requests, as its row says them: "1,240".
+func (t Turn) RequestsSaid() string {
+	return prose.Grouped(t.Requests)
+}
+
+// TurnRequestsSaidWidest is the widest RequestsSaid a turn's row holds
+// whole: "9,999".
+func TurnRequestsSaidWidest() string {
+	return Turn{Requests: 9_999}.RequestsSaid()
+}
+
+// ToolsNamed is how many of the tools a turn's answers called most its row
+// names.
+const ToolsNamed = 3
+
+// ToolsSaid says the tools the turn's answers called most, as ToolsEach
+// says them, a comma and a blank between: "Bash ×14, Edit ×9, Read ×8".
 func (t Turn) ToolsSaid() string {
-	said := make([]string, 0, toolsSaid)
-	for _, c := range t.Tools[:min(len(t.Tools), toolsSaid)] {
+	return t.ToolsSaidFirst(ToolsNamed)
+}
+
+// ToolsSaidFirst says the first n of the tools ToolsSaid says, as it says
+// them: "Bash ×14, Edit ×9".
+func (t Turn) ToolsSaidFirst(n int) string {
+	each := t.ToolsEach()
+	return strings.Join(each[:min(n, len(each))], ", ")
+}
+
+// ToolsEach says each of the tools the turn's answers called most, three at
+// the most, most first, with how many times it was called, as "Bash ×14".
+func (t Turn) ToolsEach() []string {
+	said := make([]string, 0, ToolsNamed)
+	for _, c := range t.Tools[:min(len(t.Tools), ToolsNamed)] {
 		said = append(said, prose.Clean(c.Tool)+" ×"+prose.Grouped(c.Times))
 	}
-	return strings.Join(said, ", ")
+	return said
+}
+
+// ToolsSaidWidest is ToolsSaid at its widest of Claude Code's own tools:
+// ToolsNamed of them, each named as claude.WidestTool and called 999 times.
+func ToolsSaidWidest() string {
+	tools := make([]ToolCalls, ToolsNamed)
+	for i := range tools {
+		tools[i] = ToolCalls{Tool: claude.WidestTool, Times: 999}
+	}
+	return Turn{Tools: tools}.ToolsSaid()
+}
+
+// WorthSaidWidest are the worths a turn says at their widest, as Cents
+// says them, to the most it's held whole to: $999.99 with part of it
+// unpriced, "$999.99+", and none of it priced, "unpriced".
+func WorthSaidWidest() []string {
+	return worthSaidWidest(99_999)
+}
+
+// StayWorthSaidWidest are the worths an account's row says at their widest,
+// as Cents says them, to the most it's held whole to, which a session's
+// time on an account doesn't pass: $9999.99, with part of it unpriced,
+// "$9999.99+", and none of it priced, "unpriced".
+func StayWorthSaidWidest() []string {
+	return worthSaidWidest(999_999)
+}
+
+// worthSaidWidest are the worths said at their widest, as Cents says them,
+// to the most given, in cents: with part of it unpriced, and none of it
+// priced, "unpriced".
+func worthSaidWidest(cents int64) []string {
+	most := ledger.Picodollars(cents) * ledger.Picodollars(10_000_000_000)
+	unpriced := []string{"unpriced"}
+	return []string{Worth{Amount: &most, Unpriced: unpriced}.Cents(), Worth{Unpriced: unpriced}.Cents()}
+}
+
+// RequestsSaid says the session's requests on the account, as its row says
+// them: "12,345 requests".
+func (a SessionAccount) RequestsSaid() string {
+	return prose.Counted(a.Requests, "request")
+}
+
+// StayRequestsSaidWidest is the widest RequestsSaid an account's row holds
+// whole: "99,999 requests".
+func StayRequestsSaidWidest() string {
+	return SessionAccount{Requests: 99_999}.RequestsSaid()
+}
+
+// PointsWordsWidest are the points of the windows with the keys given, as
+// PointsWords says them in form, each at its most, "999+": the widest an
+// account's row says them.
+func PointsWordsWidest(keys []string, form PointsForm) []status.Words {
+	most := SessionAccount{Points: make(map[string]int, len(keys))}
+	for _, key := range keys {
+		most.Points[key] = pointsMost + 1
+	}
+	return most.PointsWords(form)
+}
+
+// pointsMost are the most points of a window an account's row says whole:
+// a session's shares are summed across its windows' resets, so a long one
+// can take more than a hundred.
+const pointsMost = 999
+
+// pointsHeld says a window's points as an account's row holds them: whole,
+// grouped, to pointsMost, "999", and past it "999+".
+func pointsHeld(points int) string {
+	if points > pointsMost {
+		return prose.Grouped(pointsMost) + "+"
+	}
+	return prose.Grouped(points)
+}
+
+// PointsKeys are the keys of the windows any of the session's accounts took
+// points of, as each one's PointsKeys has them: which windows the session
+// used, a fact that changes only as one is first read.
+func (p SessionPage) PointsKeys() []string {
+	var keys []string
+	for _, a := range p.Accounts {
+		for _, key := range a.PointsKeys() {
+			if !slices.Contains(keys, key) {
+				keys = append(keys, key)
+			}
+		}
+	}
+	return keys
 }
 
 // PointsForm is the form an account's points are said in.
@@ -342,12 +544,19 @@ const (
 // figure. Wide, "≈ 6 points of its week", " · 41 of its 5-hour"; short, as a
 // phone says them, "≈ 6 of week", " · 41 of 5-hour". It leaves out those
 // that round to none: none where all do. Each says the window PointsKeys
-// gives in its place.
+// gives in its place, its points as pointsHeld holds them, "999+" past 999.
 func (a SessionAccount) PointsWords(form PointsForm) []status.Words {
+	return a.pointsWords(form, pointsHeld)
+}
+
+// pointsWords are the words PointsWords says, each window's points said as
+// figure says them.
+func (a SessionAccount) pointsWords(form PointsForm, figure func(int) string) []status.Words {
 	keys := a.PointsKeys()
 	said := make([]status.Words, len(keys))
 	for i, key := range keys {
-		lead, count := status.Plain(" · "), status.Words{status.Figure(prose.Grouped(a.Points[key]))}
+		points := a.Points[key]
+		lead, count := status.Plain(" · "), status.Words{status.Figure(figure(points))}
 		of := " of " + status.InProse(status.NameOfKey(key))
 		if i == 0 {
 			lead = status.Plain("≈ ")
@@ -356,7 +565,7 @@ func (a SessionAccount) PointsWords(form PointsForm) []status.Words {
 			of = " of its " + status.InProse(status.NameOfKey(key))
 		}
 		if i == 0 && form == PointsWide {
-			count = CountedWords(a.Points[key], "point")
+			count = append(count, status.Plain(strings.TrimPrefix(prose.Counted(points, "point"), prose.Grouped(points))))
 		}
 		said[i] = slices.Concat(status.Words{lead}, count, status.Words{status.Plain(of)})
 	}
@@ -373,8 +582,9 @@ func (a SessionAccount) PointsKeys() []string {
 }
 
 // PointsSaid says the points of the account's windows the session took, as
-// PointsWords says them wide, run together: "≈ 41 points of its 5-hour · 6
-// of its week"; "" where all round to none.
+// PointsWords says them wide, but each whole however many, run together, as
+// the session verb says them: "≈ 41 points of its 5-hour · 6 of its week";
+// "" where all round to none.
 func (a SessionAccount) PointsSaid() string {
-	return slices.Concat(a.PointsWords(PointsWide)...).String()
+	return slices.Concat(a.pointsWords(PointsWide, prose.Grouped)...).String()
 }
