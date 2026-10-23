@@ -318,8 +318,8 @@ func TestAStateFileFromBeforeReadingsLoadsWithNone(t *testing.T) {
 		t.Errorf("loaded %+v, want the session on work, and the pin to side, as the file holds", got)
 	}
 	for _, id := range []string{"work", "side"} {
-		if !f.state.unread(id, start) {
-			t.Errorf("%s loaded as read, want nothing read of it: the file holds no readings", id)
+		if !f.state.startDue(id, start) {
+			t.Errorf("%s loaded not due the startup probe, want it due, nothing read of it: the file holds no readings", id)
 		}
 	}
 	if f.changes.unsaved.Load() {

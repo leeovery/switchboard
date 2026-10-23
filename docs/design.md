@@ -577,11 +577,12 @@ with room lifting the limit. A limit reached in one model's week alone is no exc
 account takes other models' requests, nor is a refused token or model. Readings persist in
 `state.json`, with the model families each window has been seen to count, so a restart needs no
 probe but its rounds' (see The router's rounds). An account never read has no window known to have
-lapsed: it's probed as the router starts, and, should that probe fail, or the account first gain a
-token while the router runs, on its rounds, or sooner where a choice made afresh or `POST /refresh`
-needs it, at any hour, which may start its window off the schedule, once. Probing without the
-router, and with `--probe`, is unchanged: it's asked for; so is the probe that checks a token
-`accounts add`, `accounts token` or `setup` is given.
+lapsed: it's probed as the router starts, unless a probe of it, by a choice or `POST /refresh` made
+meanwhile, ended in the last minute. Should that probe fail, or the account first gain a token
+while the router runs, it's probed on its rounds, or sooner where a choice made afresh or
+`POST /refresh` needs it, at any hour, which may start its window off the schedule, once. Probing
+without the router, and with `--probe`, is unchanged: it's asked for; so is the probe that checks a
+token `accounts add`, `accounts token` or `setup` is given.
 
 **The router's rounds.** Every answer the router relays carries its account's whole usage, wherever
 it was used: the Claude apps on a phone, claude.ai, Claude Code run directly. So an account in use
@@ -7036,6 +7037,7 @@ why.
 | Releases signed with a Developer ID, so macOS stops noticing each upgrade | next, once the certificate is in hand | [developer-id-signing](../ideas/2026-10-01--developer-id-signing.md) |
 | A doctor verb: switchboard's own records read for what looks wrong, and reported in one place | next, after milestone 7's release, the owner's choice on 14 October 2026 | [doctor](../ideas/2026-10-14--doctor.md) |
 | Three things the router keeps that grow without bound, each only when something rare happens | open: small fixes, any time; a restart's request stream ending before its last events fixed on 11 October 2026 | [router-loose-ends](../ideas/2026-10-05--router-loose-ends.md) |
+| How an account's probes went, forgotten across a restart: a failed probe sent again by the startup probe, and the rounds' backoff started again | open: a small fix, or a line in the design, any time | [probes-across-a-restart](../ideas/2026-10-23--probes-across-a-restart.md) |
 | Keeping the price table current: Anthropic's price changes noticed and added as dated rows, and how the table is kept, Haiku 5.5's two rates among it | open: to discuss with its owner after milestone 7's release; Sonnet 5.5's dated row and Haiku 5.5 added on 11 October 2026 | [current-prices](../ideas/2026-10-09--current-prices.md) |
 | Stage 3's loose ends: Weeks' headline for a set short every week, and the cleanups its reviews left | open: the cleanups any time; the headline settled by its owner on 12 October 2026; the two router tests a loaded machine failed steadied on 11 October 2026, one by a fix to the request stream's end | [stage-3-loose-ends](../ideas/2026-10-11--stage-3-loose-ends.md) |
 | Milestone 7's loose ends: the edge cases and costs its reviews left | open: any time | [milestone-7-loose-ends](../ideas/2026-10-14--milestone-7-loose-ends.md) |
