@@ -546,6 +546,32 @@ func TestProbesErrorsAndFailuresLastUntilRead(t *testing.T) {
 	}
 }
 
+func TestAnAccountUnreadWaitsAMinuteAfterAProbeOfItEnded(t *testing.T) {
+	s := newTestState(&testClock{now: start})
+	if !s.unread("work", start) {
+		t.Error("before any probe, work isn't unread, want it unread")
+	}
+
+	s.recordProbe("work", quota.Probe{}, errors.New("HTTP 529 · Overloaded"), s.mark(), readings.FromProbe)
+	for _, tt := range []struct {
+		after time.Duration
+		want  bool
+	}{
+		{after: 0, want: false},
+		{after: reprobeAfter - time.Second, want: false},
+		{after: reprobeAfter, want: true},
+	} {
+		if got := s.unread("work", start.Add(tt.after)); got != tt.want {
+			t.Errorf("%v after a probe of it failed, work unread = %v, want %v", tt.after, got, tt.want)
+		}
+	}
+
+	s.recordProbe("work", quota.Probe{Windows: []quota.Window{session, week}}, nil, s.mark(), readings.FromProbe)
+	if s.unread("work", start.Add(reprobeAfter)) {
+		t.Error("once a probe has read work, it's unread, want it read")
+	}
+}
+
 func TestDocument(t *testing.T) {
 	clock := &testClock{now: start}
 	s := newTestState(clock)

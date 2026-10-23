@@ -577,11 +577,12 @@ with room lifting the limit. A limit reached in one model's week alone is no exc
 account takes other models' requests, nor is a refused token or model. Readings persist in
 `state.json`, with the model families each window has been seen to count, so a restart needs no
 probe but its rounds' (see The router's rounds). An account never read has no window known to have
-lapsed: it's probed as the router starts, and, should that probe fail, or the account first gain a
-token while the router runs, on its rounds, or sooner where a choice made afresh or `POST /refresh`
-needs it, at any hour, which may start its window off the schedule, once. Probing without the
-router, and with `--probe`, is unchanged: it's asked for; so is the probe that checks a token
-`accounts add`, `accounts token` or `setup` is given.
+lapsed: it's probed as the router starts, unless a choice made meanwhile probed it in the last
+minute, and, should that probe fail, or the account first gain a token while the router runs, on
+its rounds, or sooner where a choice made afresh or `POST /refresh` needs it, at any hour, which may
+start its window off the schedule, once. Probing without the router, and with `--probe`, is
+unchanged: it's asked for; so is the probe that checks a token `accounts add`, `accounts token` or
+`setup` is given.
 
 **The router's rounds.** Every answer the router relays carries its account's whole usage, wherever
 it was used: the Claude apps on a phone, claude.ai, Claude Code run directly. So an account in use
