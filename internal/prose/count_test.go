@@ -49,6 +49,20 @@ func TestANumberGroupedSetsItsThousandsApart(t *testing.T) {
 	}
 }
 
+// No count of tokens is said wider than TokensWidest, at each form's widest
+// or past it.
+func TestTokensWidestIsAsWideAsTokensEverSays(t *testing.T) {
+	widest := len(prose.TokensWidest())
+	if prose.TokensWidest() != "999.9M" {
+		t.Errorf("TokensWidest = %q, want %q", prose.TokensWidest(), "999.9M")
+	}
+	for _, n := range []int{999, 9_949, 999_499, 999_949_999, 9_949_999_999, 999_499_999_999} {
+		if got := prose.Tokens(n); len(got) > widest {
+			t.Errorf("Tokens(%d) = %q, wider than TokensWidest's %d", n, got, widest)
+		}
+	}
+}
+
 func TestTokensAreCountedAsTheLogCountsThem(t *testing.T) {
 	tests := []struct {
 		n    int

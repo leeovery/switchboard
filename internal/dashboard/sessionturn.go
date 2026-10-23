@@ -1,13 +1,14 @@
 package dashboard
 
 import (
-	"cmp"
 	"slices"
 	"strconv"
+	"time"
 
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/dashboard/flex"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -256,6 +257,21 @@ var (
 	worthCells    = ansi.StringWidth(widestOf(views.WorthSaidWidest()))
 )
 
+// The cells a turn's start and its tokens take, as prose says them at their
+// widest: "14:31" and "999.9M".
+var (
+	startedCells = ansi.StringWidth(prose.TimeOfDay(time.Time{}, time.Time{}))
+	tokensCells  = ansi.StringWidth(prose.TokensWidest())
+)
+
+// The cells of a turn's parts that are chosen, not said: tools from 12 at
+// the least to 30 at its natural, and read and written in 7, written's
+// head whole and read as wide beside it.
+const (
+	toolsLeast, toolsNatural = 12, 30
+	readCells                = 7
+)
+
 // toolsMost are the cells tools takes at the most, as views.ToolsSaidWidest
 // says them. Where the tools don't all fit their column, whole tools leave
 // from the end, as toolsWhole has them.
@@ -267,8 +283,8 @@ const moveToLeast = 3
 
 // turnPartFacts are each part's heads, the fullest first, as firstFit tries
 // them in its cells, none for those that carry on its column; its least and
-// its natural, 0 for its least, those of the number, on and ↑ asking as
-// turnParts gives them; whether its words are right-aligned; and the turns
+// its natural, its least or its fullest head where either is wider, those
+// of the number, on and ↑ asking as turnParts gives them; whether its words are right-aligned; and the turns
 // it narrows and leaves in, 0 never.
 var turnPartFacts = [...]struct {
 	heads           []string
@@ -277,13 +293,13 @@ var turnPartFacts = [...]struct {
 	narrows, leaves int
 }{
 	turnNumber:   {heads: []string{"#"}, right: true},
-	turnStarted:  {heads: []string{"started", "start"}, least: 5, natural: 7, narrows: figuresNarrow},
+	turnStarted:  {heads: []string{"started", "start"}, least: startedCells, narrows: figuresNarrow},
 	turnTook:     {heads: []string{"took"}, least: tookCells},
-	turnRequests: {heads: []string{"requests", "req"}, least: requestsCells, natural: 8, right: true, narrows: figuresNarrow},
-	turnTools:    {heads: []string{"tools"}, least: 12, natural: 30, leaves: toolsLeaves},
-	turnRead:     {heads: []string{"read"}, least: 7, right: true, leaves: readLeaves},
-	turnWritten:  {heads: []string{"written"}, least: 7, right: true, leaves: writtenLeaves},
-	turnOut:      {heads: []string{"out"}, least: 6, right: true, leaves: outLeaves},
+	turnRequests: {heads: []string{"requests", "req"}, least: requestsCells, right: true, narrows: figuresNarrow},
+	turnTools:    {heads: []string{"tools"}, least: toolsLeast, natural: toolsNatural, leaves: toolsLeaves},
+	turnRead:     {heads: []string{"read"}, least: readCells, right: true, leaves: readLeaves},
+	turnWritten:  {heads: []string{"written"}, least: readCells, right: true, leaves: writtenLeaves},
+	turnOut:      {heads: []string{"out"}, least: tokensCells, right: true, leaves: outLeaves},
 	turnWorth:    {heads: []string{"worth"}, least: worthCells, right: true},
 	turnOn:       {heads: []string{"on"}, narrows: turnOnNarrows},
 	turnMove:     {narrows: moveNarrows},
@@ -319,7 +335,7 @@ func turnParts(facts turnFacts) []flex.Part {
 	parts := make([]flex.Part, len(turnPartFacts))
 	for p, part := range turnPartFacts {
 		parts[p] = flex.Part{
-			Least: part.least, Natural: cmp.Or(part.natural, part.least),
+			Least: part.least, Natural: max(part.natural, part.least, headCells(part.heads)),
 			Narrows: part.narrows, Leaves: part.leaves, Gap: turnGap,
 		}
 	}
@@ -336,6 +352,15 @@ func turnParts(facts turnFacts) []flex.Part {
 	}
 	parts[turnTools].Grows, parts[turnTools].Most = true, toolsMost
 	return parts
+}
+
+// headCells are the cells the fullest of the heads given takes, none where
+// there are none.
+func headCells(heads []string) int {
+	if len(heads) == 0 {
+		return 0
+	}
+	return ansi.StringWidth(heads[0])
 }
 
 // tightened are a turn's parts with their gaps narrowed to tightGap, and

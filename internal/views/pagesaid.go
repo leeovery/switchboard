@@ -371,20 +371,23 @@ func (p SessionPage) Live(s Stream) SessionPage {
 // as prose.Minutes says them, as "9m"; and of one still going, to the one
 // now is in, going saying so, as its row says by "…" after them.
 func (t Turn) Took(now time.Time) (minutes string, going bool) {
+	end, going := t.end(now)
+	return prose.Minutes(t.Started, end), going
+}
+
+// end is when the turn ended, or of one still going, now, going saying so.
+func (t Turn) end(now time.Time) (end time.Time, going bool) {
 	if t.Ended.IsZero() {
-		return prose.Minutes(t.Started, now), true
+		return now, true
 	}
-	return prose.Minutes(t.Started, t.Ended), false
+	return t.Ended, false
 }
 
 // TookSaid says how long the turn took, at now, as its row says it: as Took
 // counts it, held to four characters as prose.MinutesWithin says it, "9m",
 // "16h", "69d", and of one still going, "…" after, as "3m…".
 func (t Turn) TookSaid(now time.Time) string {
-	end, going := t.Ended, t.Ended.IsZero()
-	if going {
-		end = now
-	}
+	end, going := t.end(now)
 	took := prose.MinutesWithin(t.Started, end)
 	if going {
 		took += prose.Ellipsis
@@ -451,9 +454,7 @@ func ToolsSaidWidest() string {
 // says them, to the most it's held whole to: $999.99 with part of it
 // unpriced, "$999.99+", and none of it priced, "unpriced".
 func WorthSaidWidest() []string {
-	most := ledger.Picodollars(99_999) * ledger.Picodollars(10_000_000_000)
-	unpriced := []string{"unpriced"}
-	return []string{Worth{Amount: &most, Unpriced: unpriced}.Cents(), Worth{Unpriced: unpriced}.Cents()}
+	return worthSaidWidest(99_999)
 }
 
 // StayWorthSaidWidest are the worths an account's row says at their widest,
@@ -461,7 +462,14 @@ func WorthSaidWidest() []string {
 // time on an account doesn't pass: $9999.99, with part of it unpriced,
 // "$9999.99+", and none of it priced, "unpriced".
 func StayWorthSaidWidest() []string {
-	most := ledger.Picodollars(999_999) * ledger.Picodollars(10_000_000_000)
+	return worthSaidWidest(999_999)
+}
+
+// worthSaidWidest are the worths said at their widest, as Cents says them,
+// to the most given, in cents: with part of it unpriced, and none of it
+// priced, "unpriced".
+func worthSaidWidest(cents int64) []string {
+	most := ledger.Picodollars(cents) * ledger.Picodollars(10_000_000_000)
 	unpriced := []string{"unpriced"}
 	return []string{Worth{Amount: &most, Unpriced: unpriced}.Cents(), Worth{Unpriced: unpriced}.Cents()}
 }
@@ -476,6 +484,32 @@ func (a SessionAccount) RequestsSaid() string {
 // whole: "99,999 requests".
 func StayRequestsSaidWidest() string {
 	return SessionAccount{Requests: 99_999}.RequestsSaid()
+}
+
+// PointsWordsWidest are the points of the windows with the keys given, as
+// PointsWords says them in form, each at its most, a hundred points: the
+// widest an account's row says them.
+func PointsWordsWidest(keys []string, form PointsForm) []status.Words {
+	most := SessionAccount{Points: make(map[string]int, len(keys))}
+	for _, key := range keys {
+		most.Points[key] = 100
+	}
+	return most.PointsWords(form)
+}
+
+// PointsKeys are the keys of the windows any of the session's accounts took
+// points of, as each one's PointsKeys has them: which windows the session
+// used, a fact that changes only as one is first read.
+func (p SessionPage) PointsKeys() []string {
+	var keys []string
+	for _, a := range p.Accounts {
+		for _, key := range a.PointsKeys() {
+			if !slices.Contains(keys, key) {
+				keys = append(keys, key)
+			}
+		}
+	}
+	return keys
 }
 
 // PointsForm is the form an account's points are said in.

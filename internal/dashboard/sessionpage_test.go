@@ -404,8 +404,9 @@ func TestASessionsPageAtEachSize(t *testing.T) {
 // Where the now rows are wide, row 6 says where it runs and why whole, its
 // right part whole; row 7's models leave whole from the end three cells
 // before the windows; and an account's points take their short words where
-// the wide don't fit whole, and leave whole windows from the end two cells
-// before its worth's column, as wide as its widest, where even those don't.
+// the wide don't fit whole, and leave whole windows from the end where they
+// wouldn't fit at a hundred points each, two cells before its worth's
+// column, as wide as its widest.
 func TestANarrowWidePageCutsItsRowsBeforeTheirRightParts(t *testing.T) {
 	shown := resumed()
 	shown.Page.Goes = append(shown.Page.Goes, views.SessionModel{Model: haiku, Account: "side"})
@@ -435,10 +436,10 @@ func TestANarrowWidePageCutsItsRowsBeforeTheirRightParts(t *testing.T) {
 	if want := "≈ 9 points of its week · 31 of its 5-hour · 2 of its Fable week"; !strings.Contains(pageText(pageFrame(t, shown, 160, 37))[20], want) {
 		t.Errorf("at 160 columns, row 21 doesn't say %q", want)
 	}
-	f := pageFrame(t, shown, 53, 37)
+	f := pageFrame(t, shown, 56, 37)
 	d, narrow := pageDrawn(f, pageDoc())
-	if row, want := strings.TrimRight(string(narrow[d.l.accountsAt+1]), " "), "≈ 9 of week · 31 of 5-hour"+strings.Repeat(" ", 4)+"$114.10"; !strings.HasSuffix(row, want) {
-		t.Errorf("at 53 columns, its row reads\n%q\nwant Fable week's points left out whole, ending\n%q", row, want)
+	if row, want := strings.TrimRight(string(narrow[d.l.accountsAt+1]), " "), "≈ 9 of week · 31 of 5-hour"+strings.Repeat(" ", 7)+"$114.10"; !strings.HasSuffix(row, want) {
+		t.Errorf("at 56 columns, its row reads\n%q\nwant Fable week's points left out whole, ending\n%q", row, want)
 	}
 }
 

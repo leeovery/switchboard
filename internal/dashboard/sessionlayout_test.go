@@ -764,107 +764,117 @@ func stayStep(t *testing.T, world string, width int, d sessionDrawn) int {
 }
 
 // An account's row lays out the same whatever its figures say, its parts and
-// each one's cells set by what it can say at its most: with short names and a
-// 26-cell one, at every width, before its first point and after, at 1 to 100
-// points of each window, and worth a cent to its bound.
+// each one's cells set by what it can say at its most, and each row shows as
+// many windows as fit at their most, so rows with as many windows show as
+// many at one width: with short names and a 26-cell one, at every width,
+// before its first point and after, at 1 to 100 points of each window, and
+// worth a cent to its bound.
 func TestAnAccountsRowHoldsStillAsItsFiguresChange(t *testing.T) {
 	docs := map[string]status.Document{"short names": pageDoc(), "a 26-cell name": pageLabelled("work-team-plan-for-the-org", "personal", "side")}
 	cents := func(n int64) *ledger.Picodollars {
 		p := ledger.Picodollars(n) * ledger.Picodollars(10_000_000_000)
 		return &p
 	}
-	var figures []func(*views.SessionAccount)
+	type figure struct {
+		set  func(*views.SessionAccount)
+		took bool
+	}
+	var figures []figure
 	for _, points := range []int{0, 1, 9, 10, 100} {
-		figures = append(figures, func(a *views.SessionAccount) {
+		figures = append(figures, figure{set: func(a *views.SessionAccount) {
 			for key := range a.Points {
 				a.Points[key] = points
 			}
-		})
+		}, took: points > 0})
 	}
 	for _, amount := range []int64{1, 999, 1000, 14_106, 999_999} {
-		figures = append(figures, func(a *views.SessionAccount) { a.Amount = cents(amount) })
+		figures = append(figures, figure{set: func(a *views.SessionAccount) { a.Amount = cents(amount) }, took: true})
 	}
-	figures = append(figures, func(a *views.SessionAccount) { a.Points = nil })
+	figures = append(figures, figure{set: func(a *views.SessionAccount) { a.Points = nil }})
 	for world, doc := range docs {
 		for width := 40; width <= 220; width++ {
-			want := pageFrame(t, moved(), width, 37).At(doc, sessionNow).sessionDrawn(doc, sessionNow).stayColumns
+			d, drawn := pageDrawn(pageFrame(t, moved(), width, 37), doc)
+			want, wantShown := d.stayColumns, windowsShown(d, drawn)
+			for i, s := range d.page.Stays(d.now)[:d.l.accounts] {
+				for j, o := range d.page.Stays(d.now)[:i] {
+					if len(s.PointsKeys()) == len(o.PointsKeys()) && wantShown[i] != wantShown[j] {
+						t.Errorf("%s, at %d columns, rows of %d windows show %d and %d of them", world, width, len(s.PointsKeys()), wantShown[j], wantShown[i])
+					}
+				}
+			}
 			for i, figure := range figures {
 				shown := moved()
 				for a := range shown.Page.Accounts {
-					figure(&shown.Page.Accounts[a])
+					figure.set(&shown.Page.Accounts[a])
 				}
-				if got := pageFrame(t, shown, width, 37).At(doc, sessionNow).sessionDrawn(doc, sessionNow).stayColumns; !slices.Equal(got, want) {
-					t.Errorf("%s, at %d columns, with figures %d, an account's row is laid out %+v, want %+v as with the frames'", world, width, i, got, want)
+				d, drawn := pageDrawn(pageFrame(t, shown, width, 37), doc)
+				if !slices.Equal(d.stayColumns, want) {
+					t.Errorf("%s, at %d columns, with figures %d, an account's row is laid out %+v, want %+v as with the frames'", world, width, i, d.stayColumns, want)
+				}
+				if got := windowsShown(d, drawn); figure.took && !slices.Equal(got, wantShown) {
+					t.Errorf("%s, at %d columns, with figures %d, the accounts' rows show %v windows, want %v as with the frames'", world, width, i, got, wantShown)
 				}
 			}
 		}
 	}
 }
 
-// An account's name in its row is a label's: its number and marks, ▲'s
-// cells kept, as headCells counts them, and its label, labelLeast cells at
-// the least, and at the natural the widest configured, at most labelMost.
-func TestAnAccountsNameIsALabels(t *testing.T) {
-	long := strings.Repeat("x", labelMost+6)
-	tests := []struct {
-		name          string
-		labels        []string
-		least, natual int
-	}{
-		{name: "the frames' three, personal the primary", labels: []string{"work", "personal", "side"}, least: 14, natual: 14},
-		{name: "a label past its most", labels: []string{"work", long, "side"}, least: 14, natual: 30},
+// windowsShown are how many windows each account's row d draws shows.
+func windowsShown(d sessionDrawn, drawn [][]rune) []int {
+	shown := make([]int, d.l.accounts)
+	for i := range shown {
+		if points := stayText(drawn[d.l.accountsAt+i], d, stayPoints); points != "" {
+			shown[i] = strings.Count(points, " · ") + 1
+		}
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := stayNameCells(namesOf(pageLabelled(tt.labels...).At(sessionNow, claudeLike)))
-			if got != (partCells{least: tt.least, natural: tt.natual}) {
-				t.Errorf("an account's name is %+v, want least %d and natural %d", got, tt.least, tt.natual)
-			}
-		})
-	}
+	return shown
 }
 
-// An account reads one way across the page: its row draws its label cut at
-// a label's most, as rows 6 and 7 and a turn's on do, never whole past it.
-func TestAnAccountReadsOneWayAcrossThePage(t *testing.T) {
-	for _, label := range []string{"work-team-plan-for-the-org", strings.Repeat("w", 30)} {
-		d, drawn := pageDrawn(pageFrame(t, moved(), 160, 37), pageLabelled(label, "personal", "side"))
-		cut := labelAtMost(label)
-		rows := map[string]string{
-			"its row":    string(drawn[d.l.accountsAt]),
-			"row 7":      string(drawn[d.l.now]),
-			"turn 12 on": turnText(drawn[d.l.turnsAt+1], d, turnOn),
+// A model's own window the session used is measured with those listed,
+// listed or not, as which windows it used is a fact of the session, not a
+// figure: with the frame's models' windows hidden, a row that took points
+// of Fable week says them whole wherever its bound fits; and where no
+// account took any, the row is measured by the windows listed alone.
+func TestAnAccountsRowMeasuresTheWindowsTheSessionUsed(t *testing.T) {
+	used := resumed()
+	used.Page.Accounts[1].Points = map[string]int{"5h": 9, "7d": 1, "7d_oi": 2}
+	for width := 40; width <= 220; width++ {
+		f := pageFrame(t, used, width, 37)
+		f.Models = false
+		d, drawn := pageDrawn(f, pageDoc())
+		points, _ := d.stayColumnOf(stayPoints)
+		got := stayText(drawn[d.l.accountsAt+1], d, stayPoints)
+		if fits := points.width >= d.windowsCells.short; fits != strings.Contains(got, " · 2 of") {
+			t.Errorf("at %d columns, with %d cells to every window's %d, the row's points read %q, want Fable week's said where they fit", width, points.width, d.windowsCells.short, got)
 		}
-		for name, row := range rows {
-			if !strings.Contains(row, cut) || strings.Contains(row, label) {
-				t.Errorf("labelled %q, %s reads %q, want it named %q", label, name, strings.TrimRight(row, " "), cut)
-			}
+		alone := pageFrame(t, resumed(), width, 37)
+		alone.Models = false
+		listed := alone.At(pageDoc(), sessionNow).sessionDrawn(pageDoc(), sessionNow)
+		if listed.windowsCells != pointsCells(measuredKeys(listed.listedWindows(listed.m), nil)) {
+			t.Errorf("at %d columns, with no model's own window used, the points are measured %+v, want by the windows listed alone", width, listed.windowsCells)
 		}
 	}
 }
 
-// An account's time there and its requests are whole wherever they show:
-// stays as wide as a date to a day after, and from the day before to today,
-// and requests to 99,999.
-func TestAnAccountsTimeAndRequestsAreWhole(t *testing.T) {
-	stays := [][2]time.Time{
-		{at(13, 20).AddDate(0, 0, -11), at(1, 20).AddDate(0, 0, -10)},
-		{yesterdayAt(23, 0), at(1, 0)},
+// Below the row's leasts, its worth stays whole at the right, stayGap
+// cells after whatever comes before it, its figures at their most, a
+// hundred points of every window, or of the widest alone, and $9,999.99:
+// the points give way there, never the worth.
+func TestAnAccountsWorthIsWholeBelowTheRowsLeasts(t *testing.T) {
+	most := moved()
+	for i := range most.Page.Accounts {
+		most.Page.Accounts[i].Points = map[string]int{"5h": 100, "7d": 100, "7d_oi": 100}
+		most.Page.Accounts[i].Worth = worthOf(999_999)
 	}
-	for _, stay := range stays {
-		shown := moved()
-		shown.Page.Started = stay[0]
-		shown.Page.Accounts[0].From, shown.Page.Accounts[0].To = stay[0], stay[1]
-		shown.Page.Accounts[0].Requests = 99_999
-		said := shown.Page.Stays(sessionNow)[0].Said
-		for width := 40; width <= 220; width++ {
-			d, drawn := pageDrawn(pageFrame(t, shown, width, 37), pageDoc())
-			row := drawn[d.l.accountsAt]
-			if got := stayText(row, d, stayTime); got != "" && got != said {
-				t.Errorf("at %d columns, the time there reads %q, want %q whole", width, got, said)
-			}
-			if got := stayText(row, d, stayRequests); got != "" && got != "99,999 requests" {
-				t.Errorf("at %d columns, the requests read %q, want them whole", width, got)
+	most.Page.Accounts[0].Points = map[string]int{"7d_oi": 100}
+	for _, world := range pageWorlds {
+		for width := 40; width <= 46; width++ {
+			d, drawn := pageDrawn(pageFrame(t, most, width, 37), world.doc())
+			for i, s := range d.page.Stays(d.now)[:d.l.accounts] {
+				row := strings.TrimRight(string(drawn[d.l.accountsAt+i]), " ")
+				if want := strings.Repeat(" ", stayGap) + s.Cents(); !strings.HasSuffix(row, want) || strings.Contains(strings.TrimSuffix(row, s.Cents()), "$") {
+					t.Errorf("%s, at %d columns, an account's row reads %q, want it to end %q", world.name, width, row, want)
+				}
 			}
 		}
 	}
@@ -877,13 +887,13 @@ func pointsSessions() map[string]*SessionShown {
 
 // An account's row keeps its windows before its requests and its time
 // there, and its requests before its name: with the frames' names and with
-// a 26-cell one, from 53 columns up, every account's row says every window
+// a 26-cell one, from 56 columns up, every account's row says every window
 // it took, uncut, and from 125 up, its requests whole too.
 func TestAnAccountsWindowsComeBeforeItsRequests(t *testing.T) {
 	docs := map[string]status.Document{"short names": pageDoc(), "a 26-cell name": pageLabelled("work-team-plan-for-the-org", "personal", "side")}
 	for world, doc := range docs {
 		for name, shown := range pointsSessions() {
-			for width := 53; width <= 170; width++ {
+			for width := 56; width <= 170; width++ {
 				d, drawn := pageDrawn(pageFrame(t, shown, width, 37), doc)
 				for i, s := range d.page.Stays(d.now)[:d.l.accounts] {
 					row := drawn[d.l.accountsAt+i]

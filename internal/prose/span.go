@@ -150,18 +150,24 @@ func minutesSaid(count string) string {
 // the one to falls in, both counted, as a turn's length is said: "9m" from
 // 14:29 to 14:37, and "1m" within one minute.
 func Minutes(from, to time.Time) string {
-	return strconv.Itoa(int(to.Truncate(time.Minute).Sub(from.Truncate(time.Minute))/time.Minute)+1) + "m"
+	return strconv.Itoa(minutesCounted(from, to)) + "m"
+}
+
+// minutesCounted are the minutes from the one from falls in to the one to
+// falls in, both counted.
+func minutesCounted(from, to time.Time) int {
+	return int(to.Truncate(time.Minute).Sub(from.Truncate(time.Minute))/time.Minute) + 1
 }
 
 // MinutesWithin says the minutes from the one from falls in to the one to
-// falls in, both counted, as Minutes does, but held to four characters:
-// under 1,000 minutes as Minutes says them, "999m"; under 100 hours in
-// whole hours, "16h"; else in whole days, "69d".
+// falls in, as Minutes counts them, in four characters or fewer for any
+// span under 1,000 days: under 1,000 minutes as Minutes says them, "999m";
+// under 100 hours in whole hours, "16h"; else in whole days, "69d".
 func MinutesWithin(from, to time.Time) string {
-	minutes := int(to.Truncate(time.Minute).Sub(from.Truncate(time.Minute))/time.Minute) + 1
+	minutes := minutesCounted(from, to)
 	switch {
 	case minutes < 1000:
-		return strconv.Itoa(minutes) + "m"
+		return Minutes(from, to)
 	case minutes < 100*60:
 		return strconv.Itoa(minutes/60) + "h"
 	}

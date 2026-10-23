@@ -71,7 +71,8 @@ type sessionDrawn struct {
 // now.
 func (f Frame) sessionDrawn(doc status.Document, now time.Time) sessionDrawn {
 	m := f.Moment(doc, now)
-	names, page, points := namesOf(m), f.Session.Page.Live(f.Stream), pointsCells(f.listedWindows(m))
+	names, page := namesOf(m), f.Session.Page.Live(f.Stream)
+	points := pointsCells(measuredKeys(f.listedWindows(m), page.PointsKeys()))
 	d := sessionDrawn{
 		Frame: f, shown: f.Session, page: page, m: m, names: names,
 		l:            f.pageLayout(),
@@ -135,14 +136,8 @@ func (d sessionDrawn) row7Least() int {
 	if !d.page.Runs() {
 		return d.endedModelsKept(views.KeptUntilSaidWidest(d.page.KeptUntil)).width()
 	}
-	right := sessionApart + widestLabel(d.m) + ansi.StringWidth(" now  ")
-	for i, w := range d.listedWindows(d.m) {
-		if i > 0 {
-			right += sessionApart
-		}
-		right += ansi.StringWidth(strings.ToLower(w.name) + " 100%")
-	}
-	return right
+	full := func(string) line { return line{{prose.Percent(1), mutedInk}} }
+	return sessionApart + d.windowsNamed(line{spaces(widestLabel(d.m))}, full).width()
 }
 
 // saidCells are the cells row 6's left takes, wide, saying where as given:
@@ -432,13 +427,20 @@ func (d sessionDrawn) windows() line {
 	if !ok {
 		return nil
 	}
-	l := line{{labelAtMost(name(a)), secondaryInk}, {" now  ", dimInk}}
+	used := func(key string) line { return accountGauge(a, key, d.now).percentage() }
+	return d.windowsNamed(line{{labelAtMost(name(a)), secondaryInk}}, used)
+}
+
+// windowsNamed are row 7's windows as windows draws them, of the account
+// named as given, each window listed with its percentage as given.
+func (d sessionDrawn) windowsNamed(named line, percentage func(key string) line) line {
+	l := append(slices.Clip(named), span{" now  ", dimInk})
 	for i, w := range d.listedWindows(d.m) {
 		if i > 0 {
 			l = append(l, spaces(sessionApart))
 		}
 		l = append(l, span{strings.ToLower(w.name) + " ", mutedInk})
-		l = append(l, accountGauge(a, w.key, d.now).percentage()...)
+		l = append(l, percentage(w.key)...)
 	}
 	return l
 }
@@ -608,6 +610,22 @@ func stayColumnsOf(width int, names partCells, points pointsBounds) []stayColumn
 			columns = append(columns, stayColumn{part: stayPart(p), x: span.At, width: span.Size})
 		}
 	}
+	return shortOfWorth(width, columns)
+}
+
+// shortOfWorth are the columns given across a frame width cells wide, as
+// they're drawn below the row's leasts: the worth whole at the right, and
+// every other column ending stayGap cells before it, so the rest give way
+// there and never the worth.
+func shortOfWorth(width int, columns []stayColumn) []stayColumn {
+	worthAt := width - stayWorthCells
+	for i, col := range columns {
+		if col.part == stayWorth {
+			columns[i].x = worthAt
+			continue
+		}
+		columns[i].width = max(0, min(col.width, worthAt-stayGap-col.x))
+	}
 	return columns
 }
 
@@ -625,25 +643,40 @@ func stayNameCells(names []accountName) partCells {
 	return cells
 }
 
-// pointsCells are the bounds of an account's points, of the windows given,
-// each at its most, a hundred points, so the row's arrangement holds still
-// as its figures change: one window alone, the widest, in short words;
-// every window in short words; and every window in wide words.
-func pointsCells(windows []shownWindow) pointsBounds {
-	most := views.SessionAccount{Points: make(map[string]int, len(windows))}
-	var bounds pointsBounds
-	for _, w := range windows {
-		most.Points[w.key] = 100
-		alone := views.SessionAccount{Points: map[string]int{w.key: 100}}
-		bounds.one = max(bounds.one, pointsWhole(alone, views.PointsShort))
+// measuredKeys are the keys of the windows an account's points are measured
+// by: those listed, and those the session used, as views.SessionPage's
+// PointsKeys has them, listed or not.
+func measuredKeys(listed []shownWindow, used []string) []string {
+	var keys []string
+	for _, w := range listed {
+		keys = append(keys, w.key)
 	}
-	bounds.short, bounds.wide = pointsWhole(most, views.PointsShort), pointsWhole(most, views.PointsWide)
+	for _, key := range used {
+		if !slices.Contains(keys, key) {
+			keys = append(keys, key)
+		}
+	}
+	return keys
+}
+
+// pointsCells are the bounds of an account's points, of the windows with the
+// keys given, each at its most, as views.PointsWordsWidest says them, so the
+// row's arrangement holds still as its figures change: one window alone,
+// the widest, in short words; every window in short words; and every window
+// in wide words.
+func pointsCells(keys []string) pointsBounds {
+	var bounds pointsBounds
+	for _, key := range keys {
+		bounds.one = max(bounds.one, wordsCells(views.PointsWordsWidest([]string{key}, views.PointsShort)))
+	}
+	bounds.short = wordsCells(views.PointsWordsWidest(keys, views.PointsShort))
+	bounds.wide = wordsCells(views.PointsWordsWidest(keys, views.PointsWide))
 	return bounds
 }
 
-// pointsWhole are the cells the account's points take whole in form.
-func pointsWhole(a views.SessionAccount, form views.PointsForm) int {
-	return ansi.StringWidth(slices.Concat(a.PointsWords(form)...).String())
+// wordsCells are the cells the words given take, run together.
+func wordsCells(words []status.Words) int {
+	return ansi.StringWidth(slices.Concat(words...).String())
 }
 
 // account draws the row along row y of an account the session ran on, its
@@ -675,25 +708,34 @@ func (d sessionDrawn) account(c *canvas, y int, s views.Stay) {
 
 // points are the points of the account's windows the session took, in
 // form, the points bold text.primary, each window's numbered, and the rest
-// text.muted: as many windows as fit whole in room cells.
+// text.muted: as many windows as fit whole in room cells at their most, as
+// windowsFit counts them, so what its figures say never moves how many.
 func (d sessionDrawn) points(a views.SessionAccount, form views.PointsForm, room int) line {
 	var l line
 	keys := a.PointsKeys()
-	for i, w := range a.PointsWords(form) {
-		next := slices.Clip(l)
+	for i, w := range a.PointsWords(form)[:windowsFit(keys, form, room)] {
 		for _, p := range w {
 			k := mutedInk
 			if p.Kind == status.PartFigure {
 				k = titleInk.numbered(Number{Kind: NumberPoints, Account: a.Account, Of: keys[i]})
 			}
-			next = append(next, span{p.Text, k})
+			l = append(l, span{p.Text, k})
 		}
-		if next.width() > room {
-			break
-		}
-		l = next
 	}
 	return l
+}
+
+// windowsFit are how many of the windows with the keys given fit whole in
+// room cells, in form, from the first, each at its most, as
+// views.PointsWordsWidest says them.
+func windowsFit(keys []string, form views.PointsForm, room int) int {
+	widest := views.PointsWordsWidest(keys, form)
+	for n := len(widest); n > 0; n-- {
+		if wordsCells(widest[:n]) <= room {
+			return n
+		}
+	}
+	return 0
 }
 
 // turns draws TURNS: its heading; its columns' heads; and its turns shown,
