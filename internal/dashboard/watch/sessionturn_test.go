@@ -361,7 +361,7 @@ func TestATurnOpenedKeepsItselfWholeInView(t *testing.T) {
 				shown.Turn, shown.Open, shown.Requests = 10, 10, make([]views.LogLine, 8)
 				shown.RequestsRows = m.pageFrame(shown).RequestsFit()
 			}
-			if got := choosing(shown, 10, m.turnsView(shown)).Scroll; got != tt.scroll {
+			if got := choosing(shown, 10, m.pageView(shown)).Scroll; got != tt.scroll {
 				t.Errorf("the turn at 10 chosen, the turns scroll %d, want %d", got, tt.scroll)
 			}
 		})
@@ -373,26 +373,42 @@ func TestATurnOpenedKeepsItselfWholeInView(t *testing.T) {
 // as enter opens it, and its requests' tenth chosen, or the last shown where
 // fewer show.
 func openedAt(size Size) Model {
-	m := turnsModel(13)
+	m := openedOf(13, 37, size)
+	return m.moveRequest(min(10, m.session.shown.RequestsRows-1))
+}
+
+// openedOf is a model of a page of the turns given at the size given, its
+// second newest open, or its one where it has one, the requests given read,
+// as many shown at a time as fit there, as enter opens it, its first chosen.
+func openedOf(turns, requests int, size Size) Model {
+	m := turnsModel(turns)
 	m.size = size
 	m = m.moveTurn(1)
 	s := *m.session
-	s.shown.Open, s.shown.Requests = s.shown.Turn, make([]views.LogLine, 37)
+	s.shown.Open, s.shown.Requests = s.shown.Turn, make([]views.LogLine, requests)
 	s.shown.RequestsRows = m.pageFrame(s.shown).RequestsFit()
 	m.session = &s
-	return m.moveRequest(min(10, s.shown.RequestsRows-1))
+	return m
 }
 
 // openWhole reports why the page shown, at the size m draws at, doesn't show
 // its turn open whole, its request chosen among its requests shown and its
 // foot in view, as many shown at a time as it holds: "" where it does.
 func (m Model) openWhole(shown dashboard.SessionShown) string {
+	if rows := m.pageFrame(shown).RequestsScrolling().Page; rows != shown.RequestsRows {
+		return fmt.Sprintf("it shows %d requests at a time, want the %d it holds", rows, shown.RequestsRows)
+	}
+	return m.openInView(shown)
+}
+
+// openInView reports why the page shown, at the size m draws at, doesn't
+// show its turn open in view, its request chosen among its requests shown
+// and its foot: "" where it does.
+func (m Model) openInView(shown dashboard.SessionShown) string {
 	f := m.pageFrame(shown)
 	turns, requests := f.TurnsScrolling(), f.RequestsScrolling()
 	i := turnAt(shown, shown.Open)
 	switch {
-	case requests.Page != shown.RequestsRows:
-		return fmt.Sprintf("it shows %d requests at a time, want the %d it holds", requests.Page, shown.RequestsRows)
 	case shown.Request < shown.RequestsScroll || shown.Request >= shown.RequestsScroll+requests.Page:
 		return fmt.Sprintf("request %d is out of view, its requests scrolled %d", shown.Request, shown.RequestsScroll)
 	case i < shown.Scroll || i+requests.Page+2 >= shown.Scroll+turns.Page:
@@ -413,7 +429,7 @@ func TestATurnOpenHoldsItsRequestsWholeInViewAsTurnsCome(t *testing.T) {
 			is := was
 			is.Page.Turns = slices.Insert(slices.Clone(was.Page.Turns), 0, views.Turn{Turn: len(was.Page.Turns) + 1})
 			s := *m.session
-			s.shown = following(was, is, m.turnsView(is))
+			s.shown = following(was, is, m.pageView(is))
 			m.session = &s
 		}
 		shown := m.session.shown
@@ -422,6 +438,41 @@ func TestATurnOpenHoldsItsRequestsWholeInViewAsTurnsCome(t *testing.T) {
 		}
 		if why := m.openWhole(shown); why != "" {
 			t.Errorf("at %d×%d, three turns came and %s", size.Width, size.Height, why)
+		}
+	}
+}
+
+// An account joining while a turn is open takes a row from the turns, and
+// the page built afresh keeps the turn open, its request chosen, the last
+// shown, and its foot in view: of one turn and of thirteen, its one or its
+// twelfth open, at a phone's widths and the wide chrome's, 20 rows to 40,
+// and at 73×61 and 160×37.
+func TestATurnOpenKeepsItsRequestChosenInViewAsAnAccountJoins(t *testing.T) {
+	var sizes []Size
+	for _, width := range []int{52, 73, 138, 173} {
+		for height := 20; height <= 40; height++ {
+			sizes = append(sizes, Size{Width: width, Height: height})
+		}
+	}
+	sizes = append(sizes, Size{Width: 73, Height: 61}, Size{Width: 160, Height: 37})
+	for _, turns := range []int{1, 13} {
+		for _, size := range sizes {
+			for _, ran := range []int{1, 2} {
+				m := openedOf(turns, 80, size)
+				was := m.session.shown
+				was.Page.Accounts = slices.Repeat(was.Page.Accounts[:1], ran)
+				m.session.shown = was
+				m = m.moveRequest(was.RequestsRows - 1)
+				was = m.session.shown
+				is := was
+				is.Page.Accounts = append(slices.Clone(was.Page.Accounts), views.SessionAccount{Account: "side"})
+				s := *m.session
+				s.shown = following(was, is, m.pageView(is))
+				m.session = &s
+				if why := m.openInView(m.session.shown); why != "" {
+					t.Errorf("at %d×%d, %d turns, a turn open on %d accounts, one joining: %s", size.Width, size.Height, turns, ran, why)
+				}
+			}
 		}
 	}
 }

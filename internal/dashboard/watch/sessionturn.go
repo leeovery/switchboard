@@ -145,35 +145,34 @@ func (m Model) closeTurn() Model {
 // moveRequest chooses the turn open's request by requests on from the one
 // chosen, oldest first, as ↑ and ↓ do, no further than the first and the
 // last, scrolling its requests, and its turns, no further than keeps it in
-// view, as requestInView has it.
+// view, as keptInView has it.
 func (m Model) moveRequest(by int) Model {
 	s := *m.session
-	i := min(max(s.shown.Request+by, 0), max(len(s.shown.Requests)-1, 0))
-	scrolling := m.requestsScrolling()
-	s.shown.Request, s.shown.RequestsScroll = i, scrolling.Keeping(s.shown.RequestsScroll, i, 0)
+	s.shown.Request = min(max(s.shown.Request+by, 0), max(len(s.shown.Requests)-1, 0))
 	m.session = &s
-	return m.requestInView()
+	return m.keptInView()
 }
 
 // scrollRequests scrolls the turn open's requests by, as j and k do with a
 // turn open, no further than they go, the request chosen kept in view: the
 // one nearest it in view, where it scrolls out, its turns scrolling as
-// requestInView has it.
+// keptInView has it.
 func (m Model) scrollRequests(by scrollStep) Model {
 	s := *m.session
-	scrolling := m.requestsScrolling()
+	scrolling := m.pageView(s.shown).requests
 	s.shown.RequestsScroll = by.from(s.shown.RequestsScroll, scrolling)
 	s.shown.Request = inViewAt(s.shown.Request, s.shown.RequestsScroll, scrolling)
 	m.session = &s
-	return m.requestInView()
+	return m.keptInView()
 }
 
-// requestInView is m with its page's turns scrolled no further than keeps
-// the turn chosen in view, as choosing has it, with the rows under it
-// TurnsKept keeps with it: of the turn open, those through its foot.
-func (m Model) requestInView() Model {
+// keptInView is m with its page's turns, and its turn open's requests,
+// scrolled no further than keeps the turn chosen and the request chosen in
+// view, as choosing has it, with the rows under the turn TurnsKept keeps
+// with it: of the turn open, those through its foot.
+func (m Model) keptInView() Model {
 	s := *m.session
-	s.shown = choosing(s.shown, turnAt(s.shown, s.shown.Turn), m.turnsView(s.shown))
+	s.shown = choosing(s.shown, turnAt(s.shown, s.shown.Turn), m.pageView(s.shown))
 	m.session = &s
 	return m
 }
@@ -188,9 +187,8 @@ func (m Model) sessionResized() Model {
 	}
 	s := *m.session
 	s.shown.RequestsRows = m.pageFrame(s.shown).RequestsFit()
-	s.shown.RequestsScroll = m.pageFrame(s.shown).RequestsScrolling().Keeping(s.shown.RequestsScroll, s.shown.Request, 0)
 	m.session = &s
-	return m.requestInView()
+	return m.keptInView()
 }
 
 // scrollSession scrolls the session's page by, as j, k, PgDn, PgUp and the
@@ -201,13 +199,6 @@ func (m Model) scrollSession(by scrollStep) Model {
 		return m.scrollRequests(by)
 	}
 	return m.scrollTurns(by)
-}
-
-// requestsScrolling is how far the turn open's requests scroll, laid out at
-// the size m draws the frame at.
-func (m Model) requestsScrolling() dashboard.Scrolling {
-	f := dashboard.Frame{Width: m.size.Width, Height: m.size.Height, Session: m.session.frame()}
-	return f.RequestsScrolling()
 }
 
 // clickRequest acts on a click on the row of the turn open's request at

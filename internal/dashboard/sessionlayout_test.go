@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"cmp"
 	"fmt"
 	"maps"
 	"slices"
@@ -24,9 +25,9 @@ import (
 // first, while fewer than eight turns fit; then the turns, to three; then
 // the story, folded to its heading under the wide chrome and left out
 // under a phone's, its blank row with it; then the accounts, to a row
-// saying how many more; then the turns, to one; then the blank rows, the
-// one under TURNS' heading first and the one under the page's heading
-// last; then, one at a time, the accounts' row, the story's heading and the
+// saying how many more; then the blank rows, the one under TURNS' heading
+// first and the one under the page's heading last; then the turns, to one,
+// or with a turn open, to it whole; then, one at a time, the accounts' row, the story's heading and the
 // now rows; and below that it's the chrome alone. The turns take the rest,
 // and with a turn open, keep the rows it takes at its least.
 func TestASessionsPageLaysOutItsRowsAtEachSize(t *testing.T) {
@@ -400,24 +401,36 @@ func blanksOf(l sessionLayout) int {
 	return 5
 }
 
-// Within one arrangement, a taller frame never shows fewer turns, accounts
-// or rows of its story's columns: swept from 8 rows to 70, wherever the
-// story, the accounts and the blank rows stand as they did a row shorter.
+// Within one arrangement, a taller frame never shows fewer turns, accounts,
+// rows of its story's columns or requests of a turn open at a time: swept
+// from 8 rows to 70, at a phone's widths, the wide chrome's and 160, of
+// thirteen turns with none open, and with the newest, the seventh and the
+// oldest open, wherever the story, the accounts and the blank rows stand as
+// they did a row shorter.
 func TestATallerPageNeverShowsLess(t *testing.T) {
-	for _, width := range sweptWidths {
+	type shows struct {
+		l        sessionLayout
+		requests int
+	}
+	for _, width := range append(slices.Clone(sweptWidths), 160) {
 		for _, accounts := range []int{1, 2, 4, 10} {
-			var shorter sessionLayout
-			for height := sweptHeights[0]; height <= sweptHeights[1]; height++ {
-				l := Frame{Width: width, Height: height, View: Sessions}.layoutOf(accounts)
-				was, is := givenOf(shorter, accounts), givenOf(l, accounts)
-				same := !shorter.chrome && !l.chrome && height > sweptHeights[0] &&
-					was.story == is.story && was.counted == is.counted && was.blanks == is.blanks &&
-					was.staysLeft == is.staysLeft && was.storyLeft == is.storyLeft && was.nowLeft == is.nowLeft
-				if same && (l.turns < shorter.turns || l.accounts < shorter.accounts || l.body < shorter.body) {
-					t.Errorf("at %d×%d, %d accounts, the page shows %d turns, %d accounts and %d story rows, fewer than a row shorter, %d, %d and %d",
-						width, height, accounts, l.turns, l.accounts, l.body, shorter.turns, shorter.accounts, shorter.body)
+			for _, open := range []int{0, 13, 7, 1} {
+				var shorter shows
+				for height := sweptHeights[0]; height <= sweptHeights[1]; height++ {
+					shown := ranOn(turnOpened(), accounts)
+					shown.Turn, shown.Open = cmp.Or(open, 13), open
+					f := pageFrame(t, shown, width, height)
+					is := shows{l: f.pageLayout(), requests: f.RequestsScrolling().Page}
+					l, was, g := is.l, givenOf(shorter.l, accounts), givenOf(is.l, accounts)
+					same := !shorter.l.chrome && !l.chrome && height > sweptHeights[0] &&
+						was.story == g.story && was.counted == g.counted && was.blanks == g.blanks &&
+						was.staysLeft == g.staysLeft && was.storyLeft == g.storyLeft && was.nowLeft == g.nowLeft
+					if same && (l.turns < shorter.l.turns || l.accounts < shorter.l.accounts || l.body < shorter.l.body || is.requests < shorter.requests) {
+						t.Errorf("at %d×%d, %d accounts, turn %d open, the page shows %d turns, %d accounts, %d story rows and %d requests, fewer than a row shorter, %+v",
+							width, height, accounts, open, l.turns, l.accounts, l.body, is.requests, shorter)
+					}
+					shorter = is
 				}
-				shorter = l
 			}
 		}
 	}

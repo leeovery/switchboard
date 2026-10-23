@@ -108,11 +108,10 @@ func (f Frame) RequestsFit() int {
 // TurnsKept is how many rows under the turn chosen's own its turns keep in
 // view with it as they scroll, laid out at the frame's size: of the turn
 // open, its heads, its requests shown and its foot, so the turn open shows
-// whole; of any other, or where the page has room for its chrome alone,
-// none.
+// whole; of any other, none.
 func (f Frame) TurnsKept() int {
 	s, l := f.Session, f.pageLayout()
-	if s.Open == 0 || s.Open != s.Turn || l.chrome {
+	if s.Open == 0 || s.Open != s.Turn {
 		return 0
 	}
 	from, to := s.requestsShown(l)

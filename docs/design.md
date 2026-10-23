@@ -4677,8 +4677,10 @@ moving down.
 - **As many as the rows hold:** the rows the turns take left under every turn, the turn's heads
   and its foot, so none lies blank; and where those are fewer, as many as they hold under the turn's
   own row, its heads and its foot, five at the most; one at the least. That count is set as the
-  turn opens and again on a resize, and holds as turns come and go, so the turn holds still; the
-  turns scroll to keep it whole in view, its request chosen and its foot among it. Under them, `└` in `border`
+  turn opens and again on a resize, and holds as turns come and go, so the turn holds still, but
+  for as many fewer as the rows the turns lose, as to an account joining. Whatever changes the
+  page's rows, its requests and its turns scroll to keep it whole in view, its request chosen and
+  its foot among it. Under them, `└` in `border`
   at column 2, then from column 5 `▼` in `accent.key`, ` 32 more of its requests   ·   ` in
   `text.muted`, `j/k` bold `accent.key` and ` through them` in `text.muted`. The requests scroll
   within their panel, `↑↓` moving through them.
