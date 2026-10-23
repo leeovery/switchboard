@@ -3985,12 +3985,12 @@ filling in as its line comes (settled in the plan).
 **What it shows (`f`).** A panel in the same card, its natural 124 cells wide, wider than the
 routing card, as its two sides need, and 22 tall, centred: columns 18 to 141, rows 7 to 28 at
 160. Where its two sides at their naturals need more, as a configured name long enough that
-today's sessions' account reaches its natural by Rule 2, it's as wide as they are: 131 for
-Requests and 138 for Events with a name of 24. Where the screen hasn't its natural and a cell
-either side, it's the screen's width less those cells. It
-shows both sides wherever they fit at their leasts: the left, to where ONLY starts, and ONLY as
-wide as today's sessions' rows at their least, their account at 8; from 105 columns for Requests
-and 123 for Events. Narrower, it shows the side the cursor's on alone. Its title, in its top edge:
+today's sessions' account, a column of names, reaches its natural, it's as wide as they are:
+131 for Requests and 138 for Events with a name of 24. Where the screen hasn't its natural and
+a cell either side, it's the screen's width less those cells. It shows both sides wherever
+they fit at their leasts: the left, to where ONLY starts, and ONLY as wide as today's sessions'
+rows at their least, their account at 8, or its natural where that's fewer; from 105 columns
+for Requests and 123 for Events with the sample's names. Narrower, it shows the side the cursor's on alone. Its title, in its top edge:
 `LOG · REQUESTS · WHAT IT SHOWS` or `LOG · EVENTS · WHAT IT SHOWS`. Inside, from column 21 (`x`):
 
 - **Requests:**
@@ -4010,9 +4010,9 @@ and 123 for Events. Narrower, it shows the side the cursor's on alone. Its title
     count; `sessions`, `every one, unless some are ticked` in `text.muted`;
   - **today's sessions,** rows 17 to 22 from `x+52`, a row each: its tick; its id in
     `text.secondary`; two spaces and its directory's name padded to 12 in `text.muted`; two spaces
-    and the account it's on in `text.primary`, in a label's column by Rule 2, as wide as the
-    widest account configured, 24 cells at the most, cut with `…` past its cells, and a cell
-    after it; its lines today right-aligned in 4 in `text.secondary`, then ` today` in
+    and the account it's on in `text.primary`, in a column of names (see "The pool, the names
+    and their numbers"), as wide as the widest account configured, 24 cells at the most, cut
+    with `…` past its cells, and a cell after it; its lines today right-aligned in 4 in `text.secondary`, then ` today` in
     `text.muted`; and 9 cells after their end, at `x+96` with the sample's names, what it's doing,
     `asking` in `accent.key`, or `started 14:41` or `idle 9m` in `text.muted`. The rows are laid
     out by flex within ONLY, so none runs past it: where it's short of room, the rows start
@@ -4663,19 +4663,21 @@ none touches routing.
    heads it with none; and at the right, `runs on ` in `text.muted` and
    the account it runs on, bold `text.primary`. Where it runs is never marked in the list below.
 3. **The choices,** a row each, in parts from the content's start, as flex lays them: the mark at
-   0 and the number at 2; the name at 4, a label's column by Rule 2, as wide as the widest account
-   configured, 24 cells at the most, narrowing where the card's short of room before any other
-   part gives way: on one line to its natural or 11, whichever's fewer, and never under 8, so one
-   line never cuts a name of 11 cells or fewer; stacked, to 8. It's cut with `…` past its cells.
+   0 and the number at 2; the name at 4, a column of names (see "The pool, the names and their
+   numbers"), as wide as the widest account configured or `auto`, 24 cells at the most, and
+   never wider than its names, narrowing where the card's short of room before any other part gives way: on
+   one line to its natural or 11, whichever's fewer, so one line never cuts a name of 11 cells
+   or fewer; stacked, to its natural or 8, whichever's fewer. It's cut with `…` past its cells.
    Two cells on, the state, 6 cells, as wide as `closed`; four on, the windows, the week, then the
    5-hour 11 cells from it, at its widest `5-hour 100%`, 22 cells in all; and two on, at the right
-   edge, the account's reason or its sessions, at least 27 cells, the widest of the reasons the
-   router gives with a time, as `at its limit till Sun 15:54`, and of a token refused for the
-   widest family known, as `token refused (403, sonnet)`. With the sample's names: the state at
-   14, the week at 24 and the 5-hour at 35.
+   edge, the account's reason or its sessions, at least 27 cells, the widest reason the router
+   gives with a time, as `at its limit till Sun 15:54`; a token refused is the token's alone,
+   never a family's, as `token refused (401)`, and fits within it. With the sample's names: the
+   state at 14, the week at 24 and the 5-hour at 35.
    - **`0 auto` first,** `0` in `text.subtle` and `auto` in bold `text.primary`, its description in
      `text.muted`: `the router chooses`; on a session's card, `the router chooses: side for now`,
-     the account auto would send it to, bold `text.primary`: where the router's own rule for a
+     the account auto would send it to, bold `text.primary`, cut with `…` past 24 cells, as a
+     column of names counts it: where the router's own rule for a
      session of no pin of its own would send its next request, which keeps it where it runs while
      that account has room and its cache is worth keeping, named by the router in its listing of
      the sessions (the owner's call, 13 October 2026). Picking `auto` clears the accounts;
@@ -4771,8 +4773,8 @@ Overview's ROUTING heading says `p back to auto`, and `p` opens the card, its on
 `0 auto`, to clear it.
 
 **Narrower,** as on a phone, an account's row is stacked wherever its parts, as "The choices" says
-them, don't fit one line of the content at their leasts: with names of 8 cells or fewer, under 75
-cells of content, a screen under 83 columns; with one of 11, under 86. They're facts of the card
+them, don't fit one line of the content at their leasts: with the sample's names, 8 cells at the
+widest, under 75 cells of content, a screen under 83 columns; with one of 11, under 86. They're facts of the card
 and its configuration, never what a row says, so every row is stacked alike. Stacked, its windows
 go to a row of their own under it, from the state's column, or as near it as they fit whole, so a
 window's use is never cut. On its name's row, its reason or sessions are right-aligned, room kept
@@ -4783,8 +4785,10 @@ reserves, even where the reason a row gives at the moment is shorter, or auto na
 account. Whitespace gives way before words: the name whole with gaps of 2; where that doesn't
 fit, both gaps narrow to a cell, once, from where the configured names put it (with the sample's
 names, under 49 cells of content, a screen under 57; under 58 on a session's card; with a name of
-11, under 60); then the name narrows toward 8; then auto's description is cut, and the reasons
-and sessions after it, with `…` where they must, a cell after the state. The key row keeps
+11, under 60); then the name narrows toward 8, or its natural where that's fewer, so the column
+is never wider than its names; then auto's description is cut, and the reasons and sessions
+after it, with `…` where they must, a cell after the state. Auto's account is cut with `…` past
+24 cells, as a column of names counts it, where a name past 24 is configured. The key row keeps
 `enter apply` and `esc cancel`, and as many of the rest as fit, `↑↓ move` the first to go
 (settled in the plan).
 

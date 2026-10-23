@@ -33,8 +33,14 @@ const readApart = 2
 // widest a day is; and the status in full as read, every part whole, its
 // free text too, a restart's reason or a probe's.
 func headerParts(full line) []flex.Part {
-	badge := pill.width() + readApart + prose.DayWidth() + readApart + prose.TimeOfDayWidth()
+	badge := readLine(strings.Repeat(" ", prose.DayWidth()), strings.Repeat(" ", prose.TimeOfDayWidth())).width()
 	return []flex.Part{{Least: badge, Natural: badge}, {Least: full.width(), Natural: full.width(), Gap: headerGap}}
+}
+
+// readLine is the badge's line in full: the badge, then the day and the
+// time of day its document was read at, readApart apart.
+func readLine(day, at string) line {
+	return slices.Concat(pill, line{spaces(readApart), {day + strings.Repeat(" ", readApart) + at, titleInk}})
 }
 
 // Printout is every account's windows as usage prints them into the
@@ -96,7 +102,7 @@ func (p Printout) header(c *canvas, m status.Moment) int {
 	at := prose.TimeOfDay(m.Now, m.ReadAt)
 	gap, clock := line{spaces(readApart)}, line{{at, titleInk}}
 	c.line(0, 0, firstFit(p.Width,
-		slices.Concat(pill, gap, line{{prose.Day(m.ReadAt.In(m.Now.Location())) + strings.Repeat(" ", readApart) + at, titleInk}}),
+		readLine(prose.Day(m.ReadAt.In(m.Now.Location())), at),
 		slices.Concat(pill, gap, clock),
 		clock))
 	s := newStatusLine(m)

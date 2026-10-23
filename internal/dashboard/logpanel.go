@@ -357,24 +357,31 @@ func toggledIn(choice []string, one string) []string {
 
 // The columns of a session's row, from its tick: its directory, and the
 // account it's on; then, past the account's column, the cells its count
-// takes to its end, and to what it's doing; and the cells what it's doing
-// takes at its widest, as started 14:41 says. Its id follows its box.
+// takes to its end, and to what it's doing. Its id follows its box.
 const (
 	sessionDirAt     = 8
 	sessionAccountAt = 22
 	sessionCountTo   = 5
 	sessionDoingFrom = 14
-	sessionDoingMost = 13
 )
+
+// sessionStarted is what a session's row says before when it started.
+const sessionStarted = "started "
+
+// sessionDoingMost is the cells what a session's doing takes at its widest,
+// as sessionDoing says it started, as "started 14:41".
+func sessionDoingMost() int {
+	return len(sessionStarted) + prose.TimeOfDayWidth()
+}
 
 // sessionParts are the parts of today's sessions' rows across ONLY, as flex
 // lays them: how far in they start, todayAt, narrowing first, as blank
 // cells go before words; the tick, the id and the directory, to the
-// account; the account, a label's column by Rule 2, its natural the widest
-// account the panel knows, narrowing next, toward labelLeast; and the count
-// and what it's doing, at its widest.
+// account; the account, a column of names as labelColumn lays it, its
+// natural the widest account the panel knows, narrowing next, toward its
+// least; and the count and what it's doing, at its widest.
 func (p LogPanel) sessionParts() []flex.Part {
-	tail := sessionDoingFrom + sessionDoingMost
+	tail := sessionDoingFrom + sessionDoingMost()
 	account := labelColumn(widestNamed(accountNames(p.Accounts)))
 	account.Narrows = 2
 	return []flex.Part{
@@ -437,7 +444,7 @@ func sessionDoing(s views.LogSession, now time.Time) span {
 	case views.LogAsking:
 		return span{"asking", asKnown(s.Activity, doingInk)}
 	case views.LogStarted:
-		return span{"started " + prose.TimeOfDay(now, since), mutedInk}
+		return span{sessionStarted + prose.TimeOfDay(now, since), mutedInk}
 	case views.LogIdle:
 		if since.IsZero() {
 			return span{"idle", mutedInk}

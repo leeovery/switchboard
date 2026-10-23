@@ -28,10 +28,11 @@ func labelsPart(widest, narrows int) flex.Part {
 }
 
 // labelColumn is a column of names laid out by flex, with no gap of its
-// own: its natural the widest name given, held within labelLeast and
-// labelMost, narrowing freely toward its least.
+// own: its natural the widest name given, labelMost at the most, narrowing
+// freely toward labelLeast, or its natural where that's fewer, so it's
+// never wider than its names.
 func labelColumn(widest int) flex.Part {
-	return flex.Part{Least: labelLeast, Natural: widest, Most: labelMost}
+	return flex.Part{Least: min(labelLeast, widest), Natural: widest, Most: labelMost}
 }
 
 // widestNamed is a column of names' natural: the widest of the names given,

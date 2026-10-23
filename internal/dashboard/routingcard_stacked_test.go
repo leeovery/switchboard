@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -17,21 +18,76 @@ var widenedNames = map[string]string{
 }
 
 // accountsCard is the routing card given, of n accounts: the first named as
-// given, then personal and side, then team-4 on; each as the card's row a
-// third of the way along, its end as that row's.
+// given, then personal and side, then team-4 on, as namedCard has them.
 func accountsCard(r RoutingCard, first string, n int) RoutingCard {
+	names := []string{first, "personal", "side"}
+	for i := 3; i < n; i++ {
+		names = append(names, fmt.Sprintf("team-%d", i+1))
+	}
+	return namedCard(r, names[:n]...)
+}
+
+// namedCard is the routing card given, of an account each of the names
+// given, each as the card's row a third of the way along, its end as that
+// row's.
+func namedCard(r RoutingCard, names ...string) RoutingCard {
 	rows := []RoutingRow{r.Rows[0]}
-	for i := range n {
+	for i, name := range names {
 		row := r.Rows[1+i%3]
-		row.Account = fmt.Sprintf("account-%d", i+1)
-		row.Name = []string{first, "personal", "side"}[min(i, 2)]
-		if i >= 3 {
-			row.Name = fmt.Sprintf("team-%d", i+1)
-		}
+		row.Account, row.Name = fmt.Sprintf("account-%d", i+1), name
 		rows = append(rows, row)
 	}
 	r.Rows, r.Picked = rows, nil
 	return r
+}
+
+// No name column is wider than its names, auto's among them, and none of 8
+// cells or fewer is cut; and each row's end is whole wherever the name at
+// its least, gaps of 1, the state and the end at its least fit: names all
+// under 8 cells as well as longer ones.
+func TestAStackedNameColumnIsNeverWiderThanItsNames(t *testing.T) {
+	configs := map[string][]string{
+		"a name shorter than auto's": {"ab"}, "work alone": {"work"}, "work and side": {"work", "side"},
+		"the sample's names": {"work", "personal", "side"}, "a name of 11": {"engineering", "side"},
+	}
+	for name, names := range configs {
+		for mode, base := range map[string]RoutingCard{"new sessions'": widestEnds(), "a session's": sessionCard(nil)} {
+			r := namedCard(base, names...)
+			least := choiceNameAt + min(labelLeast, r.widestName()) + narrowGap + stateCells() + narrowGap + endLeast()
+			for width := 40; width <= 82; width++ {
+				content := r.card(frameOf(width, 80)).width - 2*cardInset
+				at := r.columns(content)
+				if at.name > r.widestName() {
+					t.Errorf("%s, %s card, at %d columns, the name column is %d cells, wider than its names' %d", name, mode, width, at.name, r.widestName())
+				}
+				for _, row := range r.Rows {
+					if said := r.choice(row, at, content)[0].plain(); r.widestName() <= labelLeast && !strings.Contains(said, " "+row.Name+" ") {
+						t.Errorf("%s, %s card, at %d columns, the row reads %q, want %q whole, its column under 8", name, mode, width, said, row.Name)
+					}
+				}
+				if content < least || r.Mode == ThisSession && content < least+r.autoNatural()-(stateCells()+narrowGap+endLeast()) {
+					continue
+				}
+				for _, row := range r.Rows[1:] {
+					if said, end := r.choice(row, at, content)[0].plain(), row.sideWords().plain(); !strings.Contains(said, end) {
+						t.Errorf("%s, %s card, at %d columns, the row reads %q, want %q whole", name, mode, width, said, end)
+					}
+				}
+			}
+		}
+	}
+}
+
+// Stacked, where its row fits with them, its gaps are 2: the state starts 2
+// after the name's column, and auto's description with it.
+func TestAStackedRowsGapsAreTwoWhereTheyFit(t *testing.T) {
+	r := sessionCard(nil)
+	body := strings.Join(plains(r.card(frameOf(70, 60)).body), "\n")
+	for _, want := range []string{"0 auto      the router chooses: side for now", "2 personal  open"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("at 70 columns, the card reads\n%s\nwant %q", body, want)
+		}
+	}
 }
 
 // shownRows are how many characters of each account's row's name and end
@@ -76,8 +132,8 @@ func TestAsTheStackedCardWidensNoNameNorEndSaysLess(t *testing.T) {
 }
 
 // Where gaps of 1 leave it the room, a stacked row keeps its name and its
-// end whole: engineering's at 59 columns, as the card drew it before its
-// names were a label's column.
+// end whole: engineering's at 59 columns, as the base's column of 11 draws
+// it.
 func TestAStackedRowsGapsNarrowBeforeItsName(t *testing.T) {
 	r := routedCard(func(r *RoutingCard) {
 		r.Rows[1].Name = "engineering"
@@ -97,8 +153,8 @@ func describedOf(said string) int {
 }
 
 // Auto's description is a part of its row: the gaps and then the name give
-// way before it's cut, so it never says less than the card said with its
-// old fixed column of names, from column 16.
+// way before it's cut, so it never says less than the base's, its names in
+// a column of 11, from column 16.
 func TestAutosDescriptionNeverSaysLessThanBefore(t *testing.T) {
 	for name, first := range widenedNames {
 		for _, auto := range []string{"account-1", "account-2"} {
@@ -127,6 +183,11 @@ func TestAutoNamesAnAccountAsALabelsColumnDoes(t *testing.T) {
 		if got, want := long.columns(width), most.columns(width); got != want {
 			t.Errorf("at %d cells, a name of 30 lays the rows out %+v, want %+v as one of 24", width, got, want)
 		}
+	}
+	long.Session.Auto = long.Rows[1].Account
+	_, body := cardText(long, frameOf(100, 60))
+	if want := "the router chooses: a-very-long-account-nam… for now"; !slices.ContainsFunc(body, func(l string) bool { return strings.Contains(l, want) }) {
+		t.Errorf("at 100 columns, the card reads\n%s\nwant auto's row to say %q", strings.Join(body, "\n"), want)
 	}
 }
 

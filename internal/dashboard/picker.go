@@ -42,7 +42,7 @@ const (
 	pickerWide   = 30
 	pickerNarrow = 24
 	// besidePicker is the fewest cells the view beside the picker keeps
-	// where the picker's at its widest: the picker's own width, so the
+	// where the picker's at its widest: the picker's own width, so the wide
 	// picker never takes more than half the screen.
 	besidePicker = pickerWide
 	// pickerChrome is the cells of a row that aren't its content: the border

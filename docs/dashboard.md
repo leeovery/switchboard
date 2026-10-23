@@ -760,7 +760,7 @@ now. The card has these rows:
 Each account's row shows:
 
 - whether it's open
-- its 5-hour window and week
+- its week and 5-hour window
 - why it's closed, such as `at its cap till 17:10`, or its sessions running.
 
 ### Picking

@@ -7,7 +7,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
@@ -267,13 +270,27 @@ func stackedRows(r RoutingCard, f Frame) int {
 	return n
 }
 
+// refusedEnd is a refused token's reason, as closedBy says it: the token's,
+// never a family's.
+var refusedEnd = tokenRefused(status.Refusal{Status: 401})
+
+// A refused token's reason, of any status code, fits within a row's end at
+// its least, so it's never cut where a time's isn't.
+func TestATokenRefusedFitsARowsEnd(t *testing.T) {
+	for code := 100; code <= 999; code++ {
+		if said := tokenRefused(status.Refusal{Status: code}); ansi.StringWidth(said) > endLeast() {
+			t.Errorf("%q is %d cells, past a row's end at its least, %d", said, ansi.StringWidth(said), endLeast())
+		}
+	}
+}
+
 // widestEnds is the routing card of the frames' world with its rows' ends
-// at their widest: a limit's reason back another day, a token refused for a
-// family, and the 5-hour's use at its widest.
+// at their widest: a limit's reason back another day, a token refused,
+// as refusedEnd, and the 5-hour's use at its widest.
 func widestEnds() RoutingCard {
 	return routedCard(func(r *RoutingCard) {
 		r.Rows[1].Reason = widestHeld()
-		r.Rows[2].Open, r.Rows[2].Reason = false, "token refused (403, sonnet)"
+		r.Rows[2].Open, r.Rows[2].Reason = false, refusedEnd
 		r.Rows[2].Windows[1].Used = 1
 	})
 }
@@ -315,7 +332,7 @@ func TestALongNameNarrowsBeforeARowsEndIsCut(t *testing.T) {
 			continue
 		}
 		body := strings.Join(plains(k.body), "\n")
-		for _, end := range []string{widestHeld(), "token refused (403, sonnet)"} {
+		for _, end := range []string{widestHeld(), refusedEnd} {
 			if !strings.Contains(body, end) {
 				t.Errorf("at %d columns, the card reads\n%s\nwant %q whole", width, body, end)
 			}
@@ -339,9 +356,9 @@ func shownOf(body, said string) int {
 	return 0
 }
 
-// basedOf is how many characters of what's said the card drew, before its
-// names were a label's column, in cells cells: whole where it fit, else cut
-// to a cell short of them, for its ellipsis.
+// basedOf is how many characters of what's said the base draws in cells
+// cells, its names in a column of 11: whole where it fits, else cut to a
+// cell short of them, for its ellipsis.
 func basedOf(said string, cells int) int {
 	if n := len([]rune(said)); n <= cells {
 		return n
@@ -349,10 +366,9 @@ func basedOf(said string, cells int) int {
 	return max(cells-1, 0)
 }
 
-// Where the stacked card is narrowest, its words say no less than it said
-// before its names were a label's column: auto's description from column
-// 16, and each row's end two cells after closed, from 24, whatever the
-// names.
+// Where the stacked card is narrowest, its words say no less than the
+// base's, its names in a column of 11: auto's description from column 16,
+// and each row's end two cells after closed, from 24, whatever the names.
 func TestTheNarrowestStackedCardSaysNoLessThanBefore(t *testing.T) {
 	long := widestEnds()
 	long.Rows[3].Name = "a-very-long-account-name"
@@ -363,7 +379,7 @@ func TestTheNarrowestStackedCardSaysNoLessThanBefore(t *testing.T) {
 			body := strings.Join(plains(k.body), "\n")
 			for said, from := range map[string]int{
 				"the router chooses": 16, "4 running": 24,
-				widestHeld(): 24, "token refused (403, sonnet)": 24,
+				widestHeld(): 24, refusedEnd: 24,
 			} {
 				if got, base := shownOf(body, said), basedOf(said, content-from); got < base {
 					t.Errorf("%s, at %d columns, the card shows %d characters of %q, fewer than the %d it showed before:\n%s", name, width, got, said, base, body)
@@ -373,8 +389,8 @@ func TestTheNarrowestStackedCardSaysNoLessThanBefore(t *testing.T) {
 	}
 }
 
-// One line never cuts a name the card's old fixed column of 11 held whole:
-// a name of 9 to 11 cells keeps them all there, the card stacking first.
+// One line never cuts a name the base's column of 11 holds whole: a name of
+// 9 to 11 cells keeps them all there, the card stacking first.
 func TestOneLineNeverCutsANameItsOldColumnHeld(t *testing.T) {
 	r := routedCard(func(r *RoutingCard) { r.Rows[1].Name = "engineering" })
 	switches := 0
@@ -410,7 +426,7 @@ func TestTheRoutingCardNeverCutsAWindowsUseNorOnOneLineItsEnd(t *testing.T) {
 		if stackedRows(r, f) > 0 {
 			continue
 		}
-		for _, end := range []string{widestHeld(), "token refused (403, sonnet)"} {
+		for _, end := range []string{widestHeld(), refusedEnd} {
 			if !strings.Contains(body, end) {
 				t.Errorf("at %d columns, an account's row is one line, and reads\n%s\nwant %q whole beside its windows", width, body, end)
 			}

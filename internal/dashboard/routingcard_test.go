@@ -216,7 +216,7 @@ func TestAnAccountNotReadYetIsOpenItsFiguresFaint(t *testing.T) {
 	unread.FetchedAt = time.Time{}
 	r := RoutingCard{Rows: RoutingRows(routerDoc("", 0, unread).At(now, claudeLike), nil, views.Stream{})}
 	row := r.choice(r.Rows[1], r.columns(76), 76)[0]
-	if got, want := strings.TrimRight(row.plain(), " "), "□ 1 unread    open      week —     5-hour —"; got != want {
+	if got, want := strings.TrimRight(row.plain(), " "), "□ 1 unread  open      week —     5-hour —"; got != want {
 		t.Errorf("its row reads %q, want %q", got, want)
 	}
 	for _, s := range row {
@@ -324,9 +324,9 @@ func TestTheTitleAndOpeningLineFollowM(t *testing.T) {
 		card           RoutingCard
 		title, opening string
 	}{
-		{name: "m clear", card: RoutingCard{Picked: []string{"personal"}}, title: "ROUTING · NEW SESSIONS", opening: "Pick the accounts new sessions go to."},
-		{name: "m ticked", card: RoutingCard{Picked: []string{"personal"}, Move: true}, title: "ROUTING · NEW AND RUNNING SESSIONS", opening: "Pick the accounts new and running sessions go to."},
-		{name: "m ticked, auto picked", card: RoutingCard{Move: true}, title: "ROUTING · NEW AND RUNNING SESSIONS", opening: "Pick the accounts new and running sessions go to."},
+		{name: "m clear", card: routedCard(func(r *RoutingCard) { r.Picked = []string{"personal"} }), title: "ROUTING · NEW SESSIONS", opening: "Pick the accounts new sessions go to."},
+		{name: "m ticked", card: routedCard(func(r *RoutingCard) { r.Picked, r.Move = []string{"personal"}, true }), title: "ROUTING · NEW AND RUNNING SESSIONS", opening: "Pick the accounts new and running sessions go to."},
+		{name: "m ticked, auto picked", card: routedCard(func(r *RoutingCard) { r.Picked, r.Move = nil, true }), title: "ROUTING · NEW AND RUNNING SESSIONS", opening: "Pick the accounts new and running sessions go to."},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -520,17 +520,20 @@ func TestRowsPastTheCardsRoomScrollTheCursorsKeptInView(t *testing.T) {
 		accounts[i] = readAccount("a"+strconv.Itoa(i+1), sessionOf(0.1, time.Hour))
 	}
 	rows := RoutingRows(routerDoc("a1", 0, accounts...).At(now, claudeLike), nil, views.Stream{})
-	// At 30 rows, the card's 26 at most leave its rows 12 lines.
+	// At 30 rows, the card's 26 at most leave its rows 11 lines, its names
+	// no wider than auto's 4 making it 77 cells wide, its outcome's room
+	// kept for the longest it says at that width.
+	const inView = 11
 	tests := []struct {
 		name   string
 		cursor int
 		// first and end are the rows in view, from first to before end.
 		first, end int
 	}{
-		{name: "the cursor at the top", cursor: 0, first: 0, end: 11},
-		{name: "the cursor on the last row in view", cursor: 10, first: 0, end: 11},
-		{name: "the cursor past them", cursor: 11, first: 2, end: 12},
-		{name: "the cursor at the foot", cursor: 12, first: 2, end: 13},
+		{name: "the cursor at the top", cursor: 0, first: 0, end: 10},
+		{name: "the cursor on the last row in view", cursor: 9, first: 0, end: 10},
+		{name: "the cursor past them", cursor: 10, first: 2, end: 11},
+		{name: "the cursor at the foot", cursor: 12, first: 3, end: 13},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -550,7 +553,7 @@ func TestRowsPastTheCardsRoomScrollTheCursorsKeptInView(t *testing.T) {
 			want = append(want, moreOf("▼", len(rows)-tt.end)...)
 			_, body := cardText(r, f)
 			var got []string
-			for _, l := range body[2:14] {
+			for _, l := range body[2 : 2+inView] {
 				got = append(got, choiceNamed(l))
 			}
 			if !slices.Equal(got, want) {
@@ -740,8 +743,8 @@ func rowSaying(c *canvas, x int, text string) int {
 	return -1
 }
 
-// The card's names are a label's column by Rule 2: as wide as the widest
-// name, at least 8 and at most 24, the card's natural following from it.
+// The card's names are a column of names: as wide as the widest name, at
+// most 24, the card's natural following from it.
 func TestTheRoutingCardsNamesAreALabelsColumn(t *testing.T) {
 	named := func(name string) RoutingCard {
 		return routedCard(func(r *RoutingCard) { r.Rows[2].Name = name })
@@ -753,7 +756,7 @@ func TestTheRoutingCardsNamesAreALabelsColumn(t *testing.T) {
 		row     string
 	}{
 		{name: "the frames' names, 8 cells", card: routedCard(nil), natural: 81, row: "□ 2 personal  open      week 66%   5-hour 39%"},
-		{name: "a shorter name, the column the widest's", card: named("sides"), natural: 81, row: "□ 2 sides     open      week 66%   5-hour 39%"},
+		{name: "names all under 8, the column the widest's", card: named("sides"), natural: 78, row: "□ 2 sides  open      week 66%   5-hour 39%"},
 		{name: "a name of 24, whole", card: named("a-very-long-account-name"), natural: 97,
 			row: "□ 2 a-very-long-account-name  open      week 66%   5-hour 39%"},
 		{name: "a name past 24, cut there", card: named("a-very-long-account-name-and-more"), natural: 97,

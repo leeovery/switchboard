@@ -56,7 +56,7 @@ func TestASessionsRowNamesItAndWhereItRuns(t *testing.T) {
 	tests := []struct {
 		name    string
 		session RoutingSession
-		// width is the row's cells: 76, the card's content at its natural
+		// width is the row's cells: 75, the card's content at its natural
 		// width, where it's 0.
 		width int
 		// left is what the row says from its start, and right what it says
@@ -67,12 +67,12 @@ func TestASessionsRowNamesItAndWhereItRuns(t *testing.T) {
 			left: "9c2e  website  ~/Code/website", right: "runs on personal"},
 		{name: "a long directory cut from its start, its name kept, two cells clear of where it runs",
 			session: RoutingSession{ID: "9c2e", Dir: "~/Code/clients/an-agency/projects/the-website-rebuilt/website", On: "personal"},
-			left:    "9c2e  website  …gency/projects/the-website-rebuilt/website", right: "  runs on personal"},
+			left:    "9c2e  website  …ency/projects/the-website-rebuilt/website", right: "  runs on personal"},
 		{name: "a directory too long to say more than its name, left out",
 			session: RoutingSession{ID: "9c2e", Dir: "~/" + strings.Repeat("d", 40) + "/" + strings.Repeat("n", 40), On: "personal"},
 			left:    "9c2e  " + strings.Repeat("n", 40), right: "runs on personal"},
 		{name: "a directory's name too long, cut", session: RoutingSession{ID: "9c2e", Dir: "~/" + strings.Repeat("n", 60), On: "personal"},
-			left: "9c2e  " + strings.Repeat("n", 51) + "…", right: "  runs on personal"},
+			left: "9c2e  " + strings.Repeat("n", 50) + "…", right: "  runs on personal"},
 		{name: "a directory under the home, as ~", session: RoutingSession{ID: "9c2e", Dir: "/home/dev/Code/website", Home: "/home/dev", On: "personal"},
 			left: "9c2e  website  ~/Code/website", right: "runs on personal"},
 		{name: "no directory, its id alone", session: RoutingSession{ID: "9c2e47b1", On: "personal"}, left: "9c2e", right: "runs on personal"},
@@ -83,7 +83,7 @@ func TestASessionsRowNamesItAndWhereItRuns(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			width := cmp.Or(tt.width, 76)
+			width := cmp.Or(tt.width, 75)
 			want := tt.left
 			if tt.right != "" {
 				want += strings.Repeat(" ", width-ansi.StringWidth(tt.left)-ansi.StringWidth(tt.right)) + tt.right
@@ -223,7 +223,8 @@ func TestASessionsKeysRowPicksAndHasNoM(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := RoutingCard{Mode: ThisSession, Rows: make([]RoutingRow, tt.accounts+1)}
+			doc := routerDoc("", 0, namedAccounts(tt.accounts)...)
+			r := RoutingCard{Mode: ThisSession, Rows: RoutingRows(doc.At(now, claudeLike), nil, views.Stream{})}
 			if got := keyRow(r.card(Frame{Width: tt.width, Height: 40}).keys).plain(); got != tt.want {
 				t.Errorf("the keys row reads %q, want %q", got, tt.want)
 			}

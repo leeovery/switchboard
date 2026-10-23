@@ -2,7 +2,6 @@ package dashboard
 
 import (
 	"math"
-	"net/http"
 	"slices"
 	"strconv"
 	"strings"
@@ -40,11 +39,11 @@ const (
 
 // The parts of a row of the routing card, from its content's start: the
 // mark and the number, from choiceName, before the name; the name, a
-// label's column by Rule 2; nameGap on, the state, or auto's description,
-// as wide as stateCells has it; stateGap on, the windows, the second
-// choiceUsesApart from the first, as widestUses has them; and endGap on, at
-// the content's end, the reason or the sessions running, as endLeast has
-// it.
+// column of names, as labelColumn lays it; nameGap on, the state, or
+// auto's description, as wide as stateCells has it; stateGap on, the
+// windows, the second choiceUsesApart from the first, as widestUses has
+// them; and endGap on, at the content's end, the reason or the sessions
+// running, as endLeast has it.
 const (
 	choiceName      = 2
 	choiceNameAt    = choiceName + 2
@@ -76,28 +75,18 @@ func widestHeld() string {
 	})
 }
 
-// widestRefused is the widest reason a refused token gives, as closedBy says
-// it: refused for the widest family the ledger knows, with a status code of
-// three digits, as every HTTP status is, as "token refused (403, sonnet)".
-func widestRefused() string {
-	refusals := make([]string, len(ledger.Families()))
-	for i, family := range ledger.Families() {
-		refusals[i] = tokenRefused(status.Refusal{Status: http.StatusForbidden, Family: family})
-	}
-	return slices.MaxFunc(refusals, func(a, b string) int { return ansi.StringWidth(a) - ansi.StringWidth(b) })
-}
-
 // tokenRefused is the reason an account whose token the upstream refused
-// gives, as "token refused (401)".
+// gives, as "token refused (401)": the token's, never a family's, as the
+// router bars a token on a 401 alone.
 func tokenRefused(r status.Refusal) string {
 	return "token " + r.Answer()
 }
 
-// endLeast is the cells of a row's end at its least: the widest of the
-// reasons that end can't be cut short of, a time's, as widestHeld has it,
-// and a refusal's, as widestRefused has it.
+// endLeast is the cells of a row's end at its least: the widest reason the
+// router gives with a time, as widestHeld has it, which a token refused
+// fits within.
 func endLeast() int {
-	return max(ansi.StringWidth(widestHeld()), ansi.StringWidth(widestRefused()))
+	return ansi.StringWidth(widestHeld())
 }
 
 // widestUses are the cells of the rows' windows' use, as windowsWords says
@@ -131,9 +120,9 @@ type choiceColumns struct {
 }
 
 // rowParts are a row's parts on one line, as flex lays them: the mark and
-// number; the name, a label's column by Rule 2, the one part that narrows,
-// on one line to no fewer than oneLineNameKept of its natural; the state;
-// the windows; and the end.
+// number; the name, a column of names as labelColumn lays it, the one part
+// that narrows, on one line to no fewer than oneLineNameKept of its
+// natural; the state; the windows; and the end.
 func (r RoutingCard) rowParts() []flex.Part {
 	use := r.widestUses()
 	name := labelColumn(r.widestName())
@@ -147,14 +136,13 @@ func (r RoutingCard) rowParts() []flex.Part {
 	}
 }
 
-// widestName is the name column's natural: the widest of the accounts'
-// names, as widestNamed has it.
+// widestName is the name column's natural: the widest of its rows' names,
+// auto's among them, as widestNamed has it, so the column holds auto's
+// whole however short the accounts' are.
 func (r RoutingCard) widestName() int {
-	var names []string
-	for _, row := range r.Rows {
-		if row.Account != "" {
-			names = append(names, row.Name)
-		}
+	names := make([]string, len(r.Rows))
+	for i, row := range r.Rows {
+		names[i] = row.Name
 	}
 	return widestNamed(names)
 }
@@ -178,7 +166,7 @@ func (r RoutingCard) columns(width int) choiceColumns {
 	if s, oneLine := flex.Lay(width, parts...); oneLine {
 		return choiceColumns{name: s[1].Size, state: s[2].At, windows: s[3].At, endGap: endGap}
 	}
-	s, gap := r.stackedNames(width, parts[0], parts[1])
+	s, gap := r.stackedNames(width, parts[0])
 	uses := parts[3]
 	uses.Gap = 0
 	w, _ := flex.Lay(width, flex.Part{Natural: s[2].At}, uses)
@@ -189,18 +177,16 @@ func (r RoutingCard) columns(width int) choiceColumns {
 // follows it lie in width cells, and the gap before its end, whitespace
 // giving way before words: the name whole with gaps of nameGap and endGap;
 // where that doesn't fit, the gaps at narrowGap, once, and the name whole
-// where that fits, then narrowing toward labelLeast; then what follows it
-// narrowing, auto's description cut first, then the end.
-func (r RoutingCard) stackedNames(width int, key, name flex.Part) ([]flex.Span, int) {
+// where that fits, then narrowing toward its least, as labelColumn has it;
+// then what follows it is cut, auto's description first, then the end.
+func (r RoutingCard) stackedNames(width int, key flex.Part) ([]flex.Span, int) {
+	name := labelColumn(r.widestName())
 	whole := name
 	whole.Least = min(whole.Natural, whole.Most)
 	if s, fits := flex.Lay(width, key, whole, r.afterName(nameGap, endGap)); fits {
 		return s, endGap
 	}
-	name.Least, name.Narrows = labelLeast, 1
-	after := r.afterName(narrowGap, narrowGap)
-	after.Least, after.Narrows = stateCells()+narrowGap+endLeast(), 2
-	s, _ := flex.Lay(width, key, name, after)
+	s, _ := flex.Lay(width, key, name, r.afterName(narrowGap, narrowGap))
 	return s, narrowGap
 }
 

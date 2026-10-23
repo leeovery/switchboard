@@ -453,7 +453,7 @@ func labelledPanel(of LogView, label string) LogPanel {
 	return p
 }
 
-// A session's row's account is a label's column by Rule 2, laid out by flex
+// A session's row's account is a column of names, as labelColumn lays it out
 // with the rest of its row in ONLY: as wide as the widest name the panel
 // knows, at most 24; where ONLY's short of room, the rows start further
 // out first, then the name narrows toward 8.
@@ -485,9 +485,9 @@ func TestASessionsRowsAccountIsALabelsColumn(t *testing.T) {
 	}
 }
 
-// The panel is as wide as it was signed off at, 124, with the frames' names,
-// wherever it shows both sides, or as the frame has room for.
-func TestWithTheFramesNamesThePanelIsItsSignedOffWidth(t *testing.T) {
+// The panel is panelNarrowest wide, 124, with the frames' names, wherever it
+// shows both sides, or as the frame has room for.
+func TestWithTheFramesNamesThePanelIsItsNarrowest(t *testing.T) {
 	for _, of := range []LogView{LogRequests, LogEvents} {
 		p := framesPanel(of, 0)
 		for width := 40; width <= 220; width++ {
@@ -501,8 +501,8 @@ func TestWithTheFramesNamesThePanelIsItsSignedOffWidth(t *testing.T) {
 }
 
 // Where a configured name is long enough that today's sessions' account
-// reaches its natural by Rule 2, the panel widens to its parts' natural
-// where the frame has room: the name whole, on either side.
+// reaches its natural, as wide as the name, the panel widens to its parts'
+// natural where the frame has room: the name whole, on either side.
 func TestALongNameWidensThePanelToItsParts(t *testing.T) {
 	const name = "a-very-long-account-name"
 	for _, of := range []LogView{LogRequests, LogEvents} {
