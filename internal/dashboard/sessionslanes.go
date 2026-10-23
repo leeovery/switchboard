@@ -102,6 +102,9 @@ type lanesBoard struct {
 	lanes []boardLane
 	step  laneStep
 	keyAt int
+	// rowAtATime is whether the lanes scroll a row at a time, as
+	// scrollsByRows works it out once a board.
+	rowAtATime bool
 }
 
 // boardLane is an account's lane: the account, as the lines name it, and its
@@ -191,6 +194,7 @@ func (f Frame) lanesOf(doc status.Document, now time.Time, laid boardLayout) lan
 			break
 		}
 	}
+	b.rowAtATime = b.scrollsByRows()
 	return b
 }
 
@@ -289,21 +293,24 @@ func (b lanesBoard) shown() lanesShown {
 	return s
 }
 
-// byRows reports whether the lanes scroll a row at a time, where they don't
-// fit the view, as pagesByRows has it: where a lane doesn't fit it, under ▲
+// byRows reports whether the lanes scroll a row at a time, as scrollsByRows
+// has it.
+func (b lanesBoard) byRows() bool {
+	return b.rowAtATime
+}
+
+// scrollsByRows reports whether the lanes scroll a row at a time, where they
+// don't fit the view, as pagesByRows has it: where a lane doesn't fit it, under ▲
 // where any are above it, so an account at a time would cut it short; and on
 // up from there, while an account at a time would show less than a row at a
 // time a row shorter.
-func (b lanesBoard) byRows() bool {
+func (b lanesBoard) scrollsByRows() bool {
 	if b.fits() {
 		return false
 	}
-	whole := b.laned().c
 	return pagesByRows(b.f.viewRows(), b.eachFits, func(rows int) int {
 		return b.height(b.lanes[:b.fittingIn(0, rows)])
-	}, func(rows int) rowsPaged {
-		return pagedWhole(whole, rows)
-	})
+	}, b.pagedIn)
 }
 
 // eachFits reports whether each lane fits a view rows tall, under ▲ where
@@ -324,10 +331,28 @@ func (b lanesBoard) laned() lanesShown {
 	return s
 }
 
-// paged is how the lanes, drawn whole, page in the view's rows, a row at a
-// time, each lane's name row with its windows' row.
+// paged is how the lanes page in the view's rows, a row at a time, as
+// pagedIn has them.
 func (b lanesBoard) paged() rowsPaged {
-	return pagedWhole(b.laned().c, b.f.viewRows())
+	return b.pagedIn(b.f.viewRows())
+}
+
+// pagedIn is how the lanes, laid whole from row 0 as drawLanes draws them,
+// page in a view rows tall, a row at a time, each lane's name row heading
+// the rows under it, so it shows with its windows' row: worked out from
+// their rows, never drawn, as it's asked for at every height under the
+// view's.
+func (b lanesBoard) pagedIn(rows int) rowsPaged {
+	p := rowsPaged{rows: rows, content: b.height(b.lanes)}
+	y := 0
+	for i, l := range b.lanes {
+		if i > 0 {
+			y += b.step.apart
+		}
+		p.heads = append(p.heads, headed{at: y, first: y + 1})
+		y += b.rows(l)
+	}
+	return p
 }
 
 // pagedShown are the lanes the view shows a row at a time, from as far down
@@ -335,7 +360,7 @@ func (b lanesBoard) paged() rowsPaged {
 // rows are out of view, above and below, as USAGE says it.
 func (b lanesBoard) pagedShown() lanesShown {
 	whole := b.laned()
-	paged := pagedWhole(whole.c, b.f.viewRows())
+	paged := b.paged()
 	from, to := paged.shown(b.f.Scroll)
 	s := lanesShown{c: growing(b.f.Width), filled: whole.filled, out: outOfView(from, paged.content-to, b.f.Width, usageRowsOut)}
 	s.c.paste(whole.c, from, 0, to-from)
