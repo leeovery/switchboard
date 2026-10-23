@@ -1033,17 +1033,17 @@ order the view's section gives.
   line, the heading row and the key line take their short forms with them. That's all "on a phone"
   means in this design: a phone's chrome. A view's arrangement follows its own parts, under
   either chrome.
-- **A column of accounts' names** takes the widest name configured as its natural; at least 8
-  cells, or its natural where that's fewer; at most 24, a longer name cut with `…`, the cells of
-  its number and marks, and the column's gap, kept beside it. So where every name is shorter than
-  8 cells, the column is as wide as its names at every width. A column of names a record may hold,
-  the Log's `on`, Events' `account`, a turn's `on`, the request table of a turn opened and a
-  session's stays, may name an account no longer configured, so each label counts 8 at the least,
-  and such a name reads its first cells and `…`. One owner works this out (`labelcolumn.go`), and
-  every view takes its column, its least, or a sentence's cut of its names from there, none
-  counting 8 or 24 itself (`guardlabels_test.go`), but the views whose sections give figures of
-  their own: Compare's 8 and 24, Detail's list's 14 and 24, the Sessions List's `on`'s 14 and the
-  Switchboard's call's 6.
+- **A column of accounts' names** takes the widest name configured as its natural; at least 8 cells,
+  or its natural where that's fewer; at most 24, a longer name cut with `…`, the cells of its number
+  and marks, and the column's gap, kept beside it. So where every name is shorter than 8 cells, the
+  column is as wide as its names at every width. A column of names a record may hold, the Log's
+  `on`, Events' `account`, the Log panel's sessions, a turn's `on`, the request table of a turn
+  opened and a session's stays, may name an account no longer configured, so each label counts 8 at
+  the least, and such a name reads its first cells and `…`. One owner works this out
+  (`labelcolumn.go`), and every view takes its column, its least, or a sentence's cut of its names
+  from there, none counting 8 or 24 itself (`guardlabels_test.go`), but the views whose sections
+  give figures of their own: Compare's 8 and 24, Detail's list's 14 and 24, the Sessions List's
+  `on`'s 14 and the Switchboard's call's 6.
 - **A figure has a stated bound and is never cut:** it's given its bound's cells, and past the
   bound it says so, as `999+` and `$9999.99+`.
 - **A live view's form never hangs on its data.** Its naturals come from what's configured, the
@@ -1547,16 +1547,16 @@ line after it, as a shell's prompt spaces itself (settled in the plan).
   column. With one account it's still `1`, so no layout changes with the number of accounts.
 - **The name column fits the names,** a column of names: the widest number, label and marks, plus
   two cells kept for `▲` on any account without it, as `▲` moves between accounts as routing does
-  and no label may move with it, plus a gap of two cells, each label counted to 24 cells at the most;
-  at its least, a label of 8 cells, or the widest label's own where that's fewer, each name's cut
-  to it, its number and marks kept. The routing
-  card's names and the Log panel's accounts keep a least of 8, or their names' widest where
-  that's fewer, so their column is never wider than its names; the other columns follow. It counts what's
-  configured, never what's shown, so it never moves as `▲` does. It's that wide wherever the frame
-  has room, the bars giving up the cells, and narrows toward its least, a cell at a time, only once
-  the bars are at their least and the words short; so ROUTING, which takes it, never goes from one
-  row an account back to two as the frame widens. One column serves every section that names
-  accounts.
+  and no label may move with it, plus a gap of two cells, each label counted to 24 cells at the
+  most; at its least, a label of 8 cells, or the widest label's own where that's fewer, each name's
+  cut to it, its number and marks kept. The routing card's names keep a least of 8, or their names'
+  widest where that's fewer, so their column is never wider than its names; the Log panel's
+  accounts, which a session today may name though the config no longer has it, keep 8 at the least;
+  the other columns follow. It counts what's configured, never what's shown, so it never moves as
+  `▲` does. It's that wide wherever the frame has room, the bars giving up the cells, and narrows
+  toward its least, a cell at a time, only once the bars are at their least and the words short; so
+  ROUTING, which takes it, never goes from one row an account back to two as the frame widens. One
+  column serves every section that names accounts.
 - **A longer label is cut** with `…` to fit, its number and marks kept, and the cells for `▲` kept
   too, so a label never changes when `▲` moves: a label past 24 cells, or any where the frame
   narrows the column. Labels are free text, and an email address is the common long one.
@@ -3099,8 +3099,8 @@ where the parts lay it, as Narrower and wider says.
     `● under pressure`, so a name is whole wherever it fits beside them, and narrows toward its
     least before any lead is cut, and the column holds still as states change (16 cells, column
     102, for `2 personal ◆`; with a call moved, 26 of the 28 `3 side-hustle-consulting ▲` takes
-    whole at 108, and all 28 from 136). A model's own lead, as `Fable wk at its cap`, takes its window's label and
-    may be wider: it's cut where the names leave it no more. The state words:
+    whole at 108, and all 28 from 136). A model's own lead, as `Fable wk at its cap`, takes its
+    window's label and may be wider: it's cut where the names leave it no more. The state words:
     `● open`, ` · new sessions come here` added on the account new sessions go to,
     `● at its cap · back 17:10 · new sessions go elsewhere`, `● under pressure · out ~16:05`,
     `■ limit reached · back 16:30`, `■ refused (401) · its token needs renewing` or `○ not read yet`
@@ -4134,15 +4134,15 @@ cursor's on alone. Its title, in its top edge: `LOG · REQUESTS · WHAT IT SHOWS
 - **What's remembered:** the columns shown, in the preferences file (see Themes). The filters are
   not, so the Log opens on everything.
 
-**Events.** A line an event, as a table with heads, from column 2, its columns two cells apart,
-each a part flex lays out (`logevents.go`): `at`, 8; `session`, as Requests' is; `event`, 8;
-`account`, at least 8, its natural and its most the longest line a move can make, 8 at the least,
-as an event may name an account no longer configured: the widest
-configured label, ` → `, and the second widest, each counted 24 at the most, or the widest alone
-with one account configured, a pin of several cut to it; and `what happened`, 40 at the least, and
-the room left. Where they don't fit, they give way in this order: the session, whole; `what
-happened` cut to 20; then `account` toward its least. So with the frames' accounts, their move 15
-cells, the session shows down to 98 columns, and a phone's 52 show `at`, `event`, `account` and
+**Events.** A line an event, as a table with heads, from column 2, its columns two cells apart, each
+a part flex lays out (`logevents.go`): `at`, 8; `session`, as Requests' is; `event`, 8; `account`,
+at least 8, its natural and its most the longest line a move can make: the widest configured label,
+` → `, and the second widest, each counted 24 at the most and 8 at the least, as an event may name
+an account no longer configured, or the widest alone with one account configured, a pin of several
+cut to it, each name cut at 24; and `what happened`, 40 at the least, and the room left. Where they
+don't fit, they give way in this order: the session, whole; `what happened` cut to 20; then
+`account` toward its least. So with the frames' accounts, their move 19 cells, `side` counted at 8,
+the session shows down to 102 columns, and a phone's 52 show `at`, `event`, `account` and
 `what happened`.
 
 - **`at` and `session`** as Requests' are; `session` is blank for an account's event, and holds a

@@ -76,9 +76,9 @@ func TestAColumnARecordMayHoldNeverNarrowsPastALabelsLeast(t *testing.T) {
 
 // With every configured name of 2 or 3 cells, a Requests row and an Events
 // row naming an account no longer configured, of 11 cells, read its first 7
-// and an ellipsis, as the column's 8 cells hold it. Each is drawn of one
-// account configured and of two, as a move between two makes Events'
-// natural 8 already.
+// and an ellipsis, as the column's 8 cells hold it; but Events' of two
+// accounts, whose column holds a move's two names, each of 8 at the least,
+// reads it whole.
 func TestARecordedNameNoLongerConfiguredReadsItsFirstCells(t *testing.T) {
 	ab, ops := status.Account{ID: "ab", TokenSet: true}, status.Account{ID: "ops", TokenSet: true}
 	gone := "consultancy"
@@ -97,8 +97,12 @@ func TestARecordedNameNoLongerConfiguredReadsItsFirstCells(t *testing.T) {
 			for _, doc := range []status.Document{routerDoc("ops", 0, ops), routerDoc("ab", 0, ab, ops)} {
 				f := logFrameOf(tt.page, 160, 24)
 				row := textOf(f.Draw(doc, logDayNoon))[f.top()+1]
-				if cut := prose.Cut(gone, 8); !strings.Contains(row, " "+cut+" ") || cut != "consult…" {
-					t.Errorf("of %d accounts, the row reads %q, want it naming %q", len(doc.Accounts), row, cut)
+				want := "consult…"
+				if tt.name == "events" && len(doc.Accounts) == 2 {
+					want = gone
+				}
+				if !strings.Contains(row, " "+want+" ") {
+					t.Errorf("of %d accounts, the row reads %q, want it naming %q", len(doc.Accounts), row, want)
 				}
 			}
 		})
@@ -175,5 +179,36 @@ func TestEventsCutALoneNameAtALabelsMost(t *testing.T) {
 	row := textOf(f.Draw(doc, logDayNoon))[f.top()+1]
 	if cut := prose.Cut(label, 24); !strings.Contains(row, " "+cut+" ") || strings.Contains(row, label[:24]) {
 		t.Errorf("the row reads %q, want it naming %q", row, cut)
+	}
+}
+
+// A move names two accounts, each counting a label's 8 cells at the least
+// in the Events' column, as either may be no longer configured: with every
+// configured name of 2 or 3 cells, a move from ab to old-account names
+// old-account's first 7 cells at the least.
+func TestEventsMoveCountsEachNameAtALabelsLeast(t *testing.T) {
+	doc := routerDoc("ab", 0, status.Account{ID: "ab", TokenSet: true}, status.Account{ID: "ops", TokenSet: true})
+	moved := status.Event{
+		ID: 1, At: logDayNoon.Add(-time.Hour), Kind: status.EventMoved, Session: "d28c0b1e", From: "ab", To: "old-account",
+		Reason: "moved: ab is at its reserve", ForcedBy: 1,
+	}
+	f := logFrameOf(eventsShown(moved), 160, 24)
+	row := textOf(f.Draw(doc, logDayNoon))[f.top()+1]
+	if !strings.Contains(row, "ab → old-acc") {
+		t.Errorf("the row reads %q, want it naming the move ab → old-acc… at the least", row)
+	}
+}
+
+// The Log panel's sessions today may be on an account no longer configured,
+// so their account column counts a label's 8 cells at the least: with every
+// configured name of 2 or 3 cells, old-account reads its first 7 and an
+// ellipsis.
+func TestTheLogPanelsSessionsNameAnAccountNoLongerConfigured(t *testing.T) {
+	p := framesPanel(LogRequests, 0)
+	p.Accounts = []status.AccountNow{{ID: "ab"}, {ID: "ops"}}
+	p.Sessions[5].Account = "old-account"
+	at := p.sessionColumns(78)
+	if got, want := p.sessionWords(p.Sessions[5], at.account).plain(), "old-acc… "; !strings.Contains(got, " "+want) {
+		t.Errorf("the row reads %q, want it naming %q", got, want)
 	}
 }

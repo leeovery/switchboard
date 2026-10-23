@@ -195,10 +195,10 @@ func TestTheEventsDrawTheirDaysInTheirColumns(t *testing.T) {
 	p := eventsShown(pinned, workAtItsCap)
 	wide := textOf(logFrameOf(p, 160, 24).Draw(logAccounts(), logDayNoon))
 	want := []string{
-		"  at        session            event     account          what happened",
-		"● 23:50:00                     pin       personal         new sessions go there",
+		"  at        session            event     account              what happened",
+		"● 23:50:00                     pin       personal             new sessions go there",
 		"  Wed 30 Sep  " + rule(135) + "  Thu 1 Oct",
-		"╎ 09:30:00                     cap       work             95% of its 5-hour window: its 3 sessions move to side as their next requests come",
+		"╎ 09:30:00                     cap       work                 95% of its 5-hour window: its 3 sessions move to side as their next requests come",
 	}
 	if got := wide[6:10]; !slices.Equal(got, want) {
 		t.Errorf("the Events read\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -209,7 +209,7 @@ func TestTheEventsDrawTheirDaysInTheirColumns(t *testing.T) {
 	}
 
 	c := logFrameOf(p, 160, 24).page(logAccounts(), logDayNoon)
-	if use := c.at(58, 9).ink; use.token != theme.VizRamp4 || !use.bold {
+	if use := c.at(62, 9).ink; use.token != theme.VizRamp4 || !use.bold {
 		t.Errorf("the cap's 95%% is inked %+v, want bold in the ramp's last stop", use)
 	}
 	numbers := logFrameOf(p, 160, 24).Numbers(routerDoc("side", 0), logDayNoon)

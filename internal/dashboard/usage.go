@@ -306,17 +306,35 @@ func (n accountName) line(column int) line {
 }
 
 // fitted is the name in the cells given, nameGap of them kept after it, its
-// label cut short to keep its number and its marks, and no cells kept for a
-// ▲ it hasn't.
+// label cut short to keep its number and its marks, as labelIn cuts it, and
+// no cells kept for a ▲ it hasn't.
 func (n accountName) fitted(cells int) line {
-	return n.labelIn(cells - nameGap - len(n.number) - 1 - n.marks().width())
+	return n.labelIn(n.labelRoom(cells))
 }
 
-// labelIn is the name, its label cut short to the cells given: its label
-// alone, unnumbered, where it has no number, as an account the config no
-// longer has.
+// said is the name as a heading says it, in the cells given, as fitted
+// keeps them, its label cut only where they run short, never at a label's
+// most, as a heading names the account whole wherever it fits.
+func (n accountName) said(cells int) line {
+	return n.labelled(prose.Cut(n.label, n.labelRoom(cells)))
+}
+
+// labelRoom are the cells the name's label has of the cells given: those
+// past nameGap, its number and the space after it, and its marks.
+func (n accountName) labelRoom(cells int) int {
+	return cells - nameGap - len(n.number) - 1 - n.marks().width()
+}
+
+// labelIn is the name, its label cut to the cells given as labelledIn cuts
+// it, so never past a label's most.
 func (n accountName) labelIn(cells int) line {
-	label := span{prose.Cut(n.label, cells), n.inked(titleInk)}
+	return n.labelled(labelledIn(n.label, cells))
+}
+
+// labelled is the name, its label as given: its label alone, unnumbered,
+// where it has no number, as an account the config no longer has.
+func (n accountName) labelled(text string) line {
+	label := span{text, n.inked(titleInk)}
 	if n.number == "" {
 		return append(line{label}, n.marks()...)
 	}

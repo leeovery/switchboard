@@ -573,7 +573,7 @@ func fitting(heights []int, room int) int {
 // reason or sessions running. Stacked, an account's windows take a row of
 // their own under it.
 func (r RoutingCard) choice(row RoutingRow, at choiceColumns, width int) []line {
-	head := line{r.mark(row), spaces(choiceName - 1), {padded(row.Key, choiceKey), dimInk}, {prose.Cut(row.Name, at.name), titleInk}}
+	head := line{r.mark(row), spaces(choiceName - 1), {padded(row.Key, choiceKey), dimInk}, {labelledIn(row.Name, at.name), titleInk}}
 	if row.Account == "" {
 		return []line{padTo(head, at.state, r.autoChooses(width-at.state))}
 	}

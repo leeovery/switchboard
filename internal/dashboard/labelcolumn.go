@@ -79,7 +79,9 @@ func recordedNatural(natural int) int {
 }
 
 // recordedNames is a column of names a record may hold, its natural given:
-// recordedNatural of it, and labelsLeast of that at the least.
+// recordedNatural of it, and labelsLeast of that at the least. It has no
+// most of its own, unlike recordedAccounts, as its natural may be a move's
+// two names and the arrow between, each name cut as labelledIn cuts it.
 func recordedNames(natural int) flex.Part {
 	natural = recordedNatural(natural)
 	return flex.Part{Least: labelsLeast(natural), Natural: natural}
@@ -139,6 +141,14 @@ func labelColumnCells(name string) int {
 // it's said outside one: cut to labelColumnCells.
 func asLabelled(name string) string {
 	return prose.Cut(name, labelColumnCells(name))
+}
+
+// labelledIn is an account's name cut to the cells given, the one cutter of
+// a label: never past labelColumnCells, however many it's given, so a label
+// beside a name with wider marks is cut at labelMost as the rest are, and
+// the cells past it are blank.
+func labelledIn(name string, cells int) string {
+	return prose.Cut(name, min(cells, labelColumnCells(name)))
 }
 
 // labelsCells are the cells of the names of the accounts the moment m

@@ -14,8 +14,8 @@ var laneHead = regexp.MustCompile(`^ ?[0-9]+( [^ █▒─│]+)*`)
 // sizes, as the sweep can't see a cut beside lanes that fill the row: the
 // label column as wide as the widest, ▲'s cells kept, each label whole up to
 // 24 cells, its number and marks beside it, so the long names' 17 and 22
-// read whole; and collapsed, each lane's number and marks. Every lane row drawn is headed by one of the labels, and each
-// label heads one.
+// read whole; and collapsed, each lane's number and marks. Every lane row
+// drawn is headed by one of the labels, and each label heads one.
 func TestRunwaysLabelsReadWholeAtTheOwnersSizes(t *testing.T) {
 	frames := []string{"1 work", "2 personal ◆", "3 side ▲"}
 	tests := []struct {

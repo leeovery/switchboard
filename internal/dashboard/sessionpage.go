@@ -302,9 +302,10 @@ func (d sessionDrawn) shortNamesCells(where views.WhereSaid) int {
 	})
 }
 
-// labelCutAt names an account by its label cut to most cells.
+// labelCutAt names an account by its label cut to most cells, as
+// labelledIn cuts it.
 func labelCutAt(most int) func(string) string {
-	return func(label string) string { return prose.Cut(label, most) }
+	return func(label string) string { return labelledIn(label, most) }
 }
 
 // leftOf draws right at the right of row y, and returns the cells left of

@@ -119,7 +119,7 @@ func familyDot(family string, name ink) line {
 // shows no routing, so no ▲.
 func historyAccount(name string, primary bool, room int) line {
 	mark := historyMark(primary)
-	return append(line{{prose.Cut(name, room-mark.width()), titleInk}}, mark...).fit(room)
+	return append(line{{labelledIn(name, room-mark.width()), titleInk}}, mark...).fit(room)
 }
 
 // historyMark is the mark History's rows put after an account's name: ◆

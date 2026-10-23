@@ -409,7 +409,7 @@ func TestDaysNamesEachAccount(t *testing.T) {
 		{name: "the primary marked", account: views.DaysStrip{Of: "work", Label: "Work", Primary: true, Days: stripOf(busy)}, width: 160, want: "Work ◆ "},
 		{name: "cut beside its strip", account: long, width: 160, want: "a-long-account-name-for…  "},
 		{name: "cut, keeping its ◆", account: views.DaysStrip{Of: long.Of, Primary: true, Days: long.Days}, width: 160, want: "a-long-account-name-for… ◆  "},
-		{name: "on a phone, cut before its count", account: long, width: 52, want: "a-long-account-name-for-…   12 5-hour limits", whole: true},
+		{name: "on a phone, cut before its count", account: long, width: 52, want: "a-long-account-name-for…    12 5-hour limits", whole: true},
 		{name: "on a narrower phone, its count kept", account: long, width: 40, want: "a-long-ac…   12 5-hour limits", whole: true},
 		{name: "narrower than its count and a letter, the count at the edge", account: long, width: 22, want: "a…   12 5-hour limits", whole: true},
 		{name: "narrower still, the count cut at the edge", account: long, width: 20, want: "a…   12 5-hour lim…", whole: true},
@@ -503,10 +503,9 @@ func TestDaysShowsTheWeeksThatFitWithEachCountAfterThem(t *testing.T) {
 }
 
 // Days' label column takes its widest name, a label at most 24, and a gap of
-// 2: of
-// every account, not only those BY ACCOUNT shows, so it holds still as the
-// accounts scroll; and it narrows only once every week but the last has
-// given way, so its names read whole before an eighth week shows.
+// 2: of every account, not only those BY ACCOUNT shows, so it holds still
+// as the accounts scroll; and it narrows only once every week but the last
+// has given way, so its names read whole before an eighth week shows.
 func TestDaysLabelColumnIsItsWidestName(t *testing.T) {
 	scrolledPast := slices.Concat(tenDays, []views.DaysStrip{{Of: "research-lab", Primary: true, Days: stripOf(busy)}})
 	long := views.DaysStrip{Of: "an-account-named-past-its-most", Days: stripOf(busy)}

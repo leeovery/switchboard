@@ -61,16 +61,18 @@ const (
 // eventsAccountCells are the Events' account column's cells, of the moment
 // m: the longest line a move can make, from one account to another, the two
 // widest names, as labelsCells has them, and the arrow between; the widest
-// alone where it knows one. A pin naming several is cut to them.
+// alone where it knows one. Each counts recordedNatural of its cells, as an
+// event may name an account no longer configured. A pin naming several is
+// cut to them.
 func eventsAccountCells(m status.Moment) int {
 	cells := labelsCells(m)
 	switch len(cells) {
 	case 0:
 		return 0
 	case 1:
-		return cells[0]
+		return recordedNatural(cells[0])
 	}
-	return cells[0] + ansi.StringWidth(moveArrow) + cells[1]
+	return recordedNatural(cells[0]) + ansi.StringWidth(moveArrow) + recordedNatural(cells[1])
 }
 
 // eventsParts are the Events' parts across a row, by what each holds, each

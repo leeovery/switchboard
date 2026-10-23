@@ -67,6 +67,8 @@ func TestTheEventsColumnsAreLaidOutAtEveryWidth(t *testing.T) {
 		{width: 97, account: 15, want: "at 2–9 · event 12–19 · account 22–36 · what happened 39–96"},
 		{width: 98, account: 15, want: "at 2–9 · session 12–28 · event 31–38 · account 41–55 · what happened 58–97"},
 		{width: 160, account: 15, want: "at 2–9 · session 12–28 · event 31–38 · account 41–55 · what happened 58–159"},
+		{width: 101, account: 19, want: "at 2–9 · event 12–19 · account 22–40 · what happened 43–100"},
+		{width: 102, account: 19, want: "at 2–9 · session 12–28 · event 31–38 · account 41–59 · what happened 62–101"},
 		{width: 160, account: 2, want: "at 2–9 · session 12–28 · event 31–38 · account 41–48 · what happened 51–159"},
 		{width: 173, account: 49, want: "at 2–9 · session 12–28 · event 31–38 · account 41–89 · what happened 92–172"},
 		{width: 73, account: 49, want: "at 2–9 · event 12–19 · account 22–50 · what happened 53–72"},
@@ -82,7 +84,8 @@ func TestTheEventsColumnsAreLaidOutAtEveryWidth(t *testing.T) {
 
 // The Events' account column takes the longest line a move can make: the
 // two widest names of the accounts configured, each counted labelMost at
-// the most, and the arrow between; the one name where there's one.
+// the most and labelLeast at the least, as an event may name an account no
+// longer configured, and the arrow between; the one name where there's one.
 func TestTheEventsAccountIsTheLongestMove(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -91,7 +94,8 @@ func TestTheEventsAccountIsTheLongestMove(t *testing.T) {
 	}{
 		{name: "none", want: 0},
 		{name: "one", accounts: []status.Account{{ID: "personal"}}, want: 8},
-		{name: "the two widest", accounts: []status.Account{{ID: "work"}, {ID: "personal"}, {ID: "side"}}, want: 8 + 3 + 4},
+		{name: "one short, at labelLeast", accounts: []status.Account{{ID: "ab"}}, want: 8},
+		{name: "the two widest, side at labelLeast", accounts: []status.Account{{ID: "work"}, {ID: "personal"}, {ID: "side"}}, want: 8 + 3 + 8},
 		{
 			name:     "long names, each at labelMost",
 			accounts: []status.Account{{ID: "a", Label: "an-account-named-at-great-length"}, {ID: "b", Label: "side-hustle-consulting"}, {ID: "c"}},
@@ -152,40 +156,40 @@ func TestTheEventsDrawEachKindOfRowAtEachWidth(t *testing.T) {
 		{
 			width: 80,
 			want: []string{
-				"● 23:50:00  pin       personal         new sessions go there",
+				"● 23:50:00  pin       personal             new sessions go there",
 				"  Wed 30 Sep  ───────────────────────────────────────────────────────  Thu 1 Oct",
-				"╎ 09:30:00  cap       work             95% of its 5-hour window: its 3 sessions…",
-				"▸ 14:35:00  moved     work → side      work reached…   1.0M cached again, $8.00",
+				"╎ 09:30:00  cap       work                 95% of its 5-hour window: its 3 sess…",
+				"▸ 14:35:00  moved     work → side          work reac…   1.0M cached again, $8.00",
 			},
 			costs: true, last: "…",
 		},
 		{
 			width: 100,
 			want: []string{
-				"● 23:50:00                     pin       personal         new sessions go there",
+				"● 23:50:00  pin       personal             new sessions go there",
 				"  Wed 30 Sep  ───────────────────────────────────────────────────────────────────────────  Thu 1 Oct",
-				"╎ 09:30:00                     cap       work             95% of its 5-hour window: its 3 sessions…",
-				"▸ 14:35:00  d28c               moved     work → side      work reached i…   1.0M cached again, $8.00",
-			},
-			costs: true,
-		},
-		{
-			width: 120,
-			want: []string{
-				"● 23:50:00                     pin       personal         new sessions go there",
-				"  Wed 30 Sep  " + rule(95) + "  Thu 1 Oct",
-				"╎ 09:30:00                     cap       work             95% of its 5-hour window: its 3 sessions move to side as thei…",
-				"▸ 14:35:00  d28c               moved     work → side      work reached its limit   1.0M cached again, $8.00",
+				"╎ 09:30:00  cap       work                 95% of its 5-hour window: its 3 sessions move to side as…",
+				"▸ 14:35:00  moved     work → side          work reached its limit   1.0M cached again, $8.00",
 			},
 			costs: true, last: "…",
 		},
 		{
+			width: 120,
+			want: []string{
+				"● 23:50:00                     pin       personal             new sessions go there",
+				"  Wed 30 Sep  " + rule(95) + "  Thu 1 Oct",
+				"╎ 09:30:00                     cap       work                 95% of its 5-hour window: its 3 sessions move to side as…",
+				"▸ 14:35:00  d28c               moved     work → side          work reached its limit   1.0M cached again, $8.00",
+			},
+			costs: true,
+		},
+		{
 			width: 200,
 			want: []string{
-				"● 23:50:00                     pin       personal         new sessions go there",
+				"● 23:50:00                     pin       personal             new sessions go there",
 				"  Wed 30 Sep  " + rule(175) + "  Thu 1 Oct",
-				"╎ 09:30:00                     cap       work             95% of its 5-hour window: its 3 sessions move to side as their next requests come",
-				"▸ 14:35:00  d28c               moved     work → side      work reached its limit   1.0M cached again, $8.00",
+				"╎ 09:30:00                     cap       work                 95% of its 5-hour window: its 3 sessions move to side as their next requests come",
+				"▸ 14:35:00  d28c               moved     work → side          work reached its limit   1.0M cached again, $8.00",
 			},
 			costs: true,
 		},
