@@ -825,9 +825,8 @@ func TestTheKeyLineSaysWhatTheMarksMean(t *testing.T) {
 
 // From 52 columns to 220, by window and by account, with the sample's names
 // and with names short enough that the key is one line at narrower widths:
-// a key line one line at a width is one
-// line wider, and its words never step down to a narrower form, as its gaps
-// narrow to three before it steps down.
+// a key line one line at a width is one line wider, and its words never step
+// down to a narrower form, as its gaps narrow to three before it steps down.
 func TestAKeyLineNeverStepsDownAsTheWidthGrows(t *testing.T) {
 	short := trio(
 		account("work", func(a *status.Account) { a.Label, a.Reserve = "wk", 0 }),

@@ -1600,13 +1600,13 @@ Then, as only the Overview has them:
   leave.
 - **The key line names the marks the accounts carry,** after the cap's: `◆` in `text.tertiary` and
   ` primary`, and `▲` in `accent.mode` and ` new sessions go here`, each four spaces after the part
-  before, in `text.muted`, at any width. The gaps are three at the least: where four don't fit,
-  they narrow to three before the line takes a narrower form, so the form a key line takes never
-  steps down as the width grows, and its gaps are four wherever they fit. `▲`'s words take
-  the first of their two forms that fits the line, ` new sessions go here`, then ` new`, as
-  `keyForms` and `firstFit` have them, never by the phone: in full on a phone of 73, and at 52
-  where no cap's part comes before them. The Switchboard's key, the Overview's, follows the same
-  rule.
+  before, in `text.muted`. The gaps are three at the least: where a form's four don't fit, they
+  narrow to three before the line takes a narrower form, so the form a key line takes never
+  steps down as the width grows, and its gaps are four wherever its form fits at four. `▲`'s
+  words take the first of their two forms that fits the line, ` new sessions go here`, then
+  ` new`, as `keyForms` and `firstFit` have them, never by the phone: in full on a phone of 73,
+  and at 52 where no cap's part comes before them. The Switchboard's key, the Overview's,
+  follows the same rule.
 - **Rows short,** USAGE gives way in steps, each a step of its least the planner takes (see Room):
   its accounts a row apart, the blank row between each two gone, in every window and by account
   between blocks; then the blank rows under its heading and its windows' headings; then its key
