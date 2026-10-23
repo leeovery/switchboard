@@ -520,17 +520,17 @@ const (
 )
 
 // The turns an account's row gives way in as it narrows, in this order, so
-// it keeps its figures before its name, and its name, its points and its
-// worth always: its points' words go short, losing no figure; its name
-// narrows to its least; its points' windows leave from the end, down to
-// one; then its requests leave, then its time there. Growing, they come
-// back in the reverse order.
+// it keeps its windows before its other figures, its figures before its
+// name, and its name, its points and its worth always: its points' words go
+// short, losing no figure; its name narrows to its least; its requests
+// leave, then its time there; then its points' windows leave from the end,
+// down to one. Growing, they come back in the reverse order.
 const (
 	stayWordsNarrow = iota + 1
 	stayNameNarrows
-	stayWindowsNarrow
 	stayRequestsLeave
 	stayTimeLeaves
+	stayWindowsNarrow
 )
 
 // The cells of an account's row's parts that hold theirs whole: its time

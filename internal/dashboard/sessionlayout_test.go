@@ -638,14 +638,16 @@ func TestATurnsRowNeverSaysLessAsTheFrameWidens(t *testing.T) {
 }
 
 // An account's row keeps its name, its points and its worth at every width,
-// its figures before its name: as the frame narrows, its points' words go
-// short, then its name narrows to a label's least, then its points' windows
-// leave from the end, down to one, then its requests leave, then its time
-// there, each only where the row has no cell spare, and each step in turn,
-// none skipped that its bounds leave room for. Where its requests or its time have left, what they free goes
-// to the name and the points in their turns. As the frame widens, no part
-// leaves, nor does a name read shorter, but where a part comes back: the
-// points and the name give it back the cells they took while it was gone.
+// its windows before its other figures, and its figures before its name: as
+// the frame narrows, its points' words go short, then its name narrows to a
+// label's least, then its requests leave, then its time there, then its
+// points' windows leave from the end, down to one, each only where the row
+// has no cell spare, and each step in turn, none skipped that its bounds
+// leave room for. Where its requests or its time have left, what they free
+// goes back to the name and the points in their turns. As the frame widens,
+// no part leaves, nor does a name read shorter, but where a part comes back:
+// the points and the name give it back the cells they took while it was
+// gone.
 func TestAnAccountsRowGivesWayInItsOrder(t *testing.T) {
 	for _, world := range pageWorlds {
 		var before sessionDrawn
@@ -659,7 +661,14 @@ func TestAnAccountsRowGivesWayInItsOrder(t *testing.T) {
 			}
 			if width == 40 {
 				names, bounds := stayNameCells(d.names), d.windowsCells
-				room := []bool{true, bounds.wide > bounds.short, names.natural > names.least, bounds.short > bounds.one, true, true}
+				room := []bool{
+					0:                 true,
+					stayWordsNarrow:   bounds.wide > bounds.short,
+					stayNameNarrows:   names.natural > names.least,
+					stayRequestsLeave: true,
+					stayTimeLeaves:    true,
+					stayWindowsNarrow: bounds.short > bounds.one,
+				}
 				for s, has := range room {
 					if has {
 						want = append(want, s)
@@ -698,7 +707,9 @@ func TestAnAccountsRowGivesWayInItsOrder(t *testing.T) {
 
 // stayStep is the furthest step an account's row has given way to as d lays
 // it out at width, as the turns name them, 0 where it's given way to none,
-// failing t where it's given way out of its order, or with a cell spare.
+// failing t where it's given way out of its order, or narrows a part with a
+// cell spare. Where its requests or its time have left, the name and the
+// points' words may take back what they gave.
 func stayStep(t *testing.T, world string, width int, d sessionDrawn) int {
 	t.Helper()
 	shown := map[stayPart]stayColumn{}
@@ -718,43 +729,36 @@ func stayStep(t *testing.T, world string, width int, d sessionDrawn) int {
 	_, requests := shown[stayRequests]
 	_, time := shown[stayTime]
 	names, bounds := stayNameCells(d.names), d.windowsCells
-	least := names.least + bounds.one + stayWorthCells + 2*stayGap
-	narrowing := map[int]bool{
+	given := []bool{
 		stayWordsNarrow:   points.width < bounds.wide,
 		stayNameNarrows:   name.width < names.natural,
+		stayRequestsLeave: !requests,
+		stayTimeLeaves:    !time,
 		stayWindowsNarrow: points.width < bounds.short,
 	}
-	done := map[int]bool{
-		stayWordsNarrow: points.width <= bounds.short,
-		stayNameNarrows: name.width == names.least,
-	}
 	step := 0
-	for s := stayWordsNarrow; s <= stayWindowsNarrow; s++ {
-		if narrowing[s] {
+	for s, way := range given {
+		if way {
 			step = s
 		}
 	}
-	for s := stayWordsNarrow; s < step; s++ {
-		if !done[s] {
-			t.Errorf("%s, at %d columns, an account's row has given way to step %d before step %d is done", world, width, step, s)
-		}
-	}
 	switch {
+	case given[stayNameNarrows] && points.width > bounds.short:
+		t.Errorf("%s, at %d columns, an account's name narrows with its points' words still wide", world, width)
+	case given[stayWindowsNarrow] && (requests || time || name.width != names.least):
+		t.Errorf("%s, at %d columns, its points' windows leave with its requests shown %t, its time %t and its name %d cells, over its least", world, width, requests, time, name.width)
 	case requests && !time:
 		t.Errorf("%s, at %d columns, its requests show without its time there, which leaves after them", world, width)
-	case !requests && least+stayTimeCells+stayRequestsCells+2*stayGap <= width:
-		t.Errorf("%s, at %d columns, its requests left where they'd fit beside its name and one window at their leasts", world, width)
-	case !time && least+stayTimeCells+stayGap <= width:
-		t.Errorf("%s, at %d columns, its time there left where it'd fit beside its name and one window at their leasts", world, width)
 	}
-	if step > 0 && used-stayGap < width {
-		t.Errorf("%s, at %d columns, an account's row has given way to step %d with %d cells spare", world, width, step, width-used+stayGap)
-	}
+	least := names.least + bounds.short + stayWorthCells + 2*stayGap
 	switch {
-	case !time:
-		return stayTimeLeaves
-	case !requests:
-		return stayRequestsLeave
+	case !requests && least+stayTimeCells+stayRequestsCells+2*stayGap <= width:
+		t.Errorf("%s, at %d columns, its requests left where they'd fit beside its name at its least and every window short", world, width)
+	case !time && least+stayTimeCells+stayGap <= width:
+		t.Errorf("%s, at %d columns, its time there left where it'd fit beside its name at its least and every window short", world, width)
+	}
+	if narrowed := given[stayWordsNarrow] || given[stayNameNarrows]; narrowed && used-stayGap < width {
+		t.Errorf("%s, at %d columns, an account's row narrows a part with %d cells spare", world, width, width-used+stayGap)
 	}
 	return step
 }
@@ -871,23 +875,24 @@ func pointsSessions() map[string]*SessionShown {
 	return map[string]*SessionShown{"moved": moved(), "quiet": quiet(), "ended": ended(), "resumed": resumed()}
 }
 
-// An account's row keeps its requests before its name and before its
-// points' windows past the first: from 100 columns up, with the frames'
-// names and with a 26-cell one, every account's row says its requests
-// whole, its points uncut.
-func TestAnAccountsRequestsComeBeforeItsName(t *testing.T) {
+// An account's row keeps its windows before its requests and its time
+// there, and its requests before its name: with the frames' names and with
+// a 26-cell one, from 53 columns up, every account's row says every window
+// it took, uncut, and from 125 up, its requests whole too.
+func TestAnAccountsWindowsComeBeforeItsRequests(t *testing.T) {
 	docs := map[string]status.Document{"short names": pageDoc(), "a 26-cell name": pageLabelled("work-team-plan-for-the-org", "personal", "side")}
 	for world, doc := range docs {
 		for name, shown := range pointsSessions() {
-			for width := 100; width <= 170; width++ {
+			for width := 53; width <= 170; width++ {
 				d, drawn := pageDrawn(pageFrame(t, shown, width, 37), doc)
 				for i, s := range d.page.Stays(d.now)[:d.l.accounts] {
 					row := drawn[d.l.accountsAt+i]
-					if got := stayText(row, d, stayRequests); got != s.RequestsSaid() {
-						t.Errorf("%s, %s, at %d columns, an account's requests read %q, want %q", world, name, width, got, s.RequestsSaid())
+					points := stayText(row, d, stayPoints)
+					if strings.Contains(points, prose.Ellipsis) || strings.Count(points, " · ") != len(s.PointsKeys())-1 {
+						t.Errorf("%s, %s, at %d columns, an account's points read %q, want its %d windows whole", world, name, width, points, len(s.PointsKeys()))
 					}
-					if points := stayText(row, d, stayPoints); strings.Contains(points, prose.Ellipsis) {
-						t.Errorf("%s, %s, at %d columns, an account's points read %q, cut", world, name, width, points)
+					if got := stayText(row, d, stayRequests); width >= 125 && got != s.RequestsSaid() {
+						t.Errorf("%s, %s, at %d columns, an account's requests read %q, want %q", world, name, width, got, s.RequestsSaid())
 					}
 				}
 			}

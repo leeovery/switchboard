@@ -4286,8 +4286,9 @@ day before, from 133 (165).
 turn's tools, `↑ asking`, and read, written and out return only once a name has reached its
 natural, as labels grow to their most and then the rest grows. A row's figures come before names:
 an account's row, narrowing, first says its points in their short words, losing no figure; then
-its name narrows toward its least; then its points' windows leave from the end, down to one; then
-its requests leave; then its time there. Widening, they come back in the reverse order. Its
+its name narrows toward its least; then its requests leave; then its time there; and only then its
+points' windows leave from the end, down to one, as a window's points are the account's use, what
+the row is for. Widening, they come back in the reverse order. Its
 columns are set by what its parts can say at their most, never by what they say now, so the row
 holds still as its figures change. Name columns keep `▲`'s and `◆`'s cells (Rule 2), whichever a
 name carries.
@@ -4319,11 +4320,10 @@ first ran on them. A row's parts, two cells apart, as flex lays them at every wi
   in 9, to `$9999.99+`, as wide as `unpriced`. Nothing grows, so what's spare lies between the
   points and the worth.
 - **As the width runs short,** the points take their short words first, losing no figure; then
-  the name narrows, to its least; then the points give up whole windows from the end, down to
-  one; and only then the requests leave, then the time there. The name, the points and the worth
+  the name narrows, to its least; then the requests leave, then the time there; and only then the
+  points give up whole windows from the end, down to one. The name, the points and the worth
   stay. Where the requests or the time have left, what they free goes back in the reverse order,
-  to the points' windows, then the name, then the points' wide words, never lying blank beside a
-  name cut short. A wider frame never shows fewer parts, nor a shorter name, but where a part
+  to the name, then the points' wide words, never lying blank beside a name cut short. A wider frame never shows fewer parts, nor a shorter name, but where a part
   comes back: the points and the name give back the cells they took while it was gone.
 - **A turn that moved splits** between the two, each request counted on the account that answered
   it, the context written again on the account it moved to. The rows' requests and worth add up to
