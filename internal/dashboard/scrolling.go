@@ -184,6 +184,21 @@ func pageUp(least, from, above int, shows func(at, r int) bool) int {
 	return max(from-1, 0)
 }
 
+// pagesByRows reports whether things paged in a view rows tall scroll a row
+// at a time, as paged pages them in a view so tall, rather than a thing at a
+// time: where one of them doesn't fit the view, as fits has it, so a thing at
+// a time would cut it short; and on up from there, while a thing at a time
+// would show fewer rows from the first, as whole has them, than a row at a
+// time shows a row shorter, so a taller view never shows less.
+func pagesByRows(rows int, fits func(rows int) bool, whole func(rows int) int, paged func(rows int) rowsPaged) bool {
+	for r := rows; r > 0 && fits(r); r-- {
+		if from, to := paged(r - 1).shown(0); whole(r) >= to-from {
+			return false
+		}
+	}
+	return true
+}
+
 // thingsPaged is how far things shown whole, a thing at a time, scroll,
 // scrolled offset of them down, no further than most: a page down starting
 // at the first the page didn't show, and a page up ending at the one above

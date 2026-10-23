@@ -178,20 +178,34 @@ func (d boardDrawn) shownAt(offset int) boardShown {
 	return d.accountsShown(offset)
 }
 
-// byRows reports whether the Switchboard scrolls a row at a time: at step 5,
-// where an account's rows don't fit the view, under the row saying how many
-// are above where any are, so an account at a time would cut its calls.
+// byRows reports whether the Switchboard scrolls a row at a time, at step 5,
+// as pagesByRows has it: where an account's rows don't fit the view, under
+// the row saying how many are above where any are, so an account at a time
+// would cut its calls; and on up from there, while an account at a time
+// would show less than a row at a time a row shorter.
 func (d boardDrawn) byRows() bool {
-	if d.laid.step < compactedStep {
+	if d.laid.step < compactedStep || len(d.laid.lines) == 0 {
 		return false
 	}
-	rows := d.f.viewRows()
+	return pagesByRows(d.f.viewRows(), d.eachFits, d.wholeRows, d.pagedIn)
+}
+
+// eachFits reports whether each account's rows fit a view rows tall, under
+// the row saying how many are above where any are.
+func (d boardDrawn) eachFits(rows int) bool {
 	for i, ln := range d.laid.lines {
 		if ln.tall()+min(i, 1) > rows {
-			return true
+			return false
 		}
 	}
-	return false
+	return true
+}
+
+// wholeRows are the rows the accounts that show whole from the first take
+// in a view rows tall.
+func (d boardDrawn) wholeRows(rows int) int {
+	first := d.laid.lines[0].first
+	return d.laid.lines[d.wholeFrom(0, rows)-1].end() - first
 }
 
 // boardOut is the form of the line saying how many of the Switchboard's
@@ -227,7 +241,13 @@ func (d boardDrawn) rowsShown(offset int) boardShown {
 
 // paged is how the Switchboard's rows page in the view's, a row at a time.
 func (d boardDrawn) paged() rowsPaged {
-	return rowsPaged{rows: d.f.viewRows(), content: d.laid.rows}
+	return d.pagedIn(d.f.viewRows())
+}
+
+// pagedIn is how the Switchboard's rows page in a view rows tall, a row at a
+// time.
+func (d boardDrawn) pagedIn(rows int) rowsPaged {
+	return rowsPaged{rows: rows, content: d.laid.rows}
 }
 
 // wholeFrom is how many accounts show whole from the o-th, from its first

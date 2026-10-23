@@ -180,14 +180,11 @@ func TestThePinsMarkNeverDrawsOverALinesMeterOrItsFirstWords(t *testing.T) {
 				continue
 			}
 			d := f.linesDrawn(f.Moment(doc, routedAt), laid)
-			if f.sessionsForm(doc, routedAt).byRows {
-				t.Fatalf("at %d×%d, the Switchboard scrolls a row at a time, want an account at a time", width, height)
-			}
+			byRows := f.sessionsForm(doc, routedAt).byRows
 			for i, ln := range laid.lines {
 				y := f.top() + ln.top
 				if laid.step == compactedStep {
-					f.Scroll = min(i, f.Scrolling(doc, routedAt).Most)
-					y += min(f.Scroll, 1) - laid.lines[f.Scroll].first
+					f, y = scrolledToLine(f, doc, laid, i, byRows)
 				}
 				c := f.page(doc, routedAt)
 				at := d.x() + d.column + oneRowBar + 1
@@ -207,6 +204,19 @@ func TestThePinsMarkNeverDrawsOverALinesMeterOrItsFirstWords(t *testing.T) {
 			}
 		}
 	}
+}
+
+// scrolledToLine is f at step 5 scrolled to show laid's i-th line, a row at
+// a time where byRows, else an account at a time, and the frame's row its
+// line is drawn on.
+func scrolledToLine(f Frame, doc status.Document, laid boardLayout, i int, byRows bool) (Frame, int) {
+	most, ln := f.Scrolling(doc, routedAt).Most, laid.lines[i]
+	if byRows {
+		f.Scroll = min(ln.top, most)
+		return f, f.top() + ln.top - f.Scroll
+	}
+	f.Scroll = min(i, most)
+	return f, f.top() + ln.top + min(f.Scroll, 1) - laid.lines[f.Scroll].first
 }
 
 // An account whose cap the pin spends says the pin once, on the Switchboard

@@ -202,18 +202,18 @@ func (b *lanesBoard) keyed() bool {
 	if len(b.lanes) == 0 {
 		return true
 	}
-	at, ok := keyPlaced(b.f.viewRows(), b.height(), laneKeyGap)
+	at, ok := keyPlaced(b.f.viewRows(), b.height(b.lanes), laneKeyGap)
 	if ok {
 		b.keyAt = at
 	}
 	return ok
 }
 
-// height is the rows the lanes take at b's step, its blank rows between
-// each.
-func (b lanesBoard) height() int {
+// height is the rows the lanes given take at b's step, its blank rows
+// between each.
+func (b lanesBoard) height(lanes []boardLane) int {
 	rows := 0
-	for i, l := range b.lanes {
+	for i, l := range lanes {
 		if i > 0 {
 			rows += b.step.apart
 		}
@@ -289,19 +289,32 @@ func (b lanesBoard) shown() lanesShown {
 	return s
 }
 
-// byRows reports whether the lanes scroll a row at a time: where they don't
-// fit the view, and a lane doesn't either, under ▲ where any are above it,
-// so an account at a time would cut it short.
+// byRows reports whether the lanes scroll a row at a time, where they don't
+// fit the view, as pagesByRows has it: where a lane doesn't fit it, under ▲
+// where any are above it, so an account at a time would cut it short; and on
+// up from there, while an account at a time would show less than a row at a
+// time a row shorter.
 func (b lanesBoard) byRows() bool {
 	if b.fits() {
 		return false
 	}
+	whole := b.laned().c
+	return pagesByRows(b.f.viewRows(), b.eachFits, func(rows int) int {
+		return b.height(b.lanes[:b.fittingIn(0, rows)])
+	}, func(rows int) rowsPaged {
+		return pagedWhole(whole, rows)
+	})
+}
+
+// eachFits reports whether each lane fits a view rows tall, under ▲ where
+// any are above it.
+func (b lanesBoard) eachFits(rows int) bool {
 	for i, l := range b.lanes {
-		if b.rows(l)+min(i, 1) > b.f.viewRows() {
-			return true
+		if b.rows(l)+min(i, 1) > rows {
+			return false
 		}
 	}
-	return false
+	return true
 }
 
 // laned are the lanes drawn whole from row 0.
@@ -370,10 +383,16 @@ func (b lanesBoard) mostScrolled() int {
 	return most
 }
 
-// fitting is how many lanes, from the one at first, fit the view, as many as
-// do, at least one, under ▲ where any are above, at the step's rows apart.
+// fitting is how many lanes, from the one at first, fit the view, as
+// fittingIn has them.
 func (b lanesBoard) fitting(first int) int {
-	rows := b.f.viewRows()
+	return b.fittingIn(first, b.f.viewRows())
+}
+
+// fittingIn is how many lanes, from the one at first, fit a view rows tall,
+// as many as do, at least one, under ▲ where any are above, at the step's
+// rows apart.
+func (b lanesBoard) fittingIn(first, rows int) int {
 	if first > 0 {
 		rows--
 	}

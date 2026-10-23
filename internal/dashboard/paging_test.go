@@ -213,3 +213,48 @@ func TestPagingWholeThingsDownAndUpShowsEveryThing(t *testing.T) {
 		}
 	}
 }
+
+// Things shown whole that page a thing at a time where each fits the view,
+// and a row at a time where one doesn't, show as many rows from the first,
+// at every height, as a row shorter, however tall each is: a row at a time
+// goes on up past where each fits while a thing at a time would show fewer.
+func TestPagingWholeThingsNeverShowsFewerRowsAsTheViewGrows(t *testing.T) {
+	for _, things := range [][]int{{1, 2, 4}, {2, 5, 3, 2, 6, 4, 2}, {1, 1, 1, 1, 1, 1}, {6, 1, 1, 1, 6, 2, 2, 5}, {3, 7, 2, 2, 2, 7, 3}} {
+		content := 0
+		for _, h := range things {
+			content += h
+		}
+		fits := func(rows int) bool {
+			for i, h := range things {
+				if h+min(i, 1) > rows {
+					return false
+				}
+			}
+			return true
+		}
+		whole := func(rows int) int {
+			n := fittingFrom(things, rows, 0)
+			taken := 0
+			for _, h := range things[:n] {
+				taken += h
+			}
+			return taken
+		}
+		paged := func(rows int) rowsPaged { return rowsPaged{rows: rows, content: content} }
+		was := 0
+		for rows := 1; rows <= content; rows++ {
+			shown := whole(rows)
+			byRows := pagesByRows(rows, fits, whole, paged)
+			if byRows {
+				_, shown = paged(rows).shown(0)
+			}
+			if !fits(rows) && !byRows {
+				t.Errorf("things %v in %d rows, one not fitting, page a thing at a time", things, rows)
+			}
+			if shown < was {
+				t.Errorf("things %v in %d rows show %d rows, fewer than the %d a row shorter", things, rows, shown, was)
+			}
+			was = shown
+		}
+	}
+}

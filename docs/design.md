@@ -3255,7 +3255,11 @@ line and the key:
    below it doesn't show. Where an
    account's rows don't fit the view, under that first row where any are above, it scrolls a row
    at a time instead, the row over the key line saying how many rows are out of view,
-   `▲ 3 more above · ▼ 12 more below`, so every call can be reached.
+   `▲ 3 more above · ▼ 12 more below`, so every call can be reached; and it goes on a row at a
+   time on up from there while an account at a time would show fewer of its rows than a row at a
+   time a row shorter, so a taller view never shows less (`pagesByRows`, in `scrolling.go`): the
+   frames' three accounts scroll a row at a time at 160 by 13 and 14, where an account at a time
+   left side and its sessions out over blank rows.
 
 Where no line grows past its rows and no group of calls moves its line down, each row so taken being
 one fewer, steps 1 to 4 hold 3, 5, 13 and 26 accounts at 160 by 37. Where the lines are narrower
@@ -3366,8 +3370,9 @@ October 2026).
   3. the windows side by side, accounts a blank row apart and none before the calls;
   4. as 3, the key giving way: the lanes scroll an account at a time, `▲ 1 more account` on the
      view's first row while any are above, and `▼ 1 more account` right-aligned on the row over the
-     key line while any are below; or a row at a time, where a lane doesn't fit the view, a name
-     row showing with the row under it. Either way they page by the one rule of every view paged a
+     key line while any are below; or a row at a time, where a lane doesn't fit the view, and on
+     up from there while an account at a time would show less, as the board's step 5 has it, a
+     name row showing with the row under it. Either way they page by the one rule of every view paged a
      row at a time (see the Overview's USAGE), lanes in place of rows where they scroll an account
      at a time: a page down starts at the first lane, or row, the page didn't show, and a page up
      ends at the one above the first it showed, so paging either way passes over none
