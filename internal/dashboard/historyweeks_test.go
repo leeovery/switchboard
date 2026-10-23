@@ -705,7 +705,7 @@ func TestWeeksFormSwitchesOnceAsTheWidthGrows(t *testing.T) {
 func TestWeeksWiderNeverShowsLess(t *testing.T) {
 	for name, drawn := range weeksSweep() {
 		for i, w := range drawn {
-			natural := min(labelsPart(w.widestName(), 0).Natural, labelMost)
+			natural := min(labelColumn(w.widestName()+nameGap).Natural, labelMost)
 			narrowing := !w.phone && w.laid.verdict.Size > verdictPart(w.columns).Least
 			if (len(w.laid.weeks) > 1 || narrowing) && w.laid.labels.Size != natural {
 				t.Errorf("%s at %d columns: %d weeks show, the verdict %d cells, its label column %d, want its natural %d",

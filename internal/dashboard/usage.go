@@ -361,20 +361,11 @@ func (n accountName) inked(k ink) ink {
 }
 
 // namesPart is the name column of the names given as flex lays it, a column
-// of names, each with its number, its marks and nameGap: at least a label of
-// labelLeast cells, and at that each name with its label cut to it; at its
-// natural the widest whole, as labelColumnCells counts its label. It counts
-// what's configured, never what's shown, as cells keeps ▲'s cells on every
-// account.
+// of names, each with its number, its marks and nameGap, as accountsColumn
+// has it. It counts what's configured, never what's shown, as cells keeps
+// ▲'s cells on every account.
 func namesPart(names []accountName) flex.Part {
-	least, natural := 0, 0
-	for _, n := range names {
-		plain := accountName{number: n.number, unrouted: n.unrouted}
-		label := labelColumnCells(n.label)
-		least = max(least, plain.cells(labelLeast), n.cells(min(label, labelLeast)))
-		natural = max(natural, n.cells(label))
-	}
-	return flex.Part{Least: least + nameGap, Natural: natural + nameGap}
+	return accountsColumn(nameGap, names)
 }
 
 // nameColumn is the cells of the name column of a block width columns wide,

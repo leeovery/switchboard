@@ -19,14 +19,9 @@ const (
 	runwayLaneColumns
 )
 
-// The cells of Runway's label column, its gap after its labels among them:
-// the fewest it narrows to, and the most it takes, expanded; and with it
-// collapsed, collapsedGap after its widest label.
-const (
-	leastRunwayLabels = 8
-	mostRunwayLabels  = 24
-	collapsedGap      = 1
-)
+// collapsedGap are the cells after the widest label of Runway's label
+// column, collapsed.
+const collapsedGap = 1
 
 // runwayWindows are the windows Runway's views are named for, in the order
 // < and > step between them, and runwayNames what the heading calls each.
@@ -115,28 +110,26 @@ func (r RunwayShown) lanesFrom(width int) int {
 }
 
 // runwayParts are Runway's parts across a frame, as flex lays them: the label
-// column, as labelColumn has it, and the lanes, which take the rest.
+// column, as labelsPart has it, and the lanes, which take the rest.
 func (r RunwayShown) runwayParts() []flex.Part {
 	return []flex.Part{
-		runwayLabelColumn: r.labelColumn(),
+		runwayLabelColumn: r.labelsPart(),
 		runwayLaneColumns: {Grows: true},
 	}
 }
 
-// labelColumn is Runway's label column shown as r, its gap after it: with
+// labelsPart is Runway's label column shown as r, its gap after it: with
 // the account column collapsed, the widest of its labels beside a lane, a
 // number and its marks or the widest use, 100%, and collapsedGap, whatever
-// the width; else the widest of its accounts' names and nameGap, or the
-// widest use under one, as runwayUseCells has it, up to mostRunwayLabels,
-// and leastRunwayLabels only on a frame narrower than that.
-func (r RunwayShown) labelColumn() flex.Part {
+// the width; else, as labelColumn bounds it, the widest of its accounts'
+// names with their numbers and marks and nameGap, or the widest use under
+// one, as runwayUseCells has it.
+func (r RunwayShown) labelsPart() flex.Part {
 	if r.Collapsed {
 		cells := max(r.labels.collapsed, widestFigure) + collapsedGap
 		return flex.Part{Least: cells, Natural: cells}
 	}
-	return flex.Part{
-		Least: leastRunwayLabels, Natural: max(r.labels.expanded+nameGap, runwayUseCells()), Most: mostRunwayLabels,
-	}
+	return labelColumn(max(r.labels.expanded+nameGap, runwayUseCells()))
 }
 
 // runwayUseCells are the cells the label column keeps for the widest use

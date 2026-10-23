@@ -216,6 +216,9 @@ type section struct {
 	// says where it holds more than its first. Its rows fill with what comes
 	// and goes, so only a layout made afresh, or its heading folded, asks.
 	lines func() int
+	// readIn is the fewest cells a section that lists lines is read in
+	// beside the other, as listsBeside compares them.
+	readIn int
 	// description and folded are what its heading says, unfolded and
 	// folded, in the cells its heading has for them, as says gives them:
 	// a section of several forms says the fullest that fits; one of a
@@ -551,14 +554,15 @@ func (f Frame) joins(units []unit, s section) (int, bool) {
 		return i, i >= 0
 	}
 	last := len(units) - 1
-	return last, s.lists() && f.listsBeside() && last >= 0 && units[last].sections[0].lists()
+	return last, s.lists() && last >= 0 && units[last].sections[0].lists() && f.listsBeside(units[last].sections[0], s)
 }
 
-// listsBeside reports whether COMING UP and LATELY sit side by side: where
-// each one's least fits in the columns columns gives it beside the other,
-// COMING UP comingWidth wide, and LATELY from latelyAt to the edge.
-func (f Frame) listsBeside() bool {
-	return comingLeast() <= comingWidth(f.Width) && latelyLeast() <= f.Width-latelyAt(f.Width)
+// listsBeside reports whether COMING UP and LATELY, the sections given, sit
+// side by side: where each is read in the columns the frame gives it beside
+// the other, as its readIn has it, COMING UP comingWidth wide, and LATELY
+// from latelyAt to the edge.
+func (f Frame) listsBeside(coming, lately section) bool {
+	return coming.readIn <= comingWidth(f.Width) && lately.readIn <= f.Width-latelyAt(f.Width)
 }
 
 // allot gives each unit its rows in room rows, and returns them: its least,

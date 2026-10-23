@@ -32,10 +32,10 @@ const (
 
 // comingLeast is the fewest cells COMING UP is read in, beside LATELY: a
 // line's time at its widest, projected; the blanks after it; an account's
-// name at labelLeast; what befalls it at its shortest, primed; and its
-// countdown, comingTail.
-func comingLeast() int {
-	return len(projected) + prose.DatedWidth() + len(afterTime) + labelLeast + len(primed) + comingTail
+// name at the cells given, its least; what befalls it at its shortest,
+// primed; and its countdown, comingTail.
+func comingLeast(name int) int {
+	return len(projected) + prose.DatedWidth() + len(afterTime) + name + len(primed) + comingTail
 }
 
 // linesRows is how many rows COMING UP or LATELY takes with lines to show:
@@ -52,6 +52,7 @@ func (f Frame) comingSection(doc status.Document, now time.Time) section {
 	things := f.upcoming(doc, now)
 	return section{
 		Section: SectionComing, least: linesRows(0), lines: func() int { return len(things) },
+		readIn: comingLeast(labelsLeast(widestLabel(f.Moment(doc, now)))),
 		draw: func(c *canvas, body bounds) {
 			comingLines(c, things, now, body)
 		},

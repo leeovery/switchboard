@@ -137,8 +137,8 @@ func TestTheRequestsDrawEachKindOfRowAtEachWidth(t *testing.T) {
 	}
 	for _, tt := range tests {
 		f := logFrameOf(p, tt.width, 24)
-		c := f.page(routerDoc("side", 0), at)
-		rows := textOf(f.Draw(routerDoc("side", 0), at))[f.top()+1 : f.top()+1+len(tt.want)]
+		c := f.page(logAccounts(), at)
+		rows := textOf(f.Draw(logAccounts(), at))[f.top()+1 : f.top()+1+len(tt.want)]
 		if !slices.Equal(rows, tt.want) {
 			t.Errorf("at %d columns, the rows read\n%s\nwant\n%s", tt.width, strings.Join(rows, "\n"), strings.Join(tt.want, "\n"))
 			continue

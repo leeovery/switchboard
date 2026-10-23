@@ -190,11 +190,24 @@ func planOf(f Frame, sections []section, top, rows int) []planned {
 // body drawing nothing: one that lists lines, holding a line each row of its
 // most but its heading's.
 func sized(s Section, least, most int) section {
-	sized := section{Section: s, least: least, most: most, draw: func(*canvas, bounds) {}}
+	sized := section{Section: s, least: least, most: most, readIn: readIn(s), draw: func(*canvas, bounds) {}}
 	if s.lists() {
 		sized.lines = func() int { return most - sectionHead }
 	}
 	return sized
+}
+
+// readIn is the fewest cells the section s is read in beside the other that
+// lists lines, its names' least 8 cells, as the frames' are: none where it
+// lists none.
+func readIn(s Section) int {
+	switch s {
+	case SectionComing:
+		return comingLeast(labelsLeast(len("personal")))
+	case SectionLately:
+		return latelyLeast(labelsLeast(len("personal")))
+	}
+	return 0
 }
 
 // sessionsSized is SESSIONS of n sessions running, rows rows a session, its
@@ -258,7 +271,7 @@ func (w planWorld) sections(width int, by By, shown Sections) []section {
 		sessions = sessionsSized(w.running, 2)
 	}
 	lines := func(s Section, n int) section {
-		return section{Section: s, least: 2 + 3, lines: func() int { return n }, draw: func(*canvas, bounds) {}}
+		return section{Section: s, least: 2 + 3, lines: func() int { return n }, readIn: readIn(s), draw: func(*canvas, bounds) {}}
 	}
 	all := []section{usage, sized(SectionGraphs, 2+1+5+1, 2+1+19+1), routing, sessions, lines(SectionComing, w.coming), lines(SectionLately, w.lately)}
 	return slices.DeleteFunc(all, func(s section) bool { return !shown.Has(s.Section) })

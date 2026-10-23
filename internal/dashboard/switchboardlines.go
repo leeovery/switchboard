@@ -99,25 +99,19 @@ func (d linesDrawn) nameColumn() int {
 }
 
 // nameParts are the parts of a line's row its name heads, as flex lays them:
-// the name column, its names' labels a column of names as Runway's, at least
-// labelLeast, at its natural the widest, as labelColumnCells counts them,
-// with their numbers, their marks and nameGap; from oneRowStep, where the
+// the name column, its names with their numbers, their marks and nameGap, as
+// accountsColumn has it; from oneRowStep, where the
 // line takes one row, its week's bar, oneRowBar cells, and afterBar on to its
 // words; and its words, at least leastStanding, which take the rest. So a
 // name is whole wherever it fits beside them, and narrows toward its least
 // before the words' lead is cut.
 func (d linesDrawn) nameParts() []flex.Part {
-	least, natural := 0, 0
-	for _, n := range d.names {
-		least = max(least, n.cells(labelLeast)+nameGap)
-		natural = max(natural, n.cells(labelColumnCells(n.label))+nameGap)
-	}
 	meter := 0
 	if d.laid.step >= oneRowStep {
 		meter = oneRowBar + afterBar
 	}
 	return []flex.Part{
-		lineNamePart:  {Least: least, Natural: natural},
+		lineNamePart:  accountsColumn(nameGap, d.names),
 		lineMeterPart: {Least: meter, Natural: meter},
 		lineWordsPart: {Least: leastStanding, Grows: true},
 	}

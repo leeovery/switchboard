@@ -641,9 +641,9 @@ func TestATurnsAccountsFitItsOnColumn(t *testing.T) {
 }
 
 // A turn's on takes its natural from the accounts configured, never those
-// the session ran on: the widest name, a label's, at most labelMost and
-// labelLeast at the least; and past it, where there are two or more, a
-// move's arrow and the second widest name.
+// the session ran on: the widest name, a label's, at most labelMost; and
+// past it, where there are two or more, a move's arrow and the second widest
+// name.
 func TestATurnsOnIsAsWideAsTheAccountsConfiguredSay(t *testing.T) {
 	long := strings.Repeat("x", labelMost+6)
 	tests := []struct {
@@ -652,7 +652,7 @@ func TestATurnsOnIsAsWideAsTheAccountsConfiguredSay(t *testing.T) {
 		named, move int
 	}{
 		{name: "the frames' three", labels: []string{"work", "personal", "side"}, named: 8, move: 7},
-		{name: "one", labels: []string{"work"}, named: labelLeast},
+		{name: "one", labels: []string{"work"}, named: 4},
 		{name: "one of a label's most", labels: []string{long}, named: labelMost},
 		{name: "two long", labels: []string{long, "side-hustle-consulting"}, named: labelMost, move: 3 + 22},
 	}

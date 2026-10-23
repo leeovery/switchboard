@@ -207,11 +207,11 @@ func TestEachLaneIsHeadedByItsNameAndItsUseOfTheViewsWindow(t *testing.T) {
 			head: "2 perso… ◆", use: "week 100%", useInks: []ink{dimInk, usedFigure(1, "personal", "7d")},
 		},
 		{
-			name: "not read yet, short at the column's most too", window: views.RunwayFiveHour, x: mostRunwayLabels,
+			name: "not read yet, short at the column's most too", window: views.RunwayFiveHour, x: labelMost,
 			lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Key: "5h", Unread: true}}}, head: "1 work", use: "not read", useInks: []ink{dimInk},
 		},
 		{
-			name: "stale, short at the column's most too", window: views.RunwayFiveHour, x: mostRunwayLabels,
+			name: "stale, short at the column's most too", window: views.RunwayFiveHour, x: labelMost,
 			lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: stale}}, head: "1 work", use: "read 14:20", useInks: []ink{dimInk},
 		},
 	}

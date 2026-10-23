@@ -265,11 +265,11 @@ func daysCount() flex.Part {
 	return flex.Part{Least: cells, Natural: cells}
 }
 
-// daysLabels is Days' label column, its gap after it: its widest name and
-// nameGap, a family's or any account's, not only those shown, so the column
-// holds still as BY ACCOUNT scrolls; narrowing only in the turn after the
-// last of the weeks given could give way, so names read whole before a week
-// is added.
+// daysLabels is Days' label column, its gap after it, as labelColumn has
+// it: its widest name and nameGap, a family's or any account's with its
+// marks, not only those shown, so the column holds still as BY ACCOUNT
+// scrolls; narrowing only in the turn after the last of the weeks given
+// could give way, so names read whole before a week is added.
 func daysLabels(p views.DaysPage, weeks int) flex.Part {
 	widest := 0
 	for _, s := range p.ByModel {
@@ -278,7 +278,9 @@ func daysLabels(p views.DaysPage, weeks int) flex.Part {
 	for _, s := range p.ByAccount {
 		widest = max(widest, historyAccount(labelled(s.Label, s.Of), s.Primary, math.MaxInt).width())
 	}
-	return labelsPart(widest, weeks)
+	labels := labelColumn(widest + nameGap)
+	labels.Narrows = weeks
+	return labels
 }
 
 // placeAccounts places BY ACCOUNT, three rows under the last family's

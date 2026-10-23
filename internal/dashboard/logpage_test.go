@@ -225,13 +225,14 @@ func TestATableWithNothingTodaySaysSo(t *testing.T) {
 	tests := []struct {
 		name string
 		page LogPage
+		doc  status.Document
 		want []string
 	}{
-		{name: "requests", page: requestsOf(views.LogSources{From: theDayBefore, Now: logDayNoon}, []ledger.Line{asked("1", theDayBefore)}), want: []string{
+		{name: "requests", page: requestsOf(views.LogSources{From: theDayBefore, Now: logDayNoon}, []ledger.Line{asked("1", theDayBefore)}), doc: logAccounts(), want: []string{
 			"▲ 23:50:00  d28c               opus-5-5   side      200",
 			"  no requests today",
 		}},
-		{name: "events", page: eventsShown(pinned), want: []string{
+		{name: "events", page: eventsShown(pinned), doc: routerDoc("personal", 0, status.Account{ID: "personal", TokenSet: true}), want: []string{
 			"● 23:50:00                     pin       personal  new sessions go there",
 			"  no events today",
 		}},
@@ -239,7 +240,7 @@ func TestATableWithNothingTodaySaysSo(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := logFrameOf(tt.page, 160, 24)
-			got := textOf(f.Draw(routerDoc("side", 0), logDayNoon))[f.top()+1 : f.top()+3]
+			got := textOf(f.Draw(tt.doc, logDayNoon))[f.top()+1 : f.top()+3]
 			for i := range tt.want {
 				if !strings.HasPrefix(got[i], tt.want[i]) {
 					t.Errorf("the table reads\n%s\nwant it to start\n%s", strings.Join(got, "\n"), strings.Join(tt.want, "\n"))

@@ -190,14 +190,16 @@ func (f Frame) weeksIn(p views.WeeksPage, phone, columns bool) weeksDrawn {
 }
 
 // weeksParts are a row of Weeks' parts across the frame: its label column,
-// as labelsPart has it of the widest name given; the weeks given, the oldest
-// first, each but the last with weeksApart after it, which give way in that
-// order, the last never; and in the wide form, the verdict given,
-// verdictGap after the last week. The verdict narrows once every week but
+// as labelColumn has it of the widest name given and nameGap; the weeks
+// given, the oldest first, each but the last with weeksApart after it, which
+// give way in that order, the last never; and in the wide form, the verdict
+// given, verdictGap after the last week. The verdict narrows once every week but
 // the last has given way, and the label column once the verdict has, so a
 // week leaves before a verdict is cut, and a verdict is cut before a name.
 func weeksParts(widest, weeks int, verdict *flex.Part) []flex.Part {
-	parts := []flex.Part{labelsPart(widest, weeks+1)}
+	labels := labelColumn(widest + nameGap)
+	labels.Narrows = weeks + 1
+	parts := []flex.Part{labels}
 	for i := range weeks {
 		week := flex.Part{Least: weekColumnCells, Natural: weekColumnCells}
 		if i < weeks-1 {

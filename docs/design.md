@@ -1035,7 +1035,12 @@ order the view's section gives.
   either chrome.
 - **A column of accounts' names** takes the widest name configured as its natural; at least 8
   cells, or its natural where that's fewer; at most 24, a longer name cut with `…`, the cells of
-  its number and marks kept beside it.
+  its number and marks kept beside it. So where every name is shorter than 8 cells, the column is
+  as wide as its names at every width. A column under a head never narrows past its head's cells.
+  One owner works this out (`labelcolumn.go`), and every view takes its column, its least, or a
+  sentence's cut of its names from there; none counts 8 or 24 itself (`guardlabels_test.go`).
+  Runway's label column, and Weeks' and Days', count their 8 and 24 over the whole column, its
+  gap and marks among them, as their sections say.
 - **A figure has a stated bound and is never cut:** it's given its bound's cells, and past the
   bound it says so, as `999+` and `$9999.99+`.
 - **A live view's form never hangs on its data.** Its naturals come from what's configured, the
@@ -1273,7 +1278,7 @@ and the windows shown, never what's read of them:
 |---|---|
 | The header on one line | Wherever the badge's line and the status, in full as read, fit two cells apart (see "The header", below); else two |
 | By window, the matrix | Wherever every part of its row fits at its least (below); else the windows stacked |
-| The name column | Fitted to the names, a label 8 cells at the least and 24 at the most (see "The pool, the names and their numbers", below) |
+| The name column | Fitted to the names, a label 8 cells at the least, or its own where fewer, and 24 at the most (see "The pool, the names and their numbers", below) |
 | The words | 22 cells, the full form's, narrowing toward the short form's 14 once the bars are at their least; each window's words in full wherever they fit their cells, else short |
 | By account, the name beside its first bar | Wherever its row's parts fit at their leasts beside the name column; else on a line of its own |
 | The key line | One line from the name column wherever it fits there at its widest, its gaps at their least; else two |
@@ -1540,7 +1545,8 @@ line after it, as a shell's prompt spaces itself (settled in the plan).
 - **The name column fits the names,** a column of names: the widest number, label and marks, plus
   two cells kept for `▲` on any account without it, as `▲` moves between accounts as routing does
   and no label may move with it, plus a gap of two cells, each label counted to 24 cells at the most;
-  at its least, a label of 8 cells, each name's cut to 8, its number and marks kept. The routing
+  at its least, a label of 8 cells, or the widest label's own where that's fewer, each name's cut
+  to it, its number and marks kept. The routing
   card's names and the Log panel's accounts keep a least of 8, or their names' widest where
   that's fewer, so their column is never wider than its names; the other columns follow. It counts what's
   configured, never what's shown, so it never moves as `▲` does. It's that wide wherever the frame
@@ -1996,12 +2002,13 @@ LATELY from column `⌊w / 2⌋ + 2` to the edge, so 72 wide and from 82 at 160 
 and from 110 at 216. Either alone takes the full width. They sit side by side where each one's
 least fits in its column beside the other (`overview.go`, `listsBeside`), never by a width written
 down; else COMING UP comes first, then LATELY under it, each the full width. Each least is its
-line's fixed parts with an account's name at its least of 8, cut as the labels' rule allows, so the
-names configured never move the switch:
+line's fixed parts with an account's name at its least, as a column of names has it, 8 or the
+widest name's own where that's fewer, so names of 8 cells or more never move the switch, and only
+shorter ones bring it in, as with names of 3 cells, to 82 columns:
 
-- **COMING UP, 42 cells** (`comingLeast`): its time at its widest, `~Sat 06:00`, 10; the two blanks
-  after it; the name, 8; what befalls it at its shortest, ` is primed`, 10; and its countdown with
-  the gap before it, 12. It fits in `round(w × 0.45)` from 93 columns, so the two sit side by side
+- **COMING UP, 42 cells** (`comingLeast`): its time at its widest, `~Sat 06:00`, 10; the two
+  blanks after it; the name, 8; what befalls it at its shortest, ` is primed`, 10; and its
+  countdown with the gap before it, 12. It fits in `round(w × 0.45)` from 93 columns, so the two sit side by side
   from 93, and from 100 are drawn as they were before.
 - **LATELY, 21 cells** (`latelyLeast`): its time at its widest, `Sun 02:00`, 9; the two blanks; its
   mark and a blank, 2; and the name, 8. It fits beside COMING UP wherever COMING UP's does.
@@ -2813,7 +2820,8 @@ drop, one fewer being short on no more weeks than now; otherwise its form for fe
 - **A row's parts,** laid out across the width the same for every row, so its columns come from the
   width and the accounts configured alone, never from the rows in view:
   - **the label column,** as Days' is: its widest name, `all accounts` or any account's with its
-    marks, not only those shown, and a gap of 2, at least 8 and at most 24; 14 in the frames;
+    marks, not only those shown, and a gap of 2, at least 8 and at most 24, counted over the whole
+    column, its gap and marks among them; 14 in the frames;
   - **the weeks,** 6 cells each, 2 apart: the latest that fit, up to the eight, the oldest giving way
     first, the last never;
   - **the verdict,** a cell after the last week shown: its natural the widest an account's verdict
@@ -2882,7 +2890,8 @@ data, as from 118 columns. Narrower, each strip's name takes the row over it (Na
 - **A strip's row** is laid out as parts, across the width, the same for every strip, so its
   columns come from the width and the accounts alone, never from the strips in view:
   - **the label column,** its widest name, a family's or any account's with its marks, not only
-    those shown, and a gap of 2: at least 8 and at most 24, as The page has a column of names; 12 in
+    those shown, and a gap of 2: at least 8 and at most 24, counted over the whole column, its gap
+    and marks among them, where The page counts the name alone; 12 in
     the frames (`personal ◆`). It narrows only once every week but the last has given way, so its
     names read whole before another week shows;
   - **the weeks,** 15 cells each, a day's 2 cells and the cell after a week's days: the latest that
@@ -2936,7 +2945,8 @@ account.
   9; and a cell on, `against its price`, which takes the rest of the row. `cache write` is both
   lifetimes' writes together, and `total` the four kinds. So at 160 columns, of short labels,
   `models` is at 14 and `against its price` at 106.
-- **The names** are a column of labels, as every view's are: at least 8 cells, their natural what
+- **The names** are a column of labels, as every view's are: at least 8 cells, or their natural
+  where that's fewer, as it never is, their natural what
   the split names, never under 12, which holds a period's name and a version's id, `└ sonnet-5-5`.
   By account, it's the widest account configured, after its `└ `, each at 24 cells at the most; by
   model, or none, no account's, as no row names one; by account and model, both, and 2 more, for a
@@ -3080,8 +3090,8 @@ where the parts lay it, as Narrower and wider says.
 - **The lines:** each account's line is `usage --by account`'s narrow block, 74 columns from column
   86 (see `usage`, the printout):
   - its name row: the number, name and marks; from the name column, its state in the Overview's
-    ROUTING words. The name column is a column of names: its labels at least 8 cells, at their
-    natural the widest name configured, 24 at the most, with their numbers, their marks and two
+    ROUTING words. The name column is a column of names: its labels at least 8 cells, or the
+    widest's own where that's fewer, at their natural the widest name configured, 24 at the most, with their numbers, their marks and two
     cells after them, laid by `flex` across the lines' width, before the state words. The words
     take at least 16 cells, the widest short lead, `● under pressure`, so a name is whole wherever
     it fits beside them, and narrows toward its least before any lead is cut, and the column holds
@@ -3543,7 +3553,8 @@ kept for good (settled in the plan; see The request ledger).
   label and marks, `▲`'s cells kept on every account, as `usage` keeps them, so the lanes hold still
   as `▲` moves; or the widest use under a name in either window, `5-hour 100%` from column 2 and a
   cell, 14, so they hold still as `<` and `>` step, as the figures change and as an account goes
-  stale. Only on a frame narrower than its natural does it narrow, to 8 at the least. Of the
+  stale. Only on a frame narrower than its natural does it narrow, to 8 at the least. Its 8 and 24
+  count the whole column, its gap and marks among them, where The page counts the name alone. Of the
   frames' accounts it's 16 at every width, the lanes 144 at 160 and 36 at 52; ten accounts,
   ` 2 personal ◆`, 17.
 - **The labels:** on a lane's row, the account's number, name and marks, cut with `…` only where the
@@ -3886,7 +3897,7 @@ apart, each a part flex lays out (`logcolumns.go`):
 | `at` | 8 | left |
 | `session` | 17: its id's 4, and a cell and its directory's 12 (`views.SessionDirCells`); 7, its head's, with the directory gone | left |
 | `model` | 9 | left |
-| `on` | at least 8; its natural the widest label of the accounts configured, 24 at the most, as a label's column is | left |
+| `on` | at least 8, or its natural where that's fewer, its head's 2 at the least; its natural the widest label of the accounts configured, 24 at the most, as a label's column is | left |
 | `status` | 6 | left |
 | `first` | 5 | right |
 | `took` | 6 | right |
@@ -3930,7 +3941,7 @@ apart, each a part flex lays out (`logcolumns.go`):
   decides what shows: where the columns' fewest cells, `on` at its natural, don't fit, columns give
   way in this order, a step at a time, each only while they still don't: the extras, the last
   first, so `worth` leaves last of them; `routing` folds into `stopped`, which then says the row's
-  routing where it has words; `first`, `read` and `written`; `on` is cut toward its 8; `out`;
+  routing where it has words; `first`, `read` and `written`; `on` is cut toward its least; `out`;
   `stopped` is cut to 11 cells and says its words as a phone's do (below); `model`, then `status`;
   and last the session's directory, its id kept (the owner's call on the spike, 21 October 2026).
   So `on` is whole from 94 columns past its natural, whatever's shown: 116 with the frames' long
@@ -4124,11 +4135,12 @@ cursor's on alone. Its title, in its top edge: `LOG · REQUESTS · WHAT IT SHOWS
 
 **Events.** A line an event, as a table with heads, from column 2, its columns two cells apart,
 each a part flex lays out (`logevents.go`): `at`, 8; `session`, as Requests' is; `event`, 8;
-`account`, at least 8, its natural and its most the longest line a move can make: the widest
+`account`, at least 8, or its natural where that's fewer, its head's 7 at the least, its natural
+and its most the longest line a move can make: the widest
 configured label, ` → `, and the second widest, each counted 24 at the most, or the widest alone
 with one account configured, a pin of several cut to it; and `what happened`, 40 at the least, and
 the room left. Where they don't fit, they give way in this order: the session, whole; `what
-happened` cut to 20; then `account` toward its 8. So with the frames' accounts, their move 15
+happened` cut to 20; then `account` toward its least. So with the frames' accounts, their move 15
 cells, the session shows down to 98 columns, and a phone's 52 show `at`, `event`, `account` and
 `what happened`.
 
@@ -4564,7 +4576,8 @@ first ran on them. A row's parts, two cells apart, as flex lays them at every wi
   and a space; then its name bold `text.primary`, cut at a label's most as every row of the page
   cuts it, and its marks. It's a label's column: its least
   the number, the marks, `▲`'s cells kept on every account so the row holds still as `▲` moves, and
-  8 cells of the label; its natural the same with the widest label configured, at most 24, never
+  8 cells of the label, or its own where that's fewer; its natural the same with the widest label
+  configured, at most 24, never
   the accounts the session ran on;
 - **its time there,** from its first request on it to its last, in `text.secondary`, in the
   cells of the widest a stay is said, 30, `28 Sep 13:20 – yesterday 01:20`, so it's never cut:
@@ -4648,8 +4661,9 @@ first ran on them. A row's parts, two cells apart, as flex lays them at every wi
     right-aligned from 5, to `9,999`, to 8, its head's;
     `started` from 5 to 7, its head's; and `worth` right-aligned in 8, to `$999.99+`, as wide as
     `unpriced`;
-  - `on`, the accounts a turn went to: one account's name, a label's, its least 8 and its natural
-    the widest configured, at most 24; and past it, a move's arrow and second name, the second
+  - `on`, the accounts a turn went to: one account's name, a label's, its least 8, or its natural
+    where that's fewer, and its head's 2 at the least, and its natural the widest configured, at
+    most 24; and past it, a move's arrow and second name, the second
     widest configured, so a move reads whole where there's room, as `work → personal`; never the
     accounts the session ran on. Each name is cut at a label's most, as rows 6 and 7 cut it, and
     they're said in the first of these that fits whole: each in turn, `work → side`; the arrows
@@ -4705,7 +4719,8 @@ first ran on them. A row's parts, two cells apart, as flex lays them at every wi
 moving down.
 
 - **One request row with the Log, the Log's** (see The Log): its columns in the Log's order,
-  colours, widths and words, but `session`, which a session's own page doesn't need, laid from
+  colours, widths and words, but `on`, held at its least, and `session`, which a session's own
+  page doesn't need, laid from
   column 5 as the Log lays its own at every width, its columns leaving in the Log's order as the
   width runs short; routing, once whole, ends 18 cells short of the last column. Its heads, on the
   row under the turn, in `text.faint`.

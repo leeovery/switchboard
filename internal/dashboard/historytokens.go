@@ -112,15 +112,16 @@ func (f Frame) tokensColumns() tokensColumns {
 	return tokensColumns{spans: spans, width: f.Width}
 }
 
-// tokensParts are Tokens' parts, in their order: the names, from their least,
-// labelLeast, holding their natural, as tokensNamesNatural has it, until
-// every column that leaves has left; the split's column, raised toward its
+// tokensParts are Tokens' parts, in their order: the names, from their
+// least, labelsLeast of their natural, as tokensNamesNatural has it, holding
+// it until every column that leaves has left; the split's column, raised toward its
 // natural, as tokensOfNatural has it, before against its price grows; each
 // count's; worth; and against its price, from its least, as tokensAgainst
 // has it, which takes the rest of the row.
 func (f Frame) tokensParts() []flex.Part {
 	parts := make([]flex.Part, tokensPartsCount)
-	parts[tokensName] = flex.Part{Least: labelLeast, Natural: f.tokensNamesNatural(), Most: tokensNamesMost(), Narrows: namesNarrow}
+	names := f.tokensNamesNatural()
+	parts[tokensName] = flex.Part{Least: labelsLeast(names), Natural: names, Narrows: namesNarrow}
 	parts[tokensOf] = flex.Part{Least: tokensOfCells, Natural: f.tokensOfNatural(), Leaves: ofLeaves, Gap: tokensOfGap}
 	for _, count := range tokensCounts {
 		parts[count.part] = flex.Part{Least: count.cells + count.after, Natural: count.cells + count.after, Leaves: count.leaves}
@@ -135,8 +136,8 @@ func (f Frame) tokensParts() []flex.Part {
 // tokensNamesNatural is the names' natural, of what the split names and
 // what's configured, never of the rows shown: tokensNamesCells, which holds
 // the periods' names and the versions'; split by account, or by account and
-// model, each account configured, as Tokens names it, after its branch, at
-// labelMost cells at the most; and by account and model, a version's id
+// model, each account configured, as Tokens names it, after its branch, as
+// labelColumnCells counts it; and by account and model, a version's id
 // nested under its account.
 func (f Frame) tokensNamesNatural() int {
 	natural := tokensNamesCells
@@ -154,8 +155,8 @@ func (f Frame) tokensNamesNatural() int {
 
 // tokensOfNatural is the split's column's natural: its least, and split by
 // model, where it names the accounts a version ran on, every account
-// configured, as Tokens names it, a space apart, each at labelMost cells at
-// the most.
+// configured, as Tokens names it, a space apart, each as labelColumnCells
+// counts it.
 func (f Frame) tokensOfNatural() int {
 	if f.History.TokensSplit != TokensByModel || len(f.History.Accounts) == 0 {
 		return tokensOfCells
@@ -179,12 +180,6 @@ func (f Frame) tokensAgainstLeast() int {
 		least = max(least, partsWidth(widest))
 	}
 	return least
-}
-
-// tokensNamesMost is the most the names take: an account's name at
-// labelMost, after its branch.
-func tokensNamesMost() int {
-	return ansi.StringWidth(tokensBranch) + labelMost
 }
 
 // tokensRow is a row of Tokens, a period's, or one it's split into: what it
@@ -447,8 +442,8 @@ func (r tokensRow) ofModel(m views.ModelTokens, branch string) tokensRow {
 }
 
 // on is the row naming the accounts given, by their ids, those its version
-// ran on, at the split's column, each as named names it, else by its id, at
-// labelMost cells at the most, as a column of names has it.
+// ran on, at the split's column, each as named names it, else by its id, as
+// asLabelled cuts it.
 func (r tokensRow) on(accounts []string, named map[string]string) tokensRow {
 	names := make([]string, len(accounts))
 	for i, id := range accounts {

@@ -617,8 +617,8 @@ func (r RoutingCard) autoChooses(room int) line {
 
 // autoForms are what auto's row can say of it, choosing the account with
 // the id given, the fullest first: on a session's card, the account, named
-// as a label's column names it, labelMost cells at the most, for now, then
-// the account alone; else, or where it's none, the router chooses.
+// as asLabelled cuts it, for now, then the account alone; else, or where
+// it's none, the router chooses.
 func (r RoutingCard) autoForms(id string) []line {
 	chooses := line{{"the router chooses", mutedInk}}
 	if r.Mode != ThisSession || id == "" {
