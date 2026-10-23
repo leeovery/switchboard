@@ -300,10 +300,10 @@ func (b lanesBoard) byRows() bool {
 }
 
 // scrollsByRows reports whether the lanes scroll a row at a time, where they
-// don't fit the view, as pagesByRows has it: where a lane doesn't fit it, under ▲
-// where any are above it, so an account at a time would cut it short; and on
-// up from there, while an account at a time would show less than a row at a
-// time a row shorter.
+// don't fit the view, as pagesByRows has it: where a lane doesn't fit it,
+// under ▲ where any are above it, so an account at a time would cut it
+// short; and on up from there, while an account at a time would show less
+// than a row at a time a row shorter.
 func (b lanesBoard) scrollsByRows() bool {
 	if b.fits() {
 		return false
@@ -337,11 +337,10 @@ func (b lanesBoard) paged() rowsPaged {
 	return b.pagedIn(b.f.viewRows())
 }
 
-// pagedIn is how the lanes, laid whole from row 0 as drawLanes draws them,
-// page in a view rows tall, a row at a time, each lane's name row heading
-// the rows under it, so it shows with its windows' row: worked out from
-// their rows, never drawn, as it's asked for at every height under the
-// view's.
+// pagedIn is how the lanes page in a view rows tall, a row at a time, each
+// lane's name row heading the rows under it, so it shows with the row after
+// it: worked out from the rows each lane takes, never drawn, as it's asked
+// for at every height under the view's.
 func (b lanesBoard) pagedIn(rows int) rowsPaged {
 	p := rowsPaged{rows: rows, content: b.height(b.lanes)}
 	y := 0

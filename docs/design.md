@@ -1056,8 +1056,8 @@ order the view's section gives.
   views that give its bars rows of their own; History's frames, 37 rows; the Switchboard's lines,
   74 columns; `usage --by account`'s window labels, 10 cells at the name column, which the
   Switchboard's lines take; the frame's least, the fixed rows and three of the view's; a model's
-  family padded to 8 cells in Detail's SESSIONS, and its selection, from a cell before the row to
-  42 cells on; and the Log card's tree's names padded to 13.
+  family padded to 8 cells in Detail's SESSIONS, and its selection, 43 cells from a cell before
+  the row; and the Log card's tree's names padded to 13.
 
 On a phone, under 100 columns, the tabs take row 1 of their own, the status line row 3 and the
 heading row 5, the view starting at row 7, or at row 8 where a period takes row 6 of its own. **The
@@ -3050,8 +3050,10 @@ what a week's peak is, what short means, how the replay estimates a week with an
 more, and what each verdict means; Days' two scales and its red `▪`; and Tokens' columns, as
 ccusage's, and the price table's date. With them, how each view scrolls: the Year a row at a time,
 saying what's out of view; Weeks and Days an account at a time, or a row at a time where they're
-drawn whole; Tokens a period at a time, or a row at a time where a period doesn't fit; and that a
-view goes back to its top as its scroll turns from one to the other.
+drawn whole; Tokens a period at a time, or a row at a time where a period doesn't fit, and on up
+from there while a period at a time would show fewer rows than a row at a time a row shorter, as
+the Switchboard's step 5 has it; and that a view goes back to its top as its scroll turns from one
+to the other.
 
 **Its figures,** every one from the ledger's days (see The request ledger), read with no router:
 requests a day, by version and by account; sessions, the distinct ids of the days' `session_ids`;
