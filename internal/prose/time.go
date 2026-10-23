@@ -3,8 +3,6 @@ package prose
 import (
 	"time"
 	"unicode/utf8"
-
-	"github.com/charmbracelet/x/ansi"
 )
 
 // The layouts times and days are told in. A time is told in the time zone of
@@ -28,6 +26,12 @@ const (
 // "Mon 18:10".
 func Clock(now, t time.Time) string {
 	return t.In(now.Location()).Format(clockLayout)
+}
+
+// TimeOfDayWidest is as wide as TimeOfDay ever says, every time of day
+// in as many characters: "23:59".
+func TimeOfDayWidest() string {
+	return time.Date(2001, time.March, 28, 23, 59, 0, 0, time.UTC).Format(timeLayout)
 }
 
 // TimeOfDay shows t as its 24-hour time in now's time zone, such as "13:51".
@@ -101,13 +105,14 @@ func Stint(now, from, to time.Time, dated bool) string {
 	return start + " – " + end
 }
 
-// StintWidth is how many cells the widest stay Stint says takes: of
-// starts on now's day, the day before, within the week and a date of two
-// digits before, each to an end on its own day, a day after or now, dated or
-// not, as "28 Sep 13:20 – yesterday 01:20".
-func StintWidth() int {
+// StintWidest is the widest stay Stint says: of starts on now's day, the
+// day before, within the week and a date of two digits before, each to an
+// end on its own day, a day after or now, dated or not, as "28 Sep 13:20 –
+// yesterday 01:20". Each character Stint says takes a cell, so the longest
+// is the widest.
+func StintWidest() string {
 	now := time.Date(2001, time.March, 28, 12, 0, 0, 0, time.UTC)
-	widest := 0
+	widest := ""
 	for _, back := range []int{0, 1, 3, 60} {
 		from := now.AddDate(0, 0, -back).Add(-time.Minute)
 		ends := []time.Time{{}, from.Add(time.Minute)}
@@ -116,7 +121,9 @@ func StintWidth() int {
 		}
 		for _, to := range ends {
 			for _, dated := range []bool{false, true} {
-				widest = max(widest, ansi.StringWidth(Stint(now, from, to, dated)))
+				if said := Stint(now, from, to, dated); utf8.RuneCountInString(said) > utf8.RuneCountInString(widest) {
+					widest = said
+				}
 			}
 		}
 	}

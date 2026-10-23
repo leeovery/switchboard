@@ -421,7 +421,7 @@ func detailWords(w status.Words) DetailWords {
 	for i, p := range w {
 		said[i] = DetailPart{Text: p.Text}
 		switch p.Kind {
-		case status.PartPlain:
+		case status.PartPlain, status.PartTime:
 		case status.PartAccount:
 			said[i].Kind = DetailAccount
 		default:

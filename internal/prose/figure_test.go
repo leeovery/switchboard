@@ -32,6 +32,13 @@ func TestPercent(t *testing.T) {
 
 // A figure to a tenth rounds a half to the even one, as every figure does,
 // so 0.25 is 0.2 and 0.75 is 0.8; a sliver under nothing is 0.0, never -0.0.
+// A window used whole is said "100%", the widest of its use to its limit.
+func TestPercentWholeIsAWindowUsedWhole(t *testing.T) {
+	if got := prose.PercentWhole(); got != "100%" || len(got) < len(prose.Percent(0.995)) {
+		t.Errorf("PercentWhole = %q, want %q, as wide as any use to its limit", got, "100%")
+	}
+}
+
 func TestAFigureToATenthRoundsAHalfToTheEvenOne(t *testing.T) {
 	tests := []struct {
 		x       float64

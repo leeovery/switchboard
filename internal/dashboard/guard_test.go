@@ -258,10 +258,14 @@ func flexBreaches(t *testing.T, root, module string, every, drawing []string, a 
 // or gives none.
 //
 // It can't follow a width held on a receiver; a literal's address; a
-// promoted field; a wrapper's local copy of its width, or a closure; a
-// package-level variable written from another package, as the watch; or a
-// file built for another platform, read by another loader. None occurs
-// today.
+// promoted field; a wrapper's local copy of its width; a package-level
+// variable written from another package, as the watch; or a file built for
+// another platform, read by another loader. None of those occurs today. Nor
+// can it see a cutter that's a closure, or one whose width it works out
+// itself and is passed as a value, and two do: labelCutAt returns a closure
+// over prose.Cut at the width it's given, so the widths given labelCutAt go
+// unjudged; and labelAtMost cuts at labelColumnCells, at most labelMost,
+// passed as a value to name an account's label.
 func cutBreaches(l *sourcecheck.Loader, module string, dirs []string, files []sourcecheck.File, w widths, allowed []string) []string {
 	given := make(map[string][]widthAt)
 	// A cutter that's a method, as a line's, or a wrapper is judged only where

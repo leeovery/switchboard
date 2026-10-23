@@ -231,7 +231,7 @@ func cameBy(on status.Words, m SessionMove, now time.Time, dates dating) WhereSa
 		lead = ": "
 	}
 	return WhereSaid{
-		OnSince: append(on, status.Plain(" since "+dates.past(now, m.At))),
+		OnSince: append(on, status.Plain(" since "), status.Time(dates.past(now, m.At))),
 		Why:     slices.Concat(status.Words{status.Plain(lead)}, movedWords(m, status.SessionWords, now)),
 		Short:   movedWords(m, status.ShortWords, now),
 	}
@@ -264,7 +264,7 @@ func (p SessionPage) ranOn(now time.Time, dates dating) WhereSaid {
 	ran := status.Words{status.Plain("ran on "), status.Named(first)}
 	why, short := ran, slices.Clone(ran)
 	for _, m := range moves {
-		then := status.Words{status.Plain(", then "), status.Named(m.To), status.Plain(" from " + dates.later(now, p.Started, m.At) + ": ")}
+		then := status.Words{status.Plain(", then "), status.Named(m.To), status.Plain(" from "), status.Time(dates.later(now, p.Started, m.At)), status.Plain(": ")}
 		facts := status.Facts{From: m.From, To: m.To, Now: now}
 		why = slices.Concat(why, then, status.EventWords(m.Reason, facts))
 		short = slices.Concat(short, then, status.ShortWords(m.Reason, facts))
@@ -487,14 +487,28 @@ func StayRequestsSaidWidest() string {
 }
 
 // PointsWordsWidest are the points of the windows with the keys given, as
-// PointsWords says them in form, each at its most, a hundred points: the
-// widest an account's row says them.
+// PointsWords says them in form, each at its most, "999+": the widest an
+// account's row says them.
 func PointsWordsWidest(keys []string, form PointsForm) []status.Words {
 	most := SessionAccount{Points: make(map[string]int, len(keys))}
 	for _, key := range keys {
-		most.Points[key] = 100
+		most.Points[key] = pointsMost + 1
 	}
 	return most.PointsWords(form)
+}
+
+// pointsMost are the most points of a window an account's row says whole:
+// a session's shares are summed across its windows' resets, so a long one
+// can take more than a hundred.
+const pointsMost = 999
+
+// pointsHeld says a window's points as an account's row holds them: whole,
+// grouped, to pointsMost, "999", and past it "999+".
+func pointsHeld(points int) string {
+	if points > pointsMost {
+		return prose.Grouped(pointsMost) + "+"
+	}
+	return prose.Grouped(points)
 }
 
 // PointsKeys are the keys of the windows any of the session's accounts took
@@ -530,12 +544,19 @@ const (
 // figure. Wide, "≈ 6 points of its week", " · 41 of its 5-hour"; short, as a
 // phone says them, "≈ 6 of week", " · 41 of 5-hour". It leaves out those
 // that round to none: none where all do. Each says the window PointsKeys
-// gives in its place.
+// gives in its place, its points as pointsHeld holds them, "999+" past 999.
 func (a SessionAccount) PointsWords(form PointsForm) []status.Words {
+	return a.pointsWords(form, pointsHeld)
+}
+
+// pointsWords are the words PointsWords says, each window's points said as
+// figure says them.
+func (a SessionAccount) pointsWords(form PointsForm, figure func(int) string) []status.Words {
 	keys := a.PointsKeys()
 	said := make([]status.Words, len(keys))
 	for i, key := range keys {
-		lead, count := status.Plain(" · "), status.Words{status.Figure(prose.Grouped(a.Points[key]))}
+		points := a.Points[key]
+		lead, count := status.Plain(" · "), status.Words{status.Figure(figure(points))}
 		of := " of " + status.InProse(status.NameOfKey(key))
 		if i == 0 {
 			lead = status.Plain("≈ ")
@@ -544,7 +565,7 @@ func (a SessionAccount) PointsWords(form PointsForm) []status.Words {
 			of = " of its " + status.InProse(status.NameOfKey(key))
 		}
 		if i == 0 && form == PointsWide {
-			count = CountedWords(a.Points[key], "point")
+			count = append(count, status.Plain(strings.TrimPrefix(prose.Counted(points, "point"), prose.Grouped(points))))
 		}
 		said[i] = slices.Concat(status.Words{lead}, count, status.Words{status.Plain(of)})
 	}
@@ -561,8 +582,9 @@ func (a SessionAccount) PointsKeys() []string {
 }
 
 // PointsSaid says the points of the account's windows the session took, as
-// PointsWords says them wide, run together: "≈ 41 points of its 5-hour · 6
-// of its week"; "" where all round to none.
+// PointsWords says them wide, but each whole however many, run together, as
+// the session verb says them: "≈ 41 points of its 5-hour · 6 of its week";
+// "" where all round to none.
 func (a SessionAccount) PointsSaid() string {
-	return slices.Concat(a.PointsWords(PointsWide)...).String()
+	return slices.Concat(a.pointsWords(PointsWide, prose.Grouped)...).String()
 }

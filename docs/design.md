@@ -4192,8 +4192,8 @@ measures changes only as the session moves, is resumed or ends: never as its tur
 the clock moves a time's day on, or new sessions go elsewhere, so the form holds still while it
 asks, answers or idles. An ended session's row 7 is measured by its own words, its models and how
 long their lines are kept, at their widest, with the year named. The form never follows the
-chrome's breakpoint. With the frames' names, `moved` is wide from 96 columns (154 with long
-names), `quiet` from 64 (80), `ended` from 93 (151), or 103 (161) where it moved on a day after
+chrome's breakpoint. With the frames' names, `moved` is wide from 96 columns (154 with the long
+names the tests hold it to, labels of 26, 25 and 22 cells), `quiet` from 64 (80), `ended` from 93 (151), or 103 (161) where it moved on a day after
 its start's, pinned here from 70 (88), its pin yielding from 99 (155), and `resumed`, today or the
 day before, from 133 (165).
 
@@ -4290,7 +4290,7 @@ its name narrows toward its least; then its requests leave; then its time there;
 points' windows leave from the end, down to one, as a window's points are the account's use, what
 the row is for. Widening, they come back in the reverse order. Its
 columns are set by what its parts can say at their most, never by what they say now, so the row
-holds still as its figures change. Name columns keep `▲`'s and `◆`'s cells (Rule 2), whichever a
+holds still as its figures change. Name columns keep `▲`'s and `◆`'s cells, whichever a
 name carries.
 
 **The accounts it ran on** (row 19 on), under the story with no heading, a row each, in the order it
@@ -4311,12 +4311,12 @@ first ran on them. A row's parts, two cells apart, as flex lays them at every wi
 - **what it took of the account's windows,** the points bold `text.primary` and the rest
   `text.muted`, in the order of care: `≈ 6 points of its week · 41 of its 5-hour`, a model's own
   window it used adding `· N of its Fable week` (settled in the plan). It's measured by the
-  windows listed and those the session used, listed or not, each at its most, 100 points, never
-  by the points the rows say, so the row holds still as they change, and moves only as the session
-  first uses a window: its natural every one of those windows in wide words, and its least the
-  widest alone in short words, `≈ 100 of week`; it says the wide words where its column holds
+  windows listed and those the session used, listed or not, each at its most, `999+`, as a
+  window's points are said whole to 999 and `999+` past it, never by the points the rows say,
+  so the row holds still as they change, and moves only as the session first uses a window: its natural every one of those windows in wide words, and its least the
+  widest alone in short words, `≈ 999+ of week`; it says the wide words where its column holds
   every window's, else the short, `≈ 6 of week · 41 of 5-hour`, and leaves whole windows off the
-  end where they wouldn't fit its column at 100 points each, so rows of as many windows show as
+  end where they wouldn't fit its column at `999+` each, so rows of as many windows show as
   many, whatever their points say;
 - **right-aligned to the last column,** its worth at API prices, in `text.secondary`: `$41.06`,
   in 9, to `$9999.99+`, as wide as `unpriced`. Nothing grows, so what's spare lies between the
@@ -4326,8 +4326,9 @@ first ran on them. A row's parts, two cells apart, as flex lays them at every wi
   the name narrows, to its least; then the requests leave, then the time there; and only then the
   points give up whole windows from the end, down to one. The name, the points and the worth
   stay. Where the requests or the time have left, what they free goes back in the reverse order,
-  to the name, then the points' wide words, never lying blank beside a name cut short. A wider frame never shows fewer parts, nor a shorter name, but where a part
-  comes back: the points and the name give back the cells they took while it was gone.
+  to the name, then the points' wide words, never lying blank beside a name cut short. A wider
+  frame never shows fewer parts, nor a shorter name, but where a part comes back: the points and
+  the name give back the cells they took while it was gone.
 - **A turn that moved splits** between the two, each request counted on the account that answered
   it, the context written again on the account it moved to. The rows' requests and worth add up to
   TURNS', the worths to the cent too: TURNS' total is their sum worked out once, exactly, then
@@ -4496,7 +4497,7 @@ each form taken where its parts fit, as the wide page's rules give way:
   `accent.attention`; its five rows of columns, 11 to 15, as at every width, on the same scale; the
   ribbon on 16, where side's stretch is too narrow for its name (`┤├──┤`); and the axis on 17.
 - **The accounts,** from row 19: the name; the points, where it took any, in their short words, as
-  many windows as fit at 100 points each, at 52 columns the first alone, `≈ 6 of week`; and the
+  many windows as fit at `999+` each, at 52 columns the first alone, `≈ 6 of week`; and the
   worth at the right; the time there and the requests gone, as the wide page's rules give way.
 - **TURNS,** after a blank row: the heading, its rule from column 9, and the session's worth alone
   at the right, as the totals don't fit.

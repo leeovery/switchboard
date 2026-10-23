@@ -136,7 +136,7 @@ func (d sessionDrawn) row7Least() int {
 	if !d.page.Runs() {
 		return d.endedModelsKept(views.KeptUntilSaidWidest(d.page.KeptUntil)).width()
 	}
-	full := func(string) line { return line{{prose.Percent(1), mutedInk}} }
+	full := func(string) line { return line{{prose.PercentWhole(), mutedInk}} }
 	return sessionApart + d.windowsNamed(line{spaces(widestLabel(d.m))}, full).width()
 }
 
@@ -265,14 +265,14 @@ func (d sessionDrawn) phoneNow(c *canvas) {
 	y := d.l.now
 	where := d.page.Where(d.now)
 	named := labelCutAt(d.shortNamesCells(where))
-	said := d.doing()
+	said := []part{wordsPart(d.doing())}
 	if len(where.OnSince) > 0 {
-		said = slices.Concat(said, line{spaces(sessionPhoneApart)}, d.onSinceAt(where.OnSince, named))
+		said = slices.Concat(said, []part{wordsPart(line{spaces(sessionPhoneApart)})}, d.onSinceParts(where.OnSince, named))
 	}
-	c.line(0, y, said.fit(d.Width))
+	c.line(0, y, fitParts(d.Width, said...))
 	ran := line{{d.page.RanSaid(d.now), secondaryInk}}
 	room := c.right(d.Width, y+1, ran) - sessionPhoneApart
-	c.line(0, y+1, d.wordsAt(where.Short, mutedInk, named).fit(room))
+	c.line(0, y+1, fitParts(room, d.wordsParts(where.Short, mutedInk, named)...))
 }
 
 // shortNamesCells are the cells the short now rows give each name they
@@ -382,16 +382,22 @@ func (d sessionDrawn) onSince(w status.Words) line {
 
 // onSinceAt is onSince with the account's name as named names it.
 func (d sessionDrawn) onSinceAt(w status.Words, named func(string) string) line {
-	var l line
-	for _, p := range w {
-		if p.Kind != status.PartAccount {
-			l = append(l, span{p.Text, mutedInk})
-			continue
+	return partsSaid(d.onSinceParts(w, named))
+}
+
+// onSinceParts are onSinceAt's words as the parts fitParts cuts, each as
+// wordPart has it.
+func (d sessionDrawn) onSinceParts(w status.Words, named func(string) string) []part {
+	parts := make([]part, len(w))
+	for i, p := range w {
+		said := line{{p.Text, mutedInk}}
+		if p.Kind == status.PartAccount {
+			n := d.nameOf(p.Text)
+			said = append(line{{named(n.label), titleInk}}, n.marks()...)
 		}
-		n := d.nameOf(p.Text)
-		l = append(append(l, span{named(n.label), titleInk}), n.marks()...)
+		parts[i] = wordPart(p.Kind, said)
 	}
-	return l
+	return parts
 }
 
 // words are words a session's page says, in k, every account they name by
@@ -403,16 +409,41 @@ func (d sessionDrawn) words(w status.Words, k ink) line {
 // wordsAt are words as words says them, every account's name as name names
 // it.
 func (d sessionDrawn) wordsAt(w status.Words, k ink, name func(string) string) line {
-	l := make(line, len(w))
+	return partsSaid(d.wordsParts(w, k, name))
+}
+
+// wordsParts are wordsAt's words as the parts fitParts cuts, each as
+// wordPart has it.
+func (d sessionDrawn) wordsParts(w status.Words, k ink, name func(string) string) []part {
+	parts := make([]part, len(w))
 	for i, p := range w {
+		said := span{p.Text, secondaryInk}
 		switch p.Kind {
 		case status.PartAccount:
-			l[i] = span{name(named(d.m, p.Text)), secondaryInk}
-		case status.PartPlain:
-			l[i] = span{p.Text, k}
-		default:
-			l[i] = span{p.Text, secondaryInk}
+			said.text = name(named(d.m, p.Text))
+		case status.PartPlain, status.PartTime:
+			said.ink = k
 		}
+		parts[i] = wordPart(p.Kind, line{said})
+	}
+	return parts
+}
+
+// wordPart is a part of words, of the kind given, said as given: an
+// account's name or the words around it as words, cut where they run out of
+// room; a time, a span or a figure as a figure, said whole or not at all.
+func wordPart(kind status.PartKind, said line) part {
+	if kind == status.PartPlain || kind == status.PartAccount {
+		return wordsPart(said)
+	}
+	return figurePart(said, Number{})
+}
+
+// partsSaid are the parts given, one after another, whole.
+func partsSaid(parts []part) line {
+	var l line
+	for _, p := range parts {
+		l = append(l, p.said...)
 	}
 	return l
 }
@@ -536,12 +567,12 @@ const (
 )
 
 // The cells of an account's row's parts that hold theirs whole: its time
-// there, at prose.StintWidth, as "28 Sep 13:20 – yesterday 01:20"; its
+// there, as prose.StintWidest says it, "28 Sep 13:20 – yesterday 01:20"; its
 // requests, as views.StayRequestsSaidWidest, "99,999 requests"; and its
 // worth, as views.StayWorthSaidWidest, "$9999.99+"; stayGap blanks between
 // its parts.
 var (
-	stayTimeCells     = prose.StintWidth()
+	stayTimeCells     = ansi.StringWidth(prose.StintWidest())
 	stayRequestsCells = ansi.StringWidth(views.StayRequestsSaidWidest())
 	stayWorthCells    = ansi.StringWidth(widestOf(views.StayWorthSaidWidest()))
 )

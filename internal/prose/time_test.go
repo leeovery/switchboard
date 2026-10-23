@@ -30,12 +30,26 @@ func TestDatedIsNeverWiderThanItsWidthAndAnotherDaysFillsIt(t *testing.T) {
 	}
 }
 
-// No stay Stint says is wider than StintWidth, from starts across more than
+// Every time of day is said as wide as TimeOfDayWidest.
+func TestATimeOfDayIsAsWideAsItsWidest(t *testing.T) {
+	now := time.Date(2026, 10, 7, 9, 5, 0, 0, time.FixedZone("UTC+1", 60*60))
+	widest := prose.TimeOfDayWidest()
+	if widest != "23:59" {
+		t.Errorf("TimeOfDayWidest = %q, want %q", widest, "23:59")
+	}
+	for minute := range 24 * 60 {
+		if said := prose.TimeOfDay(now, now.Add(time.Duration(minute)*time.Minute)); len(said) != len(widest) {
+			t.Errorf("TimeOfDay says %q, not as wide as %q", said, widest)
+		}
+	}
+}
+
+// No stay Stint says is wider than StintWidest, from starts across more than
 // a year back to ends on their own day, the next, or any day after, dated
 // or not; and the widest fills it.
-func TestAStintIsNeverWiderThanItsWidth(t *testing.T) {
+func TestAStintIsNeverWiderThanItsWidest(t *testing.T) {
 	now := time.Date(2027, 1, 3, 9, 5, 0, 0, time.FixedZone("UTC+1", 60*60))
-	widest, filled := prose.StintWidth(), 0
+	widest, filled := ansi.StringWidth(prose.StintWidest()), 0
 	for back := range 400 {
 		from := now.AddDate(0, 0, -back).Add(-time.Hour)
 		for _, on := range []int{0, 1, 2, 7, back} {
@@ -48,13 +62,13 @@ func TestAStintIsNeverWiderThanItsWidth(t *testing.T) {
 				n := ansi.StringWidth(said)
 				filled = max(filled, n)
 				if n > widest {
-					t.Errorf("%q is %d characters, wider than StintWidth's %d", said, n, widest)
+					t.Errorf("%q is %d cells, wider than StintWidest's %d", said, n, widest)
 				}
 			}
 		}
 	}
 	if filled != widest {
-		t.Errorf("the widest stay said is %d characters, want StintWidth's %d", filled, widest)
+		t.Errorf("the widest stay said is %d cells, want StintWidest's %d", filled, widest)
 	}
 }
 

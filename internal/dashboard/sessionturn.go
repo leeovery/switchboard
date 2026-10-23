@@ -3,7 +3,6 @@ package dashboard
 import (
 	"slices"
 	"strconv"
-	"time"
 
 	"github.com/charmbracelet/x/ansi"
 
@@ -88,7 +87,7 @@ func (s *SessionShown) requestsShown(l sessionLayout) (from, to int) {
 
 // Kept is how many rows under the turn chosen's own its turns keep in view
 // with it as they scroll: of the turn open, its heads and its requests shown
-// down to the one chosen, as it opens its first (call 57); of any other,
+// down to the one chosen, as it opens its first; of any other,
 // none.
 func (s *SessionShown) Kept() int {
 	if s.Open == 0 || s.Open != s.Turn {
@@ -258,9 +257,9 @@ var (
 )
 
 // The cells a turn's start and its tokens take, as prose says them at their
-// widest: "14:31" and "999.9M".
+// widest: "23:59" and "999.9M".
 var (
-	startedCells = ansi.StringWidth(prose.TimeOfDay(time.Time{}, time.Time{}))
+	startedCells = ansi.StringWidth(prose.TimeOfDayWidest())
 	tokensCells  = ansi.StringWidth(prose.TokensWidest())
 )
 
@@ -284,8 +283,8 @@ const moveToLeast = 3
 // turnPartFacts are each part's heads, the fullest first, as firstFit tries
 // them in its cells, none for those that carry on its column; its least and
 // its natural, its least or its fullest head where either is wider, those
-// of the number, on and ↑ asking as turnParts gives them; whether its words are right-aligned; and the turns
-// it narrows and leaves in, 0 never.
+// of the number, on and ↑ asking as turnParts gives them; whether its words
+// are right-aligned; and the turns it narrows and leaves in, 0 never.
 var turnPartFacts = [...]struct {
 	heads           []string
 	least, natural  int

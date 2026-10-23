@@ -539,6 +539,35 @@ func TestTheWindowsASessionTookPointsOfAreNamedTheWeekFirst(t *testing.T) {
 	}
 }
 
+// A window's points are said whole to 999 in an account's row, and past it
+// as 999+, wide and short, and at their widest so; the session verb's
+// PointsSaid says them whole however many.
+func TestAWindowsPointsAreHeldTo999Plus(t *testing.T) {
+	tests := []struct {
+		points      int
+		wide, short string
+	}{
+		{points: 999, wide: "≈ 999 points of its week", short: "≈ 999 of week"},
+		{points: 1000, wide: "≈ 999+ points of its week", short: "≈ 999+ of week"},
+		{points: 1234, wide: "≈ 999+ points of its week", short: "≈ 999+ of week"},
+	}
+	for _, tt := range tests {
+		a := views.SessionAccount{Points: map[string]int{"7d": tt.points}}
+		said := map[string]views.PointsForm{tt.wide: views.PointsWide, tt.short: views.PointsShort}
+		for want, form := range said {
+			if got := slices.Concat(a.PointsWords(form)...).String(); got != want {
+				t.Errorf("PointsWords of %d points = %q, want %q", tt.points, got, want)
+			}
+		}
+	}
+	if got, want := slices.Concat(views.PointsWordsWidest([]string{"7d", "5h"}, views.PointsShort)...).String(), "≈ 999+ of week · 999+ of 5-hour"; got != want {
+		t.Errorf("PointsWordsWidest = %q, want %q", got, want)
+	}
+	if got, want := (views.SessionAccount{Points: map[string]int{"7d": 1234}}).PointsSaid(), "≈ 1,234 points of its week"; got != want {
+		t.Errorf("PointsSaid = %q, want %q", got, want)
+	}
+}
+
 // Each window's points are words apart, the first leading with ≈ and each
 // after it with ·, their points a figure, so a row short of room leaves
 // whole windows off its end; a phone says them short. Each says the window

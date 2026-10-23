@@ -767,8 +767,8 @@ func stayStep(t *testing.T, world string, width int, d sessionDrawn) int {
 // each one's cells set by what it can say at its most, and each row shows as
 // many windows as fit at their most, so rows with as many windows show as
 // many at one width: with short names and a 26-cell one, at every width,
-// before its first point and after, at 1 to 100 points of each window, and
-// worth a cent to its bound.
+// before its first point and after, at 1 to 1,234 points of each window,
+// and worth a cent to its bound.
 func TestAnAccountsRowHoldsStillAsItsFiguresChange(t *testing.T) {
 	docs := map[string]status.Document{"short names": pageDoc(), "a 26-cell name": pageLabelled("work-team-plan-for-the-org", "personal", "side")}
 	cents := func(n int64) *ledger.Picodollars {
@@ -780,7 +780,7 @@ func TestAnAccountsRowHoldsStillAsItsFiguresChange(t *testing.T) {
 		took bool
 	}
 	var figures []figure
-	for _, points := range []int{0, 1, 9, 10, 100} {
+	for _, points := range []int{0, 1, 9, 10, 100, 999, 1000, 1234} {
 		figures = append(figures, figure{set: func(a *views.SessionAccount) {
 			for key := range a.Points {
 				a.Points[key] = points
@@ -856,24 +856,31 @@ func TestAnAccountsRowMeasuresTheWindowsTheSessionUsed(t *testing.T) {
 	}
 }
 
-// Below the row's leasts, its worth stays whole at the right, stayGap
-// cells after whatever comes before it, its figures at their most, a
-// hundred points of every window, or of the widest alone, and $9,999.99:
-// the points give way there, never the worth.
-func TestAnAccountsWorthIsWholeBelowTheRowsLeasts(t *testing.T) {
+// An account's row keeps every part in its column, the blanks between
+// them blank, and its worth whole at the right, stayGap cells after what
+// comes before it, its figures past their most, 1,234 points of every
+// window, or of the widest alone, and $9,999.99: at every width, even below
+// the row's leasts, where the points give way, never the worth.
+func TestAnAccountsPartsKeepToTheirColumns(t *testing.T) {
 	most := moved()
 	for i := range most.Page.Accounts {
-		most.Page.Accounts[i].Points = map[string]int{"5h": 100, "7d": 100, "7d_oi": 100}
+		most.Page.Accounts[i].Points = map[string]int{"5h": 1234, "7d": 1234, "7d_oi": 1234}
 		most.Page.Accounts[i].Worth = worthOf(999_999)
 	}
-	most.Page.Accounts[0].Points = map[string]int{"7d_oi": 100}
+	most.Page.Accounts[0].Points = map[string]int{"7d_oi": 1234}
 	for _, world := range pageWorlds {
-		for width := 40; width <= 46; width++ {
+		for width := 40; width <= 220; width++ {
 			d, drawn := pageDrawn(pageFrame(t, most, width, 37), world.doc())
 			for i, s := range d.page.Stays(d.now)[:d.l.accounts] {
-				row := strings.TrimRight(string(drawn[d.l.accountsAt+i]), " ")
-				if want := strings.Repeat(" ", stayGap) + s.Cents(); !strings.HasSuffix(row, want) || strings.Contains(strings.TrimSuffix(row, s.Cents()), "$") {
-					t.Errorf("%s, at %d columns, an account's row reads %q, want it to end %q", world.name, width, row, want)
+				row := drawn[d.l.accountsAt+i]
+				said := strings.TrimRight(string(row), " ")
+				if want := strings.Repeat(" ", stayGap) + s.Cents(); !strings.HasSuffix(said, want) || strings.Contains(strings.TrimSuffix(said, s.Cents()), "$") {
+					t.Errorf("%s, at %d columns, an account's row reads %q, want it to end %q", world.name, width, said, want)
+				}
+				for c, col := range d.stayColumns[:len(d.stayColumns)-1] {
+					if gap := string(row[col.x+col.width : d.stayColumns[c+1].x]); strings.TrimSpace(gap) != "" {
+						t.Errorf("%s, at %d columns, an account's row reads %q, part %d running past its column into %q", world.name, width, said, col.part, gap)
+					}
 				}
 			}
 		}
@@ -887,13 +894,13 @@ func pointsSessions() map[string]*SessionShown {
 
 // An account's row keeps its windows before its requests and its time
 // there, and its requests before its name: with the frames' names and with
-// a 26-cell one, from 56 columns up, every account's row says every window
-// it took, uncut, and from 125 up, its requests whole too.
+// a 26-cell one, from 58 columns up, every account's row says every window
+// it took, uncut, and from 128 up, its requests whole too.
 func TestAnAccountsWindowsComeBeforeItsRequests(t *testing.T) {
 	docs := map[string]status.Document{"short names": pageDoc(), "a 26-cell name": pageLabelled("work-team-plan-for-the-org", "personal", "side")}
 	for world, doc := range docs {
 		for name, shown := range pointsSessions() {
-			for width := 56; width <= 170; width++ {
+			for width := 58; width <= 170; width++ {
 				d, drawn := pageDrawn(pageFrame(t, shown, width, 37), doc)
 				for i, s := range d.page.Stays(d.now)[:d.l.accounts] {
 					row := drawn[d.l.accountsAt+i]
@@ -901,7 +908,7 @@ func TestAnAccountsWindowsComeBeforeItsRequests(t *testing.T) {
 					if strings.Contains(points, prose.Ellipsis) || strings.Count(points, " · ") != len(s.PointsKeys())-1 {
 						t.Errorf("%s, %s, at %d columns, an account's points read %q, want its %d windows whole", world, name, width, points, len(s.PointsKeys()))
 					}
-					if got := stayText(row, d, stayRequests); width >= 125 && got != s.RequestsSaid() {
+					if got := stayText(row, d, stayRequests); width >= 128 && got != s.RequestsSaid() {
 						t.Errorf("%s, %s, at %d columns, an account's requests read %q, want %q", world, name, width, got, s.RequestsSaid())
 					}
 				}
@@ -1041,6 +1048,31 @@ func TestOnlyASessionThatCanAskKeepsAskingsCells(t *testing.T) {
 		endedTools, _ := ended.turnColumnOf(turnTools)
 		if ok && tools.width < toolsMost && endedTools.width <= tools.width {
 			t.Errorf("at %d columns, an ended session's tools is %d cells wide, want more than a running one's %d", width, endedTools.width, tools.width)
+		}
+	}
+}
+
+// A time the now rows say is never cut part-way: in every state, with
+// short names and long, at every width, each time where says is whole on
+// its row, or gone, where even the row's leasts can't hold it.
+func TestTheNowRowsNeverCutATime(t *testing.T) {
+	for _, world := range pageWorlds {
+		for _, state := range nowStates() {
+			for width := 40; width <= 220; width++ {
+				d, drawn := pageDrawn(pageFrame(t, state.shown, width, 37), world.doc())
+				where := d.page.Where(d.now)
+				rows := string(drawn[d.l.now]) + "\n" + string(drawn[d.l.now+1])
+				for _, p := range slices.Concat(where.OnSince, where.Why, where.Short) {
+					if p.Kind != status.PartTime {
+						continue
+					}
+					for cut := 1; cut < len([]rune(p.Text)); cut++ {
+						if part := string([]rune(p.Text)[:cut]) + prose.Ellipsis; strings.Contains(rows, part) {
+							t.Errorf("%s, %s, at %d columns, the now rows read\n%s\nwant %q whole or gone", world.name, state.name, width, rows, p.Text)
+						}
+					}
+				}
+			}
 		}
 	}
 }
