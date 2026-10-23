@@ -2356,14 +2356,15 @@ holds.
     `sessions moved` says how many moves, the in and out summed, `21`, and for `all accounts` its
     moves, `5`, in the column's ink, as `all accounts` says its count of limits; wide Compare's
     least holds the moves in full, so only turned Compare's `moved` says the count, where the full
-    doesn't fit a cell short of the next column. `limits hit` names its windows short, `week ×1 · 5h ×2`, then says how many, `3`, in the
-    column's ink, as `all accounts` says its count; turned Compare's `hit` takes the same forms
-    but the full, the fullest its column holds, so three windows read `4` there. `left at its last
-    reset` drops the day, `0%`; `plan` drops the plan's name, `$200/mo`, and for `all accounts` its
-    plans, to `$400/mo · 2/3` where some aren't known, then `$400/mo`; `extra usage` drops what it
-    means, `on`, and for `all accounts` `on all`, `off`; `against its price` drops its price,
-    `4.0×`, and for `all accounts` where some plans aren't known, every form keeps how many are,
-    its words shorter, then `4.4× · 2/3`, as its ratio is of those alone. The rest have one form.
+    doesn't fit a cell short of the next column. `limits hit` names its windows short,
+    `week ×1 · 5h ×2`, then says how many, `3`, in the column's ink, as `all accounts` says its
+    count; turned Compare's `hit` takes the same forms but the full, the fullest its column holds,
+    so three windows read `4` there. `left at its last reset` drops the day, `0%`; `plan` drops the
+    plan's name, `$200/mo`, and for `all accounts` its plans, to `$400/mo · 2/3` where some aren't
+    known, then `$400/mo`; `extra usage` drops what it means, `on`, and for `all accounts`
+    `on all`, `off`; `against its price` drops its price, `4.0×`, and for `all accounts` where
+    some plans aren't known, every form keeps how many are, its words shorter, then `4.4× · 2/3`,
+    as its ratio is of those alone. The rest have one form.
 - **With one account,** Compare goes, being Detail with one column: the heading shows ` Detail `
   alone.
 - **Wide, from where it fits.** Compare is drawn wide wherever its wide parts fit at their
@@ -2376,22 +2377,24 @@ holds.
   `all` last, unnumbered. More accounts than its height holds scroll with `j/k`, the last row saying
   `▼ 2 more below · j/k` (settled in the plan).
   - Its parts, laid by flex across the width: the names at their widest whole, at least 8 and at
-    most 24 cells, its marks among them; 2 cells on, the bars, 20 and at most 40, giving way to a
-    floor of 10; and a cell after them, the figures' column. It holds the widest largest version at a share of two
-    digits, `● Sonnet 5.5 55%`, of the widest name the pages give a version of a model the price
-    table prices, as `views.VersionNameCells` has it, a version's name or, for a model the config
-    prices, its id; and it takes the cell more a share of 100% needs last. It reads no page, so
-    nothing moves as the period's page is read or the period changes. Where the room runs short,
-    the names give way first, to their least; then the figures' column, a version's name cut; then
-    the bars, so a share is never cut: at 52 columns the bars are 20 from column 13 and long names are cut, the
-    figures whole. The bars take what the names and figures leave, to 40: with names of 10 cells,
-    as `personal ◆`, 40 from 73 columns; with names of 22, as `side-hustle-consulting`, 28 at 73
-    and 40 from 85; past that the rest of the row is blank past the figures. Only where the
-    names' least and the bars' 20 leave too little does the figures' column narrow: under 50
-    columns with the version table's names, and wider where the config prices a model named by a
-    long id. It narrows to a cell of a version's name at a share of 100%, `● … 100%`; past that the
-    bars give way, a cell at a time, to their floor of 10: 19 at 41 columns and 18 at 40 with the
-    sample's names, `● O… 55%`. Under the floor's width, the figures narrow further.
+    most 24 cells, its marks among them; 2 cells on, the bars, at 20, at most 40, giving way to a
+    floor of 10; and a cell after them, the figures' column. It holds the widest largest version
+    at a share of two digits, `● Sonnet 5.5 55%`, of the widest name the pages give a version of a
+    model the price table prices, as `views.VersionNameCells` has it, a version's name or, for a
+    model the config prices, its id; and it takes the cell more a share of 100% needs last. It
+    reads no page, so nothing moves as the period's page is read or the period changes. Where the
+    room runs short, the names give way first, to their least; then the figures' column, a
+    version's name cut; then the bars, so a share is never cut: at 52 columns the bars are 20 from
+    column 13 and long names are cut, the figures whole. The bars take what the names and figures
+    leave, to 40: with names of 10 cells, as `personal ◆`, 40 from 73 columns; with names of 22,
+    as `side-hustle-consulting`, 28 at 73 and 40 from 85; past that the rest of the row is blank
+    past the figures. Only where the names' least and the bars' 20 leave too little does the
+    figures' column narrow: under 50 columns with the version table's names, and wider where the
+    config prices a model named by a long id. It narrows to a cell of a version's name at a share
+    of 100%, `● … 100%`; past that the bars give way, a cell at a time, to their floor of 10: 19
+    at 41 columns and 18 at 40 with the sample's names, `● O… 55%`. Under 32 columns with the
+    sample's names, where even the leasts don't fit, the figures' column narrows past its least
+    and a share may be cut with the name: a share of 100% from 31, and `● … …` at 30.
   - A largest version that doesn't fit its cells cuts its name, never its share, at every width
     the design draws, from 40 columns: `● Sonnet 5… 100%` at 52; for a model the version table
     doesn't name, shown by its id, `● sonnet-4-20… 55%` where the config prices it, its id
@@ -2407,12 +2410,14 @@ holds.
     how many, `4`; and `moved` in full, `1 in · 3 out`, where that fits, else how many, `4`. Three
     columns share the room from the bars to the frame's edge alike, every group's the same, so
     they read as one table: at 13, 26 and 39 at 52 columns, at 13, 33 and 53 at 73. None is
-    narrower than its least: its head, and for `plan`, whose figures are the config's, the widest
-    plan it says, `all accounts`' sum among them; each but the last a cell short of the next. Where
-    the share alike falls under a column's least, it holds its least and the rest share what's
-    left alike, so at 40 `against it` holds its head and `$1,700/mo` is whole. What the data says,
-    as `worth`, never sets a least, so the columns hold still as it changes. The columns' heads on the group's heading row in `text.subtle`, a row an account under
-    it, with no blank rows.
+    narrower than its least: its head, and for `plan`, whose figures are the config's, each
+    configured account's plan at the most it has cost, on any day, and `all accounts`' sum of
+    those, as `views.PlansAtMost` has them; each but the last a cell short of the next. Where the
+    share alike falls under a column's least, it holds its least and the rest share what's left
+    alike, so at 40 `against it` holds its head and `$1,700/mo` is whole. Neither the period nor
+    the data, as `worth`, sets a least, so the columns hold still as either changes. The columns'
+    heads on the group's heading row in `text.subtle`, a row an account under it, with no blank
+    rows.
 
 **Detail** shows one account in full, or all of them, chosen from a list at its left. The panel's
 top half is now and the period; a rule, `the last six weeks`, heads the rest. The rows and columns

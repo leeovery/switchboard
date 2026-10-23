@@ -333,13 +333,13 @@ type turnedGroup struct {
 }
 
 // turnedColumn is a column of turned Compare's group: its head; what it
-// says of each of Compare's columns; and whether what it says is the
-// config's, as the plans are, so its column holds it whole however the data
-// reads.
+// says of each of Compare's columns; and, where what it says is the
+// config's, as the plans are, the most it can say, its least holding each
+// whole whatever the period or the data: none where it's the data's.
 type turnedColumn struct {
-	head       string
-	said       func(col compareColumn) partForms
-	configured bool
+	head  string
+	said  func(col compareColumn) partForms
+	bound [][]part
 }
 
 // turnedGroups are turned Compare's groups under BY MODEL, ACTIVITY,
@@ -364,18 +364,29 @@ func (cp compared) turnedGroups() []turnedGroup {
 			{head: "left", said: shortestOf(func(col compareColumn) partForms { return leftForms(col.row, col.ink()) })},
 		}},
 		{name: "VALUE", columns: []turnedColumn{
-			{head: "plan", said: shortestOf(func(col compareColumn) partForms { return planForms(col.row, col.ink()) }), configured: true},
+			{head: "plan", said: shortestOf(func(col compareColumn) partForms { return planForms(col.row, col.ink()) }), bound: cp.f.plansBound()},
 			{head: "worth", said: cp.recorded(figureForm(compareColumn.worth))},
 			{head: "against it", said: cp.recorded(shortestOf(func(col compareColumn) partForms { return againstForms(page, col.row) }))},
 		}},
 	}
 }
 
-// spans are the group's columns across room cells, of Compare's columns
-// given: alike, as flex shares them, but none narrower than its least, as
-// least has it. A column whose least is more than its share holds its
-// least, and the rest share what's left alike.
-func (g turnedGroup) spans(room int, columns []compareColumn) []flex.Span {
+// plansBound are the plans' prices the frame's accounts can say, in the
+// shortest form planForms has, each account's and all accounts', at the
+// most each plan has cost, as the frame's PlansAtMost has them.
+func (f Frame) plansBound() [][]part {
+	said := make([][]part, len(f.PlansAtMost))
+	for i, cost := range f.PlansAtMost {
+		said[i] = planForms(views.AccountsRow{Plan: cost}, secondaryInk).shortest()
+	}
+	return said
+}
+
+// spans are the group's columns across room cells: alike, as flex shares
+// them, but none narrower than its least, as least has it. A column whose
+// least is more than its share holds its least, and the rest share what's
+// left alike.
+func (g turnedGroup) spans(room int) []flex.Span {
 	parts := make([]flex.Part, len(g.columns))
 	for i := range parts {
 		parts[i] = flex.Part{Grows: true}
@@ -384,7 +395,7 @@ func (g turnedGroup) spans(room int, columns []compareColumn) []flex.Span {
 		spans, _ := flex.Lay(room, parts...)
 		held := false
 		for i, s := range spans {
-			if least := g.least(i, columns); parts[i].Grows && s.Size < least {
+			if least := g.least(i); parts[i].Grows && s.Size < least {
 				parts[i], held = flex.Part{Least: least, Natural: least}, true
 			}
 		}
@@ -394,23 +405,25 @@ func (g turnedGroup) spans(room int, columns []compareColumn) []flex.Span {
 	}
 }
 
-// least are the fewest cells the group's column i takes, of Compare's
-// columns given: the widest of its head and, where it's the config's, what
-// it says of each column; and, but the last's, a cell short of the next.
-// What the data says, as worth, never sets it: the arrangement would move
-// as the data does.
-func (g turnedGroup) least(i int, columns []compareColumn) int {
+// least are the fewest cells the group's column i takes: the widest of its
+// head and its bound, and the cells it keeps apart. What the data says, as
+// worth, never sets it: the arrangement would move as the data does.
+func (g turnedGroup) least(i int) int {
 	column := g.columns[i]
 	cells := ansi.StringWidth(column.head)
-	if column.configured {
-		for _, col := range columns {
-			cells = max(cells, partsWidth(column.said(col).shortest()))
-		}
+	for _, said := range column.bound {
+		cells = max(cells, partsWidth(said))
 	}
+	return cells + g.apart(i)
+}
+
+// apart are the cells the group's column i keeps short of the next: a cell,
+// but none for the last.
+func (g turnedGroup) apart(i int) int {
 	if i+1 < len(g.columns) {
-		cells++
+		return 1
 	}
-	return cells
+	return 0
 }
 
 // shortestOf is a row's figure in the shortest of its forms, as said has
@@ -424,10 +437,10 @@ func shortestOf(said func(col compareColumn) partForms) func(col compareColumn) 
 // text.subtle; then a row each of Compare's columns, no blank between. Its
 // columns share the room from the layout's bars to the frame's edge as the
 // group's spans has them, so every group's line up but where a column's
-// least needs more; each figure is cut a cell short of the next column, the last's at
-// the frame's edge.
+// least needs more; each figure is cut the cells its column keeps apart
+// short of the next, as apart has them, and at the frame's edge.
 func (cp compared) turnedGroup(c *canvas, y int, l turnedLayout, g turnedGroup, columns []compareColumn) int {
-	spans := g.spans(cp.f.edge()-l.at, columns)
+	spans := g.spans(cp.f.edge() - l.at)
 	c.line(0, y, line{{g.name, dimInk}})
 	c.heading(y, y+1)
 	for i, head := range g.columns {
@@ -437,10 +450,8 @@ func (cp compared) turnedGroup(c *canvas, y int, l turnedLayout, g turnedGroup, 
 		y++
 		c.line(turnedNameAt, y, turnedName(col, l.names))
 		for i, figure := range g.columns {
-			at, cells := l.at+spans[i].At, spans[i].Size-1
-			if i+1 == len(g.columns) {
-				cells = cp.f.edge() - at
-			}
+			at := l.at + spans[i].At
+			cells := min(spans[i].Size-g.apart(i), cp.f.edge()-at)
 			c.line(at, y, fitParts(cells, periodNumbered(figure.said(col).fitting(cells), col.id, figure.head)...))
 		}
 	}

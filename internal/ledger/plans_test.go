@@ -50,6 +50,25 @@ func TestAPlanTheTableDoesntKnowIsntPriced(t *testing.T) {
 	}
 }
 
+func TestAPlansMostIsTheMostItHasCostOnAnyDay(t *testing.T) {
+	tests := []struct {
+		name   string
+		prices []ledger.PlanPrice
+		want   ledger.Picodollars
+	}{
+		{name: "one price", prices: []ledger.PlanPrice{{From: "2023-09-07", Monthly: dollars(20)}}, want: dollars(20)},
+		{name: "a rise", prices: []ledger.PlanPrice{{From: "2023-09-07", Monthly: dollars(20)}, {From: "2026-10-06", Monthly: dollars(25)}}, want: dollars(25)},
+		{name: "a fall", prices: []ledger.PlanPrice{{From: "2023-09-07", Monthly: dollars(200)}, {From: "2026-10-06", Monthly: dollars(150)}}, want: dollars(200)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := (ledger.Plan{ID: "pro", Prices: tt.prices}).Most(); got != tt.want {
+				t.Errorf("Most() = %s, want %s", got.Cents(), tt.want.Cents())
+			}
+		})
+	}
+}
+
 func TestAPlanIsPricedAtTheDayAskedFor(t *testing.T) {
 	// A plan whose price rose the day before today.
 	plan := ledger.Plan{ID: "pro", Prices: []ledger.PlanPrice{{From: "2023-09-07", Monthly: dollars(20)}, {From: "2026-10-06", Monthly: dollars(25)}}}

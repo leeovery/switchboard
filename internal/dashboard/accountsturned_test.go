@@ -7,6 +7,8 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -105,16 +107,16 @@ func TestTurnedComparesBarsGiveWayBeforeAShareIsCut(t *testing.T) {
 }
 
 // Turned Compare's groups share their room alike, as the design's columns
-// are, but a column is never narrower than its least: its head, and, where
-// what it says is the config's, as the plans are, the widest it says; each
-// a cell short of the next but the last. What the data says, as worth, never
-// widens a column.
+// are, but a column is never narrower than its least: its head, and the
+// widest of its bound, the config's, as the plans' prices are; each a cell
+// short of the next but the last.
 func TestTurnedComparesColumnsHoldTheirLeasts(t *testing.T) {
-	saying := func(said string) func(compareColumn) partForms {
-		return func(compareColumn) partForms { return partForms{{figureIn(said, secondaryInk)}} }
-	}
-	column := func(head, said string, configured bool) turnedColumn {
-		return turnedColumn{head: head, said: saying(said), configured: configured}
+	column := func(head string, bound ...string) turnedColumn {
+		c := turnedColumn{head: head}
+		for _, said := range bound {
+			c.bound = append(c.bound, []part{figureIn(said, secondaryInk)})
+		}
+		return c
 	}
 	tests := []struct {
 		name    string
@@ -122,15 +124,15 @@ func TestTurnedComparesColumnsHoldTheirLeasts(t *testing.T) {
 		columns []turnedColumn
 		at      []int
 	}{
-		{name: "alike at 52", room: 38, columns: []turnedColumn{column("reqs", "1", false), column("sessions", "1", false), column("moved", "1", false)}, at: []int{0, 13, 26}},
-		{name: "alike at 73", room: 59, columns: []turnedColumn{column("plan", "$200/mo", true), column("worth", "$1", false), column("against it", "1×", false)}, at: []int{0, 20, 40}},
-		{name: "the last's head held at 40", room: 28, columns: []turnedColumn{column("plan", "$600/mo", true), column("worth", "$1", false), column("against it", "1×", false)}, at: []int{0, 9, 18}},
-		{name: "a plan's sum held at 40", room: 28, columns: []turnedColumn{column("plan", "$1,700/mo", true), column("worth", "$1", false), column("against it", "1×", false)}, at: []int{0, 10, 18}},
-		{name: "worth's data never held", room: 28, columns: []turnedColumn{column("plan", "$600/mo", true), column("worth", "$16,024,000", false), column("against it", "1×", false)}, at: []int{0, 9, 18}},
+		{name: "alike at 52", room: 38, columns: []turnedColumn{column("reqs"), column("sessions"), column("moved")}, at: []int{0, 13, 26}},
+		{name: "alike at 73", room: 59, columns: []turnedColumn{column("plan", "$200/mo", "$600/mo"), column("worth"), column("against it")}, at: []int{0, 20, 40}},
+		{name: "the last's head held at 40", room: 28, columns: []turnedColumn{column("plan", "$200/mo", "$600/mo"), column("worth"), column("against it")}, at: []int{0, 9, 18}},
+		{name: "a plan's sum held at 40", room: 28, columns: []turnedColumn{column("plan", "$200/mo", "$1,700/mo"), column("worth"), column("against it")}, at: []int{0, 10, 18}},
+		{name: "a middle column's head held", room: 20, columns: []turnedColumn{column("reqs"), column("sessions"), column("moved")}, at: []int{0, 6, 15}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			spans := turnedGroup{columns: tt.columns}.spans(tt.room, []compareColumn{{}})
+			spans := turnedGroup{columns: tt.columns}.spans(tt.room)
 			var at []int
 			for _, s := range spans {
 				at = append(at, s.At)
@@ -139,5 +141,56 @@ func TestTurnedComparesColumnsHoldTheirLeasts(t *testing.T) {
 				t.Errorf("the columns are at %v, want %v", at, tt.at)
 			}
 		})
+	}
+}
+
+// Turned Compare's VALUE holds its columns where they are as the period
+// changes, though a plan's price changed between the periods: the plans'
+// column is sized by the most each plan has cost, as the config prices it,
+// never by the prices of the period's page.
+func TestTurnedComparesPlansHoldStillAcrossADatedPriceChange(t *testing.T) {
+	accounts := slices.Clone(threeFramed)
+	for i := range accounts {
+		accounts[i].Plan = "max20x"
+	}
+	table := ledger.Table{Plans: []ledger.Plan{{ID: "max20x", Name: "Max 20x", Size: 20, Prices: []ledger.PlanPrice{
+		{From: "2025-04-09", Monthly: 200 * ledger.Dollar}, {From: "2026-09-21", Monthly: 4000 * ledger.Dollar},
+	}}}}
+	var heads []string
+	for _, monthly := range []float64{200, 4000} {
+		page := phonePage(t)
+		for i := range page.Rows {
+			page.Rows[i].Plan.Price = usd(monthly)
+		}
+		page.All.Plan.Price = usd(3 * monthly)
+		f := phoneText(t, 40, 60, AccountsCompare, "", page, nil)
+		f.Accounts.Accounts, f.PlansAtMost = accounts, views.PlansAtMost(accounts, table)
+		rows := textOf(f.Draw(phoneDoc(), routedAt))
+		i := slices.IndexFunc(rows, func(row string) bool { return strings.HasPrefix(row, "VALUE") })
+		if i < 0 {
+			t.Fatalf("at $%v a month, no VALUE in\n%s", monthly, strings.Join(rows, "\n"))
+		}
+		heads = append(heads, rows[i])
+		if all := rows[i+4]; !strings.Contains(all, prose.Grouped(int(3*monthly))) {
+			t.Errorf("at $%v a month, all accounts' plan is cut: %q", monthly, all)
+		}
+	}
+	if heads[0] != heads[1] {
+		t.Errorf("VALUE's heads read %q at one period's prices and %q at the other's", heads[0], heads[1])
+	}
+}
+
+// Turned Compare at 40 columns, with a plan not known, keeps its against it
+// whole, head and figure: the last column holds its head's cells, the
+// others sharing what's left.
+func TestTurnedComparesAgainstItIsWholeAt40(t *testing.T) {
+	page := phonePage(t)
+	page.All.Plan.Plans = views.PlansKnown{Known: 2, Of: 3}
+	f := phoneText(t, 40, 60, AccountsCompare, "", page, nil)
+	rows := textOf(f.Draw(phoneDoc(), routedAt))
+	for _, want := range []string{"VALUE      plan     worth    against it", " all       $600/mo  $635     4.6× · 2/3"} {
+		if !slices.ContainsFunc(rows, func(row string) bool { return strings.TrimRight(row, " ") == want }) {
+			t.Errorf("Compare reads\n%s\nwant a row %q", strings.Join(rows, "\n"), want)
+		}
 	}
 }

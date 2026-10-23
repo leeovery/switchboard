@@ -229,6 +229,32 @@ func PerMonth(price ledger.Picodollars) string {
 	return price.GroupedDollars() + "/mo"
 }
 
+// PlansAtMost are each configured account's plan at the most it has cost a
+// month, as ledger.Plan's Most has it, in the config's order, then every
+// account's, those summed, its plans counted: the most a plan's price says,
+// whatever period or day a page prices the plans at.
+func PlansAtMost(accounts config.Accounts, table ledger.Table) []PlanCost {
+	p := plans{accounts: accounts, table: table}
+	costs := make([]PlanCost, 0, len(accounts)+1)
+	all := PlanCost{All: true}
+	all.Plans.Of = len(accounts)
+	var sum ledger.Picodollars
+	for _, a := range accounts {
+		cost := PlanCost{Account: a.ID}
+		if plan, ok := p.of(a.ID); ok {
+			most := plan.Most()
+			cost.Plan, cost.Price = a.Plan, &most
+			sum += most
+			all.Plans.Known++
+		}
+		costs = append(costs, cost)
+	}
+	if all.Plans.Known > 0 {
+		all.Price = &sum
+	}
+	return append(costs, all)
+}
+
 // plansOf are each configured account's plan over days, in the config's
 // order, then every account's, each priced as pr prices the period: where
 // it prices none of it, each plan and its price alone.
