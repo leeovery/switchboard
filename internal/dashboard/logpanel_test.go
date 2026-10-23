@@ -524,8 +524,8 @@ func TestASessionsCountIsWholeAndClearOfItsAccount(t *testing.T) {
 					if before, _, found := strings.Cut(rest, counted); !found || before == "" || strings.TrimSpace(before) != "" {
 						t.Errorf("%d, names %q, %d counted, at %d cells, the row reads %q, want %q whole a cell or more after %q", of, labels, n, width, said, counted, name)
 					}
-					if _, after, _ := strings.Cut(rest, counted); !strings.HasPrefix(after, " ") || strings.TrimSpace(after) != doing {
-						t.Errorf("%d, names %q, %d counted, at %d cells, the row reads %q, want %q a cell or more after %q", of, labels, n, width, said, doing, counted)
+					if _, after, _ := strings.Cut(rest, counted); !strings.HasPrefix(after, strings.Repeat(" ", p.doingGap())) || strings.TrimSpace(after) != doing {
+						t.Errorf("%d, names %q, %d counted, at %d cells, the row reads %q, want %q %d cells or more after %q", of, labels, n, width, said, doing, p.doingGap(), counted)
 					}
 				}
 			}
@@ -533,9 +533,20 @@ func TestASessionsCountIsWholeAndClearOfItsAccount(t *testing.T) {
 	}
 }
 
+// What a session's doing keeps as many cells from its count's words as the
+// widest count's words leave it: 3 after ` today`, 2 after ` events`.
+func TestASessionsDoingKeepsTheGapTheWidestCountLeaves(t *testing.T) {
+	for of, want := range map[LogView]int{LogRequests: 3, LogEvents: 2} {
+		if got := framesPanel(of, 0).doingGap(); got != want {
+			t.Errorf("%d: what a session's doing is %d cells from its count's words at the least, want %d", of, got, want)
+		}
+	}
+}
+
 // A click on a session's row reaches as far as its widest row does, its
 // count at sessionCountMost and what it's doing at its widest, so it holds
-// the whole row, whatever the row it's on says; and no further than ONLY.
+// the whole row, whatever the row it's on says up to sessionCountMost; and
+// no further than ONLY.
 func TestASessionsRowIsClickedAlongItsWholeExtent(t *testing.T) {
 	for _, of := range []LogView{LogRequests, LogEvents} {
 		p := framesPanel(of, 0)

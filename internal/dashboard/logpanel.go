@@ -367,8 +367,9 @@ const (
 )
 
 // sessionCountMost is the most lines or events a session's row keeps in its
-// count's column: past it, the count pushes what follows it right, still
-// sessionCountGap clear of the account, and what it's doing with it.
+// count's column: past it, the count runs left into the account's blank
+// cells, then pushes right once it would come within sessionCountGap of the
+// name; what it's doing moves with it.
 const sessionCountMost = 99_999
 
 // sessionCountCells are the cells of a session's count at its widest, as
@@ -424,8 +425,9 @@ func (p LogPanel) sessionColumns(width int) sessionColumns {
 // sessionWords are a session's row after its tick, its account account
 // cells wide: its id in text.secondary; its directory's name, padded, in
 // text.muted; the account it's on, in its column, in text.primary; its
-// lines today, or of Events', its events, the figure ending at its column,
-// in text.secondary and the rest in text.muted; and what it's doing.
+// lines today, or of Events', its events, the figure ending at its column
+// up to sessionCountMost, in text.secondary and the rest in text.muted; and
+// what it's doing.
 func (p LogPanel) sessionWords(s views.LogSession, account int) line {
 	count := p.sessionCount(s.Lines)
 	if p.Of == LogEvents {

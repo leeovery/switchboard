@@ -4016,15 +4016,17 @@ cursor's on alone. Its title, in its top edge: `LOG · REQUESTS · WHAT IT SHOWS
     and the account it's on in `text.primary`, in a column of names (see "The pool, the names
     and their numbers"), as wide as the widest account configured, 24 cells at the most, cut
     with `…` past its cells; a cell on, its lines today right-aligned in 6, as wide as
-    `99,999`, the most a row counts whole, in `text.secondary`, then ` today` in `text.muted`;
+    `99,999`, the most its column holds, in `text.secondary`, then ` today` in `text.muted`;
     and 9 cells after their end, at `x+98` with the sample's names, what it's doing,
     `asking` in `accent.key`, or `started 14:41` or `idle 9m` in `text.muted`. A count past
-    `99,999` pushes what follows it right, a cell clear of the account still. The rows are laid
-    out by flex within ONLY, so none runs past it wherever ONLY has room for their leasts: where
+    `99,999` stays whole: it runs left into the account column's blank cells, then pushes what
+    follows it right, a cell clear of the name. The rows are laid out by flex within ONLY, so,
+    for counts up to `99,999`, none runs past it wherever ONLY has room for their leasts: where
     it's short of room, the rows start further out first, toward ONLY's start, as blank cells go
     before words; then the account narrows toward 8, or its natural where that's fewer. Narrower
-    still, as ONLY alone is on a screen under about 67 columns, a row runs past it and the card
-    cuts it at its edge. The row the cursor's on is on `bg.selection`. Row 23: `▼` in `accent.key`, ` 8 more today   ` in `text.muted`, `/` bold
+    still, as ONLY alone is on a screen under about 67 columns, or where a count past `99,999`
+    pushes a row past ONLY's edge, the card cuts the row there. The row the cursor's on is on
+    `bg.selection`. Row 23: `▼` in `accent.key`, ` 8 more today   ` in `text.muted`, `/` bold
     `accent.key`, and ` finds one from another day` in `text.muted`. The list scrolls within the
     panel, and a session found with `/` joins it, ticked (settled in the plan);
   - row 25, what it will show: `It shows ` in `text.secondary`, `1,240` bold `text.primary`, ` of `,
