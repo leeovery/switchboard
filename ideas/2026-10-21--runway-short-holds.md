@@ -1,6 +1,6 @@
 # Runway drops a hold shorter than a column
 
-Found on 21 October 2026, reviewing the fluid pass's Runway labels (S8). It isn't that slice's
+Found on 21 October 2026, reviewing the fluid pass's Runway labels. It isn't the labels'
 doing.
 
 ## What happens

@@ -175,7 +175,7 @@ func TestTheMatrixsRowIsLaidOutByItsParts(t *testing.T) {
 		bar, words            int
 		fits                  bool
 	}{
-		{name: "two windows at 108, the spike's", width: 108, windows: 2, names: 16, bar: 15, words: fullCells, fits: true},
+		{name: "two windows at 108, an iPad's", width: 108, windows: 2, names: 16, bar: 15, words: fullCells, fits: true},
 		{name: "two windows at 138", width: 138, windows: 2, names: 16, bar: 30, words: fullCells, fits: true},
 		{name: "two windows at 173", width: 173, windows: 2, names: 16, bar: 47, words: fullCells, fits: true},
 		{name: "three windows at 160", width: 160, windows: 3, names: 16, bar: 16, words: fullCells, fits: true},

@@ -118,6 +118,17 @@ func (w Worth) centsAt(rounded ledger.Picodollars) string {
 	return said
 }
 
+// centsWithin says the worth as centsAt does, its amount to the cent the one
+// given, held to most: past it, most and PartUnpriced, as "$999.99+", so a
+// worth bound to most's cells says it's past them, whether or not part of it
+// is unpriced.
+func (w Worth) centsWithin(rounded, most ledger.Picodollars) string {
+	if rounded > most {
+		return most.Cents() + PartUnpriced
+	}
+	return w.centsAt(rounded)
+}
+
 // toTheCent are the amounts given, parts of a whole, each to the cent, so
 // together they're the whole to the cent, as Cents says it: each is the
 // cents its running sum through it comes to, less those the sum before it

@@ -45,58 +45,55 @@ var (
 
 // phoneAllowed are the functions outside the chrome allowed to choose by
 // Phone all the same, or to hand it on to a view to choose by, named as
-// chrome names them, each under the slice of the fluid pass that moves it to
-// its parts. The list only shrinks: an entry must still be there, and still
-// use it.
+// chrome names them, each under the design's figure it keeps. The list only
+// shrinks: an entry must still be there, and still use it.
 var phoneAllowed = []string{}
 
 // sizedAllowed are the functions of drawingPackages, outside the chrome,
 // allowed to compare a width or a height with a constant all the same, named
-// as chrome names them, each under the slice of the fluid pass that moves it
-// to its parts. The list only shrinks: an entry must still be there, and
-// still compare one.
+// as chrome names them, each under the figure the design itself decides that
+// it keeps. The list only shrinks: an entry must still be there, and still
+// compare one.
 var sizedAllowed = []string{
-	// S5, left by it: the Switchboard's lines, step 4's state words short
-	// where the lines are narrower than widestLines, usage --by account's
-	// narrow block, 74 columns, as the design has it.
+	// The design's figure of the Switchboard's lines, 74 columns,
+	// widestLines: step 4's state words short where the lines are narrower,
+	// as usage --by account's narrow block.
 	"internal/dashboard/switchboardlines.go:linesDrawn.oneRow",
-	// S14, left by it: GRAPHS' charts or ROUTING beside USAGE's blocks by
-	// account from besideWidth, as the spike's frame 27 keeps them; and
-	// usage's words by the width, fullWords, as Detail, the phone's stack and
-	// the Switchboard's lines draw its gauges in rows of their own.
+	// The design's figure of GRAPHS and ROUTING beside USAGE by account
+	// from 150 columns, besideWidth; and of usage's words in full from 70
+	// columns, fullWords, in the views that give its bars rows of their own:
+	// Detail, the phone's stack and the Switchboard's lines.
 	"internal/dashboard/graphsbeside.go:Frame.graphsBeside",
 	"internal/dashboard/overview_usage.go:Frame.overviewBlock",
 	"internal/dashboard/routing.go:Frame.routingBesideUsage",
 	"internal/dashboard/usage.go:usageBlock.wordCells",
 	"internal/dashboard/usagewords.go:usageWords.pick",
-	// S19 and S20, left by them: Days and Weeks drawn whole and scrolled a
-	// row at a time shorter than historyRows, History's frames' 37 rows, as
-	// the design has them.
+	// The design's figure of History's frames, 37 rows, historyRows:
+	// shorter, Days and Weeks are drawn whole and scrolled a row at a time.
 	"internal/dashboard/historypage.go:Frame.shortOfHistory",
-	// S25, left by it: the frame cramped short of the fixed rows and
-	// leastView, three of the view's, which many views choose by, as the
-	// design settles it.
+	// The design's figure of the frame's least, the fixed rows and
+	// leastView, three of the view's: shorter, the frame is cramped, which
+	// many views choose by.
 	"internal/dashboard/frame.go:Frame.cramped",
 }
 
 // cutAllowed are the functions of drawingPackages allowed to cut a name to a
 // constant width all the same, or to use a cutter as a value, named as chrome
 // names them, or a package-level variable by its file's path, a colon and
-// its name, each under the slice of the fluid pass that gives it its width
-// from flex. The list only shrinks: an entry must still be there, and still
-// give one.
+// its name, each under the figure the design itself decides that it keeps.
+// The list only shrinks: an entry must still be there, and still give one.
 var cutAllowed = []string{
-	// S5, left by it: the Switchboard's lines' window labels, at the name
-	// column's 10 cells, as usage --by account's are in the design.
+	// The design's figure of usage --by account's window labels, 10 cells at
+	// the name column, which the Switchboard's lines take.
 	"internal/dashboard/switchboardlines.go:linesDrawn.window",
-	// S17, left by it: Detail's sessions' model families padded to 8, and
-	// how many more in the 43 cells its selection lights, as the design has
-	// them.
+	// The design's figures of Detail's SESSIONS: a model's family padded to
+	// 8 cells, and its selection, 43 cells from a cell before the row, which
+	// how many more is said in.
 	"internal/dashboard/accountsdetail.go:detailDrawn.session",
 	"internal/dashboard/accountsdetail.go:detailDrawn.sessions",
-	// S25, left by it: a Log card's items' names, the tree's own words, a
-	// window's name and a session's id, none a label, in the tree's column
-	// of names, fixed as its wide form's columns are.
+	// The design's figure of the Log card's tree's names, padded to 13: its
+	// items' names, the tree's own words, a window's name and a session's
+	// id, none a label.
 	"internal/dashboard/logcard.go:cardItem.row",
 }
 

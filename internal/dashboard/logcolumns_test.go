@@ -254,8 +254,8 @@ func TestTheLogsRequestsNarrowWhateverIsTicked(t *testing.T) {
 // on at its natural width, the widest configured account's: at least
 // labelLeast; in the first pass, whole until first, read and written have
 // left, then cut before out leaves; in the second, taking what's past the
-// leasts of the columns the first kept before any other, as the spike's 73
-// and 108 columns draw a table of long names.
+// leasts of the columns the first kept before any other, as a table of long
+// names shows it at a phone's 73 columns and an iPad's 108.
 func TestTheLogsOnIsLaidOutAtItsNaturalWidth(t *testing.T) {
 	tests := []struct {
 		name      string

@@ -282,7 +282,7 @@ func TestThePagesShowWhatTheyAreFor(t *testing.T) {
 		{name: "page-session-loading", want: []string{"SESSION   d28c   switchboard  ~/Code/switchboard   loading… ─", "esc back    ? help  q quit"},
 			wantNoneOf: []string{"STORY", "TURNS", "↑↓ turn"}},
 		{name: "page-sessions-chosen", want: []string{"d28c switchboard              ↑ asking     ▸ from work      ●"}},
-		{name: "page-sessions-short", want: []string{"▲ 2 more accounts", "3 side ▲", "db8a infra"}, wantNoneOf: []string{"1 work", "41e0 docs"}},
+		{name: "page-sessions-short", want: []string{"▲ 1 more above", "3 side ▲", "db8a infra"}, wantNoneOf: []string{"1 work", "▼"}},
 		{name: "page-sessions-not-answering", want: []string{"■ the router isn't answering", "c61b mobile                   ↓ answering"}},
 		{name: "page-year-160x24", want: []string{"limits hit   week ×3 · 5-hour ×412", "▲ 3 more above   ·   ▼ 17 more below   ·   j/k to scroll"}},
 		{name: "page-routing-160x16", want: []string{"╭─ ROUTING · NEW SESSIONS ─", "■ 0 auto", "enter apply   esc cancel  │", "╰────"}},

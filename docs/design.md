@@ -1054,8 +1054,10 @@ order the view's section gives.
 - **The figures the design itself decides stay figures,** each in its view's section: GRAPHS and
   ROUTING beside USAGE by account from 150 columns; `usage`'s words in full from 70 columns in the
   views that give its bars rows of their own; History's frames, 37 rows; the Switchboard's lines,
-  74 columns; the frame's least, the fixed rows and three of the view's; a model's family padded
-  to 8 cells in Detail's SESSIONS; and the Log card's tree's names padded to 13.
+  74 columns; `usage --by account`'s window labels, 10 cells at the name column, which the
+  Switchboard's lines take; the frame's least, the fixed rows and three of the view's; a model's
+  family padded to 8 cells in Detail's SESSIONS, and its selection, 43 cells from a cell before
+  the row; and the Log card's tree's names padded to 13.
 
 On a phone, under 100 columns, the tabs take row 1 of their own, the status line row 3 and the
 heading row 5, the view starting at row 7, or at row 8 where a period takes row 6 of its own. **The
@@ -3048,8 +3050,10 @@ what a week's peak is, what short means, how the replay estimates a week with an
 more, and what each verdict means; Days' two scales and its red `▪`; and Tokens' columns, as
 ccusage's, and the price table's date. With them, how each view scrolls: the Year a row at a time,
 saying what's out of view; Weeks and Days an account at a time, or a row at a time where they're
-drawn whole; Tokens a period at a time, or a row at a time where a period doesn't fit; and that a
-view goes back to its top as its scroll turns from one to the other.
+drawn whole; Tokens a period at a time, or a row at a time where a period doesn't fit, and on up
+from there while a period at a time would show fewer rows than a row at a time a row shorter, as
+the Switchboard's step 5 has it; and that a view goes back to its top as its scroll turns from one
+to the other.
 
 **Its figures,** every one from the ledger's days (see The request ledger), read with no router:
 requests a day, by version and by account; sessions, the distinct ids of the days' `session_ids`;
@@ -3255,7 +3259,11 @@ line and the key:
    below it doesn't show. Where an
    account's rows don't fit the view, under that first row where any are above, it scrolls a row
    at a time instead, the row over the key line saying how many rows are out of view,
-   `▲ 3 more above · ▼ 12 more below`, so every call can be reached.
+   `▲ 3 more above · ▼ 12 more below`, so every call can be reached; and it goes on a row at a
+   time on up from there while an account at a time would show fewer of its rows than a row at a
+   time a row shorter, so a taller view never shows less (`pagesByRows`, in `scrolling.go`): the
+   frames' three accounts scroll a row at a time at 160 by 13 and 14, where an account at a time
+   left side and its sessions out over blank rows.
 
 Where no line grows past its rows and no group of calls moves its line down, each row so taken being
 one fewer, steps 1 to 4 hold 3, 5, 13 and 26 accounts at 160 by 37. Where the lines are narrower
@@ -3366,11 +3374,12 @@ October 2026).
   3. the windows side by side, accounts a blank row apart and none before the calls;
   4. as 3, the key giving way: the lanes scroll an account at a time, `▲ 1 more account` on the
      view's first row while any are above, and `▼ 1 more account` right-aligned on the row over the
-     key line while any are below; or a row at a time, where a lane doesn't fit the view, a name
-     row showing with the row under it. Either way they page by the one rule of every view paged a
-     row at a time (see the Overview's USAGE), lanes in place of rows where they scroll an account
-     at a time: a page down starts at the first lane, or row, the page didn't show, and a page up
-     ends at the one above the first it showed, so paging either way passes over none
+     key line while any are below; or a row at a time, where a lane doesn't fit the view, and on
+     up from there while an account at a time would show less, as the board's step 5 has it, a
+     name row showing with the row under it. Either way they page by the one rule of every view
+     paged a row at a time (see the Overview's USAGE), lanes in place of rows where they scroll an
+     account at a time: a page down starts at the first lane, or row, the page didn't show, and a
+     page up ends at the one above the first it showed, so paging either way passes over none
      (`pageDown` and `pageUp`, in `scrolling.go`).
 
   The step hangs on the rows, the accounts configured, the calls, and the windows the moment lists,
@@ -4609,7 +4618,8 @@ first ran on them. A row's parts, two cells apart, as flex lays them at every wi
   `12:02 – 14:31`, `14:31 – now`; with its day where the session spans more than one, or began
   before today, as an undated time reads as today's: `yesterday 16:40 – 18:05`, `today 09:12 –
   now`, `yesterday 13:20 – 16:02` (settled in the plan);
-- **its requests** in `text.muted`, in 15, to `99,999 requests`: `404 requests`;
+- **its requests** in `text.muted`, in 16, to `99,999 requests`, and past it `99,999+ requests`:
+  `404 requests`;
 - **what it took of the account's windows,** the points bold `text.primary` and the rest
   `text.muted`, in the order of care: `≈ 6 points of its week · 41 of its 5-hour`, a model's own
   window it used adding `· N of its Fable week` (settled in the plan). It's measured by the
@@ -4622,9 +4632,9 @@ first ran on them. A row's parts, two cells apart, as flex lays them at every wi
   end where they wouldn't fit its column at `999+` each, so rows of as many windows show as
   many, whatever their points say;
 - **right-aligned to the last column,** its worth at API prices, in `text.secondary`: `$41.06`,
-  in 9, to `$9999.99+`, as wide as `unpriced`. Nothing grows, so what's spare lies between the
-  points and the worth. Where even the row's leasts don't fit, the worth stays whole, two cells
-  after the points, which give way there.
+  in 9, to `$9999.99`, and past it `$9999.99+`, as wide as `unpriced`. Nothing grows, so what's
+  spare lies between the points and the worth. Where even the row's leasts don't fit, the worth
+  stays whole, two cells after the points, which give way there.
 - **As the width runs short,** the points take their short words first, losing no figure; then
   the name narrows, to its least; then the requests leave, then the time there; and only then the
   points give up whole windows from the end, down to one. The name, the points and the worth
@@ -4684,8 +4694,8 @@ first ran on them. A row's parts, two cells apart, as flex lays them at every wi
   - the figures whole to their bounds at every width: `took` in 5, to `999m…`, past which it's
     said in whole hours to `99h…`, then whole days, `69d…`, never cut; and `requests`
     right-aligned from 5, to `9,999`, to 8, its head's;
-    `started` from 5 to 7, its head's; and `worth` right-aligned in 8, to `$999.99+`, as wide as
-    `unpriced`;
+    `started` from 5 to 7, its head's; and `worth` right-aligned in 8, to `$999.99`, and past it
+    `$999.99+`, as wide as `unpriced`;
   - `on`, the accounts a turn went to: one account's name, a label's, its least 8 and its natural
     the widest configured, never under 8, as a turn may have gone to an account no longer
     configured, and at most 24; and past it, a move's arrow and second name, the second

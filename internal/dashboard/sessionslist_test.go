@@ -299,12 +299,12 @@ func longListDoc() status.Document {
 	return doc
 }
 
-// Of long names, the List draws the spike's rows: at 108, routing left, the
-// 19 cells past the leasts give the session its 29, a directory of 23
-// whole, and on one more, 15, so work-team-plan is whole; at 73, worth and
-// started left too, the session takes the 10 cells left, and on holds its
-// 14, work-team-plan still whole; and at 138, routing still left, and 173,
-// on as wide as the widest name, every name whole.
+// Of long names, the List holds every name whole where it fits: at 108,
+// routing left, the 19 cells past the leasts give the session its 29, a
+// directory of 23 whole, and on one more, 15, so work-team-plan is whole; at
+// 73, worth and started left too, the session takes the 10 cells left, and
+// on holds its 14, work-team-plan still whole; and at 138, routing still
+// left, and 173, on as wide as the widest name, every name whole.
 func TestTheListHoldsLongNamesWholeWhereTheyFit(t *testing.T) {
 	infra := listedSession{"db8a71e3", "~/Code/infra-terraform-modules", "side", idleFor(50 * time.Second), yesterdayClock(15, 8), 126, 1137, views.MarkMoved, 0}
 	docs := listedSession{"3d7a8e12", "~/Code/docs-site-getting-started", "work", endedAt(10, 15), routedClock(1, 9, 40), 12, 84, views.NoMark, 0}

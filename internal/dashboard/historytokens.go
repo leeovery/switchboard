@@ -604,19 +604,46 @@ func (f Frame) tokensPlaced(top int) (tokensPlaced, []line) {
 	return p, note
 }
 
-// byRows reports whether Tokens' periods show a row at a time: where one of
-// them doesn't fit whole in the rows they have, with a row under it where
-// more are below.
+// byRows reports whether Tokens' periods show a row at a time, as
+// pagesByRows has it: where one of them doesn't fit whole in the rows they
+// have, with a row under it where more are below; and on up from there,
+// while a period at a time would show less than a row at a time a row
+// shorter.
 func (p tokensPlaced) byRows() bool {
+	return pagesByRows(p.rows, p.eachFits, p.wholeRows, func(rows int) rowsPaged {
+		return p.in(rows).paged()
+	})
+}
+
+// in is p placed in rows rows.
+func (p tokensPlaced) in(rows int) tokensPlaced {
+	p.rows = rows
+	return p
+}
+
+// eachFits reports whether each of Tokens' periods fits whole in rows rows,
+// with a row under it where more are below.
+func (p tokensPlaced) eachFits(rows int) bool {
 	for i, height := range p.heights {
 		if i < len(p.heights)-1 {
 			height++
 		}
-		if height > p.rows {
-			return true
+		if height > rows {
+			return false
 		}
 	}
-	return false
+	return true
+}
+
+// wholeRows are the rows the periods that show whole from the first take in
+// rows rows, as shown has them, a blank row between each.
+func (p tokensPlaced) wholeRows(rows int) int {
+	n := p.in(rows).shown(0)
+	taken := max(n-1, 0)
+	for _, height := range p.heights[:n] {
+		taken += height
+	}
+	return taken
 }
 
 // paged is how Tokens' periods page a row at a time in the rows they have,

@@ -259,7 +259,7 @@ func TestEveryBentCordTurnsDownInsideTheRoomOnAColumnOfItsOwn(t *testing.T) {
 // The first bent cord turns down 3 cells before the jacks, at every width the
 // board draws, and the rest 3 apart where the room holds them: of the long
 // names' world, a call moved, the room 18 columns at 108, its 6 bent cords
-// at 61, 58, 55, 52, 49 and 46, as the spike draws them.
+// at 61, 58, 55, 52, 49 and 46, 3 apart from 3 before the jacks at 64.
 func TestTheFirstBentCordTurnsDownThreeCellsBeforeTheJacks(t *testing.T) {
 	lines := boardLines{accounts: []string{"work", "personal", "side"}, windows: 2, labels: 22, moved: true}
 	tests := []struct {

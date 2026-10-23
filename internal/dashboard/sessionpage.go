@@ -569,7 +569,7 @@ const (
 
 // The cells of an account's row's parts that hold theirs whole: its time
 // there, as prose.StintWidest says it, "28 Sep 13:20 – yesterday 01:20"; its
-// requests, as views.StayRequestsSaidWidest, "99,999 requests"; and its
+// requests, as views.StayRequestsSaidWidest, "99,999+ requests"; and its
 // worth, as views.StayWorthSaidWidest, "$9999.99+"; stayGap blanks between
 // its parts.
 var (
@@ -712,7 +712,7 @@ func wordsCells(words []status.Words) int {
 // in their column, wide where it holds every window wide, else short; and
 // at the right, its worth.
 func (d sessionDrawn) account(c *canvas, y int, s views.Stay) {
-	c.right(d.Width, y, line{{s.Cents(), secondaryInk}})
+	c.right(d.Width, y, line{{s.WorthSaid(), secondaryInk}})
 	for _, col := range d.stayColumns {
 		switch col.part {
 		case stayName:
@@ -871,7 +871,7 @@ func (d sessionDrawn) turnSaid(col turnColumn, t views.Turn, newest bool) line {
 	case turnOut:
 		return muted(prose.Tokens(t.Out))
 	case turnWorth:
-		return muted(t.Cents())
+		return muted(t.WorthSaid())
 	case turnOn:
 		return d.turnOn(t.Accounts, col.width)
 	case turnAsking:
