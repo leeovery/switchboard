@@ -568,21 +568,30 @@ func TestATurnOpenScrollsItsTurnsNoFurtherThanKeepsItWhole(t *testing.T) {
 }
 
 // How a page scrolls, which each key, look and stream event on the page
-// asks, is laid out once, of the page alone at the size drawn at, as
-// PageScrolling has it: nothing more of the frame is built for it.
+// asks, is laid out once for it, of the page alone at the size drawn at, as
+// PageScrolling has it, with no turn open and with one: nothing more of the
+// frame is built for it.
 func TestHowFarAPagesTurnsScrollIsLaidOutOfThePageAlone(t *testing.T) {
-	h, _ := pageHarness(t, turnsOfRequests(start.Add(-30*time.Minute), slices.Repeat([]int{1}, 20)...))
+	h, _ := pageHarness(t, turnsOfRequests(start.Add(-30*time.Minute), slices.Repeat([]int{3}, 20)...))
 	h.deliver(h.update(tea.WindowSizeMsg{Width: 160, Height: 37})...)
 	h.openPage(idD28C)
-	shown := h.shownPage()
-	bare := dashboard.Frame{Width: 160, Height: 37, Session: &shown}
-	f, doc, at := h.model.screen(h.clock.now)
-	if got, want := h.model.pageView(shown).Turns, f.Scrolling(doc, at); got != want || want.Most == 0 {
-		t.Fatalf("the page alone lays its turns out scrolling %+v, want %+v, as the frame drawn does, scrolling", got, want)
-	}
-	least := testing.AllocsPerRun(10, func() { bare.TurnsScrolling() })
-	if got := testing.AllocsPerRun(10, func() { h.model.pageView(shown) }); got > least {
-		t.Errorf("how the page scrolls allocates %.0f times, want no more than its turns alone laid out once do, %.0f", got, least)
+	for _, open := range []bool{false, true} {
+		if open {
+			h.keys(enterKey)
+		}
+		shown := h.shownPage()
+		if (shown.Open != 0) != open {
+			t.Fatalf("the page has turn %d open, want one open %t", shown.Open, open)
+		}
+		bare := dashboard.Frame{Width: 160, Height: 37, Session: &shown}
+		f, doc, at := h.model.screen(h.clock.now)
+		if got, want := h.model.pageView(shown).Turns, f.Scrolling(doc, at); got != want || want.Most == 0 {
+			t.Fatalf("a turn open %t, the page alone lays its turns out scrolling %+v, want %+v, as the frame drawn does, scrolling", open, got, want)
+		}
+		least := testing.AllocsPerRun(10, func() { bare.TurnsScrolling() })
+		if got := testing.AllocsPerRun(10, func() { h.model.pageView(shown) }); got > least {
+			t.Errorf("a turn open %t, how the page scrolls allocates %.0f times, want no more than its turns alone laid out once do, %.0f", open, got, least)
+		}
 	}
 }
 

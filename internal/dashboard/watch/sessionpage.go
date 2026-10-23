@@ -339,10 +339,10 @@ func turnAt(shown dashboard.SessionShown, n int) int {
 // no further than keeps the one chosen in view, each scrolling as v says:
 // none chosen of a page with no turns. Every change to the page's rows
 // comes through here, so a turn open, its request chosen and its foot stay
-// in view whatever changed them: those of keys come through keptInView or
-// turnChosen; and the rest, as openTurn, closeTurn and a resize with no
-// turn open, through following, which relived runs after every message but
-// a frame's.
+// in view whatever changed them: those of keys come through keptInView,
+// turnChosen or scrollTurns; and the rest, as openTurn, closeTurn and a
+// resize with no turn open, through following, which relived runs after
+// every message but a frame's.
 func choosing(shown dashboard.SessionShown, i int, v dashboard.PageScrolling) dashboard.SessionShown {
 	shown.RequestsScroll = v.Requests.Keeping(shown.RequestsScroll, shown.Request, 0)
 	turns := shown.Page.Turns

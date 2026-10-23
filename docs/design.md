@@ -4374,14 +4374,16 @@ session page · signed off · 7 Oct 2026**, its frames kept as `testdata/vhs/ref
   rows under the wide chrome and 24 under a phone's.
 
   A taller frame never shows fewer turns, accounts or rows of the story within one arrangement,
-  nor a turn open fewer of its requests at a time in any, but where the now rows come back, two
-  rows for the one the turns had spare; and what a taller frame gave back never gives way again.
-  With one account, the wide page's story is whole from 28 rows, or 33 with a turn open, its
-  columns five rows tall from 34; two accounts, from 29, or 34, and 35. At 138×15 it's the
-  heading, now, STORY folded,
-  `+2 more accounts`, TURNS, its heads, the two newest turns and how many more, with no blank row;
-  with a turn open, the heading, now, TURNS, its heads, the turn open with a request and its foot,
-  and how many more.
+  and what a taller frame gave back never gives way again. A turn open never shows fewer than five
+  of its requests at a time while the story or the accounts' list still holds rows, and a taller
+  frame shows it fewer only where the story comes back, the page laid out afresh to five, as a
+  session of few turns had filled the story's rows with them, or where the now rows come back,
+  two rows for the one the turns had spare, one fewer. With one account, the wide page's story is
+  whole from 28 rows, or 33 with a turn open, its columns five rows tall from 34; two accounts,
+  from 29, or 34, and 35. At 138×15 it's the heading, now, STORY folded, `+2 more accounts`,
+  TURNS, its heads, the two newest turns and how many more, with no blank row; with a turn open,
+  the heading, now, TURNS, its heads, the turn open with a request and its foot, and how many
+  more.
 
 **The heading** (row 4): `SESSION` in `text.subtle`; three spaces; the session's id cut to 4, as the
 dashboard shows ids, bold `text.primary`; three spaces; its directory's last part, bold
@@ -4686,12 +4688,11 @@ moving down.
   own row, its heads and its foot, five at the most; one at the least. That count is set as the
   turn opens and again on a resize, and holds as turns come and go, so the turn holds still, but
   where the turns lose a row, as to an account joining, and had none spare under the turn: then it
-  shows one fewer. Whatever changes the
-  page's rows, its requests and its turns scroll to keep it whole in view, its request chosen and
-  its foot among it. Under them, `└` in `border`
-  at column 2, then from column 5 `▼` in `accent.key`, ` 32 more of its requests   ·   ` in
-  `text.muted`, `j/k` bold `accent.key` and ` through them` in `text.muted`. The requests scroll
-  within their panel, `↑↓` moving through them.
+  shows one fewer. Whatever changes the page's rows, its requests and its turns scroll to keep it
+  whole in view, its request chosen and its foot among it. Under them, `└` in `border` at column
+  2, then from column 5 `▼` in `accent.key`, ` 32 more of its requests   ·   ` in `text.muted`,
+  `j/k` bold `accent.key` and ` through them` in `text.muted`. The requests scroll within their
+  panel, `↑↓` moving through them.
 - **`enter` on a request** opens its details in the Log's card, the turn staying open behind it; the
   first request is chosen as a turn opens, on `bg.selection` (settled in the plan).
 

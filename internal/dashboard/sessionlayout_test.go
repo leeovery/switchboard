@@ -436,29 +436,62 @@ func TestATallerPageNeverShowsLess(t *testing.T) {
 	}
 }
 
-// A turn open shows its requests at their natural, five at a time, before
-// the page keeps its story or its accounts whole, and a taller page never
-// shows it fewer at a time, whatever the page gave back for the row, but
-// the now rows: two rows, given back whole, they take a row the turns had
-// spare a row shorter. Swept from 8 rows to 70, at a phone's widths, the
-// wide chrome's and 160, of thirteen turns, on one account, two and four.
+// A turn open shows its requests at their natural, five at a time, or more
+// where the turns have rows spare, while the page keeps its story or its
+// accounts' list whole, and a taller page never shows it fewer at a time,
+// but where the story comes back, re-laid to five, or the now rows do, two
+// rows given back whole for the one the turns had spare, one fewer, all else
+// as it was. Swept from 8 rows to 70, at a phone's widths, the wide
+// chrome's and 160, of one turn, three and thirteen, on one account, two
+// and four.
 func TestATallerPageNeverShowsATurnOpenFewerRequests(t *testing.T) {
-	for _, width := range append(slices.Clone(sweptWidths), 160) {
-		for _, accounts := range []int{1, 2, 4} {
-			shorter, nowLeft := 0, false
-			for height := sweptHeights[0]; height <= sweptHeights[1]; height++ {
-				f := pageFrame(t, ranOn(turnOpened(), accounts), width, height)
-				l, requests := f.pageLayout(), f.RequestsScrolling().Page
-				if requests < shorter && (!nowLeft || l.nowLeft) {
-					t.Errorf("at %d×%d, %d accounts, the turn open shows %d requests at a time, fewer than the %d a row shorter: %+v", width, height, accounts, requests, shorter, l)
+	for _, turns := range []int{1, 3, 13} {
+		for _, width := range append(slices.Clone(sweptWidths), 160) {
+			for _, accounts := range []int{1, 2, 4} {
+				var shorter sessionLayout
+				fewer := 0
+				for height := sweptHeights[0]; height <= sweptHeights[1]; height++ {
+					shown := ranOn(turnOpened(), accounts)
+					from := min(1, len(shown.Page.Turns)-turns)
+					shown.Page.Turns = shown.Page.Turns[from : from+turns]
+					f := pageFrame(t, shown, width, height)
+					l, requests := f.pageLayout(), f.RequestsScrolling().Page
+					at := fmt.Sprintf("%d×%d, %d turns, %d accounts", width, height, turns, accounts)
+					if broken := fewerBroken(shorter, l, accounts, fewer-requests, requests); broken != "" && requests < fewer {
+						t.Errorf("at %s, the turn open shows %d requests at a time, %d a row shorter, %s: %+v", at, requests, fewer, broken, l)
+					}
+					if requests < requestsNatural && (l.story || l.accounts > 0 && l.more == 0 && accounts > 1) {
+						t.Errorf("at %s, the turn open shows %d requests at a time, its story or its accounts whole: %+v", at, requests, l)
+					}
+					shorter, fewer = l, requests
 				}
-				if requests < requestsNatural && (l.story || l.accounts > 0 && l.more == 0 && accounts > 1) {
-					t.Errorf("at %d×%d, %d accounts, the turn open shows %d requests at a time, its story or its accounts whole: %+v", width, height, accounts, requests, l)
-				}
-				shorter, nowLeft = requests, l.nowLeft
 			}
 		}
 	}
+}
+
+// fewerBroken says how a page laid out as l, a row taller than shorter,
+// breaks the rule of when it may show a turn open fewer requests at a time,
+// by the fewer given, now showing requests: "" where the story came back
+// and it shows five, or the now rows came back and it shows one fewer, its
+// story, its accounts' count and its blank rows as they were.
+func fewerBroken(shorter, l sessionLayout, accounts, fewer, requests int) string {
+	was, is := givenOf(shorter, accounts), givenOf(l, accounts)
+	switch {
+	case shorter.chrome:
+		return ""
+	case was.story && !is.story:
+		if requests != requestsNatural {
+			return "its story come back, want five"
+		}
+	case was.nowLeft && !is.nowLeft:
+		if fewer != 1 || was.story != is.story || was.counted != is.counted || was.blanks != is.blanks {
+			return "its now rows come back, want one fewer, all else as it was"
+		}
+	default:
+		return "want no fewer"
+	}
+	return ""
 }
 
 // No rows lie blank under a fold: wherever a session's page has given any
