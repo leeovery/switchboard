@@ -790,7 +790,7 @@ func TestTheKeyLineSaysWhatTheMarksMean(t *testing.T) {
 		want  []string
 	}{
 		{name: "one line from the name column, where it fits beside it", doc: trio(), width: 160, want: []string{strings.Repeat(" ", 16) + pace + "    ╎ cap: work at 95%"}},
-		{name: "one line where it just fits, its parts three cells apart on a phone", doc: trio(), width: 85, want: []string{strings.Repeat(" ", 16) + pace + "   ╎ cap: work at 95%"}},
+		{name: "one line where it just fits, its parts three cells apart where four would not fit", doc: trio(), width: 85, want: []string{strings.Repeat(" ", 16) + pace + "   ╎ cap: work at 95%"}},
 		{name: "a cell short of that, two lines from column 0", doc: trio(), width: 84, want: []string{pace, "╎ cap: work at 95%"}},
 		{name: "no account with a cap", doc: trio(capped("work", 0)), width: 120, want: []string{strings.Repeat(" ", 16) + pace}},
 		{name: "several caps, in the config's order", doc: trio(capped("side", 0.1)), width: 120, want: []string{strings.Repeat(" ", 16) + pace + "    ╎ cap: work at 95%, side at 90%"}},
@@ -824,8 +824,8 @@ func TestTheKeyLineSaysWhatTheMarksMean(t *testing.T) {
 }
 
 // From 52 columns to 220, by window and by account, with the sample's names
-// and with names short enough that the gap's widening at 100 columns falls
-// where the key is one line or two: a key line one line at a width is one
+// and with names short enough that the key is one line at narrower widths:
+// a key line one line at a width is one
 // line wider, and its words never step down to a narrower form, as its gaps
 // narrow to three before it steps down.
 func TestAKeyLineNeverStepsDownAsTheWidthGrows(t *testing.T) {
@@ -868,7 +868,7 @@ func TestAKeyLinesFormNeverStepsDownAsTheWidthGrows(t *testing.T) {
 			words := 0
 			for width := 52; width <= 220; width++ {
 				var said strings.Builder
-				for _, s := range firstFit(width-beside, keyForms(width, forms, lead...)...) {
+				for _, s := range firstFit(width-beside, keyForms(forms, lead...)...) {
 					said.WriteString(s.text)
 				}
 				drawn := len(strings.Fields(said.String()))
@@ -878,6 +878,81 @@ func TestAKeyLinesFormNeverStepsDownAsTheWidthGrows(t *testing.T) {
 				words = drawn
 			}
 		}
+	}
+}
+
+// From 40 columns to 220, by window and by account, of one window, two and
+// three, with names of 2 cells, the sample's and long ones: each key line is
+// the first of its forms that fits it, whole; its parts four cells apart
+// wherever they fit so, and three only where they don't; and a key one line
+// at a width is one line wider.
+func TestAKeyLinesPartsAreFourCellsApartWhereverTheyFit(t *testing.T) {
+	named := map[string]func(*status.Document){
+		"names of 2 cells": func(d *status.Document) {
+			for i := range d.Accounts {
+				d.Accounts[i].Label = d.Accounts[i].ID[:2]
+			}
+		},
+		"the sample's names": func(*status.Document) {},
+		"long names":         longNamed,
+	}
+	for name, names := range named {
+		for windows := 1; windows <= 3; windows++ {
+			doc := trio(names, func(d *status.Document) {
+				for i := range d.Accounts {
+					d.Accounts[i].Windows = d.Accounts[i].Windows[:windows]
+				}
+			})
+			for _, by := range []By{ByWindow, ByAccount} {
+				oneLine := false
+				for width := 40; width <= 220; width++ {
+					at := fmt.Sprintf("%s, %d windows, by %d, at %d columns", name, windows, by, width)
+					f := frameOf(width, 60)
+					f.By = by
+					b := f.overviewBlock(doc, printNow)
+					c := growing(width)
+					b.key(c, 0)
+					rows := append(textOf(c.rows(Look{})), "")
+					if oneLine && !b.oneLineKey() {
+						t.Errorf("%s, the key is two lines, one line a column narrower", at)
+					}
+					oneLine = b.oneLineKey()
+					pace, forms := b.keyParts(b.bar())
+					if oneLine {
+						keyLineIsFirstFitting(t, at, strings.TrimLeft(rows[0], " "), width-b.names, keyForms(forms, pace))
+						continue
+					}
+					if pace.width() <= width && rows[0] != pace.plain() {
+						t.Errorf("%s, the key's first line reads %q, want even pace's part whole", at, rows[0])
+					}
+					if second := keyForms(forms); second[0] != nil {
+						keyLineIsFirstFitting(t, at, rows[1], width, second)
+					}
+				}
+			}
+		}
+	}
+}
+
+// keyGaps are the runs of blanks between a key line's parts.
+var keyGaps = regexp.MustCompile(` {3,}`)
+
+// keyLineIsFirstFitting fails the test where the key line drawn in room
+// cells, at the place said, isn't the first of forms that fits it, whole, or
+// where its parts are three cells apart though they'd fit four apart.
+func keyLineIsFirstFitting(t *testing.T, at, drawn string, room int, forms []line) {
+	t.Helper()
+	first := slices.IndexFunc(forms, func(l line) bool { return l.width() <= room })
+	if first < 0 {
+		return
+	}
+	if want := forms[first].plain(); drawn != want {
+		t.Errorf("%s, the key line in %d cells reads %q, want %q, the first of its forms that fits", at, room, drawn, want)
+		return
+	}
+	gaps := keyGaps.FindAllString(drawn, -1)
+	if len(gaps) > 0 && len(gaps[0]) == leastKeyApart && utf8.RuneCountInString(drawn)+len(gaps) <= room {
+		t.Errorf("%s, the key line in %d cells reads %q, its parts three cells apart though four fit", at, room, drawn)
 	}
 }
 

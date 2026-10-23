@@ -322,7 +322,7 @@ func (d linesDrawn) drawKey(c *canvas, y int) {
 	b := blockOf(d.m, d.f.Width, d.f.Look, ByAccount, d.windows, d.names).uncapped()
 	b.marks = keyMarks(d.names)
 	pace, forms := b.keyParts(d.barDrawn())
-	for i, l := range []line{pace, firstFit(d.f.Width, keyForms(d.f.Width, forms)...)} {
+	for i, l := range []line{pace, firstFit(d.f.Width, keyForms(forms)...)} {
 		c.line(0, y+i, l.fit(d.f.Width))
 	}
 }

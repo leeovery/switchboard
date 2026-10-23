@@ -689,8 +689,9 @@ func TestTheFocusedAccountIsPickedOutInTheMatrixWhileGRAPHSShows(t *testing.T) {
 }
 
 // The marks' words take their long form where it fits the key line, else
-// their short, as firstFit has them, never by the phone: ▲ new sessions go
-// here on a phone of 73, and ▲ new at 52, where the cap's part leaves the
+// their short, as firstFit has them, never by the phone, their gaps four
+// cells wherever that fits and three only where it doesn't: ▲ new sessions
+// go here on a phone of 73, and ▲ new at 52, where the cap's part leaves the
 // long no room, but not where there's no cap.
 func TestUSAGEsKeyLineNamesTheMarksTheAccountsCarry(t *testing.T) {
 	pace := "┃ even pace: where you would be now, used evenly"
@@ -709,12 +710,14 @@ func TestUSAGEsKeyLineNamesTheMarksTheAccountsCarry(t *testing.T) {
 		{name: "from 150 columns, four cells apart after the cap's", doc: trio(), width: 160, want: []string{pace + "    ╎ cap: work at 95%    ◆ primary    ▲ new sessions go here"}},
 		{name: "narrower, on the second line", doc: trio(), width: 120, want: []string{pace, "╎ cap: work at 95%    ◆ primary    ▲ new sessions go here"}},
 		{name: "at 100, four cells apart", doc: trio(), width: 100, want: []string{pace, "╎ cap: work at 95%    ◆ primary    ▲ new sessions go here"}},
-		{name: "at 99, three cells apart, the long form fitting", doc: trio(), width: 99, want: []string{pace, "╎ cap: work at 95%   ◆ primary   ▲ new sessions go here"}},
-		{name: "at 73, on a phone, the long form fitting", doc: trio(), width: 73, want: []string{pace, "╎ cap: work at 95%   ◆ primary   ▲ new sessions go here"}},
-		{name: "at 55, the long form just fitting", doc: trio(), width: 55, want: []string{pace, "╎ cap: work at 95%   ◆ primary   ▲ new sessions go here"}},
-		{name: "at 54, a cell short of the long form: ▲ new", doc: trio(), width: 54, want: []string{pace, "╎ cap: work at 95%   ◆ primary   ▲ new"}},
-		{name: "at 52, ▲ new", doc: trio(), width: 52, want: []string{pace, "╎ cap: work at 95%   ◆ primary   ▲ new"}},
-		{name: "at 52 with no cap, the long form fitting", doc: trio(account("work", func(a *status.Account) { a.Reserve = 0 })), width: 52, want: []string{pace, "◆ primary   ▲ new sessions go here"}},
+		{name: "at 99, four cells apart, the long form fitting", doc: trio(), width: 99, want: []string{pace, "╎ cap: work at 95%    ◆ primary    ▲ new sessions go here"}},
+		{name: "at 73, on a phone, four cells apart, the long form fitting", doc: trio(), width: 73, want: []string{pace, "╎ cap: work at 95%    ◆ primary    ▲ new sessions go here"}},
+		{name: "at 57, four cells apart, just fitting", doc: trio(), width: 57, want: []string{pace, "╎ cap: work at 95%    ◆ primary    ▲ new sessions go here"}},
+		{name: "at 56, a cell short of that, three cells apart", doc: trio(), width: 56, want: []string{pace, "╎ cap: work at 95%   ◆ primary   ▲ new sessions go here"}},
+		{name: "at 55, the long form just fitting, three cells apart", doc: trio(), width: 55, want: []string{pace, "╎ cap: work at 95%   ◆ primary   ▲ new sessions go here"}},
+		{name: "at 54, a cell short of the long form: ▲ new, four cells apart", doc: trio(), width: 54, want: []string{pace, "╎ cap: work at 95%    ◆ primary    ▲ new"}},
+		{name: "at 52, ▲ new", doc: trio(), width: 52, want: []string{pace, "╎ cap: work at 95%    ◆ primary    ▲ new"}},
+		{name: "at 52 with no cap, the long form fitting, four cells apart", doc: trio(account("work", func(a *status.Account) { a.Reserve = 0 })), width: 52, want: []string{pace, "◆ primary    ▲ new sessions go here"}},
 		{name: "one line where it fits beside the name column at its widest", doc: trio(), width: 125, want: []string{pace + "    ╎ cap: work at 95%    ◆ primary    ▲ new sessions go here"}},
 		{name: "a cell short of it, one line, its gaps narrowed to three", doc: trio(), width: 124, want: []string{pace + "   ╎ cap: work at 95%   ◆ primary   ▲ new sessions go here"}},
 		{name: "one line where it fits with its gaps at their least", doc: trio(), width: 122, want: []string{pace + "   ╎ cap: work at 95%   ◆ primary   ▲ new sessions go here"}},

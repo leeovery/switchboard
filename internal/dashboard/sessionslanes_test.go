@@ -610,7 +610,7 @@ func TestTheLanesKeyIsOverTheKeyLine(t *testing.T) {
 		f := lanesFrame(73, height, Look{}, phoneScene())
 		rows := lanesText(f, doc)
 		_, fits := laneStepOf(f, doc)
-		pace, marks := strings.HasPrefix(rows[height-3], "┃ even pace"), rows[height-2] == "◆ primary   ▲ new sessions go here"
+		pace, marks := strings.HasPrefix(rows[height-3], "┃ even pace"), rows[height-2] == "◆ primary    ▲ new sessions go here"
 		if pace != fits || marks != fits {
 			t.Errorf("at 73×%d, fitting %t, the key over the key line: %t, %t; drew\n%s", height, fits, pace, marks, strings.Join(rows, "\n"))
 		}

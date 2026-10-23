@@ -1600,9 +1600,9 @@ Then, as only the Overview has them:
   leave.
 - **The key line names the marks the accounts carry,** after the cap's: `◆` in `text.tertiary` and
   ` primary`, and `▲` in `accent.mode` and ` new sessions go here`, each four spaces after the part
-  before, in `text.muted`; on a phone, three spaces. The gaps are three at the least: where four
-  don't fit, they narrow to three before the line takes a narrower form, so the form a key line
-  takes never steps down as the width grows, the gaps widening at 100 columns. `▲`'s words take
+  before, in `text.muted`, at any width. The gaps are three at the least: where four don't fit,
+  they narrow to three before the line takes a narrower form, so the form a key line takes never
+  steps down as the width grows, and its gaps are four wherever they fit. `▲`'s words take
   the first of their two forms that fits the line, ` new sessions go here`, then ` new`, as
   `keyForms` and `firstFit` have them, never by the phone: in full on a phone of 73, and at 52
   where no cap's part comes before them. The Switchboard's key, the Overview's, follows the same
@@ -3287,11 +3287,10 @@ October 2026).
   on the spike, 21 October 2026).
 - **The key,** as the board's, on the two rows directly over the key line, from column 0, the rows
   left over lying between the last lane and it, a blank row at the least:
-  `┃ even pace: where you would be now, used evenly`, and `◆ primary   ▲ new sessions go here`,
+  `┃ even pace: where you would be now, used evenly`, and `◆ primary    ▲ new sessions go here`,
   naming no cap, `▲`'s words as the Overview's key line words them, by the room it has: `▲ new`
-  where the long words don't fit; its marks three spaces apart under 100 columns, and four from 100,
-  where bent cords bring the lanes, narrowing to three before `▲`'s words shorten, as `keyForms`
-  has them.
+  where the long words don't fit; its marks four spaces apart, narrowing to three before `▲`'s
+  words shorten, as `keyForms` has them.
 - **When rows run short,** the lanes take the first of their steps whose lanes, a blank row and the
   key fit the view and the row over the key line, the order kept in one place (`laneSteps`, in
   `sessionslanes.go`):

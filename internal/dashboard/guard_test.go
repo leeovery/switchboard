@@ -48,10 +48,7 @@ var (
 // chrome names them, each under the slice of the fluid pass that moves it to
 // its parts. The list only shrinks: an entry must still be there, and still
 // use it.
-var phoneAllowed = []string{
-	// S14: USAGE's key, its parts spaced apart by the width.
-	"internal/dashboard/usage.go:keyApart",
-}
+var phoneAllowed = []string{}
 
 // sizedAllowed are the functions of drawingPackages, outside the chrome,
 // allowed to compare a width or a height with a constant all the same, named
