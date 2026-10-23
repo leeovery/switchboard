@@ -190,9 +190,9 @@ func (s windowStates) cappedRouting() (Routing, bool) {
 		return Routing{}, false
 	}
 	shared := policy.IsShared(keys[0])
-	kind, says, then := RoutingCapped, "at its cap", onlyIf(s.doc.elsewhere(a.ID), goElsewhere)
+	kind, says, then := RoutingCapped, AtCap, onlyIf(s.doc.elsewhere(a.ID), goElsewhere)
 	if !shared {
-		kind, says, then = RoutingModelCapped, Short(a.label(keys[0]))+" at its cap", []string{stillComes}
+		kind, says, then = RoutingModelCapped, Short(a.label(keys[0]))+" "+AtCap, []string{stillComes}
 	}
 	if s.doc.Pin.Has(a.ID) {
 		if shared {
