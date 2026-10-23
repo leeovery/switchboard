@@ -29,5 +29,5 @@ SESSIONS   Switchboard  List
 
 
 ┃ even pace: where you would be now, used evenly
-◆ primary   ▲ new sessions go here
+◆ primary    ▲ new sessions go here
 ↑↓ session   enter open   [ ] view   ? keys   q quit

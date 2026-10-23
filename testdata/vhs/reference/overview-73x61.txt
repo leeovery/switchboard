@@ -26,7 +26,7 @@ WEEK
  Σ pool                     ┃▎               49%  1.5 of 3 left
 
 ┃ even pace: where you would be now, used evenly
-╎ cap: work at 95%   ◆ primary   ▲ new sessions go here
+╎ cap: work at 95%    ◆ primary    ▲ new sessions go here
 
 ROUTING   auto ──────────────────────────────────────────────────────── r
 
