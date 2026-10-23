@@ -438,30 +438,43 @@ var (
 )
 
 // outOfView says what's out of view where a view scrolls, above and below,
-// in the longest of forms, each shorter than the one before, that fits width
-// cells; where none does, as the last says one count alone, below where any
-// are, as what's below is what a line cut short loses, else above, cut to
-// width cells: its count a figure, drawn whole with its mark, and where that
-// doesn't fit, the mark alone, as a count cut short would say fewer. It says
-// nothing where nothing is out of view.
+// in the first that fits width cells of: both counts with the keys, in each
+// of forms, each shorter than the one before; both counts without them; one
+// count alone, below where any are, as what's below is what a line cut short
+// loses, else above, with the keys, then without. Where none fits, it's the
+// last of those cut to width cells: its count a figure, drawn whole with its
+// mark, and where that doesn't fit, the mark alone, as a count cut short
+// would say fewer. It says nothing where nothing is out of view.
 func outOfView(above, below, width int, forms ...outForm) line {
 	if above+below == 0 {
 		return nil
 	}
+	alone := [2]int{0, below}
+	if below == 0 {
+		alone = [2]int{above, 0}
+	}
+	tried := slices.Clip(forms)
 	for _, form := range forms {
-		if said := form.said(above, below); said.width() <= width {
-			return said
+		tried = append(tried, form.keyless())
+	}
+	for _, n := range [][2]int{{above, below}, alone} {
+		for _, form := range tried {
+			if said := form.said(n[0], n[1]); said.width() <= width {
+				return said
+			}
 		}
 	}
-	last := forms[len(forms)-1]
-	one := last.parts(0, below)
-	if below == 0 {
-		one = last.parts(above, 0)
-	}
+	one := tried[len(tried)-1].parts(alone[0], alone[1])
 	if mark := one[0].said[0]; partsWidth(one[:2]) > width {
 		return line{mark}.fit(width)
 	}
 	return fitParts(width, one...)
+}
+
+// keyless is the form without its keys and what they do.
+func (o outForm) keyless() outForm {
+	o.keys, o.does = "", ""
+	return o
 }
 
 // said is what's out of view, above and below, as the form says it, whole:

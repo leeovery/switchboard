@@ -41,16 +41,11 @@ var (
 var accountsOut = outForm{lead: "+", noun: "account", inks: subtleOut}
 
 // turnsOut is how a session's page says how many of its turns are out of
-// view, and how to scroll to them: "▼ 3 more turns   ·   j/k to scroll"; and
-// turnsCounted, where that doesn't fit, its counts alone, so the turns above
-// are counted wherever both counts fit.
-var (
-	turnsOut = outForm{
-		noun: "turn", gap: "   ·   ", keys: "j/k", does: " to scroll",
-		inks: outInks{mark: keyMarkInk, space: mutedInk, count: mutedInk, gap: mutedInk, keys: keyInk, does: mutedInk},
-	}
-	turnsCounted = outForm{noun: turnsOut.noun, gap: turnsOut.gap, inks: turnsOut.inks}
-)
+// view, and how to scroll to them: "▼ 3 more turns   ·   j/k to scroll".
+var turnsOut = outForm{
+	noun: "turn", gap: "   ·   ", keys: "j/k", does: " to scroll",
+	inks: outInks{mark: keyMarkInk, space: mutedInk, count: mutedInk, gap: mutedInk, keys: keyInk, does: mutedInk},
+}
 
 // sessionDrawn is a session's page as the frame draws it of a moment at
 // now: the page open, laid out as sessionLayout lays it out; its accounts
@@ -794,7 +789,7 @@ func (d sessionDrawn) turns(c *canvas) {
 	for i, r := range rows {
 		r.draw(c, d.l.turnsAt+i)
 	}
-	c.line(0, d.l.moreTurns, outOfView(above, below, d.Width, turnsOut, turnsCounted))
+	c.line(0, d.l.moreTurns, outOfView(above, below, d.Width, turnsOut))
 }
 
 // turnsHeading draws TURNS' heading: TURNS, a rule from turnsRuleAt, a cell
