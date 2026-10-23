@@ -366,8 +366,9 @@ const (
 	sessionDoingApart = 9
 )
 
-// sessionCountMost is the most lines or events a session's row counts
-// whole: past it, its count runs into what it's doing.
+// sessionCountMost is the most lines or events a session's row keeps in its
+// count's column: past it, the count pushes what follows it right, still
+// sessionCountGap clear of the account, and what it's doing with it.
 const sessionCountMost = 99_999
 
 // sessionCountCells are the cells of a session's count at its widest, as
@@ -426,19 +427,36 @@ func (p LogPanel) sessionColumns(width int) sessionColumns {
 // lines today, or of Events', its events, the figure ending at its column,
 // in text.secondary and the rest in text.muted; and what it's doing.
 func (p LogPanel) sessionWords(s views.LogSession, account int) line {
-	count := line{{prose.Grouped(s.Lines), secondaryInk}, {" today", mutedInk}}
+	count := p.sessionCount(s.Lines)
 	if p.Of == LogEvents {
-		count = countedSaid(s.Events, "event", secondaryInk, mutedInk)
+		count = p.sessionCount(s.Events)
 	}
 	countEnd := sessionAccountAt + account + sessionCountGap + sessionCountCells()
 	words := line{{status.ShownID(s.ID), secondaryInk}}
 	words = padTo(words, sessionDirAt-tickBox, line{{views.SessionDirName(s.Dir), mutedInk}})
 	words = padTo(words, sessionAccountAt-tickBox, line{{prose.Cut(p.named(s.Account), account), accountInk}})
-	words = padTo(words, countEnd-tickBox-count[:1].width(), count)
+	words = padTo(words, max(countEnd-tickBox-count[:1].width(), words.width()+sessionCountGap), count)
 	if doing := sessionDoing(s, p.Now); doing.text != "" {
-		words = padTo(words, countEnd+sessionDoingApart-tickBox, line{doing})
+		words = padTo(words, max(countEnd+sessionDoingApart-tickBox, words.width()+p.doingGap()), line{doing})
 	}
 	return words
+}
+
+// sessionCount is a session's count as its row says it, n of the panel's
+// table: its lines today, or its events, the figure in text.secondary and
+// the rest in text.muted.
+func (p LogPanel) sessionCount(n int) line {
+	if p.Of == LogEvents {
+		return countedSaid(n, "event", secondaryInk, mutedInk)
+	}
+	return line{{prose.Grouped(n), secondaryInk}, {" today", mutedInk}}
+}
+
+// doingGap is the fewest cells between a session's count and what it's
+// doing: as many as the widest count's words leave, sessionDoingApart from
+// its figure's end.
+func (p LogPanel) doingGap() int {
+	return sessionDoingApart - p.sessionCount(sessionCountMost)[1:].width()
 }
 
 // named is what the panel calls the account with the given id: its name, of

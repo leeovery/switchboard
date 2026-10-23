@@ -849,3 +849,17 @@ func TestARowsEndKeepsTwoCellsFromItsStartWhereItsCut(t *testing.T) {
 		})
 	}
 }
+
+// A row with its end is never wider than its cells, where what's before the
+// end leaves it no room, or the end's empty.
+func TestARowWithItsEndIsNeverWiderThanItsCells(t *testing.T) {
+	for width := range 16 {
+		for _, l := range []string{"", "work", "work closed"} {
+			for _, end := range []string{"", "abc", "at its limit till 15:54"} {
+				if got := atEnd(line{{l, titleInk}}, line{{end, errorInk}}, width, endGap).width(); got > width {
+					t.Errorf("%q with %q at its end in %d cells is %d cells wide", l, end, width, got)
+				}
+			}
+		}
+	}
+}

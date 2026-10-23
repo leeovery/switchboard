@@ -502,8 +502,9 @@ func TestWithTheFramesNamesThePanelIsItsNarrowest(t *testing.T) {
 }
 
 // A session's count stands clear of its account's name, a cell at least,
-// and whole, however long its names and however many its lines or events,
-// up to sessionCountMost, at every width the panel draws its rows at.
+// and whole, and what it's doing a cell at least after it, however long its
+// names and however many its lines or events, past sessionCountMost too,
+// at every width the panel draws its rows at.
 func TestASessionsCountIsWholeAndClearOfItsAccount(t *testing.T) {
 	for _, of := range []LogView{LogRequests, LogEvents} {
 		for _, labels := range [][]string{{"ab", "cd", "ef"}, {"abcdefgh", "cd", "ef"}} {
@@ -511,17 +512,50 @@ func TestASessionsCountIsWholeAndClearOfItsAccount(t *testing.T) {
 			for i, label := range labels {
 				p.Accounts[i].Label = label
 			}
-			for _, n := range []int{999, 1277, 12345, sessionCountMost} {
+			for _, n := range []int{999, 1277, 12345, sessionCountMost, 100_000, 1_000_000} {
 				s := p.Sessions[5]
 				s.Lines, s.Events, s.Account = n, n, p.Accounts[0].ID
+				counted, doing := p.sessionCount(n).plain(), sessionDoing(s, p.Now).text
 				for width := 40; width <= 140; width++ {
 					at := p.sessionColumns(width)
 					said := p.sessionWords(s, at.account).plain()
 					name := prose.Cut(labels[0], at.account)
 					_, rest, _ := strings.Cut(said, name)
-					if before, _, found := strings.Cut(rest, prose.Grouped(n)); !found || before == "" || strings.TrimSpace(before) != "" {
-						t.Errorf("%d, names %q, %d counted, at %d cells, the row reads %q, want %s whole a cell or more after %q", of, labels, n, width, said, prose.Grouped(n), name)
+					if before, _, found := strings.Cut(rest, counted); !found || before == "" || strings.TrimSpace(before) != "" {
+						t.Errorf("%d, names %q, %d counted, at %d cells, the row reads %q, want %q whole a cell or more after %q", of, labels, n, width, said, counted, name)
 					}
+					if _, after, _ := strings.Cut(rest, counted); !strings.HasPrefix(after, " ") || strings.TrimSpace(after) != doing {
+						t.Errorf("%d, names %q, %d counted, at %d cells, the row reads %q, want %q a cell or more after %q", of, labels, n, width, said, doing, counted)
+					}
+				}
+			}
+		}
+	}
+}
+
+// A click on a session's row reaches as far as its widest row does, its
+// count at sessionCountMost and what it's doing at its widest, so it holds
+// the whole row, whatever the row it's on says; and no further than ONLY.
+func TestASessionsRowIsClickedAlongItsWholeExtent(t *testing.T) {
+	for _, of := range []LogView{LogRequests, LogEvents} {
+		p := framesPanel(of, 0)
+		i := slices.IndexFunc(p.Sessions, func(s views.LogSession) bool {
+			return strings.HasPrefix(sessionDoing(s, p.Now).text, sessionStarted)
+		})
+		widest := p.Sessions[i]
+		widest.Lines, widest.Events = sessionCountMost, sessionCountMost
+		for width := 40; width <= 140; width++ {
+			if _, fits := flex.Lay(width, p.sessionParts()...); !fits {
+				continue
+			}
+			at := p.sessionColumns(width)
+			reach := tick{name: "", after: p.sessionWords(widest, at.account)}.words().width()
+			for _, s := range p.onlyPane(width).spots {
+				if s.on.group != sessionTick {
+					continue
+				}
+				if s.w < reach || s.x+s.w > width {
+					t.Errorf("%d at %d cells, session %s is clicked from %d for %d cells, want %d at least, and within ONLY", of, width, s.on.id, s.x, s.w, reach)
 				}
 			}
 		}

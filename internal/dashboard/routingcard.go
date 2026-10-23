@@ -38,19 +38,24 @@ const (
 )
 
 // The parts of a row of the routing card, from its content's start: the
-// mark and the number, from choiceName, before the name; the name, a
-// column of names, as labelColumn lays it; nameGap on, the state, or
-// auto's description, as wide as stateCells has it; stateGap on, the
-// windows, the second choiceUsesApart from the first, as widestUses has
-// them; and endGap on, at the content's end, the reason or the sessions
-// running, as endLeast has it.
+// mark and the number, from choiceName, choiceKey cells with the space
+// after it, before the name; the name, a column of names, as labelColumn
+// lays it; nameGap on, the state, or auto's description, as wide as
+// stateCells has it; stateGap on, the windows, the second choiceUsesApart
+// from the first, as widestUses has them; and endGap on, at the content's
+// end, the reason or the sessions running, as endLeast has it.
 const (
 	choiceName      = 2
-	choiceNameAt    = choiceName + 2
+	choiceKey       = 2
+	choiceNameAt    = choiceName + choiceKey
 	stateGap        = 4
 	choiceUsesApart = 11
 	endGap          = 2
 )
+
+// sessionRowApart are the cells between a session's row's id, its directory's
+// name and its directory.
+const sessionRowApart = 2
 
 // What holds an account back from new sessions until a time, as closedBy
 // says it: a limit, or its own cap.
@@ -463,11 +468,11 @@ func (r RoutingCard) sessionRow(width int, pathed bool) line {
 	}
 	room := width - on.width() - endGap
 	row := line{{status.ShownID(s.ID), titleInk}}
-	if name := status.DirName(s.Dir, max(room-row.width()-2, 1)); name != "" {
-		row = slices.Concat(row, line{spaces(2), {name, mutedInk}})
+	if name := status.DirName(s.Dir, max(room-row.width()-sessionRowApart, 1)); name != "" {
+		row = slices.Concat(row, line{spaces(sessionRowApart), {name, mutedInk}})
 	}
-	if path := pathIn(s.Dir, s.Home, room-row.width()-2); pathed && path != "" {
-		row = slices.Concat(row, line{spaces(2), {path, secondaryInk}})
+	if path := pathIn(s.Dir, s.Home, room-row.width()-sessionRowApart); pathed && path != "" {
+		row = slices.Concat(row, line{spaces(sessionRowApart), {path, secondaryInk}})
 	}
 	return atEnd(row, on, width, endGap)
 }
@@ -568,7 +573,7 @@ func fitting(heights []int, room int) int {
 // reason or sessions running. Stacked, an account's windows take a row of
 // their own under it.
 func (r RoutingCard) choice(row RoutingRow, at choiceColumns, width int) []line {
-	head := line{r.mark(row), spaces(choiceName - 1), {padded(row.Key, 2), dimInk}, {prose.Cut(row.Name, at.name), titleInk}}
+	head := line{r.mark(row), spaces(choiceName - 1), {padded(row.Key, choiceKey), dimInk}, {prose.Cut(row.Name, at.name), titleInk}}
 	if row.Account == "" {
 		return []line{padTo(head, at.state, r.autoChooses(width-at.state))}
 	}
@@ -703,10 +708,11 @@ func padTo(l line, column int, after line) line {
 
 // atEnd is l, cut to width cells, with end at its end, cut short where it
 // must be to keep gap cells clear of l: then gap cells after l, as a cut
-// can let go of the spaces before its ellipsis and end short of the edge.
+// can let go of the spaces before its ellipsis and end short of the edge;
+// never wider than width, where l leaves end no room.
 func atEnd(l, end line, width, gap int) line {
 	l = l.fit(width)
-	at := l.width() + gap
+	at := min(l.width()+gap, width)
 	cut := end.fit(width - at)
 	if cut.width() == end.width() {
 		at = width - cut.width()
