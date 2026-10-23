@@ -251,9 +251,9 @@ func (latelyTeller) befallen(e status.Event, f eventFact) (Said, Said) {
 func befell(e status.Event, f eventFact) (full, short string) {
 	switch e.Kind {
 	case status.EventCap:
-		return "reached its cap", "at its cap"
+		return "reached its cap", status.AtCap
 	case status.EventLimit:
-		return "reached its " + prose.ListOf(f.windows, "limit"), "at its limit"
+		return "reached its " + prose.ListOf(f.windows, "limit"), status.AtLimit
 	case status.EventRefused:
 		answer := status.RefusalAnswer(e.Status, e.Family)
 		return answer, answer

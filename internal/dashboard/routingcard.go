@@ -57,13 +57,6 @@ const (
 // name and its directory.
 const sessionRowApart = 2
 
-// What holds an account back from new sessions until a time, as closedBy
-// says it: a limit, or its own cap.
-const (
-	limitHolds = "at its limit"
-	capHolds   = "at its cap"
-)
-
 // stateCells are the cells of a row's state: the widest word stateWords
 // says.
 func stateCells() int {
@@ -75,7 +68,7 @@ func stateCells() int {
 func widestHeld() string {
 	var now time.Time
 	another := now.AddDate(0, 0, 1)
-	return slices.MaxFunc([]string{till(limitHolds, another, now), till(capHolds, another, now)}, func(a, b string) int {
+	return slices.MaxFunc([]string{till(status.AtLimit, another, now), till(status.AtCap, another, now)}, func(a, b string) int {
 		return ansi.StringWidth(a) - ansi.StringWidth(b)
 	})
 }
@@ -349,11 +342,11 @@ func closedBy(a status.AccountNow, now time.Time) (reason string, capped bool) {
 	case !a.TokenSet:
 		return "no token", false
 	case limited(a):
-		return till(limitHolds, a.Back, now), false
+		return till(status.AtLimit, a.Back, now), false
 	case a.TokenRefused:
 		return tokenRefused(a.Refusal), false
 	case a.CapHolds:
-		return till(capHolds, a.Back, now), true
+		return till(status.AtCap, a.Back, now), true
 	}
 	return "", false
 }
