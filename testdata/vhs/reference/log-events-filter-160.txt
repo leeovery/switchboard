@@ -4,7 +4,7 @@
 
 LOG    Requests  Events  [ ]  ──────────────────────────────────────────────────────────────────────────────────────────────────────  20 today   f what it shows
 
-  at        session            event     account              what happened
+  at        session            event     account          what happened
 ● 17:20:15        ╭─ LOG · EVENTS · WHAT IT SHOWS ───────────────────────────────────────────────────────────────────────────────────────────╮
 ↩ 18:02:40        │                                                                                                                          │
 ■ 19:12:40        │  Pick which events it shows.                                                                                             │
@@ -27,10 +27,10 @@ LOG    Requests  Events  [ ]  ────────────────�
 ▸ 13:22:40  db8a i│                                                                                                                          │
 ◇ 13:50:00        │                                                               ←→ side   ↑↓ move   space tick   enter apply   esc cancel  │
 ▲ 14:12:30  7f3a a╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
-╎ 14:31:03                     cap       work                 95% of its 5-hour window: its 3 sessions move to side as their next requests come
-▸ 14:31:13  d28c switchboard   moved     work → side          work reached its cap   182k cached again, $1.82
-▸ 14:31:20  7f3a api           moved     work → side          work reached its cap   98k cached again, $0.98
-▸ 14:31:40  db8a infra         moved     work → side          work reached its cap   66k cached again, $0.66
+╎ 14:31:03                     cap       work             95% of its 5-hour window: its 3 sessions move to side as their next requests come
+▸ 14:31:13  d28c switchboard   moved     work → side      work reached its cap   182k cached again, $1.82
+▸ 14:31:20  7f3a api           moved     work → side      work reached its cap   98k cached again, $0.98
+▸ 14:31:40  db8a infra         moved     work → side      work reached its cap   66k cached again, $0.66
 ▲ 14:41:11  c61b mobile        started   side
 
 ● following                                                                                                                                      20 events today

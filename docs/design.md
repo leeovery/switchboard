@@ -4137,12 +4137,12 @@ cursor's on alone. Its title, in its top edge: `LOG · REQUESTS · WHAT IT SHOWS
 **Events.** A line an event, as a table with heads, from column 2, its columns two cells apart, each
 a part flex lays out (`logevents.go`): `at`, 8; `session`, as Requests' is; `event`, 8; `account`,
 at least 8, its natural and its most the longest line a move can make: the widest configured label,
-` → `, and the second widest, each counted 24 at the most and 8 at the least, as an event may name
-an account no longer configured, or the widest alone with one account configured, a pin of several
-cut to it, each name cut at 24; and `what happened`, 40 at the least, and the room left. Where they
-don't fit, they give way in this order: the session, whole; `what happened` cut to 20; then
-`account` toward its least. So with the frames' accounts, their move 19 cells, `side` counted at 8,
-the session shows down to 102 columns, and a phone's 52 show `at`, `event`, `account` and
+` → `, and the second widest, each counted 24 at the most, or the widest alone with one account
+configured, the whole 8 at the least, as an event may name an account no longer configured, a pin
+of several cut to it, each name cut at 24; and `what happened`, 40 at the least, and the room
+left. Where they don't fit, they give way in this order: the session, whole; `what happened` cut
+to 20; then `account` toward its least. So with the frames' accounts, their move 15 cells, the
+session shows down to 98 columns, and a phone's 52 show `at`, `event`, `account` and
 `what happened`.
 
 - **`at` and `session`** as Requests' are; `session` is blank for an account's event, and holds a
