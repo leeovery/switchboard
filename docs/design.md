@@ -4665,13 +4665,14 @@ none touches routing.
 3. **The choices,** a row each, in parts from the content's start, as flex lays them: the mark at
    0 and the number at 2; the name at 4, a label's column by Rule 2, as wide as the widest account
    configured, 24 cells at the most, narrowing where the card's short of room before any other
-   part gives way: on one line to 8, or 11 where its natural is as many or more, so one line never
-   cuts a name of 11 cells or fewer; stacked, to 8. It's cut with `…` past its cells. Two cells
-   on, the state, 6 cells, as wide as `closed`; four on, the windows, the week, then the 5-hour 11 cells
-   from it, at its widest `5-hour 100%`, 22 cells in all; and two on, at the right edge, the
-   account's reason or its sessions, at least 27 cells, the widest reason the router gives with a
-   time, `at its limit till Sun 15:54`, as wide as `token refused (403, sonnet)`. With the sample's
-   names: the state at 14, the week at 24 and the 5-hour at 35.
+   part gives way: on one line to its natural or 11, whichever's fewer, and never under 8, so one
+   line never cuts a name of 11 cells or fewer; stacked, to 8. It's cut with `…` past its cells.
+   Two cells on, the state, 6 cells, as wide as `closed`; four on, the windows, the week, then the
+   5-hour 11 cells from it, at its widest `5-hour 100%`, 22 cells in all; and two on, at the right
+   edge, the account's reason or its sessions, at least 27 cells, the widest of the reasons the
+   router gives with a time, as `at its limit till Sun 15:54`, and of a token refused for the
+   widest family known, as `token refused (403, sonnet)`. With the sample's names: the state at
+   14, the week at 24 and the 5-hour at 35.
    - **`0 auto` first,** `0` in `text.subtle` and `auto` in bold `text.primary`, its description in
      `text.muted`: `the router chooses`; on a session's card, `the router chooses: side for now`,
      the account auto would send it to, bold `text.primary`: where the router's own rule for a
@@ -4774,14 +4775,18 @@ them, don't fit one line of the content at their leasts: with names of 8 cells o
 cells of content, a screen under 83 columns; with one of 11, under 86. They're facts of the card
 and its configuration, never what a row says, so every row is stacked alike. Stacked, its windows
 go to a row of their own under it, from the state's column, or as near it as they fit whole, so a
-window's use is never cut. On its name's row, its reason or sessions are right-aligned, at least
-27 cells; and after `auto`, its description, as wide as it says at its fullest of any account
-configured. Whitespace gives way before words: the name whole with gaps of 2; where that doesn't
+window's use is never cut. On its name's row, its reason or sessions are right-aligned, room kept
+for them of at least 27 cells, the widest a reason says; and after `auto`, room for its
+description as wide as it says at its fullest of any account configured, the name counted at 24
+cells at the most. Reasons are bounded and come before names, so the name narrows to keep those
+reserves, even where the reason a row gives at the moment is shorter, or auto names a shorter
+account. Whitespace gives way before words: the name whole with gaps of 2; where that doesn't
 fit, both gaps narrow to a cell, once, from where the configured names put it (with the sample's
 names, under 49 cells of content, a screen under 57; under 58 on a session's card; with a name of
 11, under 60); then the name narrows toward 8; then auto's description is cut, and the reasons
-and sessions after it, with `…` where they must, a cell after the state. The key row keeps `enter apply` and `esc cancel`, and as many of the rest as fit, `↑↓
-move` the first to go (settled in the plan).
+and sessions after it, with `…` where they must, a cell after the state. The key row keeps
+`enter apply` and `esc cancel`, and as many of the rest as fit, `↑↓ move` the first to go
+(settled in the plan).
 
 **More accounts than fit:** the card is at most the page's height less 4 rows; past that, its
 accounts scroll within it, the row it's on kept in view, `▼ 3 more` under the last row shown and

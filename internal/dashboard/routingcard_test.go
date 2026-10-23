@@ -504,10 +504,8 @@ func TestTheKeysRowNamesTheNumbersAndKeepsEnterAndEscWhereItsShort(t *testing.T)
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := RoutingCard{Rows: make([]RoutingRow, tt.accounts+1)}
-			for i := range r.Rows[1:] {
-				r.Rows[1+i].Windows = [2]RoutingWindow{{Name: "week"}, {Name: "5-hour"}}
-			}
+			doc := routerDoc("", 0, namedAccounts(tt.accounts)...)
+			r := RoutingCard{Rows: RoutingRows(doc.At(now, claudeLike), nil, views.Stream{})}
 			f := Frame{Width: tt.width, Height: 40}
 			if got := keyRow(r.card(f).keys).plain(); got != tt.want {
 				t.Errorf("the keys row reads %q, want %q", got, tt.want)

@@ -101,9 +101,6 @@ func describedOf(said string) int {
 // old fixed column of names, from column 16.
 func TestAutosDescriptionNeverSaysLessThanBefore(t *testing.T) {
 	for name, first := range widenedNames {
-		if len(first) > labelMost {
-			continue
-		}
 		for _, auto := range []string{"account-1", "account-2"} {
 			r := accountsCard(sessionCard(nil), first, 3)
 			r.Session.Auto = auto
@@ -113,6 +110,39 @@ func TestAutosDescriptionNeverSaysLessThanBefore(t *testing.T) {
 				before := r.autoChooses(content - 16).plain()
 				if describedOf(said[strings.Index(said, "the router"):]) < describedOf(before) {
 					t.Errorf("%s, auto choosing %s, at %d columns, auto's row reads %q, less than the %q it said before", name, auto, width, said, before)
+				}
+			}
+		}
+	}
+}
+
+// Auto's row names an account as a label's column does, 24 cells at the
+// most, so a longer name lays the rows out as one of 24.
+func TestAutoNamesAnAccountAsALabelsColumnDoes(t *testing.T) {
+	named := func(name string) RoutingCard {
+		return sessionCard(func(r *RoutingCard) { r.Rows[1].Name = name })
+	}
+	long, most := named("a-very-long-account-name-extra"), named("a-very-long-account-name")
+	for width := 40; width <= 100; width++ {
+		if got, want := long.columns(width), most.columns(width); got != want {
+			t.Errorf("at %d cells, a name of 30 lays the rows out %+v, want %+v as one of 24", width, got, want)
+		}
+	}
+}
+
+// Where the rows lie is a fact of the card and its configuration, never of
+// which account the router would choose: the columns are the same whatever
+// auto's row names, any account configured or none, whatever their names.
+func TestTheColumnsHoldWhateverTheRouterChooses(t *testing.T) {
+	for name, first := range widenedNames {
+		r := sessionCard(func(r *RoutingCard) { r.Rows[1].Name = first })
+		for width := 40; width <= 100; width++ {
+			r.Session.Auto = ""
+			want := r.columns(width)
+			for _, row := range r.Rows[1:] {
+				r.Session.Auto = row.Account
+				if got := r.columns(width); got != want {
+					t.Errorf("%s, at %d cells, auto choosing %s lays the rows out %+v, want %+v as with none", name, width, row.Account, got, want)
 				}
 			}
 		}

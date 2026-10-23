@@ -42,7 +42,8 @@ const (
 	pickerWide   = 30
 	pickerNarrow = 24
 	// besidePicker is the fewest cells the view beside the picker keeps
-	// where the picker's at its widest: as many as the picker takes.
+	// where the picker's at its widest: the picker's own width, so the
+	// picker never takes more than half the screen.
 	besidePicker = pickerWide
 	// pickerChrome is the cells of a row that aren't its content: the border
 	// and a gap.
@@ -66,8 +67,9 @@ var (
 var pickerHead = []line{nil, {{"Themes", nameInk}}, nil}
 
 // PickerWidth is how many cells wide the picker is on a screen width cells
-// wide, as flex lays it: pickerWide where the view beside it keeps as many;
-// else pickerNarrow where the screen has that; else zero.
+// wide, as flex lays it: pickerWide where the view beside it keeps at least
+// the picker's own width, besidePicker; else pickerNarrow where the screen
+// has that; else zero.
 func PickerWidth(width int) int {
 	wide := flex.Part{Least: pickerWide, Natural: pickerWide}
 	beside := flex.Part{Least: besidePicker, Natural: besidePicker}

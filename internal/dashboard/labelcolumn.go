@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/dashboard/flex"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -57,6 +58,12 @@ func accountNames(accounts []status.AccountNow) []string {
 // names: its own, labelMost at the most.
 func labelColumnCells(name string) int {
 	return min(ansi.StringWidth(name), labelMost)
+}
+
+// asLabelled is an account's name as a column of names counts it, where
+// it's said outside one: cut to labelColumnCells.
+func asLabelled(name string) string {
+	return prose.Cut(name, labelColumnCells(name))
 }
 
 // labelsCells are the cells of the names of the accounts the moment m

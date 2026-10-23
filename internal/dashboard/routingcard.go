@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"math"
+	"net/http"
 	"slices"
 	"strconv"
 	"strings"
@@ -75,11 +76,28 @@ func widestHeld() string {
 	})
 }
 
-// endLeast is the cells of a row's end at its least: the widest reason the
-// router gives with a time, as widestHeld has it, as wide as a token refused
-// for a family, as "token refused (403, sonnet)".
+// widestRefused is the widest reason a refused token gives, as closedBy says
+// it: refused for the widest family the ledger knows, with a status code of
+// three digits, as every HTTP status is, as "token refused (403, sonnet)".
+func widestRefused() string {
+	refusals := make([]string, len(ledger.Families()))
+	for i, family := range ledger.Families() {
+		refusals[i] = tokenRefused(status.Refusal{Status: http.StatusForbidden, Family: family})
+	}
+	return slices.MaxFunc(refusals, func(a, b string) int { return ansi.StringWidth(a) - ansi.StringWidth(b) })
+}
+
+// tokenRefused is the reason an account whose token the upstream refused
+// gives, as "token refused (401)".
+func tokenRefused(r status.Refusal) string {
+	return "token " + r.Answer()
+}
+
+// endLeast is the cells of a row's end at its least: the widest of the
+// reasons that end can't be cut short of, a time's, as widestHeld has it,
+// and a refusal's, as widestRefused has it.
 func endLeast() int {
-	return ansi.StringWidth(widestHeld())
+	return max(ansi.StringWidth(widestHeld()), ansi.StringWidth(widestRefused()))
 }
 
 // widestUses are the cells of the rows' windows' use, as windowsWords says
@@ -170,16 +188,14 @@ func (r RoutingCard) columns(width int) choiceColumns {
 // stackedNames are where a stacked row's mark and number, name and what
 // follows it lie in width cells, and the gap before its end, whitespace
 // giving way before words: the name whole with gaps of nameGap and endGap;
-// where that doesn't fit, the gaps at narrowGap, once; then the name
-// narrowing toward labelLeast; then what follows it narrowing, auto's
-// description cut first, then the end.
+// where that doesn't fit, the gaps at narrowGap, once, and the name whole
+// where that fits, then narrowing toward labelLeast; then what follows it
+// narrowing, auto's description cut first, then the end.
 func (r RoutingCard) stackedNames(width int, key, name flex.Part) ([]flex.Span, int) {
 	whole := name
 	whole.Least = min(whole.Natural, whole.Most)
-	for _, gaps := range [][2]int{{nameGap, endGap}, {narrowGap, narrowGap}} {
-		if s, fits := flex.Lay(width, key, whole, r.afterName(gaps[0], gaps[1])); fits {
-			return s, gaps[1]
-		}
+	if s, fits := flex.Lay(width, key, whole, r.afterName(nameGap, endGap)); fits {
+		return s, endGap
 	}
 	name.Least, name.Narrows = labelLeast, 1
 	after := r.afterName(narrowGap, narrowGap)
@@ -344,7 +360,7 @@ func closedBy(a status.AccountNow, now time.Time) (reason string, capped bool) {
 	case limited(a):
 		return till(limitHolds, a.Back, now), false
 	case a.TokenRefused:
-		return "token " + a.Refusal.Answer(), false
+		return tokenRefused(a.Refusal), false
 	case a.CapHolds:
 		return till(capHolds, a.Back, now), true
 	}
@@ -609,15 +625,15 @@ func (r RoutingCard) autoChooses(room int) line {
 }
 
 // autoForms are what auto's row can say of it, choosing the account with
-// the id given, the fullest first: on a session's card, the account, for
-// now, then the account alone; else, or where it's none, the router
-// chooses.
+// the id given, the fullest first: on a session's card, the account, named
+// as a label's column names it, labelMost cells at the most, for now, then
+// the account alone; else, or where it's none, the router chooses.
 func (r RoutingCard) autoForms(id string) []line {
 	chooses := line{{"the router chooses", mutedInk}}
 	if r.Mode != ThisSession || id == "" {
 		return []line{chooses}
 	}
-	named := slices.Concat(chooses, line{{": ", mutedInk}, {r.names([]string{id})[0], titleInk}})
+	named := slices.Concat(chooses, line{{": ", mutedInk}, {asLabelled(r.names([]string{id})[0]), titleInk}})
 	return []line{slices.Concat(named, line{{" for now", mutedInk}}), named}
 }
 
