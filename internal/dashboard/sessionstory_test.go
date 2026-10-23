@@ -317,6 +317,20 @@ func TestAStoryNamesALongLabelAsALabelsColumnHoldsIt(t *testing.T) {
 	}
 }
 
+// Where a move's label says its names alone, a phone's story names a long
+// label as a label's column holds it too: at 70 columns, f41a's rescore to
+// a label of 30 cells, which its short words don't fit, cut to 24.
+func TestAMovesNamesAloneNameALongLabelAsALabelsColumnHoldsIt(t *testing.T) {
+	long := "personal-research-and-writing1"
+	doc := status.Document{Accounts: []status.Account{{ID: "side", Label: "spare"}, {ID: "personal", Label: long}}}
+	f := storyFrame(70, 9, Look{})
+	c := newCanvas(70, 9)
+	f.sessionStory(c, f.Moment(doc, resumedStory().End), sessionLayout{story: true, body: storyColumnRows}, resumedStory(), views.Turn{})
+	if got, want := strings.TrimSpace(c.row(0, Look{})), "┊ 09:12  spare → "+prose.Cut(long, labelMost); got != want {
+		t.Errorf("the move's label reads %q, want %q", got, want)
+	}
+}
+
 // STORY folds to its heading where the page hasn't room for it whole, as
 // the Overview folds a section, saying so in text.subtle, its rule to two
 // cells short of the edge; on a phone it's left out, and under the chrome

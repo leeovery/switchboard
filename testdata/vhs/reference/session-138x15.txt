@@ -3,7 +3,6 @@
 ● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
 
 SESSION   d28c   switchboard  ~/Code/switchboard ───────────────────────────────────────────────────────────────────────────────  esc back
-
 ↑ asking   on side ▲ since 14:31, moved from work: work reached its cap                                             started 12:02 · 2h 39m
 opus-5-5 → side   haiku-4-5 → side                                                                         side now  week 78%   5-hour 13%
 STORY   no room at 15 rows ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -11,5 +10,6 @@ STORY   no room at 15 rows ─────────────────�
 TURNS    ────────────────────────────────────────────────────────────────  13 turns · 445 requests · 97% from cache · $48.20 at API prices
   #  started  took   requests  tools                                            read  written     out     worth  on
  13  14:40    3m…           6  Read ×3, Bash ×2                                 958k      18k    5.4k     $0.79  side             ↑ asking
-▼ 12 more turns   ·   j/k to scroll
+ 12  14:29    9m           37  Bash ×14, Edit ×9, Read ×8                       5.7M     293k     33k     $6.61  work → side
+▼ 11 more turns   ·   j/k to scroll
 esc back    ↑↓ turn  enter its requests    p pin    ? help  q quit

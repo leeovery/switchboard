@@ -70,7 +70,8 @@ type turnLoadingMsg struct {
 }
 
 // openTurn opens the turn chosen into its requests, in place, as enter does,
-// its first chosen, and reads the lines of its requests, as readTurn reads
+// its first chosen, as many shown at a time as RequestsFit has it at the
+// size m draws at, and reads the lines of its requests, as readTurn reads
 // them: once it has waited LoadingAfter on them, it shows they're loading,
 // as turnLoading has it; once they're read, relived builds their rows, and
 // keeps them in view as choosing has it. Nothing opens where no turn is
@@ -81,6 +82,7 @@ func (m Model) openTurn() (Model, tea.Cmd) {
 		return m, nil
 	}
 	s.shown.Open, s.shown.Request, s.shown.RequestsScroll = s.shown.Turn, 0, 0
+	s.shown.RequestsRows = m.pageFrame(s.shown).RequestsFit()
 	s.held, s.turns, s.turnWaited = s.held.Opening(s.shown.Turn, m.pageLive(s.id, m.now())), s.turns+1, false
 	m.session = &s
 	return m, tea.Batch(m.readTurn(), m.after(LoadingAfter, turnLoadingMsg{opened: s.opened()}))
@@ -134,7 +136,7 @@ func (m Model) turnRead(msg turnReadMsg) Model {
 // page holding the lines of its requests no longer.
 func (m Model) closeTurn() Model {
 	s := *m.session
-	s.shown.Open, s.shown.Requests, s.shown.Request, s.shown.RequestsScroll, s.shown.RequestsLoading = 0, nil, 0, 0, false
+	s.shown.Open, s.shown.Requests, s.shown.Request, s.shown.RequestsScroll, s.shown.RequestsLoading, s.shown.RequestsRows = 0, nil, 0, 0, false, 0
 	s.held, s.turnWaited = s.held.Closing(), false
 	m.session = &s
 	return m
@@ -167,13 +169,28 @@ func (m Model) scrollRequests(by scrollStep) Model {
 }
 
 // requestInView is m with its page's turns scrolled no further than keeps
-// the turn chosen in view, as choosing has it, with the rows under it Kept
-// keeps with it: of the turn open, those down to its request chosen.
+// the turn chosen in view, as choosing has it, with the rows under it
+// TurnsKept keeps with it: of the turn open, those through its foot.
 func (m Model) requestInView() Model {
 	s := *m.session
-	s.shown = choosing(s.shown, turnAt(s.shown, s.shown.Turn), m.turnsScrolling(s.shown))
+	s.shown = choosing(s.shown, turnAt(s.shown, s.shown.Turn), m.turnsView(s.shown))
 	m.session = &s
 	return m
+}
+
+// sessionResized is m with the turn open on its page, where it has one,
+// showing as many requests at a time as RequestsFit has it at the size m
+// now draws at, its request chosen kept in view, as are the turn open and
+// its foot among its turns.
+func (m Model) sessionResized() Model {
+	if m.session == nil || m.session.shown.Open == 0 {
+		return m
+	}
+	s := *m.session
+	s.shown.RequestsRows = m.pageFrame(s.shown).RequestsFit()
+	s.shown.RequestsScroll = m.pageFrame(s.shown).RequestsScrolling().Keeping(s.shown.RequestsScroll, s.shown.Request, 0)
+	m.session = &s
+	return m.requestInView()
 }
 
 // scrollSession scrolls the session's page by, as j, k, PgDn, PgUp and the

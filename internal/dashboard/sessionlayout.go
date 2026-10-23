@@ -5,12 +5,14 @@ import "github.com/leeovery/switchboard/internal/dashboard/flex"
 // A session's page keeps rows for turnsNatural turns, as many as a turn
 // opened takes at its natural, its row, its heads, requestsNatural of its
 // requests and its foot, till its story's last row of columns has given
-// way; for leastTurns till its story and its accounts have; and for one at
-// the least.
+// way; for leastTurns till its story, its accounts and its blank rows have;
+// and for one at the least, or with a turn open, openRows: its row, its
+// heads, one request and its foot.
 const (
 	requestsNatural = 5
 	turnsNatural    = 1 + 1 + requestsNatural + 1
 	leastTurns      = 3
+	openRows        = 1 + 1 + 1 + 1
 )
 
 // The rows a session's story takes besides its columns: under the wide
@@ -51,19 +53,20 @@ const (
 // The turns a session's page's parts give way in as its rows run short:
 // the story's last column row; the turns past leastTurns; the story,
 // folded to its heading, or left out; the accounts, to a row saying how
-// many; the turns past one; and the blank rows, one at a time, the one
-// under TURNS' heading first and the one under the page's heading last.
+// many; the blank rows, one at a time, the one under TURNS' heading first
+// and the one under the page's heading last; and the turns past their
+// least.
 const (
 	storyRowGivesWay = iota + 1
 	turnsHighGiveWay
 	storyGivesWay
 	staysGiveWay
-	turnsLowGiveWay
 	underTurnsHeadingGivesWay
 	overTurnsGivesWay
 	underStoryGivesWay
 	underNowGivesWay
 	underHeadingGivesWay
+	turnsLowGiveWay
 )
 
 // sessionLayout is how a session's page lays out its rows at the frame's
@@ -88,19 +91,21 @@ type sessionLayout struct {
 }
 
 // pageLayout is how the page of the session open lays out its rows, as
-// sessionLayout lays them out, heading itself as chromeWide has it.
+// sessionLayout lays them out, heading itself as chromeWide has it, with
+// its turn open, where it has one.
 func (f Frame) pageLayout() sessionLayout {
-	return f.sessionLayout(len(f.Session.Page.Accounts), f.chromeWide())
+	return f.sessionLayout(len(f.Session.Page.Accounts), f.chromeWide(), f.Session.Open != 0)
 }
 
 // sessionLayout lays out the page of a session that ran on the accounts
 // given, at the frame's size, heading itself in the wide chrome's form where
-// wide says, else a phone's, its parts where flex lays them from its
-// heading to the row over the key line, as sessionParts has them; or its
-// chrome alone, where even their leasts don't fit.
-func (f Frame) sessionLayout(accounts int, wide bool) sessionLayout {
+// wide says, else a phone's, with a turn open where open says, its parts
+// where flex lays them from its heading to the row over the key line, as
+// sessionParts has them; or its chrome alone, where even their leasts don't
+// fit.
+func (f Frame) sessionLayout(accounts int, wide, open bool) sessionLayout {
 	heading := f.headingY()
-	at, fits := flex.Lay(f.Height-1-heading, sessionParts(accounts, wide)...)
+	at, fits := flex.Lay(f.Height-1-heading, sessionParts(accounts, wide, open)...)
 	if !fits {
 		return sessionLayout{wide: wide, chrome: true}
 	}
@@ -134,12 +139,18 @@ func storyLeast(wide bool) int {
 
 // sessionParts are a session's page's parts down the frame, as flex lays
 // them, of a session that ran on the accounts given, under the wide chrome
-// where wide says, else a phone's: each fixed, but the story's last column
-// row, the story, its accounts and its turns, which give way in the turns
-// storyRowGivesWay to underHeadingGivesWay name, and the turns past
-// turnsNatural, which take what's left. Under a phone's chrome the story is
-// left out with the blank row under it, rather than folded.
-func sessionParts(accounts int, wide bool) []flex.Part {
+// where wide says, else a phone's, with a turn open where open says: each
+// fixed, but the story's last column row, the story, its accounts, its
+// blank rows and its turns, which give way in the turns storyRowGivesWay
+// to turnsLowGiveWay name, and the turns past turnsNatural, which take
+// what's left. Under a phone's chrome the story is left out with the blank
+// row under it, rather than folded. The turns' least is one, or with a turn
+// open, openRows, so it shows whole.
+func sessionParts(accounts int, wide, open bool) []flex.Part {
+	least := 1
+	if open {
+		least = openRows
+	}
 	fixed := func(rows int) flex.Part { return flex.Part{Least: rows, Natural: rows} }
 	blank := func(givesWay int) flex.Part { return flex.Part{Least: 1, Natural: 1, Leaves: givesWay} }
 	story, underStory := flex.Part{Least: storyLeast(wide), Natural: storyLeast(wide), Leaves: storyGivesWay}, blank(underStoryGivesWay)
@@ -161,9 +172,9 @@ func sessionParts(accounts int, wide bool) []flex.Part {
 		turnsHeadingPart:      fixed(1),
 		underTurnsHeadingPart: blank(underTurnsHeadingGivesWay),
 		turnHeadsPart:         fixed(1),
-		newestTurnPart:        fixed(1),
-		turnsLowPart:          {Natural: leastTurns - 1, Narrows: turnsLowGiveWay},
-		turnsHighPart:         {Natural: turnsNatural - leastTurns, Narrows: turnsHighGiveWay},
+		newestTurnPart:        fixed(least),
+		turnsLowPart:          {Natural: max(leastTurns-least, 0), Narrows: turnsLowGiveWay},
+		turnsHighPart:         {Natural: turnsNatural - max(leastTurns, least), Narrows: turnsHighGiveWay},
 		turnsSparePart:        {Grows: true},
 		moreTurnsPart:         fixed(1),
 	}

@@ -243,11 +243,15 @@ func resumed() *SessionShown {
 }
 
 // pageFrame is a frame of the session's page shown, in a terminal of the
-// size given, in nord, over the Log.
+// size given, in nord, over the Log: its turn open, where it has one, showing
+// as many requests at a time as RequestsFit has it, as the watch opens it.
 func pageFrame(t *testing.T, shown *SessionShown, width, height int) Frame {
 	t.Helper()
 	f := frameOf(width, height)
 	f.View, f.Look, f.Session = Log, Screen(builtin(t, "nord")), shown
+	if shown != nil && shown.Open != 0 && shown.RequestsRows == 0 {
+		shown.RequestsRows = f.RequestsFit()
+	}
 	return f
 }
 

@@ -4336,10 +4336,10 @@ session page · signed off · 7 Oct 2026**, its frames kept as `testdata/vhs/ref
 - **Its rows are laid out by its parts,** from the heading to the row over the key line, as flex
   lays them: the heading, now, the story, the accounts, TURNS' heading and its column heads, fixed;
   the turns, from one, taking what's left; and a blank row between each part, and under TURNS'
-  heading. Every row is laid, so none lies blank under what gives way, and the story, the
-  accounts and the blank rows are kept for the turns, which are the page's point. As the rows run
-  short, the parts give way in this order, each only where the turns would otherwise go under
-  what's kept for them:
+  heading. Every row is laid, so none lies blank under what gives way. The turns are the page's
+  point: as the rows run short, the parts give way in this order, each only where the turns would
+  otherwise go under what's kept for them, so the story, the accounts and the blank rows all give
+  way before the turns go under three:
   1. **the story's last row of columns,** its columns four rows tall rather than five, while
      fewer than eight turns fit beside it, as many as a turn opened takes at its natural: its row,
      its heads, five of its requests and its foot;
@@ -4348,17 +4348,22 @@ session page · signed off · 7 Oct 2026**, its frames kept as `testdata/vhs/ref
      the Overview folds a section, and under a phone's left out with the blank row under it;
   4. **the accounts,** as many rows as fit, the last saying how many more there are,
      `+2 more accounts`, in `text.subtle`, down to that row alone;
-  5. **the turns,** from three to one;
-  6. **the blank rows,** one at a time: under TURNS' heading, over it, under the story, under now,
+  5. **the blank rows,** one at a time: under TURNS' heading, over it, under the story, under now,
      and last under the heading;
+  6. **the turns,** from three to one;
   7. and below that, where even the heading, now, the story folded, the accounts' row, TURNS, its
      heads, one turn and how many more don't fit, 14 rows at both chromes, **the chrome alone.**
 
+  **With a turn open,** the turns' least is the turn whole: its row, its heads, one of its requests
+  and its foot, four rows, kept from step 2 on in place of three turns. The page is the chrome
+  alone where even that doesn't fit, under 17 rows at both chromes, as it never draws a turn open
+  with none of its requests.
+
   A taller frame never shows fewer turns, accounts or rows of the story within one arrangement,
   and what a taller frame gave back never gives way again. With one account, the wide page's
-  story is whole from 28 rows, its columns five rows tall from 34; two accounts, from 29 and 35.
-  At 138×15 it's the heading, under it a blank row, now, STORY folded, `+2 more accounts`, TURNS,
-  its heads, the newest turn and how many more.
+  story is whole from 28 rows, or 29 with a turn open, its columns five rows tall from 34; two
+  accounts, from 29, or 30, and 35. At 138×15 it's the heading, now, STORY folded,
+  `+2 more accounts`, TURNS, its heads, the two newest turns and how many more, with no blank row.
 
 **The heading** (row 4): `SESSION` in `text.subtle`; three spaces; the session's id cut to 4, as the
 dashboard shows ids, bold `text.primary`; three spaces; its directory's last part, bold
@@ -4658,7 +4663,9 @@ moving down.
   (`after work's limit`); a limit no account could take is its 429, as failed (settled in the plan).
 - **As many as the rows hold:** the rows the turns take left under every turn, the turn's heads
   and its foot, so none lies blank; and where those are fewer, as many as they hold under the turn's
-  own row, its heads and its foot, five at the most; one at the least. Under them, `└` in `border`
+  own row, its heads and its foot, five at the most; one at the least. That count is set as the
+  turn opens and again on a resize, and holds as turns come and go, so the turn holds still; the
+  turns scroll to keep it whole in view, its request chosen and its foot among it. Under them, `└` in `border`
   at column 2, then from column 5 `▼` in `accent.key`, ` 32 more of its requests   ·   ` in
   `text.muted`, `j/k` bold `accent.key` and ` through them` in `text.muted`. The requests scroll
   within their panel, `↑↓` moving through them.

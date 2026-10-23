@@ -1,6 +1,7 @@
 package watch
 
 import (
+	"fmt"
 	"reflect"
 	"slices"
 	"strings"
@@ -335,20 +336,21 @@ func TestAClickOnATurnOpensRequestsChoosesOrOpensIt(t *testing.T) {
 	}
 }
 
-// A turn opened keeps its own row and its first request in view as the
-// turns scroll (call 57): at the least height, its row, its heads and that
-// request alone. A turn chosen, none open, keeps its own row alone.
-func TestATurnOpenedKeepsItsRowAndItsFirstRequestInView(t *testing.T) {
+// A turn opened keeps itself whole in view as the turns scroll: its row,
+// its heads, its requests shown and its foot; at the least height, its row,
+// its heads, one request and its foot. A turn chosen, none open, keeps its
+// own row alone.
+func TestATurnOpenedKeepsItselfWholeInView(t *testing.T) {
 	tests := []struct {
 		name   string
 		height int
 		open   bool
 		scroll int
 	}{
-		{name: "open, in eleven rows", height: 37, open: true, scroll: 2},
+		{name: "open, five of its requests in eleven rows", height: 37, open: true, scroll: 7},
 		{name: "chosen, in eleven rows", height: 37},
-		{name: "open, in three rows", height: 28, open: true, scroll: 10},
-		{name: "chosen, in three rows", height: 28, scroll: 8},
+		{name: "open, one of its requests in four rows", height: 17, open: true, scroll: 10},
+		{name: "chosen, in three rows", height: 17, scroll: 8},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -357,17 +359,106 @@ func TestATurnOpenedKeepsItsRowAndItsFirstRequestInView(t *testing.T) {
 			shown := m.session.shown
 			if tt.open {
 				shown.Turn, shown.Open, shown.Requests = 10, 10, make([]views.LogLine, 8)
+				shown.RequestsRows = m.pageFrame(shown).RequestsFit()
 			}
-			if got := choosing(shown, 10, m.turnsScrolling(shown)).Scroll; got != tt.scroll {
+			if got := choosing(shown, 10, m.turnsView(shown)).Scroll; got != tt.scroll {
 				t.Errorf("the turn at 10 chosen, the turns scroll %d, want %d", got, tt.scroll)
 			}
 		})
 	}
 }
 
-// With a turn open, ↑ and ↓ keep the request chosen in view, the turns
-// scrolling as far as they must: of twenty turns in eleven rows, the tenth at
-// their foot, opened, its second request chosen comes up into view, and
+// openedAt is a model of a page of thirteen turns at the size given, its
+// twelfth open, its 37 requests read, as many shown at a time as fit there,
+// as enter opens it, and its requests' tenth chosen, or the last shown where
+// fewer show.
+func openedAt(size Size) Model {
+	m := turnsModel(13)
+	m.size = size
+	m = m.moveTurn(1)
+	s := *m.session
+	s.shown.Open, s.shown.Requests = s.shown.Turn, make([]views.LogLine, 37)
+	s.shown.RequestsRows = m.pageFrame(s.shown).RequestsFit()
+	m.session = &s
+	return m.moveRequest(min(10, s.shown.RequestsRows-1))
+}
+
+// openWhole reports why the page shown, at the size m draws at, doesn't show
+// its turn open whole, its request chosen among its requests shown and its
+// foot in view, as many shown at a time as it holds: "" where it does.
+func (m Model) openWhole(shown dashboard.SessionShown) string {
+	f := m.pageFrame(shown)
+	turns, requests := f.TurnsScrolling(), f.RequestsScrolling()
+	i := turnAt(shown, shown.Open)
+	switch {
+	case requests.Page != shown.RequestsRows:
+		return fmt.Sprintf("it shows %d requests at a time, want the %d it holds", requests.Page, shown.RequestsRows)
+	case shown.Request < shown.RequestsScroll || shown.Request >= shown.RequestsScroll+requests.Page:
+		return fmt.Sprintf("request %d is out of view, its requests scrolled %d", shown.Request, shown.RequestsScroll)
+	case i < shown.Scroll || i+requests.Page+2 >= shown.Scroll+turns.Page:
+		return fmt.Sprintf("its rows %d to %d, its foot's the last, aren't all in view, its turns scrolled %d in %d rows", i, i+requests.Page+2, shown.Scroll, turns.Page)
+	}
+	return ""
+}
+
+// A turn open holds as many requests at a time as it opened with as turns
+// come, its request chosen and its foot kept in view, the turns scrolling to
+// keep it whole: at 73×61, 160×37 and 173×53.
+func TestATurnOpenHoldsItsRequestsWholeInViewAsTurnsCome(t *testing.T) {
+	for _, size := range []Size{{Width: 73, Height: 61}, {Width: 160, Height: 37}, {Width: 173, Height: 53}} {
+		m := openedAt(size)
+		opened := m.session.shown.RequestsRows
+		for range 3 {
+			was := m.session.shown
+			is := was
+			is.Page.Turns = slices.Insert(slices.Clone(was.Page.Turns), 0, views.Turn{Turn: len(was.Page.Turns) + 1})
+			s := *m.session
+			s.shown = following(was, is, m.turnsView(is))
+			m.session = &s
+		}
+		shown := m.session.shown
+		if shown.RequestsRows != opened || shown.Open != 12 {
+			t.Errorf("at %d×%d, three turns came and turn %d is open, %d requests at a time; want turn 12, the %d it opened with", size.Width, size.Height, shown.Open, shown.RequestsRows, opened)
+		}
+		if why := m.openWhole(shown); why != "" {
+			t.Errorf("at %d×%d, three turns came and %s", size.Width, size.Height, why)
+		}
+	}
+}
+
+// A resize lays a turn open out afresh: as many requests at a time as fit at
+// the new size, its request chosen and its foot kept in view, the turns
+// scrolling to keep it whole.
+func TestATurnOpenIsLaidOutAfreshOnAResize(t *testing.T) {
+	tests := []struct {
+		name     string
+		from, to Size
+		want     int
+	}{
+		{name: "173×53 to 173×37", from: Size{Width: 173, Height: 53}, to: Size{Width: 173, Height: 37}, want: 5},
+		{name: "160×37 to 73×61", from: Size{Width: 160, Height: 37}, to: Size{Width: 73, Height: 61}, want: 20},
+		{name: "73×61 to 160×17, the least", from: Size{Width: 73, Height: 61}, to: Size{Width: 160, Height: 17}, want: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := openedAt(tt.from)
+			next, _ := m.resized(tea.WindowSizeMsg{Width: tt.to.Width, Height: tt.to.Height})
+			m = next.(Model)
+			shown := m.session.shown
+			if shown.RequestsRows != tt.want {
+				t.Errorf("resized, the turn open shows %d requests at a time, want %d", shown.RequestsRows, tt.want)
+			}
+			if why := m.openWhole(shown); why != "" {
+				t.Errorf("resized, %s", why)
+			}
+		})
+	}
+}
+
+// With a turn open, the turns scroll as far as they must to keep it whole in
+// view, and ↑ and ↓ keep the request chosen in view: of twenty turns in
+// eleven rows, the tenth at their foot, opened, its five requests shown and
+// its foot come up into view, its second request chosen among them, and
 // enter places its card by its row, over it, a row between.
 func TestATurnOpenKeepsItsRequestChosenInViewAsTheTurnsScroll(t *testing.T) {
 	counts := slices.Repeat([]int{1}, 20)
@@ -382,8 +473,8 @@ func TestATurnOpenKeepsItsRequestChosenInViewAsTheTurnsScroll(t *testing.T) {
 
 	h.keys(enterKey, downKey)
 	got := h.shownPage()
-	if got.Open != 10 || got.Request != 1 || got.Scroll != 3 {
-		t.Errorf("enter, ↓ left turn %d open, request %d chosen, the turns scrolled %d; want turn 10 open, its second request, scrolled 3 to show it",
+	if got.Open != 10 || got.Request != 1 || got.Scroll != 7 {
+		t.Errorf("enter, ↓ left turn %d open, request %d chosen, the turns scrolled %d; want turn 10 open, its second request, scrolled 7 to show it whole",
 			got.Open, got.Request, got.Scroll)
 	}
 	i := slices.IndexFunc(h.targets(), func(t dashboard.Target) bool { return t.On == dashboard.OnRequest && t.Row == 1 })
@@ -401,12 +492,12 @@ func TestATurnOpenKeepsItsRequestChosenInViewAsTheTurnsScroll(t *testing.T) {
 	}
 }
 
-// With a turn open whose requests have scrolled, ↓ scrolls the turns no
-// further than keeps the request chosen in view: they keep the rows down to
-// it from the first request shown, not from the turn's first. Of twenty
-// turns in eleven rows, the tenth of eight requests at their foot, opened,
-// its seventh request chosen has its requests scrolled 2 and the turns 6.
-func TestATurnOpenScrollsItsTurnsNoFurtherThanItsRequestChosen(t *testing.T) {
+// With a turn open whose requests have scrolled, the turns keep it whole in
+// view, no further: of twenty turns in eleven rows, the tenth of eight
+// requests at their foot, opened, its seventh request chosen has its
+// requests scrolled 2 and the turns 7, its row at their top and its foot at
+// their last.
+func TestATurnOpenScrollsItsTurnsNoFurtherThanKeepsItWhole(t *testing.T) {
 	counts := slices.Repeat([]int{1}, 20)
 	counts[9] = 8
 	h, _ := pageHarness(t, turnsOfRequests(start.Add(-30*time.Minute), counts...))
@@ -416,8 +507,8 @@ func TestATurnOpenScrollsItsTurnsNoFurtherThanItsRequestChosen(t *testing.T) {
 	h.keys(enterKey)
 	h.keys(slices.Repeat([]tea.KeyPressMsg{downKey}, 6)...)
 	got := h.shownPage()
-	if got.Open != 10 || got.Request != 6 || got.RequestsScroll != 2 || got.Scroll != 6 {
-		t.Errorf("enter, ↓ six times left turn %d open, request %d chosen, its requests scrolled %d, the turns %d; want turn 10, request 6, scrolled 2, the turns 6",
+	if got.Open != 10 || got.Request != 6 || got.RequestsScroll != 2 || got.Scroll != 7 {
+		t.Errorf("enter, ↓ six times left turn %d open, request %d chosen, its requests scrolled %d, the turns %d; want turn 10, request 6, scrolled 2, the turns 7",
 			got.Open, got.Request, got.RequestsScroll, got.Scroll)
 	}
 }
