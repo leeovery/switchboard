@@ -179,9 +179,9 @@ func (f Frame) turnCardRows() (first, last int) {
 
 // requestsLayout is how the page lays out its turn open's requests' rows:
 // the Log's, from turnSpread's left, at every width, on at its least, as
-// labelsLeast has it of the names of the accounts configured.
+// recordedNames has it of the names of the accounts configured.
 func (d sessionDrawn) requestsLayout() logLayout {
-	return turnSpread.laid(d.Width, turnTicks.shown(), labelsLeast(widestLabel(d.m)))
+	return turnSpread.laid(d.Width, turnTicks.shown(), recordedNames(widestLabel(d.m)).Least)
 }
 
 // pageRow is the row r of the session's turns: a turn's, which a click
@@ -387,7 +387,7 @@ func turnParts(facts turnFacts) []flex.Part {
 	}
 	kept := min(facts.move, ansi.StringWidth(moveArrow)+moveToLeast)
 	parts[turnNumber].Least, parts[turnNumber].Natural = facts.number, facts.number
-	on := headedNames(facts.name, turnPartFacts[turnOn].heads[0])
+	on := recordedNames(facts.name)
 	parts[turnOn].Least, parts[turnOn].Natural = on.Least, on.Natural
 	parts[turnMove].Natural, parts[turnMove].Gap = facts.move-kept, 0
 	parts[turnMoveKept].Natural, parts[turnMoveKept].Gap = kept, 0

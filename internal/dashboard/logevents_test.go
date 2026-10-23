@@ -54,8 +54,8 @@ func eventsSaid(columns []eventColumn) string {
 // The Events' columns at every width, two cells apart: the session, whole,
 // leaving first, where what happened would fall short of its 40 cells; then
 // what happened cut toward 20; then the account toward its least, 8. The
-// account at the cells given till its turn, its head's 7 where they're
-// fewer, and what happened taking the rest.
+// account at the cells given till its turn, 8 where they're fewer, and what
+// happened taking the rest.
 func TestTheEventsColumnsAreLaidOutAtEveryWidth(t *testing.T) {
 	tests := []struct {
 		width, account int
@@ -67,7 +67,7 @@ func TestTheEventsColumnsAreLaidOutAtEveryWidth(t *testing.T) {
 		{width: 97, account: 15, want: "at 2–9 · event 12–19 · account 22–36 · what happened 39–96"},
 		{width: 98, account: 15, want: "at 2–9 · session 12–28 · event 31–38 · account 41–55 · what happened 58–97"},
 		{width: 160, account: 15, want: "at 2–9 · session 12–28 · event 31–38 · account 41–55 · what happened 58–159"},
-		{width: 160, account: 2, want: "at 2–9 · session 12–28 · event 31–38 · account 41–47 · what happened 50–159"},
+		{width: 160, account: 2, want: "at 2–9 · session 12–28 · event 31–38 · account 41–48 · what happened 51–159"},
 		{width: 173, account: 49, want: "at 2–9 · session 12–28 · event 31–38 · account 41–89 · what happened 92–172"},
 		{width: 73, account: 49, want: "at 2–9 · event 12–19 · account 22–50 · what happened 53–72"},
 	}

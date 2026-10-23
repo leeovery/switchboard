@@ -76,13 +76,13 @@ func eventsAccountCells(m status.Moment) int {
 // eventsParts are the Events' parts across a row, by what each holds, each
 // column two cells after the one before, as the Requests' are: at and the
 // session, as Requests' are, the session leaving whole; event; account, a
-// column of names under its head, as headedNames has it of the account
+// column of names a record may hold, as recordedNames has it of the account
 // cells given, holding them until its turn; and what happened, as two
 // parts, its first eventsWhatBrief cells, which take the room left, and
 // those past them to eventsWhatLeast.
 func eventsParts(account int) []flex.Part {
 	at, session := logColumnFacts[LogAt].width, logColumnFacts[LogSession].width
-	named := headedNames(account, eventHeads[eventsAccount])
+	named := recordedNames(account)
 	named.Narrows, named.Gap = accountNarrows, logColumnGap
 	return []flex.Part{
 		eventsAt:       {Least: at, Natural: at},

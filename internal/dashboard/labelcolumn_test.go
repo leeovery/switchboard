@@ -3,8 +3,13 @@ package dashboard
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/dashboard/flex"
+	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // A column of names takes the widest name as its natural, each counted at
@@ -58,23 +63,45 @@ func TestEachNameKeepsItsOwnMarksBesideIt(t *testing.T) {
 	}
 }
 
-// A column of names under a head never cuts it: names fewer than its head's
-// cells take the head's, whatever their least.
-func TestAColumnOfShortNamesKeepsItsHeadWhole(t *testing.T) {
+// A column of names a record may hold takes the widest configured as its
+// natural, but never under 8, as a recorded line may name an account no
+// longer configured; 8 at the least.
+func TestAColumnARecordMayHoldNeverNarrowsPastALabelsLeast(t *testing.T) {
+	for _, tt := range []struct{ natural, want int }{{0, 8}, {2, 8}, {8, 8}, {15, 15}, {49, 49}} {
+		if got, want := recordedNames(tt.natural), (flex.Part{Least: 8, Natural: tt.want}); got != want {
+			t.Errorf("names of %d cells a record may hold take %+v, want %+v", tt.natural, got, want)
+		}
+	}
+}
+
+// With every configured name of 2 or 3 cells, a Requests row and an Events
+// row naming an account no longer configured, of 11 cells, read its first 7
+// and an ellipsis, as the column's 8 cells hold it. Each is drawn of one
+// account configured and of two, as a move between two makes Events'
+// natural 8 already.
+func TestARecordedNameNoLongerConfiguredReadsItsFirstCells(t *testing.T) {
+	ab, ops := status.Account{ID: "ab", TokenSet: true}, status.Account{ID: "ops", TokenSet: true}
+	gone := "consultancy"
+	line := asked("1", logDayNoon.Add(-time.Hour))
+	line.Account = gone
+	src := views.LogSources{From: theDayBefore, Now: logDayNoon}
 	tests := []struct {
-		natural int
-		head    string
-		want    flex.Part
+		name string
+		page LogPage
 	}{
-		{natural: 2, head: "account", want: flex.Part{Least: 7, Natural: 7}},
-		{natural: 4, head: "on", want: flex.Part{Least: 4, Natural: 4}},
-		{natural: 15, head: "account", want: flex.Part{Least: 8, Natural: 15}},
-		{natural: 0, head: "on", want: flex.Part{Least: 2, Natural: 2}},
+		{name: "requests", page: requestsOf(src, []ledger.Line{line})},
+		{name: "events", page: eventsShown(status.Event{ID: 1, At: logDayNoon.Add(-time.Hour), Kind: status.EventPin, Accounts: []string{gone}})},
 	}
 	for _, tt := range tests {
-		if got := headedNames(tt.natural, tt.head); got != tt.want {
-			t.Errorf("names of %d cells under %q take %+v, want %+v", tt.natural, tt.head, got, tt.want)
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			for _, doc := range []status.Document{routerDoc("ops", 0, ops), routerDoc("ab", 0, ab, ops)} {
+				f := logFrameOf(tt.page, 160, 24)
+				row := textOf(f.Draw(doc, logDayNoon))[f.top()+1]
+				if cut := prose.Cut(gone, 8); !strings.Contains(row, " "+cut+" ") || cut != "consult…" {
+					t.Errorf("of %d accounts, the row reads %q, want it naming %q", len(doc.Accounts), row, cut)
+				}
+			}
+		})
 	}
 }
 

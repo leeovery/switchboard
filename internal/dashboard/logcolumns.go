@@ -51,7 +51,7 @@ const (
 
 // logColumnFacts are each column's name, as its head, the f panel and the
 // preferences have it; its cells: where they're fixed, them, the session's
-// its directory whole; of on, none, its names' as headedNames has them; of
+// its directory whole; of on, none, its names' as recordedNames has them; of
 // stopped, the fewest it takes whole; and of routing, its natural; and its
 // alignment.
 var logColumnFacts = [...]struct {
@@ -282,8 +282,8 @@ type logPart struct {
 // logNarrowing orders them:
 //   - a column of fixed cells, as logColumnFacts has them, at them, giving
 //     way to what it keeps, as keeps has it;
-//   - on, a column of names under its head, as headedNames has it of its
-//     natural on, holding it until its turn;
+//   - on, a column of names a record may hold, as recordedNames has it of
+//     its natural on, holding it until its turn;
 //   - the last column, stopped, or routing alone, as two parts: its
 //     tailLeast cells, which take the room left, and those past them to its
 //     least, which give way;
@@ -313,7 +313,7 @@ func logParts(shown []LogColumn, on, short int) []logPart {
 				logPart{c, routingMargin, flex.Part{Natural: short, Leaves: turn(c)}},
 			)
 		case LogOn:
-			named := headedNames(on, c.Name())
+			named := recordedNames(on)
 			named.Narrows, named.Gap = turn(c), logColumnGap
 			parts = append(parts, logPart{c, wholeColumn, named})
 		default:

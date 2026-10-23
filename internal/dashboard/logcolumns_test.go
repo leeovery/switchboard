@@ -279,11 +279,7 @@ func TestTheLogsOnIsLaidOutAtItsNaturalWidth(t *testing.T) {
 			want: "at 2–9 · session 12–28 · model 31–39 · on 42–63 · status 66–71 · first 74–78 · took 81–86 · read 89–94 · " +
 				"written 97–103 · out 106–110 · stopped 113–139 · routing 142–171",
 		},
-		{
-			name: "accounts of 3 cells, on at them", width: 160, on: 3,
-			want: "at 2–9 · session 12–28 · model 31–39 · on 42–44 · status 47–52 · first 55–59 · took 62–67 · read 70–75 · " +
-				"written 78–84 · out 87–91 · stopped 94–122 · routing 125–157",
-		},
+		{name: "accounts shorter than on's least", width: 160, on: 3, want: log160},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

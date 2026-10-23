@@ -15,8 +15,8 @@ import (
 // widest name of the accounts configured, each counting labelMost cells at
 // the most, cut with an ellipsis past it; its least labelLeast cells, or its
 // natural where that's fewer. No view counts either itself: each takes its
-// column from labelColumn, namesColumn or accountsColumn, its least alone
-// from labelsLeast, or a sentence's cut from labelCut.
+// column from labelColumn, namesColumn, accountsColumn or recordedNames,
+// its least alone from labelsLeast, or a sentence's cut from labelCut.
 const (
 	labelLeast = 8
 	labelMost  = 24
@@ -67,13 +67,19 @@ func accountsColumn(gap int, names []accountName) flex.Part {
 	return namesColumn(gap, column...)
 }
 
-// headedNames is a column of names under a head, its natural given, as the
-// widest name or a move's two: labelsLeast of it at the least; each no
-// fewer than the head's cells, so a column of short names never cuts its
-// head.
-func headedNames(natural int, head string) flex.Part {
-	cells := ansi.StringWidth(head)
-	return flex.Part{Least: max(labelsLeast(natural), cells), Natural: max(natural, cells)}
+// recordedNatural is the natural of a column of names a record may hold,
+// of the natural given, as the widest configured name or a move's two:
+// never fewer than labelLeast, as a recorded line may name an account no
+// longer configured, which then reads its first cells and an ellipsis.
+func recordedNatural(natural int) int {
+	return max(natural, labelLeast)
+}
+
+// recordedNames is a column of names a record may hold, its natural given:
+// recordedNatural of it, and labelsLeast of that at the least.
+func recordedNames(natural int) flex.Part {
+	natural = recordedNatural(natural)
+	return flex.Part{Least: labelsLeast(natural), Natural: natural}
 }
 
 // labelCut is the most cells each name a sentence says is cut to, as fits

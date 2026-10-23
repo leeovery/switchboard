@@ -1036,7 +1036,9 @@ order the view's section gives.
 - **A column of accounts' names** takes the widest name configured as its natural; at least 8
   cells, or its natural where that's fewer; at most 24, a longer name cut with `…`, the cells of
   its number and marks kept beside it. So where every name is shorter than 8 cells, the column is
-  as wide as its names at every width. A column under a head never narrows past its head's cells.
+  as wide as its names at every width. A column of names a record may hold, the Log's `on`, Events'
+  `account` and a turn's `on`, may name an account no longer configured, so its natural is never
+  under 8, and such a name reads its first cells and `…`.
   One owner works this out (`labelcolumn.go`), and every view takes its column, its least, or a
   sentence's cut of its names from there; none counts 8 or 24 itself (`guardlabels_test.go`).
   Runway's label column, and Weeks' and Days', count their 8 and 24 over the whole column, its
@@ -3897,7 +3899,7 @@ apart, each a part flex lays out (`logcolumns.go`):
 | `at` | 8 | left |
 | `session` | 17: its id's 4, and a cell and its directory's 12 (`views.SessionDirCells`); 7, its head's, with the directory gone | left |
 | `model` | 9 | left |
-| `on` | at least 8, or its natural where that's fewer, its head's 2 at the least; its natural the widest label of the accounts configured, 24 at the most, as a label's column is | left |
+| `on` | at least 8; its natural the widest label of the accounts configured, 8 at the least, as a row may name an account no longer configured, and 24 at the most, as a label's column is | left |
 | `status` | 6 | left |
 | `first` | 5 | right |
 | `took` | 6 | right |
@@ -4135,8 +4137,8 @@ cursor's on alone. Its title, in its top edge: `LOG · REQUESTS · WHAT IT SHOWS
 
 **Events.** A line an event, as a table with heads, from column 2, its columns two cells apart,
 each a part flex lays out (`logevents.go`): `at`, 8; `session`, as Requests' is; `event`, 8;
-`account`, at least 8, or its natural where that's fewer, its head's 7 at the least, its natural
-and its most the longest line a move can make: the widest
+`account`, at least 8, its natural and its most the longest line a move can make, 8 at the least,
+as an event may name an account no longer configured: the widest
 configured label, ` → `, and the second widest, each counted 24 at the most, or the widest alone
 with one account configured, a pin of several cut to it; and `what happened`, 40 at the least, and
 the room left. Where they don't fit, they give way in this order: the session, whole; `what
@@ -4661,9 +4663,9 @@ first ran on them. A row's parts, two cells apart, as flex lays them at every wi
     right-aligned from 5, to `9,999`, to 8, its head's;
     `started` from 5 to 7, its head's; and `worth` right-aligned in 8, to `$999.99+`, as wide as
     `unpriced`;
-  - `on`, the accounts a turn went to: one account's name, a label's, its least 8, or its natural
-    where that's fewer, and its head's 2 at the least, and its natural the widest configured, at
-    most 24; and past it, a move's arrow and second name, the second
+  - `on`, the accounts a turn went to: one account's name, a label's, its least 8 and its natural
+    the widest configured, never under 8, as a turn may have gone to an account no longer
+    configured, and at most 24; and past it, a move's arrow and second name, the second
     widest configured, so a move reads whole where there's room, as `work → personal`; never the
     accounts the session ran on. Each name is cut at a label's most, as rows 6 and 7 cut it, and
     they're said in the first of these that fits whole: each in turn, `work → side`; the arrows
