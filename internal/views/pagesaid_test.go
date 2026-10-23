@@ -124,7 +124,7 @@ func TestWhereASessionRunsIsItsNamedModelsAccountAndHowItCameThere(t *testing.T)
 	}
 }
 
-// WhereWidest says what Where says, each time it names in the widest form
+// WhereSaidWidest says what Where says, each time it names in the widest form
 // a day gives it, "yesterday 14:31", but a move on an ended session's
 // start's day, which is said by its time alone at any clock: so it says the
 // same whether the clock is on the time's day, the next, or a week or a
@@ -152,8 +152,8 @@ func TestWhereWidestSaysWhereAtItsWidestWhateverTheDay(t *testing.T) {
 	for _, tt := range tests {
 		for _, days := range []int{0, 1, 7, 400} {
 			now := at.Add(time.Hour).AddDate(0, 0, days)
-			if got := wordsSaid(tt.page.WhereWidest(now).Words()); got != tt.want {
-				t.Errorf("%s, %d days on, WhereWidest says %q, want %q", tt.name, days, got, tt.want)
+			if got := wordsSaid(tt.page.WhereSaidWidest(now).Words()); got != tt.want {
+				t.Errorf("%s, %d days on, WhereSaidWidest says %q, want %q", tt.name, days, got, tt.want)
 			}
 		}
 	}
@@ -464,6 +464,17 @@ func TestATurnsToolsAndWorthAtTheirWidest(t *testing.T) {
 	}
 	if got, want := views.WorthSaidWidest(), []string{"$999.99+", "unpriced"}; !slices.Equal(got, want) {
 		t.Errorf("WorthSaidWidest = %q, want %q", got, want)
+	}
+	widest := map[string][2]string{
+		"TookSaidWidest":         {views.TookSaidWidest(), "999m…"},
+		"TurnRequestsSaidWidest": {views.TurnRequestsSaidWidest(), "9,999"},
+		"StayRequestsSaidWidest": {views.StayRequestsSaidWidest(), "99,999 requests"},
+		"KeptUntilSaidWidest":    {views.KeptUntilSaidWidest("2026-12-29"), "kept until 29 Dec 2026"},
+	}
+	for name, said := range widest {
+		if said[0] != said[1] {
+			t.Errorf("%s = %q, want %q", name, said[0], said[1])
+		}
 	}
 	tools := views.Turn{Tools: []views.ToolCalls{{Tool: "Bash", Times: 14}, {Tool: "Edit", Times: 9}}}
 	if got, want := tools.ToolsEach(), []string{"Bash ×14", "Edit ×9"}; !slices.Equal(got, want) {

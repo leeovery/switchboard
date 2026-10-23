@@ -10,6 +10,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -391,6 +392,48 @@ func TestRow6sRightCountsTheMarksItsNameCarries(t *testing.T) {
 	}
 }
 
+// Row 7 decides the switch where it's the longer row: a session with
+// little to say on row 6, with long names, its windows whole, and an ended
+// one with many models, those models and how long their lines are kept
+// whole, wherever the rows are wide.
+func TestRow7IsWholeWhereItDecidesTheSwitch(t *testing.T) {
+	plain := quiet()
+	plain.Page.Goes, plain.Page.Started = nil, time.Time{}
+	many := ended()
+	for _, model := range []string{"claude-sonnet-5-5", "claude-fable-1", "claude-opus-4-1", "claude-sonnet-4-5", "claude-haiku-3-5", "claude-opus-4-5"} {
+		many.Page.Goes = append(many.Page.Goes, views.SessionModel{Model: model, Account: "side"})
+	}
+	tests := []struct {
+		name  string
+		shown *SessionShown
+		doc   status.Document
+	}{
+		{name: "running, little on row 6", shown: plain, doc: pageWorlds[1].doc()},
+		{name: "ended, many models", shown: many, doc: pageDoc()},
+	}
+	for _, tt := range tests {
+		decided := false
+		for width := 40; width <= 220; width++ {
+			d, drawn := pageDrawn(pageFrame(t, tt.shown, width, 37), tt.doc)
+			_, row6 := flex.Lay(width, flex.Part{Least: d.saidCells(d.page.WhereSaidWidest(d.now)) + d.marksSpare(d.page.WhereSaidWidest(d.now))}, flex.Part{Least: d.ranWidest(), Gap: sessionApart})
+			decided = decided || row6 && !d.nowWide
+			if !d.nowWide {
+				continue
+			}
+			right := d.windows()
+			if !d.page.Runs() {
+				right = d.endedModels()
+			}
+			if row7 := strings.TrimRight(string(drawn[d.l.now+1]), " "); !strings.HasSuffix(row7, right.plain()) || ansi.StringWidth(row7) > width {
+				t.Errorf("%s, at %d columns, row 7 reads %q, want it to end %q whole", tt.name, width, row7, right.plain())
+			}
+		}
+		if !decided {
+			t.Errorf("%s, row 7 never decides the switch, want it the longer row", tt.name)
+		}
+	}
+}
+
 // A session resumed the day before is wide at 160 columns, each part
 // measured for its own kind, its started part whole in its fullest form;
 // and narrower, its started part gives way to how it has run alone before
@@ -589,13 +632,14 @@ func TestATurnsRowNeverSaysLessAsTheFrameWidens(t *testing.T) {
 	}
 }
 
-// An account's row keeps its name, its points and its worth at every width:
-// as the frame narrows, its points take their short words, then its
-// requests leave, then its time there, and last its name narrows, to a
-// label's least. Its name's natural is the widest name configured, its
-// label at most labelMost, never the accounts the session ran on; and as
-// the frame widens, no part leaves or narrows, nor does a name read
-// shorter.
+// An account's row keeps its name, its points and its worth at every width,
+// its figures before its name: as the frame narrows, its points take their
+// short words and give up whole windows down to one, then its name narrows
+// to a label's least, and only then its requests leave, then its time
+// there. Where they've left, what they free goes to the name and the
+// points in their turns. As the frame widens, no part leaves, nor does a name read shorter,
+// but where a part comes back: the points and the name give it back the
+// cells they took while it was gone.
 func TestAnAccountsRowGivesWayInItsOrder(t *testing.T) {
 	for _, world := range pageWorlds {
 		var before sessionDrawn
@@ -614,24 +658,23 @@ func TestAnAccountsRowGivesWayInItsOrder(t *testing.T) {
 			_, requests := shown[stayRequests]
 			_, time := shown[stayTime]
 			names := stayNameCells(namesOf(world.doc().At(sessionNow, claudeLike)))
-			points := pointsCells(d.listedWindows(d.m))
 			switch {
 			case requests && !time:
 				t.Errorf("%s, at %d columns, its requests show without its time there, which leaves after them", world.name, width)
-			case !requests && shown[stayPoints].width > points.least:
-				t.Errorf("%s, at %d columns, its requests left with its points at %d, before they narrowed to %d", world.name, width, shown[stayPoints].width, points.least)
-			case time && shown[stayName].width < names.natural:
-				t.Errorf("%s, at %d columns, its time there shows with its name narrowed to %d, short of %d", world.name, width, shown[stayName].width, names.natural)
+			case !requests && names.least+pointsCells(d.page.Stays(d.now)).least+stayTimeCells+stayRequestsCells+worthsCells(d.page.Stays(d.now))+4*stayGap <= width:
+				t.Errorf("%s, at %d columns, its requests left where they'd fit beside its name and one window at their leasts", world.name, width)
 			}
 			if width > 40 {
+				returned := len(shown) > len(before.stayColumns)
 				for _, was := range before.stayColumns {
-					if now, ok := shown[was.part]; !ok || now.width < was.width {
+					now, ok := shown[was.part]
+					if !ok || now.width < was.width && !returned {
 						t.Errorf("%s, at %d columns, part %d is %d cells wide, shown %t, want at least the %d it had a column narrower", world.name, width, was.part, now.width, ok, was.width)
 					}
 				}
 				for i := range d.l.accounts {
 					name, was := stayText(rows[d.l.accountsAt+i], d, stayName), stayText(beforeRows[before.l.accountsAt+i], before, stayName)
-					if len([]rune(name)) < len([]rune(was)) {
+					if len([]rune(name)) < len([]rune(was)) && !returned {
 						t.Errorf("%s, at %d columns, an account's name reads %q, want no shorter than %q a column narrower", world.name, width, name, was)
 					}
 				}
@@ -710,6 +753,73 @@ func TestAnAccountsTimeAndRequestsAreWhole(t *testing.T) {
 	}
 }
 
+// pointsSessions are the frames' sessions whose accounts' rows say points.
+func pointsSessions() map[string]*SessionShown {
+	return map[string]*SessionShown{"moved": moved(), "quiet": quiet(), "ended": ended(), "resumed": resumed()}
+}
+
+// An account's row keeps its requests before its name and before its
+// points' windows past the first: from 100 columns up, with the frames'
+// names and with a 26-cell one, every account's row says its requests
+// whole, its points uncut.
+func TestAnAccountsRequestsComeBeforeItsName(t *testing.T) {
+	docs := map[string]status.Document{"short names": pageDoc(), "a 26-cell name": pageLabelled("work-team-plan-for-the-org", "personal", "side")}
+	for world, doc := range docs {
+		for name, shown := range pointsSessions() {
+			for width := 100; width <= 170; width++ {
+				d, drawn := pageDrawn(pageFrame(t, shown, width, 37), doc)
+				for i, s := range d.page.Stays(d.now)[:d.l.accounts] {
+					row := drawn[d.l.accountsAt+i]
+					if got := stayText(row, d, stayRequests); got != s.RequestsSaid() {
+						t.Errorf("%s, %s, at %d columns, an account's requests read %q, want %q", world, name, width, got, s.RequestsSaid())
+					}
+					if points := stayText(row, d, stayPoints); strings.Contains(points, prose.Ellipsis) {
+						t.Errorf("%s, %s, at %d columns, an account's points read %q, cut", world, name, width, points)
+					}
+				}
+			}
+		}
+	}
+}
+
+// The points' column holds what the rows draw: where the name column is cut
+// short of its natural, some account's row fills its points to its worth, so
+// no cells lie blank beside the cut names.
+func TestNoAccountsNameIsCutBesideBlankCells(t *testing.T) {
+	for _, world := range pageWorlds {
+		names := stayNameCells(namesOf(world.doc().At(sessionNow, claudeLike)))
+		for name, shown := range pointsSessions() {
+			for width := 40; width <= 220; width++ {
+				d, drawn := pageDrawn(pageFrame(t, shown, width, 37), world.doc())
+				col, _ := d.stayColumnOf(stayName)
+				if col.width >= names.natural {
+					continue
+				}
+				points, _ := d.stayColumnOf(stayPoints)
+				least := width
+				for i, s := range d.page.Stays(d.now)[:d.l.accounts] {
+					worth := width - ansi.StringWidth(s.Cents())
+					drawnPoints := ansi.StringWidth(strings.TrimRight(string(drawn[d.l.accountsAt+i][points.x:worth]), " "))
+					least = min(least, worth-stayGap-points.x-drawnPoints)
+				}
+				if least > 0 {
+					t.Errorf("%s, %s, at %d columns, the names are cut to %d of %d with %d cells blank beside every row's points", world.name, name, width, col.width, names.natural, least)
+				}
+			}
+		}
+	}
+}
+
+// stayColumnOf is the part p of an account's row as d lays it out, and
+// whether it shows.
+func (d sessionDrawn) stayColumnOf(p stayPart) (stayColumn, bool) {
+	i := slices.IndexFunc(d.stayColumns, func(col stayColumn) bool { return col.part == p })
+	if i < 0 {
+		return stayColumn{}, false
+	}
+	return d.stayColumns[i], true
+}
+
 // The short now rows give every name one width, the same in both rows and
 // whatever the session's doing or however long it has run, so an account
 // reads one way and holds still as the session works.
@@ -719,24 +829,46 @@ func TestTheShortNowRowsGiveTheirNamesOneWidth(t *testing.T) {
 		{Doing: views.Refused, Status: 403}, {Doing: views.Idle, Since: sessionNow.Add(-9 * time.Minute)},
 	}
 	runs := []time.Duration{59 * time.Minute, 61 * time.Minute, 10 * time.Hour}
-	doc := pageLabelled("work-team-plan-for-the-org", "personal-research-writing", "side-hustle-consulting")
-	for width := 40; width <= 60; width++ {
-		widths := map[int]bool{}
-		for _, doing := range doings {
-			for _, run := range runs {
-				shown := moved()
-				shown.Page.Activity, shown.Page.Started = doing, sessionNow.Add(-run)
-				shown.Page.Moves[0].Reason = status.ReasonMovedByPin
-				d, drawn := pageDrawn(pageFrame(t, shown, width, 37), doc)
-				widths[d.shortNamesCells(d.page.Where(d.now))] = true
-				row7, row8 := string(drawn[d.l.now]), string(drawn[d.l.now+1])
-				if named := sideNamed(row7); named != sideNamed(row8) {
-					t.Errorf("at %d columns, rows 7 and 8 read %q and %q, want side named alike", width, strings.TrimRight(row7, " "), strings.TrimRight(row8, " "))
+	long := pageLabelled("work-team-plan-for-the-org", "personal-research-writing", "side-hustle-consulting")
+	cases := map[string]struct {
+		reason string
+		doc    status.Document
+	}{
+		"its own move, row 8 the longer":     {doc: pageLabelled("work-team-plan-for-the-org", "personal", "side")},
+		"the global pin's, row 7 the longer": {reason: status.ReasonMovedByPin, doc: long},
+	}
+	for case_, c := range cases {
+		reason, doc := c.reason, c.doc
+		between := false
+		for width := 40; width <= 60; width++ {
+			widths := map[int]bool{}
+			for _, doing := range doings {
+				for _, run := range runs {
+					shown := moved()
+					shown.Page.Activity, shown.Page.Started = doing, sessionNow.Add(-run)
+					if reason != "" {
+						shown.Page.Moves[0].Reason = reason
+					}
+					d, drawn := pageDrawn(pageFrame(t, shown, width, 37), doc)
+					where := d.page.Where(d.now)
+					cells := d.shortNamesCells(where)
+					widths[cells], between = true, between || cells > labelLeast && cells < labelMost
+					row7, row8 := string(drawn[d.l.now]), strings.TrimRight(string(drawn[d.l.now+1]), " ")
+					if a, b := sideNamed(row7), sideNamed(row8); a != "" && b != "" && a != b {
+						t.Errorf("%s, at %d columns, rows 7 and 8 read %q and %q, want side named alike", case_, width, strings.TrimRight(row7, " "), row8)
+					}
+					atLeast := d.wordsAt(where.Short, mutedInk, labelCutAt(labelLeast)).width() + sessionPhoneApart + ansi.StringWidth(d.page.RanSaidWidest(d.now))
+					if why := d.wordsAt(where.Short, mutedInk, labelCutAt(cells)).plain(); atLeast <= width && !strings.HasPrefix(row8, why) {
+						t.Errorf("%s, at %d columns, row 8 reads %q, want %q whole, as its names at their least let it", case_, width, row8, why)
+					}
 				}
 			}
+			if len(widths) != 1 {
+				t.Errorf("%s, at %d columns, the short rows' names take %v cells as the session works, want one", case_, width, slices.Collect(maps.Keys(widths)))
+			}
 		}
-		if len(widths) != 1 {
-			t.Errorf("at %d columns, the short rows' names take %v cells as the session works, want one", width, slices.Collect(maps.Keys(widths)))
+		if !between {
+			t.Errorf("%s, from 40 to 60 columns, the names are never between a label's least and its most, want them narrowing a cell at a time", case_)
 		}
 	}
 }

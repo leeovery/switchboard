@@ -405,7 +405,7 @@ func TestASessionsPageAtEachSize(t *testing.T) {
 // right part whole; row 7's models leave whole from the end three cells
 // before the windows; and an account's points take their short words where
 // the wide don't fit whole, and leave whole windows from the end two cells
-// before its worth where even those don't (call 59).
+// before its worth where even those don't.
 func TestANarrowWidePageCutsItsRowsBeforeTheirRightParts(t *testing.T) {
 	shown := resumed()
 	shown.Page.Goes = append(shown.Page.Goes, views.SessionModel{Model: haiku, Account: "side"})
@@ -444,7 +444,7 @@ func TestANarrowWidePageCutsItsRowsBeforeTheirRightParts(t *testing.T) {
 
 // What the session's doing leads row 6, bold, in its own ink; and while a
 // request of it waits for its answer, asking, or throttled or refused, to go
-// out again, the newest turn's row ends in ↑ asking (call 50), but
+// out again, the newest turn's row ends in ↑ asking, but
 // never while its answer streams, or it idles. What's in flight as last
 // known, the router not answering, is said as it was, in text.subtle, not
 // bold: leading row 6, and ending the newest turn's row where it waited.

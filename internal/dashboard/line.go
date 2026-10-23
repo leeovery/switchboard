@@ -122,6 +122,8 @@ func fitParts(width int, parts ...part) line {
 			return append(kept, span{cut, p.said[0].ink})
 		case w == room:
 			return append(kept, p.drawn()...)
+		case kept.endsCut():
+			return kept
 		default:
 			return append(kept, p.said.elided()...)
 		}

@@ -120,12 +120,12 @@ func (p SessionPage) Where(now time.Time) WhereSaid {
 	return p.where(now, datesSaid)
 }
 
-// WhereWidest says where the session runs and why, at now, as Where does,
+// WhereSaidWidest says where the session runs and why, at now, as Where does,
 // but every time it names at its widest, as prose.PastWidest and
 // prose.LaterWidest say them: as its page measures what it says, so the
 // measure moves only as the session moves or ends, never as the clock moves
 // the day of a time it names.
-func (p SessionPage) WhereWidest(now time.Time) WhereSaid {
+func (p SessionPage) WhereSaidWidest(now time.Time) WhereSaid {
 	return p.where(now, datesWidest)
 }
 
@@ -377,6 +377,35 @@ func (t Turn) Took(now time.Time) (minutes string, going bool) {
 	return prose.Minutes(t.Started, t.Ended), false
 }
 
+// TookSaid says how long the turn took, at now, as its row says it: as Took
+// says it, and of one still going, "…" after, as "3m…".
+func (t Turn) TookSaid(now time.Time) string {
+	took, going := t.Took(now)
+	if going {
+		took += prose.Ellipsis
+	}
+	return took
+}
+
+// TookSaidWidest is the widest TookSaid a turn's row holds whole: 999
+// minutes and going, "999m…". Past it, as minutes are said whatever their
+// number, "1000m…" is cut.
+func TookSaidWidest() string {
+	var start time.Time
+	return Turn{Started: start}.TookSaid(start.Add(998 * time.Minute))
+}
+
+// RequestsSaid says the turn's requests, as its row says them: "1,240".
+func (t Turn) RequestsSaid() string {
+	return prose.Grouped(t.Requests)
+}
+
+// TurnRequestsSaidWidest is the widest RequestsSaid a turn's row holds
+// whole: "9,999".
+func TurnRequestsSaidWidest() string {
+	return Turn{Requests: 9_999}.RequestsSaid()
+}
+
 // ToolsNamed is how many of the tools a turn's answers called most its row
 // names.
 const ToolsNamed = 3
@@ -417,6 +446,18 @@ func WorthSaidWidest() []string {
 	most := ledger.Picodollars(99_999) * ledger.Picodollars(10_000_000_000)
 	unpriced := []string{"unpriced"}
 	return []string{Worth{Amount: &most, Unpriced: unpriced}.Cents(), Worth{Unpriced: unpriced}.Cents()}
+}
+
+// RequestsSaid says the session's requests on the account, as its row says
+// them: "12,345 requests".
+func (a SessionAccount) RequestsSaid() string {
+	return prose.Counted(a.Requests, "request")
+}
+
+// StayRequestsSaidWidest is the widest RequestsSaid an account's row holds
+// whole: "99,999 requests".
+func StayRequestsSaidWidest() string {
+	return SessionAccount{Requests: 99_999}.RequestsSaid()
 }
 
 // PointsForm is the form an account's points are said in.

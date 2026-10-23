@@ -8,7 +8,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/dashboard/flex"
-	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -247,20 +246,19 @@ const (
 	tightGap = 1
 )
 
-// The bounds a turn's figures are held whole to at their least: its length
-// to "999m…", 999 minutes and going; past it, as prose.Minutes says minutes
-// whatever their number, "1000m…" is cut to "100…". Its requests to
-// "9,999". Its worth to "$999.99+", as wide as "unpriced".
+// The bounds a turn's figures are held whole to at their least, as views
+// says them at their widest: its length, "999m…", past which "1000m…" is
+// cut to "100…"; its requests, "9,999"; its worth, "$999.99+", as wide as
+// "unpriced".
 var (
-	tookCells     = ansi.StringWidth("999m" + prose.Ellipsis)
-	requestsCells = ansi.StringWidth(prose.Grouped(9999))
+	tookCells     = ansi.StringWidth(views.TookSaidWidest())
+	requestsCells = ansi.StringWidth(views.TurnRequestsSaidWidest())
 	worthCells    = ansi.StringWidth(widestOf(views.WorthSaidWidest()))
 )
 
 // toolsMost are the cells tools takes at the most, as views.ToolsSaidWidest
-// says them. No name is cut on its own: where a wider one, as an MCP
-// server's tool, makes the tools wider than their column, they're cut with
-// … at its end, so the tools after it give way first.
+// says them. Where the tools don't all fit their column, whole tools leave
+// from the end, as toolsWhole has them.
 var toolsMost = ansi.StringWidth(views.ToolsSaidWidest())
 
 // moveToLeast are the fewest cells a move's second name keeps, cut, as

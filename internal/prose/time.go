@@ -3,6 +3,8 @@ package prose
 import (
 	"time"
 	"unicode/utf8"
+
+	"github.com/charmbracelet/x/ansi"
 )
 
 // The layouts times and days are told in. A time is told in the time zone of
@@ -99,7 +101,7 @@ func Stint(now, from, to time.Time, dated bool) string {
 	return start + " – " + end
 }
 
-// StintWidth is how many characters the widest stay Stint says takes: of
+// StintWidth is how many cells the widest stay Stint says takes: of
 // starts on now's day, the day before, within the week and a date of two
 // digits before, each to an end on its own day, a day after or now, dated or
 // not, as "28 Sep 13:20 – yesterday 01:20".
@@ -114,7 +116,7 @@ func StintWidth() int {
 		}
 		for _, to := range ends {
 			for _, dated := range []bool{false, true} {
-				widest = max(widest, utf8.RuneCountInString(Stint(now, from, to, dated)))
+				widest = max(widest, ansi.StringWidth(Stint(now, from, to, dated)))
 			}
 		}
 	}

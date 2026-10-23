@@ -4186,12 +4186,16 @@ phone's has (see On a phone), its names narrowing toward a label's least of 8 be
 figure or the why is cut, so it says the why short and whole wherever its names at their least let
 it, and the wide form never cuts what the short says whole. Its names take one width in both rows,
 measured with the state and how it has run at their widest, so an account reads one way and holds
-still as the session works; a cut never reads `……`. What the switch measures changes only
-as the session moves, is resumed or ends: never as its turns come and go, the clock moves a time's
-day on, or new sessions go elsewhere, so the form holds still while it asks, answers or idles. The
-form never follows the chrome's breakpoint. With the frames' names, `moved` is wide from 96
-columns, `quiet` from 64, `ended` from 93, or 103 where it moved on a day after its start's, and
-`resumed`, today or the day before, from 133.
+still as the session works; a cut never reads `……`. Like the started part's fullness, that width
+may change at midnight or a week on, as a time's words do; the switch never does. What the switch
+measures changes only as the session moves, is resumed or ends: never as its turns come and go,
+the clock moves a time's day on, or new sessions go elsewhere, so the form holds still while it
+asks, answers or idles. An ended session's row 7 is measured by its own words, its models and how
+long their lines are kept, at their widest, with the year named. The form never follows the
+chrome's breakpoint. With the frames' names, `moved` is wide from 96 columns (154 with long
+names), `quiet` from 64 (80), `ended` from 93 (151), or 103 (161) where it moved on a day after
+its start's, pinned here from 70 (88), its pin yielding from 99 (155), and `resumed`, today or the
+day before, from 133 (165).
 
 - **Row 6,** what it's doing and where it runs:
   - **its state,** bold: `↑ asking` in `accent.key` while a request of it waits for its answer;
@@ -4278,6 +4282,13 @@ columns, `quiet` from 64, `ended` from 93, or 103 where it moved on a day after 
   columns after the one before, or starting past column 150; and at the right, `now`, or `ended`,
   in `text.subtle`.
 
+**What gives way first, across the page's rows.** A row's detail columns come after names: a
+turn's tools, `↑ asking`, and read, written and out return only once a name has reached its
+natural, as labels grow to their most and then the rest grows. A row's figures come before names:
+an account's requests, its points' windows and its time there; a name narrows toward its least
+before any of them leaves. Name columns keep `▲`'s and `◆`'s cells (Rule 2), whichever a name
+carries.
+
 **The accounts it ran on** (row 19 on), under the story with no heading, a row each, in the order it
 first ran on them. A row's parts, two cells apart, as flex lays them at every width:
 
@@ -4295,15 +4306,20 @@ first ran on them. A row's parts, two cells apart, as flex lays them at every wi
 - **its requests** in `text.muted`, in 15, to `99,999 requests`: `404 requests`;
 - **what it took of the account's windows,** the points bold `text.primary` and the rest
   `text.muted`, in the order of care: `≈ 6 points of its week · 41 of its 5-hour`, a model's own
-  window it used adding `· N of its Fable week` (settled in the plan). Its natural is the wide
-  words of every window listed, each at a hundred points, and its least their short words,
-  `≈ 41 of 5-hour · 6 of week`; it says the wide words where they fit whole, else the short, and
-  leaves whole windows off the end where even those don't, two cells short of the worth;
-- **right-aligned to the last column,** its worth at API prices, in `text.secondary`: `$41.06`.
-  Nothing grows, so what's spare lies between the points and the worth.
-- **As the width runs short,** the points narrow to their short words first; then the requests
-  leave, then the time there; and last the name narrows, to its least. The name, the points and
-  the worth stay. A wider frame never shows fewer parts, nor a shorter name.
+  window it used adding `· N of its Fable week` (settled in the plan). It's measured by the words
+  the rows draw: its natural the widest account's wide words, and its least the widest first
+  window alone in short words, `≈ 6 of week`; it says the wide words where they fit whole, else
+  the short, `≈ 6 of week · 41 of 5-hour`, and leaves whole windows off the end where even those
+  don't, two cells short of the worth;
+- **right-aligned to the last column,** its worth at API prices, in `text.secondary`: `$41.06`,
+  in the widest the rows say. Nothing grows, so what's spare lies between the points and the worth.
+- **As the width runs short,** the points narrow to their short words first, then give up whole
+  windows from the end down to one; then the name narrows, to its least; and only then the
+  requests leave, then the time there. The name, the points and the worth stay. Where the
+  requests or the time have left, what they free goes to the points and the name in that order,
+  never lying blank beside a name cut short. A wider frame never shows fewer parts, nor a shorter
+  name, but where a part comes back: the points and the name give back the cells they took while
+  it was gone.
 - **A turn that moved splits** between the two, each request counted on the account that answered
   it, the context written again on the account it moved to. The rows' requests and worth add up to
   TURNS', the worths to the cent too: TURNS' total is their sum worked out once, exactly, then
@@ -4469,8 +4485,8 @@ each form taken where its parts fit, as the wide page's rules give way:
   `its cap → side, $1.82  14:31 ┊`, the account in `text.secondary` and the worth in
   `accent.attention`; its five rows of columns, 11 to 15, as at every width, on the same scale; the
   ribbon on 16, where side's stretch is too narrow for its name (`┤├──┤`); and the axis on 17.
-- **The accounts,** from row 19: the name, the points in their short words, `≈ 41 of 5-hour · 6 of
-  week`, and the worth at the right; the time there and the requests gone, as the wide page's rules
+- **The accounts,** from row 19: the name, the points in their short words, `≈ 6 of week · 41 of
+  5-hour`, and the worth at the right; the time there and the requests gone, as the wide page's rules
   give way.
 - **TURNS,** after a blank row: the heading, its rule from column 9, and the session's worth alone
   at the right, as the totals don't fit.

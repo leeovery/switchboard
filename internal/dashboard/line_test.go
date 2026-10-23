@@ -58,6 +58,16 @@ func TestFitPartsDrawsAFigureWholeOrAnEllipsis(t *testing.T) {
 	}
 }
 
+// A figure that doesn't fit after words already cut short is left off, the
+// line ending at their ellipsis, never reading "……".
+func TestFitPartsNeverDoublesAnEllipsis(t *testing.T) {
+	cut := line{{"side-hu…", nameInk}}
+	got := fitParts(10, wordsPart(cut), figurePart(line{{" $1,234", secondaryInk}}, Number{}))
+	if !reflect.DeepEqual(got, cut) {
+		t.Errorf("fitParts(10) = %q, want %q", got.plain(), cut.plain())
+	}
+}
+
 // Parts are cut as fit cuts a line, ending with an ellipsis where they're
 // cut, but that a figure is never cut part-way: drawn whole where it fits
 // what's left, the parts after it left off where it fills it, else an

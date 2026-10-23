@@ -318,6 +318,16 @@ func KeptUntil(date string, now time.Time) string {
 	return "kept until " + prose.DayMonth(until)
 }
 
+// KeptUntilSaidWidest says until when the ledger keeps a day's lines, as
+// KeptUntil does at its widest, the year named whatever now's: "kept until
+// 29 Dec 2026".
+func KeptUntilSaidWidest(date string) string {
+	if until, ok := dayfile.Civil(date); ok {
+		return "kept until " + prose.DayMonthYear(until)
+	}
+	return KeptUntil(date, time.Time{})
+}
+
 func ended(l *ledger.Line) time.Time {
 	return l.At.Add(time.Duration(l.TotalMS) * time.Millisecond)
 }
