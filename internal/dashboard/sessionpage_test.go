@@ -405,7 +405,7 @@ func TestASessionsPageAtEachSize(t *testing.T) {
 // right part whole; row 7's models leave whole from the end three cells
 // before the windows; and an account's points take their short words where
 // the wide don't fit whole, and leave whole windows from the end two cells
-// before its worth where even those don't.
+// before its worth's column, as wide as its widest, where even those don't.
 func TestANarrowWidePageCutsItsRowsBeforeTheirRightParts(t *testing.T) {
 	shown := resumed()
 	shown.Page.Goes = append(shown.Page.Goes, views.SessionModel{Model: haiku, Account: "side"})
@@ -435,10 +435,10 @@ func TestANarrowWidePageCutsItsRowsBeforeTheirRightParts(t *testing.T) {
 	if want := "≈ 9 points of its week · 31 of its 5-hour · 2 of its Fable week"; !strings.Contains(pageText(pageFrame(t, shown, 160, 37))[20], want) {
 		t.Errorf("at 160 columns, row 21 doesn't say %q", want)
 	}
-	f := pageFrame(t, shown, 52, 37)
+	f := pageFrame(t, shown, 53, 37)
 	d, narrow := pageDrawn(f, pageDoc())
-	if row, want := strings.TrimRight(string(narrow[d.l.accountsAt+1]), " "), "≈ 9 of week · 31 of 5-hour"+strings.Repeat(" ", 3)+"$114.10"; !strings.HasSuffix(row, want) {
-		t.Errorf("at 52 columns, its row reads\n%q\nwant Fable week's points left out whole, ending\n%q", row, want)
+	if row, want := strings.TrimRight(string(narrow[d.l.accountsAt+1]), " "), "≈ 9 of week · 31 of 5-hour"+strings.Repeat(" ", 4)+"$114.10"; !strings.HasSuffix(row, want) {
+		t.Errorf("at 53 columns, its row reads\n%q\nwant Fable week's points left out whole, ending\n%q", row, want)
 	}
 }
 
@@ -643,10 +643,7 @@ func TestATurnsRowKeepsItsFiguresWholeAtTheirBounds(t *testing.T) {
 		d, rows := pageDrawn(pageFrame(t, shown, width, 37), pageDoc())
 		for i, turn := range shown.Page.Turns {
 			row := rows[d.l.turnsAt+i]
-			took, going := turn.Took(sessionNow)
-			if going {
-				took += prose.Ellipsis
-			}
+			took := turn.TookSaid(sessionNow)
 			figures := map[turnPart]string{
 				turnNumber: strconv.Itoa(turn.Turn), turnTook: took, turnRequests: prose.Grouped(turn.Requests), turnWorth: turn.Cents(),
 			}

@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"github.com/charmbracelet/x/ansi"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -20,6 +21,13 @@ const (
 // names: its own, labelMost at the most.
 func labelColumnCells(name string) int {
 	return min(ansi.StringWidth(name), labelMost)
+}
+
+// labelAtMost is an account's label as a label's column holds it at its
+// most: cut with an ellipsis past labelColumnCells, so one account reads one
+// way wherever it's named.
+func labelAtMost(label string) string {
+	return prose.Cut(label, labelColumnCells(label))
 }
 
 // labelsCells are the cells of the names of the accounts the moment m

@@ -247,9 +247,9 @@ const (
 )
 
 // The bounds a turn's figures are held whole to at their least, as views
-// says them at their widest: its length, "999m…", past which "1000m…" is
-// cut to "100…"; its requests, "9,999"; its worth, "$999.99+", as wide as
-// "unpriced".
+// says them at their widest: its length, "999m…", past which it's said in
+// hours, "16h…", then days; its requests, "9,999"; its worth, "$999.99+",
+// as wide as "unpriced".
 var (
 	tookCells     = ansi.StringWidth(views.TookSaidWidest())
 	requestsCells = ansi.StringWidth(views.TurnRequestsSaidWidest())

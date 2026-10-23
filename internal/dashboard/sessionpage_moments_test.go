@@ -177,10 +177,7 @@ func checkTurnRows(t *testing.T, c *canvas, d sessionDrawn, p views.SessionPage,
 	shown := status.ShownID(p.Session)
 	for i, turn := range p.Turns[:min(len(p.Turns), d.l.turns)] {
 		row := []rune(rowOf(c, d.l.turnsAt+i) + strings.Repeat(" ", c.width))
-		took, going := turn.Took(now)
-		if going {
-			took += prose.Ellipsis
-		}
+		took := turn.TookSaid(now)
 		if number := turnText(row, d, turnNumber); number != prose.Grouped(turn.Turn) || turnText(row, d, turnTook) != took {
 			t.Errorf("%s's row of turn %d reads\n%q\nwant its number and its took, %q", shown, turn.Turn, strings.TrimRight(string(row), " "), took)
 		}

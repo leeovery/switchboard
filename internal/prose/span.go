@@ -153,6 +153,21 @@ func Minutes(from, to time.Time) string {
 	return strconv.Itoa(int(to.Truncate(time.Minute).Sub(from.Truncate(time.Minute))/time.Minute)+1) + "m"
 }
 
+// MinutesWithin says the minutes from the one from falls in to the one to
+// falls in, both counted, as Minutes does, but held to four characters:
+// under 1,000 minutes as Minutes says them, "999m"; under 100 hours in
+// whole hours, "16h"; else in whole days, "69d".
+func MinutesWithin(from, to time.Time) string {
+	minutes := int(to.Truncate(time.Minute).Sub(from.Truncate(time.Minute))/time.Minute) + 1
+	switch {
+	case minutes < 1000:
+		return strconv.Itoa(minutes) + "m"
+	case minutes < 100*60:
+		return strconv.Itoa(minutes/60) + "h"
+	}
+	return strconv.Itoa(minutes/(24*60)) + "d"
+}
+
 // Hours says how long d is in whole hours, what's left over cut, as a
 // session's story says how long it idled where it folds: "15h" for 15 hours
 // and 7 minutes.

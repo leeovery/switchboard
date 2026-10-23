@@ -50,32 +50,35 @@ var turnsOut = outForm{
 // sessionDrawn is a session's page as the frame draws it of a moment at
 // now: the page open, laid out as sessionLayout lays it out; its accounts
 // named as the Overview names them; whether its now rows take their wide
-// form, as nowWide has it; and its accounts' rows' columns and its turns',
-// as stayColumnsOf and turnColumnsOf lay them out.
+// form, as nowWide has it; its accounts' points' bounds, as pointsCells has
+// them; and its accounts' rows' columns and its turns', as stayColumnsOf and
+// turnColumnsOf lay them out.
 type sessionDrawn struct {
 	Frame
-	shown       *SessionShown
-	page        views.SessionPage
-	m           status.Moment
-	names       []accountName
-	l           sessionLayout
-	nowWide     bool
-	stayColumns []stayColumn
-	turnColumns []turnColumn
-	now         time.Time
+	shown        *SessionShown
+	page         views.SessionPage
+	m            status.Moment
+	names        []accountName
+	l            sessionLayout
+	nowWide      bool
+	windowsCells pointsBounds
+	stayColumns  []stayColumn
+	turnColumns  []turnColumn
+	now          time.Time
 }
 
 // sessionDrawn is the session's page open, as the frame draws it of doc at
 // now.
 func (f Frame) sessionDrawn(doc status.Document, now time.Time) sessionDrawn {
 	m := f.Moment(doc, now)
-	names, page := namesOf(m), f.Session.Page.Live(f.Stream)
+	names, page, points := namesOf(m), f.Session.Page.Live(f.Stream), pointsCells(f.listedWindows(m))
 	d := sessionDrawn{
 		Frame: f, shown: f.Session, page: page, m: m, names: names,
-		l:           f.pageLayout(),
-		stayColumns: stayColumnsOf(f.Width, stayNameCells(names), pointsCells(page.Stays(now)), worthsCells(page.Stays(now))),
-		turnColumns: turnColumnsOf(f.Width, turnFactsOf(page, m)),
-		now:         now,
+		l:            f.pageLayout(),
+		windowsCells: points,
+		stayColumns:  stayColumnsOf(f.Width, stayNameCells(names), points),
+		turnColumns:  turnColumnsOf(f.Width, turnFactsOf(page, m)),
+		now:          now,
 	}
 	d.nowWide = d.nowFits()
 	return d
@@ -479,14 +482,6 @@ func (d sessionDrawn) endedModelsKept(kept string) line {
 	return append(l, spaces(sessionApart), span{kept, faintInk})
 }
 
-// labelAtMost is an account's label as the page draws it, as a label's
-// column holds it at its most: cut with an ellipsis past labelColumnCells,
-// so one account reads one way across the page, and what's drawn is what
-// nowFits measures.
-func labelAtMost(label string) string {
-	return prose.Cut(label, labelColumnCells(label))
-}
-
 // nameOf is the account with the given id's name as the Overview names it,
 // numbered in the config's order, with its marks: its id, unnumbered, where
 // the moment lacks it.
@@ -512,34 +507,41 @@ func (d sessionDrawn) accounts(c *canvas) {
 type stayPart int
 
 // The parts of an account's row, in its order: its name, its time there,
-// its requests, the points of its windows the session took, and its worth.
+// its requests, the points of its windows the session took, as two parts,
+// one column, their short words and what their wide words add, and its
+// worth.
 const (
 	stayName stayPart = iota
 	stayTime
 	stayRequests
 	stayPoints
+	stayPointsWide
 	stayWorth
 )
 
 // The turns an account's row gives way in as it narrows, in this order, so
 // it keeps its figures before its name, and its name, its points and its
-// worth always: its points narrow, to their short words, then giving up
-// whole windows from the end down to one; its name narrows to its least;
-// then its requests leave, then its time there.
+// worth always: its points' words go short, losing no figure; its name
+// narrows to its least; its points' windows leave from the end, down to
+// one; then its requests leave, then its time there. Growing, they come
+// back in the reverse order.
 const (
-	stayPointsNarrow = iota + 1
+	stayWordsNarrow = iota + 1
 	stayNameNarrows
+	stayWindowsNarrow
 	stayRequestsLeave
 	stayTimeLeaves
 )
 
 // The cells of an account's row's parts that hold theirs whole: its time
 // there, at prose.StintWidth, as "28 Sep 13:20 – yesterday 01:20"; its
-// requests, as views.StayRequestsSaidWidest, "99,999 requests"; stayGap
-// blanks between its parts.
+// requests, as views.StayRequestsSaidWidest, "99,999 requests"; and its
+// worth, as views.StayWorthSaidWidest, "$9999.99+"; stayGap blanks between
+// its parts.
 var (
 	stayTimeCells     = prose.StintWidth()
 	stayRequestsCells = ansi.StringWidth(views.StayRequestsSaidWidest())
+	stayWorthCells    = ansi.StringWidth(widestOf(views.StayWorthSaidWidest()))
 )
 
 const stayGap = 2
@@ -551,19 +553,25 @@ type stayColumn struct {
 	x, width int
 }
 
+// pointsBounds are the cells an account's points take, as their windows
+// listed bound them: one window alone, the widest, in short words; every
+// window in short words; and every window in wide words.
+type pointsBounds struct{ one, short, wide int }
+
 // stayParts are the parts of an account's row as flex lays them, stayGap
 // apart, each holding its natural until it narrows or leaves in its turn:
 // its name from the least to the natural of names given; its points from
-// the least to the natural of points given; its worth in the cells given;
-// and the rest at their cells. Nothing grows, so the spare lies between its
-// points and its worth, which ends at the last column.
-func stayParts(names, points partCells, worth int) []flex.Part {
+// one window to every window in short words, and past it, what their wide
+// words add; and the rest at their cells. Nothing grows, so the spare lies
+// between its points and its worth, which ends at the last column.
+func stayParts(names partCells, points pointsBounds) []flex.Part {
 	return []flex.Part{
-		stayName:     {Least: names.least, Natural: names.natural, Narrows: stayNameNarrows},
-		stayTime:     {Least: stayTimeCells, Natural: stayTimeCells, Leaves: stayTimeLeaves, Gap: stayGap},
-		stayRequests: {Least: stayRequestsCells, Natural: stayRequestsCells, Leaves: stayRequestsLeave, Gap: stayGap},
-		stayPoints:   {Least: points.least, Natural: points.natural, Narrows: stayPointsNarrow, Gap: stayGap},
-		stayWorth:    {Least: worth, Natural: worth, Gap: stayGap},
+		stayName:       {Least: names.least, Natural: names.natural, Narrows: stayNameNarrows},
+		stayTime:       {Least: stayTimeCells, Natural: stayTimeCells, Leaves: stayTimeLeaves, Gap: stayGap},
+		stayRequests:   {Least: stayRequestsCells, Natural: stayRequestsCells, Leaves: stayRequestsLeave, Gap: stayGap},
+		stayPoints:     {Least: points.one, Natural: points.short, Narrows: stayWindowsNarrow, Gap: stayGap},
+		stayPointsWide: {Natural: points.wide - points.short, Narrows: stayWordsNarrow},
+		stayWorth:      {Least: stayWorthCells, Natural: stayWorthCells, Gap: stayGap},
 	}
 }
 
@@ -571,13 +579,14 @@ func stayParts(names, points partCells, worth int) []flex.Part {
 type partCells struct{ least, natural int }
 
 // stayColumnsOf are the parts of an account's row shown across a frame
-// width cells wide, its names', its points' and its worth's cells those given, as
-// stayParts lays them out. Where its requests or its time there leave, the
-// rest are laid again without them, so what they free goes to the name and
-// the points, in their turns, rather than lying blank beside a name cut
-// short; where they come back, the two give those cells back.
-func stayColumnsOf(width int, names, points partCells, worth int) []stayColumn {
-	parts := stayParts(names, points, worth)
+// width cells wide, its names' and its points' cells those given, as
+// stayParts lays them out, its points' two parts one column. Where its
+// requests or its time there leave, the rest are laid again without them,
+// so what they free goes to the name and the points, in their turns,
+// rather than lying blank beside a name cut short; where they come back,
+// the two give those cells back.
+func stayColumnsOf(width int, names partCells, points pointsBounds) []stayColumn {
+	parts := stayParts(names, points)
 	spans, _ := flex.Lay(width, parts...)
 	if spans[stayRequests].Left || spans[stayTime].Left {
 		for p, span := range spans {
@@ -589,7 +598,13 @@ func stayColumnsOf(width int, names, points partCells, worth int) []stayColumn {
 	}
 	var columns []stayColumn
 	for p, span := range spans {
-		if !span.Left && span.Size > 0 {
+		last := len(columns) - 1
+		switch {
+		case stayPart(p) == stayPointsWide:
+			if last >= 0 && columns[last].part == stayPoints {
+				columns[last].width += span.Size
+			}
+		case !span.Left && span.Size > 0:
 			columns = append(columns, stayColumn{part: stayPart(p), x: span.At, width: span.Size})
 		}
 	}
@@ -610,29 +625,20 @@ func stayNameCells(names []accountName) partCells {
 	return cells
 }
 
-// pointsCells are the least and the natural of the points of the accounts
-// given, as their rows say them: the widest whole in their wide words at
-// the natural, and the widest of their first window alone in their short
-// words at the least, so the column holds what the rows draw.
-func pointsCells(stays []views.Stay) partCells {
-	var cells partCells
-	for _, s := range stays {
-		cells.natural = max(cells.natural, pointsWhole(s.SessionAccount, views.PointsWide))
-		if short := s.PointsWords(views.PointsShort); len(short) > 0 {
-			cells.least = max(cells.least, ansi.StringWidth(short[0].String()))
-		}
+// pointsCells are the bounds of an account's points, of the windows given,
+// each at its most, a hundred points, so the row's arrangement holds still
+// as its figures change: one window alone, the widest, in short words;
+// every window in short words; and every window in wide words.
+func pointsCells(windows []shownWindow) pointsBounds {
+	most := views.SessionAccount{Points: make(map[string]int, len(windows))}
+	var bounds pointsBounds
+	for _, w := range windows {
+		most.Points[w.key] = 100
+		alone := views.SessionAccount{Points: map[string]int{w.key: 100}}
+		bounds.one = max(bounds.one, pointsWhole(alone, views.PointsShort))
 	}
-	return cells
-}
-
-// worthsCells are the cells of the widest worth of the accounts given, as
-// their rows say them.
-func worthsCells(stays []views.Stay) int {
-	widest := 0
-	for _, s := range stays {
-		widest = max(widest, ansi.StringWidth(s.Cents()))
-	}
-	return widest
+	bounds.short, bounds.wide = pointsWhole(most, views.PointsShort), pointsWhole(most, views.PointsWide)
+	return bounds
 }
 
 // pointsWhole are the cells the account's points take whole in form.
@@ -642,11 +648,11 @@ func pointsWhole(a views.SessionAccount, form views.PointsForm) int {
 
 // account draws the row along row y of an account the session ran on, its
 // parts as stayColumnsOf lays them out: its name; its time there and its
-// requests, where they show; the points of its windows the session took, to
-// stayGap cells short of its worth, wide where they fit whole, else short;
-// and at the right, its worth.
+// requests, where they show; the points of its windows the session took,
+// in their column, wide where it holds every window wide, else short; and
+// at the right, its worth.
 func (d sessionDrawn) account(c *canvas, y int, s views.Stay) {
-	worth := c.right(d.Width, y, line{{s.Cents(), secondaryInk}})
+	c.right(d.Width, y, line{{s.Cents(), secondaryInk}})
 	for _, col := range d.stayColumns {
 		switch col.part {
 		case stayName:
@@ -658,11 +664,11 @@ func (d sessionDrawn) account(c *canvas, y int, s views.Stay) {
 		case stayRequests:
 			c.text(col.x, y, prose.Cut(s.RequestsSaid(), col.width), mutedInk)
 		case stayPoints:
-			room, form := worth-stayGap-col.x, views.PointsWide
-			if pointsWhole(s.SessionAccount, form) > room {
+			form := views.PointsWide
+			if col.width < d.windowsCells.wide {
 				form = views.PointsShort
 			}
-			c.line(col.x, y, d.points(s.SessionAccount, form, room))
+			c.line(col.x, y, d.points(s.SessionAccount, form, col.width))
 		}
 	}
 }
@@ -785,7 +791,7 @@ func (d sessionDrawn) turnSaid(col turnColumn, t views.Turn, newest bool) line {
 	case turnRequests:
 		return muted(t.RequestsSaid())
 	case turnTools:
-		return muted(toolsWhole(t.ToolsEach(), col.width))
+		return muted(toolsWhole(t, col.width))
 	case turnRead:
 		return muted(prose.Tokens(t.Read))
 	case turnWritten:
@@ -807,26 +813,17 @@ func (d sessionDrawn) turnSaid(col turnColumn, t views.Turn, newest bool) line {
 	return nil
 }
 
-// toolsWhole are the tools a turn names, as views says each, as many as fit
-// whole in cells, those that don't leaving from the end, as an account's
-// points leave whole windows; where even the first doesn't fit, it alone,
-// cut.
-func toolsWhole(each []string, cells int) string {
-	said := ""
-	for i, tool := range each {
-		next := tool
-		if i > 0 {
-			next = said + views.ToolsApart + tool
+// toolsWhole are the tools the turn names, as many as fit whole in cells,
+// as views.Turn's ToolsSaidFirst says them, those that don't leaving from
+// the end, as an account's points leave whole windows; where even the first
+// doesn't fit, it alone, cut.
+func toolsWhole(t views.Turn, cells int) string {
+	for n := views.ToolsNamed; n > 1; n-- {
+		if said := t.ToolsSaidFirst(n); ansi.StringWidth(said) <= cells {
+			return said
 		}
-		if ansi.StringWidth(next) > cells {
-			break
-		}
-		said = next
 	}
-	if said == "" && len(each) > 0 {
-		return prose.Cut(each[0], cells)
-	}
-	return said
+	return prose.Cut(t.ToolsSaidFirst(1), cells)
 }
 
 // turnOn names the accounts a turn went to, in text.secondary, in cells,

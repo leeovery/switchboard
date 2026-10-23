@@ -378,18 +378,22 @@ func (t Turn) Took(now time.Time) (minutes string, going bool) {
 }
 
 // TookSaid says how long the turn took, at now, as its row says it: as Took
-// says it, and of one still going, "…" after, as "3m…".
+// counts it, held to four characters as prose.MinutesWithin says it, "9m",
+// "16h", "69d", and of one still going, "…" after, as "3m…".
 func (t Turn) TookSaid(now time.Time) string {
-	took, going := t.Took(now)
+	end, going := t.Ended, t.Ended.IsZero()
+	if going {
+		end = now
+	}
+	took := prose.MinutesWithin(t.Started, end)
 	if going {
 		took += prose.Ellipsis
 	}
 	return took
 }
 
-// TookSaidWidest is the widest TookSaid a turn's row holds whole: 999
-// minutes and going, "999m…". Past it, as minutes are said whatever their
-// number, "1000m…" is cut.
+// TookSaidWidest is the widest TookSaid says: 999 minutes and going,
+// "999m…".
 func TookSaidWidest() string {
 	var start time.Time
 	return Turn{Started: start}.TookSaid(start.Add(998 * time.Minute))
@@ -413,11 +417,15 @@ const ToolsNamed = 3
 // ToolsSaid says the tools the turn's answers called most, as ToolsEach
 // says them, a comma and a blank between: "Bash ×14, Edit ×9, Read ×8".
 func (t Turn) ToolsSaid() string {
-	return strings.Join(t.ToolsEach(), ToolsApart)
+	return t.ToolsSaidFirst(ToolsNamed)
 }
 
-// ToolsApart sets the tools a turn names apart.
-const ToolsApart = ", "
+// ToolsSaidFirst says the first n of the tools ToolsSaid says, as it says
+// them: "Bash ×14, Edit ×9".
+func (t Turn) ToolsSaidFirst(n int) string {
+	each := t.ToolsEach()
+	return strings.Join(each[:min(n, len(each))], ", ")
+}
 
 // ToolsEach says each of the tools the turn's answers called most, three at
 // the most, most first, with how many times it was called, as "Bash ×14".
@@ -444,6 +452,16 @@ func ToolsSaidWidest() string {
 // unpriced, "$999.99+", and none of it priced, "unpriced".
 func WorthSaidWidest() []string {
 	most := ledger.Picodollars(99_999) * ledger.Picodollars(10_000_000_000)
+	unpriced := []string{"unpriced"}
+	return []string{Worth{Amount: &most, Unpriced: unpriced}.Cents(), Worth{Unpriced: unpriced}.Cents()}
+}
+
+// StayWorthSaidWidest are the worths an account's row says at their widest,
+// as Cents says them, to the most it's held whole to, which a session's
+// time on an account doesn't pass: $9999.99, with part of it unpriced,
+// "$9999.99+", and none of it priced, "unpriced".
+func StayWorthSaidWidest() []string {
+	most := ledger.Picodollars(999_999) * ledger.Picodollars(10_000_000_000)
 	unpriced := []string{"unpriced"}
 	return []string{Worth{Amount: &most, Unpriced: unpriced}.Cents(), Worth{Unpriced: unpriced}.Cents()}
 }

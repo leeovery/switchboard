@@ -4285,9 +4285,12 @@ day before, from 133 (165).
 **What gives way first, across the page's rows.** A row's detail columns come after names: a
 turn's tools, `↑ asking`, and read, written and out return only once a name has reached its
 natural, as labels grow to their most and then the rest grows. A row's figures come before names:
-an account's requests, its points' windows and its time there; a name narrows toward its least
-before any of them leaves. Name columns keep `▲`'s and `◆`'s cells (Rule 2), whichever a name
-carries.
+an account's row, narrowing, first says its points in their short words, losing no figure; then
+its name narrows toward its least; then its points' windows leave from the end, down to one; then
+its requests leave; then its time there. Widening, they come back in the reverse order. Its
+columns are set by what its parts can say at their most, never by what they say now, so the row
+holds still as its figures change. Name columns keep `▲`'s and `◆`'s cells (Rule 2), whichever a
+name carries.
 
 **The accounts it ran on** (row 19 on), under the story with no heading, a row each, in the order it
 first ran on them. A row's parts, two cells apart, as flex lays them at every width:
@@ -4306,20 +4309,22 @@ first ran on them. A row's parts, two cells apart, as flex lays them at every wi
 - **its requests** in `text.muted`, in 15, to `99,999 requests`: `404 requests`;
 - **what it took of the account's windows,** the points bold `text.primary` and the rest
   `text.muted`, in the order of care: `≈ 6 points of its week · 41 of its 5-hour`, a model's own
-  window it used adding `· N of its Fable week` (settled in the plan). It's measured by the words
-  the rows draw: its natural the widest account's wide words, and its least the widest first
-  window alone in short words, `≈ 6 of week`; it says the wide words where they fit whole, else
-  the short, `≈ 6 of week · 41 of 5-hour`, and leaves whole windows off the end where even those
-  don't, two cells short of the worth;
+  window it used adding `· N of its Fable week` (settled in the plan). It's measured by the
+  windows listed, each at its most, 100 points, never by the points the rows say, so the row holds
+  still as they change: its natural every listed window in wide words, and its least the widest
+  window alone in short words, `≈ 100 of week`; it says the wide words where its column holds
+  every window's, else the short, `≈ 6 of week · 41 of 5-hour`, and leaves whole windows off the
+  end where even those don't fit its column;
 - **right-aligned to the last column,** its worth at API prices, in `text.secondary`: `$41.06`,
-  in the widest the rows say. Nothing grows, so what's spare lies between the points and the worth.
-- **As the width runs short,** the points narrow to their short words first, then give up whole
-  windows from the end down to one; then the name narrows, to its least; and only then the
-  requests leave, then the time there. The name, the points and the worth stay. Where the
-  requests or the time have left, what they free goes to the points and the name in that order,
-  never lying blank beside a name cut short. A wider frame never shows fewer parts, nor a shorter
-  name, but where a part comes back: the points and the name give back the cells they took while
-  it was gone.
+  in 9, to `$9999.99+`, as wide as `unpriced`. Nothing grows, so what's spare lies between the
+  points and the worth.
+- **As the width runs short,** the points take their short words first, losing no figure; then
+  the name narrows, to its least; then the points give up whole windows from the end, down to
+  one; and only then the requests leave, then the time there. The name, the points and the worth
+  stay. Where the requests or the time have left, what they free goes back in the reverse order,
+  to the points' windows, then the name, then the points' wide words, never lying blank beside a
+  name cut short. A wider frame never shows fewer parts, nor a shorter name, but where a part
+  comes back: the points and the name give back the cells they took while it was gone.
 - **A turn that moved splits** between the two, each request counted on the account that answered
   it, the context written again on the account it moved to. The rows' requests and worth add up to
   TURNS', the worths to the cent too: TURNS' total is their sum worked out once, exactly, then
@@ -4369,7 +4374,8 @@ first ran on them. A row's parts, two cells apart, as flex lays them at every wi
   - `#` right-aligned in the cells the newest turn's number takes, 3 at the least, so turn 1005
     reads apart from turn 5; `read` and `written` right-aligned in 7, `out` in 6;
   - the figures whole to their bounds at every width: `took` in 5, to `999m…`, past which it's
-    cut (`1000m…` reads `100…`); and `requests` right-aligned from 5, to `9,999`, to 8, its head's;
+    said in whole hours to `99h…`, then whole days, `69d…`, never cut; and `requests`
+    right-aligned from 5, to `9,999`, to 8, its head's;
     `started` from 5 to 7, its head's; and `worth` right-aligned in 8, to `$999.99+`, as wide as
     `unpriced`;
   - `on`, the accounts a turn went to: one account's name, a label's, its least 8 and its natural

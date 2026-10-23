@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -476,9 +478,46 @@ func TestATurnsToolsAndWorthAtTheirWidest(t *testing.T) {
 			t.Errorf("%s = %q, want %q", name, said[0], said[1])
 		}
 	}
-	tools := views.Turn{Tools: []views.ToolCalls{{Tool: "Bash", Times: 14}, {Tool: "Edit", Times: 9}}}
-	if got, want := tools.ToolsEach(), []string{"Bash ×14", "Edit ×9"}; !slices.Equal(got, want) {
-		t.Errorf("ToolsEach = %q, want %q", got, want)
+	if got, want := views.StayWorthSaidWidest(), []string{"$9999.99+", "unpriced"}; !slices.Equal(got, want) {
+		t.Errorf("StayWorthSaidWidest = %q, want %q", got, want)
+	}
+	tools := views.Turn{Tools: []views.ToolCalls{{Tool: "Bash", Times: 14}, {Tool: "Edit", Times: 9}, {Tool: "Read", Times: 8}}}
+	for n, want := range []string{"", "Bash ×14", "Bash ×14, Edit ×9", "Bash ×14, Edit ×9, Read ×8", "Bash ×14, Edit ×9, Read ×8"} {
+		if got := tools.ToolsSaidFirst(n); got != want {
+			t.Errorf("ToolsSaidFirst(%d) = %q, want %q", n, got, want)
+		}
+	}
+}
+
+// A turn's took is held to four characters, whole and never wider than
+// TookSaidWidest, however long it ran: minutes to 999, then hours to 99,
+// then days.
+func TestATurnsTookIsWholeHoweverLongItRan(t *testing.T) {
+	start := time.Date(2026, 10, 7, 9, 0, 0, 0, time.UTC)
+	tests := []struct {
+		minutes int
+		ended   string
+		going   string
+	}{
+		{minutes: 999, ended: "999m", going: "999m…"},
+		{minutes: 1000, ended: "16h", going: "16h…"},
+		{minutes: 5999, ended: "99h", going: "99h…"},
+		{minutes: 6000, ended: "4d", going: "4d…"},
+		{minutes: 12_001, ended: "8d", going: "8d…"},
+		{minutes: 99_999, ended: "69d", going: "69d…"},
+	}
+	widest := ansi.StringWidth(views.TookSaidWidest())
+	for _, tt := range tests {
+		last := start.Add(time.Duration(tt.minutes-1) * time.Minute)
+		said := map[string]string{
+			tt.ended: views.Turn{Started: start, Ended: last}.TookSaid(last.Add(time.Hour)),
+			tt.going: views.Turn{Started: start}.TookSaid(last),
+		}
+		for want, got := range said {
+			if got != want || ansi.StringWidth(got) > widest {
+				t.Errorf("a turn of %d minutes is said %q, want %q, no wider than %q", tt.minutes, got, want, views.TookSaidWidest())
+			}
+		}
 	}
 }
 
