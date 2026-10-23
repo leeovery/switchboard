@@ -1063,7 +1063,11 @@ word.
 
 **Marks.** One mark a kind is the rule for events, in LATELY and the Log (see The Log). State words,
 as `✕ no token` and `! can't read it`, and scroll lines, as `▲ 2 more accounts` in `text.subtle`,
-have glyphs of their own, told apart from an event's mark by their colour and their words.
+have glyphs of their own, told apart from an event's mark by their colour and their words. A
+scroll line says as much as its width holds, in one order on every view: both counts with the
+keys; both counts without them; then the count below alone, else the one above, with its keys and
+then without; each step in the line's own words, its longest wording first. It's cut short only
+where none of those fits, and never says less as the width grows.
 
 **The title row** (row 0):
 
@@ -4696,10 +4700,9 @@ first ran on them. A row's parts, two cells apart, as flex lays them at every wi
   story. The page opens on the newest.
 - **More than fit:** row 35, `▼` in `accent.key`, ` 3 more turns   ·   ` in `text.muted`, `j/k` bold
   `accent.key` and ` to scroll` in `text.muted`; scrolled, `▲ 1 more turn   ·   ` before it, of
-  those above. Where that doesn't fit, it's the counts alone, both said from 34 columns, and the
-  keys from 54. The turns scroll within their rows, under the
-  heading, now, the story and the accounts, which stay put, the turn chosen kept in view
-  (settled in the plan).
+  those above, giving way as every scroll line does (see The page). The turns scroll within their
+  rows, under the heading, now, the story and the accounts, which stay put, the turn chosen kept in
+  view (settled in the plan).
 
 **A turn opened.** `enter` opens the turn chosen into its requests, in place, the turns under it
 moving down.

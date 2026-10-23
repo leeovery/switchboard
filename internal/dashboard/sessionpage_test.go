@@ -254,7 +254,7 @@ func TestASessionsTurnsCountThoseAboveWhereverBothCountsFit(t *testing.T) {
 		if above != 1 || len(rows) == 0 {
 			t.Fatalf("at %d columns, %d turns are out of view above, want 1", width, above)
 		}
-		both := turnsCounted.said(above, below)
+		both := turnsOut.keyless().said(above, below)
 		got := pageText(f)[f.pageLayout().moreTurns]
 		if both.width() <= width && !strings.HasPrefix(got, both.plain()) {
 			t.Errorf("at %d columns, the row under the turns reads %q, want it to start %q", width, got, both.plain())
