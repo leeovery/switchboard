@@ -5,22 +5,22 @@
 
 SESSIONS   Switchboard  List
 
-  session          on        state          requests
-▸ db8a infra       side      idle 50s            126
-  9c2e website     personal  idle 9m             267
-↑ d28c switchboard side      asking              445
-  41e0 docs        personal  idle 34s            158
-↓ 7f3a api         side      answering            84
-↓ c61b mobile      side      answering             4
+  session                        on        model      state        requests
+▸ db8a infra                     side      opus-5-5   idle 50s          126
+  9c2e website                   personal  opus-5-5   idle 9m           267
+↑ d28c switchboard               side      opus-5-5   asking            445
+  41e0 docs                      personal  opus-5-5   idle 34s          158
+↓ 7f3a api                       side      opus-5-5   answering          84
+↓ c61b mobile                    side      opus-5-5   answering           4
   ended today  ───────────────────────────────────────────────────────────────────────────
-  5b19 mobile      personal  ended 11:21          38
-  3d7a docs        work      ended 10:15          12
-  e0c4 infra       work      ended 10:02          19
-  a8f1 website     side      ended 09:28          24
-  2b6d api         work      ended 09:05          31
-  5e7d api         side      ended 00:41          17
-  4b0e infra       work      ended 00:31           5
-  8a2c docs        side      ended 00:18           9
+  5b19 mobile                    personal  opus-5-5   ended 11:21        38
+  3d7a docs                      work      opus-5-5   ended 10:15        12
+  e0c4 infra                     work      opus-5-5   ended 10:02        19
+  a8f1 website                   side      opus-5-5   ended 09:28        24
+  2b6d api                       work      opus-5-5   ended 09:05        31
+  5e7d api                       side      opus-5-5   ended 00:41        17
+  4b0e infra                     work      opus-5-5   ended 00:31         5
+  8a2c docs                      side      opus-5-5   ended 00:18         9
 
 
 
@@ -36,5 +36,5 @@ SESSIONS   Switchboard  List
 
 
 
-                               today  14 sessions · 1,239 requests · $125.94 at API prices
+today  14 sessions · 1,239 requests · $125.94 at API prices
 tab views   ↑↓ session   enter open   [ ] view   ? keys   q quit

@@ -3,11 +3,11 @@
 ● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
 
 USAGE  ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── u
-
-WEEK
-▼ 18 more below
-┃ even pace: where you would be now, used evenly
-╎ cap: work at 95%    ◆ primary    ▲ new sessions go here
+                WEEK                                                          5-HOUR
+1 work                    ▎     ┃           ╎   34%  19%/day till Sun 21:00                  ┃            ╎   95%  at cap · back 17:10
+2 personal ◆                       ┃            66%  out ~Sat 06:00                      ▊       ┃            39%  34%/h till 16:30
+3 side ▲                      ┃        ▍        78%  out ~Fri 12:20              ▉ ┃                          13%  21%/h till 18:50
+▼ 2 more below
 
 ROUTING   auto   no room at 15 rows ──────────────────────────────────────────────────────────────────────────────────────────────────── r
 COMING UP   16:30  personal's 5-hour resets  … ───────────── c         LATELY   14:41  ▲ c61b started on side  … ─────────────────────── l

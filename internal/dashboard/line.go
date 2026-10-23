@@ -42,6 +42,12 @@ func (l line) fit(width int) line {
 	return fitParts(width, wordsPart(l))
 }
 
+// endsCut reports whether the line ends in an ellipsis, as a name cut
+// short does, so a cut after it ends there rather than reading "……".
+func (l line) endsCut() bool {
+	return len(l) > 0 && strings.HasSuffix(l[len(l)-1].text, prose.Ellipsis)
+}
+
 // inked is the line as it's drawn, each run of one ink a span, however its
 // spans were split.
 func (l line) inked() line {
@@ -109,9 +115,15 @@ func fitParts(width int, parts ...part) line {
 		case !cutting || w < room:
 			kept, room = append(kept, p.drawn()...), room-w
 		case !p.figure:
-			return append(kept, span{prose.CutShort(p.said[0].text, room), p.said[0].ink})
+			cut := prose.CutShort(p.said[0].text, room)
+			if cut == prose.Ellipsis && kept.endsCut() {
+				return kept
+			}
+			return append(kept, span{cut, p.said[0].ink})
 		case w == room:
 			return append(kept, p.drawn()...)
+		case kept.endsCut():
+			return kept
 		default:
 			return append(kept, p.said.elided()...)
 		}
@@ -273,7 +285,7 @@ func (s span) blank() bool {
 	return s.text != "" && strings.TrimSpace(s.text) == ""
 }
 
-// firstFit is the first of forms, each shorter than the one before, that fits
+// firstFit is the first of forms, none wider than the one before, that fits
 // in width cells; where none does, the last, cut short.
 func firstFit(width int, forms ...line) line {
 	for _, l := range forms {

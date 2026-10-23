@@ -153,11 +153,43 @@ func TestAPeriodAPlanPriceChangedInCostsItsPriceOnItsFirstDay(t *testing.T) {
 	in := input(sinceJuly)
 	in.From, in.Accounts = on("2026-09-08"), config.Accounts{{ID: "work", Plan: "max20x"}}
 	in.Prices.Plans = []ledger.Plan{{ID: "max20x", Name: "Max 20x", Size: 20, Prices: []ledger.PlanPrice{
-		{From: "2025-04-09", Monthly: 200 * dollar}, {From: "2026-09-09", Monthly: 300 * dollar},
+		{From: "2025-04-09", Monthly: 200 * ledger.Dollar}, {From: "2026-09-09", Monthly: 300 * ledger.Dollar},
 	}}}
 
 	if got, want := jsonOf(t, views.NewHistory(in).Plans[0].Cost), "200"; got != want {
 		t.Errorf("over the last 30 days, a price changed on the second, work's plan cost %s, want %s", got, want)
+	}
+}
+
+// The plans at their most are each configured account's plan at the most it
+// has cost, whatever the day, and every account's those summed, its plans
+// counted: an account whose plan isn't known has no price.
+func TestThePlansAtTheirMostAreEachPlansMostAndTheirSum(t *testing.T) {
+	accounts := config.Accounts{{ID: "work", Plan: "max20x"}, {ID: "personal", Plan: "pro"}, {ID: "side"}}
+	table := ledger.Table{Plans: []ledger.Plan{
+		{ID: "max20x", Name: "Max 20x", Size: 20, Prices: []ledger.PlanPrice{{From: "2025-04-09", Monthly: 300 * ledger.Dollar}, {From: "2026-09-09", Monthly: 200 * ledger.Dollar}}},
+		{ID: "pro", Name: "Pro", Size: 1, Prices: []ledger.PlanPrice{{From: "2023-09-07", Monthly: 20 * ledger.Dollar}, {From: "2026-09-09", Monthly: 25 * ledger.Dollar}}},
+	}}
+	got := views.PlansAtMost(accounts, table)
+	want := []struct {
+		account, plan, monthly string
+		all                    bool
+	}{
+		{account: "work", plan: "max20x", monthly: "$300/mo"},
+		{account: "personal", plan: "pro", monthly: "$25/mo"},
+		{account: "side"},
+		{all: true, monthly: "$325/mo"},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("PlansAtMost = %+v, want %d plans", got, len(want))
+	}
+	for i, w := range want {
+		if got[i].Account != w.account || got[i].Plan != w.plan || got[i].All != w.all || got[i].Monthly() != w.monthly {
+			t.Errorf("plan %d is %s's %q at %q, all %v; want %s's %q at %q, all %v", i, got[i].Account, got[i].Plan, got[i].Monthly(), got[i].All, w.account, w.plan, w.monthly, w.all)
+		}
+	}
+	if known := got[3].Plans; known != (views.PlansKnown{Known: 2, Of: 3}) {
+		t.Errorf("every account's plans are %+v, want 2 of 3 known", known)
 	}
 }
 

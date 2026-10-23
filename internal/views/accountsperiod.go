@@ -3,6 +3,8 @@ package views
 import (
 	"slices"
 	"time"
+
+	"github.com/leeovery/switchboard/internal/quota"
 )
 
 // AccountsPeriod is the period Accounts counts its accounts' use over, Compare
@@ -42,6 +44,12 @@ var accountsPeriodsAre = map[AccountsPeriod]accountsPeriod{
 	AccountsThisWeek:    {name: "this week", title: "THIS WEEK", unit: "week", share: aWeek},
 	AccountsThirtyDays:  {name: "30 days", title: "LAST 30 DAYS", unit: "month", share: aMonth},
 	AccountsTwelveWeeks: {name: "12 weeks", title: "LAST 12 WEEKS", unit: "12 weeks", share: twelveWeeks},
+}
+
+// AccountsPeriods are the periods in the order < and > step through them,
+// the shortest first.
+func AccountsPeriods() []AccountsPeriod {
+	return slices.Clone(accountsPeriods)
 }
 
 // Known reports whether p is one of the periods, as a preference read back
@@ -120,4 +128,29 @@ func (p AccountsPeriod) last(today time.Time, starts time.Weekday) time.Time {
 // share is the share of a month the plans cost over the period, whole.
 func (p AccountsPeriod) share() monthPart {
 	return accountsPeriodsAre[p].share
+}
+
+// LimitsHitMost are the most times the limit of the window with the key
+// given can be hit over the longest period Accounts shows, as a limit is hit
+// once a window at most: the period's span over the window's length, as
+// quota.Length reads it from the key, or an hour's where the key doesn't say
+// it. So 403 of a 5-hour window over 12 weeks.
+func LimitsHitMost(key string) int {
+	length, ok := quota.Length(key)
+	if !ok {
+		length = time.Hour
+	}
+	return int(longestSpan() / length)
+}
+
+// longestSpan is how long the longest period Accounts shows runs, from its
+// first day to the end of its last, as first and last have them of any day,
+// weeks starting on any weekday.
+func longestSpan() time.Duration {
+	day := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+	var longest time.Duration
+	for _, p := range accountsPeriods {
+		longest = max(longest, p.last(day, time.Monday).AddDate(0, 0, 1).Sub(p.first(day, time.Monday)))
+	}
+	return longest
 }

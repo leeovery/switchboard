@@ -22,6 +22,22 @@ const (
 // and LATELY, at every width.
 const afterTime = "  "
 
+// projected marks the time of a window running out in COMING UP, as in
+// "~Sat 06:00"; and primed is what it says befalls an account primed, the
+// shortest of what it says befalls one.
+const (
+	projected = "~"
+	primed    = " is primed"
+)
+
+// comingLeast is the fewest cells COMING UP is read in, beside LATELY: a
+// line's time at its widest, projected; the blanks after it; an account's
+// name at the cells given, its least; what befalls it at its shortest,
+// primed; and its countdown, comingTail.
+func comingLeast(name int) int {
+	return len(projected) + prose.DatedWidth() + len(afterTime) + name + len(primed) + comingTail
+}
+
 // linesRows is how many rows COMING UP or LATELY takes with lines to show:
 // its heading and the blank row under it, and its lines, leastLines at the
 // least, and mostLines at the most.
@@ -36,15 +52,16 @@ func (f Frame) comingSection(doc status.Document, now time.Time) section {
 	things := f.upcoming(doc, now)
 	return section{
 		Section: SectionComing, least: linesRows(0), lines: func() int { return len(things) },
+		readIn: comingLeast(labelsLeast(widestLabel(f.Moment(doc, now)))),
 		draw: func(c *canvas, body bounds) {
 			comingLines(c, things, now, body)
 		},
-		folded: func() line {
+		folded: oneForm(func() line {
 			if len(things) == 0 {
 				return nil
 			}
 			return things[0].said(now, 0)
-		},
+		}),
 	}
 }
 
@@ -109,7 +126,7 @@ func (t comingTeller) happening(u status.Upcoming) (happening, bool) {
 	case status.UpcomingReset:
 		h.what = "'s " + t.windowOf(u.Window) + " resets"
 	case status.UpcomingPrime:
-		h.what = " is primed"
+		h.what = primed
 	default:
 		return happening{}, false
 	}
@@ -190,7 +207,7 @@ func (h happening) said(now time.Time, column int) line {
 // projected, after a ~, as in "~Sat 06:00".
 func (h happening) when(now time.Time) string {
 	if h.runsOut {
-		return "~" + prose.Dated(now, h.at)
+		return projected + prose.Dated(now, h.at)
 	}
 	return prose.Dated(now, h.at)
 }

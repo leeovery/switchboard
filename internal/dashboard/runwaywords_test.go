@@ -489,14 +489,14 @@ func TestTheWordsUnderALaneAreDrawnOnTheRowUnderItCuedWhereTheyAre(t *testing.T)
 	f := runwayShowing(five)
 	f.Look, f.Changed = Screen(builtin(t, "nord")), map[string]float64{"work": 0.25}
 	c := newCanvas(160, 20)
-	f.runwayWords(c, runwayLaid{m: status.Moment{Now: routedAt}, x: runwayLanesFrom, lanes: []laidLane{ln}})
+	f.runwayWords(c, runwayLaid{m: status.Moment{Now: routedAt}, x: framesLanesFrom, lanes: []laidLane{ln}})
 	words := "at its cap 14:31  ·  back 15:00  at its limit 16:00  ·  back 17:00"
-	if got := textAt(c, runwayLanesFrom+5, 11, 136); got != words {
+	if got := textAt(c, framesLanesFrom+5, 11, 136); got != words {
 		t.Fatalf("the row under the lane reads %q, want %q", got, words)
 	}
 	cued := hue{token: theme.BgAttention, fade: 0.25}
 	for x := range 160 {
-		inWords := x >= runwayLanesFrom+5 && x < runwayLanesFrom+5+utf8.RuneCountInString(words)
+		inWords := x >= framesLanesFrom+5 && x < framesLanesFrom+5+utf8.RuneCountInString(words)
 		if got := c.at(x, 11).ink.on; inWords != (got == cued) {
 			t.Errorf("column %d is on %v; cued %t, want %t", x, got, got == cued, inWords)
 		}

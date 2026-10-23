@@ -65,57 +65,47 @@ func (f Frame) laidLanes(m status.Moment, fit runwayFit) []laidLane {
 }
 
 // runwayLanes draws the lanes, as laid out, each on its row: its account's
-// name in the label column before it, and its use of the view's window from
-// runwayUseFrom on the row under, as useLine has it, or with the account
-// column collapsed, its label as collapsedLabel has it alone; then the lane
-// itself, as drawLane draws it.
+// name in the label column before it, cut to fit as line has it, and its
+// use of the view's window from runwayUseFrom on the row under, as useLine
+// has it; or with the account column collapsed, its number and marks, and
+// its use under them, as collapsedUse has it; then the lane itself, as
+// drawLane draws it.
 func (f Frame) runwayLanes(c *canvas, laid runwayLaid) {
 	window := runwayNames[f.Runway.Window]
 	for _, ln := range laid.lanes {
 		if f.Runway.Collapsed {
-			c.line(0, ln.row, ln.collapsedLabel(laid.x-nameGap))
+			c.line(0, ln.row, ln.name.head())
+			c.line(0, ln.row+1, line{ln.collapsedUse()})
 		} else {
 			c.line(0, ln.row, ln.name.line(laid.x))
-			c.line(runwayUseFrom, ln.row+1, ln.useLine(window, laid.m.Now, f.Width, laid.x-runwayUseFrom-1))
+			c.line(runwayUseFrom, ln.row+1, ln.useLine(window, laid.m.Now, laid.x-runwayUseFrom-1))
 		}
 		f.drawLane(c, ln, laid.x)
 	}
 }
 
-// collapsedLabel is the lane's label with Runway's account column collapsed,
-// in the cells given, as in "2 ◆    84%": its account's number and marks, as
-// its name heads it, and its use of the view's window, as collapsedUse has
-// it, as collapsedLabelled lays them out.
-func (ln laidLane) collapsedLabel(cells int) line {
-	head := append(line{ln.name.numbered()}, ln.name.marks()...)
-	return collapsedLabelled(head, line{ln.collapsedUse()}, cells)
+// head is the name as Runway's collapsed account column heads its lane, as
+// in "2 ◆": its number and the marks it carries.
+func (n accountName) head() line {
+	return append(line{n.numbered()}, n.marks()...)
 }
 
-// collapsedCells are the cells the labels of Runway's collapsed account
-// column take, of lanes named as names has them: the widest a lane's can
-// be, its number and marks, as headCells counts them, a space, and the
-// widest figure, as 100%, so every figure ends in one column, and the
-// column holds still as ▲ moves; collapsedLanesFrom less nameGap the least.
-// The pool's, Σ and its room of n accounts, is never the widest.
-func collapsedCells(names []accountName) int {
-	head := 0
+// runwayLabelsOf are the labels of lanes named as names has them, ▲'s
+// cells kept on every account, as headCells keeps them, so the lanes hold
+// still as ▲ moves: expanded, their name column, nameGap after it, as
+// accountsColumn has it, as "2 personal ◆"; collapsed, the cells of the
+// widest number and marks, as head has them.
+func runwayLabelsOf(names []accountName) runwayLabels {
+	labels := runwayLabels{expanded: accountsColumn(nameGap, names)}
 	for _, n := range names {
-		head = max(head, n.headCells())
+		labels.collapsed = max(labels.collapsed, n.headCells())
 	}
-	return max(collapsedLanesFrom-nameGap, head+1+widestFigure)
+	return labels
 }
 
 // widestFigure is how many cells the widest use a lane's label says takes,
 // as 100%.
 const widestFigure = len("100%")
-
-// collapsedLabelled is a label of Runway's collapsed account column, in the
-// cells given: its head, then its figure right-aligned to the label's end, a
-// cell after the head at the least, so the figures of every lane and the
-// pool's end in a column.
-func collapsedLabelled(head, figure line, cells int) line {
-	return slices.Concat(head, line{spaces(max(cells-head.width()-figure.width(), 1))}, figure)
-}
 
 // collapsedUse is the lane's use of the view's window as its collapsed label
 // says it: its figure, as useFigure has it, in text.faint where the pool
@@ -206,15 +196,16 @@ func (ln laidLane) fade() float64 {
 }
 
 // useLine is what the row under the lane's name says of its account's use of
-// the view's window, named as given, at now, on a frame width columns wide,
-// in cells cells: in full where it fits, else short, as pick picks them; in
-// text.faint, every part, where the pool leaves its account out.
-func (ln laidLane) useLine(window string, now time.Time, width, cells int) line {
+// the view's window, named as given, at now, in cells cells: always short,
+// as the label column is never widened for the full words, so it holds
+// still as an account goes stale; in text.faint, every part, where the pool
+// leaves its account out.
+func (ln laidLane) useLine(window string, now time.Time, cells int) line {
 	words := ln.useWords(window, now)
 	if ln.account.OutOfPool {
 		words = words.faint()
 	}
-	return words.pick(width, cells)
+	return words.short.fitWhole(cells)
 }
 
 // useWords are what's said of the lane's use, as useLine has it: where it's

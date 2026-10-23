@@ -230,7 +230,7 @@ func TestHistorysPeriodsAndSplitsAsTheKeyLineNamesThem(t *testing.T) {
 // the frame draws: on Weeks, where both shapes take their wide form, as the
 // columns do from 126 columns, or before its page is built; never where one
 // alone does, as the table does from 100 columns, which is drawn whichever v
-// chose, nor on a phone, whose form is neither. Tokens' splits show on a
+// chose, nor in its narrow form, whose form is neither. Tokens' splits show on a
 // phone too.
 func TestVNamesWhatItShowsOnlyWhereItChangesWhatsDrawn(t *testing.T) {
 	weeks := threeWeeks()
@@ -261,7 +261,7 @@ func TestVNamesWhatItShowsOnlyWhereItChangesWhatsDrawn(t *testing.T) {
 }
 
 // Where Weeks' columns don't fit but its table does, from 100 columns to
-// 125, the table is drawn whichever shape v chose, never the phone form,
+// 125, the table is drawn whichever shape v chose, never the narrow form,
 // which the frame keeps for where neither fits.
 func TestWeeksDrawsTheShapeThatFitsWhereVsDoesnt(t *testing.T) {
 	for _, width := range []int{100, 125} {

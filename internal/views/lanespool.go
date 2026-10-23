@@ -20,6 +20,18 @@ type PoolColumn struct {
 	Known bool
 }
 
+// Limited reports whether none of the column's accounts has room, of those
+// whose state is known: the pool at its limit then.
+func (c PoolColumn) Limited() bool {
+	return c.Known && c.With == 0
+}
+
+// Limited reports whether any of the pool's columns is at its limit, as
+// PoolColumn.Limited has it.
+func (p Pool) Limited() bool {
+	return slices.ContainsFunc(p.Columns, PoolColumn.Limited)
+}
+
 // poolOf is the pool's lane over the accounts' lanes given, as Pool has it:
 // none where there's one account.
 func (from LanesFrom) poolOf(lanes []Lane) Pool {

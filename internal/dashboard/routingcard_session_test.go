@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"cmp"
 	"fmt"
 	"slices"
 	"strings"
@@ -42,9 +43,9 @@ func TestASessionsCardIsTitledAndOpensForItsSession(t *testing.T) {
 	want := []string{
 		"Pick the account this session goes to.",
 		"",
-		"9c2e  website  ~/Code/website                               runs on personal",
+		"9c2e  website  ~/Code/website                              runs on personal",
 		"",
-		"● 0 auto        the router chooses: side for now",
+		"● 0 auto      the router chooses: side for now",
 	}
 	if title != "ROUTING · THIS SESSION" || !slices.Equal(body[:5], want) {
 		t.Errorf("titled %q, opening\n%s\nwant ROUTING · THIS SESSION, opening\n%s", title, strings.Join(body[:5], "\n"), strings.Join(want, "\n"))
@@ -55,7 +56,9 @@ func TestASessionsRowNamesItAndWhereItRuns(t *testing.T) {
 	tests := []struct {
 		name    string
 		session RoutingSession
-		phone   bool
+		// width is the row's cells: 75, the card's content at its natural
+		// width, where it's 0.
+		width int
 		// left is what the row says from its start, and right what it says
 		// at its end.
 		left, right string
@@ -64,31 +67,29 @@ func TestASessionsRowNamesItAndWhereItRuns(t *testing.T) {
 			left: "9c2e  website  ~/Code/website", right: "runs on personal"},
 		{name: "a long directory cut from its start, its name kept, two cells clear of where it runs",
 			session: RoutingSession{ID: "9c2e", Dir: "~/Code/clients/an-agency/projects/the-website-rebuilt/website", On: "personal"},
-			left:    "9c2e  website  …gency/projects/the-website-rebuilt/website", right: "  runs on personal"},
+			left:    "9c2e  website  …ency/projects/the-website-rebuilt/website", right: "  runs on personal"},
 		{name: "a directory too long to say more than its name, left out",
 			session: RoutingSession{ID: "9c2e", Dir: "~/" + strings.Repeat("d", 40) + "/" + strings.Repeat("n", 40), On: "personal"},
 			left:    "9c2e  " + strings.Repeat("n", 40), right: "runs on personal"},
 		{name: "a directory's name too long, cut", session: RoutingSession{ID: "9c2e", Dir: "~/" + strings.Repeat("n", 60), On: "personal"},
-			left: "9c2e  " + strings.Repeat("n", 51) + "…", right: "  runs on personal"},
+			left: "9c2e  " + strings.Repeat("n", 50) + "…", right: "  runs on personal"},
 		{name: "a directory under the home, as ~", session: RoutingSession{ID: "9c2e", Dir: "/home/dev/Code/website", Home: "/home/dev", On: "personal"},
 			left: "9c2e  website  ~/Code/website", right: "runs on personal"},
 		{name: "no directory, its id alone", session: RoutingSession{ID: "9c2e47b1", On: "personal"}, left: "9c2e", right: "runs on personal"},
 		{name: "where it runs not known", session: RoutingSession{ID: "9c2e", Dir: "~/Code/website"}, left: "9c2e  website  ~/Code/website"},
 		{name: "an account named by its name", session: RoutingSession{ID: "9c2e", On: "side"}, left: "9c2e", right: "runs on side"},
-		{name: "on a phone, no directory, as its page heads it", session: sessionRouted, phone: true, left: "9c2e  website", right: "runs on personal"},
+		{name: "stacked, no directory, as a phone's page heads it", session: sessionRouted, width: 44, left: "9c2e  website", right: "runs on personal"},
+		{name: "a card too narrow to say more than its name, no directory", session: sessionRouted, width: 40, left: "9c2e  website", right: "runs on personal"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			width := 76
-			if tt.phone {
-				width = 44
-			}
+			width := cmp.Or(tt.width, 75)
 			want := tt.left
 			if tt.right != "" {
 				want += strings.Repeat(" ", width-ansi.StringWidth(tt.left)-ansi.StringWidth(tt.right)) + tt.right
 			}
 			r := sessionCard(func(r *RoutingCard) { r.Session = tt.session })
-			if got := strings.TrimRight(r.sessionRow(tt.phone, width).plain(), " "); got != want {
+			if got := strings.TrimRight(r.sessionRow(width, !r.columns(width).stacked).plain(), " "); got != want {
 				t.Errorf("the row reads\n%q\nwant\n%q", got, want)
 			}
 		})
@@ -97,7 +98,7 @@ func TestASessionsRowNamesItAndWhereItRuns(t *testing.T) {
 
 func TestASessionsRowIsInkedAsTheDesignSays(t *testing.T) {
 	inked := map[string]ink{}
-	for _, s := range sessionCard(nil).sessionRow(false, 76) {
+	for _, s := range sessionCard(nil).sessionRow(76, true) {
 		inked[strings.TrimSpace(s.text)] = s.ink
 	}
 	for text, want := range map[string]ink{"9c2e": titleInk, "website": mutedInk, "~/Code/website": secondaryInk, "runs on": mutedInk, "personal": titleInk} {
@@ -141,14 +142,14 @@ func TestASessionsCardPicksOneMarkedWithADot(t *testing.T) {
 	r := sessionCard(func(r *RoutingCard) { r.Picked = []string{"side"} })
 	var marks []span
 	for _, row := range r.Rows {
-		marks = append(marks, r.choice(row, false, 76)[0][0])
+		marks = append(marks, r.choice(row, r.columns(76), 76)[0][0])
 	}
 	// work, at its cap, can be picked, as a pin spends an account's cap.
 	want := []span{{"○", dimInk}, {"○", dimInk}, {"○", dimInk}, {"●", keyInk}}
 	if !slices.Equal(marks, want) {
 		t.Errorf("the rows are marked %v, want %v", marks, want)
 	}
-	if got := sessionCard(nil).choice(r.Rows[0], false, 76)[0][0]; got != (span{"●", keyInk}) {
+	if got := sessionCard(nil).choice(r.Rows[0], r.columns(76), 76)[0][0]; got != (span{"●", keyInk}) {
 		t.Errorf("auto's mark, nothing picked, is %+v, want it picked", got)
 	}
 }
@@ -222,7 +223,8 @@ func TestASessionsKeysRowPicksAndHasNoM(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := RoutingCard{Mode: ThisSession, Rows: make([]RoutingRow, tt.accounts+1)}
+			doc := routerDoc("", 0, namedAccounts(tt.accounts)...)
+			r := RoutingCard{Mode: ThisSession, Rows: RoutingRows(doc.At(now, claudeLike), nil, views.Stream{})}
 			if got := keyRow(r.card(Frame{Width: tt.width, Height: 40}).keys).plain(); got != tt.want {
 				t.Errorf("the keys row reads %q, want %q", got, tt.want)
 			}
@@ -230,20 +232,20 @@ func TestASessionsKeysRowPicksAndHasNoM(t *testing.T) {
 	}
 }
 
-func TestOnAPhoneASessionsCardKeepsItsRowsToTheScreen(t *testing.T) {
+func TestANarrowSessionsCardKeepsItsRowsToTheScreen(t *testing.T) {
 	_, body := cardText(sessionCard(func(r *RoutingCard) { r.Picked = []string{"side"} }), Frame{Width: 52, Height: 40})
 	want := []string{
 		"Pick the account this session goes to.",
 		"",
 		"9c2e  website               runs on personal",
 		"",
-		"○ 0 auto        the router chooses: side",
-		"○ 1 work        closed  at its cap till 17:…",
-		"                week 34%   5-hour 95%",
-		"○ 2 personal    open               2 running",
-		"                week 66%   5-hour 39%",
-		"● 3 side        open               4 running",
-		"                week 78%   5-hour 13%",
+		"○ 0 auto     the router chooses: side",
+		"○ 1 work     closed    at its cap till 17:10",
+		"             week 34%   5-hour 95%",
+		"○ 2 personal open                  2 running",
+		"             week 66%   5-hour 39%",
+		"● 3 side     open                  4 running",
+		"             week 78%   5-hour 13%",
 		"",
 		"This session moves to side on its next",
 		"request.",
@@ -267,7 +269,7 @@ func TestNoPickOrRefusalMovesASessionsCard(t *testing.T) {
 				f := Frame{Width: width, Height: 37}
 				opened := RoutingCard{Mode: ThisSession, Session: sessionRouted, Rows: rows}
 				at := cardAt(f, opened)
-				content := f.cardWidth(routingWidth) - 2*cardInset
+				content := f.cardWidth(opened.natural()) - 2*cardInset
 				for _, picked := range picks {
 					for _, said := range []RoutingCard{{}, {Cost: dollars(99_999_999)}, {Refused: refusal}} {
 						r := opened

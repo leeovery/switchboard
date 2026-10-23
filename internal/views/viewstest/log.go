@@ -71,7 +71,7 @@ type LogLine struct {
 // as the Log shows it; its mark; how far it has come; whether it failed, and
 // whether it wrote its session's context again; its first and took, as
 // prose.Seconds says them, "" where they aren't known; its stopped, wide
-// and on a phone, and its routing, each run together; and its move's cost,
+// and brief, and its routing, each run together; and its move's cost,
 // none for 0.
 type Row struct {
 	Request, Session, Dir   string
@@ -80,7 +80,7 @@ type Row struct {
 	Stage                   views.RowStage
 	Failed, Rewrote         bool
 	First, Took             string
-	Stopped, Phone, Routing string
+	Stopped, Brief, Routing string
 	Cost                    ledger.Picodollars
 }
 
@@ -128,7 +128,7 @@ var dirs = map[string]string{D28C: "~/Code/switchboard", C61B: "~/Code/mobile"}
 const (
 	turnUsage    = `{"input_tokens":3,"cache_read_input_tokens":180000,"cache_creation_input_tokens":2000,"cache_creation":{"ephemeral_1h_input_tokens":2000},"output_tokens":900}`
 	rewriteUsage = `{"input_tokens":3,"cache_creation_input_tokens":1000000,"cache_creation":{"ephemeral_1h_input_tokens":1000000},"output_tokens":1200}`
-	rewriteCost  = 8 * dollar
+	rewriteCost  = 8 * ledger.Dollar
 )
 
 // onDay is the local time on the given day of October 2026, the day before
@@ -220,7 +220,7 @@ func seconds(n int64) string {
 // rowOf is the row wanted of the request l, as its line alone tells it: no
 // mark, nothing moved, its stopped its answer's.
 func rowOf(l ledger.Line) Row {
-	r := Row{Request: l.Request, Session: l.Session, Dir: l.Dir, At: clock(l.At), Took: seconds(l.TotalMS), Stopped: l.Answer.Stop, Phone: l.Answer.Stop}
+	r := Row{Request: l.Request, Session: l.Session, Dir: l.Dir, At: clock(l.At), Took: seconds(l.TotalMS), Stopped: l.Answer.Stop, Brief: l.Answer.Stop}
 	if l.FirstMS != nil {
 		r.First = seconds(*l.FirstMS)
 	}
@@ -230,7 +230,7 @@ func rowOf(l ledger.Line) Row {
 // first is the row wanted of a session's first request, l: ▲, new session.
 func first(l ledger.Line) Row {
 	r := rowOf(l)
-	r.Mark, r.Phone, r.Routing = views.MarkNew, "new session", "new session"
+	r.Mark, r.Brief, r.Routing = views.MarkNew, "new session", "new session"
 	return r
 }
 
@@ -273,7 +273,7 @@ func inFlightAtMidnight() LogMoment {
 	r2.Dir, r2.First, r2.Chars = dirs[D28C], sent.Add(time.Second), 1200
 	answering := Row{
 		Request: "r2", Session: D28C, Dir: dirs[D28C], At: "23:59:50", Mark: views.MarkAnswering, Stage: views.RowAnswering,
-		First: "1.0s", Took: "15.0s", Stopped: "answering · 1.2k characters", Phone: "answering",
+		First: "1.0s", Took: "15.0s", Stopped: "answering · 1.2k characters", Brief: "answering",
 	}
 	return LogMoment{
 		Name:  "a request arriving 23:59:50, in flight at midnight: on the day it was sent, no rule till the next day's first line",
@@ -319,9 +319,9 @@ func streamEndedInFlight() LogMoment {
 		From: now, Now: now,
 		Want: rows(first(r0),
 			Row{Request: "r2", Session: D28C, At: "14:41:50", Mark: views.MarkFailed, Stage: views.RowLost, Failed: true,
-				Stopped: lostWords, Phone: lostWords},
+				Stopped: lostWords, Brief: lostWords},
 			cutRow,
-			Row{Request: "r4", Session: D28C, At: "14:42:02", Mark: views.MarkAsking, Stage: views.RowAsking, Took: "5.0s", Stopped: "asking", Phone: "asking"},
+			Row{Request: "r4", Session: D28C, At: "14:42:02", Mark: views.MarkAsking, Stage: views.RowAsking, Took: "5.0s", Stopped: "asking", Brief: "asking"},
 		),
 		Counts: map[string]Count{"2026-10-01": shownFailed(4, 2)},
 	}
@@ -347,7 +347,7 @@ func droppedBehind() LogMoment {
 		Lines: []ledger.Line{r1, r2, r3, r5}, Sessions: []status.Session{listed(D28C, At(14, 42, 0), status.Asking)}, Stream: live(toldR1, toldR5, asking),
 		From: now, Now: now,
 		Want: rows(first(r1), first(r2), rowOf(r3), rowOf(r5),
-			Row{Request: "r4", Session: D28C, Dir: dirs[D28C], At: "14:42:00", Mark: views.MarkAsking, Stage: views.RowAsking, Took: "7.0s", Stopped: "asking", Phone: "asking"},
+			Row{Request: "r4", Session: D28C, Dir: dirs[D28C], At: "14:42:00", Mark: views.MarkAsking, Stage: views.RowAsking, Took: "7.0s", Stopped: "asking", Brief: "asking"},
 		),
 		Counts: map[string]Count{"2026-10-01": shown(5)},
 	}
@@ -390,9 +390,9 @@ func sentAgainAndFailed() LogMoment {
 	c3.Canceled = true
 	retried := rowOf(r1)
 	retried.Mark, retried.Rewrote, retried.Cost = views.MarkMoved, true, rewriteCost
-	retried.Stopped, retried.Phone, retried.Routing = "tool_use · Bash +1", "from work", "after work's limit"
+	retried.Stopped, retried.Brief, retried.Routing = "tool_use · Bash +1", "from work", "after work's limit"
 	refused, cutOff, givenUp := rowOf(c1), rowOf(c2), rowOf(c3)
-	refused.Routing, refused.Phone = "after side's limit, work's limit", "after side's limit, work's limit"
+	refused.Routing, refused.Brief = "after side's limit, work's limit", "after side's limit, work's limit"
 	for _, r := range []*Row{&refused, &cutOff, &givenUp} {
 		r.Mark, r.Failed = views.MarkFailed, true
 	}
@@ -446,9 +446,9 @@ func movesAndTheirCost() LogMoment {
 	c0 := requested("c0", C61B, Opus, work, status.ReasonNew, At(12, 0, 0))
 	c1 := rewriting(movedOff(work, requested("c1", C61B, Opus, side, status.ReasonMovedOff+"work "+status.WhyReserve, At(14, 0, 0))))
 	sideMove, rewrote, coldMove := rowOf(d1), rowOf(d2), rowOf(c1)
-	sideMove.Mark, sideMove.Phone, sideMove.Routing, sideMove.Cost = views.MarkMoved, "from work", "from work, at its cap", rewriteCost
+	sideMove.Mark, sideMove.Brief, sideMove.Routing, sideMove.Cost = views.MarkMoved, "from work", "from work, at its cap", rewriteCost
 	rewrote.Rewrote = true
-	coldMove.Mark, coldMove.Phone, coldMove.Routing = views.MarkMoved, "from work", "from work, at its cap"
+	coldMove.Mark, coldMove.Brief, coldMove.Routing = views.MarkMoved, "from work", "from work, at its cap"
 	return LogMoment{
 		Name:     "a side request's move, then its conversation's next request; and a move after its cache ran out",
 		Lines:    []ledger.Line{c0, d0, c1, d1, d2},
@@ -505,7 +505,7 @@ func routerNotAnswering() LogMoment {
 		From: now, Now: now,
 		Want: rows(first(r0), rowOf(r1),
 			Row{Request: "r2", Session: C61B, At: "14:41:05", Mark: views.MarkFailed, Stage: views.RowLost, Failed: true,
-				Stopped: lostWords, Phone: lostWords},
+				Stopped: lostWords, Brief: lostWords},
 			rowOf(r3)),
 		Counts: map[string]Count{"2026-10-01": shownFailed(4, 1)},
 	}
@@ -554,7 +554,7 @@ func checksAndCounts(show bool) LogMoment {
 // blank.
 func hiddenKind(l ledger.Line) Row {
 	r := rowOf(l)
-	r.Mark, r.Stopped, r.Phone = views.MarkHidden, "", ""
+	r.Mark, r.Stopped, r.Brief = views.MarkHidden, "", ""
 	return r
 }
 
@@ -587,12 +587,12 @@ func failedOnly() LogMoment {
 	lost := told("r9", D28C, Opus, side, At(14, 41, 50), At(14, 41, 55))
 	lost.Lost = true
 	wanted := []Row{rowOf(refused), rowOf(cutOff), rowOf(givenUp), rowOf(broke)}
-	wanted[0].Routing, wanted[0].Phone = "after side's limit, work's limit", "after side's limit, work's limit"
+	wanted[0].Routing, wanted[0].Brief = "after side's limit, work's limit", "after side's limit, work's limit"
 	for i := range wanted {
 		wanted[i].Mark, wanted[i].Failed = views.MarkFailed, true
 	}
 	wanted = append(wanted, Row{Request: "r9", Session: D28C, At: "14:41:50", Mark: views.MarkFailed, Stage: views.RowLost, Failed: true,
-		Stopped: lostWords, Phone: lostWords})
+		Stopped: lostWords, Brief: lostWords})
 	return LogMoment{
 		Name:  "failed only: a 429 every account refused, passed on; one cut off; one given up; a 500; one lost",
 		Lines: []ledger.Line{r0, c0, refused, cutOff, givenUp, broke, r5}, Stream: live(lost),
@@ -672,7 +672,7 @@ func streamClosed(c closing) LogMoment {
 		m.Stream = live(r1)
 		m.Want = rows(first(r0), first(c0), Row{
 			Request: "r1", Session: D28C, Dir: dirs[D28C], At: "14:41:30", Mark: views.MarkAnswering, Stage: views.RowAnswering,
-			First: "1.0s", Took: "37.0s", Stopped: "answering · 3.4k characters", Phone: "answering",
+			First: "1.0s", Took: "37.0s", Stopped: "answering · 3.4k characters", Brief: "answering",
 		})
 		m.Counts = map[string]Count{"2026-10-01": shown(3)}
 	}
@@ -693,7 +693,7 @@ func inFlightDetails(lined bool) LogMoment {
 		From: now, Now: now,
 		Want: rows(first(r0), Row{
 			Request: "r1", Session: D28C, Dir: dirs[D28C], At: "14:41:50", Mark: views.MarkAnswering, Stage: views.RowAnswering,
-			First: "1.0s", Took: "17.0s", Stopped: "answering · 5.1k characters", Phone: "answering",
+			First: "1.0s", Took: "17.0s", Stopped: "answering · 5.1k characters", Brief: "answering",
 		}),
 		Counts: map[string]Count{"2026-10-01": shown(2)},
 	}

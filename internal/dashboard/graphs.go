@@ -4,15 +4,21 @@ import (
 	"slices"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
 // The rows a GRAPHS chart takes: leastChart at the least, and mostChart at
-// the most, as taller distorts.
+// the most, as taller distorts; and chartEnds more, its top row and its axis
+// row.
 const (
 	leastChart = 5
 	mostChart  = 19
+	chartEnds  = 2
 )
+
+// leastChartCells are the fewest cells a GRAPHS chart is across.
+const leastChartCells = 30
 
 // chartGap are the cells between two charts side by side.
 const chartGap = 3
@@ -68,14 +74,13 @@ func (b Burn) Flipped() Burn {
 }
 
 // graphs are the Overview's GRAPHS: the focused account's use so far, a chart
-// a window that USAGE shows, side by side from USAGE's name column, names
-// cells, or stacked on a phone, drawn as burn names.
+// a window that USAGE shows, laid across as layAcross has them, drawn as burn
+// names.
 type graphs struct {
 	name    span
 	focused bool
 	charts  []chart
-	names   int
-	phone   bool
+	across  chartsAcross
 	look    Look
 	burn    Burn
 }
@@ -91,9 +96,9 @@ func (f Frame) graphsSection(doc status.Document, now time.Time) section {
 	g := f.graphsOf(doc, now)
 	return section{
 		Section: SectionGraphs, least: g.rows(leastChart), most: g.rows(mostChart),
-		description: g.description, keyed: true,
+		description: oneForm(g.description), keyed: true,
 		draw:   g.draw,
-		folded: g.folded,
+		folded: oneForm(g.folded),
 	}
 }
 
@@ -102,7 +107,7 @@ func (f Frame) graphsSection(doc status.Document, now time.Time) section {
 // draw it where its blocks lie; its heading the key to the charts' lines
 // alone, as no account is focused.
 func graphsAside(burn Burn) section {
-	key := func() line { return burnKey(burn) }
+	key := oneForm(func() line { return burnKey(burn) })
 	return section{
 		Section: SectionGraphs, description: key, keyed: true, folded: key,
 		draw:    func(*canvas, bounds) {},
@@ -117,7 +122,7 @@ func graphsAside(burn Burn) section {
 func (f Frame) graphsOf(doc status.Document, now time.Time) graphs {
 	m := f.Moment(doc, now)
 	names := overviewNames(m)
-	g := graphs{names: nameColumn(names, f.Width), phone: f.phone(), look: f.Look, burn: f.Burn}
+	g := graphs{across: layAcross(len(f.overviewWindows(doc, now)), f.Width, nameColumn(names, f.Width)), look: f.Look, burn: f.Burn}
 	account, focused := m.Account(f.Focus)
 	if !focused && len(m.Accounts) > 0 {
 		account, focused = m.Accounts[0], true
@@ -142,15 +147,17 @@ func (f Frame) chartsOf(doc status.Document, now time.Time, a status.AccountNow)
 }
 
 // rows is how many rows GRAPHS takes with charts h rows tall: its heading
-// and the blank row under it, then a chart's rows, or on a phone, each
-// chart's, one under another: a chart's top row, its window's name and its
-// limit's line; its h rows; and its axis row.
+// and the blank row under it, then each row of charts, one under another: a
+// chart's top row, its window's name and its limit's line; its h rows; and
+// its axis row.
 func (g graphs) rows(h int) int {
-	charts := 1
-	if g.phone {
-		charts = max(len(g.charts), 1)
-	}
-	return sectionHead + charts*(h+2)
+	return sectionHead + g.chartRows()*(h+chartEnds)
+}
+
+// chartRows are how many rows of charts GRAPHS lays out, as rowsFor has
+// them.
+func (g graphs) chartRows() int {
+	return g.across.rowsFor(len(g.charts))
 }
 
 // draw draws each chart in the body's bounds, as placed places it.
@@ -160,19 +167,96 @@ func (g graphs) draw(c *canvas, body bounds) {
 	}
 }
 
-// placed is where the body puts chart i, its charts as tall as its rows
-// give them, mostChart at most: side by side, from the name column n, a
-// chart every gw = ⌊(w − 14 + 3) ÷ k⌋ − ⌈(n − 14) ÷ k⌉ columns for k
-// windows, each gw − 3 wide; or on a phone, one under another, each from the
-// name column to the edge.
+// placed is where the body puts chart i, as the charts across place it, the
+// rows of charts each a chart's ends and leastChart to mostChart rows of
+// chart, what's past their mosts blank.
 func (g graphs) placed(i int, body bounds) bounds {
-	k := len(g.charts)
-	if g.phone {
-		rows := min(body.rows/k, mostChart+2)
-		return bounds{x: body.x + g.names, y: body.y + i*rows, width: body.width - margin - g.names, rows: rows}
+	return g.across.placed(i, body, g.chartRows(), flex.Part{Least: leastChart + chartEnds, Most: mostChart + chartEnds, Grows: true})
+}
+
+// chartsAcross is how GRAPHS lays its charts across: a row of them from
+// column x, each where its span has it; where it stacks, the charts past the
+// row's go on the rows under, in the same columns, else they're left off.
+type chartsAcross struct {
+	x      int
+	spans  []flex.Span
+	stacks bool
+}
+
+// shown is how many of k charts show: all where the charts stack, else as
+// many as the row has.
+func (a chartsAcross) shown(k int) int {
+	if a.stacks {
+		return k
 	}
-	every := (body.width-matrixNames+chartGap)/k - (g.names-matrixNames+k-1)/k
-	return bounds{x: body.x + g.names + i*every, y: body.y, width: every - chartGap, rows: min(body.rows, mostChart+2)}
+	return min(k, len(a.spans))
+}
+
+// rowsFor is how many rows of charts k charts take, as many to a row as the
+// row has, one at the least.
+func (a chartsAcross) rowsFor(k int) int {
+	per := max(len(a.spans), 1)
+	return max((a.shown(k)+per-1)/per, 1)
+}
+
+// placed is where chart i lies in area: across, in its column of the row,
+// from area's x; down, in its row of charts, the n rows of them one under
+// another, each as row has it, sharing what's past their leasts evenly, the
+// odd row to the first.
+func (a chartsAcross) placed(i int, area bounds, n int, row flex.Part) bounds {
+	parts := make([]flex.Part, n)
+	for j := range parts {
+		parts[j] = row
+	}
+	down, _ := flex.Lay(area.rows, parts...)
+	per := len(a.spans)
+	at, in := a.spans[i%per], down[i/per]
+	return bounds{x: area.x + a.x + at.At, y: area.y + in.At, width: at.Size, rows: in.Size}
+}
+
+// layAcross lays k windows' charts across a frame width columns wide, its name
+// column names cells: side by side from the name column, under USAGE's bars,
+// a chart every ⌊(w − 14 + 3) ÷ k⌋ − ⌈(n − 14) ÷ k⌉ columns, as USAGE's
+// matrix has its groups, where each is leastChartCells or more; else from
+// column 0, as many side by side as fit to the margin, as chartsFitting has
+// them, the rest on the rows under; and in a frame too narrow for one, a
+// chart a row, across it. Only the width and the windows shown decide it,
+// never what the charts hold.
+func layAcross(k, width, names int) chartsAcross {
+	k = max(k, 1)
+	every := (width-matrixNames+chartGap)/k - (names-matrixNames+k-1)/k
+	if spans, ok := chartRow(k, k*every-chartGap, chartGap, leastChartCells); ok {
+		return chartsAcross{x: names, spans: spans, stacks: true}
+	}
+	room := width - margin
+	if spans := chartsFitting(k, room, chartGap, leastChartCells); len(spans) > 0 {
+		return chartsAcross{spans: spans, stacks: true}
+	}
+	return chartsAcross{spans: []flex.Span{{Size: room}}, stacks: true}
+}
+
+// chartsFitting lays as many of k charts as fit side by side in room cells,
+// gap cells apart, each least cells or more, as chartRow lays them out: none
+// where not one does.
+func chartsFitting(k, room, gap, least int) []flex.Span {
+	for n := k; n > 0; n-- {
+		if spans, ok := chartRow(n, room, gap, least); ok {
+			return spans
+		}
+	}
+	return nil
+}
+
+// chartRow lays n charts side by side in room cells, gap cells apart, each as
+// wide as the others, ⌊(room + gap) ÷ n⌋ − gap, the odd cells left at the
+// end, and reports whether each is least cells or more.
+func chartRow(n, room, gap, least int) ([]flex.Span, bool) {
+	each := (room+gap)/n - gap
+	parts := make([]flex.Part, n)
+	for i := range parts {
+		parts[i] = flex.Part{Least: least, Natural: each, Gap: gap}
+	}
+	return flex.Lay(room, parts...)
 }
 
 // description is GRAPHS' heading's description: the focused account, then,

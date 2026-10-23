@@ -468,12 +468,14 @@ func TestAVersionKeptThatTheYearDidntUseShowsAllUse(t *testing.T) {
 }
 
 // A look that changes today's requests brightens the Year's figures it
-// changes, drawn before and after at the one moment.
+// changes, drawn before and after at the one moment, in a terminal wide
+// enough for its numbers beside the grid, so BY MONTH's months are in view.
 func TestALookThatAddsRequestsTodayBrightensTheYearsFigures(t *testing.T) {
 	h, l := historyHarness(t, dashboard.History, dashboard.HistoryPage{})
 	today := dayfile.DateOf(start)
 	l.days[yesterday] = requested(yesterday, 10)
 	h.start()
+	h.update(tea.WindowSizeMsg{Width: 168, Height: 37})
 	h.tickUntilAsked()
 	if got := h.brightened(); len(got) > 0 {
 		t.Fatalf("a look that found nothing new brightened %v, want none", got)
@@ -684,7 +686,8 @@ func (h *harness) overTheView() int {
 	return 0
 }
 
-// ? opens help over History, which lists its keys after tab.
+// ? opens help over History, which lists its keys after tab, and the scroll
+// keys, the Year scrolling at the harness's 160x37.
 func TestHelpOpensOverHistoryListingItsKeys(t *testing.T) {
 	h, _ := historyHarness(t, dashboard.History, dashboard.HistoryPage{})
 	h.start()
@@ -692,7 +695,7 @@ func TestHelpOpensOverHistoryListingItsKeys(t *testing.T) {
 	if !h.inHelp() || !strings.Contains(h.view(), "─ HELP · HISTORY ") {
 		t.Fatalf("after ?, the screen is\n%s\nwant help over History", h.view())
 	}
-	if got, want := listedKeys(h.model.helpCard().Keys), []string{"tab", "[ ]", "< >", "v", "p", "R", "?", "q"}; !slices.Equal(got, want) {
+	if got, want := listedKeys(h.model.helpCard().Keys), []string{"tab", "[ ]", "< >", "v", "j k", "PgUp PgDn", "wheel", "p", "R", "?", "q"}; !slices.Equal(got, want) {
 		t.Errorf("help lists %q, want %q", got, want)
 	}
 }

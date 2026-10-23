@@ -4,41 +4,41 @@
 
 SESSIONS    Switchboard  List  [ ]  ────────────────────────────────────────────────────────────────────────
 
-41e0 docs   idle 34s                 ●━━━━━━━━┓           ○ 1 work          ● at its cap · 17:10
-9c2e websi… idle 9m                  ●━━━━━━━┓┃           ○  Week           ▊  ┃     ╎  34%  19%/day · Sun
-                                             ┃┃           ○
-c61b mobile ↓ answering              ●━━━━━━┓┃┃           ○  5-hour            ┃     ╎  95%  back 17:10
-d28c switc… ↑ asking     ▸ work      ●━━━━━┓┃┃┃
-7f3a api    ↓ answering  ▸ work      ●━━━━┓┃┃┃┃
-db8a infra  idle 50s     ▸ work      ●━━━┓┃┃┃┃┗━━━━━━━━━━━◉ 2 personal ◆    ● open
-                                         ┃┃┃┃┗━━━━━━━━━━━━◉  Week                ┃      66%  out ~Sat
-                                         ┃┃┃┃             ○
-                                         ┃┃┃┃             ○  5-hour          ▌   ┃      39%  34%/h · 16:30
-                                         ┃┃┃┃
-                                         ┃┃┃┃
-                                         ┃┃┃┗━━━━━━━━━━━━━◉ 3 side ▲        ● open · next
-                                         ┃┃┗━━━━━━━━━━━━━━◉  Week             ┃   ▉     78%  out ~Fri
-                                         ┃┗━━━━━━━━━━━━━━━◉
-                                         ┗━━━━━━━━━━━━━━━━◉  5-hour      ▉┃             13%  21%/h · 18:50
+41e0 docs           idle 34s               ●━━━━━━━━━━━━━━━━━┓  ○ 1 work          ● at its cap · 17:10
+9c2e website        idle 9m                ●━━━━━━━━━━━━━━┓  ┃  ○  Week         ▊ ┃     34%  19%/day · Sun
+                                                          ┃  ┃  ○
+c61b mobile         ↓ answering            ●━━━━━━━━━━━┓  ┃  ┃  ○  5-hour         ┃  ▋  95%  back 17:10
+d28c switchboard    ↑ asking     ▸ work    ●━━━━━━━━┓  ┃  ┃  ┃
+7f3a api            ↓ answering  ▸ work    ●━━━━━┓  ┃  ┃  ┃  ┃
+db8a infra          idle 50s     ▸ work    ●━━┓  ┃  ┃  ┃  ┃  ┃
+                                              ┃  ┃  ┃  ┃  ┃  ┗━━◉ 2 personal ◆    ● open
+                                              ┃  ┃  ┃  ┃  ┗━━━━━◉  Week            ┃    66%  out ~Sat
+                                              ┃  ┃  ┃  ┃        ○
+                                              ┃  ┃  ┃  ┃        ○  5-hour        ▏ ┃    39%  34%/h · 16:30
+                                              ┃  ┃  ┃  ┃
+                                              ┃  ┃  ┃  ┃
+                                              ┃  ┃  ┃  ┃
+                                              ┃  ┃  ┃  ┗━━━━━━━━◉ 3 side ▲        ● open · next
+                                              ┃  ┃  ┗━━━━━━━━━━━◉  Week           ┃ ▎   78%  out ~Fri
+                                              ┃  ┗━━━━━━━━━━━━━━◉
+                                              ┗━━━━━━━━━━━━━━━━━◉  5-hour      ┃        13%  21%/h · 18:50
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 ┃ even pace: where you would be now, used evenly
-╎ cap: work at 95%    ◆ primary    ▲ new sessions go here
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+◆ primary    ▲ new sessions go here
 tab views   [ ] view    ↑↓ session  enter its page    p pin    ? help  q quit

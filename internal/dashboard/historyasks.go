@@ -103,9 +103,32 @@ func (p HistoryPage) Period() string {
 	case HistoryYear:
 		return yearPeriod(p.YearAsk.Year)
 	case HistoryTokens:
-		return "by " + p.TokensAsk.Period.Name()
+		return tokensPeriodName(p.TokensAsk.Period)
 	}
 	return ""
+}
+
+// periods are the forms the period of the sub-tab shown takes as < and >
+// step it, as Period names them: the last 12 months and a calendar year on
+// the Year; each of Tokens' periods; and none for Weeks and Days.
+func (p HistoryPage) periods() []string {
+	switch p.Shown {
+	case HistoryYear:
+		return []string{yearPeriod(0), yearPeriod(widestYear)}
+	case HistoryTokens:
+		names := make([]string, 0, len(tokensPeriods))
+		for _, period := range tokensPeriods {
+			names = append(names, tokensPeriodName(period))
+		}
+		return names
+	}
+	return nil
+}
+
+// tokensPeriodName is Tokens' period as the heading names it: by week, by day
+// or by month.
+func tokensPeriodName(period views.TokensPeriod) string {
+	return "by " + period.Name()
 }
 
 // Split is what v has the sub-tab shown show, as the key line names it: the
@@ -126,7 +149,7 @@ func (p HistoryPage) Split() string {
 
 // Split is what v has History's sub-tab shown show, as HistoryPage's Split
 // names it, where v changes what the frame draws: "" for Weeks where its
-// shapes don't both take their wide form, as on a phone, whose form is
+// shapes don't both take their wide form, as in its narrow form, whose form is
 // neither, so v has no other to change to.
 func (f Frame) Split() string {
 	if f.History.Shown == HistoryWeeks && !f.weeksCycles() {
@@ -136,22 +159,11 @@ func (f Frame) Split() string {
 }
 
 // weeksCycles reports whether v has a shape of Weeks to change to in the
-// frame: never on a phone; else either, where its page isn't built yet;
-// else where the table and the columns both take their wide form, each
-// drawn as itself, their widest rows fitting.
+// frame: where the table and the columns both take their wide form, as
+// weeksWideFits has it of the frame alone, whether its page is built yet or
+// not.
 func (f Frame) weeksCycles() bool {
-	p := f.History.Weeks
-	if f.phone() || p == nil {
-		return !f.phone()
-	}
-	for _, shape := range []WeeksShape{WeeksTable, WeeksColumns} {
-		shaped := f
-		shaped.History.WeeksShape = shape
-		if w := shaped.weeksDrawn(*p); w.phone || w.columns != (shape == WeeksColumns) {
-			return false
-		}
-	}
-	return true
+	return f.weeksWideFits(false) && f.weeksWideFits(true)
 }
 
 // yearShown names what the Year is shown for alone: an account, as label
@@ -163,9 +175,14 @@ func (p HistoryPage) yearShown() string {
 	case p.YearAsk.Account != "":
 		return p.label(p.YearAsk.Account)
 	case p.Read:
-		return prose.Clean(p.YearAsk.Version)
+		return versionShown(p.YearAsk.Version)
 	}
 	return ""
+}
+
+// versionShown names a version as the Year's filter says it, as Opus 5.5.
+func versionShown(version string) string {
+	return prose.Clean(version)
 }
 
 // label is the account with the given id as History names it: by its label

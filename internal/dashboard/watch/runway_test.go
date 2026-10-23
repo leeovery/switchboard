@@ -106,7 +106,7 @@ func TestRunwaysWindowIsKeptAsItChangesAndAStepBackNever(t *testing.T) {
 
 // a collapses Runway's account column and expands it again, keeping each,
 // whatever the view or step shows, its lanes built afresh over the columns
-// its labels give up and given back: 149 at 160 collapsed, 136 expanded.
+// its labels give up and given back: 155 at 160 collapsed, 146 expanded.
 func TestACollapsesRunwaysAccountColumnAndKeepsIt(t *testing.T) {
 	r := runwayHarness(t, dashboard.Runway, nil)
 	prefs := &fakePrefs{}
@@ -118,10 +118,10 @@ func TestACollapsesRunwaysAccountColumnAndKeepsIt(t *testing.T) {
 		columns   int
 		updates   int
 	}{
-		{keys: "a", collapsed: true, columns: 149, updates: 1},
-		{keys: "left", collapsed: true, back: true, columns: 149, updates: 1},
-		{keys: "a", back: true, columns: 136, updates: 2},
-		{keys: "right a", collapsed: true, columns: 149, updates: 3},
+		{keys: "a", collapsed: true, columns: 155, updates: 1},
+		{keys: "left", collapsed: true, back: true, columns: 155, updates: 1},
+		{keys: "a", back: true, columns: 146, updates: 2},
+		{keys: "right a", collapsed: true, columns: 155, updates: 3},
 	}
 	for _, step := range steps {
 		r.keyed(step.keys)
@@ -146,7 +146,7 @@ func TestRunwayOpensWithItsAccountColumnAsKept(t *testing.T) {
 		r := runwayHarness(t, dashboard.Runway, func(_ *runwayed, cfg *Config) {
 			cfg.RunwayShown = dashboard.RunwayKept(theme.RunwayPrefs{Collapsed: collapsed})
 		})
-		columns := map[bool]int{false: 136, true: 149}[collapsed]
+		columns := map[bool]int{false: 146, true: 155}[collapsed]
 		if shown := r.model.runwayTab.shown; shown.Collapsed != collapsed || r.from.Timeline.Columns != columns {
 			t.Errorf("kept collapsed %t, Runway opens collapsed %t over %d columns, want %d", collapsed, shown.Collapsed, r.from.Timeline.Columns, columns)
 		}
@@ -159,7 +159,7 @@ func TestRunwayOpensOnTheWeek(t *testing.T) {
 	if shown := r.model.runwayTab.shown; shown.Window != views.RunwayWeek || !shown.Back.IsZero() {
 		t.Errorf("Runway opens on %+v, want the week's live view", shown)
 	}
-	if r.from.Timeline != views.LiveTimeline(views.RunwayWeek, start, 136) {
+	if r.from.Timeline != views.LiveTimeline(views.RunwayWeek, start, 146) {
 		t.Errorf("its lanes are built over %+v, want the week's live view", r.from.Timeline)
 	}
 }
@@ -218,8 +218,8 @@ func TestLeftStepsBackNoFurtherThanTheLedgersFirstDay(t *testing.T) {
 // document, for the numbers its look compares to be drawn of them.
 func TestRunwaysLanesAreBuiltOnceAMessageAndNeverAtAFrame(t *testing.T) {
 	r := runwayHarness(t, dashboard.Runway, nil)
-	if shown := r.model.runwayTab.shown; r.builds == 0 || shown.Lanes == nil || r.from.Timeline != views.LiveTimeline(views.RunwayFiveHour, start, 136) {
-		t.Fatalf("once started, Runway built lanes %d times, shows %v, over %+v; want them built over the live 5-hour view across 136 columns", r.builds, shown.Lanes, r.from.Timeline)
+	if shown := r.model.runwayTab.shown; r.builds == 0 || shown.Lanes == nil || r.from.Timeline != views.LiveTimeline(views.RunwayFiveHour, start, 146) {
+		t.Fatalf("once started, Runway built lanes %d times, shows %v, over %+v; want them built over the live 5-hour view across 146 columns", r.builds, shown.Lanes, r.from.Timeline)
 	}
 	busier := routerDocument(three()...)
 	busier.Accounts[0].Windows[0].Utilization = 0.6
@@ -761,9 +761,10 @@ func TestASinceReadOnRunwayBrightensTodaysHighestAsItChanges(t *testing.T) {
 // than the last lane, nor above the first.
 func TestRunwaysLanesScrollAnAccountAtATimeByTheKeysAndTheWheel(t *testing.T) {
 	h := runwayKeysHarness(t, twelve(), 160, "")
+	h.deliver(h.update(scrolledSize)...)
 	s := h.model.scrolling()
 	if s.Most == 0 || s.Page == 0 {
-		t.Fatalf("Runway's twelve lanes scroll %+v at 160x37, want some out of view", s)
+		t.Fatalf("Runway's twelve lanes scroll %+v at 160x30, want some out of view", s)
 	}
 	x, y := 10, h.overTheView()
 	steps := []struct {

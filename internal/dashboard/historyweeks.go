@@ -4,36 +4,38 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/charmbracelet/x/ansi"
+
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// Weeks' columns: the weeks' from peaksFrom, peaksApart apart, a table's
-// peak right-aligned in peakCells; the verdicts' at verdictsAt; a name cut
-// to the cells before the weeks, less one; and on a phone, the last
-// weeksPhoneWeeks of them.
+// Weeks' cells across the frame: a week's, its first day's widest and its
+// peak's, weeksApart after the one before, a table's peak right-aligned in
+// peakCells; and the verdicts', verdictGap after the last week.
 const (
-	peaksFrom       = 14
-	peaksApart      = 8
+	weekColumnCells = 6
+	weeksApart      = 2
 	peakCells       = 5
-	verdictsAt      = 82
-	weeksNameCells  = peaksFrom - 1
-	weeksPhoneWeeks = 4
+	verdictGap      = 1
 )
 
 // Weeks' column shape: a block an account, blockRows apart, each week a
 // column columnCells wide and columnRows tall, its peak under it centred in
-// peakLabelCells; each row of a column mixed columnMix from the canvas
+// the week's cells; each row of a column mixed columnMix from the canvas
 // toward its colour, this week's thisWeekMix.
 const (
-	blockRows      = 6
-	columnCells    = 5
-	columnRows     = 3
-	peakLabelCells = 6
-	columnMix      = 0.75
-	thisWeekMix    = 0.45
+	blockRows   = 6
+	columnCells = 5
+	columnRows  = 3
+	columnMix   = 0.75
+	thisWeekMix = 0.45
 )
+
+// everyAccount names the row, or the block, of every account's peaks.
+const everyAccount = "all accounts"
 
 // The rows of Weeks' table, from the view's top: the weeks' first days',
 // every account's, and the first account's.
@@ -46,11 +48,11 @@ const (
 // historyWeeks draws Weeks from row top: once a whole week is recorded, the
 // capacity verdict, then the table or the columns, as v shapes it, their
 // accounts scrolled as the frame has them, and the legend on the view's last
-// row; in its phone form, the verdict and the table's last four weeks, what's
-// out of view on the view's last row. Where it scrolls whole, every account,
-// drawn whole and scrolled by rows over the legend. Till a whole week is
-// recorded, it says there aren't enough weeks yet; and before its page is
-// built, it's blank.
+// row; in its narrow form, the verdict and the table's latest weeks that fit,
+// what's out of view on the view's last row. Where it scrolls whole, every
+// account, drawn whole and scrolled by rows over the legend. Till a whole
+// week is recorded, it says there aren't enough weeks yet; and before its
+// page is built, it's blank.
 func (f Frame) historyWeeks(c *canvas, top int) {
 	p := f.History.Weeks
 	switch {
@@ -71,18 +73,18 @@ func (f Frame) historyWeeks(c *canvas, top int) {
 		w.draw(c, f.Look, top, shown)
 		w.accountsOut(c, foot-w.footRows(), above, below)
 	}
-	if !w.phone {
+	if !w.narrow {
 		w.put(c, 0, foot, w.legend()...)
 	}
 }
 
 // draw draws Weeks in its shape from row top, the accounts given shown: in
-// its phone form, the verdict and the table; else as v shapes it, the table
+// its narrow form, the verdict and the table; else as v shapes it, the table
 // or the columns.
 func (w weeksDrawn) draw(c *canvas, look Look, top int, shown []views.WeeksRow) {
 	switch {
-	case w.phone:
-		w.onAPhone(c, top, shown)
+	case w.narrow:
+		w.narrowly(c, top, shown)
 	case w.columns:
 		w.inColumns(c, look, top, shown)
 	default:
@@ -98,23 +100,23 @@ func (f Frame) weeksWhole(w weeksDrawn) bool {
 }
 
 // footRows is how many rows Weeks keeps at the view's foot: the legend's,
-// but in its phone form, which has none.
+// but in its narrow form, which has none.
 func (w weeksDrawn) footRows() int {
-	if w.phone {
+	if w.narrow {
 		return 0
 	}
 	return 1
 }
 
 // rows is how many rows Weeks takes drawn whole, every account shown, from
-// its top: in its phone form, the verdict's, then the table's; in columns,
+// its top: in its narrow form, the verdict's, then the table's; in columns,
 // a block every account, the weeks' first days under the last; and as a
 // table, to its last account's row.
 func (w weeksDrawn) rows() int {
 	n := len(w.page.Accounts)
 	switch {
-	case w.phone:
-		return len(w.phoneVerdict()) + 1 + weeksFirstRow - weeksHeadRow + n
+	case w.narrow:
+		return len(w.narrowVerdict()) + 1 + weeksFirstRow - weeksHeadRow + n
 	case w.columns:
 		return blockRows*n + columnRows + 2
 	}
@@ -136,8 +138,8 @@ func (w weeksDrawn) heads() []headed {
 		return nil
 	}
 	at := weeksHeadRow
-	if w.phone {
-		at = len(w.phoneVerdict()) + 1
+	if w.narrow {
+		at = len(w.narrowVerdict()) + 1
 	}
 	first := weeksFirstRow
 	if w.several() {
@@ -147,47 +149,125 @@ func (w weeksDrawn) heads() []headed {
 }
 
 // weeksDrawn is Weeks' page as the frame draws it: in the shape v gives it,
-// where that fits; else in the other, where that does, as v has no shape to
-// change to there; else in its phone form.
+// where its wide form fits; else in the other, where that does, as v has no
+// shape to change to there; else in its narrow form.
 func (f Frame) weeksDrawn(p views.WeeksPage) weeksDrawn {
 	chosen := f.History.WeeksShape == WeeksColumns
 	for _, columns := range []bool{chosen, !chosen} {
-		if w := (weeksDrawn{page: p, columns: columns, edge: f.edge()}); !f.phoneForm(w.reach) {
-			return w
+		if f.weeksWideFits(columns) {
+			return f.weeksIn(p, false, columns)
 		}
 	}
-	return weeksDrawn{page: p, edge: f.edge(), phone: true}
+	return f.weeksIn(p, true, false)
 }
 
-// reach is the width Weeks' wide form, in its shape, takes: where its widest
-// row ends, and the margin after it, as Weeks ends its rows at the edge.
-func (w weeksDrawn) reach() int {
-	return w.widest() + margin
+// weeksWideFits reports whether Weeks' wide form, in columns or as a table,
+// fits the frame, as flex lays its parts short of the edge: its label
+// column, a week and the verdict at their leasts, and its legend whole on one
+// row, none of them hanging on the data, so neither does the form.
+func (f Frame) weeksWideFits(columns bool) bool {
+	verdict := verdictPart(columns)
+	_, fits := flex.Lay(f.edge(), weeksParts(namesColumn(nameGap), 1, &verdict)...)
+	return fits && partsWidth(weeksDrawn{columns: columns}.legend()) <= f.edge()
 }
 
-// widest is the column Weeks' wide form, in its shape, ends before, where
-// its widest row ends: its headline, its weeks or its legend. What's beside
-// the weeks is cut at the frame's edge, so it's left out; as is what's out
-// of view, which takes a form that fits there.
-func (w weeksDrawn) widest() int {
+// weeksIn is Weeks' page in the frame, in its narrow form, or wide, in
+// columns or as a table, its row's parts laid out as weeksParts declares
+// them.
+func (f Frame) weeksIn(p views.WeeksPage, narrow, columns bool) weeksDrawn {
+	w := weeksDrawn{page: p, narrow: narrow, columns: columns, edge: f.edge()}
+	var verdict *flex.Part
+	if !narrow {
+		verdict = new(verdictPart(columns))
+	}
+	spans, fits := flex.Lay(w.edge, weeksParts(w.labelsColumn(), len(p.Weeks), verdict)...)
+	w.laid = weeksLaid{labels: spans[0], weeks: spansShown(spans[1:1+len(p.Weeks)], fits)}
+	if verdict != nil {
+		w.laid.verdict = spans[len(spans)-1]
+	}
+	return w
+}
+
+// weeksParts are a row of Weeks' parts across the frame: the label column
+// given; the weeks given, the oldest first, each but the last with
+// weeksApart after it, which give way in that order, the last never; and in
+// the wide form, the verdict given, verdictGap after the last week. The
+// verdict narrows once every week but the last has given way, and the label
+// column once the verdict has, so a week leaves before a verdict is cut, and
+// a verdict is cut before a name.
+func weeksParts(labels flex.Part, weeks int, verdict *flex.Part) []flex.Part {
+	labels.Narrows = weeks + 1
+	parts := []flex.Part{labels}
+	for i := range weeks {
+		week := flex.Part{Least: weekColumnCells, Natural: weekColumnCells}
+		if i < weeks-1 {
+			week = flex.Part{Least: weekColumnCells + weeksApart, Natural: weekColumnCells + weeksApart, Leaves: i + 1}
+		}
+		parts = append(parts, week)
+	}
+	if verdict != nil {
+		v := *verdict
+		v.Narrows = max(weeks, 1)
+		parts = append(parts, v)
+	}
+	return parts
+}
+
+// verdictPart is the column of an account's verdict, in columns or as a
+// table: its natural the widest the verdict is worded, as widestVerdict has
+// it, its least the widest verdict alone, so a verdict is never cut to less
+// than its word.
+func verdictPart(columns bool) flex.Part {
+	least := 0
+	for _, verdict := range accountVerdicts {
+		least = max(least, ansi.StringWidth(verdict))
+	}
+	return flex.Part{Least: least, Natural: widestVerdict(columns), Gap: verdictGap}
+}
+
+// accountVerdicts are the verdicts Weeks gives an account.
+var accountVerdicts = []string{views.CouldGo, views.BarelyUsed, views.HitsItsLimit, views.PlentyToSpare, views.EndsWithRoom}
+
+// widestVerdict is the widest an account's verdict is worded, in columns or
+// as a table: of every verdict, with few accounts and with many, its counts
+// of views.VerdictWeeks, its shares 100%, the widest they're bounded by. What
+// else is beside the weeks, every account's row's verdict, and in columns the
+// capacity verdict's rows, isn't counted: it's held to the edge.
+func widestVerdict(columns bool) int {
+	widest, whole, weeks := 0, 1.0, views.VerdictWeeks
+	for _, drop := range []string{"", "any"} {
+		w := weeksDrawn{page: views.WeeksPage{Capacity: views.Capacity{Weeks: weeks, Drop: drop}}, columns: columns}
+		for _, verdict := range accountVerdicts {
+			row := views.WeeksRow{Verdict: verdict, Weeks: weeks, Limits: weeks, Used: &whole, LeftAtReset: &whole, WithoutIt: &weeks}
+			widest = max(widest, w.verdictWidth(row))
+		}
+	}
+	return widest
+}
+
+// verdictWidth is how many cells the row's verdict takes beside its weeks:
+// in the table, its one row; in columns, the widest of its rows.
+func (w weeksDrawn) verdictWidth(row views.WeeksRow) int {
 	if !w.columns {
-		return max(partsWidth(w.legend()), partsWidth(w.headline()), weekEnd(len(w.page.Weeks)-1))
+		return partsWidth(w.tableVerdict(row))
 	}
-	end := partsWidth(w.legend())
-	for i := range w.page.Weeks {
-		end = max(end, peaksFrom+peaksApart*i+w.head(i).width())
+	widest := 0
+	for _, l := range w.accountAside(row) {
+		widest = max(widest, partsWidth(l))
 	}
-	rows := w.page.Accounts
-	if w.several() {
-		rows = append([]views.WeeksRow{w.page.All}, rows...)
+	return widest
+}
+
+// labelsColumn is the label column, nameGap after it, as namesColumn lays
+// it out of the names it holds: every account's row's, or any account's,
+// its mark beside it, not only those shown, so the column holds still as
+// Weeks scrolls.
+func (w weeksDrawn) labelsColumn() flex.Part {
+	names := []columnName{{label: ansi.StringWidth(everyAccount)}}
+	for _, row := range w.page.Accounts {
+		names = append(names, historyNamed(w.named(row.Account), row.Primary))
 	}
-	for _, row := range rows {
-		for i, p := range row.Peaks {
-			x, label := peaksFrom+peaksApart*i, w.columnPeak(row, p).said.width()
-			end = max(end, x+columnCells, x+(peakLabelCells-label)/2+label)
-		}
-	}
-	return end
+	return namesColumn(nameGap, names...)
 }
 
 // weeksScrolling is how far Weeks scrolls, as the frame draws it, scrolled
@@ -227,13 +307,13 @@ func (f Frame) weeksScrolls() (y, rows int) {
 }
 
 // weeksFirst is the row of the first account Weeks shows: under the table's
-// every account's, after the verdict, or in its phone form, after the
+// every account's, after the verdict, or in its narrow form, after the
 // verdict's rows; or in columns, the first block after every account's.
 func (f Frame) weeksFirst(w weeksDrawn) int {
 	top := f.top()
 	switch {
-	case w.phone:
-		return top + len(w.phoneVerdict()) + 1 + weeksFirstRow - weeksHeadRow
+	case w.narrow:
+		return top + len(w.narrowVerdict()) + 1 + weeksFirstRow - weeksHeadRow
 	case w.columns:
 		return top + blockRows
 	}
@@ -243,12 +323,12 @@ func (f Frame) weeksFirst(w weeksDrawn) int {
 // weeksPage is how many accounts Weeks shows at once, from the first's row:
 // in the table, those that fit to the one over the scroll line, over the
 // legend; in columns, the blocks that fit, the last one's dates under it;
-// and in its phone form, those that fit to the scroll line, the view's last
+// and in its narrow form, those that fit to the scroll line, the view's last
 // row. It's none where none fits.
 func (f Frame) weeksPage(w weeksDrawn) int {
 	first, foot := f.weeksFirst(w), f.top()+f.viewRows()-1
 	switch {
-	case w.phone:
+	case w.narrow:
 		return max(foot-first, 0)
 	case w.columns:
 		return max((foot-first)/blockRows, 0)
@@ -282,30 +362,30 @@ func (w weeksDrawn) asATable(c *canvas, top int, shown []views.WeeksRow) {
 	w.put(c, 0, top, w.headline()...)
 	w.put(c, 0, top+1, joinedParts(span{"   ·   ", dimInk}, slices.Concat([][]part{w.asNow()}, w.replays())...)...)
 	w.put(c, 0, top+2, w.thirdRow()...)
-	w.table(c, top+weeksHeadRow, len(w.page.Weeks), shown, true)
+	w.table(c, top+weeksHeadRow, shown)
 }
 
-// table draws the table's last weeks of the page's from its heads' row y:
-// their first days, every account's peaks, and the peaks of the accounts
-// shown; and where aside is set, the verdicts at the right.
-func (w weeksDrawn) table(c *canvas, y, weeks int, shown []views.WeeksRow, aside bool) {
-	w.weekHeads(c, y, weeks)
-	all, first := y+weeksAllRow-weeksHeadRow, y+weeksFirstRow-weeksHeadRow
-	if aside {
-		w.put(c, verdictsAt, y, slices.Concat([]part{wordsIn("over the last ", faintInk)}, countedParts(w.page.Capacity.Weeks, "week", faintInk))...)
+// table draws the table's weeks shown from its heads' row y: their first
+// days, every account's peaks, and the peaks of the accounts shown; and in
+// the wide form, the verdicts after them.
+func (w weeksDrawn) table(c *canvas, y int, shown []views.WeeksRow) {
+	w.weekHeads(c, y)
+	all, first, aside := y+weeksAllRow-weeksHeadRow, y+weeksFirstRow-weeksHeadRow, w.laid.verdict.At
+	if !w.narrow {
+		w.put(c, aside, y, slices.Concat([]part{wordsIn("over the last ", faintInk)}, countedParts(w.page.Capacity.Weeks, "week", faintInk))...)
 	}
 	if w.several() {
-		w.put(c, 0, all, wordsIn("all accounts", strongInk))
-		w.tablePeaks(c, all, w.page.All, weeks)
+		c.line(0, all, w.everyAccount())
+		w.tablePeaks(c, all, w.page.All)
 	}
-	if w.several() && aside {
-		w.put(c, verdictsAt, all, w.allShort()...)
+	if w.several() && !w.narrow {
+		w.put(c, aside, all, w.allShort()...)
 	}
 	for i, row := range shown {
 		c.line(0, first+i, w.name(row))
-		w.tablePeaks(c, first+i, row, weeks)
-		if aside {
-			w.put(c, verdictsAt, first+i, w.tableVerdict(row)...)
+		w.tablePeaks(c, first+i, row)
+		if !w.narrow {
+			w.put(c, aside, first+i, w.tableVerdict(row)...)
 		}
 	}
 }
@@ -314,12 +394,13 @@ func (w weeksDrawn) table(c *canvas, y, weeks int, shown []views.WeeksRow, aside
 // then one each shown account, each week's peak a column, with the verdict,
 // or the account's, beside it; and the weeks' first days under the last.
 func (w weeksDrawn) inColumns(c *canvas, look Look, top int, shown []views.WeeksRow) {
+	aside := w.laid.verdict.At
 	if w.several() {
-		w.put(c, 0, top, wordsIn("all accounts", strongInk))
+		c.line(0, top, w.everyAccount())
 		w.block(c, look, top, w.page.All)
 	}
 	for i, l := range w.allAside() {
-		w.put(c, verdictsAt, top+i, l...)
+		w.put(c, aside, top+i, l...)
 	}
 	y := top
 	for _, row := range shown {
@@ -327,46 +408,57 @@ func (w weeksDrawn) inColumns(c *canvas, look Look, top int, shown []views.Weeks
 		c.line(0, y, w.name(row))
 		w.block(c, look, y, row)
 		for i, l := range w.accountAside(row) {
-			w.put(c, verdictsAt, y+i, l...)
+			w.put(c, aside, y+i, l...)
 		}
 	}
-	for i := range w.page.Weeks {
-		w.put(c, peaksFrom+peaksApart*i, y+columnRows+1, figurePart(w.head(i), Number{}))
+	first := w.firstShown()
+	for i, week := range w.laid.weeks {
+		w.put(c, week.At, y+columnRows+1, figurePart(w.head(first+i), Number{}))
 	}
 }
 
-// onAPhone draws Weeks on a phone from row top: the verdict, a part a row,
-// wrapped to the width; then the table's last four weeks, or as many of them
-// as fit, with no verdicts beside it, the accounts given shown.
-func (w weeksDrawn) onAPhone(c *canvas, top int, shown []views.WeeksRow) {
-	verdict := w.phoneVerdict()
+// narrowly draws Weeks in the narrow form from row top: the verdict, a part a row,
+// wrapped to the width; then the table's weeks that fit, with no verdicts
+// beside it, the accounts given shown.
+func (w weeksDrawn) narrowly(c *canvas, top int, shown []views.WeeksRow) {
+	verdict := w.narrowVerdict()
 	for i, l := range verdict {
 		c.line(0, top+i, l)
 	}
-	w.table(c, top+len(verdict)+1, min(weeksPhoneWeeks, len(w.page.Weeks), w.weeksThatFit()), shown, false)
+	w.table(c, top+len(verdict)+1, shown)
 }
 
-// weeksThatFit is how many of the table's weeks fit short of the edge.
-func (w weeksDrawn) weeksThatFit() int {
-	n := 0
-	for weekEnd(n) <= w.edge {
-		n++
-	}
-	return n
-}
-
-// weekEnd is the column the table's i-th week shown ends before: its first
-// day's, right-aligned a cell past its peaks.
-func weekEnd(i int) int {
-	return peaksFrom + peaksApart*i + peakCells + 1
-}
-
-// weeksDrawn is Weeks' page as it's drawn: in its phone form, in columns, or
-// as a table, its lines cut short before the column edge.
+// weeksDrawn is Weeks' page as it's drawn: in its narrow form, in columns, or
+// as a table, its row's parts laid out, its lines cut short before the
+// column edge.
 type weeksDrawn struct {
-	page           views.WeeksPage
-	phone, columns bool
-	edge           int
+	page            views.WeeksPage
+	narrow, columns bool
+	edge            int
+	laid            weeksLaid
+}
+
+// weeksLaid is where a row of Weeks lays its parts: its label column; the
+// weeks shown, the latest of the page's that fit, the oldest first; and in
+// the wide form, the verdicts' column.
+type weeksLaid struct {
+	labels  flex.Span
+	weeks   []flex.Span
+	verdict flex.Span
+}
+
+// firstShown is the index of the page's first week shown.
+func (w weeksDrawn) firstShown() int {
+	return len(w.page.Weeks) - len(w.laid.weeks)
+}
+
+// nameCells are the cells an account's name is drawn in: the label column's
+// less nameGap; or where no week shows, the row's, to the edge.
+func (w weeksDrawn) nameCells() int {
+	if len(w.laid.weeks) == 0 {
+		return max(w.edge, 0)
+	}
+	return min(w.laid.labels.Size-nameGap, max(w.edge, 0))
 }
 
 // put draws the parts from x along row y, cut as fitParts cuts them to end
@@ -520,9 +612,9 @@ func (w weeksDrawn) thirdRow() []part {
 	return w.estimate()
 }
 
-// phoneVerdict is the verdict as a phone draws it: a part a row, each
+// narrowVerdict is the verdict as the narrow form draws it: a part a row, each
 // wrapped to the edge, its figures never broken.
-func (w weeksDrawn) phoneVerdict() []line {
+func (w weeksDrawn) narrowVerdict() []line {
 	parts := slices.Concat([][]part{w.headline(), w.asNow()}, w.replays())
 	if w.many() {
 		parts = append(parts, w.dropped())
@@ -680,18 +772,24 @@ func (w weeksDrawn) named(id string) string {
 	return labelled(w.row(id).Label, id)
 }
 
-// name is an account's name and mark at the start of its row, cut short of
-// the weeks, and of the edge.
+// name is an account's name and mark at the start of its row, cut to the
+// cells names are drawn in.
 func (w weeksDrawn) name(row views.WeeksRow) line {
-	return historyAccount(w.named(row.Account), row.Primary, min(weeksNameCells, w.edge))
+	return historyAccount(w.named(row.Account), row.Primary, w.nameCells())
 }
 
-// weekHeads draws the first days of the last weeks of the page's along row
-// y, each right-aligned in a cell more than a peak.
-func (w weeksDrawn) weekHeads(c *canvas, y, weeks int) {
-	first := len(w.page.Weeks) - weeks
-	for i := range weeks {
-		c.rightFit(weekEnd(i), w.edge, y, figurePart(w.head(first+i), Number{}))
+// everyAccount names every account's row, or block, bold text.secondary,
+// cut to the cells names are drawn in.
+func (w weeksDrawn) everyAccount() line {
+	return line{{everyAccount, strongInk}}.fit(w.nameCells())
+}
+
+// weekHeads draws the first days of the weeks shown along row y, each
+// right-aligned in its week's cells.
+func (w weeksDrawn) weekHeads(c *canvas, y int) {
+	first := w.firstShown()
+	for i, week := range w.laid.weeks {
+		c.rightFit(week.At+weekColumnCells, w.edge, y, figurePart(w.head(first+i), Number{}))
 	}
 }
 
@@ -700,12 +798,17 @@ func (w weeksDrawn) head(i int) line {
 	return weekHead(w.page.Weeks[i], i == len(w.page.Weeks)-1)
 }
 
-// tablePeaks draws the row's peaks in the last weeks of the page's along row
-// y, each right-aligned in peakCells.
-func (w weeksDrawn) tablePeaks(c *canvas, y int, row views.WeeksRow, weeks int) {
-	for i, p := range row.Peaks[len(row.Peaks)-weeks:] {
-		c.rightFit(peaksFrom+peaksApart*i+peakCells, w.edge, y, w.peak(row, p))
+// tablePeaks draws the row's peaks in the weeks shown along row y, each
+// right-aligned in peakCells.
+func (w weeksDrawn) tablePeaks(c *canvas, y int, row views.WeeksRow) {
+	for i, p := range w.peaksShown(row) {
+		c.rightFit(w.laid.weeks[i].At+peakCells, w.edge, y, w.peak(row, p))
 	}
+}
+
+// peaksShown are the row's peaks in the weeks shown.
+func (w weeksDrawn) peaksShown(row views.WeeksRow) []views.WeekPeak {
+	return row.Peaks[max(len(row.Peaks)-len(w.laid.weeks), 0):]
 }
 
 // peak is a week's peak as the table draws it, as peakPart has it, this
@@ -741,11 +844,11 @@ func (w weeksDrawn) number(row views.WeeksRow) Number {
 // block draws the row's columns from row y, as look draws them: each week's
 // column, filled to its peak, and under it the peak, centred.
 func (w weeksDrawn) block(c *canvas, look Look, y int, row views.WeeksRow) {
-	for i, p := range row.Peaks {
-		x := peaksFrom + peaksApart*i
+	for i, p := range w.peaksShown(row) {
+		x := w.laid.weeks[i].At
 		w.column(c, look, x, y, p)
 		label := w.columnPeak(row, p)
-		at := x + (peakLabelCells-label.said.width())/2
+		at := x + (weekColumnCells-label.said.width())/2
 		w.put(c, at, y+columnRows, label)
 	}
 }

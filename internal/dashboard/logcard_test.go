@@ -505,7 +505,7 @@ func TestAnEventsCardSaysHowItsAccountStoodThen(t *testing.T) {
 
 // A card's keys: ↑↓ stepping, an event's g, s where its line is of a
 // session, as the request counts toward it, but over that session's own
-// page (call 63), j k where its body scrolls, and esc. Where they don't fit,
+// page, j k where its body scrolls, and esc. Where they don't fit,
 // ↑↓ says what it steps to as the key line does; then they leave from the
 // first, esc staying.
 func TestALogCardsKeysFitItsContent(t *testing.T) {

@@ -21,12 +21,13 @@ func (f Frame) accountsHelp() []helpPart {
 }
 
 // compareHelp is Compare as help explains it: its columns and heads, and
-// their focus, but on a phone, whose Compare draws none; each group and how
-// each row is counted; and a key to the states its heads say.
+// their focus, but where Compare is turned, as CompareWide has it, drawing
+// none; each group and how each row is counted; and a key to the states its
+// heads say.
 func (f Frame) compareHelp() helpPart {
 	focus := " `←` and `→` move the focus along the columns, scrolling them past as many as fit, all accounts staying " +
 		"put at the right; `enter` opens the account focused in Detail, and `esc` ends the focus."
-	if f.phone() {
+	if !f.CompareWide() {
 		focus = ""
 	}
 	return helpPart{
@@ -139,8 +140,8 @@ func (f Frame) detailHelp() helpPart {
 			said("The head says how the account stands with the router, and where new sessions go. Above the rule, USAGE "+
 				"is now, every window read as switchboard usage reads them; THIS WEEK, named for the period, and BY MODEL "+
 				"are the period's, THIS WEEK counting its requests and the limits it hit, by window, beside its plan, its "+
-				"worth against its price, and whether its extra usage is on. Below the rule, BY DAY and WEEKS always cover "+
-				"the last six weeks."),
+				"worth against its price, and whether its extra usage is on. Below the rule, BY DAY and WEEKS cover the "+
+				"weeks it names, the last six where they fit."),
 			said("BY DAY shades each day by how much of its week the account used that day, in History's five shades, on "+
 				"the account's own scale: each a quarter of its active days."),
 			said("WEEKS gives each week's peak, the use read just before the reset that ended it, and this week's, its "+
@@ -149,17 +150,17 @@ func (f Frame) detailHelp() helpPart {
 			said(sessions),
 		),
 		glyphs: append(shadesHelp(f.byDaySwatch),
-			glyph{drawn: f.daySwatch(dayInk(2), 2, true, f.detailDrawnIn().dw), means: daysLimitNote},
-			glyph{drawn: dayToCome(f.detailDrawnIn().dw), means: "a day still to come"},
+			glyph{drawn: f.daySwatch(dayInk(2), 2, true, f.detailDays()), means: daysLimitNote},
+			glyph{drawn: dayToCome(f.detailDays()), means: "a day still to come"},
 			glyph{drawn: line{{"100", exhaustedInk}}, means: "a week it hit its limit"},
 		),
 	}
 }
 
 // byDaySwatch is a day of Detail's BY DAY at a level, as Days draws a day,
-// as wide as Detail draws its days in the layout it's drawn in.
+// as wide as Detail draws its days, as detailDays has them.
 func (f Frame) byDaySwatch(level int) line {
-	return f.daySwatch(dayInk(level), level, false, f.detailDrawnIn().dw)
+	return f.daySwatch(dayInk(level), level, false, f.detailDays())
 }
 
 // accountsHeading is the heading help explains a sub-tab of Accounts under:

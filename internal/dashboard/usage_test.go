@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"fmt"
 	"math"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -162,39 +163,130 @@ func TestTheMatrixLaysEachWindowOutAsAGroupFromTheNameColumn(t *testing.T) {
 	}
 }
 
-func TestTheMatrixsBarsFollowTheRule(t *testing.T) {
+// A matrix's row is laid out by flex: the name column; each window's bar,
+// at least 12 cells and at most 90, taking what's left; the 7 cells after
+// it; its words, 22 cells, narrowing toward the short form's 14 once the
+// bars are at their least; and 3 cells between windows. Short of every
+// part's least, the windows don't sit side by side.
+func TestTheMatrixsRowIsLaidOutByItsParts(t *testing.T) {
 	tests := []struct {
-		width, windows, names, want int
+		name                  string
+		width, windows, names int
+		bar, words            int
+		fits                  bool
 	}{
-		{width: 160, windows: 3, names: 16, want: 16},
-		{width: 160, windows: 1, names: 16, want: 88},
-		{width: 160, windows: 3, names: 14, want: 17},
-		{width: 216, windows: 3, names: 16, want: 35},
-		{width: 300, windows: 1, names: 14, want: 90},
-		{width: 160, windows: 4, names: 16, want: 4},
+		{name: "two windows at 108, the spike's", width: 108, windows: 2, names: 16, bar: 15, words: fullCells, fits: true},
+		{name: "two windows at 138", width: 138, windows: 2, names: 16, bar: 30, words: fullCells, fits: true},
+		{name: "two windows at 173", width: 173, windows: 2, names: 16, bar: 47, words: fullCells, fits: true},
+		{name: "three windows at 160", width: 160, windows: 3, names: 16, bar: 16, words: fullCells, fits: true},
+		{name: "three windows at 160, a narrower name column", width: 160, windows: 3, names: 14, bar: 17, words: fullCells, fits: true},
+		{name: "one window, at its most", width: 160, windows: 1, names: 16, bar: mostMatrixBar, words: fullCells, fits: true},
+		{name: "the bars at their least, the words a cell short", width: 100, windows: 2, names: 16, bar: leastUsageBar, words: 21, fits: true},
+		{name: "four windows at 160, their words short", width: 160, windows: 4, names: 16, bar: leastUsageBar, words: shortCells, fits: true},
+		{name: "two windows at every part's least", width: 86, windows: 2, names: 16, bar: leastUsageBar, words: shortCells, fits: true},
+		{name: "two windows a cell short of it", width: 85, windows: 2, names: 16, fits: false},
+		{name: "two windows on a phone", width: 73, windows: 2, names: 16, fits: false},
 	}
 	for _, tt := range tests {
-		b := usageBlock{width: tt.width, windows: make([]shownWindow, tt.windows), names: tt.names}
-		if got := b.matrixBar(); got != tt.want {
-			t.Errorf("at %d columns, %d windows beside a %d-cell name column have bars %d cells long, want %d", tt.width, tt.windows, tt.names, got, tt.want)
+		t.Run(tt.name, func(t *testing.T) {
+			b := usageBlock{width: tt.width, windows: make([]shownWindow, tt.windows), names: tt.names}
+			row, fits := b.matrixCells()
+			if fits != tt.fits {
+				t.Fatalf("the matrix fits: %t, want %t", fits, tt.fits)
+			}
+			if fits && (row.bar != tt.bar || row.words != tt.words) {
+				t.Errorf("its bars are %d cells and its words %d, want %d and %d", row.bar, row.words, tt.bar, tt.words)
+			}
+		})
+	}
+}
+
+// A wider frame never draws a shorter bar in the same arrangement: across 52
+// to 220 columns, by window, stacked and side by side, and by account, its
+// names above its bars and beside them, of one window to four, with short
+// names and long, each arrangement's bars only grow, as its words go from
+// short to full before they do; and once its windows sit side by side, a
+// wider frame keeps them so.
+func TestABarOnlyGrowsWithTheWidth(t *testing.T) {
+	sonnet := func(a *status.Account) {
+		a.Windows = append(a.Windows, quota.Window{Key: "7d_sonnet", Label: "Sonnet week", Utilization: 0.1, ResetsAt: on(4, 21, 0).UTC()})
+	}
+	long := func(d *status.Document) {
+		for i, label := range []string{"work-team-plan", "personal-research", "side-hustle-consulting"} {
+			d.Accounts[i].Label = label
+		}
+	}
+	worlds := map[string]status.Document{
+		"short names": trio(account("work", sonnet), account("personal", sonnet), account("side", sonnet)),
+		"long names":  trio(long, account("work", sonnet), account("personal", sonnet), account("side", sonnet)),
+	}
+	shown := [][]string{{"7d"}, {"7d", "5h"}, {"7d", "5h", "7d_oi"}, {"7d", "5h", "7d_oi", "7d_sonnet"}}
+	for name, doc := range worlds {
+		m := doc.At(printNow, printPolicy)
+		for _, keys := range shown {
+			for _, by := range []By{ByWindow, ByAccount} {
+				t.Run(fmt.Sprintf("%s, %d windows, by %d", name, len(keys), by), func(t *testing.T) {
+					was, wasBar, side := "", 0, false
+					for width := 52; width <= 220; width++ {
+						b := newUsageBlock(m, width, Look{}, by, usageWindows(keys, printName))
+						_, _, above := b.labels()
+						arranged := fmt.Sprintf("side by side %t, names above %t", b.matrixed(), above && by == ByAccount)
+						if bar := b.bar(); arranged == was && bar < wasBar {
+							t.Errorf("at %d columns, %s, its bars are %d cells, shorter than the %d a column narrower", width, arranged, bar, wasBar)
+						}
+						if side && !b.matrixed() {
+							t.Errorf("at %d columns, its windows stack, where a column narrower they sat side by side", width)
+						}
+						was, wasBar, side = arranged, b.bar(), b.matrixed()
+					}
+				})
+			}
 		}
 	}
 }
 
-func TestWindowsWhoseMatrixBarsWouldBeUnder12CellsStack(t *testing.T) {
+// Whether the windows sit side by side follows the width, the names
+// configured and the windows shown, never what's read of them.
+func TestTheMatrixOrTheStackNeverHangsOnWhatsRead(t *testing.T) {
+	unread := func(a *status.Account) { a.FetchedAt, a.Windows = time.Time{}, nil }
+	reads := map[string]status.Document{
+		"as read":                      trio(),
+		"nothing read of work":         trio(account("work", unread)),
+		"pinned, new sessions nowhere": trio(pinnedTo("work"), func(d *status.Document) { d.Best = "" }),
+	}
+	for width := 52; width <= 220; width++ {
+		var sides []bool
+		for _, doc := range reads {
+			m := doc.At(printNow, printPolicy)
+			sides = append(sides, newUsageBlock(m, width, Look{}, ByWindow, usageWindows([]string{"7d", "5h"}, printName)).matrixed())
+		}
+		if slices.Contains(sides, !sides[0]) {
+			t.Errorf("at %d columns, the windows sit side by side %v, as read differently", width, sides)
+		}
+	}
+}
+
+// Where four windows' leasts don't fit side by side, each is a section of
+// its own; where they fit, they sit side by side.
+func TestWindowsWhoseMatrixDoesntFitStack(t *testing.T) {
 	sonnet := func(a *status.Account) {
 		a.Windows = append(a.Windows, quota.Window{Key: "7d_sonnet", Label: "Sonnet week", Utilization: 0.1, ResetsAt: on(4, 21, 0).UTC()})
 	}
 	four := trio(account("work", sonnet), account("personal", sonnet), account("side", sonnet))
-	rows := printed(four, 160, ByWindow)
-	var headings []string
-	for _, r := range rows {
-		if r != "" && strings.ToUpper(r) == r && !strings.ContainsAny(r, "┃╎─Σ") {
-			headings = append(headings, r)
+	headings := func(width int) []string {
+		var headings []string
+		for _, r := range printed(four, width, ByWindow) {
+			if r != "" && strings.ToUpper(r) == r && !strings.ContainsAny(r, "┃╎─Σ") {
+				headings = append(headings, strings.Join(strings.Fields(r), " "))
+			}
 		}
+		return headings
 	}
-	if want := []string{"WEEK", "5-HOUR", "FABLE WEEK", "SONNET WEEK"}; !slices.Equal(headings, want) {
-		t.Errorf("four windows at 160 columns are headed %q, want %q, each a section of its own", headings, want)
+	if got, want := headings(150), []string{"WEEK", "5-HOUR", "FABLE WEEK", "SONNET WEEK"}; !slices.Equal(got, want) {
+		t.Errorf("four windows at 150 columns are headed %q, want %q, each a section of its own", got, want)
+	}
+	if got, want := headings(160), []string{"WEEK 5-HOUR FABLE WEEK SONNET WEEK"}; !slices.Equal(got, want) {
+		t.Errorf("four windows at 160 columns are headed %q, want %q, side by side", got, want)
 	}
 }
 
@@ -203,10 +295,10 @@ func TestStackedWindowsBarsLeaveTheirWordsTheRowsEnd(t *testing.T) {
 		width, percentAt, wordsAt int
 		words                     string
 	}{
-		{width: 149, percentAt: 16 + 103 + 2, wordsAt: 126, words: "at cap · back 17:10"},
 		{width: 120, percentAt: 16 + 74 + 2, wordsAt: 97, words: "at cap · back 17:10"},
 		{width: 80, percentAt: 16 + 34 + 2, wordsAt: 57, words: "at cap · back 17:10"},
-		{width: 52, percentAt: 16 + 14 + 2, wordsAt: 37, words: "back 17:10"},
+		{width: 60, percentAt: 16 + 14 + 2, wordsAt: 37, words: "at cap · back 17:10"},
+		{width: 52, percentAt: 16 + 12 + 2, wordsAt: 35, words: "back 17:10"},
 	}
 	for _, tt := range tests {
 		rows := printed(trio(), tt.width, ByWindow)
@@ -244,8 +336,8 @@ func TestByAccountEachAccountIsABlockOfItsWindows(t *testing.T) {
 		{name: "wide, the pool's rule in the blank line", rows: wide, row: 19, col: 0, want: strings.Repeat("─", 160)},
 		{name: "wide, the pool last", rows: wide, row: 20, col: 0, want: "Σ pool          Week"},
 		{name: "narrow, its name on a line of its own", rows: narrow, row: 4, col: 0, want: "1 work"},
-		{name: "narrow, the label a cell in, its bar 18 cells", rows: narrow, row: 5, col: 0, want: " Week"},
-		{name: "narrow, its percentage", rows: narrow, row: 5, col: 12 + 18 + 2, want: "34%  19%/day · Sun"},
+		{name: "narrow, the label a cell in, its bar at its least, 12 cells", rows: narrow, row: 5, col: 0, want: " Week"},
+		{name: "narrow, its percentage, its words in 20 cells", rows: narrow, row: 5, col: 12 + 12 + 2, want: "34%  19%/day · Sun"},
 		{name: "narrow, the next block", rows: narrow, row: 11, col: 0, want: "2 personal ◆"},
 	}
 	for _, tt := range tests {
@@ -257,6 +349,27 @@ func TestByAccountEachAccountIsABlockOfItsWindows(t *testing.T) {
 	}
 	if got := narrow[5]; strings.TrimRight(got, " ") != got || len([]rune(got)) > 51 {
 		t.Errorf("a narrow row %q runs to the edge, want it to end a cell short", got)
+	}
+}
+
+// By account, an account's name sits beside its first window's row wherever
+// the row's parts fit at their leasts beside the name column: the window's
+// label's 10 cells, a bar of 12, the 7 after it, the short words' 14 and the
+// cell at the edge, 60 columns beside the sample's 16; a column short of
+// that, the name has a line of its own.
+func TestByAccountTheNameIsBesideItsFirstWindowWhereTheRowsPartsFit(t *testing.T) {
+	for _, tt := range []struct {
+		width int
+		want  string
+	}{
+		{width: 60, want: "1 work          Week"},
+		{width: 59, want: "1 work"},
+	} {
+		rows := printed(trio(), tt.width, ByAccount)
+		i := slices.IndexFunc(rows, func(r string) bool { return strings.HasPrefix(r, "1 work") })
+		if got := strings.TrimRight(colAt(rows[max(i, 0)], 0, len(tt.want)+2), " "); got != tt.want {
+			t.Errorf("at %d columns, work's first row reads %q, want %q", tt.width, got, tt.want)
+		}
 	}
 }
 
@@ -315,8 +428,9 @@ func TestTheBlocksAreABlankLineApartAsTheKeyLineIsFromTheLastAndTheFirstFromTheH
 		blocks int
 	}{
 		{name: "the matrix", doc: trio(), width: 160, by: ByWindow, blocks: 1},
-		{name: "four windows stacked at 160", doc: four, width: 160, by: ByWindow, blocks: 4},
-		{name: "stacked at 149", doc: trio(), width: 149, by: ByWindow, blocks: 3},
+		{name: "the matrix where its leasts just fit", doc: trio(), width: 122, by: ByWindow, blocks: 1},
+		{name: "stacked a cell short of it", doc: trio(), width: 121, by: ByWindow, blocks: 3},
+		{name: "four windows stacked at 150", doc: four, width: 150, by: ByWindow, blocks: 4},
 		{name: "stacked at 120", doc: trio(), width: 120, by: ByWindow, blocks: 3},
 		{name: "stacked at 80", doc: trio(), width: 80, by: ByWindow, blocks: 3},
 		{name: "stacked on a phone", doc: trio(), width: 52, by: ByWindow, blocks: 3},
@@ -348,12 +462,14 @@ func TestTheNameColumnFitsTheNames(t *testing.T) {
 		width int
 		want  int
 	}{
-		{name: "short names, at least 14", names: []accountName{{number: "1", label: "work"}}, width: 160, want: 14},
-		{name: "short names under 80, at least 12", names: []accountName{{number: "1", label: "work"}}, width: 79, want: 12},
+		{name: "a short name, its own cells", names: []accountName{{number: "1", label: "work"}}, width: 160, want: 10},
+		{name: "a short name on a phone, the same", names: []accountName{{number: "1", label: "work"}}, width: 52, want: 10},
 		{name: "the primary's mark and ▲'s room", names: []accountName{{number: "1", label: "work"}, {number: "2", label: "personal", primary: true}}, width: 160, want: 16},
 		{name: "▲ counted once, kept or drawn", names: []accountName{{number: "2", label: "personal", primary: true, best: true}}, width: 160, want: 16},
-		{name: "a long label, at most 24", names: []accountName{{number: "2", label: long, primary: true}}, width: 80, want: 24},
-		{name: "a long label under 80, at most 16", names: []accountName{{number: "2", label: long, primary: true}}, width: 79, want: 16},
+		{name: "a label of 22, whole", names: []accountName{{number: "3", label: "side-hustle-consulting"}}, width: 73, want: 28},
+		{name: "a long label at its most, 24", names: []accountName{{number: "2", label: long, primary: true}}, width: 80, want: 32},
+		{name: "a long label where the bar is at its least and the words short", names: []accountName{{number: "2", label: long, primary: true}}, width: 52, want: 52 - leastUsageBar - afterBar - shortCells - afterWords},
+		{name: "a long label at its least", names: []accountName{{number: "2", label: long, primary: true}}, width: 40, want: 16},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -436,8 +552,10 @@ func TestTheWindowsGivenPrintAlone(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var got []string
 			for _, r := range printed(trio(), 120, ByWindow, tt.windows...) {
-				if slices.Contains([]string{"5-HOUR", "WEEK", "FABLE WEEK"}, r) {
-					got = append(got, r)
+				for _, heading := range regexp.MustCompile(`\s{2,}`).Split(strings.TrimSpace(r), -1) {
+					if slices.Contains([]string{"5-HOUR", "WEEK", "FABLE WEEK"}, heading) {
+						got = append(got, heading)
+					}
 				}
 			}
 			if !slices.Equal(got, tt.want) {
@@ -671,10 +789,12 @@ func TestTheKeyLineSaysWhatTheMarksMean(t *testing.T) {
 		by    By
 		want  []string
 	}{
-		{name: "from 150 columns, one line from the name column", doc: trio(), width: 160, want: []string{strings.Repeat(" ", 16) + pace + "    ╎ cap: work at 95%"}},
-		{name: "narrower, two lines from column 0", doc: trio(), width: 149, want: []string{pace, "╎ cap: work at 95%"}},
-		{name: "no account with a cap", doc: trio(capped("work", 0)), width: 120, want: []string{pace}},
-		{name: "several caps, in the config's order", doc: trio(capped("side", 0.1)), width: 120, want: []string{pace, "╎ cap: work at 95%, side at 90%"}},
+		{name: "one line from the name column, where it fits beside it", doc: trio(), width: 160, want: []string{strings.Repeat(" ", 16) + pace + "    ╎ cap: work at 95%"}},
+		{name: "one line where it just fits, its parts three cells apart where four would not fit", doc: trio(), width: 85, want: []string{strings.Repeat(" ", 16) + pace + "   ╎ cap: work at 95%"}},
+		{name: "a cell short of that, two lines from column 0", doc: trio(), width: 84, want: []string{pace, "╎ cap: work at 95%"}},
+		{name: "no account with a cap", doc: trio(capped("work", 0)), width: 120, want: []string{strings.Repeat(" ", 16) + pace}},
+		{name: "several caps, in the config's order", doc: trio(capped("side", 0.1)), width: 120, want: []string{strings.Repeat(" ", 16) + pace + "    ╎ cap: work at 95%, side at 90%"}},
+		{name: "several caps, on the second line where they don't fit the first", doc: trio(capped("side", 0.1)), width: 97, want: []string{pace, "╎ cap: work at 95%, side at 90%"}},
 		{
 			name: "a cap whose mark is off the bars, unnamed", doc: trio(capped("work", 0.004)), width: 160,
 			want: []string{strings.Repeat(" ", 16) + pace},
@@ -684,7 +804,11 @@ func TestTheKeyLineSaysWhatTheMarksMean(t *testing.T) {
 			want: []string{strings.Repeat(" ", 16) + pace + "    ╎ cap: work at 100%"},
 		},
 		{
-			name: "a cap of an account nothing is read of, its bars empty, unnamed", width: 120, want: []string{pace},
+			name: "a cap of an account nothing is read of, its bars empty, unnamed", width: 120, want: []string{strings.Repeat(" ", 16) + pace},
+			doc: trio(account("work", func(a *status.Account) { a.FetchedAt, a.Windows = time.Time{}, nil })),
+		},
+		{
+			name: "unnamed, its key two lines all the same where its cap wouldn't fit beside even pace", width: 84, want: []string{pace},
 			doc: trio(account("work", func(a *status.Account) { a.FetchedAt, a.Windows = time.Time{}, nil })),
 		},
 	}
@@ -696,6 +820,138 @@ func TestTheKeyLineSaysWhatTheMarksMean(t *testing.T) {
 				t.Errorf("the printout ends\n%s\nwant a blank line, then\n%s", strings.Join(rows[len(rows)-len(tt.want)-1:], "\n"), strings.Join(tt.want, "\n"))
 			}
 		})
+	}
+}
+
+// From 52 columns to 220, by window and by account, with the sample's names
+// and with names short enough that the key is one line at narrower widths:
+// a key line one line at a width is one line wider, and its words never step
+// down to a narrower form, as its gaps narrow to three before it steps down.
+func TestAKeyLineNeverStepsDownAsTheWidthGrows(t *testing.T) {
+	short := trio(
+		account("work", func(a *status.Account) { a.Label, a.Reserve = "wk", 0 }),
+		account("personal", func(a *status.Account) { a.Label = "pe" }),
+		account("side", func(a *status.Account) { a.Label = "sd" }),
+	)
+	for name, doc := range map[string]status.Document{"the sample's names": trio(), "names of 2 cells and no cap": short} {
+		for _, by := range []By{ByWindow, ByAccount} {
+			oneLine, words := false, 0
+			for width := 52; width <= 220; width++ {
+				f := frameOf(width, 60)
+				f.By = by
+				b := f.overviewBlock(doc, printNow)
+				c := growing(width)
+				b.key(c, 0)
+				drawn := len(strings.Fields(strings.Join(textOf(c.rows(Look{})), " ")))
+				if oneLine && !b.oneLineKey() {
+					t.Errorf("%s, by %d, at %d columns, the key line is two lines, one a column narrower", name, by, width)
+				}
+				if drawn < words {
+					t.Errorf("%s, by %d, at %d columns, the key line draws %d words, %d a column narrower", name, by, width, drawn, words)
+				}
+				oneLine, words = b.oneLineKey(), drawn
+			}
+		}
+	}
+}
+
+// From 52 columns to 220, the form keyForms has a key line take, the first
+// that fits, never steps down as the width grows: the marks alone, the whole
+// width, as the Switchboard's are, and led by even pace, beside every name
+// column there is.
+func TestAKeyLinesFormNeverStepsDownAsTheWidthGrows(t *testing.T) {
+	pace, _ := keyPartsOf(nil, nil)
+	forms := markable(namesOf(frameOf(160, 60).Moment(trio(), printNow)))
+	for beside := range 25 {
+		for _, lead := range [][]line{nil, {pace}} {
+			words := 0
+			for width := 52; width <= 220; width++ {
+				var said strings.Builder
+				for _, s := range firstFit(width-beside, keyForms(forms, lead...)...) {
+					said.WriteString(s.text)
+				}
+				drawn := len(strings.Fields(said.String()))
+				if drawn < words {
+					t.Errorf("led by %d parts, %d cells beside, at %d columns, the key line draws %d words, %d a column narrower", len(lead), beside, width, drawn, words)
+				}
+				words = drawn
+			}
+		}
+	}
+}
+
+// From 40 columns to 220, by window and by account, of one window, two and
+// three, with names of 2 cells, the sample's and long ones: each key line is
+// the first of its forms that fits it, whole; its parts four cells apart
+// wherever they fit so, and three only where they don't; and a key one line
+// at a width is one line wider.
+func TestAKeyLinesPartsAreFourCellsApartWhereverTheyFit(t *testing.T) {
+	named := map[string]func(*status.Document){
+		"names of 2 cells": func(d *status.Document) {
+			for i := range d.Accounts {
+				d.Accounts[i].Label = d.Accounts[i].ID[:2]
+			}
+		},
+		"the sample's names": func(*status.Document) {},
+		"long names":         longNamed,
+	}
+	for name, names := range named {
+		for windows := 1; windows <= 3; windows++ {
+			doc := trio(names, func(d *status.Document) {
+				for i := range d.Accounts {
+					d.Accounts[i].Windows = d.Accounts[i].Windows[:windows]
+				}
+			})
+			for _, by := range []By{ByWindow, ByAccount} {
+				oneLine := false
+				for width := 40; width <= 220; width++ {
+					at := fmt.Sprintf("%s, %d windows, by %d, at %d columns", name, windows, by, width)
+					f := frameOf(width, 60)
+					f.By = by
+					b := f.overviewBlock(doc, printNow)
+					c := growing(width)
+					b.key(c, 0)
+					rows := append(textOf(c.rows(Look{})), "")
+					if oneLine && !b.oneLineKey() {
+						t.Errorf("%s, the key is two lines, one line a column narrower", at)
+					}
+					oneLine = b.oneLineKey()
+					pace, forms := b.keyParts(b.bar())
+					if oneLine {
+						keyLineIsFirstFitting(t, at, strings.TrimLeft(rows[0], " "), width-b.names, keyForms(forms, pace))
+						continue
+					}
+					if pace.width() <= width && rows[0] != pace.plain() {
+						t.Errorf("%s, the key's first line reads %q, want even pace's part whole", at, rows[0])
+					}
+					if second := keyForms(forms); second[0] != nil {
+						keyLineIsFirstFitting(t, at, rows[1], width, second)
+					}
+				}
+			}
+		}
+	}
+}
+
+// keyGaps are the runs of blanks between a key line's parts.
+var keyGaps = regexp.MustCompile(` {3,}`)
+
+// keyLineIsFirstFitting fails the test where the key line drawn in room
+// cells, at the place said, isn't the first of forms that fits it, whole, or
+// where its parts are three cells apart though they'd fit four apart.
+func keyLineIsFirstFitting(t *testing.T, at, drawn string, room int, forms []line) {
+	t.Helper()
+	first := slices.IndexFunc(forms, func(l line) bool { return l.width() <= room })
+	if first < 0 {
+		return
+	}
+	if want := forms[first].plain(); drawn != want {
+		t.Errorf("%s, the key line in %d cells reads %q, want %q, the first of its forms that fits", at, room, drawn, want)
+		return
+	}
+	gaps := keyGaps.FindAllString(drawn, -1)
+	if len(gaps) > 0 && len(gaps[0]) == leastKeyApart && utf8.RuneCountInString(drawn)+len(gaps) <= room {
+		t.Errorf("%s, the key line in %d cells reads %q, its parts three cells apart though four fit", at, room, drawn)
 	}
 }
 
@@ -803,7 +1059,7 @@ func TestWordsACellTooLongInFullAreShortLeavingTheCellsAfterThemBlank(t *testing
 		{name: "the matrix, the 3 cells before the next group", width: 160, by: ByWindow, row: 4, wordsAt: 39, blankFrom: 39 + 22, blank: 3},
 		{name: "stacked, the last column", width: 120, by: ByWindow, row: 4, wordsAt: 97, blankFrom: 119, blank: 1},
 		{name: "by account, wide, the last column", width: 160, by: ByAccount, row: 2, wordsAt: 137, blankFrom: 159, blank: 1},
-		{name: "by account, narrow, the last column", width: 100, by: ByAccount, row: 5, wordsAt: 77, blankFrom: 99, blank: 1},
+		{name: "by account, its name above, the last column", width: 59, by: ByAccount, row: 5, wordsAt: 36, blankFrom: 58, blank: 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

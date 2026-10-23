@@ -136,32 +136,52 @@ func (c *canvas) emboldened(x, y, width int) {
 // cell, such as a stray combining mark, isn't drawn.
 func (c *canvas) text(x, y int, text string, k ink) int {
 	for text != "" {
-		glyph, width := ansi.FirstGraphemeCluster(text, ansi.GraphemeWidth)
-		text = text[len(glyph):]
+		cluster, width := ansi.FirstGraphemeCluster(text, ansi.GraphemeWidth)
+		text = text[len(cluster):]
 		if width > 0 {
-			c.put(x, y, glyph, min(width, 2), k)
-			x += min(width, 2)
+			g := grapheme{text: cluster, cells: min(width, 2)}
+			c.put(x, y, g, k)
+			x += g.width()
 		}
 	}
 	return x
 }
 
-// put draws a glyph width cells wide at x along row y, the mark its ink
-// carries noted on its cells rather than in their ink, as it changes nothing
-// of how they're drawn. Half a wide glyph it covers is left blank, as is a
-// wide glyph the canvas's edge cuts.
-func (c *canvas) put(x, y int, glyph string, width int, k ink) {
-	for i := range width {
+// grapheme is a glyph as the canvas puts it: its text, and the cells it
+// takes, one, or two where it's wide.
+type grapheme struct {
+	text  string
+	cells int
+}
+
+// width is the cells the glyph takes: a measure of what's drawn, never of
+// the frame.
+func (g grapheme) width() int {
+	return g.cells
+}
+
+// wide reports whether the glyph takes two cells, covering the one after
+// its own.
+func (g grapheme) wide() bool {
+	return g.width() == 2
+}
+
+// put draws the glyph at x along row y, the mark its ink carries noted on
+// its cells rather than in their ink, as it changes nothing of how they're
+// drawn. Half a wide glyph it covers is left blank, as is a wide glyph the
+// canvas's edge cuts.
+func (c *canvas) put(x, y int, g grapheme, k ink) {
+	for i := range g.width() {
 		c.clear(x+i, y)
 	}
-	first, last := c.at(x, y), c.at(x+width-1, y)
+	first, last := c.at(x, y), c.at(x+g.width()-1, y)
 	if first == nil || last == nil {
 		return
 	}
 	marked := k.mark
 	k.mark = unique.Handle[mark]{}
-	*first = cell{glyph: glyph, ink: k, mark: marked}
-	if width == 2 {
+	*first = cell{glyph: g.text, ink: k, mark: marked}
+	if g.wide() {
 		*last = cell{ink: k, mark: marked}
 	}
 }

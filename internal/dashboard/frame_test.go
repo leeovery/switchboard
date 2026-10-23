@@ -155,8 +155,8 @@ func TestThePageDrawsEachPartOnItsRow(t *testing.T) {
 		{name: "the Overview, whose sections head themselves", width: 160, view: Overview, status: 2, heading: -1, top: 4, first: "USAGE"},
 		{name: "the Log", width: 160, view: Log, status: 2, heading: 4, top: 6, first: "  at        session"},
 		{name: "the Overview on a phone", width: 52, view: Overview, tabs: 1, status: 3, heading: -1, top: 5, first: "USAGE"},
-		{name: "the Log on a phone", width: 52, view: Log, tabs: 1, status: 3, heading: 5, top: 7, first: "  at       session"},
-		{name: "a phone of 99 columns", width: 99, view: Log, tabs: 1, status: 3, heading: 5, top: 7, first: "  at       session"},
+		{name: "the Log on a phone", width: 52, view: Log, tabs: 1, status: 3, heading: 5, top: 7, first: "  at        session"},
+		{name: "a phone of 99 columns", width: 99, view: Log, tabs: 1, status: 3, heading: 5, top: 7, first: "  at        session"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

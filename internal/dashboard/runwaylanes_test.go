@@ -4,10 +4,8 @@ import (
 	"fmt"
 	"image/color"
 	"slices"
-	"strconv"
 	"testing"
 	"time"
-	"unicode/utf8"
 
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -21,10 +19,10 @@ func laneCells(cells ...views.Cell) []views.Cell {
 }
 
 // drawnLane is the canvas f draws the lane ln on, as runwayLanes draws it,
-// its lanes from column 24.
+// its lanes from framesLanesFrom.
 func drawnLane(f Frame, ln laidLane) *canvas {
 	c := newCanvas(f.Width, 20)
-	f.runwayLanes(c, runwayLaid{m: status.Moment{Now: routedAt}, x: runwayLanesFrom, lanes: []laidLane{ln}})
+	f.runwayLanes(c, runwayLaid{m: status.Moment{Now: routedAt}, x: framesLanesFrom, lanes: []laidLane{ln}})
 	return c
 }
 
@@ -56,7 +54,7 @@ func TestALaneDrawsEachColumnAsItsAccountStoodThen(t *testing.T) {
 			f.Look = tt.look
 			ln := laneWith()
 			ln.Cells = laneCells(views.CellRoom, views.CellRoom, views.CellRoom, tt.cell)
-			got := drawnLane(f, ln).at(runwayLanesFrom+3, 10)
+			got := drawnLane(f, ln).at(framesLanesFrom+3, 10)
 			blank := tt.glyph == " " && got.ink != ink{}
 			if got.glyph != tt.glyph || blank || tt.glyph != " " && (got.ink.token != tt.token || got.ink.bold != tt.bold) {
 				t.Errorf("column 3 is %q in %v, want %q in %v, bold %t", got.glyph, got.ink, tt.glyph, tt.token, tt.bold)
@@ -110,13 +108,13 @@ func TestALanesPastIsDimmedAndAStaleOrOutOfThePoolLaneFaded(t *testing.T) {
 			ln.Cells, ln.Use, ln.account = laneCells(), tt.use, tt.account
 			c := drawnLane(f, ln)
 			if tt.past == nil {
-				before, after := c.at(runwayLanesFrom+5, 10), c.at(runwayLanesFrom+6, 10)
+				before, after := c.at(framesLanesFrom+5, 10), c.at(framesLanesFrom+6, 10)
 				if tt.look.colour(before.ink) != tt.look.colour(after.ink) || tt.look.faint(before.ink) != tt.look.faint(after.ink) {
 					t.Errorf("the column before now's is drawn otherwise than now's, where the look can't dim it")
 				}
 				return
 			}
-			past, now := c.at(runwayLanesFrom+5, 10), c.at(runwayLanesFrom+6, 10)
+			past, now := c.at(framesLanesFrom+5, 10), c.at(framesLanesFrom+6, 10)
 			if !shadeOf(f.Look.colour(past.ink)).near(shadeOf(tt.past)) || !shadeOf(f.Look.colour(now.ink)).near(shadeOf(tt.now)) {
 				t.Errorf("the past is %s and now %s, want %s and %s", shadeOf(f.Look.colour(past.ink)), shadeOf(f.Look.colour(now.ink)), shadeOf(tt.past), shadeOf(tt.now))
 			}
@@ -139,21 +137,22 @@ func TestALaneMarksEachResetOfTheViewsWindowItHas(t *testing.T) {
 		col  int
 		want color.Color
 	}{{col: 3, want: theme.Mix(subtle, canvas, 0.55)}, {col: 120, want: subtle}} {
-		got := c.at(runwayLanesFrom+tt.col, 10)
+		got := c.at(framesLanesFrom+tt.col, 10)
 		if got.glyph != "│" || !shadeOf(nord.colour(got.ink)).near(shadeOf(tt.want)) {
 			t.Errorf("column %d is %q in %s, want │ in %s, dimmed before now's column", tt.col, got.glyph, shadeOf(nord.colour(got.ink)), shadeOf(tt.want))
 		}
 	}
-	if got := c.at(runwayLanesFrom+4, 10).glyph; got != "█" {
+	if got := c.at(framesLanesFrom+4, 10).glyph; got != "█" {
 		t.Errorf("column 4, which marks no reset, is %q, want █", got)
 	}
 }
 
-// Each lane is headed by its account's name, its number and marks kept, and
-// under it, its use of the view's window from the second column: live, its
-// share, bold in its level's colour and numbered; stepped back, the highest
-// the days read, so too, or —; not read, why, in full where it fits; and out
-// of the pool, the whole label faint.
+// Each lane is headed by its account's name, cut to the label column, its
+// number and marks kept, and under it, its use of the view's window from the
+// second column: live, its share, bold in its level's colour and numbered;
+// stepped back, the highest the days read, so too, or —; not read, why,
+// always short, so the column holds still as an account goes stale, at its
+// most too; and out of the pool, the whole label faint.
 func TestEachLaneIsHeadedByItsNameAndItsUseOfTheViewsWindow(t *testing.T) {
 	work := accountName{number: "1", label: "work"}
 	stale := views.Use{Key: "5h", Used: 0.95, Read: true, Stale: true, ReadAt: routedClock(1, 14, 20)}
@@ -184,9 +183,9 @@ func TestEachLaneIsHeadedByItsNameAndItsUseOfTheViewsWindow(t *testing.T) {
 			name: "stepped back, nothing read", window: views.RunwayFiveHour, lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Key: "5h", Highest: true}}},
 			head: "1 work", use: "5-hour —", useInks: []ink{dimInk, faintInk},
 		},
-		{name: "stale", window: views.RunwayFiveHour, lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: stale}}, head: "1 work", use: "not read since 14:20", useInks: []ink{dimInk}},
+		{name: "stale, short", window: views.RunwayFiveHour, lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: stale}}, head: "1 work", use: "read 14:20", useInks: []ink{dimInk}},
 		{name: "stale since a day before, short", window: views.RunwayFiveHour, lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: staleBefore}}, head: "1 work", use: "read Wed", useInks: []ink{dimInk}},
-		{name: "not read yet", window: views.RunwayFiveHour, lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Key: "5h", Unread: true}}}, head: "1 work", use: "not read yet", useInks: []ink{dimInk}},
+		{name: "not read yet, short", window: views.RunwayFiveHour, lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Key: "5h", Unread: true}}}, head: "1 work", use: "not read", useInks: []ink{dimInk}},
 		{name: "without a token", window: views.RunwayFiveHour, lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Tokenless: true}}}, head: "1 work", use: "no token", useInks: []ink{errorInk}},
 		{
 			name: "out of the pool, faint", window: views.RunwayFiveHour, lane: laidLane{
@@ -196,23 +195,29 @@ func TestEachLaneIsHeadedByItsNameAndItsUseOfTheViewsWindow(t *testing.T) {
 			head: "2 personal ◆", use: "5-hour 39%", useInks: []ink{faintInk, faintInk},
 		},
 		{
-			name: "on a phone's label column, cut", window: views.RunwayFiveHour, x: phoneRunwayLanesFrom, lane: laidLane{
+			name: "the widest use, whole", window: views.RunwayFiveHour, lane: laidLane{
 				name: accountName{number: "2", label: "personal", primary: true}, Lane: views.Lane{ID: "personal", Use: views.Use{Key: "5h", Used: 1, Read: true, Highest: true}},
 			},
-			head: "2 perso… ◆", use: "5-hour 100%", useInks: []ink{dimInk, usedFigure(1, "personal", "5h")},
+			head: "2 personal ◆", use: "5-hour 100%", useInks: []ink{dimInk, usedFigure(1, "personal", "5h")},
 		},
 		{
-			name: "on a phone's label column, short where the blank before the lane leaves too few cells", window: views.RunwayFiveHour, x: phoneRunwayLanesFrom,
+			name: "in a label column too narrow for it, cut, its number, marks and ▲'s cells kept", window: views.RunwayWeek, x: 14, lane: laidLane{
+				name: accountName{number: "2", label: "personal", primary: true}, Lane: views.Lane{ID: "personal", Use: views.Use{Key: "7d", Used: 1, Read: true}},
+			},
+			head: "2 perso… ◆", use: "week 100%", useInks: []ink{dimInk, usedFigure(1, "personal", "7d")},
+		},
+		{
+			name: "not read yet, short at the column's most too", window: views.RunwayFiveHour, x: labelMost,
 			lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Key: "5h", Unread: true}}}, head: "1 work", use: "not read", useInks: []ink{dimInk},
 		},
 		{
-			name: "on a phone's label column, stale, short", window: views.RunwayFiveHour, x: phoneRunwayLanesFrom,
+			name: "stale, short at the column's most too", window: views.RunwayFiveHour, x: labelMost,
 			lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: stale}}, head: "1 work", use: "read 14:20", useInks: []ink{dimInk},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f, x := runwayShowing(runwayLive(tt.window)), cmpOr(tt.x, runwayLanesFrom)
+			f, x := runwayShowing(runwayLive(tt.window)), cmpOr(tt.x, framesLanesFrom)
 			ln := tt.lane
 			ln.row = 10
 			c := newCanvas(160, 20)
@@ -220,7 +225,7 @@ func TestEachLaneIsHeadedByItsNameAndItsUseOfTheViewsWindow(t *testing.T) {
 			if head := textAt(c, 0, 10, x-2); head != tt.head {
 				t.Errorf("the lane's head reads %q, want %q", head, tt.head)
 			}
-			use := ln.useLine(runwayNames[tt.window], routedAt, f.Width, x-runwayUseFrom-1)
+			use := ln.useLine(runwayNames[tt.window], routedAt, x-runwayUseFrom-1)
 			var inks []ink
 			for _, s := range use {
 				inks = append(inks, s.ink)
@@ -232,15 +237,13 @@ func TestEachLaneIsHeadedByItsNameAndItsUseOfTheViewsWindow(t *testing.T) {
 	}
 }
 
-// With the account column collapsed, each lane's label is its number and
-// marks, as its name heads it, and its use of the view's window, the figure
-// the expanded label gives, in its ink, right-aligned to the label's end, so
-// every lane's figure ends in one column, the labels sized by the lanes'
-// names, as collapsedCells sizes them; or — in text.faint where the
-// expanded label words why there's none; out of the pool, all of it faint.
-// No row under it holds a use, and the lane starts nameGap after the labels,
-// at every width.
-func TestACollapsedLaneIsLabelledByItsNumberMarksAndUse(t *testing.T) {
+// With the account column collapsed, each lane is headed by its number and
+// marks, as its name heads it, and under them, its use of the view's
+// window, the figure the expanded label gives, in its ink; or — in
+// text.faint where the expanded label words why there's none; out of the
+// pool, all of it faint. The lane starts a cell after the widest of the
+// labels, ▲'s cells kept on each and a use of 100% among them, at every width.
+func TestACollapsedLaneIsHeadedByItsNumberAndMarksAndItsUseUnderThem(t *testing.T) {
 	work := accountName{number: "1", label: "work"}
 	personal := accountName{number: "2", label: "personal", primary: true}
 	side := accountName{number: "3", label: "side", best: true}
@@ -248,45 +251,43 @@ func TestACollapsedLaneIsLabelledByItsNumberMarksAndUse(t *testing.T) {
 	ten := accountName{number: "10", label: "spare", primary: true, best: true}
 	read := func(used float64) views.Use { return views.Use{Key: "7d", Used: used, Read: true} }
 	tests := []struct {
-		name   string
-		among  []accountName
-		lane   laidLane
-		width  int
-		label  string
-		figure ink
+		name      string
+		among     []accountName
+		lane      laidLane
+		width     int
+		head, use string
+		figure    ink
+		from      int
 	}{
-		{name: "no marks, green", lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: read(0.34)}}, label: "1      34%", figure: usedFigure(0.34, "work", "7d")},
-		{name: "primary, yellow", lane: laidLane{name: personal, Lane: views.Lane{ID: "personal", Use: read(0.84)}}, label: "2 ◆    84%", figure: usedFigure(0.84, "personal", "7d")},
+		{name: "no marks, green", lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: read(0.34)}}, head: "1", use: "34%", figure: usedFigure(0.34, "work", "7d"), from: 6},
+		{name: "primary, yellow", lane: laidLane{name: personal, Lane: views.Lane{ID: "personal", Use: read(0.84)}}, head: "2 ◆", use: "84%", figure: usedFigure(0.84, "personal", "7d"), from: 6},
 		{
-			name: "new sessions go here, at its limit, red", lane: laidLane{name: side, Lane: views.Lane{ID: "side", Use: read(1)}},
-			label: "3 ▲   100%", figure: usedFigure(1, "side", "7d"),
+			name: "new sessions go here, at its limit, red, the widest use", lane: laidLane{name: side, Lane: views.Lane{ID: "side", Use: read(1)}},
+			head: "3 ▲", use: "100%", figure: usedFigure(1, "side", "7d"), from: 6,
 		},
 		{
-			name: "both marks and the widest use, a cell after them", lane: laidLane{name: accountName{number: "2", label: "personal", primary: true, best: true}, Lane: views.Lane{ID: "personal", Use: read(1)}},
-			label: "2 ◆ ▲ 100%", figure: usedFigure(1, "personal", "7d"),
+			name: "both marks and the widest use", among: []accountName{work, {number: "2", label: "personal", primary: true, best: true}},
+			lane: laidLane{name: accountName{number: "2", label: "personal", primary: true, best: true}, Lane: views.Lane{ID: "personal", Use: read(1)}},
+			head: "2 ◆ ▲", use: "100%", figure: usedFigure(1, "personal", "7d"), from: 6,
 		},
 		{
 			name: "numbered from ten", among: []accountName{{number: " 3", label: "side"}, ten},
-			lane: laidLane{name: accountName{number: " 3", label: "side"}, Lane: views.Lane{ID: "side", Use: read(0.05)}}, label: " 3       5%", figure: usedFigure(0.05, "side", "7d"),
-		},
-		{
-			name: "numbered from ten, both marks", among: []accountName{{number: " 3", label: "side"}, ten},
-			lane: laidLane{name: ten, Lane: views.Lane{ID: "spare", Use: read(0.34)}}, label: "10 ◆ ▲  34%", figure: usedFigure(0.34, "spare", "7d"),
+			lane: laidLane{name: accountName{number: " 3", label: "side"}, Lane: views.Lane{ID: "side", Use: read(0.05)}}, head: " 3", use: "5%", figure: usedFigure(0.05, "side", "7d"), from: 7,
 		},
 		{
 			name: "numbered from ten, both marks and the widest use", among: []accountName{{number: " 3", label: "side"}, ten},
-			lane: laidLane{name: ten, Lane: views.Lane{ID: "spare", Use: read(1)}}, label: "10 ◆ ▲ 100%", figure: usedFigure(1, "spare", "7d"),
+			lane: laidLane{name: ten, Lane: views.Lane{ID: "spare", Use: read(1)}}, head: "10 ◆ ▲", use: "100%", figure: usedFigure(1, "spare", "7d"), from: 7,
 		},
-		{name: "on a phone, alike", width: 52, lane: laidLane{name: personal, Lane: views.Lane{ID: "personal", Use: read(0.84)}}, label: "2 ◆    84%", figure: usedFigure(0.84, "personal", "7d")},
-		{name: "nothing read", lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Key: "7d"}}}, label: "1        —", figure: faintInk},
-		{name: "stale", lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Key: "7d", Used: 0.4, Read: true, Stale: true}}}, label: "1        —", figure: faintInk},
-		{name: "not read yet", lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Key: "7d", Unread: true}}}, label: "1        —", figure: faintInk},
-		{name: "without a token", lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Tokenless: true}}}, label: "1        —", figure: faintInk},
+		{name: "on a phone, alike", width: 52, lane: laidLane{name: personal, Lane: views.Lane{ID: "personal", Use: read(0.84)}}, head: "2 ◆", use: "84%", figure: usedFigure(0.84, "personal", "7d"), from: 6},
+		{name: "nothing read", lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Key: "7d"}}}, head: "1", use: "—", figure: faintInk, from: 6},
+		{name: "stale", lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Key: "7d", Used: 0.4, Read: true, Stale: true}}}, head: "1", use: "—", figure: faintInk, from: 6},
+		{name: "not read yet", lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Key: "7d", Unread: true}}}, head: "1", use: "—", figure: faintInk, from: 6},
+		{name: "without a token", lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Tokenless: true}}}, head: "1", use: "—", figure: faintInk, from: 6},
 		{
 			name: "out of the pool, faint", lane: laidLane{
 				name: accountName{number: "2", label: "personal", primary: true, out: true, faint: true}, account: status.AccountNow{OutOfPool: true}, Lane: views.Lane{ID: "personal", Use: read(0.84)},
 			},
-			label: "2 ◆    84%", figure: faintInk,
+			head: "2 ◆", use: "84%", figure: faintInk, from: 6,
 		},
 	}
 	for _, tt := range tests {
@@ -296,7 +297,7 @@ func TestACollapsedLaneIsLabelledByItsNumberMarksAndUse(t *testing.T) {
 				among = tt.among
 			}
 			r := runwayLive(views.RunwayWeek)
-			r.Collapsed, r.labels = true, collapsedCells(among)
+			r.Collapsed, r.labels = true, runwayLabelsOf(among)
 			f := runwayShowing(r)
 			f.Width = cmpOr(tt.width, 160)
 			ln := tt.lane
@@ -304,14 +305,17 @@ func TestACollapsedLaneIsLabelledByItsNumberMarksAndUse(t *testing.T) {
 			c := newCanvas(f.Width, 20)
 			x := r.lanesFrom(f.Width)
 			f.runwayLanes(c, runwayLaid{m: status.Moment{Now: routedAt}, x: x, lanes: []laidLane{ln}})
-			if want := r.labels + nameGap; x != want {
-				t.Errorf("the lanes start at column %d, want %d", x, want)
+			if x != tt.from {
+				t.Errorf("the lanes start at column %d, want %d", x, tt.from)
 			}
-			if got := textAt(c, 0, 10, x); got != tt.label || utf8.RuneCountInString(got) != r.labels {
-				t.Errorf("the label reads %q, want %q, ending at the labels' last cell, %d", got, tt.label, r.labels-1)
+			if got := textAt(c, 0, 10, x); got != tt.head {
+				t.Errorf("the lane is headed %q, want %q", got, tt.head)
 			}
-			if label := ln.collapsedLabel(x - nameGap); label[len(label)-1].ink != tt.figure {
-				t.Errorf("the use is in %+v, want %+v", label[len(label)-1].ink, tt.figure)
+			if got := textAt(c, 0, 11, x); got != tt.use {
+				t.Errorf("under its head, the use reads %q, want %q", got, tt.use)
+			}
+			if got := ln.collapsedUse().ink; got != tt.figure {
+				t.Errorf("the use is in %+v, want %+v", got, tt.figure)
 			}
 			number := dimInk
 			if ln.account.OutOfPool {
@@ -322,46 +326,6 @@ func TestACollapsedLaneIsLabelledByItsNumberMarksAndUse(t *testing.T) {
 			}
 			if got := c.at(x, 10).glyph; got != roomCell {
 				t.Errorf("column %d, the lane's first, is %q, want █", x, got)
-			}
-			if got := textAt(c, 0, 11, x); got != "" {
-				t.Errorf("the row under the label reads %q, want nothing", got)
-			}
-		})
-	}
-}
-
-// The collapsed labels take the cells the widest a lane's can be: its
-// number, ▲, kept on an account without it, ◆ where it's the primary, a
-// space and the widest figure, 100%; 9 the least, so the lanes start at 11.
-func TestTheCollapsedLabelsAreSizedToTheWidestALanesCanBe(t *testing.T) {
-	numbered := func(n int, primary bool) []accountName {
-		digits := len(strconv.Itoa(n))
-		names := make([]accountName, n)
-		for i := range names {
-			names[i] = accountName{number: fmt.Sprintf("%*d", digits, i+1), label: "work"}
-		}
-		names[n-1].primary = primary
-		return names
-	}
-	tests := []struct {
-		name        string
-		names       []accountName
-		cells, from int
-	}{
-		{name: "no primary, the least", names: numbered(3, false), cells: 9, from: 11},
-		{name: "a primary, which ▲ may join", names: numbered(3, true), cells: 10, from: 12},
-		{name: "numbered from ten, no primary", names: numbered(12, false), cells: 9, from: 11},
-		{name: "numbered from ten, a primary", names: numbered(12, true), cells: 11, from: 13},
-		{name: "none", cells: 9, from: 11},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := collapsedCells(tt.names); got != tt.cells {
-				t.Errorf("the labels take %d cells, want %d", got, tt.cells)
-			}
-			r := RunwayShown{Collapsed: true, labels: collapsedCells(tt.names)}
-			if got := r.lanesFrom(160); got != tt.from {
-				t.Errorf("the lanes start at column %d, want %d", got, tt.from)
 			}
 		})
 	}
@@ -418,9 +382,9 @@ func TestNowsColumnIsPickedOutDownToThePoolsLane(t *testing.T) {
 			f := runwayShowing(tt.shown)
 			f.Look = tt.look
 			c := newCanvas(160, 30)
-			x := runwayLanesFrom + max(tt.col, 6)
+			x := framesLanesFrom + max(tt.col, 6)
 			c.text(x, 15, " ", ink{on: hue{token: theme.VizRamp1}})
-			f.runwayNow(c, runwayLaid{x: runwayLanesFrom, fit: tt.fit})
+			f.runwayNow(c, runwayLaid{x: framesLanesFrom, fit: tt.fit})
 			for y := range 30 {
 				want := hue{}
 				switch {
@@ -474,7 +438,7 @@ func TestRunwaysLanesAreThoseTheFitShowsOnItsRows(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var got []string
 			for _, ln := range f.laidLanes(m, tt.fit) {
-				got = append(got, fmt.Sprintf("%s %s %s faint %t row %d", ln.ID, ln.account.ID, ln.name.line(runwayLanesFrom).plain(), ln.name.faint, ln.row))
+				got = append(got, fmt.Sprintf("%s %s %s faint %t row %d", ln.ID, ln.account.ID, ln.name.line(framesLanesFrom).plain(), ln.name.faint, ln.row))
 			}
 			if !slices.Equal(got, tt.want) {
 				t.Errorf("Runway's lanes are\n%q, want\n%q", got, tt.want)

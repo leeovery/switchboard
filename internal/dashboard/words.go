@@ -83,8 +83,12 @@ func because(what, why string) string {
 	return what + ": " + why
 }
 
-// moveArrow sets a move's two accounts apart, as "work → side".
-const moveArrow = " → "
+// moveArrow sets a move's two accounts apart, as "work → side"; and
+// moveArrowTight, where that doesn't fit, as "work→side".
+const (
+	moveArrow      = " → "
+	moveArrowTight = "→"
+)
 
 // moveNames names a move's accounts, the one it left and the one it went
 // to, in the ink given, the arrow between them in text.muted, in no more
@@ -94,10 +98,10 @@ const moveArrow = " → "
 // the account moved to alone, as a phone has a move, "→si…".
 func moveNames(from, to string, cells int, k ink) line {
 	if cells < ansi.StringWidth(prose.Ellipsis+moveArrow+prose.Ellipsis) {
-		return line{{strings.TrimSpace(moveArrow), mutedInk}, {prose.Cut(to, cells-1), k}}.fit(cells)
+		return line{{strings.TrimSpace(moveArrow), mutedInk}, {labelledIn(to, cells-1), k}}.fit(cells)
 	}
-	f, t := movedCells(ansi.StringWidth(from), ansi.StringWidth(to), cells-ansi.StringWidth(moveArrow))
-	return line{{prose.Cut(from, f), k}, {moveArrow, mutedInk}, {prose.Cut(to, t), k}}
+	f, t := movedCells(labelColumnCells(from), labelColumnCells(to), cells-ansi.StringWidth(moveArrow))
+	return line{{labelledIn(from, f), k}, {moveArrow, mutedInk}, {labelledIn(to, t), k}}
 }
 
 // movedCells shares room cells between a move's two names, from cells and to

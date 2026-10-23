@@ -124,3 +124,61 @@ func TestDetailsHeadFollowsTheAccountFromLookToLook(t *testing.T) {
 		})
 	}
 }
+
+// Where a mark beside its words says the pin, an account's cap the pin
+// spends says nothing of the pin in its clauses or its short form; any
+// other state is as it was.
+func TestUnpinnedLeavesOffWhatSaysThePin(t *testing.T) {
+	tests := []struct {
+		name string
+		r    status.Routing
+		want status.Routing
+	}{
+		{
+			name: "its cap the pin spends",
+			r:    status.Routing{Kind: status.RoutingCappedPinned, Says: "at its cap", Clauses: []string{"pinned, so new sessions still come here"}, Short: []string{"at its cap", "pinned"}},
+			want: status.Routing{Kind: status.RoutingCappedPinned, Says: "at its cap", Clauses: []string{}, Short: []string{"at its cap"}},
+		},
+		{
+			name: "a model's cap the pin spends",
+			r:    status.Routing{Kind: status.RoutingModelCapped, Says: "Fable wk at its cap", Clauses: []string{"pinned, so new sessions still come here"}, Short: []string{"Fable wk at its cap", "pinned"}},
+			want: status.Routing{Kind: status.RoutingModelCapped, Says: "Fable wk at its cap", Clauses: []string{}, Short: []string{"Fable wk at its cap"}},
+		},
+		{
+			name: "open, as it was",
+			r:    status.Routing{Kind: status.RoutingNext, Says: "open", Clauses: []string{"new sessions come here"}, Short: []string{"open", "next"}},
+			want: status.Routing{Kind: status.RoutingNext, Says: "open", Clauses: []string{"new sessions come here"}, Short: []string{"open", "next"}},
+		},
+	}
+	for _, tt := range tests {
+		got := tt.r.Unpinned()
+		if got.Kind != tt.want.Kind || got.Says != tt.want.Says || !slices.Equal(got.Clauses, tt.want.Clauses) || !slices.Equal(got.Short, tt.want.Short) {
+			t.Errorf("%s: %+v, want %+v", tt.name, got, tt.want)
+		}
+	}
+}
+
+// A state says a time where its first clause says when room returns, or
+// when its pressure runs out; never where it says neither, as when a prime
+// starts an idle account's window.
+func TestTimedSaysWhetherAStateSaysATime(t *testing.T) {
+	back := time.Date(2026, 10, 1, 17, 10, 0, 0, time.UTC)
+	tests := []struct {
+		name string
+		r    status.Routing
+		want bool
+	}{
+		{name: "at its cap, back at 17:10", r: status.Routing{Kind: status.RoutingCapped, Says: "at its cap", Clauses: []string{"back 17:10"}, Back: back}, want: true},
+		{name: "at its cap, when it's back unknown", r: status.Routing{Kind: status.RoutingCapped, Says: "at its cap", Clauses: []string{"new sessions go elsewhere"}}},
+		{name: "under pressure, running out", r: status.Routing{Kind: status.RoutingPressed, Says: "under pressure", Clauses: []string{"out ~16:05"}}, want: true},
+		{name: "under pressure, not running out", r: status.Routing{Kind: status.RoutingPressed, Says: "under pressure"}},
+		{name: "its cap the pin spends", r: status.Routing{Kind: status.RoutingCappedPinned, Says: "at its cap", Clauses: []string{"pinned, so new sessions still come here"}}},
+		{name: "open", r: status.Routing{Kind: status.RoutingNext, Says: "open", Clauses: []string{"new sessions come here"}}},
+		{name: "idle, its window starting at its prime", r: status.Routing{Kind: status.RoutingIdle, Says: "idle", Clauses: []string{"window starts at its prime, 16:20"}}},
+	}
+	for _, tt := range tests {
+		if got := tt.r.Timed(); got != tt.want {
+			t.Errorf("%s: Timed() %v, want %v", tt.name, got, tt.want)
+		}
+	}
+}

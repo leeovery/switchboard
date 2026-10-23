@@ -105,11 +105,23 @@ func (s AccountsShown) Account() string {
 // picked out, Detail alone where there's one account; and at its right, the
 // period between < and >.
 func (s AccountsShown) heading() heading {
-	h := heading{name: strings.ToUpper(Accounts.Title()), subTabs: accountsViews, shown: int(s.View()), period: s.Period.Name()}
+	h := heading{
+		name: strings.ToUpper(Accounts.Title()), subTabs: accountsViews, shown: int(s.View()),
+		period: s.Period.Name(), widest: widestOf(accountsPeriodNames()),
+	}
 	if s.Alone() {
 		h.subTabs, h.shown = accountsViews[AccountsDetail:], 0
 	}
 	return h
+}
+
+// accountsPeriodNames are the names of the periods Accounts steps through.
+func accountsPeriodNames() []string {
+	var names []string
+	for _, period := range views.AccountsPeriods() {
+		names = append(names, period.Name())
+	}
+	return names
 }
 
 // accountsHeading is the frame's heading row on Accounts, as its heading has
@@ -162,13 +174,10 @@ func (f Frame) accountsForm(doc status.Document, now time.Time) accountsForm {
 }
 
 // buildAccountsForm builds the form Accounts' view shown is drawn in, of doc
-// at now: a phone's, as phoneAccounts has it; else Compare's, as compareForm
-// has it, or Detail's, as detailForm has it.
+// at now: Compare's, as compareForm has it, or Detail's, as detailForm has
+// it, each choosing its own form by its parts.
 func (f Frame) buildAccountsForm(doc status.Document, now time.Time) accountsForm {
-	switch {
-	case f.phone():
-		return f.phoneAccounts(doc, now)
-	case f.Accounts.View() == AccountsCompare:
+	if f.Accounts.View() == AccountsCompare {
 		return f.compareForm(doc, now)
 	}
 	return f.detailForm(doc, now)
@@ -195,7 +204,13 @@ func (f Frame) accountsScrolling(doc status.Document, now time.Time) func(offset
 // accountsScrolls is what of Accounts' view shown of doc at now scrolls, as
 // its form says: else the view's rows, across the frame.
 func (f Frame) accountsScrolls(doc status.Document, now time.Time) (x, y, width, rows int) {
-	if form := f.accountsForm(doc, now); form.scrolls != nil {
+	return f.accountsForm(doc, now).scrolled(f)
+}
+
+// scrolled is what of the form scrolls in the frame f, as its scrolls says:
+// else the view's rows, across the frame.
+func (form accountsForm) scrolled(f Frame) (x, y, width, rows int) {
+	if form.scrolls != nil {
 		return form.scrolls()
 	}
 	return 0, f.top(), f.Width, f.viewRows()

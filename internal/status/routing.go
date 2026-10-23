@@ -98,12 +98,13 @@ func (r Routing) String() string {
 }
 
 // What's said of an account at its cap, which holds it back, or the global
-// pin spends; of the account new sessions go to; and of an account held back
-// from some models' requests alone, while another model's can still go
-// there.
+// pin spends, in full and short; of the account new sessions go to; and of
+// an account held back from some models' requests alone, while another
+// model's can still go there.
 const (
 	goElsewhere = "new sessions go elsewhere"
 	stillPinned = "pinned, so new sessions still come here"
+	pinnedShort = "pinned"
 	comeHere    = "new sessions come here"
 	stillComes  = "other models still come here"
 )
@@ -189,15 +190,15 @@ func (s windowStates) cappedRouting() (Routing, bool) {
 		return Routing{}, false
 	}
 	shared := policy.IsShared(keys[0])
-	kind, says, then := RoutingCapped, "at its cap", onlyIf(s.doc.elsewhere(a.ID), goElsewhere)
+	kind, says, then := RoutingCapped, AtCap, onlyIf(s.doc.elsewhere(a.ID), goElsewhere)
 	if !shared {
-		kind, says, then = RoutingModelCapped, Short(a.label(keys[0]))+" at its cap", []string{stillComes}
+		kind, says, then = RoutingModelCapped, Short(a.label(keys[0]))+" "+AtCap, []string{stillComes}
 	}
 	if s.doc.Pin.Has(a.ID) {
 		if shared {
 			kind = RoutingCappedPinned
 		}
-		return Routing{Kind: kind, Says: says, Clauses: []string{stillPinned}, Short: []string{says, "pinned"}}, true
+		return Routing{Kind: kind, Says: says, Clauses: []string{stillPinned}, Short: []string{says, pinnedShort}}, true
 	}
 	back := s.back
 	if !shared {

@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
@@ -178,7 +180,7 @@ func TestTheCursorMovesThroughTheTicksInReadingOrder(t *testing.T) {
 		"■ work", "■ personal", "■ side", "■ account-0", "■ account-1", "■ account-2", "■ account-3", "■ account-4",
 		"■ account-5", "■ account-6", "■ account-7", "■ account-8", "■ account-9", "■ opus-5-5", "■ haiku-4-5",
 		"■ requests 1,240", "□ checks 31", "□ counts 4", "□ only those that failed 3",
-		"□ d28c  switchboard   side      445 today   asking",
+		"□ d28c  switchboard   side         445 today   asking",
 	}
 	if !slices.Equal(read, want[:len(read)]) {
 		t.Errorf("↓ lit\n%q\nwant\n%q", read, want)
@@ -222,19 +224,21 @@ func TestARowTooLongWrapsUnderItsLabel(t *testing.T) {
 	}
 }
 
-// Under 126 columns, where its two sides don't fit, the panel shows the
+// Where its two sides' leasts don't fit, the panel shows the
 // side the cursor's on alone, from its content's start; on a phone, today's
 // sessions from ONLY's start, where they'd lack the room further in.
-func TestUnder126ColumnsThePanelShowsOneSideAtATime(t *testing.T) {
+func TestWhereItsSidesLeastsDontFitThePanelShowsOneSideAtATime(t *testing.T) {
 	tests := []struct {
 		name       string
 		width      int
 		panel      LogPanel
 		has, lacks string
 	}{
-		{name: "both sides at 126", width: 126, panel: framesPanel(LogRequests, 0), has: "COLUMNS                                 ONLY"},
-		{name: "the left side at 125", width: 125, panel: framesPanel(LogRequests, 0), has: "COLUMNS", lacks: "ONLY"},
-		{name: "the right side at 125", width: 125, panel: framesPanel(LogRequests, 0).Sided(1), has: "ONLY", lacks: "COLUMNS"},
+		{name: "both sides of Requests at 107", width: 107, panel: framesPanel(LogRequests, 0), has: "COLUMNS                                 ONLY"},
+		{name: "both sides of Events at 125", width: 125, panel: framesPanel(LogEvents, 0), has: "EVENTS        today                                       ONLY"},
+		{name: "Events' left side at 124", width: 124, panel: framesPanel(LogEvents, 0), has: "EVENTS", lacks: "ONLY"},
+		{name: "the left side at 106", width: 106, panel: framesPanel(LogRequests, 0), has: "COLUMNS", lacks: "ONLY"},
+		{name: "the right side at 106", width: 106, panel: framesPanel(LogRequests, 0).Sided(1), has: "ONLY", lacks: "COLUMNS"},
 		{name: "Events' right side on a phone", width: 52, panel: framesPanel(LogEvents, 0).Sided(1), has: "ONLY", lacks: "EVENTS"},
 		{name: "today's sessions from ONLY's start on a phone", width: 52, panel: framesPanel(LogRequests, 0).Sided(1), has: "□ d28c  switchboard"},
 	}
@@ -438,6 +442,203 @@ func TestWhatTheFilterTicksThatTodayCountsNoneOfHasATick(t *testing.T) {
 		haiku, _ := tickOf(p, tickOn{modelTick, "claude-haiku-4-5"})
 		if got, want := haiku.toggle(p).Filter.Models, []string{"claude-haiku-4-5", old}; !slices.Equal(got, want) {
 			t.Errorf("haiku ticked too, the filter keeps the models %q, want %q", got, want)
+		}
+	}
+}
+
+// labelledPanel is the frames' panel of the table given, personal labelled
+// as given.
+func labelledPanel(of LogView, label string) LogPanel {
+	p := framesPanel(of, 0)
+	p.Accounts[1].Label = label
+	return p
+}
+
+// A session's row's account is a column of names, as labelColumn lays it out
+// with the rest of its row in ONLY: as wide as the widest name the panel
+// knows, at most 24; where ONLY's short of room, the rows start further
+// out first, then the name narrows toward 8.
+func TestASessionsRowsAccountIsALabelsColumn(t *testing.T) {
+	tests := []struct {
+		name  string
+		panel LogPanel
+		width int
+		at    int
+		want  string
+	}{
+		{name: "the frames' names, 8 cells", panel: framesPanel(LogRequests, 0), width: 78, at: 12, want: "9c2e  website       personal    267 today   idle 9m"},
+		{name: "a name of 24, whole", panel: labelledPanel(LogRequests, "a-very-long-account-name"), width: 87, at: 12,
+			want: "9c2e  website       a-very-long-account-name    267 today   idle 9m"},
+		{name: "a name past 24, cut there", panel: labelledPanel(LogRequests, "a-very-long-account-name-and-more"), width: 87, at: 12,
+			want: "9c2e  website       a-very-long-account-nam…    267 today   idle 9m"},
+		{name: "short of room, the blank cells in go first", panel: labelledPanel(LogRequests, "a-very-long-account-name"), width: 80, at: 5,
+			want: "9c2e  website       a-very-long-account-name    267 today   idle 9m"},
+		{name: "then the name narrows", panel: labelledPanel(LogRequests, "a-very-long-account-name"), width: 60, at: 0,
+			want: "9c2e  website       a-very-l…    267 today   idle 9m"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			at := tt.panel.sessionColumns(tt.width)
+			if got := strings.TrimRight(tt.panel.sessionWords(tt.panel.Sessions[5], at.account).plain(), " "); got != tt.want || at.at != tt.at {
+				t.Errorf("the row reads\n%q from %d\nwant\n%q from %d", got, at.at, tt.want, tt.at)
+			}
+		})
+	}
+}
+
+// The panel is panelNarrowest wide, 124, with the frames' names, wherever it
+// shows both sides, or as the frame has room for.
+func TestWithTheFramesNamesThePanelIsItsNarrowest(t *testing.T) {
+	for _, of := range []LogView{LogRequests, LogEvents} {
+		p := framesPanel(of, 0)
+		for width := 40; width <= 220; width++ {
+			f := frameOf(width, 60)
+			got, _, _, _ := p.laidOut(f)
+			if p.bothFit(got-2*cardInset) && got != f.cardWidth(124) {
+				t.Errorf("%d at %d columns, the panel is %d wide, want %d", of, width, got, f.cardWidth(124))
+			}
+		}
+	}
+}
+
+// A session's count stands clear of its account's name, a cell at least,
+// and whole, and what it's doing a cell at least after it, however long its
+// names and however many its lines or events, past sessionCountMost too,
+// at every width the panel draws its rows at.
+func TestASessionsCountIsWholeAndClearOfItsAccount(t *testing.T) {
+	for _, of := range []LogView{LogRequests, LogEvents} {
+		for _, labels := range [][]string{{"ab", "cd", "ef"}, {"abcdefgh", "cd", "ef"}} {
+			p := framesPanel(of, 0)
+			for i, label := range labels {
+				p.Accounts[i].Label = label
+			}
+			for _, n := range []int{999, 1277, 12345, sessionCountMost, 100_000, 1_000_000} {
+				s := p.Sessions[5]
+				s.Lines, s.Events, s.Account = n, n, p.Accounts[0].ID
+				counted, doing := p.sessionCount(n).plain(), sessionDoing(s, p.Now).text
+				for width := 40; width <= 140; width++ {
+					at := p.sessionColumns(width)
+					said := p.sessionWords(s, at.account).plain()
+					name := prose.Cut(labels[0], at.account)
+					_, rest, _ := strings.Cut(said, name)
+					if before, _, found := strings.Cut(rest, counted); !found || before == "" || strings.TrimSpace(before) != "" {
+						t.Errorf("%d, names %q, %d counted, at %d cells, the row reads %q, want %q whole a cell or more after %q", of, labels, n, width, said, counted, name)
+					}
+					if _, after, _ := strings.Cut(rest, counted); !strings.HasPrefix(after, strings.Repeat(" ", p.doingGap())) || strings.TrimSpace(after) != doing {
+						t.Errorf("%d, names %q, %d counted, at %d cells, the row reads %q, want %q %d cells or more after %q", of, labels, n, width, said, doing, p.doingGap(), counted)
+					}
+				}
+			}
+		}
+	}
+}
+
+// What a session's doing keeps as many cells from its count's words as the
+// widest count's words leave it: 3 after ` today`, 2 after ` events`.
+func TestASessionsDoingKeepsTheGapTheWidestCountLeaves(t *testing.T) {
+	for of, want := range map[LogView]int{LogRequests: 3, LogEvents: 2} {
+		if got := framesPanel(of, 0).doingGap(); got != want {
+			t.Errorf("%d: what a session's doing is %d cells from its count's words at the least, want %d", of, got, want)
+		}
+	}
+}
+
+// A click on a session's row reaches as far as its widest row does, its
+// count at sessionCountMost and what it's doing at its widest, so it holds
+// the whole row, whatever the row it's on says up to sessionCountMost; and
+// no further than ONLY.
+func TestASessionsRowIsClickedAlongItsWholeExtent(t *testing.T) {
+	for _, of := range []LogView{LogRequests, LogEvents} {
+		p := framesPanel(of, 0)
+		i := slices.IndexFunc(p.Sessions, func(s views.LogSession) bool {
+			return strings.HasPrefix(sessionDoing(s, p.Now).text, sessionStarted)
+		})
+		widest := p.Sessions[i]
+		widest.Lines, widest.Events = sessionCountMost, sessionCountMost
+		for width := 40; width <= 140; width++ {
+			if _, fits := flex.Lay(width, p.sessionParts()...); !fits {
+				continue
+			}
+			at := p.sessionColumns(width)
+			reach := tick{name: "", after: p.sessionWords(widest, at.account)}.words().width()
+			for _, s := range p.onlyPane(width).spots {
+				if s.on.group != sessionTick {
+					continue
+				}
+				if s.w < reach || s.x+s.w > width {
+					t.Errorf("%d at %d cells, session %s is clicked from %d for %d cells, want %d at least, and within ONLY", of, width, s.on.id, s.x, s.w, reach)
+				}
+			}
+		}
+	}
+}
+
+// Where every name is under 8 cells, the account's column keeps a label's
+// 8, as a session may be on an account no longer configured, and no more,
+// however much room the panel has.
+func TestASessionsAccountColumnKeepsALabelsLeast(t *testing.T) {
+	for _, of := range []LogView{LogRequests, LogEvents} {
+		p := framesPanel(of, 0)
+		for i, label := range []string{"ab", "cdef", "gh"} {
+			p.Accounts[i].Label = label
+		}
+		for _, width := range []int{60, 78, 100} {
+			if got := p.sessionColumns(width).account; got != 8 {
+				t.Errorf("%d at %d cells, the account's column is %d cells, want a label's 8", of, width, got)
+			}
+		}
+	}
+}
+
+// Where a configured name is long enough that today's sessions' account
+// reaches its natural, as wide as the name, the panel widens to its parts'
+// natural where the frame has room: the name whole, on either side.
+func TestALongNameWidensThePanelToItsParts(t *testing.T) {
+	const name = "a-very-long-account-name"
+	for _, of := range []LogView{LogRequests, LogEvents} {
+		for side := range 2 {
+			p := labelledPanel(of, name).Sided(side)
+			for _, width := range []int{160, 220} {
+				body := strings.Join(bodyText(p, frameOf(width, 40)), "\n")
+				if !strings.Contains(body, "  "+name+"  ") {
+					t.Errorf("%d, side %d, at %d columns, the body reads\n%s\nwant %q whole", of, side, width, body, name)
+				}
+			}
+		}
+	}
+}
+
+// With a long name, on either side, at every width, no row of the panel is
+// wider than its card's content wherever today's sessions' rows fit there
+// at their least, and none cuts what a session's doing.
+func TestNoPanelRowRunsPastItsCard(t *testing.T) {
+	for _, of := range []LogView{LogRequests, LogEvents} {
+		for side := range 2 {
+			p := labelledPanel(of, "a-very-long-account-name").Sided(side)
+			for width := 40; width <= 220; width++ {
+				f := frameOf(width, 60)
+				content := f.cardWidth(p.natural()) - 2*cardInset
+				body := p.body(content, p.bothFit(content)).rows()
+				_, fits := flex.Lay(content, p.sessionParts()...)
+				if !fits {
+					continue
+				}
+				said := ""
+				for y, l := range body {
+					said += l.plain() + "\n"
+					if l.width() > content {
+						t.Errorf("%d, side %d, at %d columns, row %d is %d cells, past the card's %d: %q", of, side, width, y+1, l.width(), content, l.plain())
+					}
+				}
+				if !strings.Contains(said, "d28c") {
+					continue
+				}
+				for _, doing := range []string{"asking", "started 14:41", "idle 9m"} {
+					if !strings.Contains(said, doing) {
+						t.Errorf("%d, side %d, at %d columns, the panel reads\n%s\nwant %q whole", of, side, width, said, doing)
+					}
+				}
+			}
 		}
 	}
 }

@@ -30,8 +30,22 @@ func TestPercent(t *testing.T) {
 	}
 }
 
+// A window used whole is said "100%", as wide as Percent says any use to its
+// limit.
+func TestPercentWholeIsAWindowUsedWhole(t *testing.T) {
+	if got := prose.PercentWhole(); got != prose.Percent(1) {
+		t.Errorf("PercentWhole = %q, want %q", got, prose.Percent(1))
+	}
+	for thousandths := range 1001 {
+		if said := prose.Percent(float64(thousandths) / 1000); len(said) > len(prose.PercentWhole()) {
+			t.Errorf("Percent(%v) = %q, wider than PercentWhole's %q", float64(thousandths)/1000, said, prose.PercentWhole())
+		}
+	}
+}
+
 // A figure to a tenth rounds a half to the even one, as every figure does,
 // so 0.25 is 0.2 and 0.75 is 0.8; a sliver under nothing is 0.0, never -0.0.
+// A ratio that rounds to 100 or more is written whole, 99.95 as 100×.
 func TestAFigureToATenthRoundsAHalfToTheEvenOne(t *testing.T) {
 	tests := []struct {
 		x       float64
@@ -48,6 +62,11 @@ func TestAFigureToATenthRoundsAHalfToTheEvenOne(t *testing.T) {
 		{x: 0.75, nearest: 0.8, tenths: "0.8", ratio: "0.8×"},
 		{x: 1.25, nearest: 1.2, tenths: "1.2", ratio: "1.2×"},
 		{x: -0.04, nearest: 0, tenths: "0.0", ratio: "0.0×"},
+		{x: 99.94, nearest: 99.9, tenths: "99.9", ratio: "99.9×"},
+		{x: 99.95, nearest: 100, tenths: "100.0", ratio: "100×"},
+		{x: 100, nearest: 100, tenths: "100.0", ratio: "100×"},
+		{x: 123.4, nearest: 123.4, tenths: "123.4", ratio: "123×"},
+		{x: 1234.5, nearest: 1234.5, tenths: "1234.5", ratio: "1234×"},
 	}
 	for _, tt := range tests {
 		if got := prose.NearestTenth(tt.x); got != tt.nearest {

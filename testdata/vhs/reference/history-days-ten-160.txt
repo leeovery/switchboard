@@ -4,32 +4,32 @@
 
 HISTORY    Year  Weeks  Days  Tokens  [ ]  ────────────────────────────────────────────────────────────────────────────────────────────────────────  eight weeks
 
-              10 Aug         17 Aug         24 Aug         31 Aug         7 Sep          14 Sep         21 Sep         28 Sep
-                                                                                                                       M T W T F S S
+            10 Aug         17 Aug         24 Aug         31 Aug         7 Sep          14 Sep         21 Sep         28 Sep
+                                                                                                                     M T W T F S S
 BY MODEL  every account, weighed at API prices, on one scale
 
-● Opus                                                                                                                         ······    57% of use
+● Opus                                                                                                                       ······    57% of use
 
-● Sonnet                                                                                                                       ······    39% of use
+● Sonnet                                                                                                                     ······    39% of use
 
-● Fable                                                                                                                        ······     2% of use
+● Fable                                                                                                                      ······     2% of use
 
-● Haiku                                                                                                                        ······     3% of use
+● Haiku                                                                                                                      ······     3% of use
 
 
 BY ACCOUNT  the share of its week each day used, on one scale
 
-work          ▪   ▪   ▪      ▪   ▪ ▪ ▪      ▪ ▪ ▪ ▪ ▪      ▪ ▪ ▪ ▪ ▪      ▪ ▪ ▪ ▪ ▪      ▪ ▪ ▪   ▪      ▪ ▪ ▪ ▪ ▪        ▪ ▪   ······     33 5-hour limits
+work        ▪   ▪   ▪      ▪   ▪ ▪ ▪      ▪ ▪ ▪ ▪ ▪      ▪ ▪ ▪ ▪ ▪      ▪ ▪ ▪ ▪ ▪      ▪ ▪ ▪   ▪      ▪ ▪ ▪ ▪ ▪        ▪ ▪   ······     33 5-hour limits
 
-personal ◆    ▪              ▪     ▪                         ▪     ▪          ▪          ▪   ▪   ▪      ▪     ▪            ▪   ······     12 5-hour limits
+personal ◆  ▪              ▪     ▪                         ▪     ▪          ▪          ▪   ▪   ▪      ▪     ▪            ▪   ······     12 5-hour limits
 
-side                                          ▪                               ▪                               ▪          ▪     ······      4 5-hour limits
+side                                        ▪                               ▪                               ▪          ▪     ······      4 5-hour limits
 
-client                                                             ▪                                          ▪                ······      2 5-hour limits
+client                                                           ▪                                          ▪                ······      2 5-hour limits
 
-spare                                                                                                                          ······      0 5-hour limits
+spare                                                                                                                        ······      0 5-hour limits
 
-lab           ▪              ▪     ▪          ▪                    ▪        ▪ ▪   ▪      ▪   ▪          ▪     ▪          ▪     ······     13 5-hour limits
+lab         ▪              ▪     ▪          ▪                    ▪        ▪ ▪   ▪      ▪   ▪          ▪     ▪          ▪     ······     13 5-hour limits
 
 ▼ 4 more accounts below   ·   j/k or the wheel to scroll them
 less                more  each shade a quarter of the active days    ▪  a day it hit a 5-hour limit   ·· days to come

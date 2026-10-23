@@ -183,8 +183,8 @@ var accountsSteps = map[string]int{"[": -1, "]": 1, "<": -1, ">": 1, "left": -1,
 // and its SESSIONS, as Moved has it; ↑ and ↓ choose in Detail, as Choosing
 // has it; enter opens what's focused or selected, as entered has it; and esc
 // ends Compare's focus, as Unfocused has it. A key that changes what's shown
-// shows it as showAccounts has it. Where Compare draws no focus, as on a
-// phone, its focus keys do nothing, as focusless has it.
+// shows it as showAccounts has it. Where Compare draws no focus, turned,
+// its focus keys do nothing, as focusless has it.
 func (m Model) accountsKey(key string) (Model, tea.Cmd, bool) {
 	if m.shownView() != dashboard.Accounts {
 		return m, nil, false
@@ -219,12 +219,13 @@ func (m Model) accountsKey(key string) (Model, tea.Cmd, bool) {
 }
 
 // comparing reports whether Accounts shows Compare with a focus for ← and →
-// to move, enter to open and esc to end: never on a phone, whose Compare
-// draws none, as dashboard.Phone tells one, nor with no accounts, as it draws
-// no columns.
+// to move, enter to open and esc to end: only where the frame's CompareWide
+// has it drawn wide, never turned, drawing none, nor with fewer than two
+// accounts.
 func (m Model) comparing() bool {
 	s := m.accounts.shown
-	return m.shownView() == dashboard.Accounts && s.View() == dashboard.AccountsCompare && !dashboard.Phone(m.size.Width) && len(s.Accounts) > 0
+	return m.shownView() == dashboard.Accounts && s.View() == dashboard.AccountsCompare &&
+		dashboard.Frame{Width: m.size.Width, Accounts: s}.CompareWide()
 }
 
 // focusKeys are Compare's focus keys: those that move its focus, open the

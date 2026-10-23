@@ -113,6 +113,30 @@ func TestMinutesCountEachMinuteFromTheOneOneTimeFallsInToAnothers(t *testing.T) 
 	}
 }
 
+// Minutes within four characters count as Minutes does to 999, then whole
+// hours to 99, then whole days, never rounding up.
+func TestMinutesWithinHoldToFourCharacters(t *testing.T) {
+	from := time.Date(2026, 10, 7, 14, 2, 30, 0, time.UTC)
+	tests := []struct {
+		minutes int
+		want    string
+	}{
+		{minutes: 1, want: "1m"},
+		{minutes: 999, want: "999m"},
+		{minutes: 1000, want: "16h"},
+		{minutes: 1019, want: "16h"},
+		{minutes: 5999, want: "99h"},
+		{minutes: 6000, want: "4d"},
+		{minutes: 99_999, want: "69d"},
+	}
+	for _, tt := range tests {
+		to := from.Add(time.Duration(tt.minutes-1) * time.Minute)
+		if got := prose.MinutesWithin(from, to); got != tt.want {
+			t.Errorf("MinutesWithin over %d minutes = %q, want %q", tt.minutes, got, tt.want)
+		}
+	}
+}
+
 func TestHoursAreWholeWhatsLeftOverCut(t *testing.T) {
 	tests := []struct {
 		d    time.Duration

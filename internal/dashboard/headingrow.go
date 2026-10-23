@@ -1,9 +1,13 @@
 package dashboard
 
 import (
+	"cmp"
 	"slices"
 	"strings"
 
+	"github.com/charmbracelet/x/ansi"
+
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/theme"
 )
@@ -24,17 +28,28 @@ var shownSubTabInk = ink{token: theme.TextPrimary, on: hue{token: theme.BgSubtle
 // heading is a tab's heading row, as the tab gives it: its name; its
 // sub-tabs, where it has them, and which of them is shown; the state
 // the screen can't otherwise show, in text.faint, a key within it in bold
-// accent.key, where there's any, and its shorter forms, each a clause fewer,
-// for less room; and at its right, its period or window, which < and > step,
-// or another line, as the Log's count and its f.
+// accent.key, where there's any, and its shorter forms, each shorter, for
+// less room; the widest its least form takes as the keys that change what it
+// names step it, whether it shows yet or not; whether it's free text, its
+// length unbounded, as the Log's filter, cut to the room it's left; and at
+// its right, its period or window, which < and > step, or another line, as
+// the Log's count and its f, and that line where the heading is compact,
+// where it has one of its own; the widest form its period takes as < and >
+// step it, the period itself where it's not given; and whether it says its
+// page is loading.
 type heading struct {
-	name    string
-	subTabs []string
-	shown   int
-	state   line
-	shorter []line
-	period  string
-	right   line
+	name         string
+	subTabs      []string
+	shown        int
+	state        line
+	shorter      []line
+	least        string
+	free         bool
+	reading      bool
+	period       string
+	widest       string
+	right        line
+	compactRight line
 }
 
 // piece is a part of the heading row as it's laid out: a line, from x along
@@ -67,21 +82,51 @@ func (f Frame) heading() heading {
 	return h
 }
 
-// loading is h saying its page is loading: loading…, in text.subtle,
-// leading what it says of its state, three cells before it, in each of its
-// forms, and alone, for the least room.
+// loading is h saying its page is loading, as stateForms words it.
 func (h heading) loading() heading {
-	said := line{{loadingWord, dimInk}}
-	if h.state == nil {
-		h.state = said
-		return h
-	}
-	shorter := make([]line, 0, len(h.shorter)+1)
-	for _, s := range h.shorter {
-		shorter = append(shorter, slices.Concat(said, line{spaces(headingGap)}, s))
-	}
-	h.state, h.shorter = slices.Concat(said, line{spaces(headingGap)}, h.state), append(shorter, said)
+	h.reading = true
 	return h
+}
+
+// quietForms are the forms the heading's state is said in while its page
+// isn't loading, the fullest first: the state, then its shorter forms.
+func (h heading) quietForms() []line {
+	if h.state == nil {
+		return nil
+	}
+	return slices.Concat([]line{h.state}, h.shorter)
+}
+
+// stateForms are the forms the heading's state is said in, the fullest
+// first, as firstFit tries them: its quiet forms; and while its page is
+// loading, loading…, in text.subtle, leading each, three cells before it,
+// then alone, for the least room.
+func (h heading) stateForms() []line {
+	forms := h.quietForms()
+	if !h.reading {
+		return forms
+	}
+	said := line{{loadingWord, dimInk}}
+	loading := make([]line, 0, len(forms)+1)
+	for _, form := range forms {
+		loading = append(loading, slices.Concat(said, line{spaces(headingGap)}, form))
+	}
+	return append(loading, said)
+}
+
+// leastState is the fewest cells the state must have whole beside a compact
+// heading's name, so neither loading nor a step moves the heading between
+// one row and two: loading… whole, whether it shows or not, as a read can
+// start at any moment; or the widest the state's least form takes as it
+// steps, or the least form shown, where that's wider. A free state's length
+// is its data's, so it holds none of it whole, or the heading's rows would
+// hang on it.
+func (h heading) leastState() int {
+	least := max(ansi.StringWidth(loadingWord), ansi.StringWidth(h.least))
+	if forms := h.quietForms(); forms != nil && !h.free {
+		least = max(least, forms[len(forms)-1].width())
+	}
+	return least
 }
 
 // tabHeading is the heading row of the tab shown: Accounts', as
@@ -98,7 +143,7 @@ func (f Frame) tabHeading() heading {
 	case Runway:
 		return f.Runway.heading()
 	case Log:
-		return f.Log.heading(f.phone(), f.Width, func(id string) string { return named(f.heldMoment(), id) })
+		return f.Log.heading(f.Width, func(id string) string { return named(f.heldMoment(), id) })
 	}
 	return heading{name: strings.ToUpper(f.Shown().Title())}
 }
@@ -121,10 +166,11 @@ func (f Frame) headingPieces() []piece {
 	return f.heading().pieces(f.headingY(), f.Width, f.phone())
 }
 
-// rows is how many rows the heading takes, on a phone where phone says: two
-// where its period takes the row under it, as ownPeriod has it; else one.
-func (h heading) rows(phone bool) int {
-	if h.ownPeriod(phone) {
+// rows is how many rows the heading takes in a frame width cells wide, on a
+// phone where phone says: two where its state or what's at its right takes
+// the row under it, as under has it; else one.
+func (h heading) rows(width int, phone bool) int {
+	if state, right := h.under(width, phone); state || right {
 		return 2
 	}
 	return 1
@@ -136,38 +182,88 @@ func (h heading) compact(phone bool) bool {
 	return phone && len(h.subTabs) > 0
 }
 
-// ownPeriod reports whether the heading's period takes the row under it, as
-// a phone has it where the heading is compact. A tab without sub-tabs, as
-// Runway, keeps its rule and its window on its row.
-func (h heading) ownPeriod(phone bool) bool {
-	return h.compact(phone) && h.period != ""
+// The heading's parts as a compact heading lays them out, deciding what
+// takes the row under: the name and the sub-tabs, whole; three cells on, the
+// state at its least, which is never cut, so gives way to the row under
+// where even it doesn't fit beside them; and two cells on, what's at the
+// right at its widest, the period between its keys or the line, which gives
+// way to the row under first.
+const (
+	periodNamed = iota
+	periodState
+	periodBeside
+)
+
+// under reports what of a compact heading takes the row under its name and
+// sub-tabs in a frame width cells wide, as its parts above lay out there:
+// its state; and what's at its right, which goes where the state does. So
+// neither loading, nor a step of the period or of what the state names,
+// moves the heading between one row and two. A tab without sub-tabs, as
+// Runway, keeps its rule and what's at its right on its row.
+func (h heading) under(width int, phone bool) (state, right bool) {
+	if !h.compact(phone) {
+		return false, false
+	}
+	var laid laying
+	named, least := h.named(&laid, 0, phone), h.leastState()
+	parts := []flex.Part{
+		periodNamed: {Least: named, Natural: named},
+		periodState: {Least: least, Natural: least, Gap: headingGap, Leaves: 2},
+	}
+	beside := ends(h.widestRight())
+	if beside > 0 {
+		parts = append(parts, flex.Part{Least: beside, Natural: beside, Leaves: 1, Gap: ruleGap})
+	}
+	spans, fits := flex.Lay(width, parts...)
+	state = !fits || spans[periodState].Left
+	return state, beside > 0 && (state || spans[periodBeside].Left)
+}
+
+// widestRight are what sits at a compact heading's right at its widest: its
+// period at the widest it takes as < and > step it; else its line.
+func (h heading) widestRight() []piece {
+	if h.period != "" {
+		return periodPieces(cmp.Or(h.widest, h.period))
+	}
+	return h.rightPieces(true)
 }
 
 // pieces are the heading's parts, laid out along row y of a frame width
 // cells wide, on a phone where phone says: its name and sub-tabs, as named
 // lays them out; then three cells on, the state, or the first of its shorter
 // forms that fits where the rest leaves it short of room, cut where none
-// does. Ending at the last column, its period between < and >, or
-// its line, on the row under it where ownPeriod says, and left out where it
-// doesn't fit beside the name and the sub-tabs. Between them, the rule, from
-// two cells after them, or one after the state, to two cells short of what
-// sits at the right, or to the last column where nothing does. A compact
-// heading has no rule.
+// does. Ending at the last column, its period between < and >, or its line,
+// left out where it doesn't fit beside the name and the sub-tabs. Between
+// them, the rule, from two cells after them, or one after the state, to two
+// cells short of what sits at the right, or to the last column where nothing
+// does. A compact heading has no rule; and where under says, its state
+// starts the row under, and what's at its right ends it, left out where it
+// doesn't fit after the state's least.
 func (h heading) pieces(y, width int, phone bool) []piece {
 	var laid laying
 	x := h.named(&laid, y, phone)
-	right, rightY, end := h.rightPieces(), y, width
+	stateUnder, rightUnder := h.under(width, phone)
+	right, rightY := h.rightPieces(h.compact(phone)), y
 	switch {
-	case h.ownPeriod(phone):
+	case rightUnder:
 		rightY++
 	case width-ends(right) < x+ruleGap:
 		right = nil
-	case right != nil:
+	}
+	stateX, stateY := x+headingGap, y
+	if stateUnder {
+		stateX, stateY = 0, y+1
+	}
+	end := width
+	if right != nil && rightY == stateY {
 		end = width - ends(right) - ruleGap
 	}
+	if stateUnder && end-stateX < h.leastState() {
+		right, end = nil, width
+	}
 	ruled := x + ruleGap
-	if h.state != nil {
-		ruled = laid.put(x+headingGap, y, firstFit(end-x-headingGap, slices.Concat([]line{h.state}, h.shorter)...), Target{}) + 1
+	if forms := h.stateForms(); forms != nil {
+		ruled = laid.put(stateX, stateY, firstFit(end-stateX, forms...), Target{}) + 1
 	}
 	if !h.compact(phone) {
 		laid.put(ruled, y, line{{rule(end - ruled), borderInk}}, Target{})
@@ -226,19 +322,40 @@ func (h heading) subTab(i int) line {
 
 // rightPieces are what sits at the heading's right, in order, where they
 // are yet to be placed: its period, with < before it and > after, each a
-// step back and on; else its line; else nothing.
-func (h heading) rightPieces() []piece {
+// step back and on; else, where compact says, its compact line, where it has
+// one; else its line; else nothing.
+func (h heading) rightPieces(compact bool) []piece {
 	switch {
 	case h.period != "":
-		return []piece{
-			{line: line{{"<", keyInk}}, click: Target{On: OnStep, Step: -1}},
-			{line: line{{" " + h.period + " ", mutedInk}}},
-			{line: line{{">", keyInk}}, click: Target{On: OnStep, Step: 1}},
-		}
+		return periodPieces(h.period)
+	case compact && h.compactRight != nil:
+		return []piece{{line: h.compactRight}}
 	case h.right != nil:
 		return []piece{{line: h.right}}
 	default:
 		return nil
+	}
+}
+
+// widestOf is the form that takes the most cells, the first of those that
+// tie; "" where there are none.
+func widestOf(forms []string) string {
+	widest := ""
+	for _, form := range forms {
+		if ansi.StringWidth(form) > ansi.StringWidth(widest) {
+			widest = form
+		}
+	}
+	return widest
+}
+
+// periodPieces are the period given between < and >, each a step back and
+// on.
+func periodPieces(period string) []piece {
+	return []piece{
+		{line: line{{"<", keyInk}}, click: Target{On: OnStep, Step: -1}},
+		{line: line{{" " + period + " ", mutedInk}}},
+		{line: line{{">", keyInk}}, click: Target{On: OnStep, Step: 1}},
 	}
 }
 

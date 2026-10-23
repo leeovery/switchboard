@@ -334,7 +334,7 @@ func (d detailing) sessionWords() DetailWords {
 		return nil
 	}
 	w := valued(id)
-	if dir := status.DirName(d.row.Dir, SessionDirCells); dir != "" {
+	if dir := SessionDirName(d.row.Dir); dir != "" {
 		w = append(w, DetailPart{Text: " " + dir})
 	}
 	return w
@@ -421,7 +421,7 @@ func detailWords(w status.Words) DetailWords {
 	for i, p := range w {
 		said[i] = DetailPart{Text: p.Text}
 		switch p.Kind {
-		case status.PartPlain:
+		case status.PartPlain, status.PartTime:
 		case status.PartAccount:
 			said[i].Kind = DetailAccount
 		default:

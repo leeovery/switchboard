@@ -9,6 +9,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
@@ -36,17 +37,165 @@ const (
 	sessionOutcomeRows = 2
 )
 
-// The columns the routing card's rows lay their parts in, from its
-// content's start: the mark; the name, its number before it; the state, or
-// auto's description; the first window, the week, then the second, the
-// 5-hour, a phone's under the name from the state's column; and at the
-// content's end, the reason or the sessions running.
+// The parts of a row of the routing card, from its content's start: the
+// mark and the number, from choiceName, choiceKey cells with the space
+// after it, before the name; the name, a column of names, as labelColumn
+// lays it; nameGap on, the state, or auto's description, as wide as
+// stateCells has it; stateGap on, the windows, the second choiceUsesApart
+// from the first, as widestUses has them; and endGap on, at the content's
+// end, the reason or the sessions running, as endLeast has it.
 const (
-	choiceName    = 2
-	choiceState   = 16
-	choiceWindows = 26
-	choiceSecond  = 37
+	choiceName      = 2
+	choiceKey       = 2
+	choiceNameAt    = choiceName + choiceKey
+	stateGap        = 4
+	choiceUsesApart = 11
+	endGap          = 2
 )
+
+// sessionRowApart are the cells between a session's row's id, its directory's
+// name and its directory.
+const sessionRowApart = 2
+
+// stateCells are the cells of a row's state: the widest word stateWords
+// says.
+func stateCells() int {
+	return max(RoutingRow{Open: true}.stateWords().width(), RoutingRow{}.stateWords().width())
+}
+
+// widestHeld is the widest reason the router gives with a time, as closedBy
+// says it: a limit's, back another day, as "at its limit till Sun 15:54".
+func widestHeld() string {
+	var now time.Time
+	another := now.AddDate(0, 0, 1)
+	return slices.MaxFunc([]string{till(status.AtLimit, another, now), till(status.AtCap, another, now)}, func(a, b string) int {
+		return ansi.StringWidth(a) - ansi.StringWidth(b)
+	})
+}
+
+// tokenRefused is the reason an account whose token the upstream refused
+// gives, as "token refused (401)": the token's, never a family's, as the
+// router bars a token on a 401 alone.
+func tokenRefused(r status.Refusal) string {
+	return "token " + r.Answer()
+}
+
+// endLeast is the cells of a row's end at its least: the widest reason the
+// router gives with a time, as widestHeld has it, which a token refused
+// fits within.
+func endLeast() int {
+	return ansi.StringWidth(widestHeld())
+}
+
+// widestUses are the cells of the rows' windows' use, as windowsWords says
+// it, each window as it's named at its widest, 100%.
+func (r RoutingCard) widestUses() int {
+	widest := 0
+	for _, row := range r.Rows {
+		for i := range row.Windows {
+			row.Windows[i].Figure = Figure{Used: 1, Read: true}
+		}
+		widest = max(widest, row.windowsWords().width())
+	}
+	return widest
+}
+
+// oneLineNameKept is the name's least on one line, where its natural is as
+// many or more: so one line keeps a name of up to 11 cells whole.
+const oneLineNameKept = 11
+
+// narrowGap is the cells a stacked row's gaps narrow to, once, where they
+// don't fit with their own, before its name narrows.
+const narrowGap = 1
+
+// choiceColumns are where a row's parts lie in the card's content, as
+// columns lays them: the name's cells, and where the state and the windows
+// start; the cells between the end and what's before it; and whether the
+// rows are stacked, an account's windows on a row of their own under it.
+type choiceColumns struct {
+	name, state, windows, endGap int
+	stacked                      bool
+}
+
+// rowParts are a row's parts on one line, as flex lays them: the mark and
+// number; the name, a column of names as labelColumn lays it, the one part
+// that narrows, on one line to no fewer than oneLineNameKept of its
+// natural; the state; the windows; and the end.
+func (r RoutingCard) rowParts() []flex.Part {
+	use := r.widestUses()
+	name := labelColumn(r.widestName())
+	name.Least = max(name.Least, min(name.Natural, oneLineNameKept))
+	return []flex.Part{
+		{Least: choiceNameAt, Natural: choiceNameAt},
+		name,
+		{Least: stateCells(), Natural: stateCells(), Gap: nameGap},
+		{Least: use, Natural: use, Gap: stateGap},
+		{Least: endLeast(), Natural: endLeast(), Gap: endGap},
+	}
+}
+
+// widestName is the name column's natural: the widest of its rows' names,
+// auto's among them, as widestNamed has it, so the column holds auto's
+// whole however short the accounts' are.
+func (r RoutingCard) widestName() int {
+	names := make([]string, len(r.Rows))
+	for i, row := range r.Rows {
+		names[i] = row.Name
+	}
+	return widestNamed(names)
+}
+
+// natural is the card's natural width, its edges included: its rows' parts
+// on one line, each at its natural, cardInset in from either edge.
+func (r RoutingCard) natural() int {
+	s, _ := flex.Lay(math.MaxInt, r.rowParts()...)
+	last := s[len(s)-1]
+	return last.At + last.Size + 2*cardInset
+}
+
+// columns are where the rows' parts lie in width cells: on one line, where
+// they fit, the name narrowing first; else stacked, as stackedNames lays
+// the name's row, the windows on a row of their own from the state's
+// column, or as near it as they still fit whole, so a window's use is never
+// cut. The parts are the card's, never what a row says, so every row is
+// laid out alike.
+func (r RoutingCard) columns(width int) choiceColumns {
+	parts := r.rowParts()
+	if s, oneLine := flex.Lay(width, parts...); oneLine {
+		return choiceColumns{name: s[1].Size, state: s[2].At, windows: s[3].At, endGap: endGap}
+	}
+	s, gap := r.stackedNames(width, parts[0])
+	uses := parts[3]
+	uses.Gap = 0
+	w, _ := flex.Lay(width, flex.Part{Natural: s[2].At}, uses)
+	return choiceColumns{name: s[1].Size, state: s[2].At, windows: w[1].At, endGap: gap, stacked: true}
+}
+
+// stackedNames are where a stacked row's mark and number, name and what
+// follows it lie in width cells, and the gap before its end, whitespace
+// giving way before words: the name whole with gaps of nameGap and endGap;
+// where that doesn't fit, the gaps at narrowGap, once, and the name whole
+// where that fits, then narrowing toward its least, as labelColumn has it;
+// then what follows it is cut, auto's description first, then the end.
+func (r RoutingCard) stackedNames(width int, key flex.Part) ([]flex.Span, int) {
+	name := labelColumn(r.widestName())
+	whole := name
+	whole.Least = min(whole.Natural, whole.Most)
+	if s, fits := flex.Lay(width, key, whole, r.afterName(nameGap, endGap)); fits {
+		return s, endGap
+	}
+	s, _ := flex.Lay(width, key, name, r.afterName(narrowGap, narrowGap))
+	return s, narrowGap
+}
+
+// afterName is what follows a stacked row's name, gap cells on, as flex
+// lays it: the state, then the end at its least, end cells after it; or
+// auto's description at its natural, as autoNatural has it, where that's
+// wider.
+func (r RoutingCard) afterName(gap, end int) flex.Part {
+	cells := max(stateCells()+end+endLeast(), r.autoNatural())
+	return flex.Part{Least: cells, Natural: cells, Gap: gap}
+}
 
 // RoutingCard is the routing card's data, which the watch builds afresh at
 // each read while the card is open, so its figures follow them: what it
@@ -193,11 +342,11 @@ func closedBy(a status.AccountNow, now time.Time) (reason string, capped bool) {
 	case !a.TokenSet:
 		return "no token", false
 	case limited(a):
-		return till("at its limit", a.Back, now), false
+		return till(status.AtLimit, a.Back, now), false
 	case a.TokenRefused:
-		return "token " + a.Refusal.Answer(), false
+		return tokenRefused(a.Refusal), false
 	case a.CapHolds:
-		return till("at its cap", a.Back, now), true
+		return till(status.AtCap, a.Back, now), true
 	}
 	return "", false
 }
@@ -245,11 +394,12 @@ func windowWhere(a status.AccountNow, is func(status.WindowNow) bool) (status.Wi
 // all its rows, up to the frame's height less routingSpare, past which its
 // rows scroll, the one the cursor is on kept in view.
 func (r RoutingCard) card(f Frame) Card {
-	width := f.cardWidth(routingWidth)
+	width := f.cardWidth(r.natural())
 	content := width - 2*cardInset
-	above := slices.Concat(r.opening(content), []line{nil}, r.sessionRows(f.phone(), content))
+	at := r.columns(content)
+	above := slices.Concat(r.opening(content), []line{nil}, r.sessionRows(at, content))
 	below := slices.Concat(r.moveRows(), r.outcome(content))
-	rows, lit, scroll := r.inView(f.phone(), content, f.bodyRoom(routingSpare, true)-len(above)-len(below))
+	rows, lit, scroll := r.inView(at, content, f.bodyRoom(routingSpare, true)-len(above)-len(below))
 	lit.first += len(above)
 	return Card{title: r.title(), width: width, body: slices.Concat(above, rows, below), keys: r.keys(content), scroll: scroll, lit: lit}
 }
@@ -289,42 +439,43 @@ func (r RoutingCard) opening(width int) []line {
 }
 
 // sessionRows are the session's row and a blank row after it, on a
-// session's card alone, as sessionRow lays it out.
-func (r RoutingCard) sessionRows(phone bool, width int) []line {
+// session's card alone, as sessionRow lays it out, its path, as the rows
+// are laid out, on one line alone.
+func (r RoutingCard) sessionRows(at choiceColumns, width int) []line {
 	if r.Mode != ThisSession {
 		return nil
 	}
-	return []line{r.sessionRow(phone, width), nil}
+	return []line{r.sessionRow(width, !at.stacked), nil}
 }
 
 // sessionRow is the session's row, width cells wide: its id, as the
-// dashboard shows ids, bold; its directory's name, muted; the directory, as
-// pathIn has it; and at its end, runs on and the account it runs on, bold,
-// where that's known. Where it runs is said here alone, never marked on its
-// row below.
-func (r RoutingCard) sessionRow(phone bool, width int) line {
+// dashboard shows ids, bold; its directory's name, muted; where pathed, the
+// directory, as pathIn has it; and at its end, runs on and the account it
+// runs on, bold, where that's known. Where it runs is said here alone,
+// never marked on its row below.
+func (r RoutingCard) sessionRow(width int, pathed bool) line {
 	s := r.Session
 	var on line
 	if s.On != "" {
-		on = line{{"runs on ", mutedInk}, {r.names([]string{s.On})[0], titleInk}}
+		on = line{{"runs on ", mutedInk}, {asLabelled(r.names([]string{s.On})[0]), titleInk}}
 	}
-	room := width - on.width() - 2
+	room := width - on.width() - endGap
 	row := line{{status.ShownID(s.ID), titleInk}}
-	if name := status.DirName(s.Dir, max(room-row.width()-2, 1)); name != "" {
-		row = slices.Concat(row, line{spaces(2), {name, mutedInk}})
+	if name := status.DirName(s.Dir, max(room-row.width()-sessionRowApart, 1)); name != "" {
+		row = slices.Concat(row, line{spaces(sessionRowApart), {name, mutedInk}})
 	}
-	if path := pathIn(s.Dir, s.Home, phone, room-row.width()-2); path != "" {
-		row = slices.Concat(row, line{spaces(2), {path, secondaryInk}})
+	if path := pathIn(s.Dir, s.Home, room-row.width()-sessionRowApart); pathed && path != "" {
+		row = slices.Concat(row, line{spaces(sessionRowApart), {path, secondaryInk}})
 	}
-	return atEnd(row, on, width)
+	return atEnd(row, on, width, endGap)
 }
 
 // pathIn is the directory dir in room cells, the home directory given as ~,
-// cut from its start, its name kept, as a session's page heads it: none on
-// a phone, as a phone's page heads it with none, nor where cutting it would
-// leave no more than its name, which the row says already.
-func pathIn(dir, home string, phone bool, room int) string {
-	if phone || room < ansi.StringWidth(status.DirName(dir, math.MaxInt))+2 {
+// cut from its start, its name kept, as a session's page heads it: none
+// where cutting it would leave no more than its name, which the row says
+// already.
+func pathIn(dir, home string, room int) string {
+	if room < ansi.StringWidth(status.DirName(dir, math.MaxInt))+2 {
 		return ""
 	}
 	return status.DirPath(dir, home, room)
@@ -344,13 +495,13 @@ var cardOut = outForm{inks: subtleOut}
 // out, the lines of them the cursor's row takes, and how far they're
 // scrolled: all of them where they fit; else those around the cursor, with
 // "▲ 2 more" over them while some are above, and "▼ 3 more" under them while
-// some are below, in all room's lines, so a phone's rows of two lines never
+// some are below, in all room's lines, so stacked rows of two lines never
 // move the card as the cursor does.
-func (r RoutingCard) inView(phone bool, width, room int) ([]line, bodyRows, cardScroll) {
+func (r RoutingCard) inView(at choiceColumns, width, room int) ([]line, bodyRows, cardScroll) {
 	choices := make([][]line, len(r.Rows))
 	heights := make([]int, len(r.Rows))
 	for i, row := range r.Rows {
-		choices[i] = r.choice(row, phone, width)
+		choices[i] = r.choice(row, at, width)
 		heights[i] = len(choices[i])
 	}
 	cursor := min(max(r.Cursor, 0), len(heights)-1)
@@ -409,36 +560,41 @@ func fitting(heights []int, room int) int {
 	return len(heights)
 }
 
-// choice is the row as the card lays it out, width cells wide: its mark,
-// its number and name, then auto's description, or an account's state, its
-// windows' use and at the end its reason or sessions running. On a phone, an
-// account's windows take a row of their own under it, from the state's
-// column.
-func (r RoutingCard) choice(row RoutingRow, phone bool, width int) []line {
-	head := line{r.mark(row), spaces(choiceName - 1), {padded(row.Key, 2), dimInk}, {prose.Cut(row.Name, choiceState-choiceName-3), titleInk}}
+// choice is the row as the card lays it out, width cells wide, its parts in
+// the columns given: its mark, its number and name, then auto's
+// description, or an account's state, its windows' use and at the end its
+// reason or sessions running. Stacked, an account's windows take a row of
+// their own under it.
+func (r RoutingCard) choice(row RoutingRow, at choiceColumns, width int) []line {
+	head := line{r.mark(row), spaces(choiceName - 1), {padded(row.Key, choiceKey), dimInk}, {labelledIn(row.Name, at.name), titleInk}}
 	if row.Account == "" {
-		return []line{padTo(head, choiceState, r.autoChooses(width-choiceState))}
+		return []line{padTo(head, at.state, r.autoChooses(width-at.state))}
 	}
-	state := line{{"open", positiveInk}}
-	if !row.Open {
-		state = line{{"closed", reasonInk(row)}}
-	}
-	named := padTo(head, choiceState, state)
+	named := padTo(head, at.state, row.stateWords())
 	windows := row.windowsWords()
-	if phone {
-		return []line{atEnd(named, row.sideWords(), width), padTo(nil, choiceState, windows).fit(width)}
+	if at.stacked {
+		return []line{atEnd(named, row.sideWords(), width, at.endGap), padTo(nil, at.windows, windows).fit(width)}
 	}
-	return []line{atEnd(padTo(named, choiceWindows, windows), row.sideWords(), width)}
+	return []line{atEnd(padTo(named, at.windows, windows), row.sideWords(), width, at.endGap)}
+}
+
+// stateWords are an account's row's state: open, or closed in its reason's
+// ink.
+func (row RoutingRow) stateWords() line {
+	if row.Open {
+		return line{{"open", positiveInk}}
+	}
+	return line{{"closed", reasonInk(row)}}
 }
 
 // windowsWords are the row's windows' use as the card says it, as
-// figureWords has each, the second choiceSecond-choiceWindows cells from the
-// first: none of a row with no window in its place.
+// figureWords has each, the second choiceUsesApart cells from the first: none
+// of a row with no window in its place.
 func (row RoutingRow) windowsWords() line {
 	var words line
 	for i, w := range row.Windows {
 		if w.Name != "" {
-			words = padTo(words, i*(choiceSecond-choiceWindows), figureWords(w.Name, w.Figure))
+			words = padTo(words, i*choiceUsesApart, figureWords(w.Name, w.Figure))
 		}
 	}
 	return words
@@ -449,12 +605,32 @@ func (row RoutingRow) windowsWords() line {
 // choose for the session, for now, those last words the first to go where
 // they don't fit.
 func (r RoutingCard) autoChooses(room int) line {
+	return firstFit(room, r.autoForms(r.Session.Auto)...)
+}
+
+// autoForms are what auto's row can say of it, choosing the account with
+// the id given, the fullest first: on a session's card, the account, named
+// as asLabelled cuts it, for now, then the account alone; else, or where
+// it's none, the router chooses.
+func (r RoutingCard) autoForms(id string) []line {
 	chooses := line{{"the router chooses", mutedInk}}
-	if r.Mode != ThisSession || r.Session.Auto == "" {
-		return chooses.fit(room)
+	if r.Mode != ThisSession || id == "" {
+		return []line{chooses}
 	}
-	named := slices.Concat(chooses, line{{": ", mutedInk}, {r.names([]string{r.Session.Auto})[0], titleInk}})
-	return firstFit(room, slices.Concat(named, line{{" for now", mutedInk}}), named)
+	named := slices.Concat(chooses, line{{": ", mutedInk}, {asLabelled(r.names([]string{id})[0]), titleInk}})
+	return []line{slices.Concat(named, line{{" for now", mutedInk}}), named}
+}
+
+// autoNatural is the cells of auto's description at its fullest, whichever
+// account the router chooses: of the card's accounts, the widest it says.
+func (r RoutingCard) autoNatural() int {
+	widest := r.autoForms("")[0].width()
+	for _, row := range r.Rows {
+		if row.Account != "" {
+			widest = max(widest, r.autoForms(row.Account)[0].width())
+		}
+	}
+	return widest
 }
 
 // mark is the row's mark: picked, or not, where it can be, as the card's mode
@@ -524,11 +700,17 @@ func padTo(l line, column int, after line) line {
 }
 
 // atEnd is l, cut to width cells, with end at its end, cut short where it
-// must be to keep two cells clear of l.
-func atEnd(l, end line, width int) line {
+// must be to keep gap cells clear of l: then gap cells after l, as a cut
+// can let go of the spaces before its ellipsis and end short of the edge;
+// never wider than width, where l leaves end no room.
+func atEnd(l, end line, width, gap int) line {
 	l = l.fit(width)
-	end = end.fit(width - l.width() - 2)
-	return padTo(l, width-end.width(), end)
+	at := min(l.width()+gap, width)
+	cut := end.fit(width - at)
+	if cut.width() == end.width() {
+		at = width - cut.width()
+	}
+	return padTo(l, at, cut)
 }
 
 // moveRows are the rows between the card's choices and its outcome: m's, a

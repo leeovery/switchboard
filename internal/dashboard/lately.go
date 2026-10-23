@@ -73,13 +73,13 @@ func (f Frame) latelySection(doc status.Document, now time.Time) section {
 	m := f.Moment(doc, now)
 	told := latelyTelling(m)
 	return section{
-		Section: SectionLately, least: linesRows(0),
+		Section: SectionLately, least: linesRows(0), readIn: latelyLeast(labelsLeast(widestLabel(m))),
 		lines: func() int { return len(told(mostLines)) },
 		draw: func(c *canvas, body bounds) {
 			f.drawLately(c, m, told(body.rows), body)
 		},
-		folded: func() line {
-			first := f.latelyLines(m, told(1))
+		folded: func(cells int) line {
+			first := latelyTold(m, told(1), cells)
 			if len(first) == 0 {
 				return f.quiet(m)
 			}
@@ -119,8 +119,8 @@ func (f Frame) drawLately(c *canvas, m status.Moment, sentences []views.Sentence
 		f.quietly(c, m, body.x, body.y, end)
 		return
 	}
-	for i, l := range f.latelyLines(m, sentences) {
-		c.line(body.x, body.y+i, l.fit(body.width))
+	for i, l := range latelyTold(m, sentences, body.width) {
+		c.line(body.x, body.y+i, l)
 		f.freshen(c, sentences[i].ID, body.x, body.y+i, end)
 	}
 }
@@ -167,19 +167,42 @@ func (f Frame) freshen(c *canvas, id, x, y, end int) {
 	}
 }
 
-// latelyLines are the sentences given as LATELY's lines at m's moment: each
-// led as latelyLeads has it, the first's time in text.secondary; then its
-// words, as the frame tells them, as saidLine draws them.
-func (f Frame) latelyLines(m status.Moment, sentences []views.Sentence) []line {
+// latelyTold are the sentences given as LATELY's lines at m's moment, in
+// cells cells: each led as latelyLeads has it, the first's time in
+// text.secondary; then its words, as saidLine draws them, in the fullest of
+// its forms that fits whole, as firstFit has it, so its names and figures
+// are never cut while its short form fits. Detail's tells them in full, as
+// accountLatelyLines has them.
+func latelyTold(m status.Moment, sentences []views.Sentence, cells int) []line {
 	names := overviewNames(m)
 	lines := latelyLeads(m, sentences)
 	for i, s := range sentences {
 		if i == 0 {
 			lines[i][0].ink = secondaryInk
 		}
-		lines[i] = append(lines[i], saidLine(m, names, f.latelySaid(s))...)
+		led := func(said views.Said) line { return slices.Concat(lines[i], saidLine(m, names, said)) }
+		lines[i] = firstFit(cells, led(s.Full), led(s.Short))
 	}
 	return lines
+}
+
+// afterMark is the blank between a LATELY line's mark and its words.
+const afterMark = " "
+
+// latelyLeast is the fewest cells LATELY is read in, beside COMING UP: a
+// line's lead, as latelyLeads leads it, its time at its widest and its
+// widest mark; and an account's name at the cells given, its least.
+func latelyLeast(name int) int {
+	return prose.DatedWidth() + len(afterTime) + widestMark() + len(afterMark) + name
+}
+
+// widestMark is how many cells the widest of the kinds' marks takes.
+func widestMark() int {
+	widest := 0
+	for _, k := range eventKinds {
+		widest = max(widest, line{k.mark}.width())
+	}
+	return widest
 }
 
 // latelyLeads are the leads of LATELY's lines, the Overview's and Detail's
@@ -192,19 +215,9 @@ func latelyLeads(m status.Moment, sentences []views.Sentence) []line {
 	}
 	leads := make([]line, len(sentences))
 	for i, s := range sentences {
-		leads[i] = line{{padded(prose.Dated(m.Now, s.At), column) + afterTime, dimInk}, eventMark(s.Kind, s.Well), spaces(1)}
+		leads[i] = line{{padded(prose.Dated(m.Now, s.At), column) + afterTime, dimInk}, eventMark(s.Kind, s.Well), {text: afterMark}}
 	}
 	return leads
-}
-
-// latelySaid are a sentence's words as the Overview's LATELY tells them on
-// the frame: short on a phone. Detail's tells them in full, as
-// accountLatelyLines has them.
-func (f Frame) latelySaid(s views.Sentence) views.Said {
-	if f.phone() {
-		return s.Short
-	}
-	return s.Full
 }
 
 // saidLine is a sentence's words as LATELY draws them: its subject in bold

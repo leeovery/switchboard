@@ -77,7 +77,7 @@ func logLineOf(l views.LogLine) viewstest.LogLine {
 	row := viewstest.Row{
 		Request: r.Request, Session: r.Session, Dir: r.Dir, At: r.At.Local().Format(time.TimeOnly), Mark: r.Mark, Stage: r.Stage,
 		Failed: r.Failed, Rewrote: r.Rewrote, First: secondsOf(r.First), Took: secondsOf(r.Took),
-		Stopped: r.Stopped().String(), Phone: r.PhoneStopped().String(), Routing: r.Routing.Words.String(),
+		Stopped: r.Stopped().String(), Brief: r.BriefStopped().String(), Routing: r.Routing.Words.String(),
 	}
 	if r.Routing.Cost != nil {
 		row.Cost = *r.Routing.Cost
@@ -134,12 +134,12 @@ func countOf(c views.LogCount) viewstest.Count {
 	return viewstest.Count{Shown: c.Shown, Requests: c.Requests, Checks: c.Checks, Counts: c.Counts, Failed: c.Failed, HiddenBy: c.HiddenBy()}
 }
 
-// TestANarrowTableAndAPhoneFoldARowsRoutingInAlikeAtEachHardMoment holds the
-// table under 160 columns, its routing folded into stopped, to the phone's,
+// TestANarrowTableAndABriefOneFoldARowsRoutingInAlikeAtEachHardMoment holds the
+// table under 160 columns, its routing folded into stopped, to the brief one's,
 // at each row of each hard moment, every kind shown: each says the row's
 // routing in its stopped's place for the same rows, the narrow table as the
-// routing column says it, the phone in its own form.
-func TestANarrowTableAndAPhoneFoldARowsRoutingInAlikeAtEachHardMoment(t *testing.T) {
+// routing column says it, the brief one in its own form.
+func TestANarrowTableAndABriefOneFoldARowsRoutingInAlikeAtEachHardMoment(t *testing.T) {
 	folding, staying := 0, 0
 	for _, hm := range viewstest.LogMoments() {
 		src := logSourcesOf(hm)
@@ -149,15 +149,15 @@ func TestANarrowTableAndAPhoneFoldARowsRoutingInAlikeAtEachHardMoment(t *testing
 			if !l.IsRow() {
 				continue
 			}
-			phoneRouting := r.Routing.Words
+			briefRouting := r.Routing.Words
 			if r.Routing.From != "" {
-				phoneRouting = status.FromWords(r.Routing.From)
+				briefRouting = status.FromWords(r.Routing.From)
 			}
 			routed := len(r.Routing.Words) > 0
 			folded := routed && reflect.DeepEqual(r.Folded(), r.Routing.Said())
-			phoned := routed && r.PhoneStopped().String() == phoneRouting.String()
-			if folded != phoned {
-				t.Errorf("%s: %s's row folds its routing in narrow %t, as %q, but on a phone %t, as %q", hm.Name, r.Request, folded, r.Folded(), phoned, r.PhoneStopped())
+			brief := routed && r.BriefStopped().String() == briefRouting.String()
+			if folded != brief {
+				t.Errorf("%s: %s's row folds its routing in narrow %t, as %q, but brief %t, as %q", hm.Name, r.Request, folded, r.Folded(), brief, r.BriefStopped())
 			}
 			if folded {
 				folding++
@@ -191,7 +191,7 @@ func logSaid(lines []viewstest.LogLine) string {
 		said[i] = strings.TrimSpace(strings.Join([]string{
 			l.Row.Mark.String(), l.Row.Request, stageNames[l.Row.Stage], l.Row.At, l.Row.Session, l.Row.Dir,
 			"first " + l.Row.First, "took " + l.Row.Took, "failed " + boolSaid(l.Row.Failed), "rewrote " + boolSaid(l.Row.Rewrote),
-			"stopped " + l.Row.Stopped, "phone " + l.Row.Phone, "routing " + l.Row.Routing, "cost " + l.Row.Cost.Cents(),
+			"stopped " + l.Row.Stopped, "brief " + l.Row.Brief, "routing " + l.Row.Routing, "cost " + l.Row.Cost.Cents(),
 		}, " | "))
 	}
 	return strings.Join(said, "\n")

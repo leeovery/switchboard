@@ -35,15 +35,16 @@ var flipped = map[token.Token]token.Token{token.LSS: token.GTR, token.LEQ: token
 // each by its name as sourcecheck.Names has it, that measure what's drawn
 // rather than read the frame, so a call of one reads no size, as
 // ansi.StringWidth reads none: a fit of what's measured to a constant is a
-// cut's, Rule 2's, not an arrangement's. A measure laid out by the frame, or
+// cut's, a label's, not an arrangement's. A measure laid out by the frame, or
 // given a width by its caller, reads one. The list only shrinks: each must
 // still be there, and still pass over a comparison with a constant; a slice
 // that needs another adds it, with its reason.
 var contentMeasures = []string{
-	// A line's cells, its spans' widths summed: phoneOn's fit.
-	"dashboard.line.width",
 	// A token period's own rows: periodHeads'.
 	"dashboard.tokensHeight",
+	// A glyph's own cells, one or two: wide's, whether it covers the cell
+	// after it, a property of the glyph, not where a layout breaks.
+	"dashboard.grapheme.width",
 }
 
 // sizes judge what's compared with a size in the drawing packages, by the

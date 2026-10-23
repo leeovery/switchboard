@@ -4,34 +4,41 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// Detail's last six weeks, under its rule: BY DAY, WEEKS and the verdict, of
-// the account shown, or all accounts.
+// Detail's last weeks, as many as fit, under its rule: BY DAY, WEEKS and the
+// verdict, of the account shown, or all accounts.
+
+// weeksIn are where the latest of count weeks that fit in room cells lie,
+// from cx, as latestFitting lays them: a week its days, the gap between.
+func (l detailLayout) weeksIn(room, count int) []flex.Span {
+	return latestFitting(room, count, l.step()-l.gap, l.gap)
+}
 
 // byDay draws BY DAY along row y: its heading; from cx, the days of the last
-// of its weeks, as many as given, a day dw cells wide and the weeks gap cells
-// apart, each in Days' shades at its level on the account's own scale, a red
-// ▪ in its middle where it hit a 5-hour limit, and · in text.faint a cell of
-// each day still to come; and on the row under them, each week's first day,
-// this week's bold.
-func (d detailDrawn) byDay(c *canvas, y, weeks int) {
+// of its weeks, as many as given, each week where its span lies, a day dw
+// cells wide, each in Days' shades at its level on the account's own scale,
+// a red ▪ in its middle where it hit a 5-hour limit, and · in text.faint a
+// cell of each day still to come; and on the row under them, each week's
+// first day, this week's bold.
+func (d detailDrawn) byDay(c *canvas, y int, weeks []flex.Span) {
 	c.line(d.l.panel, y, line{{"BY DAY", dimInk}})
 	days, coming := d.row.Days, len(d.row.Days)-d.page.ToCome
-	first := max(len(days)-7*weeks, 0)
+	first := max(len(days)-7*len(weeks), 0)
 	for i := first; i < len(days); i++ {
-		x := d.l.cx() + (i-first)/7*d.l.step() + (i-first)%7*d.l.dw
+		x := d.l.cx() + weeks[(i-first)/7].At + (i-first)%7*d.l.dw
 		if i >= coming {
 			c.line(x, y, dayToCome(d.l.dw))
 			continue
 		}
 		c.line(x, y, d.f.daySwatch(dayInk(days[i].Level), days[i].Level, days[i].Limit, d.l.dw))
 	}
-	heads := d.page.Weeks[max(len(d.page.Weeks)-weeks, 0):]
+	heads := d.page.Weeks[max(len(d.page.Weeks)-len(weeks), 0):]
 	for i, week := range heads {
-		c.line(d.l.cx()+i*d.l.step(), y+1, weekHead(week, i == len(heads)-1))
+		c.line(d.l.cx()+weeks[i].At, y+1, weekHead(week, i == len(heads)-1))
 	}
 }
 
@@ -41,14 +48,15 @@ func dayToCome(cells int) line {
 	return line{{strings.Repeat("·", cells), faintInk}}
 }
 
-// weeks draws WEEKS along row y: its heading; and from cx, a step apart,
-// each of the six weeks' peaks as usage's bar draws a share, weekBar cells
-// long, and a cell on, as peakSaid says it.
-func (d detailDrawn) weeks(c *canvas, y int) {
+// weeks draws WEEKS along row y: its heading; and from cx, at the weeks
+// given, the latest peak at the last, each as usage's bar draws a share,
+// weekBar cells long, and a cell on, as peakSaid says it.
+func (d detailDrawn) weeks(c *canvas, y int, weeks []flex.Span) {
 	c.line(d.l.panel, y, line{{"WEEKS", dimInk}})
 	cells := d.l.weekBar()
-	for i, p := range d.row.Peaks {
-		x := d.l.cx() + i*d.l.step()
+	peaks := d.row.Peaks[max(len(d.row.Peaks)-len(weeks), 0):]
+	for i, p := range peaks {
+		x := d.l.cx() + weeks[len(weeks)-len(peaks)+i].At
 		peakBar(p).draw(c, d.f.Look, x, y, cells)
 		c.line(x+cells+1, y, peakSaid(p))
 	}
@@ -78,7 +86,12 @@ func peakSaid(p views.WeekPeak) line {
 }
 
 // verdict draws the verdict on the account's weeks along row y, from the
-// panel's column, as verdictParts says it, cut short of the frame's edge.
+// panel's column to the weeks' edge: as verdictParts says it, or where that
+// doesn't fit, as verdictShort does, its parts on the one row, three cells
+// apart, cut there.
 func (d detailDrawn) verdict(c *canvas, y int) {
-	c.line(d.l.panel, y, fitParts(d.f.edge()-d.l.panel, verdictParts(*d.page, d.row)...))
+	full := verdictParts(*d.page, d.row)
+	short := joinedParts(span{"   ", mutedInk}, verdictShort(d.row)...)
+	cells := d.l.edge() - d.l.panel
+	c.line(d.l.panel, y, firstFit(cells, fitParts(partsWidth(full), full...), fitParts(cells, short...)))
 }

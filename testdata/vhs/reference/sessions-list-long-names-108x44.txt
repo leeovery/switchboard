@@ -4,22 +4,22 @@
 
 SESSIONS    Switchboard  List  [ ]  ────────────────────────────────────────────────────────────────────────
 
-  session            on        model      state        started          requests    worth
-▸ db8a infra-terra…  side-hu…  opus-5-5   idle 50s     yesterday 15:08       126   $11.37
-  9c2e website-mar…  persona…  opus-5-5   idle 9m      11:55                 267   $27.15
-↑ d28c switchboard…  side-hu…  opus-5-5   asking       12:02                 445   $48.20
-  41e0 docs-site-g…  persona…  opus-5-5   idle 34s     12:47                 158   $17.86
-↓ 7f3a api-gateway…  side-hu…  opus-5-5   answering    14:12                  84    $8.94
-↓ c61b mobile-app-…  side-hu…  opus-5-5   answering    14:41                   4    $0.22
+  session                        on               model      state        started          requests    worth
+▸ db8a infra-terraform-modules   side-hustle-co…  opus-5-5   idle 50s     yesterday 15:08       126   $11.37
+  9c2e website-marketing-redes…  personal-resea…  opus-5-5   idle 9m      11:55                 267   $27.15
+↑ d28c switchboard-dashboard-f…  side-hustle-co…  opus-5-5   asking       12:02                 445   $48.20
+  41e0 docs-site-getting-start…  personal-resea…  opus-5-5   idle 34s     12:47                 158   $17.86
+↓ 7f3a api-gateway-rate-limits   side-hustle-co…  opus-5-5   answering    14:12                  84    $8.94
+↓ c61b mobile-app-offline-sync   side-hustle-co…  opus-5-5   answering    14:41                   4    $0.22
   ended today  ─────────────────────────────────────────────────────────────────────────────────────────────
-  5b19 mobile-app-…  persona…  opus-5-5   ended 11:21  10:02                  38    $3.12
-  3d7a docs-site-g…  work-te…  opus-5-5   ended 10:15  09:40                  12    $0.84
-  e0c4 infra-terra…  work-te…  opus-5-5   ended 10:02  09:12                  19    $1.47
-  a8f1 website-mar…  side-hu…  opus-5-5   ended 09:28  08:31                  24    $1.95
-  2b6d api-gateway…  work-te…  opus-5-5   ended 09:05  07:58                  31    $2.61
-  5e7d api-gateway…  side-hu…  opus-5-5   ended 00:41  yesterday 23:47        17    $1.28
-  4b0e infra-terra…  work-te…  opus-5-5   ended 00:31  yesterday 15:52         5    $0.31
-  8a2c docs-site-g…  side-hu…  opus-5-5   ended 00:18  yesterday 16:55         9    $0.63
+  5b19 mobile-app-offline-sync   personal-resea…  opus-5-5   ended 11:21  10:02                  38    $3.12
+  3d7a docs-site-getting-start…  work-team-plan   opus-5-5   ended 10:15  09:40                  12    $0.84
+  e0c4 infra-terraform-modules   work-team-plan   opus-5-5   ended 10:02  09:12                  19    $1.47
+  a8f1 website-marketing-redes…  side-hustle-co…  opus-5-5   ended 09:28  08:31                  24    $1.95
+  2b6d api-gateway-rate-limits   work-team-plan   opus-5-5   ended 09:05  07:58                  31    $2.61
+  5e7d api-gateway-rate-limits   side-hustle-co…  opus-5-5   ended 00:41  yesterday 23:47        17    $1.28
+  4b0e infra-terraform-modules   work-team-plan   opus-5-5   ended 00:31  yesterday 15:52         5    $0.31
+  8a2c docs-site-getting-start…  side-hustle-co…  opus-5-5   ended 00:18  yesterday 16:55         9    $0.63
 
 
 
@@ -40,5 +40,5 @@ SESSIONS    Switchboard  List  [ ]  ──────────────�
 
 
 
-                                                 today  14 sessions · 1,239 requests · $125.94 at API prices
+today  14 sessions · 1,239 requests · $125.94 at API prices
 tab views   [ ] view    ↑↓ session  enter its page    p pin    ? help  q quit

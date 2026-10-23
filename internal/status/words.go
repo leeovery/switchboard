@@ -35,6 +35,9 @@ const (
 	// PartUse is how much of a window is used, as "95%", drawn in its
 	// level's colour.
 	PartUse
+	// PartTime is a time among words, as "16:02", drawn as the words around
+	// it, but never cut part-way.
+	PartTime
 )
 
 // String runs the words together, as a page drawn without colour shows them.
@@ -205,6 +208,11 @@ func Plain(text string) Part {
 // Named is the account with the given id, cleaned, as it's from elsewhere.
 func Named(id string) Part {
 	return Part{Text: prose.Clean(id), Kind: PartAccount}
+}
+
+// Time is a time among words, as "16:02".
+func Time(text string) Part {
+	return Part{Text: text, Kind: PartTime}
 }
 
 // Figure is a figure among words, as a count.
@@ -403,11 +411,20 @@ func wholePercent(s string) bool {
 	return ok && digits != "" && strings.Trim(digits, "0123456789") == ""
 }
 
+// The words for an account held back from new sessions, as a routing says
+// it and a phone: at its cap, or at its limit.
+const (
+	// AtCap is the words for an account at its cap.
+	AtCap = "at its cap"
+	// AtLimit is the words for an account at its limit.
+	AtLimit = "at its limit"
+)
+
 // offWords are why a move off an account was forced, as the router says it,
 // in the words of an event, of a request's routing, and of a phone.
 var offWords = map[string]struct{ event, routed, short string }{
-	WhyReserve: {event: " reached its cap", routed: "at its cap", short: "its cap"},
-	WhyLimit:   {event: " reached its limit", routed: "at its limit", short: "its limit"},
+	WhyReserve: {event: " reached its cap", routed: AtCap, short: "its cap"},
+	WhyLimit:   {event: " reached its limit", routed: AtLimit, short: "its limit"},
 	WhyRefused: {event: " refused the request", routed: "refused", short: "refused"},
 	WhyNoRoom:  {event: " had no room", routed: "with no room", short: "no room"},
 }

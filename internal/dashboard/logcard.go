@@ -29,9 +29,9 @@ type LogCard struct {
 	Placed  int
 }
 
-// The card's wide form: logCardWidth cells wide, its edges included, as it
-// sits from column 16 at 160; its tree's columns, from where its content
-// starts, as the frames draw them from 19, 69 and 94.
+// The card's wide form: its natural, logCardWidth cells wide, its edges
+// included, as it sits from column 16 at 160; its tree's columns, from where
+// its content starts, as the frames draw them from 19, 69 and 94.
 const logCardWidth = 128
 
 var logCardColumns = [3]int{0, 50, 75}
@@ -45,18 +45,18 @@ const (
 
 // cardForm is how the card is laid out on a frame: its width, its edges
 // included, and its content's; and whether its tree is in its three
-// columns, or stacked one under another, as on a phone.
+// columns, or stacked one under another, where they don't fit.
 type cardForm struct {
 	width, content int
 	wide           bool
 }
 
-// logCardForm is the card's form on the frame: wide where the frame has room
-// for it, its wide form's columns, else stacked, as wide as the frame less a
-// cell either side.
+// logCardForm is the card's form on the frame, as cardOn lays it: wide, its
+// wide form's columns, where the frame has the card its natural width, else
+// stacked, as wide as the frame less its margins.
 func (f Frame) logCardForm() cardForm {
-	width := f.cardWidth(logCardWidth)
-	return cardForm{width: width, content: width - 2*cardInset, wide: width == logCardWidth}
+	width, wide := f.cardOn(logCardWidth)
+	return cardForm{width: width, content: width - 2*cardInset, wide: wide}
 }
 
 // card is the details card on the frame: titled as the line it's of is, its
@@ -213,7 +213,7 @@ func (p LogPage) ChosenSession() string {
 // keys are the card's keys, as its keys row lists them in content cells:
 // ↑↓ stepping, an event's g, s where the line is of a session, as Session
 // has it, but where sessions says s opens none, as over that session's own
-// page (call 63), j k where its body scrolls, and esc. Where they don't fit,
+// page, j k where its body scrolls, and esc. Where they don't fit,
 // ↑↓ says what it steps to as the key line does, then the keys leave from
 // the first, esc staying.
 func (c LogCard) keys(content int, scrolls, sessions bool) []Key {

@@ -95,6 +95,23 @@ func (p Part) held() Part {
 	return p
 }
 
+// Decided is the part as a second pass lays it, once a first pass has
+// decided what shows, of the span the first left it at: gone where it gave
+// way keeping nothing; at what it kept where it gave way; and any other as
+// it is, giving way and narrowing no more, so it's laid from its least, to
+// its natural or, where it grows, past it. It reports false where the part
+// is gone.
+func (p Part) Decided(span Span) (Part, bool) {
+	switch {
+	case span.Left && span.Size == 0:
+		return p, false
+	case span.Left:
+		p = Part{Least: span.Size, Natural: span.Size, Gap: p.Gap}
+	}
+	p.Leaves, p.Narrows = 0, 0
+	return p, true
+}
+
 // growsToMost reports whether it grows up to a most.
 func (p Part) growsToMost() bool {
 	return p.Grows && p.Most > 0

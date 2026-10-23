@@ -48,48 +48,7 @@ var (
 // chrome names them, each under the slice of the fluid pass that moves it to
 // its parts. The list only shrinks: an entry must still be there, and still
 // use it.
-var phoneAllowed = []string{
-	// S5: the Switchboard's lanes.
-	"internal/dashboard/sessionslanes.go:Frame.lanesOf",
-	// S6: the Log's columns, Requests' and Events', and its heading, which
-	// the heading row hands the phone's breakpoint.
-	"internal/dashboard/logcolumns.go:logColumns",
-	"internal/dashboard/logevents.go:Frame.eventColumns",
-	"internal/dashboard/headingrow.go:Frame.tabHeading",
-	// S7: the List's columns.
-	"internal/dashboard/sessionslist.go:Frame.listColumns",
-	// S8: Runway's label column, and the form it's drawn in.
-	"internal/dashboard/runway.go:RunwayShown.lanesFrom",
-	"internal/dashboard/runway.go:Frame.runwayForm",
-	// S9: Runway's legend and COMING UP.
-	"internal/dashboard/runwaycoming.go:Frame.runwayComing",
-	"internal/dashboard/runwaylegend.go:Frame.runwayLegendLines",
-	// S10: the Overview's sections, side by side or not.
-	"internal/dashboard/overview.go:Frame.joins",
-	// S12: USAGE's key, and the room it says is left.
-	"internal/dashboard/overview_usage.go:Frame.overviewBlock",
-	"internal/dashboard/overview_usage.go:Frame.roomLeft",
-	// S13: GRAPHS.
-	"internal/dashboard/graphs.go:Frame.graphsOf",
-	// S14: USAGE's key, its parts spaced apart by the width.
-	"internal/dashboard/usage.go:keyApart",
-	// S15: Compare's form, its focus, the help that tells of it, and the
-	// watch that keeps it.
-	"internal/dashboard/accountscompare.go:Frame.compareState",
-	"internal/dashboard/accounts_help.go:Frame.compareHelp",
-	"internal/dashboard/watch/accounts.go:Model.comparing",
-	// S15, S16 and S17: the form Accounts draws its views in.
-	"internal/dashboard/accounts.go:Frame.buildAccountsForm",
-	// S18, S19 and S20: the form History draws its views in.
-	"internal/dashboard/historypage.go:Frame.phoneForm",
-	// S20: whether Weeks' cycles show.
-	"internal/dashboard/historyasks.go:Frame.weeksCycles",
-	// S25: what's left, LATELY's sentences, ROUTING's mode, and the cards.
-	"internal/dashboard/lately.go:Frame.latelySaid",
-	"internal/dashboard/routing.go:Frame.routingSection",
-	"internal/dashboard/card.go:Frame.cardWidth",
-	"internal/dashboard/routingcard.go:RoutingCard.card",
-}
+var phoneAllowed = []string{}
 
 // sizedAllowed are the functions of drawingPackages, outside the chrome,
 // allowed to compare a width or a height with a constant all the same, named
@@ -97,53 +56,27 @@ var phoneAllowed = []string{
 // to its parts. The list only shrinks: an entry must still be there, and
 // still compare one.
 var sizedAllowed = []string{
-	// S5: the Switchboard's lines, on one row where they're narrower than
-	// widestLines.
+	// S5, left by it: the Switchboard's lines, step 4's state words short
+	// where the lines are narrower than widestLines, usage --by account's
+	// narrow block, 74 columns, as the design has it.
 	"internal/dashboard/switchboardlines.go:linesDrawn.oneRow",
-	// S6: the Log's cost kept where two cells are left.
-	"internal/dashboard/logtable.go:costKept",
-	// S7: the List's routing column.
-	"internal/dashboard/sessionslist.go:Frame.listColumns",
-	// S10: ROUTING's rows, routingRows, and SESSIONS' form by it.
-	"internal/dashboard/overview_sessions.go:Frame.runningForm",
-	"internal/dashboard/routing.go:Frame.routingSection",
-	"internal/dashboard/routing.go:Frame.drawRouting",
-	"internal/dashboard/routing.go:Frame.accountRows",
-	"internal/dashboard/routing.go:besideRows",
-	"internal/dashboard/traces.go:Frame.accountTraceCells",
-	// S12: USAGE paged at short heights.
-	"internal/dashboard/overview_usage.go:usageViews.paged",
-	// S14: USAGE's matrix, matrixWidth, its names' column, roomyNames, its
-	// accounts' labels, wideAccounts, and its words, fullWords; and what
-	// sits beside it by the matrix.
+	// S14, left by it: GRAPHS' charts or ROUTING beside USAGE's blocks by
+	// account from besideWidth, as the spike's frame 27 keeps them; and
+	// usage's words by the width, fullWords, as Detail, the phone's stack and
+	// the Switchboard's lines draw its gauges in rows of their own.
 	"internal/dashboard/graphsbeside.go:Frame.graphsBeside",
 	"internal/dashboard/overview_usage.go:Frame.overviewBlock",
-	"internal/dashboard/overview_usage.go:usageBlock.enlarges",
 	"internal/dashboard/routing.go:Frame.routingBesideUsage",
-	"internal/dashboard/usage.go:nameColumn",
 	"internal/dashboard/usage.go:usageBlock.wordCells",
-	"internal/dashboard/usage.go:usageBlock.matrixed",
-	"internal/dashboard/usage.go:usageBlock.byAccount",
-	"internal/dashboard/usage.go:usageBlock.labels",
-	"internal/dashboard/usage.go:usageBlock.key",
 	"internal/dashboard/usagewords.go:usageWords.pick",
-	// S19 and S20: Days and Weeks scrolling whole under historyRows.
+	// S19 and S20, left by them: Days and Weeks drawn whole and scrolled a
+	// row at a time shorter than historyRows, History's frames' 37 rows, as
+	// the design has them.
 	"internal/dashboard/historypage.go:Frame.shortOfHistory",
-	// S21: Tokens' footnote, left off short of leastPaged.
-	"internal/dashboard/historytokens.go:Frame.tokensPlaced",
-	// S22 and S23: a session's page, its turns' form, sessionWideFrom, and
-	// its rows.
-	"internal/dashboard/sessionlayout.go:Frame.sessionLayout",
-	// S25: the frame cramped short of leastView, which many views choose
-	// by; the Log's panel and card, and the theme picker, cards of a kind;
-	// usage's printout's header; and a glyph's width as the canvas puts it,
-	// whether it's wide.
+	// S25, left by it: the frame cramped short of the fixed rows and
+	// leastView, three of the view's, which many views choose by, as the
+	// design settles it.
 	"internal/dashboard/frame.go:Frame.cramped",
-	"internal/dashboard/logpanelcard.go:LogPanel.laidOut",
-	"internal/dashboard/logcard.go:Frame.logCardForm",
-	"internal/dashboard/picker.go:PickerWidth",
-	"internal/dashboard/printout.go:Printout.header",
-	"internal/dashboard/canvas.go:canvas.put",
 }
 
 // cutAllowed are the functions of drawingPackages allowed to cut a name to a
@@ -153,38 +86,17 @@ var sizedAllowed = []string{
 // from flex. The list only shrinks: an entry must still be there, and still
 // give one.
 var cutAllowed = []string{
-	// S5: the lanes' calls, their columns laneCall's, and the Switchboard's
-	// lines' window labels.
-	"internal/dashboard/sessionslanes.go:lanesBoard.callRow",
+	// S5, left by it: the Switchboard's lines' window labels, at the name
+	// column's 10 cells, as usage --by account's are in the design.
 	"internal/dashboard/switchboardlines.go:linesDrawn.window",
-	// S6: the Log's sessions' directories and accounts.
-	"internal/dashboard/logpage.go:sessionNamed",
-	"internal/dashboard/logtable.go:sessionCell",
-	// S7: the List's routing column, its words a cutter as a value.
-	"internal/dashboard/sessionslist.go:routingColumn",
-	// S11: SESSIONS' model families.
-	"internal/dashboard/overview_sessions.go:Frame.wideRunning",
-	// S15: Compare's BY MODEL names.
-	"internal/dashboard/accountscompare.go:compared.byModel",
-	// S16: the stacked Detail's window names and its LATELY's words.
-	"internal/dashboard/accountsphone.go:stacked.usage",
-	"internal/dashboard/accountsphone.go:stacked.whole",
-	// S17: Detail's window names, its sessions' model families and how many
-	// more, and its LATELY's words.
-	"internal/dashboard/accountsdetail.go:detailDrawn.usage",
+	// S17, left by it: Detail's sessions' model families padded to 8, and
+	// how many more in the 43 cells its selection lights, as the design has
+	// them.
 	"internal/dashboard/accountsdetail.go:detailDrawn.session",
 	"internal/dashboard/accountsdetail.go:detailDrawn.sessions",
-	"internal/dashboard/accountsdetail.go:detailDrawn.panel",
-	// S19: Days' weeks' heads, and its strips' names, a cutter as a value.
-	"internal/dashboard/historydays.go:Frame.daysWeeks",
-	"internal/dashboard/historydays.go:Frame.daysStrips",
-	// S22: a session's page, its accounts' stays and the account it's on.
-	"internal/dashboard/sessionpage.go:sessionDrawn.account",
-	"internal/dashboard/sessionpage.go:sessionDrawn.phoneOn",
-	// S25: the routing card's choices, the Log's panel's sessions and a
-	// card's items' names, cards of a kind, opened over the page.
-	"internal/dashboard/routingcard.go:RoutingCard.choice",
-	"internal/dashboard/logpanel.go:LogPanel.sessionWords",
+	// S25, left by it: a Log card's items' names, the tree's own words, a
+	// window's name and a session's id, none a label, in the tree's column
+	// of names, fixed as its wide form's columns are.
 	"internal/dashboard/logcard.go:cardItem.row",
 }
 
@@ -317,10 +229,14 @@ func flexBreaches(t *testing.T, root, module string, every, drawing []string, a 
 // or gives none.
 //
 // It can't follow a width held on a receiver; a literal's address; a
-// promoted field; a wrapper's local copy of its width, or a closure; a
-// package-level variable written from another package, as the watch; or a
-// file built for another platform, read by another loader. None occurs
-// today.
+// promoted field; a wrapper's local copy of its width; a package-level
+// variable written from another package, as the watch; or a file built for
+// another platform, read by another loader. None of those occurs today. Nor
+// can it see a cutter inside a closure, or one that works out its own width
+// and is passed as a value, and the widths they're given go unjudged: as
+// labelCutAt returns a closure over prose.Cut, Days' strips hand daysStrip
+// closures that fit a name to its room, and asLabelled, cutting a name to
+// labelColumnCells, is handed on to name an account.
 func cutBreaches(l *sourcecheck.Loader, module string, dirs []string, files []sourcecheck.File, w widths, allowed []string) []string {
 	given := make(map[string][]widthAt)
 	// A cutter that's a method, as a line's, or a wrapper is judged only where

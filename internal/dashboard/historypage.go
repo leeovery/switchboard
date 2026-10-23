@@ -83,22 +83,30 @@ type HistoryPage struct {
 
 // heading is History's heading row: its name and its sub-tabs, the one shown
 // picked out; after [ ], what the Year is shown for, where it's shown for one
-// version or account; and at its right, the period of the sub-tab shown, as
-// Period names it, between < and >; else eight weeks, which Weeks and Days
-// keep to.
+// version or account, in the forms filtered says it in, its least as
+// leastFiltered reckons it; and at its right, the period of the sub-tab
+// shown, as Period names it, between < and >; else eight weeks, which Weeks
+// and Days keep to.
 func (p HistoryPage) heading() heading {
-	h := heading{name: strings.ToUpper(History.Title()), subTabs: historyViews, shown: int(p.Shown), state: p.state()}
+	h := heading{
+		name: strings.ToUpper(History.Title()), subTabs: historyViews, shown: int(p.Shown),
+		least: p.leastFiltered(), widest: widestOf(p.periods()),
+	}
+	if forms := p.filtered(); forms != nil {
+		h.state, h.shorter = forms[0], forms[1:]
+	}
 	if h.period = p.Period(); h.period == "" {
 		h.right = line{{"eight weeks", mutedInk}}
 	}
 	return h
 }
 
-// state is what the heading says after [ ] that the screen can't otherwise
-// show: on the Year shown for one version, or one account, which it shows,
-// and that v shows the rest, as "Opus 5.5 only, every account  ·  v for all,
-// a model or an account"; and nothing otherwise.
-func (p HistoryPage) state() line {
+// filtered is what the heading says after [ ] that the screen can't
+// otherwise show: on the Year shown for one version, or one account, which
+// it shows, and that v shows the rest, as "Opus 5.5 only, every account  ·
+// v for all, a model or an account", then for less room, which it shows
+// alone, "Opus 5.5 only"; and nothing otherwise.
+func (p HistoryPage) filtered() []line {
 	shown := p.yearShown()
 	if p.Shown != HistoryYear || shown == "" {
 		return nil
@@ -107,8 +115,40 @@ func (p HistoryPage) state() line {
 	if p.YearAsk.Account != "" {
 		every = "every model"
 	}
-	return line{{shown + " only, " + every + "  ·  ", faintInk}, {"v", keyInk}, {" for all, a model or an account", faintInk}}
+	return []line{
+		{{shown + " only, " + every + "  ·  ", faintInk}, {"v", keyInk}, {" for all, a model or an account", faintInk}},
+		{{onlyForm(shown), faintInk}},
+	}
 }
+
+// leastFiltered is the widest the Year's filter takes in its short form as
+// what can change it without v steps it: shown for an account, the widest of
+// every account configured, as ← and → step through them; shown for a
+// version, its own, whether the last 12 months are read yet or not; and ""
+// unfiltered, or on another sub-tab.
+func (p HistoryPage) leastFiltered() string {
+	switch {
+	case p.Shown != HistoryYear:
+		return ""
+	case p.YearAsk.Account != "":
+		forms := []string{onlyForm(p.yearShown())}
+		for _, a := range p.Accounts {
+			forms = append(forms, onlyForm(p.label(a.ID)))
+		}
+		return widestOf(forms)
+	case p.YearAsk.Version != "":
+		return onlyForm(versionShown(p.YearAsk.Version))
+	}
+	return ""
+}
+
+// onlyForm is the Year's filter in its short form, as "Opus 5.5 only".
+func onlyForm(shown string) string {
+	return shown + " only"
+}
+
+// widestYear is a calendar year at its widest, as the heading names it.
+const widestYear = 9999
 
 // yearPeriod is the Year's period as the heading names it: the calendar year
 // given, or where it's 0, the last 12 months.
@@ -168,14 +208,14 @@ func (f Frame) wholePaged(rows, foot int, heads []headed) rowsPaged {
 }
 
 // paged is how the Year, drawn whole, pages in the view's rows: its
-// numbers' heading on a phone, and BY MONTH's, with their first rows; and
-// where it doesn't fit, its last row saying how many rows are out of view,
-// as Weeks and Days say it where they're drawn whole.
+// numbers' heading where they're under the key, and BY MONTH's, with their
+// first rows; and where it doesn't fit, its last row saying how many rows
+// are out of view, as Weeks and Days say it where they're drawn whole.
 func (y yearDrawn) paged() rowsPaged {
-	p := y.placed()
-	heads := []headed{{at: y.form.row, first: p.first}}
-	if y.form.phone {
-		heads = []headed{{at: yearPhoneNumbersRow, first: yearPhoneNumbersRow + 1}, heads[0]}
+	p := y.laid.byMonth
+	heads := []headed{{at: p.heading, first: p.first}}
+	if !y.laid.beside {
+		heads = []headed{{at: yearNumbersRow, first: yearNumbersRow + 1}, heads[0]}
 	}
 	return rowsPaged{rows: y.viewRows(), content: y.height(), heads: heads, says: true}
 }
@@ -199,14 +239,6 @@ func (f Frame) historyScrollsRows() bool {
 		return placed.byRows()
 	}
 	return false
-}
-
-// phoneForm reports whether a sub-tab of History draws its phone form: on a
-// phone, or where the width its wide form takes, as reach gives it, its
-// widest row and any column after it it keeps clear, is wider than the
-// frame, as its parts are at fixed columns.
-func (f Frame) phoneForm(reach func() int) bool {
-	return f.phone() || reach() > f.Width
 }
 
 // historyScrolling is how far History's sub-tab shown, from row top,
@@ -256,20 +288,19 @@ func periodsOut(noun string) outForm {
 // historyRowsOut are the forms of the line saying how many of a view's rows
 // are out of view, where Weeks and Days are drawn whole and Tokens scrolls a
 // row at a time, each shorter than the one before: "▲ 3 more above   ·   ▼ 12
-// more below   ·   j/k to scroll"; spaced as Compare's is, "▲ 3 more above ·
-// ▼ 12 more below · j/k"; and without how to scroll.
+// more below   ·   j/k to scroll"; and spaced as Compare's is, "▲ 3 more
+// above · ▼ 12 more below · j/k".
 var historyRowsOut = []outForm{
 	{above: " above", below: " below", gap: "   ·   ", keys: "j/k", does: " to scroll", inks: keyedOut},
 	{above: " above", below: " below", gap: " · ", keys: "j/k", inks: keyedOut},
-	{above: " above", below: " below", gap: " · ", inks: keyedOut},
 }
 
 // historyAccountsOut are the forms of the line saying how many of Weeks' and Days'
 // accounts are out of view, each shorter than the one before: the design's,
 // "▼ 4 more accounts below   ·   j/k or the wheel to scroll them"; spaced as
 // Sessions' and Runway's scroll line is, "▼ 4 more accounts below · j/k or
-// wheel to scroll"; without how to scroll; and as USAGE's rows say it, "▼ 4
-// more accounts".
+// wheel to scroll"; without how to scroll, before USAGE's shorter words take
+// over; and as USAGE's rows say it, "▼ 4 more accounts".
 var historyAccountsOut = []outForm{
 	{noun: "account", above: " above", below: " below", gap: "   ·   ", keys: "j/k", does: " or the wheel to scroll them", inks: keyedOut},
 	{noun: "account", above: " above", below: " below", gap: " · ", keys: "j/k", does: " or wheel to scroll", inks: keyedOut},
@@ -278,9 +309,9 @@ var historyAccountsOut = []outForm{
 }
 
 // groupHead is a group's heading, as BY MONTH and BY MODEL, in text.subtle,
-// and after it, but on a phone, what it shows, in text.faint.
-func groupHead(name, says string, phone bool) line {
-	if phone {
+// and after it, but in the narrow form, what it shows, in text.faint.
+func groupHead(name, says string, narrow bool) line {
+	if narrow {
 		return line{{name, dimInk}}
 	}
 	return line{{name, dimInk}, {"  " + says, faintInk}}

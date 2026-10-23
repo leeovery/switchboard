@@ -4,7 +4,9 @@ import (
 	"cmp"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -155,46 +157,69 @@ var (
 	pagedHeights = []int{14, 16, 18, 20, 22, 24, 26, 30, 36}
 )
 
-// Every fixture's view, at a grid of sizes above the floor, paged up from
-// where it's drawn as far as it goes, then down: no window or section
-// heading is drawn without its first row; and where it pages, no line the
-// paging changes says more lies beyond either end. History's views, the
-// Overview's USAGE, Accounts' views and a phone's Switchboard, once they
-// have two rows to page, reach every row they draw as tall as everything
-// fits, so the frame cuts nothing short that they can't scroll to, and say
-// on their first page that more lies below, where they page, but the Year,
-// as its frames draw it. The Log's tables are passed over: they hold no
-// heading, say where they are on their own status line, and paging a day's
-// lines at every size would take the sweep's time many times over.
+// Every fixture's view, at a grid of sizes above the floor, paged down from
+// the top as far as it goes, then back up: no window or section heading is
+// drawn without its first row; and where it pages, no line the paging
+// changes says more lies beyond either end. History's views, the Overview's
+// USAGE, Accounts' views and a phone's Switchboard, once they have two rows
+// to page, reach every row they draw as tall as everything fits, paged down
+// from the top, and up from the foot, so the frame cuts nothing short that
+// they can't scroll to; and say on their first page that more lies below,
+// where they page, but the Year, as its frames draw it. The Log's tables are
+// held to the last rule alone: they hold no heading, and say where they are
+// on their own status line.
+//
+// And every view, the Log's among them, at the heights pagingHeights gives
+// it, paged up from the foot shows every row it shows paged down from the
+// top, that row and not a twin elsewhere, as unmatched tells them apart, so
+// no page up passes over what a page down shows: whatever a view pages by,
+// rows, accounts or periods, a page up ends at the one above the first the
+// page showed. A view drawn alike by two fixtures at
+// a size is paged once.
 func TestNoViewCutsWhatItCantScrollTo(t *testing.T) {
+	var walked sync.Map
 	for _, name := range Names() {
 		f := fixture(t, name)
-		if f.Printout || strings.HasPrefix(name, "log-") || strings.HasPrefix(name, "page-log-") {
+		if f.Printout {
 			continue
 		}
+		log := strings.HasPrefix(name, "log-") || strings.HasPrefix(name, "page-log-")
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			m := withNothingOver(t, f.settle(f.Size), f.Size)
-			for _, width := range pagedWidths {
+			for _, width := range pagingWidths(log) {
 				reached, tall := reachOf(name, width), plainRows(m, width, tallest)
-				for _, height := range pagedHeights {
-					pages := pagesOf(m, width, height)
-					for _, p := range pages {
+				for _, height := range pagingHeights(log) {
+					top := pagedTop(m, width, height)
+					if _, seen := walked.LoadOrStore(sweptAs(name, top, tall), true); seen {
+						continue
+					}
+					w := walkFrom(top, height)
+					if missing := unmatched(w.down, w.up); len(missing) > 0 {
+						t.Errorf("at %d×%d, paged up from the foot, the view never shows %d rows it shows paged down from the top:\n%s", width, height, len(missing), strings.Join(missing, "\n"))
+					}
+					if log || !slices.Contains(pagedHeights, height) {
+						continue
+					}
+					for _, p := range slices.Concat(w.down, w.up) {
 						if y := headingAlone(p, chromeOf(width)); y >= 0 {
 							t.Errorf("at %d×%d, row %d is a heading without its first row:\n%s", width, height, y+1, strings.Join(p.rows, "\n"))
 						}
 					}
-					if beyond := saidBeyond(pages); beyond != "" {
-						t.Errorf("at %d×%d, paged as far as it goes, the view says %q:\n%s", width, height, beyond, strings.Join(pages[len(pages)-1].rows, "\n"))
+					if beyond := saidBeyond(w.down); beyond != "" {
+						t.Errorf("at %d×%d, paged as far as it goes, the view says %q:\n%s", width, height, beyond, strings.Join(w.down[len(w.down)-1].rows, "\n"))
 					}
-					if reached == nil || len(reached(pages[0].rows)) < 2 {
+					if reached == nil || len(reached(w.down[0].rows)) < 2 {
 						continue
 					}
-					if first := pages[0]; len(pages) > 1 && !strings.Contains(name, "-year") && !saysMore(first.rows, "▼") {
+					if first := w.down[0]; len(w.down) > 1 && !strings.Contains(name, "-year") && !saysMore(first.rows, "▼") {
 						t.Errorf("at %d×%d, the view pages, but its first page doesn't say more lies below:\n%s", width, height, strings.Join(first.rows, "\n"))
 					}
-					if missing := unreached(reached, pages, tall, width); len(missing) > 0 {
+					if missing := unreached(reached, w.down, tall, width); len(missing) > 0 {
 						t.Errorf("at %d×%d, paged as far as it goes, the view never shows %d of the rows it draws at %d rows:\n%s", width, height, len(missing), tallest, strings.Join(missing, "\n"))
+					}
+					if missing := unreached(reached, w.up, tall, width); len(missing) > 0 {
+						t.Errorf("at %d×%d, paged up from as far down as it goes, the view never shows %d of the rows it draws at %d rows:\n%s", width, height, len(missing), tallest, strings.Join(missing, "\n"))
 					}
 				}
 			}
@@ -232,28 +257,197 @@ type paged struct {
 // mostPages is the furthest the sweep pages a view either way.
 const mostPages = 400
 
-// pagesOf are the pages of m drawn at the size given, from the top: paged up
-// from where it's drawn with PgUp as far as it goes, then down with PgDn.
-func pagesOf(m watch.Model, width, height int) []paged {
-	m = deliver(m, tea.WindowSizeMsg{Width: width, Height: height})
-	up := pagedBy(m, height, tea.KeyPgUp)
-	slices.Reverse(up)
-	return append(up, pagedBy(m, height, tea.KeyPgDown)[1:]...)
+// walk are a view's pages at a size: paged down from the top as far as PgDn
+// takes it, the top's first; then paged up from there as far as PgUp takes
+// it, the foot's first.
+type walk struct {
+	down, up []paged
 }
 
-// pagedBy are the pages of m, drawn height rows tall, as the key given pages
-// it from where it's drawn, till a press of it changes nothing.
-func pagedBy(m watch.Model, height int, key rune) []paged {
+// sweptAs is what the sweep holds a fixture's view to, of the name given,
+// drawn as top draws it at its top and as tall draws it: its kind, as the
+// name leads with it, and whether it's the Year; and how it's drawn. Two
+// fixtures alike in each are paged alike.
+func sweptAs(name string, top watch.Model, tall []string) string {
+	kind, _, _ := strings.Cut(name, "-")
+	return strings.Join(append([]string{kind, strconv.FormatBool(strings.Contains(name, "-year")), top.View().Content}, tall...), "\n")
+}
+
+// pagedTop is m drawn at the size given, paged up as far as PgUp takes it.
+func pagedTop(m watch.Model, width, height int) watch.Model {
+	_, top := pagedTo(deliver(m, tea.WindowSizeMsg{Width: width, Height: height}), height, tea.KeyPgUp)
+	return top
+}
+
+// walkFrom is the walk of the view top draws, height rows tall, at its top.
+func walkFrom(top watch.Model, height int) walk {
+	down, foot := pagedTo(top, height, tea.KeyPgDown)
+	up, _ := pagedTo(foot, height, tea.KeyPgUp)
+	return walk{down: down, up: up}
+}
+
+// pagedTo are the pages of m, drawn height rows tall, as the key given pages
+// it from where it's drawn, till a press of it changes nothing, and m paged
+// as far as it goes.
+func pagedTo(m watch.Model, height int, key rune) ([]paged, watch.Model) {
 	content := m.View().Content
 	pages := []paged{{content: content, rows: plainOf(content, height)}}
 	for range mostPages {
-		m = deliver(m, tea.KeyPressMsg{Code: key})
-		if content = m.View().Content; content == pages[len(pages)-1].content {
+		next := deliver(m, tea.KeyPressMsg{Code: key})
+		if content = next.View().Content; content == pages[len(pages)-1].content {
 			break
 		}
+		m = next
 		pages = append(pages, paged{content: content, rows: plainOf(content, height)})
 	}
-	return pages
+	return pages, m
+}
+
+// pagingWidths are the widths the sweep pages a view at: pagedWidths; and
+// the Log's at 44 too, where its heading takes two rows, its count on the
+// row under, as only a narrow phone's does.
+func pagingWidths(log bool) []int {
+	if log {
+		return append([]int{44}, pagedWidths...)
+	}
+	return pagedWidths
+}
+
+// pagingHeights are the heights the sweep pages a view at, each of
+// pagedHeights among them: every one from a phone's shortest, 12 rows, to
+// 20, then every second to 36, where most views fit; the Log's, whose tables
+// run to a thousand lines and more, paged a page of constant rows, three.
+func pagingHeights(log bool) []int {
+	if log {
+		return []int{12, 24, 36}
+	}
+	var heights []int
+	for height := 12; height <= 36; height++ {
+		if height <= 20 || height%2 == 0 {
+			heights = append(heights, height)
+		}
+	}
+	return heights
+}
+
+// unmatched are the rows the pages seen show, each what the view scrolls of
+// it, as scrolledOf has it, that none of the pages looked for shows, blank
+// rows aside: a row being told from its twins by the rows either side of it,
+// as shownRow has them, each row seen is matched by one looked for, not
+// merely by a twin elsewhere, as sameRow has it.
+func unmatched(seen, lookedFor []paged) []string {
+	fixed := fixedRows(slices.Concat(seen, lookedFor))
+	looked := make(map[string][]shownRow)
+	for _, r := range rowsShown(lookedFor, fixed) {
+		looked[r.text] = append(looked[r.text], r)
+	}
+	var missing []string
+	for _, r := range rowsShown(seen, fixed) {
+		if !slices.ContainsFunc(looked[r.text], r.same) {
+			missing = append(missing, r.text)
+		}
+	}
+	return slices.Compact(slices.Sorted(slices.Values(missing)))
+}
+
+// shownRow is a row a page shows, as scrolledOf has it, and the rows either
+// side of it there, the nearest not blank: "" where that's one of the rows
+// every page shows, as the frame's title and the view's heading are, as it
+// is beside the first row a page scrolls and its last, where where it is
+// isn't known.
+type shownRow struct {
+	text, over, under string
+}
+
+// same reports whether r and o, alike in their text, are the same row: a
+// row either side of them the same, or none they know of different, as a
+// row at a page's edge knows one side alone, and a heading kept over a
+// page's first row stands over it in place of the row there.
+func (r shownRow) same(o shownRow) bool {
+	if r.over != "" && r.over == o.over || r.under != "" && r.under == o.under {
+		return true
+	}
+	return (r.over == "" || o.over == "" || r.over == o.over) && (r.under == "" || o.under == "" || r.under == o.under)
+}
+
+// rowsShown are the rows the pages show, as shownRow has them, each once,
+// blank rows and the rows every page shows, as fixed has them, aside.
+func rowsShown(pages []paged, fixed map[string]bool) []shownRow {
+	seen := make(map[shownRow]bool)
+	var rows []shownRow
+	for _, p := range pages {
+		var texts []string
+		for _, row := range p.rows {
+			if text := scrolledOf(row); text != "" {
+				texts = append(texts, text)
+			}
+		}
+		for i, text := range texts {
+			r := shownRow{text: text}
+			if !isHeading(text) {
+				r.over, r.under = besideOf(texts, i-1, fixed), besideOf(texts, i+1, fixed)
+			}
+			if !fixed[text] && !seen[r] {
+				seen[r] = true
+				rows = append(rows, r)
+			}
+		}
+	}
+	return rows
+}
+
+// besideOf is the i-th of a page's rows, as a row beside another: "" where
+// there's none, it's one every page shows, as fixed has them, or a heading,
+// which a view may keep over its page's first row in place of the row there.
+func besideOf(texts []string, i int, fixed map[string]bool) string {
+	if i < 0 || i >= len(texts) || fixed[texts[i]] || isHeading(texts[i]) {
+		return ""
+	}
+	return texts[i]
+}
+
+// isHeading reports whether the row is a window's or a section's heading,
+// in capitals or ruled.
+func isHeading(text string) bool {
+	text = strings.TrimSpace(text)
+	return headingText.MatchString(text) || ruledText.MatchString(text)
+}
+
+// fixedRows are the rows, as scrolledOf has them, every one of the pages
+// shows.
+func fixedRows(pages []paged) map[string]bool {
+	counts := make(map[string]int)
+	for _, p := range pages {
+		page := make(map[string]bool)
+		for _, row := range p.rows {
+			page[scrolledOf(row)] = true
+		}
+		for text := range page {
+			counts[text]++
+		}
+	}
+	fixed := make(map[string]bool)
+	for text, n := range counts {
+		if n == len(pages) {
+			fixed[text] = true
+		}
+	}
+	return fixed
+}
+
+// scrolledOf is what a view scrolls of a row: its panel, as panelOf has it,
+// short of the words saying how much is out of view, which hang on where the
+// page stands; none of the Log's status line saying where its table is
+// paused.
+func scrolledOf(row string) string {
+	row = panelOf(row)
+	if strings.HasPrefix(row, "‖ paused at ") {
+		return ""
+	}
+	if at := outLine.FindStringIndex(row); at != nil {
+		row = row[:at[0]]
+	}
+	return strings.TrimRight(row, " ")
 }
 
 // chromeOf is how many rows the title, the status line and the rows between
@@ -279,8 +473,12 @@ var (
 )
 
 // panelOf is the part of a row a view scrolls, where something held beside
-// it is ruled off, as Detail's list is: what's after the rule.
+// it is ruled off, as Detail's list is: what's after the rule. A box's right
+// edge closing a row its left edge opens is no such rule.
 func panelOf(row string) string {
+	if boxed, ok := strings.CutSuffix(strings.TrimRight(row, " "), "│"); ok && strings.Contains(boxed, "│") {
+		row = boxed
+	}
 	if _, after, found := strings.Cut(row, "│"); found {
 		return panelOf(after)
 	}
@@ -366,12 +564,15 @@ func saysMore(rows []string, mark string) bool {
 // reachOf is what of the fixture's view, by name, at the width given, the
 // sweep holds paged to reach every row of, from its rows as drawn: History's
 // views, from the row under the view's heading, but for their footnote;
-// the Overview's USAGE, from its heading to the next section's, but for its
-// key line, where nothing is drawn beside it; Accounts' views, but for
-// Detail's list; a phone's Switchboard in lanes, from the row under the
-// view's heading to the foot, which gives way where they scroll. Elsewhere
-// it's nil: the rest of the views fold and drop what they show by the room
-// they have, as the design lays them out.
+// the Overview's USAGE under 150 columns, where nothing is drawn beside its
+// blocks, and where its windows stack, as it's drawn alike paged and at its
+// tallest, not side by side, which grow to its big bars, from its heading to
+// its key line, or where the page doesn't show that, to the next section's
+// heading;
+// Accounts' views, but for Detail's list; a phone's Switchboard in lanes,
+// from the row under the view's heading to the foot, which gives way where
+// they scroll. Elsewhere it's nil: the rest of the views fold and drop what
+// they show by the room they have, as the design lays them out.
 func reachOf(name string, width int) func(rows []string) []string {
 	chrome := chromeOf(width)
 	switch {
@@ -390,8 +591,13 @@ func reachOf(name string, width int) func(rows []string) []string {
 				return nil
 			}
 			view := rows[from+1:]
-			if to := slices.IndexFunc(view, func(r string) bool { return strings.Contains(r, "─") || strings.HasPrefix(r, "┃ even pace") }); to >= 0 {
+			if to := slices.IndexFunc(view, func(r string) bool {
+				return sectionHeading.MatchString(r) || strings.HasPrefix(strings.TrimLeft(r, " "), "┃ even pace")
+			}); to >= 0 {
 				view = view[:to]
+			}
+			if sideBySide(view) {
+				return nil
 			}
 			return shownRows(view)
 		}
@@ -406,13 +612,61 @@ func reachOf(name string, width int) func(rows []string) []string {
 	case strings.HasPrefix(name, "sessions-") && !strings.Contains(name, "-list") && dashboard.Phone(width):
 		return func(rows []string) []string {
 			view := rows[chrome+2 : len(rows)-1]
-			if to := slices.IndexFunc(view, func(r string) bool { return strings.HasPrefix(r, "──") || strings.HasPrefix(r, "┃ even pace") }); to >= 0 {
+			if to := slices.IndexFunc(view, func(r string) bool { return strings.HasPrefix(r, "┃ even pace") }); to >= 0 {
 				view = view[:to]
 			}
-			return shownRows(view)
+			return lanesRead(shownRows(view))
 		}
 	}
 	return nil
+}
+
+var (
+	// laneName is a lane's name row, its account's number first.
+	laneName = regexp.MustCompile(`^ ?([0-9]+) `)
+	// laneWindows is a lane's windows' row: a window's label a cell in.
+	laneWindows = regexp.MustCompile(`^ [^ ]`)
+	// shownPercent is a bar's percentage, or — where it shows none.
+	shownPercent = regexp.MustCompile(`^([0-9]+%|—)$`)
+)
+
+// lanesRead are a phone's Switchboard's rows as the sweep reaches them: each
+// account's name row and each session's as drawn; and as the lanes stack
+// their windows a row each where rows are free, and side by side where
+// they're short, each window a windows' row shows as its account's number,
+// its label and its percentage.
+func lanesRead(rows []string) []string {
+	var read []string
+	account := ""
+	for _, r := range rows {
+		m := laneName.FindStringSubmatch(r)
+		if m != nil {
+			account = m[1]
+		}
+		if m != nil || !laneWindows.MatchString(r) {
+			read = append(read, r)
+			continue
+		}
+		fields := strings.Fields(r)
+		label := fields[0]
+		for i, f := range fields[1:] {
+			if shownPercent.MatchString(f) {
+				read = append(read, account+" "+label+" "+f)
+				if i+2 < len(fields) {
+					label = fields[i+2]
+				}
+			}
+		}
+	}
+	return read
+}
+
+// sideBySide reports whether USAGE's rows given draw its windows side by
+// side: its first row that isn't blank, a window's heading, kept or not,
+// starts in the name column, not at the margin.
+func sideBySide(rows []string) bool {
+	i := slices.IndexFunc(rows, func(r string) bool { return strings.TrimSpace(r) != "" })
+	return i >= 0 && strings.HasPrefix(rows[i], " ") && strings.ToUpper(rows[i]) == rows[i]
 }
 
 // shownRows are the rows given drawn on, trimmed at their right, but for

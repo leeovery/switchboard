@@ -25,6 +25,11 @@ func runwayKeysHarness(t *testing.T, doc status.Document, width int, keys string
 	return h
 }
 
+// scrolledSize is a terminal twelve accounts' lanes scroll in: short enough
+// that the legend and COMING UP have given way, and the lanes still don't
+// all fit.
+var scrolledSize = tea.WindowSizeMsg{Width: 160, Height: 30}
+
 // Runway's key lines are the design's: < > window and ←→ day, or ←→ week
 // in the week view, live or stepped back to, as the key line stays the live
 // view's; a names, its word faint while the labels are collapsed; p pin
@@ -108,8 +113,9 @@ func TestRunwaysHelpListsItsKeys(t *testing.T) {
 // it.
 func TestRunwaysHelpListsTheKeysThatScrollItsLanes(t *testing.T) {
 	h := runwayKeysHarness(t, twelve(), 160, "")
+	h.deliver(h.update(scrolledSize)...)
 	if f, doc, at := h.model.screen(h.clock.now); f.Scrolling(doc, at).Most == 0 {
-		t.Fatal("Runway's twelve lanes don't scroll at 160x37, want them to")
+		t.Fatal("Runway's twelve lanes don't scroll at 160x30, want them to")
 	}
 	scrolling := []string{"j k", "PgUp PgDn", "wheel"}
 	if got := listedKeys(helpOver(h.model)); !containsInOrder(got, scrolling) {

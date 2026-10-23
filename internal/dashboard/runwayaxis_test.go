@@ -27,16 +27,16 @@ func TestRunwaysAxisHasNowOverItsColumnAndARuleUnderItsLabels(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := newCanvas(160, 12)
-			runwayShowing(tt.shown).runwayAxis(c, runwayLaid{x: runwayLanesFrom, fit: runwayFit{fits: true, axis: 6}})
+			runwayShowing(tt.shown).runwayAxis(c, runwayLaid{x: framesLanesFrom, fit: runwayFit{fits: true, axis: 6}})
 			row := textAt(c, 0, 6, 160)
-			if want := strings.Repeat(" ", runwayLanesFrom+tt.now-1) + "now"; tt.now >= 0 && row != want || tt.now < 0 && row != "" {
+			if want := strings.Repeat(" ", framesLanesFrom+tt.now-1) + "now"; tt.now >= 0 && row != want || tt.now < 0 && row != "" {
 				t.Errorf("the axis's first row reads %q", row)
 			}
-			if got := c.at(runwayLanesFrom+tt.now, 6).ink; tt.now >= 0 && got != titleInk {
+			if got := c.at(framesLanesFrom+tt.now, 6).ink; tt.now >= 0 && got != titleInk {
 				t.Errorf("now is in %v, want %v", got, titleInk)
 			}
-			rule := strings.NewReplacer("┬", "─", "╵", "─").Replace(textAt(c, runwayLanesFrom, 8, 136))
-			if rule != strings.Repeat("─", 136) || c.at(runwayLanesFrom-1, 8).glyph != " " {
+			rule := strings.NewReplacer("┬", "─", "╵", "─").Replace(textAt(c, framesLanesFrom, 8, 136))
+			if rule != strings.Repeat("─", 136) || c.at(framesLanesFrom-1, 8).glyph != " " {
 				t.Errorf("the axis's rule reads %q, want 136 cells from the lanes' first column", rule)
 			}
 		})

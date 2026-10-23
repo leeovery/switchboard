@@ -273,18 +273,18 @@ func TestThePagesShowWhatTheyAreFor(t *testing.T) {
 		wantNoneOf []string
 	}{
 		{name: "page-routing", want: []string{
-			"╭─ ROUTING · NEW AND RUNNING SESSIONS ─", "│  ■ 2 personal    open", "│  ■ 3 side        open", "│  ■ m  also move the sessions running",
-			"New sessions go to personal or side. When both are full, the router chooses.",
+			"╭─ ROUTING · NEW AND RUNNING SESSIONS ─", "│  ■ 2 personal  open", "│  ■ 3 side      open", "│  ■ m  also move the sessions running",
+			"New sessions go to personal or side. When both are full, the router", "│  chooses.",
 		}},
 		{name: "page-routing-phone", want: []string{"╭─ ROUTING · NEW AND RUNNING SESSIONS ─", "The 4 sessions running elsewhere move there", "Rebuilding their caches costs ≈ $"}},
 		{name: "page-help-scrolled", want: []string{"─ HELP · OVERVIEW ", "│  USAGE"}, wantNoneOf: []string{"t themes"}},
 		{name: "page-not-answering", want: []string{"■ the router isn't answering  ·  since 14:42:07  ·  auto  ·  6 sessions"}},
 		{name: "page-session-loading", want: []string{"SESSION   d28c   switchboard  ~/Code/switchboard   loading… ─", "esc back    ? help  q quit"},
 			wantNoneOf: []string{"STORY", "TURNS", "↑↓ turn"}},
-		{name: "page-sessions-chosen", want: []string{"d28c switchboard  ↑ asking     ▸ from work      ●"}},
+		{name: "page-sessions-chosen", want: []string{"d28c switchboard              ↑ asking     ▸ from work      ●"}},
 		{name: "page-sessions-short", want: []string{"▲ 2 more accounts", "3 side ▲", "db8a infra"}, wantNoneOf: []string{"1 work", "41e0 docs"}},
-		{name: "page-sessions-not-answering", want: []string{"■ the router isn't answering", "c61b mobile       ↓ answering"}},
-		{name: "page-year-160x24", want: []string{"  Feb ", "▲ 3 more above   ·   ▼ 10 more below   ·   j/k to scroll"}},
+		{name: "page-sessions-not-answering", want: []string{"■ the router isn't answering", "c61b mobile                   ↓ answering"}},
+		{name: "page-year-160x24", want: []string{"limits hit   week ×3 · 5-hour ×412", "▲ 3 more above   ·   ▼ 17 more below   ·   j/k to scroll"}},
 		{name: "page-routing-160x16", want: []string{"╭─ ROUTING · NEW SESSIONS ─", "■ 0 auto", "enter apply   esc cancel  │", "╰────"}},
 		{name: "page-detail-list-focus", want: []string{"SESSIONS  now", "▸ ● c61b", "enter opens c61b's page", "↑↓ account  enter its page"}},
 		{name: "page-detail-sessions-focus", want: []string{"▸3 side", "SESSIONS  now", "▸ ● d28c", "enter opens d28c's page", "↑↓ session  ← accounts  enter its page"}},

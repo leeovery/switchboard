@@ -68,19 +68,29 @@ gets:
 
 - When rows run short, sections fold to their headings. Each folded heading still says what the
   section holds.
+- Before a section folds, USAGE's accounts close up, the blank row between each two giving way.
+  They close up only where that keeps a section open.
 - Sections fold in this order: SESSIONS first, then COMING UP and LATELY, then GRAPHS, then
   ROUTING.
-- USAGE never folds. With many accounts, it scrolls within itself.
-- Spare rows grow the sections shown, up to their full size.
+- USAGE never folds. Short of its rows, with every other section folded, it shows as many
+  accounts as it can: its accounts close up, then the blank rows under its headings give way,
+  then its key, as far as shows the most, and where they still don't fit, it scrolls within
+  itself.
+- A folded section opens again wherever it fits, the last folded first.
+- Spare rows grow the sections that aren't folded, up to their full size, even while others are
+  folded. SESSIONS takes them first, a whole session at a time.
 
 ### USAGE
 
 USAGE is the block that [`usage`](commands.md#usage) prints: every account's windows, and the
 pool's.
 
-- From 150 columns, it's the matrix. Given the room, it stacks the windows at the full width
+- Wherever its windows fit side by side, it's the matrix: from 86 columns with two windows and
+  short names, its bars at least 12 cells. Given the room, it stacks the windows at the full width
   instead, their bars as long.
-- Narrower, it stacks the windows as `usage` stacks them.
+- Narrower, as on a phone, it stacks the windows as `usage` stacks them.
+- Its name column is as wide as the longest name, up to 24 cells of label, wherever the screen has
+  room. A bar only grows as the screen widens: the words go from short to full first.
 - An account out of the pool, under a pin, is drawn faint.
 
 Each model's own window, such as Fable's week, is hidden until you press `w`. That goes for every
@@ -98,11 +108,16 @@ The key line under the block names the marks:
 | `◆` | the primary |
 | `▲` | where new sessions go |
 
+Where the key line has no room for `▲ new sessions go here`, it says `▲ new`. With one account,
+which has no pool, USAGE's heading says the room it has left in each window, wherever the heading
+has room for it.
+
 ### GRAPHS
 
-GRAPHS charts the focused account's windows, one chart a window, each under its window's column
-and running from the window's start to its reset. `v` flips between two charts, and the dashboard
-remembers which:
+GRAPHS charts the focused account's windows, one chart a window, running from the window's start
+to its reset. Where every chart fits under USAGE's bars, each sits under its window's column;
+narrower, they start at the left edge, as many side by side as fit, the rest on the rows under.
+`v` flips between two charts, and the dashboard remembers which:
 
 - **The burn-up** fills with the use so far, and shows the window's cap, even pace and now.
 - **The burn-down** falls from full as the room is used. A dotted line heads on from now at the
@@ -112,8 +127,9 @@ remembers which:
 
 `↑` and `↓` move the focus between accounts. USAGE lights the focused account.
 
-By account, from 150 columns, GRAPHS draws every account's charts beside its block instead, as
-many of its windows as fit, and there's no focus to move. Beside `Σ pool`, the pool's charts show
+By account, from 150 columns, GRAPHS draws every account's charts beside its block instead: as
+many of its windows as fit side by side, and with rows to spare, every one, the rest under them,
+taller as the rows allow. There's no focus to move. Beside `Σ pool`, the pool's charts show
 the room its accounts had left over each window's length back to now, each to its cap, summed, as
 Runway judges how each stood: one held back from every request counts none of its 5-hour window.
 Each account's reset shows as a step up. Narrower, and on a phone, GRAPHS charts the focused
@@ -134,7 +150,11 @@ ROUTING says, in words, how each account stands with the router. For example:
 - `● under pressure · out ~16:05`
 - `■ limit reached · back 15:54`
 - `○ idle · window starts at its prime, 16:20`
-- `● pinned`, on each account the pin names.
+- `● pinned`, on each account the pin names, where it has room beside the account's state, and,
+  where the state says when it's back or when its pressure runs out, only where that time fits
+  beside the mark too. A prime's time gives way to the mark. Where the mark doesn't fit, a
+  state that says the pin says it in its words, as `● at its cap · pinned`; otherwise only the
+  heading names the pinned accounts.
 
 For each account, ROUTING also shows:
 
@@ -142,31 +162,47 @@ For each account, ROUTING also shows:
 - its requests a minute over the last 30 minutes, drawn as a trace, with the last minute's rate.
 
 The section's heading gives the routing mode: `auto`, or
-`pinned to personal since 14:02   p back to auto`.
+`pinned to personal since 14:02   p back to auto`, or `pinned to personal` alone where the rest
+doesn't fit.
 
 Every trace on the page shares one scale, a session's trace included, so you can compare any two.
 
 ### SESSIONS
 
-SESSIONS lists the sessions the router has routed in the last hour, grouped by account. Each
-session shows:
+SESSIONS lists the sessions the router has routed in the last hour, busiest first. The account
+whose sessions send the most requests a minute comes first, with all its sessions together, the
+busiest of them first. Each session shows:
 
 - its id, bright while the session is busy
 - its model
 - when it was last seen
 - what it's doing, such as `↑ ask` or `↓ ~1.2k`
 - why it's on its account, such as `moved from work 14:31: work reached its cap`
-- its own trace.
+- its own trace, lined up with ROUTING's.
+
+SESSIONS shows as many sessions as there's room for, and a row such as `+5 more` for the rest. It
+folds only when there isn't room for one session and that row. The sessions it shows stay put
+until the layout changes, on a key or a resize: a session that starts joins `+5 more`, one that
+ends leaves its row blank, and nothing reorders as the rates change. When every row is already
+taken, the last session shown gives way to the `+N more` row. Once every session it kept has
+ended, it says `no sessions running`. When none were running as the layout was made, a session
+that starts shows on the row where it fits whole, and otherwise is counted in `+N more`.
+
+ROUTING takes a row for each account, and SESSIONS a row for each session, wherever an account's
+name, its state in at least 20 cells, its sessions and a trace of at least 24 fit on one row, from
+83 columns with a name column of 16. Narrower, each takes two.
 
 ### COMING UP and LATELY
 
-COMING UP and LATELY sit side by side.
+COMING UP and LATELY sit side by side where both fit, from 93 columns, and LATELY goes under
+COMING UP where they don't.
 
 - **COMING UP** is what happens next, soonest first, such as
   `16:30  personal's 5-hour resets  in 1h 48m`. A run-out's row is in the theme's attention colour.
 - **LATELY** is what the router has done, newest first. Each event is marked, such as
   `14:31  ╎ work reached its cap: 3 sessions moved to side`. When a limit, a cap or a refusal moves
-  sessions, those sessions are folded into that event's line.
+  sessions, those sessions are folded into that event's line. Where a line doesn't fit whole, it
+  takes a shorter form, `work at its cap: 3 moved to side`.
 
 ### By account
 
@@ -211,6 +247,9 @@ Compare has a column for each account, and one for `all accounts`. Each column s
 `←` and `→` move a focus along the columns, scrolling them where they don't all fit. `enter`
 opens the focused account in Detail.
 
+Where two accounts' columns and `all accounts`' don't fit side by side, as on a phone, Compare
+turns: a group at a time, an account a row. Turned, it has no focus.
+
 ### Detail
 
 Detail shows one account, or all of them, chosen from a list at its left. It shows:
@@ -218,7 +257,7 @@ Detail shows one account, or all of them, chosen from a list at its left. It sho
 - the account's windows now
 - the period's requests, limits, plan, worth and extra usage
 - its use by model
-- the last six weeks, a day and a week at a time
+- the last weeks, six where they fit, as its rule names them, a day and a week at a time
 - its verdict, as History's Weeks gives it
 - its SESSIONS now
 - its LATELY.
@@ -256,7 +295,7 @@ for each week.
 - A day with nothing on it has a shade of its own. The active days fall into quarters by how much
   each did.
 
-Beside the squares, Year shows the 12 months':
+Beside the grid where the width allows, and under the key otherwise, Year shows the 12 months':
 
 - requests, sessions and limits hit
 - worth, what the plans cost, and the worth against it
@@ -286,6 +325,10 @@ as many accounts as the use needs.
 - Its verdict is worded as [`history`](commands.md#history) words it.
 - The verdict comes from replaying the last 7 whole weeks with one account fewer or one more.
 - `v` draws the weeks as columns or as a table, where both fit.
+- As many weeks show as fit. On a narrower screen the oldest go first, so each account's verdict
+  still reads whole.
+- Where the table doesn't fit, under 79 columns, the verdict comes first, with the weeks under
+  it and no verdicts beside them.
 
 ### Days
 
@@ -301,6 +344,9 @@ at API prices against what its plans cost.
 
 - `<` and `>` set the period each row is: a day, a week or a month.
 - `v` splits each period by account, by model, by both, or not at all.
+- On a narrower screen, the columns give way one at a time: the model count first, then cache
+  write, input, output, the worth against the price and cache read. Total and worth always show,
+  and the names stay whole until every other column has gone.
 
 ## Sessions
 
@@ -322,11 +368,14 @@ The Switchboard is the default view. It's drawn as a telephone switchboard:
 Each session's requests travel its cord, out as they go and back as their answers stream. A
 refusal bounces back red, `✕ 429`.
 
-When a limit moves a session, the session joins its new account's group. Its old cord hangs red
-from the old jack, one cell shorter for each session the limit moved. A move made for any other
-reason hangs faint for 3 seconds.
+When a limit moves a session, the session joins its new account's group. A short cord hangs red
+from the old jack, one for each session the limit moved, while the limit holds. A move made for any
+other reason hangs faint for 3 seconds.
 
-Where the cords don't fit, as on a phone, each account's line carries its sessions under it.
+Where the cords don't fit, as on a phone, each account's line carries its sessions under it. Its
+windows are stacked as the board's lines are, a row each, where the screen is tall enough, and go
+side by side on one row where it's short. The pool has no lane, as
+no session runs on it: the Overview, Runway and `usage` show it.
 
 While the router isn't answering, the Switchboard and the List show the sessions it last listed.
 What one was doing then, such as `↓ answering`, stays as it was but faint, here and on every other
@@ -371,14 +420,22 @@ straight into another, the first says when it lifts, and only the last says when
 back: `at its limit 14:00  ·  lifts 19:00  at its cap 14:00  ·  back Mon 21:00`.
 
 With more than one account, the pool's lane sits under the others. It shows how many accounts have
-room, a column at a time, and draws a line, as a lane at its limit does, where none has. `Σ pool`
-names it, as an account's name heads its lane, with the pool's room in the view's window under
-it, such as `week 1.2 of 3 left`.
+room, a column at a time, and draws a low red bar along its foot where none has. `Σ pool` names
+it, as an account's name heads its lane, with the pool's room in the view's window under it, such
+as `week 1.2 of 3 left`.
 
-`a` collapses the labels beside the lanes, to give the lanes more room: each lane keeps its
-account's number, its marks and its use, such as `2 ◆    66%`, and the pool's lane its room short,
-such as `Σ    1.2/3`. COMING UP stays as it is, each line naming its account. `a` again expands
-them. Runway remembers which you left it on.
+COMING UP sits under the pool's lane and lists what happens next, soonest first, in two columns
+on a wide screen. Where its lines don't all fit, its last says how many more, such as `▼ 3 more`.
+The legend sits at the foot, over the key line. On a short screen, as with a phone's keyboard up,
+COMING UP is cut to the lines that fit first; then the legend gives way, then COMING UP, then the
+blank row under the axis; only then do the lanes scroll with `j` and `k`, down to one lane over
+the pool's lane at the shortest.
+
+The labels beside the lanes take as many columns as the widest needs, up to 24 cells of label,
+and the lanes take the rest. `a` collapses the labels, to give the lanes more room: each lane
+keeps its account's number and its marks, such as `2 ◆`, with its use under them, such as `66%`,
+and the pool's lane `Σ`, with its room short under it, such as `1.2/3`. COMING UP stays as it is,
+each line naming its account. `a` again expands them. Runway remembers which you left it on.
 
 To look back:
 
@@ -480,7 +537,20 @@ A session that has run for weeks takes a moment to read. While it does, the page
 with `loading…` after it, and `esc` goes back.
 
 A turn's requests are read from the ledger as you open it. If that takes a moment, the turn's foot
-says `loading…` until they're read.
+says `loading…` until they're read. An open turn's requests fill the rows there are as you open
+it: those left under the turns, or where the turns fill them, those under the turn, up to five;
+and down to one on a short screen. That holds as new turns arrive, until you open it again or
+resize the screen. An account joining takes a row from the turns, and the turn shows one fewer
+only where it had no row to spare. The request you've chosen stays in view through all of it.
+
+On a short screen, the page keeps its rows for its turns. The STORY's bars give up a row first,
+then the turns, from eight down to three, though a turn you've opened keeps its eight rows there,
+then the STORY folds to its heading (on a phone it's left out), then the accounts give way to a
+count, `+2 more accounts`, then the blank rows, then the turns, down to one. With a turn open, it
+keeps five of the turn's requests until the blank rows have gone, then shows fewer, down to one.
+Last, that count, the STORY's heading and the two rows saying what the session is doing give way,
+one at a time. From 10 rows tall and 11 on a phone, it always shows a turn, and from 13 and 14 a
+turn you've opened, whole.
 
 Keys on a session's page:
 
@@ -494,18 +564,31 @@ Keys on a session's page:
 
 ## On a phone
 
-Under 100 columns, the dashboard lays itself out for a phone.
+Every view lays itself out by what fits, at every width: each part narrows as far as it still
+reads, and a view takes a narrower arrangement only where its wider one's parts don't fit. So
+what a phone shows follows from its width, as it would in any narrow window. Only the page's frame
+switches at one width: under 100 columns, it takes its phone form.
 
 <div align="center">
 <img src="../art/phone.webp" alt="The Overview in a phone's terminal, 52 columns wide" width="260">
 </div>
 
-- The tabs sit on a row of their own, under the clock.
-- The Overview's USAGE stacks its windows in short words.
-- ROUTING takes two rows for each account, and SESSIONS two rows for each session.
-- LATELY comes under COMING UP.
+- The tabs sit on a row of their own, under the clock, and the status line, the heading row and
+  the key line say less.
+- The Overview's USAGE sets its windows side by side wherever every part of a row fits at its
+  least, from 86 columns with two windows and names of the sample's length, and stacks them where
+  they don't. As the room runs short, its bars give way first, to 12 cells, then its words, to their
+  short form, then the name column.
+- ROUTING takes two rows for each account, and SESSIONS two rows for each session, as they do
+  wherever one row doesn't fit, under 83 columns with a name column of 16.
+- LATELY comes under COMING UP, as it does wherever the two don't fit side by side, under 93
+  columns.
 - Accounts' `against it` and `against` give `all accounts`' ratio alone, but where an account has
   no `plan`, they add how many of the plans it's over, compact: `4.4× · 2/3`.
+- A session's page keeps each turn's number, start, length, requests, worth and accounts, as it
+  does at every width: its tools, then `↑ asking`, then read, written and out, leave as the width
+  runs short. An account's requests, then its time there, leave before its windows do, and the now
+  rows take their short form.
 
 ## Every page
 
@@ -657,7 +740,9 @@ Where a view doesn't fit, these keys scroll it:
 
 What scrolls on each page:
 
-- **Overview:** USAGE, where its accounts don't fit.
+- **Overview:** USAGE, where its accounts don't fit. It scrolls whole, a row at a time, keeping
+  each window's heading on its first row while that window's rows pass under it, and its last row
+  says how many rows are out of view above and below.
 - **Accounts:** its view.
 - **History:** the Year, where the screen is shorter than it; Weeks' accounts; Days' BY ACCOUNT,
   past six accounts; and Tokens' periods.
@@ -666,15 +751,23 @@ What scrolls on each page:
 - **The Log:** its table.
 - **A session's page:** its turns, or with a turn open, the turn's requests.
 
-USAGE, Weeks, Days, the Switchboard on Sessions, and the lanes on Runway scroll an account at a
-time. Tokens scrolls a period at a time. A turn of the wheel scrolls the same.
+Weeks, Days, the Switchboard on Sessions, and the lanes on Runway scroll an account at a time.
+Tokens scrolls a period at a time. A turn of the wheel scrolls the same.
 
 Where one account or one period doesn't fit, as on a short screen, the view scrolls whole, a row at
 a time. It does the same on History's Weeks and Days below 37 rows, and the Year always scrolls
 so. It then says how many rows are out of view above and below.
 
-When `b`, a section's key, a resize or what's read turns a view from one kind of scrolling to the
-other, the view goes back to its top.
+Scrolled a row at a time, a page down starts at the first row the page didn't show, and a page up
+ends just above the first row it showed, so paging either way passes over nothing. The Switchboard
+on Sessions and Tokens on History follow the same rule when they scroll an account or a period at a
+time: a page down starts at the first account or period the page didn't show, and a page up ends
+at the one just above the first it showed.
+
+When a resize or what's read turns a view from one kind of scrolling to the other, the view goes
+back to its top. Where `b` groups USAGE the other way, a resize changes how it's laid out, or a
+read changes its rows over the key line, as a model's window appearing does, it scrolls to show
+the focused account.
 
 ## The routing card
 
@@ -694,7 +787,7 @@ now. The card has these rows:
 Each account's row shows:
 
 - whether it's open
-- its 5-hour window and week
+- its week and 5-hour window
 - why it's closed, such as `at its cap till 17:10`, or its sessions running.
 
 ### Picking

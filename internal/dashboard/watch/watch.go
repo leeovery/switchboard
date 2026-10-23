@@ -315,11 +315,12 @@ type Model struct {
 	// acts on, a key, a click or the wheel, a resize, or a section's shape
 	// changing.
 	layout dashboard.Layout
-	// scroll is how many rows the view shown is scrolled down by, where it
-	// doesn't fit, or on the Overview, how many accounts USAGE is, within its
-	// section; and counts what it counted, as rescrolled noted it.
+	// scroll is how far the view shown is scrolled down, where it doesn't
+	// fit, as the frame's Scroll has it: rows, or things, as History's
+	// accounts, where it scrolls a thing at a time; and readIn the form it
+	// was read in, as rescrolled noted it.
 	scroll int
-	counts scrollUnit
+	readIn scrollRead
 	// focus is the account the Overview's focus is on, which GRAPHS follows:
 	// the first, in the config's order, till ↑ and ↓ move it, and "" while
 	// the document has none.
@@ -344,6 +345,14 @@ type Model struct {
 	stored      int
 	merged      views.HeldSessions
 	mergedAny   bool
+	// versionNameCells are the cells of the widest name a version is given,
+	// as views.VersionNameCells has it of the prices, worked out as New
+	// makes the model: the prices don't change while it runs.
+	versionNameCells int
+	// plansAtMost are the configured accounts' plans at the most each has
+	// cost, as views.PlansAtMost has them, worked out as New makes the
+	// model: neither the accounts nor the prices change while it runs.
+	plansAtMost []views.PlanCost
 	// runwayTab is what the watch holds of Runway: what it shows, its lanes
 	// as the last look built them, and the readings history's tail they're
 	// judged by; and pool what it holds of the pool's charts GRAPHS draws
@@ -458,7 +467,8 @@ func New(ctx context.Context, cfg Config) Model {
 		choice: cfg.Choice, pair: cfg.Pair, view: opening(cfg.View), sections: cfg.Sections, by: cfg.By, burn: cfg.Burn, models: cfg.Models,
 		accounts: accountsTab{shown: cfg.AccountsShown}, past: historyTab{page: cfg.History, starts: cfg.WeekStarts},
 		sessionsTab: sessionsTab{shown: cfg.SessionsShown}, runwayTab: runwayTab{shown: cfg.RunwayShown}, log: openingLog(cfg.Log),
-		traffic: traffic{heard: new(views.Hearing)}, held: views.HoldSessions(cfg.Prices),
+		traffic: traffic{heard: new(views.Hearing)}, held: views.HoldSessions(cfg.Prices), versionNameCells: views.VersionNameCells(cfg.Prices),
+		plansAtMost: views.PlansAtMost(cfg.Accounts, cfg.Prices),
 	}
 	m.accounts.shown.Accounts, m.past.page.Accounts = cfg.Accounts, cfg.Accounts
 	if m.after == nil {
@@ -558,41 +568,40 @@ func (m Model) keepLayout(page dashboard.Frame, now time.Time) Model {
 	return m
 }
 
-// scrollUnit is what the view's scroll counts, as the watch noted it last:
-// things, as USAGE's accounts, or rows; or nothing noted, at the view's top.
-type scrollUnit int
+// scrollRead is the form the view's scroll was read in, as the watch noted
+// it last, where noted: nothing noted at the view's top, which is its top in
+// any form.
+type scrollRead struct {
+	form  dashboard.ScrollForm
+	noted bool
+}
 
-const (
-	unnoted scrollUnit = iota
-	countsThings
-	countsRows
-)
-
-// rescrolled is m, and page, built at now, with the view scrolled back to
-// its top where what its scroll counts has changed since the last message
-// noted it: rows where it counted things, or things where it counted rows,
-// as b, a section's key, a resize or a read can change it; so an offset is
-// never read in the other's unit, the view going back to its top, its page
-// built afresh, as History's does on any change. At its top, an offset
-// reads alike in either, so nothing is noted there. A session's page open
-// over the tab scrolls its own, leaving the tab's as it is.
+// rescrolled is m, and page, built at now, with the view's scroll read
+// afresh where the form it's read in has changed since the last message
+// noted it, as b, a section's key, a resize or a read can change it, so an
+// offset is never read in a form it wasn't taken in: on the Overview,
+// USAGE scrolled to show the account the focus is on, as ↑ and ↓ scroll it;
+// elsewhere, as where History's Weeks turn from accounts to rows, the view
+// back to its top; and its page built afresh. A session's page open over
+// the tab scrolls its own, leaving the tab's as it is.
 func (m Model) rescrolled(page dashboard.Frame, now time.Time) (Model, dashboard.Frame) {
 	switch {
 	case m.session != nil:
 		return m, page
 	case m.scroll == 0:
-		m.counts = unnoted
+		m.readIn = scrollRead{}
 		return m, page
 	}
-	counts := countsThings
-	if m.laidOut(page, now).ScrollsRows(m.doc, now) {
-		counts = countsRows
-	}
-	if m.counts != unnoted && counts != m.counts {
-		m.scroll, m.counts = 0, unnoted
+	laid := m.laidOut(page, now)
+	form := laid.ScrollForm(m.doc, now)
+	if m.readIn.noted && form != m.readIn.form {
+		m.readIn, m.scroll = scrollRead{}, 0
+		if m.view == dashboard.Overview {
+			m.scroll = laid.Revealing(m.doc, now, m.focus)
+		}
 		return m, m.frame(now).Built(m.doc, now)
 	}
-	m.counts = counts
+	m.readIn = scrollRead{form: form, noted: true}
 	return m, page
 }
 
@@ -906,16 +915,18 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 		Lost: m.lostShown(), Failed: m.failure(), Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), StateChanged: m.changes.wordFaded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails, PoolRooms: m.pool.rooms,
 		Brightened: m.numbers.brightened(now), Sections: m.sections, By: m.by, Burn: m.burn, Models: m.models, Traces: m.traces, TraceScale: m.cfg.TraceScale, Layout: m.layout,
 		Sessions: m.sessions, Unlisted: m.unlisted(), Stream: m.traffic.stream(now), Held: m.held, Traffic: m.traffic.at(now), Scroll: m.scroll, SessionsTab: m.sessionsTab.shown,
-		Focus:      m.focus,
-		Policy:     m.cfg.Policy,
-		WindowName: m.cfg.WindowName,
-		WeekWindow: m.cfg.WeekWindow,
-		Accounts:   m.accounts.shown,
-		Runway:     m.runwayTab.shown,
-		History:    m.past.page,
-		Session:    m.session.frame(),
-		Loading:    m.loading(now),
-		Log:        m.log.page,
+		Focus:            m.focus,
+		Policy:           m.cfg.Policy,
+		WindowName:       m.cfg.WindowName,
+		WeekWindow:       m.cfg.WeekWindow,
+		VersionNameCells: m.versionNameCells,
+		PlansAtMost:      m.plansAtMost,
+		Accounts:         m.accounts.shown,
+		Runway:           m.runwayTab.shown,
+		History:          m.past.page,
+		Session:          m.session.frame(),
+		Loading:          m.loading(now),
+		Log:              m.log.page,
 	}.Holding(m.taking.moment).At(m.doc, now)
 	if m.view == dashboard.Accounts {
 		f.Accounts = m.accounts.standing(f)
@@ -928,11 +939,13 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 }
 
 // resized takes in the size the terminal gives, keeping the size drawn at for
-// a width or height it gives as zero; and closes the theme picker should it
-// no longer fit.
+// a width or height it gives as zero, a session's turn open laid out afresh
+// at it, as sessionResized has it; and closes the theme picker should it no
+// longer fit.
 func (m Model) resized(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 	given := Size{Width: msg.Width, Height: msg.Height}
 	m.size = given.or(m.size)
+	m = m.sessionResized()
 	m, closed := m.fitPicker()
 	if m.size == given {
 		return m, closed

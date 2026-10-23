@@ -160,8 +160,8 @@ func TestUsageReadsTheRouterWhileItRuns(t *testing.T) {
 		before := len(api.questions())
 		got := run(t, srv.deps, append([]string{"usage"}, tt.args...)...)
 		printed := ansi.Strip(got.stdout)
-		if got.code != 0 || got.stderr != "" || !strings.HasPrefix(printed, "\n SWITCHBOARD ") || !strings.Contains(printed, "\n"+tt.status+"\n") {
-			t.Errorf("switchboard usage %s = %+v, want exit status 0, nothing on stderr, and the printout after a blank line, its status %q",
+		if got.code != 0 || got.stderr != "" || !strings.HasPrefix(printed, "\n SWITCHBOARD ") || !strings.Contains(printed, tt.status+"\n") {
+			t.Errorf("switchboard usage %s = %+v, want exit status 0, nothing on stderr, and the printout after a blank line, its header ending with its status %q",
 				strings.Join(tt.args, " "), got, tt.status)
 		}
 		if probed := len(api.questions()) > before; probed != tt.probes {

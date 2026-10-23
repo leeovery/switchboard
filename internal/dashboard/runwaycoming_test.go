@@ -2,10 +2,12 @@ package dashboard
 
 import (
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -20,14 +22,10 @@ func runwayComingDrawn(t *testing.T, width, height int, coming []status.Upcoming
 	r.Timeline, r.Coming = views.LiveTimeline(views.RunwayFiveHour, routedAt, RunwayShown{}.Columns(width)), coming
 	f := Frame{Width: width, Height: height, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claudeLike, Runway: r}
 	f.WindowName = func(key string) string { return map[string]string{"5h": "5-hour", "7d": "week"}[key] }
-	shape := runwayShape{legendGap: true, legend: 1}
-	if f.phone() {
-		shape = runwayShape{roomRow: true, legend: 2}
-	}
-	fit := f.runwayFittedAs(f.top(), shape)
+	fit := f.runwayFitted(f.top())
 	c := newCanvas(width, height)
-	f.runwayComing(c, runwayLaid{x: runwayLanesFrom, fit: fit, m: f.Moment(doc, routedAt)})
-	return textOf(c.rows(Look{}))[fit.coming:fit.end]
+	f.runwayComing(c, runwayLaid{x: framesLanesFrom, fit: fit, m: f.Moment(doc, routedAt)})
+	return textOf(c.rows(Look{}))[fit.coming : fit.coming+1+fit.lines]
 }
 
 // The frames' world's things coming up in the 5-hour view: personal's
@@ -40,8 +38,8 @@ var fiveHourComing = []status.Upcoming{
 
 // Runway's COMING UP lists what Runway's own list holds, as the watch gives
 // it, never what else the moment has coming up, a line each, the Overview's
-// rows: its countdowns ending at column 71 from 100 columns, and at the
-// frame's edge on a phone.
+// rows: in one column, its countdowns ending at column 71 at their natural,
+// and at the frame's edge on a phone.
 func TestRunwaysComingUpListsWhatRunwaysListHolds(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -51,7 +49,7 @@ func TestRunwaysComingUpListsWhatRunwaysListHolds(t *testing.T) {
 		want   []string
 	}{
 		{
-			name: "the 5-hour frame's three", width: 160, height: 37, coming: fiveHourComing,
+			name: "the 5-hour frame's three", width: 120, height: 37, coming: fiveHourComing,
 			want: []string{
 				"COMING UP",
 				"16:30  personal's 5-hour resets                                in 1h 48m",
@@ -60,7 +58,7 @@ func TestRunwaysComingUpListsWhatRunwaysListHolds(t *testing.T) {
 			},
 		},
 		{
-			name: "one of them, the moment's others left out", width: 160, height: 37, coming: fiveHourComing[1:2],
+			name: "one of them, the moment's others left out", width: 120, height: 37, coming: fiveHourComing[1:2],
 			want: []string{"COMING UP", "17:10  work back from its cap                                  in 2h 28m"},
 		},
 		{
@@ -72,7 +70,7 @@ func TestRunwaysComingUpListsWhatRunwaysListHolds(t *testing.T) {
 				"18:50  side's 5-hour resets                in 4h 08m",
 			},
 		},
-		{name: "nothing coming up, its heading alone", width: 160, height: 37, want: []string{"COMING UP"}},
+		{name: "nothing coming up, its heading alone", width: 120, height: 37, want: []string{"COMING UP"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -112,33 +110,155 @@ func TestRunwaysComingUpNamesTheFiveHourWindowRunningOut(t *testing.T) {
 	}
 }
 
-// Folded, at (c) and after, COMING UP keeps its heading alone, saying what's
-// soonest three cells on, its time unpadded, and two cells on an ellipsis
-// where more follow, as the Overview folds a section; nothing after it where
-// nothing's coming up.
-func TestRunwaysComingUpFoldsToItsHeading(t *testing.T) {
+// fiveComing are the frames' world's three things coming up in the 5-hour
+// view, and two more: work's 5-hour resetting, and personal's again.
+var fiveComing = append(slices.Clone(fiveHourComing),
+	status.Upcoming{At: routedClock(1, 19, 30), Account: "work", Kind: status.UpcomingReset, Window: "5h"},
+	status.Upcoming{At: routedClock(1, 21, 0), Account: "personal", Kind: status.UpcomingReset, Window: "5h"},
+)
+
+// comingRow is the row runwayComingAlone draws COMING UP's heading on.
+const comingRow = 10
+
+// runwayComingAlone is the canvas of Runway's COMING UP alone, of the
+// frames' world in the 5-hour view, on a frame width cells wide, listing the
+// things coming up given, drawn from comingRow with lines rows of lines
+// under it.
+func runwayComingAlone(t *testing.T, width int, coming []status.Upcoming, lines int) *canvas {
+	t.Helper()
+	doc := framesDoc()
+	r := poolShown(doc, views.Pool{Of: 3, Key: "5h"})
+	r.Coming = coming
+	f := Frame{Width: width, Height: 37, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claudeLike, Runway: r}
+	f.WindowName = func(key string) string { return map[string]string{"5h": "5-hour", "7d": "week"}[key] }
+	c := newCanvas(f.Width, f.Height)
+	f.runwayComing(c, runwayLaid{x: framesLanesFrom, fit: runwayFit{fits: true, coming: comingRow, lines: lines}, m: f.Moment(doc, routedAt)})
+	return c
+}
+
+// Where its lines don't all fit the rows it's given, COMING UP shows the
+// lines it can, each whole, and its last place says how many more, in
+// text.subtle, as what's out of view of the lanes is: never folding whole.
+func TestRunwaysComingUpShowsTheLinesItCanAndHowManyMore(t *testing.T) {
 	tests := []struct {
 		name   string
 		coming []status.Upcoming
-		want   string
+		lines  int
+		want   []string
 	}{
-		{name: "three coming up", coming: fiveHourComing, want: "COMING UP   16:30  personal's 5-hour resets  …"},
-		{name: "one", coming: fiveHourComing[1:2], want: "COMING UP   17:10  work back from its cap"},
-		{name: "none", want: "COMING UP"},
+		{
+			name: "every line where they fit", coming: fiveHourComing, lines: 3,
+			want: []string{
+				"COMING UP",
+				"16:30  personal's 5-hour resets                                in 1h 48m",
+				"17:10  work back from its cap                                  in 2h 28m",
+				"18:50  side's 5-hour resets                                    in 4h 08m",
+			},
+		},
+		{
+			name: "a line and two more", coming: fiveHourComing, lines: 2,
+			want: []string{"COMING UP", "16:30  personal's 5-hour resets                                in 1h 48m", "▼ 2 more"},
+		},
+		{
+			name: "three lines of five and two more", coming: fiveComing, lines: 4,
+			want: []string{
+				"COMING UP",
+				"16:30  personal's 5-hour resets                                in 1h 48m",
+				"17:10  work back from its cap                                  in 2h 28m",
+				"18:50  side's 5-hour resets                                    in 4h 08m",
+				"▼ 2 more",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := runwayComingDrawn(t, 160, 22, tt.coming)
-			if !slices.Equal(got, []string{tt.want}) {
-				t.Errorf("folded, COMING UP reads %q, want %q alone", got, tt.want)
+			c := runwayComingAlone(t, 120, tt.coming, tt.lines)
+			if got := textOf(c.rows(Look{}))[comingRow : comingRow+1+tt.lines]; !slices.Equal(got, tt.want) {
+				t.Errorf("COMING UP reads\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(tt.want, "\n"))
+			}
+			if got := textOf(c.rows(Look{}))[comingRow+1+tt.lines]; got != "" {
+				t.Errorf("the row after COMING UP's last reads %q, want nothing", got)
+			}
+			if !strings.HasPrefix(tt.want[tt.lines], "▼") {
+				return
+			}
+			for x := range len([]rune("▼ 2 more")) {
+				if got := c.at(x, comingRow+tt.lines).ink; got != dimInk {
+					t.Errorf("cell %d of how many more is in %+v, want text.subtle", x, got)
+				}
 			}
 		})
 	}
 }
 
-// Collapsing the account column leaves COMING UP as it is, open or folded,
-// in its words and its inks: each line names its account alone, never by
-// its lane's number.
+// COMING UP's lines take two columns where both fit at the lines' natural
+// width, 72, comingApart apart, sharing the frame's width, the odd cell the
+// second's; else one, at its natural, or the frame's width where narrower.
+func TestRunwaysComingUpTakesTwoColumnsWhereBothFitAtTheirNatural(t *testing.T) {
+	tests := []struct {
+		width int
+		want  []flex.Span
+	}{
+		{width: 52, want: []flex.Span{{At: 0, Size: 52}}},
+		{width: 120, want: []flex.Span{{At: 0, Size: 72}}},
+		{width: 147, want: []flex.Span{{At: 0, Size: 72}}},
+		{width: 148, want: []flex.Span{{At: 0, Size: 72}, {At: 76, Size: 72}}},
+		{width: 160, want: []flex.Span{{At: 0, Size: 78}, {At: 82, Size: 78}}},
+		{width: 173, want: []flex.Span{{At: 0, Size: 84}, {At: 88, Size: 85}}},
+	}
+	for _, tt := range tests {
+		t.Run(strconv.Itoa(tt.width), func(t *testing.T) {
+			if got := (Frame{Width: tt.width}).comingColumns(); !slices.Equal(got, tt.want) {
+				t.Errorf("at %d columns, COMING UP's columns are %+v, want %+v", tt.width, got, tt.want)
+			}
+		})
+	}
+}
+
+// In two columns, COMING UP's lines run in time order down the first, then
+// across into the second, each whole, its countdown right-aligned at its
+// column's end; where they don't all fit, the second's last place says how
+// many more.
+func TestRunwaysComingUpRunsDownItsFirstColumnThenAcross(t *testing.T) {
+	// placed is a line of COMING UP in a column of 78 cells, 160's, its
+	// countdown at the column's end.
+	placed := func(words, until string) string {
+		return words + strings.Repeat(" ", 78-len([]rune(words))-len(until)) + until
+	}
+	resets, back, side := placed("16:30  personal's 5-hour resets", "in 1h 48m"), placed("17:10  work back from its cap", "in 2h 28m"), placed("18:50  side's 5-hour resets", "in 4h 08m")
+	apart := strings.Repeat(" ", comingApart)
+	tests := []struct {
+		name  string
+		lines int
+		want  []string
+	}{
+		{
+			name: "all five in three rows", lines: 3,
+			want: []string{
+				"COMING UP",
+				resets + apart + placed("19:30  work's 5-hour resets", "in 4h 48m"),
+				back + apart + placed("21:00  personal's 5-hour resets", "in 6h 18m"),
+				side,
+			},
+		},
+		{
+			name: "three of five in two rows, and two more", lines: 2,
+			want: []string{"COMING UP", resets + apart + side, back + apart + "▼ 2 more"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := runwayComingAlone(t, 160, fiveComing, tt.lines)
+			if got := textOf(c.rows(Look{}))[comingRow : comingRow+1+tt.lines]; !slices.Equal(got, tt.want) {
+				t.Errorf("COMING UP reads\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(tt.want, "\n"))
+			}
+		})
+	}
+}
+
+// Collapsing the account column leaves COMING UP as it is, every line of it
+// or cut, in its words and its inks: each line names its account alone,
+// never by its lane's number.
 func TestCollapsingRunwaysAccountColumnLeavesComingUpAsItIs(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -153,7 +273,7 @@ func TestCollapsingRunwaysAccountColumnLeavesComingUpAsItIs(t *testing.T) {
 				"18:50  side's 5-hour resets                                    in 4h 08m",
 			},
 		},
-		{name: "folded", height: 21, want: []string{"COMING UP   16:30  personal's 5-hour resets  …"}},
+		{name: "cut", height: 24, want: []string{"16:30  personal's 5-hour resets                                in 1h 48m", "▼ 2 more"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -161,14 +281,10 @@ func TestCollapsingRunwaysAccountColumnLeavesComingUpAsItIs(t *testing.T) {
 			coming := func(collapsed bool) []string {
 				r := poolShown(doc, views.Pool{Of: 3, Key: "5h"})
 				r.Collapsed, r.Coming = collapsed, fiveHourComing
-				r.Timeline = r.TimelineAt(routedAt, time.Monday, 160)
-				f := Frame{Width: 160, Height: tt.height, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claudeLike, Runway: r}
+				r.Timeline = r.TimelineAt(routedAt, time.Monday, 120)
+				f := Frame{Width: 120, Height: tt.height, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claudeLike, Runway: r}
 				f.WindowName = func(key string) string { return map[string]string{"5h": "5-hour", "7d": "week"}[key] }
-				fit := f.runwayFitted(f.top())
-				first := fit.coming + 1
-				if fit.folded {
-					first = fit.coming
-				}
+				first := f.runwayFitted(f.top()).coming + 1
 				return runwayDrawn(f, doc).rows(f.Look)[first : first+len(tt.want)]
 			}
 			expanded, collapsed := coming(false), coming(true)
@@ -189,7 +305,7 @@ func TestARunOutsLineOnRunwayIsInAccentAttention(t *testing.T) {
 	doc := framesDoc()
 	r := poolShown(doc, views.Pool{Of: 3, Key: "5h"})
 	r.Coming = []status.Upcoming{out}
-	f := Frame{Width: 160, Height: 37, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claudeLike, Runway: r}
+	f := Frame{Width: 120, Height: 37, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claudeLike, Runway: r}
 	c := runwayDrawn(f, doc)
 	y := f.runwayFitted(f.top()).coming + 1
 	for x, want := range map[int]ink{0: warningInk, 8: titleInk, 17: warningInk, 71: warningInk} {

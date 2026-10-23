@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -70,13 +71,15 @@ func (f Frame) log(c *canvas, doc status.Document, now time.Time, top int) {
 		return
 	}
 	m := f.Moment(doc, now)
-	draw := f.logEvent(m, now)
+	var draw func(c *canvas, y int, l logLine)
 	if p.Shown == LogRequests {
-		layout := logColumns(f.Width, p.Columns)
+		layout := f.requestsLayout(m)
 		logHeads(c, top, layout, dimInk)
 		draw = f.logRequest(m, now, layout)
 	} else {
-		f.eventsHeads(c, top)
+		columns := eventsLaid(f.Width, eventsAccountCells(m))
+		eventsHeads(c, top, columns)
+		draw = logEvent(m, now, columns)
 	}
 	lines, s := p.lines(), p.stand()
 	first, last := p.window(lines, s, f.LogRows())
@@ -120,6 +123,13 @@ func logHeads(c *canvas, y int, l logLayout, k ink) {
 		}
 		c.line(p.x, y, head)
 	}
+}
+
+// requestsLayout are the Requests' columns laid out across the frame, as
+// logColumns lays them out, on's natural the widest account the moment m
+// knows, as widestLabel has it.
+func (f Frame) requestsLayout(m status.Moment) logLayout {
+	return logColumns(f.Width, f.Log.Columns, widestLabel(m))
 }
 
 // logRequest draws a request's row along a row, its columns laid out as
@@ -181,7 +191,7 @@ func requestCell(r views.RequestRow, column LogColumn, layout logLayout, name fu
 	case LogAt:
 		return line{{prose.ToTheSecond(now, r.At), mutedInk}}
 	case LogSession:
-		return sessionCell(r.Session, r.Dir, layout.phone)
+		return sessionCell(r.Session, r.Dir, layout.named)
 	case LogModel:
 		return line{{modelNamed(r.Model), mutedInk}}
 	case LogOn:
@@ -236,15 +246,15 @@ func countCell(r views.RequestRow, column LogColumn) line {
 	return nil
 }
 
-// sessionCell names a request's session: its id in text.secondary, a space
-// and its directory's last part, cut to views.SessionDirCells, in
-// text.muted; on a phone, its id alone; and — of no session.
-func sessionCell(id, dir string, phone bool) line {
+// sessionCell names a request's session: its id in text.secondary; with its
+// directory where withDir says, a space and the directory, as
+// views.SessionDirName names it, in text.muted; and — of no session.
+func sessionCell(id, dir string, withDir bool) line {
 	if prose.Clean(id) == "" {
 		return line{{"—", faintInk}}
 	}
 	l := line{{status.ShownID(id), secondaryInk}}
-	if name := status.DirName(dir, views.SessionDirCells); name != "" && !phone {
+	if name := views.SessionDirName(dir); name != "" && withDir {
 		l = append(l, span{" " + name, mutedInk})
 	}
 	return l
@@ -304,15 +314,15 @@ func lined(r views.RequestRow, said string) line {
 }
 
 // requestWords are what the request's row r says in stopped or routing, as
-// layout lays them out: routing, how the router chose; stopped, on a phone
-// as PhoneStopped says it, routing folded in; folded, as Folded says it;
-// else as Stopped does.
+// layout lays them out: routing, how the router chose; stopped, briefly, as
+// BriefStopped says it, routing folded in; folded, as Folded says it; else
+// as Stopped does.
 func requestWords(r views.RequestRow, column LogColumn, layout logLayout) views.RowWords {
 	switch {
 	case column == LogRouting:
 		return r.Routing.Said()
-	case layout.phone:
-		return r.PhoneStopped()
+	case layout.brief:
+		return r.BriefStopped()
 	case layout.folded:
 		return r.Folded()
 	}
@@ -337,17 +347,21 @@ func rowLine(w views.RowWords) line {
 	return said
 }
 
+// costCut is the fewest cells the words before a cost kept whole are cut
+// to: a cell of them and the ellipsis.
+const costCut = 2
+
 // costKept is said cut to cells cells: where it ends in a cost, with the
 // span before it setting it apart, the words before them cut and the two
-// kept whole, where the words keep a cell and the ellipsis; else cut as fit
-// cuts it.
+// kept whole, where the words keep costCut cells; else cut as fit cuts it.
 func costKept(said line, costs bool, cells int) line {
 	if !costs || said.width() <= cells {
 		return said.fit(cells)
 	}
-	kept := said[len(said)-2:]
-	if room := cells - kept.width(); room >= 2 {
-		return slices.Concat(said[:len(said)-2].fit(room), kept)
+	words, kept := said[:len(said)-2], said[len(said)-2:]
+	spans, fits := flex.Lay(cells, flex.Part{Least: costCut, Natural: words.width()}, flex.Part{Least: kept.width(), Natural: kept.width()})
+	if !fits {
+		return said.fit(cells)
 	}
-	return said.fit(cells)
+	return slices.Concat(words.fit(spans[0].Size), kept)
 }

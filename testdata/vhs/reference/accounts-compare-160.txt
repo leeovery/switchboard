@@ -4,34 +4,34 @@
 
 ACCOUNTS    Compare  Detail  [ ]  ───────────────────────────────────────────────────────────────────────────────────────────────────────────────  < this week >
 
-                          1 work                           2 personal ◆                     3 side                           0 all accounts
-                          ● at cap                         ● open                           ● open                           2 open · 1 at cap
+                          1 work                            2 personal ◆                     3 side                           0 all accounts
+                          ● at cap                          ● open                           ● open                           2 open · 1 at cap
 
-WEEK USED                       ▏   ┃      ╎  34%                     ▉┃       66%                  ┃           78%                    ┃         59%
+WEEK USED                         ▏    ┃         ╎  34%                    ▉┃         66%               ┃      ▊       78%                 ┃▎           59%
 
 BY MODEL  share of use
-  ● Opus 5.5               55%                              29%                              82%                              56%
-  ● Opus 5                  7%                                —                                —                               2%
-  ● Sonnet 5.5             28%                              60%                              16%                              34%
-  ● Sonnet 5                3%                               7%                                —                               3%
-  ● Fable 5.1               5%                                —                               1%                               2%
-  ● Haiku 4.5               2%                               4%                               1%                               2%
+  ● Opus 5.5               55%                               29%                              82%                              56%
+  ● Opus 5                  7%                                 —                                —                               2%
+  ● Sonnet 5.5             28%                               60%                              16%                              34%
+  ● Sonnet 5                3%                                7%                                —                               3%
+  ● Fable 5.1               5%                                 —                               1%                               2%
+  ● Haiku 4.5               2%                                4%                               1%                               2%
 
 ACTIVITY
-  requests                1,204                            2,330                            1,876                            5,410
-  sessions served         9                                10                               14                               27
-  sessions moved          1 in · 3 out                     2 out                            4 in                             5 moves
+  requests                1,204                             2,330                            1,876                            5,410
+  sessions served         9                                 10                               14                               27
+  sessions moved          1 in · 3 out                      2 out                            4 in                             5 moves
 
 LIMITS
-  limits hit              5-hour ×2                        5-hour ×1                        5-hour ×1                        4
-  at cap or limit         3h 10m                           4h 45m                           52m                              8h 47m
-  left at its last reset  0% (limit Fri)                   15%                              40%                              —
+  limits hit              5-hour ×2                         5-hour ×1                        5-hour ×1                        4
+  at cap or limit         3h 10m                            4h 45m                           52m                              8h 47m
+  left at its last reset  0% (limit Fri)                    15%                              40%                              —
 
 VALUE
-  plan                    Max 20x · $200/mo                Max 20x · $200/mo                Max 20x · $200/mo                $600/mo · 3 plans
-  extra usage             off                              off                              off                              off on all
-  worth at API prices     $184                             $212                             $239                             $635
-  against its price       4.0× its $46 week                4.6× its $46 week                5.2× its $46 week                4.6× its $138 week
+  plan                    Max 20x · $200/mo                 Max 20x · $200/mo                Max 20x · $200/mo                $600/mo · 3 plans
+  extra usage             off                               off                              off                              off on all
+  worth at API prices     $184                              $212                             $239                             $635
+  against its price       4.0× its $46 week                 4.6× its $46 week                5.2× its $46 week                4.6× its $138 week
 
 
 tab views   [ ] view    < > period: this week    ←→ account  enter its page    p pin    ? help  q quit

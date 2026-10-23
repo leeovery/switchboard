@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -31,6 +32,79 @@ func TestAnEventsCardNamesItsSessionAsTheTablesDo(t *testing.T) {
 	j := slices.IndexFunc(d.Happened, func(it views.DetailItem) bool { return it.Name == "session" })
 	if want := sessionNamed(lines[1].Session, dir); j < 0 || d.Happened[j].Value.String() != want {
 		t.Errorf("the move's card names its session %q, want %q, as the tables name it", d.Happened[max(j, 0)].Value.String(), want)
+	}
+}
+
+// logAccounts is the router's document of work, personal and side, the
+// accounts the Log's tests name, so a column of names takes their widest.
+func logAccounts() status.Document {
+	return routerDoc("side", 0, status.Account{ID: "work", TokenSet: true}, status.Account{ID: "personal", TokenSet: true}, status.Account{ID: "side", TokenSet: true})
+}
+
+// eventsSaid says the Events' columns as a test holds them: each's head and
+// the cells it takes, from its first to its last.
+func eventsSaid(columns []eventColumn) string {
+	said := make([]string, len(columns))
+	for i, c := range columns {
+		said[i] = fmt.Sprintf("%s %d–%d", eventHeads[c.part], c.x, c.x+c.width-1)
+	}
+	return strings.Join(said, " · ")
+}
+
+// The Events' columns at every width, two cells apart: the session, whole,
+// leaving first, where what happened would fall short of its 40 cells; then
+// what happened cut toward 20; then the account toward its least, 8. The
+// account at the cells given till its turn, 8 where they're fewer, and what
+// happened taking the rest.
+func TestTheEventsColumnsAreLaidOutAtEveryWidth(t *testing.T) {
+	tests := []struct {
+		width, account int
+		want           string
+	}{
+		{width: 52, account: 15, want: "at 2–9 · event 12–19 · account 22–29 · what happened 32–51"},
+		{width: 59, account: 15, want: "at 2–9 · event 12–19 · account 22–36 · what happened 39–58"},
+		{width: 78, account: 15, want: "at 2–9 · event 12–19 · account 22–36 · what happened 39–77"},
+		{width: 97, account: 15, want: "at 2–9 · event 12–19 · account 22–36 · what happened 39–96"},
+		{width: 98, account: 15, want: "at 2–9 · session 12–28 · event 31–38 · account 41–55 · what happened 58–97"},
+		{width: 160, account: 15, want: "at 2–9 · session 12–28 · event 31–38 · account 41–55 · what happened 58–159"},
+		{width: 160, account: 2, want: "at 2–9 · session 12–28 · event 31–38 · account 41–48 · what happened 51–159"},
+		{width: 173, account: 49, want: "at 2–9 · session 12–28 · event 31–38 · account 41–89 · what happened 92–172"},
+		{width: 73, account: 49, want: "at 2–9 · event 12–19 · account 22–50 · what happened 53–72"},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%d of %d", tt.width, tt.account), func(t *testing.T) {
+			if got := eventsSaid(eventsLaid(tt.width, tt.account)); got != tt.want {
+				t.Errorf("eventsLaid(%d, %d) =\n%s\nwant\n%s", tt.width, tt.account, got, tt.want)
+			}
+		})
+	}
+}
+
+// The Events' account column takes the longest line a move can make: the
+// two widest names of the accounts configured, each counted labelMost at
+// the most, and the arrow between; the one name where there's one.
+func TestTheEventsAccountIsTheLongestMove(t *testing.T) {
+	tests := []struct {
+		name     string
+		accounts []status.Account
+		want     int
+	}{
+		{name: "none", want: 0},
+		{name: "one", accounts: []status.Account{{ID: "personal"}}, want: 8},
+		{name: "the two widest", accounts: []status.Account{{ID: "work"}, {ID: "personal"}, {ID: "side"}}, want: 8 + 3 + 4},
+		{
+			name:     "long names, each at labelMost",
+			accounts: []status.Account{{ID: "a", Label: "an-account-named-at-great-length"}, {ID: "b", Label: "side-hustle-consulting"}, {ID: "c"}},
+			want:     labelMost + 3 + 22,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := frameOf(160, 24).Moment(routerDoc("side", 0, tt.accounts...), now)
+			if got := eventsAccountCells(m); got != tt.want {
+				t.Errorf("eventsAccountCells = %d, want %d", got, tt.want)
+			}
+		})
 	}
 }
 
@@ -68,58 +142,58 @@ func TestTheEventsDrawEachKindOfRowAtEachWidth(t *testing.T) {
 		{
 			width: 52,
 			want: []string{
-				"● 23:50:00 pin      personal  new sessions go there",
+				"● 23:50:00  pin       personal  new sessions go the…",
 				"  Wed 30 Sep  ───────────────────────────  Thu 1 Oct",
-				"╎ 09:30:00 cap      work      95% of its 5-hour win…",
-				"▸ 14:35:00 moved    w… → si…  work reached its limi…",
+				"╎ 09:30:00  cap       work      95% of its 5-hour w…",
+				"▸ 14:35:00  moved     w… → si…  work reached its li…",
 			},
 			last: "…",
 		},
 		{
 			width: 80,
 			want: []string{
-				"● 23:50:00 pin      personal  new sessions go there",
+				"● 23:50:00  pin       personal         new sessions go there",
 				"  Wed 30 Sep  ───────────────────────────────────────────────────────  Thu 1 Oct",
-				"╎ 09:30:00 cap      work      95% of its 5-hour window: its 3 sessions move to …",
-				"▸ 14:35:00 moved    w… → si…  work reached its limit   1.0M cached again, $8.00",
+				"╎ 09:30:00  cap       work             95% of its 5-hour window: its 3 sessions…",
+				"▸ 14:35:00  moved     work → side      work reached…   1.0M cached again, $8.00",
 			},
 			costs: true, last: "…",
 		},
 		{
 			width: 100,
 			want: []string{
-				"● 23:50:00                     pin       personal          new sessions go there",
+				"● 23:50:00                     pin       personal         new sessions go there",
 				"  Wed 30 Sep  ───────────────────────────────────────────────────────────────────────────  Thu 1 Oct",
-				"╎ 09:30:00                     cap       work              95% of its 5-hour window: its 3 sessions…",
-				"▸ 14:35:00  d28c               moved     work → side       work reached…   1.0M cached again, $8.00",
+				"╎ 09:30:00                     cap       work             95% of its 5-hour window: its 3 sessions…",
+				"▸ 14:35:00  d28c               moved     work → side      work reached i…   1.0M cached again, $8.00",
 			},
-			costs: true, last: "…",
+			costs: true,
 		},
 		{
 			width: 120,
 			want: []string{
-				"● 23:50:00                     pin       personal          new sessions go there",
+				"● 23:50:00                     pin       personal         new sessions go there",
 				"  Wed 30 Sep  " + rule(95) + "  Thu 1 Oct",
-				"╎ 09:30:00                     cap       work              95% of its 5-hour window: its 3 sessions move to side as the…",
-				"▸ 14:35:00  d28c               moved     work → side       work reached its limit   1.0M cached again, $8.00",
+				"╎ 09:30:00                     cap       work             95% of its 5-hour window: its 3 sessions move to side as thei…",
+				"▸ 14:35:00  d28c               moved     work → side      work reached its limit   1.0M cached again, $8.00",
 			},
 			costs: true, last: "…",
 		},
 		{
 			width: 200,
 			want: []string{
-				"● 23:50:00                     pin       personal          new sessions go there",
+				"● 23:50:00                     pin       personal         new sessions go there",
 				"  Wed 30 Sep  " + rule(175) + "  Thu 1 Oct",
-				"╎ 09:30:00                     cap       work              95% of its 5-hour window: its 3 sessions move to side as their next requests come",
-				"▸ 14:35:00  d28c               moved     work → side       work reached its limit   1.0M cached again, $8.00",
+				"╎ 09:30:00                     cap       work             95% of its 5-hour window: its 3 sessions move to side as their next requests come",
+				"▸ 14:35:00  d28c               moved     work → side      work reached its limit   1.0M cached again, $8.00",
 			},
 			costs: true,
 		},
 	}
 	for _, tt := range tests {
 		f := logFrameOf(p, tt.width, 24)
-		c := f.page(routerDoc("side", 0), at)
-		rows := textOf(f.Draw(routerDoc("side", 0), at))[f.top()+1 : f.top()+1+len(tt.want)]
+		c := f.page(logAccounts(), at)
+		rows := textOf(f.Draw(logAccounts(), at))[f.top()+1 : f.top()+1+len(tt.want)]
 		if !slices.Equal(rows, tt.want) {
 			t.Errorf("at %d columns, the rows read\n%s\nwant\n%s", tt.width, strings.Join(rows, "\n"), strings.Join(tt.want, "\n"))
 			continue

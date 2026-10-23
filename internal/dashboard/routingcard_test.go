@@ -215,8 +215,8 @@ func TestAnAccountNotReadYetIsOpenItsFiguresFaint(t *testing.T) {
 	unread := readAccount("unread")
 	unread.FetchedAt = time.Time{}
 	r := RoutingCard{Rows: RoutingRows(routerDoc("", 0, unread).At(now, claudeLike), nil, views.Stream{})}
-	row := r.choice(r.Rows[1], false, 76)[0]
-	if got, want := strings.TrimRight(row.plain(), " "), "□ 1 unread      open      week —     5-hour —"; got != want {
+	row := r.choice(r.Rows[1], r.columns(76), 76)[0]
+	if got, want := strings.TrimRight(row.plain(), " "), "□ 1 unread  open      week —     5-hour —"; got != want {
 		t.Errorf("its row reads %q, want %q", got, want)
 	}
 	for _, s := range row {
@@ -324,9 +324,9 @@ func TestTheTitleAndOpeningLineFollowM(t *testing.T) {
 		card           RoutingCard
 		title, opening string
 	}{
-		{name: "m clear", card: RoutingCard{Picked: []string{"personal"}}, title: "ROUTING · NEW SESSIONS", opening: "Pick the accounts new sessions go to."},
-		{name: "m ticked", card: RoutingCard{Picked: []string{"personal"}, Move: true}, title: "ROUTING · NEW AND RUNNING SESSIONS", opening: "Pick the accounts new and running sessions go to."},
-		{name: "m ticked, auto picked", card: RoutingCard{Move: true}, title: "ROUTING · NEW AND RUNNING SESSIONS", opening: "Pick the accounts new and running sessions go to."},
+		{name: "m clear", card: routedCard(func(r *RoutingCard) { r.Picked = []string{"personal"} }), title: "ROUTING · NEW SESSIONS", opening: "Pick the accounts new sessions go to."},
+		{name: "m ticked", card: routedCard(func(r *RoutingCard) { r.Picked, r.Move = []string{"personal"}, true }), title: "ROUTING · NEW AND RUNNING SESSIONS", opening: "Pick the accounts new and running sessions go to."},
+		{name: "m ticked, auto picked", card: routedCard(func(r *RoutingCard) { r.Picked, r.Move = nil, true }), title: "ROUTING · NEW AND RUNNING SESSIONS", opening: "Pick the accounts new and running sessions go to."},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -370,7 +370,7 @@ func TestNoPickMTickOrRefusalMovesTheCard(t *testing.T) {
 						if got := cardAt(f, r); got != opened {
 							t.Errorf("picking %q, m %v, moving %d, refused %v, the card sits at %+v, want it where it opened, %+v", picked, r.Move, r.Moving, r.Refused != "", got, opened)
 						}
-						if lines, room := len(wrappedAt(r.sentences(), f.cardWidth(routingWidth)-2*cardInset)), r.outcomeRoom(f.cardWidth(routingWidth)-2*cardInset); r.Refused == "" && lines > room {
+						if lines, room := len(wrappedAt(r.sentences(), f.cardWidth(r.natural())-2*cardInset)), r.outcomeRoom(f.cardWidth(r.natural())-2*cardInset); r.Refused == "" && lines > room {
 							t.Errorf("picking %q, m %v, moving %d, the outcome takes %d rows, more than the %d kept for it", picked, r.Move, r.Moving, lines, room)
 						}
 					}
@@ -473,12 +473,12 @@ func TestARowsMarkSaysWhetherItsPicked(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := r.choice(tt.row, false, 76)[0][0]; got != tt.want {
+			if got := r.choice(tt.row, r.columns(76), 76)[0][0]; got != tt.want {
 				t.Errorf("its mark is %+v, want %+v", got, tt.want)
 			}
 		})
 	}
-	if got := (RoutingCard{}).choice(RoutingRow{Key: "0", Name: "auto", Open: true, Pickable: true}, false, 76)[0][0]; got != (span{"■", keyInk}) {
+	if got := (RoutingCard{}).choice(RoutingRow{Key: "0", Name: "auto", Open: true, Pickable: true}, RoutingCard{}.columns(76), 76)[0][0]; got != (span{"■", keyInk}) {
 		t.Errorf("auto's mark, nothing picked, is %+v, want it picked", got)
 	}
 }
@@ -504,7 +504,8 @@ func TestTheKeysRowNamesTheNumbersAndKeepsEnterAndEscWhereItsShort(t *testing.T)
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := RoutingCard{Rows: make([]RoutingRow, tt.accounts+1)}
+			doc := routerDoc("", 0, namedAccounts(tt.accounts)...)
+			r := RoutingCard{Rows: RoutingRows(doc.At(now, claudeLike), nil, views.Stream{})}
 			f := Frame{Width: tt.width, Height: 40}
 			if got := keyRow(r.card(f).keys).plain(); got != tt.want {
 				t.Errorf("the keys row reads %q, want %q", got, tt.want)
@@ -519,17 +520,20 @@ func TestRowsPastTheCardsRoomScrollTheCursorsKeptInView(t *testing.T) {
 		accounts[i] = readAccount("a"+strconv.Itoa(i+1), sessionOf(0.1, time.Hour))
 	}
 	rows := RoutingRows(routerDoc("a1", 0, accounts...).At(now, claudeLike), nil, views.Stream{})
-	// At 30 rows, the card's 26 at most leave its rows 12 lines.
+	// At 30 rows, the card's 26 at most leave its rows 11 lines, its names
+	// no wider than auto's 4 making it 77 cells wide, its outcome's room
+	// kept for the longest it says at that width.
+	const inView = 11
 	tests := []struct {
 		name   string
 		cursor int
 		// first and end are the rows in view, from first to before end.
 		first, end int
 	}{
-		{name: "the cursor at the top", cursor: 0, first: 0, end: 11},
-		{name: "the cursor on the last row in view", cursor: 10, first: 0, end: 11},
-		{name: "the cursor past them", cursor: 11, first: 2, end: 12},
-		{name: "the cursor at the foot", cursor: 12, first: 2, end: 13},
+		{name: "the cursor at the top", cursor: 0, first: 0, end: 10},
+		{name: "the cursor on the last row in view", cursor: 9, first: 0, end: 10},
+		{name: "the cursor past them", cursor: 10, first: 2, end: 11},
+		{name: "the cursor at the foot", cursor: 12, first: 3, end: 13},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -549,7 +553,7 @@ func TestRowsPastTheCardsRoomScrollTheCursorsKeptInView(t *testing.T) {
 			want = append(want, moreOf("▼", len(rows)-tt.end)...)
 			_, body := cardText(r, f)
 			var got []string
-			for _, l := range body[2:14] {
+			for _, l := range body[2 : 2+inView] {
 				got = append(got, choiceNamed(l))
 			}
 			if !slices.Equal(got, want) {
@@ -649,7 +653,7 @@ func TestTheRowTheCursorsOnIsLitAndNoOther(t *testing.T) {
 		cursors       []int
 	}{
 		{name: "at 160 columns", width: 160, height: 37, card: routedCard(nil), cursors: []int{0, 1, 2, 3}},
-		{name: "on a phone, an account's both lines", width: 52, height: 40, card: routedCard(nil), cursors: []int{0, 1, 2, 3}},
+		{name: "stacked, an account's both lines", width: 52, height: 40, card: routedCard(nil), cursors: []int{0, 1, 2, 3}},
 		{name: "a row that can't be picked", width: 160, height: 37, card: closed, cursors: []int{3}},
 		{name: "scrolled, the cursor kept in view", width: 160, height: 30, card: twelve, cursors: []int{0, 11, 12}},
 	}
@@ -668,7 +672,7 @@ func TestTheRowTheCursorsOnIsLitAndNoOther(t *testing.T) {
 					t.Fatalf("no row of the card names %s", row.Name)
 				}
 				last := first
-				if f.phone() && row.Account != "" {
+				if under := []rune(lit.rows(Look{})[first+1]); strings.HasPrefix(strings.TrimSpace(string(under[left+cardInset:])), "week ") {
 					last++
 				}
 				for y := range f.Height {
@@ -695,7 +699,7 @@ func TestTheCursorsRowIsLitAsTheLookDrawsBgSelection(t *testing.T) {
 	lit, unlit := drawnLit(f, r)
 	y := rowSaying(lit, 39+cardInset+choiceName, "2 personal ")
 	nord, terminal := Screen(builtin(t, "nord")), Screen(builtin(t, theme.Terminal))
-	for x := 41; x <= 118; x++ {
+	for x := 41; x <= 117; x++ {
 		k := lit.at(x, y).ink
 		if got, want := shadeOf(nord.surface(k)), shadeOf(nord.theme.Colour(theme.BgSelection)); got != want {
 			t.Errorf("in nord, cell %d is on %s, want bg.selection, %s", x+1, got, want)
@@ -739,24 +743,56 @@ func rowSaying(c *canvas, x int, text string) int {
 	return -1
 }
 
-func TestOnAPhoneAnAccountsWindowsTakeARowOfTheirOwn(t *testing.T) {
+// The card's names are a column of names: as wide as the widest name, at
+// most 24, the card's natural following from it.
+func TestTheRoutingCardsNamesAreALabelsColumn(t *testing.T) {
+	named := func(name string) RoutingCard {
+		return routedCard(func(r *RoutingCard) { r.Rows[2].Name = name })
+	}
+	tests := []struct {
+		name    string
+		card    RoutingCard
+		natural int
+		row     string
+	}{
+		{name: "the frames' names, 8 cells", card: routedCard(nil), natural: 81, row: "□ 2 personal  open      week 66%   5-hour 39%"},
+		{name: "names all under 8, the column the widest's", card: named("sides"), natural: 78, row: "□ 2 sides  open      week 66%   5-hour 39%"},
+		{name: "a name of 24, whole", card: named("a-very-long-account-name"), natural: 97,
+			row: "□ 2 a-very-long-account-name  open      week 66%   5-hour 39%"},
+		{name: "a name past 24, cut there", card: named("a-very-long-account-name-and-more"), natural: 97,
+			row: "□ 2 a-very-long-account-nam…  open      week 66%   5-hour 39%"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.card.natural(); got != tt.natural {
+				t.Errorf("the card's natural is %d cells, want %d", got, tt.natural)
+			}
+			_, body := cardText(tt.card, Frame{Width: 220, Height: 40})
+			if !slices.ContainsFunc(body, func(l string) bool { return strings.HasPrefix(l, tt.row) }) {
+				t.Errorf("the rows read\n%s\nwant one starting %q", strings.Join(body, "\n"), tt.row)
+			}
+		})
+	}
+}
+
+func TestWhereAnAccountsRowDoesntFitOneLineItsWindowsTakeARowOfTheirOwn(t *testing.T) {
 	r := routedCard(nil)
 	f := Frame{Width: 52, Height: 40}
 	if got := r.card(f).width; got != 50 {
-		t.Errorf("the card is %d cells wide, want 50, the phone's width less a cell either side", got)
+		t.Errorf("the card is %d cells wide, want 50, the screen's width less a cell either side", got)
 	}
 	_, body := cardText(r, f)
 	want := []string{
 		"Pick the accounts new sessions go to.",
 		"",
 		"",
-		"■ 0 auto        the router chooses",
-		"□ 1 work        closed  at its cap till 17:…",
-		"                week 34%   5-hour 95%",
-		"□ 2 personal    open               2 running",
-		"                week 66%   5-hour 39%",
-		"□ 3 side        open               4 running",
-		"                week 78%   5-hour 13%",
+		"■ 0 auto     the router chooses",
+		"□ 1 work     closed    at its cap till 17:10",
+		"             week 34%   5-hour 95%",
+		"□ 2 personal open                  2 running",
+		"             week 66%   5-hour 39%",
+		"□ 3 side     open                  4 running",
+		"             week 78%   5-hour 13%",
 	}
 	if got := body[:10]; !slices.Equal(got, want) {
 		t.Errorf("the rows read\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -792,4 +828,38 @@ func plains(lines []line) []string {
 		said = said[:len(said)-1]
 	}
 	return said
+}
+
+func TestARowsEndKeepsTwoCellsFromItsStartWhereItsCut(t *testing.T) {
+	tests := []struct {
+		name  string
+		width int
+		want  string
+	}{
+		{name: "whole, at the edge", width: 40, want: "work closed      at its limit till 15:54"},
+		{name: "cut where a space goes, two cells on", width: 27, want: "work closed  at its limit…"},
+		{name: "cut, two cells on", width: 30, want: "work closed  at its limit til…"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := strings.TrimRight(atEnd(line{{"work closed", titleInk}}, line{{"at its limit till 15:54", errorInk}}, tt.width, endGap).plain(), " ")
+			if got != tt.want {
+				t.Errorf("the row reads %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// A row with its end is never wider than its cells, where what's before the
+// end leaves it no room, or the end's empty.
+func TestARowWithItsEndIsNeverWiderThanItsCells(t *testing.T) {
+	for width := range 16 {
+		for _, l := range []string{"", "work", "work closed"} {
+			for _, end := range []string{"", "abc", "at its limit till 15:54"} {
+				if got := atEnd(line{{l, titleInk}}, line{{end, errorInk}}, width, endGap).width(); got > width {
+					t.Errorf("%q with %q at its end in %d cells is %d cells wide", l, end, width, got)
+				}
+			}
+		}
+	}
 }

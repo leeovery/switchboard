@@ -144,9 +144,9 @@ func TestRunwayHelpSaysWhatItsRulesAre(t *testing.T) {
 		{"the 5-hour leaving out a week running out", "the 5-hour view leaves out a week running out"},
 		{"the use under a name", "its use of the view's window"},
 		{"the labels collapsed", "a collapses the labels, to give the lanes more room"},
-		{"a collapsed label", "its number, its marks and its use alone, as 2 ◆ 66%"},
-		{"the pool's room collapsed", "beside Σ, of how many accounts the pool is, as Σ 1.2/3"},
-		{"a stale account", "not read since 14:20"},
+		{"a collapsed label", "its number and its marks alone, as 2 ◆, and under them its use, as 66%"},
+		{"the pool's room collapsed", "under Σ, of how many accounts the pool is, as 1.2/3"},
+		{"a stale account", "read 14:20 where its last read failed; and not read before its first"},
 		{"a refused token's use faded", "and the use of one whose token is refused"},
 		{"a run of stretches", "a stretch says lifts 19:00, when its own hold lifts, and only the last says back"},
 		{"a time as the view's window resets", "A cap's or a run-out's time adds as its 5-hour resets"},
@@ -156,7 +156,13 @@ func TestRunwayHelpSaysWhatItsRulesAre(t *testing.T) {
 		{"a reserve set now redraws past caps", "change a reserve, and the caps of days gone are drawn again by it"},
 		{"the lanes scrolling", "the lanes scroll with j and k"},
 		{"the pool's columns", "filled to how many of the pool's accounts have room then"},
-		{"the pool's columns at none", "where none has room, ─ along its foot, as a lane at its limit draws it"},
+		{"the pool's columns at none", "where none has room, ▂ along its foot, in a limit's red"},
+		{"the pool's least fill", "▃ at the least where any has room"},
+		{"the legend at the foot", "The legend sits at the foot, over the key line"},
+		{"what's out of view", "what's out of view said beside the pool's room"},
+		{"the legend and COMING UP giving way", "then the legend gives way, then COMING UP, then the blank row under the axis; only then do the lanes scroll"},
+		{"COMING UP's room", "It sits under the pool's lane and takes the rows left"},
+		{"COMING UP cut", "where its lines don't all fit, its last says how many more"},
 		{"what counts without room", "An account at its cap or its limit counts without room"},
 		{"the pool's accounts", "The pool is every account on auto, and the pin's while one holds"},
 		{"the pool's room", "Under Σ pool, the pool's room in the view's window"},
@@ -199,15 +205,16 @@ func TestRunwayHelpSaysThePastIsDimmedWhereTheLookBlends(t *testing.T) {
 }
 
 // How long a column is follows the width, as the lanes keep their span: at
-// 160 columns, the design's 10 minutes, ≈ 74 and ≈ 10.6; on a phone's 38,
-// about 36 minutes, as the phone's legend says.
+// 160 columns, the lanes' 146 after a label column of 14, ≈ 9.3 minutes,
+// ≈ 69 and ≈ 9.9; at 52, the lanes' 38 after the same column, about 36
+// minutes.
 func TestRunwayHelpSaysHowLongAColumnIsAtTheWidth(t *testing.T) {
 	tests := []struct {
 		width               int
 		fiveHour, week, day string
 	}{
-		{width: 160, fiveHour: "10 minutes", week: "≈ 74 minutes", day: "≈ 10.6 minutes"},
-		{width: 216, fiveHour: "≈ 7.1 minutes", week: "≈ 53 minutes", day: "≈ 7.5 minutes"},
+		{width: 160, fiveHour: "≈ 9.3 minutes", week: "≈ 69 minutes", day: "≈ 9.9 minutes"},
+		{width: 216, fiveHour: "≈ 6.7 minutes", week: "≈ 50 minutes", day: "≈ 7.1 minutes"},
 		{width: 52, fiveHour: "≈ 36 minutes", week: "≈ 265 minutes", day: "≈ 38 minutes"},
 	}
 	for _, tt := range tests {

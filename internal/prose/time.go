@@ -28,6 +28,12 @@ func Clock(now, t time.Time) string {
 	return t.In(now.Location()).Format(clockLayout)
 }
 
+// TimeOfDayWidest is as wide as TimeOfDay ever says, every time of day
+// in as many characters: "23:59".
+func TimeOfDayWidest() string {
+	return time.Date(2001, time.March, 28, 23, 59, 0, 0, time.UTC).Format(timeLayout)
+}
+
 // TimeOfDay shows t as its 24-hour time in now's time zone, such as "13:51".
 func TimeOfDay(now, t time.Time) string {
 	return t.In(now.Location()).Format(timeLayout)
@@ -99,6 +105,31 @@ func Stint(now, from, to time.Time, dated bool) string {
 	return start + " – " + end
 }
 
+// StintWidest is the widest stay Stint says: of starts on now's day, the
+// day before, within the week and a date of two digits before, each to an
+// end on its own day, a day after or now, dated or not, as "28 Sep 13:20 –
+// yesterday 01:20". Each character Stint says takes a cell, so the longest
+// is the widest.
+func StintWidest() string {
+	now := time.Date(2001, time.March, 28, 12, 0, 0, 0, time.UTC)
+	widest := ""
+	for _, back := range []int{0, 1, 3, 60} {
+		from := now.AddDate(0, 0, -back).Add(-time.Minute)
+		ends := []time.Time{{}, from.Add(time.Minute)}
+		if back > 0 {
+			ends = append(ends, now.AddDate(0, 0, -1), now.Add(-time.Minute/2))
+		}
+		for _, to := range ends {
+			for _, dated := range []bool{false, true} {
+				if said := Stint(now, from, to, dated); utf8.RuneCountInString(said) > utf8.RuneCountInString(widest) {
+					widest = said
+				}
+			}
+		}
+	}
+	return widest
+}
+
 // Later says t, a time after start, in now's time zone, as it's said beside
 // start, which names its own day: its time of day on start's day, as
 // "16:02"; on another, with its day, as "today 00:40" or "yesterday 23:10".
@@ -128,11 +159,33 @@ func Past(now, t time.Time) string {
 	case days == 0:
 		return TimeOfDay(now, t)
 	case days == 1:
-		return "yesterday " + TimeOfDay(now, t)
+		return yesterday + TimeOfDay(now, t)
 	case WithinWeek(now, t):
 		return Clock(now, t)
 	}
 	return t.Format(pastLayout)
+}
+
+// yesterday leads a time on the day before now's, as Past says it.
+const yesterday = "yesterday "
+
+// PastWidest shows t, in now's time zone, as Past does in its widest form,
+// the day before's, such as "yesterday 15:08", whatever day it falls on: as
+// what says it is measured, so the measure holds as the clock moves t's day
+// further back.
+func PastWidest(now, t time.Time) string {
+	return yesterday + TimeOfDay(now, t)
+}
+
+// LaterWidest shows t, a time after start, in now's time zone, as Later
+// does in its widest form: its time of day on start's day, as Later says it
+// there whatever the clock, as "16:02"; on another, as PastWidest does, as
+// "yesterday 00:40".
+func LaterWidest(now, start, t time.Time) string {
+	if SameDay(now, start, t) {
+		return TimeOfDay(now, t)
+	}
+	return PastWidest(now, t)
 }
 
 // WithinWeek reports whether t, before now, falls on now's day or one of the
@@ -155,6 +208,11 @@ func daysBetween(t, now time.Time) int {
 // title row name a day, such as "Wed 30 Sep".
 func Day(d time.Time) string {
 	return d.Format(dayLayout)
+}
+
+// DayWidest is as wide as Day ever names a day: one of two figures.
+func DayWidest() string {
+	return Day(time.Date(2000, time.January, 10, 0, 0, 0, 0, time.UTC))
 }
 
 // DayInYear names the day d by its weekday, date, month and year, as a

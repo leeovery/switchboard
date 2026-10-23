@@ -278,7 +278,7 @@ func TestLay(t *testing.T) {
 	}
 }
 
-// The Switchboard's parts, in switchboard's order.
+// An example row's parts, in switchboard's order.
 const (
 	callIDPart = iota
 	callDirPart
@@ -292,11 +292,12 @@ const (
 	wordsPart
 )
 
-// switchboard are the Switchboard's columns as the design's narrowing table
-// has them: a call's id, its directory, what it's doing, ▸'s from and the
+// switchboard is an example row of parts, shaped as the Switchboard's once
+// were: a call's id, its directory, what it's doing, ▸'s from and the
 // account; the bends' room, after the plugs' gap; the jacks, the gap to the
 // lines and the lines' label and percentage; the lines' bars past 16 cells,
-// and their first 16; and the lines' words, or usage's short form.
+// and their first 16; and the lines' words, or usage's short form. Its
+// turns interleave narrowing, leaving and a part that grows.
 var switchboard = []flex.Part{
 	callIDPart:      {Least: 4, Natural: 4},
 	callDirPart:     {Least: 6, Natural: 12, Narrows: 2, Gap: 1},
@@ -310,7 +311,10 @@ var switchboard = []flex.Part{
 	wordsPart:       {Least: 22, Natural: 22, Leaves: 4, Kept: 14},
 }
 
-func TestLayNarrowsTheSwitchboardAsTheDesignsTableDoes(t *testing.T) {
+// Lay takes an example row's turns in order, each only while the parts pass
+// the room, and gives what a leaving frees past what's lacking to the part
+// that grows.
+func TestLayTakesAnExampleRowsTurnsInOrder(t *testing.T) {
 	type columns struct {
 		room, bars, dir, account int
 		shortFrom, shortWords    bool
@@ -431,6 +435,34 @@ var layRules = []struct {
 	{"parts that grow share evenly, the odd cell to one marked Odd, else the first", sharedUnevenly},
 	{"parts narrow and give way in their turns, where the room lacks and no sooner", gaveWayWrongly},
 	{"more room never takes more away", tookMoreWithMore},
+}
+
+// A part a first pass decided on is laid again by a second: gone where it
+// gave way keeping nothing; fixed at what it kept, its gap kept, where it
+// gave way; and any other as it was, giving way and narrowing no more.
+func TestAPartDecidedOnIsLaidAgain(t *testing.T) {
+	part := flex.Part{Least: 4, Natural: 12, Most: 20, Grows: true, Narrows: 2, Leaves: 3, Kept: 4, Gap: 2, Odd: true}
+	tests := []struct {
+		name  string
+		span  flex.Span
+		want  flex.Part
+		shown bool
+	}{
+		{name: "gone", span: flex.Span{At: 9, Left: true}, want: part},
+		{name: "kept", span: flex.Span{At: 9, Size: 4, Left: true}, want: flex.Part{Least: 4, Natural: 4, Gap: 2}, shown: true},
+		{
+			name: "shown, narrowed", span: flex.Span{At: 9, Size: 7},
+			want: flex.Part{Least: 4, Natural: 12, Most: 20, Grows: true, Kept: 4, Gap: 2, Odd: true}, shown: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, shown := part.Decided(tt.span)
+			if shown != tt.shown || shown && got != tt.want {
+				t.Errorf("Decided = %+v, %t, want %+v, %t", got, shown, tt.want, tt.shown)
+			}
+		})
+	}
 }
 
 func TestLayHoldsItsRulesWhateverItsGiven(t *testing.T) {

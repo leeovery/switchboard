@@ -1,10 +1,15 @@
 package views
 
 import (
+	"maps"
+	"slices"
 	"time"
+
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/prose"
 )
 
 // AccountsPage is Accounts as the dashboard draws it, Compare and Detail
@@ -188,6 +193,17 @@ func (p AccountsPage) Ends() (most, least AccountsRow, ok bool) {
 	return most, least, ok
 }
 
+// LimitedWindows are the windows any row of the page records a limit of,
+// every account's among them, by their keys, each once, sorted.
+func (p AccountsPage) LimitedWindows() []string {
+	var keys []string
+	for _, row := range append(slices.Clone(p.Rows), p.All) {
+		keys = append(keys, slices.Collect(maps.Keys(row.Totals.Limits))...)
+	}
+	slices.Sort(keys)
+	return slices.Compact(keys)
+}
+
 // named are the versions of the shares given, in their order, each as the
 // version table names and shades it; or, one it doesn't name, by the id its
 // share gives it, claude- taken off, and its family, as familyOf reads it.
@@ -201,4 +217,22 @@ func (v versions) named(shares []ModelShare) []ledger.Version {
 		named[i] = version
 	}
 	return named
+}
+
+// VersionNameCells are the cells of the widest name the pages built with the
+// table give a version of a model it prices, as named names them: a row of
+// its version table, or a model it prices and doesn't name, as one the
+// config prices, by its id, claude- taken off. A model priced nowhere is
+// named by its id too, and may be wider still.
+func VersionNameCells(table ledger.Table) int {
+	widest := 0
+	for _, v := range table.Versions {
+		widest = max(widest, ansi.StringWidth(prose.Clean(v.Name)))
+	}
+	for _, m := range table.Models {
+		for _, id := range m.IDs {
+			widest = max(widest, ansi.StringWidth(table.VersionName(id)))
+		}
+	}
+	return widest
 }

@@ -8,20 +8,20 @@ ten is one more than you need
 as now: short on 3 of the last 7 weeks, work and team each time   ·   with one fewer: short on 3 of 7, the same weeks   ·   with two fewer: short on 3 of 7
 spare is the one to drop: $100/mo, 6% used on average, and nothing ran short without it   an estimate, from replaying these weeks
 
-              10 Aug  17 Aug  24 Aug  31 Aug   7 Sep  14 Sep  21 Sep  28 Sep      over the last 7 weeks
+              10 Aug  17 Aug  24 Aug  31 Aug   7 Sep  14 Sep  21 Sep  28 Sep over the last 7 weeks
 
-all accounts    43%     52%     53%     55%     58%     56%     61%    45%…       short on 3 of 7 weeks   with ten accounts
+all accounts    43%     52%     53%     55%     58%     56%     61%    45%…  short on 3 of 7 weeks   with ten accounts
 
-work            72%     88%    100%     94%    100%     81%    100%    34%…       hits its limit most weeks   9% left at a reset
-personal ◆      64%     70%     58%     77%     69%     90%     85%    66%…       ends most weeks with room   27% left at a reset
-side            22%     35%     41%     30%     52%     47%     60%    78%…       plenty to spare most weeks   59% left at a reset
-client          40%     52%     48%     61%     55%     58%     63%    47%…       plenty to spare most weeks   46% left at a reset
-spare            5%      8%      3%     10%      6%      4%      9%     5%…       could go: 6% used, no limit ever
-lab             60%     72%     70%     66%     81%     75%     79%    58%…       ends most weeks with room   28% left at a reset
-team            80%     92%    100%     88%    100%     95%    100%    83%…       hits its limit most weeks   6% left at a reset
-extra           15%     22%     18%     30%     25%     19%     28%    12%…       barely used: 78% left at a reset
-ops             30%     35%     28%     41%     33%     38%     36%    29%…       plenty to spare most weeks   66% left at a reset
-studio          45%     50%     62%     48%     55%     58%     52%    41%…       plenty to spare most weeks   47% left at a reset
+work            72%     88%    100%     94%    100%     81%    100%    34%…  hits its limit most weeks   9% left at a reset
+personal ◆      64%     70%     58%     77%     69%     90%     85%    66%…  ends most weeks with room   27% left at a reset
+side            22%     35%     41%     30%     52%     47%     60%    78%…  plenty to spare most weeks   59% left at a reset
+client          40%     52%     48%     61%     55%     58%     63%    47%…  plenty to spare most weeks   46% left at a reset
+spare            5%      8%      3%     10%      6%      4%      9%     5%…  could go: 6% used, no limit ever
+lab             60%     72%     70%     66%     81%     75%     79%    58%…  ends most weeks with room   28% left at a reset
+team            80%     92%    100%     88%    100%     95%    100%    83%…  hits its limit most weeks   6% left at a reset
+extra           15%     22%     18%     30%     25%     19%     28%    12%…  barely used: 78% left at a reset
+ops             30%     35%     28%     41%     33%     38%     36%    29%…  plenty to spare most weeks   66% left at a reset
+studio          45%     50%     62%     48%     55%     58%     52%    41%…  plenty to spare most weeks   47% left at a reset
 
 
 

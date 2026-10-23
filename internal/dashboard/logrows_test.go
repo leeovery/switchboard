@@ -91,11 +91,11 @@ func TestTheRequestsDrawEachKindOfRowAtEachWidth(t *testing.T) {
 		{
 			width: 52,
 			want: []string{
-				"▲ 14:30:00 d28c     work      1.2s   new session",
-				"▸ 14:35:00 d28c     side      1.2s   from work",
-				"■ 14:36:00 d28c     side      1.2s   after side's l…",
-				"↓ 14:41:40 d28c     side     20.0s   answering",
-				"↑ 14:41:56 d28c     side      4.0s   asking",
+				"▲ 14:30:00  d28c     work        1.2s  new session",
+				"▸ 14:35:00  d28c     side        1.2s  from work",
+				"■ 14:36:00  d28c     side        1.2s  after side's…",
+				"↓ 14:41:40  d28c     side       20.0s  answering",
+				"↑ 14:41:56  d28c     side        4.0s  asking",
 			},
 			last: "…",
 		},

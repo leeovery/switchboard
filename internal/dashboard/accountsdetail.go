@@ -8,7 +8,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -16,10 +19,14 @@ import (
 )
 
 // Detail's list's columns: its rows from listAt, each account's name in the
-// name column nameColumn fits to the names, and after it its state's dot or
+// name column listNames fits to the names, and after it its state's dot or
 // square; then, as many cells past the dot as given, the end of the chosen
-// row's light, from column 0; the list's │; and the panel beside it.
+// row's light, from column 0; the list's │; and the panel beside it. Its
+// names' column takes leastNames cells at the fewest and mostNames at the
+// most.
 const (
+	leastNames   = 14
+	mostNames    = 24
 	listAt       = 1
 	litPastDot   = 2
 	rulePastDot  = 5
@@ -34,38 +41,43 @@ const (
 )
 
 // Detail's panel's columns, in cells into it: where BY MODEL, BY DAY and
-// WEEKS start, cx; where USAGE's bars start; and where LATELY starts beside
-// SESSIONS, and the cells its lines' words are cut to there.
+// WEEKS start, cx; and where LATELY starts beside SESSIONS.
 const (
 	panelCX      = 12
-	usageBarAt   = 9
 	latelyBeside = 48
-	latelyWords  = 52
 )
 
 // Detail's panel's rows, from its top: the head; USAGE's heading, its
 // windows from the row after, windowsApart rows apart, and THIS WEEK's
-// title on its row, its thisWeekRows items under it; BY MODEL, byModelGap
-// rows under the lower of the two; and the parts under BY MODEL, each the
-// rows given under it.
+// title on its row, its items under it, thisWeekLeastRows rows at the
+// fewest; BY MODEL, byModelGap rows under the lower of the two; and the
+// parts under BY MODEL, each the rows given under it.
 const (
-	usageAt      = 2
-	windowsApart = 2
-	thisWeekRows = 5
-	byModelGap   = 2
-	ruleUnder    = 3
-	byDayUnder   = 5
-	weeksUnder   = 8
-	verdictUnder = 10
-	latelyUnder  = 12
+	usageAt           = 2
+	windowsApart      = 2
+	thisWeekLeastRows = 5
+	byModelGap        = 2
+	ruleUnder         = 3
+	byDayUnder        = 5
+	weeksUnder        = 8
+	verdictUnder      = 10
+	latelyUnder       = 12
 )
 
-// THIS WEEK's labels' cells, and how far after its name the head says how
-// the account stands.
+// THIS WEEK's labels' cells and its figures' fewest, ending at the weeks'
+// edge, and the cells before it past USAGE's words; and how far after its
+// name the head says how the account stands.
 const (
-	thisWeekLabels = 10
-	headApart      = 3
+	thisWeekLabels  = 10
+	thisWeekFigures = 10
+	thisWeekApart   = 1
+	headApart       = 3
 )
+
+// wideBarLeast are the fewest cells USAGE's bars take wide, two fewer than
+// the stack's, so the wide form keeps four weeks at 108 columns beside THIS
+// WEEK as wide as its widest bounded part, "on for 2 of 3", makes it.
+const wideBarLeast = 16
 
 // SESSIONS: as many rows as sessionRows show at once, the one selected
 // picked out across sessionLit cells from a cell before its ▸; and its
@@ -77,47 +89,132 @@ const (
 	enterIn     = 2
 )
 
-// sixWeeks are the weeks BY DAY and WEEKS show, the last of them this one.
-const sixWeeks = 6
+// The wide form's weeks: six at most, the last of them this one; their gap
+// at its widest, narrowing a cell at a time to its least before a week
+// leaves; and their days' cells at least, growing where six weeks at the
+// widest gap have room for wider.
+const (
+	sixWeeks      = 6
+	weeksGapMost  = 4
+	weeksGapLeast = 2
+	dayCellsLeast = swatchCells
+)
 
-// detailLayout is Detail laid out wide, or on a phone, as stackLayout: with
+// The wide form's parts across a frame, in the order detailLaid lays them:
+// the list's, its indent, its name column and the cells from it to the
+// panel; then the panel's headings' column, to cx; and its weeks, two parts,
+// to their natural, and past it.
+const (
+	detailIndent = iota
+	detailNames
+	detailToPanel
+	detailHeadings
+	detailWeeks
+	detailWeeksPast
+)
+
+// The turns the wide form narrows in: the list's names first, toward their
+// least, then the weeks, toward theirs.
+const (
+	namesNarrowed = 1 + iota
+	weeksNarrowed
+)
+
+// detailLayout is Detail laid out wide, or stacked, as stackLayout: with
 // its list at its left, its name column names cells wide, the panel beside
 // it, or without, the panel alone, across the frame; how far into the panel
-// BY MODEL, BY DAY and WEEKS start; and its panel's days' cells, the cells
-// between its weeks, and USAGE's bars' cells.
+// BY MODEL, BY DAY and WEEKS start; and its days' cells, the cells between
+// its weeks, and, wide, how many weeks it shows and thisWeek, the cells of
+// THIS WEEK's column.
 type detailLayout struct {
-	list         bool
-	names        int
-	panel, into  int
-	dw, gap, bar int
+	list        bool
+	names       int
+	panel, into int
+	dw, gap     int
+	weeks       int
+	thisWeek    int
 }
 
-// detailLayout is Detail's wide layout, as its accounts have it: the list and
-// the panel beside it, its days 2 cells and its weeks 4 apart, its bars 40
-// wide, the list's name column as wide as listNames fits it, but no wider
-// than the frame has cells to spare past the panel's widest fixed rows,
-// which keep their width; or with one account, the panel alone from column
-// 0, the stack grown into the width, its days 3 cells and its weeks 1 apart,
-// its bars 50 wide.
-func (f Frame) detailLayout() detailLayout {
-	if f.Accounts.Alone() {
-		return detailLayout{into: panelCX, dw: 3, gap: 1, bar: 50}
+// detailLaid is Detail's wide layout, as flex lays its parts across the
+// frame, and whether their leasts fit. The parts: the list, where there's
+// more than one account, its name column from leastNames to mostNames;
+// the panel's headings' column; and its weeks, at their natural, six at the
+// widest gap, at least weeksLeast, and past it, growing. The list gives way
+// first: its names narrow toward their least before the weeks narrow, and
+// past the weeks' natural, they take their most before the weeks grow (the
+// owner's call, 15 October 2026). The names are laid at their most whatever
+// the labels, so the panel's layout follows the width alone; the list then
+// takes what its names need of that, and of what the weeks, as wideWeeks
+// lays them, leave of their room, and the panel sits after it. The weeks'
+// least follows from USAGE's row, its window names as usageWide has them,
+// and THIS WEEK, as thisWeekCells has it, of the windows the moment m lists
+// and the limits the page records. The layout follows the width, the
+// accounts configured, the windows listed and the limits recorded.
+func (f Frame) detailLaid(m status.Moment) (detailLayout, bool) {
+	l := detailLayout{into: panelCX, thisWeek: f.thisWeekCells(m)}
+	natural := detailLayout{dw: dayCellsLeast, gap: weeksGapMost, weeks: sixWeeks}.weeksCells()
+	parts := []flex.Part{
+		detailIndent:    {},
+		detailNames:     {},
+		detailToPanel:   {},
+		detailHeadings:  {Least: panelCX, Natural: panelCX},
+		detailWeeks:     {Least: weeksLeast(f.usageWide(m).leastCells() + thisWeekApart + l.thisWeek), Natural: natural, Narrows: weeksNarrowed},
+		detailWeeksPast: {Grows: true},
 	}
-	least := listedIn(leastNames)
-	return listedIn(min(f.listNames(), leastNames+max(f.Width-least.reach(), 0)))
+	if !f.Accounts.Alone() {
+		l.list = true
+		parts[detailIndent] = flex.Part{Least: listAt, Natural: listAt}
+		parts[detailNames] = flex.Part{Least: leastNames, Natural: mostNames, Narrows: namesNarrowed}
+		parts[detailToPanel] = flex.Part{Least: panelPastDot, Natural: panelPastDot}
+	}
+	s, ok := flex.Lay(f.edge(), parts...)
+	room := s[detailWeeks].Size + s[detailWeeksPast].Size
+	l = l.wideWeeks(room)
+	if l.list {
+		l.names = min(f.listNames(), s[detailNames].Size+room-l.weeksCells())
+		l.panel = l.dotAt() + panelPastDot
+	}
+	return l, ok
 }
 
-// listedIn is Detail's wide layout with its list, its name column names
-// cells wide.
-func listedIn(names int) detailLayout {
-	l := detailLayout{list: true, names: names, into: panelCX, dw: 2, gap: 4, bar: 40}
-	l.panel = l.dotAt() + panelPastDot
+// usageWide is USAGE's row wide, of the moment m: its bars at least
+// wideBarLeast, its window names never cut, at least and at most the widest
+// of every window listed, as windowNames has it, and its words in their form
+// at their widest.
+func (f Frame) usageWide(m status.Moment) detailUsageRow {
+	names := f.windowNames(m)
+	return detailUsageRow{bar: wideBarLeast, least: names, names: names, words: usageBlock{width: f.Width}.widestWords()}
+}
+
+// weeksLeast are the fewest cells the wide form's weeks take: the least room
+// whose weeks, as wideWeeks lays them, end reach cells past the panel's
+// left, as USAGE's row and THIS WEEK, ending at the weeks' edge, need.
+func weeksLeast(reach int) int {
+	room := max(reach-panelCX, 0)
+	for (detailLayout{}).wideWeeks(room).weeksCells() < reach-panelCX {
+		room++
+	}
+	return room
+}
+
+// wideWeeks is the layout with its weeks laid out wide in room cells: its
+// days dayCellsLeast cells, or as many more as six weeks at the widest gap
+// have room for; then as many weeks as fit, six at most, as latestFitting
+// lays them at the least gap; and their gap the widest from weeksGapMost
+// they still fit at.
+func (l detailLayout) wideWeeks(room int) detailLayout {
+	l.dw = max(dayCellsLeast, (room-(sixWeeks-1)*weeksGapMost)/(7*sixWeeks))
+	l.weeks = len(latestFitting(room, sixWeeks, 7*l.dw, weeksGapLeast))
+	l.gap = weeksGapMost
+	for l.gap > weeksGapLeast && len(latestFitting(room, l.weeks, 7*l.dw, l.gap)) < l.weeks {
+		l.gap--
+	}
 	return l
 }
 
 // listNames is the cells of the name column Detail's list fits its accounts'
-// names to, as nameColumn fits USAGE's: the widest, number, label and ◆, and
-// a gap, within its least and its most.
+// names to: the widest, number, label and ◆, and a gap, within leastNames
+// and mostNames.
 func (f Frame) listNames() int {
 	configured := f.Accounts.Accounts
 	digits := len(strconv.Itoa(len(configured)))
@@ -125,7 +222,11 @@ func (f Frame) listNames() int {
 	for i, a := range configured {
 		names[i] = listName(status.AccountNow{ID: a.ID, Label: a.Label, Primary: a.Primary, Place: i + 1}, digits)
 	}
-	return nameColumn(names, f.Width)
+	widest := 0
+	for _, n := range names {
+		widest = max(widest, n.cells(ansi.StringWidth(n.label)))
+	}
+	return min(max(widest+nameGap, leastNames), mostNames)
 }
 
 // dotAt is the column of each account's state's dot or square in the list.
@@ -148,21 +249,33 @@ func (l detailLayout) cx() int {
 	return l.panel + l.into
 }
 
-// step is how far apart the six weeks are: a week's days and the gap after.
+// step is how far apart the weeks are: a week's days and the gap after.
 func (l detailLayout) step() int {
 	return 7*l.dw + l.gap
 }
 
-// edge is the column the six weeks end before, as BY MODEL's bar and the
-// rule do: the panel's widest fixed rows.
-func (l detailLayout) edge() int {
-	return l.cx() + sixWeeks*l.step() - l.gap
+// weeksCells are the cells the weeks shown wide take, from the first's first
+// day to the last's last.
+func (l detailLayout) weeksCells() int {
+	return max(l.weeks*l.step()-l.gap, 0)
 }
 
-// thisWeekAt is the column THIS WEEK starts at, over the fifth of the six
-// weeks.
+// edge is the column the weeks shown wide end before, as BY MODEL's bar, the
+// rule and THIS WEEK do.
+func (l detailLayout) edge() int {
+	return l.cx() + l.weeksCells()
+}
+
+// shownWeeks are where the weeks shown wide lie, from cx, as weeksIn lays
+// them.
+func (l detailLayout) shownWeeks() []flex.Span {
+	return l.weeksIn(l.weeksCells(), l.weeks)
+}
+
+// thisWeekAt is the column THIS WEEK starts at, its figures ending at the
+// weeks' edge.
 func (l detailLayout) thisWeekAt() int {
-	return l.cx() + 4*l.step()
+	return l.edge() - l.thisWeek
 }
 
 // weekBar is the cells of a week's peak's bar in WEEKS: a week's step, less
@@ -171,37 +284,48 @@ func (l detailLayout) weekBar() int {
 	return l.step() - l.gap - 5
 }
 
-// reach is the width Detail's wide form takes: where its widest fixed rows
-// end, and the margin after them.
-func (l detailLayout) reach() int {
-	return l.edge() + margin
+// detailIn is the layout Detail is drawn in, of the moment m: its wide
+// layout, where its leasts fit the frame, as detailLaid has it; else the
+// stack's; and whether it's wide. Detail's form and help's key to it both
+// choose by it.
+func (f Frame) detailIn(m status.Moment) (detailLayout, bool) {
+	if l, wide := f.detailLaid(m); wide {
+		return l, true
+	}
+	return stackLayout, false
 }
 
-// detailForm is Detail as it's drawn wide, of doc at now, where the frame is
-// wide enough for its widest fixed rows; narrower, as a phone's body draws
-// it, under the wide chrome, as detailPhoneBody has it.
+// detailForm is Detail of doc at now, in the layout detailIn chooses: drawn
+// wide, or stacked, as detailStackedBody has it. The form is chosen once, the
+// first time a look that draws asks; how much of each bar it fills is alike
+// in either, so filling chooses none.
 func (f Frame) detailForm(doc status.Document, now time.Time) accountsForm {
-	if f.detailStacked() {
-		return f.detailPhoneBody(doc, now)
+	chosen := sync.OnceValue(func() accountsForm {
+		l, wide := f.detailIn(f.Moment(doc, now))
+		if !wide {
+			return f.detailStackedBody(doc, now)
+		}
+		d := f.detailDrawn(doc, now, l)
+		return accountsForm{draw: d.draw, scrolling: d.scrolling, scrolls: d.scrolls, targets: d.targets}
+	})
+	return accountsForm{
+		draw:      func(c *canvas, top int) { chosen().draw(c, top) },
+		scrolling: func(offset int) Scrolling { return chosen().scrolling(offset) },
+		scrolls:   func() (x, y, width, rows int) { return chosen().scrolled(f) },
+		targets:   func() []Target { return chosen().targets() },
+		filled:    func() map[Ref]float64 { return f.detailDrawn(doc, now, detailLayout{}).filled() },
 	}
-	d := f.detailDrawn(doc, now, f.detailLayout())
-	return accountsForm{draw: d.draw, scrolling: d.scrolling, scrolls: d.scrolls, targets: d.targets, filled: d.filled}
 }
 
-// detailStacked reports whether Detail is stacked, as a phone stacks it:
-// where the frame is too narrow for its wide form's widest fixed rows, as
-// every phone's is.
-func (f Frame) detailStacked() bool {
-	return f.detailLayout().reach() > f.Width
-}
-
-// detailDrawnIn is the layout Detail is drawn in on the frame: a phone's
-// stack's, where it's stacked, else its wide layout.
-func (f Frame) detailDrawnIn() detailLayout {
-	if f.detailStacked() {
-		return stackLayout
+// detailDays are the cells Detail draws a day of BY DAY in, of the moment
+// the frame holds, as detailIn lays it, whatever's built or shown; the
+// stack's where it holds none, as it's drawn of none.
+func (f Frame) detailDays() int {
+	if f.held == nil {
+		return stackLayout.dw
 	}
-	return f.detailLayout()
+	l, _ := f.detailIn(f.held.Moment())
+	return l.dw
 }
 
 // detailDrawn is Detail of a moment as it's drawn wide: the frame and its
@@ -310,46 +434,83 @@ func (d detailDrawn) windows() []shownWindow {
 	return d.f.listedWindows(d.m)
 }
 
+// windowNames are the cells of the widest name Detail's USAGE gives a
+// window, in its shortest whole form, of every window the moment m lists,
+// shown or not, so its row doesn't move as the windows shown change.
+func (f Frame) windowNames(m status.Moment) int {
+	names := 0
+	for _, w := range usageWindows(m.Listed(true), f.windowNamer(m)) {
+		names = max(names, ansi.StringWidth(status.Short(w.name)))
+	}
+	return names
+}
+
+// windowNames are the cells of the widest name USAGE gives a window, as the
+// frame's windowNames has them of the moment Detail is drawn at.
+func (d detailDrawn) windowNames() int {
+	return d.f.windowNames(d.m)
+}
+
 // byModelAt is the row of the panel BY MODEL is on: byModelGap rows under
-// USAGE's last window, or THIS WEEK's last item, whichever is lower.
+// USAGE's last window, or THIS WEEK's last row, whichever is lower.
 func (d detailDrawn) byModelAt() int {
-	return max(usageAt+len(d.windows())*windowsApart-1, usageAt+thisWeekRows) + byModelGap
+	return max(usageAt+len(d.windows())*windowsApart-1, usageAt+d.thisWeekRows()) + byModelGap
+}
+
+// versionLines are BY MODEL's versions with their shares, over the rows
+// under its bar, as versionsOver has them across the weeks' width; none
+// where the period's page isn't read.
+func (d detailDrawn) versionLines() []line {
+	if d.page == nil {
+		return nil
+	}
+	return versionsOver(versionsUsed(d.row, d.page.Versions), d.l.weeksCells())
+}
+
+// underModels is the row of the panel the parts under BY MODEL count their
+// rows from: BY MODEL's, moved down a row for each row its versions take
+// past the first.
+func (d detailDrawn) underModels() int {
+	return d.byModelAt() + max(len(d.versionLines())-1, 0)
 }
 
 // latelyAt is the row of the panel LATELY's heading is on, or SESSIONS'
 // where sessions run on the account, LATELY beside it.
 func (d detailDrawn) latelyAt() int {
-	return d.byModelAt() + latelyUnder
+	return d.underModels() + latelyUnder
 }
 
 // panel is Detail's panel drawn whole, from row 0 of a canvas the frame's
 // width: its head; USAGE, and THIS WEEK beside it; BY MODEL, the rule, BY
-// DAY, WEEKS and the verdict, where the period's page is read; and LATELY,
-// beside SESSIONS where sessions run on the account, its heading on
-// SESSIONS' row and its lines under it, their words cut to latelyWords.
+// DAY, WEEKS and the verdict, where the period's page is read, the rule and
+// what's under it moved down a row for each row BY MODEL's versions take
+// past the first; and LATELY, beside SESSIONS where sessions run on the
+// account, its heading on SESSIONS' row and its lines under it, their words
+// cut at the frame's edge.
 func (d detailDrawn) panel() *canvas {
 	c := growing(d.f.Width)
 	d.head(c, 0)
 	d.usage(c, usageAt)
-	if at := d.byModelAt(); d.page != nil {
+	if at := d.underModels(); d.page != nil {
 		d.thisWeek(c, usageAt)
-		d.byModel(c, at)
+		d.byModel(c, d.byModelAt())
 		d.rule(c, at+ruleUnder)
 		c.heading(at+ruleUnder, at+byDayUnder)
-		d.byDay(c, at+byDayUnder, sixWeeks)
-		d.weeks(c, at+weeksUnder)
+		weeks := d.l.shownWeeks()
+		d.byDay(c, at+byDayUnder, weeks)
+		d.weeks(c, at+weeksUnder, weeks)
 		d.verdict(c, at+verdictUnder)
 	}
-	y := d.latelyAt()
+	y, x := d.latelyAt(), d.l.cx()
 	if len(d.running) == 0 {
 		c.line(d.l.panel, y, line{{"LATELY", dimInk}})
-		d.lately(c, y, d.l.cx(), d.f.edge()-d.l.cx())
+		d.lately(c, y, x, d.f.edge()-x)
 		return c
 	}
 	d.sessions(c, y)
-	x := d.l.panel + latelyBeside
+	x = d.l.panel + latelyBeside
 	c.line(x, y, line{{"LATELY", dimInk}})
-	d.lately(c, y+1, x, latelyWords)
+	d.lately(c, y+1, x, d.f.edge()-x)
 	return c
 }
 
@@ -361,7 +522,7 @@ func (d detailDrawn) head(c *canvas, y int) {
 	if d.id == "" {
 		x = c.line(x, y, allAccountsName(1)) + headApart
 	} else {
-		x = c.line(x, y, listName(d.account, 1).fitted(d.f.edge()-x)) + headApart
+		x = c.line(x, y, listName(d.account, 1).said(d.f.edge()-x)) + headApart
 	}
 	d.stands(c, x, y, false)
 }
@@ -385,16 +546,18 @@ func (d detailDrawn) stands(c *canvas, x, y int, short bool) {
 
 // usage draws USAGE from row y, its heading, then every window under it,
 // windowsApart rows apart, each named in text.subtle, then as usage draws a
-// window, its bar usageBarAt cells into the panel, its words ending two
-// cells short of THIS WEEK.
+// window, laid out as usageWide lays its row from the panel's left to
+// thisWeekApart cells short of THIS WEEK, its words ending there.
 func (d detailDrawn) usage(c *canvas, y int) {
 	c.line(d.l.panel, y, line{{"USAGE", dimInk}})
 	c.heading(y, y+1)
 	b := usageBlock{width: d.f.Width, look: d.f.Look}
+	end := d.l.thisWeekAt() - thisWeekApart
+	l, _ := d.f.usageWide(d.m).laid(end - d.l.panel)
 	for i, w := range d.windows() {
 		row := y + 1 + i*windowsApart
-		c.line(d.l.panel, row, line{{prose.Cut(status.Short(w.name), usageBarAt-1), dimInk}})
-		b.gauge(c, d.gauge(w.key), d.l.panel+usageBarAt, row, d.l.bar, d.l.thisWeekAt()-2)
+		c.line(d.l.panel, row, line{{prose.Cut(status.Short(w.name), l.names), dimInk}})
+		b.gauge(c, d.gauge(w.key), d.l.panel+l.at, row, l.bar, end)
 	}
 }
 
@@ -427,42 +590,6 @@ func allGauge(m status.Moment, key string) gauge {
 	return g
 }
 
-// thisWeek draws THIS WEEK from row y, at its column: its title, naming the
-// period, then each item, its label thisWeekLabels cells wide in
-// text.subtle, and its figure cut short of the frame's edge.
-func (d detailDrawn) thisWeek(c *canvas, y int) {
-	x := d.l.thisWeekAt()
-	c.line(x, y, line{{d.page.Period.Title(), dimInk}})
-	cells := d.f.edge() - x - thisWeekLabels
-	for i, item := range d.thisWeekItems(cells) {
-		c.line(x, y+1+i, line{{padded(item.label, thisWeekLabels), dimInk}})
-		c.line(x+thisWeekLabels, y+1+i, fitParts(cells, periodNumbered(item.parts, d.id, item.label)...))
-	}
-}
-
-// thisWeekItem is an item of THIS WEEK: its label, and its figure.
-type thisWeekItem struct {
-	label string
-	parts []part
-}
-
-// thisWeekItems are THIS WEEK's items, as the words of Accounts say them, in
-// text.secondary: the requests; the limits, by window, or all accounts' how
-// many; the plan, by its name, or all accounts' summed; the worth, with its
-// ratio, in the cells given; and the extra usage of the accounts shown. Each
-// of the period's figures is as periodParts says it, a dash where the period
-// records nothing; the plan and extra use are none of them.
-func (d detailDrawn) thisWeekItems(cells int) []thisWeekItem {
-	totals, page := d.row.Totals, *d.page
-	return []thisWeekItem{
-		{"requests", periodParts(page, []part{figureIn(prose.Grouped(totals.Requests), secondaryInk)}, secondaryInk)},
-		{"limits", periodParts(page, limitsParts(totals, d.f.windowNamer(d.m), secondaryInk), secondaryInk)},
-		{"plan", planNamed(d.row, secondaryInk)},
-		{"worth", periodParts(page, worthAgainst(d.row, secondaryInk, cells), secondaryInk)},
-		{"extra use", extraShort(d.extra())},
-	}
-}
-
 // extra is the extra usage of what Detail shows, as ExtraOf takes it: the
 // account's, or every configured account's together.
 func (d detailDrawn) extra() status.AllExtra {
@@ -473,21 +600,23 @@ func (d detailDrawn) extra() status.AllExtra {
 }
 
 // byModel draws BY MODEL along row y: its heading, the period's share of use
-// of each version it used as a stacked bar, from cx to the six weeks' edge,
-// a part a version in its shade, as Compare's; and on the row under it, the
-// versions with their shares, as versionShares names them in its cells.
+// of each version it used as a stacked bar, from cx to the weeks' edge, a
+// part a version in its shade, as Compare's; and from the row under it, the
+// versions with their shares, as versionLines has them.
 func (d detailDrawn) byModel(c *canvas, y int) {
 	c.line(d.l.panel, y, line{{"BY MODEL", dimInk}})
-	cells, versions := d.l.edge()-d.l.cx(), d.page.Versions
-	stackedBar(c, d.f.Look, d.l.cx(), y, splitCells(shareAmounts(d.row, versions), cells), versionHues(versions))
-	c.line(d.l.cx(), y+1, versionShares(versionsUsed(d.row, versions), cells))
+	versions := d.page.Versions
+	stackedBar(c, d.f.Look, d.l.cx(), y, splitCells(shareAmounts(d.row, versions), d.l.weeksCells()), versionHues(versions))
+	for i, l := range d.versionLines() {
+		c.line(d.l.cx(), y+1+i, l)
+	}
 }
 
-// rule draws the rule heading the last six weeks along row y, from the
-// panel's column to the six weeks' edge: ┄┄ in border, the last six weeks
-// in text.faint, and ┄ in border to the edge.
+// rule draws the rule heading the weeks shown along row y, from the panel's
+// column to the weeks' edge: ┄┄ in border, the weeks counted, "the last four
+// weeks", in text.faint, and ┄ in border to the edge.
 func (d detailDrawn) rule(c *canvas, y int) {
-	head := line{{"┄┄ ", borderInk}, {"the last six weeks", faintInk}, {" ", borderInk}}
+	head := line{{"┄┄ ", borderInk}, {"the last " + prose.Number(d.l.weeks) + " weeks", faintInk}, {" ", borderInk}}
 	rest := d.l.edge() - d.l.panel - head.width()
 	c.line(d.l.panel, y, append(head, span{strings.Repeat("┄", max(rest, 0)), borderInk}))
 }
@@ -511,8 +640,8 @@ func (d detailDrawn) lately(c *canvas, y, x, words int) {
 }
 
 // accountLatelyLines are Detail's LATELY lines of the sentences given, at the
-// moment m: each led as latelyLeads has it; then its words in full, on a
-// phone as wide, in text.muted, each account named as the dashboard names
+// moment m: each led as latelyLeads has it; then its words in full,
+// stacked as wide, in text.muted, each account named as the dashboard names
 // it, cut to the cells given.
 func accountLatelyLines(m status.Moment, sentences []views.Sentence, words int) []line {
 	lines := latelyLeads(m, sentences)

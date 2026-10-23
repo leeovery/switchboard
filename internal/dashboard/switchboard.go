@@ -39,18 +39,19 @@ func (f Frame) boardDrawn(m status.Moment, laid boardLayout) boardDrawn {
 // draw draws the Switchboard from row top, as much of it as the view shows,
 // scrolled as the frame has it, as shownAt has it, and what's out of view,
 // each right-aligned: over the rows shown, what shownAt says is above them,
-// and on the row over the key line, what it says is below.
+// and on the row over the key line, what it says is below; and its key.
 func (d boardDrawn) draw(c *canvas, top int) {
 	s := d.shownAt(d.f.Scroll)
 	c.right(d.f.Width, top, s.over)
 	c.paste(d.board(), s.first, top+s.lead, s.rows)
 	c.right(d.f.Width, d.f.Height-underView, s.under)
+	d.key(c, top)
 }
 
 // board is the whole Switchboard drawn, its rows counted from its first: its
 // lines and their jacks, the stubs a limit hangs and the cords moves let go,
-// each call and its cord, or, with none, a row saying so in text.faint, the
-// key, and the row chosen picked out.
+// each call and its cord, or, with none, a row saying so in text.faint, and
+// the row chosen picked out.
 func (d boardDrawn) board() *canvas {
 	c := growing(d.f.Width)
 	d.lines.draw(c)
@@ -63,7 +64,6 @@ func (d boardDrawn) board() *canvas {
 	for _, call := range d.laid.calls {
 		d.call(c, call)
 	}
-	d.key(c)
 	d.chosen(c)
 	return c
 }
@@ -77,7 +77,7 @@ func (d boardDrawn) jacks(c *canvas, ln laidLine) {
 		c.text(x, row, freeJack, faintInk)
 	}
 	for _, s := range ln.stubs {
-		c.text(x-s.cells, s.row, strings.Repeat(hangingGlyph, s.cells), errorInk)
+		c.text(x-stubCells, s.row, strings.Repeat(hangingGlyph, stubCells), errorInk)
 	}
 	for _, l := range d.f.Traffic.Loose {
 		d.loose(c, ln, l)
@@ -131,26 +131,14 @@ func (d boardDrawn) cord(c *canvas, lc laidCall, works bool) {
 	travel(c, path, theme.AccentKey, d.f.Traffic.On(plug.Session, plug.Account))
 }
 
-// key draws the key, the Overview's, on its two rows, where the layout gives
-// them, a cell after the lines' column: even pace's on the first; the cap's,
-// on the bars the layout draws, and the marks the accounts carry on the
-// second. A row that would pass the last column starts at column 0. With
-// no lines, it has nothing to key, and draws none.
-func (d boardDrawn) key(c *canvas) {
+// key draws the lines' key, as drawKey draws it, from the row of the view
+// from top the layout gives it, the last over the key line. With no lines,
+// it has nothing to key, and draws none.
+func (d boardDrawn) key(c *canvas, top int) {
 	if d.laid.keyAt < 0 || len(d.laid.lines) == 0 {
 		return
 	}
-	m := d.lines.m
-	b := blockOf(m, d.f.Width, d.f.Look, ByAccount, d.lines.windows, d.lines.names)
-	b.marks = keyMarks(d.lines.names, false)
-	pace, after := b.keyParts(d.lines.barDrawn())
-	for i, l := range []line{pace, joined(keyGap(d.f.Width), after...)} {
-		x := d.laid.columns.lines + 1
-		if x+l.width() > d.f.Width {
-			x = 0
-		}
-		c.line(x, d.laid.keyAt+i, l.fit(d.f.Width))
-	}
+	d.lines.drawKey(c, top+d.laid.keyAt)
 }
 
 // chosen picks out the call chosen, where one is, on bg.selection over its
@@ -206,20 +194,25 @@ func (d boardDrawn) byRows() bool {
 	return false
 }
 
+// boardOut is the form of the line saying how many of the Switchboard's
+// accounts are scrolled out of view, its lines' or its lanes', over the
+// first shown or under the last, as in "▼ 4 more accounts".
+var boardOut = outForm{noun: "account", inks: subtleOut}
+
 // accountsShown is what of the Switchboard the view shows, scrolled offset
 // accounts down, no further than mostScrolled: the accounts from that one
 // that show whole, each from its first row to its last, and no part of the
 // next, so no call is ever cut; scrolled down, how many accounts are above,
 // on the view's first row; and how many are below, on the row over the key
-// line, as usage says them.
+// line, as boardOut says them.
 func (d boardDrawn) accountsShown(offset int) boardShown {
 	o := min(max(offset, 0), d.mostScrolled())
 	from := d.laid.lines[o]
 	s := boardShown{first: from.first, lead: min(o, 1)}
-	n := d.wholeFrom(o, d.f.viewRows()-s.lead)
+	n := d.wholeAt(o)
 	s.rows = d.laid.lines[o+n-1].end() - s.first
-	s.over = outOfView(o, 0, d.f.Width, usageOut)
-	s.under = outOfView(0, len(d.laid.lines)-o-n, d.f.Width, usageOut)
+	s.over = outOfView(o, 0, d.f.Width, boardOut)
+	s.under = outOfView(0, len(d.laid.lines)-o-n, d.f.Width, boardOut)
 	return s
 }
 
@@ -250,13 +243,19 @@ func (d boardDrawn) wholeFrom(o, rows int) int {
 	return n
 }
 
+// wholeAt is how many accounts show whole from the o-th in the view, under
+// the row saying how many are above, where any are.
+func (d boardDrawn) wholeAt(o int) int {
+	return d.wholeFrom(o, d.f.viewRows()-min(o, 1))
+}
+
 // mostScrolled is the fewest accounts the Switchboard scrolls past to show
 // its last account whole, at step 5, under the row saying how many are
 // above.
 func (d boardDrawn) mostScrolled() int {
-	rows, n := d.f.viewRows(), len(d.laid.lines)
+	n := len(d.laid.lines)
 	for o := range n {
-		if d.wholeFrom(o, rows-min(o, 1)) == n-o {
+		if d.wholeAt(o) == n-o {
 			return o
 		}
 	}
@@ -266,7 +265,8 @@ func (d boardDrawn) mostScrolled() int {
 // scrolling is how far the Switchboard scrolls, scrolled to offset: none
 // but at step 5; there, a row at a time, where byRows says so, as paged has
 // it; else in accounts, as far as shows its last account whole, as many at
-// once as show whole from the offset, as accountsShown has them.
+// once as show whole from the offset, as accountsShown has them, paged as
+// thingsPaged has it.
 func (d boardDrawn) scrolling(offset int) Scrolling {
 	switch {
 	case d.laid.step < compactedStep || len(d.laid.lines) == 0:
@@ -274,9 +274,7 @@ func (d boardDrawn) scrolling(offset int) Scrolling {
 	case d.byRows():
 		return d.paged().scrolling(offset)
 	}
-	most := d.mostScrolled()
-	o := min(max(offset, 0), most)
-	return Scrolling{Most: most, Page: d.wholeFrom(o, d.f.viewRows()-min(o, 1))}
+	return thingsPaged(d.mostScrolled(), offset, d.wholeAt)
 }
 
 // targets are the calls the view shows, each a session's on an account, over

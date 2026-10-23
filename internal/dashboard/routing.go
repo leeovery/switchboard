@@ -1,34 +1,125 @@
 package dashboard
 
 import (
+	"cmp"
 	"fmt"
+	"math"
 	"slices"
 	"sync"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// routingRows is the fewest columns ROUTING gives each account a row at:
-// narrower, and on a phone, it gives it two.
-const routingRows = 110
-
-// The columns a row of ROUTING's from routingRows columns puts what follows
-// an account's state at: ● pinned, on an account the global pin names, and
-// its sessions. Its state's words end wordsGap cells short of what follows
-// them.
+// The cells a row of ROUTING's, an account's, or of SESSIONS', a session's,
+// keeps between its parts: its words' end and what follows them, ● pinned,
+// where it shows, or its sessions; ● pinned and the sessions; and the
+// sessions and the trace.
 const (
-	pinnedAt   = 68
-	sessionsAt = 79
-	wordsGap   = 2
+	wordsGap      = 2
+	pinnedApart   = 3
+	sessionsApart = 3
+)
+
+// The cells of the parts of a row of ROUTING's that flex, as routingParts
+// lays them: the words' least and most, their most what they had at 173
+// columns before they flexed, so those rows read as they did; and the
+// trace's least.
+const (
+	wordsLeast = 20
+	wordsMost  = 61
+	traceLeast = 24
 )
 
 // narrowTail is how many cells short of the frame's edge an account's trace
-// ends under routingRows columns, its sessions and its rate after it.
+// ends where it's two rows an account, its sessions and its rate after it.
 const narrowTail = 20
+
+// The parts of a row of ROUTING's, in routingParts' order: the name column,
+// the words of how the account stands, its sessions, its trace, as its share
+// beside the words and what's past it, and its rate's tail.
+const (
+	rowNames = iota
+	rowWords
+	rowSessions
+	rowTrace
+	rowTracePast
+	rowTail
+)
+
+// routingParts are the parts of a row of ROUTING's across the frame, as flex
+// lays them, the name column names cells: the name column, its sessions
+// sessionsCells wide, wordsGap after the words, and its rate's traceTail,
+// fixed; and the words and the trace, half of what's left each, the words
+// up to wordsMost, the trace taking the rest. The words' natural is the
+// trace's least, so the two stand level before they share, the odd cell the
+// trace's; the trace's share grows up to wordsMost, as the words', and what's
+// past it is the part after it, which grows with no most.
+func routingParts(names int) []flex.Part {
+	sessions := sessionsCells()
+	return []flex.Part{
+		rowNames:     {Least: names, Natural: names},
+		rowWords:     {Least: wordsLeast, Natural: traceLeast, Most: wordsMost, Grows: true},
+		rowSessions:  {Least: sessions, Natural: sessions, Gap: wordsGap},
+		rowTrace:     {Least: traceLeast, Natural: traceLeast, Most: wordsMost, Grows: true, Odd: true, Gap: sessionsApart},
+		rowTracePast: {Grows: true},
+		rowTail:      {Least: traceTail, Natural: traceTail},
+	}
+}
+
+// routingColumns are where a row of ROUTING's and of SESSIONS' lies across a
+// frame: whether it's one row an account and a session; the name column's
+// cells, its words starting after them; and, on one row, the words' cells
+// and the column its sessions start at. Its trace starts at trace, traceCells
+// long: on one row, after the sessions; on two, on the second, from the name
+// column to narrowTail cells short of the edge.
+type routingColumns struct {
+	oneRow            bool
+	names, words      int
+	sessions          int
+	trace, traceCells int
+}
+
+// routingColumns are where the rows of ROUTING and SESSIONS lie across the
+// frame, of the moment m, as routingColumnsOf lays them, the name column as
+// USAGE's rows have it.
+func (f Frame) routingColumns(m status.Moment) routingColumns {
+	return routingColumnsOf(f.Width, nameColumn(overviewNames(m), f.Width))
+}
+
+// routingColumnsOf are where the rows of ROUTING and SESSIONS lie across
+// width columns, the name column names cells: one row an account and a
+// session where routingParts fit, laid as they say; else two.
+func routingColumnsOf(width, names int) routingColumns {
+	s, oneRow := flex.Lay(width, routingParts(names)...)
+	if !oneRow {
+		return routingColumns{names: names, trace: names, traceCells: width - narrowTail - names}
+	}
+	return routingColumns{
+		oneRow: true, names: names, words: s[rowWords].Size, sessions: s[rowSessions].At,
+		trace: s[rowTrace].At, traceCells: s[rowTrace].Size + s[rowTracePast].Size,
+	}
+}
+
+// sessionsCells are the cells an account's sessions take on its row, as
+// sessionsSpan says a count of a digit.
+func sessionsCells() int {
+	return ansi.StringWidth(sessionsSpan(0).text)
+}
+
+// accountRows are the rows of ROUTING's body the account i of a takes, as
+// drawRouting lays them out: its one row, or its two.
+func (rc routingColumns) accountRows(i, a int, body bounds) []int {
+	if rc.oneRow && !routingSized(a, body) {
+		return []int{body.y + i}
+	}
+	return []int{body.y + 3*i, body.y + 3*i + 1}
+}
 
 // pinnedSpan marks an account the global pin names, in accent.key.
 var pinnedSpan = span{"● pinned", ink{token: theme.AccentKey}}
@@ -51,13 +142,13 @@ type accountRouting struct {
 }
 
 // routingTable is ROUTING of a document at a moment: each account's, in the
-// config's order; the name column their states start at; the pool's
-// accounts', where it has a pool, and their states counted; and the moment.
+// config's order; where its rows lie across the frame; the pool's accounts',
+// where it has a pool, and their states counted; and the moment.
 type routingTable struct {
 	accounts []accountRouting
 	pool     []accountRouting
 	states   status.StateCounts
-	names    int
+	columns  routingColumns
 	now      time.Time
 }
 
@@ -69,7 +160,7 @@ type routingTable struct {
 func (f Frame) routingTableOf(doc status.Document, now time.Time) routingTable {
 	m := f.Moment(doc, now)
 	names := overviewNames(m)
-	t := routingTable{names: nameColumn(names, f.Width), now: now}
+	t := routingTable{columns: f.routingColumns(m), now: now}
 	var running map[string]int
 	if f.Sessions != nil {
 		running = views.RunningCounts(f.running(doc, now))
@@ -77,7 +168,7 @@ func (f Frame) routingTableOf(doc status.Document, now time.Time) routingTable {
 	var pooled []status.AccountNow
 	for i, a := range m.Accounts {
 		r := accountRouting{
-			id: a.ID, name: names[i].line(t.names), standing: a.Routing, pinned: a.Pinned,
+			id: a.ID, name: names[i].line(t.columns.names), standing: a.Routing, pinned: a.Pinned,
 			sessions: a.Sessions, trace: f.Traces.Accounts[a.ID], faded: a.OutOfPool,
 		}
 		if running != nil {
@@ -93,42 +184,43 @@ func (f Frame) routingTableOf(doc status.Document, now time.Time) routingTable {
 }
 
 // routingBesideUsage reports whether ROUTING is drawn beside USAGE's blocks
-// rather than as a section of its own: by account, from matrixWidth columns,
+// rather than as a section of its own: by account, from besideWidth columns,
 // while both show, but where GRAPHS is beside them, as graphsBeside says.
 func (f Frame) routingBesideUsage() bool {
-	return f.By == ByAccount && f.Width >= matrixWidth && f.Sections.Has(SectionUsage) && f.Sections.Has(SectionRouting) && !f.graphsBeside()
+	return f.By == ByAccount && f.Width >= besideWidth && f.Sections.Has(SectionUsage) && f.Sections.Has(SectionRouting) && !f.graphsBeside()
 }
 
 // routingSection is the Overview's ROUTING of doc at now: how each account
 // stands with the router, and its trace, its heading's description the mode.
 // At its least, size 1, it's a row an account and its caption under them,
 // a + 3 rows for a accounts; at its most, size 2, two rows of trace an
-// account and a blank row, 3a + 2. Under routingRows columns, and on a
-// phone, it's two rows an account and a blank row, 3a + 1 at its least and
-// its most. Beside USAGE's blocks, it's as routingAside has it. Folded, its
-// heading says the mode alone. Its table is built only as it's first drawn.
+// account and a blank row, 3a + 2. Where its row's parts don't fit a row, as
+// routingColumns says, it's two rows an account and a blank row, 3a + 1 at
+// its least and its most. Beside USAGE's blocks, it's as routingAside has
+// it. Folded, its heading says the mode alone. Its table is built only as
+// it's first drawn.
 func (f Frame) routingSection(doc status.Document, now time.Time) section {
 	m := f.Moment(doc, now)
 	if f.routingBesideUsage() {
 		return routingAside(m)
 	}
-	a := len(m.Accounts)
+	a, columns := len(m.Accounts), f.routingColumns(m)
 	least, most := a+3, 3*a+2
-	if f.Width < routingRows {
+	if !columns.oneRow {
 		least, most = 3*a+1, 3*a+1
 	}
 	t := sync.OnceValue(func() routingTable { return f.routingTableOf(doc, now) })
 	return section{
 		Section: SectionRouting, least: least, most: most,
-		description: func() line { return routingMode(m, f.phone()) },
-		folded:      func() line { return routingMode(m, true) },
+		description: func(cells int) line { return routingMode(m, cells) },
+		folded:      oneForm(func() line { return modeAlone(m) }),
 		draw: func(c *canvas, body bounds) {
 			f.drawRouting(c, t(), body)
 		},
 		targets: func(body bounds) []Target {
 			var targets []Target
 			for i, a := range m.Accounts {
-				for _, y := range f.accountRows(i, len(m.Accounts), body) {
+				for _, y := range columns.accountRows(i, len(m.Accounts), body) {
 					targets = append(targets, Target{Y: y, Width: f.Width, On: OnAccount, Account: a.ID})
 				}
 			}
@@ -141,7 +233,7 @@ func (f Frame) routingSection(doc status.Document, now time.Time) section {
 // nothing drawn and no targets of its own, as USAGE's draw has routingBeside
 // draw it where its blocks lie; its heading the mode alone, folded or not.
 func routingAside(m status.Moment) section {
-	mode := func() line { return routingMode(m, true) }
+	mode := oneForm(func() line { return modeAlone(m) })
 	return section{
 		Section: SectionRouting, description: mode, folded: mode,
 		draw:    func(*canvas, bounds) {},
@@ -149,109 +241,193 @@ func routingAside(m status.Moment) section {
 	}
 }
 
-// routingMode is the mode of m's router, as ROUTING's heading says it: auto,
+// routingMode is the mode of m's router, as ROUTING's heading says it in
+// cells cells: the mode alone, as modeAlone has it; and of a pin, where it
+// fits whole, since when, in text.subtle, then p back to auto. It fits
+// measured with its time at its widest, as prose.DatedWidth has it, so a pin
+// set today says as much as one set on an earlier day.
+func routingMode(m status.Moment, cells int) line {
+	mode := modeAlone(m)
+	if !m.Routed || m.Pin.IsZero() {
+		return mode
+	}
+	back := line{spaces(3), {"p", keyInk}, {" back to auto", faintInk}}
+	var since line
+	widest := mode.width() + back.width()
+	if !m.Pin.Since.IsZero() {
+		since = line{{pinnedSince + prose.Dated(m.Now, m.Pin.Since), dimInk}}
+		widest += len(pinnedSince) + prose.DatedWidth()
+	}
+	if widest > cells {
+		return mode
+	}
+	return slices.Concat(mode, since, back)
+}
+
+// pinnedSince leads the time a pin was set, as ROUTING's heading says it.
+const pinnedSince = " since "
+
+// modeAlone is the mode of m's router alone, as ROUTING's heading says it
+// folded, beside USAGE's blocks, and where its fuller words don't fit: auto,
 // in bold text.secondary; or pinned to the accounts the global pin names, in
-// bold accent.attention, since when, then p back to auto, or, where alone is
-// set, as by account and on a phone, the mode alone. A document probed has
-// none.
-func routingMode(m status.Moment, alone bool) line {
+// bold accent.attention. A document probed has none.
+func modeAlone(m status.Moment) line {
 	switch {
 	case !m.Routed:
 		return nil
 	case m.Pin.IsZero():
 		return line{{"auto", strongInk}}
 	}
-	mode := line{{"pinned to " + names(m, m.Pin.Accounts), alertInk}}
-	if alone {
-		return mode
-	}
-	if !m.Pin.Since.IsZero() {
-		mode = append(mode, span{" since " + prose.Dated(m.Now, m.Pin.Since), dimInk})
-	}
-	return append(mode, spaces(3), span{"p", keyInk}, span{" back to auto", faintInk})
+	return line{{"pinned to " + names(m, m.Pin.Accounts), alertInk}}
 }
 
 // drawRouting draws ROUTING's body in the bounds the planner gives it: a row
 // an account, or two where it has rows for size 2, with its caption under
-// the last; under routingRows columns, two rows an account.
+// the last; where its row's parts don't fit a row, two rows an account.
 func (f Frame) drawRouting(c *canvas, t routingTable, body bounds) {
-	if f.Width < routingRows {
+	if !t.columns.oneRow {
 		for i, r := range t.accounts {
 			f.narrowRouting(c, t, r, body.y+3*i)
 		}
 		return
 	}
 	rows, step := 1, 1
-	if f.routingSized(len(t.accounts), body) {
+	if routingSized(len(t.accounts), body) {
 		rows, step = 2, 3
 	}
 	for i, r := range t.accounts {
 		f.wideRouting(c, t, r, body.y+step*i, rows)
 	}
-	c.line(traceFrom, body.y+step*(len(t.accounts)-1)+rows, line{{routingCaption, faintInk}}.fit(f.Width-traceFrom))
+	c.line(t.columns.trace, body.y+step*(len(t.accounts)-1)+rows, line{{routingCaption, faintInk}}.fit(f.Width-t.columns.trace))
 }
 
-// routingSized reports whether ROUTING's body of a accounts has rows for
-// size 2, from routingRows columns: two rows of trace an account and a blank
-// row.
-func (f Frame) routingSized(a int, body bounds) bool {
+// routingSized reports whether ROUTING's body of a accounts on a row each
+// has rows for size 2: two rows of trace an account and a blank row.
+func routingSized(a int, body bounds) bool {
 	return body.rows >= 3*a
 }
 
-// accountRows are the rows of ROUTING's body the account i of a takes, as
-// drawRouting lays them out: its one row, or its two.
-func (f Frame) accountRows(i, a int, body bounds) []int {
-	if f.Width >= routingRows && !f.routingSized(a, body) {
-		return []int{body.y + i}
-	}
-	return []int{body.y + 3*i, body.y + 3*i + 1}
-}
-
-// wideRouting draws account r's row of ROUTING from routingRows columns from
-// row y, its trace rows tall: its number, name and marks; its state from the
-// name column, its words cut by whole clauses to end wordsGap cells short of
-// ● pinned, where it shows, else of its sessions; its sessions; and its
-// trace, its rate right-aligned on its last row at the edge rateEdge gives
-// it.
+// wideRouting draws account r's row of ROUTING from row y, on a row an
+// account, its trace rows tall, as t's columns lay it: its number, name and
+// marks; its state from the name column, and ● pinned pinnedApart before its
+// sessions, where it shows, as rowState has them in its words' cells; its
+// sessions; and its trace, its rate right-aligned on its last row at the
+// edge rateEdge gives it.
 func (f Frame) wideRouting(c *canvas, t routingTable, r accountRouting, y, rows int) {
+	at := t.columns
 	c.line(0, y, r.name)
-	end := sessionsAt
-	if r.pinned {
-		c.line(pinnedAt, y, line{pinnedSpan})
-		end = pinnedAt
+	words, pinned := rowState(r, at.words)
+	if pinned {
+		c.line(at.sessions-pinnedApart-pinnedCells(), y, line{pinnedSpan})
 	}
-	f.drawStanding(c, r, t.names, y, end-wordsGap-t.names, false)
-	c.line(sessionsAt, y, line{r.sessionsCounted()})
-	trace := bounds{x: traceFrom, y: y, width: f.accountTraceCells(t.names), rows: rows}
+	f.drawStanding(c, r, at.names, y, words)
+	c.line(at.sessions, y, line{r.sessionsCounted()})
+	trace := bounds{x: at.trace, y: y, width: at.traceCells, rows: rows}
 	f.drawTrace(c, r.trace, t.now, trace, r.faded)
 	c.right(f.rateEdge(trace), y+rows-1, line{r.rate(t.now)})
 }
 
-// narrowRouting draws account r's two rows of ROUTING under routingRows
-// columns from row y: on the first, its number, name and marks from column 1,
+// narrowRouting draws account r's two rows of ROUTING from row y, as t's
+// columns lay them: on the first, its number, name and marks from column 1,
 // its short state from the name column, cut by whole clauses, and ● pinned
-// right-aligned, where it shows; on the second, its trace from the name
-// column to narrowTail cells short of the edge, then its sessions and its
-// rate right-aligned.
+// right-aligned, where it shows, the state then as saidBeside has it; on the
+// second, its trace from the name column to narrowTail cells short of the
+// edge, then its sessions and its rate right-aligned.
 func (f Frame) narrowRouting(c *canvas, t routingTable, r accountRouting, y int) {
 	c.line(1, y, r.name)
 	end := f.Width
 	if r.pinned {
 		end = c.right(f.Width, y, line{pinnedSpan})
 	}
-	f.drawStanding(c, r, t.names, y, end-wordsGap-t.names, true)
-	trace := bounds{x: t.names, y: y + 1, width: f.accountTraceCells(t.names), rows: 1}
+	at := t.columns
+	f.drawStanding(c, r, at.names, y, standingWords(saidBeside(r.standing, r.pinned), true, end-wordsGap-at.names))
+	trace := bounds{x: at.trace, y: y + 1, width: at.traceCells, rows: 1}
 	f.drawTrace(c, r.trace, t.now, trace, r.faded)
 	c.right(f.rateEdge(trace), y+1, line{r.sessionsCounted(), spaces(2), r.rate(t.now)})
 }
 
-// drawStanding draws how account r stands from x along row y, its words, or
-// short, its short form, cut by whole clauses to width cells, as standingWords
-// cuts them, picked out while its state is newly changed, as cueStanding
-// says.
-func (f Frame) drawStanding(c *canvas, r accountRouting, x, y, width int, short bool) {
-	end := c.line(x, y, standingWords(r.standing, short, width))
+// drawStanding draws how account r stands from x along row y, in the words
+// given, picked out while its state is newly changed, as cueStanding says.
+func (f Frame) drawStanding(c *canvas, r accountRouting, x, y int, words line) {
+	end := c.line(x, y, words)
 	f.cueStanding(c, r.id, x, y, end-x)
+}
+
+// rowState is how account r stands on its row of ROUTING's, in its words'
+// cells, as rowStanding words it, and whether ● pinned shows beside them, a
+// row ranking its parts: its state's lead; then its time, where it has one,
+// as Timed says; then the mark; then the rest. The lead is never cut where
+// the words' least holds it; a model's own lead, wider than the least, is
+// cut until the words reach its width. Where the global pin names it, the
+// mark shows wherever the words beside it, with pinnedApart and wordsGap,
+// keep their lead whole and, where it has a time, keep that too, so a wider
+// row never says less; the words are then as said has them, the mark saying
+// the pin.
+// Else the mark is left off and the words take its cells, saying the pin
+// where their forms carry it, as at its cap the pin spends; where they
+// don't, the row doesn't, and ROUTING's heading names the accounts pinned.
+func rowState(r accountRouting, cells int) (line, bool) {
+	words, _ := rowStanding(r.standing, cells)
+	if !r.pinned {
+		return words, false
+	}
+	beside, said := cells-pinnedCells()-pinnedApart, saidBeside(r.standing, true)
+	marked, markedTimed := rowStanding(said, beside)
+	if standingLeads(said, false).width() > beside || (said.Timed() && !markedTimed) {
+		return words, false
+	}
+	return marked, true
+}
+
+// saidBeside is how an account standing r stands in words, where marked says
+// ● pinned shows beside them: as Unpinned has it, the mark saying the pin;
+// else whole.
+func saidBeside(r status.Routing, marked bool) status.Routing {
+	if marked {
+		return r.Unpinned()
+	}
+	return r
+}
+
+// pinnedCells are the cells ● pinned takes.
+func pinnedCells() int {
+	return line{pinnedSpan}.width()
+}
+
+// rowForm is a form of how an account stands on a row of ROUTING's: its
+// words whole, and whether they say its time.
+type rowForm struct {
+	words line
+	timed bool
+}
+
+// rowForms are the forms of how an account stands on a row of ROUTING's,
+// none wider than the one before: its words cut to their leading clauses,
+// from all of them down to their lead alone, and its short form; where two
+// are as wide, its words first. Each says its time where r has one, as Timed
+// says, and it keeps the clause or the part that says it.
+func rowForms(r status.Routing) []rowForm {
+	var forms []rowForm
+	for n := len(r.Clauses); n >= 0; n-- {
+		cut := r
+		cut.Clauses = r.Clauses[:n]
+		forms = append(forms, rowForm{standingWords(cut, false, math.MaxInt), r.Timed() && n > 0})
+	}
+	forms = append(forms, rowForm{standingWords(r, true, math.MaxInt), r.Timed() && len(r.Short) > 1})
+	slices.SortStableFunc(forms, func(a, b rowForm) int { return cmp.Compare(b.words.width(), a.words.width()) })
+	return forms
+}
+
+// rowStanding are the words of how an account stands on a row of ROUTING's,
+// in width cells, and whether they say its time: the widest of rowForms that
+// fits whole, so its time is kept wherever a form keeps it; where none does,
+// the narrowest, cut short, as firstFit has it.
+func rowStanding(r status.Routing, width int) (line, bool) {
+	forms := rowForms(r)
+	if i := slices.IndexFunc(forms, func(f rowForm) bool { return f.words.width() <= width }); i >= 0 {
+		return forms[i].words, forms[i].timed
+	}
+	return forms[len(forms)-1].words.fit(width), false
 }
 
 // standingWords are the words of how an account stands, or short, its short
@@ -366,12 +542,17 @@ func sessionsSpan(n int) span {
 	return span{prose.Counted(n, "session"), k}
 }
 
-// blocksBeside are where USAGE draws its blocks by account, for ROUTING to be
-// drawn beside them: from column x, each block in view where USAGE placed it,
-// an account's, or the pool's, of no id.
+// blocksBeside are where USAGE draws its blocks by account, for ROUTING or
+// GRAPHS' charts to be drawn beside them: from column x, each block where
+// USAGE placed it, an account's, or the pool's, of no id; the rows under
+// each block's last that what's beside it takes, as under has them; and how
+// GRAPHS' charts lie across there, in the block's form, as besideCharts has
+// them.
 type blocksBeside struct {
 	x      int
 	blocks []rowAt
+	under  int
+	across chartsAcross
 }
 
 // routingBeside draws ROUTING's table t beside USAGE's blocks by account, as
@@ -398,10 +579,12 @@ func (f Frame) routingBeside(c *canvas, t routingTable, at blocksBeside) {
 
 // besideAccount draws account r's lines beside its block from column x, on
 // the rows given, as routingBeside has them: its sessions and its trace only
-// where they have their rows.
+// where they have their rows; its state as saidBeside has it, where ● pinned
+// shows on its sessions' line.
 func (f Frame) besideAccount(c *canvas, t routingTable, r accountRouting, x int, rows []int) {
+	said := saidBeside(r.standing, r.pinned && len(rows) > 1)
 	drawLines(rows,
-		func(y int) { f.drawStanding(c, r, x, y, f.Width-wordsGap-x, false) },
+		func(y int) { f.drawStanding(c, r, x, y, standingWords(said, false, f.Width-wordsGap-x)) },
 		func(y int) { c.line(x, y, besideSessions(r)) },
 		func(y int) {
 			trace := f.besideTrace(x, y)
@@ -460,17 +643,26 @@ func (at blocksBeside) ruled(i int) bool {
 	return next.id == "" && next.y == block.y+block.rows+1
 }
 
+// besideParts are ROUTING's three lines beside a block, down its rows, as
+// flex lays them: its state, its sessions and its trace, a row each, a blank
+// row between each two that gives way, the two together, where the block's
+// rows don't hold them.
+var besideParts = []flex.Part{
+	{Least: 1, Natural: 1},
+	{Least: 1, Natural: 1, Leaves: 1},
+	{Least: 1, Natural: 1},
+	{Least: 1, Natural: 1, Leaves: 1},
+	{Least: 1, Natural: 1},
+}
+
 // besideRows are the rows, down from a block's first, that ROUTING's three
-// lines beside a block rows tall take: its state, its sessions and its
-// trace, two rows apart where it has the rows, as three windows give it,
-// else one apart; any past the row after the block is left off, as it
-// would be the next block's, and any on that row too where it's ruled, the
-// pool's rule.
+// lines beside a block rows tall take, as besideParts lays them in its rows:
+// two rows apart where it has the rows, as three windows give it, else one
+// apart; any past the row after the block is left off, as it would be the
+// next block's, and any on that row too where it's ruled, the pool's rule.
 func besideRows(rows int, ruled bool) []int {
-	lines := []int{0, 1, 2}
-	if rows >= 5 {
-		lines = []int{0, 2, 4}
-	}
+	s, _ := flex.Lay(rows, besideParts...)
+	lines := []int{s[0].At, s[2].At, s[4].At}
 	last := rows
 	if ruled {
 		last--

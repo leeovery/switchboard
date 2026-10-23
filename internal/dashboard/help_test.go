@@ -206,7 +206,7 @@ func TestOverviewHelpKeysEachMarkAsThePageDrawsIt(t *testing.T) {
 	t.Run("USAGE's marks, as its key line names them", func(t *testing.T) {
 		explains(t, "USAGE", line{{paceMark, paceInk}})
 		explains(t, "USAGE", line{{capMark, reserveInk}})
-		for _, mark := range keyMarks([]accountName{{primary: true}, {best: true}}, false) {
+		for _, mark := range keyMarks([]accountName{{primary: true}, {best: true}})[0] {
 			explains(t, "USAGE", mark[:1])
 		}
 	})

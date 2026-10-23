@@ -39,13 +39,13 @@ func (f Frame) lanesHelp() helpPart {
 				"column, picked out under now, by how it stands now" + dimmed + ". Every window every model shares counts, a model's " +
 				"own window not, but the 5-hour view leaves out a week running out: its lane has room until the week's limit."),
 			said("Beside each lane, the account's number, name and marks, as switchboard usage prints them, and under them its use " +
-				"of the view's window, its percentage taking the ramp's second colour from 70% and its last from 90%; not read " +
-				"since 14:20 where its last read failed; and not read yet before its first, its lane blank, saying why where that " +
-				"read failed. A stale account's lane and use are faded, as the Overview fades a stale account, and the use of one " +
+				"of the view's window, its percentage taking the ramp's second colour from 70% and its last from 90%; read 14:20 " +
+				"where its last read failed; and not read before its first, its lane blank, saying why where that read failed. " +
+				"A stale account's lane and use are faded, as the Overview fades a stale account, and the use of one " +
 				"whose token is refused."),
-			said("`a` collapses the labels, to give the lanes more room: beside each lane, its number, its marks and its use alone, " +
-				"as 2 ◆ 66%, the window named in the heading, or — where there's no use to show. `a` again expands them. " +
-				"It's kept for next time."),
+			said("`a` collapses the labels, to give the lanes more room: beside each lane, its number and its marks alone, as 2 ◆, " +
+				"and under them its use, as 66%, the window named in the heading, or — where there's no use to show. `a` again " +
+				"expands them. It's kept for next time."),
 			said("Under each lane, words say where each stretch without room starts and when room is back: at its cap, at its " +
 				"limit, its token refused, or runs out ~16:05 at its pace, ~ marking a time projected at its pace, as switchboard " +
 				"usage projects it. Where another stretch holds the account on, a stretch says lifts 19:00, when its own hold lifts, " +
@@ -57,8 +57,10 @@ func (f Frame) lanesHelp() helpPart {
 				"counted reset. A column with no reading of its account by then is blank, as an account not read yet. A cap is " +
 				"drawn by the reserve the config gives now, as the readings keep none: change a reserve, and the caps of days gone " +
 				"are drawn again by it."),
-			said("As rows run short, an account takes two rows, the blank rows go and COMING UP folds; past that, the lanes " +
-				"scroll with `j` and `k`, the axis and the pool's lane holding."),
+			said("The legend sits at the foot, over the key line. As rows run short, an account takes two rows, the blank rows " +
+				"go and COMING UP shows the lines it can; then the legend gives way, then COMING UP, then the blank row under " +
+				"the axis; only then do the lanes scroll with `j` and `k`, the axis and the pool's lane holding, and what's out " +
+				"of view said beside the pool's room."),
 		},
 		glyphs: []glyph{
 			{drawn: line{f.Look.laneMark(views.CellRoom)}, means: "room"},
@@ -71,7 +73,7 @@ func (f Frame) lanesHelp() helpPart {
 }
 
 // poolHelp is the pool's lane as help explains it: its columns, how they're
-// counted and coloured; its room under Σ pool, or collapsed, beside Σ; and
+// counted and coloured; its room under Σ pool, or collapsed, under Σ; and
 // which accounts the pool is.
 func poolHelp() helpPart {
 	return helpPart{
@@ -79,10 +81,10 @@ func poolHelp() helpPart {
 		says: []line{
 			said("Beside Σ pool, under the lanes: a column for each of the lanes', filled to how many of the pool's accounts have " +
 				"room then, and coloured as switchboard usage colours the pool's use, the ramp's second colour from 70% used and " +
-				"its last from 90%, and where none has room, ─ along its foot, as a lane at its limit draws it. An account at its " +
-				"cap or its limit counts without room, one running out at its pace with room until it does, and one not known " +
-				"then without. Under Σ pool, the pool's room in the view's window, as switchboard usage gives it; with the labels " +
-				"collapsed, beside Σ, of how many accounts the pool is, as Σ 1.2/3."),
+				"its last from 90%, ▃ at the least where any has room, and where none has room, ▂ along its foot, in a " +
+				"limit's red. An account at its cap or its limit counts without room, one running out at its pace with room " +
+				"until it does, and one not known then without. Under Σ pool, the pool's room in the view's window, as " +
+				"switchboard usage gives it; with the labels collapsed, under Σ, of how many accounts the pool is, as 1.2/3."),
 			said("The pool is every account on auto, and the pin's while one holds, as pinned says after its room where it fits; " +
 				"an account out of it is faded, the words under its lane not."),
 		},
@@ -139,8 +141,8 @@ func columnLengths(columns int) (fiveHour, week, day string) {
 }
 
 // runwayComingHelp is Runway's COMING UP as help explains it: what it lists,
-// in each view, and what it leaves out; how it folds; and that a step back
-// shows none.
+// in each view, and what it leaves out; where it sits and how it cuts its
+// lines; and that a step back shows none.
 func runwayComingHelp() helpPart {
 	return helpPart{
 		heading: SectionComing.heading(),
@@ -148,8 +150,8 @@ func runwayComingHelp() helpPart {
 			said("What happens next, soonest first, as the Overview's COMING UP has it: an account back from its cap, its limit or " +
 				"its refused token, whichever lifts last, a window running out at its pace, ~ marking it projected, and each " +
 				"other reset of the view's window, where its │ stands. The 5-hour view lists the 5-hour windows'; the week view " +
-				"adds each week's run-out and reset. No prime is listed. As rows run short, it folds to its heading, which names " +
-				"the soonest; stepped back, there's none."),
+				"adds each week's run-out and reset. No prime is listed. It sits under the pool's lane and takes the rows left; " +
+				"where its lines don't all fit, its last says how many more. Stepped back, there's none."),
 		},
 	}
 }

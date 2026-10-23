@@ -98,13 +98,12 @@ type Frame struct {
 	// zero while it doesn't.
 	Traffic Traffic
 	// Scroll is how far the view is scrolled down, where it doesn't fit: in
-	// rows; on the Overview, in accounts, USAGE's, within its section; on
-	// History, the Year in rows, Weeks in accounts, Days in accounts too,
-	// BY ACCOUNT's, within it, and Tokens in periods; and on Runway, in
-	// accounts, its lanes'; but in rows wherever ScrollsRows says the view
-	// scrolls a row at a time, as USAGE, Weeks, Days and Tokens do where what
-	// they show one of doesn't fit. It goes no further than Scrolling says it
-	// goes.
+	// rows, on the Overview USAGE's, within its section; on History, the
+	// Year in rows, Weeks in accounts, Days in accounts too, BY ACCOUNT's,
+	// within it, and Tokens in periods; and on Runway, in accounts, its
+	// lanes'; but in rows wherever ScrollsRows says the view scrolls a row at
+	// a time, as Weeks, Days and Tokens do where what they show one of
+	// doesn't fit. It goes no further than Scrolling says it goes.
 	Scroll int
 	// Focus is the account the Overview's focus is on, by id, which ↑ and ↓
 	// move and GRAPHS follows: "" while it's on none.
@@ -135,6 +134,16 @@ type Frame struct {
 	// the accounts' own week, as the config names it: the week Accounts'
 	// WEEK USED shows, and its page reads the weeks of.
 	WeekWindow string
+	// VersionNameCells are the cells of the widest name a version is given, as
+	// views.VersionNameCells has it of the table the pages are built with:
+	// known before any page is read, so a phone's Compare sizes its figures
+	// by it and holds still as its page is read.
+	VersionNameCells int
+	// PlansAtMost are the configured accounts' plans at the most each has
+	// cost, and all accounts' summed, as views.PlansAtMost has them: known
+	// before any page is read and whatever period it prices, so turned
+	// Compare's VALUE sizes its plans' column by them and holds still.
+	PlansAtMost []views.PlanCost
 	// Accounts is Accounts' sub-tab shown, its period, what's chosen in it,
 	// and its page.
 	Accounts AccountsShown
@@ -340,7 +349,7 @@ func (f Frame) top() int {
 	if f.Shown() == Overview {
 		return f.headingY()
 	}
-	return f.headingY() + f.heading().rows(f.phone()) + 1
+	return f.headingY() + f.heading().rows(f.Width, f.phone()) + 1
 }
 
 // body is the rows between the status line and the key line, across the
@@ -402,7 +411,7 @@ func (f Frame) Under(doc status.Document, now time.Time, x, y int) Under {
 func (f Frame) scrolls(doc status.Document, now time.Time) (x, y, width, rows int) {
 	switch f.Shown() {
 	case SessionPage:
-		l := f.sessionLayout(len(f.Session.Page.Accounts))
+		l := f.pageLayout()
 		return 0, l.turnsAt, f.Width, l.turns
 	case Overview:
 		return f.overviewScrolls(doc, now)
@@ -438,7 +447,7 @@ func (f Frame) Shown() View {
 // over the Log, as stateLine has it.
 func (f Frame) cramped() bool {
 	if f.Shown() == SessionPage {
-		return f.sessionLayout(len(f.Session.Page.Accounts)).chrome
+		return f.pageLayout().chrome
 	}
 	return f.viewRows() < leastView
 }

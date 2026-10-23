@@ -478,23 +478,20 @@ func (p LogPage) oldest() *views.OldestDay {
 	return nil
 }
 
-// heading is the Log's heading row, on a phone where phone says, width cells
-// wide: its name and its sub-tabs, the one shown picked out, and what the
-// filter keeps, as the heading says it, each account named as name names it;
-// at its right, the table's count, as logHeadingRight picks its form, or on
-// a phone, as phone has it.
-func (p LogPage) heading(phone bool, width int, name func(id string) string) heading {
+// heading is the Log's heading row, width cells wide: its name and its
+// sub-tabs, the one shown picked out, and what the filter keeps, as the
+// heading says it, each account named as name names it; at its right, the
+// table's count, as logHeadingRight picks its form, and where the heading is
+// compact, as a phone's is, as phone has it.
+func (p LogPage) heading(width int, name func(id string) string) heading {
 	h := heading{name: strings.ToUpper(Log.Title()), subTabs: logViews, shown: int(p.Shown)}
 	if !p.Read {
 		return h
 	}
 	count := p.headingCount()
-	h.state = p.filterNames(name).said()
-	if phone {
-		h.right = count.phone()
-		return h
-	}
+	h.state, h.free = p.filterNames(name).said(), true
 	h.right = logHeadingRight(count.forms(), h.state, width-h.named(new(laying), 0, false))
+	h.compactRight = count.phone()
 	return h
 }
 
@@ -579,7 +576,7 @@ func (p LogPage) dirOf(id string) string {
 // session column does: "d28c switchboard", the id alone where there's no
 // directory.
 func sessionNamed(id, dir string) string {
-	if name := status.DirName(dir, views.SessionDirCells); name != "" {
+	if name := views.SessionDirName(dir); name != "" {
 		return status.ShownID(id) + " " + name
 	}
 	return status.ShownID(id)

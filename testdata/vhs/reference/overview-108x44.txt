@@ -29,16 +29,16 @@ WEEK
 
 ROUTING   auto ─────────────────────────────────────────────────────────────────────────────────────────── r
 
- 1 work         ● at its cap · 17:10
-                ▂▃▄▄▅▅▃▁▂▂▂▂▃▃▂▂▃▄▅▆▆▆▄▄▃▃▃▃▂▂▂▂▂▂▂▂▂▂▁▁▂▁▁▂▂▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0 sessions  0/min
+1 work          ● at its cap · back 17:10           0 sessions   ▃▅▄▂▂▂▂▃▅▆▄▃▃▂▂▂▂▂▂▂▁▂▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
+2 personal ◆    ● open                              2 sessions   ▁▂▂▂▁▁▁▁▁▁▂▂▁▁▁▁▁▁▁▁▃▆▄▂▁▁▁▁▁▁▁▁▂▂▂   3/min
+3 side ▲        ● open · new sessions come here     4 sessions   ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▄▇   ▇▇▆▅▄▅▅▆  11/min
+                                                                 requests a minute, last 30 minutes
 
- 2 personal ◆   ● open
-                ▁▁▂▂▂▂▂▂▂▁▁▁▁▁▁▁▁▁▁▁▁▂▂▂▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂▄▅▆▅▄▃▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂▂▂▁▂   2 sessions  3/min
+COMING UP  ──────────────────────────────────── c       LATELY  ────────────────────────────────────────── l
 
- 3 side ▲       ● open · next
-                ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▃▄▆▇ ▇      ▇▇ ▇▆▅▅▄▄▅▅▅▆▆  4 sessions  11/min
-
-COMING UP   16:30  personal's 5-hour resets… ── c       LATELY   14:41  ▲ c61b started on side  … ──────── l
-
+16:30       personal's 5-hour resets    in 1h 48m       14:41  ▲ c61b started on side
+17:10       work back from its cap      in 2h 28m       14:31  ╎ work at its cap: 3 moved to side
+18:50       side's 5-hour resets        in 4h 08m       14:12  ▲ 7f3a started on work
+~Fri 12:20  side's week runs out at…   in 21h 38m       13:50  ◇ side primed: its 5-hour window started
 
 tab views   ? keys and toggles   q quit

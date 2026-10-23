@@ -5,22 +5,23 @@ import (
 	"strings"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// The columns Runway's lanes start at, after their labels: 24 on a frame
-// from phoneUnder columns, the labels in the 22 cells before them; 14 on a
-// phone's, its label column; and 11 at the least at every width with the
-// account column collapsed, its labels in the cells before them, as
-// collapsedCells sizes them.
+// Runway's parts across a frame, in runwayParts' order: the label column,
+// its gap after it, and the lanes, which take the rest.
 const (
-	runwayLanesFrom      = 24
-	phoneRunwayLanesFrom = 14
-	collapsedLanesFrom   = 11
+	runwayLabelColumn = iota
+	runwayLaneColumns
 )
+
+// collapsedGap are the cells after the widest label of Runway's label
+// column, collapsed.
+const collapsedGap = 1
 
 // runwayWindows are the windows Runway's views are named for, in the order
 // < and > step between them, and runwayNames what the heading calls each.
@@ -37,9 +38,8 @@ var (
 // the watch built at the look: the timeline the lanes are drawn over, as
 // TimelineAt has it, the lanes, as views.Lanes builds them, nil till
 // it's built them, and COMING UP's lines, as views.RunwayComing has them;
-// and the cells the collapsed account column's labels take, as Labelled
-// sizes them, the least till it does. What draws Runway reads what the
-// watch built.
+// and the cells its accounts' labels take whole, as Labelled sizes them,
+// none till it does. What draws Runway reads what the watch built.
 type RunwayShown struct {
 	Window    views.RunwayWindow
 	Collapsed bool
@@ -47,13 +47,21 @@ type RunwayShown struct {
 	Timeline  views.Timeline
 	Lanes     *views.Lanes
 	Coming    []status.Upcoming
-	labels    int
+	labels    runwayLabels
 }
 
-// Labelled is Runway shown as r with its collapsed account column's labels
-// sized for the accounts of the moment m, as collapsedCells sizes them.
+// runwayLabels are Runway's accounts' labels, as runwayLabelsOf has them:
+// expanded, their name column; and with the account column collapsed, the
+// cells the widest takes.
+type runwayLabels struct {
+	expanded  flex.Part
+	collapsed int
+}
+
+// Labelled is Runway shown as r with its accounts' labels sized for the
+// accounts of the moment m, as runwayLabelsOf sizes them.
 func (r RunwayShown) Labelled(m status.Moment) RunwayShown {
-	r.labels = collapsedCells(namesOf(m))
+	r.labels = runwayLabelsOf(namesOf(m))
 	return r
 }
 
@@ -97,18 +105,49 @@ func (r RunwayShown) Columns(width int) int {
 }
 
 // lanesFrom is the column Runway shown as r starts its lanes at on a
-// terminal width cells wide, after its labels: with its account column
-// collapsed, at every width, nameGap after the cells Labelled gave its
-// labels, collapsedLanesFrom the least; else phoneRunwayLanesFrom on a
-// phone, and runwayLanesFrom wider.
+// terminal width cells wide, after its label column, its parts laid as
+// runwayParts declares them.
 func (r RunwayShown) lanesFrom(width int) int {
-	switch {
-	case r.Collapsed:
-		return max(collapsedLanesFrom, r.labels+nameGap)
-	case Phone(width):
-		return phoneRunwayLanesFrom
+	s, _ := flex.Lay(width, r.runwayParts()...)
+	return s[runwayLaneColumns].At
+}
+
+// runwayParts are Runway's parts across a frame, as flex lays them: the label
+// column, as labelsColumn has it, and the lanes, which take the rest.
+func (r RunwayShown) runwayParts() []flex.Part {
+	return []flex.Part{
+		runwayLabelColumn: r.labelsColumn(),
+		runwayLaneColumns: {Grows: true},
 	}
-	return runwayLanesFrom
+}
+
+// labelsColumn is Runway's label column shown as r, its gap after it: with
+// the account column collapsed, the widest of its labels beside a lane, a
+// number and its marks or the widest use, 100%, and collapsedGap, whatever
+// the width; else its accounts' names' column, as runwayLabelsOf has it, its
+// natural no less than the widest use under a name, as runwayUseCells has
+// it.
+func (r RunwayShown) labelsColumn() flex.Part {
+	if r.Collapsed {
+		cells := max(r.labels.collapsed, widestFigure) + collapsedGap
+		return flex.Part{Least: cells, Natural: cells}
+	}
+	labels := r.labels.expanded
+	labels.Natural = max(labels.Natural, runwayUseCells())
+	labels.Most = max(labels.Most, labels.Natural)
+	return labels
+}
+
+// runwayUseCells are the cells the label column keeps for the widest use
+// under a lane's name, of either window, as "5-hour 100%", so the lanes
+// hold still as < and > step between them and as the figures change: from
+// runwayUseFrom, and the cell before the lanes useLine keeps.
+func runwayUseCells() int {
+	widest := 0
+	for _, name := range runwayNames {
+		widest = max(widest, len(name))
+	}
+	return runwayUseFrom + widest + 1 + widestFigure + 1
 }
 
 // Windowed is Runway showing the live view of the window by places on from
@@ -203,19 +242,10 @@ func (f Frame) runwayLaidOut(m status.Moment, x int, fit runwayFit) runwayLaid {
 	return runwayLaid{x: x, m: m, lanes: f.laidLanes(m, fit), fit: fit}
 }
 
-// runwayForm is the form Runway is drawn in, of doc at now: a phone's, as
-// phoneRunway has it; else as wideRunway has it.
+// runwayForm is the form Runway is drawn in, of doc at now: its lanes from
+// where lanesFrom starts them, laid out as runwayFitted fits it, as
+// runwayFormed draws them.
 func (f Frame) runwayForm(doc status.Document, now time.Time) runwayForm {
-	if f.phone() {
-		return f.phoneRunway(doc, now)
-	}
-	return f.wideRunway(doc, now)
-}
-
-// wideRunway is Runway of doc at now from phoneUnder columns, as its form
-// draws it: its lanes from where lanesFrom starts them, laid out as
-// runwayFitted fits it, as runwayFormed draws them.
-func (f Frame) wideRunway(doc status.Document, now time.Time) runwayForm {
 	return f.runwayFormed(doc, now, f.Runway.lanesFrom(f.Width), f.runwayFitted)
 }
 

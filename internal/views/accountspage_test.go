@@ -326,3 +326,53 @@ func TestLeftAtItsLastResetIsOfAWeekEndedInTheSixWeeksOrTheWeekBefore(t *testing
 		})
 	}
 }
+
+// The widest name a version is given is the version table's widest, or the
+// id of a model the table prices and doesn't name, claude- taken off, as one
+// the config prices.
+func TestTheWidestVersionNameIsOfEveryModelTheTablePrices(t *testing.T) {
+	pricing := func(ids ...string) ledger.Table {
+		table := ledger.Pricing
+		table.Models = append(slices.Clone(ledger.Pricing.Models), ledger.Model{IDs: ids})
+		return table
+	}
+	tests := []struct {
+		name  string
+		table ledger.Table
+		want  int
+	}{
+		{name: "an empty table, none", table: ledger.Table{}, want: 0},
+		{name: "the version table's, Sonnet 5.5", table: ledger.Pricing, want: len("Sonnet 5.5")},
+		{
+			name: "a model priced and named by the version table, by its name, not its id",
+			table: ledger.Table{
+				Models:   []ledger.Model{{IDs: []string{"claude-a-long-dated-id-20990101"}}},
+				Versions: []ledger.Version{{IDs: []string{"claude-a-long-dated-id-20990101"}, Name: "Short"}},
+			},
+			want: len("Short"),
+		},
+		{name: "a model the config prices, by its id", table: pricing("claude-sonnet-4-20250514"), want: len("sonnet-4-20250514")},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := views.VersionNameCells(tt.table); got != tt.want {
+				t.Errorf("the widest version name is %d cells, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
+// The page's limited windows are every window any row records a limit of,
+// every account's among them, each once.
+func TestThePagesLimitedWindowsAreEveryRowsLimits(t *testing.T) {
+	page := views.AccountsPage{
+		Rows: []views.AccountsRow{
+			{Totals: views.AccountTotals{Limits: map[string]int{"5h": 2, "7d_oi": 1}}},
+			{Totals: views.AccountTotals{Limits: map[string]int{"7d": 1}}},
+		},
+		All: views.AccountsRow{Totals: views.AccountTotals{Limits: map[string]int{"5h": 2, "7d": 1, "1d": 1}}},
+	}
+	if got, want := page.LimitedWindows(), []string{"1d", "5h", "7d", "7d_oi"}; !slices.Equal(got, want) {
+		t.Errorf("the page's limited windows are %v, want %v", got, want)
+	}
+}

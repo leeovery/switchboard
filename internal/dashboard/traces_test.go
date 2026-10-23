@@ -102,10 +102,10 @@ func TestATracesRateIsBoldUnlessNoneOrOutOfThePool(t *testing.T) {
 // requests of the 30 minutes to routedAt, as the request stream tells of
 // them: on personal, 4 of personal-0's at 14:30:01 and 2 at 14:41:31; on
 // side, 16 of side-0's at 14:41:31; and on each alike, 12 of side-1's at
-// 14:20:01, and 15 at 14:15:01 of gone's, a session no longer listed. At
-// 160 columns, a cell is 30 seconds, and a burst fills the two cells whose
-// four samples, the last at a cell's end, all fall in the minute after it:
-// the newest cell's, taken at routedAt, its rate.
+// 14:20:01, and 15 at 14:15:01 of gone's, a session no longer listed. In a
+// trace 60 cells wide, a cell is 30 seconds, and a burst fills the two cells
+// whose four samples, the last at a cell's end, all fall in the minute after
+// it: the newest cell's, taken at routedAt, its rate.
 func tracedWorld() (status.Document, []status.Session, views.Traces) {
 	doc, listed := autoRouting()
 	var sent []views.Told
@@ -130,7 +130,7 @@ func tracedClock(hour, minute, second int) time.Time {
 	return time.Date(2026, 10, 1, hour, minute, second, 0, time.UTC)
 }
 
-// tracedCells are the eighths of a trace 60 cells wide, as at 160 columns,
+// tracedCells are the eighths of a trace 60 cells wide, as at 159 columns,
 // filled in the cells given and no others: the cell of the 30 seconds from
 // hh:mm:00 or hh:mm:30 is 59 − (14:42:00 − that) ÷ 30 s, routedAt's the last.
 func tracedCells(filled map[int]int) []int {
@@ -203,17 +203,18 @@ func TestAFramesTracesDrawItsRequestsAMinuteToItsScale(t *testing.T) {
 	}
 	rates := map[string]span{"work": {"0/min", dimInk}, "personal": {"2/min", strongInk}, "side": {"16/min", strongInk}}
 	for _, tt := range tests {
-		f := frameOf(160, 40)
+		f := frameOf(159, 40)
 		f.Look, f.Sections, f.Sessions, f.Traces, f.TraceScale = Screen(builtin(t, "nord")), SectionsNamed([]string{"routing"}), listed, traces, tt.scale
 		c := newCanvas(f.Width, f.Height)
 		f.view(c, doc, routedAt)
 		body := routingOf(f.laidOut(doc, routedAt, f.top())).body
+		columns := f.routingColumns(f.Moment(doc, routedAt))
 		for i, a := range doc.Accounts {
-			rows := f.accountRows(i, len(doc.Accounts), body)
+			rows := columns.accountRows(i, len(doc.Accounts), body)
 			if len(rows) != 2 {
 				t.Fatalf("%s: %s's trace is %d rows, want 2", tt.name, a.ID, len(rows))
 			}
-			if got := tracedOf(c, traceFrom, 60, rows[1], rows[0]); !slices.Equal(got, tt.traces[a.ID]) {
+			if got := tracedOf(c, columns.trace, columns.traceCells, rows[1], rows[0]); !slices.Equal(got, tt.traces[a.ID]) {
 				t.Errorf("%s: %s's trace fills\n%v\nwant\n%v", tt.name, a.ID, got, tt.traces[a.ID])
 			}
 			rate, end := rates[a.ID], c.at(f.Width-1, rows[1])
@@ -242,7 +243,7 @@ func TestATraceUnderASlideOverKeepsNowsEndAndItsRate(t *testing.T) {
 		scale float64
 	}{
 		{name: "ROUTING, two rows an account", width: 160, shown: SectionsNamed([]string{"routing"}), scale: 16},
-		{name: "ROUTING under 110 columns", width: 109, shown: SectionsNamed([]string{"routing"}), scale: 16},
+		{name: "ROUTING two rows an account", width: 82, shown: SectionsNamed([]string{"routing"}), scale: 16},
 		{name: "beside USAGE's blocks", width: 160, shown: SectionsNamed([]string{"usage", "routing"}), by: ByAccount, scale: 18},
 		{name: "SESSIONS", width: 160, shown: SectionsNamed([]string{"sessions"}), scale: 16},
 	}
@@ -308,7 +309,10 @@ func TestARateNeverMovesOntoTheWordsBeforeItsTrace(t *testing.T) {
 					if x, ok := starts[y]; ok {
 						before = x
 					}
-					if got, want := ansi.Truncate(rowOf(under, y), before, ""), ansi.Truncate(rowOf(whole, y), before, ""); got != want {
+					// Blanks at the end are left off both: a trace's top row can
+					// be blank in its newest cells, those the slide-over leaves.
+					cut := func(c *canvas) string { return strings.TrimRight(ansi.Truncate(rowOf(c, y), before, ""), " ") }
+					if got, want := cut(under), cut(whole); got != want {
 						t.Errorf("row %d reads %q before column %d under the slide-over, want %q", y, got, before, want)
 					}
 				}
@@ -351,10 +355,10 @@ func TestEveryTraceOnScreenSharesTheBusiestColumnAsItsScale(t *testing.T) {
 		{name: "ROUTING's accounts', side's newest", width: 160, height: 60, shown: SectionsNamed([]string{"routing"}), want: 16},
 		{name: "and the running sessions', side-1's, on two accounts at once, never gone's", width: 160, height: 60, shown: routingAndSessions, want: 24},
 		{name: "the sessions' alone, ROUTING hidden", width: 160, height: 60, shown: SectionsNamed([]string{"sessions"}), want: 24},
-		{name: "under 110 columns, where SESSIONS draws no trace: ROUTING's alone", width: 109, height: 60, shown: routingAndSessions, want: 16},
+		{name: "two rows a session, where SESSIONS draws no trace: ROUTING's alone", width: 82, height: 60, shown: routingAndSessions, want: 16},
 		{name: "beside USAGE's blocks, the pool's, its accounts' summed", width: 160, height: 60, by: ByAccount, want: 30},
-		{name: "SESSIONS folded, its rows run short: ROUTING's alone", width: 160, height: 20, shown: routingAndSessions, want: 16},
-		{name: "ROUTING folded too: none, the least", width: 160, height: 12, shown: routingAndSessions, want: leastScale},
+		{name: "SESSIONS folded, its rows run short: ROUTING's alone", width: 160, height: 16, shown: routingAndSessions, want: 16},
+		{name: "ROUTING folded too: none, the least", width: 160, height: 11, shown: routingAndSessions, want: leastScale},
 		{name: "with no trace shown, the least", width: 160, height: 60, shown: SectionsNamed([]string{"usage"}), want: leastScale},
 		{name: "a quiet page, never less than 8", width: 160, height: 60, shown: SectionsNamed([]string{"routing"}), quiet: true, want: leastScale},
 	}
@@ -395,11 +399,13 @@ func TestABusyAccountScrolledOutOfUSAGEDoesNotSetTheScale(t *testing.T) {
 	doc.Pin = status.Pin{Accounts: []string{"personal", "side"}}
 	doc = doc.WorkedOut(claudeLike)
 	// Work, out of the pool, sends 40 at once, its busiest column 30, 45
-	// cells wide; the pool's trace sums personal's and side's alone.
-	f := frameOf(160, 25)
+	// cells wide; the pool's trace sums personal's and side's alone. At 20
+	// rows, USAGE scrolls, as far as takes work's block out of view.
+	f := frameOf(160, 20)
 	f.By, f.Sessions, f.Traces = ByAccount, listed, burst("work-0", "work", 40)
-	if got := f.Scrolling(doc, routedAt); got.Most != 1 {
-		t.Fatalf("USAGE scrolls %+v, want an account", got)
+	most := f.Scrolling(doc, routedAt).Most
+	if most == 0 {
+		t.Fatal("USAGE scrolls nowhere, want it to scroll past work's block")
 	}
 	tests := []struct {
 		name   string
@@ -407,7 +413,7 @@ func TestABusyAccountScrolledOutOfUSAGEDoesNotSetTheScale(t *testing.T) {
 		want   float64
 	}{
 		{name: "work in view", want: 30},
-		{name: "work scrolled out of view", scroll: 1, want: leastScale},
+		{name: "work scrolled out of view", scroll: most, want: leastScale},
 	}
 	for _, tt := range tests {
 		f.Scroll = tt.scroll
@@ -420,12 +426,12 @@ func TestABusyAccountScrolledOutOfUSAGEDoesNotSetTheScale(t *testing.T) {
 func TestASessionPastSESSIONSMoreRowDoesNotSetTheScale(t *testing.T) {
 	doc, listed, traces := tracedWorld()
 	f := Frame{Width: 160, Height: 40, View: Overview, Sessions: listed, Traces: traces}
-	// Three rows show personal's two sessions, 4 their busiest, and say four
-	// more run, side-1, 24, among them.
-	c := holdingTraces(newCanvas(f.Width, 3))
-	f.sessionsSection(doc, routedAt).draw(c, bounds{width: f.Width, rows: 3})
-	if got := f.traceScale(*c.traces); got != leastScale {
-		t.Errorf("scaled to %v, want %v: the sessions shown", got, float64(leastScale))
+	// Two rows show side's busiest session, side-0, 16 its busiest, and say
+	// five more run, side-1, 24, among them.
+	c := holdingTraces(newCanvas(f.Width, 2))
+	f.sessionsSection(doc, routedAt).draw(c, bounds{width: f.Width, rows: 2})
+	if got := f.traceScale(*c.traces); got != 16 {
+		t.Errorf("scaled to %v, want 16: the session shown", got)
 	}
 }
 

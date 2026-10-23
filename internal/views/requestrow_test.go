@@ -294,33 +294,33 @@ func TestStoppedSaysWhyItsAnswerStoppedOrWhatItsDoing(t *testing.T) {
 	tests := []struct {
 		name                string
 		row                 views.RequestRow
-		wide, phone, folded string
+		wide, brief, folded string
 	}{
-		{name: "its answer ended", row: lined(stop("end_turn")), wide: "end_turn", phone: "end_turn", folded: "end_turn"},
-		{name: "to call a tool", row: lined(stop("tool_use", "Bash")), wide: "tool_use{ · }[Bash]", phone: "[Bash]", folded: "tool_use{ · }[Bash]"},
-		{name: "to call several tools", row: lined(stop("tool_use", "TodoWrite", "Bash")), wide: "tool_use{ · }[TodoWrite] +1", phone: "[TodoWrite] +1",
+		{name: "its answer ended", row: lined(stop("end_turn")), wide: "end_turn", brief: "end_turn", folded: "end_turn"},
+		{name: "to call a tool", row: lined(stop("tool_use", "Bash")), wide: "tool_use{ · }[Bash]", brief: "[Bash]", folded: "tool_use{ · }[Bash]"},
+		{name: "to call several tools", row: lined(stop("tool_use", "TodoWrite", "Bash")), wide: "tool_use{ · }[TodoWrite] +1", brief: "[TodoWrite] +1",
 			folded: "tool_use{ · }[TodoWrite] +1"},
 		{name: "its answer telling no why", row: lined(stop(""))},
-		{name: "its why and tool from elsewhere, cleaned", row: lined(stop("tool\x07use", "Ba\nsh")), wide: "tool use{ · }[Ba sh]", phone: "[Ba sh]",
+		{name: "its why and tool from elsewhere, cleaned", row: lined(stop("tool\x07use", "Ba\nsh")), wide: "tool use{ · }[Ba sh]", brief: "[Ba sh]",
 			folded: "tool use{ · }[Ba sh]"},
-		{name: "a session's first: its routing folded in", row: lined(stopped("tool_use", first, "Bash")), wide: "tool_use{ · }[Bash]", phone: "new session",
+		{name: "a session's first: its routing folded in", row: lined(stopped("tool_use", first, "Bash")), wide: "tool_use{ · }[Bash]", brief: "new session",
 			folded: "new session"},
-		{name: "a move, its cache cold: its routing folded in", row: cold, wide: "end_turn", phone: "from [work]", folded: "from [work], at its cap"},
-		{name: "a move, costed: its cost folded in whole", row: costed, wide: "end_turn", phone: "from [work]", folded: "from [work], at its cap" + paid},
-		{name: "sent again after a limit, every account refusing: its routing folded in", row: lined(refused), phone: "after [work]'s limit",
+		{name: "a move, its cache cold: its routing folded in", row: cold, wide: "end_turn", brief: "from [work]", folded: "from [work], at its cap"},
+		{name: "a move, costed: its cost folded in whole", row: costed, wide: "end_turn", brief: "from [work]", folded: "from [work], at its cap" + paid},
+		{name: "sent again after a limit, every account refusing: its routing folded in", row: lined(refused), brief: "after [work]'s limit",
 			folded: "after [work]'s limit"},
-		{name: "asking", row: toldDoing(time.Time{}, 0, false), wide: "<asking>", phone: "<asking>", folded: "<asking>"},
-		{name: "answering, no characters counted yet", row: toldDoing(sent.Add(time.Second), 0, false), wide: "<answering>", phone: "<answering>",
+		{name: "asking", row: toldDoing(time.Time{}, 0, false), wide: "<asking>", brief: "<asking>", folded: "<asking>"},
+		{name: "answering, no characters counted yet", row: toldDoing(sent.Add(time.Second), 0, false), wide: "<answering>", brief: "<answering>",
 			folded: "<answering>"},
-		{name: "answering, its first characters under 0.1k", row: toldDoing(sent.Add(time.Second), 49, false), wide: "<answering>", phone: "<answering>",
+		{name: "answering, its first characters under 0.1k", row: toldDoing(sent.Add(time.Second), 49, false), wide: "<answering>", brief: "<answering>",
 			folded: "<answering>"},
 		{name: "answering, its characters come to 0.1k", row: toldDoing(sent.Add(time.Second), 50, false), wide: "<answering> · 0.1k characters",
-			phone: "<answering>", folded: "<answering> · 0.1k characters"},
-		{name: "answering", row: toldDoing(sent.Add(time.Second), 5100, false), wide: "<answering> · 5.1k characters", phone: "<answering>",
+			brief: "<answering>", folded: "<answering> · 0.1k characters"},
+		{name: "answering", row: toldDoing(sent.Add(time.Second), 5100, false), wide: "<answering> · 5.1k characters", brief: "<answering>",
 			folded: "<answering> · 5.1k characters"},
-		{name: "answering at length", row: toldDoing(sent.Add(time.Second), 958_200, false), wide: "<answering> · 958.2k characters", phone: "<answering>",
+		{name: "answering at length", row: toldDoing(sent.Add(time.Second), 958_200, false), wide: "<answering> · 958.2k characters", brief: "<answering>",
 			folded: "<answering> · 958.2k characters"},
-		{name: "lost", row: toldDoing(sent.Add(time.Second), 2000, true), wide: lostAnswer, phone: lostAnswer, folded: lostAnswer},
+		{name: "lost", row: toldDoing(sent.Add(time.Second), 2000, true), wide: lostAnswer, brief: lostAnswer, folded: lostAnswer},
 		{name: "a quota check", row: lined(check)},
 	}
 	for _, tt := range tests {
@@ -328,8 +328,8 @@ func TestStoppedSaysWhyItsAnswerStoppedOrWhatItsDoing(t *testing.T) {
 			if got := rowWords(tt.row.Stopped()); got != tt.wide {
 				t.Errorf("Stopped() = %q, want %q", got, tt.wide)
 			}
-			if got := rowWords(tt.row.PhoneStopped()); got != tt.phone {
-				t.Errorf("PhoneStopped() = %q, want %q", got, tt.phone)
+			if got := rowWords(tt.row.BriefStopped()); got != tt.brief {
+				t.Errorf("BriefStopped() = %q, want %q", got, tt.brief)
 			}
 			if got := rowWords(tt.row.Folded()); got != tt.folded {
 				t.Errorf("Folded() = %q, want %q", got, tt.folded)

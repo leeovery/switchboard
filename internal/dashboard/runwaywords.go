@@ -158,11 +158,11 @@ func headOf(s views.LaneStretch, a status.AccountNow, now int, against time.Time
 	case s.Cell == views.CellCapped && s.Projected:
 		return "reaches its cap" + when + " at its pace", alertInk, true
 	case s.Cell == views.CellCapped:
-		return "at its cap" + when, alertInk, true
+		return status.AtCap + when, alertInk, true
 	case s.Cell == views.CellLimited && s.Projected:
 		return "runs out" + when + " at its pace", alertInk, true
 	case s.Cell == views.CellLimited:
-		return "at its limit" + when, exhaustedInk, false
+		return status.AtLimit + when, exhaustedInk, false
 	case s.Cell == views.CellRefused:
 		return "token refused" + refusedWith(s, a, now) + when, exhaustedInk, false
 	}

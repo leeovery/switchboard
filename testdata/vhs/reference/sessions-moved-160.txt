@@ -4,27 +4,25 @@
 
 SESSIONS    Switchboard  List  [ ]  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-9c2e website      idle 13m                      ●━━━━━━━━━━━━━━━━━━━━━━━┓           ○ 1 work          ● at its cap · back 17:10 · new sessions go elsewhere
-                                                                        ┃           ○  Week                 ▉      ┃            ╎   34%  19%/day till Sun 21:00
-c61b mobile       ↓ answering                   ●━━━━━━━━━━━━━━━━━━━━┓  ┃           ○
-d28c switchboard  idle 6s      ▸ from work      ●━━━━━━━━━━━━━━━━━┓  ┃  ┃           ○  5-hour                              ┃    ╎   95%  at cap · back 17:10
-7f3a api          idle 2m      ▸ from work      ●━━━━━━━━━━━━━━┓  ┃  ┃  ┃
-db8a infra        idle 47s     ▸ from work      ●━━━━━━━━━━━┓  ┃  ┃  ┃  ┃
-41e0 docs         ↑ asking     ▸ from personal  ●━━━━━━━━┓  ┃  ┃  ┃  ┃  ┃    ╌╌╌╌╌╌╌○ 2 personal ◆    ■ limit reached · back 16:30
-                                                         ┃  ┃  ┃  ┃  ┃  ┗━━━━━━━━━━━◉  Week                            ┃            66%  out ~Sun 00:48
-                                                         ┃  ┃  ┃  ┃  ┃              ○
-                                                         ┃  ┃  ┃  ┃  ┃              ○  5-hour                                  ┃   100%  limit · back 16:30
-                                                         ┃  ┃  ┃  ┃  ┃
-                                                         ┃  ┃  ┃  ┃  ┃
-                                                         ┃  ┃  ┃  ┃  ┗━━━━━━━━━━━━━━◉ 3 side ▲        ● open · new sessions come here
-                                                         ┃  ┃  ┃  ┗━━━━━━━━━━━━━━━━━◉  Week                      ┃                  78%  out ~Fri 14:07
-                                                         ┃  ┃  ┗━━━━━━━━━━━━━━━━━━━━◉
-                                                         ┃  ┗━━━━━━━━━━━━━━━━━━━━━━━◉  5-hour              ▉    ┃                   31%  25%/h till 18:50
-                                                         ┗━━━━━━━━━━━━━━━━━━━━━━━━━━◉
-
-
-                                                                                       ┃ even pace: where you would be now, used evenly
-                                                                                       ╎ cap: work at 95%    ◆ primary    ▲ new sessions go here
+9c2e website                  idle 13m                      ●━━━━━━━━━━━━━━━━━━━━┓  ○ 1 work          ● at its cap · back 17:10 · new sessions go elsewhere
+                                                                                 ┃  ○  Week                 ▉      ┃                34%  19%/day till Sun 21:00
+c61b mobile                   ↓ answering                   ●━━━━━━━━━━━━━━━━━┓  ┃  ○
+d28c switchboard              idle 6s      ▸ from work      ●━━━━━━━━━━━━━━┓  ┃  ┃  ○  5-hour                              ┃    ▍   95%  at cap · back 17:10
+7f3a api                      idle 2m      ▸ from work      ●━━━━━━━━━━━┓  ┃  ┃  ┃
+db8a infra                    idle 47s     ▸ from work      ●━━━━━━━━┓  ┃  ┃  ┃  ┃
+41e0 docs                     ↑ asking     ▸ from personal  ●━━━━━┓  ┃  ┃  ┃  ┃  ┃
+                                                                  ┃  ┃  ┃  ┃  ┃  ┃╌╌○ 2 personal ◆    ■ limit reached · back 16:30
+                                                                  ┃  ┃  ┃  ┃  ┃  ┗━━◉  Week                            ┃            66%  out ~Sun 00:48
+                                                                  ┃  ┃  ┃  ┃  ┃     ○
+                                                                  ┃  ┃  ┃  ┃  ┃     ○  5-hour                                  ┃   100%  limit · back 16:30
+                                                                  ┃  ┃  ┃  ┃  ┃
+                                                                  ┃  ┃  ┃  ┃  ┃
+                                                                  ┃  ┃  ┃  ┃  ┃
+                                                                  ┃  ┃  ┃  ┃  ┗━━━━━◉ 3 side ▲        ● open · new sessions come here
+                                                                  ┃  ┃  ┃  ┗━━━━━━━━◉  Week                      ┃                  78%  out ~Fri 14:07
+                                                                  ┃  ┃  ┗━━━━━━━━━━━◉
+                                                                  ┃  ┗━━━━━━━━━━━━━━◉  5-hour              ▉    ┃                   31%  25%/h till 18:50
+                                                                  ┗━━━━━━━━━━━━━━━━━◉
 
 
 
@@ -34,4 +32,6 @@ db8a infra        idle 47s     ▸ from work      ●━━━━━━━━━
 
 
 
+┃ even pace: where you would be now, used evenly
+◆ primary    ▲ new sessions go here
 tab views   [ ] view    ↑↓ session  enter its page    p pin    ? help  q quit

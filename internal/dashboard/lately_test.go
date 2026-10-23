@@ -130,7 +130,7 @@ func TestLATELYsLinesAreInTheirInks(t *testing.T) {
 	for i, label := range []string{"Work", "Personal", "Side"} {
 		doc.Accounts[i].Label = label
 	}
-	lines := frameOf(160, 40).latelyLines(doc.At(now, claudeLike), views.Lately(doc.At(now, claudeLike), 2))
+	lines := latelyTold(doc.At(now, claudeLike), views.Lately(doc.At(now, claudeLike), 2), 160)
 	want := []line{
 		{{"13:11  ", secondaryInk}, {"▲", accentInk}, spaces(1), {"c61b", titleInk}, {" started on ", mutedInk}, {"Side", strongInk}},
 		{{"13:02  ", dimInk}, {"╎", warningInk}, spaces(1), {"Work", titleInk}, {" reached its cap: ", mutedInk}, {"3 sessions", strongInk}, {" moved to ", mutedInk}, {"Side", mutedInk}},
@@ -155,7 +155,7 @@ func TestLATELYsTimesAreDatedInAColumn(t *testing.T) {
 	}
 }
 
-func TestLATELYsWordsAreShortOnAPhone(t *testing.T) {
+func TestLATELYsWordsAreShortWhereItsRoomDoesntHoldThemInFull(t *testing.T) {
 	doc := eventsOf(status.Event{At: now.Add(-time.Minute).UTC(), Kind: status.EventCap, Account: "work", Count: 3, To: "side"})
 	tests := []struct {
 		width int
@@ -167,7 +167,7 @@ func TestLATELYsWordsAreShortOnAPhone(t *testing.T) {
 	for _, tt := range tests {
 		c := latelyDrawn(frameOf(tt.width, 10), doc, now, bounds{width: tt.width, rows: 3})
 		if got := strings.TrimRight(c.row(0, Look{}), " "); got != tt.want {
-			t.Errorf("at %d columns, LATELY's line is %q, want %q", tt.width, got, tt.want)
+			t.Errorf("in %d cells, LATELY's line is %q, want %q", tt.width, got, tt.want)
 		}
 	}
 }
@@ -215,7 +215,7 @@ func TestLATELYCutShortShowsAMoveAloneWhereItsLineDoesnt(t *testing.T) {
 			}
 		}
 	}
-	if got := f.says(planned{section: f.latelySection(doc, now), fold: true}).plain(); !strings.Contains(got, "db8a moved work → side") {
+	if got := f.says(planned{section: f.latelySection(doc, now), fold: true}, f.Width).plain(); !strings.Contains(got, "db8a moved work → side") {
 		t.Errorf("folded, LATELY's heading says %q, want the move alone, its line not shown", got)
 	}
 }
@@ -280,7 +280,7 @@ func TestLATELYSaysWhyItHasNone(t *testing.T) {
 			if got := strings.TrimSpace(c.row(1, Look{})); got != tt.want {
 				t.Errorf("LATELY says %q, want %q", got, tt.want)
 			}
-			if got := f.says(planned{section: f.latelySection(threeRouted(), now), fold: true}).plain(); got != tt.want {
+			if got := f.says(planned{section: f.latelySection(threeRouted(), now), fold: true}, f.Width).plain(); got != tt.want {
 				t.Errorf("folded, LATELY's heading says %q, want %q, with no ellipsis", got, tt.want)
 			}
 		})
@@ -301,7 +301,7 @@ func TestLATELYFoldsToItsFirstLineThenAnEllipsisWhereItHasMore(t *testing.T) {
 	}
 	f := frameOf(160, 40)
 	for _, tt := range tests {
-		if got := f.says(planned{section: f.latelySection(eventsOf(tt.events...), now), fold: true}); !slices.Equal(got, tt.want) {
+		if got := f.says(planned{section: f.latelySection(eventsOf(tt.events...), now), fold: true}, f.Width); !slices.Equal(got, tt.want) {
 			t.Errorf("folded with %s, LATELY's heading says %+v, want %+v: its first line as drawn", tt.name, got, tt.want)
 		}
 	}
@@ -313,7 +313,7 @@ func TestLATELYNamesAnAccountOutOfThePoolFaint(t *testing.T) {
 		status.Event{At: now.Add(-2 * time.Minute).UTC(), Kind: status.EventRoom, Account: "work"},
 	)
 	doc.Pin = status.Pin{Accounts: []string{"work"}}
-	lines := frameOf(160, 40).latelyLines(doc.At(now, claudeLike), views.Lately(doc.At(now, claudeLike), 2))
+	lines := latelyTold(doc.At(now, claudeLike), views.Lately(doc.At(now, claudeLike), 2), 160)
 	tests := []struct {
 		line int
 		want span

@@ -1,6 +1,9 @@
 package ledger
 
-import "slices"
+import (
+	"cmp"
+	"slices"
+)
 
 // Plan is a plan a subscription is on, as the price table prices it.
 type Plan struct {
@@ -40,4 +43,11 @@ func (t Table) Plan(id string) (Plan, bool) {
 // returns do.
 func (p Plan) Price(date string) Picodollars {
 	return inEffect(p.Prices, date).Monthly
+}
+
+// Most returns the most the plan has cost a month, on any day: whatever
+// day a period is priced at, its price is no more. The plan must have a
+// price, as those Plan returns do.
+func (p Plan) Most() Picodollars {
+	return slices.MaxFunc(p.Prices, func(a, b PlanPrice) int { return cmp.Compare(a.Monthly, b.Monthly) }).Monthly
 }

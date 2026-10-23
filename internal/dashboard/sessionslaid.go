@@ -8,28 +8,18 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// The Switchboard's columns as the design fixes them at their widest, at 160
-// columns and wider: a call's id at the first column, cut to callID, a cell,
-// and its directory, cut to callDir; a cell, then what it's doing, in
-// callDoing with the gap after it; then where it came from, "▸ from ", in
-// fromLong cells, or "▸ " alone, in fromShort, and the account, cut to
-// fromAccount; plugGap cells, then the plugs. The bends' room runs from the
-// column after the plugs to the first bend, bendFromJacks left of the jacks,
-// clear by bendClear of a cord hanging loose looseCells long; and the lines
-// start lineGap after the jacks, their bars lineBar and their words
-// lineWords, or lineShortWords in usage's short form, besides lineBeside of label,
+// The Switchboard's columns as the design fixes them at their widest: a
+// call's parts, as callParts lays them; plugGap cells, then the plugs. The
+// bends' room runs from the column after the plugs to the first bend,
+// bendClear left of the jacks, over the looseCells a cord let go hangs from
+// its jack, a bent cord crossing it drawn over it; and the lines start
+// lineGap after the jacks, their bars lineBar and their words lineWords, or
+// lineShortWords in usage's short form, besides lineBeside of label,
 // percentage and gaps.
 const (
-	callID         = 4
-	callDir        = 12
-	callDoing      = 13
-	fromLong       = 7
-	fromShort      = 2
-	fromAccount    = 8
 	plugGap        = 2
 	looseCells     = 9
 	bendClear      = 3
-	bendFromJacks  = looseCells + bendClear
 	lineGap        = 2
 	lineBar        = 32
 	lineWords      = 22
@@ -37,23 +27,24 @@ const (
 	lineBeside     = 20
 )
 
-// The fewest cells each part narrows to, as the narrowing table has them:
-// the bends' room, the lines' bars, first and last, the calls' directory, and
-// the account after ▸. Bent cords turn down bendsApart apart, or closer; a
-// stub is stubCells long, each next a cell shorter, down to stubLeast.
+// The fewest cells each part narrows to, as the narrowing has them: the
+// bends' room, leastBends cells besides the looseCells a loose cord hangs in,
+// and the lines' bars, first and last. Bent cords turn down bendsApart apart,
+// or closer.
 const (
-	leastRoom    = 9
+	leastBends   = 9
+	leastRoom    = leastBends + looseCells
 	leastWideBar = 16
-	leastDir     = 6
 	leastBar     = 8
-	leastAccount = 6
 	bendsApart   = 3
-	stubCells    = 7
-	stubLeast    = 1
 )
 
-// boardColumns are where the Switchboard's parts sit across a frame, as the
-// narrowing table gives them for its width: a call's parts, its id at the
+// stubCells are the cells a limit's stub hangs to its jack's left: those
+// between the first bend and the jack, so no cord ever crosses it.
+const stubCells = bendClear - 1
+
+// boardColumns are where the Switchboard's parts sit across a frame, as
+// boardColumnsOf lays them for its width: a call's parts, its id at the
 // first column; the plugs' column, the bends' room's columns after it, the
 // jacks' column and the column the lines start at; and the cells of the
 // lines' bars and words, the words in usage's short form where shortWords
@@ -66,85 +57,95 @@ type boardColumns struct {
 	shortWords        bool
 }
 
-// The turns the Switchboard's parts give way in as it narrows, in the order
-// the design's narrowing table has them: the lines' bars to leastWideBar, the
-// calls' directory to leastDir, ▸'s from dropped, the lines' words in usage's
-// short form, the lines' bars to leastBar, and the account after ▸ to
-// leastAccount.
+// The turns the Switchboard's parts give way in as it narrows, in this
+// order, so a call's names are the last to give: the lines' bars to
+// leastWideBar, ▸'s from dropped, the lines' words in usage's short form,
+// the lines' bars to leastBar, the account after ▸ to its least, and the
+// calls' directory to its least.
 const (
 	barsToLeastWide = iota + 1
-	dirToLeast
 	fromDropped
 	wordsShortened
 	barsToLeast
 	accountToLeast
+	dirToLeast
 )
 
-// The Switchboard's parts across a frame, in boardParts' order.
+// The Switchboard's parts across a frame, in boardParts' order: a call's,
+// as callParts has them, then the bends' room and the lines'; and how many
+// they are.
 const (
-	boardID = iota
-	boardDir
-	boardDoing
-	boardFrom
-	boardAccount
-	boardRoom
-	boardToJacks
+	boardRoom = iota + callPartsCount
+	boardClear
 	boardBeside
 	boardBarsPast
 	boardBars
 	boardWords
+	boardPartsCount
 )
 
 // boardParts are the Switchboard's parts across a frame, as flex lays them:
-// a call's id, its directory a cell on, what it's doing a cell on, ▸ and its
-// from, and the account it came from; the bends' room, plugGap cells on,
-// which takes what's left; the bendFromJacks cells to the jacks; and the
-// lines, lineGap cells on: their label, percentage and gaps, their bars,
-// those past leastWideBar and those up to it each narrowing in a turn of its
-// own, and their words.
+// a call's, as callParts has them, what it's doing a cell after its
+// directory, ▸'s from from cells at its natural; the bends' room, plugGap
+// cells on, which takes what's left, over a loose cord's looseCells; the
+// bendClear cells to the jacks; and the lines, lineGap cells on, as
+// lineParts has them.
 //
 // A part that keeps its cells sets its least and natural alike, as flex holds
-// a part that narrows freely at its least while the turns are taken. The
-// lines' parts aren't in the screen's order: boardBeside, their label,
-// percentage and gaps together, comes before the bars it sits among.
-var boardParts = []flex.Part{
-	boardID:       {Least: callID, Natural: callID},
-	boardDir:      {Least: leastDir, Natural: callDir, Narrows: dirToLeast, Gap: 1},
-	boardDoing:    {Least: callDoing, Natural: callDoing, Gap: 1},
-	boardFrom:     {Least: fromLong, Natural: fromLong, Leaves: fromDropped, Kept: fromShort},
-	boardAccount:  {Least: leastAccount, Natural: fromAccount, Narrows: accountToLeast},
-	boardRoom:     {Least: leastRoom, Natural: leastRoom, Grows: true, Gap: plugGap},
-	boardToJacks:  {Least: bendFromJacks, Natural: bendFromJacks},
-	boardBeside:   {Least: lineBeside, Natural: lineBeside, Gap: lineGap},
-	boardBarsPast: {Natural: lineBar - leastWideBar, Narrows: barsToLeastWide},
-	boardBars:     {Least: leastBar, Natural: leastWideBar, Narrows: barsToLeast},
-	boardWords:    {Least: lineWords, Natural: lineWords, Leaves: wordsShortened, Kept: lineShortWords},
+// a part that narrows freely at its least while the turns are taken.
+func boardParts(from int) []flex.Part {
+	parts := append(callParts(1, from), make([]flex.Part, boardPartsCount-callPartsCount)...)
+	parts[boardRoom] = flex.Part{Least: leastRoom, Natural: leastRoom, Grows: true, Gap: plugGap}
+	parts[boardClear] = flex.Part{Least: bendClear, Natural: bendClear}
+	copy(parts[boardBeside:], lineParts(lineBeside))
+	parts[boardBeside].Gap = lineGap
+	return parts
 }
 
 // boardColumnsOf are the Switchboard's columns at width, its parts laid as
-// boardParts declares them, and whether they fit: under 100 columns they
-// don't. Three columns are read off a neighbour's span, not their own: the
-// plugs' column is where the bends' room starts, the jacks' where the stretch
-// to them ends, and the lines' where their label starts. Where the parts
-// don't fit, the columns past the bends' room lie as the turns left them;
-// nothing reads them, as the Switchboard draws lanes there.
-func boardColumnsOf(width int) (boardColumns, bool) {
-	s, fits := flex.Lay(width, boardParts...)
+// boardParts declares them, the from column's natural from cells, and
+// whether they fit: with every turn taken, they don't under 100 columns.
+// Whether they fit is reckoned with the from column at its least, as though
+// a call had moved, so a move never changes whether they fit; steadyRoom
+// holds the bent cords' half.
+// Three columns are read off a neighbour's span, not their own: the plugs'
+// column is where the bends' room starts, the jacks' where the cells clear
+// of them end, and the lines' where their label starts. Where the parts don't
+// fit, the columns past the bends' room lie as the turns left them; nothing
+// reads them, as the Switchboard draws lanes there.
+func boardColumnsOf(width, from int) (boardColumns, bool) {
+	s, _ := flex.Lay(width, boardParts(from)...)
+	_, fits := flex.Lay(width, boardParts(leastAccount)...)
 	return boardColumns{
-		id:         s[boardID].At,
-		dir:        s[boardDir].Size,
-		doing:      s[boardDoing].At,
-		from:       s[boardFrom].At,
-		account:    s[boardAccount].Size,
-		fromShort:  s[boardFrom].Left,
-		plug:       s[boardRoom].At,
-		room:       s[boardRoom].Size,
-		jacks:      s[boardToJacks].At + s[boardToJacks].Size,
-		lines:      s[boardBeside].At,
-		bar:        s[boardBarsPast].Size + s[boardBars].Size,
-		words:      s[boardWords].Size,
-		shortWords: s[boardWords].Left,
+		callColumns: callColumnsOf(s, 0),
+		plug:        s[boardRoom].At,
+		room:        s[boardRoom].Size,
+		jacks:       s[boardClear].At + s[boardClear].Size,
+		lines:       s[boardBeside].At,
+		bar:         s[boardBarsPast].Size + s[boardBars].Size,
+		words:       s[boardWords].Size,
+		shortWords:  s[boardWords].Left,
 	}, fits
+}
+
+// steadyRoom is the bends' room at width that never hangs on a move, nor
+// narrows as the width grows: the room laid with the from column at its
+// natural, of names labels cells at the widest, where every part stands at
+// its natural; else the room's least. Short of the naturals, a turn that
+// gives way can pass what it frees beyond what's lacking to the room, which
+// a column wider gives back, so the room laid comes and goes as the width
+// grows; there, a wider width always lays the room at its least, so no
+// steady room that never narrows is wider. Past the naturals, the room laid
+// with the from column is the lesser, and grows a column a column.
+func steadyRoom(width, labels int) int {
+	parts := boardParts(fromOf(labels, true))
+	s, _ := flex.Lay(width, parts...)
+	for i, p := range parts {
+		if s[i].Left || s[i].Size < p.Natural {
+			return parts[boardRoom].Least
+		}
+	}
+	return s[boardRoom].Size
 }
 
 // firstBend is the column the first bent cord turns down at: the bends'
@@ -154,21 +155,32 @@ func (k boardColumns) firstBend() int {
 }
 
 // boardLines are the Switchboard's lines as its layout reads them: the
-// accounts', by their ids, in the config's order; and how many windows each
-// draws a row of, as usage --by account draws them.
+// accounts', by their ids, in the config's order; how many windows each
+// draws a row of, as usage --by account draws them; the cells of the widest
+// name configured, as widestLabel has them; and whether any call has moved.
 type boardLines struct {
 	accounts []string
 	windows  int
+	labels   int
+	moved    bool
+}
+
+// from is the from column's natural, as fromOf has it.
+func (b boardLines) from() int {
+	return fromOf(b.labels, b.moved)
 }
 
 // boardLayout is the Switchboard laid out at a frame's size, as sessionsLaid
-// lays it: its columns; whether it draws lanes in place of cords; the
+// lays it: its columns; the bends' room that decides whether its bent cords
+// fit, as steadyRoom has it; whether it draws lanes in place of cords; the
 // compaction step its lines take, 1 to 5; its lines, in the config's order;
-// its calls, top to bottom; the row its key starts on, -1 where it gives way,
-// at step 5; and the rows its calls and lines take. Rows count from the
-// view's top.
+// its calls, top to bottom; the row its key starts on, its last the row
+// over the key line, -1 where it gives way, as at step 5 where the lines
+// leave it no room; and the rows its calls and lines take. Rows count from
+// the view's top.
 type boardLayout struct {
 	columns boardColumns
+	steady  int
 	lanes   bool
 	step    int
 	lines   []laidLine
@@ -204,10 +216,10 @@ func (ln laidLine) tall() int {
 	return ln.end() - ln.first
 }
 
-// laidStub is a cord a limit let go, hanging from the jack on row: cells
-// long, to the jack's left.
+// laidStub is a cord a limit let go, hanging from the jack on row,
+// stubCells long, to the jack's left.
 type laidStub struct {
-	row, cells int
+	row int
 }
 
 // laidCall is a call laid out: its session, by its id, and the account its
@@ -223,53 +235,103 @@ func (c laidCall) bent() bool {
 	return c.cord.from != c.cord.to
 }
 
-// boardKeyRows are the rows the key takes, and boardKeyGap the blank rows over it.
+// The board's rows down the view: the key takes boardKeyRows over the key
+// line, boardKeyGap blank rows at the least over it; and the lines are their
+// step's gap apart at the least, as gapAfter has it, boardApartMost at the
+// most, where rows are free.
 const (
-	boardKeyRows = 2
-	boardKeyGap  = 2
+	boardKeyRows   = 2
+	boardKeyGap    = 2
+	boardApartMost = 3
 )
 
 // compactedStep is the compaction step whose lines scroll with their calls,
-// the key giving way.
+// the key giving way where they pass the view.
 const compactedStep = 5
 
 // sessionsLaid lays the Switchboard out width columns wide, in a view rows
 // tall, with who sits where as patched keeps it, on the lines given. Its
 // calls are grouped by the account they're on, in the lines' order, a blank
 // row after each group, an empty group taking none. It takes the first
-// compaction step whose lines end boardKeyGap blank rows and the key's
-// boardKeyRows above the view's last row, else step 5, step 4's lines
-// scrolling with no key, each account's group starting below the line
-// above, as layLines has it. Each line follows the one before at its step's
-// gap, or lower, to meet its group, so every cord runs right, then down; and
-// grows a row for each jack its calls and stubs plug past its rows. Bent
-// cords turn down in the order of their jacks' rows, then their calls', the
-// first at the bends' room's last column, each next bendsApart further left,
-// or 2, or 1, where the room holds them no further apart. It draws lanes in
-// place of cords where its parts don't fit, as under 100 columns, and
-// wherever the bent cords outnumber the bends' room's columns.
+// compaction step whose parts down the view fit, as keyed has them, its
+// lines as far apart as fits, from boardApartMost down to the step's gap;
+// else step 5, step 4's lines scrolling, each account's group starting below
+// the line above, as layLines has it, and where the board's rows pass the
+// view's, the blank row after each group giving way, so it shows every
+// account it can; its key where it still fits. Each line follows the one
+// before at the spacing's rows, or lower, to meet its group, so every cord
+// runs right, then down; and grows a row for each jack its calls and stubs
+// plug past its rows. Bent cords turn down in the order of their jacks'
+// rows, then their calls', the first at the bends' room's last column, each
+// next bendsApart further left, or 2, or 1, where the room holds them no
+// further apart. It draws lanes in place of cords where its parts don't fit,
+// as under 100 columns, and wherever the bent cords outnumber the columns of
+// the steady room, as steadyRoom has it, so neither turns on a move.
 func sessionsLaid(width, rows int, patched views.Patched, lines boardLines) boardLayout {
-	k, fits := boardColumnsOf(width)
-	l := boardLayout{columns: k, lanes: !fits, keyAt: -1}
+	k, fits := boardColumnsOf(width, lines.from())
+	l := boardLayout{columns: k, steady: steadyRoom(width, lines.labels), lanes: !fits, keyAt: -1}
 	for l.step = 1; l.step < compactedStep; l.step++ {
-		l.layLines(patched, lines)
-		if l.rows+boardKeyGap+boardKeyRows <= rows {
-			l.keyAt = l.rows + boardKeyGap
-			return l.bend()
+		for apart := boardApartMost; apart >= l.gapAfter(); apart-- {
+			l.layLines(patched, lines, boardSpacing{apart: apart, group: 1})
+			if l.keyed(rows) {
+				return l.bend()
+			}
 		}
 	}
-	l.layLines(patched, lines)
+	l.layLines(patched, lines, boardSpacing{group: 1})
+	if l.rows > rows {
+		l.layLines(patched, lines, boardSpacing{})
+	}
+	l.keyed(rows)
 	return l.bend()
 }
 
-// layLines lays out the calls and the lines at l's step, and the rows they
-// take: each group of calls from the row after the group above's blank row,
-// and each line from its step's gap after the line above, or lower, as laid
-// has it. At step 5, where the lines scroll an account at a time, a group
-// starts no higher than the row after the line above, so each account's
-// rows, from its first to its line's last, as laidLine has them, start
-// below the account above's.
-func (l *boardLayout) layLines(patched views.Patched, lines boardLines) {
+// keyed has l's key where its lines and calls and the key under them fit a
+// view rows tall, as keyPlaced has them, boardKeyGap rows apart at the
+// least, reporting whether they do.
+func (l *boardLayout) keyed(rows int) bool {
+	at, ok := keyPlaced(rows, l.rows, boardKeyGap)
+	if ok {
+		l.keyAt = at
+	}
+	return ok
+}
+
+// boardSpacing is how far apart the board's rows are laid: the blank rows
+// after each line but the last, and after each group of calls.
+type boardSpacing struct {
+	apart, group int
+}
+
+// The Switchboard's parts down the view, in keyPlaced's order.
+const (
+	keyedContentPart = iota
+	keyedSparePart
+	keyedKeyPart
+)
+
+// keyPlaced is the row of a view rows tall the Switchboard's key starts on,
+// under content rows of its board or lanes, as flex lays them: the content;
+// the rows spare, which take what's left; and the key, boardKeyRows, gap
+// rows on at the least. It reports whether they fit.
+func keyPlaced(rows, content, gap int) (int, bool) {
+	// The key's last row is the one over the key line, under the view.
+	s, ok := flex.Lay(rows+1, []flex.Part{
+		keyedContentPart: {Least: content, Natural: content},
+		keyedSparePart:   {Grows: true},
+		keyedKeyPart:     {Least: boardKeyRows, Natural: boardKeyRows, Gap: gap},
+	}...)
+	return s[keyedKeyPart].At, ok
+}
+
+// layLines lays out the calls and the lines at l's step, set apart as
+// spacing has it, and the rows they take: each group of calls from the row
+// after the group above's blank rows, and each line from the spacing's rows
+// after the line above, or lower, as laid has it. At step 5, where the lines
+// scroll an account at a time, a group starts no higher than the row after
+// the line above, so each account's rows, from its first to its line's
+// last, as laidLine has them, start below the account above's.
+func (l *boardLayout) layLines(patched views.Patched, lines boardLines, spacing boardSpacing) {
 	l.calls, l.lines = nil, nil
 	group, next, end := 0, 0, 0
 	for _, account := range lines.accounts {
@@ -282,10 +344,10 @@ func (l *boardLayout) layLines(patched views.Patched, lines boardLines) {
 			l.calls = append(l.calls, laidCall{session: c.Session, account: account, cord: cord{plug: l.columns.plug, from: group + i}})
 		}
 		if len(p.Calls) > 0 {
-			group += len(p.Calls) + 1
+			group += len(p.Calls) + spacing.group
 		}
 		end = ln.laid(l.step, lines.windows, next)
-		next = end + l.gapAfter()
+		next = end + spacing.apart
 		l.lines = append(l.lines, ln)
 	}
 	l.rows = end
@@ -306,9 +368,9 @@ func (ln *laidLine) laid(step, windows, next int) int {
 		ln.first = min(ln.top, ln.groupStart)
 	}
 	ln.stubs = nil
-	for i, jack := range ln.patched.Stubs {
+	for _, jack := range ln.patched.Stubs {
 		ln.rows = max(ln.rows, jack+1)
-		ln.stubs = append(ln.stubs, laidStub{row: ln.top + jack, cells: max(stubCells-i, stubLeast)})
+		ln.stubs = append(ln.stubs, laidStub{row: ln.top + jack})
 	}
 	return ln.top + ln.rows
 }
@@ -329,8 +391,8 @@ func lineRows(step, windows int) int {
 	return 1
 }
 
-// gapAfter is the blank rows after each line at l's step: two at step 1, one
-// at step 2, and none from step 3.
+// gapAfter is the blank rows after each line at l's step at the least: two
+// at step 1, one at step 2, and none from step 3.
 func (l boardLayout) gapAfter() int {
 	switch l.step {
 	case 1:
@@ -352,8 +414,10 @@ func (l *boardLayout) plugged() {
 	}
 }
 
-// bend is l with its bent cords' bends set, as sessionsLaid has them, or
-// drawing lanes, where the bends' room can't hold them a column apart.
+// bend is l with its bent cords' bends set in its bends' room, as
+// sessionsLaid has them, or drawing lanes, where its steady room can't hold
+// them a column apart. The steady room is never wider than the room laid,
+// so where it holds them, the room laid does.
 func (l boardLayout) bend() boardLayout {
 	var bent []int
 	for i, c := range l.calls {
@@ -364,11 +428,11 @@ func (l boardLayout) bend() boardLayout {
 	slices.SortStableFunc(bent, func(a, b int) int {
 		return cmp.Or(cmp.Compare(l.calls[a].cord.to, l.calls[b].cord.to), cmp.Compare(l.calls[a].cord.from, l.calls[b].cord.from))
 	})
-	apart, ok := bendsApartIn(l.columns.room, len(bent))
-	if !ok {
+	if _, ok := bendsApartIn(l.steady, len(bent)); !ok {
 		l.lanes = true
 		return l
 	}
+	apart, _ := bendsApartIn(l.columns.room, len(bent))
 	for j, i := range bent {
 		l.calls[i].cord.bend = l.columns.firstBend() - j*apart
 	}

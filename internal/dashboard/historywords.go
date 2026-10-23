@@ -118,9 +118,21 @@ func familyDot(family string, name ink) line {
 // the primary's, in text.tertiary, where there's room for it. History
 // shows no routing, so no ▲.
 func historyAccount(name string, primary bool, room int) line {
-	var mark line
+	mark := historyMark(primary)
+	return append(line{{labelledIn(name, room-mark.width()), titleInk}}, mark...).fit(room)
+}
+
+// historyMark is the mark History's rows put after an account's name: ◆
+// after the primary's, none after any other.
+func historyMark(primary bool) line {
 	if primary {
-		mark = line{{" ◆", primaryInk}}
+		return line{{" ◆", primaryInk}}
 	}
-	return append(line{{prose.Cut(name, room-mark.width()), titleInk}}, mark...).fit(room)
+	return nil
+}
+
+// historyNamed is an account's name as History's label column holds it,
+// for namesColumn: its name, as labelled gives it, and its mark beside it.
+func historyNamed(name string, primary bool) columnName {
+	return columnName{label: ansi.StringWidth(name), beside: historyMark(primary).width()}
 }

@@ -187,7 +187,7 @@ type sessionsForm struct {
 // sessionsForm is the form Sessions' view shown is drawn in, of doc at now:
 // the List's, as listForm has it; else the Switchboard laid out as
 // switchboardLaid lays it, in lanes, as lanesForm draws it, where it says
-// so, as on a phone, and with cords, as switchboardForm draws it, where it
+// so, and with cords, as switchboardForm draws it, where it
 // doesn't.
 func (f Frame) sessionsForm(doc status.Document, now time.Time) sessionsForm {
 	if f.SessionsTab.Shown == SessionsList {
@@ -209,9 +209,10 @@ func (f Frame) switchboardLaid(doc status.Document, now time.Time) boardLayout {
 
 // boardLines are the Switchboard's lines of the moment m: its accounts', in
 // their order, each drawing a row for each window the live views list, as
-// listedWindows has them.
+// listedWindows has them; the widest name configured, as widestLabel has
+// it; and whether any call has moved.
 func (f Frame) boardLines(m status.Moment) boardLines {
-	lines := boardLines{windows: len(f.listedWindows(m))}
+	lines := boardLines{windows: len(f.listedWindows(m)), labels: widestLabel(m), moved: f.moved()}
 	for _, a := range m.Accounts {
 		lines.accounts = append(lines.accounts, a.ID)
 	}

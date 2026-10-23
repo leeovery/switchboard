@@ -10,6 +10,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
@@ -247,6 +248,39 @@ func TestTheFrameNamesTheAccountsWeekAsTheConfigDoes(t *testing.T) {
 	m := New(t.Context(), cfg)
 	if got := m.frame(h.clock.now).WeekWindow; got != "7d_test" {
 		t.Errorf("the frame's week is %q, want the config's, 7d_test", got)
+	}
+}
+
+// The frame holds the configured accounts' plans at the most each has cost,
+// as the config prices them, so turned Compare's plans' column at 40
+// columns holds them whole though the period's page prices the plans
+// lower: max20x cost $4,000 a month before it fell to $200.
+func TestTurnedComparesPlansAreSizedByTheConfigsPlansAtTheirMost(t *testing.T) {
+	h := newHarness(t, probedWithoutTheRouter())
+	cfg := h.config(Size{Width: 40, Height: 60})
+	cfg.Accounts = config.Accounts{{ID: "work", Plan: "max20x"}, {ID: "side", Plan: "max20x"}}
+	cfg.Prices.Plans = []ledger.Plan{{ID: "max20x", Name: "Max 20x", Size: 20, Prices: []ledger.PlanPrice{
+		{From: "2024-01-01", Monthly: 4000 * ledger.Dollar}, {From: "2025-04-09", Monthly: 200 * ledger.Dollar},
+	}}}
+	m := New(t.Context(), cfg)
+	priced := func(account string, all bool, monthly ledger.Picodollars) views.AccountsRow {
+		return views.AccountsRow{Totals: views.AccountTotals{Account: account, All: all}, Plan: views.PlanCost{Account: account, All: all, Price: &monthly}}
+	}
+	page := views.AccountsPage{
+		Period: views.AccountsThisWeek, Recorded: true,
+		Rows: []views.AccountsRow{priced("work", false, 200*ledger.Dollar), priced("side", false, 200*ledger.Dollar)},
+		All:  priced("", true, 400*ledger.Dollar),
+	}
+	f := m.frame(h.clock.now)
+	f.Width, f.Height, f.View, f.Accounts.Page = 40, 60, dashboard.Accounts, &page
+	rows := f.Draw(probedWithoutTheRouter(), h.clock.now)
+	i := slices.IndexFunc(rows, func(row string) bool { return strings.HasPrefix(ansi.Strip(row), "VALUE") })
+	if i < 0 {
+		t.Fatalf("no VALUE in\n%s", ansi.Strip(strings.Join(rows, "\n")))
+	}
+	value := ansi.Strip(rows[i])
+	if got, want := strings.Index(value, "worth")-strings.Index(value, "plan"), len("$8,000/mo")+1; got != want {
+		t.Errorf("the plans' column is %d cells, want %d, all accounts' $8,000/mo a month at its most, in %q", got, want, value)
 	}
 }
 
@@ -714,10 +748,30 @@ func TestEnterOnASessionInDetailOpensItsPageAndEscComesBackToDetailAsItWas(t *te
 	}
 }
 
-// On a phone, whose Compare draws no focus, its focus keys, ←→, enter and
+// Compare's focus keys take a focus at every width where the frame drawn
+// draws Compare wide, as its CompareWide has it, and nowhere it's turned,
+// with short names and long.
+func TestComparesFocusKeysActWhereTheFrameDrawsItWide(t *testing.T) {
+	long := config.Accounts{{ID: "work", Label: "research-consulting-0001"}, {ID: "personal"}, {ID: "side"}}
+	for _, configured := range []config.Accounts{threeConfigured, long} {
+		h := accountsHarness(t, dashboard.AccountsShown{})
+		h.model.accounts.shown.Accounts = configured
+		for width := 40; width <= 220; width++ {
+			h.update(tea.WindowSizeMsg{Width: width, Height: 37})
+			h.keys(rightKey)
+			wide := h.model.frame(h.clock.now).CompareWide()
+			if got := h.model.accounts.shown.Focused; got != wide {
+				t.Errorf("at %d columns, → focused %v, the frame drawn wide %v", width, got, wide)
+			}
+			h.keys(escKey)
+		}
+	}
+}
+
+// Where Compare is turned, drawing no focus, its focus keys, ←→, enter and
 // esc, do nothing there, nor say anything, though a wider frame left a
 // column focused; Detail takes its keys as ever.
-func TestOnAPhoneComparesFocusKeysDoNothing(t *testing.T) {
+func TestTurnedComparesFocusKeysDoNothing(t *testing.T) {
 	for _, key := range []tea.KeyPressMsg{leftKey, rightKey, enterKey, escKey} {
 		h := accountsHarness(t, dashboard.AccountsShown{})
 		h.keys(rightKey, rightKey)
@@ -725,7 +779,7 @@ func TestOnAPhoneComparesFocusKeysDoNothing(t *testing.T) {
 		was := h.model.accounts.shown
 		h.keys(key)
 		if s := h.model.accounts.shown; !reflect.DeepEqual(s, was) || h.model.note != "" {
-			t.Errorf("on a phone, %s left the focus %v on %q, showing %d, noting %q; want nothing done", key, s.Focused, s.Focus, s.View(), h.model.note)
+			t.Errorf("turned, %s left the focus %v on %q, showing %d, noting %q; want nothing done", key, s.Focused, s.Focus, s.View(), h.model.note)
 		}
 	}
 
@@ -733,7 +787,7 @@ func TestOnAPhoneComparesFocusKeysDoNothing(t *testing.T) {
 	h.update(tea.WindowSizeMsg{Width: 52, Height: 37})
 	h.keys(downKey, enterKey)
 	if h.pageOpen() != idD28C {
-		t.Errorf("on a phone, ↓ enter on Detail opened %q's page, want %s's", h.pageOpen(), idD28C)
+		t.Errorf("stacked, ↓ enter on Detail opened %q's page, want %s's", h.pageOpen(), idD28C)
 	}
 }
 
