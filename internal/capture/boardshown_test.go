@@ -31,11 +31,13 @@ func boardHeights() []int {
 
 // boardWorlds are the Switchboard's fixtures of a world each, or of a
 // scroll: the scene, its long names, ten accounts, calls moved, accounts
-// pinned, one account, and the scene scrolled to its foot. The rest are the
-// scene's again, at another size, chosen or with the router gone.
+// pinned, a call refused, one account, and the scene scrolled to its foot.
+// The rest draw the scene again: at another size, which the sweep sets
+// itself; with a call chosen; or with the router gone.
 var boardWorlds = []string{
 	"sessions-switchboard-160", "sessions-switchboard-long-names-108x44", "sessions-ten-accounts-160",
-	"sessions-moved-160", "sessions-pinned-160", "sessions-one-account-160", "page-sessions-short",
+	"sessions-moved-160", "sessions-pinned-160", "sessions-refused-160", "sessions-one-account-160",
+	"page-sessions-short",
 }
 
 // Each of boardWorlds, at each of boardWidths and boardHeights: the
