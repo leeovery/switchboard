@@ -4068,7 +4068,8 @@ today's sessions' account, a column of names, reaches its natural, it's as wide 
 133 for Requests and 140 for Events with a name of 24. Where the screen hasn't its natural and
 a cell either side, it's the screen's width less those cells. It shows both sides wherever
 they fit at their leasts: the left, to where ONLY starts, and ONLY as wide as today's sessions'
-rows at their least, their account at 8, or its natural where that's fewer; from 107 columns
+rows at their least, their account at 8, as a session may run on an account no longer
+configured; from 107 columns
 for Requests and 125 for Events with the sample's names. Narrower, it shows the side the
 cursor's on alone. Its title, in its top edge: `LOG · REQUESTS · WHAT IT SHOWS` or
 `LOG · EVENTS · WHAT IT SHOWS`. Inside, from column 21 (`x`):
@@ -4090,9 +4091,10 @@ cursor's on alone. Its title, in its top edge: `LOG · REQUESTS · WHAT IT SHOWS
     count; `sessions`, `every one, unless some are ticked` in `text.muted`;
   - **today's sessions,** rows 17 to 22 from `x+52`, a row each: its tick; its id in
     `text.secondary`; two spaces and its directory's name padded to 12 in `text.muted`; two spaces
-    and the account it's on in `text.primary`, in a column of names (see "The pool, the names
-    and their numbers"), as wide as the widest account configured, 24 cells at the most, cut
-    with `…` past its cells; a cell on, its lines today right-aligned in 6, as wide as
+    and the account it's on in `text.primary`, in a column of names a record may hold (see "The
+    pool, the names and their numbers"), as wide as the widest account configured, 8 at the
+    least, as a session may run on an account no longer configured, and 24 cells of label at the
+    most, cut with `…` past its cells; a cell on, its lines today right-aligned in 6, as wide as
     `99,999`, the most its column holds, in `text.secondary`, then ` today` in `text.muted`;
     and 9 cells after their end, at `x+98` with the sample's names, what it's doing,
     `asking` in `accent.key`, or `started 14:41` or `idle 9m` in `text.muted`. A count past

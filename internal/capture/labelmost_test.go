@@ -2,9 +2,11 @@ package capture
 
 import (
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/prose"
 )
 
@@ -17,83 +19,143 @@ var thirtyCellLabels = map[string]string{
 	"side":     "side-account-labelled-thirty-c",
 }
 
-// labelMost is the most cells a label is drawn in, its ellipsis among them.
-const labelMost = 24
+// mixedLabels are the labels the mixed world gives the scene's accounts, by
+// their ids: work's alone, of 31 cells, with no mark, beside personal's own,
+// the primary's, and side's, ▲'s, so a move between work and side names a
+// long name beside a short one.
+var mixedLabels = map[string]string{
+	"work": "work-account-of-thirty-one-cell",
+}
 
-// sentences are the rows of sentences that name accounts: COMING UP's and
-// LATELY's headings, folded to their first line, and their lines, each led
-// by its time to the minute, as "16:30" or "~Fri 12:20", where the Log's
-// rows are led by theirs to the second.
-var sentences = regexp.MustCompile(`^\s*(COMING UP|LATELY|~?(\pL{3} )?\d\d:\d\d )`)
+// mostLabelled is the most cells an account's label is drawn in, its
+// ellipsis among them, as the dashboard's column of names has it.
+const mostLabelled = 24
 
-// thirtyCellNames is the scene's world, each account labelled as
-// thirtyCellLabels has it.
-func (a accountWorlds) thirtyCellNames() accountWorld {
-	return a.kept("thirtyCellNames", func() accountWorld {
+// headed are the rows the guard passes over, as they say a name whole and
+// are cut at the frame's edge, never as a label: COMING UP's and LATELY's
+// lines, each led by its time to the minute, as "16:30" or "~Fri 12:20",
+// where the Log's rows are led by theirs to the second; and a section's
+// heading folded to what it holds, as "GRAPHS …" or "SESSIONS 6 running".
+var headed = regexp.MustCompile(`^\s*(COMING UP|LATELY|GRAPHS|SESSIONS|ROUTING|USAGE|~?(\pL{3} )?\d\d:\d\d )`)
+
+// labelledWorld is a world of the scene's accounts, each labelled as labels
+// has it, or its own where it has none, kept by the name given.
+func (a accountWorlds) labelledWorld(name string, labels map[string]string) accountWorld {
+	return a.kept(name, func() accountWorld {
 		w := a.scene()
 		w.accounts = append(w.accounts[:0:0], w.accounts...)
 		for i, account := range w.accounts {
-			w.accounts[i].Label = thirtyCellLabels[account.ID]
+			if label, ok := labels[account.ID]; ok {
+				w.accounts[i].Label = label
+			}
 		}
 		return w
 	})
 }
 
-// thirtyCellViews are the world of 30-cell labels on every view that names
-// an account.
-var thirtyCellViews = []page{
-	{name: "thirty-overview", world: accountWorlds.thirtyCellNames, keys: keysOf("g", "s")},
-	{name: "thirty-accounts-compare", world: accountWorlds.thirtyCellNames, keys: toAccounts()},
-	{name: "thirty-accounts-detail", world: accountWorlds.thirtyCellNames, keys: toDetail(downKey)},
-	{name: "thirty-history-year", world: accountWorlds.thirtyCellNames, keys: toHistory()},
-	{name: "thirty-history-weeks", world: accountWorlds.thirtyCellNames, keys: toHistory("]")},
-	{name: "thirty-history-days", world: accountWorlds.thirtyCellNames, keys: toHistory("]", "]")},
-	{name: "thirty-history-tokens", world: accountWorlds.thirtyCellNames, keys: toHistory("]", "]", "]")},
-	{name: "thirty-sessions", world: accountWorlds.thirtyCellNames, keys: toSessions()},
-	{name: "thirty-sessions-list", world: accountWorlds.thirtyCellNames, keys: toSessions("]")},
-	{name: "thirty-runway", world: accountWorlds.thirtyCellNames, keys: toRunway()},
-	{name: "thirty-log-requests", world: accountWorlds.thirtyCellNames, keys: toLog()},
-	{name: "thirty-log-events", world: accountWorlds.thirtyCellNames, keys: toLog("]")},
-	{name: "thirty-session", world: accountWorlds.thirtyCellNames, keys: toSession("d28c"), scale: storyScale},
+// labelWorlds are the worlds the guard draws, each with the labels it gives
+// past a label's most: every account's 30 cells, and work's alone 31.
+var labelWorlds = []struct {
+	name   string
+	labels map[string]string
+}{
+	{name: "thirty", labels: thirtyCellLabels},
+	{name: "mixed", labels: mixedLabels},
 }
 
-// No view cuts an account's label past a label's most, 24 cells, its
-// ellipsis among them, at any of the owner's sizes, wherever it sits beside
-// a name whose marks are wider than its own; and the primary's cut label
-// keeps its ◆ after it wherever its row draws one. A sentence says a label
-// whole and is cut at its edge, so the rows of sentences, COMING UP's and
-// LATELY's, each led by its time to the minute, are passed over.
+// labelledViews are the views that name an account, each named for what it
+// shows: the Overview with every section, the routing card open, Compare,
+// Detail of work and of all, History's four views, the Switchboard and the
+// List, Runway, the Log's requests and events, d28c's page, and its turn
+// opened.
+var labelledViews = []page{
+	{name: "overview", keys: keysOf("g", "s")},
+	{name: "routing", keys: keysOf("p")},
+	{name: "accounts-compare", keys: toAccounts()},
+	{name: "accounts-detail", keys: toDetail(downKey)},
+	{name: "accounts-detail-all", keys: toAccounts("]")},
+	{name: "history-year", keys: toHistory()},
+	{name: "history-weeks", keys: toHistory("]")},
+	{name: "history-days", keys: toHistory("]", "]")},
+	{name: "history-tokens", keys: toHistory("]", "]", "]")},
+	{name: "sessions", keys: toSessions()},
+	{name: "sessions-list", keys: toSessions("]")},
+	{name: "runway", keys: toRunway()},
+	{name: "log-requests", keys: toLog()},
+	{name: "log-events", keys: toLog("]")},
+	{name: "session", keys: toSession("d28c"), scale: storyScale},
+	{name: "turn-opened", keys: toSession("d28c", downKey, enterKey), scale: storyScale},
+}
+
+// sayings are where a sentence or a heading names an account whole, each
+// with %s where the label stands: the status line's best account; the
+// legend's cap; Compare's verdict; Detail's picker and its head; and a line
+// of LATELY's or a session's story beside the list, as "came from work: work
+// came under pressure".
+var sayings = []string{
+	`new( sessions)? → ▲ %s`, `cap: %s at `, `time %s alone`, `^\s*%s alone`, `◂ \d+ %s ▸`, `│ +\d+ %s +●`,
+	`%s reached its cap`, `%s came under`, `moved to %s`, `started on %s,`, `came from %s:`,
+}
+
+// unsaid is the row with each saying of the label given taken out.
+func unsaid(row, label string) string {
+	for _, s := range sayings {
+		row = regexp.MustCompile(strings.ReplaceAll(s, "%s", regexp.QuoteMeta(label))).ReplaceAllString(row, "")
+	}
+	return row
+}
+
+// labelSizes are the sizes the guard draws each view at: the owner's, and a
+// phone's narrowest, 52 columns.
+var labelSizes = slices.Concat(ownersSizes, []watch.Size{{Width: 52, Height: 32}})
+
+// No view draws an account's label past a label's most, 24 cells, its
+// ellipsis among them, whole or cut, at any of labelSizes, wherever it sits
+// beside a name whose marks are wider or narrower than its own, or beside a
+// short name in a move; and the primary's cut label keeps its ◆ after it
+// wherever its row draws one. The rows that say a name as a sentence or a
+// folded heading, as headed has them, are passed over, and so are the
+// sentences and headings sayings has naming a label whole.
 func TestNoLabelIsDrawnPastALabelsMost(t *testing.T) {
-	for _, p := range thirtyCellViews {
-		t.Run(p.name, func(t *testing.T) {
-			t.Parallel()
-			p.size = wide(37)
-			f := p.fixture(worldsNow())
-			m := withNothingOver(t, f.settle(f.Size), f.Size)
-			for _, size := range ownersSizes {
-				for _, row := range fluidAt(m, size).rows {
-					if sentences.MatchString(row) {
-						continue
-					}
-					for id, label := range thirtyCellLabels {
-						if cut, ok := cutPast(row, label); ok {
-							t.Errorf("at %s, %s's label is cut at %d cells, past %d:\n%s", sizeName(size), id, cut, labelMost, row)
+	for _, w := range labelWorlds {
+		for _, view := range labelledViews {
+			p := view
+			p.name, p.size = w.name+"-"+view.name, wide(37)
+			p.world = func(a accountWorlds) accountWorld { return a.labelledWorld(w.name, w.labels) }
+			t.Run(p.name, func(t *testing.T) {
+				t.Parallel()
+				f := p.fixture(worldsNow())
+				m := withNothingOver(t, f.settle(f.Size), f.Size)
+				for _, size := range labelSizes {
+					for _, row := range fluidAt(m, size).rows {
+						if headed.MatchString(row) {
+							continue
+						}
+						for id, label := range w.labels {
+							if drawn, ok := drawnPast(unsaid(row, label), label); ok {
+								t.Errorf("at %s, %s's label is drawn in %d cells, past %d:\n%s", sizeName(size), id, drawn, mostLabelled, row)
+							}
+						}
+						if primary, ok := w.labels["personal"]; ok {
+							cut := prose.Cut(primary, mostLabelled)
+							if strings.Contains(row, cut+" ") && strings.Contains(row, "◆") && !strings.Contains(row, cut+" ◆") {
+								t.Errorf("at %s, personal's label is drawn without its ◆ after it:\n%s", sizeName(size), row)
+							}
 						}
 					}
-					primary := prose.Cut(thirtyCellLabels["personal"], labelMost)
-					if strings.Contains(row, primary+" ") && strings.Contains(row, "◆") && !strings.Contains(row, primary+" ◆") {
-						t.Errorf("at %s, personal's label is drawn without its ◆ after it:\n%s", sizeName(size), row)
-					}
 				}
-			}
-		})
+			})
+		}
 	}
 }
 
-// cutPast reports the cells the label is cut at on the row, its ellipsis
-// among them, where that's past a label's most.
-func cutPast(row, label string) (int, bool) {
-	for k := len(label) - 1; k >= labelMost; k-- {
+// drawnPast reports the cells the label is drawn in on the row, whole or
+// cut, its ellipsis among them, where that's past a label's most.
+func drawnPast(row, label string) (int, bool) {
+	if strings.Contains(row, label) {
+		return len(label), true
+	}
+	for k := len(label) - 1; k >= mostLabelled; k-- {
 		if strings.Contains(row, label[:k]+prose.Ellipsis) {
 			return k + 1, true
 		}

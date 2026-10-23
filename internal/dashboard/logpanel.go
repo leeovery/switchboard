@@ -393,8 +393,8 @@ func sessionDoingMost() int {
 // account; the account, a column of names a record may hold, as a session
 // may run on an account no longer configured, as labelColumn lays it, its
 // natural the widest account the panel knows, recordedNatural of it,
-// narrowing next, toward its least; its count's figure, sessionCountGap on, at its widest; and what
-// it counts and what it's doing, at its widest.
+// narrowing next, toward its least; its count's figure, sessionCountGap
+// on, at its widest; and what it counts and what it's doing, at its widest.
 func (p LogPanel) sessionParts() []flex.Part {
 	count, tail := sessionCountCells(), sessionDoingApart+sessionDoingMost()
 	account := labelColumn(recordedNatural(widestNamed(accountNames(p.Accounts))))
