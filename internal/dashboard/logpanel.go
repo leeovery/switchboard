@@ -356,14 +356,25 @@ func toggledIn(choice []string, one string) []string {
 }
 
 // The columns of a session's row, from its tick: its directory, and the
-// account it's on; then, past the account's column, the cells its count
-// takes to its end, and to what it's doing. Its id follows its box.
+// account it's on; then, past the account's column, the cell before its
+// count; and from the count's end, the cells to what it's doing. Its id
+// follows its box.
 const (
-	sessionDirAt     = 8
-	sessionAccountAt = 22
-	sessionCountTo   = 5
-	sessionDoingFrom = 14
+	sessionDirAt      = 8
+	sessionAccountAt  = 22
+	sessionCountGap   = 1
+	sessionDoingApart = 9
 )
+
+// sessionCountMost is the most lines or events a session's row counts
+// whole: past it, its count runs into what it's doing.
+const sessionCountMost = 99_999
+
+// sessionCountCells are the cells of a session's count at its widest, as
+// prose.Grouped says sessionCountMost, as "99,999".
+func sessionCountCells() int {
+	return len(prose.Grouped(sessionCountMost))
+}
 
 // sessionStarted is what a session's row says before when it started.
 const sessionStarted = "started "
@@ -379,15 +390,17 @@ func sessionDoingMost() int {
 // cells go before words; the tick, the id and the directory, to the
 // account; the account, a column of names as labelColumn lays it, its
 // natural the widest account the panel knows, narrowing next, toward its
-// least; and the count and what it's doing, at its widest.
+// least; its count's figure, sessionCountGap on, at its widest; and what
+// it counts and what it's doing, at its widest.
 func (p LogPanel) sessionParts() []flex.Part {
-	tail := sessionDoingFrom + sessionDoingMost()
+	count, tail := sessionCountCells(), sessionDoingApart+sessionDoingMost()
 	account := labelColumn(widestNamed(accountNames(p.Accounts)))
 	account.Narrows = 2
 	return []flex.Part{
 		{Natural: todayAt[p.Of], Narrows: 1},
 		{Least: sessionAccountAt, Natural: sessionAccountAt},
 		account,
+		{Least: count, Natural: count, Gap: sessionCountGap},
 		{Least: tail, Natural: tail},
 	}
 }
@@ -403,7 +416,8 @@ type sessionColumns struct {
 // wide.
 func (p LogPanel) sessionColumns(width int) sessionColumns {
 	s, _ := flex.Lay(width, p.sessionParts()...)
-	return sessionColumns{at: s[0].Size, account: s[2].Size, cells: s[1].Size + s[2].Size + s[3].Size}
+	last := s[len(s)-1]
+	return sessionColumns{at: s[0].Size, account: s[2].Size, cells: last.At + last.Size - s[1].At}
 }
 
 // sessionWords are a session's row after its tick, its account account
@@ -416,13 +430,13 @@ func (p LogPanel) sessionWords(s views.LogSession, account int) line {
 	if p.Of == LogEvents {
 		count = countedSaid(s.Events, "event", secondaryInk, mutedInk)
 	}
-	accountEnd := sessionAccountAt + account
+	countEnd := sessionAccountAt + account + sessionCountGap + sessionCountCells()
 	words := line{{status.ShownID(s.ID), secondaryInk}}
 	words = padTo(words, sessionDirAt-tickBox, line{{views.SessionDirName(s.Dir), mutedInk}})
 	words = padTo(words, sessionAccountAt-tickBox, line{{prose.Cut(p.named(s.Account), account), accountInk}})
-	words = padTo(words, accountEnd+sessionCountTo-tickBox-count[:1].width(), count)
+	words = padTo(words, countEnd-tickBox-count[:1].width(), count)
 	if doing := sessionDoing(s, p.Now); doing.text != "" {
-		words = padTo(words, accountEnd+sessionDoingFrom-tickBox, line{doing})
+		words = padTo(words, countEnd+sessionDoingApart-tickBox, line{doing})
 	}
 	return words
 }

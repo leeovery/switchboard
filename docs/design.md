@@ -3988,11 +3988,11 @@ filling in as its line comes (settled in the plan).
 routing card, as its two sides need, and 22 tall, centred: columns 18 to 141, rows 7 to 28 at
 160. Where its two sides at their naturals need more, as a configured name long enough that
 today's sessions' account, a column of names, reaches its natural, it's as wide as they are:
-131 for Requests and 138 for Events with a name of 24. Where the screen hasn't its natural and
+133 for Requests and 140 for Events with a name of 24. Where the screen hasn't its natural and
 a cell either side, it's the screen's width less those cells. It shows both sides wherever
 they fit at their leasts: the left, to where ONLY starts, and ONLY as wide as today's sessions'
-rows at their least, their account at 8, or its natural where that's fewer; from 105 columns
-for Requests and 123 for Events with the sample's names. Narrower, it shows the side the
+rows at their least, their account at 8, or its natural where that's fewer; from 107 columns
+for Requests and 125 for Events with the sample's names. Narrower, it shows the side the
 cursor's on alone. Its title, in its top edge: `LOG · REQUESTS · WHAT IT SHOWS` or
 `LOG · EVENTS · WHAT IT SHOWS`. Inside, from column 21 (`x`):
 
@@ -4015,8 +4015,9 @@ cursor's on alone. Its title, in its top edge: `LOG · REQUESTS · WHAT IT SHOWS
     `text.secondary`; two spaces and its directory's name padded to 12 in `text.muted`; two spaces
     and the account it's on in `text.primary`, in a column of names (see "The pool, the names
     and their numbers"), as wide as the widest account configured, 24 cells at the most, cut
-    with `…` past its cells, and a cell after it; its lines today right-aligned in 4 in
-    `text.secondary`, then ` today` in `text.muted`; and 9 cells after their end, at `x+96` with the sample's names, what it's doing,
+    with `…` past its cells; a cell on, its lines today right-aligned in 6, as wide as
+    `99,999`, the most a row counts whole, in `text.secondary`, then ` today` in `text.muted`;
+    and 9 cells after their end, at `x+98` with the sample's names, what it's doing,
     `asking` in `accent.key`, or `started 14:41` or `idle 9m` in `text.muted`. The rows are laid
     out by flex within ONLY, so none runs past it: where it's short of room, the rows start
     further out first, toward ONLY's start, as blank cells go before words; then the account

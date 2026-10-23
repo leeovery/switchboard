@@ -237,7 +237,7 @@ var widerForms = []struct {
 	}, from: 130},
 	{name: "the Log's panel in its two sides", wider: func(width int) bool {
 		return strings.Contains(strings.Join(bodyText(framesPanel(LogRequests, 0), frameOf(width, 40)), "\n"), "ONLY")
-	}, from: 105},
+	}, from: 107},
 	{name: "usage's header on one line", wider: func(width int) bool {
 		return strings.HasPrefix(strings.TrimSpace(printed(trio(), width, ByWindow)[2]), "WEEK")
 	}, from: 84},

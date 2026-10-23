@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/dashboard/flex"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
@@ -179,7 +180,7 @@ func TestTheCursorMovesThroughTheTicksInReadingOrder(t *testing.T) {
 		"■ work", "■ personal", "■ side", "■ account-0", "■ account-1", "■ account-2", "■ account-3", "■ account-4",
 		"■ account-5", "■ account-6", "■ account-7", "■ account-8", "■ account-9", "■ opus-5-5", "■ haiku-4-5",
 		"■ requests 1,240", "□ checks 31", "□ counts 4", "□ only those that failed 3",
-		"□ d28c  switchboard   side       445 today   asking",
+		"□ d28c  switchboard   side         445 today   asking",
 	}
 	if !slices.Equal(read, want[:len(read)]) {
 		t.Errorf("↓ lit\n%q\nwant\n%q", read, want)
@@ -233,11 +234,11 @@ func TestWhereItsSidesLeastsDontFitThePanelShowsOneSideAtATime(t *testing.T) {
 		panel      LogPanel
 		has, lacks string
 	}{
-		{name: "both sides of Requests at 105", width: 105, panel: framesPanel(LogRequests, 0), has: "COLUMNS                                 ONLY"},
-		{name: "both sides of Events at 123", width: 123, panel: framesPanel(LogEvents, 0), has: "EVENTS        today                                       ONLY"},
-		{name: "Events' left side at 122", width: 122, panel: framesPanel(LogEvents, 0), has: "EVENTS", lacks: "ONLY"},
-		{name: "the left side at 104", width: 104, panel: framesPanel(LogRequests, 0), has: "COLUMNS", lacks: "ONLY"},
-		{name: "the right side at 104", width: 104, panel: framesPanel(LogRequests, 0).Sided(1), has: "ONLY", lacks: "COLUMNS"},
+		{name: "both sides of Requests at 107", width: 107, panel: framesPanel(LogRequests, 0), has: "COLUMNS                                 ONLY"},
+		{name: "both sides of Events at 125", width: 125, panel: framesPanel(LogEvents, 0), has: "EVENTS        today                                       ONLY"},
+		{name: "Events' left side at 124", width: 124, panel: framesPanel(LogEvents, 0), has: "EVENTS", lacks: "ONLY"},
+		{name: "the left side at 106", width: 106, panel: framesPanel(LogRequests, 0), has: "COLUMNS", lacks: "ONLY"},
+		{name: "the right side at 106", width: 106, panel: framesPanel(LogRequests, 0).Sided(1), has: "ONLY", lacks: "COLUMNS"},
 		{name: "Events' right side on a phone", width: 52, panel: framesPanel(LogEvents, 0).Sided(1), has: "ONLY", lacks: "EVENTS"},
 		{name: "today's sessions from ONLY's start on a phone", width: 52, panel: framesPanel(LogRequests, 0).Sided(1), has: "□ d28c  switchboard"},
 	}
@@ -465,15 +466,15 @@ func TestASessionsRowsAccountIsALabelsColumn(t *testing.T) {
 		at    int
 		want  string
 	}{
-		{name: "the frames' names, 8 cells", panel: framesPanel(LogRequests, 0), width: 78, at: 12, want: "9c2e  website       personal  267 today   idle 9m"},
-		{name: "a name of 24, whole", panel: labelledPanel(LogRequests, "a-very-long-account-name"), width: 85, at: 12,
-			want: "9c2e  website       a-very-long-account-name  267 today   idle 9m"},
-		{name: "a name past 24, cut there", panel: labelledPanel(LogRequests, "a-very-long-account-name-and-more"), width: 85, at: 12,
-			want: "9c2e  website       a-very-long-account-nam…  267 today   idle 9m"},
-		{name: "short of room, the blank cells in go first", panel: labelledPanel(LogRequests, "a-very-long-account-name"), width: 78, at: 5,
-			want: "9c2e  website       a-very-long-account-name  267 today   idle 9m"},
+		{name: "the frames' names, 8 cells", panel: framesPanel(LogRequests, 0), width: 78, at: 12, want: "9c2e  website       personal    267 today   idle 9m"},
+		{name: "a name of 24, whole", panel: labelledPanel(LogRequests, "a-very-long-account-name"), width: 87, at: 12,
+			want: "9c2e  website       a-very-long-account-name    267 today   idle 9m"},
+		{name: "a name past 24, cut there", panel: labelledPanel(LogRequests, "a-very-long-account-name-and-more"), width: 87, at: 12,
+			want: "9c2e  website       a-very-long-account-nam…    267 today   idle 9m"},
+		{name: "short of room, the blank cells in go first", panel: labelledPanel(LogRequests, "a-very-long-account-name"), width: 80, at: 5,
+			want: "9c2e  website       a-very-long-account-name    267 today   idle 9m"},
 		{name: "then the name narrows", panel: labelledPanel(LogRequests, "a-very-long-account-name"), width: 60, at: 0,
-			want: "9c2e  website       a-very-lon…  267 today   idle 9m"},
+			want: "9c2e  website       a-very-l…    267 today   idle 9m"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -495,6 +496,33 @@ func TestWithTheFramesNamesThePanelIsItsNarrowest(t *testing.T) {
 			got, _, _, _ := p.laidOut(f)
 			if p.bothFit(got-2*cardInset) && got != f.cardWidth(124) {
 				t.Errorf("%d at %d columns, the panel is %d wide, want %d", of, width, got, f.cardWidth(124))
+			}
+		}
+	}
+}
+
+// A session's count stands clear of its account's name, a cell at least,
+// and whole, however long its names and however many its lines or events,
+// up to sessionCountMost, at every width the panel draws its rows at.
+func TestASessionsCountIsWholeAndClearOfItsAccount(t *testing.T) {
+	for _, of := range []LogView{LogRequests, LogEvents} {
+		for _, labels := range [][]string{{"ab", "cd", "ef"}, {"abcdefgh", "cd", "ef"}} {
+			p := framesPanel(of, 0)
+			for i, label := range labels {
+				p.Accounts[i].Label = label
+			}
+			for _, n := range []int{999, 1277, 12345, sessionCountMost} {
+				s := p.Sessions[5]
+				s.Lines, s.Events, s.Account = n, n, p.Accounts[0].ID
+				for width := 40; width <= 140; width++ {
+					at := p.sessionColumns(width)
+					said := p.sessionWords(s, at.account).plain()
+					name := prose.Cut(labels[0], at.account)
+					_, rest, _ := strings.Cut(said, name)
+					if before, _, found := strings.Cut(rest, prose.Grouped(n)); !found || before == "" || strings.TrimSpace(before) != "" {
+						t.Errorf("%d, names %q, %d counted, at %d cells, the row reads %q, want %s whole a cell or more after %q", of, labels, n, width, said, prose.Grouped(n), name)
+					}
+				}
 			}
 		}
 	}

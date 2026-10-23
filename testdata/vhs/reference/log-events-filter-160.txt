@@ -12,12 +12,12 @@ LOG    Requests  Events  [ ]  ────────────────�
 ▲ 23:47:30  5e7d a│  EVENTS        today                                       ONLY                                                          │
 ✓ 23:58:40        │  ■ started        10  a session first seen                 accounts  ■ work   ■ personal   ■ side                        │
   Wed 30 Sep   1,9│  ■ moved           4  a session moved to another account   sessions  every one, unless some are ticked                   │───────  Thu 1 Oct
-◇ 07:05:12        │  ■ pressure        0  an account under pressure             □ 41e0  docs          personal    1 event                    │
-▲ 07:58:30  2b6d a│  ■ cap             1  an account at its cap                 □ c61b  mobile        side        1 event   started 14:41    │
-▲ 08:31:02  a8f1 w│  ■ limit           0  an account at its limit               □ d28c  switchboard   side        2 events  asking           │
-◇ 08:47:00        │  ■ refused         0  an account's token refused            □ 7f3a  api           side        2 events                   │
-▲ 09:12:40  e0c4 i│  ■ primed          5  a window started early                □ db8a  infra         side        2 events  idle 1m          │
-▲ 09:40:05  3d7a d│  ■ open            0  an account with room again            □ 9c2e  website       personal    1 event   idle 9m          │
+◇ 07:05:12        │  ■ pressure        0  an account under pressure             □ 41e0  docs          personal      1 event                  │
+▲ 07:58:30  2b6d a│  ■ cap             1  an account at its cap                 □ c61b  mobile        side          1 event   started 14:41  │
+▲ 08:31:02  a8f1 w│  ■ limit           0  an account at its limit               □ d28c  switchboard   side          2 events  asking         │
+◇ 08:47:00        │  ■ refused         0  an account's token refused            □ 7f3a  api           side          2 events                 │
+▲ 09:12:40  e0c4 i│  ■ primed          5  a window started early                □ db8a  infra         side          2 events  idle 1m        │
+▲ 09:40:05  3d7a d│  ■ open            0  an account with room again            □ 9c2e  website       personal      1 event   idle 9m        │
 ▲ 10:02:18  5b19 m│  ■ pin             0  routing set by hand                   ▼ 5 more today   / finds one from another day                │
 ◇ 11:30:02        │  ■ auto            0  routing given back to the router                                                                   │
 ▲ 11:55:31  9c2e w│  ■ restart         0  a restart of the router falling due                                                                │
