@@ -56,8 +56,9 @@ var phoneAllowed = []string{}
 // to its parts. The list only shrinks: an entry must still be there, and
 // still compare one.
 var sizedAllowed = []string{
-	// S5: the Switchboard's lines, on one row where they're narrower than
-	// widestLines.
+	// S5, left by it: the Switchboard's lines, step 4's state words short
+	// where the lines are narrower than widestLines, usage --by account's
+	// narrow block, 74 columns, as the design has it.
 	"internal/dashboard/switchboardlines.go:linesDrawn.oneRow",
 	// S14, left by it: GRAPHS' charts or ROUTING beside USAGE's blocks by
 	// account from besideWidth, as the spike's frame 27 keeps them; and
@@ -68,10 +69,13 @@ var sizedAllowed = []string{
 	"internal/dashboard/routing.go:Frame.routingBesideUsage",
 	"internal/dashboard/usage.go:usageBlock.wordCells",
 	"internal/dashboard/usagewords.go:usageWords.pick",
-	// S19 and S20: Days and Weeks scrolling whole under historyRows.
+	// S19 and S20, left by them: Days and Weeks drawn whole and scrolled a
+	// row at a time shorter than historyRows, History's frames' 37 rows, as
+	// the design has them.
 	"internal/dashboard/historypage.go:Frame.shortOfHistory",
-	// S25: the frame cramped short of leastView, which many views choose
-	// by.
+	// S25, left by it: the frame cramped short of the fixed rows and
+	// leastView, three of the view's, which many views choose by, as the
+	// design settles it.
 	"internal/dashboard/frame.go:Frame.cramped",
 }
 
@@ -82,9 +86,12 @@ var sizedAllowed = []string{
 // from flex. The list only shrinks: an entry must still be there, and still
 // give one.
 var cutAllowed = []string{
-	// S5: the Switchboard's lines' window labels.
+	// S5, left by it: the Switchboard's lines' window labels, at the name
+	// column's 10 cells, as usage --by account's are in the design.
 	"internal/dashboard/switchboardlines.go:linesDrawn.window",
-	// S17: Detail's sessions' model families and how many more.
+	// S17, left by it: Detail's sessions' model families padded to 8, and
+	// how many more in the 43 cells its selection lights, as the design has
+	// them.
 	"internal/dashboard/accountsdetail.go:detailDrawn.session",
 	"internal/dashboard/accountsdetail.go:detailDrawn.sessions",
 	// S25, left by it: a Log card's items' names, the tree's own words, a
