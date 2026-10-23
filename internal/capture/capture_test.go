@@ -273,8 +273,8 @@ func TestThePagesShowWhatTheyAreFor(t *testing.T) {
 		wantNoneOf []string
 	}{
 		{name: "page-routing", want: []string{
-			"╭─ ROUTING · NEW AND RUNNING SESSIONS ─", "│  ■ 2 personal    open", "│  ■ 3 side        open", "│  ■ m  also move the sessions running",
-			"New sessions go to personal or side. When both are full, the router chooses.",
+			"╭─ ROUTING · NEW AND RUNNING SESSIONS ─", "│  ■ 2 personal  open", "│  ■ 3 side      open", "│  ■ m  also move the sessions running",
+			"New sessions go to personal or side. When both are full, the router", "│  chooses.",
 		}},
 		{name: "page-routing-phone", want: []string{"╭─ ROUTING · NEW AND RUNNING SESSIONS ─", "The 4 sessions running elsewhere move there", "Rebuilding their caches costs ≈ $"}},
 		{name: "page-help-scrolled", want: []string{"─ HELP · OVERVIEW ", "│  USAGE"}, wantNoneOf: []string{"t themes"}},

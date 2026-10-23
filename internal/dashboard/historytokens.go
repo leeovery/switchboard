@@ -453,7 +453,7 @@ func (r tokensRow) on(accounts []string, named map[string]string) tokensRow {
 	names := make([]string, len(accounts))
 	for i, id := range accounts {
 		name := cmp.Or(named[id], tokensAccount(views.AccountTokens{Account: id}))
-		names[i] = prose.Cut(name, labelColumnCells(name))
+		names[i] = asLabelled(name)
 	}
 	r.of, r.ofIs = []part{wordsPart(line{{strings.Join(names, " "), dimInk}})}, "on"
 	return r

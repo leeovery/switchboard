@@ -32,18 +32,101 @@ func TestTheHeaderSaysWhenTheDocumentWasRead(t *testing.T) {
 	}
 }
 
-func TestTheHeaderTakesOneLineFrom120Columns(t *testing.T) {
+// The header is one line where what it says, as read, fits: the badge's
+// line, its day counted at the widest, 32 cells; two; and the status in
+// full as the moment has it, 50. So from 84 columns here.
+func TestTheHeaderTakesOneLineWhereWhatItSaysFits(t *testing.T) {
 	says := "● healthy  ·  6 sessions  ·  new sessions → ▲ side"
-	one := printed(trio(), 120, ByWindow)
-	if got := one[0]; !strings.HasSuffix(got, says) || len([]rune(got)) != 120 {
-		t.Errorf("at 120 columns the header reads %q, want its status ending at the last column", got)
+	for _, width := range []int{84, 120} {
+		one := printed(trio(), width, ByWindow)
+		if got := one[0]; !strings.HasSuffix(got, says) || len([]rune(got)) != width {
+			t.Errorf("at %d columns the header reads %q, want its status ending at the last column", width, got)
+		}
+		if one[1] != "" || !strings.HasPrefix(strings.TrimSpace(one[2]), "WEEK") {
+			t.Errorf("at %d columns, the header is followed by %q, want a blank line, then the windows' headings", width, one[1:3])
+		}
 	}
-	if one[1] != "" || one[2] != "WEEK" {
-		t.Errorf("at 120 columns, the header is followed by %q, want a blank line, then the first window", one[1:3])
+	two := printed(trio(), 83, ByWindow)
+	if got, want := two[:3], []string{" SWITCHBOARD   Thu 1 Oct  14:42", "", says}; strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Errorf("at 83 columns the printout starts %q, want %q: its status on a line of its own", got, want)
 	}
-	two := printed(trio(), 119, ByWindow)
-	if got, want := two[:5], []string{" SWITCHBOARD   Thu 1 Oct  14:42", "", says, "", "WEEK"}; strings.Join(got, "\n") != strings.Join(want, "\n") {
-		t.Errorf("at 119 columns the printout starts %q, want %q: its status on a line of its own", got, want)
+}
+
+// At its widest, every part of the status said, a pin to every account,
+// whatever their names, unhealthy, a restart due, the header switches to
+// one line once as the width grows, and on one line says every part it says
+// on two, the restart's reason, free text, alone cut.
+func TestTheHeaderOnOneLineNeverSaysLessThanOnTwo(t *testing.T) {
+	labelled := func(work, personal, side string) status.Document {
+		label := func(id, l string) func(*status.Document) {
+			return account(id, func(a *status.Account) { a.Label = l })
+		}
+		return trio(label("work", work), label("personal", personal), label("side", side), pinnedTo("work", "personal", "side"), func(d *status.Document) {
+			d.Router.Healthy = false
+			d.Restart = status.Restart{Reason: "config changed", Since: printNow.UTC()}
+		})
+	}
+	tests := []struct {
+		name  string
+		doc   status.Document
+		parts []string
+	}{
+		{name: "the frames' names", doc: labelled("work", "personal", "side"),
+			parts: []string{"● unhealthy", "restart due (config changed)", "pinned to work, personal and side", "6 sessions", "new sessions → ▲ side"}},
+		{name: "names of 24, 23 and 4", doc: labelled("a-very-long-account-name", "another-long-account-id", "side"),
+			parts: []string{"● unhealthy", "restart due (config changed)", "pinned to a-very-long-account-name, another-long-account-id and side", "6 sessions", "new sessions → ▲ side"}},
+		{name: "probed past a router that didn't answer", doc: trio(func(d *status.Document) {
+			d.Source, d.Fallback = status.SourceProbe, status.Fallback{Router: status.RouterUnhealthy, Reason: "no answer within 500ms"}
+		}), parts: []string{"○ probed · router unhealthy: no answer within 500ms"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			switches, was := 0, false
+			for width := 40; width <= 220; width++ {
+				rows := printed(tt.doc, width, ByWindow)
+				oneLine := strings.HasPrefix(strings.TrimSpace(rows[2]), "WEEK")
+				if oneLine != was {
+					switches, was = switches+1, oneLine
+				}
+				if !oneLine {
+					continue
+				}
+				for _, part := range tt.parts {
+					if !strings.Contains(rows[0], part) {
+						t.Errorf("at %d columns, on one line, the header reads %q, want %q in it, as two lines say it", width, rows[0], part)
+					}
+				}
+			}
+			if switches != 1 || !was {
+				t.Errorf("the header switched form %d times from 40 columns to 220, ending on one line: %v; want once, to one line", switches, was)
+			}
+		})
+	}
+}
+
+// The printout is printed once, so the header's form follows what it says:
+// each document's switches to one line once as the width grows, and a
+// longer status, pinned to every account, unhealthy, a restart due, where
+// it fits whole, further on.
+func TestTheHeadersFormFollowsWhatItSays(t *testing.T) {
+	longer := trio(pinnedTo("work", "personal", "side"), func(d *status.Document) {
+		d.Router.Healthy = false
+		d.Restart = status.Restart{Reason: "config changed", Since: printNow.UTC()}
+	})
+	from := func(doc status.Document) int {
+		switches, at, was := 0, 0, false
+		for width := 40; width <= 220; width++ {
+			if oneLine := strings.HasPrefix(strings.TrimSpace(printed(doc, width, ByWindow)[2]), "WEEK"); oneLine != was {
+				switches, at, was = switches+1, width, oneLine
+			}
+		}
+		if switches != 1 || !was {
+			t.Errorf("the header switched form %d times from 40 columns to 220, ending on one line: %v; want once, to one line", switches, was)
+		}
+		return at
+	}
+	if short, long := from(trio()), from(longer); long <= short {
+		t.Errorf("the longer status takes one line from %d columns, the sample's from %d; want it further on", long, short)
 	}
 }
 

@@ -51,9 +51,6 @@ var (
 var phoneAllowed = []string{
 	// S14: USAGE's key, its parts spaced apart by the width.
 	"internal/dashboard/usage.go:keyApart",
-	// S25: what's left, the cards.
-	"internal/dashboard/card.go:Frame.cardWidth",
-	"internal/dashboard/routingcard.go:RoutingCard.card",
 }
 
 // sizedAllowed are the functions of drawingPackages, outside the chrome,
@@ -80,15 +77,8 @@ var sizedAllowed = []string{
 	// its rows.
 	"internal/dashboard/sessionlayout.go:Frame.sessionLayout",
 	// S25: the frame cramped short of leastView, which many views choose
-	// by; the Log's panel and card, and the theme picker, cards of a kind;
-	// usage's printout's header; and a glyph's width as the canvas puts it,
-	// whether it's wide.
+	// by.
 	"internal/dashboard/frame.go:Frame.cramped",
-	"internal/dashboard/logpanelcard.go:LogPanel.laidOut",
-	"internal/dashboard/logcard.go:Frame.logCardForm",
-	"internal/dashboard/picker.go:PickerWidth",
-	"internal/dashboard/printout.go:Printout.header",
-	"internal/dashboard/canvas.go:canvas.put",
 }
 
 // cutAllowed are the functions of drawingPackages allowed to cut a name to a
@@ -106,10 +96,9 @@ var cutAllowed = []string{
 	// S22: a session's page, its accounts' stays and the account it's on.
 	"internal/dashboard/sessionpage.go:sessionDrawn.account",
 	"internal/dashboard/sessionpage.go:sessionDrawn.phoneOn",
-	// S25: the routing card's choices, the Log's panel's sessions and a
-	// card's items' names, cards of a kind, opened over the page.
-	"internal/dashboard/routingcard.go:RoutingCard.choice",
-	"internal/dashboard/logpanel.go:LogPanel.sessionWords",
+	// S25, left by it: a Log card's items' names, the tree's own words, a
+	// window's name and a session's id, none a label, in the tree's column
+	// of names, fixed as its wide form's columns are.
 	"internal/dashboard/logcard.go:cardItem.row",
 }
 

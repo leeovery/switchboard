@@ -29,9 +29,9 @@ type LogCard struct {
 	Placed  int
 }
 
-// The card's wide form: logCardWidth cells wide, its edges included, as it
-// sits from column 16 at 160; its tree's columns, from where its content
-// starts, as the frames draw them from 19, 69 and 94.
+// The card's wide form: its natural, logCardWidth cells wide, its edges
+// included, as it sits from column 16 at 160; its tree's columns, from where
+// its content starts, as the frames draw them from 19, 69 and 94.
 const logCardWidth = 128
 
 var logCardColumns = [3]int{0, 50, 75}
@@ -51,12 +51,12 @@ type cardForm struct {
 	wide           bool
 }
 
-// logCardForm is the card's form on the frame: wide where the frame has room
-// for it, its wide form's columns, else stacked, as wide as the frame less a
-// cell either side.
+// logCardForm is the card's form on the frame, as cardOn lays it: wide, its
+// wide form's columns, where the frame has the card its natural width, else
+// stacked, as wide as the frame less its margins.
 func (f Frame) logCardForm() cardForm {
-	width := f.cardWidth(logCardWidth)
-	return cardForm{width: width, content: width - 2*cardInset, wide: width == logCardWidth}
+	width, wide := f.cardOn(logCardWidth)
+	return cardForm{width: width, content: width - 2*cardInset, wide: wide}
 }
 
 // card is the details card on the frame: titled as the line it's of is, its

@@ -2,19 +2,22 @@ package dashboard
 
 import (
 	"cmp"
+	"math"
 	"slices"
 	"strings"
 
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// The panel's width, its edges included, as its two sides want it; and the
+// The narrowest the panel's natural is, its edges included, however short
+// its parts: the frame narrows it only where it hasn't the room; and the
 // rows of the frame it leaves spare at its tallest, past which it scrolls,
 // the cursor's row kept in view.
 const (
-	panelWidth = 124
-	panelSpare = 2
+	panelNarrowest = 124
+	panelSpare     = 2
 )
 
 // The panel's columns, from its content's start, where they differ by the
@@ -107,10 +110,10 @@ func (p pane) rows() []line {
 }
 
 // card is the panel on the frame, titled as the table it's of: in two
-// sides, where it has its width, else the side the cursor's on alone; the
-// tick the cursor's on lit a cell either side; as tall as its body, up to
-// the frame's height less panelSpare, past which it shows the rows around
-// the cursor's.
+// sides, where bothFit says they fit, else the side the cursor's on alone;
+// the tick the cursor's on lit a cell either side; as tall as its body, up
+// to the frame's height less panelSpare, past which it shows the rows
+// around the cursor's.
 func (p LogPanel) card(f Frame) Card {
 	return p.cardOf(p.laidOut(f))
 }
@@ -133,14 +136,37 @@ func (p LogPanel) cardOf(width int, body pane, from, shown int) Card {
 // laidOut is the panel as the frame lays it out: its width; its body; and
 // from which row of it, and how many, it shows.
 func (p LogPanel) laidOut(f Frame) (width int, body pane, from, shown int) {
-	width = f.cardWidth(panelWidth)
-	body = p.body(width-2*cardInset, width >= panelWidth)
+	width = f.cardWidth(p.natural())
+	body = p.body(width-2*cardInset, p.bothFit(width-2*cardInset))
 	rows := body.height()
 	shown = min(max(f.bodyRoom(panelSpare, true), 0), rows)
 	if s, ok := p.lit(body); ok {
 		from = min(max(s.row+1-shown, 0), rows-shown)
 	}
 	return width, body, from, shown
+}
+
+// natural is the panel's natural width, its edges included: panelNarrowest,
+// or wider where its parts at their naturals, as a long configured name has
+// them, need more, cardInset in from either edge.
+func (p LogPanel) natural() int {
+	s, _ := flex.Lay(math.MaxInt, p.sideParts()...)
+	last := s[len(s)-1]
+	return max(panelNarrowest, last.At+last.Size+2*cardInset)
+}
+
+// bothFit reports whether the panel's two sides fit content cells, as flex
+// lays them at their leasts.
+func (p LogPanel) bothFit(content int) bool {
+	_, fits := flex.Lay(content, p.sideParts()...)
+	return fits
+}
+
+// sideParts are the parts of the panel's two sides across a row: the left
+// side, to where ONLY starts; and ONLY, as wide as today's sessions' rows,
+// its widest part.
+func (p LogPanel) sideParts() []flex.Part {
+	return append([]flex.Part{{Least: onlyAt[p.Of], Natural: onlyAt[p.Of]}}, p.sessionParts()...)
 }
 
 // lit is the tick the cursor's on, as it's placed in body.
@@ -299,9 +325,8 @@ func (p LogPanel) eventKindsPane() pane {
 // onlyPane is ONLY, width cells wide: its heading; a row a choice, its
 // label, then its ticks, a row too long for them wrapping under its label;
 // then today's sessions, sessionsInView of them, those around the cursor
-// where it's among them, from where they start, or less far in where that
-// leaves them short of room, and a line saying how many more there are and
-// how to find one from another day.
+// where it's among them, laid out as sessionColumns has them, and a line
+// saying how many more there are and how to find one from another day.
 func (p LogPanel) onlyPane(width int) pane {
 	var pn pane
 	pn.put(0, 0, line{{"ONLY", dimInk}})
@@ -320,13 +345,15 @@ func (p LogPanel) onlyPane(width int) pane {
 		}
 		row++
 	}
-	ticks, at := p.sessionTicks(), max(min(todayAt[p.Of], width-sessionCells), 0)
+	at := p.sessionColumns(width)
+	ticks := p.sessionTicks()
 	first, end := p.sessionsShown(ticks)
-	for _, t := range ticks[first:end] {
-		pn.tick(row, at, t, sessionCells)
+	for i, t := range ticks[first:end] {
+		t.after = p.sessionWords(p.Sessions[first+i], at.account)
+		pn.tick(row, at.at, t, at.cells)
 		row++
 	}
-	pn.put(row, at, moreToday(len(ticks)-end))
+	pn.put(row, at.at, moreToday(len(ticks)-end))
 	return pn
 }
 
