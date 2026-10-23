@@ -1,50 +1,90 @@
 package dashboard
 
-// A session's page keeps rows for leastTurns turns at the least, beside its
-// accounts, which give way to a row saying how many more there are before
-// they do; and an open turn shows mostRequests of its requests at a time.
+import "github.com/leeovery/switchboard/internal/dashboard/flex"
+
+// A session's page keeps rows for turnsNatural turns, as many as a turn
+// opened takes at its natural, its row, its heads, requestsNatural of its
+// requests and its foot, till its story's last row of columns has given
+// way; for leastTurns till its story and its accounts have; and for one at
+// the least.
 const (
-	leastTurns   = 3
-	mostRequests = 5
+	requestsNatural = 5
+	turnsNatural    = 1 + 1 + requestsNatural + 1
+	leastTurns      = 3
 )
 
-// The rows a session's story takes: under the wide chrome, from its heading
-// to its axis, and folded to its heading alone; and under a phone's, from
-// its label to its axis, as it has no heading.
+// The rows a session's story takes besides its columns: under the wide
+// chrome, its heading, a move's label, its ribbon and its axis; under a
+// phone's, the same but its heading, as it has none; and folded, under the
+// wide chrome, its heading alone, and under a phone's, none.
 const (
-	wideStoryRows   = phoneStoryRows + 1
+	wideStoryRows   = 1 + phoneStoryRows
+	phoneStoryRows  = 3
 	foldedStoryRows = 1
-	phoneStoryRows  = 1 + storyColumnRows + 2
 )
 
-// rowsBesideTurns are the rows a session's page keeps under its accounts
-// besides its turns' own: the blank row and TURNS' heading under them, the
-// blank row and the turns' column heads under that, the row saying how many
-// more turns there are, and the key line.
-const rowsBesideTurns = 6
+// sessionPart is one of a session's page's parts down the frame, from its
+// heading to the row saying how many more turns there are, in the order
+// they're drawn.
+type sessionPart int
+
+const (
+	sessionHeadingPart sessionPart = iota
+	underHeadingPart
+	sessionNowPart
+	underNowPart
+	storyPart
+	storyRowPart
+	underStoryPart
+	stayRowsPart
+	overTurnsPart
+	turnsHeadingPart
+	underTurnsHeadingPart
+	turnHeadsPart
+	newestTurnPart
+	turnsLowPart
+	turnsHighPart
+	turnsSparePart
+	moreTurnsPart
+)
+
+// The turns a session's page's parts give way in as its rows run short:
+// the story's last column row; the turns past leastTurns; the story,
+// folded to its heading, or left out; the accounts, to a row saying how
+// many; the turns past one; and the blank rows, one at a time, the one
+// under TURNS' heading first and the one under the page's heading last.
+const (
+	storyRowGivesWay = iota + 1
+	turnsHighGiveWay
+	storyGivesWay
+	staysGiveWay
+	turnsLowGiveWay
+	underTurnsHeadingGivesWay
+	overTurnsGivesWay
+	underStoryGivesWay
+	underNowGivesWay
+	underHeadingGivesWay
+)
 
 // sessionLayout is how a session's page lays out its rows at the frame's
 // size: its heading and its story's heading in the wide chrome's form, or
 // a phone's, as chromeWide has it; its chrome alone, where it's too short
 // for the rest; its story whole, or else, wide, folded to its heading, and
 // on a phone left out; and from what row each part starts, and how many
-// rows its accounts, its turns and an open turn's requests take.
+// rows its story's columns, its accounts and its turns take.
 type sessionLayout struct {
 	wide, chrome, story bool
 	// heading is the heading's row, now the first of the two that say what
-	// it's doing, and storyAt the story's first.
-	heading, now, storyAt int
+	// it's doing, storyAt the story's first, and body how many rows its
+	// columns take.
+	heading, now, storyAt, body int
 	// accountsAt is the first account's row; accounts how many of them have
 	// rows; and more how many are left out, said on the row after them.
 	accountsAt, accounts, more int
-	// turnsHeading is TURNS' row, turnsAt the newest turn's, turns how many
-	// rows the turns take, and moreTurns the row saying how many more there
-	// are.
-	turnsHeading, turnsAt, turns, moreTurns int
-	// requests is how many of an open turn's requests show at a time: as
-	// many as the turns' rows hold under it, its heads and its └ line, five
-	// at the most and one at the least.
-	requests int
+	// turnsHeading is TURNS' row, heads its column heads', turnsAt the
+	// newest turn's, turns how many rows the turns take, and moreTurns the
+	// row saying how many more there are.
+	turnsHeading, heads, turnsAt, turns, moreTurns int
 }
 
 // pageLayout is how the page of the session open lays out its rows, as
@@ -55,57 +95,78 @@ func (f Frame) pageLayout() sessionLayout {
 
 // sessionLayout lays out the page of a session that ran on the accounts
 // given, at the frame's size, heading itself in the wide chrome's form where
-// wide says, else a phone's: its story whole where its fixed rows, one
-// account and leastTurns turns fit, else folded, under the wide chrome, or
-// left out, under a phone's, where they fit then, else the chrome alone. Its
-// accounts each take a row while leastTurns turns fit beside them, else as
-// many as leave a row saying how many more, and the turns the rest.
+// wide says, else a phone's, its parts where flex lays them from its
+// heading to the row over the key line, as sessionParts has them; or its
+// chrome alone, where even their leasts don't fit.
 func (f Frame) sessionLayout(accounts int, wide bool) sessionLayout {
-	l := sessionLayout{wide: wide, heading: f.headingY()}
-	l.now = l.heading + 2
-	l.storyAt = l.now + 3
-	whole, folded := wideStoryRows, foldedStoryRows
-	if !l.wide {
-		whole, folded = phoneStoryRows, 0
+	heading := f.headingY()
+	at, fits := flex.Lay(f.Height-1-heading, sessionParts(accounts, wide)...)
+	if !fits {
+		return sessionLayout{wide: wide, chrome: true}
 	}
-	l.story = l.room(f.Height, l.accountsAfter(whole)) >= 1+leastTurns
-	storyRows := whole
-	if !l.story {
-		storyRows = folded
+	row := func(p sessionPart) int { return heading + at[p].At }
+	l := sessionLayout{
+		wide: wide, story: !at[storyPart].Left, heading: heading, now: row(sessionNowPart), storyAt: row(storyPart),
+		accountsAt: row(stayRowsPart), turnsHeading: row(turnsHeadingPart), heads: row(turnHeadsPart),
+		turnsAt: row(newestTurnPart), moreTurns: row(moreTurnsPart),
+		turns: at[newestTurnPart].Size + at[turnsLowPart].Size + at[turnsHighPart].Size + at[turnsSparePart].Size,
 	}
-	l.accountsAt = l.accountsAfter(storyRows)
-	room := l.room(f.Height, l.accountsAt)
-	if room < 1+leastTurns {
-		return sessionLayout{wide: l.wide, chrome: true}
+	if l.story {
+		l.body = storyColumnRows - 1 + at[storyRowPart].Size
 	}
-	l.accounts = accounts
-	if accounts+leastTurns > room {
-		l.accounts = room - leastTurns - 1
+	l.accounts = at[stayRowsPart].Size
+	if l.accounts < accounts {
+		l.accounts = max(l.accounts-1, 0)
 		l.more = accounts - l.accounts
 	}
-	l.turnsHeading = l.accountsAt + l.accounts + min(l.more, 1) + 1
-	l.turnsAt = l.turnsHeading + 3
-	l.moreTurns = f.Height - 2
-	l.turns = l.moreTurns - l.turnsAt
-	l.requests = min(max(l.turns-3, 1), mostRequests)
 	return l
 }
 
-// accountsAfter is the row a session's accounts start at, below a story of
-// the rows given and the blank row after it, or right after its now rows,
-// where it has none.
-func (l sessionLayout) accountsAfter(storyRows int) int {
-	if storyRows == 0 {
-		return l.storyAt
+// storyLeast are the rows a story whole takes but its columns' last, the
+// first row of the page to give way.
+func storyLeast(wide bool) int {
+	besides := phoneStoryRows
+	if wide {
+		besides = wideStoryRows
 	}
-	return l.storyAt + storyRows + 1
+	return besides + storyColumnRows - 1
 }
 
-// room is how many rows a session's page the given height has for its
-// accounts and its turns together, its accounts starting at the row given:
-// all but rowsBesideTurns.
-func (l sessionLayout) room(height, accountsAt int) int {
-	return height - accountsAt - rowsBesideTurns
+// sessionParts are a session's page's parts down the frame, as flex lays
+// them, of a session that ran on the accounts given, under the wide chrome
+// where wide says, else a phone's: each fixed, but the story's last column
+// row, the story, its accounts and its turns, which give way in the turns
+// storyRowGivesWay to underHeadingGivesWay name, and the turns past
+// turnsNatural, which take what's left. Under a phone's chrome the story is
+// left out with the blank row under it, rather than folded.
+func sessionParts(accounts int, wide bool) []flex.Part {
+	fixed := func(rows int) flex.Part { return flex.Part{Least: rows, Natural: rows} }
+	blank := func(givesWay int) flex.Part { return flex.Part{Least: 1, Natural: 1, Leaves: givesWay} }
+	story, underStory := flex.Part{Least: storyLeast(wide), Natural: storyLeast(wide), Leaves: storyGivesWay}, blank(underStoryGivesWay)
+	if wide {
+		story.Kept = foldedStoryRows
+	} else {
+		underStory.Leaves = storyGivesWay
+	}
+	return []flex.Part{
+		sessionHeadingPart:    fixed(1),
+		underHeadingPart:      blank(underHeadingGivesWay),
+		sessionNowPart:        fixed(2),
+		underNowPart:          blank(underNowGivesWay),
+		storyPart:             story,
+		storyRowPart:          {Natural: 1, Narrows: storyRowGivesWay},
+		underStoryPart:        underStory,
+		stayRowsPart:          {Least: min(accounts, 1), Natural: accounts, Narrows: staysGiveWay},
+		overTurnsPart:         blank(overTurnsGivesWay),
+		turnsHeadingPart:      fixed(1),
+		underTurnsHeadingPart: blank(underTurnsHeadingGivesWay),
+		turnHeadsPart:         fixed(1),
+		newestTurnPart:        fixed(1),
+		turnsLowPart:          {Natural: leastTurns - 1, Narrows: turnsLowGiveWay},
+		turnsHighPart:         {Natural: turnsNatural - leastTurns, Narrows: turnsHighGiveWay},
+		turnsSparePart:        {Grows: true},
+		moreTurnsPart:         fixed(1),
+	}
 }
 
 // chromeWide reports whether a session's page heads itself as the wide

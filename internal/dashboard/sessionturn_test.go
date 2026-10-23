@@ -70,9 +70,10 @@ func turnOpened() *SessionShown {
 }
 
 // A turn opened lays its rows out under its own, in place, the turns under
-// it moving down: its heads; its requests, as many as the layout shows at a
-// time, as far as they're scrolled; and its foot, the rows of another turn
-// none of them. Without a turn open, a row a turn.
+// it moving down: its heads; its requests, as many as the turns' rows hold
+// under every turn, its heads and its foot, else five at the most, as far
+// as they're scrolled; and its foot, the rows of another turn none of them.
+// Without a turn open, a row a turn.
 func TestATurnOpenedLaysItsRowsOutUnderItsOwn(t *testing.T) {
 	turn := func(i int) turnsRow { return turnsRow{kind: aTurn, index: i} }
 	request := func(i int) turnsRow { return turnsRow{kind: openRequest, index: i} }
@@ -84,16 +85,16 @@ func TestATurnOpenedLaysItsRowsOutUnderItsOwn(t *testing.T) {
 		want   []turnsRow
 	}{
 		{name: "none open", open: func(s *SessionShown) { s.Open = 0 }, height: 37, want: []turnsRow{turn(0), turn(1), turn(2)}},
-		{name: "the second open, five shown of 37", height: 37, want: []turnsRow{
-			turn(0), turn(1), heads, request(0), request(1), request(2), request(3), request(4), foot, turn(2),
+		{name: "the second open, six shown of 37, as the rows under the three turns hold", height: 37, want: []turnsRow{
+			turn(0), turn(1), heads, request(0), request(1), request(2), request(3), request(4), request(5), foot, turn(2),
 		}},
 		{name: "scrolled through to its last", open: func(s *SessionShown) { s.RequestsScroll = 40 }, height: 37, want: []turnsRow{
-			turn(0), turn(1), heads, request(32), request(33), request(34), request(35), request(36), foot, turn(2),
+			turn(0), turn(1), heads, request(31), request(32), request(33), request(34), request(35), request(36), foot, turn(2),
 		}},
 		{name: "two of its requests, both shown", open: func(s *SessionShown) { s.Requests = s.Requests[:2] }, height: 37, want: []turnsRow{
 			turn(0), turn(1), heads, request(0), request(1), foot, turn(2),
 		}},
-		{name: "at the least height, one shown", height: 29, want: []turnsRow{turn(0), turn(1), heads, request(0), foot, turn(2)}},
+		{name: "at 29 rows, one shown", height: 29, want: []turnsRow{turn(0), turn(1), heads, request(0), foot, turn(2)}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -104,6 +105,33 @@ func TestATurnOpenedLaysItsRowsOutUnderItsOwn(t *testing.T) {
 			}
 			if got := shown.turnsRows(pageFrame(t, shown, 160, tt.height).layoutOf(1)); !slices.Equal(got, tt.want) {
 				t.Errorf("the turns' rows are\n%v\nwant\n%v", got, tt.want)
+			}
+		})
+	}
+}
+
+// A turn opened shows as many of its requests at a time as the turns' rows
+// hold under every turn, its heads and its foot, so none lie blank; where
+// those are fewer, as many as they hold under its own row, its heads and its
+// foot, five at the most; and one at the least.
+func TestATurnOpensRequestsTakeTheRowsThereAre(t *testing.T) {
+	tests := []struct {
+		name         string
+		rows, turns  int
+		wantRequests int
+	}{
+		{name: "thirteen turns in 34 rows: the rows under them all", rows: 34, turns: 13, wantRequests: 19},
+		{name: "three turns in 11 rows", rows: 11, turns: 3, wantRequests: 6},
+		{name: "thirteen turns in 11 rows: five, as they don't all fit", rows: 11, turns: 13, wantRequests: 5},
+		{name: "thirteen turns in 6 rows: those under its own", rows: 6, turns: 13, wantRequests: 3},
+		{name: "one row: one", rows: 1, turns: 13, wantRequests: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			shown := turnOpened()
+			shown.Page.Turns = slices.Repeat(shown.Page.Turns[:1], tt.turns)
+			if got := shown.requestsRows(sessionLayout{turns: tt.rows}); got != tt.wantRequests {
+				t.Errorf("%d of its requests show at a time, want %d", got, tt.wantRequests)
 			}
 		})
 	}

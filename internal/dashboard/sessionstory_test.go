@@ -85,7 +85,7 @@ func sentAt(n int, at time.Time) []time.Time {
 // wideStory is the layout of a session's page with its story whole, wide,
 // from the frame's first row: its heading on row 0, the label on 1, its
 // columns from 2 to 6, the ribbon on 7 and the axis on 8.
-var wideStory = sessionLayout{wide: true, story: true}
+var wideStory = sessionLayout{wide: true, story: true, body: storyColumnRows}
 
 // twentyMinutes is a story 20 minutes old, laid across 10 columns two
 // minutes each, but the last's three, with the requests given.
@@ -243,7 +243,7 @@ func TestAMovesLabelEndsAtItsMarker(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			layout, row := wideStory, 1
 			if tt.phone {
-				layout, row = sessionLayout{story: true}, 0
+				layout, row = sessionLayout{story: true, body: storyColumnRows}, 0
 			}
 			c := newCanvas(tt.width, 9)
 			storyFrame(tt.width, 9, Look{}).sessionStory(c, status.Moment{}, layout, tt.story, views.Turn{})
@@ -278,7 +278,7 @@ func TestAStoryNamesItsAccountsByTheirLabels(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			layout, row, tall := wideStory, 1, storyColumnRows
 			if tt.phone {
-				layout, row = sessionLayout{story: true}, 0
+				layout, row = sessionLayout{story: true, body: storyColumnRows}, 0
 			}
 			f := storyFrame(tt.width, 9, Look{})
 			c := newCanvas(tt.width, 9)
@@ -293,6 +293,27 @@ func TestAStoryNamesItsAccountsByTheirLabels(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// The story names an account as a label's column holds it, as the rest of
+// the page does: a label of 30 cells cut to 24, with an ellipsis, in a
+// move's label and on the ribbon, never whole.
+func TestAStoryNamesALongLabelAsALabelsColumnHoldsIt(t *testing.T) {
+	long := "work-team-platform-engineering"
+	doc := status.Document{Accounts: []status.Account{{ID: "work", Label: long}, {ID: "side", Label: "spare"}}}
+	f := storyFrame(160, 9, Look{})
+	c := newCanvas(160, 9)
+	f.sessionStory(c, f.Moment(doc, movedStory().End), wideStory, movedStory(), views.Turn{})
+	cut := prose.Cut(long, labelMost)
+	for _, row := range []struct {
+		what string
+		y    int
+	}{{"the move's label", 1}, {"the ribbon", 2 + storyColumnRows}} {
+		got := c.row(row.y, Look{})
+		if !strings.Contains(got, cut) || strings.Contains(got, long) {
+			t.Errorf("%s reads %q, want it naming %q, cut to %d cells", row.what, got, cut, labelMost)
+		}
 	}
 }
 
@@ -311,7 +332,7 @@ func TestAStoryWithoutRoomFoldsToItsHeading(t *testing.T) {
 			want: map[int]string{9: "STORY   no room at 24 rows " + strings.Repeat("─", 131)},
 		},
 		{name: "a phone, 24 rows: left out", width: 52, height: 24},
-		{name: "wide, 20 rows: the chrome alone", width: 160, height: 20},
+		{name: "wide, 13 rows: the chrome alone", width: 160, height: 13},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -379,7 +400,7 @@ func TestAStoryIsDrawnAsItsColumnsLayItOutAtEachWidth(t *testing.T) {
 				l := f.layoutOf(1)
 				c := storyDrawnOn(f, 1, story, views.Turn{})
 				cols := story.Columns(width)
-				tall, top := storyColumnRows, l.storyAt
+				tall, top := l.body, l.storyAt
 				if l.wide {
 					top = l.storyAt + 1
 				}

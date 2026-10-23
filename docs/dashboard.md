@@ -536,7 +536,13 @@ A session that has run for weeks takes a moment to read. While it does, the page
 with `loading…` after it, and `esc` goes back.
 
 A turn's requests are read from the ledger as you open it. If that takes a moment, the turn's foot
-says `loading…` until they're read.
+says `loading…` until they're read. An open turn shows as many of its requests as the rows under
+the turns hold, and five where the turns fill them.
+
+On a short screen, the page keeps its rows for its turns. The STORY's bars give up a row first,
+then the STORY folds to its heading (on a phone it's left out), then the accounts give way to a
+count, `+2 more accounts`, then the turns, down to one, and last the blank rows. From 14 rows, it
+always shows a turn.
 
 Keys on a session's page:
 

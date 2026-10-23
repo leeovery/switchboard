@@ -776,12 +776,12 @@ func (d sessionDrawn) turns(c *canvas) {
 	d.turnsHeading(c)
 	if len(d.page.Turns) == 0 {
 		if d.page.Totals.Requests > 0 {
-			c.line(0, d.l.turnsHeading+2, line{{noTurns, faintInk}}.fit(d.Width))
+			c.line(0, d.l.heads, line{{noTurns, faintInk}}.fit(d.Width))
 		}
 		return
 	}
 	for _, col := range d.turnColumns {
-		col.draw(c, d.l.turnsHeading+2, col.head())
+		col.draw(c, d.l.heads, col.head())
 	}
 	rows, above, below := d.turnsShown()
 	for i, r := range rows {

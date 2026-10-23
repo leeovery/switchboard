@@ -54,11 +54,13 @@ func openTurnOne(t *testing.T) (*harness, []ledger.Line) {
 
 // enter opens the turn chosen into its requests, in place, its first
 // chosen; ↑ and ↓ move through them, no further than the first and the
-// last, and j, k, PgDn and PgUp scroll them, five shown at a time, the
-// request chosen kept in view; esc closes the turn, then goes back. The key
-// line says so, open and closed.
+// last, and j, k, PgDn and PgUp scroll them, five shown at a time, as the
+// rows under its two turns hold at 160×35, the request chosen kept in view;
+// esc closes the turn, then goes back. The key line says so, open and
+// closed.
 func TestATurnOpensIntoItsRequestsAndItsKeysMoveThroughThem(t *testing.T) {
 	h, _ := openTurnOne(t)
+	h.deliver(h.update(tea.WindowSizeMsg{Width: 160, Height: 35})...)
 	keyLine := func(want ...[]string) {
 		t.Helper()
 		if got := h.grouped(); !slices.EqualFunc(got, want, slices.Equal) {
@@ -345,8 +347,8 @@ func TestATurnOpenedKeepsItsRowAndItsFirstRequestInView(t *testing.T) {
 	}{
 		{name: "open, in eleven rows", height: 37, open: true, scroll: 2},
 		{name: "chosen, in eleven rows", height: 37},
-		{name: "open, in three rows", height: 29, open: true, scroll: 10},
-		{name: "chosen, in three rows", height: 29, scroll: 8},
+		{name: "open, in three rows", height: 28, open: true, scroll: 10},
+		{name: "chosen, in three rows", height: 28, scroll: 8},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
