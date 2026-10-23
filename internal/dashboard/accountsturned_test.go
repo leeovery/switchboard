@@ -180,15 +180,20 @@ func TestTurnedComparesPlansHoldStillAcrossADatedPriceChange(t *testing.T) {
 	}
 }
 
-// Turned Compare at 40 columns, with a plan not known, keeps its against it
-// whole, head and figure: the last column holds its head's cells, the
-// others sharing what's left.
+// Turned Compare at 40 columns, with side's plan not known, keeps its
+// against it whole, head and figure: the last column holds its head's
+// cells, the others sharing what's left, the plans' bound, of the plans
+// known, within its share.
 func TestTurnedComparesAgainstItIsWholeAt40(t *testing.T) {
+	accounts := slices.Clone(threeFramed)
+	accounts[0].Plan, accounts[1].Plan = "max20x", "max20x"
 	page := phonePage(t)
+	page.Rows[2].Plan.Price, page.All.Plan.Price = nil, usd(400)
 	page.All.Plan.Plans = views.PlansKnown{Known: 2, Of: 3}
 	f := phoneText(t, 40, 60, AccountsCompare, "", page, nil)
+	f.Accounts.Accounts, f.PlansAtMost = accounts, views.PlansAtMost(accounts, ledger.Pricing)
 	rows := textOf(f.Draw(phoneDoc(), routedAt))
-	for _, want := range []string{"VALUE      plan     worth    against it", " all       $600/mo  $635     4.6× · 2/3"} {
+	for _, want := range []string{"VALUE      plan     worth    against it", " side      —        $239     5.2×", " all       $400/mo  $635     4.6× · 2/3"} {
 		if !slices.ContainsFunc(rows, func(row string) bool { return strings.TrimRight(row, " ") == want }) {
 			t.Errorf("Compare reads\n%s\nwant a row %q", strings.Join(rows, "\n"), want)
 		}
