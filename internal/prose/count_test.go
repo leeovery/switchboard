@@ -49,6 +49,30 @@ func TestANumberGroupedSetsItsThousandsApart(t *testing.T) {
 	}
 }
 
+// A figure bound to most says it whole up to most, and past it, most and
+// "+", grouped; and counting a noun, the noun after it.
+func TestAFigureHeldWithinItsMostSaysItsPastIt(t *testing.T) {
+	tests := []struct {
+		n, most          int
+		grouped, counted string
+	}{
+		{n: 1, most: 999, grouped: "1", counted: "1 request"},
+		{n: 998, most: 999, grouped: "998", counted: "998 requests"},
+		{n: 999, most: 999, grouped: "999", counted: "999 requests"},
+		{n: 1000, most: 999, grouped: "999+", counted: "999+ requests"},
+		{n: 99_999, most: 99_999, grouped: "99,999", counted: "99,999 requests"},
+		{n: 100_000, most: 99_999, grouped: "99,999+", counted: "99,999+ requests"},
+	}
+	for _, tt := range tests {
+		if got := prose.GroupedWithin(tt.n, tt.most); got != tt.grouped {
+			t.Errorf("GroupedWithin(%d, %d) = %q, want %q", tt.n, tt.most, got, tt.grouped)
+		}
+		if got := prose.CountedWithin(tt.n, tt.most, "request"); got != tt.counted {
+			t.Errorf("CountedWithin(%d, %d, request) = %q, want %q", tt.n, tt.most, got, tt.counted)
+		}
+	}
+}
+
 // No count of tokens is said wider than TokensWidest, at each form's widest
 // or past it.
 func TestTokensWidestIsAsWideAsTokensEverSays(t *testing.T) {

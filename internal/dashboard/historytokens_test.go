@@ -539,6 +539,51 @@ func TestTokensScrollsARowAtATimeWhereAPeriodDoesntFit(t *testing.T) {
 	}
 }
 
+// Of a short period before a tall one, 14 Sep's then 28 Sep's of seven
+// accounts and seven versions, by account and by model, from 14 rows, where
+// the footnote shows, to 37: Tokens never shows fewer of its periods' rows a
+// row taller, going on a row at a time past where each period fits while a
+// period at a time would show fewer.
+func TestTokensNeverShowsFewerRowsAsTheTerminalGrows(t *testing.T) {
+	page := pastTokens()
+	short, tall := page.Periods[2], page.Periods[0]
+	tall.ByAccount = slices.Repeat(tall.ByAccount, 3)[:7]
+	tall.ByModel = slices.Repeat(tall.ByModel, 4)[:7]
+	page.Periods = []views.TokenPeriod{short, tall}
+	for _, tt := range []struct {
+		name  string
+		split TokensSplit
+	}{
+		{name: "by account", split: TokensByAccount},
+		{name: "by model", split: TokensByModel},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			was := 0
+			for height := 14; height <= 37; height++ {
+				f := tokensFrame(160, height, tt.split)
+				f.History.Tokens = page
+				if shown := periodRowsShown(tokensRowsOf(f)); shown < was {
+					t.Errorf("at %d rows, Tokens shows %d of its periods' rows, fewer than the %d a row shorter", height, shown, was)
+				} else {
+					was = shown
+				}
+			}
+		})
+	}
+}
+
+// periodRowsShown are how many of Tokens' rows, under its heads, show a
+// period's: neither blank, nor saying what's out of view, nor the footnote.
+func periodRowsShown(rows []string) int {
+	n := 0
+	for _, row := range rows[min(2, len(rows)):] {
+		if row != "" && !strings.HasPrefix(row, "worth: ") && !strings.Contains(row, "more below") && !strings.Contains(row, "more above") {
+			n++
+		}
+	}
+	return n
+}
+
 // With nothing recorded, Tokens says so, in text.subtle, at the view's top.
 func TestTokensOfNothingRecordedSaysSo(t *testing.T) {
 	for _, page := range []*views.TokensPage{nil, {PricesAsOf: "2026-10-01"}} {

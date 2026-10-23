@@ -1268,28 +1268,42 @@ func TestAnAccountsRowMeasuresTheWindowsTheSessionUsed(t *testing.T) {
 
 // An account's row keeps every part in its column, the blanks between
 // them blank, and its worth whole at the right, stayGap cells after what
-// comes before it, its figures past their most, 1,234 points of every
-// window, or of the widest alone, and $9,999.99: at every width, even below
-// the row's leasts, where the points give way, never the worth.
+// comes before it, its points past their most, 1,234 of every window, or of
+// the widest alone, and its requests and worth at their most and past it,
+// saying so, "99,999+ requests" and "$9999.99+", never cut: at every width,
+// even below the row's leasts, where the points give way, never the worth.
 func TestAnAccountsPartsKeepToTheirColumns(t *testing.T) {
-	most := moved()
-	for i := range most.Page.Accounts {
-		most.Page.Accounts[i].Points = map[string]int{"5h": 1234, "7d": 1234, "7d_oi": 1234}
-		most.Page.Accounts[i].Worth = worthOf(999_999)
-	}
-	most.Page.Accounts[0].Points = map[string]int{"7d_oi": 1234}
-	for _, world := range pageWorlds {
-		for width := 40; width <= 220; width++ {
-			d, drawn := pageDrawn(pageFrame(t, most, width, 37), world.doc())
-			for i, s := range d.page.Stays(d.now)[:d.l.accounts] {
-				row := drawn[d.l.accountsAt+i]
-				said := strings.TrimRight(string(row), " ")
-				if want := strings.Repeat(" ", stayGap) + s.Cents(); !strings.HasSuffix(said, want) || strings.Contains(strings.TrimSuffix(said, s.Cents()), "$") {
-					t.Errorf("%s, at %d columns, an account's row reads %q, want it to end %q", world.name, width, said, want)
-				}
-				for c, col := range d.stayColumns[:len(d.stayColumns)-1] {
-					if gap := string(row[col.x+col.width : d.stayColumns[c+1].x]); strings.TrimSpace(gap) != "" {
-						t.Errorf("%s, at %d columns, an account's row reads %q, part %d running past its column into %q", world.name, width, said, col.part, gap)
+	for _, tt := range []struct {
+		name            string
+		requests, cents int
+		said            [2]string
+	}{
+		{name: "at their most", requests: 99_999, cents: 999_999, said: [2]string{"99,999 requests", "$9999.99"}},
+		{name: "past it", requests: 100_000, cents: 10_000_000, said: [2]string{"99,999+ requests", "$9999.99+"}},
+	} {
+		most := moved()
+		for i := range most.Page.Accounts {
+			most.Page.Accounts[i].Points = map[string]int{"5h": 1234, "7d": 1234, "7d_oi": 1234}
+			most.Page.Accounts[i].Requests = tt.requests
+			most.Page.Accounts[i].Worth = worthOf(tt.cents)
+		}
+		most.Page.Accounts[0].Points = map[string]int{"7d_oi": 1234}
+		for _, world := range pageWorlds {
+			for width := 40; width <= 220; width++ {
+				d, drawn := pageDrawn(pageFrame(t, most, width, 37), world.doc())
+				for i := range d.page.Stays(d.now)[:d.l.accounts] {
+					row := drawn[d.l.accountsAt+i]
+					said := strings.TrimRight(string(row), " ")
+					if want := strings.Repeat(" ", stayGap) + tt.said[1]; !strings.HasSuffix(said, want) || strings.Contains(strings.TrimSuffix(said, tt.said[1]), "$") {
+						t.Errorf("%s, %s, at %d columns, an account's row reads %q, want it to end %q", tt.name, world.name, width, said, want)
+					}
+					if got := stayText(row, d, stayRequests); got != "" && got != tt.said[0] {
+						t.Errorf("%s, %s, at %d columns, an account's requests read %q, want %q", tt.name, world.name, width, got, tt.said[0])
+					}
+					for c, col := range d.stayColumns[:len(d.stayColumns)-1] {
+						if gap := string(row[col.x+col.width : d.stayColumns[c+1].x]); strings.TrimSpace(gap) != "" {
+							t.Errorf("%s, %s, at %d columns, an account's row reads %q, part %d running past its column into %q", tt.name, world.name, width, said, col.part, gap)
+						}
 					}
 				}
 			}
@@ -1305,7 +1319,7 @@ func pointsSessions() map[string]*SessionShown {
 // An account's row keeps its windows before its requests and its time
 // there, and its requests before its name: with the frames' names and with
 // a 26-cell one, from 58 columns up, every account's row says every window
-// it took, uncut, and from 128 up, its requests whole too.
+// it took, uncut, and from 129 up, its requests whole too.
 func TestAnAccountsWindowsComeBeforeItsRequests(t *testing.T) {
 	docs := map[string]status.Document{"short names": pageDoc(), "a 26-cell name": pageLabelled("work-team-plan-for-the-org", "personal", "side")}
 	for world, doc := range docs {
@@ -1318,7 +1332,7 @@ func TestAnAccountsWindowsComeBeforeItsRequests(t *testing.T) {
 					if strings.Contains(points, prose.Ellipsis) || strings.Count(points, " · ") != len(s.PointsKeys())-1 {
 						t.Errorf("%s, %s, at %d columns, an account's points read %q, want its %d windows whole", world, name, width, points, len(s.PointsKeys()))
 					}
-					if got := stayText(row, d, stayRequests); width >= 128 && got != s.RequestsSaid() {
+					if got := stayText(row, d, stayRequests); width >= 129 && got != s.RequestsSaid() {
 						t.Errorf("%s, %s, at %d columns, an account's requests read %q, want %q", world, name, width, got, s.RequestsSaid())
 					}
 				}
@@ -1517,22 +1531,23 @@ func TestTheShortNowRowsNarrowTheirNamesFirst(t *testing.T) {
 	}
 }
 
-// A turn's worth is whole at every width to its bound: unpriced, part
-// unpriced, and $999.99.
+// A turn's worth is whole at every width to its bound, and past it says so:
+// unpriced, part unpriced, $999.99, and past it, $999.99+.
 func TestATurnsWorthIsWholeToItsBound(t *testing.T) {
 	shown := moved()
 	plus := worthOf(11411)
 	plus.Unpriced = []string{"claude-fable-1"}
-	worths := []views.Worth{{Unpriced: []string{"claude-fable-1"}}, plus, worthOf(99999)}
+	worths := []views.Worth{{Unpriced: []string{"claude-fable-1"}}, plus, worthOf(99_999), worthOf(1_000_000)}
+	said := []string{"unpriced", "$114.11+", "$999.99", "$999.99+"}
 	for i, w := range worths {
 		shown.Page.Turns[i].Worth = w
 	}
 	for _, world := range pageWorlds {
 		for width := 40; width <= 220; width++ {
 			d, rows := pageDrawn(pageFrame(t, shown, width, 37), world.doc())
-			for i, w := range worths {
-				if got := turnText(rows[d.l.turnsAt+i], d, turnWorth); got != w.Cents() {
-					t.Errorf("%s, at %d columns, turn %d's worth reads %q, want %q whole", world.name, width, shown.Page.Turns[i].Turn, got, w.Cents())
+			for i, want := range said {
+				if got := turnText(rows[d.l.turnsAt+i], d, turnWorth); got != want {
+					t.Errorf("%s, at %d columns, turn %d's worth reads %q, want %q whole", world.name, width, shown.Page.Turns[i].Turn, got, want)
 				}
 			}
 		}
