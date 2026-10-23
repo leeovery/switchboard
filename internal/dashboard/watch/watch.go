@@ -349,6 +349,10 @@ type Model struct {
 	// as views.VersionNameCells has it of the prices, worked out as New
 	// makes the model: the prices don't change while it runs.
 	versionNameCells int
+	// plansAtMost are the configured accounts' plans at the most each has
+	// cost, as views.PlansAtMost has them, worked out as New makes the
+	// model: neither the accounts nor the prices change while it runs.
+	plansAtMost []views.PlanCost
 	// runwayTab is what the watch holds of Runway: what it shows, its lanes
 	// as the last look built them, and the readings history's tail they're
 	// judged by; and pool what it holds of the pool's charts GRAPHS draws
@@ -464,6 +468,7 @@ func New(ctx context.Context, cfg Config) Model {
 		accounts: accountsTab{shown: cfg.AccountsShown}, past: historyTab{page: cfg.History, starts: cfg.WeekStarts},
 		sessionsTab: sessionsTab{shown: cfg.SessionsShown}, runwayTab: runwayTab{shown: cfg.RunwayShown}, log: openingLog(cfg.Log),
 		traffic: traffic{heard: new(views.Hearing)}, held: views.HoldSessions(cfg.Prices), versionNameCells: views.VersionNameCells(cfg.Prices),
+		plansAtMost: views.PlansAtMost(cfg.Accounts, cfg.Prices),
 	}
 	m.accounts.shown.Accounts, m.past.page.Accounts = cfg.Accounts, cfg.Accounts
 	if m.after == nil {
@@ -915,6 +920,7 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 		WindowName:       m.cfg.WindowName,
 		WeekWindow:       m.cfg.WeekWindow,
 		VersionNameCells: m.versionNameCells,
+		PlansAtMost:      m.plansAtMost,
 		Accounts:         m.accounts.shown,
 		Runway:           m.runwayTab.shown,
 		History:          m.past.page,

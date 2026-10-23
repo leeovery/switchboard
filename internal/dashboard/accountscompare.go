@@ -218,13 +218,15 @@ func compareFigures(n int) [][]part {
 }
 
 // boundFigures are the shortest forms of Compare's rows of the row given, as
-// compareFigures has them, but extra usage, which is the moment's.
+// compareFigures has them, but extra usage, which is the moment's, and the
+// sessions moved, in full: wide, a column says its moves whole, its count
+// being turned Compare's alone.
 func boundFigures(row views.AccountsRow, k ink) [][]part {
 	col := compareColumn{row: row, all: row.Totals.All}
 	return [][]part{
 		col.requests(),
 		col.sessions(),
-		col.moved(),
+		col.moved()[0],
 		limitsForms(row.Totals, func(key string) string { return key }, k).shortest(),
 		col.atCap(),
 		leftForms(row, k).shortest(),
@@ -697,7 +699,7 @@ func (cp compared) groups() []compareGroup {
 		{name: "ACTIVITY", rows: []compareRow{
 			{"requests", cp.recorded(figureForm(compareColumn.requests))},
 			{"sessions served", cp.recorded(figureForm(compareColumn.sessions))},
-			{"sessions moved", cp.recorded(figureForm(compareColumn.moved))},
+			{"sessions moved", cp.recorded(compareColumn.moved)},
 		}},
 		{name: "LIMITS", rows: []compareRow{
 			{"limits hit", cp.recorded(func(col compareColumn) partForms { return limitsForms(col.row.Totals, names, col.ink()) })},
@@ -723,10 +725,10 @@ func (col compareColumn) sessions() []part {
 	return []part{figureIn(prose.Grouped(col.row.Totals.Sessions), col.ink())}
 }
 
-// moved are the sessions moved onto the column's account and off it, as
-// movedParts says them.
-func (col compareColumn) moved() []part {
-	return movedParts(col.row.Totals, col.ink())
+// moved are the sessions moved onto the column's account and off it, in
+// their forms, as movedForms has them.
+func (col compareColumn) moved() partForms {
+	return movedForms(col.row.Totals, col.ink())
 }
 
 // atCap is how long the column's account spent at its cap or a limit, as

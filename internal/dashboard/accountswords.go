@@ -114,6 +114,23 @@ func movedParts(t views.AccountTotals, k ink) []part {
 	return moved
 }
 
+// movedForms say the sessions moved onto an account and off it over the
+// period in its forms: as movedParts says them, "2 in · 1 out", or of every
+// account's "4 moves"; then how many moves, "3", the in and out summed, or
+// every account's moves, in the ink given, as limitsCount says the limits.
+// Where none moved, its one form.
+func movedForms(t views.AccountTotals, k ink) partForms {
+	full := movedParts(t, k)
+	moves := t.MovedOn
+	if !t.All {
+		moves += t.MovedOff
+	}
+	if moves == 0 {
+		return partForms{full}
+	}
+	return partForms{full, {figureIn(prose.Grouped(moves), k)}}
+}
+
 // limitsParts say the limits an account hit over the period, by window,
 // each named as name names its key, as views.LimitsHit says them, in
 // state.destructive, a faint " · " between: "5-hour ×2 · week ×1"; of every

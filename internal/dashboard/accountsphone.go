@@ -22,31 +22,38 @@ import (
 // History's Year is.
 
 // Turned Compare's columns: its names from turnedNameAt, turnedApart before
-// its bars; and its bars at least turnedBar cells.
+// its bars; and its bars turnedBar cells, giving way to turnedBarFloor where
+// the room runs short.
 const (
-	turnedNameAt = 1
-	turnedApart  = 2
-	turnedBar    = 20
+	turnedNameAt   = 1
+	turnedApart    = 2
+	turnedBar      = 20
+	turnedBarFloor = 10
 )
 
 // The turned parts across a frame, in the order turnedLaid lays them. The
-// figures' column is two parts: turnedFigures, a cell and the widest largest
-// version at a share of two digits, and turnedHundred, the cell more a share
-// of 100% takes.
+// bars are two parts: turnedBars, the turnedBar cells they hold, and
+// turnedGrown, what they grow by past them. The figures' column is two:
+// turnedFigures, a cell and the widest largest version at a share of two
+// digits, and turnedHundred, the cell more a share of 100% takes.
 const (
 	turnedIndent = iota
 	turnedNames
 	turnedBars
+	turnedGrown
 	turnedFigures
 	turnedHundred
 )
 
-// figuresNarrowed is the turn the figures' column narrows in, toward a cell
-// of a version's name, where the names' least and the bars' don't leave it
-// the widest version at a two-digit share: under 50 columns with the version
+// The turns turned Compare's parts give way in, once the names are at their
+// least: first the figures' column narrows, toward a cell of a version's
+// name, the bars holding turnedBar: under 50 columns with the version
 // table's names, and wider where the config prices a model named by a long
-// id.
-const figuresNarrowed = 1
+// id; then the bars, toward turnedBarFloor, so a share is never cut.
+const (
+	figuresNarrowed = iota + 1
+	barsNarrowed
+)
 
 // turnedLayout is where turned Compare's parts sit across a frame, as flex
 // lays them: its names' cells, from turnedNameAt; where its bars start, as
@@ -60,12 +67,13 @@ type turnedLayout struct {
 
 // turnedLaid is turned Compare's columns laid out across the frame: its
 // names at their widest whole, at least compareNameLeast and at most
-// compareNameMost; its bars at least turnedBar, growing to barMost; and its
-// figures holding the widest largest version the table can name, as the
-// frame's VersionNameCells has it, at a share of two digits, and taking the
-// cell more a share of 100% needs last. The names give way before the figures
-// do. The figures read no page, so nothing moves as it's read, or as the
-// period changes.
+// compareNameMost; its bars turnedBar, growing to barMost; and its figures
+// holding the widest largest version the table can name, as the frame's
+// VersionNameCells has it, at a share of two digits, and taking the cell
+// more a share of 100% needs last; at least a cell of a version's name at a
+// share of 100%, so no share is cut. The names give way first, to their least,
+// then the figures and the bars, in their turns. The figures read no page,
+// so nothing moves as it's read, or as the period changes.
 func (cp compared) turnedLaid(columns []compareColumn) turnedLayout {
 	names := 0
 	for _, col := range columns {
@@ -75,11 +83,12 @@ func (cp compared) turnedLaid(columns []compareColumn) turnedLayout {
 	s, _ := flex.Lay(cp.f.edge(), []flex.Part{
 		turnedIndent:  {Least: turnedNameAt, Natural: turnedNameAt},
 		turnedNames:   {Least: compareNameLeast, Natural: names, Most: compareNameMost},
-		turnedBars:    {Least: turnedBar, Natural: turnedBar, Grows: true, Most: barMost, Gap: turnedApart},
-		turnedFigures: {Least: 1 + largestCells(1, 0.55), Natural: 1 + figures, Narrows: figuresNarrowed, Gap: 1},
+		turnedBars:    {Least: turnedBarFloor, Natural: turnedBar, Narrows: barsNarrowed, Gap: turnedApart},
+		turnedGrown:   {Grows: true, Most: barMost - turnedBar},
+		turnedFigures: {Least: 1 + largestCells(1, 1), Natural: 1 + figures, Narrows: figuresNarrowed, Gap: 1},
 		turnedHundred: {Natural: largestCells(cp.f.VersionNameCells, 1) - figures},
 	}...)
-	return turnedLayout{names: s[turnedNames].Size, at: s[turnedBars].At, bar: s[turnedBars].Size, figures: s[turnedFigures].At}
+	return turnedLayout{names: s[turnedNames].Size, at: s[turnedBars].At, bar: s[turnedBars].Size + s[turnedGrown].Size, figures: s[turnedFigures].At}
 }
 
 // largestCells are the cells a largest version takes, as versionsNamed names
@@ -323,39 +332,98 @@ type turnedGroup struct {
 	columns []turnedColumn
 }
 
-// turnedColumn is a column of turned Compare's group: its head, and what it
-// says of each of Compare's columns.
+// turnedColumn is a column of turned Compare's group: its head; what it
+// says of each of Compare's columns; and, where what it says is the
+// config's, as the plans are, the most it can say, its least holding each
+// whole whatever the period or the data: none where it's the data's.
 type turnedColumn struct {
-	head string
-	said func(col compareColumn) partForms
+	head  string
+	said  func(col compareColumn) partForms
+	bound [][]part
 }
 
 // turnedGroups are turned Compare's groups under BY MODEL, ACTIVITY,
 // LIMITS and VALUE, as the wide form's rows say each figure, in their
-// shortest forms, so each row's short words have one owner: but the limits
-// hit, in the forms limitsShortForms has, its windows named short, as 5h,
-// then how many, the fullest a column holds. A period with nothing
-// recorded, as on a fresh install, says a dash in each of its own figures,
-// as recorded has it; left and the plan are none of them.
+// shortest forms, so each row's short words have one owner: but the
+// sessions moved, in the forms movedForms has, and the limits hit, in those
+// limitsShortForms has, its windows named short, as 5h, then how many, each
+// the fullest a column holds. A period with nothing recorded, as on a fresh
+// install, says a dash in each of its own figures, as recorded has it; left
+// and the plan are none of them.
 func (cp compared) turnedGroups() []turnedGroup {
 	page, names := *cp.page, cp.f.windowNamer(cp.m)
 	return []turnedGroup{
 		{name: "ACTIVITY", columns: []turnedColumn{
-			{"reqs", cp.recorded(figureForm(compareColumn.requests))},
-			{"sessions", cp.recorded(figureForm(compareColumn.sessions))},
-			{"moved", cp.recorded(figureForm(compareColumn.moved))},
+			{head: "reqs", said: cp.recorded(figureForm(compareColumn.requests))},
+			{head: "sessions", said: cp.recorded(figureForm(compareColumn.sessions))},
+			{head: "moved", said: cp.recorded(compareColumn.moved)},
 		}},
 		{name: "LIMITS", columns: []turnedColumn{
-			{"hit", cp.recorded(func(col compareColumn) partForms { return limitsShortForms(col.row.Totals, names, col.ink()) })},
-			{"at cap", cp.recorded(figureForm(compareColumn.atCap))},
-			{"left", shortestOf(func(col compareColumn) partForms { return leftForms(col.row, col.ink()) })},
+			{head: "hit", said: cp.recorded(func(col compareColumn) partForms { return limitsShortForms(col.row.Totals, names, col.ink()) })},
+			{head: "at cap", said: cp.recorded(figureForm(compareColumn.atCap))},
+			{head: "left", said: shortestOf(func(col compareColumn) partForms { return leftForms(col.row, col.ink()) })},
 		}},
 		{name: "VALUE", columns: []turnedColumn{
-			{"plan", shortestOf(func(col compareColumn) partForms { return planForms(col.row, col.ink()) })},
-			{"worth", cp.recorded(figureForm(compareColumn.worth))},
-			{"against it", cp.recorded(shortestOf(func(col compareColumn) partForms { return againstForms(page, col.row) }))},
+			{head: "plan", said: shortestOf(func(col compareColumn) partForms { return planForms(col.row, col.ink()) }), bound: cp.f.plansBound()},
+			{head: "worth", said: cp.recorded(figureForm(compareColumn.worth))},
+			{head: "against it", said: cp.recorded(shortestOf(func(col compareColumn) partForms { return againstForms(page, col.row) }))},
 		}},
 	}
+}
+
+// plansBound are the plans' prices the frame's accounts can say, in the
+// shortest form planForms has, each account's and all accounts', at the
+// most each plan has cost, as the frame's PlansAtMost has them.
+func (f Frame) plansBound() [][]part {
+	said := make([][]part, len(f.PlansAtMost))
+	for i, cost := range f.PlansAtMost {
+		said[i] = planForms(views.AccountsRow{Plan: cost}, secondaryInk).shortest()
+	}
+	return said
+}
+
+// spans are the group's columns across room cells: alike, as flex shares
+// them, but none narrower than its least, as least has it. A column whose
+// least is more than its share holds its least, and the rest share what's
+// left alike.
+func (g turnedGroup) spans(room int) []flex.Span {
+	parts := make([]flex.Part, len(g.columns))
+	for i := range parts {
+		parts[i] = flex.Part{Grows: true}
+	}
+	for {
+		spans, _ := flex.Lay(room, parts...)
+		held := false
+		for i, s := range spans {
+			if least := g.least(i); parts[i].Grows && s.Size < least {
+				parts[i], held = flex.Part{Least: least, Natural: least}, true
+			}
+		}
+		if !held {
+			return spans
+		}
+	}
+}
+
+// least are the fewest cells the group's column i takes: the widest of its
+// head and its bound, and the cells it keeps apart. What the data says, as
+// worth, never sets it: the arrangement would move as the data does.
+func (g turnedGroup) least(i int) int {
+	column := g.columns[i]
+	cells := ansi.StringWidth(column.head)
+	for _, said := range column.bound {
+		cells = max(cells, partsWidth(said))
+	}
+	return cells + g.apart(i)
+}
+
+// apart are the cells the group's column i keeps short of the next: a cell,
+// but none for the last.
+func (g turnedGroup) apart(i int) int {
+	if i+1 < len(g.columns) {
+		return 1
+	}
+	return 0
 }
 
 // shortestOf is a row's figure in the shortest of its forms, as said has
@@ -367,15 +435,12 @@ func shortestOf(said func(col compareColumn) partForms) func(col compareColumn) 
 // turnedGroup draws the group from row y, and returns the row its last
 // column is on: its name, and on its row each of its columns' heads, in
 // text.subtle; then a row each of Compare's columns, no blank between. Its
-// columns share the room from the layout's bars to the frame's edge alike,
-// as flex lays them, so every group's line up; each figure is cut a cell
-// short of the next column, the last's at the frame's edge.
+// columns share the room from the layout's bars to the frame's edge as the
+// group's spans has them, so every group's line up but where a column's
+// least needs more; each figure is cut the cells its column keeps apart
+// short of the next, as apart has them, and at the frame's edge.
 func (cp compared) turnedGroup(c *canvas, y int, l turnedLayout, g turnedGroup, columns []compareColumn) int {
-	shared := make([]flex.Part, len(g.columns))
-	for i := range shared {
-		shared[i] = flex.Part{Grows: true}
-	}
-	spans, _ := flex.Lay(cp.f.edge()-l.at, shared...)
+	spans := g.spans(cp.f.edge() - l.at)
 	c.line(0, y, line{{g.name, dimInk}})
 	c.heading(y, y+1)
 	for i, head := range g.columns {
@@ -385,10 +450,8 @@ func (cp compared) turnedGroup(c *canvas, y int, l turnedLayout, g turnedGroup, 
 		y++
 		c.line(turnedNameAt, y, turnedName(col, l.names))
 		for i, figure := range g.columns {
-			at, cells := l.at+spans[i].At, spans[i].Size-1
-			if i+1 == len(g.columns) {
-				cells = cp.f.edge() - at
-			}
+			at := l.at + spans[i].At
+			cells := min(spans[i].Size-g.apart(i), cp.f.edge()-at)
 			c.line(at, y, fitParts(cells, periodNumbered(figure.said(col).fitting(cells), col.id, figure.head)...))
 		}
 	}

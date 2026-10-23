@@ -139,6 +139,11 @@ type Frame struct {
 	// known before any page is read, so a phone's Compare sizes its figures
 	// by it and holds still as its page is read.
 	VersionNameCells int
+	// PlansAtMost are the configured accounts' plans at the most each has
+	// cost, and all accounts' summed, as views.PlansAtMost has them: known
+	// before any page is read and whatever period it prices, so turned
+	// Compare's VALUE sizes its plans' column by them and holds still.
+	PlansAtMost []views.PlanCost
 	// Accounts is Accounts' sub-tab shown, its period, what's chosen in it,
 	// and its page.
 	Accounts AccountsShown
