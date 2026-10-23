@@ -4365,7 +4365,8 @@ time's words or a mark do: `started yesterday 16:40 · resumed yesterday 22:10`,
 alone, `resumed yesterday 22:10`, as a phone's says it. Narrower, the rows take the short form a
 phone's has (see On a phone), its names narrowing toward a label's least of 8 before a date, a
 figure or the why is cut, so it says the why short and whole wherever its names at their least let
-it, and the wide form never cuts what the short says whole. Its names take one width in both rows,
+it, and the wide form never cuts what the short says whole. A time, a span or a figure in the
+short rows is said whole or left off, never cut part-way. Its names take one width in both rows,
 measured with the state and how it has run at their widest, so an account reads one way and holds
 still as the session works; a cut never reads `……`. Like the started part's fullness, that width
 may change at midnight or a week on, as a time's words do; the switch never does. What the switch
@@ -4374,9 +4375,9 @@ the clock moves a time's day on, or new sessions go elsewhere, so the form holds
 asks, answers or idles. An ended session's row 7 is measured by its own words, its models and how
 long their lines are kept, at their widest, with the year named. The form never follows the
 chrome's breakpoint. With the frames' names, `moved` is wide from 96 columns (154 with the long
-names the tests hold it to, labels of 26, 25 and 22 cells), `quiet` from 64 (80), `ended` from 93 (151), or 103 (161) where it moved on a day after
-its start's, pinned here from 70 (88), its pin yielding from 99 (155), and `resumed`, today or the
-day before, from 133 (165).
+names the tests hold it to, labels of 26, 25 and 22 cells), `quiet` from 64 (80), `ended` from 93
+(151), or 103 (161) where it moved on a day after its start's, pinned here from 70 (88), its pin
+yielding from 99 (155), and `resumed`, today or the day before, from 133 (165).
 
 - **Row 6,** what it's doing and where it runs:
   - **its state,** bold: `↑ asking` in `accent.key` while a request of it waits for its answer;
@@ -4494,8 +4495,9 @@ first ran on them. A row's parts, two cells apart, as flex lays them at every wi
   window it used adding `· N of its Fable week` (settled in the plan). It's measured by the
   windows listed and those the session used, listed or not, each at its most, `999+`, as a
   window's points are said whole to 999 and `999+` past it, never by the points the rows say,
-  so the row holds still as they change, and moves only as the session first uses a window: its natural every one of those windows in wide words, and its least the
-  widest alone in short words, `≈ 999+ of week`; it says the wide words where its column holds
+  so the row holds still as they change, and moves only as the session first uses a window: its
+  natural every one of those windows in wide words, and its least the widest alone in short
+  words, `≈ 999+ of week`; it says the wide words where its column holds
   every window's, else the short, `≈ 6 of week · 41 of 5-hour`, and leaves whole windows off the
   end where they wouldn't fit its column at `999+` each, so rows of as many windows show as
   many, whatever their points say;
