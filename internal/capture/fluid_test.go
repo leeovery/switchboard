@@ -74,20 +74,19 @@ const leastView = 6
 
 // natural are the views whose parts are all at their natural widths, so
 // short of two thirds of the width is no waste, each by name, as viewOf
-// names it, with why. As the plan has it, the slice that makes a view so
-// adds it here, with its reason: that's the rule working, not a loosening.
-// The cards are never judged: the sweep closes what's open over the page.
+// names it, with why: a view added here with its reason is the rule
+// working, not a loosening. The cards are never judged: the sweep closes
+// what's open over the page.
 var natural = map[string]string{}
 
-// known is a rule the views of the fixtures named are known to break at the
-// owner's sizes given, as "73x61", and either the slice of the fluid pass,
-// as the plan numbers them, that clears it; or, where none will, byDesign:
-// for a cut with room, what the design draws cut, which the sweep can't
-// tell from a cut with room, and cuts, those cuts as drawn, as
-// "switchboard…", the only cuts it passes over; for a fold with rows spare,
-// what's left at the foot, short of every folded section's least.
+// known is what the design draws that the sweep would take for a rule the
+// views of the fixtures named break at the owner's sizes given, as "73x61":
+// byDesign, what the design draws; for a cut with room, what it draws cut,
+// which the sweep can't tell from a cut with room, and cuts, those cuts as
+// drawn, as "switchboard…", the only cuts it passes over; for a fold with
+// rows spare, what's left at the foot, short of every folded section's
+// least.
 type known struct {
-	slice    string
 	byDesign string
 	cuts     []string
 	rule     fluidRule
@@ -95,22 +94,11 @@ type known struct {
 	fixtures []string
 }
 
-// owner is who answers for the break: its slice, else the design.
-func (k known) owner() string {
-	if k.byDesign != "" {
-		return "the design"
-	}
-	return k.slice
-}
-
-// ownedOnce reports whether the break is a slice's of the plan, with no
-// cuts; or the design's, with no slice, as cuts with room it names, or a
-// fold with rows spare, with no cuts.
-func (k known) ownedOnce() bool {
+// drawnByDesign reports whether the break is one the design draws: cuts with
+// room it names, or a fold with rows spare, with no cuts.
+func (k known) drawnByDesign() bool {
 	switch {
 	case k.byDesign == "":
-		return planSlice.MatchString(k.slice) && len(k.cuts) == 0
-	case k.slice != "":
 		return false
 	case k.rule == cutWithRoom:
 		return len(k.cuts) > 0
@@ -127,15 +115,14 @@ func (k known) breaking() []string {
 	return k.cuts
 }
 
-// knownBreaks are what the views break today, by the slice that clears
-// them, or the design that cuts them. The list only shrinks: a slice deletes
-// what it clears, as a fixture named at a size where it no longer breaks the
-// rule fails the sweep.
+// knownBreaks are what the design draws that the sweep would take for a
+// break. A fixture named at a size where it no longer draws it fails the
+// sweep, so the list holds only what's drawn.
 var knownBreaks = []known{
 	// The Switchboard's directories at their most, as the List's; and at 108
 	// and 109, where the cells past the leasts go to the directory alone, the
 	// directory at 14 and 15 and the account a call came from at its least,
-	// as the spike draws them at 108.
+	// as the design gives them at 108.
 	{
 		byDesign: "the Switchboard's directories at their most", cuts: dirCuts(views.SessionDirMost), rule: cutWithRoom,
 		sizes:    []string{"73x61", "73x36", "138x30", "138x15", "173x53"},
@@ -155,7 +142,7 @@ var knownBreaks = []known{
 	},
 	// The Log's sessions' directories, as views.SessionDirName cuts them, with
 	// room at every size they show at with room; and the Requests' on, its
-	// share past the columns' leasts at 73, 108 and 109, as the spike draws
+	// share past the columns' leasts at 73, 108 and 109, as the design gives
 	// it.
 	{
 		byDesign: "the Log's directories at their most", cuts: logDirCuts(), rule: cutWithRoom,
@@ -325,7 +312,7 @@ func dirCuts(cells int) []string {
 }
 
 // brokenAt are the rules known has the fixture named break at the size
-// named, by the slice that clears them, or the design's folds.
+// named, the design's folds.
 func brokenAt(known []known, name, at string) []fluidRule {
 	var rules []fluidRule
 	for _, k := range known {
@@ -352,10 +339,9 @@ func judged(breaks []fluidBreak, known []fluidRule) (unknown []fluidBreak, clear
 	return unknown, cleared
 }
 
-// Each of knownBreaks names the slice that clears it, with a rule, or the
-// design's cuts, as a cut with room, or the design's fold, and fixtures the
-// sweep draws at the owner's sizes, each fixture and size once a rule, or a
-// cut.
+// Each of knownBreaks names what the design draws, its cuts, as a cut with
+// room, or its fold, and fixtures the sweep draws at the owner's sizes, each
+// fixture and size once a rule, or a cut.
 func TestEveryKnownBreakIsOfAViewTheSweepDraws(t *testing.T) {
 	swept := make(map[string]bool)
 	for _, f := range sweptFixtures(t) {
@@ -367,19 +353,16 @@ func TestEveryKnownBreakIsOfAViewTheSweepDraws(t *testing.T) {
 	}
 	named := make(map[string]bool)
 	for _, k := range knownBreaks {
-		if !k.ownedOnce() {
-			t.Errorf("knownBreaks names %q, %q and the cuts %q: want a slice of the plan, or the design's cuts or fold, alone", k.slice, k.byDesign, k.cuts)
-		}
-		if !slices.Contains([]fluidRule{cutWithRoom, foldWithRowsSpare, nothingDrawn, wastedThird}, k.rule) {
-			t.Errorf("%s's knownBreaks name %q, not a rule the sweep holds", k.owner(), k.rule)
+		if !k.drawnByDesign() {
+			t.Errorf("knownBreaks names %q, the cuts %q, as %s: want the design's cuts, or its fold", k.byDesign, k.cuts, k.rule)
 		}
 		for _, name := range k.fixtures {
 			if !swept[name] {
-				t.Errorf("%s's knownBreaks name %s, which the sweep doesn't draw", k.owner(), name)
+				t.Errorf("%q names %s, which the sweep doesn't draw", k.byDesign, name)
 			}
 			for _, at := range k.sizes {
 				if !slices.Contains(sizes, at) {
-					t.Errorf("%s's knownBreaks name %s at %s, not one of the owner's sizes", k.owner(), name, at)
+					t.Errorf("%q names %s at %s, not one of the owner's sizes", k.byDesign, name, at)
 				}
 				for _, what := range k.breaking() {
 					if once := name + " " + what + " " + at; named[once] {
@@ -392,9 +375,6 @@ func TestEveryKnownBreakIsOfAViewTheSweepDraws(t *testing.T) {
 		}
 	}
 }
-
-// planSlice is a slice of the fluid pass, as the plan numbers them.
-var planSlice = regexp.MustCompile(`^S[0-9]+$`)
 
 // sizeName names a terminal's size, as "73x61".
 func sizeName(s watch.Size) string {
@@ -786,8 +766,8 @@ func sweptView(width int, view ...string) fluidFrame {
 
 func TestAKnownBreakPassesWhereItBreaksAndFailsWhereItsCleared(t *testing.T) {
 	known := []known{
-		{slice: "S9", rule: nothingDrawn, sizes: []string{"138x15"}, fixtures: []string{"runway-week-160", "runway-phone-52"}},
-		{slice: "S9", rule: foldWithRowsSpare, sizes: []string{"138x30"}, fixtures: []string{"runway-week-160"}},
+		{byDesign: "3 rows, short of LATELY's least", rule: foldWithRowsSpare, sizes: []string{"138x15"}, fixtures: []string{"runway-week-160", "runway-phone-52"}},
+		{byDesign: "4 rows, short of ROUTING's least", rule: foldWithRowsSpare, sizes: []string{"138x30"}, fixtures: []string{"runway-week-160"}},
 		{byDesign: "work at its most", cuts: []string{"work-tea…"}, rule: cutWithRoom, sizes: []string{"138x30"}, fixtures: []string{"runway-week-160"}},
 		{byDesign: "2 rows, short of GRAPHS' least", rule: foldWithRowsSpare, sizes: []string{"73x61"}, fixtures: []string{"runway-phone-52"}},
 	}
@@ -798,10 +778,11 @@ func TestAKnownBreakPassesWhereItBreaksAndFailsWhereItsCleared(t *testing.T) {
 		unknown           []fluidBreak
 		cleared           []fluidRule
 	}{
-		{name: "breaking what's known", fixture: "runway-phone-52", at: "138x15", breaks: []fluidBreak{none}},
+		{name: "breaking what's known", fixture: "runway-phone-52", at: "138x15", breaks: []fluidBreak{fold}},
 		{name: "breaking what's known and more", fixture: "runway-week-160", at: "138x30", breaks: []fluidBreak{cut, fold}, unknown: []fluidBreak{cut}},
 		{name: "breaking what's known elsewhere", fixture: "runway-phone-52", at: "138x30", breaks: []fluidBreak{fold}, unknown: []fluidBreak{fold}},
-		{name: "no longer breaking what's known", fixture: "runway-week-160", at: "138x15", cleared: []fluidRule{nothingDrawn}},
+		{name: "breaking another rule than what's known", fixture: "runway-phone-52", at: "138x15", breaks: []fluidBreak{none}, unknown: []fluidBreak{none}, cleared: []fluidRule{foldWithRowsSpare}},
+		{name: "no longer breaking what's known", fixture: "runway-week-160", at: "138x15", cleared: []fluidRule{foldWithRowsSpare}},
 		{name: "breaking nothing, with nothing known", fixture: "runway-week-160", at: "73x61"},
 		{name: "folding as the design leaves it", fixture: "runway-phone-52", at: "73x61", breaks: []fluidBreak{fold}},
 		{name: "no longer folding as the design leaves it", fixture: "runway-phone-52", at: "73x61", cleared: []fluidRule{foldWithRowsSpare}},
@@ -819,7 +800,7 @@ func TestAKnownBreakPassesWhereItBreaksAndFailsWhereItsCleared(t *testing.T) {
 // and fail where none of them is drawn with room any longer.
 func TestADesignedCutPassesWhereItsDrawnAndFailsWhereItsNot(t *testing.T) {
 	designed := known{byDesign: "names at their most", cuts: []string{"work-tea…", "perso…"}, rule: cutWithRoom, sizes: []string{"138x30"}, fixtures: []string{"log-requests-160"}}
-	known := []known{designed, {slice: "S9", rule: cutWithRoom, sizes: []string{"138x30"}, fixtures: []string{"log-requests-160"}}}
+	known := []known{designed, {byDesign: "2 rows left", rule: foldWithRowsSpare, sizes: []string{"138x30"}, fixtures: []string{"log-requests-160"}}}
 	drawn := func(cuts ...string) []fluidCut {
 		var drawn []fluidCut
 		for _, c := range cuts {
@@ -847,31 +828,28 @@ func TestADesignedCutPassesWhereItsDrawnAndFailsWhereItsNot(t *testing.T) {
 	}
 }
 
-// A known break is a slice's, with no cuts, or the design's, with no slice:
-// cuts with room, or a fold with rows spare with no cuts.
-func TestAKnownBreakIsOwnedOnce(t *testing.T) {
+// A known break is the design's: cuts with room, or a fold with rows spare
+// with no cuts, each saying what the design draws.
+func TestAKnownBreakIsDrawnByDesign(t *testing.T) {
 	cuts := []string{"work-tea…"}
 	for _, tt := range []struct {
 		name string
 		k    known
 		want bool
 	}{
-		{name: "a slice's", k: known{slice: "S9", rule: nothingDrawn}, want: true},
-		{name: "the design's", k: known{byDesign: "at its most", cuts: cuts, rule: cutWithRoom}, want: true},
-		{name: "a slice's, with cuts", k: known{slice: "S9", cuts: cuts, rule: cutWithRoom}},
-		{name: "the design's, with a slice", k: known{slice: "S9", byDesign: "at its most", cuts: cuts, rule: cutWithRoom}},
-		{name: "the design's, with a slice of none", k: known{slice: "later", byDesign: "at its most", cuts: cuts, rule: cutWithRoom}},
+		{name: "the design's cuts", k: known{byDesign: "at its most", cuts: cuts, rule: cutWithRoom}, want: true},
+		{name: "cuts, unsaid", k: known{cuts: cuts, rule: cutWithRoom}},
 		{name: "the design's, without cuts", k: known{byDesign: "at its most", rule: cutWithRoom}},
 		{name: "the design's, of another rule", k: known{byDesign: "at its most", cuts: cuts, rule: nothingDrawn}},
 		{name: "the design's fold", k: known{byDesign: "2 rows left", rule: foldWithRowsSpare}, want: true},
+		{name: "a fold, unsaid", k: known{rule: foldWithRowsSpare}},
 		{name: "the design's fold, with cuts", k: known{byDesign: "2 rows left", cuts: cuts, rule: foldWithRowsSpare}},
-		{name: "the design's fold, with a slice", k: known{slice: "S9", byDesign: "2 rows left", rule: foldWithRowsSpare}},
 		{name: "the design's, of another rule, without cuts", k: known{byDesign: "at its most", rule: nothingDrawn}},
 		{name: "neither", k: known{rule: nothingDrawn}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.k.ownedOnce(); got != tt.want {
-				t.Errorf("ownedOnce = %t, want %t", got, tt.want)
+			if got := tt.k.drawnByDesign(); got != tt.want {
+				t.Errorf("drawnByDesign = %t, want %t", got, tt.want)
 			}
 		})
 	}
