@@ -1016,7 +1016,8 @@ Every tab, and a session's page, is drawn in one frame, so the eye learns where 
 | The last | The key line |
 
 **Every view is laid out by its parts,** across the width and down the height alike, so it's
-fluid at every size, and no view compares the width with a figure of its own. Each part has a
+fluid at every size, and no view compares the width with a figure of its own but the few the
+design decides, below. Each part has a
 least, the fewest cells or rows it still reads at; a natural, what it takes whole; and, where it
 grows, a most. Where the room runs short, the parts narrow toward their leasts and give way in the
 order the view declares; where there's room to spare, the parts that grow take it, each to its
