@@ -403,6 +403,50 @@ func TestASessionsRowsWorthAddsUpToTURNSTotal(t *testing.T) {
 	}
 }
 
+// The figures a session's page bounds are said whole to their most and,
+// past it, as the most and "+", never wider than their widest: a turn's
+// worth to $999.99; and an account's row's requests to 99,999 and its worth
+// to $9999.99.
+func TestAPagesBoundFiguresSayTheyrePastTheirMost(t *testing.T) {
+	cents := func(n int64, unpriced ...string) views.Worth {
+		return views.Worth{Amount: new(ledger.Picodollars(n) * (ledger.Dollar / 100)), Unpriced: unpriced}
+	}
+	turns := []struct {
+		worth views.Worth
+		want  string
+	}{
+		{worth: cents(99_999), want: "$999.99"},
+		{worth: cents(99_999, "claude-opus-9"), want: "$999.99+"},
+		{worth: cents(100_000), want: "$999.99+"},
+		{worth: cents(100_000, "claude-opus-9"), want: "$999.99+"},
+	}
+	for _, tt := range turns {
+		if got := (views.Turn{Worth: tt.worth}).WorthSaid(); got != tt.want {
+			t.Errorf("a turn worth %s says %q, want %q", tt.worth.Cents(), got, tt.want)
+		}
+	}
+	stays := []struct {
+		requests int
+		worth    views.Worth
+		said     [2]string
+	}{
+		{requests: 99_999, worth: cents(999_999), said: [2]string{"99,999 requests", "$9999.99"}},
+		{requests: 100_000, worth: cents(1_000_000), said: [2]string{"99,999+ requests", "$9999.99+"}},
+	}
+	for _, tt := range stays {
+		p := views.SessionPage{Activity: views.Activity{Doing: views.Ended}, Totals: views.SessionTotals{Worth: tt.worth}}
+		p.Accounts = []views.SessionAccount{{Account: "work", Requests: tt.requests, Worth: tt.worth}}
+		s := p.Stays(now)[0]
+		if got := [2]string{s.RequestsSaid(), s.WorthSaid()}; got != tt.said {
+			t.Errorf("an account's row of %d requests worth %s says %q, want %q", tt.requests, s.Cents(), got, tt.said)
+		}
+		if len(s.RequestsSaid()) > len(views.StayRequestsSaidWidest()) || len(s.WorthSaid()) > len(views.StayWorthSaidWidest()[0]) {
+			t.Errorf("an account's row says %q and %q, wider than its widest, %q and %q",
+				s.RequestsSaid(), s.WorthSaid(), views.StayRequestsSaidWidest(), views.StayWorthSaidWidest()[0])
+		}
+	}
+}
+
 // centsOf adds up worths said to the cent, as "$1.23", "$1.23+", "<$0.01" or
 // "unpriced", the last two none, in cents.
 func centsOf(said []string) int {
@@ -470,7 +514,7 @@ func TestATurnsToolsAndWorthAtTheirWidest(t *testing.T) {
 	widest := map[string][2]string{
 		"TookSaidWidest":         {views.TookSaidWidest(), "999m…"},
 		"TurnRequestsSaidWidest": {views.TurnRequestsSaidWidest(), "9,999"},
-		"StayRequestsSaidWidest": {views.StayRequestsSaidWidest(), "99,999 requests"},
+		"StayRequestsSaidWidest": {views.StayRequestsSaidWidest(), "99,999+ requests"},
 		"KeptUntilSaidWidest":    {views.KeptUntilSaidWidest("2026-12-29"), "kept until 29 Dec 2026"},
 	}
 	for name, said := range widest {

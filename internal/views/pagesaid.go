@@ -319,6 +319,12 @@ func (s Stay) Cents() string {
 	return s.centsAt(s.cents)
 }
 
+// WorthSaid is its worth as Cents says it, held to stayWorthMost, as an
+// account's row on a session's page says it: past it, "$9999.99+".
+func (s Stay) WorthSaid() string {
+	return s.centsWithin(s.cents, stayWorthMost)
+}
+
 // Stays are the accounts the session ran on, in the order it first did,
 // each with its time there, at now, as prose.Stint says it: from its first
 // request there to its last, or, while it runs, as Runs says, to now on the
@@ -450,40 +456,56 @@ func ToolsSaidWidest() string {
 	return Turn{Tools: tools}.ToolsSaid()
 }
 
-// WorthSaidWidest are the worths a turn says at their widest, as Cents
-// says them, to the most it's held whole to: $999.99 with part of it
-// unpriced, "$999.99+", and none of it priced, "unpriced".
+// The most a worth is said whole to, where a row gives it a bound's cells:
+// a turn's, $999.99; and an account's on a session's page, $9999.99.
+const (
+	turnWorthMost = 99_999 * (ledger.Dollar / 100)
+	stayWorthMost = 999_999 * (ledger.Dollar / 100)
+)
+
+// WorthSaid is the turn's worth as Cents says it, held to turnWorthMost, as
+// its row says it: past it, "$999.99+".
+func (t Turn) WorthSaid() string {
+	return t.centsWithin(t.amount().ToTheCent(), turnWorthMost)
+}
+
+// WorthSaidWidest are the worths a turn's row says at their widest, as
+// WorthSaid says them: past its most, or at it with part of it unpriced,
+// "$999.99+", and none of it priced, "unpriced".
 func WorthSaidWidest() []string {
-	return worthSaidWidest(99_999)
+	return worthSaidWidest(turnWorthMost)
 }
 
 // StayWorthSaidWidest are the worths an account's row says at their widest,
-// as Cents says them, to the most it's held whole to, which a session's
-// time on an account doesn't pass: $9999.99, with part of it unpriced,
-// "$9999.99+", and none of it priced, "unpriced".
+// as Stay's WorthSaid says them: past its most, or at it with part of it
+// unpriced, "$9999.99+", and none of it priced, "unpriced".
 func StayWorthSaidWidest() []string {
-	return worthSaidWidest(999_999)
+	return worthSaidWidest(stayWorthMost)
 }
 
-// worthSaidWidest are the worths said at their widest, as Cents says them,
-// to the most given, in cents: with part of it unpriced, and none of it
-// priced, "unpriced".
-func worthSaidWidest(cents int64) []string {
-	most := ledger.Picodollars(cents) * ledger.Picodollars(10_000_000_000)
-	unpriced := []string{"unpriced"}
-	return []string{Worth{Amount: &most, Unpriced: unpriced}.Cents(), Worth{Unpriced: unpriced}.Cents()}
+// worthSaidWidest are the worths said at their widest, held to the most
+// given, as centsWithin holds them: past it; and none of it priced,
+// "unpriced".
+func worthSaidWidest(most ledger.Picodollars) []string {
+	past := most + ledger.Dollar/100
+	none := Worth{Unpriced: []string{unpriced}}
+	return []string{Worth{Amount: &past}.centsWithin(past, most), none.Cents()}
 }
+
+// stayRequestsMost are the most requests an account's row says whole.
+const stayRequestsMost = 99_999
 
 // RequestsSaid says the session's requests on the account, as its row says
-// them: "12,345 requests".
+// them, held to stayRequestsMost: "12,345 requests", and past it "99,999+
+// requests".
 func (a SessionAccount) RequestsSaid() string {
-	return prose.Counted(a.Requests, "request")
+	return prose.CountedWithin(a.Requests, stayRequestsMost, "request")
 }
 
-// StayRequestsSaidWidest is the widest RequestsSaid an account's row holds
-// whole: "99,999 requests".
+// StayRequestsSaidWidest is the widest RequestsSaid an account's row says:
+// past its most, "99,999+ requests".
 func StayRequestsSaidWidest() string {
-	return SessionAccount{Requests: 99_999}.RequestsSaid()
+	return SessionAccount{Requests: stayRequestsMost + 1}.RequestsSaid()
 }
 
 // PointsWordsWidest are the points of the windows with the keys given, as
@@ -505,10 +527,7 @@ const pointsMost = 999
 // pointsHeld says a window's points as an account's row holds them: whole,
 // grouped, to pointsMost, "999", and past it "999+".
 func pointsHeld(points int) string {
-	if points > pointsMost {
-		return prose.Grouped(pointsMost) + "+"
-	}
-	return prose.Grouped(points)
+	return prose.GroupedWithin(points, pointsMost)
 }
 
 // PointsKeys are the keys of the windows any of the session's accounts took

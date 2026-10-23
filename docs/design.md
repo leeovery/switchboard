@@ -4614,7 +4614,8 @@ first ran on them. A row's parts, two cells apart, as flex lays them at every wi
   `12:02 – 14:31`, `14:31 – now`; with its day where the session spans more than one, or began
   before today, as an undated time reads as today's: `yesterday 16:40 – 18:05`, `today 09:12 –
   now`, `yesterday 13:20 – 16:02` (settled in the plan);
-- **its requests** in `text.muted`, in 15, to `99,999 requests`: `404 requests`;
+- **its requests** in `text.muted`, in 16, to `99,999 requests`, and past it `99,999+ requests`:
+  `404 requests`;
 - **what it took of the account's windows,** the points bold `text.primary` and the rest
   `text.muted`, in the order of care: `≈ 6 points of its week · 41 of its 5-hour`, a model's own
   window it used adding `· N of its Fable week` (settled in the plan). It's measured by the
@@ -4627,7 +4628,7 @@ first ran on them. A row's parts, two cells apart, as flex lays them at every wi
   end where they wouldn't fit its column at `999+` each, so rows of as many windows show as
   many, whatever their points say;
 - **right-aligned to the last column,** its worth at API prices, in `text.secondary`: `$41.06`,
-  in 9, to `$9999.99+`, as wide as `unpriced`. Nothing grows, so what's spare lies between the
+  in 9, to `$9999.99`, and past it `$9999.99+`, as wide as `unpriced`. Nothing grows, so what's spare lies between the
   points and the worth. Where even the row's leasts don't fit, the worth stays whole, two cells
   after the points, which give way there.
 - **As the width runs short,** the points take their short words first, losing no figure; then
@@ -4689,8 +4690,8 @@ first ran on them. A row's parts, two cells apart, as flex lays them at every wi
   - the figures whole to their bounds at every width: `took` in 5, to `999m…`, past which it's
     said in whole hours to `99h…`, then whole days, `69d…`, never cut; and `requests`
     right-aligned from 5, to `9,999`, to 8, its head's;
-    `started` from 5 to 7, its head's; and `worth` right-aligned in 8, to `$999.99+`, as wide as
-    `unpriced`;
+    `started` from 5 to 7, its head's; and `worth` right-aligned in 8, to `$999.99`, and past it
+    `$999.99+`, as wide as `unpriced`;
   - `on`, the accounts a turn went to: one account's name, a label's, its least 8 and its natural
     the widest configured, never under 8, as a turn may have gone to an account no longer
     configured, and at most 24; and past it, a move's arrow and second name, the second

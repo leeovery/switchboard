@@ -110,6 +110,15 @@ func Counted(n int, noun string) string {
 	return Grouped(n) + " " + noun + "s"
 }
 
+// CountedWithin counts n of the thing a noun names as Counted counts it, n
+// held to most, as GroupedWithin holds it: past it, "99,999+ requests".
+func CountedWithin(n, most int, noun string) string {
+	if n > most {
+		return GroupedWithin(n, most) + " " + noun + "s"
+	}
+	return Counted(n, noun)
+}
+
 // CountedOr counts n of the thing a noun names as Counted counts it, as "4
 // moves" or "1,240 sessions", or says none as zero words it, as "none" or "no
 // sessions", where there are none.
@@ -124,6 +133,15 @@ func CountedOr(n int, noun, zero string) string {
 // sessions", "1 session" or "no sessions".
 func SessionCount(n int) string {
 	return CountedOr(n, "session", "no sessions")
+}
+
+// GroupedWithin writes n as Grouped does, held to most: past it, most and a
+// "+", as "999+", so a figure bound to most's cells says it's past them.
+func GroupedWithin(n, most int) string {
+	if n > most {
+		return Grouped(most) + "+"
+	}
+	return Grouped(n)
 }
 
 // Grouped writes n with its thousands set apart by commas, as "1,240".
