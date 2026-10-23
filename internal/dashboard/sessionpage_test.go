@@ -841,7 +841,7 @@ func TestAPhonesNowRowsSayAPinsMoveShort(t *testing.T) {
 }
 
 // Once it's over, a phone's rows say it ended, then where it ran, short,
-// and how long it ran (call 60).
+// and how long it ran.
 func TestAnEndedSessionOnAPhone(t *testing.T) {
 	rows := pageText(pageFrame(t, ended(), 52, 32))
 	if rows[7] != "ended yesterday 18:47" {

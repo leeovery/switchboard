@@ -213,7 +213,7 @@ func (p LogPage) ChosenSession() string {
 // keys are the card's keys, as its keys row lists them in content cells:
 // ↑↓ stepping, an event's g, s where the line is of a session, as Session
 // has it, but where sessions says s opens none, as over that session's own
-// page (call 63), j k where its body scrolls, and esc. Where they don't fit,
+// page, j k where its body scrolls, and esc. Where they don't fit,
 // ↑↓ says what it steps to as the key line does, then the keys leave from
 // the first, esc staying.
 func (c LogCard) keys(content int, scrolls, sessions bool) []Key {

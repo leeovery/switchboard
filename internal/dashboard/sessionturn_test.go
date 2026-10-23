@@ -389,7 +389,7 @@ func TestATurnOpenedScrollsWithTheTurns(t *testing.T) {
 // The Log's details card opens over a session's page by the turn open's
 // request chosen: placed over its line, a row between, the line kept bright
 // as the page fades, and without s, as its session's page is the one it's
-// over (call 63); centred where it fits by its line on neither side, the
+// over; centred where it fits by its line on neither side, the
 // page's turns lifting for no card, where the Log's table would.
 func TestTheLogsCardOverASessionsPageIsPlacedByItsRequestChosen(t *testing.T) {
 	tests := []struct {
