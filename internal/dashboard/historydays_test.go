@@ -391,8 +391,8 @@ func TestDaysNamesEachFamily(t *testing.T) {
 
 // An account is named by its label, the primary's ◆ after it in
 // text.tertiary, and never ▲, which is routing. A name too long for its room
-// is cut, keeping ◆: wide, in the label column at its most, less the two
-// blank cells before its strip; on a phone, a blank cell before its count,
+// is cut, keeping ◆: wide, at a label's most, 24 cells, its ◆ and the two
+// blank cells before its strip beside it; on a phone, a blank cell before its count,
 // which isn't cut for it: the name keeps two cells, as drawn, the count
 // moving to the edge where they don't fit before the weeks' end, and cut
 // there where they don't fit the width.
@@ -407,8 +407,8 @@ func TestDaysNamesEachAccount(t *testing.T) {
 	}{
 		{name: "by its label", account: views.DaysStrip{Of: "work", Label: "Work", Days: stripOf(busy)}, width: 160, want: "Work "},
 		{name: "the primary marked", account: views.DaysStrip{Of: "work", Label: "Work", Primary: true, Days: stripOf(busy)}, width: 160, want: "Work ◆ "},
-		{name: "cut beside its strip", account: long, width: 160, want: "a-long-account-name-f…  "},
-		{name: "cut, keeping its ◆", account: views.DaysStrip{Of: long.Of, Primary: true, Days: long.Days}, width: 160, want: "a-long-account-name… ◆  "},
+		{name: "cut beside its strip", account: long, width: 160, want: "a-long-account-name-for…  "},
+		{name: "cut, keeping its ◆", account: views.DaysStrip{Of: long.Of, Primary: true, Days: long.Days}, width: 160, want: "a-long-account-name-for… ◆  "},
 		{name: "on a phone, cut before its count", account: long, width: 52, want: "a-long-account-name-for-…   12 5-hour limits", whole: true},
 		{name: "on a narrower phone, its count kept", account: long, width: 40, want: "a-long-ac…   12 5-hour limits", whole: true},
 		{name: "narrower than its count and a letter, the count at the edge", account: long, width: 22, want: "a…   12 5-hour limits", whole: true},
@@ -502,7 +502,8 @@ func TestDaysShowsTheWeeksThatFitWithEachCountAfterThem(t *testing.T) {
 	}
 }
 
-// Days' label column takes its widest name and a gap of 2, at most 24: of
+// Days' label column takes its widest name, a label at most 24, and a gap of
+// 2: of
 // every account, not only those BY ACCOUNT shows, so it holds still as the
 // accounts scroll; and it narrows only once every week but the last has
 // given way, so its names read whole before an eighth week shows.
@@ -519,8 +520,8 @@ func TestDaysLabelColumnIsItsWidestName(t *testing.T) {
 		{name: "the primary's, its ◆ with it", accounts: []views.DaysStrip{workDays, personalDays}, width: 160, weeks: 8, labels: 12},
 		{name: "one out of view", accounts: scrolledPast, width: 160, weeks: 8, labels: 16},
 		{name: "one out of view, scrolled to", accounts: scrolledPast, width: 160, scroll: 5, weeks: 8, labels: 16},
-		{name: "a week gives way before a name narrows", accounts: []views.DaysStrip{long}, width: 164, weeks: 7, labels: 24},
-		{name: "at its most, eight weeks", accounts: []views.DaysStrip{long}, width: 165, weeks: 8, labels: 24},
+		{name: "a week gives way before a name narrows", accounts: []views.DaysStrip{long}, width: 166, weeks: 7, labels: 26},
+		{name: "at its most, eight weeks", accounts: []views.DaysStrip{long}, width: 167, weeks: 8, labels: 26},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

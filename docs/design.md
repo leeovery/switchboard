@@ -1035,14 +1035,15 @@ order the view's section gives.
   either chrome.
 - **A column of accounts' names** takes the widest name configured as its natural; at least 8
   cells, or its natural where that's fewer; at most 24, a longer name cut with `…`, the cells of
-  its number and marks kept beside it. So where every name is shorter than 8 cells, the column is
-  as wide as its names at every width. A column of names a record may hold, the Log's `on`, Events'
-  `account` and a turn's `on`, may name an account no longer configured, so its natural is never
-  under 8, and such a name reads its first cells and `…`.
-  One owner works this out (`labelcolumn.go`), and every view takes its column, its least, or a
-  sentence's cut of its names from there; none counts 8 or 24 itself (`guardlabels_test.go`).
-  Runway's label column, and Weeks' and Days', count their 8 and 24 over the whole column, its
-  gap and marks among them, as their sections say.
+  its number and marks, and the column's gap, kept beside it. So where every name is shorter than
+  8 cells, the column is as wide as its names at every width. A column of names a record may hold,
+  the Log's `on`, Events' `account`, a turn's `on`, the request table of a turn opened and a
+  session's stays, may name an account no longer configured, so each label counts 8 at the least,
+  and such a name reads its first cells and `…`. One owner works this out (`labelcolumn.go`), and
+  every view takes its column, its least, or a sentence's cut of its names from there, none
+  counting 8 or 24 itself (`guardlabels_test.go`), but the views whose sections give figures of
+  their own: Compare's 8 and 24, Detail's list's 14 and 24, the Sessions List's `on`'s 14 and the
+  Switchboard's call's 6.
 - **A figure has a stated bound and is never cut:** it's given its bound's cells, and past the
   bound it says so, as `999+` and `$9999.99+`.
 - **A live view's form never hangs on its data.** Its naturals come from what's configured, the
@@ -2008,9 +2009,9 @@ line's fixed parts with an account's name at its least, as a column of names has
 widest name's own where that's fewer, so names of 8 cells or more never move the switch, and only
 shorter ones bring it in, as with names of 3 cells, to 82 columns:
 
-- **COMING UP, 42 cells** (`comingLeast`): its time at its widest, `~Sat 06:00`, 10; the two
-  blanks after it; the name, 8; what befalls it at its shortest, ` is primed`, 10; and its
-  countdown with the gap before it, 12. It fits in `round(w × 0.45)` from 93 columns, so the two sit side by side
+- **COMING UP, 42 cells** (`comingLeast`): its time at its widest, `~Sat 06:00`, 10; the two blanks
+  after it; the name, 8; what befalls it at its shortest, ` is primed`, 10; and its countdown with
+  the gap before it, 12. It fits in `round(w × 0.45)` from 93 columns, so the two sit side by side
   from 93, and from 100 are drawn as they were before.
 - **LATELY, 21 cells** (`latelyLeast`): its time at its widest, `Sun 02:00`, 9; the two blanks; its
   mark and a blank, 2; and the name, 8. It fits beside COMING UP wherever COMING UP's does.
@@ -2822,8 +2823,8 @@ drop, one fewer being short on no more weeks than now; otherwise its form for fe
 - **A row's parts,** laid out across the width the same for every row, so its columns come from the
   width and the accounts configured alone, never from the rows in view:
   - **the label column,** as Days' is: its widest name, `all accounts` or any account's with its
-    marks, not only those shown, and a gap of 2, at least 8 and at most 24, counted over the whole
-    column, its gap and marks among them; 14 in the frames;
+    marks, not only those shown, and a gap of 2, as The page has a column of names; 14 in the
+    frames;
   - **the weeks,** 6 cells each, 2 apart: the latest that fit, up to the eight, the oldest giving way
     first, the last never;
   - **the verdict,** a cell after the last week shown: its natural the widest an account's verdict
@@ -2892,9 +2893,8 @@ data, as from 118 columns. Narrower, each strip's name takes the row over it (Na
 - **A strip's row** is laid out as parts, across the width, the same for every strip, so its
   columns come from the width and the accounts alone, never from the strips in view:
   - **the label column,** its widest name, a family's or any account's with its marks, not only
-    those shown, and a gap of 2: at least 8 and at most 24, counted over the whole column, its gap
-    and marks among them, where The page counts the name alone; 12 in
-    the frames (`personal ◆`). It narrows only once every week but the last has given way, so its
+    those shown, and a gap of 2, as The page has a column of names; 12 in the frames
+    (`personal ◆`). It narrows only once every week but the last has given way, so its
     names read whole before another week shows;
   - **the weeks,** 15 cells each, a day's 2 cells and the cell after a week's days: the latest that
     fit, up to the eight, the oldest giving way first, the last never, as seven at 138 columns and
@@ -3093,14 +3093,14 @@ where the parts lay it, as Narrower and wider says.
   86 (see `usage`, the printout):
   - its name row: the number, name and marks; from the name column, its state in the Overview's
     ROUTING words. The name column is a column of names: its labels at least 8 cells, or the
-    widest's own where that's fewer, at their natural the widest name configured, 24 at the most, with their numbers, their marks and two
-    cells after them, laid by `flex` across the lines' width, before the state words. The words
-    take at least 16 cells, the widest short lead, `● under pressure`, so a name is whole wherever
-    it fits beside them, and narrows toward its least before any lead is cut, and the column holds
-    still as states change (16 cells, column 102, for `2 personal ◆`; with a call moved, 26 of
-    the 28 `3 side-hustle-consulting ▲` takes whole at 108, and all 28 from 136). A model's own
-    lead, as `Fable wk at its cap`, takes its window's label and may be wider: it's cut where the
-    names leave it no more. The state words:
+    widest's own where that's fewer, at their natural the widest name configured, 24 at the most,
+    with their numbers, their marks and two cells after them, laid by `flex` across the lines'
+    width, before the state words. The words take at least 16 cells, the widest short lead,
+    `● under pressure`, so a name is whole wherever it fits beside them, and narrows toward its
+    least before any lead is cut, and the column holds still as states change (16 cells, column
+    102, for `2 personal ◆`; with a call moved, 26 of the 28 `3 side-hustle-consulting ▲` takes
+    whole at 108, and all 28 from 136). A model's own lead, as `Fable wk at its cap`, takes its window's label and
+    may be wider: it's cut where the names leave it no more. The state words:
     `● open`, ` · new sessions come here` added on the account new sessions go to,
     `● at its cap · back 17:10 · new sessions go elsewhere`, `● under pressure · out ~16:05`,
     `■ limit reached · back 16:30`, `■ refused (401) · its token needs renewing` or `○ not read yet`
@@ -3550,15 +3550,14 @@ kept for good (settled in the plan; see The request ledger).
 
 - **The row's parts,** laid as every view's are (see The page): the label column, then the lanes,
   which take the rest to the edge, at every width, a phone's too.
-- **The label column** takes its natural width at every width a frame has, up to 24 cells (the
-  owner's call, 21 October 2026): the widest name whole and the two cells after it, its number,
-  label and marks, `▲`'s cells kept on every account, as `usage` keeps them, so the lanes hold still
-  as `▲` moves; or the widest use under a name in either window, `5-hour 100%` from column 2 and a
-  cell, 14, so they hold still as `<` and `>` step, as the figures change and as an account goes
-  stale. Only on a frame narrower than its natural does it narrow, to 8 at the least. Its 8 and 24
-  count the whole column, its gap and marks among them, where The page counts the name alone. Of the
-  frames' accounts it's 16 at every width, the lanes 144 at 160 and 36 at 52; ten accounts,
-  ` 2 personal ◆`, 17.
+- **The label column** takes its natural width at every width a frame has (the owner's call, 21
+  October 2026), as The page has a column of names: the widest name whole, its label up to 24 cells,
+  and the two cells after it, its number and marks beside the label, `▲`'s cells kept on every
+  account, as `usage` keeps them, so the lanes hold still as `▲` moves; or the widest use under a
+  name in either window, `5-hour 100%` from column 2 and a cell, 14, so they hold still as `<` and
+  `>` step, as the figures change and as an account goes stale. Only on a frame narrower than its
+  natural does it narrow, to a label's 8 at the least. Of the frames' accounts it's 16 at every
+  width, the lanes 144 at 160 and 36 at 52; ten accounts, ` 2 personal ◆`, 17.
 - **The labels:** on a lane's row, the account's number, name and marks, cut with `…` only where the
   column is at its most, the number and marks kept (see `usage`, the printout); on the row under
   it, from column 2, `5-hour ` or `week ` in `text.subtle`, and the account's use of that window,

@@ -115,3 +115,65 @@ func TestASentencesNamesAreCutToTheMostThatFits(t *testing.T) {
 		}
 	}
 }
+
+// A session's page names an account no longer configured, as a recorded
+// session ran on, by its id: with every configured name of 2 or 3 cells,
+// its stay row names old-account whole, as the stays keep a label's 8 cells
+// beside the configured names' marks; and so does a turn's row, its on 8
+// cells and the move's arrow and second name's 6 after them, where a column
+// of the configured names' 3 would cut it.
+func TestASessionsPageNamesAnAccountNoLongerConfigured(t *testing.T) {
+	doc := status.Document{
+		GeneratedAt: sessionNow.UTC(), Source: status.SourceRouter, Best: "ops", Router: status.Health{Healthy: true}, Sessions: 6,
+		Accounts: []status.Account{pageAccount("ab", 0.95, 0.34, 0.12), pageAccount("ops", 0.13, 0.78, 0.04)},
+	}.WorkedOut(claudeLike)
+	shown := moved()
+	gone := "old-account"
+	shown.Page.Accounts[0].Account = gone
+	shown.Page.Turns[0].Accounts = []string{gone}
+	d, _ := pageDrawn(pageFrame(t, shown, 160, 60), doc)
+	rows := drawnRows(d)
+	stay, turns := rows[d.l.accountsAt], strings.Join(rows[d.l.heads:], "\n")
+	if !strings.HasPrefix(stay, gone+" ") {
+		t.Errorf("the stay row reads %q, want it to start %q whole", stay, gone)
+	}
+	if !strings.Contains(turns, " "+gone+" ") {
+		t.Errorf("the turns read\n%s\nwant a turn naming %q whole", turns, gone)
+	}
+}
+
+// The stays' name column keeps each name's number and marks beside its
+// label: at the least, a label's 8 cells, as a stay may name an account no
+// longer configured; at the natural, the widest label, 8 at the least and
+// 24 at the most.
+func TestTheStaysNameColumnKeepsALabelsLeast(t *testing.T) {
+	tests := []struct {
+		name  string
+		names []accountName
+		want  partCells
+	}{
+		{name: "short names", names: []accountName{{number: "1", label: "ab"}, {number: "2", label: "ops"}}, want: partCells{least: 12, natural: 12}},
+		{name: "the primary's ◆", names: []accountName{{number: "1", label: "ab", primary: true}}, want: partCells{least: 14, natural: 14}},
+		{name: "a label of 22", names: []accountName{{number: "1", label: "side-hustle-consulting"}}, want: partCells{least: 12, natural: 26}},
+		{name: "a label past 24", names: []accountName{{number: "1", label: strings.Repeat("x", 30)}}, want: partCells{least: 12, natural: 28}},
+	}
+	for _, tt := range tests {
+		if got := stayNameCells(tt.names); got != tt.want {
+			t.Errorf("%s: the stays' names take %+v, want %+v", tt.name, got, tt.want)
+		}
+	}
+}
+
+// Events' account cuts a lone name at a label's 24 cells, as every column
+// of names does, though the column is as wide as a move's two names.
+func TestEventsCutALoneNameAtALabelsMost(t *testing.T) {
+	label := "an-account-labelled-at-length"
+	long := status.Account{ID: "long", Label: label, TokenSet: true}
+	doc := routerDoc("ab", 0, status.Account{ID: "ab", TokenSet: true}, long)
+	page := eventsShown(status.Event{ID: 1, At: logDayNoon.Add(-time.Hour), Kind: status.EventPin, Accounts: []string{"long"}})
+	f := logFrameOf(page, 160, 24)
+	row := textOf(f.Draw(doc, logDayNoon))[f.top()+1]
+	if cut := prose.Cut(label, 24); !strings.Contains(row, " "+cut+" ") || strings.Contains(row, label[:24]) {
+		t.Errorf("the row reads %q, want it naming %q", row, cut)
+	}
+}

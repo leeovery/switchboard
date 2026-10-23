@@ -284,12 +284,11 @@ func (d sessionDrawn) phoneNow(c *canvas) {
 
 // shortNamesCells are the cells the short now rows give each name they
 // say, the same in both, as labelCut has them: a label's most where both
-// rows fit whole, its names narrowing toward a label's least before anything
-// else is cut. Each
-// row is measured with the doing and how it has run at their widest, as
-// startedFit measures, so the names hold still as the session asks,
-// answers or idles and as its run goes on; and with where and why as said
-// now.
+// rows fit whole, its names narrowing toward a label's least before
+// anything else is cut. Each row is measured with the doing and how it has
+// run at their widest, as startedFit measures, so the names hold still as
+// the session asks, answers or idles and as its run goes on; and with where
+// and why as said now.
 func (d sessionDrawn) shortNamesCells(where views.WhereSaid) int {
 	ran := ansi.StringWidth(d.page.RanSaidWidest(d.now))
 	return labelCut(func(cut int) bool {
@@ -666,10 +665,11 @@ func shortOfWorth(width int, columns []stayColumn) []stayColumn {
 }
 
 // stayNameCells are the least and the natural of the names of accounts'
-// rows, of the names given, as accountsColumn has them: each its number, its
-// marks, ▲'s cells kept, as headCells counts them, and its label.
+// rows, of the names given, as recordedAccounts has them, as a session may
+// have run on an account no longer configured: each its number, its marks,
+// ▲'s cells kept, as headCells counts them, and its label.
 func stayNameCells(names []accountName) partCells {
-	column := accountsColumn(0, names)
+	column := recordedAccounts(0, names)
 	return partCells{least: column.Least, natural: column.Natural}
 }
 

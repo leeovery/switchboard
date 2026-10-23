@@ -4,7 +4,6 @@ import (
 	"slices"
 	"time"
 
-	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -91,17 +90,17 @@ func (n accountName) head() line {
 	return append(line{n.numbered()}, n.marks()...)
 }
 
-// runwayLabelsOf are the cells the widest labels of lanes named as names has
-// them take whole, ▲'s cells kept on every account, as headCells keeps them,
-// so the lanes hold still as ▲ moves: expanded, its number, label and marks,
-// as "2 personal ◆"; collapsed, its number and marks, as head has them.
+// runwayLabelsOf are the labels of lanes named as names has them, ▲'s
+// cells kept on every account, as headCells keeps them, so the lanes hold
+// still as ▲ moves: expanded, their name column, nameGap after it, as
+// accountsColumn has it, as "2 personal ◆"; collapsed, the cells of the
+// widest number and marks, as head has them.
 func runwayLabelsOf(names []accountName) runwayLabels {
-	var widest runwayLabels
+	labels := runwayLabels{expanded: accountsColumn(nameGap, names)}
 	for _, n := range names {
-		widest.collapsed = max(widest.collapsed, n.headCells())
-		widest.expanded = max(widest.expanded, n.cells(ansi.StringWidth(n.label)))
+		labels.collapsed = max(labels.collapsed, n.headCells())
 	}
-	return widest
+	return labels
 }
 
 // widestFigure is how many cells the widest use a lane's label says takes,

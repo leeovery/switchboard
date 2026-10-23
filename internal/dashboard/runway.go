@@ -50,10 +50,13 @@ type RunwayShown struct {
 	labels    runwayLabels
 }
 
-// runwayLabels are the cells the widest of Runway's accounts' labels takes
-// whole, as runwayLabelsOf counts them: expanded, and with the account
-// column collapsed.
-type runwayLabels struct{ expanded, collapsed int }
+// runwayLabels are Runway's accounts' labels, as runwayLabelsOf has them:
+// expanded, their name column; and with the account column collapsed, the
+// cells the widest takes.
+type runwayLabels struct {
+	expanded  flex.Part
+	collapsed int
+}
 
 // Labelled is Runway shown as r with its accounts' labels sized for the
 // accounts of the moment m, as runwayLabelsOf sizes them.
@@ -110,26 +113,29 @@ func (r RunwayShown) lanesFrom(width int) int {
 }
 
 // runwayParts are Runway's parts across a frame, as flex lays them: the label
-// column, as labelsPart has it, and the lanes, which take the rest.
+// column, as labelsColumn has it, and the lanes, which take the rest.
 func (r RunwayShown) runwayParts() []flex.Part {
 	return []flex.Part{
-		runwayLabelColumn: r.labelsPart(),
+		runwayLabelColumn: r.labelsColumn(),
 		runwayLaneColumns: {Grows: true},
 	}
 }
 
-// labelsPart is Runway's label column shown as r, its gap after it: with
+// labelsColumn is Runway's label column shown as r, its gap after it: with
 // the account column collapsed, the widest of its labels beside a lane, a
 // number and its marks or the widest use, 100%, and collapsedGap, whatever
-// the width; else, as labelColumn bounds it, the widest of its accounts'
-// names with their numbers and marks and nameGap, or the widest use under
-// one, as runwayUseCells has it.
-func (r RunwayShown) labelsPart() flex.Part {
+// the width; else its accounts' names' column, as runwayLabelsOf has it, its
+// natural no less than the widest use under a name, as runwayUseCells has
+// it.
+func (r RunwayShown) labelsColumn() flex.Part {
 	if r.Collapsed {
 		cells := max(r.labels.collapsed, widestFigure) + collapsedGap
 		return flex.Part{Least: cells, Natural: cells}
 	}
-	return labelColumn(max(r.labels.expanded+nameGap, runwayUseCells()))
+	labels := r.labels.expanded
+	labels.Natural = max(labels.Natural, runwayUseCells())
+	labels.Most = max(labels.Most, labels.Natural)
+	return labels
 }
 
 // runwayUseCells are the cells the label column keeps for the widest use

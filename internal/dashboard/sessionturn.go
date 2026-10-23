@@ -178,10 +178,10 @@ func (f Frame) turnCardRows() (first, last int) {
 }
 
 // requestsLayout is how the page lays out its turn open's requests' rows:
-// the Log's, from turnSpread's left, at every width, on at its least, as
-// recordedNames has it of the names of the accounts configured.
+// the Log's, from turnSpread's left, at every width, on given no natural of
+// its own, so it's at its least, as recordedNames holds it.
 func (d sessionDrawn) requestsLayout() logLayout {
-	return turnSpread.laid(d.Width, turnTicks.shown(), recordedNames(widestLabel(d.m)).Least)
+	return turnSpread.laid(d.Width, turnTicks.shown(), 0)
 }
 
 // pageRow is the row r of the session's turns: a turn's, which a click

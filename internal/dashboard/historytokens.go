@@ -114,10 +114,10 @@ func (f Frame) tokensColumns() tokensColumns {
 
 // tokensParts are Tokens' parts, in their order: the names, from their
 // least, labelsLeast of their natural, as tokensNamesNatural has it, holding
-// it until every column that leaves has left; the split's column, raised toward its
-// natural, as tokensOfNatural has it, before against its price grows; each
-// count's; worth; and against its price, from its least, as tokensAgainst
-// has it, which takes the rest of the row.
+// it until every column that leaves has left; the split's column, raised
+// toward its natural, as tokensOfNatural has it, before against its price
+// grows; each count's; worth; and against its price, from its least, as
+// tokensAgainst has it, which takes the rest of the row.
 func (f Frame) tokensParts() []flex.Part {
 	parts := make([]flex.Part, tokensPartsCount)
 	names := f.tokensNamesNatural()

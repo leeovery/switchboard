@@ -193,7 +193,7 @@ func eventCell(e views.LogEvent, part eventsPart, width int, m status.Moment, no
 // accountCell is the account the event e befell, in width cells, each
 // named as the moment m names it, white, the words between them muted: a
 // move's two, from and to, as moveNames cuts them; else as the event names
-// them, cut with an ellipsis.
+// them, each cut as asLabelled cuts it, then all cut to the cells given.
 func accountCell(e views.LogEvent, width int, m status.Moment) line {
 	var names []string
 	var l line
@@ -204,7 +204,7 @@ func accountCell(e views.LogEvent, width int, m status.Moment) line {
 		}
 		name := named(m, p.Text)
 		names = append(names, name)
-		l = append(l, span{name, accountInk})
+		l = append(l, span{asLabelled(name), accountInk})
 	}
 	if e.Kind == status.EventMoved && len(names) == 2 {
 		return moveNames(names[0], names[1], width, accountInk)

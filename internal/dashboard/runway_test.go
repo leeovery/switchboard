@@ -204,8 +204,9 @@ const framesLanesFrom = 16
 // Runway's label column takes the widest of its labels whole, and its gap,
 // at every width, and the lanes take the rest to the edge. Expanded, the
 // widest of the names, ▲'s cells kept on every account, then nameGap, or of
-// the uses under them, as wide as "5-hour 100%" in either window, up to 24,
-// a name past that cut, and 8 only where the frame is narrower; collapsed,
+// the uses under them, as wide as "5-hour 100%" in either window, each label
+// whole up to 24 cells, a label past that cut, its number, marks and gap
+// beside it; narrower only where the frame is, to a label's 8; collapsed,
 // the widest number and marks, ▲'s cells kept, or a use of 100%, then a
 // cell, whatever the width.
 func TestRunwaysLabelColumnTakesItsWidestLabelAndTheLanesTheRest(t *testing.T) {
@@ -230,12 +231,13 @@ func TestRunwaysLabelColumnTakesItsWidestLabelAndTheLanesTheRest(t *testing.T) {
 		{name: "the 5-hour's, alike", names: frames, window: views.RunwayFiveHour, width: 108, from: framesLanesFrom},
 		{name: "a short name, the widest use", names: []accountName{work}, width: 108, from: 14},
 		{name: "a short name in the 5-hour, alike", names: []accountName{work}, window: views.RunwayFiveHour, width: 108, from: 14},
-		{name: "long names, whole", names: long, width: 108, from: 24},
+		{name: "long names, whole", names: long, width: 108, from: 25},
 		{name: "a long name, whole with ▲'s cells", names: long[:1], width: 108, from: 20},
-		{name: "a name past the most", names: append(long, accountName{number: "3", label: "side-hustle-consulting", best: true}), width: 108, from: 24},
+		{name: "a name of 22, whole", names: append(long, accountName{number: "3", label: "side-hustle-consulting", best: true}), width: 108, from: 28},
+		{name: "a name past the most, its label at 24", names: append(long, accountName{number: "3", label: "side-hustle-consulting-group", best: true}), width: 108, from: 30},
 		{name: "none labelled yet, the widest use", width: 108, from: 14},
-		{name: "narrower than its labels, the column first", names: frames, width: 10, from: 10},
-		{name: "narrower than the least", names: frames, width: 6, from: 8},
+		{name: "narrower than its labels, the column first", names: long, width: 20, from: 20},
+		{name: "narrower than the least, a label's 8 beside its number and marks", names: long, width: 10, from: 16},
 		{name: "collapsed, the frames' on an iPad", names: frames, collapsed: true, width: 108, from: 6},
 		{name: "collapsed, on a phone, alike", names: frames, collapsed: true, width: 52, from: 6},
 		{name: "collapsed, both marks on one, alike", names: both, collapsed: true, width: 108, from: 6},
