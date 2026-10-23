@@ -3,6 +3,7 @@ package capture
 import (
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -10,43 +11,74 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-// boardWidths are the widths the Switchboard's accounts and sessions are
-// counted at: the landscape phone's lanes, and the lines at the iPad's, the
-// MacBook side screen's and the desktop's.
-var boardWidths = []int{73, 108, 138, 160}
+// boardWidths are the widths what the Switchboard shows is counted at: in
+// lanes, a phone's 52 and 73 upright; and in lines, from their least, 100,
+// the iPad's 108, the phone's 138 on its side, the desktop's 160 and a wide
+// screen's 230.
+var boardWidths = []int{52, 73, 100, 108, 138, 160, 230}
 
-// Every Switchboard fixture, at each of boardWidths, from 10 rows to 40: the
-// accounts and the sessions the Switchboard shows never fall as the
-// terminal grows a row taller, whether it scrolls an account at a time or a
+// boardHeights are the heights what the Switchboard shows is counted at:
+// each from 8 rows to 30, where it scrolls, then every other one to 60.
+func boardHeights() []int {
+	var heights []int
+	for h := 8; h <= 60; h++ {
+		if h <= 30 || h%2 == 0 {
+			heights = append(heights, h)
+		}
+	}
+	return heights
+}
+
+// boardWorlds are the Switchboard's fixtures of a world each, or of a
+// scroll: the scene, its long names, ten accounts, calls moved, accounts
+// pinned, one account, and the scene scrolled to its foot. The rest are the
+// scene's again, at another size, chosen or with the router gone.
+var boardWorlds = []string{
+	"sessions-switchboard-160", "sessions-switchboard-long-names-108x44", "sessions-ten-accounts-160",
+	"sessions-moved-160", "sessions-pinned-160", "sessions-one-account-160", "page-sessions-short",
+}
+
+// Each of boardWorlds, at each of boardWidths and boardHeights: the
+// accounts, the sessions and the rows the Switchboard shows never fall as
+// the terminal grows taller, whether it scrolls an account at a time or a
 // row at a time.
 func TestWhatTheSwitchboardShowsNeverFallsAsTheTerminalGrows(t *testing.T) {
-	for _, f := range sweptFixtures(t) {
+	for _, name := range boardWorlds {
+		f := fixture(t, name)
 		t.Run(f.Name, func(t *testing.T) {
 			t.Parallel()
 			m := withNothingOver(t, f.settle(f.Size), f.Size)
-			if viewOf(t, m, f.Size) != "Sessions Switchboard" {
-				t.Skip("not the Switchboard")
+			if view := viewOf(t, m, f.Size); view != "Sessions Switchboard" {
+				t.Fatalf("draws %s, want the Switchboard", view)
 			}
 			names, ids := accountNames(f), shownIDs(f)
 			for _, width := range boardWidths {
-				was := boardSaid{}
-				for height := 10; height <= 40; height++ {
-					size := watch.Size{Width: width, Height: height}
-					is := boardSaidIn(fluidAt(m, size).body(), names, ids)
-					if is.accounts < was.accounts || is.sessions < was.sessions {
-						t.Errorf("at %s, the Switchboard shows %d accounts and %d sessions, fewer than the %d and %d a row shorter",
-							sizeName(size), is.accounts, is.sessions, was.accounts, was.sessions)
+				t.Run(strconv.Itoa(width), func(t *testing.T) {
+					t.Parallel()
+					was := boardSaid{}
+					for _, height := range boardHeights() {
+						size := watch.Size{Width: width, Height: height}
+						is := boardSaidIn(fluidAt(m, size).body(), names, ids)
+						if is.fewer(was) {
+							t.Errorf("at %s, the Switchboard shows %+v, fewer than the %+v shorter", sizeName(size), is, was)
+						}
+						was = is
 					}
-					was = is
-				}
+				})
 			}
 		})
 	}
 }
 
-// boardSaid is how many accounts and sessions the Switchboard shows.
+// boardSaid is how many accounts and sessions the Switchboard shows, and
+// how many rows of it.
 type boardSaid struct {
-	accounts, sessions int
+	accounts, sessions, rows int
+}
+
+// fewer reports whether s shows fewer accounts, sessions or rows than was.
+func (s boardSaid) fewer(was boardSaid) bool {
+	return s.accounts < was.accounts || s.sessions < was.sessions || s.rows < was.rows
 }
 
 // shownIDs are the fixture's sessions' ids as the Switchboard shows them.
@@ -63,10 +95,16 @@ func shownIDs(f Fixture) []string {
 var accountNumbered = regexp.MustCompile(`(?:^|\s)[0-9]+ `)
 
 // boardSaidIn is how many of the accounts named and the sessions by the ids
-// given the rows show: an account where its number leads its name, a
-// session where its id is a word of a row.
+// given the rows show, an account where its number leads its name, a
+// session where its id is a word of a row; and how many of the rows aren't
+// blank, but for those saying what's out of view.
 func boardSaidIn(rows, names, ids []string) boardSaid {
 	var said boardSaid
+	for _, row := range rows {
+		if strings.TrimSpace(row) != "" && !outLine.MatchString(row) {
+			said.rows++
+		}
+	}
 	for _, name := range names {
 		if slices.ContainsFunc(rows, func(row string) bool { return numbersName(row, name) }) {
 			said.accounts++
