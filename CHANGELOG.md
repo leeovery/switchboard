@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.7] - 2026-10-24
+
+✨ Added
+- Fluid dashboard layout — every tab now adapts to any terminal width and height instead of switching to a fixed "phone" layout below set breakpoints.
+- Accounts' Compare turns into a row-per-account view when the columns won't fit, and Detail stacks its parts when the wide form won't fit.
+- Overview SESSIONS lists the busiest accounts first, keeps its row order steady between refreshes, and shows as many sessions as fit with a "+N more" row.
+- Runway's COMING UP flows into two columns where there's room, and says how many lines are out of view when it can't show them all.
+- Runway's pool lane now draws a distinct ▂ mark where the pool is at its limit.
+- Page up and page down on scrolling views now move by exactly a page without skipping or repeating rows.
+- Session turns' open requests now size to the rows available and stay in view on resize.
+
+🔧 Changed
+- USAGE scrolls a row at a time, with each window's heading kept at the top while its rows scroll.
+- USAGE's blank rows, then its key line, give way as rows run short, before sections fold.
+- Account names are cut consistently at 24 cells with an ellipsis, and wide columns narrow only as far as the names need.
+- Headings now keep their state text from moving between one row and two as loading or periods change.
+- Accounts' Detail shows as many weeks as fit, wraps THIS WEEK's figures across rows, and the heading rule counts the weeks shown.
+- History's Weeks, Days, Tokens and Year lay their columns out by available width, dropping columns in a fixed order, and the Year's numbers move beside or under the grid as space allows.
+- Routing and the Log's panel cards widen to fit long account names, and the Log's Requests and Events columns give way in a set order.
+- LATELY lines use their short form per line only when the full form doesn't fit.
+- Switchboard lanes adapt their spacing to the rows available, keeping the key when it fits.
+- Large ratios now read as whole numbers from 100×, such as "123×".
+- Router startup probing now skips accounts that can't be probed yet.
+
+🐛 Fixed
+- Long turn lengths, request counts and worths now stay readable instead of overflowing, such as "16h…" and "99,999+".
+
+🔒 Security
+- Account labels are now limited to 100 characters.
+
 ## [0.2.6] - 2026-10-20
 
 ✨ Added
