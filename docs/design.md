@@ -8042,7 +8042,7 @@ why.
 | Idea | Status | File |
 |---|---|---|
 | The graphs reimagined: a burn-down for every account, on a page of graphs or in GRAPHS reworked, at a scale read at a glance | next, after the fluid layout pass, to discuss with its owner (20 October 2026) | [graphs-page](../ideas/2026-10-20--graphs-page.md) |
-| A reserve spent as a last resort, when no account has room outside one | next, a fast follow | [reserve-last-resort](../ideas/2026-10-03--reserve-last-resort.md) |
+| A reserve spent as a last resort, when no account has room outside one | not wanted: the owner, 24 October 2026, as a reserve is kept for the Claude apps and is honoured | [reserve-last-resort](../ideas/2026-10-03--reserve-last-resort.md) |
 | The plain text the data verbs print, `status`'s and the first cuts of `requests`, `history`, `sessions` and `events`, designed to match the dashboard | next, to design with its owner | [dashboard-layout](../ideas/2026-09-30--dashboard-layout.md) |
 | Releases signed with a Developer ID, so macOS stops noticing each upgrade | next, once the certificate is in hand | [developer-id-signing](../ideas/2026-10-01--developer-id-signing.md) |
 | A doctor verb: switchboard's own records read for what looks wrong, and reported in one place | next, after milestone 7's release, the owner's choice on 14 October 2026 | [doctor](../ideas/2026-10-14--doctor.md) |
