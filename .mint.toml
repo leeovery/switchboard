@@ -28,3 +28,6 @@ diff_exclude = [
 # and the like since such a tree; anything else runs every gate in full,
 # the tests isolated, as CLAUDE.md requires.
 pre_tag = ['scripts/gated']
+
+[release]
+diff_exclude = ["testdata/", "art/", "internal/views/viewstest/"]
