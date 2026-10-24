@@ -23,4 +23,9 @@ To settle with the owner:
   rebuilding its cache elsewhere. To keep its cache, it could stay until it idles.
 - How `status`, the dashboard and the notifications say that a reserve is being spent, and why.
 
-Next, a fast follow on milestone 5.
+## Not wanted
+
+The owner, on 24 October 2026: "I don't want the cap used. It's being used in the Claude app, so
+the cap should be honoured." A reserve is the share of a window kept for use outside the router,
+and the router honours it as it does today, even when no account has room: it answers 429 until
+one does. A pin stays the one way past it, as the user's own choice.
