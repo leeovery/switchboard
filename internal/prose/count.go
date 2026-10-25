@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math"
 	"strconv"
-	"strings"
 )
 
 // Tokens counts n tokens as briefly as a row has room for, as the Log counts
@@ -146,17 +145,5 @@ func GroupedWithin(n, most int) string {
 
 // Grouped writes n with its thousands set apart by commas, as "1,240".
 func Grouped(n int) string {
-	digits := strconv.Itoa(n)
-	sign := ""
-	if n < 0 {
-		sign, digits = "-", digits[1:]
-	}
-	var b strings.Builder
-	for i, d := range digits {
-		if i > 0 && (len(digits)-i)%3 == 0 {
-			b.WriteByte(',')
-		}
-		b.WriteRune(d)
-	}
-	return sign + b.String()
+	return withThousands(strconv.Itoa(n))
 }

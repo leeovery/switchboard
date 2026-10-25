@@ -22,29 +22,32 @@ func TestTheTitleRow(t *testing.T) {
 		want     []string
 		wantRows int
 	}{
-		{name: "the badge at the first column, the six tabs two cells after it, the hint, and the clock ending at the last", width: 160, shown: Overview, want: []string{
-			" SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Log   tab ⇥" + blanks(61) + "Mon 28 Sep  13:12:00",
+		{name: "the badge at the first column, the seven tabs two cells after it, the hint, and the clock ending at the last", width: 160, shown: Overview, want: []string{
+			" SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Graphs   Log   tab ⇥" + blanks(52) + "Mon 28 Sep  13:12:00",
 		}, wantRows: 1},
 		{name: "the clock at the frame's Clock, where it's set", width: 160, shown: Overview, clock: now.Add(10 * time.Minute), want: []string{
-			" SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Log   tab ⇥" + blanks(61) + "Mon 28 Sep  13:22:00",
+			" SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Graphs   Log   tab ⇥" + blanks(52) + "Mon 28 Sep  13:22:00",
 		}, wantRows: 1},
-		{name: "the clock two cells clear of the hint", width: 101, shown: Overview, want: []string{
-			" SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Log   tab ⇥  Mon 28 Sep  13:12:00",
+		{name: "the clock two cells clear of the hint", width: 110, shown: Overview, want: []string{
+			" SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Graphs   Log   tab ⇥  Mon 28 Sep  13:12:00",
 		}, wantRows: 1},
-		{name: "the hint giving way first, where a date of two digits leaves too little room for it", width: 100, shown: Overview, want: []string{
-			" SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Log " + blanks(8) + "Mon 28 Sep  13:12:00",
+		{name: "the hint giving way first, where a date of two digits leaves too little room for it", width: 109, shown: Overview, want: []string{
+			" SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Graphs   Log " + blanks(8) + "Mon 28 Sep  13:12:00",
 		}, wantRows: 1},
-		{name: "the hint kept a cell narrower, where the day has one digit", width: 100, shown: Overview, clock: oneDigitDay, want: []string{
-			" SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Log   tab ⇥  Sat 3 Oct  13:12:00",
+		{name: "the hint kept a cell narrower, where the day has one digit", width: 109, shown: Overview, clock: oneDigitDay, want: []string{
+			" SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Graphs   Log   tab ⇥  Sat 3 Oct  13:12:00",
 		}, wantRows: 1},
-		{name: "on a phone, the clock on row 0, and the tabs filling a row of their own, touching, without the hint", width: 52, shown: Sessions, want: []string{
-			" SWITCHBOARD" + blanks(20) + "Mon 28 Sep  13:12:00",
-			" Overview  Accounts  History  Sessions  Runway  Log",
+		{name: "the date giving way next, where it leaves too little room for the time", width: 102, shown: Overview, want: []string{
+			" SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Graphs   Log " + blanks(13) + "13:12:00",
+		}, wantRows: 1},
+		{name: "on a phone, the clock on row 0, and the tabs filling a row of their own, touching, without the hint", width: 60, shown: Sessions, want: []string{
+			" SWITCHBOARD" + blanks(28) + "Mon 28 Sep  13:12:00",
+			" Overview  Accounts  History  Sessions  Runway  Graphs  Log",
 		}, wantRows: 2},
-		{name: "on a phone too narrow for one row of tabs, two, as even as their order allows", width: 51, shown: Overview, want: []string{
-			" SWITCHBOARD" + blanks(19) + "Mon 28 Sep  13:12:00",
+		{name: "on a phone too narrow for one row of tabs, two, as even as their order allows", width: 59, shown: Overview, want: []string{
+			" SWITCHBOARD" + blanks(27) + "Mon 28 Sep  13:12:00",
 			" Overview  Accounts  History",
-			" Sessions  Runway  Log",
+			" Sessions  Runway  Graphs  Log",
 		}, wantRows: 3},
 		{name: "on a phone just wide enough for the date", width: 35, shown: Overview, want: []string{
 			" SWITCHBOARD" + blanks(3) + "Mon 28 Sep  13:12:00",
@@ -55,15 +58,15 @@ func TestTheTitleRow(t *testing.T) {
 		{name: "on a phone as narrow, a date of one digit kept", width: 34, shown: Overview, clock: oneDigitDay, want: []string{
 			" SWITCHBOARD" + blanks(3) + "Sat 3 Oct  13:12:00",
 		}, wantRows: 3},
-		{name: "on a phone just wide enough for the time, the tabs on three rows", width: 23, shown: Overview, want: []string{
-			" SWITCHBOARD" + blanks(3) + "13:12:00",
+		{name: "on a phone too narrow for two rows of tabs, three", width: 30, shown: Overview, want: []string{
+			" SWITCHBOARD" + blanks(10) + "13:12:00",
 			" Overview  Accounts",
 			" History  Sessions",
-			" Runway  Log",
+			" Runway  Graphs  Log",
 		}, wantRows: 4},
-		{name: "on a phone too narrow for the time, the badge alone", width: 22, shown: Overview, want: []string{
+		{name: "on a phone too narrow for the time, the badge alone", width: 20, shown: Overview, want: []string{
 			" SWITCHBOARD ",
-		}, wantRows: 4},
+		}, wantRows: 5},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -87,7 +90,7 @@ var oneDigitDay = time.Date(2026, 10, 3, 13, 12, 0, 0, now.Location())
 // over another: the tabs, the hint where it shows, at least two blank cells,
 // then the clock ending at the last column, its date where it shows.
 func TestTheTitleRowsPartsNeverOverlap(t *testing.T) {
-	tabs := " SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Log "
+	tabs := " SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Graphs   Log "
 	rest := regexp.MustCompile(`^(  tab ⇥)?  +([A-Z][a-z]{2} [0-9]{1,2} [A-Z][a-z]{2}  )?13:12:00$`)
 	for _, clock := range []time.Time{now, oneDigitDay} {
 		for width := 100; width <= 200; width++ {
@@ -112,15 +115,15 @@ func TestTheTitleRowsInks(t *testing.T) {
 		{name: "the badge", width: 160, x: 0, want: ink{token: theme.Canvas, on: hue{token: theme.AccentPrimary}, bold: true}},
 		{name: "a tab not shown", width: 160, x: 15, want: tabInk},
 		{name: "the tab shown", width: 160, x: 47, want: shownTabInk},
-		{name: "the hint", width: 160, x: 74, want: faintInk},
+		{name: "the hint", width: 160, x: 83, want: faintInk},
 		{name: "the date", width: 160, x: 140, want: dateInk},
 		{name: "the time, bold", width: 160, x: 159, want: timeInk},
-		{name: "a phone's tab shown", width: 52, x: 30, y: 1, want: shownTabInk},
+		{name: "a phone's tab shown", width: 52, x: 1, y: 2, want: shownTabInk},
 		{name: "a phone's time", width: 52, x: 51, want: timeInk},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := Frame{Width: tt.width, Height: 2, View: Sessions}
+			f := Frame{Width: tt.width, Height: 3, View: Sessions}
 			c := newCanvas(f.Width, f.Height)
 			f.title(c, now)
 			if got := c.at(tt.x, tt.y).ink; got != tt.want {
@@ -136,7 +139,7 @@ func TestTheTitleRowsInks(t *testing.T) {
 	}
 }
 
-// The tabs' widths, six as there are and seven as there will be.
+// The tabs' widths, six as there were and seven as there are.
 var (
 	sixTabs   = []int{10, 10, 9, 10, 8, 5}
 	sevenTabs = []int{10, 10, 9, 10, 8, 8, 5}
@@ -162,8 +165,8 @@ func TestAPhonesTabsSplitOverRows(t *testing.T) {
 		{name: "seven narrower than a tab, split as where the widest just fits", widths: sevenTabs, room: 5, want: []int{1, 1, 1, 1, 1, 1, 1}},
 		{name: "none", room: 40},
 	}
-	if got := (Frame{}).tabWidths(); !slices.Equal(got, sixTabs) {
-		t.Errorf("the tabs are %v cells wide, want %v", got, sixTabs)
+	if got := (Frame{}).tabWidths(); !slices.Equal(got, sevenTabs) {
+		t.Errorf("the tabs are %v cells wide, want %v", got, sevenTabs)
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -606,8 +606,8 @@ func TestSlashOpensNoFindWhereItsLineHasNoRow(t *testing.T) {
 	}{
 		{name: "wide, 4 rows", width: 150, height: 4},
 		{name: "wide, 5 rows", width: 150, height: 5, opens: true},
-		{name: "a phone, 5 rows", width: 52, height: 5},
-		{name: "a phone, 6 rows", width: 52, height: 6, opens: true},
+		{name: "a phone, 6 rows", width: 52, height: 6},
+		{name: "a phone, 7 rows", width: 52, height: 7, opens: true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			state := t.TempDir()

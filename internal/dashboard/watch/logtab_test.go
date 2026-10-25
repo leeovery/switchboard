@@ -416,7 +416,7 @@ func openedAfterMidnight(t *testing.T, list bool) afterMidnight {
 	a.h.clock.now = a.midnight.Add(3 * time.Second)
 	a.h.start()
 	if list {
-		a.h.keys(tabKey, tabKey)
+		a.h.keys(tabKey, tabKey, tabKey)
 	}
 	if a.h.model.view != dashboard.Log || a.h.model.log.from.Date != views.Today(a.midnight).Date {
 		t.Fatalf("the Log shows %t, its tables from %s, want it shown, from today", a.h.model.view == dashboard.Log, a.h.model.log.from.Date)
@@ -561,9 +561,9 @@ func TestTheLogKeepsUpWhileAnotherTabShows(t *testing.T) {
 	h := routedHarness(t, routerDocument(three()...))
 	onTheLog(h, state)
 	h.start()
-	h.keys(shiftTabKey, shiftTabKey, shiftTabKey)
+	h.keys(shiftTabKey, shiftTabKey, shiftTabKey, shiftTabKey)
 	if h.model.view != dashboard.History {
-		t.Fatalf("shift-tab three times from the Log shows %s, want History", h.model.view)
+		t.Fatalf("shift-tab four times from the Log shows %s, want History", h.model.view)
 	}
 
 	doc := routerDocument(three()...)
@@ -581,9 +581,10 @@ func TestTheLogKeepsUpWhileAnotherTabShows(t *testing.T) {
 	h.update(tabKey)
 	h.update(tabKey)
 	h.update(tabKey)
+	h.update(tabKey)
 
 	if h.model.view != dashboard.Log {
-		t.Fatalf("tab three times from History shows %s, want the Log", h.model.view)
+		t.Fatalf("tab four times from History shows %s, want the Log", h.model.view)
 	}
 	if got := shownRequests(h); !slices.Equal(got, want) {
 		t.Errorf("back on the Log, before any read lands, the Requests show %v, want %v", got, want)

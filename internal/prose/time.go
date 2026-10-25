@@ -217,6 +217,12 @@ func Day(d time.Time) string {
 	return d.Format(dayLayout)
 }
 
+// WeeksTo says the weeks given, to the day last, as WHEN YOU WORK's heading
+// says the weeks it counts: "the 4 weeks to Wed 30 Sep".
+func WeeksTo(weeks int, last time.Time) string {
+	return "the " + Counted(weeks, "week") + " to " + Day(last)
+}
+
 // DayWidest is as wide as Day ever names a day: one of two figures.
 func DayWidest() string {
 	return Day(time.Date(2000, time.January, 10, 0, 0, 0, 0, time.UTC))

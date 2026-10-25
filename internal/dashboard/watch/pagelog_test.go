@@ -24,7 +24,8 @@ import (
 
 // openedOn is a model at the clock's start of d28c and 7f3a running, over
 // a ledger in state holding lines, priced at the price table's prices,
-// opened on the view given, and the ledger. On Runway it reads no List.
+// opened on the view given, and the ledger. On Runway or Graphs it reads no
+// List.
 func openedOn(t *testing.T, state string, view dashboard.View, lines ...ledger.Held) (*harness, *ledger.Follower) {
 	t.Helper()
 	h := routedHarness(t, routerDocument(three()...))
@@ -63,7 +64,7 @@ func TestTheLogsOpenGivesNoSessionsPageTodaysLinesAfresh(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, _ := openedOn(t, t.TempDir(), dashboard.Runway, helds(turnsOfRequests(start.Add(-30*time.Minute), 8, 1))...)
+			h, _ := openedOn(t, t.TempDir(), dashboard.Graphs, helds(turnsOfRequests(start.Add(-30*time.Minute), 8, 1))...)
 			read := tt.open(h)
 			opening := holdingBack[logReadMsg](h, h.update(tabKey)...)
 			if h.model.view != dashboard.Log || h.model.session != nil {
@@ -203,7 +204,7 @@ func TestTheStoreFedByThePageAndTheLogInEitherOrderIsAsOneFedWhole(t *testing.T)
 		view  dashboard.View
 		steps []func(*harness, string)
 	}{
-		{name: "the page, then the Log", view: dashboard.Runway, steps: []func(*harness, string){page, gained(arrived("0a000101", "work", 0)), log, gained(readBack)}},
+		{name: "the page, then the Log", view: dashboard.Graphs, steps: []func(*harness, string){page, gained(arrived("0a000101", "work", 0)), log, gained(readBack)}},
 		{name: "the Log, then the page", view: dashboard.Log, steps: []func(*harness, string){func(h *harness, _ string) { h.settle() }, gained(arrived("0a000101", "work", 0)), page, gained(readBack)}},
 	}
 	for _, tt := range tests {
@@ -265,7 +266,7 @@ func asFedWhole(t *testing.T, h *harness, l views.Ledger) {
 // read is the store's too.
 func TestTheLogOpenedAfterAPageClosedFeedsTheStoreTheDayTheTailMissed(t *testing.T) {
 	state := t.TempDir()
-	h, l := openedOn(t, state, dashboard.Runway, arrivedAt("0a000001", onTheDay(23, 40, 0)))
+	h, l := openedOn(t, state, dashboard.Graphs, arrivedAt("0a000001", onTheDay(23, 40, 0)))
 	h.clock.now = onTheDay(23, 50, 0)
 	h.openPage(idD28C)
 	h.model.tail.due = true

@@ -88,13 +88,13 @@ func TestTurnedCompareScrollsByRows(t *testing.T) {
 		scroll int
 		want   map[int]string
 	}{
-		{name: "at the top", want: map[int]string{8: "WEEK USED", 10: " work        ██████▊    ┃       ╎  34%", 28: "▼ 17 more below · j/k"}},
-		{name: "part-way", scroll: 4, want: map[int]string{8: " personal ◆  █████████████┃        66%", 28: "▲ 4 more above · ▼ 13 more below · j/k"}},
-		{name: "past the foot, as far as it goes", scroll: 40, want: map[int]string{27: " all         $600/mo      $635         4.6×", 28: "▲ 17 more above · j/k"}},
+		{name: "at the top", want: map[int]string{9: "WEEK USED", 11: " work        ██████▊    ┃       ╎  34%", 29: "▼ 17 more below · j/k"}},
+		{name: "part-way", scroll: 4, want: map[int]string{9: " personal ◆  █████████████┃        66%", 29: "▲ 4 more above · ▼ 13 more below · j/k"}},
+		{name: "past the foot, as far as it goes", scroll: 40, want: map[int]string{28: " all         $600/mo      $635         4.6×", 29: "▲ 17 more above · j/k"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := phoneText(t, 52, 30, AccountsCompare, "", phonePage(t), nil)
+			f := phoneText(t, 52, 31, AccountsCompare, "", phonePage(t), nil)
 			f.Scroll = tt.scroll
 			rows := textOf(f.Draw(phoneDoc(), routedAt))
 			for y, want := range tt.want {
@@ -104,17 +104,17 @@ func TestTurnedCompareScrollsByRows(t *testing.T) {
 			}
 		})
 	}
-	f := phoneText(t, 52, 30, AccountsCompare, "", phonePage(t), nil)
+	f := phoneText(t, 52, 31, AccountsCompare, "", phonePage(t), nil)
 	if got, want := f.Scrolling(phoneDoc(), routedAt), (Scrolling{Most: 17, Page: 20}); got != want {
-		t.Errorf("turned Compare at 30 rows scrolls %+v, want %+v", got, want)
-	}
-	f.Height = 46
-	if rows := textOf(f.Draw(phoneDoc(), routedAt)); rows[44] != "▼ 1 more below · j/k" {
-		t.Errorf("a row short of room for every row, the row over the key line is %q, want it to say one more", rows[44])
+		t.Errorf("turned Compare at 31 rows scrolls %+v, want %+v", got, want)
 	}
 	f.Height = 47
-	if rows := textOf(f.Draw(phoneDoc(), routedAt)); rows[45] != "" {
-		t.Errorf("with room for every row, the row over the key line is %q, want it blank", rows[45])
+	if rows := textOf(f.Draw(phoneDoc(), routedAt)); rows[45] != "▼ 1 more below · j/k" {
+		t.Errorf("a row short of room for every row, the row over the key line is %q, want it to say one more", rows[45])
+	}
+	f.Height = 48
+	if rows := textOf(f.Draw(phoneDoc(), routedAt)); rows[46] != "" {
+		t.Errorf("with room for every row, the row over the key line is %q, want it blank", rows[46])
 	}
 }
 
@@ -124,11 +124,11 @@ func TestTurnedCompareScrollsByRows(t *testing.T) {
 func TestTurnedCompareDrawsWEEKUSEDAloneTillItsDaysAreRead(t *testing.T) {
 	f := phoneText(t, 52, 48, AccountsCompare, "", nil, nil)
 	f.Accounts.Period = views.AccountsThirtyDays
-	got := rowsFrom(textOf(f.Draw(phoneDoc(), routedAt)), 8)
+	got := rowsFrom(textOf(f.Draw(phoneDoc(), routedAt)), 9)
 	want := []string{"WEEK USED  now", "", " work", "", " personal ◆", "", " side", "", " all"}
 	for i, w := range want {
 		if !strings.HasPrefix(got[i], w) {
-			t.Errorf("row %d is %q, want it to start %q", 8+i, got[i], w)
+			t.Errorf("row %d is %q, want it to start %q", 9+i, got[i], w)
 		}
 	}
 	if rest := strings.Join(got[len(want):len(got)-1], ""); rest != "" {
@@ -151,7 +151,7 @@ func TestTurnedComparesWEEKUSEDShowsTheWeekTheFrameNames(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			f := phoneText(t, 52, 48, AccountsCompare, "", nil, nil)
 			f.WeekWindow = tt.week
-			week := strings.Join(rowsFrom(textOf(f.Draw(phoneDoc(), routedAt)), 9)[:8], "\n")
+			week := strings.Join(rowsFrom(textOf(f.Draw(phoneDoc(), routedAt)), 10)[:8], "\n")
 			if got := percentages.FindAllString(week, -1); !slices.Equal(got, tt.want) {
 				t.Errorf("WEEK USED reads %q, want %q", got, tt.want)
 			}
@@ -171,15 +171,15 @@ func TestTurnedCompareAndStackedDetailSayADashForEachFigureOfAPeriodWithNothingR
 		want  map[int]string
 	}{
 		{shown: AccountsCompare, want: map[int]string{
-			29: " work        —            —            —",
-			35: " work        —            —            0%",
-			41: " work        $200/mo      —            —",
-			44: " all         $600/mo      —            —",
+			30: " work        —            —            —",
+			36: " work        —            —            0%",
+			42: " work        $200/mo      —            —",
+			45: " all         $600/mo      —            —",
 		}},
 		{shown: AccountsDetail, want: map[int]string{
-			19: "requests  —               worth     —",
-			20: "limits    —               extra use off",
-			21: "plan      Max 20x         against   —",
+			20: "requests  —               worth     —",
+			21: "limits    —               extra use off",
+			22: "plan      Max 20x         against   —",
 		}},
 	}
 	for _, tt := range tests {
@@ -200,15 +200,15 @@ func TestTurnedCompareAndStackedDetailSayADashForEachFigureOfAPeriodWithNothingR
 func TestStackedDetailOfAllAccounts(t *testing.T) {
 	rows := textOf(phoneText(t, 52, 60, AccountsDetail, "", phonePage(t), nil).Draw(phoneDoc(), routedAt))
 	for y, want := range map[int]string{
-		8:  "◂ 0 all accounts ▸             ↑↓ an account, or all",
-		9:  "2 open · 1 at cap",
-		14: "5-hour   █████████┃▎            49%  1.5 of 3 left",
-		19: "requests  5,410           worth     $635",
-		20: "limits    3               extra use off",
-		21: "plan      $600/mo         against   4.6×",
-		31: "room to spare together",
-		32: "30% left at a reset",
-		35: "14:41  ▲ c61b started on side, the best",
+		9:  "◂ 0 all accounts ▸             ↑↓ an account, or all",
+		10: "2 open · 1 at cap",
+		15: "5-hour   █████████┃▎            49%  1.5 of 3 left",
+		20: "requests  5,410           worth     $635",
+		21: "limits    3               extra use off",
+		22: "plan      $600/mo         against   4.6×",
+		32: "room to spare together",
+		33: "30% left at a reset",
+		36: "14:41  ▲ c61b started on side, the best",
 	} {
 		if rows[y] != want {
 			t.Errorf("row %d is %q, want %q", y, rows[y], want)
@@ -238,8 +238,8 @@ func TestAgainstCompactSaysTheRatioOverThePlansKnown(t *testing.T) {
 				t.Errorf("Compare reads\n%s\nwant a row %q", strings.Join(compare, "\n"), want)
 			}
 			detail := textOf(phoneText(t, 52, 60, AccountsDetail, "", page, nil).Draw(phoneDoc(), routedAt))
-			if want := "plan      $600/mo         against   " + tt.want; detail[21] != want {
-				t.Errorf("Detail's row 21 is %q, want %q", detail[21], want)
+			if want := "plan      $600/mo         against   " + tt.want; detail[22] != want {
+				t.Errorf("Detail's row 22 is %q, want %q", detail[22], want)
 			}
 		})
 	}
@@ -261,7 +261,7 @@ func TestStackedDetailCountsTheConfiguredAccountsStates(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			f := phoneText(t, 52, 41, AccountsDetail, "", nil, nil)
 			f.Accounts.Accounts = tt.configured
-			if got := textOf(f.Draw(phoneDoc(), routedAt))[9]; got != tt.want {
+			if got := textOf(f.Draw(phoneDoc(), routedAt))[10]; got != tt.want {
 				t.Errorf("all accounts' states read %q, want %q", got, tt.want)
 			}
 		})
@@ -274,8 +274,8 @@ func TestStackedDetailOfAnAccountNotReadYet(t *testing.T) {
 	f := phoneText(t, 52, 41, AccountsDetail, "added", nil, nil)
 	f.Accounts.Accounts = append(slices.Clone(threeFramed), config.Account{ID: "added"})
 	rows := textOf(f.Draw(phoneDoc(), routedAt))
-	if !strings.HasPrefix(rows[8], "◂ 4 added ▸") || rows[9] != "○ not read" {
-		t.Errorf("Detail of an account not read yet heads\n%s\n%s", rows[8], rows[9])
+	if !strings.HasPrefix(rows[9], "◂ 4 added ▸") || rows[10] != "○ not read" {
+		t.Errorf("Detail of an account not read yet heads\n%s\n%s", rows[9], rows[10])
 	}
 }
 
@@ -373,16 +373,15 @@ func TestStackedDetailStacksSESSIONSBeforeLATELY(t *testing.T) {
 		t.Errorf("SESSIONS with the last of six selected is\n%s\nwant the last four, none more", strings.Join(got, "\n"))
 	}
 
-	f.Height, f.Scroll, f.Accounts.Selected = 30, 10, idDB8A
+	f.Height, f.Scroll, f.Accounts.Selected = 31, 10, idDB8A
 	var on []Target
 	for _, target := range f.Targets(phoneDoc(), routedAt) {
 		if target.On == OnSession {
 			on = append(on, target)
 		}
 	}
-	top := f.At(phoneDoc(), routedAt).top()
-	if len(on) != 3 || on[0].Session != idD28C || on[0].Y != top+at-8-10+1 || on[0].X != 0 || on[0].Width != sessionLit {
-		t.Errorf("the session targets scrolled 10 rows are %+v, want d28c's first on row %d, %d wide", on, top+at-8-10+1, sessionLit)
+	if want := at + 1 - f.Scroll; len(on) != 3 || on[0].Session != idD28C || on[0].Y != want || on[0].X != 0 || on[0].Width != sessionLit {
+		t.Errorf("the session targets scrolled 10 rows are %+v, want d28c's first on row %d, %d wide", on, want, sessionLit)
 	}
 }
 
@@ -631,7 +630,7 @@ func TestStackedDetailCuesTheStateAsItsWordChanges(t *testing.T) {
 			f.Changed, f.StateChanged = tt.changed, tt.word
 			c := f.At(phoneDoc(), routedAt).page(phoneDoc(), routedAt)
 			for x := range 20 {
-				cued := c.at(x, 9).ink.on.token == theme.BgAttention
+				cued := c.at(x, 10).ink.on.token == theme.BgAttention
 				if want := tt.cued && x < ansi.StringWidth("● at its cap"); cued != want {
 					t.Errorf("column %d of the state cued: %v, want %v", x, cued, want)
 				}
@@ -884,11 +883,11 @@ func TestTurnedCompareCutsALargestVersionsNameNeverItsShare(t *testing.T) {
 				f := phoneText(t, 52, 60, AccountsCompare, "", page, nil)
 				f.VersionNameCells = views.VersionNameCells(tt.table)
 				rows := textOf(f.Draw(phoneDoc(), routedAt))
-				if got := columnOf(rows[20], "█"); got != tt.barAt {
-					t.Errorf("at %v, work's bar starts at column %d, want %d, in %q", s.share, got, tt.barAt, rows[20])
+				if got := columnOf(rows[21], "█"); got != tt.barAt {
+					t.Errorf("at %v, work's bar starts at column %d, want %d, in %q", s.share, got, tt.barAt, rows[21])
 				}
-				if !strings.HasSuffix(rows[20], s.end) {
-					t.Errorf("at %v, work's BY MODEL row is %q, want it to end %q", s.share, rows[20], s.end)
+				if !strings.HasSuffix(rows[21], s.end) {
+					t.Errorf("at %v, work's BY MODEL row is %q, want it to end %q", s.share, rows[21], s.end)
 				}
 				if said := f.Numbers(phoneDoc(), routedAt)[key]; said != s.said {
 					t.Errorf("at %v, %+v reads %q, want %q", s.share, key, said, s.said)
@@ -904,7 +903,7 @@ func TestTurnedCompareCutsEachFigureACellShortOfTheNext(t *testing.T) {
 	page := phonePage(t)
 	page.Rows[0].Totals.Requests = 1234567890
 	rows := textOf(phoneText(t, 52, 48, AccountsCompare, "", page, nil).Draw(phoneDoc(), routedAt))
-	if got, want := rows[29], " work        …            9            3 out"; got != want {
+	if got, want := rows[30], " work        …            9            3 out"; got != want {
 		t.Errorf("work's requests are %q, want %q, 1,234,567,890 a cell too wide", got, want)
 	}
 }
@@ -941,7 +940,7 @@ func TestStackedDetailPicksOutAFreshEvent(t *testing.T) {
 	newest := views.AccountLately(f.Moment(phoneDoc(), routedAt), "work", 1)[0]
 	f.Fresh = map[int]float64{newest.ID: 0.25}
 	c := f.At(phoneDoc(), routedAt).page(phoneDoc(), routedAt)
-	if c.at(0, 35).ink.on.token != theme.BgAttention || c.at(0, 36).ink.on.token == theme.BgAttention {
+	if c.at(0, 36).ink.on.token != theme.BgAttention || c.at(0, 37).ink.on.token == theme.BgAttention {
 		t.Errorf("the fresh event's row isn't picked out alone")
 	}
 }

@@ -264,7 +264,7 @@ func (f Frame) page(doc status.Document, now time.Time) *canvas {
 // room for it, as cramped says, and nowhere but between the status line and
 // the key line, as body has it: a session's page, where one is open, in its
 // place; else the tab shown: the Overview, Accounts, History, Sessions,
-// Runway or the Log.
+// Runway or the Log; Graphs, its sections yet to come, draws nothing.
 func (f Frame) view(c *canvas, doc status.Document, now time.Time) {
 	if f.cramped() {
 		return
@@ -345,9 +345,10 @@ func (f Frame) headingY() int {
 
 // top is the row the view starts at: the one after the blank row under the
 // heading row, and on a phone, its period's, where that takes a row of its
-// own; or on the Overview, whose sections head themselves, the heading row's.
+// own; or on a tab whose sections head themselves, as headsItself has it,
+// the heading row's.
 func (f Frame) top() int {
-	if f.Shown() == Overview {
+	if f.Shown().headsItself() {
 		return f.headingY()
 	}
 	return f.headingY() + f.heading().rows(f.Width, f.phone()) + 1

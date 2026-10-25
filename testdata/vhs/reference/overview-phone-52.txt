@@ -1,5 +1,6 @@
  SWITCHBOARD                     Thu 1 Oct  14:42:07
- Overview  Accounts  History  Sessions  Runway  Log
+ Overview  Accounts  History
+ Sessions  Runway  Graphs  Log
 
 ● healthy · auto · 6 sessions · new → ▲ side
 
@@ -61,6 +62,5 @@ LATELY  ────────────────────────
 12:10  ◇ work primed: its 5-hour window started
 12:02  ▲ d28c started on work
 11:55  ▲ 9c2e started on personal
-11:30  ◇ personal primed: its 5-hour window started
 
 tab views   ? keys and toggles   q quit

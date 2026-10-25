@@ -455,7 +455,7 @@ func TestEveryReaderTakesInTheLateDaysAnotherReadsForItsLine(t *testing.T) {
 		holds         func(*harness, *daysCounted, time.Time) string
 	}{
 		{name: "the List held, then the page", view: dashboard.Overview, first: sessions, second: page, holds: storeHolds},
-		{name: "the List held, then the Log", view: dashboard.Overview, first: sessions, second: func(h *harness) { h.keys(tabKey, tabKey) }, holds: storeHolds},
+		{name: "the List held, then the Log", view: dashboard.Overview, first: sessions, second: func(h *harness) { h.keys(tabKey, tabKey, tabKey) }, holds: storeHolds},
 		{name: "the Log, then the page", view: dashboard.Log, first: func(*harness) {}, second: page, holds: logHolds},
 	}
 	for _, tt := range tests {
