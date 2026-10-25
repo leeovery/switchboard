@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -16,10 +17,10 @@ func TestTheSevenTabsInTheirOrder(t *testing.T) {
 }
 
 // Graphs heads its own sections, as the Overview does: no heading row, its
-// view from the heading row's row; and till its sections come, it draws
-// nothing between the status line and the key line, and help explains
+// view, its first section's heading, from the heading row's row, with
+// nothing over it; and till its sections are explained, help explains
 // nothing after its keys.
-func TestGraphsHeadsItselfAndDrawsNothingYet(t *testing.T) {
+func TestGraphsHeadsItself(t *testing.T) {
 	for _, width := range []int{160, 52} {
 		f := frameOf(width, 37)
 		f.View = Graphs
@@ -31,10 +32,13 @@ func TestGraphsHeadsItselfAndDrawsNothingYet(t *testing.T) {
 		if f.top() != f.headingY() {
 			t.Errorf("at %d columns, Graphs' view starts at row %d, want the heading row's, %d", width, f.top()+1, f.headingY()+1)
 		}
-		for y := f.statusRow() + 1; y < f.Height-1; y++ {
+		for y := f.statusRow() + 1; y < f.top(); y++ {
 			if rows[y] != "" {
 				t.Errorf("at %d columns, row %d reads %q, want nothing drawn", width, y+1, rows[y])
 			}
+		}
+		if !strings.HasPrefix(rows[f.top()], "WEEK ") {
+			t.Errorf("at %d columns, the view's first row reads %q, want WEEK's heading", width, rows[f.top()])
 		}
 		if parts := f.helpParts(); parts != nil {
 			t.Errorf("at %d columns, help explains %v, want nothing", width, parts)

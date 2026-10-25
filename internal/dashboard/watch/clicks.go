@@ -47,9 +47,10 @@ func targetAt(targets []dashboard.Target, x, y int) (dashboard.Target, bool) {
 // accountsClick and sessionsClick have it; on a tab, it shows it, as showTab
 // has it; on a sub-tab, it shows it, as showSubTab has it, or the Log's; on <
 // or > by a period or Runway's window, it presses it; on a key of the key
-// line, it presses it, as pressOf says, as on the Log's ▼ N new, which
-// presses end; on an Overview's section's heading, it hides the section, as
-// its key does; on an account's row there, it moves the focus to it, as
+// line, it presses it, as pressOf says; on what on the page stands for a
+// key, it presses that key alike, as the Log's ▼ N new presses end, and a
+// Graphs section's heading its key, which hides the section; on an
+// Overview's section's heading, it hides the section, as its key does; on an account's row there, it moves the focus to it, as
 // focusOn has it; on a session's row, it opens its page, as openSession has
 // it; on a turn's row on its page, it acts as clickTurn has it, and on a
 // request's row of its turn open, as clickRequest has it; and on a line of
@@ -77,7 +78,7 @@ func (m Model) clickedOn(t dashboard.Target) (tea.Model, tea.Cmd) {
 		return m.acting().showSubTab(t.SubTab), nil
 	case dashboard.OnStep:
 		return m.pressed(stepPress(t.Step))
-	case dashboard.OnKey:
+	case dashboard.OnKey, dashboard.OnPress:
 		if press, ok := pressOf(t.Key); ok {
 			return m.pressed(press)
 		}
@@ -98,10 +99,11 @@ func (m Model) clickedOn(t dashboard.Target) (tea.Model, tea.Cmd) {
 }
 
 // pickerTakes reports whether a click on a target of the kind given acts
-// while the theme picker is open: a key's alone, as the key line lists the
-// picker's keys then, and the press a click on a key stands for goes to the
-// picker, as every key does. A click on anything else would act on the page
-// under the picker, where no key reaches.
+// while the theme picker is open: a key of the key line's alone, as it lists
+// the picker's keys then, and the press a click on a key stands for goes to the
+// picker, as every key does. A click on anything else, what on the page
+// stands for a key among it, would act on the page under the picker, where
+// no key reaches.
 func pickerTakes(on dashboard.Clicked) bool {
 	return on == dashboard.OnKey
 }
