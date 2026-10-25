@@ -94,6 +94,8 @@ func TestAFigureGroupedToPlacesSetsItsThousandsApart(t *testing.T) {
 		{x: 0.30000000000000004, places: 1, want: "0.3"},
 		{x: 0.5, places: 2, want: "0.50"},
 		{x: 12345.67, places: 2, want: "12,345.67"},
+		{x: -0.5, places: 1, want: "-0.5"},
+		{x: -1234.5, places: 1, want: "-1,234.5"},
 	}
 	for _, tt := range tests {
 		if got := prose.GroupedTo(tt.x, tt.places); got != tt.want {

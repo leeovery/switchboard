@@ -64,39 +64,42 @@ func TestTheHoursCountTheWeeksBeforeToday(t *testing.T) {
 		description string
 		mondays     int
 		monday9     float64
+		wednesdays  int
+		wednesday14 float64
 	}{
 		{
 			name: "four whole weeks known",
 			days: daysFrom("2026-09-01",
 				worked("2026-09-07", map[int]int{9: 100}), worked("2026-09-08", map[int]int{9: 100}),
+				worked("2026-09-09", map[int]int{14: 8}),
 				worked("2026-09-14", map[int]int{9: 8}), worked("2026-09-21", map[int]int{9: 8}),
 				worked("2026-09-28", map[int]int{9: 8}), worked("2026-10-05", map[int]int{9: 8}),
 				worked("2026-10-07", map[int]int{9: 100})),
-			weeks: 4, description: "the 4 weeks to Tue 6 Oct", mondays: 4, monday9: 8,
+			weeks: 4, description: "the 4 weeks to Tue 6 Oct", mondays: 4, monday9: 8, wednesdays: 4, wednesday14: 2,
 		},
 		{
 			name: "two weeks known, the ledger begun within them",
 			days: daysFrom("2026-09-23",
 				worked("2026-09-28", map[int]int{9: 8}), worked("2026-10-05", map[int]int{9: 4})),
-			weeks: 2, description: "the 2 weeks to Tue 6 Oct", mondays: 2, monday9: 6,
+			weeks: 2, description: "the 2 weeks to Tue 6 Oct", mondays: 2, monday9: 6, wednesdays: 2,
 		},
 		{
 			name:  "ten days known, a part week counted whole",
 			days:  daysFrom("2026-09-27", worked("2026-09-28", map[int]int{9: 8}), worked("2026-10-05", map[int]int{9: 4})),
-			weeks: 2, description: "the 2 weeks to Tue 6 Oct", mondays: 2, monday9: 6,
+			weeks: 2, description: "the 2 weeks to Tue 6 Oct", mondays: 2, monday9: 6, wednesdays: 1,
 		},
 		{
 			name: "scattered days unknown, narrowing their weekdays' divisors alone",
 			days: daysFrom("2026-09-01",
 				unknown("2026-09-09"), unknown("2026-09-14"), worked("2026-09-21", map[int]int{9: 8}),
 				unknown("2026-09-28"), worked("2026-10-05", map[int]int{9: 4})),
-			weeks: 4, description: "the 4 weeks to Tue 6 Oct", mondays: 2, monday9: 6,
+			weeks: 4, description: "the 4 weeks to Tue 6 Oct", mondays: 2, monday9: 6, wednesdays: 3,
 		},
 		{
 			name: "yesterday unknown, said to the last day counted",
 			days: daysFrom("2026-09-01",
 				worked("2026-09-14", map[int]int{9: 8}), worked("2026-10-05", map[int]int{9: 4}), unknown("2026-10-06")),
-			weeks: 4, description: "the 4 weeks to Mon 5 Oct", mondays: 4, monday9: 3,
+			weeks: 4, description: "the 4 weeks to Mon 5 Oct", mondays: 4, monday9: 3, wednesdays: 4,
 		},
 	}
 	for _, tt := range tests {
@@ -108,6 +111,11 @@ func TestTheHoursCountTheWeeksBeforeToday(t *testing.T) {
 			monday := rowOn(t, page, time.Monday)
 			if monday.Known != tt.mondays || monday.Hours[9].Requests != tt.monday9 {
 				t.Errorf("Monday is known on %d days, 09:00 at %v, want %d, %v", monday.Known, monday.Hours[9].Requests, tt.mondays, tt.monday9)
+			}
+			wednesday := rowOn(t, page, time.Wednesday)
+			if wednesday.Known != tt.wednesdays || wednesday.Hours[14].Requests != tt.wednesday14 {
+				t.Errorf("Wednesday, the first day's weekday, is known on %d days, 14:00 at %v, want %d, %v",
+					wednesday.Known, wednesday.Hours[14].Requests, tt.wednesdays, tt.wednesday14)
 			}
 			for _, weekday := range []time.Weekday{time.Tuesday, time.Wednesday} {
 				if got := rowOn(t, page, weekday).Hours[9].Requests; got != 0 {
@@ -139,6 +147,18 @@ func TestNoDayKnownIsNoGrid(t *testing.T) {
 				t.Errorf("the page is %+v, want none", page)
 			}
 		})
+	}
+}
+
+// Where days are known but no hour is active, the grid has no cuts and its
+// key none to give: both empty, alike.
+func TestQuietWeeksHaveNoCuts(t *testing.T) {
+	page := hoursOf(daysFrom("2026-09-01"), time.Monday)
+	if page.Weeks != 4 || len(page.Days) != 7 {
+		t.Fatalf("the page is of %d weeks and %d rows, want 4 and 7", page.Weeks, len(page.Days))
+	}
+	if page.Cuts == nil || len(page.Cuts) != 0 || page.KeyCuts == nil || len(page.KeyCuts) != 0 {
+		t.Errorf("the cuts are %#v and the key's %#v, want both empty", page.Cuts, page.KeyCuts)
 	}
 }
 

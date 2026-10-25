@@ -24,7 +24,8 @@ type HoursPage struct {
 	// Cuts are the cuts between the levels, as quarterCuts gives them, of
 	// the active hours' requests a day, so a weekday known on fewer days is
 	// shaded by its own average, as one known on four; KeyCuts are them as
-	// the key words them, as hoursKeyCuts rounds them.
+	// the key words them, as hoursKeyCuts rounds them. Where days are known
+	// but no hour is active, both are empty: no cuts, and no key to draw.
 	Cuts    []float64
 	KeyCuts []string
 	// Weeks are the whole weeks the days counted span, from the first to
@@ -202,9 +203,6 @@ var hoursKeySteps = []struct {
 // most, so two that differ do by a twelfth at least, which a hundredth
 // always keeps apart.
 func hoursKeyCuts(cuts []float64) []string {
-	if len(cuts) == 0 {
-		return nil
-	}
 	scaled, steps := make([]float64, len(cuts)), make([]int, len(cuts))
 	for i, cut := range cuts {
 		scaled[i] = cut * 100

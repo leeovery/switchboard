@@ -27,7 +27,7 @@ func TestHoursKeyCuts(t *testing.T) {
 		{name: "out of order at 10, both to 1", cuts: []float64{15, 17, 20.25}, want: []string{"15", "17", "20"}},
 		{name: "a pair finer step by step to a hundredth", cuts: []float64{15.25, 46.0 / 3, 40}, want: []string{"15.25", "15.33", "40"}},
 		{name: "the same cuts kept the same", cuts: []float64{24, 24, 24}, want: []string{"20", "20", "20"}},
-		{name: "none", cuts: []float64{}, want: nil},
+		{name: "none", cuts: []float64{}, want: []string{}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
