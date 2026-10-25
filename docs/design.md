@@ -6195,10 +6195,12 @@ from the first day a router that has it runs, so nothing before then is in it.
     tokens a day, a fraction of a cent, where the views over its lines leave it out. And a day
     summarised before version 6 gains its models' `hours` as it's summarised again from its lines;
     one whose lines are gone has none, never as many of none, as its readings can't give them. The
-    first round under a new version reads each kept day's lines once, on the ledger's goroutine, as
-    any round does: some 0.37 seconds a day of 16,000 lines, on an M1 Max, so the lines noted
-    meanwhile wait in their queue a few seconds for the weeks of lines kept, and under three minutes
-    for a year of them, which would fill its 8,192 only were 55 lines a second noted throughout. A
+    first round under a new version reads each kept day's lines once, some 0.37 seconds a day of
+    16,000 lines on an M1 Max, and holds up both writers, the ledger's and the readings history's:
+    whichever's round makes it, the other's waits on it to summarise. So what's noted meanwhile
+    waits in their queues, a few seconds for the weeks of lines kept, dropping none, and under three
+    minutes for a year of them, which fills the ledger's 8,192 lines only at 55 requests a second,
+    but the history's 1,024 answers' readings at 7, so a busier router drops readings. A
     reader that meets an older version's summary, its lines kept, summarises the day from its
     lines, as it does today's; and one whose lines are gone it takes as it stands, whatever its
     version, as only the router writes summaries again, a reader knowing of the rest what they
@@ -6486,8 +6488,10 @@ from the first day a router that has it runs, so nothing before then is in it.
     call, 18 October 2026).
   - **Who writes them, and when:** the router alone, on a goroutine of the ledger's own beside its
     writer, never on the round, the one drain of the lines' queue, which a build would hold up a
-    second, and a backfill minutes. It makes a pass as it starts, and again as each round's
-    summarising ends, a kick waiting while a pass is made standing for every kick since it began. A
+    second, and a backfill minutes. It makes a pass as each round's summarising ends, never before
+    the first round's, which comes as the router starts: a pass before it would meet the summaries
+    of an older version that round writes again, and warn of days it can't tell their lines against.
+    A kick waiting while a pass is made stands for every kick since it began. A
     pass deletes the digests of days without lines, and their parts files and heads, as their lines
     were pruned; then builds, oldest first, from the first day the ledger holds to yesterday, each day
     with lines whose digest is due, so those resting on a day built again are built after it, in the

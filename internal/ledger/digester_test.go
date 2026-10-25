@@ -1196,8 +1196,8 @@ func runWorld(t *testing.T) *lookupWorld {
 	return w
 }
 
-// Run digests the finished days as it starts, pausing after each build as
-// long as it took, so the next begins twice that after the last.
+// Run digests the finished days as its first round ends, pausing after each
+// build as long as it took, so the next begins twice that after the last.
 func TestRunPausesAfterEachBuildAsLongAsItTook(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		const took = time.Minute

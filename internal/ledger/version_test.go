@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
@@ -591,8 +592,8 @@ func TestASummaryOfVersionOneWhoseLinesAreGoneHoldsNoneOfWhatItNeverRead(t *test
 // which one of an older version can't be told to stand for: while it's
 // held, the day isn't digested, nor are those after it, nor its head built,
 // and a follower reads it raw. Summarised again under this one, of as many
-// lines, they stand again, none built again, whether a router started
-// afresh makes its round before its digesting's first pass or after.
+// lines, they stand again, none built again, whether the ledger's days are
+// digested first, as DigestEnded may digest them, or summarised first.
 func TestDigestsAndHeadsStandAgainOnceTheirDaysAreSummarisedUnderANewVersion(t *testing.T) {
 	for _, first := range []string{"its round", "its digesting's pass"} {
 		t.Run(first+" first", func(t *testing.T) {
@@ -633,4 +634,55 @@ func TestDigestsAndHeadsStandAgainOnceTheirDaysAreSummarisedUnderANewVersion(t *
 			}
 		})
 	}
+}
+
+// heldHistory is the readings history in its files, each listing of which
+// waits until listed is closed, as on a slow disk: a round's summarising
+// waits on it.
+type heldHistory struct {
+	ledger.History
+	listed chan struct{}
+}
+
+func (h heldHistory) Dates() ([]string, error) {
+	<-h.listed
+	return h.History.Dates()
+}
+
+// A router started under a new version digests none of its days until its
+// first round has summarised them again, however long that takes: before,
+// it would find their summaries of the older version, which it can't tell
+// their lines against, and warn of them.
+func TestRunDigestsNoDayBeforeItsFirstRoundHasSummarisedItAgain(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		log := logstest.Capture(t)
+		w := runWorld(t)
+		w.digestEnded()
+		built := digestsIn(t, w.dir)
+		w.fold.days()
+		w.fold.sides()
+		olderSummaries(t, w.dir)()
+		history := heldHistory{History: historyIn(w.history), listed: make(chan struct{})}
+		router := ledger.Open(w.dir, 400*24*time.Hour, func() time.Time { return w.at }, history, caps, logs.For("router"), ledger.Digesting(w.fold))
+
+		stop := running(t, router)
+		synctest.Wait()
+		close(history.listed)
+		synctest.Wait()
+		stop()
+
+		if log.Has("level=WARN") {
+			t.Errorf("log reads\n%s\nwant nothing warned of", log)
+		}
+		if handed, sides := w.fold.days(), w.fold.sides(); len(handed) > 0 || len(sides) > 0 {
+			t.Errorf("the days %q were digested again, and %d heads built again; want none", datesOf(handed), len(sides))
+		}
+		if got := digestsIn(t, w.dir); !maps.EqualFunc(got, built, bytes.Equal) {
+			t.Errorf("the ledger holds the digests, parts, heads and rows %q, want them as they were built, %q", slices.Sorted(maps.Keys(got)),
+				slices.Sorted(maps.Keys(built)))
+		}
+		if got := heldSummary(t, w.dir, dayOf(0)); !strings.HasPrefix(got, `{"version":6,`) {
+			t.Errorf("the summary of %s is\n%s\nwant it summarised again, under version 6", dayOf(0), got)
+		}
+	})
 }
