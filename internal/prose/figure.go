@@ -3,6 +3,7 @@ package prose
 import (
 	"math"
 	"strconv"
+	"strings"
 )
 
 // Percent shows a utilization as a whole percentage, such as "23%".
@@ -33,7 +34,7 @@ func NearestTenth(x float64) float64 {
 
 // Tenths writes x to a tenth, as NearestTenth rounds it, as "1.5" or "0.0".
 func Tenths(x float64) string {
-	return strconv.FormatFloat(NearestTenth(x), 'f', 1, 64)
+	return toPlaces(NearestTenth(x), 1)
 }
 
 // Ratio writes a ratio, as a worth against its price, then ×: to a tenth, as
@@ -49,3 +50,45 @@ func Ratio(x float64) string {
 
 // ratioWholeFrom is the ratio Ratio writes whole from.
 const ratioWholeFrom = 100
+
+// GroupedTo writes x to the places given at most, as toPlaces writes it, but
+// with no trailing zeros, its whole part's thousands set apart by commas, as
+// Grouped sets them: "1,240", "12.5", "0.25", or 100.0 to a place "100".
+func GroupedTo(x float64, places int) string {
+	figure := toPlaces(x, places)
+	if strings.Contains(figure, ".") {
+		figure = strings.TrimSuffix(strings.TrimRight(figure, "0"), ".")
+	}
+	if figure == "-0" {
+		figure = "0"
+	}
+	return withThousands(figure)
+}
+
+// toPlaces writes x to the places given, rounded as its decimal is nearest,
+// as every figure with places is written.
+func toPlaces(x float64, places int) string {
+	return strconv.FormatFloat(x, 'f', places, 64)
+}
+
+// withThousands sets apart the thousands of the figure written by commas,
+// its sign and its places after the point kept as they are.
+func withThousands(figure string) string {
+	sign, digits := "", figure
+	if unsigned, ok := strings.CutPrefix(figure, "-"); ok {
+		sign, digits = "-", unsigned
+	}
+	whole, places, pointed := strings.Cut(digits, ".")
+	var b strings.Builder
+	b.WriteString(sign)
+	for i, d := range whole {
+		if i > 0 && (len(whole)-i)%3 == 0 {
+			b.WriteByte(',')
+		}
+		b.WriteRune(d)
+	}
+	if pointed {
+		b.WriteString("." + places)
+	}
+	return b.String()
+}
