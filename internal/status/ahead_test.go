@@ -103,9 +103,16 @@ func TestTheRoomAWindowHasAheadByItsProjection(t *testing.T) {
 		{name: "held by a limit lifting before its reset, lasting to it", account: statustest.Routed{Account: with(lasting, holding)}, key: "7d", want: []roomAt{
 			{room: 0, known: true},
 			{after: time.Hour, room: 0, known: true},
-			{after: time.Hour + time.Second, room: 0.7, known: true},
-			{after: 4 * day, room: 0.7, known: true},
+			{after: 2*day + 30*time.Minute, room: 0.5, known: true},
+			{after: 4 * day, room: 0.3, known: true},
 			{after: 4*day + time.Second, room: 1, known: true},
+		}},
+		{name: "held by a limit lifting before its reset, heading nowhere said", account: statustest.Routed{Account: with(fresh, holding)}, key: "5h", want: []roomAt{
+			{room: 0, known: true},
+			{after: time.Hour, room: 0, known: true},
+			{after: time.Hour + time.Second, room: 0.99, known: true},
+			{after: 4*time.Hour + 55*time.Minute, room: 0.99, known: true},
+			{after: 5 * time.Hour, room: 1, known: true},
 		}},
 		{name: "held by a limit lifting after it would run out", account: statustest.Routed{Account: with(pressed.Account, holding), Rate: pressed.Rate}, later: time.Minute, key: "5h", want: []roomAt{
 			{room: 0, known: true},
@@ -216,9 +223,10 @@ func checkRoomAhead(t *testing.T, m status.Moment, a status.AccountNow, w status
 }
 
 // checkHeldAhead checks the room ahead of account a's window w, which a limit
-// holds at moment m, as expect checks a room: none till the limit lifts; and
+// holds at moment m, as expect checks a room: none till the limit lifts;
 // where the window runs out ahead, its floor at Out.At, once the limit has
-// lifted, and just after it runs out, before its reset.
+// lifted, and just after it runs out, before its reset; and else, where its
+// heading goes on pace to its reset, the room that leaves it there.
 func checkHeldAhead(t *testing.T, m status.Moment, a status.AccountNow, w status.WindowNow, expect func(time.Time, float64, string)) {
 	t.Helper()
 	expect(m.Now, 0, "now, held")
@@ -227,6 +235,9 @@ func checkHeldAhead(t *testing.T, m status.Moment, a status.AccountNow, w status
 	}
 	expect(w.Back, 0, "as its limit lifts")
 	if !w.RunsOutAhead {
+		if w.Out.Kind == score.OnPace && w.Back.Before(w.Next) {
+			expect(w.Next, 1-w.Out.AtReset, "at its reset, as its heading leaves it")
+		}
 		return
 	}
 	if w.Out.At.After(w.Back) {

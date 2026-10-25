@@ -1,6 +1,10 @@
 package status
 
-import "time"
+import (
+	"time"
+
+	"github.com/leeovery/switchboard/internal/score"
+)
 
 // RoomAhead is the room the account's window with the given key has at t,
 // from Now on, a share of the window, 1 − its use, by the projection the
@@ -8,8 +12,8 @@ import "time"
 // draw, never worked out again. A window falling ahead falls from the room
 // Used leaves, at Now, or once a limit holding it lifts, where score anchors
 // the projection at ReadAt, at the use as read: the two meet at both ends, as
-// Used is the use as read until the window resets, and the ends, Out.At and
-// Projected, are the moment's own.
+// Used is the use as read until the window resets, and the ends, Out.At,
+// Projected and Out's heading, are the moment's own.
 //
 //   - A window that runs out falls straight from the room Used leaves to its
 //     account's Floor at Out.At, the room there being its reserve where that
@@ -20,8 +24,10 @@ import "time"
 //   - One a limit holds has none till it lifts, at Back. Then, where it runs
 //     out ahead, as RunsOutAhead says, it falls as one that runs out, from
 //     Back, and is at its Floor from Back where Out.At is sooner; else it
-//     keeps the room Used leaves till its reset, as the moment gives a window
-//     a limit holds no Projected.
+//     falls straight from the room Used leaves to the room Out's heading
+//     leaves it at its reset, the moment giving a window a limit holds no
+//     Projected, or keeps the room Used leaves where that heading says
+//     nothing of its reset.
 //   - Past its reset it has all of it, as nothing is known of its next
 //     window. Where its reset, or when a limit lifts, isn't known, it keeps
 //     the room it has.
@@ -67,8 +73,8 @@ func (a AccountNow) runningOut(from point, w WindowNow) course {
 
 // heldFrom is the course of window w, which a limit holds, from Now on: none
 // till it lifts, at its Back, where that's known; then from the room its use
-// leaves, running out where it runs out ahead, else keeping that room till
-// its reset.
+// leaves, running out where it runs out ahead, else to the room its heading
+// leaves it at its reset, as heldToReset has it.
 func (a AccountNow) heldFrom(w WindowNow) course {
 	held := course{{a.now, 0}, {w.Back, 0}}
 	lifted := point{w.Back, 1 - w.Used}
@@ -78,7 +84,18 @@ func (a AccountNow) heldFrom(w WindowNow) course {
 	case w.RunsOutAhead:
 		return append(held, a.runningOut(lifted, w)...)
 	}
-	return append(held, lifted, point{w.Next, 1 - w.Used})
+	return append(held, lifted, point{w.Next, heldToReset(w)})
+}
+
+// heldToReset is the room window w, which a limit holds and which doesn't run
+// out ahead, has at its reset once the limit lifts: what its Out's heading
+// leaves it, where that heads on pace to its reset; else the room its use
+// leaves, as nothing says where it heads.
+func heldToReset(w WindowNow) float64 {
+	if w.Out.Kind != score.OnPace {
+		return 1 - w.Used
+	}
+	return 1 - w.Out.AtReset
 }
 
 // course is where a window's room goes from a moment on: straight from each
