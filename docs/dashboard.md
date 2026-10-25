@@ -1003,6 +1003,7 @@ the base tokens.
 | `viz.family.1` to `viz.family.4` | the model families: Opus, Sonnet, Fable and Haiku |
 | `viz.version.1` to `viz.version.6` | the model versions: a family's newest in its family's colour, and an older one fainter |
 | `viz.day.0` to `viz.day.4` | History's shades of a day, from one with nothing on it to the busiest |
+| `viz.account.1` to `viz.account.4` | the pool's accounts in Graphs' POOL, by place; a fifth on takes the colour four before it, fainter |
 
 A key switchboard doesn't know is passed over.
 

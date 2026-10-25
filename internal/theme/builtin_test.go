@@ -50,7 +50,7 @@ func leftToTheTerminal(b theme.Theme, tok theme.Token) bool {
 	return slices.Contains([]theme.Token{
 		theme.TextPrimary, theme.TextSecondary, theme.TextTertiary, theme.TextOnSelection,
 		theme.Canvas, theme.BgSubtle, theme.VizPace,
-		theme.VizFamily4, theme.VizVersion6, theme.VizDay0,
+		theme.VizFamily4, theme.VizVersion6, theme.VizDay0, theme.VizAccount4,
 	}, tok)
 }
 
