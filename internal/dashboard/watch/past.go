@@ -15,7 +15,8 @@ import (
 
 // historyTab is what the watch holds of History: the page its tab draws, the
 // sub-tab shown built of the days held; the days of the last 12 months, read
-// once a run, as History or Accounts is first shown, and of the earliest
+// once a run, as History or Accounts is first shown, Runway's lanes first
+// want them or Graphs first shows WHEN YOU WORK, and of the earliest
 // calendar year the Year steps back to that they don't reach, each brought
 // up to today at each look since; the day the ledger began, where it tells
 // it, and whether that's today's as it holds no day yet, beganNone, and

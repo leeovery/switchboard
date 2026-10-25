@@ -183,6 +183,15 @@ func TestClock(t *testing.T) {
 	}
 }
 
+// An hour of the day is named in two figures, as an axis of hours names it.
+func TestHourNamed(t *testing.T) {
+	for hour, want := range map[int]string{0: "00", 3: "03", 9: "09", 12: "12", 21: "21", 23: "23"} {
+		if got := prose.HourNamed(hour); got != want {
+			t.Errorf("HourNamed(%d) = %q, want %q", hour, got, want)
+		}
+	}
+}
+
 // A time to the second, and a reading's time, are in now's time zone.
 func TestATimeToTheSecondAndAReadingsAreInNowsTimeZone(t *testing.T) {
 	now := time.Date(2026, 10, 6, 22, 30, 0, 0, time.FixedZone("UTC+1", 60*60))

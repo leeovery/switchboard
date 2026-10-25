@@ -296,3 +296,33 @@ func TestGraphsSaysItsLoadingWhileWhenYouWorksReadTakesAWhile(t *testing.T) {
 		t.Error("WHEN YOU WORK hidden, loading was armed, want nothing waiting")
 	}
 }
+
+// WHEN YOU WORK kept shown, Graphs wants the ledger's days only while it's
+// the page shown: on the Overview, or under a session's page opened over
+// Graphs, nothing reads them, nothing waits on them, and there's no page.
+func TestGraphsReadsNoDaysOffItsTab(t *testing.T) {
+	tests := []struct {
+		name string
+		away func(h *harness)
+	}{
+		{name: "on the Overview", away: func(h *harness) { h.model.view = dashboard.Overview }},
+		{name: "under a session's page over Graphs", away: func(h *harness) {
+			h.source.sessions = []status.Session{sessionOn(idD28C, opus, "work", 0)}
+			h.tickUntilAsked()
+			h.openPage(idD28C)
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h, l := whenHarness(t, "week")
+			h.start()
+			tt.away(h)
+			h.model.graphs = dashboard.GraphsSectionsNamed([]string{"when"})
+			h.tickUntilAsked()
+			if _, loading := h.pending(loadingMsg{}); len(l.reads) != 0 || loading || h.model.past.reading || h.model.frame(h.clock.now).Graphs.Hours != nil {
+				t.Errorf("WHEN YOU WORK kept shown, the ledger was read from %v, loading armed %t, a page %v; want no read, nothing loading, no page",
+					l.reads, loading, h.model.frame(h.clock.now).Graphs.Hours)
+			}
+		})
+	}
+}

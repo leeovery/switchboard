@@ -502,8 +502,9 @@ func (m Model) Init() tea.Cmd {
 // readers have taken in, as letGo has it, building the session's page open
 // afresh, as relived says, and closing a session's card it leaves no p for,
 // as closing says, then has the watch read the router's request stream
-// while it wants it, and the ledger's days for History, Accounts, a
-// session's page, the Log and its find, and Sessions, as they want them,
+// while it wants it, and the ledger's days for History, Accounts, Runway,
+// Graphs, a session's page, the Log and its find, and Sessions, as they want
+// them,
 // History's and Accounts' pages built of them as historyBuilt and
 // accountsBuilt have it, Detail's selection following its sessions, as
 // followed has it, Sessions and Runway built at the look, as sessionsLooked
@@ -1011,9 +1012,9 @@ func fetchFrom(ctx context.Context, source Source, r status.Read, policy score.P
 // was found. Each read starts a new chain of ticks at the pace it calls for,
 // lets a look at the router's document asked for while it was under way go
 // ahead, and as any look does, asks for the ledger's days since History's
-// were read, as readHistory reads them while History or Accounts shows, and
-// what the readings history gained, as readRunway reads it while Runway
-// shows.
+// were read, as readHistory reads them while History or Accounts shows,
+// Runway's lanes want them or Graphs shows WHEN YOU WORK, and what the
+// readings history gained, as readRunway reads it while Runway shows.
 func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 	now := m.now()
 	m.fetching, m.past.due, m.tail.due, m.runwayTab.due = false, true, true, true

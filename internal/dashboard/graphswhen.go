@@ -1,10 +1,10 @@
 package dashboard
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/leeovery/switchboard/internal/dashboard/flex"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -92,7 +92,7 @@ func (g hoursGrid) draw(c *canvas, x, y, width int) {
 	cells := hourCells(width)
 	at := func(hour int) int { return x + hoursGridX + hour*cells }
 	for hour := 0; hour < hoursADay; hour += hoursLabelEvery {
-		in.text(at(hour), y, fmt.Sprintf("%02d", hour), faintInk)
+		in.text(at(hour), y, prose.HourNamed(hour), faintInk)
 	}
 	for i, d := range g.page.Days {
 		row := y + 1 + i
@@ -117,32 +117,46 @@ func (g hoursGrid) tile(level, cells int) span {
 }
 
 // key is the key to the grid's shades, of a grid width cells wide, from
-// hoursGridX, as keyOf flows it, of the page's cuts: none where no hour is
-// active, as the page has no cuts.
+// hoursGridX, of the page's cuts, flowed as keyFlowed flows it onto the rows
+// reckonedKey reserves for it: where its cuts are wider than those reckoned
+// and it takes more, whole items give way from its end, what they count
+// first, so no bound is cut, nor lost to the section's foot. None where no
+// hour is active, as the page has no cuts.
 func (g hoursGrid) key(width int) []line {
 	if len(g.page.KeyCuts) == 0 {
 		return nil
 	}
-	return g.keyOf(g.page.KeyCuts, width)
+	items, reserved := g.keyItems(g.page.KeyCuts), len(g.reckonedKey(width))
+	key := keyFlowed(items, width)
+	for len(key) > reserved {
+		items = items[:len(items)-1]
+		key = keyFlowed(items, width)
+	}
+	return key
 }
 
-// reckonedKey is the key, of a grid width cells wide, as keyOf flows it, its
-// every cut at reckonedCut, the widest it's reckoned at, as the Year's is.
+// reckonedKey is the key, of a grid width cells wide, as keyFlowed flows it,
+// its every cut at reckonedCut, the widest it's reckoned at, as the Year's
+// is.
 func (g hoursGrid) reckonedKey(width int) []line {
 	reckoned := keyWide.number(reckonedCut)
-	return g.keyOf([]string{reckoned, reckoned, reckoned}, width)
+	return keyFlowed(g.keyItems([]string{reckoned, reckoned, reckoned}), width)
 }
 
-// keyOf is the key of the cuts given, as the page words them, flowed onto as
-// many rows as it takes of a grid width cells wide, from hoursGridX, its
-// items hoursKeyApart apart, an item never broken: each shade's tile and its
-// bounds, as the Year's key words them, in text.subtle; then what they
-// count, in text.faint.
-func (g hoursGrid) keyOf(cuts []string, width int) []line {
+// keyItems are the key's items, of the cuts given, as the page words them:
+// each shade's tile and its bounds, as the Year's key words them, in
+// text.subtle; then what they count, in text.faint.
+func (g hoursGrid) keyItems(cuts []string) []line {
 	var items []line
 	for level, bound := range keyWide.boundsOf(cuts) {
 		items = append(items, line{g.tile(level, 1), {" " + bound, dimInk}})
 	}
-	items = append(items, line{{hoursKeyUnit, faintInk}})
+	return append(items, line{{hoursKeyUnit, faintInk}})
+}
+
+// keyFlowed are the key's items flowed onto as many rows as they take of a
+// grid width cells wide, from hoursGridX, hoursKeyApart apart, an item never
+// broken.
+func keyFlowed(items []line, width int) []line {
 	return wrapped(spaces(hoursKeyApart), width-hoursGridX, items)
 }

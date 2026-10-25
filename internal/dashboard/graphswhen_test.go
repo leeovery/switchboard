@@ -142,7 +142,7 @@ func TestWhenYouWorkDrawsAWeekdayARowAndEveryThirdHourOverIt(t *testing.T) {
 }
 
 // In a look that draws no shades of its own, each tile is its level's
-// glyph, by its density, as History's shades are.
+// glyph, by its density, as History's shades are: the grid's and the key's.
 func TestWhenYouWorksTilesAreTheirLevelsGlyphsWhereTheLookDrawsNoShades(t *testing.T) {
 	p := hoursSample("20", "50", "90")
 	for _, look := range []Look{Screen(builtin(t, "terminal")), NoColour()} {
@@ -152,6 +152,9 @@ func TestWhenYouWorksTilesAreTheirLevelsGlyphsWhereTheLookDrawsNoShades(t *testi
 			if got := rowOf(c, 1+i); got != want {
 				t.Errorf("without shades, %s's row reads %q, want %q", name, got, want)
 			}
+		}
+		if got, want := rowOf(c, 9), "    · none   ░ under 20   ▒ 20–50   ▓ 50–90   █ over 90   requests an hour"; got != want {
+			t.Errorf("without shades, the key reads %q, want %q", got, want)
 		}
 	}
 }
@@ -197,6 +200,43 @@ func TestWhenYouWorksKeyFlowsOntoTheRowsItsWidthNeeds(t *testing.T) {
 		}
 		if at := strings.Index(rowOf(c, unit), "requests"); at < 0 || c.at(at, unit).ink != faintInk {
 			t.Errorf("%d wide, requests an hour is in %+v, want text.faint", tt.width, c.at(max(at, 0), unit).ink)
+		}
+	}
+}
+
+// Cuts wider than those the key's rows are reckoned at, as a thousand
+// requests an hour and more are written, take no more rows than the section
+// keeps for its key: whole items give way from its end, what they count
+// first, so every bound shown is whole; where they fit, nothing gives way.
+func TestWhenYouWorksKeyWiderThanReckonedGivesWayFromItsEndWhole(t *testing.T) {
+	nord := Screen(builtin(t, "nord"))
+	tests := []struct {
+		cuts  []string
+		width int
+		want  []string
+	}{
+		{cuts: []string{"999.25", "1,234.33", "10,000"}, width: 92, want: []string{"▆ none   ▆ under 999.25   ▆ 999.25–1,234.33   ▆ 1,234.33–10,000   ▆ over 10,000"}},
+		{cuts: []string{"999.25", "1,234.33", "10,000"}, width: 96, want: []string{"▆ none   ▆ under 999.25   ▆ 999.25–1,234.33   ▆ 1,234.33–10,000   ▆ over 10,000"}},
+		{cuts: []string{"999.25", "1,234.33", "10,000"}, width: 101, want: []string{"▆ none   ▆ under 999.25   ▆ 999.25–1,234.33   ▆ 1,234.33–10,000   ▆ over 10,000"}},
+		{cuts: []string{"999.25", "1,234.33", "10,000"}, width: 110, want: []string{"▆ none   ▆ under 999.25   ▆ 999.25–1,234.33   ▆ 1,234.33–10,000   ▆ over 10,000   requests an hour"}},
+		{cuts: []string{"1,234.33", "12,345.67", "99,999.75"}, width: 52, want: []string{
+			"▆ none   ▆ under 1,234.33   ▆ 1,234.33–12,345.67", "▆ 12,345.67–99,999.75   ▆ over 99,999.75",
+		}},
+	}
+	for _, tt := range tests {
+		g := hoursGrid{page: hoursSample(tt.cuts...), look: nord}
+		if got := len(g.key(tt.width)); got > len(g.reckonedKey(tt.width)) {
+			t.Errorf("%d wide, cuts %q, the key takes %d rows, more than the %d kept for it", tt.width, tt.cuts, got, len(g.reckonedKey(tt.width)))
+		}
+		c := hoursIn(g.page, nord, tt.width)
+		var got []string
+		for y := 9; y < c.height(); y++ {
+			if row := rowOf(c, y); row != "" {
+				got = append(got, strings.TrimPrefix(row, "    "))
+			}
+		}
+		if !slices.Equal(got, tt.want) {
+			t.Errorf("%d wide, cuts %q, the key reads %q, want %q", tt.width, tt.cuts, got, tt.want)
 		}
 	}
 }
