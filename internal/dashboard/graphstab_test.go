@@ -217,7 +217,7 @@ func TestGraphsHeadingIsATargetThatPressesItsKeyWhileItsInTheViewsRows(t *testin
 	rows := textOf(f.Draw(threeRouted(), now))
 	var pressed []string
 	for _, tt := range f.Targets(threeRouted(), now) {
-		if tt.On != OnKey || tt.Y >= f.Height-underView {
+		if tt.On != OnPress {
 			continue
 		}
 		pressed = append(pressed, tt.Key)
@@ -233,7 +233,7 @@ func TestGraphsHeadingIsATargetThatPressesItsKeyWhileItsInTheViewsRows(t *testin
 	f.Height = 12
 	var headings []string
 	for _, tt := range f.Targets(threeRouted(), now) {
-		if tt.On != OnKey || tt.Y == f.Height-1 {
+		if tt.On != OnPress {
 			continue
 		}
 		headings = append(headings, tt.Key)

@@ -9,8 +9,8 @@ import (
 // Target is a zone of the page a click acts on, from X along row Y, Width
 // cells wide, and what's there, as On says: a tab, Tab; a sub-tab, by its
 // place among them, SubTab; < or > by a period or a window, Step, -1 or 1; a
-// key of the key line, or a Graphs section's heading, Key, as the line names
-// it; a row of the view, Row, by its index; an Overview's section, Section;
+// key of the key line, Key, as the line names it; something on the page
+// that presses a key, Key, as a Graphs section's heading presses its own; a row of the view, Row, by its index; an Overview's section, Section;
 // an account, by its id, Account, or Compare's column of one, "" for all
 // accounts; a session, by its id, Session, and on Sessions' Switchboard, the
 // account its call's row is on, Account; a turn of a session's page, by its
@@ -39,9 +39,13 @@ const (
 	OnSubTab
 	// OnStep is < or > by a period or a window.
 	OnStep
-	// OnKey is a key of the key line; or a Graphs section's heading, its key
-	// among it, a click on which is a press of its key, which hides it.
+	// OnKey is a key of the key line, Key.
 	OnKey
+	// OnPress is something on the page a click on which presses a key, Key,
+	// as a Graphs section's heading, its key among it, presses its key, which
+	// hides it, and the Log's ▼ N new presses end. Unlike the key line's, it
+	// lies on the page, under any card open.
+	OnPress
 	// OnRow is a row of the view: of the Log's table shown, a line, by its
 	// place among the table's lines.
 	OnRow

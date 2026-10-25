@@ -148,7 +148,7 @@ func (f Frame) graphsTargets() []Target {
 	var targets []Target
 	for _, h := range f.graphsHeads(top) {
 		if h.head.y < end {
-			targets = append(targets, Target{X: h.head.x, Y: h.head.y, Width: h.head.width, On: OnKey, Key: h.section.Key()})
+			targets = append(targets, Target{X: h.head.x, Y: h.head.y, Width: h.head.width, On: OnPress, Key: h.section.Key()})
 		}
 	}
 	return targets
