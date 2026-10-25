@@ -298,7 +298,7 @@ func TestANarrowFormSaysWhatsOutOfViewInALineThatFits(t *testing.T) {
 		frame Frame
 		want  string
 	}{
-		{name: "weeks", frame: weeksFrame(manyWeeks(18), WeeksTable, 52, 37, NoColour()), want: "▲ 2 more accounts above · ▼ 2 more accounts below"},
+		{name: "weeks", frame: weeksFrame(manyWeeks(18), WeeksTable, 52, 38, NoColour()), want: "▲ 2 more accounts above · ▼ 2 more accounts below"},
 		{name: "days", frame: days, want: "▲ 2 more accounts above · ▼ 4 more accounts below"},
 	}
 	for _, tt := range tests {

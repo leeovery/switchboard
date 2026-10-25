@@ -101,7 +101,7 @@ func TestDashboardHelpSaysWhatTheKeysWordsDont(t *testing.T) {
 		{page: "History", next: "Sessions:", says: "Tokens' periods between a day, a week and a month"},
 		{page: "History", next: "Sessions:", says: "v cycles what the Year shows, all use, a model version or an account"},
 		{page: "History", next: "Sessions:", says: "←→ steps the Year shown for one account between the accounts"},
-		{page: "Runway", next: "Log:", says: "← steps back to today, then a day at a time, or to this week, then a week at a time, and → on again to the live view"},
+		{page: "Runway", next: "Graphs:", says: "← steps back to today, then a day at a time, or to this week, then a week at a time, and → on again to the live view"},
 		{page: "Log", next: "a session's page:", says: "/ finds a session by its id's start or its directory's name"},
 		{page: "a session's page", next: "The Overview's sections", says: "esc goes back where the page was opened from"},
 	}

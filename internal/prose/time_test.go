@@ -153,18 +153,19 @@ func TestSameDayIsInNowsTimeZone(t *testing.T) {
 func TestClock(t *testing.T) {
 	utc := time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
 	tests := []struct {
-		name          string
-		now, time     time.Time
-		want, wantDay string
+		name                    string
+		now, time               time.Time
+		want, wantDay, wantHour string
 	}{
-		{name: "afternoon", now: utc, time: time.Date(2026, 9, 28, 18, 10, 0, 0, time.UTC), want: "Mon 18:10", wantDay: "18:10"},
-		{name: "just after midnight", now: utc, time: time.Date(2026, 10, 4, 0, 5, 0, 0, time.UTC), want: "Sun 00:05", wantDay: "00:05"},
+		{name: "afternoon", now: utc, time: time.Date(2026, 9, 28, 18, 10, 0, 0, time.UTC), want: "Mon 18:10", wantDay: "18:10", wantHour: "18"},
+		{name: "just after midnight", now: utc, time: time.Date(2026, 10, 4, 0, 5, 0, 0, time.UTC), want: "Sun 00:05", wantDay: "00:05", wantHour: "00"},
 		{
-			name:    "in now's time zone",
-			now:     utc.In(time.FixedZone("UTC-7", -7*60*60)),
-			time:    time.Date(2026, 9, 29, 6, 30, 0, 0, time.UTC),
-			want:    "Mon 23:30",
-			wantDay: "23:30",
+			name:     "in now's time zone",
+			now:      utc.In(time.FixedZone("UTC-7", -7*60*60)),
+			time:     time.Date(2026, 9, 29, 6, 30, 0, 0, time.UTC),
+			want:     "Mon 23:30",
+			wantDay:  "23:30",
+			wantHour: "23",
 		},
 	}
 	for _, tt := range tests {
@@ -174,6 +175,9 @@ func TestClock(t *testing.T) {
 			}
 			if got := prose.TimeOfDay(tt.now, tt.time); got != tt.wantDay {
 				t.Errorf("TimeOfDay(%v, %v) = %q, want %q", tt.now, tt.time, got, tt.wantDay)
+			}
+			if got := prose.HourOfDay(tt.now, tt.time); got != tt.wantHour {
+				t.Errorf("HourOfDay(%v, %v) = %q, want %q", tt.now, tt.time, got, tt.wantHour)
 			}
 		})
 	}
@@ -234,16 +238,17 @@ func TestADayIsNamedByTheDateItHasInItsOwnTimeZone(t *testing.T) {
 		d                                        time.Time
 		day, inYear, dayMonth, dayMonthYear      string
 		month, monthYear, weekday, weekdayLetter string
+		weekdayPair                              string
 	}{
 		{
 			name: "a date parsed in UTC", d: time.Date(2026, 9, 22, 0, 0, 0, 0, time.UTC),
 			day: "Tue 22 Sep", inYear: "Tue 22 Sep 2026", dayMonth: "22 Sep", dayMonthYear: "22 Sep 2026",
-			month: "Sep", monthYear: "Sep 2026", weekday: "Tue", weekdayLetter: "T",
+			month: "Sep", monthYear: "Sep 2026", weekday: "Tue", weekdayLetter: "T", weekdayPair: "Tu",
 		},
 		{
 			name: "late in a zone west of UTC", d: time.Date(2026, 10, 7, 23, 30, 0, 0, time.FixedZone("UTC-7", -7*60*60)),
 			day: "Wed 7 Oct", inYear: "Wed 7 Oct 2026", dayMonth: "7 Oct", dayMonthYear: "7 Oct 2026",
-			month: "Oct", monthYear: "Oct 2026", weekday: "Wed", weekdayLetter: "W",
+			month: "Oct", monthYear: "Oct 2026", weekday: "Wed", weekdayLetter: "W", weekdayPair: "We",
 		},
 	}
 	for _, tt := range tests {
@@ -257,12 +262,31 @@ func TestADayIsNamedByTheDateItHasInItsOwnTimeZone(t *testing.T) {
 				{"Month with its year", prose.Month(tt.d, true), tt.monthYear},
 				{"Weekday", prose.Weekday(tt.d.Weekday()), tt.weekday},
 				{"WeekdayInitial", prose.WeekdayInitial(tt.d.Weekday()), tt.weekdayLetter},
+				{"WeekdayPair", prose.WeekdayPair(tt.d.Weekday()), tt.weekdayPair},
 			} {
 				if got.got != got.want {
 					t.Errorf("%s() = %q, want %q", got.form, got.got, got.want)
 				}
 			}
 		})
+	}
+}
+
+// The weeks to a day are counted, then the day named.
+func TestWeeksToCountsTheWeeksThenNamesTheDay(t *testing.T) {
+	last := time.Date(2026, 9, 30, 0, 0, 0, 0, time.UTC)
+	tests := []struct {
+		weeks int
+		want  string
+	}{
+		{weeks: 4, want: "the 4 weeks to Wed 30 Sep"},
+		{weeks: 2, want: "the 2 weeks to Wed 30 Sep"},
+		{weeks: 1, want: "the 1 week to Wed 30 Sep"},
+	}
+	for _, tt := range tests {
+		if got := prose.WeeksTo(tt.weeks, last); got != tt.want {
+			t.Errorf("WeeksTo(%d) = %q, want %q", tt.weeks, got, tt.want)
+		}
 	}
 }
 

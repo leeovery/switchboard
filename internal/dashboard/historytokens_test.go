@@ -456,28 +456,36 @@ func TestTokensScrollsAPeriodAtATime(t *testing.T) {
 // The footnote keeps the view's last rows while two are left for the periods
 // over it, a period's first and the line saying what's below; where they
 // wouldn't be, on a short terminal, the narrower the sooner as it wraps, it
-// goes, rather than reach for the heads, and the periods take its rows. With
-// a row alone for them, the row shows a period, not the line.
+// goes, rather than reach for the heads, and the periods take its rows.
+// Where even that leaves them fewer than two, at the view's least, the blank
+// row under the heads goes too, so the periods keep a row and the line
+// saying more lies below.
 func TestTokensFootnoteGoesWhereItWouldLeaveThePeriodsNoRow(t *testing.T) {
 	tests := []struct {
 		width, height int
 		noted         bool
+		first         int
 	}{
-		{width: 160, height: 14, noted: true},
-		{width: 160, height: 13},
-		{width: 52, height: 17, noted: true},
-		{width: 52, height: 16},
-		{width: 50, height: 16},
-		{width: 40, height: 14},
-		{width: 22, height: 17},
-		{width: 160, height: 11},
+		{width: 160, height: 14, noted: true, first: 2},
+		{width: 160, height: 13, first: 2},
+		{width: 52, height: 18, noted: true, first: 2},
+		{width: 52, height: 17, first: 2},
+		{width: 50, height: 16, first: 2},
+		{width: 40, height: 15, first: 2},
+		{width: 40, height: 14, first: 1},
+		{width: 22, height: 17, first: 2},
+		{width: 160, height: 12, first: 2},
+		{width: 160, height: 11, first: 1},
 	}
 	for _, tt := range tests {
 		f := tokensFrame(tt.width, tt.height, TokensByAccount)
 		rows := tokensRowsOf(f)
 		noted := slices.ContainsFunc(rows, func(row string) bool { return strings.Contains(row, "worth: ") })
-		if !strings.HasPrefix(rows[0], "week") || !strings.HasPrefix(rows[2], "28 Sep") || noted != tt.noted {
-			t.Errorf("at %d×%d, Tokens reads\n%s\nwant its heads, then 28 Sep's row, the footnote shown: %t", tt.width, tt.height, strings.Join(rows, "\n"), tt.noted)
+		if !strings.HasPrefix(rows[0], "week") || !strings.HasPrefix(rows[tt.first], "28 Sep") || noted != tt.noted {
+			t.Errorf("at %d×%d, Tokens reads\n%s\nwant its heads, then 28 Sep's row on row %d, the footnote shown: %t", tt.width, tt.height, strings.Join(rows, "\n"), tt.first, tt.noted)
+		}
+		if said := rows[tt.first+1]; tt.first == 1 && !strings.HasPrefix(said, "▼ ") {
+			t.Errorf("at %d×%d, the row under 28 Sep's reads %q, want it saying more lies below", tt.width, tt.height, said)
 		}
 	}
 }

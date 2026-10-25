@@ -139,14 +139,14 @@ func TestHistorysHeadingOnAPhone(t *testing.T) {
 	f.View = History
 	rows := f.page(threeRouted(), now).rows(Look{})
 
-	if got, want := rows[5], "HISTORY   Year  Weeks  Days  Tokens"; strings.TrimRight(got, " ") != want {
-		t.Errorf("row 6 reads %q, want %q", got, want)
-	}
-	if got, want := rows[6], blanks(34)+"< last 12 months >"; got != want {
+	if got, want := rows[6], "HISTORY   Year  Weeks  Days  Tokens"; strings.TrimRight(got, " ") != want {
 		t.Errorf("row 7 reads %q, want %q", got, want)
 	}
-	if top := f.top(); top != 8 {
-		t.Errorf("the view starts at row %d, want row 9", top+1)
+	if got, want := rows[7], blanks(34)+"< last 12 months >"; got != want {
+		t.Errorf("row 8 reads %q, want %q", got, want)
+	}
+	if top := f.top(); top != 9 {
+		t.Errorf("the view starts at row %d, want row 10", top+1)
 	}
 }
 
@@ -278,7 +278,7 @@ func TestAScrolledYearShowsNoHeadingWithoutItsFirstRow(t *testing.T) {
 	}{
 		{name: "BY MONTH, its heading the page's last row", width: besideFrom, height: 21, heading: "BY MONTH", want: Scrolling{Most: 16, Page: 11}},
 		{name: "BY MONTH, its heads the page's last row", width: besideFrom, height: 22, heading: "BY MONTH", want: Scrolling{Most: 15, Page: 11}},
-		{name: "a phone's numbers, their heading the page's last row", width: 52, height: 23, heading: "LAST 12 MONTHS", want: Scrolling{Most: 21, Page: 11}},
+		{name: "a phone's numbers, their heading the page's last row", width: 52, height: 24, heading: "LAST 12 MONTHS", want: Scrolling{Most: 21, Page: 11}},
 	}
 	for _, tt := range tests {
 		f := yearFrame(t, tt.width, tt.height, views.YearAsk{}, plainYear())

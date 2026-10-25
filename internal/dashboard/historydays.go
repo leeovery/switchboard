@@ -63,8 +63,9 @@ const (
 // historyDays draws Days from row top: the weeks over the days, BY MODEL's
 // strips and BY ACCOUNT's, its accounts scrolled as the frame has them, and
 // the key on the view's last row; where it scrolls whole, every account,
-// drawn whole and scrolled by rows over the key, as paged pages it. Where
-// nothing is recorded in its eight weeks, it says so.
+// drawn whole and scrolled by rows over the key, as paged pages it, or with
+// the key under them where it scrolls too. Where nothing is recorded in its
+// eight weeks, it says so.
 func (f Frame) historyDays(c *canvas, top int) {
 	p := f.History.Days
 	if p == nil || !p.Recorded() {
@@ -72,14 +73,18 @@ func (f Frame) historyDays(c *canvas, top int) {
 		return
 	}
 	l := f.layOutDays(*p, top)
-	if l.whole {
-		body := newCanvas(f.Width, l.rows())
-		f.daysStrips(body, l)
-		f.pasteWhole(c, body, top, l.paged(f))
-	} else {
+	if !l.whole {
 		f.daysStrips(c, l)
+		f.daysKey(c, l)
+		return
 	}
-	f.daysKey(c, l)
+	body, keyed := newCanvas(f.Width, l.rows()), c
+	if l.keyScrolls {
+		keyed = body
+	}
+	f.daysStrips(body, l)
+	f.daysKey(keyed, l)
+	f.pasteWhole(c, body, top, l.paged(f))
 }
 
 // daysStrips draws Days but its key, as laid out: the weeks over the days,
@@ -108,8 +113,9 @@ func (f Frame) daysStrips(c *canvas, l daysLayout) {
 // strip's row lays its parts, as daysRow has them, and the first of the
 // page's days it shows; the rows BY ACCOUNT, its first strip and what's out
 // of view are on, its key's first, and how many rows the key takes; how many
-// accounts show at once, and how far they're scrolled; and whether it's laid
-// out whole, from row 0, to scroll by rows.
+// accounts show at once, and how far they're scrolled; whether it's laid
+// out whole, from row 0, to scroll by rows; and whether its key scrolls with
+// them, under the last strip.
 type daysLayout struct {
 	page       views.DaysPage
 	narrow     bool
@@ -124,6 +130,7 @@ type daysLayout struct {
 	most       int
 	scrolled   int
 	whole      bool
+	keyScrolls bool
 }
 
 // daysRow is where a strip's row lays its parts: its label column, none on
@@ -159,7 +166,9 @@ func (f Frame) daysWideFits(p views.DaysPage) bool {
 // key two rows, else beside it, its key a row; the key on the view's last
 // rows, and what's out of view of BY ACCOUNT on the row over them. On a
 // frame shorter than History's, or where BY ACCOUNT would show none of its
-// accounts, it's laid out whole, every account shown, to scroll by rows.
+// accounts, it's laid out whole, every account shown, to scroll by rows; and
+// where the view doesn't hold the key over them, as daysKeyHeld has it, the
+// key scrolls with them, a row under the last strip.
 func (f Frame) daysLaidOut(p views.DaysPage, top int, narrow bool) daysLayout {
 	l := daysLayout{page: p, narrow: narrow, top: top, row: f.daysRowOf(p, narrow), keyRows: 1}
 	if l.narrow {
@@ -174,10 +183,25 @@ func (f Frame) daysLaidOut(p views.DaysPage, top int, narrow bool) daysLayout {
 		l.whole, l.top = true, 0
 		l.placeAccounts()
 		l.most = len(p.ByAccount)
+		if l.keyScrolls = !f.daysKeyHeld(l.keyRows); l.keyScrolls {
+			l.keyRow = l.stripsRows() + 1
+		}
 		return l
 	}
 	l.scrolled = min(max(f.Scroll, 0), l.scrolling().Most)
 	return l
+}
+
+// daysKeyHeld reports whether the view holds Days' key, keyRows tall, on its
+// last rows, as flex lays them down the view under the strips, the row
+// between them the strips' own, as it says what's out of view: not where it
+// would leave the strips fewer than leastPaged rows, a strip's first and the
+// line saying what's below.
+func (f Frame) daysKeyHeld(keyRows int) bool {
+	strips := flex.Part{Least: leastPaged, Natural: leastPaged, Grows: true}
+	key := flex.Part{Least: keyRows, Natural: keyRows, Leaves: 1}
+	spans, _ := flex.Lay(f.viewRows(), strips, key)
+	return !spans[1].Left
 }
 
 // daysRowOf is where a strip's row of the page lays its parts in the frame,
@@ -289,10 +313,19 @@ func (l *daysLayout) placeAccounts() {
 	l.accountsAt = l.byAccount + stripStride
 }
 
-// rows is how many rows Days takes laid out whole, from its top: to BY
-// ACCOUNT's last strip, its days on the row under its name in the narrow form, or
-// to its heading, where it has none.
+// rows is how many rows Days takes laid out whole, from its top: its strips'
+// rows, and where its key scrolls with them, a blank row and the key's.
 func (l daysLayout) rows() int {
+	if l.keyScrolls {
+		return l.stripsRows() + 1 + l.keyRows
+	}
+	return l.stripsRows()
+}
+
+// stripsRows is how many rows Days' strips take laid out whole, from its
+// top: to BY ACCOUNT's last strip, its days on the row under its name in the
+// narrow form, or to its heading, where it has none.
+func (l daysLayout) stripsRows() int {
 	n := len(l.page.ByAccount)
 	switch {
 	case n == 0:
@@ -304,9 +337,13 @@ func (l daysLayout) rows() int {
 }
 
 // paged is how Days, laid out whole, pages in the frame's view, over its
-// key, as heads holds its headings.
+// key, or with it where it scrolls, as heads holds its headings.
 func (l daysLayout) paged(f Frame) rowsPaged {
-	return f.wholePaged(l.rows(), l.keyRows, l.heads())
+	foot := l.keyRows
+	if l.keyScrolls {
+		foot = 0
+	}
+	return f.wholePaged(l.rows(), foot, l.heads())
 }
 
 // heads are Days' headings, as it's laid out, each over the first row under
@@ -378,8 +415,9 @@ func (f Frame) daysScrolling(offset int) Scrolling {
 }
 
 // daysScrolls is what of Days scrolls, from row y, rows tall: laid out
-// whole, the rows over its key; else BY ACCOUNT's strips, from the first's
-// to the row over what's out of view; none where there's nothing to draw.
+// whole, the page's rows, over its key where it's held; else BY ACCOUNT's
+// strips, from the first's to the row over what's out of view; none where
+// there's nothing to draw.
 func (f Frame) daysScrolls() (y, rows int) {
 	p := f.History.Days
 	if p == nil || !p.Recorded() {

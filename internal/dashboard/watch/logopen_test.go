@@ -56,7 +56,7 @@ func TestTheLogOpeningAfterTheListsFirstReadFeedsTheStoreWhatCameBetween(t *test
 		t.Fatalf("%d of the List's reads held, the tail unread %t, want the List's first read under way, the tail unread", len(listing), h.model.tail.unread())
 	}
 	writeLines(t, state, arrived("0a000003", "work", -3*time.Minute))
-	h.keys(tabKey, tabKey)
+	h.keys(tabKey, tabKey, tabKey)
 	if h.model.view != dashboard.Log || h.model.log.opened {
 		t.Fatalf("the Log shows %t, opened %t, want it shown, its open waiting on the List's read", h.model.view == dashboard.Log, h.model.log.opened)
 	}
@@ -86,7 +86,7 @@ func TestTheLogOpeningAfterTheTailWasReadIsGivenNoLineTwice(t *testing.T) {
 	}
 	idless := arrived("", "work", -4*time.Minute)
 	writeLines(t, state, idless, arrived("", "side", -3*time.Minute))
-	h.keys(tabKey, tabKey)
+	h.keys(tabKey, tabKey, tabKey)
 	h.read(probedWithoutTheRouter())
 	h.read(probedWithoutTheRouter())
 	shown := 0

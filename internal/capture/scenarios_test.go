@@ -38,6 +38,8 @@ func TestEachTapePlaysItsScenarioAsItsCuesAreTimedFor(t *testing.T) {
 		says []string
 		// not are what it no longer shows by then.
 		not []string
+		// tab is the tab the title row shows by then, where it's checked.
+		tab string
 	}
 	shiftTab := []tea.KeyPressMsg{{Code: tea.KeyTab, Mod: tea.ModShift}}
 	tests := []struct {
@@ -50,19 +52,20 @@ func TestEachTapePlaysItsScenarioAsItsCuesAreTimedFor(t *testing.T) {
 			tape: "tour", scenario: "routing", size: wide(37),
 			keys: []press{
 				{4.5, shiftTab}, {7.4, []tea.KeyPressMsg{upKey}}, {8.1, keysOf("s")},
-				{11.6, shiftTab}, {14.6, shiftTab}, {18.6, shiftTab},
-				{21.6, shiftTab}, {24.6, shiftTab},
+				{11.6, shiftTab}, {11.9, shiftTab}, {14.9, shiftTab}, {18.9, shiftTab},
+				{21.9, shiftTab}, {24.9, shiftTab},
 			},
 			shows: []shows{
 				{at: 0, says: []string{"auto  ·  6 sessions  ·  new sessions → ▲ side", "ROUTING   auto"}},
 				{at: 7.3, says: []string{"Requests", "● following"}},
 				{at: 8.5, says: []string{"SESSION   ", "esc back"}},
 				{at: 11.5, says: []string{"SESSION   ", "esc back"}},
-				{at: 14.5, says: []string{"RUNWAY", "< week >"}},
-				{at: 18.5, says: []string{"SESSIONS    Switchboard"}},
-				{at: 21.5, says: []string{"HISTORY    Year"}},
-				{at: 24.5, says: []string{"ACCOUNTS    Compare"}},
-				{at: 27, says: []string{"7 sessions", "ROUTING   auto", "▲ b3e9 started on side"}},
+				{at: 11.8, not: []string{"SESSION   ", "Requests", "RUNWAY"}, tab: "Graphs"},
+				{at: 14.8, says: []string{"RUNWAY", "< week >"}},
+				{at: 18.8, says: []string{"SESSIONS    Switchboard"}},
+				{at: 21.8, says: []string{"HISTORY    Year"}},
+				{at: 24.8, says: []string{"ACCOUNTS    Compare"}},
+				{at: 27.3, says: []string{"7 sessions", "ROUTING   auto", "▲ b3e9 started on side"}},
 			},
 		},
 		{
@@ -156,6 +159,12 @@ func TestEachTapePlaysItsScenarioAsItsCuesAreTimedFor(t *testing.T) {
 					if strings.Contains(screen, not) {
 						t.Errorf("%vs in, it shows\n%s\nwant no %q", want.at, screen, not)
 					}
+				}
+				if want.tab == "" {
+					continue
+				}
+				if shown := p.tabShown(); shown != want.tab {
+					t.Errorf("%vs in, the title row shows %q, want %q", want.at, shown, want.tab)
 				}
 			}
 		})

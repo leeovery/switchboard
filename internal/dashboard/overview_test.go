@@ -354,7 +354,7 @@ func TestThePlannerLaysEachOverviewFrameOutOnItsRows(t *testing.T) {
 			{SectionSessions, 40, 45, false}, {SectionComing, 47, 51, false}, {SectionLately, 47, 51, false},
 		}},
 		{stem: "overview-phone-52", width: 52, height: 66, world: autoWorld, want: []rowsOf{
-			{SectionUsage, 6, 41, false}, {SectionRouting, 43, 52, false}, {SectionComing, 54, 58, false}, {SectionLately, 60, 64, false},
+			{SectionUsage, 7, 36, false}, {SectionRouting, 38, 47, false}, {SectionComing, 49, 56, false}, {SectionLately, 58, 64, false},
 		}},
 	}
 	for _, tt := range tests {

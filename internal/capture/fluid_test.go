@@ -614,6 +614,7 @@ var tabs = map[string][]string{
 	"History":  {"Year", "Weeks", "Days", "Tokens"},
 	"Sessions": {"Switchboard", "List"},
 	"Runway":   nil,
+	"Graphs":   nil,
 	"Log":      {"Requests", "Events"},
 }
 

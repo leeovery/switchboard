@@ -156,11 +156,11 @@ func (f Frame) headingRow(c *canvas) {
 }
 
 // headingPieces are the heading row of the tab shown, laid out under the
-// status line: none on the Overview, whose sections head themselves, nor
-// under a session's page, which heads itself, nor on a page too short for
-// its view, as cramped says.
+// status line: none on a tab whose sections head themselves, as headsItself
+// has it, nor under a session's page, which heads itself, nor on a page too
+// short for its view, as cramped says.
 func (f Frame) headingPieces() []piece {
-	if shown := f.Shown(); shown == Overview || shown == SessionPage || f.cramped() {
+	if shown := f.Shown(); shown.headsItself() || shown == SessionPage || f.cramped() {
 		return nil
 	}
 	return f.heading().pieces(f.headingY(), f.Width, f.phone())

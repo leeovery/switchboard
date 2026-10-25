@@ -382,8 +382,8 @@ func TestThePoolsRoomIsUsagesWordsForThePoolInTheViewsWindow(t *testing.T) {
 		{name: "pinned to two", doc: pinned, shown: live, width: 160, row: 21, want: "  5-hour 1.5 of 2 left · pinned"},
 		{name: "today stepped back to", doc: doc, shown: today, width: 160, row: 21, want: "  5-hour 1.5 of 3 left"},
 		{name: "a day stepped back to", doc: doc, shown: gone, width: 160, row: 21, want: ""},
-		{name: "on a phone", doc: doc, shown: phone, width: 52, row: 22, want: "  5-hour 1.5 of 3 left"},
-		{name: "pinned to two, on a phone", doc: pinned, shown: phone, width: 52, row: 22, want: "  5-hour 1.5 of 2 left · pinned"},
+		{name: "on a phone", doc: doc, shown: phone, width: 52, row: 23, want: "  5-hour 1.5 of 3 left"},
+		{name: "pinned to two, on a phone", doc: pinned, shown: phone, width: 52, row: 23, want: "  5-hour 1.5 of 2 left · pinned"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

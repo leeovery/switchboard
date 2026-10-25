@@ -448,13 +448,14 @@ func TestATurnOpenHoldsItsRequestsWholeInViewAsTurnsCome(t *testing.T) {
 // and the page built afresh keeps the turn open, its request chosen, the
 // first shown, the middle or the last, and its foot in view: of one turn
 // and of thirteen, its one or its twelfth open, on one account or two, at a
-// phone's widths and the wide chrome's, 14 rows to 40, and at 73×61 and
+// phone's widths and the wide chrome's, from the least a turn open is drawn
+// in, 14 rows, or 15 where a phone's tabs take two, to 40, and at 73×61 and
 // 160×37.
 func TestATurnOpenKeepsItsRequestChosenInViewAsAnAccountJoins(t *testing.T) {
 	var sizes []Size
-	for _, width := range []int{52, 73, 138, 173} {
-		for height := 14; height <= 40; height++ {
-			sizes = append(sizes, Size{Width: width, Height: height})
+	for _, at := range []Size{{Width: 52, Height: 15}, {Width: 73, Height: 14}, {Width: 138, Height: 14}, {Width: 173, Height: 14}} {
+		for height := at.Height; height <= 40; height++ {
+			sizes = append(sizes, Size{Width: at.Width, Height: height})
 		}
 	}
 	sizes = append(sizes, Size{Width: 73, Height: 61}, Size{Width: 160, Height: 37})
