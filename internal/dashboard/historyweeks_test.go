@@ -476,8 +476,8 @@ func TestWeeksScrollsWholeWhereItsFramesDontFit(t *testing.T) {
 			below: "▼ 10 more below   ·   j/k to scroll", above: "▲ 10 more above   ·   j/k to scroll",
 		},
 		{
-			name: "narrower still, as tall as the frames", page: tenWeeks(), width: 12, height: 37, want: Scrolling{Most: 22, Page: 26}, last: "studio",
-			below: "▼ 22 more…", above: "▲ 22 more…",
+			name: "narrower still, as tall as the frames", page: tenWeeks(), width: 12, height: 37, want: Scrolling{Most: 27, Page: 21}, last: "studio",
+			below: "▼ 27 more…", above: "▲ 27 more…",
 		},
 	}
 	for _, tt := range tests {

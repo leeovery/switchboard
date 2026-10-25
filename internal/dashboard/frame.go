@@ -317,7 +317,8 @@ func (f Frame) stateRow() int {
 
 // LogFinds reports whether the frame has a row for the Log's find line, so
 // / opens it: the state line's, where it's under the status line, as it
-// isn't on a terminal 4 rows tall, or 5 on a phone.
+// isn't on a terminal 4 rows tall, nor on a phone a row taller for each row
+// its tabs take.
 func (f Frame) LogFinds() bool {
 	return f.stateRow() > f.statusRow()
 }
@@ -331,7 +332,7 @@ const (
 )
 
 // statusRow is the row the status line is on: the one after the blank row
-// under the title row, its tabs' on a phone.
+// under the title row, its tabs' last on a phone.
 func (f Frame) statusRow() int {
 	return f.titleRows() + 1
 }

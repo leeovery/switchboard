@@ -209,6 +209,5 @@ func sessionParts(accounts int, wide, open bool) []flex.Part {
 // reads the breakpoint where the chrome has drawn it, rather than choosing
 // again.
 func (f Frame) chromeWide() bool {
-	_, tabsRow, _ := f.tabsAt()
-	return tabsRow == 0
+	return f.tabsAt()[0].y == 0
 }

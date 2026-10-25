@@ -105,12 +105,10 @@ func (f Frame) viewTargets(doc status.Document, now time.Time) []Target {
 
 // tabTargets are the tabs, as tabs draws them.
 func (f Frame) tabTargets() []Target {
-	x, y, gap := f.tabsAt()
-	targets := make([]Target, 0, len(Views()))
-	for _, v := range Views() {
-		width := f.tab(v).width()
-		targets = append(targets, Target{X: x, Y: y, Width: width, On: OnTab, Tab: v})
-		x += width + gap
+	tabs := f.tabsAt()
+	targets := make([]Target, 0, len(tabs))
+	for _, t := range tabs {
+		targets = append(targets, Target{X: t.x, Y: t.y, Width: f.tab(t.view).width(), On: OnTab, Tab: t.view})
 	}
 	return targets
 }

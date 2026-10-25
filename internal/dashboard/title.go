@@ -4,6 +4,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/theme"
 )
@@ -28,52 +29,159 @@ var (
 	timeInk = ink{token: theme.TextSecondary, bold: true, kept: true}
 )
 
+// The turns the title row's pieces give way in where the row is short: tab's
+// hint first, then the clock's date, then its time.
+const (
+	hintLeaves = iota + 1
+	dateLeaves
+	timeLeaves
+)
+
+// titlePiece is a piece of the title row: its words, none where it's room
+// alone, and the part flex lays it out as.
+type titlePiece struct {
+	words line
+	part  flex.Part
+}
+
+// fixedPiece is a piece of words that takes its width, gap cells after the
+// piece before it, and gives way whole in the turn given, 0 for never.
+func fixedPiece(words line, turn, gap int) titlePiece {
+	return titlePiece{words: words, part: flex.Part{Least: words.width(), Natural: words.width(), Leaves: turn, Gap: gap}}
+}
+
 // title draws the title row, on the rows titleRows says it takes: the
 // dashboard's name, from the first column; the tabs, the one shown picked
 // out, then tab's hint; and ending at the last column, the clock, at the
-// frame's Clock where it's set, else at now. On a phone, the tabs take a row
-// of their own, without the hint.
+// frame's Clock where it's set, else at now. Where the row is short, the
+// hint, the clock's date and its time give way, in that order. On a phone,
+// the tabs take rows of their own, without the hint.
 func (f Frame) title(c *canvas, now time.Time) {
-	end := c.line(0, 0, pill)
-	tabsEnd := f.tabs(c)
+	c.line(0, 0, pill)
+	end := f.tabs(c)
+	pieces := []titlePiece{{part: flex.Part{Least: end, Natural: end}}}
 	if !f.phone() {
-		end = c.line(tabsEnd+titleGap, 0, hint)
+		pieces = append(pieces, fixedPiece(hint, hintLeaves, titleGap))
 	}
 	if !f.Clock.IsZero() {
 		now = f.Clock
 	}
-	f.clock(c, end, now)
+	pieces = append(pieces,
+		titlePiece{part: flex.Part{Least: titleGap, Grows: true}},
+		fixedPiece(line{{prose.Day(now) + "  ", dateInk}}, dateLeaves, 0),
+		fixedPiece(line{{prose.ToTheSecond(now, now), timeInk}}, timeLeaves, 0),
+	)
+	parts := make([]flex.Part, len(pieces))
+	for i, p := range pieces {
+		parts[i] = p.part
+	}
+	spans, _ := flex.Lay(f.Width, parts...)
+	for i, p := range pieces {
+		if p.words != nil && !spans[i].Left {
+			c.line(spans[i].At, 0, p.words)
+		}
+	}
 }
 
-// titleRows is how many rows the title row takes: on a phone, two, its tabs
-// on the second; else one.
+// titleRows is how many rows the title row takes: its own, and those its
+// tabs take under it.
 func (f Frame) titleRows() int {
-	if f.phone() {
-		return 2
-	}
-	return 1
+	tabs := f.tabsAt()
+	return tabs[len(tabs)-1].y + 1
 }
 
-// tabsAt is where the tabs are drawn: from x along row y, gap cells apart.
-// On a phone, they fill a row of their own from its first column, touching.
-func (f Frame) tabsAt() (x, y, gap int) {
+// tabAt is a tab where the title row draws it: its view's, from column x of
+// row y.
+type tabAt struct {
+	view View
+	x, y int
+}
+
+// tabsAt are the tabs where they're drawn: two cells after the badge, a cell
+// apart. On a phone, they take the rows under the clock's that tabRows splits
+// them over instead, each from its first column, touching.
+func (f Frame) tabsAt() []tabAt {
 	if f.phone() {
-		return 0, 1, 0
+		return f.tabsAlong(0, 1, 0, tabRows(f.tabWidths(), f.Width))
 	}
-	return pill.width() + titleGap, 0, 1
+	return f.tabsAlong(pill.width()+titleGap, 0, 1, []int{len(Views())})
+}
+
+// tabsAlong are the tabs laid along rows from row y, as many to a row as
+// counts says, each row from column x, gap cells apart.
+func (f Frame) tabsAlong(x, y, gap int, counts []int) []tabAt {
+	views := Views()
+	tabs := make([]tabAt, 0, len(views))
+	for row, count := range counts {
+		at := x
+		for _, v := range views[len(tabs) : len(tabs)+count] {
+			tabs = append(tabs, tabAt{view: v, x: at, y: y + row})
+			at += f.tab(v).width() + gap
+		}
+	}
+	return tabs
+}
+
+// tabWidths are the tabs' widths, in their order.
+func (f Frame) tabWidths() []int {
+	views := Views()
+	widths := make([]int, len(views))
+	for i, v := range views {
+		widths[i] = f.tab(v).width()
+	}
+	return widths
+}
+
+// tabRows is how many tabs of the widths given go to each row, in their
+// order, over the fewest rows they fit on whole in room cells, touching, as
+// evenly as their order allows: their widest row as narrow as it can be, the
+// earlier rows the fuller. The split hangs on the count of rows alone, so a
+// tab changes row only as that count does. Where a tab is wider than room,
+// they split as where the widest just fits, its row cut at the edge.
+func tabRows(widths []int, room int) []int {
+	if len(widths) == 0 {
+		return nil
+	}
+	widestTab, total := slices.Max(widths), 0
+	for _, w := range widths {
+		total += w
+	}
+	rows := len(filled(widths, max(room, widestTab)))
+	// No row of a split over rows is narrower than the widest tab, nor than
+	// an even share of them all.
+	for widest := max(widestTab, (total+rows-1)/rows); ; widest++ {
+		if split := filled(widths, widest); len(split) <= rows {
+			return split
+		}
+	}
+}
+
+// filled is how many tabs of the widths given go to each row, in their order,
+// each row taking as many as fit whole in room cells, touching. No tab may be
+// wider than room.
+func filled(widths []int, room int) []int {
+	counts := []int{0}
+	taken := 0
+	for _, w := range widths {
+		if taken+w > room {
+			counts, taken = append(counts, 0), 0
+		}
+		counts[len(counts)-1]++
+		taken += w
+	}
+	return counts
 }
 
 // tabs draws the tabs, as tabsAt places them, and returns the column after
-// the last.
+// the last on the title row's own, or after the badge where none is.
 func (f Frame) tabs(c *canvas) int {
-	x, y, gap := f.tabsAt()
-	for i, v := range Views() {
-		if i > 0 {
-			x += gap
+	end := pill.width()
+	for _, t := range f.tabsAt() {
+		if x := c.line(t.x, t.y, f.tab(t.view)); t.y == 0 {
+			end = x
 		}
-		x = c.line(x, y, f.tab(v))
 	}
-	return x
+	return end
 }
 
 // tab is v's tab, its name with a space either side, picked out where it's
@@ -83,18 +191,4 @@ func (f Frame) tab(v View) line {
 		return line{{" " + v.Title() + " ", shownTabInk}}
 	}
 	return line{{" " + v.Title() + " ", tabInk}}
-}
-
-// clock draws the clock at now, ending at the title row's last column, at
-// least titleGap cells clear of what's drawn before end: the date and the
-// time to the second, or where the date doesn't fit, as a two-digit day's
-// doesn't at 100 columns, the time alone.
-func (f Frame) clock(c *canvas, end int, now time.Time) {
-	clock := line{{prose.ToTheSecond(now, now), timeInk}}
-	for _, l := range []line{slices.Concat(line{{prose.Day(now) + "  ", dateInk}}, clock), clock} {
-		if f.Width-l.width() >= end+titleGap {
-			c.right(f.Width, 0, l)
-			return
-		}
-	}
 }

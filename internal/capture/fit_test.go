@@ -8,12 +8,14 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // The sizes the fit sweep draws every fixture at: widths either side of
@@ -47,10 +49,7 @@ func TestNoViewDrawsOnThePagesChromeOrCountsAccountsItCantShow(t *testing.T) {
 			names := accountNames(f)
 			for _, width := range sweptWidths {
 				tall := plainRows(m, width, tallest)
-				chrome := 3
-				if dashboard.Phone(width) {
-					chrome = 4
-				}
+				chrome := chromeOf(width)
 				for _, height := range sweptHeights {
 					sized := deliver(m, tea.WindowSizeMsg{Width: width, Height: height})
 					rows := plainOf(sized.View().Content, height)
@@ -451,12 +450,17 @@ func scrolledOf(row string) string {
 }
 
 // chromeOf is how many rows the title, the status line and the rows between
-// take at the width given, the view's heading on the row after the next.
+// take at the width given, the view's heading on the row after the next: the
+// title's rows, to the last its tabs are on as the frame has them as targets,
+// then the blank row and the status line.
 func chromeOf(width int) int {
-	if dashboard.Phone(width) {
-		return 4
+	title := 1
+	for _, t := range (dashboard.Frame{Width: width}).Targets(status.Document{}, time.Time{}) {
+		if t.On == dashboard.OnTab {
+			title = max(title, t.Y+1)
+		}
 	}
-	return 3
+	return title + 2
 }
 
 var (

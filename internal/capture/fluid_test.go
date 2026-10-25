@@ -629,11 +629,15 @@ func viewOf(t *testing.T, m watch.Model, size watch.Size) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	heading := chromeOf(size.Width) + 1
+	chrome := chromeOf(size.Width)
+	heading := chrome + 1
 	if strings.HasPrefix(g.text()[heading], "SESSION ") {
 		return sessionPage
 	}
-	tab := cmp.Or(boldOf(g[0], tabNames()), boldOf(g[1], tabNames()))
+	var tab string
+	for _, row := range g[:chrome-1] {
+		tab = cmp.Or(tab, boldOf(row, tabNames()))
+	}
 	if tab == "" {
 		t.Fatalf("no tab is bold in the title:\n%s", strings.Join(g.text(), "\n"))
 	}
