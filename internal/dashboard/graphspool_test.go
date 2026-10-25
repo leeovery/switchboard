@@ -52,11 +52,17 @@ func stackOf(now int, rooms ...[]views.AccountRoom) views.PoolStack {
 // heldStack is a stack, now in the last column, of accounts each holding
 // the room given.
 func heldStack(rooms ...float64) views.PoolStack {
+	return heldStackAt(stackColumns-1, rooms...)
+}
+
+// heldStackAt is a stack, now in the column given, of accounts each holding
+// the room given.
+func heldStackAt(now int, rooms ...float64) views.PoolStack {
 	each := make([][]views.AccountRoom, len(rooms))
 	for i, r := range rooms {
 		each[i] = held(r)
 	}
-	return stackOf(stackColumns-1, each...)
+	return stackOf(now, each...)
 }
 
 // poolIn is the stack drawn in look, width cells wide and its chart h rows
@@ -152,7 +158,6 @@ func TestPoolStacksEachAccountsRoomFromTheFootInItsHue(t *testing.T) {
 // each account's round(room × 8h / n), no cell counted twice or lost, to the
 // chart's top at the most.
 func TestPoolsColumnsAreFilledToTheSumOfTheAccountsEighths(t *testing.T) {
-	nord := Screen(builtin(t, "nord"))
 	tests := []struct {
 		rooms []float64
 		h     int
@@ -164,9 +169,15 @@ func TestPoolsColumnsAreFilledToTheSumOfTheAccountsEighths(t *testing.T) {
 		{rooms: []float64{1, 1, 1}, h: 1, want: 8},
 		{rooms: []float64{0.5, 0.5, 0.5, 0.5, 0.5, 0.5}, h: 19, want: 6 * 13},
 	}
-	for _, tt := range tests {
-		if got := stackFilled(poolIn(heldStack(tt.rooms...), nord, stackColumns, tt.h), 0, tt.h); got != tt.want {
-			t.Errorf("rooms %v over %d rows fill %d eighths, want %d", tt.rooms, tt.h, got, tt.want)
+	for _, slug := range []string{"nord", "terminal"} {
+		look := Screen(builtin(t, slug))
+		for _, tt := range tests {
+			// Column 0 before now, and column 1 ahead of it.
+			for col, now := range []int{stackColumns - 1, 0} {
+				if got := stackFilled(poolIn(heldStackAt(now, tt.rooms...), look, stackColumns, tt.h), col, tt.h); got != tt.want {
+					t.Errorf("in %s, rooms %v over %d rows fill column %d, now in %d, to %d eighths, want %d", slug, tt.rooms, tt.h, col, now, got, tt.want)
+				}
+			}
 		}
 	}
 }
@@ -242,22 +253,22 @@ func TestPoolsAxisIsRunwaysOverItsTimeline(t *testing.T) {
 }
 
 // The key: each account's █ in its hue and its name, muted, as the
-// dashboard names it; a █ faded as the stack ahead is and what that means;
-// and │ and now; four apart, flowed onto as many rows as the width takes,
-// an item never broken.
+// dashboard names it, cleaned; a █ faded as the stack ahead is and what
+// that means; and │ and now; four apart, flowed onto as many rows as the
+// width takes, an item never broken.
 func TestPoolsKeyNamesEachAccountsHueFlowedOntoTheRowsItTakes(t *testing.T) {
 	look := Screen(builtin(t, "nord"))
 	s := stackOf(4, held(1), held(1))
-	s.Accounts[1].ID, s.Accounts[1].Label = "a1", "personal"
+	s.Accounts[1].ID, s.Accounts[1].Label = "a1", "per\tsonal  \x00label"
 	tests := []struct {
 		width int
 		want  []string
 	}{
-		{width: 80, want: []string{"█ work    █ personal    █ faint: heading, at its recent rate    │ now"}},
-		{width: 66, want: []string{"█ work    █ personal    █ faint: heading, at its recent rate", "│ now"}},
-		{width: 50, want: []string{"█ work    █ personal", "█ faint: heading, at its recent rate    │ now"}},
-		{width: 40, want: []string{"█ work    █ personal", "█ faint: heading, at its recent rate", "│ now"}},
-		{width: 12, want: []string{"█ work", "█ personal", "█ faint: heading, at its recent rate", "│ now"}},
+		{width: 80, want: []string{"█ work    █ per sonal label    █ faint: heading, at its recent rate    │ now"}},
+		{width: 70, want: []string{"█ work    █ per sonal label    █ faint: heading, at its recent rate", "│ now"}},
+		{width: 50, want: []string{"█ work    █ per sonal label", "█ faint: heading, at its recent rate    │ now"}},
+		{width: 40, want: []string{"█ work    █ per sonal label", "█ faint: heading, at its recent rate", "│ now"}},
+		{width: 12, want: []string{"█ work", "█ per sonal label", "█ faint: heading, at its recent rate", "│ now"}},
 	}
 	for _, tt := range tests {
 		p := poolStacked{stack: s, look: look}
@@ -320,5 +331,40 @@ func TestPoolDrawsWithinItsBounds(t *testing.T) {
 		if row := rowOf(empty, y); row != "" {
 			t.Errorf("a stack without columns drew %q on row %d", row, y)
 		}
+	}
+}
+
+// In a look that doesn't blend, which paints no ground, a cell where parts
+// meet is █ alone, in the hue of the part with the most of it, the lowest
+// of those even, faded ahead of now as the stack is: never on a surface.
+func TestPoolsMeetingCellsAreAGlyphAloneWhereTheLookDoesntBlend(t *testing.T) {
+	terminal := Screen(builtin(t, "terminal"))
+	tests := []struct {
+		name  string
+		rooms []float64
+		h     int
+		want  []hue
+	}{
+		// 4 eighths each, even: the lower's hue.
+		{name: "two meeting", rooms: []float64{1, 1}, h: 1, want: []hue{hueAt(0)}},
+		// Of four over three rows, 6 eighths a full one's: work's 6,
+		// personal's 1 and side's 1 meet in the first cell; side's 2 more
+		// and the fourth's 6 in the second, the fourth's the most.
+		{name: "the fourth on top", rooms: []float64{1, 1.0 / 6, 0.5, 1}, h: 3, want: []hue{hueAt(0), hueAt(3)}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for col, now := range []int{stackColumns - 1, 0} {
+				c := poolIn(heldStackAt(now, tt.rooms...), terminal, stackColumns, tt.h)
+				for r, h := range tt.want {
+					if col > now {
+						h = h.fadedBy(aheadFade)
+					}
+					if got, want := stackCells(c, col, tt.h)[r], (cell{glyph: levels[8], ink: h.ink()}); got != want {
+						t.Errorf("column %d, now in %d: row %d up is %+v, want %+v", col, now, r, got, want)
+					}
+				}
+			}
+		})
 	}
 }

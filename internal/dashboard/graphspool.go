@@ -129,7 +129,7 @@ func (p poolStacked) parts(col, h int, ahead bool) []stackPart {
 }
 
 // stackEighths are the eighths of a chart h rows tall an account's room
-// fills, of n accounts' stacked: round(room × 8h / n), the product settled
+// fills, of n accounts' stacked: round(room × 8h / n), the quotient settled
 // first; none where its room isn't known.
 func stackEighths(r views.AccountRoom, h, n int) int {
 	if !r.Known || n < 1 {
@@ -155,7 +155,9 @@ func (p poolStacked) column(c *canvas, x, floor, h int, parts []stackPart) {
 // in its hue on the highest's as their ground, any between giving way; at the
 // stack's top, the stack's eighths in the hue of the part with the most of
 // them, the lowest of those even, so the stack's height is never more nor
-// less than its parts'.
+// less than its parts'. In a look that doesn't blend, which paints no ground,
+// a cell where they meet is the glyph alone, in the hue of the part with the
+// most of it, as at the stack's top.
 func stackCell(look Look, parts []stackPart, lo int) (string, ink, bool) {
 	var inside []stackPart
 	for _, s := range parts {
@@ -172,7 +174,7 @@ func stackCell(look Look, parts []stackPart, lo int) (string, ink, bool) {
 	case len(inside) == 1:
 		glyph, k := filledCell(look, top, first.hue.ink())
 		return glyph, k, true
-	case top < 8:
+	case top < 8 || !look.blends():
 		return levels[top], widest(inside).hue.ink(), true
 	}
 	k := first.hue.ink()
