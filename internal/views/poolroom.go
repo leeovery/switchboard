@@ -77,17 +77,45 @@ func (p PoolRoom) Look(from PoolRoomFrom) PoolRoom {
 	if i < 0 {
 		return PoolRoom{then: p.then, past: p.past}
 	}
-	past := p.past.judged(from, step, p.judging())
+	past := p.past.judged(pastFrom{
+		moment: from.Moment, readings: from.Readings, through: from.ReadThrough, key: from.Key, step: step,
+		at: poolMoments(from.Key, from.Columns, from.Moment.Now, step),
+	}, p.then.orRoomThen())
 	room := PoolRoom{Of: len(pool.Accounts), Columns: make([]PoolRoomColumn, 0, from.Columns), then: p.then, past: past}
 	for _, c := range past.columns {
-		if c.room.Known {
-			c.room.Used = status.PoolUsed(c.room.Room, room.Of)
+		col := poolRoomOf(c.rooms)
+		if col.Known {
+			col.Used = status.PoolUsed(col.Room, room.Of)
 		}
-		room.Columns = append(room.Columns, c.room)
+		room.Columns = append(room.Columns, col)
 	}
 	now := pool.Windows[i].Room
 	room.Columns = append(room.Columns, PoolRoomColumn{Room: now, Used: status.PoolUsed(now, room.Of), Known: true})
 	return room
+}
+
+// poolMoments are the moments of the columns before now's of the pool's room
+// in the window with the given key, charted across columns columns a step
+// apart, at now, oldest first: the last at PoolRoomThrough's.
+func poolMoments(key string, columns int, now time.Time, step time.Duration) []time.Time {
+	end := PoolRoomThrough(key, columns, now)
+	at := make([]time.Time, columns-1)
+	for c := range at {
+		at[c] = end.Add(-time.Duration(len(at)-1-c) * step)
+	}
+	return at
+}
+
+// poolRoomOf is the pool's room of its accounts' rooms given, summed: known
+// where any's is.
+func poolRoomOf(rooms []AccountRoom) PoolRoomColumn {
+	var col PoolRoomColumn
+	for _, r := range rooms {
+		if r.Known {
+			col.Room, col.Known = col.Room+r.Room, true
+		}
+	}
+	return col
 }
 
 // PoolRoomThrough is the moment of the last column before now's of the
@@ -118,19 +146,20 @@ func poolStep(key string, columns int) (time.Duration, bool) {
 	return length / time.Duration(max(columns-1, 1)), true
 }
 
-// judging is how p judges the room an account had left in a window at a
-// moment gone: its judge, else status.Moment.RoomThen.
-func (p PoolRoom) judging() roomJudge {
-	if p.then == nil {
+// orRoomThen is how a look judges the room an account had left in a window
+// at a moment gone: by j, else by status.Moment.RoomThen.
+func (j roomJudge) orRoomThen() roomJudge {
+	if j == nil {
 		return status.Moment.RoomThen
 	}
-	return p.then
+	return j
 }
 
-// heldRoom is what was judged of the pool's room in a window before now's
-// column, and what that was judged from: the window's key; the step its
-// columns are apart; the policy; each of the pool's accounts, as roomOf
-// knows it, in the pool's order; and each column, as heldColumn has it.
+// heldRoom is what was judged of the room the pool's accounts had in a
+// window before now's column, and what that was judged from: the window's
+// key; the step its columns are apart; the policy; each of the pool's
+// accounts, as roomOf knows it, in the pool's order; and each column, as
+// heldColumn has it, oldest first.
 type heldRoom struct {
 	key      string
 	step     time.Duration
@@ -139,14 +168,14 @@ type heldRoom struct {
 	columns  []heldColumn
 }
 
-// heldColumn is a column of the pool's room before now's: its moment; the
-// readings by then, as heldReadings knows them; whether it was judged; and
-// its room, as judged.
+// heldColumn is a column before now's: its moment; the readings by then, as
+// heldReadings knows them; whether it was judged; and, judged, each of the
+// pool's accounts' room then, in the pool's order.
 type heldColumn struct {
 	at     time.Time
 	read   heldReadings
 	judged bool
-	room   PoolRoomColumn
+	rooms  []AccountRoom
 }
 
 // roomOf is what RoomThen reads of an account besides its readings: its id,
@@ -179,25 +208,37 @@ func (o roomOf) is(r roomOf) bool {
 		slices.EqualFunc(o.told, r.told, sameSpan)
 }
 
-// judged is the pool's room before now's column at the look from gives, its
-// columns step apart, as heldRoom has it: each column held from h where it
-// was judged at its moment from what it's judged from now, the readings by
-// then the same, as RoomThen reads none after; else judged afresh, as roomAt
-// has it, of the readings indexed once, where they were read through its
-// moment; else left not judged.
-func (h heldRoom) judged(from PoolRoomFrom, step time.Duration, then roomJudge) heldRoom {
-	m := from.Moment
-	past := heldRoom{key: from.Key, step: step, policy: m.Policy(), accounts: roomsOf(m), columns: make([]heldColumn, from.Columns-1)}
-	alike, end := h.alike(past), PoolRoomThrough(from.Key, from.Columns, m.Now)
-	read := sync.OnceValue(func() status.Readings { return status.Index(from.Readings) })
-	for c := range past.columns {
-		col := heldColumn{at: end.Add(-time.Duration(len(past.columns)-1-c) * step)}
-		col.read = readBy(from.Readings, col.at)
-		switch held, ok := h.columnAt(col.at); {
+// pastFrom is what the room in a window before now's column is judged from
+// at a look: the moment; the readings history's readings, oldest first, and
+// when they were read through, as PoolRoomFrom has them; the window's key;
+// the step its columns are apart; and each column's moment, oldest first.
+type pastFrom struct {
+	moment   status.Moment
+	readings []readings.Reading
+	through  time.Time
+	key      string
+	step     time.Duration
+	at       []time.Time
+}
+
+// judged is the room before now's column at the look from gives, as
+// heldRoom has it: each column held from h where it was judged at its moment
+// from what it's judged from now, the readings by then the same, as RoomThen
+// reads none after; else judged afresh, as roomsAt has it, of the readings
+// indexed once, where they were read through its moment; else left not
+// judged.
+func (h heldRoom) judged(from pastFrom, then roomJudge) heldRoom {
+	m := from.moment
+	past := heldRoom{key: from.key, step: from.step, policy: m.Policy(), accounts: roomsOf(m), columns: make([]heldColumn, len(from.at))}
+	alike := h.alike(past)
+	read := sync.OnceValue(func() status.Readings { return status.Index(from.readings) })
+	for c, at := range from.at {
+		col := heldColumn{at: at, read: readBy(from.readings, at)}
+		switch held, ok := h.columnAt(at); {
 		case alike && ok && held.judged && held.read == col.read:
 			col = held
-		case !col.at.After(from.ReadThrough):
-			col.room, col.judged = past.roomAt(m, read(), then, col.at), true
+		case !at.After(from.through):
+			col.rooms, col.judged = past.roomsAt(m, read(), then, at), true
 		}
 		past.columns[c] = col
 	}
@@ -211,31 +252,25 @@ func (h heldRoom) alike(past heldRoom) bool {
 	return h.key == past.key && h.step == past.step && h.policy.Equal(past.policy) && slices.EqualFunc(h.accounts, past.accounts, roomOf.is)
 }
 
-// columnAt is the column h holds at the moment t, on the grid of its steps,
-// reporting false where it holds none then.
+// columnAt is the column h holds at the moment t, reporting false where it
+// holds none then.
 func (h heldRoom) columnAt(t time.Time) (heldColumn, bool) {
-	if h.step <= 0 || len(h.columns) == 0 {
-		return heldColumn{}, false
-	}
-	back := h.columns[len(h.columns)-1].at.Sub(t)
-	c := len(h.columns) - 1 - int(back/h.step)
-	if back < 0 || back%h.step != 0 || c < 0 {
+	c, ok := slices.BinarySearchFunc(h.columns, t, func(col heldColumn, t time.Time) int { return col.at.Compare(t) })
+	if !ok {
 		return heldColumn{}, false
 	}
 	return h.columns[c], true
 }
 
-// roomAt is the pool's room in the window at t, of each of its accounts as
-// then has it, by the readings given, summed: known where any's is.
-func (h heldRoom) roomAt(m status.Moment, read status.Readings, then roomJudge, t time.Time) PoolRoomColumn {
-	var col PoolRoomColumn
-	for _, of := range h.accounts {
+// roomsAt is the room each of the pool's accounts had in the window at t, as
+// then has it, by the readings given, in the pool's order.
+func (h heldRoom) roomsAt(m status.Moment, read status.Readings, then roomJudge, t time.Time) []AccountRoom {
+	rooms := make([]AccountRoom, len(h.accounts))
+	for i, of := range h.accounts {
 		a, _ := m.Account(of.id)
-		if room, known := then(m, a, read, of.told, h.key, t); known {
-			col.Room, col.Known = col.Room+room, true
-		}
+		rooms[i].Room, rooms[i].Known = then(m, a, read, of.told, h.key, t)
 	}
-	return col
+	return rooms
 }
 
 // readBy knows the readings given, oldest first, read by t, as heldReadings

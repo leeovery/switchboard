@@ -7,6 +7,7 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
+	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -340,13 +341,19 @@ func (s LaneStretch) holdsOn(st stood, c int, at time.Time) bool {
 	return s.Last == c-1 && s.Cell == st.cell && (s.Back.IsZero() || s.Back.After(at))
 }
 
-// viewKey is the key of the window the view is named for, of those every
-// model shares, in the moment's policy's order: the first lasting a day or
-// less of the 5-hour view, the first lasting longer of the week's; "" where
-// none does.
+// viewKey is the key of the window the view is named for, as viewKeyOf has
+// it, in the moment's policy.
 func (from LanesFrom) viewKey() string {
-	for _, key := range from.Moment.Policy().Shared {
-		if quota.MultiDay(key) == (from.Window == RunwayWeek) {
+	return viewKeyOf(from.Moment.Policy(), from.Window)
+}
+
+// viewKeyOf is the key of the window Runway's view of w is named for, of
+// those every model shares, in the policy's order: the first lasting a day
+// or less of the 5-hour view, the first lasting longer of the week's; ""
+// where none does.
+func viewKeyOf(policy score.Policy, w RunwayWindow) string {
+	for _, key := range policy.Shared {
+		if quota.MultiDay(key) == (w == RunwayWeek) {
 			return key
 		}
 	}

@@ -50,7 +50,7 @@ func leftToTheTerminal(b theme.Theme, tok theme.Token) bool {
 	return slices.Contains([]theme.Token{
 		theme.TextPrimary, theme.TextSecondary, theme.TextTertiary, theme.TextOnSelection,
 		theme.Canvas, theme.BgSubtle, theme.VizPace,
-		theme.VizFamily4, theme.VizVersion6, theme.VizDay0,
+		theme.VizFamily4, theme.VizVersion6, theme.VizDay0, theme.VizAccount4,
 	}, tok)
 }
 
@@ -194,6 +194,7 @@ func TestTheBuiltInsAsTheirSheetsDrawThem(t *testing.T) {
 		{slug: "exchange", want: map[theme.Token]string{
 			theme.Canvas: "#1B1714", theme.TextPrimary: "#F4EEDF", theme.AccentKey: "#C9A44C",
 			theme.VizRamp3: "#E07A3F", theme.VizReserve: "#EDAE49", theme.VizTrack: "#241E19", theme.VizPace: "#F4EEDF",
+			theme.VizAccount1: "#7FB069", theme.VizAccount2: "#C9A44C", theme.VizAccount3: "#E07A3F", theme.VizAccount4: "#D9CDB2",
 		}},
 	}
 	for _, tt := range tests {
@@ -205,6 +206,25 @@ func TestTheBuiltInsAsTheirSheetsDrawThem(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// Every built-in gives the pool's accounts four hues apart, so POOL tells
+// them apart, but Amber, monochrome by intent, as its families are. The
+// terminal theme's fourth is the terminal's own foreground, nil, apart from
+// the others.
+func TestEveryBuiltInGivesFourAccountHuesApart(t *testing.T) {
+	for _, b := range theme.Builtins() {
+		if b.Slug == "amber" {
+			continue
+		}
+		for i := theme.VizAccount1; i <= theme.VizAccount4; i++ {
+			for j := i + 1; j <= theme.VizAccount4; j++ {
+				if b.Colour(i) == b.Colour(j) {
+					t.Errorf("%s's %s and %s are both %v", b.Slug, i, j, b.Colour(i))
+				}
+			}
+		}
 	}
 }
 
