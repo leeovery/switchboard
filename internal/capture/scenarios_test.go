@@ -38,6 +38,8 @@ func TestEachTapePlaysItsScenarioAsItsCuesAreTimedFor(t *testing.T) {
 		says []string
 		// not are what it no longer shows by then.
 		not []string
+		// tab is the tab the title row shows by then, where it's checked.
+		tab string
 	}
 	shiftTab := []tea.KeyPressMsg{{Code: tea.KeyTab, Mod: tea.ModShift}}
 	tests := []struct {
@@ -58,7 +60,7 @@ func TestEachTapePlaysItsScenarioAsItsCuesAreTimedFor(t *testing.T) {
 				{at: 7.3, says: []string{"Requests", "● following"}},
 				{at: 8.5, says: []string{"SESSION   ", "esc back"}},
 				{at: 11.5, says: []string{"SESSION   ", "esc back"}},
-				{at: 11.8, not: []string{"SESSION   ", "Requests", "RUNWAY"}},
+				{at: 11.8, not: []string{"SESSION   ", "Requests", "RUNWAY"}, tab: "Graphs"},
 				{at: 14.8, says: []string{"RUNWAY", "< week >"}},
 				{at: 18.8, says: []string{"SESSIONS    Switchboard"}},
 				{at: 21.8, says: []string{"HISTORY    Year"}},
@@ -157,6 +159,9 @@ func TestEachTapePlaysItsScenarioAsItsCuesAreTimedFor(t *testing.T) {
 					if strings.Contains(screen, not) {
 						t.Errorf("%vs in, it shows\n%s\nwant no %q", want.at, screen, not)
 					}
+				}
+				if shown := p.tabShown(); want.tab != "" && shown != want.tab {
+					t.Errorf("%vs in, the title row shows %q, want %q", want.at, shown, want.tab)
 				}
 			}
 		})
