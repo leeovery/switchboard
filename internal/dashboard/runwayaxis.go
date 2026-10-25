@@ -25,24 +25,31 @@ const (
 )
 
 // runwayAxis draws the axis over the lanes, as laid out, across the
-// timeline's columns: on its first row, now, bold, from a cell before now's
-// column, where the timeline has a now; on the next, a week's days, as
+// timeline's columns, as timeAxis draws it, where the fit draws it.
+func (f Frame) runwayAxis(c *canvas, laid runwayLaid) {
+	if laid.fit.draws(laid.fit.axis) {
+		timeAxis(c, f.Runway.Timeline, f.Runway.Window, laid.x, laid.fit.axis)
+	}
+}
+
+// timeAxis draws Runway's axis of the window w's view over the timeline tl,
+// from x down from row top: on its first row, now, bold, from a cell before
+// now's column, where the timeline has a now; on the next, a week's days, as
 // weekdays draws them, or the hours of any other, as hours draws them; and
 // under them, their ticks along a rule.
-func (f Frame) runwayAxis(c *canvas, laid runwayLaid) {
-	tl, top := f.Runway.Timeline, laid.fit.axis
-	if !laid.fit.draws(top) || tl.Columns <= 0 {
+func timeAxis(c *canvas, tl views.Timeline, w views.RunwayWindow, x, top int) {
+	if tl.Columns <= 0 {
 		return
 	}
 	if col := tl.NowColumn(); col >= 0 && col < tl.Columns {
-		c.text(laid.x+col-1, top, "now", titleInk)
+		c.text(x+col-1, top, "now", titleInk)
 	}
-	c.text(laid.x, top+2, rule(tl.Columns), borderInk)
-	if f.Runway.Window == views.RunwayWeek {
-		weekdays(c, tl, laid.x, top+1)
+	c.text(x, top+2, rule(tl.Columns), borderInk)
+	if w == views.RunwayWeek {
+		weekdays(c, tl, x, top+1)
 		return
 	}
-	hours(c, tl, laid.x, top+1)
+	hours(c, tl, x, top+1)
 }
 
 // apart is the first of hourSteps whose hours span cells columns of the
