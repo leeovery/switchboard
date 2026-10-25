@@ -126,7 +126,7 @@ func TestTheFollowerTellsTheFirstDayTheLedgerHoldsLinesOf(t *testing.T) {
 	state, dir, _ := stateDirs(t)
 	at := on(0, 12, 0)
 	follower := followerOf(state, &testClock{at: at}, caps)
-	writeFile(t, dir, "day-2026-10-02.json", []byte(summaryOf("2026-10-02", 1, 1, windowsRead{})+"\n"))
+	writeFile(t, dir, "day-2026-10-02.json", []byte(summaryOf("2026-10-02", 1, windowsRead{}, on(-3, 9, 0))+"\n"))
 	if _, err := follower.FirstLinesDay(at); !errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("FirstLinesDay() of a ledger holding a summary alone fails with %v, want fs.ErrNotExist", err)
 	}

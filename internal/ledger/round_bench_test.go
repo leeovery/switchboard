@@ -112,13 +112,14 @@ func BenchmarkSummarisingAYearOfHeavyDaysAgain(b *testing.B) {
 }
 
 // olderSummaries returns what writes the summaries the ledger in dir holds
-// back as the release before version 5 wrote them, whole and marked: of
-// version 4, and stamped a second sooner, as that release stamped them.
-func olderSummaries(b *testing.B, dir string) (write func()) {
-	b.Helper()
+// back as the release before version 6 wrote them, whole and marked: of
+// version 5, their models' hours never counted, and stamped a second sooner,
+// as that release stamped them.
+func olderSummaries(tb testing.TB, dir string) (write func()) {
+	tb.Helper()
 	paths, err := filepath.Glob(filepath.Join(dir, "day-*.json"))
 	if err != nil {
-		b.Fatal(err)
+		tb.Fatal(err)
 	}
 	type written struct {
 		path  string
@@ -129,29 +130,34 @@ func olderSummaries(b *testing.B, dir string) (write func()) {
 	for _, path := range paths {
 		data, err := os.ReadFile(path)
 		if err != nil {
-			b.Fatal(err)
+			tb.Fatal(err)
 		}
 		info, err := os.Stat(path)
 		if err != nil {
-			b.Fatal(err)
+			tb.Fatal(err)
 		}
 		var s ledger.Summary
 		if err := json.Unmarshal(data, &s); err != nil {
-			b.Fatal(err)
+			tb.Fatal(err)
 		}
-		s.Version = 4
+		s.Version = 5
+		for _, a := range s.Accounts {
+			for i := range a.Models {
+				a.Models[i].Hours = nil
+			}
+		}
 		if data, err = json.Marshal(s); err != nil {
-			b.Fatal(err)
+			tb.Fatal(err)
 		}
 		held = append(held, written{path: path, data: append(data, '\n'), stamp: info.ModTime().Add(-time.Second)})
 	}
 	return func() {
 		for _, w := range held {
 			if err := os.WriteFile(w.path, w.data, 0o600); err != nil {
-				b.Fatal(err)
+				tb.Fatal(err)
 			}
 			if err := os.Chtimes(w.path, time.Time{}, w.stamp); err != nil {
-				b.Fatal(err)
+				tb.Fatal(err)
 			}
 		}
 	}

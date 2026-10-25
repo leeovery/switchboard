@@ -171,6 +171,10 @@ An hour after each day ends, the router summarises the day beside its lines, in
 Each entry in `models` counts its requests by how they went:
 
 - `upstream`: those that went upstream.
+- `hours`: those that went upstream again, by the hour of the day each arrived in, by your
+  clock: 24 counts, from midnight's hour on, that add up to `upstream`. An hour the clocks skip
+  has none, and one they repeat counts both. A day summarised before the router kept them has
+  none.
 - `no_usage`: those of them that got no usage back.
 - `unsent`: those the router answered itself.
 - `checks`: Claude Code's quota checks. Their usage is left out of the model's `usage`, as they
@@ -205,12 +209,15 @@ A line can come to be filed under a day later, such as when a request still in f
 hour files one. The router then summarises the day again. The new summary knows no less than the
 one before it. That holds even when the history has since let the day's readings go, or a damaged
 file has lost some of its lines, which can't be told apart from the lines filed since. So the
-summary's counts are then the least there were.
+summary's counts are then the least there were. A model's `hours` come whole from whichever summary
+counted more of its requests upstream, so they still add up to `upstream`.
 
 ### Kept for good
 
 Once a day's lines go, its summary is kept for good. It's summarised again only by a release that
 summarises days in a different way, and then from the day's readings while the history keeps them.
+So a day whose lines went before the router kept `hours` never gains them: the readings can't give
+them.
 
 ## The router's events
 

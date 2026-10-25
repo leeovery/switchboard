@@ -762,12 +762,18 @@ func (y year) sessionThisWeek() {
 func sessionIDs(date, account string, n int) []string {
 	ids := make([]string, n)
 	for i := range ids {
-		hash := sha256.Sum256(fmt.Appendf(nil, "%s/%s/%d", date, account, i))
-		sum := binary.BigEndian.Uint64(hash[:])
+		sum := drawn(fmt.Appendf(nil, "%s/%s/%d", date, account, i))
 		ids[i] = fmt.Sprintf("%08x-%04x-4%03x-a%03x-%012x", uint32(sum>>32), uint16(sum>>16), uint16(sum)&0xfff, uint16(sum>>4)&0xfff, sum&0xffffffffffff)
 	}
 	slices.Sort(ids)
 	return ids
+}
+
+// drawn is a number drawn from key, the same every run, as unlike another
+// key's as a hash makes it.
+func drawn(key []byte) uint64 {
+	hash := sha256.Sum256(key)
+	return binary.BigEndian.Uint64(hash[:])
 }
 
 // dateOf is day d of the year's date, as the ledger files its days.

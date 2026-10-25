@@ -158,7 +158,7 @@ func TestLinesAreReadBackOldestFirstWhicheverDaysFileTheyreIn(t *testing.T) {
 // noRequests is the summary of the day with the given date of no requests,
 // made from as many lines as lines says.
 func noRequests(date string, lines int) string {
-	return fmt.Sprintf(`{"version":5,"day":"%s","lines":%d}`, date, lines)
+	return fmt.Sprintf(`{"version":6,"day":"%s","lines":%d}`, date, lines)
 }
 
 // summariesJSON returns each of summaries as JSON, but for the sizes of its
@@ -183,7 +183,7 @@ func TestDaysAreEveryDayOfTheRangeTodaysLast(t *testing.T) {
 	writeFile(t, dir, "requests-2026-10-06.jsonl", []byte(`{"at":"2026-10-06T09:00:00Z","requ`))
 
 	got := summariesJSON(t, readerAt(state, on(2, 12, 0)).Days(on(-1, 15, 0)))
-	want := []string{summaryOf("2026-10-04", 1, 1, windowsRead{}), noRequests(date, 0), noRequests("2026-10-06", 1), noRequests("2026-10-07", 0)}
+	want := []string{summaryOf("2026-10-04", 1, windowsRead{}, on(-1, 9, 0)), noRequests(date, 0), noRequests("2026-10-06", 1), noRequests("2026-10-07", 0)}
 	if !slices.Equal(got, want) {
 		t.Errorf("Days() =\n%s\nwant\n%s: every day from the 4th's to today's, a day of no requests a summary of no accounts", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
@@ -206,7 +206,7 @@ func TestADayOfNoRequestsIsReadWithTheAccountsItsReadingsTellOf(t *testing.T) {
 
 			got := summariesJSON(t, days(on(-1, 0, 0)))
 			quiet := windowsRead{read: true, highest: `{"5h":0.3}`, rise: `{"5h":0.3}`, resets: `[` + resetJSON("5h", on(0, 13, 0), 0.3) + `]`}
-			want := []string{summaryOf("2026-10-04", 1, 1, windowsRead{}), `{"version":5,"day":"2026-10-05","lines":0,"accounts":[` + quietDayJSON("work", quiet) + `]}`,
+			want := []string{summaryOf("2026-10-04", 1, windowsRead{}, on(-1, 9, 0)), `{"version":6,"day":"2026-10-05","lines":0,"accounts":[` + quietDayJSON("work", quiet) + `]}`,
 				noRequests("2026-10-06", 0)}
 			if !slices.Equal(got, want) {
 				t.Errorf("Days() =\n%s\nwant\n%s: the 5th summarised from its readings as it's read", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -234,7 +234,7 @@ func TestADayIsReadWithItsReadingsWhereTheReadingsHistoryCantBeListed(t *testing
 			}
 
 			quiet := windowsRead{read: true, highest: `{"5h":0.3}`, rise: `{"5h":0.3}`, resets: `[` + resetJSON("5h", on(0, 13, 0), 0.3) + `]`}
-			want := `{"version":5,"day":"2026-10-05","lines":0,"accounts":[` + quietDayJSON("work", quiet) + `]}`
+			want := `{"version":6,"day":"2026-10-05","lines":0,"accounts":[` + quietDayJSON("work", quiet) + `]}`
 			if got := summariesJSON(t, days(on(0, 0, 0))[:1])[0]; got != want {
 				t.Errorf("the 5th is\n%s\nwant\n%s: a listing that failed tells of no day the history holds no readings of", got, want)
 			}
@@ -271,7 +271,7 @@ func TestDaysStartWhereTheLedgerBegins(t *testing.T) {
 		{
 			name: "its first summary's, the lines of its day pruned",
 			lay: func(t *testing.T, dir string) {
-				writeFile(t, dir, "day-2026-10-04.json", []byte(summaryOf("2026-10-04", 1, 1, windowsRead{})+"\n"))
+				writeFile(t, dir, "day-2026-10-04.json", []byte(summaryOf("2026-10-04", 1, windowsRead{}, on(-1, 9, 0))+"\n"))
 				holdLines(t, dir, "2026-10-06", asked("1", on(1, 9, 0)))
 			},
 			from:  on(-30, 0, 0),
@@ -344,11 +344,11 @@ func TestDaysAreReadFromTheirSummariesWhileTheyStand(t *testing.T) {
 	// The 4th's summary, made from the line it holds, and one more since lost
 	// to damage, with the highest use the readings history gave as it was
 	// summarised, since pruned.
-	standing := summaryOf("2026-10-04", 2, 2, windowsRead{read: true, highest: `{"5h":0.9}`, rise: `{"5h":0.5}`})
+	standing := summaryOf("2026-10-04", 2, windowsRead{read: true, highest: `{"5h":0.9}`, rise: `{"5h":0.5}`}, on(-1, 9, 0), on(-1, 10, 0))
 	writeFile(t, dir, "day-2026-10-04.json", []byte(standing+"\n"))
 	holdLines(t, dir, "2026-10-04", asked("1", on(-1, 9, 0)))
 	// The 5th's summary, written before a line came to be filed under the day.
-	written := summaryOf(date, 1, 1, windowsRead{}) + "\n"
+	written := summaryOf(date, 1, windowsRead{}, on(0, 9, 0)) + "\n"
 	writeFile(t, dir, "day-2026-10-05.json", []byte(written))
 	holdLines(t, dir, date, asked("2", on(0, 9, 0)), asked("3", on(0, 23, 59)))
 	// The 6th, not yet summarised, as when the router was stopped as it ended,
@@ -360,9 +360,9 @@ func TestDaysAreReadFromTheirSummariesWhileTheyStand(t *testing.T) {
 
 	got := summariesJSON(t, readerAt(state, on(2, 12, 0)).Days(on(-2, 15, 0)))
 	// Today's session, read at 09:00, resets at 13:00, after now.
-	want := []string{keptAlone, standing, summaryOf(date, 2, 2, windowsRead{}),
-		summaryOf("2026-10-06", 1, 1, windowsRead{read: true, highest: `{"5h":0.2}`, rise: `{"5h":0.2}`, resets: `[` + resetJSON("5h", on(1, 14, 0), 0.2) + `]`}),
-		summaryOf("2026-10-07", 1, 1, windowsRead{read: true, highest: `{"5h":0.35}`, rise: `{"5h":0.35}`, before: `["5h"]`})}
+	want := []string{keptAlone, standing, summaryOf(date, 2, windowsRead{}, on(0, 9, 0), on(0, 23, 59)),
+		summaryOf("2026-10-06", 1, windowsRead{read: true, highest: `{"5h":0.2}`, rise: `{"5h":0.2}`, resets: `[` + resetJSON("5h", on(1, 14, 0), 0.2) + `]`}, on(1, 10, 0)),
+		summaryOf("2026-10-07", 1, windowsRead{read: true, highest: `{"5h":0.35}`, rise: `{"5h":0.35}`, before: `["5h"]`}, on(2, 9, 0))}
 	if !slices.Equal(got, want) {
 		t.Errorf("Days() =\n%s\nwant\n%s: a day's summary as it's held while its lines are no more than it was made from, or pruned, and the others "+
 			"summarised from their lines as they're read", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -407,7 +407,7 @@ func TestDaysOpenNoFileOfADayWhoseLinesHaventChangedSinceItsSummary(t *testing.T
 	unopenable(t, dir, "requests-*")
 
 	got := summariesJSON(t, readerAt(state, on(1, 12, 0)).Days(on(0, 0, 0)))
-	if want := []string{summaryOf(date, 2, 2, windowsRead{}), noRequests("2026-10-06", 0)}; !slices.Equal(got, want) || opened(log) != 0 {
+	if want := []string{summaryOf(date, 2, windowsRead{}, theTwo...), noRequests("2026-10-06", 0)}; !slices.Equal(got, want) || opened(log) != 0 {
 		t.Errorf("log reads\n%s\nDays() =\n%s\nwant\n%s: the 5th's summary as it's held, its file unopened, as its lines haven't changed since",
 			log, strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
@@ -419,7 +419,7 @@ func TestADayWhoseSummaryCantBeReadAsItsOwnIsSummarisedFromItsLines(t *testing.T
 		held string
 	}{
 		{name: "cut short", held: `{"version":1,"day":`},
-		{name: "of another day", held: summaryOf("2026-10-04", 1, 1, windowsRead{})},
+		{name: "of another day", held: summaryOf("2026-10-04", 1, windowsRead{}, on(-1, 9, 0))},
 		{name: "of no day", held: `{"version":1,"lines":1}`},
 	}
 	for _, tt := range tests {
@@ -430,7 +430,7 @@ func TestADayWhoseSummaryCantBeReadAsItsOwnIsSummarisedFromItsLines(t *testing.T
 			holdLines(t, dir, date, asked("1", on(0, 9, 0)))
 
 			got := summariesJSON(t, readerAt(state, on(0, 12, 0)).Days(on(0, 0, 0)))
-			if want := []string{summaryOf(date, 1, 1, windowsRead{})}; !slices.Equal(got, want) {
+			if want := []string{summaryOf(date, 1, windowsRead{}, on(0, 9, 0))}; !slices.Equal(got, want) {
 				t.Errorf("Days() = %q, want %q", got, want)
 			}
 			if !log.Has("level=WARN", `msg="can't read the request ledger's summary of a day; summarising it from its lines"`, "day="+date) {
@@ -446,7 +446,7 @@ func TestASummaryDamagedInPlaceIsWarnedOfAsItsReadAndItsDaySummarisedFromItsLine
 		held string
 	}{
 		{name: "cut short", held: `{"version":1,"day":`},
-		{name: "of another day", held: summaryOf("2026-10-04", 9, 9, windowsRead{})},
+		{name: "of another day", held: summaryOf("2026-10-04", 9, windowsRead{}, slices.Repeat([]time.Time{on(-1, 9, 0)}, 9)...)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -468,7 +468,7 @@ func TestASummaryDamagedInPlaceIsWarnedOfAsItsReadAndItsDaySummarisedFromItsLine
 			}
 
 			got := summariesJSON(t, readerAt(state, on(3, 11, 0)).Days(on(0, 0, 0))[:1])
-			if want := []string{summaryOf(date, 1, 1, windowsRead{})}; !slices.Equal(got, want) {
+			if want := []string{summaryOf(date, 1, windowsRead{}, on(0, 9, 0))}; !slices.Equal(got, want) {
 				t.Errorf("Days() = %q, want the day summarised from its lines %q", got, want)
 			}
 			if !log.Has("level=WARN", `msg="can't read the request ledger's summary of a day; summarising it from its lines"`, "day="+date) {
@@ -500,7 +500,7 @@ func TestADayIsSummarisedWithItsReadingsInTheOrderTheyWereRead(t *testing.T) {
 	// it until now, 18:00.
 	read := windowsRead{read: true, highest: `{"5h":0.8,"7d":1}`, rise: `{"5h":0,"7d":0}`, resets: `[` + resetJSON("5h", resets, 0.8) + `]`,
 		limits: `[` + limit + `]`, atLimit: 240, before: `["5h"]`}
-	if want := []string{summaryOf(date, 1, 1, read)}; !slices.Equal(got, want) {
+	if want := []string{summaryOf(date, 1, read, on(0, 9, 0))}; !slices.Equal(got, want) {
 		t.Errorf("Days() =\n%s\nwant\n%s: the use work's session began the day at, as its last reading before it read, and its week's limit as first read",
 			strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
