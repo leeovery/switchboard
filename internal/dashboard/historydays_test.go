@@ -297,6 +297,59 @@ func TestDaysScrollsWholeWhereItsFramesDontFit(t *testing.T) {
 	}
 }
 
+// Days' key holds the view's last rows while it leaves the strips two over
+// it, a strip's first and the line saying what's below; at the view's least,
+// three rows, the narrow form's key of two would leave them none, so it
+// scrolls with them instead, a row under the last strip, the view's last row
+// saying what's below; and paged down, every row shows, the key's among
+// them. A row taller, and in the wide form, the key holds.
+func TestDaysKeyScrollsWithTheStripsAtTheViewsLeast(t *testing.T) {
+	page := daysWorld(workDays, personalDays, sideDays)
+	tests := []struct {
+		name          string
+		width, height int
+		rows, held    int
+	}{
+		{name: "narrow, at its least", width: 52, height: 14, rows: 3},
+		{name: "narrow, a row taller", width: 52, height: 15, rows: 4, held: 2},
+		{name: "wide, at its least", width: 160, height: 11, rows: 3, held: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := daysFrame(t, page, tt.width, tt.height)
+			if rows := f.viewRows(); rows != tt.rows {
+				t.Fatalf("at %d×%d, the view has %d rows, want %d", tt.width, tt.height, rows, tt.rows)
+			}
+			if l := f.layOutDays(page, f.top()); l.keyScrolls != (tt.held == 0) {
+				t.Errorf("the key scrolls with the strips: %t, want %t", l.keyScrolls, tt.held == 0)
+			}
+			view := textOf(historyDrawn(f).rows(Look{}))[f.top() : f.top()+f.viewRows()]
+			foot := len(view) - tt.held
+			if keyed := foot < len(view) && strings.HasPrefix(view[foot], "less "); keyed != (tt.held > 0) {
+				t.Errorf("unscrolled, the view reads\n%s\nwant the key held on its last %d rows", strings.Join(view, "\n"), tt.held)
+			}
+			if says := view[foot-1]; !strings.HasPrefix(says, "▼ ") {
+				t.Errorf("unscrolled, the row over the key's reads %q, want it saying more lies below", says)
+			}
+			var seen []string
+			for scroll := 0; ; {
+				f.Scroll = scroll
+				seen = append(seen, textOf(historyDrawn(f).rows(Look{}))[f.top():f.top()+f.viewRows()]...)
+				next := f.daysScrolling(scroll).Paged(scroll, 1)
+				if next == scroll {
+					break
+				}
+				scroll = next
+			}
+			for _, row := range []string{"BY MODEL", "● Opus", "● Haiku", "BY ACCOUNT", "work", "personal ◆", "side", "less ", daysLimitNote} {
+				if !slices.ContainsFunc(seen, func(s string) bool { return strings.Contains(s, row) }) {
+					t.Errorf("paged down as far as it goes, Days never shows a row with %q", row)
+				}
+			}
+		})
+	}
+}
+
 // In its narrow form, Days is the last of its weeks that fit the width, three at 52
 // columns, each strip under its name and its count, the count ending where
 // the last week's days end, so it reads with its strip; and the key over two

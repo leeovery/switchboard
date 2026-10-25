@@ -622,6 +622,33 @@ func TestTheListEndsNoPageOnItsEndedRule(t *testing.T) {
 	}
 }
 
+// A List of a single row, as at 160 by 11, never shows its ended rule, as
+// the rule is shown with the first session under it or not at all: it pages
+// a session at a time through every one, the first ended straight after the
+// last running. Two rows show the rule again, with that session under it.
+func TestTheListOfARowShowsNoEndedRule(t *testing.T) {
+	doc := framedDoc(nil, nil)
+	list := framedList()
+	f := listFrame(t, 160, 11, list)
+	if got, want := f.Scrolling(doc, routedAt), (Scrolling{Most: len(list.Sessions) - 1, Page: 1}); got != want {
+		t.Errorf("it scrolls %+v, want %+v", got, want)
+	}
+	for i, s := range list.Sessions {
+		f.Scroll = i
+		if got, want := rowOf(f.page(doc, routedAt), 7), status.ShownID(s.Session); !strings.Contains(got, want) {
+			t.Errorf("scrolled %d, row 8 reads %q, want session %s", i, got, want)
+		}
+	}
+	f = listFrame(t, 160, 12, list)
+	f.Scroll = 6
+	c := f.page(doc, routedAt)
+	for y, want := range map[int]string{7: "  ended today", 8: "  5b19"} {
+		if got := rowOf(c, y); !strings.HasPrefix(got, want) {
+			t.Errorf("at two rows, scrolled 6, row %d reads %q, want it to start %q", y+1, got, want)
+		}
+	}
+}
+
 // The session chosen is lit on bg.selection across the width, its glyphs
 // and their inks as they were; nothing is, with none chosen, or with the one
 // chosen scrolled out of view.
