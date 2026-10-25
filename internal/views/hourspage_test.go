@@ -135,9 +135,10 @@ func TestTheHoursCountFromTheDayTheLedgerBegan(t *testing.T) {
 		description string
 		mondays     int
 		monday9     float64
+		wednesdays  int
 	}{
-		{began: "2026-09-23", weeks: 2, description: "the 2 weeks to Tue 6 Oct", mondays: 2, monday9: 4},
-		{began: "2026-08-01", weeks: 4, description: "the 4 weeks to Tue 6 Oct", mondays: 4, monday9: 2},
+		{began: "2026-09-23", weeks: 2, description: "the 2 weeks to Tue 6 Oct", mondays: 2, monday9: 4, wednesdays: 2},
+		{began: "2026-08-01", weeks: 4, description: "the 4 weeks to Tue 6 Oct", mondays: 4, monday9: 2, wednesdays: 4},
 	}
 	for _, tt := range tests {
 		t.Run(tt.began, func(t *testing.T) {
@@ -151,6 +152,9 @@ func TestTheHoursCountFromTheDayTheLedgerBegan(t *testing.T) {
 			monday := rowOn(t, page, time.Monday)
 			if monday.Known != tt.mondays || monday.Hours[9].Requests != tt.monday9 {
 				t.Errorf("Monday is known on %d days, 09:00 at %v, want %d, %v", monday.Known, monday.Hours[9].Requests, tt.mondays, tt.monday9)
+			}
+			if got := rowOn(t, page, time.Wednesday).Known; got != tt.wednesdays {
+				t.Errorf("Wednesday, the began day's weekday, is known on %d days, want %d", got, tt.wednesdays)
 			}
 		})
 	}
