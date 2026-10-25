@@ -1,0 +1,293 @@
+package status_test
+
+import (
+	"math"
+	"testing"
+	"time"
+
+	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/score"
+	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/status/statustest"
+)
+
+// roomAt is the room a window is to have at a time from the moment's Now,
+// and whether it's known to draw.
+type roomAt struct {
+	after time.Duration
+	room  float64
+	known bool
+}
+
+// A window's room ahead falls straight from the room now to where it runs
+// out, its floor its cap where its reserve holds, else empty, then keeps
+// that floor to its reset; or, where it lasts, straight to the room it
+// leaves at its reset. A limit holding it leaves none till it lifts, its cap
+// the room the cap leaves till its reset. Past its reset it has all of it.
+// Nothing is drawn before now, nor of a window with nothing to go by.
+func TestTheRoomAWindowHasAheadByItsProjection(t *testing.T) {
+	// The week, 60% used three days in, runs out two days on at its pace;
+	// keeping a tenth back, it reaches its cap a day and a half on.
+	runningOut := readAt("work", windowIn("5h", 0.1, 4*time.Hour), windowIn("7d", 0.6, 4*day))
+	reserved := with(runningOut, reserving)
+	// The week, 30% used three days in, heads for 70% by its reset.
+	lasting := readAt("work", windowIn("5h", 0.1, 4*time.Hour), windowIn("7d", 0.3, 4*day))
+	// A limit naming no window holds every window for an hour.
+	holding := func(a *status.Account) { a.Limit = status.Limit{Until: built.Add(time.Hour)} }
+	// Its last read failed, so it's stale.
+	failed := func(a *status.Account) { a.Error = "HTTP 529 · Overloaded" }
+	// The session, read spent, back at its reset in two hours.
+	spent := readAt("work", spentIn("5h", 1, 2*time.Hour), windowIn("7d", 0.3, 4*day))
+	// The session, at a 10% reserve's cap, resets in two hours.
+	capped := with(readAt("work", windowIn("5h", 0.92, 2*time.Hour), windowIn("7d", 0.3, 4*day)), reserving)
+	// The session, read at 0.95, past a 10% reserve's cap, held by a limit
+	// naming it for an hour, resets in two.
+	// The session read spent, and at a 10% reserve's cap, each with no
+	// reset known.
+	spentNoReset := readAt("work", quota.Window{Key: "5h", Label: "Session", Utilization: 1, Status: quota.StatusRejected}, windowIn("7d", 0.3, 4*day))
+	cappedNoReset := with(readAt("work", quota.Window{Key: "5h", Label: "Session", Utilization: 0.92}, windowIn("7d", 0.3, 4*day)), reserving)
+	heldAtCap := with(readAt("work", windowIn("5h", 0.95, 2*time.Hour), windowIn("7d", 0.3, 4*day)), func(a *status.Account) {
+		a.Reserve = 0.1
+		a.Limit = status.Limit{Windows: []string{"5h"}, Until: built.Add(time.Hour)}
+	})
+	// The session, at 1.2 an hour lately, 85% used, runs out 7m30s after it
+	// was read.
+	pressed := statustest.Routed{Account: readAt("work", windowIn("5h", 0.85, 2*time.Hour)), Rate: 1.2}
+	// The session reset an hour ago, so lapsed till a request starts it.
+	lapsed := readAt("work", windowIn("5h", 0.3, -time.Hour), windowIn("7d", 0.3, 4*day))
+	// The session, five minutes in, too new to say where it's heading.
+	fresh := readAt("work", windowIn("5h", 0.01, 4*time.Hour+55*time.Minute), windowIn("7d", 0.3, 4*day))
+	nothing := []roomAt{{after: -time.Minute}, {}, {after: time.Hour}, {after: 5 * day}}
+	tests := []struct {
+		name    string
+		account statustest.Routed
+		pinned  []string
+		later   time.Duration
+		key     string
+		want    []roomAt
+	}{
+		{name: "running out before its reset", account: statustest.Routed{Account: runningOut}, key: "7d", want: []roomAt{
+			{after: -time.Minute},
+			{room: 0.4, known: true},
+			{after: day, room: 0.2, known: true},
+			{after: 2 * day, room: 0, known: true},
+			{after: 3 * day, room: 0, known: true},
+			{after: 4 * day, room: 0, known: true},
+			{after: 4*day + time.Second, room: 1, known: true},
+		}},
+		{name: "running out at its cap, its reserve holding", account: statustest.Routed{Account: reserved}, key: "7d", want: []roomAt{
+			{room: 0.4, known: true},
+			{after: 18 * time.Hour, room: 0.25, known: true},
+			{after: 36 * time.Hour, room: 0.1, known: true},
+			{after: 3 * day, room: 0.1, known: true},
+			{after: 4 * day, room: 0.1, known: true},
+			{after: 4*day + time.Second, room: 1, known: true},
+		}},
+		{name: "running out at its limit, a pin spending its reserve", account: statustest.Routed{Account: reserved}, pinned: []string{"work"}, key: "7d", want: []roomAt{
+			{room: 0.4, known: true},
+			{after: 36 * time.Hour, room: 0.1, known: true},
+			{after: 2 * day, room: 0, known: true},
+			{after: 3 * day, room: 0, known: true},
+		}},
+		{name: "lasting to its reset", account: statustest.Routed{Account: lasting}, key: "7d", want: []roomAt{
+			{after: -time.Minute},
+			{room: 0.7, known: true},
+			{after: 2 * day, room: 0.5, known: true},
+			{after: 4 * day, room: 0.3, known: true},
+			{after: 4*day + time.Second, room: 1, known: true},
+		}},
+		{name: "held by its limit till its reset", account: statustest.Routed{Account: spent}, key: "5h", want: []roomAt{
+			{room: 0, known: true},
+			{after: time.Hour, room: 0, known: true},
+			{after: 2 * time.Hour, room: 0, known: true},
+			{after: 2*time.Hour + time.Second, room: 1, known: true},
+		}},
+		{name: "held by a limit lifting before it runs out", account: statustest.Routed{Account: with(runningOut, holding)}, key: "7d", want: []roomAt{
+			{room: 0, known: true},
+			{after: time.Hour, room: 0, known: true},
+			{after: 24*time.Hour + 30*time.Minute, room: 0.2, known: true},
+			{after: 2 * day, room: 0, known: true},
+			{after: 3 * day, room: 0, known: true},
+			{after: 4 * day, room: 0, known: true},
+			{after: 4*day + time.Second, room: 1, known: true},
+		}},
+		{name: "held by a limit lifting before its reset, lasting to it", account: statustest.Routed{Account: with(lasting, holding)}, key: "7d", want: []roomAt{
+			{room: 0, known: true},
+			{after: time.Hour, room: 0, known: true},
+			{after: 2*day + 30*time.Minute, room: 0.5, known: true},
+			{after: 4 * day, room: 0.3, known: true},
+			{after: 4*day + time.Second, room: 1, known: true},
+		}},
+		{name: "held by a limit lifting before its reset, heading nowhere said", account: statustest.Routed{Account: with(fresh, holding)}, key: "5h", want: []roomAt{
+			{room: 0, known: true},
+			{after: time.Hour, room: 0, known: true},
+			{after: time.Hour + time.Second, room: 0.99, known: true},
+			{after: 4*time.Hour + 55*time.Minute, room: 0.99, known: true},
+			{after: 5 * time.Hour, room: 1, known: true},
+		}},
+		{name: "held by a limit lifting after it would run out", account: statustest.Routed{Account: with(pressed.Account, holding), Rate: pressed.Rate}, later: time.Minute, key: "5h", want: []roomAt{
+			{room: 0, known: true},
+			{after: 59 * time.Minute, room: 0, known: true},
+			{after: 59*time.Minute + time.Second, room: 0, known: true},
+			{after: 119 * time.Minute, room: 0, known: true},
+			{after: 2 * time.Hour, room: 1, known: true},
+		}},
+		{name: "at its cap", account: statustest.Routed{Account: capped}, key: "5h", want: []roomAt{
+			{room: 0.1, known: true},
+			{after: time.Hour, room: 0.1, known: true},
+			{after: 2 * time.Hour, room: 0.1, known: true},
+			{after: 2*time.Hour + time.Second, room: 1, known: true},
+		}},
+		{name: "from the room now, a minute after it was read", account: pressed, later: time.Minute, key: "5h", want: []roomAt{
+			{room: 0.15, known: true},
+			{after: 6*time.Minute + 30*time.Second, room: 0, known: true},
+			{after: time.Hour, room: 0, known: true},
+			{after: 2 * time.Hour, room: 1, known: true},
+		}},
+		{name: "not started", account: statustest.Routed{Account: lapsed}, key: "5h", want: nothing},
+		{name: "too new to say where it's heading", account: statustest.Routed{Account: fresh}, key: "5h", want: nothing},
+		{name: "stale", account: statustest.Routed{Account: with(runningOut, failed)}, key: "7d", want: nothing},
+		{name: "stale, a limit holding it, heading to run out", account: statustest.Routed{Account: with(with(runningOut, holding), failed)}, key: "7d", want: []roomAt{
+			{after: -time.Minute},
+			{room: 0, known: true},
+			{after: time.Hour, room: 0, known: true},
+			{after: 2 * day, room: 0.4, known: true},
+			{after: 4 * day, room: 0.4, known: true},
+			{after: 4*day + time.Second, room: 1, known: true},
+		}},
+		{name: "stale, a limit holding it, heading to last", account: statustest.Routed{Account: with(with(lasting, holding), failed)}, key: "7d", want: []roomAt{
+			{room: 0, known: true},
+			{after: time.Hour, room: 0, known: true},
+			{after: 2 * day, room: 0.7, known: true},
+			{after: 4 * day, room: 0.7, known: true},
+			{after: 4*day + time.Second, room: 1, known: true},
+		}},
+		{name: "held by its limit, no reset known", account: statustest.Routed{Account: spentNoReset}, key: "5h", want: []roomAt{
+			{room: 0, known: true},
+			{after: time.Hour, room: 0, known: true},
+			{after: 5 * day, room: 0, known: true},
+		}},
+		{name: "at its cap, no reset known", account: statustest.Routed{Account: cappedNoReset}, key: "5h", want: []roomAt{
+			{room: 0.1, known: true},
+			{after: time.Hour, room: 0.1, known: true},
+			{after: 5 * day, room: 0.1, known: true},
+		}},
+		{name: "at its cap, a limit holding it", account: statustest.Routed{Account: heldAtCap}, key: "5h", want: []roomAt{
+			{room: 0, known: true},
+			{after: time.Hour, room: 0, known: true},
+			{after: time.Hour + time.Second, room: 0.1, known: true},
+			{after: 90 * time.Minute, room: 0.1, known: true},
+			{after: 2 * time.Hour, room: 0.1, known: true},
+			{after: 2*time.Hour + time.Second, room: 1, known: true},
+		}},
+		{name: "its token refused", account: statustest.Routed{Account: with(runningOut, func(a *status.Account) {
+			a.Refused = status.Refusal{Until: built.Add(time.Hour), Status: 401}
+		})}, key: "7d", want: nothing},
+		{name: "without a usable token", account: statustest.Routed{Account: with(runningOut, func(a *status.Account) { a.TokenSet = false })}, key: "7d", want: nothing},
+		{name: "nothing read", account: statustest.Routed{Account: with(runningOut, func(a *status.Account) { a.FetchedAt = time.Time{} })}, key: "7d", want: nothing},
+		{name: "not reported", account: statustest.Routed{Account: runningOut}, key: "7d_oi", want: nothing},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			now := built.Add(tt.later)
+			a, _ := statustest.Router(policy, tt.pinned, tt.account).WorkedOut(policy).At(now, policy).Account("work")
+			for _, w := range tt.want {
+				room, known := a.RoomAhead(tt.key, now.Add(w.after))
+				if known != w.known || math.Abs(room-w.room) > 1e-9 {
+					t.Errorf("RoomAhead(%s, now%+v) = %v, %v; want %v, %v", tt.key, w.after, room, known, w.room, w.known)
+				}
+			}
+		})
+	}
+}
+
+// At every hard moment, the room ahead agrees with the moment's own
+// projection: the room now at Now, its floor where it runs out, at Out.At,
+// and the room Projected leaves at its reset where it lasts; at its cap, the
+// room its cap leaves; held, none till its limit lifts, then as the course of
+// the kind it's once that lifts; all of it past its reset; and something to
+// draw just where the window has a course ahead.
+func TestTheRoomAheadAgreesWithTheMomentsProjection(t *testing.T) {
+	for _, hm := range statustest.HardMoments(policy) {
+		t.Run(hm.Name, func(t *testing.T) {
+			m := hm.Doc.At(hm.Now, policy)
+			for _, a := range m.Accounts {
+				for _, w := range a.Windows {
+					checkRoomAhead(t, m, a, w)
+				}
+			}
+		})
+	}
+}
+
+// checkRoomAhead checks the room ahead of account a's window w, at moment m,
+// against the moment's projection of it.
+func checkRoomAhead(t *testing.T, m status.Moment, a status.AccountNow, w status.WindowNow) {
+	t.Helper()
+	runs, lasts := w.Kind == status.WindowRunsOut, w.Kind == status.WindowOpen && w.Projected != nil
+	drawn := runs || lasts || w.Kind == status.WindowCapped || w.Kind == status.WindowLimited
+	expect := func(at time.Time, want float64, what string) {
+		t.Helper()
+		if got, ok := a.RoomAhead(w.Key, at); !ok || math.Abs(got-want) > 1e-9 {
+			t.Errorf("%s's %s has %v, %v %s; want %v", a.ID, w.Key, got, ok, what, want)
+		}
+	}
+	if _, ok := a.RoomAhead(w.Key, m.Now); ok != drawn {
+		t.Fatalf("%s's %s, of kind %d, has its room ahead known %v, want %v", a.ID, w.Key, w.Kind, ok, drawn)
+	}
+	if runs || lasts {
+		expect(m.Now, 1-w.Used, "now")
+	}
+	if runs {
+		expect(w.Out.At, 1-a.Floor, "where it runs out")
+		expect(w.Next, 1-a.Floor, "at its reset")
+	}
+	if lasts {
+		expect(w.Next, 1-*w.Projected, "at its reset")
+	}
+	if w.Kind == status.WindowCapped {
+		expect(m.Now, 1-a.Cap, "now, at its cap")
+	}
+	if w.Kind == status.WindowLimited {
+		checkHeldAhead(t, m, a, w, expect)
+	}
+	if drawn && !w.Next.IsZero() && !w.Back.After(w.Next) {
+		expect(w.Next.Add(time.Second), 1, "past its reset")
+	}
+	if _, ok := a.RoomAhead(w.Key, m.Now.Add(-time.Second)); ok {
+		t.Errorf("%s's %s has room known before now", a.ID, w.Key)
+	}
+}
+
+// checkHeldAhead checks the room ahead of account a's window w, which a limit
+// holds at moment m, as expect checks a room: none till the limit lifts; then,
+// before its reset, as the course of the kind it's once that lifts goes, as
+// an unheld window of that kind's does.
+func checkHeldAhead(t *testing.T, m status.Moment, a status.AccountNow, w status.WindowNow, expect func(time.Time, float64, string)) {
+	t.Helper()
+	expect(m.Now, 0, "now, held")
+	if w.Back.IsZero() {
+		return
+	}
+	expect(w.Back, 0, "as its limit lifts")
+	if !w.Back.Before(w.Next) {
+		return
+	}
+	lifted := w.Back.Add(time.Second)
+	switch {
+	case w.Unheld == status.WindowRunsOut:
+		if w.Out.At.After(w.Back) {
+			expect(w.Out.At, 1-a.Floor, "where it runs out once its limit lifts")
+		}
+		if after := score.Later(w.Out.At, w.Back).Add(time.Second); after.Before(w.Next) {
+			expect(after, 1-a.Floor, "just after it runs out")
+		}
+	case w.Unheld == status.WindowCapped:
+		expect(lifted, 1-a.Cap, "once its limit lifts, at its cap")
+		expect(w.Next, 1-a.Cap, "at its reset, at its cap")
+	case w.Unheld == status.WindowOpen && w.Out.Kind == score.OnPace:
+		expect(w.Next, 1-w.Out.AtReset, "at its reset, as its heading leaves it")
+	default:
+		expect(w.Next, 1-w.Used, "at its reset, as its use leaves it")
+	}
+}
