@@ -4098,8 +4098,8 @@ burn-down a row high:
   `▆ none   ▆ under 20   ▆ 20–50   ▆ 50–90   ▆ over 90`, in `text.subtle`, then `requests an hour` in
   `text.faint`, flowed onto as many rows as its width needs.
 - **Its width:** `⌊(w − 4) / 24⌋` cells an hour, the tile, `▆`, all an hour's cells but its last,
-  which is a gap: two, 52 columns, its natural; four at its most, 100. Narrower than its natural, as
-  on a folding phone's front screen, an hour is a tile alone with no gap, `4 + 24` columns, 28, its
+  which is a gap: two, 52 columns, its natural; four at its most, 100. Narrower than its natural, an
+  hour is a tile alone with no gap, `4 + 24` columns, 28, its
   least, the weekdays' rows still read apart as `▆` fills three quarters of a cell.
 - **The requests counted** are those that spend quota and went upstream, as the traces count them
   (see The Overview), each in the local hour it arrived in, as its line's `at` gives it; an hour

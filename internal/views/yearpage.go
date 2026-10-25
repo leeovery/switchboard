@@ -3,6 +3,7 @@ package views
 import (
 	"cmp"
 	"maps"
+	"math"
 	"slices"
 	"strings"
 	"time"
@@ -135,8 +136,8 @@ const (
 	// its own.
 	labelDays  = 4
 	labelWeeks = 2
-	// keyRounding is what the key rounds the cuts to, in requests a day.
-	keyRounding = 50
+	// yearKeyRounding is what the key rounds the cuts to, in requests a day.
+	yearKeyRounding = 50
 )
 
 // YearFrom is the first day the Year asked for at now reads, weeks starting
@@ -159,7 +160,7 @@ func (p Past) year(ask YearAsk) YearPage {
 	}
 	cuts := quarterCuts(y.shown.active())
 	page := YearPage{
-		Weeks: span.weeksOf(drawn.requests(), cuts), Cuts: cuts, KeyCuts: keyCuts(cuts), Months: span.labels(),
+		Weeks: span.weeksOf(drawn.requests(), cuts), Cuts: cuts, KeyCuts: keyCuts(cuts, yearKeyRounding), Months: span.labels(),
 		Versions: y.all.versions(v), Accounts: cycledAccounts(p.in.Accounts),
 	}
 	if ask.Version == "" {
@@ -338,15 +339,15 @@ func (s yearSpan) partWay(month, began string) string {
 	return began
 }
 
-// keyCuts are the cuts as the key gives them, each rounded to the nearest
-// keyRounding, but one under it, kept as it is, as a key's bound of none
-// would say nothing.
-func keyCuts(cuts []int) []int {
-	rounded := make([]int, len(cuts))
+// keyCuts are the cuts as a key gives them, each rounded to the nearest
+// rounding, a half up, but one under it, kept as it is, as a key's bound of
+// none would say nothing.
+func keyCuts[V int | float64](cuts []V, rounding V) []V {
+	rounded := make([]V, len(cuts))
 	for i, cut := range cuts {
 		rounded[i] = cut
-		if cut >= keyRounding {
-			rounded[i] = (cut + keyRounding/2) / keyRounding * keyRounding
+		if cut >= rounding {
+			rounded[i] = V(math.Round(float64(cut)/float64(rounding))) * rounding
 		}
 	}
 	return rounded

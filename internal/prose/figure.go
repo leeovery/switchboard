@@ -3,6 +3,7 @@ package prose
 import (
 	"math"
 	"strconv"
+	"strings"
 )
 
 // Percent shows a utilization as a whole percentage, such as "23%".
@@ -49,3 +50,14 @@ func Ratio(x float64) string {
 
 // ratioWholeFrom is the ratio Ratio writes whole from.
 const ratioWholeFrom = 100
+
+// GroupedTo writes x to the places given, its whole part's thousands set
+// apart by commas, as Grouped sets them: "1,240", "12.5" or "0.25".
+func GroupedTo(x float64, places int) string {
+	whole, fraction, _ := strings.Cut(strconv.FormatFloat(x, 'f', places, 64), ".")
+	n, _ := strconv.Atoi(whole)
+	if fraction == "" {
+		return Grouped(n)
+	}
+	return Grouped(n) + "." + fraction
+}
