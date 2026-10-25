@@ -157,6 +157,8 @@ func TestThePageDrawsEachPartOnItsRow(t *testing.T) {
 		{name: "the Overview on a phone", width: 52, view: Overview, tabs: 1, status: 3, heading: -1, top: 5, first: "USAGE"},
 		{name: "the Log on a phone", width: 52, view: Log, tabs: 1, status: 3, heading: 5, top: 7, first: "  at        session"},
 		{name: "a phone of 99 columns", width: 99, view: Log, tabs: 1, status: 3, heading: 5, top: 7, first: "  at        session"},
+		{name: "a phone whose tabs take two rows", width: 51, view: Log, tabs: 2, status: 4, heading: 6, top: 8, first: "  at        session"},
+		{name: "a phone whose tabs take three rows", width: 28, view: Overview, tabs: 3, status: 5, heading: -1, top: 7, first: "USAGE"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -164,8 +166,8 @@ func TestThePageDrawsEachPartOnItsRow(t *testing.T) {
 			f.View, f.Log.Read = tt.view, true
 			rows := textOf(f.Draw(runwayThree(), now))
 
-			if !strings.HasPrefix(rows[0], " SWITCHBOARD ") || !strings.Contains(rows[tt.tabs], " Overview ") {
-				t.Errorf("rows 1 and %d read\n%s\n%s\nwant the title row and its tabs", tt.tabs+1, rows[0], rows[tt.tabs])
+			if tabs := strings.Join(rows[:tt.tabs+1], "\n"); !strings.HasPrefix(tabs, " SWITCHBOARD ") || !strings.Contains(tabs, " Overview ") || !strings.Contains(rows[tt.tabs]+" ", " Log ") {
+				t.Errorf("rows 1 to %d read\n%s\nwant the title row and its tabs, the Log's on the last", tt.tabs+1, tabs)
 			}
 			if !strings.HasPrefix(rows[tt.status], "● healthy") {
 				t.Errorf("row %d reads %q, want the status line", tt.status+1, rows[tt.status])
@@ -185,6 +187,29 @@ func TestThePageDrawsEachPartOnItsRow(t *testing.T) {
 				t.Errorf("the last row reads %q, want the key line, %q", got, want)
 			}
 		})
+	}
+}
+
+// On a phone, every row under the tabs follows the last of them, however
+// many they take: the status line after a blank row, and the heading row
+// after another, the Overview's first section heading itself there.
+func TestThePagesRowsFollowAPhonesTabRows(t *testing.T) {
+	for width := 30; width < 100; width++ {
+		f := frameOf(width, 40)
+		rows := textOf(f.Draw(runwayThree(), now))
+		last := len(tabRows(f.tabWidths(), width))
+		tabs := strings.Join(rows[1:last+1], " ") + " "
+		for _, v := range Views() {
+			if strings.Count(tabs, " "+v.Title()+" ") != 1 {
+				t.Errorf("at %d columns, the tabs read\n%s\nwant %s's whole, once", width, strings.Join(rows[1:last+1], "\n"), v.Title())
+			}
+		}
+		want := map[int]string{last + 1: "", last + 2: "● healthy", last + 3: "", last + 4: "USAGE  "}
+		for y, starts := range want {
+			if row := rows[y]; !strings.HasPrefix(row, starts) || starts == "" && row != "" {
+				t.Errorf("at %d columns, its tabs on %d rows, row %d reads %q, want it to start %q", width, last, y+1, row, starts)
+			}
+		}
 	}
 }
 

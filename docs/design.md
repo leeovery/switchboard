@@ -1040,7 +1040,7 @@ order the view's section gives.
   line, the heading row and the key line take their short forms with them. That's all "on a phone"
   means in this design: a phone's chrome. A view's arrangement follows its own parts, under
   either chrome. Within a phone's chrome, the tabs take as many rows as their names need, whole,
-  as the title row below says: two under 60 columns, three under 39.
+  as the title row below says: two under 60 columns, three under 31.
 - **A column of accounts' names** takes the widest name configured as its natural; at least 8 cells,
   or its natural where that's fewer; at most 24, a longer name cut with `…`, the cells of its number
   and marks, and the column's gap, kept beside it. So where every name is shorter than 8 cells, the
@@ -1106,14 +1106,15 @@ where none of those fits, and never says less as the width grows.
 - **On a phone,** the clock stays on row 0, and the tabs take row 1 from column 0 with no space
   between them and no `tab ⇥`: the seven fill 60 columns exactly. Where they don't fit one row,
   they take the fewest rows they fit on, each name whole, each row from column 0, shared as evenly
-  as their order allows, so a tab moves between rows only as the count of rows changes: under 60,
-  two, ` Overview `, ` Accounts `, ` History `, ` Sessions ` on row 1, 39 columns, and ` Runway `,
-  ` Graphs `, ` Log ` on row 2; under 39, as on a folding phone's front screen, three, ` Overview `
-  ` Accounts ` 20 columns, ` History ` ` Sessions ` 19 and ` Runway ` ` Graphs ` ` Log ` 21; under 21,
-  the rows cut at the edge, as every part narrower than its least is. Each row the tabs take beyond
-  the first moves every row under them down one (left to the design by the owner, 25 October 2026,
-  as a 7th tab's name cut short reads worse than a row given up on the narrowest phones; the owner's
-  phones are 73 columns wide, and a folding one's front screen narrower).
+  as their order allows, the widest row as narrow as it can be, so a tab moves between rows only as
+  the count of rows changes: under 60, two, ` Overview `, ` Accounts `, ` History ` on row 1, 29
+  columns, and ` Sessions `, ` Runway `, ` Graphs `, ` Log ` on row 2, 31; under 31, three,
+  ` Overview ` ` Accounts ` 20 columns, ` History ` ` Sessions ` 19 and ` Runway ` ` Graphs ` ` Log `
+  21; and so on, a row more each time the widest no longer fits, down to a tab a row, under whose
+  widest name, 10 columns, the rows cut at the edge, as every part narrower than its least is. Each
+  row the tabs take beyond the first moves every row under them down one (left to the design by the
+  owner, 25 October 2026, as a 7th tab's name cut short reads worse than a row given up; the owner's
+  narrowest screen is about 78 columns, so every row past the first is a safety net).
 
 **The status line** (row 2) says how the router stands, and always shows, whatever a view hides, so
 the mode is never out of sight. Its parts, each after `  ·  ` (two spaces, `·` and two spaces, in
@@ -3924,12 +3925,12 @@ section holds:
   the frames draw it on that row, so their charts at 160 by 37 are a row taller than this section's.
 - **GLANCE** lists the week first, as every list of windows does (see The dashboard's snags, in
   Milestones); its frame lists the 5-hour first.
-- **Under 60 columns** the tabs take two rows, and three under 39 (see The page); no frame is drawn
+- **Under 60 columns** the tabs take two rows, and three under 31 (see The page); no frame is drawn
   there.
 
 **Its sections,** every one a toggle, at every size, remembered, as the Overview's are: size decides
-how much room each section shown gets, never whether it shows. From row 4 (a phone's row 5, or row 6
-under 60 columns), in an order that never changes, a section hidden taking no room:
+how much room each section shown gets, never whether it shows. From row 4 (a phone's row 5, a row lower
+for each row more its tabs take), in an order that never changes, a section hidden taking no room:
 
 | Section | Key | Shown at first | What it is |
 |---|---|---|---|
@@ -8157,7 +8158,7 @@ noise, and asked for v0.1's: the room solid to now, a dotted line at the rate, t
 drawn the same day and approved on 25 October 2026, made them a tab of their own, Graphs, between
 Runway and the Log, its sections WEEK and 5-HOUR shown at first, and POOL, GLANCE and WHEN YOU WORK
 of round 1's charts, for now (see Graphs). Beside the tab, it changes the title row, a seventh tab,
-taking two rows under 60 columns and three under 39, so every reference drawn narrower, a phone's at 52, moves a row
+taking two rows under 60 columns and three under 31, so every reference drawn narrower, a phone's at 52, moves a row
 down; adds `viz.account.1` to `viz.account.4` to the themes; and needs a day's requests by the hour,
 for WHEN YOU WORK. The owner signed it off on 25 October 2026; the plan, its stages and what each
 delivers, comes next.

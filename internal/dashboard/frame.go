@@ -331,7 +331,7 @@ const (
 )
 
 // statusRow is the row the status line is on: the one after the blank row
-// under the title row, its tabs' on a phone.
+// under the title row, its tabs' last on a phone.
 func (f Frame) statusRow() int {
 	return f.titleRows() + 1
 }

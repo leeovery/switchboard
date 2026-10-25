@@ -65,10 +65,32 @@ func TestEachTargetSitsOverWhatItsDrawingPutThere(t *testing.T) {
 	}
 }
 
-func TestAPhonesTabsAreTargetsOnTheRowOfTheirOwn(t *testing.T) {
-	for _, tt := range clickable(52, 33, Overview).Targets(threeRouted(), now) {
-		if tt.On == OnTab && tt.Y != 1 {
-			t.Errorf("on a phone, %s's tab is a target on row %d, want row 2", tt.Tab, tt.Y+1)
+func TestAPhonesTabsAreTargetsOnTheRowsTheyreDrawnOn(t *testing.T) {
+	tests := []struct {
+		width int
+		// rows are the rows each tab is on, in the tabs' order.
+		rows []int
+	}{
+		{width: 52, rows: []int{1, 1, 1, 1, 1, 1}},
+		{width: 45, rows: []int{1, 1, 1, 2, 2, 2}},
+		{width: 30, rows: []int{1, 1, 1, 2, 2, 2}},
+		{width: 28, rows: []int{1, 1, 2, 2, 3, 3}},
+	}
+	for _, tt := range tests {
+		f := clickable(tt.width, 33, Overview)
+		rows := textOf(f.Draw(threeRouted(), now))
+		var on []int
+		for _, target := range f.Targets(threeRouted(), now) {
+			if target.On != OnTab {
+				continue
+			}
+			on = append(on, target.Y)
+			if got, want := under(rows, target), " "+target.Tab.Title()+" "; got != want {
+				t.Errorf("at %d columns, %s's target is over %q, want %q", tt.width, target.Tab, got, want)
+			}
+		}
+		if !slices.Equal(on, tt.rows) {
+			t.Errorf("at %d columns, the tabs are targets on rows %v, want %v", tt.width, on, tt.rows)
 		}
 	}
 }
