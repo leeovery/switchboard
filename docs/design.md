@@ -4058,8 +4058,12 @@ them at the section's width, from a day before now, for a week:
   total its top edge, full being every account's room: of `n` accounts, an account's
   `round(room × 8h / n)` eighths. Each has its hue, `viz.account.1` to `viz.account.4` by its place
   among the pool's (see Themes), a fifth on taking the hue four before it mixed 30% toward the
-  canvas, as an older version takes its family's, the ninth no further than the fifth; where two meet in a cell, the lower's eighths are
-  drawn on the upper's hue as its ground, and where three meet, the middle gives way.
+  canvas, as an older version takes its family's, the ninth no further than the fifth. Where two
+  meet in a cell under the stack's top, the lower's eighths are drawn on the upper's hue as its
+  ground, and where three meet, the middle gives way; the top cell holds the stack's eighths alone,
+  in the hue of the account with the most of them, the lower on a tie, so the top edge is the pool's
+  total, as the frames draw it. Where a theme paints no background, as `terminal`, a cell where two
+  meet is drawn so too, `█` in the hue with the most of it.
 - **The room then:** before now, each account's room as the Overview's pool charts judge it (see
   The Overview, By account); from now on, at its projection, falling at its pace to where it runs
   out, then its floor to its reset, then full, as nothing is known of its next window, in its hue
