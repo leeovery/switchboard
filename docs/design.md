@@ -1036,7 +1036,7 @@ heading and how many more it holds; at its natural, all it holds; the sections g
 order the view's section gives.
 
 - **The chrome alone keeps a breakpoint of its own:** the title row's tabs go to a row of their
-  own where the badge, the tabs and the clock don't fit one row, under 100 columns, and the status
+  own under 100 columns, the chrome's breakpoint, and the status
   line, the heading row and the key line take their short forms with them. That's all "on a phone"
   means in this design: a phone's chrome. A view's arrangement follows its own parts, under
   either chrome. Within a phone's chrome, the tabs take as many rows as their names need, whole,
@@ -3937,6 +3937,7 @@ section holds:
   Milestones); its frame lists the 5-hour first.
 - **Under 60 columns** the tabs take two rows, and three under 31 (see The page); no frame is drawn
   there.
+- **The title row** draws no `tab ⇥` (see The page); the frames at 160 and 173 do.
 
 **Its sections,** every one a toggle, at every size, remembered, as the Overview's are: size decides
 how much room each section shown gets, never whether it shows. From row 4 (a phone's row 5, a row lower
