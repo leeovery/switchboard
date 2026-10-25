@@ -10,15 +10,11 @@ import (
 )
 
 // titleGap is the blank cells the title row sets its parts apart by: after
-// the badge, before tab's hint, and at the fewest, before the clock.
+// the badge and, at the fewest, before the clock.
 const titleGap = 2
 
-var (
-	// pill is the dashboard's name, set on its own surface.
-	pill = line{{" SWITCHBOARD ", ink{token: theme.Canvas, on: hue{token: theme.AccentPrimary}, bold: true}}}
-	// hint says what moves between the tabs.
-	hint = line{{"tab ⇥", faintInk}}
-)
+// pill is the dashboard's name, set on its own surface.
+var pill = line{{" SWITCHBOARD ", ink{token: theme.Canvas, on: hue{token: theme.AccentPrimary}, bold: true}}}
 
 var (
 	tabInk      = ink{token: theme.TextSubtle}
@@ -29,11 +25,10 @@ var (
 	timeInk = ink{token: theme.TextSecondary, bold: true, kept: true}
 )
 
-// The turns the title row's pieces give way in where the row is short: tab's
-// hint first, then the clock's date, then its time.
+// The turns the title row's pieces give way in where the row is short: the
+// clock's date first, then its time.
 const (
-	hintLeaves = iota + 1
-	dateLeaves
+	dateLeaves = iota + 1
 	timeLeaves
 )
 
@@ -44,33 +39,29 @@ type titlePiece struct {
 	part  flex.Part
 }
 
-// fixedPiece is a piece of words that takes its width, gap cells after the
-// piece before it, and gives way whole in the turn given, 0 for never.
-func fixedPiece(words line, turn, gap int) titlePiece {
-	return titlePiece{words: words, part: flex.Part{Least: words.width(), Natural: words.width(), Leaves: turn, Gap: gap}}
+// fixedPiece is a piece of words that takes its width, and gives way whole
+// in the turn given.
+func fixedPiece(words line, turn int) titlePiece {
+	return titlePiece{words: words, part: flex.Part{Least: words.width(), Natural: words.width(), Leaves: turn}}
 }
 
 // title draws the title row, on the rows titleRows says it takes: the
 // dashboard's name, from the first column; the tabs, the one shown picked
-// out, then tab's hint; and ending at the last column, the clock, at the
-// frame's Clock where it's set, else at now. Where the row is short, the
-// hint, the clock's date and its time give way, in that order. On a phone,
-// the tabs take rows of their own, without the hint.
+// out; and ending at the last column, the clock, at the frame's Clock where
+// it's set, else at now. Where the row is short, the clock's date and then
+// its time give way. On a phone, the tabs take rows of their own.
 func (f Frame) title(c *canvas, now time.Time) {
 	c.line(0, 0, pill)
 	end := f.tabs(c)
-	pieces := []titlePiece{{part: flex.Part{Least: end, Natural: end}}}
-	if !f.phone() {
-		pieces = append(pieces, fixedPiece(hint, hintLeaves, titleGap))
-	}
 	if !f.Clock.IsZero() {
 		now = f.Clock
 	}
-	pieces = append(pieces,
-		titlePiece{part: flex.Part{Least: titleGap, Grows: true}},
-		fixedPiece(line{{prose.Day(now) + "  ", dateInk}}, dateLeaves, 0),
-		fixedPiece(line{{prose.ToTheSecond(now, now), timeInk}}, timeLeaves, 0),
-	)
+	pieces := []titlePiece{
+		{part: flex.Part{Least: end, Natural: end}},
+		{part: flex.Part{Least: titleGap, Grows: true}},
+		fixedPiece(line{{prose.Day(now) + "  ", dateInk}}, dateLeaves),
+		fixedPiece(line{{prose.ToTheSecond(now, now), timeInk}}, timeLeaves),
+	}
 	parts := make([]flex.Part, len(pieces))
 	for i, p := range pieces {
 		parts[i] = p.part

@@ -1,4 +1,4 @@
- SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Graphs   Log   tab ⇥                                                     Thu 1 Oct  14:42:07
+ SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Graphs   Log                                                             Thu 1 Oct  14:42:07
 
 ■ the router isn't answering  ·  since 14:40:55  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
 
