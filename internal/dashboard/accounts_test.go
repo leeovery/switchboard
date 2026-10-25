@@ -131,14 +131,14 @@ func TestAccountsHeadingOnAPhone(t *testing.T) {
 	f.View, f.Accounts = Accounts, AccountsShown{Accounts: threeConfigured}
 	rows := f.page(threeRouted(), now).rows(Look{})
 
-	if got, want := rows[5], "ACCOUNTS   Compare  Detail"; strings.TrimRight(got, " ") != want {
-		t.Errorf("row 6 reads %q, want %q", got, want)
-	}
-	if got, want := rows[6], blanks(39)+"< this week >"; got != want {
+	if got, want := rows[6], "ACCOUNTS   Compare  Detail"; strings.TrimRight(got, " ") != want {
 		t.Errorf("row 7 reads %q, want %q", got, want)
 	}
-	if top := f.top(); top != 8 {
-		t.Errorf("the view starts at row %d, want row 9", top+1)
+	if got, want := rows[7], blanks(39)+"< this week >"; got != want {
+		t.Errorf("row 8 reads %q, want %q", got, want)
+	}
+	if top := f.top(); top != 9 {
+		t.Errorf("the view starts at row %d, want row 10", top+1)
 	}
 }
 

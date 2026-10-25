@@ -329,7 +329,7 @@ func TestThePagesStatusLineSaysItInItsInks(t *testing.T) {
 func TestTheStatusLineIsOnItsRowFromTheFirstColumn(t *testing.T) {
 	for _, tt := range []struct {
 		width, row int
-	}{{width: 160, row: 2}, {width: 52, row: 3}} {
+	}{{width: 160, row: 2}, {width: 60, row: 3}, {width: 52, row: 4}} {
 		f := frameOf(tt.width, 40)
 		if got := textOf(f.Draw(routed(), printNow))[tt.row]; !strings.HasPrefix(got, "● healthy") {
 			t.Errorf("at %d columns, row %d reads %q, want the status line from its first column", tt.width, tt.row+1, got)

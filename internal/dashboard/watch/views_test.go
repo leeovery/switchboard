@@ -18,6 +18,7 @@ func TestOpensOnTheViewKept(t *testing.T) {
 		want dashboard.View
 	}{
 		{name: "the tab kept", kept: dashboard.Runway, want: dashboard.Runway},
+		{name: "Graphs kept", kept: "graphs", want: dashboard.Graphs},
 		{name: "the Log kept", kept: dashboard.Log, want: dashboard.Log},
 		{name: "none kept: the Overview", kept: "", want: dashboard.Overview},
 		{name: "one there isn't, as from a later switchboard: the Overview", kept: "a-later-view", want: dashboard.Overview},
@@ -66,12 +67,12 @@ func TestTabShowsTheNextTabAndKeepsIt(t *testing.T) {
 	}
 }
 
-func TestTabTurnsRoundTheSixTabs(t *testing.T) {
+func TestTabTurnsRoundTheSevenTabs(t *testing.T) {
 	h := newHarness(t, calm())
 	h.start()
 
-	if !strings.Contains(h.view(), " Overview   Accounts   History   Sessions   Runway   Log   tab ⇥") {
-		t.Errorf("the screen is\n%s\nwant the six tabs, and tab's hint", h.view())
+	if !strings.Contains(h.view(), " Overview   Accounts   History   Sessions   Runway   Graphs   Log   tab ⇥") {
+		t.Errorf("the screen is\n%s\nwant the seven tabs, and tab's hint", h.view())
 	}
 	overview := "USAGE"
 	for _, step := range []struct {
@@ -85,9 +86,11 @@ func TestTabTurnsRoundTheSixTabs(t *testing.T) {
 		{key: "tab", want: dashboard.History},
 		{key: "tab", want: dashboard.Sessions},
 		{key: "tab", want: dashboard.Runway, wantShows: "RUNWAY  ─"},
+		{key: "tab", want: dashboard.Graphs},
 		{key: "tab", want: dashboard.Log},
 		{key: "tab", want: dashboard.Overview, wantShows: overview},
 		{key: "shift+tab", want: dashboard.Log},
+		{key: "shift+tab", want: dashboard.Graphs},
 		{key: "shift+tab", want: dashboard.Runway, wantShows: "RUNWAY  ─"},
 	} {
 		h.press(step.key)

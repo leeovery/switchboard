@@ -294,7 +294,7 @@ func TestRunwaysPartsLieOnTheRowsItsStepGivesThem(t *testing.T) {
 		},
 		{
 			name: "the phone frame's three", shown: RunwayShown{Window: views.RunwayFiveHour, Lanes: lanesOf(3), Coming: thingsComing(3)}, width: 52, height: 33,
-			shape: runwayShape{legend: 2, columns: 1}, want: rows{11, 3, 20, 22, 30, 24, 3},
+			shape: runwayShape{legend: 2, columns: 1}, want: rows{12, 3, 21, 23, 30, 25, 3},
 		},
 	}
 	for _, tt := range tests {
@@ -440,30 +440,30 @@ func TestRunwaysPoolsFootHoldsUnderTheLanesShownAtF(t *testing.T) {
 
 // On a phone, Runway takes the first step of its compaction whose parts fit,
 // as it does at every width, its legend of two: three accounts with three
-// lines of COMING UP, as the phone's frame, a row at a time from 37 to 15:
-// three rows each to 32; (a) to 29; (b) to 27; (c) at 26; (d), the legend
-// given way to 24, and COMING UP too to 21; (e) at 20; then their lanes
-// scrolling, two in view to 18 and one to 16; and none under it; and ten,
+// lines of COMING UP, as the phone's frame, a row at a time from 38 to 16:
+// three rows each to 33; (a) to 30; (b) to 28; (c) at 27; (d), the legend
+// given way to 25, and COMING UP too to 22; (e) at 21; then their lanes
+// scrolling, two in view to 19 and one to 17; and none under it; and ten,
 // nine in view at 33, its lanes scrolling an account at a time. No lane is
 // ever out of view while the legend or COMING UP shows.
 func TestOnAPhoneRunwayTakesTheFirstOfItsStepsThatFits(t *testing.T) {
 	three := map[int]runwayFitted{
-		37: fittedWhole(runwayRoomy, 3), 36: fittedWhole(runwayRoomy, 3), 35: fittedWhole(runwayRoomy, 3), 34: fittedWhole(runwayRoomy, 3),
-		33: fittedWhole(runwayRoomy, 3), 32: fittedWhole(runwayRoomy, 3),
-		31: fittedWhole(runwayTwoRows, 3), 30: fittedWhole(runwayTwoRows, 3), 29: fittedWhole(runwayTwoRows, 3),
-		28: fittedWhole(runwayNoGaps, 3), 27: fittedWhole(runwayNoGaps, 3),
-		26: fittedWhole(runwayComingCut, 3),
-		25: fittedNoLegend(3), 24: fittedNoLegend(3), 23: fittedBare(runwayComingCut, 3), 22: fittedBare(runwayComingCut, 3), 21: fittedBare(runwayComingCut, 3),
-		20: fittedClosed(3),
-		19: fittedBare(runwayScrolled, 2), 18: fittedBare(runwayScrolled, 2), 17: fittedBare(runwayScrolled, 1), 16: fittedBare(runwayScrolled, 1),
-		15: {},
+		38: fittedWhole(runwayRoomy, 3), 37: fittedWhole(runwayRoomy, 3), 36: fittedWhole(runwayRoomy, 3), 35: fittedWhole(runwayRoomy, 3),
+		34: fittedWhole(runwayRoomy, 3), 33: fittedWhole(runwayRoomy, 3),
+		32: fittedWhole(runwayTwoRows, 3), 31: fittedWhole(runwayTwoRows, 3), 30: fittedWhole(runwayTwoRows, 3),
+		29: fittedWhole(runwayNoGaps, 3), 28: fittedWhole(runwayNoGaps, 3),
+		27: fittedWhole(runwayComingCut, 3),
+		26: fittedNoLegend(3), 25: fittedNoLegend(3), 24: fittedBare(runwayComingCut, 3), 23: fittedBare(runwayComingCut, 3), 22: fittedBare(runwayComingCut, 3),
+		21: fittedClosed(3),
+		20: fittedBare(runwayScrolled, 2), 19: fittedBare(runwayScrolled, 2), 18: fittedBare(runwayScrolled, 1), 17: fittedBare(runwayScrolled, 1),
+		16: {},
 	}
 	type fitting struct {
 		accounts, rows int
 		want           runwayFitted
 	}
 	tests := []fitting{{accounts: 10, rows: 33, want: fittedBare(runwayScrolled, 9)}}
-	for rows := 37; rows >= 15; rows-- {
+	for rows := 38; rows >= 16; rows-- {
 		tests = append(tests, fitting{accounts: 3, rows: rows, want: three[rows]})
 	}
 	taller := fittedWhole(runwayRoomy, 3)

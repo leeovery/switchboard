@@ -1,5 +1,6 @@
  SWITCHBOARD                     Thu 1 Oct  14:42:07
- Overview  Accounts  History  Sessions  Runway  Log
+ Overview  Accounts  History
+ Sessions  Runway  Graphs  Log
 
 ● healthy · auto · 6 sessions · new → ▲ side
 
@@ -25,8 +26,7 @@ COMING UP
 ~Fri 12:20  side's week runs out at its…  in 21h 38m
 ~Sat 06:00  personal's week runs out at…   in 1d 15h
 Sun 02:00   personal's week resets         in 2d 11h
-Sun 21:00   work's week resets              in 3d 6h
-Mon 10:00   side's week resets             in 3d 19h
+▼ 2 more
 █ room    █ room, but it runs out at its pace
 ─ at its cap    ─ at its limit    │ its week resets
 a column ≈ 219 minutes · the past dimmed

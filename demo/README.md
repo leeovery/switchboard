@@ -17,7 +17,7 @@ demo/record.sh routing help   # the tapes named
 
 | Tape | Scenario | Size | Art |
 |---|---|---|---|
-| `tour` | `routing` | 160 × 37 | `art/tour.webp`, `.mp4`: the README's lead: a tour of the dashboard's pages |
+| `tour` | `routing` | 160 × 37 | `art/tour.webp`, `.mp4`: the README's lead: a tour of the dashboard's pages, passing over Graphs, which draws nothing yet |
 | `routing` | `routing` | 160 × 37 | `art/routing.webp`, `.mp4`: the routing card in `docs/dashboard.md`, the Overview, then the card pinning new and running sessions to side |
 | `dashboard` | `dashboard` | 160 × 37 | `art/dashboard.webp`, `.mp4`: one account's Overview, its GRAPHS, then Runway |
 | `themes` | `routing` | 160 × 37 | `art/themes.webp`, `.mp4`: the theme picker, previewing the built-ins over the Overview |
