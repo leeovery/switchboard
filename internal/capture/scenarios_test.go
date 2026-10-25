@@ -160,7 +160,10 @@ func TestEachTapePlaysItsScenarioAsItsCuesAreTimedFor(t *testing.T) {
 						t.Errorf("%vs in, it shows\n%s\nwant no %q", want.at, screen, not)
 					}
 				}
-				if shown := p.tabShown(); want.tab != "" && shown != want.tab {
+				if want.tab == "" {
+					continue
+				}
+				if shown := p.tabShown(); shown != want.tab {
 					t.Errorf("%vs in, the title row shows %q, want %q", want.at, shown, want.tab)
 				}
 			}

@@ -649,6 +649,37 @@ func TestTheListOfARowShowsNoEndedRule(t *testing.T) {
 	}
 }
 
+// At the view's least, at 52 by 13, a today line broken onto two rows would
+// leave the List none, so its worth gives way, the counts on the row over
+// the key line, and the List keeps a row, paging a session at a time. A row
+// taller, the today line keeps both its rows.
+func TestTheTodayLinesWorthGivesWayAtTheListsLeast(t *testing.T) {
+	doc := framedDoc(nil, nil)
+	list := framedList()
+	tests := []struct {
+		height int
+		today  []string
+	}{
+		{height: 13, today: []string{"today  14 sessions · 1,240 requests"}},
+		{height: 14, today: []string{"today  14 sessions · 1,240 requests", "$126.02 at API prices"}},
+	}
+	for _, tt := range tests {
+		f := listFrame(t, 52, tt.height, list)
+		if got, want := f.Scrolling(doc, routedAt), (Scrolling{Most: len(list.Sessions) - 1, Page: 1}); got != want {
+			t.Errorf("at 52×%d, it scrolls %+v, want %+v", tt.height, got, want)
+		}
+		c := f.page(doc, routedAt)
+		last := f.Height - underView
+		var today []string
+		for y := last - len(tt.today) + 1; y <= last; y++ {
+			today = append(today, rowOf(c, y))
+		}
+		if !slices.Equal(today, tt.today) || rowOf(c, last-len(tt.today)) != "" {
+			t.Errorf("at 52×%d, the today line reads %q, a blank row over it, want %q", tt.height, today, tt.today)
+		}
+	}
+}
+
 // The session chosen is lit on bg.selection across the width, its glyphs
 // and their inks as they were; nothing is, with none chosen, or with the one
 // chosen scrolled out of view.

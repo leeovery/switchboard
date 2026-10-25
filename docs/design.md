@@ -2970,6 +2970,9 @@ data, as from 118 columns. Narrower, each strip's name takes the row over it (Na
   `▼ 4 more accounts below   ·   j/k or the wheel to scroll them`, `▼` in `accent.key`, the words in
   `text.muted`, `j/k` bold `accent.key`. Shorter than History's frames, 37 rows, Days is drawn whole
   and scrolls a row at a time over its key; where everything fits, as at 138 by 30, nothing scrolls.
+  Where holding the key on the view's last rows would leave the strips fewer than 2 rows over it, a
+  strip's first and the line saying what's below, as at a phone's least, the key scrolls with them
+  instead, a blank row under the last strip (settled in the plan).
 - **The key,** on the view's last row: `less `, the five shades as 2-cell swatches 3 apart, `more`,
   in `text.subtle`, then `  each shade a quarter of the active days` in `text.faint`; then a swatch
   of `viz.day.2` holding the red `▪`, and `a day it hit a 5-hour limit`; then `··` and
@@ -3049,7 +3052,9 @@ account.
   inject a table dated as they were drawn, and split by model, `, each version at its own price`
   after it. The heads, the periods a row under them and the footnote a row under the periods are
   laid down the view as parts by flex: where the periods would have fewer than 2 rows, a period's
-  first and the line saying what's below, the footnote gives way.
+  first and the line saying what's below, the footnote gives way; and where they still would, at
+  the view's least, the blank row under the heads gives way too, the periods starting on the row
+  under them (settled in the plan).
 
 **Keys.** `tab` views; `[ ]` view; `<` `>` the period, on Year and Tokens; `v` the shape or split,
 on Year, Weeks and Tokens; `j/k` and the wheel scroll, where a view runs past the screen; `p` new
@@ -3473,14 +3478,18 @@ order, each at least its least and at most its natural:
   `─` in `border` to the last column; under it, today's ended sessions, the newest end first. The
   order stays still, never reshuffled by activity, as rows would slide from under the cursor: a row
   moves only as its session ends, from running to the top of ended, or as it asks again, back to its
-  place by start among the running.
+  place by start among the running. The rule shows with the first session under it or not at all,
+  so a List of one row, at its least, shows no `ended today` rule, the ended sessions following the
+  running, each saying it ended (settled in the plan).
 - **The `today` line,** on the row over the key line, from column 0, as the key line and the Log's
   state line are, so it reads as words, not keys (the owner's call on the spike, 21 October 2026):
   `today  14 sessions · 1,240 requests · $126.02 at API prices`, `today` in `text.subtle`, the
   counts in `text.secondary`, the worth bold `text.secondary`, and the rest in `text.muted`. It sums
   today's sessions, running and ended, their requests today and their worth, so it carries the
   day's worth where `worth` has left. Where it doesn't fit its row, it breaks after `requests`, the
-  worth on the row over the key line and the rest on the row above. Where the sessions fit their
+  worth on the row over the key line and the rest on the row above; but where those two rows would
+  leave the table no row, at its least, the worth gives way, and the rest takes the row over the
+  key line alone (settled in the plan). Where the sessions fit their
   rows, the rows left over lie between the last session and it: every session shows, and nothing
   folds. Where they don't, the table scrolls (below).
 - **Past a screen,** the table scrolls, its heads held, the row above the `today` line blank and the

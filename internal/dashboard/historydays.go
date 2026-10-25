@@ -415,7 +415,8 @@ func (f Frame) daysScrolling(offset int) Scrolling {
 }
 
 // daysScrolls is what of Days scrolls, from row y, rows tall: laid out
-// whole, the rows over its key; else BY ACCOUNT's strips, from the first's
+// whole, the page's rows, over its key where it's held; else BY ACCOUNT's
+// strips, from the first's
 // to the row over what's out of view; none where there's nothing to draw.
 func (f Frame) daysScrolls() (y, rows int) {
 	p := f.History.Days

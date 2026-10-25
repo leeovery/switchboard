@@ -187,17 +187,44 @@ func (f Frame) listForm(doc status.Document, now time.Time) sessionsForm {
 
 // listing is the List of doc at now, laid out as the frame has it: its
 // lines from the row under its heads to the one before the blank row over
-// its today line, the ended rule among them where ruledIn says those rows
-// hold it.
+// its today line, as todayIn lays them, the ended rule among them where
+// ruledIn says those rows hold it.
 func (f Frame) listing(doc status.Document, now time.Time) listed {
 	m := f.Moment(doc, now)
+	top := f.top()
 	l := listed{
 		f: f, m: m, now: now, columns: listColumnsOf(f.Width, widestLabel(m)),
-		today: todayLine(f.SessionsTab.List.Today, f.Width), top: f.top(),
+		today: todayIn(todayLine(f.SessionsTab.List.Today, f.Width), f.Height-underView-top), top: top,
 	}
 	l.rows = max(l.todayAt()-l.top-2, 0)
 	l.lines = listLines(f.SessionsTab.List.Sessions, ruledIn(l.rows))
 	return l
+}
+
+// todayIn is the List's today line, today's rows, in the rows from under
+// its heads to the one over the key line, rows of them, as flex lays them
+// down those: the List's lines, a row at least, a blank row, then the
+// today line's rows, those after its first giving way where they'd leave
+// the lines none, so the worth, on a row of its own, goes first.
+func todayIn(today []line, rows int) []line {
+	parts := []flex.Part{{Least: 1, Natural: 1, Grows: true}}
+	for i := range today {
+		part := flex.Part{Least: 1, Natural: 1}
+		if i == 0 {
+			part.Gap = 1
+		} else {
+			part.Leaves = 1
+		}
+		parts = append(parts, part)
+	}
+	spans, _ := flex.Lay(rows, parts...)
+	var kept []line
+	for i, said := range today {
+		if !spans[i+1].Left {
+			kept = append(kept, said)
+		}
+	}
+	return kept
 }
 
 // ruledIn reports whether the List's lines, rows of them, hold its ended
