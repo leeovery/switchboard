@@ -10,6 +10,7 @@ import (
 // its own, as a date parsed has it, or a time in the zone it's told in.
 const (
 	timeLayout         = "15:04"
+	hourLayout         = "15"
 	secondsLayout      = time.TimeOnly
 	clockLayout        = "Mon 15:04"
 	pastLayout         = "2 Jan 15:04"
@@ -37,6 +38,12 @@ func TimeOfDayWidest() string {
 // TimeOfDay shows t as its 24-hour time in now's time zone, such as "13:51".
 func TimeOfDay(now, t time.Time) string {
 	return t.In(now.Location()).Format(timeLayout)
+}
+
+// HourOfDay shows the hour t falls in, of the 24-hour clock in now's time
+// zone, as a narrow axis of hours names it, such as "13".
+func HourOfDay(now, t time.Time) string {
+	return t.In(now.Location()).Format(hourLayout)
 }
 
 // ToTheSecond shows t as its 24-hour time to the second in now's time zone,
@@ -251,6 +258,12 @@ func Month(d time.Time, withYear bool) string {
 // Weekday names the weekday d by its first three letters, such as "Mon".
 func Weekday(d time.Weekday) string {
 	return d.String()[:3]
+}
+
+// WeekdayPair names the weekday d by its first two letters, as a narrow axis
+// of days does, such as "Mo".
+func WeekdayPair(d time.Weekday) string {
+	return d.String()[:2]
 }
 
 // WeekdayInitial names the weekday d by its first letter, as a narrow row of

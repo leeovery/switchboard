@@ -179,17 +179,24 @@ func laneInk(k ink, past bool, fade float64) ink {
 	return k
 }
 
-// fade is how far the lane fades into the canvas, as USAGE fades a bar:
-// staleFade, keeping 35% of its colour, where its use is stale, its last
-// read failed, but not where its token's refused, which its lane draws; as
-// far where the pool leaves its account out; and the two compounded, where
-// both hold.
+// fade is how far the lane fades into the canvas, as accountFade has it of
+// its use.
 func (ln laidLane) fade() float64 {
+	return accountFade(ln.account, ln.Use.Stale)
+}
+
+// accountFade is how far what's drawn of account a's use fades into the
+// canvas, as USAGE fades a bar, alike on Runway's lanes and Graphs' cards:
+// staleFade, keeping 35% of its colour, where its use is stale, its last
+// read failed, but not where its token's refused, which what's drawn of it
+// says; as far where the pool leaves the account out; and the two
+// compounded, where both hold.
+func accountFade(a status.AccountNow, stale bool) float64 {
 	keep := 1.0
-	if ln.Use.Stale && !ln.account.TokenRefused {
+	if stale && !a.TokenRefused {
 		keep *= 1 - staleFade
 	}
-	if ln.account.OutOfPool {
+	if a.OutOfPool {
 		keep *= 1 - staleFade
 	}
 	return 1 - keep
