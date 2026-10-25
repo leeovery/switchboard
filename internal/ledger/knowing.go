@@ -15,7 +15,8 @@ import (
 // and models held that the lines no longer give are kept. Which lines were
 // lost can't be told, so where some of a model's were lost and as many or
 // more filed since, its counts are the more of the two summaries', fewer
-// than there were. Its lines are as many as the more of the two were made
+// than there were; and its hours go with the count upstream they sum to, as
+// hoursKnowing says. Its lines are as many as the more of the two were made
 // from, and as its counts stand for where those are more, as the lines lost
 // were held's. Each window's highest use, and its rise, is held's where that's
 // higher, as are the minutes at its cap and at a limit; and held's limits,
@@ -132,8 +133,10 @@ func more(n, held *int) *int {
 
 // knowing returns m, a model's day on an account summarised afresh, knowing
 // no less than held, its day as summarised before: each count held's where
-// that's more, its usage's among them, and its sessions named as named says.
+// that's more, its usage's among them, its hours as hoursKnowing gives them,
+// and its sessions named as named says.
 func (m ModelDay) knowing(held ModelDay) ModelDay {
+	m.Hours = hoursKnowing(m, held)
 	m.Upstream, m.NoUsage, m.Unsent = max(m.Upstream, held.Upstream), max(m.NoUsage, held.NoUsage), max(m.Unsent, held.Unsent)
 	m.Checks, m.Counts = max(m.Checks, held.Checks), max(m.Counts, held.Counts)
 	m.SessionIDs = named(m.SessionIDs, held.SessionIDs, held.Sessions)
@@ -146,6 +149,18 @@ func (m ModelDay) knowing(held ModelDay) ModelDay {
 		m.Usage, _ = json.Marshal(usage)
 	}
 	return m
+}
+
+// hoursKnowing returns the hours of m, a model's day summarised afresh, or of
+// held, its day as summarised before, whichever counts more upstream, whole,
+// as they sum to that count, never the more of each hour: those of lines lost
+// since and of others filed since would sum past it. Of two that count as
+// many, m's, which a summary made afresh always counts, held's perhaps never.
+func hoursKnowing(m, held ModelDay) *[24]int {
+	if held.Upstream > m.Upstream {
+		return held.Hours
+	}
+	return m.Hours
 }
 
 // key names the model's day on its account.

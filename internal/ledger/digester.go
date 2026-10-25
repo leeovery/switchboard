@@ -169,16 +169,18 @@ func newDigesting(digester Digester, d days, now func() time.Time) *digesting {
 		warned: make(warnings), headsWarned: make(warnings)}
 }
 
-// run makes a pass as it starts, paced, at the clock's now, and again at
-// each kick, until ctx ends.
+// run makes a pass, paced, at the clock's now, at each kick, until ctx ends:
+// none before the first, which the first round's summarising gives as it
+// ends, so no pass finds a day whose summary that round is to write again,
+// as under a new version, which it can't tell the day's lines against.
 func (d *digesting) run(ctx context.Context) {
 	for {
-		d.pass(ctx, d.now(), true)
 		select {
 		case <-ctx.Done():
 			return
 		case <-d.kicks:
 		}
+		d.pass(ctx, d.now(), true)
 	}
 }
 

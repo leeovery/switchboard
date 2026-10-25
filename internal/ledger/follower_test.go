@@ -781,7 +781,7 @@ func TestAPastDaysSummaryIsHeldUntilItsStampOrItsDaysFilesChange(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				writeFile(t, dir, "day-"+date+".json", []byte(summaryOf(date, 3, 3, windowsRead{})+"\n"))
+				writeFile(t, dir, "day-"+date+".json", []byte(summaryOf(date, 3, windowsRead{}, on(0, 9, 0), on(0, 10, 0), on(0, 23, 59))+"\n"))
 				if err := os.Chtimes(summary, time.Time{}, info.ModTime().Add(time.Second)); err != nil {
 					t.Fatal(err)
 				}

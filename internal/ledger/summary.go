@@ -28,8 +28,9 @@ const (
 	// Version 4 adds each model's session ids. Version 5 leaves quota
 	// checks' usage out of a model's, as worthUsage does, so nothing prices
 	// it: a day summarised before it keeps theirs when summarised again, as
-	// a summary written again knows no less.
-	summaryVersion = 5
+	// a summary written again knows no less. Version 6 adds each model's
+	// requests upstream by the local hour, as ModelDay's Hours says.
+	summaryVersion = 6
 	// readingsBefore is how far before a day the readings that say the use
 	// each window began it at are looked for: a week, the longest a window
 	// runs, so a window read before then has reset since.
@@ -160,6 +161,12 @@ func (s Summary) Unnamed() int {
 // since kept as one of those gave it; and where a summary made since, of a
 // day one of those summarised, found the ids of fewer than it counted, as
 // knowing says. A summary of version 4 gives none as empty.
+//
+// Hours, which version 6 added, is nil where they were never counted: in a
+// summary of an older version, and of a model a summary made since kept as
+// one of those gave it, as knowing says. A summary of version 6 counts them
+// of every model, none in each hour where none of its requests went
+// upstream.
 type ModelDay struct {
 	// Model is the model the requests asked for, left out of those whose
 	// bodies couldn't be read, and InferenceGeo where they asked for their
@@ -178,6 +185,10 @@ type ModelDay struct {
 	Unsent   int `json:"unsent"`
 	Checks   int `json:"checks"`
 	Counts   int `json:"counts"`
+	// Hours counts those Upstream counts by the hour of the day each arrived
+	// in, by the local clock, from midnight's: so they sum to Upstream, an
+	// hour the clocks skip has none, and one they repeat counts both.
+	Hours *[24]int `json:"hours,omitzero"`
 	// Sessions counts the sessions the requests were of, as
 	// Line.CountedSession says, and SessionIDs are their ids, in order, each
 	// once, so a span of days, or every account, counts a model's session
@@ -516,6 +527,7 @@ func keyOf(l *Line) modelKey {
 // counted, by how each went, in day, the rest as it's gathered.
 type modelTally struct {
 	day      ModelDay
+	hours    [24]int
 	sessions sessions
 	usage    counts
 }
@@ -541,7 +553,7 @@ func (t tally) clone() tally {
 		ca := c.account(id)
 		ca.sessions, ca.movedOn, ca.movedOff = maps.Clone(a.sessions), maps.Clone(a.movedOn), maps.Clone(a.movedOff)
 		for key, m := range a.models {
-			ca.models[key] = &modelTally{day: m.day, sessions: maps.Clone(m.sessions), usage: m.usage.clone()}
+			ca.models[key] = &modelTally{day: m.day, hours: m.hours, sessions: maps.Clone(m.sessions), usage: m.usage.clone()}
 		}
 	}
 	return c
@@ -573,9 +585,10 @@ func (t tally) line(l *Line) {
 
 // line tallies one of the day's lines of the model's requests on the
 // account: a check and a count as such, sent on or not; one that went
-// upstream, as Upstream says, as upstream, and where its answer gave no usage,
-// as unmetered says, as that too; and the rest as unsent. Its usage is summed
-// as worthUsage gives it, none of a check's.
+// upstream, as Upstream says, as upstream, in the local hour it arrived in,
+// and where its answer gave no usage, as unmetered says, as that too; and the
+// rest as unsent. Its usage is summed as worthUsage gives it, none of a
+// check's.
 func (m *modelTally) line(l *Line) {
 	switch {
 	case l.Kind == KindCheck:
@@ -584,6 +597,7 @@ func (m *modelTally) line(l *Line) {
 		m.day.Counts++
 	case l.Upstream():
 		m.day.Upstream++
+		m.hours[l.At.Local().Hour()]++
 		if l.unmetered() {
 			m.day.NoUsage++
 		}
@@ -755,8 +769,8 @@ func byModel(a, b modelKey) int {
 
 // summary returns the model's day on the account.
 func (m *modelTally) summary() ModelDay {
-	day := m.day
-	day.Sessions, day.SessionIDs = len(m.sessions), m.sessions.ids()
+	day, hours := m.day, m.hours
+	day.Hours, day.Sessions, day.SessionIDs = &hours, len(m.sessions), m.sessions.ids()
 	if len(m.usage) > 0 {
 		// A map of counts and maps of them always marshals.
 		day.Usage, _ = json.Marshal(m.usage)

@@ -235,6 +235,37 @@ func TestEachSessionADaysLinesNameIsInItsSummary(t *testing.T) {
 	}
 }
 
+// Each model version's requests of an account's day are counted by the hour,
+// as a summary of version 6 counts them, summing to those upstream: on a
+// weekday, none from midnight to 08:00, and at a weekend, none before 10:00
+// or from 21:00, as WHEN YOU WORK's frame has them; today's by its lines.
+func TestEachVersionsRequestsAreCountedByTheHour(t *testing.T) {
+	days := autoWorld().ledger().Days(dayStart(worldsNow().now, 0))
+	for d, day := range days {
+		quiet := func(h int) bool { return h < 8 }
+		if d%7 >= 5 {
+			quiet = func(h int) bool { return h < 10 || h >= 21 }
+		}
+		for _, a := range day.Accounts {
+			for _, m := range a.Models {
+				if m.Hours == nil {
+					t.Fatalf("%s's %s on %s isn't counted by the hour", a.Account, m.Model, day.Day)
+				}
+				sum := 0
+				for h, n := range m.Hours {
+					sum += n
+					if n > 0 && quiet(h) && d < today {
+						t.Errorf("%s's %s on %s has %d requests in %02d:00's hour, want none", a.Account, m.Model, day.Day, n, h)
+					}
+				}
+				if sum != m.Upstream {
+					t.Errorf("%s's %s on %s has %d requests by the hour, want its %d upstream", a.Account, m.Model, day.Day, sum, m.Upstream)
+				}
+			}
+		}
+	}
+}
+
 // Each model version's requests of an account's day name their sessions, as
 // a summary of version 4 does, so a version's sessions are counted once over
 // the days they ran: some of the account's day's, one a request at most.

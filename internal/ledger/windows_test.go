@@ -546,15 +546,16 @@ func TestADaySummarisedAgainKnowsNoLessOfItsSessionsAndWindows(t *testing.T) {
 	limitAt, resets := on(0, 11, 30), on(0, 13, 0)
 	// The summary it replaces: of a session since lost with its lines, and
 	// windows read higher, and longer, by readings since pruned.
-	held := strings.ReplaceAll(summaryOf(date, 2, 2, windowsRead{read: true, highest: `{"5h":0.95}`, rise: `{"5h":0.9,"7d_oi":0.2}`,
-		resets: `[` + resetJSON("7d", on(0, 8, 0), 0.5) + `,` + resetJSON("5h", resets, 0.95) + `]`, atCap: 30, atLimit: 60}),
+	held := strings.ReplaceAll(summaryOf(date, 2, windowsRead{read: true, highest: `{"5h":0.95}`, rise: `{"5h":0.9,"7d_oi":0.2}`,
+		resets: `[` + resetJSON("7d", on(0, 8, 0), 0.5) + `,` + resetJSON("5h", resets, 0.95) + `]`, atCap: 30, atLimit: 60}, theTwo...),
 		`"session_ids":["one"]`, `"session_ids":["held"]`)
 	// What the readings give now: the session rose to 30%, and was refused
 	// from 11:30 to its reset.
 	now := []readings.Reading{allowed(on(0, 10, 0), "5h", 0.3, resets), rejected(limitAt, "5h", 0.3, resets)}
 	limit := `[{"window":"5h","at":"` + limitAt.UTC().Format(time.RFC3339) + `","resets_at":"` + resets.UTC().Format(time.RFC3339) + `"}]`
-	want := strings.ReplaceAll(summaryOf(date, 3, 3, windowsRead{read: true, highest: `{"5h":0.95}`, rise: `{"5h":0.9,"7d_oi":0.2}`,
-		resets: `[` + resetJSON("7d", on(0, 8, 0), 0.5) + `,` + resetJSON("5h", resets, 0.95) + `]`, limits: limit, atCap: 30, atLimit: 90}),
+	want := strings.ReplaceAll(summaryOf(date, 3, windowsRead{read: true, highest: `{"5h":0.95}`, rise: `{"5h":0.9,"7d_oi":0.2}`,
+		resets: `[` + resetJSON("7d", on(0, 8, 0), 0.5) + `,` + resetJSON("5h", resets, 0.95) + `]`, limits: limit, atCap: 30, atLimit: 90},
+		on(0, 9, 0), on(0, 10, 0), on(0, 23, 59)),
 		`"sessions":1,"session_ids":["one"]`, `"sessions":2,"session_ids":["held","one"]`)
 	for _, by := range []string{"the router", "a reader"} {
 		t.Run("by "+by, func(t *testing.T) {
@@ -577,7 +578,7 @@ func TestAnAccountKeptFromASummaryOfVersionOneIsKeptAsItWasNeverRead(t *testing.
 		`"usage":{"input_tokens":10,"output_tokens":20}}],"sessions":1,"moved_on":0,"moved_off":0,"highest":{"5h":0.4}}`
 	work := strings.TrimSuffix(strings.TrimPrefix(versionOne(date, 2, 2, ""), `{"version":1,"day":"2026-10-05","lines":2,"accounts":[`), "]}")
 	held := `{"version":1,"day":"2026-10-05","lines":3,"accounts":[` + side + `,` + work + `]}`
-	want := `{"version":5,"day":"2026-10-05","lines":4,"accounts":[` + side + `,` + workDayJSON(3, windowsRead{}) + `]}`
+	want := `{"version":6,"day":"2026-10-05","lines":4,"accounts":[` + side + `,` + workDayJSON(windowsRead{}, on(0, 9, 0), on(0, 10, 0), on(0, 23, 59)) + `]}`
 	for _, by := range []string{"the router", "a reader"} {
 		t.Run("by "+by, func(t *testing.T) {
 			state, dir, _ := stateDirs(t)
@@ -585,7 +586,7 @@ func TestAnAccountKeptFromASummaryOfVersionOneIsKeptAsItWasNeverRead(t *testing.
 			holdLines(t, dir, date, asked("1", on(0, 9, 0)), asked("2", on(0, 10, 0)), asked("3", on(0, 23, 59)))
 
 			if got := summaryAgain(t, by, state, dir, on(1, 11, 0), nil); got != want {
-				t.Errorf("the day's summary is\n%s\nwant one of version 5, side's day kept as version 1 gave it, what it never read absent\n%s", got, want)
+				t.Errorf("the day's summary is\n%s\nwant one of version 6, side's day kept as version 1 gave it, what it never read absent\n%s", got, want)
 			}
 		})
 	}
