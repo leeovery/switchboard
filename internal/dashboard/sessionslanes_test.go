@@ -360,7 +360,7 @@ func TestLanesScrollARowAtATimeWhereALaneDoesntFit(t *testing.T) {
 	}
 	seen := make(map[string]bool)
 	for _, tt := range tests {
-		f := lanesFrame(52, 15, Look{}, phoneScene())
+		f := lanesFrame(52, 16, Look{}, phoneScene())
 		f.Scroll = tt.offset
 		if got := f.Scrolling(doc, routedAt); got != tt.scrolling || !f.ScrollsRows(doc, routedAt) {
 			t.Errorf("scrolled %d, Scrolling() = %+v, a row at a time %v; want %+v, a row at a time", tt.offset, got, f.ScrollsRows(doc, routedAt), tt.scrolling)

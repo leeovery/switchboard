@@ -1,12 +1,12 @@
  SWITCHBOARD                     Thu 1 Oct  14:42:07
- Overview  Accounts  History  Sessions  Runway  Log
+ Overview  Accounts  History
+ Sessions  Runway  Graphs  Log
 
 ● healthy · auto · 6 sessions · new → ▲ side
 
 LOG   Requests  Events                  35 hidden  f
 
   at        session  on          took  stopped
-  14:40:28  7f3a     side        8.3s  Bash
   14:40:39  db8a     side       14.3s  Edit
   14:40:39  d28c     side       14.5s  Bash
   14:40:40  7f3a     side       13.9s  TodoWrite

@@ -147,8 +147,8 @@ func TestASessionsPageLaysOutItsRowsAtEachSize(t *testing.T) {
 		},
 		{
 			name: "52×32, two accounts: the phone's frame", width: 52, height: 32, ranOn: 2,
-			want: sessionLayout{story: true, heading: 5, now: 7, storyAt: 10, body: 4, accountsAt: 18, accounts: 2,
-				turnsHeading: 21, heads: 23, turnsAt: 24, turns: 6, moreTurns: 30},
+			want: sessionLayout{story: true, heading: 6, now: 8, storyAt: 11, body: 4, accountsAt: 19, accounts: 2,
+				turnsHeading: 22, heads: 24, turnsAt: 25, turns: 5, moreTurns: 30},
 		},
 		{
 			name: "73×36, two accounts: the phone's story whole", width: 73, height: 36, ranOn: 2,
@@ -156,41 +156,41 @@ func TestASessionsPageLaysOutItsRowsAtEachSize(t *testing.T) {
 				turnsHeading: 22, heads: 24, turnsAt: 25, turns: 9, moreTurns: 34},
 		},
 		{
-			name: "52×28, one account: a phone's story at its least", width: 52, height: 28, ranOn: 1,
-			want: sessionLayout{story: true, heading: 5, now: 7, storyAt: 10, body: 4, accountsAt: 18, accounts: 1,
-				turnsHeading: 20, heads: 22, turnsAt: 23, turns: 3, moreTurns: 26},
+			name: "52×29, one account: a phone's story at its least", width: 52, height: 29, ranOn: 1,
+			want: sessionLayout{story: true, heading: 6, now: 8, storyAt: 11, body: 4, accountsAt: 19, accounts: 1,
+				turnsHeading: 21, heads: 23, turnsAt: 24, turns: 3, moreTurns: 27},
 		},
 		{
-			name: "52×20, one account: its story left out with its blank row", width: 52, height: 20, ranOn: 1,
-			want: sessionLayout{heading: 5, now: 7, storyAt: 10, accountsAt: 10, accounts: 1,
-				turnsHeading: 12, heads: 14, turnsAt: 15, turns: 3, moreTurns: 18},
+			name: "52×21, one account: its story left out with its blank row", width: 52, height: 21, ranOn: 1,
+			want: sessionLayout{heading: 6, now: 8, storyAt: 11, accountsAt: 11, accounts: 1,
+				turnsHeading: 13, heads: 15, turnsAt: 16, turns: 3, moreTurns: 19},
 		},
 		{
-			name: "52×14: a phone's least, with no blank row", width: 52, height: 14, ranOn: 1,
-			want: sessionLayout{heading: 5, now: 6, storyAt: 8, accountsAt: 8, accounts: 1,
+			name: "52×15: a phone's least, with no blank row", width: 52, height: 15, ranOn: 1,
+			want: sessionLayout{heading: 6, now: 7, storyAt: 9, accountsAt: 9, accounts: 1,
+				turnsHeading: 10, heads: 11, turnsAt: 12, turns: 1, moreTurns: 13},
+		},
+		{
+			name: "52×14: the accounts' row given way", width: 52, height: 14, ranOn: 1,
+			want: sessionLayout{heading: 6, now: 7, storyAt: 9, accountsAt: 9,
 				turnsHeading: 9, heads: 10, turnsAt: 11, turns: 1, moreTurns: 12},
 		},
 		{
-			name: "52×13: the accounts' row given way", width: 52, height: 13, ranOn: 1,
-			want: sessionLayout{heading: 5, now: 6, storyAt: 8, accountsAt: 8,
-				turnsHeading: 8, heads: 9, turnsAt: 10, turns: 1, moreTurns: 11},
+			name: "52×12: the now rows given way, a phone's least", width: 52, height: 12, ranOn: 1,
+			want: sessionLayout{nowLeft: true, heading: 6, now: 7, storyAt: 7, accountsAt: 7,
+				turnsHeading: 7, heads: 8, turnsAt: 9, turns: 1, moreTurns: 10},
 		},
 		{
-			name: "52×11: the now rows given way, a phone's least", width: 52, height: 11, ranOn: 1,
-			want: sessionLayout{nowLeft: true, heading: 5, now: 6, storyAt: 6, accountsAt: 6,
-				turnsHeading: 6, heads: 7, turnsAt: 8, turns: 1, moreTurns: 9},
-		},
-		{
-			name: "52×10: the chrome alone", width: 52, height: 10, ranOn: 1,
+			name: "52×11: the chrome alone", width: 52, height: 11, ranOn: 1,
 			want: sessionLayout{chrome: true},
 		},
 		{
-			name: "52×14, a turn open: a phone's least", width: 52, height: 14, ranOn: 2, open: true,
-			want: sessionLayout{nowLeft: true, heading: 5, now: 6, storyAt: 6, accountsAt: 6,
-				turnsHeading: 6, heads: 7, turnsAt: 8, turns: 4, moreTurns: 12},
+			name: "52×15, a turn open: a phone's least", width: 52, height: 15, ranOn: 2, open: true,
+			want: sessionLayout{nowLeft: true, heading: 6, now: 7, storyAt: 7, accountsAt: 7,
+				turnsHeading: 7, heads: 8, turnsAt: 9, turns: 4, moreTurns: 13},
 		},
 		{
-			name: "52×13, a turn open: the chrome alone", width: 52, height: 13, ranOn: 2, open: true,
+			name: "52×14, a turn open: the chrome alone", width: 52, height: 14, ranOn: 2, open: true,
 			want: sessionLayout{chrome: true},
 		},
 		{

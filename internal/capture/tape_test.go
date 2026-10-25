@@ -3,6 +3,7 @@ package capture
 import (
 	"context"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -94,4 +95,24 @@ func (p *tape) press(seconds float64, keys ...tea.KeyPressMsg) {
 // screen is what the tape shows, as text alone.
 func (p *tape) screen() string {
 	return ansi.Strip(p.l.View().Content)
+}
+
+// tabShown is the tab the title row shows, as its words read: the cells of
+// the title row on a ground of their own, neither the frame's, as its last
+// cell has it, nor the badge's, as its first does.
+func (p *tape) tabShown() string {
+	p.t.Helper()
+	g, err := parse(p.l.View().Content)
+	if err != nil {
+		p.t.Fatal(err)
+	}
+	title := g[0]
+	badge, frame := title[0].bg, title[len(title)-1].bg
+	var shown strings.Builder
+	for _, c := range title {
+		if c.bg != badge && c.bg != frame {
+			shown.WriteRune(c.glyph)
+		}
+	}
+	return strings.TrimSpace(shown.String())
 }

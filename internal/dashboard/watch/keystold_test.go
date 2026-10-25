@@ -30,6 +30,7 @@ func TestEveryPagesKeysAreEachPagesAsItsHelpListsThem(t *testing.T) {
 		},
 		"History": {"[ ] view", "< > period", "v split", "←→ account"},
 		"Runway":  {"< > window", "←→ day", "←→ week", "a names"},
+		"Graphs":  {},
 		"Log": {
 			"[ ] view", "↑↓ request", "↑↓ event", "enter open", "s its session", "end follow", "esc follow", "f what it shows", "/ find",
 			"esc clear the filter",
@@ -44,7 +45,7 @@ func TestEveryPagesKeysAreEachPagesAsItsHelpListsThem(t *testing.T) {
 			t.Errorf("%s's keys are told %q, want %q", p.Page, keysTold(p.Keys), keys)
 		}
 	}
-	if want := []string{"every page", "Overview", "Accounts", "History", "Sessions", "Runway", "Log", "a session's page"}; !slices.Equal(named, want) {
+	if want := []string{"every page", "Overview", "Accounts", "History", "Sessions", "Runway", "Graphs", "Log", "a session's page"}; !slices.Equal(named, want) {
 		t.Errorf("the pages are told in the order %q, want %q", named, want)
 	}
 	sessions := pages[slices.IndexFunc(pages, func(p PageKeys) bool { return p.Page == "Sessions" })]

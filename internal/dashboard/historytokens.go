@@ -559,25 +559,31 @@ type tokensPlaced struct {
 	first, rows int
 }
 
-// Tokens' parts down its view, in their order: its heads' row, the periods'
-// rows and the footnote's; and how many they are. The footnote leaves in
-// tokensNoteLeaves, the one turn.
+// Tokens' parts down its view, in their order: its heads' row, the blank row
+// under it, the periods' rows and the footnote's; and how many they are.
 const (
 	tokensHeadsRow = iota
+	tokensUnderHeadsRow
 	tokensPeriodsRows
 	tokensNoteRows
 	tokensRowsCount
 )
 
-const tokensNoteLeaves = 1
+// The turns Tokens' parts down its view give way in: the footnote, then the
+// blank row under the heads.
+const (
+	tokensNoteLeaves = iota + 1
+	tokensUnderHeadsLeaves
+)
 
 // tokensPlaced is the frame's periods of Tokens, its view from row top,
-// placed from two rows under its heads to two over its footnote, and the
-// footnote, wrapped to the frame's width, which ends on the view's last row,
-// as flex lays them down the view. Where that leaves the periods fewer than
-// leastPaged rows, a period's first and the line saying what's below, the
-// footnote goes, as it would soon reach the heads, and the periods run to the
-// view's last row.
+// placed from a blank row under its heads to a blank row over its footnote,
+// and the footnote, wrapped to the frame's width, which ends on the view's
+// last row, as flex lays them down the view. Where that leaves the periods
+// fewer than leastPaged rows, a period's first and the line saying what's
+// below, the footnote goes, as it would soon reach the heads, and the
+// periods run to the view's last row; and where that still does, the blank
+// row under the heads goes too, the periods starting on the row under them.
 func (f Frame) tokensPlaced(top int) (tokensPlaced, []line) {
 	page := f.History.Tokens
 	if page == nil {
@@ -586,7 +592,8 @@ func (f Frame) tokensPlaced(top int) (tokensPlaced, []line) {
 	note := wrapParts(f.Width, f.tokensFootnote(page.PricesAsOf)...)
 	rows := make([]flex.Part, tokensRowsCount)
 	rows[tokensHeadsRow] = flex.Part{Least: 1, Natural: 1}
-	rows[tokensPeriodsRows] = flex.Part{Least: leastPaged, Natural: leastPaged, Grows: true, Gap: 1}
+	rows[tokensUnderHeadsRow] = flex.Part{Least: 1, Natural: 1, Leaves: tokensUnderHeadsLeaves}
+	rows[tokensPeriodsRows] = flex.Part{Least: leastPaged, Natural: leastPaged, Grows: true}
 	rows[tokensNoteRows] = flex.Part{Least: len(note), Natural: len(note), Leaves: tokensNoteLeaves, Gap: min(len(note), 1)}
 	spans, _ := flex.Lay(f.viewRows(), rows...)
 	if spans[tokensNoteRows].Left {

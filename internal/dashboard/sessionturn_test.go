@@ -401,7 +401,7 @@ func TestTheLogsCardOverASessionsPageIsPlacedByItsRequestChosen(t *testing.T) {
 	}{
 		{name: "over its line", request: 2, width: 160, height: 37, placed: true, line: 30},
 		{name: "too short for it", scroll: 1, width: 160, height: 24, line: 16},
-		{name: "a tall phone, its card stacked", width: 52, height: 64, line: 28},
+		{name: "a tall phone, its card stacked", width: 52, height: 64, line: 29},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

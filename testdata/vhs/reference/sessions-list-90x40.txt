@@ -1,5 +1,5 @@
  SWITCHBOARD                                                           Thu 1 Oct  14:42:07
- Overview  Accounts  History  Sessions  Runway  Log
+ Overview  Accounts  History  Sessions  Runway  Graphs  Log
 
 ● healthy · auto · 6 sessions · new → ▲ side
 

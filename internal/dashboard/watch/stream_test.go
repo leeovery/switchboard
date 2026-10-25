@@ -87,6 +87,7 @@ func TestTheStreamIsReadWhileSessionsTheLogOrTheOverviewsROUTINGShows(t *testing
 		{key: "tab", opened: 1},
 		{key: "tab", opened: 2, open: true},
 		{key: "tab", opened: 2},
+		{key: "tab", opened: 2},
 		{key: "tab", opened: 3, open: true},
 		{key: "tab", opened: 3, open: true},
 		{key: "shift+tab", opened: 3, open: true},

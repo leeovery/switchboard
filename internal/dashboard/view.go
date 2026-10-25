@@ -22,6 +22,9 @@ const (
 	// per account, over the window its view is named for, the 5-hour or the
 	// week.
 	Runway View = "runway"
+	// Graphs is every account's room drawn at once, in sections its user
+	// shows and hides, as the Overview's are.
+	Graphs View = "graphs"
 	// Log is every request and every event the router tells of, as they
 	// happen.
 	Log View = "log"
@@ -34,13 +37,19 @@ const (
 // titles are the tabs' names in the title row, and a session's page's, as
 // help names it.
 var titles = map[View]string{
-	Overview: "Overview", Accounts: "Accounts", History: "History", Sessions: "Sessions", Runway: "Runway", Log: "Log", SessionPage: "Session",
+	Overview: "Overview", Accounts: "Accounts", History: "History", Sessions: "Sessions", Runway: "Runway", Graphs: "Graphs", Log: "Log", SessionPage: "Session",
 }
 
 // Views are the tabs, in the order the title row shows them and tab moves
 // through them.
 func Views() []View {
-	return []View{Overview, Accounts, History, Sessions, Runway, Log}
+	return []View{Overview, Accounts, History, Sessions, Runway, Graphs, Log}
+}
+
+// headsItself reports whether the tab's sections head themselves, as the
+// Overview's and Graphs' do, with no heading row over them.
+func (v View) headsItself() bool {
+	return v == Overview || v == Graphs
 }
 
 // Title is the tab's name in the title row, such as Overview.

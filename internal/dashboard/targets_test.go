@@ -57,7 +57,7 @@ func TestEachTargetSitsOverWhatItsDrawingPutThere(t *testing.T) {
 			}
 		}
 		if !slices.Equal(tabs, Views()) {
-			t.Errorf("at %d columns, the tabs' targets are %v, want the six tabs'", f.Width, tabs)
+			t.Errorf("at %d columns, the tabs' targets are %v, want every tab's", f.Width, tabs)
 		}
 		if want := []string{"tab", "< >", "?"}; !slices.Equal(keys, want) {
 			t.Errorf("at %d columns, the key line's targets are %q, want %q: never p pin, as no click opens the routing card, nor q quit", f.Width, keys, want)
@@ -71,10 +71,12 @@ func TestAPhonesTabsAreTargetsOnTheRowsTheyreDrawnOn(t *testing.T) {
 		// rows are the rows each tab is on, in the tabs' order.
 		rows []int
 	}{
-		{width: 52, rows: []int{1, 1, 1, 1, 1, 1}},
-		{width: 45, rows: []int{1, 1, 1, 2, 2, 2}},
-		{width: 30, rows: []int{1, 1, 1, 2, 2, 2}},
-		{width: 28, rows: []int{1, 1, 2, 2, 3, 3}},
+		{width: 60, rows: []int{1, 1, 1, 1, 1, 1, 1}},
+		{width: 52, rows: []int{1, 1, 1, 2, 2, 2, 2}},
+		{width: 31, rows: []int{1, 1, 1, 2, 2, 2, 2}},
+		{width: 30, rows: []int{1, 1, 2, 2, 3, 3, 3}},
+		{width: 21, rows: []int{1, 1, 2, 2, 3, 3, 3}},
+		{width: 20, rows: []int{1, 2, 2, 3, 3, 4, 4}},
 	}
 	for _, tt := range tests {
 		f := clickable(tt.width, 33, Overview)

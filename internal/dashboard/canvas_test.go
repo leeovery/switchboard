@@ -225,7 +225,7 @@ func TestEachSelectedRowIsReversedWithoutColourAndOnBgSelectionInColour(t *testi
 	focused.Sections, focused.Focus = Sections{}.Toggled(SectionGraphs), "personal"
 	_, usage := usageBody(focused, threeRouted(), now, 11)
 	titled := func(width int) *canvas {
-		f := Frame{Width: width, Height: 2, View: Sessions}
+		f := Frame{Width: width, Height: 3, View: Sessions}
 		c := newCanvas(f.Width, f.Height)
 		f.title(c, now)
 		return c
@@ -240,7 +240,7 @@ func TestEachSelectedRowIsReversedWithoutColourAndOnBgSelectionInColour(t *testi
 		{name: "on a phone, the cursor's account's both lines", c: phoneCard, rows: []int{16, 17}},
 		{name: "the Overview's focus", c: usage, rows: []int{4}},
 		{name: "the title's tab", c: titled(160), rows: []int{0}},
-		{name: "on a phone, the title's tab", c: titled(52), rows: []int{1}},
+		{name: "on a phone, the title's tab, on the tabs' second row", c: titled(52), rows: []int{2}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
