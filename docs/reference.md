@@ -171,10 +171,10 @@ An hour after each day ends, the router summarises the day beside its lines, in
 Each entry in `models` counts its requests by how they went:
 
 - `upstream`: those that went upstream.
-- `hours`: those that went upstream again, by the hour of the day each arrived in, by your
-  clock: 24 counts, from midnight's hour on, that add up to `upstream`. An hour the clocks skip
-  has none, and one they repeat counts both. A day summarised before the router kept them has
-  none.
+- `hours`: the requests `upstream` counts, by the local hour each was made in, as its line's `at`
+  gives it: 24 counts, from midnight's hour on, that add up to `upstream`. An hour the clocks skip
+  has none, and one they repeat counts both. A day summarised before the router kept them gains
+  them when it's summarised again from its lines; one whose lines are gone has none.
 - `no_usage`: those of them that got no usage back.
 - `unsent`: those the router answered itself.
 - `checks`: Claude Code's quota checks. Their usage is left out of the model's `usage`, as they
