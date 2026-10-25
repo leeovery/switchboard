@@ -362,7 +362,9 @@ func pickerOpened(t *testing.T, h *harness, keys string) *fakeThemes {
 // Accounts, two on any of its targets, its sub-tabs, Compare's columns, or
 // Detail's accounts and sessions, which focus, choose and select what they
 // land on, and open it the second time, do none of it. No < or > by a period
-// lies left of the picker.
+// lies left of the picker. Nor does a Graphs section's heading, or the Log's
+// ▼ N new, each of which presses a key, hide the section or follow again,
+// nor press their key into the picker, which would clear its note.
 func TestWhileThePickerIsOpenAClickUnderItDoesNothing(t *testing.T) {
 	onPage := func(keys string) func(*testing.T) (*harness, *fakeThemes) {
 		return func(t *testing.T) (*harness, *fakeThemes) {
@@ -397,6 +399,23 @@ func TestWhileThePickerIsOpenAClickUnderItDoesNothing(t *testing.T) {
 		h.start()
 		return h, pickerOpened(t, h, "")
 	}
+	onTheLogPaused := func(t *testing.T) (*harness, *fakeThemes) {
+		state := t.TempDir()
+		writeLines(t, state, arrived("0a000001", "work", -5*time.Minute), arrived("0a000002", "side", -4*time.Minute))
+		h := newHarness(t, probedWithoutTheRouter())
+		onTheLog(h, state)
+		h.start()
+		h.keys(tea.KeyPressMsg{Code: tea.KeyUp})
+		writeLines(t, state, arrived("0a000003", "work", -3*time.Minute))
+		h.read(probedWithoutTheRouter())
+		return h, pickerOpened(t, h, "")
+	}
+	onGraphs := func(t *testing.T) (*harness, *fakeThemes) {
+		h := routedHarness(t, routerDocument(three()...))
+		h.model.view = dashboard.Graphs
+		h.start()
+		return h, pickerOpened(t, h, "")
+	}
 	is := func(on dashboard.Clicked, as func(dashboard.Target) bool) func(dashboard.Target) bool {
 		return func(t dashboard.Target) bool { return t.On == on && as(t) }
 	}
@@ -409,6 +428,8 @@ func TestWhileThePickerIsOpenAClickUnderItDoesNothing(t *testing.T) {
 		{name: "a sub-tab", opened: onHistory, target: onSubTab(dashboard.HistoryTokens)},
 		{name: "a line of the Log's", opened: onTheLogsLines, target: is(dashboard.OnRow, func(t dashboard.Target) bool { return t.Row == 1 })},
 		{name: "a section's heading", opened: onTheOverview(""), target: is(dashboard.OnSection, func(dashboard.Target) bool { return true })},
+		{name: "a Graphs section's heading", opened: onGraphs, target: is(dashboard.OnPress, func(t dashboard.Target) bool { return t.Key == "w" })},
+		{name: "the Log's ▼ N new", opened: onTheLogPaused, target: is(dashboard.OnPress, func(t dashboard.Target) bool { return t.Key == "end" })},
 		{name: "an account's row", opened: onTheOverview(""), target: is(dashboard.OnAccount, func(t dashboard.Target) bool { return t.Account == "personal" })},
 		{name: "a session's row", opened: onTheOverview("s c l"), target: is(dashboard.OnSession, func(t dashboard.Target) bool { return t.Session == idD28C })},
 		{name: "a turn's row", opened: onPage(""), target: is(dashboard.OnTurn, func(t dashboard.Target) bool { return t.Turn == 2 })},
@@ -447,6 +468,7 @@ func TestWhileThePickerIsOpenAClickUnderItDoesNothing(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h, themes := tt.opened(t)
+			h.model.picker.note = "not kept: see the log"
 			i := slices.IndexFunc(h.targets(), func(t dashboard.Target) bool { return tt.target(t) && !h.model.onPicker(t.X) })
 			if i < 0 {
 				t.Fatalf("the page gives no such target left of the picker among %+v", h.targets())
@@ -577,7 +599,7 @@ func TestAClickOnTheLogChoosesALineFollowsAgainAndShowsASubTab(t *testing.T) {
 
 	writeLines(t, state, arrived("0a000003", "work", -3*time.Minute))
 	h.read(probedWithoutTheRouter())
-	fresh := target(dashboard.OnKey, func(t dashboard.Target) bool { return t.Key == "end" && t.Y == h.model.size.Height-2 })
+	fresh := target(dashboard.OnPress, func(t dashboard.Target) bool { return t.Key == "end" && t.Y == h.model.size.Height-2 })
 	h.click(fresh.X, fresh.Y)
 	if h.model.log.page.Paused() {
 		t.Error("a click on ▼ 1 new left the table paused, want it following")

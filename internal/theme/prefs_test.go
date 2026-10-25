@@ -395,6 +395,50 @@ func TestTheLogsColumnsAreKeptUnderAKeyOfTheirOwn(t *testing.T) {
 	}
 }
 
+// Graphs' sections shown are kept under a key of their own, by name, beside
+// GRAPHS' chart, which a file of before them keeps as "graphs" and still
+// reads: none shown kept as [], apart from the defaults, which are left out.
+func TestGraphsSectionsAreKeptUnderAKeyOfTheirOwn(t *testing.T) {
+	state := t.TempDir()
+	path := filepath.Join(state, "prefs.json")
+	write(t, path, `{"graphs": "burn-down", "tab": "graphs"}`)
+	prefs := theme.NewPrefsFile(state, clock)
+	if got, want := prefs.Read(), (theme.Prefs{Tab: "graphs", Graphs: "burn-down"}); !reflect.DeepEqual(got, want) {
+		t.Errorf("a file of before Graphs' sections reads %+v, want %+v", got, want)
+	}
+	graphs := theme.GraphsPrefs{Sections: []string{"week", "pool", "when"}}
+
+	if err := prefs.Update(func(p *theme.Prefs) { p.GraphsTab = graphs }); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := prefs.Read(), (theme.Prefs{Tab: "graphs", Graphs: "burn-down", GraphsTab: graphs}); !reflect.DeepEqual(got, want) {
+		t.Errorf("Read() = %+v, want %+v", got, want)
+	}
+	data, err := os.ReadFile(path)
+	want := "{\n  \"graphs\": \"burn-down\",\n  \"graphs_tab\": {\n    \"sections\": [\n      \"week\",\n      \"pool\",\n      \"when\"\n    ]\n  },\n" +
+		"  \"tab\": \"graphs\"\n}\n"
+	if err != nil || string(data) != want {
+		t.Errorf("prefs.json holds\n%s\nwant\n%s", data, want)
+	}
+
+	if err := prefs.Update(func(p *theme.Prefs) { p.GraphsTab = theme.GraphsPrefs{Sections: []string{}} }); err != nil {
+		t.Fatal(err)
+	}
+	if got := prefs.Read().GraphsTab.Sections; got == nil || len(got) > 0 {
+		t.Errorf("Read().GraphsTab.Sections = %#v, want none shown, kept apart from the defaults", got)
+	}
+	if data, err := os.ReadFile(path); err != nil || !strings.Contains(string(data), "\"graphs_tab\": {\n    \"sections\": []") {
+		t.Errorf("prefs.json holds %s, %v; want none shown kept as []", data, err)
+	}
+
+	if err := prefs.Update(func(p *theme.Prefs) { p.GraphsTab = theme.GraphsPrefs{} }); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(path); err != nil || strings.Contains(string(data), "graphs_tab") {
+		t.Errorf("prefs.json holds %s, %v; want Graphs' defaults left out", data, err)
+	}
+}
+
 func TestACorruptPreferencesFileIsSetAsideAndTheDefaultsStand(t *testing.T) {
 	tests := []struct {
 		name, content string

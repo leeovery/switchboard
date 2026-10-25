@@ -30,7 +30,7 @@ func TestEveryPagesKeysAreEachPagesAsItsHelpListsThem(t *testing.T) {
 		},
 		"History": {"[ ] view", "< > period", "v split", "←→ account"},
 		"Runway":  {"< > window", "←→ day", "←→ week", "a names"},
-		"Graphs":  {},
+		"Graphs":  {"w week", "f 5-hour", "o pool", "g glance", "h when"},
 		"Log": {
 			"[ ] view", "↑↓ request", "↑↓ event", "enter open", "s its session", "end follow", "esc follow", "f what it shows", "/ find",
 			"esc clear the filter",
@@ -74,6 +74,7 @@ func TestEveryKeyHelpListsIsTold(t *testing.T) {
 		{name: "Runway's week", page: "Runway", show: func(h *harness) {
 			h.model.view, h.model.runwayTab.shown.Window = dashboard.Runway, views.RunwayWeek
 		}},
+		{name: "Graphs", page: "Graphs", show: func(h *harness) { h.model.view = dashboard.Graphs }},
 		{name: "the Log's Events", page: "Log", show: func(h *harness) {
 			h.model.view, h.model.log.page.Shown = dashboard.Log, dashboard.LogEvents
 		}},
