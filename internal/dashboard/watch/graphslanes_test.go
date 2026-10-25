@@ -164,6 +164,37 @@ func TestGraphsBuildsAndReadsTheLanesOfTheBurnDownSectionsShownAlone(t *testing.
 	}
 }
 
+// A burn-down section toggled while Graphs shows has the lanes of the
+// windows shown after it built, and those alone shown, none kept of a window
+// no longer shown.
+func TestGraphsBuildsTheLanesOfTheBurnDownSectionsShownAsTheyreToggled(t *testing.T) {
+	r := runwayHarness(t, dashboard.Graphs, nil)
+	steps := []struct {
+		key  string
+		want []views.RunwayWindow
+	}{
+		{key: "f", want: []views.RunwayWindow{views.RunwayWeek}},
+		{key: "w"},
+		{key: "f", want: []views.RunwayWindow{views.RunwayFiveHour}},
+		{key: "w", want: []views.RunwayWindow{views.RunwayWeek, views.RunwayFiveHour}},
+	}
+	for _, step := range steps {
+		was := maps.Clone(r.graphsBuilds)
+		r.keyed(step.key)
+		var built []views.RunwayWindow
+		for _, w := range views.RunwayWindows() {
+			if r.graphsBuilds[w] > was[w] {
+				built = append(built, w)
+			}
+		}
+		shown := slices.Sorted(maps.Keys(r.model.graphsTab.shown))
+		want := slices.Sorted(slices.Values(step.want))
+		if !slices.Equal(slices.Sorted(slices.Values(built)), want) || !slices.Equal(shown, want) {
+			t.Fatalf("%s pressed, Graphs built the lanes of %q, shows those of %q, want %q alone", step.key, built, shown, want)
+		}
+	}
+}
+
 // While Graphs shows, the readings history's live tail is read as it opens,
 // and again at each look for what it gained, and Graphs' lanes are judged by
 // what it holds; and live, by the ledger's days where they reach back before
@@ -241,6 +272,31 @@ func TestGraphsSaysItsLoadingWhileItsReadOfTheReadingsHistoryTakesAWhile(t *test
 			}
 		})
 	}
+}
+
+// Graphs with both burn-down sections hidden waits on no read of the
+// readings history, so its first heading, POOL's here, says nothing of
+// loading while a read of the live tail asked before they were hidden is
+// under way, however long it takes.
+func TestGraphsWithItsBurnDownsHiddenSaysNothingOfLoading(t *testing.T) {
+	h := routedHarness(t, routerDocument(three()...))
+	h.model.view = dashboard.Graphs
+	unread := holdingBack[runwayReadMsg](h, h.init()...)
+	if len(unread) == 0 || !h.model.runwayTab.readingLive {
+		t.Fatalf("the live tail's read held back %d, of the live tail %t; want it held", len(unread), h.model.runwayTab.readingLive)
+	}
+	for _, key := range []string{"w", "f", "o"} {
+		unread = append(unread, holdingBack[runwayReadMsg](h, h.update(tea.KeyPressMsg{Code: rune(key[0]), Text: key})...)...)
+	}
+	h.clock.now = h.clock.now.Add(2 * LoadingAfter)
+	if loading, ok := h.pending(loadingMsg{}); ok {
+		h.fire(loading)
+	}
+	h.deliver(h.update(nudgeMsg{})...)
+	if got := h.row(4); !strings.HasPrefix(got, "POOL") || strings.Contains(got, loadingSaid) {
+		t.Errorf("WEEK and 5-HOUR hidden, the live tail's read under way, the heading reads %q, want POOL's, saying nothing of loading", got)
+	}
+	h.deliver(unread...)
 }
 
 // Graphs shown while the read of a span Runway was stepped back to is under

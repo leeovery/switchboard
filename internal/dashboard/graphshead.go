@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"cmp"
 	"slices"
 	"time"
 
@@ -47,12 +48,13 @@ type cardHead struct {
 
 // cardHeadOf is the head of the card of the lane ln, in the view v of its
 // window, width cells wide, at now: its label, the account's number, name and
-// marks, as Runway's lanes label them, in a column of the account's name, as
-// accountsColumn has it; and its words, as cardWords has them. Beside, its
-// words are on the label's row, ending at the card's last column, the
-// column's gap clear of the label at the least, its parts laid out by flex,
-// giving way in the turns a head's do, as laidTwice lays them, so a label
-// cut for words that then went takes its room back; else on the row under
+// marks, as Runway's lanes label them; and its words, as cardWords has them.
+// Beside, its words are on the label's row, ending at the card's last
+// column, the label in a column of the account's name, as accountsColumn
+// has it, its gap clear of the label at the least, the parts laid out by
+// flex, giving way in the turns a head's do, as laidTwice lays them, so a
+// label cut for words that then went takes its room back; else the label
+// takes the width, as within cuts it, and its words are on the row under
 // it, from its first column, whole parts left off their end where they don't
 // fit, as partsIn has them. They're cued as Runway cues the words under the
 // lane, as wordsCue has it.
@@ -60,20 +62,23 @@ func (f Frame) cardHeadOf(v laneView, ln laidLane, width int, beside bool, now t
 	words := v.cardWords(ln, now)
 	label := accountsColumn(nameGap, []accountName{ln.name})
 	label.Narrows = headLabelTurn
-	h := cardHead{words: placed{said: partsIn(words, width)}, row: 1}
-	parts := []flex.Part{label}
+	h := cardHead{label: ln.name.within(width), words: placed{said: partsIn(words, width)}, row: 1}
 	if beside && len(words) > 0 {
 		said := slices.Concat(words...)
-		parts = append(parts, flex.Part{Least: words[0].width(), Natural: said.width(), Narrows: headWordsTurn, Leaves: headWordsLeave})
-	}
-	spans := laidTwice(width, parts...)
-	h.label = ln.name.line(min(spans[0].Size, width))
-	if len(spans) > 1 {
-		said := wholeParts(words, spans[1].Size)
+		spans := laidTwice(width, label, flex.Part{Least: words[0].width(), Natural: said.width(), Narrows: headWordsTurn, Leaves: headWordsLeave})
+		said = wholeParts(words, spans[1].Size)
+		h.label = ln.name.line(min(spans[0].Size, width))
 		h.words, h.row = placed{x: width - said.width(), said: said}, 0
 	}
 	h.cue, h.cued = f.wordsCue(ln, v.timeline.NowColumn())
 	return h
+}
+
+// within is the name in the cells given, its label cut short to keep its
+// number and its marks, as labelIn cuts it, no cells kept beside it, as on a
+// row of its own.
+func (n accountName) within(cells int) line {
+	return n.labelIn(cells - n.labelled("").width())
 }
 
 // laidTwice are the parts laid in room cells in two passes of flex, as the
@@ -157,12 +162,16 @@ func (v laneView) cardWords(ln laidLane, now time.Time) []line {
 
 // cardPhrases are the parts of each phrase a card of the lane ln, in the
 // view v of its window, says at now after its room: what's said under the
-// lane on Runway, as said has it, its phrases, or where it has none, what
-// it says instead; and of a lane whose use isn't read, where that's
-// nothing, its use's words, as Runway's label says them, as "not read".
+// lane on Runway, as said has it, its phrases, in Runway's order, and those
+// sharing a column, of which Runway says only the first it places, in the
+// order of when what each says of begins; or where it has none, what it
+// says instead; and of a lane whose use isn't read, where that's nothing,
+// its use's words, as Runway's label says them, as "not read".
 func (v laneView) cardPhrases(ln laidLane, now time.Time) [][]line {
 	says := v.said(ln, now)
-	said := says.phrases
+	said := slices.SortedStableFunc(slices.Values(says.phrases), func(a, b phrase) int {
+		return cmp.Or(cmp.Compare(a.col, b.col), a.at.Compare(b.at))
+	})
 	if len(said) == 0 {
 		said = says.instead
 	}

@@ -26,11 +26,13 @@ type placed struct {
 // lane as a whole: its parts, whole ones dropped from the end where they
 // don't fit; and the column it's said from, counted from the lanes' first,
 // or, where ends is set, the column it ends at, said only where that clears
-// the words before.
+// the words before; and when what it says of begins, a stretch its start and
+// a reset its time, zero where that's not known, as the lane as a whole.
 type phrase struct {
 	parts []line
 	col   int
 	ends  bool
+	at    time.Time
 }
 
 // laneView is a view of Runway's lanes, as what's said under each is said
@@ -127,13 +129,13 @@ func (v laneView) phrasesOf(ln laidLane, against time.Time) []phrase {
 	var phrases []phrase
 	for _, s := range ln.Stretches {
 		if !s.Over {
-			phrases = append(phrases, phrase{parts: v.stretchParts(s, ln.account, against), col: s.Column})
+			phrases = append(phrases, phrase{parts: v.stretchParts(s, ln.account, against), col: s.Column, at: s.Start})
 		}
 	}
 	if v.window == views.RunwayWeek {
 		for _, r := range ln.Resets {
 			if !r.Back {
-				phrases = append(phrases, phrase{parts: []line{{{"resets " + prose.Dated(against, r.At), mutedInk}}}, col: r.Column, ends: true})
+				phrases = append(phrases, phrase{parts: []line{{{"resets " + prose.Dated(against, r.At), mutedInk}}}, col: r.Column, ends: true, at: r.At})
 			}
 		}
 	}

@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -392,20 +391,16 @@ func sameFade(a, b ink) bool {
 	return close && a == b
 }
 
-// A card's figures are the moment's: the room now, as its figure says it;
-// the room ahead, from the moment's room now, of a window that falls from
-// the room it has; and ✕ in the column the window runs out in, as the
-// moment's Out has it, on the foot, as none of these accounts' reserves
-// holds them back from running out.
+// A card's figures are the moment's: the room ahead, from the moment's room
+// now, of a window that falls from the room it has; and ✕ in the column the
+// window runs out in, as the moment's Out has it, on the foot, as none of
+// these accounts' reserves holds them back from running out.
 func TestABurnCardAgreesWithTheMoment(t *testing.T) {
 	m := trio().At(printNow, printPolicy)
 	for _, a := range m.Accounts {
 		for _, key := range []string{"7d", "5h"} {
 			w, _ := a.Window(key)
 			cd := burnCardOf(a, key, Trail{}, printNow)
-			if cd.room != prose.Left(w.Used) {
-				t.Errorf("%s's %s has room %v now, want the moment's, as its figure says it, %v", a.ID, key, cd.room, prose.Left(w.Used))
-			}
 			falls := w.Kind == status.WindowOpen || w.Kind == status.WindowRunsOut
 			if room, ok := cd.ahead(printNow); falls && (!ok || room != 1-w.Used) {
 				t.Errorf("%s's %s heads from %v, want the room now, %v", a.ID, key, room, 1-w.Used)

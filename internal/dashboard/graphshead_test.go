@@ -73,6 +73,10 @@ func TestACardsWordsAreItsRoomThenWhatRunwaySaysUnderItsLane(t *testing.T) {
 	monday.Projected = true
 	resetFirst := cardLane(0.34, monday)
 	resetFirst.Resets = []views.Reset{{Column: weekTL.Column(routedClock(4, 21, 0)), At: routedClock(4, 21, 0)}}
+	sunday := stretchOf(weekTL, views.CellLimited, routedClock(4, 21, 6), routedClock(4, 23, 6), 0, 120)
+	sunday.Projected = true
+	sameColumn := cardLane(0.34, sunday)
+	sameColumn.Resets = []views.Reset{{Column: sunday.Column, At: routedClock(4, 19, 58)}}
 	ramp1, ramp4 := ink{token: theme.VizRamp1, bold: true}, ink{token: theme.VizRamp4, bold: true}
 	tests := []struct {
 		name string
@@ -116,6 +120,11 @@ func TestACardsWordsAreItsRoomThenWhatRunwaySaysUnderItsLane(t *testing.T) {
 		{
 			name: "its week resetting before a stretch, in Runway's order", view: week, lane: resetFirst,
 			want: "66% left  ·  resets Sun 21:00  ·  runs out ~Mon 06:00 at its pace  ·  back Mon 12:00",
+			inks: []ink{ramp1, mutedInk, mutedInk, mutedInk, mutedInk, alertInk, mutedInk},
+		},
+		{
+			name: "its week resetting in the column a later stretch starts in", view: week, lane: sameColumn,
+			want: "66% left  ·  resets Sun 19:58  ·  runs out ~Sun 21:06 at its pace  ·  back Sun 23:06",
 			inks: []ink{ramp1, mutedInk, mutedInk, mutedInk, mutedInk, alertInk, mutedInk},
 		},
 		{name: "the week resetting", view: week, lane: resets, want: "66% left  ·  resets Sun 21:00", inks: []ink{ramp1, mutedInk, mutedInk, mutedInk}},
@@ -224,8 +233,9 @@ func TestACardsHeadLaysItsWordsUnderItsLabelOrBesideIt(t *testing.T) {
 		{name: "under, the last part left off", lane: work, width: 64, label: "1 work", words: "5% left  ·  at its cap 14:31  ·  back 17:10"},
 		{name: "under, two left off", lane: work, width: 42, label: "1 work", words: "5% left  ·  at its cap 14:31"},
 		{name: "under, the room alone", lane: work, width: 27, label: "1 work", words: "5% left"},
-		{name: "under, the label cut", lane: work, width: 9, label: "1 wo…", words: "5% left"},
-		{name: "under, the room cut", lane: work, width: 6, label: "1 ", words: "5% le…"},
+		{name: "under, the label whole in its own row", lane: work, width: 9, label: "1 work", words: "5% left"},
+		{name: "under, the label cut", lane: work, width: 5, label: "1 wo…", words: "5% l…"},
+		{name: "under, the room cut", lane: work, width: 6, label: "1 work", words: "5% le…"},
 		{name: "beside, every part", lane: work, width: 75, beside: true, label: "1 work", words: "5% left  ·  at its cap 14:31  ·  back 17:10, as its 5-hour resets"},
 		{name: "beside, the last part left off", lane: work, width: 74, beside: true, label: "1 work", words: "5% left  ·  at its cap 14:31  ·  back 17:10"},
 		{name: "beside, two left off", lane: work, width: 52, beside: true, label: "1 work", words: "5% left  ·  at its cap 14:31"},
