@@ -156,12 +156,15 @@ type Frame struct {
 	// Runway is Runway's window, the day or week stepped back to, and its
 	// timeline, lanes and COMING UP as the watch built them at the look.
 	Runway RunwayShown
+	// Graphs is Graphs' sections shown, and what they're drawn of.
+	Graphs GraphsShown
 	// Session is the session's page open, drawn in place of the view: nil
 	// while none is.
 	Session *SessionShown
 	// Loading is set while the tab shown has waited on a read of what it
-	// draws long enough to say so: its heading row says loading…, and the
-	// Overview's, which has none, SESSIONS' heading.
+	// draws long enough to say so: its heading row says loading…; the
+	// Overview's, which has none, SESSIONS' heading; and Graphs', which has
+	// none either, its first section's.
 	Loading bool
 	// Log is the Log's sub-tab shown, its tables and how each stands.
 	Log LogPage
@@ -264,7 +267,7 @@ func (f Frame) page(doc status.Document, now time.Time) *canvas {
 // room for it, as cramped says, and nowhere but between the status line and
 // the key line, as body has it: a session's page, where one is open, in its
 // place; else the tab shown: the Overview, Accounts, History, Sessions,
-// Runway or the Log; Graphs, its sections yet to come, draws nothing.
+// Runway, Graphs or the Log.
 func (f Frame) view(c *canvas, doc status.Document, now time.Time) {
 	if f.cramped() {
 		return
@@ -284,6 +287,8 @@ func (f Frame) view(c *canvas, doc status.Document, now time.Time) {
 		f.sessions(c, doc, now, top)
 	case Runway:
 		f.runway(c, doc, now, top)
+	case Graphs:
+		f.graphsTab(c, top)
 	case Log:
 		f.log(c, doc, now, top)
 	}

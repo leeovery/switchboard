@@ -169,6 +169,7 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 		SessionsShown: dashboard.SessionsKept(kept.Sessions),
 		RunwayShown:   dashboard.RunwayKept(kept.Runway),
 		History:       dashboard.HistoryKept(kept.History, cfg.Accounts),
+		Graphs:        dashboard.GraphsSectionsNamed(kept.GraphsTab.Sections),
 		Log:           dashboard.LogKept(kept.Log),
 		LedgerKeep:    cfg.Ledger.Keep,
 		Prices:        pricing(cfg),

@@ -16,6 +16,7 @@ import (
 // toggleModels has it; on the Overview, u, g, r, s, c and l
 // show and hide its sections, b switches how its windows are grouped, v
 // flips GRAPHS' chart, and ↑ and ↓ move the focus, as overviewKey says; on
+// Graphs, w, f, o, g and h show and hide its sections, as graphsKey says; on
 // Accounts, its keys act as accountsKey says; on History, [ ], < >, v and
 // ← → act as historyKey says; on Sessions, its keys act as sessionsKey says;
 // on Runway, < > and ← → act as runwayKey says; on the Log, [ ], ↑ ↓, end,
@@ -37,6 +38,9 @@ func (m Model) pageKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return afresh.toggleModels(), nil
 	}
 	if next, ok := afresh.overviewKey(k); ok {
+		return next, nil
+	}
+	if next, ok := afresh.graphsKey(k); ok {
 		return next, nil
 	}
 	if next, cmd, ok := afresh.accountsKey(k); ok {
@@ -91,6 +95,20 @@ func (m Model) overviewKey(key string) (Model, bool) {
 	return m, false
 }
 
+// graphsKey acts on a key of Graphs', reporting false for a key it doesn't
+// take, or on another tab: a section's key shows or hides it, as
+// toggleGraphs has it.
+func (m Model) graphsKey(key string) (Model, bool) {
+	if m.shownView() != dashboard.Graphs {
+		return m, false
+	}
+	section, ok := dashboard.GraphsSectionKeyed(key)
+	if !ok {
+		return m, false
+	}
+	return m.toggleGraphs(section), true
+}
+
 // keyListing is a key of the page's own, as the key line and help list it:
 // the key, worded as they list it; whether it works where it is; whether the
 // key line leaves it to help; whether it leads the key line, in tab views'
@@ -107,13 +125,14 @@ type keyListing struct {
 
 // pageKeys is what lists the page's keys, as it stands, but for whether its
 // view scrolls, which follows the size it's drawn at: its own keys but those
-// that scroll it, as keys has them; whether it's the Overview, whose key
-// line sets its groups apart as keyLine has it; whether it lists those that
-// scroll it always, as the Overview and the Log do; p, and whether it's
-// listed, as pinKey has it; and whether the dashboard is drawn in colour.
+// that scroll it, as keys has them; whether it's a page of toggles, the
+// Overview or Graphs, whose key line sets its groups apart as keyLine has
+// it; whether it lists those that scroll it always, as the Overview, Graphs
+// and the Log do; p, and whether it's listed, as pinKey has it; and whether
+// the dashboard is drawn in colour.
 type pageKeys struct {
 	own           []keyListing
-	overview      bool
+	toggles       bool
 	scrollsAlways bool
 	pin           dashboard.Key
 	pinned        bool
@@ -122,21 +141,21 @@ type pageKeys struct {
 
 // keys is what lists the page's keys as m stands, its own but those that
 // scroll it in the design's order: the Overview's, Accounts', History's,
-// Sessions', Runway's and the Log's, as overviewListings,
-// accountsListings, historyListings, sessionsListings, runwayListings and
-// logListings have them, Detail's SESSIONS listing the sessions running
-// given. A session's page lists its own, as sessionKeys has them, in place
-// of its tab's.
+// Sessions', Runway's, Graphs' and the Log's, as overviewListings,
+// accountsListings, historyListings, sessionsListings, runwayListings,
+// graphsListings and logListings have them, Detail's SESSIONS listing the
+// sessions running given. A session's page lists its own, as sessionKeys has
+// them, in place of its tab's.
 func (m Model) keys(running []string) pageKeys {
 	shown := m.shownView()
 	if shown == dashboard.SessionPage {
 		return m.sessionKeys()
 	}
-	overview := shown == dashboard.Overview
+	toggles := shown == dashboard.Overview || shown == dashboard.Graphs
 	pin, pinned := m.pinKey()
-	own := slices.Concat(m.overviewListings(), m.accountsListings(running), m.historyListings(), m.sessionsListings(), m.runwayListings(), m.logListings())
-	scrollsAlways := overview || shown == dashboard.Log
-	return pageKeys{own: own, overview: overview, scrollsAlways: scrollsAlways, pin: pin, pinned: pinned, coloured: m.coloured()}
+	own := slices.Concat(m.overviewListings(), m.accountsListings(running), m.historyListings(), m.sessionsListings(), m.runwayListings(), m.graphsListings(), m.logListings())
+	scrollsAlways := toggles || shown == dashboard.Log
+	return pageKeys{own: own, toggles: toggles, scrollsAlways: scrollsAlways, pin: pin, pinned: pinned, coloured: m.coloured()}
 }
 
 // overviewListings are the Overview's own keys: its toggles, each word
@@ -157,6 +176,17 @@ func (m Model) overviewListings() []keyListing {
 		keyListing{Key: dashboard.Key{Key: "v", Does: "chart", State: m.burn.Name()}, works: overview && m.sections.Has(dashboard.SectionGraphs)},
 		keyListing{Key: dashboard.Key{Key: "↑↓", Does: "focus"}, works: overview && m.asRead.accounts > 1 && m.focuses(), withEnds: true},
 	)
+}
+
+// graphsListings are Graphs' own keys: its toggles, each word faint where
+// its section is hidden.
+func (m Model) graphsListings() []keyListing {
+	graphs := m.shownView() == dashboard.Graphs
+	var own []keyListing
+	for _, k := range m.graphs.Toggles() {
+		own = append(own, keyListing{Key: k, works: graphs})
+	}
+	return own
 }
 
 // accountsListings are Accounts' own keys, each move with enter in a group
@@ -240,9 +270,10 @@ func (m Model) historyListings() []keyListing {
 // phone's line keeping the page's own keys between those that lead and ?
 // and q quit, but those it leaves to a wider line, or on the Log and
 // Sessions, with no session's page open over it, those logPhoneKeys and
-// sessionsPhoneKeys keep; the Overview sets ↑↓ focus, p pin, ? help and q
-// quit as a group of their own, overviewApart after its toggles, which a
-// phone's line leaves to help. Each key works as the page drawn as f has
+// sessionsPhoneKeys keep; a page of toggles, the Overview or Graphs, sets
+// p pin, ? help and q quit, with the Overview's ↑↓ focus before them, as a
+// group of their own, togglesApart after its toggles, which a phone's line
+// leaves to help. Each key works as the page drawn as f has
 // it, at now, the moment it was drawn at.
 func (m Model) keyLine(f dashboard.Frame, now time.Time) dashboard.KeyLine {
 	if m.picker.open {
@@ -258,12 +289,12 @@ func (m Model) keyLine(f dashboard.Frame, now time.Time) dashboard.KeyLine {
 		lead, apart = page.lead, dashboard.KeysAfter
 	}
 	l := dashboard.KeyLine{Groups: append([][]dashboard.Key{lead}, page.groups...), Lead: apart, PhoneHelp: "keys", Note: m.noted(now)}
-	if keys.overview {
+	if keys.toggles {
 		ends := page.ends
 		if keys.pinned {
 			ends = append(ends, keys.pin)
 		}
-		l.Lead, l.After, l.PhoneHelp = overviewApart, overviewApart, "keys and toggles"
+		l.Lead, l.After, l.PhoneHelp = togglesApart, togglesApart, "keys and toggles"
 		l.Groups = append(l.Groups, append(ends, helpKey, dashboard.Quit))
 		return l
 	}
@@ -338,9 +369,10 @@ var (
 	refreshKey = dashboard.Key{Key: "R", Does: "refresh"}
 )
 
-// overviewApart is how many blank cells the Overview's key line sets each of
-// its groups apart by, tab views among them.
-const overviewApart = 5
+// togglesApart is how many blank cells a page of toggles' key line, the
+// Overview's or Graphs', sets each of its groups apart by, tab views among
+// them.
+const togglesApart = 5
 
 // helpKeys are the keys help lists, where the page's view scrolls or not,
 // worded as the key line words them: tab; every key of the page's own that

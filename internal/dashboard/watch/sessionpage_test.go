@@ -354,6 +354,7 @@ func TestTheNumberKeysMAndItsTabsOwnKeysDoNothingOnASessionsPage(t *testing.T) {
 		{over: dashboard.Log, keys: "] f / s", also: []tea.KeyPressMsg{end}},
 		{over: dashboard.History, keys: "] < v", also: []tea.KeyPressMsg{left}},
 		{over: dashboard.Runway, keys: "w"},
+		{over: dashboard.Graphs, keys: "w f o g h"},
 	}
 	screenOf := func(m Model) string { return ansi.Strip(m.View().Content) }
 	for _, tt := range tests {
