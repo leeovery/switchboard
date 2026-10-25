@@ -4102,14 +4102,15 @@ burn-down a row high:
   every third hour, `00`, `03`, to `21`, in `text.faint`.
 - **Its shades** are History's (see History, Five shades): `viz.day.0` for an hour with nothing on
   it; the active hours split into quarters for `viz.day.1` to `viz.day.4`, on one scale for the
-  grid. Its key under it, as the Year's: each shade's tile and its bounds, the cuts rounded to 10,
-  or to 1 where rounding to 10 would make two of them the same,
-  `▆ none   ▆ under 20   ▆ 20–50   ▆ 50–90   ▆ over 90`, in `text.subtle`, then `requests an hour` in
-  `text.faint`, flowed onto as many rows as its width needs.
+  grid. Its key under it, as the Year's: each shade's tile and its bounds, each cut rounded on its
+  own, a half up, to the coarsest of 10, 1, a tenth and a hundredth it isn't under; cuts that differ
+  but would then read the same, or out of order, each a step finer till none do; each written with
+  no trailing zeros, `▆ none   ▆ under 20   ▆ 20–50   ▆ 50–90   ▆ over 90`, in `text.subtle`, then
+  `requests an hour` in `text.faint`, flowed onto as many rows as its width needs.
 - **Its width:** `⌊(w − 4) / 24⌋` cells an hour, the tile, `▆`, all an hour's cells but its last,
-  which is a gap: two, 52 columns, its natural; four at its most, 100. Narrower than its natural, as
-  on a folding phone's front screen, an hour is a tile alone with no gap, `4 + 24` columns, 28, its
-  least, the weekdays' rows still read apart as `▆` fills three quarters of a cell.
+  which is a gap: two, 52 columns, its natural; four at its most, 100. Narrower than its natural, an
+  hour is a tile alone with no gap, `4 + 24` columns, 28, its least, the weekdays' rows still read
+  apart as `▆` fills three quarters of a cell.
 - **The requests counted** are those that spend quota and went upstream, as the traces count them
   (see The Overview), each in the local hour it arrived in, as its line's `at` gives it; an hour
   the clocks skip has no requests that day, and one they repeat counts both. Its data, four weeks'

@@ -266,6 +266,24 @@ func TestADayIsNamedByTheDateItHasInItsOwnTimeZone(t *testing.T) {
 	}
 }
 
+// The weeks to a day are counted, then the day named.
+func TestWeeksToCountsTheWeeksThenNamesTheDay(t *testing.T) {
+	last := time.Date(2026, 9, 30, 0, 0, 0, 0, time.UTC)
+	tests := []struct {
+		weeks int
+		want  string
+	}{
+		{weeks: 4, want: "the 4 weeks to Wed 30 Sep"},
+		{weeks: 2, want: "the 2 weeks to Wed 30 Sep"},
+		{weeks: 1, want: "the 1 week to Wed 30 Sep"},
+	}
+	for _, tt := range tests {
+		if got := prose.WeeksTo(tt.weeks, last); got != tt.want {
+			t.Errorf("WeeksTo(%d) = %q, want %q", tt.weeks, got, tt.want)
+		}
+	}
+}
+
 func TestPastShowsMoreOfATimeTheFurtherBackItsDayIs(t *testing.T) {
 	// Wednesday 7 October, 01:30, an hour ahead of UTC.
 	now := time.Date(2026, 10, 7, 1, 30, 0, 0, time.FixedZone("UTC+1", 60*60))

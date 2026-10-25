@@ -3,6 +3,7 @@ package views
 import (
 	"cmp"
 	"maps"
+	"math"
 	"slices"
 	"strings"
 	"time"
@@ -135,8 +136,8 @@ const (
 	// its own.
 	labelDays  = 4
 	labelWeeks = 2
-	// keyRounding is what the key rounds the cuts to, in requests a day.
-	keyRounding = 50
+	// yearKeyRounding is what the key rounds the cuts to, in requests a day.
+	yearKeyRounding = 50
 )
 
 // YearFrom is the first day the Year asked for at now reads, weeks starting
@@ -159,7 +160,7 @@ func (p Past) year(ask YearAsk) YearPage {
 	}
 	cuts := quarterCuts(y.shown.active())
 	page := YearPage{
-		Weeks: span.weeksOf(drawn.requests(), cuts), Cuts: cuts, KeyCuts: keyCuts(cuts), Months: span.labels(),
+		Weeks: span.weeksOf(drawn.requests(), cuts), Cuts: cuts, KeyCuts: keyCuts(cuts, yearKeyRounding), Months: span.labels(),
 		Versions: y.all.versions(v), Accounts: cycledAccounts(p.in.Accounts),
 	}
 	if ask.Version == "" {
@@ -338,18 +339,23 @@ func (s yearSpan) partWay(month, began string) string {
 	return began
 }
 
-// keyCuts are the cuts as the key gives them, each rounded to the nearest
-// keyRounding, but one under it, kept as it is, as a key's bound of none
-// would say nothing.
-func keyCuts(cuts []int) []int {
+// keyCuts are the cuts as a key gives them, each rounded to the nearest
+// rounding, as roundedTo rounds it, but one under it, kept as it is, as a
+// key's bound of none would say nothing.
+func keyCuts(cuts []int, rounding int) []int {
 	rounded := make([]int, len(cuts))
 	for i, cut := range cuts {
 		rounded[i] = cut
-		if cut >= keyRounding {
-			rounded[i] = (cut + keyRounding/2) / keyRounding * keyRounding
+		if cut >= rounding {
+			rounded[i] = roundedTo(cut, rounding)
 		}
 	}
 	return rounded
+}
+
+// roundedTo is the cut rounded to the nearest rounding, a half up.
+func roundedTo[V int | float64](cut, rounding V) V {
+	return V(math.Round(float64(cut)/float64(rounding))) * rounding
 }
 
 // yearFilter is what of a day's use the Year shows, as asked: every
