@@ -4,7 +4,6 @@ import (
 	"math"
 	"slices"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -35,118 +34,62 @@ const (
 	SectionLately
 )
 
-// sectionWords are each section's key, its word, as the key line words it
-// and its heading has it in capitals, and its name in the preferences file.
-var sectionWords = [...]struct{ key, word, name string }{
-	SectionUsage:    {"u", "usage", "usage"},
-	SectionGraphs:   {"g", "graphs", "graphs"},
-	SectionRouting:  {"r", "routing", "routing"},
-	SectionSessions: {"s", "sessions", "sessions"},
-	SectionComing:   {"c", "coming up", "coming"},
-	SectionLately:   {"l", "lately", "lately"},
+// sectionCount is how many sections the Overview has.
+const sectionCount = int(SectionLately) + 1
+
+// overviewSections are the Overview's sections' words, and those shown at
+// first: USAGE, ROUTING, COMING UP and LATELY.
+var overviewSections = sectionList{
+	words: []sectionWording{
+		SectionUsage:    {key: "u", word: "usage", heading: "USAGE", name: "usage"},
+		SectionGraphs:   {key: "g", word: "graphs", heading: "GRAPHS", name: "graphs"},
+		SectionRouting:  {key: "r", word: "routing", heading: "ROUTING", name: "routing"},
+		SectionSessions: {key: "s", word: "sessions", heading: "SESSIONS", name: "sessions"},
+		SectionComing:   {key: "c", word: "coming up", heading: "COMING UP", name: "coming"},
+		SectionLately:   {key: "l", word: "lately", heading: "LATELY", name: "lately"},
+	},
+	first: 1<<SectionUsage | 1<<SectionRouting | 1<<SectionComing | 1<<SectionLately,
 }
+
+// list is the Overview's sections' words.
+func (Section) list() sectionList { return overviewSections }
 
 // EverySection are the Overview's sections, in the order the page draws
 // them.
 func EverySection() []Section {
-	return []Section{SectionUsage, SectionGraphs, SectionRouting, SectionSessions, SectionComing, SectionLately}
+	return everyOf[Section]()
 }
 
 // SectionKeyed is the section the key given shows and hides, as "u" does
 // USAGE, reporting false for a key that's no section's.
 func SectionKeyed(key string) (Section, bool) {
-	for _, s := range EverySection() {
-		if s.Key() == key {
-			return s, true
-		}
-	}
-	return 0, false
+	return keyedOf[Section](key)
 }
 
 // Key is the key that shows and hides the section, as "u".
 func (s Section) Key() string {
-	return sectionWords[s].key
+	return wordingOf(s).key
 }
 
 // Word is the section's word, as the key line has it after its key, as
 // "coming up".
 func (s Section) Word() string {
-	return sectionWords[s].word
+	return wordingOf(s).word
 }
 
 // heading is the section's name, as its heading has it, as "COMING UP".
 func (s Section) heading() string {
-	return strings.ToUpper(s.Word())
+	return wordingOf(s).heading
 }
 
 // Sections are which of the Overview's sections show. The zero value shows
-// those shown at first: USAGE, ROUTING, COMING UP and LATELY.
-type Sections struct {
-	// toggled are the sections shown otherwise than at first, a bit each,
-	// so the zero value shows those shown at first.
-	toggled uint8
-}
+// those shown at first.
+type Sections = shown[Section]
 
-// shownAtFirst are the sections shown at first, a bit each.
-const shownAtFirst = 1<<SectionUsage | 1<<SectionRouting | 1<<SectionComing | 1<<SectionLately
-
-// Has reports whether the section shows.
-func (s Sections) Has(section Section) bool {
-	return (shownAtFirst^s.toggled)&(1<<section) != 0
-}
-
-// Toggled is s with the section hidden where it shows, and shown where it's
-// hidden.
-func (s Sections) Toggled(section Section) Sections {
-	return Sections{toggled: s.toggled ^ 1<<section}
-}
-
-// Names are the names of the sections that show, in the order the page draws
-// them, as the preferences file keeps them: never nil, so none showing is
-// kept as none.
-func (s Sections) Names() []string {
-	names := []string{}
-	for _, section := range EverySection() {
-		if s.Has(section) {
-			names = append(names, sectionWords[section].name)
-		}
-	}
-	return names
-}
-
-// SectionsNamed are the sections the names given show, as the preferences
-// file keeps them, a name of none of them left out, as a later
-// switchboard's: or, given nil, as a file that keeps none has it, those
-// shown at first.
+// SectionsNamed are the Overview's sections the names given show, as
+// shownNamed reads them.
 func SectionsNamed(names []string) Sections {
-	if names == nil {
-		return Sections{}
-	}
-	var shown uint8
-	for _, section := range EverySection() {
-		for _, name := range names {
-			if name == sectionWords[section].name {
-				shown |= 1 << section
-			}
-		}
-	}
-	return Sections{toggled: shown ^ shownAtFirst}
-}
-
-// Toggles are the sections' keys, as the key line lists them, in the order
-// the page draws them: each key and its word, its word faint where its
-// section is hidden.
-func (s Sections) Toggles() []Key {
-	toggles := make([]Key, 0, len(sectionWords))
-	for _, section := range EverySection() {
-		toggles = append(toggles, Key{Key: section.Key(), Does: section.Word(), Hidden: !s.Has(section)})
-	}
-	return toggles
-}
-
-// none reports whether every section is hidden.
-func (s Sections) none() bool {
-	return !slices.ContainsFunc(EverySection(), s.Has)
+	return shownNamed[Section](names)
 }
 
 // lists reports whether the section lists lines, as COMING UP and LATELY
@@ -774,7 +717,7 @@ func latelyAt(width int) int {
 // the zero Layout, or one made for another frame or shape.
 type Layout struct {
 	made     layoutFor
-	allotted [len(sectionWords)]allotment
+	allotted [sectionCount]allotment
 	running  []views.RunningRow
 	usage    usageForm
 }
@@ -788,7 +731,7 @@ type layoutFor struct {
 	width, height int
 	sections      Sections
 	by            By
-	shapes        [len(sectionWords)]shape
+	shapes        [sectionCount]shape
 }
 
 // shape is the fewest rows a section takes, and the most.
@@ -906,7 +849,7 @@ func (f Frame) overview(c *canvas, doc status.Document, now time.Time, top int) 
 func (f Frame) overviewDrawn(doc status.Document, now time.Time) *canvas {
 	view := holdingTraces(newCanvas(f.Width, f.viewRows()))
 	if f.Sections.none() {
-		f.everythingHidden(view)
+		everythingHidden(view, f.Width, f.Sections.Toggles())
 	}
 	f.drawSections(view, f.laidOut(doc, now, 0))
 	f.paintTraces(view)
@@ -929,22 +872,27 @@ func (f Frame) drawSections(c *canvas, laid []planned) {
 const leastRule = 1
 
 // sectionHeading draws the section's heading along its row, in the columns
-// it spans: its name in text.subtle; three cells on, what it says, as says
-// has it, where it says anything, cut to keep leastRule cells of rule, as
-// fitted cuts it; a cell after that, or two after the name, a rule in
-// border; and a cell on, at its last column, the key that hides it, in bold
-// accent.key.
+// it spans, as headSection draws it: saying, where it folds, what it holds,
+// as says has it, else its description, cut as fitted cuts it.
 func (f Frame) sectionHeading(c *canvas, p planned) {
-	h := p.head
-	key := h.x + h.width - 1
-	x := c.line(h.x, h.y, line{{p.heading(), dimInk}})
+	headSection(c, p.head, p.heading(), p.Key(), func(cells int) line { return p.fitted(f.says(p, cells), cells) })
+}
+
+// headSection draws a section's heading along h's row, in the columns it
+// spans, as the Overview and Graphs head theirs: its name in text.subtle;
+// three cells on, what says has it say, cut to the cells it's given, which
+// keep leastRule cells of rule, where it says anything; a cell after that,
+// or two after the name, a rule in border; and a cell on, at its last
+// column, key, the key that hides it, in bold accent.key.
+func headSection(c *canvas, h bounds, name, key string, says headingWords) {
+	last := h.x + h.width - 1
+	x := c.line(h.x, h.y, line{{name, dimInk}})
 	ruled, at := x+ruleGap, x+headingGap
-	room := key - at - leastRule - 2
-	if says := f.says(p, room); len(says) > 0 {
-		ruled = c.line(at, h.y, p.fitted(says, room)) + 1
+	if said := says(last - at - leastRule - 2); len(said) > 0 {
+		ruled = c.line(at, h.y, said) + 1
 	}
-	c.text(ruled, h.y, rule(key-1-ruled), borderInk)
-	c.text(key, h.y, p.Key(), keyInk)
+	c.text(ruled, h.y, rule(last-1-ruled), borderInk)
+	c.text(last, h.y, key, keyInk)
 }
 
 // fitted is what the section's heading says, as given, cut to width cells:
@@ -1005,15 +953,15 @@ func saying(words headingWords, cells int) line {
 	return words(cells)
 }
 
-// everythingHidden draws, from the first row, how to bring the sections back
-// where every one is hidden: "every section is hidden:" in text.faint, then
-// the toggles, as the key line words them, keysInGroup apart, as many to a
-// row as fit, the rest on the rows under it.
-func (f Frame) everythingHidden(c *canvas) {
+// everythingHidden draws, from the first row, how to bring a page's sections
+// back where every one is hidden: "every section is hidden:" in text.faint,
+// then the toggles, as the key line words them, keysInGroup apart, as many
+// to a row as fit, the rest on the rows under it.
+func everythingHidden(c *canvas, width int, toggles []Key) {
 	x, y := c.line(0, 0, line{{"every section is hidden:", faintInk}}), 0
-	for _, k := range f.Sections.Toggles() {
+	for _, k := range toggles {
 		words, gap := k.words(), keysInGroup
-		if x+gap+words.width() > f.Width {
+		if x+gap+words.width() > width {
 			x, y, gap = 0, y+1, 0
 		}
 		x = c.line(x+gap, y, words)

@@ -21,8 +21,8 @@ const prefsName = "prefs.json"
 // the user never needs to write: the themes it's drawn in, the tab it
 // shows, the Overview's sections shown, how its windows are grouped and the
 // chart GRAPHS draws, whether the live views show each model's own window,
-// what Accounts, History's views, Sessions and Runway show, and the Log's
-// columns.
+// what Accounts, History's views, Sessions and Runway show, Graphs' sections
+// shown, and the Log's columns.
 type Prefs struct {
 	Choice
 	// Tab names the tab shown, one of overview, accounts, history, sessions,
@@ -56,8 +56,21 @@ type Prefs struct {
 	Sessions SessionsPrefs `json:"sessions,omitzero"`
 	// Runway is what Runway shows, as its keys last left it.
 	Runway RunwayPrefs `json:"runway,omitzero"`
+	// GraphsTab is what the Graphs tab shows, as its keys last left it: not
+	// under "graphs", which keeps GRAPHS' chart by name, as files already
+	// written have it, and which an object would make them read as corrupt.
+	GraphsTab GraphsPrefs `json:"graphs_tab,omitzero"`
 	// Log is what the Log shows, as its f panel last left it.
 	Log LogPrefs `json:"log,omitzero"`
+}
+
+// GraphsPrefs are what the Graphs tab shows: Sections, the names of its
+// sections shown, of week, 5-hour, pool, glance and when: nil, as a file
+// without them reads, for those shown at first, and none, kept as [], for
+// none. A name the dashboard doesn't know, as a later build's section, shows
+// nothing.
+type GraphsPrefs struct {
+	Sections []string `json:"sections,omitzero"`
 }
 
 // LogPrefs are what the Log shows: Columns, the names of the columns its

@@ -153,6 +153,30 @@ func TestDashboardShowsTheOverviewsSectionsKept(t *testing.T) {
 	}
 }
 
+func TestDashboardShowsGraphsSectionsKept(t *testing.T) {
+	tests := []struct {
+		name, prefs string
+		want        []string
+	}{
+		{name: "none kept: those shown at first", prefs: `{"graphs": "burn-down"}`, want: []string{"week", "5-hour"}},
+		{name: "those kept", prefs: `{"graphs_tab": {"sections": ["when", "pool"]}}`, want: []string{"pool", "when"}},
+		{name: "none shown, kept as none", prefs: `{"graphs_tab": {"sections": []}}`, want: []string{}},
+		{name: "one a later switchboard names passed over", prefs: `{"graphs_tab": {"sections": ["glance", "a-later-section"]}}`, want: []string{"glance"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := statusDeps(t, fakeClaudeAPI(t), nil)
+			writePrefs(t, deps, tt.prefs)
+			cfg := recordWatch(t, &deps)
+			run(t, deps, "dashboard")
+
+			if got := cfg.Graphs.Names(); !slices.Equal(got, tt.want) {
+				t.Errorf("the dashboard opens Graphs showing %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestDashboardGroupsTheOverviewsWindowsAsKeptElseAsConfigured(t *testing.T) {
 	tests := []struct {
 		name, prefs string

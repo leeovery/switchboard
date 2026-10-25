@@ -36,6 +36,7 @@ var keysSaid = map[string]string{
 		"time, or to this week, then a week at a time, and → on again to the live view; and a collapses the " +
 		"lanes' labels to each account's number, marks and use, giving the lanes more room, and expands them " +
 		"again.",
+	"Graphs": "w, f, o, g and h show and hide WEEK, 5-HOUR, POOL, GLANCE and WHEN YOU WORK.",
 	"Log": "end, or esc, follows the newest line again while the table is paused; enter opens the chosen " +
 		"line's details, and s its session's page; f sets the columns and which lines show; / finds a session " +
 		"by its id's start or its directory's name; and esc, with a filter on, clears it.",

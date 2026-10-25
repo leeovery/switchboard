@@ -59,7 +59,7 @@ func TestTheLinesComeSinceAreATargetThatFollows(t *testing.T) {
 	paused := requestsOf(src, append(lines, asked("3", logDay.Add(2*time.Minute)))).withStands(requestsOf(src, lines).Chose(-1, 10))
 	finding := paused
 	finding.Finding = LogFinding{Open: true}
-	got := logTargetsOf(paused, OnKey)
+	got := logTargetsOf(paused, OnPress)
 	i := slices.IndexFunc(got, func(t Target) bool { return t.Y == 22 })
 	if i < 0 {
 		t.Fatalf("paused, a line come since, the state line's targets are %v, want ▼ 1 new", got)
@@ -72,7 +72,7 @@ func TestTheLinesComeSinceAreATargetThatFollows(t *testing.T) {
 		t.Errorf("the target's cells read %q, want ▼ 1 new", drawn)
 	}
 	for name, p := range map[string]LogPage{"finding": finding, "following": paused.Followed()} {
-		if slices.ContainsFunc(logTargetsOf(p, OnKey), func(t Target) bool { return t.Y == 22 }) {
+		if slices.ContainsFunc(logTargetsOf(p, OnPress), func(t Target) bool { return t.Y == 22 }) {
 			t.Errorf("%s, the state line's row has a target", name)
 		}
 	}
