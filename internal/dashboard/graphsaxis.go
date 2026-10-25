@@ -26,7 +26,7 @@ type axisTick struct {
 // drawn, or within the card, nothing, as the ticks from the last back give
 // way.
 func (cd burnCard) axis(c *canvas, x, y, width int) {
-	tl := views.Timeline{Start: cd.window.start.In(cd.window.now.Location()), End: cd.window.start.Add(cd.window.length), Columns: width}
+	tl := cd.timeline(width)
 	next := width + 1
 	ticks := cd.ticks(tl)
 	for _, t := range slices.Backward(ticks) {

@@ -132,24 +132,57 @@ func TestAWindowsInkIsByTheStateItsIn(t *testing.T) {
 }
 
 func TestADotsRowIsTheCeilingOfItsRoomOf4hLessOneFromTheFoot(t *testing.T) {
-	d := newDots(2)
+	// A 5% reserve's room, 1 − its cap, is 0.050000000000000044: its rows
+	// are whole at five rows tall and every five more, not one over.
+	reserve := less(1, less(1, 0.05))
 	tests := []struct {
 		room float64
+		h    int
 		want int
 	}{
-		{room: -0.1, want: 7},
-		{room: 0, want: 7},
-		{room: 0.01, want: 7},
-		{room: 0.125, want: 7},
-		{room: 0.13, want: 6},
-		{room: 0.5, want: 4},
-		{room: 0.99, want: 0},
-		{room: 1, want: 0},
-		{room: 1.2, want: 0},
+		{room: -0.1, h: 2, want: 7},
+		{room: 0, h: 2, want: 7},
+		{room: 0.01, h: 2, want: 7},
+		{room: 0.125, h: 2, want: 7},
+		{room: 0.13, h: 2, want: 6},
+		{room: 0.5, h: 2, want: 4},
+		{room: 0.99, h: 2, want: 0},
+		{room: 1, h: 2, want: 0},
+		{room: 1.2, h: 2, want: 0},
+		{room: reserve, h: 5, want: 19},
+		{room: reserve, h: 10, want: 38},
+		{room: reserve, h: 15, want: 57},
 	}
 	for _, tt := range tests {
-		if got := d.footRow(tt.room); got != tt.want {
-			t.Errorf("room %v is on dot row %d from the top of 8, want %d", tt.room, got, tt.want)
+		if got := newDots(tt.h).footRow(tt.room); got != tt.want {
+			t.Errorf("room %v is on dot row %d from the top of %d, want %d", tt.room, got, 4*tt.h, tt.want)
+		}
+	}
+}
+
+// less is a − b, worked out as the program runs, as a share left is, rather
+// than exactly, as Go works out a constant.
+func less(a, b float64) float64 {
+	return a - b
+}
+
+func TestARoomsEighthsRoundAShareWorkedOutBySubtractionAsTheShareItIs(t *testing.T) {
+	tests := []struct {
+		room float64
+		h    int
+		want int
+	}{
+		// 3/80 of five rows is 1.5 eighths, to even 2, and 9/80 is 4.5, to
+		// even 4; 1 − 0.9625 falls a float's error short of the one, and
+		// 1 − 0.8875 over the other.
+		{room: less(1, 0.9625), h: 5, want: 2},
+		{room: less(1, 0.8875), h: 5, want: 4},
+		{room: less(1, less(1, 0.05)), h: 5, want: 2},
+		{room: 0.0375, h: 5, want: 2},
+	}
+	for _, tt := range tests {
+		if got := roomEighths(tt.room, tt.h); got != tt.want {
+			t.Errorf("room %v of %d rows fills %d eighths, want %d", tt.room, tt.h, got, tt.want)
 		}
 	}
 }
@@ -230,25 +263,47 @@ func TestABurnCardsNowLineRunsDownNowsColumnFromItsStartToNearItsReset(t *testin
 }
 
 func TestABurnCardsCrossFallsOnItsFloorWhereItRunsOutOrItsHoldBegan(t *testing.T) {
-	// Four rows, 16 dot rows; now, 12:40, column 5; a fifth of the window
-	// left on the floor, dot row 3 from the foot, so ✕ on the lowest row.
+	// Four rows, 16 dot rows; now, 12:40, column 5, unless given; the room
+	// on the floor, as the room ahead has it, a fifth unless given: dot row
+	// 3 from the foot, so ✕ on the lowest row.
 	tests := []struct {
 		name      string
+		now       time.Time
 		out, held time.Time
 		holds     bool
+		floor     float64
 		wantAt    [2]int
 		crossed   bool
 	}{
 		{name: "running out", out: clockOn(15, 30), wantAt: [2]int{7, 3}, crossed: true},
+		{name: "running out on a column's edge", out: clockOn(15, 0), wantAt: [2]int{7, 3}, crossed: true},
+		{name: "running out in the last column", out: clockOn(17, 59), wantAt: [2]int{9, 3}, crossed: true},
 		{name: "running out within now's column: ✕ at now", out: clockOn(12, 45), wantAt: [2]int{5, 3}, crossed: true},
+		{name: "running out before now: ✕ at now", out: clockOn(11, 0), wantAt: [2]int{5, 3}, crossed: true},
+		{name: "running out, now at its start", now: clockOn(8, 0), out: clockOn(9, 30), wantAt: [2]int{1, 3}, crossed: true},
+		{name: "running out at a reserve of half: ✕ on its row", out: clockOn(15, 30), floor: 0.5, wantAt: [2]int{7, 2}, crossed: true},
 		{name: "held since its hold began", held: clockOn(10, 10), holds: true, wantAt: [2]int{2, 3}, crossed: true},
 		{name: "held, nothing telling since when: no ✕", holds: true},
 		{name: "heading nowhere it runs out: no ✕"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cd := burnCardAt(clockOn(12, 40), readOn(8, 0, 0))
-			cd.out, cd.held, cd.heldSince, cd.floor = tt.out, tt.holds, tt.held, 0.2
+			now := clockOn(12, 40)
+			if !tt.now.IsZero() {
+				now = tt.now
+			}
+			floor := 0.2
+			if tt.floor > 0 {
+				floor = tt.floor
+			}
+			cd := burnCardAt(now, readOn(8, 0, 0))
+			cd.out, cd.held, cd.heldSince = tt.out, tt.holds, tt.held
+			cd.ahead = func(at time.Time) (float64, bool) {
+				if !tt.out.IsZero() && at.Before(tt.out) {
+					return 0.9, true
+				}
+				return floor, true
+			}
 			c := cardIn(cd, Look{}, 10, 4)
 			var crosses [][2]int
 			for y := range 4 {
@@ -276,48 +331,29 @@ func TestABurnCardsCrossFallsOnItsFloorWhereItRunsOutOrItsHoldBegan(t *testing.T
 
 func TestABurnCardsCrossIsDrawnLastOverTheRoom(t *testing.T) {
 	// Held since 09:10, column 1, on the floor's row, over the room filled
-	// there before the hold.
+	// there before the hold; its dots along the floor from now's column.
 	cd := burnCardAt(clockOn(12, 40), readOn(8, 0, 0))
-	cd.held, cd.heldSince = true, clockOn(9, 10)
-	if got := cardRows(cardIn(cd, Look{}, 10, 2), 2)[1]; got != "█✕███│" {
+	cd.held, cd.heldSince, cd.ahead = true, clockOn(9, 10), steady(0, true)
+	if got := cardRows(cardIn(cd, Look{}, 10, 2), 2)[1]; got != "█✕███⣀⣀⣀⣀⣀" {
 		t.Errorf("the chart's lower row is %q, want ✕ over the room in the column the hold began", got)
-	}
-}
-
-func TestATokenlessCardHasNoRoomAllAlong(t *testing.T) {
-	cd := burnCardAt(clockOn(12, 40), readOn(8, 0, 0))
-	cd.tokenless = true
-	if got, want := cardRows(cardIn(cd, Look{}, 10, 2), 2)[:2], []string{"     │", "     │"}; !slices.Equal(got, want) {
-		t.Errorf("the chart is\n%s\nwant\n%s\nnow's │ alone", strings.Join(got, "\n"), strings.Join(want, "\n"))
-	}
-}
-
-func TestACardWhoseSpanIsntKnownDrawsNothing(t *testing.T) {
-	cd := burnCardAt(clockOn(12, 40), readOn(8, 0, 0))
-	cd.window.spanned = false
-	for _, row := range cardRows(cardIn(cd, Look{}, 10, 2), 2) {
-		if row != "" {
-			t.Fatalf("a row says %q, want nothing drawn", row)
-		}
 	}
 }
 
 func TestAStaleCardOrOneOutOfThePoolIsFaded(t *testing.T) {
 	tests := []struct {
-		name         string
-		kind         status.WindowKind
-		refused, out bool
-		want         float64
+		name                string
+		stale, refused, out bool
+		want                float64
 	}{
-		{name: "as it stands", kind: status.WindowOpen},
-		{name: "stale", kind: status.WindowStale, want: staleFade},
-		{name: "its token refused, which its ink says", kind: status.WindowStale, refused: true},
-		{name: "out of the pool", kind: status.WindowOpen, out: true, want: staleFade},
-		{name: "stale and out of the pool", kind: status.WindowStale, out: true, want: 1 - (1-staleFade)*(1-staleFade)},
+		{name: "as it stands"},
+		{name: "stale", stale: true, want: staleFade},
+		{name: "its token refused, which its ink says", stale: true, refused: true},
+		{name: "out of the pool", out: true, want: staleFade},
+		{name: "stale and out of the pool", stale: true, out: true, want: 1 - (1-staleFade)*(1-staleFade)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := cardFade(status.AccountNow{TokenRefused: tt.refused, OutOfPool: tt.out}, status.WindowNow{Kind: tt.kind})
+			got := accountFade(status.AccountNow{TokenRefused: tt.refused, OutOfPool: tt.out}, tt.stale)
 			if !sameFade(ink{fade: got}, ink{fade: tt.want}) {
 				t.Errorf("the card fades %v, want %v", got, tt.want)
 			}
@@ -325,6 +361,10 @@ func TestAStaleCardOrOneOutOfThePoolIsFaded(t *testing.T) {
 	}
 	// Heading at three quarters, on the upper row; the reserve at a
 	// quarter, on the lower.
+	stale, _ := trio(func(d *status.Document) { d.Accounts[2].Error = "usage endpoint answered 500" }).At(printNow, printPolicy).Account("side")
+	if fade := burnCardOf(stale, "7d", Trail{}, printNow).fade; fade != staleFade {
+		t.Errorf("a stale week's card fades %v, want %v", fade, staleFade)
+	}
 	cd := burnCardAt(clockOn(12, 40), readOn(8, 0, 0.5))
 	cd.fade, cd.ahead, cd.reserve, cd.reserveHolds = staleFade, steady(0.75, true), 0.25, true
 	c := cardIn(cd, Look{}, 10, 2)
@@ -351,10 +391,10 @@ func sameFade(a, b ink) bool {
 	return close && a == b
 }
 
-// A card's figures are the moment's: the room now; the room ahead, from it;
-// and ✕ in the column the window runs out in, on its floor, the reserve's
-// where that holds the account back, as the moment's Out has it; held, at
-// its cap, its floor the cap's, its dots along it.
+// A card's figures are the moment's: the room now; the room ahead, from it,
+// of a window that falls from the room it has; and ✕ in the column the
+// window runs out in, as the moment's Out has it, on the foot, as none of
+// these accounts' reserves holds them back from running out.
 func TestABurnCardAgreesWithTheMoment(t *testing.T) {
 	m := trio().At(printNow, printPolicy)
 	for _, a := range m.Accounts {
@@ -364,7 +404,8 @@ func TestABurnCardAgreesWithTheMoment(t *testing.T) {
 			if cd.room != 1-w.Used {
 				t.Errorf("%s's %s has room %v now, want the moment's %v", a.ID, key, cd.room, 1-w.Used)
 			}
-			if room, ok := cd.ahead(printNow); ok && room != cd.room {
+			falls := w.Kind == status.WindowOpen || w.Kind == status.WindowRunsOut
+			if room, ok := cd.ahead(printNow); falls && (!ok || room != cd.room) {
 				t.Errorf("%s's %s heads from %v, want the room now, %v", a.ID, key, room, cd.room)
 			}
 			c := cardIn(cd, Look{}, 50, 8)
@@ -401,8 +442,8 @@ func TestACardHeldAtItsCapCrossesWhereItsHoldBeganAndHeadsAlongTheCap(t *testing
 	m := trio().At(printNow, printPolicy)
 	work, _ := m.Account("work")
 	cd := burnCardOf(work, "5h", Trail{}, printNow)
-	if !cd.held || cd.floor != 1-work.Cap {
-		t.Fatalf("work's 5-hour is held %v on a floor of %v, want held on its cap's, %v", cd.held, cd.floor, 1-work.Cap)
+	if !cd.held {
+		t.Fatal("work's 5-hour isn't held, want held at its cap")
 	}
 	// The 5-hour runs 12:10 to 17:10, ten columns of half an hour; now,
 	// 14:42, column 5; the cap, 5% of four rows, on the lowest dot row,
@@ -427,8 +468,8 @@ func TestACardHeldByItsLimitCrossesOnItsFloor(t *testing.T) {
 	}
 	cd := burnCardOf(personal, "5h", Trail{}, now)
 	cd.heldSince = now.Add(-time.Hour)
-	if cd.ink != errorInk || cd.floor != 0 {
-		t.Errorf("held by its limit, the card is in %+v on a floor of %v, want state.destructive on none", cd.ink, cd.floor)
+	if cd.ink != errorInk {
+		t.Errorf("held by its limit, the card is in %+v, want state.destructive", cd.ink)
 	}
 	// The 5-hour runs from four hours before now for five: now's column is
 	// 8 of 10, the hold's start 6; none left till it resets, on the foot.
@@ -445,5 +486,58 @@ func TestACardRunningOutHeadsAlongItsFloorFromItsCrossToItsReset(t *testing.T) {
 	c := cardIn(burnCardOf(side, "7d", Trail{}, printNow), Look{}, 50, 8)
 	if got, want := rowOf(c, 7), strings.Repeat(" ", 27)+"│  ⠉⠒⠤⣀✕"+strings.Repeat("⣀", 15); got != want {
 		t.Errorf("the foot is\n%q\nwant\n%q\nfalling from now's column to ✕, then along the floor to its reset", got, want)
+	}
+}
+
+func TestACardRunningOutAtItsReserveCrossesOnTheReservesRow(t *testing.T) {
+	// personal's week, with a quarter kept back, runs out at its cap: on
+	// the reserve's dot row, 24 of 32, the seventh of eight rows.
+	personal, _ := trio(func(d *status.Document) { d.Accounts[1].Reserve = 0.25 }).At(printNow, printPolicy).Account("personal")
+	if w, _ := personal.Window("7d"); !w.RunsOut || !personal.ReserveHolds {
+		t.Fatalf("personal's week runs out %v, its reserve holding %v, want both", w.RunsOut, personal.ReserveHolds)
+	}
+	if _, y, crossed := crossOn(cardIn(burnCardOf(personal, "7d", Trail{}, printNow), Look{}, 50, 8), 50, 8); !crossed || y != 6 {
+		t.Errorf("✕ is on row %d (drawn %v), want the reserve's, 6", y, crossed)
+	}
+}
+
+// A window the moment gives no span, not read, not started, or of an
+// account without a usable token, is charted over its length from now:
+// empty but for now's line, in its first column, over its axis from now;
+// no reserve, though the account keeps one.
+func TestACardWithNothingToDrawIsEmptyButForNowsLineFromNow(t *testing.T) {
+	unread := trio(func(d *status.Document) { d.Accounts[0].FetchedAt = time.Time{} })
+	tokenless := trio(func(d *status.Document) { d.Accounts[0].TokenSet = false })
+	work, _ := trio().Account("work")
+	session, _ := work.Window("5h")
+	lapsed := session.ResetsAt.Add(time.Second)
+	tests := []struct {
+		name string
+		doc  status.Document
+		at   time.Time
+		key  string
+		kind status.WindowKind
+		axis string
+	}{
+		{name: "not read", doc: unread, at: printNow, key: "7d", kind: status.WindowUnread, axis: " ╵Fri ╵Sat ╵Sun ╵Mon ╵Tue ╵Wed ╵Thu"},
+		{name: "without a usable token", doc: tokenless, at: printNow, key: "5h", kind: status.WindowTokenless, axis: "  ╵15:00 ╵16:00 ╵17:00 ╵18:00"},
+		{name: "not started", doc: trio(), at: lapsed, key: "5h", kind: status.WindowNotStarted, axis: "   ╵17 ╵18 ╵19 ╵20"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a, _ := tt.doc.At(tt.at, printPolicy).Account("work")
+			if w, _ := a.Window(tt.key); w.Kind != tt.kind || w.Length != 0 {
+				t.Fatalf("work's %s is of kind %d, over %v, want %d, with no span", tt.key, w.Kind, w.Length, tt.kind)
+			}
+			width := 35
+			if tt.kind == status.WindowNotStarted {
+				width = 20
+			}
+			rows := cardRows(cardIn(burnCardOf(a, tt.key, Trail{Readings: []score.Reading{{At: tt.at.Add(-time.Hour)}}}, tt.at), Look{}, width, 4), 4)
+			want := append(slices.Repeat([]string{"│"}, 4), tt.axis)
+			if !slices.Equal(rows, want) {
+				t.Errorf("the card is\n%s\nwant\n%s", strings.Join(rows, "\n"), strings.Join(want, "\n"))
+			}
+		})
 	}
 }

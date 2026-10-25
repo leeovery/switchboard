@@ -4,9 +4,11 @@ import (
 	"math"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // roomFade is how far a burn-down card's room left fades into the canvas:
@@ -17,8 +19,8 @@ const roomFade = 0.45
 // now, worked out once, as burnCardOf has it: the window's span, its
 // readings and now, as GRAPHS charts them; the ink its state gives it; the
 // room it has now; the room ahead, by the projection the moment goes by;
-// when it runs out, and the room on the floor it meets; whether its cap or
-// its limit holds it, and since when; its account's reserve; and how far it
+// when it runs out; whether its cap or its limit holds it, and since when;
+// its account's reserve; whether it has nothing to draw; and how far it
 // fades.
 type burnCard struct {
 	window chart
@@ -26,10 +28,8 @@ type burnCard struct {
 	room   float64
 	ahead  func(time.Time) (float64, bool)
 	// out is when the window runs out at its pace, before its reset: zero
-	// where it doesn't. floor is the room left where it runs out, or where
-	// what holds it keeps it.
-	out   time.Time
-	floor float64
+	// where it doesn't.
+	out time.Time
 	// held is set where its cap or its limit holds it at now, and heldSince
 	// is when that hold began, which the caller fills from Runway's lanes:
 	// zero where nothing tells, and the card draws no ✕.
@@ -39,9 +39,10 @@ type burnCard struct {
 	// where reserveHolds.
 	reserve      float64
 	reserveHolds bool
-	// tokenless is set where its account has no usable token, so no room is
-	// drawn all along.
-	tokenless bool
+	// empty is set where the moment gives the window no span, as of one not
+	// read, not started, or of an account without a usable token: its chart
+	// is empty but for now's line, over its length from now.
+	empty bool
 	// fade is how far its marks fade into the canvas: a stale reading's and
 	// an account out of the pool's, compounded where both hold.
 	fade float64
@@ -52,8 +53,9 @@ type burnCard struct {
 // chartOf has it; in the ink its state gives it, as windowInk has it; its
 // room now, 1 − Used; the room ahead at a time as the moment's RoomAhead has
 // it, never worked out again; its run-out, where its Kind runs out, at Out;
-// and its floor, reserve and fade, as floorOf and cardFade have them. When a
-// hold began is the caller's to fill.
+// its reserve; and its fade, as accountFade has it. A window the moment
+// gives no span is charted over its length, as its key gives it, from now,
+// empty, as spanFromNow has it. When a hold began is the caller's to fill.
 func burnCardOf(a status.AccountNow, key string, trail Trail, now time.Time) burnCard {
 	w, _ := a.Window(key)
 	cd := burnCard{
@@ -63,17 +65,26 @@ func burnCardOf(a status.AccountNow, key string, trail Trail, now time.Time) bur
 		ahead: func(t time.Time) (float64, bool) {
 			return a.RoomAhead(key, t)
 		},
-		floor:        floorOf(a, w),
 		held:         w.Kind == status.WindowLimited || w.Kind == status.WindowCapped,
 		reserve:      1 - a.Cap,
 		reserveHolds: a.ReserveHolds,
-		tokenless:    w.Kind == status.WindowTokenless,
-		fade:         cardFade(a, w),
+		fade:         accountFade(a, w.Kind == status.WindowStale),
 	}
 	if w.RunsOut {
 		cd.out = w.Out.At
 	}
+	if !cd.window.spanned {
+		cd.spanFromNow(key)
+	}
 	return cd
+}
+
+// spanFromNow charts the card, empty, over its window's length, as its key
+// gives it, from now, so now falls in its first column: where the key gives
+// none, it stays without a span, and draws nothing.
+func (cd *burnCard) spanFromNow(key string) {
+	cd.window.length, cd.window.spanned = quota.Length(key)
+	cd.window.start, cd.window.readings, cd.empty = cd.window.now, nil, true
 }
 
 // windowInk is the ink of account a's window w by the state it's in, as
@@ -88,34 +99,6 @@ func windowInk(a status.AccountNow, w status.WindowNow) ink {
 		return warningInk
 	}
 	return ink{token: theme.VizRamp1}
-}
-
-// floorOf is the room account a's window w has on the floor it meets: none
-// where its limit holds it; its reserve, 1 − Cap, where its cap does; else
-// where it runs out, 1 − Floor.
-func floorOf(a status.AccountNow, w status.WindowNow) float64 {
-	switch w.Kind {
-	case status.WindowLimited:
-		return 0
-	case status.WindowCapped:
-		return 1 - a.Cap
-	}
-	return 1 - a.Floor
-}
-
-// cardFade is how far account a's window w's card fades, as a lane on
-// Runway does: staleFade where its reading is stale, but not where its
-// token's refused, which its ink says; as far where the pool leaves the
-// account out; the two compounded where both hold.
-func cardFade(a status.AccountNow, w status.WindowNow) float64 {
-	keep := 1.0
-	if w.Kind == status.WindowStale && !a.TokenRefused {
-		keep *= 1 - staleFade
-	}
-	if a.OutOfPool {
-		keep *= 1 - staleFade
-	}
-	return 1 - keep
 }
 
 // faded is k as the card draws it: faded the card's fade more into the
@@ -151,11 +134,8 @@ func (cd burnCard) draw(c *canvas, look Look, at bounds) {
 // fill fills each column of p before now's to the room its middle had, as
 // the last reading by then left it, as roomEighths counts it, in the
 // window's ink, roomFade into the canvas: none where nothing was read by
-// then, and none all along where the account has no usable token.
+// then.
 func (cd burnCard) fill(c *canvas, look Look, p plot) {
-	if cd.tokenless {
-		return
-	}
 	k := cd.faded(ink{token: cd.ink.token, fade: roomFade})
 	for col := range p.now {
 		used, ok := cd.window.usedAt(cd.window.readAt(col, p.width))
@@ -171,7 +151,18 @@ func roomEighths(room float64, h int) int {
 	if room <= 0 {
 		return 0
 	}
-	return max(halfEven(min(room, 1)*float64(8*h)), 1)
+	return max(halfEven(settled(min(room, 1)*float64(8*h))), 1)
+}
+
+// settled is x, a count of cells or dots worked out of a share of a window,
+// taken to the nearest whole or half where it's within score.Tolerance of it,
+// so a share's float error, as 1 − (1 − 0.05)'s, 0.050000000000000044,
+// never tips a rounding at its edge.
+func settled(x float64) float64 {
+	if near := math.Round(2*x) / 2; math.Abs(x-near) <= score.Tolerance {
+		return near
+	}
+	return x
 }
 
 // heading is where the window's heading on p, as braille in its ink: a dot
@@ -193,10 +184,11 @@ func (cd burnCard) heading(p plot) dots {
 
 // reserveDots is the account's reserve on p, where it holds, as braille: on
 // the row of dots footRow puts its room on, the right-hand dot of every
-// other column from the first, viz.reserve drawn faint.
+// other column from the first, viz.reserve drawn faint; none on an empty
+// card.
 func (cd burnCard) reserveDots(p plot) dots {
 	d := newDots(p.h)
-	if !cd.reserveHolds {
+	if !cd.reserveHolds || cd.empty {
 		return d
 	}
 	k, row := cd.faded(capDotInk), d.footRow(cd.reserve)
@@ -208,10 +200,10 @@ func (cd burnCard) reserveDots(p plot) dots {
 
 // footRow is the row of dots, of the chart's 4h from its top, that room, a
 // share of the chart, falls on: ⌈room × 4h⌉ − 1 from its foot, the foot's
-// at the least.
+// at the least, the product settled first.
 func (d dots) footRow(room float64) int {
 	rows := 4 * d.h
-	return rows - 1 - max(int(math.Ceil(min(room, 1)*float64(rows)))-1, 0)
+	return rows - 1 - max(int(math.Ceil(settled(min(room, 1)*float64(rows))))-1, 0)
 }
 
 // nowDown draws now's line, │ in text.faint, down p's now column, on the
@@ -224,10 +216,11 @@ func nowDown(c *canvas, p plot) {
 	}
 }
 
-// cross draws ✕ on p, over what it falls on, on the row of the floor the
-// window meets, as footRow puts it: where its cap or its limit holds it, in
-// the column the hold began, where that's told; else, where it runs out, in
-// that column, now's at the soonest.
+// cross draws ✕ on p, over what it falls on, on the row footRow puts the
+// floor the window meets on, the room it has ahead, as the moment has it,
+// where it runs out, or now, where a hold keeps it: where its cap or its
+// limit holds it, in the column the hold began, where that's told; else,
+// where it runs out, in that column, now's at the soonest.
 func (cd burnCard) cross(c *canvas, p plot) {
 	at, after := cd.out, p.now
 	if cd.held {
@@ -236,7 +229,19 @@ func (cd burnCard) cross(c *canvas, p plot) {
 	if at.IsZero() {
 		return
 	}
-	col := max(min(int(math.Floor(cd.window.share(at)*float64(p.width))), p.width-1), after)
-	row := newDots(p.h).footRow(cd.floor) / 4
+	floor, known := cd.ahead(score.Later(cd.out, cd.window.now))
+	if !known {
+		return
+	}
+	col := max(min(cd.timeline(p.width).Column(at), p.width-1), after, 0)
+	row := newDots(p.h).footRow(floor) / 4
 	c.text(p.x+col, p.floor-p.h+1+row, outMark, cd.faded(outInk))
+}
+
+// timeline is the card's span across width columns, in now's time zone, as
+// its axis and its ✕ place a time: each column a whole share of it, to the
+// nanosecond.
+func (cd burnCard) timeline(width int) views.Timeline {
+	start := cd.window.start.In(cd.window.now.Location())
+	return views.Timeline{Start: start, End: start.Add(cd.window.length), Columns: width}
 }
