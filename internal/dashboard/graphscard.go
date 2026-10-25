@@ -40,8 +40,9 @@ type burnCard struct {
 	reserve      float64
 	reserveHolds bool
 	// empty is set where the moment gives the window no span, as of one not
-	// read, not started, or of an account without a usable token: its chart
-	// is empty but for now's line, over its length from now.
+	// read, not started, lapsed while a limit still holds it, or of an
+	// account without a usable token: its chart is empty but for now's line,
+	// over its length from now.
 	empty bool
 	// fade is how far its marks fade into the canvas: a stale reading's and
 	// an account out of the pool's, compounded where both hold.
