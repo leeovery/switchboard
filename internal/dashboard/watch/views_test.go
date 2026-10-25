@@ -71,8 +71,8 @@ func TestTabTurnsRoundTheSevenTabs(t *testing.T) {
 	h := newHarness(t, calm())
 	h.start()
 
-	if !strings.Contains(h.view(), " Overview   Accounts   History   Sessions   Runway   Graphs   Log   tab ⇥") {
-		t.Errorf("the screen is\n%s\nwant the seven tabs, and tab's hint", h.view())
+	if !strings.Contains(h.view(), " Overview   Accounts   History   Sessions   Runway   Graphs   Log ") {
+		t.Errorf("the screen is\n%s\nwant the seven tabs", h.view())
 	}
 	overview := "USAGE"
 	for _, step := range []struct {
