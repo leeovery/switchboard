@@ -125,8 +125,8 @@ func TestPoolStacksEachAccountsRoomFromTheFootInItsHue(t *testing.T) {
 		// round(0.07 × 8) = 1, round(0.05 × 8) = 0.
 		{name: "a sliver: an eighth", rooms: []float64{0.07}, h: 1, want: []cell{block(1, hueAt(0))}},
 		{name: "less than a sliver: nothing", rooms: []float64{0.05}, h: 1, want: []cell{blank}},
-		// Of two over two rows, each eighth of 16 is worth 2 of the room:
-		// work's 8, personal's 4.
+		// Of two over two rows, each of the 16 eighths is an eighth of one
+		// account's room: work's 8, personal's 4.
 		{name: "two accounts", rooms: []float64{1, 0.5}, h: 2, want: []cell{full(hueAt(0)), block(4, hueAt(1))}},
 		{name: "three accounts, full", rooms: []float64{1, 1, 1}, h: 3, want: []cell{full(hueAt(0)), full(hueAt(1)), full(hueAt(2))}},
 		// Each of four over two rows is 4 eighths: two meet in each cell.
@@ -291,6 +291,12 @@ func TestPoolsKeyNamesEachAccountsHueFlowedOntoTheRowsItTakes(t *testing.T) {
 		if key[i].ink != k {
 			t.Errorf("the key's span %d, %q, is in %+v, want %+v", i, key[i].text, key[i].ink, k)
 		}
+	}
+	// Each account's █ is the item's first span, three spans to an item with
+	// its name and the gap after it: the fifth's is viz.account.1 faded.
+	five := poolStacked{stack: heldStack(1, 1, 1, 1, 1), look: look}.key(200)[0]
+	if got, want := five[4*3].ink, (hue{token: theme.VizAccount1, fade: theme.OlderFade}).ink(); got != want {
+		t.Errorf("the fifth account's █ in the key is in %+v, want %+v", got, want)
 	}
 }
 
