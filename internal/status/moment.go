@@ -152,8 +152,9 @@ type AccountNow struct {
 	Windows []WindowNow
 
 	// unreported is the kind of a window it hasn't reported, as Window gives
-	// it.
+	// it, and now the moment it stands at, which RoomAhead goes from.
 	unreported WindowKind
+	now        time.Time
 }
 
 // PressureNow is how an account stands under pressure at a moment.
@@ -514,6 +515,7 @@ func (m Moment) accountNow(place int, j judgedAccount, names map[string]WindowNa
 	}
 	an.CanRise = an.TokenSet && an.Read && !s.stood.shut()
 	an.unreported, _ = s.unknown(false)
+	an.now = m.Now
 	if s.refusing {
 		an.Refusal = a.Refused
 	}
