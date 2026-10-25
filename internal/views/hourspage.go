@@ -186,7 +186,7 @@ func modelHours(m ledger.ModelDay) ([hoursADay]int, bool) {
 	return hours, sum == m.Upstream
 }
 
-// hoursKeySteps are what the key may round the cuts to, coarsest first, in
+// hoursKeySteps are what the key may round a cut to, coarsest first, in
 // hundredths of a request, so a half rounds up as it's written rather than
 // as a float's tenth falls; and the places each is written to.
 var hoursKeySteps = []struct {
@@ -194,43 +194,70 @@ var hoursKeySteps = []struct {
 	places     int
 }{{1000, 0}, {100, 0}, {10, 1}, {1, 2}}
 
-// hoursKeyCuts are the cuts as the key words them, in requests an hour: each
-// rounded to the coarsest step that none of them is under and that keeps
-// apart every two that differ, as the Year's key rounds its cuts, to 10, then
-// 1, and where averages under a few requests need it, a tenth or a
-// hundredth. An hour's average is over four days at most, so two that
-// differ do by a twelfth at least, which a hundredth always keeps apart.
+// hoursKeyCuts are the cuts, in order, as the key words them, in requests an
+// hour: each rounded on its own, as the Year's key rounds its cuts, to the
+// coarsest step it isn't under, 10, then 1, a tenth and a hundredth; and
+// where two that differ would then read the same, or out of order, each of
+// them a step finer, till none do. An hour's average is over four days at
+// most, so two that differ do by a twelfth at least, which a hundredth
+// always keeps apart.
 func hoursKeyCuts(cuts []float64) []string {
 	if len(cuts) == 0 {
 		return nil
 	}
-	scaled := make([]float64, len(cuts))
+	scaled, steps := make([]float64, len(cuts)), make([]int, len(cuts))
 	for i, cut := range cuts {
 		scaled[i] = cut * 100
+		steps[i] = coarsestStep(scaled[i])
 	}
-	chosen := hoursKeySteps[len(hoursKeySteps)-1]
-	for _, s := range hoursKeySteps {
-		if keepsApart(scaled, s.hundredths) {
-			chosen = s
-			break
-		}
+	for refined(scaled, steps) {
 	}
 	words := make([]string, len(cuts))
-	for i, cut := range keyCuts(scaled, chosen.hundredths) {
-		words[i] = prose.GroupedTo(cut/100, chosen.places)
+	for i, cut := range roundedAt(scaled, steps) {
+		words[i] = prose.GroupedTo(cut/100, hoursKeySteps[steps[i]].places)
 	}
 	return words
 }
 
-// keepsApart reports whether rounding the cuts, in order, to step keeps each
-// a bound: none under it, and none that differs from the one before rounded
-// the same.
-func keepsApart(cuts []float64, step float64) bool {
-	rounded := keyCuts(cuts, step)
-	for i, cut := range cuts {
-		if cut < step || i > 0 && cut != cuts[i-1] && rounded[i] == rounded[i-1] {
-			return false
+// coarsestStep is the coarsest of hoursKeySteps the cut, in hundredths, isn't
+// under: the finest where it's under every one.
+func coarsestStep(cut float64) int {
+	for i, s := range hoursKeySteps {
+		if cut >= s.hundredths {
+			return i
 		}
 	}
-	return true
+	return len(hoursKeySteps) - 1
+}
+
+// roundedAt are the cuts, each rounded to its step.
+func roundedAt(cuts []float64, steps []int) []float64 {
+	rounded := make([]float64, len(cuts))
+	for i, cut := range cuts {
+		rounded[i] = roundedTo(cut, hoursKeySteps[steps[i]].hundredths)
+	}
+	return rounded
+}
+
+// refined moves a step finer each cut that, rounded, reads the same as one
+// that differs from it, or out of order with it, the cuts being in order;
+// it reports whether it moved any.
+func refined(cuts []float64, steps []int) bool {
+	rounded := roundedAt(cuts, steps)
+	clashing := make([]bool, len(cuts))
+	for i := range cuts {
+		for j := i + 1; j < len(cuts); j++ {
+			if cuts[i] != cuts[j] && rounded[i] >= rounded[j] {
+				clashing[i], clashing[j] = true, true
+			}
+		}
+	}
+	moved := false
+	for i, clash := range clashing {
+		if clash && steps[i] < len(hoursKeySteps)-1 {
+			steps[i]++
+			moved = true
+		}
+	}
+	return moved
 }

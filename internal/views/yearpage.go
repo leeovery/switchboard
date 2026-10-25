@@ -340,17 +340,22 @@ func (s yearSpan) partWay(month, began string) string {
 }
 
 // keyCuts are the cuts as a key gives them, each rounded to the nearest
-// rounding, a half up, but one under it, kept as it is, as a key's bound of
-// none would say nothing.
-func keyCuts[V int | float64](cuts []V, rounding V) []V {
-	rounded := make([]V, len(cuts))
+// rounding, as roundedTo rounds it, but one under it, kept as it is, as a
+// key's bound of none would say nothing.
+func keyCuts(cuts []int, rounding int) []int {
+	rounded := make([]int, len(cuts))
 	for i, cut := range cuts {
 		rounded[i] = cut
 		if cut >= rounding {
-			rounded[i] = V(math.Round(float64(cut)/float64(rounding))) * rounding
+			rounded[i] = roundedTo(cut, rounding)
 		}
 	}
 	return rounded
+}
+
+// roundedTo is the cut rounded to the nearest rounding, a half up.
+func roundedTo[V int | float64](cut, rounding V) V {
+	return V(math.Round(float64(cut)/float64(rounding))) * rounding
 }
 
 // yearFilter is what of a day's use the Year shows, as asked: every
