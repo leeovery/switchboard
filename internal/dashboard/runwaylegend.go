@@ -117,7 +117,7 @@ func (f Frame) columnSaid() []line {
 		said = append(said, line{{"the past dimmed", dimInk}})
 	}
 	if _, _, named := tl.Named(); named {
-		said = append(said, line{{"under each name, the " + f.Runway.period() + "'s highest", dimInk}})
+		said = append(said, line{{"under each name, the " + f.Runway.view().period() + "'s highest", dimInk}})
 	}
 	return said
 }

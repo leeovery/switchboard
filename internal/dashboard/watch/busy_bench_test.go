@@ -288,7 +288,8 @@ func writeDay(tb testing.TB, dir, name string, data []byte, compressed bool) {
 // readings history having gained a reading of each account before it, the
 // pool's charts judged in full, and a resize; Runway built afresh, and a
 // look at it, its readings history having gained a reading of each account
-// since the last; a request sent, with the Log shown; and the Events,
+// since the last; Graphs alike, its lanes of each window; a request sent,
+// with the Log shown; and the Events,
 // filled through every kind, refiltered to a kind none of the four weeks
 // holds.
 func BenchmarkTheBusyDashboard(b *testing.B) {
@@ -394,6 +395,21 @@ func BenchmarkTheBusyDashboard(b *testing.B) {
 			h.look(w)
 		}
 	})
+	b.Run("Graphs built afresh", func(b *testing.B) {
+		h := w.onGraphs(b)
+		for b.Loop() {
+			h.model.graphsTab.lanes, h.model.graphsTab.builtAt = nil, nil
+			h.model = h.model.graphsBuilt()
+		}
+	})
+	b.Run("a look on Graphs, a reading gained", func(b *testing.B) {
+		h := w.onGraphs(b)
+		for b.Loop() {
+			h.clock.now = h.clock.now.Add(30 * time.Second)
+			w.gained(b, h.clock.now.Add(-10*time.Second))
+			h.look(w)
+		}
+	})
 	b.Run("a request sent on the Log", func(b *testing.B) {
 		n := 0
 		for b.Loop() {
@@ -455,6 +471,16 @@ func (w busyWorld) onRunway(tb testing.TB) *harness {
 	tb.Helper()
 	h := w.harness(tb)
 	h.model.view = dashboard.Runway
+	h.look(w)
+	return h
+}
+
+// onGraphs is the busy world's harness on Graphs, its lanes over Runway's
+// live view of each window built, its first look taken.
+func (w busyWorld) onGraphs(tb testing.TB) *harness {
+	tb.Helper()
+	h := w.harness(tb)
+	h.model.view = dashboard.Graphs
 	h.look(w)
 	return h
 }

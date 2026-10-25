@@ -19,7 +19,8 @@ const (
 	// lead with it: "19%/day", or the room itself, "34%".
 	NumberAllowance
 	// NumberRoom is the room left in a window, as in "1.5": the pool's, or a
-	// lone account's.
+	// lone account's; or an account's share of its window, as a Graphs card
+	// says it, "66%".
 	NumberRoom
 	// NumberSessions are the sessions on an account, as ROUTING counts them,
 	// or on the pool's accounts, summed.

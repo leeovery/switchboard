@@ -77,11 +77,14 @@ func GraphsSectionsNamed(names []string) GraphsSections {
 }
 
 // GraphsShown is what the Graphs tab shows: its sections shown, as w, f, o, g
-// and h show and hide them; and WHEN YOU WORK's page, whose weeks its
-// heading says.
+// and h show and hide them; WHEN YOU WORK's page, whose weeks its heading
+// says; and Runway's lanes over its live view of each window, by the window,
+// as the watch built them at the look, which its cards say what Runway says
+// of each account by, none till it's built them.
 type GraphsShown struct {
 	Sections GraphsSections
 	Hours    views.HoursPage
+	Lanes    map[views.RunwayWindow]WindowLanes
 }
 
 // graphsSectionRows are the rows a Graphs section takes, its body empty: its

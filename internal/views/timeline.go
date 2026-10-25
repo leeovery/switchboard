@@ -19,6 +19,12 @@ const (
 	RunwayFiveHour RunwayWindow = "5-hour"
 )
 
+// RunwayWindows are the windows Runway's views are named for, in the order
+// < and > step between them: the week, then the 5-hour.
+func RunwayWindows() []RunwayWindow {
+	return []RunwayWindow{RunwayWeek, RunwayFiveHour}
+}
+
 // The live views' spans: the 5-hour's, from the hour before now, 22 hours
 // 40 minutes, shared among the lanes' columns; the week's, from a day
 // before now, a week of 10,080 minutes; each start taken back to its ten

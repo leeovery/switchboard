@@ -189,18 +189,24 @@ func (w usageWords) fitted(room int) line {
 // over any colour; a stale reading's in text.subtle, not bold; and of an
 // empty bar, none, as — in text.faint.
 func (b usageBar) percentage() line {
-	var k ink
-	switch {
-	case b.empty:
+	if b.empty {
 		return line{noFigure}
-	case b.out:
-		k = ink{token: theme.TextFaint, bold: true}
-	case b.stale:
-		k = dimInk
-	default:
-		k = usedInk(b.used, ink{token: theme.VizRamp1, bold: true})
 	}
-	return line{{prose.Percent(b.used), k}}
+	return line{{prose.Percent(b.used), figureInk(b.used, b.out, b.stale)}}
+}
+
+// figureInk is the ink a figure of a window's share used is shown in, as usage
+// shows a use: of an account out of the pool, out, bold text.faint, stale or
+// not, as faint wins over any colour; of a stale reading, text.subtle, not
+// bold; else bold in its level's colour, as usedInk tones it.
+func figureInk(used float64, out, stale bool) ink {
+	switch {
+	case out:
+		return ink{token: theme.TextFaint, bold: true}
+	case stale:
+		return dimInk
+	}
+	return useInk(used)
 }
 
 // usedInk is the ink of a share used, as usage tones it, judged on the whole

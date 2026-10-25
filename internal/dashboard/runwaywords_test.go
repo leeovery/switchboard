@@ -151,7 +151,7 @@ func TestTheWordsUnderALaneSayEachStretchFromItsStart(t *testing.T) {
 			if tt.account != nil {
 				ln.account = *tt.account
 			}
-			words := runwayShowing(tt.shown).wordsUnder(ln, routedAt)
+			words := tt.shown.view().wordsUnder(ln, routedAt)
 			if len(words) != 1 || words[0].said.plain() != tt.want || words[0].x != tt.stretch.Column {
 				t.Fatalf("the words say %q, want %q from column %d", wordsRead(words), tt.want, tt.stretch.Column)
 			}
@@ -217,7 +217,7 @@ func TestTodaySteppedBackToSaysEachStretchOverBeforeNow(t *testing.T) {
 			l := views.Lanes{}.Look(views.LanesFrom{Moment: m, Readings: tt.read, Timeline: shown.Timeline, Window: shown.Window})
 			shown.Lanes = &l
 			ln := laidLane{Lane: l.Accounts[0], account: m.Accounts[0], row: 10}
-			if got := wordsRead(runwayShowing(shown).wordsUnder(ln, routedAt)); got != tt.words {
+			if got := wordsRead(shown.view().wordsUnder(ln, routedAt)); got != tt.words {
 				t.Errorf("the words under work's lane say\n%q, want\n%q", got, tt.words)
 			}
 		})
@@ -242,7 +242,7 @@ func TestAHoldOutlastedIsSaidFromItsStartAndOnlyTheLastIsBack(t *testing.T) {
 			f, doc, now := runwayFramed(t, tt.moment)
 			m := doc.At(now, claudeLike)
 			ln := laidLane{Lane: f.Runway.Lanes.Accounts[0], account: m.Accounts[0], row: 10}
-			if got := wordsRead(f.wordsUnder(ln, now)); got != tt.want {
+			if got := wordsRead(f.Runway.view().wordsUnder(ln, now)); got != tt.want {
 				t.Errorf("the words under work's lane say\n%q, want\n%q", got, tt.want)
 			}
 		})
@@ -307,7 +307,7 @@ func TestTheWordsUnderALaneArePlacedFromLeftToRightDroppingWholePartsThatDontFit
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := wordsRead(runwayShowing(five).wordsUnder(laneWith(tt.stretches...), routedAt)); got != tt.want {
+			if got := wordsRead(five.view().wordsUnder(laneWith(tt.stretches...), routedAt)); got != tt.want {
 				t.Errorf("the words say\n%q, want\n%q", got, tt.want)
 			}
 		})
@@ -347,7 +347,7 @@ func TestTheWeekViewSaysWhenAWeekResetsEndingAtItsMarkWhereThatClearsTheWordsBef
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := wordsRead(runwayShowing(tt.shown).wordsUnder(tt.lane, routedAt)); got != tt.want {
+			if got := wordsRead(tt.shown.view().wordsUnder(tt.lane, routedAt)); got != tt.want {
 				t.Errorf("the words say\n%q, want\n%q", got, tt.want)
 			}
 		})
@@ -394,7 +394,7 @@ func TestALaneWithNothingElseToSaySaysWhatItHas(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			words := runwayShowing(tt.shown).wordsUnder(tt.lane, routedAt)
+			words := tt.shown.view().wordsUnder(tt.lane, routedAt)
 			if got := wordsRead(words); got != tt.want {
 				t.Fatalf("the words say %q, want %q", got, tt.want)
 			}
@@ -430,7 +430,7 @@ func TestALanesTimesAreToldAgainstTheDayShown(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := strings.TrimSpace(wordsRead(runwayShowing(tt.shown).wordsUnder(withRoom(laneWith(tt.stretch)), routedAt))); got != tt.want {
+			if got := strings.TrimSpace(wordsRead(tt.shown.view().wordsUnder(withRoom(laneWith(tt.stretch)), routedAt))); got != tt.want {
 				t.Errorf("the words say %q, want %q", got, tt.want)
 			}
 		})
@@ -468,7 +468,7 @@ func TestALanesWordsAreCuedAsItsAccountNewlyStandsSo(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			f := runwayShowing(five)
 			f.Changed, f.TurnedOut = tt.changed, tt.turnedOut
-			if got, cued := f.wordsCue(tt.lane); cued != tt.cued || cued && got != tt.want {
+			if got, cued := f.wordsCue(tt.lane, tl.NowColumn()); cued != tt.cued || cued && got != tt.want {
 				t.Errorf("wordsCue = %v, %t, want %v, %t", got, cued, tt.want, tt.cued)
 			}
 		})
