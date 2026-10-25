@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/status/statustest"
@@ -41,6 +42,10 @@ func TestTheRoomAWindowHasAheadByItsProjection(t *testing.T) {
 	capped := with(readAt("work", windowIn("5h", 0.92, 2*time.Hour), windowIn("7d", 0.3, 4*day)), reserving)
 	// The session, read at 0.95, past a 10% reserve's cap, held by a limit
 	// naming it for an hour, resets in two.
+	// The session read spent, and at a 10% reserve's cap, each with no
+	// reset known.
+	spentNoReset := readAt("work", quota.Window{Key: "5h", Label: "Session", Utilization: 1, Status: quota.StatusRejected}, windowIn("7d", 0.3, 4*day))
+	cappedNoReset := with(readAt("work", quota.Window{Key: "5h", Label: "Session", Utilization: 0.92}, windowIn("7d", 0.3, 4*day)), reserving)
 	heldAtCap := with(readAt("work", windowIn("5h", 0.95, 2*time.Hour), windowIn("7d", 0.3, 4*day)), func(a *status.Account) {
 		a.Reserve = 0.1
 		a.Limit = status.Limit{Windows: []string{"5h"}, Until: built.Add(time.Hour)}
@@ -156,6 +161,16 @@ func TestTheRoomAWindowHasAheadByItsProjection(t *testing.T) {
 			{after: 2 * day, room: 0.7, known: true},
 			{after: 4 * day, room: 0.7, known: true},
 			{after: 4*day + time.Second, room: 1, known: true},
+		}},
+		{name: "held by its limit, no reset known", account: statustest.Routed{Account: spentNoReset}, key: "5h", want: []roomAt{
+			{room: 0, known: true},
+			{after: time.Hour, room: 0, known: true},
+			{after: 5 * day, room: 0, known: true},
+		}},
+		{name: "at its cap, no reset known", account: statustest.Routed{Account: cappedNoReset}, key: "5h", want: []roomAt{
+			{room: 0.1, known: true},
+			{after: time.Hour, room: 0.1, known: true},
+			{after: 5 * day, room: 0.1, known: true},
 		}},
 		{name: "at its cap, a limit holding it", account: statustest.Routed{Account: heldAtCap}, key: "5h", want: []roomAt{
 			{room: 0, known: true},

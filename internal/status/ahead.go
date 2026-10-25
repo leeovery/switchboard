@@ -11,9 +11,10 @@ import (
 // moment goes by, its Out, for every chart heading from now to draw, never
 // worked out again. A window falling ahead falls from the room Used leaves,
 // at Now, or once a limit holding it lifts, where score anchors the
-// projection at ReadAt, at the use as read: the two meet at both ends, as
-// Used is the use as read until the window resets, and the ends, Out.At and
-// the room Out's heading leaves it at its reset, are the moment's own.
+// projection at ReadAt, at the use as read: the two start from the same room,
+// as Used is the use as read until the window resets, and end at the same
+// place, Out.At and the room Out's heading leaves it at its reset, the
+// moment's own; between, the line from Now runs below score's from ReadAt.
 //
 // Each kind has one course, from Now for a window as it stands, and from
 // Back for one a limit holds, by the kind it's Unheld once the limit lifts:
