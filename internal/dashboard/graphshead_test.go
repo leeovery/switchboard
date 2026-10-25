@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -67,6 +68,11 @@ func TestACardsWordsAreItsRoomThenWhatRunwaySaysUnderItsLane(t *testing.T) {
 	unreadable.account.Routing = status.Routing{Kind: status.RoutingUnreadable, Says: "can't read it", Clauses: []string{"HTTP 529", "Overloaded"}}
 	resets := cardLane(0.34)
 	resets.Resets = []views.Reset{{Column: 100, At: routedClock(4, 21, 0)}}
+	weekTL := week.Timeline
+	monday := stretchOf(weekTL, views.CellLimited, routedClock(5, 6, 0), routedClock(5, 12, 0), weekTL.Column(routedClock(5, 6, 0)), 120)
+	monday.Projected = true
+	resetFirst := cardLane(0.34, monday)
+	resetFirst.Resets = []views.Reset{{Column: weekTL.Column(routedClock(4, 21, 0)), At: routedClock(4, 21, 0)}}
 	ramp1, ramp4 := ink{token: theme.VizRamp1, bold: true}, ink{token: theme.VizRamp4, bold: true}
 	tests := []struct {
 		name string
@@ -107,6 +113,11 @@ func TestACardsWordsAreItsRoomThenWhatRunwaySaysUnderItsLane(t *testing.T) {
 			name: "out of the pool", view: five, lane: out2,
 			want: "66% left  ·  room all day", inks: []ink{{token: theme.TextFaint, bold: true}, faintInk, faintInk, faintInk},
 		},
+		{
+			name: "its week resetting before a stretch, in Runway's order", view: week, lane: resetFirst,
+			want: "66% left  ·  resets Sun 21:00  ·  runs out ~Mon 06:00 at its pace  ·  back Mon 12:00",
+			inks: []ink{ramp1, mutedInk, mutedInk, mutedInk, mutedInk, alertInk, mutedInk},
+		},
 		{name: "the week resetting", view: week, lane: resets, want: "66% left  ·  resets Sun 21:00", inks: []ink{ramp1, mutedInk, mutedInk, mutedInk}},
 		{name: "not read", view: five, lane: unusedLane(views.Use{Key: "5h", Unread: true}), want: "not read", inks: []ink{dimInk}},
 		{name: "its first read failed", view: five, lane: unreadable, want: "can't read it: HTTP 529 · Overloaded", inks: []ink{dimInk}},
@@ -129,8 +140,9 @@ func TestACardsWordsAreItsRoomThenWhatRunwaySaysUnderItsLane(t *testing.T) {
 }
 
 // A card says what Runway says under its account's lane in that window's
-// live view, read off the lanes the watch builds for Graphs: every phrase
-// Runway places there, in its order.
+// live view: of each live Runway moment's lanes, as Runway's frame holds
+// them, taken as a card's, every phrase Runway places under each lane, in
+// its order.
 func TestACardSaysWhatRunwaySaysUnderItsLane(t *testing.T) {
 	for _, rm := range viewstest.RunwayMoments() {
 		if !rm.Day.IsZero() {
@@ -157,6 +169,21 @@ func TestACardSaysWhatRunwaySaysUnderItsLane(t *testing.T) {
 	}
 }
 
+// A card's room is what Runway's use of the window, as its label says it,
+// leaves of 100%: the two sum to it at a half-percent as anywhere, and past
+// its limit the room is none, never below.
+func TestACardsRoomIsWhatRunwaysUseLeaves(t *testing.T) {
+	for _, used := range []float64{0.125, 0.345, 0.685, 0.995, 1, 1.02} {
+		ln := cardLane(used)
+		room, use := ln.roomLeft()[0].text, ln.useFigure().text
+		left, _ := strconv.Atoi(strings.TrimSuffix(room, "%"))
+		of, _ := strconv.Atoi(strings.TrimSuffix(use, "%"))
+		if want := max(100-of, 0); left != want {
+			t.Errorf("used %v, Runway says %s and the card %s left, want %d%% left", used, use, room, want)
+		}
+	}
+}
+
 // A card's room is numbered as the room left in its window, to brighten as
 // it changes.
 func TestACardsRoomIsNumberedAsItsWindowsRoom(t *testing.T) {
@@ -173,7 +200,8 @@ func TestACardsRoomIsNumberedAsItsWindowsRoom(t *testing.T) {
 // on the label's row, ending at the card's last column, two cells clear of
 // the label at the least, the label cut toward its least only once the
 // words are down to their first part, and the words gone where even then
-// they don't fit.
+// they don't fit, the label then taking back what it can of the room they
+// left.
 func TestACardsHeadLaysItsWordsUnderItsLabelOrBesideIt(t *testing.T) {
 	five := runwayLive(views.RunwayFiveHour)
 	capped := stretchOf(five.Timeline, views.CellCapped, routedClock(1, 14, 31), routedClock(1, 17, 10), 5, 20)
@@ -181,6 +209,9 @@ func TestACardsHeadLaysItsWordsUnderItsLabelOrBesideIt(t *testing.T) {
 	work := cardLane(0.95, capped)
 	research := work
 	research.name = accountName{number: "2", label: "client-research", primary: true}
+	unreadable := unusedLane(views.Use{Key: "5h", Unread: true})
+	unreadable.name = accountName{number: "3", label: "someone@example.com"}
+	unreadable.account.Routing = status.Routing{Kind: status.RoutingUnreadable, Says: "can't read it", Clauses: []string{"HTTP 529", "Overloaded"}}
 	tests := []struct {
 		name   string
 		lane   laidLane
@@ -203,7 +234,9 @@ func TestACardsHeadLaysItsWordsUnderItsLabelOrBesideIt(t *testing.T) {
 		{name: "beside, a long label whole", lane: research, width: 30, beside: true, label: "2 client-research ◆", words: "5% left"},
 		{name: "beside, a long label cut", lane: research, width: 28, beside: true, label: "2 client-resea… ◆", words: "5% left"},
 		{name: "beside, a long label at its least", lane: research, width: 23, beside: true, label: "2 client-… ◆", words: "5% left"},
-		{name: "beside, the words gone", lane: research, width: 22, beside: true, label: "2 client-… ◆"},
+		{name: "beside, the words gone, the label taking back the room", lane: research, width: 22, beside: true, label: "2 client-resear… ◆"},
+		{name: "beside, the words gone, the label whole again", lane: unreadable, width: 37, beside: true, label: "3 someone@example.com"},
+		{name: "beside, a long label beside long words", lane: unreadable, width: 62, beside: true, label: "3 someone@example.com", words: "can't read it: HTTP 529 · Overloaded"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

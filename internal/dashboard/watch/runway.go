@@ -30,20 +30,22 @@ import (
 // itself, which join them; the start of the first day the history holds, as
 // the live tail last asked it, zero where it holds none, or failed to say;
 // whether a look since asks what the live tail gained; whether a read of the
-// history is under way, one at a time; and whether a failure to say where
-// the history begins has been logged, the once.
+// history is under way, one at a time, and whether that's the live tail's;
+// and whether a failure to say where the history begins has been logged, the
+// once.
 type runwayTab struct {
-	shown   dashboard.RunwayShown
-	lanes   views.Lanes
-	look    func(views.Lanes, views.LanesFrom) views.Lanes
-	builtAt *status.HeldMoment
-	live    readingsTail
-	back    []heldSpan
-	seen    seenReadings
-	kept    time.Time
-	due     bool
-	reading bool
-	warned  bool
+	shown       dashboard.RunwayShown
+	lanes       views.Lanes
+	look        func(views.Lanes, views.LanesFrom) views.Lanes
+	builtAt     *status.HeldMoment
+	live        readingsTail
+	back        []heldSpan
+	seen        seenReadings
+	kept        time.Time
+	due         bool
+	reading     bool
+	readingLive bool
+	warned      bool
 }
 
 // readingsTail is a read of the readings history over a span, as
@@ -366,7 +368,7 @@ func (m Model) readRunway() (Model, tea.Cmd) {
 		return m, nil
 	}
 	read.began = m.past.beganAsked(m.cfg.Ledger)
-	t.reading = true
+	t.reading, t.readingLive = true, read.span.is(live)
 	m.runwayTab = t
 	return m, read.cmd(now)
 }

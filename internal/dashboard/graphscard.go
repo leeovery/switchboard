@@ -4,6 +4,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
@@ -52,17 +53,18 @@ type burnCard struct {
 // burnCardOf is account a's window with the given key as its burn-down card
 // charts it at now, from its trail: over its span, as GRAPHS charts it, as
 // chartOf has it; in the ink its state gives it, as windowInk has it; its
-// room now, 1 − Used; the room ahead at a time as the moment's RoomAhead has
-// it, never worked out again; its run-out, where its Kind runs out, at Out;
-// its reserve; and its fade, as accountFade has it. A window the moment
-// gives no span is charted over its length, as its key gives it, from now,
-// empty, as spanFromNow has it. When a hold began is the caller's to fill.
+// room now, as its figure says it, as prose.Left has it; the room ahead at
+// a time as the moment's RoomAhead has it, never worked out again; its
+// run-out, where its Kind runs out, at Out; its reserve; and its fade, as
+// accountFade has it. A window the moment gives no span is charted over its
+// length, as its key gives it, from now, empty, as spanFromNow has it. When
+// a hold began is the caller's to fill.
 func burnCardOf(a status.AccountNow, key string, trail Trail, now time.Time) burnCard {
 	w, _ := a.Window(key)
 	cd := burnCard{
 		window: chartOf(a, shownWindow{key: key}, trail, now, BurnDown),
 		ink:    windowInk(a, w),
-		room:   1 - w.Used,
+		room:   prose.Left(w.Used),
 		ahead: func(t time.Time) (float64, bool) {
 			return a.RoomAhead(key, t)
 		},

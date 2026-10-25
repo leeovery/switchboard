@@ -76,11 +76,29 @@ func GraphsSectionsNamed(names []string) GraphsSections {
 	return shownNamed[GraphsSection](names)
 }
 
+// burnDowns are the windows Graphs' burn-down sections chart, by section,
+// each over Runway's live view of it.
+var burnDowns = map[GraphsSection]views.RunwayWindow{GraphsWeek: views.RunwayWeek, GraphsFiveHour: views.RunwayFiveHour}
+
+// GraphsWindows are the windows whose lanes Graphs reads with the sections
+// given shown, a burn-down section's each, in the order the page draws them:
+// none where neither burn-down section shows.
+func GraphsWindows(sections GraphsSections) []views.RunwayWindow {
+	var windows []views.RunwayWindow
+	for _, s := range EveryGraphsSection() {
+		if w, ok := burnDowns[s]; ok && sections.Has(s) {
+			windows = append(windows, w)
+		}
+	}
+	return windows
+}
+
 // GraphsShown is what the Graphs tab shows: its sections shown, as w, f, o, g
 // and h show and hide them; WHEN YOU WORK's page, whose weeks its heading
-// says; and Runway's lanes over its live view of each window, by the window,
-// as the watch built them at the look, which its cards say what Runway says
-// of each account by, none till it's built them.
+// says; and Runway's lanes over its live view of each window a burn-down
+// section shown charts, as GraphsWindows has them, by the window, as the
+// watch built them at the look, which its cards say what Runway says of each
+// account by, none till it's built them.
 type GraphsShown struct {
 	Sections GraphsSections
 	Hours    views.HoursPage

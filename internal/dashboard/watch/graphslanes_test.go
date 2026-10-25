@@ -12,6 +12,7 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/readings"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -71,6 +72,95 @@ func TestGraphsBuildsEachWindowsLanesOnceAMessageWhileItShows(t *testing.T) {
 		if len(other.graphsBuilds) != 0 || other.model.graphsTab.shown != nil {
 			t.Errorf("with %s shown, Graphs' lanes were built %v, shown %v; want none", view, other.graphsBuilds, other.model.graphsTab.shown)
 		}
+	}
+}
+
+// Graphs reads each window's lanes over Runway's own live view of it at the
+// terminal's width: across the columns Runway's lanes take, its account
+// column collapsed or not as Runway shows it, sized for the accounts' labels,
+// long ones among them; and live, whatever Runway was stepped back to before
+// Graphs showed.
+func TestGraphsLanesAreOverRunwaysOwnLiveViewOfEachWindow(t *testing.T) {
+	long := three()
+	long[0].Label, long[2].Label = "someone@example.com", "a-much-longer-team-account"
+	collapsed := func(_ *runwayed, cfg *Config) { cfg.RunwayShown.Collapsed = true }
+	tests := []struct {
+		name  string
+		doc   status.Document
+		setup func(*runwayed, *Config)
+		// back are the keys Runway is stepped back by before tab shows Graphs.
+		back string
+		// moved is set where Runway's lanes take other columns than those of
+		// the short labels, expanded, 146, so the case tells a timeline sized
+		// otherwise from Runway's.
+		moved bool
+	}{
+		{name: "short labels, expanded", doc: routerDocument(three()...)},
+		{name: "collapsed", doc: routerDocument(three()...), setup: collapsed, moved: true},
+		{name: "long labels", doc: routerDocument(long...), moved: true},
+		{name: "long labels, collapsed", doc: routerDocument(long...), setup: collapsed, moved: true},
+		{name: "after Runway stepped back a day", doc: routerDocument(long...), back: "left left", moved: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := runwayHarnessOf(t, tt.doc, dashboard.Graphs, tt.setup)
+			if tt.back != "" {
+				g = runwayHarnessOf(t, tt.doc, dashboard.Runway, tt.setup)
+				g.keyed(tt.back)
+				g.deliver(g.update(tabKey)...)
+			}
+			for _, w := range views.RunwayWindows() {
+				runway := runwayHarnessOf(t, tt.doc, dashboard.Runway, func(r *runwayed, cfg *Config) {
+					if tt.setup != nil {
+						tt.setup(r, cfg)
+					}
+					cfg.RunwayShown.Window = w
+				})
+				got, want := g.graphsFrom[w].Timeline, runway.from.Timeline
+				if got != want {
+					t.Errorf("Graphs' %q lanes are over %+v, want Runway's own live view of it, %+v", w, got, want)
+				}
+				if moved := want.Columns != 146; moved != tt.moved {
+					t.Errorf("Runway's %q lanes take %d columns, the case meaning them moved from 146 %t", w, want.Columns, tt.moved)
+				}
+			}
+		})
+	}
+}
+
+// Graphs builds the lanes of the windows its burn-down sections shown chart
+// alone, WEEK's the week's and 5-HOUR's the 5-hour's, and reads the readings
+// history only while one shows: with neither, nothing is built or read, at
+// a look as at the start.
+func TestGraphsBuildsAndReadsTheLanesOfTheBurnDownSectionsShownAlone(t *testing.T) {
+	tests := []struct {
+		name   string
+		hidden []dashboard.GraphsSection
+		want   []views.RunwayWindow
+	}{
+		{name: "both shown", want: []views.RunwayWindow{views.RunwayWeek, views.RunwayFiveHour}},
+		{name: "WEEK hidden", hidden: []dashboard.GraphsSection{dashboard.GraphsWeek}, want: []views.RunwayWindow{views.RunwayFiveHour}},
+		{name: "5-HOUR hidden", hidden: []dashboard.GraphsSection{dashboard.GraphsFiveHour}, want: []views.RunwayWindow{views.RunwayWeek}},
+		{name: "both hidden", hidden: []dashboard.GraphsSection{dashboard.GraphsWeek, dashboard.GraphsFiveHour}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := runwayHarness(t, dashboard.Graphs, func(_ *runwayed, cfg *Config) {
+				for _, s := range tt.hidden {
+					cfg.Graphs = cfg.Graphs.Toggled(s)
+				}
+			}, filedOn("work", "five_hour", start.Add(-time.Hour), 0.3))
+			r.lookAt(start.Add(interval))
+			built := slices.Sorted(maps.Keys(r.graphsBuilds))
+			shown := slices.Sorted(maps.Keys(r.model.graphsTab.shown))
+			want := slices.Sorted(slices.Values(tt.want))
+			if !slices.Equal(built, want) || !slices.Equal(shown, want) {
+				t.Errorf("Graphs built the lanes of %q, shows those of %q, want %q alone", built, shown, want)
+			}
+			if read := r.filed.tails > 0; read != (len(tt.want) > 0) {
+				t.Errorf("the readings history's tail was made %d times and read %d, want it read %t", len(r.filed.starts), r.filed.tails, len(tt.want) > 0)
+			}
+		})
 	}
 }
 
@@ -151,4 +241,29 @@ func TestGraphsSaysItsLoadingWhileItsReadOfTheReadingsHistoryTakesAWhile(t *test
 			}
 		})
 	}
+}
+
+// Graphs shown while the read of a span Runway was stepped back to is under
+// way waits on none of its own, so says nothing of loading, however long that
+// read takes.
+func TestGraphsSaysNothingOfLoadingWhileRunwaysSteppedBackReadIsUnderWay(t *testing.T) {
+	h := runwayHarness(t, dashboard.Runway, func(_ *runwayed, cfg *Config) { cfg.RunwayShown.Window = views.RunwayWeek })
+	h.keyed("left")
+	back := holdingBack[runwayReadMsg](h.harness, h.update(namedKeys["left"])...)
+	if len(back) != 1 || h.model.runwayTab.readingLive {
+		t.Fatalf("stepped back to last week, %d reads held back, of the live tail %t; want the week's own read held", len(back), h.model.runwayTab.readingLive)
+	}
+	more := holdingBack[runwayReadMsg](h.harness, h.update(tabKey)...)
+	if h.model.view != dashboard.Graphs || len(more) != 0 {
+		t.Fatalf("tab pressed, Graphs shows %t, %d more reads asked; want Graphs shown, waiting on the read under way", h.model.view == dashboard.Graphs, len(more))
+	}
+	h.clock.now = h.clock.now.Add(2 * LoadingAfter)
+	if loading, ok := h.pending(loadingMsg{}); ok {
+		h.fire(loading)
+	}
+	h.deliver(h.update(nudgeMsg{})...)
+	if got := h.row(4); strings.Contains(got, loadingSaid) {
+		t.Errorf("Runway's read of last week under way, Graphs' heading reads %q, want nothing of loading", got)
+	}
+	h.deliver(back...)
 }

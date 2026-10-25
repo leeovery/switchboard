@@ -100,8 +100,8 @@ type beginning struct {
 // read and the days it holds: the last 12 months, once a run, as any is
 // first shown; while History shows, a calendar year the Year steps back to
 // that the days held don't reach, and while Runway or Graphs does, the one
-// its lanes want; and the
-// days since those held were read to, once a look since the last asks.
+// its lanes want; and the days since those held were read to, once a look
+// since the last asks.
 func (m Model) readHistory() (Model, tea.Cmd) {
 	history := m.view == dashboard.History
 	runwayYear, runway := m.runwayYearWanted()

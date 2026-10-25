@@ -42,7 +42,13 @@ type runwayed struct {
 // it counts Runway's lanes and Graphs' as they're built. It's started.
 func runwayHarness(t *testing.T, view dashboard.View, setup func(*runwayed, *Config), held ...readings.Reading) *runwayed {
 	t.Helper()
-	h := routedHarness(t, routerDocument(three()...))
+	return runwayHarnessOf(t, routerDocument(three()...), view, setup, held...)
+}
+
+// runwayHarnessOf is runwayHarness of the router's document given.
+func runwayHarnessOf(t *testing.T, doc status.Document, view dashboard.View, setup func(*runwayed, *Config), held ...readings.Reading) *runwayed {
+	t.Helper()
+	h := routedHarness(t, doc)
 	r := &runwayed{
 		harness: h, filed: &filedReadings{held: held},
 		graphsBuilds: make(map[views.RunwayWindow]int), graphsFrom: make(map[views.RunwayWindow]views.LanesFrom),
