@@ -8,37 +8,37 @@ import (
 
 // RoomAhead is the room the account's window with the given key has at t,
 // from Now on, a share of the window, 1 − its use, by the projection the
-// moment goes by, its Out and Projected, for every chart heading from now to
-// draw, never worked out again. A window falling ahead falls from the room
-// Used leaves, at Now, or once a limit holding it lifts, where score anchors
-// the projection at ReadAt, at the use as read: the two meet at both ends, as
-// Used is the use as read until the window resets, and the ends, Out.At,
-// Projected and Out's heading, are the moment's own.
+// moment goes by, its Out, for every chart heading from now to draw, never
+// worked out again. A window falling ahead falls from the room Used leaves,
+// at Now, or once a limit holding it lifts, where score anchors the
+// projection at ReadAt, at the use as read: the two meet at both ends, as
+// Used is the use as read until the window resets, and the ends, Out.At and
+// the room Out's heading leaves it at its reset, are the moment's own.
 //
-//   - A window that runs out falls straight from the room Used leaves to its
-//     account's Floor at Out.At, the room there being its reserve where that
-//     holds the account back, else none, and keeps that till its reset; one
-//     its projection keeps short of running out falls straight to the room
-//     Projected leaves it at its reset.
-//   - One at its cap keeps the room its cap leaves, from Now till its reset.
-//   - One a limit holds has none till it lifts, at Back. Then, where it runs
-//     out ahead, as RunsOutAhead says, it falls as one that runs out, from
-//     Back, and is at its Floor from Back where Out.At is sooner; else it
-//     falls straight from the room Used leaves to the room Out's heading
-//     leaves it at its reset, the moment giving a window a limit holds no
-//     Projected, or keeps the room Used leaves where that heading says
-//     nothing of its reset.
+// Each kind has one course, from Now for a window as it stands, and from
+// Back for one a limit holds, by the kind it's Unheld once the limit lifts:
+//
+//   - A window that runs out falls straight to its account's Floor at
+//     Out.At, the room there being its reserve where that holds the account
+//     back, else none, and keeps that till its reset; it's at the floor from
+//     the start where Out.At is no later.
+//   - An open one falls straight to the room its heading leaves it at its
+//     reset, where that heads on pace there: what Projected fills to, which
+//     the moment gives no window a limit holds.
+//   - One at its cap keeps the room its cap leaves till its reset.
+//   - One a limit holds has none till it lifts, at Back; then its unheld
+//     kind's course, or, where that kind has none, as stale, not started or
+//     heading nowhere said, the room Used leaves till its reset.
 //   - Past its reset it has all of it, as nothing is known of its next
 //     window. Where its reset, or when a limit lifts, isn't known, it keeps
 //     the room it has.
 //
 // It reports false, the room 0, where nothing ahead is known to draw: before
 // Now, which the projection says nothing of; of a window of an account
-// without a usable token, or nothing read; of one not started, or open with
-// nothing said of where it's heading, as a nil Projected says; and of one
-// stale, unless a limit holds it, by choice rather than for want of a
-// projection, as the moment projects a stale window all the same, but what's
-// ahead of a reading gone stale isn't drawn.
+// without a usable token, or nothing read; of one not started, or open and
+// heading nowhere said; and of one stale, unless a limit holds it, by choice
+// rather than for want of a projection, as the moment projects a stale
+// window all the same, but what's ahead of a reading gone stale isn't drawn.
 func (a AccountNow) RoomAhead(key string, t time.Time) (float64, bool) {
 	w, _ := a.Window(key)
 	c, ok := a.courseOf(w)
@@ -51,51 +51,41 @@ func (a AccountNow) RoomAhead(key string, t time.Time) (float64, bool) {
 // courseOf is where the account's window w goes from Now on, as RoomAhead
 // has it, reporting false where nothing ahead is known to draw.
 func (a AccountNow) courseOf(w WindowNow) (course, bool) {
-	switch {
-	case w.Kind == WindowRunsOut:
-		return a.runningOut(point{a.now, 1 - w.Used}, w), true
-	case w.Kind == WindowOpen && w.Projected != nil:
-		return course{{a.now, 1 - w.Used}, {w.Next, 1 - *w.Projected}}, true
-	case w.Kind == WindowCapped:
-		return course{{a.now, 1 - a.Cap}, {w.Next, 1 - a.Cap}}, true
-	case w.Kind == WindowLimited:
+	if w.Kind == WindowLimited {
 		return a.heldFrom(w), true
+	}
+	return a.courseFrom(w.Kind, point{a.now, 1 - w.Used}, w)
+}
+
+// courseFrom is window w's course from from on, standing as kind says, as
+// RoomAhead has each kind's, alike for a window as it stands and one a limit
+// holds once that lifts, reporting false of a kind with none.
+func (a AccountNow) courseFrom(kind WindowKind, from point, w WindowNow) (course, bool) {
+	switch {
+	case kind == WindowRunsOut:
+		return course{from, {w.Out.At, 1 - a.Floor}, {w.Next, 1 - a.Floor}}, true
+	case kind == WindowOpen && w.Out.Kind == score.OnPace:
+		return course{from, {w.Next, 1 - w.Out.AtReset}}, true
+	case kind == WindowCapped:
+		return course{{from.at, 1 - a.Cap}, {w.Next, 1 - a.Cap}}, true
 	}
 	return nil, false
 }
 
-// runningOut is window w's course from from on, as it runs out: straight to
-// its account's Floor at its Out, then that floor till its reset; at the
-// floor from from where its Out is no later, as the course steps there.
-func (a AccountNow) runningOut(from point, w WindowNow) course {
-	return course{from, {w.Out.At, 1 - a.Floor}, {w.Next, 1 - a.Floor}}
-}
-
 // heldFrom is the course of window w, which a limit holds, from Now on: none
 // till it lifts, at its Back, where that's known; then from the room its use
-// leaves, running out where it runs out ahead, else to the room its heading
-// leaves it at its reset, as heldToReset has it.
+// leaves, as the course of the kind it's Unheld goes, else keeping that room
+// till its reset.
 func (a AccountNow) heldFrom(w WindowNow) course {
 	held := course{{a.now, 0}, {w.Back, 0}}
-	lifted := point{w.Back, 1 - w.Used}
-	switch {
-	case w.Back.IsZero():
+	if w.Back.IsZero() {
 		return held
-	case w.RunsOutAhead:
-		return append(held, a.runningOut(lifted, w)...)
 	}
-	return append(held, lifted, point{w.Next, heldToReset(w)})
-}
-
-// heldToReset is the room window w, which a limit holds and which doesn't run
-// out ahead, has at its reset once the limit lifts: what its Out's heading
-// leaves it, where that heads on pace to its reset; else the room its use
-// leaves, as nothing says where it heads.
-func heldToReset(w WindowNow) float64 {
-	if w.Out.Kind != score.OnPace {
-		return 1 - w.Used
+	lifted := point{w.Back, 1 - w.Used}
+	if unheld, ok := a.courseFrom(w.Unheld, lifted, w); ok {
+		return append(held, unheld...)
 	}
-	return 1 - w.Out.AtReset
+	return append(held, lifted, point{w.Next, lifted.room})
 }
 
 // course is where a window's room goes from a moment on: straight from each

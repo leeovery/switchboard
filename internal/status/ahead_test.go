@@ -39,6 +39,12 @@ func TestTheRoomAWindowHasAheadByItsProjection(t *testing.T) {
 	spent := readAt("work", spentIn("5h", 1, 2*time.Hour), windowIn("7d", 0.3, 4*day))
 	// The session, at a 10% reserve's cap, resets in two hours.
 	capped := with(readAt("work", windowIn("5h", 0.92, 2*time.Hour), windowIn("7d", 0.3, 4*day)), reserving)
+	// The session, read at 0.95, past a 10% reserve's cap, held by a limit
+	// naming it for an hour, resets in two.
+	heldAtCap := with(readAt("work", windowIn("5h", 0.95, 2*time.Hour), windowIn("7d", 0.3, 4*day)), func(a *status.Account) {
+		a.Reserve = 0.1
+		a.Limit = status.Limit{Windows: []string{"5h"}, Until: built.Add(time.Hour)}
+	})
 	// The session, at 1.2 an hour lately, 85% used, runs out 7m30s after it
 	// was read.
 	pressed := statustest.Routed{Account: readAt("work", windowIn("5h", 0.85, 2*time.Hour)), Rate: 1.2}
@@ -136,12 +142,28 @@ func TestTheRoomAWindowHasAheadByItsProjection(t *testing.T) {
 		{name: "not started", account: statustest.Routed{Account: lapsed}, key: "5h", want: nothing},
 		{name: "too new to say where it's heading", account: statustest.Routed{Account: fresh}, key: "5h", want: nothing},
 		{name: "stale", account: statustest.Routed{Account: with(runningOut, failed)}, key: "7d", want: nothing},
-		{name: "stale, a limit holding it", account: statustest.Routed{Account: with(with(runningOut, holding), failed)}, key: "7d", want: []roomAt{
+		{name: "stale, a limit holding it, heading to run out", account: statustest.Routed{Account: with(with(runningOut, holding), failed)}, key: "7d", want: []roomAt{
 			{after: -time.Minute},
 			{room: 0, known: true},
 			{after: time.Hour, room: 0, known: true},
 			{after: 2 * day, room: 0.4, known: true},
+			{after: 4 * day, room: 0.4, known: true},
 			{after: 4*day + time.Second, room: 1, known: true},
+		}},
+		{name: "stale, a limit holding it, heading to last", account: statustest.Routed{Account: with(with(lasting, holding), failed)}, key: "7d", want: []roomAt{
+			{room: 0, known: true},
+			{after: time.Hour, room: 0, known: true},
+			{after: 2 * day, room: 0.7, known: true},
+			{after: 4 * day, room: 0.7, known: true},
+			{after: 4*day + time.Second, room: 1, known: true},
+		}},
+		{name: "at its cap, a limit holding it", account: statustest.Routed{Account: heldAtCap}, key: "5h", want: []roomAt{
+			{room: 0, known: true},
+			{after: time.Hour, room: 0, known: true},
+			{after: time.Hour + time.Second, room: 0.1, known: true},
+			{after: 90 * time.Minute, room: 0.1, known: true},
+			{after: 2 * time.Hour, room: 0.1, known: true},
+			{after: 2*time.Hour + time.Second, room: 1, known: true},
 		}},
 		{name: "its token refused", account: statustest.Routed{Account: with(runningOut, func(a *status.Account) {
 			a.Refused = status.Refusal{Until: built.Add(time.Hour), Status: 401}
@@ -167,8 +189,8 @@ func TestTheRoomAWindowHasAheadByItsProjection(t *testing.T) {
 // At every hard moment, the room ahead agrees with the moment's own
 // projection: the room now at Now, its floor where it runs out, at Out.At,
 // and the room Projected leaves at its reset where it lasts; at its cap, the
-// room its cap leaves; held, none till its limit lifts, and its floor where
-// it runs out ahead once it has; all of it past its reset; and something to
+// room its cap leaves; held, none till its limit lifts, then as the course of
+// the kind it's once that lifts; all of it past its reset; and something to
 // draw just where the window has a course ahead.
 func TestTheRoomAheadAgreesWithTheMomentsProjection(t *testing.T) {
 	for _, hm := range statustest.HardMoments(policy) {
@@ -223,10 +245,9 @@ func checkRoomAhead(t *testing.T, m status.Moment, a status.AccountNow, w status
 }
 
 // checkHeldAhead checks the room ahead of account a's window w, which a limit
-// holds at moment m, as expect checks a room: none till the limit lifts;
-// where the window runs out ahead, its floor at Out.At, once the limit has
-// lifted, and just after it runs out, before its reset; and else, where its
-// heading goes on pace to its reset, the room that leaves it there.
+// holds at moment m, as expect checks a room: none till the limit lifts; then,
+// before its reset, as the course of the kind it's once that lifts goes, as
+// an unheld window of that kind's does.
 func checkHeldAhead(t *testing.T, m status.Moment, a status.AccountNow, w status.WindowNow, expect func(time.Time, float64, string)) {
 	t.Helper()
 	expect(m.Now, 0, "now, held")
@@ -234,16 +255,24 @@ func checkHeldAhead(t *testing.T, m status.Moment, a status.AccountNow, w status
 		return
 	}
 	expect(w.Back, 0, "as its limit lifts")
-	if !w.RunsOutAhead {
-		if w.Out.Kind == score.OnPace && w.Back.Before(w.Next) {
-			expect(w.Next, 1-w.Out.AtReset, "at its reset, as its heading leaves it")
-		}
+	if !w.Back.Before(w.Next) {
 		return
 	}
-	if w.Out.At.After(w.Back) {
-		expect(w.Out.At, 1-a.Floor, "where it runs out once its limit lifts")
-	}
-	if after := score.Later(w.Out.At, w.Back).Add(time.Second); after.Before(w.Next) {
-		expect(after, 1-a.Floor, "just after it runs out")
+	lifted := w.Back.Add(time.Second)
+	switch {
+	case w.Unheld == status.WindowRunsOut:
+		if w.Out.At.After(w.Back) {
+			expect(w.Out.At, 1-a.Floor, "where it runs out once its limit lifts")
+		}
+		if after := score.Later(w.Out.At, w.Back).Add(time.Second); after.Before(w.Next) {
+			expect(after, 1-a.Floor, "just after it runs out")
+		}
+	case w.Unheld == status.WindowCapped:
+		expect(lifted, 1-a.Cap, "once its limit lifts, at its cap")
+		expect(w.Next, 1-a.Cap, "at its reset, at its cap")
+	case w.Unheld == status.WindowOpen && w.Out.Kind == score.OnPace:
+		expect(w.Next, 1-w.Out.AtReset, "at its reset, as its heading leaves it")
+	default:
+		expect(w.Next, 1-w.Used, "at its reset, as its use leaves it")
 	}
 }

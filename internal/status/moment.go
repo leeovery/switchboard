@@ -193,8 +193,11 @@ type WindowNow struct {
 	Shared, Started, Pressure bool
 	// Kind is how it stands at Now, the first that holds of the kinds in
 	// their order, and At when what Kind says comes, or came, as Of has them.
-	Kind WindowKind
-	At   time.Time
+	// Unheld is how it stands with any limit holding it set aside, as it
+	// stands once that lifts, as unheldOf has it: Kind where no limit holds
+	// it.
+	Kind, Unheld WindowKind
+	At           time.Time
 	// Used is how much of it is used as it stands at Now, as WindowAt has it:
 	// none once it has reset since it was read, or of one not started. Pace
 	// is its even pace, and Allowance what can be spent of it and still last
@@ -236,8 +239,7 @@ type WindowNow struct {
 	// when. A window a limit holds, at its cap, not started, or of an account
 	// whose token is refused or whose last read failed doesn't, whatever its
 	// projection says. RunsOutAhead is set where it runs out ahead of Now, as
-	// a timeline draws it, at its Out: where its kind, with any limit holding
-	// it set aside, as it stands once that lifts, is WindowRunsOut. It's
+	// a timeline draws it, at its Out: where Unheld is WindowRunsOut. It's
 	// RunsOut where no limit holds it; where one does, as one naming no
 	// window can, it's set where it runs out once the limit lifts, but not
 	// where it's stale, not started or at its cap.
@@ -603,6 +605,7 @@ func (m Moment) windowNow(s windowStates, w judged, name WindowName) WindowNow {
 		WindowName: name, Shared: policy.IsShared(key), Started: key == policy.Started, Pressure: key == policy.Pressure,
 		Read: AsRead{Used: w.window.Utilization, ResetsAt: w.window.ResetsAt, At: a.FetchedAt},
 	}
+	wn.Unheld, _ = s.unheldOf(w)
 	if wn.Kind, wn.At = s.kindOf(w); wn.Kind == WindowTokenless || wn.Kind == WindowUnread {
 		return wn
 	}
@@ -615,8 +618,7 @@ func (m Moment) windowNow(s windowStates, w judged, name WindowName) WindowNow {
 	}
 	wn.Capped, wn.CappedAsRead = s.capped(key), m.doc.reserveHolds(a) && slices.Contains(a.AtReserve, key)
 	wn.RunsOut, wn.Out, wn.Projected = wn.Kind == WindowRunsOut, w.out, projected(wn.Kind, w.out.Projection)
-	unheld, _ := s.unheldOf(w)
-	wn.RunsOutAhead = unheld == WindowRunsOut
+	wn.RunsOutAhead = wn.Unheld == WindowRunsOut
 	wn.Nearing = wn.Projected != nil && !w.runsOut && *wn.Projected >= m.doc.floor(a)-near-score.Tolerance
 	wn.InUse = inUse(w.stands, w.out.Projection)
 	return wn
