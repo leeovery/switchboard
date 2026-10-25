@@ -578,12 +578,12 @@ const (
 
 // tokensPlaced is the frame's periods of Tokens, its view from row top,
 // placed from a blank row under its heads to a blank row over its footnote,
-// and the footnote, wrapped to the frame's width, which ends on the view's last row,
-// as flex lays them down the view. Where that leaves the periods fewer than
-// leastPaged rows, a period's first and the line saying what's below, the
-// footnote goes, as it would soon reach the heads, and the periods run to the
-// view's last row; and where that still does, the blank row under the heads
-// goes too, the periods starting on the row under them.
+// and the footnote, wrapped to the frame's width, which ends on the view's
+// last row, as flex lays them down the view. Where that leaves the periods
+// fewer than leastPaged rows, a period's first and the line saying what's
+// below, the footnote goes, as it would soon reach the heads, and the
+// periods run to the view's last row; and where that still does, the blank
+// row under the heads goes too, the periods starting on the row under them.
 func (f Frame) tokensPlaced(top int) (tokensPlaced, []line) {
 	page := f.History.Tokens
 	if page == nil {
