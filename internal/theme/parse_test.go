@@ -242,6 +242,11 @@ func TestWhatAThemeLeavesOutOfItsChartsIsWorkedOutFromTheRest(t *testing.T) {
 		{token: theme.VizDay2, want: "#6C85A0"},
 		{token: theme.VizDay3, want: "#81A1C1"},
 		{token: theme.VizDay4, want: "#C6D5E3"},
+		// state.positive, accent.primary, accent.key and text.tertiary.
+		{token: theme.VizAccount1, want: "#A7C492"},
+		{token: theme.VizAccount2, want: "#B48EAD"},
+		{token: theme.VizAccount3, want: "#81A1C1"},
+		{token: theme.VizAccount4, want: "#D8DEE9"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.token.String(), func(t *testing.T) {

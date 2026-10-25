@@ -72,6 +72,12 @@ const (
 	VizDay2
 	VizDay3
 	VizDay4
+	// VizAccount1 to VizAccount4 are the pool's accounts' hues in Graphs'
+	// POOL, by an account's place among the pool's.
+	VizAccount1
+	VizAccount2
+	VizAccount3
+	VizAccount4
 	tokens
 )
 
@@ -125,6 +131,10 @@ var names = [tokens]string{
 	VizDay2:          "viz.day.2",
 	VizDay3:          "viz.day.3",
 	VizDay4:          "viz.day.4",
+	VizAccount1:      "viz.account.1",
+	VizAccount2:      "viz.account.2",
+	VizAccount3:      "viz.account.3",
+	VizAccount4:      "viz.account.4",
 }
 
 // String is the token's key in a .theme file, such as text.primary.
@@ -221,6 +231,9 @@ func (t *Theme) derive() {
 	or(VizDay0, c[BgSubtle])
 	for i, step := range t.Steps(c[AccentKey]) {
 		or(VizDay1+Token(i), step)
+	}
+	for i, from := range []Token{StatePositive, AccentPrimary, AccentKey, TextTertiary} {
+		or(VizAccount1+Token(i), c[from])
 	}
 }
 
