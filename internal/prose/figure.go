@@ -51,11 +51,18 @@ func Ratio(x float64) string {
 // ratioWholeFrom is the ratio Ratio writes whole from.
 const ratioWholeFrom = 100
 
-// GroupedTo writes x to the places given, as toPlaces writes it, its whole
-// part's thousands set apart by commas, as Grouped sets them: "1,240",
-// "12.5" or "0.25".
+// GroupedTo writes x to the places given at most, as toPlaces writes it, but
+// with no trailing zeros, its whole part's thousands set apart by commas, as
+// Grouped sets them: "1,240", "12.5", "0.25", or 100.0 to a place "100".
 func GroupedTo(x float64, places int) string {
-	return withThousands(toPlaces(x, places))
+	figure := toPlaces(x, places)
+	if strings.Contains(figure, ".") {
+		figure = strings.TrimSuffix(strings.TrimRight(figure, "0"), ".")
+	}
+	if figure == "-0" {
+		figure = "0"
+	}
+	return withThousands(figure)
 }
 
 // toPlaces writes x to the places given, rounded as its decimal is nearest,

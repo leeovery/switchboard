@@ -66,12 +66,14 @@ const (
 )
 
 // Hours is WHEN YOU WORK's page: the four whole weeks before today, of the
-// summaries the Past holds.
+// summaries the Past holds, from the day the ledger began where that's
+// within them, as Past's counted has it.
 func (p Past) Hours() HoursPage {
 	today := dayfile.CivilOf(p.in.Now)
-	first, last := today.AddDate(0, 0, -hoursWeeks*weekdays), today.AddDate(0, 0, -1)
+	first := p.counted(today.AddDate(0, 0, -hoursWeeks*weekdays).Format(time.DateOnly))
+	last := today.AddDate(0, 0, -1).Format(time.DateOnly)
 	var tally hoursTally
-	for _, d := range between(p.days, first.Format(time.DateOnly), last.Format(time.DateOnly)) {
+	for _, d := range between(p.days, first, last) {
 		tally.add(d)
 	}
 	return tally.page(p.in.WeekStarts)
@@ -189,7 +191,9 @@ func modelHours(m ledger.ModelDay) ([hoursADay]int, bool) {
 
 // hoursKeySteps are what the key may round a cut to, coarsest first, in
 // hundredths of a request, so a half rounds up as it's written rather than
-// as a float's tenth falls; and the places each is written to.
+// as a float's tenth falls, where the cut in hundredths is exact, as every
+// average over at most four days of whole requests that ends in a half is;
+// and the most places each is written to.
 var hoursKeySteps = []struct {
 	hundredths float64
 	places     int
@@ -199,9 +203,9 @@ var hoursKeySteps = []struct {
 // hour: each rounded on its own, as the Year's key rounds its cuts, to the
 // coarsest step it isn't under, 10, then 1, a tenth and a hundredth; and
 // where two that differ would then read the same, or out of order, each of
-// them a step finer, till none do. An hour's average is over four days at
-// most, so two that differ do by a twelfth at least, which a hundredth
-// always keeps apart.
+// them a step finer, till none do; each written with no trailing zeros. An
+// hour's average is over four days at most, so two that differ do by a
+// twelfth at least, which a hundredth always keeps apart.
 func hoursKeyCuts(cuts []float64) []string {
 	scaled, steps := make([]float64, len(cuts)), make([]int, len(cuts))
 	for i, cut := range cuts {

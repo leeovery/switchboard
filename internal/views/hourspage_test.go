@@ -126,6 +126,36 @@ func TestTheHoursCountTheWeeksBeforeToday(t *testing.T) {
 	}
 }
 
+// The grid counts from the day the ledger began, where that's within the
+// four weeks: a day held before it is never a known day of no requests.
+func TestTheHoursCountFromTheDayTheLedgerBegan(t *testing.T) {
+	tests := []struct {
+		began       string
+		weeks       int
+		description string
+		mondays     int
+		monday9     float64
+	}{
+		{began: "2026-09-23", weeks: 2, description: "the 2 weeks to Tue 6 Oct", mondays: 2, monday9: 4},
+		{began: "2026-08-01", weeks: 4, description: "the 4 weeks to Tue 6 Oct", mondays: 4, monday9: 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.began, func(t *testing.T) {
+			days := daysFrom("2026-09-01", worked("2026-09-28", map[int]int{9: 8}))
+			in := input(days)
+			in.Began = on(tt.began)
+			page := views.NewPast(in, days).Hours()
+			if page.Weeks != tt.weeks || page.Description != tt.description {
+				t.Errorf("the weeks are %d, %q, want %d, %q", page.Weeks, page.Description, tt.weeks, tt.description)
+			}
+			monday := rowOn(t, page, time.Monday)
+			if monday.Known != tt.mondays || monday.Hours[9].Requests != tt.monday9 {
+				t.Errorf("Monday is known on %d days, 09:00 at %v, want %d, %v", monday.Known, monday.Hours[9].Requests, tt.mondays, tt.monday9)
+			}
+		})
+	}
+}
+
 // Where no day of the four weeks is known, the section has no grid: the
 // page is empty.
 func TestNoDayKnownIsNoGrid(t *testing.T) {

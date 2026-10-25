@@ -81,7 +81,8 @@ func TestAFigureToATenthRoundsAHalfToTheEvenOne(t *testing.T) {
 	}
 }
 
-// A figure to places is written to them, its thousands set apart.
+// A figure to places is written to them at most, with no trailing zeros, its
+// thousands set apart.
 func TestAFigureGroupedToPlacesSetsItsThousandsApart(t *testing.T) {
 	tests := []struct {
 		x      float64
@@ -92,7 +93,11 @@ func TestAFigureGroupedToPlacesSetsItsThousandsApart(t *testing.T) {
 		{x: 1240, places: 0, want: "1,240"},
 		{x: 0.3, places: 1, want: "0.3"},
 		{x: 0.30000000000000004, places: 1, want: "0.3"},
-		{x: 0.5, places: 2, want: "0.50"},
+		{x: 0.5, places: 2, want: "0.5"},
+		{x: 100, places: 1, want: "100"},
+		{x: 1240, places: 2, want: "1,240"},
+		{x: 0.04, places: 1, want: "0"},
+		{x: -0.04, places: 1, want: "0"},
 		{x: 12345.67, places: 2, want: "12,345.67"},
 		{x: -0.5, places: 1, want: "-0.5"},
 		{x: -1234.5, places: 1, want: "-1,234.5"},
