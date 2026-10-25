@@ -819,6 +819,9 @@ what switchboard knows of one thing, in a form for a person to read or for an ag
     `status`, with `events` for when a limit or a cap began.
   - **GRAPHS, and a day Runway steps back to:** `history --windows`, from the window's start or
     over the day; and the day's limits and highest use, `history`'s days.
+  - **Graphs:** its burn-downs and GLANCE, `history --windows` from each window's start, as
+    GRAPHS, and POOL from a day before now, as Runway's week view, with `status` for the windows'
+    projections and words; WHEN YOU WORK, `history`'s days, their requests by hour (see Graphs).
   - **The traces and a session's story:** `requests`, a line a request, counted a minute at a time,
     by account or by session, as the traces count them.
   - **The Overview's SESSIONS, Accounts' Detail's sessions, and Sessions' Switchboard and List:**
@@ -955,7 +958,7 @@ A person has two views of their accounts:
   scrollback and left there, to compare by eye with one printed an hour before (see `usage`, the
   printout).
 - **`dashboard`, the live page:** it fills the terminal and redraws as things change, reading the
-  router as Live updates says. It has six tabs, in this order in its title row:
+  router as Live updates says. It has seven tabs, in this order in its title row:
   - **Overview,** the default: every account's windows and the router, understood at a glance
     (see The Overview);
   - **Accounts:** each account in depth, and all of them together: what each is, what it does,
@@ -964,11 +967,14 @@ A person has two views of their accounts:
   - **Sessions:** where each running session's requests are going now, as a switchboard and as a
     list (see Sessions);
   - **Runway:** when each account has room, as a timeline (see Runway);
+  - **Graphs:** every account's room drawn, a burn-down each, and the other charts its user turns
+    on (see Graphs);
   - **Log:** every request and every event the router tells of, as they happen, followed or paused
     (see The Log).
 
-  History the past, the Overview now, Runway the future; Accounts who, Sessions where. Beside the
-  tabs, **a session's page** follows one session through its whole life, opened from any row that
+  History the past, the Overview now, Runway the future; Accounts who, Sessions where; Graphs
+  every account at once. Beside the tabs, **a session's page** follows one session through its
+  whole life, opened from any row that
   names a session (see A session's page), and the **routing card** changes where new sessions, or
   one session, go (see Routing by hand). The page, Keys and What moves give what every page shares.
 
@@ -1033,7 +1039,8 @@ order the view's section gives.
   own where the badge, the tabs and the clock don't fit one row, under 100 columns, and the status
   line, the heading row and the key line take their short forms with them. That's all "on a phone"
   means in this design: a phone's chrome. A view's arrangement follows its own parts, under
-  either chrome.
+  either chrome. Within a phone's chrome, the tabs take two rows where the seven don't fit one,
+  under 60 columns, as the title row below says.
 - **A column of accounts' names** takes the widest name configured as its natural; at least 8 cells,
   or its natural where that's fewer; at most 24, a longer name cut with `…`, the cells of its number
   and marks, and the column's gap, kept beside it. So where every name is shorter than 8 cells, the
@@ -1060,7 +1067,8 @@ order the view's section gives.
   the row; and the Log card's tree's names padded to 13.
 
 On a phone, under 100 columns, the tabs take row 1 of their own, the status line row 3 and the
-heading row 5, the view starting at row 7, or at row 8 where a period takes row 6 of its own. **The
+heading row 5, the view starting at row 7, or at row 8 where a period takes row 6 of its own; and
+under 60 columns, where the tabs take rows 1 and 2, every row after them a row lower. **The
 breathing room,** the blank row under the heading row and the row over the key line, never goes as
 rows run short: the view gives up its rows instead, and scrolls within those it keeps where it must.
 The row over the key line holds a state line only where a view has one, as the Log's following or
@@ -1085,14 +1093,23 @@ where none of those fits, and never says less as the width grows.
 - **The badge,** ` SWITCHBOARD ` with a space each side, in bold `canvas` on `accent.primary`, at
   column 0.
 - **The tabs,** from two cells after it, a cell apart: ` Overview `, ` Accounts `, ` History `,
-  ` Sessions `, ` Runway `, ` Log `. The one shown is bold `text.primary` on `bg.selection`; the
-  rest are `text.subtle`. Two cells after the last, `tab ⇥` in `text.faint`.
+  ` Sessions `, ` Runway `, ` Graphs `, ` Log `. The one shown is bold `text.primary` on
+  `bg.selection`; the rest are `text.subtle`. Two cells after the last, `tab ⇥` in `text.faint`,
+  where it leaves the clock its two cells; where the row is short, `tab ⇥` gives way first, then the
+  clock's date. The tabs end at column 81, so `tab ⇥` shows from 109 columns, the date without it
+  from 102, and under that the time alone, a cell more each where the day has two digits (left to
+  the design by the owner, 25 October 2026).
 - **The clock,** ending at the last column: the date, `Thu 1 Oct  `, in `text.muted`, then the time,
   `14:42:07`, in bold `text.secondary`, ticking each second. Under a card it ticks on, drawn as it
   is with no card open, not faded with the page, which stands still behind the card, so a card left
   open never reads as a dashboard that's stopped (the owner's call, 17 October 2026).
 - **On a phone,** the clock stays on row 0, and the tabs take row 1 from column 0 with no space
-  between them and no `tab ⇥`: the six fill 52 columns exactly.
+  between them and no `tab ⇥`: the seven fill 60 columns exactly. Under 60, they take two rows,
+  each name whole: ` Overview `, ` Accounts `, ` History `, ` Sessions ` on row 1, 39 columns, and
+  ` Runway `, ` Graphs `, ` Log ` on row 2, each row from column 0, so a tab never moves between the
+  rows as the width changes; the status line takes row 4 and the heading row 6 (left to the design
+  by the owner, 25 October 2026, as a 7th tab's name cut short reads worse than a row given up on
+  the narrowest phones; the owner's phone is 73 columns wide).
 
 **The status line** (row 2) says how the router stands, and always shows, whatever a view hides, so
 the mode is never out of sight. Its parts, each after `  ·  ` (two spaces, `·` and two spaces, in
@@ -1130,8 +1147,9 @@ long leaves out the sessions, then where new sessions go; the state and the mode
 router's states shortened to `■ no router since 14:40` and `○ probed` (settled in the plan).
 
 **The heading row** (row 4; a phone's row 5) is the tab's own, under the status line, on every tab
-but the Overview, whose sections head themselves (see The Overview); a session's page has its own
-heading there, ending in `esc back` (see A session's page). From column 0:
+but the Overview and Graphs, whose sections head themselves (see The Overview, and Graphs); a
+session's page has its own heading there, ending in `esc back` (see A session's page). From column
+0:
 
 - **The tab's name** in capitals, `ACCOUNTS`, `HISTORY`, `SESSIONS`, `RUNWAY`, `LOG`, in
   `text.subtle`.
@@ -1192,8 +1210,9 @@ Overview).
 - `t`, the theme picker, and `R`, refresh, work on every page and are never on the key line: `?`
   lists them.
 - `w`, each model's own window shown or hidden, works wherever windows are listed as they stand:
-  the Overview, Accounts' Detail, Sessions' Switchboard and a session's page. It's never on the
-  key line: `?` and the keys-and-toggles card list it, its word `models` faint while they're
+  the Overview, Accounts' Detail, Sessions' Switchboard and a session's page. Graphs, which draws
+  the windows every model shares, as Runway does, takes `w` for its WEEK (see Graphs). It's never
+  on the key line: `?` and the keys-and-toggles card list it, its word `models` faint while they're
   hidden. It's set once and remembered, so it doesn't earn the 10 cells it would cost every other
   key: on the Overview's line, they'd have it fall to a phone's below 137 columns, 155 while GRAPHS
   shows, where it fits whole from 127 and 145 (the owner's call, 17 October 2026).
@@ -1241,8 +1260,8 @@ Overview's SESSIONS):
   chooses it, as the arrows would, and on the one already chosen, opens it, as `enter` does; a row
   of the Overview's SESSIONS opens its session's page at once, as the Overview's `↑↓` move the
   account focus;
-- on the Overview, on a section's heading or its key, it hides the section; on an account's row in
-  USAGE or ROUTING, it moves the focus there;
+- on the Overview and Graphs, on a section's heading or its key, it hides the section; on the
+  Overview, on an account's row in USAGE or ROUTING, it moves the focus there;
 - on the Log's `▼ 214 new`, it follows again, and on a tick in its `f` panel, it ticks it;
 - the wheel scrolls what's under the pointer, where that scrolls.
 
@@ -1250,7 +1269,8 @@ Routing takes keys alone: no click opens the routing card or acts in it, so a st
 moves a session.
 
 **What's remembered.** The preferences file keeps, as they change: the theme or the pair; the tab
-shown, which the dashboard opens on; the Overview's sections shown, its `b` and its `v`; `w`; of each
+shown, which the dashboard opens on; the Overview's sections shown, its `b` and its `v`; Graphs'
+sections shown; `w`; of each
 view, a view at a time, its sub-tab, its period or window and `v`'s choice; Runway's `a`; and the
 Log's columns.
 It never keeps a focus, a choice, a scroll, a card or help open, a session's page, a day Runway has
@@ -3881,6 +3901,230 @@ stepping back and how far it reaches, the minutes a column, and COMING UP.
 - **Agents** read the room, the even pace, the pool's room and COMING UP in the status document,
   through the data verbs (see The data verbs).
 
+### Graphs
+
+Every account's room drawn at once, on a page its user makes their own: sections toggled as the
+Overview's are, first a burn-down for every account in each window, as v0.1's cards drew them, then
+whichever other charts are turned on (the owner's calls, 24 and 25 October 2026). Its frames are in
+the Paper file *Switchboard · Graphs*, on its page **round 2 · a Graphs tab, burn-downs as v0.1 drew
+them**, approved by the owner on 25 October 2026: the page as it opens at 160 by 37, 108 by 44 and a
+phone's 73 by 61, and at 173 by 53 with WEEK, POOL, GLANCE and WHEN YOU WORK shown. The file's first
+page, round 1, holds the burn-downs drawn as a second view on Runway, which the owner turned down,
+and the charts these sections were picked from. Its references, made with the build, are
+`testdata/vhs/reference/graphs-*`, named in the plan. Where the frames and this section differ, this
+section holds:
+
+- **The key line** names every toggle wherever the chrome is wide, as the five fit from 82 columns;
+  the frames, drawn with eleven toggles, have a phone's line at 108.
+- **v0.1's legend** is the view's last row, over the blank row every page keeps before its key line;
+  the frames draw it on that row, so their charts at 160 by 37 are a row taller than this section's.
+- **GLANCE** lists the week first, as every list of windows does (see The dashboard's snags, in
+  Milestones); its frame lists the 5-hour first.
+- **Under 60 columns** the tabs take two rows (see The page); no frame is drawn there.
+
+**Its sections,** every one a toggle, at every size, remembered, as the Overview's are: size decides
+how much room each section shown gets, never whether it shows. From row 4 (a phone's row 5, or row 6
+under 60 columns), in an order that never changes, a section hidden taking no room:
+
+| Section | Key | Shown at first | What it is |
+|---|---|---|---|
+| WEEK | `w` | yes | A burn-down card an account, over its week |
+| 5-HOUR | `f` | yes | A burn-down card an account, over its 5-hour window |
+| POOL | `o` | no | The pool's room over Runway's week, each account's stacked |
+| GLANCE | `g` | no | A row an account and the pool: each window's room as a sparkline, and `usage`'s words |
+| WHEN YOU WORK | `h` | no | Requests by the hour of the day and the day of the week, over the last four weeks |
+
+The sections are the owner's pick of round 1's charts, for now (25 October 2026); the rest, a
+burn-up, the burn rate, the week by day, sessions over the day, the model mix and worth against the
+plan, wait in the backlog (see Backlog, graphs-page). The keys were left to the design by the owner
+(25 October 2026): `w` week, `f` five, `o` pool, `g` glance, `h` hours. The windows drawn are the two
+every model shares, as on Runway: a model's own window has no card, and `w` is WEEK's here, where on
+the pages that list windows as they stand it shows the models' own (see Keys).
+
+- **A section's heading** is the Overview's (see The Overview): its name in `text.subtle`; three
+  spaces and its description, where it has one; a space, a rule of `─` in `border` and a space;
+  then its key in bold `accent.key`, in the section's last column; the rule starting two cells after
+  the name where there's no description. A blank row comes under it. WHEN YOU WORK alone has a
+  description: the weeks it counts, `the 4 weeks to Wed 30 Sep`, in `text.faint`.
+- **A blank row separates two sections,** and follows the pool's line where a section comes after
+  it.
+- **GLANCE and WHEN YOU WORK sit side by side** where both show and both fit at their naturals with
+  10 cells between, GLANCE from column 0: from 162 columns with the sample's names. Elsewhere WHEN
+  YOU WORK comes under GLANCE. Every other section takes the width.
+
+**The burn-down cards,** WEEK's and 5-HOUR's: each account's room over its own window, from its start
+to its reset, as v0.1.6's cards drew it (`git show v0.1.6:testdata/vhs/reference/accounts-3-week.txt`),
+so one look compares every account (the owner's call, 24 October 2026):
+
+- **Across,** in the config's order: as many side by side as are 35 cells or more, 4 apart, each as
+  wide as they share the room, `⌊(w + 4) / k⌋ − 4` for `k` across, the odd cells left at the end;
+  the rest on the rows under, in the same columns, a blank row between two rows of cards. 35 cells
+  is the least a week's days read `╵Mon` in and a 5-hour's hours `╵13:00`, each whole. So three of
+  50 at 160 columns, three of 55 at 173, two of 52 at 108, one a row on a phone, 73 or 52; and four
+  accounts at 160, four of 37 (left to the design by the owner, 25 October 2026).
+- **A card's rows:** its label, the account's number, name and marks, as Runway's lanes label them;
+  under it, its words; a blank row; its chart; its axis. Where the rows run short (see Room, below),
+  the words move onto the label's row, ending at the card's last column, two cells clear of the label
+  at the least, and the blank row goes.
+- **Its words:** the room left, its figure bold in its use's level's colour, as `usage` colours a
+  use, `66%`, and ` left` in `text.muted`; then `  ·  ` in `text.muted`, and the words under the
+  account's lane on Runway in that window's view, inked as Runway inks them: `at its cap 14:31  ·
+  back 17:10`, `runs out ~Sat 06:00 at its pace`, `resets Sun 21:00`, `room all day`. Where they
+  don't fit the card, whole parts go from the end, as Runway drops them.
+- **The chart,** `h` rows, a column a cell over the window's length, now's column
+  `min(round(pace × width), width − 1)`, as GRAPHS' (see The Overview):
+  - **The room left:** each column before now's filled to the room its middle had, `1 − use`,
+    `round(room × h × 8)` eighths, one at least where any room was left, its full cells whole and its
+    top cell an eighth block, in the window's ink mixed with the canvas so 55% of it shows. Now's
+    column and those after it hold no room.
+  - **The window's ink,** by the state the window is in, as Runway's lanes colour a state: the
+    ramp's first stop where its room lasts to its reset; `accent.attention` where it runs out at its
+    pace before its reset, or its cap holds it; `state.destructive` where its limit holds it, or its
+    token is refused. Each window by its own state: the frames' `work` lasts its week, green, though
+    its 5-hour's cap holds the account now, and its 5-hour is amber.
+  - **Where it's heading,** from now's column to the reset: a braille line in the window's ink as it
+    is, two columns of four dots a cell, a dot at each half column, at the room the half column's
+    middle has by the window's projection, the one Runway's words go by, as the status document's
+    moment works it out, never again in a drawing package: falling straight from the room now to
+    where the window runs out, or to the room it leaves at its reset; after it runs out, along the
+    floor it met, its cap or empty, to the reset. A dot's row, of the chart's `4h` from its foot, is
+    `⌈room × 4h⌉ − 1`, the foot's at the least.
+  - **Where it runs out:** `✕` in bold `state.destructive`, in the column it runs out in, on the row
+    of the floor it meets. A window its cap or its limit already holds has its `✕` in the column the
+    hold began, as Runway learns when (see Runway's What it reads), and its dots along that floor
+    from now's column to the reset.
+  - **Its reserve,** where the account has one: on its level's dot row, the right-hand dot every
+    other column from the first, `⠠ ⠠`, in `viz.reserve` mixed with the canvas so 60% of it shows.
+  - **Now:** `│` in `text.faint` down now's column.
+  - **In this order,** each on empty cells alone, never over the room: the heading's dots, the
+    reserve's, now's `│`; and `✕` last, over what it falls on.
+  - **Nothing more:** no even pace, no faint blocks for where it's heading, nothing outside the
+    window. v0.1's cards drew none; round 1 drew them, and the owner turned them down (24 October
+    2026).
+- **Its axis,** v0.1's: the week's, `╵` in `text.faint` at each midnight in the window and the
+  weekday after it, `Tue`, in `text.subtle`, today's bold `text.secondary`, two letters where a day is
+  under 5 columns; the 5-hour's, `╵13:00` at each whole hour, in `text.subtle`, `╵13` where an hour
+  is under 7 columns. A tick whose label wouldn't end a cell before the next tick, or within the
+  card, is left out.
+- **Its data:** as GRAPHS' (see The Overview): the readings history, each column the last reading at
+  or before its moment; with no router, the readings history's files and the readings the dashboard
+  takes as it probes.
+- **An account with nothing to draw,** not read yet or whose first read failed, has its words as
+  Runway's lane has them and its chart empty but for now's `│`; one without a usable token has no
+  room all along; a stale one is faded, as a stale reading is everywhere (see What moves); one out of
+  the pool is faint, as the Overview draws it.
+
+**The pool's line** follows the last burn-down section shown, after its blank row: `Σ ` in
+`text.subtle`, `pool` in `text.secondary`, three spaces, then each window's room as Runway's pool
+lane words it, the week's then the 5-hour's, three spaces apart: the window in `text.subtle`, the
+room bold `text.secondary` and ` of 3 left` in `text.muted`, `week 1.2 of 3 left   5-hour 1.5 of 3
+left`; pinned, ` · pinned` after the first, as `usage` has it. It says both windows whichever
+sections show, as it's the pool's room, not a window's. With one account there's no pool, and no
+line.
+
+**v0.1's legend,** while a burn-down section shows, is the view's last row: `▆▆ room left   ⠂⠄⡀
+where it's heading   ✕ runs out   ⠠ ⠠ reserve`, each mark in its ink, a lasting window's, and its
+words in `text.muted`, three spaces apart; `⠠ ⠠ reserve` only where an account has a reserve. Where it
+doesn't fit a row, as at 52 columns, it takes two, each item whole. It stays at the foot while the
+page scrolls.
+
+**POOL** is the pool's room over Runway's week view, its span and its columns as Runway's lanes have
+them at the section's width, from a day before now, for a week:
+
+- **Stacked:** each of the pool's accounts' room from the foot, in the config's order, the pool's
+  total its top edge, full being every account's room: of `n` accounts, an account's
+  `round(room × 8h / n)` eighths. Each has its hue, `viz.account.1` to `viz.account.4` by its place
+  among the pool's (see Themes), a fifth on taking the hue four before it mixed 30% toward the
+  canvas, as an older version takes its family's; where two meet in a cell, the lower's eighths are
+  drawn on the upper's hue as its ground, and where three meet, the middle gives way.
+- **The room then:** before now, each account's room as the Overview's pool charts judge it (see
+  The Overview, By account); from now on, at its projection, falling at its pace to where it runs
+  out, then its floor to its reset, then full, as nothing is known of its next window, in its hue
+  mixed with the canvas so 50% of it shows.
+- **Now:** `│` in `text.primary` down now's column, through every row.
+- **Under it,** Runway's axis, its three rows as Runway draws them at that width; then its key: each
+  account's `█` in its hue and its name in `text.muted`, a faint `█` and ` faint: heading, at its
+  recent rate`, and `│ now`, four spaces apart.
+
+**GLANCE** is every account and the pool in a few rows, as `usage`'s block lists them, each window a
+burn-down a row high:
+
+- **Its head row:** each window's name, `WEEK`, then `5-HOUR`, in `text.subtle`, over its sparkline,
+  then a blank row.
+- **A row an account,** in the config's order, a blank row between: its number, name and marks in
+  the name column (see The page); then each window, the week's and then the 5-hour's: a sparkline of
+  16 cells, one row of eighths, the window's room from its start to its reset, a column a cell,
+  before now in the window's ink as the cards have it, from now at its projection, in that ink mixed
+  with the canvas so 50% of it shows, and `✕` in bold `state.destructive` where it runs out; a
+  space; the room left, `66%`, as the cards say it; two spaces; and `usage`'s words for the window,
+  as its matrix gives them, `19%/day till Sun 21:00`, `out ~Sat 06:00`, `at cap · back 17:10`,
+  padded to the widest their bounds allow, so the next window holds still.
+- **The pool,** under `usage`'s rule: `Σ pool`, its windows' sparklines of the pool's room, as POOL
+  counts it, and its room, `1.2 of 3 left`.
+- **Its key,** a blank row under: `▆ room left, start to reset`, `▆ heading` in its faint ink,
+  `✕ runs out` and `66% room left now`, four spaces apart.
+- **Its width** is its natural, what it takes whole, 100 columns with the sample's names, and it
+  doesn't grow. Where that doesn't fit, its windows stack, the week's rows and then the 5-hour's,
+  each under its window's name, the words cut as `usage`'s are at that width.
+
+**WHEN YOU WORK** shows when the requests come, a weekday's hours a row:
+
+- **A row a weekday,** from the first day of the week, as `week_starts` begins weeks (see Config):
+  its name, `Mon`, in `text.subtle`; then, from the 4th column, the 24 hours, each a tile shaded by
+  its requests, summed over the four whole weeks before today and divided by four; over the grid,
+  every third hour, `00`, `03`, to `21`, in `text.faint`.
+- **Its shades** are History's (see History, Five shades): `viz.day.0` for an hour with nothing on
+  it; the active hours split into quarters for `viz.day.1` to `viz.day.4`, on one scale for the
+  grid. Its key under it, as the Year's: each shade's tile and its bounds, the cuts rounded to 10,
+  `▆ none   ▆ under 20   ▆ 20–50   ▆ 50–90   ▆ over 90`, in `text.subtle`, then `requests an hour` in
+  `text.faint`, flowed onto as many rows as its width needs.
+- **Its width:** `⌊(w − 4) / 24⌋` cells an hour, the tile, `▆`, all an hour's cells but its last,
+  which is a gap: two at the least, 52 columns, its natural; four at its most, 100.
+- **The requests counted** are those that spend quota and went upstream, as the traces count them
+  (see The Overview), each in the local hour it was sent; an hour the clocks skip has no requests
+  that day, and one they repeat counts both. Its data, four weeks' requests by the hour, comes
+  through `history`'s days; how a day keeps its hours, so the section reads 28 summaries rather than
+  28 days of lines, is to settle in the plan.
+
+**Room.** The page is laid down the rows by flex, as every view is (see The page):
+
+- **Each section's least:** a burn-down section, its heading, the blank row and its rows of cards,
+  each card's words on its label's row and its chart 5 rows; POOL, its chart 5 rows, its axis's three
+  and its key's; GLANCE and WHEN YOU WORK as they are, as neither grows down.
+- **Rows to spare** go first to the cards' words, a row of their own and the blank row before each
+  chart, in both burn-down sections at once; then to the charts, the cards' and POOL's, every one
+  the same height, a row at a time, to 19, as GRAPHS' (see The Overview); the rest is blank at the
+  foot, over the legend.
+- **Short of every least,** the page scrolls whole, a row at a time, as History's views do, its
+  sections never folding, so a section turned on always shows: `j`/`k` a row, PgUp and PgDn a page
+  and the wheel three rows, and the row over the key line saying what's out of view, `▲ 3 more above
+  · ▼ 12 more below`, in `text.subtle`. The legend stays at the foot (left to the design by the
+  owner, 25 October 2026).
+- **The layout changes only on a key, a resize or the config,** never as the data does, so the page
+  holds still as reads come.
+
+So at 160 by 37, with three accounts and both burn-downs shown, each card's words have a row of
+their own and the charts 7 rows; at 108 by 44 the words go to the label's row and the charts take 5;
+on a phone of 73 by 61, the same, a card a row; with four accounts on that phone, the page scrolls.
+
+**The key line:**
+
+- **Wide:** `tab views`, five spaces; each toggle as its key and word, two spaces apart, `w week  f
+  5-hour  o pool  g glance  h when`, a key in bold `accent.key` and its word in `text.muted` while its
+  section shows, else `text.faint`; five spaces; then `p pin  ? help  q quit`.
+- **On a phone:** `tab views   ? keys and toggles   q quit`.
+- **Everything hidden,** the first row of the view says how to bring it back, as the Overview's does:
+  `every section is hidden:` in `text.faint`, then the toggles as the key line words them.
+
+**Its charts move on with the clock,** as Runway's lanes do: now's column, the room to it and where
+it's heading, a column at a time as each column's moment passes. Nothing travels.
+
+**`?` help,** `HELP · GRAPHS`, lists every key first, the toggles, `j`/`k`, PgUp, PgDn, `p`, `t` and
+`R` among them; then each section: a burn-down's room, where it's heading and why its line is
+straight, the recent rate held, `✕`, the reserve, the window's ink and each card's own clock; the
+pool's line; POOL's stack and its faint heading; GLANCE's sparklines and words; and WHEN YOU WORK's
+shades, the weeks it counts and the requests it counts.
+
 ### The Log
 
 The router's traffic, as it happens and back through the days, in two tables under one tab:
@@ -5115,6 +5359,7 @@ that work there (see The page); `?` lists every one, with what it does.
 | `→` `←` | Accounts' Detail | Into the account's SESSIONS, and back to the list |
 | `←` `→` | Runway | Step back a day, or a week in the week view; step forward, to the live view |
 | `a` | Runway | Collapse the account column to each account's number, marks and use, or expand it (the owner's call, 17 October 2026) |
+| `w` `f` `o` `g` `h` | Graphs | Show or hide WEEK, 5-HOUR, POOL, GLANCE, WHEN YOU WORK |
 | `↑` `↓` | Sessions | Choose a session, a call on the Switchboard or a row on the List |
 | `↑` `↓` | The Log | Choose a line; from following, `↑` chooses the newest and pauses; with its details open, the line before or after |
 | `end` | The Log | Follow again, the newest line at the foot and nothing chosen |
@@ -5141,8 +5386,10 @@ alone act, and `esc` closes it; so do the theme picker's while it's open, as The
 
 **Keys that mean one thing on one page and another elsewhere** are kept apart by the page: `r` and
 `s` hide sections on the Overview, where `R` refreshes on every page, and `s` opens a session's page
-on the Log; `g` shows GRAPHS on the Overview, and Requests from an event's details on the Log; and `v`
-flips GRAPHS' chart on the Overview, and a view's shape or split on History.
+on the Log; `g` shows GRAPHS on the Overview, GLANCE on Graphs, and Requests from an event's details
+on the Log; `w` shows each model's own window where windows are listed as they stand, and WEEK on
+Graphs; `f` opens the Log's panel, and shows 5-HOUR on Graphs; and `v` flips GRAPHS' chart on the
+Overview, and a view's shape or split on History.
 
 ### What moves
 
@@ -5171,7 +5418,8 @@ distracts most. What matters reads when still: nothing is said by motion alone.
 
 Each page's own motion is in its section, within this budget: the Log's table moving up a line as
 a line joins its foot (see The Log); a session's story stepping a minute at a time, and its newest
-turn growing (see A session's page); Runway's lanes moving on with the clock (see Runway).
+turn growing (see A session's page); Runway's lanes moving on with the clock (see Runway), and
+Graphs' charts with them (see Graphs).
 
 **Frames** are drawn only for what moves on screen: never for what's scrolled out of view, under a
 card or under `?`, so nothing new is drawn while nothing happens. They come at most 30 a second, a
@@ -5202,6 +5450,7 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
   | `viz.family.1`–`viz.family.4` | The model families' hues, in the version table's order: Opus, Sonnet, Fable, Haiku (see The request ledger) (settled in the plan). History's charts draw a family in its hue, and Days' strips in its hue's shades | `accent.key`, `accent.mode`, `accent.primary`, `text.tertiary` |
   | `viz.version.1`–`viz.version.6` | The model versions' shades, which the version table gives them, a family's newest first (settled in the plan). A table names a version in its shade | A family's newest version, its family's hue; an older one, its family's hue mixed 30% toward `canvas` |
   | `viz.day.0`–`viz.day.4` | A day's shade by how busy it was, from a day with nothing on it to the busiest quarter of the active days (see History) (settled in the plan) | `bg.subtle`, then the ramp of shades below with `accent.key` as its hue |
+| `viz.account.1`–`viz.account.4` | An account's hue in Graphs' POOL, by its place among the pool's accounts; a fifth on takes the hue four before it, mixed 30% toward `canvas` (see Graphs) (left to the design by the owner, 25 October 2026) | `state.positive`, `accent.primary`, `accent.key`, `text.tertiary` |
 
   So a theme missing a base token is rejected, and a theme without any `viz.*` still draws every
   chart. `viz.track` and `viz.reserve` keep the keys they had, so a theme file that sets them still
@@ -7879,6 +8128,19 @@ widening a filter while paused far back reads every day between again, 3.3 s and
 back, 8.4 s and 706 MB 22 days back, what the pick cost before. What phase 4 left is gathered in
 [day-digests-left](../ideas/2026-10-18--day-digests-left.md).
 
+**The Graphs tab — designed, for its owner's sign-off.** After v0.2.7 the owner took up the graphs
+([graphs-page](../ideas/2026-10-20--graphs-page.md)): every account's burn-down at once, as v0.1's
+cards drew them, on a page of graphs whose sections its user turns on and off. Round 1, drawn in
+Paper on 24 October 2026, put the burn-downs on Runway as a second view, beside nine other charts;
+the owner turned that down, its grey blocks outside each window and its faint heading reading as
+noise, and asked for v0.1's: the room solid to now, a dotted line at the rate, the red `✕`. Round 2,
+drawn the same day and approved on 25 October 2026, made them a tab of their own, Graphs, between
+Runway and the Log, its sections WEEK and 5-HOUR shown at first, and POOL, GLANCE and WHEN YOU WORK
+of round 1's charts, for now (see Graphs). Beside the tab, it changes the title row, a seventh tab,
+taking two rows under 60 columns, so every reference drawn narrower, a phone's at 52, moves a row
+down; adds `viz.account.1` to `viz.account.4` to the themes; and needs a day's requests by the hour,
+for WHEN YOU WORK. The plan, its stages and what each delivers, follows the sign-off.
+
 The release, through GoReleaser, a Homebrew tap and mint, follows milestone 3.
 
 ## Observed
@@ -8041,7 +8303,8 @@ why.
 
 | Idea | Status | File |
 |---|---|---|
-| The graphs reimagined: a burn-down for every account, on a page of graphs or in GRAPHS reworked, at a scale read at a glance | next, after the fluid layout pass, to discuss with its owner (20 October 2026) | [graphs-page](../ideas/2026-10-20--graphs-page.md) |
+| The graphs reimagined: a burn-down for every account, on a page of graphs or in GRAPHS reworked, at a scale read at a glance | designed as the Graphs tab (see Graphs), round 2 approved by its owner on 25 October 2026: the design's sign-off next, then the build; the Overview's GRAPHS and round 1's other charts still to settle | [graphs-page](../ideas/2026-10-20--graphs-page.md) |
+| Custom views: a user's own views of the dashboard, put together from its sections | open: raised by the owner on 24 October 2026, to discuss after the Graphs tab | [custom-views](../ideas/2026-10-25--custom-views.md) |
 | A reserve spent as a last resort, when no account has room outside one | not wanted: the owner, 24 October 2026, as a reserve is kept for the Claude apps and is honoured | [reserve-last-resort](../ideas/2026-10-03--reserve-last-resort.md) |
 | The plain text the data verbs print, `status`'s and the first cuts of `requests`, `history`, `sessions` and `events`, designed to match the dashboard | next, to design with its owner | [dashboard-layout](../ideas/2026-09-30--dashboard-layout.md) |
 | Releases signed with a Developer ID, so macOS stops noticing each upgrade | next, once the certificate is in hand | [developer-id-signing](../ideas/2026-10-01--developer-id-signing.md) |

@@ -32,3 +32,27 @@ GRAPHS fluid as it's designed today; this is the redesign after it.
 
 The graphs' place, what each chart shows (the window's use over its span, the even pace, the cap),
 how many sit side by side at each width, and the scale. Drawn in Paper first, as a new arrangement.
+
+## Where it stands
+
+Designed as the Graphs tab (see Graphs in the design), from two rounds in Paper, in *Switchboard ·
+Graphs*:
+
+- **Round 1** (24 October 2026) drew the burn-downs as a second view on Runway, and nine other
+  charts. The owner turned the burn-downs down: "I don't like the top line of burn down graphs.
+  what's the big grey blocks meant to show? I like how we showed them before this big refactor. The
+  little red x, the dotted line showing the rate drawing to the run out date/time." And on where
+  they live: "Maybe a page with graphs so you can view the data in lots of ways. toggleable so the
+  user can essentially create their own dashboards."
+- **Round 2** (24 October 2026) drew a tab of its own, Graphs, its burn-downs as v0.1's cards drew
+  them and its other charts as sections toggled by keys. The owner, on 25 October 2026: "Yes I like
+  those new versions", and "I like the varieties from round 2 for now. happy for you to make the
+  other decisions."
+
+Still to settle with its owner:
+
+- **The Overview's GRAPHS,** once the Graphs tab is built: whether it stays, as the owner raised on
+  24 October 2026 ("I think as part of this we could entertain removing graphs from overview but
+  let's discuss that later").
+- **Round 1's other charts,** not taken for now: the burn-up, the burn rate, the week by day,
+  sessions over the day, the model mix, and worth against the plan. Each is drawn on round 1's page.
