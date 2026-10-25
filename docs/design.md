@@ -3906,8 +3906,8 @@ stepping back and how far it reaches, the minutes a column, and COMING UP.
 Every account's room drawn at once, on a page its user makes their own: sections toggled as the
 Overview's are, first a burn-down for every account in each window, as v0.1's cards drew them, then
 whichever other charts are turned on (the owner's calls, 24 and 25 October 2026). Its frames are in
-the Paper file *Switchboard · Graphs*, on its page **round 2 · a Graphs tab, burn-downs as v0.1 drew
-them**, approved by the owner on 25 October 2026: the page as it opens at 160 by 37, 108 by 44 and a
+the Paper file *Switchboard · Graphs*, on its page **FINAL · Graphs tab · signed off 25 Oct 2026**,
+round 2's, approved by the owner on 25 October 2026: the page as it opens at 160 by 37, 108 by 44 and a
 phone's 73 by 61, and at 173 by 53 with WEEK, POOL, GLANCE and WHEN YOU WORK shown. The file's first
 page, round 1, holds the burn-downs drawn as a second view on Runway, which the owner turned down,
 and the charts these sections were picked from. Its references, made with the build, are
@@ -8128,7 +8128,7 @@ widening a filter while paused far back reads every day between again, 3.3 s and
 back, 8.4 s and 706 MB 22 days back, what the pick cost before. What phase 4 left is gathered in
 [day-digests-left](../ideas/2026-10-18--day-digests-left.md).
 
-**The Graphs tab — designed, for its owner's sign-off.** After v0.2.7 the owner took up the graphs
+**The Graphs tab — designed, signed off 25 October 2026.** After v0.2.7 the owner took up the graphs
 ([graphs-page](../ideas/2026-10-20--graphs-page.md)): every account's burn-down at once, as v0.1's
 cards drew them, on a page of graphs whose sections its user turns on and off. Round 1, drawn in
 Paper on 24 October 2026, put the burn-downs on Runway as a second view, beside nine other charts;
@@ -8139,7 +8139,8 @@ Runway and the Log, its sections WEEK and 5-HOUR shown at first, and POOL, GLANC
 of round 1's charts, for now (see Graphs). Beside the tab, it changes the title row, a seventh tab,
 taking two rows under 60 columns, so every reference drawn narrower, a phone's at 52, moves a row
 down; adds `viz.account.1` to `viz.account.4` to the themes; and needs a day's requests by the hour,
-for WHEN YOU WORK. The plan, its stages and what each delivers, follows the sign-off.
+for WHEN YOU WORK. The owner signed it off on 25 October 2026; the plan, its stages and what each
+delivers, comes next.
 
 The release, through GoReleaser, a Homebrew tap and mint, follows milestone 3.
 
@@ -8303,7 +8304,7 @@ why.
 
 | Idea | Status | File |
 |---|---|---|
-| The graphs reimagined: a burn-down for every account, on a page of graphs or in GRAPHS reworked, at a scale read at a glance | designed as the Graphs tab (see Graphs), round 2 approved by its owner on 25 October 2026: the design's sign-off next, then the build; the Overview's GRAPHS and round 1's other charts still to settle | [graphs-page](../ideas/2026-10-20--graphs-page.md) |
+| The graphs reimagined: a burn-down for every account, on a page of graphs or in GRAPHS reworked, at a scale read at a glance | designed as the Graphs tab (see Graphs), signed off by its owner on 25 October 2026: the build next; the Overview's GRAPHS and round 1's other charts still to settle | [graphs-page](../ideas/2026-10-20--graphs-page.md) |
 | Custom views: a user's own views of the dashboard, put together from its sections | open: raised by the owner on 24 October 2026, to discuss after the Graphs tab | [custom-views](../ideas/2026-10-25--custom-views.md) |
 | A reserve spent as a last resort, when no account has room outside one | not wanted: the owner, 24 October 2026, as a reserve is kept for the Claude apps and is honoured | [reserve-last-resort](../ideas/2026-10-03--reserve-last-resort.md) |
 | The plain text the data verbs print, `status`'s and the first cuts of `requests`, `history`, `sessions` and `events`, designed to match the dashboard | next, to design with its owner | [dashboard-layout](../ideas/2026-09-30--dashboard-layout.md) |
