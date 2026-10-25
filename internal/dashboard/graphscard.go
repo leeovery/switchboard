@@ -35,8 +35,8 @@ type burnCard struct {
 	// zero where nothing tells, and the card draws no ✕.
 	held      bool
 	heldSince time.Time
-	// reserve is the room left at its account's reserve, 1 − Cap, drawn
-	// where reserveHolds.
+	// reserve is the room left at its account's reserve, the reserve itself,
+	// drawn where reserveHolds.
 	reserve      float64
 	reserveHolds bool
 	// empty is set where the moment gives the window no span, as of one not
@@ -66,7 +66,7 @@ func burnCardOf(a status.AccountNow, key string, trail Trail, now time.Time) bur
 			return a.RoomAhead(key, t)
 		},
 		held:         w.Kind == status.WindowLimited || w.Kind == status.WindowCapped,
-		reserve:      1 - a.Cap,
+		reserve:      a.Reserve,
 		reserveHolds: a.ReserveHolds,
 		fade:         accountFade(a, w.Kind == status.WindowStale),
 	}
@@ -115,19 +115,24 @@ func (cd burnCard) faded(k ink) ink {
 // its axis on the last. In order, each on the cells left empty but ✕: the
 // room left before now, as fill draws it; where it's heading, as heading
 // draws it; its reserve, as reserveDots draws it; now's line; and ✕, as
-// cross draws it, over what it falls on. A window whose span isn't known
-// draws nothing.
+// cross draws it, over what it falls on. An empty card has now's line and
+// its axis alone, whatever holds its window; a window whose span isn't
+// known draws nothing.
 func (cd burnCard) draw(c *canvas, look Look, at bounds) {
 	h := at.rows - 1
 	if h < 1 || at.width < 1 || !cd.window.spanned {
 		return
 	}
 	p := plot{x: at.x, floor: at.y + h - 1, width: at.width, h: h, now: cd.window.nowColumn(at.width)}
-	cd.fill(c, look, p)
-	cd.heading(p).draw(c, p)
-	cd.reserveDots(p).draw(c, p)
+	if !cd.empty {
+		cd.fill(c, look, p)
+		cd.heading(p).draw(c, p)
+		cd.reserveDots(p).draw(c, p)
+	}
 	nowDown(c, p)
-	cd.cross(c, p)
+	if !cd.empty {
+		cd.cross(c, p)
+	}
 	cd.axis(c, at.x, at.y+h, at.width)
 }
 
@@ -184,11 +189,10 @@ func (cd burnCard) heading(p plot) dots {
 
 // reserveDots is the account's reserve on p, where it holds, as braille: on
 // the row of dots footRow puts its room on, the right-hand dot of every
-// other column from the first, viz.reserve drawn faint; none on an empty
-// card.
+// other column from the first, viz.reserve drawn faint.
 func (cd burnCard) reserveDots(p plot) dots {
 	d := newDots(p.h)
-	if !cd.reserveHolds || cd.empty {
+	if !cd.reserveHolds {
 		return d
 	}
 	k, row := cd.faded(capDotInk), d.footRow(cd.reserve)

@@ -504,24 +504,29 @@ func TestACardRunningOutAtItsReserveCrossesOnTheReservesRow(t *testing.T) {
 // A window the moment gives no span, not read, not started, or of an
 // account without a usable token, is charted over its length from now:
 // empty but for now's line, in its first column, over its axis from now;
-// no reserve, though the account keeps one.
+// no reserve, though the account keeps one; and, held by a limit naming no
+// window while it has lapsed, no heading along the floor, nor ✕, though
+// when the hold began is told.
 func TestACardWithNothingToDrawIsEmptyButForNowsLineFromNow(t *testing.T) {
 	unread := trio(func(d *status.Document) { d.Accounts[0].FetchedAt = time.Time{} })
 	tokenless := trio(func(d *status.Document) { d.Accounts[0].TokenSet = false })
 	work, _ := trio().Account("work")
 	session, _ := work.Window("5h")
 	lapsed := session.ResetsAt.Add(time.Second)
+	held := trio(func(d *status.Document) { d.Accounts[0].Limit = status.Limit{Until: lapsed.Add(48 * time.Hour)} })
 	tests := []struct {
-		name string
-		doc  status.Document
-		at   time.Time
-		key  string
-		kind status.WindowKind
-		axis string
+		name  string
+		doc   status.Document
+		at    time.Time
+		key   string
+		kind  status.WindowKind
+		width int
+		axis  string
 	}{
-		{name: "not read", doc: unread, at: printNow, key: "7d", kind: status.WindowUnread, axis: " ╵Fri ╵Sat ╵Sun ╵Mon ╵Tue ╵Wed ╵Thu"},
-		{name: "without a usable token", doc: tokenless, at: printNow, key: "5h", kind: status.WindowTokenless, axis: "  ╵15:00 ╵16:00 ╵17:00 ╵18:00"},
-		{name: "not started", doc: trio(), at: lapsed, key: "5h", kind: status.WindowNotStarted, axis: "   ╵17 ╵18 ╵19 ╵20"},
+		{name: "not read", doc: unread, at: printNow, key: "7d", kind: status.WindowUnread, width: 35, axis: " ╵Fri ╵Sat ╵Sun ╵Mon ╵Tue ╵Wed ╵Thu"},
+		{name: "without a usable token", doc: tokenless, at: printNow, key: "5h", kind: status.WindowTokenless, width: 35, axis: "  ╵15:00 ╵16:00 ╵17:00 ╵18:00"},
+		{name: "not started", doc: trio(), at: lapsed, key: "5h", kind: status.WindowNotStarted, width: 20, axis: "   ╵17 ╵18 ╵19 ╵20"},
+		{name: "held by a limit while it has lapsed", doc: held, at: lapsed, key: "5h", kind: status.WindowLimited, width: 20, axis: "   ╵17 ╵18 ╵19 ╵20"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -529,11 +534,9 @@ func TestACardWithNothingToDrawIsEmptyButForNowsLineFromNow(t *testing.T) {
 			if w, _ := a.Window(tt.key); w.Kind != tt.kind || w.Length != 0 {
 				t.Fatalf("work's %s is of kind %d, over %v, want %d, with no span", tt.key, w.Kind, w.Length, tt.kind)
 			}
-			width := 35
-			if tt.kind == status.WindowNotStarted {
-				width = 20
-			}
-			rows := cardRows(cardIn(burnCardOf(a, tt.key, Trail{Readings: []score.Reading{{At: tt.at.Add(-time.Hour)}}}, tt.at), Look{}, width, 4), 4)
+			cd := burnCardOf(a, tt.key, Trail{Readings: []score.Reading{{At: tt.at.Add(-time.Hour)}}}, tt.at)
+			cd.heldSince = tt.at.Add(-time.Hour)
+			rows := cardRows(cardIn(cd, Look{}, tt.width, 4), 4)
 			want := append(slices.Repeat([]string{"│"}, 4), tt.axis)
 			if !slices.Equal(rows, want) {
 				t.Errorf("the card is\n%s\nwant\n%s", strings.Join(rows, "\n"), strings.Join(want, "\n"))
