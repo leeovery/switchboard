@@ -573,8 +573,9 @@ switches at one width: under 100 columns, it takes its phone form.
 <img src="../art/phone.webp" alt="The Overview in a phone's terminal, 52 columns wide" width="260">
 </div>
 
-- The tabs sit on a row of their own, under the clock, and the status line, the heading row and
-  the key line say less.
+- The tabs sit on a row of their own, under the clock, or on as many rows as their names need
+  where one can't hold them, split as evenly as their order allows; and the status line, the
+  heading row and the key line say less.
 - The Overview's USAGE sets its windows side by side wherever every part of a row fits at its
   least, from 86 columns with two windows and names of the sample's length, and stacks them where
   they don't. As the room runs short, its bars give way first, to 12 cells, then its words, to their
