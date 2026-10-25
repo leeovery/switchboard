@@ -25,11 +25,25 @@ func under(rows []string, t Target) string {
 	return string(row[t.X : t.X+t.Width])
 }
 
+// pressedOver reports whether what's drawn under a target a click on which
+// presses the key given is what stands for it: a Graphs section's heading,
+// from its name to its key; or the Log's ▼ N new, which end follows.
+func pressedOver(drawn, key string) bool {
+	if section, ok := GraphsSectionKeyed(key); ok {
+		return strings.HasPrefix(drawn, section.heading()+" ") && strings.HasSuffix(drawn, "─ "+key)
+	}
+	return key == "end" && strings.HasPrefix(drawn, "▼ ") && strings.HasSuffix(drawn, " new")
+}
+
 func TestEachTargetSitsOverWhatItsDrawingPutThere(t *testing.T) {
-	for _, f := range []Frame{clickable(160, 40, Overview), clickable(160, 40, Runway), clickable(52, 33, Sessions), clickable(99, 33, Overview)} {
+	graphs := clickable(160, 40, Graphs)
+	graphs.Graphs.Accounts = configured("work", "personal", "side")
+	paused := clickable(160, 24, Log)
+	paused.Log = pausedOneNew()
+	for _, f := range []Frame{clickable(160, 40, Overview), clickable(160, 40, Runway), clickable(52, 33, Sessions), clickable(99, 33, Overview), graphs, paused} {
 		rows := textOf(f.Draw(threeRouted(), now))
 		var tabs []View
-		var keys []string
+		var keys, presses []string
 		for _, tt := range f.Targets(threeRouted(), now) {
 			var want string
 			switch tt.On {
@@ -46,6 +60,14 @@ func TestEachTargetSitsOverWhatItsDrawingPutThere(t *testing.T) {
 				if heading := under(rows, tt); strings.HasPrefix(heading, tt.Section.heading()+" ") && strings.HasSuffix(heading, "─ "+tt.Section.Key()) {
 					want = heading
 				}
+			case OnPress:
+				if drawn := under(rows, tt); pressedOver(drawn, tt.Key) {
+					presses, want = append(presses, tt.Key), drawn
+				}
+			case OnRow:
+				if drawn := under(rows, tt); strings.TrimSpace(drawn) != "" {
+					want = drawn
+				}
 			case OnAccount:
 				named := func(y int) bool { return y >= 0 && strings.Contains(rows[y], " "+tt.Account+" ") }
 				if row := under(rows, tt); named(tt.Y) || named(tt.Y-1) && strings.HasSuffix(row, "/min") {
@@ -61,6 +83,9 @@ func TestEachTargetSitsOverWhatItsDrawingPutThere(t *testing.T) {
 		}
 		if want := []string{"tab", "< >", "?"}; !slices.Equal(keys, want) {
 			t.Errorf("at %d columns, the key line's targets are %q, want %q: never p pin, as no click opens the routing card, nor q quit", f.Width, keys, want)
+		}
+		if want := map[View][]string{Graphs: {"w", "f"}, Log: {"end"}}[f.View]; !slices.Equal(presses, want) {
+			t.Errorf("at %d columns on %s, the targets a click on which presses a key press %q, want %q", f.Width, f.View, presses, want)
 		}
 	}
 }

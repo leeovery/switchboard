@@ -1,6 +1,12 @@
 package dashboard
 
-import "github.com/leeovery/switchboard/internal/views"
+import (
+	"time"
+
+	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views"
+)
 
 // GraphsSection is one of Graphs' sections, which its key shows and hides.
 type GraphsSection int
@@ -77,52 +83,49 @@ func GraphsSectionsNamed(names []string) GraphsSections {
 }
 
 // GraphsShown is what the Graphs tab shows: its sections shown, as w, f, o, g
-// and h show and hide them; and WHEN YOU WORK's page, whose weeks its
+// and h show and hide them; the configured accounts, in the config's order,
+// which alone, with the frame's size and the sections shown, lay the page
+// out, as layGraphs has it; and WHEN YOU WORK's page, whose weeks its
 // heading says.
 type GraphsShown struct {
 	Sections GraphsSections
+	Accounts config.Accounts
 	Hours    views.HoursPage
 }
 
-// graphsSectionRows are the rows a Graphs section takes, its body empty: its
-// heading, the blank row under it, and the blank row before the next.
-const graphsSectionRows = sectionHead + 1
-
-// graphsHead is a Graphs section's heading as the page lays it out: the
-// section, and the row and columns it's drawn along.
-type graphsHead struct {
-	section GraphsSection
-	head    bounds
-}
-
-// graphsHeads are the headings of Graphs' sections shown, from row top, in
-// the order the page draws them, each across the width, graphsSectionRows
-// under the one before.
-func (f Frame) graphsHeads(top int) []graphsHead {
-	var heads []graphsHead
-	for _, s := range EveryGraphsSection() {
-		if f.Graphs.Sections.Has(s) {
-			heads = append(heads, graphsHead{section: s, head: bounds{y: top, width: f.Width, rows: 1}})
-			top += graphsSectionRows
-		}
-	}
-	return heads
-}
-
-// graphsTab draws Graphs in the view's rows, from row top: where every
-// section is hidden, how to bring them back, as everythingHidden has it;
-// else each section shown, its heading, as headSection draws it, saying
-// what graphsSays has it say.
-func (f Frame) graphsTab(c *canvas, top int) {
-	view := newCanvas(f.Width, f.viewRows())
+// graphsTab draws Graphs of doc at now in the view's rows, from row top:
+// where every section is hidden, how to bring them back, as everythingHidden
+// has it; else the sections shown laid out whole, as graphsLaid lays them,
+// in the rows over the legend, scrolled as the frame has it, a row at a
+// time, as paged pages them; and the legend on the view's last rows.
+func (f Frame) graphsTab(c *canvas, doc status.Document, now time.Time, top int) {
 	if f.Graphs.Sections.none() {
+		view := newCanvas(f.Width, f.viewRows())
 		everythingHidden(view, f.Width, f.Graphs.Sections.Toggles())
+		c.paste(view, 0, top, view.height())
+		return
 	}
-	for i, h := range f.graphsHeads(0) {
-		says := f.graphsSays(h.section, i == 0)
-		headSection(view, h.head, h.section.heading(), h.section.Key(), func(cells int) line { return says.fit(cells) })
+	laid := f.graphsLaid()
+	whole := newCanvas(f.Width, laid.rows)
+	f.graphsDrawn(whole, f.Moment(doc, now), laid)
+	laid.paged().paste(c, whole, top, f.Scroll, f.Width)
+	for i, l := range laid.legend {
+		c.line(0, top+laid.room+i, l)
 	}
-	c.paste(view, 0, top, view.height())
+}
+
+// graphsDrawn draws the sections of the moment m as laid out, whole, on c:
+// each heading, as headSection draws it, saying what graphsSays has it say;
+// and the pool's line, where there's one, as poolLine words it.
+func (f Frame) graphsDrawn(c *canvas, m status.Moment, laid graphsLaid) {
+	for i, s := range laid.sections {
+		says := f.graphsSays(s.section, i == 0)
+		head := bounds{y: s.at, width: f.Width, rows: 1}
+		headSection(c, head, s.section.heading(), s.section.Key(), func(cells int) line { return says.fit(cells) })
+	}
+	if laid.poolLine >= 0 {
+		c.line(0, laid.poolLine, f.poolLine(m, f.Width))
+	}
 }
 
 // graphsSays is what the section's heading says after its name: on the first
@@ -139,16 +142,47 @@ func (f Frame) graphsSays(s GraphsSection, first bool) line {
 	return nil
 }
 
-// graphsTargets are Graphs' click targets: each section's heading, a click
-// on which is a press of its key, which hides it; but none past the view's
-// rows.
+// graphsOut is the form of the line saying how many of Graphs' rows are out
+// of view, above and below, all in text.subtle: "▲ 3 more above · ▼ 12 more
+// below".
+var graphsOut = outForm{above: " above", below: " below", gap: " · ", inks: subtleOut}
+
+// graphsState draws on the state row, where Graphs' sections are scrolled
+// past what shows, how many of their rows are out of view, as outOfView says
+// it in graphsOut's form.
+func (f Frame) graphsState(c *canvas) {
+	if f.Graphs.Sections.none() {
+		return
+	}
+	paged := f.graphsLaid().paged()
+	from, to := paged.shown(f.Scroll)
+	c.line(0, f.stateRow(), outOfView(from, paged.content-to, f.Width, graphsOut))
+}
+
+// graphsScrolling is how far Graphs' sections scroll, a row at a time,
+// scrolled to each offset given, as their laying out pages them: none where
+// every one is hidden.
+func (f Frame) graphsScrolling() func(offset int) Scrolling {
+	if f.Graphs.Sections.none() {
+		return func(int) Scrolling { return Scrolling{} }
+	}
+	return f.graphsLaid().paged().scrolling
+}
+
+// graphsTargets are Graphs' click targets: each section's heading the page
+// shows, scrolled as the frame has it, a click on which is a press of its
+// key, which hides it.
 func (f Frame) graphsTargets() []Target {
-	top := f.top()
-	end := top + f.viewRows()
+	if f.Graphs.Sections.none() {
+		return nil
+	}
+	laid := f.graphsLaid()
+	paged := laid.paged()
+	from, _ := paged.shown(f.Scroll)
 	var targets []Target
-	for _, h := range f.graphsHeads(top) {
-		if h.head.y < end {
-			targets = append(targets, Target{X: h.head.x, Y: h.head.y, Width: h.head.width, On: OnPress, Key: h.section.Key()})
+	for _, s := range laid.sections {
+		if paged.shows(f.Scroll, s.at) {
+			targets = append(targets, Target{Y: f.top() + s.at - from, Width: f.Width, On: OnPress, Key: s.section.Key()})
 		}
 	}
 	return targets

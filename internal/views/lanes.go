@@ -341,17 +341,17 @@ func (s LaneStretch) holdsOn(st stood, c int, at time.Time) bool {
 	return s.Last == c-1 && s.Cell == st.cell && (s.Back.IsZero() || s.Back.After(at))
 }
 
-// viewKey is the key of the window the view is named for, as viewKeyOf has
+// viewKey is the key of the window the view is named for, as KeyIn has
 // it, in the moment's policy.
 func (from LanesFrom) viewKey() string {
-	return viewKeyOf(from.Moment.Policy(), from.Window)
+	return from.Window.KeyIn(from.Moment.Policy())
 }
 
-// viewKeyOf is the key of the window Runway's view of w is named for, of
-// those every model shares, in the policy's order: the first lasting a day
-// or less of the 5-hour view, the first lasting longer of the week's; ""
-// where none does.
-func viewKeyOf(policy score.Policy, w RunwayWindow) string {
+// KeyIn is the key of the window Runway's view of w is named for, of those
+// every model shares, in the policy's order: the first lasting a day or less
+// of the 5-hour view, the first lasting longer of the week's; "" where none
+// does.
+func (w RunwayWindow) KeyIn(policy score.Policy) string {
 	for _, key := range policy.Shared {
 		if quota.MultiDay(key) == (w == RunwayWeek) {
 			return key
