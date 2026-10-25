@@ -78,10 +78,10 @@ func GraphsSectionsNamed(names []string) GraphsSections {
 
 // GraphsShown is what the Graphs tab shows: its sections shown, as w, f, o, g
 // and h show and hide them; and WHEN YOU WORK's page, whose weeks its
-// heading says.
+// heading says, nil while the ledger's days aren't read, or it doesn't show.
 type GraphsShown struct {
 	Sections GraphsSections
-	Hours    views.HoursPage
+	Hours    *views.HoursPage
 }
 
 // graphsSectionRows are the rows a Graphs section takes, its body empty: its
@@ -133,7 +133,7 @@ func (f Frame) graphsSays(s GraphsSection, first bool) line {
 	switch {
 	case first && f.Loading:
 		return line{{loadingWord, dimInk}}
-	case s == GraphsWhen && f.Graphs.Hours.Description != "":
+	case s == GraphsWhen && f.Graphs.Hours != nil && f.Graphs.Hours.Description != "":
 		return line{{f.Graphs.Hours.Description, faintInk}}
 	}
 	return nil

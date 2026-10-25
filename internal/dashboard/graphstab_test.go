@@ -162,7 +162,7 @@ func TestGraphsHeadingsSayWhenYouWorksWeeksAndLoadingOnTheFirst(t *testing.T) {
 	}
 	for _, tt := range tests {
 		f := graphsFrame(160, 37, tt.shown)
-		f.Look, f.Loading, f.Graphs.Hours = nord, tt.loading, hours
+		f.Look, f.Loading, f.Graphs.Hours = nord, tt.loading, &hours
 		rows := f.Draw(threeRouted(), now)
 		text, top := textOf(rows), f.top()
 		for i, want := range tt.want {

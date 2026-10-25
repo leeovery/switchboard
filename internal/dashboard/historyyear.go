@@ -494,19 +494,29 @@ func (y yearDrawn) keyParts(form keyForm, cuts []int, unit string) []part {
 }
 
 // bounds are each level's bounds in requests a day, as cuts, the key's, give
-// them: level 0's none; the first quarter's under the first cut; the last's
-// over the last; and those between from one cut to the next. Without cuts,
-// no day is active, and level 0's alone are given.
+// them, each written as the form's number writes it, as boundsOf words them.
 func (form keyForm) bounds(cuts []int) []string {
+	words := make([]string, len(cuts))
+	for i, cut := range cuts {
+		words[i] = form.number(cut)
+	}
+	return form.boundsOf(words)
+}
+
+// boundsOf are each level's bounds, of the cuts given as they're written:
+// level 0's none; the first quarter's under the first cut; the last's over
+// the last; and those between from one cut to the next. Without cuts, nothing
+// is active, and level 0's alone are given.
+func (form keyForm) boundsOf(cuts []string) []string {
 	bounds := []string{form.none}
 	if len(cuts) == 0 {
 		return bounds
 	}
-	bounds = append(bounds, form.under+form.number(cuts[0]))
+	bounds = append(bounds, form.under+cuts[0])
 	for i := 1; i < len(cuts); i++ {
-		bounds = append(bounds, form.number(cuts[i-1])+"–"+form.number(cuts[i]))
+		bounds = append(bounds, cuts[i-1]+"–"+cuts[i])
 	}
-	return append(bounds, form.over+form.number(cuts[len(cuts)-1]))
+	return append(bounds, form.over+cuts[len(cuts)-1])
 }
 
 // shown is the use shown alone, as the heading row names it: "" for all

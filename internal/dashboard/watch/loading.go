@@ -36,7 +36,8 @@ type pageLoadingMsg struct {
 // SESSIONS, listing a session, as followed held them for the message, on
 // the List held, as the Overview's SESSIONS and Sessions do, which names
 // their sessions, till its first read lands, as listAwaited has it; Runway
-// on the readings history; and the Log on its lines and events, from as it
+// on the readings history; Graphs, while WHEN YOU WORK shows, on the
+// ledger's days; and the Log on its lines and events, from as it
 // first shows till its first read lands, whether or not that read has
 // begun, as it waits for another read of the ledger to land first. A
 // session's page says its own, as pageLoading has it.
@@ -52,6 +53,8 @@ func (m Model) awaiting() bool {
 		return m.listAwaited()
 	case dashboard.Runway:
 		return m.runwayTab.reading
+	case dashboard.Graphs:
+		return m.graphsHoursWanted() && m.past.reading
 	case dashboard.Log:
 		return m.log.reading || m.cfg.Ledger != nil && !m.log.opened
 	}

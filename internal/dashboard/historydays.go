@@ -69,7 +69,7 @@ const (
 func (f Frame) historyDays(c *canvas, top int) {
 	p := f.History.Days
 	if p == nil || !p.Recorded() {
-		c.line(0, top, line{{"nothing recorded yet", dimInk}}.fit(f.edge()))
+		c.line(0, top, line{{nothingRecorded, dimInk}}.fit(f.edge()))
 		return
 	}
 	l := f.layOutDays(*p, top)

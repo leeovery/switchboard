@@ -94,8 +94,9 @@ type beginning struct {
 }
 
 // readHistory has the watch read the ledger's days for History and
-// Accounts while either is shown, and for Runway while its lanes want them,
-// as runwayYearWanted says, as they want them, one read at a time, what's
+// Accounts while either is shown, for Runway while its lanes want them, as
+// runwayYearWanted says, and for Graphs while WHEN YOU WORK shows, as
+// graphsHoursWanted says, as they want them, one read at a time, what's
 // wanted meanwhile waiting for it to land, all sharing every read and the
 // days it holds: the last 12 months, once a run, as any is first shown;
 // while History shows, a calendar year the Year steps back to that the days
@@ -104,7 +105,7 @@ type beginning struct {
 func (m Model) readHistory() (Model, tea.Cmd) {
 	history := m.view == dashboard.History
 	runwayYear, runway := m.runwayYearWanted()
-	shown := history || m.view == dashboard.Accounts || runway
+	shown := history || m.view == dashboard.Accounts || runway || m.graphsHoursWanted()
 	if !shown || m.past.reading || m.cfg.Ledger == nil {
 		return m, nil
 	}
