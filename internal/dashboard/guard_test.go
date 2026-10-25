@@ -35,7 +35,6 @@ var (
 		"internal/dashboard/keyline.go:Frame.keysAt",
 		"internal/dashboard/statusline.go:Frame.routerStatus",
 		"internal/dashboard/title.go:Frame.tabsAt",
-		"internal/dashboard/title.go:Frame.title",
 	}
 	chromeSized = []string{
 		"internal/dashboard/frame.go:Phone",

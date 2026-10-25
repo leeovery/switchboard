@@ -1036,7 +1036,7 @@ heading and how many more it holds; at its natural, all it holds; the sections g
 order the view's section gives.
 
 - **The chrome alone keeps a breakpoint of its own:** the title row's tabs go to a row of their
-  own where the badge, the tabs and the clock don't fit one row, under 100 columns, and the status
+  own under 100 columns, the chrome's breakpoint, and the status
   line, the heading row and the key line take their short forms with them. That's all "on a phone"
   means in this design: a phone's chrome. A view's arrangement follows its own parts, under
   either chrome. Within a phone's chrome, the tabs take as many rows as their names need, whole,
@@ -1094,17 +1094,18 @@ where none of those fits, and never says less as the width grows.
   column 0.
 - **The tabs,** from two cells after it, a cell apart: ` Overview `, ` Accounts `, ` History `,
   ` Sessions `, ` Runway `, ` Graphs `, ` Log `. The one shown is bold `text.primary` on
-  `bg.selection`; the rest are `text.subtle`. Two cells after the last, `tab ⇥` in `text.faint`,
-  where it leaves the clock its two cells; where the row is short, `tab ⇥` gives way first, then the
-  clock's date. The tabs end at column 81, so `tab ⇥` shows from 109 columns, the date without it
-  from 102, and under that the time alone, a cell more each where the day has two digits (left to
-  the design by the owner, 25 October 2026).
+  `bg.selection`; the rest are `text.subtle`. No hint follows them: the tabs are clickable and the
+  key line says `tab views`, so `tab ⇥` left the row to give the seventh tab room (the owner's
+  call, 25 October 2026). Where the row is short, the clock's date gives way, leaving the clock its
+  two cells. The tabs end at column 81, so the date shows from 102 columns, and under that the time
+  alone, a cell more where the day has two digits (left to the design by the owner, 25 October
+  2026).
 - **The clock,** ending at the last column: the date, `Thu 1 Oct  `, in `text.muted`, then the time,
   `14:42:07`, in bold `text.secondary`, ticking each second. Under a card it ticks on, drawn as it
   is with no card open, not faded with the page, which stands still behind the card, so a card left
   open never reads as a dashboard that's stopped (the owner's call, 17 October 2026).
 - **On a phone,** the clock stays on row 0, and the tabs take row 1 from column 0 with no space
-  between them and no `tab ⇥`: the seven fill 60 columns exactly. Where they don't fit one row,
+  between them: the seven fill 60 columns exactly. Where they don't fit one row,
   they take the fewest rows they fit on, each name whole, each row from column 0, shared as evenly
   as their order allows, the widest row as narrow as it can be, so a tab moves between rows only as
   the count of rows changes: under 60, two, ` Overview `, ` Accounts `, ` History ` on row 1, 29
@@ -3936,6 +3937,7 @@ section holds:
   Milestones); its frame lists the 5-hour first.
 - **Under 60 columns** the tabs take two rows, and three under 31 (see The page); no frame is drawn
   there.
+- **The title row** draws no `tab ⇥` (see The page); the frames at 160 and 173 do.
 
 **Its sections,** every one a toggle, at every size, remembered, as the Overview's are: size decides
 how much room each section shown gets, never whether it shows. From row 4 (a phone's row 5, a row lower
