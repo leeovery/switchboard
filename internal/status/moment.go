@@ -42,8 +42,8 @@ type Moment struct {
 	// Next is the id of the account new sessions go to, which ▲ marks, as
 	// read, as next has it.
 	Next string
-	// Accounts are its accounts, in the config's order, each as it stands at
-	// Now.
+	// Accounts are its accounts, in the document's order, each as it stands
+	// at Now.
 	Accounts []AccountNow
 	// Shown are the windows of the accounts worth showing at Now, in
 	// quota's order: those every model shares, always, and any other an
@@ -64,8 +64,9 @@ type Moment struct {
 
 // AccountNow is an account of a document as it stands at a moment.
 type AccountNow struct {
-	// ID and Label are as configured, Place is its place in the config's
-	// order, from 1, and Primary is set on the primary.
+	// ID and Label are as configured, Place is its number, its place in the
+	// document, from 1, as Numbering numbers it, and Primary is set on the
+	// primary.
 	ID, Label string
 	Place     int
 	Primary   bool
@@ -312,23 +313,28 @@ func (m Moment) At(now time.Time) Moment {
 // HeldMoment is a document's moment, worked out the first time it's asked
 // for, and known by the document it's of, by when that was built, the time
 // it's at, and the policy it's judged by: for every look at the one document
-// at the one time, by the one policy, to share.
+// at the one time, by the one policy, to share. It numbers the document's
+// accounts without working the moment out, for a look to lay out by.
 type HeldMoment struct {
 	generated, now time.Time
 	policy         score.Policy
+	numbering      Numbering
 	moment         func() Moment
 }
 
 // HoldAt is the document at now, as policy judges it, held, as HeldMoment has
 // it.
 func (d Document) HoldAt(now time.Time, policy score.Policy) *HeldMoment {
-	return &HeldMoment{generated: d.GeneratedAt, now: now, policy: policy, moment: sync.OnceValue(func() Moment { return d.At(now, policy) })}
+	return &HeldMoment{
+		generated: d.GeneratedAt, now: now, policy: policy, numbering: d.numbering(),
+		moment: sync.OnceValue(func() Moment { return d.At(now, policy) }),
+	}
 }
 
 // Held is the moment held, worked out already, as HoldAt holds one: for every
 // look at its document at its Now, by its policy, to share.
 func (m Moment) Held() *HeldMoment {
-	return &HeldMoment{generated: m.doc.GeneratedAt, now: m.Now, policy: m.policy, moment: func() Moment { return m }}
+	return &HeldMoment{generated: m.doc.GeneratedAt, now: m.Now, policy: m.policy, numbering: m.numbering(), moment: func() Moment { return m }}
 }
 
 // Of reports whether h holds the moment of d at now, as policy judges it: nil

@@ -347,7 +347,7 @@ func (s *SessionShown) turnsScrolling(l sessionLayout) Scrolling {
 // as runwayScrolling says. A frame too short for the view, as cramped says,
 // never scrolls, nor one of a document of no accounts, but History,
 // Sessions, whose List lists the ledger's sessions whatever the document
-// holds, Graphs, laid out by the config alone, and a session's page.
+// holds, Graphs, laid out by the configured accounts, and a session's page.
 func (f Frame) scrollingAt(doc status.Document, now time.Time) func(offset int) Scrolling {
 	shown := f.Shown()
 	if shown == SessionPage {

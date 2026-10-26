@@ -884,7 +884,12 @@ press `enter`.
 now. The card has these rows:
 
 - `0 auto`
-- a row for each account, numbered by its place in the config.
+- a row for each account, numbered as every tab numbers it.
+
+An account's number is its place in the config, as the router has taken it up. After you add or
+remove an account, the router keeps its old list until it restarts, and every tab keeps its numbers
+till then: an account you've removed keeps its number while the router still holds it, and one
+you've added is numbered after the router's last.
 
 Each account's row shows:
 
@@ -895,8 +900,8 @@ Each account's row shows:
 ### Picking
 
 - `↑` and `↓` move between the rows, and `space` picks the row the cursor is on.
-- A number picks its row directly: `0` picks auto, and `1` to `9` pick the first nine accounts.
-  Accounts past the ninth have no number.
+- A number picks its row directly: `0` picks auto, and `1` to `9` pick the accounts with those
+  numbers. An account numbered past 9 has no key.
 - Picking auto clears the accounts, and picking an account clears auto.
 - `m` ticks moving the sessions running elsewhere to the picks too. The card then says how many
   sessions would move, and roughly what rebuilding their caches costs, such as `≈ $6.20`.

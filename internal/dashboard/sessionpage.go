@@ -517,8 +517,8 @@ func (d sessionDrawn) endedModelsKept(kept string) line {
 }
 
 // nameOf is the account with the given id's name as the Overview names it,
-// numbered in the config's order, with its marks: its id, unnumbered, where
-// the moment lacks it.
+// numbered as status.Numbering numbers it, with its marks: its id,
+// unnumbered, where the moment lacks it.
 func (d sessionDrawn) nameOf(id string) accountName {
 	if i := slices.IndexFunc(d.m.Accounts, func(a status.AccountNow) bool { return a.ID == id }); i >= 0 {
 		return d.names[i]

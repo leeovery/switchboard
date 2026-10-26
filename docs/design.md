@@ -1014,8 +1014,12 @@ Every view speaks as `usage` does:
   own limits, and for a token refused; a cap is movable, so it's `accent.attention`.
 - **Percentages are coloured by level,** along the theme's ramp: its first stop below 70%, its
   second from 70%, its last from 90%.
-- **Every account is numbered** by its place in the config, wherever its name heads a row, but on
-  History and turned Compare, which number nothing: the number that picks it in the routing card.
+- **Every account is numbered** by its place in the router's document, wherever its name heads a
+  row, but on History and turned Compare, which number nothing: the number that picks it in the
+  routing card. That's the config's order once the router has taken the config up; an account the
+  router doesn't hold yet, as one just added, comes after its last, in the config's order among
+  those it lacks. So an account has the one number on every tab while the two disagree, as after
+  `switchboard accounts remove` while the router waits to restart (`status.Numbering`).
   `◆` marks the primary, and `▲` the account new sessions go to now.
 - **The pool** is the accounts new sessions can go to now: every account on auto, only those the
   global pin names when pinned. `Σ pool` totals them on the Overview, in `usage` and on Runway;
@@ -1446,10 +1450,10 @@ line after it, as a shell's prompt spaces itself (settled in the plan).
 
 **A row:**
 
-- **The name:** the account's number, its place in the config, in `text.subtle` with a space after
-  it; its label, its id unless the config gives another, in bold `text.primary`; then its marks,
-  each after a space: `◆` in `text.tertiary` on the primary, and `▲` in `accent.mode` on the account
-  new sessions go to. With one account, that account carries `▲`, and the header names it.
+- **The name:** the account's number, as every account is numbered, in `text.subtle` with a space
+  after it; its label, its id unless the config gives another, in bold `text.primary`; then its
+  marks, each after a space: `◆` in `text.tertiary` on the primary, and `▲` in `accent.mode` on the
+  account new sessions go to. With one account, that account carries `▲`, and the header names it.
 - **The bar:**
   - **Its track:** spaces on `viz.track`, a cell's background, `bg.subtle` unless the theme sets it:
     solid, never `░`, but in the `terminal` theme, which blends nothing.
@@ -1595,10 +1599,12 @@ line after it, as a shell's prompt spaces itself (settled in the plan).
   line that would sit there anyway, so no layout changes size.
 - **Its name is `Σ pool`:** `Σ` in `text.subtle`, in the numbers' column, and `pool` in
   `text.secondary`, not bold.
-- **Every account is numbered,** wherever its name heads a row: its place in the config's order,
-  which is its key in the routing card. The number is in `text.subtle`, `text.faint` where the
-  account is out of the pool, right-aligned once there are ten, from ` 1` to `10`, `Σ` in the same
-  column. With one account it's still `1`, so no layout changes with the number of accounts.
+- **Every account is numbered,** wherever its name heads a row: its place in the router's
+  document, the config's order once the router has taken it up, which is its key in the routing
+  card, as every view numbers it (see Dashboard). The number is in `text.subtle`, `text.faint`
+  where the account is out of the pool, right-aligned once there are ten, from ` 1` to `10`, `Σ` in
+  the same column. With one account it's still `1`, so no layout changes with the number of
+  accounts.
 - **The name column fits the names,** a column of names: the widest number, label and marks, plus
   two cells kept for `▲` on any account without it, as `▲` moves between accounts as routing does
   and no label may move with it, plus a gap of two cells, each label counted to 24 cells at the
@@ -2121,9 +2127,11 @@ holds.
 - **Labels:** a group's heading is uppercase in `text.subtle` (`ACTIVITY`, `BY MODEL`), its items
   lowercase in `text.secondary`, two cells in (`requests`).
 - **Numbers:** wherever the accounts are numbered, as in Compare's heads and Detail's list and
-  panel, each account's number, its place in the config, is before its name in `text.subtle`, and
-  `0` before `all accounts`: the numbers are the routing picker's keys, and `0` is auto, which
-  routes to every account (see Routing by hand). History and turned Compare number nothing.
+  panel, each account's number, as every view numbers it (see Dashboard), is before its name in
+  `text.subtle`, and `0` before `all accounts`: the numbers are the routing picker's keys, and `0`
+  is auto, which routes to every account (see Routing by hand). So while the config and the router
+  disagree, the numbers may skip one the config no longer has, and an account the router doesn't
+  hold yet comes after its last. History and turned Compare number nothing.
 - **`all accounts`,** never a count, is every configured account, always, whatever is pinned, at its
   limit or refused. Its totals count them all; a window's use is the mean of theirs and its pace the
   mean of their paces; and its room, `1.2 of 3 left`, is the sum of what each has left of it, to its
@@ -2202,6 +2210,9 @@ holds.
   focus along the accounts, the columns scrolling to keep it in view and `all accounts` staying put
   at the right, and the heading's state says which show:
   `accounts 1–6 of 10  ·  ←→ moves along them; all accounts stays put`, its `←→` bold `accent.key`.
+  It names a range only where every account's number is its place in the config, as where the
+  config and the router agree; otherwise it's a count, `6 of 9 accounts`, however far it's
+  scrolled, as the numbers then don't each stand at their own place.
 - **The heads,** on the view's first two rows, wherever the heading's rows end, held however far
   the rest scrolls: an account's number, then its name and marks, bold, as `usage` draws a name
   (see `usage`, the printout); under them, its state in a word, as the Overview colours its
@@ -5130,8 +5141,8 @@ On the Overview, `r` hides ROUTING, which touches no routing.
      that account has room and its cache is worth keeping, named by the router in its listing of
      the sessions (the owner's call, 13 October 2026). Picking `auto` clears the accounts;
      picking an account clears `auto`; nothing picked is auto.
-   - **Then each account,** numbered by its place in the config, `1 ` in `text.subtle`, its name in
-     bold `text.primary`.
+   - **Then each account,** numbered as every view numbers it (see Dashboard), `1 ` in
+     `text.subtle`, its name in bold `text.primary`.
    - **The mark:** new sessions' card ticks boxes, `■` in bold `accent.key` picked and `□` in
      `text.subtle` not; a session's card picks one, `●` and `○` the same. A row's mark is its one
      mark: an account's state has no dot.
@@ -8404,7 +8415,7 @@ why.
 | Idea | Status | File |
 |---|---|---|
 | The graphs reimagined: a burn-down for every account, on a page of graphs or in GRAPHS reworked, at a scale read at a glance | built as the Graphs tab (see Graphs), signed off by its owner on 25 October 2026, merged by 26 October (#150–#168); the Overview's GRAPHS removed by its owner on 26 October 2026, for the Graphs page: "I don't like them. I don't think they're effective."; round 1's other charts still to settle | [graphs-page](../ideas/2026-10-20--graphs-page.md) |
-| The Graphs build's loose ends: one owner of an account's number, Runway's week past its view, and the edges, tests, tidy-ups and costs its reviews left | next: the number's owner in the cleanliness release, the owner's choice on 26 October 2026; the rest any time | [graphs-loose-ends](../ideas/2026-10-26--graphs-loose-ends.md) |
+| The Graphs build's loose ends: one owner of an account's number, Runway's week past its view, and the edges, tests, tidy-ups and costs its reviews left | the number's owner and GLANCE's name column built in the cleanliness release, the owner's choice on 26 October 2026; the rest any time | [graphs-loose-ends](../ideas/2026-10-26--graphs-loose-ends.md) |
 | Custom views: a user's own views of the dashboard, put together from its sections | open: raised by the owner on 24 October 2026, to discuss after the Graphs tab | [custom-views](../ideas/2026-10-25--custom-views.md) |
 | A reserve spent as a last resort, when no account has room outside one | not wanted: the owner, 24 October 2026, as a reserve is kept for the Claude apps and is honoured | [reserve-last-resort](../ideas/2026-10-03--reserve-last-resort.md) |
 | The plain text the data verbs print, `status`'s and the first cuts of `requests`, `history`, `sessions` and `events`, designed to match the dashboard | next, to design with its owner | [dashboard-layout](../ideas/2026-09-30--dashboard-layout.md) |

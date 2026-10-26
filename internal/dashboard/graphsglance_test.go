@@ -53,9 +53,10 @@ func glanceOf(doc status.Document, look Look) glance {
 }
 
 // glanceIn is g drawn as laid out width cells wide, of the accounts given,
-// from the top left of a canvas of its own extra rows taller than it takes.
+// numbered as its moment numbers them, from the top left of a canvas of its
+// own extra rows taller than it takes.
 func glanceIn(g glance, accounts config.Accounts, width, extra int) (*canvas, glanceLaid) {
-	l := layGlance(accounts, width)
+	l := layGlance(g.m.Held().Numbering(), accounts, width)
 	c := newCanvas(width, l.rows()+extra)
 	g.draw(c, l, 0, 0)
 	return c, l
@@ -76,14 +77,14 @@ func TestGlanceIsAsWideAsItsPartsWholeAndNeverGrows(t *testing.T) {
 	// words at their widest in full, 24; 3 between the two windows.
 	// Stacked, a window a row, at every part's least: the names 16, as
 	// personal is no longer than a label's least, 23 and the short words 14.
-	if got, want := glancePart(trioConfigured()), (flex.Part{Least: 53, Natural: 113, Most: 113}); got != want {
+	if got, want := glancePart(status.Numbering{}, trioConfigured()), (flex.Part{Least: 53, Natural: 113, Most: 113}); got != want {
 		t.Errorf("GLANCE's part is %+v, want %+v", got, want)
 	}
 	if fullWidest() != 24 {
 		t.Fatalf("the widest words in full are %d cells, want 24, as the figures above count them", fullWidest())
 	}
 	for _, width := range []int{113, 160, 220} {
-		if l := layGlance(trioConfigured(), width); l.width != 113 || l.stacked {
+		if l := layGlance(status.Numbering{}, trioConfigured(), width); l.width != 113 || l.stacked {
 			t.Errorf("at %d columns GLANCE takes %d, stacked %v, want 113 side by side: it doesn't grow", width, l.width, l.stacked)
 		}
 	}
@@ -114,7 +115,7 @@ func TestGlanceNarrowsItsWordsThenItsNamesThenStacks(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			l := layGlance(accounts, tt.width)
+			l := layGlance(status.Numbering{}, accounts, tt.width)
 			if l.column != tt.column || l.words != tt.words || l.width != tt.across || l.stacked != tt.stacked {
 				t.Errorf("at %d columns: names %d, words %d, across %d, stacked %v; want %d, %d, %d, %v",
 					tt.width, l.column, l.words, l.width, l.stacked, tt.column, tt.words, tt.across, tt.stacked)
@@ -461,7 +462,7 @@ func TestGlancesKeySaysWhatItsMarksMean(t *testing.T) {
 		{outMark, outInk}, {" runs out", mutedInk}, {"    ", ink{}},
 		{"66%", strongInk}, {" room left now", mutedInk},
 	}
-	if got := layGlance(trioConfigured(), 113).key; len(got) != 1 || got[0].width() != want.width() || got[0].plain() != want.plain() {
+	if got := layGlance(status.Numbering{}, trioConfigured(), 113).key; len(got) != 1 || got[0].width() != want.width() || got[0].plain() != want.plain() {
 		t.Fatalf("the key is %v, want one row, %q", got, want.plain())
 	}
 	c, l := glanceIn(glanceOf(trio(), Look{}), trioConfigured(), 113, 0)
@@ -477,7 +478,7 @@ func TestGlancesKeySaysWhatItsMarksMean(t *testing.T) {
 			x++
 		}
 	}
-	if got := len(layGlance(trioConfigured(), 52).key); got != 2 {
+	if got := len(layGlance(status.Numbering{}, trioConfigured(), 52).key); got != 2 {
 		t.Errorf("at 52 columns the key takes %d rows, want 2", got)
 	}
 }

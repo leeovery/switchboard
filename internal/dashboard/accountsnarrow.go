@@ -235,7 +235,7 @@ func (f Frame) stackTargets(s stack) []Target {
 // row.
 func (f Frame) turned(doc status.Document, now time.Time) compared {
 	m := f.Moment(doc, now)
-	return compared{f: f, m: m, now: now, page: f.Accounts.Page, shown: len(f.Accounts.Accounts), week: f.WeekWindow}
+	return compared{f: f, m: m, accounts: m.Configured(f.Accounts.Accounts), now: now, page: f.Accounts.Page, shown: len(f.Accounts.Accounts), week: f.WeekWindow}
 }
 
 // turnedWhole is turned Compare drawn whole, laid out as turnedLaid lays

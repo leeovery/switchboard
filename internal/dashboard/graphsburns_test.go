@@ -317,7 +317,7 @@ func TestGraphsCardsAreNumberedAsRunwayNumbersTheirAccounts(t *testing.T) {
 // to the router's ten.
 func TestGraphsNumbersAreAlignedAsRunwaysOfAllTheRoutersAccounts(t *testing.T) {
 	m := tenHeld().At(printNow, printPolicy)
-	_, names := numberedAsRunway(m, configured(tenIDs[:9]...))
+	_, names := graphsNamed(m, configured(tenIDs[:9]...))
 	runway := namesOf(m)
 	for i, n := range names {
 		if n.number != runway[i].number || n.label != runway[i].label {
@@ -331,7 +331,6 @@ func TestGraphsNumbersAreAlignedAsRunwaysOfAllTheRoutersAccounts(t *testing.T) {
 // ninth adds a digit, and so does the moment's tenth, though no card is
 // numbered past 9.
 func TestCardNumbersAreAlignedToTheWidestPlaceOrTheMomentsCount(t *testing.T) {
-	accounts := []status.AccountNow{{ID: "work"}, {ID: "client"}}
 	tests := []struct {
 		places []int
 		of     int
@@ -342,8 +341,9 @@ func TestCardNumbersAreAlignedToTheWidestPlaceOrTheMomentsCount(t *testing.T) {
 		{places: []int{1, 2}, of: 3, want: []string{"1", "2"}},
 	}
 	for _, tt := range tests {
+		accounts := []status.AccountNow{{ID: "work", Place: tt.places[0]}, {ID: "client", Place: tt.places[1]}}
 		var numbers []string
-		for _, n := range namesAt(accounts, tt.places, tt.of) {
+		for _, n := range namesAt(accounts, tt.of) {
 			numbers = append(numbers, n.number)
 		}
 		if !slices.Equal(numbers, tt.want) {

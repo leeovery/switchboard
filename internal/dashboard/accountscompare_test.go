@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"fmt"
 	"maps"
 	"regexp"
 	"slices"
@@ -326,8 +327,9 @@ func TestComparesColumnsScrollToShowTheFocusNoFurtherThanTheyMust(t *testing.T) 
 
 // Each head is cut to its column less a cell: a name past the most a column
 // holds whole with …, keeping its number and its marks. An account the config
-// holds and the document doesn't yet, as one just added, stands not read, its
-// week empty and its extra usage a dash.
+// holds and the document doesn't yet, as one just added in place of the
+// tenth, which the router still holds, stands not read, its week empty and
+// its extra usage a dash, numbered after the document's ten.
 func TestComparesHeadsKeepToTheirColumns(t *testing.T) {
 	configured := append(slices.Clone(tenFramed[:9]), config.Account{ID: "added"})
 	f, doc := tenOnCompare(t, 160, 37, 4)
@@ -337,7 +339,7 @@ func TestComparesHeadsKeepToTheirColumns(t *testing.T) {
 		row, column int
 		want        string
 	}{
-		{row: 6, column: 121, want: "10 added           "},
+		{row: 6, column: 121, want: "11 added           "},
 		{row: 7, column: 121, want: "○ not read         "},
 		{row: 9, column: 121, want: "              —    "},
 		{row: 31, column: 121, want: "—                  "},
@@ -347,6 +349,62 @@ func TestComparesHeadsKeepToTheirColumns(t *testing.T) {
 			t.Errorf("row %d from column %d reads %q, want %q", tt.row, tt.column, got, tt.want)
 		}
 	}
+}
+
+// The heading says which accounts Compare shows by the range of their
+// numbers only where every configured account's number is its place in the
+// config: where the config and the router agree, one added at the config's
+// end that the router doesn't hold yet, or the last removed while the router
+// still holds it, none of which numbers an account past the count or out of
+// order. Anywhere else it counts them, at every scroll alike: with the first
+// or a middle one removed while the router holds it; with the config
+// reordered, 3, 4, 1, 2, or with its last two swapped, out of order only
+// past the first columns shown; and with one removed and another added.
+func TestComparesHeadingSaysWhichAccountsItShowsByTheirNumbers(t *testing.T) {
+	ten, four := usageWorld(tenCompared, extraOff), usageWorld(tenCompared, extraOff, heldFirst(4))
+	tests := []struct {
+		name       string
+		configured config.Accounts
+		doc        status.Document
+		width      int
+		ranged     bool
+	}{
+		{name: "ten, the config and the router agreeing", configured: tenFramed, doc: ten, width: 160, ranged: true},
+		{name: "four, one added at the end", configured: slices.Concat(tenFramed[:3], configured("added")), doc: usageWorld(extraOff), width: 90, ranged: true},
+		{name: "nine of ten, the last removed", configured: tenFramed[:9], doc: ten, width: 160, ranged: true},
+		{name: "three of four, the first removed", configured: tenFramed[1:4], doc: four, width: 90},
+		{name: "nine of ten, the first removed", configured: tenFramed[1:], doc: ten, width: 160},
+		{name: "nine of ten, the fifth removed", configured: slices.Concat(tenFramed[:4], tenFramed[5:]), doc: ten, width: 160},
+		{name: "four, reordered", configured: slices.Concat(tenFramed[2:4], tenFramed[:2]), doc: four, width: 90},
+		{name: "ten, the last two swapped", configured: slices.Concat(tenFramed[:8], tenFramed[9:], tenFramed[8:9]), doc: ten, width: 160},
+		{name: "three, one removed and one added", configured: configured("work", "side", "client"), doc: usageWorld(extraOff), width: 90},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			n := len(tt.configured)
+			f := frameOf(tt.width, 37)
+			f.View, f.WeekWindow, f.Accounts = Accounts, "7d", AccountsShown{Accounts: tt.configured}
+			shown := f.At(tt.doc, routedAt).compareShows()
+			if shown < 2 || shown >= n {
+				t.Fatalf("Compare shows %d of %d accounts at %d columns; want some, not all, for its heading to say which", shown, n, tt.width)
+			}
+			for first := range n - shown + 1 {
+				f.Accounts.First = first
+				want := fmt.Sprintf("%d of %d accounts", shown, n)
+				if tt.ranged {
+					want = fmt.Sprintf("accounts %d–%d of %d", first+1, first+shown, n)
+				}
+				if rowWith(textOf(f.Draw(tt.doc, routedAt)), want+"  ·  ") < 0 {
+					t.Errorf("scrolled to the %d-th, no row says %q", first+1, want)
+				}
+			}
+		})
+	}
+}
+
+// heldFirst has the router hold its first n accounts alone.
+func heldFirst(n int) func(*status.Document) {
+	return func(d *status.Document) { d.Accounts = d.Accounts[:n] }
 }
 
 // A name is at most 24 cells, its marks among them, however wide its column:
