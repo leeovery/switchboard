@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -42,6 +43,7 @@ It logs to the router's log, and to the terminal when it runs in one.
 		Args:        noArgs,
 		Annotations: map[string]string{roleAnnotation: string(logs.RoleRouter)},
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			a.trimLaunchdLog(cmd.OutOrStdout(), cmd.ErrOrStderr())
 			return a.serve(cmd.Context())
 		},
 	}
@@ -107,6 +109,22 @@ func (a *app) serve(ctx context.Context) error {
 // launchdJob is the variable launchd sets to the label of the job it runs a
 // program as: the service's, when it runs the router.
 const launchdJob = "XPC_SERVICE_NAME"
+
+// trimLaunchdLog trims launchd's log as the router starts, as logs.TrimOutput
+// does, where held, the router's output and its errors, are it, as launchd
+// makes them when the service runs the router: nothing else trims it. A
+// router run by hand, its output elsewhere, leaves it alone, and one without
+// a state directory fails to serve, saying why.
+func (a *app) trimLaunchdLog(held ...io.Writer) {
+	stateDir, err := config.StateDir(a.Getenv, a.HomeDir)
+	if err != nil {
+		return
+	}
+	path := service.LogIn(stateDir)
+	if err := logs.TrimOutput(path, held...); err != nil {
+		logger.Warn("can't trim launchd's log", "path", path, "error", err)
+	}
+}
 
 // binary returns this switchboard binary, by the path it was run by, which
 // the router watches for an upgrade, or "" when it can't be found.

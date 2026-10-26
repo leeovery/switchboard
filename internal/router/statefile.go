@@ -182,15 +182,18 @@ func parseState(data []byte) (savedState, error) {
 	return h, nil
 }
 
-// setAside renames the corrupt state file to <path>.corrupt-<now in Unix
-// seconds>.
+// setAside sets the corrupt state file aside, at now, as atomicfile.SetAside
+// does.
 func (f *stateFile) setAside(now time.Time, corruption error) {
-	aside := fmt.Sprintf("%s.corrupt-%d", f.path, now.Unix())
-	if err := os.Rename(f.path, aside); err != nil {
+	aside, err := atomicfile.SetAside(f.path, now)
+	if aside == "" {
 		logger.Warn("state file corrupt, and can't be set aside; starting empty", "path", f.path, "error", corruption, "rename_error", err)
 		return
 	}
 	logger.Warn("state file corrupt; set aside, starting empty", "path", f.path, "aside", aside, "error", corruption)
+	if err != nil {
+		logger.Warn("can't remove the older state files set aside", "path", f.path, "error", err)
+	}
 }
 
 // keep writes the state file saveAfter after a change, so a burst of changes

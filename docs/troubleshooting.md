@@ -67,7 +67,8 @@ time=2026-09-28T14:12:00.123+01:00 level=INFO msg=routed component=router pid=42
   set. For the router, `serve --log-level` overrides it, and so does `service install --log-level`,
   which passes it on.
 - **Rotation:** `router.log` and `cli.log` roll over before they'd pass 10 MiB, and each keeps five
-  old files. Nothing rolls `launchd.log`, which launchd writes.
+  old files. `launchd.log`, which launchd writes, isn't rolled over: once it passes 10 MiB, it's
+  cut to its newest 5 MiB as the service starts the router.
 - **Redaction:** nothing logs a token or an account's label. Accounts appear by id, and anything
   shaped like a token is replaced with `[redacted]`.
 - **Never in the way:** no command logs to stdout or stderr, except `serve` at a terminal. So

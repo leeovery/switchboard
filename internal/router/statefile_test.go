@@ -868,6 +868,33 @@ func TestLoadingSetsACorruptStateFileAside(t *testing.T) {
 	}
 }
 
+func TestLoadingKeepsTheNewestThreeStateFilesSetAside(t *testing.T) {
+	dir := t.TempDir()
+	aside := func(at time.Time) string { return fmt.Sprintf("state.json.corrupt-%d", at.Unix()) }
+	older := []time.Time{start.Add(-3 * time.Hour), start.Add(-2 * time.Hour), start.Add(-time.Hour)}
+	for _, at := range older {
+		if err := os.WriteFile(filepath.Join(dir, aside(at)), []byte("{"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(dir, "state.json"), []byte("{\"sessi"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	newTestFile(at(start), testAccounts()).load(filepath.Join(dir, "state.json"))
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, e := range entries {
+		got = append(got, e.Name())
+	}
+	if want := []string{aside(older[1]), aside(older[2]), aside(start)}; !slices.Equal(got, want) {
+		t.Errorf("the state directory holds %q, want the newest three set aside: %q", got, want)
+	}
+}
+
 func TestLoadingAStateFileThatCantBeRead(t *testing.T) {
 	log := logstest.Capture(t)
 	path := filepath.Join(t.TempDir(), "state.json")

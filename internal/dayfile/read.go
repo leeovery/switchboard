@@ -504,7 +504,7 @@ func (f *Files) openOne(file dayFile, failed []fileError) (*openFile, []fileErro
 // nil where it isn't there, in the order its lines came: the compressed
 // file, then the plain one, which holds those added since the day was
 // compressed, as after the clock was set back to it; but the compressed file
-// alone where it ends with the plain file's lines, as plainCompressed says,
+// alone where it ends with the plain file's lines, as holdsAll says,
 // as when the day was compressed between the files' openings, or a writer
 // stopped once it had written the compressed file, before it removed the
 // plain one. To tell, it reads the two whole, from the files opened, so it
@@ -521,7 +521,7 @@ func dayOpened(plain, compressed *openFile) []openFile {
 		return []openFile{*compressed}
 	}
 	plainLines, compressedLines := readWhole(plain), readWhole(compressed)
-	if plainLines.err == nil && (dayHeld{plain: plainLines.lines, compressed: compressedLines.lines}).plainCompressed() {
+	if plainLines.err == nil && holdsAll(compressedLines.lines, plainLines.lines) {
 		return []openFile{compressedLines.file()}
 	}
 	return []openFile{compressedLines.file(), plainLines.file()}
