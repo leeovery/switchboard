@@ -299,9 +299,15 @@ config, as a newer version's rules can be stricter than the running one's, such 
 limit on labels. If the new version refuses, the router carries on as it is, and says why once: in
 its log, in its events, and as `restart.held` in `switchboard status --json`. `switchboard status`
 reads `restart due since Mon 14:02 (upgraded), held:` and the reason, and the dashboard's status
-line `restart held (upgraded)`. It asks again once you change the config, or the binary changes
-again. A version from before this check can't answer, and the router restarts into it as it always
-has.
+line `restart held (upgraded)`. The `switchboard` you run is the new version too, so it can't read
+the config either: `switchboard status` shows the router's document all the same, then fails with
+the config's error, `usage` and a dashboard you open then fail on it, and each `claude` starts
+without switchboard until you put the config right. The router asks again once you change the
+config, or the binary changes again. A version from before this check can't answer, and the router
+restarts into it as it always has.
+
+Only the new version judges your config for an upgrade: an edit to the config that only it takes,
+such as a key it brings, doesn't hold the upgrade off.
 
 Restarting in place also means launchd isn't asked to start an upgraded binary afresh. macOS has
 been seen to refuse that, while it lets the router run the new binary in place, as the first such

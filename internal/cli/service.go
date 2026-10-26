@@ -75,10 +75,12 @@ func newServiceRestartCommand(a *app) *cobra.Command {
 		Long: `Restart the router, which reads the config and the tokens afresh. It gives the
 requests in flight up to 30 seconds to finish, then replaces itself with its
 binary, in place, handing its listeners over, so no request is refused;
-restart waits for the new one to answer. A router from before routers
-restarted when asked stops as it does at a signal, and launchd starts it
-again. With no router answering, there's nothing to finish, and launchd
-starts the service afresh at once.`,
+restart waits for the new one to answer. The router first asks its binary
+whether it could start, and refuses, saying why, where the binary refuses,
+as a newer version can refuse a config the running one takes: put the config
+right as it says. A router from before routers restarted when asked stops as
+it does at a signal, and launchd starts it again. With no router answering,
+there's nothing to finish, and launchd starts the service afresh at once.`,
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return a.restartService(cmd.Context(), cmd.OutOrStdout())
@@ -120,14 +122,16 @@ func (a *app) service() (*service.Service, error) {
 }
 
 // installService installs the LaunchAgent to run this switchboard binary as
-// opts says, serving the config the CLI finds, once it has read the config
-// as the router would, and says how the router it starts answers.
+// opts says, serving the config the CLI finds, once it has checked what the
+// router would start from, as serve's check does, so a router that couldn't
+// start never replaces one that runs, and says how the router it starts
+// answers.
 func (a *app) installService(ctx context.Context, out, errOut io.Writer, opts service.InstallOptions) error {
 	svc, err := a.service()
 	if err != nil {
 		return err
 	}
-	cfg, err := a.loadConfig()
+	cfg, err := a.startable()
 	if err != nil {
 		return err
 	}

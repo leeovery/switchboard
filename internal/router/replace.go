@@ -6,7 +6,6 @@ import (
 	"errors"
 	"io/fs"
 	"net"
-	"net/http"
 	"net/netip"
 	"os"
 	"time"
@@ -65,13 +64,14 @@ func (r *Router) hold(ls listeners) *handover.Held {
 // router this one becomes; then ends the request stream, its readers writing
 // what they were told of, and has stopBackground stop what the router runs
 // beside its servers, the control API answering still, closes the control
-// API, and returns held, to hand over. Told to stop meanwhile, as by a
-// signal, it stops as at one after all: the sockets held close, so no
-// request waits on one nothing will take up, its control socket is removed,
-// and then the control API goes, so a launcher that finds the router gone
+// API, answering what it has accepted, as closeControl does, and returns
+// held, to hand over. Told to stop meanwhile, as by a signal, it stops as at
+// one after all: the sockets held close, so no request waits on one nothing
+// will take up, its control socket is removed, and then the control API
+// goes, as closeControl closes it, so a launcher that finds the router gone
 // finds nothing on its proxy's address either, and goes as it does with the
 // router down; it returns nil once the requests in flight have finished.
-func (r *Router) drainHandingOver(ctx context.Context, control *http.Server, proxy proxyServer, held *handover.Held, stopBackground func()) *handover.Held {
+func (r *Router) drainHandingOver(ctx context.Context, control controlServer, proxy proxyServer, held *handover.Held, stopBackground func()) *handover.Held {
 	refuse(proxy.Server)
 	drained := make(chan struct{})
 	go func() {
@@ -89,13 +89,13 @@ func (r *Router) drainHandingOver(ctx context.Context, control *http.Server, pro
 		// connection made to a unix socket as it closes hanging, neither
 		// answered nor closed (proven by experiment).
 		r.removeSocket()
-		_ = control.Close()
+		r.closeControl(control)
 		<-drained
 		return nil
 	}
 	r.stream.end(streamEndWait)
 	stopBackground()
-	_ = control.Close()
+	r.closeControl(control)
 	return held
 }
 

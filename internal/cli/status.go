@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -30,7 +31,10 @@ seen and its health; else read by probing each account, as --probe does
 whether the router runs or not. The last line says which, but for a restart
 the router has due, which the line under it says, with how to have it now.
 When the claude a shell runs from PATH isn't switchboard, so the sessions it
-starts don't go through the router, the first line says so.
+starts don't go through the router, the first line says so. Where the config
+can't be read, as when an upgrade's rules refuse it and the router's restart
+into the new version is held, status shows the router's document while the
+router answers, then fails, saying why the config can't be read.
 
 On a terminal, status prints this as text. Anywhere else, as in a pipe or an
 agent's shell, it prints the status document as JSON, for an agent or a
@@ -65,16 +69,17 @@ switchboard service install (or switchboard serve).
 			if session != "" {
 				return a.sessionStatus(cmd.Context(), out, session, form.json)
 			}
-			_, doc, err := a.collect(cmd.Context(), probe, readOnce(refresh))
+			doc, unread, err := a.statusDocument(cmd.Context(), probe, readOnce(refresh))
 			if err != nil {
 				return err
 			}
 			if a.printsJSON(form, out) {
-				return writeJSON(out, doc)
+				err = writeJSON(out, doc)
+			} else {
+				m := doc.At(a.Now(), claude.Policy())
+				_, err = io.WriteString(out, a.unrouted()+m.Text(a.running(cmd.Context(), m)...))
 			}
-			m := doc.At(a.Now(), claude.Policy())
-			_, err = io.WriteString(out, a.unrouted()+m.Text(a.running(cmd.Context(), m)...))
-			return err
+			return cmp.Or(err, unread)
 		},
 	}
 	form.addWithJSON(cmd, "print the status document as JSON, as off a terminal; with --session, the session's every model and why it went where it did")

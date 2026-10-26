@@ -6865,8 +6865,13 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
   config, and the router compares them with that, so a change or an upgrade made while the router
   starts calls for a restart too.
 - Any restart waits for a moment with no requests in flight, there being no hurry, and for the
-  config file to make a valid config, which the router started again needs: an upgrade while the
-  config file is invalid waits for it to be put right. A connection upgraded, such as a
+  config file to make a valid config, which the router started again needs. Who judges it is the
+  version the router restarts into: for a config change or a new time zone, the running one, so
+  a config file it refuses holds them off until it's put right; for an upgrade, the new binary,
+  asked first (see The binary asked first), as its rules can take a config the running version's
+  refuse, such as one using a key only the new version knows, so an upgrade is due whatever the
+  running version makes of the config, and only the new binary's refusal holds it. A router not
+  given a binary to ask judges an upgrade by its own rules. A connection upgraded, such as a
   WebSocket, isn't a request in flight, as it can stay open for as long as its session runs.
 - **The binary asked first.** A config the running version takes can be one a newer version's
   rules refuse, as the label's 100 characters (#142) were the first to, and a router started from
@@ -6900,20 +6905,28 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
   - **While it's held,** the router carries on as it is, and says why once: at `warn` in its log,
     in a `restart` event with `held` (see The router's events), and in the status document's
     `restart`, `held` (see The status document), which `status`, the status line, LATELY and the
-    Log word as held. A restart that falls due again while the refusal holds, as when the config
-    file has been gone a while and comes back as it was, is told of held too, with no second
+    Log word as held. A restart that falls due again while the refusal holds, as when a config
+    change's config file has been gone a while and comes back as it was, is told of held too, with
+    no second
     warning. It asks again only once the config file or the binary moves on, there and
     another file or changed, never at a look, so a config put right is taken up, and a newer
     binary is too. A path that leads nowhere for a moment, as `brew` moves the binary's link on or
     an editor saves the config, hasn't moved on: lifting the hold then would ask a binary that
     isn't there, which can't answer, and restart into the one that refused. `service restart`
-    meanwhile is refused with the binary's reason.
+    meanwhile is refused with the binary's reason. The CLI the user runs is that newer binary, and
+    can't read the config either: `status`, as text or JSON, shows the router's document while the
+    router answers, its restart held, then fails with the config's error, which it fails with
+    alone where the router doesn't answer, or with `--probe`, which needs the config; `usage` and a
+    dashboard opened then fail on the config; and each `claude` started meanwhile starts unaided,
+    as for any config it can't read, until the config is put right (routing them through the held
+    router is an idea of its own, held-router-routes-unread-config).
 - **In place.** The router then replaces itself. It stops taking requests, and finishes those in
   flight, as it does at a signal; then, the control API answering on, so a `claude` started
   meanwhile is routed, its requests waiting on the proxy's socket held open, it stops all it runs
-  beside its servers, the notifications still gathering sent; then the control API closes, and the
-  state file is saved and the events filed after it, so a pin set meanwhile is kept for the router
-  it becomes. The control socket goes unanswered only from then until that router takes it up.
+  beside its servers, the notifications still gathering sent; then the control API closes,
+  answering what it had accepted (see The control API's last asks), and the state file is saved
+  and the events filed after it, so a pin set meanwhile is kept for the router it becomes. The
+  control socket goes unanswered only from then until that router takes it up.
   Then it `exec`s its binary, by the path it was started as, which an upgrade leads on to the new
   version, with the command line and the environment it was started with. The process keeps its id, so launchd sees no exit, and has
   nothing to start. Its listening sockets, the proxy's and the control socket, stay open
@@ -6961,6 +6974,20 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
   one taken after that is this process's alone, and never reaches the router it becomes, so launchd,
   booting the service out then, waits its 45 seconds and kills it. That moment is the width of the
   `exec` itself, and of the signal's way to the router's own context, a hand-off between goroutines.
+- **The control API's last asks.** However the router stops, restarting in place, told to stop as
+  it restarts, or at a signal, its control API takes no request from the moment it closes, and
+  answers those it had accepted, a launcher's health check among them, for a second at most: a
+  health check takes milliseconds, so one accepted as it closes is answered rather than cut off,
+  while a request that waits on more, as a refresh waits on its probes, holds the stop up no
+  longer, and restarting in place every request waits at the proxy's socket meanwhile. Any still
+  going then is cut off, and a launcher's asks again, as of a router not running (see Asking the
+  router). The request stream ends first, so a dashboard's holds nothing up. The router saves its
+  state file and files its events only once every request the control API accepted is done with
+  it, so what one changes, such as a pin, is kept for the router it becomes, never lost to a
+  handler that outlives the close. At a signal, the control API closes while the proxy's requests
+  drain, within their 30 seconds, so the 45 launchd gives the stop still hold. Its socket goes as
+  its listener closes, but restarting in place, where it's held, and the connections made
+  meanwhile wait for the router it becomes.
 - Only the LaunchAgent's router restarts itself: launchd sets `XPC_SERVICE_NAME` to the label of
   the job it runs, which the router checks against the service's. Run by hand with `serve`, the
   router logs, once, that a restart is due instead of restarting.
@@ -7440,9 +7467,9 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 | `POST /sessions/{id}/pin`, `DELETE /sessions/{id}/pin` | Set (`{"account": "work", "by": "dashboard"}`) or clear (`?by=dashboard`) one session's own pin, answering as `/sessions/{id}` does. `by`, `cli` or `dashboard`, says who did, for the `pin` or `auto` event it's told as (see The router's events); without it, the event names no one, and a router from before passes it over. 404 for a session never seen; pinning to an account nothing can go out on is a 400 |
 | `POST /pin`, `DELETE /pin` | Set (`{"accounts": ["work", "side"], "move": false, "force": false, "by": "cli"}`) or clear (`?by=cli`, with `&force=true` to clear every session's own pin too) the global pin, answering with the status document. `account`, naming one account, is taken as well, as a switchboard from before pins named several sends it, and sent beside `accounts` with a pin of one account, as such a router reads a pin, one still running between an upgrade and its restart. `by`, `cli` or `dashboard`, says who did, for the `pin` or `auto` event it's told as (see The router's events); without it, the event names no one, and a router from before passes it over. Pinning no account, or any account nothing can go out on, is a 400, saying why (see Pinning), and pins nothing |
 | `GET /history?window=<key>&step=<duration>` | Every account's use of a window over its current length, from the readings history and the readings since: `{"window": "7d", "step": "30m", "accounts": [{"id": "work", "start": …, "points": [{at, utilization}]}]}`, `start` when the account's window started, its reset less its length, or its `restarted_at`, and a point each step from it to now, at most 1,000, each the last reading at or before it, left out where none was; an account whose window isn't running, or wasn't read, has no points, and one whose window has reset since it was read has no `start` either. A window whose length can't be read, or a step that isn't a duration, isn't more than 0, or would take more than 1,000 steps over the window's whole length, is a 400, saying what to give, the least step included. The dashboard's charts ask for `5h` at 5-minute steps and the weeks at 30-minute steps, with each full read |
-| `GET /stream` | The requests as they happen, for the dashboard's views of what's in flight: the Overview's ROUTING and SESSIONS, Accounts' Detail, Sessions, the Log and a session's page. Held open, `application/x-ndjson`, a line of JSON an event, every one `{at, kind, request, attempt, session, dir, model, account, prompt, class, agent_id}` and what its kind adds, `request` the router's id for the request, counting up from a random start, and unique while it runs, `attempt` which time it went upstream, `session` and `model` cut to 200 bytes, `dir` the directory the request's session was started in, as its line in the ledger will give it, the home as `~` and cut as a line's is (see The request ledger), left out where the request names none, `account` the account it goes out on, or, of `first` and `done`, the one whose answer the client got, and `prompt`, `class` and `agent_id` as its line in the ledger will give them, each left out where the request carries none, so a session's page counts a request into its turn as it's sent (see A session's page). It opens with an `inflight` for each request already in flight, adding `sent_at`, `first_at` and `chars`, and `verdict`, the last of `limited`, `throttled` or `refused` told of it on the account it went out on last, with that answer's `status`; then `sent` as one goes upstream; `first` at its answer's first byte; `progress`, with `chars`, the characters of its text, thinking and tool input so far, a quarter second after its answer streams more, then every quarter second while it does, as the API counts tokens only as an answer ends; `done` as it ends, told before the router has finished with the request, with `status`, its final `chars`, and `tokens`, the closing usage's counts, `{input, output, cache_read, cache_write}`, left out without one; `limited`, a 429 at a limit, `throttled`, a 429 sent again on the account, and `refused`, a 401 or 403, each with `status`; and `moved`, with `from`, `to` and `reason`, its `account` the `to`, which a request every account refused tells as it takes its session back, `back where it was before its request`. `limited` and `refused` are told once the router has judged the answer a limit or a refusal of the account: a 429 from before a reset made by hand, which goes out again on the same account, or a 401 to a token replaced since, which goes out again on it once, then on another, are neither. A request the router knows for Claude Code's quota check carries `check: true`. A token count carries `count: true`. Requests that never go upstream, and those passed through, aren't on it. Reading the counts reads a copy of the answer's stream as it passes, decoded where it's gzip or deflate, as the request asked for one of those alone (see Proxy rules), never changing or holding the bytes passed on; an answer in another encoding goes uncounted, its bytes untouched. A reader that falls 256 events behind is dropped, and reconnects, and one that takes more than 10 seconds over a write is cut off. A stream ends as the control API closes; a restart in place ends it first, after its drain, once each reader has written what it was told of, waiting half a second at most, so its readers see the requests the router finished, and the dashboard reconnects to the router it becomes, while one that can't replace itself, and exits for launchd to start it again, closes it at once, as stopping does |
+| `GET /stream` | The requests as they happen, for the dashboard's views of what's in flight: the Overview's ROUTING and SESSIONS, Accounts' Detail, Sessions, the Log and a session's page. Held open, `application/x-ndjson`, a line of JSON an event, every one `{at, kind, request, attempt, session, dir, model, account, prompt, class, agent_id}` and what its kind adds, `request` the router's id for the request, counting up from a random start, and unique while it runs, `attempt` which time it went upstream, `session` and `model` cut to 200 bytes, `dir` the directory the request's session was started in, as its line in the ledger will give it, the home as `~` and cut as a line's is (see The request ledger), left out where the request names none, `account` the account it goes out on, or, of `first` and `done`, the one whose answer the client got, and `prompt`, `class` and `agent_id` as its line in the ledger will give them, each left out where the request carries none, so a session's page counts a request into its turn as it's sent (see A session's page). It opens with an `inflight` for each request already in flight, adding `sent_at`, `first_at` and `chars`, and `verdict`, the last of `limited`, `throttled` or `refused` told of it on the account it went out on last, with that answer's `status`; then `sent` as one goes upstream; `first` at its answer's first byte; `progress`, with `chars`, the characters of its text, thinking and tool input so far, a quarter second after its answer streams more, then every quarter second while it does, as the API counts tokens only as an answer ends; `done` as it ends, told before the router has finished with the request, with `status`, its final `chars`, and `tokens`, the closing usage's counts, `{input, output, cache_read, cache_write}`, left out without one; `limited`, a 429 at a limit, `throttled`, a 429 sent again on the account, and `refused`, a 401 or 403, each with `status`; and `moved`, with `from`, `to` and `reason`, its `account` the `to`, which a request every account refused tells as it takes its session back, `back where it was before its request`. `limited` and `refused` are told once the router has judged the answer a limit or a refusal of the account: a 429 from before a reset made by hand, which goes out again on the same account, or a 401 to a token replaced since, which goes out again on it once, then on another, are neither. A request the router knows for Claude Code's quota check carries `check: true`. A token count carries `count: true`. Requests that never go upstream, and those passed through, aren't on it. Reading the counts reads a copy of the answer's stream as it passes, decoded where it's gzip or deflate, as the request asked for one of those alone (see Proxy rules), never changing or holding the bytes passed on; an answer in another encoding goes uncounted, its bytes untouched. A reader that falls 256 events behind is dropped, and reconnects, and one that takes more than 10 seconds over a write is cut off. A stream ends as the control API closes; a restart in place ends it first, after its drain, once each reader has written what it was told of, waiting half a second at most, so its readers see the requests the router finished, and the dashboard reconnects to the router it becomes, while one that can't replace itself, and exits for launchd to start it again, ends it as the control API closes, as stopping does, its readers writing what they were told of within the second the control API gives the requests it accepted (see The router looking after itself) |
 | `POST /refresh` | Probe the accounts nothing has been read of for longer than `{"max_age": "30m"}`, and those that can take no request anyway, however lately they were read, but for those whose 5-hour window has lapsed and that can take a request (see Priming), sharing the probes choices and the router's rounds make and waiting a minute after one ended, as they do; wait 10 seconds at most for them, and answer with the status document. The dashboard asks on `R`, and a minute after a window on screen resets |
-| `POST /restart` | Restart now, as `service restart` asks: answer as `GET /health` does, with `in_place`, whether it means to replace itself in place rather than exit for launchd to start it again, as when it doesn't know its binary; then finish the requests in flight, within 30 seconds, those it cuts off then given 5 more to unwind, and restart as the router restarts itself (see The router looking after itself). A 409, saying why, from a router run by hand, which nothing would start again, while its config file doesn't make a valid config, which it couldn't start again from, while its binary isn't there, as for a moment mid-upgrade, while its binary, asked first, refuses to start, with why it refused, and where either file changed as the config was read or the binary asked, naming which, to be tried again (see The router looking after itself). A router restarting already takes it, asking nothing, as the restart it makes. `service restart` waits 15 seconds for the answer, the binary's 10 among them |
+| `POST /restart` | Restart now, as `service restart` asks: answer as `GET /health` does, with `in_place`, whether it means to replace itself in place rather than exit for launchd to start it again, as when it doesn't know its binary; then finish the requests in flight, within 30 seconds, those it cuts off then given 5 more to unwind, and restart as the router restarts itself (see The router looking after itself). A 409, saying why, from a router run by hand, which nothing would start again, while its config file doesn't make a valid config, which it couldn't start again from, by its own rules but after an upgrade, which the new binary's judge, while its binary isn't there, as for a moment mid-upgrade, while its binary, asked first, refuses to start, with why it refused, and where either file changed as the config was read or the binary asked, naming which, to be tried again (see The router looking after itself). A router restarting already takes it, asking nothing, as the restart it makes. `service restart` waits 15 seconds for the answer, the binary's 10 among them |
 
 A request an endpoint refuses is answered `{"error": "<why>"}`; any other path or method gets the
 standard library's plain 404 or 405. Times are given in UTC.
@@ -7632,8 +7659,12 @@ verbs).
   /health`: a slow router isn't a dead one, and on a machine far behind a live router takes
   seconds to answer. A router that isn't running, nothing listening on its socket, is asked again
   every 200ms for the first 2 seconds, as launchd may be bringing it back, or it may be restarting.
-  One that connects is asked once, and given what's left of the 5 seconds, as asking again would
-  add work to a machine already behind. Any other answer is taken at once. `dashboard`, `usage` and
+  So is one that closes the connection before it begins to answer, at its end or by a reset, as a
+  router stopping does with an ask it hasn't answered in time (see The router looking after
+  itself): it isn't running at that moment (the owner's call, 26 October 2026). One that connects
+  is asked once, and given what's left of the 5 seconds, as asking again would add work to a
+  machine already behind, and an answer cut off once it has begun is taken as it is. Any other
+  answer is taken at once. `dashboard`, `usage` and
   `status` ask it alike (see Live updates). The log's `starting claude` line says how long asking
   took, routed or direct, as `asked=312ms`.
 - **Routed:** when the router answers `ok`, `run` starts Claude Code with `ANTHROPIC_BASE_URL`
@@ -7676,7 +7707,8 @@ verbs).
   `CLAUDE_CODE_GATEWAY_HINT_HEADERS` where it set it, each with the user's value it replaced, and
   each line it added to `ANTHROPIC_CUSTOM_HEADERS`, with the user's headers where they were set to
   nothing. Every launch but a local subcommand's, and an unaided one's within a session still sent
-  to `run`'s router, starts from the environment as the user set it: each variable the mark names
+  to `run`'s router that hasn't found that router down, starts from the environment as the user
+  set it: each variable the mark names
   that still holds the value `run` gave it goes back to the user's, or goes where the user had
   none, and the header lines `run` added go, the user's own staying. A variable changed since, as
   by a script pointing `claude` at a gateway of its own, stays as it is. So a `claude` started
@@ -7684,15 +7716,26 @@ verbs).
   router, carries nothing of switchboard's, and a session started within a session marks only what
   it sets itself. One started unaided within a session whose base URL is still the one `run` gave
   it gets the session's environment as it is, mark and all, so the session's router, which still
-  runs, routes and records it as before: only that launch couldn't take part. Where the base URL
-  has changed since, it starts from the user's environment, as stepping aside does, the changed
+  runs, routes and records it as before: only that launch couldn't take part, and its line on
+  stderr ends `— starting claude through this session's router`. That holds only where the launch
+  didn't ask the router, as when it can't read its config or locate the router's state directory,
+  or asked it and found it healthy. One that found the router down, going direct, as
+  `when_router_down` or the variable says, with no account's token usable, starts from the user's
+  environment, as stepping aside does: the session's router isn't there to route it, and Claude
+  Code would be pointed at nothing (decided in the cleanliness release's review, 26 October 2026).
+  Where the base URL has changed since, it starts from the user's environment too, the changed
   base URL staying, so nothing of switchboard's reaches another gateway. The token isn't marked:
   the user's own, which `run` replaced, can't be written into the mark, and without the value
   `run` gave it, a token set since couldn't be told from `run`'s. Nothing secret is written into
   the mark, which every process the session runs can read: a value `run` set holding anything
   token-shaped goes unmarked, and stays, and a value of the user's that `run` replaced holding a
   secret, anything token-shaped, or, as a URL, credentials in its userinfo or a query, isn't kept,
-  so its variable is marked as set where the user had none, and goes. A session started before
+  so its variable is marked as set where the user had none, and goes. A key a URL carries in its
+  path or its host, as a gateway that takes its key as a path segment has it, isn't seen, and is
+  kept: it can't be told from an ordinary path, which most gateways have, and the value was in the
+  session's environment already, as the user set it, so dropping every base URL with a path would
+  lose most gateways on stepping aside, to keep from the mark what every process already reads
+  (decided in the cleanliness release's review, 26 October 2026). A session started before
   the mark has none, and its environment goes on as it is, but for the pin and directory a routed
   or direct launch takes off (built in the cleanliness release, 26 October 2026).
 - **Never in the way:** switchboard never stands between the user and `claude` but for the router
@@ -7707,7 +7750,8 @@ verbs).
   but for the mark every `claude` it starts carries (see Finding the real `claude`) and
   `SWITCHBOARD_WHEN_ROUTER_DOWN`, which no launch passes on, a pin or directory inherited from a
   session before the mark included, saying why in one line on stderr: `switchboard: couldn't read
-  the config (…) — starting claude without it`. `run` fails only when the router is down and it
+  the config (…) — starting claude without it`, or, where a session's routing goes on, `… —
+  starting claude through this session's router`. `run` fails only when the router is down and it
   stops, when `claude` can't be found or can't start, or on a misused command line, such as
   `--account` naming an account that isn't configured, or has no usable token.
 - **An API key:** with `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` set, Claude Code may use the
@@ -7720,7 +7764,9 @@ verbs).
   `--direct` and Claude Code's local subcommands aren't affected.
 - **Claude Code's local subcommands:** `setup-token`, `update`, `upgrade`, `install`, `doctor`,
   `mcp`, `plugin`, `plugins`, `auth`, `import`, `project`, `auto-mode` and `gateway` look after
-  Claude Code on this machine, or set up its login, and switchboard has no part in them. When the
+  Claude Code on this machine, or set up its login, and `--version`, `-v`, `--help` and `-h` print
+  its version or its help, as a tool checking it asks; switchboard has no part in them, and they
+  go ahead with the router down. When the
   first of Claude Code's arguments names one, `run` starts `claude` as if switchboard weren't there,
   environment and arguments untouched but for that mark and `SWITCHBOARD_WHEN_ROUTER_DOWN`, an
   inherited pin or directory included, and says nothing; the log notes it at debug. `--direct` still
@@ -7747,8 +7793,11 @@ verbs).
   launchd's, finds it where its installers put it. Claude Code's arguments go after `--`,
   untouched and never logged; the log notes the decision: routed, direct or stopped, the router's
   state, and the account and why.
-- **The service:** `service install` reads the config first, as the router will, and fails on one it
-  can't read, rather than leave launchd restarting a router that can't start. It writes the
+- **The service:** `service install` first checks, in its own process, what `serve --check` checks
+  (see The binary asked first): the config, read as the router will, and the rest the router would
+  start from, the control socket's path in the state directory among them. It fails where the router
+  couldn't start, before it boots anything out, rather than replace a router that runs with one
+  launchd restarts again and again. It writes the
   LaunchAgent (`RunAtLoad`, `KeepAlive`, output to `launchd.log`, and an `ExitTimeOut` of 45
   seconds: the 30 the router gives requests in flight as it stops, 5 for those it cuts off to
   unwind, 3 for its last notifications to post, and 7 to save its state, and a `ProcessType` of
@@ -8445,7 +8494,8 @@ why.
 | GRAPHS and ROUTING beside USAGE, and usage's words in full, judged by their parts rather than at 150 and 70 columns | open: to discuss with its owner; the Overview's GRAPHS was removed on 26 October 2026, so only ROUTING sits beside USAGE now | [beside-and-full-words-by-parts](../ideas/2026-10-23--beside-and-full-words-by-parts.md) |
 | A model's window nearing its limit stacking USAGE from 86 columns to 121 | open: to discuss with its owner | [model-window-stacks-usage](../ideas/2026-10-23--model-window-stacks-usage.md) |
 | The Overview saying less at some taller heights, as ROUTING's traces and USAGE's blank rows take rows back | open: to discuss with its owner | [overview-height-sawtooth](../ideas/2026-10-23--overview-height-sawtooth.md) |
-| A config checked under the new binary's rules before a handover, so a rule an upgrade tightens, as a label's 100 characters, can't leave the router stopped | built in the cleanliness release, 26 October 2026: the new binary asked with `serve --check`, the restart held only on its refusal (see The router looking after itself); a config edited after an upgrade, before the handover, still judged by the running version's rules, left | [config-checked-before-handover](../ideas/2026-10-23--config-checked-before-handover.md) |
+| A config checked under the new binary's rules before a handover, so a rule an upgrade tightens, as a label's 100 characters, can't leave the router stopped | built in the cleanliness release, 26 October 2026: the new binary asked with `serve --check`, the restart held only on its refusal (see The router looking after itself); a config edited after an upgrade, before the handover, judged by the new binary since, as the release review's fixes built (26 October 2026) | [config-checked-before-handover](../ideas/2026-10-23--config-checked-before-handover.md) |
+| New sessions routed through a held router while the config can't be read, as when an upgrade's rules refuse it, rather than started unaided | open: to land before any release tightens a config rule; it changes the rule that a config that can't be read starts `claude` unaided, so it's the owner's call | [held-router-routes-unread-config](../ideas/2026-10-26--held-router-routes-unread-config.md) |
 | Judgments with Jev, beside or in place of fixed rules | to storm | [judgments-with-jev](../ideas/2026-09-30--judgments-with-jev.md) |
 | OAuth logins in place of setup tokens, kept fresh | next to discuss, after the cleanliness release, with signing in and setup (the owner, 26 October 2026) | [oauth-logins](../ideas/2026-09-30--oauth-logins.md) |
 | A billing month: each account's renewal day in the config, so Accounts' periods can follow its bill | later, after milestone 7 | [billing-month](../ideas/2026-10-08--billing-month.md) |

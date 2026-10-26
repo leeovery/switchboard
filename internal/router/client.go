@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"syscall"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/redact"
@@ -21,6 +22,10 @@ var (
 	// ErrNotRunning is what a Client's calls fail with, wrapped, when no
 	// router listens on its socket.
 	ErrNotRunning = errors.New("the router isn't running")
+	// ErrUnanswered is what a Client's calls fail with, wrapped, when the
+	// router closes the connection before it begins to answer, as one
+	// stopping does with what it hasn't answered in time.
+	ErrUnanswered = errors.New("the router closed the connection without answering")
 	// ErrUnknownSession is what Session fails with, followed by the session's
 	// id, when the router hasn't seen the session.
 	ErrUnknownSession = errors.New("the router hasn't seen session")
@@ -320,10 +325,13 @@ func (c *Client) send(ctx context.Context, method, path string, body any) (*http
 		return nil, err
 	}
 	resp, err := c.http.Do(req)
-	if err != nil {
-		if isDial(err) {
-			return nil, fmt.Errorf("%w: %w", ErrNotRunning, err)
-		}
+	switch {
+	case err == nil:
+	case isDial(err):
+		return nil, fmt.Errorf("%w: %w", ErrNotRunning, err)
+	case closedUnanswered(err):
+		return nil, fmt.Errorf("%w: %w", ErrUnanswered, err)
+	default:
 		return nil, fmt.Errorf("ask the router: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
@@ -372,4 +380,12 @@ func refused(resp *http.Response, method, path string) error {
 func isDial(err error) bool {
 	op, ok := errors.AsType[*net.OpError](err)
 	return ok && op.Op == "dial"
+}
+
+// closedUnanswered reports whether err, a request's that got no answer, is the
+// connection closing under it, at its end or by a reset, as it was read or
+// the request written, rather than its context ending or an answer that
+// isn't HTTP.
+func closedUnanswered(err error) bool {
+	return errors.Is(err, io.EOF) || errors.Is(err, syscall.ECONNRESET) || errors.Is(err, syscall.EPIPE)
 }

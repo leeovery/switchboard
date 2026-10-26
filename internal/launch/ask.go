@@ -56,13 +56,15 @@ func (p Patience) orDefault() Patience {
 // until a deadline: Answer on from it, or ctx's deadline where that comes
 // first.
 //
-//   - An answer, or an error that's neither router.ErrNotRunning nor a
-//     context's, is taken as it is, at once, even one that lands as the
+//   - An answer, or an error that's neither a context's nor one of a router
+//     not running, is taken as it is, at once, even one that lands as the
 //     deadline passes.
-//   - A router that isn't running, as router.ErrNotRunning says, may be
-//     coming back, and is asked again Again after the last ask ended, but
-//     never past Back, nor at or past the deadline: where the next ask
-//     would be, Ask stops with the last answer. A router that connects is
+//   - A router that isn't running, as router.ErrNotRunning says, or that
+//     closed the connection before it began to answer, as
+//     router.ErrUnanswered says and one stopping does, may be coming back,
+//     and is asked again Again after the last ask ended, but never past
+//     Back, nor at or past the deadline: where the next ask would be, Ask
+//     stops with the last answer. A router that answers, or begins to, is
 //     asked once, as asking again would add work to a router already behind.
 //   - An ask cut off, its dial or its request alike, as a context's error
 //     says, fails, once the deadline has passed, saying how long the router
@@ -84,7 +86,7 @@ func (p Patience) Ask(ctx context.Context, r Router) (router.Health, error) {
 		switch {
 		case isContextErr(err):
 			return router.Health{}, cutOff(ctx, asking, deadline.Sub(began), err)
-		case !errors.Is(err, router.ErrNotRunning):
+		case !mayBeComingBack(err):
 			return h, err
 		}
 		next := time.Now().Add(p.Again)
@@ -111,6 +113,13 @@ func cutOff(ctx, asking context.Context, had time.Duration, err error) error {
 	default:
 		return err
 	}
+}
+
+// mayBeComingBack reports whether err is an ask's that found the router not
+// running at that moment: nothing listening, or the connection closed before
+// any answer.
+func mayBeComingBack(err error) bool {
+	return errors.Is(err, router.ErrNotRunning) || errors.Is(err, router.ErrUnanswered)
 }
 
 func isContextErr(err error) bool {

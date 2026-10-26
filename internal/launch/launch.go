@@ -115,7 +115,7 @@ func (l Launcher) Run(ctx context.Context, r Route, args []string) error {
 	}
 	c, err := r.choose(pin, state.healthy())
 	if err != nil {
-		return l.unaided(path, args, "no account has a usable token", err)
+		return l.unaided(path, args, "no account has a usable token", err, !state.healthy())
 	}
 	own := l.own()
 	env := own
@@ -193,7 +193,7 @@ func (l Launcher) Unaided(args []string, couldnt string, err error) error {
 	if findErr != nil {
 		return findErr
 	}
-	return l.unaided(path, args, couldnt, err)
+	return l.unaided(path, args, couldnt, err, false)
 }
 
 // RouterUnfound starts Claude Code with args in this process's place as
@@ -209,23 +209,36 @@ func (l Launcher) RouterUnfound(down config.RouterDown, args []string, err error
 	if stopped := l.goDirect(down, routerState{name: notFound, reason: firstLine(err)}); stopped != nil {
 		return stopped
 	}
-	return l.unaided(path, args, "couldn't find the router", err)
+	return l.unaided(path, args, "couldn't find the router", err, false)
 }
 
-func (l Launcher) unaided(path string, args []string, couldnt string, err error) error {
-	logger.Warn("starting claude without switchboard", "reason", couldnt, "error", err, "claude", path)
-	Warn(l.Stderr, couldnt, err, "starting claude without it")
-	return l.exec(path, args, l.unaidedEnv())
+// unaided starts Claude Code, at path, with args, in the environment
+// unaidedEnv gives, saying what switchboard couldn't do, and why, and where
+// Claude Code goes instead: through the router of the session it's started
+// within, or without switchboard. foundDown says this launch found the router
+// down.
+func (l Launcher) unaided(path string, args []string, couldnt string, err error, foundDown bool) error {
+	env := l.unaidedEnv(foundDown)
+	routed := env.routedByRun()
+	instead := "starting claude without it"
+	if routed {
+		instead = "starting claude through this session's router"
+	}
+	logger.Warn("starting claude without switchboard", "reason", couldnt, "error", err, "session_router", routed, "claude", path)
+	Warn(l.Stderr, couldnt, err, instead)
+	return l.exec(path, args, env)
 }
 
 // unaidedEnv returns the environment Claude Code starts in unaided. Within a
 // session that still goes through the router run sent it to, it's passed on
 // as it is, mark and all: that router still routes it, and records it, as it
-// does the session; only this launch couldn't take part. Otherwise, as within
-// a session pointed at a gateway of its own since, it's the user's own.
-func (l Launcher) unaidedEnv() environ {
+// does the session; only this launch couldn't take part. But where this
+// launch, foundDown, found that router down, and as within a session pointed
+// at a gateway of its own since, it's the user's own, so Claude Code isn't
+// sent to a router that isn't there.
+func (l Launcher) unaidedEnv(foundDown bool) environ {
 	env := environ(l.Environ)
-	if env.routedByRun() {
+	if env.routedByRun() && !foundDown {
 		return env
 	}
 	return env.unmarked()

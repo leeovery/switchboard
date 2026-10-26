@@ -353,8 +353,8 @@ func (a *app) configFile() (string, error) {
 	return config.Path(a.Getenv, a.HomeDir)
 }
 
-// collect loads the config and reads the status document status and usage
-// print, as r asks, from the source that decides where it comes from,
+// collect loads the config and reads the status document usage prints, as r
+// asks, from the source that decides where it comes from,
 // probing alone when probe says so. It gives the config too, as usage lays
 // its printout out as the config says.
 func (a *app) collect(ctx context.Context, probe bool, r status.Read) (*config.Config, status.Document, error) {
@@ -366,13 +366,45 @@ func (a *app) collect(ctx context.Context, probe bool, r status.Read) (*config.C
 	return cfg, doc, err
 }
 
+// statusDocument reads the document status prints, as collect does; or,
+// where the config can't be read, and probing alone isn't asked for, the
+// router's, which the router keeps giving as it routes on, as while a newer
+// binary's refusal of the config holds its restart: it gives the config's
+// error as unread then, beside the router's document. Where the router
+// doesn't give its document either, it fails with the config's error, as
+// collect does.
+func (a *app) statusDocument(ctx context.Context, probe bool, r status.Read) (doc status.Document, unread, err error) {
+	cfg, err := a.loadConfig()
+	if err == nil {
+		doc, _, err = a.source(cfg, probe).Read(ctx, r)
+		return doc, nil, err
+	}
+	if probe {
+		return status.Document{}, nil, err
+	}
+	doc, _, readErr := a.routerSource().Read(ctx, status.Read{Refresh: r.Refresh})
+	if readErr != nil {
+		logger.Debug("can't read the router's document either", "error", readErr)
+		return status.Document{}, nil, err
+	}
+	return doc, err, nil
+}
+
 // source returns where the status document is read for the config given: the
 // router, unless probe says to probe alone, else probing every account in the
 // config. Every command that reports usage reads it here, so they all read it
 // the same way.
 func (a *app) source(cfg *config.Config, probe bool) usageSource {
-	probing := probeSource{deps: a.Deps, readToken: a.readToken, upstream: cfg.Upstream, accounts: cfg.Accounts, prime: cfg.Prime}
-	source := usageSource{probe: probing, ask: !probe, patience: a.Patience}
+	source := a.routerSource()
+	source.probe = probeSource{deps: a.Deps, readToken: a.readToken, upstream: cfg.Upstream, accounts: cfg.Accounts, prime: cfg.Prime}
+	source.ask = !probe
+	return source
+}
+
+// routerSource returns where the status document is read from the router
+// alone, with nothing to probe.
+func (a *app) routerSource() usageSource {
+	source := usageSource{ask: true, patience: a.Patience}
 	// Without a state directory there's no socket to find the router at,
 	// which reads as a router that isn't running.
 	var err error

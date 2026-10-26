@@ -33,7 +33,8 @@ const checkTimeout = 10 * time.Second
 // another file than the one running, as after an upgrade; or the system's
 // time zone, whose file does, as when the Mac is taken to another time zone.
 // A restart waits for a moment with no request in flight, and for the config
-// file to make a valid config, which the router started again needs; and the
+// file to make a valid config, which the router started again needs, by the
+// running version's rules but for an upgrade's, as due says; and the
 // binary it restarts into is asked whether it could start, the restart held
 // while it refuses, as a newer version's rules can refuse a config the
 // running version's took, and cleared while the config file and the binary
@@ -192,19 +193,28 @@ func (r *restarts) report() status.Restart {
 }
 
 // due says why a restart is due, as the config file, the binary and the time
-// zone's file last looked, or is "" while none is.
+// zone's file last looked, or is "" while none is. While the config file
+// makes no valid config by the running version's rules, none is but an
+// upgrade's, where the binary it restarts into is asked whether it could
+// start: that binary's rules, which may take what the running version's
+// refuse, decide.
 func (r *restarts) due() string {
 	switch {
-	case !r.config.valid:
-		return ""
-	case r.config.changed:
+	case r.config.valid && r.config.changed:
 		return restartForConfig
-	case r.binary.moved:
+	case r.binary.moved && (r.config.valid || r.ask != nil):
 		return restartForUpgrade
-	case r.zone.moved:
+	case r.config.valid && r.zone.moved:
 		return restartForZone
 	}
 	return ""
+}
+
+// newBinaryDecides reports whether the binary, standing as binary, has moved
+// on from the one running, as after an upgrade, and is asked whether it
+// could start: its rules, not the running version's, then judge the config.
+func (r *restarts) newBinaryDecides(binary fileState) bool {
+	return r.ask != nil && r.binary.running.there() && r.binary.running.movedTo(binary)
 }
 
 // configured returns the accounts the last valid config the config file has
@@ -316,10 +326,11 @@ func (r *restarts) files() checked {
 // asked to, for atOnce to restart it with, or fails, saying why, when it
 // can't: it isn't supervised, so nothing would start it again; its binary
 // isn't there; its config file doesn't make a valid config, which the router
-// started again couldn't start from; its binary, asked until ctx ends,
-// refuses to start; or either changes as the config file is read or the
-// binary asked. A router restarting already can, cleared by nothing. It reads
-// the config file afresh, and is safe for concurrent use.
+// started again couldn't start from, by the running version's rules but
+// where a new binary decides, as newBinaryDecides says; its binary, asked
+// until ctx ends, refuses to start; or either changes as the config file is
+// read or the binary asked. A router restarting already can, cleared by
+// nothing. It reads the config file afresh, and is safe for concurrent use.
 func (r *restarts) restartable(ctx context.Context) (*binaryClearance, error) {
 	if !r.supervised {
 		return nil, errors.New("the router was run by hand, with switchboard serve, so nothing would start it again: stop it, and run it again")
@@ -334,7 +345,7 @@ func (r *restarts) restartable(ctx context.Context) (*binaryClearance, error) {
 	if r.missing(stood.binary) {
 		return nil, fmt.Errorf("the router's binary, %s, isn't there, as for a moment while an upgrade moves it on: try again once it is", r.binary.path)
 	}
-	if r.config.path != "" {
+	if r.config.path != "" && !r.newBinaryDecides(stood.binary) {
 		if _, err := r.load(r.config.path); err != nil {
 			return nil, fmt.Errorf("the router's config file doesn't make a valid config, which it couldn't start again from: %w", err)
 		}

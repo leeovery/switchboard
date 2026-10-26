@@ -1011,21 +1011,115 @@ func TestStepAsideStartsClaudeAsIfSwitchboardWerentThere(t *testing.T) {
 
 // withoutSwitchboard starts claude each way a launcher can as if switchboard
 // weren't there, taking off what a session it's started within set, but
-// where it keepsRouting: unaided, within a session still sent to the router
-// run sent it to, which passes the session's environment on as it is.
+// where it keepsRouting: unaided, the router not asked, within a session still
+// sent to the router run sent it to, which passes the session's environment
+// on as it is. Unaided with the router found down, it never does: that router
+// isn't there to route it.
 var withoutSwitchboard = []struct {
 	name         string
-	launch       func(l launch.Launcher) error
+	launch       func(ctx context.Context, l launch.Launcher) error
 	keepsRouting bool
 }{
-	{name: "stepping aside for a key", launch: func(l launch.Launcher) error { return l.StepAside(nil, "ANTHROPIC_API_KEY") }},
 	{
-		name: "unaided",
-		launch: func(l launch.Launcher) error {
+		name:   "stepping aside for a key",
+		launch: func(_ context.Context, l launch.Launcher) error { return l.StepAside(nil, "ANTHROPIC_API_KEY") },
+	},
+	{
+		name: "unaided, without a config",
+		launch: func(_ context.Context, l launch.Launcher) error {
 			return l.Unaided(nil, "couldn't read the config", errors.New("no config file at /home/tester/config.toml"))
 		},
 		keepsRouting: true,
 	},
+	{
+		name: "unaided, the router not found, going direct",
+		launch: func(_ context.Context, l launch.Launcher) error {
+			return l.RouterUnfound(config.Direct, nil, errors.New("locate state directory: no home directory"))
+		},
+		keepsRouting: true,
+	},
+	{
+		name:   "unaided, the router found down, going direct without a usable token",
+		launch: func(ctx context.Context, l launch.Launcher) error { return l.Run(ctx, tokenless(notRunning()), nil) },
+	},
+	{
+		name: "unaided, the router found unhealthy, going direct without a usable token",
+		launch: func(ctx context.Context, l launch.Launcher) error {
+			return l.Run(ctx, tokenless(&fakeRouter{health: router.Health{Reason: unhealthy}}), nil)
+		},
+	},
+}
+
+// tokenless is a launch through r, going direct with the router down, where
+// no account has a usable token.
+func tokenless(r launch.Router) launch.Route {
+	route := route(r, "")
+	route.Token = tokenstest.Files{}.Read
+	return route
+}
+
+func TestUnaidedSaysWhereClaudeGoes(t *testing.T) {
+	session := routedSession(t, []string{"HOME=" + homeDir}, "side")
+	tests := []struct {
+		name   string
+		launch func(ctx context.Context, l launch.Launcher) error
+		// couldnt is what stderr hears switchboard couldn't do, and
+		// wantThrough whether, within a session still routed, it says claude
+		// goes through the session's router.
+		couldnt     string
+		wantThrough bool
+	}{
+		{
+			name: "without a config",
+			launch: func(_ context.Context, l launch.Launcher) error {
+				return l.Unaided(nil, "couldn't read the config", errors.New("no config file at /home/tester/config.toml"))
+			},
+			couldnt:     "couldn't read the config",
+			wantThrough: true,
+		},
+		{
+			name: "the router not found, going direct",
+			launch: func(_ context.Context, l launch.Launcher) error {
+				return l.RouterUnfound(config.Direct, nil, errors.New("locate state directory: no home directory"))
+			},
+			couldnt:     "couldn't find the router",
+			wantThrough: true,
+		},
+		{
+			name:        "no usable token, the router healthy",
+			launch:      func(ctx context.Context, l launch.Launcher) error { return l.Run(ctx, tokenless(healthy()), nil) },
+			couldnt:     "no account has a usable token",
+			wantThrough: true,
+		},
+		{
+			name:    "no usable token, the router found down",
+			launch:  func(ctx context.Context, l launch.Launcher) error { return l.Run(ctx, tokenless(notRunning()), nil) },
+			couldnt: "no account has a usable token",
+		},
+	}
+	for _, tt := range tests {
+		for _, within := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s, within a routed session: %v", tt.name, within), func(t *testing.T) {
+				env := []string{"HOME=" + homeDir}
+				if within {
+					env = session
+				}
+				h := newHarness(t, env...)
+
+				if err := tt.launch(t.Context(), h.launcher); err != nil {
+					t.Fatalf("launch error = %v", err)
+				}
+				instead := " — starting claude without it\n"
+				if within && tt.wantThrough {
+					instead = " — starting claude through this session's router\n"
+				}
+				said := h.stderr.String()
+				if !strings.HasPrefix(said, "switchboard: "+tt.couldnt+" (") || !strings.HasSuffix(said, instead) || strings.Count(said, "\n") != 1 {
+					t.Errorf("said %q on stderr, want a line saying %q, ending %q", said, tt.couldnt, instead)
+				}
+			})
+		}
+	}
 }
 
 // routedSession returns the environment of a session run routes from own,
@@ -1157,7 +1251,7 @@ func TestStartingWithoutSwitchboardTakesOffWhatRunSet(t *testing.T) {
 				maps.Copy(session, tt.since)
 				h := newHarness(t, environOf(session)...)
 
-				if err := start.launch(h.launcher); err != nil {
+				if err := start.launch(t.Context(), h.launcher); err != nil {
 					t.Fatalf("launch error = %v", err)
 				}
 				if _, pointedElsewhere := tt.since[baseURL]; start.keepsRouting && !pointedElsewhere {
@@ -1211,7 +1305,7 @@ func TestASessionWhoseBaseURLWasTheRoutersAlreadyStillReadsAsRouted(t *testing.T
 		for _, start := range withoutSwitchboard {
 			t.Run(tt.name+", "+start.name, func(t *testing.T) {
 				h := newHarness(t, session...)
-				if err := start.launch(h.launcher); err != nil {
+				if err := start.launch(t.Context(), h.launcher); err != nil {
 					t.Fatalf("launch error = %v", err)
 				}
 				if start.keepsRouting {
@@ -1252,7 +1346,7 @@ func TestASessionWithinASessionStartsFromTheUsersEnvironment(t *testing.T) {
 		t.Run(start.name, func(t *testing.T) {
 			session := append(inner.only(t).session(), "ANTHROPIC_API_KEY=test-key")
 			h := newHarness(t, session...)
-			if err := start.launch(h.launcher); err != nil {
+			if err := start.launch(t.Context(), h.launcher); err != nil {
 				t.Fatalf("launch error = %v", err)
 			}
 			if start.keepsRouting {

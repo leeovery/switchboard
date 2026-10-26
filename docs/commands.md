@@ -287,12 +287,14 @@ How `claude` starts depends on the router and your environment:
   script, leaves out what switchboard set there: the router's address, switchboard's own custom
   headers and the hint setting. What you set yourself stays, your own custom headers among them,
   and so does what the script changed since, such as a gateway of its own. Without switchboard, it
-  keeps the session's routing, as the session's router still runs, unless the script has pointed
-  it at a gateway of its own: then it leaves out what switchboard set, as with a key.
-- **Local subcommands** go straight to Claude Code, untouched and without a word: `setup-token`,
-  `update`, `upgrade`, `install`, `doctor`, `mcp`, `plugin`, `plugins`, `auth`, `import`,
-  `project`, `auto-mode` and `gateway`. Only the first argument counts, so `claude -p doctor` is a
-  prompt.
+  keeps the session's routing, as the session's router still runs, and the line on stderr ends
+  `— starting claude through this session's router`; unless the script has pointed it at a
+  gateway of its own, or `claude` found the session's router down, going direct without a usable
+  token: then it leaves out what switchboard set, as with a key.
+- **Local subcommands** go straight to Claude Code, untouched and without a word, whether the
+  router runs or not: `setup-token`, `update`, `upgrade`, `install`, `doctor`, `mcp`, `plugin`,
+  `plugins`, `auth`, `import`, `project`, `auto-mode` and `gateway`, and `--version`, `-v`,
+  `--help` and `-h`. Only the first argument counts, so `claude -p doctor` is a prompt.
 
 There are two ways round switchboard:
 
@@ -461,8 +463,10 @@ switchboard service status
 the file in place of any copy launchd had loaded, and waits up to 5 seconds for the router to
 answer.
 
-- **The config.** `install` reads the config first, as the router will, and fails on one the
-  router couldn't serve.
+- **The config.** `install` first checks what the router would start from, as the router itself
+  checks a new version before restarting into it: the config above all, and the state directory
+  its control socket goes in. It fails where the router couldn't start, before it touches the
+  router running.
 - **The binary.** The LaunchAgent runs switchboard by the path you ran it by, so a Homebrew link
   stays the link `brew upgrade` moves on. A temporary build, such as `go run`'s, is refused.
 - **The environment.** The LaunchAgent carries `--config`, and these variables where they're set:
@@ -483,7 +487,7 @@ on the router:
 | Answering | Asks the router to restart. The router finishes its requests in flight first, for up to 30 seconds, then gives those it cuts off 5 more to unwind. Then it restarts in place, as it restarts itself. |
 | Answering, but can't replace itself | Asks the router to restart, as above, and launchd starts it again. |
 | Run by hand | The router refuses, and `restart` says why. |
-| Answering, with a config that isn't valid | The router refuses, as it couldn't start again from that config, and `restart` says why. |
+| Answering, with a config that isn't valid | The router refuses, as it couldn't start again from that config, and `restart` says why. After an upgrade, the new version judges the config instead, as the next row says, so a config only it takes doesn't hold the restart. |
 | Answering, with a binary that refuses to start | The router asks the binary it would become first. Where that refuses, as a newer version can refuse a config the running one takes, the router refuses too, and `restart` says why, in the binary's words. |
 | Answering, mid-upgrade | Where the binary isn't there, as for a moment while an upgrade moves it, or the config or the binary changes as the router checks whether it could restart, the router refuses, and `restart` names what changed and says to try again. |
 | From before routers restarted in place | The router stops as at a signal, and launchd starts it again. |
@@ -537,6 +541,11 @@ switchboard status --session <id> [--json | --pretty]
 
 `status` reads the router while it runs. Otherwise, it probes each account. When the `claude` a
 shell runs from `PATH` isn't switchboard, the first line says so.
+
+When switchboard can't read the config, as when an upgrade's rules refuse it and the router holds
+its restart into the new version, `status` shows the router's document while the router answers,
+as text or JSON, then fails with the config's error on stderr. Without the router, or with
+`--probe`, which needs the config to probe, it fails with the error alone.
 
 The text shows, in order:
 

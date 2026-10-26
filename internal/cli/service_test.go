@@ -106,6 +106,32 @@ func TestServiceInstallRefusesAConfigTheRouterCouldntServe(t *testing.T) {
 	}
 }
 
+func TestServiceInstallRefusesWhatTheRouterCouldntStartFromPastTheConfig(t *testing.T) {
+	s := newServiceSetup(t)
+	// The config is valid, but the state directory is too deep for the
+	// control socket's path.
+	state := filepath.Join(shortTempDir(t), strings.Repeat("d", 100))
+	getenv := s.srv.deps.Getenv
+	s.srv.deps.Getenv = func(key string) string {
+		if key == "XDG_STATE_HOME" {
+			return state
+		}
+		return getenv(key)
+	}
+
+	got := run(t, s.srv.deps, "service", "install")
+	if got.code != 1 || got.stdout != "" || !strings.Contains(got.stderr, router.SocketPath(filepath.Join(state, "switchboard"))) ||
+		!strings.Contains(got.stderr, "set XDG_STATE_HOME to a shorter directory") {
+		t.Errorf("switchboard service install = %+v, want exit status 1, and the control socket's path refused, as serve's check refuses it", got)
+	}
+	if s.launchd.calls != nil {
+		t.Errorf("ran launchctl %q, want it left alone, the router running kept", s.launchd.calls)
+	}
+	if _, err := os.Stat(s.plist); !os.IsNotExist(err) {
+		t.Errorf("the plist: %v, want none written", err)
+	}
+}
+
 func TestServiceInstallWarnsWhenTheRouterWouldHaveNoToken(t *testing.T) {
 	// Set up outside the bubble: the fake API's server waits on the network,
 	// which would keep the bubble's clock from moving.

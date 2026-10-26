@@ -68,10 +68,13 @@ design's The router looking after itself):
   (upgraded)`.
 - **Its event's card** in the Log follows those words: headed `restart held`, with a `held` item
   giving the reason.
-- **Left:** the running router still judges a config edited after an upgrade, before the
-  handover, by its own rules. So it refuses an edit only the new version takes, and the restart
-  waits until the config suits the old rules again. A fix would let the new binary's answer decide
-  once the binary has moved on. Not built.
+- **The new binary decides an upgrade,** built in the cleanliness release's fixes, 26 October
+  2026: once the binary has moved on, an upgrade is due whatever the running router makes of the
+  config, and the new binary's check decides, a refusal holding it as before, so a config edited
+  after an upgrade, before the handover, to what only the new version takes no longer holds the
+  upgrade off. `service restart` after an upgrade is judged so too. A config change or a new time
+  zone with no new binary is still judged by the running version's rules, as the router it
+  restarts into is the same version (`restarts.due` and `restartable`, `internal/router/restart.go`).
 - **Left:** while the binary isn't there, the status document shows the restart due with nothing
   saying it waits for the binary: a moment mid-upgrade, but for good after a `brew uninstall`
   with the service still running. The words for it are the owner's to choose.

@@ -1,9 +1,11 @@
 package launch_test
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"slices"
 	"testing"
 	"testing/synctest"
@@ -91,6 +93,19 @@ func TestAskWaitsForASlowRouterAndAsksOneComingBackAgain(t *testing.T) {
 			want:     answer,
 			wantTook: 4900 * time.Millisecond,
 			wantAsks: asksTo(time.Second),
+		},
+		{
+			name:     "closing the connection before answering, as one stopping does, then answering at 1s",
+			router:   &timedRouter{health: answer, upAt: time.Second, down: errClosedUnanswered},
+			want:     answer,
+			wantTook: time.Second,
+			wantAsks: asksTo(time.Second),
+		},
+		{
+			name:     "closing the connection once it has begun to answer",
+			router:   &timedRouter{err: fmt.Errorf(`read the router's answer to GET /health: %w`, io.ErrUnexpectedEOF)},
+			wantErr:  "read the router's answer to GET /health: unexpected EOF",
+			wantAsks: asksTo(0),
 		},
 		{
 			name:     "answering unhealthy",
@@ -308,14 +323,19 @@ func errText(err error) string {
 	return err.Error()
 }
 
+// errClosedUnanswered is how router.Client fails an ask whose connection the
+// router closed before it began to answer.
+var errClosedUnanswered = fmt.Errorf(`%w: Get "http://switchboard/health": EOF`, router.ErrUnanswered)
+
 // timedRouter answers as a router does over time, from began: not running
-// until upAt, saying so failsIn after each ask, then answering health, or
-// err, answersIn after each ask. An ask its caller gives up on fails as
-// router.Client fails one, a dial or a request alike, unless it's deaf,
-// answering all the same.
+// until upAt, saying so, or as down says, failsIn after each ask, then
+// answering health, or err, answersIn after each ask. An ask its caller gives
+// up on fails as router.Client fails one, a dial or a request alike, unless
+// it's deaf, answering all the same.
 type timedRouter struct {
 	began     time.Time
 	upAt      time.Duration
+	down      error
 	failsIn   time.Duration
 	answersIn time.Duration
 	deaf      bool
@@ -329,7 +349,8 @@ func (r *timedRouter) Health(ctx context.Context) (router.Health, error) {
 	at := time.Since(r.began)
 	r.asks = append(r.asks, at)
 	if at < r.upAt {
-		return r.within(ctx, r.failsIn, router.Health{}, fmt.Errorf("%w: dial unix control.sock: connect: no such file or directory", router.ErrNotRunning))
+		down := cmp.Or(r.down, fmt.Errorf("%w: dial unix control.sock: connect: no such file or directory", router.ErrNotRunning))
+		return r.within(ctx, r.failsIn, router.Health{}, down)
 	}
 	return r.within(ctx, r.answersIn, r.health, r.err)
 }

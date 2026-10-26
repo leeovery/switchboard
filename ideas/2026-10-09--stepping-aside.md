@@ -30,3 +30,12 @@ the user's own can't be written into the mark; nor is any value of the user's ho
 goes when stepping aside rather than going back. A session from before the mark goes on as it did.
 `internal/launch` holds it: `env.go`'s `markedAgainst`, `unmarked` and `routedByRun`, and
 `launch.go`'s `unaidedEnv`.
+
+The release review's fixes, 26 October 2026: a launch that found the router down, going direct
+with no usable token, starts unaided from the user's environment, never the session's routed one,
+as that router isn't there; and where unaided does keep a session's routing, its line on stderr
+says so, `— starting claude through this session's router`. `redact.HoldsSecret` doesn't see a key
+carried in a URL's path or host, as a gateway taking its key as a path segment has it, and that's
+left so: it can't be told from an ordinary path, which most gateways have, and the value was in the
+session's environment as the user set it, so dropping every base URL with a path would lose most
+gateways on stepping aside.
