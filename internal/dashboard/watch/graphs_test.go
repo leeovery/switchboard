@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -180,6 +181,46 @@ func TestGraphsHelpListsItsTogglesThenTheSharedKeys(t *testing.T) {
 	}
 	if got := helpOver(h.model); !slices.Equal(got, want) {
 		t.Errorf("help lists\n%+v\nwant\n%+v", got, want)
+	}
+}
+
+// Where Graphs' sections don't fit, as four accounts' on a phone of 73 by
+// 61, j and k scroll the page a row, PgDn and PgUp a page, and a turn of the
+// wheel over it three rows, no further than shows its last row; the row over
+// the key line says what's out of view.
+func TestGraphsScrollsARowAtATimeByTheKeysAndTheWheel(t *testing.T) {
+	h := routedHarness(t, routerDocument(three()...))
+	h.model.view, h.model.cfg.Accounts = dashboard.Graphs, config.Accounts{{ID: "work"}, {ID: "personal"}, {ID: "side"}, {ID: "team"}}
+	h.update(tea.WindowSizeMsg{Width: 73, Height: 61})
+	h.start()
+	s := h.model.scrolling()
+	if s.Most != 16 {
+		t.Fatalf("Graphs scrolls %+v at 73x61, want 16 rows", s)
+	}
+	steps := []struct {
+		name   string
+		scroll func()
+		want   int
+	}{
+		{name: "j, a row down", scroll: func() { h.keyed("j") }, want: 1},
+		{name: "k, a row up", scroll: func() { h.keyed("k") }, want: 0},
+		{name: "k at the top, nowhere", scroll: func() { h.keyed("k") }, want: 0},
+		{name: "PgDn, a page, no further than the last row", scroll: func() { h.keys(tea.KeyPressMsg{Code: tea.KeyPgDown}) }, want: 16},
+		{name: "j at the last row, nowhere", scroll: func() { h.keyed("j") }, want: 16},
+		{name: "PgUp, a page", scroll: func() { h.keys(tea.KeyPressMsg{Code: tea.KeyPgUp}) }, want: 0},
+		{name: "a turn of the wheel down, three rows", scroll: func() { h.wheel(tea.MouseWheelDown, 10, 20) }, want: 3},
+		{name: "a turn of the wheel over the legend, nowhere", scroll: func() { h.wheel(tea.MouseWheelDown, 10, 58) }, want: 3},
+		{name: "a turn up", scroll: func() { h.wheel(tea.MouseWheelUp, 10, 20) }, want: 0},
+	}
+	for _, step := range steps {
+		step.scroll()
+		if h.model.scroll != step.want {
+			t.Errorf("%s: Graphs scrolled %d rows, want %d", step.name, h.model.scroll, step.want)
+		}
+	}
+	h.keyed("j")
+	if lines := strings.Split(h.view(), "\n"); strings.TrimSpace(lines[59]) != "▲ 1 more above · ▼ 15 more below" {
+		t.Errorf("scrolled a row, the row over the key line reads %q, want ▲ 1 more above · ▼ 15 more below", lines[59])
 	}
 }
 
