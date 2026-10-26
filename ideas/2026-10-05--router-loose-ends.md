@@ -76,6 +76,12 @@ test and `GET /sessions/{id}` stay open.
   whatever the day's size. It writes the bytes v0.2.8's did, as far as the tests show, and its files
   read as they did. The crash mid-compress fell out of the same change: where a line was appended
   after a compress stopped before it removed the plain file, the lines the compressed file's last
-  members give, from the latest member on that the plain file starts with, aren't added again,
-  however many times that happened in a row (`dayfile/compress.go`). A read of the day in that
-  window still gives those lines twice, until the next compress, within the hour.
+  members give, from the earliest member on whose lines the plain file starts with, aren't added
+  again, however many times that happened in a row (`dayfile/compress.go`); the earliest, as a
+  line repeated can start it from a later one too. A read of the day in that window still gives
+  those lines twice, until the next compress, within the hour. Accepted: a fresh plain file for a
+  day compressed before, as after the clock was set back, whose first lines are byte for byte the
+  last members', is taken as a stopped compress's, and those lines are counted once. The files
+  can't tell the two apart, and no line repeats another: every writer of a day's file, the
+  ledger, the readings history and the events, puts its time in each line, beside a request's id,
+  an account and window, or the run and a rising id.

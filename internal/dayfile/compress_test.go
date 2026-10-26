@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -162,6 +164,18 @@ func TestACompressStoppedPartwayIsFinishedByTheNextOnce(t *testing.T) {
 			want:     older + linesOf(`{"n":2}`, `{"n":3}`, `{"n":4}`, `{"n":5}`),
 		},
 		{
+			name:    "stopped twice, the line appended after the first the plain file's first again",
+			members: []string{linesOf(`{"n":0}`)},
+			plain:   linesOf(`{"n":1}`),
+			stopped: func(t *testing.T, f *Files) {
+				addingPlain(t, f)
+				appendingPlain(t, f, linesOf(`{"n":1}`))
+				addingPlain(t, f)
+			},
+			appended: linesOf(`{"n":9}`),
+			want:     linesOf(`{"n":0}`, `{"n":1}`, `{"n":1}`, `{"n":9}`),
+		},
+		{
 			name:    "stopped three times, a line appended after each time",
 			members: []string{older},
 			plain:   linesOf(`{"n":2}`),
@@ -204,6 +218,90 @@ func TestACompressStoppedPartwayIsFinishedByTheNextOnce(t *testing.T) {
 func addingPlain(t *testing.T, f *Files) {
 	t.Helper()
 	if err := f.addPlain(earlierDate); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestACompressStoppedAnywhereGivesWhatOneNeverStoppedDoes(t *testing.T) {
+	// sequences is as many as run in a few seconds under the race detector.
+	const sequences = 300
+	rng := rand.New(rand.NewPCG(26, 10))
+	for i := range sequences {
+		steps := someSteps(rng)
+		got, want := playedOut(t, steps, true), playedOut(t, steps, false)
+		if got != want {
+			t.Fatalf("sequence %d, %v: the day's compressed file gives %q, want %q, as when no compress stopped", i, steps, got, want)
+		}
+	}
+}
+
+// step is a step of what befalls a day's files: lines appended to its plain
+// file, a compress stopped once it had written the compressed file, before it
+// removed the plain one, or a compress.
+type step struct {
+	kind  string
+	lines string
+}
+
+// someSteps returns a few steps, the first lines appended, each line
+// appended different from every other, and some of them cut short.
+func someSteps(rng *rand.Rand) []step {
+	n := 0
+	appended := func() step {
+		var lines strings.Builder
+		for range 1 + rng.IntN(3) {
+			n++
+			fmt.Fprintf(&lines, `{"n":%d}`+"\n", n)
+		}
+		text := lines.String()
+		if rng.IntN(5) == 0 {
+			text = strings.TrimSuffix(text, "}\n")
+		}
+		return step{kind: "append", lines: text}
+	}
+	steps := []step{appended()}
+	for range 2 + rng.IntN(10) {
+		switch rng.IntN(4) {
+		case 0, 1:
+			steps = append(steps, appended())
+		case 2:
+			steps = append(steps, step{kind: "stopped"})
+		default:
+			steps = append(steps, step{kind: "compress"})
+		}
+	}
+	return steps
+}
+
+// playedOut plays steps out on a day's files, its stopped compresses
+// stopping where stopping is set, and doing nothing where it isn't, then
+// compresses the day, and returns the lines its compressed file gives.
+func playedOut(t *testing.T, steps []step, stopping bool) string {
+	t.Helper()
+	f := requestLedger(t.TempDir())
+	plain := false
+	for _, s := range steps {
+		switch {
+		case s.kind == "append":
+			appendingPlain(t, f, s.lines)
+			plain = true
+		case s.kind == "stopped" && stopping && plain:
+			addingPlain(t, f)
+		case s.kind == "compress" && plain:
+			compressingDay(t, f)
+			plain = false
+		}
+	}
+	if plain {
+		compressingDay(t, f)
+	}
+	return heldIn(t, f, compressedFile(earlierDate))
+}
+
+// compressingDay compresses the day of earlierDate.
+func compressingDay(t *testing.T, f *Files) {
+	t.Helper()
+	if err := f.compress(earlierDate); err != nil {
 		t.Fatal(err)
 	}
 }

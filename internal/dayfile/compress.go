@@ -9,7 +9,6 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"slices"
 	"strings"
 
 	"github.com/leeovery/switchboard/internal/atomicfile"
@@ -160,12 +159,14 @@ func (c compressedDay) holds(plain *io.SectionReader) (int64, error) {
 
 // heldFrom returns the places in the file's lines from which they may run on
 // to their end as the plain file's lines, size long, start, in the order
-// holds looks at them: where they'd end with the whole plain file, as when a
-// compress stopped once it had written the compressed file, before it
-// removed the plain one; then the start of each member's lines, the last
-// first, from which they'd give less than the whole, as when a line was
-// appended to the plain file after that, once or more, each time after
-// another compress stopped so.
+// holds looks at them, the longest first: where they'd end with the whole
+// plain file, as when a compress stopped once it had written the compressed
+// file, before it removed the plain one; then the start of each member's
+// lines from which they'd give less than the whole, the first first, as when
+// a line was appended to the plain file after that, once or more, each time
+// after another compress stopped so. The earliest comes first: it's the first
+// such compresses wrote, and a later one's lines can start the plain file too
+// where it repeats a line.
 func (c compressedDay) heldFrom(size int64) []int64 {
 	if c.file == nil || size == 0 {
 		return nil
@@ -174,12 +175,8 @@ func (c compressedDay) heldFrom(size int64) []int64 {
 	if size <= c.length {
 		from = append(from, c.length-size)
 	}
-	for _, start := range slices.Backward(c.starts) {
-		n := c.length - start
-		if n >= size {
-			break
-		}
-		if n > 0 {
+	for _, start := range c.starts {
+		if n := c.length - start; n > 0 && n < size {
 			from = append(from, start)
 		}
 	}
@@ -187,8 +184,8 @@ func (c compressedDay) heldFrom(size int64) []int64 {
 }
 
 // holdsAll reports whether a day's compressed file's lines, compressed, hold
-// every one of its plain file's, plain, as holds finds where it finds them
-// all: they end with them.
+// every one of its plain file's, plain: they end with them, the first place
+// holds looks.
 func holdsAll(compressed, plain []byte) bool {
 	return bytes.HasSuffix(compressed, plain)
 }

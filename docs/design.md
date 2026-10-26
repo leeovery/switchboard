@@ -7093,12 +7093,18 @@ hiding it behind the provider would take a wider interface than it's worth:
   member of their own, after the members there, written beside the file and renamed into place,
   holding neither file whole. Lines the compressed file holds already aren't added again: all of
   them, where its lines end with them, as when the router stopped between writing it and removing
-  the plain file; or those its last members give, from the latest member on that the plain file
-  starts with, as when a line was appended to the day after that, once or more, the router
-  stopping so after each. The router reads either form back, as it starts and for `GET /history`,
-  which the dashboard's charts draw from (see Control API), and so do the
-  request ledger's readers, as they summarise a day (see The request ledger). A day's plain file
-  is opened before its compressed file, and what the two hold is told from the files opened:
+  the plain file; or those its last members give, from the earliest member on whose lines, to the
+  file's end, the plain file starts with, as when a line was appended to the day after that, once
+  or more, the router stopping so after each: the earliest, as a line repeated can start the plain
+  file from a later one too. A fresh plain file for a day compressed before, as after the clock was
+  set back, whose first lines are byte for byte those of the last members, is taken as a stopped
+  compress's, and those lines are counted once: the files can't tell the two apart, and no line
+  repeats another, as each holds its time and what sets it apart, a request's id beside its
+  millisecond in the ledger, an account and window beside its nanosecond in the readings history,
+  and the router's run and a rising id in the events. The router reads either form back, as it
+  starts and for `GET /history`, which the dashboard's charts draw from (see Control API), and so
+  do the request ledger's readers, as they summarise a day (see The request ledger). A day's plain
+  file is opened before its compressed file, and what the two hold is told from the files opened:
   compressing a day writes its compressed file before it removes the plain one, so a day another
   process compresses as they're opened is read whole, each line once. A day whose compressed file
   already ends with its plain file's lines, as when the router compressed the day between the two
