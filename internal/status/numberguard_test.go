@@ -43,7 +43,7 @@ func TestTheNumberGuardFindsWhatItGuardsAgainst(t *testing.T) {
 	got := numbersSet(t, root, "example.com/fixture", []string{"internal/view"})
 	set := "sets an account's number, " + numberedType + "." + numberedField + "; " + numberFix
 	var want []string
-	for _, line := range []string{"14", "18", "19", "20", "21", "25", "26", "27"} {
+	for _, line := range []string{"14", "18", "19", "20", "21", "25", "26", "27", "29", "31"} {
 		want = append(want, "internal/view/view.go:"+line+": "+set)
 	}
 	if !slices.Equal(got, want) {
@@ -53,9 +53,9 @@ func TestTheNumberGuardFindsWhatItGuardsAgainst(t *testing.T) {
 
 // numbersSet are where the non-test files of the packages in dirs, of the
 // module at root with the given path, set an account's number: a Place keyed
-// in an AccountNow's literal, an AccountNow's Place assigned or stepped, or
-// its address taken, a write by pointer; each through any struct that embeds
-// an AccountNow too.
+// in an AccountNow's literal, an AccountNow's Place assigned, ranged into or
+// stepped, or its address taken, a write by pointer; each through any struct
+// that embeds an AccountNow too.
 func numbersSet(t *testing.T, root, module string, dirs []string) []string {
 	t.Helper()
 	names := sourcecheck.NamesIn(module)
@@ -74,6 +74,8 @@ func numberSetBy(names sourcecheck.Names) func(ast.Node, *types.Info) string {
 			set = ok && isNumber(info.Uses[key], names)
 		case *ast.AssignStmt:
 			set = slices.ContainsFunc(n.Lhs, func(e ast.Expr) bool { return numberAt(e, info, names) })
+		case *ast.RangeStmt:
+			set = n.Tok == token.ASSIGN && (numberAt(n.Key, info, names) || numberAt(n.Value, info, names))
 		case *ast.IncDecStmt:
 			set = numberAt(n.X, info, names)
 		case *ast.UnaryExpr:
@@ -89,6 +91,9 @@ func numberSetBy(names sourcecheck.Names) func(ast.Node, *types.Info) string {
 // numberAt reports whether e is an account's number, an AccountNow's Place,
 // as a selector resolves it, promoted through an embedding struct or not.
 func numberAt(e ast.Expr, info *types.Info, names sourcecheck.Names) bool {
+	if e == nil {
+		return false
+	}
 	sel, ok := ast.Unparen(e).(*ast.SelectorExpr)
 	return ok && isNumber(info.Uses[sel.Sel], names)
 }
@@ -150,6 +155,12 @@ func set(i int) []status.AccountNow {
 	p := &h.Place
 	*(&a.Place) = 7
 	*p = h.Place
+	for _, a.Place = range []int{8} {
+	}
+	for a.Place = range 9 {
+	}
+	for s.Place = range 3 {
+	}
 	return accounts
 }
 `,

@@ -373,29 +373,27 @@ func (f Frame) compareState() []line {
 	if !f.CompareWide() || shown >= n {
 		return nil
 	}
-	first := f.compareFirst()
 	moves := line{
-		{comparedShown(f.numbering().Configured(f.Accounts.Accounts)[first:first+shown], n), faintInk},
+		{comparedShown(f.numbering().Configured(f.Accounts.Accounts), f.compareFirst(), shown), faintInk},
 		{"  ·  ", faintInk}, {"←→", keyInk}, {" moves along them", faintInk},
 	}
 	return []line{slices.Concat(moves, line{{"; all accounts stays put", faintInk}}), moves}
 }
 
-// comparedShown says which of n accounts Compare shows, those given: by the
-// first's number and the last's, as "accounts 2–5 of 9", where their numbers
-// run on one by one and the last is no more than n; else, as one the config
-// no longer has leaves a gap among them, or numbers them past its count, how
-// many, as "2 of 3 accounts".
-func comparedShown(shown []status.AccountNow, n int) string {
-	first, last := shown[0].Place, shown[len(shown)-1].Place
-	runsOn := last <= n
-	for i, a := range shown {
-		runsOn = runsOn && a.Place == first+i
+// comparedShown says which of the configured accounts given Compare shows,
+// shown of them from the place among them first, from 0: by the first's
+// number and the last's, as "accounts 2–5 of 9", where every account's
+// number is its place in the config, as where the config and the router
+// agree; else how many, as "4 of 9 accounts", at every scroll alike, as the
+// numbers then neither run from 1 to the count nor tell what lies past them.
+func comparedShown(accounts []status.AccountNow, first, shown int) string {
+	n := len(accounts)
+	for i, a := range accounts {
+		if a.Place != i+1 {
+			return fmt.Sprintf("%d of %d accounts", shown, n)
+		}
 	}
-	if !runsOn {
-		return fmt.Sprintf("%d of %d accounts", len(shown), n)
-	}
-	return fmt.Sprintf("accounts %d–%d of %d", first, last, n)
+	return fmt.Sprintf("accounts %d–%d of %d", first+1, first+shown, n)
 }
 
 // columns are Compare's columns: each account's shown, from the first, then
