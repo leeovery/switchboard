@@ -3993,8 +3993,11 @@ so one look compares every account (the owner's call, 24 October 2026):
 - **Its words:** the room left, its figure bold in its use's level's colour, as `usage` colours a
   use, `66%`, and ` left` in `text.muted`; then `  ·  ` in `text.muted`, and the words under the
   account's lane on Runway in that window's view, inked as Runway inks them: `at its cap 14:31  ·
-  back 17:10`, `runs out ~Sat 06:00 at its pace`, `resets Sun 21:00`, `room all day`. Where they
-  don't fit the card, whole parts go from the end, as Runway drops them.
+  back 17:10`, `runs out ~Sat 06:00 at its pace`, `resets Sun 21:00`, `room all day`. Where the
+  window runs out or reaches its cap at its pace past the view's end, before it resets, the words
+  say that too, as Runway would were its lane drawn on, after what it says, never `room all week`
+  over a chart that runs out. Where they don't fit the card, whole parts go from the end, as Runway
+  drops them.
 - **The chart,** `h` rows, a column a cell over the window's length, now's column
   `min(round(pace × width), width − 1)`, as GRAPHS' (see The Overview):
   - **The room left:** each column before now's filled to the room its middle had, `1 − use`,

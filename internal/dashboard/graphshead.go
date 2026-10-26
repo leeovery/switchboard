@@ -59,7 +59,8 @@ type cardHead struct {
 // takes the width, as within cuts it, and its words are on the row under
 // it, from its first column, whole parts left off their end where they don't
 // fit, as partsIn has them. They're cued as Runway cues the words under the
-// lane, as wordsCue has it.
+// lane, as wordsCue has it, of the lane as its words reach, as reaching has
+// it.
 func (f Frame) cardHeadOf(v laneView, ln laidLane, width int, beside bool, now time.Time) cardHead {
 	words := v.cardWords(ln, now)
 	h := cardHead{label: ln.name.within(width), words: placed{said: partsIn(words, width)}, row: 1}
@@ -74,8 +75,16 @@ func (f Frame) cardHeadOf(v laneView, ln laidLane, width int, beside bool, now t
 		}
 		h.words, h.row = placed{x: width - said.width(), said: said}, 0
 	}
-	h.cue, h.cued = f.wordsCue(ln, v.timeline.NowColumn())
+	h.cue, h.cued = f.wordsCue(ln.reaching(), v.timeline.NowColumn())
 	return h
+}
+
+// reaching is the lane ln as its card's words reach: its stretches, then
+// those past its view's end, as its Beyond has them, so a card cues its
+// words of a run-out past the view as Runway cues one inside it.
+func (ln laidLane) reaching() laidLane {
+	ln.Stretches = slices.Concat(ln.Stretches, ln.Beyond)
+	return ln
 }
 
 // alone is the column the name takes beside a card's words, nameGap after
@@ -154,12 +163,15 @@ func (v laneView) cardWords(ln laidLane, now time.Time) []line {
 // sharing a column in the order of when what each says of begins, as a
 // reset there before a stretch starting after it, which Runway drops, as
 // placeAlong does a phrase ending where the words before it run, though it
-// places two stretches in one column both; or where it has none, what it
-// says instead; and of a lane whose use isn't read, where that's nothing,
-// its use's words, as Runway's label says them, as "not read".
+// places two stretches in one column both; then what it would say of each
+// stretch past the view's end, as beyond has them, so a card never says
+// its window has room all along where it runs out before it resets; or
+// where it has none of those, what it says instead; and of a lane whose use
+// isn't read, where that's nothing, its use's words, as Runway's label says
+// them, as "not read".
 func (v laneView) cardPhrases(ln laidLane, now time.Time) [][]line {
 	says := v.said(ln, now)
-	said := slices.SortedStableFunc(slices.Values(says.phrases), func(a, b phrase) int {
+	said := slices.SortedStableFunc(slices.Values(slices.Concat(says.phrases, v.beyond(ln, now))), func(a, b phrase) int {
 		return cmp.Or(cmp.Compare(a.col, b.col), a.at.Compare(b.at))
 	})
 	if len(said) == 0 {
@@ -171,6 +183,18 @@ func (v laneView) cardPhrases(ln laidLane, now time.Time) [][]line {
 	}
 	if len(phrases) == 0 && !ln.Use.Read {
 		phrases = append(phrases, []line{ln.useWords(runwayNames[v.window], now).short})
+	}
+	return phrases
+}
+
+// beyond are the phrases of each stretch the lane ln would have past the
+// view v's end, as its Beyond has them, as Runway's lane would word them at
+// now, were it drawn on.
+func (v laneView) beyond(ln laidLane, now time.Time) []phrase {
+	against := v.datedAgainst(now)
+	var phrases []phrase
+	for _, s := range ln.Beyond {
+		phrases = append(phrases, v.stretchPhrase(s, ln.account, against))
 	}
 	return phrases
 }

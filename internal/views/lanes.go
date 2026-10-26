@@ -61,14 +61,17 @@ func (from LanesFrom) reach() status.Reach {
 
 // Lane is an account's lane: its id; how it stands in each column of the
 // timeline; where the view's window resets in it, as │ marks it, in order;
-// each stretch it has no room through, in order; whether it has room through
-// every column from now's, or through every column of a day or week stepped
-// back to, as nothing else is said of it; and its use of the view's window.
+// each stretch it has no room through, in order; each it would have past the
+// timeline, as beyond has them, which no column draws; whether it has room
+// through every column from now's, or through every column of a day or week
+// stepped back to, as nothing else is said of it; and its use of the view's
+// window.
 type Lane struct {
 	ID        string
 	Cells     []Cell
 	Resets    []Reset
 	Stretches []LaneStretch
+	Beyond    []LaneStretch
 	Room      bool
 	Use       Use
 }
@@ -267,13 +270,50 @@ func (from LanesFrom) laneOf(a status.AccountNow, past pastOf, then judge) Lane 
 	}
 	lane.Resets = from.marked(a, lane.Stretches)
 	lane.Stretches = backWithRoom(lane.Stretches, h, tl.NowColumn())
+	lane.Beyond = from.beyond(a, h)
 	resets := from.resetsKnown(a, past)
-	for i, s := range lane.Stretches {
-		ends, _ := s.Ends()
-		lane.Stretches[i].AsItResets = !ends.IsZero() && slices.ContainsFunc(resets, ends.Equal)
-	}
+	asItResets(lane.Stretches, resets)
+	asItResets(lane.Beyond, resets)
 	lane.Room = roomThrough(lane.Cells[from.saysFrom():])
 	return lane
+}
+
+// asItResets sets each of the stretches given AsItResets where it's said to
+// end, as its Ends has it, as one of the resets given.
+func asItResets(stretches []LaneStretch, resets []time.Time) {
+	for i, s := range stretches {
+		ends, _ := s.Ends()
+		stretches[i].AsItResets = !ends.IsZero() && slices.ContainsFunc(resets, ends.Equal)
+	}
+}
+
+// beyond are the stretches without room the account a, standing from now on
+// as h has it, would have past the live timeline, were its lane drawn on till
+// the view's window resets: each beginning after its last column's moment and
+// before then, as h turns, gathered as the lane's columns gather them, each
+// turn as a column of its own, and back as backWithRoom has it, said from the
+// column after the last. None in a view that doesn't hold now, as a day or
+// week gone, nor of an account without the window, or whose reset isn't
+// known; a week stepped back to this week, holding now, has them.
+func (from LanesFrom) beyond(a status.AccountNow, h ahead) []LaneStretch {
+	tl := from.Timeline
+	w, ok := a.Window(from.viewKey())
+	if !ok || w.Next.IsZero() || tl.NowColumn() < 0 || tl.Columns < 1 {
+		return nil
+	}
+	last := tl.Columns - 1
+	end := tl.Moment(last)
+	stretches := gathered(nil, h.at(end), last, end)
+	for i, t := range h.turns(end, w.Next) {
+		stretches = gathered(stretches, h.at(t), tl.Columns+i, t)
+	}
+	if len(stretches) > 0 && stretches[0].First == last {
+		stretches = stretches[1:]
+	}
+	for i := range stretches {
+		stretches[i].Column = tl.Columns
+	}
+	return backWithRoom(stretches, h, tl.NowColumn())
 }
 
 // sinceRead is h, each of its holds whose start no event tells begun as then
@@ -310,11 +350,7 @@ func laneStretches(stood []stood, tl Timeline, holds []stood) []LaneStretch {
 		if !s.cell.held() {
 			continue
 		}
-		if n := len(stretches); n > 0 && stretches[n-1].holdsOn(s, c, tl.Moment(c)) {
-			stretches[n-1].Last, stretches[n-1].Back = c, s.until
-		} else {
-			stretches = append(stretches, LaneStretch{Cell: s.cell, Start: s.since, Projected: s.projected, Back: s.until, First: c, Last: c})
-		}
+		stretches = gathered(stretches, s, c, tl.Moment(c))
 		if c == now {
 			stretches[len(stretches)-1].begunAt(holds)
 		}
@@ -327,6 +363,20 @@ func laneStretches(stood []stood, tl Timeline, holds []stood) []LaneStretch {
 		}
 	}
 	return stretches
+}
+
+// gathered are the stretches given with the account standing as st in the
+// column c, at its moment, at: where it's held back, the last held on into
+// c, as holdsOn has it, else a stretch of its own begun there.
+func gathered(stretches []LaneStretch, st stood, c int, at time.Time) []LaneStretch {
+	if !st.cell.held() {
+		return stretches
+	}
+	if n := len(stretches); n > 0 && stretches[n-1].holdsOn(st, c, at) {
+		stretches[n-1].Last, stretches[n-1].Back = c, st.until
+		return stretches
+	}
+	return append(stretches, LaneStretch{Cell: st.cell, Start: st.since, Projected: st.projected, Back: st.until, First: c, Last: c})
 }
 
 // begunAt has the stretch, which holds now's column, begin as the hold at now
