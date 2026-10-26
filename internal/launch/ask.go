@@ -34,7 +34,7 @@ type Patience struct {
 	// Back is how long a router that isn't running is asked again: where
 	// Back is zero, it's asked once.
 	Back time.Duration
-	// Again is how long after each ask a router that isn't running ends is
+	// Again is how long after an ask that finds the router not running it's
 	// asked again, 200ms where Again is zero.
 	Again time.Duration
 }

@@ -29,8 +29,9 @@ through the router, such as publishing an artifact, goes out on the primary.
 --account pins the session's conversation to an account while that can take
 it; the token stays the primary's.
 
-When the router isn't running, or isn't healthy, run starts nothing, and says
-why and how to go on: a session without the router would go unrouted and
+A slow router is waited for, 5 seconds at most, and one that isn't running is
+asked again for the first 2, as it may be restarting. When the router isn't
+running, or isn't healthy, run starts nothing, and says why and how to go on: a session without the router would go unrouted and
 unrecorded, and spend the primary past its reserve. The config's
 when_router_down = "direct" has Claude Code connect directly instead, on
 --account's token, else the primary's, else the first account's with a usable
