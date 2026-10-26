@@ -14,6 +14,12 @@ set -euo pipefail
 repo=$(cd "$(dirname "$0")/.." && pwd -P)
 cd "$repo"
 
+# Every gate runs at niceness 10, yielding the CPU to the router and the
+# sessions it serves: set, not added to, so test-isolated setting it again
+# leaves it as it is. Running nicer already, renice can't lower it, and that
+# will do as well.
+renice 10 -p $$ >/dev/null 2>&1 || true
+
 record=$(git rev-parse --path-format=absolute --git-common-dir)/switchboard/gated
 
 # clean reports whether the checkout has no changes, untracked files

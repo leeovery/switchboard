@@ -7613,7 +7613,9 @@ verbs).
   can't read, rather than leave launchd restarting a router that can't start. It writes the
   LaunchAgent (`RunAtLoad`, `KeepAlive`, output to `launchd.log`, and an `ExitTimeOut` of 45
   seconds: the 30 the router gives requests in flight as it stops, 5 for those it cuts off to
-  unwind, 3 for its last notifications to post, and 7 to save its state) to run this binary by the
+  unwind, 3 for its last notifications to post, and 7 to save its state, and a `ProcessType` of
+  `Interactive`, as launchd throttles the CPU and I/O of a job that sets none, and every Claude
+  Code request waits on the router) to run this binary by the
   path it was run by, so a Homebrew link stays the link an upgrade moves on, with `serve`, any
   `--config` given, made absolute, and any `--log-level`. It refuses a temporary build, such as `go
   run`'s, judged by where the binary's links lead. It carries `XDG_CONFIG_HOME`, `XDG_STATE_HOME`,
