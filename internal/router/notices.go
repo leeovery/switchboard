@@ -3,6 +3,7 @@ package router
 import (
 	"cmp"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -85,13 +86,20 @@ type limitNotices struct {
 	gathering map[int]*gathering
 	// heard holds, by account, the identity of the newest of its limits
 	// heard of; early, by identity, the moves of limits yet to be heard of,
-	// which wait for their limit to be counted in.
+	// which wait for their limit to be counted in, for gatherFor at most.
 	heard map[string]int
-	early map[int][]Moved
+	early map[int]earlyMoves
 }
 
 func newLimitNotices() *limitNotices {
-	return &limitNotices{gathering: make(map[int]*gathering), heard: make(map[string]int), early: make(map[int][]Moved)}
+	return &limitNotices{gathering: make(map[int]*gathering), heard: make(map[string]int), early: make(map[int]earlyMoves)}
+}
+
+// earlyMoves are the moves of a limit yet to be heard of, and when the first
+// of them was heard.
+type earlyMoves struct {
+	since time.Time
+	moves []Moved
 }
 
 // gathering is a limit an account reached, and the sessions it has moved so
@@ -108,6 +116,7 @@ type gathering struct {
 // those it moved before it was heard of, and one heard of before, whose
 // notification has gone, is no news.
 func (l *limitNotices) reached(e LimitReached, now time.Time) {
+	l.forget(now)
 	if g, ok := l.gathering[e.Limit]; ok {
 		g.join(e)
 		return
@@ -117,29 +126,51 @@ func (l *limitNotices) reached(e LimitReached, now time.Time) {
 	}
 	l.heard[e.Account] = e.Limit
 	g := &gathering{limitMoves: newLimitMoves(e), due: now.Add(gatherFor)}
-	for _, m := range l.early[e.Limit] {
+	for _, m := range l.early[e.Limit].moves {
 		g.add(m.Session, m.To)
 	}
 	delete(l.early, e.Limit)
 	l.gathering[e.Limit] = g
 }
 
-// moved takes in a move, and reports whether it's news of a limit: one of
-// the account it left, which held its request back there, moved the session.
-// It counts where its limit gathers, or, where its limit is yet to be heard
-// of, once it is. A limit whose notification has gone counts no more.
-func (l *limitNotices) moved(e Moved) bool {
+// moved takes in a move heard at now, and reports whether it's news of a
+// limit: one of the account it left, which held its request back there,
+// moved the session. It counts where its limit gathers, or, where its limit
+// is yet to be heard of, once it is, should that be within gatherFor, as
+// forget says. A limit whose notification has gone counts no more.
+func (l *limitNotices) moved(e Moved, now time.Time) bool {
+	l.forget(now)
 	switch g, ok := l.gathering[e.Limit]; {
 	case e.Limit == 0:
 		return false
 	case ok:
 		g.add(e.Session, e.To)
 	case e.Limit > l.heard[e.From]:
-		l.early[e.Limit] = append(l.early[e.Limit], e)
+		early := l.early[e.Limit]
+		if len(early.moves) == 0 {
+			early.since = now
+		}
+		early.moves = append(early.moves, e)
+		l.early[e.Limit] = early
 	default:
 		return false
 	}
 	return true
+}
+
+// forget drops, at now, the moves of each limit yet to be heard of whose
+// first has waited longer than gatherFor: the limit's own event may never
+// come, dropped from the notifications' full queue, or come once a newer
+// limit of its account has been heard of, when it's no news. A limit heard
+// of at all is heard of within moments of its moves.
+func (l *limitNotices) forget(now time.Time) {
+	maps.DeleteFunc(l.early, func(limit int, early earlyMoves) bool {
+		if now.Sub(early.since) <= gatherFor {
+			return false
+		}
+		logger.Debug("moves dropped: their limit wasn't heard of in time", "limit", limit, "moves", len(early.moves))
+		return true
+	})
 }
 
 // next reports when the first limit gathering is due, and false when none is.

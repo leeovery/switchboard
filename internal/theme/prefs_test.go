@@ -1,9 +1,11 @@
 package theme_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -499,6 +501,31 @@ func TestACorruptPreferencesFileLinkedElsewhereIsSetAsideWhereItLeads(t *testing
 	}
 	if !log.Has("level=WARN", `msg="preferences file corrupt; set aside, the defaults stand"`, "aside="+aside) {
 		t.Errorf("the log reads\n%s\nwant it to say the file was set aside, and where", log)
+	}
+}
+
+func TestTheNewestThreePreferencesFilesSetAsideAreKept(t *testing.T) {
+	for name, linked := range map[string]bool{"in the state directory": false, "linked elsewhere": true} {
+		t.Run(name, func(t *testing.T) {
+			state := t.TempDir()
+			kept := filepath.Join(state, "prefs.json")
+			if linked {
+				kept = filepath.Join(t.TempDir(), "prefs.json")
+				symlink(t, kept, filepath.Join(state, "prefs.json"))
+			}
+			aside := func(at time.Time) string { return fmt.Sprintf("%s.corrupt-%d", kept, at.Unix()) }
+			older := []time.Time{prefsNow.Add(-3 * time.Hour), prefsNow.Add(-2 * time.Hour), prefsNow.Add(-time.Hour)}
+			for _, at := range older {
+				write(t, aside(at), "{")
+			}
+			write(t, kept, "{\"theme\": ")
+
+			theme.NewPrefsFile(state, clock).Read()
+			got, err := filepath.Glob(kept + ".corrupt-*")
+			if want := []string{aside(older[1]), aside(older[2]), aside(prefsNow)}; err != nil || !slices.Equal(got, want) {
+				t.Errorf("set aside beside the file: %q (%v), want the newest three: %q", got, err, want)
+			}
+		})
 	}
 }
 
