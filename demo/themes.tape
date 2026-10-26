@@ -1,7 +1,7 @@
 # The README's themes clip: t opens the theme picker over the Overview, and
 # each theme the cursor reaches redraws the dashboard in it, live. It
-# previews nord, terminal on the way past, tokyo-night and tokyo-night-day,
-# then exchange and amber, and esc puts nord back. capturetool plays the
+# previews tokyo-night-day, terminal on the way past, nord, exchange and
+# amber, and esc puts tokyo-night back. capturetool plays the
 # routing scenario (internal/capture/scenarios.go) behind it: no key pins
 # anything.
 #
@@ -21,41 +21,37 @@ Set Height 858
 Set Padding 16
 Set CursorBlink false
 Set Framerate 30
-Set Theme { "name": "nord", "background": "#2E3440", "foreground": "#D8DEE9", "cursor": "#2E3440", "selection": "#434C5E", "black": "#3B4252", "red": "#BF616A", "green": "#A3BE8C", "yellow": "#EBCB8B", "blue": "#81A1C1", "magenta": "#B48EAD", "cyan": "#88C0D0", "white": "#E5E9F0", "brightBlack": "#4C566A", "brightRed": "#BF616A", "brightGreen": "#A3BE8C", "brightYellow": "#EBCB8B", "brightBlue": "#81A1C1", "brightMagenta": "#B48EAD", "brightCyan": "#8FBCBB", "brightWhite": "#ECEFF4" }
+Set Theme { "name": "tokyo-night", "background": "#0B0C14", "foreground": "#C0CAF5", "cursor": "#0B0C14", "selection": "#28243A", "black": "#15161E", "red": "#F7768E", "green": "#9ECE6A", "yellow": "#E0AF68", "blue": "#7AA2F7", "magenta": "#BB9AF7", "cyan": "#7DCFFF", "white": "#A9B1D6", "brightBlack": "#414868", "brightRed": "#F7768E", "brightGreen": "#9ECE6A", "brightYellow": "#E0AF68", "brightBlue": "#7AA2F7", "brightMagenta": "#BB9AF7", "brightCyan": "#7DCFFF", "brightWhite": "#C0CAF5" }
 Set WaitTimeout 2m
 
 Hide
 # In UTC, as the frames are drawn, whatever the recording machine's zone.
-Type "TZ=UTC demo/out/capturetool --scenario routing"
+Type "TZ=UTC demo/out/capturetool --theme tokyo-night --scenario routing"
 Enter
 Wait+Screen /SWITCHBOARD/
 Show
 
 Sleep 1200ms
 Type "t"
-# nord, the theme in force.
+# tokyo-night, the theme in force.
 Sleep 1000ms
-Down
-# terminal, on the way to tokyo-night.
-Sleep 500ms
-Down
-Sleep 1300ms
 Down
 # tokyo-night-day, for a light terminal.
 Sleep 1400ms
 Up
 Sleep 250ms
 Up
-Sleep 250ms
+# terminal, on the way to nord.
+Sleep 500ms
 Up
-Sleep 250ms
+Sleep 1300ms
 Up
 # exchange, then amber.
 Sleep 1300ms
 Up
 Sleep 1400ms
 Escape
-# nord again, as it was.
+# tokyo-night again, as it was.
 Sleep 1000ms
 
 Hide

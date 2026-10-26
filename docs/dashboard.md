@@ -8,7 +8,7 @@ session, and shows the router's sessions and its record of every request. To ope
 - [Overview](#overview)
 - [Accounts](#accounts)
 - [History](#history)
-- [Sessions](#sessions)
+- [Sessions](#sessions-1)
 - [Runway](#runway)
 - [Graphs](#graphs)
 - [The Log](#the-log)
@@ -1004,7 +1004,7 @@ It never remembers:
 ## Themes
 
 <div align="center">
-<img src="../art/themes.webp" alt="The theme picker over the Overview, the dashboard redrawn in each theme the cursor reaches: nord, terminal, tokyo-night, tokyo-night-day, exchange and amber, then nord again" width="840">
+<img src="../art/themes.webp" alt="The theme picker over the Overview, the dashboard redrawn in each theme the cursor reaches: tokyo-night-day, terminal, nord, exchange and amber, then tokyo-night again" width="840">
 </div>
 
 The dashboard is drawn in a theme. A theme names its colours by what they mean and how prominent
@@ -1012,14 +1012,11 @@ they are, never by hue.
 
 ### Built-in themes
 
-| Theme | What it is |
-|---|---|
-| `nord` | The dashboard's palette from the start. |
-| `tokyo-night` | Tokyo Night. |
-| `tokyo-night-day` | Tokyo Night, for a light terminal. |
-| `amber` | An amber CRT. |
-| `exchange` | A telephone exchange's brass and walnut. |
-| `terminal` | For a terminal with a transparent or image background. It paints no background, and draws in the terminal's own sixteen colours. |
+|  |  |
+|:---:|:---:|
+| <img src="../art/theme-tokyo-night.webp" alt="The Overview in tokyo-night" width="420"><br>`tokyo-night`<br>Tokyo Night. | <img src="../art/theme-tokyo-night-day.webp" alt="The Overview in tokyo-night-day" width="420"><br>`tokyo-night-day`<br>Tokyo Night, for a light terminal. |
+| <img src="../art/theme-nord.webp" alt="The Overview in nord" width="420"><br>`nord`<br>The dashboard's palette from the start. | <img src="../art/theme-amber.webp" alt="The Overview in amber" width="420"><br>`amber`<br>An amber CRT. |
+| <img src="../art/theme-exchange.webp" alt="The Overview in exchange" width="420"><br>`exchange`<br>A telephone exchange's brass and walnut. | <img src="../art/theme-terminal.webp" alt="The Overview in terminal" width="420"><br>`terminal`<br>For a terminal with a transparent or image background. It paints no background, and draws in the terminal's own sixteen colours: here, a Tokyo Night terminal's. |
 
 ### One theme, or a pair
 
