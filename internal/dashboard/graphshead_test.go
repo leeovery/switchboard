@@ -209,8 +209,9 @@ func TestACardsRoomIsNumberedAsItsWindowsRoom(t *testing.T) {
 // on the label's row, ending at the card's last column, two cells clear of
 // the label at the least, the label cut toward its least only once the
 // words are down to their first part, and the words gone where even then
-// they don't fit, the label then taking back what it can of the room they
-// left.
+// they don't fit, the label then alone on its row, as under them. A label
+// cut on a row of its own keeps its number and its marks whole within the
+// card.
 func TestACardsHeadLaysItsWordsUnderItsLabelOrBesideIt(t *testing.T) {
 	five := runwayLive(views.RunwayFiveHour)
 	capped := stretchOf(five.Timeline, views.CellCapped, routedClock(1, 14, 31), routedClock(1, 17, 10), 5, 20)
@@ -218,6 +219,8 @@ func TestACardsHeadLaysItsWordsUnderItsLabelOrBesideIt(t *testing.T) {
 	work := cardLane(0.95, capped)
 	research := work
 	research.name = accountName{number: "2", label: "client-research", primary: true}
+	marked := work
+	marked.name = accountName{number: "3", label: "someone", primary: true, best: true}
 	unreadable := unusedLane(views.Use{Key: "5h", Unread: true})
 	unreadable.name = accountName{number: "3", label: "someone@example.com"}
 	unreadable.account.Routing = status.Routing{Kind: status.RoutingUnreadable, Says: "can't read it", Clauses: []string{"HTTP 529", "Overloaded"}}
@@ -236,6 +239,8 @@ func TestACardsHeadLaysItsWordsUnderItsLabelOrBesideIt(t *testing.T) {
 		{name: "under, the label whole in its own row", lane: work, width: 9, label: "1 work", words: "5% left"},
 		{name: "under, the label cut", lane: work, width: 5, label: "1 wo…", words: "5% l…"},
 		{name: "under, the room cut", lane: work, width: 6, label: "1 work", words: "5% le…"},
+		{name: "under, a marked label cut", lane: research, width: 12, label: "2 client-… ◆", words: "5% left"},
+		{name: "under, a label with both marks cut", lane: marked, width: 10, label: "3 som… ◆ ▲", words: "5% left"},
 		{name: "beside, every part", lane: work, width: 75, beside: true, label: "1 work", words: "5% left  ·  at its cap 14:31  ·  back 17:10, as its 5-hour resets"},
 		{name: "beside, the last part left off", lane: work, width: 74, beside: true, label: "1 work", words: "5% left  ·  at its cap 14:31  ·  back 17:10"},
 		{name: "beside, two left off", lane: work, width: 52, beside: true, label: "1 work", words: "5% left  ·  at its cap 14:31"},
@@ -244,7 +249,7 @@ func TestACardsHeadLaysItsWordsUnderItsLabelOrBesideIt(t *testing.T) {
 		{name: "beside, a long label whole", lane: research, width: 30, beside: true, label: "2 client-research ◆", words: "5% left"},
 		{name: "beside, a long label cut", lane: research, width: 28, beside: true, label: "2 client-resea… ◆", words: "5% left"},
 		{name: "beside, a long label at its least", lane: research, width: 23, beside: true, label: "2 client-… ◆", words: "5% left"},
-		{name: "beside, the words gone, the label taking back the room", lane: research, width: 22, beside: true, label: "2 client-resear… ◆"},
+		{name: "beside, the words gone, the label whole on its row", lane: research, width: 22, beside: true, label: "2 client-research ◆"},
 		{name: "beside, the words gone, the label whole again", lane: unreadable, width: 37, beside: true, label: "3 someone@example.com"},
 		{name: "beside, a long label beside long words", lane: unreadable, width: 62, beside: true, label: "3 someone@example.com", words: "can't read it: HTTP 529 · Overloaded"},
 	}

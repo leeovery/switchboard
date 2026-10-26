@@ -52,22 +52,24 @@ type cardHead struct {
 // Beside, its words are on the label's row, ending at the card's last
 // column, the label in a column of the account's name, as accountsColumn
 // has it, its gap clear of the label at the least, the parts laid out by
-// flex, giving way in the turns a head's do, as laidTwice lays them, so a
-// label cut for words that then went takes its room back; else the label
+// flex, giving way in the turns a head's do; where the words give way even
+// so, the label takes its row alone, as within cuts it. Else the label
 // takes the width, as within cuts it, and its words are on the row under
 // it, from its first column, whole parts left off their end where they don't
 // fit, as partsIn has them. They're cued as Runway cues the words under the
 // lane, as wordsCue has it.
 func (f Frame) cardHeadOf(v laneView, ln laidLane, width int, beside bool, now time.Time) cardHead {
 	words := v.cardWords(ln, now)
-	label := accountsColumn(nameGap, []accountName{ln.name})
-	label.Narrows = headLabelTurn
 	h := cardHead{label: ln.name.within(width), words: placed{said: partsIn(words, width)}, row: 1}
 	if beside && len(words) > 0 {
+		label := accountsColumn(nameGap, []accountName{ln.name})
+		label.Narrows = headLabelTurn
 		said := slices.Concat(words...)
-		spans := laidTwice(width, label, flex.Part{Least: words[0].width(), Natural: said.width(), Narrows: headWordsTurn, Leaves: headWordsLeave})
+		spans, _ := flex.Lay(width, label, flex.Part{Least: words[0].width(), Natural: said.width(), Narrows: headWordsTurn, Leaves: headWordsLeave})
 		said = wholeParts(words, spans[1].Size)
-		h.label = ln.name.line(min(spans[0].Size, width))
+		if len(said) > 0 {
+			h.label = ln.name.line(min(spans[0].Size, width))
+		}
 		h.words, h.row = placed{x: width - said.width(), said: said}, 0
 	}
 	h.cue, h.cued = f.wordsCue(ln, v.timeline.NowColumn())
@@ -78,32 +80,7 @@ func (f Frame) cardHeadOf(v laneView, ln laidLane, width int, beside bool, now t
 // number and its marks, as labelIn cuts it, no cells kept beside it, as on a
 // row of its own.
 func (n accountName) within(cells int) line {
-	return n.labelIn(cells - n.labelled("").width())
-}
-
-// laidTwice are the parts laid in room cells in two passes of flex, as the
-// Log's columns are: the first decides which show; the second lays those
-// alone, as flex's Decided has them, so the room one that gave way left goes
-// back to those still shown. One that gave way keeping nothing lies Left, at
-// no cells.
-func laidTwice(room int, parts ...flex.Part) []flex.Span {
-	first, _ := flex.Lay(room, parts...)
-	spans := make([]flex.Span, len(parts))
-	var shown []int
-	var kept []flex.Part
-	for i, span := range first {
-		part, ok := parts[i].Decided(span)
-		if !ok {
-			spans[i] = span
-			continue
-		}
-		shown, kept = append(shown, i), append(kept, part)
-	}
-	second, _ := flex.Lay(room, kept...)
-	for n, i := range shown {
-		spans[i] = second[n]
-	}
-	return spans
+	return n.labelIn(cells - n.besideCells())
 }
 
 // partsIn are as many of the parts given as fit in cells cells, whole, from
@@ -163,8 +140,10 @@ func (v laneView) cardWords(ln laidLane, now time.Time) []line {
 // cardPhrases are the parts of each phrase a card of the lane ln, in the
 // view v of its window, says at now after its room: what's said under the
 // lane on Runway, as said has it, its phrases, in Runway's order, and those
-// sharing a column, of which Runway says only the first it places, in the
-// order of when what each says of begins; or where it has none, what it
+// sharing a column in the order of when what each says of begins, as a
+// reset there before a stretch starting after it, which Runway drops, as
+// placeAlong does a phrase ending where the words before it run, though it
+// places two stretches in one column both; or where it has none, what it
 // says instead; and of a lane whose use isn't read, where that's nothing,
 // its use's words, as Runway's label says them, as "not read".
 func (v laneView) cardPhrases(ln laidLane, now time.Time) [][]line {

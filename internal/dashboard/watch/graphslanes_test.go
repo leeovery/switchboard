@@ -26,10 +26,10 @@ func TestGraphsBuildsEachWindowsLanesOnceAMessageWhileItShows(t *testing.T) {
 	for _, w := range views.RunwayWindows() {
 		want := views.LiveTimeline(w, start, 146)
 		if r.graphsBuilds[w] == 0 || r.graphsFrom[w].Timeline != want || r.graphsFrom[w].Window != w {
-			t.Errorf("once started, Graphs built the %q lanes %d times, over %+v; want them built over Runway's live view, %+v", w, r.graphsBuilds[w], r.graphsFrom[w].Timeline, want)
+			t.Errorf("once started, Graphs built the %s lanes %d times, over %+v; want them built over Runway's live view, %+v", windowName(w), r.graphsBuilds[w], r.graphsFrom[w].Timeline, want)
 		}
 		if got := shown[w]; got.Lanes == nil || got.Window != w || got.Timeline != want || len(got.Lanes.Accounts) != 3 {
-			t.Errorf("the frame shows the %q lanes as %+v, want each account's, over %+v", w, got, want)
+			t.Errorf("the frame shows the %s lanes as %+v, want each account's, over %+v", windowName(w), got, want)
 		}
 	}
 	if r.builds != 0 {
@@ -55,7 +55,7 @@ func TestGraphsBuildsEachWindowsLanesOnceAMessageWhileItShows(t *testing.T) {
 			r.update(tt.msg(r))
 			for _, w := range views.RunwayWindows() {
 				if got := r.graphsBuilds[w] - built[w]; got != tt.want {
-					t.Errorf("%s built the %q lanes %d times, want %d", tt.name, w, got, tt.want)
+					t.Errorf("%s built the %s lanes %d times, want %d", tt.name, windowName(w), got, tt.want)
 				}
 			}
 		})
@@ -118,10 +118,10 @@ func TestGraphsLanesAreOverRunwaysOwnLiveViewOfEachWindow(t *testing.T) {
 				})
 				got, want := g.graphsFrom[w].Timeline, runway.from.Timeline
 				if got != want {
-					t.Errorf("Graphs' %q lanes are over %+v, want Runway's own live view of it, %+v", w, got, want)
+					t.Errorf("Graphs' %s lanes are over %+v, want Runway's own live view of it, %+v", windowName(w), got, want)
 				}
 				if moved := want.Columns != 146; moved != tt.moved {
-					t.Errorf("Runway's %q lanes take %d columns, the case meaning them moved from 146 %t", w, want.Columns, tt.moved)
+					t.Errorf("Runway's %s lanes take %d columns, the case meaning them moved from 146 %t", windowName(w), want.Columns, tt.moved)
 				}
 			}
 		})
@@ -155,7 +155,7 @@ func TestGraphsBuildsAndReadsTheLanesOfTheBurnDownSectionsShownAlone(t *testing.
 			shown := slices.Sorted(maps.Keys(r.model.graphsTab.shown))
 			want := slices.Sorted(slices.Values(tt.want))
 			if !slices.Equal(built, want) || !slices.Equal(shown, want) {
-				t.Errorf("Graphs built the lanes of %q, shows those of %q, want %q alone", built, shown, want)
+				t.Errorf("Graphs built the lanes of %v, shows those of %v, want %v alone", windowNames(built), windowNames(shown), windowNames(want))
 			}
 			if read := r.filed.tails > 0; read != (len(tt.want) > 0) {
 				t.Errorf("the readings history's tail was made %d times and read %d, want it read %t", len(r.filed.starts), r.filed.tails, len(tt.want) > 0)
@@ -190,7 +190,7 @@ func TestGraphsBuildsTheLanesOfTheBurnDownSectionsShownAsTheyreToggled(t *testin
 		shown := slices.Sorted(maps.Keys(r.model.graphsTab.shown))
 		want := slices.Sorted(slices.Values(step.want))
 		if !slices.Equal(slices.Sorted(slices.Values(built)), want) || !slices.Equal(shown, want) {
-			t.Fatalf("%s pressed, Graphs built the lanes of %q, shows those of %q, want %q alone", step.key, built, shown, want)
+			t.Fatalf("%s pressed, Graphs built the lanes of %v, shows those of %v, want %v alone", step.key, windowNames(built), windowNames(shown), windowNames(want))
 		}
 	}
 }
@@ -209,10 +209,10 @@ func TestGraphsLanesAreJudgedByTheReadingsHistoryAndTheLedgersDaysAsRunways(t *t
 	held := r.model.runwayTab.live.held
 	for _, w := range views.RunwayWindows() {
 		if !slices.Equal(held, []readings.Reading{inSpan}) || !slices.Equal(r.graphsFrom[w].Readings, held) {
-			t.Errorf("the tail holds %v, the %q lanes built of %v; want the reading in its span, both", held, w, r.graphsFrom[w].Readings)
+			t.Errorf("the tail holds %v, the %s lanes built of %v; want the reading in its span, both", held, windowName(w), r.graphsFrom[w].Readings)
 		}
 		if r.graphsFrom[w].Days != nil {
-			t.Errorf("live, the readings history holding every day, the %q lanes were built of the days %v, want none", w, r.graphsFrom[w].Days)
+			t.Errorf("live, the readings history holding every day, the %s lanes were built of the days %v, want none", windowName(w), r.graphsFrom[w].Days)
 		}
 	}
 	read := r.filed.tails
@@ -227,7 +227,7 @@ func TestGraphsLanesAreJudgedByTheReadingsHistoryAndTheLedgersDaysAsRunways(t *t
 	for w, first := range firsts {
 		from := keptLater.graphsFrom[w]
 		if got, want := summaryDates(from.Days), datesFrom(first, civilDay(0)); !from.Kept.Equal(kept) || !slices.Equal(got, want) {
-			t.Errorf("live, the readings history holding days from %s, the %q lanes were built of the days %q, kept from %s; want %q, kept from its first day", kept, w, got, from.Kept, want)
+			t.Errorf("live, the readings history holding days from %s, the %s lanes were built of the days %q, kept from %s; want %q, kept from its first day", kept, windowName(w), got, from.Kept, want)
 		}
 	}
 	yearFrom := views.YearFrom(views.YearAsk{}, start, time.Sunday)
@@ -293,6 +293,9 @@ func TestGraphsWithItsBurnDownsHiddenSaysNothingOfLoading(t *testing.T) {
 		h.fire(loading)
 	}
 	h.deliver(h.update(nudgeMsg{})...)
+	if tab := h.model.runwayTab; !tab.reading || !tab.readingLive {
+		t.Fatalf("the heading read with the live tail's read under way %t, of the live tail %t; want it under way", tab.reading, tab.readingLive)
+	}
 	if got := h.row(4); !strings.HasPrefix(got, "POOL") || strings.Contains(got, loadingSaid) {
 		t.Errorf("WEEK and 5-HOUR hidden, the live tail's read under way, the heading reads %q, want POOL's, saying nothing of loading", got)
 	}
@@ -322,4 +325,21 @@ func TestGraphsSaysNothingOfLoadingWhileRunwaysSteppedBackReadIsUnderWay(t *test
 		t.Errorf("Runway's read of last week under way, Graphs' heading reads %q, want nothing of loading", got)
 	}
 	h.deliver(back...)
+}
+
+// windowName is the window as Runway's heading names it, as "week".
+func windowName(w views.RunwayWindow) string {
+	if w == views.RunwayWeek {
+		return "week"
+	}
+	return string(w)
+}
+
+// windowNames are the windows given, each as windowName names it.
+func windowNames(windows []views.RunwayWindow) []string {
+	names := make([]string, len(windows))
+	for i, w := range windows {
+		names[i] = windowName(w)
+	}
+	return names
 }
