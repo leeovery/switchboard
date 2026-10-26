@@ -251,6 +251,8 @@ func TestACardsHeadLaysItsWordsUnderItsLabelOrBesideIt(t *testing.T) {
 		{name: "beside, a long label at its least", lane: research, width: 23, beside: true, label: "2 client-… ◆", words: "5% left"},
 		{name: "beside, the words gone, the label whole on its row", lane: research, width: 22, beside: true, label: "2 client-research ◆"},
 		{name: "beside, the words gone, the label whole again", lane: unreadable, width: 37, beside: true, label: "3 someone@example.com"},
+		{name: "beside, the words gone, the label cut on its row", lane: research, width: 12, beside: true, label: "2 client-… ◆"},
+		{name: "beside, the words gone, the label just whole on its row", lane: research, width: 19, beside: true, label: "2 client-research ◆"},
 		{name: "beside, a long label beside long words", lane: unreadable, width: 62, beside: true, label: "3 someone@example.com", words: "can't read it: HTTP 529 · Overloaded"},
 	}
 	for _, tt := range tests {
