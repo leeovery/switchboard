@@ -1144,7 +1144,7 @@ The router's other states take the first part's place:
   14:40:55` in `text.muted`; the rest as that document had them, the mode above all.
 - **Probed,** the router not running: `○ probed · router not running` in `text.subtle`; where
   something answered its socket but not as a router does, the status document's `fallback` says so
-  in its place, `○ probed · router unhealthy: no answer within 500ms`; and probed as asked, with
+  in its place, `○ probed · router unhealthy: no answer within 5s`; and probed as asked, with
   `--probe`, `○ probed, as asked`. A probed line has no mode, sessions or `new sessions →`, which
   are the router's (settled in the plan).
 
@@ -5441,11 +5441,11 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
 ### Live updates
 
 - **Where it reads:** `dashboard`, `usage` and `status` read the router's status document whenever
-  the router answers its health check within the half second `run` gives it, healthy or not: an
+  the router answers its health check, asked as `run` asks it (see Launching), healthy or not: an
   unhealthy router's trouble is for them to show, and it still posts the notifications. Otherwise
   they probe every account, and the document's `fallback` says why the router's wasn't read:
   `{"router": "not running"}`, or `{"router": "unhealthy", "reason": "…"}` when something answered
-  its socket, but not as a router does, or not within the half second (`no answer within 500ms`).
+  its socket, but not as a router does, or not within the 5 seconds (`no answer within 5s`).
   `--probe` probes regardless, saying nothing of the router. The dashboard, and the data verbs that
   look back, read the ledger's, the readings history's and the events' files where they lie, the
   router there or not (see The data verbs).
@@ -7515,9 +7515,16 @@ verbs).
   doctor` may report the link as a second installation (unverified).
 - **No shell integration:** switchboard defines no shell function or launcher. Per-account
   launchers are the user's own aliases for `switchboard run --account <id> --`.
-- **Routed:** `run` gives the router half a second to answer `GET /health` with `ok`. When it
-  does, `run` starts Claude Code with `ANTHROPIC_BASE_URL` pointing at the proxy, where the router
-  says it listens, not where the config says, which may have changed since,
+- **Asking the router:** `run` gives the router 5 seconds, from its first ask, to answer `GET
+  /health`: a slow router isn't a dead one, and on a machine far behind a live router takes
+  seconds to answer. A router that isn't running, nothing listening on its socket, is asked again
+  every 200ms for the first 2 seconds, as launchd may be bringing it back, or it may be restarting.
+  One that connects is asked once, and given what's left of the 5 seconds, as asking again would
+  add work to a machine already behind. Any other answer is taken at once. `dashboard`, `usage` and
+  `status` ask it alike (see Live updates). The log's `starting claude` line says how long asking
+  took, routed or direct, as `asked=312ms`.
+- **Routed:** when the router answers `ok`, `run` starts Claude Code with `ANTHROPIC_BASE_URL`
+  pointing at the proxy, where the router says it listens, not where the config says, which may have changed since,
   `CLAUDE_CODE_OAUTH_TOKEN` set to the primary's token, whatever account the conversation goes to,
   or, while the primary's isn't usable, `--account`'s, else the first account's with a usable token,
   and with `--account`, the pin header added to any `ANTHROPIC_CUSTOM_HEADERS` already set. The

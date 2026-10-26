@@ -62,14 +62,17 @@ var accounts = []config.Account{
 
 var testTokens = tokenstest.Files{"work": workToken, "side": sideToken}
 
-// route is a launch through r, pinned to account unless it's "".
+// route is a launch through r, pinned to account unless it's "". It asks a
+// router that isn't running once, so a test meets that at once: those that
+// wait as switchboard does give a patience of their own.
 func route(r launch.Router, account string) launch.Route {
 	return launch.Route{
-		Config:  &config.Config{Listen: "127.0.0.1:4747", Accounts: accounts},
-		Token:   testTokens.Read,
-		Pause:   func(time.Duration) {},
-		Router:  r,
-		Account: account,
+		Config:   &config.Config{Listen: "127.0.0.1:4747", Accounts: accounts},
+		Token:    testTokens.Read,
+		Pause:    func(time.Duration) {},
+		Router:   r,
+		Patience: launch.Patience{Answer: launch.AskTimeout},
+		Account:  account,
 	}
 }
 
@@ -337,26 +340,107 @@ func TestRunWithoutAHealthyRouter(t *testing.T) {
 	}
 }
 
-func TestRunGivesTheRouterHalfASecondToAnswer(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		h := newHarness(t)
-		began := time.Now()
+func TestRunWaitsForTheRouterAsSwitchboardDoes(t *testing.T) {
+	tests := []struct {
+		name     string
+		router   *timedRouter
+		wantSaid string
+		// wantRouted is whether Claude Code starts through the router, and
+		// wantWaited how long it waited for it first.
+		wantRouted bool
+		wantWaited time.Duration
+	}{
+		{
+			name:       "answering at 3s",
+			router:     &timedRouter{health: healthy().health, answersIn: 3 * time.Second},
+			wantRouted: true,
+			wantWaited: 3 * time.Second,
+		},
+		{
+			name:       "coming back at 1s",
+			router:     &timedRouter{health: healthy().health, upAt: time.Second},
+			wantRouted: true,
+			wantWaited: time.Second,
+		},
+		{
+			name:       "never answering",
+			router:     &timedRouter{answersIn: never},
+			wantSaid:   "switchboard: the router is unhealthy (no answer within 5s) — connecting directly on work · Work\n",
+			wantWaited: 5 * time.Second,
+		},
+		{
+			name:       "not running",
+			router:     &timedRouter{upAt: never},
+			wantSaid:   "switchboard: the router isn't running — connecting directly on work · Work\n",
+			wantWaited: 2 * time.Second,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				h := newHarness(t)
+				r := route(tt.router, "")
+				r.Patience = launch.Patience{}
+				tt.router.began = time.Now()
 
-		if err := h.launcher.Run(t.Context(), route(&fakeRouter{hangs: true}, ""), nil); err != nil {
-			t.Fatalf("Run() error = %v", err)
-		}
+				if err := h.launcher.Run(t.Context(), r, nil); err != nil {
+					t.Fatalf("Run() error = %v", err)
+				}
 
-		if waited := time.Since(began); waited != 500*time.Millisecond {
-			t.Errorf("waited %v for the router, want 500ms", waited)
-		}
-		want := "switchboard: the router is unhealthy (no answer within 500ms) — connecting directly on work · Work\n"
-		if said := h.stderr.String(); said != want {
-			t.Errorf("said %q on stderr, want %q", said, want)
-		}
-		if _, set := h.environment(t)["ANTHROPIC_BASE_URL"]; set {
-			t.Error("started with ANTHROPIC_BASE_URL set, want it connecting directly")
-		}
-	})
+				if waited := time.Since(tt.router.began); waited != tt.wantWaited {
+					t.Errorf("waited %v for the router, want %v", waited, tt.wantWaited)
+				}
+				if said := h.stderr.String(); said != tt.wantSaid {
+					t.Errorf("said %q on stderr, want %q", said, tt.wantSaid)
+				}
+				if _, routed := h.environment(t)["ANTHROPIC_BASE_URL"]; routed != tt.wantRouted {
+					t.Errorf("started with ANTHROPIC_BASE_URL set: %v, want %v", routed, tt.wantRouted)
+				}
+			})
+		})
+	}
+}
+
+func TestRunLogsHowLongTheRouterTookToAnswer(t *testing.T) {
+	tests := []struct {
+		name   string
+		router *timedRouter
+		want   []string
+	}{
+		{
+			name:   "through the router",
+			router: &timedRouter{health: healthy().health, answersIn: 312 * time.Millisecond},
+			want:   []string{"level=INFO", `msg="starting claude"`, "mode=routed", "asked=312ms"},
+		},
+		{
+			name:   "directly, the router not running",
+			router: &timedRouter{upAt: never},
+			want:   []string{"level=WARN", `msg="starting claude"`, "mode=direct", `router="not running"`, "asked=2s"},
+		},
+		{
+			name:   "directly, the router stuck",
+			router: &timedRouter{answersIn: never},
+			want:   []string{"level=WARN", `msg="starting claude"`, "mode=direct", `reason="no answer within 5s"`, "asked=5s"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				log := logstest.Capture(t)
+				h := newHarness(t)
+				r := route(tt.router, "")
+				r.Patience = launch.Patience{}
+				tt.router.began = time.Now()
+
+				if err := h.launcher.Run(t.Context(), r, nil); err != nil {
+					t.Fatalf("Run() error = %v", err)
+				}
+				if !log.Has(tt.want...) {
+					t.Errorf("log reads\n%s\nwant a line with %q", log, tt.want)
+				}
+			})
+		})
+	}
 }
 
 func TestRunKeepsTheOtherCustomHeaders(t *testing.T) {
@@ -1432,15 +1516,9 @@ func TestLaunchesLogWhatWasDecided(t *testing.T) {
 type fakeRouter struct {
 	health    router.Health
 	healthErr error
-	// hangs has Health answer only once its caller gives up.
-	hangs bool
 }
 
-func (r *fakeRouter) Health(ctx context.Context) (router.Health, error) {
-	if r.hangs {
-		<-ctx.Done()
-		return router.Health{}, fmt.Errorf("ask the router: %w", ctx.Err())
-	}
+func (r *fakeRouter) Health(context.Context) (router.Health, error) {
 	return r.health, r.healthErr
 }
 

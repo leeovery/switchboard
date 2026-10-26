@@ -434,7 +434,7 @@ func onAuto() []status.Event {
 
 func TestLATELYSaysWhyItHasNoneWhereverItsDocumentCameFrom(t *testing.T) {
 	stuck := probed()
-	stuck.Fallback = status.Fallback{Router: status.RouterUnhealthy, Reason: "no answer within 500ms"}
+	stuck.Fallback = status.Fallback{Router: status.RouterUnhealthy, Reason: "no answer within 5s"}
 	asked := probed()
 	asked.Fallback = status.Fallback{}
 	tests := []struct {

@@ -254,16 +254,18 @@ a wrapper named `claude` that `exec`s switchboard.
 
 How `claude` starts depends on the router and your environment:
 
-- **Routed.** When the router answers healthy within half a second, Claude Code starts with
-  `ANTHROPIC_BASE_URL` pointing at the router. It gets the primary's token, or, while that isn't
-  usable, the token of the first account whose token is. The router chooses an account for each
-  request. Claude Code also gets `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1`, unless your environment sets
-  it already. With it, Claude Code tells the router what it tells the API of each request, such as
-  the prompt the request serves, for the request ledger.
+- **Routed.** When the router answers healthy, Claude Code starts with `ANTHROPIC_BASE_URL`
+  pointing at the router. It gets the primary's token, or, while that isn't usable, the token of
+  the first account whose token is. The router chooses an account for each request. Claude Code
+  also gets `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1`, unless your environment sets it already. With
+  it, Claude Code tells the router what it tells the API of each request, such as the prompt the
+  request serves, for the request ledger.
 - **Direct.** When the router isn't running, or isn't healthy, Claude Code connects straight to the
   API. It uses the primary's token, or, while that isn't usable, the token of the first account
   whose token is. A line on stderr says so:
-  `switchboard: the router isn't running — connecting directly on work · Work`.
+  `switchboard: the router isn't running — connecting directly on work · Work`. A slow router is
+  waited for, 5 seconds at most, and one that isn't running is asked again for 2 seconds first, as
+  it may be restarting.
 - **Without switchboard.** When switchboard can't take part at all, such as when it can't read its
   config or no account has a usable token, `claude` starts as if switchboard weren't there. A line
   on stderr says why:

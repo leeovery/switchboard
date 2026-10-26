@@ -84,8 +84,8 @@ func TestTheStatusLineSaysHowTheRouterStands(t *testing.T) {
 		},
 		{
 			name: "probed, something answering not as a router does",
-			doc:  routed(probedAs(status.Fallback{Router: status.RouterUnhealthy, Reason: "no answer within 500ms"})),
-			want: "○ probed · router unhealthy: no answer within 500ms",
+			doc:  routed(probedAs(status.Fallback{Router: status.RouterUnhealthy, Reason: "no answer within 5s"})),
+			want: "○ probed · router unhealthy: no answer within 5s",
 		},
 		{name: "probed, as asked", doc: routed(probedAs(status.Fallback{})), want: "○ probed, as asked"},
 		{

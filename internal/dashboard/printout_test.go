@@ -76,8 +76,8 @@ func TestTheHeaderOnOneLineNeverSaysLessThanOnTwo(t *testing.T) {
 		{name: "names of 24, 23 and 4", doc: labelled("a-very-long-account-name", "another-long-account-id", "side"),
 			parts: []string{"● unhealthy", "restart due (config changed)", "pinned to a-very-long-account-name, another-long-account-id and side", "6 sessions", "new sessions → ▲ side"}},
 		{name: "probed past a router that didn't answer", doc: trio(func(d *status.Document) {
-			d.Source, d.Fallback = status.SourceProbe, status.Fallback{Router: status.RouterUnhealthy, Reason: "no answer within 500ms"}
-		}), parts: []string{"○ probed · router unhealthy: no answer within 500ms"}},
+			d.Source, d.Fallback = status.SourceProbe, status.Fallback{Router: status.RouterUnhealthy, Reason: "no answer within 5s"}
+		}), parts: []string{"○ probed · router unhealthy: no answer within 5s"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

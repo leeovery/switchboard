@@ -22,6 +22,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/cli"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
+	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -106,18 +107,41 @@ func TestStatusProbesWithoutTheRouter(t *testing.T) {
 
 func TestStatusProbesPastARouterThatDoesntAnswer(t *testing.T) {
 	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	srv.deps.Patience = launch.Patience{Answer: 100 * time.Millisecond}
 	serveSilently(t, srv.socket())
 
 	got := run(t, srv.deps, "status", "--pretty")
 	want := result{stdout: workAtStatus + "\n" + othersAtStatus(t, srv.deps) + `
-probed directly: the router is unhealthy, no answer within 500ms
+probed directly: the router is unhealthy, no answer within 100ms
 `}
 	if got != want {
 		t.Errorf("switchboard status =\n%+v\nwant\n%+v", got, want)
 	}
 	doc := statusJSON(t, srv.deps)
-	if want := (status.Fallback{Router: status.RouterUnhealthy, Reason: "no answer within 500ms"}); doc.Source != status.SourceProbe || doc.Fallback != want {
+	if want := (status.Fallback{Router: status.RouterUnhealthy, Reason: "no answer within 100ms"}); doc.Source != status.SourceProbe || doc.Fallback != want {
 		t.Errorf("switchboard status --json printed source %q and fallback %+v, want probe, %+v", doc.Source, doc.Fallback, want)
+	}
+}
+
+func TestStatusAsksARouterComingBackAgain(t *testing.T) {
+	srv := newServeSetup(t, "http://127.0.0.1:1", nil)
+	srv.deps.Patience = launch.Patience{Answer: launch.AskTimeout, Back: launch.AskTimeout, Again: 10 * time.Millisecond}
+	stop, exited := launchWith(t, srv.deps, []string{"status", "--json"})
+	// A head start, so status's first ask finds no router: a status slower to
+	// start than that finds it at once, and the test passes without proving
+	// anything, never failing for it.
+	time.Sleep(50 * time.Millisecond)
+	serveRouter(t, srv.socket(), new(atomic.Int64), map[string]http.HandlerFunc{
+		"GET /status": func(w http.ResponseWriter, _ *http.Request) {
+			_ = json.NewEncoder(w).Encode(status.Document{Source: status.SourceRouter, Router: status.Health{Healthy: true}})
+		},
+	})
+
+	<-exited
+	got := stop()
+	var doc status.Document
+	if got.code != 0 || json.Unmarshal([]byte(got.stdout), &doc) != nil || doc.Source != status.SourceRouter {
+		t.Errorf("switchboard status --json, the router coming back as it's asked, = %+v, want the router's document", got)
 	}
 }
 

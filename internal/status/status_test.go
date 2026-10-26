@@ -895,7 +895,7 @@ func TestDocumentJSON(t *testing.T) {
 			doc: status.Document{
 				GeneratedAt: generated,
 				Source:      status.SourceProbe,
-				Fallback:    status.Fallback{Router: status.RouterUnhealthy, Reason: "no answer within 500ms"},
+				Fallback:    status.Fallback{Router: status.RouterUnhealthy, Reason: "no answer within 5s"},
 				Accounts:    []status.Account{{ID: "work", Label: "Work", TokenSet: true}},
 			},
 			want: `{
@@ -903,7 +903,7 @@ func TestDocumentJSON(t *testing.T) {
   "source": "probe",
   "fallback": {
     "router": "unhealthy",
-    "reason": "no answer within 500ms"
+    "reason": "no answer within 5s"
   },
   "accounts": [
     {

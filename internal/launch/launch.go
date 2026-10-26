@@ -22,17 +22,6 @@ import (
 
 var logger = logs.For("launch")
 
-// AskTimeout bounds each question run asks the router, so a router that's
-// stuck holds Claude Code up for a moment at most. What else asks whether the
-// router answers gives it as long.
-const AskTimeout = 500 * time.Millisecond
-
-// Unanswered returns why a router that didn't answer within AskTimeout is
-// unhealthy, wherever that's said.
-func Unanswered() string {
-	return "no answer within " + AskTimeout.String()
-}
-
 // lookAgain is how long run waits to look at a token file again, when it
 // finds it empty at first: a writer that empties the file before it writes
 // the token leaves it so for a moment, which one look can catch.
@@ -84,6 +73,8 @@ type Route struct {
 	// file is looked at again.
 	Pause  func(time.Duration)
 	Router Router
+	// Patience is how long the router is waited for, as Patience.Ask waits.
+	Patience Patience
 	// Account is the id of the account to pin the session to, or "" to leave
 	// it to the router.
 	Account string
@@ -123,10 +114,10 @@ func (l Launcher) Run(ctx context.Context, r Route, args []string) error {
 	env := own
 	if state.healthy() {
 		env = env.with(claude.BaseURLEnv, "http://"+state.listen).with(claude.TokenEnv, c.token.Reveal()).pinnedTo(r.Account).workingIn(l.toldDir(state)).hinting()
-		logger.Info("starting claude", "mode", "routed", "router", state.name, "account", c.account.ID, "chosen", c.why, "pin", r.Account, "claude", path)
+		logger.Info("starting claude", "mode", "routed", "router", state.name, "asked", state.asked, "account", c.account.ID, "chosen", c.why, "pin", r.Account, "claude", path)
 	} else {
 		env = env.without(claude.BaseURLEnv).with(claude.TokenEnv, c.token.Reveal()).pinnedTo("").workingIn("")
-		logger.Warn("starting claude", "mode", "direct", "router", state.name, "reason", state.reason, "account", c.account.ID, "chosen", c.why, "claude", path)
+		logger.Warn("starting claude", "mode", "direct", "router", state.name, "reason", state.reason, "asked", state.asked, "account", c.account.ID, "chosen", c.why, "claude", path)
 		Notice(l.Stderr, "the router "+state.String()+" — connecting directly on "+title(c.account))
 	}
 	return l.exec(path, args, env.markedAgainst(own))
@@ -311,6 +302,8 @@ type routerState struct {
 	// takes every header of switchboard's own off what it sends upstream.
 	listen string
 	strips bool
+	// asked is how long asking took, to the millisecond.
+	asked time.Duration
 }
 
 func (s routerState) healthy() bool {
@@ -330,17 +323,22 @@ func (s routerState) String() string {
 	}
 }
 
-// health asks the router how it is, and where its proxy listens, giving it
-// AskTimeout to answer. One that doesn't say where can't be sent requests.
+// health asks the router how it is, and where its proxy listens, as patiently
+// as the route's Patience says, noting how long that took.
 func (r Route) health(ctx context.Context) routerState {
-	ctx, cancel := context.WithTimeout(ctx, AskTimeout)
-	defer cancel()
-	h, err := r.Router.Health(ctx)
+	began := time.Now()
+	state := stateOf(r.Patience.Ask(ctx, r.Router))
+	state.asked = time.Since(began).Round(time.Millisecond)
+	return state
+}
+
+// stateOf is how the router is, as its health check answered h, or failed
+// with err: one that doesn't say where its proxy listens can't be sent
+// requests.
+func stateOf(h router.Health, err error) routerState {
 	switch {
 	case errors.Is(err, router.ErrNotRunning):
 		return routerState{name: notRunning}
-	case errors.Is(err, context.DeadlineExceeded):
-		return routerState{name: unhealthy, reason: Unanswered()}
 	case err != nil:
 		return routerState{name: unhealthy, reason: err.Error()}
 	case !h.OK:
