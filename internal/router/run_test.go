@@ -228,7 +228,7 @@ func TestARestartedRouterProbesOnlyTheAccountsItHasNoReadingOf(t *testing.T) {
 	cfg.Now = clock.read
 	// Work's session runs past the restart, and side's resets before it.
 	sideSession := session
-	sideSession.ResetsAt = now.Add(5 * time.Minute)
+	sideSession.ResetsAt = now.Add(3 * time.Minute)
 	first := &fakeProber{}
 	first.answer(workToken, probeResult{usage: quota.Usage{Windows: []quota.Window{session, week}}})
 	first.answer(sideToken, probeResult{usage: quota.Usage{Windows: []quota.Window{sideSession, week}}})
@@ -244,9 +244,9 @@ func TestARestartedRouterProbesOnlyTheAccountsItHasNoReadingOf(t *testing.T) {
 		t.Fatalf("Run() = %v", err)
 	}
 
-	// Ten minutes on, with nothing read of either since, too soon for the
+	// Four minutes on, with nothing read of either since, too soon for the
 	// router's rounds to probe them, personal has a token too.
-	clock.advance(10 * time.Minute)
+	clock.advance(4 * time.Minute)
 	withPersonalToken(&cfg)
 	second := readingEvery(session, week)
 	cfg.Prober = second
@@ -273,13 +273,13 @@ func TestARestartedRouterProbesOnlyTheAccountsItHasNoReadingOf(t *testing.T) {
 	}
 }
 
-func TestARestartedRouterProbesOnItsRoundsTheAccountsNothingHasReadInHalfAnHour(t *testing.T) {
+func TestARestartedRouterProbesOnItsRoundsTheAccountsNothingHasReadInFiveMinutes(t *testing.T) {
 	clock := newFakeClock(now)
 	cfg := runConfig(t, "http://127.0.0.1:1")
 	cfg.Now = clock.read
 	// Work's session runs past the restart, and side's resets before it.
 	sideSession := session
-	sideSession.ResetsAt = now.Add(time.Hour)
+	sideSession.ResetsAt = now.Add(2 * time.Minute)
 	first := &fakeProber{}
 	first.answer(workToken, probeResult{usage: quota.Usage{Windows: []quota.Window{session, week}}})
 	first.answer(sideToken, probeResult{usage: quota.Usage{Windows: []quota.Window{sideSession, week}}})
@@ -295,9 +295,9 @@ func TestARestartedRouterProbesOnItsRoundsTheAccountsNothingHasReadInHalfAnHour(
 		t.Fatalf("Run() = %v", err)
 	}
 
-	// Two hours on, with nothing read of either since: without priming, side's
+	// Five minutes on, with nothing read of either since: without priming, side's
 	// lapsed session is no bar.
-	clock.advance(2 * time.Hour)
+	clock.advance(5 * time.Minute)
 	second := readingEvery(session, week)
 	cfg.Prober = second
 	runRouter(t, cfg)

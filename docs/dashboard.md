@@ -752,7 +752,8 @@ otherwise probes each account.
 switchboard dashboard [interval] [--no-notify] [--probe]
 ```
 
-The interval, given after the command, is how often the dashboard reads in full:
+The interval, given after the command, is how often the dashboard probes every account when it
+probes for itself, without the router or with `--probe`:
 
 - It's `30m` unless you give one, and `5m` at the least.
 - Give it as a duration, such as `15m` or `1h`, or as a number of minutes.
@@ -763,7 +764,7 @@ The interval, given after the command, is how often the dashboard reads in full:
 | `--probe` | Probes every account each interval, even while the router runs. With no router read, there's no routing card, and `p` does nothing. |
 
 ```bash
-switchboard dashboard           # reading every 30 minutes
+switchboard dashboard           # probing every 30 minutes without the router
 switchboard dashboard 15m       # every 15 minutes
 switchboard dashboard --probe   # every account from the API each interval, whatever the router says
 ```
@@ -773,8 +774,9 @@ switchboard dashboard --probe   # every account from the API each interval, what
 While the router answers:
 
 - The dashboard looks at the router's view every 5 seconds. This costs nothing upstream.
-- Every interval, it has the router probe the accounts the router hasn't read in that time. This is
-  beside the router's own [rounds](how-it-works.md#priming), every half hour.
+- It doesn't have the router probe each interval. The router reads the idle accounts itself, on its
+  own [rounds](how-it-works.md#the-routers-rounds), each one nothing has read in the last 5 minutes.
+- `R` has the router read them at once.
 
 If the router stops answering, or a read of it fails, the router's last view stays on screen. The
 status line says `■ the router isn't answering  ·  since 14:40:55`. This lasts until the router

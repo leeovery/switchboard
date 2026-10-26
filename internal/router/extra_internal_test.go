@@ -66,32 +66,76 @@ func TestTheStateTellsOfExtraUsageTaken(t *testing.T) {
 		// of side, were taken in off the answers to requests sent after
 		// earlier.
 		change func(s *state, earlier moment)
-		// want counts the changes told of, and wantReadOff the readings off
-		// the answers to requests.
-		want, wantReadOff changeCount
+		// want counts the changes told of, and wantRoutine the routine ones:
+		// readings off the answers to requests, and how probes went.
+		want, wantRoutine changeCount
 	}{
-		{name: "off an answer", change: func(s *state, _ moment) { s.recordExtra("work", extraWarned, s.mark()) }, wantReadOff: 1},
+		{name: "off an answer", change: func(s *state, _ moment) { s.recordExtra("work", extraWarned, s.mark()) }, wantRoutine: 1},
 		{name: "none given", change: func(s *state, _ moment) { s.recordExtra("work", quota.ExtraUsage{}, s.mark()) }},
 		{name: "off a late answer, outweighed", change: func(s *state, earlier moment) { s.recordExtra("side", extraWarned, earlier) }},
 		{name: "off a probe whose windows are stale", change: func(s *state, earlier moment) {
 			s.recordProbe("work", stale(extraWarned), nil, earlier, readings.FromProbe)
 		}, want: 1},
-		{name: "none off a probe whose windows are stale", change: func(s *state, earlier moment) {
+		{name: "none off a probe whose windows are stale, which ended", change: func(s *state, earlier moment) {
 			s.recordProbe("work", stale(quota.ExtraUsage{}), nil, earlier, readings.FromProbe)
-		}},
+		}, wantRoutine: 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var changes, readOff changeCount
-			s := newState(testAccounts(), testPolicy, claude.Provider{}.Family, at(start), changes.hear, readOff.hear)
+			var changes, routine changeCount
+			s := newState(testAccounts(), testPolicy, claude.Provider{}.Family, at(start), changes.hear, routine.hear)
 			earlier := s.mark()
 			s.record("work", []quota.Window{session}, s.mark())
 			s.recordExtra("side", extraOn, s.mark())
-			changes, readOff = 0, 0
+			changes, routine = 0, 0
 
 			tt.change(s, earlier)
-			if changes != tt.want || readOff != tt.wantReadOff {
-				t.Errorf("told of %d changes and %d readings, want %d and %d", changes, readOff, tt.want, tt.wantReadOff)
+			if changes != tt.want || routine != tt.wantRoutine {
+				t.Errorf("told of %d changes and %d routine ones, want %d and %d", changes, routine, tt.want, tt.wantRoutine)
+			}
+		})
+	}
+}
+
+func TestAProbeReadingExtraUsageAsBeforeIsRoutine(t *testing.T) {
+	var changes, routine changeCount
+	s := newState(testAccounts(), testPolicy, claude.Provider{}.Family, at(start), changes.hear, routine.hear)
+	// As the API answers with extra usage off.
+	off := probed(nil, session)
+	off.Extra = quota.ExtraUsage{Status: quota.StatusRejected}
+	s.recordProbe("work", off, nil, s.mark(), readings.FromProbe)
+	changes, routine = 0, 0
+
+	s.recordProbe("work", off, nil, s.mark(), readings.FromProbe)
+	if changes != 0 || routine != 1 {
+		t.Errorf("the same probe again told of %d changes and %d routine ones, want 0 and 1", changes, routine)
+	}
+}
+
+func TestExtraUsageReadsOtherwise(t *testing.T) {
+	half, half2, none := 0.5, 0.5, 0.0
+	on := quota.ExtraUsage{Status: quota.StatusAllowed, Utilization: &half, ResetsAt: start}
+	with := func(change func(e *quota.ExtraUsage)) quota.ExtraUsage {
+		e := on
+		change(&e)
+		return e
+	}
+	tests := []struct {
+		name string
+		e    quota.ExtraUsage
+		want bool
+	}{
+		{name: "the same, its use given apart", e: with(func(e *quota.ExtraUsage) { e.Utilization = &half2 })},
+		{name: "its reset the same instant elsewhere", e: with(func(e *quota.ExtraUsage) { e.ResetsAt = start.In(local) })},
+		{name: "another status", e: with(func(e *quota.ExtraUsage) { e.Status = quota.StatusRejected }), want: true},
+		{name: "another reset", e: with(func(e *quota.ExtraUsage) { e.ResetsAt = start.Add(time.Hour) }), want: true},
+		{name: "another use", e: with(func(e *quota.ExtraUsage) { e.Utilization = &none }), want: true},
+		{name: "its use not given", e: with(func(e *quota.ExtraUsage) { e.Utilization = nil }), want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := extraOtherwise(on, tt.e); got != tt.want {
+				t.Errorf("extraOtherwise() = %v, want %v", got, tt.want)
 			}
 		})
 	}

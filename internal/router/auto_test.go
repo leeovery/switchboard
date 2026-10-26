@@ -28,8 +28,8 @@ type assigned struct {
 // session of no pin of its own, which keeps it where it runs while that
 // account has room and a move would cost it something, the global pin
 // counting. Each moment ends with the router reading every account afresh,
-// as the dashboard has it do every interval, so the next requests' choices
-// know what the listing knew.
+// as a refresh has it do, so the next requests' choices know what the
+// listing knew.
 func TestAutoIsWhereASessionsNextRequestGoesOnceItsPinIsCleared(t *testing.T) {
 	// Of two weeks used alike, the one resetting sooner needs using first.
 	sooner, later := weekOf(0.5, 24*time.Hour), weekOf(0.5, 5*24*time.Hour)
@@ -275,9 +275,9 @@ func TestTheSessionsAreListedWithAutoSafelyBesideRequests(t *testing.T) {
 	wg.Wait()
 }
 
-// readAfresh has the router read every account afresh a minute on, as the
-// dashboard has it do every interval: a minute after the probes before it,
-// as the router probes an account no sooner.
+// readAfresh has the router read every account afresh a minute on, as a
+// refresh has it do: a minute after the probes before it, as the router
+// probes an account no sooner.
 func readAfresh(t *testing.T, r *routed, client *router.Client) {
 	t.Helper()
 	r.clock.advance(time.Minute)

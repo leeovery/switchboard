@@ -211,11 +211,11 @@ func TestALookAskedForWhileAReadIsUnderWayComesOnceItLands(t *testing.T) {
 
 	reading := h.press("R")
 	h.deliver(h.commanded(order{accounts: []string{"work"}})...)
-	if got, want := h.source.asked, []status.Read{{Refresh: interval, Probe: true}, {Refresh: status.FreshFor, Probe: true}}; !slices.Equal(got, want) {
+	if got, want := h.source.asked, []status.Read{{Probe: true}, {Refresh: status.FreshFor, Probe: true}}; !slices.Equal(got, want) {
 		t.Fatalf("while R's read is under way, asked for %+v, want %+v", got, want)
 	}
 	h.deliver(reading...)
-	want := []status.Read{{Refresh: interval, Probe: true}, {Refresh: status.FreshFor, Probe: true}, {}}
+	want := []status.Read{{Probe: true}, {Refresh: status.FreshFor, Probe: true}, {}}
 	if !slices.Equal(h.source.asked, want) {
 		t.Errorf("once it lands, asked for %+v, want %+v", h.source.asked, want)
 	}
