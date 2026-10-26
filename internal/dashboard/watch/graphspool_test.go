@@ -10,6 +10,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/readings"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -100,6 +101,25 @@ func TestGraphsReadsTheReadingsHistoryForPoolAlone(t *testing.T) {
 	none.lookAt(start.Add(interval))
 	if none.filed.tails != 0 || none.poolBuilds != 0 {
 		t.Errorf("with GLANCE alone shown, the live tail was read %d times, POOL's stack built %d; want neither", none.filed.tails, none.poolBuilds)
+	}
+}
+
+// Under a session's page opened over Graphs, POOL alone shown, nothing reads
+// the live tail and no stack is built at a look; closed, Graphs builds POOL's
+// stack again from the one it held.
+func TestGraphsUnderASessionsPageBuildsNoPool(t *testing.T) {
+	r := runwayHarness(t, dashboard.Graphs, graphsShowing("pool"), filedOn("work", "7d", start.Add(-2*time.Hour), 0.3))
+	r.source.sessions = []status.Session{sessionOn(idD28C, opus, "work", 0)}
+	r.tickUntilAsked()
+	r.openPage(idD28C)
+	held, built, tails := r.model.graphsTab.pool, r.poolBuilds, r.filed.tails
+	r.lookAt(r.clock.now.Add(interval))
+	if r.filed.tails != tails || r.poolBuilds != built {
+		t.Errorf("under a session's page, a look read the live tail %d times and built POOL's stack %d; want neither", r.filed.tails-tails, r.poolBuilds-built)
+	}
+	r.update(escKey)
+	if r.model.session != nil || r.poolBuilds != built+1 || !reflect.DeepEqual(r.poolGiven, held) {
+		t.Errorf("the page closed, POOL's stack was built %d times, from %+v; want once, from the one held, %+v", r.poolBuilds-built, r.poolGiven, held)
 	}
 }
 
