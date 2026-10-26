@@ -95,6 +95,8 @@ func TestDashboardHelpSaysWhatTheKeysWordsDont(t *testing.T) {
 		{page: "every page", next: "Overview:", says: "t and p work where they apply: t not under NO_COLOR, and p neither with one account"},
 		{page: "every page", next: "Overview:", says: "nor with --probe"},
 		{page: "every page", next: "Overview:", says: "j, k, PgDn, PgUp and the wheel scroll a view where it doesn't fit: the Overview's USAGE"},
+		{page: "every page", next: "Overview:", says: "Runway's lanes, Graphs' page, the Log's table"},
+		{page: "every page", next: "Overview:", says: "w, where it's listed as models, shows and hides each model's own window"},
 		{page: "Overview", next: "Accounts:", says: "b groups the windows by window or by account"},
 		{page: "Accounts", next: "History:", says: "< and > step the period both views count over"},
 		{page: "History", next: "Sessions:", says: "< and > step the Year back through each calendar year the ledger holds"},
