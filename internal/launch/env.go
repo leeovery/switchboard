@@ -1,12 +1,14 @@
 package launch
 
 import (
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/router"
 )
 
@@ -31,6 +33,29 @@ const startedEnv = "SWITCHBOARD_STARTED"
 // tmux server, or one running claude again in its own place much later.
 const startedFor = 30 * time.Second
 
+// setEnv marks the environment of a claude run starts with what run set in
+// it, so a claude started within its session that switchboard steps aside
+// for, or starts unaided, starts as if switchboard weren't there (see
+// unmarked). It holds, query-encoded, the value run gave each of markedVars
+// it set, under "set:" and the variable's name, and the user's value it
+// replaced, under "had:", and each line it added to Claude Code's custom
+// headers, under "header", with the user's headers under "had:" where they
+// were set to nothing but blank lines.
+const setEnv = "SWITCHBOARD_SET"
+
+// The keys of setEnv's mark.
+const (
+	setKey    = "set:"
+	hadKey    = "had:"
+	headerKey = "header"
+)
+
+// markedVars are the variables setEnv names, of those run sets. The token
+// isn't among them: a user's own, which run replaced, can't be written into
+// the mark, and without the value run gave it, a token set since, as by a
+// script, couldn't be told from run's.
+var markedVars = []string{claude.BaseURLEnv, claude.HintHeadersEnv}
+
 // environ is an environment as os.Environ gives it: "key=value", a variable
 // each. Its methods return a changed copy, leaving it as it was.
 type environ []string
@@ -49,15 +74,21 @@ func (e environ) without(keys ...string) environ {
 	})
 }
 
-// get returns key's value, or "" when it's unset. Of a key set twice, the
-// first counts, as it does for getenv.
+// get returns key's value, or "" when it's unset.
 func (e environ) get(key string) string {
+	value, _ := e.lookup(key)
+	return value
+}
+
+// lookup returns key's value, and whether it's set at all. Of a key set
+// twice, the first counts, as it does for getenv.
+func (e environ) lookup(key string) (string, bool) {
 	for _, variable := range e {
 		if k, value, _ := strings.Cut(variable, "="); k == key {
-			return value
+			return value, true
 		}
 	}
-	return ""
+	return "", false
 }
 
 // hinting returns the environment with Claude Code sending the router the
@@ -96,6 +127,131 @@ func (e environ) startedAt(pid int, now time.Time) string {
 	return path
 }
 
+// markedAgainst returns the environment marked with what it sets that own,
+// the environment run started from, doesn't (see setEnv), in place of any
+// mark it held: each of markedVars it gives a value own didn't, with own's
+// value where own had one, and each custom header line own didn't hold, with
+// own's custom headers where they were set to nothing but blank lines. The
+// base URL is marked even where own held the same value, as its mark is what
+// says the environment is still routed (see routedByRun); restoring it then
+// changes nothing. The mark sits in the environment of everything the session
+// runs, which never held own's replaced values before, so nothing secret is
+// written into it: a value run set holding anything token-shaped goes
+// unmarked, and stays, and a value of own's holding a secret, as
+// redact.HoldsSecret finds one, such as a gateway's URL with credentials in
+// it, isn't kept, its variable marked as set where the user had none.
+func (e environ) markedAgainst(own environ) environ {
+	mark := url.Values{}
+	for _, key := range markedVars {
+		set, isSet := e.lookup(key)
+		had, hadIt := own.lookup(key)
+		unchanged := hadIt && had == set && key != claude.BaseURLEnv
+		if !isSet || unchanged || redact.HoldsToken(set) {
+			continue
+		}
+		mark.Set(setKey+key, set)
+		if hadIt {
+			keepHad(mark, key, had)
+		}
+	}
+	ownLines := own.headerLines()
+	for _, line := range e.headerLines() {
+		if !slices.Contains(ownLines, line) && !redact.HoldsToken(line) {
+			mark.Add(headerKey, line)
+		}
+	}
+	if blank, isSet := own.lookup(claude.CustomHeadersEnv); isSet && len(ownLines) == 0 && mark.Has(headerKey) {
+		keepHad(mark, claude.CustomHeadersEnv, blank)
+	}
+	if len(mark) == 0 {
+		return e.without(setEnv)
+	}
+	return e.with(setEnv, mark.Encode())
+}
+
+// keepHad writes into mark the user's value of key that run replaced, unless
+// it holds a secret.
+func keepHad(mark url.Values, key, had string) {
+	if !redact.HoldsSecret(had) {
+		mark.Set(hadKey+key, had)
+	}
+}
+
+// unmarked returns the environment without what run set in it, as its mark
+// says (see setEnv), and without the mark: each of markedVars still holding
+// the value run gave it back to the user's, or unset where the user had none,
+// and each custom header line run added taken off, every other staying (see
+// restoredHeaders). A variable changed since, as by a script pointing claude
+// at a gateway of its own, stays as it is. Without a mark, as from a
+// switchboard before marks, or with one that can't be read, nothing else
+// changes.
+func (e environ) unmarked() environ {
+	if _, marked := e.lookup(setEnv); !marked {
+		return e
+	}
+	env := e.without(setEnv)
+	mark, ok := e.mark()
+	if !ok {
+		return env
+	}
+	for _, key := range markedVars {
+		env = env.restored(key, mark)
+	}
+	return env.restoredHeaders(mark)
+}
+
+// restoredHeaders returns the environment with Claude Code's custom headers
+// without the lines run added, as mark has them, every other staying. Where
+// taking them off leaves none, and the user's were set to nothing but blank
+// lines, they go back to that, rather than unset.
+func (e environ) restoredHeaders(mark url.Values) environ {
+	env := e.withoutHeaderLines(mark[headerKey])
+	_, held := e.lookup(claude.CustomHeadersEnv)
+	_, holds := env.lookup(claude.CustomHeadersEnv)
+	if held && !holds && mark.Has(hadKey+claude.CustomHeadersEnv) {
+		return env.with(claude.CustomHeadersEnv, mark.Get(hadKey+claude.CustomHeadersEnv))
+	}
+	return env
+}
+
+// routedByRun reports whether the environment still sends Claude Code to the
+// router run sent it to, as its mark says: false without a mark, or where the
+// base URL has been changed since, as by a script pointing claude at a gateway
+// of its own.
+func (e environ) routedByRun() bool {
+	mark, ok := e.mark()
+	if !ok || !mark.Has(setKey+claude.BaseURLEnv) {
+		return false
+	}
+	value, isSet := e.lookup(claude.BaseURLEnv)
+	return isSet && value == mark.Get(setKey+claude.BaseURLEnv)
+}
+
+// mark returns what run set in the environment, as its mark says (see
+// setEnv): false without a mark, or with one that can't be read.
+func (e environ) mark() (url.Values, bool) {
+	raw, marked := e.lookup(setEnv)
+	if !marked {
+		return nil, false
+	}
+	mark, err := url.ParseQuery(raw)
+	return mark, err == nil
+}
+
+// restored returns the environment with key back to the user's value, as
+// mark has it, or unset where the user had none, while it holds the value
+// mark says run gave it.
+func (e environ) restored(key string, mark url.Values) environ {
+	value, isSet := e.lookup(key)
+	if !isSet || !mark.Has(setKey+key) || value != mark.Get(setKey+key) {
+		return e
+	}
+	if mark.Has(hadKey + key) {
+		return e.with(key, mark.Get(hadKey+key))
+	}
+	return e.without(key)
+}
+
 // pinnedTo returns the environment with Claude Code's custom headers pinning
 // its requests to the account with the given id, or to none for "". A pin the
 // environment holds already, such as a session's that this one is started
@@ -118,19 +274,48 @@ func (e environ) workingIn(dir string) environ {
 // holding the header key with value, in place of any line of it they held,
 // or without it for "". Any other header stays.
 func (e environ) withHeader(key, value string) environ {
-	var headers []string
+	lines := slices.DeleteFunc(e.headerLines(), func(line string) bool {
+		name, _, _ := strings.Cut(line, ":")
+		return strings.EqualFold(strings.TrimSpace(name), key)
+	})
+	if value != "" {
+		lines = append(lines, key+": "+value)
+	}
+	return e.withHeaderLines(lines)
+}
+
+// withoutHeaderLines returns the environment with Claude Code's custom
+// headers without the lines given, every other staying. Where it holds none
+// of them, it's left as it is.
+func (e environ) withoutHeaderLines(gone []string) environ {
+	lines := e.headerLines()
+	kept := slices.DeleteFunc(slices.Clone(lines), func(line string) bool {
+		return slices.Contains(gone, line)
+	})
+	if len(kept) == len(lines) {
+		return e
+	}
+	return e.withHeaderLines(kept)
+}
+
+// headerLines returns Claude Code's custom headers, a line each, blank lines
+// left out.
+func (e environ) headerLines() []string {
+	var lines []string
 	for line := range strings.Lines(e.get(claude.CustomHeadersEnv)) {
 		line = strings.TrimRight(line, "\r\n")
-		name, _, _ := strings.Cut(line, ":")
-		if strings.TrimSpace(line) != "" && !strings.EqualFold(strings.TrimSpace(name), key) {
-			headers = append(headers, line)
+		if strings.TrimSpace(line) != "" {
+			lines = append(lines, line)
 		}
 	}
-	if value != "" {
-		headers = append(headers, key+": "+value)
-	}
-	if len(headers) == 0 {
+	return lines
+}
+
+// withHeaderLines returns the environment with Claude Code's custom headers
+// the lines given, or without them for none.
+func (e environ) withHeaderLines(lines []string) environ {
+	if len(lines) == 0 {
 		return e.without(claude.CustomHeadersEnv)
 	}
-	return e.with(claude.CustomHeadersEnv, strings.Join(headers, "\n"))
+	return e.with(claude.CustomHeadersEnv, strings.Join(lines, "\n"))
 }
