@@ -156,11 +156,24 @@ func TestAskSaysWhichDeadlineRanOut(t *testing.T) {
 		{name: "its own", router: &timedRouter{answersIn: never}, deadline: 8 * time.Second, wantErr: "no answer within 5s", wantTook: 5 * time.Second},
 		{name: "the caller's, first", router: &timedRouter{answersIn: never}, deadline: 1500 * time.Millisecond, wantErr: "no answer within 1.5s", wantTook: 1500 * time.Millisecond},
 		{
-			name:     "the caller's, first, while asking one not running again",
+			name:     "the caller's, first, while waiting to ask one not running again: not running, as it said",
 			router:   &timedRouter{upAt: never},
 			deadline: 1500 * time.Millisecond,
-			wantErr:  "no answer within 1.5s",
+			wantErr:  "the router isn't running: dial unix control.sock: connect: no such file or directory",
 			wantTook: 1500 * time.Millisecond,
+		},
+		{
+			name:     "the caller's, first, cutting off a dial: not running",
+			router:   &timedRouter{upAt: never, failsIn: 500 * time.Millisecond},
+			deadline: 1500 * time.Millisecond,
+			wantErr:  "the router isn't running: dial unix control.sock: context deadline exceeded",
+			wantTook: 1500 * time.Millisecond,
+		},
+		{
+			name:     "its own, cutting off a dial: not running",
+			router:   &timedRouter{upAt: never, failsIn: never},
+			wantErr:  "the router isn't running: dial unix control.sock: context deadline exceeded",
+			wantTook: 5 * time.Second,
 		},
 		{name: "the client's own, as it says", router: &timedRouter{answersIn: time.Second, err: inside}, wantErr: inside.Error(), wantTook: time.Second},
 	}
@@ -245,19 +258,30 @@ func (r *timedRouter) Health(ctx context.Context) (router.Health, error) {
 	at := time.Since(r.began)
 	r.asks = append(r.asks, at)
 	if at < r.upAt {
-		return within(ctx, r.failsIn, router.Health{}, fmt.Errorf("%w: dial unix control.sock: connect: no such file or directory", router.ErrNotRunning))
+		return within(ctx, r.failsIn, router.Health{}, dialFailed(errors.New("connect: no such file or directory")), dialFailed)
 	}
-	return within(ctx, r.answersIn, r.health, r.err)
+	return within(ctx, r.answersIn, r.health, r.err, askFailed)
 }
 
-// within answers h and err in d, unless ctx ends first.
-func within(ctx context.Context, d time.Duration, h router.Health, err error) (router.Health, error) {
+// within answers h and err in d, unless ctx ends first, failing then as cut
+// says, as a router's client does.
+func within(ctx context.Context, d time.Duration, h router.Health, err error, cut func(error) error) (router.Health, error) {
 	answering := time.NewTimer(d)
 	defer answering.Stop()
 	select {
 	case <-answering.C:
 		return h, err
 	case <-ctx.Done():
-		return router.Health{}, fmt.Errorf("ask the router: %w", ctx.Err())
+		return router.Health{}, cut(ctx.Err())
 	}
+}
+
+// dialFailed is how a router's client fails when its dial does, as when
+// nothing listens, and askFailed when a request it sent goes unanswered.
+func dialFailed(err error) error {
+	return fmt.Errorf("%w: dial unix control.sock: %w", router.ErrNotRunning, err)
+}
+
+func askFailed(err error) error {
+	return fmt.Errorf("ask the router: %w", err)
 }

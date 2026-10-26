@@ -45,8 +45,10 @@ var patient = Patience{Answer: AskTimeout, Back: comingBack, Again: askAgain}
 // work to a router already behind. Any other answer is taken at once. Should
 // ctx end first, Ask stops at once.
 //
-// Should no answer come in time, Ask fails saying how long the router had,
-// as "no answer within 5s": Answer, or less where ctx's deadline came first.
+// Should one that connects not answer in time, Ask fails saying how long the
+// router had, as "no answer within 5s": Answer, or less where ctx's deadline
+// came first. One not running when a deadline cuts the asking off is not
+// running still, as it last said.
 func (p Patience) Ask(ctx context.Context, r Router) (router.Health, error) {
 	p = cmp.Or(p, patient)
 	p.Again = cmp.Or(p.Again, askAgain)
@@ -55,22 +57,27 @@ func (p Patience) Ask(ctx context.Context, r Router) (router.Health, error) {
 	defer cancel()
 	for next := began; ; {
 		h, err := r.Health(asking)
+		notRunning := errors.Is(err, router.ErrNotRunning)
 		switch {
-		case err != nil && asking.Err() != nil:
+		case err != nil && !notRunning && asking.Err() != nil:
 			return router.Health{}, p.ended(ctx, began, err)
-		case !errors.Is(err, router.ErrNotRunning) || time.Since(began) >= p.Back:
+		case !notRunning || time.Since(began) >= p.Back:
 			return h, err
 		}
 		next = after(next, p.Again)
-		if err := pause(asking, time.Until(next)); err != nil {
-			return router.Health{}, p.ended(ctx, began, err)
+		if paused := pause(asking, time.Until(next)); paused != nil {
+			if errors.Is(ctx.Err(), context.Canceled) {
+				return router.Health{}, paused
+			}
+			return h, err
 		}
 	}
 }
 
-// ended is why asking, begun at began, ended before the router answered, as
-// err, what it ended with, says: the caller gave up, which err says as it is,
-// or a deadline ran out, ctx's where it came first, else Answer.
+// ended is why asking, begun at began, ended once the router had connected
+// but before it answered, as err, what it ended with, says: the caller gave
+// up, which err says as it is, or a deadline ran out, ctx's where it came
+// first, else Answer.
 func (p Patience) ended(ctx context.Context, began time.Time, err error) error {
 	switch {
 	case errors.Is(ctx.Err(), context.Canceled):
