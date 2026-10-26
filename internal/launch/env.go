@@ -134,9 +134,12 @@ func (e environ) startedAt(pid int, now time.Time) string {
 // own's custom headers where they were set to nothing but blank lines. The
 // base URL is marked even where own held the same value, as its mark is what
 // says the environment is still routed (see routedByRun); restoring it then
-// changes nothing. A value holding anything token-shaped is never written: a
-// variable set to one goes unmarked, and one replacing such a value of own's
-// is marked as set where the user had none.
+// changes nothing. The mark sits in the environment of everything the session
+// runs, which never held own's replaced values before, so nothing secret is
+// written into it: a value run set holding anything token-shaped goes
+// unmarked, and stays, and a value of own's holding a secret, as
+// redact.HoldsSecret finds one, such as a gateway's URL with credentials in
+// it, isn't kept, its variable marked as set where the user had none.
 func (e environ) markedAgainst(own environ) environ {
 	mark := url.Values{}
 	for _, key := range markedVars {
@@ -147,8 +150,8 @@ func (e environ) markedAgainst(own environ) environ {
 			continue
 		}
 		mark.Set(setKey+key, set)
-		if hadIt && !redact.HoldsToken(had) {
-			mark.Set(hadKey+key, had)
+		if hadIt {
+			keepHad(mark, key, had)
 		}
 	}
 	ownLines := own.headerLines()
@@ -158,7 +161,7 @@ func (e environ) markedAgainst(own environ) environ {
 		}
 	}
 	if blank, isSet := own.lookup(claude.CustomHeadersEnv); isSet && len(ownLines) == 0 && mark.Has(headerKey) {
-		mark.Set(hadKey+claude.CustomHeadersEnv, blank)
+		keepHad(mark, claude.CustomHeadersEnv, blank)
 	}
 	if len(mark) == 0 {
 		return e.without(setEnv)
@@ -166,14 +169,22 @@ func (e environ) markedAgainst(own environ) environ {
 	return e.with(setEnv, mark.Encode())
 }
 
+// keepHad writes into mark the user's value of key that run replaced, unless
+// it holds a secret.
+func keepHad(mark url.Values, key, had string) {
+	if !redact.HoldsSecret(had) {
+		mark.Set(hadKey+key, had)
+	}
+}
+
 // unmarked returns the environment without what run set in it, as its mark
 // says (see setEnv), and without the mark: each of markedVars still holding
 // the value run gave it back to the user's, or unset where the user had none,
 // and each custom header line run added taken off, every other staying (see
-// restoredHeaders). A
-// variable changed since, as by a script pointing claude at a gateway of its
-// own, stays as it is. Without a mark, as from a switchboard before marks, or
-// with one that can't be read, nothing else changes.
+// restoredHeaders). A variable changed since, as by a script pointing claude
+// at a gateway of its own, stays as it is. Without a mark, as from a
+// switchboard before marks, or with one that can't be read, nothing else
+// changes.
 func (e environ) unmarked() environ {
 	if _, marked := e.lookup(setEnv); !marked {
 		return e

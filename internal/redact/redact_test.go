@@ -24,6 +24,30 @@ func TestHoldsToken(t *testing.T) {
 	}
 }
 
+func TestHoldsSecret(t *testing.T) {
+	tests := []struct {
+		value string
+		want  bool
+	}{
+		{value: "sk-ant-oat01-fake_token-shaped", want: true},
+		{value: "https://sk-ant-oat01-fake_token-shaped.gateway.example.com", want: true},
+		{value: "https://user:secret@gateway.example.com", want: true},
+		{value: "https://user@gateway.example.com", want: true},
+		{value: "https://gateway.example.com/v1?key=abc", want: true},
+		{value: "https://gateway.example.com/v1"},
+		{value: "http://127.0.0.1:4747"},
+		{value: "https://gateway.example.com/v1?"},
+		{value: "0"},
+		{value: ""},
+		{value: "\n"},
+	}
+	for _, tt := range tests {
+		if got := redact.HoldsSecret(tt.value); got != tt.want {
+			t.Errorf("HoldsSecret(%q) = %v, want %v", tt.value, got, tt.want)
+		}
+	}
+}
+
 func TestText(t *testing.T) {
 	// tokenShaped is shaped like a Claude token, though it's none.
 	const tokenShaped = "sk-ant-oat01-fake_token-shaped"

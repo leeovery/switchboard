@@ -25,6 +25,8 @@ session within a session marks only what it sets itself. Starting unaided does t
 the base URL has changed since, as a script pointing `claude` at another gateway does: within a
 session still sent to the router `run` sent it to, it passes the environment on as it is, mark and
 all, as that router still routes and records it, routing coming first. The token isn't marked, as
-the user's own can't be written into the mark. A session from before the mark goes on as it did.
+the user's own can't be written into the mark; nor is any value of the user's holding a secret, as
+`redact.HoldsSecret` finds one, such as a gateway's URL with credentials or a key in it, which then
+goes when stepping aside rather than going back. A session from before the mark goes on as it did.
 `internal/launch` holds it: `env.go`'s `markedAgainst`, `unmarked` and `routedByRun`, and
 `launch.go`'s `unaidedEnv`.

@@ -1036,10 +1036,12 @@ func TestDirectWithinASessionStartsFromTheUsersEnvironment(t *testing.T) {
 	}
 }
 
-func TestNothingTokenShapedIsWrittenIntoTheMarkOfWhatRunSet(t *testing.T) {
+func TestNothingSecretIsWrittenIntoTheMarkOfWhatRunSet(t *testing.T) {
 	const shaped = "sk-ant-oat01-fake_token-shaped"
 	tests := []struct {
 		name string
+		// secret is what the mark must never hold.
+		secret string
 		// own is the environment the user started the session in, and dir the
 		// directory it started in.
 		own []string
@@ -1049,15 +1051,31 @@ func TestNothingTokenShapedIsWrittenIntoTheMarkOfWhatRunSet(t *testing.T) {
 		want map[string]string
 	}{
 		{
-			name: "a base URL of the user's holding one, which can't go back, goes",
-			own:  []string{"ANTHROPIC_BASE_URL=https://" + shaped + "@gateway.example.com"},
-			dir:  project,
-			want: map[string]string{},
+			name:   "a base URL of the user's with credentials in its userinfo, which can't go back, goes",
+			secret: "test-secret-pass",
+			own:    []string{"ANTHROPIC_BASE_URL=https://user:test-secret-pass@gateway.example.com"},
+			dir:    project,
+			want:   map[string]string{},
 		},
 		{
-			name: "a directory holding one, its line unmarked, stays",
-			dir:  homeDir + "/Code/" + shaped,
-			want: map[string]string{"ANTHROPIC_CUSTOM_HEADERS": "X-Switchboard-Dir: ~/Code/" + shaped},
+			name:   "a base URL of the user's with a key in its query, which can't go back, goes",
+			secret: "test-secret-key",
+			own:    []string{"ANTHROPIC_BASE_URL=https://gateway.example.com/v1?key=test-secret-key"},
+			dir:    project,
+			want:   map[string]string{},
+		},
+		{
+			name:   "a base URL of the user's holding a token-shaped value, which can't go back, goes",
+			secret: shaped,
+			own:    []string{"ANTHROPIC_BASE_URL=https://" + shaped + "@gateway.example.com"},
+			dir:    project,
+			want:   map[string]string{},
+		},
+		{
+			name:   "a directory holding a token-shaped value, its line unmarked, stays",
+			secret: shaped,
+			dir:    homeDir + "/Code/" + shaped,
+			want:   map[string]string{"ANTHROPIC_CUSTOM_HEADERS": "X-Switchboard-Dir: ~/Code/" + shaped},
 		},
 	}
 	for _, tt := range tests {
@@ -1067,8 +1085,8 @@ func TestNothingTokenShapedIsWrittenIntoTheMarkOfWhatRunSet(t *testing.T) {
 			if err := session.launcher.Run(t.Context(), route(healthy(), ""), nil); err != nil {
 				t.Fatalf("Run() error = %v", err)
 			}
-			if sets := session.only(t).sets; len(sets) != 1 || strings.Contains(sets[0], "sk-ant-") {
-				t.Fatalf("marked with what run set as %q, want one mark, holding nothing token-shaped", sets)
+			if sets := session.only(t).sets; len(sets) != 1 || strings.Contains(sets[0], tt.secret) {
+				t.Fatalf("marked with what run set as %q, want one mark, without %q", sets, tt.secret)
 			}
 
 			h := newHarness(t, session.only(t).session()...)

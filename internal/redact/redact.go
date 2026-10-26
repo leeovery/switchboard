@@ -7,6 +7,7 @@
 package redact
 
 import (
+	"net/url"
 	"regexp"
 	"strings"
 )
@@ -23,6 +24,18 @@ var tokenShaped = regexp.MustCompile(tokenPrefix + `[A-Za-z0-9_-]+`)
 // HoldsToken reports whether text holds anything shaped like a Claude token.
 func HoldsToken(text string) bool {
 	return tokenShaped.MatchString(text)
+}
+
+// HoldsSecret reports whether value, such as a variable's, holds a secret:
+// anything shaped like a Claude token, or, read as a URL, credentials in its
+// userinfo, as https://user:secret@gateway.example.com, or a query, which can
+// carry a key, as ?key=….
+func HoldsSecret(value string) bool {
+	if HoldsToken(value) {
+		return true
+	}
+	u, err := url.Parse(value)
+	return err == nil && (u.User != nil || u.RawQuery != "")
 }
 
 // Text returns text with each of secrets, and anything shaped like a Claude

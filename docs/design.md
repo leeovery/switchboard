@@ -7557,11 +7557,13 @@ verbs).
   has changed since, it starts from the user's environment, as stepping aside does, the changed
   base URL staying, so nothing of switchboard's reaches another gateway. The token isn't marked:
   the user's own, which `run` replaced, can't be written into the mark, and without the value
-  `run` gave it, a token set since couldn't be told from `run`'s. Nor is any value holding
-  anything token-shaped: a variable set to one goes unmarked, and stays, and one that replaced
-  such a value of the user's is marked as set where the user had none, and goes. A session started
-  before the mark has none, and its environment goes on as it is, but for the pin and directory a
-  routed or direct launch takes off (built in the cleanliness release, 26 October 2026).
+  `run` gave it, a token set since couldn't be told from `run`'s. Nothing secret is written into
+  the mark, which every process the session runs can read: a value `run` set holding anything
+  token-shaped goes unmarked, and stays, and a value of the user's that `run` replaced holding a
+  secret, anything token-shaped, or, as a URL, credentials in its userinfo or a query, isn't kept,
+  so its variable is marked as set where the user had none, and goes. A session started before
+  the mark has none, and its environment goes on as it is, but for the pin and directory a routed
+  or direct launch takes off (built in the cleanliness release, 26 October 2026).
 - **Never in the way:** switchboard never stands between the user and `claude`. When it can't take
   part at all, as when it can't read its config, can't locate its state directory, or no account has
   a usable token, `run` starts `claude` as if switchboard weren't there, its environment as the user
