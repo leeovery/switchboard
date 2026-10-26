@@ -2,11 +2,12 @@
 
 # 🎛️ Switchboard
 
-**Use every Claude subscription you have as one, in Claude Code**
+**Automatic account routing for Claude Code**
 
-Switchboard sits between your terminal and Claude. It records every request, so you and Claude can both see
-<br>how much of each limit is left, how fast you're using it, and when it resets. With more than one subscription,
-<br>it also moves a session that hits a limit to another, and the session carries on without restarting.
+Switchboard is a local router for Claude Code. With more than one Claude subscription, it picks the best account
+<br>for each new session, and when a request hits a limit it replays it on another account, so the session carries on
+<br>without restarting. On one account or several, it records every request, so you and Claude can see how much
+<br>of each limit is left, how fast it's going, and when it resets.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Go](https://img.shields.io/badge/Go-1.27+-00ADD8.svg)](https://go.dev)
@@ -26,10 +27,10 @@ Switchboard sits between your terminal and Claude. It records every request, so 
 
 Every Claude subscription has a 5-hour limit and a weekly one, and when you hit one, Claude Code stops. Claude can't see the limits coming, and switching accounts by hand means quitting, resuming and starting again with a cold prompt cache.
 
-- **Claude sees its own limits.** A skill lets Claude read every account's usage, pace and resets, and plan its work around them.
 - **Limits stop interrupting you.** A request that hits a limit is replayed on another account before Claude Code sees it, and the session carries on.
-- **Sessions stay put.** A session keeps its account while its prompt cache is warm, and moves only when it must.
 - **No quota goes to waste.** New sessions go to the account whose weekly quota is most at risk of going unused.
+- **Claude sees its own limits.** A skill lets Claude read every account's usage, pace and resets, and plan its work around them.
+- **Sessions stay put.** A session keeps its account while its prompt cache is warm, and moves only when it must.
 - **Resets come one at a time.** Switchboard staggers your accounts' 5-hour windows, so when they're all spent, one is back soon.
 - **Every request on record.** Kept for a year, so you can follow any session and see what your use was worth at API prices against what your plans cost.
 - **Your usage, always in view.** A live dashboard shows what's left in each window, when you'll run out at your pace, and when it resets.
