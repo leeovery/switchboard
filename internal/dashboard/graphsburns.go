@@ -4,16 +4,18 @@ import (
 	"slices"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
 // burnCards draws the cards of the burn-down section placed, of the moment
-// m, as laid out: each configured account's, as configuredNow has it, in the
-// config's order and numbered by its place in it, where laid's cards places
-// it, as burnCardDrawn draws it, so one the moment doesn't hold yet draws as
-// one not read yet; none where the moment's policy shares no window of the
-// section's.
+// m, as laid out: each configured account's, in the config's order,
+// numbered as cardsOf has it, where laid's cards places it, as
+// burnCardDrawn draws it, so one the moment doesn't hold yet, having no
+// lane, draws its label alone, no words, as a card does before its lanes
+// are built, and its chart empty but for now's line; none where the
+// moment's policy shares no window of the section's.
 func (f Frame) burnCards(c *canvas, m status.Moment, laid graphsLaid, placed graphsPlaced) {
 	window := burnDowns[placed.section]
 	key := window.KeyIn(m.Policy())
@@ -21,12 +23,34 @@ func (f Frame) burnCards(c *canvas, m status.Moment, laid graphsLaid, placed gra
 		return
 	}
 	s := burnSection{key: key, lanes: f.Graphs.Lanes[window], beside: !laid.apart, now: m.Now}
-	accounts := configuredNowEach(m, f.Graphs.Accounts)
-	names := namesOfEach(accounts)
+	accounts, places := cardsOf(m, f.Graphs.Accounts)
+	names := namesAt(accounts, places)
 	for i, at := range laid.cards(placed) {
 		l, built := s.lanes.lane(accounts[i].ID)
 		f.burnCardDrawn(c, s, laneLaid(l, accounts[i], names[i]), built, at)
 	}
+}
+
+// cardsOf are the configured accounts given, in the config's order, each as
+// configuredNow has it, and the place each card numbers it by, as Runway's
+// lanes number it: the moment's, where the moment holds it, so the config
+// and the router's document disagreeing never numbers it otherwise; else
+// after the moment's last, in the config's order among those it lacks, the
+// place the router gives it once it has it, as accounts are added at the
+// config's end.
+func cardsOf(m status.Moment, configured config.Accounts) ([]status.AccountNow, []int) {
+	accounts, places := make([]status.AccountNow, len(configured)), make([]int, len(configured))
+	next := len(m.Accounts)
+	for i, a := range configured {
+		place := slices.IndexFunc(m.Accounts, func(held status.AccountNow) bool { return held.ID == a.ID }) + 1
+		if place == 0 {
+			next++
+			place = next
+		}
+		accounts[i], _ = configuredNow(m, a, place)
+		places[i] = place
+	}
+	return accounts, places
 }
 
 // burnSection is what a burn-down section's cards are drawn by: the key of

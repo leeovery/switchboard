@@ -215,24 +215,61 @@ func TestGraphsCardWithNothingToDrawIsEmptyButForNowsLine(t *testing.T) {
 	}
 }
 
-// A configured account the moment doesn't hold yet, as just after it's
-// added, has its card in its place, numbered by it: its label, and its chart
-// empty but for now's line, as one not read yet.
-func TestGraphsCardOfAnAccountTheMomentLacksIsLabelledAndEmpty(t *testing.T) {
+// A card is numbered as Runway's lane numbers its account, by the moment,
+// whatever the config's order, as while the router keeps a config the
+// dashboard's no longer has: so with personal removed, side is still 3. A
+// configured account the moment doesn't hold yet, as just after it's added
+// at the config's end, has its card in the config's order, numbered after
+// the moment's last place, its label alone over its chart, empty but for
+// now's line.
+func TestGraphsCardsAreNumberedAsRunwayNumbersTheirAccounts(t *testing.T) {
+	tests := []struct {
+		name   string
+		ids    []string
+		lacked map[string]string
+	}{
+		{name: "an account added, not yet the router's", ids: []string{"work", "personal", "side", "client"}, lacked: map[string]string{"client": "4 client"}},
+		{name: "an account removed, still the router's", ids: []string{"work", "side"}},
+	}
 	doc := trio()
-	f := cardsPage(doc, printNow, 160, 37, "work", "client", "personal", "side")
-	c, sections := pageCards(f, doc, printNow)
-	for section, cards := range sections {
-		client := cards[1]
-		if label := labelOf(c, client); label != "2 client" {
-			t.Errorf("%s's second card is labelled %q, want 2 client", section.heading(), label)
-		}
-		if rows := chartOnly(c, client); !emptyButNow(rows) {
-			t.Errorf("client's %s chart is\n%s\nwant it empty but for now's line", section.heading(), strings.Join(rows, "\n"))
-		}
-		if label := labelOf(c, cards[2]); !strings.HasPrefix(label, "3 personal") {
-			t.Errorf("%s's third card is labelled %q, want 3 personal, by its place in the config", section.heading(), label)
-		}
+	m := doc.At(printNow, printPolicy)
+	runway := make(map[string]string)
+	for i, n := range namesOf(m) {
+		runway[m.Accounts[i].ID] = n.number + " " + n.label
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := cardsPage(doc, printNow, 160, 37, tt.ids...)
+			c, sections := pageCards(f, doc, printNow)
+			for section, cards := range sections {
+				for i, card := range cards {
+					id, label := tt.ids[i], labelOf(c, card)
+					want, lacked := tt.lacked[id]
+					if !lacked {
+						want = runway[id]
+					}
+					if !strings.HasPrefix(label, want) || lacked && label != want {
+						t.Errorf("%s's %s card is labelled %q, want %q", section.heading(), id, label, want)
+					}
+					if rows := chartOnly(c, card); lacked && !emptyButNow(rows) {
+						t.Errorf("%s's %s chart is\n%s\nwant it empty but for now's line", id, section.heading(), strings.Join(rows, "\n"))
+					}
+				}
+			}
+		})
+	}
+}
+
+// Numbers are right-aligned to the widest place given, as a card numbered
+// after the moment's ninth adds a digit.
+func TestCardNumbersAreAlignedToTheWidestPlace(t *testing.T) {
+	accounts := []status.AccountNow{{ID: "work"}, {ID: "client"}}
+	var numbers []string
+	for _, n := range namesAt(accounts, []int{1, 10}) {
+		numbers = append(numbers, n.number)
+	}
+	if want := []string{" 1", "10"}; !slices.Equal(numbers, want) {
+		t.Errorf("the numbers are %q, want %q", numbers, want)
 	}
 }
 

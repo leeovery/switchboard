@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
@@ -271,31 +270,25 @@ type accountName struct {
 // right-aligned once there are ten, ▲ on the one new sessions go to, and
 // each out of the pool where it is.
 func namesOf(m status.Moment) []accountName {
-	return namesOfEach(m.Accounts)
+	places := make([]int, len(m.Accounts))
+	for i := range places {
+		places[i] = i + 1
+	}
+	return namesAt(m.Accounts, places)
 }
 
-// namesOfEach are the names of the accounts given, numbered by their place
-// among them, right-aligned once there are ten, ▲ on the one new sessions go
-// to, and each out of the pool where it is.
-func namesOfEach(accounts []status.AccountNow) []accountName {
-	digits := len(strconv.Itoa(len(accounts)))
+// namesAt are the names of the accounts given, each numbered by its place
+// given, right-aligned to the widest, ▲ on the one new sessions go to, and
+// each out of the pool where it is.
+func namesAt(accounts []status.AccountNow, places []int) []accountName {
+	digits := len(strconv.Itoa(slices.Max(append([]int{0}, places...))))
 	names := make([]accountName, len(accounts))
 	for i, a := range accounts {
 		names[i] = accountName{
-			number: fmt.Sprintf("%*d", digits, i+1), label: name(a), primary: a.Primary, best: a.Next, out: a.OutOfPool,
+			number: fmt.Sprintf("%*d", digits, places[i]), label: name(a), primary: a.Primary, best: a.Next, out: a.OutOfPool,
 		}
 	}
 	return names
-}
-
-// configuredNowEach are the configured accounts given, in their order, each
-// at its place among them as configuredNow has it.
-func configuredNowEach(m status.Moment, accounts config.Accounts) []status.AccountNow {
-	each := make([]status.AccountNow, len(accounts))
-	for i, a := range accounts {
-		each[i], _ = configuredNow(m, a, i+1)
-	}
-	return each
 }
 
 // cells are the cells the name takes in the name column, its label whole:
