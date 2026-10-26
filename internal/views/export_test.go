@@ -83,45 +83,43 @@ func CountingLanes(judged *int) Lanes {
 	}}
 }
 
-// CountingPoolRoom is the pool's room not yet looked at that counts in judged
-// each time a look judges the room an account had left in a window at a
-// moment gone, as RoomThen judges it.
-func CountingPoolRoom(judged *int) PoolRoom {
-	return PoolRoom{then: func(m status.Moment, a status.AccountNow, read status.Readings, told []status.Span, key string, t time.Time) (float64, bool) {
+// countingRoom judges the room an account had left in a window at a moment
+// gone as RoomThen does, counting in judged each time it does.
+func countingRoom(judged *int) roomJudge {
+	return func(m status.Moment, a status.AccountNow, read status.Readings, told []status.Span, key string, t time.Time) (float64, bool) {
 		*judged++
 		return m.RoomThen(a, read, told, key, t)
-	}}
+	}
 }
 
-// NotingPoolRoom is the pool's room not yet looked at that notes in at each
-// moment a look judges the room an account had left in a window then, as
-// RoomThen judges it.
-func NotingPoolRoom(at *[]time.Time) PoolRoom {
-	return PoolRoom{then: func(m status.Moment, a status.AccountNow, read status.Readings, told []status.Span, key string, t time.Time) (float64, bool) {
+// notingRoom judges the room an account had left in a window at a moment
+// gone as RoomThen does, noting in at each moment it judges.
+func notingRoom(at *[]time.Time) roomJudge {
+	return func(m status.Moment, a status.AccountNow, read status.Readings, told []status.Span, key string, t time.Time) (float64, bool) {
 		*at = append(*at, t)
 		return m.RoomThen(a, read, told, key, t)
-	}}
+	}
 }
 
 // CountingPoolStack is the pool's stack not yet looked at that counts in
 // judged each time a look judges the room an account had left in a window
 // at a moment gone, as RoomThen judges it.
 func CountingPoolStack(judged *int) PoolStack {
-	return PoolStack{then: CountingPoolRoom(judged).then}
+	return PoolStack{then: countingRoom(judged)}
 }
 
 // NotingPoolStack is the pool's stack not yet looked at that notes in at each
 // moment a look judges the room an account had left in a window then, as
 // RoomThen judges it.
 func NotingPoolStack(at *[]time.Time) PoolStack {
-	return PoolStack{then: NotingPoolRoom(at).then}
+	return PoolStack{then: notingRoom(at)}
 }
 
 // CountingPoolSpan is the pool's room over a window's span not yet looked at
 // that counts in judged each time a look judges the room an account had left
 // in a window at a moment gone, as RoomThen judges it.
 func CountingPoolSpan(judged *int) PoolSpan {
-	return PoolSpan{then: CountingPoolRoom(judged).then}
+	return PoolSpan{then: countingRoom(judged)}
 }
 
 // RowOfTold is the row of the request t, as the stream told of it, at now.

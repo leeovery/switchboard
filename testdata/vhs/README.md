@@ -136,8 +136,8 @@ Stage 7's, `overview-*` and `routing-*`, draw the Overview's frames and the rout
 each over its frame's world with the keys that reach it: `overview-by-account-160` with `b`,
 `overview-models-160` with `w`, each model's own window shown, `overview-model-nearing-160` with
 none, side's Fable week shown as it nears its limit, `overview-usage-alone-160` with `r`, `c` and `l`, `overview-everything-160x39` and
-`overview-everything-216x106` with `g` and `s`, `overview-sessions-216` with `s`, and
-`overview-sessions-graphs-216` with `s` and `g`; `routing-auto-160` with `p`, `routing-two-160`
+`overview-everything-216x106` with `s`, and `overview-sessions-216` with `s`; `routing-auto-160`
+with `p`, `routing-two-160`
 with `p`, `2` and `3`, and `routing-move-160` with `p`, `2` and `m`, over the auto world, which
 lists the Overview's six sessions, so the card's cost is the moving set's, priced from the world's
 ledger as the watch prices it; and `routing-limit-160` with `p` and `3`, over routing's world of a

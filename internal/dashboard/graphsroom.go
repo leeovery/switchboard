@@ -16,6 +16,13 @@ const (
 	cardGap        = 4
 )
 
+// The rows a Graphs chart takes, the cards' and POOL's alike: leastChart at
+// the least, and mostChart at the most, as taller distorts.
+const (
+	leastChart = 5
+	mostChart  = 19
+)
+
 // graphsGiven is all that lays Graphs out, so the page holds still as reads
 // come, changing only on a key, a resize or the config: the frame's width
 // and its view's rows; the sections shown; the configured accounts, in the
@@ -182,6 +189,30 @@ func cardsAcross(k, width int) []flex.Span {
 		return spans
 	}
 	return []flex.Span{{Size: max(width, 0)}}
+}
+
+// chartsFitting lays as many of k charts as fit side by side in room cells,
+// gap cells apart, each least cells or more, as chartRow lays them out: none
+// where not one does.
+func chartsFitting(k, room, gap, least int) []flex.Span {
+	for n := k; n > 0; n-- {
+		if spans, ok := chartRow(n, room, gap, least); ok {
+			return spans
+		}
+	}
+	return nil
+}
+
+// chartRow lays n charts side by side in room cells, gap cells apart, each as
+// wide as the others, ⌊(room + gap) ÷ n⌋ − gap, the odd cells left at the
+// end, and reports whether each is least cells or more.
+func chartRow(n, room, gap, least int) ([]flex.Span, bool) {
+	each := (room+gap)/n - gap
+	parts := make([]flex.Part, n)
+	for i := range parts {
+		parts[i] = flex.Part{Least: least, Natural: each, Gap: gap}
+	}
+	return flex.Lay(room, parts...)
 }
 
 // poolKeyed is POOL's stack as its key words it of the configured accounts,

@@ -390,11 +390,11 @@ func TestDrawsAtTheGivenSizeUntilTheTerminalGivesOne(t *testing.T) {
 func calmScreen(size Size, now time.Time, trails dashboard.Trails) string {
 	return strings.Join(dashboard.Frame{
 		Width: size.Width, Height: size.Height, Look: dashboard.NoColour(),
-		View: dashboard.Overview, Trails: trails, Focus: "work",
+		View: dashboard.Overview, Trails: trails,
 		KeyLine: dashboard.KeyLine{Lead: 5, After: 5, Groups: [][]dashboard.Key{
 			{{Key: "tab", Does: "views"}},
 			{
-				{Key: "u", Does: "usage"}, {Key: "g", Does: "graphs", Hidden: true}, {Key: "r", Does: "routing"},
+				{Key: "u", Does: "usage"}, {Key: "r", Does: "routing"},
 				{Key: "s", Does: "sessions", Hidden: true}, {Key: "c", Does: "coming up"}, {Key: "l", Does: "lately"},
 				{Key: "b", Does: "by", State: "window"},
 			},

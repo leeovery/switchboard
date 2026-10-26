@@ -38,4 +38,4 @@ COMING UP  ───────────────────────
 16:30   personal's 5-hour resets                               in 1h 48m          14:31  ╎ work reached its cap: 3 sessions moved to side
 16:55   lab's 5-hour resets                                    in 2h 13m          14:12  ▲ 7f3a started on work
 
-tab views     u usage  g graphs  r routing  s sessions  c coming up  l lately  b by: window     ↑↓ focus  p pin  ? help  q quit
+tab views     u usage  r routing  s sessions  c coming up  l lately  b by: window     ↑↓ focus  p pin  ? help  q quit

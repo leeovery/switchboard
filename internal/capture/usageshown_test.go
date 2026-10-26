@@ -72,7 +72,7 @@ func groupedBy(f Fixture, turned bool) string {
 
 // sectionHeading matches the heading of a section of the Overview's under
 // USAGE.
-var sectionHeading = regexp.MustCompile(`^(GRAPHS|ROUTING|SESSIONS|COMING UP|LATELY)( |$)`)
+var sectionHeading = regexp.MustCompile(`^(ROUTING|SESSIONS|COMING UP|LATELY)( |$)`)
 
 // usageRows are USAGE's rows of the Overview's: from under its heading to
 // the next section's.

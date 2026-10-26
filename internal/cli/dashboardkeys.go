@@ -20,11 +20,9 @@ var keysSaid = map[string]string{
 		"Days' BY ACCOUNT and Tokens' periods, Sessions' List and lanes, Runway's lanes, Graphs' page, the Log's " +
 		"table, and a session's turns, or an open turn's requests. w, where it's listed as models, shows and hides " +
 		"each model's own window; one near its limit shows either way.",
-	"Overview": "u, g, r, s, c and l show and hide USAGE, GRAPHS, ROUTING, SESSIONS, COMING UP and LATELY; " +
+	"Overview": "u, r, s, c and l show and hide USAGE, ROUTING, SESSIONS, COMING UP and LATELY; " +
 		"b groups the windows by window or by account, as the config's [usage] by has them until b is pressed; " +
-		"v, while GRAPHS shows, flips its charts between the burn-up and the burn-down; and ↑↓ moves the focus " +
-		"between the accounts, which GRAPHS charts, but by account from 150 columns, where GRAPHS charts every " +
-		"account beside its block.",
+		"and ↑↓ moves the focus between the accounts, which USAGE scrolls to.",
 	"Accounts": "< and > step the period both views count over: today, this week, 30 days and 12 weeks. " +
 		"←→ moves along Compare's accounts, and enter opens one in Detail; there ↑↓ chooses an account, " +
 		"→ moves into its SESSIONS and ← back, and enter opens the session chosen.",

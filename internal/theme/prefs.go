@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"time"
 
@@ -19,8 +20,8 @@ const prefsName = "prefs.json"
 
 // Prefs are the dashboard's preferences, which it keeps as they change, and
 // the user never needs to write: the themes it's drawn in, the tab it
-// shows, the Overview's sections shown, how its windows are grouped and the
-// chart GRAPHS draws, whether the live views show each model's own window,
+// shows, the Overview's sections shown and how its windows are grouped,
+// whether the live views show each model's own window,
 // what Accounts, History's views, Sessions and Runway show, Graphs' sections
 // shown, and the Log's columns.
 type Prefs struct {
@@ -32,18 +33,13 @@ type Prefs struct {
 	// then is read as having no tab, its "view" kept as a key these don't
 	// know.
 	Tab string `json:"tab,omitempty"`
-	// Sections name the Overview's sections shown, of usage, graphs,
-	// routing, sessions, coming and lately: nil, as a file without them
-	// reads, for those shown at first, and none, kept as [], for none.
+	// Sections name the Overview's sections shown, of usage, routing,
+	// sessions, coming and lately: nil, as a file without them reads, for
+	// those shown at first, and none, kept as [], for none.
 	Sections []string `json:"sections,omitzero"`
 	// By names how the Overview's windows are grouped, window or account, as
 	// b last left it: "" for the config's [usage] by.
 	By string `json:"by,omitempty"`
-	// Graphs names the chart GRAPHS draws, as v last left it: burn-down, or
-	// "" for the burn-up, as a name the dashboard doesn't know reads.
-	// Milestone 5 kept its cards' chart style under "chart", which isn't
-	// this: a file of then keeps it as a key these don't know.
-	Graphs string `json:"graphs,omitempty"`
 	// Models is whether the live views show each model's own window, as
 	// Fable's week, as w last left it: unset, as a file without it reads,
 	// hides them.
@@ -57,8 +53,9 @@ type Prefs struct {
 	// Runway is what Runway shows, as its keys last left it.
 	Runway RunwayPrefs `json:"runway,omitzero"`
 	// GraphsTab is what the Graphs tab shows, as its keys last left it: not
-	// under "graphs", which keeps GRAPHS' chart by name, as files already
-	// written have it, and which an object would make them read as corrupt.
+	// under "graphs", which earlier builds kept the Overview's GRAPHS' chart
+	// under by name, as files they wrote still have it, and which an object
+	// would make them read as corrupt.
 	GraphsTab GraphsPrefs `json:"graphs_tab,omitzero"`
 	// Log is what the Log shows, as its f panel last left it.
 	Log LogPrefs `json:"log,omitzero"`
@@ -146,7 +143,7 @@ func NewPrefsFile(stateDir string, now func() time.Time) PrefsFile {
 
 // prefsKeys are the keys the file keeps Prefs under, as their fields' tags
 // name them: any other it holds, as a newer build's preferences, is kept as
-// it is.
+// it is, but those retired.
 var prefsKeys = func() []string {
 	var keys []string
 	for _, field := range reflect.VisibleFields(reflect.TypeFor[Prefs]()) {
@@ -156,6 +153,14 @@ var prefsKeys = func() []string {
 	}
 	return keys
 }()
+
+// retiredKeys are keys earlier builds kept that no build reads now, which
+// the next write drops: graphs, the chart the Overview's GRAPHS drew.
+var retiredKeys = []string{"graphs"}
+
+// retiredSections are the Overview's sections earlier builds kept shown that
+// it no longer has, which the next write drops: graphs, GRAPHS.
+var retiredSections = []string{"graphs"}
 
 // Read reads the preferences. Without the file, they're the defaults, and
 // so, with a warning, are those of a file that can't be read, or is corrupt:
@@ -167,7 +172,8 @@ func (f PrefsFile) Read() Prefs {
 }
 
 // read reads the preferences as Read does, and the keys of the file they
-// don't know, as a newer build's preferences, as they're written there.
+// don't know, as a newer build's preferences, as they're written there: but
+// none of what's retired, as retiredKeys and retiredSections name it.
 func (f PrefsFile) read() (Prefs, map[string]json.RawMessage) {
 	data, err := os.ReadFile(f.path)
 	switch {
@@ -187,9 +193,10 @@ func (f PrefsFile) read() (Prefs, map[string]json.RawMessage) {
 		f.setAside(err)
 		return Prefs{}, nil
 	}
-	for _, key := range prefsKeys {
+	for _, key := range slices.Concat(prefsKeys, retiredKeys) {
 		delete(others, key)
 	}
+	p.Sections = slices.DeleteFunc(p.Sections, func(name string) bool { return slices.Contains(retiredSections, name) })
 	return p, others
 }
 

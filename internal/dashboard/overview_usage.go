@@ -9,17 +9,16 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-// The cells of USAGE by account from besideWidth columns, beside ROUTING or
-// GRAPHS' charts: its bars are besideBar cells with a name column of
+// The cells of USAGE by account from besideWidth columns, beside ROUTING:
+// its bars are besideBar cells with a name column of
 // matrixNames, a cell fewer for each cell the column is wider, and what's
 // beside its blocks starts besideCells after its words.
 const (
 	besideWidth = 150
 	besideBar   = 50
 	besideCells = 4
-	// matrixNames is the name column the Overview's cells past it are worked
-	// out for, besideBar's and GRAPHS' charts': a wider one takes its cells
-	// from them.
+	// matrixNames is the name column besideBar is worked out for: a wider
+	// one takes its cells from it.
 	matrixNames = 14
 )
 
@@ -27,22 +26,19 @@ const (
 // overviewBlock has it. At its least it's the block as usage lays it out at
 // the frame's width, which by window, where its windows sit side by side, is
 // the compact matrix, 2a + 7 rows for a accounts and the pool; at its most,
-// there, the big bars, its windows stacked as sections at the full width; by
-// account with GRAPHS' charts beside its blocks, the charts at 5 rows, every
-// one, and between, the stacked step, as stackedBeside has it; otherwise its
-// least. Short of its least, it gives way in steps, as giving has them, the
+// there, the big bars, its windows stacked as sections at the full width;
+// otherwise its least. Short of its least, it gives way in steps, as giving has them, the
 // planner taking each as a step of its least, as leaner has them, but never
 // folds: given fewer rows than its form takes, it scrolls within them whole,
 // a row at a time, as shown shows it. By account from besideWidth columns,
-// GRAPHS' charts or ROUTING are drawn beside its blocks, from besideAt, as
-// besideUsage has them, and follow them as they scroll; a click along an
+// ROUTING is drawn beside its blocks, from besideAt, as besideUsage has it,
+// and follows them as they scroll; a click along an
 // account's rows, its own or what's beside them, moves the focus to it.
 func (f Frame) usageSection(doc status.Document, now time.Time) section {
 	views := f.overviewBlock(doc, now).views()
 	beside := f.besideUsage(doc, now)
 	s := section{
 		Section: SectionUsage, least: sectionHead + views.all, most: sectionHead + views.big,
-		between:     views.between(),
 		leaner:      views.leanerRows(),
 		accounts:    func(given giving, rows int) int { return views.given(given).accountsIn(rows) },
 		description: oneForm(func() line { return f.roomLeft(doc, now) }),
@@ -79,9 +75,7 @@ func (f Frame) usageIn(s section, form usageViews, beside func(*canvas, blocksBe
 // overviewBlock is usage's block of doc at now as the Overview's USAGE draws
 // it, grouped as the frame's By has it: as usage prints it, but for what the
 // Overview alone has. By account from besideWidth columns, its bars leave
-// room for GRAPHS' charts or ROUTING beside them, its blocks a row further
-// apart for the charts' axes, where they're the charts. While GRAPHS shows,
-// the matrix picks out the account the focus is on. Its key line names the
+// room for ROUTING beside them. Its key line names the
 // marks the accounts carry, its form judged by those they may. An account
 // out of the pool at now is faint, as overviewGauge draws its windows and
 // overviewNames its name.
@@ -93,10 +87,6 @@ func (f Frame) overviewBlock(doc status.Document, now time.Time) usageBlock {
 	if f.By == ByAccount && f.Width >= besideWidth {
 		b.accountBar = besideBar - (b.names - matrixNames)
 	}
-	b.charted = f.graphsBeside()
-	if f.Sections.Has(SectionGraphs) {
-		b.focus = f.Focus
-	}
 	for i, row := range b.rows {
 		out := i < len(names) && names[i].out
 		for j, g := range row.gauges {
@@ -106,8 +96,8 @@ func (f Frame) overviewBlock(doc status.Document, now time.Time) usageBlock {
 	return b
 }
 
-// overviewWindows are the windows of doc at now the Overview shows, in USAGE
-// and GRAPHS, as listedWindows has them.
+// overviewWindows are the windows of doc at now the Overview shows in USAGE,
+// as listedWindows has them.
 func (f Frame) overviewWindows(doc status.Document, now time.Time) []shownWindow {
 	return f.listedWindows(f.Moment(doc, now))
 }
@@ -250,7 +240,7 @@ func (f Frame) roomLeft(doc status.Document, now time.Time) line {
 }
 
 // besideAt is the column what's beside the block's blocks starts at, by
-// account from besideWidth columns, GRAPHS' charts or ROUTING's lines: hx =
+// account from besideWidth columns, ROUTING's lines: hx =
 // n + 10 + bar + 7 + 22 + 4, its words' cells and besideCells after them, 107
 // with a name column of 16.
 func (b usageBlock) besideAt() int {
@@ -258,61 +248,39 @@ func (b usageBlock) besideAt() int {
 }
 
 // enlarged is the block at its most, where it grows, as enlarges says: with
-// its big bars; or by account, GRAPHS' charts beside its blocks every one, at
-// leastChart rows, as besideTall has them. Otherwise it's as it is.
+// its big bars. Otherwise it's as it is.
 func (b usageBlock) enlarged() usageBlock {
-	switch {
-	case b.charted:
-		b.beside = besideTall
-	case b.enlarges():
-		b.big = true
-	}
-	return b
-}
-
-// stackedBeside is the block by account a step past its least, GRAPHS'
-// charts beside its blocks every one, at leastBeside rows, as besideStacked
-// has them; or where none sit there, as it is.
-func (b usageBlock) stackedBeside() usageBlock {
-	if b.charted {
-		b.beside = besideStacked
-	}
+	b.big = b.enlarges()
 	return b
 }
 
 // enlarges reports whether the block grows: by window, where its windows sit
 // side by side, to its big bars, its windows stacked as sections at the full
-// width; and by account, where GRAPHS' charts sit beside its blocks, apart
-// for them.
+// width.
 func (b usageBlock) enlarges() bool {
-	return b.sideBySide() || b.charted
+	return b.sideBySide()
 }
 
 // usageViews are the block's views, as USAGE shows it in however many rows
 // it's given, scrolled however far: the block; the rows it takes with its big
-// bars, by account with GRAPHS' charts beside its blocks stacked, and as it's
-// laid out; and, worked out only once it's asked for, the block laid out
+// bars, and as it's laid out; and, worked out only once it's asked for, the block laid out
 // whole and drawn so, as paged pages it. Where it's short of rows, its
 // leaner views are the block as it gives way, a step at a time, as giving
 // has them.
 type usageViews struct {
-	block             usageBlock
-	big, stacked, all int
-	whole             func() (laid, *canvas)
-	leaner            []usageViews
+	block    usageBlock
+	big, all int
+	whole    func() (laid, *canvas)
+	leaner   []usageViews
 }
 
 // views are the block's views, laid out once as it is, and once more with
-// its big bars where it has them, as enlarges says; by account, with GRAPHS'
-// charts beside its blocks, stacked, as stackedBeside has them; and once as
-// it is at each step it gives way.
+// its big bars where it has them, as enlarges says; and once as it is at each
+// step it gives way.
 func (b usageBlock) views() usageViews {
 	v := b.viewsAsLaid()
 	if b.enlarges() {
 		v.big = b.enlarged().height()
-	}
-	if b.charted {
-		v.stacked = b.stackedBeside().height()
 	}
 	for given := givenApart; given <= givenKey; given++ {
 		lean := b
@@ -326,7 +294,7 @@ func (b usageBlock) views() usageViews {
 func (b usageBlock) viewsAsLaid() usageViews {
 	all := b.height()
 	return usageViews{
-		block: b, big: all, stacked: all, all: all,
+		block: b, big: all, all: all,
 		whole: sync.OnceValues(func() (laid, *canvas) {
 			c := growing(b.width)
 			return b.lay(c, 0), c
@@ -379,29 +347,6 @@ func (v usageViews) leanerRows() []int {
 		rows[i] = lean.block.headed() + lean.all
 	}
 	return rows
-}
-
-// between are the rows, its heading's among them, USAGE grows to whole past
-// its least short of its most: its blocks by account with the charts beside
-// them stacked, where that's a step of its own.
-func (v usageViews) between() []int {
-	if v.all < v.stacked && v.stacked < v.big {
-		return []int{sectionHead + v.stacked}
-	}
-	return nil
-}
-
-// usageDrawn is USAGE's block of doc at now as USAGE draws it in the rows the
-// Overview gives it, in the form fitted has it.
-func (f Frame) usageDrawn(doc status.Document, now time.Time) usageBlock {
-	views := f.overviewBlock(doc, now).views()
-	for _, u := range f.allotted(doc, now) {
-		if u.ledBy(SectionUsage) && !u.fold {
-			form := views.given(u.lean)
-			return form.fitted(u.rows - form.block.headed())
-		}
-	}
-	return views.block
 }
 
 // paged is how the block, laid out whole, its key line among its rows,
@@ -465,15 +410,11 @@ func (v usageViews) shown(rows, offset int) usageShown {
 }
 
 // fitted is the block as USAGE draws it in rows rows: at its most, as
-// enlarged has it, where that's past its least and fits; else stacked
-// beside, where that's a step of its own, as between has it, and fits; else
-// as it's laid out. Only the rows given choose, never what it holds.
+// enlarged has it, where that's past its least and fits; else as it's laid
+// out. Only the rows given choose, never what it holds.
 func (v usageViews) fitted(rows int) usageBlock {
-	switch {
-	case v.all < v.big && v.big <= rows:
+	if v.all < v.big && v.big <= rows {
 		return v.block.enlarged()
-	case v.all < v.stacked && v.stacked <= rows:
-		return v.block.stackedBeside()
 	}
 	return v.block
 }
@@ -538,10 +479,10 @@ func (b usageBlock) placed() []rowAt {
 	return b.lay(growing(b.width), 0).placed
 }
 
-// beside is where the block draws its rows shown in body, for ROUTING or
-// GRAPHS' charts to be drawn beside them from column x.
+// beside is where the block draws its rows shown in body, for ROUTING to be
+// drawn beside them from column x.
 func (s usageShown) beside(x int, body bounds) blocksBeside {
-	at := blocksBeside{x: x, under: s.block.under(), across: s.block.besideCharts()}
+	at := blocksBeside{x: x}
 	for _, p := range s.block.placed() {
 		p.y += body.y - s.from
 		at.blocks = append(at.blocks, p)

@@ -97,13 +97,13 @@ func TestTheOverviewsSectionsAndGroupingAreKeptBesideTheTab(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := prefs.Update(func(p *theme.Prefs) { p.Sections, p.By = []string{"usage", "graphs"}, "account" }); err != nil {
+	if err := prefs.Update(func(p *theme.Prefs) { p.Sections, p.By = []string{"usage", "sessions"}, "account" }); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := prefs.Read(), (theme.Prefs{Tab: "overview", Sections: []string{"usage", "graphs"}, By: "account"}); !reflect.DeepEqual(got, want) {
+	if got, want := prefs.Read(), (theme.Prefs{Tab: "overview", Sections: []string{"usage", "sessions"}, By: "account"}); !reflect.DeepEqual(got, want) {
 		t.Errorf("Read() = %+v, want %+v", got, want)
 	}
-	if data, err := os.ReadFile(path); err != nil || !strings.Contains(string(data), "\"sections\": [\n    \"usage\",\n    \"graphs\"\n  ]") || !strings.Contains(string(data), `"by": "account"`) {
+	if data, err := os.ReadFile(path); err != nil || !strings.Contains(string(data), "\"sections\": [\n    \"usage\",\n    \"sessions\"\n  ]") || !strings.Contains(string(data), `"by": "account"`) {
 		t.Errorf("prefs.json holds %s, %v; want the sections shown and their grouping kept", data, err)
 	}
 
@@ -125,48 +125,57 @@ func TestTheOverviewsSectionsAndGroupingAreKeptBesideTheTab(t *testing.T) {
 	}
 }
 
-// The chart GRAPHS draws is kept by name beside the rest, and read back as
-// the file names it, a name this build's dashboard doesn't know among them,
-// for the dashboard to read; left out for the burn-up; and none for a file
-// without it, as a milestone 5 file keeps its cards' style under "chart",
-// which is kept as a key this build doesn't know.
-func TestTheChartGRAPHSDrawsIsKeptByName(t *testing.T) {
-	state := t.TempDir()
-	path := filepath.Join(state, "prefs.json")
-	prefs := theme.NewPrefsFile(state, clock)
+// A file v0.2.7 wrote, with the Overview's GRAPHS shown, or its burn-down
+// chosen, or both, reads cleanly, as its other sections and the rest as it
+// kept them, and the next write keeps them and drops what's gone: GRAPHS
+// among the sections and its chart. With GRAPHS alone shown, none of the rest
+// is, kept as [].
+func TestAFileOfV027WithGRAPHSReadsWithoutItAndTheNextWriteDropsIt(t *testing.T) {
+	tests := []struct {
+		name, file string
+		read       theme.Prefs
+		written    string
+	}{
+		{
+			name: "GRAPHS shown and its burn-down",
+			file: `{"by": "account", "graphs": "burn-down", "models": true, "sections": ["usage", "graphs", "routing", "lately"], "tab": "overview", "theme": "nord"}`,
+			read: theme.Prefs{Choice: theme.Choice{Theme: "nord"}, Tab: "overview", Sections: []string{"usage", "routing", "lately"}, By: "account", Models: true},
+			written: "{\n  \"by\": \"account\",\n  \"models\": true,\n  \"sections\": [\n    \"usage\",\n    \"routing\",\n    \"lately\"\n  ],\n" +
+				"  \"tab\": \"runway\",\n  \"theme\": \"nord\"\n}\n",
+		},
+		{
+			name:    "its burn-down alone",
+			file:    `{"graphs": "burn-down", "tab": "overview"}`,
+			read:    theme.Prefs{Tab: "overview"},
+			written: "{\n  \"tab\": \"runway\"\n}\n",
+		},
+		{
+			name:    "GRAPHS alone shown",
+			file:    `{"sections": ["graphs"], "tab": "overview"}`,
+			read:    theme.Prefs{Tab: "overview", Sections: []string{}},
+			written: "{\n  \"sections\": [],\n  \"tab\": \"runway\"\n}\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := t.TempDir()
+			path := filepath.Join(state, "prefs.json")
+			write(t, path, tt.file)
+			prefs := theme.NewPrefsFile(state, clock)
 
-	if err := prefs.Update(func(p *theme.Prefs) { p.Graphs = "burn-down" }); err != nil {
-		t.Fatal(err)
-	}
-	if got := prefs.Read().Graphs; got != "burn-down" {
-		t.Errorf("Read().Graphs = %q, want the burn-down read back", got)
-	}
-	if data, err := os.ReadFile(path); err != nil || !strings.Contains(string(data), `"graphs": "burn-down"`) {
-		t.Errorf("prefs.json holds %s, %v; want the chart kept by name", data, err)
-	}
-	if err := prefs.Update(func(p *theme.Prefs) { p.Graphs = "" }); err != nil {
-		t.Fatal(err)
-	}
-	if data, err := os.ReadFile(path); err != nil || strings.Contains(string(data), "graphs") {
-		t.Errorf("prefs.json holds %s, %v; want the burn-up left out", data, err)
-	}
-
-	for _, tt := range []struct{ file, want string }{
-		{file: `{"chart": "hourglass", "tab": "overview"}`, want: ""},
-		{file: `{"graphs": "heartbeat"}`, want: "heartbeat"},
-	} {
-		if err := os.WriteFile(path, []byte(tt.file), 0o600); err != nil {
-			t.Fatal(err)
-		}
-		if got := prefs.Read().Graphs; got != tt.want {
-			t.Errorf("a file of %s reads Graphs %q, want %q", tt.file, got, tt.want)
-		}
-		if err := prefs.Update(func(p *theme.Prefs) { p.Graphs = "burn-down" }); err != nil {
-			t.Fatal(err)
-		}
-		if data, err := os.ReadFile(path); err != nil || strings.Contains(tt.file, "hourglass") && !strings.Contains(string(data), `"chart": "hourglass"`) {
-			t.Errorf("prefs.json holds %s, %v; want milestone 5's chart kept as it was", data, err)
-		}
+			if got := prefs.Read(); !reflect.DeepEqual(got, tt.read) {
+				t.Errorf("Read() = %+v, want %+v", got, tt.read)
+			}
+			if _, err := os.Stat(path); err != nil {
+				t.Errorf("the file is gone after a read, %v; want it read cleanly, not set aside", err)
+			}
+			if err := prefs.Update(func(p *theme.Prefs) { p.Tab = "runway" }); err != nil {
+				t.Fatal(err)
+			}
+			if data, err := os.ReadFile(path); err != nil || string(data) != tt.written {
+				t.Errorf("after the next write, prefs.json holds\n%s\nwant\n%s", data, tt.written)
+			}
+		})
 	}
 }
 
@@ -395,15 +404,15 @@ func TestTheLogsColumnsAreKeptUnderAKeyOfTheirOwn(t *testing.T) {
 	}
 }
 
-// Graphs' sections shown are kept under a key of their own, by name, beside
-// GRAPHS' chart, which a file of before them keeps as "graphs" and still
-// reads: none shown kept as [], apart from the defaults, which are left out.
+// Graphs' sections shown are kept under a key of their own, by name, apart
+// from "graphs", where a file of before them keeps the Overview's GRAPHS'
+// chart: none shown kept as [], apart from the defaults, which are left out.
 func TestGraphsSectionsAreKeptUnderAKeyOfTheirOwn(t *testing.T) {
 	state := t.TempDir()
 	path := filepath.Join(state, "prefs.json")
 	write(t, path, `{"graphs": "burn-down", "tab": "graphs"}`)
 	prefs := theme.NewPrefsFile(state, clock)
-	if got, want := prefs.Read(), (theme.Prefs{Tab: "graphs", Graphs: "burn-down"}); !reflect.DeepEqual(got, want) {
+	if got, want := prefs.Read(), (theme.Prefs{Tab: "graphs"}); !reflect.DeepEqual(got, want) {
 		t.Errorf("a file of before Graphs' sections reads %+v, want %+v", got, want)
 	}
 	graphs := theme.GraphsPrefs{Sections: []string{"week", "pool", "when"}}
@@ -411,11 +420,11 @@ func TestGraphsSectionsAreKeptUnderAKeyOfTheirOwn(t *testing.T) {
 	if err := prefs.Update(func(p *theme.Prefs) { p.GraphsTab = graphs }); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := prefs.Read(), (theme.Prefs{Tab: "graphs", Graphs: "burn-down", GraphsTab: graphs}); !reflect.DeepEqual(got, want) {
+	if got, want := prefs.Read(), (theme.Prefs{Tab: "graphs", GraphsTab: graphs}); !reflect.DeepEqual(got, want) {
 		t.Errorf("Read() = %+v, want %+v", got, want)
 	}
 	data, err := os.ReadFile(path)
-	want := "{\n  \"graphs\": \"burn-down\",\n  \"graphs_tab\": {\n    \"sections\": [\n      \"week\",\n      \"pool\",\n      \"when\"\n    ]\n  },\n" +
+	want := "{\n  \"graphs_tab\": {\n    \"sections\": [\n      \"week\",\n      \"pool\",\n      \"when\"\n    ]\n  },\n" +
 		"  \"tab\": \"graphs\"\n}\n"
 	if err != nil || string(data) != want {
 		t.Errorf("prefs.json holds\n%s\nwant\n%s", data, want)

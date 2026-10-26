@@ -34,4 +34,4 @@ COMING UP  ───────────────────────
 17:10  work back from its cap                                  in 2h 28m          14:31  ╎ work reached its cap: 3 sessions moved to side
 18:50  side's 5-hour resets                                    in 4h 08m          14:12  ▲ 7f3a started on work
 
-tab views     u usage  g graphs  r routing  s sessions  c coming up  l lately  b by: window     ↑↓ focus  p pin  ? help  q quit
+tab views     u usage  r routing  s sessions  c coming up  l lately  b by: window     ↑↓ focus  p pin  ? help  q quit

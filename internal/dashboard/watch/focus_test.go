@@ -102,7 +102,7 @@ func TestAnotherRouterThatCantListTheSessionsShowsNone(t *testing.T) {
 
 func TestTheFocusStartsOnTheFirstAccountInTheConfigsOrder(t *testing.T) {
 	h := gridHarness(t)
-	if h.model.focus != "work" || h.model.frame(h.clock.now).Focus != "work" {
+	if h.model.focus != "work" {
 		t.Errorf("the first document read, the focus is on %q, want on work, the first account", h.model.focus)
 	}
 }
@@ -134,18 +134,17 @@ func TestUpAndDownMoveTheFocusInTheConfigsOrderNoFurtherThanTheEnds(t *testing.T
 	}
 }
 
-func TestWhileGRAPHSChartsEveryAccountBesideUSAGEThereIsNoFocusToMove(t *testing.T) {
+// ↓ moves the focus, and the key line lists ↑↓ focus, however the windows
+// are grouped: by account, ROUTING beside USAGE or not, and by window.
+func TestTheFocusMovesHoweverTheWindowsAreGrouped(t *testing.T) {
 	tests := []struct {
-		name   string
-		width  int
-		typed  []string
-		moves  bool
-		listed bool
+		name  string
+		width int
+		typed []string
 	}{
-		{name: "by account, GRAPHS beside USAGE", width: 160, typed: []string{"b", "g"}},
-		{name: "by account under 150 columns, GRAPHS charting the focused account", width: 149, typed: []string{"b", "g"}, moves: true, listed: true},
-		{name: "by account, GRAPHS hidden", width: 160, typed: []string{"b"}, moves: true, listed: true},
-		{name: "by window, GRAPHS shown", width: 160, typed: []string{"g"}, moves: true, listed: true},
+		{name: "by account, ROUTING beside USAGE", width: 160, typed: []string{"b"}},
+		{name: "by account under 150 columns", width: 149, typed: []string{"b"}},
+		{name: "by window", width: 160},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -153,11 +152,11 @@ func TestWhileGRAPHSChartsEveryAccountBesideUSAGEThereIsNoFocusToMove(t *testing
 			h.update(tea.WindowSizeMsg{Width: tt.width, Height: 40})
 			h.typed(tt.typed...)
 			h.keys(downKey)
-			if moved := h.model.focus == "personal"; moved != tt.moves {
-				t.Errorf("after ↓, the focus is on %q; want it moved to personal: %v", h.model.focus, tt.moves)
+			if h.model.focus != "personal" {
+				t.Errorf("after ↓, the focus is on %q; want it moved to personal", h.model.focus)
 			}
-			if listed := strings.Contains(h.keyLine(), "↑↓ focus"); listed != tt.listed {
-				t.Errorf("the key line reads %q; want ↑↓ focus listed: %v", h.keyLine(), tt.listed)
+			if !strings.Contains(h.keyLine(), "↑↓ focus") {
+				t.Errorf("the key line reads %q; want ↑↓ focus listed", h.keyLine())
 			}
 		})
 	}
@@ -201,7 +200,7 @@ func TestTheOverviewsKeysDoNothingOnAnotherTab(t *testing.T) {
 	h := gridHarness(t)
 	h.press("tab")
 	h.keys(downKey, upKey)
-	for _, key := range []string{"u", "g", "r", "s", "c", "l", "b"} {
+	for _, key := range []string{"u", "r", "s", "c", "l", "b"} {
 		h.press(key)
 	}
 	if h.model.focus != "work" || h.model.sections != (dashboard.Sections{}) || h.model.by != dashboard.ByWindow {

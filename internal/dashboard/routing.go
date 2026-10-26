@@ -185,9 +185,21 @@ func (f Frame) routingTableOf(doc status.Document, now time.Time) routingTable {
 
 // routingBesideUsage reports whether ROUTING is drawn beside USAGE's blocks
 // rather than as a section of its own: by account, from besideWidth columns,
-// while both show, but where GRAPHS is beside them, as graphsBeside says.
+// while both show.
 func (f Frame) routingBesideUsage() bool {
-	return f.By == ByAccount && f.Width >= besideWidth && f.Sections.Has(SectionUsage) && f.Sections.Has(SectionRouting) && !f.graphsBeside()
+	return f.By == ByAccount && f.Width >= besideWidth && f.Sections.Has(SectionUsage) && f.Sections.Has(SectionRouting)
+}
+
+// besideUsage is what draws ROUTING's lines beside USAGE's blocks by account
+// of doc at now, as at says the blocks lie, where routingBesideUsage says
+// they're there, as routingBeside draws them, its table built only as it's
+// first drawn: nil where they aren't.
+func (f Frame) besideUsage(doc status.Document, now time.Time) func(c *canvas, at blocksBeside) {
+	if !f.routingBesideUsage() {
+		return nil
+	}
+	routing := sync.OnceValue(func() routingTable { return f.routingTableOf(doc, now) })
+	return func(c *canvas, at blocksBeside) { f.routingBeside(c, routing(), at) }
 }
 
 // routingSection is the Overview's ROUTING of doc at now: how each account
@@ -542,17 +554,12 @@ func sessionsSpan(n int) span {
 	return span{prose.Counted(n, "session"), k}
 }
 
-// blocksBeside are where USAGE draws its blocks by account, for ROUTING or
-// GRAPHS' charts to be drawn beside them: from column x, each block where
-// USAGE placed it, an account's, or the pool's, of no id; the rows under
-// each block's last that what's beside it takes, as under has them; and how
-// GRAPHS' charts lie across there, in the block's form, as besideCharts has
-// them.
+// blocksBeside are where USAGE draws its blocks by account, for ROUTING to
+// be drawn beside them: from column x, each block where USAGE placed it, an
+// account's, or the pool's, of no id.
 type blocksBeside struct {
 	x      int
 	blocks []rowAt
-	under  int
-	across chartsAcross
 }
 
 // routingBeside draws ROUTING's table t beside USAGE's blocks by account, as

@@ -45,11 +45,9 @@ type Frame struct {
 	Changed      map[string]float64
 	StateChanged map[string]float64
 	TurnedOut    map[Ref]float64
-	// Trails are how the accounts' windows have been used, for the charts;
-	// and PoolRooms the pool's room in each window charted beside Σ pool by
-	// account, as PoolCharts has them, by its key, as the watch builds them.
-	Trails    Trails
-	PoolRooms map[string]views.PoolRoom
+	// Trails are how the accounts' windows have been used, for Graphs'
+	// charts.
+	Trails Trails
 	// Eased are how much of each bar easing after a read it fills, by its
 	// window's account and key, the pool's by its key alone, on its way to
 	// filling as the view draws it of the document, as Filled has it: nil
@@ -59,13 +57,11 @@ type Frame struct {
 	// changed is still, as Numbers names them: from 1, just changed, to 0,
 	// faded back.
 	Brightened map[Number]float64
-	// Sections are the Overview's sections shown, as u, g, r, s, c and l
-	// show and hide them; By how its windows are grouped, as b switches it:
-	// by window, or by account; and Burn the chart GRAPHS draws, as v flips
-	// it: the burn-up, or the burn-down.
+	// Sections are the Overview's sections shown, as u, r, s, c and l show
+	// and hide them; and By how its windows are grouped, as b switches it:
+	// by window, or by account.
 	Sections Sections
 	By       By
-	Burn     Burn
 	// Models is set while w shows each model's own window, as Fable's week,
 	// wherever the live views list windows: unset, they list those every
 	// model shares, and a model's only while it nears its limit, as the
@@ -105,9 +101,6 @@ type Frame struct {
 	// a time, as Weeks, Days and Tokens do where what they show one of
 	// doesn't fit. It goes no further than Scrolling says it goes.
 	Scroll int
-	// Focus is the account the Overview's focus is on, by id, which ↑ and ↓
-	// move and GRAPHS follows: "" while it's on none.
-	Focus string
 	// Layout is the Overview's layout as the watch keeps it from look to
 	// look, as LayoutOf gave it, so it changes only on a key or a resize, or
 	// a section's shape changing: the zero Layout, or one made for another

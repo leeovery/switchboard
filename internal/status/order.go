@@ -54,9 +54,9 @@ func (m Moment) SharedWindows() []string {
 }
 
 // Listed are the keys of the windows the owner reads listed at the moment
-// where none is asked for, as USAGE, GRAPHS, the Switchboard's lines and
-// usage's printout list them: those every model shares, as SharedWindows has
-// them, so every account keeps its rows before any is read; then each
+// where none is asked for, as USAGE, the Switchboard's lines and usage's
+// printout list them: those every model shares, as SharedWindows has them,
+// so every account keeps its rows before any is read; then each
 // model's own any account reports, as any window the policy doesn't share
 // is: with models, every one, as usage's printout lists them, and the live
 // views while w shows them; without, only one nearing or at its limit on

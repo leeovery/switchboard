@@ -34,7 +34,7 @@ func TestOpensOnTheViewKept(t *testing.T) {
 }
 
 func TestOpensWithTheOverviewsSectionsAndGroupingAsConfigured(t *testing.T) {
-	sections := dashboard.SectionsNamed([]string{"usage", "graphs"})
+	sections := dashboard.SectionsNamed([]string{"usage", "sessions"})
 	m := New(t.Context(), Config{Sections: sections, By: dashboard.ByAccount})
 	if m.sections != sections || m.by != dashboard.ByAccount {
 		t.Errorf("opened showing %v, by %v; want %v, by account", m.sections.Names(), m.by, sections.Names())
@@ -147,11 +147,10 @@ func TestASectionsKeyShowsOrHidesItAndKeepsTheSectionsShown(t *testing.T) {
 		wantShown  string
 		wantHidden string
 	}{
-		{key: "g", want: []string{"usage", "graphs", "routing", "coming", "lately"}, wantShown: "GRAPHS"},
-		{key: "u", want: []string{"graphs", "routing", "coming", "lately"}, wantHidden: "USAGE"},
-		{key: "s", want: []string{"graphs", "routing", "sessions", "coming", "lately"}, wantShown: "SESSIONS"},
-		{key: "c", want: []string{"graphs", "routing", "sessions", "lately"}, wantHidden: "COMING UP"},
-		{key: "u", want: []string{"usage", "graphs", "routing", "sessions", "lately"}, wantShown: "USAGE"},
+		{key: "s", want: []string{"usage", "routing", "sessions", "coming", "lately"}, wantShown: "SESSIONS"},
+		{key: "u", want: []string{"routing", "sessions", "coming", "lately"}, wantHidden: "USAGE"},
+		{key: "c", want: []string{"routing", "sessions", "lately"}, wantHidden: "COMING UP"},
+		{key: "u", want: []string{"usage", "routing", "sessions", "lately"}, wantShown: "USAGE"},
 	} {
 		h.typed(step.key)
 		if got := h.model.sections.Names(); !slices.Equal(got, step.want) || !slices.Equal(prefs.kept.Sections, step.want) {
@@ -218,31 +217,26 @@ func TestBSwitchesHowTheWindowsAreGroupedAndKeepsIt(t *testing.T) {
 	}
 }
 
-func TestVFlipsGRAPHSChartWhileItShowsAndKeepsIt(t *testing.T) {
+// GRAPHS is gone from the Overview, and its keys with it: g and v change
+// nothing there, keep nothing, and neither the key line nor help names them.
+func TestGAndVDoNothingOnTheOverview(t *testing.T) {
 	h := routedHarness(t, routerDocument(three()...))
 	prefs := &fakePrefs{}
 	h.model.cfg.Prefs = prefs
 	h.start()
+	before, screen := h.model.sections, h.view()
 
-	h.typed("v")
-	if h.model.burn != dashboard.BurnUp || prefs.updates > 0 || strings.Contains(h.keyLine(), "v chart") {
-		t.Errorf("v with GRAPHS hidden: drawing the %s, kept %d times, the key line %q; want nothing changed, and v unlisted",
-			h.model.burn.Name(), prefs.updates, h.keyLine())
+	h.typed("g", "v")
+	if h.model.sections != before || prefs.updates > 0 || h.view() != screen {
+		t.Errorf("after g and v, showing %q, kept %d times; want %q shown as before, nothing kept and the screen unchanged", h.model.sections.Names(), prefs.updates, before.Names())
 	}
-	h.typed("g")
-	for _, want := range []struct {
-		burn dashboard.Burn
-		kept string
-	}{{burn: dashboard.BurnDown, kept: "burn-down"}, {burn: dashboard.BurnUp, kept: ""}} {
-		h.typed("v")
-		said := "v chart: " + want.burn.Name()
-		if h.model.burn != want.burn || prefs.kept.Graphs != want.kept || !strings.Contains(h.keyLine(), said) || h.model.frame(h.clock.now).Burn != want.burn {
-			t.Errorf("after v, drawing the %s, kept %q, the key line %q; want the %s, kept as %q, and %q said",
-				h.model.burn.Name(), prefs.kept.Graphs, h.keyLine(), want.burn.Name(), want.kept, said)
+	for _, said := range []string{"g graphs", "v chart"} {
+		if strings.Contains(h.keyLine(), said) {
+			t.Errorf("the key line reads %q, want no %q", h.keyLine(), said)
 		}
 	}
-	if !slices.Equal(prefs.kept.Sections, dashboard.Sections{}.Toggled(dashboard.SectionGraphs).Names()) || prefs.kept.By != "" {
-		t.Errorf("v kept the sections %q and the grouping %q, want neither touched but by g", prefs.kept.Sections, prefs.kept.By)
+	if keys := listedKeys(helpOver(h.model)); slices.Contains(keys, "g") || slices.Contains(keys, "v") {
+		t.Errorf("help lists %q, want neither g nor v", keys)
 	}
 }
 
@@ -311,27 +305,18 @@ func TestTheWatchOpensShowingTheModelsWindowsThePreferencesKept(t *testing.T) {
 	}
 }
 
-func TestTheWatchOpensOnTheChartThePreferencesKept(t *testing.T) {
-	h := routedHarness(t, routerDocument(three()...))
-	h.model = New(t.Context(), func() Config { c := h.model.cfg; c.Burn = dashboard.BurnDown; return c }())
-	h.start()
-	if got := h.model.frame(h.clock.now).Burn; got != dashboard.BurnDown {
-		t.Errorf("kept the burn-down, the watch opens drawing the %s", got.Name())
-	}
-}
-
 func TestTheSectionsOrGroupingThatCantBeKeptAreShownAllTheSame(t *testing.T) {
 	log := logstest.Capture(t)
 	h := routedHarness(t, routerDocument(three()...))
 	h.model.cfg.Prefs = &fakePrefs{err: errors.New("keep the preferences: read-only file system")}
 	h.start()
 
-	h.typed("g", "b")
-	if !h.model.sections.Has(dashboard.SectionGraphs) || h.model.by != dashboard.ByAccount {
-		t.Errorf("showing %q, by %v; want GRAPHS shown and by account all the same", h.model.sections.Names(), h.model.by)
+	h.typed("s", "b")
+	if !h.model.sections.Has(dashboard.SectionSessions) || h.model.by != dashboard.ByAccount {
+		t.Errorf("showing %q, by %v; want SESSIONS shown and by account all the same", h.model.sections.Names(), h.model.by)
 	}
 	for _, want := range [][]string{
-		{"level=WARN", `msg="couldn't keep the sections shown"`, "sections=usage,graphs,routing,coming,lately"},
+		{"level=WARN", `msg="couldn't keep the sections shown"`, "sections=usage,routing,sessions,coming,lately"},
 		{"level=WARN", `msg="couldn't keep how the windows are grouped"`, "by=account"},
 	} {
 		if !log.Has(want...) {

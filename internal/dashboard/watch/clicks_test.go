@@ -224,7 +224,7 @@ func TestAClickOnTheOverviewsKeysActsAsTheKey(t *testing.T) {
 		// acted reports whether the key acted, as the model now stands.
 		acted func(m Model) bool
 	}{
-		{drawn: "g graphs", acted: func(m Model) bool { return m.sections.Has(dashboard.SectionGraphs) }},
+		{drawn: "s sessions", acted: func(m Model) bool { return m.sections.Has(dashboard.SectionSessions) }},
 		{drawn: "l lately", acted: func(m Model) bool { return !m.sections.Has(dashboard.SectionLately) }},
 		{drawn: "b by: window", acted: func(m Model) bool { return m.by == dashboard.ByAccount }},
 		{drawn: "↑↓ focus", acted: func(m Model) bool { return m.focus == "personal" }},

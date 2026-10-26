@@ -27,11 +27,9 @@ func usageAccount(id string, used float64, session time.Time, weekUsed, fableUse
 
 // Every live view lists each model's own window, as Fable's week, only while
 // w shows them, as the moment's Listed has it: USAGE, by window and by
-// account; GRAPHS; Accounts' Detail; Sessions' Switchboard; and a session's
-// page. One nearing its limit shows all the same.
+// account; Accounts' Detail; Sessions' Switchboard; and a session's page. One
+// nearing its limit shows all the same.
 func TestEveryLiveViewListsAModelsWindowWhileWShowsThemOrItNearsItsLimit(t *testing.T) {
-	graphsAlone := frameOf(160, 40)
-	graphsAlone.Sections = Sections{}.Toggled(SectionUsage).Toggled(SectionGraphs)
 	byAccount := frameOf(160, 40)
 	byAccount.By = ByAccount
 	nearing := func(d *status.Document) { d.Accounts[2].Windows[2].Utilization = 0.95 }
@@ -44,7 +42,6 @@ func TestEveryLiveViewListsAModelsWindowWhileWShowsThemOrItNearsItsLimit(t *test
 	}{
 		{name: "USAGE by window", f: frameOf(160, 40), doc: usageWorld(), now: routedAt, fable: "FABLE WEEK"},
 		{name: "USAGE by account", f: byAccount, doc: usageWorld(), now: routedAt, fable: "Fable wk"},
-		{name: "GRAPHS", f: graphsAlone, doc: usageWorld(), now: routedAt, fable: "FABLE WEEK"},
 		{name: "Accounts' Detail", f: detailFrame(Look{}, framedAccounts, "side", "", nil, nil), doc: usageWorld(), now: routedAt, fable: "Fable wk"},
 		{name: "Sessions' Switchboard", f: sceneFrame(160, 37, Look{}), doc: usageWorld(), now: routedAt, fable: "Fable wk"},
 		{name: "a session's page", f: pageFrame(t, resumed(), 160, 37), doc: pageDoc(), now: sessionNow, fable: "fable week"},
@@ -588,22 +585,17 @@ func TestUSAGEHasItsBigBarsWhereTheyFitByWindowWhereItsWindowsSitSideBySide(t *t
 
 // On the Overview, as in the printout, USAGE's blocks are a blank row apart,
 // by window and by account, at every width, as its key line is from the
-// last; but two where GRAPHS' charts sit beside its blocks by account, each
-// chart's axis on the first, beside the cells of USAGE's own; and where the
-// charts stack beside each block, or with USAGE at its most, as many more as
-// give each chart 2 rows, or 5, as under the last block before the key line.
-func TestUSAGEsBlocksAreABlankRowApartButTwoBesideGRAPHSCharts(t *testing.T) {
+// last.
+func TestUSAGEsBlocksAreABlankRowApart(t *testing.T) {
 	at := func(width int, by By) Frame {
 		f := frameOf(width, 60)
 		f.By = by
 		return f
 	}
 	tests := []struct {
-		name        string
-		f           Frame
-		least, most bool
-		stacked     bool
-		apart, key  int
+		name       string
+		f          Frame
+		apart, key int
 	}{
 		{name: "the big bars", f: at(160, ByWindow), apart: 1, key: 1},
 		{name: "stacked at 120", f: at(120, ByWindow), apart: 1, key: 1},
@@ -612,11 +604,6 @@ func TestUSAGEsBlocksAreABlankRowApartButTwoBesideGRAPHSCharts(t *testing.T) {
 		{name: "by account, ROUTING beside", f: at(160, ByAccount), apart: 1, key: 1},
 		{name: "by account at 120", f: at(120, ByAccount), apart: 1, key: 1},
 		{name: "by account on a phone", f: at(52, ByAccount), apart: 1, key: 1},
-		{name: "by account, GRAPHS' charts beside, at USAGE's least", f: besideOf(220), least: true, apart: 2, key: 1},
-		{name: "by account, GRAPHS' charts beside, at USAGE's most", f: besideOf(220), most: true, apart: 3, key: 2},
-		{name: "by account at 160, GRAPHS' charts beside, at USAGE's least, side by side as before", f: besideOf(160), least: true, apart: 2, key: 1},
-		{name: "by account, GRAPHS' charts stacked beside", f: besideOf(160), stacked: true, apart: 8, key: 7},
-		{name: "by account, GRAPHS' charts stacked beside, at USAGE's most", f: besideOf(160), most: true, apart: 17, key: 16},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -627,16 +614,7 @@ func TestUSAGEsBlocksAreABlankRowApartButTwoBesideGRAPHSCharts(t *testing.T) {
 			if tt.f.Width >= besideWidth && tt.f.By == ByAccount {
 				cells = tt.f.overviewBlock(usageWorld(), now).besideAt()
 			}
-			height, usage := 60, tt.f.usageSection(usageWorld(), now)
-			switch {
-			case tt.least:
-				height = usage.least - sectionHead
-			case tt.most:
-				height = usage.most - sectionHead
-			case tt.stacked:
-				height = usage.between[0] - sectionHead
-			}
-			rows, _ := usageBody(tt.f, usageWorld(), now, height)
+			rows, _ := usageBody(tt.f, usageWorld(), now, 60)
 			blocks, key := gapsOver(rows, cells, starts)
 			if want := slices.Repeat([]int{tt.apart}, len(blocks)); len(blocks) < 2 || !slices.Equal(blocks, want) || key != tt.key {
 				t.Errorf("the blank rows over each block but the first are %v, and over the key line %d; want %d over each, and %d:\n%s", blocks, key, tt.apart, tt.key, strings.Join(rows, "\n"))
@@ -645,42 +623,29 @@ func TestUSAGEsBlocksAreABlankRowApartButTwoBesideGRAPHSCharts(t *testing.T) {
 	}
 }
 
-// While GRAPHS shows, the matrix lights the focused account's whole name
-// column, its number, name and marks, as wide as USAGE fits the column to the
-// names, but the gap before the bars: 12 cells of the 14 the sample's names
-// fit in, and 28 of the 30 a name of 24 cells takes, a label's most, a
-// longer one cut to it.
-func TestTheFocusedAccountIsPickedOutInTheMatrixWhileGRAPHSShows(t *testing.T) {
-	graphed := Sections{}.Toggled(SectionGraphs)
+// USAGE picks out no account on bg.selection, in the matrix, its big bars
+// or by account, wherever the focus is: it lit the focused account for
+// GRAPHS alone, which charted it, and went with it.
+func TestUSAGEPicksOutNoAccountWhereverTheFocusIs(t *testing.T) {
 	tests := []struct {
-		name   string
-		shown  Sections
-		by     By
-		rows   int
-		label  string
-		picked int
+		name string
+		by   By
+		rows int
 	}{
-		{name: "the matrix, GRAPHS shown", shown: graphed, rows: 11, picked: 12},
-		{name: "the matrix, a name of 13 cells", shown: graphed, rows: 11, label: "personal-plus", picked: 17},
-		{name: "the matrix, a name of 24 cells, whole", shown: graphed, rows: 11, label: "personal-and-much-longer", picked: 28},
-		{name: "the matrix, a name longer than a label's most, cut", shown: graphed, rows: 11, label: "personal-and-much-longer-still", picked: 28},
-		{name: "GRAPHS hidden", rows: 11},
-		{name: "the big bars", shown: graphed, rows: 22},
-		{name: "by account", shown: graphed, by: ByAccount, rows: 20},
+		{name: "the matrix", rows: 11},
+		{name: "the big bars", rows: 22},
+		{name: "by account", by: ByAccount, rows: 20},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := frameOf(160, 60)
-			f.Sections, f.By, f.Focus = tt.shown, tt.by, "personal"
-			doc := threeRouted()
-			doc.Accounts[1].Label = tt.label
-			_, c := usageBody(f, doc, now, tt.rows)
+			f.By = tt.by
+			_, c := usageBody(f, threeRouted(), now, tt.rows)
 			selected := hue{token: theme.BgSelection}
 			for y := range c.height() {
 				for x := range f.Width {
-					want := y == 4 && x < tt.picked
-					if got := c.at(x, y).ink.on == selected; got != want {
-						t.Errorf("cell %d of row %d is on bg.selection: %v, want %v", x, y, got, want)
+					if c.at(x, y).ink.on == selected {
+						t.Errorf("cell %d of row %d is on bg.selection, want none", x, y)
 					}
 				}
 			}
@@ -1160,13 +1125,6 @@ func TestTheOverviewShowsEachAccountsRowsUnderTheWindowsEveryModelSharesBeforeAn
 				}
 				if got := strings.Count(text, "—  not read"); got != 6 {
 					t.Errorf("USAGE's gauges read \"not read\" %d times, want 6, each account's 5-hour window and week:\n%s", got, text)
-				}
-				var charts []string
-				for _, ch := range f.graphsOf(doc, now).charts {
-					charts = append(charts, ch.name)
-				}
-				if want := []string{"WEEK", "5-HOUR"}; !slices.Equal(charts, want) {
-					t.Errorf("GRAPHS charts %q, want %q", charts, want)
 				}
 			})
 		}

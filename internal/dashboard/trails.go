@@ -4,8 +4,8 @@ import (
 	"github.com/leeovery/switchboard/internal/score"
 )
 
-// Trails are how the accounts' windows have been used, which GRAPHS draws
-// from: the trail of each window as it runs now, by its account's id and its
+// Trails are how the accounts' windows have been used, which Graphs' charts
+// are drawn from: the trail of each window as it runs now, by its account's id and its
 // key.
 type Trails map[Ref]Trail
 

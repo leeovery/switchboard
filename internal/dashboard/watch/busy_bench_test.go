@@ -283,10 +283,7 @@ func writeDay(tb testing.TB, dir, name string, data []byte, compressed bool) {
 // request stream's events, an answer of the session's streaming on, with the
 // page open and on the Log, the stream having told of the hour's requests
 // before; a look with the Log's panel open; on the Overview by account,
-// GRAPHS charting each account and the pool beside USAGE, a look, a look as
-// the pool's 5-hour chart moves a column on, twelve minutes, its readings
-// history having gained a reading of each account before it, the pool's
-// charts judged in full, and a resize; Runway built afresh, and a look at
+// ROUTING beside USAGE, a look, and a resize; Runway built afresh, and a look at
 // it, its readings history having gained a reading of each account since
 // the last; Graphs alike, its lanes of each window, and with POOL or GLANCE
 // shown too, and POOL's stack built afresh; a request sent, with the
@@ -354,14 +351,6 @@ func BenchmarkTheBusyDashboard(b *testing.B) {
 			h.look(w)
 		}
 	})
-	b.Run("the pool's charts judged in full", func(b *testing.B) {
-		h := w.byAccount(b)
-		f := h.model.frame(h.model.now())
-		for b.Loop() {
-			h.model.pool.rooms = nil
-			h.model = h.model.poolBuilt(f)
-		}
-	})
 	b.Run("a resize by account", func(b *testing.B) {
 		h := w.byAccount(b)
 		widths := []int{170, 160}
@@ -376,15 +365,6 @@ func BenchmarkTheBusyDashboard(b *testing.B) {
 		for b.Loop() {
 			h.model.runwayTab.lanes, h.model.runwayTab.builtAt = views.Lanes{}, nil
 			h.model = h.model.runwayBuilt()
-		}
-	})
-	b.Run("a look on the Overview by account, a column on", func(b *testing.B) {
-		h := w.byAccount(b)
-		const column = 5 * time.Hour / (25 - 1)
-		for b.Loop() {
-			h.clock.now = h.clock.now.Add(column)
-			w.gained(b, h.clock.now.Truncate(column).Add(-time.Minute))
-			h.look(w)
 		}
 	})
 	b.Run("a look on Runway, a reading gained", func(b *testing.B) {
@@ -470,13 +450,12 @@ func (w busyWorld) harness(tb testing.TB) *harness {
 	return h
 }
 
-// byAccount is the busy world's harness on the Overview by account, GRAPHS
-// shown, so each account's charts and the pool's sit beside USAGE, its
-// first look taken.
+// byAccount is the busy world's harness on the Overview by account, so
+// ROUTING sits beside USAGE, its first look taken.
 func (w busyWorld) byAccount(tb testing.TB) *harness {
 	tb.Helper()
 	h := w.harness(tb)
-	h.model.by, h.model.sections = dashboard.ByAccount, dashboard.Sections{}.Toggled(dashboard.SectionGraphs)
+	h.model.by = dashboard.ByAccount
 	h.look(w)
 	return h
 }

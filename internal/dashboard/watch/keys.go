@@ -13,9 +13,9 @@ import (
 // PgUp scroll the view where it doesn't fit, as scrollView has it; and the
 // rest each as acting has the page act: w shows and hides each model's own
 // window, where the page lists windows, as listsModels says, as
-// toggleModels has it; on the Overview, u, g, r, s, c and l
-// show and hide its sections, b switches how its windows are grouped, v
-// flips GRAPHS' chart, and ↑ and ↓ move the focus, as overviewKey says; on
+// toggleModels has it; on the Overview, u, r, s, c and l show and hide its
+// sections, b switches how its windows are grouped, and ↑ and ↓ move the
+// focus, as overviewKey says; on
 // Graphs, w, f, o, g and h show and hide its sections, as graphsKey says; on
 // Accounts, its keys act as accountsKey says; on History, [ ], < >, v and
 // ← → act as historyKey says; on Sessions, its keys act as sessionsKey says;
@@ -72,9 +72,7 @@ func (m Model) pageKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // overviewKey acts on a key of the Overview's, reporting false for a key it
 // doesn't take, or on another tab: a section's key shows or hides it, as
 // toggle has it; b switches how its windows are grouped, as regroup has it;
-// v, while GRAPHS shows, flips its chart, as reburn has it; and ↑ and ↓ move
-// the focus, as moveFocus has it, while the Overview has one, as focuses
-// says.
+// and ↑ and ↓ move the focus, as moveFocus has it.
 func (m Model) overviewKey(key string) (Model, bool) {
 	if m.shownView() != dashboard.Overview {
 		return m, false
@@ -82,14 +80,12 @@ func (m Model) overviewKey(key string) (Model, bool) {
 	if section, ok := dashboard.SectionKeyed(key); ok {
 		return m.toggle(section), true
 	}
-	switch {
-	case key == "b":
+	switch key {
+	case "b":
 		return m.regroup(), true
-	case key == "v" && m.sections.Has(dashboard.SectionGraphs):
-		return m.reburn(), true
-	case key == "up" && m.focuses():
+	case "up":
 		return m.moveFocus(-1), true
-	case key == "down" && m.focuses():
+	case "down":
 		return m.moveFocus(1), true
 	}
 	return m, false
@@ -161,9 +157,8 @@ func (m Model) keys(running []string) pageKeys {
 // overviewListings are the Overview's own keys: its toggles, each word
 // faint where its section is hidden, then w, as modelsKey has it, which the
 // key line leaves to help; b, its word saying how the windows are grouped;
-// while GRAPHS shows, v, its word saying the chart it draws; and with more
-// than one account, while the Overview has a focus, as focuses says, ↑↓,
-// which the key line sets with p, ? and q.
+// and with more than one account, ↑↓, which the key line sets with p, ? and
+// q.
 func (m Model) overviewListings() []keyListing {
 	overview := m.shownView() == dashboard.Overview
 	var own []keyListing
@@ -173,8 +168,7 @@ func (m Model) overviewListings() []keyListing {
 	return append(own,
 		keyListing{Key: m.modelsKey(), works: overview, helpful: true},
 		keyListing{Key: dashboard.Key{Key: "b", Does: "by", State: string(layoutOf(m.by))}, works: overview},
-		keyListing{Key: dashboard.Key{Key: "v", Does: "chart", State: m.burn.Name()}, works: overview && m.sections.Has(dashboard.SectionGraphs)},
-		keyListing{Key: dashboard.Key{Key: "↑↓", Does: "focus"}, works: overview && m.asRead.accounts > 1 && m.focuses(), withEnds: true},
+		keyListing{Key: dashboard.Key{Key: "↑↓", Does: "focus"}, works: overview && m.asRead.accounts > 1, withEnds: true},
 	)
 }
 

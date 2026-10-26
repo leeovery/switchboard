@@ -46,8 +46,8 @@ func TestHelpListsThePagesKeysThenItsParts(t *testing.T) {
 	f := helping(160, 400)
 	card := f.Card.card(f)
 	keys := []string{
-		"tab views   u usage   g graphs   r routing   s sessions   c coming up   l lately   b by   ↑↓ focus   j k scroll",
-		"PgUp PgDn page   wheel scroll   p pin   t themes   R refresh   ? help   q quit",
+		"tab views   u usage   r routing   s sessions   c coming up   l lately   b by   ↑↓ focus   j k scroll   PgUp PgDn page",
+		"wheel scroll   p pin   t themes   R refresh   ? help   q quit",
 	}
 	if got := plainLines(card.body[:len(keys)]); !slices.Equal(got, keys) {
 		t.Errorf("help opens\n%s\nwant its keys\n%s", strings.Join(got, "\n"), strings.Join(keys, "\n"))
@@ -96,11 +96,10 @@ func TestHelpsKeysWrapToTheCard(t *testing.T) {
 	card := f.Card.card(f)
 	keys := plainLines(card.body[:slices.IndexFunc(card.body, func(l line) bool { return len(l) == 0 })])
 	want := []string{
-		"tab views   u usage   g graphs   r routing",
-		"s sessions   c coming up   l lately   b by",
-		"↑↓ focus   j k scroll   PgUp PgDn page",
-		"wheel scroll   p pin   t themes   R refresh   ? help",
-		"q quit",
+		"tab views   u usage   r routing   s sessions",
+		"c coming up   l lately   b by   ↑↓ focus",
+		"j k scroll   PgUp PgDn page   wheel scroll   p pin",
+		"t themes   R refresh   ? help   q quit",
 	}
 	if card.width != 58 || !slices.Equal(keys, want) {
 		t.Errorf("at 60 columns, help is %d cells wide, its keys\n%s\nwant 58, its keys\n%s", card.width, strings.Join(keys, "\n"), strings.Join(want, "\n"))
@@ -210,11 +209,6 @@ func TestOverviewHelpKeysEachMarkAsThePageDrawsIt(t *testing.T) {
 			explains(t, "USAGE", mark[:1])
 		}
 	})
-	t.Run("GRAPHS' lines, as its charts draw them", func(t *testing.T) {
-		for _, drawn := range []line{{{paceDot, dimInk}}, {{capLine, reserveInk}}, {{limitLine, faintInk}}, {{nowLine, faintInk}}} {
-			explains(t, "GRAPHS", drawn)
-		}
-	})
 	t.Run("every state's glyph, in its colour, and the pin's", func(t *testing.T) {
 		for kind := status.RoutingTokenless; kind <= status.RoutingOpen; kind++ {
 			explains(t, "ROUTING", line{{kind.Glyph(), standingWords(status.Routing{Kind: kind, Says: "says"}, false, 80)[0].ink}})
@@ -230,6 +224,23 @@ func TestOverviewHelpKeysEachMarkAsThePageDrawsIt(t *testing.T) {
 			t.Run(k.kind, func(t *testing.T) { explains(t, "LATELY", line{k.mark}) })
 		}
 	})
+}
+
+// GRAPHS is gone from the Overview, and its keys with it: its help names
+// neither it, nor g, which showed it, nor v, which flipped its charts.
+func TestOverviewHelpNamesNoGRAPHSNorItsKeys(t *testing.T) {
+	for _, part := range overviewHelp() {
+		for _, says := range part.says {
+			if strings.Contains(says.plain(), "GRAPHS") {
+				t.Errorf("%s's help reads %q, want no GRAPHS", part.heading, says.plain())
+			}
+			for _, s := range says {
+				if s.ink == keyInk && (s.text == "g" || s.text == "v") {
+					t.Errorf("%s's help names the key %q, want neither g nor v", part.heading, s.text)
+				}
+			}
+		}
+	}
 }
 
 func TestOverviewHelpGivesTheTracesScale(t *testing.T) {

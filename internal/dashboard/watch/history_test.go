@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/fs"
 	"iter"
-	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -225,22 +224,16 @@ func heldSinceItReset(reset time.Time) status.Account {
 	}
 }
 
-// GRAPHS charts a window as it stands at now, so a session the router's limit
+// Graphs charts a window as it stands at now, so a session the router's limit
 // holds, reset since it was read, has lapsed, as the router's next document
-// has it: its chart is its name alone, with no axis and no history, however
-// the router's history ran before.
-func TestGRAPHSChartsAHeldSessionResetSinceItWasReadAsNotStarted(t *testing.T) {
+// has it: it draws no trail, however the router's history ran before.
+func TestAHeldSessionResetSinceItWasReadDrawsNoTrail(t *testing.T) {
 	h := routedHarness(t, routerDocument(heldSinceItReset(at(13, 0, 0))))
 	h.source.history = map[string]router.History{"5h": historyOf("work", at(8, 0, 0), 0.1, 0.2, 0.97)}
 	h.start()
-	h.deliver(h.press("g")...)
 
-	screen := h.view()
-	if !strings.Contains(screen, "5-HOUR ┄") || regexp.MustCompile(`(?m)^ {14}\d\d:\d\d +\d\d:\d\d$`).MatchString(screen) {
-		t.Errorf("the screen is\n%s\nwant GRAPHS to chart work's session by its name alone, with no axis, as it has lapsed", screen)
-	}
-	if !strings.Contains(screen, "no history yet") {
-		t.Errorf("the screen is\n%s\nwant work's session charted with no history yet", screen)
+	if trail, ok := h.model.trails[dashboard.Ref{Account: "work", Window: "5h"}]; ok {
+		t.Errorf("work's session draws %+v, want no trail, as it has lapsed", trail)
 	}
 }
 

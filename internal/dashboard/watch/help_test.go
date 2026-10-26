@@ -60,7 +60,7 @@ func TestHelpListsEveryKeyThatWorksAndTheKeyLineTheMostUsed(t *testing.T) {
 	pinned.Pin = status.Pin{Accounts: []string{"work"}}
 	// toggles are the Overview's as help lists them, w among them; lined,
 	// as the key line does, which leaves w to help.
-	toggles, lined := []string{"u", "g", "r", "s", "c", "l", "w", "b"}, []string{"u", "g", "r", "s", "c", "l", "b"}
+	toggles, lined := []string{"u", "r", "s", "c", "l", "w", "b"}, []string{"u", "r", "s", "c", "l", "b"}
 	scrolling := []string{"j k", "PgUp PgDn", "wheel"}
 	tests := []struct {
 		name string

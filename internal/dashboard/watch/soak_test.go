@@ -400,8 +400,7 @@ func (s *soak) plan(on string) {
 // show puts the station given on screen: a tab, from wherever, its session's
 // page closed, as tab steps to it; the Log's Events, paged back; or the page
 // of the session that has run every day of the world's, over the tab shown.
-// The Overview shows GRAPHS and SESSIONS beside its first sections, by
-// account.
+// The Overview shows SESSIONS beside its first sections, by account.
 func (s *soak) show(station string) {
 	if station == "session" {
 		next, cmd := s.h.model.openSession(s.w.longest())
@@ -418,8 +417,8 @@ func (s *soak) show(station string) {
 	}
 	s.stepTo(tab)
 	switch {
-	case tab == dashboard.Overview && !s.h.model.sections.Has(dashboard.SectionGraphs):
-		s.typed("g", "s", "b")
+	case tab == dashboard.Overview && !s.h.model.sections.Has(dashboard.SectionSessions):
+		s.typed("s", "b")
 	case station == "events":
 		if s.h.model.log.page.Shown != dashboard.LogEvents {
 			s.typed("]")

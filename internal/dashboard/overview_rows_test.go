@@ -215,31 +215,31 @@ func TestSESSIONSFoldsOnlyWhereASessionAndHowManyMoreDontFit(t *testing.T) {
 
 // The rows to spare go to SESSIONS first, a whole session at a time, two rows
 // a session here, to every one, its row saying how many more going once every
-// one shows; a row left that's less than a session goes on to GRAPHS, then
-// COMING UP and LATELY, never left blank.
+// one shows; a row left that's less than a session goes on to COMING UP and
+// LATELY, never left blank, but where USAGE's big bars fit whole.
 func TestSESSIONSGrowsFirstAWholeSessionAtATimeWhatsLeftGoingOn(t *testing.T) {
 	sections := []section{
-		sized(SectionUsage, 13, 35), sized(SectionGraphs, 9, 23), sessionsSized(6, 2),
+		sized(SectionUsage, 13, 35), sessionsSized(6, 2),
 		sized(SectionComing, 5, 9), sized(SectionLately, 5, 14),
 	}
 	tests := []struct {
-		name                     string
-		rows                     int
-		sessions, graphs, coming int
+		name                    string
+		rows                    int
+		usage, sessions, coming int
 	}{
-		{name: "none to spare: a session and how many more", rows: 35, sessions: 5, graphs: 9, coming: 5},
-		{name: "a row, less than a session: to GRAPHS", rows: 36, sessions: 5, graphs: 10, coming: 5},
-		{name: "a session's two rows: to SESSIONS, before GRAPHS", rows: 37, sessions: 7, graphs: 9, coming: 5},
-		{name: "a session's two rows and one: the one to GRAPHS", rows: 38, sessions: 7, graphs: 10, coming: 5},
-		{name: "five sessions and how many more", rows: 43, sessions: 13, graphs: 9, coming: 5},
-		{name: "every session, the last's second row where how many more was", rows: 44, sessions: 14, graphs: 9, coming: 5},
-		{name: "every session, and a row to GRAPHS", rows: 45, sessions: 14, graphs: 10, coming: 5},
-		{name: "GRAPHS at its most too, a row on to COMING UP and LATELY", rows: 59, sessions: 14, graphs: 23, coming: 6},
+		{name: "none to spare: a session and how many more", rows: 25, usage: 13, sessions: 5, coming: 5},
+		{name: "a row, less than a session: to COMING UP and LATELY", rows: 26, usage: 13, sessions: 5, coming: 6},
+		{name: "a session's two rows: to SESSIONS, before COMING UP and LATELY", rows: 27, usage: 13, sessions: 7, coming: 5},
+		{name: "a session's two rows and one: the one to COMING UP and LATELY", rows: 28, usage: 13, sessions: 7, coming: 6},
+		{name: "five sessions and how many more", rows: 33, usage: 13, sessions: 13, coming: 5},
+		{name: "every session, the last's second row where how many more was", rows: 34, usage: 13, sessions: 14, coming: 5},
+		{name: "every session, and a row to COMING UP and LATELY", rows: 35, usage: 13, sessions: 14, coming: 6},
+		{name: "every session, then USAGE's big bars, whole", rows: 56, usage: 35, sessions: 14, coming: 5},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			laid := planOf(frameOf(160, 120), sections, 0, tt.rows)
-			want := map[Section]int{SectionUsage: 13, SectionGraphs: tt.graphs, SectionSessions: tt.sessions, SectionComing: tt.coming, SectionLately: tt.coming}
+			want := map[Section]int{SectionUsage: tt.usage, SectionSessions: tt.sessions, SectionComing: tt.coming, SectionLately: tt.coming}
 			if got := rowsGiven(laid); !maps.Equal(got, want) {
 				t.Errorf("in %d rows, the sections take %v, want %v", tt.rows, got, want)
 			}

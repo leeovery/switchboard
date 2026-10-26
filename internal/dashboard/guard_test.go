@@ -57,11 +57,10 @@ var sizedAllowed = []string{
 	// widestLines: step 4's state words short where the lines are narrower,
 	// as usage --by account's narrow block.
 	"internal/dashboard/switchboardlines.go:linesDrawn.oneRow",
-	// The design's figure of GRAPHS and ROUTING beside USAGE by account
-	// from 150 columns, besideWidth; and of usage's words in full from 70
-	// columns, fullWords, in the views that give its bars rows of their own:
-	// Detail, the phone's stack and the Switchboard's lines.
-	"internal/dashboard/graphsbeside.go:Frame.graphsBeside",
+	// The design's figure of ROUTING beside USAGE by account from 150
+	// columns, besideWidth; and of usage's words in full from 70 columns,
+	// fullWords, in the views that give its bars rows of their own: Detail,
+	// the phone's stack and the Switchboard's lines.
 	"internal/dashboard/overview_usage.go:Frame.overviewBlock",
 	"internal/dashboard/routing.go:Frame.routingBesideUsage",
 	"internal/dashboard/usage.go:usageBlock.wordCells",

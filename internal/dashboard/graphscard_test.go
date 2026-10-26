@@ -16,7 +16,7 @@ import (
 // October 2026, as chartAt has it, at now, in the ramp's first stop, its
 // readings as given, nothing ahead known.
 func burnCardAt(now time.Time, readings ...score.Reading) burnCard {
-	return burnCard{window: chartAt(now, 1, readings...), ink: ink{token: theme.VizRamp1}, ahead: steady(0, false)}
+	return burnCard{window: chartAt(now, readings...), ink: ink{token: theme.VizRamp1}, ahead: steady(0, false)}
 }
 
 // steady is a room ahead that's room all along, known as given.

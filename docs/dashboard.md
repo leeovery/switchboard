@@ -10,7 +10,7 @@ session, and shows the router's sessions and its record of every request. To ope
 - [History](#history)
 - [Sessions](#sessions)
 - [Runway](#runway)
-- [Graphs](#graphs-1)
+- [Graphs](#graphs)
 - [The Log](#the-log)
 - [A session's page](#a-sessions-page)
 - [On a phone](#on-a-phone)
@@ -52,13 +52,12 @@ one screen that never scrolls.
 
 ### Sections
 
-The Overview has six sections, always in this order. Each key shows or hides its section, at any
+The Overview has five sections, always in this order. Each key shows or hides its section, at any
 size.
 
 | Section | Key | At first |
 |---|---|---|
 | USAGE | `u` | shown |
-| GRAPHS | `g` | hidden |
 | ROUTING | `r` | shown |
 | SESSIONS | `s` | hidden |
 | COMING UP | `c` | shown |
@@ -71,8 +70,7 @@ gets:
   section holds.
 - Before a section folds, USAGE's accounts close up, the blank row between each two giving way.
   They close up only where that keeps a section open.
-- Sections fold in this order: SESSIONS first, then COMING UP and LATELY, then GRAPHS, then
-  ROUTING.
+- Sections fold in this order: SESSIONS first, then COMING UP and LATELY, then ROUTING.
 - USAGE never folds. Short of its rows, with every other section folded, it shows as many
   accounts as it can: its accounts close up, then the blank rows under its headings give way,
   then its key, as far as shows the most, and where they still don't fit, it scrolls within
@@ -95,8 +93,8 @@ pool's.
 - An account out of the pool, under a pin, is drawn faint.
 
 Each model's own window, such as Fable's week, is hidden until you press `w`. That goes for every
-view that shows the windows as they stand now: USAGE, GRAPHS, Accounts' Detail, Sessions'
-Switchboard and a session's page. A hidden window still shows while it nears its limit on any
+view that shows the windows as they stand now: USAGE, Accounts' Detail, Sessions' Switchboard and
+a session's page. A hidden window still shows while it nears its limit on any
 account: at the limit, at the cap, running out, or within 10 points of running out. `usage`,
 History and the Log always show every window.
 
@@ -112,37 +110,6 @@ The key line under the block names the marks:
 Where the key line has no room for `▲ new sessions go here`, it says `▲ new`. With one account,
 which has no pool, USAGE's heading says the room it has left in each window, wherever the heading
 has room for it.
-
-### GRAPHS
-
-GRAPHS charts the focused account's windows, one chart a window, running from the window's start
-to its reset. Where every chart fits under USAGE's bars, each sits under its window's column;
-narrower, they start at the left edge, as many side by side as fit, the rest on the rows under.
-`v` flips between two charts, and the dashboard remembers which:
-
-- **The burn-up** fills with the use so far, and shows the window's cap, even pace and now.
-- **The burn-down** falls from full as the room is used. A dotted line heads on from now at the
-  window's pace: to a `✕` on the floor where the window runs out, or to the room it will have left
-  at its reset. The cap is a faint dotted line along its floor, and a window held at its limit
-  draws a line along the floor until it lifts.
-
-`↑` and `↓` move the focus between accounts. USAGE lights the focused account.
-
-By account, from 150 columns, GRAPHS draws every account's charts beside its block instead: as
-many of its windows as fit side by side, and with rows to spare, every one, the rest under them,
-taller as the rows allow. There's no focus to move. Beside `Σ pool`, the pool's charts show
-the room its accounts had left over each window's length back to now, each to its cap, summed, as
-Runway judges how each stood: one held back from every request counts none of its 5-hour window.
-Each account's reset shows as a step up. Narrower, and on a phone, GRAPHS charts the focused
-account under USAGE.
-
-<div align="center">
-<img src="../art/dashboard.webp" alt="One account's dashboard: work alone on the Overview, its usage, routing trace and LATELY, then GRAPHS, then Runway's 5-hour, its lane running out at its pace to its cap, back at 17:10" width="840">
-</div>
-
-The animation shows one account, `work`, alone on the Overview, with its usage, its routing trace
-and LATELY. Then `g` shows GRAPHS, `tab` moves on to Runway, and `>` to its 5-hour view. There, work's lane
-runs out at its pace to its cap, and is back at 17:10.
 
 ### ROUTING
 
@@ -207,20 +174,17 @@ COMING UP where they don't.
 
 ### By account
 
-`b` makes USAGE one block for each account, with the account's windows as rows and its ROUTING
-beside it. The pool's block comes last. While GRAPHS shows, from 150 columns, each account's charts
-sit beside its block instead, the pool's beside the pool's, and ROUTING is a section of its own
-again.
+`b` makes USAGE one block for each account, with the account's windows as rows and, from 150
+columns, its ROUTING beside it. The pool's block comes last.
 
 ### Keys on the Overview
 
 | Key | Does |
 |---|---|
-| `u` `g` `r` `s` `c` `l` | Shows or hides a section: USAGE, GRAPHS, ROUTING, SESSIONS, COMING UP and LATELY. |
+| `u` `r` `s` `c` `l` | Shows or hides a section: USAGE, ROUTING, SESSIONS, COMING UP and LATELY. |
 | `w` | Shows or hides each model's own window, such as Fable's week. They're hidden until you press `w`. `?` lists it; the key line leaves it out. |
 | `b` | Groups the windows by window or by account. Until you press `b`, the grouping follows [`[usage] by`](configuration.md#usage-keys). |
-| `v` | While GRAPHS shows, flips it between the burn-up and the burn-down. |
-| `↑` `↓` | Moves the focus between the accounts, in the config's order. GRAPHS charts the focused account, and USAGE scrolls to it. While GRAPHS charts every account beside USAGE, there's no focus to move. |
+| `↑` `↓` | Moves the focus between the accounts, in the config's order. USAGE scrolls to the focused account where it can't show them all. |
 
 ## Accounts
 
@@ -973,8 +937,7 @@ place, for 4 seconds.
 `t`, `R` and the scrolling keys work everywhere, and are left to `?`.
 
 The Overview's key line lists its section toggles, each word faint while its section is hidden.
-Then come `b by: window`, `v chart: burn-up` while GRAPHS shows, and
-`↑↓ focus  p pin  ? help  q quit`.
+Then come `b by: window` and `↑↓ focus  p pin  ? help  q quit`.
 
 Graphs' key line lists its toggles the same way, `w week  f 5-hour  o pool  g glance  h when`,
 then `p pin  ? help  q quit`.
@@ -1020,7 +983,7 @@ It remembers:
 
 - the theme, or the pair
 - the tab shown
-- the Overview's sections shown, its `b` grouping, and the chart `v` has GRAPHS draw
+- the Overview's sections shown, and its `b` grouping
 - whether `w` shows each model's own window
 - Accounts' view and period
 - History's view, what its Year shows, Weeks' shape, and Tokens' period and split

@@ -40,7 +40,7 @@ func TestTheKeyLineGroupsTheKeysOfEachTab(t *testing.T) {
 		wantPhone []string
 		wantHelp  string
 	}{
-		{view: dashboard.Overview, lead: 5, after: 5, want: [][]string{{"tab"}, {"u", "g", "r", "s", "c", "l", "b"}, {"↑↓", "p", "?", "q"}}, wantHelp: "keys and toggles"},
+		{view: dashboard.Overview, lead: 5, after: 5, want: [][]string{{"tab"}, {"u", "r", "s", "c", "l", "b"}, {"↑↓", "p", "?", "q"}}, wantHelp: "keys and toggles"},
 		{view: dashboard.Accounts, lead: 3, want: [][]string{{"tab"}, {"[ ]"}, {"< >"}, {"←→", "enter"}, {"p"}, {"?", "q"}}, wantPhone: []string{"[ ]"}, wantHelp: "keys"},
 		{view: dashboard.History, lead: 3, want: [][]string{{"tab"}, {"[ ]"}, {"< >"}, {"v"}, {"p"}, {"?", "q"}}, wantPhone: []string{"[ ]"}, wantHelp: "keys"},
 		{
@@ -79,7 +79,7 @@ func TestTheKeyLineGroupsTheKeysOfEachTab(t *testing.T) {
 func TestTheOverviewsKeyLineIsTheDesigns(t *testing.T) {
 	pinned := routerDocument(three()[0])
 	pinned.Pin = status.Pin{Accounts: []string{"work"}}
-	toggles := "tab views     u usage  g graphs  r routing  s sessions  c coming up  l lately  b by: window     "
+	toggles := "tab views     u usage  r routing  s sessions  c coming up  l lately  b by: window     "
 	phone := "tab views   ? keys and toggles   q quit"
 	tests := []struct {
 		name  string
@@ -90,7 +90,8 @@ func TestTheOverviewsKeyLineIsTheDesigns(t *testing.T) {
 		{name: "three accounts", doc: routerDocument(three()...), width: 160, want: toggles + "↑↓ focus  p pin  ? help  q quit"},
 		{name: "one account, with none other to focus or pin to", doc: routerDocument(three()[0]), width: 160, want: toggles + "? help  q quit"},
 		{name: "one account, pinned from the command line", doc: pinned, width: 160, want: toggles + "p pin  ? help  q quit"},
-		{name: "too narrow for the wide line whole: a phone's", doc: routerDocument(three()...), width: 126, want: phone},
+		{name: "just wide enough for the wide line whole", doc: routerDocument(three()...), width: 117, want: toggles + "↑↓ focus  p pin  ? help  q quit"},
+		{name: "too narrow for the wide line whole: a phone's", doc: routerDocument(three()...), width: 116, want: phone},
 		{name: "a phone", doc: routerDocument(three()...), width: 52, want: phone},
 	}
 	for _, tt := range tests {
@@ -110,16 +111,15 @@ func TestTheOverviewsKeyLineIsTheDesigns(t *testing.T) {
 func TestTheOverviewsKeyLineSaysWhichSectionsShowAndHowTheWindowsAreGrouped(t *testing.T) {
 	h := routedHarness(t, routerDocument(three()...))
 	h.start()
-	h.typed("g", "u", "b")
+	h.typed("s", "u", "b")
 
 	want := []dashboard.Key{
-		{Key: "u", Does: "usage", Hidden: true}, {Key: "g", Does: "graphs"}, {Key: "r", Does: "routing"},
-		{Key: "s", Does: "sessions", Hidden: true}, {Key: "c", Does: "coming up"}, {Key: "l", Does: "lately"},
+		{Key: "u", Does: "usage", Hidden: true}, {Key: "r", Does: "routing"},
+		{Key: "s", Does: "sessions"}, {Key: "c", Does: "coming up"}, {Key: "l", Does: "lately"},
 		{Key: "b", Does: "by", State: "account"},
-		{Key: "v", Does: "chart", State: "burn-up"},
 	}
 	if got := h.model.live(h.clock.now).KeyLine.Groups[1]; !slices.Equal(got, want) {
-		t.Errorf("with GRAPHS shown, USAGE hidden and the windows grouped by account, the toggles are\n%+v\nwant\n%+v", got, want)
+		t.Errorf("with SESSIONS shown, USAGE hidden and the windows grouped by account, the toggles are\n%+v\nwant\n%+v", got, want)
 	}
 	if !slices.ContainsFunc(helpOver(h.model), func(k dashboard.Key) bool { return k == want[0] }) {
 		t.Errorf("help lists %+v, want the toggles worded as the key line words them", helpOver(h.model))

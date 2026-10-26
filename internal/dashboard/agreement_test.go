@@ -41,9 +41,6 @@ func TestTheViewsAgreeAtEachHardMoment(t *testing.T) {
 					agree(t, of+" resets", d.resets(a, w))
 				}
 			}
-			for _, w := range d.moment.Pool().Windows {
-				agree(t, "the pool's "+w.Key+" has left", d.poolRoom(w.Key))
-			}
 		})
 	}
 }
@@ -64,9 +61,8 @@ func agree(t *testing.T, fact string, says []viewSays) {
 }
 
 // drawn are the views of a document at a moment, each as it's drawn: USAGE,
-// ROUTING, the routing card, COMING UP, the status line, Runway's live
-// views, the 5-hour's and the week's, and the pool's charts; and the
-// moment, which says which accounts and windows there are, and which account
+// ROUTING, the routing card, COMING UP, the status line, and Runway's live
+// views, the 5-hour's and the week's; and the moment, which says which accounts and windows there are, and which account
 // and window each thing COMING UP says is of, in its order.
 type drawn struct {
 	now        time.Time
@@ -77,21 +73,15 @@ type drawn struct {
 	coming     []happening
 	statusLine statusLine
 	runway     map[views.RunwayWindow]Frame
-	poolCharts []poolChart
 }
 
 // drawnAt is each view of doc at now, as a frame as wide as the frames draws
-// it: Runway's with its lanes built at the moment, and the pool's charts with
-// its room in each window, as the watch builds them, with nothing read
-// before.
+// it: Runway's with its lanes built at the moment, as the watch builds them,
+// with nothing read before.
 func drawnAt(t *testing.T, doc status.Document, now time.Time) drawn {
 	t.Helper()
 	f := frameOf(160, 40).At(doc, now)
 	m := f.Moment(doc, now)
-	f.PoolRooms = make(map[string]views.PoolRoom)
-	for _, w := range m.Pool().Windows {
-		f.PoolRooms[w.Key] = views.PoolRoom{}.Look(views.PoolRoomFrom{Moment: m, Key: w.Key, Columns: 25})
-	}
 	d := drawn{
 		now: now, moment: m,
 		usage:      newUsageBlock(m, 160, Look{}, ByWindow, usageWindows(m.Listed(true), labelsOf(m))),
@@ -100,7 +90,6 @@ func drawnAt(t *testing.T, doc status.Document, now time.Time) drawn {
 		coming:     f.upcoming(doc, now),
 		statusLine: f.pageStatus(doc, now),
 		runway:     make(map[views.RunwayWindow]Frame),
-		poolCharts: f.poolChartsOf(doc, m),
 	}
 	if len(d.coming) != len(m.ComingUp) {
 		t.Fatalf("COMING UP says %d things, want the moment's %d", len(d.coming), len(m.ComingUp))
@@ -286,14 +275,14 @@ func cardStands(r RoutingRow) string {
 }
 
 // running is whether each view says account a's window w is running, or
-// hasn't started: USAGE's words, GRAPHS' chart, spanned or not, and of the
-// window a request starts, ROUTING where it says the account's idle.
+// hasn't started: USAGE's words, Graphs' card's chart, spanned or not, and
+// of the window a request starts, ROUTING where it says the account's idle.
 func (d drawn) running(a status.AccountNow, w status.WindowNow) []viewSays {
 	chart := "running"
-	if !chartOf(a, shownWindow{key: w.Key, name: w.Name}, Trail{}, d.now, BurnUp).spanned {
+	if !chartOf(a, w.Key, Trail{}, d.now).spanned {
 		chart = "not started"
 	}
-	says := []viewSays{{"GRAPHS", chart}}
+	says := []viewSays{{"Graphs' card", chart}}
 	if g, ok := d.gauge(a, w); ok {
 		usage := "running"
 		if strings.HasPrefix(g.words.full.plain(), "not started") {
@@ -340,26 +329,6 @@ func (d drawn) used(a status.AccountNow, w status.WindowNow) []viewSays {
 	return says
 }
 
-// poolRoom is how much room the pool's window with the given key each view
-// says its accounts have left, to a tenth: USAGE's Σ pool words, and the
-// pool's chart of it at now, its last column. Σ pool's bar is left out, as
-// it fills to the accounts' mean use, by design another figure than the
-// chart's share of their room used.
-func (d drawn) poolRoom(key string) []viewSays {
-	var says []viewSays
-	if n := len(d.usage.rows); n > 0 && d.usage.rows[n-1].pool {
-		if j := slices.IndexFunc(d.usage.windows, func(w shownWindow) bool { return w.key == key }); j >= 0 {
-			says = append(says, viewSays{"USAGE's Σ pool", d.usage.rows[n-1].gauges[j].words.full[0].text})
-		}
-	}
-	for _, pc := range d.poolCharts {
-		if room := pc.room; pc.key == key && room.Of > 0 {
-			says = append(says, viewSays{"the pool's chart", prose.Tenths(room.Columns[len(room.Columns)-1].Room)})
-		}
-	}
-	return says
-}
-
 // figure is the routing card's figure of account a's window w, reporting
 // false where the card has none of it.
 func (d drawn) figure(a status.AccountNow, w status.WindowNow) (Figure, bool) {
@@ -389,8 +358,8 @@ func staleness(stale bool) string {
 }
 
 // runsOut is where each view says account a's window w runs out, as "out ~"
-// and when, or "nowhere": USAGE's words; GRAPHS' burn-down, where it draws
-// ✕; COMING UP, of an account that could
+// and when, or "nowhere": USAGE's words; Graphs' burn-down card, where it
+// runs out; COMING UP, of an account that could
 // take a request as the document was built, as it gates those that couldn't
 // (D3); ROUTING's pressure, of the pressure window while it says the
 // account's under pressure, but of one stale, as the router's pressure goes
@@ -407,10 +376,10 @@ func (d drawn) runsOut(a status.AccountNow, w status.WindowNow) []viewSays {
 		says = append(says, viewSays{"USAGE", usage})
 	}
 	burnDown := "nowhere"
-	if ch := chartOf(a, shownWindow{key: w.Key, name: w.Name}, Trail{}, d.now, BurnDown); !ch.course.out.IsZero() {
-		burnDown = "out ~" + prose.Dated(d.now, ch.course.out)
+	if cd := burnCardOf(a, w.Key, Trail{}, d.now); !cd.out.IsZero() {
+		burnDown = "out ~" + prose.Dated(d.now, cd.out)
 	}
-	says = append(says, viewSays{"GRAPHS", burnDown})
+	says = append(says, viewSays{"Graphs' card", burnDown})
 	if built, _ := d.moment.At(d.moment.ReadAt).Account(a.ID); built.CanRise {
 		says = append(says, viewSays{"COMING UP", d.comingOut(a, w)})
 	}
@@ -467,13 +436,13 @@ func (d drawn) comingOut(a status.AccountNow, w status.WindowNow) string {
 	return "nowhere"
 }
 
-// resets is when each view says account a's window w next resets: GRAPHS,
-// where its chart ends, of one running; and COMING UP, where it says the
-// window resets.
+// resets is when each view says account a's window w next resets: Graphs'
+// card, where its chart ends, of one running; and COMING UP, where it says
+// the window resets.
 func (d drawn) resets(a status.AccountNow, w status.WindowNow) []viewSays {
 	var says []viewSays
-	if ch := chartOf(a, shownWindow{key: w.Key, name: w.Name}, Trail{}, d.now, BurnUp); ch.spanned {
-		says = append(says, viewSays{"GRAPHS", prose.Dated(d.now, ch.start.Add(ch.length))})
+	if ch := chartOf(a, w.Key, Trail{}, d.now); ch.spanned {
+		says = append(says, viewSays{"Graphs' card", prose.Dated(d.now, ch.start.Add(ch.length))})
 	}
 	for i, u := range d.moment.ComingUp {
 		if u.Account == a.ID && u.Window == w.Key && u.Kind == status.UpcomingReset {

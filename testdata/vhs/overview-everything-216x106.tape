@@ -1,6 +1,6 @@
 # The overview-everything-216x106 fixture, the Overview of the auto world
-# with every section shown, g and s pressed, the big bars, GRAPHS at its
-# tallest and SESSIONS, full screen at its 216 × 106, as capturetool runs it.
+# with every section shown, s pressed, the big bars and SESSIONS, full
+# screen at its 216 × 106, as capturetool runs it.
 # Run from the repository's root: vhs testdata/vhs/overview-everything-216x106.tape
 
 Set Shell "bash"

@@ -27,11 +27,11 @@ func overviewHelp() []helpPart {
 				said("Σ pool is the room new sessions can go to now, in accounts' worth: every account's on auto, the pinned accounts' alone " +
 					"when pinned, each to its cap; all accounts, on Accounts and History, counts every account, to its limit. An account out " +
 					"of the pool is faint."),
-				said("`b` groups the windows by account instead, a block an account, ROUTING beside each, or while GRAPHS shows, its charts. " +
-					"With more accounts than fit, USAGE " +
-					"scrolls within itself, whole, a row at a time, each window's heading kept on its first row while the window's " +
-					"rows scroll under it, and its last row says how many rows are out of view above and below."),
-				said("`w` shows each model's own window, as Fable's week, here and wherever windows are listed as they stand now: GRAPHS, " +
+				said("`b` groups the windows by account instead, a block an account, ROUTING beside each. With more accounts than fit, " +
+					"USAGE scrolls within itself, whole, a row at a time, each window's heading kept on its first row while the window's " +
+					"rows scroll under it, and its last row says how many rows are out of view above and below. `↑` and `↓` move the " +
+					"focus through the accounts, in the config's order, and USAGE scrolls to the one focused."),
+				said("`w` shows each model's own window, as Fable's week, here and wherever windows are listed as they stand now: " +
 					"Accounts' Detail, Sessions' Switchboard and a session's page. Hidden, one shows all the same while it nears its limit " +
 					"on any account: held at it, at the cap, or running out or nearing where it would. switchboard usage, History and the " +
 					"Log list every window."),
@@ -41,33 +41,6 @@ func overviewHelp() []helpPart {
 				{drawn: line{{capMark, reserveInk}}, means: "the cap, where the account's reserve starts: past it, the router passes the account over"},
 				{drawn: line{{"◆", primaryInk}}, means: "the primary, the account your browser and the Claude apps are signed into"},
 				{drawn: line{{"▲", accentInk}}, means: "the account new sessions go to now"},
-			},
-		},
-		{
-			heading: SectionGraphs.heading(),
-			says: []line{
-				said("The focused account's use so far in each window, each chart under its window's column in USAGE: a column a cell from " +
-					"the window's start to its reset, drawn to now. `↑` and `↓` move the focus through the accounts, in the config's order, " +
-					"and USAGE lights the one focused."),
-				said("`v` flips every chart between two. The burn-up fills to the use read at its time, against even pace. The burn-down is " +
-					"the room left, falling from full as the window's used, then where it's heading, at the pace Runway's words go by: to ✕ " +
-					"where it runs out, else to the room it leaves at its reset."),
-				said("By account, from 150 columns, every account's charts sit beside its block, as many of its windows as fit, so no " +
-					"account is focused, and ROUTING takes rows of its own under USAGE; narrower, and on a phone, GRAPHS charts the focused " +
-					"account, as by window."),
-				said("Beside Σ pool, the pool's charts are its room over each window's length back to now: what its accounts had left, " +
-					"each to its cap, summed, as Runway judges how each stood, one held back from every request counting none of its " +
-					"5-hour window, and each one's reset a step up."),
-			},
-			glyphs: []glyph{
-				{drawn: line{{paceDot, dimInk}}, means: "even pace, on the burn-up: a line to measure by, not a forecast"},
-				{drawn: line{{capLine, reserveInk}}, means: "the cap, on the burn-up"},
-				{drawn: line{{limitLine, faintInk}}, means: "along the chart's top: the limit, on the burn-up; full, on the burn-down"},
-				{drawn: line{{nowLine, faintInk}}, means: "now"},
-				{drawn: line{{headingKey, dimInk}}, means: "where the window's heading, on the burn-down"},
-				{drawn: line{{outMark, outInk}}, means: "where it runs out, on the burn-down's floor: the cap's, where that holds the account back"},
-				{drawn: line{{capKey, capDotInk}}, means: "the cap, on the burn-down"},
-				{drawn: line{{floorLine, errorInk}}, means: "no room left: at the limit, and on along the floor till it lifts"},
 			},
 		},
 		{
