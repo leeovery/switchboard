@@ -22,17 +22,6 @@ import (
 
 var logger = logs.For("launch")
 
-// AskTimeout bounds each question run asks the router, so a router that's
-// stuck holds Claude Code up for a moment at most. What else asks whether the
-// router answers gives it as long.
-const AskTimeout = 500 * time.Millisecond
-
-// Unanswered returns why a router that didn't answer within AskTimeout is
-// unhealthy, wherever that's said.
-func Unanswered() string {
-	return "no answer within " + AskTimeout.String()
-}
-
 // lookAgain is how long run waits to look at a token file again, when it
 // finds it empty at first: a writer that empties the file before it writes
 // the token leaves it so for a moment, which one look can catch.
@@ -71,7 +60,8 @@ type Launcher struct {
 	// Exec replaces this process with the program at path, as Exec does.
 	Exec func(path string, argv, env []string) error
 	// Stderr hears why, when Claude Code starts without the router, or
-	// without switchboard.
+	// without switchboard, or doesn't start, the router down, and how to go
+	// on.
 	Stderr io.Writer
 }
 
@@ -84,6 +74,8 @@ type Route struct {
 	// file is looked at again.
 	Pause  func(time.Duration)
 	Router Router
+	// Patience is how long the router is waited for, as Patience.Ask waits.
+	Patience Patience
 	// Account is the id of the account to pin the session to, or "" to leave
 	// it to the router.
 	Account string
@@ -97,14 +89,15 @@ type Route struct {
 // account the conversation goes to: what isn't the conversation goes out on
 // Claude Code's own token, and so lands on the primary. Claude Code tells the
 // router too what it tells the API of each request, such as the prompt it
-// serves, unless the environment says already whether to. Otherwise it sends
-// them straight to the API, on the pinned account's token, else the
-// primary's, and Stderr hears why. Either way, failing those, it starts on
+// serves, unless the environment says already whether to. Otherwise, as
+// whenDown says, it starts nothing, failing with ErrNotStarted, or sends them
+// straight to the API, on the pinned account's token, else the primary's;
+// either way, Stderr hears why. Routed or direct, failing those, it starts on
 // the first account's with a usable token, and with none, Unaided. A pin that
 // can't be kept, to an account not configured or without a usable token,
 // fails: it's the command line's mistake. It starts from the environment as
 // the user set it (see own), and marks what it sets there (see setEnv). Run
-// returns only when Claude Code couldn't start.
+// returns only when Claude Code didn't start.
 func (l Launcher) Run(ctx context.Context, r Route, args []string) error {
 	path, err := l.find()
 	if err != nil {
@@ -115,6 +108,11 @@ func (l Launcher) Run(ctx context.Context, r Route, args []string) error {
 		return err
 	}
 	state := r.health(ctx)
+	if !state.healthy() {
+		if err := l.goDirect(r.Config.WhenRouterDown, state); err != nil {
+			return err
+		}
+	}
 	c, err := r.choose(pin, state.healthy())
 	if err != nil {
 		return l.unaided(path, args, "no account has a usable token", err)
@@ -123,10 +121,10 @@ func (l Launcher) Run(ctx context.Context, r Route, args []string) error {
 	env := own
 	if state.healthy() {
 		env = env.with(claude.BaseURLEnv, "http://"+state.listen).with(claude.TokenEnv, c.token.Reveal()).pinnedTo(r.Account).workingIn(l.toldDir(state)).hinting()
-		logger.Info("starting claude", "mode", "routed", "router", state.name, "account", c.account.ID, "chosen", c.why, "pin", r.Account, "claude", path)
+		logger.Info("starting claude", "mode", "routed", "router", state.name, "asked", state.asked, "account", c.account.ID, "chosen", c.why, "pin", r.Account, "claude", path)
 	} else {
 		env = env.without(claude.BaseURLEnv).with(claude.TokenEnv, c.token.Reveal()).pinnedTo("").workingIn("")
-		logger.Warn("starting claude", "mode", "direct", "router", state.name, "reason", state.reason, "account", c.account.ID, "chosen", c.why, "claude", path)
+		logger.Warn("starting claude", "mode", "direct", "router", state.name, "reason", state.reason, "asked", state.asked, "account", c.account.ID, "chosen", c.why, "claude", path)
 		Notice(l.Stderr, "the router "+state.String()+" — connecting directly on "+title(c.account))
 	}
 	return l.exec(path, args, env.markedAgainst(own))
@@ -198,6 +196,22 @@ func (l Launcher) Unaided(args []string, couldnt string, err error) error {
 	return l.unaided(path, args, couldnt, err)
 }
 
+// RouterUnfound starts Claude Code with args in this process's place as
+// Unaided does, or starts nothing, failing with ErrNotStarted, as whenDown
+// says of down, for when the config was read but the router couldn't be
+// found, as err's first line says why: as for a router not running. It
+// returns only when Claude Code didn't start.
+func (l Launcher) RouterUnfound(down config.RouterDown, args []string, err error) error {
+	path, findErr := l.find()
+	if findErr != nil {
+		return findErr
+	}
+	if stopped := l.goDirect(down, routerState{name: notFound, reason: firstLine(err)}); stopped != nil {
+		return stopped
+	}
+	return l.unaided(path, args, "couldn't find the router", err)
+}
+
 func (l Launcher) unaided(path string, args []string, couldnt string, err error) error {
 	logger.Warn("starting claude without switchboard", "reason", couldnt, "error", err, "claude", path)
 	Warn(l.Stderr, couldnt, err, "starting claude without it")
@@ -250,10 +264,12 @@ func firstLine(err error) string {
 }
 
 // exec starts Claude Code, at path, with args and env, marked as started by
-// this process, in this process's place. Its arguments are never logged: they
-// can hold a prompt.
+// this process, in this process's place, without whenDownEnv, which is the
+// launch's it was given to alone: every process the session starts would
+// carry it on. Its arguments are never logged: they can hold a prompt.
 func (l Launcher) exec(path string, args []string, env environ) error {
-	if err := l.Exec(path, append([]string{claude.Command}, args...), env.startingAt(l.PID, l.Now(), path)); err != nil {
+	env = env.without(whenDownEnv).startingAt(l.PID, l.Now(), path)
+	if err := l.Exec(path, append([]string{claude.Command}, args...), env); err != nil {
 		return fmt.Errorf("start claude at %s: %w", path, err)
 	}
 	return nil
@@ -294,35 +310,41 @@ func (l Launcher) shownDir() string {
 	return l.Dir
 }
 
-// How the router can answer its health check, as the log names it.
+// How the router can answer its health check, as the log names it, or
+// notFound, where it couldn't be asked.
 const (
 	healthy    = "healthy"
 	notRunning = "not running"
 	unhealthy  = "unhealthy"
+	notFound   = "not found"
 )
 
 // routerState is how the router answered its health check.
 type routerState struct {
-	// name is healthy, notRunning or unhealthy.
+	// name is healthy, notRunning, unhealthy or notFound.
 	name string
-	// reason says why the router is unhealthy.
+	// reason says why the router is unhealthy, or wasn't found.
 	reason string
 	// listen is where a healthy router's proxy listens, and strips whether it
 	// takes every header of switchboard's own off what it sends upstream.
 	listen string
 	strips bool
+	// asked is how long asking took, to the millisecond.
+	asked time.Duration
 }
 
 func (s routerState) healthy() bool {
 	return s.name == healthy
 }
 
-// String says what's wrong with the router, as "isn't running" or "is
-// unhealthy (…)".
+// String says what's wrong with the router, as "isn't running", "couldn't be
+// found (…)" or "is unhealthy (…)".
 func (s routerState) String() string {
 	switch {
 	case s.name == notRunning:
 		return "isn't running"
+	case s.name == notFound:
+		return "couldn't be found (" + s.reason + ")"
 	case s.reason != "":
 		return "is " + s.name + " (" + s.reason + ")"
 	default:
@@ -330,17 +352,22 @@ func (s routerState) String() string {
 	}
 }
 
-// health asks the router how it is, and where its proxy listens, giving it
-// AskTimeout to answer. One that doesn't say where can't be sent requests.
+// health asks the router how it is, and where its proxy listens, as patiently
+// as the route's Patience says, noting how long that took.
 func (r Route) health(ctx context.Context) routerState {
-	ctx, cancel := context.WithTimeout(ctx, AskTimeout)
-	defer cancel()
-	h, err := r.Router.Health(ctx)
+	began := time.Now()
+	state := stateOf(r.Patience.Ask(ctx, r.Router))
+	state.asked = time.Since(began).Round(time.Millisecond)
+	return state
+}
+
+// stateOf is how the router is, as its health check answered h, or failed
+// with err: one that doesn't say where its proxy listens can't be sent
+// requests.
+func stateOf(h router.Health, err error) routerState {
 	switch {
 	case errors.Is(err, router.ErrNotRunning):
 		return routerState{name: notRunning}
-	case errors.Is(err, context.DeadlineExceeded):
-		return routerState{name: unhealthy, reason: Unanswered()}
 	case err != nil:
 		return routerState{name: unhealthy, reason: err.Error()}
 	case !h.OK:

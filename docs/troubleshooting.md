@@ -47,6 +47,12 @@ This page shows where to look when switchboard doesn't do what you expect, and h
   dashboard's status line reads `restart held (upgraded)`; `switchboard status --json` gives the
   refusal as `restart.held`, and the router's log has it at warn. Put the config right as it says,
   and the router restarts at its next quiet moment. See [Restarts](how-it-works.md#restarts).
+- **`claude` won't start, the router down:** with the router not running, or not healthy, `claude`
+  starts nothing and says so. Run [`switchboard service status`](commands.md#service) to see
+  whether the LaunchAgent is installed and loaded and how the router answers, then
+  `switchboard service install` or `switchboard service restart`. To start Claude Code without the
+  router this once, unrouted and unrecorded, run `SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude`; to
+  have it do so always, set [`when_router_down = "direct"`](configuration.md#top-level-keys).
 - **Getting round switchboard:** to start Claude Code on its own login, run
   `switchboard run --direct`, or run the real `claude` by its path. If the switchboard binary itself
   breaks, every `claude` breaks with it, until you take switchboard's directory off `PATH`.

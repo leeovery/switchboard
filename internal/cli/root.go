@@ -22,6 +22,7 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/handover"
+	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/router"
@@ -98,6 +99,10 @@ type Deps struct {
 	// Pause waits as long as it's given, as time.Sleep does: run pauses
 	// before it looks again at a token file it finds empty.
 	Pause func(time.Duration)
+	// Patience is how long the router is waited for wherever it's asked
+	// whether it answers, as launch.Patience.Ask waits. Zero means
+	// switchboard's own.
+	Patience launch.Patience
 	// ZoneFile is where the system's time zone is read from, unless TZ says
 	// otherwise, which it doesn't for the service: /etc/localtime, which the
 	// router serve runs restarts for once it leads to another zone's file.
@@ -367,7 +372,7 @@ func (a *app) collect(ctx context.Context, probe bool, r status.Read) (*config.C
 // the same way.
 func (a *app) source(cfg *config.Config, probe bool) usageSource {
 	probing := probeSource{deps: a.Deps, readToken: a.readToken, upstream: cfg.Upstream, accounts: cfg.Accounts, prime: cfg.Prime}
-	source := usageSource{probe: probing, ask: !probe}
+	source := usageSource{probe: probing, ask: !probe, patience: a.Patience}
 	// Without a state directory there's no socket to find the router at,
 	// which reads as a router that isn't running.
 	var err error

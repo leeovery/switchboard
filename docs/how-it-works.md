@@ -493,8 +493,9 @@ Claude Code's own token is the primary's, so what isn't routed lands on the prim
 - **Extra usage:** an account with extra usage turned on may serve, and bill, the request that
   crosses its limit, rather than refuse it. The router moves sessions off once the headers show the
   window spent.
-- **A direct launch:** a launch without the router can spend the reserve of the account it goes out
-  on.
+- **A direct launch:** a launch without the router, which `claude` makes only when told to, with
+  `when_router_down = "direct"` or `SWITCHBOARD_WHEN_ROUTER_DOWN=direct`, can spend the reserve of
+  the account it goes out on.
 - **Claude Code with an API key:** with `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` set, Claude
   Code may use the key rather than an account's token. So `claude` starts without switchboard, and
   its requests go out on the key. See [`claude`](commands.md#claude).

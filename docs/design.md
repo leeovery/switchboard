@@ -486,8 +486,8 @@ Any account can keep a reserve, which `reserve` in its table sets (see Config).
   primary, where that use can take it past the reserve, as intended, and one without is used right
   up to its limits.
 - Readings come off responses, so one large turn can take an account a point or two past its
-  reserve before the router sees it. A launch that goes direct, without the router, can spend the
-  reserve of the account it goes out on.
+  reserve before the router sees it. A launch that goes direct, without the router, as `run` does
+  only when told to (see Launching), can spend the reserve of the account it goes out on.
 - The dashboard marks where each reserve starts on its bars, and `status` and the dashboard say
   when a reserve holds its account back, or, on an account the global pin names, that the pin is
   spending it; a session's own pin spending it reads as the reserve holding the account back.
@@ -1145,7 +1145,7 @@ The router's other states take the first part's place:
   14:40:55` in `text.muted`; the rest as that document had them, the mode above all.
 - **Probed,** the router not running: `○ probed · router not running` in `text.subtle`; where
   something answered its socket but not as a router does, the status document's `fallback` says so
-  in its place, `○ probed · router unhealthy: no answer within 500ms`; and probed as asked, with
+  in its place, `○ probed · router unhealthy: no answer within 5s`; and probed as asked, with
   `--probe`, `○ probed, as asked`. A probed line has no mode, sessions or `new sessions →`, which
   are the router's (settled in the plan).
 
@@ -5442,11 +5442,11 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
 ### Live updates
 
 - **Where it reads:** `dashboard`, `usage` and `status` read the router's status document whenever
-  the router answers its health check within the half second `run` gives it, healthy or not: an
+  the router answers its health check, asked as `run` asks it (see Launching), healthy or not: an
   unhealthy router's trouble is for them to show, and it still posts the notifications. Otherwise
   they probe every account, and the document's `fallback` says why the router's wasn't read:
   `{"router": "not running"}`, or `{"router": "unhealthy", "reason": "…"}` when something answered
-  its socket, but not as a router does, or not within the half second (`no answer within 500ms`).
+  its socket, but not as a router does, or not within the 5 seconds (`no answer within 5s`).
   `--probe` probes regardless, saying nothing of the router. The dashboard, and the data verbs that
   look back, read the ledger's, the readings history's and the events' files where they lie, the
   router there or not (see The data verbs).
@@ -5821,19 +5821,19 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
 ## Health
 
 The launcher routes a new session only when the router answers its health check `ok`, saying where
-its proxy listens; otherwise the session connects directly. The harder case is a router that is
-running but failing requests: sessions already routed through it fail until they restart. The router
-tracks the requests it has routed over the last 5 minutes, and those it failed itself: a 502 for an
-upstream it couldn't reach, or for a refusal with no account left to fail over to. The upstream's
-own 429s and 5xx, passed through, don't count against it, and nor does a failure of a request that
-arrived before the router last noticed the Mac wake, which may have gone out on a connection the
-sleep left dead (see The router looking after itself). It's unhealthy once it has failed 5 of
-them at least, and half at least: `GET /health` then answers `ok: false` with a `reason`, the status
-document's `router` object says the same, and the log notes the turn, and the turn back, at warn and
-info. Its health is judged whenever it's asked for, and at the router's look at the accounts every
-15 seconds too, so the turn back is told of as the failures leave the 5 minutes, though no request
-comes. `status` and the dashboard show trouble loudly: they read an unhealthy router's document
-all the same, `status`'s router line reading
+its proxy listens; otherwise it starts nothing, unless told to go direct (see Launching). The harder
+case is a router that is running but failing requests: sessions already routed through it fail until
+they restart. The router tracks the requests it has routed over the last 5 minutes, and those it
+failed itself: a 502 for an upstream it couldn't reach, or for a refusal with no account left to
+fail over to. The upstream's own 429s and 5xx, passed through, don't count against it, and nor does
+a failure of a request that arrived before the router last noticed the Mac wake, which may have gone
+out on a connection the sleep left dead (see The router looking after itself). It's unhealthy once
+it has failed 5 of them at least, and half at least: `GET /health` then answers `ok: false` with a
+`reason`, the status document's `router` object says the same, and the log notes the turn, and the
+turn back, at warn and info. Its health is judged whenever it's asked for, and at the router's look
+at the accounts every 15 seconds too, so the turn back is told of as the failures leave the 5
+minutes, though no request comes. `status` and the dashboard show trouble loudly: they read an
+unhealthy router's document all the same, `status`'s router line reading
 `from the router: unhealthy, <reason>  ·  <sessions>  ·  <routing>`, the dashboard's status line
 `● unhealthy`, in red (see The page), and the Log's Events the reason, in the router's `health`
 event (see The Log).
@@ -5841,7 +5841,7 @@ event (see The Log).
 Sessions don't fall back to going direct automatically. A running Claude Code can't change where
 it sends its requests mid-session; the failures that count against the router, an upstream it
 can't reach and refusals with no account left, would meet a direct connection too; and a new
-launch already goes direct while the router is down or unhealthy.
+launch, while the router is down or unhealthy, stops, or goes direct where it's told to.
 
 ## Notifications
 
@@ -6768,9 +6768,9 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
   `[redacted]`. What the standard library's `log` package is given goes through it too, to the
   log rather than stderr: under `GODEBUG=http2debug=1`, Go's HTTP/2 client prints every header it
   sends, the token's included.
-- **Never in the way:** commands never log to stdout or stderr, so `--json` and the dashboard
-  stay clean, and a command never fails because it couldn't log: its records go nowhere
-  instead. `serve` also writes each record to its terminal, when it runs in one.
+- **Never in the way:** commands never log to stdout or stderr, so `--json` and the dashboard stay
+  clean, and a command never fails because it couldn't log: its records go nowhere instead. `serve`
+  also writes each record to its terminal, when it runs in one.
 - **Reading:** `switchboard logs` prints the router's log once there is one, else the CLI's, or
   the one named. `-n` sets how many lines (50), reaching into `.1` when the log is shorter; `-f`
   follows it across rotations; `--path` prints where it is.
@@ -6921,11 +6921,11 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
   for a router that won't come, and the control socket is removed before the control API closes,
   as macOS can leave a connection made to a unix socket as it closes hanging, neither answered nor
   closed (proven by experiment). So a launcher that finds the router gone finds nothing listening,
-  and connects directly. It exits for good once those requests are done. It looks for a signal
-  again as late as it can, just before the `exec`: one taken after that is this process's alone,
-  and never reaches the router it becomes, so launchd, booting the service out then, waits its 45
-  seconds and kills it. That moment is the width of the `exec` itself, and of the signal's way to
-  the router's own context, a hand-off between goroutines.
+  and asks again, as for any router not running (see Asking the router). It exits for good once
+  those requests are done. It looks for a signal again as late as it can, just before the `exec`:
+  one taken after that is this process's alone, and never reaches the router it becomes, so launchd,
+  booting the service out then, waits its 45 seconds and kills it. That moment is the width of the
+  `exec` itself, and of the signal's way to the router's own context, a hand-off between goroutines.
 - Only the LaunchAgent's router restarts itself: launchd sets `XPC_SERVICE_NAME` to the label of
   the job it runs, which the router checks against the service's. Run by hand with `serve`, the
   router logs, once, that a restart is due instead of restarting.
@@ -7234,9 +7234,10 @@ hiding it behind the provider would take a wider interface than it's worth:
 ### Config
 
 ```toml
-listen      = "127.0.0.1:4747"             # optional: the proxy's address
-upstream    = "https://api.anthropic.com"  # optional: the API's base URL; overridden in tests
-week_starts = "monday"                     # optional: the day the dashboard's weeks start on
+listen           = "127.0.0.1:4747"             # optional: the proxy's address
+upstream         = "https://api.anthropic.com"  # optional: the API's base URL; overridden in tests
+week_starts      = "monday"                     # optional: the day the dashboard's weeks start on
+when_router_down = "stop"                       # optional: stop or direct, without the router
 
 [[account]]
 id      = "work"       # permanent name: letters, digits, '-' and '_'; its token is tokens/work
@@ -7318,6 +7319,9 @@ fails as it is; one that parses has every problem reported at once:
   and its days, and the weeks Runway steps back to. Runway's live week runs from a day before now,
   so isn't one of them (see History, Accounts and Runway). A window's own week, which resets when
   Anthropic resets it, is never moved by it.
+- **`when_router_down`** is `stop` or `direct`, in any case; `stop` unless given. It's what `run`
+  does when the router isn't running, isn't healthy or can't be found: start nothing, or start
+  Claude Code directly; `SWITCHBOARD_WHEN_ROUTER_DOWN` overrides it for one launch (see Launching).
 - **`plan`,** on an account, is `pro`, `max5x` or `max20x`: the subscription it's on, which
   switchboard can't read from Anthropic. It prices the account against its worth, and sizes it for
   History's replay of a week (see The request ledger). Without it, the account's plan is unknown:
@@ -7335,9 +7339,10 @@ fails as it is; one that parses has every problem reported at once:
   are given, its web searches at the table's price and US-only inference unpriced. A plan's name, or
   a kind of token, the table doesn't know is an error, as unknown keys are.
 - **No error quotes a token:** one that quotes a value, of `listen`, `upstream`, `prime.day`,
-  `week_starts`, a `plan`, `[usage]`'s `by` or a price in `[prices]`, an unknown key's name, or the
-  key a file that isn't TOML fails at, such as one without a value or given twice, shows anything in
-  it shaped like a token as `[redacted]`, and an unknown key's value is never quoted.
+  `week_starts`, `when_router_down`, a `plan`, `[usage]`'s `by` or a price in `[prices]`, an
+  unknown key's name, or the key a file that isn't TOML fails at, such as one without a value or
+  given twice, shows anything in it shaped like a token as `[redacted]`, and an unknown key's value
+  is never quoted.
 
 ### Proxy rules
 
@@ -7584,30 +7589,48 @@ verbs).
   doctor` may report the link as a second installation (unverified).
 - **No shell integration:** switchboard defines no shell function or launcher. Per-account
   launchers are the user's own aliases for `switchboard run --account <id> --`.
-- **Routed:** `run` gives the router half a second to answer `GET /health` with `ok`. When it
-  does, `run` starts Claude Code with `ANTHROPIC_BASE_URL` pointing at the proxy, where the router
-  says it listens, not where the config says, which may have changed since,
-  `CLAUDE_CODE_OAUTH_TOKEN` set to the primary's token, whatever account the conversation goes to,
-  or, while the primary's isn't usable, `--account`'s, else the first account's with a usable token,
-  and with `--account`, the pin header added to any `ANTHROPIC_CUSTOM_HEADERS` already set. The
-  directory header is added too, naming the directory `run` started in, which Claude Code starts in
-  as well, the home directory at its start shown as `~`, as `~/Code/api`, unless `run` can't read
-  it, as when it's been removed since, or the router's health doesn't say `strips_own_headers`: a
-  router from before, which took the pin off alone and would send the directory on to the API,
-  serves on after an upgrade until it restarts in place, at a moment with no request in flight,
-  and one run by hand with `serve` until it's run again (see Proxy rules). It sets
-  `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1`, too, which has Claude Code send a base URL the headers it
-  sends the API directly, the prompt each request serves and its class among them, which the
-  router records (see The request ledger); but where the environment sets it already, as to `0`,
-  which turns them off, it's left as it is, though not where it's set empty, which Claude Code
-  reads as unset (settled in the plan).
-- **Direct:** otherwise it connects directly, on `--account`'s token, else the primary's, else the
-  first account's with a usable token, without the base URL, the pin or the directory, and says why
-  in a line on stderr: `switchboard: the router isn't running — connecting directly on work · Work`.
-  Either way, and with `--direct`, a pin or a directory inherited from the environment, as from a
-  session this one is started within, goes: what this launch pins is the only pin, and the directory
-  it names the only directory. `--direct` removes the token and the base URL, so Claude Code uses
-  its own login.
+- **Asking the router:** `run` gives the router 5 seconds, from its first ask, to answer `GET
+  /health`: a slow router isn't a dead one, and on a machine far behind a live router takes
+  seconds to answer. A router that isn't running, nothing listening on its socket, is asked again
+  every 200ms for the first 2 seconds, as launchd may be bringing it back, or it may be restarting.
+  One that connects is asked once, and given what's left of the 5 seconds, as asking again would
+  add work to a machine already behind. Any other answer is taken at once. `dashboard`, `usage` and
+  `status` ask it alike (see Live updates). The log's `starting claude` line says how long asking
+  took, routed or direct, as `asked=312ms`.
+- **Routed:** when the router answers `ok`, `run` starts Claude Code with `ANTHROPIC_BASE_URL`
+  pointing at the proxy, where the router says it listens, not where the config says, which may
+  have changed since, `CLAUDE_CODE_OAUTH_TOKEN` set to the primary's token, whatever account the
+  conversation goes to, or, while the primary's isn't usable, `--account`'s, else the first
+  account's with a usable token, and with `--account`, the pin header added to any
+  `ANTHROPIC_CUSTOM_HEADERS` already set. The directory header is added too, naming the directory
+  `run` started in, which Claude Code starts in as well, the home directory at its start shown as
+  `~`, as `~/Code/api`, unless `run` can't read it, as when it's been removed since, or the router's
+  health doesn't say `strips_own_headers`: a router from before, which took the pin off alone and
+  would send the directory on to the API, serves on after an upgrade until it restarts in place, at
+  a moment with no request in flight, and one run by hand with `serve` until it's run again (see
+  Proxy rules). It sets `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1`, too, which has Claude Code send a
+  base URL the headers it sends the API directly, the prompt each request serves and its class
+  among them, which the router records (see The request ledger); but where the environment sets it
+  already, as to `0`, which turns them off, it's left as it is, though not where it's set empty,
+  which Claude Code reads as unset (settled in the plan).
+- **Stopped:** otherwise, the router not running or not healthy, `run` starts nothing: a session
+  without the router goes unrouted and unrecorded, and spends the primary without its reserve,
+  which only the router honours. It says why in one line on stderr, and how to go on:
+  `switchboard: the router isn't running — not starting claude: see to it with switchboard service
+  status, or go direct this once with SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude`, and fails, with
+  no second line, logging `not starting claude` at warn with `mode=stop`, the router's state, its
+  reason and `asked` (decided 26 October 2026).
+- **Direct:** the config's top-level `when_router_down`, `stop` or `direct`, unset `stop`, says
+  which; `SWITCHBOARD_WHEN_ROUTER_DOWN`, `stop` or `direct`, says it for the launch it's given to,
+  and is taken off the environment Claude Code starts in, on every path, routed, direct, unaided,
+  stepping aside, local or `--direct`, so no launch passes it on. Any other value of it stops,
+  saying it takes `stop` or `direct`; a healthy router routes whatever it says. Going direct, `run`
+  connects directly, on `--account`'s token, else the primary's, else the first account's with a
+  usable token, without the base URL, the pin or the directory, and says why in a line on stderr:
+  `switchboard: the router isn't running — connecting directly on work · Work`. Either way, and with
+  `--direct`, a pin or a directory inherited from the environment, as from a session this one is
+  started within, goes: what this launch pins is the only pin, and the directory it names the only
+  directory. `--direct` removes the token and the base URL, so Claude Code uses its own login.
 - **What `run` set:** a routed session's environment carries what `run` set there to every process
   the session starts, so `run` marks it, in `SWITCHBOARD_SET`: the value it gave
   `ANTHROPIC_BASE_URL`, even where the user's was the same, and
@@ -7633,32 +7656,39 @@ verbs).
   so its variable is marked as set where the user had none, and goes. A session started before
   the mark has none, and its environment goes on as it is, but for the pin and directory a routed
   or direct launch takes off (built in the cleanliness release, 26 October 2026).
-- **Never in the way:** switchboard never stands between the user and `claude`. When it can't take
-  part at all, as when it can't read its config, can't locate its state directory, or no account has
-  a usable token, `run` starts `claude` as if switchboard weren't there, its environment as the user
+- **Never in the way:** switchboard never stands between the user and `claude` but for the router
+  being down, as Stopped says. When it can't take part at all, as when it can't read its config,
+  can't locate its state directory, or no account has a usable token, `run` starts `claude` as if
+  switchboard weren't there, but for a state directory it can't locate with the config read, which
+  is the router not found: the setting decides, as for a router not running, `couldn't find the
+  router` starting it unaided only where it goes direct, and `the router couldn't be found (…)`
+  stopping it otherwise, naming no command to see to it, as each would fail as `run` did, and
+  logging no `asked`, as nothing was asked. Unaided, `claude` starts in its environment as the user
   set it, or a session's still routed as it is (see What `run` set), and its arguments untouched,
-  but for the mark every `claude` it starts carries (see Finding the real `claude`), a pin or
-  directory inherited from a session before the mark included, saying why in one line on stderr:
-  `switchboard: couldn't read the config (…) — starting claude without it`. `run` fails only when
-  `claude` can't be found or can't start, or on a misused command line, such as `--account` naming
-  an account that isn't configured, or has no usable token.
+  but for the mark every `claude` it starts carries (see Finding the real `claude`) and
+  `SWITCHBOARD_WHEN_ROUTER_DOWN`, which no launch passes on, a pin or directory inherited from a
+  session before the mark included, saying why in one line on stderr: `switchboard: couldn't read
+  the config (…) — starting claude without it`. `run` fails only when the router is down and it
+  stops, when `claude` can't be found or can't start, or on a misused command line, such as
+  `--account` naming an account that isn't configured, or has no usable token.
 - **An API key:** with `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` set, Claude Code may use the
   key in place of the token `run` gives it, and its requests would go unrouted, billed to the key.
   So `run`, and with it `claude`, starts Claude Code as if switchboard weren't there, its
-  environment as the user set it and its arguments untouched, but for that mark, without reading
-  the config, and says so on stderr,
-  naming the variable: `switchboard: ANTHROPIC_API_KEY is set, so Claude Code uses it — starting
-  claude without switchboard`. The log notes it at info, naming the variable, never the key.
+  environment as the user set it and its arguments untouched, but for that mark and
+  `SWITCHBOARD_WHEN_ROUTER_DOWN`, without reading the config, and says so on stderr, naming the
+  variable: `switchboard: ANTHROPIC_API_KEY is set, so Claude Code uses it — starting claude
+  without switchboard`. The log notes it at info, naming the variable, never the key.
   `--direct` and Claude Code's local subcommands aren't affected.
 - **Claude Code's local subcommands:** `setup-token`, `update`, `upgrade`, `install`, `doctor`,
   `mcp`, `plugin`, `plugins`, `auth`, `import`, `project`, `auto-mode` and `gateway` look after
   Claude Code on this machine, or set up its login, and switchboard has no part in them. When the
   first of Claude Code's arguments names one, `run` starts `claude` as if switchboard weren't there,
-  environment and arguments untouched but for that mark, an inherited pin or directory included,
-  and says nothing; the log notes it at debug. `--direct` still starts it on Claude Code's own
-  login. Only the first argument counts: `claude -p doctor` is a prompt. Everything else goes
-  through `run` as any session does, background sessions (`claude --bg`), `agents`, `attach`,
-  `respawn` and `ultrareview` among them. `internal/claude` keeps the list.
+  environment and arguments untouched but for that mark and `SWITCHBOARD_WHEN_ROUTER_DOWN`, an
+  inherited pin or directory included, and says nothing; the log notes it at debug. `--direct` still
+  starts it on Claude Code's own login. Only the first argument counts: `claude -p doctor` is a
+  prompt. Everything else goes through `run` as any session does, background sessions (`claude
+  --bg`), `agents`, `attach`, `respawn` and `ultrareview` among them. `internal/claude` keeps the
+  list.
 - **Finding the real `claude`:** `run` looks along `PATH`, then where its installers put it
   (`~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`, `~/.claude/local`), for a file that can
   be run, passing over any `claude` that's switchboard, which would start it again: one that
@@ -7676,48 +7706,52 @@ verbs).
   in its own place much later.
   Probes claim the version of the `claude` found the same way, so the router, whose `PATH` is
   launchd's, finds it where its installers put it. Claude Code's arguments go after `--`,
-  untouched and never logged; the log notes the decision: routed or direct, the router's state,
-  and the account and why.
+  untouched and never logged; the log notes the decision: routed, direct or stopped, the router's
+  state, and the account and why.
 - **The service:** `service install` reads the config first, as the router will, and fails on one it
   can't read, rather than leave launchd restarting a router that can't start. It writes the
   LaunchAgent (`RunAtLoad`, `KeepAlive`, output to `launchd.log`, and an `ExitTimeOut` of 45
   seconds: the 30 the router gives requests in flight as it stops, 5 for those it cuts off to
-  unwind, 3 for its last notifications to post, and 7 to save its state) to run this binary by the
-  path it was run by, so a Homebrew link stays the link an upgrade moves on, with `serve`, any
-  `--config` given, made absolute, and any `--log-level`. It refuses a temporary build, such as `go
-  run`'s, judged by where the binary's links lead. It carries `XDG_CONFIG_HOME`, `XDG_STATE_HOME`,
-  `SWITCHBOARD_CONFIG` and `CLAUDE_CONFIG_DIR`, those two made absolute, and `SWITCHBOARD_LOG_LEVEL`
-  when they're set, so the service finds what the CLI does, and brings the skill up to date where
-  `setup` wrote it. It runs switchboard directly: the tokens are files, so it needs nothing else of
-  the user's environment. `install` warns when no account has a usable token; the router starts all
-  the same, and routes once one has. Whether launchd has the service loaded is `launchctl print`'s
-  to say, which exits 113 for one it hasn't: `install` boots out a loaded copy, bootstraps the new
-  one into `gui/<uid>`, and waits up to 5 seconds for a router other than any running before to
-  answer. launchd finishes booting a service out after `bootout` returns, and refuses to load it
-  until then (`5: Input/output error`), so `install` tries bootstrapping 5 times, half a second
-  apart, before it fails as the last try did. `uninstall` boots it out when loaded and removes the
-  plist. `restart`, with a router answering, asks it to restart (`POST /restart`): it finishes its
-  requests in flight, within 30 seconds, those it cuts off then given 5 more to unwind, then
-  replaces itself in place, keeping its process, or, as it says when it can't, exits for launchd
-  to start it again (see The router looking after itself). `restart` says which first, `the
-  router is finishing its requests in flight, then it restarts in place`, or `…, then launchd
-  starts it again`, then waits up to 50 seconds, the 45 launchd would give the router to stop and
-  5 to start, for a router other than the one that took the request, as it answered it, to
-  answer: one that restarted in place, keeping its process id, is told from the one before by
-  when it started, and a router that restarted by itself just before it was asked is the one
-  waited on to restart again, not taken for the one after. A router that refuses, as one run by
-  hand, or whose config file doesn't make a valid config, which it couldn't start again from,
-  fails `restart`, saying why. One that can't be asked, as one from before routers restarted when
-  asked, which answers `POST /restart` 404, or one that doesn't answer it, has launchd send it
-  SIGTERM (`launchctl kill`): it stops as at any signal, finishing its requests in flight, and
-  launchd, keeping the service alive, starts it again, `restart` saying `…, then launchd starts it
-  again`, and waiting as long. With none answering, there's nothing to finish, and `restart` is
-  `launchctl kickstart -k`, waiting up to 5 seconds. Without the service loaded, `restart` is an
-  error saying so. `status` reports the plist, whether launchd has it loaded, and the router's
-  health. When no router answers in time, `install` and `restart` fail, the LaunchAgent in place,
-  pointing to `switchboard logs router` and `launchd.log` for why. Each run of `launchctl` is cut
-  off after 10 seconds, but a bootout, which waits for the router to stop, after 55: the 45 and 10
-  more. Any other failure of `launchctl` is an error that quotes it.
+  unwind, 3 for its last notifications to post, and 7 to save its state, and a `ProcessType` of
+  `Interactive`, as launchd throttles the CPU and I/O of a job that sets none, and every Claude Code
+  request waits on the router) to run this binary by the path it was run by, so a Homebrew link
+  stays the link an upgrade moves on, with `serve`, any `--config` given, made absolute, and any
+  `--log-level`. It refuses a temporary build, such as `go run`'s, judged by where the binary's
+  links lead. It carries `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, `SWITCHBOARD_CONFIG` and
+  `CLAUDE_CONFIG_DIR`, those two made absolute, and `SWITCHBOARD_LOG_LEVEL` when they're set, so the
+  service finds what the CLI does, and brings the skill up to date where `setup` wrote it. It runs
+  switchboard directly: the tokens are files, so it needs nothing else of the user's environment.
+  `install` warns when no account has a usable token; the router starts all the same, and routes
+  once one has. Whether launchd has the service loaded is `launchctl print`'s to say, which exits
+  113 for one it hasn't: `install` boots out a loaded copy, bootstraps the new one into `gui/<uid>`,
+  and waits up to 5 seconds for a router other than any running before to answer. launchd finishes
+  booting a service out after `bootout` returns, and refuses to load it until then (`5: Input/output
+  error`), so `install` tries bootstrapping 5 times, half a second apart, before it fails as the
+  last try did. launchd reads the plist only as it loads the service, so an upgrade or a restart, in
+  place or by launchd, keeps what it said: a key a newer switchboard writes, as `ProcessType` was,
+  reaches an install only through `install`, restarting the router; `setup` reinstalls only for
+  another binary. `uninstall` boots it out when loaded and removes the plist. `restart`, with a
+  router answering, asks it to restart (`POST /restart`): it finishes its requests in flight, within
+  30 seconds, those it cuts off then given 5 more to unwind, then replaces itself in place, keeping
+  its process, or, as it says when it can't, exits for launchd to start it again (see The router
+  looking after itself). `restart` says which first, `the router is finishing its requests in
+  flight, then it restarts in place`, or `…, then launchd starts it again`, then waits up to 50
+  seconds, the 45 launchd would give the router to stop and 5 to start, for a router other than the
+  one that took the request, as it answered it, to answer: one that restarted in place, keeping its
+  process id, is told from the one before by when it started, and a router that restarted by itself
+  just before it was asked is the one waited on to restart again, not taken for the one after. A
+  router that refuses, as one run by hand, or whose config file doesn't make a valid config, which
+  it couldn't start again from, fails `restart`, saying why. One that can't be asked, as one from
+  before routers restarted when asked, which answers `POST /restart` 404, or one that doesn't answer
+  it, has launchd send it SIGTERM (`launchctl kill`): it stops as at any signal, finishing its
+  requests in flight, and launchd, keeping the service alive, starts it again, `restart` saying `…,
+  then launchd starts it again`, and waiting as long. With none answering, there's nothing to
+  finish, and `restart` is `launchctl kickstart -k`, waiting up to 5 seconds. Without the service
+  loaded, `restart` is an error saying so. `status` reports the plist, whether launchd has it
+  loaded, and the router's health. When no router answers in time, `install` and `restart` fail, the
+  LaunchAgent in place, pointing to `switchboard logs router` and `launchd.log` for why. Each run of
+  `launchctl` is cut off after 10 seconds, but a bootout, which waits for the router to stop, after
+  55: the 45 and 10 more. Any other failure of `launchctl` is an error that quotes it.
 
 ## Milestones
 

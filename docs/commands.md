@@ -254,18 +254,28 @@ a wrapper named `claude` that `exec`s switchboard.
 
 How `claude` starts depends on the router and your environment:
 
-- **Routed.** When the router answers healthy within half a second, Claude Code starts with
-  `ANTHROPIC_BASE_URL` pointing at the router. It gets the primary's token, or, while that isn't
-  usable, the token of the first account whose token is. The router chooses an account for each
-  request. Claude Code also gets `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1`, unless your environment sets
-  it already. With it, Claude Code tells the router what it tells the API of each request, such as
-  the prompt the request serves, for the request ledger.
-- **Direct.** When the router isn't running, or isn't healthy, Claude Code connects straight to the
-  API. It uses the primary's token, or, while that isn't usable, the token of the first account
-  whose token is. A line on stderr says so:
-  `switchboard: the router isn't running — connecting directly on work · Work`.
+- **Routed.** When the router answers healthy, Claude Code starts with `ANTHROPIC_BASE_URL`
+  pointing at the router. It gets the primary's token, or, while that isn't usable, the token of
+  the first account whose token is. The router chooses an account for each request. Claude Code
+  also gets `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1`, unless your environment sets it already. With
+  it, Claude Code tells the router what it tells the API of each request, such as the prompt the
+  request serves, for the request ledger.
+- **Stopped.** When the router isn't running, or isn't healthy, `claude` starts nothing and exits
+  with status 1. A line on stderr says why, and how to go on:
+  `switchboard: the router isn't running — not starting claude: see to it with switchboard service status, or go direct this once with SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude`.
+  A slow router is waited for, at most 5 seconds in all from the first ask; through the first 2 of
+  them, a router that isn't running is asked again, as it may be restarting.
+- **Direct.** With `when_router_down = "direct"` in the config, or
+  `SWITCHBOARD_WHEN_ROUTER_DOWN=direct` for one launch, Claude Code connects straight to the API
+  instead. It uses `--account`'s token, else the primary's, or, while that isn't usable, the token
+  of the first account whose token is. A line on stderr says so:
+  `switchboard: the router isn't running — connecting directly on work · Work`. A direct session
+  isn't routed or recorded, and it can spend the primary's reserve.
+  `SWITCHBOARD_WHEN_ROUTER_DOWN=stop` stops one launch whatever the config says; any other value
+  stops it too, saying so. A healthy router routes whatever either says.
 - **Without switchboard.** When switchboard can't take part at all, such as when it can't read its
-  config or no account has a usable token, `claude` starts as if switchboard weren't there. A line
+  config or no account has a usable token, `claude` starts as if switchboard weren't there; with
+  the config read but the router's state directory not found, only where it would go direct. A line
   on stderr says why:
   `switchboard: couldn't read the config (…) — starting claude without it`.
 - **With an API key.** When `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` is set, Claude Code may
@@ -427,7 +437,11 @@ switchboard accounts remove side
 ### `service`
 
 `service` manages the LaunchAgent that keeps the router running. launchd starts
-`switchboard serve` now, at every login, and again whenever it stops. `setup` installs it.
+`switchboard serve` now, at every login, and again whenever it stops, without the light throttling
+it gives a job that doesn't say what kind it is, as every Claude Code request waits on it. `setup`
+installs it. launchd reads the LaunchAgent only as it loads it, so one an older switchboard wrote
+keeps what it said through upgrades and restarts in place: `service install` writes it afresh, and
+restarts the router to load it.
 
 ```bash
 switchboard service install [--log-level <level>]
@@ -915,7 +929,7 @@ switchboard run [--account <id>] [--direct] [-- <claude args>]
 
 `--account` pins the session's conversation to an account while that account can take it. Claude
 Code's own token stays the primary's, or is `--account`'s while the primary's isn't usable. Without
-the router, Claude Code connects directly on `--account`'s token.
+the router, going direct, Claude Code connects on `--account`'s token.
 
 Examples:
 

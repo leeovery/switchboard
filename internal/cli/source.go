@@ -35,11 +35,13 @@ type usageSource struct {
 	// router is the router, nil when there's no socket to find it at: read
 	// when ask is set, and asked after either way.
 	router *router.Client
+	// patience is how long the router is waited for, as run waits.
+	patience launch.Patience
 }
 
 // Read reads the router's document, having the router refresh first when r
-// asks, when the router answers its health check in time, as run gives it,
-// healthy or not, and says which router it was, as its health check
+// asks, when the router answers its health check, as patiently as run asks
+// it, healthy or not, and says which router it was, as its health check
 // answered. Otherwise, when r allows, it builds one by probing every
 // account, saying why the router's wasn't read when the router was asked.
 func (s usageSource) Read(ctx context.Context, r status.Read) (status.Document, router.Health, error) {
@@ -83,21 +85,16 @@ func (s usageSource) fromRouter(ctx context.Context, refresh time.Duration) (sta
 	return doc.WorkedOut(claude.Policy()), health, status.Fallback{}, true
 }
 
-// answers asks the router's health check, giving it launch.AskTimeout, as
-// run does, and reports whether it answered, with its answer, or why not.
+// answers asks the router's health check, as patiently as run does, and
+// reports whether it answered, with its answer, or why not.
 func (s usageSource) answers(ctx context.Context) (router.Health, status.Fallback, bool) {
-	ctx, cancel := context.WithTimeout(ctx, launch.AskTimeout)
-	defer cancel()
-	health, err := s.router.Health(ctx)
-	if errors.Is(err, context.DeadlineExceeded) {
-		return router.Health{}, status.Fallback{Router: status.RouterUnhealthy, Reason: launch.Unanswered()}, false
-	}
+	health, err := s.patience.Ask(ctx, s.router)
 	return health, fallbackFrom(err), err == nil
 }
 
-// RouterAnswers reports whether the router answers its health check within
-// launch.AskTimeout, as run gives it, healthy or not: while it does, it posts
-// the desktop notifications, whether its document is read or not.
+// RouterAnswers reports whether the router answers its health check, as
+// patiently as run asks it, healthy or not: while it does, it posts the
+// desktop notifications, whether its document is read or not.
 func (s usageSource) RouterAnswers(ctx context.Context) bool {
 	if s.router == nil {
 		return false

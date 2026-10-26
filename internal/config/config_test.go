@@ -19,9 +19,10 @@ import (
 
 func TestLoad(t *testing.T) {
 	path := writeConfig(t, `
-listen      = "[::1]:9000"
-upstream    = "http://127.0.0.1:8080"
-week_starts = "Sunday"
+listen           = "[::1]:9000"
+upstream         = "http://127.0.0.1:8080"
+week_starts      = "Sunday"
+when_router_down = "direct"
 
 [[account]]
 id      = "work"
@@ -72,9 +73,10 @@ cache_write_1h = 6.4
 output = 12.5
 `)
 	want := &config.Config{
-		Listen:     "[::1]:9000",
-		Upstream:   "http://127.0.0.1:8080",
-		WeekStarts: time.Sunday,
+		Listen:         "[::1]:9000",
+		Upstream:       "http://127.0.0.1:8080",
+		WhenRouterDown: config.Direct,
+		WeekStarts:     time.Sunday,
 		Accounts: []config.Account{
 			{ID: "work", Label: "Work", Reserve: 0.05, Plan: "max20x"},
 			{ID: "personal", Label: "Personal", Primary: true, Reserve: 0.2},
@@ -139,9 +141,10 @@ id    = "personal"
 label = "Personal"
 `)
 	want := &config.Config{
-		Listen:     "127.0.0.1:4747",
-		Upstream:   "https://api.anthropic.com",
-		WeekStarts: time.Monday,
+		Listen:         "127.0.0.1:4747",
+		Upstream:       "https://api.anthropic.com",
+		WhenRouterDown: config.Stop,
+		WeekStarts:     time.Monday,
 		Accounts: []config.Account{
 			{ID: "work", Label: "work", Primary: true},
 			{ID: "personal", Label: "Personal"},
@@ -299,6 +302,54 @@ func TestLoadTheDayTheWeeksStartOn(t *testing.T) {
 			}
 			if cfg.WeekStarts != tt.want {
 				t.Errorf("Load() starts the weeks on %v, want %v", cfg.WeekStarts, tt.want)
+			}
+		})
+	}
+}
+
+func TestLoadWhatClaudeDoesWithTheRouterDown(t *testing.T) {
+	tests := []struct {
+		name   string
+		config string
+		want   config.RouterDown
+	}{
+		{name: "stop, without one given", want: config.Stop},
+		{name: "stop, given", config: "when_router_down = \"stop\"\n", want: config.Stop},
+		{name: "direct, given", config: "when_router_down = \"direct\"\n", want: config.Direct},
+		{name: "direct, given in any case", config: "when_router_down = \"Direct\"\n", want: config.Direct},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, err := config.Load(writeConfig(t, tt.config+accountTOML("work")))
+			if err != nil {
+				t.Fatalf("Load() error = %v", err)
+			}
+			if cfg.WhenRouterDown != tt.want {
+				t.Errorf("Load() has claude, with the router down, %q, want %q", cfg.WhenRouterDown, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseRouterDownReadsEachByItsNameAloneInAnyCase(t *testing.T) {
+	tests := []struct {
+		given string
+		want  config.RouterDown
+		ok    bool
+	}{
+		{given: "stop", want: config.Stop, ok: true},
+		{given: "STOP", want: config.Stop, ok: true},
+		{given: "direct", want: config.Direct, ok: true},
+		{given: "dIrEcT", want: config.Direct, ok: true},
+		{given: ""},
+		{given: "go"},
+		{given: " direct"},
+		{given: "directly"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.given, func(t *testing.T) {
+			if got, ok := config.ParseRouterDown(tt.given); got != tt.want || ok != tt.ok {
+				t.Errorf("ParseRouterDown(%q) = %q, %v, want %q, %v", tt.given, got, ok, tt.want, tt.ok)
 			}
 		})
 	}
@@ -635,6 +686,7 @@ func TestLoadUndecodableFile(t *testing.T) {
 		{name: "the ledger's keep as a number", config: "ledger = { keep = 90 }\n"},
 		{name: "the week's start as a number", config: "week_starts = 1\n"},
 		{name: "the layout as a number", config: "usage = { by = 1 }\n"},
+		{name: "the router down as a flag", config: "when_router_down = true\n"},
 		{name: "a plan as a number", config: "account = [{ id = \"work\", plan = 5 }]\n"},
 		{name: "a plan's price in words", config: "prices = { plans = { max5x = \"ninety\" } }\n"},
 		{name: "a model's price in words", config: "prices = { models = { claude-opus-5-5 = { input = \"cheap\" } } }\n"},
@@ -674,6 +726,9 @@ func TestLoadReportsProblems(t *testing.T) {
 	}
 	weekStarts := func(given string) string {
 		return fmt.Sprintf("week_starts %q: must be a day of the week, by its name in English, such as monday", given)
+	}
+	down := func(given string) string {
+		return fmt.Sprintf("when_router_down %q: must be stop, claude starting nothing while the router is down, or direct, claude connecting directly on an account's token", given)
 	}
 	by := func(given string) string {
 		return fmt.Sprintf("usage.by %q: must be window, the accounts compared a window at a time, or account, each account's windows together", given)
@@ -820,6 +875,8 @@ func TestLoadReportsProblems(t *testing.T) {
 		{name: "a week starting on a day in another language", config: "week_starts = \"lundi\"\n" + work, want: []string{weekStarts("lundi")}},
 		{name: "a week starting on a day's number", config: "week_starts = \"1\"\n" + work, want: []string{weekStarts("1")}},
 		{name: "a week starting on a day with a space", config: "week_starts = \" monday\"\n" + work, want: []string{weekStarts(" monday")}},
+		{name: "the router down, a mode it has none of", config: "when_router_down = \"wait\"\n" + work, want: []string{down("wait")}},
+		{name: "the router down, given empty", config: "when_router_down = \"\"\n" + work, want: []string{down("")}},
 		{name: "a layout of several", config: work + "\n[usage]\nby = \"windows\"\n", want: []string{by("windows")}},
 		{name: "a layout usage has none of", config: work + "\n[usage]\nby = \"matrix\"\n", want: []string{by("matrix")}},
 		{name: "a layout given empty", config: work + "\n[usage]\nby = \"\"\n", want: []string{by("")}},
@@ -1123,7 +1180,7 @@ func TestLoadNeverQuotesATokenGivenAsAnIDOrALabel(t *testing.T) {
 
 func TestLoadNeverQuotesATokenGivenAsAValueOrAKey(t *testing.T) {
 	path := writeConfig(t, "listen = \""+tokenShaped+"\"\nupstream = \""+tokenShaped+"\"\n"+tokenShaped+" = 1\n"+
-		"week_starts = \""+tokenShaped+"\"\n"+
+		"week_starts = \""+tokenShaped+"\"\nwhen_router_down = \""+tokenShaped+"\"\n"+
 		accountTOML("work")+"plan = \""+tokenShaped+"\"\n"+
 		"\n[prime]\nday = \""+tokenShaped+"\"\n"+
 		"\n[history]\nkeep = \""+tokenShaped+"\"\n"+
@@ -1138,6 +1195,7 @@ func TestLoadNeverQuotesATokenGivenAsAValueOrAKey(t *testing.T) {
 		`unknown key "prices.models.[redacted].[redacted]"`,
 		`listen "[redacted]": must be host:port, such as 127.0.0.1:4747 or [::1]:4747`,
 		`upstream "[redacted]": must be an absolute http or https URL, such as https://api.anthropic.com`,
+		`when_router_down "[redacted]": must be stop, claude starting nothing while the router is down, or direct, claude connecting directly on an account's token`,
 		`week_starts "[redacted]": must be a day of the week, by its name in English, such as monday`,
 		`account "work": plan "[redacted]": must be pro, max5x or max20x, the plan the account's subscription is on`,
 		`prime.day "[redacted]": must be two times of day, HH:MM, joined by -, such as 08:00-23:00`,

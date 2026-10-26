@@ -107,17 +107,119 @@ func TestRunWithoutAWorkingDirectory(t *testing.T) {
 	}
 }
 
-func TestRunWithoutTheRouter(t *testing.T) {
-	srv := newServeSetup(t, fakeClaudeAPI(t), map[string]string{"ANTHROPIC_BASE_URL": "http://127.0.0.1:4747"})
-	handed := recordHandOffs(t, &srv.deps)
+// downSetting is what the config and SWITCHBOARD_WHEN_ROUTER_DOWN say run does
+// with the router down, and whether Claude Code goes on without it for them.
+type downSetting struct {
+	name string
+	// key is the config's when_router_down, and variable
+	// SWITCHBOARD_WHEN_ROUTER_DOWN, each "" where it's unset.
+	key, variable string
+	wantGoesOn    bool
+	// wantSaid is what stderr hears of a variable it doesn't take.
+	wantSaid string
+}
 
-	got := run(t, srv.deps, "run", "--", "--resume")
-	if want := (result{stderr: "switchboard: the router isn't running — connecting directly on work · Work\n"}); got != want {
-		t.Errorf("switchboard run = %+v, want %+v", got, want)
+var downSettings = []downSetting{
+	{name: "the key unset"},
+	{name: "the key stop", key: "stop"},
+	{name: "the key direct", key: "direct", wantGoesOn: true},
+	{name: "the key unset, the variable direct", variable: "direct", wantGoesOn: true},
+	{name: "the key stop, the variable direct", key: "stop", variable: "direct", wantGoesOn: true},
+	{name: "the key direct, the variable stop", key: "direct", variable: "stop"},
+	{
+		name: "the key direct, a bad variable", key: "direct", variable: "sometimes",
+		wantSaid: `, and SWITCHBOARD_WHEN_ROUTER_DOWN takes stop or direct, not "sometimes"`,
+	},
+}
+
+// environment is env with the setting's config, and its variable.
+func (d downSetting) environment(t *testing.T, env map[string]string) map[string]string {
+	t.Helper()
+	env = maps.Clone(env)
+	if d.key != "" {
+		env["SWITCHBOARD_CONFIG"] = writeConfig(t, "when_router_down = \""+d.key+"\"\n"+threeAccounts)
 	}
-	env := handed.only(t).only("ANTHROPIC_BASE_URL", "CLAUDE_CODE_OAUTH_TOKEN")
-	if want := map[string]string{"CLAUDE_CODE_OAUTH_TOKEN": "test-token-work"}; !maps.Equal(env, want) {
-		t.Errorf("handed over with\n%q\nwant\n%q", env, want)
+	if d.variable != "" {
+		env["SWITCHBOARD_WHEN_ROUTER_DOWN"] = d.variable
+	}
+	return env
+}
+
+// notStarting is how run says it starts nothing, and how to go on.
+const notStarting = " — not starting claude: see to it with switchboard service status, or go direct this once with SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude\n"
+
+func TestRunWithoutTheRouter(t *testing.T) {
+	for _, d := range downSettings {
+		t.Run(d.name, func(t *testing.T) {
+			srv := newServeSetup(t, fakeClaudeAPI(t), d.environment(t, map[string]string{"ANTHROPIC_BASE_URL": "http://127.0.0.1:4747"}))
+			handed := recordHandOffs(t, &srv.deps)
+
+			got := run(t, srv.deps, "run", "--", "--resume")
+
+			log := srv.cliLog(t)
+			if !d.wantGoesOn {
+				if want := (result{stderr: "switchboard: the router isn't running" + d.wantSaid + notStarting, code: 1}); got != want {
+					t.Errorf("switchboard run = %+v, want %+v, said once", got, want)
+				}
+				if len(handed.made) != 0 {
+					t.Errorf("handed over %d times, want none", len(handed.made))
+				}
+				if !hasLine(log, "level=WARN", `msg="not starting claude" component=launch`, "mode=stop", `router="not running"`, "asked=") {
+					t.Errorf("cli.log reads\n%s\nwant the launch that started nothing logged", log)
+				}
+				if hasLine(log, "level=WARN", `msg="command failed"`) {
+					t.Errorf("cli.log reads\n%s\nwant the failure noted once, as the launch's", log)
+				}
+				return
+			}
+			if want := (result{stderr: "switchboard: the router isn't running — connecting directly on work · Work\n"}); got != want {
+				t.Errorf("switchboard run = %+v, want %+v", got, want)
+			}
+			env := handed.only(t).only("ANTHROPIC_BASE_URL", "CLAUDE_CODE_OAUTH_TOKEN", "SWITCHBOARD_WHEN_ROUTER_DOWN")
+			if want := map[string]string{"CLAUDE_CODE_OAUTH_TOKEN": "test-token-work"}; !maps.Equal(env, want) {
+				t.Errorf("handed over with\n%q\nwant\n%q", env, want)
+			}
+			if !hasLine(log, "level=WARN", `msg="starting claude" component=launch`, "mode=direct", `router="not running"`) {
+				t.Errorf("cli.log reads\n%s\nwant the direct launch logged", log)
+			}
+		})
+	}
+}
+
+func TestRunWithoutFindingTheRouter(t *testing.T) {
+	for _, d := range downSettings {
+		t.Run(d.name, func(t *testing.T) {
+			env := d.environment(t, map[string]string{"SWITCHBOARD_CONFIG": writeConfig(t, threeAccounts)})
+			deps := testDeps(env, t.TempDir())
+			handed := recordHandOffs(t, &deps)
+			// Without a home directory, or XDG_STATE_HOME, the state directory
+			// the router's socket is in can't be located; claude is found on
+			// PATH.
+			deps.HomeDir = func() (string, error) { return "", errors.New("no home directory") }
+			env["PATH"] = filepath.Dir(handed.claude)
+			const unfound = "locate state directory: no home directory"
+
+			got := run(t, deps, "run", "--", "--resume")
+
+			if !d.wantGoesOn {
+				said := "switchboard: the router couldn't be found (" + unfound + ")" + d.wantSaid +
+					" — not starting claude: go direct this once with SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude\n"
+				if want := (result{stderr: said, code: 1}); got != want {
+					t.Errorf("switchboard run = %+v, want %+v, said once", got, want)
+				}
+				if len(handed.made) != 0 {
+					t.Errorf("handed over %d times, want none", len(handed.made))
+				}
+				return
+			}
+			if want := (result{stderr: "switchboard: couldn't find the router (" + unfound + ") — starting claude without it\n"}); got != want {
+				t.Errorf("switchboard run = %+v, want %+v", got, want)
+			}
+			delete(env, "SWITCHBOARD_WHEN_ROUTER_DOWN")
+			if h := handed.only(t); !slices.Equal(h.argv, []string{"claude", "--resume"}) || !maps.Equal(h.env, env) {
+				t.Errorf("handed over as %q with %q, want claude --resume, its environment untouched but for SWITCHBOARD_WHEN_ROUTER_DOWN", h.argv, h.env)
+			}
+		})
 	}
 }
 
@@ -151,7 +253,7 @@ func TestRunWithoutThePrimarysToken(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+			srv := newServeSetup(t, fakeClaudeAPI(t), map[string]string{"SWITCHBOARD_WHEN_ROUTER_DOWN": "direct"})
 			if tt.empty {
 				writeToken(t, srv.deps, "work", "")
 			} else {
