@@ -116,3 +116,10 @@ func (p *tape) tabShown() string {
 	}
 	return strings.TrimSpace(shown.String())
 }
+
+// themeShown is the slug of the theme the tape's screen is drawn in, as its
+// canvas says, or none where it paints none.
+func (p *tape) themeShown() string {
+	t, _ := p.l.showing(p.l.View().BackgroundColor)
+	return t.Slug
+}
