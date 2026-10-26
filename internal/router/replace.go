@@ -69,8 +69,8 @@ func (r *Router) hold(ls listeners) *handover.Held {
 // signal, it stops as at one after all: the sockets held close, so no
 // request waits on one nothing will take up, its control socket is removed,
 // and then the control API goes, so a launcher that finds the router gone
-// finds nothing on its proxy's address either, and connects directly; it
-// returns nil once the requests in flight have finished.
+// finds nothing on its proxy's address either, and goes as it does with the
+// router down; it returns nil once the requests in flight have finished.
 func (r *Router) drainHandingOver(ctx context.Context, control *http.Server, proxy proxyServer, held *handover.Held, stopBackground func()) *handover.Held {
 	refuse(proxy.Server)
 	drained := make(chan struct{})

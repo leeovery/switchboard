@@ -98,14 +98,15 @@ func (u *upkeep) restartReason() string {
 	return u.restarts.reason
 }
 
-// restartable fails, saying why, when the router can't restart at once, as
-// it's asked to, its binary asked whether it could start until ctx ends.
-func (u *upkeep) restartable(ctx context.Context) error {
+// restartable returns what clears the router to restart at once, as it's
+// asked to, its binary asked whether it could start until ctx ends, or fails,
+// saying why, when it can't.
+func (u *upkeep) restartable(ctx context.Context) (*binaryClearance, error) {
 	return u.restarts.restartable(ctx)
 }
 
 // restartNow restarts the router at once, whatever is in flight, once
-// restartable has found it can.
-func (u *upkeep) restartNow() {
-	u.restarts.atOnce()
+// restartable has found it can, cleared as it returned.
+func (u *upkeep) restartNow(cleared *binaryClearance) {
+	u.restarts.atOnce(cleared)
 }

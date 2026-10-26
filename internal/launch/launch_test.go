@@ -62,14 +62,19 @@ var accounts = []config.Account{
 
 var testTokens = tokenstest.Files{"work": workToken, "side": sideToken}
 
-// route is a launch through r, pinned to account unless it's "".
+// route is a launch through r, pinned to account unless it's "". It asks a
+// router that isn't running once, so a test meets that at once: those that
+// wait as switchboard does give a patience of their own. With the router
+// down, it goes direct, which most tests of a router down are about: those
+// of stopping say so.
 func route(r launch.Router, account string) launch.Route {
 	return launch.Route{
-		Config:  &config.Config{Listen: "127.0.0.1:4747", Accounts: accounts},
-		Token:   testTokens.Read,
-		Pause:   func(time.Duration) {},
-		Router:  r,
-		Account: account,
+		Config:   &config.Config{Listen: "127.0.0.1:4747", WhenRouterDown: config.Direct, Accounts: accounts},
+		Token:    testTokens.Read,
+		Pause:    func(time.Duration) {},
+		Router:   r,
+		Patience: launch.Patience{Answer: launch.AskTimeout},
+		Account:  account,
 	}
 }
 
@@ -337,26 +342,294 @@ func TestRunWithoutAHealthyRouter(t *testing.T) {
 	}
 }
 
-func TestRunGivesTheRouterHalfASecondToAnswer(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		h := newHarness(t)
-		began := time.Now()
+// stopHint is how a launch that started nothing says to go on.
+const stopHint = " — not starting claude: see to it with switchboard service status, or go direct this once with SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude\n"
 
-		if err := h.launcher.Run(t.Context(), route(&fakeRouter{hangs: true}, ""), nil); err != nil {
-			t.Fatalf("Run() error = %v", err)
-		}
+// downSetting is what the config and SWITCHBOARD_WHEN_ROUTER_DOWN say a
+// launch does with the router down, and whether it goes direct for them.
+type downSetting struct {
+	name       string
+	configured config.RouterDown
+	// variable is SWITCHBOARD_WHEN_ROUTER_DOWN, as whenDown sets it, or ""
+	// where it's unset.
+	variable   string
+	wantDirect bool
+	// wantSaid is what stderr hears of a variable it doesn't take, after the
+	// router's state.
+	wantSaid string
+}
 
-		if waited := time.Since(began); waited != 500*time.Millisecond {
-			t.Errorf("waited %v for the router, want 500ms", waited)
+var downSettings = []downSetting{
+	{name: "the key unset"},
+	{name: "the key stop", configured: config.Stop},
+	{name: "the key direct", configured: config.Direct, wantDirect: true},
+	{name: "the key unset, the variable direct", variable: whenDown("direct"), wantDirect: true},
+	{name: "the key stop, the variable direct", configured: config.Stop, variable: whenDown("direct"), wantDirect: true},
+	{name: "the key direct, the variable direct", configured: config.Direct, variable: whenDown("direct"), wantDirect: true},
+	{name: "the key unset, the variable stop", variable: whenDown("stop")},
+	{name: "the key stop, the variable stop", configured: config.Stop, variable: whenDown("stop")},
+	{name: "the key direct, the variable stop", configured: config.Direct, variable: whenDown("stop")},
+	{name: "the key unset, the variable empty", variable: whenDown("")},
+	{name: "the key direct, the variable empty", configured: config.Direct, variable: whenDown(""), wantDirect: true},
+	{name: "the key unset, the variable in capitals", variable: whenDown("DIRECT"), wantDirect: true},
+	{
+		name: "the key unset, a bad variable", variable: whenDown("always"),
+		wantSaid: `, and SWITCHBOARD_WHEN_ROUTER_DOWN takes stop or direct, not "always"`,
+	},
+	{
+		name: "the key direct, a bad variable", configured: config.Direct, variable: whenDown("always"),
+		wantSaid: `, and SWITCHBOARD_WHEN_ROUTER_DOWN takes stop or direct, not "always"`,
+	},
+	{
+		name: "the key unset, a token for the variable", variable: whenDown("sk-ant-oat01-fake_token-shaped"),
+		wantSaid: `, and SWITCHBOARD_WHEN_ROUTER_DOWN takes stop or direct, not "[redacted]"`,
+	},
+}
+
+// whenDown sets SWITCHBOARD_WHEN_ROUTER_DOWN to value.
+func whenDown(value string) string {
+	return "SWITCHBOARD_WHEN_ROUTER_DOWN=" + value
+}
+
+// environ is the environment a launch with the setting starts from.
+func (d downSetting) environ() []string {
+	if d.variable == "" {
+		return []string{"HOME=/home/tester"}
+	}
+	return []string{"HOME=/home/tester", d.variable}
+}
+
+func TestRunWithTheRouterDownStopsUnlessToldToGoDirect(t *testing.T) {
+	routers := []struct {
+		name string
+		r    *fakeRouter
+		// state is how the router is, as the notice says it, and log what the
+		// log says of it.
+		state string
+		log   []string
+	}{
+		{name: "not running", r: notRunning(), state: "the router isn't running", log: []string{`router="not running"`}},
+		{
+			name: "unhealthy", r: &fakeRouter{health: router.Health{Reason: unhealthy}},
+			state: "the router is unhealthy (" + unhealthy + ")", log: []string{"router=unhealthy", `reason="` + unhealthy + `"`},
+		},
+	}
+	for _, rt := range routers {
+		for _, d := range downSettings {
+			t.Run(rt.name+", "+d.name, func(t *testing.T) {
+				log := logstest.Capture(t)
+				h := newHarness(t, d.environ()...)
+				r := route(rt.r, "")
+				r.Config.WhenRouterDown = d.configured
+
+				err := h.launcher.Run(t.Context(), r, []string{"--resume"})
+
+				if !d.wantDirect {
+					if !errors.Is(err, launch.ErrNotStarted) {
+						t.Errorf("Run() error = %v, want %v", err, launch.ErrNotStarted)
+					}
+					if len(h.starts) != 0 {
+						t.Errorf("started %d programs, want none", len(h.starts))
+					}
+					if said, want := h.stderr.String(), "switchboard: "+rt.state+d.wantSaid+stopHint; said != want {
+						t.Errorf("said %q on stderr, want %q", said, want)
+					}
+					want := append([]string{"level=WARN", `msg="not starting claude" component=launch`, "mode=stop", "asked="}, rt.log...)
+					if d.wantSaid != "" {
+						want = append(want, `error="SWITCHBOARD_WHEN_ROUTER_DOWN takes stop or direct, not \"`)
+					}
+					if !log.Has(want...) {
+						t.Errorf("log reads\n%s\nwant a line with %q", log, want)
+					}
+					if strings.Contains(log.String(), "fake_token") {
+						t.Errorf("log reads\n%s\nwant it without the token", log)
+					}
+					return
+				}
+				if err != nil {
+					t.Fatalf("Run() error = %v", err)
+				}
+				if said, want := h.stderr.String(), "switchboard: "+rt.state+" — connecting directly on work · Work\n"; said != want {
+					t.Errorf("said %q on stderr, want %q", said, want)
+				}
+				want := map[string]string{"HOME": "/home/tester", "CLAUDE_CODE_OAUTH_TOKEN": workToken}
+				if env := h.environment(t); !maps.Equal(env, want) {
+					t.Errorf("started with the environment\n%q\nwant\n%q, direct and without SWITCHBOARD_WHEN_ROUTER_DOWN", env, want)
+				}
+				if want := append([]string{"level=WARN", `msg="starting claude"`, "mode=direct", "asked="}, rt.log...); !log.Has(want...) {
+					t.Errorf("log reads\n%s\nwant a line with %q", log, want)
+				}
+			})
 		}
-		want := "switchboard: the router is unhealthy (no answer within 500ms) — connecting directly on work · Work\n"
-		if said := h.stderr.String(); said != want {
-			t.Errorf("said %q on stderr, want %q", said, want)
-		}
-		if _, set := h.environment(t)["ANTHROPIC_BASE_URL"]; set {
-			t.Error("started with ANTHROPIC_BASE_URL set, want it connecting directly")
-		}
-	})
+	}
+}
+
+func TestRouterUnfoundStopsUnlessToldToGoDirect(t *testing.T) {
+	const unfound = "locate state directory: no home directory"
+	for _, d := range downSettings {
+		t.Run(d.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			h := newHarness(t, d.environ()...)
+
+			err := h.launcher.RouterUnfound(d.configured, []string{"--resume"}, errors.New(unfound+"\nmore"))
+
+			if !d.wantDirect {
+				if !errors.Is(err, launch.ErrNotStarted) {
+					t.Errorf("RouterUnfound() error = %v, want %v", err, launch.ErrNotStarted)
+				}
+				if len(h.starts) != 0 {
+					t.Errorf("started %d programs, want none", len(h.starts))
+				}
+				want := "switchboard: the router couldn't be found (" + unfound + ")" + d.wantSaid + " — not starting claude: go direct this once with SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude\n"
+				if said := h.stderr.String(); said != want {
+					t.Errorf("said %q on stderr, want %q", said, want)
+				}
+				if want := []string{"level=WARN", `msg="not starting claude"`, "mode=stop", `router="not found"`, `reason="` + unfound + `"`}; !log.Has(want...) {
+					t.Errorf("log reads\n%s\nwant a line with %q", log, want)
+				}
+				if log.Has("asked=") {
+					t.Errorf("log reads\n%s\nwant no asked=, the router not asked", log)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("RouterUnfound() error = %v", err)
+			}
+			if said, want := h.stderr.String(), "switchboard: couldn't find the router ("+unfound+") — starting claude without it\n"; said != want {
+				t.Errorf("said %q on stderr, want %q", said, want)
+			}
+			if got := h.only(t); !slices.Equal(got.argv, []string{"claude", "--resume"}) || !slices.Equal(got.env, []string{"HOME=/home/tester"}) {
+				t.Errorf("started as %q with %q, want claude --resume, its environment untouched but for SWITCHBOARD_WHEN_ROUTER_DOWN", got.argv, got.env)
+			}
+		})
+	}
+}
+
+func TestAHealthyRouterRoutesWhateverTheRouterDownSettingSays(t *testing.T) {
+	for _, d := range downSettings {
+		t.Run(d.name, func(t *testing.T) {
+			h := newHarness(t, d.environ()...)
+			r := route(healthy(), "")
+			r.Config.WhenRouterDown = d.configured
+
+			if err := h.launcher.Run(t.Context(), r, nil); err != nil {
+				t.Fatalf("Run() error = %v", err)
+			}
+			env := h.environment(t)
+			if env["ANTHROPIC_BASE_URL"] != "http://"+proxyAddr {
+				t.Errorf("started with ANTHROPIC_BASE_URL %q, want the router's", env["ANTHROPIC_BASE_URL"])
+			}
+			if value, set := env["SWITCHBOARD_WHEN_ROUTER_DOWN"]; set {
+				t.Errorf("started with SWITCHBOARD_WHEN_ROUTER_DOWN=%s, want it taken off", value)
+			}
+			if said := h.stderr.String(); said != "" {
+				t.Errorf("said %q on stderr, want nothing", said)
+			}
+		})
+	}
+}
+
+func TestRunWaitsForTheRouterAsSwitchboardDoes(t *testing.T) {
+	tests := []struct {
+		name     string
+		router   *timedRouter
+		wantSaid string
+		// wantRouted is whether Claude Code starts through the router, and
+		// wantWaited how long it waited for it first.
+		wantRouted bool
+		wantWaited time.Duration
+	}{
+		{
+			name:       "answering at 3s",
+			router:     &timedRouter{health: healthy().health, answersIn: 3 * time.Second},
+			wantRouted: true,
+			wantWaited: 3 * time.Second,
+		},
+		{
+			name:       "coming back at 1s",
+			router:     &timedRouter{health: healthy().health, upAt: time.Second},
+			wantRouted: true,
+			wantWaited: time.Second,
+		},
+		{
+			name:       "never answering",
+			router:     &timedRouter{answersIn: never},
+			wantSaid:   "switchboard: the router is unhealthy (no answer within 5s) — connecting directly on work · Work\n",
+			wantWaited: 5 * time.Second,
+		},
+		{
+			name:       "not running",
+			router:     &timedRouter{upAt: never},
+			wantSaid:   "switchboard: the router isn't running — connecting directly on work · Work\n",
+			wantWaited: 2 * time.Second,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				h := newHarness(t)
+				r := route(tt.router, "")
+				r.Patience = launch.Patience{}
+				tt.router.began = time.Now()
+
+				if err := h.launcher.Run(t.Context(), r, nil); err != nil {
+					t.Fatalf("Run() error = %v", err)
+				}
+
+				if waited := time.Since(tt.router.began); waited != tt.wantWaited {
+					t.Errorf("waited %v for the router, want %v", waited, tt.wantWaited)
+				}
+				if said := h.stderr.String(); said != tt.wantSaid {
+					t.Errorf("said %q on stderr, want %q", said, tt.wantSaid)
+				}
+				if _, routed := h.environment(t)["ANTHROPIC_BASE_URL"]; routed != tt.wantRouted {
+					t.Errorf("started with ANTHROPIC_BASE_URL set: %v, want %v", routed, tt.wantRouted)
+				}
+			})
+		})
+	}
+}
+
+func TestRunLogsHowLongTheRouterTookToAnswer(t *testing.T) {
+	tests := []struct {
+		name   string
+		router *timedRouter
+		want   []string
+	}{
+		{
+			name:   "through the router",
+			router: &timedRouter{health: healthy().health, answersIn: 312 * time.Millisecond},
+			want:   []string{"level=INFO", `msg="starting claude"`, "mode=routed", "asked=312ms"},
+		},
+		{
+			name:   "directly, the router not running",
+			router: &timedRouter{upAt: never},
+			want:   []string{"level=WARN", `msg="starting claude"`, "mode=direct", `router="not running"`, "asked=2s"},
+		},
+		{
+			name:   "directly, the router stuck",
+			router: &timedRouter{answersIn: never},
+			want:   []string{"level=WARN", `msg="starting claude"`, "mode=direct", `reason="no answer within 5s"`, "asked=5s"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				log := logstest.Capture(t)
+				h := newHarness(t)
+				r := route(tt.router, "")
+				r.Patience = launch.Patience{}
+				tt.router.began = time.Now()
+
+				if err := h.launcher.Run(t.Context(), r, nil); err != nil {
+					t.Fatalf("Run() error = %v", err)
+				}
+				if !log.Has(tt.want...) {
+					t.Errorf("log reads\n%s\nwant a line with %q", log, tt.want)
+				}
+			})
+		})
+	}
 }
 
 func TestRunKeepsTheOtherCustomHeaders(t *testing.T) {
@@ -736,6 +1009,384 @@ func TestStepAsideStartsClaudeAsIfSwitchboardWerentThere(t *testing.T) {
 	}
 }
 
+// withoutSwitchboard starts claude each way a launcher can as if switchboard
+// weren't there, taking off what a session it's started within set, but
+// where it keepsRouting: unaided, within a session still sent to the router
+// run sent it to, which passes the session's environment on as it is.
+var withoutSwitchboard = []struct {
+	name         string
+	launch       func(l launch.Launcher) error
+	keepsRouting bool
+}{
+	{name: "stepping aside for a key", launch: func(l launch.Launcher) error { return l.StepAside(nil, "ANTHROPIC_API_KEY") }},
+	{
+		name: "unaided",
+		launch: func(l launch.Launcher) error {
+			return l.Unaided(nil, "couldn't read the config", errors.New("no config file at /home/tester/config.toml"))
+		},
+		keepsRouting: true,
+	},
+}
+
+// routedSession returns the environment of a session run routes from own,
+// pinned to account unless it's "", in project, as a claude started within it
+// inherits it.
+func routedSession(t *testing.T, own []string, account string) []string {
+	t.Helper()
+	h := newHarness(t, own...)
+	h.launcher.Dir = project
+	if err := h.launcher.Run(t.Context(), route(healthy(), account), nil); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	return h.only(t).session()
+}
+
+// envMap returns env's variables by name, and environOf them as env.
+func envMap(env []string) map[string]string {
+	m := make(map[string]string)
+	for _, variable := range env {
+		name, value, _ := strings.Cut(variable, "=")
+		m[name] = value
+	}
+	return m
+}
+
+func environOf(m map[string]string) []string {
+	env := make([]string, 0, len(m))
+	for name, value := range m {
+		env = append(env, name+"="+value)
+	}
+	return env
+}
+
+func TestStartingWithoutSwitchboardTakesOffWhatRunSet(t *testing.T) {
+	const (
+		baseURL = "ANTHROPIC_BASE_URL"
+		headers = "ANTHROPIC_CUSTOM_HEADERS"
+		hints   = "CLAUDE_CODE_GATEWAY_HINT_HEADERS"
+		token   = "CLAUDE_CODE_OAUTH_TOKEN"
+		gateway = "https://gateway.example.com"
+	)
+	tests := []struct {
+		name string
+		// own is the environment the user started the session in, pinned to
+		// account unless it's "", and since are the variables set within the
+		// session since, as by a script.
+		own     map[string]string
+		account string
+		since   map[string]string
+		// want is what's started without switchboard, besides HOME, a key and
+		// the token run set, which isn't taken off, wherever what the mark
+		// names is taken off: stepping aside always, and unaided only where
+		// the base URL has changed since, as otherwise the session's router
+		// still routes it, which is passed on as it is.
+		want map[string]string
+	}{
+		{name: "none of them set by the user, each goes", account: "side", want: map[string]string{}},
+		{
+			name: "the base URL the user set, back to theirs",
+			own:  map[string]string{baseURL: gateway},
+			want: map[string]string{baseURL: gateway},
+		},
+		{
+			name: "hints turned off by the user, which run left, kept off",
+			own:  map[string]string{hints: "0"},
+			want: map[string]string{hints: "0"},
+		},
+		{
+			name: "hints turned on by the user, which run left, kept on",
+			own:  map[string]string{hints: "1"},
+			want: map[string]string{hints: "1"},
+		},
+		{
+			name: "hints set to nothing by the user, back to nothing",
+			own:  map[string]string{hints: ""},
+			want: map[string]string{hints: ""},
+		},
+		{
+			name:    "custom headers set to nothing by the user, back to nothing",
+			own:     map[string]string{headers: ""},
+			account: "side",
+			want:    map[string]string{headers: ""},
+		},
+		{
+			name:    "the user's own custom headers kept, switchboard's gone",
+			own:     map[string]string{headers: "X-Trace: on\r\nX-Team: core\n"},
+			account: "side",
+			want:    map[string]string{headers: "X-Trace: on\nX-Team: core"},
+		},
+		{
+			name:  "a base URL set since, as by a script for a gateway of its own, kept",
+			since: map[string]string{baseURL: gateway},
+			want:  map[string]string{baseURL: gateway},
+		},
+		{
+			name:    "a base URL set since, kept, beside the user's own custom headers, switchboard's gone",
+			own:     map[string]string{headers: "X-Trace: on"},
+			account: "side",
+			since:   map[string]string{baseURL: gateway},
+			want:    map[string]string{baseURL: gateway, headers: "X-Trace: on"},
+		},
+		{
+			name:  "hints turned off since, kept off",
+			since: map[string]string{hints: "0"},
+			want:  map[string]string{hints: "0"},
+		},
+		{
+			name:    "custom headers set since in place of the session's, kept",
+			account: "side",
+			since:   map[string]string{headers: "X-Gateway: on"},
+			want:    map[string]string{headers: "X-Gateway: on"},
+		},
+		{
+			name:    "a custom header added since to the session's, kept, switchboard's gone",
+			own:     map[string]string{headers: "X-Trace: on"},
+			account: "side",
+			since:   map[string]string{headers: "X-Trace: on\nX-Switchboard-Account: side\nX-Switchboard-Dir: ~/Code/project\nX-Gateway: on"},
+			want:    map[string]string{headers: "X-Trace: on\nX-Gateway: on"},
+		},
+	}
+	for _, tt := range tests {
+		for _, start := range withoutSwitchboard {
+			t.Run(tt.name+", "+start.name, func(t *testing.T) {
+				own := []string{"HOME=" + homeDir, "ANTHROPIC_API_KEY=test-key"}
+				for name, value := range tt.own {
+					own = append(own, name+"="+value)
+				}
+				session := envMap(routedSession(t, own, tt.account))
+				maps.Copy(session, tt.since)
+				h := newHarness(t, environOf(session)...)
+
+				if err := start.launch(h.launcher); err != nil {
+					t.Fatalf("launch error = %v", err)
+				}
+				if _, pointedElsewhere := tt.since[baseURL]; start.keepsRouting && !pointedElsewhere {
+					if got := envMap(h.only(t).session()); !maps.Equal(got, session) {
+						t.Errorf("started with the environment\n%q\nwant the session's as it is, still routed\n%q", got, session)
+					}
+					return
+				}
+				want := map[string]string{"HOME": homeDir, "ANTHROPIC_API_KEY": "test-key", token: workToken}
+				maps.Copy(want, tt.want)
+				if env := h.environment(t); !maps.Equal(env, want) {
+					t.Errorf("started with the environment\n%q\nwant\n%q", env, want)
+				}
+				if sets := h.only(t).sets; len(sets) > 0 {
+					t.Errorf("started marked with what run set, %q, want no such mark", sets)
+				}
+			})
+		}
+	}
+}
+
+func TestASessionWhoseBaseURLWasTheRoutersAlreadyStillReadsAsRouted(t *testing.T) {
+	router := "http://" + proxyAddr
+	tests := []struct {
+		name string
+		// own is the environment run routes the session from, pinned to side
+		// in project.
+		own []string
+		// wantAside is what's started stepping aside within the session,
+		// besides HOME, a key and the token run set.
+		wantAside map[string]string
+	}{
+		{
+			name:      "the user's own base URL the router's",
+			own:       []string{"ANTHROPIC_BASE_URL=" + router, "ANTHROPIC_CUSTOM_HEADERS=X-Trace: on"},
+			wantAside: map[string]string{"ANTHROPIC_BASE_URL": router, "ANTHROPIC_CUSTOM_HEADERS": "X-Trace: on"},
+		},
+		{
+			name: "within a session from before the mark",
+			own: []string{
+				"ANTHROPIC_BASE_URL=" + router,
+				"CLAUDE_CODE_OAUTH_TOKEN=test-token-stale",
+				"ANTHROPIC_CUSTOM_HEADERS=X-Switchboard-Account: work\nX-Switchboard-Dir: ~/Code/elsewhere",
+				"CLAUDE_CODE_GATEWAY_HINT_HEADERS=1",
+			},
+			wantAside: map[string]string{"ANTHROPIC_BASE_URL": router, "CLAUDE_CODE_GATEWAY_HINT_HEADERS": "1"},
+		},
+	}
+	for _, tt := range tests {
+		session := routedSession(t, append([]string{"HOME=" + homeDir, "ANTHROPIC_API_KEY=test-key"}, tt.own...), "side")
+		for _, start := range withoutSwitchboard {
+			t.Run(tt.name+", "+start.name, func(t *testing.T) {
+				h := newHarness(t, session...)
+				if err := start.launch(h.launcher); err != nil {
+					t.Fatalf("launch error = %v", err)
+				}
+				if start.keepsRouting {
+					if got, want := envMap(h.only(t).session()), envMap(session); !maps.Equal(got, want) {
+						t.Errorf("started with the environment\n%q\nwant the session's as it is, its pin, directory and hints kept\n%q", got, want)
+					}
+					return
+				}
+				want := map[string]string{"HOME": homeDir, "ANTHROPIC_API_KEY": "test-key", "CLAUDE_CODE_OAUTH_TOKEN": workToken}
+				maps.Copy(want, tt.wantAside)
+				if env := h.environment(t); !maps.Equal(env, want) {
+					t.Errorf("started with the environment\n%q\nwant\n%q", env, want)
+				}
+			})
+		}
+	}
+}
+
+func TestASessionWithinASessionStartsFromTheUsersEnvironment(t *testing.T) {
+	own := []string{"HOME=" + homeDir, "ANTHROPIC_CUSTOM_HEADERS=X-Trace: on", "ANTHROPIC_BASE_URL=https://gateway.example.com"}
+	outer := routedSession(t, own, "side")
+
+	inner := newHarness(t, outer...)
+	inner.launcher.Dir = homeDir + "/Code/other"
+	if err := inner.launcher.Run(t.Context(), route(healthy(), "work"), nil); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	fresh := newHarness(t, own...)
+	fresh.launcher.Dir = homeDir + "/Code/other"
+	if err := fresh.launcher.Run(t.Context(), route(healthy(), "work"), nil); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if got, want := envMap(inner.only(t).session()), envMap(fresh.only(t).session()); !maps.Equal(got, want) {
+		t.Errorf("routed within a session with the environment\n%q\nwant\n%q, as routed from the user's own", got, want)
+	}
+
+	for _, start := range withoutSwitchboard {
+		t.Run(start.name, func(t *testing.T) {
+			session := append(inner.only(t).session(), "ANTHROPIC_API_KEY=test-key")
+			h := newHarness(t, session...)
+			if err := start.launch(h.launcher); err != nil {
+				t.Fatalf("launch error = %v", err)
+			}
+			if start.keepsRouting {
+				if got, want := envMap(h.only(t).session()), envMap(session); !maps.Equal(got, want) {
+					t.Errorf("started with the environment\n%q\nwant the session's as it is, still routed\n%q", got, want)
+				}
+				return
+			}
+			want := map[string]string{
+				"HOME":                     homeDir,
+				"ANTHROPIC_CUSTOM_HEADERS": "X-Trace: on",
+				"ANTHROPIC_BASE_URL":       "https://gateway.example.com",
+				"ANTHROPIC_API_KEY":        "test-key",
+				"CLAUDE_CODE_OAUTH_TOKEN":  workToken,
+			}
+			if env := h.environment(t); !maps.Equal(env, want) {
+				t.Errorf("started with the environment\n%q\nwant\n%q", env, want)
+			}
+		})
+	}
+}
+
+func TestDirectWithinASessionStartsFromTheUsersEnvironment(t *testing.T) {
+	session := routedSession(t, []string{"HOME=" + homeDir, "ANTHROPIC_CUSTOM_HEADERS=X-Trace: on"}, "side")
+	tests := []struct {
+		name   string
+		launch func(ctx context.Context, l launch.Launcher) error
+		want   map[string]string
+	}{
+		{
+			name:   "connecting directly",
+			launch: func(ctx context.Context, l launch.Launcher) error { return l.Run(ctx, route(notRunning(), ""), nil) },
+			want:   map[string]string{"HOME": homeDir, "ANTHROPIC_CUSTOM_HEADERS": "X-Trace: on", "CLAUDE_CODE_OAUTH_TOKEN": workToken},
+		},
+		{
+			name:   "on its own login",
+			launch: func(_ context.Context, l launch.Launcher) error { return l.Direct(nil) },
+			want:   map[string]string{"HOME": homeDir, "ANTHROPIC_CUSTOM_HEADERS": "X-Trace: on"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t, session...)
+			if err := tt.launch(t.Context(), h.launcher); err != nil {
+				t.Fatalf("launch error = %v", err)
+			}
+			if env := h.environment(t); !maps.Equal(env, tt.want) {
+				t.Errorf("started with the environment\n%q\nwant\n%q", env, tt.want)
+			}
+			if sets := h.only(t).sets; len(sets) > 0 {
+				t.Errorf("started marked with what run set, %q, want no such mark, as it sets nothing it marks", sets)
+			}
+		})
+	}
+}
+
+func TestNothingSecretIsWrittenIntoTheMarkOfWhatRunSet(t *testing.T) {
+	const shaped = "sk-ant-oat01-fake_token-shaped"
+	tests := []struct {
+		name string
+		// secret is what the mark must never hold.
+		secret string
+		// own is the environment the user started the session in, and dir the
+		// directory it started in.
+		own []string
+		dir string
+		// want is what's started stepping aside, besides HOME, a key and the
+		// token run set.
+		want map[string]string
+	}{
+		{
+			name:   "a base URL of the user's with credentials in its userinfo, which can't go back, goes",
+			secret: "test-secret-pass",
+			own:    []string{"ANTHROPIC_BASE_URL=https://user:test-secret-pass@gateway.example.com"},
+			dir:    project,
+			want:   map[string]string{},
+		},
+		{
+			name:   "a base URL of the user's with a key in its query, which can't go back, goes",
+			secret: "test-secret-key",
+			own:    []string{"ANTHROPIC_BASE_URL=https://gateway.example.com/v1?key=test-secret-key"},
+			dir:    project,
+			want:   map[string]string{},
+		},
+		{
+			name:   "a base URL of the user's holding a token-shaped value, which can't go back, goes",
+			secret: shaped,
+			own:    []string{"ANTHROPIC_BASE_URL=https://" + shaped + "@gateway.example.com"},
+			dir:    project,
+			want:   map[string]string{},
+		},
+		{
+			name:   "a directory holding a token-shaped value, its line unmarked, stays",
+			secret: shaped,
+			dir:    homeDir + "/Code/" + shaped,
+			want:   map[string]string{"ANTHROPIC_CUSTOM_HEADERS": "X-Switchboard-Dir: ~/Code/" + shaped},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			session := newHarness(t, append([]string{"HOME=" + homeDir, "ANTHROPIC_API_KEY=test-key"}, tt.own...)...)
+			session.launcher.Dir = tt.dir
+			if err := session.launcher.Run(t.Context(), route(healthy(), ""), nil); err != nil {
+				t.Fatalf("Run() error = %v", err)
+			}
+			if sets := session.only(t).sets; len(sets) != 1 || strings.Contains(sets[0], tt.secret) {
+				t.Fatalf("marked with what run set as %q, want one mark, without %q", sets, tt.secret)
+			}
+
+			h := newHarness(t, session.only(t).session()...)
+			if err := h.launcher.StepAside(nil, "ANTHROPIC_API_KEY"); err != nil {
+				t.Fatalf("StepAside() error = %v", err)
+			}
+			want := map[string]string{"HOME": homeDir, "ANTHROPIC_API_KEY": "test-key", "CLAUDE_CODE_OAUTH_TOKEN": workToken}
+			maps.Copy(want, tt.want)
+			if env := h.environment(t); !maps.Equal(env, want) {
+				t.Errorf("started with the environment\n%q\nwant\n%q", env, want)
+			}
+		})
+	}
+}
+
+func TestAMarkOfWhatRunSetThatCantBeReadTakesOffNothingElse(t *testing.T) {
+	inherited := []string{"HOME=" + homeDir, "ANTHROPIC_BASE_URL=http://" + proxyAddr, "CLAUDE_CODE_GATEWAY_HINT_HEADERS=1"}
+	h := newHarness(t, append(slices.Clone(inherited), setEnv+"=set:ANTHROPIC_BASE_URL=%zz")...)
+
+	if err := h.launcher.StepAside(nil, "ANTHROPIC_API_KEY"); err != nil {
+		t.Fatalf("StepAside() error = %v", err)
+	}
+	if got := h.only(t); !slices.Equal(got.env, inherited) || len(got.sets) > 0 {
+		t.Errorf("started with %q marked %q, want %q, without the mark", got.env, got.sets, inherited)
+	}
+}
+
 func TestFindsClaude(t *testing.T) {
 	// This process's own PATH leads to a claude of its own, which none of
 	// these finds: the environment Claude Code starts with is the one that
@@ -794,6 +1445,50 @@ var everyLaunch = []struct {
 	},
 	{name: "a local subcommand", launch: func(_ context.Context, l launch.Launcher) error { return l.Local([]string{"doctor"}) }},
 	{name: "stepping aside for a key", launch: func(_ context.Context, l launch.Launcher) error { return l.StepAside(nil, "ANTHROPIC_API_KEY") }},
+	{
+		name: "the router not found, going direct",
+		launch: func(_ context.Context, l launch.Launcher) error {
+			return l.RouterUnfound(config.Direct, nil, errors.New("locate state directory: no home directory"))
+		},
+	},
+	{
+		name: "without a usable token",
+		launch: func(ctx context.Context, l launch.Launcher) error {
+			r := route(healthy(), "")
+			r.Token = tokenstest.Files{}.Read
+			return l.Run(ctx, r, nil)
+		},
+	},
+}
+
+func TestNoLaunchPassesOnWhatToDoWithTheRouterDown(t *testing.T) {
+	starts := []struct {
+		name    string
+		environ func(t *testing.T) []string
+	}{
+		{name: "afresh", environ: func(*testing.T) []string { return []string{"HOME=/home/tester"} }},
+		{
+			name: "within a routed session",
+			environ: func(t *testing.T) []string {
+				return routedSession(t, []string{"HOME=/home/tester"}, "")
+			},
+		},
+	}
+	for _, tt := range everyLaunch {
+		for _, start := range starts {
+			t.Run(tt.name+", "+start.name, func(t *testing.T) {
+				h := newHarness(t)
+				h.launcher.Environ = append(start.environ(t), "PATH="+filepath.Dir(h.claude), "SWITCHBOARD_WHEN_ROUTER_DOWN=direct")
+
+				if err := tt.launch(t.Context(), h.launcher); err != nil {
+					t.Fatalf("launch error = %v", err)
+				}
+				if value, set := h.environment(t)["SWITCHBOARD_WHEN_ROUTER_DOWN"]; set {
+					t.Errorf("started with SWITCHBOARD_WHEN_ROUTER_DOWN=%s, want it taken off", value)
+				}
+			})
+		}
+	}
 }
 
 func TestNoLaunchStartsSwitchboardsClaudeLink(t *testing.T) {
@@ -1054,15 +1749,9 @@ func TestLaunchesLogWhatWasDecided(t *testing.T) {
 type fakeRouter struct {
 	health    router.Health
 	healthErr error
-	// hangs has Health answer only once its caller gives up.
-	hangs bool
 }
 
-func (r *fakeRouter) Health(ctx context.Context) (router.Health, error) {
-	if r.hangs {
-		<-ctx.Done()
-		return router.Health{}, fmt.Errorf("ask the router: %w", ctx.Err())
-	}
+func (r *fakeRouter) Health(context.Context) (router.Health, error) {
 	return r.health, r.healthErr
 }
 
@@ -1081,24 +1770,45 @@ type started struct {
 	path string
 	argv []string
 	// env is the environment it was to start in, but for switchboard's mark
-	// of the claude it starts, which marks gives every value of.
+	// of the claude it starts, which marks gives every value of, and its mark
+	// of what run set there, which sets gives every value of.
 	env   []string
 	marks []string
+	sets  []string
 }
 
-// markEnv is the variable switchboard marks the claude it starts with.
-const markEnv = "SWITCHBOARD_STARTED"
+// session returns the environment of the session s starts, as a claude
+// started within it inherits it: with the mark of what run set, but without
+// the mark of the claude, which names this launcher's own process id, and so
+// would read as one started again in that claude's place.
+func (s started) session() []string {
+	env := slices.Clone(s.env)
+	for _, set := range s.sets {
+		env = append(env, setEnv+"="+set)
+	}
+	return env
+}
 
-// unmarked splits env into the values of switchboard's mark, and the rest.
-func unmarked(env []string) (rest, marks []string) {
+// markEnv is the variable switchboard marks the claude it starts with, and
+// setEnv the one it marks what run set in its environment with.
+const (
+	markEnv = "SWITCHBOARD_STARTED"
+	setEnv  = "SWITCHBOARD_SET"
+)
+
+// unmarked splits env into the values of switchboard's two marks, and the
+// rest.
+func unmarked(env []string) (rest, marks, sets []string) {
 	for _, variable := range env {
 		if mark, ok := strings.CutPrefix(variable, markEnv+"="); ok {
 			marks = append(marks, mark)
+		} else if set, ok := strings.CutPrefix(variable, setEnv+"="); ok {
+			sets = append(sets, set)
 		} else {
 			rest = append(rest, variable)
 		}
 	}
-	return rest, marks
+	return rest, marks, sets
 }
 
 // harness is a launcher whose claude, a stand-in, is where its installer put
@@ -1131,8 +1841,8 @@ func newHarness(t *testing.T, environ ...string) *harness {
 		PID:          pid,
 		Now:          func() time.Time { return launched },
 		Exec: func(path string, argv, env []string) error {
-			env, marks := unmarked(env)
-			h.starts = append(h.starts, started{path: path, argv: argv, env: env, marks: marks})
+			rest, marks, sets := unmarked(env)
+			h.starts = append(h.starts, started{path: path, argv: argv, env: rest, marks: marks, sets: sets})
 			return nil
 		},
 		Stderr: &h.stderr,

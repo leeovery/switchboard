@@ -29,13 +29,20 @@ through the router, such as publishing an artifact, goes out on the primary.
 --account pins the session's conversation to an account while that can take
 it; the token stays the primary's.
 
-When the router isn't running, or isn't healthy, Claude Code connects directly
-on --account's token, else the primary's, else the first account's with a
-usable token, and run says so. When switchboard can't take part at all, as
-without a config it can read or any account's usable token, Claude Code
-starts as if switchboard weren't there, and run says why. --direct starts
-Claude Code on its own login, without the router or a token, for what needs
-the login.
+A slow router is waited for, 5 seconds at most, and one that isn't running is
+asked again for the first 2, as it may be restarting. When the router isn't
+running, or isn't healthy, run starts nothing, and says why and how to go on: a session without the router would go unrouted and
+unrecorded, and spend the primary past its reserve. The config's
+when_router_down = "direct" has Claude Code connect directly instead, on
+--account's token, else the primary's, else the first account's with a usable
+token, and run says so; SWITCHBOARD_WHEN_ROUTER_DOWN, stop or direct, says
+which for the launch it's given to, as in:
+SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude
+
+When switchboard can't take part at all, as without a config it can read or
+any account's usable token, Claude Code starts as if switchboard weren't
+there, and run says why. --direct starts Claude Code on its own login, without
+the router or a token, for what needs the login.
 
 Claude Code's local subcommands, such as doctor, mcp and setup-token, start
 as if switchboard weren't there, saying nothing: switchboard has no part in
@@ -54,7 +61,13 @@ on PATH, switchboard is switchboard run -- with every argument Claude Code's
 own, so claude --help is Claude Code's.`,
 		Args: opts.parseArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return a.run(cmd.Context(), cmd.ErrOrStderr(), opts, args)
+			err := a.run(cmd.Context(), cmd.ErrOrStderr(), opts, args)
+			if errors.Is(err, launch.ErrNotStarted) {
+				// run has said why already, and how to go on.
+				cmd.SilenceErrors = true
+				return expected{err}
+			}
+			return err
 		},
 	}
 	cmd.Flags().StringVar(&opts.account, "account", "", "pin the session's conversation to account `ID`")
@@ -79,8 +92,9 @@ func (o *runOptions) parseArgs(cmd *cobra.Command, args []string) error {
 // run starts Claude Code with args in this process's place: through
 // switchboard, or as if switchboard weren't there, for one of Claude Code's
 // local subcommands, when its environment sets a key Claude Code may use in
-// place of an account's token, or when it can't read its config or locate
-// the state directory the router's socket is in.
+// place of an account's token, or when it can't read its config. With the
+// router down, or the state directory its socket is in not located, it
+// starts nothing, unless told to go direct.
 func (a *app) run(ctx context.Context, stderr io.Writer, opts runOptions, args []string) error {
 	// Without a home directory, only the install paths outside it are tried;
 	// without a working directory, the router is told none.
@@ -112,7 +126,7 @@ func (a *app) run(ctx context.Context, stderr io.Writer, opts runOptions, args [
 	}
 	client, err := a.routerClient()
 	if err != nil {
-		return l.Unaided(args, "couldn't find the router", err)
+		return l.RouterUnfound(cfg.WhenRouterDown, args, err)
 	}
-	return l.Run(ctx, launch.Route{Config: cfg, Token: a.readToken, Pause: a.Pause, Router: client, Account: opts.account}, args)
+	return l.Run(ctx, launch.Route{Config: cfg, Token: a.readToken, Pause: a.Pause, Router: client, Patience: a.Patience, Account: opts.account}, args)
 }

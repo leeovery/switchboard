@@ -203,23 +203,25 @@ func (f PrefsFile) read() (Prefs, map[string]json.RawMessage) {
 // setAside sets the corrupt preferences file aside, as moveAside does.
 func (f PrefsFile) setAside(corruption error) {
 	aside, err := f.moveAside()
-	if err != nil {
+	if aside == "" {
 		logger.Warn("preferences file corrupt, and can't be set aside; the defaults stand", "path", f.path, "error", corruption, "rename_error", err)
 		return
 	}
 	logger.Warn("preferences file corrupt; set aside, the defaults stand", "path", f.path, "aside", aside, "error", corruption)
+	if err != nil {
+		logger.Warn("can't remove the older preferences files set aside", "path", f.path, "error", err)
+	}
 }
 
-// moveAside renames the preferences file, or where it leads, should it be a
-// link, which is kept, to <file>.corrupt-<now in Unix seconds>, and returns
-// where it went.
+// moveAside sets the preferences file, or where it leads, should it be a
+// link, which is kept, aside, as atomicfile.SetAside does, and returns where
+// it went: "" where it couldn't go.
 func (f PrefsFile) moveAside() (string, error) {
 	file, err := atomicfile.Target(f.path)
 	if err != nil {
 		return "", err
 	}
-	aside := fmt.Sprintf("%s.corrupt-%d", file, f.now().Unix())
-	return aside, os.Rename(file, aside)
+	return atomicfile.SetAside(file, f.now())
 }
 
 // Update changes the preferences as change says, and writes them whole: read

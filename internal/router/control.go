@@ -191,7 +191,8 @@ func (r *Router) Control() http.Handler {
 		writeJSON(w, r.healthNow())
 	})
 	mux.HandleFunc("POST /restart", func(w http.ResponseWriter, req *http.Request) {
-		if err := r.upkeep.restartable(req.Context()); err != nil {
+		cleared, err := r.upkeep.restartable(req.Context())
+		if err != nil {
 			writeProblem(w, http.StatusConflict, err.Error())
 			return
 		}
@@ -199,7 +200,7 @@ func (r *Router) Control() http.Handler {
 		// The answer goes out before the restart begins: the router can stop
 		// answering at once.
 		_ = http.NewResponseController(w).Flush()
-		r.upkeep.restartNow()
+		r.upkeep.restartNow(cleared)
 	})
 	mux.HandleFunc("GET /status", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, r.Status())

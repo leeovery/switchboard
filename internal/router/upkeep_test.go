@@ -132,52 +132,71 @@ func TestARestartWaitsForTheRequestsInFlight(t *testing.T) {
 }
 
 func TestARestartingRouterAsksItsBinaryWhetherItCouldStartFirst(t *testing.T) {
+	const silenceSaid = `msg="its binary couldn't answer whether it could start; restarting all the same"`
+	restarts := []struct {
+		name string
+		// restart has the router started from s restart.
+		restart func(t *testing.T, s *selfWatching)
+	}{
+		{name: "falling due", restart: func(t *testing.T, s *selfWatching) { s.upgrade(t) }},
+		{
+			name: "asked for, as service restart asks",
+			restart: func(t *testing.T, s *selfWatching) {
+				if _, err := router.NewClient(router.SocketPath(s.cfg.StateDir)).Restart(t.Context()); err != nil {
+					t.Fatalf("Restart() error = %v", err)
+				}
+			},
+		},
+	}
 	tests := []struct {
 		name string
-		// answer is how the binary answers.
+		// answer is how the binary answers, and silence why the log says it
+		// couldn't: "" where it answered.
 		answer  checkAnswer
-		wantLog []string
+		silence string
 	}{
 		{name: "able to start"},
 		{
 			name:    "unable to answer, as one from before the check",
 			answer:  checkAnswer{out: "Error: unknown flag: --check\n", err: exited(1)},
-			wantLog: []string{"level=INFO", `msg="its binary couldn't answer whether it could start; restarting all the same"`, `error="exit status 1"`},
+			silence: "exit status 1",
 		},
-		{
-			name:    "unable to answer, crashing",
-			answer:  checkAnswer{err: exited(2)},
-			wantLog: []string{"level=INFO", `msg="its binary couldn't answer whether it could start; restarting all the same"`, `error="exit status 2"`},
-		},
+		{name: "unable to answer, crashing", answer: checkAnswer{err: exited(2)}, silence: "exit status 2"},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			log := logstest.Capture(t)
-			s := newSelfWatching(t, true)
-			execs := replacing(&s.cfg)
-			// The variable naming the listeners a router that restarted in
-			// place was handed stays in its environment.
-			s.cfg.Environ = append(s.cfg.Environ, handover.Variable+"=control=9,proxy=8")
-			checks := checking(&s.cfg, tt.answer)
-			r := startRouter(t, s.cfg)
+	for _, how := range restarts {
+		for _, tt := range tests {
+			t.Run(how.name+", "+tt.name, func(t *testing.T) {
+				log := logstest.Capture(t)
+				s := newSelfWatching(t, true)
+				execs := replacing(&s.cfg)
+				// The variable naming the listeners a router that restarted
+				// in place was handed stays in its environment.
+				s.cfg.Environ = append(s.cfg.Environ, handover.Variable+"=control=9,proxy=8")
+				checks := checking(&s.cfg, tt.answer)
+				r := startRouter(t, s.cfg)
 
-			s.upgrade(t)
-			r.waitForExit(t)
-			execs.only(t)
-			asked := checks.only(t)
-			if asked.path != s.binary {
-				t.Errorf("asked %s, want its binary, by the path it was started as, %s", asked.path, s.binary)
-			}
-			if want := append(slices.Clone(s.cfg.Args), "--check"); !slices.Equal(asked.argv, want) {
-				t.Errorf("asked it run as %q, want %q: as it would be run, asked to check", asked.argv, want)
-			}
-			if want := s.cfg.Environ[:len(s.cfg.Environ)-1]; !slices.Equal(asked.env, want) {
-				t.Errorf("asked it in the environment %q, want %q: the one it would run in, naming no listener", asked.env, want)
-			}
-			if tt.wantLog != nil && !log.Has(append(tt.wantLog, "path="+s.binary)...) {
-				t.Errorf("log reads\n%s\nwant a line with %q", log, tt.wantLog)
-			}
-		})
+				how.restart(t, s)
+				r.waitForExit(t)
+				execs.only(t)
+				asked := checks.only(t)
+				if asked.path != s.binary {
+					t.Errorf("asked %s, want its binary, by the path it was started as, %s", asked.path, s.binary)
+				}
+				if want := append(slices.Clone(s.cfg.Args), "--check"); !slices.Equal(asked.argv, want) {
+					t.Errorf("asked it run as %q, want %q: as it would be run, asked to check", asked.argv, want)
+				}
+				if want := s.cfg.Environ[:len(s.cfg.Environ)-1]; !slices.Equal(asked.env, want) {
+					t.Errorf("asked it in the environment %q, want %q: the one it would run in, naming no listener", asked.env, want)
+				}
+				said := strings.Count(log.String(), silenceSaid)
+				switch {
+				case tt.silence == "" && said != 0:
+					t.Errorf("log reads\n%s\nwant nothing said of the binary's silence: it answered", log)
+				case tt.silence != "" && (said != 1 || !log.Has("level=INFO", silenceSaid, `error="`+tt.silence+`"`, "path="+s.binary)):
+					t.Errorf("log reads\n%s\nwant the binary's silence said once, %q, of %s", log, tt.silence, s.binary)
+				}
+			})
+		}
 	}
 }
 
