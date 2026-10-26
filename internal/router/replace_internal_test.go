@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -89,7 +90,7 @@ func TestARouterToldToStopAsItRestartsLeavesNothingToConnectToAsItsControlAPIGoe
 	stopped, stop := context.WithCancel(t.Context())
 	stop()
 
-	if h.r.drainHandingOver(stopped, controlSrv, proxySrv, h.held) != nil {
+	if h.r.drainHandingOver(stopped, controlSrv, proxySrv, h.held, func() {}) != nil {
 		t.Error("drainHandingOver returned the listeners held, want none: the router was told to stop")
 	}
 	serving.Wait()
@@ -125,7 +126,7 @@ func TestARouterRestartingInPlaceAnswersOnItsControlSocketWhileTheRequestsItCutO
 	<-upstream.sent
 
 	handed := make(chan *handover.Held, 1)
-	go func() { handed <- h.r.drainHandingOver(t.Context(), controlSrv, proxySrv, h.held) }()
+	go func() { handed <- h.r.drainHandingOver(t.Context(), controlSrv, proxySrv, h.held, func() {}) }()
 	<-upstream.cutOff
 	if _, err := NewClient(SocketPath(h.dir)).Health(t.Context()); err != nil {
 		t.Errorf("Health() = %v while the request cut off unwinds, want the router answering: a claude launched meanwhile would go unrouted", err)
@@ -135,6 +136,40 @@ func TestARouterRestartingInPlaceAnswersOnItsControlSocketWhileTheRequestsItCutO
 		t.Error("drainHandingOver returned no listeners, want those held, to hand over")
 	}
 	serving.Wait()
+}
+
+func TestARouterRestartingInPlaceStopsWhatItRunsBesideItsServersBeforeItsControlAPICloses(t *testing.T) {
+	logstest.Capture(t)
+	h := newHolding(t)
+	proxySrv, controlSrv := newProxyServer(http.NotFoundHandler()), newServer(h.r.Control())
+	var stopped atomic.Bool
+	// stoppedFirst is whether the background had stopped as the control API
+	// closed.
+	stoppedFirst := make(chan bool, 1)
+	var serving sync.WaitGroup
+	serving.Go(func() {
+		_ = controlSrv.Serve(hooked{Listener: h.control, first: func() { stoppedFirst <- stopped.Load() }})
+	})
+	serving.Go(func() { _ = proxySrv.Serve(h.proxy) })
+	var answering error
+	stopBackground := func() {
+		_, answering = NewClient(SocketPath(h.dir)).Health(t.Context())
+		stopped.Store(true)
+	}
+
+	if h.r.drainHandingOver(t.Context(), controlSrv, proxySrv, h.held, stopBackground) == nil {
+		t.Error("drainHandingOver returned no listeners, want those held, to hand over")
+	}
+	serving.Wait()
+	if !stopped.Load() {
+		t.Fatal("the background wasn't stopped")
+	}
+	if answering != nil {
+		t.Errorf("Health() = %v as the background stopped, want the router answering: a claude launched meanwhile would go unrouted", answering)
+	}
+	if !<-stoppedFirst {
+		t.Error("the control API closed before the background had stopped, want it answering until then")
+	}
 }
 
 // holding is a router whose listeners are held to hand over, as one

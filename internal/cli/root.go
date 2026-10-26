@@ -21,6 +21,7 @@ import (
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
+	"github.com/leeovery/switchboard/internal/handover"
 	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/redact"
@@ -70,6 +71,10 @@ type Deps struct {
 	// Exec replaces this process with the program at path, as launch.Exec
 	// does. It returns only when it fails.
 	Exec func(path string, argv, env []string) error
+	// Check runs a program until it exits, returning what it wrote to its
+	// standard output, as handover.Run does. The router serve runs uses it to
+	// ask its binary whether it could start, before restarting into it.
+	Check handover.Runner
 	// Launchctl runs launchctl, as service.Launchctl does.
 	Launchctl service.Runner
 	// Hidden returns what reads a line typed at the terminal stdin is,
@@ -156,20 +161,28 @@ func Args(argv []string) []string {
 
 // Execute runs a command tree from NewRootCommand and returns the process's
 // exit status: 130 for a command the user interrupted, as a shell gives one
-// an interrupt ends, else 1 for one that failed. Cobra has already printed
-// any error; the log notes it too, as a warning unless it's expected or an
-// interrupt.
+// an interrupt ends, handover.Refused for serve's check refusing, else 1 for
+// one that failed. Cobra has already printed any error; the log notes it
+// too, as a warning unless it's expected or an interrupt.
 func Execute(root *cobra.Command) int {
 	status := 0
 	if cmd, err := root.ExecuteC(); err != nil {
 		logger.Log(context.Background(), failureLevel(err), "command failed", "command", cmd.CommandPath(), "error", err)
-		status = 1
-		if errors.Is(err, accounts.ErrInterrupted) {
-			status = interruptedStatus
-		}
+		status = exitStatus(err)
 	}
 	logs.Close(status)
 	return status
+}
+
+// exitStatus is the exit status of a command that failed with err.
+func exitStatus(err error) int {
+	if errors.Is(err, accounts.ErrInterrupted) {
+		return interruptedStatus
+	}
+	if _, ok := errors.AsType[refusal](err); ok {
+		return handover.Refused
+	}
+	return 1
 }
 
 // interruptedStatus is the exit status of a command the user interrupted:
@@ -221,14 +234,21 @@ type app struct {
 	// logLevel is the level serve's --log-level gives, or nil to log at the
 	// level SWITCHBOARD_LOG_LEVEL names.
 	logLevel slog.Leveler
+	// checking is set by serve's handover.CheckFlag: it checks what the
+	// router would start from, and serves nothing.
+	checking bool
 }
 
 // startLog starts this invocation's log, in the role the command plays: the
-// CLI's unless its annotation says otherwise. A command never fails for its
-// log, so without a state directory it logs nowhere.
+// CLI's unless its annotation says otherwise, or it's serve's check, which
+// plays no router's part. A command never fails for its log, so without a
+// state directory it logs nowhere.
 func (a *app) startLog(cmd *cobra.Command) {
 	dir, _ := a.logDir()
 	role := logs.Role(cmd.Annotations[roleAnnotation])
+	if a.checking {
+		role = logs.RoleCLI
+	}
 	logs.Init(logs.Options{
 		Dir:     dir,
 		Role:    role,

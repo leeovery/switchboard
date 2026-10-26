@@ -119,6 +119,8 @@ func TestLATELYTellsEachKindOfEventInItsSentence(t *testing.T) {
 			full: "restart due: the config changed", subject: "restart"},
 		{name: "a restart due for a reason of a later router's", event: status.Event{Kind: status.EventRestart, Reason: "the moon rose"},
 			full: "restart due: the moon rose", subject: "restart"},
+		{name: "a restart held, its binary refusing to start, saying why", event: status.Event{Kind: status.EventRestart, Reason: status.RestartForUpgrade, Held: "invalid config /test/config.toml:\naccount work: its label is longer than 100 characters"},
+			full: "restart held: invalid config /test/config.toml: account work: its label is longer than 100 characters", subject: "restart"},
 		{name: "the router unhealthy", event: status.Event{Kind: status.EventHealth, Reason: "most requests failing"},
 			full: "the router turned unhealthy: most requests failing", subject: "the router"},
 		{name: "the router healthy again", event: status.Event{Kind: status.EventHealth},

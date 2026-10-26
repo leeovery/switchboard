@@ -3,6 +3,7 @@ package router_test
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"io/fs"
@@ -18,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/handover"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/router"
@@ -103,6 +105,76 @@ func TestARestartingRouterReplacesItselfInPlace(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestARouterRestartingInPlaceKeepsWhatItsControlAPIChangesAsItStops(t *testing.T) {
+	s := newSelfWatching(t, true)
+	s.cfg.Upstream = newAccountsAPI(t).URL
+	// A move's notification hangs, as a notifier can, so what the router runs
+	// beside its servers is slow to stop.
+	notifier := &notes{hold: make(chan struct{})}
+	s.cfg.Notifier, s.cfg.Notifications = notifier, config.Notifications{Moves: true}
+	execs := replacing(&s.cfg)
+	r := startRouter(t, s.cfg)
+	client := router.NewClient(router.SocketPath(s.cfg.StateDir))
+	for _, pin := range []string{"work", "side"} {
+		if status, err := askPinned("http://"+s.cfg.Listen, pin); err != nil || status != http.StatusOK {
+			t.Fatalf("a request pinned to %s was answered %d (%v), want 200", pin, status, err)
+		}
+	}
+	waitUntil(t, "the move is told of", func() bool { return len(notifier.posted()) == 1 })
+	stream, err := client.Stream(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	pin := func(account string) error {
+		_, err := client.Pin(t.Context(), router.PinRequest{Accounts: []string{account}, By: router.ByCLI})
+		return err
+	}
+	if err := pin("work"); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := client.Restart(t.Context()); err != nil {
+		t.Fatalf("Restart() error = %v", err)
+	}
+	// The request stream ends once the drain is done, as the rest begins to
+	// stop; the pin set before is saved by then, or soon after.
+	for range stream {
+	}
+	waitUntil(t, "the pin to work is saved", func() bool {
+		saved, _ := os.ReadFile(filepath.Join(s.cfg.StateDir, "state.json"))
+		return slices.Equal(pinIn(saved), []string{"work"})
+	})
+	if err := pin("side"); err != nil {
+		t.Errorf("Pin() = %v as the router stops to restart, want it answered: a claude launched meanwhile would go unrouted", err)
+	}
+	close(notifier.hold)
+	r.waitForExit(t)
+	if got := pinIn([]byte(execs.only(t).saved)); !slices.Equal(got, []string{"side"}) {
+		t.Errorf("as it replaced itself, the state file held the global pin to %q, want the one set as it stopped, to side", got)
+	}
+	filed, err := filepath.Glob(filepath.Join(s.cfg.StateDir, "ledger", "events-*.jsonl"))
+	if err != nil || len(filed) != 1 {
+		t.Fatalf("the events filed are in %q (%v), want one day's file", filed, err)
+	}
+	if lines, err := os.ReadFile(filed[0]); err != nil || !strings.Contains(string(lines), `"kind":"pin","account":"side"`) {
+		t.Errorf("the events filed read\n%s\n(%v), want the pin to side, set as it stopped, among them", lines, err)
+	}
+}
+
+// pinIn returns the accounts of the global pin a state file's content, data,
+// holds: none where it holds none, or doesn't read as one.
+func pinIn(data []byte) []string {
+	var saved struct {
+		Pin struct {
+			Accounts []string `json:"accounts"`
+		} `json:"pin"`
+	}
+	if json.Unmarshal(data, &saved) != nil {
+		return nil
+	}
+	return saved.Pin.Accounts
 }
 
 func TestARouterThatCantReplaceItselfExitsForLaunchdToStartItAgain(t *testing.T) {
@@ -330,8 +402,10 @@ func TestARouterRefusesToRestartWhenItCant(t *testing.T) {
 	tests := []struct {
 		name       string
 		supervised bool
-		// change changes what the router was started from.
+		// change changes what the router was started from, and answer is
+		// how its binary answers whether it could start.
 		change func(t *testing.T, s *selfWatching)
+		answer checkAnswer
 		want   string
 	}{
 		{
@@ -344,11 +418,18 @@ func TestARouterRefusesToRestartWhenItCant(t *testing.T) {
 			change:     func(t *testing.T, s *selfWatching) { writeFile(t, s.config, notAConfig) },
 			want:       "the router's config file doesn't make a valid config, which it couldn't start again from: invalid config ",
 		},
+		{
+			name:       "its binary refusing to start",
+			supervised: true,
+			answer:     refusing("invalid config: account work: its label is longer than 100 characters"),
+			want:       "the router's binary refuses to start, so the router started again would stop: invalid config: account work: its label is longer than 100 characters",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := newSelfWatching(t, tt.supervised)
 			execs := replacing(&s.cfg)
+			checking(&s.cfg, tt.answer)
 			r := startRouter(t, s.cfg)
 			if tt.change != nil {
 				tt.change(t, s)

@@ -237,6 +237,7 @@ event can change, so when you read one that changed, take its last version.
 | `from` | The account a session moved from. |
 | `to` | The account a session moved to. Also, where the sessions a limit, a cap or a refusal moved all went to one account, that account. |
 | `reason` | Why: why a session went to its account, why a restart is due, or why the router turned unhealthy. |
+| `held` | On a restart, why the binary the router would become refuses to start, which holds the restart. |
 | `windows` | The keys of the windows the event is of. |
 | `joined` | On a limit or a cap, when each window that came to be held by it after it began did so, by the window's key. See below. |
 | `until` | When a limit, cap or refusal ends, or a window runs out or resets. A limit or a refusal that lifts early has it brought forward to the lift. |
@@ -262,7 +263,8 @@ event can change, so when you read one that changed, take its last version.
 - `primed`.
 - `room`: an account with room again.
 - `pin` and `auto`: routing set by hand, and routing given back.
-- `restart`: a restart falling due.
+- `restart`: a restart falling due, or held, with `held`, as the binary the router would become
+  refuses to start.
 - `health`: the router's own health turning.
 
 `joined` shows, for example, the 5-hour window joining a cap of Fable's week. It's left out where
@@ -288,7 +290,7 @@ no window joined. A window that `joined` leaves out was held from `at`.
 | `prime` | The priming schedule: the day, the window a prime starts, and each account's slot. |
 | `pin` | The global pin: the accounts it names, since when, and whether it moved the running sessions. |
 | `router` | The router's health over the last 5 minutes. |
-| `restart` | A restart the router has due. |
+| `restart` | A restart the router has due, and, as `held`, why the binary it would become refuses to start, where that holds it. |
 | `sessions` | How many sessions the router has routed in the last hour. |
 | `events` | What's happened lately, newest first. |
 | `pool` | The room new sessions can go to, summed across the pool's accounts, and their mean use. |

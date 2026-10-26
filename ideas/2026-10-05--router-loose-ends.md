@@ -31,7 +31,11 @@ only when something rare happens.
   connections nothing answers yet, so a `claude` started then can miss the half second `run` gives
   the router to answer, and run its whole session unrouted. It predates the ledger; the drain's
   wait for the requests it cuts off, moved inside the drain, narrowed it. A fix: on the handover
-  path, stop the background before the control API closes.
+  path, stop the background before the control API closes. **Built** in the cleanliness release,
+  26 October 2026: restarting in place, the router stops all it runs beside its servers, the
+  notifications' finishing among it, while the control API answers, and closes it only then; the
+  state file is kept, and the events filed, until it has, so a pin or an assignment it takes
+  meanwhile is saved for the router it becomes (`serve`, `drainHandingOver`).
 - **Compressing a day's file holds the whole day in memory.** `compress`
   (`internal/dayfile/dayfile.go`) reads the day's plain lines whole, and its compressed file, whole
   and decoded, to tell whether it ends with them already, then compresses them as a gzip member held

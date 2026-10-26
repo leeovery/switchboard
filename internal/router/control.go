@@ -184,14 +184,15 @@ type problem struct {
 // restarts the router at once, as it restarts itself but for waiting for a
 // moment with no request in flight, answering, before it goes, as GET /health
 // does, and whether it means to restart in place; it refuses, saying why, when
-// it can't restart, as run by hand.
+// it can't restart, as run by hand, or with its binary refusing to start.
 func (r *Router) Control() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, r.healthNow())
 	})
-	mux.HandleFunc("POST /restart", func(w http.ResponseWriter, _ *http.Request) {
-		if err := r.upkeep.restartable(); err != nil {
+	mux.HandleFunc("POST /restart", func(w http.ResponseWriter, req *http.Request) {
+		cleared, err := r.upkeep.restartable(req.Context())
+		if err != nil {
 			writeProblem(w, http.StatusConflict, err.Error())
 			return
 		}
@@ -199,7 +200,7 @@ func (r *Router) Control() http.Handler {
 		// The answer goes out before the restart begins: the router can stop
 		// answering at once.
 		_ = http.NewResponseController(w).Flush()
-		r.upkeep.restartNow()
+		r.upkeep.restartNow(cleared)
 	})
 	mux.HandleFunc("GET /status", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, r.Status())

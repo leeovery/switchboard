@@ -112,7 +112,7 @@ func newStatusLine(m status.Moment) statusLine {
 	}
 	s.short = s.state
 	if m.Restart.Due() {
-		s.restart = line{{"restart due (" + prose.Clean(m.Restart.Reason) + ")", warningInk}}
+		s.restart = line{{m.Restart.Label(), warningInk}}
 	}
 	if !m.Pin.IsZero() {
 		s.mode = line{{"pinned to " + names(m, m.Pin.Accounts), alertInk}}

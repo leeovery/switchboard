@@ -41,6 +41,12 @@ This page shows where to look when switchboard doesn't do what you expect, and h
   file damaged where its size hasn't changed isn't noticed by the router, and that day reads its
   lines at every day back: delete that day's `rows-<date>.gz`, and the router writes it again on its
   next round.
+- **A restart held after an upgrade:** when the new version refuses your config, as it can where
+  its rules are stricter, the router keeps running the old version rather than restart into one
+  that would stop. `switchboard status` gives the restart as held, with the refusal, and the
+  dashboard's status line reads `restart held (upgraded)`; `switchboard status --json` gives the
+  refusal as `restart.held`, and the router's log has it at warn. Put the config right as it says,
+  and the router restarts at its next quiet moment. See [Restarts](how-it-works.md#restarts).
 - **`claude` won't start, the router down:** with the router not running, or not healthy, `claude`
   starts nothing and says so. Run [`switchboard service status`](commands.md#service) to see
   whether the LaunchAgent is installed and loaded and how the router answers, then

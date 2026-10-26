@@ -114,7 +114,8 @@ const (
 	// EventAuto is routing given back to the router: the global pin cleared,
 	// or a session's own.
 	EventAuto = "auto"
-	// EventRestart is a restart falling due.
+	// EventRestart is a restart falling due, or held, as the router's binary
+	// refuses to start.
 	EventRestart = "restart"
 	// EventHealth is the router turning unhealthy, or healthy again.
 	EventHealth = "health"
@@ -150,6 +151,9 @@ type Event struct {
 	// Reason says why: why a session went to its account, as the router's log
 	// has it, why a restart is due, or why the router turned unhealthy.
 	Reason string `json:"reason,omitempty"`
+	// Held is, of a restart's, why the router's binary refuses to start, as
+	// it said, which holds the restart: "" for one falling due.
+	Held string `json:"held,omitempty"`
 	// Windows are the keys of the windows it's of: those a limit was reached
 	// in, those at a cap's reserve, the one a prime started, the one under
 	// pressure, or those that held back an account that has room again.
@@ -202,7 +206,7 @@ type Event struct {
 // the same, so what's built of the one stands for the other.
 func (e Event) Same(o Event) bool {
 	return e.ID == o.ID && e.At.Equal(o.At) && e.Kind == o.Kind && e.Account == o.Account && slices.Equal(e.Accounts, o.Accounts) &&
-		e.Session == o.Session && e.Model == o.Model && e.From == o.From && e.To == o.To && e.Reason == o.Reason &&
+		e.Session == o.Session && e.Model == o.Model && e.From == o.From && e.To == o.To && e.Reason == o.Reason && e.Held == o.Held &&
 		slices.Equal(e.Windows, o.Windows) && maps.EqualFunc(e.Joined, o.Joined, time.Time.Equal) && e.Until.Equal(o.Until) &&
 		e.Since.Equal(o.Since) && e.Count == o.Count && e.Limit == o.Limit && e.ForcedBy == o.ForcedBy && e.Reserve == o.Reserve &&
 		e.Status == o.Status && e.Family == o.Family && e.Move == o.Move && e.Force == o.Force && e.By == o.By
@@ -242,8 +246,8 @@ const (
 
 // Restart is a restart the router has due, having found what it was started
 // from changed, such as its config file. The service's router restarts
-// itself once no request is in flight; one run by hand, only when it's run
-// again.
+// itself once no request is in flight, unless its binary refuses to start,
+// which holds it; one run by hand, only when it's run again.
 type Restart struct {
 	// Reason says why it's due, such as "config changed".
 	Reason string `json:"reason"`
@@ -254,6 +258,10 @@ type Restart struct {
 	InFlight int `json:"in_flight"`
 	// ByHand is set when the router was run by hand, with serve.
 	ByHand bool `json:"by_hand,omitempty"`
+	// Held says why the router's binary refuses to start, as it said, which
+	// holds the restart until the config file or the binary changes: "" while
+	// it isn't held.
+	Held string `json:"held,omitempty"`
 }
 
 // Due reports whether a restart is due.

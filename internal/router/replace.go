@@ -63,14 +63,15 @@ func (r *Router) hold(ls listeners) *handover.Held {
 // does, while the control API answers, so a session launched meanwhile sends
 // its requests to the proxy's socket, held open, where they wait for the
 // router this one becomes; then ends the request stream, its readers writing
-// what they were told of, closes the control API, and returns held, to hand
-// over. Told to stop meanwhile, as by a signal, it stops as at one after
-// all: the sockets held close, so no request waits on one nothing will take
-// up, its control socket is removed, and then the control API goes, so a
-// launcher that finds the router gone finds nothing on its proxy's address
-// either, and connects directly; it returns nil once the requests in flight
-// have finished.
-func (r *Router) drainHandingOver(ctx context.Context, control *http.Server, proxy proxyServer, held *handover.Held) *handover.Held {
+// what they were told of, and has stopBackground stop what the router runs
+// beside its servers, the control API answering still, closes the control
+// API, and returns held, to hand over. Told to stop meanwhile, as by a
+// signal, it stops as at one after all: the sockets held close, so no
+// request waits on one nothing will take up, its control socket is removed,
+// and then the control API goes, so a launcher that finds the router gone
+// finds nothing on its proxy's address either, and goes as it does with the
+// router down; it returns nil once the requests in flight have finished.
+func (r *Router) drainHandingOver(ctx context.Context, control *http.Server, proxy proxyServer, held *handover.Held, stopBackground func()) *handover.Held {
 	refuse(proxy.Server)
 	drained := make(chan struct{})
 	go func() {
@@ -93,6 +94,7 @@ func (r *Router) drainHandingOver(ctx context.Context, control *http.Server, pro
 		return nil
 	}
 	r.stream.end(streamEndWait)
+	stopBackground()
 	_ = control.Close()
 	return held
 }

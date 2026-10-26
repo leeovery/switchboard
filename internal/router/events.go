@@ -10,7 +10,8 @@ import (
 // Event is news from the router that something outside it may want to act
 // on, such as by notifying the user: SessionStarted, LimitReached,
 // LimitLifted, Moved, Refused, RefusalLifted, HealthChanged, Primed,
-// RestartDue, Pinned or Unpinned. Config.Events hears each as it happens.
+// RestartDue, RestartHeld, Pinned or Unpinned. Config.Events hears each as it
+// happens.
 type Event interface {
 	event()
 }
@@ -130,6 +131,14 @@ type RestartDue struct {
 	Reason string
 }
 
+// RestartHeld is the restart due, for Reason, held, as the router's binary
+// refuses to start, saying why: Refusal. It tells of the refusal, and of a
+// restart falling due again while the refusal still holds it.
+type RestartHeld struct {
+	Reason  string
+	Refusal string
+}
+
 // Pinned is routing set by hand: where Session is "", the global pin, to
 // Accounts, in the order configured, Account the first of them, moving the
 // running sessions too where Move is set, and having cleared every session's
@@ -164,6 +173,7 @@ func (RefusalLifted) event()  {}
 func (HealthChanged) event()  {}
 func (Primed) event()         {}
 func (RestartDue) event()     {}
+func (RestartHeld) event()    {}
 func (Pinned) event()         {}
 func (Unpinned) event()       {}
 

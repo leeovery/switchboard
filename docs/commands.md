@@ -484,6 +484,8 @@ on the router:
 | Answering, but can't replace itself | Asks the router to restart, as above, and launchd starts it again. |
 | Run by hand | The router refuses, and `restart` says why. |
 | Answering, with a config that isn't valid | The router refuses, as it couldn't start again from that config, and `restart` says why. |
+| Answering, with a binary that refuses to start | The router asks the binary it would become first. Where that refuses, as a newer version can refuse a config the running one takes, the router refuses too, and `restart` says why, in the binary's words. |
+| Answering, mid-upgrade | Where the binary isn't there, as for a moment while an upgrade moves it, or the config or the binary changes as the router checks whether it could restart, the router refuses, and `restart` names what changed and says to try again. |
 | From before routers restarted in place | The router stops as at a signal, and launchd starts it again. |
 | Not answering | launchd starts the service afresh at once. |
 
@@ -493,7 +495,9 @@ can't replace itself, `…, then launchd starts it again`. Then it waits up to 5
 router to answer.
 
 When the router has a restart due, it waits for a moment with no request in flight. To have the
-restart now, run `switchboard service restart`, as `switchboard status` says.
+restart now, run `switchboard service restart`, as `switchboard status` says. When the restart is
+held, as the binary the router would become refuses to start, `status` gives the refusal instead:
+put the config right as it says.
 
 #### `service uninstall` and `service status`
 
@@ -885,7 +889,7 @@ The events cover:
 - sessions started and moved;
 - accounts under pressure, at their caps and limits, refused, primed, and open again;
 - pins set and cleared;
-- restarts falling due; and
+- restarts falling due, or held; and
 - the router's health.
 
 They're listed oldest first, under the day each happened on. Each event shows once, as it last
@@ -991,12 +995,17 @@ The service's router restarts when the config changes into one that's valid, whe
 the link to another binary, or when the time zone changes. To restart, it:
 
 1. Waits for a moment with no request in flight.
-2. Saves its state.
-3. Replaces itself in place with the binary the link leads to, handing it the sockets it listens on.
+2. Asks the binary the link leads to whether it can start from the config.
+3. Saves its state.
+4. Replaces itself in place with the binary the link leads to, handing it the sockets it listens on.
 
 Some cases go differently:
 
 - **A config that isn't valid** is logged, and the router carries on as it was.
+- **A binary that refuses to start,** as a newer version can refuse a config the running one
+  takes, holds the restart: the router carries on as it was, and says why in its log, its events
+  and `status --json`'s `restart`. It asks again once the config or the binary changes. A binary
+  from before the check can't answer, and the router restarts into it as before.
 - **A binary that isn't there,** as for a moment while `brew upgrade` moves the link on, is tried
   again for a couple of seconds. If replacing itself still fails, the router exits, and launchd
   starts it again.

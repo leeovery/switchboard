@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"slices"
 	"strings"
 	"syscall"
 
@@ -43,12 +44,28 @@ It logs to the router's log, and to the terminal when it runs in one.
 		Args:        noArgs,
 		Annotations: map[string]string{roleAnnotation: string(logs.RoleRouter)},
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if a.checking {
+				return a.check(cmd)
+			}
 			a.trimLaunchdLog(cmd.OutOrStdout(), cmd.ErrOrStderr())
 			return a.serve(cmd.Context())
 		},
 	}
 	cmd.Flags().Var(levelFlag{&a.logLevel}, "log-level",
 		"log at `LEVEL` and above: debug, info, warn or error (default $SWITCHBOARD_LOG_LEVEL, else info)")
+	cmd.Flags().BoolVar(&a.checking, handover.CheckFlag, false, "check what the router would start from, the config above all, and exit")
+	_ = cmd.Flags().MarkHidden(handover.CheckFlag)
+	cmd.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
+		err = hideTokens(cmd, err)
+		// The command line is read up to a flag it can't take, as one the
+		// router was started with that this version no longer takes, and the
+		// router asking puts the check's own last, so it's looked for in the
+		// command line itself.
+		if slices.Contains(a.Args, "--"+handover.CheckFlag) {
+			return refuse(cmd, err)
+		}
+		return err
+	})
 	return cmd
 }
 
@@ -64,20 +81,81 @@ func (a *app) serve(ctx context.Context) error {
 		return err
 	}
 	configFile, binary, zone := router.Watch(path), router.Watch(a.binary()), router.Watch(a.ZoneFile)
-	cfg, err := a.loadConfigAt(path)
+	cfg, files, err := a.startingFrom(path)
 	if err != nil {
 		return err
 	}
-	stateDir, err := config.StateDir(a.Getenv, a.HomeDir)
-	if err != nil {
-		return err
-	}
-	files := tokens.NewStore(stateDir, a.UID)
+	cfg.ConfigFile, cfg.Binary, cfg.Zone = configFile, binary, zone
 	tighten(files)
 	a.refreshSkill()
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	return router.Run(ctx, router.Config{
+	return router.Run(ctx, cfg)
+}
+
+// check checks what serve would start the router from, as a router about to
+// restart into this binary asks with handover.CheckFlag, and answers as
+// handover.Ask reads the answer: nothing, when the router could start, else
+// why it couldn't, refusing.
+func (a *app) check(cmd *cobra.Command) error {
+	if err := a.startable(); err != nil {
+		return refuse(cmd, err)
+	}
+	return nil
+}
+
+// startable fails, saying why, where serve would fail before the router
+// listens: where its config file can't be found, or the router couldn't start
+// from what it's read from, as router.Startable says.
+func (a *app) startable() error {
+	path, err := a.configFile()
+	if err != nil {
+		return err
+	}
+	cfg, _, err := a.startingFrom(path)
+	if err != nil {
+		return err
+	}
+	return router.Startable(cfg)
+}
+
+// refuse answers a router asking with handover.CheckFlag that the router
+// couldn't start, err saying why: on standard output alone, and by exiting
+// handover.Refused, as Execute has a refusal exit.
+func refuse(cmd *cobra.Command, err error) error {
+	cmd.SilenceErrors, cmd.SilenceUsage = true, true
+	// The exit status refuses whether or not why is written.
+	_, _ = io.WriteString(cmd.OutOrStdout(), err.Error()+"\n")
+	// The router asking says why at warn, so the log of the check notes it
+	// only at debug.
+	return expected{refusal{err}}
+}
+
+// refusal is serve's check refusing, as refuse answers.
+type refusal struct {
+	error
+}
+
+func (r refusal) Unwrap() error {
+	return r.error
+}
+
+// startingFrom reads what serve starts the router from, given its config
+// file's path: the router's config, but for the files it watches, which serve
+// finds before it reads the config file, and the token files it reads. It
+// fails where the config file doesn't make a valid config, or the state
+// directory can't be found.
+func (a *app) startingFrom(path string) (router.Config, tokens.Store, error) {
+	cfg, err := a.loadConfigAt(path)
+	if err != nil {
+		return router.Config{}, tokens.Store{}, err
+	}
+	stateDir, err := config.StateDir(a.Getenv, a.HomeDir)
+	if err != nil {
+		return router.Config{}, tokens.Store{}, err
+	}
+	files := tokens.NewStore(stateDir, a.UID)
+	return router.Config{
 		Accounts:      cfg.Accounts,
 		Token:         files.Read,
 		Upstream:      cfg.Upstream,
@@ -94,16 +172,14 @@ func (a *app) serve(ctx context.Context) error {
 		Digester:      views.Digests{},
 		Listen:        cfg.Listen,
 		StateDir:      stateDir,
-		ConfigFile:    configFile,
-		Binary:        binary,
-		Zone:          zone,
 		Supervised:    a.Getenv(launchdJob) == service.Label,
 		Exec:          a.Exec,
+		Check:         a.Check,
 		Args:          a.Args,
 		Environ:       a.Environ(),
 		Handed:        a.Getenv(handover.Variable),
 		WatchEvery:    a.WatchEvery,
-	})
+	}, files, nil
 }
 
 // launchdJob is the variable launchd sets to the label of the job it runs a

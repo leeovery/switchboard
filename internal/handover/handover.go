@@ -1,7 +1,8 @@
 // Package handover hands a process's listening sockets to the program it
 // replaces itself with, by exec, and takes them up in that program. The
 // sockets stay open throughout, so a connection made meanwhile waits to be
-// accepted, never refused.
+// accepted, never refused. It asks that program first whether it could
+// start, so a process holds on rather than hand over to one that couldn't.
 package handover
 
 import (
@@ -208,10 +209,14 @@ func (h handed) String() string {
 
 // set returns env with Variable naming h, in place of any value it had.
 func (h handed) set(env []string) []string {
-	kept := slices.DeleteFunc(slices.Clone(env), func(variable string) bool {
+	return append(without(env), Variable+"="+h.String())
+}
+
+// without returns env less Variable.
+func without(env []string) []string {
+	return slices.DeleteFunc(slices.Clone(env), func(variable string) bool {
 		return strings.HasPrefix(variable, Variable+"=")
 	})
-	return append(kept, Variable+"="+h.String())
 }
 
 // close closes the descriptors h names.

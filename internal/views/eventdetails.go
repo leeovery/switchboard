@@ -222,6 +222,9 @@ func (d detailing) headline() status.Words {
 		}
 		return clause("new sessions back to the router's choice")
 	case status.EventRestart:
+		if restartHeld(e) != "" {
+			return clause("restart held")
+		}
 		return clause("restart due")
 	case status.EventHealth:
 		if d.row.Well {
@@ -272,6 +275,7 @@ func (d detailing) happened() []DetailItem {
 		items = d.pinned()
 	case status.EventRestart:
 		items.add("why", saidWords(restartWhy(e.Reason)))
+		items.add("held", saidWords(restartHeld(e)))
 	case status.EventHealth:
 		items.add("why", saidWords(prose.Clean(e.Reason)))
 	}
