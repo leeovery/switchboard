@@ -221,9 +221,6 @@ func TestEachSelectedRowIsReversedWithoutColourAndOnBgSelectionInColour(t *testi
 	cursor := routedCard(func(r *RoutingCard) { r.Cursor = 2 })
 	card, _ := drawnLit(Frame{Width: 160, Height: 37}, cursor)
 	phoneCard, _ := drawnLit(Frame{Width: 52, Height: 40}, cursor)
-	focused := frameOf(160, 60)
-	focused.Sections, focused.Focus = Sections{}.Toggled(SectionGraphs), "personal"
-	_, usage := usageBody(focused, threeRouted(), now, 11)
 	titled := func(width int) *canvas {
 		f := Frame{Width: width, Height: 3, View: Sessions}
 		c := newCanvas(f.Width, f.Height)
@@ -238,7 +235,6 @@ func TestEachSelectedRowIsReversedWithoutColourAndOnBgSelectionInColour(t *testi
 	}{
 		{name: "the routing card's cursor", c: card, rows: []int{15}},
 		{name: "on a phone, the cursor's account's both lines", c: phoneCard, rows: []int{16, 17}},
-		{name: "the Overview's focus", c: usage, rows: []int{4}},
 		{name: "the title's tab", c: titled(160), rows: []int{0}},
 		{name: "on a phone, the title's tab, on the tabs' second row", c: titled(52), rows: []int{2}},
 	}

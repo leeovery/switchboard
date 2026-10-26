@@ -81,7 +81,7 @@ func (f Frame) poolStackHelp() helpPart {
 				"the config's order, each in its own colour, as the key names them, so the stack's top edge is the pool's " +
 				"room, full being every account's. The pool's first " + strconv.Itoa(accountHues) + " accounts each have a colour " +
 				"of their own; a fifth on takes the colour four before it, fainter."),
-			said("Before now, each account's room as it stood, judged as the Overview's pool charts judge it; from now, faint, " +
+			said("Before now, each account's room as it stood, as Runway judges it; from now, faint, " +
 				"where it's heading at its recent rate: falling to where it runs out, along its floor to its reset, then full, " +
 				"as nothing is known of its next window. Where two accounts meet in a cell, the lower's share is drawn on the " +
 				"upper's colour, and the top cell is the colour of the account with most of it, so the top edge reads as the " +

@@ -2,7 +2,6 @@ package dashboard
 
 import (
 	"fmt"
-	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -863,33 +862,6 @@ func TestAnAccountsStateNewlyChangedIsCued(t *testing.T) {
 				t.Errorf("personal's state is in %+v, want it not cued", personal)
 			}
 		})
-	}
-}
-
-func TestEachAccountsRowsInROUTINGAreItsTargets(t *testing.T) {
-	doc, _ := autoRouting()
-	tests := []struct {
-		name  string
-		width int
-		rows  int
-		want  map[string][]int
-	}{
-		{name: "size 1", width: 160, rows: 4, want: map[string][]int{"work": {10}, "personal": {11}, "side": {12}}},
-		{name: "size 2", width: 160, rows: 9, want: map[string][]int{"work": {10, 11}, "personal": {13, 14}, "side": {16, 17}}},
-		{name: "its row's parts not fitting a row", width: 82, rows: 8, want: map[string][]int{"work": {10, 11}, "personal": {13, 14}, "side": {16, 17}}},
-	}
-	for _, tt := range tests {
-		f := Frame{Width: tt.width, Height: 40, View: Overview, Policy: claudeLike}
-		got := make(map[string][]int)
-		for _, target := range f.routingSection(doc, routedAt).targets(bounds{y: 10, width: tt.width, rows: tt.rows}) {
-			if target.On != OnAccount || target.X != 0 || target.Width != tt.width {
-				t.Errorf("%s: target %+v, want an account's, the frame's width", tt.name, target)
-			}
-			got[target.Account] = append(got[target.Account], target.Y)
-		}
-		if !maps.EqualFunc(got, tt.want, slices.Equal) {
-			t.Errorf("%s: targets on rows %v, want %v", tt.name, got, tt.want)
-		}
 	}
 }
 

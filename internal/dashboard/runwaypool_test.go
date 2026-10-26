@@ -40,7 +40,7 @@ func framesDoc() status.Document {
 
 // The pool's columns are each as high as the share of the pool's accounts
 // with room, of its two rows, in eighths of a cell, rounded half to even:
-// full cells a background, the top cell part-filled, as GRAPHS fills its
+// full cells a background, the top cell part-filled, as Graphs fills its
 // columns; coloured as usage colours the pool's use, the share without
 // room, its ramp's first stop under 70%, its second from 70%, its last from
 // 90%, and with any room, ▃ at the least; ▂ in state.destructive on its
@@ -208,7 +208,7 @@ func mixed(t *testing.T, fade float64, tok theme.Token) string {
 }
 
 // Where the look blends nothing, as NO_COLOR's, a full cell of the pool's
-// columns is █, as GRAPHS draws one.
+// columns is █, as Graphs draws one.
 func TestThePoolsFullCellsAreBlocksWhereTheLookBlendsNothing(t *testing.T) {
 	doc := runwayDoc(3)
 	columns := slices.Repeat([]views.PoolColumn{{With: 2, Known: true}}, RunwayShown{}.Columns(160))

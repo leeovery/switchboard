@@ -34,4 +34,4 @@ WEEK
 
 
 
-tab views     u usage  g graphs  r routing  s sessions  c coming up  l lately  b by: window     ↑↓ focus  p pin  ? help  q quit
+tab views     u usage  r routing  s sessions  c coming up  l lately  b by: window     p pin  ? help  q quit

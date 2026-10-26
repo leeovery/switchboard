@@ -75,7 +75,7 @@ func TestAKeysWordsAreDrawnAsItStands(t *testing.T) {
 	}{
 		{key: pin, want: line{{"p", keyInk}, {" pin", mutedInk}}},
 		{key: Key{Key: "p", Does: "pin", Off: true}, want: line{{"p pin", faintInk}}},
-		{key: Key{Key: "g", Does: "graphs", Hidden: true}, want: line{{"g", keyInk}, {" graphs", faintInk}}},
+		{key: Key{Key: "s", Does: "sessions", Hidden: true}, want: line{{"s", keyInk}, {" sessions", faintInk}}},
 		{key: Key{Key: "b", Does: "by", State: "window"}, want: line{{"b", keyInk}, {" by: ", mutedInk}, {"window", secondaryInk}}},
 		{key: Key{Key: "b", Does: "by", State: "window", Off: true}, want: line{{"b by: window", faintInk}}},
 	}
@@ -128,11 +128,11 @@ func TestAPhonesKeyLineKeepsTheKeysItEndsWith(t *testing.T) {
 
 func TestAWideKeyLineThatDoesntFitWholeIsLaidOutAsAPhones(t *testing.T) {
 	toggles := []Key{
-		{Key: "u", Does: "usage"}, {Key: "g", Does: "graphs"}, {Key: "r", Does: "routing"}, {Key: "s", Does: "sessions"},
+		{Key: "u", Does: "usage"}, {Key: "r", Does: "routing"}, {Key: "s", Does: "sessions"},
 		{Key: "c", Does: "coming up"}, {Key: "l", Does: "lately"}, {Key: "b", Does: "by", State: "window"},
 	}
-	l := KeyLine{Groups: [][]Key{{tabViews}, toggles, {{Key: "↑↓", Does: "focus"}, pin, helpQuit[0], helpQuit[1]}}, Lead: 5, After: 5, PhoneHelp: "keys and toggles"}
-	wide := "tab views     u usage  g graphs  r routing  s sessions  c coming up  l lately  b by: window     ↑↓ focus  p pin  ? help  q quit"
+	l := KeyLine{Groups: [][]Key{{tabViews}, toggles, {{Key: "↑↓", Does: "scroll"}, pin, helpQuit[0], helpQuit[1]}}, Lead: 5, After: 5, PhoneHelp: "keys and toggles"}
+	wide := "tab views     u usage  r routing  s sessions  c coming up  l lately  b by: window     ↑↓ scroll  p pin  ? help  q quit"
 	tests := []struct {
 		name  string
 		width int

@@ -114,10 +114,10 @@ func TestAClickOffEveryTargetDoesNothing(t *testing.T) {
 			if _, on := targetAt(targets, x, y); on {
 				continue
 			}
-			if h.click(x, y) || h.model.view != was.view || h.model.open != nothingOpen || h.model.focus != was.focus ||
+			if h.click(x, y) || h.model.view != was.view || h.model.open != nothingOpen || h.model.scroll != was.scroll ||
 				h.model.sections != was.sections || h.model.by != was.by || h.model.picker.open || len(h.source.orders) > 0 {
-				t.Fatalf("a click at %d,%d, on no target, acted: showing %q, open %v, focus on %q, sections %v, by %v, orders %q",
-					x, y, h.model.view, h.model.open, h.model.focus, h.model.sections.Names(), h.model.by, h.source.orders)
+				t.Fatalf("a click at %d,%d, on no target, acted: showing %q, open %v, scrolled %d, sections %v, by %v, orders %q",
+					x, y, h.model.view, h.model.open, h.model.scroll, h.model.sections.Names(), h.model.by, h.source.orders)
 			}
 		}
 	}
@@ -224,10 +224,9 @@ func TestAClickOnTheOverviewsKeysActsAsTheKey(t *testing.T) {
 		// acted reports whether the key acted, as the model now stands.
 		acted func(m Model) bool
 	}{
-		{drawn: "g graphs", acted: func(m Model) bool { return m.sections.Has(dashboard.SectionGraphs) }},
+		{drawn: "s sessions", acted: func(m Model) bool { return m.sections.Has(dashboard.SectionSessions) }},
 		{drawn: "l lately", acted: func(m Model) bool { return !m.sections.Has(dashboard.SectionLately) }},
 		{drawn: "b by: window", acted: func(m Model) bool { return m.by == dashboard.ByAccount }},
-		{drawn: "↑↓ focus", acted: func(m Model) bool { return m.focus == "personal" }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.drawn, func(t *testing.T) {
@@ -356,7 +355,7 @@ func pickerOpened(t *testing.T, h *harness, keys string) *fakeThemes {
 // does nothing, as no key reaches past the picker: each of two on any target
 // left of the picker but a key's leaves the screen as it was, colours and
 // all, the picker open on the theme it shows, nothing kept, no card open, no
-// page opened or closed, and the Overview's focus and what Accounts shows
+// page opened or closed, and the Overview's scroll and what Accounts shows
 // where they were. On the Log, two clicks on a line, which choose it and
 // open its details as enter does, neither choose it nor open them; on
 // Accounts, two on any of its targets, its sub-tabs, Compare's columns, or
@@ -430,7 +429,6 @@ func TestWhileThePickerIsOpenAClickUnderItDoesNothing(t *testing.T) {
 		{name: "a section's heading", opened: onTheOverview(""), target: is(dashboard.OnSection, func(dashboard.Target) bool { return true })},
 		{name: "a Graphs section's heading", opened: onGraphs, target: is(dashboard.OnPress, func(t dashboard.Target) bool { return t.Key == "w" })},
 		{name: "the Log's ▼ N new", opened: onTheLogPaused, target: is(dashboard.OnPress, func(t dashboard.Target) bool { return t.Key == "end" })},
-		{name: "an account's row", opened: onTheOverview(""), target: is(dashboard.OnAccount, func(t dashboard.Target) bool { return t.Account == "personal" })},
 		{name: "a session's row", opened: onTheOverview("s c l"), target: is(dashboard.OnSession, func(t dashboard.Target) bool { return t.Session == idD28C })},
 		{name: "a turn's row", opened: onPage(""), target: is(dashboard.OnTurn, func(t dashboard.Target) bool { return t.Turn == 2 })},
 		{name: "a request's row of the turn open", opened: onPage("enter"), target: is(dashboard.OnRequest, func(t dashboard.Target) bool { return t.Row == 1 })},
@@ -473,14 +471,14 @@ func TestWhileThePickerIsOpenAClickUnderItDoesNothing(t *testing.T) {
 			if i < 0 {
 				t.Fatalf("the page gives no such target left of the picker among %+v", h.targets())
 			}
-			target, screen, cursor, focus := h.targets()[i], h.model.View().Content, h.model.picker.cursor, h.model.focus
+			target, screen, cursor, scroll := h.targets()[i], h.model.View().Content, h.model.picker.cursor, h.model.scroll
 			page, accounts := h.pageOpen(), h.model.accounts.shown
 
 			for click := range 2 {
 				h.click(target.X, target.Y)
-				if !h.model.picker.open || h.model.picker.cursor != cursor || len(themes.kept) > 0 || h.model.open != nothingOpen || h.model.focus != focus {
-					t.Fatalf("click %d on %+v left the picker open %t, its cursor on %d, kept %v, card %d open, the focus on %q; want the picker open on %d, nothing kept, no card, the focus on %q",
-						click+1, target, h.model.picker.open, h.model.picker.cursor, themes.kept, h.model.open, h.model.focus, cursor, focus)
+				if !h.model.picker.open || h.model.picker.cursor != cursor || len(themes.kept) > 0 || h.model.open != nothingOpen || h.model.scroll != scroll {
+					t.Fatalf("click %d on %+v left the picker open %t, its cursor on %d, kept %v, card %d open, scrolled %d; want the picker open on %d, nothing kept, no card, scrolled %d",
+						click+1, target, h.model.picker.open, h.model.picker.cursor, themes.kept, h.model.open, h.model.scroll, cursor, scroll)
 				}
 				if h.pageOpen() != page || !reflect.DeepEqual(h.model.accounts.shown, accounts) {
 					t.Fatalf("click %d on %+v left %q's page open, Accounts showing %+v; want %q's, Accounts showing %+v", click+1, target, h.pageOpen(), h.model.accounts.shown, page, accounts)

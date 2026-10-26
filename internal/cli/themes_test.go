@@ -135,7 +135,9 @@ func TestDashboardShowsTheOverviewsSectionsKept(t *testing.T) {
 		want        []string
 	}{
 		{name: "none kept: those shown at first", prefs: `{"tab": "overview"}`, want: []string{"usage", "routing", "coming", "lately"}},
-		{name: "those kept", prefs: `{"sections": ["graphs", "usage"]}`, want: []string{"usage", "graphs"}},
+		{name: "those kept", prefs: `{"sections": ["routing", "usage"]}`, want: []string{"usage", "routing"}},
+		{name: "v0.2.7's, GRAPHS among them and its burn-down: the rest", prefs: `{"graphs": "burn-down", "sections": ["usage", "graphs", "routing", "lately"]}`, want: []string{"usage", "routing", "lately"}},
+		{name: "v0.2.7's, GRAPHS alone: none", prefs: `{"sections": ["graphs"]}`, want: []string{}},
 		{name: "none shown, kept as none", prefs: `{"sections": []}`, want: []string{}},
 		{name: "one a later switchboard names passed over", prefs: `{"sections": ["usage", "a-later-section"]}`, want: []string{"usage"}},
 	}
@@ -204,30 +206,6 @@ func TestDashboardGroupsTheOverviewsWindowsAsKeptElseAsConfigured(t *testing.T) 
 
 			if cfg.By != tt.want {
 				t.Errorf("the dashboard groups the Overview's windows by %v, want %v", cfg.By, tt.want)
-			}
-		})
-	}
-}
-
-func TestDashboardDrawsTheChartGRAPHSKept(t *testing.T) {
-	tests := []struct {
-		name, prefs string
-		want        dashboard.Burn
-	}{
-		{name: "none kept: the burn-up", prefs: `{}`, want: dashboard.BurnUp},
-		{name: "as kept", prefs: `{"graphs": "burn-down"}`, want: dashboard.BurnDown},
-		{name: "one kept it doesn't know: the burn-up", prefs: `{"graphs": "a-later-chart"}`, want: dashboard.BurnUp},
-		{name: "milestone 5's cards' style: the burn-up", prefs: `{"chart": "hourglass"}`, want: dashboard.BurnUp},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			deps := statusDeps(t, fakeClaudeAPI(t), nil)
-			writePrefs(t, deps, tt.prefs)
-			cfg := recordWatch(t, &deps)
-			run(t, deps, "dashboard")
-
-			if cfg.Burn != tt.want {
-				t.Errorf("the dashboard opens drawing GRAPHS' %s, want its %s", cfg.Burn.Name(), tt.want.Name())
 			}
 		})
 	}

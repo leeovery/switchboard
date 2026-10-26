@@ -88,7 +88,7 @@ func TestEachTapePlaysItsScenarioAsItsCuesAreTimedFor(t *testing.T) {
 			keys: []press{{6, keysOf("g")}, {11, repeated(tabKey, 1)}, {11.3, repeated(tabKey, 1)}, {11.6, repeated(tabKey, 1)}, {11.9, repeated(tabKey, 1)}, {12.2, keysOf(">")}},
 			shows: []shows{
 				{at: 0, says: []string{"5 sessions  ·  new sessions → ▲ work", "~16:05     work reaches its cap", "◔ work came under pressure"}},
-				{at: 7, says: []string{"GRAPHS   work"}},
+				{at: 7, says: []string{"COMING UP", "LATELY"}, not: []string{"GRAPHS"}},
 				{at: 15.5, says: []string{"RUNWAY", "< 5-hour >", "1 work ◆ ▲", "5-hour 59%"}, not: []string{"Σ pool", "GRAPHS"}},
 			},
 		},

@@ -41,7 +41,7 @@ func TestUnderTheOverviewIsTheViewOverUSAGEsBodyAloneAsItScrollsAndElsewhereNoth
 	}{
 		{name: "wide", width: 160},
 		{name: "on a phone", width: 52},
-		{name: "every section shown", width: 160, shown: SectionsNamed([]string{"usage", "graphs", "routing", "sessions", "coming", "lately"})},
+		{name: "every section shown", width: 160, shown: SectionsNamed([]string{"usage", "routing", "sessions", "coming", "lately"})},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -50,7 +50,7 @@ func TestUnderTheOverviewIsTheViewOverUSAGEsBodyAloneAsItScrollsAndElsewhereNoth
 			rows := textOf(f.Draw(runwayThree(), now))
 
 			usage := slices.IndexFunc(rows, func(r string) bool { return strings.HasPrefix(r, "USAGE ") })
-			next := usage + 1 + slices.IndexFunc(rows[usage+1:], func(r string) bool { return strings.HasPrefix(r, "GRAPHS ") || strings.HasPrefix(r, "ROUTING ") })
+			next := usage + 1 + slices.IndexFunc(rows[usage+1:], func(r string) bool { return strings.HasPrefix(r, "ROUTING ") })
 			if usage < 0 || next <= usage {
 				t.Fatalf("the frame reads\n%s\nwant USAGE's heading, and a section's under it", strings.Join(rows, "\n"))
 			}

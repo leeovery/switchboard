@@ -35,8 +35,8 @@ const mostLabelled = 24
 // are cut at the frame's edge, never as a label: COMING UP's and LATELY's
 // lines, each led by its time to the minute, as "16:30" or "~Fri 12:20",
 // where the Log's rows are led by theirs to the second; and a section's
-// heading folded to what it holds, as "GRAPHS …" or "SESSIONS 6 running".
-var headed = regexp.MustCompile(`^\s*(COMING UP|LATELY|GRAPHS|SESSIONS|ROUTING|USAGE|~?(\pL{3} )?\d\d:\d\d )`)
+// heading folded to what it holds, as "SESSIONS 6 running".
+var headed = regexp.MustCompile(`^\s*(COMING UP|LATELY|SESSIONS|ROUTING|USAGE|~?(\pL{3} )?\d\d:\d\d )`)
 
 // labelledWorld is a world of the scene's accounts, each labelled as labels
 // has it, or its own where it has none, kept by the name given.
@@ -69,7 +69,7 @@ var labelWorlds = []struct {
 // List, Runway, Graphs, the Log's requests and events, d28c's page, and its
 // turn opened.
 var labelledViews = []page{
-	{name: "overview", keys: keysOf("g", "s")},
+	{name: "overview", keys: keysOf("s")},
 	{name: "routing", keys: keysOf("p")},
 	{name: "accounts-compare", keys: toAccounts()},
 	{name: "accounts-detail", keys: toDetail(downKey)},

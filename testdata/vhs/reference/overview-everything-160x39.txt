@@ -16,16 +16,6 @@ USAGE  ────────────────────────�
 
                 ┃ even pace: where you would be now, used evenly    ╎ cap: work at 95%    ◆ primary    ▲ new sessions go here
 
-GRAPHS   work     · even pace   ╌ cap   ┄ limit ────────────────────────────────────────────────────────────────────────────────────────────────────────────── g
-
-                WEEK ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄   5-HOUR ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
-                ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌   ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌▂▃▄▄▆▆▆╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
-                                                     │    ··············                                       ▁▃▄▄▆▇              ··············
-                                            ··············                                              ▁▃▄▄▅▇               ······
-                              ············▁▂▂▃▃▃▃▃▃▄▅▆                                           ▁▂▄▄▅▇
-                ······▂▃▄▅▅▅▅▅▅▅▆▇                                                       ·▁▂▄▄▅▆
-                Sun 21:00                           now                      Sun 21:00   12:10                             now                            17:10
-
 ROUTING   auto ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── r
 
 1 work          ● at its cap · back 17:10 · new sessions go elsewhere         0 sessions   ▂▂▄▅▅▄▂▂▂▂▂▃▂▂▃▄▆▆▆▄▄▃▃▃▃▂▂▂▂▂▂▂▂▁▂▂▁▂▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
@@ -33,7 +23,17 @@ ROUTING   auto ─────────────────────�
 3 side ▲        ● open · new sessions come here                               4 sessions   ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂▄▆       ▇▇▇▇▅▄▄▄▅▅▅▆  11/min
                                                                                            requests a minute, last 30 minutes
 
-SESSIONS   6 running: 2 on personal, 4 on side   no room at 39 rows ────────────────────────────────────────────────────────────────────────────────────────── s
-COMING UP   16:30  personal's 5-hour resets  … ─────────────────────── c          LATELY   14:41  ▲ c61b started on side  … ────────────────────────────────── l
+SESSIONS  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── s
 
-tab views     u usage  g graphs  r routing  s sessions  c coming up  l lately  b by: window  v chart: burn-up     ↑↓ focus  p pin  ? help  q quit
+3 side ▲        c61b  opus    now   ↓ ~1.2k  started here 14:41, the best                  ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂▂   5/min
+                d28c  opus    now   ↑ ask    moved from work 14:31: work reached its cap   ▁▁▁▁▁▁▁▁▁▁▂▂▂▂▂▂▂▂▂▃▃▃▃▃▃▂▂▂▂▂▂▂▂▁▂▂▁▁▁▁▂▃▃▄▄▃▃▃▃▂▂▂▁▁▁▁▁▁▁▂▂   4/min
+                7f3a  sonnet   1m   idle     moved from work 14:31: work reached its cap   ▁▂▃▂▂▂▁▁▂▁▁▁▁▁▁▂▃▄▃▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂▂▂▃▄▂▂▃▂▃▃▂▂▂▂▂▂▂▂▁   2/min
+                +3 more
+
+COMING UP  ─────────────────────────────────────────────────────────── c          LATELY  ──────────────────────────────────────────────────────────────────── l
+
+16:30  personal's 5-hour resets                                in 1h 48m          14:41  ▲ c61b started on side
+17:10  work back from its cap                                  in 2h 28m          14:31  ╎ work reached its cap: 3 sessions moved to side
+18:50  side's 5-hour resets                                    in 4h 08m          14:12  ▲ 7f3a started on work
+
+tab views     u usage  r routing  s sessions  c coming up  l lately  b by: window     p pin  ? help  q quit

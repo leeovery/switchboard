@@ -106,15 +106,6 @@ func (m Model) regroup() Model {
 	return m
 }
 
-// reburn flips the chart GRAPHS draws, as v does, from the burn-up to the
-// burn-down, and back, and keeps it, for the next watch to open with.
-func (m Model) reburn() Model {
-	m.burn = m.burn.Flipped()
-	kept := m.burn.Kept()
-	m.keepPrefs("the chart GRAPHS draws", func(p *theme.Prefs) { p.Graphs = kept }, "graphs", m.burn.Name())
-	return m
-}
-
 // toggleModels shows each model's own window, as Fable's week, where the
 // live views hide it, and hides it where they show it, as w does, and keeps
 // it, for the next watch to open with.
@@ -144,12 +135,6 @@ func (m Model) listsModels() bool {
 // each model's own window is hidden, as a hidden section's is.
 func (m Model) modelsKey() dashboard.Key {
 	return dashboard.Key{Key: "w", Does: "models", Hidden: !m.models}
-}
-
-// focuses reports whether the Overview has an account focus for ↑ and ↓ to
-// move, at the size drawn at, as dashboard's Focuses says.
-func (m Model) focuses() bool {
-	return dashboard.Frame{Width: m.size.Width, Sections: m.sections, By: m.by}.Focuses()
 }
 
 // layoutOf is the layout the config, and the preferences, name grouping by

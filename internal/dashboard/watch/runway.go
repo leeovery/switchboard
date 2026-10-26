@@ -24,9 +24,9 @@ import (
 // which hold what they judged of the past till what that's judged from
 // changes, and the moment of the message they were built at, as each is
 // built once; the readings history's live tail, read for what it gained as
-// readRunway has it, which Graphs' lanes and the pool's charts are judged
-// by too, and the readings of each span stepped back to before it, read once
-// and held for the run; the readings the watch read of the documents it read
+// readRunway has it, which Graphs' lanes are judged by too, and the readings
+// of each span stepped back to before it, read once and held for the run;
+// the readings the watch read of the documents it read
 // itself, which join them; the start of the first day the history holds, as
 // the live tail last asked it, zero where it holds none, or failed to say;
 // whether a look since asks what the live tail gained; whether a read of the
@@ -100,8 +100,8 @@ const carriedFor = 7
 // from the start of the day a week before now's, or of the day a week back
 // from now falls on, where that's earlier, as it is in the hour after
 // midnight for a week after the clocks go forward, so the live views, today,
-// this week, whichever day it starts on, and the pool's charts, reaching a
-// week back from now, are each read of it, to a week on from now's day, each
+// this week, whichever day it starts on, and GLANCE's pool, reaching a week
+// back from now, are each read of it, to a week on from now's day, each
 // window's run from a week before carried in. It moves as the day turns, and
 // as the day a week back from now falls on does, and the tail is read afresh
 // then, but only what the history gains at each look between.
@@ -327,21 +327,18 @@ func (m Model) runwayDays(tl views.Timeline, now time.Time) []ledger.Summary {
 }
 
 // readRunway has the watch read the readings history for the lanes of the
-// tab shown, Runway's or Graphs', as lanesShown has it, or for the pool's
-// charts while they show, as a command, once no read of it is under way, as
-// readingsRead reads it: a span of Runway's stepped back to before the live
-// one, of a day or a week gone, once, its readings held for the run; else
-// the live tail, made afresh as its span moves, as the day turns, and read
-// at once, then at each look since, as due says, for what it gained: for the
-// pool's charts alone, only once their past is judged through a moment after
-// the last read was asked, as poolBehind says, as what it gains till then is
-// judged at none of their columns. A read of the live tail asks where the
+// tab shown, Runway's or Graphs', as lanesShown has it, as a command, once
+// no read of it is under way, as readingsRead reads it: a span of Runway's
+// stepped back to before the live one, of a day or a week gone, once, its
+// readings held for the run; else the live tail, made afresh as its span
+// moves, as the day turns, and read at once, then at each look since, as due
+// says, for what it gained. A read of the live tail asks where the
 // history begins as its span moves, and at a look while that's unknown, as
 // on a fresh install, or after a failure to say. Without a reader, nothing.
 func (m Model) readRunway() (Model, tea.Cmd) {
 	t := m.runwayTab
 	lanes := m.lanesShown()
-	if !lanes && len(m.pool.charts) == 0 || m.cfg.Readings == nil || t.reading {
+	if !lanes || m.cfg.Readings == nil || t.reading {
 		return m, nil
 	}
 	now := m.now()
@@ -359,7 +356,7 @@ func (m Model) readRunway() (Model, tea.Cmd) {
 		t.live = readingsTail{span: live, read: m.cfg.Readings.Tail(live.from, live.start, live.end), held: t.live.held, through: t.live.through}
 		t.seen = t.seen.since(live.from)
 		read.tail, read.kept = t.live.read, m.cfg.Readings
-	case t.due && (lanes || m.poolBehind(t.live.through, now)):
+	case t.due:
 		read.tail, t.due = t.live.read, false
 		if t.kept.IsZero() {
 			read.kept = m.cfg.Readings

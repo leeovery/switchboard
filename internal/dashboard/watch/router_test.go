@@ -14,14 +14,14 @@ import (
 )
 
 // threeKeys are the keys the Overview's key line lists of three accounts,
-// ↑↓ and p among them, and oneKeys those it lists of one, which has none
-// other to focus or pin to: each after tab views and the toggles.
+// p among them, and oneKeys those it lists of one, which has none other to
+// pin to: each after tab views and the toggles.
 const (
-	toggles   = "tab views · u usage · g graphs · r routing · s sessions · c coming up · l lately · b by: window · "
-	threeKeys = toggles + "↑↓ focus · p pin · ? help · q quit"
+	toggles   = "tab views · u usage · r routing · s sessions · c coming up · l lately · b by: window · "
+	threeKeys = toggles + "p pin · ? help · q quit"
 	oneKeys   = toggles + "? help · q quit"
-	// unreadKeys are those listed before anything is read, ↑↓ and p doing
-	// nothing till there are accounts to focus and pin to.
+	// unreadKeys are those listed before anything is read, p doing nothing
+	// till there are accounts to pin to.
 	unreadKeys = oneKeys
 )
 

@@ -16,7 +16,7 @@ const roomFade = 0.45
 
 // burnCard is a window of an account as a Graphs burn-down card charts it at
 // now, worked out once, as burnCardOf has it: the window's span, its
-// readings and now, as GRAPHS charts them; the ink its state gives it; the
+// readings and now, as chart has them; the ink its state gives it; the
 // room ahead, from the room it has now, by the projection the moment goes
 // by; when it runs out; whether its cap or its limit holds it, and since
 // when; its account's reserve; whether it has nothing to draw; and how far
@@ -48,8 +48,8 @@ type burnCard struct {
 }
 
 // burnCardOf is account a's window with the given key as its burn-down card
-// charts it at now, from its trail: over its span, as GRAPHS charts it, as
-// chartOf has it; in the ink its state gives it, as windowInk has it; the
+// charts it at now, from its trail: over its span, as chartOf has it; in the
+// ink its state gives it, as windowInk has it; the
 // room ahead at a time as the moment's RoomAhead has it, from the room it
 // has now, never worked out again; its run-out, where its Kind runs out, at
 // Out; its reserve; and its fade, as accountFade has it. A window the moment
@@ -58,7 +58,7 @@ type burnCard struct {
 func burnCardOf(a status.AccountNow, key string, trail Trail, now time.Time) burnCard {
 	w, _ := a.Window(key)
 	cd := burnCard{
-		window: chartOf(a, shownWindow{key: key}, trail, now, BurnDown),
+		window: chartOf(a, key, trail, now),
 		ink:    windowInk(a, w),
 		ahead: func(t time.Time) (float64, bool) {
 			return a.RoomAhead(key, t)
@@ -218,7 +218,7 @@ func (cd burnCard) heading(p plot) dots {
 	k := cd.faded(cd.ink)
 	for px := 2 * p.now; px < 2*p.width; px++ {
 		if room, ok := cd.roomAhead((float64(px) + 0.5) / float64(2*p.width)); ok {
-			d.dot(px, d.footRow(room), k, 0)
+			d.dot(px, d.footRow(room), k)
 		}
 	}
 	return d
@@ -234,7 +234,7 @@ func (cd burnCard) reserveDots(p plot) dots {
 	}
 	k, row := cd.faded(capDotInk), d.footRow(cd.reserve)
 	for col := 0; col < p.width; col += 2 {
-		d.dot(2*col+1, row, k, 0)
+		d.dot(2*col+1, row, k)
 	}
 	return d
 }

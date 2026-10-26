@@ -6,27 +6,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
-
-// PoolRoom is the pool's room in a window over its length back from now, as
-// GRAPHS charts it beside Σ pool by account: Of, how many accounts the pool
-// has, none where there's no pool, as with one account; and each column's.
-// Each look's is built once, by Look, from the last look's, which holds each
-// column it judged before now's until what that's judged from changes.
-type PoolRoom struct {
-	Of      int
-	Columns []PoolRoomColumn
-
-	// then is the room an account had left in a window at a moment gone, as
-	// status.Moment.RoomThen has it where it's nil; and past is what was
-	// judged before now's column, held.
-	then roomJudge
-	past heldRoom
-}
 
 // roomJudge is the room an account had left in a window at a moment gone, as
 // status.Moment.RoomThen has it.
@@ -34,76 +17,27 @@ type roomJudge func(m status.Moment, a status.AccountNow, read status.Readings, 
 
 // PoolRoomColumn is the pool's room at a column's moment: the room its
 // accounts had left in the window then, summed in accounts' worth; the share
-// of all of theirs that leaves used, as status.PoolUsed has it; and whether how any of them stood then is known,
-// the column blank where none's is, or it isn't judged yet.
+// of all of theirs that leaves used, as status.PoolUsed has it; and whether
+// how any of them stood then is known, the column blank where none's is, or
+// it isn't judged yet.
 type PoolRoomColumn struct {
 	Room, Used float64
 	Known      bool
 }
 
-// PoolRoomFrom is what the pool's room in a window is built from at a look:
-// the moment; the readings history's readings, oldest first, as Runway's
-// lanes take them, each window's run before them carried in, as
-// readings.CarriedRuns has them; ReadThrough, when the read of the history
-// that gave them was asked, so it gave every reading by then, zero where
-// none has been read; the window's key; and how many columns it's charted
-// across.
+// PoolRoomFrom is what the pool's room in a window is built from at a look,
+// as PoolSpan's is: the moment; the readings history's readings, oldest
+// first, as Runway's lanes take them, each window's run before them carried
+// in, as readings.CarriedRuns has them; ReadThrough, when the read of the
+// history that gave them was asked, so it gave every reading by then, zero
+// where none has been read; the window's key; and how many columns it's
+// charted across.
 type PoolRoomFrom struct {
 	Moment      status.Moment
 	Readings    []readings.Reading
 	ReadThrough time.Time
 	Key         string
 	Columns     int
-}
-
-// Look is the pool's room in the window at a look, as PoolRoom has it, over
-// its length back from Now, a column every step, as poolStep has it: each
-// column before now's at its moment, on a grid of those steps, the last at
-// PoolRoomThrough's, so each stays at its moment as now moves on, as
-// status.Moment.RoomThen judges each of the pool's accounts had room then,
-// summed, held from p where what that's judged from by then hasn't changed,
-// and not judged, so not known, where it's after the readings were read
-// through, till a read since gives what they gained by then; and the last,
-// now's, the pool's room as the moment has it, Σ pool's. It's none where the
-// window's length isn't known, and where the pool has no such window, still
-// holding what p judged, for a look once it has again.
-func (p PoolRoom) Look(from PoolRoomFrom) PoolRoom {
-	step, ok := poolStep(from.Key, from.Columns)
-	if !ok {
-		return PoolRoom{}
-	}
-	pool := from.Moment.Pool()
-	i := slices.IndexFunc(pool.Windows, func(w status.PoolWindowNow) bool { return w.Key == from.Key })
-	if i < 0 {
-		return PoolRoom{then: p.then, past: p.past}
-	}
-	past := p.past.judged(pastFrom{
-		moment: from.Moment, readings: from.Readings, through: from.ReadThrough, key: from.Key, step: step,
-		at: poolMoments(from.Key, from.Columns, from.Moment.Now, step),
-	}, p.then.orRoomThen())
-	room := PoolRoom{Of: len(pool.Accounts), Columns: make([]PoolRoomColumn, 0, from.Columns), then: p.then, past: past}
-	for _, c := range past.columns {
-		col := poolRoomOf(c.rooms)
-		if col.Known {
-			col.Used = status.PoolUsed(col.Room, room.Of)
-		}
-		room.Columns = append(room.Columns, col)
-	}
-	now := pool.Windows[i].Room
-	room.Columns = append(room.Columns, PoolRoomColumn{Room: now, Used: status.PoolUsed(now, room.Of), Known: true})
-	return room
-}
-
-// poolMoments are the moments of the columns before now's of the pool's room
-// in the window with the given key, charted across columns columns a step
-// apart, at now, oldest first: the last at PoolRoomThrough's.
-func poolMoments(key string, columns int, now time.Time, step time.Duration) []time.Time {
-	end := PoolRoomThrough(key, columns, now)
-	at := make([]time.Time, columns-1)
-	for c := range at {
-		at[c] = end.Add(-time.Duration(len(at)-1-c) * step)
-	}
-	return at
 }
 
 // poolRoomOf is the pool's room of its accounts' rooms given, summed: known
@@ -116,34 +50,6 @@ func poolRoomOf(rooms []AccountRoom) PoolRoomColumn {
 		}
 	}
 	return col
-}
-
-// PoolRoomThrough is the moment of the last column before now's of the
-// pool's room in the window with the given key, charted across columns
-// columns, at now, as Look lays them on the grid of its steps: each column is
-// judged by the readings history's readings by its moment, so the last waits
-// for a read of it asked then or since. It's zero where the window's length
-// isn't known, or there are no columns.
-func PoolRoomThrough(key string, columns int, now time.Time) time.Time {
-	step, ok := poolStep(key, columns)
-	if !ok {
-		return time.Time{}
-	}
-	return now.Truncate(step)
-}
-
-// poolStep is how far apart the columns of the pool's room in the window with
-// the given key are, charted across columns columns: its length over those
-// before now's, so the first, the room at its end's moment, starts a length
-// before the last of them ends, and so by a length back from now, where the
-// axis says the chart starts; its length where now's is the only one. It
-// reports false where the length isn't known, or there are no columns.
-func poolStep(key string, columns int) (time.Duration, bool) {
-	length, ok := quota.Length(key)
-	if !ok || columns < 1 {
-		return 0, false
-	}
-	return length / time.Duration(max(columns-1, 1)), true
 }
 
 // orRoomThen is how a look judges the room an account had left in a window

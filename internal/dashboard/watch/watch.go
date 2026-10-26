@@ -148,9 +148,8 @@ type Config struct {
 	// View is the tab the preferences kept, which the watch opens on where
 	// it's one there is; Sections the Overview's sections they keep shown;
 	// By how they keep its windows grouped, else as the config's [usage] by
-	// has it; Burn the chart they keep GRAPHS drawing, as
-	// dashboard.BurnKept reads it; Models whether they keep the live views
-	// showing each model's own window; History what they keep History's views
+	// has it; Models whether they keep the live views showing each model's
+	// own window; History what they keep History's views
 	// showing, as dashboard.HistoryKept reads it; Graphs Graphs' sections
 	// they keep shown; and Log the Log's columns they keep shown, as
 	// dashboard.LogKept reads them. Prefs keeps each as it changes: nil keeps
@@ -158,7 +157,6 @@ type Config struct {
 	View     dashboard.View
 	Sections dashboard.Sections
 	By       dashboard.By
-	Burn     dashboard.Burn
 	Models   bool
 	History  dashboard.HistoryPage
 	Graphs   dashboard.GraphsSections
@@ -305,13 +303,11 @@ type Model struct {
 	// the numbers drawn of it with those drawn since: nil where it told
 	// nothing that can.
 	toldBefore *toldSoFar
-	// sections are the Overview's sections shown, by how its windows are
-	// grouped, and burn the chart GRAPHS draws; models whether the live
-	// views show each model's own window, as w toggles it; and graphs
-	// Graphs' sections shown.
+	// sections are the Overview's sections shown, and by how its windows are
+	// grouped; models whether the live views show each model's own window,
+	// as w toggles it; and graphs Graphs' sections shown.
 	sections dashboard.Sections
 	by       dashboard.By
-	burn     dashboard.Burn
 	models   bool
 	graphs   dashboard.GraphsSections
 	// layout is the Overview's layout as it was last made, kept from look to
@@ -325,10 +321,6 @@ type Model struct {
 	// was read in, as rescrolled noted it.
 	scroll int
 	readIn scrollRead
-	// focus is the account the Overview's focus is on, which GRAPHS follows:
-	// the first, in the config's order, till ↑ and ↓ move it, and "" while
-	// the document has none.
-	focus string
 	// accounts is what the watch holds of Accounts: what it shows, and its
 	// page, built of the days past holds.
 	accounts accountsTab
@@ -359,12 +351,10 @@ type Model struct {
 	plansAtMost []views.PlanCost
 	// runwayTab is what the watch holds of Runway: what it shows, its lanes
 	// as the last look built them, and the readings history's tail they're
-	// judged by; graphsTab what it holds of Graphs' lanes, judged by that
-	// tail too; and pool what it holds of the pool's charts GRAPHS draws
-	// beside Σ pool by account, judged by it as well.
+	// judged by; and graphsTab what it holds of Graphs' lanes, judged by that
+	// tail too.
 	runwayTab runwayTab
 	graphsTab graphsTab
-	pool      poolTab
 	// session is the session's page open, drawn in place of the view, or
 	// loading, as pageLoading has it: nil while none is. opening counts the
 	// pages asked to open, each opening once its read lands, but one asked
@@ -470,7 +460,7 @@ type frameMsg struct {
 func New(ctx context.Context, cfg Config) Model {
 	m := Model{
 		ctx: ctx, cfg: cfg, after: cfg.After, size: cfg.Size, plan: plan{interval: cfg.Interval}, fetching: true,
-		choice: cfg.Choice, pair: cfg.Pair, view: opening(cfg.View), sections: cfg.Sections, by: cfg.By, burn: cfg.Burn, models: cfg.Models, graphs: cfg.Graphs,
+		choice: cfg.Choice, pair: cfg.Pair, view: opening(cfg.View), sections: cfg.Sections, by: cfg.By, models: cfg.Models, graphs: cfg.Graphs,
 		accounts: accountsTab{shown: cfg.AccountsShown}, past: historyTab{page: cfg.History, starts: cfg.WeekStarts},
 		sessionsTab: sessionsTab{shown: cfg.SessionsShown}, runwayTab: runwayTab{shown: cfg.RunwayShown}, log: openingLog(cfg.Log),
 		traffic: traffic{heard: new(views.Hearing)}, held: views.HoldSessions(cfg.Prices), versionNameCells: views.VersionNameCells(cfg.Prices),
@@ -513,9 +503,8 @@ func (m Model) Init() tea.Cmd {
 // whatever shows, as followTail has it, and the Log's page built of what it
 // holds, and only then, price the moves the routing card would make while it
 // wants them. Then, of the page as it stands at that moment, the one frame a
-// look builds, it builds the pool's charts at the look, as poolLooked has
-// it, has the readings history's tail read for Runway, Graphs and the pool's
-// charts, as readRunway has it, and notes the tab shown waiting on a read,
+// look builds, it has the readings history's tail read for Runway and
+// Graphs, as readRunway has it, and notes the tab shown waiting on a read,
 // as waited has it, the page loading as that leaves it. Of that page, its
 // Overview's sections built once for each to share, it keeps the Overview's
 // layout, and takes the view back to its top where what its scroll counts
@@ -540,7 +529,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	tuned, tailing := tuned.followTail()
 	tuned, costs := tuned.costing()
 	f := tuned.frame(now)
-	tuned, f = tuned.poolLooked(msg, f)
 	tuned, ran := tuned.readRunway()
 	tuned, waits := tuned.waited(now)
 	f.Loading = tuned.loading(now)
@@ -585,10 +573,9 @@ type scrollRead struct {
 // rescrolled is m, and page, built at now, with the view's scroll read
 // afresh where the form it's read in has changed since the last message
 // noted it, as b, a section's key, a resize or a read can change it, so an
-// offset is never read in a form it wasn't taken in: on the Overview,
-// USAGE scrolled to show the account the focus is on, as ↑ and ↓ scroll it;
-// elsewhere, as where History's Weeks turn from accounts to rows, the view
-// back to its top; and its page built afresh. A session's page open over
+// offset is never read in a form it wasn't taken in: the view back to its
+// top, as where History's Weeks turn from accounts to rows, or the
+// Overview's USAGE is laid out afresh; and its page built afresh. A session's page open over
 // the tab scrolls its own, leaving the tab's as it is.
 func (m Model) rescrolled(page dashboard.Frame, now time.Time) (Model, dashboard.Frame) {
 	switch {
@@ -602,9 +589,6 @@ func (m Model) rescrolled(page dashboard.Frame, now time.Time) (Model, dashboard
 	form := laid.ScrollForm(m.doc, now)
 	if m.readIn.noted && form != m.readIn.form {
 		m.readIn, m.scroll = scrollRead{}, 0
-		if m.view == dashboard.Overview {
-			m.scroll = laid.Revealing(m.doc, now, m.focus)
-		}
 		return m, m.frame(now).Built(m.doc, now)
 	}
 	m.readIn = scrollRead{form: form, noted: true}
@@ -904,10 +888,10 @@ func (m Model) uncover() (Model, tea.Cmd) {
 // line and any card over it: at the size drawn at, in the look, showing the
 // tab shown, with what the watch knows of the router, its events and its
 // history, the numbers brightening, the Overview's sections shown, how its
-// windows are grouped, the chart GRAPHS draws, the requests its traces count
+// windows are grouped, the requests its traces count
 // and its layout as kept, what Runway shows, the sessions listed, what the
 // request stream tells of their requests, the List held, whose lines name
-// them, how far the view is scrolled, the account the focus is on, and what
+// them, how far the view is scrolled, and what
 // Accounts, as standing has it, and History show; and while the theme picker
 // is open, the cells it covers at the right, so the traces keep now's end in
 // view.
@@ -918,10 +902,9 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 	f := dashboard.Frame{
 		Width: m.size.Width, Height: m.size.Height, Look: m.look(),
 		View: m.view,
-		Lost: m.lostShown(), Failed: m.failure(), Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), StateChanged: m.changes.wordFaded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails, PoolRooms: m.pool.rooms,
-		Brightened: m.numbers.brightened(now), Sections: m.sections, By: m.by, Burn: m.burn, Models: m.models, Traces: m.traces, TraceScale: m.cfg.TraceScale, Layout: m.layout,
+		Lost: m.lostShown(), Failed: m.failure(), Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), StateChanged: m.changes.wordFaded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails,
+		Brightened: m.numbers.brightened(now), Sections: m.sections, By: m.by, Models: m.models, Traces: m.traces, TraceScale: m.cfg.TraceScale, Layout: m.layout,
 		Sessions: m.sessions, Unlisted: m.unlisted(), Stream: m.traffic.stream(now), Held: m.held, Traffic: m.traffic.at(now), Scroll: m.scroll, SessionsTab: m.sessionsTab.shown,
-		Focus:            m.focus,
 		Policy:           m.cfg.Policy,
 		WindowName:       m.cfg.WindowName,
 		WeekWindow:       m.cfg.WeekWindow,
@@ -1079,9 +1062,8 @@ func logRead(msg fetchedMsg, look status.Moment, next time.Time) {
 // notes the events new to it, and the readings it gives; asks
 // the router for its history with a full read, and as the router answers
 // again, or another router does, as one restarted, or probing, reads the
-// readings history's files with the first full read since probing began; keeps
-// the focus where its account still is, else puts it on the first; eases the
-// bars to it from where they stand; has Runway see it, as runwaySaw has it;
+// readings history's files with the first full read since probing began;
+// eases the bars to it from where they stand; has Runway see it, as runwaySaw has it;
 // and brightens each number on the page it changed.
 func (m Model) show(msg fetchedMsg, look status.Moment) (Model, tea.Cmd) {
 	doc, now, read := msg.doc, look.Now, originOf(look, msg.router)
@@ -1109,7 +1091,6 @@ func (m Model) show(msg fetchedMsg, look status.Moment) (Model, tea.Cmd) {
 	case !msg.router.Same(m.listedBy):
 		m.sessions = nil
 	}
-	m = m.stillThere(look)
 	m.trails = m.history.drawn(look)
 	m = m.lookedLog(look, msg.router).runwaySaw(look)
 	m.numbers = m.numbers.looked(was, m.numbersDrawn(now), read, now)

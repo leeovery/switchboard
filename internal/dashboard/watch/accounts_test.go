@@ -464,7 +464,7 @@ func TestDetailReadsTheStreamWhileItShowsAnAccountSessionsRunOn(t *testing.T) {
 	}
 }
 
-// Keys Accounts takes as the terminal sends them, beside those focus_test
+// Keys Accounts takes as the terminal sends them, beside those arrows_test
 // and sessionturn_test name.
 var (
 	leftKey  = tea.KeyPressMsg{Code: tea.KeyLeft}

@@ -45,10 +45,10 @@ func TestHelpTakesEveryKeyButCtrlC(t *testing.T) {
 			t.Errorf("with help open, %q quit, want it taken by help", key)
 		}
 	}
-	if !h.inHelp() || h.model.sections != (dashboard.Sections{}) || h.model.by != dashboard.ByWindow || h.model.models || h.model.focus != "work" || h.model.view != dashboard.Overview ||
+	if !h.inHelp() || h.model.sections != (dashboard.Sections{}) || h.model.by != dashboard.ByWindow || h.model.models || h.model.scroll != 0 || h.model.view != dashboard.Overview ||
 		len(h.source.orders) > 0 || h.model.fetching || h.model.picker.open {
-		t.Errorf("with help open, keys acted: sections %v, by %v, focus %q, showing %q, orders %q, reading %v, picker open %v; want them all taken by help",
-			h.model.sections.Names(), h.model.by, h.model.focus, h.model.view, h.source.orders, h.model.fetching, h.model.picker.open)
+		t.Errorf("with help open, keys acted: sections %v, by %v, scrolled %d, showing %q, orders %q, reading %v, picker open %v; want them all taken by help",
+			h.model.sections.Names(), h.model.by, h.model.scroll, h.model.view, h.source.orders, h.model.fetching, h.model.picker.open)
 	}
 	if !quits(h.press("ctrl+c")) {
 		t.Error("with help open, ctrl+c didn't quit, want it to")
@@ -60,7 +60,7 @@ func TestHelpListsEveryKeyThatWorksAndTheKeyLineTheMostUsed(t *testing.T) {
 	pinned.Pin = status.Pin{Accounts: []string{"work"}}
 	// toggles are the Overview's as help lists them, w among them; lined,
 	// as the key line does, which leaves w to help.
-	toggles, lined := []string{"u", "g", "r", "s", "c", "l", "w", "b"}, []string{"u", "g", "r", "s", "c", "l", "b"}
+	toggles, lined := []string{"u", "r", "s", "c", "l", "w", "b"}, []string{"u", "r", "s", "c", "l", "b"}
 	scrolling := []string{"j k", "PgUp PgDn", "wheel"}
 	tests := []struct {
 		name string
@@ -72,8 +72,18 @@ func TestHelpListsEveryKeyThatWorksAndTheKeyLineTheMostUsed(t *testing.T) {
 		{
 			name:     "the router of three",
 			h:        func(t *testing.T) *harness { return routedHarness(t, routerDocument(three()...)) },
+			wantHelp: slices.Concat([]string{"tab"}, toggles, scrolling, []string{"p", "R", "?", "q"}),
+			wantLine: slices.Concat([]string{"tab"}, lined, []string{"p", "?", "q"}),
+		},
+		{
+			name: "ten accounts, USAGE scrolling",
+			h: func(t *testing.T) *harness {
+				h := routedHarness(t, tenRouted())
+				h.update(tea.WindowSizeMsg{Width: 160, Height: 18})
+				return h
+			},
 			wantHelp: slices.Concat([]string{"tab"}, toggles, []string{"↑↓"}, scrolling, []string{"p", "R", "?", "q"}),
-			wantLine: slices.Concat([]string{"tab"}, lined, []string{"↑↓", "p", "?", "q"}),
+			wantLine: slices.Concat([]string{"tab"}, lined, []string{"p", "?", "q"}),
 		},
 		{
 			name: "the router of three in Sessions, which doesn't scroll",

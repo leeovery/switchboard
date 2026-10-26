@@ -36,10 +36,10 @@ func TestTheRoutingCardTakesEveryKeyButCtrlC(t *testing.T) {
 			t.Errorf("with the routing card open, %q quit, want it taken by the card", key)
 		}
 	}
-	if h.model.open != routingOpen || h.model.sections != (dashboard.Sections{}) || h.model.by != dashboard.ByWindow || h.model.focus != "work" ||
+	if h.model.open != routingOpen || h.model.sections != (dashboard.Sections{}) || h.model.by != dashboard.ByWindow || h.model.scroll != 0 ||
 		h.model.view != dashboard.Overview || len(h.source.orders) > 0 || h.model.fetching || h.model.picker.open {
-		t.Errorf("with the routing card open, keys acted: open %v, sections %v, by %v, focus %q, showing %q, orders %q, reading %v, picker open %v; want them all taken by the card",
-			h.model.open, h.model.sections.Names(), h.model.by, h.model.focus, h.model.view, h.source.orders, h.model.fetching, h.model.picker.open)
+		t.Errorf("with the routing card open, keys acted: open %v, sections %v, by %v, scrolled %d, showing %q, orders %q, reading %v, picker open %v; want them all taken by the card",
+			h.model.open, h.model.sections.Names(), h.model.by, h.model.scroll, h.model.view, h.source.orders, h.model.fetching, h.model.picker.open)
 	}
 	if !quits(h.press("ctrl+c")) {
 		t.Error("with the routing card open, ctrl+c didn't quit, want it to")

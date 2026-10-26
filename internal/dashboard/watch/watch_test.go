@@ -390,11 +390,11 @@ func TestDrawsAtTheGivenSizeUntilTheTerminalGivesOne(t *testing.T) {
 func calmScreen(size Size, now time.Time, trails dashboard.Trails) string {
 	return strings.Join(dashboard.Frame{
 		Width: size.Width, Height: size.Height, Look: dashboard.NoColour(),
-		View: dashboard.Overview, Trails: trails, Focus: "work",
+		View: dashboard.Overview, Trails: trails,
 		KeyLine: dashboard.KeyLine{Lead: 5, After: 5, Groups: [][]dashboard.Key{
 			{{Key: "tab", Does: "views"}},
 			{
-				{Key: "u", Does: "usage"}, {Key: "g", Does: "graphs", Hidden: true}, {Key: "r", Does: "routing"},
+				{Key: "u", Does: "usage"}, {Key: "r", Does: "routing"},
 				{Key: "s", Does: "sessions", Hidden: true}, {Key: "c", Does: "coming up"}, {Key: "l", Does: "lately"},
 				{Key: "b", Does: "by", State: "window"},
 			},
@@ -437,7 +437,8 @@ func TestTheOverviewKeepsItsLayoutAsSessionsStartTillAKeyOrAResize(t *testing.T)
 			r, f+1, rows, first+1)
 	}
 
-	h.deliver(h.press("down")...)
+	h.deliver(h.press("b")...)
+	h.deliver(h.press("b")...)
 	if _, r := h.sessionsRows(); r != 5 {
 		t.Errorf("after a key, SESSIONS takes %d rows, want it laid out afresh, a row a session", r)
 	}
@@ -523,7 +524,8 @@ func TestTheScreenAKeyLeavesIsLaidOutAsTheKeyLaysItOut(t *testing.T) {
 		t.Fatalf("three sessions started, SESSIONS takes %d rows, want the 3 it was given kept", r)
 	}
 
-	h.deliver(h.press("down")...)
+	h.deliver(h.press("b")...)
+	h.deliver(h.press("b")...)
 	if _, r := h.sessionsRows(); r != 5 {
 		t.Errorf("after a key, SESSIONS is drawn on %d rows, want it as the key lays it out afresh, a row a session", r)
 	}
@@ -548,8 +550,8 @@ func TestAClickOrTheWheelLaysTheOverviewOutAsItsKeyDoes(t *testing.T) {
 		name       string
 		key, mouse func(*harness)
 	}{
-		{name: "↓, and a click on an account's row", key: key("down"), mouse: func(h *harness) {
-			h.clickWhere(func(t dashboard.Target) bool { return t.On == dashboard.OnAccount && t.Account == "personal" })
+		{name: "b, and a click on b by: window", key: key("b"), mouse: func(h *harness) {
+			h.clickWhere(func(t dashboard.Target) bool { return t.On == dashboard.OnKey && t.Key == "b" })
 		}},
 		{name: "a section's key, and a click on its heading", key: key("c"), mouse: func(h *harness) {
 			h.clickWhere(func(t dashboard.Target) bool {

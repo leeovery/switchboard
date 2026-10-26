@@ -112,15 +112,6 @@ func sessionsCells() int {
 	return ansi.StringWidth(sessionsSpan(0).text)
 }
 
-// accountRows are the rows of ROUTING's body the account i of a takes, as
-// drawRouting lays them out: its one row, or its two.
-func (rc routingColumns) accountRows(i, a int, body bounds) []int {
-	if rc.oneRow && !routingSized(a, body) {
-		return []int{body.y + i}
-	}
-	return []int{body.y + 3*i, body.y + 3*i + 1}
-}
-
 // pinnedSpan marks an account the global pin names, in accent.key.
 var pinnedSpan = span{"● pinned", ink{token: theme.AccentKey}}
 
@@ -185,9 +176,21 @@ func (f Frame) routingTableOf(doc status.Document, now time.Time) routingTable {
 
 // routingBesideUsage reports whether ROUTING is drawn beside USAGE's blocks
 // rather than as a section of its own: by account, from besideWidth columns,
-// while both show, but where GRAPHS is beside them, as graphsBeside says.
+// while both show.
 func (f Frame) routingBesideUsage() bool {
-	return f.By == ByAccount && f.Width >= besideWidth && f.Sections.Has(SectionUsage) && f.Sections.Has(SectionRouting) && !f.graphsBeside()
+	return f.By == ByAccount && f.Width >= besideWidth && f.Sections.Has(SectionUsage) && f.Sections.Has(SectionRouting)
+}
+
+// besideUsage is what draws ROUTING's lines beside USAGE's blocks by account
+// of doc at now, as at says the blocks lie, where routingBesideUsage says
+// they're there, as routingBeside draws them, its table built only as it's
+// first drawn: nil where they aren't.
+func (f Frame) besideUsage(doc status.Document, now time.Time) func(c *canvas, at blocksBeside) {
+	if !f.routingBesideUsage() {
+		return nil
+	}
+	routing := sync.OnceValue(func() routingTable { return f.routingTableOf(doc, now) })
+	return func(c *canvas, at blocksBeside) { f.routingBeside(c, routing(), at) }
 }
 
 // routingSection is the Overview's ROUTING of doc at now: how each account
@@ -216,15 +219,6 @@ func (f Frame) routingSection(doc status.Document, now time.Time) section {
 		folded:      oneForm(func() line { return modeAlone(m) }),
 		draw: func(c *canvas, body bounds) {
 			f.drawRouting(c, t(), body)
-		},
-		targets: func(body bounds) []Target {
-			var targets []Target
-			for i, a := range m.Accounts {
-				for _, y := range columns.accountRows(i, len(m.Accounts), body) {
-					targets = append(targets, Target{Y: y, Width: f.Width, On: OnAccount, Account: a.ID})
-				}
-			}
-			return targets
 		},
 	}
 }
@@ -542,17 +536,12 @@ func sessionsSpan(n int) span {
 	return span{prose.Counted(n, "session"), k}
 }
 
-// blocksBeside are where USAGE draws its blocks by account, for ROUTING or
-// GRAPHS' charts to be drawn beside them: from column x, each block where
-// USAGE placed it, an account's, or the pool's, of no id; the rows under
-// each block's last that what's beside it takes, as under has them; and how
-// GRAPHS' charts lie across there, in the block's form, as besideCharts has
-// them.
+// blocksBeside are where USAGE draws its blocks by account, for ROUTING to
+// be drawn beside them: from column x, each block where USAGE placed it, an
+// account's, or the pool's, of no id.
 type blocksBeside struct {
 	x      int
 	blocks []rowAt
-	under  int
-	across chartsAcross
 }
 
 // routingBeside draws ROUTING's table t beside USAGE's blocks by account, as

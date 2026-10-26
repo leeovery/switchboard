@@ -15,7 +15,7 @@ import (
 )
 
 // Windows are each account's every window's readings over the days asked
-// for, as the readings history holds them: what GRAPHS, and a day Runway
+// for, as the readings history holds them: what Graphs, and a day Runway
 // steps back to, draw from.
 type Windows struct {
 	Windows []WindowReadings `json:"windows"`

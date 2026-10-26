@@ -48,11 +48,12 @@ Graphs*:
   them and its other charts as sections toggled by keys. The owner, on 25 October 2026: "Yes I like
   those new versions", and "I like the varieties from round 2 for now. happy for you to make the
   other decisions."
+- **The Overview's GRAPHS,** whose staying the owner raised on 24 October 2026 ("I think as part of
+  this we could entertain removing graphs from overview but let's discuss that later"), was removed
+  by the owner on 26 October 2026, for the Graphs page: "I don't like them. I don't think they're
+  effective. … lean into having the graphs page for graphs, at least for now."
 
 Still to settle with its owner:
 
-- **The Overview's GRAPHS,** once the Graphs tab is built: whether it stays, as the owner raised on
-  24 October 2026 ("I think as part of this we could entertain removing graphs from overview but
-  let's discuss that later").
 - **Round 1's other charts,** not taken for now: the burn-up, the burn rate, the week by day,
   sessions over the day, the model mix, and worth against the plan. Each is drawn on round 1's page.

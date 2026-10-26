@@ -20,9 +20,6 @@ type Section int
 const (
 	// SectionUsage is USAGE: every account's windows, usage's block.
 	SectionUsage Section = iota
-	// SectionGraphs is GRAPHS: the focused account's use so far in each
-	// window, under USAGE's columns.
-	SectionGraphs
 	// SectionRouting is ROUTING: how each account stands with the router,
 	// and its requests over the last 30 minutes.
 	SectionRouting
@@ -42,7 +39,6 @@ const sectionCount = int(SectionLately) + 1
 var overviewSections = sectionList{
 	words: []sectionWording{
 		SectionUsage:    {key: "u", word: "usage", heading: "USAGE", name: "usage"},
-		SectionGraphs:   {key: "g", word: "graphs", heading: "GRAPHS", name: "graphs"},
 		SectionRouting:  {key: "r", word: "routing", heading: "ROUTING", name: "routing"},
 		SectionSessions: {key: "s", word: "sessions", heading: "SESSIONS", name: "sessions"},
 		SectionComing:   {key: "c", word: "coming up", heading: "COMING UP", name: "coming"},
@@ -176,11 +172,9 @@ type section struct {
 	targets func(body bounds) []Target
 	// scrolling is how far the body scrolls in rows rows, scrolled offset
 	// down, a row at a time, as USAGE's does where its accounts are many:
-	// Most, the furthest, and Page, how many show at once from the offset;
-	// and revealing, how far it's scrolled from offset to show the account
-	// with the given id. Nil where it doesn't scroll.
+	// Most, the furthest, and Page, how many show at once from the offset.
+	// Nil where it doesn't scroll.
 	scrolling func(rows, offset int) Scrolling
-	revealing func(rows, offset int, id string) int
 	// scrollForm is the form its body's rows are laid out in, in rows rows,
 	// which an offset into them is read in, as USAGE's usageForm has it.
 	// Nil where it doesn't scroll.
@@ -248,7 +242,6 @@ func (f Frame) buildSections(doc status.Document, now time.Time) []section {
 	f = f.At(doc, now).holdRunning(doc, now)
 	builds := [...]func(status.Document, time.Time) section{
 		SectionUsage:    f.usageSection,
-		SectionGraphs:   f.graphsSection,
 		SectionRouting:  f.routingSection,
 		SectionSessions: f.sessionsSection,
 		SectionComing:   f.comingSection,
@@ -277,20 +270,18 @@ type planned struct {
 // foldOrder are the sections in the order they give way, where rows run
 // short: USAGE first, which never folds, but gives way the blank rows between
 // its accounts, its first step short of its least; then, each folding to its
-// headings, SESSIONS; then COMING UP and LATELY together; then GRAPHS; then
-// ROUTING.
-var foldOrder = [][]Section{{SectionUsage}, {SectionSessions}, {SectionComing, SectionLately}, {SectionGraphs}, {SectionRouting}}
+// headings, SESSIONS; then COMING UP and LATELY together; then ROUTING.
+var foldOrder = [][]Section{{SectionUsage}, {SectionSessions}, {SectionComing, SectionLately}, {SectionRouting}}
 
 // growth is the order the rows to spare go in, to the units not folded, each
-// to its most: to SESSIONS, a whole session at a time; to GRAPHS, a row at a
-// time; to USAGE's big bars, then to ROUTING's two rows of trace, each where
-// it fits whole; then to COMING UP and LATELY, a line at a time.
+// to its most: to SESSIONS, a whole session at a time; to USAGE's big bars,
+// then to ROUTING's two rows of trace, each where it fits whole; then to
+// COMING UP and LATELY, a line at a time.
 var growth = []struct {
 	sections []Section
 	grow     func(units []*unit, spare int) int
 }{
 	{[]Section{SectionSessions}, whole},
-	{[]Section{SectionGraphs}, rowByRow},
 	{[]Section{SectionUsage}, whole},
 	{[]Section{SectionRouting}, whole},
 	{[]Section{SectionComing, SectionLately}, rowByRow},
@@ -976,8 +967,7 @@ func (f Frame) overviewTargets(doc status.Document, now time.Time) []Target {
 
 // targetsOf are the click targets of the sections as they're laid out on the
 // page: each section's heading, which hides it, and the targets of the body
-// of each that doesn't fold; but none past the view's rows, nor an account's
-// row, which moves the focus, where the Overview has none, as Focuses says.
+// of each that doesn't fold; but none past the view's rows.
 func (f Frame) targetsOf(laid []planned) []Target {
 	var targets []Target
 	for _, p := range laid {
@@ -986,8 +976,8 @@ func (f Frame) targetsOf(laid []planned) []Target {
 			targets = append(targets, p.targets(p.body)...)
 		}
 	}
-	end, focuses := f.top()+f.viewRows(), f.Focuses()
-	return slices.DeleteFunc(targets, func(t Target) bool { return t.Y >= end || t.On == OnAccount && !focuses })
+	end := f.top() + f.viewRows()
+	return slices.DeleteFunc(targets, func(t Target) bool { return t.Y >= end })
 }
 
 // overviewScrolling is how far the Overview's USAGE of doc at now scrolls

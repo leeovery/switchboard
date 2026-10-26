@@ -24,7 +24,7 @@ func keysTold(keys []dashboard.Key) []string {
 func TestEveryPagesKeysAreEachPagesAsItsHelpListsThem(t *testing.T) {
 	want := map[string][]string{
 		"every page": {"tab views", "p pin", "t themes", "R refresh", "? help", "q quit", "j k scroll", "PgUp PgDn page", "wheel scroll"},
-		"Overview":   {"u usage", "g graphs", "r routing", "s sessions", "c coming up", "l lately", "w models", "b by", "v chart", "↑↓ focus"},
+		"Overview":   {"u usage", "r routing", "s sessions", "c coming up", "l lately", "w models", "b by", "↑↓ scroll"},
 		"Accounts": {
 			"[ ] view", "< > period", "←→ account", "↑↓ account", "↑↓ session", "→ sessions", "← accounts", "enter its page", "esc unfocus", "w models",
 		},

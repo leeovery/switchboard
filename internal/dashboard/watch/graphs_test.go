@@ -32,8 +32,8 @@ func graphsHarness(t *testing.T, width, height int) (*harness, *fakePrefs) {
 
 // On Graphs, w, f, o, g and h each show their section where it's hidden and
 // hide it where it shows, and the sections shown are kept by name, every one
-// hidden kept as none; the Overview's sections, its chart and each model's
-// own window are left as they were.
+// hidden kept as none; the Overview's sections and each model's own window
+// are left as they were.
 func TestGraphsKeysShowOrHideItsSectionsAndKeepThem(t *testing.T) {
 	h, prefs := graphsHarness(t, 160, 37)
 	for _, step := range []struct {
@@ -59,14 +59,14 @@ func TestGraphsKeysShowOrHideItsSectionsAndKeepThem(t *testing.T) {
 			t.Errorf("after %s, the screen is\n%s\nwant %q on it, and no %q", step.key, shown, step.wantShown, step.wantHidden)
 		}
 	}
-	if h.model.sections != (dashboard.Sections{}) || h.model.models || h.model.burn != dashboard.BurnUp || prefs.kept.Sections != nil || prefs.kept.Models {
-		t.Errorf("Graphs' keys left the Overview showing %q, models %t, its chart %v, kept %#v, models %t; want them as they were",
-			h.model.sections.Names(), h.model.models, h.model.burn, prefs.kept.Sections, prefs.kept.Models)
+	if h.model.sections != (dashboard.Sections{}) || h.model.models || prefs.kept.Sections != nil || prefs.kept.Models {
+		t.Errorf("Graphs' keys left the Overview showing %q, models %t, kept %#v, models %t; want them as they were",
+			h.model.sections.Names(), h.model.models, prefs.kept.Sections, prefs.kept.Models)
 	}
 }
 
-// Graphs' keys act on Graphs alone: on the Overview, g and w are its own,
-// and on the Log, f opens its panel.
+// Graphs' keys act on Graphs alone: on the Overview, w is its own, and on
+// the Log, f opens its panel.
 func TestGraphsKeysLeaveItsSectionsAsTheyWereOnAnotherTab(t *testing.T) {
 	for _, view := range []dashboard.View{dashboard.Overview, dashboard.Runway, dashboard.Log} {
 		t.Run(string(view), func(t *testing.T) {

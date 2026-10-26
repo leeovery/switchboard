@@ -116,7 +116,7 @@ func TestAGoneRouterAnswersUntilItsTimeThenFailsEveryRead(t *testing.T) {
 }
 
 // Every window the charts draw a reading of has a history that ends at it:
-// those whose reading falls in the span GRAPHS charts them over, as
+// those whose reading falls in the span Graphs charts them over, as
 // ChartSpan has it.
 func TestEveryWindowsHistoryEndsAtItsUse(t *testing.T) {
 	for _, f := range []Fixture{fixture(t, "overview-default-160")} {

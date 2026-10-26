@@ -59,19 +59,14 @@ type usageBlock struct {
 	// The rest are the Overview's alone, the printout's being their zero
 	// values: big stacks its windows where they'd sit side by side, as its
 	// big bars; accountBar is its bars' cells by account, where it sets them;
-	// focus is the account whose number and name the matrix picks out; marks
-	// are the marks the key line names after the cap's, in their forms, the
-	// widest first, and markable those its accounts may carry at any read,
-	// which its key line's form is judged by; charted is whether GRAPHS'
-	// charts sit beside its blocks by account, and beside the form they take
-	// there; and given is how far it has given way to rows short.
+	// marks are the marks the key line names after the cap's, in their forms,
+	// the widest first, and markable those its accounts may carry at any
+	// read, which its key line's form is judged by; and given is how far it
+	// has given way to rows short.
 	big        bool
 	accountBar int
-	focus      string
 	marks      [][]line
 	markable   [][]line
-	charted    bool
-	beside     besideForm
 	given      giving
 }
 
@@ -407,7 +402,7 @@ func namesPart(names []accountName) flex.Part {
 }
 
 // nameColumn is the cells of the name column of a block width columns wide,
-// and of ROUTING's, SESSIONS' and GRAPHS' under it: the names' column as
+// and of ROUTING's and SESSIONS' under it: the names' column as
 // namesPart has it, laid out in a row of a window, as layGauges lays one, so
 // it narrows toward its least only once the bar is at its least and the
 // words are short.
@@ -575,7 +570,7 @@ func (b usageBlock) bar() int {
 
 // matrix draws the block's windows side by side, a group each from the name
 // column, its heading over it, and a row an account, the pool last, from row
-// y, the account the focus is on picked out, where the block has one.
+// y.
 func (b usageBlock) matrix(c *canvas, y int) laid {
 	row := b.cells()
 	bar, group := row.bar, row.bar+afterBar+row.words+groupGap
@@ -585,9 +580,6 @@ func (b usageBlock) matrix(c *canvas, y int) laid {
 	first := y + b.underHeading()
 	l := b.each(c, first, 2, func(r usageRow, y int) int {
 		c.line(0, y, r.name)
-		if b.focus != "" && r.id == b.focus {
-			c.surface(0, y, b.focusCells(), hue{token: theme.BgSelection})
-		}
 		for i, g := range r.gauges {
 			next := b.names + (i+1)*group
 			b.gauge(c, g, next-group, y, bar, next-groupGap)
@@ -607,13 +599,6 @@ func (b usageBlock) underHeading() int {
 		return 1
 	}
 	return 2
-}
-
-// focusCells are the cells of the focused account's row the Overview's
-// matrix picks out: its whole name column, its number, name and marks, as
-// nameColumn fits it to the names, but the gap before the bars.
-func (b usageBlock) focusCells() int {
-	return b.names - nameGap
 }
 
 // stacked draws the block's windows one under another, each a section, its
@@ -687,16 +672,14 @@ func (b usageBlock) split() ([]usageRow, *usageRow) {
 // name on a line of its own above, and the labels a cell in. Its bars take
 // what the block's width leaves them, and its words end a cell before the
 // edge, but where the Overview sets its bars: then its words end besideCells
-// before besideAt, the gap before ROUTING's blocks beside them. After the
-// last block come the rows under it what's beside it takes, as under has
-// them, the first of them the blank line before the key line.
+// before besideAt, the gap before ROUTING's blocks beside them.
 func (b usageBlock) byAccount(c *canvas, y int) laid {
 	labelAt, cells, above := b.labels()
 	bar, end := b.bar(), b.width-afterWords
 	if b.accountBar > 0 {
 		end = b.besideAt() - besideCells
 	}
-	l := b.each(c, y, b.blocksApart(), func(r usageRow, y int) int {
+	l := b.each(c, y, blocksApart, func(r usageRow, y int) int {
 		c.line(0, y, r.name)
 		for j, g := range r.gauges {
 			at := y + b.windowRow(j)
@@ -710,36 +693,12 @@ func (b usageBlock) byAccount(c *canvas, y int) laid {
 			l.heads = append(l.heads, headed{at: p.y, first: p.y + 1})
 		}
 	}
-	l.end += max(b.under()-1, 0)
 	return l
 }
 
 // blocksApart is how far a block by account's first row is from the last
-// of the block before: a blank line between them, as before the key line,
-// after the rows under it what's beside it takes, as under has them.
-func (b usageBlock) blocksApart() int {
-	return b.under() + 2
-}
-
-// under are the rows under a block by account's last that what's beside it
-// takes: none; but where GRAPHS' charts sit beside them, from the block's
-// first row, the axis row under it at the least, or as many as give each row
-// of charts, as the block's form lays them out, the rows of chart its form
-// has.
-func (b usageBlock) under() int {
-	if !b.charted {
-		return 0
-	}
-	rows := b.besideCharts().rowsFor(len(b.windows))
-	return max(rows*(b.beside.chartRows()+chartEnds), b.blockRows()+1) - b.blockRows()
-}
-
-// besideCharts are how GRAPHS' charts lie across beside the block's blocks by
-// account, from besideAt to the frame's edge, as its form lays its windows'
-// out: every block's in the same columns.
-func (b usageBlock) besideCharts() chartsAcross {
-	return b.beside.across(len(b.windows), b.width-margin-b.besideAt())
-}
+// of the block before: a blank line between them, as before the key line.
+const blocksApart = 2
 
 // windowApart are the rows from one window's row of a block by account to
 // the next's.

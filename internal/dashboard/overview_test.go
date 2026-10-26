@@ -19,10 +19,8 @@ func TestTheOverviewShowsUSAGEROUTINGCOMINGUPAndLATELYAtFirst(t *testing.T) {
 	if got, want := shown.Names(), []string{"usage", "routing", "coming", "lately"}; !slices.Equal(got, want) {
 		t.Errorf("the zero Sections show %q, want %q", got, want)
 	}
-	for _, s := range []Section{SectionGraphs, SectionSessions} {
-		if shown.Has(s) {
-			t.Errorf("the zero Sections show %s, want it hidden at first", s.heading())
-		}
+	if shown.Has(SectionSessions) {
+		t.Errorf("the zero Sections show %s, want it hidden at first", SectionSessions.heading())
 	}
 }
 
@@ -52,8 +50,9 @@ func TestTheSectionsShownAreNamedAsThePreferencesKeepThem(t *testing.T) {
 	}{
 		{name: "none kept: those shown at first", names: nil, want: []string{"usage", "routing", "coming", "lately"}},
 		{name: "none shown, kept as none", names: []string{}, want: []string{}},
-		{name: "those kept, in the page's order", names: []string{"lately", "graphs", "usage"}, want: []string{"usage", "graphs", "lately"}},
-		{name: "every one", names: []string{"usage", "graphs", "routing", "sessions", "coming", "lately"}, want: []string{"usage", "graphs", "routing", "sessions", "coming", "lately"}},
+		{name: "those kept, in the page's order", names: []string{"lately", "sessions", "usage"}, want: []string{"usage", "sessions", "lately"}},
+		{name: "every one", names: []string{"usage", "routing", "sessions", "coming", "lately"}, want: []string{"usage", "routing", "sessions", "coming", "lately"}},
+		{name: "graphs, as v0.2.7 kept GRAPHS shown, left out", names: []string{"usage", "graphs", "lately"}, want: []string{"usage", "lately"}},
 		{name: "a name of none, as a later switchboard's, left out", names: []string{"sessions", "a-later-section"}, want: []string{"sessions"}},
 	}
 	for _, tt := range tests {
@@ -76,7 +75,6 @@ func TestEachSectionIsShownAndHiddenByItsKey(t *testing.T) {
 		word string
 	}{
 		{key: "u", want: SectionUsage, word: "usage"},
-		{key: "g", want: SectionGraphs, word: "graphs"},
 		{key: "r", want: SectionRouting, word: "routing"},
 		{key: "s", want: SectionSessions, word: "sessions"},
 		{key: "c", want: SectionComing, word: "coming up"},
@@ -88,7 +86,7 @@ func TestEachSectionIsShownAndHiddenByItsKey(t *testing.T) {
 			t.Errorf("SectionKeyed(%q) = %s, %v, its key %q and word %q; want %s, keyed %q, worded %q", tt.key, got.heading(), ok, got.Key(), got.Word(), tt.want.heading(), tt.key, tt.word)
 		}
 	}
-	for _, key := range []string{"b", "U", "w", "", "us"} {
+	for _, key := range []string{"b", "U", "w", "g", "v", "", "us"} {
 		if got, ok := SectionKeyed(key); ok {
 			t.Errorf("SectionKeyed(%q) = %s, want no section", key, got.heading())
 		}
@@ -106,8 +104,6 @@ func TestEachSectionsLeastAndMostRows(t *testing.T) {
 	running.Sessions = flippingSessions()
 	phone := at(52, ByWindow)
 	phone.Sessions = flippingSessions()
-	charted := at(160, ByAccount)
-	charted.Sections = charted.Sections.Toggled(SectionGraphs)
 	tests := []struct {
 		name        string
 		section     section
@@ -117,8 +113,6 @@ func TestEachSectionsLeastAndMostRows(t *testing.T) {
 		{name: "USAGE side by side on an iPad: the same", section: at(108, ByWindow).usageSection(doc, now), least: 13, most: 23},
 		{name: "USAGE where its windows don't sit side by side: stacked, as usage is", section: at(73, ByWindow).usageSection(doc, now), least: 24, most: 24},
 		{name: "USAGE by account: a block an account, a blank row after each", section: at(160, ByAccount).usageSection(doc, now), least: 19, most: 19},
-		{name: "USAGE by account beside GRAPHS' charts at 160: at its least, as before every chart showed, two rows after each block, the charts' axis on the first; at its most, a chart a row, each block apart for 5 rows a chart", section: charted.usageSection(doc, now), least: 22, most: 62},
-		{name: "GRAPHS: h + 4, 5 rows of chart to 19", section: at(160, ByWindow).graphsSection(doc, now), least: 9, most: 23},
 		{name: "ROUTING: a + 3, to 3a + 2", section: at(160, ByWindow).routingSection(doc, now), least: 6, most: 11},
 		{name: "ROUTING by account under 150 columns: a section of its own", section: at(149, ByAccount).routingSection(doc, now), least: 6, most: 11},
 		{name: "ROUTING by account from 150 columns: beside USAGE, no rows of its own", section: at(150, ByAccount).routingSection(doc, now), least: 0, most: 0},
@@ -158,7 +152,7 @@ func TestTheOverviewDrawsTheSectionsShownInTheirOrder(t *testing.T) {
 		want  []string
 	}{
 		{name: "at first", want: []string{"USAGE", "ROUTING", "COMING UP", "LATELY"}},
-		{name: "GRAPHS shown, ROUTING hidden", shown: Sections{}.Toggled(SectionGraphs).Toggled(SectionRouting), want: []string{"USAGE", "GRAPHS", "COMING UP", "LATELY"}},
+		{name: "SESSIONS shown, ROUTING hidden", shown: Sections{}.Toggled(SectionSessions).Toggled(SectionRouting), want: []string{"USAGE", "SESSIONS", "COMING UP", "LATELY"}},
 		{name: "SESSIONS alone", shown: SectionsNamed([]string{"sessions"}), want: []string{"SESSIONS"}},
 	}
 	for _, tt := range tests {
@@ -248,8 +242,7 @@ var (
 // an account and the pool's, ROUTING beside them from column 107; on a phone,
 // stacked, its key on two lines; USAGE giving way, as leanerBy has it, a
 // blank row between each two accounts in each window, its headings' blank
-// rows, and its key; GRAPHS h + 4, h from 5 to 19; ROUTING a + 3
-// to 3a + 2, and on a phone 3a + 1; SESSIONS from a session and how many
+// rows, and its key; ROUTING a + 3 to 3a + 2, and on a phone 3a + 1; SESSIONS from a session and how many
 // more to a row a session, two on a phone, as sessionsRows has it; and
 // COMING UP and LATELY a row a line, from 3 to 12; each with its heading's
 // two rows.
@@ -273,7 +266,7 @@ func (w planWorld) sections(width int, by By, shown Sections) []section {
 	lines := func(s Section, n int) section {
 		return section{Section: s, least: 2 + 3, lines: func() int { return n }, readIn: readIn(s), draw: func(*canvas, bounds) {}}
 	}
-	all := []section{usage, sized(SectionGraphs, 2+1+5+1, 2+1+19+1), routing, sessions, lines(SectionComing, w.coming), lines(SectionLately, w.lately)}
+	all := []section{usage, routing, sessions, lines(SectionComing, w.coming), lines(SectionLately, w.lately)}
 	return slices.DeleteFunc(all, func(s section) bool { return !shown.Has(s.Section) })
 }
 
@@ -296,8 +289,8 @@ type rowsOf struct {
 
 // The Overview's frames' sections, toggled with the keys pressed.
 var (
-	gs    = Sections{}.Toggled(SectionGraphs).Toggled(SectionSessions)
-	every = SectionsNamed([]string{"usage", "graphs", "routing", "sessions", "coming", "lately"})
+	withSessions = Sections{}.Toggled(SectionSessions)
+	every        = SectionsNamed([]string{"usage", "routing", "sessions", "coming", "lately"})
 )
 
 func TestThePlannerLaysEachOverviewFrameOutOnItsRows(t *testing.T) {
@@ -323,9 +316,9 @@ func TestThePlannerLaysEachOverviewFrameOutOnItsRows(t *testing.T) {
 		{stem: "overview-usage-alone-160", width: 160, height: 37, shown: SectionsNamed([]string{"usage"}), world: autoWorld, want: []rowsOf{
 			{SectionUsage, 5, 17, false},
 		}},
-		{stem: "overview-everything-160x39", width: 160, height: 39, shown: gs, world: autoWorld, want: []rowsOf{
-			{SectionUsage, 5, 17, false}, {SectionGraphs, 19, 27, false}, {SectionRouting, 29, 34, false},
-			{SectionSessions, 36, 36, true}, {SectionComing, 37, 37, true}, {SectionLately, 37, 37, true},
+		{stem: "overview-everything-160x39", width: 160, height: 39, shown: withSessions, world: autoWorld, want: []rowsOf{
+			{SectionUsage, 5, 17, false}, {SectionRouting, 19, 24, false}, {SectionSessions, 26, 31, false},
+			{SectionComing, 33, 37, false}, {SectionLately, 33, 37, false},
 		}},
 		{stem: "overview-six-accounts-160", width: 160, height: 41, world: sixWorld, want: []rowsOf{
 			{SectionUsage, 5, 23, false}, {SectionRouting, 25, 33, false}, {SectionComing, 35, 39, false}, {SectionLately, 35, 39, false},
@@ -339,19 +332,15 @@ func TestThePlannerLaysEachOverviewFrameOutOnItsRows(t *testing.T) {
 		{stem: "overview-sessions-216", width: 216, height: 70, shown: Sections{}.Toggled(SectionSessions), world: autoWorld, want: []rowsOf{
 			{SectionUsage, 5, 39, false}, {SectionRouting, 41, 51, false}, {SectionSessions, 53, 60, false}, {SectionComing, 62, 68, false}, {SectionLately, 62, 68, false},
 		}},
-		{stem: "overview-sessions-graphs-216", width: 216, height: 70, shown: gs, world: autoWorld, want: []rowsOf{
-			{SectionUsage, 5, 17, false}, {SectionGraphs, 19, 41, false}, {SectionRouting, 43, 53, false},
-			{SectionSessions, 55, 62, false}, {SectionComing, 64, 68, false}, {SectionLately, 64, 68, false},
-		}},
-		{stem: "overview-everything-216x106", width: 216, height: 106, shown: gs, world: autoWorld, want: []rowsOf{
-			{SectionUsage, 5, 39, false}, {SectionGraphs, 41, 63, false}, {SectionRouting, 65, 75, false},
-			{SectionSessions, 77, 84, false}, {SectionComing, 86, 99, false}, {SectionLately, 86, 99, false},
+		{stem: "overview-everything-216x106", width: 216, height: 106, shown: withSessions, world: autoWorld, want: []rowsOf{
+			{SectionUsage, 5, 39, false}, {SectionRouting, 41, 51, false}, {SectionSessions, 53, 60, false},
+			{SectionComing, 62, 75, false}, {SectionLately, 62, 75, false},
 		}},
 		// USAGE's blank rows between its accounts give way, so SESSIONS
 		// shows a session and how many more where it would fold with them.
-		{stem: "overview-everything-173x53", width: 173, height: 53, shown: gs, world: sixRunning, want: []rowsOf{
-			{SectionUsage, 5, 18, false}, {SectionGraphs, 20, 28, false}, {SectionRouting, 30, 38, false},
-			{SectionSessions, 40, 45, false}, {SectionComing, 47, 51, false}, {SectionLately, 47, 51, false},
+		{stem: "overview-everything-173x53", width: 173, height: 53, shown: withSessions, world: sixRunning, want: []rowsOf{
+			{SectionUsage, 5, 23, false}, {SectionRouting, 25, 33, false}, {SectionSessions, 35, 45, false},
+			{SectionComing, 47, 51, false}, {SectionLately, 47, 51, false},
 		}},
 		{stem: "overview-phone-52", width: 52, height: 66, world: autoWorld, want: []rowsOf{
 			{SectionUsage, 7, 36, false}, {SectionRouting, 38, 47, false}, {SectionComing, 49, 56, false}, {SectionLately, 58, 64, false},
@@ -394,11 +383,11 @@ func rowsGiven(laid []planned) map[Section]int {
 }
 
 // shortOfRows are sections at 160 columns whose leasts, a blank row between
-// each two, take 45 rows: USAGE 13, GRAPHS 9, ROUTING 6, SESSIONS 8, and
-// COMING UP and LATELY side by side, 5.
+// each two, take 35 rows: USAGE 13, ROUTING 6, SESSIONS 8, and COMING UP and
+// LATELY side by side, 5.
 func shortOfRows() []section {
 	return []section{
-		sized(SectionUsage, 13, 35), sized(SectionGraphs, 9, 23), sized(SectionRouting, 6, 11),
+		sized(SectionUsage, 13, 35), sized(SectionRouting, 6, 11),
 		sized(SectionSessions, 8, 8), sized(SectionComing, 5, 9), sized(SectionLately, 5, 14),
 	}
 }
@@ -409,25 +398,19 @@ func TestRowsShortSectionsFoldInTurnThenWhatFitsUnfoldsTheLastFoldedFirstAndUSAG
 		folds []Section
 		usage int
 	}{
-		{rows: 45, usage: 13},
-		{rows: 44, folds: []Section{SectionSessions}, usage: 13},
-		{rows: 38, folds: []Section{SectionSessions}, usage: 13},
+		{rows: 35, usage: 13},
+		{rows: 34, folds: []Section{SectionSessions}, usage: 13},
+		{rows: 28, folds: []Section{SectionSessions}, usage: 13},
 		// SESSIONS, then COMING UP and LATELY fold; neither fits again.
-		{rows: 37, folds: []Section{SectionSessions, SectionComing, SectionLately}, usage: 13},
-		{rows: 33, folds: []Section{SectionSessions, SectionComing, SectionLately}, usage: 13},
-		// GRAPHS folds too; then COMING UP and LATELY, folded before it,
-		// fit again, where SESSIONS doesn't.
-		{rows: 32, folds: []Section{SectionGraphs, SectionSessions}, usage: 13},
-		{rows: 30, folds: []Section{SectionGraphs, SectionSessions}, usage: 13},
-		{rows: 29, folds: []Section{SectionGraphs, SectionSessions, SectionComing, SectionLately}, usage: 13},
-		// ROUTING folds too; it doesn't fit again, nor GRAPHS, but COMING UP
-		// and LATELY do.
-		{rows: 24, folds: []Section{SectionGraphs, SectionRouting, SectionSessions}, usage: 13},
-		{rows: 23, folds: []Section{SectionGraphs, SectionRouting, SectionSessions}, usage: 13},
-		{rows: 22, folds: []Section{SectionGraphs, SectionRouting, SectionSessions, SectionComing, SectionLately}, usage: 13},
-		{rows: 18, folds: []Section{SectionGraphs, SectionRouting, SectionSessions, SectionComing, SectionLately}, usage: 13},
-		{rows: 17, folds: []Section{SectionGraphs, SectionRouting, SectionSessions, SectionComing, SectionLately}, usage: 12},
-		{rows: 6, folds: []Section{SectionGraphs, SectionRouting, SectionSessions, SectionComing, SectionLately}, usage: sectionHead},
+		{rows: 27, folds: []Section{SectionSessions, SectionComing, SectionLately}, usage: 13},
+		{rows: 23, folds: []Section{SectionSessions, SectionComing, SectionLately}, usage: 13},
+		// ROUTING folds too; it doesn't fit again, but COMING UP and LATELY,
+		// folded before it, do, where SESSIONS doesn't.
+		{rows: 22, folds: []Section{SectionRouting, SectionSessions}, usage: 13},
+		{rows: 21, folds: []Section{SectionRouting, SectionSessions, SectionComing, SectionLately}, usage: 13},
+		{rows: 17, folds: []Section{SectionRouting, SectionSessions, SectionComing, SectionLately}, usage: 13},
+		{rows: 16, folds: []Section{SectionRouting, SectionSessions, SectionComing, SectionLately}, usage: 12},
+		{rows: 6, folds: []Section{SectionRouting, SectionSessions, SectionComing, SectionLately}, usage: sectionHead},
 	}
 	for _, tt := range tests {
 		laid := planOf(frameOf(160, 50), shortOfRows(), 0, tt.rows)
@@ -444,17 +427,16 @@ func TestRowsShortSectionsFoldInTurnThenWhatFitsUnfoldsTheLastFoldedFirstAndUSAG
 }
 
 // Two groups folded early, each fitting again alone but not together, tell
-// the group folded last from the first: with SESSIONS at 3 rows, in 30 or 31,
-// SESSIONS, COMING UP and LATELY, then GRAPHS fold; COMING UP and LATELY,
-// folded after SESSIONS, unfold before it, and leave it no room. So with
-// every section shown, at 73x42, GRAPHS, folded after COMING UP and LATELY,
-// unfolds where they then can't; at 108x32, ROUTING, a row an account and
-// folded last, unfolds first and leaves GRAPHS no room.
+// the group folded last from the first: with SESSIONS at 3 rows, in 22,
+// SESSIONS, COMING UP and LATELY, then ROUTING fold; COMING UP and LATELY,
+// folded after SESSIONS, unfold before it, and leave it no room. With every
+// section shown, at 73x42, SESSIONS, COMING UP and LATELY fold, and at
+// 108x32, SESSIONS alone.
 func TestTheGroupFoldedLastUnfoldsFirst(t *testing.T) {
 	sections := shortOfRows()
-	sections[3] = sized(SectionSessions, 3, 3)
-	for _, rows := range []int{30, 31} {
-		want := []Section{SectionGraphs, SectionSessions}
+	sections[2] = sized(SectionSessions, 3, 3)
+	for _, rows := range []int{22} {
+		want := []Section{SectionRouting, SectionSessions}
 		if got := folds(planOf(frameOf(160, 50), sections, 0, rows)); !slices.Equal(got, want) {
 			t.Errorf("in %d rows, %v fold, want %v: COMING UP and LATELY, folded after SESSIONS, unfold first", rows, got, want)
 		}
@@ -464,8 +446,8 @@ func TestTheGroupFoldedLastUnfoldsFirst(t *testing.T) {
 		width, height int
 		folds         []Section
 	}{
-		{width: 73, height: 42, folds: []Section{SectionRouting, SectionSessions, SectionComing, SectionLately}},
-		{width: 108, height: 32, folds: []Section{SectionGraphs, SectionSessions, SectionComing, SectionLately}},
+		{width: 73, height: 42, folds: []Section{SectionSessions, SectionComing, SectionLately}},
+		{width: 108, height: 32, folds: []Section{SectionSessions}},
 	}
 	for _, tt := range tests {
 		f := frameOf(tt.width, tt.height)
@@ -484,19 +466,19 @@ func TestRowsToSpareGrowTheSectionsNotFoldedWhileOthersAreAndNeverOneFolded(t *t
 		last int
 	}{
 		{
-			name: "SESSIONS folded, GRAPHS growing a row at a time",
-			rows: 44, last: 44,
-			want: map[Section]int{SectionUsage: 13, SectionGraphs: 15, SectionRouting: 6, SectionSessions: 1, SectionComing: 5, SectionLately: 5},
+			name: "SESSIONS folded, its rows going on to ROUTING's two rows of trace, then COMING UP and LATELY",
+			rows: 34, last: 34,
+			want: map[Section]int{SectionUsage: 13, SectionRouting: 11, SectionSessions: 1, SectionComing: 6, SectionLately: 6},
 		},
 		{
-			name: "GRAPHS folded, its rows going on to COMING UP and LATELY",
-			rows: 32, last: 32,
-			want: map[Section]int{SectionUsage: 13, SectionGraphs: 1, SectionRouting: 6, SectionSessions: 1, SectionComing: 7, SectionLately: 7},
+			name: "SESSIONS, COMING UP and LATELY folded, none of them growing, nor ROUTING, short of its two rows of trace",
+			rows: 27, last: 23,
+			want: map[Section]int{SectionUsage: 13, SectionRouting: 6, SectionSessions: 1, SectionComing: 1, SectionLately: 1},
 		},
 		{
 			name: "every section but USAGE folded, which grows to no step that fits",
-			rows: 22, last: 18,
-			want: map[Section]int{SectionUsage: 13, SectionGraphs: 1, SectionRouting: 1, SectionSessions: 1, SectionComing: 1, SectionLately: 1},
+			rows: 21, last: 17,
+			want: map[Section]int{SectionUsage: 13, SectionRouting: 1, SectionSessions: 1, SectionComing: 1, SectionLately: 1},
 		},
 	}
 	for _, tt := range tests {
@@ -513,10 +495,10 @@ func TestRowsToSpareGrowTheSectionsNotFoldedWhileOthersAreAndNeverOneFolded(t *t
 }
 
 func TestNoBlankRowLiesBetweenTwoFoldedHeadingsAndOneLiesBesideEachUnfolded(t *testing.T) {
-	laid := planOf(frameOf(160, 50), shortOfRows(), 0, 24)
+	laid := planOf(frameOf(160, 50), shortOfRows(), 0, 22)
 	want := []rowsOf{
-		{SectionUsage, 1, 13, false}, {SectionGraphs, 15, 15, true}, {SectionRouting, 16, 16, true},
-		{SectionSessions, 17, 17, true}, {SectionComing, 19, 24, false}, {SectionLately, 19, 24, false},
+		{SectionUsage, 1, 13, false}, {SectionRouting, 15, 15, true},
+		{SectionSessions, 16, 16, true}, {SectionComing, 18, 22, false}, {SectionLately, 18, 22, false},
 	}
 	var got []rowsOf
 	for _, p := range laid {
@@ -527,35 +509,33 @@ func TestNoBlankRowLiesBetweenTwoFoldedHeadingsAndOneLiesBesideEachUnfolded(t *t
 	}
 }
 
-func TestRowsToSpareGoToGRAPHSThenTheBigBarsThenROUTINGWhereEachFitsThenCOMINGUPAndLATELY(t *testing.T) {
+func TestRowsToSpareGoToTheBigBarsThenROUTINGWhereEachFitsThenCOMINGUPAndLATELY(t *testing.T) {
 	sections := []section{
-		sized(SectionUsage, 13, 35), sized(SectionGraphs, 9, 23), sized(SectionRouting, 6, 11),
+		sized(SectionUsage, 13, 35), sized(SectionRouting, 6, 11),
 		sized(SectionComing, 5, 9), sized(SectionLately, 5, 14),
 	}
 	tests := []struct {
-		name                           string
-		rows                           int
-		usage, graphs, routing, coming int
+		name                   string
+		rows                   int
+		usage, routing, coming int
 	}{
-		{name: "none to spare: each at its least", rows: 36, usage: 13, graphs: 9, routing: 6, coming: 5},
-		{name: "GRAPHS a row at a time", rows: 40, usage: 13, graphs: 13, routing: 6, coming: 5},
-		{name: "GRAPHS to 19 rows of chart", rows: 50, usage: 13, graphs: 23, routing: 6, coming: 5},
-		{name: "the big bars not fitting, ROUTING's two rows of trace", rows: 55, usage: 13, graphs: 23, routing: 11, coming: 5},
-		{name: "then COMING UP and LATELY a line at a time", rows: 60, usage: 13, graphs: 23, routing: 11, coming: 10},
-		{name: "the big bars fitting, before ROUTING", rows: 72, usage: 35, graphs: 23, routing: 6, coming: 5},
-		{name: "ROUTING not fitting, COMING UP and LATELY growing past it", rows: 76, usage: 35, graphs: 23, routing: 6, coming: 9},
-		{name: "ROUTING fitting after the big bars", rows: 77, usage: 35, graphs: 23, routing: 11, coming: 5},
-		{name: "each at its most", rows: 86, usage: 35, graphs: 23, routing: 11, coming: 14},
-		{name: "past every most", rows: 100, usage: 35, graphs: 23, routing: 11, coming: 14},
+		{name: "none to spare: each at its least", rows: 26, usage: 13, routing: 6, coming: 5},
+		{name: "the big bars not fitting, ROUTING's two rows of trace", rows: 31, usage: 13, routing: 11, coming: 5},
+		{name: "then COMING UP and LATELY a line at a time", rows: 36, usage: 13, routing: 11, coming: 10},
+		{name: "the big bars fitting, before ROUTING", rows: 48, usage: 35, routing: 6, coming: 5},
+		{name: "ROUTING not fitting, COMING UP and LATELY growing past it", rows: 52, usage: 35, routing: 6, coming: 9},
+		{name: "ROUTING fitting after the big bars", rows: 53, usage: 35, routing: 11, coming: 5},
+		{name: "each at its most", rows: 62, usage: 35, routing: 11, coming: 14},
+		{name: "past every most", rows: 100, usage: 35, routing: 11, coming: 14},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			laid := planOf(frameOf(160, 120), sections, 0, tt.rows)
-			want := map[Section]int{SectionUsage: tt.usage, SectionGraphs: tt.graphs, SectionRouting: tt.routing, SectionComing: tt.coming, SectionLately: tt.coming}
+			want := map[Section]int{SectionUsage: tt.usage, SectionRouting: tt.routing, SectionComing: tt.coming, SectionLately: tt.coming}
 			if got := rowsGiven(laid); !maps.Equal(got, want) {
 				t.Errorf("in %d rows, the sections take %v, want %v", tt.rows, got, want)
 			}
-			if got, want := laid[len(laid)-1].lastRow()+1, min(tt.rows, 86); got != want {
+			if got, want := laid[len(laid)-1].lastRow()+1, min(tt.rows, 62); got != want {
 				t.Errorf("in %d rows, the last section ends on row %d, want %d, the rest empty at the foot", tt.rows, got, want)
 			}
 		})
@@ -626,12 +606,12 @@ func TestOnAPhoneCOMINGUPAndLATELYEachGrowALineAtATimeInTurnAndCOMINGUPUnfoldsAl
 func TestBesideUSAGEASectionOfNoRowsOfItsOwnSharesUSAGEsRowsAndElsewhereIsntLaidOut(t *testing.T) {
 	usage := sized(SectionUsage, 30, 30)
 	usage.aside = 107
-	beside := []section{usage, sized(SectionGraphs, 9, 9), sized(SectionRouting, 0, 0)}
+	beside := []section{usage, sized(SectionRouting, 0, 0), sized(SectionSessions, 9, 9)}
 	laid := planOf(frameOf(160, 60), beside, 4, 50)
 	want := []planned{
 		{section: beside[0], head: bounds{y: 4, width: 104, rows: 1}, body: bounds{y: 6, width: 160, rows: 28}},
-		{section: beside[2], head: bounds{x: 107, y: 4, width: 53, rows: 1}, body: bounds{x: 107, y: 6, width: 53, rows: 28}},
-		{section: beside[1], head: bounds{y: 35, width: 160, rows: 1}, body: bounds{y: 37, width: 160, rows: 7}},
+		{section: beside[1], head: bounds{x: 107, y: 4, width: 53, rows: 1}, body: bounds{x: 107, y: 6, width: 53, rows: 28}},
+		{section: beside[2], head: bounds{y: 35, width: 160, rows: 1}, body: bounds{y: 37, width: 160, rows: 7}},
 	}
 	if len(laid) != len(want) {
 		t.Fatalf("laid out %d sections, want %d", len(laid), len(want))
@@ -890,7 +870,7 @@ func TestAFoldedHeadingSaysWhatItHoldsThenWhyOrThatItHasMore(t *testing.T) {
 		want    string
 	}{
 		{name: "SESSIONS, there being no room at the frame's height", section: section{Section: SectionSessions, folded: holds("6 running")}, fold: true, want: "6 running   no room at 39 rows"},
-		{name: "GRAPHS, holding nothing to say", section: section{Section: SectionGraphs, folded: nothing}, fold: true, want: "no room at 39 rows"},
+		{name: "SESSIONS, holding nothing to say", section: section{Section: SectionSessions, folded: nothing}, fold: true, want: "no room at 39 rows"},
 		{name: "ROUTING, saying nothing it holds", section: section{Section: SectionRouting}, fold: true, want: "no room at 39 rows"},
 		{name: "COMING UP, its first line and more", section: section{Section: SectionComing, folded: holds("16:30  personal's 5-hour resets"), lines: lines(2)}, fold: true, want: "16:30  personal's 5-hour resets  …"},
 		{name: "COMING UP, its first line alone", section: section{Section: SectionComing, folded: holds("16:30  personal's 5-hour resets"), lines: lines(1)}, fold: true, want: "16:30  personal's 5-hour resets"},
@@ -911,15 +891,14 @@ func TestAFoldedHeadingSaysWhatItHoldsThenWhyOrThatItHasMore(t *testing.T) {
 func TestAFoldedSectionsHeadingSaysOnceThatThereIsNoRoomAsTheDesignWordsIt(t *testing.T) {
 	nord := Screen(builtin(t, "nord"))
 	doc, sessions, stream := overviewWorld()
-	f := Frame{Width: 160, Height: 39, Look: nord, View: Overview, Policy: claudeLike, Sessions: sessions, Stream: stream, Sections: gs}
+	f := Frame{Width: 160, Height: 39, Look: nord, View: Overview, Policy: claudeLike, Sessions: sessions, Stream: stream, Sections: withSessions}
 	tests := []struct {
 		height  int
 		section Section
 		want    string
 	}{
-		{height: 37, section: SectionSessions, want: "SESSIONS   6 running: 2 on personal, 4 on side   no room at 37 rows ─"},
-		{height: 35, section: SectionGraphs, want: "GRAPHS   work   no room at 35 rows ─"},
-		{height: 28, section: SectionRouting, want: "ROUTING   auto   no room at 28 rows ─"},
+		{height: 34, section: SectionSessions, want: "SESSIONS   6 running: 2 on personal, 4 on side   no room at 34 rows ─"},
+		{height: 26, section: SectionRouting, want: "ROUTING   auto   no room at 26 rows ─"},
 	}
 	for _, tt := range tests {
 		f.Height = tt.height
@@ -937,8 +916,8 @@ func TestEverySectionHiddenTheFirstRowSaysHowToBringThemBack(t *testing.T) {
 		width int
 		want  []string
 	}{
-		{width: 160, want: []string{"every section is hidden:  u usage  g graphs  r routing  s sessions  c coming up  l lately"}},
-		{width: 52, want: []string{"every section is hidden:  u usage  g graphs", "r routing  s sessions  c coming up  l lately"}},
+		{width: 160, want: []string{"every section is hidden:  u usage  r routing  s sessions  c coming up  l lately"}},
+		{width: 52, want: []string{"every section is hidden:  u usage  r routing", "s sessions  c coming up  l lately"}},
 	}
 	for _, tt := range tests {
 		f := frameOf(tt.width, 40)
@@ -984,47 +963,45 @@ func TestASectionsHeadingIsATargetThatHidesItWhileItsInTheViewsRows(t *testing.T
 }
 
 func TestTheBodyOfASectionNotFoldedHasItsTargetsWhereItsLaidOut(t *testing.T) {
-	account := func(id string) func(bounds) []Target {
-		return func(b bounds) []Target { return []Target{{X: b.x, Y: b.y, Width: b.width, On: OnAccount, Account: id}} }
+	session := func(id string) func(bounds) []Target {
+		return func(b bounds) []Target { return []Target{{X: b.x, Y: b.y, Width: b.width, On: OnSession, Session: id}} }
 	}
 	usage, routing := sized(SectionUsage, 13, 13), sized(SectionRouting, 6, 6)
-	usage.targets, routing.targets = account("work"), account("side")
+	usage.targets, routing.targets = session("c61b"), session("7f3a")
 	f := frameOf(160, 40)
 	laid := planOf(f, []section{usage, routing}, f.top(), 16)
 	var got []Target
 	for _, t := range f.targetsOf(laid) {
-		if t.On == OnAccount {
+		if t.On == OnSession {
 			got = append(got, t)
 		}
 	}
-	if want := []Target{{Y: 6, Width: 160, On: OnAccount, Account: "work"}}; !slices.Equal(got, want) {
+	if want := []Target{{Y: 6, Width: 160, On: OnSession, Session: "c61b"}}; !slices.Equal(got, want) {
 		t.Errorf("the bodies' targets are %+v, want USAGE's alone, where its body's laid out, as ROUTING folds", got)
 	}
 }
 
-// An account's row is a click's target, which moves the focus to it, only
-// where the Overview has a focus: not by account from 150 columns while
-// GRAPHS charts every account beside USAGE's blocks.
-func TestAnAccountsRowIsATargetOnlyWhereTheOverviewHasAFocus(t *testing.T) {
-	graphs := Sections{}.Toggled(SectionGraphs)
+// The Overview has no focus, GRAPHS gone, so no account's row is a click's
+// target, in USAGE or ROUTING, however USAGE groups its windows, scrolled
+// or not.
+func TestNoAccountsRowOnTheOverviewIsATarget(t *testing.T) {
 	tests := []struct {
-		name     string
-		by       By
-		width    int
-		sections Sections
-		want     bool
+		name   string
+		by     By
+		width  int
+		height int
 	}{
-		{name: "by account, GRAPHS beside USAGE", by: ByAccount, width: 160, sections: graphs},
-		{name: "by account under 150 columns, GRAPHS shown", by: ByAccount, width: 149, sections: graphs, want: true},
-		{name: "by account, GRAPHS hidden", by: ByAccount, width: 160, want: true},
-		{name: "by window, GRAPHS shown", by: ByWindow, width: 160, sections: graphs, want: true},
+		{name: "by account, ROUTING beside USAGE", by: ByAccount, width: 160, height: 60},
+		{name: "by account under 150 columns", by: ByAccount, width: 149, height: 60},
+		{name: "by window", by: ByWindow, width: 160, height: 60},
+		{name: "by window, USAGE scrolling", by: ByWindow, width: 160, height: 16},
+		{name: "on a phone", by: ByWindow, width: 73, height: 61},
 	}
 	for _, tt := range tests {
-		f := frameOf(tt.width, 60)
-		f.By, f.Sections = tt.by, tt.sections
-		rows := slices.ContainsFunc(f.Targets(usageWorld(), now), func(t Target) bool { return t.On == OnAccount })
-		if rows != tt.want || f.Focuses() != tt.want {
-			t.Errorf("%s: an account's row is a target %t, the Overview focuses %t; want both %t", tt.name, rows, f.Focuses(), tt.want)
+		f := frameOf(tt.width, tt.height)
+		f.By, f.Sections = tt.by, SectionsNamed([]string{"usage", "routing", "sessions"})
+		if i := slices.IndexFunc(f.Targets(usageWorld(), now), func(t Target) bool { return t.On == OnAccount }); i >= 0 {
+			t.Errorf("%s: %+v is a target, want no account's row", tt.name, f.Targets(usageWorld(), now)[i])
 		}
 	}
 }

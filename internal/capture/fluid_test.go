@@ -31,7 +31,7 @@ var ownersSizes = []watch.Size{
 // every section shown, Compare, Detail of work, History's four views,
 // Runway, Graphs, the Log's events, and d28c's page.
 var longNamesViews = []page{
-	{name: "long-names-overview", world: accountWorlds.longNames, keys: keysOf("g", "s")},
+	{name: "long-names-overview", world: accountWorlds.longNames, keys: keysOf("s")},
 	{name: "long-names-accounts-compare", world: accountWorlds.longNames, keys: toAccounts()},
 	{name: "long-names-accounts-detail", world: accountWorlds.longNames, keys: toDetail(downKey)},
 	{name: "long-names-history-year", world: accountWorlds.longNames, keys: toHistory()},
@@ -211,19 +211,11 @@ var knownBreaks = []known{
 	},
 	// What's left at the foot at 73x36, every other section folded, where
 	// USAGE takes the least far step that fits whole, as it keeps its key
-	// only where it shows: three accounts stacked, their blank rows given
-	// way, 3 rows, where they take 4 more and LATELY 5, and GRAPHS alone
-	// shown, more; three by account, of three windows, their key given way,
-	// 2 rows, where the key takes 3 more and LATELY 5; six stacked, their
-	// headings' blank rows given way too, 2 rows, where those take 3 more and
-	// LATELY 5.
+	// only where it shows: six accounts stacked, their blank rows and their
+	// headings' given way, 2 rows, where those take 3 more and LATELY 5.
 	{
 		byDesign: "the rows under USAGE whole, short of its step before and every folded section's least", rule: foldWithRowsSpare,
-		sizes: []string{"73x36"}, fixtures: []string{
-			"overview-everything-160x39", "overview-everything-216x106", "overview-burn-down-160x39", "overview-sessions-graphs-216",
-			"overview-phone-burn-down-52", "long-names-overview", "overview-pool-220x50", "overview-by-account-burn-down-220x50",
-			"overview-six-accounts-160",
-		},
+		sizes: []string{"73x36"}, fixtures: []string{"overview-six-accounts-160"},
 	},
 }
 
@@ -712,11 +704,11 @@ func TestTheFluidSweepFindsWhatItSweepsFor(t *testing.T) {
 		{name: "a turn still running", view: "Log Requests", rows: []string{"LOG", "", across, "13 14:40   3m…   6 req"}},
 		{
 			name: "no room at the frame's height over blank rows", view: "Log Requests",
-			rows: []string{"LOG", across, "GRAPHS   work   no room at 13 rows ── g", "", "", ""}, want: []fluidRule{foldWithRowsSpare},
+			rows: []string{"LOG", across, "SESSIONS   6 running   no room at 13 rows ── s", "", "", ""}, want: []fluidRule{foldWithRowsSpare},
 		},
 		{
 			name: "no room at the frame's height over two blank rows", view: "Log Requests",
-			rows: []string{"LOG", across, "GRAPHS   work   no room at 13 rows ── g", "", ""},
+			rows: []string{"LOG", across, "SESSIONS   6 running   no room at 13 rows ── s", "", ""},
 		},
 		{
 			name: "a section folded to its heading over blank rows", view: "Log Requests",
@@ -775,7 +767,7 @@ func TestAKnownBreakPassesWhereItBreaksAndFailsWhereItsCleared(t *testing.T) {
 		{byDesign: "3 rows, short of LATELY's least", rule: foldWithRowsSpare, sizes: []string{"138x15"}, fixtures: []string{"runway-week-160", "runway-phone-52"}},
 		{byDesign: "4 rows, short of ROUTING's least", rule: foldWithRowsSpare, sizes: []string{"138x30"}, fixtures: []string{"runway-week-160"}},
 		{byDesign: "work at its most", cuts: []string{"work-tea…"}, rule: cutWithRoom, sizes: []string{"138x30"}, fixtures: []string{"runway-week-160"}},
-		{byDesign: "2 rows, short of GRAPHS' least", rule: foldWithRowsSpare, sizes: []string{"73x61"}, fixtures: []string{"runway-phone-52"}},
+		{byDesign: "2 rows, short of SESSIONS' least", rule: foldWithRowsSpare, sizes: []string{"73x61"}, fixtures: []string{"runway-phone-52"}},
 	}
 	cut, fold, none := fluidBreak{rule: cutWithRoom}, fluidBreak{rule: foldWithRowsSpare}, fluidBreak{rule: nothingDrawn}
 	for _, tt := range []struct {

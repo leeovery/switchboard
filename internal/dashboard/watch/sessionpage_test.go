@@ -329,12 +329,12 @@ func TestASessionsPageLeavesForTheTabItWasOpenedOverOrAnother(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := turnsModel(20)
-			m.scroll, m.focus = 2, "side"
+			m.scroll = 2
 			next, _ := tt.leave(m)
 			got := next.(Model)
-			if got.session != nil || got.view != tt.view || got.scroll != tt.scroll || got.focus != "side" {
-				t.Errorf("a page open %v, on %s scrolled %d, the focus on %q; want the page closed, on %s scrolled %d, the focus kept",
-					got.session != nil, got.view, got.scroll, got.focus, tt.view, tt.scroll)
+			if got.session != nil || got.view != tt.view || got.scroll != tt.scroll {
+				t.Errorf("a page open %v, on %s scrolled %d; want the page closed, on %s scrolled %d",
+					got.session != nil, got.view, got.scroll, tt.view, tt.scroll)
 			}
 		})
 	}
