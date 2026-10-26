@@ -128,8 +128,8 @@ const GraphsGlanceColumns = sparkCells
 // the sections shown, lay the page out, as layGraphs has it; WHEN YOU WORK's
 // page, whose weeks its heading says, as the watch built it at the last look
 // on Graphs, nil where the ledger's days weren't read then, or WHEN YOU WORK
-// was hidden; and Runway's lanes over its live view of each
-// window a burn-down section shown charts, as GraphsWindows has them, by the
+// was hidden; and Runway's lanes over its live view of each window a
+// burn-down section or GLANCE shown draws, as GraphsWindows has them, by the
 // window, as the watch built them at the look, which its cards say what
 // Runway says of each account by, and GLANCE places its ✕ by, none till it's
 // built them; POOL's stack, as the watch built it at the last look on Graphs

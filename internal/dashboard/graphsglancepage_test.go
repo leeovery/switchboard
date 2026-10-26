@@ -233,6 +233,16 @@ func TestGraphsWindowsAreThoseItsSectionsShownDraw(t *testing.T) {
 // shows each section's heading: at every height a phone's page scrolls at,
 // and every offset it scrolls to.
 func TestGraphsPagesGlancesStackedPartsHeadsWithTheirFirstRows(t *testing.T) {
+	c, laid := glanceWhole(glanceFrame(t, 52, 40, "week", "glance"))
+	heads, g := laid.glance.heads(), placedOf(t, laid, GraphsGlance)
+	if len(heads) != len(runwayWindows) {
+		t.Fatalf("GLANCE stacked has %d part heads, want one a window, %d", len(heads), len(runwayWindows))
+	}
+	for i, at := range heads {
+		if got, want := strings.TrimSpace(rowOf(c, g.at+sectionHead+at)), strings.ToUpper(runwayNames[runwayWindows[i]]); got != want {
+			t.Errorf("GLANCE's part head %d, on its row %d, reads %q, want its window's name, %q", i, at, got, want)
+		}
+	}
 	for height := 14; height <= 40; height++ {
 		f := glanceFrame(t, 52, height, "week", "glance")
 		laid := f.graphsLaid()

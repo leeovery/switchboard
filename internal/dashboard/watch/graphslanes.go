@@ -37,10 +37,10 @@ type graphsTab struct {
 
 // graphsBuilt is m with Graphs' lanes built afresh at the moment of the
 // message taken in, while it shows with no session's page over it, once a
-// moment: of each window it reads, as graphsWindows has them, none where no
-// burn-down section shows, over Runway's live view of it, as graphsTimeline
-// has it, as views.Lanes builds them from the last look's, of the readings
-// history's live tail and the readings the watch read itself, and the
+// moment: of each window it reads, as graphsWindows has them, none where
+// neither a burn-down section nor GLANCE shows, over Runway's live view of
+// it, as graphsTimeline has it, as views.Lanes builds them from the last
+// look's, of the readings history's live tail and the readings the watch read itself, and the
 // ledger's days they're judged by, as Runway's are; POOL's stack, while it
 // shows, of the same readings, as graphsPool builds it; the pool's room over
 // each window's span, while GLANCE shows, of them too, as graphsSpans builds
