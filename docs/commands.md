@@ -85,7 +85,7 @@ row shows these parts:
 
 | Part | What it shows |
 |---|---|
-| Number | The account's number, as the dashboard numbers it: its place in the config, as the router has taken it up. |
+| Number | The account's number, as the dashboard numbers it: its place in the router's order, the config's once the router has taken it up. |
 | Label | The account's label, with `◆` on the primary and `▲` on the account new sessions go to. |
 | Bar | The window's use, filled along the theme's ramp. `┃` marks where even use would have put it by now. `╎` marks where the account's cap starts: 1 less its `reserve`. |
 | Percentage | How much of the window is used. |

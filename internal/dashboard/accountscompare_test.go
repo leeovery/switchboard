@@ -356,7 +356,8 @@ func TestComparesHeadsKeepToTheirColumns(t *testing.T) {
 // and the router agree, as their places in the config; where the router
 // still holds the first of ten the config no longer has, from 2. Where the
 // numbers shown skip one, as side's 3 after work's 1 with personal removed
-// and client added, it counts them instead.
+// and client added, or run past the config's count, as they do scrolled to
+// the end with the router still holding the first, it counts them instead.
 func TestComparesHeadingSaysWhichAccountsItShowsByTheirNumbers(t *testing.T) {
 	ten := usageWorld(tenCompared, extraOff)
 	tests := []struct {
@@ -378,6 +379,14 @@ func TestComparesHeadingSaysWhichAccountsItShowsByTheirNumbers(t *testing.T) {
 		{
 			name: "one removed and one added", configured: configured("work", "side", "client"), doc: usageWorld(extraOff), width: 90,
 			want: func(shown int) string { return fmt.Sprintf("%d of 3 accounts", shown) },
+		},
+		{
+			name: "three of four, the first removed, scrolled to the end", configured: tenFramed[1:4], doc: ten, width: 90, first: 9,
+			want: func(shown int) string { return fmt.Sprintf("%d of 3 accounts", shown) },
+		},
+		{
+			name: "nine of ten, the first removed, scrolled to the end", configured: tenFramed[1:], doc: ten, width: 160, first: 9,
+			want: func(shown int) string { return fmt.Sprintf("%d of 9 accounts", shown) },
 		},
 	}
 	for _, tt := range tests {

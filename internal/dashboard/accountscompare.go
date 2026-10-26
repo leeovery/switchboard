@@ -383,14 +383,17 @@ func (f Frame) compareState() []line {
 
 // comparedShown says which of n accounts Compare shows, those given: by the
 // first's number and the last's, as "accounts 2–5 of 9", where their numbers
-// run on one by one; else, as one the config no longer has leaves a gap
-// among them, how many, as "2 of 3 accounts".
+// run on one by one and the last is no more than n; else, as one the config
+// no longer has leaves a gap among them, or numbers them past its count, how
+// many, as "2 of 3 accounts".
 func comparedShown(shown []status.AccountNow, n int) string {
 	first, last := shown[0].Place, shown[len(shown)-1].Place
+	runsOn := last <= n
 	for i, a := range shown {
-		if a.Place != first+i {
-			return fmt.Sprintf("%d of %d accounts", len(shown), n)
-		}
+		runsOn = runsOn && a.Place == first+i
+	}
+	if !runsOn {
+		return fmt.Sprintf("%d of %d accounts", len(shown), n)
 	}
 	return fmt.Sprintf("accounts %d–%d of %d", first, last, n)
 }
