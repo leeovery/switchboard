@@ -336,7 +336,7 @@ func TestARestartAskedForIsTheOneTheRouterMakes(t *testing.T) {
 	relink(t, s.binary, s.version("1.1"))
 	r.look()
 
-	r.atOnce()
+	r.atOnce(nil)
 	if !r.restart(t.Context()) {
 		t.Error("restart() = false, want true: a restart is due")
 	}
@@ -505,7 +505,7 @@ func TestARestartGoesAheadUnlessItsBinaryRefusesToStart(t *testing.T) {
 			name:        "unable to answer, as one from before the check",
 			answer:      binaryAnswer{err: errors.New("exit status 1")},
 			wantRestart: true,
-			wantLog:     []string{"level=INFO", `msg="its binary couldn't answer whether it could start; restarting all the same"`, `error="exit status 1"`},
+			wantLog:     []string{"level=INFO", silenceSaid, `error="exit status 1"`},
 		},
 		{
 			name:    "refusing",
@@ -534,6 +534,9 @@ func TestARestartGoesAheadUnlessItsBinaryRefusesToStart(t *testing.T) {
 			}
 			if tt.wantLog != nil && !log.Has(append(tt.wantLog, "path="+s.binary)...) {
 				t.Errorf("log reads\n%s\nwant a line with %q", log, tt.wantLog)
+			}
+			if tt.answer.err == nil && log.Has(silenceSaid) {
+				t.Errorf("log reads\n%s\nwant nothing said of the binary's silence: it answered", log)
 			}
 			wantHeard := []Event{RestartDue{Reason: "upgraded"}}
 			wantReport := status.Restart{Reason: "upgraded", Since: start}
@@ -720,6 +723,7 @@ func TestARestartHeldStaysHeldThroughAFileGoneForAMoment(t *testing.T) {
 }
 
 func TestARequestBegunAsTheBinaryIsAskedPutsTheRestartOffToTheNextQuietMoment(t *testing.T) {
+	log := logstest.Capture(t)
 	s := newStartedFrom(t)
 	inFlight := newInFlight()
 	r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, inFlight, at(start), unheeded)
@@ -749,6 +753,9 @@ func TestARequestBegunAsTheBinaryIsAskedPutsTheRestartOffToTheNextQuietMoment(t 
 	}
 	if *asked != 1 {
 		t.Errorf("the binary was asked %d times, want once: nothing moved on since it answered", *asked)
+	}
+	if log.Has(silenceSaid) {
+		t.Errorf("log reads\n%s\nwant nothing said of the binary's silence: it answered", log)
 	}
 }
 
@@ -904,7 +911,7 @@ func TestABinaryNotThereIsntRestartedIntoTillItsBack(t *testing.T) {
 	if ready := r.ready(); ready != nil {
 		t.Errorf("ready() = %v with the binary not there at the last look, want none, for the router not to look again and again", ready)
 	}
-	if err := r.restartable(t.Context()); err == nil || !strings.Contains(err.Error(), "isn't there") {
+	if _, err := r.restartable(t.Context()); err == nil || !strings.Contains(err.Error(), "isn't there") {
 		t.Errorf("restartable() = %v, want it refused, the binary not there", err)
 	}
 	if *asked != 0 {
@@ -941,7 +948,7 @@ func TestABinaryThatHasntAnsweredInTimeIsRestartedInto(t *testing.T) {
 		restart func(t *testing.T, r *restarts) bool
 	}{
 		{name: "a restart due", restart: func(t *testing.T, r *restarts) bool { return r.restart(t.Context()) }},
-		{name: "a restart asked for", restart: func(t *testing.T, r *restarts) bool { return r.restartable(t.Context()) == nil }},
+		{name: "a restart asked for", restart: func(t *testing.T, r *restarts) bool { return askedFor(t, r) == nil }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -963,7 +970,7 @@ func TestABinaryThatHasntAnsweredInTimeIsRestartedInto(t *testing.T) {
 				if got := r.report(); r.held != nil || got.Held != "" {
 					t.Errorf("held: %v, and report() = %+v, want nothing held", r.held, got)
 				}
-				if !log.Has("level=INFO", `msg="its binary couldn't answer whether it could start; restarting all the same"`, `error="context deadline exceeded"`) {
+				if !log.Has("level=INFO", silenceSaid, `error="context deadline exceeded"`) {
 					t.Errorf("log reads\n%s\nwant the binary's silence logged", log)
 				}
 			})
@@ -1018,11 +1025,12 @@ func TestARestartAskedForIsRefusedWhileItsBinaryRefusesToStart(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
 			s := newStartedFrom(t)
 			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), unheeded)
 			asked := askedOf(r, tt.answer)
 
-			err := r.restartable(t.Context())
+			err := askedFor(t, r)
 			switch {
 			case tt.wantErr == "" && err != nil:
 				t.Errorf("restartable() = %v, want nil", err)
@@ -1032,8 +1040,25 @@ func TestARestartAskedForIsRefusedWhileItsBinaryRefusesToStart(t *testing.T) {
 			if *asked != 1 {
 				t.Errorf("the binary was asked %d times, want once", *asked)
 			}
+			if want := tt.answer.err != nil; log.Has(silenceSaid) != want {
+				t.Errorf("log reads\n%s\nwant the binary's silence said: %v, only where it was silent and restarted into", log, want)
+			}
 		})
 	}
+}
+
+// silenceSaid is the log's line for a binary that couldn't answer, restarted
+// into all the same.
+const silenceSaid = `msg="its binary couldn't answer whether it could start; restarting all the same"`
+
+// askedFor has r restart at once, as POST /restart does, where restartable
+// clears it, and returns why it can't, as restartable fails.
+func askedFor(t *testing.T, r *restarts) error {
+	cleared, err := r.restartable(t.Context())
+	if err == nil {
+		r.atOnce(cleared)
+	}
+	return err
 }
 
 func TestARestartAskedForIsRefusedWhenAFileChangesAsItsChecked(t *testing.T) {
@@ -1095,10 +1120,10 @@ func TestARestartAskedForIsRefusedWhenAFileChangesAsItsChecked(t *testing.T) {
 			}
 
 			want := "the router's " + tt.named(s) + " changed as it checked whether it could restart: try again"
-			if err := r.restartable(t.Context()); err == nil || err.Error() != want {
+			if _, err := r.restartable(t.Context()); err == nil || err.Error() != want {
 				t.Errorf("restartable() = %v, want %q: the check was of files no longer there", err, want)
 			}
-			if log.Has(`msg="its binary couldn't answer whether it could start; restarting all the same"`) {
+			if log.Has(silenceSaid) {
 				t.Errorf("log reads\n%s\nwant nothing said of restarting, as it doesn't", log)
 			}
 		})
@@ -1106,7 +1131,6 @@ func TestARestartAskedForIsRefusedWhenAFileChangesAsItsChecked(t *testing.T) {
 }
 
 func TestABinarysSilenceIsLoggedOnceAsTheRestartItClearedBegins(t *testing.T) {
-	said := `msg="its binary couldn't answer whether it could start; restarting all the same"`
 	tests := []struct {
 		name string
 		// meanwhile happens before the next quiet moment, once a request has
@@ -1126,6 +1150,14 @@ func TestABinarysSilenceIsLoggedOnceAsTheRestartItClearedBegins(t *testing.T) {
 			},
 			again: binaryAnswer{refusal: "invalid config"},
 		},
+		{
+			name: "the binary moved on to one that answers",
+			meanwhile: func(t *testing.T, s startedFrom) {
+				writeFile(t, s.version("1.2"), "switchboard 1.2")
+				relink(t, s.binary, s.version("1.2"))
+			},
+			wantRestart: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1138,7 +1170,7 @@ func TestABinarysSilenceIsLoggedOnceAsTheRestartItClearedBegins(t *testing.T) {
 			r.look()
 			inFlight.begin()
 
-			if r.restart(t.Context()) || log.Has(said) {
+			if r.restart(t.Context()) || log.Has(silenceSaid) {
 				t.Fatalf("restart() = true, or the log reads\n%s\nwant neither: a request put the restart off", log)
 			}
 			tt.meanwhile(t, s)
@@ -1146,7 +1178,7 @@ func TestABinarysSilenceIsLoggedOnceAsTheRestartItClearedBegins(t *testing.T) {
 			if got := r.restart(t.Context()); got != tt.wantRestart {
 				t.Errorf("at the next quiet moment, restart() = %v, want %v", got, tt.wantRestart)
 			}
-			if n := strings.Count(log.String(), said); n != tt.wantSaid {
+			if n := strings.Count(log.String(), silenceSaid); n != tt.wantSaid {
 				t.Errorf("the log reads\n%s\nwant the binary's silence said %d times, not %d: once a restart it cleared, as it begins", log, tt.wantSaid, n)
 			}
 		})
@@ -1168,12 +1200,27 @@ func TestABinaryUnableToAnswerIsLoggedOnlyAsItsRestartedInto(t *testing.T) {
 	relink(t, s.binary, s.version("1.1"))
 	r.look()
 
-	said := `msg="its binary couldn't answer whether it could start; restarting all the same"`
-	if r.restart(t.Context()) || log.Has(said) {
+	if r.restart(t.Context()) || log.Has(silenceSaid) {
 		t.Fatalf("restart() = true, or the log reads\n%s\nwant neither: the binary's silence was of files that changed since", log)
 	}
-	if !r.restart(t.Context()) || strings.Count(log.String(), said) != 1 {
+	if !r.restart(t.Context()) || strings.Count(log.String(), silenceSaid) != 1 {
 		t.Errorf("the log reads\n%s\nwant the router restarted, its binary's silence said once", log)
+	}
+}
+
+func TestABinarysSilenceIsLoggedOnceWhoeverBeginsTheRestart(t *testing.T) {
+	log := logstest.Capture(t)
+	s := newStartedFrom(t)
+	r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), unheeded)
+	silent := &binaryClearance{silent: errors.New("exit status 1")}
+
+	r.begin(restartForUpgrade, silent)
+	r.atOnce(silent)
+	if n := strings.Count(log.String(), silenceSaid); n != 1 {
+		t.Errorf("the log reads\n%s\nwant the binary's silence said once, with the one restart that begins, not %d times", log, n)
+	}
+	if r.reason != restartForUpgrade {
+		t.Errorf("reason = %q, want %q: the first to begin the restart", r.reason, restartForUpgrade)
 	}
 }
 
@@ -1181,9 +1228,9 @@ func TestARouterRestartingAlreadyCanRestartWithoutAskingItsBinary(t *testing.T) 
 	s := newStartedFrom(t)
 	r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), unheeded)
 	asked := askedOf(r, binaryAnswer{refusal: "invalid config"})
-	r.atOnce()
+	r.atOnce(nil)
 
-	if err := r.restartable(t.Context()); err != nil {
+	if _, err := r.restartable(t.Context()); err != nil {
 		t.Errorf("restartable() = %v, want nil: the router is restarting already", err)
 	}
 	if *asked != 0 {
