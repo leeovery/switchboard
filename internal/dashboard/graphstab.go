@@ -146,27 +146,13 @@ type GraphsShown struct {
 	Spans    map[views.RunwayWindow]views.PoolSpan
 }
 
-// numberedAsRunway are the configured accounts given, in the config's
-// order, each as configuredNow has it, and named as Graphs names them,
-// numbered as Runway's lanes number them: by the moment's place, where the
-// moment holds it, so the config and the router's document disagreeing
-// never numbers it otherwise; else after the moment's last, in the config's
-// order among those it lacks, the place the router gives it once it has it,
-// as accounts are added at the config's end. The numbers are aligned as
+// graphsNamed are the configured accounts given, in the config's order,
+// each as the moment's Configured has it, and named as Graphs names them,
+// numbered as every view numbers them, as Runway's lanes do, and aligned as
 // namesAt aligns those of the moment's count.
-func numberedAsRunway(m status.Moment, configured config.Accounts) ([]status.AccountNow, []accountName) {
-	accounts, places := make([]status.AccountNow, len(configured)), make([]int, len(configured))
-	next := len(m.Accounts)
-	for i, a := range configured {
-		place := slices.IndexFunc(m.Accounts, func(held status.AccountNow) bool { return held.ID == a.ID }) + 1
-		if place == 0 {
-			next++
-			place = next
-		}
-		accounts[i], _ = configuredNow(m, a, place)
-		places[i] = place
-	}
-	return accounts, namesAt(accounts, places, len(m.Accounts))
+func graphsNamed(m status.Moment, configured config.Accounts) ([]status.AccountNow, []accountName) {
+	accounts := m.Configured(configured)
+	return accounts, namesAt(accounts, len(m.Accounts))
 }
 
 // pooled reports whether the configured accounts given make a pool: two or

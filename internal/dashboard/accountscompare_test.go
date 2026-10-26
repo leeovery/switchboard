@@ -326,8 +326,9 @@ func TestComparesColumnsScrollToShowTheFocusNoFurtherThanTheyMust(t *testing.T) 
 
 // Each head is cut to its column less a cell: a name past the most a column
 // holds whole with …, keeping its number and its marks. An account the config
-// holds and the document doesn't yet, as one just added, stands not read, its
-// week empty and its extra usage a dash.
+// holds and the document doesn't yet, as one just added in place of the
+// tenth, which the router still holds, stands not read, its week empty and
+// its extra usage a dash, numbered after the document's ten.
 func TestComparesHeadsKeepToTheirColumns(t *testing.T) {
 	configured := append(slices.Clone(tenFramed[:9]), config.Account{ID: "added"})
 	f, doc := tenOnCompare(t, 160, 37, 4)
@@ -337,7 +338,7 @@ func TestComparesHeadsKeepToTheirColumns(t *testing.T) {
 		row, column int
 		want        string
 	}{
-		{row: 6, column: 121, want: "10 added           "},
+		{row: 6, column: 121, want: "11 added           "},
 		{row: 7, column: 121, want: "○ not read         "},
 		{row: 9, column: 121, want: "              —    "},
 		{row: 31, column: 121, want: "—                  "},

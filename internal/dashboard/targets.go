@@ -104,7 +104,7 @@ func (f Frame) viewTargets(doc status.Document, now time.Time) []Target {
 	case Sessions:
 		return f.At(doc, now).sessionsTargets(doc, now)
 	case Graphs:
-		return f.graphsTargets()
+		return f.At(doc, now).graphsTargets()
 	case Log:
 		return f.logTargets(now)
 	}

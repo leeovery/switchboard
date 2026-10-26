@@ -197,6 +197,13 @@ func (f Frame) Holding(h *status.HeldMoment) Frame {
 	return f
 }
 
+// numbering is how the accounts are numbered, as the moment At holds
+// numbers them, for a layout to lay out by without working the moment out:
+// where the frame holds none, in the config's order.
+func (f Frame) numbering() status.Numbering {
+	return f.held.Numbering()
+}
+
 // Moment is doc at now, as every view reads it: as At holds it, where the
 // frame holds the moment of doc at now as its Policy judges it, else worked
 // out afresh, as its Policy judges it.

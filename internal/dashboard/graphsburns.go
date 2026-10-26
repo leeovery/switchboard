@@ -10,7 +10,7 @@ import (
 
 // burnCards draws the cards of the burn-down section placed, of the moment
 // m, as laid out: each configured account's, in the config's order,
-// numbered as numberedAsRunway has it, where laid's cards places it, as
+// numbered as graphsNamed has it, where laid's cards places it, as
 // burnCardDrawn draws it, so one the moment doesn't hold yet, having no
 // lane, draws its label alone, no words, as a card does before its lanes
 // are built, and its chart empty but for now's line; none where the
@@ -22,7 +22,7 @@ func (f Frame) burnCards(c *canvas, m status.Moment, laid graphsLaid, placed gra
 		return
 	}
 	s := burnSection{key: key, lanes: f.Graphs.Lanes[window], beside: !laid.apart, now: m.Now}
-	accounts, names := numberedAsRunway(m, f.Graphs.Accounts)
+	accounts, names := graphsNamed(m, f.Graphs.Accounts)
 	for i, at := range laid.cards(placed) {
 		l, built := s.lanes.lane(accounts[i].ID)
 		f.burnCardDrawn(c, s, laneLaid(l, accounts[i], names[i]), built, at)

@@ -411,7 +411,7 @@ func TestNowsColumnIsPickedOutDownToThePoolsLane(t *testing.T) {
 // builds them, nor where nothing fits.
 func TestRunwaysLanesAreThoseTheFitShowsOnItsRows(t *testing.T) {
 	m := status.Moment{Accounts: []status.AccountNow{
-		{ID: "work", Label: "work"}, {ID: "personal", Label: "personal", OutOfPool: true}, {ID: "side", Label: "side"},
+		{ID: "work", Label: "work", Place: 1}, {ID: "personal", Label: "personal", Place: 2, OutOfPool: true}, {ID: "side", Label: "side", Place: 3},
 	}}
 	every := runwayFit{fits: true, lanes: 10, apart: 3, shown: 4}
 	f := runwayShowing(runwayLive(views.RunwayFiveHour))

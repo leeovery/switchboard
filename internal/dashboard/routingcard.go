@@ -302,14 +302,15 @@ type RoutingWindow struct {
 
 // RoutingRows are the routing card's rows of the moment m, with the sessions
 // the router listed, as the request stream s has moved and seen them since:
-// 0 auto's, then an account's each, in the config's order, each with its
-// state, as closedBy says, its windows' use, and its sessions running, as
+// 0 auto's, then an account's each, in the document's order, keyed by its
+// number, as status.Numbering numbers it, each with its state, as closedBy
+// says, its windows' use, and its sessions running, as
 // views.RunningCountsOf counts SESSIONS' rows for ROUTING too.
 func RoutingRows(m status.Moment, sessions []status.Session, s views.Stream) []RoutingRow {
 	rows := []RoutingRow{{Key: "0", Name: "auto", Open: true, Pickable: true}}
 	running := views.RunningCountsOf(m, sessions, s)
 	shared := m.SharedWindows()
-	for i, a := range m.Accounts {
+	for _, a := range m.Accounts {
 		row := RoutingRow{Account: a.ID, Name: name(a), Pickable: pickable(a), Running: running[a.ID]}
 		for j, key := range shared[:min(len(shared), len(row.Windows))] {
 			w, _ := a.Window(key)
@@ -317,8 +318,8 @@ func RoutingRows(m status.Moment, sessions []status.Session, s views.Stream) []R
 		}
 		row.Reason, row.Capped = closedBy(a, m.Now)
 		row.Open = row.Reason == ""
-		if i < numbered {
-			row.Key = strconv.Itoa(i + 1)
+		if a.Place <= numbered {
+			row.Key = strconv.Itoa(a.Place)
 		}
 		rows = append(rows, row)
 	}

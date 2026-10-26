@@ -160,16 +160,16 @@ func compareBars(column int) (share, week int) {
 
 // leastCompared are the fewest cells a column of Compare takes: leastColumn,
 // or, where it's more, the widest account's head and a cell: its number and
-// a space, then its name whole, at most compareNameMost; so no account's
-// name is cut where another's column would show it whole. Or, where it's
-// more, the widest of its rows' shortest forms and a cell, as
-// compareFigures has them, so no figure is cut at a column's least.
+// a space, then its name whole, at most compareNameMost, each numbered as
+// the frame's numbering numbers it; so no account's name is cut where
+// another's column would show it whole. Or, where it's more, the widest of
+// its rows' shortest forms and a cell, as compareFigures has them, so no
+// figure is cut at a column's least.
 func (f Frame) leastCompared() int {
 	n, widest := len(f.Accounts.Accounts), 0
-	for i, a := range f.Accounts.Accounts {
-		number := strconv.Itoa(i + 1)
-		named := accountName{label: labelled(a.Label, a.ID), primary: a.Primary}
-		widest = max(widest, len(number)+1+min(wholeName(named), compareNameMost))
+	for _, a := range f.numbering().Configured(f.Accounts.Accounts) {
+		named := accountName{label: name(a), primary: a.Primary}
+		widest = max(widest, len(strconv.Itoa(a.Place))+1+min(wholeName(named), compareNameMost))
 	}
 	for _, figure := range compareFigures(n) {
 		widest = max(widest, partsWidth(figure))
@@ -278,33 +278,34 @@ func weekLabel(period views.AccountsPeriod) line {
 // and how to scroll to them: "▼ 3 more below · j/k".
 var compareOut = outForm{above: " above", below: " below", gap: " · ", keys: "j/k", inks: keyedOut}
 
-// compared is Compare as a frame lays it out of a moment: the accounts its
-// columns show, from the first shown, then all accounts'; the key of the
-// accounts' own week, as the frame names it, which WEEK USED shows; and,
-// where it's laid out to draw wide, as comparing lays it out, where its
-// parts sit, and its rows drawn whole, once, for every look to share.
+// compared is Compare as a frame lays it out of a moment: the configured
+// accounts, as the moment's Configured has them; the accounts its columns
+// show, from the first shown, then all accounts'; the key of the accounts'
+// own week, as the frame names it, which WEEK USED shows; and, where it's
+// laid out to draw wide, as comparing lays it out, where its parts sit, and
+// its rows drawn whole, once, for every look to share.
 type compared struct {
-	f     Frame
-	m     status.Moment
-	now   time.Time
-	page  *views.AccountsPage
-	first int
-	shown int
-	week  string
-	laid  compareLayout
-	rows  func() *canvas
+	f        Frame
+	m        status.Moment
+	accounts []status.AccountNow
+	now      time.Time
+	page     *views.AccountsPage
+	first    int
+	shown    int
+	week     string
+	laid     compareLayout
+	rows     func() *canvas
 }
 
 // compareColumn is a column of Compare: from column x, its values cut to
 // width cells and its heads to head cells, its column's less a cell, but
-// all accounts' values, to the frame's edge; of an account, by its id and
-// place in the config, as it stands, where the moment has it, and its row of
-// the period's page; or, of all accounts, every account's.
+// all accounts' values, to the frame's edge; of an account, by its id, as it
+// stands, numbered, where the moment has it, and its row of the period's
+// page; or, of all accounts, every account's.
 type compareColumn struct {
 	x, width, head int
 	all            bool
 	id             string
-	place          int
 	account        status.AccountNow
 	known          bool
 	row            views.AccountsRow
@@ -331,7 +332,7 @@ func (f Frame) compareForm(doc status.Document, now time.Time) accountsForm {
 func (f Frame) comparing(doc status.Document, now time.Time) compared {
 	m, laid := f.Moment(doc, now), f.compareLaid()
 	cp := compared{
-		f: f, m: m, now: now, page: f.Accounts.Page, first: f.compareFirst(), shown: laid.shown(),
+		f: f, m: m, accounts: m.Configured(f.Accounts.Accounts), now: now, page: f.Accounts.Page, first: f.compareFirst(), shown: laid.shown(),
 		week: f.WeekWindow, laid: laid,
 	}
 	cp.rows = sync.OnceValue(func() *canvas { return cp.body(cp.columns()) })
@@ -399,14 +400,14 @@ func (cp compared) columns() []compareColumn {
 }
 
 // column is the column of the configured account at the place given among
-// them, from 0, wherever it's shown: as configuredNow has it, and its row
-// of the period's page.
+// them, from 0, wherever it's shown: as the moment's Configured has it,
+// whether the moment has it, and its row of the period's page.
 func (cp compared) column(i int) compareColumn {
-	configured := cp.f.Accounts.Accounts[i]
-	col := compareColumn{id: configured.ID, place: i + 1}
-	col.account, col.known = configuredNow(cp.m, configured, i+1)
+	a := cp.accounts[i]
+	col := compareColumn{id: a.ID, account: a}
+	_, col.known = cp.m.Account(a.ID)
 	if cp.page != nil {
-		if j := slices.IndexFunc(cp.page.Rows, func(r views.AccountsRow) bool { return r.Totals.Account == configured.ID }); j >= 0 {
+		if j := slices.IndexFunc(cp.page.Rows, func(r views.AccountsRow) bool { return r.Totals.Account == a.ID }); j >= 0 {
 			col.row = cp.page.Rows[j]
 		}
 	}
@@ -521,7 +522,7 @@ func (cp compared) named(col compareColumn, cells int) line {
 	if col.all {
 		return line{{"0", dimInk}, {" all accounts", strongInk}}.fit(cells)
 	}
-	named := accountName{number: strconv.Itoa(col.place), label: name(col.account), primary: col.account.Primary}
+	named := accountName{number: strconv.Itoa(col.account.Place), label: name(col.account), primary: col.account.Primary}
 	return named.labelIn(min(cells-len(named.number)-1, compareNameMost) - named.marks().width())
 }
 

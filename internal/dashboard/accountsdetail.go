@@ -3,7 +3,6 @@ package dashboard
 import (
 	"fmt"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -214,16 +213,12 @@ func (l detailLayout) wideWeeks(room int) detailLayout {
 
 // listNames is the cells of the name column Detail's list fits its accounts'
 // names to: the widest, number, label and ◆, and a gap, within leastNames
-// and mostNames.
+// and mostNames, each numbered as the frame's numbering numbers it.
 func (f Frame) listNames() int {
-	configured := f.Accounts.Accounts
-	digits := len(strconv.Itoa(len(configured)))
-	names := make([]accountName, len(configured))
-	for i, a := range configured {
-		names[i] = listName(status.AccountNow{ID: a.ID, Label: a.Label, Primary: a.Primary, Place: i + 1}, digits)
-	}
-	widest := 0
-	for _, n := range names {
+	accounts := f.numbering().Configured(f.Accounts.Accounts)
+	digits, widest := numberDigits(accounts, 0), 0
+	for _, a := range accounts {
+		n := listName(a, digits)
 		widest = max(widest, n.cells(ansi.StringWidth(n.label)))
 	}
 	return min(max(widest+nameGap, leastNames), mostNames)
@@ -329,50 +324,39 @@ func (f Frame) detailDays() int {
 }
 
 // detailDrawn is Detail of a moment as it's drawn wide: the frame and its
-// layout; the account shown, by its id, "" for all accounts, as
-// configuredNow has it, and whether the moment has it; its row of the
-// period's page, where the page is read and holds one; the sessions running
-// on it; and its panel drawn whole, once, for every look to share.
+// layout; the configured accounts, as the moment's Configured has them; the
+// account shown, by its id, "" for all accounts, as they have it, and
+// whether the moment has it; its row of the period's page, where the page is
+// read and holds one; the sessions running on it; and its panel drawn whole,
+// once, for every look to share.
 type detailDrawn struct {
-	f       Frame
-	m       status.Moment
-	l       detailLayout
-	id      string
-	account status.AccountNow
-	known   bool
-	page    *views.AccountsPage
-	row     views.AccountsRow
-	running []views.Running
-	drawn   func() *canvas
+	f        Frame
+	m        status.Moment
+	l        detailLayout
+	accounts []status.AccountNow
+	id       string
+	account  status.AccountNow
+	known    bool
+	page     *views.AccountsPage
+	row      views.AccountsRow
+	running  []views.Running
+	drawn    func() *canvas
 }
 
 // detailDrawn is Detail of doc at now laid out as l: the account the frame's
 // Accounts shows, else all accounts, where it shows none the config has; its
 // panel drawn once, the first time a look asks.
 func (f Frame) detailDrawn(doc status.Document, now time.Time, l detailLayout) detailDrawn {
-	d := detailDrawn{f: f, m: f.Moment(doc, now), l: l}
-	configured := f.Accounts.Accounts
-	if i := slices.IndexFunc(configured, func(a config.Account) bool { return a.ID == f.Accounts.Account() }); i >= 0 {
-		d.id = configured[i].ID
-		d.account, d.known = configuredNow(d.m, configured[i], i+1)
+	m := f.Moment(doc, now)
+	d := detailDrawn{f: f, m: m, l: l, accounts: m.Configured(f.Accounts.Accounts)}
+	if i := slices.IndexFunc(d.accounts, func(a status.AccountNow) bool { return a.ID == f.Accounts.Account() }); i >= 0 {
+		d.id, d.account = d.accounts[i].ID, d.accounts[i]
+		_, d.known = m.Account(d.id)
 		d.running = views.RunningOn(f.running(doc, now), d.id)
 	}
 	d.page, d.row = pageRowOf(f.Accounts.Page, d.id)
 	d.drawn = sync.OnceValue(d.panel)
 	return d
-}
-
-// configuredNow is the configured account a, at the place given among them,
-// as the moment m has it, reporting false where m lacks it, as one the
-// config has just gained: then as the config names and marks it, nothing
-// read of it.
-func configuredNow(m status.Moment, a config.Account, place int) (status.AccountNow, bool) {
-	now, ok := m.Account(a.ID)
-	if !ok {
-		now = status.AccountNow{ID: a.ID, Label: a.Label, Primary: a.Primary}
-	}
-	now.Place = place
-	return now, ok
 }
 
 // pageRowOf is the page's row of the account with the given id, "" for all
@@ -760,23 +744,21 @@ func chosenRow(c *canvas, x, y, width int, focused bool) {
 
 // list draws Detail's list from row top, rows tall, as listShown scrolls it:
 // 0 all accounts, then each configured account shown, listApart rows apart,
-// as configuredNow has it, its number, name and marks, as listName has them,
-// in the name column, and after it its state's glyph, as StateInAWord and
-// stateMark have it, cued over the row's light while it's newly changed, as
-// cueState has it; the chosen row picked out, as listRow has it; ↑↓ choose
-// chooseUnder rows under the last; and the │ beside them, to the panel's
-// foot.
+// as the moment's Configured has it, its number, name and marks, as listName
+// has them, in the name column, and after it its state's glyph, as
+// StateInAWord and stateMark have it, cued over the row's light while it's
+// newly changed, as cueState has it; the chosen row picked out, as listRow
+// has it; ↑↓ choose chooseUnder rows under the last; and the │ beside them,
+// to the panel's foot.
 func (d detailDrawn) list(c *canvas, top, rows int) {
-	configured := d.f.Accounts.Accounts
-	digits := len(strconv.Itoa(len(configured)))
+	digits := numberDigits(d.accounts, 0)
 	d.listRow(c, top, allAccountsName(digits), d.id == "")
 	first, shown := d.listShown()
 	y := top
-	for i, a := range configured[first : first+shown] {
+	for _, a := range d.accounts[first : first+shown] {
 		y += listApart
-		now, _ := configuredNow(d.m, a, first+i+1)
 		c.line(d.l.dotAt(), y, line{stateMark(d.m.StateInAWord(a.ID))})
-		d.listRow(c, y, listName(now, digits).fitted(d.l.names), a.ID == d.id)
+		d.listRow(c, y, listName(a, digits).fitted(d.l.names), a.ID == d.id)
 		d.f.cueState(c, a.ID, d.l.dotAt(), y, 1)
 	}
 	c.line(listAt, y+chooseUnder, line{{"↑↓", keyInk}, {" choose", dimInk}})
