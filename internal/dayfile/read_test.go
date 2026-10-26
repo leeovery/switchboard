@@ -270,15 +270,7 @@ func TestADayCompressedAsItsFilesAreOpenedIsReadOnceWhole(t *testing.T) {
 			}
 		},
 		"written": func(t *testing.T, f *Files) {
-			held, err := f.readDay(date)
-			if err != nil {
-				t.Fatal(err)
-			}
-			member, err := gzipped(held.adding())
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := os.WriteFile(f.path(compressedFile(date)), append(held.written, member...), 0o600); err != nil {
+			if err := requestLedger(f.Dir).addPlain(date); err != nil {
 				t.Fatal(err)
 			}
 		},
