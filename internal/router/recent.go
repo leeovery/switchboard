@@ -156,6 +156,8 @@ func (r *recent) take(e Event, now time.Time) {
 		r.add(status.Event{Kind: status.EventPrimed, Account: e.Account, Windows: []string{e.Window}, Until: e.ResetsAt}, now)
 	case RestartDue:
 		r.add(status.Event{Kind: status.EventRestart, Reason: e.Reason}, now)
+	case RestartHeld:
+		r.add(status.Event{Kind: status.EventRestart, Reason: e.Reason, Held: e.Refusal}, now)
 	case Pinned:
 		r.add(status.Event{Kind: status.EventPin, Accounts: e.Accounts, Account: e.Account, Session: bounded(e.Session), Move: e.Move, Force: e.Force, By: string(e.By)}, now)
 	case Unpinned:

@@ -281,6 +281,23 @@ restart due since Mon 13:12 (upgraded), once no request is in flight (3 now): sw
 `,
 		},
 		{
+			name: "the router's, with a restart held",
+			doc: status.Document{
+				GeneratedAt: now.UTC(),
+				Source:      status.SourceRouter,
+				Router:      status.Health{Healthy: true},
+				Restart:     status.Restart{Reason: "upgraded", Since: now.Add(-time.Hour), InFlight: 3, Held: "invalid config"},
+				Accounts:    []status.Account{personal},
+			},
+			want: `personal · Personal
+  token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal
+
+best next: personal · Personal
+from the router: healthy  ·  no sessions  ·  routing automatically
+restart due since Mon 13:12 (upgraded), held: invalid config
+`,
+		},
+		{
 			name: "probed, as the router isn't running",
 			doc: status.Document{
 				GeneratedAt: now.UTC(),
@@ -1065,6 +1082,11 @@ func TestRestart(t *testing.T) {
 			restart: status.Restart{Reason: "upgraded\x1b[2J", Since: since, ByHand: true},
 			want:    "restart due since Mon 13:02 (upgraded [2J): run switchboard serve again to take it up",
 		},
+		{
+			name:    "held, its binary refusing to start, which neither waiting nor service restart gets past",
+			restart: status.Restart{Reason: "upgraded", Since: since, InFlight: 1, Held: "invalid config /test/config.toml:\naccount work: its label is longer than 100 characters"},
+			want:    "restart due since Mon 13:02 (upgraded), held: invalid config /test/config.toml: account work: its label is longer than 100 characters",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1078,6 +1100,26 @@ func TestRestart(t *testing.T) {
 	}
 	if (status.Restart{}).Due() {
 		t.Error("no restart is due")
+	}
+}
+
+func TestARestartsLabelSaysWhetherItsDueOrHeldAndWhy(t *testing.T) {
+	tests := []struct {
+		name    string
+		restart status.Restart
+		want    string
+	}{
+		{name: "due", restart: status.Restart{Reason: "config changed", InFlight: 3}, want: "restart due (config changed)"},
+		{name: "held, its binary refusing to start", restart: status.Restart{Reason: "upgraded", Held: "invalid config"}, want: "restart held (upgraded)"},
+		{name: "held for nothing to be read, as due", restart: status.Restart{Reason: "upgraded", Held: "\x1b"}, want: "restart due (upgraded)"},
+		{name: "a reason from elsewhere, cleaned", restart: status.Restart{Reason: "upgraded\x1b[2J"}, want: "restart due (upgraded [2J)"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.restart.Label(); got != tt.want {
+				t.Errorf("Label() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 

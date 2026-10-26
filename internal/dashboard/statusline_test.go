@@ -51,6 +51,13 @@ func TestTheStatusLineSaysHowTheRouterStands(t *testing.T) {
 			want: "● healthy  ·  restart due (time zone changed)  ·  6 sessions  ·  new sessions → ▲ side",
 		},
 		{
+			name: "a restart held, its binary refusing to start",
+			doc: routed(func(d *status.Document) {
+				d.Restart = status.Restart{Reason: status.RestartForUpgrade, Held: "invalid config"}
+			}),
+			want: "● healthy  ·  restart held (upgraded)  ·  6 sessions  ·  new sessions → ▲ side",
+		},
+		{
 			name: "pinned to two, in the config's order",
 			doc:  routed(func(d *status.Document) { d.Pin = status.Pin{Accounts: []string{"personal", "side"}} }),
 			want: "● healthy  ·  pinned to personal and side  ·  6 sessions  ·  new sessions → ▲ side",
@@ -143,6 +150,12 @@ func TestTheStatusLineSaysItInItsInks(t *testing.T) {
 		{
 			name: "a restart due", text: "restart due (config changed)",
 			doc: routed(func(d *status.Document) { d.Restart = status.Restart{Reason: status.RestartForConfig} }), want: warningInk,
+		},
+		{
+			name: "a restart held", text: "restart held (upgraded)",
+			doc: routed(func(d *status.Document) {
+				d.Restart = status.Restart{Reason: status.RestartForUpgrade, Held: "invalid config"}
+			}), want: warningInk,
 		},
 		{
 			name: "probed", text: "○ probed · router not running",

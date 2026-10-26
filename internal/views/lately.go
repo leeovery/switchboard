@@ -296,14 +296,10 @@ func (latelyTeller) unpinned(e status.Event, _ eventFact) (Said, Said) {
 	return s, s
 }
 
-// restarting tells of a restart falling due, and why, in the Log's words:
-// "restart due: the config changed".
+// restarting tells of a restart falling due, or held, in the Log's words, as
+// restartSaid says: "restart due: the config changed".
 func (latelyTeller) restarting(e status.Event, _ eventFact) (Said, Said) {
-	reason := restartWhy(e.Reason)
-	s := Said{Subject: clause("restart"), Words: clause(" due")}
-	if reason != "" {
-		s.Words = clause(" due: " + reason)
-	}
+	s := Said{Subject: clause("restart"), Words: clause(" " + restartSaid(e))}
 	return s, s
 }
 

@@ -61,9 +61,22 @@ func Run(ctx context.Context, cfg Config) error {
 	return r.run(ctx)
 }
 
+// Startable fails, saying why, where Run, given cfg, would fail before it
+// listens: where New can't build the router, or the control socket's path
+// can't be a unix socket's. It starts no router and writes nothing of the
+// router's, reading only the token files.
+func Startable(cfg Config) error {
+	r, err := New(cfg)
+	if err != nil {
+		return err
+	}
+	_, err = r.socket()
+	return err
+}
+
 func (r *Router) run(ctx context.Context) error {
-	socket := SocketPath(r.cfg.StateDir)
-	if err := checkSocketPath(socket); err != nil {
+	socket, err := r.socket()
+	if err != nil {
 		return err
 	}
 	ls, err := r.listen(ctx, socket)
@@ -77,6 +90,13 @@ func (r *Router) run(ctx context.Context) error {
 	r.openHistory()
 	r.openLedger(ledger.Dir(r.cfg.StateDir))
 	return r.serve(ctx, ls)
+}
+
+// socket returns the path of the router's control socket, failing where it
+// can't be a unix socket's.
+func (r *Router) socket() (string, error) {
+	path := SocketPath(r.cfg.StateDir)
+	return path, checkSocketPath(path)
 }
 
 // openLedger keeps the request ledger in dir from now on, and the router's
@@ -172,7 +192,10 @@ func listen(addr string) (net.Listener, error) {
 // the state file, the readings history, the request ledger and what has
 // happened lately, filing its events, and posting notifications, then shuts
 // both down, writes what's left to write, and restarting, replaces itself,
-// handing their listeners over.
+// handing their listeners over. Restarting in place, it stops all it runs
+// beside them, but for keeping the state file and filing its events, before
+// the control API closes, so a launcher is answered meanwhile, and saves
+// what that changes once it has.
 func (r *Router) serve(ctx context.Context, ls listeners) error {
 	proxySrv, controlSrv := newProxyServer(r.Proxy()), newServer(r.Control())
 	var serving sync.WaitGroup
@@ -190,21 +213,27 @@ func (r *Router) serve(ctx context.Context, ls listeners) error {
 	looked.Go(func() { r.rounds.run(looking) })
 	// The requests still in flight as the router stops change what's to be
 	// saved, and what's to be told of, and each has its line in the ledger,
-	// so keeping, writing and notifying outlast ctx.
-	background, stopBackground := context.WithCancel(context.WithoutCancel(ctx))
+	// so writing and notifying outlast ctx, as keeping and filing do.
+	background, cancelBackground := context.WithCancel(context.WithoutCancel(ctx))
 	var running sync.WaitGroup
-	running.Go(func() { r.file.keep(background) })
 	running.Go(func() { r.history.run(background) })
 	running.Go(func() { r.ledger.run(background) })
 	running.Go(func() { r.recent.run(background) })
 	if r.notifications != nil {
 		running.Go(func() { r.notifications.run(background) })
 	}
-	// What recent keeps is filed until everything else has stopped, as its
-	// last look can still tell of an event.
-	filing, stopFiling := context.WithCancel(context.WithoutCancel(ctx))
-	var filed sync.WaitGroup
-	filed.Go(func() { r.eventFiles.Run(filing) })
+	stopBackground := func() {
+		cancelBackground()
+		running.Wait()
+	}
+	// The state file is kept, and what recent keeps filed, until everything
+	// else has stopped: the control API, which a restart in place closes only
+	// once the rest has, can still change what the state file keeps, and tell
+	// of an event, as recent's last look can.
+	keeping, stopKeeping := context.WithCancel(context.WithoutCancel(ctx))
+	var kept sync.WaitGroup
+	kept.Go(func() { r.file.keep(keeping) })
+	kept.Go(func() { r.eventFiles.Run(keeping) })
 
 	var err error
 	var held *handover.Held
@@ -219,15 +248,14 @@ func (r *Router) serve(ctx context.Context, ls listeners) error {
 	looked.Wait()
 	r.probes.stop()
 	if held != nil {
-		held = r.drainHandingOver(ctx, controlSrv, proxySrv, held)
+		held = r.drainHandingOver(ctx, controlSrv, proxySrv, held, stopBackground)
 	} else {
 		r.shutdown(controlSrv, proxySrv)
 	}
 	serving.Wait()
 	stopBackground()
-	running.Wait()
-	stopFiling()
-	filed.Wait()
+	stopKeeping()
+	kept.Wait()
 	logger.Info("stopped")
 	if held != nil {
 		r.replace(ctx, held)

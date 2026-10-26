@@ -26,7 +26,7 @@ import (
 // name one.
 var digestsWired = []string{
 	"internal/cli/readers.go:app.newStateReaders",
-	"internal/cli/serve.go:app.serve",
+	"internal/cli/serve.go:app.startingFrom",
 }
 
 // digestsOwners are the packages, by name under the module's internal

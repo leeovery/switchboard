@@ -459,7 +459,8 @@ const testPID = 5150
 // router that isn't running is asked after once, so every test that meets
 // one isn't held up waiting for it to come back. The
 // switchboard binary can't be found, so nor can claude, which is found past
-// it, and starting a program or running launchctl fails, unless a test says
+// it, and starting a program, asking one, or running launchctl fails, so a
+// router's binary can't answer whether it could start, unless a test says
 // otherwise; the system is macOS, for the user the test runs as, who owns the
 // token files it writes. Watch, Hidden, Terminal and Background are the real
 // ones: a test's output and input are never a terminal, so Watch fails before
@@ -484,6 +485,9 @@ func testDeps(env map[string]string, home string) cli.Deps {
 		Watch:         watch.Run,
 		Notifier:      &recordingNotifier{},
 		Exec:          func(string, []string, []string) error { return errors.New("no test starts a program") },
+		Check: func(context.Context, string, []string, []string) ([]byte, error) {
+			return nil, errors.New("no test starts a program")
+		},
 		Launchctl: func(context.Context, ...string) ([]byte, error) {
 			return nil, errors.New("no test runs launchctl")
 		},

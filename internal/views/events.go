@@ -68,6 +68,25 @@ func restartWhy(reason string) string {
 	return reason
 }
 
+// restartSaid says what befell a restart, the event e, in the Log's words: it
+// fell due, and why, as "due: the config changed"; or it's held, its binary
+// refusing to start, and why it refuses, as "held: invalid config".
+func restartSaid(e status.Event) string {
+	if held := restartHeld(e); held != "" {
+		return "held: " + held
+	}
+	if reason := restartWhy(e.Reason); reason != "" {
+		return "due: " + reason
+	}
+	return "due"
+}
+
+// restartHeld is why the binary refuses to start, as it said, which held the
+// restart, the event e, cleaned: "" for a restart falling due.
+func restartHeld(e status.Event) string {
+	return prose.Clean(e.Held)
+}
+
 // forced says a global pin set or cleared with force cleared every
 // session's own pin too: nothing of one without.
 func forced(e status.Event) string {
@@ -252,13 +271,10 @@ func loggedAuto(e status.Event, _ eventFact, _ time.Time) (status.Words, status.
 	return nil, append(what, status.Plain(" to the router's choice"+forced(e)+setBy(e.By)))
 }
 
-// loggedRestart tells of a restart falling due: "due: the config changed".
+// loggedRestart tells of a restart falling due, or held, as restartSaid says:
+// "due: the config changed".
 func loggedRestart(e status.Event, _ eventFact, _ time.Time) (status.Words, status.Words) {
-	reason := restartWhy(e.Reason)
-	if reason == "" {
-		return nil, clause("due")
-	}
-	return nil, clause("due: " + reason)
+	return nil, clause(restartSaid(e))
 }
 
 // loggedHealth tells of the router's health turning: "unhealthy: <its
