@@ -41,6 +41,11 @@ This page shows where to look when switchboard doesn't do what you expect, and h
   file damaged where its size hasn't changed isn't noticed by the router, and that day reads its
   lines at every day back: delete that day's `rows-<date>.gz`, and the router writes it again on its
   next round.
+- **A restart held after an upgrade:** when the new version refuses your config, as it can where
+  its rules are stricter, the router keeps running the old version rather than restart into one
+  that would stop. `switchboard status --json` gives the refusal as `restart.held`, and the
+  router's log has it at warn. Put the config right as it says, and the router restarts at its next
+  quiet moment. See [Restarts](how-it-works.md#restarts).
 - **Getting round switchboard:** to start Claude Code on its own login, run
   `switchboard run --direct`, or run the real `claude` by its path. If the switchboard binary itself
   breaks, every `claude` breaks with it, until you take switchboard's directory off `PATH`.

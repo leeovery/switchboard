@@ -413,6 +413,136 @@ func TestServeRestartsItselfWhenTheServiceRunsIt(t *testing.T) {
 	}
 }
 
+func TestServeChecksWhatItWouldStartFromWhenAsked(t *testing.T) {
+	tests := []struct {
+		name string
+		// config is what the config file holds, if there is one, and args
+		// what serve is run with.
+		config string
+		args   []string
+		want   func(path string) result
+	}{
+		{
+			name:   "a valid config",
+			config: "[[account]]\nid = \"work\"\n",
+			args:   []string{"serve", "--check"},
+			want:   func(string) result { return result{} },
+		},
+		{
+			name:   "a config that isn't valid",
+			config: "[[account]]\nid = \"work\"\ncolour = \"red\"\n",
+			args:   []string{"serve", "--check"},
+			want: func(path string) result {
+				return result{stdout: "invalid config " + path + ":\nunknown key \"account.colour\"\n", code: handover.Refused}
+			},
+		},
+		{
+			name:   "a flag this version doesn't take, as one the router was started with",
+			config: "[[account]]\nid = \"work\"\n",
+			args:   []string{"serve", "--gone", "--check"},
+			want:   func(string) result { return result{stdout: "unknown flag: --gone\n", code: handover.Refused} },
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := writeConfig(t, tt.config)
+			state := t.TempDir()
+			deps := testDeps(map[string]string{"SWITCHBOARD_CONFIG": path, "XDG_STATE_HOME": state}, t.TempDir())
+			deps.Args = append([]string{"/test/bin/switchboard"}, tt.args...)
+
+			if got := run(t, deps, tt.args...); got != tt.want(path) {
+				t.Errorf("switchboard %s = %+v, want %+v", strings.Join(tt.args, " "), got, tt.want(path))
+			}
+			if _, err := os.Stat(router.SocketPath(filepath.Join(state, "switchboard"))); !errors.Is(err, fs.ErrNotExist) {
+				t.Errorf("the control socket: %v, want none: the check serves nothing", err)
+			}
+		})
+	}
+}
+
+func TestServesCheckIsLoggedAsACommandsNotTheRouters(t *testing.T) {
+	srv := newServeSetup(t, fakeClaudeAPI(t), map[string]string{"SWITCHBOARD_LOG_LEVEL": "debug"})
+	srv.deps.Args = []string{"/test/bin/switchboard", "serve", "--check"}
+
+	if got := run(t, srv.deps, "serve", "--check"); got != (result{}) {
+		t.Fatalf("switchboard serve --check = %+v, want exit status 0 and no output", got)
+	}
+	if _, err := os.Stat(filepath.Join(srv.state, "logs", "router.log")); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("router.log: %v, want none written: the check isn't the router", err)
+	}
+	if log := srv.cliLog(t); !hasLine(log, "level=DEBUG", "msg=start component=process", "role=cli", `command="switchboard serve"`) {
+		t.Errorf("cli.log reads\n%s\nwant the check's start noted as a command's", log)
+	}
+}
+
+func TestServeWithoutTheCheckRefusesAFlagItDoesntTakeAsAnyCommandDoes(t *testing.T) {
+	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	srv.deps.Args = []string{"/test/bin/switchboard", "serve", "--gone"}
+
+	got := run(t, srv.deps, "serve", "--gone")
+	if got.code != 1 || !strings.HasPrefix(got.stderr, "Error: unknown flag: --gone\n") {
+		t.Errorf("switchboard serve --gone = %+v, want exit status 1, and the mistake on stderr", got)
+	}
+}
+
+func TestServeHoldsARestartItsBinaryRefusesToStartFrom(t *testing.T) {
+	const why = "invalid config: account work: its label is longer than 100 characters"
+	srv := newServeSetup(t, fakeClaudeAPI(t), map[string]string{"XPC_SERVICE_NAME": service.Label})
+	srv.watch(t)
+	argv := []string{srv.binary, "serve"}
+	made := srv.replaceable(t, argv...)
+	type asked struct {
+		path      string
+		argv, env []string
+	}
+	asks := make(chan asked, 1)
+	srv.deps.Check = func(_ context.Context, path string, argv, env []string) ([]byte, error) {
+		select {
+		case asks <- asked{path: path, argv: argv, env: env}:
+		default:
+		}
+		return []byte(why + "\n"), refusedExit{}
+	}
+	stop := srv.start(t)
+
+	srv.upgrade(t)
+	doc := srv.waitForStatus(t, func(doc status.Document) bool { return doc.Restart.Held != "" })
+	if doc.Restart.Reason != "upgraded" || doc.Restart.Held != why {
+		t.Errorf("the status document gives the restart due as %+v, want it upgraded, held, saying why", doc.Restart)
+	}
+	got := <-asks
+	if got.path != srv.binary || !slices.Equal(got.argv, append(slices.Clone(argv), "--check")) {
+		t.Errorf("asked %s run as %q, want its binary run as it was, %q, asked to check", got.path, got.argv, argv)
+	}
+	if env := environMap(got.env); env["XPC_SERVICE_NAME"] != service.Label || env["SWITCHBOARD_CONFIG"] != srv.config {
+		t.Errorf("asked it in the environment %q, want the one serve ran in", got.env)
+	}
+	select {
+	case r := <-made:
+		t.Errorf("serve replaced itself with %s, want it kept running: its binary refuses to start", r.path)
+	case <-time.After(20 * srv.deps.WatchEvery):
+	}
+	if got := stop(); got.code != 0 {
+		t.Errorf("switchboard serve = %+v, want exit status 0", got)
+	}
+	warning := []string{"level=WARN", `msg="restart held, as its binary refuses to start; carrying on as it is" component=router`, "reason=upgraded", `refusal="` + why + `"`}
+	if log := srv.routerLog(t); !hasLine(log, warning...) {
+		t.Errorf("router.log reads\n%s\nwant a line with %q", log, warning)
+	}
+}
+
+// refusedExit is a binary's exit refusing to start, as *exec.ExitError tells
+// it.
+type refusedExit struct{}
+
+func (refusedExit) Error() string {
+	return "exit status " + strconv.Itoa(handover.Refused)
+}
+
+func (refusedExit) ExitCode() int {
+	return handover.Refused
+}
+
 func TestServeExitsForLaunchdToStartItAgainWhenItCantReplaceItself(t *testing.T) {
 	srv := newServeSetup(t, fakeClaudeAPI(t), map[string]string{"XPC_SERVICE_NAME": service.Label})
 	srv.watch(t)

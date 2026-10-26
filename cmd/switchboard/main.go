@@ -10,6 +10,7 @@ import (
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/cli"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
+	"github.com/leeovery/switchboard/internal/handover"
 	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/notify"
 	"github.com/leeovery/switchboard/internal/service"
@@ -32,6 +33,7 @@ func main() {
 		Watch:         watch.Run,
 		Notifier:      notify.NewDesktop(),
 		Exec:          launch.Exec,
+		Check:         handover.Run,
 		Launchctl:     service.Launchctl,
 		Hidden:        cli.HiddenInput,
 		Terminal:      cli.IsTerminal,

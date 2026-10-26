@@ -16,6 +16,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/events"
+	"github.com/leeovery/switchboard/internal/handover"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/quota"
@@ -167,6 +168,12 @@ type Config struct {
 	// them there. It returns only when it fails, and the router then stops,
 	// as it does with none, for launchd to start it again.
 	Exec func(path string, argv, env []string) error
+	// Check runs a program to its end, as handover.Run does: a supervised
+	// router runs its binary so, by Binary's path, run as Args with Environ,
+	// to ask it, as handover.Ask asks, whether it could start, before it
+	// restarts into it, and holds the restart while it refuses. Nil asks
+	// nothing, as of a binary that can't answer.
+	Check handover.Runner
 	// Args and Environ are the command line and the environment the router
 	// was started with, as os.Args and os.Environ give them.
 	Args    []string

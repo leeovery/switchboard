@@ -1,6 +1,8 @@
 package router
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -310,7 +312,7 @@ func TestASupervisedRouterRestartsOnceNoRequestIsInFlight(t *testing.T) {
 		t.Fatal("ready() isn't closed once no request is in flight")
 	}
 
-	if !r.restart() {
+	if !r.restart(t.Context()) {
 		t.Fatal("restart() = false, want the router restarted")
 	}
 	select {
@@ -331,7 +333,7 @@ func TestARestartAskedForIsTheOneTheRouterMakes(t *testing.T) {
 	r.look()
 
 	r.atOnce()
-	if !r.restart() {
+	if !r.restart(t.Context()) {
 		t.Error("restart() = false, want true: a restart is due")
 	}
 	select {
@@ -475,7 +477,7 @@ func TestARestartLooksAgainBeforeItGoes(t *testing.T) {
 	r.look()
 
 	writeFile(t, s.kept, notAConfig)
-	if r.restart() {
+	if r.restart(t.Context()) {
 		t.Error("restart() = true, want the router kept running: its config file is invalid since it last looked")
 	}
 	select {
@@ -483,6 +485,247 @@ func TestARestartLooksAgainBeforeItGoes(t *testing.T) {
 		t.Error("restarted is closed, want the router kept running")
 	default:
 	}
+}
+
+func TestARestartGoesAheadUnlessItsBinaryRefusesToStart(t *testing.T) {
+	const refusal = "invalid config /test/config.toml:\naccount work: its label is longer than 100 characters"
+	tests := []struct {
+		name string
+		// answer is how the binary answers whether it could start.
+		answer      binaryAnswer
+		wantRestart bool
+		wantLog     []string
+	}{
+		{name: "able to start", answer: binaryAnswer{}, wantRestart: true},
+		{
+			name:        "unable to answer, as one from before the check",
+			answer:      binaryAnswer{err: errors.New("exit status 1")},
+			wantRestart: true,
+			wantLog:     []string{"level=INFO", `msg="its binary couldn't answer whether it could start; restarting all the same"`, `error="exit status 1"`},
+		},
+		{
+			name:    "refusing",
+			answer:  binaryAnswer{refusal: refusal},
+			wantLog: []string{"level=WARN", `msg="restart held, as its binary refuses to start; carrying on as it is"`, "reason=upgraded", `refusal="invalid config /test/config.toml:\naccount work: its label is longer than 100 characters"`},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			s := newStartedFrom(t)
+			var heard []Event
+			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), func(e Event) { heard = append(heard, e) })
+			asked := askedOf(r, tt.answer)
+			relink(t, s.binary, s.version("1.1"))
+			r.look()
+
+			if got := r.restart(t.Context()); got != tt.wantRestart {
+				t.Errorf("restart() = %v, want %v", got, tt.wantRestart)
+			}
+			if *asked != 1 {
+				t.Errorf("the binary was asked %d times, want once", *asked)
+			}
+			if restarted := r.restarting(); restarted != tt.wantRestart {
+				t.Errorf("restarted is closed: %v, want %v", restarted, tt.wantRestart)
+			}
+			if tt.wantLog != nil && !log.Has(append(tt.wantLog, "path="+s.binary)...) {
+				t.Errorf("log reads\n%s\nwant a line with %q", log, tt.wantLog)
+			}
+			wantHeard := []Event{RestartDue{Reason: "upgraded"}}
+			wantReport := status.Restart{Reason: "upgraded", Since: start}
+			if !tt.wantRestart {
+				wantHeard = append(wantHeard, RestartHeld{Reason: "upgraded", Refusal: refusal})
+				wantReport.Held = refusal
+			}
+			if !reflect.DeepEqual(heard, wantHeard) {
+				t.Errorf("heard %+v, want %+v", heard, wantHeard)
+			}
+			if got := r.report(); got != wantReport {
+				t.Errorf("report() = %+v, want %+v", got, wantReport)
+			}
+		})
+	}
+}
+
+func TestARestartHeldIsSaidOnceAndAskedAboutNoMore(t *testing.T) {
+	log := logstest.Capture(t)
+	s := newStartedFrom(t)
+	var heard []Event
+	r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), func(e Event) { heard = append(heard, e) })
+	asked := askedOf(r, binaryAnswer{refusal: "invalid config"})
+	relink(t, s.binary, s.version("1.1"))
+	r.look()
+	r.restart(t.Context())
+
+	for range 5 {
+		r.look()
+		if ready := r.ready(); ready != nil {
+			t.Fatalf("ready() = %v while the binary refuses to start, with nothing changed, want none", ready)
+		}
+	}
+	if *asked != 1 {
+		t.Errorf("the binary was asked %d times, want once: nothing changed since it refused", *asked)
+	}
+	if n := strings.Count(log.String(), `msg="restart held`); n != 1 {
+		t.Errorf("log reads\n%s\nwant the restart held said once, not %d times", log, n)
+	}
+	if want := []Event{RestartDue{Reason: "upgraded"}, RestartHeld{Reason: "upgraded", Refusal: "invalid config"}}; !reflect.DeepEqual(heard, want) {
+		t.Errorf("heard %+v, want %+v: the hold told of once", heard, want)
+	}
+	if got := r.report(); got.Held != "invalid config" {
+		t.Errorf("report() = %+v, want the restart held, saying why", got)
+	}
+}
+
+func TestARestartHeldIsAskedAboutAgainOnceTheConfigFileOrTheBinaryChanges(t *testing.T) {
+	tests := []struct {
+		name string
+		// change changes what the router was started from, once the binary
+		// has refused to start.
+		change  func(t *testing.T, s startedFrom)
+		wantDue string
+	}{
+		{
+			name:    "the config file put right",
+			change:  func(t *testing.T, s startedFrom) { writeFile(t, s.kept, twoAccounts) },
+			wantDue: "config changed",
+		},
+		{
+			name: "the binary moved on to another version",
+			change: func(t *testing.T, s startedFrom) {
+				writeFile(t, s.version("1.2"), "switchboard 1.2")
+				relink(t, s.binary, s.version("1.2"))
+			},
+			wantDue: "upgraded",
+		},
+		{
+			name:    "the binary rewritten where it is",
+			change:  func(t *testing.T, s startedFrom) { writeFile(t, s.version("1.1"), "switchboard 1.1, rebuilt") },
+			wantDue: "upgraded",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			s := newStartedFrom(t)
+			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), unheeded)
+			asked := askedOf(r, binaryAnswer{refusal: "invalid config"}, binaryAnswer{})
+			relink(t, s.binary, s.version("1.1"))
+			r.look()
+			r.restart(t.Context())
+
+			tt.change(t, s)
+			r.look()
+			if got := r.report(); got.Held != "" || got.Reason != tt.wantDue {
+				t.Errorf("once changed, report() = %+v, want a restart due for %s, held no longer", got, tt.wantDue)
+			}
+			if r.ready() == nil {
+				t.Fatal("once changed, ready() = nil, want the restart to go ahead once no request is in flight")
+			}
+			if !r.restart(t.Context()) {
+				t.Error("restart() = false, want the router restarted: the binary asked again starts")
+			}
+			if *asked != 2 {
+				t.Errorf("the binary was asked %d times, want twice: again once changed", *asked)
+			}
+			if !log.Has("level=INFO", `msg="the config file or the binary has changed since the restart was held; asking the binary again"`) {
+				t.Errorf("log reads\n%s\nwant the hold lifted", log)
+			}
+		})
+	}
+}
+
+func TestARouterToldToStopAsItAsksItsBinaryNeitherRestartsNorHolds(t *testing.T) {
+	log := logstest.Capture(t)
+	s := newStartedFrom(t)
+	var heard []Event
+	r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), func(e Event) { heard = append(heard, e) })
+	stopped, stop := context.WithCancel(t.Context())
+	r.ask = func(ctx context.Context) (string, error) {
+		stop()
+		return "", ctx.Err()
+	}
+	relink(t, s.binary, s.version("1.1"))
+	r.look()
+
+	if r.restart(stopped) {
+		t.Error("restart() = true, want false: the router was told to stop")
+	}
+	if r.restarting() || r.held != nil {
+		t.Errorf("restarting: %v, and held: %v, want neither", r.restarting(), r.held)
+	}
+	if log.Has(`msg="its binary couldn't answer`) || len(heard) != 1 {
+		t.Errorf("log reads\n%s\nand heard %+v, want nothing said of the binary's answer", log, heard)
+	}
+}
+
+func TestARestartAskedForIsRefusedWhileItsBinaryRefusesToStart(t *testing.T) {
+	tests := []struct {
+		name string
+		// answer is how the binary answers whether it could start.
+		answer  binaryAnswer
+		wantErr string
+	}{
+		{name: "able to start"},
+		{name: "unable to answer, as one from before the check", answer: binaryAnswer{err: errors.New("exit status 1")}},
+		{
+			name:    "refusing",
+			answer:  binaryAnswer{refusal: "invalid config /test/config.toml:\naccount work: its label is longer than 100 characters"},
+			wantErr: "the router's binary refuses to start, so the router started again would stop: invalid config /test/config.toml:\naccount work: its label is longer than 100 characters",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newStartedFrom(t)
+			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), unheeded)
+			asked := askedOf(r, tt.answer)
+
+			err := r.restartable(t.Context())
+			switch {
+			case tt.wantErr == "" && err != nil:
+				t.Errorf("restartable() = %v, want nil", err)
+			case tt.wantErr != "" && (err == nil || err.Error() != tt.wantErr):
+				t.Errorf("restartable() = %v, want %q", err, tt.wantErr)
+			}
+			if *asked != 1 {
+				t.Errorf("the binary was asked %d times, want once", *asked)
+			}
+		})
+	}
+}
+
+func TestARouterRestartingAlreadyCanRestartWithoutAskingItsBinary(t *testing.T) {
+	s := newStartedFrom(t)
+	r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), unheeded)
+	asked := askedOf(r, binaryAnswer{refusal: "invalid config"})
+	r.atOnce()
+
+	if err := r.restartable(t.Context()); err != nil {
+		t.Errorf("restartable() = %v, want nil: the router is restarting already", err)
+	}
+	if *asked != 0 {
+		t.Errorf("the binary was asked %d times, want none", *asked)
+	}
+}
+
+// binaryAnswer is how a router's binary answers whether it could start: why
+// it refuses, or why it couldn't answer.
+type binaryAnswer struct {
+	refusal string
+	err     error
+}
+
+// askedOf has r ask its binary whether it could start, answered as answers
+// says, in turn, and past its end as its last does, and returns how many
+// times it's asked.
+func askedOf(r *restarts, answers ...binaryAnswer) *int {
+	asked := new(int)
+	r.ask = func(context.Context) (string, error) {
+		a := answers[min(*asked, len(answers)-1)]
+		*asked++
+		return a.refusal, a.err
+	}
+	return asked
 }
 
 func TestRequestsInFlight(t *testing.T) {

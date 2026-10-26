@@ -291,7 +291,15 @@ So `accounts add`, an edit by hand, an upgrade and a new time zone all take effe
 command. A router you started by hand with `serve` logs that a restart is due instead.
 
 The router restarts in place. It runs its new binary in the same process and hands that binary the
-sockets it listens on. A request made meanwhile waits a moment rather than being refused.
+sockets it listens on. A request made meanwhile waits a moment rather than being refused, and a
+`claude` started while the router finishes up is still routed.
+
+Before it restarts, the router asks the binary it's about to become whether it can start from your
+config, as a newer version's rules can be stricter than the running one's, such as the 100-character
+limit on labels. If the new version refuses, the router carries on as it is, and says why once: in
+its log, in its events, and as `restart.held` in `switchboard status --json`. It asks again once you
+change the config, or the binary changes again. A version from before this check can't answer, and
+the router restarts into it as it always has.
 
 Restarting in place also means launchd isn't asked to start an upgraded binary afresh. macOS has
 been seen to refuse that, while it lets the router run the new binary in place, as the first such

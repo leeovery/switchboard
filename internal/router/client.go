@@ -44,6 +44,9 @@ const (
 	clientTimeout = 5 * time.Second
 	// refreshTimeout bounds Refresh, which waits for the router's probes.
 	refreshTimeout = refreshWait + clientTimeout
+	// restartTimeout bounds Restart, which waits for the router's binary to
+	// answer whether it could start.
+	restartTimeout = checkTimeout + clientTimeout
 	// streamLineMost is the longest line of the request stream Stream reads:
 	// a router writes a few kilobytes at most, an event's session and model
 	// cut to 200 bytes each, so this leaves room for any field to come.
@@ -197,10 +200,11 @@ func (c *Client) Refresh(ctx context.Context, maxAge time.Duration) (status.Docu
 // its binary, reading the config and the tokens afresh, or else exits for
 // launchd to start it again. It returns the router that took the request,
 // and which it means to do. It fails, saying why, when the router refuses,
-// as one run by hand does, and with ErrNoRestart when it can't be asked.
+// as one run by hand does, or one whose binary refuses to start, and with
+// ErrNoRestart when it can't be asked.
 func (c *Client) Restart(ctx context.Context) (Restart, error) {
 	var restart Restart
-	err := c.call(ctx, clientTimeout, http.MethodPost, "/restart", nil, &restart)
+	err := c.call(ctx, restartTimeout, http.MethodPost, "/restart", nil, &restart)
 	if d, ok := errors.AsType[declined](err); ok && d.reason != "" {
 		return Restart{}, d
 	}

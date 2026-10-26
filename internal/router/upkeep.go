@@ -31,12 +31,15 @@ type upkeep struct {
 // state file to keep with changes, working out the schedule of primer, if it
 // primes, again whenever the accounts with tokens change, telling emit of a
 // restart as it falls due, restarting once inFlight counts no request in
-// flight, and noticing wakes.
+// flight, and the binary, asked as cfg.Check runs it, doesn't refuse to
+// start, and noticing wakes.
 func newUpkeep(cfg Config, as accounts, state *state, changes *changes, primer *primer, inFlight *inFlight, wakes *wakes, emit func(Event)) *upkeep {
 	replan := func() {}
 	if primer != nil {
 		replan = primer.replan
 	}
+	restarts := newRestarts(cfg.ConfigFile, cfg.Binary, cfg.Zone, cfg.Supervised, inFlight, cfg.Now, emit)
+	restarts.ask = asking(cfg)
 	return &upkeep{
 		every: cmp.Or(cfg.WatchEvery, watchEvery),
 		tokens: &tokenFiles{
@@ -52,7 +55,7 @@ func newUpkeep(cfg Config, as accounts, state *state, changes *changes, primer *
 			},
 			gained: state.tokenGained,
 		},
-		restarts: newRestarts(cfg.ConfigFile, cfg.Binary, cfg.Zone, cfg.Supervised, inFlight, cfg.Now, emit),
+		restarts: restarts,
 		wakes:    wakes,
 	}
 }
@@ -72,7 +75,7 @@ func (u *upkeep) run(ctx context.Context) {
 			u.restarts.look()
 			u.tokens.retire(u.restarts.configured())
 		case <-u.restarts.ready():
-			if u.restarts.restart() {
+			if u.restarts.restart(ctx) {
 				return
 			}
 		}
@@ -95,9 +98,9 @@ func (u *upkeep) restartReason() string {
 }
 
 // restartable fails, saying why, when the router can't restart at once, as
-// it's asked to.
-func (u *upkeep) restartable() error {
-	return u.restarts.restartable()
+// it's asked to, its binary asked whether it could start until ctx ends.
+func (u *upkeep) restartable(ctx context.Context) error {
+	return u.restarts.restartable(ctx)
 }
 
 // restartNow restarts the router at once, whatever is in flight, once

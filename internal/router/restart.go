@@ -1,6 +1,7 @@
 package router
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/handover"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -20,16 +22,24 @@ const (
 	restartAsked      = "asked to"
 )
 
+// checkTimeout bounds the router's binary's answer, as it's asked before a
+// restart whether it could start: one that hasn't answered by then is
+// restarted into all the same.
+const checkTimeout = 10 * time.Second
+
 // restarts restarts the router once what it was started from has changed:
 // its config file, into another valid config; its binary, which leads to
 // another file than the one running, as after an upgrade; or the system's
 // time zone, whose file does, as when the Mac is taken to another time zone.
 // A restart waits for a moment with no request in flight, and for the config
-// file to make a valid config, which the router started again needs. Only a
-// supervised router, started again whenever it exits, restarts: any other
-// logs, once, that a restart is due. Either tells of a restart as it falls
-// due, and reports one due, which the status document gives. A supervised
-// router also restarts at once when asked to, as service restart asks.
+// file to make a valid config, which the router started again needs; and the
+// binary it restarts into is asked whether it could start, the restart held
+// while it refuses, as a newer version's rules can refuse a config the
+// running version's took. Only a supervised router, started again whenever
+// it exits, restarts: any other logs, once, that a restart is due. Either
+// tells of a restart as it falls due, and reports one due, which the status
+// document gives. A supervised router also restarts at once when asked to,
+// as service restart asks.
 type restarts struct {
 	config     *configFile
 	binary     *ledFile
@@ -37,18 +47,25 @@ type restarts struct {
 	supervised bool
 	inFlight   *inFlight
 	now        func() time.Time
-	// emit hears of each restart as it falls due.
+	// emit hears of each restart as it falls due, and as it's held.
 	emit func(Event)
+	// ask asks the binary the router restarts into whether it could start,
+	// as asking says: nil asks nothing.
+	ask func(ctx context.Context) (refusal string, err error)
 	// told is set once the log has said a restart is due.
 	told bool
+	// held is how the config file and the binary stood as the binary last
+	// refused to start, while that holds the restart due: nil while nothing
+	// does.
+	held *checked
 	// restarted closes as the router restarts, reason then saying why.
-	restarted  chan struct{}
-	restarting sync.Once
-	reason     string
+	restarted chan struct{}
+	beginning sync.Once
+	reason    string
 
 	mu sync.Mutex
 	// pending is the restart due as what the router was started from last
-	// looked, zero while none is.
+	// looked, held while the binary refuses to start, zero while none is.
 	pending status.Restart
 }
 
@@ -62,6 +79,22 @@ func newRestarts(config, binary, zone Watched, supervised bool, inFlight *inFlig
 		now:        now,
 		emit:       emit,
 		restarted:  make(chan struct{}),
+	}
+}
+
+// asking returns what asks the binary of a router built from cfg whether it
+// could start, as handover.Ask asks it, by Binary's path, run as Args with
+// Environ, as the router restarting would run it, waiting checkTimeout for
+// its answer at most: nil when there's nothing to ask, the router given
+// nothing to run it with, or not knowing its binary.
+func asking(cfg Config) func(ctx context.Context) (string, error) {
+	if cfg.Check == nil || cfg.Binary.path == "" {
+		return nil
+	}
+	return func(ctx context.Context) (string, error) {
+		ctx, cancel := context.WithTimeout(ctx, checkTimeout)
+		defer cancel()
+		return handover.Ask(ctx, cfg.Check, cfg.Binary.path, cfg.Args, cfg.Environ)
 	}
 }
 
@@ -82,11 +115,13 @@ func Watch(path string) Watched {
 }
 
 // look looks at the config file, the binary and the time zone's file again,
-// tells of a restart they've made due as it falls due, and logs it.
+// lifts a hold either of the first two has changed since, tells of a restart
+// they've made due as it falls due, and logs it.
 func (r *restarts) look() {
 	r.config.look()
 	r.binary.look()
 	r.zone.look()
+	r.reconsider()
 	why := r.due()
 	if r.note(why) {
 		r.emit(RestartDue{Reason: why})
@@ -157,44 +192,134 @@ func (r *restarts) configured() config.Accounts {
 
 // ready returns what's closed once a supervised router, with a restart due,
 // has no request in flight, or nil while it's not to restart, as while its
-// config file made no valid config at the last look, which the next settles.
+// config file made no valid config at the last look, which the next settles,
+// or while its binary refuses to start, until a look finds either changed.
 func (r *restarts) ready() <-chan struct{} {
-	if !r.supervised || r.due() == "" || r.config.missed {
+	if !r.supervised || r.due() == "" || r.config.missed || r.held != nil {
 		return nil
 	}
 	return r.inFlight.quiet()
 }
 
 // restart restarts the router, once a look at what it was started from finds
-// a restart still due, and its config file making a valid config, and
-// reports whether it did: the config file may have changed since it was last
-// looked at, into a config the router couldn't start again from.
-func (r *restarts) restart() bool {
+// a restart still due, its config file making a valid config, and its binary,
+// asked until ctx ends, not refusing to start, and reports whether it did:
+// the config file may have changed since it was last looked at, into a
+// config the router couldn't start again from.
+func (r *restarts) restart(ctx context.Context) bool {
 	r.look()
 	why := r.due()
-	if why == "" || r.config.missed {
+	if why == "" || r.config.missed || !r.cleared(ctx, why) {
 		return false
 	}
 	r.begin(why)
 	return true
 }
 
+// cleared asks the binary whether it could start, as asked does, before the
+// router restarts into it for why, and reports whether the restart can go
+// ahead: it can unless the binary refuses, which holds it, or ctx ends
+// first.
+func (r *restarts) cleared(ctx context.Context, why string) bool {
+	stood := r.files()
+	refusal, err := r.asked(ctx)
+	switch {
+	case err != nil:
+		return false
+	case refusal != "":
+		r.hold(stood, why, refusal)
+		return false
+	}
+	return true
+}
+
+// hold holds the restart due for why, its binary refusing to start, saying
+// why, as the config file and the binary stood as it was asked: the log says
+// why at warn, an event tells of it, and the restart due reports it, until a
+// look finds either changed.
+func (r *restarts) hold(stood checked, why, refusal string) {
+	r.held = &stood
+	r.mu.Lock()
+	r.pending.Held = refusal
+	r.mu.Unlock()
+	logger.Warn("restart held, as its binary refuses to start; carrying on as it is", "reason", why, "path", r.binary.path, "refusal", refusal)
+	r.emit(RestartHeld{Reason: why, Refusal: refusal})
+}
+
+// reconsider lifts the hold on the restart due once the config file or the
+// binary has changed since the binary refused to start, for it to be asked
+// again.
+func (r *restarts) reconsider() {
+	if r.held == nil || r.held.same(r.files()) {
+		return
+	}
+	r.held = nil
+	r.mu.Lock()
+	r.pending.Held = ""
+	r.mu.Unlock()
+	logger.Info("the config file or the binary has changed since the restart was held; asking the binary again")
+}
+
+// files returns how the config file and the binary stand now.
+func (r *restarts) files() checked {
+	return checked{config: statFile(r.config.path), binary: statFile(r.binary.path)}
+}
+
 // restartable fails, saying why, when the router can't restart at once, as
-// it's asked to: it isn't supervised, so nothing would start it again, or its
+// it's asked to: it isn't supervised, so nothing would start it again; its
 // config file doesn't make a valid config, which the router started again
-// couldn't start from. It reads the config file afresh, and is safe for
-// concurrent use.
-func (r *restarts) restartable() error {
+// couldn't start from; or its binary, asked until ctx ends, refuses to start.
+// A router restarting already can. It reads the config file afresh, and is
+// safe for concurrent use.
+func (r *restarts) restartable(ctx context.Context) error {
 	if !r.supervised {
 		return errors.New("the router was run by hand, with switchboard serve, so nothing would start it again: stop it, and run it again")
 	}
-	if r.config.path == "" {
+	if r.restarting() {
 		return nil
 	}
-	if _, err := config.Load(r.config.path); err != nil {
-		return fmt.Errorf("the router's config file doesn't make a valid config, which it couldn't start again from: %w", err)
+	if r.config.path != "" {
+		if _, err := config.Load(r.config.path); err != nil {
+			return fmt.Errorf("the router's config file doesn't make a valid config, which it couldn't start again from: %w", err)
+		}
+	}
+	refusal, err := r.asked(ctx)
+	if err != nil {
+		return err
+	}
+	if refusal != "" {
+		return fmt.Errorf("the router's binary refuses to start, so the router started again would stop: %s", refusal)
 	}
 	return nil
+}
+
+// asked asks the binary whether it could start, until ctx ends, and returns
+// why it refuses, if it does, or fails with ctx's error as it ends first. A
+// binary that can't answer, as one from before the check can't, is logged,
+// and taken to start, as before there was one to ask. Nothing to ask refuses
+// nothing.
+func (r *restarts) asked(ctx context.Context) (refusal string, err error) {
+	if r.ask == nil {
+		return "", nil
+	}
+	refusal, err = r.ask(ctx)
+	switch {
+	case ctx.Err() != nil:
+		return "", ctx.Err()
+	case err != nil:
+		logger.Info("its binary couldn't answer whether it could start; restarting all the same", "path", r.binary.path, "error", err)
+	}
+	return refusal, nil
+}
+
+// restarting reports whether the router is restarting.
+func (r *restarts) restarting() bool {
+	select {
+	case <-r.restarted:
+		return true
+	default:
+		return false
+	}
 }
 
 // atOnce restarts the router, whatever is in flight, once restartable
@@ -206,7 +331,7 @@ func (r *restarts) atOnce() {
 // begin restarts the router, for the reason given, unless it's restarting
 // already.
 func (r *restarts) begin(why string) {
-	r.restarting.Do(func() {
+	r.beginning.Do(func() {
 		r.reason = why
 		logger.Info("restarting", "reason", why)
 		close(r.restarted)
@@ -283,6 +408,17 @@ func (f *ledFile) look() {
 	}
 	f.moved = true
 	logger.Info(f.news, "path", f.path)
+}
+
+// checked is how the config file and the binary stand, as the binary is
+// asked whether it could start.
+type checked struct {
+	config, binary fileState
+}
+
+// same reports whether s and t stand alike: each file the same, unchanged.
+func (s checked) same(t checked) bool {
+	return s.config.same(t.config) && s.binary.same(t.binary)
 }
 
 // fileState is how a file stands, its links followed: which file it is, and

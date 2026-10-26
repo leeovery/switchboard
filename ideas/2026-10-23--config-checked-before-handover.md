@@ -37,4 +37,22 @@ least likely to be watching for it.
   config is written, as in `accounts add`.
 - Leave it, and give each tightened rule a line in its release's notes, as #142's has.
 
-Not decided; to discuss.
+## Built, 26 October 2026
+
+The first way, chosen by its owner on 26 October 2026, built in the cleanliness release (see the
+design's The router looking after itself):
+
+- **The check:** before every restart it makes, and before one `service restart` asks for, the
+  router runs the binary it's about to become as it would run it, with `--check` added, a hidden
+  flag of `serve` that loads what `serve` would start from, the config above all, and exits:
+  0 when it could start, and 78, with why on its standard output, when it couldn't. A flag the
+  service passes that the new binary no longer takes is a refusal too. The protocol is
+  `internal/handover`'s (`Ask`, `CheckFlag`, `Refused`), as the listeners' variable is.
+- **Held only on a refusal:** any other answer is restarted into as before: a binary from before
+  the check, which exits 1 at the flag it doesn't know, one that isn't there, one that crashes,
+  and one that takes more than 10 seconds.
+- **While it's held,** the old router serves on, and says why once: at warn in its log, in a
+  `restart` event with `held`, and in the status document's `restart.held`. It asks again only
+  once the config file or the binary changes; `service restart` meanwhile is refused with the
+  binary's reason.
+- **Left to settle:** how the Log, LATELY and `status`'s text word a held restart.

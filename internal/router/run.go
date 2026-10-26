@@ -172,7 +172,10 @@ func listen(addr string) (net.Listener, error) {
 // the state file, the readings history, the request ledger and what has
 // happened lately, filing its events, and posting notifications, then shuts
 // both down, writes what's left to write, and restarting, replaces itself,
-// handing their listeners over.
+// handing their listeners over. Restarting in place, it stops all it runs
+// beside them, but for keeping the state file and filing its events, before
+// the control API closes, so a launcher is answered meanwhile, and saves
+// what that changes once it has.
 func (r *Router) serve(ctx context.Context, ls listeners) error {
 	proxySrv, controlSrv := newProxyServer(r.Proxy()), newServer(r.Control())
 	var serving sync.WaitGroup
@@ -190,21 +193,27 @@ func (r *Router) serve(ctx context.Context, ls listeners) error {
 	looked.Go(func() { r.rounds.run(looking) })
 	// The requests still in flight as the router stops change what's to be
 	// saved, and what's to be told of, and each has its line in the ledger,
-	// so keeping, writing and notifying outlast ctx.
-	background, stopBackground := context.WithCancel(context.WithoutCancel(ctx))
+	// so writing and notifying outlast ctx, as keeping and filing do.
+	background, cancelBackground := context.WithCancel(context.WithoutCancel(ctx))
 	var running sync.WaitGroup
-	running.Go(func() { r.file.keep(background) })
 	running.Go(func() { r.history.run(background) })
 	running.Go(func() { r.ledger.run(background) })
 	running.Go(func() { r.recent.run(background) })
 	if r.notifications != nil {
 		running.Go(func() { r.notifications.run(background) })
 	}
-	// What recent keeps is filed until everything else has stopped, as its
-	// last look can still tell of an event.
-	filing, stopFiling := context.WithCancel(context.WithoutCancel(ctx))
-	var filed sync.WaitGroup
-	filed.Go(func() { r.eventFiles.Run(filing) })
+	stopBackground := func() {
+		cancelBackground()
+		running.Wait()
+	}
+	// The state file is kept, and what recent keeps filed, until everything
+	// else has stopped: the control API, which a restart in place closes only
+	// once the rest has, can still change what the state file keeps, and tell
+	// of an event, as recent's last look can.
+	keeping, stopKeeping := context.WithCancel(context.WithoutCancel(ctx))
+	var kept sync.WaitGroup
+	kept.Go(func() { r.file.keep(keeping) })
+	kept.Go(func() { r.eventFiles.Run(keeping) })
 
 	var err error
 	var held *handover.Held
@@ -219,15 +228,14 @@ func (r *Router) serve(ctx context.Context, ls listeners) error {
 	looked.Wait()
 	r.probes.stop()
 	if held != nil {
-		held = r.drainHandingOver(ctx, controlSrv, proxySrv, held)
+		held = r.drainHandingOver(ctx, controlSrv, proxySrv, held, stopBackground)
 	} else {
 		r.shutdown(controlSrv, proxySrv)
 	}
 	serving.Wait()
 	stopBackground()
-	running.Wait()
-	stopFiling()
-	filed.Wait()
+	stopKeeping()
+	kept.Wait()
 	logger.Info("stopped")
 	if held != nil {
 		r.replace(ctx, held)

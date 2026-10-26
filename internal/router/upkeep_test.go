@@ -2,15 +2,19 @@ package router_test
 
 import (
 	"context"
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/handover"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
@@ -126,6 +130,99 @@ func TestARestartWaitsForTheRequestsInFlight(t *testing.T) {
 	}
 	r.waitForExit(t)
 	execs.only(t)
+}
+
+func TestARestartingRouterAsksItsBinaryWhetherItCouldStartFirst(t *testing.T) {
+	tests := []struct {
+		name string
+		// answer is how the binary answers.
+		answer  checkAnswer
+		wantLog []string
+	}{
+		{name: "able to start"},
+		{
+			name:    "unable to answer, as one from before the check",
+			answer:  checkAnswer{out: "Error: unknown flag: --check\n", err: exited(1)},
+			wantLog: []string{"level=INFO", `msg="its binary couldn't answer whether it could start; restarting all the same"`, `error="exit status 1"`},
+		},
+		{
+			name:    "not there for a moment, as an upgrade moves its link on",
+			answer:  checkAnswer{err: fs.ErrNotExist},
+			wantLog: []string{"level=INFO", `msg="its binary couldn't answer whether it could start; restarting all the same"`, `error="file does not exist"`},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			s := newSelfWatching(t, true)
+			execs := replacing(&s.cfg)
+			// The variable naming the listeners a router that restarted in
+			// place was handed stays in its environment.
+			s.cfg.Environ = append(s.cfg.Environ, handover.Variable+"=control=9,proxy=8")
+			checks := checking(&s.cfg, tt.answer)
+			r := startRouter(t, s.cfg)
+
+			s.upgrade(t)
+			r.waitForExit(t)
+			execs.only(t)
+			asked := checks.only(t)
+			if asked.path != s.binary {
+				t.Errorf("asked %s, want its binary, by the path it was started as, %s", asked.path, s.binary)
+			}
+			if want := append(slices.Clone(s.cfg.Args), "--check"); !slices.Equal(asked.argv, want) {
+				t.Errorf("asked it run as %q, want %q: as it would be run, asked to check", asked.argv, want)
+			}
+			if want := s.cfg.Environ[:len(s.cfg.Environ)-1]; !slices.Equal(asked.env, want) {
+				t.Errorf("asked it in the environment %q, want %q: the one it would run in, naming no listener", asked.env, want)
+			}
+			if tt.wantLog != nil && !log.Has(append(tt.wantLog, "path="+s.binary)...) {
+				t.Errorf("log reads\n%s\nwant a line with %q", log, tt.wantLog)
+			}
+		})
+	}
+}
+
+func TestARestartIsHeldWhileItsBinaryRefusesToStart(t *testing.T) {
+	const why = "invalid config: account work: its label is longer than 100 characters"
+	log := logstest.Capture(t)
+	s := newSelfWatching(t, true)
+	execs := replacing(&s.cfg)
+	checks := checking(&s.cfg, refusing(why), checkAnswer{})
+	r := startRouter(t, s.cfg)
+	socket := router.SocketPath(s.cfg.StateDir)
+
+	s.upgrade(t)
+	waitForStatus(t, socket, func(doc status.Document) bool { return doc.Restart.Held != "" })
+	time.Sleep(10 * watchEvery)
+	r.checkRunning(t)
+	if made := execs.count(); made != 0 {
+		t.Errorf("replaced itself %d times, want none: its binary refuses to start", made)
+	}
+	if asked := checks.count(); asked != 1 {
+		t.Errorf("its binary was asked %d times, want once: nothing has changed since it refused", asked)
+	}
+	doc := waitForStatus(t, socket, func(status.Document) bool { return true })
+	if want := (status.Restart{Reason: "upgraded", Since: now, Held: why}); doc.Restart != want {
+		t.Errorf("the status document gives the restart due as %+v, want %+v", doc.Restart, want)
+	}
+	var held []status.Event
+	for _, e := range doc.Events {
+		if e.Kind == status.EventRestart && e.Held != "" {
+			held = append(held, e)
+		}
+	}
+	if len(held) != 1 || held[0].Reason != "upgraded" || held[0].Held != why {
+		t.Errorf("the held restarts among the events are %+v, want the one, upgraded, held, saying why", held)
+	}
+	warning := []string{"level=WARN", `msg="restart held, as its binary refuses to start; carrying on as it is"`, "reason=upgraded", "path=" + s.binary, `refusal="` + why + `"`}
+	if n := strings.Count(log.String(), `msg="restart held`); n != 1 || !log.Has(warning...) {
+		t.Errorf("log reads\n%s\nwant a line with %q, once", log, warning)
+	}
+
+	writeFile(t, s.config, twoAccounts)
+	r.waitForExit(t)
+	execs.only(t)
+	checks.last(t, 2)
 }
 
 func TestARouterRunByHandSaysARestartIsDueOnce(t *testing.T) {
@@ -336,6 +433,89 @@ func writeFile(t *testing.T, path, content string) {
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// checkAnswer is how the router's binary answers whether it could start:
+// what it prints, and how it ends.
+type checkAnswer struct {
+	out string
+	err error
+}
+
+// refusing is the router's binary refusing to start, saying why.
+func refusing(why string) checkAnswer {
+	return checkAnswer{out: why + "\n", err: exited(handover.Refused)}
+}
+
+// exited is a program's exit with the status it gives, as *exec.ExitError
+// tells it.
+type exited int
+
+func (e exited) Error() string {
+	return "exit status " + strconv.Itoa(int(e))
+}
+
+func (e exited) ExitCode() int {
+	return int(e)
+}
+
+// checkCall is the router's binary run to ask it whether it could start.
+type checkCall struct {
+	path      string
+	argv, env []string
+}
+
+// checks stands in for the router's binary, run to ask it whether it could
+// start, noting each time it's run, and answering each in turn as answers
+// says, and, past its end, as its last does: able to start, for none.
+type checks struct {
+	answers []checkAnswer
+
+	mu    sync.Mutex
+	asked []checkCall
+}
+
+// checking has a router run with cfg ask its binary through checks answering
+// as answers says.
+func checking(cfg *router.Config, answers ...checkAnswer) *checks {
+	c := &checks{answers: answers}
+	cfg.Check = c.run
+	return c
+}
+
+func (c *checks) run(_ context.Context, path string, argv, env []string) ([]byte, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.asked = append(c.asked, checkCall{path: path, argv: argv, env: env})
+	if len(c.answers) == 0 {
+		return nil, nil
+	}
+	a := c.answers[min(len(c.asked), len(c.answers))-1]
+	return []byte(a.out), a.err
+}
+
+// count is how many times the binary has been asked.
+func (c *checks) count() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.asked)
+}
+
+// only returns the one time the binary was asked.
+func (c *checks) only(t *testing.T) checkCall {
+	t.Helper()
+	return c.last(t, 1)
+}
+
+// last returns the last of the n times the binary was asked.
+func (c *checks) last(t *testing.T, n int) checkCall {
+	t.Helper()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.asked) != n {
+		t.Fatalf("its binary was asked %d times, want %d", len(c.asked), n)
+	}
+	return c.asked[n-1]
 }
 
 // startedRouter is a router Run runs in the background, until the test ends

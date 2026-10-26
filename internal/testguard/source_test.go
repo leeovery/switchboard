@@ -31,6 +31,10 @@ var processStarters = []string{
 	// restarts, each replacing the process: main passes it to the CLI, and
 	// tests pass a fake that notes what it was given.
 	"internal/launch/exec_unix.go:Exec",
+	// The router's binary, asked before the router hands over to it whether
+	// it could start: main passes it to the CLI, and tests pass a fake that
+	// answers as they need.
+	"internal/handover/check.go:Run",
 	// launchctl, by name, for the service: main passes it to the CLI, and
 	// tests pass a fake that notes each call.
 	"internal/service/launchctl.go:Launchctl",
